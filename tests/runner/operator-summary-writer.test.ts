@@ -1502,8 +1502,8 @@ describe('operator summary writer', () => {
     const html = readFileSync(written.htmlPath as string, 'utf8');
     expect(html).toContain('<!doctype html>');
     expect(html).toContain('Which framework &lt;should&gt; we pick?');
-    expect(html).toContain('class="card intent-positive"');
-    expect(html).toContain('<span class="intent-badge intent-positive">Selected</span>');
+    expect(html).toMatch(/data-slot="card"[^>]*data-intent="positive"/);
+    expect(html).toMatch(/data-intent="positive"[^>]*>Selected</);
     expect(html).toContain('Vue &lt;script&gt;alert(1)&lt;/script&gt;');
     expect(html).not.toContain('<script>alert(1)</script>');
     expect(html).toContain('high confidence');
@@ -1860,7 +1860,7 @@ describe('operator summary writer', () => {
     expect(html).toContain(
       'data-mv-preview-src="../prototype-files/variants/variant-b/index.html"',
     );
-    expect(html).toContain('--checkpoint-choice &#39;variant-a&#39;');
+    expect(html).toContain('--checkpoint-choice &#x27;variant-a&#x27;');
 
     const markdown = readFileSync(written.markdownPath, 'utf8');
     expect(markdown).toContain(`Rich summary: ${written.htmlPath as string}`);

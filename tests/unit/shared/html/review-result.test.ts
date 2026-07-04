@@ -86,7 +86,7 @@ describe('reviewResultProjector', () => {
     if (html === undefined) throw new Error('expected review html');
     // Clean is calm: amber card borders are reserved for findings that need
     // caution, not for method notes on a clean result.
-    expect(html).not.toContain('class="card intent-attention"');
+    expect(html).not.toMatch(/data-slot="card"[^>]*data-intent="attention"/);
     // Honesty holds: the scope limits stay visible as a quiet badge.
     expect(html).toContain('Scope limited');
     expect(html).toContain('untracked file contents were not included');
@@ -121,7 +121,7 @@ describe('reviewResultProjector', () => {
 
     expect(html).toBeDefined();
     if (html === undefined) throw new Error('expected review html');
-    expect(html).toContain('class="card intent-attention"');
+    expect(html).toMatch(/data-slot="card"[^>]*data-intent="attention"/);
   });
 
   it('stays markdown-only for clean Review results without caveats', () => {

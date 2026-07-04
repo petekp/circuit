@@ -39,6 +39,12 @@ const CLIPBOARD_SCRIPT = [
 export type RenderHtmlDocumentInput = {
   readonly title: string;
   readonly body: ReactNode;
+  // Page-specific stylesheet appended after the design-system CSS. Must be
+  // a build-time constant, never operator input.
+  readonly extraStyle?: string | undefined;
+  // Page-specific behavior script appended after the clipboard helper.
+  // Must be a build-time constant, never operator input.
+  readonly extraScript?: string | undefined;
 };
 
 export function renderHtmlDocument(input: RenderHtmlDocumentInput): string {
@@ -50,11 +56,19 @@ export function renderHtmlDocument(input: RenderHtmlDocumentInput): string {
         <title>{t(input.title, 256)}</title>
         {/* biome-ignore lint/security/noDangerouslySetInnerHtml: build-produced CSS, not operator input */}
         <style dangerouslySetInnerHTML={{ __html: UI_CSS }} />
+        {input.extraStyle === undefined ? null : (
+          // biome-ignore lint/security/noDangerouslySetInnerHtml: static stylesheet constant, not operator input
+          <style dangerouslySetInnerHTML={{ __html: input.extraStyle }} />
+        )}
       </head>
       <body>
         {input.body}
         {/* biome-ignore lint/security/noDangerouslySetInnerHtml: static script constant, not operator input */}
         <script dangerouslySetInnerHTML={{ __html: CLIPBOARD_SCRIPT }} />
+        {input.extraScript === undefined ? null : (
+          // biome-ignore lint/security/noDangerouslySetInnerHtml: static script constant, not operator input
+          <script dangerouslySetInnerHTML={{ __html: input.extraScript }} />
+        )}
       </body>
     </html>,
   );

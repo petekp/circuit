@@ -30923,64 +30923,13 @@ function buildSanitizePattern() {
 function sanitizeForRender(value) {
   return value.replace(SANITIZE_PATTERN, "");
 }
-function escapeHtmlChars(value) {
-  return value.replace(/[&<>"']/g, (char) => ESCAPE_MAP[char] ?? char);
-}
-function escapeHtml(value) {
-  return escapeHtmlChars(sanitizeForRender(value));
-}
 function truncate(value, max) {
   return value.length > max ? `${value.slice(0, max - 1)}\u2026` : value;
 }
-function styles() {
-  return `:root{--bg:#fafaf9;--surface:#fff;--surface-2:#f5f5f4;--border:#e7e5e4;--border-strong:#d6d3d1;--text:#1c1917;--text-2:#57534e;--text-3:#a8a29e;--accent:#0f172a;--intent-positive:#166534;--intent-positive-soft:#f0fdf4;--intent-info:#1e40af;--intent-info-soft:#eff6ff;--intent-attention:#9a3412;--intent-attention-soft:#fff7ed;--intent-negative:#991b1b;--intent-negative-soft:#fef2f2}@media (prefers-color-scheme:dark){:root{--bg:#0c0a09;--surface:#1c1917;--surface-2:#292524;--border:#292524;--border-strong:#44403c;--text:#fafaf9;--text-2:#a8a29e;--text-3:#78716c;--accent:#fafaf9;--intent-positive:#4ade80;--intent-positive-soft:#052e16;--intent-info:#93c5fd;--intent-info-soft:#172554;--intent-attention:#fb923c;--intent-attention-soft:#431407;--intent-negative:#f87171;--intent-negative-soft:#450a0a}}*{box-sizing:border-box}html,body{margin:0;padding:0}body{font:15px/1.55 -apple-system,BlinkMacSystemFont,"SF Pro Text",system-ui,sans-serif;background:var(--bg);color:var(--text);-webkit-font-smoothing:antialiased}.wrap{max-width:1200px;margin:0 auto;padding:48px 32px 96px}header.top{margin-bottom:24px}.meta{font-size:12px;color:var(--text-3);text-transform:uppercase;letter-spacing:.06em;margin-bottom:8px}h1{font:600 28px/1.25 -apple-system,BlinkMacSystemFont,system-ui,sans-serif;margin:0 0 8px;letter-spacing:-.01em}.subtitle{color:var(--text-2);font-size:16px;margin:0}.verdict{margin:24px 0 32px;padding:16px 20px;background:var(--intent-info-soft);border:1px solid var(--intent-info);border-radius:8px;display:flex;align-items:baseline;gap:12px;flex-wrap:wrap}.verdict.intent-positive{background:var(--intent-positive-soft);border-color:var(--intent-positive)}.verdict.intent-attention{background:var(--intent-attention-soft);border-color:var(--intent-attention)}.verdict.intent-negative{background:var(--intent-negative-soft);border-color:var(--intent-negative)}.verdict .badge{font:600 11px/1 -apple-system,system-ui,sans-serif;letter-spacing:.08em;text-transform:uppercase;color:var(--intent-info);padding:4px 8px;border:1px solid var(--intent-info);border-radius:4px}.verdict.intent-positive .badge{color:var(--intent-positive);border-color:var(--intent-positive)}.verdict.intent-attention .badge{color:var(--intent-attention);border-color:var(--intent-attention)}.verdict.intent-negative .badge{color:var(--intent-negative);border-color:var(--intent-negative)}.verdict .text{color:var(--text);font-size:14px;flex:1;min-width:200px}.verdict .text strong{font-weight:600}.verdict .confidence{font-size:12px;color:var(--text-2);text-transform:lowercase}.grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(320px,1fr));gap:16px}.card{background:var(--surface);border:1px solid var(--border);border-radius:10px;padding:20px;display:flex;flex-direction:column;gap:16px;position:relative}.card.intent-info{border-color:var(--intent-info);box-shadow:0 0 0 3px var(--intent-info-soft)}.card.intent-positive{border-color:var(--intent-positive);box-shadow:0 0 0 3px var(--intent-positive-soft)}.card.intent-attention{border-color:var(--intent-attention);box-shadow:0 0 0 3px var(--intent-attention-soft)}.card.intent-negative{border-color:var(--intent-negative);box-shadow:0 0 0 3px var(--intent-negative-soft)}.card-head{display:flex;justify-content:space-between;align-items:flex-start;gap:12px}.card-id{font:500 11px/1 ui-monospace,"SF Mono",Menlo,monospace;color:var(--text-3);letter-spacing:.05em}.card h2{font:600 17px/1.3 -apple-system,system-ui,sans-serif;margin:4px 0 0;letter-spacing:-.005em}.intent-badge{font:600 10px/1 -apple-system,system-ui,sans-serif;text-transform:uppercase;letter-spacing:.08em;padding:4px 8px;border-radius:4px;white-space:nowrap;color:var(--intent-info);background:var(--intent-info-soft)}.intent-badge.intent-positive{color:var(--intent-positive);background:var(--intent-positive-soft)}.intent-badge.intent-attention{color:var(--intent-attention);background:var(--intent-attention-soft)}.intent-badge.intent-negative{color:var(--intent-negative);background:var(--intent-negative-soft)}.summary{color:var(--text-2);font-size:14px;margin:0}.section-label{font:600 10px/1 -apple-system,system-ui,sans-serif;text-transform:uppercase;letter-spacing:.08em;color:var(--text-3);margin:0 0 8px}ul.tradeoffs{margin:0;padding:0;list-style:none;display:flex;flex-direction:column;gap:6px}ul.tradeoffs li{font-size:13px;color:var(--text);padding-left:18px;position:relative;line-height:1.5}ul.tradeoffs li::before{content:"\\2022";position:absolute;left:6px;color:var(--text-3);font-weight:700}.evidence{display:flex;flex-wrap:wrap;gap:6px}.chip{font:500 11px/1 ui-monospace,"SF Mono",Menlo,monospace;padding:4px 8px;background:var(--surface-2);border:1px solid var(--border);border-radius:4px;color:var(--text-2)}.actions{display:flex;gap:8px;margin-top:auto;padding-top:8px}button.copy{font:500 13px/1 -apple-system,system-ui,sans-serif;padding:8px 12px;border:1px solid var(--border-strong);border-radius:6px;background:var(--surface);color:var(--text);cursor:pointer}button.copy:hover{background:var(--surface-2)}button.copy.primary{background:var(--accent);color:var(--bg);border-color:var(--accent)}button.copy.primary:hover{opacity:.9}details{margin-top:32px;background:var(--surface);border:1px solid var(--border);border-radius:8px;padding:12px 16px}details summary{cursor:pointer;font:500 13px/1.4 -apple-system,system-ui,sans-serif;color:var(--text-2);user-select:none}details[open] summary{margin-bottom:12px}details .body{font-size:13px;color:var(--text-2)}details ul{margin:6px 0;padding-left:20px}details li{margin-bottom:4px}footer{margin-top:48px;padding-top:24px;border-top:1px solid var(--border);color:var(--text-3);font-size:12px;display:flex;justify-content:space-between;flex-wrap:wrap;gap:12px}footer code{font:500 11px/1 ui-monospace,"SF Mono",Menlo,monospace}`;
-}
-function clipboardScript() {
-  return `document.querySelectorAll('button.copy').forEach(btn=>{btn.addEventListener('click',async()=>{const p=btn.dataset.prompt;if(!p)return;try{await navigator.clipboard.writeText(p);const o=btn.textContent;btn.textContent='Copied';setTimeout(()=>{btn.textContent=o;},1200);}catch(e){btn.textContent='Copy failed';}});});`;
-}
-function renderPage(input) {
-  const footerLeft = input.footerLeft === void 0 ? "" : `<span>${escapeHtml(input.footerLeft)}</span>`;
-  const footerRight = input.footerRight === void 0 ? "" : `<span><code>${escapeHtml(input.footerRight)}</code></span>`;
-  const wrapClassName = input.wrapClassName ?? "wrap";
-  const extraStyles = input.extraStyles === void 0 ? "" : input.extraStyles;
-  const extraScript = input.extraScript === void 0 ? "" : input.extraScript;
-  return `<!doctype html>
-<html lang="en">
-<head>
-<meta charset="utf-8">
-<meta name="viewport" content="width=device-width, initial-scale=1">
-<title>${escapeHtml(input.title)}</title>
-<style>${styles()}${extraStyles}</style>
-</head>
-<body>
-<div class="${escapeHtml(wrapClassName)}">
-  <header class="top">
-    <div class="meta">${escapeHtml(input.metaLine)}</div>
-    <h1>${escapeHtml(input.headline)}</h1>
-    <p class="subtitle">${escapeHtml(input.subtitle)}</p>
-  </header>
-${input.bodyHtml}
-  <footer>
-    ${footerLeft}
-    ${footerRight}
-  </footer>
-</div>
-<script>${clipboardScript()}${extraScript}</script>
-</body>
-</html>
-`;
-}
-var ESCAPE_MAP, SANITIZE_PATTERN, MAX_BULLET_LEN, MAX_PROMPT_LEN;
+var SANITIZE_PATTERN, MAX_BULLET_LEN, MAX_PROMPT_LEN;
 var init_page = __esm({
   "dist/shared/html/page.js"() {
     "use strict";
-    ESCAPE_MAP = {
-      "&": "&amp;",
-      "<": "&lt;",
-      ">": "&gt;",
-      '"': "&quot;",
-      "'": "&#39;"
-    };
     SANITIZE_PATTERN = buildSanitizePattern();
     MAX_BULLET_LEN = 4096;
     MAX_PROMPT_LEN = 32768;
@@ -57217,7 +57166,7 @@ var init_css_generated = __esm({
   "dist/shared/html/ui/css.generated.js"() {
     "use strict";
     UI_CSS = `/*! tailwindcss v4.3.2 | MIT License | https://tailwindcss.com */
-@layer properties{@supports (((-webkit-hyphens:none)) and (not (margin-trim:inline))) or ((-moz-orient:inline) and (not (color:rgb(from red r g b)))){*,:before,:after,::backdrop{--tw-rotate-x:initial;--tw-rotate-y:initial;--tw-rotate-z:initial;--tw-skew-x:initial;--tw-skew-y:initial;--tw-space-y-reverse:0;--tw-border-style:solid;--tw-leading:initial;--tw-font-weight:initial;--tw-tracking:initial;--tw-shadow:0 0 #0000;--tw-shadow-color:initial;--tw-shadow-alpha:100%;--tw-inset-shadow:0 0 #0000;--tw-inset-shadow-color:initial;--tw-inset-shadow-alpha:100%;--tw-ring-color:initial;--tw-ring-shadow:0 0 #0000;--tw-inset-ring-color:initial;--tw-inset-ring-shadow:0 0 #0000;--tw-ring-inset:initial;--tw-ring-offset-width:0px;--tw-ring-offset-color:#fff;--tw-ring-offset-shadow:0 0 #0000;--tw-outline-style:solid;--tw-blur:initial;--tw-brightness:initial;--tw-contrast:initial;--tw-grayscale:initial;--tw-hue-rotate:initial;--tw-invert:initial;--tw-opacity:initial;--tw-saturate:initial;--tw-sepia:initial;--tw-drop-shadow:initial;--tw-drop-shadow-color:initial;--tw-drop-shadow-alpha:100%;--tw-drop-shadow-size:initial;--tw-translate-x:0;--tw-translate-y:0;--tw-translate-z:0}}}@layer theme{:root,:host{--font-sans:ui-sans-serif, system-ui, sans-serif, "Apple Color Emoji", "Segoe UI Emoji", "Segoe UI Symbol", "Noto Color Emoji";--font-mono:ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace;--color-white:#fff;--spacing:.25rem;--container-4xl:56rem;--text-xs:.75rem;--text-xs--line-height:calc(1 / .75);--text-sm:.875rem;--text-sm--line-height:calc(1.25 / .875);--text-base:1rem;--text-base--line-height:calc(1.5 / 1);--font-weight-normal:400;--font-weight-medium:500;--font-weight-semibold:600;--tracking-tight:-.025em;--leading-tight:1.25;--leading-snug:1.375;--leading-normal:1.5;--leading-relaxed:1.625;--default-transition-duration:.15s;--default-transition-timing-function:cubic-bezier(.4, 0, .2, 1);--default-font-family:var(--font-sans);--default-mono-font-family:var(--font-mono)}}@layer base{*,:after,:before,::backdrop{box-sizing:border-box;border:0 solid;margin:0;padding:0}::file-selector-button{box-sizing:border-box;border:0 solid;margin:0;padding:0}html,:host{-webkit-text-size-adjust:100%;tab-size:4;line-height:1.5;font-family:var(--default-font-family,ui-sans-serif, system-ui, sans-serif, "Apple Color Emoji", "Segoe UI Emoji", "Segoe UI Symbol", "Noto Color Emoji");font-feature-settings:var(--default-font-feature-settings,normal);font-variation-settings:var(--default-font-variation-settings,normal);-webkit-tap-highlight-color:transparent}hr{height:0;color:inherit;border-top-width:1px}abbr:where([title]){-webkit-text-decoration:underline dotted;text-decoration:underline dotted}h1,h2,h3,h4,h5,h6{font-size:inherit;font-weight:inherit}a{color:inherit;-webkit-text-decoration:inherit;-webkit-text-decoration:inherit;-webkit-text-decoration:inherit;text-decoration:inherit}b,strong{font-weight:bolder}code,kbd,samp,pre{font-family:var(--default-mono-font-family,ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace);font-feature-settings:var(--default-mono-font-feature-settings,normal);font-variation-settings:var(--default-mono-font-variation-settings,normal);font-size:1em}small{font-size:80%}sub,sup{vertical-align:baseline;font-size:75%;line-height:0;position:relative}sub{bottom:-.25em}sup{top:-.5em}table{text-indent:0;border-color:inherit;border-collapse:collapse}:-moz-focusring{outline:auto}progress{vertical-align:baseline}summary{display:list-item}ol,ul,menu{list-style:none}img,svg,video,canvas,audio,iframe,embed,object{vertical-align:middle;display:block}img,video{max-width:100%;height:auto}button,input,select,optgroup,textarea{font:inherit;font-feature-settings:inherit;font-variation-settings:inherit;letter-spacing:inherit;color:inherit;opacity:1;background-color:#0000;border-radius:0}::file-selector-button{font:inherit;font-feature-settings:inherit;font-variation-settings:inherit;letter-spacing:inherit;color:inherit;opacity:1;background-color:#0000;border-radius:0}:where(select:is([multiple],[size])) optgroup{font-weight:bolder}:where(select:is([multiple],[size])) optgroup option{padding-inline-start:20px}::file-selector-button{margin-inline-end:4px}::placeholder{opacity:1}@supports (not ((-webkit-appearance:-apple-pay-button))) or (contain-intrinsic-size:1px){::placeholder{color:currentColor}@supports (color:color-mix(in lab, red, red)){::placeholder{color:color-mix(in oklab, currentcolor 50%, transparent)}}}textarea{resize:vertical}::-webkit-search-decoration{-webkit-appearance:none}::-webkit-date-and-time-value{min-height:1lh;text-align:inherit}::-webkit-datetime-edit{display:inline-flex}::-webkit-datetime-edit-fields-wrapper{padding:0}::-webkit-datetime-edit{padding-block:0}::-webkit-datetime-edit-year-field{padding-block:0}::-webkit-datetime-edit-month-field{padding-block:0}::-webkit-datetime-edit-day-field{padding-block:0}::-webkit-datetime-edit-hour-field{padding-block:0}::-webkit-datetime-edit-minute-field{padding-block:0}::-webkit-datetime-edit-second-field{padding-block:0}::-webkit-datetime-edit-millisecond-field{padding-block:0}::-webkit-datetime-edit-meridiem-field{padding-block:0}::-webkit-calendar-picker-indicator{line-height:1}:-moz-ui-invalid{box-shadow:none}button,input:where([type=button],[type=reset],[type=submit]){appearance:button}::file-selector-button{appearance:button}::-webkit-inner-spin-button{height:auto}::-webkit-outer-spin-button{height:auto}[hidden]:where(:not([hidden=until-found])){display:none!important}*{border-color:var(--border);outline-color:var(--ring)}@supports (color:color-mix(in lab, red, red)){*{outline-color:color-mix(in oklab, var(--ring) 50%, transparent)}}body{background-color:var(--background);color:var(--foreground)}}@layer components{input[data-slot=checkbox]:checked{background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%23fafaf9' stroke-width='3' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M20 6 9 17l-5-5'/%3E%3C/svg%3E");background-position:50%;background-repeat:no-repeat;background-size:.75rem}input[data-slot=radio-group-item]:checked{background-image:radial-gradient(circle closest-side, var(--primary) 45%, transparent 50%)}}@layer utilities{.\\@container\\/card-header{container:card-header/inline-size}.\\@container\\/field-group{container:field-group/inline-size}.pointer-events-none{pointer-events:none}.collapse{visibility:collapse}.invisible{visibility:hidden}.visible{visibility:visible}.absolute{position:absolute}.fixed{position:fixed}.relative{position:relative}.static{position:static}.sticky{position:sticky}.inset-0{inset:0}.top-1\\/2{top:50%}.col-start-2{grid-column-start:2}.row-span-2{grid-row:span 2/span 2}.row-start-1{grid-row-start:1}.m-0{margin:0}.mx-auto{margin-inline:auto}.-my-2{margin-block:calc(var(--spacing) * -2)}.mt-2{margin-top:calc(var(--spacing) * 2)}.mt-3{margin-top:calc(var(--spacing) * 3)}.mt-4{margin-top:calc(var(--spacing) * 4)}.mt-5{margin-top:calc(var(--spacing) * 5)}.mt-8{margin-top:calc(var(--spacing) * 8)}.mt-12{margin-top:calc(var(--spacing) * 12)}.mb-1\\.5{margin-bottom:calc(var(--spacing) * 1.5)}.mb-2{margin-bottom:calc(var(--spacing) * 2)}.mb-3{margin-bottom:calc(var(--spacing) * 3)}.mb-6{margin-bottom:calc(var(--spacing) * 6)}.mb-7{margin-bottom:calc(var(--spacing) * 7)}.ml-4{margin-left:calc(var(--spacing) * 4)}.line-clamp-1{-webkit-line-clamp:1;-webkit-box-orient:vertical;display:-webkit-box;overflow:hidden}.block{display:block}.contents{display:contents}.flex{display:flex}.grid{display:grid}.hidden{display:none}.inline{display:inline}.inline-flex{display:inline-flex}.table{display:table}.table-caption{display:table-caption}.table-cell{display:table-cell}.table-row{display:table-row}.field-sizing-content{field-sizing:content}.aspect-square{aspect-ratio:1}.size-1{width:var(--spacing);height:var(--spacing)}.size-4{width:calc(var(--spacing) * 4);height:calc(var(--spacing) * 4)}.size-8{width:calc(var(--spacing) * 8);height:calc(var(--spacing) * 8)}.size-9{width:calc(var(--spacing) * 9);height:calc(var(--spacing) * 9)}.size-10{width:calc(var(--spacing) * 10);height:calc(var(--spacing) * 10)}.h-5{height:calc(var(--spacing) * 5)}.h-8{height:calc(var(--spacing) * 8)}.h-9{height:calc(var(--spacing) * 9)}.h-10{height:calc(var(--spacing) * 10)}.min-h-4{min-height:calc(var(--spacing) * 4)}.min-h-16{min-height:calc(var(--spacing) * 16)}.w-fit{width:fit-content}.w-full{width:100%}.max-w-4xl{max-width:var(--container-4xl)}.max-w-full{max-width:100%}.min-w-0{min-width:0}.min-w-5{min-width:calc(var(--spacing) * 5)}.min-w-\\[200px\\]{min-width:200px}.flex-1{flex:1}.shrink-0{flex-shrink:0}.caption-bottom{caption-side:bottom}.transform{transform:var(--tw-rotate-x,) var(--tw-rotate-y,) var(--tw-rotate-z,) var(--tw-skew-x,) var(--tw-skew-y,)}.cursor-pointer{cursor:pointer}.list-disc{list-style-type:disc}.appearance-none{appearance:none}.auto-rows-min{grid-auto-rows:min-content}.grid-cols-\\[0_1fr\\]{grid-template-columns:0 1fr}.grid-rows-\\[auto_auto\\]{grid-template-rows:auto auto}.flex-col{flex-direction:column}.flex-row{flex-direction:row}.flex-wrap{flex-wrap:wrap}.items-baseline{align-items:baseline}.items-center{align-items:center}.items-start{align-items:flex-start}.justify-between{justify-content:space-between}.justify-center{justify-content:center}.justify-items-start{justify-items:start}.gap-1{gap:var(--spacing)}.gap-1\\.5{gap:calc(var(--spacing) * 1.5)}.gap-2{gap:calc(var(--spacing) * 2)}.gap-2\\.5{gap:calc(var(--spacing) * 2.5)}.gap-3{gap:calc(var(--spacing) * 3)}.gap-3\\.5{gap:calc(var(--spacing) * 3.5)}.gap-4{gap:calc(var(--spacing) * 4)}.gap-6{gap:calc(var(--spacing) * 6)}.gap-7{gap:calc(var(--spacing) * 7)}:where(.space-y-1\\.5>:not(:last-child)){--tw-space-y-reverse:0;margin-block-start:calc(calc(var(--spacing) * 1.5) * var(--tw-space-y-reverse));margin-block-end:calc(calc(var(--spacing) * 1.5) * calc(1 - var(--tw-space-y-reverse)))}.gap-y-0\\.5{row-gap:calc(var(--spacing) * .5)}.self-start{align-self:flex-start}.justify-self-end{justify-self:flex-end}.truncate{text-overflow:ellipsis;white-space:nowrap;overflow:hidden}.overflow-hidden{overflow:hidden}.overflow-x-auto{overflow-x:auto}.rounded-\\[4px\\]{border-radius:4px}.rounded-full{border-radius:3.40282e38px}.rounded-lg{border-radius:var(--radius)}.rounded-md{border-radius:calc(var(--radius) - 2px)}.rounded-sm{border-radius:calc(var(--radius) - 4px)}.rounded-xl{border-radius:calc(var(--radius) + 4px)}.border{border-style:var(--tw-border-style);border-width:1px}.border-t{border-top-style:var(--tw-border-style);border-top-width:1px}.border-b{border-bottom-style:var(--tw-border-style);border-bottom-width:1px}.border-dashed{--tw-border-style:dashed;border-style:dashed}.border-attention\\/60{border-color:var(--attention)}@supports (color:color-mix(in lab, red, red)){.border-attention\\/60{border-color:color-mix(in oklab, var(--attention) 60%, transparent)}}.border-border{border-color:var(--border)}.border-info\\/50{border-color:var(--info)}@supports (color:color-mix(in lab, red, red)){.border-info\\/50{border-color:color-mix(in oklab, var(--info) 50%, transparent)}}.border-input{border-color:var(--input)}.border-positive\\/50{border-color:var(--positive)}@supports (color:color-mix(in lab, red, red)){.border-positive\\/50{border-color:color-mix(in oklab, var(--positive) 50%, transparent)}}.border-positive\\/60{border-color:var(--positive)}@supports (color:color-mix(in lab, red, red)){.border-positive\\/60{border-color:color-mix(in oklab, var(--positive) 60%, transparent)}}.border-transparent{border-color:#0000}.bg-background{background-color:var(--background)}.bg-border{background-color:var(--border)}.bg-card{background-color:var(--card)}.bg-destructive{background-color:var(--destructive)}.bg-muted,.bg-muted\\/50{background-color:var(--muted)}@supports (color:color-mix(in lab, red, red)){.bg-muted\\/50{background-color:color-mix(in oklab, var(--muted) 50%, transparent)}}.bg-positive\\/5{background-color:var(--positive)}@supports (color:color-mix(in lab, red, red)){.bg-positive\\/5{background-color:color-mix(in oklab, var(--positive) 5%, transparent)}}.bg-primary{background-color:var(--primary)}.bg-secondary{background-color:var(--secondary)}.bg-transparent{background-color:#0000}.p-2{padding:calc(var(--spacing) * 2)}.px-1{padding-inline:var(--spacing)}.px-2{padding-inline:calc(var(--spacing) * 2)}.px-2\\.5{padding-inline:calc(var(--spacing) * 2.5)}.px-3{padding-inline:calc(var(--spacing) * 3)}.px-4{padding-inline:calc(var(--spacing) * 4)}.px-5{padding-inline:calc(var(--spacing) * 5)}.px-6{padding-inline:calc(var(--spacing) * 6)}.py-0\\.5{padding-block:calc(var(--spacing) * .5)}.py-1{padding-block:var(--spacing)}.py-1\\.5{padding-block:calc(var(--spacing) * 1.5)}.py-2{padding-block:calc(var(--spacing) * 2)}.py-3{padding-block:calc(var(--spacing) * 3)}.py-3\\.5{padding-block:calc(var(--spacing) * 3.5)}.py-4{padding-block:calc(var(--spacing) * 4)}.py-5{padding-block:calc(var(--spacing) * 5)}.py-6{padding-block:calc(var(--spacing) * 6)}.py-12{padding-block:calc(var(--spacing) * 12)}.pt-0\\.5{padding-top:calc(var(--spacing) * .5)}.pt-6{padding-top:calc(var(--spacing) * 6)}.pb-24{padding-bottom:calc(var(--spacing) * 24)}.pl-4{padding-left:calc(var(--spacing) * 4)}.text-left{text-align:left}.align-middle{vertical-align:middle}.font-mono{font-family:var(--font-mono)}.font-sans{font-family:var(--font-sans)}.text-base{font-size:var(--text-base);line-height:var(--tw-leading,var(--text-base--line-height))}.text-sm{font-size:var(--text-sm);line-height:var(--tw-leading,var(--text-sm--line-height))}.text-xs{font-size:var(--text-xs);line-height:var(--tw-leading,var(--text-xs--line-height))}.text-\\[10px\\]{font-size:10px}.text-\\[11px\\]{font-size:11px}.text-\\[13\\.5px\\]{font-size:13.5px}.text-\\[13px\\]{font-size:13px}.text-\\[15px\\]{font-size:15px}.text-\\[27px\\]{font-size:27px}.leading-none{--tw-leading:1;line-height:1}.leading-normal{--tw-leading:var(--leading-normal);line-height:var(--leading-normal)}.leading-relaxed{--tw-leading:var(--leading-relaxed);line-height:var(--leading-relaxed)}.leading-snug{--tw-leading:var(--leading-snug);line-height:var(--leading-snug)}.leading-tight{--tw-leading:var(--leading-tight);line-height:var(--leading-tight)}.font-medium{--tw-font-weight:var(--font-weight-medium);font-weight:var(--font-weight-medium)}.font-normal{--tw-font-weight:var(--font-weight-normal);font-weight:var(--font-weight-normal)}.font-semibold{--tw-font-weight:var(--font-weight-semibold);font-weight:var(--font-weight-semibold)}.tracking-\\[0\\.05em\\]{--tw-tracking:.05em;letter-spacing:.05em}.tracking-\\[0\\.06em\\]{--tw-tracking:.06em;letter-spacing:.06em}.tracking-\\[0\\.08em\\]{--tw-tracking:.08em;letter-spacing:.08em}.tracking-tight{--tw-tracking:var(--tracking-tight);letter-spacing:var(--tracking-tight)}.text-balance{text-wrap:balance}.break-words{overflow-wrap:break-word}.whitespace-nowrap{white-space:nowrap}.whitespace-pre{white-space:pre}.text-card-foreground{color:var(--card-foreground)}.text-destructive{color:var(--destructive)}.text-foreground{color:var(--foreground)}.text-muted-foreground{color:var(--muted-foreground)}.text-positive{color:var(--positive)}.text-primary{color:var(--primary)}.text-primary-foreground{color:var(--primary-foreground)}.text-secondary-foreground{color:var(--secondary-foreground)}.text-white{color:var(--color-white)}.uppercase{text-transform:uppercase}.underline-offset-4{text-underline-offset:4px}.antialiased{-webkit-font-smoothing:antialiased;-moz-osx-font-smoothing:grayscale}.shadow-none{--tw-shadow:0 0 #0000;box-shadow:var(--tw-inset-shadow), var(--tw-inset-ring-shadow), var(--tw-ring-offset-shadow), var(--tw-ring-shadow), var(--tw-shadow)}.shadow-sm{--tw-shadow:0 1px 3px 0 var(--tw-shadow-color,#0000001a), 0 1px 2px -1px var(--tw-shadow-color,#0000001a);box-shadow:var(--tw-inset-shadow), var(--tw-inset-ring-shadow), var(--tw-ring-offset-shadow), var(--tw-ring-shadow), var(--tw-shadow)}.shadow-xs{--tw-shadow:0 1px 2px 0 var(--tw-shadow-color,#0000000d);box-shadow:var(--tw-inset-shadow), var(--tw-inset-ring-shadow), var(--tw-ring-offset-shadow), var(--tw-ring-shadow), var(--tw-shadow)}.ring-\\[3px\\]{--tw-ring-shadow:var(--tw-ring-inset,) 0 0 0 calc(3px + var(--tw-ring-offset-width)) var(--tw-ring-color,currentcolor);box-shadow:var(--tw-inset-shadow), var(--tw-inset-ring-shadow), var(--tw-ring-offset-shadow), var(--tw-ring-shadow), var(--tw-shadow)}.ring-attention\\/10{--tw-ring-color:var(--attention)}@supports (color:color-mix(in lab, red, red)){.ring-attention\\/10{--tw-ring-color:color-mix(in oklab, var(--attention) 10%, transparent)}}.ring-info\\/10{--tw-ring-color:var(--info)}@supports (color:color-mix(in lab, red, red)){.ring-info\\/10{--tw-ring-color:color-mix(in oklab, var(--info) 10%, transparent)}}.ring-positive\\/10{--tw-ring-color:var(--positive)}@supports (color:color-mix(in lab, red, red)){.ring-positive\\/10{--tw-ring-color:color-mix(in oklab, var(--positive) 10%, transparent)}}.outline{outline-style:var(--tw-outline-style);outline-width:1px}.blur{--tw-blur:blur(8px);filter:var(--tw-blur,) var(--tw-brightness,) var(--tw-contrast,) var(--tw-grayscale,) var(--tw-hue-rotate,) var(--tw-invert,) var(--tw-saturate,) var(--tw-sepia,) var(--tw-drop-shadow,)}.invert{--tw-invert:invert(100%);filter:var(--tw-blur,) var(--tw-brightness,) var(--tw-contrast,) var(--tw-grayscale,) var(--tw-hue-rotate,) var(--tw-invert,) var(--tw-saturate,) var(--tw-sepia,) var(--tw-drop-shadow,)}.filter{filter:var(--tw-blur,) var(--tw-brightness,) var(--tw-contrast,) var(--tw-grayscale,) var(--tw-hue-rotate,) var(--tw-invert,) var(--tw-saturate,) var(--tw-sepia,) var(--tw-drop-shadow,)}.transition-\\[color\\,box-shadow\\]{transition-property:color,box-shadow;transition-timing-function:var(--tw-ease,var(--default-transition-timing-function));transition-duration:var(--tw-duration,var(--default-transition-duration))}.transition-all{transition-property:all;transition-timing-function:var(--tw-ease,var(--default-transition-timing-function));transition-duration:var(--tw-duration,var(--default-transition-duration))}.transition-colors{transition-property:color,background-color,border-color,outline-color,text-decoration-color,fill,stroke,--tw-gradient-from,--tw-gradient-via,--tw-gradient-to;transition-timing-function:var(--tw-ease,var(--default-transition-timing-function));transition-duration:var(--tw-duration,var(--default-transition-duration))}.transition-shadow{transition-property:box-shadow;transition-timing-function:var(--tw-ease,var(--default-transition-timing-function));transition-duration:var(--tw-duration,var(--default-transition-duration))}.outline-none{--tw-outline-style:none;outline-style:none}.select-none{-webkit-user-select:none;user-select:none}.group-has-\\[\\[data-orientation\\=horizontal\\]\\]\\/field\\:text-balance:is(:where(.group\\/field):has([data-orientation=horizontal]) *){text-wrap:balance}.group-data-\\[disabled\\=true\\]\\:pointer-events-none:is(:where(.group)[data-disabled=true] *){pointer-events:none}.group-data-\\[disabled\\=true\\]\\:opacity-50:is(:where(.group)[data-disabled=true] *),.group-data-\\[disabled\\=true\\]\\/field\\:opacity-50:is(:where(.group\\/field)[data-disabled=true] *){opacity:.5}.group-data-\\[variant\\=outline\\]\\/field-group\\:-mb-2:is(:where(.group\\/field-group)[data-variant=outline] *){margin-bottom:calc(var(--spacing) * -2)}.peer-disabled\\:cursor-not-allowed:is(:where(.peer):disabled~*){cursor:not-allowed}.peer-disabled\\:opacity-50:is(:where(.peer):disabled~*),.peer-\\[\\[data-disabled\\]\\]\\:opacity-50:is(:where(.peer)[data-disabled]~*){opacity:.5}.marker\\:text-muted-foreground\\/60 ::marker{color:var(--muted-foreground)}@supports (color:color-mix(in lab, red, red)){.marker\\:text-muted-foreground\\/60 ::marker{color:color-mix(in oklab, var(--muted-foreground) 60%, transparent)}}.marker\\:text-muted-foreground\\/60::marker{color:var(--muted-foreground)}@supports (color:color-mix(in lab, red, red)){.marker\\:text-muted-foreground\\/60::marker{color:color-mix(in oklab, var(--muted-foreground) 60%, transparent)}}.marker\\:text-muted-foreground\\/60 ::-webkit-details-marker{color:var(--muted-foreground)}@supports (color:color-mix(in lab, red, red)){.marker\\:text-muted-foreground\\/60 ::-webkit-details-marker{color:color-mix(in oklab, var(--muted-foreground) 60%, transparent)}}.marker\\:text-muted-foreground\\/60::-webkit-details-marker{color:var(--muted-foreground)}@supports (color:color-mix(in lab, red, red)){.marker\\:text-muted-foreground\\/60::-webkit-details-marker{color:color-mix(in oklab, var(--muted-foreground) 60%, transparent)}}.selection\\:bg-primary ::selection{background-color:var(--primary)}.selection\\:bg-primary::selection{background-color:var(--primary)}.selection\\:text-primary-foreground ::selection{color:var(--primary-foreground)}.selection\\:text-primary-foreground::selection{color:var(--primary-foreground)}.file\\:inline-flex::file-selector-button{display:inline-flex}.file\\:h-7::file-selector-button{height:calc(var(--spacing) * 7)}.file\\:border-0::file-selector-button{border-style:var(--tw-border-style);border-width:0}.file\\:bg-transparent::file-selector-button{background-color:#0000}.file\\:text-sm::file-selector-button{font-size:var(--text-sm);line-height:var(--tw-leading,var(--text-sm--line-height))}.file\\:font-medium::file-selector-button{--tw-font-weight:var(--font-weight-medium);font-weight:var(--font-weight-medium)}.file\\:text-foreground::file-selector-button{color:var(--foreground)}.placeholder\\:text-muted-foreground::placeholder{color:var(--muted-foreground)}.last\\:mt-0:last-child{margin-top:0}.checked\\:border-primary:checked{border-color:var(--primary)}.checked\\:bg-primary:checked{background-color:var(--primary)}@media (hover:hover){.hover\\:bg-accent:hover{background-color:var(--accent)}.hover\\:bg-destructive\\/90:hover{background-color:var(--destructive)}@supports (color:color-mix(in lab, red, red)){.hover\\:bg-destructive\\/90:hover{background-color:color-mix(in oklab, var(--destructive) 90%, transparent)}}.hover\\:bg-muted\\/50:hover{background-color:var(--muted)}@supports (color:color-mix(in lab, red, red)){.hover\\:bg-muted\\/50:hover{background-color:color-mix(in oklab, var(--muted) 50%, transparent)}}.hover\\:bg-primary\\/90:hover{background-color:var(--primary)}@supports (color:color-mix(in lab, red, red)){.hover\\:bg-primary\\/90:hover{background-color:color-mix(in oklab, var(--primary) 90%, transparent)}}.hover\\:bg-secondary\\/80:hover{background-color:var(--secondary)}@supports (color:color-mix(in lab, red, red)){.hover\\:bg-secondary\\/80:hover{background-color:color-mix(in oklab, var(--secondary) 80%, transparent)}}.hover\\:text-accent-foreground:hover{color:var(--accent-foreground)}.hover\\:underline:hover{text-decoration-line:underline}}.focus-visible\\:border-ring:focus-visible{border-color:var(--ring)}.focus-visible\\:ring-\\[3px\\]:focus-visible{--tw-ring-shadow:var(--tw-ring-inset,) 0 0 0 calc(3px + var(--tw-ring-offset-width)) var(--tw-ring-color,currentcolor);box-shadow:var(--tw-inset-shadow), var(--tw-inset-ring-shadow), var(--tw-ring-offset-shadow), var(--tw-ring-shadow), var(--tw-shadow)}.focus-visible\\:ring-destructive\\/20:focus-visible{--tw-ring-color:var(--destructive)}@supports (color:color-mix(in lab, red, red)){.focus-visible\\:ring-destructive\\/20:focus-visible{--tw-ring-color:color-mix(in oklab, var(--destructive) 20%, transparent)}}.focus-visible\\:ring-ring\\/50:focus-visible{--tw-ring-color:var(--ring)}@supports (color:color-mix(in lab, red, red)){.focus-visible\\:ring-ring\\/50:focus-visible{--tw-ring-color:color-mix(in oklab, var(--ring) 50%, transparent)}}.disabled\\:pointer-events-none:disabled{pointer-events:none}.disabled\\:cursor-not-allowed:disabled{cursor:not-allowed}.disabled\\:opacity-50:disabled{opacity:.5}.has-data-\\[slot\\=card-action\\]\\:grid-cols-\\[1fr_auto\\]:has([data-slot=card-action]){grid-template-columns:1fr auto}.has-data-\\[state\\=checked\\]\\:border-primary:has([data-state=checked]){border-color:var(--primary)}.has-data-\\[state\\=checked\\]\\:bg-primary\\/5:has([data-state=checked]){background-color:var(--primary)}@supports (color:color-mix(in lab, red, red)){.has-data-\\[state\\=checked\\]\\:bg-primary\\/5:has([data-state=checked]){background-color:color-mix(in oklab, var(--primary) 5%, transparent)}}.has-\\[\\>\\[data-slot\\=checkbox-group\\]\\]\\:gap-3:has(>[data-slot=checkbox-group]){gap:calc(var(--spacing) * 3)}.has-\\[\\>\\[data-slot\\=field-content\\]\\]\\:items-start:has(>[data-slot=field-content]){align-items:flex-start}.has-\\[\\>\\[data-slot\\=field\\]\\]\\:w-full:has(>[data-slot=field]){width:100%}.has-\\[\\>\\[data-slot\\=field\\]\\]\\:flex-col:has(>[data-slot=field]){flex-direction:column}.has-\\[\\>\\[data-slot\\=field\\]\\]\\:rounded-md:has(>[data-slot=field]){border-radius:calc(var(--radius) - 2px)}.has-\\[\\>\\[data-slot\\=field\\]\\]\\:border:has(>[data-slot=field]){border-style:var(--tw-border-style);border-width:1px}.has-\\[\\>\\[data-slot\\=radio-group\\]\\]\\:gap-3:has(>[data-slot=radio-group]){gap:calc(var(--spacing) * 3)}.has-\\[\\>svg\\]\\:grid-cols-\\[calc\\(var\\(--spacing\\)\\*4\\)_1fr\\]:has(>svg){grid-template-columns:calc(var(--spacing) * 4) 1fr}.has-\\[\\>svg\\]\\:gap-x-3:has(>svg){column-gap:calc(var(--spacing) * 3)}.has-\\[\\>svg\\]\\:px-2\\.5:has(>svg){padding-inline:calc(var(--spacing) * 2.5)}.has-\\[\\>svg\\]\\:px-3:has(>svg){padding-inline:calc(var(--spacing) * 3)}.has-\\[\\>svg\\]\\:px-4:has(>svg){padding-inline:calc(var(--spacing) * 4)}.aria-invalid\\:border-destructive[aria-invalid=true]{border-color:var(--destructive)}.aria-invalid\\:ring-destructive\\/20[aria-invalid=true]{--tw-ring-color:var(--destructive)}@supports (color:color-mix(in lab, red, red)){.aria-invalid\\:ring-destructive\\/20[aria-invalid=true]{--tw-ring-color:color-mix(in oklab, var(--destructive) 20%, transparent)}}.data-\\[invalid\\=true\\]\\:text-destructive[data-invalid=true]{color:var(--destructive)}.data-\\[orientation\\=horizontal\\]\\:h-px[data-orientation=horizontal]{height:1px}.data-\\[orientation\\=horizontal\\]\\:w-full[data-orientation=horizontal]{width:100%}.data-\\[orientation\\=vertical\\]\\:h-full[data-orientation=vertical]{height:100%}.data-\\[orientation\\=vertical\\]\\:w-px[data-orientation=vertical]{width:1px}:is(.\\*\\:data-\\[slot\\=alert-description\\]\\:text-destructive\\/90>*)[data-slot=alert-description]{color:var(--destructive)}@supports (color:color-mix(in lab, red, red)){:is(.\\*\\:data-\\[slot\\=alert-description\\]\\:text-destructive\\/90>*)[data-slot=alert-description]{color:color-mix(in oklab, var(--destructive) 90%, transparent)}}.data-\\[slot\\=checkbox-group\\]\\:gap-3[data-slot=checkbox-group]{gap:calc(var(--spacing) * 3)}.data-\\[state\\=selected\\]\\:bg-muted[data-state=selected]{background-color:var(--muted)}.data-\\[variant\\=label\\]\\:text-sm[data-variant=label]{font-size:var(--text-sm);line-height:var(--tw-leading,var(--text-sm--line-height))}.data-\\[variant\\=legend\\]\\:text-base[data-variant=legend]{font-size:var(--text-base);line-height:var(--tw-leading,var(--text-base--line-height))}.nth-last-2\\:-mt-1:nth-last-child(2){margin-top:calc(var(--spacing) * -1)}@media (min-width:48rem){.md\\:grid-cols-2{grid-template-columns:repeat(2,minmax(0,1fr))}.md\\:text-sm{font-size:var(--text-sm);line-height:var(--tw-leading,var(--text-sm--line-height))}}@container field-group (min-width:28rem){.\\@md\\/field-group\\:flex-row{flex-direction:row}.\\@md\\/field-group\\:items-center{align-items:center}.\\@md\\/field-group\\:has-\\[\\>\\[data-slot\\=field-content\\]\\]\\:items-start:has(>[data-slot=field-content]){align-items:flex-start}}@media (prefers-color-scheme:dark){.dark\\:border-input{border-color:var(--input)}.dark\\:bg-destructive\\/60{background-color:var(--destructive)}@supports (color:color-mix(in lab, red, red)){.dark\\:bg-destructive\\/60{background-color:color-mix(in oklab, var(--destructive) 60%, transparent)}}.dark\\:bg-input\\/30{background-color:var(--input)}@supports (color:color-mix(in lab, red, red)){.dark\\:bg-input\\/30{background-color:color-mix(in oklab, var(--input) 30%, transparent)}}.dark\\:checked\\:bg-primary:checked{background-color:var(--primary)}@media (hover:hover){.dark\\:hover\\:bg-accent\\/50:hover{background-color:var(--accent)}@supports (color:color-mix(in lab, red, red)){.dark\\:hover\\:bg-accent\\/50:hover{background-color:color-mix(in oklab, var(--accent) 50%, transparent)}}.dark\\:hover\\:bg-input\\/50:hover{background-color:var(--input)}@supports (color:color-mix(in lab, red, red)){.dark\\:hover\\:bg-input\\/50:hover{background-color:color-mix(in oklab, var(--input) 50%, transparent)}}}.dark\\:focus-visible\\:ring-destructive\\/40:focus-visible{--tw-ring-color:var(--destructive)}@supports (color:color-mix(in lab, red, red)){.dark\\:focus-visible\\:ring-destructive\\/40:focus-visible{--tw-ring-color:color-mix(in oklab, var(--destructive) 40%, transparent)}}.dark\\:has-data-\\[state\\=checked\\]\\:bg-primary\\/10:has([data-state=checked]){background-color:var(--primary)}@supports (color:color-mix(in lab, red, red)){.dark\\:has-data-\\[state\\=checked\\]\\:bg-primary\\/10:has([data-state=checked]){background-color:color-mix(in oklab, var(--primary) 10%, transparent)}}.dark\\:aria-invalid\\:ring-destructive\\/40[aria-invalid=true]{--tw-ring-color:var(--destructive)}@supports (color:color-mix(in lab, red, red)){.dark\\:aria-invalid\\:ring-destructive\\/40[aria-invalid=true]{--tw-ring-color:color-mix(in oklab, var(--destructive) 40%, transparent)}}}.\\[\\&_p\\]\\:leading-relaxed p{--tw-leading:var(--leading-relaxed);line-height:var(--leading-relaxed)}.\\[\\&_svg\\]\\:pointer-events-none svg{pointer-events:none}.\\[\\&_svg\\]\\:shrink-0 svg{flex-shrink:0}.\\[\\&_svg\\:not\\(\\[class\\*\\=\\'size-\\'\\]\\)\\]\\:size-3 svg:not([class*=size-]){width:calc(var(--spacing) * 3);height:calc(var(--spacing) * 3)}.\\[\\&_svg\\:not\\(\\[class\\*\\=\\'size-\\'\\]\\)\\]\\:size-4 svg:not([class*=size-]){width:calc(var(--spacing) * 4);height:calc(var(--spacing) * 4)}.\\[\\&_tr\\]\\:border-b tr{border-bottom-style:var(--tw-border-style);border-bottom-width:1px}.\\[\\&_tr\\:last-child\\]\\:border-0 tr:last-child{border-style:var(--tw-border-style);border-width:0}.\\[\\&\\:has\\(\\[role\\=checkbox\\]\\)\\]\\:pr-0:has([role=checkbox]){padding-right:0}.\\[\\.border-b\\]\\:pb-6.border-b{padding-bottom:calc(var(--spacing) * 6)}.\\[\\.border-t\\]\\:pt-6.border-t{padding-top:calc(var(--spacing) * 6)}.\\[\\&\\>\\*\\]\\:w-full>*{width:100%}.\\[\\&\\>\\*\\]\\:data-\\[slot\\=field\\]\\:p-4>[data-slot=field]{padding:calc(var(--spacing) * 4)}@container field-group (min-width:28rem){.\\@md\\/field-group\\:\\[\\&\\>\\*\\]\\:w-auto>*{width:auto}}.\\[\\&\\>\\.sr-only\\]\\:w-auto>.sr-only{width:auto}.\\[\\&\\>\\[data-slot\\=field-group\\]\\]\\:gap-4>[data-slot=field-group]{gap:calc(var(--spacing) * 4)}.\\[\\&\\>\\[data-slot\\=field-label\\]\\]\\:flex-auto>[data-slot=field-label]{flex:auto}@container field-group (min-width:28rem){.\\@md\\/field-group\\:\\[\\&\\>\\[data-slot\\=field-label\\]\\]\\:flex-auto>[data-slot=field-label]{flex:auto}}.\\[\\&\\>\\[role\\=checkbox\\]\\]\\:translate-y-\\[2px\\]>[role=checkbox]{--tw-translate-y:2px;translate:var(--tw-translate-x) var(--tw-translate-y)}.has-\\[\\>\\[data-slot\\=field-content\\]\\]\\:\\[\\&\\>\\[role\\=checkbox\\]\\,\\[role\\=radio\\]\\]\\:mt-px:has(>[data-slot=field-content])>[role=checkbox],.has-\\[\\>\\[data-slot\\=field-content\\]\\]\\:\\[\\&\\>\\[role\\=checkbox\\]\\,\\[role\\=radio\\]\\]\\:mt-px:has(>[data-slot=field-content]) [role=radio]{margin-top:1px}@container field-group (min-width:28rem){.\\@md\\/field-group\\:has-\\[\\>\\[data-slot\\=field-content\\]\\]\\:\\[\\&\\>\\[role\\=checkbox\\]\\,\\[role\\=radio\\]\\]\\:mt-px:has(>[data-slot=field-content])>[role=checkbox],.\\@md\\/field-group\\:has-\\[\\>\\[data-slot\\=field-content\\]\\]\\:\\[\\&\\>\\[role\\=checkbox\\]\\,\\[role\\=radio\\]\\]\\:mt-px:has(>[data-slot=field-content]) [role=radio]{margin-top:1px}}.\\[\\&\\>a\\]\\:underline>a{text-decoration-line:underline}.\\[\\&\\>a\\]\\:underline-offset-4>a{text-underline-offset:4px}.\\[\\&\\>a\\:hover\\]\\:text-primary>a:hover{color:var(--primary)}.\\[\\&\\>svg\\]\\:pointer-events-none>svg{pointer-events:none}.\\[\\&\\>svg\\]\\:size-3>svg{width:calc(var(--spacing) * 3);height:calc(var(--spacing) * 3)}.\\[\\&\\>svg\\]\\:size-4>svg{width:calc(var(--spacing) * 4);height:calc(var(--spacing) * 4)}.\\[\\&\\>svg\\]\\:translate-y-0\\.5>svg{--tw-translate-y:calc(var(--spacing) * .5);translate:var(--tw-translate-x) var(--tw-translate-y)}.\\[\\&\\>svg\\]\\:text-current>svg{color:currentColor}.\\[\\&\\>tr\\]\\:last\\:border-b-0>tr:last-child{border-bottom-style:var(--tw-border-style);border-bottom-width:0}[data-slot=tooltip-content] .\\[\\[data-slot\\=tooltip-content\\]_\\&\\]\\:bg-background\\/20{background-color:var(--background)}@supports (color:color-mix(in lab, red, red)){[data-slot=tooltip-content] .\\[\\[data-slot\\=tooltip-content\\]_\\&\\]\\:bg-background\\/20{background-color:color-mix(in oklab, var(--background) 20%, transparent)}}[data-slot=tooltip-content] .\\[\\[data-slot\\=tooltip-content\\]_\\&\\]\\:text-background{color:var(--background)}@media (prefers-color-scheme:dark){[data-slot=tooltip-content] .dark\\:\\[\\[data-slot\\=tooltip-content\\]_\\&\\]\\:bg-background\\/10{background-color:var(--background)}@supports (color:color-mix(in lab, red, red)){[data-slot=tooltip-content] .dark\\:\\[\\[data-slot\\=tooltip-content\\]_\\&\\]\\:bg-background\\/10{background-color:color-mix(in oklab, var(--background) 10%, transparent)}}}[data-variant=legend]+.\\[\\[data-variant\\=legend\\]\\+\\&\\]\\:-mt-1\\.5{margin-top:calc(var(--spacing) * -1.5)}@media (hover:hover){a.\\[a\\&\\]\\:hover\\:bg-accent:hover{background-color:var(--accent)}a.\\[a\\&\\]\\:hover\\:bg-destructive\\/90:hover{background-color:var(--destructive)}@supports (color:color-mix(in lab, red, red)){a.\\[a\\&\\]\\:hover\\:bg-destructive\\/90:hover{background-color:color-mix(in oklab, var(--destructive) 90%, transparent)}}a.\\[a\\&\\]\\:hover\\:bg-primary\\/90:hover{background-color:var(--primary)}@supports (color:color-mix(in lab, red, red)){a.\\[a\\&\\]\\:hover\\:bg-primary\\/90:hover{background-color:color-mix(in oklab, var(--primary) 90%, transparent)}}a.\\[a\\&\\]\\:hover\\:bg-secondary\\/90:hover{background-color:var(--secondary)}@supports (color:color-mix(in lab, red, red)){a.\\[a\\&\\]\\:hover\\:bg-secondary\\/90:hover{background-color:color-mix(in oklab, var(--secondary) 90%, transparent)}}a.\\[a\\&\\]\\:hover\\:text-accent-foreground:hover{color:var(--accent-foreground)}}}:root{--radius:.625rem;--background:oklch(100% 0 0);--foreground:oklch(14.7% .004 49.25);--card:oklch(100% 0 0);--card-foreground:oklch(14.7% .004 49.25);--popover:oklch(100% 0 0);--popover-foreground:oklch(14.7% .004 49.25);--primary:oklch(21.6% .006 56.043);--primary-foreground:oklch(98.5% .001 106.423);--secondary:oklch(97% .001 106.424);--secondary-foreground:oklch(21.6% .006 56.043);--muted:oklch(97% .001 106.424);--muted-foreground:oklch(55.3% .013 58.071);--accent:oklch(97% .001 106.424);--accent-foreground:oklch(21.6% .006 56.043);--destructive:oklch(57.7% .245 27.325);--border:oklch(92.3% .003 48.717);--input:oklch(92.3% .003 48.717);--ring:oklch(70.9% .01 56.259);--positive:oklch(62.7% .194 149.214);--attention:oklch(66.6% .179 58.318);--info:oklch(54.6% .245 262.881)}@media (prefers-color-scheme:dark){:root{--background:oklch(14.7% .004 49.25);--foreground:oklch(98.5% .001 106.423);--card:oklch(21.6% .006 56.043);--card-foreground:oklch(98.5% .001 106.423);--popover:oklch(21.6% .006 56.043);--popover-foreground:oklch(98.5% .001 106.423);--primary:oklch(92.3% .003 48.717);--primary-foreground:oklch(21.6% .006 56.043);--secondary:oklch(26.8% .007 34.298);--secondary-foreground:oklch(98.5% .001 106.423);--muted:oklch(26.8% .007 34.298);--muted-foreground:oklch(70.9% .01 56.259);--accent:oklch(26.8% .007 34.298);--accent-foreground:oklch(98.5% .001 106.423);--destructive:oklch(70.4% .191 22.216);--border:oklch(100% 0 0/.1);--input:oklch(100% 0 0/.15);--ring:oklch(55.3% .013 58.071);--positive:oklch(79.2% .209 151.711);--attention:oklch(82.8% .189 84.429);--info:oklch(70.7% .165 254.624)}input[data-slot=checkbox]:checked{background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%23292524' stroke-width='3' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M20 6 9 17l-5-5'/%3E%3C/svg%3E")}}@property --tw-rotate-x{syntax:"*";inherits:false}@property --tw-rotate-y{syntax:"*";inherits:false}@property --tw-rotate-z{syntax:"*";inherits:false}@property --tw-skew-x{syntax:"*";inherits:false}@property --tw-skew-y{syntax:"*";inherits:false}@property --tw-space-y-reverse{syntax:"*";inherits:false;initial-value:0}@property --tw-border-style{syntax:"*";inherits:false;initial-value:solid}@property --tw-leading{syntax:"*";inherits:false}@property --tw-font-weight{syntax:"*";inherits:false}@property --tw-tracking{syntax:"*";inherits:false}@property --tw-shadow{syntax:"*";inherits:false;initial-value:0 0 #0000}@property --tw-shadow-color{syntax:"*";inherits:false}@property --tw-shadow-alpha{syntax:"<percentage>";inherits:false;initial-value:100%}@property --tw-inset-shadow{syntax:"*";inherits:false;initial-value:0 0 #0000}@property --tw-inset-shadow-color{syntax:"*";inherits:false}@property --tw-inset-shadow-alpha{syntax:"<percentage>";inherits:false;initial-value:100%}@property --tw-ring-color{syntax:"*";inherits:false}@property --tw-ring-shadow{syntax:"*";inherits:false;initial-value:0 0 #0000}@property --tw-inset-ring-color{syntax:"*";inherits:false}@property --tw-inset-ring-shadow{syntax:"*";inherits:false;initial-value:0 0 #0000}@property --tw-ring-inset{syntax:"*";inherits:false}@property --tw-ring-offset-width{syntax:"<length>";inherits:false;initial-value:0}@property --tw-ring-offset-color{syntax:"*";inherits:false;initial-value:#fff}@property --tw-ring-offset-shadow{syntax:"*";inherits:false;initial-value:0 0 #0000}@property --tw-outline-style{syntax:"*";inherits:false;initial-value:solid}@property --tw-blur{syntax:"*";inherits:false}@property --tw-brightness{syntax:"*";inherits:false}@property --tw-contrast{syntax:"*";inherits:false}@property --tw-grayscale{syntax:"*";inherits:false}@property --tw-hue-rotate{syntax:"*";inherits:false}@property --tw-invert{syntax:"*";inherits:false}@property --tw-opacity{syntax:"*";inherits:false}@property --tw-saturate{syntax:"*";inherits:false}@property --tw-sepia{syntax:"*";inherits:false}@property --tw-drop-shadow{syntax:"*";inherits:false}@property --tw-drop-shadow-color{syntax:"*";inherits:false}@property --tw-drop-shadow-alpha{syntax:"<percentage>";inherits:false;initial-value:100%}@property --tw-drop-shadow-size{syntax:"*";inherits:false}@property --tw-translate-x{syntax:"*";inherits:false;initial-value:0}@property --tw-translate-y{syntax:"*";inherits:false;initial-value:0}@property --tw-translate-z{syntax:"*";inherits:false;initial-value:0}`;
+@layer properties{@supports (((-webkit-hyphens:none)) and (not (margin-trim:inline))) or ((-moz-orient:inline) and (not (color:rgb(from red r g b)))){*,:before,:after,::backdrop{--tw-rotate-x:initial;--tw-rotate-y:initial;--tw-rotate-z:initial;--tw-skew-x:initial;--tw-skew-y:initial;--tw-space-y-reverse:0;--tw-border-style:solid;--tw-leading:initial;--tw-font-weight:initial;--tw-tracking:initial;--tw-shadow:0 0 #0000;--tw-shadow-color:initial;--tw-shadow-alpha:100%;--tw-inset-shadow:0 0 #0000;--tw-inset-shadow-color:initial;--tw-inset-shadow-alpha:100%;--tw-ring-color:initial;--tw-ring-shadow:0 0 #0000;--tw-inset-ring-color:initial;--tw-inset-ring-shadow:0 0 #0000;--tw-ring-inset:initial;--tw-ring-offset-width:0px;--tw-ring-offset-color:#fff;--tw-ring-offset-shadow:0 0 #0000;--tw-outline-style:solid;--tw-blur:initial;--tw-brightness:initial;--tw-contrast:initial;--tw-grayscale:initial;--tw-hue-rotate:initial;--tw-invert:initial;--tw-opacity:initial;--tw-saturate:initial;--tw-sepia:initial;--tw-drop-shadow:initial;--tw-drop-shadow-color:initial;--tw-drop-shadow-alpha:100%;--tw-drop-shadow-size:initial;--tw-translate-x:0;--tw-translate-y:0;--tw-translate-z:0}}}@layer theme{:root,:host{--font-sans:ui-sans-serif, system-ui, sans-serif, "Apple Color Emoji", "Segoe UI Emoji", "Segoe UI Symbol", "Noto Color Emoji";--font-mono:ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace;--color-white:#fff;--spacing:.25rem;--container-4xl:56rem;--container-6xl:72rem;--text-xs:.75rem;--text-xs--line-height:calc(1 / .75);--text-sm:.875rem;--text-sm--line-height:calc(1.25 / .875);--text-base:1rem;--text-base--line-height:calc(1.5 / 1);--text-lg:1.125rem;--text-lg--line-height:calc(1.75 / 1.125);--font-weight-normal:400;--font-weight-medium:500;--font-weight-semibold:600;--tracking-tight:-.025em;--leading-tight:1.25;--leading-snug:1.375;--leading-normal:1.5;--leading-relaxed:1.625;--default-transition-duration:.15s;--default-transition-timing-function:cubic-bezier(.4, 0, .2, 1);--default-font-family:var(--font-sans);--default-mono-font-family:var(--font-mono)}}@layer base{*,:after,:before,::backdrop{box-sizing:border-box;border:0 solid;margin:0;padding:0}::file-selector-button{box-sizing:border-box;border:0 solid;margin:0;padding:0}html,:host{-webkit-text-size-adjust:100%;tab-size:4;line-height:1.5;font-family:var(--default-font-family,ui-sans-serif, system-ui, sans-serif, "Apple Color Emoji", "Segoe UI Emoji", "Segoe UI Symbol", "Noto Color Emoji");font-feature-settings:var(--default-font-feature-settings,normal);font-variation-settings:var(--default-font-variation-settings,normal);-webkit-tap-highlight-color:transparent}hr{height:0;color:inherit;border-top-width:1px}abbr:where([title]){-webkit-text-decoration:underline dotted;text-decoration:underline dotted}h1,h2,h3,h4,h5,h6{font-size:inherit;font-weight:inherit}a{color:inherit;-webkit-text-decoration:inherit;-webkit-text-decoration:inherit;-webkit-text-decoration:inherit;text-decoration:inherit}b,strong{font-weight:bolder}code,kbd,samp,pre{font-family:var(--default-mono-font-family,ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace);font-feature-settings:var(--default-mono-font-feature-settings,normal);font-variation-settings:var(--default-mono-font-variation-settings,normal);font-size:1em}small{font-size:80%}sub,sup{vertical-align:baseline;font-size:75%;line-height:0;position:relative}sub{bottom:-.25em}sup{top:-.5em}table{text-indent:0;border-color:inherit;border-collapse:collapse}:-moz-focusring{outline:auto}progress{vertical-align:baseline}summary{display:list-item}ol,ul,menu{list-style:none}img,svg,video,canvas,audio,iframe,embed,object{vertical-align:middle;display:block}img,video{max-width:100%;height:auto}button,input,select,optgroup,textarea{font:inherit;font-feature-settings:inherit;font-variation-settings:inherit;letter-spacing:inherit;color:inherit;opacity:1;background-color:#0000;border-radius:0}::file-selector-button{font:inherit;font-feature-settings:inherit;font-variation-settings:inherit;letter-spacing:inherit;color:inherit;opacity:1;background-color:#0000;border-radius:0}:where(select:is([multiple],[size])) optgroup{font-weight:bolder}:where(select:is([multiple],[size])) optgroup option{padding-inline-start:20px}::file-selector-button{margin-inline-end:4px}::placeholder{opacity:1}@supports (not ((-webkit-appearance:-apple-pay-button))) or (contain-intrinsic-size:1px){::placeholder{color:currentColor}@supports (color:color-mix(in lab, red, red)){::placeholder{color:color-mix(in oklab, currentcolor 50%, transparent)}}}textarea{resize:vertical}::-webkit-search-decoration{-webkit-appearance:none}::-webkit-date-and-time-value{min-height:1lh;text-align:inherit}::-webkit-datetime-edit{display:inline-flex}::-webkit-datetime-edit-fields-wrapper{padding:0}::-webkit-datetime-edit{padding-block:0}::-webkit-datetime-edit-year-field{padding-block:0}::-webkit-datetime-edit-month-field{padding-block:0}::-webkit-datetime-edit-day-field{padding-block:0}::-webkit-datetime-edit-hour-field{padding-block:0}::-webkit-datetime-edit-minute-field{padding-block:0}::-webkit-datetime-edit-second-field{padding-block:0}::-webkit-datetime-edit-millisecond-field{padding-block:0}::-webkit-datetime-edit-meridiem-field{padding-block:0}::-webkit-calendar-picker-indicator{line-height:1}:-moz-ui-invalid{box-shadow:none}button,input:where([type=button],[type=reset],[type=submit]){appearance:button}::file-selector-button{appearance:button}::-webkit-inner-spin-button{height:auto}::-webkit-outer-spin-button{height:auto}[hidden]:where(:not([hidden=until-found])){display:none!important}*{border-color:var(--border);outline-color:var(--ring)}@supports (color:color-mix(in lab, red, red)){*{outline-color:color-mix(in oklab, var(--ring) 50%, transparent)}}body{background-color:var(--background);color:var(--foreground)}}@layer components{input[data-slot=checkbox]:checked{background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%23fafaf9' stroke-width='3' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M20 6 9 17l-5-5'/%3E%3C/svg%3E");background-position:50%;background-repeat:no-repeat;background-size:.75rem}input[data-slot=radio-group-item]:checked{background-image:radial-gradient(circle closest-side, var(--primary) 45%, transparent 50%)}}@layer utilities{.\\@container\\/card-header{container:card-header/inline-size}.\\@container\\/field-group{container:field-group/inline-size}.pointer-events-none{pointer-events:none}.collapse{visibility:collapse}.invisible{visibility:hidden}.visible{visibility:visible}.absolute{position:absolute}.fixed{position:fixed}.relative{position:relative}.static{position:static}.sticky{position:sticky}.inset-0{inset:0}.top-1\\/2{top:50%}.col-start-2{grid-column-start:2}.row-span-2{grid-row:span 2/span 2}.row-start-1{grid-row-start:1}.m-0{margin:0}.mx-auto{margin-inline:auto}.-my-2{margin-block:calc(var(--spacing) * -2)}.mt-2{margin-top:calc(var(--spacing) * 2)}.mt-2\\.5{margin-top:calc(var(--spacing) * 2.5)}.mt-3{margin-top:calc(var(--spacing) * 3)}.mt-4{margin-top:calc(var(--spacing) * 4)}.mt-5{margin-top:calc(var(--spacing) * 5)}.mt-8{margin-top:calc(var(--spacing) * 8)}.mt-12{margin-top:calc(var(--spacing) * 12)}.mb-0\\.5{margin-bottom:calc(var(--spacing) * .5)}.mb-1\\.5{margin-bottom:calc(var(--spacing) * 1.5)}.mb-2{margin-bottom:calc(var(--spacing) * 2)}.mb-2\\.5{margin-bottom:calc(var(--spacing) * 2.5)}.mb-3{margin-bottom:calc(var(--spacing) * 3)}.mb-6{margin-bottom:calc(var(--spacing) * 6)}.mb-7{margin-bottom:calc(var(--spacing) * 7)}.ml-4{margin-left:calc(var(--spacing) * 4)}.line-clamp-1{-webkit-line-clamp:1;-webkit-box-orient:vertical;display:-webkit-box;overflow:hidden}.block{display:block}.contents{display:contents}.flex{display:flex}.grid{display:grid}.hidden{display:none}.inline{display:inline}.inline-flex{display:inline-flex}.table{display:table}.table-caption{display:table-caption}.table-cell{display:table-cell}.table-row{display:table-row}.field-sizing-content{field-sizing:content}.aspect-square{aspect-ratio:1}.size-1{width:var(--spacing);height:var(--spacing)}.size-4{width:calc(var(--spacing) * 4);height:calc(var(--spacing) * 4)}.size-8{width:calc(var(--spacing) * 8);height:calc(var(--spacing) * 8)}.size-9{width:calc(var(--spacing) * 9);height:calc(var(--spacing) * 9)}.size-10{width:calc(var(--spacing) * 10);height:calc(var(--spacing) * 10)}.h-5{height:calc(var(--spacing) * 5)}.h-8{height:calc(var(--spacing) * 8)}.h-9{height:calc(var(--spacing) * 9)}.h-10{height:calc(var(--spacing) * 10)}.min-h-4{min-height:calc(var(--spacing) * 4)}.min-h-16{min-height:calc(var(--spacing) * 16)}.w-fit{width:fit-content}.w-full{width:100%}.max-w-4xl{max-width:var(--container-4xl)}.max-w-6xl{max-width:var(--container-6xl)}.max-w-full{max-width:100%}.min-w-0{min-width:0}.min-w-5{min-width:calc(var(--spacing) * 5)}.min-w-\\[200px\\]{min-width:200px}.flex-1{flex:1}.shrink-0{flex-shrink:0}.caption-bottom{caption-side:bottom}.transform{transform:var(--tw-rotate-x,) var(--tw-rotate-y,) var(--tw-rotate-z,) var(--tw-skew-x,) var(--tw-skew-y,)}.cursor-pointer{cursor:pointer}.list-disc{list-style-type:disc}.appearance-none{appearance:none}.auto-rows-min{grid-auto-rows:min-content}.grid-cols-1{grid-template-columns:repeat(1,minmax(0,1fr))}.grid-cols-\\[0_1fr\\]{grid-template-columns:0 1fr}.grid-cols-\\[repeat\\(auto-fit\\,minmax\\(320px\\,1fr\\)\\)\\]{grid-template-columns:repeat(auto-fit,minmax(320px,1fr))}.grid-rows-\\[auto_auto\\]{grid-template-rows:auto auto}.flex-col{flex-direction:column}.flex-row{flex-direction:row}.flex-wrap{flex-wrap:wrap}.items-baseline{align-items:baseline}.items-center{align-items:center}.items-start{align-items:flex-start}.justify-between{justify-content:space-between}.justify-center{justify-content:center}.justify-items-start{justify-items:start}.gap-1{gap:var(--spacing)}.gap-1\\.5{gap:calc(var(--spacing) * 1.5)}.gap-2{gap:calc(var(--spacing) * 2)}.gap-2\\.5{gap:calc(var(--spacing) * 2.5)}.gap-3{gap:calc(var(--spacing) * 3)}.gap-3\\.5{gap:calc(var(--spacing) * 3.5)}.gap-4{gap:calc(var(--spacing) * 4)}.gap-6{gap:calc(var(--spacing) * 6)}.gap-7{gap:calc(var(--spacing) * 7)}:where(.space-y-1\\.5>:not(:last-child)){--tw-space-y-reverse:0;margin-block-start:calc(calc(var(--spacing) * 1.5) * var(--tw-space-y-reverse));margin-block-end:calc(calc(var(--spacing) * 1.5) * calc(1 - var(--tw-space-y-reverse)))}.gap-y-0\\.5{row-gap:calc(var(--spacing) * .5)}.self-start{align-self:flex-start}.justify-self-end{justify-self:flex-end}.truncate{text-overflow:ellipsis;white-space:nowrap;overflow:hidden}.overflow-hidden{overflow:hidden}.overflow-x-auto{overflow-x:auto}.rounded-\\[4px\\]{border-radius:4px}.rounded-full{border-radius:3.40282e38px}.rounded-lg{border-radius:var(--radius)}.rounded-md{border-radius:calc(var(--radius) - 2px)}.rounded-sm{border-radius:calc(var(--radius) - 4px)}.rounded-xl{border-radius:calc(var(--radius) + 4px)}.border{border-style:var(--tw-border-style);border-width:1px}.border-t{border-top-style:var(--tw-border-style);border-top-width:1px}.border-b{border-bottom-style:var(--tw-border-style);border-bottom-width:1px}.border-dashed{--tw-border-style:dashed;border-style:dashed}.border-attention\\/60{border-color:var(--attention)}@supports (color:color-mix(in lab, red, red)){.border-attention\\/60{border-color:color-mix(in oklab, var(--attention) 60%, transparent)}}.border-border{border-color:var(--border)}.border-destructive\\/50{border-color:var(--destructive)}@supports (color:color-mix(in lab, red, red)){.border-destructive\\/50{border-color:color-mix(in oklab, var(--destructive) 50%, transparent)}}.border-destructive\\/60{border-color:var(--destructive)}@supports (color:color-mix(in lab, red, red)){.border-destructive\\/60{border-color:color-mix(in oklab, var(--destructive) 60%, transparent)}}.border-info\\/50{border-color:var(--info)}@supports (color:color-mix(in lab, red, red)){.border-info\\/50{border-color:color-mix(in oklab, var(--info) 50%, transparent)}}.border-input{border-color:var(--input)}.border-positive\\/50{border-color:var(--positive)}@supports (color:color-mix(in lab, red, red)){.border-positive\\/50{border-color:color-mix(in oklab, var(--positive) 50%, transparent)}}.border-positive\\/60{border-color:var(--positive)}@supports (color:color-mix(in lab, red, red)){.border-positive\\/60{border-color:color-mix(in oklab, var(--positive) 60%, transparent)}}.border-transparent{border-color:#0000}.bg-attention\\/5{background-color:var(--attention)}@supports (color:color-mix(in lab, red, red)){.bg-attention\\/5{background-color:color-mix(in oklab, var(--attention) 5%, transparent)}}.bg-background{background-color:var(--background)}.bg-border{background-color:var(--border)}.bg-card{background-color:var(--card)}.bg-destructive,.bg-destructive\\/5{background-color:var(--destructive)}@supports (color:color-mix(in lab, red, red)){.bg-destructive\\/5{background-color:color-mix(in oklab, var(--destructive) 5%, transparent)}}.bg-info\\/5{background-color:var(--info)}@supports (color:color-mix(in lab, red, red)){.bg-info\\/5{background-color:color-mix(in oklab, var(--info) 5%, transparent)}}.bg-muted,.bg-muted\\/40{background-color:var(--muted)}@supports (color:color-mix(in lab, red, red)){.bg-muted\\/40{background-color:color-mix(in oklab, var(--muted) 40%, transparent)}}.bg-muted\\/50{background-color:var(--muted)}@supports (color:color-mix(in lab, red, red)){.bg-muted\\/50{background-color:color-mix(in oklab, var(--muted) 50%, transparent)}}.bg-positive\\/5{background-color:var(--positive)}@supports (color:color-mix(in lab, red, red)){.bg-positive\\/5{background-color:color-mix(in oklab, var(--positive) 5%, transparent)}}.bg-primary{background-color:var(--primary)}.bg-secondary{background-color:var(--secondary)}.bg-transparent{background-color:#0000}.p-2{padding:calc(var(--spacing) * 2)}.px-1{padding-inline:var(--spacing)}.px-2{padding-inline:calc(var(--spacing) * 2)}.px-2\\.5{padding-inline:calc(var(--spacing) * 2.5)}.px-3{padding-inline:calc(var(--spacing) * 3)}.px-4{padding-inline:calc(var(--spacing) * 4)}.px-5{padding-inline:calc(var(--spacing) * 5)}.px-6{padding-inline:calc(var(--spacing) * 6)}.py-0\\.5{padding-block:calc(var(--spacing) * .5)}.py-1{padding-block:var(--spacing)}.py-1\\.5{padding-block:calc(var(--spacing) * 1.5)}.py-2{padding-block:calc(var(--spacing) * 2)}.py-3{padding-block:calc(var(--spacing) * 3)}.py-3\\.5{padding-block:calc(var(--spacing) * 3.5)}.py-4{padding-block:calc(var(--spacing) * 4)}.py-5{padding-block:calc(var(--spacing) * 5)}.py-6{padding-block:calc(var(--spacing) * 6)}.py-12{padding-block:calc(var(--spacing) * 12)}.pt-0\\.5{padding-top:calc(var(--spacing) * .5)}.pt-4{padding-top:calc(var(--spacing) * 4)}.pt-6{padding-top:calc(var(--spacing) * 6)}.pb-24{padding-bottom:calc(var(--spacing) * 24)}.pl-4{padding-left:calc(var(--spacing) * 4)}.text-left{text-align:left}.align-middle{vertical-align:middle}.font-mono{font-family:var(--font-mono)}.font-sans{font-family:var(--font-sans)}.text-base{font-size:var(--text-base);line-height:var(--tw-leading,var(--text-base--line-height))}.text-lg{font-size:var(--text-lg);line-height:var(--tw-leading,var(--text-lg--line-height))}.text-sm{font-size:var(--text-sm);line-height:var(--tw-leading,var(--text-sm--line-height))}.text-xs{font-size:var(--text-xs);line-height:var(--tw-leading,var(--text-xs--line-height))}.text-\\[10px\\]{font-size:10px}.text-\\[11px\\]{font-size:11px}.text-\\[13\\.5px\\]{font-size:13.5px}.text-\\[13px\\]{font-size:13px}.text-\\[15px\\]{font-size:15px}.text-\\[27px\\]{font-size:27px}.leading-none{--tw-leading:1;line-height:1}.leading-normal{--tw-leading:var(--leading-normal);line-height:var(--leading-normal)}.leading-relaxed{--tw-leading:var(--leading-relaxed);line-height:var(--leading-relaxed)}.leading-snug{--tw-leading:var(--leading-snug);line-height:var(--leading-snug)}.leading-tight{--tw-leading:var(--leading-tight);line-height:var(--leading-tight)}.font-medium{--tw-font-weight:var(--font-weight-medium);font-weight:var(--font-weight-medium)}.font-normal{--tw-font-weight:var(--font-weight-normal);font-weight:var(--font-weight-normal)}.font-semibold{--tw-font-weight:var(--font-weight-semibold);font-weight:var(--font-weight-semibold)}.tracking-\\[0\\.05em\\]{--tw-tracking:.05em;letter-spacing:.05em}.tracking-\\[0\\.06em\\]{--tw-tracking:.06em;letter-spacing:.06em}.tracking-\\[0\\.08em\\]{--tw-tracking:.08em;letter-spacing:.08em}.tracking-tight{--tw-tracking:var(--tracking-tight);letter-spacing:var(--tracking-tight)}.text-balance{text-wrap:balance}.break-words{overflow-wrap:break-word}.whitespace-nowrap{white-space:nowrap}.whitespace-pre{white-space:pre}.text-attention{color:var(--attention)}.text-card-foreground{color:var(--card-foreground)}.text-destructive{color:var(--destructive)}.text-foreground{color:var(--foreground)}.text-info{color:var(--info)}.text-muted-foreground,.text-muted-foreground\\/80{color:var(--muted-foreground)}@supports (color:color-mix(in lab, red, red)){.text-muted-foreground\\/80{color:color-mix(in oklab, var(--muted-foreground) 80%, transparent)}}.text-positive{color:var(--positive)}.text-primary{color:var(--primary)}.text-primary-foreground{color:var(--primary-foreground)}.text-secondary-foreground{color:var(--secondary-foreground)}.text-white{color:var(--color-white)}.lowercase{text-transform:lowercase}.uppercase{text-transform:uppercase}.underline-offset-4{text-underline-offset:4px}.antialiased{-webkit-font-smoothing:antialiased;-moz-osx-font-smoothing:grayscale}.shadow-none{--tw-shadow:0 0 #0000;box-shadow:var(--tw-inset-shadow), var(--tw-inset-ring-shadow), var(--tw-ring-offset-shadow), var(--tw-ring-shadow), var(--tw-shadow)}.shadow-sm{--tw-shadow:0 1px 3px 0 var(--tw-shadow-color,#0000001a), 0 1px 2px -1px var(--tw-shadow-color,#0000001a);box-shadow:var(--tw-inset-shadow), var(--tw-inset-ring-shadow), var(--tw-ring-offset-shadow), var(--tw-ring-shadow), var(--tw-shadow)}.shadow-xs{--tw-shadow:0 1px 2px 0 var(--tw-shadow-color,#0000000d);box-shadow:var(--tw-inset-shadow), var(--tw-inset-ring-shadow), var(--tw-ring-offset-shadow), var(--tw-ring-shadow), var(--tw-shadow)}.ring-\\[3px\\]{--tw-ring-shadow:var(--tw-ring-inset,) 0 0 0 calc(3px + var(--tw-ring-offset-width)) var(--tw-ring-color,currentcolor);box-shadow:var(--tw-inset-shadow), var(--tw-inset-ring-shadow), var(--tw-ring-offset-shadow), var(--tw-ring-shadow), var(--tw-shadow)}.ring-attention\\/10{--tw-ring-color:var(--attention)}@supports (color:color-mix(in lab, red, red)){.ring-attention\\/10{--tw-ring-color:color-mix(in oklab, var(--attention) 10%, transparent)}}.ring-destructive\\/10{--tw-ring-color:var(--destructive)}@supports (color:color-mix(in lab, red, red)){.ring-destructive\\/10{--tw-ring-color:color-mix(in oklab, var(--destructive) 10%, transparent)}}.ring-info\\/10{--tw-ring-color:var(--info)}@supports (color:color-mix(in lab, red, red)){.ring-info\\/10{--tw-ring-color:color-mix(in oklab, var(--info) 10%, transparent)}}.ring-positive\\/10{--tw-ring-color:var(--positive)}@supports (color:color-mix(in lab, red, red)){.ring-positive\\/10{--tw-ring-color:color-mix(in oklab, var(--positive) 10%, transparent)}}.outline{outline-style:var(--tw-outline-style);outline-width:1px}.blur{--tw-blur:blur(8px);filter:var(--tw-blur,) var(--tw-brightness,) var(--tw-contrast,) var(--tw-grayscale,) var(--tw-hue-rotate,) var(--tw-invert,) var(--tw-saturate,) var(--tw-sepia,) var(--tw-drop-shadow,)}.invert{--tw-invert:invert(100%);filter:var(--tw-blur,) var(--tw-brightness,) var(--tw-contrast,) var(--tw-grayscale,) var(--tw-hue-rotate,) var(--tw-invert,) var(--tw-saturate,) var(--tw-sepia,) var(--tw-drop-shadow,)}.filter{filter:var(--tw-blur,) var(--tw-brightness,) var(--tw-contrast,) var(--tw-grayscale,) var(--tw-hue-rotate,) var(--tw-invert,) var(--tw-saturate,) var(--tw-sepia,) var(--tw-drop-shadow,)}.transition-\\[color\\,box-shadow\\]{transition-property:color,box-shadow;transition-timing-function:var(--tw-ease,var(--default-transition-timing-function));transition-duration:var(--tw-duration,var(--default-transition-duration))}.transition-all{transition-property:all;transition-timing-function:var(--tw-ease,var(--default-transition-timing-function));transition-duration:var(--tw-duration,var(--default-transition-duration))}.transition-colors{transition-property:color,background-color,border-color,outline-color,text-decoration-color,fill,stroke,--tw-gradient-from,--tw-gradient-via,--tw-gradient-to;transition-timing-function:var(--tw-ease,var(--default-transition-timing-function));transition-duration:var(--tw-duration,var(--default-transition-duration))}.transition-shadow{transition-property:box-shadow;transition-timing-function:var(--tw-ease,var(--default-transition-timing-function));transition-duration:var(--tw-duration,var(--default-transition-duration))}.outline-none{--tw-outline-style:none;outline-style:none}.select-none{-webkit-user-select:none;user-select:none}.group-has-\\[\\[data-orientation\\=horizontal\\]\\]\\/field\\:text-balance:is(:where(.group\\/field):has([data-orientation=horizontal]) *){text-wrap:balance}.group-data-\\[disabled\\=true\\]\\:pointer-events-none:is(:where(.group)[data-disabled=true] *){pointer-events:none}.group-data-\\[disabled\\=true\\]\\:opacity-50:is(:where(.group)[data-disabled=true] *),.group-data-\\[disabled\\=true\\]\\/field\\:opacity-50:is(:where(.group\\/field)[data-disabled=true] *){opacity:.5}.group-data-\\[variant\\=outline\\]\\/field-group\\:-mb-2:is(:where(.group\\/field-group)[data-variant=outline] *){margin-bottom:calc(var(--spacing) * -2)}.peer-disabled\\:cursor-not-allowed:is(:where(.peer):disabled~*){cursor:not-allowed}.peer-disabled\\:opacity-50:is(:where(.peer):disabled~*),.peer-\\[\\[data-disabled\\]\\]\\:opacity-50:is(:where(.peer)[data-disabled]~*){opacity:.5}.marker\\:text-muted-foreground\\/60 ::marker{color:var(--muted-foreground)}@supports (color:color-mix(in lab, red, red)){.marker\\:text-muted-foreground\\/60 ::marker{color:color-mix(in oklab, var(--muted-foreground) 60%, transparent)}}.marker\\:text-muted-foreground\\/60::marker{color:var(--muted-foreground)}@supports (color:color-mix(in lab, red, red)){.marker\\:text-muted-foreground\\/60::marker{color:color-mix(in oklab, var(--muted-foreground) 60%, transparent)}}.marker\\:text-muted-foreground\\/60 ::-webkit-details-marker{color:var(--muted-foreground)}@supports (color:color-mix(in lab, red, red)){.marker\\:text-muted-foreground\\/60 ::-webkit-details-marker{color:color-mix(in oklab, var(--muted-foreground) 60%, transparent)}}.marker\\:text-muted-foreground\\/60::-webkit-details-marker{color:var(--muted-foreground)}@supports (color:color-mix(in lab, red, red)){.marker\\:text-muted-foreground\\/60::-webkit-details-marker{color:color-mix(in oklab, var(--muted-foreground) 60%, transparent)}}.selection\\:bg-primary ::selection{background-color:var(--primary)}.selection\\:bg-primary::selection{background-color:var(--primary)}.selection\\:text-primary-foreground ::selection{color:var(--primary-foreground)}.selection\\:text-primary-foreground::selection{color:var(--primary-foreground)}.file\\:inline-flex::file-selector-button{display:inline-flex}.file\\:h-7::file-selector-button{height:calc(var(--spacing) * 7)}.file\\:border-0::file-selector-button{border-style:var(--tw-border-style);border-width:0}.file\\:bg-transparent::file-selector-button{background-color:#0000}.file\\:text-sm::file-selector-button{font-size:var(--text-sm);line-height:var(--tw-leading,var(--text-sm--line-height))}.file\\:font-medium::file-selector-button{--tw-font-weight:var(--font-weight-medium);font-weight:var(--font-weight-medium)}.file\\:text-foreground::file-selector-button{color:var(--foreground)}.placeholder\\:text-muted-foreground::placeholder{color:var(--muted-foreground)}.last\\:mt-0:last-child{margin-top:0}.checked\\:border-primary:checked{border-color:var(--primary)}.checked\\:bg-primary:checked{background-color:var(--primary)}@media (hover:hover){.hover\\:bg-accent:hover{background-color:var(--accent)}.hover\\:bg-destructive\\/90:hover{background-color:var(--destructive)}@supports (color:color-mix(in lab, red, red)){.hover\\:bg-destructive\\/90:hover{background-color:color-mix(in oklab, var(--destructive) 90%, transparent)}}.hover\\:bg-muted\\/50:hover{background-color:var(--muted)}@supports (color:color-mix(in lab, red, red)){.hover\\:bg-muted\\/50:hover{background-color:color-mix(in oklab, var(--muted) 50%, transparent)}}.hover\\:bg-primary\\/90:hover{background-color:var(--primary)}@supports (color:color-mix(in lab, red, red)){.hover\\:bg-primary\\/90:hover{background-color:color-mix(in oklab, var(--primary) 90%, transparent)}}.hover\\:bg-secondary\\/80:hover{background-color:var(--secondary)}@supports (color:color-mix(in lab, red, red)){.hover\\:bg-secondary\\/80:hover{background-color:color-mix(in oklab, var(--secondary) 80%, transparent)}}.hover\\:text-accent-foreground:hover{color:var(--accent-foreground)}.hover\\:text-foreground:hover{color:var(--foreground)}.hover\\:underline:hover{text-decoration-line:underline}}.focus-visible\\:border-ring:focus-visible{border-color:var(--ring)}.focus-visible\\:ring-\\[3px\\]:focus-visible{--tw-ring-shadow:var(--tw-ring-inset,) 0 0 0 calc(3px + var(--tw-ring-offset-width)) var(--tw-ring-color,currentcolor);box-shadow:var(--tw-inset-shadow), var(--tw-inset-ring-shadow), var(--tw-ring-offset-shadow), var(--tw-ring-shadow), var(--tw-shadow)}.focus-visible\\:ring-destructive\\/20:focus-visible{--tw-ring-color:var(--destructive)}@supports (color:color-mix(in lab, red, red)){.focus-visible\\:ring-destructive\\/20:focus-visible{--tw-ring-color:color-mix(in oklab, var(--destructive) 20%, transparent)}}.focus-visible\\:ring-ring\\/50:focus-visible{--tw-ring-color:var(--ring)}@supports (color:color-mix(in lab, red, red)){.focus-visible\\:ring-ring\\/50:focus-visible{--tw-ring-color:color-mix(in oklab, var(--ring) 50%, transparent)}}.disabled\\:pointer-events-none:disabled{pointer-events:none}.disabled\\:cursor-not-allowed:disabled{cursor:not-allowed}.disabled\\:opacity-50:disabled{opacity:.5}.has-data-\\[slot\\=card-action\\]\\:grid-cols-\\[1fr_auto\\]:has([data-slot=card-action]){grid-template-columns:1fr auto}.has-data-\\[state\\=checked\\]\\:border-primary:has([data-state=checked]){border-color:var(--primary)}.has-data-\\[state\\=checked\\]\\:bg-primary\\/5:has([data-state=checked]){background-color:var(--primary)}@supports (color:color-mix(in lab, red, red)){.has-data-\\[state\\=checked\\]\\:bg-primary\\/5:has([data-state=checked]){background-color:color-mix(in oklab, var(--primary) 5%, transparent)}}.has-\\[\\>\\[data-slot\\=checkbox-group\\]\\]\\:gap-3:has(>[data-slot=checkbox-group]){gap:calc(var(--spacing) * 3)}.has-\\[\\>\\[data-slot\\=field-content\\]\\]\\:items-start:has(>[data-slot=field-content]){align-items:flex-start}.has-\\[\\>\\[data-slot\\=field\\]\\]\\:w-full:has(>[data-slot=field]){width:100%}.has-\\[\\>\\[data-slot\\=field\\]\\]\\:flex-col:has(>[data-slot=field]){flex-direction:column}.has-\\[\\>\\[data-slot\\=field\\]\\]\\:rounded-md:has(>[data-slot=field]){border-radius:calc(var(--radius) - 2px)}.has-\\[\\>\\[data-slot\\=field\\]\\]\\:border:has(>[data-slot=field]){border-style:var(--tw-border-style);border-width:1px}.has-\\[\\>\\[data-slot\\=radio-group\\]\\]\\:gap-3:has(>[data-slot=radio-group]){gap:calc(var(--spacing) * 3)}.has-\\[\\>svg\\]\\:grid-cols-\\[calc\\(var\\(--spacing\\)\\*4\\)_1fr\\]:has(>svg){grid-template-columns:calc(var(--spacing) * 4) 1fr}.has-\\[\\>svg\\]\\:gap-x-3:has(>svg){column-gap:calc(var(--spacing) * 3)}.has-\\[\\>svg\\]\\:px-2\\.5:has(>svg){padding-inline:calc(var(--spacing) * 2.5)}.has-\\[\\>svg\\]\\:px-3:has(>svg){padding-inline:calc(var(--spacing) * 3)}.has-\\[\\>svg\\]\\:px-4:has(>svg){padding-inline:calc(var(--spacing) * 4)}.aria-invalid\\:border-destructive[aria-invalid=true]{border-color:var(--destructive)}.aria-invalid\\:ring-destructive\\/20[aria-invalid=true]{--tw-ring-color:var(--destructive)}@supports (color:color-mix(in lab, red, red)){.aria-invalid\\:ring-destructive\\/20[aria-invalid=true]{--tw-ring-color:color-mix(in oklab, var(--destructive) 20%, transparent)}}.data-\\[invalid\\=true\\]\\:text-destructive[data-invalid=true]{color:var(--destructive)}.data-\\[orientation\\=horizontal\\]\\:h-px[data-orientation=horizontal]{height:1px}.data-\\[orientation\\=horizontal\\]\\:w-full[data-orientation=horizontal]{width:100%}.data-\\[orientation\\=vertical\\]\\:h-full[data-orientation=vertical]{height:100%}.data-\\[orientation\\=vertical\\]\\:w-px[data-orientation=vertical]{width:1px}:is(.\\*\\:data-\\[slot\\=alert-description\\]\\:text-destructive\\/90>*)[data-slot=alert-description]{color:var(--destructive)}@supports (color:color-mix(in lab, red, red)){:is(.\\*\\:data-\\[slot\\=alert-description\\]\\:text-destructive\\/90>*)[data-slot=alert-description]{color:color-mix(in oklab, var(--destructive) 90%, transparent)}}.data-\\[slot\\=checkbox-group\\]\\:gap-3[data-slot=checkbox-group]{gap:calc(var(--spacing) * 3)}.data-\\[state\\=selected\\]\\:bg-muted[data-state=selected]{background-color:var(--muted)}.data-\\[variant\\=label\\]\\:text-sm[data-variant=label]{font-size:var(--text-sm);line-height:var(--tw-leading,var(--text-sm--line-height))}.data-\\[variant\\=legend\\]\\:text-base[data-variant=legend]{font-size:var(--text-base);line-height:var(--tw-leading,var(--text-base--line-height))}.nth-last-2\\:-mt-1:nth-last-child(2){margin-top:calc(var(--spacing) * -1)}@media (min-width:40rem){.sm\\:grid-cols-2{grid-template-columns:repeat(2,minmax(0,1fr))}}@media (min-width:48rem){.md\\:grid-cols-2{grid-template-columns:repeat(2,minmax(0,1fr))}.md\\:text-sm{font-size:var(--text-sm);line-height:var(--tw-leading,var(--text-sm--line-height))}}@container field-group (min-width:28rem){.\\@md\\/field-group\\:flex-row{flex-direction:row}.\\@md\\/field-group\\:items-center{align-items:center}.\\@md\\/field-group\\:has-\\[\\>\\[data-slot\\=field-content\\]\\]\\:items-start:has(>[data-slot=field-content]){align-items:flex-start}}@media (prefers-color-scheme:dark){.dark\\:border-input{border-color:var(--input)}.dark\\:bg-destructive\\/60{background-color:var(--destructive)}@supports (color:color-mix(in lab, red, red)){.dark\\:bg-destructive\\/60{background-color:color-mix(in oklab, var(--destructive) 60%, transparent)}}.dark\\:bg-input\\/30{background-color:var(--input)}@supports (color:color-mix(in lab, red, red)){.dark\\:bg-input\\/30{background-color:color-mix(in oklab, var(--input) 30%, transparent)}}.dark\\:checked\\:bg-primary:checked{background-color:var(--primary)}@media (hover:hover){.dark\\:hover\\:bg-accent\\/50:hover{background-color:var(--accent)}@supports (color:color-mix(in lab, red, red)){.dark\\:hover\\:bg-accent\\/50:hover{background-color:color-mix(in oklab, var(--accent) 50%, transparent)}}.dark\\:hover\\:bg-input\\/50:hover{background-color:var(--input)}@supports (color:color-mix(in lab, red, red)){.dark\\:hover\\:bg-input\\/50:hover{background-color:color-mix(in oklab, var(--input) 50%, transparent)}}}.dark\\:focus-visible\\:ring-destructive\\/40:focus-visible{--tw-ring-color:var(--destructive)}@supports (color:color-mix(in lab, red, red)){.dark\\:focus-visible\\:ring-destructive\\/40:focus-visible{--tw-ring-color:color-mix(in oklab, var(--destructive) 40%, transparent)}}.dark\\:has-data-\\[state\\=checked\\]\\:bg-primary\\/10:has([data-state=checked]){background-color:var(--primary)}@supports (color:color-mix(in lab, red, red)){.dark\\:has-data-\\[state\\=checked\\]\\:bg-primary\\/10:has([data-state=checked]){background-color:color-mix(in oklab, var(--primary) 10%, transparent)}}.dark\\:aria-invalid\\:ring-destructive\\/40[aria-invalid=true]{--tw-ring-color:var(--destructive)}@supports (color:color-mix(in lab, red, red)){.dark\\:aria-invalid\\:ring-destructive\\/40[aria-invalid=true]{--tw-ring-color:color-mix(in oklab, var(--destructive) 40%, transparent)}}}.\\[\\&_p\\]\\:leading-relaxed p{--tw-leading:var(--leading-relaxed);line-height:var(--leading-relaxed)}.\\[\\&_svg\\]\\:pointer-events-none svg{pointer-events:none}.\\[\\&_svg\\]\\:shrink-0 svg{flex-shrink:0}.\\[\\&_svg\\:not\\(\\[class\\*\\=\\'size-\\'\\]\\)\\]\\:size-3 svg:not([class*=size-]){width:calc(var(--spacing) * 3);height:calc(var(--spacing) * 3)}.\\[\\&_svg\\:not\\(\\[class\\*\\=\\'size-\\'\\]\\)\\]\\:size-4 svg:not([class*=size-]){width:calc(var(--spacing) * 4);height:calc(var(--spacing) * 4)}.\\[\\&_tr\\]\\:border-b tr{border-bottom-style:var(--tw-border-style);border-bottom-width:1px}.\\[\\&_tr\\:last-child\\]\\:border-0 tr:last-child{border-style:var(--tw-border-style);border-width:0}.\\[\\&\\:has\\(\\[role\\=checkbox\\]\\)\\]\\:pr-0:has([role=checkbox]){padding-right:0}.\\[\\.border-b\\]\\:pb-6.border-b{padding-bottom:calc(var(--spacing) * 6)}.\\[\\.border-t\\]\\:pt-6.border-t{padding-top:calc(var(--spacing) * 6)}.\\[\\&\\>\\*\\]\\:w-full>*{width:100%}.\\[\\&\\>\\*\\]\\:data-\\[slot\\=field\\]\\:p-4>[data-slot=field]{padding:calc(var(--spacing) * 4)}@container field-group (min-width:28rem){.\\@md\\/field-group\\:\\[\\&\\>\\*\\]\\:w-auto>*{width:auto}}.\\[\\&\\>\\.sr-only\\]\\:w-auto>.sr-only{width:auto}.\\[\\&\\>\\[data-slot\\=field-group\\]\\]\\:gap-4>[data-slot=field-group]{gap:calc(var(--spacing) * 4)}.\\[\\&\\>\\[data-slot\\=field-label\\]\\]\\:flex-auto>[data-slot=field-label]{flex:auto}@container field-group (min-width:28rem){.\\@md\\/field-group\\:\\[\\&\\>\\[data-slot\\=field-label\\]\\]\\:flex-auto>[data-slot=field-label]{flex:auto}}.\\[\\&\\>\\[role\\=checkbox\\]\\]\\:translate-y-\\[2px\\]>[role=checkbox]{--tw-translate-y:2px;translate:var(--tw-translate-x) var(--tw-translate-y)}.has-\\[\\>\\[data-slot\\=field-content\\]\\]\\:\\[\\&\\>\\[role\\=checkbox\\]\\,\\[role\\=radio\\]\\]\\:mt-px:has(>[data-slot=field-content])>[role=checkbox],.has-\\[\\>\\[data-slot\\=field-content\\]\\]\\:\\[\\&\\>\\[role\\=checkbox\\]\\,\\[role\\=radio\\]\\]\\:mt-px:has(>[data-slot=field-content]) [role=radio]{margin-top:1px}@container field-group (min-width:28rem){.\\@md\\/field-group\\:has-\\[\\>\\[data-slot\\=field-content\\]\\]\\:\\[\\&\\>\\[role\\=checkbox\\]\\,\\[role\\=radio\\]\\]\\:mt-px:has(>[data-slot=field-content])>[role=checkbox],.\\@md\\/field-group\\:has-\\[\\>\\[data-slot\\=field-content\\]\\]\\:\\[\\&\\>\\[role\\=checkbox\\]\\,\\[role\\=radio\\]\\]\\:mt-px:has(>[data-slot=field-content]) [role=radio]{margin-top:1px}}.\\[\\&\\>a\\]\\:underline>a{text-decoration-line:underline}.\\[\\&\\>a\\]\\:underline-offset-4>a{text-underline-offset:4px}.\\[\\&\\>a\\:hover\\]\\:text-primary>a:hover{color:var(--primary)}.\\[\\&\\>svg\\]\\:pointer-events-none>svg{pointer-events:none}.\\[\\&\\>svg\\]\\:size-3>svg{width:calc(var(--spacing) * 3);height:calc(var(--spacing) * 3)}.\\[\\&\\>svg\\]\\:size-4>svg{width:calc(var(--spacing) * 4);height:calc(var(--spacing) * 4)}.\\[\\&\\>svg\\]\\:translate-y-0\\.5>svg{--tw-translate-y:calc(var(--spacing) * .5);translate:var(--tw-translate-x) var(--tw-translate-y)}.\\[\\&\\>svg\\]\\:text-current>svg{color:currentColor}.\\[\\&\\>tr\\]\\:last\\:border-b-0>tr:last-child{border-bottom-style:var(--tw-border-style);border-bottom-width:0}[data-slot=tooltip-content] .\\[\\[data-slot\\=tooltip-content\\]_\\&\\]\\:bg-background\\/20{background-color:var(--background)}@supports (color:color-mix(in lab, red, red)){[data-slot=tooltip-content] .\\[\\[data-slot\\=tooltip-content\\]_\\&\\]\\:bg-background\\/20{background-color:color-mix(in oklab, var(--background) 20%, transparent)}}[data-slot=tooltip-content] .\\[\\[data-slot\\=tooltip-content\\]_\\&\\]\\:text-background{color:var(--background)}@media (prefers-color-scheme:dark){[data-slot=tooltip-content] .dark\\:\\[\\[data-slot\\=tooltip-content\\]_\\&\\]\\:bg-background\\/10{background-color:var(--background)}@supports (color:color-mix(in lab, red, red)){[data-slot=tooltip-content] .dark\\:\\[\\[data-slot\\=tooltip-content\\]_\\&\\]\\:bg-background\\/10{background-color:color-mix(in oklab, var(--background) 10%, transparent)}}}[data-variant=legend]+.\\[\\[data-variant\\=legend\\]\\+\\&\\]\\:-mt-1\\.5{margin-top:calc(var(--spacing) * -1.5)}@media (hover:hover){a.\\[a\\&\\]\\:hover\\:bg-accent:hover{background-color:var(--accent)}a.\\[a\\&\\]\\:hover\\:bg-destructive\\/90:hover{background-color:var(--destructive)}@supports (color:color-mix(in lab, red, red)){a.\\[a\\&\\]\\:hover\\:bg-destructive\\/90:hover{background-color:color-mix(in oklab, var(--destructive) 90%, transparent)}}a.\\[a\\&\\]\\:hover\\:bg-primary\\/90:hover{background-color:var(--primary)}@supports (color:color-mix(in lab, red, red)){a.\\[a\\&\\]\\:hover\\:bg-primary\\/90:hover{background-color:color-mix(in oklab, var(--primary) 90%, transparent)}}a.\\[a\\&\\]\\:hover\\:bg-secondary\\/90:hover{background-color:var(--secondary)}@supports (color:color-mix(in lab, red, red)){a.\\[a\\&\\]\\:hover\\:bg-secondary\\/90:hover{background-color:color-mix(in oklab, var(--secondary) 90%, transparent)}}a.\\[a\\&\\]\\:hover\\:text-accent-foreground:hover{color:var(--accent-foreground)}}}:root{--radius:.625rem;--background:oklch(100% 0 0);--foreground:oklch(14.7% .004 49.25);--card:oklch(100% 0 0);--card-foreground:oklch(14.7% .004 49.25);--popover:oklch(100% 0 0);--popover-foreground:oklch(14.7% .004 49.25);--primary:oklch(21.6% .006 56.043);--primary-foreground:oklch(98.5% .001 106.423);--secondary:oklch(97% .001 106.424);--secondary-foreground:oklch(21.6% .006 56.043);--muted:oklch(97% .001 106.424);--muted-foreground:oklch(55.3% .013 58.071);--accent:oklch(97% .001 106.424);--accent-foreground:oklch(21.6% .006 56.043);--destructive:oklch(57.7% .245 27.325);--border:oklch(92.3% .003 48.717);--input:oklch(92.3% .003 48.717);--ring:oklch(70.9% .01 56.259);--positive:oklch(62.7% .194 149.214);--attention:oklch(66.6% .179 58.318);--info:oklch(54.6% .245 262.881)}@media (prefers-color-scheme:dark){:root{--background:oklch(14.7% .004 49.25);--foreground:oklch(98.5% .001 106.423);--card:oklch(21.6% .006 56.043);--card-foreground:oklch(98.5% .001 106.423);--popover:oklch(21.6% .006 56.043);--popover-foreground:oklch(98.5% .001 106.423);--primary:oklch(92.3% .003 48.717);--primary-foreground:oklch(21.6% .006 56.043);--secondary:oklch(26.8% .007 34.298);--secondary-foreground:oklch(98.5% .001 106.423);--muted:oklch(26.8% .007 34.298);--muted-foreground:oklch(70.9% .01 56.259);--accent:oklch(26.8% .007 34.298);--accent-foreground:oklch(98.5% .001 106.423);--destructive:oklch(70.4% .191 22.216);--border:oklch(100% 0 0/.1);--input:oklch(100% 0 0/.15);--ring:oklch(55.3% .013 58.071);--positive:oklch(79.2% .209 151.711);--attention:oklch(82.8% .189 84.429);--info:oklch(70.7% .165 254.624)}input[data-slot=checkbox]:checked{background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%23292524' stroke-width='3' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M20 6 9 17l-5-5'/%3E%3C/svg%3E")}}@property --tw-rotate-x{syntax:"*";inherits:false}@property --tw-rotate-y{syntax:"*";inherits:false}@property --tw-rotate-z{syntax:"*";inherits:false}@property --tw-skew-x{syntax:"*";inherits:false}@property --tw-skew-y{syntax:"*";inherits:false}@property --tw-space-y-reverse{syntax:"*";inherits:false;initial-value:0}@property --tw-border-style{syntax:"*";inherits:false;initial-value:solid}@property --tw-leading{syntax:"*";inherits:false}@property --tw-font-weight{syntax:"*";inherits:false}@property --tw-tracking{syntax:"*";inherits:false}@property --tw-shadow{syntax:"*";inherits:false;initial-value:0 0 #0000}@property --tw-shadow-color{syntax:"*";inherits:false}@property --tw-shadow-alpha{syntax:"<percentage>";inherits:false;initial-value:100%}@property --tw-inset-shadow{syntax:"*";inherits:false;initial-value:0 0 #0000}@property --tw-inset-shadow-color{syntax:"*";inherits:false}@property --tw-inset-shadow-alpha{syntax:"<percentage>";inherits:false;initial-value:100%}@property --tw-ring-color{syntax:"*";inherits:false}@property --tw-ring-shadow{syntax:"*";inherits:false;initial-value:0 0 #0000}@property --tw-inset-ring-color{syntax:"*";inherits:false}@property --tw-inset-ring-shadow{syntax:"*";inherits:false;initial-value:0 0 #0000}@property --tw-ring-inset{syntax:"*";inherits:false}@property --tw-ring-offset-width{syntax:"<length>";inherits:false;initial-value:0}@property --tw-ring-offset-color{syntax:"*";inherits:false;initial-value:#fff}@property --tw-ring-offset-shadow{syntax:"*";inherits:false;initial-value:0 0 #0000}@property --tw-outline-style{syntax:"*";inherits:false;initial-value:solid}@property --tw-blur{syntax:"*";inherits:false}@property --tw-brightness{syntax:"*";inherits:false}@property --tw-contrast{syntax:"*";inherits:false}@property --tw-grayscale{syntax:"*";inherits:false}@property --tw-hue-rotate{syntax:"*";inherits:false}@property --tw-invert{syntax:"*";inherits:false}@property --tw-opacity{syntax:"*";inherits:false}@property --tw-saturate{syntax:"*";inherits:false}@property --tw-sepia{syntax:"*";inherits:false}@property --tw-drop-shadow{syntax:"*";inherits:false}@property --tw-drop-shadow-color{syntax:"*";inherits:false}@property --tw-drop-shadow-alpha{syntax:"<percentage>";inherits:false;initial-value:100%}@property --tw-drop-shadow-size{syntax:"*";inherits:false}@property --tw-translate-x{syntax:"*";inherits:false;initial-value:0}@property --tw-translate-y{syntax:"*";inherits:false;initial-value:0}@property --tw-translate-z{syntax:"*";inherits:false;initial-value:0}`;
   }
 });
 
@@ -57227,7 +57176,13 @@ function t(value, max) {
   return max === void 0 ? clean : truncate(clean, max);
 }
 function renderHtmlDocument(input) {
-  const markup = (0, import_server.renderToStaticMarkup)((0, import_jsx_runtime.jsxs)("html", { lang: "en", children: [(0, import_jsx_runtime.jsxs)("head", { children: [(0, import_jsx_runtime.jsx)("meta", { charSet: "utf-8" }), (0, import_jsx_runtime.jsx)("meta", { name: "viewport", content: "width=device-width, initial-scale=1" }), (0, import_jsx_runtime.jsx)("title", { children: t(input.title, 256) }), (0, import_jsx_runtime.jsx)("style", { dangerouslySetInnerHTML: { __html: UI_CSS } })] }), (0, import_jsx_runtime.jsxs)("body", { children: [input.body, (0, import_jsx_runtime.jsx)("script", { dangerouslySetInnerHTML: { __html: CLIPBOARD_SCRIPT } })] })] }));
+  const markup = (0, import_server.renderToStaticMarkup)((0, import_jsx_runtime.jsxs)("html", { lang: "en", children: [(0, import_jsx_runtime.jsxs)("head", { children: [(0, import_jsx_runtime.jsx)("meta", { charSet: "utf-8" }), (0, import_jsx_runtime.jsx)("meta", { name: "viewport", content: "width=device-width, initial-scale=1" }), (0, import_jsx_runtime.jsx)("title", { children: t(input.title, 256) }), (0, import_jsx_runtime.jsx)("style", { dangerouslySetInnerHTML: { __html: UI_CSS } }), input.extraStyle === void 0 ? null : (
+    // biome-ignore lint/security/noDangerouslySetInnerHtml: static stylesheet constant, not operator input
+    (0, import_jsx_runtime.jsx)("style", { dangerouslySetInnerHTML: { __html: input.extraStyle } })
+  )] }), (0, import_jsx_runtime.jsxs)("body", { children: [input.body, (0, import_jsx_runtime.jsx)("script", { dangerouslySetInnerHTML: { __html: CLIPBOARD_SCRIPT } }), input.extraScript === void 0 ? null : (
+    // biome-ignore lint/security/noDangerouslySetInnerHtml: static script constant, not operator input
+    (0, import_jsx_runtime.jsx)("script", { dangerouslySetInnerHTML: { __html: input.extraScript } })
+  )] })] }));
   return `<!doctype html>
 ${markup}
 `;
@@ -61627,6 +61582,9 @@ function CardHeader({ className, ...props }) {
 }
 function CardTitle({ className, ...props }) {
   return (0, import_jsx_runtime4.jsx)("div", { "data-slot": "card-title", className: cn("leading-none font-semibold", className), ...props });
+}
+function CardAction({ className, ...props }) {
+  return (0, import_jsx_runtime4.jsx)("div", { "data-slot": "card-action", className: cn("col-start-2 row-span-2 row-start-1 self-start justify-self-end", className), ...props });
 }
 var import_jsx_runtime4;
 var init_card = __esm({
@@ -66949,64 +66907,120 @@ var init_flow = __esm({
   }
 });
 
+// dist/shared/html/report-components.js
+function IntentBadge({ text, intent }) {
+  return (0, import_jsx_runtime6.jsx)(Badge, { variant: "outline", "data-intent": intent, className: cn("uppercase", BADGE_INTENT_CLASS[intent]), children: t(text, 120) });
+}
+function Chip({ text }) {
+  return (0, import_jsx_runtime6.jsx)("code", { className: "break-words rounded-md border bg-muted px-2 py-1 font-mono text-[11px] leading-normal text-muted-foreground", children: t(text, MAX_BULLET_LEN) });
+}
+function ChipRow({ items }) {
+  return (0, import_jsx_runtime6.jsx)("div", { className: "flex flex-wrap gap-1.5", children: items.map((item) => (0, import_jsx_runtime6.jsx)(Chip, { text: item }, item)) });
+}
+function BulletList({ items }) {
+  return (0, import_jsx_runtime6.jsx)("ul", { className: "m-0 list-disc space-y-1.5 pl-4 text-[13px] leading-normal marker:text-muted-foreground/60", children: items.map((item) => (0, import_jsx_runtime6.jsx)("li", { children: t(item, MAX_BULLET_LEN) }, item)) });
+}
+function SectionLabel({ children }) {
+  return (0, import_jsx_runtime6.jsx)("p", { className: "mb-1.5 text-[10px] font-semibold uppercase tracking-[0.08em] text-muted-foreground", children });
+}
+function Summary({ text }) {
+  return (0, import_jsx_runtime6.jsx)("p", { className: "text-sm text-muted-foreground", children: t(text, MAX_PROMPT_LEN) });
+}
+function ReportCard({ intent = "neutral", eyebrow, title, badge, children }) {
+  return (0, import_jsx_runtime6.jsxs)(Card, { ...intent === "neutral" ? {} : { "data-intent": intent }, className: cn("gap-4 py-5 shadow-none", CARD_INTENT_CLASS[intent]), children: [(0, import_jsx_runtime6.jsxs)(CardHeader, { className: "gap-1 px-5", children: [eyebrow === void 0 ? null : (0, import_jsx_runtime6.jsx)("div", { className: "font-mono text-[11px] uppercase tracking-[0.05em] text-muted-foreground", children: t(eyebrow, 120) }), (0, import_jsx_runtime6.jsx)(CardTitle, { className: "text-base tracking-tight", children: t(title, MAX_PROMPT_LEN) }), badge === void 0 ? null : (0, import_jsx_runtime6.jsx)(CardAction, { children: (0, import_jsx_runtime6.jsx)(IntentBadge, { text: badge.text, intent: badge.intent }) })] }), (0, import_jsx_runtime6.jsx)("div", { className: "flex flex-col gap-3.5 px-5", children })] });
+}
+function VerdictBanner({ intent, badgeText, main: main2, aside }) {
+  return (0, import_jsx_runtime6.jsxs)("div", { "data-slot": "verdict", "data-intent": intent, className: cn("mb-6 flex flex-wrap items-baseline gap-3 rounded-lg border px-5 py-4", BANNER_INTENT_CLASS[intent]), children: [(0, import_jsx_runtime6.jsx)(IntentBadge, { text: badgeText, intent }), (0, import_jsx_runtime6.jsx)("span", { className: "min-w-[200px] flex-1 text-sm", children: main2 }), aside === void 0 ? null : (0, import_jsx_runtime6.jsx)("span", { className: "text-xs lowercase text-muted-foreground", children: t(aside, 160) })] });
+}
+function CardGrid({ children }) {
+  return (0, import_jsx_runtime6.jsx)("div", { className: "grid grid-cols-[repeat(auto-fit,minmax(320px,1fr))] gap-4", children });
+}
+function ReportShell(input) {
+  return (0, import_jsx_runtime6.jsxs)("div", { className: cn("mx-auto max-w-6xl px-6 py-12 pb-24 text-[15px] leading-relaxed antialiased", input.wrapClassName), children: [(0, import_jsx_runtime6.jsxs)("header", { className: "mb-6", children: [(0, import_jsx_runtime6.jsx)("div", { className: "mb-2 text-xs font-medium uppercase tracking-[0.06em] text-muted-foreground", children: t(input.metaLine, 160) }), (0, import_jsx_runtime6.jsx)("h1", { className: "text-[27px] font-semibold leading-tight tracking-tight text-balance", children: t(input.headline, MAX_PROMPT_LEN) }), (0, import_jsx_runtime6.jsx)("p", { className: "mt-2 text-base text-muted-foreground", children: t(input.subtitle, MAX_PROMPT_LEN) })] }), input.children, (0, import_jsx_runtime6.jsxs)("footer", { className: "mt-12 flex flex-wrap justify-between gap-3 border-t pt-6 text-xs text-muted-foreground", children: [input.footerLeft === void 0 ? null : (0, import_jsx_runtime6.jsx)("span", { children: t(input.footerLeft, 300) }), input.footerRight === void 0 ? null : (0, import_jsx_runtime6.jsx)("span", { children: (0, import_jsx_runtime6.jsx)("code", { className: "font-mono text-[11px]", children: t(input.footerRight, 300) }) })] })] });
+}
+function renderReportPage(input) {
+  const { title, extraStyle, extraScript, ...shell } = input;
+  return renderHtmlDocument({
+    title,
+    ...extraStyle === void 0 ? {} : { extraStyle },
+    ...extraScript === void 0 ? {} : { extraScript },
+    body: (0, import_jsx_runtime6.jsx)(ReportShell, { ...shell })
+  });
+}
+var import_jsx_runtime6, CARD_INTENT_CLASS, BADGE_INTENT_CLASS, BANNER_INTENT_CLASS;
+var init_report_components = __esm({
+  "dist/shared/html/report-components.js"() {
+    "use strict";
+    import_jsx_runtime6 = __toESM(require_jsx_runtime(), 1);
+    init_page();
+    init_react_page();
+    init_badge();
+    init_card();
+    init_utils();
+    CARD_INTENT_CLASS = {
+      neutral: "",
+      info: "border-info/50 ring-[3px] ring-info/10",
+      positive: "border-positive/60 ring-[3px] ring-positive/10",
+      attention: "border-attention/60 ring-[3px] ring-attention/10",
+      negative: "border-destructive/60 ring-[3px] ring-destructive/10"
+    };
+    BADGE_INTENT_CLASS = {
+      neutral: "text-muted-foreground",
+      info: "border-info/50 text-info",
+      positive: "border-positive/50 text-positive",
+      attention: "border-attention/60 text-attention",
+      negative: "border-destructive/50 text-destructive"
+    };
+    BANNER_INTENT_CLASS = {
+      neutral: "border-border bg-muted/40",
+      info: "border-info/50 bg-info/5",
+      positive: "border-positive/50 bg-positive/5",
+      attention: "border-attention/60 bg-attention/5",
+      negative: "border-destructive/50 bg-destructive/5"
+    };
+  }
+});
+
 // dist/shared/html/ui/collapsible.js
 function Collapsible({ className, ...props }) {
-  return (0, import_jsx_runtime6.jsx)("details", { "data-slot": "collapsible", className: cn("group/collapsible", className), ...props });
+  return (0, import_jsx_runtime7.jsx)("details", { "data-slot": "collapsible", className: cn("group/collapsible", className), ...props });
 }
 function CollapsibleTrigger({ className, ...props }) {
-  return (0, import_jsx_runtime6.jsx)("summary", { "data-slot": "collapsible-trigger", className: cn("cursor-pointer select-none rounded-md outline-none focus-visible:ring-[3px] focus-visible:ring-ring/50", className), ...props });
+  return (0, import_jsx_runtime7.jsx)("summary", { "data-slot": "collapsible-trigger", className: cn("cursor-pointer select-none rounded-md outline-none focus-visible:ring-[3px] focus-visible:ring-ring/50", className), ...props });
 }
 function CollapsibleContent({ className, ...props }) {
-  return (0, import_jsx_runtime6.jsx)("div", { "data-slot": "collapsible-content", className, ...props });
+  return (0, import_jsx_runtime7.jsx)("div", { "data-slot": "collapsible-content", className, ...props });
 }
-var import_jsx_runtime6;
+var import_jsx_runtime7;
 var init_collapsible = __esm({
   "dist/shared/html/ui/collapsible.js"() {
     "use strict";
-    import_jsx_runtime6 = __toESM(require_jsx_runtime(), 1);
+    import_jsx_runtime7 = __toESM(require_jsx_runtime(), 1);
     init_utils();
   }
 });
 
 // dist/flows/build/writers/checkpoint-html.js
-function SectionLabel({ children }) {
-  return (0, import_jsx_runtime7.jsx)("p", { className: "mb-1.5 text-[10px] font-semibold uppercase tracking-[0.08em] text-muted-foreground", children });
-}
-function Summary({ text }) {
-  return (0, import_jsx_runtime7.jsx)("p", { className: "text-sm text-muted-foreground", children: t(text, MAX_PROMPT_LEN) });
-}
-function BulletList({ items }) {
-  return (0, import_jsx_runtime7.jsx)("ul", { className: "m-0 list-disc space-y-1.5 pl-4 text-[13px] leading-normal marker:text-muted-foreground/60", children: items.map((item) => (0, import_jsx_runtime7.jsx)("li", { children: t(item, MAX_BULLET_LEN) }, item)) });
-}
-function Chip({ text }) {
-  return (0, import_jsx_runtime7.jsx)("code", { className: "break-words rounded-md border bg-muted px-2 py-1 font-mono text-[11px] leading-normal text-muted-foreground", children: t(text, MAX_BULLET_LEN) });
-}
-function ChipRow({ items }) {
-  return (0, import_jsx_runtime7.jsx)("div", { className: "flex flex-wrap gap-1.5", children: items.map((item) => (0, import_jsx_runtime7.jsx)(Chip, { text: item }, item)) });
-}
-function ContextCard({ intent, eyebrow, title, children }) {
-  return (0, import_jsx_runtime7.jsxs)(Card, { className: cn("gap-4 py-5 shadow-none", INTENT_CARD_CLASS[intent]), children: [(0, import_jsx_runtime7.jsxs)(CardHeader, { className: "gap-1 px-5", children: [(0, import_jsx_runtime7.jsx)("div", { className: "font-mono text-[11px] uppercase tracking-[0.05em] text-muted-foreground", children: t(eyebrow, 120) }), (0, import_jsx_runtime7.jsx)(CardTitle, { className: "text-base tracking-tight", children: t(title, MAX_PROMPT_LEN) })] }), (0, import_jsx_runtime7.jsx)("div", { className: "flex flex-col gap-3.5 px-5", children })] });
-}
 function commandText(command) {
   return `${command.cwd}$ ${command.argv.join(" ")}`;
 }
 function ArtifactCard({ brief, packet }) {
-  return (0, import_jsx_runtime7.jsxs)(ContextCard, { intent: "info", eyebrow: packet.artifact.title, title: brief.objective, children: [(0, import_jsx_runtime7.jsx)(Summary, { text: packet.artifact.preview }), (0, import_jsx_runtime7.jsxs)("div", { children: [(0, import_jsx_runtime7.jsx)(SectionLabel, { children: "Scope" }), (0, import_jsx_runtime7.jsx)(Summary, { text: packet.artifact.scope })] }), (0, import_jsx_runtime7.jsxs)("div", { children: [(0, import_jsx_runtime7.jsx)(SectionLabel, { children: "Success bar" }), (0, import_jsx_runtime7.jsx)(BulletList, { items: packet.artifact.success_criteria })] })] });
+  return (0, import_jsx_runtime8.jsxs)(ReportCard, { intent: "info", eyebrow: packet.artifact.title, title: brief.objective, children: [(0, import_jsx_runtime8.jsx)(Summary, { text: packet.artifact.preview }), (0, import_jsx_runtime8.jsxs)("div", { children: [(0, import_jsx_runtime8.jsx)(SectionLabel, { children: "Scope" }), (0, import_jsx_runtime8.jsx)(Summary, { text: packet.artifact.scope })] }), (0, import_jsx_runtime8.jsxs)("div", { children: [(0, import_jsx_runtime8.jsx)(SectionLabel, { children: "Success bar" }), (0, import_jsx_runtime8.jsx)(BulletList, { items: packet.artifact.success_criteria })] })] });
 }
 function SalienceCard({ packet }) {
-  return (0, import_jsx_runtime7.jsxs)(ContextCard, { intent: "neutral", eyebrow: "salience", title: "Why this needs you", children: [(0, import_jsx_runtime7.jsx)(Summary, { text: packet.salience.summary }), (0, import_jsx_runtime7.jsxs)("div", { children: [(0, import_jsx_runtime7.jsx)(SectionLabel, { children: "Why now" }), (0, import_jsx_runtime7.jsx)(BulletList, { items: packet.salience.why_now })] }), (0, import_jsx_runtime7.jsxs)("div", { children: [(0, import_jsx_runtime7.jsx)(SectionLabel, { children: "Stays internal" }), (0, import_jsx_runtime7.jsx)(BulletList, { items: packet.salience.hidden_routine_work })] })] });
+  return (0, import_jsx_runtime8.jsxs)(ReportCard, { intent: "neutral", eyebrow: "salience", title: "Why this needs you", children: [(0, import_jsx_runtime8.jsx)(Summary, { text: packet.salience.summary }), (0, import_jsx_runtime8.jsxs)("div", { children: [(0, import_jsx_runtime8.jsx)(SectionLabel, { children: "Why now" }), (0, import_jsx_runtime8.jsx)(BulletList, { items: packet.salience.why_now })] }), (0, import_jsx_runtime8.jsxs)("div", { children: [(0, import_jsx_runtime8.jsx)(SectionLabel, { children: "Stays internal" }), (0, import_jsx_runtime8.jsx)(BulletList, { items: packet.salience.hidden_routine_work })] })] });
 }
 function RiskCard({ packet }) {
-  return (0, import_jsx_runtime7.jsxs)(ContextCard, { intent: "attention", eyebrow: "manager judgment", title: "Risk", children: [(0, import_jsx_runtime7.jsx)(Summary, { text: packet.risk.summary }), (0, import_jsx_runtime7.jsxs)("div", { children: [(0, import_jsx_runtime7.jsx)(SectionLabel, { children: "Tradeoffs" }), (0, import_jsx_runtime7.jsx)(BulletList, { items: packet.risk.tradeoffs })] })] });
+  return (0, import_jsx_runtime8.jsxs)(ReportCard, { intent: "attention", eyebrow: "manager judgment", title: "Risk", children: [(0, import_jsx_runtime8.jsx)(Summary, { text: packet.risk.summary }), (0, import_jsx_runtime8.jsxs)("div", { children: [(0, import_jsx_runtime8.jsx)(SectionLabel, { children: "Tradeoffs" }), (0, import_jsx_runtime8.jsx)(BulletList, { items: packet.risk.tradeoffs })] })] });
 }
 function ProofCard({ packet }) {
-  return (0, import_jsx_runtime7.jsxs)(ContextCard, { intent: packet.proof.status === "missing" ? "attention" : "neutral", eyebrow: packet.proof.status, title: "Proof", children: [(0, import_jsx_runtime7.jsx)(Summary, { text: packet.proof.summary }), (0, import_jsx_runtime7.jsxs)("div", { children: [(0, import_jsx_runtime7.jsx)(SectionLabel, { children: "Planned checks" }), (0, import_jsx_runtime7.jsx)(ChipRow, { items: packet.proof.commands.map(commandText) })] }), (0, import_jsx_runtime7.jsxs)("div", { children: [(0, import_jsx_runtime7.jsx)(SectionLabel, { children: "Proof state" }), (0, import_jsx_runtime7.jsx)(BulletList, { items: packet.proof.evidence })] })] });
+  return (0, import_jsx_runtime8.jsxs)(ReportCard, { intent: packet.proof.status === "missing" ? "attention" : "neutral", eyebrow: packet.proof.status, title: "Proof", children: [(0, import_jsx_runtime8.jsx)(Summary, { text: packet.proof.summary }), (0, import_jsx_runtime8.jsxs)("div", { children: [(0, import_jsx_runtime8.jsx)(SectionLabel, { children: "Planned checks" }), (0, import_jsx_runtime8.jsx)(ChipRow, { items: packet.proof.commands.map(commandText) })] }), (0, import_jsx_runtime8.jsxs)("div", { children: [(0, import_jsx_runtime8.jsx)(SectionLabel, { children: "Proof state" }), (0, import_jsx_runtime8.jsx)(BulletList, { items: packet.proof.evidence })] })] });
 }
 function RouteExtra({ choice }) {
-  return (0, import_jsx_runtime7.jsxs)("div", { className: "px-6", children: [(0, import_jsx_runtime7.jsx)(SectionLabel, { children: "Executable route" }), (0, import_jsx_runtime7.jsx)(ChipRow, { items: [`${choice.route.key} -> ${choice.route.target}`] })] });
+  return (0, import_jsx_runtime8.jsxs)("div", { className: "px-6", children: [(0, import_jsx_runtime8.jsx)(SectionLabel, { children: "Executable route" }), (0, import_jsx_runtime8.jsx)(ChipRow, { items: [`${choice.route.key} -> ${choice.route.target}`] })] });
 }
 function Appendix({ packet, rawEvidence, resumeCommandTemplate }) {
-  return (0, import_jsx_runtime7.jsxs)(Collapsible, { className: "mt-8 rounded-lg border bg-card px-4 py-3", children: [(0, import_jsx_runtime7.jsx)(CollapsibleTrigger, { className: "text-[13px] font-medium text-muted-foreground", children: "Raw evidence and resume command" }), (0, import_jsx_runtime7.jsxs)(CollapsibleContent, { className: "mt-3 flex flex-col gap-2.5 text-[13px] text-muted-foreground", children: [(0, import_jsx_runtime7.jsxs)("p", { children: [(0, import_jsx_runtime7.jsx)("strong", { className: "font-semibold text-foreground", children: "Decision." }), " ", t(packet.decision.question, MAX_PROMPT_LEN)] }), (0, import_jsx_runtime7.jsxs)("p", { className: "flex flex-wrap items-baseline gap-1.5", children: [(0, import_jsx_runtime7.jsx)("strong", { className: "font-semibold text-foreground", children: "Resume command." }), (0, import_jsx_runtime7.jsx)(Chip, { text: resumeCommandTemplate })] }), (0, import_jsx_runtime7.jsx)("p", { children: (0, import_jsx_runtime7.jsx)("strong", { className: "font-semibold text-foreground", children: "Reports." }) }), (0, import_jsx_runtime7.jsx)(ChipRow, { items: rawEvidence })] })] });
+  return (0, import_jsx_runtime8.jsxs)(Collapsible, { className: "mt-8 rounded-lg border bg-card px-4 py-3", children: [(0, import_jsx_runtime8.jsx)(CollapsibleTrigger, { className: "text-[13px] font-medium text-muted-foreground", children: "Raw evidence and resume command" }), (0, import_jsx_runtime8.jsxs)(CollapsibleContent, { className: "mt-3 flex flex-col gap-2.5 text-[13px] text-muted-foreground", children: [(0, import_jsx_runtime8.jsxs)("p", { children: [(0, import_jsx_runtime8.jsx)("strong", { className: "font-semibold text-foreground", children: "Decision." }), " ", t(packet.decision.question, MAX_PROMPT_LEN)] }), (0, import_jsx_runtime8.jsxs)("p", { className: "flex flex-wrap items-baseline gap-1.5", children: [(0, import_jsx_runtime8.jsx)("strong", { className: "font-semibold text-foreground", children: "Resume command." }), (0, import_jsx_runtime8.jsx)(Chip, { text: resumeCommandTemplate })] }), (0, import_jsx_runtime8.jsx)("p", { children: (0, import_jsx_runtime8.jsx)("strong", { className: "font-semibold text-foreground", children: "Reports." }) }), (0, import_jsx_runtime8.jsx)(ChipRow, { items: rawEvidence })] })] });
 }
 function filteredChoices(packetChoices, allowedChoices) {
   const allowed = new Set(allowedChoices);
@@ -67017,24 +67031,18 @@ function loadBrief(readJsonRunRelative) {
   const parsed = BuildBrief.safeParse(raw);
   return parsed.success ? parsed.data : void 0;
 }
-var import_jsx_runtime7, BUILD_BRIEF_PATH, INTENT_CARD_CLASS, buildCheckpointProjector;
+var import_jsx_runtime8, BUILD_BRIEF_PATH, buildCheckpointProjector;
 var init_checkpoint_html = __esm({
   "dist/flows/build/writers/checkpoint-html.js"() {
     "use strict";
-    import_jsx_runtime7 = __toESM(require_jsx_runtime(), 1);
+    import_jsx_runtime8 = __toESM(require_jsx_runtime(), 1);
     init_checkpoint_page();
     init_page();
     init_react_page();
-    init_card();
+    init_report_components();
     init_collapsible();
-    init_utils();
     init_reports();
     BUILD_BRIEF_PATH = "reports/build/brief.json";
-    INTENT_CARD_CLASS = {
-      neutral: "",
-      info: "border-info/50 ring-[3px] ring-info/10",
-      attention: "border-attention/60 ring-[3px] ring-attention/10"
-    };
     buildCheckpointProjector = (ctx) => {
       if (ctx.flowId !== "build" || ctx.runOutcome !== "checkpoint_waiting")
         return void 0;
@@ -67059,7 +67067,7 @@ var init_checkpoint_html = __esm({
         description: choice.description,
         ...choice.id === recommendedChoice.id ? { isRecommended: true } : {},
         ...choice.id === safeDefaultId ? { isDefault: true } : {},
-        extra: (0, import_jsx_runtime7.jsx)(RouteExtra, { choice })
+        extra: (0, import_jsx_runtime8.jsx)(RouteExtra, { choice })
       }));
       const defaultChoice = options.find((option) => option.id === safeDefaultId);
       const resumeCommandTemplate = `circuit resume --run-folder ${shellSingleQuote(ctx.runFolder)} --checkpoint-choice '<choice>'`;
@@ -67085,8 +67093,8 @@ var init_checkpoint_html = __esm({
         },
         options,
         ...defaultChoice === void 0 ? {} : { defaultChoice: { id: defaultChoice.id, label: defaultChoice.label } },
-        context: (0, import_jsx_runtime7.jsxs)("div", { className: "grid gap-4 md:grid-cols-2", children: [(0, import_jsx_runtime7.jsx)(ArtifactCard, { brief, packet }), (0, import_jsx_runtime7.jsx)(SalienceCard, { packet }), (0, import_jsx_runtime7.jsx)(RiskCard, { packet }), (0, import_jsx_runtime7.jsx)(ProofCard, { packet })] }),
-        appendix: (0, import_jsx_runtime7.jsx)(Appendix, { packet, rawEvidence, resumeCommandTemplate }),
+        context: (0, import_jsx_runtime8.jsxs)("div", { className: "grid gap-4 md:grid-cols-2", children: [(0, import_jsx_runtime8.jsx)(ArtifactCard, { brief, packet }), (0, import_jsx_runtime8.jsx)(SalienceCard, { packet }), (0, import_jsx_runtime8.jsx)(RiskCard, { packet }), (0, import_jsx_runtime8.jsx)(ProofCard, { packet })] }),
+        appendix: (0, import_jsx_runtime8.jsx)(Appendix, { packet, rawEvidence, resumeCommandTemplate }),
         resume: { runFolder: ctx.runFolder },
         footerLeft: `circuit \xB7 build \xB7 ${ctx.runId}`,
         footerRight: BUILD_BRIEF_PATH
@@ -72283,58 +72291,6 @@ var init_flow5 = __esm({
   }
 });
 
-// dist/shared/html/components.js
-function intentClass(intent) {
-  return intent === "neutral" || intent === "info" ? "" : `intent-${intent}`;
-}
-function intentBadge(input) {
-  const classes = ["intent-badge"];
-  const className = intentClass(input.intent);
-  if (className.length > 0)
-    classes.push(className);
-  return `<span class="${classes.join(" ")}">${escapeHtml(input.text)}</span>`;
-}
-function chip(text) {
-  return `<span class="chip">${escapeHtml(truncate(text, MAX_BULLET_LEN))}</span>`;
-}
-function card(input) {
-  const intent = input.intent ?? "neutral";
-  const classes = ["card"];
-  const intentClassName = intentClass(intent);
-  if (intentClassName.length > 0)
-    classes.push(intentClassName);
-  const eyebrowMarkup = input.eyebrow === void 0 ? "" : `<div class="card-id">${escapeHtml(input.eyebrow)}</div>`;
-  const badgeMarkup = input.badge === void 0 ? "" : intentBadge(input.badge);
-  return `    <article class="${classes.join(" ")}">
-      <div class="card-head">
-        <div>
-          ${eyebrowMarkup}
-          <h2>${escapeHtml(input.title)}</h2>
-        </div>
-        ${badgeMarkup}
-      </div>
-${input.bodyHtml}
-    </article>`;
-}
-function verdictBanner(input) {
-  const classes = ["verdict"];
-  const intentClassName = intentClass(input.intent);
-  if (intentClassName.length > 0)
-    classes.push(intentClassName);
-  const aside = input.aside === void 0 ? "" : `<span class="confidence">${escapeHtml(input.aside)}</span>`;
-  return `  <div class="${classes.join(" ")}">
-    <span class="badge">${escapeHtml(input.badgeText)}</span>
-    <span class="text">${input.mainHtml}</span>
-    ${aside}
-  </div>`;
-}
-var init_components = __esm({
-  "dist/shared/html/components.js"() {
-    "use strict";
-    init_page();
-  }
-});
-
 // dist/flows/explore/writers/tournament-html.js
 function stringField(report, key) {
   const value = report?.[key];
@@ -72353,66 +72309,18 @@ function verdictIntent(verdict) {
 function confidenceText(confidence) {
   return `${confidence} confidence`;
 }
-function renderOptionCard(option, isRecommended, isSelected) {
+function OptionCard2({ option, isRecommended, isSelected }) {
   const intent = isSelected ? "positive" : isRecommended ? "info" : "neutral";
   const badge = isSelected ? { text: "Selected", intent: "positive" } : isRecommended ? { text: "Recommended", intent: "info" } : void 0;
-  const tradeoffsMarkup = option.tradeoffs.map((tradeoff) => `<li>${escapeHtml(truncate(tradeoff, MAX_BULLET_LEN))}</li>`).join("\n          ");
-  const evidenceMarkup = option.evidence_refs.map((ref) => chip(ref)).join("\n          ");
-  const bodyHtml = `      <p class="summary">${escapeHtml(option.summary)}</p>
-      <div>
-        <p class="section-label">Tradeoffs</p>
-        <ul class="tradeoffs">
-          ${tradeoffsMarkup}
-        </ul>
-      </div>
-      <div>
-        <p class="section-label">Evidence</p>
-        <div class="evidence">
-          ${evidenceMarkup}
-        </div>
-      </div>
-      <div class="actions">
-        <button class="copy primary" data-prompt="${escapeHtml(truncate(option.best_case_prompt, MAX_PROMPT_LEN))}">Copy as prompt</button>
-      </div>`;
-  return card({
-    intent,
-    eyebrow: option.id,
-    title: option.label,
-    ...badge === void 0 ? {} : { badge },
-    bodyHtml
-  });
+  return (0, import_jsx_runtime9.jsxs)(ReportCard, { intent, eyebrow: option.id, title: option.label, ...badge === void 0 ? {} : { badge }, children: [(0, import_jsx_runtime9.jsx)(Summary, { text: option.summary }), (0, import_jsx_runtime9.jsxs)("div", { children: [(0, import_jsx_runtime9.jsx)(SectionLabel, { children: "Tradeoffs" }), (0, import_jsx_runtime9.jsx)(BulletList, { items: option.tradeoffs })] }), (0, import_jsx_runtime9.jsxs)("div", { children: [(0, import_jsx_runtime9.jsx)(SectionLabel, { children: "Evidence" }), (0, import_jsx_runtime9.jsx)(ChipRow, { items: option.evidence_refs })] }), (0, import_jsx_runtime9.jsx)("div", { className: "pt-0.5", children: (0, import_jsx_runtime9.jsx)(Button3, { size: "sm", "data-prompt": t(option.best_case_prompt, MAX_PROMPT_LEN), children: "Copy as prompt" }) })] });
 }
-function renderTournamentVerdictBanner(review, decisionOptions, decision2) {
+function TournamentVerdictBanner({ review, decisionOptions, decision: decision2 }) {
   const selectedOption = decisionOptions.options.find((option) => option.id === decision2.selected_option_id);
   const selectedLabel = selectedOption?.label ?? decision2.selected_option_label;
-  return verdictBanner({
-    intent: verdictIntent(review.verdict),
-    badgeText: "Selected",
-    mainHtml: `<strong>${escapeHtml(selectedLabel)}</strong> \xB7 ${escapeHtml(decision2.decision)}`,
-    aside: confidenceText(review.confidence)
-  });
+  return (0, import_jsx_runtime9.jsx)(VerdictBanner, { intent: verdictIntent(review.verdict), badgeText: "Selected", main: (0, import_jsx_runtime9.jsxs)(import_jsx_runtime9.Fragment, { children: [(0, import_jsx_runtime9.jsx)("strong", { children: t(selectedLabel, MAX_PROMPT_LEN) }), " \xB7", " ", t(decision2.decision, MAX_PROMPT_LEN)] }), aside: confidenceText(review.confidence) });
 }
-function renderTournamentDetails(review, decision2) {
-  const sections = [];
-  sections.push(`<p><strong>Comparison.</strong> ${escapeHtml(review.comparison)}</p>`);
-  if (review.objections.length > 0) {
-    const items = review.objections.map((item) => `<li>${escapeHtml(truncate(item, MAX_BULLET_LEN))}</li>`).join("");
-    sections.push(`<p><strong>Objections.</strong></p><ul>${items}</ul>`);
-  }
-  if (review.missing_evidence.length > 0) {
-    const items = review.missing_evidence.map((item) => `<li>${escapeHtml(truncate(item, MAX_BULLET_LEN))}</li>`).join("");
-    sections.push(`<p><strong>Missing evidence.</strong></p><ul>${items}</ul>`);
-  }
-  if (review.tradeoff_question.length > 0) {
-    sections.push(`<p><strong>Tradeoff question.</strong> ${escapeHtml(review.tradeoff_question)}</p>`);
-  }
-  sections.push(`<p><strong>Rationale.</strong> ${escapeHtml(decision2.rationale)}</p>`);
-  if (decision2.residual_risks.length > 0) {
-    const items = decision2.residual_risks.map((item) => `<li>${escapeHtml(truncate(item, MAX_BULLET_LEN))}</li>`).join("");
-    sections.push(`<p><strong>Residual risks.</strong></p><ul>${items}</ul>`);
-  }
-  sections.push(`<p><strong>Next action.</strong> ${escapeHtml(decision2.next_action)}</p>`);
-  return sections.join("\n      ");
+function TournamentDetails({ review, decision: decision2 }) {
+  return (0, import_jsx_runtime9.jsxs)(import_jsx_runtime9.Fragment, { children: [(0, import_jsx_runtime9.jsxs)("p", { children: [(0, import_jsx_runtime9.jsx)("strong", { children: "Comparison." }), " ", t(review.comparison, MAX_PROMPT_LEN)] }), review.objections.length === 0 ? null : (0, import_jsx_runtime9.jsxs)(import_jsx_runtime9.Fragment, { children: [(0, import_jsx_runtime9.jsx)("p", { children: (0, import_jsx_runtime9.jsx)("strong", { children: "Objections." }) }), (0, import_jsx_runtime9.jsx)(BulletList, { items: review.objections })] }), review.missing_evidence.length === 0 ? null : (0, import_jsx_runtime9.jsxs)(import_jsx_runtime9.Fragment, { children: [(0, import_jsx_runtime9.jsx)("p", { children: (0, import_jsx_runtime9.jsx)("strong", { children: "Missing evidence." }) }), (0, import_jsx_runtime9.jsx)(BulletList, { items: review.missing_evidence })] }), review.tradeoff_question.length === 0 ? null : (0, import_jsx_runtime9.jsxs)("p", { children: [(0, import_jsx_runtime9.jsx)("strong", { children: "Tradeoff question." }), " ", t(review.tradeoff_question, MAX_PROMPT_LEN)] }), (0, import_jsx_runtime9.jsxs)("p", { children: [(0, import_jsx_runtime9.jsx)("strong", { children: "Rationale." }), " ", t(decision2.rationale, MAX_PROMPT_LEN)] }), decision2.residual_risks.length === 0 ? null : (0, import_jsx_runtime9.jsxs)(import_jsx_runtime9.Fragment, { children: [(0, import_jsx_runtime9.jsx)("p", { children: (0, import_jsx_runtime9.jsx)("strong", { children: "Residual risks." }) }), (0, import_jsx_runtime9.jsx)(BulletList, { items: decision2.residual_risks })] }), (0, import_jsx_runtime9.jsxs)("p", { children: [(0, import_jsx_runtime9.jsx)("strong", { children: "Next action." }), " ", t(decision2.next_action, MAX_PROMPT_LEN)] })] });
 }
 function formatScore(value) {
   if (value === null || value === void 0)
@@ -72430,16 +72338,8 @@ function autoResolutionLine(record2) {
   const vetoText = record2.runtime_veto_effect === "none" ? "no runtime vetoes" : record2.runtime_veto_effect;
   return `${label}: ${record2.resolved_value} selected by policy highest-score (aggregate score ${formatScore(record2.winning_score)}; margin ${formatSignedScore(record2.margin)} over runner-up; ${vetoText}).`;
 }
-function renderAutoResolutions(records) {
-  if (records === void 0 || records.length === 0)
-    return "";
-  const items = records.map((record2) => `<li>${escapeHtml(autoResolutionLine(record2))}</li>`).join("");
-  return `
-  <section>
-    <h2>Auto-resolutions</h2>
-    <ul>${items}</ul>
-  </section>
-`;
+function AutoResolutions({ records }) {
+  return (0, import_jsx_runtime9.jsxs)("section", { className: "mt-8", children: [(0, import_jsx_runtime9.jsx)("h2", { className: "mb-2.5 text-lg font-semibold tracking-tight", children: "Auto-resolutions" }), (0, import_jsx_runtime9.jsx)(BulletList, { items: records.map(autoResolutionLine) })] });
 }
 function loadHtmlPayload(flowReport, readEvidenceReportById) {
   const snapshot = isObject2(flowReport?.verdict_snapshot) ? flowReport.verdict_snapshot : void 0;
@@ -72462,12 +72362,16 @@ function loadHtmlPayload(flowReport, readEvidenceReportById) {
     decision: decisionParsed.data
   };
 }
-var exploreTournamentProjector;
+var import_jsx_runtime9, exploreTournamentProjector;
 var init_tournament_html = __esm({
   "dist/flows/explore/writers/tournament-html.js"() {
     "use strict";
-    init_components();
+    import_jsx_runtime9 = __toESM(require_jsx_runtime(), 1);
     init_page();
+    init_react_page();
+    init_report_components();
+    init_button2();
+    init_collapsible();
     init_reports4();
     exploreTournamentProjector = (ctx) => {
       const payload = loadHtmlPayload(ctx.flowReport, ctx.readEvidenceReportById);
@@ -72477,33 +72381,14 @@ var init_tournament_html = __esm({
       const recommendedId = tournamentReview.recommended_option_id;
       const selectedId = decision2.selected_option_id;
       const subtitle = `${decisionOptions.options.length} options surfaced. Tournament review: ${tournamentReview.verdict.replace(/-/g, " ")} (${tournamentReview.confidence} confidence).`;
-      const cards = decisionOptions.options.map((option) => renderOptionCard(option, option.id === recommendedId, option.id === selectedId)).join("\n\n");
-      const banner = renderTournamentVerdictBanner(tournamentReview, decisionOptions, decision2);
-      const detailsBody = renderTournamentDetails(tournamentReview, decision2);
-      const autoResolutions = renderAutoResolutions(ctx.autoResolutions);
-      const bodyHtml = `${banner}
-
-  <div class="grid">
-${cards}
-  </div>
-
-${autoResolutions}
-
-  <details>
-    <summary>Tournament reasoning &middot; why this recommendation?</summary>
-    <div class="body">
-      ${detailsBody}
-    </div>
-  </details>
-`;
-      return renderPage({
+      return renderReportPage({
         title: `${decisionOptions.decision_question} \xB7 Circuit Explore`,
         metaLine: `Explore \xB7 ${ctx.flowId} \xB7 ${ctx.runId}`,
         headline: decisionOptions.decision_question,
         subtitle,
-        bodyHtml,
         footerLeft: `circuit \xB7 explore \xB7 ${ctx.runId}`,
-        footerRight: decisionOptions.recommendation_basis
+        footerRight: decisionOptions.recommendation_basis,
+        children: (0, import_jsx_runtime9.jsxs)(import_jsx_runtime9.Fragment, { children: [(0, import_jsx_runtime9.jsx)(TournamentVerdictBanner, { review: tournamentReview, decisionOptions, decision: decision2 }), (0, import_jsx_runtime9.jsx)(CardGrid, { children: decisionOptions.options.map((option) => (0, import_jsx_runtime9.jsx)(OptionCard2, { option, isRecommended: option.id === recommendedId, isSelected: option.id === selectedId }, option.id)) }), ctx.autoResolutions === void 0 || ctx.autoResolutions.length === 0 ? null : (0, import_jsx_runtime9.jsx)(AutoResolutions, { records: ctx.autoResolutions }), (0, import_jsx_runtime9.jsxs)(Collapsible, { className: "mt-8 rounded-lg border bg-card px-5 py-4", children: [(0, import_jsx_runtime9.jsx)(CollapsibleTrigger, { className: "text-sm font-medium text-muted-foreground hover:text-foreground", children: "Tournament reasoning \xB7 why this recommendation?" }), (0, import_jsx_runtime9.jsx)(CollapsibleContent, { className: "flex flex-col gap-2.5 pt-4 text-sm leading-relaxed", children: (0, import_jsx_runtime9.jsx)(TournamentDetails, { review: tournamentReview, decision: decision2 }) })] })] })
       });
     };
   }
@@ -78643,75 +78528,20 @@ function previewForEntryPoints(input) {
   }
   return void 0;
 }
-function multiVariantStyles() {
-  return `.mv-wrap{--mv-pad:clamp(18px,2.4vw,44px);--mv-top:clamp(30px,3vw,50px);--mv-rail-width:clamp(420px,32vw,640px);--mv-rail-gap:clamp(34px,4vw,72px);max-width:1280px}.mv-wrap.mv-visual{max-width:none;width:100%;padding:var(--mv-top) calc(var(--mv-rail-width) + var(--mv-pad) + var(--mv-rail-gap)) 96px var(--mv-pad)}.mv-decision{display:grid;grid-template-columns:minmax(0,1fr) auto;gap:18px;align-items:center;margin:24px 0 28px;padding:16px 0;border-top:1px solid var(--border);border-bottom:1px solid var(--border)}.mv-decision strong{display:block;font-size:15px;line-height:1.35;margin-bottom:3px;font-weight:560}.mv-decision span{color:var(--text-2)}.mv-count{font-size:12px;color:var(--text-3);white-space:nowrap}.mv-compare{display:block}.mv-list-head,.mv-row{display:grid;grid-template-columns:minmax(150px,190px) minmax(30ch,1fr) minmax(240px,.9fr);gap:clamp(18px,2vw,34px);align-items:start}.mv-list-head{padding:0 0 10px;color:var(--text-3);font-size:11px;font-weight:600;text-transform:uppercase;letter-spacing:0}.mv-row{position:relative;width:100%;padding:18px 0;border-top:1px solid var(--border)}.mv-row:last-child{border-bottom:1px solid var(--border)}.mv-row[data-selected="true"]::before{content:"";position:absolute;left:-14px;top:18px;bottom:18px;width:2px;border-radius:999px;background:var(--intent-positive)}.mv-name{display:flex;flex-direction:column;gap:6px}.mv-name strong{font-size:15.5px;line-height:1.3;font-weight:560}.mv-tag{width:max-content;color:var(--text-2);border:1px solid var(--border);border-radius:999px;padding:2px 7px;font-size:11px;font-weight:500}.mv-tag.good{color:var(--intent-positive);border-color:var(--intent-positive)}.mv-copy p{margin:0 0 9px;color:var(--text)}.mv-facts{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:10px;color:var(--text-2);font-size:13px}.mv-facts b{display:block;color:var(--text-3);font-size:11px;text-transform:uppercase;letter-spacing:0;font-weight:600;margin-bottom:2px}.mv-evidence-cell{display:flex;flex-direction:column;gap:10px;min-width:0}.mv-actions{display:flex;gap:8px;flex-wrap:wrap}.mv-preview-trigger{font:500 13px/1 -apple-system,system-ui,sans-serif;padding:8px 12px;border:1px solid var(--border-strong);border-radius:6px;background:var(--surface);color:var(--text);cursor:pointer}.mv-preview-trigger:hover{background:var(--surface-2)}.mv-detail{position:fixed;top:var(--mv-top);right:var(--mv-pad);bottom:28px;width:var(--mv-rail-width);border-left:1px solid var(--border);padding-left:clamp(24px,2.4vw,40px);overflow:auto;overscroll-behavior:contain;scrollbar-gutter:stable}.mv-detail h2{font-size:18px;line-height:1.3;margin:0 0 12px;letter-spacing:0;font-weight:560}.mv-frame{border:1px solid var(--border-strong);border-radius:10px;background:var(--surface);min-height:clamp(280px,42vh,470px);box-shadow:0 16px 42px rgba(22,28,24,.07);overflow:hidden}.mv-frame iframe{display:block;width:100%;height:clamp(280px,42vh,470px);border:0;background:white}.mv-empty-preview{padding:18px;color:var(--text-2);font-size:13px}.mv-detail-meta{display:flex;flex-direction:column;gap:10px;margin-top:14px}.mv-open-link{font-size:13px;color:var(--intent-info);text-decoration:none}.mv-open-link:hover{text-decoration:underline}.mv-detail-source{font:500 11px/1.4 ui-monospace,"SF Mono",Menlo,monospace;color:var(--text-3);overflow-wrap:anywhere}.mv-wrap.mv-evidence .mv-row{grid-template-columns:minmax(150px,210px) minmax(32ch,1fr) minmax(260px,.8fr)}@media (max-width:1320px){.mv-wrap.mv-visual{max-width:1280px;margin:0 auto;padding:var(--mv-top) var(--mv-pad) 96px}.mv-detail{position:static;width:auto;overflow:visible;border-left:0;border-top:1px solid var(--border);padding-left:0;padding-top:22px;margin-top:24px}.mv-frame iframe{height:420px}}@media (max-width:760px){.mv-decision{grid-template-columns:1fr}.mv-count{white-space:normal}.mv-list-head{display:none}.mv-row,.mv-wrap.mv-evidence .mv-row{grid-template-columns:1fr;gap:12px}.mv-facts{grid-template-columns:1fr}.mv-frame iframe{height:340px}}`;
-}
-function multiVariantScript() {
-  return `(()=>{const frame=document.querySelector('[data-mv-frame]');const title=document.querySelector('[data-mv-title]');const source=document.querySelector('[data-mv-source]');const link=document.querySelector('[data-mv-open]');const empty=document.querySelector('[data-mv-empty]');const rows=[...document.querySelectorAll('[data-mv-row]')];const triggers=[...document.querySelectorAll('[data-mv-preview-trigger]')];if(!frame||!title||!source||!link||!empty)return;function select(trigger){const id=trigger.dataset.mvVariantId||'';const src=trigger.dataset.mvPreviewSrc||'';title.textContent=trigger.dataset.mvPreviewTitle||'';source.textContent=trigger.dataset.mvPreviewSource||'';rows.forEach(row=>{row.dataset.selected=String(row.dataset.mvVariantId===id);});if(src.length>0){frame.hidden=false;empty.hidden=true;frame.setAttribute('src',src);link.hidden=false;link.setAttribute('href',src);}else{frame.hidden=true;empty.hidden=false;link.hidden=true;link.removeAttribute('href');}}triggers.forEach(trigger=>{trigger.addEventListener('click',()=>select(trigger));});})();`;
-}
-function renderFacts(facts) {
+function VariantFacts({ facts }) {
   if (facts.length === 0)
-    return "";
-  return `<div class="mv-facts">
-          ${facts.map((fact) => `<span><b>${escapeHtml(fact.label)}</b>${escapeHtml(truncate(fact.value, MAX_BULLET_LEN))}</span>`).join("\n          ")}
-        </div>`;
+    return null;
+  return (0, import_jsx_runtime10.jsx)("div", { className: "grid grid-cols-1 gap-2.5 text-[13px] text-muted-foreground sm:grid-cols-2", children: facts.map((fact) => (0, import_jsx_runtime10.jsxs)("span", { children: [(0, import_jsx_runtime10.jsx)("b", { className: "mb-0.5 block text-[11px] font-semibold uppercase text-muted-foreground/80", children: t(fact.label, 120) }), t(fact.value, MAX_BULLET_LEN)] }, fact.label)) });
 }
-function renderRisks(risks) {
-  if (risks === void 0 || risks.length === 0)
-    return "";
-  return `<div>
-          <p class="section-label">Risks</p>
-          <ul class="tradeoffs">
-            ${risks.map((risk) => `<li>${escapeHtml(truncate(risk, MAX_BULLET_LEN))}</li>`).join("\n            ")}
-          </ul>
-        </div>`;
+function VariantRow({ variant, visual, selected }) {
+  return (0, import_jsx_runtime10.jsxs)("article", { className: "mv-row", "data-mv-row": "", "data-mv-variant-id": t(variant.id, 120), "data-selected": selected ? "true" : "false", children: [(0, import_jsx_runtime10.jsxs)("div", { className: "mv-name", children: [(0, import_jsx_runtime10.jsx)("strong", { children: t(variant.label, 160) }), variant.recommended ? (0, import_jsx_runtime10.jsx)(IntentBadge, { text: "Recommended", intent: "positive" }) : (0, import_jsx_runtime10.jsx)(Badge, { variant: "outline", className: "text-muted-foreground", children: t(variant.id, 120) })] }), (0, import_jsx_runtime10.jsxs)("div", { className: "mv-copy text-sm", children: [(0, import_jsx_runtime10.jsx)("p", { children: t(variant.description, MAX_BULLET_LEN) }), (0, import_jsx_runtime10.jsx)(VariantFacts, { facts: variant.facts }), variant.risks === void 0 || variant.risks.length === 0 ? null : (0, import_jsx_runtime10.jsxs)("div", { className: "mt-2.5", children: [(0, import_jsx_runtime10.jsx)(SectionLabel, { children: "Risks" }), (0, import_jsx_runtime10.jsx)(BulletList, { items: variant.risks })] })] }), (0, import_jsx_runtime10.jsxs)("div", { className: "mv-evidence-cell", children: [variant.evidence.length === 0 ? null : (0, import_jsx_runtime10.jsx)(ChipRow, { items: variant.evidence }), (0, import_jsx_runtime10.jsxs)("div", { className: "flex flex-wrap gap-2", children: [visual && variant.preview !== void 0 ? (0, import_jsx_runtime10.jsx)(Button3, { variant: "outline", size: "sm", type: "button", "data-mv-preview-trigger": "", "data-mv-variant-id": t(variant.id, 120), "data-mv-preview-src": variant.preview.href, "data-mv-preview-title": t(variant.label, 160), "data-mv-preview-source": t(variant.preview.sourcePath, MAX_PROMPT_LEN), children: "Preview" }) : null, variant.action === void 0 ? null : (0, import_jsx_runtime10.jsx)(Button3, { variant: variant.action.primary === false ? "outline" : "default", size: "sm", "data-prompt": t(variant.action.prompt, MAX_PROMPT_LEN), children: t(variant.action.label, 120) })] })] })] });
 }
-function renderAction(action) {
-  if (action === void 0)
-    return "";
-  const classes = action.primary === false ? "copy" : "copy primary";
-  return `<button class="${classes}" data-prompt="${escapeHtml(truncate(action.prompt, MAX_PROMPT_LEN))}">${escapeHtml(action.label)}</button>`;
-}
-function renderVariantRow(input) {
-  const { selected, variant, visual } = input;
-  const previewButton = visual && variant.preview !== void 0 ? `<button class="mv-preview-trigger" type="button" data-mv-preview-trigger data-mv-variant-id="${escapeHtml(variant.id)}" data-mv-preview-src="${escapeHtml(variant.preview.href)}" data-mv-preview-title="${escapeHtml(variant.label)}" data-mv-preview-source="${escapeHtml(variant.preview.sourcePath)}">Preview</button>` : "";
-  const evidence2 = variant.evidence.length === 0 ? "" : variant.evidence.map((item) => chip(item)).join("\n          ");
-  return `      <article class="mv-row" data-mv-row data-mv-variant-id="${escapeHtml(variant.id)}" data-selected="${selected ? "true" : "false"}">
-        <div class="mv-name">
-          <strong>${escapeHtml(variant.label)}</strong>
-          <span class="mv-tag${variant.recommended ? " good" : ""}">${escapeHtml(variant.recommended ? "Recommended" : variant.id)}</span>
-        </div>
-        <div class="mv-copy">
-          <p>${escapeHtml(truncate(variant.description, MAX_BULLET_LEN))}</p>
-          ${renderFacts(variant.facts)}
-          ${renderRisks(variant.risks)}
-        </div>
-        <div class="mv-evidence-cell">
-          <div class="evidence">
-          ${evidence2}
-          </div>
-          <div class="mv-actions">
-            ${previewButton}
-            ${renderAction(variant.action)}
-          </div>
-        </div>
-      </article>`;
-}
-function renderVisualDetail(variant) {
+function VisualDetail({ variant }) {
   const preview = variant.preview;
-  const frameHtml = preview === void 0 ? '<iframe data-mv-frame hidden title=""></iframe><p class="mv-empty-preview" data-mv-empty>No visual preview is available for this variant.</p>' : `<iframe data-mv-frame src="${escapeHtml(preview.href)}" title="${escapeHtml(`${variant.label} preview`)}" sandbox="allow-scripts allow-forms allow-pointer-lock" loading="lazy"></iframe><p class="mv-empty-preview" data-mv-empty hidden>No visual preview is available for this variant.</p>`;
-  const source = preview?.sourcePath ?? "No visual artifact path";
-  const link2 = preview === void 0 ? '<a class="mv-open-link" data-mv-open hidden>Open artifact</a>' : `<a class="mv-open-link" data-mv-open href="${escapeHtml(preview.href)}" target="_blank" rel="noreferrer">Open artifact</a>`;
-  return `    <aside class="mv-detail" aria-label="Selected variant preview">
-      <h2 data-mv-title>${escapeHtml(variant.label)}</h2>
-      <div class="mv-frame">
-        ${frameHtml}
-      </div>
-      <div class="mv-detail-meta">
-        ${link2}
-        <div class="mv-detail-source" data-mv-source>${escapeHtml(source)}</div>
-      </div>
-    </aside>`;
+  return (0, import_jsx_runtime10.jsxs)("aside", { className: "mv-detail", "aria-label": "Selected variant preview", children: [(0, import_jsx_runtime10.jsx)("h2", { "data-mv-title": "", children: t(variant.label, 160) }), (0, import_jsx_runtime10.jsx)("div", { className: "mv-frame", children: preview === void 0 ? (0, import_jsx_runtime10.jsxs)(import_jsx_runtime10.Fragment, { children: [(0, import_jsx_runtime10.jsx)("iframe", { "data-mv-frame": "", hidden: true, title: "Variant preview" }), (0, import_jsx_runtime10.jsx)("p", { className: "mv-empty-preview", "data-mv-empty": "", children: "No visual preview is available for this variant." })] }) : (0, import_jsx_runtime10.jsxs)(import_jsx_runtime10.Fragment, { children: [(0, import_jsx_runtime10.jsx)("iframe", { "data-mv-frame": "", src: preview.href, title: `${t(variant.label, 160)} preview`, sandbox: "allow-scripts allow-forms allow-pointer-lock", loading: "lazy" }), (0, import_jsx_runtime10.jsx)("p", { className: "mv-empty-preview", "data-mv-empty": "", hidden: true, children: "No visual preview is available for this variant." })] }) }), (0, import_jsx_runtime10.jsxs)("div", { className: "mv-detail-meta", children: [preview === void 0 ? (
+    // biome-ignore lint/a11y/useValidAnchor: placeholder link; the preview switcher script sets href before unhiding it.
+    (0, import_jsx_runtime10.jsx)("a", { className: "mv-open-link", "data-mv-open": "", hidden: true, children: "Open artifact" })
+  ) : (0, import_jsx_runtime10.jsx)("a", { className: "mv-open-link", "data-mv-open": "", href: preview.href, target: "_blank", rel: "noreferrer", children: "Open artifact" }), (0, import_jsx_runtime10.jsx)("div", { className: "mv-detail-source", "data-mv-source": "", children: t(preview?.sourcePath ?? "No visual artifact path", MAX_PROMPT_LEN) })] })] });
 }
 function renderMultiVariantComparisonPage(input) {
   if (input.variants.length === 0) {
@@ -78723,58 +78553,30 @@ function renderMultiVariantComparisonPage(input) {
   }
   const visual = input.variants.some((variant) => variant.preview !== void 0);
   const defaultVariant = visual ? input.variants.find((variant) => variant.recommended && variant.preview !== void 0) ?? input.variants.find((variant) => variant.preview !== void 0) ?? recommended : recommended;
-  const rows = input.variants.map((variant) => renderVariantRow({ variant, visual, selected: variant.id === defaultVariant.id })).join("\n");
-  const banner = verdictBanner({
-    intent: input.recommendation.intent,
-    badgeText: input.recommendation.badgeText,
-    mainHtml: `<strong>${escapeHtml(input.recommendation.label)}</strong> &mdash; ${escapeHtml(input.recommendation.rationale)}`,
-    ...input.recommendation.aside === void 0 ? {} : { aside: input.recommendation.aside }
-  });
-  const details = input.detailsHtml === void 0 ? "" : input.detailsHtml;
-  const bodyHtml = `${banner}
-
-  <section class="mv-decision" aria-label="Checkpoint decision">
-    <div>
-      <strong>Recommended: ${escapeHtml(recommended.label)}</strong>
-      <span>${escapeHtml(input.recommendation.rationale)}</span>
-    </div>
-    <div class="mv-count">${input.variants.length} variants compared</div>
-  </section>
-
-  <div class="mv-compare">
-    <section aria-label="Variant comparison">
-      <div class="mv-list-head">
-        <div>Variant</div>
-        <div>What changes</div>
-        <div>${visual ? "Evidence and preview" : "Evidence"}</div>
-      </div>
-${rows}
-    </section>
-${visual ? renderVisualDetail(defaultVariant) : ""}
-  </div>
-
-${details}
-`;
-  return renderPage({
+  return renderReportPage({
     title: input.title,
     metaLine: input.metaLine,
     headline: input.headline,
     subtitle: input.subtitle,
-    bodyHtml,
     ...input.footerLeft === void 0 ? {} : { footerLeft: input.footerLeft },
     ...input.footerRight === void 0 ? {} : { footerRight: input.footerRight },
-    wrapClassName: visual ? "wrap mv-wrap mv-visual" : "wrap mv-wrap mv-evidence",
-    extraStyles: multiVariantStyles(),
-    ...visual ? { extraScript: multiVariantScript() } : {}
+    wrapClassName: visual ? "mv-wrap mv-visual" : "mv-wrap mv-evidence",
+    extraStyle: MULTI_VARIANT_STYLE,
+    ...visual ? { extraScript: MULTI_VARIANT_SCRIPT } : {},
+    children: (0, import_jsx_runtime10.jsxs)(import_jsx_runtime10.Fragment, { children: [(0, import_jsx_runtime10.jsx)(VerdictBanner, { intent: input.recommendation.intent, badgeText: input.recommendation.badgeText, main: (0, import_jsx_runtime10.jsxs)(import_jsx_runtime10.Fragment, { children: [(0, import_jsx_runtime10.jsx)("strong", { children: t(input.recommendation.label, 160) }), " \xB7", " ", t(input.recommendation.rationale, MAX_PROMPT_LEN)] }), ...input.recommendation.aside === void 0 ? {} : { aside: input.recommendation.aside } }), (0, import_jsx_runtime10.jsxs)("section", { className: "mv-decision", "aria-label": "Checkpoint decision", children: [(0, import_jsx_runtime10.jsxs)("div", { children: [(0, import_jsx_runtime10.jsxs)("strong", { children: ["Recommended: ", t(recommended.label, 160)] }), (0, import_jsx_runtime10.jsx)("span", { children: t(input.recommendation.rationale, MAX_PROMPT_LEN) })] }), (0, import_jsx_runtime10.jsxs)("div", { className: "mv-count", children: [input.variants.length, " variants compared"] })] }), (0, import_jsx_runtime10.jsxs)("div", { className: "mv-compare", children: [(0, import_jsx_runtime10.jsxs)("section", { "aria-label": "Variant comparison", children: [(0, import_jsx_runtime10.jsxs)("div", { className: "mv-list-head", children: [(0, import_jsx_runtime10.jsx)("div", { children: "Variant" }), (0, import_jsx_runtime10.jsx)("div", { children: "What changes" }), (0, import_jsx_runtime10.jsx)("div", { children: visual ? "Evidence and preview" : "Evidence" })] }), input.variants.map((variant) => (0, import_jsx_runtime10.jsx)(VariantRow, { variant, visual, selected: variant.id === defaultVariant.id }, variant.id))] }), visual ? (0, import_jsx_runtime10.jsx)(VisualDetail, { variant: defaultVariant }) : null] }), input.details ?? null] })
   });
 }
-var PREVIEWABLE_EXTENSIONS;
+var import_jsx_runtime10, PREVIEWABLE_EXTENSIONS, MULTI_VARIANT_STYLE, MULTI_VARIANT_SCRIPT;
 var init_multi_variant = __esm({
   "dist/shared/html/multi-variant.js"() {
     "use strict";
+    import_jsx_runtime10 = __toESM(require_jsx_runtime(), 1);
     init_control_plane_paths();
-    init_components();
     init_page();
+    init_react_page();
+    init_report_components();
+    init_badge();
+    init_button2();
     PREVIEWABLE_EXTENSIONS = /* @__PURE__ */ new Set([
       ".gif",
       ".htm",
@@ -78786,115 +78588,63 @@ var init_multi_variant = __esm({
       ".svg",
       ".webp"
     ]);
+    MULTI_VARIANT_STYLE = [
+      ".mv-wrap{--mv-pad:clamp(18px,2.4vw,44px);--mv-top:clamp(30px,3vw,50px);--mv-rail-width:clamp(420px,32vw,640px);--mv-rail-gap:clamp(34px,4vw,72px);max-width:1280px}",
+      ".mv-wrap.mv-visual{max-width:none;width:100%;padding:var(--mv-top) calc(var(--mv-rail-width) + var(--mv-pad) + var(--mv-rail-gap)) 96px var(--mv-pad)}",
+      ".mv-decision{display:grid;grid-template-columns:minmax(0,1fr) auto;gap:18px;align-items:center;margin:24px 0 28px;padding:16px 0;border-top:1px solid var(--border);border-bottom:1px solid var(--border)}",
+      ".mv-decision strong{display:block;font-size:15px;line-height:1.35;margin-bottom:3px;font-weight:560}",
+      ".mv-decision span{color:var(--muted-foreground)}",
+      ".mv-count{font-size:12px;color:var(--muted-foreground);white-space:nowrap}",
+      ".mv-list-head,.mv-row{display:grid;grid-template-columns:minmax(150px,190px) minmax(30ch,1fr) minmax(240px,.9fr);gap:clamp(18px,2vw,34px);align-items:start}",
+      ".mv-list-head{padding:0 0 10px;color:var(--muted-foreground);font-size:11px;font-weight:600;text-transform:uppercase}",
+      ".mv-row{position:relative;width:100%;padding:18px 0;border-top:1px solid var(--border)}",
+      ".mv-row:last-child{border-bottom:1px solid var(--border)}",
+      '.mv-row[data-selected="true"]::before{content:"";position:absolute;left:-14px;top:18px;bottom:18px;width:2px;border-radius:999px;background:var(--positive)}',
+      ".mv-name{display:flex;flex-direction:column;gap:6px;align-items:flex-start}",
+      ".mv-name strong{font-size:15.5px;line-height:1.3;font-weight:560}",
+      ".mv-copy p{margin:0 0 9px}",
+      ".mv-evidence-cell{display:flex;flex-direction:column;gap:10px;min-width:0}",
+      ".mv-detail{position:fixed;top:var(--mv-top);right:var(--mv-pad);bottom:28px;width:var(--mv-rail-width);border-left:1px solid var(--border);padding-left:clamp(24px,2.4vw,40px);overflow:auto;overscroll-behavior:contain;scrollbar-gutter:stable}",
+      ".mv-detail h2{font-size:18px;line-height:1.3;margin:0 0 12px;font-weight:560}",
+      ".mv-frame{border:1px solid var(--input);border-radius:10px;background:var(--card);min-height:clamp(280px,42vh,470px);box-shadow:0 16px 42px rgba(22,28,24,.07);overflow:hidden}",
+      ".mv-frame iframe{display:block;width:100%;height:clamp(280px,42vh,470px);border:0;background:white}",
+      ".mv-empty-preview{padding:18px;color:var(--muted-foreground);font-size:13px}",
+      ".mv-detail-meta{display:flex;flex-direction:column;gap:10px;margin-top:14px}",
+      ".mv-open-link{font-size:13px;color:var(--info);text-decoration:none}",
+      ".mv-open-link:hover{text-decoration:underline}",
+      '.mv-detail-source{font:500 11px/1.4 ui-monospace,"SF Mono",Menlo,monospace;color:var(--muted-foreground);overflow-wrap:anywhere}',
+      ".mv-wrap.mv-evidence .mv-row{grid-template-columns:minmax(150px,210px) minmax(32ch,1fr) minmax(260px,.8fr)}",
+      "@media (max-width:1320px){.mv-wrap.mv-visual{max-width:1280px;margin:0 auto;padding:var(--mv-top) var(--mv-pad) 96px}.mv-detail{position:static;width:auto;overflow:visible;border-left:0;border-top:1px solid var(--border);padding-left:0;padding-top:22px;margin-top:24px}.mv-frame iframe{height:420px}}",
+      "@media (max-width:760px){.mv-decision{grid-template-columns:1fr}.mv-count{white-space:normal}.mv-list-head{display:none}.mv-row,.mv-wrap.mv-evidence .mv-row{grid-template-columns:1fr;gap:12px}.mv-frame iframe{height:340px}}"
+    ].join("");
+    MULTI_VARIANT_SCRIPT = `(()=>{const frame=document.querySelector('[data-mv-frame]');const title=document.querySelector('[data-mv-title]');const source=document.querySelector('[data-mv-source]');const link=document.querySelector('[data-mv-open]');const empty=document.querySelector('[data-mv-empty]');const rows=[...document.querySelectorAll('[data-mv-row]')];const triggers=[...document.querySelectorAll('[data-mv-preview-trigger]')];if(!frame||!title||!source||!link||!empty)return;function select(trigger){const id=trigger.dataset.mvVariantId||'';const src=trigger.dataset.mvPreviewSrc||'';title.textContent=trigger.dataset.mvPreviewTitle||'';source.textContent=trigger.dataset.mvPreviewSource||'';rows.forEach(row=>{row.dataset.selected=String(row.dataset.mvVariantId===id);});if(src.length>0){frame.hidden=false;empty.hidden=true;frame.setAttribute('src',src);link.hidden=false;link.setAttribute('href',src);}else{frame.hidden=true;empty.hidden=false;link.hidden=true;link.removeAttribute('href');}}triggers.forEach(trigger=>{trigger.addEventListener('click',()=>select(trigger));});})();`;
   }
 });
 
 // dist/flows/prototype/writers/checkpoint-html.js
-function bulletList(items) {
-  return `<ul class="tradeoffs">
-          ${items.map((item) => `<li>${escapeHtml(truncate(item, MAX_BULLET_LEN))}</li>`).join("\n          ")}
-        </ul>`;
-}
 function commandText2(command) {
   return `${command.cwd}$ ${command.argv.join(" ")}`;
-}
-function shellSingleQuote2(value) {
-  return `'${value.replace(/'/g, "'\\''")}'`;
-}
-function resumeCommandForChoice2(runFolder, choiceId) {
-  return `circuit resume --run-folder ${shellSingleQuote2(runFolder)} --checkpoint-choice ${shellSingleQuote2(choiceId)}`;
 }
 function load(readJsonRunRelative, relPath, parse3) {
   const parsed = parse3(readJsonRunRelative(relPath));
   return parsed.success ? parsed.data : void 0;
 }
-function renderArtifactCard(artifact) {
-  const bodyHtml = `      <p class="summary">${escapeHtml(artifact.summary)}</p>
-      <div>
-        <p class="section-label">Prototype root</p>
-        <div class="evidence">${chip(artifact.prototype_root)}</div>
-      </div>
-      <div>
-        <p class="section-label">Entry points</p>
-        <div class="evidence">
-          ${artifact.entry_points.map((entry) => chip(entry)).join("\n          ")}
-        </div>
-      </div>
-      <div>
-        <p class="section-label">Preview</p>
-        <p class="summary">${escapeHtml(artifact.preview_instructions)}</p>
-      </div>`;
-  return card({
-    intent: "positive",
-    eyebrow: "artifact",
-    title: "Prototype files",
-    bodyHtml
-  });
+function ArtifactCard2({ artifact }) {
+  return (0, import_jsx_runtime11.jsxs)(ReportCard, { intent: "positive", eyebrow: "artifact", title: "Prototype files", children: [(0, import_jsx_runtime11.jsx)(Summary, { text: artifact.summary }), (0, import_jsx_runtime11.jsxs)("div", { children: [(0, import_jsx_runtime11.jsx)(SectionLabel, { children: "Prototype root" }), (0, import_jsx_runtime11.jsx)(ChipRow, { items: [artifact.prototype_root] })] }), (0, import_jsx_runtime11.jsxs)("div", { children: [(0, import_jsx_runtime11.jsx)(SectionLabel, { children: "Entry points" }), (0, import_jsx_runtime11.jsx)(ChipRow, { items: artifact.entry_points })] }), (0, import_jsx_runtime11.jsxs)("div", { children: [(0, import_jsx_runtime11.jsx)(SectionLabel, { children: "Preview" }), (0, import_jsx_runtime11.jsx)(Summary, { text: artifact.preview_instructions })] })] });
 }
-function renderVerificationCard(verification) {
+function VerificationCard({ verification }) {
   const status = verification.overall_status;
-  const bodyHtml = `      <p class="summary">${escapeHtml(status === "passed" ? "Artifact integrity and target checks passed." : "One or more checks failed.")}</p>
-      <div>
-        <p class="section-label">Checks</p>
-        <div class="evidence">
-          ${verification.commands.map((command) => chip(commandText2(command))).join("\n          ")}
-        </div>
-      </div>`;
-  return card({
-    intent: status === "passed" ? "positive" : "negative",
-    eyebrow: status,
-    title: "Verification",
-    bodyHtml
-  });
+  return (0, import_jsx_runtime11.jsxs)(ReportCard, { intent: status === "passed" ? "positive" : "negative", eyebrow: status, title: "Verification", children: [(0, import_jsx_runtime11.jsx)(Summary, { text: status === "passed" ? "Artifact integrity and target checks passed." : "One or more checks failed." }), (0, import_jsx_runtime11.jsxs)("div", { children: [(0, import_jsx_runtime11.jsx)(SectionLabel, { children: "Checks" }), (0, import_jsx_runtime11.jsx)(ChipRow, { items: verification.commands.map(commandText2) })] })] });
 }
-function renderRiskCard(artifact, brief) {
-  const limits = [...brief.claim_limits, ...artifact.claim_limits];
-  const bodyHtml = `      <p class="summary">Prototype is local evidence, not a production or deployed result.</p>
-      <div>
-        <p class="section-label">Known limitations</p>
-        ${artifact.known_limitations.length === 0 ? '<p class="summary">No limitations were reported.</p>' : bulletList(artifact.known_limitations)}
-      </div>
-      <div>
-        <p class="section-label">Claim limits</p>
-        <div class="evidence">
-          ${Array.from(new Set(limits)).map((limit) => chip(limit)).join("\n          ")}
-        </div>
-      </div>`;
-  return card({
-    intent: "attention",
-    eyebrow: "limits",
-    title: "Read Before Reuse",
-    bodyHtml
-  });
+function RiskCard2({ artifact, brief }) {
+  const limits = Array.from(/* @__PURE__ */ new Set([...brief.claim_limits, ...artifact.claim_limits]));
+  return (0, import_jsx_runtime11.jsxs)(ReportCard, { intent: "attention", eyebrow: "limits", title: "Read Before Reuse", children: [(0, import_jsx_runtime11.jsx)(Summary, { text: "Prototype is local evidence, not a production or deployed result." }), (0, import_jsx_runtime11.jsxs)("div", { children: [(0, import_jsx_runtime11.jsx)(SectionLabel, { children: "Known limitations" }), artifact.known_limitations.length === 0 ? (0, import_jsx_runtime11.jsx)(Summary, { text: "No limitations were reported." }) : (0, import_jsx_runtime11.jsx)(BulletList, { items: artifact.known_limitations })] }), (0, import_jsx_runtime11.jsxs)("div", { children: [(0, import_jsx_runtime11.jsx)(SectionLabel, { children: "Claim limits" }), (0, import_jsx_runtime11.jsx)(ChipRow, { items: limits })] })] });
 }
-function renderPlanCard(plan) {
-  const bodyHtml = `      <p class="summary">${escapeHtml(plan.preview_instructions)}</p>
-      <div>
-        <p class="section-label">Planned files</p>
-        <div class="evidence">
-          ${plan.files_to_create.map((file2) => chip(file2)).join("\n          ")}
-        </div>
-      </div>`;
-  return card({
-    intent: "neutral",
-    eyebrow: "plan",
-    title: "Artifact Plan",
-    bodyHtml
-  });
+function PlanCard({ plan }) {
+  return (0, import_jsx_runtime11.jsxs)(ReportCard, { eyebrow: "plan", title: "Artifact Plan", children: [(0, import_jsx_runtime11.jsx)(Summary, { text: plan.preview_instructions }), (0, import_jsx_runtime11.jsxs)("div", { children: [(0, import_jsx_runtime11.jsx)(SectionLabel, { children: "Planned files" }), (0, import_jsx_runtime11.jsx)(ChipRow, { items: plan.files_to_create })] })] });
 }
-function renderChoice(choice, runFolder, recommendedId) {
-  const isRecommended = choice.id === recommendedId;
-  const bodyHtml = `      <p class="summary">${escapeHtml(choice.description)}</p>
-      <div class="actions">
-        <button class="copy primary" data-prompt="${escapeHtml(truncate(resumeCommandForChoice2(runFolder, choice.id), MAX_PROMPT_LEN))}">Copy resume command</button>
-      </div>`;
-  return card({
-    intent: isRecommended ? "positive" : choice.intent,
-    eyebrow: choice.id,
-    title: choice.label,
-    ...isRecommended ? { badge: { text: "Recommended", intent: "positive" } } : {},
-    bodyHtml
-  });
+function Appendix2({ rawEvidence, resumeCommandTemplate }) {
+  return (0, import_jsx_runtime11.jsxs)(Collapsible, { className: "mt-8 rounded-lg border bg-card px-4 py-3", children: [(0, import_jsx_runtime11.jsx)(CollapsibleTrigger, { className: "text-[13px] font-medium text-muted-foreground", children: "Raw evidence and resume command" }), (0, import_jsx_runtime11.jsxs)(CollapsibleContent, { className: "mt-3 flex flex-col gap-2.5 text-[13px] text-muted-foreground", children: [(0, import_jsx_runtime11.jsxs)("p", { className: "flex flex-wrap items-baseline gap-1.5", children: [(0, import_jsx_runtime11.jsx)("strong", { className: "font-semibold text-foreground", children: "Resume command." }), (0, import_jsx_runtime11.jsx)(Chip, { text: resumeCommandTemplate })] }), (0, import_jsx_runtime11.jsx)("p", { children: (0, import_jsx_runtime11.jsx)("strong", { className: "font-semibold text-foreground", children: "Reports." }) }), (0, import_jsx_runtime11.jsx)(ChipRow, { items: rawEvidence })] })] });
 }
 function filteredChoices2(allowedChoices) {
   const allowed = new Set(allowedChoices);
@@ -78906,35 +78656,20 @@ function relaySelectionLine(evidence2) {
   }
   return "No captured relay selection evidence";
 }
-function renderVariantDetails(input) {
-  const missingEvidenceHtml = input.providerEvidence.missing_evidence.length === 0 && input.review.missing_evidence.length === 0 ? "" : `<p><strong>Missing evidence.</strong> ${escapeHtml([
-    ...input.providerEvidence.missing_evidence.map((item) => `${item.variant_id}: ${item.reason}`),
-    ...input.review.missing_evidence
-  ].join("; "))}</p>`;
-  const strengthsHtml = input.review.strengths.length === 0 ? "" : `<p><strong>Strengths.</strong></p><ul>${input.review.strengths.map((item) => `<li>${escapeHtml(`${item.variant_id}: ${item.note}`)}</li>`).join("")}</ul>`;
-  const risksHtml = input.review.risks.length === 0 ? "" : `<p><strong>Risks.</strong></p><ul>${input.review.risks.map((item) => `<li>${escapeHtml(truncate(item, MAX_BULLET_LEN))}</li>`).join("")}</ul>`;
-  return `  <details>
-    <summary>Comparison evidence and resume command</summary>
-    <div class="body">
-      <p><strong>Comparison.</strong> ${escapeHtml(input.review.comparison_summary)}</p>
-      ${strengthsHtml}
-      ${risksHtml}
-      <p><strong>Verification.</strong> ${escapeHtml(input.verification.overall_status)}</p>
-      ${missingEvidenceHtml}
-      <p><strong>Resume command.</strong> <code>${escapeHtml(input.resumeCommand)}</code></p>
-      <p><strong>Reports.</strong></p>
-      <div class="evidence">
-        ${[
+function VariantDetails({ review, verification, providerEvidence: providerEvidence2, checkpointRequestPath: checkpointRequestPath2, resumeCommand }) {
+  const missingEvidence = [
+    ...providerEvidence2.missing_evidence.map((item) => `${item.variant_id}: ${item.reason}`),
+    ...review.missing_evidence
+  ];
+  const reports = [
     PROTOTYPE_VARIANT_AGGREGATE_PATH,
     PROTOTYPE_VARIANT_PROVIDER_EVIDENCE_PATH,
     PROTOTYPE_VARIANT_VERIFICATION_PATH,
     PROTOTYPE_VARIANT_REVIEW_PATH,
     PROTOTYPE_VARIANT_CHOICES_PATH,
-    input.checkpointRequestPath ?? ""
-  ].filter((item) => item.length > 0).map((item) => chip(item)).join("\n        ")}
-      </div>
-    </div>
-  </details>`;
+    checkpointRequestPath2 ?? ""
+  ].filter((item) => item.length > 0);
+  return (0, import_jsx_runtime11.jsxs)(Collapsible, { className: "mt-8 rounded-lg border bg-card px-5 py-4", children: [(0, import_jsx_runtime11.jsx)(CollapsibleTrigger, { className: "text-sm font-medium text-muted-foreground hover:text-foreground", children: "Comparison evidence and resume command" }), (0, import_jsx_runtime11.jsxs)(CollapsibleContent, { className: "flex flex-col gap-2.5 pt-4 text-sm leading-relaxed", children: [(0, import_jsx_runtime11.jsxs)("p", { children: [(0, import_jsx_runtime11.jsx)("strong", { children: "Comparison." }), " ", t(review.comparison_summary, MAX_PROMPT_LEN)] }), review.strengths.length === 0 ? null : (0, import_jsx_runtime11.jsxs)(import_jsx_runtime11.Fragment, { children: [(0, import_jsx_runtime11.jsx)("p", { children: (0, import_jsx_runtime11.jsx)("strong", { children: "Strengths." }) }), (0, import_jsx_runtime11.jsx)(BulletList, { items: review.strengths.map((item) => `${item.variant_id}: ${item.note}`) })] }), review.risks.length === 0 ? null : (0, import_jsx_runtime11.jsxs)(import_jsx_runtime11.Fragment, { children: [(0, import_jsx_runtime11.jsx)("p", { children: (0, import_jsx_runtime11.jsx)("strong", { children: "Risks." }) }), (0, import_jsx_runtime11.jsx)(BulletList, { items: review.risks })] }), (0, import_jsx_runtime11.jsxs)("p", { children: [(0, import_jsx_runtime11.jsx)("strong", { children: "Verification." }), " ", t(verification.overall_status, 120)] }), missingEvidence.length === 0 ? null : (0, import_jsx_runtime11.jsxs)("p", { children: [(0, import_jsx_runtime11.jsx)("strong", { children: "Missing evidence." }), " ", t(missingEvidence.join("; "), MAX_PROMPT_LEN)] }), (0, import_jsx_runtime11.jsxs)("p", { className: "flex flex-wrap items-baseline gap-1.5", children: [(0, import_jsx_runtime11.jsx)("strong", { children: "Resume command." }), (0, import_jsx_runtime11.jsx)(Chip, { text: resumeCommand })] }), (0, import_jsx_runtime11.jsx)("p", { children: (0, import_jsx_runtime11.jsx)("strong", { children: "Reports." }) }), (0, import_jsx_runtime11.jsx)(ChipRow, { items: reports })] })] });
 }
 function variantComparisonItems(input) {
   return input.choices.map((choice) => {
@@ -78967,7 +78702,7 @@ function variantComparisonItems(input) {
       ...preview === void 0 ? {} : { preview },
       action: {
         label: "Copy resume command",
-        prompt: resumeCommandForChoice2(input.runFolder, choice.id),
+        prompt: resumeCommandForChoice(input.runFolder, choice.id),
         primary: true
       }
     };
@@ -78989,10 +78724,10 @@ function renderVariantCheckpoint(ctx) {
   const recommended = visibleChoices.find((choice) => choice.id === choices.recommended_variant_id) ?? visibleChoices.find((choice) => choice.recommended) ?? visibleChoices[0];
   if (recommended === void 0)
     return void 0;
-  const resumeCommand = `circuit resume --run-folder ${shellSingleQuote2(ctx.runFolder)} --checkpoint-choice '<variant-id>'`;
+  const resumeCommand = `circuit resume --run-folder ${shellSingleQuote(ctx.runFolder)} --checkpoint-choice '<variant-id>'`;
   return renderMultiVariantComparisonPage({
     title: "Prototype model comparison checkpoint",
-    metaLine: `Prototype model comparison - ${ctx.runId}`,
+    metaLine: `Prototype model comparison \xB7 ${ctx.runId}`,
     headline: "Choose a prototype variant",
     subtitle: "Compare local prototype artifacts using captured relay selection evidence, then keep one variant.",
     recommendation: {
@@ -79010,24 +78745,22 @@ function renderVariantCheckpoint(ctx) {
       runFolder: ctx.runFolder,
       projectRoot: ctx.projectRoot
     }),
-    detailsHtml: renderVariantDetails({
-      review,
-      verification,
-      providerEvidence: providerEvidence2,
-      checkpointRequestPath: ctx.checkpoint?.request_path,
-      resumeCommand
-    }),
-    footerLeft: `circuit - prototype - ${ctx.runId}`,
+    details: (0, import_jsx_runtime11.jsx)(VariantDetails, { review, verification, providerEvidence: providerEvidence2, checkpointRequestPath: ctx.checkpoint?.request_path, resumeCommand }),
+    footerLeft: `circuit \xB7 prototype \xB7 ${ctx.runId}`,
     footerRight: PROTOTYPE_VARIANT_AGGREGATE_PATH
   });
 }
-var PROTOTYPE_BRIEF_PATH, PROTOTYPE_PLAN_PATH, PROTOTYPE_ARTIFACT_PATH, PROTOTYPE_VERIFICATION_PATH, PROTOTYPE_VARIANT_AGGREGATE_PATH, PROTOTYPE_VARIANT_PROVIDER_EVIDENCE_PATH, PROTOTYPE_VARIANT_VERIFICATION_PATH, PROTOTYPE_VARIANT_REVIEW_PATH, PROTOTYPE_VARIANT_CHOICES_PATH, CHOICES, prototypeCheckpointProjector;
+var import_jsx_runtime11, PROTOTYPE_BRIEF_PATH, PROTOTYPE_PLAN_PATH, PROTOTYPE_ARTIFACT_PATH, PROTOTYPE_VERIFICATION_PATH, PROTOTYPE_VARIANT_AGGREGATE_PATH, PROTOTYPE_VARIANT_PROVIDER_EVIDENCE_PATH, PROTOTYPE_VARIANT_VERIFICATION_PATH, PROTOTYPE_VARIANT_REVIEW_PATH, PROTOTYPE_VARIANT_CHOICES_PATH, CHOICES, prototypeCheckpointProjector;
 var init_checkpoint_html2 = __esm({
   "dist/flows/prototype/writers/checkpoint-html.js"() {
     "use strict";
-    init_components();
+    import_jsx_runtime11 = __toESM(require_jsx_runtime(), 1);
+    init_checkpoint_page();
     init_multi_variant();
     init_page();
+    init_react_page();
+    init_report_components();
+    init_collapsible();
     init_reports8();
     PROTOTYPE_BRIEF_PATH = "reports/prototype/brief.json";
     PROTOTYPE_PLAN_PATH = "reports/prototype/plan.json";
@@ -79042,20 +78775,17 @@ var init_checkpoint_html2 = __esm({
       {
         id: "keep-prototype",
         label: "Keep Prototype",
-        description: "Save the prototype as useful evidence and stop here.",
-        intent: "positive"
+        description: "Save the prototype as useful evidence and stop here."
       },
       {
         id: "save-build-input",
         label: "Save Build Input",
-        description: "Close with a Build-ready follow-up prompt, without running Build.",
-        intent: "info"
+        description: "Close with a Build-ready follow-up prompt, without running Build."
       },
       {
         id: "discard-prototype",
         label: "Discard Prototype",
-        description: "Mark the prototype as discarded while keeping the evidence trail.",
-        intent: "attention"
+        description: "Mark the prototype as discarded while keeping the evidence trail."
       }
     ];
     prototypeCheckpointProjector = (ctx) => {
@@ -79079,54 +78809,41 @@ var init_checkpoint_html2 = __esm({
       const recommendedChoice = choices.find((choice) => choice.id === "keep-prototype") ?? choices[0];
       if (recommendedChoice === void 0)
         return void 0;
-      const banner = verdictBanner({
-        intent: "positive",
-        badgeText: "Verified local artifact",
-        mainHtml: `<strong>${escapeHtml(recommendedChoice.label)}</strong> &mdash; ${escapeHtml("Safe default: keep the prototype evidence and decide on Build separately.")}`,
-        aside: "waiting for choice"
-      });
-      const choiceCards = choices.map((choice) => renderChoice(choice, ctx.runFolder, recommendedChoice.id)).join("\n\n");
-      const resumeCommand = `circuit resume --run-folder ${shellSingleQuote2(ctx.runFolder)} --checkpoint-choice '<choice>'`;
-      const bodyHtml = `${banner}
-
-  <div class="grid">
-${renderArtifactCard(artifact)}
-
-${renderVerificationCard(verification)}
-
-${renderRiskCard(artifact, brief)}
-
-${renderPlanCard(plan)}
-  </div>
-
-  <div class="grid" style="margin-top:16px">
-${choiceCards}
-  </div>
-
-  <details>
-    <summary>Raw evidence and resume command</summary>
-    <div class="body">
-      <p><strong>Resume command.</strong> <code>${escapeHtml(resumeCommand)}</code></p>
-      <p><strong>Reports.</strong></p>
-      <div class="evidence">
-        ${[
+      const safeDefaultId = ctx.checkpoint.safe_default_choice;
+      const options = choices.map((choice) => ({
+        id: choice.id,
+        label: choice.label,
+        description: choice.description,
+        ...choice.id === recommendedChoice.id ? { isRecommended: true } : {},
+        ...choice.id === safeDefaultId ? { isDefault: true } : {}
+      }));
+      const defaultChoice = options.find((option) => option.id === safeDefaultId);
+      const resumeCommandTemplate = `circuit resume --run-folder ${shellSingleQuote(ctx.runFolder)} --checkpoint-choice '<choice>'`;
+      const rawEvidence = [
         PROTOTYPE_BRIEF_PATH,
         PROTOTYPE_PLAN_PATH,
         PROTOTYPE_ARTIFACT_PATH,
         PROTOTYPE_VERIFICATION_PATH,
         ctx.checkpoint.request_path
-      ].map((item) => chip(item)).join("\n        ")}
-      </div>
-    </div>
-  </details>
-`;
-      return renderPage({
-        title: `${brief.objective} - Circuit Prototype checkpoint`,
-        metaLine: `Prototype checkpoint - ${ctx.runId}`,
-        headline: brief.objective,
+      ];
+      return renderCheckpointPage({
+        meta: { flowLabel: "Prototype", runId: ctx.runId, stepId: ctx.checkpoint.step_id },
+        question: brief.objective,
         subtitle: "Choose whether to keep this local prototype, save it as Build input, or mark it discarded.",
-        bodyHtml,
-        footerLeft: `circuit - prototype - ${ctx.runId}`,
+        ribbon: [
+          "Waiting for you",
+          verification.overall_status === "passed" ? "Verified local artifact" : "Verification failed"
+        ],
+        recommendation: {
+          label: recommendedChoice.label,
+          rationale: "Safe default: keep the prototype evidence and decide on Build separately."
+        },
+        options,
+        ...defaultChoice === void 0 ? {} : { defaultChoice: { id: defaultChoice.id, label: defaultChoice.label } },
+        context: (0, import_jsx_runtime11.jsxs)("div", { className: "grid gap-4 md:grid-cols-2", children: [(0, import_jsx_runtime11.jsx)(ArtifactCard2, { artifact }), (0, import_jsx_runtime11.jsx)(VerificationCard, { verification }), (0, import_jsx_runtime11.jsx)(RiskCard2, { artifact, brief }), (0, import_jsx_runtime11.jsx)(PlanCard, { plan })] }),
+        appendix: (0, import_jsx_runtime11.jsx)(Appendix2, { rawEvidence, resumeCommandTemplate }),
+        resume: { runFolder: ctx.runFolder },
+        footerLeft: `circuit \xB7 prototype \xB7 ${ctx.runId}`,
         footerRight: PROTOTYPE_ARTIFACT_PATH
       });
     };
@@ -81024,52 +80741,46 @@ function severityIntent(severity) {
     return "attention";
   return "info";
 }
-function findingList(findings) {
+function FindingList({ findings }) {
   if (findings.length === 0)
-    return '<p class="summary">No actionable findings.</p>';
-  const items = findings.map((finding3) => {
-    const refs = finding3.file_refs.length === 0 ? "" : ` <span class="chip">${escapeHtml(finding3.file_refs.join(", "))}</span>`;
-    return `<li><strong>${escapeHtml(finding3.severity.toUpperCase())}</strong>: ${escapeHtml(finding3.text)}${refs}</li>`;
-  }).join("");
-  return `<ul class="tradeoffs">${items}</ul>`;
+    return (0, import_jsx_runtime12.jsx)(Summary, { text: "No actionable findings." });
+  return (0, import_jsx_runtime12.jsx)("ul", { className: "m-0 list-disc space-y-1.5 pl-4 text-[13px] leading-normal marker:text-muted-foreground/60", children: findings.map((finding3) => (0, import_jsx_runtime12.jsxs)("li", { children: [(0, import_jsx_runtime12.jsx)("strong", { children: t(finding3.severity.toUpperCase(), 40) }), ":", " ", t(finding3.text, MAX_BULLET_LEN), finding3.file_refs.length === 0 ? null : (0, import_jsx_runtime12.jsxs)(import_jsx_runtime12.Fragment, { children: [" ", (0, import_jsx_runtime12.jsx)(Chip, { text: finding3.file_refs.join(", ") })] })] }, `${finding3.severity}:${finding3.text}`)) });
 }
-function stringList(items) {
+function StringList({ items }) {
   if (items.length === 0)
-    return '<p class="summary">None.</p>';
-  return `<ul class="tradeoffs">${items.map((item) => `<li>${escapeHtml(item)}</li>`).join("")}</ul>`;
+    return (0, import_jsx_runtime12.jsx)(Summary, { text: "None." });
+  return (0, import_jsx_runtime12.jsx)(BulletList, { items });
 }
-function warningList(warnings) {
+function WarningList({ warnings }) {
   if (warnings.length === 0)
-    return '<p class="summary">No evidence warnings.</p>';
-  return `<ul class="tradeoffs">${warnings.map((warning) => {
-    const path = warning.path === void 0 ? "" : ` (${warning.path})`;
-    return `<li><strong>${escapeHtml(warning.kind)}</strong>${escapeHtml(path)}: ${escapeHtml(warning.message)}</li>`;
-  }).join("")}</ul>`;
+    return (0, import_jsx_runtime12.jsx)(Summary, { text: "No evidence warnings." });
+  return (0, import_jsx_runtime12.jsx)("ul", { className: "m-0 list-disc space-y-1.5 pl-4 text-[13px] leading-normal marker:text-muted-foreground/60", children: warnings.map((warning) => (0, import_jsx_runtime12.jsxs)("li", { children: [(0, import_jsx_runtime12.jsx)("strong", { children: t(warning.kind, 120) }), warning.path === void 0 ? null : (0, import_jsx_runtime12.jsxs)(import_jsx_runtime12.Fragment, { children: [" (", t(warning.path, MAX_BULLET_LEN), ")"] }), ":", " ", t(warning.message, MAX_BULLET_LEN)] }, `${warning.kind}:${warning.message}`)) });
 }
-function evidenceSummary2(report) {
+function EvidenceSummary({ report }) {
   const evidence2 = report.evidence_summary;
   if (evidence2 === void 0)
-    return '<p class="summary">No evidence summary was recorded.</p>';
-  if (evidence2.kind === "unavailable") {
-    return `<p class="summary">${escapeHtml(evidence2.message)}</p>`;
-  }
+    return (0, import_jsx_runtime12.jsx)(Summary, { text: "No evidence summary was recorded." });
+  if (evidence2.kind === "unavailable")
+    return (0, import_jsx_runtime12.jsx)(Summary, { text: evidence2.message });
   const sampled = `${evidence2.untracked_files_sampled}/${evidence2.untracked_file_count}`;
   const truncated = evidence2.untracked_files_truncated ? "yes" : "no";
-  return `<ul class="tradeoffs">
-    <li>Untracked content policy: ${escapeHtml(evidence2.untracked_content_policy)}</li>
-    <li>Untracked files sampled: ${escapeHtml(sampled)}</li>
-    <li>Untracked file list truncated: ${escapeHtml(truncated)}</li>
-  </ul>`;
+  return (0, import_jsx_runtime12.jsx)(BulletList, { items: [
+    `Untracked content policy: ${evidence2.untracked_content_policy}`,
+    `Untracked files sampled: ${sampled}`,
+    `Untracked file list truncated: ${truncated}`
+  ] });
 }
 function shouldRenderHtml(report) {
   return report.findings.length > 0 || report.evidence_warnings.length > 0 || report.confidence_limitations.length > 0;
 }
-var reviewResultProjector;
+var import_jsx_runtime12, reviewResultProjector;
 var init_result_html = __esm({
   "dist/flows/review/writers/result-html.js"() {
     "use strict";
-    init_components();
+    import_jsx_runtime12 = __toESM(require_jsx_runtime(), 1);
     init_page();
+    init_react_page();
+    init_report_components();
     init_reports10();
     reviewResultProjector = (ctx) => {
       const parsed = ReviewResult.safeParse(ctx.flowReport);
@@ -81086,50 +80797,14 @@ var init_result_html = __esm({
           return "attention";
         return intent;
       }, report.verdict === "CLEAN" ? "positive" : "attention");
-      const body = [
-        verdictBanner({
-          intent: worstIntent,
-          badgeText: report.verdict,
-          mainHtml: `<strong>${escapeHtml(report.scope)}</strong>`,
-          aside: `${report.findings.length} finding${report.findings.length === 1 ? "" : "s"}`
-        }),
-        card({
-          intent: worstIntent,
-          eyebrow: "Findings",
-          title: "Reviewer findings",
-          bodyHtml: findingList(report.findings)
-        }),
-        // Method notes stay neutral: amber is reserved for findings that need
-        // caution. Scope caveats keep a quiet badge so honesty about what was
-        // not checked survives without painting a clean result as alarming.
-        card({
-          intent: "neutral",
-          eyebrow: "Evidence",
-          title: "What was checked",
-          bodyHtml: [
-            `<p class="summary">${escapeHtml(report.assessment)}</p>`,
-            '<p class="section-label">Verification</p>',
-            stringList(report.verification),
-            '<p class="section-label">Confidence limits</p>',
-            stringList(report.confidence_limitations)
-          ].join("\n")
-        }),
-        card({
-          intent: "neutral",
-          eyebrow: "Caveats",
-          title: "Evidence caveats",
-          ...report.evidence_warnings.length > 0 ? { badge: { text: "Scope limited", intent: "attention" } } : {},
-          bodyHtml: [warningList(report.evidence_warnings), evidenceSummary2(report)].join("\n")
-        })
-      ].join("\n");
-      return renderPage({
+      return renderReportPage({
         title: "Review result",
         metaLine: `Circuit \xB7 Review \xB7 ${ctx.runOutcome}`,
         headline: "Review result",
         subtitle: report.assessment,
-        bodyHtml: body,
         footerLeft: `Run ${ctx.runId}`,
-        footerRight: "reports/review-result.json"
+        footerRight: "reports/review-result.json",
+        children: (0, import_jsx_runtime12.jsxs)(import_jsx_runtime12.Fragment, { children: [(0, import_jsx_runtime12.jsx)(VerdictBanner, { intent: worstIntent, badgeText: report.verdict, main: (0, import_jsx_runtime12.jsx)("strong", { children: t(report.scope, MAX_PROMPT_LEN) }), aside: `${report.findings.length} finding${report.findings.length === 1 ? "" : "s"}` }), (0, import_jsx_runtime12.jsxs)("div", { className: "flex flex-col gap-4", children: [(0, import_jsx_runtime12.jsx)(ReportCard, { intent: worstIntent, eyebrow: "Findings", title: "Reviewer findings", children: (0, import_jsx_runtime12.jsx)(FindingList, { findings: report.findings }) }), (0, import_jsx_runtime12.jsxs)(ReportCard, { eyebrow: "Evidence", title: "What was checked", children: [(0, import_jsx_runtime12.jsx)(Summary, { text: report.assessment }), (0, import_jsx_runtime12.jsxs)("div", { children: [(0, import_jsx_runtime12.jsx)(SectionLabel, { children: "Verification" }), (0, import_jsx_runtime12.jsx)(StringList, { items: report.verification })] }), (0, import_jsx_runtime12.jsxs)("div", { children: [(0, import_jsx_runtime12.jsx)(SectionLabel, { children: "Confidence limits" }), (0, import_jsx_runtime12.jsx)(StringList, { items: report.confidence_limitations })] })] }), (0, import_jsx_runtime12.jsxs)(ReportCard, { eyebrow: "Caveats", title: "Evidence caveats", ...report.evidence_warnings.length > 0 ? { badge: { text: "Scope limited", intent: "attention" } } : {}, children: [(0, import_jsx_runtime12.jsx)(WarningList, { warnings: report.evidence_warnings }), (0, import_jsx_runtime12.jsx)(EvidenceSummary, { report })] })] })] })
       });
     };
   }
@@ -89769,33 +89444,33 @@ var init_string_width = __esm({
 // node_modules/ansi-styles/index.js
 function assembleStyles() {
   const codes = /* @__PURE__ */ new Map();
-  for (const [groupName, group] of Object.entries(styles2)) {
+  for (const [groupName, group] of Object.entries(styles)) {
     for (const [styleName, style] of Object.entries(group)) {
-      styles2[styleName] = {
+      styles[styleName] = {
         open: `\x1B[${style[0]}m`,
         close: `\x1B[${style[1]}m`
       };
-      group[styleName] = styles2[styleName];
+      group[styleName] = styles[styleName];
       codes.set(style[0], style[1]);
     }
-    Object.defineProperty(styles2, groupName, {
+    Object.defineProperty(styles, groupName, {
       value: group,
       enumerable: false
     });
   }
-  Object.defineProperty(styles2, "codes", {
+  Object.defineProperty(styles, "codes", {
     value: codes,
     enumerable: false
   });
-  styles2.color.close = "\x1B[39m";
-  styles2.bgColor.close = "\x1B[49m";
-  styles2.color.ansi = wrapAnsi16();
-  styles2.color.ansi256 = wrapAnsi256();
-  styles2.color.ansi16m = wrapAnsi16m();
-  styles2.bgColor.ansi = wrapAnsi16(ANSI_BACKGROUND_OFFSET);
-  styles2.bgColor.ansi256 = wrapAnsi256(ANSI_BACKGROUND_OFFSET);
-  styles2.bgColor.ansi16m = wrapAnsi16m(ANSI_BACKGROUND_OFFSET);
-  Object.defineProperties(styles2, {
+  styles.color.close = "\x1B[39m";
+  styles.bgColor.close = "\x1B[49m";
+  styles.color.ansi = wrapAnsi16();
+  styles.color.ansi256 = wrapAnsi256();
+  styles.color.ansi16m = wrapAnsi16m();
+  styles.bgColor.ansi = wrapAnsi16(ANSI_BACKGROUND_OFFSET);
+  styles.bgColor.ansi256 = wrapAnsi256(ANSI_BACKGROUND_OFFSET);
+  styles.bgColor.ansi16m = wrapAnsi16m(ANSI_BACKGROUND_OFFSET);
+  Object.defineProperties(styles, {
     rgbToAnsi256: {
       value(red, green, blue) {
         if (red === green && green === blue) {
@@ -89833,7 +89508,7 @@ function assembleStyles() {
       enumerable: false
     },
     hexToAnsi256: {
-      value: (hex3) => styles2.rgbToAnsi256(...styles2.hexToRgb(hex3)),
+      value: (hex3) => styles.rgbToAnsi256(...styles.hexToRgb(hex3)),
       enumerable: false
     },
     ansi256ToAnsi: {
@@ -89871,24 +89546,24 @@ function assembleStyles() {
       enumerable: false
     },
     rgbToAnsi: {
-      value: (red, green, blue) => styles2.ansi256ToAnsi(styles2.rgbToAnsi256(red, green, blue)),
+      value: (red, green, blue) => styles.ansi256ToAnsi(styles.rgbToAnsi256(red, green, blue)),
       enumerable: false
     },
     hexToAnsi: {
-      value: (hex3) => styles2.ansi256ToAnsi(styles2.hexToAnsi256(hex3)),
+      value: (hex3) => styles.ansi256ToAnsi(styles.hexToAnsi256(hex3)),
       enumerable: false
     }
   });
-  return styles2;
+  return styles;
 }
-var ANSI_BACKGROUND_OFFSET, wrapAnsi16, wrapAnsi256, wrapAnsi16m, styles2, modifierNames, foregroundColorNames, backgroundColorNames, colorNames, ansiStyles, ansi_styles_default;
+var ANSI_BACKGROUND_OFFSET, wrapAnsi16, wrapAnsi256, wrapAnsi16m, styles, modifierNames, foregroundColorNames, backgroundColorNames, colorNames, ansiStyles, ansi_styles_default;
 var init_ansi_styles = __esm({
   "node_modules/ansi-styles/index.js"() {
     ANSI_BACKGROUND_OFFSET = 10;
     wrapAnsi16 = (offset = 0) => (code) => `\x1B[${code + offset}m`;
     wrapAnsi256 = (offset = 0) => (code) => `\x1B[${38 + offset};5;${code}m`;
     wrapAnsi16m = (offset = 0) => (red, green, blue) => `\x1B[${38 + offset};2;${red};${green};${blue}m`;
-    styles2 = {
+    styles = {
       modifier: {
         reset: [0, 0],
         // 21 isn't widely supported and 22 does the same thing
@@ -89948,9 +89623,9 @@ var init_ansi_styles = __esm({
         bgWhiteBright: [107, 49]
       }
     };
-    modifierNames = Object.keys(styles2.modifier);
-    foregroundColorNames = Object.keys(styles2.color);
-    backgroundColorNames = Object.keys(styles2.bgColor);
+    modifierNames = Object.keys(styles.modifier);
+    foregroundColorNames = Object.keys(styles.color);
+    backgroundColorNames = Object.keys(styles.bgColor);
     colorNames = [...foregroundColorNames, ...backgroundColorNames];
     ansiStyles = assembleStyles();
     ansi_styles_default = ansiStyles;
@@ -114811,7 +114486,7 @@ var init_dom = __esm({
 });
 
 // node_modules/ink/build/styles.js
-var positionEdges, applyPositionStyles, applyMarginStyles, applyPaddingStyles, applyFlexStyles, applyDimensionStyles, applyDisplayStyles, applyBorderStyles, applyGapStyles, styles3, styles_default;
+var positionEdges, applyPositionStyles, applyMarginStyles, applyPaddingStyles, applyFlexStyles, applyDimensionStyles, applyDisplayStyles, applyBorderStyles, applyGapStyles, styles2, styles_default;
 var init_styles = __esm({
   async "node_modules/ink/build/styles.js"() {
     await init_src();
@@ -115089,7 +114764,7 @@ var init_styles = __esm({
         node.setGap(src_default.GUTTER_ROW, style.rowGap ?? 0);
       }
     };
-    styles3 = (node, style = {}, currentStyle = style) => {
+    styles2 = (node, style = {}, currentStyle = style) => {
       applyPositionStyles(node, style);
       applyMarginStyles(node, style);
       applyPaddingStyles(node, style);
@@ -115099,7 +114774,7 @@ var init_styles = __esm({
       applyBorderStyles(node, style, currentStyle);
       applyGapStyles(node, style);
     };
-    styles_default = styles3;
+    styles_default = styles2;
   }
 });
 
@@ -119354,33 +119029,33 @@ var init_cli_boxes = __esm({
 // node_modules/chalk/source/vendor/ansi-styles/index.js
 function assembleStyles2() {
   const codes = /* @__PURE__ */ new Map();
-  for (const [groupName, group] of Object.entries(styles4)) {
+  for (const [groupName, group] of Object.entries(styles3)) {
     for (const [styleName, style] of Object.entries(group)) {
-      styles4[styleName] = {
+      styles3[styleName] = {
         open: `\x1B[${style[0]}m`,
         close: `\x1B[${style[1]}m`
       };
-      group[styleName] = styles4[styleName];
+      group[styleName] = styles3[styleName];
       codes.set(style[0], style[1]);
     }
-    Object.defineProperty(styles4, groupName, {
+    Object.defineProperty(styles3, groupName, {
       value: group,
       enumerable: false
     });
   }
-  Object.defineProperty(styles4, "codes", {
+  Object.defineProperty(styles3, "codes", {
     value: codes,
     enumerable: false
   });
-  styles4.color.close = "\x1B[39m";
-  styles4.bgColor.close = "\x1B[49m";
-  styles4.color.ansi = wrapAnsi162();
-  styles4.color.ansi256 = wrapAnsi2562();
-  styles4.color.ansi16m = wrapAnsi16m2();
-  styles4.bgColor.ansi = wrapAnsi162(ANSI_BACKGROUND_OFFSET2);
-  styles4.bgColor.ansi256 = wrapAnsi2562(ANSI_BACKGROUND_OFFSET2);
-  styles4.bgColor.ansi16m = wrapAnsi16m2(ANSI_BACKGROUND_OFFSET2);
-  Object.defineProperties(styles4, {
+  styles3.color.close = "\x1B[39m";
+  styles3.bgColor.close = "\x1B[49m";
+  styles3.color.ansi = wrapAnsi162();
+  styles3.color.ansi256 = wrapAnsi2562();
+  styles3.color.ansi16m = wrapAnsi16m2();
+  styles3.bgColor.ansi = wrapAnsi162(ANSI_BACKGROUND_OFFSET2);
+  styles3.bgColor.ansi256 = wrapAnsi2562(ANSI_BACKGROUND_OFFSET2);
+  styles3.bgColor.ansi16m = wrapAnsi16m2(ANSI_BACKGROUND_OFFSET2);
+  Object.defineProperties(styles3, {
     rgbToAnsi256: {
       value(red, green, blue) {
         if (red === green && green === blue) {
@@ -119418,7 +119093,7 @@ function assembleStyles2() {
       enumerable: false
     },
     hexToAnsi256: {
-      value: (hex3) => styles4.rgbToAnsi256(...styles4.hexToRgb(hex3)),
+      value: (hex3) => styles3.rgbToAnsi256(...styles3.hexToRgb(hex3)),
       enumerable: false
     },
     ansi256ToAnsi: {
@@ -119456,24 +119131,24 @@ function assembleStyles2() {
       enumerable: false
     },
     rgbToAnsi: {
-      value: (red, green, blue) => styles4.ansi256ToAnsi(styles4.rgbToAnsi256(red, green, blue)),
+      value: (red, green, blue) => styles3.ansi256ToAnsi(styles3.rgbToAnsi256(red, green, blue)),
       enumerable: false
     },
     hexToAnsi: {
-      value: (hex3) => styles4.ansi256ToAnsi(styles4.hexToAnsi256(hex3)),
+      value: (hex3) => styles3.ansi256ToAnsi(styles3.hexToAnsi256(hex3)),
       enumerable: false
     }
   });
-  return styles4;
+  return styles3;
 }
-var ANSI_BACKGROUND_OFFSET2, wrapAnsi162, wrapAnsi2562, wrapAnsi16m2, styles4, modifierNames2, foregroundColorNames2, backgroundColorNames2, colorNames2, ansiStyles2, ansi_styles_default2;
+var ANSI_BACKGROUND_OFFSET2, wrapAnsi162, wrapAnsi2562, wrapAnsi16m2, styles3, modifierNames2, foregroundColorNames2, backgroundColorNames2, colorNames2, ansiStyles2, ansi_styles_default2;
 var init_ansi_styles2 = __esm({
   "node_modules/chalk/source/vendor/ansi-styles/index.js"() {
     ANSI_BACKGROUND_OFFSET2 = 10;
     wrapAnsi162 = (offset = 0) => (code) => `\x1B[${code + offset}m`;
     wrapAnsi2562 = (offset = 0) => (code) => `\x1B[${38 + offset};5;${code}m`;
     wrapAnsi16m2 = (offset = 0) => (red, green, blue) => `\x1B[${38 + offset};2;${red};${green};${blue}m`;
-    styles4 = {
+    styles3 = {
       modifier: {
         reset: [0, 0],
         // 21 isn't widely supported and 22 does the same thing
@@ -119533,9 +119208,9 @@ var init_ansi_styles2 = __esm({
         bgWhiteBright: [107, 49]
       }
     };
-    modifierNames2 = Object.keys(styles4.modifier);
-    foregroundColorNames2 = Object.keys(styles4.color);
-    backgroundColorNames2 = Object.keys(styles4.bgColor);
+    modifierNames2 = Object.keys(styles3.modifier);
+    foregroundColorNames2 = Object.keys(styles3.color);
+    backgroundColorNames2 = Object.keys(styles3.bgColor);
     colorNames2 = [...foregroundColorNames2, ...backgroundColorNames2];
     ansiStyles2 = assembleStyles2();
     ansi_styles_default2 = ansiStyles2;
@@ -119716,7 +119391,7 @@ var init_utilities2 = __esm({
 function createChalk(options) {
   return chalkFactory(options);
 }
-var stdoutColor, stderrColor, GENERATOR, STYLER, IS_EMPTY, levelMapping, styles5, applyOptions, chalkFactory, getModelAnsi, usedModels, proto, createStyler, createBuilder, applyStyle, chalk, chalkStderr, source_default;
+var stdoutColor, stderrColor, GENERATOR, STYLER, IS_EMPTY, levelMapping, styles4, applyOptions, chalkFactory, getModelAnsi, usedModels, proto, createStyler, createBuilder, applyStyle, chalk, chalkStderr, source_default;
 var init_source = __esm({
   "node_modules/chalk/source/index.js"() {
     init_ansi_styles2();
@@ -119732,7 +119407,7 @@ var init_source = __esm({
       "ansi256",
       "ansi16m"
     ];
-    styles5 = /* @__PURE__ */ Object.create(null);
+    styles4 = /* @__PURE__ */ Object.create(null);
     applyOptions = (object2, options = {}) => {
       if (options.level && !(Number.isInteger(options.level) && options.level >= 0 && options.level <= 3)) {
         throw new Error("The `level` option should be an integer from 0 to 3");
@@ -119748,7 +119423,7 @@ var init_source = __esm({
     };
     Object.setPrototypeOf(createChalk.prototype, Function.prototype);
     for (const [styleName, style] of Object.entries(ansi_styles_default2)) {
-      styles5[styleName] = {
+      styles4[styleName] = {
         get() {
           const builder = createBuilder(this, createStyler(style.open, style.close, this[STYLER]), this[IS_EMPTY]);
           Object.defineProperty(this, styleName, { value: builder });
@@ -119756,7 +119431,7 @@ var init_source = __esm({
         }
       };
     }
-    styles5.visible = {
+    styles4.visible = {
       get() {
         const builder = createBuilder(this, this[STYLER], true);
         Object.defineProperty(this, "visible", { value: builder });
@@ -119780,7 +119455,7 @@ var init_source = __esm({
     };
     usedModels = ["rgb", "hex", "ansi256"];
     for (const model of usedModels) {
-      styles5[model] = {
+      styles4[model] = {
         get() {
           const { level } = this;
           return function(...arguments_) {
@@ -119790,7 +119465,7 @@ var init_source = __esm({
         }
       };
       const bgModel = "bg" + model[0].toUpperCase() + model.slice(1);
-      styles5[bgModel] = {
+      styles4[bgModel] = {
         get() {
           const { level } = this;
           return function(...arguments_) {
@@ -119802,7 +119477,7 @@ var init_source = __esm({
     }
     proto = Object.defineProperties(() => {
     }, {
-      ...styles5,
+      ...styles4,
       level: {
         enumerable: true,
         get() {
@@ -119860,7 +119535,7 @@ var init_source = __esm({
       }
       return openAll + string4 + closeAll;
     };
-    Object.defineProperties(createChalk.prototype, styles5);
+    Object.defineProperties(createChalk.prototype, styles4);
     chalk = createChalk();
     chalkStderr = createChalk({ level: stderrColor ? stderrColor.level : 0 });
     source_default = chalk;
@@ -124892,16 +124567,16 @@ function executeEffect(effect, options) {
   };
 }
 function StatusRegion({ status }) {
-  return (0, import_jsx_runtime8.jsxs)(Box_default, { flexDirection: "column", children: [(0, import_jsx_runtime8.jsxs)(Text, { children: [(0, import_jsx_runtime8.jsx)(Text, { color: status.ok ? "green" : "red", children: status.ok ? "\u2713" : "\u2717" }), " ", status.text] }), status.command === void 0 ? null : (0, import_jsx_runtime8.jsx)(Text, { dimColor: true, children: `  \u21B3 ${status.command}` })] });
+  return (0, import_jsx_runtime13.jsxs)(Box_default, { flexDirection: "column", children: [(0, import_jsx_runtime13.jsxs)(Text, { children: [(0, import_jsx_runtime13.jsx)(Text, { color: status.ok ? "green" : "red", children: status.ok ? "\u2713" : "\u2717" }), " ", status.text] }), status.command === void 0 ? null : (0, import_jsx_runtime13.jsx)(Text, { dimColor: true, children: `  \u21B3 ${status.command}` })] });
 }
 function HomeView({ cursor }) {
-  return (0, import_jsx_runtime8.jsx)(Box_default, { flexDirection: "column", marginTop: 1, children: HOME_ITEMS.map((item, index) => (0, import_jsx_runtime8.jsxs)(Text, { ...index === cursor ? { color: "cyan" } : {}, children: [index === cursor ? "\u276F " : "  ", item] }, item)) });
+  return (0, import_jsx_runtime13.jsx)(Box_default, { flexDirection: "column", marginTop: 1, children: HOME_ITEMS.map((item, index) => (0, import_jsx_runtime13.jsxs)(Text, { ...index === cursor ? { color: "cyan" } : {}, children: [index === cursor ? "\u276F " : "  ", item] }, item)) });
 }
 function BrowseView({ state, screen }) {
   const flows = visibleFlows(state, screen);
   const idWidth = Math.max(...state.flows.map((flow) => flow.id.length), 4);
   const selected = flows[screen.cursor];
-  return (0, import_jsx_runtime8.jsxs)(Box_default, { flexDirection: "column", marginTop: 1, children: [(screen.filtering || screen.filter !== "") && (0, import_jsx_runtime8.jsxs)(Text, { children: [(0, import_jsx_runtime8.jsx)(Text, { dimColor: true, children: "/" }), screen.filter, screen.filtering ? (0, import_jsx_runtime8.jsx)(Text, { inverse: true, children: " " }) : null] }), flows.length === 0 ? (0, import_jsx_runtime8.jsx)(Text, { dimColor: true, children: "no flows match" }) : flows.map((flow, index) => (0, import_jsx_runtime8.jsxs)(Text, { ...index === screen.cursor ? { color: "cyan" } : {}, children: [index === screen.cursor ? "\u276F " : "  ", flow.id.padEnd(idWidth + 2), (0, import_jsx_runtime8.jsx)(Text, { dimColor: index !== screen.cursor, children: flow.title })] }, flow.id)), selected === void 0 ? null : (0, import_jsx_runtime8.jsx)(Box_default, { marginTop: 1, children: (0, import_jsx_runtime8.jsx)(Text, { dimColor: true, children: selected.purpose }) })] });
+  return (0, import_jsx_runtime13.jsxs)(Box_default, { flexDirection: "column", marginTop: 1, children: [(screen.filtering || screen.filter !== "") && (0, import_jsx_runtime13.jsxs)(Text, { children: [(0, import_jsx_runtime13.jsx)(Text, { dimColor: true, children: "/" }), screen.filter, screen.filtering ? (0, import_jsx_runtime13.jsx)(Text, { inverse: true, children: " " }) : null] }), flows.length === 0 ? (0, import_jsx_runtime13.jsx)(Text, { dimColor: true, children: "no flows match" }) : flows.map((flow, index) => (0, import_jsx_runtime13.jsxs)(Text, { ...index === screen.cursor ? { color: "cyan" } : {}, children: [index === screen.cursor ? "\u276F " : "  ", flow.id.padEnd(idWidth + 2), (0, import_jsx_runtime13.jsx)(Text, { dimColor: index !== screen.cursor, children: flow.title })] }, flow.id)), selected === void 0 ? null : (0, import_jsx_runtime13.jsx)(Box_default, { marginTop: 1, children: (0, import_jsx_runtime13.jsx)(Text, { dimColor: true, children: selected.purpose }) })] });
 }
 function FlowView({ screen, configVersion, configOptions }) {
   const body = (0, import_react35.useMemo)(() => {
@@ -124924,29 +124599,29 @@ function FlowView({ screen, configVersion, configOptions }) {
       return palette.warn(`preview unavailable: ${err instanceof Error ? err.message : String(err)}`);
     }
   }, [screen.flowId, screen.dial, screen.matrix, configVersion, configOptions]);
-  return (0, import_jsx_runtime8.jsx)(Box_default, { flexDirection: "column", marginTop: 1, children: (0, import_jsx_runtime8.jsx)(Text, { children: body }) });
+  return (0, import_jsx_runtime13.jsx)(Box_default, { flexDirection: "column", marginTop: 1, children: (0, import_jsx_runtime13.jsx)(Text, { children: body }) });
 }
 function ConfigureField({ field, active, editing, current }) {
   const marker = active ? "\u276F " : "  ";
   if (active && editing !== void 0) {
-    return (0, import_jsx_runtime8.jsxs)(Box_default, { flexDirection: "column", children: [(0, import_jsx_runtime8.jsxs)(Text, { color: "cyan", children: [marker, field.label.padEnd(22)] }), (0, import_jsx_runtime8.jsxs)(Text, { children: ["    ", field.options.map((option, index) => (0, import_jsx_runtime8.jsx)(Text, { inverse: index === editing.optionIndex, children: ` ${option} ` }, option))] })] });
+    return (0, import_jsx_runtime13.jsxs)(Box_default, { flexDirection: "column", children: [(0, import_jsx_runtime13.jsxs)(Text, { color: "cyan", children: [marker, field.label.padEnd(22)] }), (0, import_jsx_runtime13.jsxs)(Text, { children: ["    ", field.options.map((option, index) => (0, import_jsx_runtime13.jsx)(Text, { inverse: index === editing.optionIndex, children: ` ${option} ` }, option))] })] });
   }
-  const valueText = current.value === void 0 ? (0, import_jsx_runtime8.jsx)(Text, { dimColor: true, children: "(unset)" }) : (0, import_jsx_runtime8.jsxs)(Text, { bold: true, children: [current.value, " ", (0, import_jsx_runtime8.jsxs)(Text, { dimColor: true, children: ["(", current.source, ")"] })] });
-  return (0, import_jsx_runtime8.jsxs)(Text, { ...active ? { color: "cyan" } : {}, children: [marker, field.label.padEnd(22), valueText, (0, import_jsx_runtime8.jsx)(Text, { dimColor: true, children: `  ${field.key}` })] });
+  const valueText = current.value === void 0 ? (0, import_jsx_runtime13.jsx)(Text, { dimColor: true, children: "(unset)" }) : (0, import_jsx_runtime13.jsxs)(Text, { bold: true, children: [current.value, " ", (0, import_jsx_runtime13.jsxs)(Text, { dimColor: true, children: ["(", current.source, ")"] })] });
+  return (0, import_jsx_runtime13.jsxs)(Text, { ...active ? { color: "cyan" } : {}, children: [marker, field.label.padEnd(22), valueText, (0, import_jsx_runtime13.jsx)(Text, { dimColor: true, children: `  ${field.key}` })] });
 }
 function ConfigureView({ screen, configVersion, configOptions }) {
   const fields = configFields(screen.flowId);
   const layers = (0, import_react35.useMemo)(() => discoverRuntimeConfigLayers(configOptions ?? {}).selectionConfigLayers, [configVersion, configOptions]);
-  return (0, import_jsx_runtime8.jsxs)(Box_default, { flexDirection: "column", marginTop: 1, children: [(0, import_jsx_runtime8.jsxs)(Text, { children: ["scope: ", (0, import_jsx_runtime8.jsx)(Text, { bold: true, children: screen.scope }), " ", (0, import_jsx_runtime8.jsxs)(Text, { dimColor: true, children: ["(", screen.scope === "project" ? "./.circuit/config.yaml" : "~/.config/circuit/config.yaml", ")"] })] }), (0, import_jsx_runtime8.jsx)(Box_default, { flexDirection: "column", marginTop: 1, children: fields.map((field, index) => (0, import_jsx_runtime8.jsx)(ConfigureField, { field, active: index === screen.cursor, editing: index === screen.cursor ? screen.editing : void 0, current: effectiveValue(layers, field.key) }, field.key)) })] });
+  return (0, import_jsx_runtime13.jsxs)(Box_default, { flexDirection: "column", marginTop: 1, children: [(0, import_jsx_runtime13.jsxs)(Text, { children: ["scope: ", (0, import_jsx_runtime13.jsx)(Text, { bold: true, children: screen.scope }), " ", (0, import_jsx_runtime13.jsxs)(Text, { dimColor: true, children: ["(", screen.scope === "project" ? "./.circuit/config.yaml" : "~/.config/circuit/config.yaml", ")"] })] }), (0, import_jsx_runtime13.jsx)(Box_default, { flexDirection: "column", marginTop: 1, children: fields.map((field, index) => (0, import_jsx_runtime13.jsx)(ConfigureField, { field, active: index === screen.cursor, editing: index === screen.cursor ? screen.editing : void 0, current: effectiveValue(layers, field.key) }, field.key)) })] });
 }
 function CreateView({ screen }) {
   if (screen.stage === "describe") {
-    return (0, import_jsx_runtime8.jsxs)(Box_default, { flexDirection: "column", marginTop: 1, children: [(0, import_jsx_runtime8.jsx)(Text, { children: "Describe the task this flow should encode:" }), (0, import_jsx_runtime8.jsx)(Box_default, { marginTop: 1, children: (0, import_jsx_runtime8.jsxs)(Text, { children: [(0, import_jsx_runtime8.jsx)(Text, { dimColor: true, children: "\u203A " }), screen.description, (0, import_jsx_runtime8.jsx)(Text, { inverse: true, children: " " })] }) })] });
+    return (0, import_jsx_runtime13.jsxs)(Box_default, { flexDirection: "column", marginTop: 1, children: [(0, import_jsx_runtime13.jsx)(Text, { children: "Describe the task this flow should encode:" }), (0, import_jsx_runtime13.jsx)(Box_default, { marginTop: 1, children: (0, import_jsx_runtime13.jsxs)(Text, { children: [(0, import_jsx_runtime13.jsx)(Text, { dimColor: true, children: "\u203A " }), screen.description, (0, import_jsx_runtime13.jsx)(Text, { inverse: true, children: " " })] }) })] });
   }
-  return (0, import_jsx_runtime8.jsxs)(Box_default, { flexDirection: "column", marginTop: 1, children: [(0, import_jsx_runtime8.jsx)(Text, { children: "Ready to compose this flow:" }), (0, import_jsx_runtime8.jsx)(Box_default, { marginTop: 1, children: (0, import_jsx_runtime8.jsx)(Text, { color: "cyan", children: generateCommand(screen.description, screen.publish) }) }), (0, import_jsx_runtime8.jsx)(Box_default, { marginTop: 1, children: (0, import_jsx_runtime8.jsxs)(Text, { children: ["publish after composing: ", (0, import_jsx_runtime8.jsx)(Text, { bold: true, children: screen.publish ? "yes" : "no (draft)" })] }) })] });
+  return (0, import_jsx_runtime13.jsxs)(Box_default, { flexDirection: "column", marginTop: 1, children: [(0, import_jsx_runtime13.jsx)(Text, { children: "Ready to compose this flow:" }), (0, import_jsx_runtime13.jsx)(Box_default, { marginTop: 1, children: (0, import_jsx_runtime13.jsx)(Text, { color: "cyan", children: generateCommand(screen.description, screen.publish) }) }), (0, import_jsx_runtime13.jsx)(Box_default, { marginTop: 1, children: (0, import_jsx_runtime13.jsxs)(Text, { children: ["publish after composing: ", (0, import_jsx_runtime13.jsx)(Text, { bold: true, children: screen.publish ? "yes" : "no (draft)" })] }) })] });
 }
 function HelpView({ screen }) {
-  return (0, import_jsx_runtime8.jsxs)(Box_default, { flexDirection: "column", marginTop: 1, children: [(0, import_jsx_runtime8.jsxs)(Text, { bold: true, children: ["keys \u2014 ", screen.kind] }), HELP_LINES[screen.kind].map((line) => (0, import_jsx_runtime8.jsx)(Text, { children: line }, line)), (0, import_jsx_runtime8.jsx)(Box_default, { marginTop: 1, children: (0, import_jsx_runtime8.jsx)(Text, { dimColor: true, children: "press any key to close" }) })] });
+  return (0, import_jsx_runtime13.jsxs)(Box_default, { flexDirection: "column", marginTop: 1, children: [(0, import_jsx_runtime13.jsxs)(Text, { bold: true, children: ["keys \u2014 ", screen.kind] }), HELP_LINES[screen.kind].map((line) => (0, import_jsx_runtime13.jsx)(Text, { children: line }, line)), (0, import_jsx_runtime13.jsx)(Box_default, { marginTop: 1, children: (0, import_jsx_runtime13.jsx)(Text, { dimColor: true, children: "press any key to close" }) })] });
 }
 function footerText(screen) {
   if (screen.kind === "home")
@@ -124995,13 +124670,13 @@ function App2({ flows, onExit, configOptions }) {
     });
   });
   const screen = currentScreen(state);
-  return (0, import_jsx_runtime8.jsxs)(Box_default, { flexDirection: "column", children: [(0, import_jsx_runtime8.jsxs)(Text, { children: [(0, import_jsx_runtime8.jsx)(Text, { color: "cyan", children: "\u25C6" }), " ", (0, import_jsx_runtime8.jsx)(Text, { bold: true, children: "circuit" }), " ", (0, import_jsx_runtime8.jsxs)(Text, { dimColor: true, children: ["\xB7 v", readSourceVersion(), " \xB7"] }), " ", breadcrumb(state)] }), state.help ? (0, import_jsx_runtime8.jsx)(HelpView, { screen }) : screen.kind === "home" ? (0, import_jsx_runtime8.jsx)(HomeView, { cursor: screen.cursor }) : screen.kind === "browse" ? (0, import_jsx_runtime8.jsx)(BrowseView, { state, screen }) : screen.kind === "flow" ? (0, import_jsx_runtime8.jsx)(FlowView, { screen, configVersion: state.configVersion, configOptions }) : screen.kind === "configure" ? (0, import_jsx_runtime8.jsx)(ConfigureView, { screen, configVersion: state.configVersion, configOptions }) : (0, import_jsx_runtime8.jsx)(CreateView, { screen }), (0, import_jsx_runtime8.jsxs)(Box_default, { marginTop: 1, flexDirection: "column", children: [state.status !== null ? (0, import_jsx_runtime8.jsx)(StatusRegion, { status: state.status }) : null, screen.kind === "flow" ? (0, import_jsx_runtime8.jsx)(Text, { dimColor: true, children: `\u21B3 ${previewCommand(screen)}` }) : null, (0, import_jsx_runtime8.jsx)(Text, { dimColor: true, children: footerText(screen) })] })] });
+  return (0, import_jsx_runtime13.jsxs)(Box_default, { flexDirection: "column", children: [(0, import_jsx_runtime13.jsxs)(Text, { children: [(0, import_jsx_runtime13.jsx)(Text, { color: "cyan", children: "\u25C6" }), " ", (0, import_jsx_runtime13.jsx)(Text, { bold: true, children: "circuit" }), " ", (0, import_jsx_runtime13.jsxs)(Text, { dimColor: true, children: ["\xB7 v", readSourceVersion(), " \xB7"] }), " ", breadcrumb(state)] }), state.help ? (0, import_jsx_runtime13.jsx)(HelpView, { screen }) : screen.kind === "home" ? (0, import_jsx_runtime13.jsx)(HomeView, { cursor: screen.cursor }) : screen.kind === "browse" ? (0, import_jsx_runtime13.jsx)(BrowseView, { state, screen }) : screen.kind === "flow" ? (0, import_jsx_runtime13.jsx)(FlowView, { screen, configVersion: state.configVersion, configOptions }) : screen.kind === "configure" ? (0, import_jsx_runtime13.jsx)(ConfigureView, { screen, configVersion: state.configVersion, configOptions }) : (0, import_jsx_runtime13.jsx)(CreateView, { screen }), (0, import_jsx_runtime13.jsxs)(Box_default, { marginTop: 1, flexDirection: "column", children: [state.status !== null ? (0, import_jsx_runtime13.jsx)(StatusRegion, { status: state.status }) : null, screen.kind === "flow" ? (0, import_jsx_runtime13.jsx)(Text, { dimColor: true, children: `\u21B3 ${previewCommand(screen)}` }) : null, (0, import_jsx_runtime13.jsx)(Text, { dimColor: true, children: footerText(screen) })] })] });
 }
-var import_jsx_runtime8, import_react35, HELP_LINES;
+var import_jsx_runtime13, import_react35, HELP_LINES;
 var init_app = __esm({
   async "dist/cli/interactive/app.js"() {
     "use strict";
-    import_jsx_runtime8 = __toESM(require_jsx_runtime(), 1);
+    import_jsx_runtime13 = __toESM(require_jsx_runtime(), 1);
     await init_build2();
     import_react35 = __toESM(require_react(), 1);
     init_config_loader();
@@ -145009,18 +144684,18 @@ function reviewAssessmentDetails(report) {
   return lines;
 }
 function reviewEvidenceDetails(report) {
-  const evidenceSummary3 = isObject4(report?.evidence_summary) ? report.evidence_summary : void 0;
-  const kind = stringField2(evidenceSummary3, "kind");
+  const evidenceSummary2 = isObject4(report?.evidence_summary) ? report.evidence_summary : void 0;
+  const kind = stringField2(evidenceSummary2, "kind");
   if (kind === "unavailable") {
-    const message = stringField2(evidenceSummary3, "message");
+    const message = stringField2(evidenceSummary2, "message");
     return message === void 0 ? [] : [`Review evidence: unavailable (${message})`];
   }
   if (kind !== "git-working-tree")
     return [];
-  const policy2 = stringField2(evidenceSummary3, "untracked_content_policy");
-  const count = numberField(evidenceSummary3, "untracked_file_count") ?? 0;
-  const sampled = numberField(evidenceSummary3, "untracked_files_sampled") ?? 0;
-  const truncated = evidenceSummary3?.untracked_files_truncated === true;
+  const policy2 = stringField2(evidenceSummary2, "untracked_content_policy");
+  const count = numberField(evidenceSummary2, "untracked_file_count") ?? 0;
+  const sampled = numberField(evidenceSummary2, "untracked_files_sampled") ?? 0;
+  const truncated = evidenceSummary2?.untracked_files_truncated === true;
   if (policy2 === "include-content") {
     const suffix = truncated ? "; additional untracked files were not sampled" : "";
     return [

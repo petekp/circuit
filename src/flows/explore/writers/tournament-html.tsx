@@ -2,22 +2,33 @@
 //
 // Emits HTML only when the run produces a typed option grid the operator
 // would benefit from comparing visually — i.e. a tournament that has
-// reached a finalized decision. All operator-controlled strings are
-// HTML-escaped at render time.
+// reached a finalized decision. Rendered with the shared report
+// components; all operator-controlled strings pass through t().
 
-import { type Intent, card, chip, verdictBanner } from '../../../shared/html/components.js';
-import {
-  MAX_BULLET_LEN,
-  MAX_PROMPT_LEN,
-  escapeHtml,
-  renderPage,
-  truncate,
-} from '../../../shared/html/page.js';
+import { MAX_PROMPT_LEN } from '../../../shared/html/page.js';
 import type {
   HtmlAutoResolution,
   HtmlProjector,
   JsonObject,
 } from '../../../shared/html/projector.js';
+import { t } from '../../../shared/html/react-page.js';
+import {
+  BulletList,
+  CardGrid,
+  ChipRow,
+  type Intent,
+  ReportCard,
+  SectionLabel,
+  Summary,
+  VerdictBanner,
+  renderReportPage,
+} from '../../../shared/html/report-components.js';
+import { Button } from '../../../shared/html/ui/button.js';
+import {
+  Collapsible,
+  CollapsibleContent,
+  CollapsibleTrigger,
+} from '../../../shared/html/ui/collapsible.js';
 import {
   ExploreDecision,
   type ExploreDecisionOption,
@@ -45,11 +56,15 @@ function confidenceText(confidence: ExploreTournamentReviewType['confidence']): 
   return `${confidence} confidence`;
 }
 
-function renderOptionCard(
-  option: ExploreDecisionOption,
-  isRecommended: boolean,
-  isSelected: boolean,
-): string {
+function OptionCard({
+  option,
+  isRecommended,
+  isSelected,
+}: {
+  readonly option: ExploreDecisionOption;
+  readonly isRecommended: boolean;
+  readonly isSelected: boolean;
+}) {
   // selected wins over recommended when both are true: the operator's own
   // choice should dominate the system's suggestion in the visual hierarchy.
   const intent: Intent = isSelected ? 'positive' : isRecommended ? 'info' : 'neutral';
@@ -59,42 +74,40 @@ function renderOptionCard(
       ? { text: 'Recommended', intent: 'info' as const }
       : undefined;
 
-  const tradeoffsMarkup = option.tradeoffs
-    .map((tradeoff) => `<li>${escapeHtml(truncate(tradeoff, MAX_BULLET_LEN))}</li>`)
-    .join('\n          ');
-  const evidenceMarkup = option.evidence_refs.map((ref) => chip(ref)).join('\n          ');
-
-  const bodyHtml = `      <p class="summary">${escapeHtml(option.summary)}</p>
+  return (
+    <ReportCard
+      intent={intent}
+      eyebrow={option.id}
+      title={option.label}
+      {...(badge === undefined ? {} : { badge })}
+    >
+      <Summary text={option.summary} />
       <div>
-        <p class="section-label">Tradeoffs</p>
-        <ul class="tradeoffs">
-          ${tradeoffsMarkup}
-        </ul>
+        <SectionLabel>Tradeoffs</SectionLabel>
+        <BulletList items={option.tradeoffs} />
       </div>
       <div>
-        <p class="section-label">Evidence</p>
-        <div class="evidence">
-          ${evidenceMarkup}
-        </div>
+        <SectionLabel>Evidence</SectionLabel>
+        <ChipRow items={option.evidence_refs} />
       </div>
-      <div class="actions">
-        <button class="copy primary" data-prompt="${escapeHtml(truncate(option.best_case_prompt, MAX_PROMPT_LEN))}">Copy as prompt</button>
-      </div>`;
-
-  return card({
-    intent,
-    eyebrow: option.id,
-    title: option.label,
-    ...(badge === undefined ? {} : { badge }),
-    bodyHtml,
-  });
+      <div className="pt-0.5">
+        <Button size="sm" data-prompt={t(option.best_case_prompt, MAX_PROMPT_LEN)}>
+          Copy as prompt
+        </Button>
+      </div>
+    </ReportCard>
+  );
 }
 
-function renderTournamentVerdictBanner(
-  review: ExploreTournamentReviewType,
-  decisionOptions: ExploreDecisionOptions,
-  decision: ExploreDecision,
-): string {
+function TournamentVerdictBanner({
+  review,
+  decisionOptions,
+  decision,
+}: {
+  readonly review: ExploreTournamentReviewType;
+  readonly decisionOptions: ExploreDecisionOptions;
+  readonly decision: ExploreDecision;
+}) {
   // The banner narrates the decision, so the bolded name is the selected
   // option. Bolding the reviewer's recommendation next to a decision
   // sentence that names a different option would read as the page
@@ -106,46 +119,70 @@ function renderTournamentVerdictBanner(
     (option) => option.id === decision.selected_option_id,
   );
   const selectedLabel = selectedOption?.label ?? decision.selected_option_label;
-  return verdictBanner({
-    intent: verdictIntent(review.verdict),
-    badgeText: 'Selected',
-    mainHtml: `<strong>${escapeHtml(selectedLabel)}</strong> · ${escapeHtml(decision.decision)}`,
-    aside: confidenceText(review.confidence),
-  });
+  return (
+    <VerdictBanner
+      intent={verdictIntent(review.verdict)}
+      badgeText="Selected"
+      main={
+        <>
+          <strong>{t(selectedLabel, MAX_PROMPT_LEN)}</strong> ·{' '}
+          {t(decision.decision, MAX_PROMPT_LEN)}
+        </>
+      }
+      aside={confidenceText(review.confidence)}
+    />
+  );
 }
 
-function renderTournamentDetails(
-  review: ExploreTournamentReviewType,
-  decision: ExploreDecision,
-): string {
-  const sections: string[] = [];
-  sections.push(`<p><strong>Comparison.</strong> ${escapeHtml(review.comparison)}</p>`);
-  if (review.objections.length > 0) {
-    const items = review.objections
-      .map((item) => `<li>${escapeHtml(truncate(item, MAX_BULLET_LEN))}</li>`)
-      .join('');
-    sections.push(`<p><strong>Objections.</strong></p><ul>${items}</ul>`);
-  }
-  if (review.missing_evidence.length > 0) {
-    const items = review.missing_evidence
-      .map((item) => `<li>${escapeHtml(truncate(item, MAX_BULLET_LEN))}</li>`)
-      .join('');
-    sections.push(`<p><strong>Missing evidence.</strong></p><ul>${items}</ul>`);
-  }
-  if (review.tradeoff_question.length > 0) {
-    sections.push(
-      `<p><strong>Tradeoff question.</strong> ${escapeHtml(review.tradeoff_question)}</p>`,
-    );
-  }
-  sections.push(`<p><strong>Rationale.</strong> ${escapeHtml(decision.rationale)}</p>`);
-  if (decision.residual_risks.length > 0) {
-    const items = decision.residual_risks
-      .map((item) => `<li>${escapeHtml(truncate(item, MAX_BULLET_LEN))}</li>`)
-      .join('');
-    sections.push(`<p><strong>Residual risks.</strong></p><ul>${items}</ul>`);
-  }
-  sections.push(`<p><strong>Next action.</strong> ${escapeHtml(decision.next_action)}</p>`);
-  return sections.join('\n      ');
+function TournamentDetails({
+  review,
+  decision,
+}: {
+  readonly review: ExploreTournamentReviewType;
+  readonly decision: ExploreDecision;
+}) {
+  return (
+    <>
+      <p>
+        <strong>Comparison.</strong> {t(review.comparison, MAX_PROMPT_LEN)}
+      </p>
+      {review.objections.length === 0 ? null : (
+        <>
+          <p>
+            <strong>Objections.</strong>
+          </p>
+          <BulletList items={review.objections} />
+        </>
+      )}
+      {review.missing_evidence.length === 0 ? null : (
+        <>
+          <p>
+            <strong>Missing evidence.</strong>
+          </p>
+          <BulletList items={review.missing_evidence} />
+        </>
+      )}
+      {review.tradeoff_question.length === 0 ? null : (
+        <p>
+          <strong>Tradeoff question.</strong> {t(review.tradeoff_question, MAX_PROMPT_LEN)}
+        </p>
+      )}
+      <p>
+        <strong>Rationale.</strong> {t(decision.rationale, MAX_PROMPT_LEN)}
+      </p>
+      {decision.residual_risks.length === 0 ? null : (
+        <>
+          <p>
+            <strong>Residual risks.</strong>
+          </p>
+          <BulletList items={decision.residual_risks} />
+        </>
+      )}
+      <p>
+        <strong>Next action.</strong> {t(decision.next_action, MAX_PROMPT_LEN)}
+      </p>
+    </>
+  );
 }
 
 function formatScore(value: number | null | undefined): string {
@@ -166,17 +203,13 @@ function autoResolutionLine(record: HtmlAutoResolution): string {
   return `${label}: ${record.resolved_value} selected by policy highest-score (aggregate score ${formatScore(record.winning_score)}; margin ${formatSignedScore(record.margin)} over runner-up; ${vetoText}).`;
 }
 
-function renderAutoResolutions(records: readonly HtmlAutoResolution[] | undefined): string {
-  if (records === undefined || records.length === 0) return '';
-  const items = records
-    .map((record) => `<li>${escapeHtml(autoResolutionLine(record))}</li>`)
-    .join('');
-  return `
-  <section>
-    <h2>Auto-resolutions</h2>
-    <ul>${items}</ul>
-  </section>
-`;
+function AutoResolutions({ records }: { readonly records: readonly HtmlAutoResolution[] }) {
+  return (
+    <section className="mt-8">
+      <h2 className="mb-2.5 text-lg font-semibold tracking-tight">Auto-resolutions</h2>
+      <BulletList items={records.map(autoResolutionLine)} />
+    </section>
+  );
 }
 
 type ExploreHtmlPayload = {
@@ -225,39 +258,42 @@ export const exploreTournamentProjector: HtmlProjector = (ctx) => {
 
   const subtitle = `${decisionOptions.options.length} options surfaced. Tournament review: ${tournamentReview.verdict.replace(/-/g, ' ')} (${tournamentReview.confidence} confidence).`;
 
-  const cards = decisionOptions.options
-    .map((option) =>
-      renderOptionCard(option, option.id === recommendedId, option.id === selectedId),
-    )
-    .join('\n\n');
-
-  const banner = renderTournamentVerdictBanner(tournamentReview, decisionOptions, decision);
-  const detailsBody = renderTournamentDetails(tournamentReview, decision);
-  const autoResolutions = renderAutoResolutions(ctx.autoResolutions);
-
-  const bodyHtml = `${banner}
-
-  <div class="grid">
-${cards}
-  </div>
-
-${autoResolutions}
-
-  <details>
-    <summary>Tournament reasoning &middot; why this recommendation?</summary>
-    <div class="body">
-      ${detailsBody}
-    </div>
-  </details>
-`;
-
-  return renderPage({
+  return renderReportPage({
     title: `${decisionOptions.decision_question} · Circuit Explore`,
     metaLine: `Explore · ${ctx.flowId} · ${ctx.runId}`,
     headline: decisionOptions.decision_question,
     subtitle,
-    bodyHtml,
     footerLeft: `circuit · explore · ${ctx.runId}`,
     footerRight: decisionOptions.recommendation_basis,
+    children: (
+      <>
+        <TournamentVerdictBanner
+          review={tournamentReview}
+          decisionOptions={decisionOptions}
+          decision={decision}
+        />
+        <CardGrid>
+          {decisionOptions.options.map((option) => (
+            <OptionCard
+              key={option.id}
+              option={option}
+              isRecommended={option.id === recommendedId}
+              isSelected={option.id === selectedId}
+            />
+          ))}
+        </CardGrid>
+        {ctx.autoResolutions === undefined || ctx.autoResolutions.length === 0 ? null : (
+          <AutoResolutions records={ctx.autoResolutions} />
+        )}
+        <Collapsible className="mt-8 rounded-lg border bg-card px-5 py-4">
+          <CollapsibleTrigger className="text-sm font-medium text-muted-foreground hover:text-foreground">
+            Tournament reasoning · why this recommendation?
+          </CollapsibleTrigger>
+          <CollapsibleContent className="flex flex-col gap-2.5 pt-4 text-sm leading-relaxed">
+            <TournamentDetails review={tournamentReview} decision={decision} />
+          </CollapsibleContent>
+        </Collapsible>
+      </>
+    ),
   });
 };

@@ -357,7 +357,7 @@ describe('prototypeCheckpointProjector', () => {
     expect(html).not.toContain('Discard Prototype');
     expect(html).toContain(`${ROOT}/index.html`);
     expect(html).toContain('Copy resume command');
-    expect(html).toContain('--checkpoint-choice &#39;keep-prototype&#39;');
+    expect(html).toContain('--checkpoint-choice &#x27;keep-prototype&#x27;');
     expect(html).toContain('not production');
     expect(html).toContain('not deployed');
   });
@@ -378,7 +378,7 @@ describe('prototypeCheckpointProjector', () => {
     expect(html).toContain('Variant B');
     expect(html).toContain('anthropic/local-fixture-a');
     expect(html).toContain('anthropic/local-fixture-b');
-    expect(html).toContain('--checkpoint-choice &#39;variant-a&#39;');
+    expect(html).toContain('--checkpoint-choice &#x27;variant-a&#x27;');
     expect(html).toContain('mv-wrap mv-evidence');
     expect(html).not.toContain('data-mv-frame');
   });
@@ -404,7 +404,7 @@ describe('prototypeCheckpointProjector', () => {
     expect(html).toContain(
       'data-mv-preview-src="../prototype-files/variants/variant-b/index.html"',
     );
-    expect(html).toContain('--checkpoint-choice &#39;variant-a&#39;');
+    expect(html).toContain('--checkpoint-choice &#x27;variant-a&#x27;');
   });
 
   it('renders a pinned preview rail for project-root visual artifacts when the run folder is external', () => {
@@ -431,7 +431,7 @@ describe('prototypeCheckpointProjector', () => {
       context({ runFolder: "/tmp/prototype run's" }),
     ) as string;
     expect(html).toContain(
-      'data-prompt="circuit resume --run-folder &#39;/tmp/prototype run&#39;\\&#39;&#39;s&#39; --checkpoint-choice &#39;keep-prototype&#39;"',
+      'data-prompt="circuit resume --run-folder &#x27;/tmp/prototype run&#x27;\\&#x27;&#x27;s&#x27; --checkpoint-choice &#x27;keep-prototype&#x27;"',
     );
   });
 

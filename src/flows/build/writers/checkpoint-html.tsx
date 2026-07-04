@@ -7,23 +7,27 @@
 // cards (artifact, salience, risk, proof) and the raw-evidence appendix, all
 // composed from the vendored design system.
 
-import type { ReactNode } from 'react';
-
 import {
   type CheckpointPageOption,
   renderCheckpointPage,
   shellSingleQuote,
 } from '../../../shared/html/checkpoint-page.js';
-import { MAX_BULLET_LEN, MAX_PROMPT_LEN } from '../../../shared/html/page.js';
+import { MAX_PROMPT_LEN } from '../../../shared/html/page.js';
 import type { HtmlProjector, JsonObject } from '../../../shared/html/projector.js';
 import { t } from '../../../shared/html/react-page.js';
-import { Card, CardHeader, CardTitle } from '../../../shared/html/ui/card.js';
+import {
+  BulletList,
+  Chip,
+  ChipRow,
+  ReportCard,
+  SectionLabel,
+  Summary,
+} from '../../../shared/html/report-components.js';
 import {
   Collapsible,
   CollapsibleContent,
   CollapsibleTrigger,
 } from '../../../shared/html/ui/collapsible.js';
-import { cn } from '../../../shared/html/ui/utils.js';
 import {
   BuildBrief,
   type BuildCheckpointPacket,
@@ -31,78 +35,6 @@ import {
 } from '../reports.js';
 
 const BUILD_BRIEF_PATH = 'reports/build/brief.json';
-
-type CardIntent = 'neutral' | 'info' | 'attention';
-
-const INTENT_CARD_CLASS: Record<CardIntent, string> = {
-  neutral: '',
-  info: 'border-info/50 ring-[3px] ring-info/10',
-  attention: 'border-attention/60 ring-[3px] ring-attention/10',
-};
-
-function SectionLabel({ children }: { readonly children: string }) {
-  return (
-    <p className="mb-1.5 text-[10px] font-semibold uppercase tracking-[0.08em] text-muted-foreground">
-      {children}
-    </p>
-  );
-}
-
-function Summary({ text }: { readonly text: string }) {
-  return <p className="text-sm text-muted-foreground">{t(text, MAX_PROMPT_LEN)}</p>;
-}
-
-function BulletList({ items }: { readonly items: readonly string[] }) {
-  return (
-    <ul className="m-0 list-disc space-y-1.5 pl-4 text-[13px] leading-normal marker:text-muted-foreground/60">
-      {items.map((item) => (
-        <li key={item}>{t(item, MAX_BULLET_LEN)}</li>
-      ))}
-    </ul>
-  );
-}
-
-function Chip({ text }: { readonly text: string }) {
-  return (
-    <code className="break-words rounded-md border bg-muted px-2 py-1 font-mono text-[11px] leading-normal text-muted-foreground">
-      {t(text, MAX_BULLET_LEN)}
-    </code>
-  );
-}
-
-function ChipRow({ items }: { readonly items: readonly string[] }) {
-  return (
-    <div className="flex flex-wrap gap-1.5">
-      {items.map((item) => (
-        <Chip key={item} text={item} />
-      ))}
-    </div>
-  );
-}
-
-function ContextCard({
-  intent,
-  eyebrow,
-  title,
-  children,
-}: {
-  readonly intent: CardIntent;
-  readonly eyebrow: string;
-  readonly title: string;
-  readonly children: ReactNode;
-}) {
-  return (
-    <Card className={cn('gap-4 py-5 shadow-none', INTENT_CARD_CLASS[intent])}>
-      <CardHeader className="gap-1 px-5">
-        <div className="font-mono text-[11px] uppercase tracking-[0.05em] text-muted-foreground">
-          {t(eyebrow, 120)}
-        </div>
-        <CardTitle className="text-base tracking-tight">{t(title, MAX_PROMPT_LEN)}</CardTitle>
-      </CardHeader>
-      <div className="flex flex-col gap-3.5 px-5">{children}</div>
-    </Card>
-  );
-}
 
 function commandText(command: { readonly argv: readonly string[]; readonly cwd: string }): string {
   return `${command.cwd}$ ${command.argv.join(' ')}`;
@@ -116,7 +48,7 @@ function ArtifactCard({
   readonly packet: BuildCheckpointPacket;
 }) {
   return (
-    <ContextCard intent="info" eyebrow={packet.artifact.title} title={brief.objective}>
+    <ReportCard intent="info" eyebrow={packet.artifact.title} title={brief.objective}>
       <Summary text={packet.artifact.preview} />
       <div>
         <SectionLabel>Scope</SectionLabel>
@@ -126,13 +58,13 @@ function ArtifactCard({
         <SectionLabel>Success bar</SectionLabel>
         <BulletList items={packet.artifact.success_criteria} />
       </div>
-    </ContextCard>
+    </ReportCard>
   );
 }
 
 function SalienceCard({ packet }: { readonly packet: BuildCheckpointPacket }) {
   return (
-    <ContextCard intent="neutral" eyebrow="salience" title="Why this needs you">
+    <ReportCard intent="neutral" eyebrow="salience" title="Why this needs you">
       <Summary text={packet.salience.summary} />
       <div>
         <SectionLabel>Why now</SectionLabel>
@@ -142,25 +74,25 @@ function SalienceCard({ packet }: { readonly packet: BuildCheckpointPacket }) {
         <SectionLabel>Stays internal</SectionLabel>
         <BulletList items={packet.salience.hidden_routine_work} />
       </div>
-    </ContextCard>
+    </ReportCard>
   );
 }
 
 function RiskCard({ packet }: { readonly packet: BuildCheckpointPacket }) {
   return (
-    <ContextCard intent="attention" eyebrow="manager judgment" title="Risk">
+    <ReportCard intent="attention" eyebrow="manager judgment" title="Risk">
       <Summary text={packet.risk.summary} />
       <div>
         <SectionLabel>Tradeoffs</SectionLabel>
         <BulletList items={packet.risk.tradeoffs} />
       </div>
-    </ContextCard>
+    </ReportCard>
   );
 }
 
 function ProofCard({ packet }: { readonly packet: BuildCheckpointPacket }) {
   return (
-    <ContextCard
+    <ReportCard
       intent={packet.proof.status === 'missing' ? 'attention' : 'neutral'}
       eyebrow={packet.proof.status}
       title="Proof"
@@ -174,7 +106,7 @@ function ProofCard({ packet }: { readonly packet: BuildCheckpointPacket }) {
         <SectionLabel>Proof state</SectionLabel>
         <BulletList items={packet.proof.evidence} />
       </div>
-    </ContextCard>
+    </ReportCard>
   );
 }
 

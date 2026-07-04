@@ -120,7 +120,7 @@ describe('exploreTournamentProjector — rendering', () => {
     expect(html).toBeDefined();
     expect(html).toContain('<!doctype html>');
     expect(html).toContain('<title>Which framework should we pick? · Circuit Explore</title>');
-    expect(html).toContain('<h1>Which framework should we pick?</h1>');
+    expect(html).toMatch(/<h1[^>]*>Which framework should we pick\?<\/h1>/);
   });
 
   it('marks the recommended option with intent-info and the selected option with intent-positive', () => {
@@ -128,8 +128,8 @@ describe('exploreTournamentProjector — rendering', () => {
       buildContext({ flowReport: decidedFlowReport, evidence: allEvidence }),
     ) as string;
     // option-2 is BOTH recommended and selected — selected wins in visual hierarchy.
-    expect(html).toContain('class="card intent-positive"');
-    expect(html).toContain('<span class="intent-badge intent-positive">Selected</span>');
+    expect(html).toMatch(/data-slot="card"[^>]*data-intent="positive"/);
+    expect(html).toMatch(/data-intent="positive"[^>]*>Selected</);
   });
 
   it('marks the recommended option with intent-info when a different option is selected', () => {
@@ -144,9 +144,9 @@ describe('exploreTournamentProjector — rendering', () => {
         evidence: { ...allEvidence, 'explore.decision': decisionDifferentSelection },
       }),
     ) as string;
-    // `info` is the default intent for badges, so no modifier class is appended.
-    expect(html).toContain('<span class="intent-badge">Recommended</span>');
-    expect(html).toContain('<span class="intent-badge intent-positive">Selected</span>');
+    // The recommendation badge carries the info intent; the selected badge stays positive.
+    expect(html).toMatch(/data-intent="info"[^>]*>Recommended</);
+    expect(html).toMatch(/data-intent="positive"[^>]*>Selected</);
   });
 
   it('escapes HTML metacharacters in operator-controlled fields (XSS defense)', () => {
@@ -213,7 +213,7 @@ describe('exploreTournamentProjector — rendering', () => {
 // decision text — the headline named the wrong option.
 describe('exploreTournamentProjector — banner coherence', () => {
   function extractBanner(html: string): string {
-    const start = html.indexOf('class="verdict');
+    const start = html.indexOf('data-slot="verdict"');
     expect(start).toBeGreaterThan(-1);
     return html.slice(start, html.indexOf('</div>', start));
   }

@@ -1,17 +1,38 @@
-import { type Intent, card, chip, verdictBanner } from '../../../shared/html/components.js';
+// Prototype checkpoint HTML projector.
+//
+// Two checkpoint surfaces share this projector. The single-prototype
+// checkpoint renders through the shared checkpoint page (ribbon,
+// recommendation, options, do-nothing strip, resume commands) with
+// Prototype's evidence cards as context. The model-comparison checkpoint
+// renders through the shared multi-variant comparison page.
+
+import {
+  type CheckpointPageOption,
+  renderCheckpointPage,
+  resumeCommandForChoice,
+  shellSingleQuote,
+} from '../../../shared/html/checkpoint-page.js';
 import {
   type MultiVariantItem,
   previewForEntryPoints,
   renderMultiVariantComparisonPage,
 } from '../../../shared/html/multi-variant.js';
-import {
-  MAX_BULLET_LEN,
-  MAX_PROMPT_LEN,
-  escapeHtml,
-  renderPage,
-  truncate,
-} from '../../../shared/html/page.js';
+import { MAX_PROMPT_LEN } from '../../../shared/html/page.js';
 import type { HtmlProjector, JsonObject } from '../../../shared/html/projector.js';
+import { t } from '../../../shared/html/react-page.js';
+import {
+  BulletList,
+  Chip,
+  ChipRow,
+  ReportCard,
+  SectionLabel,
+  Summary,
+} from '../../../shared/html/report-components.js';
+import {
+  Collapsible,
+  CollapsibleContent,
+  CollapsibleTrigger,
+} from '../../../shared/html/ui/collapsible.js';
 import {
   PrototypeArtifact,
   PrototypeBrief,
@@ -39,7 +60,6 @@ type ChoiceCard = {
   readonly id: PrototypeCheckpointSelection;
   readonly label: string;
   readonly description: string;
-  readonly intent: Intent;
 };
 
 const CHOICES: readonly ChoiceCard[] = [
@@ -47,40 +67,21 @@ const CHOICES: readonly ChoiceCard[] = [
     id: 'keep-prototype',
     label: 'Keep Prototype',
     description: 'Save the prototype as useful evidence and stop here.',
-    intent: 'positive',
   },
   {
     id: 'save-build-input',
     label: 'Save Build Input',
     description: 'Close with a Build-ready follow-up prompt, without running Build.',
-    intent: 'info',
   },
   {
     id: 'discard-prototype',
     label: 'Discard Prototype',
     description: 'Mark the prototype as discarded while keeping the evidence trail.',
-    intent: 'attention',
   },
 ];
 
-function bulletList(items: readonly string[]): string {
-  return `<ul class="tradeoffs">
-          ${items.map((item) => `<li>${escapeHtml(truncate(item, MAX_BULLET_LEN))}</li>`).join('\n          ')}
-        </ul>`;
-}
-
 function commandText(command: { readonly argv: readonly string[]; readonly cwd: string }): string {
   return `${command.cwd}$ ${command.argv.join(' ')}`;
-}
-
-function shellSingleQuote(value: string): string {
-  return `'${value.replace(/'/g, "'\\''")}'`;
-}
-
-function resumeCommandForChoice(runFolder: string, choiceId: string): string {
-  return `circuit resume --run-folder ${shellSingleQuote(
-    runFolder,
-  )} --checkpoint-choice ${shellSingleQuote(choiceId)}`;
 }
 
 function load<T>(
@@ -94,105 +95,112 @@ function load<T>(
   return parsed.success ? parsed.data : undefined;
 }
 
-function renderArtifactCard(artifact: PrototypeArtifact): string {
-  const bodyHtml = `      <p class="summary">${escapeHtml(artifact.summary)}</p>
+function ArtifactCard({ artifact }: { readonly artifact: PrototypeArtifact }) {
+  return (
+    <ReportCard intent="positive" eyebrow="artifact" title="Prototype files">
+      <Summary text={artifact.summary} />
       <div>
-        <p class="section-label">Prototype root</p>
-        <div class="evidence">${chip(artifact.prototype_root)}</div>
+        <SectionLabel>Prototype root</SectionLabel>
+        <ChipRow items={[artifact.prototype_root]} />
       </div>
       <div>
-        <p class="section-label">Entry points</p>
-        <div class="evidence">
-          ${artifact.entry_points.map((entry) => chip(entry)).join('\n          ')}
-        </div>
+        <SectionLabel>Entry points</SectionLabel>
+        <ChipRow items={artifact.entry_points} />
       </div>
       <div>
-        <p class="section-label">Preview</p>
-        <p class="summary">${escapeHtml(artifact.preview_instructions)}</p>
-      </div>`;
-  return card({
-    intent: 'positive',
-    eyebrow: 'artifact',
-    title: 'Prototype files',
-    bodyHtml,
-  });
+        <SectionLabel>Preview</SectionLabel>
+        <Summary text={artifact.preview_instructions} />
+      </div>
+    </ReportCard>
+  );
 }
 
-function renderVerificationCard(verification: PrototypeVerification): string {
+function VerificationCard({ verification }: { readonly verification: PrototypeVerification }) {
   const status = verification.overall_status;
-  const bodyHtml = `      <p class="summary">${escapeHtml(
-    status === 'passed'
-      ? 'Artifact integrity and target checks passed.'
-      : 'One or more checks failed.',
-  )}</p>
+  return (
+    <ReportCard
+      intent={status === 'passed' ? 'positive' : 'negative'}
+      eyebrow={status}
+      title="Verification"
+    >
+      <Summary
+        text={
+          status === 'passed'
+            ? 'Artifact integrity and target checks passed.'
+            : 'One or more checks failed.'
+        }
+      />
       <div>
-        <p class="section-label">Checks</p>
-        <div class="evidence">
-          ${verification.commands.map((command) => chip(commandText(command))).join('\n          ')}
-        </div>
-      </div>`;
-  return card({
-    intent: status === 'passed' ? 'positive' : 'negative',
-    eyebrow: status,
-    title: 'Verification',
-    bodyHtml,
-  });
+        <SectionLabel>Checks</SectionLabel>
+        <ChipRow items={verification.commands.map(commandText)} />
+      </div>
+    </ReportCard>
+  );
 }
 
-function renderRiskCard(artifact: PrototypeArtifact, brief: PrototypeBrief): string {
-  const limits = [...brief.claim_limits, ...artifact.claim_limits];
-  const bodyHtml = `      <p class="summary">Prototype is local evidence, not a production or deployed result.</p>
+function RiskCard({
+  artifact,
+  brief,
+}: {
+  readonly artifact: PrototypeArtifact;
+  readonly brief: PrototypeBrief;
+}) {
+  const limits = Array.from(new Set([...brief.claim_limits, ...artifact.claim_limits]));
+  return (
+    <ReportCard intent="attention" eyebrow="limits" title="Read Before Reuse">
+      <Summary text="Prototype is local evidence, not a production or deployed result." />
       <div>
-        <p class="section-label">Known limitations</p>
-        ${artifact.known_limitations.length === 0 ? '<p class="summary">No limitations were reported.</p>' : bulletList(artifact.known_limitations)}
+        <SectionLabel>Known limitations</SectionLabel>
+        {artifact.known_limitations.length === 0 ? (
+          <Summary text="No limitations were reported." />
+        ) : (
+          <BulletList items={artifact.known_limitations} />
+        )}
       </div>
       <div>
-        <p class="section-label">Claim limits</p>
-        <div class="evidence">
-          ${Array.from(new Set(limits))
-            .map((limit) => chip(limit))
-            .join('\n          ')}
-        </div>
-      </div>`;
-  return card({
-    intent: 'attention',
-    eyebrow: 'limits',
-    title: 'Read Before Reuse',
-    bodyHtml,
-  });
+        <SectionLabel>Claim limits</SectionLabel>
+        <ChipRow items={limits} />
+      </div>
+    </ReportCard>
+  );
 }
 
-function renderPlanCard(plan: PrototypePlan): string {
-  const bodyHtml = `      <p class="summary">${escapeHtml(plan.preview_instructions)}</p>
+function PlanCard({ plan }: { readonly plan: PrototypePlan }) {
+  return (
+    <ReportCard eyebrow="plan" title="Artifact Plan">
+      <Summary text={plan.preview_instructions} />
       <div>
-        <p class="section-label">Planned files</p>
-        <div class="evidence">
-          ${plan.files_to_create.map((file) => chip(file)).join('\n          ')}
-        </div>
-      </div>`;
-  return card({
-    intent: 'neutral',
-    eyebrow: 'plan',
-    title: 'Artifact Plan',
-    bodyHtml,
-  });
+        <SectionLabel>Planned files</SectionLabel>
+        <ChipRow items={plan.files_to_create} />
+      </div>
+    </ReportCard>
+  );
 }
 
-function renderChoice(choice: ChoiceCard, runFolder: string, recommendedId: string): string {
-  const isRecommended = choice.id === recommendedId;
-  const bodyHtml = `      <p class="summary">${escapeHtml(choice.description)}</p>
-      <div class="actions">
-        <button class="copy primary" data-prompt="${escapeHtml(
-          truncate(resumeCommandForChoice(runFolder, choice.id), MAX_PROMPT_LEN),
-        )}">Copy resume command</button>
-      </div>`;
-  return card({
-    intent: isRecommended ? 'positive' : choice.intent,
-    eyebrow: choice.id,
-    title: choice.label,
-    ...(isRecommended ? { badge: { text: 'Recommended', intent: 'positive' as const } } : {}),
-    bodyHtml,
-  });
+function Appendix({
+  rawEvidence,
+  resumeCommandTemplate,
+}: {
+  readonly rawEvidence: readonly string[];
+  readonly resumeCommandTemplate: string;
+}) {
+  return (
+    <Collapsible className="mt-8 rounded-lg border bg-card px-4 py-3">
+      <CollapsibleTrigger className="text-[13px] font-medium text-muted-foreground">
+        Raw evidence and resume command
+      </CollapsibleTrigger>
+      <CollapsibleContent className="mt-3 flex flex-col gap-2.5 text-[13px] text-muted-foreground">
+        <p className="flex flex-wrap items-baseline gap-1.5">
+          <strong className="font-semibold text-foreground">Resume command.</strong>
+          <Chip text={resumeCommandTemplate} />
+        </p>
+        <p>
+          <strong className="font-semibold text-foreground">Reports.</strong>
+        </p>
+        <ChipRow items={rawEvidence} />
+      </CollapsibleContent>
+    </Collapsible>
+  );
 }
 
 function filteredChoices(allowedChoices: readonly string[]): ChoiceCard[] {
@@ -214,62 +222,77 @@ function relaySelectionLine(
   return 'No captured relay selection evidence';
 }
 
-function renderVariantDetails(input: {
+function VariantDetails({
+  review,
+  verification,
+  providerEvidence,
+  checkpointRequestPath,
+  resumeCommand,
+}: {
   readonly review: PrototypeVariantReview;
   readonly verification: PrototypeVariantVerification;
   readonly providerEvidence: PrototypeVariantProviderEvidence;
   readonly checkpointRequestPath: string | undefined;
   readonly resumeCommand: string;
-}): string {
-  const missingEvidenceHtml =
-    input.providerEvidence.missing_evidence.length === 0 &&
-    input.review.missing_evidence.length === 0
-      ? ''
-      : `<p><strong>Missing evidence.</strong> ${escapeHtml(
-          [
-            ...input.providerEvidence.missing_evidence.map(
-              (item) => `${item.variant_id}: ${item.reason}`,
-            ),
-            ...input.review.missing_evidence,
-          ].join('; '),
-        )}</p>`;
-  const strengthsHtml =
-    input.review.strengths.length === 0
-      ? ''
-      : `<p><strong>Strengths.</strong></p><ul>${input.review.strengths
-          .map((item) => `<li>${escapeHtml(`${item.variant_id}: ${item.note}`)}</li>`)
-          .join('')}</ul>`;
-  const risksHtml =
-    input.review.risks.length === 0
-      ? ''
-      : `<p><strong>Risks.</strong></p><ul>${input.review.risks
-          .map((item) => `<li>${escapeHtml(truncate(item, MAX_BULLET_LEN))}</li>`)
-          .join('')}</ul>`;
-  return `  <details>
-    <summary>Comparison evidence and resume command</summary>
-    <div class="body">
-      <p><strong>Comparison.</strong> ${escapeHtml(input.review.comparison_summary)}</p>
-      ${strengthsHtml}
-      ${risksHtml}
-      <p><strong>Verification.</strong> ${escapeHtml(input.verification.overall_status)}</p>
-      ${missingEvidenceHtml}
-      <p><strong>Resume command.</strong> <code>${escapeHtml(input.resumeCommand)}</code></p>
-      <p><strong>Reports.</strong></p>
-      <div class="evidence">
-        ${[
-          PROTOTYPE_VARIANT_AGGREGATE_PATH,
-          PROTOTYPE_VARIANT_PROVIDER_EVIDENCE_PATH,
-          PROTOTYPE_VARIANT_VERIFICATION_PATH,
-          PROTOTYPE_VARIANT_REVIEW_PATH,
-          PROTOTYPE_VARIANT_CHOICES_PATH,
-          input.checkpointRequestPath ?? '',
-        ]
-          .filter((item) => item.length > 0)
-          .map((item) => chip(item))
-          .join('\n        ')}
-      </div>
-    </div>
-  </details>`;
+}) {
+  const missingEvidence = [
+    ...providerEvidence.missing_evidence.map((item) => `${item.variant_id}: ${item.reason}`),
+    ...review.missing_evidence,
+  ];
+  const reports = [
+    PROTOTYPE_VARIANT_AGGREGATE_PATH,
+    PROTOTYPE_VARIANT_PROVIDER_EVIDENCE_PATH,
+    PROTOTYPE_VARIANT_VERIFICATION_PATH,
+    PROTOTYPE_VARIANT_REVIEW_PATH,
+    PROTOTYPE_VARIANT_CHOICES_PATH,
+    checkpointRequestPath ?? '',
+  ].filter((item) => item.length > 0);
+  return (
+    <Collapsible className="mt-8 rounded-lg border bg-card px-5 py-4">
+      <CollapsibleTrigger className="text-sm font-medium text-muted-foreground hover:text-foreground">
+        Comparison evidence and resume command
+      </CollapsibleTrigger>
+      <CollapsibleContent className="flex flex-col gap-2.5 pt-4 text-sm leading-relaxed">
+        <p>
+          <strong>Comparison.</strong> {t(review.comparison_summary, MAX_PROMPT_LEN)}
+        </p>
+        {review.strengths.length === 0 ? null : (
+          <>
+            <p>
+              <strong>Strengths.</strong>
+            </p>
+            <BulletList
+              items={review.strengths.map((item) => `${item.variant_id}: ${item.note}`)}
+            />
+          </>
+        )}
+        {review.risks.length === 0 ? null : (
+          <>
+            <p>
+              <strong>Risks.</strong>
+            </p>
+            <BulletList items={review.risks} />
+          </>
+        )}
+        <p>
+          <strong>Verification.</strong> {t(verification.overall_status, 120)}
+        </p>
+        {missingEvidence.length === 0 ? null : (
+          <p>
+            <strong>Missing evidence.</strong> {t(missingEvidence.join('; '), MAX_PROMPT_LEN)}
+          </p>
+        )}
+        <p className="flex flex-wrap items-baseline gap-1.5">
+          <strong>Resume command.</strong>
+          <Chip text={resumeCommand} />
+        </p>
+        <p>
+          <strong>Reports.</strong>
+        </p>
+        <ChipRow items={reports} />
+      </CollapsibleContent>
+    </Collapsible>
+  );
 }
 
 function variantComparisonItems(input: {
@@ -363,7 +386,7 @@ function renderVariantCheckpoint(ctx: Parameters<HtmlProjector>[0]): string | un
 
   return renderMultiVariantComparisonPage({
     title: 'Prototype model comparison checkpoint',
-    metaLine: `Prototype model comparison - ${ctx.runId}`,
+    metaLine: `Prototype model comparison · ${ctx.runId}`,
     headline: 'Choose a prototype variant',
     subtitle:
       'Compare local prototype artifacts using captured relay selection evidence, then keep one variant.',
@@ -382,14 +405,16 @@ function renderVariantCheckpoint(ctx: Parameters<HtmlProjector>[0]): string | un
       runFolder: ctx.runFolder,
       projectRoot: ctx.projectRoot,
     }),
-    detailsHtml: renderVariantDetails({
-      review,
-      verification,
-      providerEvidence,
-      checkpointRequestPath: ctx.checkpoint?.request_path,
-      resumeCommand,
-    }),
-    footerLeft: `circuit - prototype - ${ctx.runId}`,
+    details: (
+      <VariantDetails
+        review={review}
+        verification={verification}
+        providerEvidence={providerEvidence}
+        checkpointRequestPath={ctx.checkpoint?.request_path}
+        resumeCommand={resumeCommand}
+      />
+    ),
+    footerLeft: `circuit · prototype · ${ctx.runId}`,
     footerRight: PROTOTYPE_VARIANT_AGGREGATE_PATH,
   });
 }
@@ -425,64 +450,55 @@ export const prototypeCheckpointProjector: HtmlProjector = (ctx) => {
   const recommendedChoice = choices.find((choice) => choice.id === 'keep-prototype') ?? choices[0];
   if (recommendedChoice === undefined) return undefined;
 
-  const banner = verdictBanner({
-    intent: 'positive',
-    badgeText: 'Verified local artifact',
-    mainHtml: `<strong>${escapeHtml(recommendedChoice.label)}</strong> &mdash; ${escapeHtml(
-      'Safe default: keep the prototype evidence and decide on Build separately.',
-    )}`,
-    aside: 'waiting for choice',
-  });
-  const choiceCards = choices
-    .map((choice) => renderChoice(choice, ctx.runFolder, recommendedChoice.id))
-    .join('\n\n');
-  const resumeCommand = `circuit resume --run-folder ${shellSingleQuote(
+  const safeDefaultId = ctx.checkpoint.safe_default_choice;
+  const options: CheckpointPageOption[] = choices.map((choice) => ({
+    id: choice.id,
+    label: choice.label,
+    description: choice.description,
+    ...(choice.id === recommendedChoice.id ? { isRecommended: true } : {}),
+    ...(choice.id === safeDefaultId ? { isDefault: true } : {}),
+  }));
+  const defaultChoice = options.find((option) => option.id === safeDefaultId);
+
+  const resumeCommandTemplate = `circuit resume --run-folder ${shellSingleQuote(
     ctx.runFolder,
   )} --checkpoint-choice '<choice>'`;
-  const bodyHtml = `${banner}
+  const rawEvidence = [
+    PROTOTYPE_BRIEF_PATH,
+    PROTOTYPE_PLAN_PATH,
+    PROTOTYPE_ARTIFACT_PATH,
+    PROTOTYPE_VERIFICATION_PATH,
+    ctx.checkpoint.request_path,
+  ];
 
-  <div class="grid">
-${renderArtifactCard(artifact)}
-
-${renderVerificationCard(verification)}
-
-${renderRiskCard(artifact, brief)}
-
-${renderPlanCard(plan)}
-  </div>
-
-  <div class="grid" style="margin-top:16px">
-${choiceCards}
-  </div>
-
-  <details>
-    <summary>Raw evidence and resume command</summary>
-    <div class="body">
-      <p><strong>Resume command.</strong> <code>${escapeHtml(resumeCommand)}</code></p>
-      <p><strong>Reports.</strong></p>
-      <div class="evidence">
-        ${[
-          PROTOTYPE_BRIEF_PATH,
-          PROTOTYPE_PLAN_PATH,
-          PROTOTYPE_ARTIFACT_PATH,
-          PROTOTYPE_VERIFICATION_PATH,
-          ctx.checkpoint.request_path,
-        ]
-          .map((item) => chip(item))
-          .join('\n        ')}
-      </div>
-    </div>
-  </details>
-`;
-
-  return renderPage({
-    title: `${brief.objective} - Circuit Prototype checkpoint`,
-    metaLine: `Prototype checkpoint - ${ctx.runId}`,
-    headline: brief.objective,
+  return renderCheckpointPage({
+    meta: { flowLabel: 'Prototype', runId: ctx.runId, stepId: ctx.checkpoint.step_id },
+    question: brief.objective,
     subtitle:
       'Choose whether to keep this local prototype, save it as Build input, or mark it discarded.',
-    bodyHtml,
-    footerLeft: `circuit - prototype - ${ctx.runId}`,
+    ribbon: [
+      'Waiting for you',
+      verification.overall_status === 'passed' ? 'Verified local artifact' : 'Verification failed',
+    ],
+    recommendation: {
+      label: recommendedChoice.label,
+      rationale: 'Safe default: keep the prototype evidence and decide on Build separately.',
+    },
+    options,
+    ...(defaultChoice === undefined
+      ? {}
+      : { defaultChoice: { id: defaultChoice.id, label: defaultChoice.label } }),
+    context: (
+      <div className="grid gap-4 md:grid-cols-2">
+        <ArtifactCard artifact={artifact} />
+        <VerificationCard verification={verification} />
+        <RiskCard artifact={artifact} brief={brief} />
+        <PlanCard plan={plan} />
+      </div>
+    ),
+    appendix: <Appendix rawEvidence={rawEvidence} resumeCommandTemplate={resumeCommandTemplate} />,
+    resume: { runFolder: ctx.runFolder },
+    footerLeft: `circuit · prototype · ${ctx.runId}`,
     footerRight: PROTOTYPE_ARTIFACT_PATH,
   });
 };
