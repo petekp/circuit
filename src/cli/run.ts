@@ -1,5 +1,5 @@
 import { randomUUID } from 'node:crypto';
-import { existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs';
+import { existsSync, mkdirSync, readFileSync, readdirSync, writeFileSync } from 'node:fs';
 import { dirname, join, resolve } from 'node:path';
 import { Command } from 'commander';
 
@@ -20,6 +20,7 @@ import {
   type ProgressEvent as ProgressEventValue,
 } from '../schemas/progress-event.js';
 import { RunResult } from '../schemas/result.js';
+import type { WaitingCheckpointStatus } from '../schemas/run-status.js';
 
 import { prepareRunStartHistoryRecall } from '../app/history/run-start-recall.js';
 import { readPriorRoute, writeOperatorSummary } from '../app/operator-summary/writer.js';
@@ -54,6 +55,12 @@ import {
   postRunArtifactWarningOutputFields,
 } from './post-run-artifacts.js';
 import { createRecoveryAttemptRunner } from './recovery-attempt-runner.js';
+import {
+  invalidCheckpointChoiceMessage,
+  matchCheckpointChoice,
+  missingRunFolderMessage,
+  runFolderCandidates,
+} from './resume-input.js';
 import { RUN_EXECUTION_FLAGS } from './run-flag-vocabulary.js';
 import {
   operatorSummaryOutputFields,
@@ -70,6 +77,12 @@ import {
   runtimeOutputFields,
   showRuntimeDecision,
 } from './runtime-routing-policy.js';
+import {
+  checkpointWaitingNotice,
+  runFinishedNotice,
+  runStartedNotice,
+  ttyNoticesEnabled,
+} from './tty-notice.js';
 
 const AUTONOMOUS_LOOP_RELATIVE_PATH = 'reports/autonomous-loop.json';
 
@@ -552,6 +565,19 @@ function nonResumableRunMessage(runFolder: string): string {
   return `error: ${lead}\n${inspect}`;
 }
 
+// The projection is the public answer to "is this run genuinely waiting, and
+// on what choices". Anything that stops it from answering (missing folder,
+// damaged trace) returns undefined here and falls through to the existing
+// honest rejection paths, so forgiveness never masks a real problem.
+function waitingCheckpointStatus(runFolder: string): WaitingCheckpointStatus | undefined {
+  try {
+    const status = projectRunStatusFromRunFolder(runFolder);
+    return status.engine_state === 'waiting_checkpoint' ? status.checkpoint : undefined;
+  } catch {
+    return undefined;
+  }
+}
+
 export async function runResumeCommand(
   args: ParsedArgs,
   options: RunCommandOptions,
@@ -561,15 +587,42 @@ export async function runResumeCommand(
     args.runFolder !== undefined &&
     args.checkpointChoice !== undefined
   ) {
-    const runFolder = resolve(args.runFolder);
+    const candidates = runFolderCandidates(args.runFolder, process.cwd());
+    let runFolder = candidates[0] ?? resolve(args.runFolder);
+    for (const candidate of candidates) {
+      if (await isRuntimeRunFolder(candidate)) {
+        runFolder = candidate;
+        break;
+      }
+    }
     const progress = progressReporter(args.progress === 'jsonl');
     const hostKind = runtimeHostKind(options);
     if (await isRuntimeRunFolder(runFolder)) {
+      // CLI-boundary forgiveness: when the run is provably waiting, map a
+      // label, a different case, or stray whitespace onto the canonical choice
+      // id, and answer a real miss with the actual choices. The engine's
+      // allow-list stays strict and unchanged.
+      let selection = args.checkpointChoice;
+      const waiting = waitingCheckpointStatus(runFolder);
+      if (waiting !== undefined) {
+        const match = matchCheckpointChoice(selection, waiting.choices);
+        if (match.kind === 'no_match') {
+          process.stderr.write(
+            `${invalidCheckpointChoiceMessage({
+              attempted: selection,
+              runFolder,
+              checkpoint: waiting,
+            })}\n`,
+          );
+          return 2;
+        }
+        selection = match.id;
+      }
       let runtimeResult: Awaited<ReturnType<typeof resumeCompiledFlow>>;
       try {
         runtimeResult = await resumeCompiledFlow({
           runDir: runFolder,
-          selection: args.checkpointChoice,
+          selection,
           now: options.now ?? (() => new Date()),
           childCompiledFlowResolver: defaultChildCompiledFlowResolver(undefined),
           ...(hostKind === undefined ? {} : { hostKind }),
@@ -664,9 +717,14 @@ export async function runResumeCommand(
           2,
         )}\n`,
       );
+      if (ttyNoticesEnabled({ stream: process.stderr, progressJsonl: args.progress === 'jsonl' })) {
+        process.stderr.write(runFinishedNotice({ outcome: runResult.outcome, runFolder }));
+      }
       return 0;
     }
-    process.stderr.write('error: run folder is not a resumable Circuit run folder\n');
+    process.stderr.write(
+      `${missingRunFolderMessage({ resolved: runFolder, exists: existsSync(runFolder) })}\n`,
+    );
     return 2;
   }
   // Defensive fallback: parseExecutionArgs guarantees a resume command carries a
@@ -674,6 +732,25 @@ export async function runResumeCommand(
   // practice. It preserves the original control flow, where a malformed resume
   // fell through to the execution path's goal-undefined guard.
   return runExecutionCommand(args, options);
+}
+
+// Lists the flows an operator can actually name, from the same root the run
+// path loads them from. Internal flows ship no host surface, so they stay out
+// of the offer. Best-effort: an unreadable root just drops the listing.
+function unknownFlowMessage(flowName: string, flowRoot: string | undefined): string {
+  const root = resolve(flowRoot ?? 'generated/flows');
+  let available: string[] = [];
+  try {
+    available = readdirSync(root, { withFileTypes: true })
+      .filter((entry) => entry.isDirectory() && existsSync(join(root, entry.name, 'circuit.json')))
+      .map((entry) => entry.name)
+      .filter((name) => !INTERNAL_FLOW_IDS.has(name))
+      .sort();
+  } catch {
+    available = [];
+  }
+  const listing = available.length === 0 ? '' : `\nAvailable flows: ${available.join(', ')}`;
+  return `error: no flow named '${flowName}' is installed.${listing}`;
 }
 
 export async function runExecutionCommand(
@@ -711,6 +788,14 @@ export async function runExecutionCommand(
       process.stderr.write(
         `error: ${route.flowName} is an internal flow and is not available through the host run surface.\n`,
       );
+      return 2;
+    }
+    // The operator asked for a flow by name, so the answer names flows: an
+    // unknown name lists what this install actually has instead of leaking
+    // the compiled-flow path on disk (audit finding 5). An explicit
+    // --fixture-path override keeps the path-based error below.
+    if (args.fixturePath === undefined) {
+      process.stderr.write(`${unknownFlowMessage(route.flowName, args.flowRoot)}\n`);
       return 2;
     }
   }
@@ -810,7 +895,23 @@ export async function runExecutionCommand(
   );
   const routeToRuntime = defaultRuntimeSupport.kind === 'supported';
 
+  const ttyNotices = ttyNoticesEnabled({
+    stream: process.stderr,
+    progressJsonl: args.progress === 'jsonl',
+  });
+
   if (routeToRuntime) {
+    if (ttyNotices) {
+      process.stderr.write(
+        runStartedNotice({
+          flowName: route.flowName,
+          ...(entryModeSelection.entryModeName === undefined
+            ? {}
+            : { entryModeName: entryModeSelection.entryModeName }),
+          runFolder,
+        }),
+      );
+    }
     const progressSurface = progressSurfaceForFlowId(flow.id);
     const historyRecall = shouldPrepareHistoryRecall(options)
       ? prepareRunStartHistoryRecall({
@@ -967,6 +1068,17 @@ export async function runExecutionCommand(
           2,
         )}\n`,
       );
+      if (ttyNotices) {
+        process.stderr.write(
+          checkpointWaitingNotice({
+            runFolder,
+            choices: waitingResult.checkpoint.allowed_choices,
+            ...(operatorSummary?.htmlPath === undefined
+              ? {}
+              : { summaryHtmlPath: operatorSummary.htmlPath }),
+          }),
+        );
+      }
       return 0;
     }
     const runResult = RunResult.parse(JSON.parse(readFileSync(runtimeResult.resultPath, 'utf8')));
@@ -1102,6 +1214,9 @@ export async function runExecutionCommand(
         2,
       )}\n`,
     );
+    if (ttyNotices) {
+      process.stderr.write(runFinishedNotice({ outcome: runResult.outcome, runFolder }));
+    }
     return 0;
   }
 

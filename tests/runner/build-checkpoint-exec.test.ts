@@ -33,7 +33,14 @@ import { sha256Hex } from '../../src/shared/connector-relay.js';
 import { manifestSnapshotPath, writeManifestSnapshot } from '../../src/shared/manifest-snapshot.js';
 import type { RelayFn, RelayInput } from '../../src/shared/relay-runtime-types.js';
 
-const INVALID_RUN_FOLDER_MESSAGE = 'run folder is not a resumable Circuit run folder';
+// These fixtures write folders that exist but hold no readable run trace, so
+// resume must say "not a resumable run folder", never "not found".
+const invalidRunFolderMessage = (runFolder: string) =>
+  [
+    `error: ${runFolder} is not a resumable Circuit run folder (it has no readable run trace).`,
+    "A run's folder is .circuit/runs/<run id> inside the project that started it.",
+    'List runs that are waiting for a decision with: circuit inbox',
+  ].join('\n');
 
 function change_kind(): ChangeKindDeclaration {
   return {
@@ -714,7 +721,7 @@ describe('Build checkpoint execution substrate', () => {
 
       expect(code).toBe(2);
       expect(stdout).toBe('');
-      expect(stderr.trim()).toBe(`error: ${INVALID_RUN_FOLDER_MESSAGE}`);
+      expect(stderr.trim()).toBe(invalidRunFolderMessage(runFolder));
     });
   });
 
@@ -751,7 +758,7 @@ describe('Build checkpoint execution substrate', () => {
 
       expect(resumed.code).toBe(2);
       expect(resumed.stdout).toBe('');
-      expect(resumed.stderr.trim()).toBe(`error: ${INVALID_RUN_FOLDER_MESSAGE}`);
+      expect(resumed.stderr.trim()).toBe(invalidRunFolderMessage(runFolder));
     });
   });
 

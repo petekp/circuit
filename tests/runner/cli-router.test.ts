@@ -1514,7 +1514,7 @@ describe('CLI router', () => {
     ]);
 
     expect(result.exit).toBe(2);
-    expect(result.stderr).toContain('run folder is not a resumable Circuit run folder');
+    expect(result.stderr).toContain('no Circuit run folder found at');
     expect(result.stderr).not.toContain('omit --goal');
   });
 
@@ -1595,9 +1595,13 @@ describe('CLI router', () => {
     ]);
 
     expect(resumed.exit).toBe(2);
-    expect(resumed.stderr.trim()).toBe(
-      `error: ${'run folder is not a resumable Circuit run folder'}`,
-    );
+    // The folder exists but is not a runtime run folder (its trace has no
+    // runtime bootstrap). The answer must say so — not claim the folder was
+    // not found — and still offer the two next steps: the run-id folder
+    // convention and the decision inbox.
+    expect(resumed.stderr).toContain('is not a resumable Circuit run folder');
+    expect(resumed.stderr).not.toContain('no Circuit run folder found');
+    expect(resumed.stderr).toContain('circuit inbox');
   });
 
   it('rejects resume-only incompatible flags', async () => {
@@ -1726,7 +1730,8 @@ describe('CLI router', () => {
       'continue',
     ]);
     expect(conflict.exit).toBe(2);
-    expect(conflict.stderr).toMatch(/run folder is not a resumable Circuit run folder/);
+    // Last value wins: the message names folder b, proving a was discarded.
+    expect(conflict.stderr).toMatch(/no Circuit run folder found at .*\/b\./);
   });
 
   it('keeps CLI help text aligned with the explicit-flow contract', () => {
