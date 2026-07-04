@@ -8,6 +8,7 @@ import type { ResolvedSelection } from '../schemas/selection-policy.js';
 import type { ConnectorRelayInput, RelayResult } from '../shared/connector-relay.js';
 import { extractJsonObject } from '../shared/json-extraction.js';
 import { resolveCodexDefaultModel } from './codex-default-model.js';
+import { connectorRemediation } from './remediation.js';
 import {
   type ConnectorSubprocessResult,
   cappedSuffix,
@@ -474,7 +475,9 @@ export async function relayCodex(input: CodexRelayInput): Promise<RelayResult> {
       });
     } catch (error) {
       if (isConnectorSubprocessSpawnError(error)) {
-        throw new Error(`codex subprocess ${spawnErrorVerb(error)}: ${error.message}`);
+        throw new Error(
+          `codex subprocess ${spawnErrorVerb(error)}: ${error.message}. ${connectorRemediation('codex')}`,
+        );
       }
       throw error;
     }

@@ -5,6 +5,7 @@ import { CLI_COMMAND_NAMES, type CliCommandName } from './command-vocabulary.js'
 import { parseCommanderOrThrow } from './commander-support.js';
 import { runConfigCommand } from './config-command.js';
 import { runCreateCommand } from './create.js';
+import { runDoctorCommand } from './doctor.js';
 import { runFrontDoorCommand } from './front-door.js';
 import { runGenerateCommand } from './generate.js';
 import { runHandoffCommand } from './handoff.js';
@@ -62,6 +63,7 @@ export function usage(): string {
     '       circuit uninstall [--dir <path>] [--json]',
     '       circuit reclaim [--json]',
     '       circuit preview [flow-name] [--power <auto|low|medium|high>] [--matrix] [--json]',
+    '       circuit doctor [--json]',
     '       circuit config [show [--json] | set <key> <value> | unset <key>] [--project|--global]',
     '       circuit version [--json]',
     '',
@@ -144,7 +146,7 @@ function parseTopLevelInvocation(argv: readonly string[]): TopLevelInvocation {
 
   if (invocation === undefined) {
     throw new Error(
-      'missing command: use run, resume, handoff, history, memory, create, generate, uninstall, runs, reclaim, inbox, preview, config, or version',
+      'missing command: use run, resume, handoff, history, memory, create, generate, uninstall, runs, reclaim, inbox, preview, doctor, config, or version',
     );
   }
   return invocation;
@@ -222,6 +224,9 @@ export async function main(argv: readonly string[], options: CliMainOptions = {}
   }
   if (invocation.command === 'preview') {
     return runPreviewCommand(invocation.argv);
+  }
+  if (invocation.command === 'doctor') {
+    return runDoctorCommand(invocation.argv);
   }
   if (invocation.command === 'config') {
     return runConfigCommand(invocation.argv);

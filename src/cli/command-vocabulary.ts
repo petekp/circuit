@@ -19,6 +19,7 @@ export const CLI_COMMAND_NAMES = [
   'reclaim',
   'inbox',
   'preview',
+  'doctor',
   'config',
   'version',
 ] as const;

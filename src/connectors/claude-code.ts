@@ -9,6 +9,7 @@ import {
   sha256Hex,
 } from '../shared/connector-relay.js';
 import { extractJsonObject } from '../shared/json-extraction.js';
+import { connectorRemediation } from './remediation.js';
 import {
   type ConnectorSubprocessResult,
   cappedSuffix,
@@ -237,7 +238,9 @@ export async function relayClaudeCode(input: ClaudeCodeRelayInput): Promise<Rela
     });
   } catch (error) {
     if (isConnectorSubprocessSpawnError(error)) {
-      throw new Error(`claude-code subprocess ${spawnErrorVerb(error)}: ${error.message}`);
+      throw new Error(
+        `claude-code subprocess ${spawnErrorVerb(error)}: ${error.message}. ${connectorRemediation('claude-code')}`,
+      );
     }
     throw error;
   }
