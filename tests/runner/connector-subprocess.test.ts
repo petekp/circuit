@@ -48,7 +48,10 @@ describe('connector subprocess lifecycle boundary', () => {
           ' ',
         ),
       ],
-      timeoutMs: 1_000,
+      // Hang backstop only — the assertions are about output capping. Under
+      // full-suite fork load a node child can take over a second just to
+      // start, so a 1s budget false-failed this test on loaded machines.
+      timeoutMs: 10_000,
       stdoutMaxBytes: 12,
       stderrMaxBytes: 9,
       sigtermToSigkillGraceMs: 10,
