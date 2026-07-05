@@ -21,7 +21,9 @@ import type { RelayResult } from '../../src/shared/connector-relay.js';
 import type { RelayFn } from '../../src/shared/relay-runtime-types.js';
 
 const FIXTURE_PATH = resolve('generated/flows/build/circuit.json');
-const BUILD_RUNTIME_TIMEOUT_MS = 15_000;
+// A hang guard, not a performance assertion: these tests drive real relay
+// budget loops, and a loaded machine stretches them well past quiet-run time.
+const BUILD_RUNTIME_TIMEOUT_MS = 120_000;
 
 function loadFixture(): { flow: CompiledFlow; bytes: Buffer } {
   const bytes = readFileSync(FIXTURE_PATH);

@@ -110,7 +110,7 @@ describe('explore review reject verdict', () => {
     expect(recorder.synthesizePrompts[1]).toContain(
       'BLOCKING: the recommendation ignores the stated success condition',
     );
-  }, 15_000);
+  }, 120_000);
 
   it('aborts instead of looping when the reviewer rejects the rework too', async () => {
     const recorder: Recorder = { synthesizePrompts: [], reviewPrompts: [] };
@@ -121,5 +121,5 @@ describe('explore review reject verdict', () => {
     // Bounded: one rework round trip, no runaway loop.
     expect(recorder.synthesizePrompts.length).toBeLessThanOrEqual(2);
     expect(recorder.reviewPrompts.length).toBeLessThanOrEqual(2);
-  }, 15_000);
+  }, 120_000);
 });

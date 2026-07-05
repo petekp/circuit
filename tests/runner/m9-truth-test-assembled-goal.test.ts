@@ -39,7 +39,7 @@ import { CompiledFlow } from '../../src/schemas/compiled-flow.js';
 import { RunResult } from '../../src/schemas/result.js';
 
 const ON_DISK_FIXTURE = resolve('generated/flows/goal/circuit.json');
-const GOAL_RUNTIME_TIMEOUT_MS = 15_000;
+const GOAL_RUNTIME_TIMEOUT_MS = 120_000;
 
 const goalFlowDefinition = (() => {
   const definition = flowDefinitions.find((entry) => entry.id === 'goal');

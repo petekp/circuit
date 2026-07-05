@@ -34,7 +34,7 @@ import type { RelayFn } from '../../src/shared/relay-runtime-types.js';
 // writes resolve.
 
 const FIXTURE_PATH = resolve('generated/flows/build/circuit.json');
-const TIMEOUT_MS = 15_000;
+const TIMEOUT_MS = 120_000;
 const TDD_BODY = 'UNIQUE_INJECTED_TDD_SKILL_BODY';
 const PY_BODY = 'UNIQUE_UNPREDICTED_PYTHON_SKILL_BODY';
 const RD_BODY = 'UNIQUE_INJECTED_REACT_DOCTOR_SKILL_BODY';

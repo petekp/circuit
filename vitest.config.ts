@@ -9,6 +9,15 @@ import { configDefaults, defineConfig } from 'vitest/config';
 //     useful for ad-hoc tooling without forcing a threshold gate
 export default defineConfig({
   test: {
+    // This suite is integration-heavy: many tests drive real subprocesses
+    // (plugin package sync, schema generation, git operations) with
+    // synchronous bodies that legitimately run tens of seconds. vitest 2
+    // could not time out a synchronous body (the event loop was blocked),
+    // so the 5s default never actually applied to them; vitest 4 enforces
+    // elapsed time on sync tests too. These caps keep hang protection while
+    // matching what the suite really does. Per-test timeouts still override.
+    testTimeout: 120_000,
+    hookTimeout: 120_000,
     exclude: [
       ...configDefaults.exclude,
       '.claude/**',

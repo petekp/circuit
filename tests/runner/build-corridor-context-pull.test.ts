@@ -34,7 +34,7 @@ import type { RelayFn } from '../../src/shared/relay-runtime-types.js';
 // exercised. Resolve-and-record never mutates the run, so the run still completes.
 
 const FIXTURE_PATH = resolve('generated/flows/build/circuit.json');
-const TIMEOUT_MS = 15_000;
+const TIMEOUT_MS = 120_000;
 
 let runFolderBase: string;
 

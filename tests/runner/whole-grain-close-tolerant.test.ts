@@ -33,7 +33,7 @@ import { CompiledFlow } from '../../src/schemas/compiled-flow.js';
 import type { RelayResult } from '../../src/shared/connector-relay.js';
 import type { RelayFn } from '../../src/shared/relay-runtime-types.js';
 
-const RUNTIME_TIMEOUT_MS = 15_000;
+const RUNTIME_TIMEOUT_MS = 120_000;
 
 // The folded spine keeps only the act relay; analyze and review are gone.
 function actOnlyRelayer(): RelayFn {

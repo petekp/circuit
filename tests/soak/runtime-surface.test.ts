@@ -21,7 +21,7 @@ const BUILD_RELAY_BODY = JSON.stringify({
   changed_files: ['src/example.ts'],
   evidence: ['soak relay'],
 });
-const RUNTIME_SURFACE_SOAK_TIMEOUT_MS = 15_000;
+const RUNTIME_SURFACE_SOAK_TIMEOUT_MS = 120_000;
 
 function relayerWithBody(body: string): RelayFn {
   return makeStubRelayer(body, { receipt_id: 'stub-receipt-runtime-soak' });

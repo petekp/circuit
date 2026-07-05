@@ -19,7 +19,7 @@ import {
 import { surfaceSourcesFromDeclarations } from '../../src/skill-hooks/surface-sources.js';
 
 const FIXTURE_PATH = resolve('generated/flows/build/circuit.json');
-const TIMEOUT_MS = 15_000;
+const TIMEOUT_MS = 120_000;
 const TEST_EDIT_FILE_SURFACE_SOURCES = surfaceSourcesFromDeclarations({
   'fix.change-set@v1': {
     timing: 'after',

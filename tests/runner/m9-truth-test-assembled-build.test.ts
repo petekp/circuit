@@ -40,7 +40,7 @@ import type { RelayResult } from '../../src/shared/connector-relay.js';
 import type { RelayFn } from '../../src/shared/relay-runtime-types.js';
 
 const ON_DISK_FIXTURE = resolve('generated/flows/build/circuit.json');
-const BUILD_RUNTIME_TIMEOUT_MS = 15_000;
+const BUILD_RUNTIME_TIMEOUT_MS = 120_000;
 
 // The catalog is the supported surface for a built-in's shipped FlowDefinition
 // (reaching into src/flows/build/flow.ts directly would cross the engine→flow

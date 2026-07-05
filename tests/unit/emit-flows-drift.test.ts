@@ -163,7 +163,9 @@ describe('emit-flows.ts — stale per-mode sibling guard', () => {
     plantStaleSibling(rootClaudeObsoleteManifestPath);
   }
 
-  it('detects and removes stale generated siblings and host surfaces', () => {
+  // The build+emit subprocess chain runs ~30-40s on a quiet machine and
+  // several times that under load. The explicit budget is a hang guard only.
+  it('detects and removes stale generated siblings and host surfaces', { timeout: 300_000 }, () => {
     cleanupPlantedFixtures();
 
     plantAllFixtures();
