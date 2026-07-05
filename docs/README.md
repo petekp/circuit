@@ -97,6 +97,7 @@ locations:
 | Source tree and layer maps | [src/README.md](../src/README.md), [src/runtime/README.md](../src/runtime/README.md), [src/schemas/README.md](../src/schemas/README.md), [src/flows/README.md](../src/flows/README.md), and [src/shared/README.md](../src/shared/README.md) |
 | Direct command source ownership | [src/commands/README.md](../src/commands/README.md) |
 | Release proof lifecycle | [docs/release/proofs/README.md](release/proofs/README.md) |
+| Cutting and publishing a release | [docs/release/runbook.md](release/runbook.md) |
 | Host release QA checklist | [docs/host-trial-checklist.md](host-trial-checklist.md) |
 | Current host rendering profile | [docs/specs/narration-display-profiles.md](specs/narration-display-profiles.md) with [docs/contracts/host-rendering.md](contracts/host-rendering.md) |
 

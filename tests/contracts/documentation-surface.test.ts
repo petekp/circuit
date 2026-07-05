@@ -216,6 +216,7 @@ describe('documentation surface', () => {
       'docs/generated-surfaces.md',
       'docs/host-trial-checklist.md',
       'docs/release/proofs/README.md',
+      'docs/release/runbook.md',
       'docs/specs/narration-display-profiles.md',
       'docs/contracts/host-rendering.md',
       'src/commands/README.md',

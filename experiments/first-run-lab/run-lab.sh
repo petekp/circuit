@@ -4,9 +4,19 @@
 set -euo pipefail
 
 LAB_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+REPO_ROOT="$(cd "$LAB_DIR/../.." && pwd)"
 RUNS_DIR="$LAB_DIR/runs"
 mkdir -p "$RUNS_DIR"
 STAMP="$(date +%Y%m%d-%H%M%S)"
+
+# The codex funnel installs at the exact ref the README tells users to pin.
+# Reading it from the README keeps the lab testing what users copy-paste;
+# a release only has to update the README and the lab follows.
+CODEX_REF="$(grep -oE 'circuit--v[0-9A-Za-z.-]+' "$REPO_ROOT/README.md" | head -1)"
+if [ -z "$CODEX_REF" ]; then
+  echo "could not find a circuit--v* ref in $REPO_ROOT/README.md" >&2
+  exit 2
+fi
 
 run_one() {
   local name="$1" dockerfile="$2" scenario="$3"
@@ -18,6 +28,7 @@ run_one() {
   # No stdin, no TTY: the transcript captures what a script/agent sees; the
   # scenario scripts close stdin per step anyway so prompts fail fast.
   docker run --rm \
+    -e "CIRCUIT_CODEX_REF=$CODEX_REF" \
     -v "$LAB_DIR/scenarios:/lab:ro" \
     "$image" bash "/lab/$scenario" >"$log" 2>&1 || true
   echo "=== [$name] done (exit recorded per step in transcript)"
