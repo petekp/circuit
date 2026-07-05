@@ -143,7 +143,7 @@ describe('resolveFlowSelectionPreview: effort provenance', () => {
     expect(review.effortSource).toBe('unset');
   });
 
-  it('an explicit config effort pin reports config and wins over the dial', () => {
+  it('an explicit config effort pin reports pinned and wins over the dial', () => {
     const pin = LayeredConfig.parse({
       layer: 'project',
       config: {
@@ -154,7 +154,10 @@ describe('resolveFlowSelectionPreview: effort provenance', () => {
     const p = preview('high', { configLayers: [pin] });
     const impl = relayStep(p, 'implement-step');
     expect(impl.effort).toBe('low');
-    expect(impl.effortSource).toBe('config');
+    // 'pinned', not 'config': the explicit stack also carries pins the flow
+    // itself authors (flow/stage/step selection), which are not in any config
+    // file the operator owns. The word must not promise a file.
+    expect(impl.effortSource).toBe('pinned');
     // The pin does not launder the model's provenance.
     expect(impl.modelSource).toBe('codex-default');
   });

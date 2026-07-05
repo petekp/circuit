@@ -152,12 +152,12 @@ function columnHeader(palette: TerminalPalette, labels: readonly string[]): read
   return labels.map((label) => cell(label, palette.dim));
 }
 
-// `config` is an operator (or flow) decision; everything else is a default the
-// engine filled in. Weight carries that split: pinned values are bold, dial
-// defaults plain, absent values dim — so a fully-default table reads uniformly
-// calm, and anything you pinned stands out.
+// `pinned` is an explicit decision (operator config or a pin the flow itself
+// carries); everything else is a default the engine filled in. Weight carries
+// that split: pinned values are bold, dial defaults plain, absent values dim —
+// so a fully-default table reads uniformly calm, and any pin stands out.
 function isExplicit(source: PreviewModelSource | PreviewEffortSource): boolean {
-  return source === 'config';
+  return source === 'pinned';
 }
 
 // The plain-characters form of the provenance split (styling is presentation

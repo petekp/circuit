@@ -346,7 +346,8 @@ The `SOURCE` column says where each model came from:
 - `power-tier`: the dial's tier table chose it. Turn the dial and it changes.
 - `codex-default`: a Codex step, so the model is your Codex default, read from
   `~/.codex/models_cache.json`. Codex tiers move effort, not the model.
-- `config`: an explicit `model:` in your config won. The dial does not touch it.
+- `pinned`: an explicit pin won — a `model:` in your config, or a pin the flow
+  itself carries. The dial does not touch it.
 - `codex-default-unresolved`: the Codex cache was unreadable, so the model is
   left blank instead of guessed. The rest of the preview still resolves.
 

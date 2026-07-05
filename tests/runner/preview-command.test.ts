@@ -132,10 +132,10 @@ describe('circuit preview: front door', () => {
     expect(sourceCellText('power-tier', 'unset')).toBe('power-tier');
     // Explicit and default mixed: the cell must say which half is which, in
     // plain characters — brightness alone would hide it from pipes/NO_COLOR.
-    expect(sourceCellText('codex-default', 'config')).toBe('codex-default · effort:config');
-    expect(sourceCellText('config', 'power-tier')).toBe('config · effort:power-tier');
+    expect(sourceCellText('codex-default', 'pinned')).toBe('codex-default · effort:pinned');
+    expect(sourceCellText('pinned', 'power-tier')).toBe('pinned · effort:power-tier');
     // Both explicit collapses back to one word.
-    expect(sourceCellText('config', 'config')).toBe('config');
+    expect(sourceCellText('pinned', 'pinned')).toBe('pinned');
   });
 
   it('--matrix returns one preview per fixed tier, high first, and the dial moves the implementer effort', () => {

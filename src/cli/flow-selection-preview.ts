@@ -46,25 +46,27 @@ import {
 import { deriveResolvedSelection } from '../selection/relay-selection.js';
 import type { GuidanceSelectionFlow } from '../selection/selection-resolver.js';
 
-// Where a relay step's model value came from. `config` = explicit selection
-// config won the stack; `power-tier` = the Power dial's tier table filled it;
+// Where a relay step's model value came from. `pinned` = an explicit pin in
+// the selection stack won — an operator config file OR a pin the flow itself
+// authors (flow/stage/step selection), which is why the word promises a pin,
+// not a file; `power-tier` = the Power dial's tier table filled it;
 // `codex-default` = a codex connector's model was read from the operator's
 // codex default-model cache; `codex-default-unresolved` = that cache was
 // missing/unreadable, so the model is left blank rather than guessed;
 // `unset` = no model resolved and the connector needs none named here.
 export type PreviewModelSource =
-  | 'config'
+  | 'pinned'
   | 'power-tier'
   | 'codex-default'
   | 'codex-default-unresolved'
   | 'unset';
 
-// Where a relay step's effort came from. Same split as the model: `config` =
-// the explicit selection stack set it; `power-tier` = the dial's tier table
-// filled it (including the fixed role allocation, e.g. researchers pinned to
-// the top tier — a shipped default, not an operator choice); `unset` = the
-// connector takes no effort here.
-export type PreviewEffortSource = 'config' | 'power-tier' | 'unset';
+// Where a relay step's effort came from. Same split as the model: `pinned` =
+// an explicit pin in the selection stack won; `power-tier` = the dial's tier
+// table filled it (including the fixed role allocation, e.g. researchers
+// pinned to the top tier — a shipped default, not an operator choice);
+// `unset` = the connector takes no effort here.
+export type PreviewEffortSource = 'pinned' | 'power-tier' | 'unset';
 
 export interface RelayStepSelectionPreview {
   readonly stepId: string;
@@ -212,7 +214,7 @@ function previewRelayStep(input: {
   // fatal: the step shows as unresolved and the rest of the preview stands.
   let modelSource: PreviewModelSource;
   if (resolved.model !== undefined) {
-    modelSource = modelFromStack ? 'config' : 'power-tier';
+    modelSource = modelFromStack ? 'pinned' : 'power-tier';
   } else if (connectorName === 'codex') {
     try {
       const slug = input.codexDefaultModel();
@@ -227,7 +229,7 @@ function previewRelayStep(input: {
 
   let effortSource: PreviewEffortSource;
   if (resolved.effort !== undefined) {
-    effortSource = effortFromStack ? 'config' : 'power-tier';
+    effortSource = effortFromStack ? 'pinned' : 'power-tier';
   } else {
     effortSource = 'unset';
   }
