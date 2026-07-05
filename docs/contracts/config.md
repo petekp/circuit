@@ -182,6 +182,16 @@ The runtime MUST reject any `Config`, `LayeredConfig`, or
   A future breaking change to `Config` bumps its literal to `3`, never
   to `2`. Future bumps require an ADR.
 
+  **Accepted version skew.** Additive optional keys (`power_auto`,
+  `project_id`, and `skill_hooks` all landed this way) do NOT bump
+  `schema_version`. A config written for a newer Circuit therefore
+  fails on an older binary with an unrecognized-key error, not a
+  version mismatch — the version literal matches and cannot flag the
+  skew. This is accepted: bumping on every additive key would make
+  every release a breaking one. The loader's unrecognized-key error
+  names both explanations (typo, or a key from a newer Circuit);
+  pinned by `tests/runner/config-loader-guidance.test.ts`.
+
 - **CONFIG-I7 — Bare `{schema_version: 1}` produces a usable default
   `Config` via schema-level `.default(...)` on required runtime
   fields.** `relay`, `skills`, `skill_hooks`, `circuits`, `power_tiers`,

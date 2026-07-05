@@ -28050,6 +28050,14 @@ function parseConfigYaml(text, sourcePath) {
     throw new Error(`config YAML parse failed at ${sourcePath}: ${err.message}`);
   }
 }
+function configValidationError(layer, abs, err) {
+  const base = `config validation failed for ${layer} at ${abs}: ${err.message}`;
+  const unrecognizedKey = err instanceof ZodError && err.issues.some((issue2) => issue2.code === "unrecognized_keys");
+  if (!unrecognizedKey)
+    return new Error(base);
+  return new Error(`${base}
+An unrecognized key is either a typo or a key from a newer Circuit than this one. Check the spelling, or update Circuit if the config needs the newer key.`);
+}
 function loadRuntimeConfigLayerFromPath(layer, sourcePath) {
   const abs = resolve2(sourcePath);
   if (!existsSync(abs))
@@ -28080,7 +28088,7 @@ function loadRuntimeConfigLayerFromPath(layer, sourcePath) {
       })
     };
   } catch (err) {
-    throw new Error(`config validation failed for ${layer} at ${abs}: ${err.message}`);
+    throw configValidationError(layer, abs, err);
   }
 }
 function discoverRuntimeConfigLayers(options = {}) {
@@ -28115,6 +28123,7 @@ var init_config_loader = __esm({
   "dist/shared/config-loader.js"() {
     "use strict";
     import_yaml = __toESM(require_dist(), 1);
+    init_zod();
     init_config();
     init_policy_envelope();
     init_control_plane_paths();
@@ -86615,7 +86624,7 @@ function previewRelayStep(input) {
   });
   let modelSource;
   if (resolved.model !== void 0) {
-    modelSource = modelFromStack ? "config" : "power-tier";
+    modelSource = modelFromStack ? "pinned" : "power-tier";
   } else if (connectorName === "codex") {
     try {
       const slug = input.codexDefaultModel();
@@ -86629,7 +86638,7 @@ function previewRelayStep(input) {
   }
   let effortSource;
   if (resolved.effort !== void 0) {
-    effortSource = effortFromStack ? "config" : "power-tier";
+    effortSource = effortFromStack ? "pinned" : "power-tier";
   } else {
     effortSource = "unset";
   }
@@ -86801,7 +86810,7 @@ function columnHeader(palette, labels) {
   return labels.map((label) => cell(label, palette.dim));
 }
 function isExplicit(source) {
-  return source === "config";
+  return source === "pinned";
 }
 function sourceCellText(modelSource, effortSource) {
   if (effortSource === "unset" || isExplicit(effortSource) === isExplicit(modelSource)) {

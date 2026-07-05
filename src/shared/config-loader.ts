@@ -2,6 +2,7 @@ import { existsSync, readFileSync } from 'node:fs';
 import { homedir } from 'node:os';
 import { join, resolve } from 'node:path';
 import { parse as parseYaml } from 'yaml';
+import { ZodError } from 'zod';
 import { Config, type Config as ConfigValue, LayeredConfig } from '../schemas/config.js';
 import {
   PolicyEnvelopeV2,
@@ -44,6 +45,21 @@ function parseConfigYaml(text: string, sourcePath: string): unknown {
   }
 }
 
+// The loader stays strict — an unrecognized key always fails — but the error
+// names both honest explanations. Additive optional keys land without a
+// schema_version bump, so a config written for a newer Circuit fails on an
+// older binary with an unrecognized-key error, not a version mismatch; a bare
+// schema dump would leave the operator hunting for a typo that is not there.
+function configValidationError(layer: string, abs: string, err: unknown): Error {
+  const base = `config validation failed for ${layer} at ${abs}: ${(err as Error).message}`;
+  const unrecognizedKey =
+    err instanceof ZodError && err.issues.some((issue) => issue.code === 'unrecognized_keys');
+  if (!unrecognizedKey) return new Error(base);
+  return new Error(
+    `${base}\nAn unrecognized key is either a typo or a key from a newer Circuit than this one. Check the spelling, or update Circuit if the config needs the newer key.`,
+  );
+}
+
 function loadConfigLayerFromPath(
   layer: 'user-global' | 'project',
   sourcePath: string,
@@ -59,7 +75,7 @@ function loadConfigLayerFromPath(
       config: Config.parse(raw),
     });
   } catch (err) {
-    throw new Error(`config validation failed for ${layer} at ${abs}: ${(err as Error).message}`);
+    throw configValidationError(layer, abs, err);
   }
 }
 
@@ -99,7 +115,7 @@ function loadRuntimeConfigLayerFromPath(
       }),
     };
   } catch (err) {
-    throw new Error(`config validation failed for ${layer} at ${abs}: ${(err as Error).message}`);
+    throw configValidationError(layer, abs, err);
   }
 }
 
