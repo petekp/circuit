@@ -53,23 +53,22 @@ async function runReviewWithCapturedOutput(input: {
   readonly goal: string;
   readonly nowMs: number;
 }): Promise<Record<string, unknown>> {
-  const { stdout } = await captureStreams(() =>
-    withScopedEnv({ HOME: homeDir, CIRCUIT_GENERATED_FLOW_MIRROR_ROOT: undefined }, async () => {
-      const exit = await main(
-        ['run', 'review', '--goal', input.goal, '--run-folder', input.runFolder],
-        {
-          relayer: input.relayer,
-          now: deterministicNow(input.nowMs),
-          runId: input.runId,
-          configHomeDir: homeDir,
-          configCwd: cwdDir,
-        },
-      );
-      expect(exit).toBe(0);
-    }),
+  const { result: exit, stdout } = await captureStreams(() =>
+    withScopedEnv({ HOME: homeDir, CIRCUIT_GENERATED_FLOW_MIRROR_ROOT: undefined }, () =>
+      main(['run', 'review', '--goal', input.goal, '--run-folder', input.runFolder], {
+        relayer: input.relayer,
+        now: deterministicNow(input.nowMs),
+        runId: input.runId,
+        configHomeDir: homeDir,
+        configCwd: cwdDir,
+      }),
+    ),
   );
 
-  return JSON.parse(stdout) as Record<string, unknown>;
+  const output = JSON.parse(stdout) as Record<string, unknown>;
+  // The CLI exit code mirrors the closed outcome: aborted exits 1, all else 0.
+  expect(exit).toBe(output.outcome === 'aborted' ? 1 : 0);
+  return output;
 }
 
 beforeEach(() => {
@@ -397,7 +396,8 @@ policy:
             configCwd: cwdDir,
           },
         );
-        expect(exit).toBe(0);
+        // The policy rejection closes the run aborted, so the CLI exits 1.
+        expect(exit).toBe(1);
       }),
     );
 
@@ -463,7 +463,8 @@ policy:
             configCwd: cwdDir,
           },
         );
-        expect(exit).toBe(0);
+        // The policy rejection closes the run aborted, so the CLI exits 1.
+        expect(exit).toBe(1);
       }),
     );
 

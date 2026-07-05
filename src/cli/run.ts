@@ -720,7 +720,7 @@ export async function runResumeCommand(
       if (ttyNoticesEnabled({ stream: process.stderr, progressJsonl: args.progress === 'jsonl' })) {
         process.stderr.write(runFinishedNotice({ outcome: runResult.outcome, runFolder }));
       }
-      return 0;
+      return exitCodeForClosedOutcome(runResult.outcome);
     }
     process.stderr.write(
       `${missingRunFolderMessage({ resolved: runFolder, exists: existsSync(runFolder) })}\n`,
@@ -734,9 +734,23 @@ export async function runResumeCommand(
   return runExecutionCommand(args, options);
 }
 
+// The process exit code mirrors the closed outcome so scripts and agents
+// wrapping the CLI can read failure without parsing the envelope: an aborted
+// close exits 1, every other close exits 0. A checkpoint park is the command
+// succeeding at bringing the run to its decision point, so waiting stays 0.
+// handoff/stopped/escalated closes stay 0 until their exit semantics get a
+// deliberate decision. The Claude launcher already keys its failure rendering
+// on this contract (plugins/claude/scripts/circuit.ts).
+function exitCodeForClosedOutcome(outcome: string): number {
+  return outcome === 'aborted' ? 1 : 0;
+}
+
 // Lists the flows an operator can actually name, from the same root the run
 // path loads them from. Internal flows ship no host surface, so they stay out
 // of the offer. Best-effort: an unreadable root just drops the listing.
+// A root with no flows at all means the operator is running from a directory
+// that is not a circuit checkout, so the message names where the CLI looked
+// and how to point it somewhere real instead of offering an empty list.
 function unknownFlowMessage(flowName: string, flowRoot: string | undefined): string {
   const root = resolve(flowRoot ?? 'generated/flows');
   let available: string[] = [];
@@ -749,8 +763,14 @@ function unknownFlowMessage(flowName: string, flowRoot: string | undefined): str
   } catch {
     available = [];
   }
-  const listing = available.length === 0 ? '' : `\nAvailable flows: ${available.join(', ')}`;
-  return `error: no flow named '${flowName}' is installed.${listing}`;
+  if (available.length === 0) {
+    return [
+      `error: no flow named '${flowName}' is installed.`,
+      `No flows were found under ${root}.`,
+      'Run circuit from the circuit checkout, or pass --flow-root <circuit checkout>/generated/flows.',
+    ].join('\n');
+  }
+  return `error: no flow named '${flowName}' is installed.\nAvailable flows: ${available.join(', ')}`;
 }
 
 export async function runExecutionCommand(
@@ -1217,7 +1237,7 @@ export async function runExecutionCommand(
     if (ttyNotices) {
       process.stderr.write(runFinishedNotice({ outcome: runResult.outcome, runFolder }));
     }
-    return 0;
+    return exitCodeForClosedOutcome(runResult.outcome);
   }
 
   process.stderr.write(`error: unsupported runtime invocation: ${defaultRuntimeSupport.reason}\n`);

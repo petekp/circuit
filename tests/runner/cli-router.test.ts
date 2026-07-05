@@ -230,6 +230,12 @@ function traceEntryLog(runFolder: string): Array<Record<string, unknown>> {
     .map((line) => JSON.parse(line) as Record<string, unknown>);
 }
 
+// The CLI exit code mirrors the closed outcome: an aborted close exits 1,
+// every other envelope (complete, waiting checkpoint, utility output) exits 0.
+function expectExitMatchesOutcome(exit: number, output: Record<string, unknown>): void {
+  expect(exit).toBe(output.outcome === 'aborted' ? 1 : 0);
+}
+
 async function runMainJson(
   argv: readonly string[],
   relayBody: string,
@@ -244,13 +250,13 @@ async function runMainJson(
       configCwd: options.configCwd ?? process.cwd(),
     }),
   );
-  expect(exit).toBe(0);
-
   const parsed: unknown = JSON.parse(captured);
   if (!parsed || typeof parsed !== 'object' || Array.isArray(parsed)) {
     throw new Error('CLI output was not a JSON object');
   }
-  return parsed as Record<string, unknown>;
+  const output = parsed as Record<string, unknown>;
+  expectExitMatchesOutcome(exit, output);
+  return output;
 }
 
 async function runMainJsonWithRelayer(
@@ -267,8 +273,9 @@ async function runMainJsonWithRelayer(
       configCwd: options.configCwd ?? process.cwd(),
     }),
   );
-  expect(exit).toBe(0);
-  return JSON.parse(captured) as Record<string, unknown>;
+  const output = JSON.parse(captured) as Record<string, unknown>;
+  expectExitMatchesOutcome(exit, output);
+  return output;
 }
 
 async function runMainJsonWithRelayerAndProgress(
@@ -289,9 +296,8 @@ async function runMainJsonWithRelayerAndProgress(
       configCwd: options.configCwd ?? process.cwd(),
     }),
   );
-  expect(exit).toBe(0);
-
   const output = JSON.parse(stdout) as Record<string, unknown>;
+  expectExitMatchesOutcome(exit, output);
   const progress = stderr
     .trim()
     .split('\n')
@@ -318,9 +324,8 @@ async function runMainJsonWithProgress(
       configCwd: options.configCwd ?? process.cwd(),
     }),
   );
-  expect(exit).toBe(0);
-
   const output = JSON.parse(stdout) as Record<string, unknown>;
+  expectExitMatchesOutcome(exit, output);
   const progress = stderr
     .trim()
     .split('\n')

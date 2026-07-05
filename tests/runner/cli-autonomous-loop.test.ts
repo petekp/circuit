@@ -7,7 +7,10 @@ import { captureStreams, deterministicNow, makeStubRelayer } from '../helpers/ru
 import { main } from '../../src/cli/circuit.js';
 
 // Build's autonomous run auto-resolves its checkpoint and accepts a uniform
-// verdict body across steps (mirrors the existing build-autonomous CLI test).
+// verdict body across steps. The bare body fails the typed step schemas, so
+// the primary attempt closes aborted — deliberately: these tests pin the loop
+// contract (it fires, records honestly, and leaves no artifacts on the default
+// path) on a failing primary attempt, not run success.
 const relayer = makeStubRelayer('{"verdict":"accept"}', {
   receipt_id: 'stub-receipt-autonomous-loop',
 });
@@ -45,8 +48,10 @@ async function runMainJson(
       configCwd,
     }),
   );
-  expect(exit).toBe(0);
-  return JSON.parse(stdout) as Record<string, unknown>;
+  const output = JSON.parse(stdout) as Record<string, unknown>;
+  // The CLI exit code mirrors the closed outcome: aborted exits 1, all else 0.
+  expect(exit).toBe(output.outcome === 'aborted' ? 1 : 0);
+  return output;
 }
 
 describe('CLI autonomous continuation loop (S10)', () => {
