@@ -56,6 +56,17 @@ unrelated key. There is no migration layer: regenerate the artifact
 from source (for generated surfaces) or recreate it (for
 operator-authored flows).
 
+**One documented exception: the shared config path.** The operator
+config files (`~/.config/circuit/config.yaml` and
+`.circuit/config.yaml`) carry two document families, discriminated by
+`schema_version`: `1` is the selection config, `2` is the policy
+envelope. The runtime loader routes on the number before choosing a
+schema, so a `schema_version: 2` file is not a rejected config — it is
+a policy envelope. Because the number discriminates families there, a
+claimed number is never reused; the config contract
+([config.md](config.md) CONFIG-I6) carries the registry, and the next
+breaking `Config` shape takes `3`.
+
 Frozen evidence is the one exception. Release proof runs under
 `docs/release/proofs/` are historical records and are never edited to
 match a new version. A test that parses a frozen record shims the

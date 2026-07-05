@@ -1,9 +1,9 @@
 ---
 contract: config
 status: ratified-v0.1
-version: 0.5
+version: 0.6
 schema_source: src/schemas/config.ts
-last_updated: 2026-06-12
+last_updated: 2026-07-04
 depends_on: [ids, selection-policy, connector, step, skill, skill-hook]
 report_ids:
   - config.root
@@ -144,15 +144,43 @@ The runtime MUST reject any `Config`, `LayeredConfig`, or
   and the `ConfigLayer` enum must evolve together. Enforced at
   `src/schemas/config.ts` (`ConfigLayer = z.enum([...])`).
 
-- **CONFIG-I6 — `Config.schema_version` is `z.literal(1)`; the parser
-  refuses any other version at v0.1.** The schema version is a
-  versioning hook reserved for future breaking changes to
-  the `Config` shape. At v0.1, only version `1` is accepted. An
-  operator config file declaring `schema_version: 2` is rejected at
-  parse time with a clear error; attempting to parse it as v1 would
-  produce latent divergence between the file's intent and the runtime
-  behavior. Future bumps require an ADR. Enforced at
-  `src/schemas/config.ts` via `z.literal(1)`.
+- **CONFIG-I6 — `Config.schema_version` is `z.literal(1)`, and on the
+  shared config file path the version number doubles as the
+  document-family discriminator.** Two guarantees, one field:
+
+  1. **Schema-level rejection.** `Config.safeParse` accepts only
+     `schema_version: 1`; any other number fails at parse time
+     (`z.literal(1)`), so a document can never be half-read as v1.
+     Attempting to parse a mismatched file as v1 would produce latent
+     divergence between the file's intent and the runtime behavior.
+     Enforced at `src/schemas/config.ts`; pinned by
+     `tests/contracts/config-schema.test.ts` ("rejects schema_version
+     other than 1").
+  2. **Loader-level routing.** The canonical runtime loader
+     (`discoverRuntimeConfigLayers` in `src/shared/config-loader.ts`,
+     used by `run`, `preview`, and `config`) reads the raw document's
+     `schema_version` before choosing a schema: `2` routes the document
+     to `PolicyEnvelopeV2` — the policy envelope is a different
+     document family that shares the same file paths — and everything
+     else parses as `Config`. A `schema_version: 2` file is therefore
+     NOT rejected by the loader; it is treated as a policy envelope and
+     validated against that schema. Pinned by
+     `tests/runner/config-loader.test.ts` ("loads PolicyEnvelope v2
+     files as policy layers without turning them into selection
+     config").
+
+  **Version registry for the shared config path.** Because the number
+  discriminates document families at load time, a claimed number is
+  never reused for a different family:
+
+  | `schema_version` | Document family |
+  | --- | --- |
+  | `1` | Selection config (`Config`, this contract) |
+  | `2` | Policy envelope (`PolicyEnvelopeV2`, `src/schemas/policy-envelope.ts`) — permanently |
+  | `3` | Reserved for the next breaking change to the `Config` shape |
+
+  A future breaking change to `Config` bumps its literal to `3`, never
+  to `2`. Future bumps require an ADR.
 
 - **CONFIG-I7 — Bare `{schema_version: 1}` produces a usable default
   `Config` via schema-level `.default(...)` on required runtime
@@ -506,6 +534,17 @@ After a `CircuitOverride` is accepted:
   tiers with a floor-not-above-ceiling refinement. Inert unless
   `defaults.power` is `auto`. Semantics in
   [docs/contracts/selection.md](selection.md) v0.5.
+
+- **v0.6 (data-interface review, 2026-07-04)** — CONFIG-I6 corrected to
+  match shipped behavior: the runtime loader routes `schema_version: 2`
+  documents to the policy envelope rather than rejecting them, so the
+  version number doubles as the document-family discriminator on the
+  shared config path. The invariant now states both the schema-level
+  rejection and the loader-level routing, and ratifies the version
+  registry (`2` is the policy envelope forever; the next breaking
+  `Config` shape takes `3`). No schema change; the prose was the only
+  drifted surface — code, loader tests, and
+  `docs/architecture/run-process.md` already agreed.
 
 - **v0.2 (Stage 1)** — Ratify `property_ids` above by landing the
   corresponding property-test harness at
