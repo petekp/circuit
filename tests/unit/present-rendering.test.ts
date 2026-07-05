@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 
 import {
+  deliberateClosePresentation,
   finalAnswerMarkdownPath,
   presentAbortReason,
 } from '../../plugins/claude/scripts/present-rendering.ts';
@@ -49,5 +50,49 @@ describe('presentAbortReason (F-H-2)', () => {
   it('returns undefined when neither the envelope nor result.json carry a reason', () => {
     expect(presentAbortReason({ result_path: '/x' }, () => undefined)).toBeUndefined();
     expect(presentAbortReason({}, () => 'unused')).toBeUndefined();
+  });
+});
+
+// stopped/escalated/handoff closes exit nonzero for scripts, but they are
+// deliberate closes, not crashes: the wrapper renders the run's own status
+// text and must never print the generic "Circuit run failed" line for them.
+describe('deliberateClosePresentation', () => {
+  it('presents a stopped close with the run surface status text as the headline', () => {
+    const result = {
+      outcome: 'stopped',
+      run_surface_status_text: 'Stopped: the operator ended the run at the Build checkpoint.',
+    };
+    expect(deliberateClosePresentation(result, () => undefined)).toEqual({
+      headline: 'Stopped: the operator ended the run at the Build checkpoint.',
+    });
+  });
+
+  it('composes a fallback headline when the envelope carries no status text', () => {
+    expect(deliberateClosePresentation({ outcome: 'escalated' }, () => undefined)).toEqual({
+      headline: 'Run closed with outcome escalated.',
+    });
+  });
+
+  it('carries the close reason through the same envelope-then-result.json channel aborts use', () => {
+    const result = {
+      outcome: 'handoff',
+      run_surface_status_text: 'Handoff: continuity saved for the next session.',
+      result_path: '/runs/r/reports/result.json',
+    };
+    const load = (path: string) =>
+      path === '/runs/r/reports/result.json' ? 'recovery limit reached' : undefined;
+    expect(deliberateClosePresentation(result, load)).toEqual({
+      headline: 'Handoff: continuity saved for the next session.',
+      reason: 'recovery limit reached',
+    });
+  });
+
+  it('returns undefined for every other outcome, so aborts and successes keep their branches', () => {
+    expect(deliberateClosePresentation({ outcome: 'aborted' }, () => 'x')).toBeUndefined();
+    expect(deliberateClosePresentation({ outcome: 'complete' }, () => 'x')).toBeUndefined();
+    expect(
+      deliberateClosePresentation({ outcome: 'checkpoint_waiting' }, () => 'x'),
+    ).toBeUndefined();
+    expect(deliberateClosePresentation({}, () => 'x')).toBeUndefined();
   });
 });

@@ -22,7 +22,11 @@ import {
   shouldInjectCreateTemplateRoot,
   shouldInjectPackagedFlowRoot,
 } from './launcher-core.ts';
-import { finalAnswerMarkdownPath, presentAbortReason } from './present-rendering.ts';
+import {
+  deliberateClosePresentation,
+  finalAnswerMarkdownPath,
+  presentAbortReason,
+} from './present-rendering.ts';
 
 const scriptDir = dirname(fileURLToPath(import.meta.url));
 const pluginRoot = resolve(scriptDir, '..');
@@ -344,6 +348,21 @@ function renderFinalResult(
         )} --checkpoint-choice '<choice>'`,
       );
     }
+    return 0;
+  }
+
+  const deliberateClose = deliberateClosePresentation(result, loadResultReason);
+  if (deliberateClose !== undefined) {
+    // A close short of complete that is not a crash: the operator chose stop,
+    // the flow escalated, or continuity was handed off. Render the run's own
+    // status text; the caller decides what exit status to propagate.
+    if (statusBlocks.renderedAnyBlock) renderLine('');
+    renderLine(deliberateClose.headline);
+    if (deliberateClose.reason !== undefined) renderLine(deliberateClose.reason);
+    const summaryPath = finalAnswerMarkdownPath(result, existsSync);
+    if (summaryPath !== undefined) renderLine(`Summary: ${summaryPath}`);
+    const runFolder = stringField(result, 'run_folder');
+    if (runFolder !== undefined) renderLine(`Run folder: ${runFolder}`);
     return 0;
   }
 
@@ -740,8 +759,17 @@ if (rawArgs[0] === 'present') {
             const isAbortedFlow = outcome === 'aborted';
             const isUtilityRefusal =
               outcome === undefined && (refusalStatus === 'invalid' || refusalStatus === 'refused');
-            if (isAbortedFlow || isUtilityRefusal) {
+            const isDeliberateClose =
+              deliberateClosePresentation(parsed, loadResultReason) !== undefined;
+            if (isAbortedFlow || isUtilityRefusal || isDeliberateClose) {
               renderFinalResult(stdoutText, checkpointWasRendered, statusBlocks);
+            }
+            if (isDeliberateClose) {
+              // The run closed on purpose (stop choice, escalation, handoff)
+              // and the rendering above states how. A generic failure line
+              // would misreport a deliberate close as a crash; the nonzero
+              // exit still propagates so scripts see "not complete".
+              process.exit(exitStatus);
             }
           }
         } catch {

@@ -40,3 +40,27 @@ export function presentAbortReason(
   if (resultPath === undefined) return undefined;
   return loadResultReason(resultPath);
 }
+
+export interface DeliberateClosePresentation {
+  readonly headline: string;
+  readonly reason?: string;
+}
+
+// stopped/escalated/handoff closes exit nonzero so scripts never chain onto
+// unfinished work, but they are deliberate closes, not crashes: the operator
+// chose stop, the flow escalated for human attention, or continuity was
+// handed off. The wrapper renders the run's own status text for them and
+// must never print the generic "Circuit run failed" line. Returns undefined
+// for every other outcome so aborts and successes keep their branches.
+export function deliberateClosePresentation(
+  result: Record<string, unknown>,
+  loadResultReason: (resultPath: string) => string | undefined,
+): DeliberateClosePresentation | undefined {
+  const outcome = stringField(result, 'outcome');
+  if (outcome !== 'stopped' && outcome !== 'escalated' && outcome !== 'handoff') return undefined;
+  const headline =
+    stringField(result, 'run_surface_status_text') ?? `Run closed with outcome ${outcome}.`;
+  // The close reason rides the same envelope-then-result.json channel aborts use.
+  const reason = presentAbortReason(result, loadResultReason);
+  return reason === undefined ? { headline } : { headline, reason };
+}

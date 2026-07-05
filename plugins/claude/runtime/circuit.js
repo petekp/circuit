@@ -148293,7 +148293,15 @@ async function runResumeCommand(args, options) {
   return runExecutionCommand(args, options);
 }
 function exitCodeForClosedOutcome(outcome) {
-  return outcome === "aborted" ? 1 : 0;
+  switch (outcome) {
+    case "complete":
+      return 0;
+    case "aborted":
+    case "stopped":
+    case "escalated":
+    case "handoff":
+      return 1;
+  }
 }
 function unknownFlowMessage(flowName, flowRoot2) {
   const root = resolve30(flowRoot2 ?? "generated/flows");

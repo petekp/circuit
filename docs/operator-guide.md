@@ -157,8 +157,12 @@ that work, `trace` as the ordered record, `report` as typed output, and
    ```
 
 The CLI exit code tells scripts how the run ended without parsing the JSON
-output: a run that closes aborted exits 1, any other close (including a pause
-at a checkpoint) exits 0, and a usage error exits 2.
+output: a run that closes complete exits 0, a pause at a checkpoint exits 0
+(the run is parked, waiting for your decision), any close short of complete
+(aborted, stopped, escalated, handoff) exits 1, and a usage error exits 2.
+Chaining a follow-up command with `&&` therefore only proceeds on a completed
+run; the JSON `outcome` field carries the specific ending for callers that
+need it.
 
 Build, Fix, Prototype, and Pursue disclose worker write access before
 write-capable work starts:

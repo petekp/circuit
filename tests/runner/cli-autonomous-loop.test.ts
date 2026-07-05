@@ -49,8 +49,9 @@ async function runMainJson(
     }),
   );
   const output = JSON.parse(stdout) as Record<string, unknown>;
-  // The CLI exit code mirrors the closed outcome: aborted exits 1, all else 0.
-  expect(exit).toBe(output.outcome === 'aborted' ? 1 : 0);
+  // The CLI exit code mirrors the closed outcome: complete exits 0, every
+  // close short of complete exits 1.
+  expect(exit).toBe(output.outcome === 'complete' ? 0 : 1);
   return output;
 }
 

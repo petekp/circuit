@@ -230,10 +230,15 @@ function traceEntryLog(runFolder: string): Array<Record<string, unknown>> {
     .map((line) => JSON.parse(line) as Record<string, unknown>);
 }
 
-// The CLI exit code mirrors the closed outcome: an aborted close exits 1,
-// every other envelope (complete, waiting checkpoint, utility output) exits 0.
+// The CLI exit code mirrors the closed outcome: complete, a waiting
+// checkpoint, and utility outputs (no outcome field) exit 0; every close
+// short of complete (aborted, stopped, escalated, handoff) exits 1.
 function expectExitMatchesOutcome(exit: number, output: Record<string, unknown>): void {
-  expect(exit).toBe(output.outcome === 'aborted' ? 1 : 0);
+  const exitsZero =
+    output.outcome === undefined ||
+    output.outcome === 'complete' ||
+    output.outcome === 'checkpoint_waiting';
+  expect(exit).toBe(exitsZero ? 0 : 1);
 }
 
 async function runMainJson(

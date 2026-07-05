@@ -21,6 +21,7 @@ import {
 } from '../schemas/progress-event.js';
 import { RunResult } from '../schemas/result.js';
 import type { WaitingCheckpointStatus } from '../schemas/run-status.js';
+import type { RunClosedOutcome } from '../schemas/trace-entry.js';
 
 import { prepareRunStartHistoryRecall } from '../app/history/run-start-recall.js';
 import { readPriorRoute, writeOperatorSummary } from '../app/operator-summary/writer.js';
@@ -735,14 +736,29 @@ export async function runResumeCommand(
 }
 
 // The process exit code mirrors the closed outcome so scripts and agents
-// wrapping the CLI can read failure without parsing the envelope: an aborted
-// close exits 1, every other close exits 0. A checkpoint park is the command
-// succeeding at bringing the run to its decision point, so waiting stays 0.
-// handoff/stopped/escalated closes stay 0 until their exit semantics get a
-// deliberate decision. The Claude launcher already keys its failure rendering
-// on this contract (plugins/claude/scripts/circuit.ts).
-function exitCodeForClosedOutcome(outcome: string): number {
-  return outcome === 'aborted' ? 1 : 0;
+// wrapping the CLI can read the ending without parsing the envelope. The
+// contract is grep-shaped: 0 means "you got the completed goal" (or the run
+// is parked at a checkpoint waiting for you — reaching the decision point is
+// the command succeeding), 1 means "the run closed short of complete"
+// (aborted, stopped, escalated, handoff — a `&&` chain must never proceed on
+// any of them), 2 stays usage errors. Deliberate closes share exit 1 with
+// aborts on purpose: the exit code answers "did the work complete", and the
+// envelope's outcome field carries the distinction for callers who need it.
+// The Claude launcher renders deliberate closes without the failure line
+// while propagating the exit (plugins/claude/scripts/circuit.ts).
+// Exported for characterization (run-exit-codes.test.ts): the switch is
+// exhaustive over RunClosedOutcome, so a new close outcome fails compile
+// here and forces a deliberate exit-code decision instead of inheriting one.
+export function exitCodeForClosedOutcome(outcome: RunClosedOutcome): number {
+  switch (outcome) {
+    case 'complete':
+      return 0;
+    case 'aborted':
+    case 'stopped':
+    case 'escalated':
+    case 'handoff':
+      return 1;
+  }
 }
 
 // Lists the flows an operator can actually name, from the same root the run
