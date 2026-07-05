@@ -1,0 +1,10 @@
+# A user below the documented Node floor (README says 22.18.0 or newer).
+# Node 20 is still the default on many machines; this captures what that
+# user actually sees at each step.
+FROM node:20-bookworm-slim
+RUN apt-get update && apt-get install -y --no-install-recommends git ca-certificates \
+  && rm -rf /var/lib/apt/lists/*
+RUN useradd -m -s /bin/bash newdev
+USER newdev
+WORKDIR /home/newdev
+CMD ["bash"]
