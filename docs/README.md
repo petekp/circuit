@@ -43,6 +43,9 @@ starting release, messaging, docs, or first-run work.
 - [docs/architecture/architecture-revamp-staged-plan.md](architecture/architecture-revamp-staged-plan.md)
   - completed staged execution record of the 2026-06 architecture revamp; all
     stages landed.
+- [docs/architecture/data-interface-review.md](architecture/data-interface-review.md)
+  - pre-v1 audit record of the operator-facing data interface: what was
+    fixed, what was kept and why, and the one open naming decision.
 - [docs/pivot/contract-guidance-proof-recovery/](pivot/contract-guidance-proof-recovery/)
   - consolidated reference point for the contract, guidance, proof, and
     recovery pivot.
