@@ -93,7 +93,13 @@ async function runCli(
       resolve(projectRoot, 'dist/cli/circuit.js')
     )) as typeof CliCircuitModule;
     const code = await cliModule.main(argv, options);
-    if (code !== 0) throw new Error(`circuit CLI exited ${code}`);
+    // Exit 1 mirrors a run that closed aborted while still writing its full
+    // result envelope to stdout (the 'abort' scenario captures exactly that
+    // close). The harness reasons about run outcomes from the envelope — the
+    // freshness check compares each fresh outcome against the committed
+    // proof's — so only envelope-less failures (usage errors, crashes) are
+    // harness errors.
+    if (code !== 0 && code !== 1) throw new Error(`circuit CLI exited ${code}`);
     return { stdout: stdout.text(), stderr: stderr.text() };
   } finally {
     stdout.restore();
