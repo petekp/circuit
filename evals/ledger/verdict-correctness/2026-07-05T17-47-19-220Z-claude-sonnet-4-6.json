@@ -1,0 +1,25 @@
+{
+  "schema_version": 1,
+  "eval_id": "verdict-correctness",
+  "ran_at": "2026-07-05T17:47:19.220Z",
+  "repo_commit": "c5c018ec1af0ccf3d79a9bda7ef951bc30047013",
+  "model": "claude-sonnet-4-6",
+  "descriptors": {
+    "judge": "claude-code",
+    "suite": "subtle"
+  },
+  "metrics": {
+    "catch_rate": 0.9259259259259259,
+    "protocol_failure_rate": 0,
+    "cases": 36,
+    "attempted": 36,
+    "catches": 25,
+    "misses": 2,
+    "errors": 0,
+    "harness_skipped": 0,
+    "control_accept": 5,
+    "control_accept_with_fold_ins": 3,
+    "control_reject": 1,
+    "control_errors": 0
+  }
+}
