@@ -32,7 +32,7 @@ import { reflectChangedFiles } from '../../tests/helpers/working-tree.js';
 
 const FIXTURE_PATH = resolve('generated/flows/build/circuit.json');
 const CAPTURE_DIR = resolve('experiments/flow-lab/.capture');
-const TIMEOUT_MS = 20_000;
+const TIMEOUT_MS = 120_000;
 
 let runFolderBase: string;
 

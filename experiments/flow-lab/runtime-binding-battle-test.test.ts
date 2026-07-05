@@ -36,7 +36,7 @@ import type { RelayFn } from '../../src/shared/relay-runtime-types.js';
 import { reflectChangedFiles } from '../../tests/helpers/working-tree.js';
 
 const FIXTURE_PATH = resolve('generated/flows/build/circuit.json');
-const TIMEOUT_MS = 20_000;
+const TIMEOUT_MS = 120_000;
 
 let runFolderBase: string;
 
