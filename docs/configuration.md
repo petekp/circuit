@@ -400,6 +400,21 @@ steps and the Claude Code review steps, and the connector/provider check rejects
 the mismatch. `circuit preview` shows that as a `problem` on the offending steps
 before you ever run. Keep per-connector control in `power_tiers` instead.
 
+When a flow runs on one connector, the per-flow pin is the right tool. Pin one
+flow to a specific model without touching any other flow:
+
+```yaml
+schema_version: 1
+
+circuits:
+  fix:
+    selection:
+      model: { provider: anthropic, model: claude-opus-4-8 }
+```
+
+`circuit preview fix` then shows the model in bold with `pinned` in the SOURCE
+column, and the dial no longer moves it.
+
 ## Local Workers (OpenCode + Ollama)
 
 The power dial can drive local models with no engine changes: a custom
