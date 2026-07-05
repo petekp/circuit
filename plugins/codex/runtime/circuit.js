@@ -148275,13 +148275,16 @@ async function runResumeCommand(args, options) {
       if (ttyNoticesEnabled({ stream: process.stderr, progressJsonl: args.progress === "jsonl" })) {
         process.stderr.write(runFinishedNotice({ outcome: runResult.outcome, runFolder }));
       }
-      return 0;
+      return exitCodeForClosedOutcome(runResult.outcome);
     }
     process.stderr.write(`${missingRunFolderMessage({ resolved: runFolder, exists: existsSync41(runFolder) })}
 `);
     return 2;
   }
   return runExecutionCommand(args, options);
+}
+function exitCodeForClosedOutcome(outcome) {
+  return outcome === "aborted" ? 1 : 0;
 }
 function unknownFlowMessage(flowName, flowRoot2) {
   const root = resolve30(flowRoot2 ?? "generated/flows");
@@ -148291,9 +148294,15 @@ function unknownFlowMessage(flowName, flowRoot2) {
   } catch {
     available = [];
   }
-  const listing = available.length === 0 ? "" : `
+  if (available.length === 0) {
+    return [
+      `error: no flow named '${flowName}' is installed.`,
+      `No flows were found under ${root}.`,
+      "Run circuit from the circuit checkout, or pass --flow-root <circuit checkout>/generated/flows."
+    ].join("\n");
+  }
+  return `error: no flow named '${flowName}' is installed.
 Available flows: ${available.join(", ")}`;
-  return `error: no flow named '${flowName}' is installed.${listing}`;
 }
 async function runExecutionCommand(args, options) {
   if (args.goal === void 0) {
@@ -148666,7 +148675,7 @@ async function runExecutionCommand(args, options) {
     if (ttyNotices) {
       process.stderr.write(runFinishedNotice({ outcome: runResult.outcome, runFolder }));
     }
-    return 0;
+    return exitCodeForClosedOutcome(runResult.outcome);
   }
   process.stderr.write(`error: unsupported runtime invocation: ${defaultRuntimeSupport.reason}
 `);
