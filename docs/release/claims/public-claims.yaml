@@ -1,12 +1,12 @@
 schema_version: 1
 claims:
   - id: CLAIM-FLOW-CATALOG-CURRENT
-    claim: Circuit has current public flow packages for Build, Explore, Fix, Prototype, Pursue, and Review.
+    claim: Circuit has current public flow packages for Build, Explore, Fix, Prototype, and Review.
     type: flow
     status: verified_current
     surfaces: [README.md, docs/release/parity-matrix.generated.md]
     backing:
-      capability_ids: [flow:build, flow:explore, flow:fix, flow:prototype, flow:pursue, flow:review]
+      capability_ids: [flow:build, flow:explore, flow:fix, flow:prototype, flow:review]
       script_checks: [scripts/release/emit-current-capabilities.ts --check]
     user_risk: If false, the release catalog itself is misleading.
     readiness_refs: [REL-004]
@@ -74,7 +74,7 @@ claims:
     user_risk: Untracked scratch or secret-like files could be relayed unexpectedly if this regresses.
     readiness_refs: [REL-005]
   - id: CLAIM-WRITE-CAPABLE-WORKER
-    claim: Write-capable worker behavior must be disclosed before Build, Fix, Prototype, or Pursue work that can edit files.
+    claim: Write-capable worker behavior must be disclosed before Build, Fix, or Prototype work that can edit files.
     type: safety
     status: verified_current
     surfaces: [README.md, progress output, final summaries]

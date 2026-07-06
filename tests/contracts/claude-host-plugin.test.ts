@@ -28,7 +28,7 @@ import {
 } from '../helpers/host-plugin-fixtures.js';
 
 const PLUGIN_ROOT = resolve(REPO_ROOT, 'plugins/claude');
-const EXPECTED_CLAUDE_COMMANDS = ['handoff', 'pursue', 'run'];
+const EXPECTED_CLAUDE_COMMANDS = ['handoff', 'run'];
 const RAW_PROGRESS_INVOCATION =
   /node "\$\{CLAUDE_PLUGIN_ROOT\}\/scripts\/circuit\.ts" (?!present\b)[^\n]*--progress jsonl/;
 
@@ -158,10 +158,10 @@ describe('Claude Code host plugin package', () => {
       expect(syncSummary.status).toBe('synced');
       expect(syncSummary.source).toBe(PLUGIN_ROOT);
       expect(syncSummary.commands).toEqual([...EXPECTED_CLAUDE_COMMANDS].sort());
-      expect(syncSummary.skills).toContain('pursue');
+      expect(syncSummary.skills).toContain('build');
       expect(syncSummary.skills).toContain('review');
       expect(existsSync(join(cachePath, 'commands/run.md'))).toBe(true);
-      expect(existsSync(join(cachePath, 'skills/pursue/circuit.json'))).toBe(true);
+      expect(existsSync(join(cachePath, 'skills/build/circuit.json'))).toBe(true);
 
       const cleanCheck = spawnSync(
         process.execPath,

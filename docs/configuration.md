@@ -136,8 +136,8 @@ Circuit fires these hooks when it detects the matching moment:
 | --- | --- | --- |
 | `after:edit-files[:.ext]` | a step records the files it touched | Fix |
 | `before:edit-files[:.ext]` | a plan predicts the file types it will touch | Build |
-| `after:verification-failed` | a verification check fails | any flow with a verification step (Build, Fix, Prototype, Pursue) |
-| `after:evidence-gap` | verification ran but left a required claim unproven | any flow with a verification step (Build, Fix, Prototype, Pursue) |
+| `after:verification-failed` | a verification check fails | any flow with a verification step (Build, Fix, Prototype) |
+| `after:evidence-gap` | verification ran but left a required claim unproven | any flow with a verification step (Build, Fix, Prototype) |
 
 The two edit-files hooks are parameterized by an extension suffix in the key:
 `after:edit-files:.tsx` fires after a step touches a `.tsx` file,

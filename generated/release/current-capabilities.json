@@ -78,41 +78,6 @@
       "unsupported_route_outcomes": ["connector-failed"]
     },
     {
-      "id": "pursue",
-      "source": "src/flows/pursue/schematic.json",
-      "command_path": "src/flows/pursue/command.md",
-      "contract_path": "src/flows/pursue/contract.md",
-      "axis_support": {
-        "allowed_depths": ["medium"],
-        "supports_tournament": false,
-        "supports_autonomous": true,
-        "default": {
-          "depth": "medium",
-          "tournament": false,
-          "tournament_n": 3,
-          "autonomous": false
-        }
-      },
-      "stages": ["Frame", "Coordinate", "Execute", "Verify", "Review", "Close"],
-      "reports": [
-        "pursuit.batch@v1",
-        "pursuit.contract@v1",
-        "pursuit.graph@v1",
-        "pursuit.result@v1",
-        "pursuit.review@v1",
-        "pursuit.verification@v1",
-        "pursuit.wave-plan@v1"
-      ],
-      "writers": {
-        "compose": 3,
-        "close": 1,
-        "verification": 1,
-        "checkpoint": 0
-      },
-      "route_outcomes": ["complete", "continue", "escalate", "handoff", "retry", "stop"],
-      "unsupported_route_outcomes": []
-    },
-    {
       "id": "prototype",
       "source": "src/flows/prototype/schematic.json",
       "contract_path": "src/flows/prototype/contract.md",
@@ -229,9 +194,9 @@
   ],
   "commands": {
     "source": ["create", "generate", "handoff", "run", "uninstall"],
-    "claude_plugin": ["handoff", "pursue", "run"],
-    "codex_plugin": ["handoff", "pursue", "run"],
-    "claude_plugin_skills": ["build", "explore", "fix", "prototype", "pursue", "review"]
+    "claude_plugin": ["handoff", "run"],
+    "codex_plugin": ["handoff", "run"],
+    "claude_plugin_skills": ["build", "explore", "fix", "prototype", "review"]
   },
   "connectors": [
     {
@@ -306,21 +271,6 @@
       "status": "implemented",
       "summary": "Command handoff is present for claude-code.",
       "evidence": ["plugins/claude/commands/handoff.md"],
-      "readiness_refs": [],
-      "axes": {
-        "intent_hints": [],
-        "modes": [],
-        "stage_path": [],
-        "outputs": []
-      }
-    },
-    {
-      "id": "command:pursue",
-      "kind": "flow",
-      "title": "claude-code command pursue",
-      "status": "implemented",
-      "summary": "Command pursue is present for claude-code.",
-      "evidence": ["plugins/claude/commands/pursue.md"],
       "readiness_refs": [],
       "axes": {
         "intent_hints": [],
@@ -562,33 +512,6 @@
         "worker_handoff": "Compiled worker handoffs write request, receipt, result, and report evidence where applicable.",
         "continuity": "Runs persist manifest, trace, result, and checkpoint resume data in the run folder.",
         "proof": "Prototype golden run with checkpoint disposition."
-      }
-    },
-    {
-      "id": "flow:pursue",
-      "kind": "flow",
-      "title": "pursue flow",
-      "status": "implemented",
-      "summary": "Flow pursue is registered in the catalog.",
-      "evidence": ["src/flows/pursue/schematic.json", "generated/flows/pursue/circuit.json"],
-      "readiness_refs": [],
-      "axes": {
-        "intent_hints": [],
-        "modes": ["autonomous", "default"],
-        "stage_path": ["Frame", "Coordinate", "Execute", "Verify", "Review", "Close"],
-        "outputs": [
-          "pursuit.batch@v1",
-          "pursuit.contract@v1",
-          "pursuit.graph@v1",
-          "pursuit.result@v1",
-          "pursuit.review@v1",
-          "pursuit.verification@v1",
-          "pursuit.wave-plan@v1"
-        ],
-        "review": "Compiled review stages or reviewer relays are present.",
-        "verification": "Compiled verification steps write command-result reports before close.",
-        "worker_handoff": "Compiled worker handoffs write request, receipt, result, and report evidence where applicable.",
-        "continuity": "Runs persist manifest, trace, result, and checkpoint resume data in the run folder."
       }
     },
     {
@@ -920,36 +843,6 @@
       "status": "implemented",
       "summary": "prototype supports the tournament axis selection.",
       "evidence": ["generated/flows/prototype"],
-      "readiness_refs": [],
-      "axes": {
-        "intent_hints": [],
-        "modes": [],
-        "stage_path": [],
-        "outputs": []
-      }
-    },
-    {
-      "id": "mode:pursue:autonomous",
-      "kind": "mode",
-      "title": "pursue autonomous",
-      "status": "implemented",
-      "summary": "pursue supports the autonomous axis selection.",
-      "evidence": ["generated/flows/pursue"],
-      "readiness_refs": [],
-      "axes": {
-        "intent_hints": [],
-        "modes": [],
-        "stage_path": [],
-        "outputs": []
-      }
-    },
-    {
-      "id": "mode:pursue:default",
-      "kind": "mode",
-      "title": "pursue default",
-      "status": "implemented",
-      "summary": "pursue supports the default axis selection.",
-      "evidence": ["generated/flows/pursue"],
       "readiness_refs": [],
       "axes": {
         "intent_hints": [],
@@ -1340,96 +1233,6 @@
       "status": "implemented",
       "summary": "stop maps to an executable compiled route.",
       "evidence": ["src/flows/prototype/schematic.json"],
-      "readiness_refs": [],
-      "axes": {
-        "intent_hints": [],
-        "modes": [],
-        "stage_path": [],
-        "outputs": []
-      }
-    },
-    {
-      "id": "route-outcome:pursue:complete",
-      "kind": "route_outcome",
-      "title": "pursue route complete",
-      "status": "implemented",
-      "summary": "complete maps to an executable compiled route.",
-      "evidence": ["src/flows/pursue/schematic.json"],
-      "readiness_refs": [],
-      "axes": {
-        "intent_hints": [],
-        "modes": [],
-        "stage_path": [],
-        "outputs": []
-      }
-    },
-    {
-      "id": "route-outcome:pursue:continue",
-      "kind": "route_outcome",
-      "title": "pursue route continue",
-      "status": "implemented",
-      "summary": "continue maps to an executable compiled route.",
-      "evidence": ["src/flows/pursue/schematic.json"],
-      "readiness_refs": [],
-      "axes": {
-        "intent_hints": [],
-        "modes": [],
-        "stage_path": [],
-        "outputs": []
-      }
-    },
-    {
-      "id": "route-outcome:pursue:escalate",
-      "kind": "route_outcome",
-      "title": "pursue route escalate",
-      "status": "implemented",
-      "summary": "escalate maps to an executable compiled route.",
-      "evidence": ["src/flows/pursue/schematic.json"],
-      "readiness_refs": [],
-      "axes": {
-        "intent_hints": [],
-        "modes": [],
-        "stage_path": [],
-        "outputs": []
-      }
-    },
-    {
-      "id": "route-outcome:pursue:handoff",
-      "kind": "route_outcome",
-      "title": "pursue route handoff",
-      "status": "implemented",
-      "summary": "handoff maps to an executable compiled route.",
-      "evidence": ["src/flows/pursue/schematic.json"],
-      "readiness_refs": [],
-      "axes": {
-        "intent_hints": [],
-        "modes": [],
-        "stage_path": [],
-        "outputs": []
-      }
-    },
-    {
-      "id": "route-outcome:pursue:retry",
-      "kind": "route_outcome",
-      "title": "pursue route retry",
-      "status": "implemented",
-      "summary": "retry maps to an executable compiled route.",
-      "evidence": ["src/flows/pursue/schematic.json"],
-      "readiness_refs": [],
-      "axes": {
-        "intent_hints": [],
-        "modes": [],
-        "stage_path": [],
-        "outputs": []
-      }
-    },
-    {
-      "id": "route-outcome:pursue:stop",
-      "kind": "route_outcome",
-      "title": "pursue route stop",
-      "status": "implemented",
-      "summary": "stop maps to an executable compiled route.",
-      "evidence": ["src/flows/pursue/schematic.json"],
       "readiness_refs": [],
       "axes": {
         "intent_hints": [],

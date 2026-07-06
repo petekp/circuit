@@ -9,7 +9,7 @@ Most public flows have:
 | --- | --- |
 | `data.ts` | Source of the flow shape. Start here for behavior. |
 | `reports.ts` | Flow-specific report schemas. |
-| `command.md` | Optional source for a direct command surface. Pursue ships one today (`src/flows/pursue/command.md`, the flow-owned source for `/circuit:pursue`). |
+| `command.md` | Optional source for a flow-owned command surface. Held dormant today: Pursue keeps `src/flows/pursue/command.md`, but Pursue is internal for v1, so no host command is emitted. |
 | `relay-hints.ts` | Worker-facing guidance. |
 | `writers/` | Flow-specific report and summary writers. |
 | `schematic.json` | Generated output. Do not edit directly. |

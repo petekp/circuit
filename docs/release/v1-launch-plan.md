@@ -27,10 +27,10 @@ mechanical check that real evidence exists before the run can advance.
 
 The launch surface, all on `main` today:
 
-- Six public flows: review, fix, build, explore, prototype, pursue. Six
-  internal flows exercise the engine or wait on craft gaps (goal,
-  runtime-proof, converge-proof, fix-until-green, cross-tool-build,
-  explainer).
+- Five public flows: review, fix, build, explore, prototype. Seven
+  internal flows exercise the engine, wait on craft gaps, or are held back
+  for reshaping (goal, runtime-proof, converge-proof, fix-until-green,
+  cross-tool-build, explainer, pursue).
 - The engine core is release-proven: typed contracts, durable run records
   under `.circuit/runs/`, resume and crash tolerance, checkpoints and the
   inbox, fan-out, sub-runs, and ambient continuity on Claude Code.
@@ -65,9 +65,11 @@ Work items between here and the announcement. Each is checkable.
    explainer stays internal for now, and the catalog was flipped to match.
    It keeps running from a source checkout; it ships no host command until
    its craft gaps close.
-4. **Close the pursue gap.** Pursue is public but has no engine contract doc
-   and no release proof run. Either bring it to the same bar as the other
-   public flows or demote it for v1.
+4. **Close the pursue gap.** Done (2026-07-06): demoted pursue to an internal
+   flow for v1. It was public but under-used and hard to reach for, it read as
+   an autonomy-scale variant rather than a distinct intent, and it lacked an
+   engine contract doc and a release proof run. It keeps running from a source
+   checkout and ships no host command until its shape is settled post-v1.
 5. **Fix README staleness and state costs plainly.** The README must match
    the catalog, drop claims the code does not back, and tell a new user what
    a first run costs and how long it takes before they start it.

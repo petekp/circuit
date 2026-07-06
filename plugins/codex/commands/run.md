@@ -13,8 +13,7 @@ every routed flow.
 
 Build, Fix, Explore, Review, and Prototype are routed through Run; they stay
 public and packaged for the runtime but are not published as separate host commands.
-Pursue is also routed through Run and additionally owns `/circuit:pursue`
-for coordinated multi-goal work. Goal is not a kind of work; it is the
+Goal is not a kind of work; it is the
 completion standard Run uses by default, an internal flow that is never
 auto-selected. Routing is model-only, so a flow name is always required.
 

@@ -354,13 +354,21 @@ describe('FlowDefinition compiler', () => {
     expect(compileFlowDefinition(definition).writers.compose).toEqual([aliasedBuilder]);
   });
 
-  it('keeps Pursue as a public flow owning /circuit:pursue', () => {
+  it('keeps Pursue internal for v1 with no host command or skill surfaces', () => {
     const pkg = packageFor('pursue');
 
-    expect(pkg.paths.command).toBe('src/flows/pursue/command.md');
-    expect(existsSync('plugins/claude/commands/pursue.md')).toBe(true);
-    expect(existsSync('plugins/codex/commands/pursue.md')).toBe(true);
-    expect(existsSync('plugins/codex/skills/pursue/SKILL.md')).toBe(true);
+    // Pursue was demoted to internal for v1 (see docs/release/v1-launch-plan.md
+    // §4). Like every internal flow it drops its flow-owned command surface, so
+    // `/circuit:pursue` is no longer advertised or emitted; it runs from a
+    // checkout via `./bin/circuit run pursue`. The dormant command.md source
+    // stays on disk for re-promotion.
+    expect(pkg.visibility).toBe('internal');
+    expect(pkg.paths.command).toBeUndefined();
+    expect(existsSync('plugins/claude/commands/pursue.md')).toBe(false);
+    expect(existsSync('plugins/claude/skills/pursue')).toBe(false);
+    expect(existsSync('plugins/codex/commands/pursue.md')).toBe(false);
+    expect(existsSync('plugins/codex/flows/pursue')).toBe(false);
+    expect(existsSync('plugins/codex/skills/pursue')).toBe(false);
   });
 
   it('keeps Build checkpoint, writer, and engine-flag contracts', () => {
@@ -536,10 +544,20 @@ describe('FlowDefinition compiler', () => {
     for (const flowId of ['review', 'build', 'explore', 'prototype', 'pursue'] as const) {
       expect(packageFor(flowId).runtimeSurface).not.toHaveProperty('supportedEntryModes');
     }
-    for (const flowId of ['build', 'explore', 'fix', 'goal', 'prototype', 'review'] as const) {
+    // No flow owns a host command surface for v1: public flows route through
+    // Run, and Pursue dropped its flow-owned `/circuit:pursue` when it went
+    // internal (docs/release/v1-launch-plan.md §4).
+    for (const flowId of [
+      'build',
+      'explore',
+      'fix',
+      'goal',
+      'prototype',
+      'pursue',
+      'review',
+    ] as const) {
       expect(packageFor(flowId).paths.command).toBeUndefined();
     }
-    expect(packageFor('pursue').paths.command).toBe('src/flows/pursue/command.md');
     expect(packageFor('fix').runtimeSurface?.progress?.steps).toHaveLength(14);
     // Stage 3b (first-class composition): build and prototype follow goal off
     // the by-id catalog package onto their compiled manifests. Their packages no

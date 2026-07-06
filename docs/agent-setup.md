@@ -50,6 +50,6 @@ commands run, files changed, verification results, and any blocker.
 - Generated host output and installed host cache refresh:
   [docs/generated-surfaces.md](generated-surfaces.md).
 
-Use Review first because it is audit-only. Build, Fix, Prototype, and Pursue may
+Use Review first because it is audit-only. Build, Fix, and Prototype may
 invoke a write-capable worker, so do not start one unless the operator asked for
 code-changing work.

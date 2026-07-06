@@ -42,7 +42,7 @@ export function collectJsonFiles(root: string, prefix = ''): string[] {
   });
 }
 
-/** Filter mirrored flow files down to the public surface (drops proof/goal/work-contract/never-a-mode artifacts and the top-level flow catalog). */
+/** Filter mirrored flow files down to the public surface (drops proof/goal/pursue/work-contract/never-a-mode artifacts and the top-level flow catalog). */
 export function publicHostFlowFiles(files: string[]): string[] {
   return files.filter(
     (file) =>
@@ -52,6 +52,8 @@ export function publicHostFlowFiles(files: string[]): string[] {
       !file.startsWith('cross-tool-build/') &&
       !file.startsWith('goal/') &&
       !file.startsWith('explainer/') &&
+      // Pursue is internal for v1 (docs/release/v1-launch-plan.md §4): no host mirror.
+      !file.startsWith('pursue/') &&
       !file.endsWith('.work-contract.v0.json') &&
       !file.includes('never-a-mode') &&
       // The static flow.catalog@v1 registry (generated/flows/catalog.json) is a

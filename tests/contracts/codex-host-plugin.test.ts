@@ -32,17 +32,15 @@ import {
 import { captureStreams } from '../helpers/runtime-fixtures.js';
 
 const PLUGIN_ROOT = resolve(REPO_ROOT, 'plugins/codex');
-const EXPECTED_CODEX_COMMANDS = ['handoff', 'pursue', 'run'];
+const EXPECTED_CODEX_COMMANDS = ['handoff', 'run'];
 const EXPECTED_CODEX_SKILL_TITLES: Record<string, string> = {
   handoff: 'Circuit Handoff',
-  pursue: 'Circuit Pursue',
   run: 'Circuit Run',
 };
-// Flow-owned command sources live in the flow package; direct command
-// sources live under src/commands/.
-const COMMAND_SOURCE_PATHS: Record<string, string> = {
-  pursue: 'src/flows/pursue/command.md',
-};
+// Direct command sources live under src/commands/. No flow currently owns a
+// command surface: Pursue dropped its flow-owned `/circuit:pursue` when it went
+// internal for v1 (docs/release/v1-launch-plan.md §4).
+const COMMAND_SOURCE_PATHS: Record<string, string> = {};
 
 const PluginManifest = z.looseObject({
   name: z.literal('circuit'),
@@ -85,7 +83,6 @@ describe('Codex host plugin package', () => {
     expect(manifest.interface.longDescription).not.toContain('@Circuit');
     expect(manifest.interface.longDescription).toContain('recommend a Circuit flow');
     expect(manifest.interface.longDescription).toContain('default Circuit entry point');
-    expect(manifest.interface.longDescription).toContain('/circuit:pursue');
     expect(manifest.interface.defaultPrompt).toEqual([
       'Use Circuit on this task',
       'Use Circuit to fix this bug',

@@ -79927,10 +79927,9 @@ var init_data10 = __esm({
     init_wave_plan();
     pursueFlowData = {
       id: "pursue",
-      visibility: "public",
+      visibility: "internal",
       paths: {
         schematic: "src/flows/pursue/schematic.json",
-        command: "src/flows/pursue/command.md",
         contract: "src/flows/pursue/contract.md"
       },
       // First-class composition (M9): pursue is the assembler's second production
@@ -80135,6 +80134,14 @@ var init_assembly_spec10 = __esm({
         supports_autonomous: false,
         default: { depth: "medium", tournament: false, tournament_n: 3, autonomous: false }
       },
+      // Review DECLARES the terminal-outcome bind on its schematic; the compiler
+      // propagates it to the compiled manifest and the engine reads it through
+      // `resolveEngineFlags`. This is what makes an honest ISSUES_FOUND verdict
+      // (which the verdict step writes as review.result.outcome = 'stopped') bind
+      // the run's terminal outcome to 'stopped' rather than a green 'complete'.
+      engine_flags: {
+        binds_terminal_outcome_to_primary_result: true
+      },
       items: reviewBlockItems,
       stageLabels: reviewStageLabels,
       stagePathRationale: REVIEW_STAGE_PATH_RATIONALE
@@ -80253,6 +80260,13 @@ var init_reports10 = __esm({
       scope: external_exports.string().min(1),
       findings: external_exports.array(ReviewFinding),
       verdict: ReviewResultVerdict,
+      // Terminal run outcome bound to the verdict (launch blocker fix). Review
+      // arms engineFlags.bindsTerminalOutcomeToPrimaryResult, so the engine reads
+      // this field at close time and maps it onto the run outcome: an honest
+      // ISSUES_FOUND verdict must close `stopped`, never a green `complete` over a
+      // known defect. CLEAN → complete, ISSUES_FOUND → stopped (see the
+      // superRefine below, which forces the two to agree).
+      outcome: external_exports.enum(["complete", "stopped"]),
       // Plain-language paragraph from the reviewer: what was checked and what
       // they concluded. Required even on a CLEAN verdict so a no-findings result
       // does not collapse to "Findings: 0" without context. The operator-summary
@@ -80276,6 +80290,14 @@ var init_reports10 = __esm({
           code: "custom",
           path: ["verdict"],
           message: `verdict must be ${expected} for the report findings (CLEAN iff every finding is severity low)`
+        });
+      }
+      const expectedOutcome = report.verdict === "CLEAN" ? "complete" : "stopped";
+      if (report.outcome !== expectedOutcome) {
+        ctx.addIssue({
+          code: "custom",
+          path: ["outcome"],
+          message: `outcome must be ${expectedOutcome} for verdict ${report.verdict} (CLEAN \u2192 complete, ISSUES_FOUND \u2192 stopped)`
         });
       }
     });
@@ -80594,10 +80616,13 @@ function evidenceSummary(evidence2) {
   };
 }
 function projectReviewResult(input) {
+  const verdict = computeReviewVerdict(input.relayResult.findings);
+  const outcome = verdict === "CLEAN" ? "complete" : "stopped";
   return ReviewResult.parse({
     scope: input.intake.scope,
     findings: input.relayResult.findings,
-    verdict: computeReviewVerdict(input.relayResult.findings),
+    verdict,
+    outcome,
     assessment: input.relayResult.assessment,
     verification: input.relayResult.verification,
     confidence_limitations: input.relayResult.confidence_limitations,

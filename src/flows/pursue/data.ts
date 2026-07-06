@@ -19,10 +19,9 @@ import { pursuitWavePlanComposeBuilder } from './writers/wave-plan.js';
 
 export const pursueFlowData = {
   id: 'pursue',
-  visibility: 'public',
+  visibility: 'internal',
   paths: {
     schematic: 'src/flows/pursue/schematic.json',
-    command: 'src/flows/pursue/command.md',
     contract: 'src/flows/pursue/contract.md',
   },
   // First-class composition (M9): pursue is the assembler's second production

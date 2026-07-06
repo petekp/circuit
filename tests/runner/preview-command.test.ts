@@ -41,7 +41,7 @@ function plainStdout(): string {
   return stdout.join('').replace(ANSI_PATTERN, '');
 }
 
-const PUBLIC_FLOW_IDS = ['review', 'fix', 'pursue', 'prototype', 'build', 'explore'];
+const PUBLIC_FLOW_IDS = ['review', 'fix', 'prototype', 'build', 'explore'];
 
 describe('circuit preview: front door', () => {
   it('bare preview renders an overview of every public flow at the default dial', () => {

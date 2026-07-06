@@ -101,14 +101,6 @@ const EXPECTED_AXES_BY_FLOW: ReadonlyMap<
     },
   ],
   [
-    'pursue',
-    {
-      allowed_depths: ['medium'],
-      supports_tournament: false,
-      supports_autonomous: true,
-    },
-  ],
-  [
     'runtime-proof',
     {
       allowed_depths: ['medium'],
@@ -227,7 +219,9 @@ describe('flow catalog completeness', () => {
     expect(visibilityById.get('goal')).toBe('internal');
     // Explainer is held internal until its craft gaps close (2026-07-02).
     expect(visibilityById.get('explainer')).toBe('internal');
-    for (const flow of ['build', 'explore', 'fix', 'prototype', 'pursue', 'review']) {
+    // Pursue demoted to internal for v1 (docs/release/v1-launch-plan.md §4).
+    expect(visibilityById.get('pursue')).toBe('internal');
+    for (const flow of ['build', 'explore', 'fix', 'prototype', 'review']) {
       expect(visibilityById.get(flow), `${flow} should be host-visible`).toBe('public');
     }
   });

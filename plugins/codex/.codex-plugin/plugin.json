@@ -13,7 +13,7 @@
   "interface": {
     "displayName": "Circuit",
     "shortDescription": "Run coding intents through Circuit",
-    "longDescription": "Use /circuit:run by default with a natural-language coding task. Codex can recommend a Circuit flow, run the local Circuit engine, render progress, and surface the Circuit summary. Run is the default Circuit entry point for coding work; /circuit:pursue coordinates several related goals as one tracked run.",
+    "longDescription": "Use /circuit:run by default with a natural-language coding task. Codex can recommend a Circuit flow, run the local Circuit engine, render progress, and surface the Circuit summary. Run is the default Circuit entry point for coding work.",
     "developerName": "Circuit",
     "category": "Coding",
     "capabilities": ["Interactive", "Write"],

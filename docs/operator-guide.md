@@ -24,7 +24,6 @@ run without one:
 | CLI | `./bin/circuit run fix --goal "checkout total is wrong"` | Fix. |
 | CLI | `./bin/circuit run review --goal "current diff"` | Review. |
 | CLI | `./bin/circuit run build --goal "add a focused feature"` | Build. |
-| CLI | `./bin/circuit run pursue --goal "coordinate these cleanup goals"` | Pursue. |
 
 Run the CLI from the checkout root; it loads compiled flows from
 `generated/flows` under the current working directory. Pass `--flow-root
@@ -39,10 +38,10 @@ can also pass these controls when the selected flow supports them:
 
 | Control | CLI flag | Supported by |
 | --- | --- | --- |
-| Low, medium, or high depth | `--depth <low|medium|high>` | Build, Explore, and Fix. Prototype supports medium or high. Review and Pursue only support medium depth. |
+| Low, medium, or high depth | `--depth <low|medium|high>` | Build, Explore, and Fix. Prototype supports medium or high. Review only supports medium depth. |
 | Power, fixed or self-chosen | `--power <auto|low|medium|high>` | Every flow. `auto` lets the run pick its own tier from what the research step reads. |
 | Tournament | `--tournament --tournament-n <2|3|4>` | Explore and Prototype. |
-| Autonomous continuation | `--autonomous` | Build, Explore, Fix, Prototype, and Pursue. |
+| Autonomous continuation | `--autonomous` | Build, Explore, Fix, and Prototype. |
 
 Unsupported combinations fail before the run starts.
 
@@ -91,7 +90,6 @@ output. Without `--autonomous`, Run runs a single process and is unchanged.
 | Fix | Bugs, regressions, failing tests, crashes, flaky behavior, or production issues. | May invoke a write-capable worker. |
 | Build | Features, refactors, docs, tests, or focused code changes that are not mainly bug fixes. | May invoke a write-capable worker. |
 | Prototype | Disposable local prototypes, mockups, UI sketches, or model-comparison variants before Build. | May invoke a write-capable worker and writes local prototype evidence. |
-| Pursue | Broad goals with several coordinated pieces of work that need ordering. | May invoke a write-capable worker. |
 
 Circuit also ships one visible host utility:
 
@@ -164,7 +162,7 @@ Chaining a follow-up command with `&&` therefore only proceeds on a completed
 run; the JSON `outcome` field carries the specific ending for callers that
 need it.
 
-Build, Fix, Prototype, and Pursue disclose worker write access before
+Build, Fix, and Prototype disclose worker write access before
 write-capable work starts:
 
 > A worker can edit this checkout.

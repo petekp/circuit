@@ -98,13 +98,13 @@ npm run build
 ./bin/circuit run <flow> --goal '<your task>'
 ```
 
-The flow name is required: one of `build`, `fix`, `review`, `explore`,
-`prototype`, or `pursue`. Run the CLI from the checkout root; the operator guide
+The flow name is required: one of `build`, `fix`, `review`, `explore`, or
+`prototype`. Run the CLI from the checkout root; the operator guide
 covers running from another directory with `--flow-root`.
 
 Circuit requires Node.js `22.18.0` or newer.
 
-One scope note: flows that change code (`build`, `fix`, `pursue`) verify
+One scope note: flows that change code (`build`, `fix`) verify
 their work through your project's `package.json` scripts (`verify`, `test`,
 or `check`), so today they need an npm-family project. `review`, `explore`,
 and `prototype` work in any repo.
@@ -130,7 +130,7 @@ checkpoints, verification, and troubleshooting.
 
 ## Safety Notes
 
-Build, Fix, Prototype, and Pursue may invoke a write-capable worker. Circuit
+Build, Fix, and Prototype may invoke a write-capable worker. Circuit
 discloses that before write-capable work starts:
 
 > A worker can edit this checkout.
