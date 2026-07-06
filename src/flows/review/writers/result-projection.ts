@@ -24,10 +24,13 @@ export function projectReviewResult(input: {
   readonly intake: ReviewIntake;
   readonly relayResult: ReviewRelayResult;
 }): ReviewResult {
+  const verdict = computeReviewVerdict(input.relayResult.findings);
+  const outcome = verdict === 'CLEAN' ? 'complete' : 'stopped';
   return ReviewResult.parse({
     scope: input.intake.scope,
     findings: input.relayResult.findings,
-    verdict: computeReviewVerdict(input.relayResult.findings),
+    verdict,
+    outcome,
     assessment: input.relayResult.assessment,
     verification: input.relayResult.verification,
     confidence_limitations: input.relayResult.confidence_limitations,

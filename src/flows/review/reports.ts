@@ -126,6 +126,13 @@ export const ReviewResult = z
     scope: z.string().min(1),
     findings: z.array(ReviewFinding),
     verdict: ReviewResultVerdict,
+    // Terminal run outcome bound to the verdict (launch blocker fix). Review
+    // arms engineFlags.bindsTerminalOutcomeToPrimaryResult, so the engine reads
+    // this field at close time and maps it onto the run outcome: an honest
+    // ISSUES_FOUND verdict must close `stopped`, never a green `complete` over a
+    // known defect. CLEAN → complete, ISSUES_FOUND → stopped (see the
+    // superRefine below, which forces the two to agree).
+    outcome: z.enum(['complete', 'stopped']),
     // Plain-language paragraph from the reviewer: what was checked and what
     // they concluded. Required even on a CLEAN verdict so a no-findings result
     // does not collapse to "Findings: 0" without context. The operator-summary
@@ -151,6 +158,16 @@ export const ReviewResult = z
         code: 'custom',
         path: ['verdict'],
         message: `verdict must be ${expected} for the report findings (CLEAN iff every finding is severity low)`,
+      });
+    }
+    // The terminal outcome must agree with the verdict so the engine's
+    // primary-result bind cannot report a green run over a blocking finding.
+    const expectedOutcome = report.verdict === 'CLEAN' ? 'complete' : 'stopped';
+    if (report.outcome !== expectedOutcome) {
+      ctx.addIssue({
+        code: 'custom',
+        path: ['outcome'],
+        message: `outcome must be ${expectedOutcome} for verdict ${report.verdict} (CLEAN → complete, ISSUES_FOUND → stopped)`,
       });
     }
   });

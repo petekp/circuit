@@ -269,6 +269,7 @@ function reportBody(
         scope: goal,
         findings: [],
         verdict: 'CLEAN',
+        outcome: 'complete',
         assessment: 'Parity fixture: no findings observed in the relayed evidence.',
         verification: ['Runtime parity fixture stub.'],
         confidence_limitations: [],

@@ -64,16 +64,21 @@ describe('REVIEW-I2 verdict determinism property', () => {
           scope: `case ${i}`,
           findings,
           verdict: expected,
+          outcome: expected === 'CLEAN' ? 'complete' : 'stopped',
           ...prose,
         }).success,
       ).toBe(true);
 
       const wrong = expected === 'CLEAN' ? 'ISSUES_FOUND' : 'CLEAN';
+      // Give the invalid object an `outcome` consistent with its (wrong)
+      // verdict so the outcome-vs-verdict refinement passes and the parse fails
+      // for the reason this test guards: verdict must match the findings.
       expect(
         ReviewResult.safeParse({
           scope: `case ${i}`,
           findings,
           verdict: wrong,
+          outcome: wrong === 'CLEAN' ? 'complete' : 'stopped',
           ...prose,
         }).success,
       ).toBe(false);

@@ -136,12 +136,14 @@ const CASES: Array<{
   runId: string;
   relay: ReviewRelayResult;
   expectedVerdict: ReviewResultVerdict;
+  expectedOutcome: 'complete' | 'stopped';
 }> = [
   {
     name: 'clean review',
     runId: '79000000-0000-0000-0000-000000000001',
     relay: cleanRelayResult(),
     expectedVerdict: 'CLEAN',
+    expectedOutcome: 'complete',
   },
   {
     name: 'review with high finding',
@@ -159,6 +161,7 @@ const CASES: Array<{
       ...stubProse(),
     },
     expectedVerdict: 'ISSUES_FOUND',
+    expectedOutcome: 'stopped',
   },
 ];
 
@@ -196,6 +199,7 @@ describe('registered review compose writer', () => {
       scope: goal,
       findings: [],
       verdict: 'CLEAN',
+      outcome: 'complete',
       assessment: prose.assessment,
       verification: prose.verification,
       confidence_limitations: prose.confidence_limitations,
@@ -776,7 +780,7 @@ describe('registered review compose writer', () => {
 
   it.each(CASES)(
     'runs the live review fixture end-to-end for $name',
-    async ({ name, runId, relay, expectedVerdict }) => {
+    async ({ name, runId, relay, expectedVerdict, expectedOutcome }) => {
       const { bytes } = loadFixture();
       const runFolder = join(runFolderBase, name.replaceAll(' ', '-'));
       const goal = `Review scope for ${name}`;
@@ -791,7 +795,7 @@ describe('registered review compose writer', () => {
         relayer: relayerWith(relay),
       });
 
-      expect(outcome.outcome).toBe('complete');
+      expect(outcome.outcome).toBe(expectedOutcome);
 
       const rawRelayPath = join(runFolder, 'stages', 'analyze', 'review-raw-findings.json');
       expect(existsSync(rawRelayPath)).toBe(true);
@@ -852,4 +856,75 @@ describe('registered review compose writer', () => {
       ]);
     },
   );
+
+  // Regression (launch blocker): an honest ISSUES_FOUND review must not close
+  // `complete`. Review arms `binds_terminal_outcome_to_primary_result` and the
+  // verdict step derives review.result.outcome from the verdict (CLEAN →
+  // complete, ISSUES_FOUND → stopped). The engine binds the terminal run
+  // outcome to that primary-result outcome, so a review that finds a blocking
+  // issue closes `stopped` (operator-visible "needs attention"), never a green
+  // `complete` over a known defect.
+  it('closes stopped, not complete, when the reviewer returns a blocking ISSUES_FOUND verdict', async () => {
+    const { bytes } = loadFixture();
+    const runFolder = join(runFolderBase, 'issues-found-binds-stopped');
+    const relay: ReviewRelayResult = {
+      verdict: 'ISSUES_FOUND',
+      findings: [
+        {
+          severity: 'high',
+          id: 'REVIEW-BLOCKING-1',
+          text: 'Blocking defect the operator must address before shipping.',
+          file_refs: ['src/example.ts:7'],
+        },
+      ],
+      ...stubProse(),
+    };
+
+    const outcome = await runCompiledFlow({
+      runDir: runFolder,
+      flowBytes: bytes,
+      runId: '79000000-0000-0000-0000-0000000000f1',
+      goal: 'Review the change that has a blocking defect',
+      depth: 'medium',
+      now: deterministicNow(Date.UTC(2026, 3, 24, 14, 0, 0)),
+      relayer: relayerWith(relay),
+    });
+
+    // The load-bearing assertion: the run outcome tracks the verdict.
+    expect(outcome.outcome).toBe('stopped');
+
+    const report = ReviewResult.parse(
+      JSON.parse(readFileSync(join(runFolder, 'reports', 'review-result.json'), 'utf8')),
+    );
+    expect(report.verdict).toBe('ISSUES_FOUND');
+    expect(report.outcome).toBe('stopped');
+
+    const traceEntries = await readTraceEntries(runFolder);
+    const closed = traceEntries.find((entry) => entry.kind === 'run.closed');
+    if (closed?.kind !== 'run.closed') throw new Error('expected run.closed trace entry');
+    expect(closed.outcome).toBe('stopped');
+  });
+
+  it('still closes complete when the reviewer returns a CLEAN verdict', async () => {
+    const { bytes } = loadFixture();
+    const runFolder = join(runFolderBase, 'clean-binds-complete');
+
+    const outcome = await runCompiledFlow({
+      runDir: runFolder,
+      flowBytes: bytes,
+      runId: '79000000-0000-0000-0000-0000000000f2',
+      goal: 'Review a clean change',
+      depth: 'medium',
+      now: deterministicNow(Date.UTC(2026, 3, 24, 14, 0, 0)),
+      relayer: relayerWith(cleanRelayResult()),
+    });
+
+    expect(outcome.outcome).toBe('complete');
+
+    const report = ReviewResult.parse(
+      JSON.parse(readFileSync(join(runFolder, 'reports', 'review-result.json'), 'utf8')),
+    );
+    expect(report.verdict).toBe('CLEAN');
+    expect(report.outcome).toBe('complete');
+  });
 });

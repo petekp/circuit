@@ -100,6 +100,14 @@ export const reviewAssemblySpec: FlowSchematicAssemblySpec = {
     supports_autonomous: false,
     default: { depth: 'medium', tournament: false, tournament_n: 3, autonomous: false },
   },
+  // Review DECLARES the terminal-outcome bind on its schematic; the compiler
+  // propagates it to the compiled manifest and the engine reads it through
+  // `resolveEngineFlags`. This is what makes an honest ISSUES_FOUND verdict
+  // (which the verdict step writes as review.result.outcome = 'stopped') bind
+  // the run's terminal outcome to 'stopped' rather than a green 'complete'.
+  engine_flags: {
+    binds_terminal_outcome_to_primary_result: true,
+  },
   items: reviewBlockItems,
   stageLabels: reviewStageLabels,
   stagePathRationale: REVIEW_STAGE_PATH_RATIONALE,

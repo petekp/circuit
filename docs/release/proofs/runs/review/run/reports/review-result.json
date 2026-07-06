@@ -2,6 +2,7 @@
   "scope": "review this change",
   "findings": [],
   "verdict": "CLEAN",
+  "outcome": "complete",
   "assessment": "Reviewer inspected the relayed staged-diff and untracked-file evidence and found nothing actionable in scope.",
   "verification": [
     "Inspected the relayed review-intake report.",

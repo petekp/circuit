@@ -154,5 +154,8 @@
       "id": "verdict-stage",
       "title": "Verdict"
     }
-  ]
+  ],
+  "engine_flags": {
+    "binds_terminal_outcome_to_primary_result": true
+  }
 }

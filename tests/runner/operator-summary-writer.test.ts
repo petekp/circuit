@@ -477,6 +477,7 @@ describe('operator summary writer', () => {
       scope: 'review the staged change',
       findings: [],
       verdict: 'CLEAN',
+      outcome: 'complete',
       assessment:
         'Reviewer inspected the staged diff and the new test fixture; nothing actionable surfaced.',
       verification: [
