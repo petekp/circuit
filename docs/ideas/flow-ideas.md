@@ -13,6 +13,19 @@ pattern is Circuit's thesis done by hand with prompts; the genuinely new
 pieces are recorded here alongside the flow ideas already parked in this
 directory, so there is one ranked list.
 
+## Landscape update (2026-07-06)
+
+A six-angle market scan of the current developer-workflow landscape corroborated
+this backlog's top tier and added four net-new candidates (rows 9-12 below). The
+full research, market signals with citations, and the reasoning for every pass
+and decline live in
+[`popular-workflow-market-scan.md`](popular-workflow-market-scan.md). Headline:
+build the backlog in order, because the market's three loudest 2026 patterns are
+Merge Gate, Decompose plus Dispatch, and Promote. Merge Gate rides the hottest
+current wave and is a candidate to lead the post-v1 sequence. Add Sweep, Migrate,
+and Property-check as evidence-floor fast-follows; treat Onboard as one cheap
+slice worth an early look. None of the additions need a new engine primitive.
+
 ## How to read the ranking
 
 Ranked by the two criteria the backlog exists to serve:
@@ -38,6 +51,16 @@ order at the end does account for dependencies and effort.
 | 6 | Improve | Outer loop that studies past runs and proposes one bounded change | High (long-term) | Medium | Medium | [`improve-flow.md`](improve-flow.md) |
 | 7 | Spec | Typed spec lifecycle (requirements, design, tasks, verification) before Build | Medium-high | Medium | Medium | [`spec-driven-flow-opportunities.md`](spec-driven-flow-opportunities.md) |
 | 8 | Align | Establish and maintain the operator's intent foundation upstream of all task work | Medium | Low-medium | Medium | [`align-flow.md`](align-flow.md) |
+| 9 | Sweep | Fan one worker per file at an external linter, loop until the tool re-scans to zero | High | High | Medium | New (2026-07 scan); adjacent: fix-until-green |
+| 10 | Migrate | Deterministic codemod first, then per-file agent fixes each verified by build-and-test | High | High | Medium | New (2026-07 scan); adjacent: build/fix, Decompose |
+| 11 | Property-check | Author invariants, close only on a minimized counterexample that reproduces on a fresh run | High | High | Medium | New (2026-07 scan) |
+| 12 | Onboard | An onboarding brief where every claim opens to a real file or symbol | Medium | Medium | Low | New (2026-07 scan); reuses explore groundedness reviewer |
+
+Rows 1 to 8 rank by the backlog's core-bet criteria (encode-process wedge,
+compounding loop, trustable evidence). Rows 9 to 12 are the net-new evidence-floor
+additions from the 2026-07 scan; they sit below the top tier because that tier
+advances the compounding loop directly, while these advance the evidence floor on
+well-covered ground. All are recommend-grade fast-follows except Onboard.
 
 ## The candidates
 
@@ -131,6 +154,50 @@ Make the project's intent foundation (goals, principles, refusals) explicit,
 durable, and consulted, so drift stops compounding across sessions. Real
 long-run value, weakest demo. Full sketch in
 [`align-flow.md`](align-flow.md).
+
+### 9. Sweep (from the 2026-07 market scan)
+
+Fan out one scoped worker per file at an external linter or type-checker
+(ESLint, tsc, Clippy, golangci-lint), re-run the tool as the evidence gate, and
+loop until the finding count hits zero. The external tool is the oracle, so
+"done" is a machine-checked exit 0 no worker can narrate past. Composes fan-out,
+equipment-scope, checks, and the until-loop with no new engine capability. One
+seam to close: workers must not silence a rule to fake a clean scan, so the check
+pins the config and diffs the suppression count. Net-new relative to
+fix-until-green, which loops a single target. Market signal (Sweeper, BitsAI-Fix)
+and full fit in [`popular-workflow-market-scan.md`](popular-workflow-market-scan.md).
+
+### 10. Migrate (from the 2026-07 market scan)
+
+Run the deterministic codemod first, then fan out per-file judgment fixes, each
+gated on the file still building and its targeted tests passing, with an aggregate
+sweep for remaining deprecated-API call sites. Serves all three positioning
+pillars at once and encodes the exact "deterministic where you can, agent judgment
+where you must, verify per file" pattern the market is converging on. Load-bearing
+risk: real migrations rarely decompose into independently-buildable files, so the
+per-unit gate needs a real migration probe before committing or it collapses into
+fix-until-green with a codemod on front. Full fit in the scan doc.
+
+### 11. Property-check (from the 2026-07 market scan)
+
+An author block infers invariants from a library or spec; a runner executes them
+under a property-based testing library; the run closes only on a minimized input
+that reproduces a violation on a fresh subprocess. The falsifier is a
+code-supplied contract, not a learned score, so it is not the declined
+optimize-until pattern. The gate proves a property fails, not that the property is
+correct, so a hallucinated over-strong invariant needs a flow-boundary checkpoint
+before any outward bug report. Python and Hypothesis first. Full fit in the scan
+doc.
+
+### 12. Onboard (from the 2026-07 market scan)
+
+Trace one real end-to-end path through an unfamiliar repo and emit a typed
+onboarding brief where every claim resolves to a cited file or symbol the check
+can open. Lowest-effort candidate; reuses Explore's proven evidence-groundedness
+reviewer and can run the trace as a sub-run of Explore. The one open question is
+whether it earns a separate flow or is really an Explore output variant; decide
+with a held eval before building. The one `v1-reconsider` slice, and even it is
+optional. Full fit in the scan doc.
 
 ## Parts of the factory pattern that are not new flows
 
