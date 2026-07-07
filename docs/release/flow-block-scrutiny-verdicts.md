@@ -84,7 +84,7 @@ missing pattern) / REWORK (change the shape) / DEMOTE / CUT.
   writer with reviewer fan-out, analyze-before-plan grounding, fresh-context
   review, execution-grounded verify, machine-checkable close: all validated.
   Two gaps, both minor-to-systematic: no visual/UI oracle (Verify runs
-  tests/build/lint only, the half the designs consider already covered), and
+  tests, build, and lint only, the half the designs consider already covered), and
   Agent TDD is not enforced in Act (no red-before-green ordering; act-step
   checks only files-changed-on-disk).
 - **Verdict.** KEEP the shape. REFINE post-announcement: add a UI-classified
