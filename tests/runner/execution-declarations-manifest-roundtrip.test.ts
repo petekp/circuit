@@ -165,9 +165,9 @@ describe('execution declarations translate onto ExecutableFlow (Stage 3b boundar
     expect(executable.requiredConfig).toEqual([
       {
         axis: 'tournament',
-        path: 'circuits.prototype.variant_models',
+        path: 'flows.prototype.variant_models',
         message:
-          "prototype --tournament requires 'circuits.prototype.variant_models' in your Circuit config (one variant model per tournament branch). Add it under circuits.prototype.variant_models, or run prototype without --tournament.",
+          "prototype --tournament requires 'flows.prototype.variant_models' in your Circuit config (one variant model per tournament branch). Add it under flows.prototype.variant_models, or run prototype without --tournament.",
       },
     ]);
   });

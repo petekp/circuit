@@ -43,7 +43,7 @@ function layeredConfigs(): LayeredConfig[] {
             invocation_options: { shared: 'default', defaultOnly: true },
           },
         },
-        circuits: {
+        flows: {
           explore: {
             selection: {
               model: { provider: 'openai', model: 'gpt-5.4' },
@@ -70,7 +70,7 @@ function layeredConfigs(): LayeredConfig[] {
       layer: 'project',
       config: {
         schema_version: 1,
-        circuits: {
+        flows: {
           explore: {
             selection: {
               model: { provider: 'gemini', model: 'gemini-pro-refactor' },
@@ -237,7 +237,7 @@ describe('P2-MODEL-EFFORT — full selection precedence resolver', () => {
                 skills: { mode: 'replace', skills: ['tdd'] },
               },
             },
-            circuits: {
+            flows: {
               explore: {
                 selection: {
                   skills: { mode: 'append', skills: ['react-doctor'] },

@@ -239,7 +239,7 @@ After a `SkillSlot` is accepted:
   The contract-level guarantee is that `SkillOverride`,
   `SkillDescriptor`, and `UserSkillEntry` agree on the concrete id shape
   (all use `SkillId`).
-- **config**: `skills.bindings` and `circuits.<flow>.skill_bindings`
+- **config**: `skills.bindings` and `flows.<flow>.skill_bindings`
   map `SkillSlotId` keys to concrete `SkillId` values.
 - **run**: `skills.loaded` trace entries record the `UserSkillEntry`
   evidence fields actually loaded for a relay attempt, without storing
@@ -250,7 +250,7 @@ After a `SkillSlot` is accepted:
 - **carry-forward:untyped-skill-bypass** — **Partially closed in v0.1
   (catalog boundary) + selection.md SEL-I3 (selection boundary).** The
   untyped skill channels (`CompiledFlow.default_skills`,
-  `CircuitOverride.skills`) were removed in selection.md v0.1
+  `FlowOverride.skills`) were removed in selection.md v0.1
   (Codex HIGH #5). SkillDescriptor v0.1 ratifies the catalog-boundary
   side: no surplus keys, typed id, closed-enum domain, non-empty
   capabilities when present.

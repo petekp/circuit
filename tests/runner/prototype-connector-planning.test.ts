@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 
-import { CircuitVariantModels, LayeredConfig } from '../../src/schemas/config.js';
+import { FlowVariantModels, LayeredConfig } from '../../src/schemas/config.js';
 import {
   type PrototypeVariantConnectorPlanner,
   configuredPrototypeVariants,
@@ -9,7 +9,7 @@ import {
 } from '../../src/selection/connector-planning.js';
 
 function variantModels() {
-  return CircuitVariantModels.parse([
+  return FlowVariantModels.parse([
     {
       id: 'codex-55-xhigh',
       label: 'Codex 5.5 xhigh',
@@ -34,7 +34,7 @@ function variantModels() {
 describe('Prototype connector planning seam', () => {
   it('reads Prototype variant models from the last selection config layer', () => {
     const lower = variantModels();
-    const higher = CircuitVariantModels.parse([
+    const higher = FlowVariantModels.parse([
       {
         id: 'cursor-flash',
         label: 'Cursor Flash',
@@ -59,14 +59,14 @@ describe('Prototype connector planning seam', () => {
         layer: 'user-global',
         config: {
           schema_version: 1,
-          circuits: { prototype: { variant_models: lower } },
+          flows: { prototype: { variant_models: lower } },
         },
       }),
       LayeredConfig.parse({
         layer: 'project',
         config: {
           schema_version: 1,
-          circuits: { prototype: { variant_models: higher } },
+          flows: { prototype: { variant_models: higher } },
         },
       }),
     ];

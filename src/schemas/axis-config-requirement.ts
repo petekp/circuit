@@ -15,7 +15,7 @@ export const AxisConfigRequirement = z
     // The boolean axis whose selection makes the config mandatory.
     axis: z.enum(['tournament', 'autonomous']),
     // Dot path into the layered selection config, e.g.
-    // 'circuits.prototype.variant_models'. The last layer that defines it wins.
+    // 'flows.prototype.variant_models'. The last layer that defines it wins.
     path: z.string().min(1),
     // Operator-facing reason printed on rejection.
     message: z.string().min(1),

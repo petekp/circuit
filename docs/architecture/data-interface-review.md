@@ -1,6 +1,7 @@
 # Data Interface Review (pre-v1)
 
-Date: 2026-07-04. Status: complete; one decision open.
+Date: 2026-07-04. Status: complete; the one open decision (circuits → flows)
+was resolved and shipped 2026-07-05.
 
 Before the v1 announcement, every operator-facing field name is still cheap
 to change. After it, each one is a compatibility promise. This review audited
@@ -54,10 +55,13 @@ confirmed findings resolved to "keep, and write down why" rather than
   CONFIG-I6 (bumping on every additive key would make every release
   breaking).
 - **Per-flow model pinning got a positive example.** The shape
-  `circuits.<flow_id>.selection.model` appeared in the configuration guide
+  `flows.<flow_id>.selection.model` appeared in the configuration guide
   only inside a warning against misusing it on a mixed-connector flow. It is one
   of the three most likely first-touch tasks; it now has a worked example
   next to the warning.
+- **The `circuits` config key was renamed to `flows`.** See the resolved
+  decision below. This was the one open call at review time; the owner chose
+  rename, and it shipped as its own commit.
 
 ## Kept by design
 
@@ -108,34 +112,53 @@ with the design.
   it is the first candidate to align if preview JSON ever gets ratified or
   scripted against.
 
-## Open decision: the `circuits.<flow_id>` key
+## Resolved decision: `circuits` renamed to `flows`
 
-The most-typed config key names flows with a noun, `circuits`, that
-[UBIQUITOUS_LANGUAGE.md](../../UBIQUITOUS_LANGUAGE.md) never defines (Flow
-is canonical; "Circuit" appears only as the product name). The same word also names two
-different value shapes at two nesting levels (`relay.circuits.<id>` holds a
-connector pin; `circuits.<id>` holds the per-flow override slot). Every
-read surface says `flow`/`flow_id`, and the docs translate the key on first
-use ("per-flow overrides under `circuits.<flow_id>`").
+At review time this was the one open call. The most-typed config key named
+flows with a noun, `circuits`, that
+[UBIQUITOUS_LANGUAGE.md](../../UBIQUITOUS_LANGUAGE.md) never defined (Flow is
+canonical; "Circuit" appears only as the product name). The same word named two
+different value shapes at two nesting levels (`relay.circuits.<id>` held a
+connector pin; `circuits.<id>` held the per-flow override slot). Every read
+surface already said `flow`/`flow_id`, including the relay trace provenance
+value `source: 'circuit'`, so the docs had to translate the key on first use.
 
-All lenses agreed on one thing: the current state, an undefined noun on the
-hardest-freezing surface, should not survive v1. They split on the remedy:
+All lenses agreed the undefined noun should not survive v1. They split on the
+remedy: rename to `flows` (align with every read surface, spend a one-time
+migration cost) versus keep and ratify "circuit" as a config noun (protect the
+brand word, keep a permanent translation tax for cold readers).
 
-- **Rename to `flows.` / `relay.flows.`** (first-touch and prior-art
-  lenses): matches every read surface, ends the translation tax. Cost: a
-  mechanical 42-file change plus frozen contract identifiers
-  (`config.circuit-override` report id and a property id keep the old noun
-  or need a contract migration), and it spends the brand word.
-- **Keep and ratify** (naming, structure, consistency lenses): add a
-  ubiquitous-language row defining "circuit (config noun): a flow as wired
-  into your configuration", use it consistently in prose, and add a
-  did-you-mean hint when an operator writes `flows:`. "Your circuits" is
-  coherent product naming for a tool named Circuit. Cost: the word stays a
-  translation burden for cold readers.
+The owner chose **rename**, weighing the long term. The decisive points:
 
-This is an identity call, not a technical one, so it is the owner's. Until
-it is made, neither the rename nor the ratifying dictionary row has been
-applied.
+- Product name and unit noun being different is the healthy, category-standard
+  shape (Docker/containers, Terraform/resources, Git/commits). Circuit already
+  followed it everywhere except this one key.
+- Keeping the key *spent* the brand word on the most mundane referent (an
+  override slot). Renaming *frees* "circuit" for the product name and any
+  future first-class "saved, configured process" concept.
+- The translation tax is unbounded and compounds with adoption; the migration
+  was a bounded, one-time change, and pre-v1 is the only window it is free of
+  compatibility fallout (strict parse, no migration layer).
+
+What shipped:
+
+- `circuits.<id>` → `flows.<id>` and `relay.circuits.<id>` → `relay.flows.<id>`
+  in the config schema, every reader, and all operator/contract docs.
+- The override value type `CircuitOverride` → `FlowOverride`, plus the
+  `CircuitVariantModel*` family, so the type system stops contradicting the key.
+- The relay trace provenance value `source: 'circuit'` → `source: 'flow'`,
+  which also aligns it with the selection side's existing `'flow'` source.
+- Frozen contract ids migrated (`config.flow-override`,
+  `config.prop.flow_override_record_closed_under_flow_id`, and the
+  carry-forward id).
+- A did-you-mean loader hint: a config still carrying `circuits:` (valid
+  through alpha.10) fails with a message naming the rename and the replacement,
+  instead of the generic typo hint.
+
+Product-scoped `Circuit*` identifiers were deliberately left alone: the Codex
+hook entry types (`CircuitCodexHookEntry` and friends) name the product's line
+in a host hooks file, not the config key, and `circuit.json` stays the compiled
+flow filename.
 
 ## Post-v1 candidates (additive, nothing burns)
 

@@ -87,11 +87,11 @@ function configLayerSelection(
   layer: LayeredConfig,
   current: ResolvedSelection,
 ): SelectionOverrideValue | undefined {
-  const circuits = layer.config.circuits as Record<
+  const flows = layer.config.flows as Record<
     string,
     { readonly selection?: SelectionOverrideValue } | undefined
   >;
-  const circuit = Object.hasOwn(circuits, flowId) ? circuits[flowId] : undefined;
+  const circuit = Object.hasOwn(flows, flowId) ? flows[flowId] : undefined;
   return composeConfigLayerSelection(layer.config.defaults.selection, circuit?.selection, current);
 }
 

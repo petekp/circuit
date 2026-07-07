@@ -772,7 +772,7 @@ describe('Claude Code host plugin package', () => {
       const binDir = join(tempDir, 'bin');
       const resultPath = join(tempDir, 'reports', 'result.json');
       const fakeBin = join(binDir, 'circuit');
-      const specificReason = 'variant-options-step requires circuits.prototype.variant_models';
+      const specificReason = 'variant-options-step requires flows.prototype.variant_models';
       mkdirSync(binDir, { recursive: true });
       mkdirSync(join(tempDir, 'reports'), { recursive: true });
       writeFileSync(

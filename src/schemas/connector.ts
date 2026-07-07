@@ -193,8 +193,8 @@ export function connectorToolScopeCapability(connector: ResolvedConnector): Tool
 // entry that chose the connector, not just the category.
 const ExplicitResolutionSource = z.object({ source: z.literal('explicit') }).strict();
 const RoleResolutionSource = z.object({ source: z.literal('role'), role: RelayRole }).strict();
-const CircuitResolutionSource = z
-  .object({ source: z.literal('circuit'), flow_id: CompiledFlowId })
+const FlowResolutionSource = z
+  .object({ source: z.literal('flow'), flow_id: CompiledFlowId })
   .strict();
 const DefaultResolutionSource = z.object({ source: z.literal('default') }).strict();
 const AutoResolutionSource = z.object({ source: z.literal('auto') }).strict();
@@ -202,7 +202,7 @@ const AutoResolutionSource = z.object({ source: z.literal('auto') }).strict();
 export const RelayResolutionSource = z.discriminatedUnion('source', [
   ExplicitResolutionSource,
   RoleResolutionSource,
-  CircuitResolutionSource,
+  FlowResolutionSource,
   DefaultResolutionSource,
   AutoResolutionSource,
 ]);

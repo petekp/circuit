@@ -35,9 +35,7 @@ describe('loaded-skill provenance: producer stamps cause by source', () => {
       stepId: 'act',
       skillSlots: [{ id: 'my-slot' }],
       resolvedSelection: { skills: ['sel-skill'] },
-      configLayers: [
-        { config: { skills: { bindings: { 'my-slot': 'bound-skill' } }, circuits: {} } },
-      ],
+      configLayers: [{ config: { skills: { bindings: { 'my-slot': 'bound-skill' } }, flows: {} } }],
       registry: stubRegistry(),
       injectedSkillIds: ['hook-skill'],
     } as unknown as Parameters<typeof resolveLoadedRelaySkills>[0];

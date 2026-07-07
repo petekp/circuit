@@ -148,7 +148,7 @@ describe('resolveFlowSelectionPreview: effort provenance', () => {
       layer: 'project',
       config: {
         schema_version: 1,
-        circuits: { 'cross-tool-build': { selection: { effort: 'low' } } },
+        flows: { 'cross-tool-build': { selection: { effort: 'low' } } },
       },
     });
     const p = preview('high', { configLayers: [pin] });

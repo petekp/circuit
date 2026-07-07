@@ -95,7 +95,7 @@ defaults:
 `);
     writeProjectConfig(`
 schema_version: 1
-circuits:
+flows:
   explore:
     selection:
       model:
@@ -110,7 +110,7 @@ circuits:
     expect(layers[1]?.source_path).toBe(projectConfigPath(cwdDir));
     expect(layers[0]?.config.defaults.selection?.effort).toBe('low');
     const exploreId = CompiledFlowId.parse('explore');
-    expect(layers[1]?.config.circuits[exploreId]?.selection?.model).toEqual({
+    expect(layers[1]?.config.flows[exploreId]?.selection?.model).toEqual({
       provider: 'openai',
       model: 'gpt-5.4',
     });
@@ -200,7 +200,7 @@ defaults:
     invocation_options:
       shared: project-default
       projectDefault: true
-circuits:
+flows:
   review:
     selection:
       model:

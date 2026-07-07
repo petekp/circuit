@@ -69,14 +69,14 @@ Closes Codex LOW #12 (enforcement-location claim drift).
   *categories*; within the `stage` and `step` categories multiple entries
   may appear (disambiguated by id — see SEL-I7). **Config-layer pre-
   compose.** `Config.defaults.selection` and
-  `Config.circuits[flow_id].selection` live inside the same config
+  `Config.flows[flow_id].selection` live inside the same config
   file; they are pre-composed (defaults first, circuit-specific second)
   BEFORE contributing to the applied chain, so a single config layer emits
   at most one entry per its source label (`default`, `user-global`,
   `project`, `invocation`). Skill operations are normalized to the
   effective skill set for that config source when needed, so
   `defaults.selection.skills = replace` plus
-  `circuits[flow_id].selection.skills = append` preserves both
+  `flows[flow_id].selection.skills = append` preserves both
   contributions. Intra-layer provenance within a config file is therefore
   lost at the applied-chain granularity; that loss is the v0.1 tradeoff for
   keeping SEL-I7 simple (closes Codex HIGH #6). Stage 2 property
@@ -119,7 +119,7 @@ Closes Codex LOW #12 (enforcement-location claim drift).
   as Stage 2 property
   `selection.prop.resolved_skills_are_unique_and_order_is_documented`.
   Legacy untyped skill channels (`CompiledFlow.default_skills`,
-  `CircuitOverride.skills`) are removed in v0.1 so every skill
+  `FlowOverride.skills`) are removed in v0.1 so every skill
   contribution flows through a `SkillOverride` (closes Codex HIGH #5).
   Enforced at `src/schemas/selection-policy.ts`.
 
@@ -420,7 +420,7 @@ Stage 2 harness task where noted below.
 
 - `selection.prop.config_layer_precompose_is_right_biased` — Added to
   close Codex HIGH #6. Within a single config layer,
-  `defaults.selection` and `circuits[flow_id].selection` pre-compose
+  `defaults.selection` and `flows[flow_id].selection` pre-compose
   right-biased by specificity (circuit-specific overrides defaults) to
   produce the single merged override contributed to the applied chain.
   The property fuzzes adversarial key-overlap and checks the merge
@@ -459,21 +459,21 @@ Stage 2 harness task where noted below.
   skills: [...]}`.
 
 - **config** (`src/schemas/config.ts`) — `Config.defaults.selection:
-  SelectionOverride.optional()` and `CircuitOverride.selection:
+  SelectionOverride.optional()` and `FlowOverride.selection:
   SelectionOverride.optional()`. The `Config` file layers (default,
   user-global, project, invocation) map onto four of
   `SELECTION_PRECEDENCE`; the middle three (flow, stage, step) are
   in the flow schema. **Intra-layer pre-compose (SEL-I1 scope
   caveat).** Within one config layer, `defaults.selection` and
-  `circuits[flow_id].selection` pre-compose defaults-first /
+  `flows[flow_id].selection` pre-compose defaults-first /
   circuit-specific-second BEFORE entering the applied chain. **Codex HIGH #5
-  fold-in:** the removed `CircuitOverride.skills: string[]` channel is
+  fold-in:** the removed `FlowOverride.skills: string[]` channel is
   removed (it accepted arbitrary non-`SkillId` strings); per-circuit
-  skill contribution flows through `CircuitOverride.selection.skills`
+  skill contribution flows through `FlowOverride.selection.skills`
   via typed `SkillOverride`. Config reorganization is out of scope for
   this contract; see [docs/contracts/config.md](config.md) for layer
   materialization.
-  `Config.skills.bindings` and `CircuitOverride.skill_bindings` are
+  `Config.skills.bindings` and `FlowOverride.skill_bindings` are
   separate from `SelectionOverride.skills`: they bind optional flow
   slots to concrete local skills without adding slot ids to
   `ResolvedSelection.skills`.
@@ -547,13 +547,13 @@ Stage 2 harness task where noted below.
   strict discipline RUN-I8 landed across the trace_entry/snapshot surface).
 
 - `carry-forward:removed-skill-channels` — Two pre-contract channels
-  (`CompiledFlow.default_skills: SkillId[]` and `CircuitOverride.skills:
+  (`CompiledFlow.default_skills: SkillId[]` and `FlowOverride.skills:
   string[]`) bypassed the typed `SkillOverride` discipline. The config
   channel was worse — it accepted arbitrary strings, not `SkillId`-
   validated values. Closed in v0.1 by removing both channels (Codex
   HIGH #5 fold-in). Seed skill sets flow through
   `default_selection.skills = {mode: 'replace', skills: [...]}`;
-  per-circuit skills flow through `CircuitOverride.selection.skills`.
+  per-circuit skills flow through `FlowOverride.selection.skills`.
 
 - `carry-forward:skill-slot-selection-confusion` — Slot ids are not
   concrete local `SkillId`s. Closed by keeping slots out of
@@ -600,7 +600,7 @@ Stage 2 harness task where noted below.
   the entire selection triplet (SEL-I8); `Stage.selection:
   SelectionOverride.optional()` added to close stage.md v0.1 MED #7
   (SEL-I9); `CompiledFlow.default_skills` and
-  `CircuitOverride.skills` channels removed (HIGH #5); support
+  `FlowOverride.skills` channels removed (HIGH #5); support
   `SelectionPolicy` alias removed. Stage 2 property ids added for the
   honestly-scoped gaps: `resolved_matches_applied_composition` (HIGH
   #3), `config_layer_precompose_is_right_biased` (HIGH #6),

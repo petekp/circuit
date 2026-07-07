@@ -131,7 +131,7 @@ function variantOptions(overrides: Record<string, unknown> = {}) {
           model: { provider: 'anthropic', model: 'local-fixture-a' },
           effort: 'medium',
         },
-        selection_source: 'circuits.prototype.variant_models',
+        selection_source: 'flows.prototype.variant_models',
         goal: 'Create variant A.',
       },
       {
@@ -149,7 +149,7 @@ function variantOptions(overrides: Record<string, unknown> = {}) {
           model: { provider: 'anthropic', model: 'local-fixture-b' },
           effort: 'high',
         },
-        selection_source: 'circuits.prototype.variant_models',
+        selection_source: 'flows.prototype.variant_models',
         goal: 'Create variant B.',
       },
     ],

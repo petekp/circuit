@@ -1007,7 +1007,7 @@ describe('CLI router', () => {
   });
 
   it('rejects prototype --tournament up-front when variant_models config is absent (F-M-2)', async () => {
-    // With no `circuits.prototype.variant_models` config, the tournament axis
+    // With no `flows.prototype.variant_models` config, the tournament axis
     // cannot resolve its model variants. This must reject up-front like an
     // unsupported axis (exit 2, no run folder) instead of aborting mid-run at
     // the variant-options step after framing and planning work. Empty config
@@ -1037,7 +1037,7 @@ describe('CLI router', () => {
     );
 
     expect(exit).toBe(2);
-    expect(stderr).toContain('circuits.prototype.variant_models');
+    expect(stderr).toContain('flows.prototype.variant_models');
     expect(stderr).toContain('--tournament');
     // Up-front: no worker ran, so no run folder, no framing/planning artifacts.
     expect(existsSync(runFolder)).toBe(false);

@@ -380,7 +380,7 @@ Connector resolution order:
 3. Policy preference for flow.
 4. Policy default connector when not `auto`.
 5. Config `relay.roles.<role>`.
-6. Config `relay.circuits.<flow_id>`.
+6. Config `relay.flows.<flow_id>`.
 7. Config `relay.default` when not `auto`.
 8. Auto connector: Codex when host kind is `codex`, otherwise Claude Code.
 
@@ -411,7 +411,7 @@ Selection may contribute:
 - power, when the power dial materializes a tier (see below)
 
 Within a config source, `defaults.selection` and
-`circuits.<flow_id>.selection` are pre-composed before that source contributes
+`flows.<flow_id>.selection` are pre-composed before that source contributes
 to the applied selection chain.
 
 `ResolvedSelection` can be mostly empty after the layered stack. When no layer

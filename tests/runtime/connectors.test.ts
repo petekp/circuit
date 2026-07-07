@@ -201,10 +201,10 @@ describe('runtime connector safety', () => {
         relay: {
           default: 'auto',
           roles: {},
-          circuits: {},
+          flows: {},
           connectors: {},
         },
-        circuits: {},
+        flows: {},
         defaults: {},
       },
     });
@@ -216,10 +216,10 @@ describe('runtime connector safety', () => {
         relay: {
           default: 'auto',
           roles: {},
-          circuits: {},
+          flows: {},
           connectors: {},
         },
-        circuits: {},
+        flows: {},
         defaults: {},
       },
     });
@@ -243,10 +243,10 @@ describe('runtime connector safety', () => {
         relay: {
           default: 'auto',
           roles: {},
-          circuits: {},
+          flows: {},
           connectors: {},
         },
-        circuits: {},
+        flows: {},
         defaults: {},
       },
     });
@@ -257,10 +257,10 @@ describe('runtime connector safety', () => {
         relay: {
           default: 'auto',
           roles: {},
-          circuits: {},
+          flows: {},
           connectors: {},
         },
-        circuits: {},
+        flows: {},
         defaults: {},
       },
     });
@@ -358,10 +358,10 @@ describe('runtime connector safety', () => {
         relay: {
           default: 'auto',
           roles: { reviewer: { kind: 'named', name: 'local-reviewer' } },
-          circuits: {},
+          flows: {},
           connectors: { 'local-reviewer': custom },
         },
-        circuits: {},
+        flows: {},
         defaults: {},
       },
     });
@@ -384,10 +384,10 @@ describe('runtime connector safety', () => {
         relay: {
           default: 'codex',
           roles: {},
-          circuits: {},
+          flows: {},
           connectors: {},
         },
-        circuits: {},
+        flows: {},
         defaults: {},
       },
     });
@@ -410,7 +410,7 @@ describe('runtime connector safety', () => {
         relay: {
           default: 'codex',
           roles: {},
-          circuits: {
+          flows: {
             review: { kind: 'builtin', name: 'codex' },
           },
           connectors: {},
@@ -444,7 +444,7 @@ describe('runtime connector safety', () => {
     });
 
     expect(decision.connectorName).toBe('claude-code');
-    expect(decision.resolvedFrom).toEqual({ source: 'circuit', flow_id: 'review' });
+    expect(decision.resolvedFrom).toEqual({ source: 'flow', flow_id: 'review' });
   });
 
   it('uses PolicyEnvelope connector defaults before legacy v1 relay defaults', () => {
@@ -695,10 +695,10 @@ describe('runtime connector safety', () => {
         relay: {
           default: 'auto',
           roles: {},
-          circuits: {},
+          flows: {},
           connectors: { 'local-reviewer': custom },
         },
-        circuits: {},
+        flows: {},
         defaults: {},
       },
     });
@@ -740,10 +740,10 @@ describe('runtime connector safety', () => {
         relay: {
           default: 'auto',
           roles: {},
-          circuits: {},
+          flows: {},
           connectors: { 'local-reviewer': lowerPrecedence },
         },
-        circuits: {},
+        flows: {},
         defaults: {},
       },
     });
@@ -755,10 +755,10 @@ describe('runtime connector safety', () => {
         relay: {
           default: 'auto',
           roles: {},
-          circuits: {},
+          flows: {},
           connectors: { 'local-reviewer': higherPrecedence },
         },
-        circuits: {},
+        flows: {},
         defaults: {},
       },
     });

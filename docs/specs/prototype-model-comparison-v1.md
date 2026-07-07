@@ -165,11 +165,11 @@ Add a typed config field for the first slice. Do not hide the product surface in
 and may be forwarded to connectors. A model matrix is flow input, not connector
 invocation metadata.
 
-Recommended schema shape under `CircuitOverride`:
+Recommended schema shape under `FlowOverride`:
 
 ```yaml
 schema_version: 1
-circuits:
+flows:
   prototype:
     variant_models:
       - id: variant-a
@@ -678,7 +678,7 @@ Runtime tests:
 
 Config tests:
 
-- a typed `variant_models` config field parses under `circuits.prototype`;
+- a typed `variant_models` config field parses under `flows.prototype`;
 - higher-precedence config layers replace the whole matrix;
 - invalid provider-scoped model entries, unsupported effort values, duplicate
   variant ids, and read-only implementer connector pairings fail before fanout.

@@ -7,7 +7,7 @@ import type {
 } from '../../src/flows/registries/compose-writers/types.js';
 import type { RuntimeIndexedFlow } from '../../src/flows/registries/runtime-index.js';
 import { runtimeConnectorPlanner } from '../../src/runtime/run/connector-planning.js';
-import { CircuitVariantModels, LayeredConfig } from '../../src/schemas/config.js';
+import { FlowVariantModels, LayeredConfig } from '../../src/schemas/config.js';
 
 const PROTOTYPE_ROOT = '.circuit/runs/model-comparison/prototype-files';
 
@@ -40,7 +40,7 @@ if (prototypeVariantOptionsComposeBuilder === undefined) {
 }
 
 function layerWithVariants(
-  variantModels: CircuitVariantModels,
+  variantModels: FlowVariantModels,
   connectors: Record<string, unknown> = {},
 ) {
   return LayeredConfig.parse({
@@ -48,7 +48,7 @@ function layerWithVariants(
     config: {
       schema_version: 1,
       ...(Object.keys(connectors).length === 0 ? {} : { relay: { connectors } }),
-      circuits: {
+      flows: {
         prototype: {
           variant_models: variantModels,
         },
@@ -58,7 +58,7 @@ function layerWithVariants(
 }
 
 function buildContext(
-  variantModels: CircuitVariantModels,
+  variantModels: FlowVariantModels,
   tournamentN = variantModels.length,
   connectors: Record<string, unknown> = {},
 ): ComposeBuildContext {
@@ -99,7 +99,7 @@ function buildContext(
 
 describe('Prototype variant-options writer connector routing', () => {
   it('accepts the connector-aware three-model tournament matrix', () => {
-    const variantModels = CircuitVariantModels.parse([
+    const variantModels = FlowVariantModels.parse([
       {
         id: 'codex-55-xhigh',
         label: 'Codex 5.5 xhigh',
@@ -164,7 +164,7 @@ describe('Prototype variant-options writer connector routing', () => {
   });
 
   it('rejects read-only custom connectors for a tournament implementer variant', () => {
-    const variantModels = CircuitVariantModels.parse([
+    const variantModels = FlowVariantModels.parse([
       {
         id: 'custom-readonly',
         label: 'Custom read-only',
@@ -202,7 +202,7 @@ describe('Prototype variant-options writer connector routing', () => {
   });
 
   it('rejects codex with max effort', () => {
-    const variantModels = CircuitVariantModels.parse([
+    const variantModels = FlowVariantModels.parse([
       {
         id: 'codex-55-max',
         label: 'Codex 5.5 max',

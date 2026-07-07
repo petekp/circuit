@@ -18,7 +18,7 @@ defaults < user-global < project < invocation
 ```
 
 Config can set the current host, models, effort, local skills, connector
-routing, and per-flow overrides under `circuits.<flow_id>`. Connector routing
+routing, and per-flow overrides under `flows.<flow_id>`. Connector routing
 has its own precedence, described below.
 
 `host` is optional in each config layer. Omitting it means that layer has no
@@ -94,7 +94,7 @@ skills:
   bindings:
     review-assistant: react-change-review
 
-circuits:
+flows:
   review:
     skill_bindings:
       review-assistant: my-review-skill
@@ -106,7 +106,7 @@ circuits:
 ```
 
 `selection.skills` names concrete local skill ids and must resolve before the
-worker starts. `skills.bindings` and `circuits.<flow>.skill_bindings` bind
+worker starts. `skills.bindings` and `flows.<flow>.skill_bindings` bind
 optional flow slots to concrete local skills. Circuit ignores missing unbound
 slots. When Circuit loads a skill, the trace records the skill id, optional
 slot, path, SHA-256, and byte count.
@@ -197,7 +197,7 @@ Flow schematics do not hard-code a connector. Config chooses the connector for
 each relay step in this order:
 
 1. `relay.roles.<role>` mapping for the step role.
-2. `relay.circuits.<flow_id>` mapping for the active flow.
+2. `relay.flows.<flow_id>` mapping for the active flow.
 3. `relay.default`.
 4. Auto, which uses the current host's matching worker connector when one
    exists.
@@ -213,7 +213,7 @@ relay:
     reviewer:
       kind: builtin
       name: codex
-  circuits:
+  flows:
     explore:
       kind: builtin
       name: codex
@@ -394,7 +394,7 @@ power_tiers:
     low: { effort: medium }
 ```
 
-Avoid a flow-wide `circuits.cross-tool-build.selection.model` here. A flow-level
+Avoid a flow-wide `flows.cross-tool-build.selection.model` here. A flow-level
 model applies to every relay, so one model would land on both the Codex doer
 steps and the Claude Code review steps, and the connector/provider check rejects
 the mismatch. `circuit preview` shows that as a `problem` on the offending steps
@@ -406,7 +406,7 @@ flow to a specific model without touching any other flow:
 ```yaml
 schema_version: 1
 
-circuits:
+flows:
   fix:
     selection:
       model: { provider: anthropic, model: claude-opus-4-8 }
@@ -506,14 +506,14 @@ is the point.
 
 ## Prototype Tournament Variants
 
-Prototype tournament mode reads `circuits.prototype.variant_models`. Each
+Prototype tournament mode reads `flows.prototype.variant_models`. Each
 variant chooses its model/effort and may choose its connector. Circuit validates
 the connector/provider/effort pairing before any branch starts.
 
 ```yaml
 schema_version: 1
 
-circuits:
+flows:
   prototype:
     variant_models:
       - id: codex-55-xhigh

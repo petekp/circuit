@@ -1,7 +1,7 @@
 // Config + LayeredConfig schemas — see docs/contracts/config.md.
 
 import { describe, expect, it } from 'vitest';
-import { CircuitOverride, Config, ConfigLayer, LayeredConfig } from '../../src/index.js';
+import { Config, ConfigLayer, FlowOverride, LayeredConfig } from '../../src/index.js';
 
 describe('Config strict surface (CONFIG-I1)', () => {
   it('accepts bare `{schema_version: 1}` and applies all defaults (CONFIG-I7)', () => {
@@ -12,7 +12,7 @@ describe('Config strict surface (CONFIG-I1)', () => {
       expect(ok.data.relay.default).toBe('auto');
       expect(ok.data.skills).toEqual({ bindings: {} });
       expect(ok.data.skill_hooks).toEqual({ policy: {}, detection: { disabled_patterns: {} } });
-      expect(ok.data.circuits).toEqual({});
+      expect(ok.data.flows).toEqual({});
       expect(ok.data.defaults).toEqual({});
     }
   });
@@ -121,26 +121,26 @@ describe('Config.skills bindings', () => {
   });
 });
 
-describe('CircuitOverride strict surface (CONFIG-I3)', () => {
+describe('FlowOverride strict surface (CONFIG-I3)', () => {
   it('accepts empty circuit override', () => {
-    const ok = CircuitOverride.safeParse({});
+    const ok = FlowOverride.safeParse({});
     expect(ok.success).toBe(true);
   });
 
   it('accepts circuit override with selection field', () => {
-    const ok = CircuitOverride.safeParse({ selection: { effort: 'high' } });
+    const ok = FlowOverride.safeParse({ selection: { effort: 'high' } });
     expect(ok.success).toBe(true);
   });
 
   it('accepts circuit skill bindings', () => {
-    const ok = CircuitOverride.safeParse({
+    const ok = FlowOverride.safeParse({
       skill_bindings: { 'review-assistant': 'react-change-review' },
     });
     expect(ok.success).toBe(true);
   });
 
   it('accepts typed Prototype variant model matrices', () => {
-    const ok = CircuitOverride.safeParse({
+    const ok = FlowOverride.safeParse({
       variant_models: [
         {
           id: 'variant-a',
@@ -165,7 +165,7 @@ describe('CircuitOverride strict surface (CONFIG-I3)', () => {
   });
 
   it('accepts connector-aware Prototype tournament defaults', () => {
-    const ok = CircuitOverride.safeParse({
+    const ok = FlowOverride.safeParse({
       variant_models: [
         {
           id: 'codex-55-xhigh',
@@ -201,7 +201,7 @@ describe('CircuitOverride strict surface (CONFIG-I3)', () => {
 
   it('rejects unsafe or incomplete Prototype variant model matrices', () => {
     expect(
-      CircuitOverride.safeParse({
+      FlowOverride.safeParse({
         variant_models: [
           {
             id: 'variant-a',
@@ -223,7 +223,7 @@ describe('CircuitOverride strict surface (CONFIG-I3)', () => {
       }).success,
     ).toBe(false);
     expect(
-      CircuitOverride.safeParse({
+      FlowOverride.safeParse({
         variant_models: [
           {
             id: '../escape',
@@ -246,19 +246,19 @@ describe('CircuitOverride strict surface (CONFIG-I3)', () => {
   });
 
   it('rejects circuit override with `skills: string[]` v0.0 shortcut (CONFIG-I3)', () => {
-    const bad = CircuitOverride.safeParse({ skills: ['runtime-proof'] });
+    const bad = FlowOverride.safeParse({ skills: ['runtime-proof'] });
     expect(bad.success).toBe(false);
   });
 
   it('rejects invalid circuit skill binding keys', () => {
-    const bad = CircuitOverride.safeParse({
+    const bad = FlowOverride.safeParse({
       skill_bindings: { review_assistant: 'react-change-review' },
     });
     expect(bad.success).toBe(false);
   });
 
   it('rejects circuit override with surplus key (CONFIG-I3 — typo smuggle)', () => {
-    const bad = CircuitOverride.safeParse({ selection: {}, priority: 'high' });
+    const bad = FlowOverride.safeParse({ selection: {}, priority: 'high' });
     expect(bad.success).toBe(false);
   });
 });
@@ -323,27 +323,27 @@ describe('ConfigLayer closed enum (CONFIG-I5)', () => {
   });
 });
 
-describe('Config.circuits key closure (CONFIG-I8)', () => {
-  it('accepts a valid slug CompiledFlowId as a circuits key', () => {
+describe('Config.flows key closure (CONFIG-I8)', () => {
+  it('accepts a valid slug CompiledFlowId as a flows key', () => {
     const ok = Config.safeParse({
       schema_version: 1,
-      circuits: { explore: { selection: { effort: 'medium' } } },
+      flows: { explore: { selection: { effort: 'medium' } } },
     });
     expect(ok.success).toBe(true);
   });
 
-  it('rejects a circuits key that fails CompiledFlowId regex (CONFIG-I8 — whitespace)', () => {
+  it('rejects a flows key that fails CompiledFlowId regex (CONFIG-I8 — whitespace)', () => {
     const bad = Config.safeParse({
       schema_version: 1,
-      circuits: { 'Bad Id': {} },
+      flows: { 'Bad Id': {} },
     });
     expect(bad.success).toBe(false);
   });
 
-  it('rejects a circuits key that fails CompiledFlowId regex (CONFIG-I8 — path separator)', () => {
+  it('rejects a flows key that fails CompiledFlowId regex (CONFIG-I8 — path separator)', () => {
     const bad = Config.safeParse({
       schema_version: 1,
-      circuits: { 'flow/name': {} },
+      flows: { 'flow/name': {} },
     });
     expect(bad.success).toBe(false);
   });
@@ -387,13 +387,13 @@ describe('LayeredConfig default-layer ergonomic (CONFIG-I7 + CONFIG-I2 compositi
       expect(ok.data.config.schema_version).toBe(1);
       expect(ok.data.config.relay.default).toBe('auto');
       expect(ok.data.config.relay.roles).toEqual({});
-      expect(ok.data.config.relay.circuits).toEqual({});
+      expect(ok.data.config.relay.flows).toEqual({});
       expect(ok.data.config.relay.connectors).toEqual({});
       expect(ok.data.config.skill_hooks).toEqual({
         policy: {},
         detection: { disabled_patterns: {} },
       });
-      expect(ok.data.config.circuits).toEqual({});
+      expect(ok.data.config.flows).toEqual({});
       expect(ok.data.config.defaults).toEqual({});
     }
   });

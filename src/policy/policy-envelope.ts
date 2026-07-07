@@ -199,11 +199,11 @@ export function projectConfigV1ToPolicyEnvelopeV2(
 ): PolicyEnvelopeProjectionValue {
   const { config, source } = input;
   const rejectedOldAuthority: RejectedPolicyAuthority[] = [];
-  const flowConnectorHints = Object.entries(config.relay.circuits).map(([flowId, ref]) => {
+  const flowConnectorHints = Object.entries(config.relay.flows).map(([flowId, ref]) => {
     rejectedOldAuthority.push(
       rejectOldAuthority(
-        `relay.circuits.${flowId}`,
-        'relay.circuits',
+        `relay.flows.${flowId}`,
+        'relay.flows',
         'flow-id connector routing is old authority; migrate it only as a guidance preference',
       ),
     );
@@ -216,7 +216,7 @@ export function projectConfigV1ToPolicyEnvelopeV2(
   const flowSelectionHints = [];
   const flowSlotBindings = [];
   const variantModelHints = [];
-  for (const [flowId, override] of Object.entries(config.circuits)) {
+  for (const [flowId, override] of Object.entries(config.flows)) {
     if (override.selection !== undefined) {
       flowSelectionHints.push({
         flow_id: flowId,
@@ -232,8 +232,8 @@ export function projectConfigV1ToPolicyEnvelopeV2(
     if (override.variant_models !== undefined) {
       rejectedOldAuthority.push(
         rejectOldAuthority(
-          `circuits.${flowId}.variant_models`,
-          `circuits.${flowId}.variant_models`,
+          `flows.${flowId}.variant_models`,
+          `flows.${flowId}.variant_models`,
           'variant model matrices are branch-choice inputs only; they cannot directly choose relay execution',
         ),
       );

@@ -205,8 +205,8 @@ function selectionLayer() {
     config: {
       schema_version: 1,
       host: { kind: 'generic-shell' },
-      relay: { default: 'auto', roles: {}, circuits: {}, connectors: {} },
-      circuits: {},
+      relay: { default: 'auto', roles: {}, flows: {}, connectors: {} },
+      flows: {},
       defaults: {},
     },
   });
