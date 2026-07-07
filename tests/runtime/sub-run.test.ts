@@ -659,10 +659,10 @@ describe('runtime sub-run executor', () => {
         relay: {
           default: 'codex',
           roles: {},
-          circuits: {},
+          flows: {},
           connectors: {},
         },
-        circuits: {},
+        flows: {},
         defaults: {},
       },
     });

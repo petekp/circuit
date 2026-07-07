@@ -72,7 +72,7 @@ skill_hooks:
 
 At `mode:`, the editor should suggest `auto` and `mute`. At the top
 level, it should suggest keys such as `schema_version`, `defaults`, `relay`,
-`skills`, `skill_hooks`, and `circuits`.
+`skills`, `skill_hooks`, and `flows`.
 
 Also test an invalid key:
 

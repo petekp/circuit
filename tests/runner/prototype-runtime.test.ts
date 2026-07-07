@@ -148,7 +148,7 @@ function variantLayer() {
     layer: 'project',
     config: {
       schema_version: 1,
-      circuits: {
+      flows: {
         prototype: {
           variant_models: [
             {

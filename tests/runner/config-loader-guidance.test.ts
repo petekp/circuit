@@ -68,4 +68,38 @@ describe('config loader unrecognized-key guidance', () => {
     expect(message).toContain('config validation failed for project');
     expect(message).not.toContain('newer Circuit');
   });
+
+  // The per-flow config key was `circuits` through alpha.10; v1 renamed it to
+  // `flows`. An alpha config still carrying `circuits:` is not a typo and not a
+  // newer-Circuit key, so the generic hint would mislead. The error names the
+  // rename and the replacement so the fix is one edit away.
+  it('the legacy `circuits` key errors with a did-you-mean pointing at `flows`', () => {
+    writeProjectConfig(
+      'schema_version: 1\ncircuits:\n  fix:\n    selection:\n      effort: high\n',
+    );
+    let message = '';
+    try {
+      discoverRuntimeConfigLayers({ homeDir, cwd: cwdDir });
+    } catch (err) {
+      message = (err as Error).message;
+    }
+    expect(message).toContain('config validation failed for project');
+    expect(message).toContain('`circuits`');
+    expect(message).toContain('renamed to `flows`');
+    // The rename hint replaces the generic one — it would be noise here.
+    expect(message).not.toContain('newer Circuit');
+  });
+
+  it('the legacy `relay.circuits` key also gets the rename hint', () => {
+    writeProjectConfig(
+      'schema_version: 1\nrelay:\n  circuits:\n    fix: { kind: builtin, name: claude-code }\n',
+    );
+    let message = '';
+    try {
+      discoverRuntimeConfigLayers({ homeDir, cwd: cwdDir });
+    } catch (err) {
+      message = (err as Error).message;
+    }
+    expect(message).toContain('renamed to `flows`');
+  });
 });

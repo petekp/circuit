@@ -259,7 +259,7 @@ describe('runtime user skill loading', () => {
           layer: 'user-global',
           config: {
             schema_version: 1,
-            circuits: {
+            flows: {
               'skill-loading-fixture': {
                 skill_bindings: { 'review-assistant': 'flow-review' },
               },

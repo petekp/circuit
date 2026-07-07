@@ -52,9 +52,22 @@ function parseConfigYaml(text: string, sourcePath: string): unknown {
 // schema dump would leave the operator hunting for a typo that is not there.
 function configValidationError(layer: string, abs: string, err: unknown): Error {
   const base = `config validation failed for ${layer} at ${abs}: ${(err as Error).message}`;
-  const unrecognizedKey =
-    err instanceof ZodError && err.issues.some((issue) => issue.code === 'unrecognized_keys');
-  if (!unrecognizedKey) return new Error(base);
+  if (!(err instanceof ZodError)) return new Error(base);
+  const unrecognized = err.issues.filter((issue) => issue.code === 'unrecognized_keys');
+  if (unrecognized.length === 0) return new Error(base);
+
+  // `circuits` was renamed to `flows` in v1 — both the top-level per-flow slot
+  // and `relay.circuits`. An alpha config carrying the old key is not a typo and
+  // not a newer-Circuit key, so point straight at the rename.
+  const usedLegacyCircuits = unrecognized.some((issue) =>
+    ((issue as { keys?: readonly string[] }).keys ?? []).includes('circuits'),
+  );
+  if (usedLegacyCircuits) {
+    return new Error(
+      `${base}\nThe \`circuits\` config key was renamed to \`flows\` in v1. Rename \`circuits:\` to \`flows:\` (and \`relay.circuits:\` to \`relay.flows:\`).`,
+    );
+  }
+
   return new Error(
     `${base}\nAn unrecognized key is either a typo or a key from a newer Circuit than this one. Check the spelling, or update Circuit if the config needs the newer key.`,
   );

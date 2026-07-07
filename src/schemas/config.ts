@@ -38,7 +38,7 @@ const RelayConfigBody = z
   .object({
     default: z.union([EnabledConnector, z.literal('auto'), ConnectorName]).default('auto'),
     roles: z.partialRecord(RelayRole, ConnectorReference).default({}),
-    circuits: z.record(CompiledFlowId, ConnectorReference).default({}),
+    flows: z.record(CompiledFlowId, ConnectorReference).default({}),
     connectors: z.record(ConnectorName, CustomConnectorDescriptor).default({}),
   })
   .strict();
@@ -106,9 +106,9 @@ export const RelayConfig = RelayConfigBody.superRefine((cfg, ctx) => {
       }
     }
   }
-  for (const [circuit, ref] of Object.entries(cfg.circuits)) {
+  for (const [flowId, ref] of Object.entries(cfg.flows)) {
     if (ref && ref.kind === 'named' && !registered.has(ref.name)) {
-      issueAt(ctx, ['circuits', circuit], `circuit connector not registered: ${ref.name}`);
+      issueAt(ctx, ['flows', flowId], `connector for flow not registered: ${ref.name}`);
     }
   }
 });
@@ -124,18 +124,18 @@ export const SkillsConfig = z
   .strict();
 export type SkillsConfig = z.infer<typeof SkillsConfig>;
 
-export const CircuitVariantModelId = z
+export const FlowVariantModelId = z
   .string()
   .min(1)
   .max(64)
   .regex(/^[a-z0-9][a-z0-9-]*$/, {
     message: 'variant model id must be a fanout-safe kebab-case slug',
   });
-export type CircuitVariantModelId = z.infer<typeof CircuitVariantModelId>;
+export type FlowVariantModelId = z.infer<typeof FlowVariantModelId>;
 
-export const CircuitVariantModel = z
+export const FlowVariantModel = z
   .object({
-    id: CircuitVariantModelId,
+    id: FlowVariantModelId,
     label: z.string().min(1),
     connector: ConnectorReference.optional(),
     selection: SelectionOverride,
@@ -149,10 +149,10 @@ export const CircuitVariantModel = z
       issueAt(ctx, ['selection', 'effort'], 'variant model selection.effort is required');
     }
   });
-export type CircuitVariantModel = z.infer<typeof CircuitVariantModel>;
+export type FlowVariantModel = z.infer<typeof FlowVariantModel>;
 
-export const CircuitVariantModels = z
-  .array(CircuitVariantModel)
+export const FlowVariantModels = z
+  .array(FlowVariantModel)
   .min(2)
   .max(4)
   .superRefine((variants, ctx) => {
@@ -164,19 +164,19 @@ export const CircuitVariantModels = z
       seen.add(variant.id);
     }
   });
-export type CircuitVariantModels = z.infer<typeof CircuitVariantModels>;
+export type FlowVariantModels = z.infer<typeof FlowVariantModels>;
 
 // Per-circuit skill contribution flows through `selection.skills` via
 // typed `SkillOverride` operations. (Earlier shapes accepted an untyped
 // `skills: string[]` channel that bypassed validation.)
-export const CircuitOverride = z
+export const FlowOverride = z
   .object({
     selection: SelectionOverride.optional(),
     skill_bindings: SkillBindings.default({}),
-    variant_models: CircuitVariantModels.optional(),
+    variant_models: FlowVariantModels.optional(),
   })
   .strict();
-export type CircuitOverride = z.infer<typeof CircuitOverride>;
+export type FlowOverride = z.infer<typeof FlowOverride>;
 
 // Top-level Config and its nested `defaults` object both `.strict()` so
 // authorial typos (e.g. `defuults: {...}` at root or
@@ -255,12 +255,12 @@ export const Config = z
     relay: RelayConfig.default({
       default: 'auto',
       roles: {},
-      circuits: {},
+      flows: {},
       connectors: {},
     }),
     skills: SkillsConfig.default({ bindings: {} }),
     skill_hooks: SkillHookConfig.default({ policy: {}, detection: { disabled_patterns: {} } }),
-    circuits: z.record(CompiledFlowId, CircuitOverride).default({}),
+    flows: z.record(CompiledFlowId, FlowOverride).default({}),
     power_tiers: z.record(ConnectorName, PowerTierTable).default({}),
     power_auto: PowerAutoBounds.optional(),
     defaults: z

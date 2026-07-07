@@ -172,12 +172,12 @@ export function configFields(flowId?: string): readonly ConfigField[] {
   return [
     ...global,
     {
-      key: `circuits.${flowId}.selection.effort`,
+      key: `flows.${flowId}.selection.effort`,
       label: `${flowId} effort`,
       options: Effort.options,
     },
     {
-      key: `circuits.${flowId}.selection.depth`,
+      key: `flows.${flowId}.selection.depth`,
       label: `${flowId} depth`,
       options: CompiledDepth.options,
     },

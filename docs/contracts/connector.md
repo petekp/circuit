@@ -23,7 +23,7 @@ run time. The connector contract governs three related surfaces:
    `CustomConnectorDescriptor`, which together name every connector that can
    run relayed work.
 2. **Connector references** — `ConnectorRef` and `ConnectorReference`, which
-   spell how steps, roles, circuits, and the default refer to a connector
+   spell how steps, roles, flows, and the default refer to a connector
    without re-declaring its shape at every reference site.
 3. **Relay resolution** — the total ordered precedence that picks a
    concrete connector for a step at relay time, plus the in-trace_entry
@@ -55,7 +55,7 @@ file or step carries pointing AT a connector. `ConnectorRef` (in
 `src/schemas/connector.ts`) is the full 3-variant union that admits an
 inline `CustomConnectorDescriptor`; `ConnectorReference` (in
 `src/schemas/config.ts`) is the 2-variant union used inside
-`relay.roles` and `relay.circuits` that REFUSES inline custom
+`relay.roles` and `relay.flows` that REFUSES inline custom
 descriptors and requires registration via `relay.connectors[name]`
 instead. The asymmetry is intentional (connector-I5).
 
@@ -119,7 +119,7 @@ invariant; tested in `tests/contracts/connector-schema.test.ts`,
   filesystem behavior. Adding a
   built-in is a schema-level change that forces all
   consumers (`RelayConfig.default`, `relay.roles`,
-  `relay.circuits`, the connector-bridge relayer, and every
+  `relay.flows`, the connector-bridge relayer, and every
   contract test) to coordinate. Enforced at `src/schemas/connector.ts`
   (`EnabledConnector = z.enum(['claude-code', 'codex', 'cursor-agent'])`).
 
@@ -249,9 +249,9 @@ invariant; tested in `tests/contracts/connector-schema.test.ts`,
   `ConnectorReference` (in `src/schemas/config.ts`) is the 2-variant
   discriminated union `{kind: 'builtin', name: EnabledConnector} |
   {kind: 'named', name: ConnectorName}`. It is the type used inside
-  `RelayConfig.roles` and `RelayConfig.circuits`. Inline
+  `RelayConfig.roles` and `RelayConfig.flows`. Inline
   `CustomConnectorDescriptor` is NOT a legal `ConnectorReference`.
-  **Rationale.** If `relay.roles` and `relay.circuits` could
+  **Rationale.** If `relay.roles` and `relay.flows` could
   inline descriptors, three problems arise: (1) the same connector
   might be defined differently in three places and the relayer
   would have no canonical definition to audit; (2) registry-closure
@@ -285,7 +285,7 @@ invariant; tested in `tests/contracts/connector-schema.test.ts`,
   2. **Role** — the step has a `RelayRole` and
      `RelayConfig.roles[role]` is present; its `ConnectorReference`
      is resolved (via `relay.connectors` if named).
-  3. **Circuit** — `RelayConfig.circuits[flow_id]` is present;
+  3. **Circuit** — `RelayConfig.flows[flow_id]` is present;
      its `ConnectorReference` is resolved similarly.
   4. **Default** — `RelayConfig.default` is consulted. If the
      default is a `EnabledConnector` name or a registered
@@ -353,7 +353,7 @@ invariant; tested in `tests/contracts/connector-schema.test.ts`,
 
 - **connector-I8 — Registry closure: every named reference resolves to a
   registered descriptor.** For every `ConnectorReference` in
-  `RelayConfig.roles[*]`, `RelayConfig.circuits[*]`, and for a
+  `RelayConfig.roles[*]`, `RelayConfig.flows[*]`, and for a
   string `RelayConfig.default` that is neither a `EnabledConnector`
   nor the `'auto'` sentinel: the referenced name MUST be a key in
   `RelayConfig.connectors`. The runtime lookup is therefore total by
@@ -436,7 +436,7 @@ After a `RelayConfig` is accepted:
 
 - `connectors` is a record keyed by unique `ConnectorName`s, disjoint from
   `EnabledConnector` enum values and from the `'auto'` literal (connector-I2).
-- Every named reference in `roles`, `circuits`, and (when named)
+- Every named reference in `roles`, `flows`, and (when named)
   `default` has a corresponding entry in `connectors` (connector-I8).
 - `roles` keys are drawn from the `RelayRole` enum (connector-I6).
 - No surplus keys at the top level or in any nested connector-surface
@@ -460,7 +460,7 @@ After a `RelayStartedTraceEntry` is accepted:
   trace_entry with `connector: {kind: 'builtin', name: 'codex'}` and
   `resolved_from: {source: 'circuit', flow_id: 'explore'}`
   parses successfully even if the project config's
-  `circuits.explore` override actually pointed at `gemini`. Binding
+  `flows.explore` override actually pointed at `gemini`. Binding
   `connector` to `resolved_from` requires the resolver's side of the
   relay procedure; it is covered by the Stage 2 property
   `connector.prop.resolved_from_agrees_with_resolution`. The schema
@@ -547,7 +547,7 @@ After a `RelayStartedTraceEntry` is accepted:
   HIGH #1 with its discriminated-union `applied[]` entries).
 
 - **config** (`src/schemas/config.ts`) — `RelayConfig.default`,
-  `RelayConfig.roles`, `RelayConfig.circuits`, and
+  `RelayConfig.roles`, `RelayConfig.flows`, and
   `RelayConfig.connectors` all consume connector scalars. The
   reservation check (connector-I2) and closure check (connector-I8) are
   implemented in `RelayConfig.superRefine`. Config reorganization
@@ -555,10 +555,10 @@ After a `RelayStartedTraceEntry` is accepted:
   contract; see [docs/contracts/config.md](config.md) (pending Stage 1 close
   Slice 26).
 
-- **flow** (`src/schemas/compiled-flow.ts`) — `RelayConfig.circuits`
+- **flow** (`src/schemas/compiled-flow.ts`) — `RelayConfig.flows`
   is keyed on `CompiledFlowId`, so flow existence is a soft
   precondition for a circuit-specific connector override. The connector
-  contract does NOT enforce that every `circuits[flow_id]` key
+  contract does NOT enforce that every `flows[flow_id]` key
   corresponds to an installed flow; circuit-specific overrides
   for un-installed flows are legal (they describe how to relay
   IF that flow runs).
@@ -582,11 +582,11 @@ After a `RelayStartedTraceEntry` is accepted:
   time; a collision is a schema error, not a runtime divergence.
 
 - `carry-forward:inline-custom-descriptor-scatter` — When custom
-  descriptors could be inlined in roles/circuits, the same connector
+  descriptors could be inlined in roles/flows, the same connector
   appeared in three places with three slightly-different commands
   and no single source of truth. Closed by connector-I5: custom
   descriptors MUST be registered in `relay.connectors` and
-  referenced by name from roles/circuits.
+  referenced by name from roles/flows.
 
 - `carry-forward:relay-provenance-unaudited` — Prior Circuit
   emitted a flat `resolved_from` category enum with no

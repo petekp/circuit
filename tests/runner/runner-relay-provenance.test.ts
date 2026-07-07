@@ -284,12 +284,12 @@ describe('relay connector resolution precedence', () => {
             relay: {
               default: 'claude-code',
               roles: { [step.role]: { kind: 'builtin', name: 'codex' } },
-              circuits: { [flow.id]: { kind: 'builtin', name: 'claude-code' } },
+              flows: { [flow.id]: { kind: 'builtin', name: 'claude-code' } },
               connectors: {},
             },
             skills: { bindings: {} },
             skill_hooks: { policy: {}, detection: { disabled_patterns: {} } },
-            circuits: {},
+            flows: {},
             power_tiers: {},
             defaults: {},
           },
@@ -317,12 +317,12 @@ describe('relay connector resolution precedence', () => {
             relay: {
               default: 'claude-code',
               roles: {},
-              circuits: { [flow.id]: { kind: 'builtin', name: 'codex' } },
+              flows: { [flow.id]: { kind: 'builtin', name: 'codex' } },
               connectors: {},
             },
             skills: { bindings: {} },
             skill_hooks: { policy: {}, detection: { disabled_patterns: {} } },
-            circuits: {},
+            flows: {},
             power_tiers: {},
             defaults: {},
           },
@@ -331,7 +331,7 @@ describe('relay connector resolution precedence', () => {
     });
 
     expect(decision.connectorName).toBe('codex');
-    expect(decision.resolvedFrom).toEqual({ source: 'circuit', flow_id: flow.id });
+    expect(decision.resolvedFrom).toEqual({ source: 'flow', flow_id: flow.id });
   });
 
   it('auto resolves to claude-code and records auto provenance', async () => {
@@ -360,7 +360,7 @@ describe('relay connector resolution precedence', () => {
           layer: 'project',
           config: Config.parse({
             schema_version: 1,
-            circuits: { [flow.id]: { selection: { effort: 'low' } } },
+            flows: { [flow.id]: { selection: { effort: 'low' } } },
           }),
         },
       ],
@@ -399,12 +399,12 @@ describe('relay connector resolution precedence', () => {
               relay: {
                 default: 'claude-code',
                 roles: { implementer: { kind: 'named', name: 'local-readonly' } },
-                circuits: {},
+                flows: {},
                 connectors: { 'local-readonly': readOnlyConnector },
               },
               skills: { bindings: {} },
               skill_hooks: { policy: {}, detection: { disabled_patterns: {} } },
-              circuits: {},
+              flows: {},
               power_tiers: {},
               defaults: {},
             },
@@ -443,12 +443,12 @@ describe('relay connector resolution precedence', () => {
               relay: {
                 default: 'local-readonly',
                 roles: {},
-                circuits: {},
+                flows: {},
                 connectors: { 'local-readonly': readOnlyConnector },
               },
               skills: { bindings: {} },
               skill_hooks: { policy: {}, detection: { disabled_patterns: {} } },
-              circuits: {},
+              flows: {},
               power_tiers: {},
               defaults: {},
             },
@@ -482,7 +482,7 @@ describe('relay connector resolution precedence', () => {
               relay: {
                 default: 'auto',
                 roles: { reviewer: { kind: 'named', name } },
-                circuits: {},
+                flows: {},
                 connectors: {
                   [name]: {
                     kind: 'custom',
@@ -500,7 +500,7 @@ describe('relay connector resolution precedence', () => {
               },
               skills: { bindings: {} },
               skill_hooks: { policy: {}, detection: { disabled_patterns: {} } },
-              circuits: {},
+              flows: {},
               power_tiers: {},
               defaults: {},
             },

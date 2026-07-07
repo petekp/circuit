@@ -36,7 +36,7 @@ function guidanceSelectionConfigLayersWithExecutionDepth(
   const existingIndex = layers.findIndex((layer) => layer.layer === 'invocation');
   const existing = existingIndex === -1 ? undefined : layers[existingIndex];
   const baseConfig = existing?.config ?? Config.parse({ schema_version: 1 });
-  const existingCircuit = baseConfig.circuits[flowId];
+  const existingCircuit = baseConfig.flows[flowId];
   const selection = {
     ...(existingCircuit?.selection ?? {}),
     depth,
@@ -46,8 +46,8 @@ function guidanceSelectionConfigLayersWithExecutionDepth(
     ...(existing?.source_path === undefined ? {} : { source_path: existing.source_path }),
     config: {
       ...baseConfig,
-      circuits: {
-        ...baseConfig.circuits,
+      flows: {
+        ...baseConfig.flows,
         [flowId]: {
           ...(existingCircuit ?? {}),
           selection,

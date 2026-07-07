@@ -1066,10 +1066,10 @@ describe('Build checkpoint execution substrate', () => {
           config: {
             schema_version: 1,
             host: { kind: 'generic-shell' },
-            relay: { default: 'auto', roles: {}, circuits: {}, connectors: {} },
+            relay: { default: 'auto', roles: {}, flows: {}, connectors: {} },
             skills: { bindings: {} },
             skill_hooks: { policy: {}, detection: { disabled_patterns: {} } },
-            circuits: {},
+            flows: {},
             power_tiers: {},
             defaults: {
               selection: {
@@ -1096,10 +1096,10 @@ describe('Build checkpoint execution substrate', () => {
           config: {
             schema_version: 1,
             host: { kind: 'generic-shell' },
-            relay: { default: 'auto', roles: {}, circuits: {}, connectors: {} },
+            relay: { default: 'auto', roles: {}, flows: {}, connectors: {} },
             skills: { bindings: {} },
             skill_hooks: { policy: {}, detection: { disabled_patterns: {} } },
-            circuits: {},
+            flows: {},
             power_tiers: {},
             defaults: {
               selection: {
@@ -1159,10 +1159,10 @@ describe('Build checkpoint execution substrate', () => {
           config: {
             schema_version: 1,
             host: { kind: 'generic-shell' },
-            relay: { default: 'auto', roles: {}, circuits: {}, connectors: {} },
+            relay: { default: 'auto', roles: {}, flows: {}, connectors: {} },
             skills: { bindings: {} },
             skill_hooks: { policy: {}, detection: { disabled_patterns: {} } },
-            circuits: {},
+            flows: {},
             power_tiers: {},
             defaults: {
               selection: {

@@ -155,10 +155,10 @@ describe('resolveCodexDefaultModelUncached', () => {
     expect(caught).toBeInstanceOf(CodexDefaultModelUnavailableError);
     const message = (caught as Error).message;
     // Names the REAL operator config keys (there is no per-step operator key;
-    // the actionable keys are defaults.selection.model / circuits.<flow>.
+    // the actionable keys are defaults.selection.model / flows.<flow>.
     // selection.model / power_tiers.codex.<tier>.model).
     expect(message).toContain('defaults.selection.model');
-    expect(message).toContain('circuits.<flow>.selection.model');
+    expect(message).toContain('flows.<flow>.selection.model');
     expect(message).toContain('power_tiers.codex.<tier>.model');
     // Names the cache path so the operator knows what to populate.
     expect(message).toContain(tempHome);

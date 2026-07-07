@@ -348,7 +348,7 @@ describe('RelayResolutionSource (connector-I7)', () => {
     expect(RelayResolutionSource.safeParse({ source: 'role', role: 'researcher' }).success).toBe(
       true,
     );
-    expect(RelayResolutionSource.safeParse({ source: 'circuit', flow_id: 'explore' }).success).toBe(
+    expect(RelayResolutionSource.safeParse({ source: 'flow', flow_id: 'explore' }).success).toBe(
       true,
     );
     expect(RelayResolutionSource.safeParse({ source: 'default' }).success).toBe(true);
@@ -360,7 +360,7 @@ describe('RelayResolutionSource (connector-I7)', () => {
   });
 
   it('rejects circuit variant missing the flow_id disambiguator', () => {
-    expect(RelayResolutionSource.safeParse({ source: 'circuit' }).success).toBe(false);
+    expect(RelayResolutionSource.safeParse({ source: 'flow' }).success).toBe(false);
   });
 
   it('rejects role with a disambiguator for a different category (cross-variant smuggle)', () => {
@@ -388,7 +388,7 @@ describe('RelayResolutionSource (connector-I7)', () => {
     ).toBe(false);
     expect(
       RelayResolutionSource.safeParse({
-        source: 'circuit',
+        source: 'flow',
         flow_id: 'explore',
         smuggled: 'x',
       }).success,
@@ -429,7 +429,7 @@ describe('RelayStartedTraceEntry.resolved_from consumes RelayResolutionSource (c
   it('accepts circuit-sourced relay with flow_id disambiguator', () => {
     const ok = TraceEntry.safeParse({
       ...base,
-      resolved_from: { source: 'circuit', flow_id: 'explore' },
+      resolved_from: { source: 'flow', flow_id: 'explore' },
     });
     expect(ok.success).toBe(true);
   });
@@ -544,7 +544,7 @@ describe('RelayConfig closure via own-property check (connector-I8)', () => {
 
   it('connector-I8 — rejects a circuit reference to `toString` when no own registry entry exists', () => {
     const bad = RelayConfig.safeParse({
-      circuits: { explore: { kind: 'named', name: 'toString' } },
+      flows: { explore: { kind: 'named', name: 'toString' } },
       connectors: {},
     });
     expect(bad.success).toBe(false);

@@ -100,7 +100,7 @@ function unavailableMessage(cachePath: string, reason: string): string {
     'Circuit runs codex with --ignore-user-config, so ~/.codex/config.toml is',
     'intentionally not consulted for the model. Fix by either (a) pinning an',
     'openai model for codex in your Circuit config — set defaults.selection.model',
-    '(or circuits.<flow>.selection.model) to { provider: "openai", model:',
+    '(or flows.<flow>.selection.model) to { provider: "openai", model:',
     '"<model>" }, or set power_tiers.codex.<tier>.model — or (b) running `codex`',
     `once so ${cachePath} is populated.`,
     `(reason: ${reason})`,

@@ -252,7 +252,7 @@ export interface CompiledFlowAxisConfigRequirement {
   // The boolean axis whose selection makes the config mandatory.
   readonly axis: 'tournament' | 'autonomous';
   // Dot path into the layered selection config, e.g.
-  // 'circuits.prototype.variant_models'. The last layer that defines it wins.
+  // 'flows.prototype.variant_models'. The last layer that defines it wins.
   readonly path: string;
   // Operator-facing reason printed on rejection.
   readonly message: string;

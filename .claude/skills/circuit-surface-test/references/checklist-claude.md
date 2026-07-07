@@ -350,14 +350,14 @@ Pass: run completes and high depth is reflected.
 CLI: `run prototype --tournament --tournament-n 2 --goal 'compare two disposable README note variants'`
 
 Prerequisite: the tournament axis fans out one relay per configured model
-variant, so it requires `circuits.prototype.variant_models` in the Circuit
+variant, so it requires `flows.prototype.variant_models` in the Circuit
 config (one entry per `--tournament-n` branch). The circuit repo's own
 `.circuit/config.yaml` defines this; a fresh `$SCRATCH` repo does not.
 
 Two cases:
 
 - **Config absent (e.g. from `$SCRATCH`):** the run rejects up-front (exit 2,
-  no run folder) with a message naming `circuits.prototype.variant_models`.
+  no run folder) with a message naming `flows.prototype.variant_models`.
   This is the F-M-2 fix — the missing prerequisite is caught at axis/config
   setup like an unsupported axis, not aborted mid-run at the variant-options
   step after framing and planning.

@@ -604,10 +604,10 @@ function selectionLayer() {
       relay: {
         default: 'auto',
         roles: {},
-        circuits: {},
+        flows: {},
         connectors: {},
       },
-      circuits: {},
+      flows: {},
       defaults: {},
     },
   });

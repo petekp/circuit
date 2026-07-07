@@ -37,7 +37,7 @@ export function resolveSkillBindingsForFlow(
       globalBindings.set(slot, skill);
     }
 
-    const circuit = layer.config.circuits[flowKey as CompiledFlowId];
+    const circuit = layer.config.flows[flowKey as CompiledFlowId];
     if (circuit === undefined) continue;
     for (const [slot, skill] of Object.entries(circuit.skill_bindings)) {
       if (skill === undefined) continue;

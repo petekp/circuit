@@ -56,7 +56,7 @@ models; the default is `medium`. The selection contract
 ([`docs/contracts/selection.md`](contracts/selection.md#power-dial-materialization-post-stack))
 owns how the dial maps to roles, escalates on retry, and reads on the end-of-run
 receipt. Prototype tournament
-mode (`--tournament`) additionally requires `circuits.prototype.variant_models`
+mode (`--tournament`) additionally requires `flows.prototype.variant_models`
 in your Circuit config and fails before the run starts when it is absent, naming
 the missing config as the stop reason. See
 [Prototype Tournament Variants](configuration.md#prototype-tournament-variants)

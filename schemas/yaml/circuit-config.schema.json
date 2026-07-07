@@ -32,7 +32,7 @@
           "default": {
             "default": "auto",
             "roles": {},
-            "circuits": {},
+            "flows": {},
             "connectors": {}
           },
           "type": "object",
@@ -96,7 +96,7 @@
                 ]
               }
             },
-            "circuits": {
+            "flows": {
               "default": {},
               "type": "object",
               "propertyNames": {
@@ -299,7 +299,7 @@
           },
           "additionalProperties": false
         },
-        "circuits": {
+        "flows": {
           "default": {},
           "type": "object",
           "propertyNames": {

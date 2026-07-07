@@ -8,11 +8,11 @@ depends_on: [ids, selection-policy, connector, step, skill, skill-hook]
 report_ids:
   - config.root
   - config.layered
-  - config.circuit-override
+  - config.flow-override
   - config.skill-bindings
   - config.skill-hooks
 invariant_ids: [CONFIG-I1, CONFIG-I2, CONFIG-I3, CONFIG-I4, CONFIG-I5, CONFIG-I6, CONFIG-I7, CONFIG-I8, CONFIG-I9, CONFIG-I10]
-property_ids: [config.prop.surplus_keys_rejected_transitively, config.prop.layered_composition_preserves_strictness, config.prop.circuit_override_record_closed_under_flow_id]
+property_ids: [config.prop.surplus_keys_rejected_transitively, config.prop.layered_composition_preserves_strictness, config.prop.flow_override_record_closed_under_flow_id]
 ---
 
 # Config Contract
@@ -25,7 +25,7 @@ three related surfaces:
    `schema_version`, an optional `project_id` identity, an optional `host`
    identity, a `RelayConfig` (see
    [docs/contracts/connector.md](connector.md)), a map of per-circuit overrides
-   (`CircuitOverride`), a top-level `skills.bindings` map for skill
+   (`FlowOverride`), a top-level `skills.bindings` map for skill
    slots, a `skill_hooks` policy surface for deterministic Skill Hook
    preparation, a `power_tiers` record mapping connector names to
    `PowerTierTable`s, an optional `power_auto` bounds block, and a
@@ -36,13 +36,13 @@ three related surfaces:
 2. **`LayeredConfig`** — the layer-identity wrapper around a `Config`:
    which `ConfigLayer` produced it and (optionally) the source path that
    backs it.
-3. **`CircuitOverride`** — the per-flow slot stored in `Config.circuits`,
+3. **`FlowOverride`** — the per-flow slot stored in `Config.flows`,
    reserving a stable authoring surface for per-circuit selection tweaks,
    per-flow skill-slot bindings, and Prototype tournament variant model
    matrices.
 
 The contract answers: what must be true of a `Config`, a `LayeredConfig`,
-and a `CircuitOverride` for config composition to be structurally sound,
+and a `FlowOverride` for config composition to be structurally sound,
 surplus-key-safe, and independently auditable before relay begins?
 
 ## Scope
@@ -65,7 +65,7 @@ It does NOT cover:
   registry closure). Those live in [docs/contracts/connector.md](connector.md)
   (connector-I7/I8).
 - **Selection override shape** inside `Config.defaults.selection` and
-  `CircuitOverride.selection`. That shape is owned by
+  `FlowOverride.selection`. That shape is owned by
   [docs/contracts/selection.md](selection.md) (SEL-I1..I4).
 
 ## Ubiquitous language
@@ -88,7 +88,7 @@ The v0.1 Config contract governs each layer's shape, not the merge.
 ## Invariants
 
 The runtime MUST reject any `Config`, `LayeredConfig`, or
-`CircuitOverride` that violates these. All invariants are enforced via
+`FlowOverride` that violates these. All invariants are enforced via
 `src/schemas/config.ts`; tested in
 `tests/contracts/config-schema.test.ts` and
 `tests/runner/config-loader.test.ts`.
@@ -97,7 +97,7 @@ The runtime MUST reject any `Config`, `LayeredConfig`, or
   A top-level authorial typo like `defuults: {...}` or `dispath: {...}`
   is rejected by Zod rather than silently stripped. Silent stripping
   turns the author's intent (e.g. "set the default skills for all
-  circuits") into an empty defaults object whose absence shows up far
+  flows") into an empty defaults object whose absence shows up far
   from the typo — typically as a surprising model/effort/skills choice
   during relay. Rejecting at parse time points the operator at the
   typo directly (`[schema_version, defuults]: unrecognized key`).
@@ -111,7 +111,7 @@ The runtime MUST reject any `Config`, `LayeredConfig`, or
   require an ADR. Enforced at `src/schemas/config.ts` via `.strict()`
   on the `LayeredConfig` `z.object`.
 
-- **CONFIG-I3 — `CircuitOverride` rejects surplus keys at parse time
+- **CONFIG-I3 — `FlowOverride` rejects surplus keys at parse time
   (`.strict()`).** A per-circuit slot admits only the documented
   override fields (`selection`, `skill_bindings`, and `variant_models`, with
   the old top-level `skills` shortcut removed per Codex HIGH #5 fold-in on the
@@ -120,7 +120,7 @@ The runtime MUST reject any `Config`, `LayeredConfig`, or
   required model/effort selection. A typo or an attempt to smuggle a new
   override category through a circuit slot without going through the contract
   is rejected. Enforced at `src/schemas/config.ts` via `.strict()` on the
-  `CircuitOverride` `z.object`.
+  `FlowOverride` `z.object`.
 
 - **CONFIG-I4 — Nested `Config.defaults` rejects surplus keys at parse
   time (`.strict()`).** The `defaults` object is a nested record whose
@@ -194,12 +194,12 @@ The runtime MUST reject any `Config`, `LayeredConfig`, or
 
 - **CONFIG-I7 — Bare `{schema_version: 1}` produces a usable default
   `Config` via schema-level `.default(...)` on required runtime
-  fields.** `relay`, `skills`, `skill_hooks`, `circuits`, `power_tiers`,
+  fields.** `relay`, `skills`, `skill_hooks`, `flows`, `power_tiers`,
   and `defaults` all
   carry schema-level defaults (`RelayConfig` defaults to
-  `{default: 'auto', roles: {}, circuits: {}, connectors: {}}`;
+  `{default: 'auto', roles: {}, flows: {}, connectors: {}}`;
   `skills` defaults to `{bindings: {}}`; `skill_hooks` defaults to empty
-  policy and detection records; `circuits` defaults to `{}`;
+  policy and detection records; `flows` defaults to `{}`;
   `power_tiers` defaults to `{}`; `defaults` defaults to `{}`).
   `host`, `project_id`, and `power_auto` are intentionally optional,
   not defaulted: `host` so layered composition can distinguish "this
@@ -214,19 +214,19 @@ The runtime MUST reject any `Config`, `LayeredConfig`, or
   (the parser would accept no surplus keys but also reject the bare
   form). The two are reconciled by schema-level defaults on required
   fields. Enforced at `src/schemas/config.ts` via `.default(...)` on
-  `relay`, `skills`, `skill_hooks`, `circuits`, `power_tiers`, and
+  `relay`, `skills`, `skill_hooks`, `flows`, `power_tiers`, and
   `defaults`.
 
-- **CONFIG-I8 — `Config.circuits` keys are `CompiledFlowId`s at parse time
-  (closes Codex MED #5 fold-in).** `Config.circuits` is typed
-  `z.record(CompiledFlowId, CircuitOverride)`. A record whose key fails
+- **CONFIG-I8 — `Config.flows` keys are `CompiledFlowId`s at parse time
+  (closes Codex MED #5 fold-in).** `Config.flows` is typed
+  `z.record(CompiledFlowId, FlowOverride)`. A record whose key fails
   `CompiledFlowId`'s regex (e.g. `"Bad Id"` with a space, `"flow/"`
   with a slash) is rejected at parse time, not at relay time —
   which would be deep inside a Run after a partial-progress trace_entry
   log. A record whose key matches the regex but references a flow
   not installed in the catalog at relay time is LEGAL (per-circuit
   overrides for not-yet-installed flows are allowed — same
-  posture as `RelayConfig.circuits` per connector-I8 closure notes).
+  posture as `RelayConfig.flows` per connector-I8 closure notes).
   Catalog-closure of the `CompiledFlowId` against installed flows is
   NOT enforced at v0.1. Enforced at `src/schemas/config.ts` via
   `z.record(CompiledFlowId, ...)`; tested as schema parity rather than
@@ -235,12 +235,12 @@ The runtime MUST reject any `Config`, `LayeredConfig`, or
 
 - **CONFIG-I9 — Skill slot bindings are typed and layered.**
   `Config.skills.bindings` is a global `Record<SkillSlotId, SkillId>`.
-  `CircuitOverride.skill_bindings` is a per-flow
+  `FlowOverride.skill_bindings` is a per-flow
   `Record<SkillSlotId, SkillId>` that overrides global bindings for the
   matching flow. Binding keys are slot ids such as `review-assistant`;
   binding values are concrete local skill ids such as
   `react-change-review`. The old `skills: string[]` shortcut remains
-  invalid at both the top level and under `CircuitOverride`; concrete
+  invalid at both the top level and under `FlowOverride`; concrete
   skill selection still flows through `SelectionOverride.skills`.
 
 - **CONFIG-I10 — Skill Hook policy is typed, deterministic, and
@@ -264,8 +264,8 @@ The runtime MUST reject any `Config`, `LayeredConfig`, or
 - A `LayeredConfig` is produced by wrapping a parsed `Config` with its
   layer identity and (optionally) its source path, then passing the
   wrapper to `LayeredConfig.safeParse`.
-- A `CircuitOverride` is produced only as a value inside
-  `Config.circuits`; direct consumers parse it transitively through
+- A `FlowOverride` is produced only as a value inside
+  `Config.flows`; direct consumers parse it transitively through
   `Config.safeParse`.
 - Layer composition (merging multiple `LayeredConfig`s into effective
   values at relay time) is out of scope for v0.1; see Scope above.
@@ -282,8 +282,8 @@ After a `Config` is accepted:
 - `skill_hooks.policy` and `skill_hooks.detection` are present, strict, and empty
   unless the layer explicitly declares Skill Hook policy or detection
   patterns.
-- `circuits` is a record whose keys are `CompiledFlowId`s and whose values
-  are `CircuitOverride`s.
+- `flows` is a record whose keys are `CompiledFlowId`s and whose values
+  are `FlowOverride`s.
 - `defaults.selection` (when present) is a `SelectionOverride` per
   [docs/contracts/selection.md](selection.md) SEL-I1..SEL-I4.
 - No surplus keys in any **declared object shape** under this
@@ -291,9 +291,9 @@ After a `Config` is accepted:
   contracts' ownership (connector-I9 transitivity + SEL-I8 nested
   strictness on `SelectionOverride`). Strictness applies to declared
   object shapes (e.g. `Config`, `LayeredConfig`, `defaults`,
-  `CircuitOverride`, `RelayConfig`, `SelectionOverride`). It does
+  `FlowOverride`, `RelayConfig`, `SelectionOverride`). It does
   NOT apply to **open record/data-map values** by design:
-  `Config.circuits`, `RelayConfig.roles`, `RelayConfig.circuits`,
+  `Config.flows`, `RelayConfig.roles`, `RelayConfig.flows`,
   `RelayConfig.connectors`, and `SelectionOverride.invocation_options`
   are validated `z.record(...)` maps — their keys are shape-validated
   (e.g. by `CompiledFlowId` or `ConnectorName`) and their values by the
@@ -313,7 +313,7 @@ After a `LayeredConfig` is accepted:
 - `config` satisfies every `Config` post-condition above.
 - No surplus keys at the wrapper level (CONFIG-I2).
 
-After a `CircuitOverride` is accepted:
+After a `FlowOverride` is accepted:
 
 - `selection` (when present) is a `SelectionOverride`.
 - `skill_bindings` is present and maps valid `SkillSlotId` keys to
@@ -332,12 +332,12 @@ After a `CircuitOverride` is accepted:
 - `config.prop.surplus_keys_rejected_transitively` — For any valid
   `Config` and any path into the config tree into a **declared object
   shape** at which a surplus key is injected (top-level `Config`,
-  `LayeredConfig` wrapper, `defaults`, `CircuitOverride`,
+  `LayeredConfig` wrapper, `defaults`, `FlowOverride`,
   `RelayConfig`, `SelectionOverride`), the parser rejects the
   injection. Property fuzzes over key names that resemble typos of
   legal keys (edit distance 1-2) to catch any nesting level that was
   missed by drafter attention. Open record/data-map values
-  (`Config.circuits`, `RelayConfig.roles`/`.circuits`/`.connectors`,
+  (`Config.flows`, `RelayConfig.roles`/`.flows`/`.connectors`,
   `SelectionOverride.invocation_options`) are OUT of scope for this
   property by construction (Codex MED #4 fold-in).
 
@@ -358,13 +358,13 @@ After a `CircuitOverride` is accepted:
   and surplus-key injections at each layer. Closes Codex MED #3
   fold-in.
 
-- `config.prop.circuit_override_record_closed_under_flow_id` —
-  Every key in `Config.circuits` is a valid `CompiledFlowId` per
+- `config.prop.flow_override_record_closed_under_flow_id` —
+  Every key in `Config.flows` is a valid `CompiledFlowId` per
   `src/schemas/ids.ts`. A record key that matches the `CompiledFlowId`
   regex but references a flow not installed in the catalog at
   relay time is LEGAL (per-circuit overrides for
   not-yet-installed flows are allowed — same posture as
-  `RelayConfig.circuits` per connector-I8 closure notes). The
+  `RelayConfig.flows` per connector-I8 closure notes). The
   property constrains only key shape, not catalog closure. Note that
   CONFIG-I8 (added in the Slice 26 Codex fold-in) already pins the
   key-shape enforcement at the config-schema level; this property
@@ -385,7 +385,7 @@ After a `CircuitOverride` is accepted:
 
 - **selection-policy** (`src/schemas/selection-policy.ts`,
   [docs/contracts/selection.md](selection.md)) — `Config.defaults.selection`
-  (when present) and `CircuitOverride.selection` (when present) are
+  (when present) and `FlowOverride.selection` (when present) are
   `SelectionOverride`s. Selection-layer invariants (SEL-I1..SEL-I4)
   apply. The `default` selection layer in the 7-tuple
   precedence (`default < user-global < project < flow < stage <
@@ -405,21 +405,21 @@ After a `CircuitOverride` is accepted:
   the canonical YAML paths. Additional discovery policy remains outside
   this config shape contract.
 
-- **flow** (`src/schemas/compiled-flow.ts`) — `Config.circuits` is
+- **flow** (`src/schemas/compiled-flow.ts`) — `Config.flows` is
   keyed on `CompiledFlowId`, so flow existence is a soft
   precondition for per-circuit override. As with
-  `RelayConfig.circuits`, the config contract does NOT enforce
-  that every `Config.circuits[flow_id]` key corresponds to an
+  `RelayConfig.flows`, the config contract does NOT enforce
+  that every `Config.flows[flow_id]` key corresponds to an
   installed flow. Per-circuit overrides for un-installed
   flows are legal (they describe how selection should compose
   IF that flow runs).
 
 - **ids** (`src/schemas/ids.ts`) — `CompiledFlowId` is the key-type for
-  `Config.circuits`. Key-shape validation is delegated to that
+  `Config.flows`. Key-shape validation is delegated to that
   scalar.
 
 - **skill** (`src/schemas/skill.ts`) — `Config.skills.bindings` and
-  `CircuitOverride.skill_bindings` use `SkillSlotId` keys and concrete
+  `FlowOverride.skill_bindings` use `SkillSlotId` keys and concrete
   `SkillId` values. The config schema validates shape only; relay-time
   loading resolves those ids against the user skill registry.
 
@@ -438,7 +438,7 @@ After a `CircuitOverride` is accepted:
 
 - `carry-forward:config-surface-shadow` — Prior to this slice, the
   config surface (`Config`, `ConfigLayer`, `LayeredConfig`,
-  `CircuitOverride`) had no contract and connector ownership was too
+  `FlowOverride`) had no contract and connector ownership was too
   broad. Closed by authoring this contract and keeping config schema
   ownership in `src/schemas/config.ts`.
 
@@ -454,13 +454,13 @@ After a `CircuitOverride` is accepted:
   connector-I9) is the sibling failure; CONFIG-I1 reaches the
   un-covered layer above it.
 
-- `carry-forward:circuit-override-unconstrained-shape` — Prior to
-  Codex HIGH #5 fold-in on the connector contract, `CircuitOverride`
+- `carry-forward:flow-override-unconstrained-shape` — Prior to
+  Codex HIGH #5 fold-in on the connector contract, `FlowOverride`
   carried a top-level `skills?: string[]` shortcut that bypassed
   `SelectionOverride.skills` (a typed `SkillOverride` discriminated
   union). The shortcut was removed; this contract codifies the
   removal as CONFIG-I3's strict-key rejection. Any attempt to
-  reintroduce `CircuitOverride.skills` (or an analogous bypass) is
+  reintroduce `FlowOverride.skills` (or an analogous bypass) is
   caught at parse time.
 
 - `carry-forward:built-in-skill-id-portability` — A public built-in flow
@@ -481,10 +481,10 @@ After a `CircuitOverride` is accepted:
   - `.strict()` added to the `LayeredConfig` `z.object` (CONFIG-I2).
   - `.strict()` added to the nested `defaults` object inside `Config`
     (CONFIG-I4).
-  - `CircuitOverride` already carried `.strict()` pre-slice (Codex
+  - `FlowOverride` already carried `.strict()` pre-slice (Codex
     HIGH #5 fold-in on connector contract); this contract codifies the
     posture as CONFIG-I3 so regression flags a named invariant.
-  - CONFIG-I8 added (Codex MED #5 fold-in) — `Config.circuits` key
+  - CONFIG-I8 added (Codex MED #5 fold-in) — `Config.flows` key
     shape enforced at parse time via `z.record(CompiledFlowId, ...)`;
     positive + negative config-schema tests pin the guarantee.
   - Connector schema ownership narrowed to relay-specific config; the
@@ -495,15 +495,15 @@ After a `CircuitOverride` is accepted:
   Schema-level landings:
   - User skill binding fields added:
     `skills.bindings: Record<SkillSlotId, SkillId>` at the config root,
-    and `circuits.<flow>.skill_bindings: Record<SkillSlotId, SkillId>`
+    and `flows.<flow>.skill_bindings: Record<SkillSlotId, SkillId>`
     on per-flow overrides. Per-flow bindings override global bindings
     for the matching flow.
 
   Prose tightenings (Codex fold-ins):
   - Post-condition "no surplus keys at any nested level" qualified to
     "no surplus keys in any **declared object shape**"; open
-    record/data-map values (`Config.circuits`,
-    `RelayConfig.roles`/`.circuits`/`.connectors`,
+    record/data-map values (`Config.flows`,
+    `RelayConfig.roles`/`.flows`/`.connectors`,
     `SelectionOverride.invocation_options`) explicitly out of scope
     (Codex MED #4).
   - The draft's layered-merge "right-biased preserves strictness"
@@ -513,11 +513,11 @@ After a `CircuitOverride` is accepted:
     Scope section says is ADR-pending (Codex MED #3).
   - Pinned report-authority test extended to assert exact
     `schema_exports` equality for `config.root`, `config.layered`,
-    and `config.circuit-override` (Codex MED #2).
+    and `config.flow-override` (Codex MED #2).
   - CONFIG-I7 default-layer ergonomic probe added: a `LayeredConfig`
     with `layer: "default"` and `config: {schema_version: 1}` parses
     through and produces all expected defaults on
-    `relay.default`/`.roles`/`.circuits`/`.connectors`, `circuits`,
+    `relay.default`/`.roles`/`.flows`/`.connectors`, `flows`,
     and `defaults` (Codex LOW #6).
 
 - **v0.3 (Run-centered Skill Hook policy slice)** —

@@ -27466,7 +27466,7 @@ function connectorToolScopeCapability(connector) {
     return connector.capabilities.tool_scope;
   return BUILTIN_CONNECTOR_CAPABILITIES[connector.name].tool_scope;
 }
-var EnabledConnector, FilesystemCapability, StructuredOutputCapability, ToolScopeCapability, ConnectorCapabilities, PromptTransport, ConnectorOutputExtraction, CLAUDE_CODE_SUPPORTED_EFFORTS, CODEX_SUPPORTED_EFFORTS, CURSOR_AGENT_SUPPORTED_EFFORTS, BUILTIN_CONNECTOR_SPECS, BUILTIN_CONNECTOR_CAPABILITIES, RESERVED_CONNECTOR_NAMES, ConnectorName, CustomConnectorDescriptor, BuiltInConnectorRef, NamedConnectorRef, ConnectorRef, ResolvedConnector, ExplicitResolutionSource, RoleResolutionSource, CircuitResolutionSource, DefaultResolutionSource, AutoResolutionSource, RelayResolutionSource;
+var EnabledConnector, FilesystemCapability, StructuredOutputCapability, ToolScopeCapability, ConnectorCapabilities, PromptTransport, ConnectorOutputExtraction, CLAUDE_CODE_SUPPORTED_EFFORTS, CODEX_SUPPORTED_EFFORTS, CURSOR_AGENT_SUPPORTED_EFFORTS, BUILTIN_CONNECTOR_SPECS, BUILTIN_CONNECTOR_CAPABILITIES, RESERVED_CONNECTOR_NAMES, ConnectorName, CustomConnectorDescriptor, BuiltInConnectorRef, NamedConnectorRef, ConnectorRef, ResolvedConnector, ExplicitResolutionSource, RoleResolutionSource, FlowResolutionSource, DefaultResolutionSource, AutoResolutionSource, RelayResolutionSource;
 var init_connector = __esm({
   "dist/schemas/connector.js"() {
     "use strict";
@@ -27560,13 +27560,13 @@ var init_connector = __esm({
     ResolvedConnector = external_exports.union([BuiltInConnectorRef, CustomConnectorDescriptor]);
     ExplicitResolutionSource = external_exports.object({ source: external_exports.literal("explicit") }).strict();
     RoleResolutionSource = external_exports.object({ source: external_exports.literal("role"), role: RelayRole }).strict();
-    CircuitResolutionSource = external_exports.object({ source: external_exports.literal("circuit"), flow_id: CompiledFlowId }).strict();
+    FlowResolutionSource = external_exports.object({ source: external_exports.literal("flow"), flow_id: CompiledFlowId }).strict();
     DefaultResolutionSource = external_exports.object({ source: external_exports.literal("default") }).strict();
     AutoResolutionSource = external_exports.object({ source: external_exports.literal("auto") }).strict();
     RelayResolutionSource = external_exports.discriminatedUnion("source", [
       ExplicitResolutionSource,
       RoleResolutionSource,
-      CircuitResolutionSource,
+      FlowResolutionSource,
       DefaultResolutionSource,
       AutoResolutionSource
     ]);
@@ -27587,7 +27587,7 @@ var init_host = __esm({
 });
 
 // dist/schemas/config.js
-var ConnectorReference, RelayConfigBody, issueAt2, RelayConfig, SkillBindings, SkillsConfig, CircuitVariantModelId, CircuitVariantModel, CircuitVariantModels, CircuitOverride, ProjectId, PowerTierSpec, PowerTierTable, PowerAutoBounds, Config, ConfigLayer, LayeredConfig;
+var ConnectorReference, RelayConfigBody, issueAt2, RelayConfig, SkillBindings, SkillsConfig, FlowVariantModelId, FlowVariantModel, FlowVariantModels, FlowOverride, ProjectId, PowerTierSpec, PowerTierTable, PowerAutoBounds, Config, ConfigLayer, LayeredConfig;
 var init_config = __esm({
   "dist/schemas/config.js"() {
     "use strict";
@@ -27606,7 +27606,7 @@ var init_config = __esm({
     RelayConfigBody = external_exports.object({
       default: external_exports.union([EnabledConnector, external_exports.literal("auto"), ConnectorName]).default("auto"),
       roles: external_exports.partialRecord(RelayRole, ConnectorReference).default({}),
-      circuits: external_exports.record(CompiledFlowId, ConnectorReference).default({}),
+      flows: external_exports.record(CompiledFlowId, ConnectorReference).default({}),
       connectors: external_exports.record(ConnectorName, CustomConnectorDescriptor).default({})
     }).strict();
     issueAt2 = (ctx, path, message) => {
@@ -27640,9 +27640,9 @@ var init_config = __esm({
           }
         }
       }
-      for (const [circuit, ref] of Object.entries(cfg.circuits)) {
+      for (const [flowId, ref] of Object.entries(cfg.flows)) {
         if (ref && ref.kind === "named" && !registered.has(ref.name)) {
-          issueAt2(ctx, ["circuits", circuit], `circuit connector not registered: ${ref.name}`);
+          issueAt2(ctx, ["flows", flowId], `connector for flow not registered: ${ref.name}`);
         }
       }
     });
@@ -27650,11 +27650,11 @@ var init_config = __esm({
     SkillsConfig = external_exports.object({
       bindings: SkillBindings.default({})
     }).strict();
-    CircuitVariantModelId = external_exports.string().min(1).max(64).regex(/^[a-z0-9][a-z0-9-]*$/, {
+    FlowVariantModelId = external_exports.string().min(1).max(64).regex(/^[a-z0-9][a-z0-9-]*$/, {
       message: "variant model id must be a fanout-safe kebab-case slug"
     });
-    CircuitVariantModel = external_exports.object({
-      id: CircuitVariantModelId,
+    FlowVariantModel = external_exports.object({
+      id: FlowVariantModelId,
       label: external_exports.string().min(1),
       connector: ConnectorReference.optional(),
       selection: SelectionOverride
@@ -27666,7 +27666,7 @@ var init_config = __esm({
         issueAt2(ctx, ["selection", "effort"], "variant model selection.effort is required");
       }
     });
-    CircuitVariantModels = external_exports.array(CircuitVariantModel).min(2).max(4).superRefine((variants, ctx) => {
+    FlowVariantModels = external_exports.array(FlowVariantModel).min(2).max(4).superRefine((variants, ctx) => {
       const seen = /* @__PURE__ */ new Set();
       for (const [index, variant] of variants.entries()) {
         if (seen.has(variant.id)) {
@@ -27675,10 +27675,10 @@ var init_config = __esm({
         seen.add(variant.id);
       }
     });
-    CircuitOverride = external_exports.object({
+    FlowOverride = external_exports.object({
       selection: SelectionOverride.optional(),
       skill_bindings: SkillBindings.default({}),
-      variant_models: CircuitVariantModels.optional()
+      variant_models: FlowVariantModels.optional()
     }).strict();
     ProjectId = external_exports.string().min(1).max(64).regex(/^[a-z0-9][a-z0-9-]*$/, {
       message: "project_id must be a fanout-safe kebab-case slug"
@@ -27711,12 +27711,12 @@ var init_config = __esm({
       relay: RelayConfig.default({
         default: "auto",
         roles: {},
-        circuits: {},
+        flows: {},
         connectors: {}
       }),
       skills: SkillsConfig.default({ bindings: {} }),
       skill_hooks: SkillHookConfig.default({ policy: {}, detection: { disabled_patterns: {} } }),
-      circuits: external_exports.record(CompiledFlowId, CircuitOverride).default({}),
+      flows: external_exports.record(CompiledFlowId, FlowOverride).default({}),
       power_tiers: external_exports.record(ConnectorName, PowerTierTable).default({}),
       power_auto: PowerAutoBounds.optional(),
       defaults: external_exports.object({
@@ -28052,9 +28052,16 @@ function parseConfigYaml(text, sourcePath) {
 }
 function configValidationError(layer, abs, err) {
   const base = `config validation failed for ${layer} at ${abs}: ${err.message}`;
-  const unrecognizedKey = err instanceof ZodError && err.issues.some((issue2) => issue2.code === "unrecognized_keys");
-  if (!unrecognizedKey)
+  if (!(err instanceof ZodError))
     return new Error(base);
+  const unrecognized = err.issues.filter((issue2) => issue2.code === "unrecognized_keys");
+  if (unrecognized.length === 0)
+    return new Error(base);
+  const usedLegacyCircuits = unrecognized.some((issue2) => (issue2.keys ?? []).includes("circuits"));
+  if (usedLegacyCircuits) {
+    return new Error(`${base}
+The \`circuits\` config key was renamed to \`flows\` in v1. Rename \`circuits:\` to \`flows:\` (and \`relay.circuits:\` to \`relay.flows:\`).`);
+  }
   return new Error(`${base}
 An unrecognized key is either a typo or a key from a newer Circuit than this one. Check the spelling, or update Circuit if the config needs the newer key.`);
 }
@@ -28541,7 +28548,7 @@ var init_axis_config_requirement = __esm({
       // The boolean axis whose selection makes the config mandatory.
       axis: external_exports.enum(["tournament", "autonomous"]),
       // Dot path into the layered selection config, e.g.
-      // 'circuits.prototype.variant_models'. The last layer that defines it wins.
+      // 'flows.prototype.variant_models'. The last layer that defines it wins.
       path: external_exports.string().min(1),
       // Operator-facing reason printed on rejection.
       message: external_exports.string().min(1)
@@ -76631,8 +76638,8 @@ var init_assembly_spec8 = __esm({
       required_config: [
         {
           axis: "tournament",
-          path: "circuits.prototype.variant_models",
-          message: "prototype --tournament requires 'circuits.prototype.variant_models' in your Circuit config (one variant model per tournament branch). Add it under circuits.prototype.variant_models, or run prototype without --tournament."
+          path: "flows.prototype.variant_models",
+          message: "prototype --tournament requires 'flows.prototype.variant_models' in your Circuit config (one variant model per tournament branch). Add it under flows.prototype.variant_models, or run prototype without --tournament."
         }
       ],
       items: prototypeBlockItems,
@@ -77810,8 +77817,8 @@ var init_variant_choice_options = __esm({
 function configuredPrototypeVariants(layers) {
   let variants;
   for (const layer of layers ?? []) {
-    const circuits = layer.config.circuits;
-    const next = circuits.prototype?.variant_models;
+    const flows = layer.config.flows;
+    const next = flows.prototype?.variant_models;
     if (next !== void 0)
       variants = next;
   }
@@ -77859,7 +77866,7 @@ var init_variant_options = __esm({
         const plan = PrototypePlan.parse(context.inputs.plan);
         const variants = configuredPrototypeVariants(context.selectionConfigLayers);
         if (variants === void 0) {
-          throw new Error("prototype.variant-options@v1 requires circuits.prototype.variant_models in Circuit config");
+          throw new Error("prototype.variant-options@v1 requires flows.prototype.variant_models in Circuit config");
         }
         if (context.connectorPlanner === void 0) {
           throw new Error("prototype.variant-options@v1 requires a connector planner in compose context");
@@ -77905,7 +77912,7 @@ var init_variant_options = __esm({
                 model,
                 effort
               },
-              selection_source: "circuits.prototype.variant_models",
+              selection_source: "flows.prototype.variant_models",
               goal: [
                 `Create Prototype variant '${variant.label}' (${variant.id}) for: ${brief.objective}.`,
                 `Write only disposable files under ${artifactRoot}.`,
@@ -78452,8 +78459,8 @@ var init_data9 = __esm({
       requiredConfig: [
         {
           axis: "tournament",
-          path: "circuits.prototype.variant_models",
-          message: "prototype --tournament requires 'circuits.prototype.variant_models' in your Circuit config (one variant model per tournament branch). Add it under circuits.prototype.variant_models, or run prototype without --tournament."
+          path: "flows.prototype.variant_models",
+          message: "prototype --tournament requires 'flows.prototype.variant_models' in your Circuit config (one variant model per tournament branch). Add it under flows.prototype.variant_models, or run prototype without --tournament."
         }
       ]
     };
@@ -83784,7 +83791,7 @@ function unavailableMessage(cachePath, reason) {
     "Circuit runs codex with --ignore-user-config, so ~/.codex/config.toml is",
     "intentionally not consulted for the model. Fix by either (a) pinning an",
     "openai model for codex in your Circuit config \u2014 set defaults.selection.model",
-    '(or circuits.<flow>.selection.model) to { provider: "openai", model:',
+    '(or flows.<flow>.selection.model) to { provider: "openai", model:',
     '"<model>" }, or set power_tiers.codex.<tier>.model \u2014 or (b) running `codex`',
     `once so ${cachePath} is populated.`,
     `(reason: ${reason})`
@@ -85736,7 +85743,7 @@ function mergedRelayConfig(layers) {
   const merged = {
     default: "auto",
     roles: {},
-    circuits: {},
+    flows: {},
     connectors: {}
   };
   for (const layer of layers ?? []) {
@@ -85744,7 +85751,7 @@ function mergedRelayConfig(layers) {
       merged.default = layer.config.relay.default;
     }
     merged.roles = { ...merged.roles, ...layer.config.relay.roles };
-    merged.circuits = { ...merged.circuits, ...layer.config.relay.circuits };
+    merged.flows = { ...merged.flows, ...layer.config.relay.flows };
     merged.connectors = { ...merged.connectors, ...layer.config.relay.connectors };
   }
   return merged;
@@ -85821,10 +85828,10 @@ function resolveConnectorForGuidanceInput(input) {
     }, input.role);
   }
   const flowId = input.flowId;
-  const flowRef = relay.circuits[flowId];
+  const flowRef = relay.flows[flowId];
   if (flowRef !== void 0) {
     return decision(resolvedConnectorFromReference(flowRef, relay), {
-      source: "circuit",
+      source: "flow",
       flow_id: flowId
     }, input.role);
   }
@@ -86471,8 +86478,8 @@ function composeConfigLayerSelection(base, circuit, current) {
   return overrideContributes2(parsed) ? parsed : void 0;
 }
 function configLayerSelection(flowId, layer, current) {
-  const circuits = layer.config.circuits;
-  const circuit = Object.hasOwn(circuits, flowId) ? circuits[flowId] : void 0;
+  const flows = layer.config.flows;
+  const circuit = Object.hasOwn(flows, flowId) ? flows[flowId] : void 0;
   return composeConfigLayerSelection(layer.config.defaults.selection, circuit?.selection, current);
 }
 function applySkillOp(base, op) {
@@ -86592,7 +86599,7 @@ function guidanceSelectionConfigLayersWithExecutionDepth(inv, flow, depth) {
   const existingIndex = layers.findIndex((layer) => layer.layer === "invocation");
   const existing = existingIndex === -1 ? void 0 : layers[existingIndex];
   const baseConfig = existing?.config ?? Config.parse({ schema_version: 1 });
-  const existingCircuit = baseConfig.circuits[flowId];
+  const existingCircuit = baseConfig.flows[flowId];
   const selection = {
     ...existingCircuit?.selection ?? {},
     depth
@@ -86602,8 +86609,8 @@ function guidanceSelectionConfigLayersWithExecutionDepth(inv, flow, depth) {
     ...existing?.source_path === void 0 ? {} : { source_path: existing.source_path },
     config: {
       ...baseConfig,
-      circuits: {
-        ...baseConfig.circuits,
+      flows: {
+        ...baseConfig.flows,
         [flowId]: {
           ...existingCircuit ?? {},
           selection
@@ -124246,12 +124253,12 @@ function configFields(flowId) {
   return [
     ...global2,
     {
-      key: `circuits.${flowId}.selection.effort`,
+      key: `flows.${flowId}.selection.effort`,
       label: `${flowId} effort`,
       options: Effort.options
     },
     {
-      key: `circuits.${flowId}.selection.depth`,
+      key: `flows.${flowId}.selection.depth`,
       label: `${flowId} depth`,
       options: CompiledDepth.options
     }
@@ -135092,8 +135099,8 @@ function composePolicyHardConstraints(envelopes) {
 function projectConfigV1ToPolicyEnvelopeV2(input) {
   const { config: config2, source } = input;
   const rejectedOldAuthority = [];
-  const flowConnectorHints = Object.entries(config2.relay.circuits).map(([flowId, ref]) => {
-    rejectedOldAuthority.push(rejectOldAuthority(`relay.circuits.${flowId}`, "relay.circuits", "flow-id connector routing is old authority; migrate it only as a guidance preference"));
+  const flowConnectorHints = Object.entries(config2.relay.flows).map(([flowId, ref]) => {
+    rejectedOldAuthority.push(rejectOldAuthority(`relay.flows.${flowId}`, "relay.flows", "flow-id connector routing is old authority; migrate it only as a guidance preference"));
     return {
       flow_id: flowId,
       prefer_connector: connectorRefFromConfig(ref)
@@ -135102,7 +135109,7 @@ function projectConfigV1ToPolicyEnvelopeV2(input) {
   const flowSelectionHints = [];
   const flowSlotBindings = [];
   const variantModelHints = [];
-  for (const [flowId, override] of Object.entries(config2.circuits)) {
+  for (const [flowId, override] of Object.entries(config2.flows)) {
     if (override.selection !== void 0) {
       flowSelectionHints.push({
         flow_id: flowId,
@@ -135116,7 +135123,7 @@ function projectConfigV1ToPolicyEnvelopeV2(input) {
       });
     }
     if (override.variant_models !== void 0) {
-      rejectedOldAuthority.push(rejectOldAuthority(`circuits.${flowId}.variant_models`, `circuits.${flowId}.variant_models`, "variant model matrices are branch-choice inputs only; they cannot directly choose relay execution"));
+      rejectedOldAuthority.push(rejectOldAuthority(`flows.${flowId}.variant_models`, `flows.${flowId}.variant_models`, "variant model matrices are branch-choice inputs only; they cannot directly choose relay execution"));
       for (const variant of override.variant_models) {
         variantModelHints.push({
           flow_id: flowId,
@@ -138305,7 +138312,7 @@ function resolveSkillBindingsForFlow(flowId, configLayers = []) {
         continue;
       globalBindings.set(slot2, skill);
     }
-    const circuit = layer.config.circuits[flowKey];
+    const circuit = layer.config.flows[flowKey];
     if (circuit === void 0)
       continue;
     for (const [slot2, skill] of Object.entries(circuit.skill_bindings)) {
@@ -138447,7 +138454,7 @@ function policyConnectorChoice(input) {
     return relayDecision(connectorFromPolicyRef(roleRef, input.policyLayers), { source: "role", role: input.role }, input.role);
   }
   if (flowRef !== void 0) {
-    return relayDecision(connectorFromPolicyRef(flowRef, input.policyLayers), { source: "circuit", flow_id: flowId }, input.role);
+    return relayDecision(connectorFromPolicyRef(flowRef, input.policyLayers), { source: "flow", flow_id: flowId }, input.role);
   }
   if (defaultRef !== void 0 && defaultRef !== "auto") {
     return relayDecision(connectorFromPolicyRef(defaultRef, input.policyLayers), { source: "default" }, input.role);

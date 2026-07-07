@@ -174,7 +174,7 @@ function policyConnectorChoice(input: {
   if (flowRef !== undefined) {
     return relayDecision(
       connectorFromPolicyRef(flowRef, input.policyLayers),
-      { source: 'circuit', flow_id: flowId },
+      { source: 'flow', flow_id: flowId },
       input.role,
     );
   }

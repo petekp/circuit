@@ -30,7 +30,7 @@ function mergedRelayConfig(layers: readonly LayeredConfigValue[] | undefined): R
   const merged: RelayConfigValue = {
     default: 'auto',
     roles: {},
-    circuits: {},
+    flows: {},
     connectors: {},
   };
   for (const layer of layers ?? []) {
@@ -38,7 +38,7 @@ function mergedRelayConfig(layers: readonly LayeredConfigValue[] | undefined): R
       merged.default = layer.config.relay.default;
     }
     merged.roles = { ...merged.roles, ...layer.config.relay.roles };
-    merged.circuits = { ...merged.circuits, ...layer.config.relay.circuits };
+    merged.flows = { ...merged.flows, ...layer.config.relay.flows };
     merged.connectors = { ...merged.connectors, ...layer.config.relay.connectors };
   }
   return merged;
@@ -199,12 +199,12 @@ export function resolveConnectorForGuidanceInput(input: {
   }
 
   const flowId = input.flowId as CompiledFlowId;
-  const flowRef = relay.circuits[flowId];
+  const flowRef = relay.flows[flowId];
   if (flowRef !== undefined) {
     return decision(
       resolvedConnectorFromReference(flowRef, relay),
       {
-        source: 'circuit',
+        source: 'flow',
         flow_id: flowId,
       },
       input.role,

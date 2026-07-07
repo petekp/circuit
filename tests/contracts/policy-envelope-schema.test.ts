@@ -271,7 +271,7 @@ describe('config v1 to PolicyEnvelopeV2 projection', () => {
         roles: {
           reviewer: { kind: 'builtin', name: 'claude-code' },
         },
-        circuits: {
+        flows: {
           build: { kind: 'builtin', name: 'codex' },
         },
         connectors: {
@@ -288,7 +288,7 @@ describe('config v1 to PolicyEnvelopeV2 projection', () => {
           effort: 'medium',
         },
       },
-      circuits: {
+      flows: {
         build: {
           selection: {
             model: { provider: 'openai', model: 'gpt-5' },
@@ -354,7 +354,7 @@ describe('config v1 to PolicyEnvelopeV2 projection', () => {
     ).toHaveLength(2);
     expect(projection.policy_envelope.policy.defaults.selection?.effort).toBe('medium');
     expect(projection.rejected_old_authority.map((item) => item.field)).toEqual(
-      expect.arrayContaining(['relay.circuits', 'circuits.build.variant_models']),
+      expect.arrayContaining(['relay.flows', 'flows.build.variant_models']),
     );
   });
 

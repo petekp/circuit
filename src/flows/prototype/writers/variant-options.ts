@@ -20,7 +20,7 @@ export const prototypeVariantOptionsComposeBuilder: ComposeBuilder = {
     const variants = configuredPrototypeVariants(context.selectionConfigLayers);
     if (variants === undefined) {
       throw new Error(
-        'prototype.variant-options@v1 requires circuits.prototype.variant_models in Circuit config',
+        'prototype.variant-options@v1 requires flows.prototype.variant_models in Circuit config',
       );
     }
     if (context.connectorPlanner === undefined) {
@@ -77,7 +77,7 @@ export const prototypeVariantOptionsComposeBuilder: ComposeBuilder = {
             model,
             effort,
           },
-          selection_source: 'circuits.prototype.variant_models',
+          selection_source: 'flows.prototype.variant_models',
           goal: [
             `Create Prototype variant '${variant.label}' (${variant.id}) for: ${brief.objective}.`,
             `Write only disposable files under ${artifactRoot}.`,

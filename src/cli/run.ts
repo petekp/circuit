@@ -422,7 +422,7 @@ function validateFlowAxes(input: {
   }
 }
 
-// Resolve a dot path (e.g. 'circuits.prototype.variant_models') across the
+// Resolve a dot path (e.g. 'flows.prototype.variant_models') across the
 // layered selection config. The last layer that defines it wins, matching how
 // flow writers read config. Returns undefined when no layer defines the path.
 function readConfigPathFromLayers(layers: readonly LayeredConfig[], dotPath: string): unknown {
