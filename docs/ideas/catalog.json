@@ -627,6 +627,23 @@
       "last_checked": "2026-06-12"
     },
     {
+      "path": "docs/ideas/popular-workflow-market-scan.md",
+      "title": "Popular-workflow market scan (post-v1 lineup)",
+      "status": "current-strategy-context",
+      "category": "strategy-and-comparisons",
+      "tags": [
+        "market-scan",
+        "competitive-analysis",
+        "prioritization",
+        "post-v1",
+        "backlog",
+        "net-new-flows"
+      ],
+      "current_reading": "A six-angle scan of the 2026 developer-workflow market, created 2026-07-06, scored against Circuit's engine primitives and launch positioning; it extends the flow-ideas.md stack rank rather than replacing it. Headline: the backlog is well-aimed, because the market's three loudest 2026 patterns map onto the top three backlog flows (fleet PR triage is Merge Gate, decompose-and-parallelize is Decompose plus Dispatch, promote-on-evidence is Promote), so the highest-leverage post-v1 move is to build the backlog in order. Surfaces three net-new evidence-gated flows worth adding (Sweep, Migrate, Property-check, all fast-follow) plus one cheap early-look candidate (Onboard, the only v1-reconsider slice); none need a new engine primitive. Records the popular patterns Circuit declines with a mechanical reason for each (fully-dynamic swarms, cloud middle-manager orchestrators, webhook-triggered resolvers, raw-number coverage goals, mid-task model switching), to turn into launch narrative. Prioritization context only; the v1 launch freeze applies and nothing here is being built.",
+      "related": ["docs/ideas/flow-ideas.md"],
+      "last_checked": "2026-07-06"
+    },
+    {
       "path": "docs/ideas/pre-execution-memory-comparison.md",
       "title": "Circuit today vs. typed pre-execution memory",
       "status": "current-comparison",
