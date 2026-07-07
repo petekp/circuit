@@ -121,8 +121,10 @@ describe('whole-grain close tolerates absent review and touch area', () => {
         projectRoot: makeVerificationProjectRoot(),
       });
 
-      // The run reaches a terminal outcome instead of throwing at close.
-      expect(['complete', 'needs_attention']).toContain(outcome.outcome);
+      // The run reaches a terminal outcome instead of throwing at close. A build
+      // that no reviewer signed off is needs-attention, which binds to an honest
+      // 'stopped' rather than a green 'complete'.
+      expect(outcome.outcome).toBe('stopped');
 
       const result = BuildResult.parse(
         JSON.parse(readFileSync(join(runFolder, 'reports/build-result.json'), 'utf8')),

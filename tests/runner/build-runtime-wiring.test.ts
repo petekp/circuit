@@ -11,10 +11,12 @@ import {
   BuildReview,
   BuildVerification,
 } from '../../src/flows/build/reports.js';
+import { resumeCompiledFlow } from '../../src/runtime/run/checkpoint-resume.js';
 import {
   runCompiledFlow,
   runCompiledFlowWithWaiting,
 } from '../../src/runtime/run/compiled-flow-runner.js';
+import { isGraphCheckpointWaitingResult } from '../../src/runtime/run/graph-runner.js';
 import { TraceStore } from '../../src/runtime/trace/trace-store.js';
 import { CompiledFlow } from '../../src/schemas/compiled-flow.js';
 import type { RelayResult } from '../../src/shared/connector-relay.js';
@@ -509,7 +511,7 @@ describe('Build runtime wiring', () => {
   );
 
   it(
-    'writes the canonical Build review report on rejection so downstream readers see the verdict',
+    'stops (needs attention) on a review reject over a green build, writing the review report and result',
     async () => {
       const { bytes } = loadFixture();
       const runFolder = join(runFolderBase, 'review-reject');
@@ -538,13 +540,103 @@ describe('Build runtime wiring', () => {
         projectRoot: makeVerificationProjectRoot(),
       });
 
-      expect(outcome.outcome).toBe('aborted');
-      expect(outcome.reason).toMatch(/connector declared verdict 'reject'/);
-      // The verdict check fails ('reject' is not in build-review.pass), but
-      // the body parses against build.review@v1, so the schema-tied report
-      // is still materialized for the operator-summary projector.
+      // A reviewer's honest 'reject' on a green, verified build is a
+      // needs-attention outcome, not a contract violation: the run STOPS
+      // (operator-visible) rather than aborting. 'reject' flows forward to
+      // close, the Build result records outcome 'failed', and the terminal
+      // outcome binds to that honest result ('stopped').
+      expect(outcome.outcome).toBe('stopped');
       expect(existsSync(join(runFolder, 'reports/build/review.json'))).toBe(true);
       expect(existsSync(join(runFolder, 'reports/relay/build-review.result.json'))).toBe(true);
+      const result = BuildResult.parse(
+        JSON.parse(readFileSync(join(runFolder, 'reports/build-result.json'), 'utf8')),
+      );
+      expect(result.outcome).toBe('failed');
+      expect(result.review_verdict).toBe('reject');
+    },
+    BUILD_RUNTIME_TIMEOUT_MS,
+  );
+
+  it(
+    'stops (needs attention) at depth high when the reviewer rejects a green build, without re-implementing to exhaustion',
+    async () => {
+      const { bytes } = loadFixture();
+      const runFolder = join(runFolderBase, 'review-reject-high');
+      // Depth-high verification exercises more scripts than `check`; give it a
+      // full no-op script set so the run reaches the review step (green build).
+      const noop = 'node -e "process.exit(0)"';
+      const projectRoot = join(runFolderBase, 'reject-high-project');
+      mkdirSync(projectRoot, { recursive: true });
+      writeFileSync(
+        join(projectRoot, 'package.json'),
+        `${JSON.stringify(
+          {
+            private: true,
+            scripts: { check: noop, build: noop, test: noop, lint: noop, typecheck: noop },
+          },
+          null,
+          2,
+        )}\n`,
+      );
+
+      const rejectReview = JSON.stringify({
+        verdict: 'reject',
+        summary: 'Reviewer will not accept',
+        findings: [
+          {
+            severity: 'high',
+            text: 'Subjective objection on a green build',
+            file_refs: ['src/example.ts:1'],
+          },
+        ],
+        alignment: { scope_adherence: 'within_scope', non_goals: [], invariants: [] },
+      });
+
+      // Depth 'high' parks at the operator frame checkpoint before the corridor,
+      // so a single-shot run pauses. Drive past it with the waiting+resume pattern.
+      const waiting = await runCompiledFlowWithWaiting({
+        runDir: runFolder,
+        flowBytes: bytes,
+        runId: 'b2000000-0000-0000-0000-00000000000d',
+        goal: 'Green build the reviewer keeps rejecting',
+        depth: 'high',
+        now: deterministicNow(Date.UTC(2026, 3, 25, 9, 0, 0)),
+        relayer: relayerWith({ reviewBody: rejectReview }),
+        projectRoot,
+      });
+      if (!isGraphCheckpointWaitingResult(waiting)) {
+        throw new Error('expected the depth-high run to park at the frame checkpoint');
+      }
+      const outcome = await resumeCompiledFlow({
+        runDir: runFolder,
+        selection: 'continue',
+        now: deterministicNow(Date.UTC(2026, 3, 25, 9, 30, 0)),
+        relayer: relayerWith({ reviewBody: rejectReview }),
+      });
+
+      // A subjective reject on a green, verified build is a needs-attention
+      // outcome, not a contract violation. The run STOPS honestly instead of
+      // re-entering act-step to re-implement the whole change and aborting on
+      // max_attempts exhaustion. 'reject' flows forward to close; the Build
+      // result records outcome 'failed'; the terminal binds to that.
+      expect(outcome.outcome).toBe('stopped');
+      const trace_entries = await readTraceEntries(runFolder);
+      const reviewCompletions = trace_entries.filter(
+        (e) => traceEntryLabel(e) === 'relay.completed:review-step',
+      ).length;
+      const actCompletions = trace_entries.filter(
+        (e) => traceEntryLabel(e) === 'relay.completed:act-step',
+      ).length;
+      // No rework churn: the reviewer runs once and the implementer is not
+      // re-driven by the reject. (A single slice, so one act pass.)
+      expect(reviewCompletions).toBe(1);
+      expect(actCompletions).toBe(1);
+      expect(existsSync(join(runFolder, 'reports/build/review.json'))).toBe(true);
+      const result = BuildResult.parse(
+        JSON.parse(readFileSync(join(runFolder, 'reports/build-result.json'), 'utf8')),
+      );
+      expect(result.outcome).toBe('failed');
+      expect(result.review_verdict).toBe('reject');
     },
     BUILD_RUNTIME_TIMEOUT_MS,
   );
@@ -573,6 +665,10 @@ describe('Build runtime wiring', () => {
         projectRoot: makeVerificationProjectRoot(),
       });
 
+      // A malformed review (accept-with-fixes with no findings) is an invalid
+      // relay OUTPUT, a genuine contract violation, and still aborts with a
+      // schema-tied reason. This is distinct from an honest 'reject' verdict,
+      // which flows forward to an operator-visible 'stopped'.
       expect(outcome.outcome).toBe('aborted');
       expect(outcome.reason).toMatch(/build\.review@v1/);
       expect(outcome.reason).toMatch(/findings/);
@@ -583,7 +679,7 @@ describe('Build runtime wiring', () => {
   );
 
   it(
-    'marks Build as needs_attention when review accepts with required fixes',
+    'stops (needs attention) when review accepts with required fixes',
     async () => {
       const { bytes } = loadFixture();
       const runFolder = join(runFolderBase, 'review-followups');
@@ -612,7 +708,10 @@ describe('Build runtime wiring', () => {
         projectRoot: makeVerificationProjectRoot(),
       });
 
-      expect(outcome.outcome).toBe('complete');
+      // A required follow-up is a needs-attention outcome, not a clean success:
+      // the Build result records 'needs_attention' and the run terminal binds to
+      // that honest result ('stopped'), never a green 'complete'.
+      expect(outcome.outcome).toBe('stopped');
       const result = BuildResult.parse(
         JSON.parse(readFileSync(join(runFolder, 'reports/build-result.json'), 'utf8')),
       );

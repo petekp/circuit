@@ -390,6 +390,7 @@ describe('FlowDefinition compiler', () => {
     expect(pkg.engineFlags).toBeUndefined();
     expect(compiledFlow?.engine_flags).toEqual({
       binds_execution_depth_to_relay_selection: true,
+      binds_terminal_outcome_to_primary_result: true,
       iterates_slice_loop: {
         head_step: 'act-step',
         tail_step: 'verify-step',

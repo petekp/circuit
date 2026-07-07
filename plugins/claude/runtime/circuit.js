@@ -64441,7 +64441,22 @@ var init_assembly_spec = __esm({
         requestPath: "reports/relay/build-review.request.json",
         receiptPath: "reports/relay/build-review.receipt.txt",
         resultPath: "reports/relay/build-review.result.json",
-        pass: ["accept", "accept-with-fixes"],
+        // Every valid reviewer verdict flows FORWARD to close, mirroring the Review
+        // flow's verdict step. A 'reject' on a green, verified build is an honest
+        // needs-attention finding, not a contract violation: routing it back to
+        // act-step re-implemented the whole change and, when the reviewer held its
+        // objection, exhausted max_attempts and aborted a working build. With
+        // 'reject' in the pass set it takes `continue` to close, the verdict is
+        // recorded in the Build result (reject -> outcome 'failed'), and
+        // `binds_terminal_outcome_to_primary_result` maps that honest result onto
+        // the run's terminal outcome ('stopped').
+        //
+        // The retry/revise routes are KEPT: they recover a genuinely invalid relay
+        // OUTPUT (a body that fails the build.review@v1 schema, e.g. accept-with-fixes
+        // with no findings), which is a real contract failure distinct from an
+        // honest reject verdict. A valid reject is in `pass` and never takes retry,
+        // so the exhaustion-abort bug cannot recur.
+        pass: ["accept", "accept-with-fixes", "reject"],
         skillSlots: [
           {
             id: "build-change-audit",
@@ -64511,6 +64526,12 @@ var init_assembly_spec = __esm({
       },
       engine_flags: {
         binds_execution_depth_to_relay_selection: true,
+        // The reviewer's verdict is the Build's honest terminal signal: an
+        // accept green-lights a 'complete' close, while accept-with-fixes or a
+        // reject bind the run to the Build result's needs-attention/failed
+        // outcome ('stopped') instead of a green 'complete'. See the review-step
+        // note on why every verdict flows forward rather than reworking.
+        binds_terminal_outcome_to_primary_result: true,
         iterates_slice_loop: {
           head_step: "act-step",
           tail_step: "verify-step",
