@@ -13,6 +13,7 @@ import { connectorRemediation } from './remediation.js';
 import {
   type ConnectorSubprocessResult,
   cappedSuffix,
+  describeTimeout,
   isConnectorSubprocessSpawnError,
   parseNdjsonObjects,
   runConnectorSubprocess,
@@ -109,12 +110,35 @@ export const CLAUDE_CODE_EXECUTABLE = 'claude';
 // call sites bound to the claude-code connector.
 export { CLAUDE_CODE_SUPPORTED_EFFORTS };
 
-// Default wall-clock budget for a single relay. With the open tool
-// surface, workers do real file inspection / edits / verification before
-// responding, so the default has headroom for that. A step's
-// `budgets.wall_clock_ms` (per src/schemas/step.ts StepBase.budgets)
-// overrides this when present.
-const DEFAULT_TIMEOUT_MS = 600_000;
+// Default INACTIVITY ceiling for a single relay: the subprocess is stopped
+// after this long with no stdout/stderr output. Under `--output-format
+// stream-json --verbose` the CLI streams NDJSON progress events while it works,
+// so silence — not total elapsed time — is what a hung relay looks like. Every
+// chunk of output resets the window.
+//
+// 3 minutes. Long enough to sit through a slow tool call the worker runs
+// mid-step (a multi-minute test or build that emits nothing until it finishes)
+// without a false kill; short enough that a genuinely wedged subprocess is
+// reclaimed promptly instead of holding a slot until the backstop. The prior
+// fixed wall-clock cap killed live-but-slow steps: in the multi-file build
+// probe (experiments/build-probe-multifile/VERDICT.md) the heavy `diff` slice
+// of a 6-file build was group-killed mid-write at the 600000ms ceiling while it
+// was still making progress. An inactivity bound reclaims true hangs without
+// punishing a step that is slow but alive.
+//
+// Known limit: a single silent tool call longer than this window reads as a
+// hang and is killed. The mitigation is a per-step inactivity override (a
+// follow-up to budgets.wall_clock_ms); until then a step that legitimately goes
+// silent for over 3 minutes should raise its own progress cadence.
+const DEFAULT_IDLE_TIMEOUT_MS = 180_000;
+
+// Absolute wall-clock backstop, never reset. Bounds a pathological subprocess
+// that keeps dribbling output forever (so the inactivity bound never fires) at a
+// hard ceiling. Generous — 60 minutes — because the inactivity bound is the
+// primary reclaimer and this only catches the streaming-runaway tail. A step's
+// `budgets.wall_clock_ms` (per src/schemas/step.ts StepBase.budgets) overrides
+// this backstop when present.
+const DEFAULT_ABSOLUTE_TIMEOUT_MS = 3_600_000;
 
 // Grace period between SIGTERM and SIGKILL. SIGTERM gives the
 // subprocess a chance to close cleanly; if it is still alive after this
@@ -220,7 +244,9 @@ export function isClaudeCodeStructuredOutputCompatible(schema: Record<string, un
 }
 
 export async function relayClaudeCode(input: ClaudeCodeRelayInput): Promise<RelayResult> {
-  const timeoutMs = input.timeoutMs ?? DEFAULT_TIMEOUT_MS;
+  // A per-step budget maps to the absolute wall-clock backstop; the inactivity
+  // bound stays at its default and is what reclaims a silent (wedged) relay.
+  const absoluteTimeoutMs = input.timeoutMs ?? DEFAULT_ABSOLUTE_TIMEOUT_MS;
   const args = buildClaudeCodeArgs(input);
   let result: ConnectorSubprocessResult;
   try {
@@ -230,7 +256,8 @@ export async function relayClaudeCode(input: ClaudeCodeRelayInput): Promise<Rela
     result = await runConnectorSubprocess({
       executable: CLAUDE_CODE_EXECUTABLE,
       args,
-      timeoutMs,
+      timeoutMs: absoluteTimeoutMs,
+      idleTimeoutMs: DEFAULT_IDLE_TIMEOUT_MS,
       stdoutMaxBytes: STDOUT_MAX_BYTES,
       stderrMaxBytes: STDERR_MAX_BYTES,
       sigtermToSigkillGraceMs: SIGTERM_TO_SIGKILL_GRACE_MS,
@@ -248,8 +275,12 @@ export async function relayClaudeCode(input: ClaudeCodeRelayInput): Promise<Rela
   if (result.timedOut) {
     const stdoutSuffix = cappedSuffix(result.stdoutCapped, 'stdout');
     const stderrSuffix = cappedSuffix(result.stderrCapped, 'stderr');
+    const cause = describeTimeout(result, {
+      idleMs: DEFAULT_IDLE_TIMEOUT_MS,
+      absoluteMs: absoluteTimeoutMs,
+    });
     throw new Error(
-      `claude-code subprocess timed out after ${timeoutMs}ms; group-kill ${result.killGroupSucceeded ? 'sent' : 'failed'}; final signal=${result.signal ?? 'none'}; stdout[:500]=${result.stdout.slice(0, 500)}${stdoutSuffix}; stderr[:500]=${result.stderr.slice(0, 500)}${stderrSuffix}`,
+      `claude-code subprocess timed out: ${cause}; group-kill ${result.killGroupSucceeded ? 'sent' : 'failed'}; final signal=${result.signal ?? 'none'}; stdout[:500]=${result.stdout.slice(0, 500)}${stdoutSuffix}; stderr[:500]=${result.stderr.slice(0, 500)}${stderrSuffix}`,
     );
   }
   if (result.code !== 0) {

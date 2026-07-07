@@ -87,7 +87,10 @@ describe('claude-code connector smoke (capability boundary)', () => {
             timeoutMs: 3_000,
           }),
         ).rejects.toThrow(
-          /claude-code subprocess timed out after 3000ms;.*stdout\[:500\]=.*session-timeout-diagnostic.*working before timeout.*stderr\[:500\]=/s,
+          // 3000ms per-step budget maps to the absolute backstop; the fake
+          // streams init + progress (resetting the inactivity bound) then hangs,
+          // so the absolute ceiling is what fires.
+          /claude-code subprocess timed out: exceeded the 3000ms wall-clock backstop;.*stdout\[:500\]=.*session-timeout-diagnostic.*working before timeout.*stderr\[:500\]=/s,
         );
       } finally {
         process.env.PATH = originalPath;

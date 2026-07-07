@@ -12,6 +12,7 @@ import { connectorRemediation } from './remediation.js';
 import {
   type ConnectorSubprocessResult,
   cappedSuffix,
+  describeTimeout,
   isConnectorSubprocessSpawnError,
   parseNdjsonObjects,
   runConnectorSubprocess,
@@ -122,9 +123,14 @@ for (const forbidden of CODEX_FORBIDDEN_ARGV_TOKENS) {
   }
 }
 
-// Default wall-clock budget for a single relay. A step's
-// `budgets.wall_clock_ms` overrides this when present.
-const DEFAULT_TIMEOUT_MS = 600_000;
+// Inactivity + absolute backstop bounds, kept in step with the other CLI-agent
+// connectors; see claude-code.ts for the rationale (silence, not total elapsed
+// time, is what a hung streaming relay looks like). Codex streams its `--json`
+// events while it works, so the inactivity bound reclaims a wedged relay while a
+// slow-but-alive one runs to completion. A step's `budgets.wall_clock_ms`
+// overrides the absolute backstop when present.
+const DEFAULT_IDLE_TIMEOUT_MS = 180_000;
+const DEFAULT_ABSOLUTE_TIMEOUT_MS = 3_600_000;
 
 // Grace period between SIGTERM and SIGKILL, modeled on claude-code.ts.
 const SIGTERM_TO_SIGKILL_GRACE_MS = 2_000;
@@ -428,7 +434,9 @@ async function cleanupSchemaTempDir(dir: string | undefined): Promise<void> {
 }
 
 export async function relayCodex(input: CodexRelayInput): Promise<RelayResult> {
-  const timeoutMs = input.timeoutMs ?? DEFAULT_TIMEOUT_MS;
+  // A per-step budget maps to the absolute wall-clock backstop; the inactivity
+  // bound stays at its default and is what reclaims a silent (wedged) relay.
+  const absoluteTimeoutMs = input.timeoutMs ?? DEFAULT_ABSOLUTE_TIMEOUT_MS;
   const cli_version = captureCodexVersion();
   // Acquire the schema temp file FIRST and put every subsequent operation
   // inside the try block. If `buildCodexArgs` throws (boundary assertion)
@@ -466,7 +474,8 @@ export async function relayCodex(input: CodexRelayInput): Promise<RelayResult> {
       result = await runConnectorSubprocess({
         executable: CODEX_EXECUTABLE,
         args,
-        timeoutMs,
+        timeoutMs: absoluteTimeoutMs,
+        idleTimeoutMs: DEFAULT_IDLE_TIMEOUT_MS,
         stdoutMaxBytes: STDOUT_MAX_BYTES,
         stderrMaxBytes: STDERR_MAX_BYTES,
         sigtermToSigkillGraceMs: SIGTERM_TO_SIGKILL_GRACE_MS,
@@ -485,8 +494,12 @@ export async function relayCodex(input: CodexRelayInput): Promise<RelayResult> {
     if (result.timedOut) {
       const stdoutSuffix = cappedSuffix(result.stdoutCapped, 'stdout');
       const stderrSuffix = cappedSuffix(result.stderrCapped, 'stderr');
+      const cause = describeTimeout(result, {
+        idleMs: DEFAULT_IDLE_TIMEOUT_MS,
+        absoluteMs: absoluteTimeoutMs,
+      });
       throw new Error(
-        `codex subprocess timed out after ${timeoutMs}ms; group-kill ${result.killGroupSucceeded ? 'sent' : 'failed'}; final signal=${result.signal ?? 'none'}; stdout[:500]=${result.stdout.slice(0, 500)}${stdoutSuffix}; stderr[:2000]=${result.stderr.slice(0, 2000)}${stderrSuffix}`,
+        `codex subprocess timed out: ${cause}; group-kill ${result.killGroupSucceeded ? 'sent' : 'failed'}; final signal=${result.signal ?? 'none'}; stdout[:500]=${result.stdout.slice(0, 500)}${stdoutSuffix}; stderr[:2000]=${result.stderr.slice(0, 2000)}${stderrSuffix}`,
       );
     }
     if (result.code !== 0) {

@@ -83278,6 +83278,34 @@ import { performance as performance2 } from "node:perf_hooks";
 function isConnectorSubprocessSpawnError(error52) {
   return error52 instanceof ConnectorSubprocessSpawnError || error52 instanceof Error && error52.name === "ConnectorSubprocessSpawnError";
 }
+function createTimeoutController(input) {
+  let fired = false;
+  let disposed = false;
+  let idleTimer;
+  const fire = (kind) => {
+    if (fired || disposed)
+      return;
+    fired = true;
+    input.onFire(kind);
+  };
+  const absoluteTimer = setTimeout(() => fire("absolute"), input.absoluteMs);
+  const onActivity = () => {
+    if (fired || disposed || input.idleMs === void 0)
+      return;
+    if (idleTimer !== void 0)
+      clearTimeout(idleTimer);
+    idleTimer = setTimeout(() => fire("idle"), input.idleMs);
+  };
+  const clear = () => {
+    disposed = true;
+    clearTimeout(absoluteTimer);
+    if (idleTimer !== void 0) {
+      clearTimeout(idleTimer);
+      idleTimer = void 0;
+    }
+  };
+  return { onActivity, clear };
+}
 function appendCapped(current, currentBytes, chunk, maxBytes) {
   const chunkBytes = Buffer.byteLength(chunk, "utf8");
   if (currentBytes + chunkBytes <= maxBytes) {
@@ -83298,6 +83326,12 @@ function spawnErrorVerb(error52) {
 }
 function cappedSuffix(capped, stream) {
   return capped ? ` [${stream} capped]` : "";
+}
+function describeTimeout(result, bounds) {
+  if (result.timeoutKind === "idle" && bounds.idleMs !== void 0) {
+    return `no output for ${bounds.idleMs}ms (inactivity)`;
+  }
+  return `exceeded the ${bounds.absoluteMs}ms wall-clock backstop`;
 }
 function parseNdjsonObjects(stdout, label) {
   const lines = stdout.split("\n").filter((line) => line.length > 0);
@@ -83338,6 +83372,7 @@ async function runConnectorSubprocess(input) {
     let stdoutCapped = false;
     let stderrCapped = false;
     let timedOut = false;
+    let timeoutKind;
     let killGroupSucceeded = false;
     const killProcessGroup = (signal) => {
       const pid = child.pid;
@@ -83356,16 +83391,22 @@ async function runConnectorSubprocess(input) {
       }
     };
     let killGraceTimer;
-    const timer = setTimeout(() => {
-      timedOut = true;
-      killGroupSucceeded = killProcessGroup("SIGTERM");
-      killGraceTimer = setTimeout(() => {
-        killProcessGroup("SIGKILL");
-        killGraceTimer = void 0;
-      }, input.sigtermToSigkillGraceMs);
-    }, input.timeoutMs);
+    const controller = createTimeoutController({
+      absoluteMs: input.timeoutMs,
+      ...input.idleTimeoutMs === void 0 ? {} : { idleMs: input.idleTimeoutMs },
+      onFire: (kind) => {
+        timedOut = true;
+        timeoutKind = kind;
+        killGroupSucceeded = killProcessGroup("SIGTERM");
+        killGraceTimer = setTimeout(() => {
+          killProcessGroup("SIGKILL");
+          killGraceTimer = void 0;
+        }, input.sigtermToSigkillGraceMs);
+      }
+    });
+    controller.onActivity();
     const clearAllTimers = () => {
-      clearTimeout(timer);
+      controller.clear();
       if (killGraceTimer !== void 0) {
         clearTimeout(killGraceTimer);
         killGraceTimer = void 0;
@@ -83374,12 +83415,14 @@ async function runConnectorSubprocess(input) {
     child.stdout?.setEncoding("utf8");
     child.stderr?.setEncoding("utf8");
     child.stdout?.on("data", (chunk) => {
+      controller.onActivity();
       const next = appendCapped(stdout, stdoutBytes, chunk, input.stdoutMaxBytes);
       stdout = next.text;
       stdoutBytes = next.bytes;
       stdoutCapped = stdoutCapped || next.capped;
     });
     child.stderr?.on("data", (chunk) => {
+      controller.onActivity();
       const next = appendCapped(stderr, stderrBytes, chunk, input.stderrMaxBytes);
       stderr = next.text;
       stderrBytes = next.bytes;
@@ -83397,6 +83440,7 @@ async function runConnectorSubprocess(input) {
         stdoutCapped,
         stderrCapped,
         timedOut,
+        ...timeoutKind === void 0 ? {} : { timeoutKind },
         killGroupSucceeded,
         code,
         signal,
@@ -83471,14 +83515,15 @@ function isClaudeCodeStructuredOutputCompatible(schema) {
   return schema.type === "object";
 }
 async function relayClaudeCode(input) {
-  const timeoutMs2 = input.timeoutMs ?? DEFAULT_TIMEOUT_MS;
+  const absoluteTimeoutMs = input.timeoutMs ?? DEFAULT_ABSOLUTE_TIMEOUT_MS;
   const args = buildClaudeCodeArgs(input);
   let result;
   try {
     result = await runConnectorSubprocess({
       executable: CLAUDE_CODE_EXECUTABLE,
       args,
-      timeoutMs: timeoutMs2,
+      timeoutMs: absoluteTimeoutMs,
+      idleTimeoutMs: DEFAULT_IDLE_TIMEOUT_MS,
       stdoutMaxBytes: STDOUT_MAX_BYTES,
       stderrMaxBytes: STDERR_MAX_BYTES,
       sigtermToSigkillGraceMs: SIGTERM_TO_SIGKILL_GRACE_MS,
@@ -83493,7 +83538,11 @@ async function relayClaudeCode(input) {
   if (result.timedOut) {
     const stdoutSuffix = cappedSuffix(result.stdoutCapped, "stdout");
     const stderrSuffix = cappedSuffix(result.stderrCapped, "stderr");
-    throw new Error(`claude-code subprocess timed out after ${timeoutMs2}ms; group-kill ${result.killGroupSucceeded ? "sent" : "failed"}; final signal=${result.signal ?? "none"}; stdout[:500]=${result.stdout.slice(0, 500)}${stdoutSuffix}; stderr[:500]=${result.stderr.slice(0, 500)}${stderrSuffix}`);
+    const cause = describeTimeout(result, {
+      idleMs: DEFAULT_IDLE_TIMEOUT_MS,
+      absoluteMs: absoluteTimeoutMs
+    });
+    throw new Error(`claude-code subprocess timed out: ${cause}; group-kill ${result.killGroupSucceeded ? "sent" : "failed"}; final signal=${result.signal ?? "none"}; stdout[:500]=${result.stdout.slice(0, 500)}${stdoutSuffix}; stderr[:500]=${result.stderr.slice(0, 500)}${stderrSuffix}`);
   }
   if (result.code !== 0) {
     const stdoutSuffix = cappedSuffix(result.stdoutCapped, "stdout");
@@ -83653,7 +83702,7 @@ function finiteOrUndefined(value) {
 function sumBy(items, pick2) {
   return items.reduce((sum, item) => sum + pick2(item), 0);
 }
-var CLAUDE_CODE_DISPATCH_FLAGS, CLAUDE_CODE_STRUCTURED_OUTPUT_TOOLS, CLAUDE_CODE_EXECUTABLE, DEFAULT_TIMEOUT_MS, SIGTERM_TO_SIGKILL_GRACE_MS, STDOUT_MAX_BYTES, STDERR_MAX_BYTES;
+var CLAUDE_CODE_DISPATCH_FLAGS, CLAUDE_CODE_STRUCTURED_OUTPUT_TOOLS, CLAUDE_CODE_EXECUTABLE, DEFAULT_IDLE_TIMEOUT_MS, DEFAULT_ABSOLUTE_TIMEOUT_MS, SIGTERM_TO_SIGKILL_GRACE_MS, STDOUT_MAX_BYTES, STDERR_MAX_BYTES;
 var init_claude_code = __esm({
   "dist/connectors/claude-code.js"() {
     "use strict";
@@ -83679,7 +83728,8 @@ var init_claude_code = __esm({
     ];
     CLAUDE_CODE_STRUCTURED_OUTPUT_TOOLS = ["StructuredOutput"];
     CLAUDE_CODE_EXECUTABLE = "claude";
-    DEFAULT_TIMEOUT_MS = 6e5;
+    DEFAULT_IDLE_TIMEOUT_MS = 18e4;
+    DEFAULT_ABSOLUTE_TIMEOUT_MS = 36e5;
     SIGTERM_TO_SIGKILL_GRACE_MS = 2e3;
     STDOUT_MAX_BYTES = 16 * 1024 * 1024;
     STDERR_MAX_BYTES = 1024 * 1024;
@@ -85202,7 +85252,7 @@ async function proposeFlow(options) {
   const { task, relay, resolvedSelection } = options;
   const definitions = options.definitions ?? flowDefinitions;
   const maxRepair = options.maxRepair ?? DEFAULT_MAX_REPAIR;
-  const timeoutMs2 = options.timeoutMs ?? DEFAULT_TIMEOUT_MS4;
+  const timeoutMs2 = options.timeoutMs ?? DEFAULT_TIMEOUT_MS;
   const rounds = [];
   const proposal = await callModel(relay, proposePrompt(task), resolvedSelection, timeoutMs2);
   if (!proposal.ok) {
@@ -85279,7 +85329,7 @@ async function proposeFlow(options) {
   }
   return { ok: false, reason: "wall", roleSet: current, errors: lastErrors, rounds };
 }
-var DEFAULT_MAX_REPAIR, DEFAULT_TIMEOUT_MS4;
+var DEFAULT_MAX_REPAIR, DEFAULT_TIMEOUT_MS;
 var init_propose = __esm({
   "dist/flows/composition/propose.js"() {
     "use strict";
@@ -85288,7 +85338,7 @@ var init_propose = __esm({
     init_evaluate();
     init_propose_prompts();
     DEFAULT_MAX_REPAIR = 4;
-    DEFAULT_TIMEOUT_MS4 = 9e4;
+    DEFAULT_TIMEOUT_MS = 9e4;
   }
 });
 
@@ -125467,7 +125517,8 @@ for (const forbidden of CODEX_FORBIDDEN_ARGV_TOKENS) {
     throw new Error(`CODEX_WRITE_FLAGS boundary invariant broken: must NOT include "${forbidden}" (forbidden-token set)`);
   }
 }
-var DEFAULT_TIMEOUT_MS2 = 6e5;
+var DEFAULT_IDLE_TIMEOUT_MS2 = 18e4;
+var DEFAULT_ABSOLUTE_TIMEOUT_MS2 = 36e5;
 var SIGTERM_TO_SIGKILL_GRACE_MS2 = 2e3;
 var STDOUT_MAX_BYTES2 = 16 * 1024 * 1024;
 var STDERR_MAX_BYTES2 = 1024 * 1024;
@@ -125661,7 +125712,7 @@ async function cleanupSchemaTempDir(dir) {
   }
 }
 async function relayCodex(input) {
-  const timeoutMs2 = input.timeoutMs ?? DEFAULT_TIMEOUT_MS2;
+  const absoluteTimeoutMs = input.timeoutMs ?? DEFAULT_ABSOLUTE_TIMEOUT_MS2;
   const cli_version = captureCodexVersion();
   let tempDir;
   let schemaPath;
@@ -125678,7 +125729,8 @@ async function relayCodex(input) {
       result = await runConnectorSubprocess({
         executable: CODEX_EXECUTABLE,
         args,
-        timeoutMs: timeoutMs2,
+        timeoutMs: absoluteTimeoutMs,
+        idleTimeoutMs: DEFAULT_IDLE_TIMEOUT_MS2,
         stdoutMaxBytes: STDOUT_MAX_BYTES2,
         stderrMaxBytes: STDERR_MAX_BYTES2,
         sigtermToSigkillGraceMs: SIGTERM_TO_SIGKILL_GRACE_MS2,
@@ -125694,7 +125746,11 @@ async function relayCodex(input) {
     if (result.timedOut) {
       const stdoutSuffix = cappedSuffix(result.stdoutCapped, "stdout");
       const stderrSuffix = cappedSuffix(result.stderrCapped, "stderr");
-      throw new Error(`codex subprocess timed out after ${timeoutMs2}ms; group-kill ${result.killGroupSucceeded ? "sent" : "failed"}; final signal=${result.signal ?? "none"}; stdout[:500]=${result.stdout.slice(0, 500)}${stdoutSuffix}; stderr[:2000]=${result.stderr.slice(0, 2e3)}${stderrSuffix}`);
+      const cause = describeTimeout(result, {
+        idleMs: DEFAULT_IDLE_TIMEOUT_MS2,
+        absoluteMs: absoluteTimeoutMs
+      });
+      throw new Error(`codex subprocess timed out: ${cause}; group-kill ${result.killGroupSucceeded ? "sent" : "failed"}; final signal=${result.signal ?? "none"}; stdout[:500]=${result.stdout.slice(0, 500)}${stdoutSuffix}; stderr[:2000]=${result.stderr.slice(0, 2e3)}${stderrSuffix}`);
     }
     if (result.code !== 0) {
       const stdoutSuffix = cappedSuffix(result.stdoutCapped, "stdout");
@@ -125827,7 +125883,8 @@ var CURSOR_AGENT_DISPATCH_FLAGS = Object.freeze([
   "--trust",
   "--force"
 ]);
-var DEFAULT_TIMEOUT_MS3 = 6e5;
+var DEFAULT_IDLE_TIMEOUT_MS3 = 18e4;
+var DEFAULT_ABSOLUTE_TIMEOUT_MS3 = 36e5;
 var SIGTERM_TO_SIGKILL_GRACE_MS3 = 2e3;
 var STDOUT_MAX_BYTES3 = 16 * 1024 * 1024;
 var STDERR_MAX_BYTES3 = 1024 * 1024;
@@ -125884,7 +125941,7 @@ function buildCursorAgentArgs(input) {
   return args;
 }
 async function relayCursorAgent(input) {
-  const timeoutMs2 = input.timeoutMs ?? DEFAULT_TIMEOUT_MS3;
+  const absoluteTimeoutMs = input.timeoutMs ?? DEFAULT_ABSOLUTE_TIMEOUT_MS3;
   const cliVersion = captureCursorAgentVersion();
   const args = buildCursorAgentArgs(input);
   let result;
@@ -125892,7 +125949,8 @@ async function relayCursorAgent(input) {
     result = await runConnectorSubprocess({
       executable: CURSOR_AGENT_EXECUTABLE,
       args,
-      timeoutMs: timeoutMs2,
+      timeoutMs: absoluteTimeoutMs,
+      idleTimeoutMs: DEFAULT_IDLE_TIMEOUT_MS3,
       stdoutMaxBytes: STDOUT_MAX_BYTES3,
       stderrMaxBytes: STDERR_MAX_BYTES3,
       sigtermToSigkillGraceMs: SIGTERM_TO_SIGKILL_GRACE_MS3,
@@ -125908,7 +125966,11 @@ async function relayCursorAgent(input) {
   if (result.timedOut) {
     const stdoutSuffix = cappedSuffix(result.stdoutCapped, "stdout");
     const stderrSuffix = cappedSuffix(result.stderrCapped, "stderr");
-    throw new Error(`cursor-agent subprocess timed out after ${timeoutMs2}ms; group-kill ${result.killGroupSucceeded ? "sent" : "failed"}; final signal=${result.signal ?? "none"}; stdout[:500]=${result.stdout.slice(0, 500)}${stdoutSuffix}; stderr[:500]=${result.stderr.slice(0, 500)}${stderrSuffix}`);
+    const cause = describeTimeout(result, {
+      idleMs: DEFAULT_IDLE_TIMEOUT_MS3,
+      absoluteMs: absoluteTimeoutMs
+    });
+    throw new Error(`cursor-agent subprocess timed out: ${cause}; group-kill ${result.killGroupSucceeded ? "sent" : "failed"}; final signal=${result.signal ?? "none"}; stdout[:500]=${result.stdout.slice(0, 500)}${stdoutSuffix}; stderr[:500]=${result.stderr.slice(0, 500)}${stderrSuffix}`);
   }
   if (result.code !== 0) {
     const stdoutSuffix = cappedSuffix(result.stdoutCapped, "stdout");
@@ -137987,7 +138049,7 @@ init_subprocess();
 import { mkdtemp as mkdtemp2, readFile as readFile2, rm as rm2, stat, writeFile as writeFile2 } from "node:fs/promises";
 import { tmpdir as tmpdir2 } from "node:os";
 import { join as join31 } from "node:path";
-var DEFAULT_TIMEOUT_MS5 = 12e4;
+var DEFAULT_TIMEOUT_MS2 = 12e4;
 var SIGTERM_TO_SIGKILL_GRACE_MS4 = 2e3;
 var OUTPUT_MAX_BYTES = 16 * 1024 * 1024;
 var STDOUT_MAX_BYTES4 = 16 * 1024 * 1024;
@@ -138033,7 +138095,7 @@ async function relayCustom(input) {
   const outputFile = join31(tempDir, "output.txt");
   await writeFile2(promptFile, input.prompt, "utf8");
   const args = [...baseArgs, promptFile, outputFile];
-  const timeoutMs2 = input.timeoutMs ?? DEFAULT_TIMEOUT_MS5;
+  const timeoutMs2 = input.timeoutMs ?? DEFAULT_TIMEOUT_MS2;
   try {
     let result;
     try {

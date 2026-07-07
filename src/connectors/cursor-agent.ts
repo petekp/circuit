@@ -12,6 +12,7 @@ import { connectorRemediation } from './remediation.js';
 import {
   type ConnectorSubprocessResult,
   cappedSuffix,
+  describeTimeout,
   isConnectorSubprocessSpawnError,
   runConnectorSubprocess,
   spawnErrorVerb,
@@ -30,7 +31,12 @@ export const CURSOR_AGENT_DISPATCH_FLAGS = Object.freeze([
   '--force',
 ] as const);
 
-const DEFAULT_TIMEOUT_MS = 600_000;
+// Inactivity + absolute backstop bounds, kept in step with the other CLI-agent
+// connectors; see claude-code.ts for the rationale (silence, not total elapsed
+// time, is what a hung streaming relay looks like). A step's
+// `budgets.wall_clock_ms` overrides the absolute backstop when present.
+const DEFAULT_IDLE_TIMEOUT_MS = 180_000;
+const DEFAULT_ABSOLUTE_TIMEOUT_MS = 3_600_000;
 const SIGTERM_TO_SIGKILL_GRACE_MS = 2_000;
 const STDOUT_MAX_BYTES = 16 * 1024 * 1024;
 const STDERR_MAX_BYTES = 1024 * 1024;
@@ -98,7 +104,9 @@ export function buildCursorAgentArgs(input: CursorAgentRelayInput): string[] {
 }
 
 export async function relayCursorAgent(input: CursorAgentRelayInput): Promise<RelayResult> {
-  const timeoutMs = input.timeoutMs ?? DEFAULT_TIMEOUT_MS;
+  // A per-step budget maps to the absolute wall-clock backstop; the inactivity
+  // bound stays at its default and is what reclaims a silent (wedged) relay.
+  const absoluteTimeoutMs = input.timeoutMs ?? DEFAULT_ABSOLUTE_TIMEOUT_MS;
   const cliVersion = captureCursorAgentVersion();
   const args = buildCursorAgentArgs(input);
   let result: ConnectorSubprocessResult;
@@ -106,7 +114,8 @@ export async function relayCursorAgent(input: CursorAgentRelayInput): Promise<Re
     result = await runConnectorSubprocess({
       executable: CURSOR_AGENT_EXECUTABLE,
       args,
-      timeoutMs,
+      timeoutMs: absoluteTimeoutMs,
+      idleTimeoutMs: DEFAULT_IDLE_TIMEOUT_MS,
       stdoutMaxBytes: STDOUT_MAX_BYTES,
       stderrMaxBytes: STDERR_MAX_BYTES,
       sigtermToSigkillGraceMs: SIGTERM_TO_SIGKILL_GRACE_MS,
@@ -124,8 +133,12 @@ export async function relayCursorAgent(input: CursorAgentRelayInput): Promise<Re
   if (result.timedOut) {
     const stdoutSuffix = cappedSuffix(result.stdoutCapped, 'stdout');
     const stderrSuffix = cappedSuffix(result.stderrCapped, 'stderr');
+    const cause = describeTimeout(result, {
+      idleMs: DEFAULT_IDLE_TIMEOUT_MS,
+      absoluteMs: absoluteTimeoutMs,
+    });
     throw new Error(
-      `cursor-agent subprocess timed out after ${timeoutMs}ms; group-kill ${result.killGroupSucceeded ? 'sent' : 'failed'}; final signal=${result.signal ?? 'none'}; stdout[:500]=${result.stdout.slice(0, 500)}${stdoutSuffix}; stderr[:500]=${result.stderr.slice(0, 500)}${stderrSuffix}`,
+      `cursor-agent subprocess timed out: ${cause}; group-kill ${result.killGroupSucceeded ? 'sent' : 'failed'}; final signal=${result.signal ?? 'none'}; stdout[:500]=${result.stdout.slice(0, 500)}${stdoutSuffix}; stderr[:500]=${result.stderr.slice(0, 500)}${stderrSuffix}`,
     );
   }
   if (result.code !== 0) {

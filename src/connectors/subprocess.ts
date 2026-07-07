@@ -20,12 +20,18 @@ export function isConnectorSubprocessSpawnError(
   );
 }
 
+// Which bound stopped a timed-out subprocess: 'idle' means it produced no
+// output for the inactivity window; 'absolute' means it ran past the hard
+// wall-clock ceiling regardless of activity.
+export type ConnectorTimeoutKind = 'idle' | 'absolute';
+
 export interface ConnectorSubprocessResult {
   readonly stdout: string;
   readonly stderr: string;
   readonly stdoutCapped: boolean;
   readonly stderrCapped: boolean;
   readonly timedOut: boolean;
+  readonly timeoutKind?: ConnectorTimeoutKind;
   readonly killGroupSucceeded: boolean;
   readonly code: number | null;
   readonly signal: NodeJS.Signals | null;
@@ -35,12 +41,71 @@ export interface ConnectorSubprocessResult {
 export interface RunConnectorSubprocessInput {
   readonly executable: string;
   readonly args: readonly string[];
+  // Hard wall-clock ceiling. Never reset; a runaway that keeps streaming is
+  // still stopped here.
   readonly timeoutMs: number;
+  // Optional inactivity ceiling. When set, the subprocess is stopped after this
+  // many milliseconds with no stdout/stderr output; every chunk resets it. Left
+  // undefined by connectors that want a pure wall-clock cap (custom, health).
+  readonly idleTimeoutMs?: number;
   readonly stdoutMaxBytes: number;
   readonly stderrMaxBytes: number;
   readonly sigtermToSigkillGraceMs: number;
   readonly env?: NodeJS.ProcessEnv;
   readonly cwd?: string;
+}
+
+export interface CreateTimeoutControllerInput {
+  // Hard ceiling that never resets.
+  readonly absoluteMs: number;
+  // Inactivity ceiling, reset on every onActivity(). Omit for absolute-only.
+  readonly idleMs?: number;
+  // Invoked at most once, naming which bound elapsed first.
+  readonly onFire: (kind: ConnectorTimeoutKind) => void;
+}
+
+export interface TimeoutController {
+  // Call once after spawn (to arm the inactivity bound at t0) and again on every
+  // chunk of output. A no-op once a bound has fired or clear() has run.
+  readonly onActivity: () => void;
+  // Cancel all pending bounds. Idempotent; safe after a fire.
+  readonly clear: () => void;
+}
+
+// The two-bound timeout policy, factored out of the subprocess plumbing so the
+// firing logic is unit-testable with fake timers and reviewable in isolation.
+// The absolute bound is armed immediately and never reset. The inactivity bound
+// (when idleMs is set) is armed on the first onActivity() and re-armed on each
+// subsequent one; the earliest bound to elapse fires exactly once.
+export function createTimeoutController(input: CreateTimeoutControllerInput): TimeoutController {
+  let fired = false;
+  let disposed = false;
+  let idleTimer: NodeJS.Timeout | undefined;
+
+  const fire = (kind: ConnectorTimeoutKind): void => {
+    if (fired || disposed) return;
+    fired = true;
+    input.onFire(kind);
+  };
+
+  const absoluteTimer = setTimeout(() => fire('absolute'), input.absoluteMs);
+
+  const onActivity = (): void => {
+    if (fired || disposed || input.idleMs === undefined) return;
+    if (idleTimer !== undefined) clearTimeout(idleTimer);
+    idleTimer = setTimeout(() => fire('idle'), input.idleMs);
+  };
+
+  const clear = (): void => {
+    disposed = true;
+    clearTimeout(absoluteTimer);
+    if (idleTimer !== undefined) {
+      clearTimeout(idleTimer);
+      idleTimer = undefined;
+    }
+  };
+
+  return { onActivity, clear };
 }
 
 function appendCapped(
@@ -81,6 +146,22 @@ export function spawnErrorVerb(
 // stream's true end. `stream` names which stream the sample came from.
 export function cappedSuffix(capped: boolean, stream: 'stdout' | 'stderr'): string {
   return capped ? ` [${stream} capped]` : '';
+}
+
+// Human-readable cause for a timed-out subprocess, naming which bound elapsed.
+// Shared by the CLI-agent connectors so an operator reading a timeout error can
+// tell an inactivity kill (the agent went silent — likely wedged) apart from a
+// wall-clock kill (the agent kept working past the hard ceiling). Falls back to
+// the absolute wording whenever the inactivity bound is not the cause, including
+// the absolute-only connectors that pass no idleMs.
+export function describeTimeout(
+  result: Pick<ConnectorSubprocessResult, 'timeoutKind'>,
+  bounds: { readonly idleMs?: number; readonly absoluteMs: number },
+): string {
+  if (result.timeoutKind === 'idle' && bounds.idleMs !== undefined) {
+    return `no output for ${bounds.idleMs}ms (inactivity)`;
+  }
+  return `exceeded the ${bounds.absoluteMs}ms wall-clock backstop`;
 }
 
 // Split a connector's stdout into NDJSON objects: one JSON object per
@@ -138,6 +219,7 @@ export async function runConnectorSubprocess(
     let stdoutCapped = false;
     let stderrCapped = false;
     let timedOut = false;
+    let timeoutKind: ConnectorTimeoutKind | undefined;
     let killGroupSucceeded = false;
 
     const killProcessGroup = (signal: NodeJS.Signals): boolean => {
@@ -156,18 +238,28 @@ export async function runConnectorSubprocess(
       }
     };
 
+    // Escalation timer scheduled after the first SIGTERM; owned here (not by the
+    // controller) because it is part of the kill, not the timeout decision.
     let killGraceTimer: NodeJS.Timeout | undefined;
-    const timer = setTimeout(() => {
-      timedOut = true;
-      killGroupSucceeded = killProcessGroup('SIGTERM');
-      killGraceTimer = setTimeout(() => {
-        killProcessGroup('SIGKILL');
-        killGraceTimer = undefined;
-      }, input.sigtermToSigkillGraceMs);
-    }, input.timeoutMs);
+    const controller = createTimeoutController({
+      absoluteMs: input.timeoutMs,
+      ...(input.idleTimeoutMs === undefined ? {} : { idleMs: input.idleTimeoutMs }),
+      onFire: (kind) => {
+        timedOut = true;
+        timeoutKind = kind;
+        killGroupSucceeded = killProcessGroup('SIGTERM');
+        killGraceTimer = setTimeout(() => {
+          killProcessGroup('SIGKILL');
+          killGraceTimer = undefined;
+        }, input.sigtermToSigkillGraceMs);
+      },
+    });
+    // Arm the inactivity bound at spawn so a child that never emits anything is
+    // still caught (a process silent from t0 is the clearest hang there is).
+    controller.onActivity();
 
     const clearAllTimers = () => {
-      clearTimeout(timer);
+      controller.clear();
       if (killGraceTimer !== undefined) {
         clearTimeout(killGraceTimer);
         killGraceTimer = undefined;
@@ -177,12 +269,14 @@ export async function runConnectorSubprocess(
     child.stdout?.setEncoding('utf8');
     child.stderr?.setEncoding('utf8');
     child.stdout?.on('data', (chunk: string) => {
+      controller.onActivity();
       const next = appendCapped(stdout, stdoutBytes, chunk, input.stdoutMaxBytes);
       stdout = next.text;
       stdoutBytes = next.bytes;
       stdoutCapped = stdoutCapped || next.capped;
     });
     child.stderr?.on('data', (chunk: string) => {
+      controller.onActivity();
       const next = appendCapped(stderr, stderrBytes, chunk, input.stderrMaxBytes);
       stderr = next.text;
       stderrBytes = next.bytes;
@@ -200,6 +294,7 @@ export async function runConnectorSubprocess(
         stdoutCapped,
         stderrCapped,
         timedOut,
+        ...(timeoutKind === undefined ? {} : { timeoutKind }),
         killGroupSucceeded,
         code,
         signal,
