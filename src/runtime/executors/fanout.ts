@@ -1,3 +1,4 @@
+import { rm } from 'node:fs/promises';
 import { join as joinPath } from 'node:path';
 import { connectorCapabilities } from '../../connectors/resolver.js';
 import { evaluateFanoutJoinPolicy } from '../../policy/fanout-join-policy.js';
@@ -172,6 +173,21 @@ async function executeFanoutInternal(
   const attempt = context.activeStepAttempt ?? 1;
   const branchDirRoot = branchesDir(step);
   const aggregate = aggregateRef(step);
+  // Iteration-scoped branch directories. When a fanout is the head/body of an
+  // until-loop it re-runs once per wave, but every branch writes to a fixed
+  // `${branchDirRoot}/${branch_id}` path with no wave component. A branch that
+  // existed on an earlier wave but not this one leaves a stale directory
+  // behind. The join verdict is built from this wave's in-memory outcomes and
+  // is unaffected, but the run-history extractor walks the branch dir on disk
+  // (src/app/history/extract.ts) and would ingest the stale branch as if it
+  // were part of this wave. Clear the branch dir root before the first branch
+  // of every wave after the first. activeSliceIndex is set by the graph-runner
+  // only on loop-body steps (see graph-runner.ts, loopBodyIndex); it is absent
+  // on single-pass fanouts, so this is a strict no-op for every non-looped
+  // fanout (explore/prototype/explainer tournaments).
+  if ((context.activeSliceIndex ?? 0) > 0) {
+    await rm(context.files.resolve(branchDirRoot), { recursive: true, force: true });
+  }
   const branches = await expandFanoutBranches(step, context.files, context);
   if (branches.length === 0) {
     throw new Error(`fanout step '${step.id}': branch resolution produced zero branches`);

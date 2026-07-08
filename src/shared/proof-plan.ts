@@ -113,7 +113,7 @@ function commandBinaryName(argv0: string): string {
   return normalized.slice(normalized.lastIndexOf('/') + 1).toLowerCase();
 }
 
-function packageScriptInvocation(command: ProofPlanCommand): string | undefined {
+export function packageScriptInvocation(command: ProofPlanCommand): string | undefined {
   const argv0 = command.argv[0];
   if (argv0 === undefined) return undefined;
   const binary = commandBinaryName(argv0);

@@ -50,6 +50,8 @@ export function publicHostFlowFiles(files: string[]): string[] {
       !file.startsWith('converge-proof/') &&
       !file.startsWith('fix-until-green/') &&
       !file.startsWith('cross-tool-build/') &&
+      // Sweep is internal for v1 (visibility:internal): no host mirror.
+      !file.startsWith('sweep/') &&
       !file.startsWith('goal/') &&
       !file.startsWith('explainer/') &&
       // Pursue is internal for v1 (docs/release/v1-launch-plan.md §4): no host mirror.

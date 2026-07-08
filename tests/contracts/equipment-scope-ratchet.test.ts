@@ -37,10 +37,15 @@ import { shippedFlowSchematics } from '../helpers/in-memory-schematics.js';
 //   - cross-tool-build's five relay steps (5): the doer/reviewer relays (propose,
 //     review-proposal, spec, review-spec, implement). It is an internal flow whose
 //     relayers are faked in the e2e, so a house-style seat would be inert here too.
+//   - sweep's `judge-step` (1): the reviewer relay that disposes each wave. Its
+//     fan-out workers are a dynamic branch template, not top-level relay items, so
+//     they are not scored here; only the judge is a bare relay. sweep is an
+//     internal flow whose relayer is faked in the e2e, so a house-style seat would
+//     be inert too.
 // All are intentional harness/internal gaps, not product-flow regressions (the
 // per-flow assertion below pins every product flow to 0). If one is ever filled,
 // lower this ceiling to match.
-const SKILL_SLOT_GAP_BASELINE = 11;
+const SKILL_SLOT_GAP_BASELINE = 12;
 // Implementer relays still missing an equipment_scope. The product-flow gaps are
 // the partial equipment-axis rollout (fix's implementer is the proven, scoped
 // slice); converge-proof's `work-step`, fix-until-green's `act-step`, and

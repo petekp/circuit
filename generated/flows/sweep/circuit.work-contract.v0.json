@@ -1,0 +1,590 @@
+{
+  "schema_version": 0,
+  "contract_ref": {
+    "kind": "work_contract",
+    "ref": "generated/flows/sweep/circuit.work-contract.v0.json",
+    "sha256": "b1ba3b1c04d7113295061a87ea74bff63328af47087b714e96ad3d6f4e8a7eac",
+    "flow_id": "sweep"
+  },
+  "work_contract": {
+    "flow": {
+      "id": "sweep",
+      "version": "0.1.0",
+      "purpose": "Sweep flow: clear a whole backlog of one mechanical finding by partitioning it into file-disjoint units, fanning a worker out per unit, and re-scanning with a pinned oracle each wave until the scanner exits clean or the iteration cap is hit.",
+      "axes": {
+        "allowed_depths": ["medium"],
+        "supports_tournament": false,
+        "supports_autonomous": true,
+        "default": {
+          "depth": "medium",
+          "tournament": false,
+          "tournament_n": 3,
+          "autonomous": false
+        }
+      },
+      "starts_at": "census-step"
+    },
+    "topology": {
+      "stages": [
+        {
+          "id": "plan-stage",
+          "title": "Census and partition",
+          "canonical": "plan",
+          "steps": ["census-step", "partition-step"]
+        },
+        {
+          "id": "act-stage",
+          "title": "Fix",
+          "canonical": "act",
+          "steps": ["fanout-step"]
+        },
+        {
+          "id": "verify-stage",
+          "title": "Rescan",
+          "canonical": "verify",
+          "steps": ["rescan-step"]
+        },
+        {
+          "id": "review-stage",
+          "title": "Review",
+          "canonical": "review",
+          "steps": ["judge-step"]
+        }
+      ],
+      "stage_path_policy": {
+        "mode": "partial",
+        "omits": ["frame", "analyze", "close"],
+        "rationale": "Sweep is a fan-out-over-a-set Converge flow: it plans the sweep (census plus partition), acts on it (the fan-out wave), verifies with a pinned rescan, and reviews whether the backlog is clear, looping the body until the scanner exits clean."
+      },
+      "routes": [
+        {
+          "step_id": "census-step",
+          "route_id": "continue",
+          "target": "partition-step"
+        },
+        {
+          "step_id": "census-step",
+          "route_id": "pass",
+          "target": "partition-step"
+        },
+        {
+          "step_id": "census-step",
+          "route_id": "stop",
+          "target": "@stop"
+        },
+        {
+          "step_id": "partition-step",
+          "route_id": "continue",
+          "target": "fanout-step"
+        },
+        {
+          "step_id": "partition-step",
+          "route_id": "pass",
+          "target": "fanout-step"
+        },
+        {
+          "step_id": "partition-step",
+          "route_id": "stop",
+          "target": "@stop"
+        },
+        {
+          "step_id": "fanout-step",
+          "route_id": "continue",
+          "target": "rescan-step"
+        },
+        {
+          "step_id": "fanout-step",
+          "route_id": "pass",
+          "target": "rescan-step"
+        },
+        {
+          "step_id": "fanout-step",
+          "route_id": "stop",
+          "target": "@stop"
+        },
+        {
+          "step_id": "rescan-step",
+          "route_id": "continue",
+          "target": "judge-step"
+        },
+        {
+          "step_id": "rescan-step",
+          "route_id": "pass",
+          "target": "judge-step"
+        },
+        {
+          "step_id": "rescan-step",
+          "route_id": "revise",
+          "target": "judge-step"
+        },
+        {
+          "step_id": "rescan-step",
+          "route_id": "stop",
+          "target": "@stop"
+        },
+        {
+          "step_id": "judge-step",
+          "route_id": "continue",
+          "target": "@complete"
+        },
+        {
+          "step_id": "judge-step",
+          "route_id": "pass",
+          "target": "@complete"
+        },
+        {
+          "step_id": "judge-step",
+          "route_id": "advance",
+          "target": "partition-step"
+        },
+        {
+          "step_id": "judge-step",
+          "route_id": "close",
+          "target": "@stop"
+        }
+      ]
+    },
+    "blocks": [
+      {
+        "step_id": "census-step",
+        "title": "Census the backlog",
+        "kind": "compose",
+        "executor": "orchestrator",
+        "protocol": "sweep-census@v1",
+        "reads": [],
+        "writes": {
+          "report": {
+            "path": "reports/sweep/census.json",
+            "schema": "sweep.census@v1"
+          }
+        },
+        "check": {
+          "kind": "schema_sections",
+          "source": {
+            "kind": "report",
+            "ref": "report"
+          },
+          "required": ["objective", "scanner", "suppression_audit", "findings"]
+        },
+        "routes": {
+          "continue": "partition-step",
+          "pass": "partition-step",
+          "stop": "@stop"
+        }
+      },
+      {
+        "step_id": "partition-step",
+        "title": "Partition the survivors",
+        "kind": "compose",
+        "executor": "orchestrator",
+        "protocol": "sweep-partition@v1",
+        "reads": ["reports/sweep/census.json", "reports/sweep/carried-notes.json"],
+        "writes": {
+          "report": {
+            "path": "reports/sweep/partition.json",
+            "schema": "sweep.partition@v1"
+          }
+        },
+        "check": {
+          "kind": "schema_sections",
+          "source": {
+            "kind": "report",
+            "ref": "report"
+          },
+          "required": ["units"]
+        },
+        "routes": {
+          "continue": "fanout-step",
+          "pass": "fanout-step",
+          "stop": "@stop"
+        }
+      },
+      {
+        "step_id": "fanout-step",
+        "title": "Fix each unit",
+        "kind": "fanout",
+        "executor": "orchestrator",
+        "protocol": "sweep-fanout@v1",
+        "reads": ["reports/sweep/partition.json"],
+        "writes": {
+          "branches_dir": "reports/sweep/wave-branches",
+          "aggregate": {
+            "path": "reports/sweep/wave-aggregate.json",
+            "schema": "sweep.wave-aggregate@v1"
+          }
+        },
+        "check": {
+          "kind": "fanout_aggregate",
+          "source": {
+            "kind": "fanout_results",
+            "ref": "aggregate"
+          },
+          "join": {
+            "policy": "aggregate-only"
+          },
+          "verdicts": {
+            "admit": ["fixed", "partial", "blocked"]
+          }
+        },
+        "routes": {
+          "continue": "rescan-step",
+          "pass": "rescan-step",
+          "stop": "@stop"
+        }
+      },
+      {
+        "step_id": "rescan-step",
+        "title": "Re-scan for remaining findings",
+        "kind": "verification",
+        "executor": "orchestrator",
+        "protocol": "sweep-rescan@v1",
+        "reads": ["reports/sweep/census.json"],
+        "writes": {
+          "report": {
+            "path": "reports/sweep/rescan.json",
+            "schema": "sweep.verification@v1"
+          }
+        },
+        "check": {
+          "kind": "schema_sections",
+          "source": {
+            "kind": "report",
+            "ref": "report"
+          },
+          "required": ["overall_status", "commands"]
+        },
+        "routes": {
+          "continue": "judge-step",
+          "pass": "judge-step",
+          "revise": "judge-step",
+          "stop": "@stop"
+        }
+      },
+      {
+        "step_id": "judge-step",
+        "title": "Judge whether the backlog is clear",
+        "kind": "relay",
+        "executor": "worker",
+        "protocol": "sweep-review@v1",
+        "reads": [],
+        "writes": {
+          "report": {
+            "path": "reports/sweep/judgment.report.json",
+            "schema": "converge.judgment@v1"
+          },
+          "request": "reports/sweep/judgment.request.json",
+          "receipt": "reports/sweep/judgment.receipt.txt",
+          "result": "reports/sweep/judgment.result.json"
+        },
+        "check": {
+          "kind": "result_verdict",
+          "source": {
+            "kind": "relay_result",
+            "ref": "result"
+          },
+          "pass": ["accept", "accept-with-fixes", "reject"]
+        },
+        "routes": {
+          "continue": "@complete",
+          "pass": "@complete",
+          "advance": "partition-step",
+          "close": "@stop"
+        }
+      }
+    ],
+    "authority": {
+      "relays": [
+        {
+          "step_id": "judge-step",
+          "role": "reviewer",
+          "writes": {
+            "report": {
+              "path": "reports/sweep/judgment.report.json",
+              "schema": "converge.judgment@v1"
+            },
+            "request": "reports/sweep/judgment.request.json",
+            "receipt": "reports/sweep/judgment.receipt.txt",
+            "result": "reports/sweep/judgment.result.json"
+          },
+          "report": {
+            "step_id": "judge-step",
+            "slot": "report",
+            "path": "reports/sweep/judgment.report.json",
+            "schema": "converge.judgment@v1"
+          }
+        }
+      ],
+      "checkpoints": [],
+      "sub_runs": [],
+      "fanouts": [
+        {
+          "step_id": "fanout-step",
+          "branches": {
+            "kind": "dynamic",
+            "source_report": "reports/sweep/partition.json",
+            "items_path": "units",
+            "template": {
+              "branch_id": "$item.unit_id",
+              "execution": {
+                "kind": "relay",
+                "role": "implementer",
+                "goal": "$item.fix_prompt",
+                "report_schema": "sweep.unit-fix@v1",
+                "provenance_field": "unit_id"
+              }
+            },
+            "max_branches": 16
+          },
+          "writes": {
+            "branches_dir": "reports/sweep/wave-branches",
+            "aggregate": {
+              "path": "reports/sweep/wave-aggregate.json",
+              "schema": "sweep.wave-aggregate@v1"
+            }
+          }
+        }
+      ],
+      "skill_slots": [],
+      "equipment_scopes": []
+    },
+    "proof": {
+      "reports": [
+        {
+          "step_id": "census-step",
+          "slot": "report",
+          "path": "reports/sweep/census.json",
+          "schema": "sweep.census@v1"
+        },
+        {
+          "step_id": "partition-step",
+          "slot": "report",
+          "path": "reports/sweep/partition.json",
+          "schema": "sweep.partition@v1"
+        },
+        {
+          "step_id": "fanout-step",
+          "slot": "aggregate",
+          "path": "reports/sweep/wave-aggregate.json",
+          "schema": "sweep.wave-aggregate@v1"
+        },
+        {
+          "step_id": "rescan-step",
+          "slot": "report",
+          "path": "reports/sweep/rescan.json",
+          "schema": "sweep.verification@v1"
+        },
+        {
+          "step_id": "judge-step",
+          "slot": "report",
+          "path": "reports/sweep/judgment.report.json",
+          "schema": "converge.judgment@v1"
+        }
+      ],
+      "checks": [
+        {
+          "step_id": "census-step",
+          "check_kind": "schema_sections",
+          "source": {
+            "kind": "report",
+            "ref": "report"
+          }
+        },
+        {
+          "step_id": "partition-step",
+          "check_kind": "schema_sections",
+          "source": {
+            "kind": "report",
+            "ref": "report"
+          }
+        },
+        {
+          "step_id": "fanout-step",
+          "check_kind": "fanout_aggregate",
+          "source": {
+            "kind": "fanout_results",
+            "ref": "aggregate"
+          }
+        },
+        {
+          "step_id": "rescan-step",
+          "check_kind": "schema_sections",
+          "source": {
+            "kind": "report",
+            "ref": "report"
+          }
+        },
+        {
+          "step_id": "judge-step",
+          "check_kind": "result_verdict",
+          "source": {
+            "kind": "relay_result",
+            "ref": "result"
+          }
+        }
+      ],
+      "acceptance_criteria": []
+    },
+    "recovery": [
+      {
+        "schema_version": 0,
+        "step_id": "census-step",
+        "route_id": "stop",
+        "route_target": "@stop",
+        "kind": "stop_unsafe",
+        "allowed_failure_causes": [
+          "failed_check",
+          "contradicted_evidence",
+          "scope_drift",
+          "budget_exceeded",
+          "unknown_failure"
+        ],
+        "required_refs": ["failed_check", "trace"],
+        "operator_authority": "not_required",
+        "attempt_budget": {
+          "consumes_step_attempt": false,
+          "must_respect_max_attempts": true,
+          "retry_target": "declared_step"
+        },
+        "guidance": {
+          "subject": "recovery_route",
+          "must_match_step_completed": true
+        },
+        "source_ref": {
+          "kind": "work_contract",
+          "ref": "compiled-flow/steps/census-step/routes/stop",
+          "sha256": "9650789a0b57439b274464ae387b39c26148ce5d160a229e0aaf2ac23bef8c51",
+          "flow_id": "sweep"
+        }
+      },
+      {
+        "schema_version": 0,
+        "step_id": "partition-step",
+        "route_id": "stop",
+        "route_target": "@stop",
+        "kind": "stop_unsafe",
+        "allowed_failure_causes": [
+          "failed_check",
+          "contradicted_evidence",
+          "scope_drift",
+          "budget_exceeded",
+          "unknown_failure"
+        ],
+        "required_refs": ["failed_check", "trace"],
+        "operator_authority": "not_required",
+        "attempt_budget": {
+          "consumes_step_attempt": false,
+          "must_respect_max_attempts": true,
+          "retry_target": "declared_step"
+        },
+        "guidance": {
+          "subject": "recovery_route",
+          "must_match_step_completed": true
+        },
+        "source_ref": {
+          "kind": "work_contract",
+          "ref": "compiled-flow/steps/partition-step/routes/stop",
+          "sha256": "9650789a0b57439b274464ae387b39c26148ce5d160a229e0aaf2ac23bef8c51",
+          "flow_id": "sweep"
+        }
+      },
+      {
+        "schema_version": 0,
+        "step_id": "fanout-step",
+        "route_id": "stop",
+        "route_target": "@stop",
+        "kind": "stop_unsafe",
+        "allowed_failure_causes": [
+          "failed_check",
+          "contradicted_evidence",
+          "scope_drift",
+          "budget_exceeded",
+          "unknown_failure"
+        ],
+        "required_refs": ["failed_check", "trace"],
+        "operator_authority": "not_required",
+        "attempt_budget": {
+          "consumes_step_attempt": false,
+          "must_respect_max_attempts": true,
+          "retry_target": "declared_step"
+        },
+        "guidance": {
+          "subject": "recovery_route",
+          "must_match_step_completed": true
+        },
+        "source_ref": {
+          "kind": "work_contract",
+          "ref": "compiled-flow/steps/fanout-step/routes/stop",
+          "sha256": "9650789a0b57439b274464ae387b39c26148ce5d160a229e0aaf2ac23bef8c51",
+          "flow_id": "sweep"
+        }
+      },
+      {
+        "schema_version": 0,
+        "step_id": "rescan-step",
+        "route_id": "revise",
+        "route_target": "judge-step",
+        "kind": "narrow_scope",
+        "allowed_failure_causes": ["failed_check", "scope_drift", "weak_proof", "unproved_claim"],
+        "required_refs": ["proof_assessment", "runtime_diff"],
+        "operator_authority": "not_required",
+        "attempt_budget": {
+          "consumes_step_attempt": false,
+          "must_respect_max_attempts": true,
+          "retry_target": "declared_step"
+        },
+        "guidance": {
+          "subject": "recovery_route",
+          "must_match_step_completed": true
+        },
+        "source_ref": {
+          "kind": "work_contract",
+          "ref": "compiled-flow/steps/rescan-step/routes/revise",
+          "sha256": "9650789a0b57439b274464ae387b39c26148ce5d160a229e0aaf2ac23bef8c51",
+          "flow_id": "sweep"
+        }
+      },
+      {
+        "schema_version": 0,
+        "step_id": "rescan-step",
+        "route_id": "stop",
+        "route_target": "@stop",
+        "kind": "stop_unsafe",
+        "allowed_failure_causes": [
+          "failed_check",
+          "contradicted_evidence",
+          "scope_drift",
+          "budget_exceeded",
+          "unknown_failure"
+        ],
+        "required_refs": ["failed_check", "trace"],
+        "operator_authority": "not_required",
+        "attempt_budget": {
+          "consumes_step_attempt": false,
+          "must_respect_max_attempts": true,
+          "retry_target": "declared_step"
+        },
+        "guidance": {
+          "subject": "recovery_route",
+          "must_match_step_completed": true
+        },
+        "source_ref": {
+          "kind": "work_contract",
+          "ref": "compiled-flow/steps/rescan-step/routes/stop",
+          "sha256": "9650789a0b57439b274464ae387b39c26148ce5d160a229e0aaf2ac23bef8c51",
+          "flow_id": "sweep"
+        }
+      }
+    ],
+    "limits": {
+      "budgets": []
+    }
+  },
+  "guidance_seed": {
+    "selection_hints": [],
+    "connector_hints": [],
+    "skill_hints": [],
+    "checkpoint_default_hints": [],
+    "host_recommendations": []
+  },
+  "rejected_authority": []
+}

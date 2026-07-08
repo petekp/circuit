@@ -481,7 +481,12 @@ describe('Claude Code host plugin package', () => {
           clearTimeout(timer);
           resolveProgress(value);
         };
-        const timer = setTimeout(() => finish(false), 5_000);
+        // Ceiling for the launcher to cold-boot (node + strip-types on the TS
+        // entry), spawn the child, and relay its first progress line. Only fires
+        // on the failure path, so a generous budget never slows the happy path;
+        // it stops full-suite fork load (16 workers) from tripping a false
+        // negative on a launcher that boots in ~0.3s unloaded. Not a product SLA.
+        const timer = setTimeout(() => finish(false), 30_000);
         childProcess.once('close', () => finish(false));
         stdoutPipe.on('data', (chunk: Buffer) => {
           stdout += chunk.toString('utf8');

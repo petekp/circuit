@@ -18,6 +18,7 @@ import {
 import type { StepOutcome } from '../domain/step.js';
 import type { VerificationStep } from '../manifest/executable-flow.js';
 import { appendProofPolicyGuidance } from '../run/guidance.js';
+import { resolveOracleCommands } from '../run/oracle-command-pin.js';
 import { recoveryRouteForFailure } from '../run/recovery-selection.js';
 import type { RunContext } from '../run/run-context.js';
 import {
@@ -252,7 +253,22 @@ export async function executeVerificationResult(
       flow: context.packageIndex.flow,
       step: indexedStep,
     };
-    const commands = builder.loadCommands(builderContext);
+    // Oracle-command pin. On a stop-judge until-loop the run carries a pin
+    // channel; the first time this step resolves its commands they are
+    // snapshotted (and their package-script bodies fingerprinted), and every
+    // later wave serves that snapshot instead of re-reading the worker-editable
+    // plan — refusing to run if a pinned script body drifted. Runs without a
+    // pin channel (every non-looped verification) call loadCommands directly,
+    // byte-identical to before this seam.
+    const commands =
+      context.oracleCommandPins === undefined
+        ? builder.loadCommands(builderContext)
+        : resolveOracleCommands({
+            channel: context.oracleCommandPins,
+            stepId: step.id,
+            projectRoot,
+            load: () => builder.loadCommands(builderContext),
+          });
     observations = [];
     for (const command of commands) {
       const observation = runProofPlanCommand(command, projectRoot);

@@ -51,6 +51,7 @@ import { FrozenEvalGuard } from './frozen-eval.js';
 import { appendFlowSelectionGuidance, appendRecoveryRouteGuidance } from './guidance.js';
 import { HonestyLedger } from './honesty-ledger.js';
 import { writeRuntimeManifestSnapshot } from './manifest-snapshot.js';
+import { createOracleCommandPinChannel } from './oracle-command-pin.js';
 import { recoveryBindingVerdict, recoveryCauseAllowed } from './recovery-binding-verdict.js';
 import { RecoveryCorridor } from './recovery-corridor.js';
 import { openRunBoundary } from './run-boundary.js';
@@ -567,6 +568,14 @@ async function executeExecutableFlowOutcomeUnsafe(
     engineFlags?.iteratesUntilCondition?.stopJudge !== undefined
       ? new HonestyLedger({ path: join(runDir, 'honesty-ledger.json') })
       : undefined;
+  // The oracle-command pin shares the honesty ledger's gate: it only matters
+  // for a stop-judge until-loop, where a verification step re-reads a
+  // worker-editable command list each wave. It snapshots the resolved commands
+  // at first resolution and serves them on later waves, refusing a drifted
+  // package-script body. In-memory only (no durable mirror): pins are meaningful
+  // only within a single live loop, and until-loop resume is already deferred.
+  const oracleCommandPins =
+    honestyLedger === undefined ? undefined : createOracleCommandPinChannel();
   const context: RunContext = {
     flow,
     packageIndex,
@@ -648,6 +657,7 @@ async function executeExecutableFlowOutcomeUnsafe(
       ? {}
       : { resumeCheckpoint: options.resumeCheckpoint }),
     ...(honestyLedger === undefined ? {} : { honestyLedger }),
+    ...(oracleCommandPins === undefined ? {} : { oracleCommandPins }),
   };
   // The composed per-repo policy caps how many attempts any one step may take
   // (max_attempts_per_step is a hard upper bound). Compose it once per run and

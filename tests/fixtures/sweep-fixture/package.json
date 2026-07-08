@@ -1,0 +1,9 @@
+{
+  "private": true,
+  "name": "sweep-e2e-fixture",
+  "version": "0.0.0",
+  "scripts": {
+    "scan": "node scan.mjs",
+    "audit": "node audit.mjs"
+  }
+}
