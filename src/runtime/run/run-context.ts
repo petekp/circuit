@@ -14,6 +14,7 @@ import type { RuntimeExecutionCapabilities } from './capabilities.js';
 import type { DeliveredContextSlice } from './context-delivery.js';
 import type { ExternalFileReader } from './external-files.js';
 import type { HonestyLedger } from './honesty-ledger.js';
+import type { OracleCommandPinChannel } from './oracle-command-pin.js';
 
 export interface RunContext
   extends Omit<RuntimeExecutionCapabilities, 'executors' | 'progressSurface'> {
@@ -118,4 +119,13 @@ export interface RunContext
   // The close path's finalize chokepoint reads its open latches to keep a run
   // from closing complete while an overclaim is still unresolved.
   readonly honestyLedger?: HonestyLedger;
+  // The until-loop oracle-command pin: snapshots each judge-gated verification
+  // step's resolved command list at first resolution and serves it on every
+  // later wave, so a worker cannot narrow the command in its plan or swap the
+  // referenced package-script body between waves to fake a green. Seeded by the
+  // graph-runner under the same gate as honestyLedger (a stop-judge until flag);
+  // absent on every other run, so non-looped verification is byte-identical to
+  // before this channel. A mutable container on the otherwise-readonly context
+  // (same pattern as honestyLedger); keyed per step id.
+  readonly oracleCommandPins?: OracleCommandPinChannel;
 }
