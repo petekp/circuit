@@ -1,0 +1,239 @@
+{
+  "schema_version": "3",
+  "id": "sweep",
+  "version": "0.1.0",
+  "purpose": "Sweep flow: clear a whole backlog of one mechanical finding by partitioning it into file-disjoint units, fanning a worker out per unit, and re-scanning with a pinned oracle each wave until the scanner exits clean or the iteration cap is hit.",
+  "axes": {
+    "allowed_depths": ["medium"],
+    "supports_tournament": false,
+    "supports_autonomous": true,
+    "default": {
+      "depth": "medium",
+      "tournament": false,
+      "tournament_n": 3,
+      "autonomous": false
+    }
+  },
+  "starts_at": "census-step",
+  "stages": [
+    {
+      "id": "plan-stage",
+      "title": "Census and partition",
+      "canonical": "plan",
+      "steps": ["census-step", "partition-step"]
+    },
+    {
+      "id": "act-stage",
+      "title": "Fix",
+      "canonical": "act",
+      "steps": ["fanout-step"]
+    },
+    {
+      "id": "verify-stage",
+      "title": "Rescan",
+      "canonical": "verify",
+      "steps": ["rescan-step"]
+    },
+    {
+      "id": "review-stage",
+      "title": "Review",
+      "canonical": "review",
+      "steps": ["judge-step"]
+    }
+  ],
+  "stage_path_policy": {
+    "mode": "partial",
+    "omits": ["frame", "analyze", "close"],
+    "rationale": "Sweep is a fan-out-over-a-set Converge flow: it plans the sweep (census plus partition), acts on it (the fan-out wave), verifies with a pinned rescan, and reviews whether the backlog is clear, looping the body until the scanner exits clean."
+  },
+  "steps": [
+    {
+      "id": "census-step",
+      "title": "Census the backlog",
+      "protocol": "sweep-census@v1",
+      "reads": [],
+      "routes": {
+        "continue": "partition-step",
+        "pass": "partition-step",
+        "stop": "@stop"
+      },
+      "executor": "orchestrator",
+      "kind": "compose",
+      "writes": {
+        "report": {
+          "path": "reports/sweep/census.json",
+          "schema": "sweep.census@v1"
+        }
+      },
+      "check": {
+        "kind": "schema_sections",
+        "source": {
+          "kind": "report",
+          "ref": "report"
+        },
+        "required": ["objective", "scanner", "suppression_audit", "findings"]
+      }
+    },
+    {
+      "id": "partition-step",
+      "title": "Partition the survivors",
+      "protocol": "sweep-partition@v1",
+      "reads": ["reports/sweep/census.json", "reports/sweep/carried-notes.json"],
+      "routes": {
+        "continue": "fanout-step",
+        "pass": "fanout-step",
+        "stop": "@stop"
+      },
+      "executor": "orchestrator",
+      "kind": "compose",
+      "writes": {
+        "report": {
+          "path": "reports/sweep/partition.json",
+          "schema": "sweep.partition@v1"
+        }
+      },
+      "check": {
+        "kind": "schema_sections",
+        "source": {
+          "kind": "report",
+          "ref": "report"
+        },
+        "required": ["units"]
+      }
+    },
+    {
+      "id": "fanout-step",
+      "title": "Fix each unit",
+      "protocol": "sweep-fanout@v1",
+      "reads": ["reports/sweep/partition.json"],
+      "routes": {
+        "continue": "rescan-step",
+        "pass": "rescan-step",
+        "stop": "@stop"
+      },
+      "executor": "orchestrator",
+      "kind": "fanout",
+      "branches": {
+        "kind": "dynamic",
+        "source_report": "reports/sweep/partition.json",
+        "items_path": "units",
+        "template": {
+          "branch_id": "$item.unit_id",
+          "execution": {
+            "kind": "relay",
+            "role": "implementer",
+            "goal": "$item.fix_prompt",
+            "report_schema": "sweep.unit-fix@v1",
+            "provenance_field": "unit_id"
+          }
+        },
+        "max_branches": 16
+      },
+      "concurrency": {
+        "kind": "bounded",
+        "max": 4
+      },
+      "on_child_failure": "continue-others",
+      "writes": {
+        "branches_dir": "reports/sweep/wave-branches",
+        "aggregate": {
+          "path": "reports/sweep/wave-aggregate.json",
+          "schema": "sweep.wave-aggregate@v1"
+        }
+      },
+      "check": {
+        "kind": "fanout_aggregate",
+        "source": {
+          "kind": "fanout_results",
+          "ref": "aggregate"
+        },
+        "join": {
+          "policy": "aggregate-only"
+        },
+        "verdicts": {
+          "admit": ["fixed", "partial", "blocked"]
+        }
+      }
+    },
+    {
+      "id": "rescan-step",
+      "title": "Re-scan for remaining findings",
+      "protocol": "sweep-rescan@v1",
+      "reads": ["reports/sweep/census.json"],
+      "routes": {
+        "continue": "judge-step",
+        "pass": "judge-step",
+        "revise": "judge-step",
+        "stop": "@stop"
+      },
+      "executor": "orchestrator",
+      "kind": "verification",
+      "writes": {
+        "report": {
+          "path": "reports/sweep/rescan.json",
+          "schema": "sweep.verification@v1"
+        }
+      },
+      "check": {
+        "kind": "schema_sections",
+        "source": {
+          "kind": "report",
+          "ref": "report"
+        },
+        "required": ["overall_status", "commands"]
+      }
+    },
+    {
+      "id": "judge-step",
+      "title": "Judge whether the backlog is clear",
+      "protocol": "sweep-review@v1",
+      "reads": [],
+      "routes": {
+        "continue": "@complete",
+        "pass": "@complete",
+        "advance": "partition-step",
+        "close": "@stop"
+      },
+      "executor": "worker",
+      "kind": "relay",
+      "role": "reviewer",
+      "writes": {
+        "report": {
+          "path": "reports/sweep/judgment.report.json",
+          "schema": "converge.judgment@v1"
+        },
+        "request": "reports/sweep/judgment.request.json",
+        "receipt": "reports/sweep/judgment.receipt.txt",
+        "result": "reports/sweep/judgment.result.json"
+      },
+      "check": {
+        "kind": "result_verdict",
+        "source": {
+          "kind": "relay_result",
+          "ref": "result"
+        },
+        "pass": ["accept", "accept-with-fixes", "reject"]
+      }
+    }
+  ],
+  "engine_flags": {
+    "iterates_until_condition": {
+      "head_step": "partition-step",
+      "tail_step": "judge-step",
+      "body_steps": ["partition-step", "fanout-step", "rescan-step", "judge-step"],
+      "reenter_route": "advance",
+      "max_iterations": 5,
+      "stop_judge": {
+        "report": "reports/sweep/judgment.report.json",
+        "goal_met_path": "goal_met",
+        "lesson_path": "lesson"
+      },
+      "needs_attention_route": "close",
+      "carried_notes": {
+        "report": "reports/sweep/carried-notes.json"
+      },
+      "frozen_paths": ["tsconfig.json"],
+      "activate_when_depth_at_least": "autonomous"
+    }
+  }
+}

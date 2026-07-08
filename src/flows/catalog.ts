@@ -25,6 +25,7 @@ import { pursueFlowDefinition } from './pursue/flow.js';
 import { reviewFlowDefinition } from './review/flow.js';
 import { reviewResultProjector } from './review/writers/result-html.js';
 import { runtimeProofFlowDefinition } from './runtime-proof/flow.js';
+import { sweepFlowDefinition } from './sweep/flow.js';
 import type { CompiledFlowPackage, CompiledFlowRuntimeSurface } from './types.js';
 
 export const flowDefinitions: readonly FlowDefinition[] = [
@@ -34,6 +35,7 @@ export const flowDefinitions: readonly FlowDefinition[] = [
   runtimeProofFlowDefinition,
   convergeProofFlowDefinition,
   fixUntilGreenFlowDefinition,
+  sweepFlowDefinition,
   crossToolBuildFlowDefinition,
   prototypeFlowDefinition,
   buildFlowDefinition,

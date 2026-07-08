@@ -292,6 +292,7 @@ describe('checkCompiledFlowKindCanonicalPolicy (audit-level, no Zod)', () => {
       { id: 'runtime-proof', status: 'exempt' },
       { id: 'converge-proof', status: 'exempt' },
       { id: 'fix-until-green', status: 'exempt' },
+      { id: 'sweep', status: 'exempt' },
       { id: 'cross-tool-build', status: 'exempt' },
       { id: 'prototype', status: 'enforced' },
       { id: 'build', status: 'enforced' },

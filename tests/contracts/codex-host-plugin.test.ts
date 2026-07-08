@@ -764,6 +764,8 @@ describe('Codex host plugin package', () => {
     expect(existsSync(resolve(REPO_ROOT, 'plugins/claude/skills/fix-until-green'))).toBe(false);
     expect(existsSync(resolve(PLUGIN_ROOT, 'flows/explainer'))).toBe(false);
     expect(existsSync(resolve(REPO_ROOT, 'plugins/claude/skills/explainer'))).toBe(false);
+    expect(existsSync(resolve(PLUGIN_ROOT, 'flows/sweep'))).toBe(false);
+    expect(existsSync(resolve(REPO_ROOT, 'plugins/claude/skills/sweep'))).toBe(false);
   });
 
   it('generates Codex host command files that invoke the installed plugin wrapper', () => {

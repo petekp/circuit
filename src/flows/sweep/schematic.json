@@ -1,0 +1,268 @@
+{
+  "schema_version": "2",
+  "id": "sweep",
+  "title": "Sweep Schematic",
+  "purpose": "Sweep flow: clear a whole backlog of one mechanical finding by partitioning it into file-disjoint units, fanning a worker out per unit, and re-scanning with a pinned oracle each wave until the scanner exits clean or the iteration cap is hit.",
+  "status": "active",
+  "starts_at": "census-step",
+  "initial_contracts": ["flow.brief@v1", "verification.plan@v1"],
+  "contract_aliases": [
+    {
+      "generic": "plan.strategy@v1",
+      "actual": "sweep.census@v1"
+    },
+    {
+      "generic": "plan.strategy@v1",
+      "actual": "sweep.partition@v1"
+    },
+    {
+      "generic": "change.evidence@v1",
+      "actual": "sweep.wave-aggregate@v1"
+    },
+    {
+      "generic": "verification.result@v1",
+      "actual": "sweep.verification@v1"
+    },
+    {
+      "generic": "review.verdict@v1",
+      "actual": "converge.judgment@v1"
+    }
+  ],
+  "items": [
+    {
+      "id": "census-step",
+      "block": "plan",
+      "title": "Census the backlog",
+      "stage": "plan",
+      "input": {
+        "brief": "flow.brief@v1"
+      },
+      "optional_inputs": [],
+      "output": "sweep.census@v1",
+      "evidence_requirements": ["ordered steps", "risk notes", "proof strategy"],
+      "execution": {
+        "kind": "compose"
+      },
+      "skill_slots": [],
+      "routes": {
+        "continue": "partition-step",
+        "stop": "@stop"
+      },
+      "route_overrides": {},
+      "protocol": "sweep-census@v1",
+      "writes": {
+        "report_path": "reports/sweep/census.json"
+      },
+      "check": {
+        "required": ["objective", "scanner", "suppression_audit", "findings"]
+      }
+    },
+    {
+      "id": "partition-step",
+      "block": "plan",
+      "title": "Partition the survivors",
+      "stage": "plan",
+      "input": {
+        "brief": "flow.brief@v1",
+        "census": "sweep.census@v1"
+      },
+      "optional_inputs": [],
+      "output": "sweep.partition@v1",
+      "evidence_requirements": ["ordered steps", "risk notes", "proof strategy"],
+      "execution": {
+        "kind": "compose"
+      },
+      "skill_slots": [],
+      "routes": {
+        "continue": "fanout-step",
+        "stop": "@stop"
+      },
+      "route_overrides": {},
+      "protocol": "sweep-partition@v1",
+      "writes": {
+        "report_path": "reports/sweep/partition.json"
+      },
+      "check": {
+        "required": ["units"]
+      }
+    },
+    {
+      "id": "fanout-step",
+      "block": "act",
+      "title": "Fix each unit",
+      "stage": "act",
+      "input": {
+        "brief": "flow.brief@v1",
+        "partition": "sweep.partition@v1"
+      },
+      "optional_inputs": [],
+      "output": "sweep.wave-aggregate@v1",
+      "evidence_requirements": ["changed files", "change rationale", "declared follow-up proof"],
+      "execution": {
+        "kind": "fanout"
+      },
+      "skill_slots": [],
+      "routes": {
+        "continue": "rescan-step",
+        "stop": "@stop"
+      },
+      "route_overrides": {},
+      "protocol": "sweep-fanout@v1",
+      "writes": {
+        "report_path": "reports/sweep/wave-aggregate.json",
+        "branches_dir_path": "reports/sweep/wave-branches"
+      },
+      "check": {
+        "pass": ["fixed", "partial", "blocked"]
+      },
+      "fanout": {
+        "branches": {
+          "kind": "dynamic",
+          "source_report": "reports/sweep/partition.json",
+          "items_path": "units",
+          "template": {
+            "branch_id": "$item.unit_id",
+            "execution": {
+              "kind": "relay",
+              "role": "implementer",
+              "goal": "$item.fix_prompt",
+              "report_schema": "sweep.unit-fix@v1",
+              "provenance_field": "unit_id"
+            }
+          },
+          "max_branches": 16
+        },
+        "concurrency": {
+          "kind": "bounded",
+          "max": 4
+        },
+        "on_child_failure": "continue-others",
+        "join": {
+          "policy": "aggregate-only"
+        }
+      }
+    },
+    {
+      "id": "rescan-step",
+      "block": "run-verification",
+      "title": "Re-scan for remaining findings",
+      "stage": "verify",
+      "input": {
+        "proof": "verification.plan@v1",
+        "census": "sweep.census@v1"
+      },
+      "optional_inputs": [],
+      "output": "sweep.verification@v1",
+      "evidence_requirements": ["command list", "exit status", "bounded output", "pass or fail"],
+      "execution": {
+        "kind": "verification"
+      },
+      "skill_slots": [],
+      "routes": {
+        "continue": "judge-step",
+        "revise": "judge-step",
+        "stop": "@stop"
+      },
+      "route_overrides": {},
+      "protocol": "sweep-rescan@v1",
+      "writes": {
+        "report_path": "reports/sweep/rescan.json"
+      },
+      "check": {
+        "required": ["overall_status", "commands"]
+      }
+    },
+    {
+      "id": "judge-step",
+      "block": "review",
+      "title": "Judge whether the backlog is clear",
+      "stage": "review",
+      "input": {
+        "brief": "flow.brief@v1"
+      },
+      "optional_inputs": [],
+      "output": "converge.judgment@v1",
+      "evidence_requirements": ["verdict", "findings", "confidence", "required fixes"],
+      "execution": {
+        "kind": "relay",
+        "role": "reviewer"
+      },
+      "skill_slots": [],
+      "routes": {
+        "continue": "@complete",
+        "advance": "partition-step",
+        "close": "@stop"
+      },
+      "route_overrides": {},
+      "protocol": "sweep-review@v1",
+      "writes": {
+        "report_path": "reports/sweep/judgment.report.json",
+        "request_path": "reports/sweep/judgment.request.json",
+        "receipt_path": "reports/sweep/judgment.receipt.txt",
+        "result_path": "reports/sweep/judgment.result.json"
+      },
+      "check": {
+        "pass": ["accept", "accept-with-fixes", "reject"]
+      }
+    }
+  ],
+  "version": "0.1.0",
+  "axes": {
+    "allowed_depths": ["medium"],
+    "supports_tournament": false,
+    "supports_autonomous": true,
+    "default": {
+      "depth": "medium",
+      "tournament": false,
+      "tournament_n": 3,
+      "autonomous": false
+    }
+  },
+  "stage_path_policy": {
+    "mode": "partial",
+    "omits": ["frame", "analyze", "close"],
+    "rationale": "Sweep is a fan-out-over-a-set Converge flow: it plans the sweep (census plus partition), acts on it (the fan-out wave), verifies with a pinned rescan, and reviews whether the backlog is clear, looping the body until the scanner exits clean."
+  },
+  "stages": [
+    {
+      "canonical": "plan",
+      "id": "plan-stage",
+      "title": "Census and partition"
+    },
+    {
+      "canonical": "act",
+      "id": "act-stage",
+      "title": "Fix"
+    },
+    {
+      "canonical": "verify",
+      "id": "verify-stage",
+      "title": "Rescan"
+    },
+    {
+      "canonical": "review",
+      "id": "review-stage",
+      "title": "Review"
+    }
+  ],
+  "engine_flags": {
+    "iterates_until_condition": {
+      "head_step": "partition-step",
+      "tail_step": "judge-step",
+      "body_steps": ["partition-step", "fanout-step", "rescan-step", "judge-step"],
+      "reenter_route": "advance",
+      "max_iterations": 5,
+      "stop_judge": {
+        "report": "reports/sweep/judgment.report.json",
+        "goal_met_path": "goal_met",
+        "lesson_path": "lesson"
+      },
+      "needs_attention_route": "close",
+      "carried_notes": {
+        "report": "reports/sweep/carried-notes.json"
+      },
+      "frozen_paths": ["tsconfig.json"],
+      "activate_when_depth_at_least": "autonomous"
+    }
+  }
+}

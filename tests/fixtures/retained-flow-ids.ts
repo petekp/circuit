@@ -15,6 +15,7 @@ export const RETAINED_FLOW_IDS = [
   'runtime-proof',
   'converge-proof',
   'fix-until-green',
+  'sweep',
   'cross-tool-build',
   'prototype',
   'build',

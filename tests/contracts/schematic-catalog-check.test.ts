@@ -114,6 +114,16 @@ describe('shipped schematics vs the block catalog (per-flow zero ratchet)', () =
     // review reviewer relay) whose items each name a generic block they are
     // structurally compatible with. It is the first real Converge flow (internal).
     'fix-until-green': 0,
+    // sweep is catalog-clean from authoring: a census/partition plan pair (both
+    // compose), an act-stage fanout wave, a run-verification rescan, and a
+    // reviewer-relay judge, each naming a generic block it is structurally
+    // compatible with (plan / plan / act / run-verification / review). Its
+    // flow-scoped outputs (sweep.census@v1, sweep.partition@v1,
+    // sweep.wave-aggregate@v1, sweep.verification@v1, converge.judgment@v1) bind
+    // through contract_aliases, never by editing a block, so it lands at the zero
+    // ceiling the M5 compile gate now requires. It is the fan-out-over-a-set
+    // Converge flow (internal).
+    sweep: 0,
     // cross-tool-build is catalog-clean from authoring: a plan compose, five
     // doer/reviewer relays (propose / review-proposal / spec / review-spec /
     // implement) that each name a generic block they are structurally compatible
