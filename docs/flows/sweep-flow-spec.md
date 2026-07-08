@@ -432,8 +432,8 @@ re-derivation (6.3), not the pin alone.
 
 **The hole.** ESLint and tsc config resolution is hierarchical and
 discovery-based. A worker adds a new nested config at an unfrozen path (a new
-`src/foo/.eslintrc.json` turning the rule off for that subtree) and the scanner
-honors it. A static `frozen_paths` list cannot enumerate future-created config
+`src/<subtree>/.eslintrc.json` turning the rule off for that subtree) and the
+scanner honors it. A static `frozen_paths` list cannot enumerate future-created config
 locations.
 
 **The fix.** `rescan-step` re-derives the **effective** config from the tool
@@ -456,6 +456,13 @@ is a superset of the census set. `@complete` is unreachable unless the final
 zero-finding scan covered at least the set Sweep started on. This rides on the
 same pin as 6.2.
 
+**Status: designed, NOT enforced in the shipped baseline.** The `targeted_set` /
+`set_covers_census` machinery is not implemented — `census-step` records no scan
+scope and no `rescan-step` checks coverage. So a worker who narrows the scan
+scope *inside* the pinned program (edits the scanner to walk a subtree, not the
+argv the pin froze) still closes clean over a shrunken set. Known open gap,
+tracked in 9.1; enforce it before any public promotion.
+
 ### 6.5 Retracted claim: the overclaim gate does not apply to fanout workers
 
 The first pass claimed the changed_files overclaim gate rejects a worker
@@ -477,6 +484,17 @@ overclaim gate applies inside each branch. Deferred; not in the baseline.
 
 ### 6.6 Residual limits (stated, not solved)
 
+- **Scanner-program rewrite.** The oracle-command pin fingerprints the
+  package.json `scripts.<name>` STRING (`node scan.mjs`), not the program that
+  string launches. A worker with write access to the tree rewrites the scanner
+  file itself (`scan.mjs`, `audit.mjs`) to a no-op that exits 0; the pinned argv
+  and the script string stay byte-identical, so no drift fires and the neutered
+  scanner runs green. `frozen_paths` covers only config, not the scanner source,
+  and `changed_files` is a self-report, not an enforced write scope. Closing it
+  needs the pin to resolve the invoked program and freeze/fingerprint it, or the
+  author to add the scanner sources to `frozen_paths`. For a real tsc/eslint the
+  program sits in `node_modules` (harder to reach); for the wrapper-script shape
+  Sweep ships and recommends, this vector is open. Known gap, tracked in 9.1.
 - **Test/fixture deletion.** If the oracle is a test runner or a fixture-based
   scanner, a worker can delete the failing spec, add `.skip`, or empty the
   fixture. `frozen_paths` covers only config, and the overclaim gate does not
@@ -639,8 +657,75 @@ catalog-completeness, and check-flow-drift coverage.
   the rescan fails, and the run cannot close clean.
 
 B and C prove the two silence paths the first pass covered; D and E prove the
-two the review found open. Together they establish that "succeeded" is
-unreachable except by real fixes over the full census set.
+two the review found open. Together they close the silence paths that ship
+enforced today: suppression (B), config-tamper (C), plan-argv narrowing (D1),
+and script-body swap (D2). Two paths stay open in the baseline and are NOT
+covered by a passing assertion — scanner-program rewrite (6.6) and
+scope-narrowing inside the pinned program (set-identity, 6.4) — and E
+(nested-config-create) is deferred with 6.3. So "succeeded is unreachable
+except by real fixes over the full census set" holds only against the four
+enforced vectors, not the three open ones. See 9.1 for the exact ship line.
+
+### 9.1 Implementation status
+
+Shipped in `tests/runner/sweep-e2e.test.ts` against a real fixture repo at
+`tests/fixtures/sweep-fixture/` (a dual-channel `npm run scan` that prints the
+`{ findings }` work-list on stdout and exits non-zero while findings remain,
+plus a `npm run audit` suppression floor and a `tsconfig.json` frozen surface).
+The fixture is a marker-driven node scanner rather than a real tsc/eslint run:
+the e2e proves the engine's dispositions through the whole compiled flow, and a
+real linter is one more thing that can flake in a subprocess under parallel
+test load. The scanner honors the exact oracle contract (JSON on stdout, exit
+code as the floor), which is what the flow reads.
+
+- **A, B, C, D2 ship green.** A drives the two-wave happy path at autonomous
+  depth (three findings, one blocked worker, then a clean wave) and asserts the
+  clean `@complete`, the `advance` then `pass` judge routes, the `stop-clean`
+  disposition, and that the blocked wave's judge lesson reaches the next wave's
+  partition prompt. B and C run below the autonomous floor (one honest pass):
+  B suppresses and asserts `overall_status = failed` with the audit command
+  failed and a needs-attention close; C fixes the code but edits the frozen
+  `tsconfig.json` and asserts a passed rescan with an open honesty latch and a
+  needs-attention close (the distinguishing signal from B). D2 rewrites the
+  pinned `scan` script's `package.json` body string between waves (not the
+  `scan.mjs` program that string launches, which stays an open gap — see 6.6)
+  and asserts the trace carries the oracle-command-pin drift reason and the run
+  never completes.
+- **D1 (plan-argv narrowing)** is covered by the oracle-command-pin unit test
+  (task: engine change 2), which asserts the snapshotted command runs and the
+  narrowed plan is ignored. The e2e proves the pin is wired into Sweep's rescan
+  (every case pins on the first wave); D2 is the end-to-end drift-rejection
+  proof.
+- **E (nested-config-create)** is deferred with Section 6.3 (re-derive effective
+  config each wave); it is not yet wired, so there is no assertion for it.
+
+**Known gaps not yet enforced (surfaced by the shipped-implementation review).**
+Two anti-cheat vectors are documented in Section 6 but have no enforcement and
+no passing assertion in the baseline, so a worker with write access to the tree
+could still close a wave clean over a shrunken job:
+
+- **Scanner-program rewrite (6.6).** The oracle-command pin fingerprints the
+  `package.json` `scripts.<name>` string, not the program it launches. Rewriting
+  `scan.mjs` (or a real linter's entry) to a no-op leaves the pinned argv and the
+  script string byte-identical, so no drift fires. `frozen_paths` covers config,
+  not scanner source. Closing it needs the pin to resolve and freeze the invoked
+  program, or the author to add the scanner sources to `frozen_paths`.
+- **Set-identity / scope-narrowing (6.4).** `census-step` records no scan scope
+  and `rescan-step` checks no coverage, so a worker who narrows the scan scope
+  inside the pinned program (walks a subtree, not the full census set) closes
+  clean over fewer files. The `targeted_set` / `set_covers_census` machinery in
+  6.4 is designed but not implemented.
+
+Both are real-fix items for enforcement, tracked here and in 6.4/6.6. They gate
+public promotion, not internal ship: the flow is honest about the floor it
+provides today, which is the four enforced vectors above.
+
+Building the e2e surfaced and fixed one real defect: the partition writer's
+`sanitizeForBranchId` kept dots and underscores, but a unit id becomes a fanout
+`branch_id`, which the step schema validates as a strict kebab-case slug
+(`/^[a-z0-9][a-z0-9-]*$/`). Every real file has an extension, so every wave
+aborted on an invalid branch id until the sanitizer was tightened to fold
+everything outside `[a-z0-9]` to a dash.
 
 ---
 
@@ -706,12 +791,18 @@ Engine (general primitives, land and probe first, Section 7):
 
 ## 11. Build-readiness verdict and ordered plan
 
-**Verdict.** Sweep is worth building and is buildable. Its core honesty story is
-sound and verified. It is **not** a zero-engine-edit flow: it needs two small
-general engine primitives, and its anti-cheat gate needs the four additions in
-Section 6. With those, "succeeded" is unreachable except by real fixes over the
-full census set, which is the property that makes Sweep a credible flagship
-evidence demo. Ship internal first under the freeze.
+**Verdict.** Sweep is worth building and is buildable, and the internal baseline
+is shipped. Its core honesty story is sound and verified for the vectors it
+enforces today: suppression audit, config-tamper frozen guard, plan-argv
+narrowing, and script-body swap (the two engine primitives landed and proven).
+It is **not** a zero-engine-edit flow: it needed two small general engine
+primitives. Two of the Section 6 anti-cheat additions did **not** ship —
+set-identity (6.4) and the scanner-program freeze implied by 6.6 — and case E
+(6.3) is deferred, so the "succeeded is unreachable except by real fixes over
+the full census set" property holds against the four enforced vectors, not the
+three open ones (9.1 lists them). That gap is why Sweep ships internal first
+under the freeze: it is an honest floor, not yet the full flagship evidence
+demo. Closing 6.4 and 6.6 gates public promotion.
 
 **Ordered build plan:**
 
@@ -728,7 +819,9 @@ evidence demo. Ship internal first under the freeze.
 3. Run probes 1, 2, 3 on a real target repo to lock the per-tool specifics
    (file-less finding volume, config enumeration, suppression audit mode).
 4. Build the `src/flows/sweep/` package against the now-landed engine primitives.
-5. Build the fixture repo and the five e2e assertions; get A through E green.
+5. Build the fixture repo and the e2e assertions; get A, B, C, and D2 green
+   (D1 via the engine-change-2 unit test). E ships deferred with 6.3, and 6.4 /
+   6.6 enforcement is deferred to public promotion (see 9.1).
 6. `npm run verify` (full, not fast, because this touches bundled surfaces and
    engine paths), then hand to Pete for the internal-versus-public promotion
    decision.
