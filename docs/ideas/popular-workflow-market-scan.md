@@ -92,15 +92,24 @@ tool as the evidence gate, and loop until the finding count hits zero.
   re-scan to verify" is a settled 2025-2026 idiom the industry already reaches
   for by hand, which is exactly the improvised chat-shaped workflow we want to
   replace with authored topology.
-- **Engine fit.** Composes existing primitives with no new capability: fan-out
-  (one worker per file), equipment-scope (each worker locked to its file), the
-  external tool re-scan as a check, and the until-loop plus Converge stopping when
-  the count reaches zero.
-- **The gate, and the one seam to close.** The external tool is the oracle, so
-  "done" is a machine-checked exit 0 that no worker can narrate past. The one
-  honesty seam: a worker must not disable a rule or add an ignore-directive to
-  fake a clean scan. The check must run the tool with a pinned config and diff
-  the suppression count, or the ungameable-gate claim is false.
+- **Engine fit.** A build-ready design exists at
+  [`../flows/sweep-flow-spec.md`](../flows/sweep-flow-spec.md). It composes
+  fan-out (one worker per file), the external tool re-scan as a check, and the
+  until-loop plus Converge stopping when the count reaches zero. An adversarial
+  review corrected the first-pass "no new capability" claim: Sweep needs two
+  small general engine primitives (iteration-scoped fanout output paths, and an
+  oracle-command pin), both of which also harden fix-until-green. Per-worker
+  enforced file locking is not expressible on a fanout template today, so
+  containment rests on the disjoint-file partition plus MCP-closed workers plus
+  the oracle re-scan, with an enforced-scope schema extension deferred.
+- **The gate, and the seams to close.** The external tool is the oracle, so
+  "done" is a machine-checked exit 0 that no worker can narrate past. The review
+  found four seams the gate must close before that is true: pin the scan command
+  (a worker can otherwise edit the run-folder plan to narrow the scan), re-derive
+  the effective config each wave (a static freeze list cannot enumerate a newly
+  created nested config), assert set-identity (the final zero scan covered the
+  census set), and re-partition every wave (per-file independence is false for
+  the tsc-strict cascade). The spec details each fix and its five e2e proofs.
 - **Objection.** It risks reading as "fix-until-green with a for-loop." The
   differentiation is real (a finding set plus the tool's count as the loop
   condition, versus a single target) but must be positioned as the flagship

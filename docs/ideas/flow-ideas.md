@@ -160,12 +160,18 @@ long-run value, weakest demo. Full sketch in
 Fan out one scoped worker per file at an external linter or type-checker
 (ESLint, tsc, Clippy, golangci-lint), re-run the tool as the evidence gate, and
 loop until the finding count hits zero. The external tool is the oracle, so
-"done" is a machine-checked exit 0 no worker can narrate past. Composes fan-out,
-equipment-scope, checks, and the until-loop with no new engine capability. One
-seam to close: workers must not silence a rule to fake a clean scan, so the check
-pins the config and diffs the suppression count. Net-new relative to
-fix-until-green, which loops a single target. Market signal (Sweeper, BitsAI-Fix)
-and full fit in [`popular-workflow-market-scan.md`](popular-workflow-market-scan.md).
+"done" is a machine-checked exit 0 no worker can narrate past. Net-new relative
+to fix-until-green, which loops a single target: the loop-body head is a dynamic
+fanout, and the loop condition is a set count reaching zero. A build-ready spec
+now exists at [`../flows/sweep-flow-spec.md`](../flows/sweep-flow-spec.md). An
+adversarial review corrected two first-pass claims: it needs two small general
+engine primitives (iteration-scoped fanout output paths, and an oracle-command
+pin), not zero engine edits, and both also harden fix-until-green. It also needs
+a per-wave re-partition and four anti-cheat additions (command pin, effective-
+config re-derivation, set-identity invariant, retract the fanout overclaim-gate
+claim) before the oracle is genuinely ungameable. Market signal (Sweeper,
+BitsAI-Fix) and full fit in
+[`popular-workflow-market-scan.md`](popular-workflow-market-scan.md).
 
 ### 10. Migrate (from the 2026-07 market scan)
 
