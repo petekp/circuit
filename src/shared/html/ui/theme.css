@@ -16,7 +16,14 @@
 
 /* Class sources: the design system + every page renderer that uses it. */
 @source '../';
-@source '../../../flows';
+/* Flow projectors are the only class emitters under src/flows: each is a
+ * `<name>-html.tsx` inside a writers/ directory (registered via
+ * registerHtmlProjector). Scanning the whole flows tree let Tailwind's
+ * content-agnostic extractor read utility-shaped words out of TypeScript
+ * logic and Markdown contract prose and bake them in as unused rules. Keep
+ * this glob scoped to the projectors; a coverage gate in tests/unit fails if
+ * a new projector is registered outside it. */
+@source '../../../flows/**/writers/*-html.tsx';
 /* Never scan the compiled output itself: its CSS text is full of
  * class-shaped tokens, so scanning it feeds the compiler its own output
  * and the build never reaches a fixpoint. */
