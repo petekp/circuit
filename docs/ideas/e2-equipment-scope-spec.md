@@ -7,16 +7,16 @@
 > house-style injection through `skill_slots`, plus the `equipment` resolver that
 > chooses the kit) landed as **PRs #96/#97**. The waited-on first-class-composition
 > migration has merged, so the collision risk that gated this is gone. See
-> [`equipment-scope-enforcement-report.md`](equipment-scope-enforcement-report.md),
+> [`equipment-scope-enforcement-report.md`](deprioritized-ledger.md),
 > [`resolver-shared-shape.md`](resolver-shared-shape.md), and
 > [`north-star-status.md`](north-star-status.md). The design below is the record of
 > what was built.
 >
 > *(Original status: "spec only … implements nothing. Implementation waits until
 > after the first-class-composition migration merges.")* Grounding: the
-> [`primitive-readiness-audit.md`](primitive-readiness-audit.md) found 3b fully
+> [`primitive-readiness-audit.md`](deprioritized-ledger.md) found 3b fully
 > absent at write time; this is the design that filled it. See also the
-> [`exploration-substrate-two-track-plan.md`](exploration-substrate-two-track-plan.md)
+> [`exploration-substrate-two-track-plan.md`](deprioritized-ledger.md)
 > (E2) and the [`e1-implementation-brief.md`](e1-implementation-brief.md).
 
 ## The one-line goal
@@ -126,7 +126,7 @@ layers, both reusing machinery the audit located:
 The honest limit: full enforcement of the *body* a worker hands back across a seam
 (not just where it wrote) needs the typed seam. That is why this is E2-spec, not
 E2-build, and why the dependency points at M8 (see
-[`e1-implications-for-m8.md`](e1-implications-for-m8.md)).
+[`e1-implications-for-m8.md`](deprioritized-ledger.md)).
 
 ## How an experiment uses it
 

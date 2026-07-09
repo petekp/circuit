@@ -53,9 +53,9 @@ See [`decision-layer-exploration.md`](decision-layer-exploration.md).
 
 | Scope | Status | Where it stands |
 |---|---|---|
-| **context** | ✅ Built (basic + live pull, opt-in) | Route-aware context availability shipped with the M-spine (primitive 3a). The richer idea — let a step **pull more context on demand** from its parents through a typed surface — is now ✅ **built live** (PRs #112–#115), opt-in behind `enableContextDelivery` (default OFF): a typed query channel (`src/runtime/run/context-pull.ts`), pull-then-retry delivery + resume reseed (`context-delivery.ts`), and the prompt affordance + worker guidance (`shape-hints/from-zod.ts`, `build/relay-hints.ts`). A real guided worker pulls the named slice it needs (narrowly, not reflexively) and refuses honestly when a fact is unpullable. PR #116 then **thinned the Build plan** (when delivery is active it names the literal pull path instead of inlining the full synthesis; byte-identical when off/at deep depth) and **lifted the corridor skip** (head-step pulls inside a slice loop are now resolved-and-recorded, resume-safe). Measured: **quality holds** (10/10 thin workers correct, pull goes load-bearing only when the plan distillation is lossy), but plan thinning alone is **~3.9% in-flow** — the ~11x is the delivery channel's *selectivity*, not a whole-envelope shrink; the dominant fat (`checkpoint_packet`, ~31%) is the real next lever. Pull stays a **correct, safe, opt-in channel**; the recommendation is to ratify the mechanism, not default-ON (see §4 and §7). [`thin-envelope-unlock-report.md`](thin-envelope-unlock-report.md), [`context-pull-last-mile-report.md`](context-pull-last-mile-report.md), [`on-demand-context-pull.md`](on-demand-context-pull.md). |
-| **equipment** | ✅ Built | Two halves on `main`: the **tools** axis (declared + enforced per-step tools via `claude-code --tools`, with an honest downgrade, PR #89) and the **skills** axis (the `equipment` resolver chooses the kit, real house-style injection rides `skill_slots`, PRs #96/#97; the skill-slot ratchet dropped 15 → 1). The enforced-tools ratchet still has one increment left (`TOOL_SCOPE_GAP_BASELINE = 5`). Specs: [`e2-equipment-scope-spec.md`](e2-equipment-scope-spec.md), [`equipment-scope-build-brief.md`](equipment-scope-build-brief.md), report: [`equipment-scope-enforcement-report.md`](equipment-scope-enforcement-report.md). |
-| **model/effort** | ✅ Built (as a dial); 📋 not yet a resolver | The depth/power dial is real (`build --depth medium|high`, the power/model tier). It is **not yet a swappable resolver** — a `depth` resolver is one of the two candidate **third instances** that would earn the resolver abstraction. See [`depth-and-power.md`](depth-and-power.md). |
+| **context** | ✅ Built (basic + live pull, opt-in) | Route-aware context availability shipped with the M-spine (primitive 3a). The richer idea — let a step **pull more context on demand** from its parents through a typed surface — is now ✅ **built live** (PRs #112–#115), opt-in behind `enableContextDelivery` (default OFF): a typed query channel (`src/runtime/run/context-pull.ts`), pull-then-retry delivery + resume reseed (`context-delivery.ts`), and the prompt affordance + worker guidance (`shape-hints/from-zod.ts`, `build/relay-hints.ts`). A real guided worker pulls the named slice it needs (narrowly, not reflexively) and refuses honestly when a fact is unpullable. PR #116 then **thinned the Build plan** (when delivery is active it names the literal pull path instead of inlining the full synthesis; byte-identical when off/at deep depth) and **lifted the corridor skip** (head-step pulls inside a slice loop are now resolved-and-recorded, resume-safe). Measured: **quality holds** (10/10 thin workers correct, pull goes load-bearing only when the plan distillation is lossy), but plan thinning alone is **~3.9% in-flow** — the ~11x is the delivery channel's *selectivity*, not a whole-envelope shrink; the dominant fat (`checkpoint_packet`, ~31%) is the real next lever. Pull stays a **correct, safe, opt-in channel**; the recommendation is to ratify the mechanism, not default-ON (see §4 and §7). [`thin-envelope-unlock-report.md`](deprioritized-ledger.md), [`context-pull-last-mile-report.md`](deprioritized-ledger.md), [`on-demand-context-pull.md`](on-demand-context-pull.md). |
+| **equipment** | ✅ Built | Two halves on `main`: the **tools** axis (declared + enforced per-step tools via `claude-code --tools`, with an honest downgrade, PR #89) and the **skills** axis (the `equipment` resolver chooses the kit, real house-style injection rides `skill_slots`, PRs #96/#97; the skill-slot ratchet dropped 15 → 1). The enforced-tools ratchet still has one increment left (`TOOL_SCOPE_GAP_BASELINE = 5`). Specs: [`e2-equipment-scope-spec.md`](e2-equipment-scope-spec.md), [`equipment-scope-build-brief.md`](equipment-scope-build-brief.md), report: [`equipment-scope-enforcement-report.md`](deprioritized-ledger.md). |
+| **model/effort** | ✅ Built (as a dial); 📋 not yet a resolver | The depth/power dial is real (`build --depth medium|high`, the power/model tier). It is **not yet a swappable resolver** — a `depth` resolver is one of the two candidate **third instances** that would earn the resolver abstraction. See [`depth-and-power.md`](deprioritized-ledger.md). |
 | **structure** | ✅ Built | The `structure` resolver (`src/flows/resolvers/structure.ts`, PR #95) is thin-conservative: it leans to **whole** and chops to **decomposed** only on a clear signal (operator ask, large surface, or high risk). The grain experiment ran and returned **null** on its metric, so the conservative default holds (see §6). The whole-grain fold is now **runnable** for build-derived flows after the close-writer fold tolerance landed (PR #102): a folded flow with passing verification lands at `needs_attention` rather than aborting. |
 
 **The resolver abstraction itself is 📋 not extracted, on purpose.** Two **axis**
@@ -69,7 +69,7 @@ instance of the four-axis micro-harness shape; and on-demand context-pull shippe
 as a **runtime channel** (`src/runtime/run/`), not a resolver. So the four-axis
 abstraction trigger remains open. Observed shape:
 [`resolver-shared-shape.md`](resolver-shared-shape.md); reserved decision:
-[`deepfork-resolver-abstraction-spec.md`](deepfork-resolver-abstraction-spec.md).
+[`deepfork-resolver-abstraction-spec.md`](deprioritized-ledger.md).
 
 ---
 
@@ -85,7 +85,7 @@ abstraction trigger remains open. Observed shape:
   **just-in-time** flow (`create`). The assembler is genuinely general, not
   build-locked.
 - **Task-aware `create` — ✅ built; the dynamic / JIT direction is VIABLE (PR #117).**
-  The shape-check gate ([`dynamic-assembly-shape-check.md`](dynamic-assembly-shape-check.md))
+  The shape-check gate ([`dynamic-assembly-shape-check.md`](deprioritized-ledger.md))
   caught `create` **task-blind**: it discarded the task text, hardcoded
   `surface_area: small` / `risk: low`, and could emit only build's spine (folded or
   full) — "build, renamed." The rebuild makes it read the task: `signals.ts`
@@ -101,7 +101,7 @@ abstraction trigger remains open. Observed shape:
   arms (`fix`, `build`) reached `@complete` with correct on-task output. The win is
   **selection-and-instantiation** — it reads the task and lands the right family and
   grain — **not** genuine generation (the high overlap is *reuse* of proven seeds).
-  Report: [`assembler-rebuild-run-report.md`](assembler-rebuild-run-report.md). The
+  Report: [`assembler-rebuild-run-report.md`](deprioritized-ledger.md). The
   recommended next step then **ran and returned a verdict (PR #121):** a live
   experiment compared an **instantiated-generated** flow against the hand-authored
   reference on `fix` + `build` (48 runs, pinned `claude-haiku-4-5`, both arms
@@ -301,9 +301,9 @@ cursor). See [`durability-tier2-cursor-spec.md`](durability-tier2-cursor-spec.md
 |---|---|---|
 | **Tier-1** crash degradation | ✅ Built | Torn-trace tolerance, atomic whole-file writes, `result.json` regeneration (PR #91). The trace is a trustworthy authority; a parked checkpoint resumes soundly. |
 | **Tier-2 foundation** | ✅ Built (inert) | `RecoveryCorridor.seedFromTrace` (`src/runtime/run/recovery-corridor.ts`, PR #93), wired inert behind resume. The general/bounded forward-recovery cursor is ⏸️ **not built** (path not taken under Option C). |
-| **Tier-3 reaper** (A2-now) | ✅ Built | Startup worktree reaper + run-owner lock + `reclaim` CLI (`src/runtime/fanout/worktree-reaper.ts`, `run-owner-lock.ts`, `src/cli/reclaim.ts`, PR #99). Stops orphaned-worktree leaks from a mid-fanout kill. [`durability-tier3-linkage-spec.md`](durability-tier3-linkage-spec.md). |
-| **Decision inbox** (A3-now) | ✅ Built | Read-only inbox: discovery + filter on `checkpoint_waiting` + staleness triage + links to per-run resume (`src/app/inbox/`, `src/cli/inbox.ts`, PR #99). [`parallel-decision-inbox-spec.md`](parallel-decision-inbox-spec.md). |
-| **Restart-cheapness** | ✅ Built | `circuit run --reuse-children-from <dead-run-folder>`: a fresh run reuses a dead run's **finished sub-run children** by their stable structural address `(step_id, branch_id)`, never resuming the dead folder (PR #106, `src/runtime/run/reuse-children.ts`). Behind a four-gate safety floor (sub-run branch, same flow id, `complete`+admissible, usable git worktree) that fails safe to a fresh run on any miss. **Documented limitation:** the child flow *version* and base commit are not checked — it assumes the same flow at the same goal. Two non-gating follow-ups stay open: a run-start git baseline + staleness probe, and a `reclaim`/inbox discovery surface. [`durability-tier3-restart-linkage-spec.md`](durability-tier3-restart-linkage-spec.md). |
+| **Tier-3 reaper** (A2-now) | ✅ Built | Startup worktree reaper + run-owner lock + `reclaim` CLI (`src/runtime/fanout/worktree-reaper.ts`, `run-owner-lock.ts`, `src/cli/reclaim.ts`, PR #99). Stops orphaned-worktree leaks from a mid-fanout kill. [`durability-tier3-linkage-spec.md`](deprioritized-ledger.md). |
+| **Decision inbox** (A3-now) | ✅ Built | Read-only inbox: discovery + filter on `checkpoint_waiting` + staleness triage + links to per-run resume (`src/app/inbox/`, `src/cli/inbox.ts`, PR #99). [`parallel-decision-inbox-spec.md`](deprioritized-ledger.md). |
+| **Restart-cheapness** | ✅ Built | `circuit run --reuse-children-from <dead-run-folder>`: a fresh run reuses a dead run's **finished sub-run children** by their stable structural address `(step_id, branch_id)`, never resuming the dead folder (PR #106, `src/runtime/run/reuse-children.ts`). Behind a four-gate safety floor (sub-run branch, same flow id, `complete`+admissible, usable git worktree) that fails safe to a fresh run on any miss. **Documented limitation:** the child flow *version* and base commit are not checked — it assumes the same flow at the same goal. Two non-gating follow-ups stay open: a run-start git baseline + staleness probe, and a `reclaim`/inbox discovery surface. [`durability-tier3-restart-linkage-spec.md`](deprioritized-ledger.md). |
 
 ---
 
@@ -315,17 +315,17 @@ foundation is built, the first live reshape (additive equipment injection) has
 landed, and both of its follow-ups — legibility (F2) and resume (F1) — are now
 closed; the **structural** path stays gated but is now fully designed (the
 splice-seam spec) and proven sound offline (the Phase 0 demonstrator). Run reports:
-[`recompile-foundation-run-report.md`](recompile-foundation-run-report.md),
-[`step2-live-equipment-reshape-report.md`](step2-live-equipment-reshape-report.md),
-[`f2-and-splice-spec-run-report.md`](f2-and-splice-spec-run-report.md),
-[`splice-phase01-run-report.md`](splice-phase01-run-report.md).
+[`recompile-foundation-run-report.md`](deprioritized-ledger.md),
+[`step2-live-equipment-reshape-report.md`](deprioritized-ledger.md),
+[`f2-and-splice-spec-run-report.md`](deprioritized-ledger.md),
+[`splice-phase01-run-report.md`](deprioritized-ledger.md).
 
 | Step | Status | Detail |
 |---|---|---|
 | **Step 0** — offline demonstrator | ✅ Built (in `experiments/`) | `experiments/flow-lab/recompile-demonstrator.ts` fires the real assemble→compile chain on a simulated runtime discovery, bounded, with the catalog gate as the safety floor. Throwaway; never moves to `src/`. It proved the conservative defaults hold and that equipment injection is the safest first live reshape. |
 | **Step 1** — the recursion bound | ✅ Built (in `src/`) | `RECURSION_DEPTH_CAP = 8` + an ancestor-flow-id cycle guard, threaded child-to-child across **both** child-run edges (`src/runtime/executors/sub-run.ts`, `src/runtime/fanout/branch-execution.ts`), plus a compile-time self-reference reject. This is the prerequisite any live reshape needs. |
-| **Step 2** — first live reshape (equipment injection) | ✅ Built (in `src/`) | A relay bubbles up a confirmed `equipment_discovery`; the runner re-resolves equipment for the remaining relay steps and re-compiles through the existing chain, merging skills **additively** so the step sequence, routes, cursor, and corridor are untouched and there is no splice seam (PR #103, merge `4fa7dae4`; `src/flows/equipment-reshape.ts`, `src/runtime/run/equipment-reshape.ts`). Bounded (budget of 3 + per-step cycle guard), the catalog gate is the safety floor, and any miss downgrades to a recorded finding — a run that surfaces no confirmed discovery is byte-identical to before. Follow-ups: F2 (operator surface for reshapes) is ✅ **built** (PR #108) — an honored reshape and a parked discovery now surface in the operator summary (`equipment_reshapes` records and an `equipment_discovery_parked` warning). F1 (resume reseed) is now ✅ **built** (PR #110): `seedEquipmentReshapeFromTrace` (`src/runtime/run/equipment-reshape.ts`) replays each honored reshape onto the loaded flow on resume, wired at `checkpoint-resume.ts`; still inert in every shipped flow today (no flow routes a passing relay into a checkpoint), but the fix lands ahead of the flow that needs it. [`step2-live-equipment-reshape-report.md`](step2-live-equipment-reshape-report.md), [`splice-phase01-run-report.md`](splice-phase01-run-report.md). |
-| **Step 3** — splice seam, splice-as-leaf, structural auto-reshape, reduced-bindings oracle | ⏸️ Phase 0/1 done; Phase 2/3 📋 reserved | Everything that reshapes the remaining step *sequence*. The decision-ready design is now written and wired: [`deepfork-splice-seam-spec.md`](deepfork-splice-seam-spec.md) (PR #108, surface-only), co-designed for both the structural recompile and the splice-as-leaf forks: [`deepfork-adaptive-bubble-up-recompile-spec.md`](deepfork-adaptive-bubble-up-recompile-spec.md), [`deepfork-uniform-recursion-e3-spec.md`](deepfork-uniform-recursion-e3-spec.md). Its four-phase plan, each phase its own gate: **Phase 0** — offline splice demonstrator ✅ **built** (PR #111, `experiments/flow-lab/splice-demonstrator.ts`, 14 tests; the four-piece migration contract holds and the gate fails closed; it surfaced four caveats as Phase 2 design inputs — notably the outbound re-home can *launder a malformed exit route*, and a structural splice must route the **full parse + compile**, not the additive reshaper's lighter `safeParse`-on-CompiledFlow); **Phase 1** — the additive resume reseed (F1) ✅ **built** (Step 2 row); **Phase 2** — the structural `spliceIntoRemainingSteps` seam in `src/` behind a flag, and **Phase 3** — splice-as-leaf on the same seam, both 📋 **reserved** (no `spliceIntoRemainingSteps` in `src/` today — it lives only in the experiment). Recommendation: design Phase 2 *with* the first concrete flow that needs to decompose a step mid-run, behind a `CompiledFlowEngineFlags` opt-in, never into the engine unconditionally. [`splice-phase01-run-report.md`](splice-phase01-run-report.md). |
+| **Step 2** — first live reshape (equipment injection) | ✅ Built (in `src/`) | A relay bubbles up a confirmed `equipment_discovery`; the runner re-resolves equipment for the remaining relay steps and re-compiles through the existing chain, merging skills **additively** so the step sequence, routes, cursor, and corridor are untouched and there is no splice seam (PR #103, merge `4fa7dae4`; `src/flows/equipment-reshape.ts`, `src/runtime/run/equipment-reshape.ts`). Bounded (budget of 3 + per-step cycle guard), the catalog gate is the safety floor, and any miss downgrades to a recorded finding — a run that surfaces no confirmed discovery is byte-identical to before. Follow-ups: F2 (operator surface for reshapes) is ✅ **built** (PR #108) — an honored reshape and a parked discovery now surface in the operator summary (`equipment_reshapes` records and an `equipment_discovery_parked` warning). F1 (resume reseed) is now ✅ **built** (PR #110): `seedEquipmentReshapeFromTrace` (`src/runtime/run/equipment-reshape.ts`) replays each honored reshape onto the loaded flow on resume, wired at `checkpoint-resume.ts`; still inert in every shipped flow today (no flow routes a passing relay into a checkpoint), but the fix lands ahead of the flow that needs it. [`step2-live-equipment-reshape-report.md`](deprioritized-ledger.md), [`splice-phase01-run-report.md`](deprioritized-ledger.md). |
+| **Step 3** — splice seam, splice-as-leaf, structural auto-reshape, reduced-bindings oracle | ⏸️ Phase 0/1 done; Phase 2/3 📋 reserved | Everything that reshapes the remaining step *sequence*. The decision-ready design is now written and wired: [`deepfork-splice-seam-spec.md`](deepfork-splice-seam-spec.md) (PR #108, surface-only), co-designed for both the structural recompile and the splice-as-leaf forks: [`deepfork-adaptive-bubble-up-recompile-spec.md`](deepfork-adaptive-bubble-up-recompile-spec.md), [`deepfork-uniform-recursion-e3-spec.md`](deprioritized-ledger.md). Its four-phase plan, each phase its own gate: **Phase 0** — offline splice demonstrator ✅ **built** (PR #111, `experiments/flow-lab/splice-demonstrator.ts`, 14 tests; the four-piece migration contract holds and the gate fails closed; it surfaced four caveats as Phase 2 design inputs — notably the outbound re-home can *launder a malformed exit route*, and a structural splice must route the **full parse + compile**, not the additive reshaper's lighter `safeParse`-on-CompiledFlow); **Phase 1** — the additive resume reseed (F1) ✅ **built** (Step 2 row); **Phase 2** — the structural `spliceIntoRemainingSteps` seam in `src/` behind a flag, and **Phase 3** — splice-as-leaf on the same seam, both 📋 **reserved** (no `spliceIntoRemainingSteps` in `src/` today — it lives only in the experiment). Recommendation: design Phase 2 *with* the first concrete flow that needs to decompose a step mid-run, behind a `CompiledFlowEngineFlags` opt-in, never into the engine unconditionally. [`splice-phase01-run-report.md`](deprioritized-ledger.md). |
 
 **Uniform recursion (E3).** The bound (piece 1 of the E3 sequence) shipped. The
 non-empty `reducedBindings` legibility oracle (piece 2) and splice-as-leaf behind a
@@ -357,9 +357,9 @@ whole-envelope shrink. The dominant remaining fat is the `checkpoint_packet` (~3
 the act-step envelope, which the implementer never reads); thinning **that** is the
 real next byte lever. **It stays opt-in (`enableContextDelivery` default OFF); the
 report's recommendation is to ratify the mechanism, NOT default-ON for byte reduction.**
-[`thin-envelope-unlock-report.md`](thin-envelope-unlock-report.md),
-[`context-pull-last-mile-report.md`](context-pull-last-mile-report.md),
-[`runtime-binding-battle-test-report.md`](runtime-binding-battle-test-report.md),
+[`thin-envelope-unlock-report.md`](deprioritized-ledger.md),
+[`context-pull-last-mile-report.md`](deprioritized-ledger.md),
+[`runtime-binding-battle-test-report.md`](deprioritized-ledger.md),
 [`on-demand-context-pull.md`](on-demand-context-pull.md).
 
 ---
@@ -373,7 +373,7 @@ interactive site, with two genuine operator forks (PICK, SIGN-OFF).
   generated surfaces, PR #90). Brief:
   [`paper-to-site-flow-brief.md`](paper-to-site-flow-brief.md).
 - **Generalization test — ✅ run** on a second, unseen paper ("Attention Is All You
-  Need"). Findings: [`paper-to-site-2nd-run-findings.md`](paper-to-site-2nd-run-findings.md).
+  Need"). Findings: [`paper-to-site-2nd-run-findings.md`](deprioritized-ledger.md).
   The **editorial spine generalized well**; the **operational plumbing did not**.
 
 **Findings:**
@@ -426,15 +426,15 @@ interactive site, with two genuine operator forks (PICK, SIGN-OFF).
   [`dynamic-vs-reference-run-report.md`](dynamic-vs-reference-run-report.md); brief +
   rule: [`dynamic-vs-reference-experiment-brief.md`](dynamic-vs-reference-experiment-brief.md);
   next direction (breadth-first):
-  [`dynamic-vs-reference-followup.md`](dynamic-vs-reference-followup.md).
+  [`dynamic-vs-reference-followup.md`](deprioritized-ledger.md).
 - **Grain × separability — null.** 40 live runs (≈$24); the false-fixed rate was 0
   in every cell, so neither coherence nor verification hypothesis could be
   adjudicated. The structure chooser held its thin-conservative default. The real
   follow-up is tasks that provoke a false claim of done, not more repeats. Report:
-  [`grain-chooser-run-report.md`](grain-chooser-run-report.md); design + history:
+  [`grain-chooser-run-report.md`](deprioritized-ledger.md); design + history:
   [`grain-separability-experiment-design.md`](grain-separability-experiment-design.md),
-  [`grain-experiment-deferred.md`](grain-experiment-deferred.md),
-  [`grain-taskset-ready.md`](grain-taskset-ready.md). The grain fixtures live in an
+  [`grain-experiment-deferred.md`](deprioritized-ledger.md),
+  [`grain-taskset-ready.md`](deprioritized-ledger.md). The grain fixtures live in an
   isolated set (`evals/grain-separability/`, PR #100) so they cannot contaminate the
   claim suite.
 - **Composed vs reference — COMPOSITION-VIABLE (✅ on `main`, PR #132 `cb5fb81d`).** The
@@ -588,7 +588,7 @@ below; the rows above carry the detail.
    test) — a family with no such check does not enter the set. Pure measurement on
    the existing generator; no assembler/resolver edit. Do **not** yet spend on the
    genuine-block-composition arm (gated behind the Phase 2 catalog enrichments).
-   [`dynamic-vs-reference-followup.md`](dynamic-vs-reference-followup.md).
+   [`dynamic-vs-reference-followup.md`](deprioritized-ledger.md).
 3. **The remaining task-aware-assembler follow-up** (non-blocking): sign off the
    loosened `src/flows/resolvers/` import zone. (Per-mode runtime trust is **done** —
    PR #119 blesses recorded `<mode>.json` siblings and fails closed with a clear
@@ -622,7 +622,7 @@ below; the rows above carry the detail.
   authoring walls). A feature path needs catalog enrichments (execution-capability
   table, contract-alias solver, route-DAG synthesizer, check/relay defaulting) plus a
   model for the irreducibly intentional choices. Hold as a separate track.
-  [`assembler-rebuild-run-report.md`](assembler-rebuild-run-report.md). **Note:** the
+  [`assembler-rebuild-run-report.md`](deprioritized-ledger.md). **Note:** the
   genuine-composition progress recorded in §2 came through a *different* route — the
   experimental `composeFlow` **composer** (default-OFF, zero production callers), which
   now composes all four shapes, runs both the fix and build families end-to-end, and is
@@ -639,7 +639,7 @@ below; the rows above carry the detail.
   implementer never reads) is untouched. The honest next move toward a real
   whole-envelope win is to thin the `checkpoint_packet`, then revisit a default flip
   with the two thinnings stacked. The mechanism is **ratifiable now**; the default
-  flip is not. [`thin-envelope-unlock-report.md`](thin-envelope-unlock-report.md).
+  flip is not. [`thin-envelope-unlock-report.md`](deprioritized-ledger.md).
 - **The resolver abstraction extraction** — earnable, but still waiting on a **third
   axis-resolver** (context or depth) to confirm the parameters. The new
   `signals`/`archetype` resolvers are a different layer (§1), not that third instance.
@@ -651,7 +651,9 @@ below; the rows above carry the detail.
 
 ## Pointers
 
-- Run reports (history, do not edit): `recompile-foundation-run-report.md`,
+- Run reports (history; most are consolidated into
+  [`deprioritized-ledger.md`](deprioritized-ledger.md) with full text in git
+  history): `recompile-foundation-run-report.md`,
   `step2-live-equipment-reshape-report.md`, `f2-and-splice-spec-run-report.md`,
   `splice-phase01-run-report.md`, `context-pull-live-run-report.md`,
   `runtime-binding-battle-test-report.md`, `context-pull-last-mile-report.md`,

@@ -20,6 +20,7 @@ type IdeaEntry = {
   title: string;
   status: string;
   category: string;
+  impact: number;
   tags: string[];
   current_reading: string;
   related?: string[];
@@ -46,8 +47,8 @@ function main() {
   const readme = readFileSync(README_PATH, 'utf8');
   const errors: string[] = [];
 
-  if (catalog.schema_version !== 1) {
-    errors.push('catalog.schema_version must be 1');
+  if (catalog.schema_version !== 2) {
+    errors.push('catalog.schema_version must be 2');
   }
 
   if (!Array.isArray(catalog.status_values) || catalog.status_values.length === 0) {
@@ -112,6 +113,10 @@ function main() {
       errors.push(`${entry.path} has unknown category ${entry.category}`);
     }
 
+    if (!Number.isInteger(entry.impact) || entry.impact < 1 || entry.impact > 5) {
+      errors.push(`${entry.path} must have an integer impact score from 1 to 5`);
+    }
+
     if (!Array.isArray(entry.tags) || entry.tags.length === 0) {
       errors.push(`${entry.path} must have at least one tag`);
     }
@@ -132,9 +137,11 @@ function main() {
       }
     }
 
-    const readmeRowPrefix = `| [\`${basename(entry.path)}\`](${basename(entry.path)}) | \`${entry.status}\` |`;
+    const readmeRowPrefix = `| [\`${basename(entry.path)}\`](${basename(entry.path)}) | \`${entry.status}\` | ${entry.impact} |`;
     if (!readme.includes(readmeRowPrefix)) {
-      errors.push(`${entry.path} is missing a matching docs/ideas/README.md row`);
+      errors.push(
+        `${entry.path} is missing a matching docs/ideas/README.md row (note | status | impact)`,
+      );
     }
   }
 

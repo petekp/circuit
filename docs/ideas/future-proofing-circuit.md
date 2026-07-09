@@ -247,12 +247,12 @@ The schematic→judge reframe isn't free. Costs:
 
 ## Related
 
-- [Self-improving Circuit](./self-improving-circuit.md) — agent-proposed
+- [Self-improving Circuit](deprioritized-ledger.md) — agent-proposed
   diffs to operator-owned docs; compounding via doc curation.
 - [Dynamic flow ratchet](./dynamic-flow-ratchet.md) —
   runtime-generated flows as the compounding mechanism.
 - [Agent flywheel](../learnings/agent-flywheel.md) — read of the Agent
   Flywheel piece; what to borrow and skip.
-- [Per-step validation check](./per-step-validation-check.md) — closest
+- [Per-step validation check](deprioritized-ledger.md) — closest
   existing thinking on mid-flight verification; relevant to question 8
   above.

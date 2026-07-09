@@ -3,7 +3,7 @@
 > Status: **pre-implementation. Decision-ready brief; builds a harness, runs a
 > measured experiment, writes a run report.** Date 2026-06-18, grounded on `main`
 > at HEAD `c8026ef2`. This is the task-aware assembler report's recommended next
-> step ([`assembler-rebuild-run-report.md`](assembler-rebuild-run-report.md) §4).
+> step ([`assembler-rebuild-run-report.md`](deprioritized-ledger.md) §4).
 > It is written in the pre-registration spirit of
 > [`assembler-rebuild-preregistration.md`](assembler-rebuild-preregistration.md):
 > the task set, the metrics, and the decision rule are **locked here, before any
@@ -77,7 +77,7 @@ package and the custom-slug trust path end-to-end.
 > `<mode>.json` sibling is unblessed and rejects). Two clean options: (a) run the
 > generated arm in its **default mode only** (sufficient for this experiment — pin
 > depth to the default), or (b) land
-> [`per-mode-runtime-trust-brief.md`](per-mode-runtime-trust-brief.md) first.
+> [`per-mode-runtime-trust-brief.md`](deprioritized-ledger.md) first.
 > The brief assumes (a) unless the operator says otherwise.
 
 ---

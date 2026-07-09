@@ -217,8 +217,8 @@ the agents that run after it, not just the routing edge it sits on.
 - [[feedback_codify_compound_north_star]], [[project_feedforward_rehearsal]]
   (the compounding-loop frontier this is the first rung of)
 - [[project_steer_flow]] (the anti-rubber-stamp property this mirrors)
-- `docs/ideas/thin-envelope-unlock-report.md`,
-  `docs/ideas/context-pull-last-mile-report.md` (the context-delivery wiring this
+- the thin-envelope-unlock and context-pull last-mile reports, now in
+  `docs/ideas/deprioritized-ledger.md` (the context-delivery wiring this
   copies, including the `RunValue` projection gotcha)
 - [[project_self_auditing_memory]] (the *memory* feed-forward channel this runs
   parallel to and must not be merged with)

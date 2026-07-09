@@ -14,7 +14,7 @@ deterministic acceptance-criteria design, which already has a home and is
 partially built.
 
 Related, read first:
-- [`per-step-validation-check.md`](./per-step-validation-check.md) owns the
+- [`per-step-validation-check.md`](deprioritized-ledger.md) owns the
   deterministic side: declared, machine-checkable acceptance criteria, the
   stop-and-fix rule, and retry-with-feedback. Much of it is already implemented
   (see "What gates exist today" below). This note assumes that layer and adds

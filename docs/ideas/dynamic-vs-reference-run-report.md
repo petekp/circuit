@@ -185,4 +185,4 @@ What this does **not** yet show, and is the honest frontier:
   families and harder tasks, not a deeper dive on these two.
 
 The follow-up direction is sketched in
-[`dynamic-vs-reference-followup.md`](dynamic-vs-reference-followup.md).
+[`dynamic-vs-reference-followup.md`](deprioritized-ledger.md).

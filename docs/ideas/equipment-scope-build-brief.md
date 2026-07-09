@@ -8,7 +8,7 @@
 > skill-slot quality ratchet dropped 15 → 1). Of the four micro-harness scopes this
 > brief names (context, equipment, model/effort, structure), **equipment moved from
 > absent → real here**. See
-> [`equipment-scope-enforcement-report.md`](equipment-scope-enforcement-report.md)
+> [`equipment-scope-enforcement-report.md`](deprioritized-ledger.md)
 > and [`north-star-status.md`](north-star-status.md). Builds on
 > `e2-equipment-scope-spec.md` (the design), the #88 equipment resolver prototype
 > (trusted-suggest), and `decision-layer-exploration.md` §7 (the

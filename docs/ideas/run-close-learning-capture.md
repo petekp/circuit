@@ -4,10 +4,10 @@ Status: current-proposal. Post-v1 idea; not current behavior.
 Date: 2026-07-03
 Source: [The Compounding Knowledge Lifecycle](https://thinkroom.kieranklaassen.com/d/Yxr8tfwAVV)
 Related: [`self-auditing-memory.md`](./self-auditing-memory.md),
-[`self-auditing-memory-slice-5-spec.md`](./self-auditing-memory-slice-5-spec.md),
-[`recall-to-lesson-gap.md`](./recall-to-lesson-gap.md),
-[`project-execution-memory.md`](./project-execution-memory.md),
-[`circuit-vs-compound-engineering.md`](./circuit-vs-compound-engineering.md)
+[`self-auditing-memory-slice-5-spec.md`](deprioritized-ledger.md),
+[`recall-to-lesson-gap.md`](deprioritized-ledger.md),
+[`project-execution-memory.md`](deprioritized-ledger.md),
+[`circuit-vs-compound-engineering.md`](deprioritized-ledger.md)
 
 ## Short Version
 

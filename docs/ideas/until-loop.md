@@ -194,9 +194,9 @@ The feature is the loop, not any single flow built on it. Things it unlocks:
   stops finding load-bearing problems.
 - **Overnight autonomous run.** A convergence loop with a large budget and
   `--autonomous` gate resolution. This is the gnhf-style use case, and it is one
-  application of the primitive, not the primitive itself. See
-  `gnhf-style-bounded-loop.md` for that use case worked end to end and for the
-  origin of this proposal.
+  application of the primitive, not the primitive itself. The origin note
+  (gnhf-style-bounded-loop, consolidated into the deprioritized ledger) worked
+  that use case end to end.
 
 Naming: the primitive is the **until-loop** (`iteratesUntilCondition`). A flow
 that runs to a proven-done state on top of it is a good candidate to ship as
@@ -321,8 +321,7 @@ codify-and-compound lever.
 ## Engine changes
 
 Nine changes, each tied to a real seam. This is the same seam map worked in
-`gnhf-style-bounded-loop.md`; reproduced here so this proposal is
-self-contained.
+the origin gnhf note; reproduced here so this proposal is self-contained.
 
 1. **`UntilLoopEngineFlag` interface** plus `iteratesUntilCondition?` on
    `CompiledFlowEngineFlags` (`src/flows/types.ts:79` and `:120` as the model).
@@ -407,7 +406,7 @@ reasons that are load-bearing for this whole design.
    physically cannot touch it. Circuit's analog is a worker-adjacent verification
    command, which the body can edit. The moment the body can influence the number,
    a keep-best ratchet launders Goodhart gaming as monotone progress. (The
-   frozen-eval detective latch, see `learning-from-autoresearch.md`, imports the
+   frozen-eval detective latch, from the learning-from-autoresearch note, imports the
    read-only-surface *shape* without the metric ratchet, precisely because the
    shape is the safe half.)
 
@@ -452,9 +451,11 @@ for.
 
 ## Relationship to other notes
 
-- `gnhf-style-bounded-loop.md`: the origin and the worked overnight use case. That
-  note framed the loop around the gnhf comparison; this note is the general
-  primitive we implement from. They share the engine seam map.
+- The gnhf-style-bounded-loop note (consolidated into
+  [`deprioritized-ledger.md`](./deprioritized-ledger.md)): the origin and the
+  worked overnight use case. It framed the loop around the gnhf comparison;
+  this note is the general primitive we implement from. They share the engine
+  seam map.
 - `portable-flow-file-format.md` and `bespoke-flow-generation-design.md`: the
   "encode your process" on-ramps. A flow author who can write a portable flow file
   or generate one will want the until-loop as a construct those flows can use.

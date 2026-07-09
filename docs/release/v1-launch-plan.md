@@ -141,11 +141,11 @@ without new evidence. This list exists so sessions stop re-deriving them.
   work through invoked flows, not a hook that intercepts pushes.
 - **Fully dynamic, runtime-composed workflows:** rejected in favor of bounded
   dynamism. Authored topology with typed seams beats runtime classifiers.
-  See [docs/ideas/dynamic-workflows-vs-circuit.md](../ideas/dynamic-workflows-vs-circuit.md).
+  See [docs/ideas/deprioritized-ledger.md](../ideas/deprioritized-ledger.md).
 - **Keep-best optimize loops** (the autoresearch pattern): declined. Needs an
   ungameable oracle Circuit does not have, and exhaust-and-keep-best is the
   success-through-exhaustion the until-loop forbids. See
-  [docs/ideas/learning-from-autoresearch.md](../ideas/learning-from-autoresearch.md).
+  [docs/ideas/deprioritized-ledger.md](../ideas/deprioritized-ledger.md).
 - **Mid-task model switching and auto-merge thresholds** (the Devin Fusion
   pattern): declined. Circuit's per-step allocation is authored, not a
   runtime classifier's guess.
@@ -176,10 +176,13 @@ Real directions, deliberately parked. Pointers only.
 - **A calibrated run-quality judge:** plumbing moved behavior in rehearsal,
   but behavior is not quality; a judge is the lever. Ships before any
   feed-forward loop does.
-- **Release flow and flow-postmortem flow:** Circuit developing Circuit, the
-  compounding loop. After v1. See
-  [docs/ideas/run-close-learning-capture.md](../ideas/run-close-learning-capture.md)
-  for the narrow run-close learning capture form.
+- **Circuit developing Circuit (the compounding loop):** the program is
+  [docs/ideas/circuit-on-circuit.md](../ideas/circuit-on-circuit.md). Its
+  build moves (the Improve flow's report-only back-edge, then a release
+  flow) wait for after v1; its practice half (release runs through the
+  flows, plus a friction ledger) is allowed release work now. The narrow
+  run-close learning capture form is
+  [docs/ideas/run-close-learning-capture.md](../ideas/run-close-learning-capture.md).
 - **Breadth-first flow generation and live efficacy:** gated on operator
   spend. See [docs/ideas/bespoke-flow-generation-design.md](../ideas/bespoke-flow-generation-design.md).
 - **The recursion and recompile frontier:** mapped in

@@ -6,7 +6,7 @@
 > the first **hand-authored, non-`build`-shaped** Circuit flow. v1 was then run on
 > a second, unseen paper ("Attention Is All You Need") as the generalization test
 > this brief calls for — see
-> [`paper-to-site-2nd-run-findings.md`](paper-to-site-2nd-run-findings.md).
+> [`paper-to-site-2nd-run-findings.md`](deprioritized-ledger.md).
 >
 > **What the 2nd run taught:** the *editorial* spine generalized well (faithful,
 > notation-preserving, house-style output on a paper it had never seen), but the

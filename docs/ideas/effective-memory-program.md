@@ -6,7 +6,7 @@ legibility fixes, and local project facts. Broader automatic lesson capture and
 measured value claims remain unproven.
 Date: 2026-05-30
 Updated: 2026-05-31 after an independent Codex second opinion
-([`effective-memory-program-review-codex.md`](./effective-memory-program-review-codex.md))
+([`effective-memory-program-review-codex.md`](deprioritized-ledger.md))
 and an assessment of that review. The review's critiques were verified correct
 and are folded in below. The recommended shape is now the Canonical Lesson
 Hybrid, and the original "capture relay findings" centerpiece is corrected: the
@@ -14,7 +14,7 @@ relay finding is a skipped duplicate, while the canonical review report is
 already indexed. Two empirical claims in the original draft were wrong and are
 fixed here.
 
-This doc answers a different question than [`recall-to-lesson-gap.md`](./recall-to-lesson-gap.md).
+This doc answers a different question than [`recall-to-lesson-gap.md`](deprioritized-ledger.md).
 That doc asks "what is the cheapest fix for the recall miss." This one asks
 "what is the MOST EFFECTIVE memory work for Circuit, regardless of effort." The
 answers differ in kind, not degree. This program demotes the cheap plan's

@@ -179,13 +179,13 @@ fixture-proven on ≥2 variants × 1 task. No unattended live runs (see budget r
 **B2 — Primitive-readiness audit (read-only).** Ground the six-primitive substrate
 analysis in the *current, post-M5* codebase: for each primitive, cite the file(s)
 that implement it today and what's still missing. *Output:*
-`docs/ideas/primitive-readiness-audit.md`. Read-only — touches no `src/`.
+`docs/ideas/deprioritized-ledger.md`. Read-only — touches no `src/`.
 
 **B3 — Spec-only drafts that feed the roadmap (no implementation).**
 (a) `docs/ideas/e2-equipment-scope-spec.md`: design equipment scope *manifest-first*
 as a spec — the declared field, write-tier enforcement, how it becomes a
 holism/separation dial. Do **not** implement it (that collides with M8).
-(b) `docs/ideas/e1-implications-for-m8.md`: from the E1 framing, what payload
+(b) `docs/ideas/deprioritized-ledger.md`: from the E1 framing, what payload
 shapes the typed seam (M8) must express so holism/separation seams are locally
 checkable. Pure writing.
 

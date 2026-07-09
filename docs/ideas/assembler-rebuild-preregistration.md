@@ -8,15 +8,15 @@
 > thresholds, the verdict follows the rule, not the hope.
 >
 > It is the scientific spine of the run reported in
-> [`assembler-rebuild-run-report.md`](assembler-rebuild-run-report.md) and the
+> [`assembler-rebuild-run-report.md`](deprioritized-ledger.md) and the
 > direct follow-up to the gate in
-> [`dynamic-assembly-shape-check.md`](dynamic-assembly-shape-check.md).
+> [`dynamic-assembly-shape-check.md`](deprioritized-ledger.md).
 
 ---
 
 ## 0. What we are deciding
 
-The gate ([`dynamic-assembly-shape-check.md`](dynamic-assembly-shape-check.md))
+The gate ([`dynamic-assembly-shape-check.md`](deprioritized-ledger.md))
 found the dynamic NL→flow path (`circuit create`) **task-blind**: it discards
 the task text, hardcodes `surface_area: small` / `risk: low`, and can emit only
 two shapes — build folded (`whole`, 5 steps) or build full (`decomposed`, 9

@@ -48,7 +48,7 @@ no errors, Claude tag `circuit--v0.1.0-alpha.6`, and Codex marketplace source
 
 | ID | Item | Evidence | Next action |
 | --- | --- | --- | --- |
-| REL-PUB-008 | Produce a short external proof demo for the reliability claim. | [docs/ideas/positioning-and-strategy.md](../ideas/positioning-and-strategy.md) says the strongest claim is externally unproven and recommends a same-task comparison demo. | Capture one focused Build/Fix/Review example showing the evidence trail and a concrete verification or review moment. |
+| REL-PUB-008 | Produce a short external proof demo for the reliability claim. | The positioning-and-strategy note (recorded in [docs/ideas/deprioritized-ledger.md](../ideas/deprioritized-ledger.md)) says the strongest claim is externally unproven and recommends a same-task comparison demo. | Capture one focused Build/Fix/Review example showing the evidence trail and a concrete verification or review moment. |
 | REL-PUB-009 | Add a tiny release-notes page that links the exact proof and check commands used for this alpha. | The release truth exists across generated reports, claims, proofs, and plugin publish output, but there is no single reader-facing release note yet. | Draft release notes after blockers are fixed, with links to proof scenarios and the final command transcript. |
 | REL-PUB-010 | Refresh installed host caches after the final release diff, if using local dogfood installs. | [docs/contracts/host-adapter.md](../contracts/host-adapter.md) documents `npm run plugins:refresh-local`; local caches can drift. | Run the refresh command only for local dogfooding. Do not treat it as marketplace publication. |
 
@@ -87,8 +87,8 @@ These are the extra proof points from the execution-plan gap review:
 | ID | Item | Why it is not in the initial release |
 | --- | --- | --- |
 | REL-PUB-011 | Native Codex App Server and Claude Agent SDK adapters. | These are not current roadmap items. Release truth should not list them as planned capabilities, and public copy should not imply they are pending support. |
-| REL-PUB-013 | Broad smart-memory claims. | [docs/ideas/positioning-and-strategy.md](../ideas/positioning-and-strategy.md) treats `circuit history` query/pull and cited run-start hints as real but bounded. Exact prior-failure recall is the strongest current case; broad recall quality still needs proof, so do not claim automatic project intelligence, broad semantic recall, or measured value improvement until release evidence proves it. |
-| REL-PUB-014 | Keep-up-for-you update channel. | [docs/ideas/positioning-and-strategy.md](../ideas/positioning-and-strategy.md) says the update-channel claim is not yet supported. Do not use launch copy that implies automatic methodology updates. |
+| REL-PUB-013 | Broad smart-memory claims. | The positioning-and-strategy note (recorded in [docs/ideas/deprioritized-ledger.md](../ideas/deprioritized-ledger.md)) treats `circuit history` query/pull and cited run-start hints as real but bounded. Exact prior-failure recall is the strongest current case; broad recall quality still needs proof, so do not claim automatic project intelligence, broad semantic recall, or measured value improvement until release evidence proves it. |
+| REL-PUB-014 | Keep-up-for-you update channel. | The positioning-and-strategy note (recorded in [docs/ideas/deprioritized-ledger.md](../ideas/deprioritized-ledger.md)) says the update-channel claim is not yet supported. Do not use launch copy that implies automatic methodology updates. |
 | REL-PUB-015 | Public `/circuit:pursue` slash command. | Deferred from the initial release. Shipped in 0.1.0-alpha.7: Pursue now owns `src/flows/pursue/command.md`, and [docs/generated-surfaces.md](../generated-surfaces.md) and `src/commands/run.md` document the dedicated command surface. |
 
 ## Final Gate Used For Alpha.6

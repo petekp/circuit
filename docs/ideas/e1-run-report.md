@@ -10,7 +10,7 @@ cheaper, fewer-step shape. Full numbers under [Live result](#live-result).
 track, off the engine — see [`experiments/e1/README.md`](../../experiments/e1/README.md)).
 
 This is the build report for E1, the first experiment on the exploration
-substrate (see [`exploration-substrate-two-track-plan.md`](exploration-substrate-two-track-plan.md)
+substrate (see [`exploration-substrate-two-track-plan.md`](deprioritized-ledger.md)
 and [`e1-implementation-brief.md`](e1-implementation-brief.md)). E1 asks a narrow,
 falsifiable question: **on one task, what does decomposition grain buy?** It runs
 the same task under two arrangements that differ only in grain — holistic (`fix`,

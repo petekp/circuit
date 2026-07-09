@@ -22,7 +22,7 @@
 >   chain, merging skills **additively** so the step sequence, routes, and cursor are
 >   untouched — no splice seam. Bounded (budget of 3 + cycle guard), the catalog gate
 >   is the safety floor, and any miss downgrades to a recorded finding. See
->   [`step2-live-equipment-reshape-report.md`](step2-live-equipment-reshape-report.md).
+>   [`step2-live-equipment-reshape-report.md`](deprioritized-ledger.md).
 > - **Step 3 — the structural live path is NOT built.** The
 >   `spliceIntoRemainingSteps` seam, splice-as-leaf, structural auto-reshape,
 >   and the reduced-bindings oracle remain surface-only / separately ratified. The
@@ -30,7 +30,7 @@
 >   Step 3.
 >
 > See the run report:
-> [`recompile-foundation-run-report.md`](recompile-foundation-run-report.md), and
+> [`recompile-foundation-run-report.md`](deprioritized-ledger.md), and
 > the canonical map [`north-star-status.md`](north-star-status.md). The code sketch
 > lower down is still illustrative only. The two resolvers it grounds against have
 > since been promoted from the flow-lab spike into `src/flows/resolvers/`

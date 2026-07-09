@@ -24,7 +24,7 @@
 This is a fresh first-principles take on Skill Hooks, built to answer four
 questions you asked directly, with the current direction set aside. It does not
 inherit the option numbering or the framing of
-[`docs/ideas/skill-hooks-alternatives-v1.md`](./skill-hooks-alternatives-v1.md)
+[`docs/ideas/deprioritized-ledger.md`](deprioritized-ledger.md)
 (that doc treats Options 0 through 6 one by one and recommends report-only-first;
 read it for the option-by-option case). Here the spine is the four anchor
 questions, and the predictive problem v1 punted on (how do we know a step is

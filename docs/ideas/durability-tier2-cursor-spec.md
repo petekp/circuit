@@ -14,9 +14,9 @@
 >   working-tree snapshot/reset) is not reachable today.
 > - The chosen forward direction is **restart-cheapness via
 >   `circuit run --reuse-children-from`**, specified (not built) in
->   [`durability-tier3-restart-linkage-spec.md`](durability-tier3-restart-linkage-spec.md)
+>   [`durability-tier3-restart-linkage-spec.md`](deprioritized-ledger.md)
 >   (PR #101). The Tier-3 reaper Option C also calls for has shipped — see
->   [`durability-tier3-linkage-spec.md`](durability-tier3-linkage-spec.md).
+>   [`durability-tier3-linkage-spec.md`](deprioritized-ledger.md).
 >
 > See [`north-star-status.md`](north-star-status.md) for the durability tier map.
 > The options and recommendation below are kept as the decision record.
@@ -36,9 +36,10 @@ a checkpoint boundary (`graph-runner.ts` — `currentStepId =
 options.resumeCheckpoint?.stepId ?? flow.entry`). A `kill -9` between checkpoints
 loses all progress since the last checkpoint, with no resume path.
 
-The full analysis is in
-`/Users/petepetrash/Code/circuit-durability-audit/docs/ideas/fallible-executor-audit.md`.
-This spec is the decision layer on top of it.
+The full analysis was the fallible-executor audit, written in the
+`circuit-durability-audit` worktree and since consolidated into
+`docs/ideas/deprioritized-ledger.md`. This spec is the decision layer on top
+of it.
 
 ## What this PR already banks (Rank-1)
 

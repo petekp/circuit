@@ -12,7 +12,7 @@
 > **deliberately NOT extracted**, awaiting a third instance, exactly as §7 asks. The
 > observed shape and its four divergences are recorded in
 > [`resolver-shared-shape.md`](resolver-shared-shape.md); the reserved extraction
-> decision is [`deepfork-resolver-abstraction-spec.md`](deepfork-resolver-abstraction-spec.md).
+> decision is [`deepfork-resolver-abstraction-spec.md`](deprioritized-ledger.md).
 > Binding time (§4) is still assembly-only on `main`; the first *runtime* deferral
 > (equipment injection) is the in-flight live-recompile work (Step 2). See
 > [`north-star-status.md`](north-star-status.md) for the consolidated status.

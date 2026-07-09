@@ -4,8 +4,8 @@ Status: `current-proposal`. Concept-first design note from a 2026-06-30 design
 pass with the operator. Nothing here is built. Every code citation was grounded
 against `src/` on that date on branch `fix/policy-max-attempts-per-step`; verify
 each against current source before building. See
-[`depth-and-power.md`](depth-and-power.md) for the shipped dial this proposal
-reshapes, and [`proactive-power-floors.md`](proactive-power-floors.md) for the
+[`depth-and-power.md`](deprioritized-ledger.md) for the shipped dial this proposal
+reshapes, and [`proactive-power-floors.md`](deprioritized-ledger.md) for the
 adjacent power-floor idea.
 
 ## The problem

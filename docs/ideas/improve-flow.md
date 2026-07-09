@@ -187,14 +187,19 @@ answer is part of the product.
 
 ## Relationship to nearby ideas
 
-- `self-improving-circuit.md` is the older seed: learn from runs and propose
-  updates to maintained docs. `Improve` generalizes that into a public flow that
-  can propose checks, evals, Skill Hooks, Power policy, and docs.
+Three of these notes were consolidated into
+[`deprioritized-ledger.md`](./deprioritized-ledger.md); their readings still
+hold.
+
+- The self-improving-circuit note is the older seed: learn from runs and
+  propose updates to maintained docs. `Improve` generalizes that into a public
+  flow that can propose checks, evals, Skill Hooks, Power policy, and docs.
 - `until-loop.md` is an inner-loop engine primitive. `Improve` can use it later,
   but V1 does not need it.
-- `local-sqlite-read-model.md` would make the signal gathering fast, but the
-  read model should remain derived. Traces and run artifacts stay authoritative.
-- `skill-hooks-uncovered-cases.md` is a good first target class: repeated
+- The local-sqlite read-model note would make the signal gathering fast, but
+  the read model should remain derived. Traces and run artifacts stay
+  authoritative.
+- The skill-hooks uncovered-cases note is a good first target class: repeated
   uncovered cases can become `Improve` signals.
 
 ## Claim inventory

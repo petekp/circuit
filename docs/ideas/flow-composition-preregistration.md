@@ -9,7 +9,7 @@
 > rule.
 >
 > It is the direct follow-up to the **Phase 2 spike verdict** in
-> [`assembler-rebuild-run-report.md`](assembler-rebuild-run-report.md) §2
+> [`assembler-rebuild-run-report.md`](deprioritized-ledger.md) §2
 > (RESEARCH PROBLEM) and the FEATURE-path spec recorded there. The run it
 > governs is reported in
 > [`flow-composition-run-report.md`](flow-composition-run-report.md).

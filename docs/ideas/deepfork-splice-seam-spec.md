@@ -11,7 +11,7 @@
 >   Step 3 there).
 > - **Fork (i) splice-as-leaf** wants to inline a sub-tree where a leaf relay
 >   sits, so recursion is uniform with sequencing
->   ([`deepfork-uniform-recursion-e3-spec.md`](deepfork-uniform-recursion-e3-spec.md),
+>   ([`deepfork-uniform-recursion-e3-spec.md`](deprioritized-ledger.md),
 >   Option A there).
 >
 > Both reshape the live step set, and both name the same `spliceIntoRemainingSteps`
@@ -73,7 +73,7 @@ Three things already exist that the seam reuses, and one boundary it must respec
 - **The recursion bound already shipped.** `RECURSION_DEPTH_CAP = 8` plus an
   ancestor-flow-id cycle guard is threaded child-to-child across both child-run
   edges, with a compile-time self-reference reject (see the foundation run report,
-  [`recompile-foundation-run-report.md`](recompile-foundation-run-report.md)). A
+  [`recompile-foundation-run-report.md`](deprioritized-ledger.md)). A
   splice that introduces a subtree is a recursion edge, so the seam must descend
   the same guard before it expands - the bound is not new work, it is a
   precondition the seam consumes.

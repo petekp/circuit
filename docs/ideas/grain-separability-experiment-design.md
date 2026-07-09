@@ -3,9 +3,9 @@
 > Pre-registered design. **Status: designed AND RUN (2026-06-16) — verdict NULL on
 > the pre-committed metric.** The experiment was first deferred at its Step-0 gate
 > (no entangled tasks; see
-> [`grain-experiment-deferred.md`](grain-experiment-deferred.md)), then the taskset
+> [`grain-experiment-deferred.md`](deprioritized-ledger.md)), then the taskset
 > was built and the harness gap closed
-> ([`grain-taskset-ready.md`](grain-taskset-ready.md)), B0 re-passed, and the run
+> ([`grain-taskset-ready.md`](deprioritized-ledger.md)), B0 re-passed, and the run
 > executed: 40 live runs (4 tasks × 2 grains × 5 repeats), ≈$24. **The false-fixed
 > rate was 0 in every cell** — both grains, both bands — so neither H-coherence nor
 > H-verification could be adjudicated: the honesty metric the design hinges on
@@ -15,7 +15,7 @@
 > taught is that these held-out fix tasks induce *honest* failure (abort/miss), not
 > dishonest completion, regardless of grain. The real follow-up is tasks that
 > actually provoke a false claim of done, not more repeats. Full results:
-> [`grain-chooser-run-report.md`](grain-chooser-run-report.md).
+> [`grain-chooser-run-report.md`](deprioritized-ledger.md).
 >
 > *(Original framing, kept as the design record: "designed, not run. Fire at M7 …")*
 > Built on E1's harness and methodology (`experiments/e1/`, the B1 matrix runner)

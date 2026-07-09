@@ -43,14 +43,14 @@ order at the end does account for dependencies and effort.
 
 | # | Flow | One line | Impact | Virality | Effort | Existing material |
 | --- | --- | --- | --- | --- | --- | --- |
-| 1 | Decompose | Braindump in, dependency-DAG'd work-set out, each item executable without further context | High | Very high | Medium | New; adjacent: [`tracker-connector.md`](tracker-connector.md) |
+| 1 | Decompose | Braindump in, dependency-DAG'd work-set out, each item executable without further context | High | Very high | Medium | New; adjacent: [`tracker-connector.md`](deprioritized-ledger.md) |
 | 2 | Merge Gate | Triage a pile of agent-produced PRs with adversarial evidence checks and receipts | High | Very high | Medium | [`adversarial-verification-gates.md`](adversarial-verification-gates.md); Review flow; circuit-pr-review skill |
 | 3 | Promote | Turn a good session or run into a reusable flow | Very high | High | Medium | Promote spike passed; [`portable-run-captures.md`](portable-run-captures.md); portable flow-file prototype (held) |
-| 4 | Dispatch | Run a decomposed work-set locally: parallel worktrees, per-item flows, merge gate at the end | Very high | Very high | High | [`sandboxed-parallel-pursuits.md`](sandboxed-parallel-pursuits.md); [`long-horizon-supervision.md`](long-horizon-supervision.md) |
+| 4 | Dispatch | Run a decomposed work-set locally: parallel worktrees, per-item flows, merge gate at the end | Very high | Very high | High | [`sandboxed-parallel-pursuits.md`](deprioritized-ledger.md); [`long-horizon-supervision.md`](long-horizon-supervision.md) |
 | 5 | Steer | The agent's own self-governance flow; the operator decision becomes unnecessary instead of automated | Medium-high | Medium-high | Low (held branch proven) | `feat/steer-flow` (held, off-repo worktree) |
 | 6 | Improve | Outer loop that studies past runs and proposes one bounded change | High (long-term) | Medium | Medium | [`improve-flow.md`](improve-flow.md) |
-| 7 | Spec | Typed spec lifecycle (requirements, design, tasks, verification) before Build | Medium-high | Medium | Medium | [`spec-driven-flow-opportunities.md`](spec-driven-flow-opportunities.md) |
-| 8 | Align | Establish and maintain the operator's intent foundation upstream of all task work | Medium | Low-medium | Medium | [`align-flow.md`](align-flow.md) |
+| 7 | Spec | Typed spec lifecycle (requirements, design, tasks, verification) before Build | Medium-high | Medium | Medium | [`spec-driven-flow-opportunities.md`](deprioritized-ledger.md) |
+| 8 | Align | Establish and maintain the operator's intent foundation upstream of all task work | Medium | Low-medium | Medium | [`align-flow.md`](deprioritized-ledger.md) |
 | 9 | Sweep | Fan one worker per file at an external linter, loop until the tool re-scans to zero | High | High | Medium | New (2026-07 scan); adjacent: fix-until-green |
 | 10 | Migrate | Deterministic codemod first, then per-file agent fixes each verified by build-and-test | High | High | Medium | New (2026-07 scan); adjacent: build/fix, Decompose |
 | 11 | Property-check | Author invariants, close only on a minimized counterexample that reproduces on a fresh run | High | High | Medium | New (2026-07 scan) |
@@ -146,14 +146,14 @@ Pause implementation until requirements, design, task breakdown, and
 verification expectations exist as typed reports, then export readable views.
 Solid and proven as an operator habit, but the spec-driven-development space
 is crowded, so differentiation carries the virality burden. Full proposal in
-[`spec-driven-flow-opportunities.md`](spec-driven-flow-opportunities.md).
+[`spec-driven-flow-opportunities.md`](deprioritized-ledger.md).
 
 ### 8. Align
 
 Make the project's intent foundation (goals, principles, refusals) explicit,
 durable, and consulted, so drift stops compounding across sessions. Real
 long-run value, weakest demo. Full sketch in
-[`align-flow.md`](align-flow.md).
+[`align-flow.md`](deprioritized-ledger.md).
 
 ### 9. Sweep (from the 2026-07 market scan)
 
@@ -245,7 +245,7 @@ Why this is the simpler and safer shape:
   and sourced from a typed artifact rather than composed inside an unattended
   subprocess.
 - Two parked designs already describe this shape:
-  [`tracker-connector.md`](tracker-connector.md) (structured flow output
+  [`tracker-connector.md`](deprioritized-ledger.md) (structured flow output
   written back to trackers at boundaries) and
   [`multi-channel-hitl-proposal.md`](multi-channel-hitl-proposal.md) (a
   delivery gateway around existing checkpoint semantics). Decompose and
