@@ -215,7 +215,7 @@ Contribute or verify:
 - [`src/README.md`](src/README.md): source tree map for contributors.
 - [`docs/release/proofs/index.yaml`](docs/release/proofs/index.yaml):
   checked-in proof set covering doing work, deciding, continuity,
-  customization, failure, first run, and plan execution for this alpha.
+  customization, failure, first run, and plan execution for this release.
 
 ## License
 

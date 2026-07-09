@@ -6,7 +6,7 @@ enforce most of it, so the value here is the order, the two manual gates,
 and the gotchas that are not encoded anywhere else.
 
 The version source of truth is `plugins/version.json`. Tags look like
-`circuit--v0.1.0-alpha.9`.
+`circuit--v<version>`.
 
 ## Preconditions
 
@@ -38,8 +38,12 @@ to ship from.
 npm run publish:plugins:bump -- --version <next-version>
 ```
 
-This syncs four files: `plugins/version.json`, both host plugin manifests,
-and `.claude-plugin/marketplace.json`.
+This syncs six files: `plugins/version.json`, both host plugin manifests,
+`.claude-plugin/marketplace.json`, the root `package.json`, and the
+Codex install ref in `README.md` (`--ref circuit--v<next-version>`).
+The lab's codex scenario reads the ref out of the README, so it follows
+the bump with no further change. The `check` and `release` targets treat
+any of these six drifting apart as a version mismatch.
 
 ## 3. Rebuild the runtime bundles
 
@@ -52,14 +56,7 @@ Order matters: the bundles embed the version and are built from `dist/`,
 so `build` must run first or the bundles carry stale code under the new
 version number.
 
-## 4. Update the README install ref
-
-Update the Codex install line in `README.md` to the new tag
-(`--ref circuit--v<next-version>`). Nothing bumps this automatically. The
-lab's codex scenario reads the ref out of the README, so it follows this
-edit with no further change.
-
-## 5. Verify, commit, push
+## 4. Verify, commit, push
 
 ```bash
 npm run verify
@@ -70,7 +67,7 @@ Commit everything as `chore(release): bump to v<next-version>`, push to
 `origin/main`, so this push is not optional. Note the README now names a
 tag that does not exist yet; publish promptly after CI is green.
 
-## 6. Dry-run the release
+## 5. Dry-run the release
 
 ```bash
 npm run publish:plugins:release
@@ -82,7 +79,7 @@ install smoke) and skips the effectful steps. Read the report it writes.
 If `check-release-ready` reports an eval-cadence blocker, run the demanded
 evals (they spend real model tokens) or record a waiver before retrying.
 
-## 7. Publish
+## 6. Publish
 
 ```bash
 npm run publish:plugins:release -- --yes
@@ -96,7 +93,7 @@ the marketplace at that tag. Confirm the tag exists on origin afterwards:
 git ls-remote --tags origin | grep <next-version>
 ```
 
-## 8. Post-publish first-run lab (required gate)
+## 7. Post-publish first-run lab (required gate)
 
 ```bash
 experiments/first-run-lab/run-lab.sh all
@@ -108,7 +105,7 @@ transcripts are the release's first-run proof. Read them before announcing
 or closing out; a finding here is a fast-follow fix, not something to sit
 on.
 
-## 9. Release notes
+## 8. Release notes
 
 If the release changes operator-visible behavior, add
 `docs/release/<version>-notes.md` following the existing alpha notes.

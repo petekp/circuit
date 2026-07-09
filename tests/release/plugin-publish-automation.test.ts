@@ -20,6 +20,9 @@ type FixtureOptions = {
   claudeVersion?: string;
   codexVersion?: string;
   marketplaceName?: string;
+  packageVersion?: string;
+  // Version named by the README install ref; null omits the ref line entirely.
+  readmeRefVersion?: string | null;
 };
 
 type GitFixture = {
@@ -54,6 +57,7 @@ function createFixture(options: FixtureOptions = {}): string {
   const marketplaceName = options.marketplaceName ?? 'circuit';
 
   writeJson(join(root, 'package.json'), {
+    version: options.packageVersion ?? version,
     scripts: {
       'publish:plugins': 'node scripts/plugins/publish.ts check',
       'publish:plugins:bump': 'node scripts/plugins/publish.ts bump',
@@ -115,6 +119,14 @@ function createFixture(options: FixtureOptions = {}): string {
       },
     ],
   });
+  const readmeRefVersion =
+    options.readmeRefVersion === undefined ? version : options.readmeRefVersion;
+  writeText(
+    join(root, 'README.md'),
+    readmeRefVersion === null
+      ? '# Circuit\n\nInstall instructions live here.\n'
+      : `# Circuit\n\n\`\`\`bash\ncodex plugin marketplace add petekp/circuit --ref circuit--v${readmeRefVersion}\n\`\`\`\n`,
+  );
   writeText(join(root, 'plugins/claude/README.md'), 'Claude Circuit plugin\n');
   writeText(join(root, 'plugins/claude/commands/run.md'), '# Run\n');
   writeText(join(root, 'plugins/claude/skills/run/SKILL.md'), '# Run skill\n');
@@ -349,6 +361,67 @@ describe('plugin publish automation', () => {
       ).toMatchObject({
         plugins: [expect.objectContaining({ name: 'circuit', version: '0.1.0-alpha.3' })],
       });
+      expect(JSON.parse(readFileSync(join(root, 'package.json'), 'utf8'))).toMatchObject({
+        version: '0.1.0-alpha.3',
+      });
+      expect(readFileSync(join(root, 'README.md'), 'utf8')).toContain(
+        '--ref circuit--v0.1.0-alpha.3',
+      );
+      expect(readFileSync(join(root, 'README.md'), 'utf8')).not.toContain('0.1.0-alpha.2');
+    } finally {
+      rmSync(root, { recursive: true, force: true });
+    }
+  });
+
+  it('fails bump when the README has no install ref to rewrite', () => {
+    const root = createFixture({ readmeRefVersion: null });
+    const { runner } = createRunner();
+    try {
+      const report = runPublish(['bump', '--version', '0.1.0-alpha.3'], {
+        repoRoot: root,
+        runner,
+      });
+      expect(report.status).toBe('failed');
+      expect(report.errors.join('\n')).toContain('README.md');
+    } finally {
+      rmSync(root, { recursive: true, force: true });
+    }
+  });
+
+  it('treats a drifted README install ref as a version mismatch', () => {
+    const root = createFixture({ readmeRefVersion: '0.1.0-alpha.1' });
+    const { runner } = createRunner();
+    try {
+      const check = runPublish(['check', '--skip-verify', '--allow-unsafe'], {
+        repoRoot: root,
+        runner,
+      });
+      expect(check.status).toBe('passed');
+      expect(check.warnings.join('\n')).toContain('version mismatch');
+      expect(check.warnings.join('\n')).toContain('README install ref');
+
+      const release = runPublish(
+        ['release', '--codex-source', 'petekp/circuit', '--codex-marketplace', 'circuit'],
+        { repoRoot: root, runner },
+      );
+      expect(release.status).toBe('failed');
+      expect(release.errors.join('\n')).toContain('version mismatch');
+    } finally {
+      rmSync(root, { recursive: true, force: true });
+    }
+  });
+
+  it('treats a drifted root package.json version as a version mismatch', () => {
+    const root = createFixture({ packageVersion: '0.0.1' });
+    const { runner } = createRunner();
+    try {
+      const check = runPublish(['check', '--skip-verify', '--allow-unsafe'], {
+        repoRoot: root,
+        runner,
+      });
+      expect(check.status).toBe('passed');
+      expect(check.warnings.join('\n')).toContain('version mismatch');
+      expect(check.warnings.join('\n')).toContain('package.json');
     } finally {
       rmSync(root, { recursive: true, force: true });
     }

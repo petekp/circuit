@@ -41,6 +41,8 @@ export type PublishReport = {
     claude: string;
     codex: string;
     claude_marketplace?: string;
+    root_package?: string;
+    readme_ref?: string;
     expected?: string;
   };
   commands: Array<{
@@ -108,6 +110,14 @@ const SCRIPT_DIR = dirname(SCRIPT_PATH);
 const DEFAULT_REPO_ROOT = resolve(SCRIPT_DIR, '../..');
 const TARGETS = new Set<PublishTarget>(['check', 'local', 'release', 'bump']);
 const VERSION_PATTERN = /^\d+\.\d+\.\d+(?:-[0-9A-Za-z.-]+)?(?:\+[0-9A-Za-z.-]+)?$/;
+// Matches the install-ref tags embedded in README prose, e.g.
+// `--ref circuit--v0.1.0-alpha.10`. The Codex first-run funnel reads this
+// ref out of the README at run time, so it must track the release tag.
+const README_REF_PATTERN = /circuit--v(\d+\.\d+\.\d+(?:-[0-9A-Za-z.-]+)?(?:\+[0-9A-Za-z.-]+)?)/g;
+
+export function extractReadmeRefVersions(content: string): string[] {
+  return [...new Set([...content.matchAll(README_REF_PATTERN)].map((match) => match[1] ?? ''))];
+}
 
 function readJson<T = unknown>(path: string): T {
   return JSON.parse(readFileSync(path, 'utf8')) as T;
@@ -159,12 +169,16 @@ function versionFiles(repoRoot: string): {
   claude: string;
   codex: string;
   claudeMarketplace: string;
+  rootPackage: string;
+  readme: string;
 } {
   return {
     source: resolve(repoRoot, 'plugins/version.json'),
     claude: resolve(repoRoot, 'plugins/claude/.claude-plugin/plugin.json'),
     codex: resolve(repoRoot, 'plugins/codex/.codex-plugin/plugin.json'),
     claudeMarketplace: resolve(repoRoot, '.claude-plugin/marketplace.json'),
+    rootPackage: resolve(repoRoot, 'package.json'),
+    readme: resolve(repoRoot, 'README.md'),
   };
 }
 
@@ -542,9 +556,17 @@ export function runPublish(
       ? findClaudeMarketplacePlugin(claudeMarketplace)
       : undefined;
 
+    const rootPackage = readJson<{ version?: string }>(resolve(repoRoot, 'package.json'));
+    const readmePath = resolve(repoRoot, 'README.md');
+    const readmeRefVersions = existsSync(readmePath)
+      ? extractReadmeRefVersions(readFileSync(readmePath, 'utf8'))
+      : [];
+
     report.versions.source = sourceVersion.version;
     report.versions.claude = claudeManifest.version ?? '';
     report.versions.codex = codexManifest.version ?? '';
+    if (rootPackage.version !== undefined) report.versions.root_package = rootPackage.version;
+    report.versions.readme_ref = readmeRefVersions.join(', ');
     if (claudeMarketplacePlugin?.version !== undefined) {
       report.versions.claude_marketplace = claudeMarketplacePlugin.version;
     }
@@ -565,8 +587,18 @@ export function runPublish(
       ['Claude plugin manifest', claudeManifest.version],
       ['Codex plugin manifest', codexManifest.version],
       ['Claude marketplace entry', claudeMarketplacePlugin?.version],
+      ['root package.json', rootPackage.version],
       ['--version', args.version ?? sourceVersion.version],
     ];
+    // Every install ref in the README must name the current version; a
+    // stale ref breaks the Codex install funnel for new users.
+    if (readmeRefVersions.length === 0) {
+      versionValues.push(['README install ref', undefined]);
+    } else {
+      for (const refVersion of readmeRefVersions) {
+        versionValues.push(['README install ref', refVersion]);
+      }
+    }
     const mismatches = versionValues.filter(([, version]) => version !== sourceVersion.version);
     if (mismatches.length > 0) {
       const message = `version mismatch: ${versionValues
@@ -740,9 +772,14 @@ export function runPublish(
     const claudeManifest = readJson<PluginManifest>(paths.claude);
     const codexManifest = readJson<PluginManifest>(paths.codex);
     const claudeMarketplace = readJson<ClaudeMarketplace>(paths.claudeMarketplace);
+    const rootPackage = readJson<{ version?: string }>(paths.rootPackage);
     const claudeMarketplacePlugin = findClaudeMarketplacePlugin(claudeMarketplace);
     if (claudeMarketplacePlugin === undefined) {
       fail('Claude marketplace entry must include circuit plugin');
+    }
+    const readmeContent = readFileSync(paths.readme, 'utf8');
+    if (extractReadmeRefVersions(readmeContent).length === 0) {
+      fail('README.md has no circuit--v install ref to bump');
     }
 
     const nextVersion = args.version;
@@ -751,13 +788,19 @@ export function runPublish(
     claudeManifest.version = nextVersion;
     codexManifest.version = nextVersion;
     claudeMarketplacePlugin.version = nextVersion;
+    rootPackage.version = nextVersion;
+    const nextReadme = readmeContent.replace(README_REF_PATTERN, `circuit--v${nextVersion}`);
 
-    const touchedFiles = [
+    const formattedFiles = [
       'plugins/version.json',
       'plugins/claude/.claude-plugin/plugin.json',
       'plugins/codex/.codex-plugin/plugin.json',
       '.claude-plugin/marketplace.json',
+      'package.json',
     ];
+    // README.md is rewritten but kept out of the biome pass; biome does not
+    // format markdown.
+    const touchedFiles = [...formattedFiles, 'README.md'];
 
     if (args.dryRun) {
       report.commands.push({
@@ -770,6 +813,8 @@ export function runPublish(
       writeJson(paths.claude, claudeManifest);
       writeJson(paths.codex, codexManifest);
       writeJson(paths.claudeMarketplace, claudeMarketplace);
+      writeJson(paths.rootPackage, rootPackage);
+      writeFileSync(paths.readme, nextReadme);
       runCommand('format_bumped_versions', [
         'npm',
         'exec',
@@ -777,7 +822,7 @@ export function runPublish(
         '--',
         'check',
         '--write',
-        ...touchedFiles,
+        ...formattedFiles,
       ]);
     }
 
