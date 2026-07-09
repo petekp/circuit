@@ -534,12 +534,12 @@ export async function relayCodex(input: CodexRelayInput): Promise<RelayResult> {
   }
 }
 
-// Known `item.completed` `item.type` values at Codex CLI 0.118-0.130. The
-// connector accepts model narration, planning/progress items, command
-// execution, reasoning, and write receipts. It rejects anything else: an
-// unknown type may represent a new capability surface that bypasses the
-// connector-owned contract and needs to be explicitly reviewed before we
-// start admitting it.
+// Known `item.completed` `item.type` values. The connector accepts model
+// narration, planning/progress items, command execution, reasoning, write
+// receipts, and the `error` item envelope observed in Codex 0.142.5. The error
+// envelope is admitted here only so its message can be checked against the
+// narrower diagnostic allowlist below. It is not treated as successful by
+// default.
 //
 // A future CLI bump that introduces another reviewed protocol item type can
 // extend this list; a bump that introduces a new capability surface must be
@@ -550,6 +550,16 @@ const KNOWN_CODEX_ITEM_TYPES = new Set<string>([
   'reasoning',
   'file_change',
   'todo_list',
+  'error',
+]);
+
+// Codex uses nested error items for both fatal failures and nonfatal
+// diagnostics. Do not infer safety from `turn.completed` alone: an arbitrary
+// nested error can still describe lost work or a failed capability. Admit only
+// diagnostics whose exact semantics have been reviewed. All other nested
+// errors remain fatal.
+const CODEX_NONFATAL_ERROR_ITEM_MESSAGES = new Set<string>([
+  'Skill descriptions were shortened to fit the 2% skills context budget. Codex can still see every skill, but some descriptions are shorter. Disable unused skills or plugins to leave more room for the rest.',
 ]);
 
 // Top-level trace_entry types the parser expects at Codex CLI 0.118-0.128 —
@@ -660,6 +670,15 @@ export function parseCodexStdout(
         `capability-boundary violation: item.completed[${idx}].item.type='${itemType}' is not in the known-types allowlist (${Array.from(KNOWN_CODEX_ITEM_TYPES).join(', ')}). A new Codex item type must be reviewed before the connector admits it.`,
       );
     }
+    if (itemType === 'error') {
+      const message = (item as Record<string, unknown>).message;
+      if (typeof message !== 'string' || !CODEX_NONFATAL_ERROR_ITEM_MESSAGES.has(message)) {
+        const detail = typeof message === 'string' ? message : JSON.stringify(item).slice(0, 200);
+        throw new Error(
+          `codex reported nested error item: ${detail}. Only reviewed nonfatal diagnostics may precede a successful terminal response.`,
+        );
+      }
+    }
   }
 
   // `item.updated` (Codex 0.128+) carries an incremental progress payload
@@ -675,6 +694,13 @@ export function parseCodexStdout(
     const itemType = (item as Record<string, unknown>).type;
     if (typeof itemType !== 'string') {
       throw new Error(`item.updated[${idx}].item.type is not a string`);
+    }
+    // Error diagnostics are terminal items. An update carrying `type=error`
+    // is a new protocol shape and must not inherit the completed-item exception.
+    if (itemType === 'error') {
+      throw new Error(
+        "capability-boundary violation: item.updated item.type='error' is not a reviewed progress item type",
+      );
     }
     if (!KNOWN_CODEX_ITEM_TYPES.has(itemType)) {
       throw new Error(

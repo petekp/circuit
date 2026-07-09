@@ -15,6 +15,9 @@ import {
 } from '../../src/connectors/codex.js';
 
 const HAPPY_PATH_FIXTURE = resolve('tests/fixtures/codex-smoke/protocol/happy-path-ok.jsonl');
+const SKILL_DESCRIPTION_DIAGNOSTIC_FIXTURE = resolve(
+  'tests/fixtures/codex-smoke/protocol/skill-description-diagnostic-0.142.5.jsonl',
+);
 const TURN_FAILED_FIXTURE = resolve('tests/fixtures/codex-smoke/protocol/turn-failed.jsonl');
 
 // Codex connector contract tests. Mirrors the claude-code connector
@@ -594,7 +597,7 @@ describe('Codex connector — parseCodexStdout NDJSON parser branches', () => {
 
 // ---- (B2) real Codex 0.118 JSONL fixtures (HIGH 5 fold-in) -------------
 
-describe('Codex connector — parseCodexStdout against real Codex 0.118 JSONL fixtures', () => {
+describe('Codex connector — parseCodexStdout against captured Codex JSONL fixtures', () => {
   it('parses the real happy-path-ok.jsonl fixture from codex CLI 0.118.0', () => {
     // Fixture source: captured via `codex exec --json -s read-only
     // --ephemeral --skip-git-repo-check "Respond with exactly the
@@ -617,6 +620,63 @@ describe('Codex connector — parseCodexStdout against real Codex 0.118 JSONL fi
     const stdout = readFileSync(TURN_FAILED_FIXTURE, 'utf-8');
     expect(() => parseCodexStdout(stdout, 'any prompt', 0, 'codex-cli 0.118.0')).toThrow(
       /codex reported (error|turn\.failed)/,
+    );
+  });
+
+  it('accepts the Codex 0.142.5 skill-description diagnostic before a successful terminal response', () => {
+    // The nested error item is the exact event captured from Codex 0.142.5.
+    // The surrounding success events model the rest of an otherwise valid
+    // turn so this fixture pins the connector's terminal semantics.
+    const stdout = readFileSync(SKILL_DESCRIPTION_DIAGNOSTIC_FIXTURE, 'utf-8');
+    const parsed = parseCodexStdout(stdout, 'any prompt', 1234, 'codex-cli 0.142.5');
+
+    expect(JSON.parse(parsed.result_body)).toEqual({ verdict: 'ok' });
+    expect(parsed.cli_version).toBe('codex-cli 0.142.5');
+  });
+
+  it('keeps an unrecognized nested error item fatal even when the turn later completes', () => {
+    const stdout =
+      `${JSON.stringify({ type: 'thread.started', thread_id: 't' })}\n` +
+      `${JSON.stringify({ type: 'turn.started' })}\n` +
+      `${JSON.stringify({
+        type: 'item.completed',
+        item: { id: 'item_0', type: 'error', message: 'quota exhausted' },
+      })}\n` +
+      `${JSON.stringify({
+        type: 'item.completed',
+        item: { id: 'item_1', type: 'agent_message', text: 'unexpected success' },
+      })}\n` +
+      `${JSON.stringify({ type: 'turn.completed' })}\n`;
+
+    expect(() => parseCodexStdout(stdout, 'p', 0, 'codex-cli 0.142.5')).toThrow(
+      /codex reported nested error item: quota exhausted/,
+    );
+  });
+
+  it('rejects a top-level error even if a terminal response and turn.completed follow', () => {
+    const stdout =
+      `${JSON.stringify({ type: 'thread.started', thread_id: 't' })}\n` +
+      `${JSON.stringify({ type: 'turn.started' })}\n` +
+      `${JSON.stringify({ type: 'error', message: 'upstream failed' })}\n` +
+      `${JSON.stringify({
+        type: 'item.completed',
+        item: { id: 'item_0', type: 'agent_message', text: 'unexpected success' },
+      })}\n` +
+      `${JSON.stringify({ type: 'turn.completed' })}\n`;
+
+    expect(() => parseCodexStdout(stdout, 'p', 0, 'codex-cli 0.142.5')).toThrow(
+      /codex reported error: upstream failed/,
+    );
+  });
+
+  it('rejects turn.failed independently of a preceding top-level error', () => {
+    const stdout =
+      `${JSON.stringify({ type: 'thread.started', thread_id: 't' })}\n` +
+      `${JSON.stringify({ type: 'turn.started' })}\n` +
+      `${JSON.stringify({ type: 'turn.failed', error: 'network unreachable' })}\n`;
+
+    expect(() => parseCodexStdout(stdout, 'p', 0, 'codex-cli 0.142.5')).toThrow(
+      /codex reported turn\.failed: network unreachable/,
     );
   });
 

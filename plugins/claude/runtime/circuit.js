@@ -126473,7 +126473,11 @@ var KNOWN_CODEX_ITEM_TYPES = /* @__PURE__ */ new Set([
   "command_execution",
   "reasoning",
   "file_change",
-  "todo_list"
+  "todo_list",
+  "error"
+]);
+var CODEX_NONFATAL_ERROR_ITEM_MESSAGES = /* @__PURE__ */ new Set([
+  "Skill descriptions were shortened to fit the 2% skills context budget. Codex can still see every skill, but some descriptions are shorter. Disable unused skills or plugins to leave more room for the rest."
 ]);
 var KNOWN_CODEX_EVENT_TYPES = /* @__PURE__ */ new Set([
   "thread.started",
@@ -126527,6 +126531,13 @@ function parseCodexStdout(stdout, prompt, duration_ms, cli_version) {
     if (!KNOWN_CODEX_ITEM_TYPES.has(itemType)) {
       throw new Error(`capability-boundary violation: item.completed[${idx}].item.type='${itemType}' is not in the known-types allowlist (${Array.from(KNOWN_CODEX_ITEM_TYPES).join(", ")}). A new Codex item type must be reviewed before the connector admits it.`);
     }
+    if (itemType === "error") {
+      const message = item2.message;
+      if (typeof message !== "string" || !CODEX_NONFATAL_ERROR_ITEM_MESSAGES.has(message)) {
+        const detail = typeof message === "string" ? message : JSON.stringify(item2).slice(0, 200);
+        throw new Error(`codex reported nested error item: ${detail}. Only reviewed nonfatal diagnostics may precede a successful terminal response.`);
+      }
+    }
   }
   const itemUpdated = trace_entries.filter((e) => e.type === "item.updated");
   for (const [idx, e] of itemUpdated.entries()) {
@@ -126537,6 +126548,9 @@ function parseCodexStdout(stdout, prompt, duration_ms, cli_version) {
     const itemType = item2.type;
     if (typeof itemType !== "string") {
       throw new Error(`item.updated[${idx}].item.type is not a string`);
+    }
+    if (itemType === "error") {
+      throw new Error("capability-boundary violation: item.updated item.type='error' is not a reviewed progress item type");
     }
     if (!KNOWN_CODEX_ITEM_TYPES.has(itemType)) {
       throw new Error(`capability-boundary violation: item.updated[${idx}].item.type='${itemType}' is not in the known-types allowlist (${Array.from(KNOWN_CODEX_ITEM_TYPES).join(", ")}). A new Codex item type must be reviewed before the connector admits it.`);

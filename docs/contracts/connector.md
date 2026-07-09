@@ -105,7 +105,9 @@ invariant; tested in `tests/contracts/connector-schema.test.ts`,
     Compatible OpenAI model ids are passed with `-m`; supported efforts are
     `low`, `medium`, `high`, and `xhigh`; `max` fails before spawn.
     `parseCodexStdout()` still rejects unknown Codex JSONL event/item shapes
-    and named failure entries so protocol drift fails closed.
+    and named failure entries so protocol drift fails closed. Nested `error`
+    items remain fatal unless their exact message is a reviewed nonfatal
+    diagnostic; top-level `error` and `turn.failed` entries are always fatal.
     Slice 45 (P2.6) binds the mechanism and lands
     `src/connectors/codex.ts`; ADR-0009 §Consequences.Enabling is
     the governance authority (§Enabling explicitly names `codex` as the
