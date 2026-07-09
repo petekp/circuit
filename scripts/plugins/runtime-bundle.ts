@@ -93,9 +93,21 @@ async function buildRuntimeBundle(): Promise<string> {
 }
 
 export function normalizeRuntimeBundle(body: string): string {
-  return stripTrailingWhitespace(body)
-    .replace(/^(\s*")([^"\n]*\/)?node_modules\/([^"\n]+)"(\([^)]*\) \{)$/gm, '$1node_modules/$3"$4')
-    .replace(/^(\/\/ ).*?node_modules\//gm, '$1node_modules/');
+  return (
+    stripTrailingWhitespace(body)
+      // esbuild stamps each bundled module's wrapper with its path relative to
+      // the build root. A repo-root build emits `node_modules/...`; a worktree
+      // build (no local node_modules, deps up-walked to the parent checkout)
+      // emits `../../node_modules/...`. Strip that prefix so the committed bundle
+      // is byte-identical regardless of where it was built. The optional `async `
+      // covers esbuild's lazy-ESM `__esm({ async "path"() {} })` wrappers; the
+      // bare-quote form covers CJS `__commonJS({ "path"(exports) {} })` wrappers.
+      .replace(
+        /^(\s*(?:async )?")([^"\n]*\/)?node_modules\/([^"\n]+)"(\([^)]*\) \{)$/gm,
+        '$1node_modules/$3"$4',
+      )
+      .replace(/^(\/\/ ).*?node_modules\//gm, '$1node_modules/')
+  );
 }
 
 function stripTrailingWhitespace(body: string): string {

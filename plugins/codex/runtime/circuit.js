@@ -90033,7 +90033,7 @@ var init_wrapAssembly = __esm({
 // node_modules/yoga-layout/dist/src/index.js
 var Yoga, src_default;
 var init_src = __esm({
-  async "../../node_modules/yoga-layout/dist/src/index.js"() {
+  async "node_modules/yoga-layout/dist/src/index.js"() {
     init_yoga_wasm_base64_esm();
     init_wrapAssembly();
     init_YGEnums();
@@ -115226,7 +115226,7 @@ var init_squash_text_nodes = __esm({
 // node_modules/ink/build/dom.js
 var createNode, appendChildNode, insertBeforeNode, removeChildNode, setAttribute, setStyle, createTextNode, measureTextNode, findClosestYogaNode, markNodeAsDirty, setTextNodeValue, emitLayoutListeners;
 var init_dom = __esm({
-  async "../../node_modules/ink/build/dom.js"() {
+  async "node_modules/ink/build/dom.js"() {
     await init_src();
     init_measure_text();
     init_wrap_text();
@@ -115359,7 +115359,7 @@ var init_dom = __esm({
 // node_modules/ink/build/styles.js
 var positionEdges, applyPositionStyles, applyMarginStyles, applyPaddingStyles, applyFlexStyles, applyDimensionStyles, applyDisplayStyles, applyBorderStyles, applyGapStyles, styles2, styles_default;
 var init_styles = __esm({
-  async "../../node_modules/ink/build/styles.js"() {
+  async "node_modules/ink/build/styles.js"() {
     await init_src();
     positionEdges = [
       ["top", src_default.EDGE_TOP],
@@ -119420,7 +119420,7 @@ var init_react_devtools_stub = __esm({
 var devtools_exports = {};
 var isDevToolsReachable;
 var init_devtools = __esm({
-  async "../../node_modules/ink/build/devtools.js"() {
+  async "node_modules/ink/build/devtools.js"() {
     init_devtools_window_polyfill();
     init_wrapper();
     init_react_devtools_stub();
@@ -119464,7 +119464,7 @@ async function loadPackageJson() {
 }
 var import_react_reconciler, import_constants, Scheduler, import_react2, diff, cleanupYogaNode, currentUpdatePriority, currentRootNode, packageInfo, reconciler_default;
 var init_reconciler = __esm({
-  async "../../node_modules/ink/build/reconciler.js"() {
+  async "node_modules/ink/build/reconciler.js"() {
     import_react_reconciler = __toESM(require_react_reconciler(), 1);
     import_constants = __toESM(require_constants(), 1);
     Scheduler = __toESM(require_scheduler(), 1);
@@ -119790,7 +119790,7 @@ var init_indent_string = __esm({
 // node_modules/ink/build/get-max-width.js
 var getMaxWidth, get_max_width_default;
 var init_get_max_width = __esm({
-  async "../../node_modules/ink/build/get-max-width.js"() {
+  async "node_modules/ink/build/get-max-width.js"() {
     await init_src();
     getMaxWidth = (yogaNode) => {
       return yogaNode.getComputedWidth() - yogaNode.getComputedPadding(src_default.EDGE_LEFT) - yogaNode.getComputedPadding(src_default.EDGE_RIGHT) - yogaNode.getComputedBorder(src_default.EDGE_LEFT) - yogaNode.getComputedBorder(src_default.EDGE_RIGHT);
@@ -120572,7 +120572,7 @@ var init_render_background = __esm({
 // node_modules/ink/build/render-node-to-output.js
 var applyPaddingToText, renderNodeToScreenReaderOutput, renderNodeToOutput, render_node_to_output_default;
 var init_render_node_to_output = __esm({
-  async "../../node_modules/ink/build/render-node-to-output.js"() {
+  async "node_modules/ink/build/render-node-to-output.js"() {
     init_widest_line();
     init_indent_string();
     await init_src();
@@ -121256,7 +121256,7 @@ var init_output = __esm({
 // node_modules/ink/build/renderer.js
 var renderer, renderer_default;
 var init_renderer = __esm({
-  async "../../node_modules/ink/build/renderer.js"() {
+  async "node_modules/ink/build/renderer.js"() {
     await init_render_node_to_output();
     init_output();
     renderer = (node, isScreenReaderEnabled) => {
@@ -123391,7 +123391,7 @@ var init_kitty_keyboard = __esm({
 import process13 from "node:process";
 var import_react17, import_signal_exit2, import_constants2, noop2, textEncoder, yieldImmediate, kittyQueryEscapeByte, kittyQueryOpenBracketByte, kittyQueryQuestionMarkByte, kittyQueryLetterByte, zeroByte, nineByte, isDigitByte, matchKittyQueryResponse, hasCompleteKittyQueryResponse, stripKittyQueryResponsesAndTrailingPartial, isWindowsConsole, shouldClearTerminalForFrame, isErrorInput, getWritableStreamState, settleThrottle, Ink;
 var init_ink = __esm({
-  async "../../node_modules/ink/build/ink.js"() {
+  async "node_modules/ink/build/ink.js"() {
     import_react17 = __toESM(require_react(), 1);
     init_compat2();
     init_ansi_escapes();
@@ -124215,7 +124215,7 @@ import { Stream } from "node:stream";
 import process14 from "node:process";
 var render, render_default, getOptions, getInstance;
 var init_render = __esm({
-  async "../../node_modules/ink/build/render.js"() {
+  async "node_modules/ink/build/render.js"() {
     await init_ink();
     init_instances();
     render = (node, options) => {
@@ -124273,7 +124273,7 @@ var init_render = __esm({
 // node_modules/ink/build/render-to-string.js
 var import_constants3;
 var init_render_to_string = __esm({
-  async "../../node_modules/ink/build/render-to-string.js"() {
+  async "node_modules/ink/build/render-to-string.js"() {
     await init_src();
     import_constants3 = __toESM(require_constants(), 1);
     await init_reconciler();
@@ -124767,7 +124767,7 @@ var init_use_stdin = __esm({
 // node_modules/ink/build/hooks/use-input.js
 var import_react23, useInput, use_input_default;
 var init_use_input = __esm({
-  async "../../node_modules/ink/build/hooks/use-input.js"() {
+  async "node_modules/ink/build/hooks/use-input.js"() {
     import_react23 = __toESM(require_react(), 1);
     init_parse_keypress();
     await init_reconciler();
@@ -124856,7 +124856,7 @@ var init_use_input = __esm({
 // node_modules/ink/build/hooks/use-paste.js
 var import_react24;
 var init_use_paste = __esm({
-  async "../../node_modules/ink/build/hooks/use-paste.js"() {
+  async "node_modules/ink/build/hooks/use-paste.js"() {
     import_react24 = __toESM(require_react(), 1);
     await init_reconciler();
     init_use_stdin();
@@ -124951,7 +124951,7 @@ var init_use_window_size = __esm({
 // node_modules/ink/build/hooks/use-box-metrics.js
 var import_react34;
 var init_use_box_metrics = __esm({
-  async "../../node_modules/ink/build/hooks/use-box-metrics.js"() {
+  async "node_modules/ink/build/hooks/use-box-metrics.js"() {
     import_react34 = __toESM(require_react(), 1);
     await init_dom();
   }
@@ -124965,7 +124965,7 @@ var init_measure_element = __esm({
 
 // node_modules/ink/build/index.js
 var init_build2 = __esm({
-  async "../../node_modules/ink/build/index.js"() {
+  async "node_modules/ink/build/index.js"() {
     await init_render();
     await init_render_to_string();
     init_Box();
