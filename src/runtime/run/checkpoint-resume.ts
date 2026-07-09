@@ -55,6 +55,7 @@ import {
   isGraphRejectedOutcome,
 } from './graph-runner.js';
 import { readRuntimeCompiledFlowManifestSnapshot } from './manifest-snapshot.js';
+import { acquireResumeLock } from './resume-lock.js';
 import type { GraphRunResult } from './run-close.js';
 
 export interface ResumeCompiledFlowOptions {
@@ -505,6 +506,25 @@ function executableFlowForResume(input: {
 }
 
 export async function resumeCompiledFlowResult(
+  options: ResumeCompiledFlowOptions,
+): Promise<CheckpointResumeResult> {
+  // H5 — acquire the exclusive resume lock before touching the trace. Two
+  // concurrent resumes would otherwise both compute the same next sequence and
+  // append entries stamped with it, and the strict trace loader would then fail
+  // on every later load — a permanent brick. The lock reclaims a crashed prior
+  // resume's lock via pid-liveness, so a crash never wedges future resumes.
+  const lock = acquireResumeLock(options.runDir);
+  if (!lock.ok) {
+    return checkpointResumeRejected(lock.message);
+  }
+  try {
+    return await resumeCompiledFlowResultLocked(options);
+  } finally {
+    lock.handle.release();
+  }
+}
+
+async function resumeCompiledFlowResultLocked(
   options: ResumeCompiledFlowOptions,
 ): Promise<CheckpointResumeResult> {
   const trace = new TraceStore(options.runDir, {

@@ -27,6 +27,26 @@ describe('nodeVersionError', () => {
     expect(nodeVersionError('24.3.0', REQUIRED_NODE)).toBeUndefined();
   });
 
+  // Node's unflagged built-in TypeScript type-stripping — which circuit's `.ts`
+  // entry points require — arrived on the 22.x LTS line at 22.18 but on the
+  // 23.x "Current" line not until 23.6. A Node in the 23.0–23.5 window clears a
+  // naive "newer than the required major" check yet still crashes on the first
+  // `.ts` import with a raw, illegible error, which is exactly the class this
+  // guard exists to turn into a legible message.
+  it('rejects the 23.0–23.5 window where native .ts import still crashes', () => {
+    for (const version of ['23.0.0', '23.2.1', '23.5.0']) {
+      const message = nodeVersionError(version, REQUIRED_NODE);
+      expect(message, version).toBeDefined();
+      expect(message, version).toContain(version);
+      expect(message, version).toContain('23.6');
+    }
+  });
+
+  it('accepts 23.6 and newer on the 23.x line', () => {
+    expect(nodeVersionError('23.6.0', REQUIRED_NODE)).toBeUndefined();
+    expect(nodeVersionError('23.11.0', REQUIRED_NODE)).toBeUndefined();
+  });
+
   it('does not block when the version string is unparseable', () => {
     expect(nodeVersionError('not-a-version', REQUIRED_NODE)).toBeUndefined();
   });

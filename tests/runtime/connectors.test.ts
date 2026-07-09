@@ -10,12 +10,14 @@ import {
   resolveConnectorForGuidanceInput,
 } from '../../src/connectors/resolver.js';
 import type { RuntimeIndexedRelayStep } from '../../src/flows/registries/runtime-index.js';
+import { projectConfigV1ToPolicyEnvelopeV2 } from '../../src/policy/policy-envelope.js';
 import type { RelayConnector } from '../../src/runtime/executors/relay.js';
 import type { ExecutableFlow, RelayStep } from '../../src/runtime/manifest/executable-flow.js';
 import { executeExecutableFlow } from '../../src/runtime/run/graph-runner.js';
 import { planRelayGuidanceDecision } from '../../src/runtime/run/relay-guidance.js';
 import type { RunContext } from '../../src/runtime/run/run-context.js';
 import {
+  Config,
   LayeredConfig,
   type LayeredConfig as LayeredConfigValue,
 } from '../../src/schemas/config.js';
@@ -351,7 +353,10 @@ describe('runtime connector safety', () => {
       capabilities: { filesystem: 'read-only', structured_output: 'json' },
     });
     const layer = LayeredConfig.parse({
-      layer: 'project',
+      // A custom connector's command is honored only from the operator's own
+      // config, so the trusted user-global layer is where role routing to a
+      // custom connector is declared (a project layer would be refused).
+      layer: 'user-global',
       config: {
         schema_version: 1,
         host: { kind: 'generic-shell' },
@@ -506,8 +511,14 @@ describe('runtime connector safety', () => {
         },
       },
     });
+    // A custom connector's command is honored only from a policy layer the
+    // operator controls, so the trusted user-global layer is where this
+    // policy-schema custom connector lives (a project-origin policy layer would
+    // be refused — see the policy trust-boundary tests below). This still proves
+    // the policy registry resolves the step-pinned custom connector ahead of the
+    // legacy v1 config registry.
     const policyLayer = PolicyLayer.parse({
-      source: 'project',
+      source: 'user-global',
       envelope: {
         schema_version: 2,
         policy: {
@@ -659,7 +670,9 @@ describe('runtime connector safety', () => {
       capabilities: { filesystem: 'read-only', structured_output: 'json' },
     });
     const layer = LayeredConfig.parse({
-      layer: 'project',
+      // Declared in the trusted user-global layer so the read-only role check is
+      // what rejects it here, not the project-layer trust boundary.
+      layer: 'user-global',
       config: {
         schema_version: 1,
         relay: {
@@ -688,7 +701,9 @@ describe('runtime connector safety', () => {
       capabilities: { filesystem: 'read-only', structured_output: 'json' },
     });
     const layer = LayeredConfig.parse({
-      layer: 'project',
+      // A step-pinned custom connector resolves its command only from a trusted
+      // layer; the operator's user-global config is that trusted source.
+      layer: 'user-global',
       config: {
         schema_version: 1,
         host: { kind: 'generic-shell' },
@@ -715,7 +730,7 @@ describe('runtime connector safety', () => {
     expect(decision.resolvedFrom).toEqual({ source: 'explicit' });
   });
 
-  it('uses merged config precedence for custom step connector descriptors', () => {
+  it('honors trusted-layer precedence for custom step connector descriptors', () => {
     const lowerPrecedence = CustomConnectorDescriptor.parse({
       kind: 'custom',
       name: 'local-reviewer',
@@ -727,7 +742,7 @@ describe('runtime connector safety', () => {
     const higherPrecedence = CustomConnectorDescriptor.parse({
       kind: 'custom',
       name: 'local-reviewer',
-      command: ['node', 'project-reviewer.js'],
+      command: ['node', 'invocation-reviewer.js'],
       prompt_transport: 'prompt-file',
       output: { kind: 'output-file' },
       capabilities: { filesystem: 'read-only', structured_output: 'json' },
@@ -747,8 +762,12 @@ describe('runtime connector safety', () => {
         defaults: {},
       },
     });
-    const projectLayer = LayeredConfig.parse({
-      layer: 'project',
+    // Precedence still applies among trusted layers: an invocation-time
+    // override outranks the user-global config. (A project layer, by contrast,
+    // cannot contribute a custom command connector at all — see the trust
+    // boundary tests below.)
+    const invocationLayer = LayeredConfig.parse({
+      layer: 'invocation',
       config: {
         schema_version: 1,
         host: { kind: 'generic-shell' },
@@ -767,7 +786,7 @@ describe('runtime connector safety', () => {
       flowId: 'review',
       role: 'reviewer',
       stepConnector: 'local-reviewer',
-      configLayers: [userLayer, projectLayer],
+      configLayers: [userLayer, invocationLayer],
     });
 
     expect(decision.connectorName).toBe('local-reviewer');
@@ -1013,5 +1032,282 @@ describe('runtime connector safety', () => {
     expect(result.outcome).toBe('aborted');
     expect(result.reason).toContain("expected provider 'anthropic'");
     expect(relayCalls).toBe(0);
+  });
+
+  // SECURITY (C1): a custom connector carries an arbitrary `command` the engine
+  // spawns. A project's committed `.circuit/config.yaml` is untrusted input —
+  // cloning a repo and running any flow (even read-only review) must never let
+  // the repo author's config execute a command. Custom connector definitions
+  // are honored only from the operator's own layers (user-global, invocation);
+  // built-in connector names stay selectable from any layer.
+  describe('project-layer custom connector trust boundary', () => {
+    const evilCustom = CustomConnectorDescriptor.parse({
+      kind: 'custom',
+      name: 'evil',
+      command: ['node', 'evil.js'],
+      prompt_transport: 'prompt-file',
+      output: { kind: 'output-file' },
+      capabilities: { filesystem: 'read-only', structured_output: 'json' },
+    });
+
+    function projectLayer(relay: unknown): LayeredConfigValue {
+      return LayeredConfig.parse({ layer: 'project', config: { schema_version: 1, relay } });
+    }
+    function userGlobalLayer(relay: unknown): LayeredConfigValue {
+      return LayeredConfig.parse({ layer: 'user-global', config: { schema_version: 1, relay } });
+    }
+
+    it('refuses a project-layer custom connector selected via relay.default', () => {
+      expect(() =>
+        resolveConnectorForGuidanceInput({
+          flowId: 'review',
+          role: 'reviewer',
+          configLayers: [projectLayer({ default: 'evil', connectors: { evil: evilCustom } })],
+        }),
+      ).toThrow(/does not run custom command connectors that come from a project config/);
+    });
+
+    it('refuses a project-layer custom connector selected via a relay role', () => {
+      expect(() =>
+        resolveConnectorForGuidanceInput({
+          flowId: 'review',
+          role: 'reviewer',
+          configLayers: [
+            projectLayer({
+              roles: { reviewer: { kind: 'named', name: 'evil' } },
+              connectors: { evil: evilCustom },
+            }),
+          ],
+        }),
+      ).toThrow(/custom connector 'evil'/);
+    });
+
+    it('refuses a project-layer custom connector pinned as an explicit step connector', () => {
+      expect(() =>
+        relayGuidanceExecution({
+          flowId: 'review',
+          role: 'reviewer',
+          stepConnector: 'evil',
+          configLayers: [projectLayer({ connectors: { evil: evilCustom } })],
+        }),
+      ).toThrow(/does not run custom command connectors that come from a project config/);
+    });
+
+    it('leaves a built-in connector chosen by project relay.default unaffected', () => {
+      const decision = resolveConnectorForGuidanceInput({
+        flowId: 'review',
+        role: 'reviewer',
+        configLayers: [projectLayer({ default: 'codex' })],
+      });
+      expect(decision.connector).toEqual({ kind: 'builtin', name: 'codex' });
+      expect(decision.resolvedFrom).toEqual({ source: 'default' });
+    });
+
+    it('honors a custom connector defined in the user-global layer', () => {
+      const decision = resolveConnectorForGuidanceInput({
+        flowId: 'review',
+        role: 'reviewer',
+        configLayers: [userGlobalLayer({ default: 'evil', connectors: { evil: evilCustom } })],
+      });
+      expect(decision.connector).toEqual(evilCustom);
+      expect(decision.resolvedFrom).toEqual({ source: 'default' });
+    });
+
+    it('honors a user-global custom connector pinned as an explicit step connector', () => {
+      const decision = relayGuidanceExecution({
+        flowId: 'review',
+        role: 'reviewer',
+        stepConnector: 'evil',
+        configLayers: [userGlobalLayer({ connectors: { evil: evilCustom } })],
+      });
+      expect(decision.connectorName).toBe('evil');
+      expect(decision.connector).toEqual(evilCustom);
+    });
+
+    it('ignores a project override that tries to replace a user-global custom command', () => {
+      const trusted = CustomConnectorDescriptor.parse({
+        kind: 'custom',
+        name: 'worker',
+        command: ['node', 'trusted-worker.js'],
+        prompt_transport: 'prompt-file',
+        output: { kind: 'output-file' },
+        capabilities: { filesystem: 'read-only', structured_output: 'json' },
+      });
+      const attackerOverride = CustomConnectorDescriptor.parse({
+        kind: 'custom',
+        name: 'worker',
+        command: ['node', 'attacker-worker.js'],
+        prompt_transport: 'prompt-file',
+        output: { kind: 'output-file' },
+        capabilities: { filesystem: 'read-only', structured_output: 'json' },
+      });
+
+      const decision = relayGuidanceExecution({
+        flowId: 'review',
+        role: 'reviewer',
+        stepConnector: 'worker',
+        configLayers: [
+          userGlobalLayer({ connectors: { worker: trusted } }),
+          projectLayer({ connectors: { worker: attackerOverride } }),
+        ],
+      });
+      expect(decision.connector).toEqual(trusted);
+    });
+  });
+
+  // SECURITY (twin of C1): the PolicyEnvelope schema carries the same custom
+  // connector registry the legacy relay schema does, reached through a different
+  // resolution path (`policyLayerConnector`). A project `.circuit/config.yaml`
+  // can place a custom arbitrary-command connector into that policy registry —
+  // either as a `schema_version: 2` policy config directly, or as a v1
+  // `relay.connectors` map lowered by `projectConfigV1ToPolicyEnvelopeV2`. The
+  // policy path must draw the identical origin boundary: a project-origin custom
+  // command connector is refused; built-ins stay selectable from any origin; a
+  // custom connector defined in the operator's own (user-global / invocation)
+  // policy layer is honored.
+  describe('project policy custom connector trust boundary', () => {
+    const evilPolicyCustom = CustomConnectorDescriptor.parse({
+      kind: 'custom',
+      name: 'evil',
+      command: ['node', 'evil-policy.js'],
+      prompt_transport: 'prompt-file',
+      output: { kind: 'output-file' },
+      capabilities: { filesystem: 'read-only', structured_output: 'json' },
+    });
+
+    function policyLayerFromEnvelope(
+      source: 'project' | 'user-global' | 'invocation',
+      policy: unknown,
+    ): PolicyLayerValue {
+      return PolicyLayer.parse({ source, envelope: { schema_version: 2, policy } });
+    }
+
+    it('refuses a project v1 relay.connectors custom connector lowered into a policy envelope', () => {
+      // The v1 twin: a committed project config's `relay.connectors` map, lowered
+      // through the documented v1 -> v2 bridge, keeps the custom command in the
+      // policy registry with its project origin.
+      const projection = projectConfigV1ToPolicyEnvelopeV2({
+        config: Config.parse({
+          schema_version: 1,
+          relay: { connectors: { evil: evilPolicyCustom } },
+        }),
+        source: 'project',
+      });
+      const policyLayer = PolicyLayer.parse({
+        source: projection.source,
+        envelope: projection.policy_envelope,
+      });
+
+      expect(() =>
+        relayGuidanceExecution({
+          flowId: 'review',
+          role: 'reviewer',
+          stepConnector: 'evil',
+          policyLayers: [policyLayer],
+        }),
+      ).toThrow(/does not run custom command connectors that come from a project config/);
+    });
+
+    it('refuses a schema_version 2 project policy custom connector pinned as a step connector', () => {
+      const policyLayer = policyLayerFromEnvelope('project', {
+        rules: { connectors: { registry: { evil: evilPolicyCustom } } },
+      });
+
+      expect(() =>
+        relayGuidanceExecution({
+          flowId: 'review',
+          role: 'reviewer',
+          stepConnector: 'evil',
+          policyLayers: [policyLayer],
+        }),
+      ).toThrow(/does not run custom command connectors that come from a project config/);
+    });
+
+    it('refuses a schema_version 2 project policy custom connector selected via a policy default', () => {
+      // The second entry route into `policyLayerConnector`: a policy default that
+      // names the custom connector (no step pin, no supplied connector).
+      const policyLayer = policyLayerFromEnvelope('project', {
+        rules: { connectors: { registry: { evil: evilPolicyCustom } } },
+        defaults: { connector: { kind: 'named', name: 'evil' } },
+      });
+
+      expect(() =>
+        relayGuidanceExecution({
+          flowId: 'review',
+          role: 'reviewer',
+          policyLayers: [policyLayer],
+        }),
+      ).toThrow(/does not run custom command connectors that come from a project config/);
+    });
+
+    it('honors a custom connector declared in a user-global policy layer', () => {
+      const trustedCustom = CustomConnectorDescriptor.parse({
+        kind: 'custom',
+        name: 'worker',
+        command: ['node', 'trusted-policy-worker.js'],
+        prompt_transport: 'prompt-file',
+        output: { kind: 'output-file' },
+        capabilities: { filesystem: 'read-only', structured_output: 'json' },
+      });
+      const policyLayer = policyLayerFromEnvelope('user-global', {
+        rules: { connectors: { registry: { worker: trustedCustom } } },
+      });
+
+      const decision = relayGuidanceExecution({
+        flowId: 'review',
+        role: 'reviewer',
+        stepConnector: 'worker',
+        policyLayers: [policyLayer],
+      });
+      expect(decision.connectorName).toBe('worker');
+      expect(decision.connector).toEqual(trustedCustom);
+    });
+
+    it('leaves a built-in connector selected by a project policy default unaffected', () => {
+      const policyLayer = policyLayerFromEnvelope('project', {
+        defaults: { connector: { kind: 'builtin', name: 'codex' } },
+      });
+
+      const decision = relayGuidanceExecution({
+        flowId: 'review',
+        role: 'reviewer',
+        policyLayers: [policyLayer],
+      });
+      expect(decision.connector).toEqual({ kind: 'builtin', name: 'codex' });
+      expect(decision.resolvedFrom).toEqual({ source: 'default' });
+    });
+
+    it('ignores a project policy override that tries to replace a user-global policy custom command', () => {
+      const trusted = CustomConnectorDescriptor.parse({
+        kind: 'custom',
+        name: 'worker',
+        command: ['node', 'trusted-policy-worker.js'],
+        prompt_transport: 'prompt-file',
+        output: { kind: 'output-file' },
+        capabilities: { filesystem: 'read-only', structured_output: 'json' },
+      });
+      const attacker = CustomConnectorDescriptor.parse({
+        kind: 'custom',
+        name: 'worker',
+        command: ['node', 'attacker-policy-worker.js'],
+        prompt_transport: 'prompt-file',
+        output: { kind: 'output-file' },
+        capabilities: { filesystem: 'read-only', structured_output: 'json' },
+      });
+      const userLayer = policyLayerFromEnvelope('user-global', {
+        rules: { connectors: { registry: { worker: trusted } } },
+      });
+      const projectOverride = policyLayerFromEnvelope('project', {
+        rules: { connectors: { registry: { worker: attacker } } },
+      });
+
+      const decision = relayGuidanceExecution({
+        flowId: 'review',
+        role: 'reviewer',
+        stepConnector: 'worker',
+        policyLayers: [userLayer, projectOverride],
+      });
+      expect(decision.connector).toEqual(trusted);
+    });
   });
 });

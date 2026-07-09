@@ -6,6 +6,7 @@
 // WHEN to close; this module decides what the closed run records.
 
 import type { GuidanceDecisionTraceEntryBody } from '../../schemas/guidance-decision.js';
+import { isDegradedCompletionOutcome } from '../../shared/outcome.js';
 import type { TerminalTarget } from '../domain/route.js';
 import type { RunClosedOutcome } from '../domain/run.js';
 import type { TraceEntry } from '../domain/trace.js';
@@ -39,10 +40,23 @@ export function outcomeForTerminal(target: TerminalTarget): RunClosedOutcome {
   return 'escalated';
 }
 
+// Maps a flow's primary-result outcome word onto the run-close outcome the bind
+// applies. Vocabulary-agnostic on purpose: it does NOT enumerate one flow's
+// success words, it reads the shared degraded-completion set. Order matters:
+// `handoff` is a neutral pause with its own terminal outcome, and it is ALSO a
+// member of DEGRADED_COMPLETION_OUTCOMES (for the surface-qualifier use), so it
+// must be matched first or it would bind to `stopped`. Every remaining degraded
+// word (partial, needs_attention, failed, blocked, stopped) downgrades an
+// @complete close to `stopped` (operator-visible "needs attention", exit 1).
+// Anything else — a clean success word like `complete`, `fixed`, or
+// `not-reproduced` — returns undefined so the proof-derived @complete stands.
+// That last branch is what lets Fix arm this bind: the old form downgraded every
+// non-`complete` word to `stopped`, which would have turned Fix's `fixed` /
+// `not-reproduced` successes into `stopped` on every run.
 function runOutcomeForPrimaryResultOutcome(outcome: string): RunClosedOutcome | undefined {
-  if (outcome === 'complete') return undefined;
   if (outcome === 'handoff') return 'handoff';
-  return 'stopped';
+  if (isDegradedCompletionOutcome(outcome)) return 'stopped';
+  return undefined;
 }
 
 // Exported for characterization (terminal-outcome-bound-primary-result.test.ts):

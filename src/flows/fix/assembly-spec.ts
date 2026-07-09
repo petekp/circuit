@@ -407,6 +407,16 @@ export const fixAssemblySpec: FlowSchematicAssemblySpec = {
     supports_autonomous: true,
     default: { depth: 'medium', tournament: false, tournament_n: 3, autonomous: false },
   },
+  // Stage 3 (first-class composition): fix DECLARES the terminal-outcome bind on
+  // its schematic, exactly as goal does (../goal/assembly-spec.ts). The compiler
+  // propagates it to the compiled manifest and the engine reads it through
+  // `resolveEngineFlags`, so an @complete close is downgraded to a non-success
+  // run outcome whenever fix's primary result (reports/fix-result.json) reports a
+  // degraded outcome such as `partial`. Fix's success words `fixed` /
+  // `not-reproduced` are not degraded, so a clean fix still closes complete.
+  engine_flags: {
+    binds_terminal_outcome_to_primary_result: true,
+  },
   // Stage 3b (first-class composition): fix's report file surfaces ride the
   // schematic onto the compiled manifest, so the engine reads the skill-hook
   // edit-file surface table off the manifest, not the by-id catalog package.

@@ -31,7 +31,7 @@
 import { execSync } from 'node:child_process';
 import { existsSync, readFileSync } from 'node:fs';
 import { dirname, resolve } from 'node:path';
-import { fileURLToPath } from 'node:url';
+import { fileURLToPath, pathToFileURL } from 'node:url';
 
 const REPO_ROOT = resolve(dirname(fileURLToPath(import.meta.url)), '../..');
 export const LOOKBACK_LINES = 10;
@@ -113,6 +113,11 @@ function main(): void {
   process.exit(1);
 }
 
-if (import.meta.url === `file://${process.argv[1]}`) {
+// Run main() only when invoked directly, not when a test imports this module.
+// Build the entry URL with pathToFileURL so encoding and the file:// slash
+// count match import.meta.url exactly; the hand-built `file://${argv[1]}` form
+// mismatches on any path with a space or non-ASCII character, which would let
+// this release gate pass by silently doing nothing.
+if (process.argv[1] !== undefined && import.meta.url === pathToFileURL(process.argv[1]).href) {
   main();
 }

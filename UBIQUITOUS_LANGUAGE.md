@@ -88,7 +88,7 @@ instructions.
 | **Report reference** | A schema and path pair that points to a report written during a run. | Report pointer |
 | **Snapshot** | A derived runtime projection from trace entries and the compiled flow. | Run state |
 | **Fixture** | A saved example or test input. | Example, proof file |
-| **Runtime proof** | An internal flow used as a runtime proof and test surface. | Public flow |
+| **Runtime proof** | An internal flow used as a runtime proof and test surface. | Internal proof flow |
 | **Project** | Produce a narrower status or report shape from richer runtime data. Unrelated to the noun "project" meaning the working directory. | Derive, render |
 
 ## Trace Kind Language

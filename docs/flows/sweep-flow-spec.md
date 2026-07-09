@@ -1,11 +1,13 @@
-# Sweep flow — build-ready spec
+# Sweep flow — spec (internal baseline shipped)
 
-Status: design, ready to build (internal-first). Written 2026-07-07.
+Status: internal baseline shipped (PR #157, 2026-07-08). Written 2026-07-07.
+Public promotion is gated on closing the 6.4 and 6.6 soundness gaps; see
+Section 11.
 
-This is a design spec, not a build. Writing it is allowed under the v1
-freeze (design is not a feature). Sweep would ship `visibility: 'internal'`
-and emit no public host surface until a separate post-launch promotion
-decision, which is Pete's call.
+This began as a design spec written under the v1 freeze. The internal
+baseline has since shipped with `visibility: 'internal'`, so Sweep emits no
+public host surface. Public promotion is a separate post-launch decision,
+gated on closing the two soundness gaps in Section 11, and is Pete's call.
 
 The spec was produced by a grounded design pass and then hardened by two
 adversarial reviews against real engine source. The first verified the flow

@@ -1,5 +1,9 @@
 import { existsSync } from 'node:fs';
 import { join } from 'node:path';
+import {
+  type RegenerateRunResultOutcome,
+  regenerateMissingRunResult,
+} from '../../runtime/run/result-recovery.js';
 import { CompiledFlow } from '../../schemas/compiled-flow.js';
 import type { RunStatusInvalidReason } from '../../schemas/run-status.js';
 import { RunStatusProjectionV1 } from '../../schemas/run-status.js';
@@ -77,6 +81,32 @@ export function optionalReportPaths(runFolder: string): {
       ? { operator_summary_markdown_path: operatorSummaryMarkdown }
       : {}),
   };
+}
+
+/**
+ * Heal-on-read for the crash window between the `run.closed` trace append and
+ * the result.json write. A crash there leaves a durably-closed run with no
+ * result.json, and the plain projection then silently omits `result_path`, so
+ * the operator sees a closed run whose result never appears.
+ *
+ * `regenerateMissingRunResult` rebuilds result.json from the durable trace, but
+ * only when the run is durably closed AND result.json is missing AND the
+ * bootstrap identity is intact. That makes this idempotent and safe to call on
+ * every read: a healthy run (result already present) and an open run (not yet
+ * closed) are both left untouched. Errors are swallowed on purpose — a status
+ * read must never fail because best-effort self-repair failed.
+ *
+ * Callers project the run folder AFTER awaiting this so a healed result surfaces
+ * through `optionalReportPaths` as `result_path`.
+ */
+export async function healClosedRunResult(
+  runFolder: string,
+): Promise<RegenerateRunResultOutcome | undefined> {
+  try {
+    return await regenerateMissingRunResult(runFolder);
+  } catch {
+    return undefined;
+  }
 }
 
 export function stepMetadata(

@@ -1,3 +1,20 @@
+---
+contract: prototype
+status: ratified-v0.1
+version: 0.1
+schema_source: generated/flows/prototype/circuit.json (compiled flow) + src/flows/prototype/reports.ts
+last_updated: 2026-07-09
+depends_on: [flow, stage, step, connector]
+report_ids:
+  - prototype.brief
+  - prototype.plan
+  - prototype.artifact
+  - prototype.verification
+  - prototype.result
+invariant_ids: []
+property_ids: []
+---
+
 # Prototype Flow Contract
 
 Prototype creates a disposable, project-local artifact so the operator can

@@ -1,9 +1,9 @@
 ---
 contract: build
-status: draft
+status: ratified-v0.1
 version: 0.1
 schema_source: src/flows/build/reports.ts
-last_updated: 2026-04-28
+last_updated: 2026-07-09
 depends_on: [flow, stage, step, connector]
 report_ids:
   - build.brief

@@ -51,7 +51,7 @@ import { CUSTOM_FLOW_ROOT_RUNTIME_POLICY } from './runtime-routing-policy.js';
 import { utilityProgress } from './utility-progress.js';
 
 // The proposer is pinned to the model the live proposeFlow runs validated
-// (claude-haiku-4-5 / low): 4/4 of Pete's real tasks composed runnable on it.
+// (claude-haiku-4-5 / low): 4/4 of the validation tasks composed runnable on it.
 // proposeFlow is selection-agnostic, so honoring the session power dial here is a
 // one-line swap (materializePowerSelection, role 'researcher') once the dial is
 // loaded at this boundary. v1 pins the proven model and reports it transparently

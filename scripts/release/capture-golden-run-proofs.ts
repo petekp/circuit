@@ -20,6 +20,11 @@ import { fileURLToPath } from 'node:url';
 import type * as CliCircuitModule from '../../src/cli/circuit.js';
 import type * as CheckpointExecutorModule from '../../src/runtime/executors/checkpoint.js';
 import type * as ComposeModule from '../../src/runtime/executors/compose.js';
+import {
+  type CapturedProof,
+  type CapturedProofFile,
+  capturedProofFreshnessFailures,
+} from './captured-proof-freshness.ts';
 import { compareProofRecency } from './proof-recency.ts';
 
 type CliMain = (typeof CliCircuitModule)['main'];
@@ -1314,6 +1319,30 @@ async function validateScenarioStubFreshness(scenario: Scenario): Promise<string
   }
 }
 
+// Walk a captured proof directory and read every file so the freshness guard
+// can scan for a drifted runtime_version. Returns an empty file list when the
+// capture directory is absent (which the guard reports as a missing capture).
+function collectCapturedProof(slug: string): CapturedProof {
+  const dirRel = `${proofRunsRootRel}/${slug}`;
+  const dirAbs = resolve(projectRoot, dirRel);
+  const files: CapturedProofFile[] = [];
+  const walk = (absDir: string, rel: string): void => {
+    for (const entry of readdirSync(absDir)) {
+      const abs = join(absDir, entry);
+      const childRel = `${rel}/${entry}`;
+      if (statSync(abs).isDirectory()) walk(abs, childRel);
+      else files.push({ rel: childRel, content: readFileSync(abs, 'utf8') });
+    }
+  };
+  if (existsSync(dirAbs)) walk(dirAbs, dirRel);
+  return { slug, dirRel, files };
+}
+
+function currentReleaseVersion(): string {
+  const raw = readFileSync(resolve(projectRoot, 'plugins/version.json'), 'utf8');
+  return (JSON.parse(raw) as { version?: string }).version ?? '';
+}
+
 async function validateStubFreshness(): Promise<void> {
   const failures: string[] = [];
   for (const scenario of scenarios) {
@@ -1327,6 +1356,23 @@ async function validateStubFreshness(): Promise<void> {
       failures.push(...scenarioFailures);
     }
   }
+
+  // The captured proofs (doctor, handoff, customization) are produced outside
+  // the scenario loop above, so before this guard they were never re-checked
+  // for staleness: a capture could pin an older Circuit version at a newer HEAD
+  // yet still back a verified_current public claim. Bring them under the same
+  // guard — a drifted runtime_version or a missing capture now fails. The
+  // doctor capture is presently stale (see the TODO at captureDoctor); this
+  // guard makes that fail loudly until it is recaptured at the tag cut.
+  const capturedFailures = capturedProofFreshnessFailures({
+    currentVersion: currentReleaseVersion(),
+    captures: ['doctor', 'handoff', 'customization'].map(collectCapturedProof),
+  });
+  for (const failure of capturedFailures) {
+    console.error(`error: ${failure}`);
+  }
+  failures.push(...capturedFailures);
+
   if (failures.length > 0) {
     console.error(
       `\n${failures.length} proof scenario check(s) failed: a relay stub no longer satisfies its flow's report schema, or a committed proof drifted from current behavior (terminal outcome or report set). Fix the relay stub body in scripts/release/capture-golden-run-proofs.ts and/or re-run \`npm run capture-proofs:golden-runs\` to refresh the golden proofs, then review the diff per docs/release/proofs/README.md.`,
@@ -1338,6 +1384,7 @@ async function validateStubFreshness(): Promise<void> {
   );
 }
 
+// TODO(release): recapture doctor proof at tag cut — currently stale
 function captureDoctor(): void {
   const proofDirRel = `${proofRunsRootRel}/doctor`;
   const proofDir = resolve(projectRoot, proofDirRel);

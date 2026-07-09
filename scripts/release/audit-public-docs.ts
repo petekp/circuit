@@ -59,7 +59,15 @@ async function main() {
   for (const audit of audits) {
     const hits = [];
     for (const file of audit.files) {
-      if (!pathExists(file)) continue;
+      // Fail closed: a declared audit file that has gone missing means the
+      // target moved and this check is now blind. Silently skipping it would
+      // let stale wording pass, so surface it as an issue instead.
+      if (!pathExists(file)) {
+        issues.push(
+          `${audit.id}: declared audit file '${file}' is missing — restore it or update the audit's file list`,
+        );
+        continue;
+      }
       const text = readText(file);
       if (audit.pattern.test(text)) hits.push(file);
     }

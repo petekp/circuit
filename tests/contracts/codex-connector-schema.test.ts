@@ -703,6 +703,86 @@ describe('Codex connector — parseCodexStdout against captured Codex JSONL fixt
   });
 });
 
+// ---- (B3) unknown-type errors name version skew (M7) --------------------
+//
+// The allowlists are pinned to a tested Codex CLI version range and fail
+// closed on any unknown top-level trace_entry or item type — correct and
+// deliberate. But the bare "unknown type" message left the operator guessing:
+// the usual cause is a Codex CLI newer than Circuit was tested against, and the
+// first novel event then takes down every codex relay. Each rejection message
+// now names the type, states the supported range, and points at the fix
+// (check/pin the Codex CLI version) without weakening the refusal.
+describe('Codex connector — unknown-type errors explain version skew (M7)', () => {
+  const NEWER_VERSION = 'codex-cli 0.140.0';
+
+  it('names the range and the version-skew cause for an unknown top-level trace_entry type', () => {
+    const stdout =
+      `${JSON.stringify({ type: 'thread.started', thread_id: 't' })}\n` +
+      `${JSON.stringify({ type: 'novel.future.trace_entry', foo: 'bar' })}\n` +
+      `${JSON.stringify({ type: 'turn.completed' })}\n`;
+    try {
+      parseCodexStdout(stdout, 'p', 0, NEWER_VERSION);
+      throw new Error('expected parseCodexStdout to throw');
+    } catch (err) {
+      const message = (err as Error).message;
+      expect(message).toContain('novel.future.trace_entry'); // (a) names the type
+      expect(message).toMatch(/0\.118 to 0\.130/); // (b) states the supported range
+      expect(message).toMatch(/newer/i); // (c) version-skew cause
+      expect(message).toContain('codex --version'); // (c) the actionable fix
+      expect(message).toContain(NEWER_VERSION); // reflects the detected version
+    }
+  });
+
+  it('names the range and the version-skew cause for an unknown item.completed item.type', () => {
+    const stdout =
+      `${JSON.stringify({ type: 'thread.started', thread_id: 't' })}\n` +
+      `${JSON.stringify({
+        type: 'item.completed',
+        item: { id: 'item_0', type: 'agent_message', text: 'ok' },
+      })}\n` +
+      `${JSON.stringify({
+        type: 'item.completed',
+        item: { id: 'item_1', type: 'apply_patch' },
+      })}\n` +
+      `${JSON.stringify({ type: 'turn.completed' })}\n`;
+    try {
+      parseCodexStdout(stdout, 'p', 0, NEWER_VERSION);
+      throw new Error('expected parseCodexStdout to throw');
+    } catch (err) {
+      const message = (err as Error).message;
+      expect(message).toContain('apply_patch');
+      expect(message).toMatch(/0\.118 to 0\.130/);
+      expect(message).toMatch(/newer/i);
+      expect(message).toContain('codex --version');
+    }
+  });
+
+  it('names the range and the version-skew cause for an unknown item.updated item.type', () => {
+    const stdout =
+      `${JSON.stringify({ type: 'thread.started', thread_id: 't' })}\n` +
+      `${JSON.stringify({ type: 'turn.started' })}\n` +
+      `${JSON.stringify({
+        type: 'item.updated',
+        item: { id: 'item_0', type: 'apply_patch', status: 'in_progress' },
+      })}\n` +
+      `${JSON.stringify({
+        type: 'item.completed',
+        item: { id: 'item_1', type: 'agent_message', text: 'OK' },
+      })}\n` +
+      `${JSON.stringify({ type: 'turn.completed' })}\n`;
+    try {
+      parseCodexStdout(stdout, 'p', 0, NEWER_VERSION);
+      throw new Error('expected parseCodexStdout to throw');
+    } catch (err) {
+      const message = (err as Error).message;
+      expect(message).toContain('apply_patch');
+      expect(message).toMatch(/0\.118 to 0\.130/);
+      expect(message).toMatch(/newer/i);
+      expect(message).toContain('codex --version');
+    }
+  });
+});
+
 // ---- (C) cross-connector shape parity ------------------------------------
 
 describe('Codex connector — cross-connector shape parity (RelayResult uniformity)', () => {

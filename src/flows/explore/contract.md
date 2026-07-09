@@ -1,9 +1,9 @@
 ---
 contract: explore
-status: draft
+status: ratified-v0.1
 version: 0.7
 schema_source: generated/flows/explore/circuit.json (compiled flow) + src/flows/explore/reports.ts (explore.brief / explore.analysis / explore.compose / explore.review-verdict / explore.result)
-last_updated: 2026-04-28
+last_updated: 2026-07-09
 depends_on: [flow, stage, step, selection, depth, change_kind, skill, connector]
 report_ids:
   - explore.brief

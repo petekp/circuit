@@ -4,7 +4,15 @@
 // launcher relative to its own module location (import.meta.url).
 
 import { createHash } from 'node:crypto';
-import { copyFileSync, existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs';
+import {
+  accessSync,
+  copyFileSync,
+  existsSync,
+  constants as fsConstants,
+  mkdirSync,
+  readFileSync,
+  writeFileSync,
+} from 'node:fs';
 import { homedir } from 'node:os';
 import { dirname, join, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -241,6 +249,37 @@ function launcherPathFromCircuitHookCommand(command: string): string | undefined
   return launcher;
 }
 
+// The installed command is `<marker> <node> <launcher> handoff hook --host
+// codex`, so the pinned node binary sits two words before `handoff` (one before
+// the launcher). codexHookCommand pins an ABSOLUTE process.execPath here, which
+// an nvm/Node switch can relocate out from under the hook (M11).
+function nodePathFromCircuitHookCommand(command: string): string | undefined {
+  const words = splitShellWords(command);
+  const handoffIndex = words.findIndex(
+    (word, index) =>
+      word === 'handoff' &&
+      words[index + 1] === 'hook' &&
+      words[index + 2] === '--host' &&
+      words[index + 3] === 'codex',
+  );
+  if (handoffIndex < 2) return undefined;
+  const nodePath = words[handoffIndex - 2];
+  if (nodePath === undefined || nodePath.length === 0) return undefined;
+  return nodePath;
+}
+
+// A pinned path is usable only if it exists AND is executable. accessSync with
+// X_OK throws ENOENT for a missing path and EACCES for a non-executable one, so
+// this single check covers both "node was relocated" and "node is not runnable".
+function isExecutableFile(path: string): boolean {
+  try {
+    accessSync(path, fsConstants.X_OK);
+    return true;
+  } catch {
+    return false;
+  }
+}
+
 function writeHooksConfig(
   path: string,
   config: Record<string, unknown>,
@@ -368,6 +407,9 @@ function doctorCodexHandoffHook(args: CodexHooksArgs) {
       const launchers = commands
         .map(launcherPathFromCircuitHookCommand)
         .filter((item): item is string => item !== undefined);
+      const nodePaths = commands
+        .map(nodePathFromCircuitHookCommand)
+        .filter((item): item is string => item !== undefined);
       checks.push({ name: 'session_start_array', ok: true, detail: `${entries.length} entries` });
       checks.push({
         name: 'circuit_handoff_hook_installed',
@@ -384,6 +426,16 @@ function doctorCodexHandoffHook(args: CodexHooksArgs) {
         ok: launchers.length > 0 && launchers.every((launcher) => existsSync(launcher)),
         detail: launchers.length > 0 ? launchers.join(', ') : 'launcher not found in hook command',
       });
+      // The hook also pins an absolute node binary; a Node relocation (nvm
+      // switch) breaks restore while the launcher still resolves (M11).
+      checks.push({
+        name: 'circuit_handoff_hook_node_exists',
+        ok: nodePaths.length > 0 && nodePaths.every(isExecutableFile),
+        detail:
+          nodePaths.length > 0
+            ? nodePaths.join(', ')
+            : 'node binary path not found in hook command',
+      });
     } catch (err) {
       checks.push({
         name: 'session_start_array',
@@ -399,6 +451,11 @@ function doctorCodexHandoffHook(args: CodexHooksArgs) {
         name: 'circuit_handoff_hook_launcher_exists',
         ok: false,
         detail: 'launcher not found in hook command',
+      });
+      checks.push({
+        name: 'circuit_handoff_hook_node_exists',
+        ok: false,
+        detail: 'node binary path not found in hook command',
       });
     }
   }
@@ -450,6 +507,8 @@ const CODEX_INSTALL_NUDGE_NOTICE =
 const CODEX_REINSTALL_NUDGE_MARKER = '.codex-reinstall-nudged';
 const CODEX_REINSTALL_NUDGE_NOTICE =
   'The Codex continuity hook points at a launcher from an earlier Circuit version that no longer exists (this happens after an upgrade). Continuity restore is off until you re-run: circuit handoff hooks install --host codex (this notice shows once until fixed).';
+const CODEX_RELOCATED_NODE_NUDGE_NOTICE =
+  'The Codex continuity hook points at a Node binary that no longer exists (this happens after switching Node versions, for example with nvm). Continuity restore is off until you re-run: circuit handoff hooks install --host codex (this notice shows once until fixed).';
 
 function codexInstallNudgeMarkerPath(controlPlane: string): string {
   return join(continuityRoot(controlPlane), CODEX_INSTALL_NUDGE_MARKER);
@@ -466,16 +525,21 @@ function codexReinstallNudgeMarkerPath(controlPlane: string, staleLauncher: stri
 type CodexHookInstallState =
   | { readonly kind: 'absent' }
   | { readonly kind: 'valid' }
-  | { readonly kind: 'stale'; readonly launcher: string };
+  | { readonly kind: 'stale'; readonly reason: 'launcher' | 'node'; readonly stalePath: string };
 
 // Classify the Codex SessionStart hook for the front-door assurance:
 // - absent: no Circuit hook entry (never installed) -> prompt install.
-// - valid:  a Circuit hook entry whose launcher path resolves on disk.
-// - stale:  a Circuit hook entry whose launcher path does not resolve. This is
-//   the post-upgrade failure mode — the version-pinned launcher baked into
-//   ~/.codex/hooks.json points into a cache dir the upgrade deleted. The entry
-//   still matches, so a presence-only check reads it as installed; only
-//   resolving the launcher on disk catches it.
+// - valid:  a Circuit hook entry whose launcher AND pinned node both resolve.
+// - stale:  a Circuit hook entry that cannot actually run because a pinned path
+//   no longer resolves. Two independent failure modes, both reported so doctor
+//   and the front-door stop falsely reporting healthy:
+//     reason 'launcher' — the version-pinned launcher baked into
+//       ~/.codex/hooks.json points into a cache dir a Circuit upgrade deleted.
+//     reason 'node' — the hook pins an absolute process.execPath, and a Node
+//       relocation (e.g. an nvm switch) moved node out from under it. The
+//       launcher still resolves, so a launcher-only check read it as installed.
+//   The entry still matches either way, so only resolving both paths on disk
+//   catches it.
 function codexHookInstallState(hooksPath: string): CodexHookInstallState {
   if (!existsSync(hooksPath)) return { kind: 'absent' };
   let config: Record<string, unknown>;
@@ -492,18 +556,33 @@ function codexHookInstallState(hooksPath: string): CodexHookInstallState {
   }
   const commands = circuitHookCommands(entries);
   if (commands.length === 0) return { kind: 'absent' };
+
+  // (1) Launcher path: the classic post-upgrade dangling-path failure. No
+  // parseable launcher, or one that does not resolve on disk, is stale.
   const launchers = commands
     .map(launcherPathFromCircuitHookCommand)
     .filter((launcher): launcher is string => launcher !== undefined);
-  if (launchers.length > 0 && launchers.every((launcher) => existsSync(launcher))) {
-    return { kind: 'valid' };
+  const missingLauncher = launchers.find((launcher) => !existsSync(launcher));
+  if (launchers.length === 0 || missingLauncher !== undefined) {
+    return {
+      kind: 'stale',
+      reason: 'launcher',
+      stalePath: missingLauncher ?? '(unresolved launcher)',
+    };
   }
-  // A Circuit entry is present but its launcher does not resolve (a dangling
-  // path, or a command we could not parse a launcher from). Either way the hook
-  // cannot run and the fix is the same re-install.
-  const staleLauncher =
-    launchers.find((launcher) => !existsSync(launcher)) ?? '(unresolved launcher)';
-  return { kind: 'stale', launcher: staleLauncher };
+
+  // (2) Pinned node binary: the launcher resolves but the absolute node path
+  // pinned at install time may have been relocated (nvm/Node switch), which
+  // silently kills restore. Validate it too (M11).
+  const nodePaths = commands
+    .map(nodePathFromCircuitHookCommand)
+    .filter((nodePath): nodePath is string => nodePath !== undefined);
+  const brokenNode = nodePaths.find((nodePath) => !isExecutableFile(nodePath));
+  if (brokenNode !== undefined) {
+    return { kind: 'stale', reason: 'node', stalePath: brokenNode };
+  }
+
+  return { kind: 'valid' };
 }
 
 function writeNudgeMarker(markerPath: string, now?: () => Date): void {
@@ -551,14 +630,17 @@ export function codexInstallAssurance(
   // its own signal, on its own marker, so the one-time install nudge cannot
   // swallow it.
   if (state.kind === 'stale') {
-    const markerPath = codexReinstallNudgeMarkerPath(controlPlane, state.launcher);
+    // Key the marker to the broken path so the signal fires once per broken
+    // state and re-fires if a later change dangles a different path.
+    const markerPath = codexReinstallNudgeMarkerPath(controlPlane, state.stalePath);
     if (existsSync(markerPath)) {
       return { status: 'already_reinstall_nudged', marker_path: markerPath };
     }
     writeNudgeMarker(markerPath, input.now);
     return {
       status: 'reinstall_nudge',
-      notice: CODEX_REINSTALL_NUDGE_NOTICE,
+      notice:
+        state.reason === 'node' ? CODEX_RELOCATED_NODE_NUDGE_NOTICE : CODEX_REINSTALL_NUDGE_NOTICE,
       marker_path: markerPath,
     };
   }

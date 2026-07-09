@@ -1,9 +1,9 @@
 ---
 contract: fix
-status: draft
+status: ratified-v0.1
 version: 0.1
 schema_source: src/flows/fix/reports.ts
-last_updated: 2026-05-10
+last_updated: 2026-07-09
 depends_on: [flow, flow-blocks, flow-schematic, step, connector]
 report_ids:
   - fix.brief
@@ -53,11 +53,20 @@ skips the review relay after verification; medium and high keep it.
 | `fix.result` | Close summary | `<run-folder>/reports/fix-result.json` |
 
 The `fix.no-repro-decision` report and the Fix `handoff` step are compiled into
-the flow but no runtime path selects them today. They are reached only through
-`ask` and `handoff` recovery routes, and the engine does not yet emit a failure
-cause those routes' recovery bindings accept, so they remain declared future
-routing intent. When reasoning about a real run, treat `fix.no-repro-decision`
-and any `not-reproduced` result as not-yet-reachable.
+the flow but no runtime path selects them today. Four steps declare an `ask`
+route to `fix-no-repro-decision`: `fix-diagnose`, `fix-act`, `fix-verify`, and
+`fix-review`. `fix-no-repro-decision` and several steps declare a `handoff`
+route to `fix-handoff`. Here is why neither is reachable. An `ask` route
+projects to a `checkpoint_authority` recovery binding, and a `handoff` route to
+a `handoff` binding. Each binding accepts only a fixed set of failure causes.
+`checkpoint_authority` accepts `checkpoint_boundary`, `protected_file_touched`,
+`budget_exceeded`, and `unknown_failure`. Those four steps only ever emit
+`failed_check`, `failed_acceptance_criteria`, or `relay_connector_failed`, none
+of which those bindings accept. Each of the four also declares a `retry` route,
+and the engine's fallback recovery order prefers `retry` over `ask`. So the
+recovery selector never lands on `fix-no-repro-decision` or `fix-handoff`; they
+remain declared future routing intent. When reasoning about a real run, treat
+`fix.no-repro-decision` and any `not-reproduced` result as not-yet-reachable.
 `tests/contracts/flow-schematic.test.ts` pins the schematic half of this: both
 steps stay off every default route.
 

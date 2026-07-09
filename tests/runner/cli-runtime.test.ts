@@ -71,7 +71,10 @@ async function captureMain(
       now: deterministicNow(Date.UTC(2026, 4, 3, 20, 0, 0)),
       runId: options.runId ?? '85000000-0000-4000-8000-000000000001',
       configHomeDir: join(runFolderBase, 'empty-home'),
-      configCwd: options.configCwd ?? process.cwd(),
+      // Isolate the project-config dir like configHomeDir above: never read the
+      // developer's real <cwd>/.circuit/config.yaml (C1). Fresh-repo default;
+      // tests that need a real project root still pass configCwd explicitly.
+      configCwd: options.configCwd ?? join(runFolderBase, 'empty-cwd'),
     }),
   );
   return { code: result, stdout, stderr };

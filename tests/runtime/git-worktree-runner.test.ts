@@ -25,14 +25,18 @@ import { gitWorktreeRunner } from '../../src/runtime/fanout/worktree.js';
  *   - Worktrees live in a SIBLING temp dir, never inside the repo working tree.
  *   - Both temp dirs are removed in afterEach even on failure.
  *
- * CHARACTERIZATION FINDING 1: `add()` and `remove()` pass NO `cwd` to spawnSync,
- * so they implicitly operate on the *process* working directory — git must
- * resolve the target repo from `process.cwd()`. Only `changedFiles()` pins
- * `cwd: worktreePath`. To exercise add/remove hermetically we `process.chdir`
- * into the temp repo for the duration of each test and restore cwd in afterEach;
- * this both makes the tests deterministic AND documents the implicit-cwd contract
- * the Phase 3 restructure must preserve (or deliberately change). See the
- * dedicated "operates on process.cwd" test for the explicit lock.
+ * CONTRACT FINDING 1: `add()` and `remove()` anchor git at an EXPLICIT repo
+ * root when the caller passes one (`repoRoot` on the add input; a second arg to
+ * remove), forwarding it as the spawnSync `cwd` so the worktree operation
+ * targets that repository. When `repoRoot` is omitted they fall back to the
+ * *process* working directory (git resolves the repo from `process.cwd()`),
+ * preserving the pre-fix behavior. `changedFiles()` pins `cwd: worktreePath`.
+ * To exercise the fallback path hermetically we `process.chdir` into the temp
+ * repo and restore cwd in afterEach; the "honors repoRoot" block instead chdirs
+ * AWAY from the repo to prove the explicit root — not the process cwd — is what
+ * git acts on. (Before the H2/M14 fix add/remove passed NO cwd at all, so
+ * driving the engine with a `--project-root` different from cwd targeted the
+ * wrong repo.)
  *
  * CHARACTERIZATION FINDING 2: all three methods are SYNCHRONOUS — declared
  * `void`/`readonly string[]`, not `async`, and they `throw` rather than reject.
@@ -172,11 +176,12 @@ describe('gitWorktreeRunner.add', () => {
     ).toThrow(/^git worktree add failed \(exit /);
   });
 
-  it('operates on process.cwd() (no cwd is passed to spawnSync), so it throws when cwd is not the target repo', () => {
-    // Locks the implicit-cwd contract: add() resolves the repo from the process
-    // working directory, NOT from worktreePath. When cwd is not a git repo, git
-    // exits 128 ("not a git repository") and the failure surfaces in the add
-    // message format. The Phase 3 restructure should treat this as load-bearing.
+  it('falls back to process.cwd() when repoRoot is omitted, so it throws when cwd is not the target repo', () => {
+    // Locks the fallback contract: with NO repoRoot, add() resolves the repo
+    // from the process working directory, NOT from worktreePath. When cwd is not
+    // a git repo, git exits 128 ("not a git repository") and the failure
+    // surfaces in the add message format. The "honors repoRoot" block below
+    // covers the explicit-root path that fixes this for non-cwd invocations.
     const worktreePath = join(worktreeParent, 'cwd-dependent');
     process.chdir(worktreeParent); // a temp dir that is not a git repo
     expect(() =>
@@ -205,6 +210,51 @@ describe('gitWorktreeRunner.remove', () => {
     expect(() => gitWorktreeRunner.remove(notAWorktree)).toThrow(
       /^git worktree remove failed \(exit /,
     );
+  });
+});
+
+describe('gitWorktreeRunner honors an explicit repoRoot (cwd) for add/remove', () => {
+  // These lock the M14 fix: the engine can be driven with a project root that is
+  // NOT the process cwd (e.g. `circuit reclaim --project-root <path>`, or any
+  // fan-out branch whose runner spawns from elsewhere). add()/remove() must
+  // anchor git at the passed repoRoot, not at process.cwd(). Each test moves the
+  // process OUT of the target repo first, so a regression that drops repoRoot
+  // resolves the wrong repo and git exits 128 ("not a git repository").
+
+  it('add() creates the worktree in the repoRoot repo even when process.cwd() is elsewhere', () => {
+    const worktreePath = join(worktreeParent, 'add-with-root');
+    // Park the process in a directory that is NOT a git repo. Only repoRoot can
+    // point git at the real repository now.
+    process.chdir(worktreeParent);
+
+    gitWorktreeRunner.add({
+      worktreePath,
+      baseRef,
+      branchName: 'add-with-root',
+      repoRoot: repoDir,
+    });
+
+    // The worktree exists, is git-aware, sits on the new branch...
+    expect(existsSync(worktreePath)).toBe(true);
+    expect(existsSync(join(worktreePath, '.git'))).toBe(true);
+    expect(headBranch(worktreePath)).toBe('add-with-root');
+    // ...and the repo at repoRoot is the one that registered it.
+    expect(gitOk(repoDir, 'worktree', 'list')).toContain(worktreePath);
+  });
+
+  it('remove() reclaims a worktree in the repoRoot repo even when process.cwd() is elsewhere', () => {
+    const worktreePath = join(worktreeParent, 'remove-with-root');
+    // Set up the worktree while cwd is still the repo (add works regardless of
+    // the fix here); the assertion under test is about remove's anchoring.
+    gitWorktreeRunner.add({ worktreePath, baseRef, branchName: 'remove-with-root' });
+    expect(existsSync(worktreePath)).toBe(true);
+
+    // Move the process out of the repo, then remove using repoRoot as the anchor.
+    process.chdir(worktreeParent);
+    gitWorktreeRunner.remove(worktreePath, repoDir);
+
+    expect(existsSync(worktreePath)).toBe(false);
+    expect(gitOk(repoDir, 'worktree', 'list')).not.toContain(worktreePath);
   });
 });
 

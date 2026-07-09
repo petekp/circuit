@@ -41,9 +41,6 @@ metacharacters:
      model-comparison variants, or throwaway evidence before Build.
    - **Explore** — investigation, explanation, architecture analysis, tradeoff
      comparison, or a decision before editing.
-   - **Pursue** — broad operator goals with multiple coordinated pieces of
-     work, several tracks, or a bundle of pursuits that need ordering and
-     serial execution.
 
    If one flow is clear, state the recommended flow and your one-line reason
    for it before you invoke the CLI, so the operator can redirect in-thread
@@ -101,7 +98,7 @@ metacharacters:
    ```
 
    The other flows and modes follow the same shape: substitute the flow name
-   (`prototype`, `pursue`; each flow accepts only the depths it supports),
+   (`prototype`; each flow accepts only the depths it supports),
    add `--depth high` for the deepest loop where supported or `--depth low`
    for the lightest pass (on Fix, low also skips the independent review
    relay), add `--power low` or `--power high`

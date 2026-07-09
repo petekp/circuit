@@ -217,8 +217,8 @@ export interface FlowCatalogSource {
 // (goal, runtime-proof) ship no host run surface, so a router cannot route to
 // them — they are excluded. The result is validated against the typed
 // FlowCatalogShape body, so an empty or malformed catalog fails closed here
-// rather than reaching a consumer. This is the static-registry producer Pete
-// locked: a deterministic function of the fixed flow set, computed at
+// rather than reaching a consumer. This is the static-registry producer:
+// a deterministic function of the fixed flow set, computed at
 // build/compile time (serialized to generated/flows/catalog.json by the emit
 // script). The contract layer is compile-time only today (no route step runs),
 // so this closes the producer gap without a runtime route consumer.

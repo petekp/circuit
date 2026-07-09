@@ -70,7 +70,46 @@ runtime. Invoke `circuit.js`. In this checkout the packages are
 <!-- path-ok:end -->
 
 
-## 2. Run Review First
+## 2. Preview Before You Spend
+
+Before your first real run, look at what a run would do without paying for one.
+`circuit preview` is spawn-free: it never runs a connector, so it costs nothing.
+For a flow, it shows each relay step's resolved connector, model, and effort, and
+where each choice came from.
+
+CLI from this checkout:
+
+```bash
+./bin/circuit preview review
+```
+
+With no flow named, it surveys every public flow at the current dial:
+
+```bash
+./bin/circuit preview
+```
+
+Turn the Power dial and see the effect before committing. `--matrix` shows one
+flow across all three dials, high, medium, and low, side by side:
+
+```bash
+./bin/circuit preview review --matrix
+```
+
+Add `--power <auto|low|medium|high>` to preview a single dial, or `--json` for
+machine-readable output.
+
+### Cost and time
+
+Time to first value is about ten minutes: install, doctor, this preview, and a
+first Review result. Per-run cost is not a fixed number. It depends on the
+connector and model each relay resolves to and on the Power dial, which trades
+depth for spend. Use `circuit preview` above to see the exact model and effort
+each relay would use at a given dial before you run, then turn the dial down if
+you want a cheaper first pass. Review is read-only, so it never edits your
+checkout.
+
+## 3. Run Review First
 
 For the safest first real run, use Review. Review is read-only:
 
@@ -115,7 +154,7 @@ Every normal run writes the same kind of evidence under a run folder:
     <flow-specific reports>.json
 ```
 
-## 3. Know What Can Write
+## 4. Know What Can Write
 
 Build, Fix, and Prototype may invoke a write-capable worker:
 

@@ -995,9 +995,70 @@ export function runPublish(
     }
   }
 
+  // Pre-flight: a release pushes the git tag `tag`, then publishes the Codex
+  // marketplace from that same ref. If the tag is already on origin, the push
+  // either fails or silently reuses an old commit — the two release halves then
+  // disagree about what shipped. Refuse to start when the tag is already taken.
+  // This is a read-only probe, so it also runs during a release dry-run.
+  function assertReleaseTagAbsentFromRemote(tag: string): void {
+    const existing = runCommand('git_tag_remote_check', [
+      'git',
+      'ls-remote',
+      '--tags',
+      'origin',
+      `refs/tags/${tag}`,
+    ]).stdout.trim();
+    if (existing !== '') {
+      fail(
+        `release tag ${tag} already exists on origin; bump the version or delete the remote tag before publishing (git push origin :refs/tags/${tag}).`,
+      );
+    }
+  }
+
+  // Reached only after the git tag was pushed (Claude half done) but the Codex
+  // marketplace publish failed. Try to undo the push so a release is
+  // all-or-nothing. If the rollback also fails, stop loudly with the exact
+  // commands an operator must run to reconcile the half-published release.
+  function reconcileHalfPublishedRelease(tag: string, codexError: unknown): never {
+    const detail = codexError instanceof Error ? codexError.message : String(codexError);
+    const rollback = runOptionalCommand(
+      'git_tag_rollback',
+      ['git', 'push', 'origin', `:refs/tags/${tag}`],
+      { effect: true },
+    );
+    if (rollback.exitCode === 0) {
+      report.outputs.tag_rolled_back = tag;
+      fail(
+        `Codex marketplace publish failed after the git tag was pushed; rolled back tag ${tag} so no half-published release remains. Original failure: ${detail}`,
+      );
+    }
+    const rollbackDetail =
+      rollback.stderr.trim() || rollback.stdout.trim() || `exit ${rollback.exitCode}`;
+    report.outputs.half_published = {
+      tag,
+      codex_error: detail,
+      rollback_error: rollbackDetail,
+    };
+    fail(
+      [
+        'HALF-PUBLISHED RELEASE — manual reconcile required.',
+        `The git tag ${tag} is pushed to origin, but the Codex marketplace publish failed and the automatic tag rollback also failed.`,
+        `Codex failure: ${detail}`,
+        `Rollback failure: ${rollbackDetail}`,
+        'To finish the release, re-run the Codex publish:',
+        `  codex plugin marketplace add ${args.codexSource} --ref ${tag}`,
+        `  codex plugin marketplace upgrade ${args.codexMarketplace}`,
+        'Or to abandon it, delete the remote tag:',
+        `  git push origin :refs/tags/${tag}`,
+      ].join('\n'),
+    );
+  }
+
   function runReleasePublish(): void {
     const tag = `circuit--v${report.versions.source}`;
     report.outputs.claude_tag = tag;
+
+    assertReleaseTagAbsentFromRemote(tag);
 
     runCommand('claude_tag_dry_run', ['claude', 'plugin', 'tag', 'plugins/claude', '--dry-run']);
     runCommand('claude_tag_push', ['claude', 'plugin', 'tag', 'plugins/claude', '--push'], {
@@ -1008,16 +1069,23 @@ export function runPublish(
     const codexEnv = { CODEX_HOME: releaseCodexHome };
     if (args.codexSource === undefined) fail('release requires --codex-source');
     if (args.codexMarketplace === undefined) fail('release requires --codex-marketplace');
-    runCommand(
-      'codex_marketplace_add_release',
-      ['codex', 'plugin', 'marketplace', 'add', args.codexSource, '--ref', tag],
-      { effect: true, env: codexEnv },
-    );
-    runCommand(
-      'codex_marketplace_upgrade_release',
-      ['codex', 'plugin', 'marketplace', 'upgrade', args.codexMarketplace],
-      { effect: true, env: codexEnv },
-    );
+    try {
+      runCommand(
+        'codex_marketplace_add_release',
+        ['codex', 'plugin', 'marketplace', 'add', args.codexSource, '--ref', tag],
+        { effect: true, env: codexEnv },
+      );
+      runCommand(
+        'codex_marketplace_upgrade_release',
+        ['codex', 'plugin', 'marketplace', 'upgrade', args.codexMarketplace],
+        { effect: true, env: codexEnv },
+      );
+    } catch (codexError) {
+      // In a dry-run the two Codex commands and the tag push are all skipped,
+      // so nothing throws here; this compensation only trips on a real (--yes)
+      // publish where the tag push already took effect.
+      reconcileHalfPublishedRelease(tag, codexError);
+    }
   }
 
   try {

@@ -262,6 +262,11 @@ export async function relayClaudeCode(input: ClaudeCodeRelayInput): Promise<Rela
       stderrMaxBytes: STDERR_MAX_BYTES,
       sigtermToSigkillGraceMs: SIGTERM_TO_SIGKILL_GRACE_MS,
       env: process.env,
+      // Honor the worker's working directory so a step fanned out into an
+      // isolated worktree runs there, not in the parent process's cwd. Matches
+      // the codex and cursor-agent connectors; without it, worktree isolation
+      // silently leaks into the main checkout.
+      ...(input.cwd === undefined ? {} : { cwd: input.cwd }),
     });
   } catch (error) {
     if (isConnectorSubprocessSpawnError(error)) {

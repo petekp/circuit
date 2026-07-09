@@ -9,6 +9,14 @@
 /** The minimum Node.js the circuit runtime supports (see package.json engines). */
 export const REQUIRED_NODE = { major: 22, minor: 18 };
 
+// Node's unflagged built-in TypeScript type-stripping — which circuit's `.ts`
+// entry points require — arrived on the 22.x LTS line at 22.18, but on the
+// 23.x "Current" line not until 23.6. A Node in the 23.0–23.5 window clears a
+// naive "newer major is fine" check yet still crashes on the first `.ts` import
+// with a raw, illegible error. Map the per-major floor so the guard names the
+// real fix instead of letting that crash through.
+const TYPE_STRIPPING_FLOOR_BY_MAJOR = { 23: 6 };
+
 /**
  * Return a legible error string when `currentVersion` is below `required`, or
  * undefined when it satisfies the floor. An unparseable version returns
@@ -27,6 +35,13 @@ export function nodeVersionError(currentVersion, required) {
     return undefined;
   }
   if (major > required.major) {
+    // A newer major clears the floor, but some lines only gained unflagged
+    // `.ts` stripping mid-release; below that per-major floor a `.ts` import
+    // still crashes even though the major looks new enough.
+    const lineFloor = TYPE_STRIPPING_FLOOR_BY_MAJOR[major];
+    if (lineFloor !== undefined && minor < lineFloor) {
+      return `circuit needs Node.js's built-in TypeScript support, which on the Node.js ${major}.x line arrived in ${major}.${lineFloor}, but you are running Node.js ${currentVersion}.\nUpgrade to Node.js ${major}.${lineFloor} or newer, or use the ${required.major}.${required.minor}+ LTS line, then run circuit again.\n`;
+    }
     return undefined;
   }
   if (major === required.major && minor >= required.minor) {

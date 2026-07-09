@@ -14,6 +14,7 @@ import { basename, join, resolve } from 'node:path';
 import { ContinuityIndex, ContinuityRecord } from '../../schemas/continuity.js';
 import type { ControlPlaneFileStem } from '../../schemas/scalars.js';
 import { writeJsonAtomic } from '../../shared/atomic-io.js';
+import { ensureCircuitGitignore } from '../../shared/control-plane-gitignore.js';
 import { controlPlaneRoot } from '../../shared/control-plane-paths.js';
 import {
   continuityRoot,
@@ -52,6 +53,13 @@ const AMBIENT_HOST_TAG_PREFIX =
 const AMBIENT_DROP_LINE_PREFIX =
   /^(# \/|# Warm continuity record|Caveat:|\[SESSION CONTINUITY\]|Base directory for this skill:)/;
 const AMBIENT_INTERRUPT_MARKER = /Request interrupted/;
+
+// Machine-write privacy (M3): the harvester auto-writes continuity records into
+// `<repo>/.circuit` on every Stop/SessionEnd/PreCompact, so it seeds
+// `.circuit/.gitignore` on each write via ensureCircuitGitignore. That seeder
+// now lives in ../../shared/control-plane-gitignore so the run-open seam can
+// seed the same rules from one source of truth (a run creates `.circuit/runs`
+// long before any harvest, especially on hosts without continuity hooks).
 
 export interface AmbientGitProbe {
   readonly branch?: string;
@@ -357,6 +365,9 @@ export function tombstoneAmbientRecord(
     position,
     cleared_at: now().toISOString(),
   };
+  // The clear path also writes into `.circuit`; seed the ignore file here too so
+  // every machine-write seam is covered from the same helper.
+  ensureCircuitGitignore(controlPlane);
   writeJsonAtomic(tombstonePath(controlPlane, recordId), tombstone);
 }
 
@@ -731,6 +742,10 @@ export function harvestAmbientContinuity(input: AmbientHarvestInput): AmbientHar
       requires_explicit_resume: true,
     },
   });
+
+  // Seed the ignore file before the first machine-write into `.circuit` so the
+  // records, cursor, and index we are about to write are ignored from the start.
+  ensureCircuitGitignore(controlPlane);
 
   const recordAbs = recordPath(controlPlane, record.record_id);
   writeJsonAtomic(recordAbs, record);

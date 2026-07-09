@@ -448,10 +448,16 @@ describe('False-Done Fix bar', () => {
       });
 
       if (expected.closeMode === 'partial') {
-        if (outcome.outcome !== 'complete') {
+        // H1 (pre-launch audit): a Fix whose primary result is `partial` must
+        // not close `@complete`. The terminal-outcome bind reads
+        // reports/fix-result.json at close time and downgrades the run to
+        // `stopped` (exit 1), so the automation-facing outcome matches the
+        // caveat the fix-result already carries. The run outcome is `stopped`
+        // here; the FixResult itself stays `partial`.
+        if (outcome.outcome !== 'stopped') {
           // Surface the abort reason for debugging the chain wiring.
           throw new Error(
-            `scenario ${scenario.id} expected complete, got ${outcome.outcome}: ${outcome.reason ?? '<no reason>'}`,
+            `scenario ${scenario.id} expected stopped, got ${outcome.outcome}: ${outcome.reason ?? '<no reason>'}`,
           );
         }
         const result = FixResult.parse(

@@ -55,6 +55,9 @@ export async function runReclaimCommand(argv: readonly string[]): Promise<number
 
   const summary = await reapWorktrees({
     worktreesRoot,
+    // Anchor `git worktree remove` at the resolved project root so reclaim works
+    // when `--project-root` points somewhere other than the process cwd.
+    repoRoot: projectRoot,
     resolveRunStatus: makeTraceRunStatusResolver(runsRoot(projectRoot)),
   });
 

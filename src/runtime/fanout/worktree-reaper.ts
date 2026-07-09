@@ -73,6 +73,14 @@ export interface WorktreeEntry {
 export interface ReapWorktreesOptions {
   /** Absolute path to `<projectRoot>/.circuit/worktrees`. */
   readonly worktreesRoot: string;
+  /**
+   * Absolute path to the project root (the git repository that owns the
+   * worktrees). Passed to the runner's `remove` as the git working directory so
+   * reclamation targets this repo, not the reaper's process cwd — the case that
+   * breaks when `circuit reclaim --project-root <path>` runs from elsewhere.
+   * Optional: absence falls back to process.cwd().
+   */
+  readonly repoRoot?: string;
   /** Resolves the owning run's status by run id. */
   readonly resolveRunStatus: ResolveRunStatus;
   /**
@@ -248,7 +256,7 @@ export async function reapWorktrees(options: ReapWorktreesOptions): Promise<Reap
     }
 
     try {
-      await Promise.resolve(worktreeRunner.remove(entry.path));
+      await Promise.resolve(worktreeRunner.remove(entry.path, options.repoRoot));
       summary.removed.push(entry.path);
       reapedRunIds.add(entry.runId);
     } catch (error) {

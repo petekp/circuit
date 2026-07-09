@@ -106,13 +106,43 @@ const FanoutAggregateFixtureBranchShape = z.looseObject({
   duration_ms: z.number().nonnegative(),
 });
 
-const FanoutAggregateFixtureShape = z.looseObject({
-  schema_version: z.literal(1),
-  join_policy: z.enum(['pick-winner', 'disjoint-merge', 'aggregate-only', 'aggregate-survivors']),
-  branch_count: z.number().int().nonnegative(),
-  winner_branch_id: z.string().min(1).optional(),
-  branches: z.array(FanoutAggregateFixtureBranchShape),
-});
+// TODO: misnomer, backs production not just fixtures. This shape backs the
+// PRODUCTION fanout-aggregate@v1 report schema and the fanout.aggregate@v1
+// contract (registered below), not only test fixtures. The name predates that
+// use; renaming is a terminology migration out of scope here. The honesty floor
+// below is not: keep the refine even if the name is later corrected.
+const FanoutAggregateFixtureShape = z
+  .looseObject({
+    schema_version: z.literal(1),
+    join_policy: z.enum(['pick-winner', 'disjoint-merge', 'aggregate-only', 'aggregate-survivors']),
+    branch_count: z.number().int().nonnegative(),
+    winner_branch_id: z.string().min(1).optional(),
+    branches: z.array(FanoutAggregateFixtureBranchShape),
+  })
+  .superRefine((aggregate, ctx) => {
+    // Internal-consistency floor mirrored from PrototypeVariantAggregate
+    // (src/flows/prototype/reports.ts): branch_count must match the actual
+    // branch array, and a named winner must be one of the branches. Without
+    // these the production aggregate report could claim a count or a winner its
+    // own branches do not support — writer discipline, not the schema.
+    if (aggregate.branch_count !== aggregate.branches.length) {
+      ctx.addIssue({
+        code: 'custom',
+        path: ['branch_count'],
+        message: 'branch_count must match branches.length',
+      });
+    }
+    if (
+      aggregate.winner_branch_id !== undefined &&
+      !aggregate.branches.some((branch) => branch.branch_id === aggregate.winner_branch_id)
+    ) {
+      ctx.addIssue({
+        code: 'custom',
+        path: ['winner_branch_id'],
+        message: 'winner_branch_id must match one of the branches',
+      });
+    }
+  });
 
 // The generic terminal-result body. Kept deliberately small: a summary line, the
 // run outcome the close-time primary-result bind reads, and pointers to whatever

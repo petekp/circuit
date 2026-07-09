@@ -10,7 +10,7 @@ then read that layer's local README if you need more detail.
 | `src/connectors/` | Built-in worker connectors. |
 | `src/flows/` | Built-in flows, flow catalog, compiler support, and flow-owned writers. |
 | `src/history/` | Run-corpus and history-store primitives shared by app history and memory. |
-| `src/memory/` | Project memory storage, distillation, and memory-input helpers. |
+| `src/memory/` | Project memory storage, injection, and memory-input helpers. |
 | `src/policy/` | Flow-domain policy: flow-kind rules, fanout join, policy envelope, rubric scoring. |
 | `src/runtime/` | Engine mechanics for running compiled flows. |
 | `src/schemas/` | Zod contracts for config, traces, reports, flows, and host surfaces. |

@@ -1,13 +1,13 @@
 ---
 contract: step
 status: draft
-version: 0.5
+version: 0.6
 schema_source: src/schemas/step.ts
-last_updated: 2026-05-28
-depends_on: [ids, check, selection-policy, scalars, skill, skill-hook, acceptance-criteria]
+last_updated: 2026-07-09
+depends_on: [ids, check, selection-policy, scalars, skill, skill-hook, acceptance-criteria, equipment-scope]
 report_ids:
   - step.definition
-invariant_ids: [STEP-I1, STEP-I2, STEP-I3, STEP-I4, STEP-I5, STEP-I6, STEP-I7, STEP-I8, STEP-I9, STEP-I10, STEP-I11, STEP-I12]
+invariant_ids: [STEP-I1, STEP-I2, STEP-I3, STEP-I4, STEP-I5, STEP-I6, STEP-I7, STEP-I8, STEP-I9, STEP-I10, STEP-I11, STEP-I12, STEP-I13, STEP-I14]
 property_ids: [step.prop.budget_bounds, step.prop.relay_role_presence, step.prop.check_kind_source_kind_pairing, step.prop.check_source_ref_closure, step.prop.run_relative_paths, step.prop.writes_shape_per_variant, step.prop.skill_slots_unique, step.prop.skill_hooks_unique, step.prop.relay_acceptance_criteria_shape]
 ---
 
@@ -126,13 +126,28 @@ enforced via `src/schemas/step.ts`, `src/schemas/check.ts`, and
   [UBIQUITOUS_LANGUAGE.md#relay-language](../../UBIQUITOUS_LANGUAGE.md#relay-language).
 
 - **STEP-I9 — Checkpoint policy and check agreement.** A `CheckpointStep`
-  declares the choices an operator or auto-resolver may select in
-  `policy.choices`. The checkpoint check's `allow` list MUST exactly match
-  those choice ids, and any `safe_default_choice` MUST name one of those
-  declared choices. `safe_autonomous_choice` is not part of the active step
-  contract; automatic checkpoint resolution must go through declared default
-  or policy behavior that is recorded in the trace. This prevents the request
-  report, response check, and auto-resolution policy from drifting apart.
+  declares its selectable options one of two ways, and its check must agree.
+  In the **static** form, `policy.choices` lists the option ids; the check's
+  `allow` list MUST exactly match those ids (same set, order-independent), and
+  any `safe_default_choice` MUST name one of them. In the **dynamic** form,
+  `policy.choices_from` names a source the options are read from at runtime, and
+  the check declares `allow_from` (which MUST reference `policy_choices`)
+  instead of a static list, because no fixed id set exists yet to match. A
+  policy declares exactly one of `choices` or `choices_from`; a check declares
+  exactly one of `allow` or `allow_from`; a static `allow` requires static
+  `policy.choices`. A checkpoint may also carry `auto_resolution` (a rubric
+  that picks the highest-scoring branch from a named report) and
+  `auto_continuable_when_nested` (opt-in: an unattended nested or headless run
+  may auto-continue this gate through its fail-safe path, first the
+  auto-resolution rubric and then the declared safe default, instead of failing
+  closed; absent means fail closed loudly). There is no
+  `safe_autonomous_choice` field. Every
+  resolution is recorded in the trace with its source: `declared-default`,
+  `operator`, or `policy` (see `checkpoint.resolved` in
+  [docs/contracts/run.md](run.md)). This keeps the request report, the response
+  check, and the auto-resolution policy from drifting apart. Enforced by the
+  `CheckpointPolicy` refinement and the checkpoint branch of the `Step`
+  `superRefine` in `src/schemas/step.ts`.
 
 - **STEP-I10 — Skill slots are typed optional placeholders.** Every Step
   may carry `skill_slots: SkillSlot[]`; absence means no slots. Slot ids are
@@ -176,6 +191,34 @@ enforced via `src/schemas/step.ts`, `src/schemas/check.ts`, and
   `src/schemas/scalars.ts` and by the Step variant schemas in
   `src/schemas/step.ts`. Runtime call sites additionally resolve through
   `src/shared/run-relative-path.ts` before reading or writing.
+
+- **STEP-I13 — Equipment scope is a declared per-step tool allowlist.** Every
+  Step may carry `equipment_scope`, the tools sub-axis of the step's equipment.
+  It has two fields. `tools` is either `'full'` (the worker keeps the
+  connector's whole tool surface) or `{ allow: [...] }` (the worker is scoped to
+  exactly that non-empty, duplicate-free tool list). `enforcement` is either
+  `'trusted'` (the scope is offered to the worker as guidance and reported
+  honestly as not enforced) or `'enforced'` (the scope is a real boundary).
+  Enforcing `'full'` is rejected — there is nothing to restrict to, so an
+  enforced scope MUST name an explicit allowlist. Absence equals the default
+  `{ tools: 'full', enforcement: 'trusted' }`, which the compiler omits so
+  flows that declare nothing stay byte-stable. Where a connector cannot restrict
+  tools, the runtime downgrades an enforced binding to trusted and records a
+  finding; it is never displayed as enforced after a downgrade. Enforced scope
+  is gated to relay steps at the schematic layer. Enforced by `EquipmentScope`
+  in `src/schemas/equipment-scope.ts`; the engine reads the field off the step,
+  never from a catalog keyed by flow id.
+
+- **STEP-I14 — Report-driven routing selects a declared route.** Every Step may
+  carry `route_from_report`, a non-empty dotted `path` into the step's report
+  body. When present, the compose and relay executors resolve the route from
+  that path on a passing check instead of taking the default `pass` route. The
+  path MUST descend through objects and resolve to a non-empty string; the
+  resolved label MUST be one of the step's declared `routes`, or the run errors.
+  The resulting `step.completed` entry records `route_source: 'report'`.
+  Enforced by `RouteFromReport` in `src/schemas/step.ts`, resolved by
+  `readRouteFromReport` in `src/runtime/executors/shared.ts`, and applied in
+  `src/runtime/executors/relay.ts` and `src/runtime/executors/compose.ts`.
 
 ## Pre-conditions
 
@@ -253,6 +296,10 @@ Property-based tests will cover:
 - **acceptance-criteria** (`src/schemas/acceptance-criteria.ts`) — Relay
   steps may embed deterministic advancement gates; the relay executor records
   their results as `check.evaluated` trace entries.
+- **equipment-scope** (`src/schemas/equipment-scope.ts`) — Step's optional
+  `equipment_scope` field carries the tools-axis allowlist and its enforcement
+  mode. The engine reads it off the step, never from a catalog keyed by flow id
+  (STEP-I13).
 - **flow** (`src/schemas/compiled-flow.ts`) — CompiledFlow-level invariants
   (WF-I1 unique step ids, WF-I4 closed route targets) reference Step
   identity; they are not repeated here.
@@ -304,8 +351,14 @@ Property-based tests will cover:
   if a new relay step emerges that writes multiple result-like
   slots (current `relay_result.ref = 'result'` is the v0.1 answer);
   absorb any future Codex challenger findings.
-- **v0.5 (Run-centered Skill Hook policy slice, this version)** — adds
+- **v0.5 (Run-centered Skill Hook policy slice)** — adds
   STEP-I12 and the typed `skill_hooks` field. This is a hook-only
   authoring field; it deliberately rejects concrete skill binding matrices.
+- **v0.6 (pre-v1 contract reconciliation, this version)** — rewrites STEP-I9
+  to cover both static (`choices` + `allow`) and dynamic (`choices_from` +
+  `allow_from`) checkpoints, plus `auto_resolution` and
+  `auto_continuable_when_nested`. Adds STEP-I13 (`equipment_scope`, the
+  per-step tools allowlist) and STEP-I14 (`route_from_report`, report-driven
+  route selection on compose and relay steps).
 - **v1.0 (Stage 2)** — ratified invariants + property tests + mutation
   score floor + operator-facing error-message catalog.

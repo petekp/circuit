@@ -43,8 +43,13 @@ function layerWithVariants(
   variantModels: FlowVariantModels,
   connectors: Record<string, unknown> = {},
 ) {
+  // Declared as a trusted (user-global) layer: a custom command connector is
+  // only honored from a layer the operator controls, never a project config.
+  // Tournament variant models themselves are ordinary config; the trusted
+  // origin here is what lets the read-only capability check be the one that
+  // rejects a read-only implementer variant.
   return LayeredConfig.parse({
-    layer: 'project',
+    layer: 'user-global',
     config: {
       schema_version: 1,
       ...(Object.keys(connectors).length === 0 ? {} : { relay: { connectors } }),

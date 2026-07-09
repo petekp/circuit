@@ -29,11 +29,22 @@ export interface WorktreeProvisionInput {
   readonly worktreePath: string;
   readonly baseRef: string;
   readonly branchName: string;
+  // Absolute path to the git repository the worktree belongs to. Used as the
+  // working directory for `git worktree add` so it targets THIS repo instead of
+  // the caller's process cwd. Optional: when omitted the runner falls back to
+  // process.cwd() (the historical behavior). Callers that know the project root
+  // (fan-out branches, reclaim) always pass it so a non-cwd `--project-root`
+  // invocation provisions in the right repository.
+  readonly repoRoot?: string;
 }
 
 export interface WorktreeRunner {
   add(input: WorktreeProvisionInput): void | Promise<void>;
-  remove(worktreePath: string): void | Promise<void>;
+  // `repoRoot` is the git repository the worktree belongs to; the runner uses it
+  // as the working directory for `git worktree remove` so cleanup targets the
+  // right repo regardless of process cwd. Optional for the same reason as on
+  // add: absence preserves the process.cwd() fallback.
+  remove(worktreePath: string, repoRoot?: string): void | Promise<void>;
   changedFiles?(
     worktreePath: string,
     baseRef: string,

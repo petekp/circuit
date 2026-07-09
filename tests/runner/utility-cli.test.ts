@@ -1560,6 +1560,200 @@ describe('utility CLI commands', () => {
     expect(staleNudge.notice).toContain('install --host codex');
   });
 
+  // Regression for the M11 gap: the Codex hook pins an ABSOLUTE node binary
+  // path (process.execPath at install time), but the staleness check only
+  // validated the launcher script, not the pinned node. An nvm/Node version
+  // switch relocates node, so the launcher still resolves while the pinned node
+  // is gone — continuity restore dies silently and doctor still reported
+  // healthy. The check must now validate the node path too.
+  it('codexInstallAssurance flags a relocated node binary for reinstall, once per broken state (M11)', () => {
+    const projectRoot = tempRoot('circuit-codex-assure-stale-node-');
+    const hooksFile = join(projectRoot, 'codex-hooks.json');
+    // The launcher DOES resolve; only the pinned node path is gone (the nvm
+    // switch case). We deliberately never create this node path.
+    const launcher = join(projectRoot, 'bin/circuit');
+    mkdirSync(join(projectRoot, 'bin'), { recursive: true });
+    writeFileSync(launcher, '#!/usr/bin/env node\n');
+    const relocatedNode = join(projectRoot, 'nvm/versions/node/v18.20.0/bin/node');
+    writeFileSync(
+      hooksFile,
+      JSON.stringify({
+        hooks: {
+          SessionStart: [
+            {
+              matcher: 'startup|resume|clear',
+              hooks: [
+                {
+                  type: 'command',
+                  command: `CIRCUIT_HANDOFF_HOOK=1 ${relocatedNode} ${launcher} handoff hook --host codex`,
+                  timeout: 3,
+                },
+              ],
+            },
+          ],
+        },
+      }),
+    );
+
+    const first = codexInstallAssurance({
+      projectRoot,
+      hooksFile,
+      now: () => new Date('2026-07-09T12:00:00.000Z'),
+    });
+    expect(first.status).toBe('reinstall_nudge');
+    expect(first.notice).toContain('install --host codex');
+    // The node-specific notice names the cause so the user knows why it broke.
+    expect(first.notice).toMatch(/Node/i);
+    expect(existsSync(first.marker_path)).toBe(true);
+
+    // Once per broken state: a second check in the same broken state is silent.
+    const second = codexInstallAssurance({ projectRoot, hooksFile });
+    expect(second.status).toBe('already_reinstall_nudged');
+    expect(second.notice).toBeUndefined();
+  });
+
+  it('codexInstallAssurance stays silent when both the launcher and pinned node resolve (M11)', () => {
+    const projectRoot = tempRoot('circuit-codex-assure-node-ok-');
+    const hooksFile = join(projectRoot, 'codex-hooks.json');
+    const launcher = join(projectRoot, 'bin/circuit');
+    mkdirSync(join(projectRoot, 'bin'), { recursive: true });
+    writeFileSync(launcher, '#!/usr/bin/env node\n');
+    // process.execPath is a real, executable node binary — the valid case.
+    writeFileSync(
+      hooksFile,
+      JSON.stringify({
+        hooks: {
+          SessionStart: [
+            {
+              matcher: 'startup|resume|clear',
+              hooks: [
+                {
+                  type: 'command',
+                  command: `CIRCUIT_HANDOFF_HOOK=1 ${process.execPath} ${launcher} handoff hook --host codex`,
+                  timeout: 3,
+                },
+              ],
+            },
+          ],
+        },
+      }),
+    );
+
+    const result = codexInstallAssurance({ projectRoot, hooksFile });
+    expect(result.status).toBe('ok');
+    expect(result.notice).toBeUndefined();
+    expect(existsSync(result.marker_path)).toBe(false);
+  });
+
+  it('marks an installed Codex handoff hook invalid when the pinned node binary is missing (M11)', async () => {
+    const root = tempRoot('circuit-handoff-hooks-stale-node-');
+    const hooksFile = join(root, 'codex/hooks.json');
+    const launcher = join(root, 'bin/circuit');
+    mkdirSync(join(root, 'codex'), { recursive: true });
+    mkdirSync(join(root, 'bin'), { recursive: true });
+    writeFileSync(launcher, '#!/usr/bin/env node\n');
+    // Launcher resolves; only the pinned node path is gone (nvm switch).
+    const relocatedNode = join(root, 'nvm/versions/node/v18.20.0/bin/node');
+    writeFileSync(
+      hooksFile,
+      `${JSON.stringify(
+        {
+          hooks: {
+            SessionStart: [
+              {
+                matcher: 'startup|resume|clear',
+                hooks: [
+                  {
+                    type: 'command',
+                    command: `CIRCUIT_HANDOFF_HOOK=1 ${relocatedNode} ${launcher} handoff hook --host codex`,
+                    timeout: 3,
+                  },
+                ],
+              },
+            ],
+          },
+        },
+        null,
+        2,
+      )}\n`,
+    );
+
+    const doctor = await captureMain([
+      'handoff',
+      'hooks',
+      'doctor',
+      '--host',
+      'codex',
+      '--hooks-file',
+      hooksFile,
+    ]);
+
+    expect(doctor.code, doctor.stderr).toBe(0);
+    expect(JSON.parse(doctor.stdout)).toMatchObject({
+      status: 'invalid',
+      checks: expect.arrayContaining([
+        expect.objectContaining({
+          name: 'circuit_handoff_hook_node_exists',
+          ok: false,
+        }),
+        // The launcher itself still resolves — only the pinned node broke.
+        expect.objectContaining({
+          name: 'circuit_handoff_hook_launcher_exists',
+          ok: true,
+        }),
+      ]),
+    });
+  });
+
+  it('reports the pinned node binary healthy in doctor when it resolves (M11)', async () => {
+    const root = tempRoot('circuit-handoff-hooks-node-ok-');
+    const hooksFile = join(root, 'codex/hooks.json');
+    const launcher = join(root, 'bin/circuit');
+    mkdirSync(join(root, 'codex'), { recursive: true });
+    mkdirSync(join(root, 'bin'), { recursive: true });
+    writeFileSync(launcher, '#!/usr/bin/env node\n');
+    writeFileSync(
+      hooksFile,
+      `${JSON.stringify(
+        {
+          hooks: {
+            SessionStart: [
+              {
+                matcher: 'startup|resume|clear',
+                hooks: [
+                  {
+                    type: 'command',
+                    command: `CIRCUIT_HANDOFF_HOOK=1 ${process.execPath} ${launcher} handoff hook --host codex`,
+                    timeout: 3,
+                  },
+                ],
+              },
+            ],
+          },
+        },
+        null,
+        2,
+      )}\n`,
+    );
+
+    const doctor = await captureMain([
+      'handoff',
+      'hooks',
+      'doctor',
+      '--host',
+      'codex',
+      '--hooks-file',
+      hooksFile,
+    ]);
+    expect(doctor.code, doctor.stderr).toBe(0);
+    expect(JSON.parse(doctor.stdout)).toMatchObject({
+      status: 'ok',
+      checks: expect.arrayContaining([
+        expect.objectContaining({ name: 'circuit_handoff_hook_node_exists', ok: true }),
+      ]),
+    });
+  });
+
   it('can bind handoff continuity to a runtime waiting run and write active-run output', async () => {
     const root = tempRoot('circuit-handoff-run-');
     const runFolder = join(root, 'run');

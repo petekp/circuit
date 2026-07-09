@@ -5,6 +5,7 @@ import { describe, expect, it } from 'vitest';
 
 import {
   exitCodeForClosedOutcome,
+  exitCodeForRun,
   parseExecutionArgs,
   runExecutionCommand,
 } from '../../src/cli/run.js';
@@ -91,5 +92,49 @@ describe('run exit codes mirror the closed outcome', () => {
     for (const outcome of RunClosedOutcome.options) {
       expect(exitCodeForClosedOutcome(outcome), `outcome '${outcome}'`).toBe(expected[outcome]);
     }
+  });
+});
+
+// M1: a `complete` close alone does not earn exit 0. Two independent signals can
+// contradict it, and the CLI must never report success over the run's own honest
+// verdict. (1) The run envelope re-derives `needs_attention` when a `complete`
+// run is missing a declared evidence path, so the close says complete while the
+// envelope does not. (2) When an autonomous continuation loop ran, the loop —
+// not the primary attempt — owns the completion decision. exitCodeForRun folds
+// both in on top of the closed-outcome mapping above.
+describe('exit code honors the envelope verdict and the loop verdict (M1)', () => {
+  it('drops a complete close to exit 1 when the envelope re-derived short of complete', () => {
+    for (const envelopeOutcome of ['needs_attention', 'blocked', 'failed', 'handoff'] as const) {
+      expect(
+        exitCodeForRun({ outcome: 'complete', envelopeOutcome }),
+        `envelope '${envelopeOutcome}'`,
+      ).toBe(1);
+    }
+  });
+
+  it('stays exit 0 when the close and the envelope both say complete', () => {
+    expect(exitCodeForRun({ outcome: 'complete', envelopeOutcome: 'complete' })).toBe(0);
+    // No envelope re-derivation in play leaves the closed-outcome mapping intact.
+    expect(exitCodeForRun({ outcome: 'complete' })).toBe(0);
+  });
+
+  it('never lets an envelope rescue a close that already fell short of complete', () => {
+    expect(exitCodeForRun({ outcome: 'aborted' })).toBe(1);
+    expect(exitCodeForRun({ outcome: 'stopped', envelopeOutcome: 'complete' })).toBe(1);
+  });
+
+  it('gives an autonomous loop the final say over the primary close', () => {
+    // The loop recovered a primary that closed needing attention: exit 0.
+    expect(exitCodeForRun({ outcome: 'handoff', autonomousLoopOutcome: 'complete' })).toBe(0);
+    // The loop exhausted itself over a primary that closed complete: exit 1,
+    // overriding both the complete close and a complete envelope.
+    expect(
+      exitCodeForRun({
+        outcome: 'complete',
+        envelopeOutcome: 'complete',
+        autonomousLoopOutcome: 'needs_attention',
+      }),
+    ).toBe(1);
+    expect(exitCodeForRun({ outcome: 'complete', autonomousLoopOutcome: 'failed' })).toBe(1);
   });
 });

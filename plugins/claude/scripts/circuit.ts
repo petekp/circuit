@@ -523,11 +523,19 @@ function runDoctor(): number {
 
     const smokeRoot = mkdtempSync(join(tmpdir(), 'circuit-claude-doctor-'));
     try {
-      const configDir = resolve(smokeRoot, '.circuit');
+      // The doctor's stub reviewer is a custom (arbitrary-command) connector.
+      // C1 (pre-launch audit) refuses custom connectors declared in a PROJECT
+      // layer as an RCE trust boundary, so the stub must live in a user-global
+      // layer instead. Point the runtime's home at a temp dir inside smokeRoot
+      // (HOME in the spawn env below) and write the config to its user-global
+      // path. This also makes the smoke hermetic: it never reads the operator's
+      // real ~/.config/circuit/config.yaml.
+      const smokeHome = resolve(smokeRoot, 'home');
+      const userConfigDir = resolve(smokeHome, '.config', 'circuit');
       const runFolder = resolve(smokeRoot, 'run');
-      mkdirSync(configDir, { recursive: true });
+      mkdirSync(userConfigDir, { recursive: true });
       writeFileSync(
-        resolve(configDir, 'config.yaml'),
+        resolve(userConfigDir, 'config.yaml'),
         `${JSON.stringify(
           {
             schema_version: 1,
@@ -575,6 +583,7 @@ function runDoctor(): number {
           encoding: 'utf8',
           env: runtimeEnv(resolved.runtime, {
             ...process.env,
+            HOME: smokeHome,
             [GENERATED_FLOW_MIRROR_ROOT_ENV]: packagedFlowRoot,
           }),
           timeout: DOCTOR_SMOKE_TIMEOUT_MS,

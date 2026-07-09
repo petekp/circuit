@@ -2,8 +2,8 @@
   "schema": "process.evidence@v0",
   "flow_id": "fix",
   "attempt_id": "primary",
-  "outcome": "complete",
-  "summary": "Run closed with outcome complete via @complete.",
+  "outcome": "blocked",
+  "summary": "Run closed with outcome stopped.",
   "child_run_ref": {
     "kind": "trace",
     "ref": "trace.ndjson#sequence=0",
@@ -13,7 +13,7 @@
   "result_ref": {
     "kind": "report",
     "ref": "reports/result.json",
-    "sha256": "8134a448409e5ff9c2081abc3cce029b1559b9697f665d62b148a2067139b3b6",
+    "sha256": "35d99bd1f70cb123033e82395f4a425927f39fb681e93b4e90cfb727f4fb6ff7",
     "run_id": "44444444-4444-4444-4444-444444444407",
     "flow_id": "fix"
   },
@@ -21,7 +21,7 @@
     {
       "kind": "report",
       "ref": "reports/result.json",
-      "sha256": "8134a448409e5ff9c2081abc3cce029b1559b9697f665d62b148a2067139b3b6",
+      "sha256": "35d99bd1f70cb123033e82395f4a425927f39fb681e93b4e90cfb727f4fb6ff7",
       "run_id": "44444444-4444-4444-4444-444444444407",
       "flow_id": "fix"
     },
@@ -36,7 +36,14 @@
   "declared_report_paths": [
     "reports/fix-result.json"
   ],
-  "missing_evidence": [],
+  "missing_evidence": [
+    {
+      "claim_id": "process-completion",
+      "reason": "primary result 'reports/fix-result.json' reported outcome 'partial'",
+      "next_action": "Inspect the child process result before closing Run."
+    }
+  ],
   "trace_entries_observed": 69,
-  "manifest_hash": "ce252d2d728b5f0d1174e0f9a46483de197fd1e05256cf60e4a1cfad16c618b5"
+  "manifest_hash": "ed31afd9371ae9bae3675d937bae594faa110ad938b5db7241eef274b101b6fc",
+  "blocked_reason": "primary result 'reports/fix-result.json' reported outcome 'partial'"
 }

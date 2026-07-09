@@ -1,4 +1,5 @@
 import { Command } from 'commander';
+import { healClosedRunResult } from '../app/run-status/projection-common.js';
 import {
   RunStatusFolderError,
   projectRunStatusFromRunFolder,
@@ -65,6 +66,12 @@ export async function runRunsCommand(argv: readonly string[]): Promise<number> {
   if (typeof parsed === 'string') return invalidInvocation(parsed);
 
   try {
+    // Heal-on-read: if a crash landed between the run.closed trace append and
+    // the result.json write, rebuild result.json from the durable trace before
+    // projecting, so `circuit runs show` self-repairs and surfaces result_path
+    // instead of silently omitting it. Idempotent and safe for healthy and open
+    // runs; a heal failure never breaks the read.
+    await healClosedRunResult(parsed.runFolder);
     writeJson(projectRunStatusFromRunFolder(parsed.runFolder));
     return 0;
   } catch (err) {

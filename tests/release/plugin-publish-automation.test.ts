@@ -1068,6 +1068,114 @@ describe('plugin publish automation', () => {
     }
   });
 
+  it('refuses to release when the git tag already exists on origin', () => {
+    const root = createFixture();
+    const base = createRunner();
+    // The pre-flight tag probe finds the release tag already on origin.
+    const runner = (invocation: CommandInvocation) => {
+      if (invocation.id === 'git_tag_remote_check') {
+        base.calls.push(invocation);
+        return {
+          exitCode: 0,
+          stdout: 'abc123def\trefs/tags/circuit--v0.1.0-alpha.2\n',
+          stderr: '',
+        };
+      }
+      return base.runner(invocation);
+    };
+    try {
+      const report = runPublish(
+        ['release', '--yes', '--codex-source', 'petekp/circuit', '--codex-marketplace', 'circuit'],
+        { repoRoot: root, runner },
+      );
+
+      expect(report.status).toBe('failed');
+      expect(report.errors.join('\n')).toContain('already exists on origin');
+      expect(ids(base.calls)).toContain('git_tag_remote_check');
+      // The collision must be caught before any irreversible effect.
+      expect(ids(base.calls)).not.toContain('claude_tag_push');
+      expect(ids(base.calls)).not.toContain('codex_marketplace_add_release');
+    } finally {
+      rmSync(root, { recursive: true, force: true });
+    }
+  });
+
+  it('rolls back the pushed git tag when the Codex marketplace publish fails', () => {
+    const root = createFixture();
+    const base = createRunner();
+    // Tag push succeeds (default runner), then the Codex publish fails.
+    const runner = (invocation: CommandInvocation) => {
+      if (invocation.id === 'codex_marketplace_add_release') {
+        base.calls.push(invocation);
+        return { exitCode: 1, stdout: '', stderr: 'codex marketplace unreachable\n' };
+      }
+      return base.runner(invocation);
+    };
+    try {
+      const report = runPublish(
+        ['release', '--yes', '--codex-source', 'petekp/circuit', '--codex-marketplace', 'circuit'],
+        { repoRoot: root, runner },
+      );
+
+      expect(report.status).toBe('failed');
+      expect(ids(base.calls)).toContain('claude_tag_push');
+      expect(ids(base.calls)).toContain('git_tag_rollback');
+      const rollback = base.calls.find((call) => call.id === 'git_tag_rollback');
+      expect(rollback?.argv).toEqual([
+        'git',
+        'push',
+        'origin',
+        ':refs/tags/circuit--v0.1.0-alpha.2',
+      ]);
+      expect(report.outputs.tag_rolled_back).toBe('circuit--v0.1.0-alpha.2');
+      expect(report.errors.join('\n')).toContain('rolled back tag');
+      // A clean rollback is not a half-published state.
+      expect(report.outputs.half_published).toBeUndefined();
+    } finally {
+      rmSync(root, { recursive: true, force: true });
+    }
+  });
+
+  it('reports a half-published release when the tag rollback also fails', () => {
+    const root = createFixture();
+    const base = createRunner();
+    // Both the Codex publish and the compensating tag rollback fail.
+    const runner = (invocation: CommandInvocation) => {
+      if (invocation.id === 'codex_marketplace_add_release') {
+        base.calls.push(invocation);
+        return { exitCode: 1, stdout: '', stderr: 'codex marketplace unreachable\n' };
+      }
+      if (invocation.id === 'git_tag_rollback') {
+        base.calls.push(invocation);
+        return { exitCode: 1, stdout: '', stderr: 'remote rejected tag deletion\n' };
+      }
+      return base.runner(invocation);
+    };
+    try {
+      const report = runPublish(
+        ['release', '--yes', '--codex-source', 'petekp/circuit', '--codex-marketplace', 'circuit'],
+        { repoRoot: root, runner },
+      );
+
+      expect(report.status).toBe('failed');
+      expect(ids(base.calls)).toContain('claude_tag_push');
+      expect(ids(base.calls)).toContain('git_tag_rollback');
+      const errors = report.errors.join('\n');
+      expect(errors).toContain('HALF-PUBLISHED RELEASE');
+      expect(errors).toContain('manual reconcile required');
+      // The loud message must carry the exact commands to reconcile by hand.
+      expect(errors).toContain(
+        'codex plugin marketplace add petekp/circuit --ref circuit--v0.1.0-alpha.2',
+      );
+      expect(errors).toContain('git push origin :refs/tags/circuit--v0.1.0-alpha.2');
+      const half = report.outputs.half_published as { tag?: string } | undefined;
+      expect(half?.tag).toBe('circuit--v0.1.0-alpha.2');
+      expect(report.outputs.tag_rolled_back).toBeUndefined();
+    } finally {
+      rmSync(root, { recursive: true, force: true });
+    }
+  });
+
   it('writes a local report with commands, warnings, and errors', () => {
     const root = createFixture({ codexVersion: '0.1.0' });
     const { runner } = createRunner();

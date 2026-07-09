@@ -1,19 +1,22 @@
-// The local worker lane end to end, with no relayer stub: project config
-// routes the reviewer role to a custom connector, `power_tiers.<name>`
-// declares the connector's tier table, and the REAL relayCustom subprocess
-// runs and reports the CIRCUIT_RELAY_* env vars it received. This is the
-// CI-safe proof of the whole lane (role routing → dial materialization →
-// env threading); the live OpenCode/Ollama wrapper swaps in for the node
-// script without further engine involvement.
+// The local worker lane end to end, with no relayer stub: the operator's
+// user-global config routes the reviewer role to a custom connector,
+// `power_tiers.<name>` declares the connector's tier table, and the REAL
+// relayCustom subprocess runs and reports the CIRCUIT_RELAY_* env vars it
+// received. The connector is declared user-global on purpose: a custom command
+// connector is honored only from a layer the operator controls, never from a
+// project's committed `.circuit/config.yaml` (that is the C1 arbitrary-code-
+// execution boundary). This is the CI-safe proof of the whole lane (role
+// routing → dial materialization → env threading); the live OpenCode/Ollama
+// wrapper swaps in for the node script without further engine involvement.
 import { mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
-import { join } from 'node:path';
+import { dirname, join } from 'node:path';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import { captureStreams, deterministicNow } from '../helpers/runtime-fixtures.js';
 import { withScopedEnv } from '../helpers/scoped-env.js';
 
 import { main } from '../../src/cli/circuit.js';
-import { projectConfigPath } from '../../src/shared/config-loader.js';
+import { userGlobalConfigPath } from '../../src/shared/config-loader.js';
 
 let root: string;
 let homeDir: string;
@@ -34,13 +37,19 @@ writeFileSync(outputFile, JSON.stringify({
 }));
 `;
 
-function writeLaneProject(): string {
+function writeLaneWorkspace(): string {
+  // The reviewer script lives in the operator's workspace, but the config that
+  // authorizes running it as a custom connector is the operator's own
+  // user-global config, not the project's `.circuit/config.yaml`. A project
+  // config cannot supply a command-running connector, so the whole lane is
+  // declared in the trusted user-global layer.
   const scriptPath = join(cwdDir, 'local-reviewer.cjs');
   mkdirSync(cwdDir, { recursive: true });
   writeFileSync(scriptPath, CONNECTOR_SCRIPT);
-  mkdirSync(join(cwdDir, '.circuit'), { recursive: true });
+  const userConfigPath = userGlobalConfigPath(homeDir);
+  mkdirSync(dirname(userConfigPath), { recursive: true });
   writeFileSync(
-    projectConfigPath(cwdDir),
+    userConfigPath,
     `
 schema_version: 1
 
@@ -102,7 +111,7 @@ beforeEach(() => {
   root = mkdtempSync(join(tmpdir(), 'circuit-local-lane-'));
   homeDir = join(root, 'home');
   cwdDir = join(root, 'cwd');
-  writeLaneProject();
+  writeLaneWorkspace();
 });
 
 afterEach(() => {

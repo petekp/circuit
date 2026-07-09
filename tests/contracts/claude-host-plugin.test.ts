@@ -465,39 +465,64 @@ describe('Claude Code host plugin package', () => {
       const stdoutPipe = childProcess.stdout;
       if (stdoutPipe === null) throw new Error('expected child stdout pipe');
 
+      // Streaming means the launcher relays the child's progress line to its own
+      // stdout WHILE the child is still working, well before it renders the final
+      // digest at close. A buffer-all-then-flush regression would instead hold the
+      // progress line and emit it together with the digest in one flush at the end.
+      // Record WHEN each surfaces so the assertion turns on real temporal
+      // separation — the only signal that tells streaming apart from a late
+      // all-at-once flush. (Checking `!closed` when progress arrives is inert: a
+      // `data` event always precedes `close`, so buffer-all would pass it too.)
       let stdout = '';
-      let closed = false;
-      const closePromise = new Promise<number | null>((resolveClose) => {
-        childProcess.on('close', (status) => {
-          closed = true;
-          resolveClose(status);
-        });
-      });
-      const progressBeforeExit = await new Promise<boolean>((resolveProgress) => {
-        let settled = false;
-        const finish = (value: boolean) => {
-          if (settled) return;
-          settled = true;
-          clearTimeout(timer);
-          resolveProgress(value);
-        };
+      let firstProgressAt: number | undefined;
+      let firstSummaryAt: number | undefined;
+      const noteArrivals = (): void => {
+        const now = Date.now();
+        if (firstProgressAt === undefined && stdout.includes('Circuit started explore.')) {
+          firstProgressAt = now;
+        }
+        if (firstSummaryAt === undefined && stdout.includes('# Clean Summary')) {
+          firstSummaryAt = now;
+        }
+      };
+
+      let timedOut = false;
+      const status = await new Promise<number | null>((resolveClose) => {
         // Ceiling for the launcher to cold-boot (node + strip-types on the TS
-        // entry), spawn the child, and relay its first progress line. Only fires
-        // on the failure path, so a generous budget never slows the happy path;
-        // it stops full-suite fork load (16 workers) from tripping a false
-        // negative on a launcher that boots in ~0.3s unloaded. Not a product SLA.
-        const timer = setTimeout(() => finish(false), 30_000);
-        childProcess.once('close', () => finish(false));
+        // entry), spawn the child, relay its progress line, and render the digest
+        // at close. Only fires if the launcher hangs, so a generous budget never
+        // slows the happy path; it stops full-suite fork load (16 workers) from
+        // tripping a false negative on a launcher that boots in ~0.3s unloaded.
+        // Not a product SLA.
+        const timer = setTimeout(() => {
+          timedOut = true;
+          resolveClose(null);
+        }, 30_000);
         stdoutPipe.on('data', (chunk: Buffer) => {
           stdout += chunk.toString('utf8');
-          if (stdout.includes('Circuit started explore.')) {
-            finish(!closed);
-          }
+          noteArrivals();
+        });
+        childProcess.on('close', (code) => {
+          clearTimeout(timer);
+          resolveClose(code);
         });
       });
 
-      expect(progressBeforeExit).toBe(true);
-      const status = await closePromise;
+      // The child streams a progress line, then (after ~900ms of "work") writes
+      // its final JSON, which the launcher turns into the digest. Prove the
+      // progress line surfaced first AND with a real gap: buffer-all-then-flush
+      // collapses that gap to ~0 because the progress line and the digest land
+      // together in the terminal flush. The floor sits far under the child's
+      // 900ms delay so ordinary jitter never trips it, yet far over 0 so a
+      // collapsed gap always fails.
+      const STREAM_SEPARATION_FLOOR_MS = 300;
+      expect(timedOut).toBe(false);
+      expect(firstProgressAt).toBeDefined();
+      expect(firstSummaryAt).toBeDefined();
+      const progressAt = firstProgressAt as number;
+      const summaryAt = firstSummaryAt as number;
+      expect(progressAt).toBeLessThan(summaryAt);
+      expect(summaryAt - progressAt).toBeGreaterThanOrEqual(STREAM_SEPARATION_FLOOR_MS);
       expect(status).toBe(0);
       expect(stdout).toContain('# Clean Summary');
       expect(stdout).not.toContain('schema_version');

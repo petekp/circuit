@@ -1,6 +1,10 @@
 import { readFileSync } from 'node:fs';
 import { lstat, mkdir, readdir } from 'node:fs/promises';
 import type { CompiledFlowProgressSurface } from '../../flows/types.js';
+import {
+  controlPlaneRootFromDescendant,
+  ensureCircuitGitignore,
+} from '../../shared/control-plane-gitignore.js';
 import type { ProgressReporter } from '../../shared/relay-runtime-types.js';
 import type { RunFileRef } from '../domain/run-file.js';
 import type { TraceEntry } from '../domain/trace.js';
@@ -88,6 +92,16 @@ export async function openRunBoundary(options: OpenRunBoundaryOptions): Promise<
     await assertFreshRunDir(options.runDir);
   } else {
     await mkdir(options.runDir, { recursive: true });
+  }
+
+  // Machine-write privacy (M3): a run creates `.circuit/runs/<id>` before any
+  // ambient harvest runs — and on hosts without continuity hooks a harvest may
+  // never run at all — so the run-open seam seeds `.circuit/.gitignore` too.
+  // It no-ops for a run directory that does not live under a `.circuit` control
+  // plane (a test's temp dir), and never clobbers a user's own ignore file.
+  const controlPlane = controlPlaneRootFromDescendant(options.runDir);
+  if (controlPlane !== undefined) {
+    ensureCircuitGitignore(controlPlane);
   }
 
   const clock = { now: options.now ?? (() => new Date()) };

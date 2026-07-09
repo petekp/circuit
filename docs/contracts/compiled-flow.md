@@ -1,10 +1,10 @@
 ---
 contract: flow
 status: draft
-version: 0.6
+version: 0.7
 schema_source: src/schemas/compiled-flow.ts
-last_updated: 2026-06-10
-depends_on: [step, stage, axes, depth, change_kind, selection-policy, skill, acceptance-criteria]
+last_updated: 2026-07-09
+depends_on: [step, stage, axes, depth, change_kind, selection-policy, skill, acceptance-criteria, engine-flags, report-file-surface, axis-config-requirement]
 report_ids:
   - flow.definition
   - flow.scalar_catalog
@@ -120,7 +120,109 @@ After a CompiledFlow is accepted:
   until config binds them.
 - Any relay-step `acceptance_criteria` remain inline, deterministic, and
   serializable in the compiled manifest snapshot.
+- Any `engine_flags`, `report_file_surfaces`, `runtime_surface`, and
+  `required_config` are preserved verbatim into the run-folder manifest
+  snapshot, so the engine reads them off the manifest without a by-id catalog
+  lookup.
 - The CompiledFlow is serializable to the run-folder manifest snapshot.
+
+## Manifest-carried behavior fields
+
+Beyond the graph, a CompiledFlow may carry four optional fields the engine reads
+straight off the compiled manifest. They exist so a composed flow travels with
+its own behavior instead of needing a lookup in a catalog keyed by flow id. Each
+one absent means the flow declares none of that behavior. All are validated by
+`CompiledFlowBody` in `src/schemas/compiled-flow.ts`.
+
+### engine_flags
+
+Opt-in switches the engine branches on. The shape is `EngineFlagsManifest`
+(`src/schemas/engine-flags.ts`), shared with the authored schematic so a flow
+declares behavior once and it travels to the manifest. The current flags:
+
+- `binds_execution_depth_to_relay_selection` — the depth dial also picks which
+  relay selection a step uses. Set by **build** and **prototype**.
+- `binds_terminal_outcome_to_primary_result` — the run's terminal outcome is
+  bound to the flow's primary result report, so a degraded result cannot close
+  as a clean `complete`. Set by **review**, **fix**, **build**, **explainer**,
+  and the internal **goal** flow (Converge).
+- `iterates_slice_loop` — re-enter a `[head..tail]` span once per slice, over a
+  list read from a named report, up to `max_slices`. Activates at `high` depth.
+  Set by **build**.
+- `iterates_until_condition` — the until loop, a while loop for flows, described
+  below. Set by the internal **fix-until-green**, **sweep**, and
+  **converge-proof** flows.
+
+Both loop flags drive one re-entry counter, so the graph runner rejects a flow
+that sets both.
+
+#### The until loop (`iterates_until_condition`)
+
+The until loop re-enters its body span once per iteration until a stop condition
+or a ceiling. Its fields:
+
+- `head_step`, `tail_step`, `body_steps` — the span to re-run. `body_steps`
+  lists the whole span, head and tail included, because every step in it is
+  iteration-scoped.
+- `reenter_route` — the route that loops back for another iteration.
+- `max_iterations` — the hard iteration ceiling.
+- `stop_judge` — the tail proposes a goal-met boolean the engine disposes
+  against an evidence floor. `report` + `goal_met_path` say where to read the
+  proposal. `lesson_path` and `progress_path` are optional dotted paths to a
+  carried lesson and an opaque progress marker.
+- `needs_attention_route` — where a judge-gated loop exits when the judge is
+  exhausted. It must be a non-`@complete` terminal, so an unfinished loop cannot
+  masquerade as a clean close.
+- `carried_notes` — a run file the engine appends one note to per iteration; the
+  head re-reads it next pass. `max_entries` caps retained notes (default 20).
+- `cumulative_usd_cap`, `cumulative_token_cap` — fail-closed spend ceilings
+  summed across iterations from per-relay usage. At or above a cap the loop
+  exits to needs-attention instead of spending more.
+- `no_progress_ceiling` — how many consecutive no-progress iterations are
+  tolerated before exiting to needs-attention. Requires
+  `stop_judge.progress_path`.
+- `iteration_commit_containment` — opt-in, default off. When set and the host
+  injects a commit-containment runner, each iteration commits to a throwaway
+  branch and the operator owns the merge. Absent means the engine makes no git
+  calls.
+- `frozen_paths` — a read-only eval surface (test files, the verify command's
+  own definition, a spec). The engine fingerprints these at loop entry; if a
+  body iteration changes one, it opens an honesty-ledger latch so the floor
+  cannot honor that iteration's goal-met claim. This is a generic engine
+  mechanism; no shipped flow sets it yet.
+- `activate_when_depth_at_least` — the until loop activates only at `autonomous`
+  depth.
+
+See [docs/architecture/runtime.md](../architecture/runtime.md) for how the
+stop-judge, honesty ledger, and needs-attention exit fit together at runtime.
+
+### report_file_surfaces
+
+A map, keyed by a report's schema name, that marks which written reports are
+edit-file surfaces. Each entry has a `timing` (`before` or `after`) and an
+`extractor` that names how to pull file paths out of the report: a named
+string-array field, or the build-plan-and-slices file-extension reader. The
+skill-hook edit-file surface table reads this. Shape: `ReportFileSurfaceMap`
+(`src/schemas/report-file-surface.ts`).
+
+### runtime_surface
+
+The runtime binding the engine reads off the manifest. Only `primary_result`
+lives here: a `schema_name` + `path` pair, derived at compile from the
+close-stage compose step, that ties a terminal close to the flow's result
+report. This is what `binds_terminal_outcome_to_primary_result` binds against.
+The richer presentational surface (progress steps, the result label) stays
+package-side and by-id. Shape: `CompiledFlowManifestRuntimeSurface`
+(`src/schemas/compiled-flow.ts`).
+
+### required_config
+
+The CLI's up-front config gate: a non-empty list of requirements, each naming an
+`axis` (`tournament` or `autonomous`), a config `path`, and an operator-facing
+`message`. The CLI checks these before any worker runs, so a flow that needs
+operator-provided config does not start and then stall. Today only Prototype's
+tournament axis uses it, to require operator-provided variant models. Shape:
+`AxisConfigRequirementList` (`src/schemas/axis-config-requirement.ts`).
 
 ## Property ids (reserved for Stage 2 testing)
 
@@ -170,6 +272,15 @@ Property-based tests will cover:
 - **acceptance-criteria**: Relay `Step.acceptance_criteria` uses the
   deterministic V1 criteria schema and remains an optional additive compiled
   flow field.
+- **engine-flags** (`src/schemas/engine-flags.ts`): `CompiledFlow.engine_flags`
+  is the optional `EngineFlagsManifest` the engine branches on, including the
+  until-loop shape. See "Manifest-carried behavior fields" above.
+- **report-file-surface** (`src/schemas/report-file-surface.ts`):
+  `CompiledFlow.report_file_surfaces` marks which reports are edit-file
+  surfaces for the skill-hook table.
+- **axis-config-requirement** (`src/schemas/axis-config-requirement.ts`):
+  `CompiledFlow.required_config` is the CLI's up-front config gate for
+  tournament and autonomous axes.
 
 ## Failure modes (carried from evidence)
 
@@ -249,12 +360,21 @@ STEP-I4.
   relay `acceptance_criteria` pass-through from schematic to compiled flow.
   The field is additive on `schema_version: '2'` manifests and remains
   deterministic-only in V1.
-- **v0.6 (schema versioning slice, this version)**: bumps
+- **v0.6 (schema versioning slice)**: bumps
   `schema_version` to `'3'` after the dead `entry` routing metadata was
   removed from the strict schema. The removal changed what the schema
   accepts, so the version moves with it per
   [docs/contracts/schema-versioning.md](schema-versioning.md). A
   pre-bump artifact now fails with a `schema_version` mismatch instead
   of an unrecognized-key error.
+- **v0.7 (first-class composition reconciliation, this version)**: documents the
+  four optional manifest-carried behavior fields the strict schema already
+  accepts — `engine_flags` (including the full until-loop shape:
+  `stop_judge`, `frozen_paths`, `cumulative_usd_cap`/`cumulative_token_cap`,
+  `no_progress_ceiling`, `iteration_commit_containment`),
+  `report_file_surfaces`, `runtime_surface.primary_result`, and
+  `required_config`. No schema change; these fields moved onto the manifest in
+  the Stage 3 / 3b first-class composition work so composed flows carry their
+  behavior without a by-id catalog package, and the contract now describes them.
 - **v1.0 (Stage 2)**: ratified invariants + property tests + operator
   documentation.

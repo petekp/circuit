@@ -1,3 +1,4 @@
+import { spawnSync } from 'node:child_process';
 import type {
   CapabilityAxes,
   CurrentCapability,
@@ -75,15 +76,79 @@ function compareArrayAxis(
   return `${String(key)} ${parts.join('; ')}`;
 }
 
+// The current snapshot's free-text axes are machine-derived by
+// scripts/release/emit-current-capabilities.ts from a CLOSED, declared
+// vocabulary of descriptions. The parity gate compares the hand-authored
+// original promise against this current snapshot, but the two intentionally use
+// different prose for the same behavior, so a raw string compare would flag
+// every legitimate rewording (23 axes differ in the real ledger). Comparing
+// against this canonical vocabulary instead means a description silently
+// replaced with inverted or invented text — the value that feeds the PUBLIC
+// parity matrix — no longer matches and is flagged, while every legitimate
+// machine phrasing passes. When the emitter deliberately changes a description,
+// this declaration must be updated in lockstep (the real-ledger parity test is
+// the tripwire).
+export const CANONICAL_TEXT_AXIS_VALUES: Readonly<Record<string, readonly string[]>> = {
+  checkpoint: [
+    'Compiled checkpoints can pause, auto-resolve safe defaults, or resume from operator input.',
+    'Publishing requires an explicit --yes confirmation after draft validation.',
+  ],
+  review: [
+    'Compiled review stages or reviewer relays are present.',
+    'Routed Review runs a fresh reviewer relay and writes a severity-ordered review result.',
+  ],
+  verification: [
+    'Compiled verification steps write command-result reports before close.',
+    'Explore deep mode records seam proof through analysis and embedded critique rather than command verification.',
+    'The generated compiled flow parses and passes flow-kind policy validation.',
+  ],
+  worker_handoff: [
+    'Compiled worker handoffs write request, receipt, result, and report evidence where applicable.',
+    'Wrapper receives a prompt and returns structured output.',
+    'builtin-json',
+  ],
+  continuity: [
+    'Fresh sessions resume from an explicit continuity record or get a clear not-found result.',
+    'Published custom flows are written to the user-global custom flow root.',
+    'Resume is explicit and auditable through continuity record and index files.',
+    'Runs persist manifest, trace, result, and checkpoint resume data in the run folder.',
+  ],
+  host_surface: [],
+  proof: [
+    'Checkpoint/resume golden run.',
+    'Create or custom-connector proof scenario.',
+    'Fix golden run with regression evidence.',
+    'Golden decision or tournament run.',
+    'Handoff/resume golden run.',
+    'Prototype golden run with checkpoint disposition.',
+    'Routed Build golden run. Explicit Build checkpoint golden run.',
+    'Standalone Review golden run.',
+    'Working custom connector example.',
+  ],
+};
+
+const CANONICAL_TEXT_AXIS_SETS: ReadonlyMap<string, ReadonlySet<string>> = new Map(
+  Object.entries(CANONICAL_TEXT_AXIS_VALUES).map(
+    ([key, values]) => [key, new Set(values.map(normalizeAxisValue))] as const,
+  ),
+);
+
 function compareTextAxis(
   key: AxisKey,
   expectedValue: string | undefined,
   actualValue: string | undefined,
 ): string | undefined {
-  void key;
+  // Only axes the original promise declares are compared.
   if (expectedValue === undefined || expectedValue.trim() === '') return undefined;
   if (actualValue === undefined || actualValue.trim() === '') {
     return `${String(key)} missing current value`;
+  }
+  const canonical = CANONICAL_TEXT_AXIS_SETS.get(String(key));
+  // An axis with no declared canonical vocabulary keeps the presence guarantee
+  // only; every text axis Circuit emits today has one.
+  if (canonical === undefined || canonical.size === 0) return undefined;
+  if (!canonical.has(normalizeAxisValue(actualValue))) {
+    return `${String(key)} current value is not a recognized canonical description: "${actualValue.trim()}"`;
   }
   return undefined;
 }
@@ -125,6 +190,34 @@ export function behavioralAxisMismatches(input: {
 function scriptCheckExists(check: string, pathExists: (path: string) => boolean): boolean {
   const [command] = check.trim().split(/\s+/);
   return command !== undefined && pathExists(command);
+}
+
+export interface ScriptCheckResult {
+  readonly ok: boolean;
+  readonly detail?: string;
+}
+
+// A backing `script_check` names a repo-relative script and its args, e.g.
+// `scripts/release/emit-current-capabilities.ts --check`. The declared backing
+// scripts are cheap, side-effect-free `--check`/validation runs, so honoring
+// `verified_current` only means something if the script is actually executed
+// and passes. Default: run it with the current Node under the repo root and
+// require exit 0. Injectable so unit tests never spawn a subprocess.
+export function executeScriptCheck(check: string): ScriptCheckResult {
+  const parts = check.trim().split(/\s+/);
+  const [file, ...args] = parts;
+  if (file === undefined) return { ok: false, detail: 'empty script check' };
+  const result = spawnSync(process.execPath, [file, ...args], {
+    cwd: process.cwd(),
+    encoding: 'utf8',
+    timeout: 120_000,
+  });
+  if (result.status === 0) return { ok: true };
+  const detail =
+    result.stderr?.trim() ||
+    result.stdout?.trim() ||
+    (result.error ? result.error.message : `exit ${result.status ?? 'unknown'}`);
+  return { ok: false, detail };
 }
 
 function verifiedBackingCount(backing: PublicClaimLedger['claims'][number]['backing']): number {
@@ -206,12 +299,25 @@ export function validatePublicClaims(input: {
   readonly proofs: ProofScenarioIndex;
   readonly exceptions: ParityExceptionLedger;
   readonly pathExists: (path: string) => boolean;
+  // How to actually run a backing script check. Defaults to executing it and
+  // requiring exit 0; injected in tests to avoid spawning subprocesses.
+  readonly runScriptCheck?: (check: string) => ScriptCheckResult;
 }): ReleaseCheckResult {
   const issues: string[] = [];
   const warnings: string[] = [];
   const currentById = capabilityMap(input.current);
   const proofById = new Map(input.proofs.scenarios.map((scenario) => [scenario.id, scenario]));
   const exceptionIds = new Set(input.exceptions.exceptions.map((exception) => exception.id));
+  const runScriptCheck = input.runScriptCheck ?? executeScriptCheck;
+  // Run each distinct backing script at most once per validation pass.
+  const scriptCheckCache = new Map<string, ScriptCheckResult>();
+  const runScriptCheckCached = (check: string): ScriptCheckResult => {
+    const cached = scriptCheckCache.get(check);
+    if (cached !== undefined) return cached;
+    const result = runScriptCheck(check);
+    scriptCheckCache.set(check, result);
+    return result;
+  };
 
   for (const claim of input.claims.claims) {
     const backing = claim.backing;
@@ -237,6 +343,14 @@ export function validatePublicClaims(input: {
       for (const check of backing.script_checks) {
         if (!scriptCheckExists(check, input.pathExists)) {
           issues.push(`claim ${claim.id} references unavailable script check: ${check}`);
+          continue;
+        }
+        // File existence is not enough: run the backing script and require it
+        // to pass, so verified_current resists rot.
+        const scriptResult = runScriptCheckCached(check);
+        if (!scriptResult.ok) {
+          const detail = scriptResult.detail !== undefined ? ` (${scriptResult.detail})` : '';
+          issues.push(`claim ${claim.id} backing script check failed: ${check}${detail}`);
         }
       }
     }

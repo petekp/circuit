@@ -48,9 +48,6 @@ metacharacters:
      model-comparison variants, or throwaway evidence before Build.
    - **Explore** — investigation, explanation, architecture analysis, tradeoff
      comparison, or a decision before editing.
-   - **Pursue** — broad operator goals with multiple coordinated pieces of
-     work, several tracks, or a bundle of pursuits that need ordering and
-     serial execution.
 
    If one flow is clear, state the recommended flow and your one-line reason
    for it before you invoke the CLI, so the operator can redirect in-thread
@@ -108,7 +105,7 @@ metacharacters:
    ```
 
    The other flows and modes follow the same shape: substitute the flow name
-   (`prototype`, `pursue`; each flow accepts only the depths it supports),
+   (`prototype`; each flow accepts only the depths it supports),
    add `--depth high` for the deepest loop where supported or `--depth low`
    for the lightest pass (on Fix, low also skips the independent review
    relay), add `--power low` or `--power high`
@@ -155,7 +152,7 @@ metacharacters:
    invent a separate summary. If neither is present, fall back to the selected
    flow's close-step report under the run folder's `reports/` directory
    (`explore-result.json`, `review-result.json`, `build-result.json`,
-   `fix-result.json`, `prototype-result.json`, or `pursuit-result.json`):
+   `fix-result.json`, or `prototype-result.json`):
    surface its result fields, and follow its `evidence_links` entries (the
    JSON field is named `evidence_links`; in prose call them evidence links)
    when the operator needs change, verification, or coordination detail. Do

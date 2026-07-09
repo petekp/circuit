@@ -80,7 +80,7 @@
       "goal": "quick fix: restore the failing login test",
       "started_at": "2026-04-29T20:31:11.000Z",
       "completed_at": "2026-04-29T20:31:11.000Z",
-      "outcome": "complete",
+      "outcome": "blocked",
       "child_run": {
         "run_id": "44444444-4444-4444-4444-444444444407",
         "run_folder": "<repo>/docs/release/proofs/runs/fix/run",
@@ -89,13 +89,13 @@
           "ref": {
             "kind": "report",
             "ref": "reports/result.json",
-            "sha256": "8134a448409e5ff9c2081abc3cce029b1559b9697f665d62b148a2067139b3b6",
+            "sha256": "35d99bd1f70cb123033e82395f4a425927f39fb681e93b4e90cfb727f4fb6ff7",
             "run_id": "44444444-4444-4444-4444-444444444407",
             "flow_id": "fix"
           }
         },
         "trace_entries_observed": 69,
-        "manifest_hash": "ce252d2d728b5f0d1174e0f9a46483de197fd1e05256cf60e4a1cfad16c618b5"
+        "manifest_hash": "ed31afd9371ae9bae3675d937bae594faa110ad938b5db7241eef274b101b6fc"
       },
       "evidence_refs": [
         {
@@ -103,7 +103,7 @@
           "ref": {
             "kind": "evidence",
             "ref": "reports/process-evidence.json",
-            "sha256": "0efa002a65a7eb9639bc87676204614b18999652c3e472b4471a93489a1bbb86",
+            "sha256": "5b0ce116da379de8237b521ece32cab6e6e74575d28f6534b08ea236031d2a1d",
             "run_id": "44444444-4444-4444-4444-444444444407",
             "flow_id": "fix"
           }
@@ -113,100 +113,66 @@
           "ref": {
             "kind": "report",
             "ref": "reports/result.json",
-            "sha256": "8134a448409e5ff9c2081abc3cce029b1559b9697f665d62b148a2067139b3b6",
+            "sha256": "35d99bd1f70cb123033e82395f4a425927f39fb681e93b4e90cfb727f4fb6ff7",
             "run_id": "44444444-4444-4444-4444-444444444407",
             "flow_id": "fix"
           }
         }
       ],
-      "summary": "Run closed with outcome complete via @complete."
+      "summary": "Run closed with outcome stopped.",
+      "blocked_reason": "primary result 'reports/fix-result.json' reported outcome 'partial'"
     }
   ],
   "completion_gate": {
     "schema": "run.completion-gate@v0",
-    "verdict": "complete",
+    "verdict": "blocked",
     "claim_results": [
       {
         "claim_id": "process-evidence",
-        "status": "proved",
+        "status": "blocked",
         "evidence": [
           {
             "source": "process_evidence",
             "ref": {
               "kind": "evidence",
               "ref": "reports/process-evidence.json",
-              "sha256": "0efa002a65a7eb9639bc87676204614b18999652c3e472b4471a93489a1bbb86",
-              "run_id": "44444444-4444-4444-4444-444444444407",
-              "flow_id": "fix"
-            }
-          }
-        ]
-      }
-    ],
-    "gate_passes": [
-      {
-        "pass_id": "gate-process-evidence",
-        "attack_lens": "required-evidence-present",
-        "evidence_checked": [
-          {
-            "source": "process_evidence",
-            "ref": {
-              "kind": "evidence",
-              "ref": "reports/process-evidence.json",
-              "sha256": "0efa002a65a7eb9639bc87676204614b18999652c3e472b4471a93489a1bbb86",
+              "sha256": "5b0ce116da379de8237b521ece32cab6e6e74575d28f6534b08ea236031d2a1d",
               "run_id": "44444444-4444-4444-4444-444444444407",
               "flow_id": "fix"
             }
           }
         ],
-        "verdict": "gate-pass"
-      },
-      {
-        "pass_id": "gate-child-outcome",
-        "attack_lens": "child-outcome-consistent",
-        "evidence_checked": [
-          {
-            "source": "process_evidence",
-            "ref": {
-              "kind": "evidence",
-              "ref": "reports/process-evidence.json",
-              "sha256": "0efa002a65a7eb9639bc87676204614b18999652c3e472b4471a93489a1bbb86",
-              "run_id": "44444444-4444-4444-4444-444444444407",
-              "flow_id": "fix"
-            }
-          }
-        ],
-        "verdict": "gate-pass"
+        "gap": "primary result 'reports/fix-result.json' reported outcome 'partial'"
       }
     ],
-    "clean_streak": 2,
+    "gate_passes": [],
+    "clean_streak": 0,
     "required_passes": 2,
-    "next_action": "close"
+    "next_action": "blocked"
   },
   "decision_packets": [],
   "memory_update_events": [],
   "surface_output": {
     "schema": "run.surface-output@v0",
-    "status_text": "Completed with caveats: fix produced its required process evidence but reported a partial outcome. Fix 'quick fix: restore the failing login test': Added the fallback guard for the synthetic missing token path.",
-    "outcome": "complete",
-    "flow_outcome": "partial",
-    "next_action": "close",
+    "status_text": "Blocked: fix did not produce enough process evidence.",
+    "outcome": "blocked",
+    "next_action": "Inspect the process evidence and choose a recovery path.",
     "artifact_links": [
       {
         "kind": "evidence",
         "ref": "reports/process-evidence.json",
-        "sha256": "0efa002a65a7eb9639bc87676204614b18999652c3e472b4471a93489a1bbb86",
+        "sha256": "5b0ce116da379de8237b521ece32cab6e6e74575d28f6534b08ea236031d2a1d",
         "run_id": "44444444-4444-4444-4444-444444444407",
         "flow_id": "fix"
       },
       {
         "kind": "report",
         "ref": "reports/result.json",
-        "sha256": "8134a448409e5ff9c2081abc3cce029b1559b9697f665d62b148a2067139b3b6",
+        "sha256": "35d99bd1f70cb123033e82395f4a425927f39fb681e93b4e90cfb727f4fb6ff7",
         "run_id": "44444444-4444-4444-4444-444444444407",
         "flow_id": "fix"
       }
     ]
   },
-  "outcome": "complete"
+  "outcome": "blocked"
 }

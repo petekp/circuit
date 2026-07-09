@@ -847,6 +847,26 @@ export const TraceEntry = z
       }
       return;
     }
+    if (ev.kind === 'check.evaluated') {
+      // Mirror the verification.command_evaluated invariant below: when a check
+      // carries BOTH a command exit_code and a status, status must be 'passed'
+      // exactly when exit_code is 0 (proof-plan.ts derives the observation
+      // status that way). outcome is deliberately NOT constrained: a command
+      // acceptance criterion may expect a nonzero exit (expected_status
+      // 'failed'), so a passing outcome can honestly carry a failed status.
+      // Both fields are optional here, so only constrain them when present.
+      if (ev.exit_code !== undefined && ev.status !== undefined) {
+        const expected = ev.exit_code === 0 ? 'passed' : 'failed';
+        if (ev.status !== expected) {
+          ctx.addIssue({
+            code: 'custom',
+            path: ['status'],
+            message: `status must be '${expected}' when exit_code is ${ev.exit_code}`,
+          });
+        }
+      }
+      return;
+    }
     if (ev.kind === 'verification.command_evaluated') {
       const expected = ev.exit_code === 0 ? 'passed' : 'failed';
       if (ev.status !== expected) {

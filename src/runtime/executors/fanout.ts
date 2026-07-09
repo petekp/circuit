@@ -314,7 +314,10 @@ async function executeFanoutInternal(
   } finally {
     for (const worktreePath of provisioned) {
       try {
-        await Promise.resolve(worktreeRunner.remove(worktreePath));
+        // Remove against the same project root the worktree was provisioned
+        // under (see the add call in branch-execution), so cleanup targets the
+        // right repo even when the engine's process cwd is elsewhere.
+        await Promise.resolve(worktreeRunner.remove(worktreePath, context.projectRoot));
       } catch {
         // Cleanup is best-effort here, matching the v1 runtime. A leftover
         // worktree is operator-visible but should not hide the primary failure.

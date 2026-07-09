@@ -16,6 +16,7 @@
 import { resolveCodexDefaultModelUncached } from '../connectors/codex-default-model.js';
 import {
   assertConnectorSelectionCompatible,
+  customConnectorRegistryFromLayers,
   resolveConnectorForGuidanceInput,
 } from '../connectors/resolver.js';
 import { flowDefinitions } from '../flows/catalog.js';
@@ -147,11 +148,13 @@ function explicitConnectorForStep(
   if (step.connector === undefined) return undefined;
   const builtin = builtinConnector(step.connector);
   if (builtin !== undefined) return builtin;
-  let descriptor: ResolvedConnector | undefined;
-  for (const layer of layers) {
-    descriptor = layer.config.relay.connectors[step.connector] ?? descriptor;
-  }
-  return descriptor;
+  // SECURITY: only surface custom connectors the operator's own layers declare.
+  // A project config cannot supply a command-running connector (the production
+  // resolver refuses it), so the preview must never show one as the resolved
+  // connector. A pinned name the trusted config does not declare falls through
+  // to role/flow/auto, matching the prior best-effort behavior.
+  const { registry } = customConnectorRegistryFromLayers(layers);
+  return registry[step.connector];
 }
 
 // Inject the requested dial as an invocation-layer `defaults.power` opinion, so

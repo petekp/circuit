@@ -5,24 +5,24 @@
   "selected_flow": "fix",
   "routed_by": "explicit",
   "router_reason": "explicit flow positional argument",
-  "outcome": "complete",
+  "outcome": "stopped",
   "headline": "Circuit · Fix",
   "status_text": "Fix",
   "brief_slots": {
     "headline": "Circuit · Fix",
-    "assessment": "Fix 'quick fix: restore the failing login test': Added the fallback guard for the synthetic missing token path.",
+    "assessment": "The flow stopped before complete evidence was produced.",
     "key_points": [
+      "Stop reason: primary result 'reports/fix-result.json' reported outcome 'partial'",
       "Worker access: A worker can edit this checkout.",
       "Verification: passed.",
-      "Regression: not proven by a command, so the relevance of the change to the bug is unverified.",
-      "Review: skipped. Reason: Reviewer connector failed after proof passed; Fix closed with regression, verification, and change-set evidence."
+      "Regression: not proven by a command, so the relevance of the change to the bug is unverified."
     ],
     "caveats": [],
-    "next_action": "address the follow-up, then rerun the relevant check."
+    "next_action": "inspect the stopped run and choose whether to rerun or hand off."
   },
   "details": [
     "Worker access: A worker can edit this checkout.",
-    "Run note: Run closed with outcome complete via @complete.",
+    "Run note: Run closed with outcome stopped.",
     "Result: Fix 'quick fix: restore the failing login test': Added the fallback guard for the synthetic missing token path.",
     "Verification: passed.",
     "Regression: not proven by a command, so the relevance of the change to the bug is unverified.",

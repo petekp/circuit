@@ -260,7 +260,11 @@ describe('release truth infrastructure', () => {
     );
   });
 
-  it('parity comparison accepts non-empty implementation evidence for text axes', () => {
+  // The current snapshot's text axes are machine-derived from a closed,
+  // declared vocabulary (see CANONICAL_TEXT_AXIS_VALUES in checks.ts). The gate
+  // must accept those legitimate machine phrasings even though they read
+  // differently from the hand-authored original prose.
+  function fixtureSnapshots(currentCheckpoint: string) {
     const original = OriginalCapabilitySnapshot.parse({
       schema_version: 1,
       sources: [{ id: 'legacy', path: '/tmp/legacy.md', note: 'fixture' }],
@@ -270,9 +274,9 @@ describe('release truth infrastructure', () => {
           kind: 'flow',
           title: 'Fixture',
           summary: 'Fixture flow',
-          axes: {
-            checkpoint: 'Legacy prose for checkpoint behavior.',
-          },
+          // Original promise prose intentionally differs in wording from the
+          // machine-derived current description.
+          axes: { checkpoint: 'Legacy prose for checkpoint behavior.' },
           source_refs: ['legacy'],
         },
       ],
@@ -291,15 +295,60 @@ describe('release truth infrastructure', () => {
           title: 'Fixture',
           status: 'implemented',
           summary: 'Fixture flow exists',
-          axes: {
-            checkpoint: 'Current fixture has executable checkpoint evidence.',
-          },
+          axes: { checkpoint: currentCheckpoint },
         },
       ],
     });
+    return { original, current };
+  }
+
+  it('parity comparison accepts a canonical machine-derived text axis value', () => {
+    const { original, current } = fixtureSnapshots(
+      'Compiled checkpoints can pause, auto-resolve safe defaults, or resume from operator input.',
+    );
     const exceptions = ParityExceptionLedger.parse({ schema_version: 1, exceptions: [] });
     const result = compareParity({ original, current, exceptions });
     expect(result.issues).toEqual([]);
+  });
+
+  it('parity comparison rejects a text axis replaced with inverted or invented text', () => {
+    // An inverted checkpoint description (the opposite of the truth) is not part
+    // of the declared canonical vocabulary, so it must fail the gate instead of
+    // silently feeding the public parity matrix.
+    const { original, current } = fixtureSnapshots(
+      'Never pauses; applies risky changes without asking the operator.',
+    );
+    const exceptions = ParityExceptionLedger.parse({ schema_version: 1, exceptions: [] });
+    const result = compareParity({ original, current, exceptions });
+    expect(result.issues).toContainEqual(
+      expect.stringContaining('checkpoint current value is not a recognized canonical description'),
+    );
+    expect(result.issues).toContainEqual(
+      expect.stringContaining('untracked behavioral parity gap'),
+    );
+  });
+
+  it('parity comparison tracks an inverted text axis when an exception covers it', () => {
+    const { original, current } = fixtureSnapshots(
+      'Never pauses; applies risky changes without asking the operator.',
+    );
+    const exceptions = ParityExceptionLedger.parse({
+      schema_version: 1,
+      exceptions: [
+        {
+          id: 'EX-FIXTURE',
+          capability_id: 'flow:fixture',
+          status: 'approved_exception',
+          readiness_ref: 'REL-999',
+          rationale: 'Fixture exception covering the axis drift.',
+        },
+      ],
+    });
+    const result = compareParity({ original, current, exceptions });
+    expect(result.issues).toEqual([]);
+    expect(result.warnings).toContainEqual(
+      expect.stringContaining('checkpoint current value is not a recognized canonical description'),
+    );
   });
 
   it('claim checks reject unsupported current claims', () => {
@@ -399,6 +448,79 @@ describe('release truth infrastructure', () => {
     ]);
   });
 
+  it('verified_current claim fails when its backing script check does not pass', () => {
+    const current = CurrentCapabilitySnapshot.parse(
+      jsonFile('generated/release/current-capabilities.json'),
+    );
+    const proofs = ProofScenarioIndex.parse(yamlFile('docs/release/proofs/index.yaml'));
+    const exceptions = ParityExceptionLedger.parse(yamlFile('docs/release/parity/exceptions.yaml'));
+    // The backing command file exists (passes the availability guard), but when
+    // actually executed it exits non-zero: verified_current must not survive a
+    // failing backing script.
+    const claims = PublicClaimLedger.parse({
+      schema_version: 1,
+      claims: [
+        {
+          id: 'CLAIM-STALE-SCRIPT',
+          claim: 'Backed by a script that no longer passes',
+          type: 'docs',
+          status: 'verified_current',
+          surfaces: ['README.md'],
+          backing: { script_checks: ['scripts/release/check-proof-coverage.ts'] },
+          user_risk: 'Would certify a claim whose backing script has rotted.',
+        },
+      ],
+    });
+    const result = validatePublicClaims({
+      claims,
+      current,
+      proofs,
+      exceptions,
+      pathExists: exists,
+      runScriptCheck: () => ({ ok: false, detail: 'exit 1' }),
+    });
+    expect(result.issues).toEqual([
+      'claim CLAIM-STALE-SCRIPT backing script check failed: scripts/release/check-proof-coverage.ts (exit 1)',
+    ]);
+  });
+
+  it('verified_current claim passes when its backing script check succeeds', () => {
+    const current = CurrentCapabilitySnapshot.parse(
+      jsonFile('generated/release/current-capabilities.json'),
+    );
+    const proofs = ProofScenarioIndex.parse(yamlFile('docs/release/proofs/index.yaml'));
+    const exceptions = ParityExceptionLedger.parse(yamlFile('docs/release/parity/exceptions.yaml'));
+    const runCalls: string[] = [];
+    const claims = PublicClaimLedger.parse({
+      schema_version: 1,
+      claims: [
+        {
+          id: 'CLAIM-LIVE-SCRIPT',
+          claim: 'Backed by a script that still passes',
+          type: 'docs',
+          status: 'verified_current',
+          surfaces: ['README.md'],
+          backing: { script_checks: ['scripts/release/check-proof-coverage.ts'] },
+          user_risk: 'Would need a genuinely-passing backing script.',
+        },
+      ],
+    });
+    const result = validatePublicClaims({
+      claims,
+      current,
+      proofs,
+      exceptions,
+      pathExists: exists,
+      runScriptCheck: (check) => {
+        runCalls.push(check);
+        return { ok: true };
+      },
+    });
+    expect(result.issues).toEqual([]);
+    // The gate actually ran the backing script rather than trusting file existence.
+    expect(runCalls).toEqual(['scripts/release/check-proof-coverage.ts']);
+  });
+
   it('flow-catalog claim enumerates the catalog completely (real ledger is in sync)', () => {
     const current = CurrentCapabilitySnapshot.parse(
       jsonFile('generated/release/current-capabilities.json'),
@@ -417,6 +539,10 @@ describe('release truth infrastructure', () => {
       proofs,
       exceptions,
       pathExists: exists,
+      // Keep the unit hermetic: assert the backing scripts would be executed
+      // without spawning them here. Their real execution is covered by the
+      // release pipeline and the dedicated script-check tests above.
+      runScriptCheck: () => ({ ok: true }),
     });
     expect(result.issues.filter((issue) => issue.includes(FLOW_CATALOG_CLAIM_ID))).toEqual([]);
   });
@@ -444,6 +570,7 @@ describe('release truth infrastructure', () => {
       proofs,
       exceptions,
       pathExists: exists,
+      runScriptCheck: () => ({ ok: true }),
     });
     expect(result.issues).toContain(
       `claim ${FLOW_CATALOG_CLAIM_ID} omits catalog flow capability: flow:phantom`,
@@ -474,6 +601,7 @@ describe('release truth infrastructure', () => {
       proofs,
       exceptions,
       pathExists: exists,
+      runScriptCheck: () => ({ ok: true }),
     });
     expect(result.issues).toContain(
       `claim ${FLOW_CATALOG_CLAIM_ID} omits catalog flow capability: flow:review`,
@@ -719,7 +847,12 @@ describe('release truth infrastructure', () => {
       ['proof:review', { slug: 'review', flow: 'review', outcome: 'complete' }],
       ['proof:checkpoint-resume', { slug: 'checkpoint', flow: 'build', outcome: 'complete' }],
       ['proof:abort-failure', { slug: 'abort', flow: 'build', outcome: 'aborted' }],
-      ['proof:fix', { slug: 'fix', flow: 'fix', outcome: 'complete' }],
+      // H1 (pre-launch audit): this proof's fixture defers a regression, so the
+      // Fix primary result is `partial`. An honest run closes `stopped`, not
+      // `complete` — the run outcome must never out-claim the fix result. Before
+      // H1 this pair was `complete` over a `partial` result: the exact leak the
+      // audit closed. Do not revert to `complete`.
+      ['proof:fix', { slug: 'fix', flow: 'fix', outcome: 'stopped' }],
       ['proof:pursue', { slug: 'pursue', flow: 'pursue', outcome: 'complete' }],
       [
         'proof:explore-standard',

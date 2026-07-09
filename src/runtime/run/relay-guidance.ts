@@ -1,13 +1,18 @@
 import {
   assertConnectorCanRunRole,
   assertConnectorSelectionCompatible,
+  customConnectorRegistryFromLayers,
+  projectCustomConnectorRefusalMessage,
   resolveConnectorForGuidanceInput,
 } from '../../connectors/resolver.js';
 import type {
   RuntimeIndexedFlow,
   RuntimeIndexedRelayStep,
 } from '../../flows/registries/runtime-index.js';
-import { composePolicyHardConstraints } from '../../policy/policy-envelope.js';
+import {
+  composePolicyHardConstraints,
+  trustedPolicyConnectorRegistryFromLayers,
+} from '../../policy/policy-envelope.js';
 import type { ResolvedConnector } from '../../schemas/connector.js';
 import type { RelayResolutionSource } from '../../schemas/connector.js';
 import type { CompiledDepth } from '../../schemas/depth.js';
@@ -42,22 +47,40 @@ function configLayerConnector(
   name: string,
   configLayers: Parameters<typeof resolveConnectorForGuidanceInput>[0]['configLayers'],
 ): ResolvedConnector | undefined {
-  let descriptor: ResolvedConnector | undefined;
-  for (const layer of configLayers ?? []) {
-    descriptor = layer.config.relay.connectors[name] ?? descriptor;
+  // SECURITY: a step-pinned connector name resolves its command-bearing
+  // descriptor through the same project-vs-trusted boundary the relay
+  // default/role/flow resolver enforces. A project config may name which
+  // connector runs, but it must not be able to supply the command a custom
+  // connector executes. A project-declared name that reaches here (not a
+  // built-in, not supplied by policy) is refused with a plain-English message.
+  const { registry, projectDeclaredNames } = customConnectorRegistryFromLayers(configLayers);
+  const descriptor = registry[name];
+  if (descriptor !== undefined) return descriptor;
+  if (projectDeclaredNames.has(name)) {
+    throw new Error(projectCustomConnectorRefusalMessage(name));
   }
-  return descriptor;
+  return undefined;
 }
 
 function policyLayerConnector(
   name: string,
   policyLayers: readonly PolicyLayerValue[] | undefined,
 ): ResolvedConnector | undefined {
-  let descriptor: ResolvedConnector | undefined;
-  for (const layer of policyLayers ?? []) {
-    descriptor = layer.envelope.policy.rules.connectors.registry[name] ?? descriptor;
+  // SECURITY: the twin of the step-pinned config boundary in
+  // `configLayerConnector` above, for the PolicyEnvelope schema. A custom
+  // connector's command-bearing descriptor in the policy registry is honored
+  // only from a policy layer the operator controls (user-global / invocation),
+  // never from a project-origin layer. A project-declared name that reaches
+  // here is refused with the same plain-English message. Built-in connector
+  // names never reach this function — they short-circuit in `builtinConnector`
+  // and `connectorFromPolicyRef` before the registry is consulted.
+  const { registry, projectDeclaredNames } = trustedPolicyConnectorRegistryFromLayers(policyLayers);
+  const descriptor = registry[name];
+  if (descriptor !== undefined) return descriptor;
+  if (projectDeclaredNames.has(name)) {
+    throw new Error(projectCustomConnectorRefusalMessage(name));
   }
-  return descriptor;
+  return undefined;
 }
 
 function connectorFromPolicyRef(

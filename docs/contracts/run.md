@@ -3,7 +3,7 @@ contract: run
 status: ratified-v0.1
 version: 0.4
 schema_source: src/schemas/run.ts
-last_updated: 2026-06-12
+last_updated: 2026-07-09
 depends_on: [trace_entry, snapshot, ids, change_kind, depth, flow, skill, acceptance-criteria]
 closes: []
 report_ids:
@@ -42,6 +42,119 @@ for canonical definitions of **Run**, **TraceEntry**, **Snapshot**,
 **CompiledFlow**, and **Session**. Note the explicit Run vs Session
 distinction: a Session is the human-facing shell; a Run is the machine-facing
 execution.
+
+## Trace entry kinds
+
+The authoritative list of `TraceEntry` kinds is the discriminated union in
+`src/schemas/trace-entry.ts`. Every kind below is one variant of that union.
+Names use `<subject>.<event>`. Grouped by subject:
+
+**run**
+
+- `run.bootstrapped` — the first entry. Freezes `flow_id`, `depth`, `goal`,
+  `change_kind`, `manifest_hash`, and any catalog bindings a flow could not
+  resolve (`reduced_bindings`).
+- `run.power-inference` — the run's single auto-power resolution when the dial
+  is `auto`. Records the recommendation, the operator bounds, and the clamped
+  tier. Written at most once per run.
+- `run.skill-hook` — a configured skill hook matched. Records the hook and the
+  report-only decision it made.
+- `run.skill-hook-error` — the post-step skill-hook dispatcher threw. Recorded
+  so the failure surfaces as a warning instead of being swallowed.
+- `run.equipment-reshape` — the engine's decision when a running relay surfaces
+  an equipment discovery: re-equipped and continued, or parked as a finding.
+- `run.context-pull` — one typed lookup a running step made against a parent
+  report. Records whether the named slice was answered or parked.
+- `run.context-delivery` — resolved slices folded into a starved step's
+  envelope and the step re-run once. Records which outcome the run kept.
+- `run.until-judgment` — one until-loop iteration's stop-judge disposition:
+  `stop-clean`, `reenter`, or `needs-attention`.
+- `run.closed` — the terminal entry. Carries the run outcome (`complete`,
+  `aborted`, `handoff`, `stopped`, or `escalated`).
+
+**step**
+
+- `step.entered` — a step attempt started. Carries the attempt number and, in a
+  slice loop, the slice index.
+- `step.report_written` — a step wrote its report. Carries the report path and
+  schema.
+- `step.completed` — a step attempt finished and took a route. Carries
+  `route_taken`.
+- `step.aborted` — a step attempt ended without completing. Carries the reason.
+
+**check**
+
+- `check.evaluated` — a check ran. Carries `check_kind` and `outcome` (`pass`
+  or `fail`), plus per-criterion detail for acceptance criteria.
+
+**verification**
+
+- `verification.command_evaluated` — one bounded verification command ran.
+  Carries argv, cwd, exit code, status, duration, and output summaries.
+
+**checkpoint**
+
+- `checkpoint.requested` — a checkpoint paused for a selection. Carries the
+  options and the boundary reference.
+- `checkpoint.resolved` — a checkpoint was answered. Carries the selection, the
+  route, and the resolution source (`declared-default`, `operator`, or
+  `policy`).
+
+**relay**
+
+- `relay.started` — a worker relay began. Carries the connector, role, resolved
+  selection, resolved-from provenance, and any equipment enforcement evidence.
+- `relay.request` — the SHA-256 of the request payload submitted to the
+  connector, recorded before the connector replies.
+- `relay.receipt` — the connector-returned receipt id, plus the CLI version and
+  any dispatch-resolved model.
+- `relay.result` — the SHA-256 of the result report bytes the connector
+  returned.
+- `relay.completed` — the relay returned a result. Carries the verdict,
+  duration, result path, receipt path, and any token usage.
+- `relay.failed` — the connector invocation itself failed before a result
+  existed. Repeats the relay provenance plus the terminal failure reason.
+
+**skills**
+
+- `skills.loaded` — local skills were materialized for a relay attempt. Records
+  each skill's id, cause, optional slot, path, hash, and byte count, never the
+  instruction body.
+
+**sub_run**
+
+- `sub_run.started` — a child flow run started. Carries the child run id, flow
+  id, entry mode, and depth.
+- `sub_run.completed` — a child flow run closed. Carries the child outcome,
+  verdict, duration, and the copied result path.
+
+**fanout**
+
+- `fanout.started` — a fanout expanded its branches. Carries the resolved
+  branch ids, the child-failure policy, and the execution policy.
+- `fanout.branch_started` — one branch started in its worktree. Carries the
+  branch id, branch kind, child run id, and worktree path.
+- `fanout.branch_completed` — one branch closed. Carries its outcome, verdict,
+  result path, and any `reused_from` run id.
+- `fanout.joined` — the branches were joined. Carries the join policy, any
+  picked winner, the aggregate path, and the completed/failed counts.
+
+**proof**
+
+- `proof.assessed` — a proof-policy assessment ran. Carries the overall status
+  and whether close is allowed.
+
+**safe_apply**
+
+- `safe_apply.result` — a SafeApply decision was recorded. Carries the
+  change-packet, base, action, outcome, reason codes, and final-verification
+  references.
+
+**guidance**
+
+- `guidance.decision` — the recorded authority for an action (relay execution,
+  checkpoint resolution, proof policy, recovery route, or safe apply). Later
+  action entries must match a prior matching decision (see RUN-I5a).
 
 ## Invariants
 
@@ -505,6 +618,12 @@ property-test harness + reducer exist in Stage 2.
   Enforced at `src/schemas/run.ts`; covered by
   `tests/contracts/runtrace-schema.test.ts` and
   `tests/runtime/runtime-trace-contract.test.ts`.
+
+- **v0.4-amendment (pre-v1 reconciliation, 2026-07-09)** — adds the "Trace
+  entry kinds" reference section enumerating all 33 `TraceEntry` kinds, grouped
+  by subject, each with a one-line description. Documentation only; no schema or
+  invariant change. Source of truth stays the discriminated union in
+  `src/schemas/trace-entry.ts`.
 
 - **v0.5 (Stage 1)** — Absorb Codex adversarial property-auditor pass
   findings. Ratify `property_ids` above by landing the corresponding

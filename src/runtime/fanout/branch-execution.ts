@@ -571,7 +571,17 @@ export async function executeSubRunFanoutBranch(
 
   try {
     const branchName = `circuit/${context.runId}/${step.id}/${branch.branch_id}`;
-    await Promise.resolve(worktreeRunner.add({ worktreePath, baseRef: 'HEAD', branchName }));
+    // Provision the branch worktree against the run's project root, not the
+    // engine's process cwd, so a non-cwd `--project-root` invocation still
+    // creates the worktree in the right repository.
+    await Promise.resolve(
+      worktreeRunner.add({
+        worktreePath,
+        baseRef: 'HEAD',
+        branchName,
+        ...(context.projectRoot === undefined ? {} : { repoRoot: context.projectRoot }),
+      }),
+    );
     const resolved = await context.childCompiledFlowResolver({
       flowId: branch.flowRef,
       entryMode: branch.entryMode,

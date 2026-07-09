@@ -1,6 +1,6 @@
 import type { Config, ConnectorReference } from '../schemas/config.js';
 import type { LayeredConfig as LayeredConfigValue } from '../schemas/config.js';
-import { EnabledConnector } from '../schemas/connector.js';
+import { type CustomConnectorDescriptor, EnabledConnector } from '../schemas/connector.js';
 import { sha256OfJson } from '../schemas/hashing.js';
 import {
   ComposedPolicyHardConstraints,
@@ -114,6 +114,52 @@ function sha256Json(value: unknown): string {
 function policyLayerSourceForConfigLayer(layer: LayeredConfigValue['layer']): PolicyLayerSource {
   if (layer === 'default') return 'built-in';
   return layer;
+}
+
+// SECURITY BOUNDARY (twin of C1 in src/connectors/resolver.ts). The
+// PolicyEnvelope schema carries the same custom connector registry the legacy
+// relay schema does, only reached through a different resolution path. Each
+// `policy.rules.connectors.registry` entry is a custom descriptor whose
+// arbitrary `command` the engine spawns with the full inherited environment. A
+// project's committed `.circuit/config.yaml` is untrusted input — cloning a
+// repository and running any flow (even a read-only review) must never let the
+// repository author's config execute a command on the operator's machine. So a
+// custom command connector is honored only from a policy layer the operator
+// controls on their own machine (their user-global config) or supplies at
+// invocation, never from a project-origin layer.
+//
+// Built-in connector names are reserved out of the registry by the schema, so
+// this partition only ever governs arbitrary-command descriptors; built-ins
+// resolve through their own path and stay selectable from any origin.
+//
+// This mirrors `customConnectorRegistryFromLayers` in the connectors module for
+// policy layers. The two enforce the same rule but consume different layer
+// shapes (`LayeredConfig` vs `PolicyLayer`), so the partition is expressed twice
+// rather than behind one generic helper that would obscure both security-
+// critical call sites. Later trusted layers override earlier ones, matching the
+// config-layer merge order.
+export function trustedPolicyConnectorRegistryFromLayers(
+  layers: readonly PolicyLayerValue[] | undefined,
+): {
+  readonly registry: Record<string, CustomConnectorDescriptor>;
+  readonly projectDeclaredNames: ReadonlySet<string>;
+} {
+  const registry: Record<string, CustomConnectorDescriptor> = {};
+  const projectDeclaredNames = new Set<string>();
+  for (const layer of layers ?? []) {
+    const layerRegistry = layer.envelope.policy.rules.connectors.registry;
+    if (layer.source === 'project') {
+      // Record the names a project layer tried to register (so a selection that
+      // points at one can raise a clear security refusal instead of a
+      // misleading "not declared" error) but never adopt the command.
+      for (const name of Object.keys(layerRegistry)) {
+        projectDeclaredNames.add(name);
+      }
+      continue;
+    }
+    Object.assign(registry, layerRegistry);
+  }
+  return { registry, projectDeclaredNames };
 }
 
 export function composePolicyHardConstraints(

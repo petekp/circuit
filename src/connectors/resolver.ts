@@ -26,7 +26,59 @@ import type { ResolvedConnectorDecision } from './connector.js';
 
 type RelayConfigValue = LayeredConfigValue['config']['relay'];
 
-function mergedRelayConfig(layers: readonly LayeredConfigValue[] | undefined): RelayConfigValue {
+// SECURITY BOUNDARY (C1 — arbitrary command execution from a cloned repo).
+// A custom connector descriptor carries an arbitrary `command` that the engine
+// spawns with the full inherited environment. A project's committed
+// `.circuit/config.yaml` is untrusted input: cloning a repository and running
+// any flow (even a read-only review) must never let the repository author's
+// config execute a command on the operator's machine. So custom connector
+// definitions are honored only from layers the operator controls on their own
+// machine — their user-global config or an explicit invocation override — and
+// never from the project layer. Built-in connector names (claude-code / codex
+// / cursor-agent) name a fixed, Circuit-shipped executable rather than an
+// arbitrary command, so they stay selectable from any layer.
+//
+// This is the single place the project-vs-trusted partition of the custom
+// connector registry lives. Every path that turns a connector name into a
+// command-bearing descriptor resolves it through this registry (relay default
+// / role / flow resolution here, and the step-pinned connector path in
+// runtime/run/relay-guidance.ts), so the boundary cannot be forgotten by one
+// caller while another honors it.
+export function customConnectorRegistryFromLayers(
+  layers: readonly LayeredConfigValue[] | undefined,
+): {
+  readonly registry: RelayConfigValue['connectors'];
+  readonly projectDeclaredNames: ReadonlySet<string>;
+} {
+  const registry: RelayConfigValue['connectors'] = {};
+  const projectDeclaredNames = new Set<string>();
+  for (const layer of layers ?? []) {
+    if (layer.layer === 'project') {
+      // Record the names a project tried to register (to explain the refusal
+      // clearly if a selection points at one) but never adopt the command.
+      for (const name of Object.keys(layer.config.relay.connectors)) {
+        projectDeclaredNames.add(name);
+      }
+      continue;
+    }
+    Object.assign(registry, layer.config.relay.connectors);
+  }
+  return { registry, projectDeclaredNames };
+}
+
+export function projectCustomConnectorRefusalMessage(name: string): string {
+  return `This project config (.circuit/config.yaml) defines a custom connector '${name}' that runs its own command. Circuit does not run custom command connectors that come from a project config, because cloning or opening a repository could then run code on your machine. If you trust this connector, define '${name}' in your personal config at ~/.config/circuit/config.yaml instead.`;
+}
+
+interface MergedRelayConfig {
+  readonly relay: RelayConfigValue;
+  // Custom connector names a project layer tried to define. Consulted only when
+  // a selection misses the trusted registry, to raise the security refusal
+  // above instead of a misleading "not declared" error.
+  readonly projectDeclaredCustomConnectors: ReadonlySet<string>;
+}
+
+function mergedRelayConfig(layers: readonly LayeredConfigValue[] | undefined): MergedRelayConfig {
   const merged: RelayConfigValue = {
     default: 'auto',
     roles: {},
@@ -39,9 +91,21 @@ function mergedRelayConfig(layers: readonly LayeredConfigValue[] | undefined): R
     }
     merged.roles = { ...merged.roles, ...layer.config.relay.roles };
     merged.flows = { ...merged.flows, ...layer.config.relay.flows };
-    merged.connectors = { ...merged.connectors, ...layer.config.relay.connectors };
   }
-  return merged;
+  const { registry, projectDeclaredNames } = customConnectorRegistryFromLayers(layers);
+  merged.connectors = registry;
+  return { relay: merged, projectDeclaredCustomConnectors: projectDeclaredNames };
+}
+
+function projectCustomRefusalOrNotDeclared(
+  name: string,
+  merged: MergedRelayConfig,
+  notDeclaredMessage: string,
+): Error {
+  if (merged.projectDeclaredCustomConnectors.has(name)) {
+    return new Error(projectCustomConnectorRefusalMessage(name));
+  }
+  return new Error(notDeclaredMessage);
 }
 
 function mergedHostKind(layers: readonly LayeredConfigValue[] | undefined): HostKind {
@@ -121,12 +185,16 @@ export function assertConnectorCanRunRole(connector: ResolvedConnector, role: Re
 
 function resolvedConnectorFromReference(
   ref: ConnectorReference,
-  relay: RelayConfigValue,
+  merged: MergedRelayConfig,
 ): ResolvedConnector {
   if (ref.kind === 'builtin') return ref;
-  const descriptor = relay.connectors[ref.name];
+  const descriptor = merged.relay.connectors[ref.name];
   if (descriptor === undefined) {
-    throw new Error(`relay connector '${ref.name}' is referenced but not declared`);
+    throw projectCustomRefusalOrNotDeclared(
+      ref.name,
+      merged,
+      `relay connector '${ref.name}' is referenced but not declared`,
+    );
   }
   return descriptor;
 }
@@ -144,14 +212,18 @@ function isEnabledConnector(value: string): value is EnabledConnector {
 
 function resolvedConnectorFromDefault(
   defaultRef: RelayConfigValue['default'],
-  relay: RelayConfigValue,
+  merged: MergedRelayConfig,
 ): ResolvedConnector {
   if (isEnabledConnector(defaultRef)) {
     return { kind: 'builtin', name: defaultRef };
   }
-  const descriptor = relay.connectors[defaultRef];
+  const descriptor = merged.relay.connectors[defaultRef];
   if (descriptor === undefined) {
-    throw new Error(`relay default connector '${defaultRef}' is referenced but not declared`);
+    throw projectCustomRefusalOrNotDeclared(
+      defaultRef,
+      merged,
+      `relay default connector '${defaultRef}' is referenced but not declared`,
+    );
   }
   return descriptor;
 }
@@ -185,11 +257,11 @@ export function resolveConnectorForGuidanceInput(input: {
     return decision(input.explicitConnector, { source: 'explicit' }, input.role);
   }
 
-  const relay = mergedRelayConfig(input.configLayers);
-  const roleRef = relay.roles[input.role];
+  const merged = mergedRelayConfig(input.configLayers);
+  const roleRef = merged.relay.roles[input.role];
   if (roleRef !== undefined) {
     return decision(
-      resolvedConnectorFromReference(roleRef, relay),
+      resolvedConnectorFromReference(roleRef, merged),
       {
         source: 'role',
         role: input.role,
@@ -199,10 +271,10 @@ export function resolveConnectorForGuidanceInput(input: {
   }
 
   const flowId = input.flowId as CompiledFlowId;
-  const flowRef = relay.flows[flowId];
+  const flowRef = merged.relay.flows[flowId];
   if (flowRef !== undefined) {
     return decision(
-      resolvedConnectorFromReference(flowRef, relay),
+      resolvedConnectorFromReference(flowRef, merged),
       {
         source: 'flow',
         flow_id: flowId,
@@ -211,9 +283,9 @@ export function resolveConnectorForGuidanceInput(input: {
     );
   }
 
-  if (relay.default !== 'auto') {
+  if (merged.relay.default !== 'auto') {
     return decision(
-      resolvedConnectorFromDefault(relay.default, relay),
+      resolvedConnectorFromDefault(merged.relay.default, merged),
       { source: 'default' },
       input.role,
     );

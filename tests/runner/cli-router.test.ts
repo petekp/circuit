@@ -241,6 +241,18 @@ function expectExitMatchesOutcome(exit: number, output: Record<string, unknown>)
   expect(exit).toBe(exitsZero ? 0 : 1);
 }
 
+// In-process CLI runs must not read the developer's real, gitignored
+// <cwd>/.circuit/config.yaml. Defaulting configCwd to process.cwd() let a stray
+// project config silently steer a run, so local-green could diverge from
+// CI-green (the C1 project-config surface). Anchor the default project-config
+// dir to an isolated, empty (never-created) dir under the per-test temp root —
+// the "fresh repo, no project config" the runtime sees on a clean checkout, and
+// the exact value the explicit fresh-repo cases already pass. Tests that need a
+// real project root keep passing `configCwd` explicitly.
+function isolatedConfigCwd(): string {
+  return join(runFolderBase, 'empty-cwd');
+}
+
 async function runMainJson(
   argv: readonly string[],
   relayBody: string,
@@ -252,7 +264,7 @@ async function runMainJson(
       now: deterministicNow(Date.UTC(2026, 3, 24, 15, 0, 0)),
       runId: '84000000-0000-0000-0000-000000000001',
       configHomeDir: join(runFolderBase, 'empty-home'),
-      configCwd: options.configCwd ?? process.cwd(),
+      configCwd: options.configCwd ?? isolatedConfigCwd(),
     }),
   );
   const parsed: unknown = JSON.parse(captured);
@@ -275,7 +287,7 @@ async function runMainJsonWithRelayer(
       now: deterministicNow(Date.UTC(2026, 3, 24, 15, 0, 0)),
       runId: '84000000-0000-0000-0000-000000000001',
       configHomeDir: join(runFolderBase, 'empty-home'),
-      configCwd: options.configCwd ?? process.cwd(),
+      configCwd: options.configCwd ?? isolatedConfigCwd(),
     }),
   );
   const output = JSON.parse(captured) as Record<string, unknown>;
@@ -298,7 +310,7 @@ async function runMainJsonWithRelayerAndProgress(
       now: deterministicNow(Date.UTC(2026, 3, 24, 15, 0, 0)),
       runId: '84000000-0000-0000-0000-000000000001',
       configHomeDir: join(runFolderBase, 'empty-home'),
-      configCwd: options.configCwd ?? process.cwd(),
+      configCwd: options.configCwd ?? isolatedConfigCwd(),
     }),
   );
   const output = JSON.parse(stdout) as Record<string, unknown>;
@@ -326,7 +338,7 @@ async function runMainJsonWithProgress(
       now: deterministicNow(Date.UTC(2026, 3, 24, 15, 0, 0)),
       runId: '84000000-0000-0000-0000-000000000001',
       configHomeDir: join(runFolderBase, 'empty-home'),
-      configCwd: options.configCwd ?? process.cwd(),
+      configCwd: options.configCwd ?? isolatedConfigCwd(),
     }),
   );
   const output = JSON.parse(stdout) as Record<string, unknown>;
@@ -346,7 +358,7 @@ async function runMainExit(argv: readonly string[]): Promise<{ exit: number; std
       now: deterministicNow(Date.UTC(2026, 3, 24, 15, 0, 0)),
       runId: '84000000-0000-0000-0000-000000000099',
       configHomeDir: join(runFolderBase, 'empty-home'),
-      configCwd: process.cwd(),
+      configCwd: isolatedConfigCwd(),
     }),
   );
   return { exit, stderr };
@@ -1041,6 +1053,21 @@ describe('CLI router', () => {
     expect(stderr).toContain('--tournament');
     // Up-front: no worker ran, so no run folder, no framing/planning artifacts.
     expect(existsSync(runFolder)).toBe(false);
+  });
+
+  it('defaults the in-process project config dir to an isolated dir, not the dev cwd (C1)', () => {
+    // Guardrail for the project-config leak. The in-process CLI harness must not
+    // read the developer's real, gitignored <cwd>/.circuit/config.yaml: if it
+    // did, a run's outcome would depend on the machine it ran on (local-green
+    // could diverge from CI-green) and a stray project config could silently
+    // steer selection. The default project-config dir must resolve to an
+    // isolated, empty dir under the per-test temp root — never process.cwd().
+    // (Reverting the default to process.cwd() fails the first two assertions.)
+    const fallback = isolatedConfigCwd();
+    expect(fallback.startsWith(runFolderBase)).toBe(true);
+    expect(fallback).not.toBe(process.cwd());
+    // Isolated == fresh repo: no project config is ever planted in the default.
+    expect(existsSync(join(fallback, '.circuit', 'config.yaml'))).toBe(false);
   });
 
   it('rejects an internal flow absent from the host with a clear message (F-L-3)', async () => {

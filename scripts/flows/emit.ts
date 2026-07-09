@@ -96,7 +96,10 @@ async function loadSchematicsFromCatalog(): Promise<SchematicEntry[]> {
     );
     return mod.flowPackages.map((pkg) => ({
       id: pkg.id,
-      visibility: pkg.visibility ?? 'public',
+      // Fail closed: an unlabeled flow must never silently default to a public
+      // host surface. The compiled catalog always carries an explicit
+      // visibility, so a missing one is a catalog defect, not a public flow.
+      visibility: pkg.visibility ?? failMissingVisibility(pkg.id),
       schematicPath: pkg.paths.schematic,
       definitionSourcePath: `src/flows/${pkg.id}/data.ts`,
       schematic: definitionsById.get(pkg.id)?.schematic ?? failMissingDefinition(pkg.id),
@@ -108,6 +111,12 @@ async function loadSchematicsFromCatalog(): Promise<SchematicEntry[]> {
     );
     process.exit(1);
   }
+}
+
+function failMissingVisibility(flowId: string): never {
+  throw new Error(
+    `flow package '${flowId}' declares no visibility in the compiled catalog; refusing to default an unlabeled flow to a public host surface`,
+  );
 }
 
 function failMissingDefinition(flowId: string): never {

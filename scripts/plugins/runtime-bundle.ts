@@ -68,7 +68,10 @@ async function buildRuntimeBundle(): Promise<string> {
       target: 'node22',
       sourcemap: false,
       minify: false,
-      legalComments: 'none',
+      // M4: keep bundled dependencies' license/@license/@preserve notices
+      // instead of stripping them. 'eof' collects them into a single block at
+      // the end of the bundle so the shipped CLI carries its deps' attributions.
+      legalComments: 'eof',
       // See react-devtools-stub.js for why Ink's optional devtools import
       // must be aliased away rather than eliminated via `define`.
       alias: { 'react-devtools-core': resolve(scriptDir, 'react-devtools-stub.js') },

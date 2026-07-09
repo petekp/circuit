@@ -36,6 +36,39 @@ criterion either aborts the step or returns through the existing retry route
 with feedback, so retry bounds stay owned by the graph runner's normal attempt
 logic.
 
+## The until loop and Converge
+
+Some flows need to repeat work until a goal is met, not just run once. The
+engine supports this with the until loop, driven by the
+`iterates_until_condition` engine flag (see
+[`../contracts/compiled-flow.md`](../contracts/compiled-flow.md)). It is a while
+loop for flows: the graph runner re-enters the loop body, the span from
+`head_step` to `tail_step`, once per iteration until a stop condition or a
+ceiling. Converge is the operator-facing capability built on this loop. The
+internal fix-until-green flow is its canonical form; sweep and converge-proof
+use the same loop.
+
+Each iteration is disposed by a stop-judge. The tail step proposes a goal-met
+boolean; the engine reads it from the report path the flag names and disposes it
+against an evidence floor. The disposition is one of three: stop-clean (the goal
+is met and the evidence backs it, so the loop closes), reenter (take the
+re-enter route for another iteration), or needs-attention (the loop is out of
+iterations or budget and exits through a non-`@complete` terminal). The engine
+records each disposition as a `run.until-judgment` trace entry. This logic lives
+in `src/runtime/run/until-corridor.ts`.
+
+The honesty ledger keeps a loop from claiming success it did not earn. The loop
+can declare `frozen_paths`: a read-only evidence surface such as the test files
+or the verify command's own definition. The engine fingerprints those paths at
+loop entry. If a body iteration changes one, the engine opens a latch on the
+ledger, because an iteration that edited its own test cannot honestly claim the
+goal is met. A run cannot close as a clean `complete` while any latch is open;
+the finalize chokepoint downgrades it to `stopped` instead. The ledger lives in
+`src/runtime/run/honesty-ledger.ts`. The cumulative spend caps
+(`cumulative_usd_cap`, `cumulative_token_cap`) and the no-progress ceiling are
+fail-closed for the same reason: at the limit the loop exits to needs-attention
+rather than spending more or spinning in place.
+
 The long-term runtime direction is a functional effect shell around the same
 explicit graph walk. The graph runner should continue to make step advancement
 plain: enter step, run executor, evaluate route, append trace, move to the next

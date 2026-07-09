@@ -2108,3 +2108,64 @@ describe('handoff brief session scoping (own session outranks the repo-wide poin
     expect(output.recovered_from?.code).toBe('record_missing');
   });
 });
+
+// The harvester auto-writes continuity records into `<repo>/.circuit` on every
+// Stop/SessionEnd/PreCompact. Nothing else seeds an ignore file, so those
+// machine-written records (and any secrets a compaction summary restates) can be
+// committed silently. The harvest path seeds `.circuit/.gitignore` on its first
+// auto-write, ignoring everything under `.circuit` except the ignore file itself
+// and an intentional project `config.yaml` (M3).
+describe('circuit handoff harvest seeds .circuit/.gitignore (M3)', () => {
+  const EXPECTED_GITIGNORE = [
+    '# Circuit machine-written records — do not commit',
+    '*',
+    '!.gitignore',
+    '!config.yaml',
+    '',
+  ].join('\n');
+
+  async function harvestOnce(projectRoot: string): Promise<{ code: number; stderr: string }> {
+    const transcript = join(projectRoot, 'transcript.jsonl');
+    writeFileSync(transcript, jsonl([userString('please seed the gitignore')]));
+    return captureMain(
+      [
+        'handoff',
+        'harvest',
+        '--transcript-path',
+        transcript,
+        '--project-root',
+        projectRoot,
+        '--session-id',
+        's-gitignore',
+        '--source',
+        'stop',
+      ],
+      { now: NOW },
+    );
+  }
+
+  it('writes .circuit/.gitignore with the machine-records ignore rules on an auto-write', async () => {
+    const projectRoot = tempRoot('circuit-harvest-gitignore-');
+    const harvest = await harvestOnce(projectRoot);
+    expect(harvest.code, harvest.stderr).toBe(0);
+
+    const gitignorePath = join(projectRoot, '.circuit/.gitignore');
+    expect(existsSync(gitignorePath)).toBe(true);
+    expect(readFileSync(gitignorePath, 'utf8')).toBe(EXPECTED_GITIGNORE);
+  });
+
+  it('does not clobber an existing .circuit/.gitignore', async () => {
+    const projectRoot = tempRoot('circuit-harvest-gitignore-keep-');
+    const circuitDir = join(projectRoot, '.circuit');
+    mkdirSync(circuitDir, { recursive: true });
+    const gitignorePath = join(circuitDir, '.gitignore');
+    const custom = '# my own rules\nsecrets.txt\n';
+    writeFileSync(gitignorePath, custom);
+
+    const harvest = await harvestOnce(projectRoot);
+    expect(harvest.code, harvest.stderr).toBe(0);
+
+    // Idempotent seed: a file the user may have customized is left untouched.
+    expect(readFileSync(gitignorePath, 'utf8')).toBe(custom);
+  });
+});

@@ -110,7 +110,7 @@ scenarios:
     category: doing-work
     command: './bin/circuit run fix --goal "quick fix: restore the failing login test" --progress jsonl'
     expected_flow: fix
-    expected_outcome: complete or needs_attention
+    expected_outcome: stopped (fixture defers a regression, so the fix is honestly partial and the run stops short of complete)
     summary_contract: Summary shows repro/diagnosis, fix, verification, review policy, and next action.
     redaction_policy: Uses a synthetic bug fixture with no private data.
     required_files:

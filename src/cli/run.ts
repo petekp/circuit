@@ -20,6 +20,7 @@ import {
   type ProgressEvent as ProgressEventValue,
 } from '../schemas/progress-event.js';
 import { RunResult } from '../schemas/result.js';
+import type { RunEnvelopeOutcome } from '../schemas/run-envelope.js';
 import type { WaitingCheckpointStatus } from '../schemas/run-status.js';
 import type { RunClosedOutcome } from '../schemas/trace-entry.js';
 
@@ -721,7 +722,12 @@ export async function runResumeCommand(
       if (ttyNoticesEnabled({ stream: process.stderr, progressJsonl: args.progress === 'jsonl' })) {
         process.stderr.write(runFinishedNotice({ outcome: runResult.outcome, runFolder }));
       }
-      return exitCodeForClosedOutcome(runResult.outcome);
+      // Resume never runs the autonomous loop, but the resumed run's envelope can
+      // still re-derive needs_attention (missing declared evidence), so honor it.
+      return exitCodeForRun({
+        outcome: runResult.outcome,
+        envelopeOutcome: runEnvelope?.record.outcome,
+      });
     }
     process.stderr.write(
       `${missingRunFolderMessage({ resolved: runFolder, exists: existsSync(runFolder) })}\n`,
@@ -759,6 +765,38 @@ export function exitCodeForClosedOutcome(outcome: RunClosedOutcome): number {
     case 'handoff':
       return 1;
   }
+}
+
+// The exit code answers "did the work end in a good state?", which is richer
+// than the closed outcome alone. Two independent signals can contradict a
+// `complete` close, and the CLI must not report success over the run's own
+// honest verdict:
+//   1. The run envelope re-derives `needs_attention` when a `complete` run is
+//      missing a declared evidence path (missingRunEvidence). So a run can close
+//      `complete` (exit 0 by outcome) while its own envelope says otherwise.
+//   2. When an autonomous continuation loop ran, the loop — not the primary
+//      attempt — owns the completion decision (it may have recovered a primary
+//      that closed needing attention, or exhausted one that closed complete).
+// H1 fixes the specific Fix-degrades-to-`partial` case at the outcome level via
+// the terminal-outcome bind; this is the general envelope-level floor for it.
+export function exitCodeForRun(input: {
+  readonly outcome: RunClosedOutcome;
+  readonly envelopeOutcome?: RunEnvelopeOutcome | undefined;
+  readonly autonomousLoopOutcome?: RunEnvelopeOutcome | undefined;
+}): number {
+  // A loop that ran is authoritative: its final verdict supersedes the primary
+  // attempt's closed outcome.
+  if (input.autonomousLoopOutcome !== undefined) {
+    return input.autonomousLoopOutcome === 'complete' ? 0 : 1;
+  }
+  const base = exitCodeForClosedOutcome(input.outcome);
+  if (base !== 0) return base;
+  // The run closed `complete`. Honor the envelope's independently re-derived
+  // outcome: anything short of `complete` must not report success.
+  if (input.envelopeOutcome !== undefined && input.envelopeOutcome !== 'complete') {
+    return 1;
+  }
+  return 0;
 }
 
 // Lists the flows an operator can actually name, from the same root the run
@@ -1253,7 +1291,11 @@ export async function runExecutionCommand(
     if (ttyNotices) {
       process.stderr.write(runFinishedNotice({ outcome: runResult.outcome, runFolder }));
     }
-    return exitCodeForClosedOutcome(runResult.outcome);
+    return exitCodeForRun({
+      outcome: runResult.outcome,
+      envelopeOutcome: runEnvelope?.record.outcome,
+      autonomousLoopOutcome: autonomousLoop?.outcome,
+    });
   }
 
   process.stderr.write(`error: unsupported runtime invocation: ${defaultRuntimeSupport.reason}\n`);

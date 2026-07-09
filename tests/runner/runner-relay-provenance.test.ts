@@ -392,7 +392,10 @@ describe('relay connector resolution precedence', () => {
         step,
         configLayers: [
           {
-            layer: 'project',
+            // A custom command connector is honored only from a trusted layer
+            // (user-global / invocation), never a project config. Declare it
+            // user-global so the read-only implementer check is what rejects it.
+            layer: 'user-global',
             config: {
               schema_version: 1,
               host: { kind: 'generic-shell' },
@@ -436,7 +439,10 @@ describe('relay connector resolution precedence', () => {
         step,
         configLayers: [
           {
-            layer: 'project',
+            // Custom command connectors resolve only from a trusted layer, so
+            // declare this read-only connector user-global; the implementer
+            // capability check is then what rejects it.
+            layer: 'user-global',
             config: {
               schema_version: 1,
               host: { kind: 'generic-shell' },
@@ -475,7 +481,10 @@ describe('relay connector resolution precedence', () => {
         step,
         configLayers: [
           {
-            layer: 'project',
+            // A repository config cannot supply a command-running connector;
+            // an operator's own user-global config can. This exercises that
+            // trusted path end to end (prompt file in, output file out).
+            layer: 'user-global',
             config: {
               schema_version: 1,
               host: { kind: 'generic-shell' },

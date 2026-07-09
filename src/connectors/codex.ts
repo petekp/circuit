@@ -590,6 +590,25 @@ const KNOWN_CODEX_EVENT_TYPES = new Set<string>([
 // turn.completed" and letting the caller guess what happened.
 const CODEX_FAILURE_EVENT_TYPES = new Set<string>(['turn.failed', 'error']);
 
+// The allowlists above are pinned to the Codex CLI versions Circuit has been
+// tested against. When an unknown type shows up, the most common cause is a
+// Codex CLI newer than that range, so the rejection messages cite this range
+// and point the operator at the fix rather than leaving them with a bare
+// "unknown type" that takes down every relay. Keep in sync with the allowlist
+// comments above (item types observed through 0.130).
+const CODEX_TESTED_CLI_RANGE = '0.118 to 0.130';
+
+// Shared remediation appended to every unknown-type rejection. Fail-closed
+// stays fail-closed — this only makes the cause and the fix legible.
+// `detectedVersion` is the `codex --version` string captured for this relay.
+function codexUnknownTypeRemediation(detectedVersion: string): string {
+  return (
+    `Circuit was tested against Codex CLI ${CODEX_TESTED_CLI_RANGE}, and your Codex CLI reports "${detectedVersion}". ` +
+    'The likely cause is a Codex CLI newer than Circuit has been tested against, which added a type Circuit has not reviewed yet. ' +
+    'Check your Codex CLI version with: codex --version, and pin it to a version in the tested range if it is newer.'
+  );
+}
+
 export function parseCodexStdout(
   stdout: string,
   prompt: string,
@@ -626,7 +645,7 @@ export function parseCodexStdout(
     }
     if (!KNOWN_CODEX_EVENT_TYPES.has(type)) {
       throw new Error(
-        `codex --json line ${idx + 1}: unknown top-level trace_entry type '${type}' (allowlist: ${Array.from(KNOWN_CODEX_EVENT_TYPES).join(', ')}). A new Codex trace_entry type must be reviewed before the connector admits it.`,
+        `codex --json line ${idx + 1}: unknown top-level trace_entry type '${type}' (allowlist: ${Array.from(KNOWN_CODEX_EVENT_TYPES).join(', ')}). A new Codex trace_entry type must be reviewed before the connector admits it. ${codexUnknownTypeRemediation(cli_version)}`,
       );
     }
   }
@@ -667,7 +686,7 @@ export function parseCodexStdout(
     }
     if (!KNOWN_CODEX_ITEM_TYPES.has(itemType)) {
       throw new Error(
-        `capability-boundary violation: item.completed[${idx}].item.type='${itemType}' is not in the known-types allowlist (${Array.from(KNOWN_CODEX_ITEM_TYPES).join(', ')}). A new Codex item type must be reviewed before the connector admits it.`,
+        `capability-boundary violation: item.completed[${idx}].item.type='${itemType}' is not in the known-types allowlist (${Array.from(KNOWN_CODEX_ITEM_TYPES).join(', ')}). A new Codex item type must be reviewed before the connector admits it. ${codexUnknownTypeRemediation(cli_version)}`,
       );
     }
     if (itemType === 'error') {
@@ -704,7 +723,7 @@ export function parseCodexStdout(
     }
     if (!KNOWN_CODEX_ITEM_TYPES.has(itemType)) {
       throw new Error(
-        `capability-boundary violation: item.updated[${idx}].item.type='${itemType}' is not in the known-types allowlist (${Array.from(KNOWN_CODEX_ITEM_TYPES).join(', ')}). A new Codex item type must be reviewed before the connector admits it.`,
+        `capability-boundary violation: item.updated[${idx}].item.type='${itemType}' is not in the known-types allowlist (${Array.from(KNOWN_CODEX_ITEM_TYPES).join(', ')}). A new Codex item type must be reviewed before the connector admits it. ${codexUnknownTypeRemediation(cli_version)}`,
       );
     }
   }
