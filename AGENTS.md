@@ -2,10 +2,12 @@
 
 ## What this project is
 
-`circuit` is a Claude Code and Codex plugin that runs configurable
-developer flows. The product surface is `src/` (TypeScript), `tests/`, the
-generated host plugin packages under `plugins/`, the flow packages
-under `src/flows/`, the engine contracts under `docs/contracts/`,
+`circuit` is a CLI engine that runs configurable developer flows. The
+Claude Code and Codex plugins are the bridge that teaches a host agent to
+drive that CLI, and today they are also how Circuit installs and how you
+reach it in an agent session. The product surface is `src/` (TypeScript),
+`tests/`, the generated host plugin packages under `plugins/`, the flow
+packages under `src/flows/`, the engine contracts under `docs/contracts/`,
 and the flow design notes under `docs/flows/`.
 
 Only this guide defines agent rules. Anything else is context.

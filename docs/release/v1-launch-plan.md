@@ -20,10 +20,13 @@ a while.
 
 ## What v1 is
 
-Circuit is a Claude Code and Codex plugin that runs typed developer flows. A
-flow is an encoded process: named steps, each running as its own small
-harness with a role, a model choice, an effort level, a tool allowlist, and a
-mechanical check that real evidence exists before the run can advance.
+Circuit is a CLI engine that runs typed developer flows. The Claude Code
+and Codex plugins are the bridge that teaches a host agent to drive that
+CLI, and today they are also how Circuit installs and how the first-run
+funnel reaches it. A flow is an encoded process: named steps, each running
+as its own small harness with a role, a model choice, an effort level, a
+tool allowlist, and a mechanical check that real evidence exists before the
+run can advance.
 
 The launch surface, all on `main` today:
 

@@ -10,6 +10,10 @@ effort, and tools for each step from the step's role, so the reading that
 steers the run stays on the strong tier while routine steps run cheap. It
 gives agents and operators a better working environment than ad-hoc chat.
 
+Circuit is a CLI engine at its core. The Claude Code and Codex plugins are
+the bridge that teaches a host agent to drive that CLI, and today they are
+also the fastest way to install and try Circuit.
+
 Go from this:
 
 - Remember which chat thread has the latest state
@@ -37,8 +41,9 @@ prompt. For the full docs map, see [`docs/README.md`](docs/README.md).
 
 ## Start Here
 
-Pick the path that matches where you want to use Circuit. If you want a coding
-agent to set this up for you, skip to
+Pick the path that matches where you want to use Circuit. Claude Code and
+Codex reach the same CLI engine through a plugin; Local CLI runs that engine
+directly. If you want a coding agent to set this up for you, skip to
 [`Give This To A Coding Agent`](#give-this-to-a-coding-agent).
 
 ### Claude Code
@@ -62,8 +67,9 @@ takes several minutes end to end and costs a few dollars at the default dials.
 Review is read-only and the safest first run. The power dial spends less:
 `--power low` on a CLI run, or `defaults.power` in config.
 
-The installed plugin is self-contained. You do not need to clone this repo,
-run `npm install`, install a `circuit` binary, or create a symlink.
+The installed plugin bundles the CLI engine, so you do not need to clone
+this repo, run `npm install`, install a separate `circuit` binary, or
+create a symlink to get started this way.
 
 ### Codex
 

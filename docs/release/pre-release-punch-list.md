@@ -65,10 +65,10 @@ the current first-run path. Related support for the CLI-first frame:
 [`../ideas/cloud-routines-and-intake.md`](../ideas/cloud-routines-and-intake.md)
 (unattended sessions drive the CLI directly).
 
-- [ ] Sweep this repo's identity statements (README, AGENTS.md, launch
+- [x] Sweep this repo's identity statements (README, AGENTS.md, launch
       plan, positioning.md) to CLI-first framing
 - [ ] Same sweep in circuit-land (landing + docs site)
-- [ ] Check generated host surfaces and command help text for plugin-first
+- [x] Check generated host surfaces and command help text for plugin-first
       phrasing
 
 ### 3. Fully revamp the docs-site "How Circuit works" page
