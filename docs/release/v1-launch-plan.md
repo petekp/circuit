@@ -49,7 +49,9 @@ The launch surface, all on `main` today:
 
 ## Launch blockers
 
-Work items between here and the announcement. Each is checkable.
+Work items between here and the announcement. Each is checkable. Raw
+operator-reported issues land on the
+[pre-release punch list](pre-release-punch-list.md) first.
 
 1. **Cut a new release from `main`.** The published tag
    (`circuit--v0.1.0-alpha.8`) predates the until-loop machinery,
