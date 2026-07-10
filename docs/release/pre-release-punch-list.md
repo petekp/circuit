@@ -7,6 +7,11 @@ reports them; the curated launch blockers stay in
 that resolves them. Some items also apply to the docs site and landing
 page repo (`~/Code/circuit-land`); those say so inline.
 
+Executing this list through Circuit surfaced its own set of agent-facing
+frictions (verification budget timeouts, illegible stop reasons, cross-repo
+invocation walls). Those are recorded with grounded fixes in
+[`agent-friction-remediation.md`](agent-friction-remediation.md).
+
 ## Items
 
 ### 1. Try combining `--tournament` and `--tournament-n`
