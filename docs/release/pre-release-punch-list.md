@@ -357,6 +357,12 @@ Cross-repo item (README here, installation and quickstart pages in
 circuit-land).
 
 - [x] Choose channel and package name: npm, `@petekp/circuit` (2026-07-10)
-- [ ] Package and gate the publish surface (`--access public`)
-- [ ] Rewrite install instructions in README and circuit-land with the
-      CLI path first-class (`npm install -g @petekp/circuit`)
+- [x] Package and gate the publish surface (`--access public`). Note: the
+      root `package.json` version is already the sixth machine-written
+      surface (6c5542fb), so no new version wiring was needed. Known seam
+      in the new gate: `check-npm-package-install` symlinks the checkout
+      `node_modules` for hermeticity, so a stray devDependency import in
+      `dist/` would pass the gate but break a real global install.
+- [x] Rewrite install instructions in README with the CLI path first-class
+      (`npm install -g @petekp/circuit`); circuit-land installation page and
+      quickstart still need the same sweep

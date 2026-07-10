@@ -129,7 +129,13 @@ describe('host experience docs', () => {
     expect(doc).not.toContain('runtime_source');
     expect(doc).not.toContain('scripts/circuit.js');
     expect(doc).not.toContain('check:codex-plugin-cache');
-    expect(doc).not.toContain('doctor');
+    // `circuit doctor` may be taught as the post-install connector check.
+    // The alpha-era plugin-cache doctor incantations stay banned through
+    // the runtime_source and scripts/circuit.js guards above; this keeps
+    // every remaining doctor mention in the clean CLI form.
+    for (const line of doc.split('\n').filter((l) => l.includes('doctor'))) {
+      expect(line).toContain('circuit doctor');
+    }
     expect(doc).not.toMatch(/\b[Ww]orkflow(s)?\b/);
 
     expect(operatorGuide).not.toContain('old intent prefixes');

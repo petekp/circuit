@@ -96,7 +96,19 @@ Codex can recommend the right Circuit flow from your natural-language request.
 
 ### Local CLI
 
-From this checkout:
+Install the CLI engine directly from npm:
+
+```bash
+npm install -g @petekp/circuit
+circuit doctor
+circuit run <flow> --goal '<your task>'
+```
+
+Circuit does the work through connector CLIs (`claude` by default), so a
+signed-in Claude Code install is a prerequisite. `circuit doctor` checks
+your connectors before a run spends anything on a broken one.
+
+Working from this checkout instead?
 
 ```bash
 npm install

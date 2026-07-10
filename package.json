@@ -1,12 +1,22 @@
 {
-  "name": "circuit",
+  "name": "@petekp/circuit",
   "version": "0.1.0-alpha.10",
-  "private": true,
   "license": "MIT",
   "type": "module",
-  "description": "Claude Code and Codex plugin that runs structured developer flows with per-step configurability, evidence, checks, traces, and reports.",
+  "description": "CLI engine that runs structured developer flows with per-step configurability, evidence, checks, traces, and reports. Claude Code and Codex plugins are the bridge that teaches a host agent to drive it.",
   "bin": {
     "circuit": "./bin/circuit"
+  },
+  "files": [
+    "bin/circuit",
+    "bin/node-version-guard.js",
+    "bin/node-version-guard.d.ts",
+    "dist/",
+    "generated/flows/",
+    "plugins/version.json"
+  ],
+  "publishConfig": {
+    "access": "public"
   },
   "engines": {
     "node": ">=22.18.0"
@@ -42,7 +52,7 @@
     "capture-proofs:golden-runs": "npm run build && node scripts/release/capture-golden-run-proofs.ts",
     "check-proof-stubs:nobuild": "node scripts/release/capture-golden-run-proofs.ts --validate-stubs",
     "check-release-infra": "npm run build && npm run check-release-infra:nobuild",
-    "check-release-infra:nobuild": "node scripts/release/emit-current-capabilities.ts --check && node scripts/release/check-parity.ts && node scripts/release/check-public-claims.ts && node scripts/release/check-proof-coverage.ts && npm run check-proof-stubs:nobuild && node scripts/release/render-parity-matrix.ts --check && node scripts/release/render-readiness-report.ts --check && node scripts/release/audit-public-docs.ts && node scripts/release/audit-marketplace-safe-paths.ts",
+    "check-release-infra:nobuild": "node scripts/release/emit-current-capabilities.ts --check && node scripts/release/check-parity.ts && node scripts/release/check-public-claims.ts && node scripts/release/check-proof-coverage.ts && npm run check-proof-stubs:nobuild && node scripts/release/render-parity-matrix.ts --check && node scripts/release/render-readiness-report.ts --check && node scripts/release/audit-public-docs.ts && node scripts/release/audit-marketplace-safe-paths.ts && node scripts/release/check-npm-package-install.ts",
     "check-release-ready": "npm run check-release-infra && node scripts/release/check-release-ready.ts",
     "smoke:host:codex": "node scripts/hosts/smoke/codex-handoff.ts",
     "smoke:host:claude": "node scripts/hosts/smoke/claude-handoff.ts",
