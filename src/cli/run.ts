@@ -98,7 +98,6 @@ export interface ParsedArgs {
   powerProvided: boolean;
   depthProvided: boolean;
   tournamentProvided: boolean;
-  tournamentNProvided: boolean;
   autonomousProvided: boolean;
   runFolder?: string;
   fixturePath?: string;
@@ -164,8 +163,7 @@ export function parseExecutionArgs(command: 'run' | 'resume', argv: readonly str
     why?: string;
     depth?: string;
     power?: string;
-    tournament?: boolean;
-    tournamentN?: string;
+    tournament?: boolean | string;
     autonomous?: boolean;
     runFolder?: string;
     fixture?: string;
@@ -202,13 +200,12 @@ export function parseExecutionArgs(command: 'run' | 'resume', argv: readonly str
     power = parsed.data;
   }
 
-  const tournamentProvided = opts.tournament === true;
-  const tournament = opts.tournament === true;
+  const tournamentProvided = opts.tournament !== undefined;
+  const tournament = tournamentProvided;
 
   let tournamentN: number | undefined;
-  const tournamentNProvided = opts.tournamentN !== undefined;
-  if (opts.tournamentN !== undefined) {
-    const parsed = Number(opts.tournamentN);
+  if (typeof opts.tournament === 'string') {
+    const parsed = Number(opts.tournament);
     if (!Number.isInteger(parsed) || !TournamentN.safeParse(parsed).success) {
       throw new Error('Tournament N must be between 2 and 4');
     }
@@ -275,9 +272,9 @@ export function parseExecutionArgs(command: 'run' | 'resume', argv: readonly str
     if (flowRoot !== undefined) {
       throw new Error('checkpoint resume loads the saved flow manifest; omit --flow-root');
     }
-    if (depthProvided || tournamentProvided || tournamentNProvided || autonomousProvided) {
+    if (depthProvided || tournamentProvided || autonomousProvided) {
       throw new Error(
-        'checkpoint resume reuses the saved run axes; omit --depth/--tournament/--tournament-n/--autonomous',
+        'checkpoint resume reuses the saved run axes; omit --depth/--tournament/--autonomous',
       );
     }
     if (powerProvided) {
@@ -300,10 +297,6 @@ export function parseExecutionArgs(command: 'run' | 'resume', argv: readonly str
     throw new Error('--goal is required and must be non-empty');
   }
 
-  if (tournamentNProvided && !tournamentProvided) {
-    throw new Error('--tournament-n requires --tournament');
-  }
-
   const axes = Axes.parse({
     ...(depth === undefined ? {} : { depth }),
     tournament,
@@ -317,7 +310,6 @@ export function parseExecutionArgs(command: 'run' | 'resume', argv: readonly str
     powerProvided,
     depthProvided,
     tournamentProvided,
-    tournamentNProvided,
     autonomousProvided,
     includeUntrackedContent,
   };

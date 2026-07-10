@@ -181,7 +181,7 @@ scenarios:
   - id: proof:explore-decision
     title: Explore Decision Or Tournament
     category: deciding
-    command: './bin/circuit run explore --goal "decide: React vs Vue" --tournament --tournament-n 3 --run-folder docs/release/proofs/runs/explore-decision/run --progress jsonl; ./bin/circuit resume --run-folder docs/release/proofs/runs/explore-decision/run --checkpoint-choice option-2 --progress jsonl'
+    command: './bin/circuit run explore --goal "decide: React vs Vue" --tournament 3 --run-folder docs/release/proofs/runs/explore-decision/run --progress jsonl; ./bin/circuit resume --run-folder docs/release/proofs/runs/explore-decision/run --checkpoint-choice option-2 --progress jsonl'
     expected_flow: explore
     expected_outcome: checkpoint_waiting, then complete after resume
     summary_contract: Summary states options, decision, evidence, tradeoff, risk, and next action.
@@ -208,7 +208,7 @@ scenarios:
   - id: proof:explore-autonomous-decision
     title: Explore Autonomous Decision
     category: deciding
-    command: './bin/circuit run explore --goal "decide: React vs Vue" --tournament --tournament-n 2 --autonomous --run-folder docs/release/proofs/runs/explore-autonomous-decision/run --progress jsonl'
+    command: './bin/circuit run explore --goal "decide: React vs Vue" --tournament 2 --autonomous --run-folder docs/release/proofs/runs/explore-autonomous-decision/run --progress jsonl'
     expected_flow: explore
     expected_outcome: complete
     summary_contract: Summary states the highest-score auto-resolution, selected winner, rubric evidence, runtime veto, and next action.

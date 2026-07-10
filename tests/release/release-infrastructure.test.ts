@@ -797,16 +797,11 @@ describe('release truth infrastructure', () => {
       ],
       [
         'proof:explore-decision',
-        [
-          'run explore',
-          '"decide: React vs Vue"',
-          '--tournament --tournament-n 3',
-          '--checkpoint-choice option-2',
-        ],
+        ['run explore', '"decide: React vs Vue"', '--tournament 3', '--checkpoint-choice option-2'],
       ],
       [
         'proof:explore-autonomous-decision',
-        ['run explore', '"decide: React vs Vue"', '--tournament --tournament-n 2', '--autonomous'],
+        ['run explore', '"decide: React vs Vue"', '--tournament 2', '--autonomous'],
       ],
       [
         'proof:prototype',

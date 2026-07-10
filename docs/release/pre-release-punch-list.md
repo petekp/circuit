@@ -26,8 +26,8 @@ Touchpoints: `src/cli/run.ts` (parsing and the requires-guard),
 message), axis schemas under `src/schemas/`, and any generated host
 surfaces that document run flags.
 
-- [ ] Decide the combined shape and default count
-- [ ] Implement, migrate usage strings and vocabulary, update tests
+- [x] Decide the combined shape and default count
+- [x] Implement, migrate usage strings and vocabulary, update tests
 
 ### 2. Raise the CLI to equal focus with the plugins
 

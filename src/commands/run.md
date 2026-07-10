@@ -111,7 +111,7 @@ metacharacters:
    relay), add `--power low` or `--power high`
    to turn the model dial for the run (default medium; `--power auto` lets
    the run pick its own tier from the research read), and add
-   `--tournament --tournament-n 3` to a Prototype run for model comparison.
+   `--tournament 3` to a Prototype run for model comparison.
 
    Use the Bash tool to execute the constructed command. `./bin/circuit`
    is the repo-local launcher for the compiled Circuit runtime; when the

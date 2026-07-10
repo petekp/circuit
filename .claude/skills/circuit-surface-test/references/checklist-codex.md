@@ -172,7 +172,7 @@ Pass: run completes and high depth is reflected.
 ### A4. explore - tournament
 
 ```bash
-run explore --tournament --tournament-n 2 \
+run explore --tournament 2 \
   --goal 'decide: one file or two files for examples' \
   --run-folder "$REPORT_ROOT/A4-explore-tournament" --progress jsonl
 ```
@@ -183,7 +183,7 @@ and includes `operator_summary_html_path` when emitted by the runtime.
 ### A5. explore - autonomous tournament
 
 ```bash
-run explore --tournament --tournament-n 2 --autonomous \
+run explore --tournament 2 --autonomous \
   --goal 'decide: clearer README structure' \
   --run-folder "$REPORT_ROOT/A5-explore-autonomous-tournament" --progress jsonl
 ```
@@ -338,7 +338,7 @@ Pass: run completes and high depth is reflected.
 ### A19. prototype - tournament
 
 ```bash
-run prototype --tournament --tournament-n 2 \
+run prototype --tournament 2 \
   --goal 'compare two disposable README note variants' \
   --run-folder "$REPORT_ROOT/A19-prototype-tournament" --progress jsonl
 ```
@@ -827,15 +827,15 @@ Manually corrupt a handoff record and run the handoff brief skill.
 
 Pass: `status: invalid`, error details are surfaced, and resume is refused.
 
-### C4. `--tournament-n` without `--tournament`
+### C4. `--tournament` count outside the v1 range
 
 ```bash
-run explore --goal 'decide between two options' --tournament-n 2 \
-  --run-folder "$REPORT_ROOT/C4-tournament-n-reject" --progress jsonl
+run explore --goal 'decide between two options' --tournament 5 \
+  --run-folder "$REPORT_ROOT/C4-tournament-range-reject" --progress jsonl
 ```
 
-Pass: rejected before worker execution with `--tournament-n requires
---tournament`.
+Pass: rejected before worker execution with `Tournament N must be between 2
+and 4`.
 
 ### C5. `--dry-run` rejected
 

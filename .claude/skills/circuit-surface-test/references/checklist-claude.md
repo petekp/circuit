@@ -177,7 +177,7 @@ Pass: run completes and the trace or summary reflects high depth.
 
 ### A4. explore - tournament
 
-CLI: `run explore --tournament --tournament-n 2 --goal 'decide: should this fixture use one file or two files for examples'`
+CLI: `run explore --tournament 2 --goal 'decide: should this fixture use one file or two files for examples'`
 
 Pass: run reaches a well-formed tournament outcome, emits tournament reports,
 and includes `operator_summary_html_path` when the runtime emits the rich
@@ -185,7 +185,7 @@ summary. If it waits for a decision checkpoint, continue under C1.
 
 ### A5. explore - autonomous tournament
 
-CLI: `run explore --tournament --tournament-n 2 --autonomous --goal 'decide: choose the clearer README structure'`
+CLI: `run explore --tournament 2 --autonomous --goal 'decide: choose the clearer README structure'`
 
 Pass: autonomous handling resolves supported checkpoints without asking the
 operator, and the run surfaces an `autonomous_loop` field (see A-Loop). Record
@@ -347,11 +347,11 @@ Pass: run completes and high depth is reflected.
 
 ### A19. prototype - tournament
 
-CLI: `run prototype --tournament --tournament-n 2 --goal 'compare two disposable README note variants'`
+CLI: `run prototype --tournament 2 --goal 'compare two disposable README note variants'`
 
 Prerequisite: the tournament axis fans out one relay per configured model
 variant, so it requires `flows.prototype.variant_models` in the Circuit
-config (one entry per `--tournament-n` branch). The circuit repo's own
+config (one entry per `--tournament` count). The circuit repo's own
 `.circuit/config.yaml` defines this; a fresh `$SCRATCH` repo does not.
 
 Two cases:
@@ -946,15 +946,15 @@ Manually corrupt a handoff record and run `/circuit:handoff brief`.
 
 Pass: `status: invalid`, error details are surfaced, and resume is refused.
 
-### C4. `--tournament-n` without `--tournament`
+### C4. `--tournament` count outside the v1 range
 
 ```bash
-run explore --goal 'decide between two options' --tournament-n 2 \
-  --run-folder "$REPORT_ROOT/C4-tournament-n-reject" --progress jsonl
+run explore --goal 'decide between two options' --tournament 5 \
+  --run-folder "$REPORT_ROOT/C4-tournament-range-reject" --progress jsonl
 ```
 
-Pass: rejected before worker execution with `--tournament-n requires
---tournament`.
+Pass: rejected before worker execution with `Tournament N must be between 2
+and 4`.
 
 ### C5. `--dry-run` rejected
 

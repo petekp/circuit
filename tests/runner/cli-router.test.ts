@@ -1031,7 +1031,6 @@ describe('CLI router', () => {
           'run',
           'prototype',
           '--tournament',
-          '--tournament-n',
           '2',
           '--goal',
           'compare two disposable README note variants',
@@ -1248,7 +1247,6 @@ describe('CLI router', () => {
         '--goal',
         'decide: React vs Vue',
         '--tournament',
-        '--tournament-n',
         '4',
         '--run-folder',
         runFolder,
@@ -1315,7 +1313,6 @@ describe('CLI router', () => {
         '--goal',
         'decide: React vs Vue',
         '--tournament',
-        '--tournament-n',
         '2',
         '--autonomous',
         '--run-folder',
@@ -1404,7 +1401,6 @@ describe('CLI router', () => {
         '--goal',
         'decide: A vs B',
         '--tournament',
-        '--tournament-n',
         '2',
         '--run-folder',
         join(runFolderBase, 'explore-tournament-n2'),
@@ -1449,7 +1445,6 @@ describe('CLI router', () => {
       '--goal',
       'decide: A vs B',
       '--tournament',
-      '--tournament-n',
       n,
       '--run-folder',
       join(runFolderBase, `explore-tournament-n${n}`),
@@ -1652,7 +1647,7 @@ describe('CLI router', () => {
       'high',
     ]);
     expect(withDepth.exit).toBe(2);
-    expect(withDepth.stderr).toMatch(/omit --depth\/--tournament\/--tournament-n\/--autonomous/);
+    expect(withDepth.stderr).toMatch(/omit --depth\/--tournament\/--autonomous/);
 
     const withFixture = await runMainExit([
       'resume',
@@ -1675,9 +1670,7 @@ describe('CLI router', () => {
       '--autonomous',
     ]);
     expect(withAutonomous.exit).toBe(2);
-    expect(withAutonomous.stderr).toMatch(
-      /omit --depth\/--tournament\/--tournament-n\/--autonomous/,
-    );
+    expect(withAutonomous.stderr).toMatch(/omit --depth\/--tournament\/--autonomous/);
   });
 
   it('lets Commander reject retired --rigor as an unknown option', async () => {
@@ -1722,7 +1715,7 @@ describe('CLI router', () => {
       'high',
     ]);
     expect(result.exit).toBe(2);
-    expect(result.stderr).toMatch(/omit --depth\/--tournament\/--tournament-n\/--autonomous/);
+    expect(result.stderr).toMatch(/omit --depth\/--tournament\/--autonomous/);
   });
 
   it("uses Commander's last-value-wins behavior for repeated scalar options", async () => {
@@ -1738,10 +1731,10 @@ describe('CLI router', () => {
       'high',
     ]);
     expect(conflict.exit).toBe(2);
-    expect(conflict.stderr).toMatch(/omit --depth\/--tournament\/--tournament-n\/--autonomous/);
+    expect(conflict.stderr).toMatch(/omit --depth\/--tournament\/--autonomous/);
   });
 
-  it('rejects --tournament-n without --tournament', async () => {
+  it('rejects --tournament-n as a retired, unknown option', async () => {
     const conflict = await runMainExit([
       'run',
       'explore',
@@ -1753,7 +1746,7 @@ describe('CLI router', () => {
       join(runFolderBase, 'not-needed'),
     ]);
     expect(conflict.exit).toBe(2);
-    expect(conflict.stderr).toMatch(/--tournament-n requires --tournament/);
+    expect(conflict.stderr).toMatch(/unknown option '--tournament-n'/);
   });
 
   it("uses Commander's last-value-wins behavior for repeated --run-folder", async () => {

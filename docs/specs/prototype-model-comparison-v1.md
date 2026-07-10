@@ -148,8 +148,7 @@ Suggested first runnable command shape:
 ```bash
 ./bin/circuit run prototype \
   --goal "prototype: sketch a custom Circuit flow builder UI" \
-  --tournament \
-  --tournament-n 2 \
+  --tournament 2 \
   --run-folder .circuit/runs/prototype-model-comparison \
   --progress jsonl
 ```
@@ -661,7 +660,7 @@ Runtime tests:
 
 - `tests/runner/prototype-runtime.test.ts`
   - current single-artifact tests still pass unchanged;
-  - `--tournament --tournament-n 2` writes two branch reports and two variant
+  - `--tournament 2` writes two branch reports and two variant
     roots;
   - checkpoint choices are verified survivors only;
   - resume with a variant id closes with selected variant fields;

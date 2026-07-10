@@ -139,8 +139,8 @@ only by stub fixtures.
   proof run, no `index.yaml` entry.
 - **F3** confirmed — `index.yaml` display command for explore-decision
   (`run --goal "decide: React vs Vue"`, no flow positional, no `--tournament`)
-  drifts from the capture argv (which passes `--tournament --tournament-n`)
-  and would additionally be rejected by the explicit-flow-required CLI.
+  drifts from the capture argv (which passes `--tournament` with an inline
+  count) and would additionally be rejected by the explicit-flow-required CLI.
 - **F4** confirmed — no pinned `expected_outcome` for `prototype` or
   `explore-autonomous-decision`.
 - **F5** confirmed but **shifted**: at the tag, `usage()` (src/cli/circuit.ts:50)

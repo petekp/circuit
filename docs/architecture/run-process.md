@@ -89,7 +89,7 @@ Safety gates at parse time:
 - `--progress` only accepts `jsonl`.
 - `--power` only accepts `auto`, `low`, `medium`, or `high`.
 - `--flow-root` must be non-empty.
-- `--tournament-n` must be 2, 3, or 4, and requires `--tournament`.
+- `--tournament`, when given an inline value, must be 2, 3, or 4.
 - Checkpoint resume must use `resume`, must pass `--run-folder`, and must pass a
   non-empty `--checkpoint-choice`.
 

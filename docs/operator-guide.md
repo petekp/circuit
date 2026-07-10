@@ -40,7 +40,7 @@ can also pass these controls when the selected flow supports them:
 | --- | --- | --- |
 | Low, medium, or high depth | `--depth <low|medium|high>` | Build, Explore, and Fix. Prototype supports medium or high. Review only supports medium depth. |
 | Power, fixed or self-chosen | `--power <auto|low|medium|high>` | Every flow. `auto` lets the run pick its own tier from what the research step reads. |
-| Tournament | `--tournament --tournament-n <2|3|4>` | Explore and Prototype. |
+| Tournament | `--tournament [2|3|4]` | Explore and Prototype. |
 | Autonomous continuation | `--autonomous` | Build, Explore, Fix, and Prototype. |
 
 Unsupported combinations fail before the run starts.

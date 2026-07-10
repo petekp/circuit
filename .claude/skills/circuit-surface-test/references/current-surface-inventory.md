@@ -104,8 +104,8 @@ Run-axis flags:
 - `--power <auto|low|medium|high>` (default `medium`; `auto` resolved once by
   the engine via the `run.power-inference` trace)
 - `--why <why>`
-- `--tournament`
-- `--tournament-n <2|3|4>`; rejected unless `--tournament` is present
+- `--tournament [2|3|4]` (bare flag keeps the default count of 3; an inline
+  value sets the count, bounds 2 to 4)
 - `--autonomous` (auto-resolves supported checkpoints and drives Run's bounded,
   evidence-driven continuation loop; loop result written to
   `reports/autonomous-loop.json` and surfaced as `autonomous_loop`)

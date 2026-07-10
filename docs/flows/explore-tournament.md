@@ -43,7 +43,7 @@ There is no deterministic `decide:` router; a flow name is always required
 
 - explicit CLI axes:
   `./bin/circuit run explore --goal "<decision question>" --tournament
-  [--tournament-n 2|3|4]`;
+  [2|3|4]`;
 - host-model flow choice through `/circuit:run`, where the model selects
   Explore and the tournament axis for decision-shaped goals.
 

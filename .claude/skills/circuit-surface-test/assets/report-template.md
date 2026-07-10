@@ -47,7 +47,7 @@ you actually ran.
 
 ### CLI Flags
 
-- **Run-axis flags observed:** <--depth, --power, --tournament, --tournament-n, --autonomous>
+- **Run-axis flags observed:** <--depth, --power, --tournament, --autonomous>
 - **Evidence flags observed:** <--include-untracked-content, --progress jsonl, --run-folder>
 - **Rejected unsupported flags checked:** <--mode, --rigor, --dry-run, if checked>
 
