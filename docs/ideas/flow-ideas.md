@@ -26,6 +26,18 @@ current wave and is a candidate to lead the post-v1 sequence. Add Sweep, Migrate
 and Property-check as evidence-floor fast-follows; treat Onboard as one cheap
 slice worth an early look. None of the additions need a new engine primitive.
 
+## Landscape update (2026-07-10)
+
+A second factory article confirms the wave and moves the substrate: Pierson
+Marks (2026-07-09) runs pre-triage loops and label-triggered implementation
+sessions entirely on Claude Code Cloud Routines, with Linear as the seam and
+a hand-rolled /do skill as the SDLC. The trigger-family decline holds
+unchanged. Two deltas are recorded in
+[`cloud-routines-and-intake.md`](cloud-routines-and-intake.md): prove Circuit
+inside an unattended cloud-routine session (a deployment context to prove,
+not a feature to build), and Intake, the work-creation family added below as
+row 13. No re-rank of rows 1 to 12.
+
 ## How to read the ranking
 
 Ranked by the two criteria the backlog exists to serve:
@@ -55,12 +67,17 @@ order at the end does account for dependencies and effort.
 | 10 | Migrate | Deterministic codemod first, then per-file agent fixes each verified by build-and-test | High | High | Medium | New (2026-07 scan); adjacent: build/fix, Decompose |
 | 11 | Property-check | Author invariants, close only on a minimized counterexample that reproduces on a fresh run | High | High | Medium | New (2026-07 scan) |
 | 12 | Onboard | An onboarding brief where every claim opens to a real file or symbol | Medium | Medium | Low | New (2026-07 scan); reuses explore groundedness reviewer |
+| 13 | Intake | Originate evidence-cited tracker issues from telemetry (health checks, feedback mining, churn forensics) | Medium-high | Medium-high | Medium | New (2026-07-10); [`cloud-routines-and-intake.md`](cloud-routines-and-intake.md) |
 
 Rows 1 to 8 rank by the backlog's core-bet criteria (encode-process wedge,
 compounding loop, trustable evidence). Rows 9 to 12 are the net-new evidence-floor
 additions from the 2026-07 scan; they sit below the top tier because that tier
 advances the compounding loop directly, while these advance the evidence floor on
 well-covered ground. All are recommend-grade fast-follows except Onboard.
+Row 13 (added 2026-07-10) is the one work-creation family: it originates
+work from telemetry where every other row starts after work exists, and it
+doubles as a low-risk adoption on-ramp because it files issues and touches
+no code.
 
 ## The candidates
 
@@ -204,6 +221,26 @@ reviewer and can run the trace as a sub-run of Explore. The one open question is
 whether it earns a separate flow or is really an Explore output variant; decide
 with a held eval before building. The one `v1-reconsider` slice, and even it is
 optional. Full fit in the scan doc.
+
+### 13. Intake (from the second factory article, 2026-07-10)
+
+Input: the project's own telemetry (error tracking, support threads, session
+replays, billing events). Output: work items in the operator's tracker where
+every claim carries the evidence that proves it (the log lines, the replay,
+the usage query). The check is the differentiator: an issue cannot be filed
+without its citation, the same way a fix cannot close without its proof. A
+prompt loop files plausible issues; Intake files provable ones.
+
+Shape: boundary ingestion, mirroring the settled boundary-delivery stance
+below. The host session pulls the telemetry slice at the open, relays
+analyze the pulled data locally, and the host files issues from the typed
+report at the close. Workers stay MCP-closed; no new engine primitive is
+obviously needed. Ranked below the top tier because the deliverable is
+issues rather than verified code, so the evidence story is thinner, but it
+is the only row that creates work instead of consuming it, and it is the
+cheapest public demo of the family (a churn analysis that files issues with
+receipts). Full sketch and the unattended-session proof recipe in
+[`cloud-routines-and-intake.md`](cloud-routines-and-intake.md).
 
 ## Parts of the factory pattern that are not new flows
 

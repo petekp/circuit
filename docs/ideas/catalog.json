@@ -247,6 +247,30 @@
       "last_checked": "2026-07-08"
     },
     {
+      "path": "docs/ideas/cloud-routines-and-intake.md",
+      "title": "Circuit under cloud routines, plus Intake flows",
+      "status": "current-proposal",
+      "category": "hosts-connectors-and-hitl",
+      "impact": 4,
+      "tags": [
+        "headless",
+        "cloud-routines",
+        "software-factory",
+        "intake",
+        "pre-triage",
+        "boundary-delivery",
+        "post-v1"
+      ],
+      "current_reading": "Proposal seeded 2026-07-10 by the second software-factory article of the wave (Pierson Marks: Cloud Routines on a subscription, Linear as the seam, an auto-label webhook firing remote sessions that run a /do skill). Records the two deltas the existing factory analysis does not cover and holds every prior decline. Delta 1: a one-session proof that Circuit runs correctly inside an unattended scheduled or webhook-fired host session (plugin install in the cloud environment, relay spawning under the routine sandbox, exit-code surfacing per src/cli/run.ts where every non-complete close exits 1, boundary write-back through the host session's own connectors, and the open evidence-egress question for an ephemeral workspace), turning alternative-to-chat.md's 'cron and CI runs are possible' into a cited recipe. The trigger stays user-owned per the market scan's standing decline. Delta 2: Intake, a work-creation flow family (health check, feedback mining, churn forensics) that originates evidence-cited tracker issues from telemetry via boundary ingestion mirroring the settled boundary-delivery stance; added as row 13 of the flow-ideas.md stack rank. Also records launch-narrative material (the article's own 'hopefully verifying their work' confession and its hand-patched honesty glue). Nothing built; the v1 launch freeze applies.",
+      "related": [
+        "docs/ideas/flow-ideas.md",
+        "docs/ideas/popular-workflow-market-scan.md",
+        "docs/ideas/alternative-to-chat.md",
+        "docs/ideas/multi-channel-hitl-proposal.md"
+      ],
+      "last_checked": "2026-07-10"
+    },
+    {
       "path": "docs/ideas/multi-channel-hitl-proposal.md",
       "title": "Multi-Channel HITL Proposal",
       "status": "current-proposal",
