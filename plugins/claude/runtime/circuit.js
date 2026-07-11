@@ -106045,11 +106045,12 @@ function readRunReceipt(runFolder) {
 }
 function receiptLine(receipt) {
   const runsWord = receipt.worker_runs === 1 ? "worker run" : "worker runs";
-  const parts = [`depth ${receipt.depth}`];
+  const parts = [];
   if (receipt.power !== void 0) {
     const autoQualifier = receipt.power_source !== "auto" ? "" : receipt.power_rationale === void 0 ? " (auto, no recommendation)" : receipt.power_clamped === true ? " (auto, capped)" : " (auto)";
     parts.push(`power ${receipt.power}${autoQualifier}`);
   }
+  parts.push(`process ${receipt.depth}`);
   parts.push(`${receipt.worker_runs} ${runsWord}`);
   if (receipt.escalations > 0) {
     parts.push(`${receipt.escalations} ${receipt.escalations === 1 ? "escalation" : "escalations"}`);

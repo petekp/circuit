@@ -953,14 +953,15 @@ function readRunReceipt(runFolder: string): OperatorRunReceipt | undefined {
   };
 }
 
-// The receipt trailer speaks plain words only: depth, the power dial, how
-// many worker runs, escalations, and what the checks proved. Tier words yes,
+// The receipt trailer speaks plain words only: the power dial first (the
+// taught dial), then the process tier the run actually ran at, how many
+// worker runs, escalations, and what the checks proved. Tier words yes,
 // model ids no — those live in the JSON receipt and the run record. The ⎿
 // glyph is the CIRCUIT status-block grammar: the trailer reads as machine
 // truth at the end of the model-written digest, with no feature-name label.
 function receiptLine(receipt: OperatorRunReceipt): string {
   const runsWord = receipt.worker_runs === 1 ? 'worker run' : 'worker runs';
-  const parts = [`depth ${receipt.depth}`];
+  const parts: string[] = [];
   if (receipt.power !== undefined) {
     // Under an auto dial, say so — and say which kind of auto: a resolved
     // recommendation (possibly capped to the operator bounds) or the medium
@@ -975,6 +976,7 @@ function receiptLine(receipt: OperatorRunReceipt): string {
             : ' (auto)';
     parts.push(`power ${receipt.power}${autoQualifier}`);
   }
+  parts.push(`process ${receipt.depth}`);
   parts.push(`${receipt.worker_runs} ${runsWord}`);
   if (receipt.escalations > 0) {
     parts.push(

@@ -3141,7 +3141,7 @@ describe('operator summary writer — run receipt', () => {
     });
 
     const markdown = readFileSync(written.markdownPath, 'utf8');
-    expect(markdown).toContain('⎿ depth medium · 2 worker runs · all checks passed');
+    expect(markdown).toContain('⎿ process medium · 2 worker runs · all checks passed');
     // Phase 1 makes no model-tier claims: model ids stay in the run record.
     expect(markdown).not.toContain('claude-haiku-4-5');
     expect(markdown).not.toContain('claude-opus-4-8');
@@ -3158,7 +3158,7 @@ describe('operator summary writer — run receipt', () => {
     });
 
     expect(readFileSync(written.markdownPath, 'utf8')).toContain(
-      '⎿ depth low · 1 worker run · all checks passed',
+      '⎿ process low · 1 worker run · all checks passed',
     );
   });
 
@@ -3240,7 +3240,7 @@ describe('operator summary writer — run receipt', () => {
 
     expect(written.summary.receipt).toMatchObject({ checks_evaluated: 3, checks_failed: 1 });
     const markdown = readFileSync(written.markdownPath, 'utf8');
-    expect(markdown).toContain('⎿ depth high · 1 worker run · 2 of 3 checks passed');
+    expect(markdown).toContain('⎿ process high · 1 worker run · 2 of 3 checks passed');
     expect(markdown).not.toContain('all checks passed');
   });
 
@@ -3253,7 +3253,9 @@ describe('operator summary writer — run receipt', () => {
       route: { selectedFlow: 'fix' },
     });
 
-    expect(readFileSync(written.markdownPath, 'utf8')).toContain('⎿ depth medium · 1 worker run\n');
+    expect(readFileSync(written.markdownPath, 'utf8')).toContain(
+      '⎿ process medium · 1 worker run\n',
+    );
   });
 
   it('omits the receipt entirely when the trace has no run.bootstrapped entry', () => {
@@ -3310,7 +3312,7 @@ describe('operator summary writer — run receipt', () => {
     expect(written.summary.receipt).toMatchObject({ power: 'low', escalations: 1 });
     const markdown = readFileSync(written.markdownPath, 'utf8');
     expect(markdown).toContain(
-      '⎿ depth medium · power low · 3 worker runs · 1 escalation · all checks passed',
+      '⎿ power low · process medium · 3 worker runs · 1 escalation · all checks passed',
     );
     // The dial line stays plain-word: tier words yes, model ids no.
     expect(markdown).not.toContain('haiku');
@@ -3333,7 +3335,7 @@ describe('operator summary writer — run receipt', () => {
 
     expect(written.summary.receipt).toMatchObject({ power: 'medium', escalations: 2 });
     expect(readFileSync(written.markdownPath, 'utf8')).toContain(
-      '⎿ depth low · power medium · 2 worker runs · 2 escalations\n',
+      '⎿ power medium · process low · 2 worker runs · 2 escalations\n',
     );
   });
 
@@ -3353,7 +3355,7 @@ describe('operator summary writer — run receipt', () => {
     expect(written.summary.receipt?.power).toBeUndefined();
     expect(written.summary.receipt?.escalations).toBe(0);
     const markdown = readFileSync(written.markdownPath, 'utf8');
-    expect(markdown).toContain('⎿ depth medium · 1 worker run · all checks passed');
+    expect(markdown).toContain('⎿ process medium · 1 worker run · all checks passed');
     expect(markdown).not.toMatch(/power|escalation/);
   });
 
@@ -3663,7 +3665,7 @@ describe('operator summary writer — run receipt', () => {
     ]);
     const markdown = readFileSync(written.markdownPath, 'utf8');
     expect(markdown).toContain(
-      '⎿ depth medium · 3 worker runs · all checks passed\n' +
+      '⎿ process medium · 3 worker runs · all checks passed\n' +
         '⎿ spend $0.47 · researcher $0.35 · implementer $0.04 · reviewer $0.08',
     );
   });
@@ -3814,7 +3816,7 @@ describe('operator summary writer — run receipt', () => {
 
     expect(written.summary.receipt?.spend).toBeUndefined();
     const markdown = readFileSync(written.markdownPath, 'utf8');
-    expect(markdown).toContain('⎿ depth medium · 1 worker run · all checks passed');
+    expect(markdown).toContain('⎿ process medium · 1 worker run · all checks passed');
     expect(markdown).not.toContain('spend');
   });
 
