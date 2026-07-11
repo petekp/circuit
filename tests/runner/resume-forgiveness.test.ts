@@ -286,7 +286,7 @@ describe('resume forgives operator-shaped checkpoint input', () => {
     expect(stderr).not.toContain('could not be resumed even though it is waiting');
   });
 
-  it('points a missing folder at the run-id convention and the inbox', async () => {
+  it('points a missing folder at the run-id convention and the checkpoints list', async () => {
     const missing = join(tempDir, 'nope');
     const args = parseExecutionArgs('resume', [
       '--run-folder',
@@ -299,6 +299,6 @@ describe('resume forgives operator-shaped checkpoint input', () => {
     expect(result).toBe(2);
     expect(stderr).toContain(missing);
     expect(stderr).toContain('.circuit/runs/');
-    expect(stderr).toContain('circuit inbox');
+    expect(stderr).toContain('circuit checkpoints');
   });
 });

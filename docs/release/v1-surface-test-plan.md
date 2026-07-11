@@ -207,7 +207,7 @@ assertions so nothing is booked twice.
 | T4.1 | Review on a seeded flawed diff | `git status --porcelain` byte-identical before/after (the "never edits" claim has no test today); secrets canary absent from the run folder; then runs show, history rebuild and query roundtrip (auto) |
 | T4.2 | Fix on a seeded one-line bug with a failing test | receipt's minutes and dollars against the "several minutes, a few dollars" claim; spend-per-role line renders with all three roles (auto) |
 | T4.3 | Build (medium) on a small feature | worker commits contain no `.circuit/` paths and nothing outside the declared change set (auto) |
-| T4.4 | Explore standard + one tournament n=2 | standard path has no proof at all today; the tournament run parks, `circuit inbox --json` lists it with a working resume command, resume closes it (auto) |
+| T4.4 | Explore standard + one tournament n=2 | standard path has no proof at all today; the tournament run parks, `circuit checkpoints --json` lists it with a working resume command, resume closes it (auto) |
 | T4.5 | Prototype (medium) | run record completeness: trace, typed reports validating against their schemas, flow id recorded at start (auto) |
 | T4.6 | Pursue on two small independent ideas | wave serialization + interference review; this is the live leg of F2 / blocker 4 (auto) |
 | T4.7 | Eval cadence runs | live fix-vs-vanilla + verdict-correctness, `append-ledger` (required by check-release-ready before any next tag; ~$20-50, the biggest line item) (auto) |

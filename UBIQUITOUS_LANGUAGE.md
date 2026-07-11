@@ -172,6 +172,7 @@ Frame brief and Act, so do not use it for the limits in operator prose.
 | **Custom connector descriptor** | A registered local command that satisfies the custom connector contract. | Inline adapter |
 | **Role** | The worker responsibility for a relay, such as researcher, implementer, or reviewer. | Executor |
 | **Relay role** | The serialized role value on a relay step. | Executor role |
+| **Archetype** | The role-shaped slot in a flow that a model fills. The Power dial decides which model fills each archetype (`RelayRole` in code and traces). | Persona, model role |
 | **Relay resolution** | The procedure that chooses the connector for a relay step. | Connector routing |
 | **Relay resolution source** | The provenance record explaining which rule chose a connector. | Connector source |
 | **Relay transcript** | The request, receipt, result, and completion trace entries for relayed work. | Worker log |
@@ -263,6 +264,8 @@ inside historical docs, tests, or migration notes when the context is explicit.
 - A **Run** follows **Routes** through a compiled flow.
 - A **Run** records a **Trace** in its **Run folder**.
 - A **Relay** uses one **Connector** and one **Role**.
+- A **Role** is an **Archetype**'s slot name; the **Power** dial decides which
+  model fills each **Archetype**.
 - **Acceptance criteria** can make a **Relay** retry or stop before its
   report becomes accepted evidence.
 - A **Checkpoint** is a step-level pause, not a separate flow.
@@ -316,6 +319,12 @@ inside historical docs, tests, or migration notes when the context is explicit.
   limits** or Review **Confidence limits** (per-flow output caveats), and do not
   use **Scope** for it: **Scope** is the positive work-extent and stays an
   internal field word.
+- **Archetype** (a relay's role-shaped model-fill slot) is unrelated to the
+  internal `ArchetypeFamily` that `circuit create` and `circuit generate` use to
+  pick a flow's shape (editorial, fix, review, research, prototype, build).
+  Keep the two separate: use **Archetype** only for the per-step model-fill
+  concept in product prose, and keep flow-shape selection unnamed or described
+  plainly rather than reusing the word.
 
 ## Anti-Patterns
 

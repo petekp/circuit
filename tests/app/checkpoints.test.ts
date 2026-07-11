@@ -3,9 +3,9 @@ import { tmpdir } from 'node:os';
 import { dirname, join, resolve } from 'node:path';
 import { afterEach, describe, expect, it } from 'vitest';
 
+import { discoverCheckpointsList } from '../../src/app/checkpoints/discover.js';
+import { renderCheckpointsList } from '../../src/app/checkpoints/render.js';
 import type { BriefGitProbe, StalenessFacts } from '../../src/app/continuity/brief.js';
-import { discoverDecisionInbox } from '../../src/app/inbox/discover.js';
-import { renderDecisionInbox } from '../../src/app/inbox/render.js';
 import { main } from '../../src/cli/circuit.js';
 import { CompiledFlowId, RunId } from '../../src/schemas/ids.js';
 import { sha256Hex } from '../../src/shared/connector-relay.js';
@@ -14,9 +14,10 @@ import { captureStreams } from '../helpers/runtime-fixtures.js';
 
 // Three run folders share one runs root: one parked at a checkpoint
 // (checkpoint_waiting), one dead crashed folder (trace ends mid-step, no
-// checkpoint, no close), one cleanly closed folder. The inbox must list ONLY
-// the parked one, render its fork (prompt + choices), attach staleness from an
-// injected stub probe, and EXCLUDE the dead and closed folders.
+// checkpoint, no close), one cleanly closed folder. The checkpoints list must
+// list ONLY the parked one, render its fork (prompt + choices), attach
+// staleness from an injected stub probe, and EXCLUDE the dead and closed
+// folders.
 
 const tempRoots: string[] = [];
 const RECORDED_AT = '2026-04-30T12:00:00.000Z';
@@ -29,13 +30,13 @@ const BOUNDARY_REF_PATH = `reports/checkpoints/${FIX_CHECKPOINT_STEP}-contract.j
 
 const change_kind = {
   change_kind: 'discovery' as const,
-  failure_mode: 'inbox discovery test fixture',
-  acceptance_evidence: 'inbox lists only the parked run',
+  failure_mode: 'checkpoints discovery test fixture',
+  acceptance_evidence: 'checkpoints list lists only the parked run',
   alternate_framing: 'hand-authored run folder fixtures',
 };
 
 function newRunsRoot(): string {
-  const root = mkdtempSync(join(tmpdir(), 'circuit-inbox-'));
+  const root = mkdtempSync(join(tmpdir(), 'circuit-checkpoints-'));
   tempRoots.push(root);
   const runsRoot = join(root, 'runs');
   mkdirSync(runsRoot, { recursive: true });
@@ -109,7 +110,7 @@ function runClosed(runId: string, sequence: number, outcome: string): unknown {
 
 // A run parked at a clean checkpoint: bootstrap, step.entered, then a valid
 // checkpoint.requested whose request file hashes match the trace. This is the
-// genuine checkpoint_waiting shape the inbox is allowed to list.
+// genuine checkpoint_waiting shape the checkpoints list is allowed to show.
 function makeParkedFolder(runsRoot: string, runId: string, goal: string): string {
   const runFolder = makeRunFolder(runsRoot, 'parked');
   const manifestHash = writeManifest(runFolder, runId);
@@ -197,7 +198,8 @@ const STALENESS: StalenessFacts = {
 };
 
 // Stub probe: any captured baseline yields the same divergence facts. The
-// inbox only probes folders for which a captured baseline was resolved.
+// checkpoints list only probes folders for which a captured baseline was
+// resolved.
 const stubProbe: BriefGitProbe = () => STALENESS;
 
 afterEach(() => {
@@ -206,14 +208,14 @@ afterEach(() => {
   }
 });
 
-describe('decision inbox discovery', () => {
+describe('checkpoints list discovery', () => {
   it('lists only the parked run, renders its fork, and excludes dead and closed folders', () => {
     const runsRoot = newRunsRoot();
     const parkedFolder = makeParkedFolder(runsRoot, PARKED_RUN_ID, 'Fix the checkout bug');
     makeDeadFolder(runsRoot, DEAD_RUN_ID);
     makeClosedFolder(runsRoot, CLOSED_RUN_ID);
 
-    const inbox = discoverDecisionInbox({
+    const checkpoints = discoverCheckpointsList({
       runsRoot,
       gitProbe: stubProbe,
       // A captured baseline is available for the parked run, so staleness is
@@ -222,9 +224,9 @@ describe('decision inbox discovery', () => {
       capturedBaselineFor: () => ({ head: 'abc1234', branch: 'feat/x' }),
     });
 
-    expect(inbox.rows).toHaveLength(1);
-    const row = inbox.rows[0];
-    if (row === undefined) throw new Error('expected one inbox row');
+    expect(checkpoints.rows).toHaveLength(1);
+    const row = checkpoints.rows[0];
+    if (row === undefined) throw new Error('expected one checkpoints row');
 
     expect(row.run_folder).toBe(resolve(parkedFolder));
     expect(row.run_id).toBe(PARKED_RUN_ID);
@@ -235,7 +237,8 @@ describe('decision inbox discovery', () => {
     expect(row.checkpoint.prompt).toContain('Choose how to proceed');
     expect(row.checkpoint.choices.map((choice) => choice.id)).toEqual(['continue']);
 
-    // The row links to the existing per-run resume; the inbox never actuates.
+    // The row links to the existing per-run resume; the checkpoints list never
+    // actuates.
     expect(row.resume_command).toBe(
       `circuit resume --run-folder ${resolve(parkedFolder)} --checkpoint-choice <choice>`,
     );
@@ -244,7 +247,7 @@ describe('decision inbox discovery', () => {
     expect(row.staleness).toEqual(STALENESS);
 
     // Dead and closed folders are excluded.
-    const folders = inbox.rows.map((listed) => listed.run_folder);
+    const folders = checkpoints.rows.map((listed) => listed.run_folder);
     expect(folders).not.toContain(resolve(join(runsRoot, 'dead')));
     expect(folders).not.toContain(resolve(join(runsRoot, 'closed')));
   });
@@ -257,7 +260,7 @@ describe('decision inbox discovery', () => {
       throw new Error('git probe blew up');
     };
 
-    const inbox = discoverDecisionInbox({
+    const checkpoints = discoverCheckpointsList({
       runsRoot,
       gitProbe: throwingProbe,
       // A baseline resolves, so the probe is reached — and it throws. Best-effort
@@ -265,16 +268,16 @@ describe('decision inbox discovery', () => {
       capturedBaselineFor: () => ({ head: 'abc1234', branch: 'feat/x' }),
     });
 
-    expect(inbox.rows).toHaveLength(1);
-    expect(inbox.rows[0]?.run_folder).toBe(resolve(parkedFolder));
-    expect(inbox.rows[0]?.staleness).toBeUndefined();
+    expect(checkpoints.rows).toHaveLength(1);
+    expect(checkpoints.rows[0]?.run_folder).toBe(resolve(parkedFolder));
+    expect(checkpoints.rows[0]?.staleness).toBeUndefined();
   });
 
   it('omits the staleness column when no captured baseline is available', () => {
     const runsRoot = newRunsRoot();
     makeParkedFolder(runsRoot, PARKED_RUN_ID, 'Fix the checkout bug');
 
-    const inbox = discoverDecisionInbox({
+    const checkpoints = discoverCheckpointsList({
       runsRoot,
       gitProbe: stubProbe,
       // No baseline resolves: best-effort staleness omits the row's column
@@ -282,28 +285,28 @@ describe('decision inbox discovery', () => {
       capturedBaselineFor: () => undefined,
     });
 
-    expect(inbox.rows).toHaveLength(1);
-    expect(inbox.rows[0]?.staleness).toBeUndefined();
+    expect(checkpoints.rows).toHaveLength(1);
+    expect(checkpoints.rows[0]?.staleness).toBeUndefined();
   });
 
-  it('returns an empty inbox when the runs root does not exist', () => {
-    const inbox = discoverDecisionInbox({
-      runsRoot: join(tmpdir(), 'circuit-inbox-missing-root-does-not-exist'),
+  it('returns an empty checkpoints list when the runs root does not exist', () => {
+    const checkpoints = discoverCheckpointsList({
+      runsRoot: join(tmpdir(), 'circuit-checkpoints-missing-root-does-not-exist'),
       gitProbe: stubProbe,
     });
-    expect(inbox.rows).toEqual([]);
+    expect(checkpoints.rows).toEqual([]);
   });
 
   it('renders a plain-English list with the fork and the resume link', () => {
     const runsRoot = newRunsRoot();
     const parkedFolder = makeParkedFolder(runsRoot, PARKED_RUN_ID, 'Fix the checkout bug');
 
-    const inbox = discoverDecisionInbox({
+    const checkpoints = discoverCheckpointsList({
       runsRoot,
       gitProbe: stubProbe,
       capturedBaselineFor: () => ({ head: 'abc1234', branch: 'feat/x' }),
     });
-    const text = renderDecisionInbox(inbox);
+    const text = renderCheckpointsList(checkpoints);
 
     expect(text).toContain('Fix the checkout bug');
     expect(text).toContain('Choose how to proceed');
@@ -316,21 +319,21 @@ describe('decision inbox discovery', () => {
   it('renders an empty-state line when no run is waiting', () => {
     const runsRoot = newRunsRoot();
     makeClosedFolder(runsRoot, CLOSED_RUN_ID);
-    const inbox = discoverDecisionInbox({ runsRoot, gitProbe: stubProbe });
-    const text = renderDecisionInbox(inbox);
+    const checkpoints = discoverCheckpointsList({ runsRoot, gitProbe: stubProbe });
+    const text = renderCheckpointsList(checkpoints);
     expect(text).toMatch(/no runs are waiting/i);
   });
 });
 
-describe('circuit inbox CLI', () => {
-  it('routes the inbox subcommand and prints the parked run as JSON', async () => {
+describe('circuit checkpoints CLI', () => {
+  it('routes the checkpoints subcommand and prints the parked run as JSON', async () => {
     const runsRoot = newRunsRoot();
     const parkedFolder = makeParkedFolder(runsRoot, PARKED_RUN_ID, 'Fix the checkout bug');
     makeDeadFolder(runsRoot, DEAD_RUN_ID);
     makeClosedFolder(runsRoot, CLOSED_RUN_ID);
 
     const { result: exit, stdout } = await captureStreams(() =>
-      main(['inbox', '--runs-base', runsRoot, '--json'], { briefGitProbe: stubProbe }),
+      main(['checkpoints', '--runs-base', runsRoot, '--json'], { briefGitProbe: stubProbe }),
     );
 
     expect(exit).toBe(0);
@@ -345,12 +348,12 @@ describe('circuit inbox CLI', () => {
     );
   });
 
-  it('routes the inbox subcommand and prints a plain-English list by default', async () => {
+  it('routes the checkpoints subcommand and prints a plain-English list by default', async () => {
     const runsRoot = newRunsRoot();
     makeParkedFolder(runsRoot, PARKED_RUN_ID, 'Fix the checkout bug');
 
     const { result: exit, stdout } = await captureStreams(() =>
-      main(['inbox', '--runs-base', runsRoot], { briefGitProbe: stubProbe }),
+      main(['checkpoints', '--runs-base', runsRoot], { briefGitProbe: stubProbe }),
     );
 
     expect(exit).toBe(0);

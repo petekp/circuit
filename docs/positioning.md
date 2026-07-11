@@ -122,24 +122,25 @@ to guidance and the trace records that honestly, rather than pretending the
 tools were locked. The researcher and reviewer are kept off the keyboard by
 role and by getting only typed reports, not by a hard tool wall.
 
-### 3. One dial allocates models by role, per step
+### 3. One dial allocates models by archetype, per step
 
 In ad-hoc chat, one model at one setting does everything: the planning, the
 edits, the review. Circuit decides model, effort, and connector per step, at
-relay time, from three declared inputs: the step's role, the operator's power
-dial, and any connector pin the flow declares. The operator turns one dial;
-the engine does the allocation. Judgment-heavy steps keep the expensive
-model while execution steps run on cheaper ones, and the same flow can route
-one step to a different tool entirely.
+relay time, from three declared inputs: the step's archetype (its role-shaped
+slot: researcher, implementer, reviewer), the operator's power dial, and any
+connector pin the flow declares. The operator turns one dial; the engine
+decides which model fills each archetype. Judgment-heavy archetypes keep the
+expensive model while execution archetypes run on cheaper ones, and the same
+flow can route one step to a different tool entirely.
 
-Concretely: at `--power low`, the researcher step still runs on the high
-tier, the implementer drops to the low tier, and the reviewer is held one
-notch above execution. The cross-tool-build flow pins its doer steps to
-Codex and its reviewer steps to Claude in the flow definition itself, so the
-adversarial split is a property of the flow, not of operator config. After a
-run, the summary shows a per-role spend receipt, and `circuit preview` shows
-the full allocation for any flow across dial positions without spawning
-anything.
+Concretely: at `--power low`, the researcher archetype still runs on the high
+tier, the implementer archetype drops to the low tier, and the reviewer
+archetype is held one notch above execution. The cross-tool-build flow pins
+its doer steps to Codex and its reviewer steps to Claude in the flow
+definition itself, so the adversarial split is a property of the flow, not of
+operator config. After a run, the summary shows a per-archetype spend
+receipt, and `circuit preview` shows the full allocation, archetype by
+archetype, for any flow across dial positions without spawning anything.
 
 Where this is real in the code:
 
@@ -150,7 +151,7 @@ Where this is real in the code:
   `src/flows/cross-tool-build/assembly-spec.ts` (`execution.connector`).
 - The spawn-free selection readout: `src/cli/preview.ts` and
   `src/cli/flow-selection-preview.ts`.
-- The per-role spend rollup in the operator summary:
+- The per-archetype spend rollup in the operator summary:
   `src/app/operator-summary/writer.ts` (`spendLine`).
 
 Honest nuance. The dial picks tiers, not magic: a tier maps to a concrete

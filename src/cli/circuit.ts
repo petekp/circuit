@@ -1,6 +1,7 @@
 import { Command, CommanderError } from 'commander';
 import type { BriefGitProbe } from '../app/continuity/brief.js';
 
+import { runCheckpointsCommand } from './checkpoints.js';
 import { CLI_COMMAND_NAMES, type CliCommandName } from './command-vocabulary.js';
 import { parseCommanderOrThrow } from './commander-support.js';
 import { runConfigCommand } from './config-command.js';
@@ -10,7 +11,6 @@ import { runFrontDoorCommand } from './front-door.js';
 import { runGenerateCommand } from './generate.js';
 import { runHandoffCommand } from './handoff.js';
 import { runHistoryCommand } from './history.js';
-import { runInboxCommand } from './inbox.js';
 import { runMemoryCommand } from './memory.js';
 import { runPreviewCommand } from './preview.js';
 import { runReclaimCommand } from './reclaim.js';
@@ -54,7 +54,7 @@ export function usage(): string {
     'usage: circuit run <flow-name> --goal "<goal>" [--why <why>] [--power <auto|low|medium|high>] [--process <low|medium|high>] [--tournament [2|3|4]] [--autonomous] [--run-folder <path>] [--fixture <path>] [--flow-root <path>] [--progress jsonl]',
     '       circuit resume --run-folder <path> --checkpoint-choice <choice> [--progress jsonl]',
     '       circuit runs show --run-folder <path> --json',
-    '       circuit inbox [--project-root <path>] [--runs-base <path>] [--json]',
+    '       circuit checkpoints [--project-root <path>] [--runs-base <path>] [--json]',
     '       circuit history rebuild|query|pull|status|memory-merge|memory-effect --json [options]',
     '       circuit memory note --flow <id> [--applies-to <kind>] "<text>" | memory list | memory forget <id>',
     '       circuit handoff [save|resume|done|brief|hook|hooks|harvest] [options]',
@@ -146,7 +146,7 @@ function parseTopLevelInvocation(argv: readonly string[]): TopLevelInvocation {
 
   if (invocation === undefined) {
     throw new Error(
-      'missing command: use run, resume, handoff, history, memory, create, generate, uninstall, runs, reclaim, inbox, preview, doctor, config, or version',
+      'missing command: use run, resume, handoff, history, memory, create, generate, uninstall, runs, reclaim, checkpoints, preview, doctor, config, or version',
     );
   }
   return invocation;
@@ -217,8 +217,8 @@ export async function main(argv: readonly string[], options: CliMainOptions = {}
   if (invocation.command === 'reclaim') {
     return runReclaimCommand(invocation.argv);
   }
-  if (invocation.command === 'inbox') {
-    return runInboxCommand(invocation.argv, {
+  if (invocation.command === 'checkpoints') {
+    return runCheckpointsCommand(invocation.argv, {
       ...(options.briefGitProbe === undefined ? {} : { briefGitProbe: options.briefGitProbe }),
     });
   }

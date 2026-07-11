@@ -39,7 +39,7 @@ const invalidRunFolderMessage = (runFolder: string) =>
   [
     `error: ${runFolder} is not a resumable Circuit run folder (it has no readable run trace).`,
     "A run's folder is .circuit/runs/<run id> inside the project that started it.",
-    'List runs that are waiting for a decision with: circuit inbox',
+    'List runs that are waiting for a decision with: circuit checkpoints',
   ].join('\n');
 
 function change_kind(): ChangeKindDeclaration {

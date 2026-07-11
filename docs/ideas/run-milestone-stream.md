@@ -45,7 +45,7 @@ narration quality varies with the model doing the improvising.
   and [output-model.md](output-model.md)) renders progress for a foreground
   attached run and the final digest. A backgrounded run has no wrapper
   attached.
-- **`circuit inbox`** surfaces parked runs, but only when polled. A run
+- **`circuit checkpoints`** surfaces parked runs, but only when polled. A run
   waiting at a checkpoint is pure dead time until someone notices.
 - **Exit codes** report the terminal state, once, at the end.
 
@@ -131,7 +131,7 @@ it goes unnoticed.
   carries nothing the trace does not.
 - No model anywhere in the emission path. Milestone text is deterministic
   string assembly from typed trace fields.
-- Not a replacement for `circuit inbox`, the operator summary, or the
+- Not a replacement for `circuit checkpoints`, the operator summary, or the
   presentation wrapper. It feeds them.
 - No new config surface in the first slice. The notify hook is deliberately
   last.
@@ -162,5 +162,5 @@ it goes unnoticed.
 - Should milestone text vary per host profile, or is one plain-English
   rendering enough for all consumers? Start with one; profiles only if a
   real host needs it.
-- Cross-run watch: does `circuit inbox --follow` (all parked runs, live)
+- Cross-run watch: does `circuit checkpoints --follow` (all parked runs, live)
   earn its place once per-run watch exists?

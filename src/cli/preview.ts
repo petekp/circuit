@@ -219,7 +219,7 @@ export function renderSinglePreview(
   );
 
   const rows: TableRow[] = [
-    columnHeader(palette, ['STEP', 'ROLE', 'CONNECTOR', 'MODEL', 'EFFORT', 'SOURCE']),
+    columnHeader(palette, ['STEP', 'ARCHETYPE', 'CONNECTOR', 'MODEL', 'EFFORT', 'SOURCE']),
     'rule',
   ];
   for (const step of preview.relaySteps) {
@@ -280,7 +280,7 @@ function renderOverview(
   const header = headerLine(palette, 'public flows', overviewDialLine(previews));
 
   const rows: TableRow[] = [
-    columnHeader(palette, ['FLOW', 'STEP', 'ROLE', 'CONNECTOR', 'MODEL', 'EFFORT', 'SOURCE']),
+    columnHeader(palette, ['FLOW', 'STEP', 'ARCHETYPE', 'CONNECTOR', 'MODEL', 'EFFORT', 'SOURCE']),
     'rule',
   ];
   const problemLines: string[] = [];
@@ -329,7 +329,7 @@ export function renderMatrix(
     ...previews.map((p) => cell(p.process, palette.dim)),
   ];
   const rows: TableRow[] = [
-    columnHeader(palette, ['STEP', 'ROLE', 'CONNECTOR', ...columnLabels]),
+    columnHeader(palette, ['STEP', 'ARCHETYPE', 'CONNECTOR', ...columnLabels]),
     'rule',
     processRow,
     'rule',

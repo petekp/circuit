@@ -1630,10 +1630,10 @@ describe('CLI router', () => {
     // The folder exists but is not a runtime run folder (its trace has no
     // runtime bootstrap). The answer must say so — not claim the folder was
     // not found — and still offer the two next steps: the run-id folder
-    // convention and the decision inbox.
+    // convention and the checkpoints list.
     expect(resumed.stderr).toContain('is not a resumable Circuit run folder');
     expect(resumed.stderr).not.toContain('no Circuit run folder found');
-    expect(resumed.stderr).toContain('circuit inbox');
+    expect(resumed.stderr).toContain('circuit checkpoints');
   });
 
   it('rejects resume-only incompatible flags', async () => {

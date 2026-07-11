@@ -151,7 +151,10 @@ vocabulary, tests). Batch the flag migrations into one pass.
 
 - [x] Choose the two names (operator decision) (decided 2026-07-10:
       combine instead of rename; Path A in the decision sheet)
-- [ ] Rename across engine, CLI, config, preview, and generated surfaces
+- [x] Rename across engine, CLI, config, preview, and generated surfaces
+      (shipped as the Path A combine, 513c0de2, 2026-07-10: power derives
+      process, --process is the explicit override, --depth retired; config
+      keys unchanged)
 - [ ] Sweep circuit-land docs and the landing dial section
 
 Decision sheet:
@@ -186,17 +189,20 @@ Interacts with item 4 (the clearer dial language should be phrased in
 archetype terms: the model dial sets which models fill your archetypes)
 and item 3 (the how-it-works rewrite should use it). Cross-repo item.
 
-- [ ] Add archetype to UBIQUITOUS_LANGUAGE.md
-- [ ] Surface it in preview/selection readouts where roles appear
+- [x] Add archetype to UBIQUITOUS_LANGUAGE.md
+- [x] Surface it in preview/selection readouts where roles appear
+      (`circuit preview`'s ROLE column is now labeled ARCHETYPE)
 - [ ] Sweep positioning.md and circuit-land to use it consistently
+      (positioning.md claim 3 done 2026-07-11; circuit-land sweep still
+      open, cross-repo)
 
 ### 6. Rename the `circuit inbox` command
 
 Reported 2026-07-10. "Inbox" does not sound right in Circuit's context.
 
-What the command is: the surface that discovers and lists runs paused at
-checkpoints awaiting an operator decision (`src/cli/inbox.ts`,
-`src/app/inbox/discover.ts`, `src/app/inbox/render.ts`).
+What the command was: the surface that discovers and lists runs paused at
+checkpoints awaiting an operator decision (now `src/cli/checkpoints.ts`,
+`src/app/checkpoints/discover.ts`, `src/app/checkpoints/render.ts`).
 
 Naming criterion: name the contents (paused runs waiting on you), and
 prefer existing ubiquitous language over a new metaphor. Candidates to
@@ -216,7 +222,11 @@ bias. Cross-repo item.
 
 - [x] Choose the new name (operator decision) (decided 2026-07-10:
       `circuit checkpoints`)
-- [ ] Rename command, modules, vocabulary, front door, and prose
+- [x] Rename command, modules, vocabulary, front door, and prose
+      (this repo, 2026-07-11: `src/cli/checkpoints.ts`,
+      `src/app/checkpoints/`, command list, front door, resume-input.ts
+      and run.ts messages, launch-plan prose, generated plugin runtimes,
+      and tests; no alias)
 - [ ] Rename the circuit-land CLI page and nav entry
 
 Decision sheet:

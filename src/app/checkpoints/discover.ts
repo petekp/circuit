@@ -1,4 +1,4 @@
-// Decision inbox discovery (read model).
+// Checkpoints list discovery (read model).
 //
 // The frontier use case is "run dozens in parallel, steer at the forks." A run
 // that hits an operator checkpoint parks itself and waits. This module is the
@@ -23,7 +23,7 @@ import type { BriefGitProbe, StalenessFacts } from '../continuity/brief.js';
 import { projectRunStatusFromRunFolder } from '../run-status/run-folder-projector.js';
 
 /** One parked-and-resumable run, triaged for the operator. */
-export interface DecisionInboxRow {
+export interface CheckpointRow {
   readonly run_folder: string;
   readonly run_id: string;
   readonly flow_id: string;
@@ -34,7 +34,7 @@ export interface DecisionInboxRow {
     readonly choices: ReadonlyArray<{ readonly id: string; readonly label: string }>;
     readonly request_path?: string;
   };
-  /** The existing per-run resume command. The inbox only links to it. */
+  /** The existing per-run resume command. The checkpoints list only links to it. */
   readonly resume_command: string;
   /**
    * Best-effort divergence between the run's captured baseline and the live
@@ -44,9 +44,9 @@ export interface DecisionInboxRow {
   readonly staleness?: StalenessFacts;
 }
 
-export interface DecisionInbox {
+export interface CheckpointsList {
   readonly runs_root: string;
-  readonly rows: readonly DecisionInboxRow[];
+  readonly rows: readonly CheckpointRow[];
 }
 
 /** A captured git baseline for one run folder, if one is available. */
@@ -55,7 +55,7 @@ export interface CapturedBaseline {
   readonly branch?: string;
 }
 
-export interface DiscoverDecisionInboxInput {
+export interface DiscoverCheckpointsListInput {
   /** `<projectRoot>/.circuit/runs` — see `runsRoot` in control-plane-paths. */
   readonly runsRoot: string;
   /** The project root the staleness probe runs against. Defaults to cwd. */
@@ -72,11 +72,11 @@ export interface DiscoverDecisionInboxInput {
 }
 
 /**
- * Resume command for one parked run. The inbox only prints this link; the
- * operator runs it. Mirrors the canonical per-run resume command string
- * (`src/runtime/projections/progress.ts`).
+ * Resume command for one parked run. The checkpoints list only prints this
+ * link; the operator runs it. Mirrors the canonical per-run resume command
+ * string (`src/runtime/projections/progress.ts`).
  */
-export function inboxResumeCommand(runFolder: string): string {
+export function checkpointResumeCommand(runFolder: string): string {
   return `circuit resume --run-folder ${runFolder} --checkpoint-choice <choice>`;
 }
 
@@ -84,8 +84,8 @@ export function inboxResumeCommand(runFolder: string): string {
  * Best-effort staleness probe for one run folder. Returns undefined when no
  * baseline was resolved OR when the probe throws — a custom probe need not be
  * crash-safe the way `realBriefGitProbe` is, and a thrown probe must never abort
- * the whole inbox walk and drop every remaining parked run. A throw is treated
- * as "no signal", exactly like a missing baseline.
+ * the whole checkpoints walk and drop every remaining parked run. A throw is
+ * treated as "no signal", exactly like a missing baseline.
  */
 function probeStaleness(
   baseline: CapturedBaseline | undefined,
@@ -124,13 +124,13 @@ function listRunFolders(runsRoot: string): readonly string[] {
  * a checkpoint are skipped — only the genuinely resumable `checkpoint_waiting`
  * shape survives the filter.
  */
-export function discoverDecisionInbox(input: DiscoverDecisionInboxInput): DecisionInbox {
+export function discoverCheckpointsList(input: DiscoverCheckpointsListInput): CheckpointsList {
   const runsRoot = resolve(input.runsRoot);
   const projectRoot = input.projectRoot ?? process.cwd();
   const gitProbe = input.gitProbe ?? realBriefGitProbe;
   const baselineFor = input.capturedBaselineFor ?? (() => undefined);
 
-  const rows: DecisionInboxRow[] = [];
+  const rows: CheckpointRow[] = [];
   for (const runFolder of listRunFolders(runsRoot)) {
     let projection: ReturnType<typeof projectRunStatusFromRunFolder>;
     try {
@@ -142,7 +142,8 @@ export function discoverDecisionInbox(input: DiscoverDecisionInboxInput): Decisi
 
     // The resumable-park predicate. Narrower than "needs attention" on purpose:
     // a dead crashed folder and a missing-evidence run are both attention-worthy
-    // but neither is resumable, so neither belongs in an inbox that links resume.
+    // but neither is resumable, so neither belongs in a checkpoints list that
+    // links resume.
     if (projection.reason !== 'checkpoint_waiting') continue;
 
     const baseline = baselineFor(runFolder);
@@ -166,7 +167,7 @@ export function discoverDecisionInbox(input: DiscoverDecisionInboxInput): Decisi
           ? {}
           : { request_path: projection.checkpoint.request_path }),
       },
-      resume_command: inboxResumeCommand(projection.run_folder),
+      resume_command: checkpointResumeCommand(projection.run_folder),
       ...(hasStaleness ? { staleness } : {}),
     });
   }

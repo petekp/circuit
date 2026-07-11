@@ -40,7 +40,7 @@ describe('bare circuit front door', () => {
     const out = plainStdout();
     expect(out).toContain('circuit');
     // Discovery: the major verbs are all named.
-    for (const command of ['run', 'preview', 'config', 'create', 'generate', 'inbox']) {
+    for (const command of ['run', 'preview', 'config', 'create', 'generate', 'checkpoints']) {
       expect(out).toContain(command);
     }
     // The page points at the interactive shell and the deep dives.

@@ -30,7 +30,7 @@ banner "Bundled runtime smoke ($CIRCUIT_CODEX_REF as published)"
 if [ -n "${PLUGIN_ROOT:-}" ]; then
   step "bundled runtime: version" node "$PLUGIN_ROOT/runtime/circuit.js" version
   step "bundled runtime: doctor" node "$PLUGIN_ROOT/runtime/circuit.js" doctor
-  step "bundled runtime: inbox" node "$PLUGIN_ROOT/runtime/circuit.js" inbox
+  step "bundled runtime: checkpoints" node "$PLUGIN_ROOT/runtime/circuit.js" checkpoints
 else
   echo "SKIPPED runtime checks: plugin root not found"
 fi

@@ -132,11 +132,11 @@ describe('runFolderCandidates', () => {
 });
 
 describe('missingRunFolderMessage', () => {
-  it('names the missing path, the run-id folder convention, and the inbox', () => {
+  it('names the missing path, the run-id folder convention, and the checkpoints list', () => {
     const message = missingRunFolderMessage({ resolved: '/work/project/nope', exists: false });
     expect(message).toContain('no Circuit run folder found at /work/project/nope');
     expect(message).toContain('.circuit/runs/');
-    expect(message).toContain('circuit inbox');
+    expect(message).toContain('circuit checkpoints');
     expect(message.startsWith('error:')).toBe(true);
   });
 
@@ -146,7 +146,7 @@ describe('missingRunFolderMessage', () => {
     expect(message).not.toContain('no Circuit run folder found');
     expect(message).toContain('/work/project/docs is not a resumable Circuit run folder');
     expect(message).toContain('.circuit/runs/');
-    expect(message).toContain('circuit inbox');
+    expect(message).toContain('circuit checkpoints');
     expect(message.startsWith('error:')).toBe(true);
   });
 });

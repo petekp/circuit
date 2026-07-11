@@ -62,9 +62,9 @@ export function invalidCheckpointChoiceMessage(input: {
   return lines.join('\n');
 }
 
-// Operators paste the run id from the JSON envelope or the inbox at least as
-// often as the full folder path. A bare name (no path separator) also gets a
-// try under the project's runs root before we give up.
+// Operators paste the run id from the JSON envelope or the checkpoints list at
+// least as often as the full folder path. A bare name (no path separator)
+// also gets a try under the project's runs root before we give up.
 export function runFolderCandidates(argument: string, cwd: string): string[] {
   const direct = resolve(cwd, argument);
   const isBareName =
@@ -85,6 +85,6 @@ export function missingRunFolderMessage(input: {
   return [
     lead,
     "A run's folder is .circuit/runs/<run id> inside the project that started it.",
-    'List runs that are waiting for a decision with: circuit inbox',
+    'List runs that are waiting for a decision with: circuit checkpoints',
   ].join('\n');
 }

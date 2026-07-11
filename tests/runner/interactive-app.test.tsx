@@ -80,7 +80,7 @@ describe('interactive shell frames', () => {
     frame = plain(lastFrame());
     // The preview table is the same renderer `circuit preview fix` uses.
     expect(frame).toContain('STEP');
-    expect(frame).toContain('ROLE');
+    expect(frame).toContain('ARCHETYPE');
     expect(frame).toContain('↳ circuit preview fix');
     unmount();
   });

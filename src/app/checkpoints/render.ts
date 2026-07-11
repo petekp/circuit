@@ -1,12 +1,13 @@
-// Decision inbox renderer (read model).
+// Checkpoints list renderer (read model).
 //
-// Turns the triaged inbox into a plain-English list an operator can scan. Each
-// row shows the run's goal, the fork it is waiting on (the checkpoint prompt
-// and the choices it offers), a best-effort staleness line, and the existing
-// per-run resume command to answer it. Short sentences, one idea each.
+// Turns the triaged checkpoints list into a plain-English list an operator can
+// scan. Each row shows the run's goal, the fork it is waiting on (the
+// checkpoint prompt and the choices it offers), a best-effort staleness line,
+// and the existing per-run resume command to answer it. Short sentences, one
+// idea each.
 
 import type { StalenessFacts } from '../continuity/brief.js';
-import type { DecisionInbox, DecisionInboxRow } from './discover.js';
+import type { CheckpointRow, CheckpointsList } from './discover.js';
 
 /**
  * A one-line staleness summary for a row, or undefined when there is nothing
@@ -40,7 +41,7 @@ function stalenessLine(staleness: StalenessFacts | undefined): string | undefine
   return `Staleness: ${parts.join('; ')}.`;
 }
 
-function renderRow(row: DecisionInboxRow, index: number): string {
+function renderRow(row: CheckpointRow, index: number): string {
   const lines: string[] = [];
   lines.push(`${index + 1}. ${row.goal}`);
   lines.push(`   Flow: ${row.flow_id}  Run: ${row.run_id}`);
@@ -58,13 +59,13 @@ function renderRow(row: DecisionInboxRow, index: number): string {
   return lines.join('\n');
 }
 
-/** Render the whole inbox as a printable, plain-English list. */
-export function renderDecisionInbox(inbox: DecisionInbox): string {
-  if (inbox.rows.length === 0) {
+/** Render the whole checkpoints list as a printable, plain-English list. */
+export function renderCheckpointsList(checkpoints: CheckpointsList): string {
+  if (checkpoints.rows.length === 0) {
     return 'No runs are waiting on a decision.';
   }
-  const count = inbox.rows.length;
+  const count = checkpoints.rows.length;
   const header = `${count} run${count === 1 ? '' : 's'} waiting on a decision:`;
-  const body = inbox.rows.map((row, index) => renderRow(row, index)).join('\n\n');
+  const body = checkpoints.rows.map((row, index) => renderRow(row, index)).join('\n\n');
   return `${header}\n\n${body}`;
 }

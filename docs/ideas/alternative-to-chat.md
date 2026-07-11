@@ -117,7 +117,7 @@ The substrate is genuinely rich and shipped: flows, checks, context isolation, t
 *The gap:* `runs show` reads like a debug log and is CLI-only. Build a host-surfaced view that groups by step and foregrounds each step's claim, the evidence the engine accepted, which role/tools/tier touched it, and the checkpoints where a human decided. Pure presentation over data already on disk. This is the "click a cell, see the formula" moment, and it is the lowest build cost for the highest narrative payoff in the whole roadmap. Design it for a supervisor skimming, not an engineer grepping. Render a failed or stopped run as legibly as a passing one, or it becomes success theater.
 
 **Decision Inbox: the on-the-loop front door.**
-*Exists today:* `circuit inbox` already discovers every run parked at an operator checkpoint, shows the fork, the choices, and a best-effort staleness probe, and links `circuit resume`. Checkpoints are fail-closed. This is the single most underexposed asset in the codebase relative to the thesis.
+*Exists today:* `circuit checkpoints` already discovers every run parked at an operator checkpoint, shows the fork, the choices, and a best-effort staleness probe, and links `circuit resume`. Checkpoints are fail-closed. This is the single most underexposed asset in the codebase relative to the thesis.
 *The gap:* It is CLI-only and read-only, one run at a time. Surface it on the host as the place you return to. Let an operator answer a fork inline. Carry enough situated context in each fork to decide it cold. Together with the Run Reader, the inbox *is* the on-the-loop experience: the inbox is "what needs me now," the reader is "what did it prove."
 
 **Bake-off: parallel exploration that returns a verdict.**

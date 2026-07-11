@@ -17,7 +17,7 @@ export const CLI_COMMAND_NAMES = [
   'uninstall',
   'runs',
   'reclaim',
-  'inbox',
+  'checkpoints',
   'preview',
   'doctor',
   'config',

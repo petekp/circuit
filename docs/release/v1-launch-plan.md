@@ -36,7 +36,8 @@ The launch surface, all on `main` today:
   cross-tool-build, explainer, pursue).
 - The engine core is release-proven: typed contracts, durable run records
   under `.circuit/runs/`, resume and crash tolerance, checkpoints and the
-  inbox, fan-out, sub-runs, and ambient continuity on Claude Code.
+  `circuit checkpoints` command that lists them, fan-out, sub-runs, and
+  ambient continuity on Claude Code.
 - Multi-model economics: the power dial (`--power auto|low|medium|high`) with
   role-aware allocation (`src/selection/power-tiers.ts`), per-step connector
   pinning proven by the cross-tool-build flow (`src/flows/cross-tool-build/`),

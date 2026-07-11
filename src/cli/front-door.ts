@@ -17,7 +17,7 @@ export function renderFrontDoor(): string {
     '',
     `${palette.bold('run flows')}`,
     line('circuit run <flow> --goal "<goal>"', 'execute a flow with evidence and a report'),
-    line('circuit inbox', 'pending checkpoints across active runs'),
+    line('circuit checkpoints', 'pending checkpoints across active runs'),
     line('circuit resume --run-folder <path> ...', 'continue a paused run'),
     '',
     `${palette.bold('see what a run would do')}`,

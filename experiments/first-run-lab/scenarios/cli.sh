@@ -27,7 +27,7 @@ banner "Plausible first mistakes"
 step "misspelled flow name" ./bin/circuit run prototpe --goal "x"
 step "forgot --goal" ./bin/circuit run review
 step "resume with a made-up run id" ./bin/circuit resume --run-folder 1234 --checkpoint-choice keep
-step "inbox on a fresh project" ./bin/circuit inbox
+step "checkpoints on a fresh project" ./bin/circuit checkpoints
 
 banner "Running from their own project directory (not the checkout)"
 mkdir -p "$HOME/myproject" && cd "$HOME/myproject"

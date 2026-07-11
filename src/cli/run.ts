@@ -246,8 +246,8 @@ export function parseExecutionArgs(command: 'run' | 'resume', argv: readonly str
     }
     // Collect every missing required flag so the operator can supply them all at
     // once. Throwing on the first missing flag forced a supply-one, rerun,
-    // supply-the-next loop; both flags are listed together on the run's inbox
-    // entry, so name both together here too.
+    // supply-the-next loop; both flags are listed together on the run's
+    // checkpoints entry, so name both together here too.
     const missingResumeFlags: string[] = [];
     if (runFolder === undefined) missingResumeFlags.push('--run-folder');
     if (checkpointChoice === undefined || checkpointChoice.length === 0) {
@@ -255,7 +255,7 @@ export function parseExecutionArgs(command: 'run' | 'resume', argv: readonly str
     }
     if (missingResumeFlags.length > 0) {
       throw new Error(
-        `checkpoint resume requires ${missingResumeFlags.join(' and ')}. Run \`circuit inbox\` to see the run folder and its checkpoint choices.`,
+        `checkpoint resume requires ${missingResumeFlags.join(' and ')}. Run \`circuit checkpoints\` to see the run folder and its checkpoint choices.`,
       );
     }
     if (flowName !== undefined) {

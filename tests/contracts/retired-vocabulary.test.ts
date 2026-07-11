@@ -118,6 +118,20 @@ const RETIRED_TOKENS: RetiredToken[] = [
     ulHeading: 'Flagged Ambiguities',
     addedBy: 'compiled-flow loader rename (fixture → compiled flow)',
   },
+  // Checkpoints rename (punch item 6, 2026-07-10): the `circuit inbox`
+  // command became `circuit checkpoints`, a clean rename with no alias.
+  // Scoped to the two-word command phrase so bare English use of "inbox"
+  // (e.g. describing an email inbox metaphor) never false-matches.
+  {
+    pattern: /\bcircuit inbox\b/,
+    replacement: 'circuit checkpoints',
+    ulHeading: 'Core Flow Language',
+    addedBy: 'checkpoints rename (punch item 6, 2026-07-10)',
+    allow: [
+      // The punch list names the retired command in its own section title.
+      'docs/release/pre-release-punch-list.md',
+    ],
+  },
 ];
 
 function escapeRegExp(value: string): string {
@@ -194,6 +208,9 @@ describe('retired-vocabulary calibration (false-positive regression net)', () =>
     // not false-match the `--depth` flag retirement.
     'axes.depth stays medium; SelectionOverride.depth, ResolvedSelection.depth, ' +
       'CompiledDepth, and allowed_depths are unaffected by the flag rename',
+    // Bare English "inbox" (no "circuit" prefix) must not false-match the
+    // checkpoints command rename.
+    'triage your personal inbox before the standup',
   ];
 
   it('never matches known-legitimate strings', () => {
@@ -217,6 +234,7 @@ describe('retired-vocabulary calibration (false-positive regression net)', () =>
       [4, 'the dial accepts lite|standard|deep'],
       [5, 'engine_state: "checkpoint_waiting"'],
       [6, 'see resolveFixturePath in src/cli/flow-fixtures.ts'],
+      [7, 'run `circuit inbox --json` to see waiting runs'],
     ];
     const coveredRows = new Set(positives.map(([index]) => index));
     expect([...coveredRows].sort((a, b) => a - b)).toEqual(RETIRED_TOKENS.map((_, index) => index));

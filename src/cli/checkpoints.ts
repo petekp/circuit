@@ -1,4 +1,4 @@
-// `circuit inbox` — the read-only decision inbox.
+// `circuit checkpoints` — the read-only checkpoints list.
 //
 // Lists every run that parked at an operator checkpoint and is waiting on a
 // decision. For each one it shows the fork (what it asks, the choices it
@@ -9,26 +9,26 @@
 
 import { resolve } from 'node:path';
 import { Command } from 'commander';
+import { discoverCheckpointsList } from '../app/checkpoints/discover.js';
+import { renderCheckpointsList } from '../app/checkpoints/render.js';
 import type { BriefGitProbe } from '../app/continuity/brief.js';
-import { discoverDecisionInbox } from '../app/inbox/discover.js';
-import { renderDecisionInbox } from '../app/inbox/render.js';
 import { runsRoot } from '../shared/control-plane-paths.js';
 import { commanderErrorMessage, configureCommanderProgram } from './commander-support.js';
 
-export interface InboxCommandOptions {
+export interface CheckpointsCommandOptions {
   /** Brief-time git divergence probe; injectable for tests. */
   readonly briefGitProbe?: BriefGitProbe;
 }
 
-interface ParsedInboxArgs {
+interface ParsedCheckpointsArgs {
   readonly projectRoot: string;
   readonly runsBase: string;
   readonly json: boolean;
 }
 
-function parseInboxArgs(argv: readonly string[]): ParsedInboxArgs | string {
+function parseCheckpointsArgs(argv: readonly string[]): ParsedCheckpointsArgs | string {
   let options: { json?: boolean; projectRoot?: string; runsBase?: string } | undefined;
-  const program = configureCommanderProgram(new Command('circuit inbox'))
+  const program = configureCommanderProgram(new Command('circuit checkpoints'))
     .option('--json')
     .option('--project-root <path>')
     .option('--runs-base <path>')
@@ -41,7 +41,7 @@ function parseInboxArgs(argv: readonly string[]): ParsedInboxArgs | string {
   } catch (err) {
     return commanderErrorMessage(err);
   }
-  if (options === undefined) return 'inbox could not parse its arguments';
+  if (options === undefined) return 'checkpoints could not parse its arguments';
 
   const projectRoot = resolve(options.projectRoot ?? process.cwd());
   // The runs root defaults to the project's control plane; --runs-base lets a
@@ -51,26 +51,26 @@ function parseInboxArgs(argv: readonly string[]): ParsedInboxArgs | string {
   return { projectRoot, runsBase, json: options.json === true };
 }
 
-export function runInboxCommand(
+export function runCheckpointsCommand(
   argv: readonly string[],
-  options: InboxCommandOptions = {},
+  options: CheckpointsCommandOptions = {},
 ): number {
-  const parsed = parseInboxArgs(argv);
+  const parsed = parseCheckpointsArgs(argv);
   if (typeof parsed === 'string') {
     process.stderr.write(`error: ${parsed}\n`);
     return 2;
   }
 
-  const inbox = discoverDecisionInbox({
+  const checkpoints = discoverCheckpointsList({
     runsRoot: parsed.runsBase,
     projectRoot: parsed.projectRoot,
     ...(options.briefGitProbe === undefined ? {} : { gitProbe: options.briefGitProbe }),
   });
 
   if (parsed.json) {
-    process.stdout.write(`${JSON.stringify(inbox, null, 2)}\n`);
+    process.stdout.write(`${JSON.stringify(checkpoints, null, 2)}\n`);
   } else {
-    process.stdout.write(`${renderDecisionInbox(inbox)}\n`);
+    process.stdout.write(`${renderCheckpointsList(checkpoints)}\n`);
   }
   return 0;
 }
