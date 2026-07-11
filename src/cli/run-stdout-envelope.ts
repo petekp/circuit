@@ -26,6 +26,46 @@ import {
 // order is part of the contract: the JSON written to stdout must stay
 // byte-identical, so the spread order below is load-bearing.
 
+export interface RenderedRecallWarning {
+  readonly code: string;
+  readonly message: string;
+}
+
+function leadingNumber(message: string): number {
+  const match = message.match(/\d+/);
+  return match === null ? 0 : Number(match[0]);
+}
+
+// Groups repeated identical-code warnings into one line with a count and the
+// largest example, so an agent-facing channel does not repeat the same one
+// line of information N times (F9). Emission upstream stays per-document;
+// only this render boundary collapses them. Order-preserving: the first
+// occurrence of each code marks its position in the output.
+export function collapseIdenticalCodeWarnings(
+  warnings: readonly RenderedRecallWarning[],
+): RenderedRecallWarning[] {
+  const order: string[] = [];
+  const groups = new Map<string, RenderedRecallWarning[]>();
+  for (const warning of warnings) {
+    const group = groups.get(warning.code);
+    if (group === undefined) {
+      groups.set(warning.code, [warning]);
+      order.push(warning.code);
+    } else {
+      group.push(warning);
+    }
+  }
+  return order.map((code) => {
+    const group = groups.get(code) as RenderedRecallWarning[];
+    const first = group[0] as RenderedRecallWarning;
+    if (group.length === 1) return first;
+    const largest = group.reduce((best, current) =>
+      leadingNumber(current.message) > leadingNumber(best.message) ? current : best,
+    );
+    return { code, message: `${code} x${group.length} (largest: ${largest.message})` };
+  });
+}
+
 export function historyRecallOutputFields(input: {
   readonly runFolder: string;
   readonly report: ReturnType<typeof prepareRunStartHistoryRecall>['report'];
@@ -37,10 +77,9 @@ export function historyRecallOutputFields(input: {
       report_path: join(input.runFolder, HISTORY_RECALL_REPORT_PATH),
       rebuilt: input.report.rebuilt,
       ...(input.report.index_state === undefined ? {} : { index_state: input.report.index_state }),
-      warnings: input.report.warnings.map((warning) => ({
-        code: warning.code,
-        message: warning.message,
-      })),
+      warnings: collapseIdenticalCodeWarnings(
+        input.report.warnings.map((warning) => ({ code: warning.code, message: warning.message })),
+      ),
     },
   };
 }

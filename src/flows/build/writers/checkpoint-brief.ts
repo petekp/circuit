@@ -46,7 +46,6 @@ export const buildBriefCheckpointBuilder: CheckpointBriefBuilder = {
       goal: context.goal,
       requestedNeeds: inferBuildVerificationNeeds(context.goal),
       commandIdPrefix: 'build',
-      timeoutMs: 120_000,
       maxOutputBytes: 200_000,
     });
     return projectBuildBrief({

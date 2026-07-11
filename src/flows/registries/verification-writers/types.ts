@@ -46,6 +46,9 @@ export interface VerificationCommandObservation {
   readonly duration_ms: number;
   readonly stdout_summary: string;
   readonly stderr_summary: string;
+  // True when the command was killed for hitting its verification budget
+  // rather than exiting on its own.
+  readonly timed_out: boolean;
 }
 
 export interface VerificationBuildContext {

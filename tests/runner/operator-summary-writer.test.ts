@@ -2563,6 +2563,53 @@ describe('operator summary writer', () => {
     );
   });
 
+  it('hands over the salvage for an aborted Build run: the timed-out command, uncommitted edits, and skipped review', () => {
+    writeReport('reports/build/verification.json', {
+      overall_status: 'failed',
+      commands: [
+        {
+          command_id: 'build-verify',
+          argv: ['npm', 'run', 'verify'],
+          cwd: '.',
+          exit_code: 1,
+          status: 'failed',
+          duration_ms: 120_004,
+          stdout_summary: '',
+          stderr_summary: '',
+          timed_out: true,
+          timeout_ms: 120_000,
+        },
+      ],
+    });
+    // No reports/build/review.json: an aborted run skips its review step.
+
+    const result = RunResult.parse({
+      ...baseResult('build'),
+      outcome: 'aborted',
+      summary: 'build aborted',
+      reason:
+        "verification step 'verify' failed: command 'build-verify' timed out after 120004ms (budget 120000ms)",
+    });
+
+    const written = writeOperatorSummary({
+      runFolder,
+      runResult: result,
+      route: { selectedFlow: 'build' },
+    });
+
+    const keyPoints = written.summary.brief_slots?.key_points ?? [];
+    expect(
+      keyPoints.some((point) =>
+        /build-verify.*timed out after 120004ms \(budget 120000ms\)/.test(point),
+      ),
+    ).toBe(true);
+    expect(keyPoints.some((point) => /uncommitted/i.test(point))).toBe(true);
+    expect(keyPoints.some((point) => /independent review did not run/i.test(point))).toBe(true);
+    expect(written.summary.brief_slots?.next_action).toBe(
+      'review the diff, run verification at your own budget, then resume, rerun, or discard the attempt.',
+    );
+  });
+
   it('surfaces the failure reason and headline for an escalated run', () => {
     const result = RunResult.parse({
       ...baseResult('review'),

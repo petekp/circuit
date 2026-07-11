@@ -82,6 +82,12 @@ describe('runtime routing policy', () => {
     });
   });
 
+  it('names all three sanctioned remedies, including the mirror-root env var, in the fail-closed message', () => {
+    expect(RUNTIME_POLICY_REASONS.externalFixtureOrRoot).toContain('Circuit checkout');
+    expect(RUNTIME_POLICY_REASONS.externalFixtureOrRoot).toContain('--flow-root');
+    expect(RUNTIME_POLICY_REASONS.externalFixtureOrRoot).toContain(GENERATED_FLOW_MIRROR_ROOT_ENV);
+  });
+
   it('allows generated fixtures and trusted generated mirrors', () => {
     const generatedRoot = join(process.cwd(), 'generated', 'flows');
     const generatedFixture = join(generatedRoot, 'review', 'circuit.json');

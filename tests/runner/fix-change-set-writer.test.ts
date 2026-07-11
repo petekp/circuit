@@ -144,6 +144,7 @@ function helperObservation(
       hidden_index_flags: payload.hidden_index_flags ?? [],
     }),
     stderr_summary: '',
+    timed_out: false,
   };
 }
 
@@ -661,6 +662,7 @@ describe('fixChangeSetWriter.buildResult', () => {
       duration_ms: 1,
       stdout_summary: '',
       stderr_summary: 'fix-git-state: git rev-parse HEAD failed: not a git repository',
+      timed_out: false,
     };
     expect(() => fixChangeSetWriter.buildResult([failingObservation], context)).toThrow(
       /git-state helper failed/,
@@ -685,6 +687,7 @@ describe('fixChangeSetWriter.buildResult', () => {
       duration_ms: 1,
       stdout_summary: 'not json {',
       stderr_summary: '',
+      timed_out: false,
     };
     expect(() => fixChangeSetWriter.buildResult([malformedObservation], context)).toThrow(
       /not valid JSON/,

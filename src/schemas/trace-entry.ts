@@ -128,6 +128,10 @@ export const VerificationCommandEvaluatedTraceEntry = TraceEntryBase.extend({
   duration_ms: z.number().int().nonnegative(),
   stdout_summary: z.string(),
   stderr_summary: z.string(),
+  // Whether the command was killed for hitting its verification budget
+  // rather than exiting on its own. Defaults false so every trace entry
+  // recorded before this field existed still parses.
+  timed_out: z.boolean().default(false),
   slice_index: SliceIndex.optional(),
 }).strict();
 export type VerificationCommandEvaluatedTraceEntry = z.infer<

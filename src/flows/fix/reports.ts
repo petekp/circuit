@@ -270,6 +270,10 @@ export const FixVerificationCommandResult = z
     duration_ms: z.number().int().nonnegative(),
     stdout_summary: z.string(),
     stderr_summary: z.string(),
+    // Whether this command was killed for hitting its verification budget
+    // rather than exiting on its own. Defaults false so every report written
+    // before this field existed still parses.
+    timed_out: z.boolean().default(false),
   })
   .strict()
   .superRefine((result, ctx) => {

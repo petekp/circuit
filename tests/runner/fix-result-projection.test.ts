@@ -57,6 +57,7 @@ const VERIFY_COMMAND = {
   duration_ms: 5,
   stdout_summary: '',
   stderr_summary: '',
+  timed_out: false,
 };
 
 function brief(): FixBrief {

@@ -130,6 +130,77 @@ const HTML_REPORT_LABEL = 'Operator summary (HTML)' as const;
 const MAX_KEY_POINTS = 4;
 const MAX_CAVEATS = 3;
 
+// The real salvage menu for a stopped or aborted run: the operator inspects
+// the diff, proves the change on their own terms, then decides what happens
+// to the attempt. Replaces a generic "inspect the run" pointer that named no
+// options (F6).
+const SALVAGE_NEXT_ACTION =
+  'review the diff, run verification at your own budget, then resume, rerun, or discard the attempt.';
+
+// Only Build and Fix run a verification step and an independent review step
+// whose reports live at this well-known per-flow path today. Any other flow
+// simply renders no salvage line for that report — never a false claim.
+const VERIFICATION_REPORT_PATH_BY_FLOW: Readonly<Record<string, string>> = {
+  build: 'reports/build/verification.json',
+  fix: 'reports/fix/verification.json',
+};
+const REVIEW_REPORT_PATH_BY_FLOW: Readonly<Record<string, string>> = {
+  build: 'reports/build/review.json',
+  fix: 'reports/fix/review.json',
+};
+
+// Names the failing or timed-out command straight from the verification
+// report (1c's honest per-command reason made this legible) instead of
+// leaving the operator to reconstruct it from the trace by hand (F6/2b).
+function verificationFailureLine(runFolder: string, flowId: string): string | undefined {
+  const path = VERIFICATION_REPORT_PATH_BY_FLOW[flowId];
+  if (path === undefined) return undefined;
+  const report = readJsonIfPresent(runFolder, path);
+  if (stringField(report, 'overall_status') !== 'failed') return undefined;
+  const failing = arrayField(report, 'commands').find(
+    (item) => isObject(item) && stringField(item, 'status') === 'failed',
+  );
+  if (!isObject(failing)) return undefined;
+  const id = stringField(failing, 'command_id') ?? 'unknown command';
+  if (failing.timed_out === true) {
+    const duration = numberField(failing, 'duration_ms');
+    const budget = numberField(failing, 'timeout_ms');
+    const durationText = duration === undefined ? '' : ` after ${duration}ms`;
+    const budgetText = budget === undefined ? '' : ` (budget ${budget}ms)`;
+    return `Verification: command '${id}' timed out${durationText}${budgetText}.`;
+  }
+  const exitCode = numberField(failing, 'exit_code');
+  return `Verification: command '${id}' exited ${exitCode ?? 'non-zero'}.`;
+}
+
+// States plainly that independent review never ran, instead of leaving a
+// stopped or aborted run's summary silent about a skipped safeguard (F6).
+function reviewDidNotRunLine(runFolder: string, flowId: string): string | undefined {
+  const path = REVIEW_REPORT_PATH_BY_FLOW[flowId];
+  if (path === undefined) return undefined;
+  return readJsonIfPresent(runFolder, path) === undefined
+    ? 'Review: independent review did not run.'
+    : undefined;
+}
+
+// The salvage key points a stopped or aborted run should hand the operator:
+// what verification found, whether edits are sitting uncommitted, and
+// whether review ran at all (F6/2b).
+function salvageKeyPoints(input: {
+  readonly runFolder: string;
+  readonly flowId: string;
+}): string[] {
+  const points: string[] = [];
+  const verificationLine = verificationFailureLine(input.runFolder, input.flowId);
+  if (verificationLine !== undefined) points.push(verificationLine);
+  if (flowMayInvokeWriteCapableWorker(input.flowId)) {
+    points.push("Working tree: the attempt's edits remain uncommitted.");
+  }
+  const reviewLine = reviewDidNotRunLine(input.runFolder, input.flowId);
+  if (reviewLine !== undefined) points.push(reviewLine);
+  return points;
+}
+
 function jsonPath(runFolder: string): string {
   return join(runFolder, 'reports', 'operator-summary.json');
 }
@@ -507,6 +578,8 @@ function nextActionFrom(details: readonly string[], flowId: string, outcomeLabel
 }
 
 function runOutcomeOverrideBrief(input: {
+  readonly runFolder: string;
+  readonly flowId: string;
   readonly flowName: string;
   readonly runResult: OperatorSummaryRunResult;
   readonly details: readonly string[];
@@ -537,10 +610,11 @@ function runOutcomeOverrideBrief(input: {
         ...(input.runResult.reason === undefined
           ? []
           : [`Abort reason: ${input.runResult.reason}`]),
+        ...salvageKeyPoints({ runFolder: input.runFolder, flowId: input.flowId }),
         ...keyPoints,
       ].slice(0, MAX_KEY_POINTS),
       caveats: [],
-      next_action: 'fix the abort cause, then rerun the flow.',
+      next_action: SALVAGE_NEXT_ACTION,
     };
   }
   if (input.runResult.outcome === 'escalated') {
@@ -577,10 +651,11 @@ function runOutcomeOverrideBrief(input: {
       assessment: 'The flow stopped before complete evidence was produced.',
       key_points: [
         ...(input.runResult.reason === undefined ? [] : [`Stop reason: ${input.runResult.reason}`]),
+        ...salvageKeyPoints({ runFolder: input.runFolder, flowId: input.flowId }),
         ...keyPoints,
       ].slice(0, MAX_KEY_POINTS),
       caveats: [],
-      next_action: 'inspect the stopped run and choose whether to rerun or hand off.',
+      next_action: SALVAGE_NEXT_ACTION,
     };
   }
   return undefined;
@@ -598,6 +673,8 @@ function buildBriefSlots(input: {
 }): OperatorBriefSlots {
   const flowName = flowDisplayName(input.flowId);
   const override = runOutcomeOverrideBrief({
+    runFolder: input.runFolder,
+    flowId: input.flowId,
     flowName,
     runResult: input.runResult,
     details: input.details,

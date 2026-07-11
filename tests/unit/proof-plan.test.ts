@@ -62,5 +62,23 @@ describe('proof plan boundary', () => {
 
     expect(result.status).toBe('passed');
     expect(result.stdout_summary).toBe('proof ok');
+    expect(result.timed_out).toBe(false);
+  });
+
+  it('marks a command that outlives its budget as timed_out, not just failed', () => {
+    const result = runProofPlanCommand(
+      {
+        id: 'slow-proof',
+        cwd: '.',
+        argv: [process.execPath, '-e', 'setTimeout(() => {}, 5000)'],
+        timeout_ms: 200,
+        max_output_bytes: 200,
+        env: {},
+      },
+      projectRoot,
+    );
+
+    expect(result.status).toBe('failed');
+    expect(result.timed_out).toBe(true);
   });
 });

@@ -19,6 +19,7 @@ export function projectFixVerification(
       duration_ms: observation.duration_ms,
       stdout_summary: observation.stdout_summary,
       stderr_summary: observation.stderr_summary,
+      timed_out: observation.timed_out,
       timeout_ms: observation.command.timeout_ms,
       max_output_bytes: observation.command.max_output_bytes,
       env: observation.command.env,

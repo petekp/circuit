@@ -121,6 +121,7 @@ function observation(
     duration_ms: 1,
     stdout_summary: '',
     stderr_summary: '',
+    timed_out: false,
   };
 }
 

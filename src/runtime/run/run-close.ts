@@ -59,6 +59,37 @@ function runOutcomeForPrimaryResultOutcome(outcome: string): RunClosedOutcome | 
   return undefined;
 }
 
+function stringArrayField(value: unknown, key: string): readonly string[] {
+  if (typeof value !== 'object' || value === null) return [];
+  const raw = (value as Record<string, unknown>)[key];
+  if (!Array.isArray(raw)) return [];
+  return raw.filter((item): item is string => typeof item === 'string');
+}
+
+// A `needs_attention`-shaped close should name WHY, not just that it happened
+// (F7). Every cause here is re-derived from evidence the primary result
+// already carries — a worker never gets to self-report its own stop reason.
+// Loose by design: an absent or malformed field contributes no phrase rather
+// than throwing, so a flow whose primary result carries none of these fields
+// degrades to the unchanged base reason.
+function primaryResultCausePhrases(primaryResult: Record<string, unknown>): readonly string[] {
+  const phrases: string[] = [];
+  const scope = primaryResult.scope;
+  for (const guardrail of stringArrayField(scope, 'unassessed_guardrails')) {
+    phrases.push(`unassessed guardrail '${guardrail}'`);
+  }
+  for (const guardrail of stringArrayField(scope, 'violated_guardrails')) {
+    phrases.push(`violated guardrail '${guardrail}'`);
+  }
+  if (primaryResult.review_verdict === 'accept-with-fixes') {
+    phrases.push("review verdict 'accept-with-fixes'");
+  }
+  for (const path of stringArrayField(primaryResult.touch_area, 'out_of_bounds_paths')) {
+    phrases.push(`out-of-bounds path '${path}'`);
+  }
+  return phrases;
+}
+
 // Exported for characterization (terminal-outcome-bound-primary-result.test.ts):
 // the close-time bound read must fail open (return undefined, never throw) so a
 // missing or corrupt primary result falls through to the proof-derived outcome.
@@ -93,9 +124,11 @@ export async function terminalOutcomeBoundToPrimaryResult(
 
   const boundOutcome = runOutcomeForPrimaryResultOutcome(primaryOutcome);
   if (boundOutcome === undefined) return undefined;
+  const baseReason = `primary result '${primaryResultPath}' reported outcome '${primaryOutcome}'`;
+  const causes = primaryResultCausePhrases(primaryResult as Record<string, unknown>);
   return {
     outcome: boundOutcome,
-    reason: `primary result '${primaryResultPath}' reported outcome '${primaryOutcome}'`,
+    reason: causes.length === 0 ? baseReason : `${baseReason} (${causes.join('; ')})`,
   };
 }
 

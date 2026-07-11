@@ -19,8 +19,7 @@ export const COMPOSE_WRITER_RUNTIME_POLICY = {
 } as const;
 
 export const RUNTIME_POLICY_REASONS = {
-  externalFixtureOrRoot:
-    'explicit --fixture/--flow-root inputs must point at generated flows, trusted generated mirrors, or published custom flows',
+  externalFixtureOrRoot: `explicit --fixture/--flow-root inputs must point at generated flows, trusted generated mirrors, or published custom flows. Fix this by running from the Circuit checkout, pointing --flow-root at a trusted location, or blessing a mirror by setting ${GENERATED_FLOW_MIRROR_ROOT_ENV}.`,
   composeWriter: COMPOSE_WRITER_UNSUPPORTED_REASON,
   checkpointResume: 'checkpoint resume follows the saved run folder engine marker',
 } as const;

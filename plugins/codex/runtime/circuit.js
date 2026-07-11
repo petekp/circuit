@@ -26022,7 +26022,11 @@ var init_verification = __esm({
       status: external_exports.enum(["passed", "failed"]),
       duration_ms: external_exports.number().int().nonnegative(),
       stdout_summary: external_exports.string(),
-      stderr_summary: external_exports.string()
+      stderr_summary: external_exports.string(),
+      // Whether this command was killed for hitting its verification budget
+      // rather than exiting on its own. Defaults false so every fixture and
+      // report written before this field existed still parses.
+      timed_out: external_exports.boolean().default(false)
     }).strict().superRefine((result, ctx) => {
       const expected = result.exit_code === 0 ? "passed" : "failed";
       if (result.status !== expected) {
@@ -65844,6 +65848,12 @@ function isLaunchError(error52) {
   const code = error52.code;
   return code === "ENOENT" || code === "EACCES" || code === "ENOTDIR";
 }
+function commandTimedOut(input) {
+  if (input.error !== void 0 && input.error.code === "ETIMEDOUT") {
+    return true;
+  }
+  return input.signal !== null && input.durationMs >= input.timeoutMs;
+}
 function runProofPlanCommand(command, projectRoot) {
   const started = Date.now();
   const cwd2 = resolveProjectRelativeProofCwd(projectRoot, command.cwd);
@@ -65860,6 +65870,7 @@ function runProofPlanCommand(command, projectRoot) {
     throw new ProofPlanBlockedError(`Proof plan blocked: verification command '${command.id}' could not launch ${JSON.stringify(command.argv[0])}: ${result.error.message}`);
   }
   const exitCode = typeof result.status === "number" && result.error === void 0 ? result.status : 1;
+  const durationMs = Math.max(0, Date.now() - started);
   const stderrParts = [
     typeof result.stderr === "string" ? result.stderr : "",
     result.error === void 0 ? "" : result.error.message,
@@ -65869,9 +65880,15 @@ function runProofPlanCommand(command, projectRoot) {
     command,
     exit_code: exitCode,
     status: exitCode === 0 ? "passed" : "failed",
-    duration_ms: Math.max(0, Date.now() - started),
+    duration_ms: durationMs,
     stdout_summary: summarizeOutput(typeof result.stdout === "string" ? result.stdout : "", command.max_output_bytes),
-    stderr_summary: summarizeOutput(stderrParts.join("\n"), command.max_output_bytes)
+    stderr_summary: summarizeOutput(stderrParts.join("\n"), command.max_output_bytes),
+    timed_out: commandTimedOut({
+      error: result.error,
+      signal: result.signal,
+      durationMs,
+      timeoutMs: command.timeout_ms
+    })
   };
 }
 var PROOF_PLAN_ENV_INHERIT_ALLOWLIST, ProofPlanBlockedError;
@@ -66015,7 +66032,7 @@ function resolveVerificationCommands(input) {
     manager,
     script,
     commandIdPrefix: input.commandIdPrefix,
-    timeoutMs: input.timeoutMs ?? 12e4,
+    timeoutMs: input.timeoutMs ?? DEFAULT_VERIFICATION_TIMEOUT_MS,
     maxOutputBytes: input.maxOutputBytes ?? 2e5,
     env: input.env ?? {}
   }));
@@ -66046,10 +66063,12 @@ function inferBuildVerificationNeeds(goal) {
     needs.push("lint");
   return needs.length > 0 ? needs : ["general"];
 }
+var DEFAULT_VERIFICATION_TIMEOUT_MS;
 var init_verification_resolver = __esm({
   "dist/shared/verification-resolver.js"() {
     "use strict";
     init_proof_plan();
+    DEFAULT_VERIFICATION_TIMEOUT_MS = 6e5;
   }
 });
 
@@ -66223,7 +66242,6 @@ var init_checkpoint_brief = __esm({
           goal: context.goal,
           requestedNeeds: inferBuildVerificationNeeds(context.goal),
           commandIdPrefix: "build",
-          timeoutMs: 12e4,
           maxOutputBytes: 2e5
         });
         return projectBuildBrief({
@@ -66722,7 +66740,8 @@ function projectBuildVerification(observations) {
       status: observation.status,
       duration_ms: observation.duration_ms,
       stdout_summary: observation.stdout_summary,
-      stderr_summary: observation.stderr_summary
+      stderr_summary: observation.stderr_summary,
+      timed_out: observation.timed_out
     }))
   });
 }
@@ -69016,6 +69035,10 @@ var init_trace_entry = __esm({
       duration_ms: external_exports.number().int().nonnegative(),
       stdout_summary: external_exports.string(),
       stderr_summary: external_exports.string(),
+      // Whether the command was killed for hitting its verification budget
+      // rather than exiting on its own. Defaults false so every trace entry
+      // recorded before this field existed still parses.
+      timed_out: external_exports.boolean().default(false),
       slice_index: SliceIndex.optional()
     }).strict();
     ProofAssessmentRef = Ref.refine((ref) => ref.kind === "evidence" || ref.kind === "report", {
@@ -73423,7 +73446,11 @@ var init_reports6 = __esm({
       status: external_exports.enum(["passed", "failed"]),
       duration_ms: external_exports.number().int().nonnegative(),
       stdout_summary: external_exports.string(),
-      stderr_summary: external_exports.string()
+      stderr_summary: external_exports.string(),
+      // Whether this command was killed for hitting its verification budget
+      // rather than exiting on its own. Defaults false so every report written
+      // before this field existed still parses.
+      timed_out: external_exports.boolean().default(false)
     }).strict().superRefine((result, ctx) => {
       const commandParse = FixVerificationCommand.safeParse({
         id: result.command_id,
@@ -74131,7 +74158,7 @@ var init_brief2 = __esm({
           goal,
           requestedNeeds: ["general"],
           commandIdPrefix: "fix",
-          timeoutMs: 6e5,
+          timeoutMs: DEFAULT_VERIFICATION_TIMEOUT_MS,
           maxOutputBytes: 2e5
         });
         return projectFixBrief({ goal, verificationCommands });
@@ -74551,6 +74578,7 @@ function projectFixVerification(observations) {
       duration_ms: observation.duration_ms,
       stdout_summary: observation.stdout_summary,
       stderr_summary: observation.stderr_summary,
+      timed_out: observation.timed_out,
       timeout_ms: observation.command.timeout_ms,
       max_output_bytes: observation.command.max_output_bytes,
       env: observation.command.env
@@ -79793,7 +79821,6 @@ var init_contract2 = __esm({
           goal,
           requestedNeeds: ["general"],
           commandIdPrefix: "pursuit",
-          timeoutMs: 12e4,
           maxOutputBytes: 2e5
         });
         return projectPursuitContract({ goal, verificationCommands });
@@ -83893,7 +83920,7 @@ var init_runtime_routing_policy = __esm({
     GENERATED_FLOW_MIRROR_ROOT_ENV = "CIRCUIT_GENERATED_FLOW_MIRROR_ROOT";
     COMPOSE_WRITER_UNSUPPORTED_REASON = "programmatic composeWriter injections are not supported by the CLI runtime; use executor injection or generated reports";
     RUNTIME_POLICY_REASONS = {
-      externalFixtureOrRoot: "explicit --fixture/--flow-root inputs must point at generated flows, trusted generated mirrors, or published custom flows",
+      externalFixtureOrRoot: `explicit --fixture/--flow-root inputs must point at generated flows, trusted generated mirrors, or published custom flows. Fix this by running from the Circuit checkout, pointing --flow-root at a trusted location, or blessing a mirror by setting ${GENERATED_FLOW_MIRROR_ROOT_ENV}.`,
       composeWriter: COMPOSE_WRITER_UNSUPPORTED_REASON,
       checkpointResume: "checkpoint resume follows the saved run folder engine marker"
     };
@@ -128068,6 +128095,31 @@ function runOutcomeForPrimaryResultOutcome(outcome) {
     return "stopped";
   return void 0;
 }
+function stringArrayField(value, key) {
+  if (typeof value !== "object" || value === null)
+    return [];
+  const raw = value[key];
+  if (!Array.isArray(raw))
+    return [];
+  return raw.filter((item) => typeof item === "string");
+}
+function primaryResultCausePhrases(primaryResult) {
+  const phrases = [];
+  const scope = primaryResult.scope;
+  for (const guardrail of stringArrayField(scope, "unassessed_guardrails")) {
+    phrases.push(`unassessed guardrail '${guardrail}'`);
+  }
+  for (const guardrail of stringArrayField(scope, "violated_guardrails")) {
+    phrases.push(`violated guardrail '${guardrail}'`);
+  }
+  if (primaryResult.review_verdict === "accept-with-fixes") {
+    phrases.push("review verdict 'accept-with-fixes'");
+  }
+  for (const path of stringArrayField(primaryResult.touch_area, "out_of_bounds_paths")) {
+    phrases.push(`out-of-bounds path '${path}'`);
+  }
+  return phrases;
+}
 async function terminalOutcomeBoundToPrimaryResult(context, outcome) {
   if (outcome !== "complete")
     return void 0;
@@ -128091,9 +128143,11 @@ async function terminalOutcomeBoundToPrimaryResult(context, outcome) {
   const boundOutcome = runOutcomeForPrimaryResultOutcome(primaryOutcome);
   if (boundOutcome === void 0)
     return void 0;
+  const baseReason = `primary result '${primaryResultPath}' reported outcome '${primaryOutcome}'`;
+  const causes = primaryResultCausePhrases(primaryResult);
   return {
     outcome: boundOutcome,
-    reason: `primary result '${primaryResultPath}' reported outcome '${primaryOutcome}'`
+    reason: causes.length === 0 ? baseReason : `${baseReason} (${causes.join("; ")})`
   };
 }
 function latestAdmittedVerdict(entries) {
@@ -138042,20 +138096,20 @@ function createSkillHookInjectionChannel() {
 }
 
 // dist/skill-hooks/surface-sources.js
-function stringArrayField(report, field) {
+function stringArrayField2(report, field) {
   if (report === null || typeof report !== "object")
     return [];
   const value = report[field];
   return Array.isArray(value) ? value.filter((item) => typeof item === "string") : [];
 }
 function planAndSliceExtensions(report) {
-  const top = stringArrayField(report, "anticipated_file_extensions");
-  const slices = report !== null && typeof report === "object" && Array.isArray(report.slices) ? report.slices.flatMap((slice) => stringArrayField(slice, "anticipated_file_extensions")) : [];
+  const top = stringArrayField2(report, "anticipated_file_extensions");
+  const slices = report !== null && typeof report === "object" && Array.isArray(report.slices) ? report.slices.flatMap((slice) => stringArrayField2(slice, "anticipated_file_extensions")) : [];
   return [.../* @__PURE__ */ new Set([...top, ...slices])];
 }
 function extractorFor(declaration) {
   if (declaration.kind === "string-array-field") {
-    return (report) => stringArrayField(report, declaration.field);
+    return (report) => stringArrayField2(report, declaration.field);
   }
   return planAndSliceExtensions;
 }
@@ -142064,6 +142118,21 @@ function verificationFailureReason(stepId, error52) {
   const message = error52 instanceof Error ? error52.message : String(error52);
   return `verification step '${stepId}': report writer failed (${message})`;
 }
+function failingObservationDetail(observation) {
+  if (observation.timed_out) {
+    return `command '${observation.command.id}' timed out after ${observation.duration_ms}ms (budget ${observation.command.timeout_ms}ms)`;
+  }
+  return `command '${observation.command.id}' exited ${observation.exit_code}`;
+}
+function verificationCommandFailureReason(input) {
+  const failing = input.observations.filter((observation) => observation.status === "failed");
+  const detail = failing.map(failingObservationDetail).join("; ");
+  return `verification step '${input.stepId}' failed: ${detail}`;
+}
+function allFailuresTimedOut(observations) {
+  const failing = observations.filter((observation) => observation.status === "failed");
+  return failing.length > 0 && failing.every((observation) => observation.timed_out);
+}
 function commandEvidenceRef(input) {
   const { observation } = input;
   return {
@@ -142254,6 +142323,7 @@ async function executeVerificationResult(step, context) {
         duration_ms: observation.duration_ms,
         stdout_summary: observation.stdout_summary,
         stderr_summary: observation.stderr_summary,
+        timed_out: observation.timed_out,
         ...sliceTag
       });
     }
@@ -142301,7 +142371,7 @@ async function executeVerificationResult(step, context) {
     });
     return stepExecutionOutcome({ route: "pass", details: { overall_status: "passed" } });
   }
-  const reason = `verification step '${step.id}' failed one or more commands`;
+  const reason = verificationCommandFailureReason({ stepId: step.id, observations });
   await context.trace.append({
     run_id: context.runId,
     kind: "check.evaluated",
@@ -142319,6 +142389,9 @@ async function executeVerificationResult(step, context) {
     body,
     observations
   });
+  if (allFailuresTimedOut(observations)) {
+    return stepExecutionFailed(reason);
+  }
   const recoveryRoute = recoveryRouteForFailure({
     step,
     workContractRef: context.workContractRef,
@@ -145843,7 +145916,7 @@ function arrayField(report, key) {
   const value = report?.[key];
   return Array.isArray(value) ? value : [];
 }
-function stringArrayField2(report, key) {
+function stringArrayField3(report, key) {
   return arrayField(report, key).filter((item) => typeof item === "string");
 }
 function objectField(report, key) {
@@ -146003,8 +146076,8 @@ function exploreReviewFoldInDetails(flowReport) {
   const foldIns = objectField(flowReport, "review_fold_ins");
   if (foldIns === void 0)
     return [];
-  const objections = stringArrayField2(foldIns, "objections");
-  const missedAngles = stringArrayField2(foldIns, "missed_angles");
+  const objections = stringArrayField3(foldIns, "objections");
+  const missedAngles = stringArrayField3(foldIns, "missed_angles");
   const details = [];
   if (objections.length > 0) {
     details.push("Reviewer: Accepted the direction, with required fold-ins.");
@@ -146023,9 +146096,9 @@ function reviewFoldInWeight(flowReport) {
   const foldIns = objectField(flowReport, "review_fold_ins");
   if (foldIns === void 0)
     return "none";
-  if (stringArrayField2(foldIns, "objections").length > 0)
+  if (stringArrayField3(foldIns, "objections").length > 0)
     return "required";
-  if (stringArrayField2(foldIns, "missed_angles").length > 0)
+  if (stringArrayField3(foldIns, "missed_angles").length > 0)
     return "optional";
   return "none";
 }
@@ -146069,7 +146142,7 @@ var exploreSummaryProjector = ({ runFolder, flowReport, resultSummary: resultSum
     const decisionReport = exploreDecisionReport(runFolder, flowReport);
     const question = stringField2(decisionReport, "decision_question");
     const rationale = stringField2(decisionReport, "rationale");
-    const risks = stringArrayField2(decisionReport, "residual_risks");
+    const risks = stringArrayField3(decisionReport, "residual_risks");
     const nextAction = stringField2(decisionReport, "next_action");
     if (question !== void 0)
       details.push(`Decision question: ${question}`);
@@ -146107,7 +146180,7 @@ function reviewFindingDetails(report) {
       continue;
     const severity = (stringField2(finding3, "severity") ?? "unknown").toUpperCase();
     const text = stringField2(finding3, "text") ?? "(no text)";
-    const fileRefs = stringArrayField2(finding3, "file_refs");
+    const fileRefs = stringArrayField3(finding3, "file_refs");
     const summary = firstLineSummary(text, 140);
     const fileSuffix = fileRefs.length === 0 ? "" : ` \u2014 at ${fileRefs.join(", ")}`;
     lines.push(`[${severity}] ${summary}${fileSuffix}`);
@@ -146120,11 +146193,11 @@ function reviewAssessmentDetails(report) {
   if (assessment !== void 0 && assessment.trim().length > 0) {
     lines.push(`Assessment: ${assessment.trim()}`);
   }
-  const verification = stringArrayField2(report, "verification").map((step) => step.trim()).filter((step) => step.length > 0);
+  const verification = stringArrayField3(report, "verification").map((step) => step.trim()).filter((step) => step.length > 0);
   if (verification.length > 0) {
     lines.push(`Reviewer steps: ${verification.join("; ")}`);
   }
-  const limitations = stringArrayField2(report, "confidence_limitations").map((entry) => entry.trim()).filter((entry) => entry.length > 0);
+  const limitations = stringArrayField3(report, "confidence_limitations").map((entry) => entry.trim()).filter((entry) => entry.length > 0);
   if (limitations.length > 0) {
     lines.push(`Confidence limitations: ${limitations.join("; ")}`);
   }
@@ -146206,7 +146279,7 @@ function hasScopeDeviation(flowReport) {
   const scope = isObject4(flowReport?.scope) ? flowReport.scope : void 0;
   if (scope === void 0)
     return false;
-  return stringField2(scope, "adherence") === "exceeds_scope" || stringArrayField2(scope, "violated_guardrails").length > 0 || stringArrayField2(scope, "unassessed_guardrails").length > 0;
+  return stringField2(scope, "adherence") === "exceeds_scope" || stringArrayField3(scope, "violated_guardrails").length > 0 || stringArrayField3(scope, "unassessed_guardrails").length > 0;
 }
 function buildScopeDetails(flowReport) {
   const scope = isObject4(flowReport?.scope) ? flowReport.scope : void 0;
@@ -146216,11 +146289,11 @@ function buildScopeDetails(flowReport) {
   if (stringField2(scope, "adherence") === "exceeds_scope") {
     details.push("Scope: reviewer judged the change exceeds the stated scope.");
   }
-  const violated = stringArrayField2(scope, "violated_guardrails");
+  const violated = stringArrayField3(scope, "violated_guardrails");
   if (violated.length > 0) {
     details.push(`Guardrails violated: ${violated.join("; ")}.`);
   }
-  const unassessed = stringArrayField2(scope, "unassessed_guardrails");
+  const unassessed = stringArrayField3(scope, "unassessed_guardrails");
   if (unassessed.length > 0) {
     details.push(`Guardrails the reviewer did not assess: ${unassessed.join("; ")}.`);
   }
@@ -146238,7 +146311,7 @@ function buildTouchAreaDetails(flowReport) {
     return [];
   const containment = stringField2(touchArea, "containment");
   if (containment === "out_of_bounds") {
-    const paths = stringArrayField2(touchArea, "out_of_bounds_paths");
+    const paths = stringArrayField3(touchArea, "out_of_bounds_paths");
     const list = paths.length === 0 ? "(paths unavailable)" : paths.join("; ");
     return [`Touch area: the change modified files outside the planned area: ${list}.`];
   }
@@ -146276,7 +146349,7 @@ function prototypeDetails(flowReport) {
   const root = stringField2(flowReport, "prototype_root");
   if (root !== void 0)
     details.push(`Prototype root: ${root}.`);
-  const entryPoints = stringArrayField2(flowReport, "entry_points");
+  const entryPoints = stringArrayField3(flowReport, "entry_points");
   if (entryPoints.length > 0)
     details.push(`Entry points: ${entryPoints.join(", ")}.`);
   const nextStep = stringField2(flowReport, "next_step");
@@ -146285,7 +146358,7 @@ function prototypeDetails(flowReport) {
   return details;
 }
 function goalArrayDetail(flowReport, field, label) {
-  const values = stringArrayField2(flowReport, field);
+  const values = stringArrayField3(flowReport, field);
   return `${label}: ${values.length === 0 ? "none" : values.join("; ")}.`;
 }
 function goalEvidenceDetails(flowReport) {
@@ -146461,6 +146534,55 @@ function readPriorRoute(runFolder) {
 var HTML_REPORT_LABEL = "Operator summary (HTML)";
 var MAX_KEY_POINTS = 4;
 var MAX_CAVEATS = 3;
+var SALVAGE_NEXT_ACTION = "review the diff, run verification at your own budget, then resume, rerun, or discard the attempt.";
+var VERIFICATION_REPORT_PATH_BY_FLOW = {
+  build: "reports/build/verification.json",
+  fix: "reports/fix/verification.json"
+};
+var REVIEW_REPORT_PATH_BY_FLOW = {
+  build: "reports/build/review.json",
+  fix: "reports/fix/review.json"
+};
+function verificationFailureLine(runFolder, flowId) {
+  const path = VERIFICATION_REPORT_PATH_BY_FLOW[flowId];
+  if (path === void 0)
+    return void 0;
+  const report = readJsonIfPresent(runFolder, path);
+  if (stringField2(report, "overall_status") !== "failed")
+    return void 0;
+  const failing = arrayField(report, "commands").find((item) => isObject4(item) && stringField2(item, "status") === "failed");
+  if (!isObject4(failing))
+    return void 0;
+  const id = stringField2(failing, "command_id") ?? "unknown command";
+  if (failing.timed_out === true) {
+    const duration3 = numberField(failing, "duration_ms");
+    const budget = numberField(failing, "timeout_ms");
+    const durationText = duration3 === void 0 ? "" : ` after ${duration3}ms`;
+    const budgetText = budget === void 0 ? "" : ` (budget ${budget}ms)`;
+    return `Verification: command '${id}' timed out${durationText}${budgetText}.`;
+  }
+  const exitCode = numberField(failing, "exit_code");
+  return `Verification: command '${id}' exited ${exitCode ?? "non-zero"}.`;
+}
+function reviewDidNotRunLine(runFolder, flowId) {
+  const path = REVIEW_REPORT_PATH_BY_FLOW[flowId];
+  if (path === void 0)
+    return void 0;
+  return readJsonIfPresent(runFolder, path) === void 0 ? "Review: independent review did not run." : void 0;
+}
+function salvageKeyPoints(input) {
+  const points = [];
+  const verificationLine = verificationFailureLine(input.runFolder, input.flowId);
+  if (verificationLine !== void 0)
+    points.push(verificationLine);
+  if (flowMayInvokeWriteCapableWorker(input.flowId)) {
+    points.push("Working tree: the attempt's edits remain uncommitted.");
+  }
+  const reviewLine = reviewDidNotRunLine(input.runFolder, input.flowId);
+  if (reviewLine !== void 0)
+    points.push(reviewLine);
+  return points;
+}
 function jsonPath(runFolder) {
   return join42(runFolder, "reports", "operator-summary.json");
 }
@@ -146632,10 +146754,10 @@ function exploreOutcomeLabel(input) {
   const review = stringField2(snapshot, "review_verdict");
   if (review === "accept-with-fold-ins") {
     const foldIns = isObject4(input.flowReport?.review_fold_ins) ? input.flowReport.review_fold_ins : void 0;
-    if (stringArrayField2(foldIns, "objections").length > 0) {
+    if (stringArrayField3(foldIns, "objections").length > 0) {
       return "Recommendation with required fold-ins";
     }
-    if (stringArrayField2(foldIns, "missed_angles").length > 0) {
+    if (stringArrayField3(foldIns, "missed_angles").length > 0) {
       return "Recommendation with optional considerations";
     }
     return "Recommendation with reviewer notes";
@@ -146817,10 +146939,11 @@ function runOutcomeOverrideBrief(input) {
       assessment: "The run aborted before this flow could finish.",
       key_points: [
         ...input.runResult.reason === void 0 ? [] : [`Abort reason: ${input.runResult.reason}`],
+        ...salvageKeyPoints({ runFolder: input.runFolder, flowId: input.flowId }),
         ...keyPoints
       ].slice(0, MAX_KEY_POINTS),
       caveats: [],
-      next_action: "fix the abort cause, then rerun the flow."
+      next_action: SALVAGE_NEXT_ACTION
     };
   }
   if (input.runResult.outcome === "escalated") {
@@ -146853,10 +146976,11 @@ function runOutcomeOverrideBrief(input) {
       assessment: "The flow stopped before complete evidence was produced.",
       key_points: [
         ...input.runResult.reason === void 0 ? [] : [`Stop reason: ${input.runResult.reason}`],
+        ...salvageKeyPoints({ runFolder: input.runFolder, flowId: input.flowId }),
         ...keyPoints
       ].slice(0, MAX_KEY_POINTS),
       caveats: [],
-      next_action: "inspect the stopped run and choose whether to rerun or hand off."
+      next_action: SALVAGE_NEXT_ACTION
     };
   }
   return void 0;
@@ -146864,6 +146988,8 @@ function runOutcomeOverrideBrief(input) {
 function buildBriefSlots(input) {
   const flowName = flowDisplayName(input.flowId);
   const override = runOutcomeOverrideBrief({
+    runFolder: input.runFolder,
+    flowId: input.flowId,
     flowName,
     runResult: input.runResult,
     details: input.details,
@@ -148957,6 +149083,31 @@ function runEnvelopeOutputFields(input) {
 
 // dist/cli/run-stdout-envelope.js
 import { join as join49 } from "node:path";
+function leadingNumber(message) {
+  const match = message.match(/\d+/);
+  return match === null ? 0 : Number(match[0]);
+}
+function collapseIdenticalCodeWarnings(warnings) {
+  const order = [];
+  const groups = /* @__PURE__ */ new Map();
+  for (const warning of warnings) {
+    const group = groups.get(warning.code);
+    if (group === void 0) {
+      groups.set(warning.code, [warning]);
+      order.push(warning.code);
+    } else {
+      group.push(warning);
+    }
+  }
+  return order.map((code) => {
+    const group = groups.get(code);
+    const first = group[0];
+    if (group.length === 1)
+      return first;
+    const largest = group.reduce((best, current) => leadingNumber(current.message) > leadingNumber(best.message) ? current : best);
+    return { code, message: `${code} x${group.length} (largest: ${largest.message})` };
+  });
+}
 function historyRecallOutputFields(input) {
   return {
     history_recall: {
@@ -148965,10 +149116,7 @@ function historyRecallOutputFields(input) {
       report_path: join49(input.runFolder, HISTORY_RECALL_REPORT_PATH),
       rebuilt: input.report.rebuilt,
       ...input.report.index_state === void 0 ? {} : { index_state: input.report.index_state },
-      warnings: input.report.warnings.map((warning) => ({
-        code: warning.code,
-        message: warning.message
-      }))
+      warnings: collapseIdenticalCodeWarnings(input.report.warnings.map((warning) => ({ code: warning.code, message: warning.message })))
     }
   };
 }

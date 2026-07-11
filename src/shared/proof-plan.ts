@@ -32,6 +32,11 @@ export interface ProofPlanCommandObservation {
   readonly duration_ms: number;
   readonly stdout_summary: string;
   readonly stderr_summary: string;
+  // True when the command was killed for hitting its verification budget
+  // rather than exiting on its own. Lets downstream reasoning (the
+  // executor's failure reason, recovery routing) distinguish an honest
+  // timeout from a red command instead of folding both into 'failed'.
+  readonly timed_out: boolean;
 }
 
 export interface ProofPlanCommand {
@@ -168,6 +173,18 @@ function isLaunchError(error: Error): boolean {
   return code === 'ENOENT' || code === 'EACCES' || code === 'ENOTDIR';
 }
 
+function commandTimedOut(input: {
+  readonly error: Error | undefined;
+  readonly signal: NodeJS.Signals | null;
+  readonly durationMs: number;
+  readonly timeoutMs: number;
+}): boolean {
+  if (input.error !== undefined && (input.error as NodeJS.ErrnoException).code === 'ETIMEDOUT') {
+    return true;
+  }
+  return input.signal !== null && input.durationMs >= input.timeoutMs;
+}
+
 export function runProofPlanCommand(
   command: ProofPlanCommand,
   projectRoot: string,
@@ -190,6 +207,7 @@ export function runProofPlanCommand(
   }
   const exitCode =
     typeof result.status === 'number' && result.error === undefined ? result.status : 1;
+  const durationMs = Math.max(0, Date.now() - started);
   const stderrParts = [
     typeof result.stderr === 'string' ? result.stderr : '',
     result.error === undefined ? '' : result.error.message,
@@ -199,11 +217,17 @@ export function runProofPlanCommand(
     command,
     exit_code: exitCode,
     status: exitCode === 0 ? 'passed' : 'failed',
-    duration_ms: Math.max(0, Date.now() - started),
+    duration_ms: durationMs,
     stdout_summary: summarizeOutput(
       typeof result.stdout === 'string' ? result.stdout : '',
       command.max_output_bytes,
     ),
     stderr_summary: summarizeOutput(stderrParts.join('\n'), command.max_output_bytes),
+    timed_out: commandTimedOut({
+      error: result.error,
+      signal: result.signal,
+      durationMs,
+      timeoutMs: command.timeout_ms,
+    }),
   };
 }

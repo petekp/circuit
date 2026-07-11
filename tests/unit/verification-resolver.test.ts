@@ -4,6 +4,7 @@ import { join } from 'node:path';
 import { afterEach, describe, expect, it } from 'vitest';
 
 import {
+  DEFAULT_VERIFICATION_TIMEOUT_MS,
   inferBuildVerificationNeeds,
   resolveVerificationCommands,
 } from '../../src/shared/verification-resolver.js';
@@ -175,6 +176,23 @@ describe('resolveVerificationCommands', () => {
     expect(pnpmResult.status).toBe('ready');
     if (pnpmResult.status !== 'ready') throw new Error(pnpmResult.reason);
     expect(pnpmResult.commands[0]?.argv).toEqual(['pnpm', 'run', 'verify']);
+  });
+
+  it('defaults every resolved command to the shared 600000ms verification budget', () => {
+    const root = tempRoot('verification-resolver-default-timeout-');
+    writePackageJson(root, { scripts: { verify: 'vitest' } });
+
+    const result = resolveVerificationCommands({
+      projectRoot: root,
+      goal: 'prove the change',
+      requestedNeeds: ['general'],
+      commandIdPrefix: 'fix',
+    });
+
+    expect(result.status).toBe('ready');
+    if (result.status !== 'ready') throw new Error(result.reason);
+    expect(DEFAULT_VERIFICATION_TIMEOUT_MS).toBe(600_000);
+    expect(result.commands[0]?.timeout_ms).toBe(DEFAULT_VERIFICATION_TIMEOUT_MS);
   });
 
   it('blocks when package.json is missing, malformed, or has invalid scripts', () => {

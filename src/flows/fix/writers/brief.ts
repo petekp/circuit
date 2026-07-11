@@ -7,7 +7,10 @@
 // to deferred repro and a verification command resolved from real package
 // scripts.
 
-import { requireResolvedVerificationCommands } from '../../../shared/verification-resolver.js';
+import {
+  DEFAULT_VERIFICATION_TIMEOUT_MS,
+  requireResolvedVerificationCommands,
+} from '../../../shared/verification-resolver.js';
 import type {
   ComposeBuildContext,
   ComposeBuilder,
@@ -27,7 +30,7 @@ export const fixBriefComposeBuilder: ComposeBuilder = {
             goal,
             requestedNeeds: ['general'],
             commandIdPrefix: 'fix',
-            timeoutMs: 600_000,
+            timeoutMs: DEFAULT_VERIFICATION_TIMEOUT_MS,
             maxOutputBytes: 200_000,
           });
     return projectFixBrief({ goal, verificationCommands });

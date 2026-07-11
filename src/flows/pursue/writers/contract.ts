@@ -14,7 +14,6 @@ export const pursuitContractComposeBuilder: ComposeBuilder = {
       goal,
       requestedNeeds: ['general'],
       commandIdPrefix: 'pursuit',
-      timeoutMs: 120_000,
       maxOutputBytes: 200_000,
     });
 

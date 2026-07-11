@@ -66,6 +66,39 @@ describe('terminalOutcomeBoundToPrimaryResult', () => {
     await expect(terminalOutcomeBoundToPrimaryResult(context, 'complete')).resolves.toBeUndefined();
   });
 
+  it('names an unassessed guardrail in the reason instead of the bare outcome word (F7)', async () => {
+    const context = goalContextReading(async () => ({
+      outcome: 'needs_attention',
+      scope: { unassessed_guardrails: ["every 'circuit--v' literal must equal the release tag"] },
+    }));
+    const bound = await terminalOutcomeBoundToPrimaryResult(context, 'complete');
+    expect(bound?.outcome).toBe('stopped');
+    expect(bound?.reason).toContain(
+      "unassessed guardrail 'every 'circuit--v' literal must equal the release tag'",
+    );
+  });
+
+  it('names a violated guardrail, an accept-with-fixes review, and an out-of-bounds path', async () => {
+    const context = goalContextReading(async () => ({
+      outcome: 'needs_attention',
+      scope: { violated_guardrails: ['must not touch generated/'] },
+      review_verdict: 'accept-with-fixes',
+      touch_area: { out_of_bounds_paths: ['src/outside-scope.ts'] },
+    }));
+    const bound = await terminalOutcomeBoundToPrimaryResult(context, 'complete');
+    expect(bound?.reason).toContain("violated guardrail 'must not touch generated/'");
+    expect(bound?.reason).toContain("review verdict 'accept-with-fixes'");
+    expect(bound?.reason).toContain("out-of-bounds path 'src/outside-scope.ts'");
+  });
+
+  it('keeps the bare-outcome reason when the primary result carries none of the named causes', async () => {
+    const context = goalContextReading(async () => ({ outcome: 'needs_attention' }));
+    const bound = await terminalOutcomeBoundToPrimaryResult(context, 'complete');
+    expect(bound?.reason).toBe(
+      "primary result 'reports/goal-result.json' reported outcome 'needs_attention'",
+    );
+  });
+
   it('short-circuits before reading when the run did not close complete', async () => {
     let read = false;
     const context = goalContextReading(async () => {

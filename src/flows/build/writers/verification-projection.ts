@@ -19,6 +19,7 @@ export function projectBuildVerification(
       duration_ms: observation.duration_ms,
       stdout_summary: observation.stdout_summary,
       stderr_summary: observation.stderr_summary,
+      timed_out: observation.timed_out,
     })),
   });
 }

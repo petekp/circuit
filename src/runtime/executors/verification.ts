@@ -34,6 +34,33 @@ function verificationFailureReason(stepId: string, error: unknown): string {
   return `verification step '${stepId}': report writer failed (${message})`;
 }
 
+// Names the evidence the failing observations already hold instead of a
+// constant string, so the reason that reaches the trace, the close reason,
+// and the operator summary's Stop-reason line tells the operator whether a
+// command actually failed or merely ran out of its budget (F3).
+function failingObservationDetail(observation: VerificationCommandObservation): string {
+  if (observation.timed_out) {
+    return `command '${observation.command.id}' timed out after ${observation.duration_ms}ms (budget ${observation.command.timeout_ms}ms)`;
+  }
+  return `command '${observation.command.id}' exited ${observation.exit_code}`;
+}
+
+function verificationCommandFailureReason(input: {
+  readonly stepId: string;
+  readonly observations: readonly VerificationCommandObservation[];
+}): string {
+  const failing = input.observations.filter((observation) => observation.status === 'failed');
+  const detail = failing.map(failingObservationDetail).join('; ');
+  return `verification step '${input.stepId}' failed: ${detail}`;
+}
+
+// A deterministic timeout does not become a red test on retry: the budget is
+// fixed, so re-running the implementer against it is provably futile (F4).
+function allFailuresTimedOut(observations: readonly VerificationCommandObservation[]): boolean {
+  const failing = observations.filter((observation) => observation.status === 'failed');
+  return failing.length > 0 && failing.every((observation) => observation.timed_out);
+}
+
 function commandEvidenceRef(input: {
   readonly context: RunContext;
   readonly stepId: string;
@@ -286,6 +313,7 @@ export async function executeVerificationResult(
         duration_ms: observation.duration_ms,
         stdout_summary: observation.stdout_summary,
         stderr_summary: observation.stderr_summary,
+        timed_out: observation.timed_out,
         ...sliceTag,
       });
     }
@@ -338,7 +366,7 @@ export async function executeVerificationResult(
     return stepExecutionOutcome({ route: 'pass', details: { overall_status: 'passed' } });
   }
 
-  const reason = `verification step '${step.id}' failed one or more commands`;
+  const reason = verificationCommandFailureReason({ stepId: step.id, observations });
   await context.trace.append({
     run_id: context.runId,
     kind: 'check.evaluated',
@@ -356,6 +384,12 @@ export async function executeVerificationResult(
     body,
     observations,
   });
+  // Every failing command ran out of the same fixed budget: retrying through
+  // the implementer would hit the identical deterministic wall, so skip
+  // recovery routing and fail the step directly with the honest reason (F4).
+  if (allFailuresTimedOut(observations)) {
+    return stepExecutionFailed(reason);
+  }
   const recoveryRoute = recoveryRouteForFailure({
     step,
     workContractRef: context.workContractRef,

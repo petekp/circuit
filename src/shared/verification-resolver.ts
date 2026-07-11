@@ -5,6 +5,11 @@ import { ProofPlanBlockedError } from './proof-plan.js';
 
 export type VerificationNeed = 'build' | 'lint' | 'general';
 
+// One shared verification budget across every caller. 600s aligns Build,
+// Fix, and Pursue with Fix's original allowance instead of the accidental
+// 120s split (docs/release/agent-friction-remediation.md, F1).
+export const DEFAULT_VERIFICATION_TIMEOUT_MS = 600_000;
+
 export interface ResolveVerificationCommandsInput {
   readonly projectRoot?: string;
   readonly goal: string;
@@ -161,7 +166,7 @@ export function resolveVerificationCommands(
       manager: manager as PackageManager,
       script,
       commandIdPrefix: input.commandIdPrefix,
-      timeoutMs: input.timeoutMs ?? 120_000,
+      timeoutMs: input.timeoutMs ?? DEFAULT_VERIFICATION_TIMEOUT_MS,
       maxOutputBytes: input.maxOutputBytes ?? 200_000,
       env: input.env ?? {},
     }),
