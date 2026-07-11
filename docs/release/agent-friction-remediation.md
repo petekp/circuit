@@ -321,3 +321,45 @@ log file, never through a pipe.
 
 After run 1 lands, the verify step inside runs takes up to several
 minutes. That is the check doing its job; the readout stays honest.
+
+## Outcome: the battle-test run (2026-07-10)
+
+Pete overrode the four-run plan and asked for one Pursue run, explicitly
+to battle test that flow. Run `4cb86d0b` implemented all four pieces in a
+single implementer pass (28 minutes), and its failure arc became the
+canonical before-specimen for the findings it was fixing:
+
+- Its own contract, written at minute zero by the old code, carried
+  `npm run verify` at a 120s budget. The command was killed at
+  `duration_ms: 120006`, recorded as `exit_code: 1` with no timeout
+  marker anywhere (F5), and the step reason was the constant "failed one
+  or more commands" (F3).
+- The engine routed the deterministic timeout to retry (F4). The retry
+  worker behaved well: it recognized the known condition, changed
+  nothing, and re-affirmed accept in 3.4 minutes. The second verify
+  attempt hit the same wall, `max_attempts=2` exhausted, and the run
+  closed `aborted` with a reason naming the route mechanics but never
+  the cause (F7 shape).
+- The close envelope printed the same `source_pruned` warning three
+  times verbatim (F9).
+
+The proof machinery held throughout: the verification claim was recorded
+as contradicted and `close_allowed: false`, so an untrue complete was
+structurally unreachable. Salvage at the boundary: independent diff
+review, then full `npm run verify` at the honest budget passed clean
+(exit 0, 4456 tests). Landed as commit `c053884c`.
+
+One new finding from the battle test, out of scope here and recorded for
+the pursue reshaping work already planned post-v1:
+
+- **F10, mechanical goal decomposition.** Pursue's contract writer
+  splits the goal deterministically (newlines, then `1) 2) 3)` inline
+  enumeration, then semicolons). A single-line prose goal with
+  semicolons was minced into nine mid-sentence fragments, each tracked
+  as a pursuit with a regex-guessed touch set. Comprehension survived
+  because the batch relay carries the full goal verbatim; the damage is
+  bookkeeping-level (per-pursuit status is fragment-level noise). The
+  splitter also ignores explicit `PIECE 1` markers. Candidate fixes:
+  recognize more marker shapes, or stop pretending prose splits
+  mechanically and let a cheap model propose the pursuit list against
+  a schema.
