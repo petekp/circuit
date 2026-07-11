@@ -302,6 +302,29 @@
       "last_checked": "2026-07-08"
     },
     {
+      "path": "docs/ideas/run-milestone-stream.md",
+      "title": "Run milestone stream: live legibility for backgrounded runs",
+      "status": "current-proposal",
+      "category": "run-inspection-and-output",
+      "impact": 4,
+      "tags": [
+        "run-status",
+        "narration",
+        "host-experience",
+        "checkpoints",
+        "trace-projection",
+        "post-v1"
+      ],
+      "current_reading": "Proposal for a low-rate, engine-emitted milestone stream (working name status.ndjson) written beside the trace: each line is a typed event whose text is already operator language, derived deterministically from trace entries with no model in the emission path. Consumers stay thin: a circuit watch / status --follow verb, host agents taught a background-and-watch narration pattern, the TUI, and a later notify-hook config surface. Anomaly milestones (relay overdue, verification timed out, recovery routed, checkpoint pause) are first-class, and the checkpoint pause is named the highest-value push event in the system. Grounded in the pursue battle-test run 4cb86d0b (2026-07-10), where a supervising host agent had to hand-build filtering, translation, rate control, and anomaly awareness from the raw trace. Positioned as the deterministic substrate under output-model.md (foreground wrapper rendering) and long-horizon-supervision.md (model-in-the-loop supervision). First slice is docs-only teaching and freeze-compatible; every engine surface waits for post-v1. Nothing built.",
+      "related": [
+        "docs/ideas/output-model.md",
+        "docs/ideas/long-horizon-supervision.md",
+        "docs/ideas/multi-channel-hitl-proposal.md",
+        "docs/release/agent-friction-remediation.md"
+      ],
+      "last_checked": "2026-07-10"
+    },
+    {
       "path": "docs/ideas/popular-workflow-market-scan.md",
       "title": "Popular-workflow market scan (post-v1 lineup)",
       "status": "current-strategy-context",

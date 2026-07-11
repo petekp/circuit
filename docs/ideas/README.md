@@ -136,6 +136,7 @@ every later extension in the note shipped.
 | [`long-horizon-supervision.md`](long-horizon-supervision.md) | `current-idea` | 4 | Idea for executor/supervisor heartbeat and overview surfaces. Future work, not current behavior. |
 | [`output-model.md`](output-model.md) | `current-proposal` | 4 | Proposal for a three-channel output model, flow status indicator, routing checkpoint, and final digest. Revised after adversarial review; not yet built. |
 | [`portable-run-captures.md`](portable-run-captures.md) | `current-idea` | 4 | Idea for exporting successful Runs as reusable team or personal process patterns. Future behavior. |
+| [`run-milestone-stream.md`](run-milestone-stream.md) | `current-proposal` | 4 | Proposal for a low-rate, engine-emitted milestone stream written beside the trace: each line is a typed event whose text is already operator language, derived deterministically from trace entries with no model in the emission path. Consumers stay thin: a `circuit watch` verb, host agents taught a background-and-watch narration pattern, the TUI, and a later notify hook. Anomaly milestones and the checkpoint pause (the highest-value push event in the system) are first-class. Grounded in the pursue battle-test run 4cb86d0b (2026-07-10); the substrate under output-model.md and long-horizon-supervision.md. First slice is docs-only and freeze-compatible; engine surfaces wait for post-v1. Nothing built. |
 
 ### Hosts, Connectors, And HITL
 
