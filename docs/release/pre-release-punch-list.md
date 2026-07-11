@@ -138,7 +138,7 @@ Decide once, then rename without aliases: pre-public-release is the free
 window for a breaking rename and the standing bias is no
 backwards-compat shims.
 
-Blast radius: `src/schemas/depth.ts` and `src/schemas/power.ts`, the
+Blast radius: `src/schemas/process.ts` (was `depth.ts`) and `src/schemas/power.ts`, the
 selection module (`src/selection/power-tiers.ts`, `power-inference.ts`,
 `relay-selection.ts`, `selection-resolver.ts`), CLI usage strings and the
 flag vocabulary, config keys, `circuit preview` output, generated host

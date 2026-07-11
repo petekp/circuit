@@ -34,9 +34,9 @@ import { fromCompiledFlow } from '../runtime/manifest/from-compiled-flow.js';
 import { buildRuntimePackageIndex } from '../runtime/manifest/runtime-package-index.js';
 import { LayeredConfig, type LayeredConfig as LayeredConfigValue } from '../schemas/config.js';
 import type { ResolvedConnector } from '../schemas/connector.js';
-import type { CompiledDepth } from '../schemas/depth.js';
 import type { HostKind } from '../schemas/host.js';
 import type { Power } from '../schemas/power.js';
+import type { CompiledDepth, Process as ProcessValue } from '../schemas/process.js';
 import type { RelayRole } from '../schemas/step.js';
 import { RelayRole as RelayRoleSchema } from '../schemas/step.js';
 import {
@@ -46,6 +46,7 @@ import {
 } from '../selection/power-tiers.js';
 import { deriveResolvedSelection } from '../selection/relay-selection.js';
 import type { GuidanceSelectionFlow } from '../selection/selection-resolver.js';
+import { clampDerivedDepthToFlow, deriveProcessFromPower } from './run.js';
 
 // Where a relay step's model value came from. `pinned` = an explicit pin in
 // the selection stack won — an operator config file OR a pin the flow itself
@@ -105,6 +106,10 @@ export interface FlowSelectionPreview {
   // fixed; `medium` for `auto` (the default-on tier, since a preview has no
   // researcher inference to clamp against).
   readonly dialResolvesTo: Power;
+  // The process thoroughness the dial word derives (Path A), clamped to this
+  // flow's allowed set — the same derivation `circuit run` applies when
+  // `--process` is absent.
+  readonly process: ProcessValue;
   readonly relaySteps: readonly RelayStepSelectionPreview[];
   readonly nonRelaySteps: readonly NonRelayStepSelectionPreview[];
 }
@@ -279,7 +284,15 @@ export function resolveFlowSelectionPreview(
   const dial: Power | 'auto' = setting.kind === 'fixed' ? setting.value : 'auto';
   const dialResolvesTo = resolvePowerDial(layers);
   const codexDefaultModel = input.codexDefaultModel ?? resolveCodexDefaultModelUncached;
-  const depth: CompiledDepth = 'medium';
+  // Path A: the dial word derives process thoroughness (auto derives medium),
+  // clamped to this flow's allowed set — the same derivation `circuit run`
+  // applies when `--process` is absent, so the preview cannot drift from what
+  // a real run would resolve.
+  const process = clampDerivedDepthToFlow(
+    deriveProcessFromPower(setting),
+    compiled.axes.allowed_depths,
+  );
+  const depth: CompiledDepth = process;
 
   const relaySteps: RelayStepSelectionPreview[] = [];
   const nonRelaySteps: NonRelayStepSelectionPreview[] = [];
@@ -306,6 +319,7 @@ export function resolveFlowSelectionPreview(
     visibility: definition.visibility,
     dial,
     dialResolvesTo,
+    process,
     relaySteps,
     nonRelaySteps,
   };

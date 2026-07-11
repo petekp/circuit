@@ -1,7 +1,7 @@
 import { z } from 'zod';
-import { CompiledDepth } from './depth.js';
 import { CompiledFlowId, RunId } from './ids.js';
 import { Power } from './power.js';
+import { CompiledDepth } from './process.js';
 import { MAX_STATUS_TEXT_CHARS } from './progress-event.js';
 import { RubricResult } from './rubric.js';
 import { ProviderScopedModel } from './selection-policy.js';

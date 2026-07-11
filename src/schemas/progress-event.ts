@@ -89,7 +89,9 @@ export const RouteSelectedProgressEvent = ProgressEventBase.extend({
   routed_by: z.literal('explicit'),
   router_reason: z.string().min(1),
   entry_mode: z.string().min(1).optional(),
-  entry_mode_source: z.literal('explicit').optional(),
+  // 'explicit' = axis flags named the tier; 'derived' = the power dial did
+  // (Path A) and the tier landed off the flow default.
+  entry_mode_source: z.enum(['explicit', 'derived']).optional(),
 }).strict();
 
 export const StepStartedProgressEvent = ProgressEventBase.extend({

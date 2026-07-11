@@ -153,4 +153,46 @@ describe('circuit preview: front door', () => {
     expect(reviewerModel(previews[0] as FlowSelectionPreview)).toBe('opus');
     expect(reviewerModel(previews[2] as FlowSelectionPreview)).toBe('sonnet');
   });
+
+  it('a single-flow preview displays the process the dial word derives', () => {
+    const code = runPreviewCommand(['build', '--power', 'low']);
+    expect(code).toBe(0);
+    expect(plainStdout()).toContain('process: low');
+  });
+
+  it('a single-flow JSON preview carries the derived, per-flow-clamped process', () => {
+    // review pins to medium regardless of the dial (Path A per-flow clamp).
+    const code = runPreviewCommand(['review', '--power', 'high', '--json']);
+    expect(code).toBe(0);
+    const preview = json<FlowSelectionPreview>();
+    expect(preview.dial).toBe('high');
+    expect(preview.process).toBe('medium');
+  });
+
+  it('--matrix displays a process row alongside the dial columns, clamped per flow', () => {
+    // prototype floors process at medium, so the LOW column still reads medium.
+    const code = runPreviewCommand(['prototype', '--matrix']);
+    expect(code).toBe(0);
+    const out = plainStdout();
+    expect(out).toContain('dial matrix: high / medium / low');
+    const processLine = out.split('\n').find((line) => line.trim().startsWith('process'));
+    expect(processLine).toBeDefined();
+    expect((processLine as string).split(/\s+/).filter(Boolean)).toEqual([
+      'process',
+      'high',
+      'medium',
+      'medium',
+    ]);
+  });
+
+  it('--matrix --json carries process per dial column, clamped per flow', () => {
+    const code = runPreviewCommand(['prototype', '--matrix', '--json']);
+    expect(code).toBe(0);
+    const previews = json<FlowSelectionPreview[]>();
+    expect(previews.map((p) => ({ dial: p.dial, process: p.process }))).toEqual([
+      { dial: 'high', process: 'high' },
+      { dial: 'medium', process: 'medium' },
+      { dial: 'low', process: 'medium' },
+    ]);
+  });
 });

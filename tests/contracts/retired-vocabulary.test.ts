@@ -31,7 +31,7 @@ const RETIRED_TOKENS: RetiredToken[] = [
   // Depth rename (PR #56): the `--rigor` CLI flag became `--depth`.
   {
     pattern: /--rigor\b/,
-    replacement: '--depth',
+    replacement: '--process',
     ulHeading: 'Configuration Language',
     addedBy: 'depth rename (PR #56)',
     allow: [
@@ -41,6 +41,31 @@ const RETIRED_TOKENS: RetiredToken[] = [
       // rejected flag and probes that the CLI still refuses it
       // (rejection is test-locked at tests/runner/cli-router.test.ts).
       '.claude/skills/circuit-surface-test/SKILL.md',
+      '.claude/skills/circuit-surface-test/references/current-surface-inventory.md',
+      '.claude/skills/circuit-surface-test/assets/report-template.md',
+    ],
+  },
+  // Process rename (dial combination, 2026-07-10): the `--depth` CLI flag
+  // became `--process`. Scoped to the flag position only — the internal
+  // engine identifiers (`axes.depth`, `SelectionOverride.depth`,
+  // `ResolvedSelection.depth`, `CompiledDepth`, `allowed_depths`) keep the
+  // `depth` name by design (see docs/contracts/selection.md) and must not
+  // false-match, so this pattern never matches the bare word `depth`.
+  {
+    pattern: /--depth\b/,
+    replacement: '--process',
+    ulHeading: 'Core Flow Language',
+    addedBy: 'process rename (dial combination, 2026-07-10)',
+    allow: [
+      // The glossary documents the retirement itself.
+      'UBIQUITOUS_LANGUAGE.md',
+      // The decision sheet and punch list describe the retirement as a
+      // historical/planning record naming the old flag by design.
+      'docs/release/dial-and-inbox-decision-sheet.md',
+      'docs/release/pre-release-punch-list.md',
+      // The surface-test skill deliberately documents `--depth` as a
+      // rejected flag and probes that the CLI still refuses it
+      // (rejection is test-locked at tests/runner/cli-router.test.ts).
       '.claude/skills/circuit-surface-test/references/current-surface-inventory.md',
       '.claude/skills/circuit-surface-test/assets/report-template.md',
     ],
@@ -165,7 +190,10 @@ describe('retired-vocabulary calibration (false-positive regression net)', () =>
     'the run closed with outcome `checkpoint_waiting` and checkpoint metadata',
     // English words within reach of a depth key must not match.
     'depth: medium routes the standard fix flow',
-    '--depth high still allows a deep investigation',
+    // Internal engine identifiers keep the `depth` name by design and must
+    // not false-match the `--depth` flag retirement.
+    'axes.depth stays medium; SelectionOverride.depth, ResolvedSelection.depth, ' +
+      'CompiledDepth, and allowed_depths are unaffected by the flag rename',
   ];
 
   it('never matches known-legitimate strings', () => {
@@ -181,13 +209,14 @@ describe('retired-vocabulary calibration (false-positive regression net)', () =>
     // registry edit that silently disarms a pattern fails here.
     const positives: Array<[number, string]> = [
       [0, 'run with `--rigor high` for a stricter pass'],
-      [1, 'set `rigor` in the project config'],
-      [1, 'rigor: high'],
-      [2, 'allowed_depths: [lite, standard, deep]'],
-      [2, 'pass --depth lite for the quick loop'],
-      [3, 'the dial accepts lite|standard|deep'],
-      [4, 'engine_state: "checkpoint_waiting"'],
-      [5, 'see resolveFixturePath in src/cli/flow-fixtures.ts'],
+      [1, 'run with --depth high for extra care'],
+      [2, 'set `rigor` in the project config'],
+      [2, 'rigor: high'],
+      [3, 'allowed_depths: [lite, standard, deep]'],
+      [3, 'pass --depth lite for the quick loop'],
+      [4, 'the dial accepts lite|standard|deep'],
+      [5, 'engine_state: "checkpoint_waiting"'],
+      [6, 'see resolveFixturePath in src/cli/flow-fixtures.ts'],
     ];
     const coveredRows = new Set(positives.map(([index]) => index));
     expect([...coveredRows].sort((a, b) => a - b)).toEqual(RETIRED_TOKENS.map((_, index) => index));

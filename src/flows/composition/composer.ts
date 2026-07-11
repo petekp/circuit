@@ -22,12 +22,12 @@ import {
   FANOUT_AGGREGATE_CONTRACT,
   FLOW_RESULT_CONTRACT,
 } from '../../schemas/builtin-report-schemas.js';
-import type { CompiledDepth } from '../../schemas/depth.js';
 import {
   FLOW_BLOCK_DEFINITIONS,
   type FlowBlockDefinition,
 } from '../../schemas/flow-block-definitions.js';
 import type { FlowBlockId } from '../../schemas/flow-blocks.js';
+import type { CompiledDepth } from '../../schemas/process.js';
 import { CANONICAL_STAGES, type CanonicalStage } from '../../schemas/stage.js';
 import type { FlowSchematicAssemblySpec, StageLabelMap } from '../assemble-flow-schematic.js';
 import type { BlockStepUse } from '../block-step-expansion.js';

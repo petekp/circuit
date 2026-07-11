@@ -4,7 +4,6 @@ import { FlowAxes } from './axes.js';
 import { AxisConfigRequirementList } from './axis-config-requirement.js';
 import { ChangeKind } from './change-kind.js';
 import { CheckpointAllowFrom, FanoutJoinPolicy } from './check.js';
-import { CompiledDepth } from './depth.js';
 import { EngineFlagsManifest } from './engine-flags.js';
 import { EquipmentScope } from './equipment-scope.js';
 import {
@@ -23,6 +22,7 @@ import {
   schematicStagesForBlock,
 } from './flow-schematic-policy.js';
 import { CompiledFlowId, ProtocolId, StageId, StepId } from './ids.js';
+import { CompiledDepth } from './process.js';
 import { ReportFileSurfaceMap } from './report-file-surface.js';
 import { RunRelativePath } from './scalars.js';
 import { SelectionOverride } from './selection-policy.js';

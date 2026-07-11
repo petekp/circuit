@@ -182,3 +182,43 @@ describe('resolveFlowSelectionPreview: generality on another flow', () => {
     expect(high.relaySteps.every((s) => s.problem === undefined)).toBe(true);
   });
 });
+
+// Path A: the preview must show the same process the dial word would derive
+// in a real run (deriveProcessFromPower + clampDerivedDepthToFlow in
+// src/cli/run.ts), not the pre-Path-A hardcoded 'medium'.
+describe('resolveFlowSelectionPreview: process derivation and per-flow clamp', () => {
+  it('a full-ladder flow (cross-tool-build) mirrors the dial word into process', () => {
+    expect(preview('low').process).toBe('low');
+    expect(preview('medium').process).toBe('medium');
+    expect(preview('high').process).toBe('high');
+  });
+
+  it('auto derives process medium regardless of where the dial resolves', () => {
+    expect(preview('auto').process).toBe('medium');
+  });
+
+  it('pins process to medium for a flow whose allowed set is only medium (review)', () => {
+    const shared = {
+      flowId: 'review',
+      configLayers: [],
+      hostKind: 'claude-code',
+      codexDefaultModel: codexStub,
+    } as const;
+    expect(resolveFlowSelectionPreview({ ...shared, power: 'low' }).process).toBe('medium');
+    expect(resolveFlowSelectionPreview({ ...shared, power: 'medium' }).process).toBe('medium');
+    expect(resolveFlowSelectionPreview({ ...shared, power: 'high' }).process).toBe('medium');
+    expect(resolveFlowSelectionPreview({ ...shared, power: 'auto' }).process).toBe('medium');
+  });
+
+  it('floors process at medium for a flow whose allowed set omits low (prototype)', () => {
+    const shared = {
+      flowId: 'prototype',
+      configLayers: [],
+      hostKind: 'claude-code',
+      codexDefaultModel: codexStub,
+    } as const;
+    expect(resolveFlowSelectionPreview({ ...shared, power: 'low' }).process).toBe('medium');
+    expect(resolveFlowSelectionPreview({ ...shared, power: 'medium' }).process).toBe('medium');
+    expect(resolveFlowSelectionPreview({ ...shared, power: 'high' }).process).toBe('high');
+  });
+});

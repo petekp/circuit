@@ -8,10 +8,11 @@ import {
 
 // The fix harness emits CLI flags for `circuit run fix` based on its
 // `--circuit-mode`. If the run CLI renames or drops an option (it renamed the
-// rigor axis to `--depth` in PR #56), the harness silently emits a flag the CLI
-// rejects, and live runs only fail mid-flight. This test is the drift guard:
-// every flag set the harness can emit must parse against the *actual* commander
-// definition in src/cli/run.ts.
+// rigor axis to `--depth` in PR #56, then `--depth` to `--process` under Path
+// A), the harness silently emits a flag the CLI rejects, and live runs only
+// fail mid-flight. This test is the drift guard: every flag set the harness
+// can emit must parse against the *actual* commander definition in
+// src/cli/run.ts.
 //
 // The harness always supplies a flow-name and --goal alongside the mode flags,
 // so we wrap them the same way; that isolates the assertion to the mode flags
@@ -27,10 +28,10 @@ describe('fix harness circuit-mode flags', () => {
     });
   }
 
-  it('maps depth modes to the --depth axis the CLI declares', () => {
+  it('maps depth modes to the --process axis the CLI declares', () => {
     for (const mode of ['low', 'medium', 'high'] as const) {
-      expect(circuitModeArgs(mode)).toEqual(['--depth', mode]);
-      expect(parseModeArgs(mode).depthProvided).toBe(true);
+      expect(circuitModeArgs(mode)).toEqual(['--process', mode]);
+      expect(parseModeArgs(mode).processProvided).toBe(true);
     }
   });
 
@@ -40,7 +41,7 @@ describe('fix harness circuit-mode flags', () => {
 
     expect(circuitModeArgs('default')).toEqual([]);
     const parsedDefault = parseModeArgs('default');
-    expect(parsedDefault.depthProvided).toBe(false);
+    expect(parsedDefault.processProvided).toBe(false);
     expect(parsedDefault.autonomousProvided).toBe(false);
   });
 });

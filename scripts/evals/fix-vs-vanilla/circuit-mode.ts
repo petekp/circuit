@@ -1,10 +1,11 @@
 // The fix harness drives Circuit through its real CLI, so the flags it emits
 // for `--circuit-mode` must stay valid against `circuit run`'s option set. That
 // coupling has drifted before: PR #56 renamed the execution-rigor axis from
-// `--rigor` to `--depth <low|medium|high>`, but the harness kept emitting
-// `--rigor`, so any non-default run would have failed mid-flight. The
-// translation lives here, beside a drift-guard test that feeds every emitted
-// flag through the actual commander definition in src/cli/run.ts.
+// `--rigor` to `--depth <low|medium|high>`, and Path A later renamed it again
+// to `--process <low|medium|high>`, but a harness that kept emitting a retired
+// flag would fail any non-default run mid-flight. The translation lives here,
+// beside a drift-guard test that feeds every emitted flag through the actual
+// commander definition in src/cli/run.ts.
 
 export type CircuitMode = 'default' | 'low' | 'medium' | 'high' | 'autonomous';
 
@@ -28,5 +29,5 @@ export function isCircuitMode(value: string): value is CircuitMode {
 export function circuitModeArgs(mode: CircuitMode): string[] {
   if (mode === 'default') return [];
   if (mode === 'autonomous') return ['--autonomous'];
-  return ['--depth', mode];
+  return ['--process', mode];
 }

@@ -1,5 +1,5 @@
 // E1 live runner — the budget-spending lane. Given one task, it runs the
-// holistic (`fix`) and separated (`build --depth high`) variants, each in its
+// holistic (`fix`) and separated (`build --process high`) variants, each in its
 // own isolated git worktree at a shared base commit, then normalizes both into
 // a comparison record.
 //
@@ -40,7 +40,7 @@ interface VariantSpec {
 // `fix` has no blocking checkpoint and needs no resume.
 const VARIANT_SPECS: readonly VariantSpec[] = [
   { variantId: 'holistic', flowId: 'fix', extraArgs: [] },
-  { variantId: 'separated', flowId: 'build', extraArgs: ['--depth', 'high'] },
+  { variantId: 'separated', flowId: 'build', extraArgs: ['--process', 'high'] },
 ];
 
 // Defensive bound on the resume loop. `build` has exactly one checkpoint today
@@ -172,7 +172,7 @@ function runVariant(
   // exits 0 without a terminal result.json, leaving process-evidence.json with
   // outcome 'checkpoint_waiting'. Answer it the way a human confirming the brief
   // would — `circuit resume --checkpoint-choice continue` (resume reuses the
-  // saved manifest/goal/axes, so it takes neither --goal nor --depth nor
+  // saved manifest/goal/axes, so it takes neither --goal nor --process nor
   // --flow-root) — until the run reaches a terminal outcome or the defensive
   // bound trips. `fix` never parks here, so its first readCheckpointState
   // already reports not-waiting and this loop is a no-op.

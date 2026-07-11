@@ -771,14 +771,14 @@ describe('release truth infrastructure', () => {
     // published reproduction instructions rot silently.
     const expectedFragments = new Map([
       ['proof:routed-build', ['run build', '"develop: add a small safe change"']],
-      ['proof:explicit-build', ['run build', '"add a focused change"', '--depth high']],
+      ['proof:explicit-build', ['run build', '"add a focused change"', '--process high']],
       ['proof:review', ['run review', '"review this change"']],
       [
         'proof:checkpoint-resume',
         [
           'run build',
           '"deep change that asks for scope"',
-          '--depth high',
+          '--process high',
           '--checkpoint-choice continue',
         ],
       ],
@@ -808,7 +808,7 @@ describe('release truth infrastructure', () => {
         [
           'run prototype',
           '"prototype: sketch a custom Circuit flow builder UI"',
-          '--depth high',
+          '--process high',
           '--checkpoint-choice save-build-input',
         ],
       ],

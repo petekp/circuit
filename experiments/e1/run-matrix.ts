@@ -6,7 +6,7 @@
 // The default (fixture) lane renders the bundled recorded run folders through
 // the same buildMatrix -> report pipeline the live lane uses, so the grid math
 // is provable without spending a cent. The `--live` lane runs the canonical two
-// grains (holistic `fix`, separated `build --depth high`) across every `--task`,
+// grains (holistic `fix`, separated `build --process high`) across every `--task`,
 // each in an isolated worktree, clearing build's opening frame checkpoint with
 // `circuit resume --checkpoint-choice continue`. Gated behind `--live` so an
 // unattended invocation never spends budget by accident.
@@ -106,7 +106,7 @@ function printHelpAndExit(code = 0): never {
       '',
       'Lanes:',
       '  (default)    Render the bundled fixture matrix. Spends ZERO budget.',
-      '  --live       Run holistic (fix) and separated (build --depth high)',
+      '  --live       Run holistic (fix) and separated (build --process high)',
       '               across every --task. SPENDS MODEL BUDGET.',
       '',
       'Options:',
@@ -154,7 +154,7 @@ async function buildMatrixForCli(options: CliOptions): Promise<ExperimentMatrix>
       `      repeats: ${options.repeats} (interleaved across tasks)`,
       `      runs:    ${totalRuns} (tasks × repeats × 2 grains)`,
       `      work:    ${workRoot}`,
-      '      Running fix + build --depth high per task, then stopping.',
+      '      Running fix + build --process high per task, then stopping.',
       '',
     ].join('\n'),
   );

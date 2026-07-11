@@ -5,7 +5,7 @@ An experiment set, not a benchmark. It asks one question: does a flow's
 **separable** the task is?
 
 - **Grain** is the independent variable. Holistic grain runs the `fix` flow as
-  one pass. Separated grain runs `build --depth high`, the setting that engages
+  one pass. Separated grain runs `build --process high`, the setting that engages
   build's per-slice act-and-verify loop.
 - **Separability** is the moderator. Each task carries a pre-registered
   separability score (four 0-2 dimensions: co-change, coupling,

@@ -776,7 +776,7 @@ describe('CLI router', () => {
         'build',
         '--goal',
         'develop: add a focused feature that waits for framing',
-        '--depth',
+        '--process',
         'high',
         '--run-folder',
         runFolder,
@@ -808,7 +808,7 @@ describe('CLI router', () => {
         'build',
         '--goal',
         'develop: add a focused feature that waits for framing',
-        '--depth',
+        '--process',
         'high',
         '--progress',
         'jsonl',
@@ -941,7 +941,7 @@ describe('CLI router', () => {
     expect(output.runtime_reason).toMatch(/runtime supports fresh pursue/i);
   });
 
-  it('lets explicit --depth medium set the Build default depth', async () => {
+  it('lets explicit --process medium set the Build default depth', async () => {
     const runFolder = join(runFolderBase, 'build-explicit-default-mode');
     const projectRoot = createProofProject('build-explicit-default-mode-project');
 
@@ -952,7 +952,7 @@ describe('CLI router', () => {
           'build',
           '--goal',
           'develop: add a small standard change',
-          '--depth',
+          '--process',
           'medium',
           '--run-folder',
           runFolder,
@@ -971,7 +971,7 @@ describe('CLI router', () => {
     expect(bootstrap).toMatchObject({ depth: 'medium' });
   }, 30_000);
 
-  it('uses --depth to select the matching axis depth', async () => {
+  it('uses --process to select the matching axis depth', async () => {
     const runFolder = join(runFolderBase, 'build-depth-only');
     const projectRoot = createProofProject('build-depth-only-project');
 
@@ -981,7 +981,7 @@ describe('CLI router', () => {
         'build',
         '--goal',
         'develop: add a small deep change',
-        '--depth',
+        '--process',
         'high',
         '--run-folder',
         runFolder,
@@ -1092,7 +1092,7 @@ describe('CLI router', () => {
     expect(existsSync(runFolder)).toBe(false);
   });
 
-  it('accepts --depth low and threads low depth into relay selection', async () => {
+  it('accepts --process low and threads low depth into relay selection', async () => {
     const runFolder = join(runFolderBase, 'build-low-entry-mode');
     const projectRoot = createProofProject('build-low-entry-mode-project');
     const output = await runMainJson(
@@ -1101,7 +1101,7 @@ describe('CLI router', () => {
         'build',
         '--goal',
         'Add a tiny Build feature from the CLI',
-        '--depth',
+        '--process',
         'low',
         '--run-folder',
         runFolder,
@@ -1130,7 +1130,7 @@ describe('CLI router', () => {
         'build',
         '--goal',
         'Add a tiny Build feature from the CLI',
-        '--depth',
+        '--process',
         'low',
         '--run-folder',
         join(runFolderBase, 'build-depth-low-thread'),
@@ -1507,7 +1507,7 @@ describe('CLI router', () => {
         'run',
         'build',
         '--goal=Build through equals syntax',
-        '--depth=high',
+        '--process=high',
         `--run-folder=${runFolder}`,
       ],
       '{"verdict":"accept"}',
@@ -1596,7 +1596,7 @@ describe('CLI router', () => {
     const runFolder = join(runFolderBase, 'checkpoint-waiting');
     const projectRoot = createProofProject('checkpoint-waiting-project');
     const output = await runMainJson(
-      ['run', 'build', '--goal', 'Frame via CLI', '--depth', 'high', '--run-folder', runFolder],
+      ['run', 'build', '--goal', 'Frame via CLI', '--process', 'high', '--run-folder', runFolder],
       '{"verdict":"accept"}',
       { configCwd: projectRoot },
     );
@@ -1643,11 +1643,11 @@ describe('CLI router', () => {
       join(runFolderBase, 'not-needed'),
       '--checkpoint-choice',
       'continue',
-      '--depth',
+      '--process',
       'high',
     ]);
     expect(withDepth.exit).toBe(2);
-    expect(withDepth.stderr).toMatch(/omit --depth\/--tournament\/--autonomous/);
+    expect(withDepth.stderr).toMatch(/omit --process\/--tournament\/--autonomous/);
 
     const withFixture = await runMainExit([
       'resume',
@@ -1670,7 +1670,7 @@ describe('CLI router', () => {
       '--autonomous',
     ]);
     expect(withAutonomous.exit).toBe(2);
-    expect(withAutonomous.stderr).toMatch(/omit --depth\/--tournament\/--autonomous/);
+    expect(withAutonomous.stderr).toMatch(/omit --process\/--tournament\/--autonomous/);
   });
 
   it('lets Commander reject retired --rigor as an unknown option', async () => {
@@ -1701,9 +1701,9 @@ describe('CLI router', () => {
     expect(withMode.stderr).toMatch(/unknown option '--mode'/);
   });
 
-  it('parses --run-folder before rejecting resume-only --depth', async () => {
+  it('parses --run-folder before rejecting resume-only --process', async () => {
     // Resume validates other flags after argv parsing; pairing --run-folder
-    // with --depth exercises the downstream axis-omit branch. The
+    // with --process exercises the downstream axis-omit branch. The
     // branch firing proves --run-folder parsed and populated the run-folder slot.
     const result = await runMainExit([
       'resume',
@@ -1711,11 +1711,11 @@ describe('CLI router', () => {
       join(runFolderBase, 'not-needed'),
       '--checkpoint-choice',
       'continue',
-      '--depth',
+      '--process',
       'high',
     ]);
     expect(result.exit).toBe(2);
-    expect(result.stderr).toMatch(/omit --depth\/--tournament\/--autonomous/);
+    expect(result.stderr).toMatch(/omit --process\/--tournament\/--autonomous/);
   });
 
   it("uses Commander's last-value-wins behavior for repeated scalar options", async () => {
@@ -1725,13 +1725,13 @@ describe('CLI router', () => {
       join(runFolderBase, 'not-needed'),
       '--checkpoint-choice',
       'continue',
-      '--depth',
+      '--process',
       'medium',
-      '--depth',
+      '--process',
       'high',
     ]);
     expect(conflict.exit).toBe(2);
-    expect(conflict.stderr).toMatch(/omit --depth\/--tournament\/--autonomous/);
+    expect(conflict.stderr).toMatch(/omit --process\/--tournament\/--autonomous/);
   });
 
   it('rejects --tournament-n as a retired, unknown option', async () => {

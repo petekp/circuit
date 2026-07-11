@@ -51,7 +51,7 @@ export { CIRCUIT_HOST_KIND_ENV } from './run.js';
 
 export function usage(): string {
   return [
-    'usage: circuit run <flow-name> --goal "<goal>" [--why <why>] [--depth <low|medium|high>] [--power <auto|low|medium|high>] [--tournament [2|3|4]] [--autonomous] [--run-folder <path>] [--fixture <path>] [--flow-root <path>] [--progress jsonl]',
+    'usage: circuit run <flow-name> --goal "<goal>" [--why <why>] [--power <auto|low|medium|high>] [--process <low|medium|high>] [--tournament [2|3|4]] [--autonomous] [--run-folder <path>] [--fixture <path>] [--flow-root <path>] [--progress jsonl]',
     '       circuit resume --run-folder <path> --checkpoint-choice <choice> [--progress jsonl]',
     '       circuit runs show --run-folder <path> --json',
     '       circuit inbox [--project-root <path>] [--runs-base <path>] [--json]',
@@ -67,7 +67,7 @@ export function usage(): string {
     '       circuit config [show [--json] | set <key> <value> | unset <key>] [--project|--global]',
     '       circuit version [--json]',
     '',
-    "Axes: `--depth` controls care level (`low`, `medium`, `high`); `--power` sets the model tier (`auto`, `low`, `medium`, `high`; default `medium`; `auto` lets the run's research read pick within configured bounds); `--tournament` turns on option fan-out, with an optional inline count in the v1 range [2, 4] (e.g. `--tournament 3`; default 3 when omitted); `--autonomous` auto-resolves supported checkpoints and runs a bounded continuation loop (recovery routed by unmet evidence kind; never completes by exhaustion). Unsupported tuples are rejected per flow with the flow allow-list.",
+    "Axes: `--power` sets the model tier (`auto`, `low`, `medium`, `high`; default `medium`; `auto` lets the run's research read pick within configured bounds) and also derives process thoroughness (`low`→`low`, `medium`→`medium`, `high`→`high`, `auto`→`medium`), clamped to each flow's supported set; `--process` overrides the derived care level (`low`, `medium`, `high`) when an explicit value beats the derivation; `--tournament` turns on option fan-out, with an optional inline count in the v1 range [2, 4] (e.g. `--tournament 3`; default 3 when omitted); `--autonomous` auto-resolves supported checkpoints and runs a bounded continuation loop (recovery routed by unmet evidence kind; never completes by exhaustion). Unsupported tuples are rejected per flow with the flow allow-list.",
     '',
     'With an explicit flow name, loads generated/flows/<name>/circuit.json. The flow name is required: pass one of build|fix|review|explore|prototype|pursue. Routing is model-only; the host or operator names the flow, and the CLI never classifies the goal text.',
     '',

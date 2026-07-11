@@ -307,9 +307,15 @@ Both bounds are optional. The run summary reports the resolved tier and why:
 the ceiling, or `power medium (auto, no recommendation)` when the research step
 makes none.
 
-Depth has no auto position. Depth decides which steps the run is built from
-before any model runs, so there is nothing in the run yet that could judge
-it. Pick depth yourself; let power pick itself.
+Process has no config key and no auto position. `--power` is the one dial
+config and the CLI teach; its value also derives process thoroughness
+(`low`→`low`, `medium`→`medium`, `high`→`high`, `auto`→`medium`), clamped
+to what the target flow supports. Process decides which steps the run is
+built from before any model runs, so there is nothing in the run yet that
+could judge it the way `power_auto` judges a model tier — it can only be
+derived from the power dial or set explicitly with `--process
+<low|medium|high>` on the CLI, never in config. One dial to configure; an
+explicit `--process` on a run is the advanced override.
 
 ## Preview A Flow's Selection
 
@@ -321,7 +327,7 @@ again costs nothing, so you can settle the config before you pay for a run.
 
 ```text
 $ circuit preview cross-tool-build --power high
-flow: cross-tool-build (internal)   dial: high
+flow: cross-tool-build (internal)   dial: high · process: high
 
 STEP                  ROLE         CONNECTOR    MODEL    EFFORT  SOURCE
 propose-step          researcher   codex        gpt-5.5  high    codex-default
@@ -336,8 +342,11 @@ non-relay steps: plan-step (compose), verify-step (verification), close-step (co
 Flags:
 
 - `--power <auto|low|medium|high>` previews one dial position. Omit it to preview
-  the effective dial your config already sets.
-- `--matrix` previews `high`, `medium`, and `low` side by side.
+  the effective dial your config already sets. The header also reports the
+  process the dial derives for this flow (clamped to what it supports);
+  `circuit preview` has no `--process` override of its own.
+- `--matrix` previews `high`, `medium`, and `low` side by side, with a
+  `process` row showing the derived process per column.
 - `--json` prints the structured record instead of the table. The readout shows
   the bare model name; the record keeps the provider in its own `provider` field.
 

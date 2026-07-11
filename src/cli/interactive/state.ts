@@ -1,5 +1,5 @@
-import { CompiledDepth } from '../../schemas/depth.js';
 import { PowerDialSetting } from '../../schemas/power.js';
+import { CompiledDepth } from '../../schemas/process.js';
 import { Effort } from '../../schemas/selection-policy.js';
 
 // Pure state machine for the interactive shell. Every keystroke flows through

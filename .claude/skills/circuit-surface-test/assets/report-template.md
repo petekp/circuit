@@ -47,9 +47,9 @@ you actually ran.
 
 ### CLI Flags
 
-- **Run-axis flags observed:** <--depth, --power, --tournament, --autonomous>
+- **Run-axis flags observed:** <--power, --process, --tournament, --autonomous>
 - **Evidence flags observed:** <--include-untracked-content, --progress jsonl, --run-folder>
-- **Rejected unsupported flags checked:** <--mode, --rigor, --dry-run, if checked>
+- **Rejected unsupported flags checked:** <--mode, --rigor, --depth, --dry-run, if checked>
 
 ### Axis Allow-List
 
@@ -237,7 +237,7 @@ LLMs) read this when they need to understand what was actually exercised.
 ```text
 [01] /circuit:run briefly explain the repo layout (selected_flow=explore)
      exit=0  run=<abs path>
-[02] run explore --depth high --goal 'compare low vs high depth tradeoffs for explore'
+[02] run explore --process high --goal 'compare low vs high process tradeoffs for explore'
      exit=0  run=<abs path>
 …
 ```

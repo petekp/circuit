@@ -5,7 +5,7 @@ arrangements that differ only in decomposition grain, then emits one comparable
 record so you can see what the grain bought (or cost):
 
 - **holistic** — the near-default `fix` flow: a single work step.
-- **separated** — the `build` flow at `--depth high`: the act/verify slice loop.
+- **separated** — the `build` flow at `--process high`: the act/verify slice loop.
 
 Both arms get the byte-identical goal and start from the same base commit, each
 in its own isolated git worktree. The only independent variable is the flow's
@@ -25,7 +25,7 @@ to `bin/circuit` exactly as the `fix-vs-vanilla` eval harness does.
 # extract -> compare -> report pipeline. Spends ZERO budget. Safe to run anytime.
 node experiments/e1/run-comparison.ts
 
-# Live lane — runs one `fix` and one `build --depth high` for real on the task,
+# Live lane — runs one `fix` and one `build --process high` for real on the task,
 # each in an isolated worktree, then stops. SPENDS MODEL BUDGET.
 node experiments/e1/run-comparison.ts --live --task heldout-wrap-index --out /tmp/e1-out
 ```
@@ -45,7 +45,7 @@ rollup across tasks:
 # Fixture lane — renders the bundled grid (1 task × 2 variants). ZERO budget.
 node experiments/e1/run-matrix.ts
 
-# Live lane — fix + build --depth high across every --task, then stops. SPENDS BUDGET.
+# Live lane — fix + build --process high across every --task, then stops. SPENDS BUDGET.
 node experiments/e1/run-matrix.ts --live --task heldout-wrap-index --task heldout-token-bucket --out /tmp/e1-matrix
 ```
 
@@ -104,7 +104,7 @@ The harness clears that gate the way a human confirming the brief would, without
 changing how the run executes: it reads the parked checkpoint from
 `process-evidence.json` (pure detection in `checkpoint.ts`) and answers it with
 `circuit resume --run-folder <RF> --checkpoint-choice continue`. Resume reuses
-the saved manifest/goal/axes (so it takes no `--goal`/`--depth`/`--flow-root`),
+the saved manifest/goal/axes (so it takes no `--goal`/`--process`/`--flow-root`),
 continues the SAME run in the SAME folder, and re-emits the terminal artifacts.
 This deliberately avoids `--autonomous`, which would change the whole run's
 autonomy behavior and confound the grain comparison. The matrix still flags any

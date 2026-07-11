@@ -7,8 +7,8 @@ import {
   Axes,
   ChangeKindDeclaration,
   CompiledDepth,
-  Depth,
   FlowAxes,
+  Process,
   Role,
   isConsequentialAxes,
   isConsequentialDepth,
@@ -16,12 +16,12 @@ import {
 
 describe('depth and axes', () => {
   it('accepts only low, medium, and high depth values', () => {
-    expect(Depth.safeParse('low').success).toBe(true);
-    expect(Depth.safeParse('medium').success).toBe(true);
-    expect(Depth.safeParse('high').success).toBe(true);
-    expect(Depth.safeParse('tournament').success).toBe(false);
-    expect(Depth.safeParse('autonomous').success).toBe(false);
-    expect(Depth.safeParse('max').success).toBe(false);
+    expect(Process.safeParse('low').success).toBe(true);
+    expect(Process.safeParse('medium').success).toBe(true);
+    expect(Process.safeParse('high').success).toBe(true);
+    expect(Process.safeParse('tournament').success).toBe(false);
+    expect(Process.safeParse('autonomous').success).toBe(false);
+    expect(Process.safeParse('max').success).toBe(false);
   });
 
   it('defaults axes to standard interactive non-tournament runs', () => {

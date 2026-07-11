@@ -139,7 +139,7 @@ describe('runtime surface soak', () => {
           'build',
           '--goal',
           'Add a small feature',
-          '--depth',
+          '--process',
           'high',
           '--progress',
           'jsonl',

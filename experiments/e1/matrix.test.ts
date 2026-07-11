@@ -55,7 +55,7 @@ function cell(
 
 const SPECS: readonly MatrixVariantSpec[] = [
   { variant_label: 'holistic', flow_id: 'fix', extra_args: [] },
-  { variant_label: 'separated', flow_id: 'build', extra_args: ['--depth', 'high'] },
+  { variant_label: 'separated', flow_id: 'build', extra_args: ['--process', 'high'] },
 ];
 
 const META = { mode: 'fixture' as const, generated_at: '2026-06-14T00:00:00.000Z' };

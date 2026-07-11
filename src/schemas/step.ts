@@ -6,10 +6,10 @@ import {
   ResultVerdictCheck,
   SchemaSectionsCheck,
 } from './check.js';
-import { CompiledDepth } from './depth.js';
 import { EquipmentScope } from './equipment-scope.js';
 import { CompiledFlowId, ProtocolId, StepId } from './ids.js';
 import { JsonObject } from './json.js';
+import { CompiledDepth } from './process.js';
 import { RubricRuntimeSignal } from './rubric.js';
 import { CheckpointChoiceSource, RuntimeNumberSource } from './runtime-source.js';
 import { RunRelativePath } from './scalars.js';

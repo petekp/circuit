@@ -5,7 +5,7 @@
 // All the matrix math (rows, deltas, rollup) is the pure code the fixture lane
 // proves; the only untested surface here is the loop, by design.
 //
-// Spends model budget — one `fix` + one `build --depth high` per task. Gated
+// Spends model budget — one `fix` + one `build --process high` per task. Gated
 // behind the run-matrix CLI's `--live` flag so an unattended invocation can
 // never spend by accident, and bounded by the budget rail: no retries, no loop
 // beyond the explicit task list.

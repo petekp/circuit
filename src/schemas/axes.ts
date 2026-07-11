@@ -1,13 +1,13 @@
 import { z } from 'zod';
-import { type CompiledDepth, Depth } from './depth.js';
 import { StageId } from './ids.js';
+import { type CompiledDepth, Process } from './process.js';
 
 export const TournamentN = z.number().int().min(2).max(4);
 export type TournamentN = z.infer<typeof TournamentN>;
 
 export const Axes = z
   .object({
-    depth: Depth.default('medium'),
+    depth: Process.default('medium'),
     tournament: z.boolean().default(false),
     tournament_n: TournamentN.default(3),
     autonomous: z.boolean().default(false),
@@ -19,7 +19,7 @@ export const DEFAULT_AXES = Axes.parse({});
 
 export const FlowAxes = z
   .object({
-    allowed_depths: z.array(Depth).min(1),
+    allowed_depths: z.array(Process).min(1),
     supports_tournament: z.boolean().default(false),
     supports_autonomous: z.boolean().default(false),
     default: Axes.default(DEFAULT_AXES),
@@ -80,7 +80,7 @@ export const isConsequentialAxes = (axes: Axes): boolean =>
   axes.depth === 'high' || axes.tournament || axes.autonomous;
 
 const axesForCompiledDepth = (depth: CompiledDepth): Axes => ({
-  depth: Depth.safeParse(depth).success ? (depth as Depth) : 'medium',
+  depth: Process.safeParse(depth).success ? (depth as Process) : 'medium',
   tournament: depth === 'tournament',
   autonomous: depth === 'autonomous',
   tournament_n: 3,

@@ -22,11 +22,11 @@ import {
   type LayeredConfig as LayeredConfigValue,
 } from '../../src/schemas/config.js';
 import { CustomConnectorDescriptor } from '../../src/schemas/connector.js';
-import { CompiledDepth } from '../../src/schemas/depth.js';
 import {
   PolicyLayer,
   type PolicyLayer as PolicyLayerValue,
 } from '../../src/schemas/policy-envelope.js';
+import { CompiledDepth } from '../../src/schemas/process.js';
 import {
   SelectionOverride,
   type SelectionOverride as SelectionOverrideValue,

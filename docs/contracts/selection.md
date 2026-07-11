@@ -1,9 +1,9 @@
 ---
 contract: selection
 status: ratified-v0.1
-version: 0.5
+version: 0.6
 schema_source: src/schemas/selection-policy.ts
-last_updated: 2026-06-11
+last_updated: 2026-07-10
 depends_on: [ids, depth, skill, stage, config, run]
 closes: [stage-md-v0.1-med-7-stage-level-selection]
 report_ids:
@@ -238,8 +238,11 @@ Closes Codex LOW #12 (enforcement-location claim drift).
 
 ## Power dial materialization (post-stack)
 
-The **Power** dial (`src/schemas/power.ts`, `low | medium | high`) is an
-operator-facing sibling of Depth: how much model per unit of work. It is NOT
+The **Power** dial (`src/schemas/power.ts`, `low | medium | high`) is the
+front-door dial: how much model per unit of work. It also derives Process
+(`low`→`low`, `medium`→`medium`, `high`→`high`, `auto`→`medium`), clamped to
+the target flow's supported set; an explicit `--process` overrides the
+derivation. Power materialization itself is NOT
 an eighth selection layer. The layered stack resolves first; then
 `materializePowerSelection` (`src/selection/power-tiers.ts`) fills ONLY the
 fields the stack left unset, at relay-guidance time
@@ -500,9 +503,13 @@ Stage 2 harness task where noted below.
   bindings. Skill existence closure is a runtime concern, not a schema
   concern.
 
-- **depth** (`src/schemas/depth.ts`) — `SelectionOverride.depth` and
+- **depth** (`src/schemas/process.ts`) — `SelectionOverride.depth` and
   `ResolvedSelection.depth` use the `CompiledDepth` enum (`low`, `medium`,
-  `high`, `tournament`, `autonomous`). A `depth` contribution at the
+  `high`, `tournament`, `autonomous`). This is the internal, engine-side
+  field name; the operator-facing dial is `Process`
+  (`src/schemas/process.ts`, `low | medium | high`), materialized from an
+  explicit `--process` or derived from `--power` and clamped per flow
+  before it reaches this layer. A `depth` contribution at the
   step layer overrides the flow's entry-mode depth at relay
   time; the precedence rule is SEL-I1.
 
@@ -651,6 +658,16 @@ Stage 2 harness task where noted below.
   `power_source`/`power_recommended`/`power_rationale`/`power_clamped`.
   Depth stays manual by design: depth selects the compiled flow shape before
   any model runs, so inferring it would need a pre-run model call.
+
+- **v0.6 (Dial combination, 2026-07-10)** — the operator-facing dial renames
+  from `Depth` to `Process` (`src/schemas/process.ts`; the internal
+  `SelectionOverride.depth`/`ResolvedSelection.depth` fields and
+  `CompiledDepth` enum keep their names) and gains a derivation rule: when
+  no explicit `--process` is given, Process is derived from the Power dial
+  word (`low`→`low`, `medium`→`medium`, `high`→`high`, `auto`→`medium`) and
+  clamped to the target flow's supported set. An explicit `--process`
+  still beats the derivation. Process still has no auto position and no
+  config key — it is either derived from Power or set explicitly per run.
 
 - **v1.0 (Stage 2)** — Ratified invariants + property tests + resolver
   implementation with `selection.prop.*` as acceptance check +

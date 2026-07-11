@@ -14,7 +14,7 @@ import type { RunContext } from '../../src/runtime/run/run-context.js';
 import { TraceStore } from '../../src/runtime/trace/trace-store.js';
 import { CompiledFlow } from '../../src/schemas/compiled-flow.js';
 import { Config, type LayeredConfig as LayeredConfigValue } from '../../src/schemas/config.js';
-import { CompiledDepth } from '../../src/schemas/depth.js';
+import { CompiledDepth } from '../../src/schemas/process.js';
 import type { RelayFn } from '../../src/shared/relay-runtime-types.js';
 
 // Relay-trace_entry provenance plumbing through `runCompiledFlow`.

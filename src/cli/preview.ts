@@ -212,7 +212,11 @@ export function renderSinglePreview(
     preview.dial === preview.dialResolvesTo
       ? `dial: ${preview.dial}`
       : `dial: ${preview.dial} (resolves to ${preview.dialResolvesTo})`;
-  const header = headerLine(palette, `${preview.flowId} (${preview.visibility})`, dialLine);
+  const header = headerLine(
+    palette,
+    `${preview.flowId} (${preview.visibility})`,
+    `${dialLine} · process: ${preview.process}`,
+  );
 
   const rows: TableRow[] = [
     columnHeader(palette, ['STEP', 'ROLE', 'CONNECTOR', 'MODEL', 'EFFORT', 'SOURCE']),
@@ -253,11 +257,20 @@ function overviewDialLine(previews: readonly FlowSelectionPreview[]): string {
   // `auto` may resolve differently per flow, so only claim a single resolution
   // when every flow landed on the same tier.
   const resolved = new Set(previews.map((p) => p.dialResolvesTo));
-  if (resolved.size === 1 && first.dial !== first.dialResolvesTo) {
-    return `dial: ${first.dial} (resolves to ${first.dialResolvesTo})`;
-  }
-  if (resolved.size > 1) return `dial: ${first.dial} (resolves per flow)`;
-  return `dial: ${first.dial}`;
+  const dialText =
+    resolved.size === 1 && first.dial !== first.dialResolvesTo
+      ? `dial: ${first.dial} (resolves to ${first.dialResolvesTo})`
+      : resolved.size > 1
+        ? `dial: ${first.dial} (resolves per flow)`
+        : `dial: ${first.dial}`;
+  // The per-flow clamp (Review/Pursue pin to medium, Prototype floors at
+  // medium) means the derived process can differ across flows even under one
+  // dial, so only claim a single process when every flow landed on the same
+  // tier.
+  const processes = new Set(previews.map((p) => p.process));
+  const processText =
+    processes.size === 1 ? `process: ${first.process}` : 'process: (resolves per flow)';
+  return `${dialText} · ${processText}`;
 }
 
 function renderOverview(
@@ -309,8 +322,16 @@ export function renderMatrix(
 
   // One row per relay step, one model+effort column per dial.
   const columnLabels = previews.map((p) => p.dial.toUpperCase());
+  const processRow: TableRow = [
+    cell('process', palette.dim),
+    cell('', palette.dim),
+    cell('', palette.dim),
+    ...previews.map((p) => cell(p.process, palette.dim)),
+  ];
   const rows: TableRow[] = [
     columnHeader(palette, ['STEP', 'ROLE', 'CONNECTOR', ...columnLabels]),
+    'rule',
+    processRow,
     'rule',
   ];
   for (const step of first.relaySteps) {

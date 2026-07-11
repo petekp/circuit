@@ -31,9 +31,9 @@ code, contracts, generated surfaces, or troubleshooting docs.
 | **Report** | A typed output written by a step or close stage. | Artifact, output blob |
 | **Evidence** | Supporting facts, files, checks, and reports produced or consumed by a run. | Artifact, proof blob |
 | **Run folder** | The directory where a run stores its trace, reports, evidence, and resume state. | Run root, run directory |
-| **Depth** | Operator-facing process dial for `--depth` and `axes.allowed_depths`: `low`, `medium`, or `high`. | Rigor, Effort |
-| **Power** | Operator-facing model dial for `--power` and `defaults.power`: the setting is `auto`, `low`, `medium`, or `high` and never names models. Default `medium`. The [selection contract](docs/contracts/selection.md#power-dial-materialization-post-stack) owns how it materializes to a tier. | Model picker, Tier, Effort |
-| **Mode** | A named flow entry option, often paired with a depth. | Safety classification, change kind |
+| **Process** | Operator-facing thoroughness dial for `--process` and `axes.allowed_depths`: `low`, `medium`, or `high`. Derived from the Power dial when no explicit `--process` is given (`low`→`low`, `medium`→`medium`, `high`→`high`, `auto`→`medium`), clamped to the target flow's supported set; an explicit `--process` beats the derivation. Retired name: `Depth`/`--depth`. | Rigor, Effort, Depth |
+| **Power** | Operator-facing model dial and the only dial the front door teaches, for `--power` and `defaults.power`: the setting is `auto`, `low`, `medium`, or `high` and never names models. Default `medium`. It also derives Process (see above). The [selection contract](docs/contracts/selection.md#power-dial-materialization-post-stack) owns how it materializes to a tier. | Model picker, Tier, Effort |
+| **Mode** | A named flow entry option, often paired with a process level. | Safety classification, change kind |
 
 ## Identifier Language
 
@@ -187,9 +187,9 @@ Frame brief and Act, so do not use it for the limits in operator prose.
 | **Resolved selection** | The effective model, effort, skills, depth, and invocation options used at relay time. | Final config |
 | **Selection resolution** | The resolved selection plus provenance for which layers contributed it. | Audit record |
 | **Provider-scoped model** | A model named with its provider. | Model string |
-| **Effort** | Provider-level reasoning allocation. | Depth |
-| **CompiledDepth** | The depth dial unioned with the mode flags (`low`, `medium`, `high`, `tournament`, `autonomous`): the single scalar that describes how hard a compiled run goes. | Rigor |
-| **change_kind** | Serialized safety classification for a run or change, such as `ratchet-advance`, `equivalence-refactor`, or `disposable`. Keep the field name exact in schemas and traces. | Mode, Depth |
+| **Effort** | Provider-level reasoning allocation. | Process |
+| **CompiledDepth** | Internal engine identifier (kept from the pre-rename vocabulary) for the Process dial unioned with the mode flags (`low`, `medium`, `high`, `tournament`, `autonomous`): the single scalar that describes how hard a compiled run goes. | Rigor |
+| **change_kind** | Serialized safety classification for a run or change, such as `ratchet-advance`, `equivalence-refactor`, or `disposable`. Keep the field name exact in schemas and traces. | Mode, Process |
 
 ## Continuity Language
 
@@ -266,9 +266,11 @@ inside historical docs, tests, or migration notes when the context is explicit.
 - **Acceptance criteria** can make a **Relay** retry or stop before its
   report becomes accepted evidence.
 - A **Checkpoint** is a step-level pause, not a separate flow.
-- A **Depth** describes operator-requested care; **CompiledDepth** is the
-  compiled runtime thoroughness derived from depth and mode flags; **Effort**
-  describes provider-level reasoning allocation.
+- A **Process** describes operator-requested care, derived from the
+  **Power** dial word and clamped per flow, or set explicitly with
+  `--process`; **CompiledDepth** is the compiled runtime thoroughness
+  derived from process and mode flags; **Effort** describes
+  provider-level reasoning allocation.
 - A **Plugin** exposes **Skills**, commands, and generated compiled-flow outputs.
 
 ## Example Dialogue
@@ -290,18 +292,22 @@ inside historical docs, tests, or migration notes when the context is explicit.
 - **CompiledFlow** can sound like the product flow. Use **Flow** for the product and **CompiledFlow** only for the runtime schema.
 - **Report** can mean a typed output or a vague file. Use **Report** for typed outputs and **Evidence** for supporting proof.
 - **Relay** can name product delegation or serialized `relay.*` trace entries. Use **Relay** in prose and keep serialized names in code or backticks.
-- **Depth**, **Power**, **CompiledDepth**, and **Effort** all describe
-  intensity at different layers. Use **Depth** for the operator process dial,
-  **Power** for the operator model dial, **CompiledDepth** for compiled
-  runtime thoroughness, and **Effort** for provider-level reasoning
-  allocation. **Rigor** is the retired name for the depth dial; do not use it.
+- **Process**, **Power**, **CompiledDepth**, and **Effort** all describe
+  intensity at different layers. Use **Process** for the operator
+  thoroughness dial (`--process`, an advanced override), **Power** for the
+  operator model dial (`--power`, the only dial the front door teaches,
+  which also derives Process), **CompiledDepth** for compiled runtime
+  thoroughness, and **Effort** for provider-level reasoning allocation.
+  **Depth** and **Rigor** are retired names for the process dial; do not
+  use either.
 - **Auto-resolution** belongs to checkpoints (a declared safe default
   answering a checkpoint without the operator). The mechanism that resolves
   an `auto` power dial from the researcher's recommendation is the **power
   inference** (`run.power-inference` trace entries,
   `src/selection/power-inference.ts`); do not call it auto-resolution.
-  Depth has no auto position: depth selects the compiled flow shape before
-  any model runs.
+  Process has no auto position and no config key of its own: it is either
+  derived from the Power dial word (clamped per flow) or set explicitly
+  with `--process`.
 - **Stage** appears in both product prose and runtime fields. The term is canonical in both places, but runtime field names should stay in backticks when discussing serialization.
 - **Fixture** is useful in tests, but it should not describe product-facing generated flows.
 - **Runtime proof** is an internal proof flow, not a public capability.

@@ -104,13 +104,14 @@ as literal user-controlled text when constructing shell commands.
    ```
 
    The other flows and modes follow the same shape: substitute the flow name
-   (`prototype`; each flow accepts only the depths it supports),
-   add `--depth high` for the deepest loop where supported or `--depth low`
-   for the lightest pass (on Fix, low also skips the independent review
-   relay), add `--power low` or `--power high`
-   to turn the model dial for the run (default medium; `--power auto` lets
-   the run pick its own tier from the research read), and add
-   `--tournament 3` to a Prototype run for model comparison.
+   (`prototype`; each flow accepts only the process levels it supports),
+   add `--power low` or `--power high` to turn the model dial for the run
+   (default medium; `--power auto` lets the run pick its own tier from the
+   research read); the dial also derives process thoroughness, so add an
+   explicit `--process high` for the deepest loop where supported or
+   `--process low` for the lightest pass when you want process to diverge
+   from power (on Fix, process low also skips the independent review
+   relay), and add `--tournament 3` to a Prototype run for model comparison.
 
    Use the Bash tool to execute the constructed command. The wrapper
    lives in the installed Circuit plugin directory and injects the plugin's

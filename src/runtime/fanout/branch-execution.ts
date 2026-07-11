@@ -6,7 +6,7 @@ import { dirname, join } from 'node:path';
 import { runCrossReportValidator } from '../../flows/registries/cross-report-validators.js';
 import { parseReport } from '../../flows/registries/report-schemas.js';
 import { CompiledFlow as CompiledFlowSchema } from '../../schemas/compiled-flow.js';
-import { CompiledDepth } from '../../schemas/depth.js';
+import { CompiledDepth } from '../../schemas/process.js';
 import { RunResult } from '../../schemas/result.js';
 import type { TraceEntry } from '../domain/trace.js';
 import {

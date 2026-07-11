@@ -6,7 +6,7 @@
 // (src/cli/compiled-flow-loading.ts#resolveCompiledFlowPath), but the trust
 // gate (src/cli/runtime-routing-policy.ts#publishedCustomFlowMatches) blesses
 // only the manifest's single circuit.json flow_path. So `circuit run <slug>
-// --depth low` resolves to an unblessed low.json sibling and is rejected with
+// --process low` resolves to an unblessed low.json sibling and is rejected with
 // the GENERIC "unsupported runtime invocation" reason — confusing, since the
 // mode IS published, just not blessed.
 //

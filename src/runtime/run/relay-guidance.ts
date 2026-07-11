@@ -15,13 +15,13 @@ import {
 } from '../../policy/policy-envelope.js';
 import type { ResolvedConnector } from '../../schemas/connector.js';
 import type { RelayResolutionSource } from '../../schemas/connector.js';
-import type { CompiledDepth } from '../../schemas/depth.js';
 import type { HostKind } from '../../schemas/host.js';
 import type { CompiledFlowId } from '../../schemas/ids.js';
 import type {
   PolicyConnectorRef,
   PolicyLayer as PolicyLayerValue,
 } from '../../schemas/policy-envelope.js';
+import type { CompiledDepth } from '../../schemas/process.js';
 import type { ResolvedSelection as ResolvedSelectionValue } from '../../schemas/selection-policy.js';
 import type { SkillSlot } from '../../schemas/skill.js';
 import { RelayRole } from '../../schemas/step.js';

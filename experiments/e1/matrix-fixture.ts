@@ -15,13 +15,13 @@ import {
 } from './matrix.ts';
 
 // The canonical two grains, as matrix columns. Holistic (fix) is the baseline
-// column; separated (build --depth high) is the contrast. The live runner clears
+// column; separated (build --process high) is the contrast. The live runner clears
 // build's opening frame checkpoint by answering it with `circuit resume
 // --checkpoint-choice continue`, not by changing the run's autonomy. This is the
 // column set the live matrix runner uses too.
 export const CANONICAL_VARIANTS: readonly MatrixVariantSpec[] = [
   { variant_label: 'holistic', flow_id: 'fix', extra_args: [] },
-  { variant_label: 'separated', flow_id: 'build', extra_args: ['--depth', 'high'] },
+  { variant_label: 'separated', flow_id: 'build', extra_args: ['--process', 'high'] },
 ];
 
 // Map each canonical column to the bundled fixture dir that stands in for it.

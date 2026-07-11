@@ -131,7 +131,11 @@ Evidence:
 
 Run parses operator controls into `axes`:
 
-- `depth`: `low`, `medium`, or `high`; default is `medium`.
+- `depth`: `low`, `medium`, or `high`. Populated from an explicit
+  `--process <low|medium|high>` when given, otherwise derived from the
+  `--power` dial word (`low`→`low`, `medium`→`medium`, `high`→`high`,
+  `auto`→`medium`) and clamped to the target flow's supported set. The
+  internal axis field is still named `depth`; the CLI flag is `--process`.
 - `tournament`: boolean; default is `false`.
 - `tournament_n`: integer from 2 to 4; default is `3`.
 - `autonomous`: boolean; default is `false`.
@@ -142,8 +146,8 @@ The entry mode is a display and fixture-selection name derived from axes:
 | --- | --- |
 | `--autonomous` | `autonomous` |
 | `--tournament` | `tournament` |
-| `--depth low` | `low` |
-| `--depth high` | `high` |
+| `--process low` (explicit or power-derived) | `low` |
+| `--process high` (explicit or power-derived) | `high` |
 | no explicit axis | no field in route event, then runtime default |
 
 There are two related names:
@@ -633,7 +637,7 @@ These are current pressure points, not current behavior:
 - Entry mode and fixture mode have different precedence when autonomous and
   tournament are both true. If combined axes remain supported, that distinction
   should be made intentional in a contract.
-- Compiled runtime depth, the operator depth dial, and model effort are easy to confuse. The UI and docs
+- Compiled runtime depth, the operator process dial, and model effort are easy to confuse. The UI and docs
   should keep naming them separately unless the product intentionally merges
   them.
 - The final Run decision packet is spread across stdout, trace guidance,

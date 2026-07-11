@@ -38,24 +38,36 @@ can also pass these controls when the selected flow supports them:
 
 | Control | CLI flag | Supported by |
 | --- | --- | --- |
-| Low, medium, or high depth | `--depth <low|medium|high>` | Build, Explore, and Fix. Prototype supports medium or high. Review only supports medium depth. |
 | Power, fixed or self-chosen | `--power <auto|low|medium|high>` | Every flow. `auto` lets the run pick its own tier from what the research step reads. |
+| Process, an advanced override | `--process <low|medium|high>` | Build, Explore, and Fix. Prototype supports medium or high. Review and Pursue only support medium process. |
 | Tournament | `--tournament [2|3|4]` | Explore and Prototype. |
 | Autonomous continuation | `--autonomous` | Build, Explore, Fix, and Prototype. |
 
 Unsupported combinations fail before the run starts.
 
-Depth (`--depth`) tunes how much thoroughness and effort the worker spends, and
-the resolved depth is recorded as `resolved_axes` in the run output. For Fix,
-`low` also drops the independent review stage. For Build, low and medium run
-the plan in a single pass; high additionally iterates the plan's slices one at
-a time, implementing and verifying each slice before advancing to review.
+`--power` is the one dial the front door teaches. It sets the model tier
+(default `medium`) and, by the same value, derives how much process
+thoroughness the run gets: `low`→`low`, `medium`→`medium`, `high`→`high`,
+`auto`→`medium`. The derived process clamps to what the target flow
+supports — Review and Pursue always land on medium, Prototype floors at
+medium, and Build, Explore, and Fix use the full low/medium/high ladder.
 
-Power (`--power`) tunes how much model each worker run gets without naming
-models; the default is `medium`. The selection contract
+`--process` is the advanced escape hatch when the derived pairing is not
+what you want: pass it explicitly to decouple process from power, for
+example a thorough process pass on a cheap model (`--power low --process
+high`) or a quick pass on a strong model (`--power high --process low`). An
+explicit `--process` always beats the power-derived value, and the
+resolved process — derived or explicit — is recorded as `resolved_axes` in
+the run output. For Fix, process `low` also drops the independent review
+stage (which is why `--power low` alone now skips it too). For Build,
+process low and medium run the plan in a single pass; high additionally
+iterates the plan's slices one at a time, implementing and verifying each
+slice before advancing to review.
+
+The selection contract
 ([`docs/contracts/selection.md`](contracts/selection.md#power-dial-materialization-post-stack))
-owns how the dial maps to roles, escalates on retry, and reads on the end-of-run
-receipt. Prototype tournament
+owns how the power dial maps to roles, escalates on retry, and reads on the
+end-of-run receipt. Prototype tournament
 mode (`--tournament`) additionally requires `flows.prototype.variant_models`
 in your Circuit config and fails before the run starts when it is absent, naming
 the missing config as the stop reason. See
@@ -137,7 +149,7 @@ that work, `trace` as the ordered record, `report` as typed output, and
    flow before calling Circuit. On the CLI, you name the flow explicitly as the
    first argument; the CLI rejects a run without a flow name.
 2. Circuit loads the compiled flow from the catalog and checks the requested
-   depth, tournament, and autonomous controls against that flow's allow-list.
+   process, tournament, and autonomous controls against that flow's allow-list.
 3. Circuit runs stages in order. Examples include Frame, Analyze, Plan, Act,
    Verify, Review, and Close. Each flow chooses the stages it needs.
 4. Relay steps may declare deterministic acceptance criteria. Circuit checks

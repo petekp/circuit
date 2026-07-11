@@ -10,11 +10,11 @@
 //
 // Dependency-light leaf: imports only from `src/schemas/` (zod-only
 // modules), never from `run.ts` or anything that could cycle back into
-// the CLI. The `--depth`/`--power` value hints derive from the zod
+// the CLI. The `--process`/`--power` value hints derive from the zod
 // enums so a tier rename is physically one edit that feeds the CLI
 // parser, the help text, and the doc lint together.
-import { Depth } from '../schemas/depth.js';
 import { PowerDialSetting } from '../schemas/power.js';
+import { Process } from '../schemas/process.js';
 
 export interface RunExecutionFlag {
   /** Long flag name as typed, e.g. '--goal'. */
@@ -32,7 +32,7 @@ export interface RunExecutionFlag {
 export const RUN_EXECUTION_FLAGS: readonly RunExecutionFlag[] = [
   { flag: '--goal', valueHint: '<goal>', docValid: true },
   { flag: '--why', valueHint: '<why>', docValid: true },
-  { flag: '--depth', valueHint: `<${Depth.options.join('|')}>`, docValid: true },
+  { flag: '--process', valueHint: `<${Process.options.join('|')}>`, docValid: true },
   { flag: '--power', valueHint: `<${PowerDialSetting.options.join('|')}>`, docValid: true },
   { flag: '--tournament', valueHint: '[2|3|4]', docValid: true },
   { flag: '--autonomous', docValid: true },

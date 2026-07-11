@@ -6,7 +6,7 @@ export interface RouteOutputFieldsInput {
   readonly routedBy: 'explicit';
   readonly routerReason: string;
   readonly entryMode?: string;
-  readonly entryModeSource?: 'explicit';
+  readonly entryModeSource?: 'explicit' | 'derived';
 }
 
 export interface SelectedProcessFieldsInput {

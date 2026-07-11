@@ -1,8 +1,8 @@
 import { z } from 'zod';
-import { CompiledDepth } from './depth.js';
 import { SkillId, StageId, StepId } from './ids.js';
 import { JsonObject } from './json.js';
 import { Power } from './power.js';
+import { CompiledDepth } from './process.js';
 
 // Provider-scoped model. The four-provider enum is closed; `model` is an
 // open string because connector-specific code owns provider/model handling.

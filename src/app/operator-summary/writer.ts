@@ -10,7 +10,6 @@ import {
   iterationLedgerFromTrace,
   renderIterationLedgerMarkdown,
 } from '../../runtime/run/iteration-ledger.js';
-import { CompiledDepth } from '../../schemas/depth.js';
 import {
   OperatorAutoResolution,
   type OperatorAutoResolution as OperatorAutoResolutionValue,
@@ -27,6 +26,7 @@ import {
   type OperatorSummaryWarning,
 } from '../../schemas/operator-summary.js';
 import { Power } from '../../schemas/power.js';
+import { CompiledDepth } from '../../schemas/process.js';
 import type { RunResult } from '../../schemas/result.js';
 import { ProviderScopedModel } from '../../schemas/selection-policy.js';
 import { RunSkillHookEvent } from '../../schemas/skill-hook.js';

@@ -2,8 +2,8 @@
   "schema_version": 1,
   "set_id": "grain-separability",
   "status": "experiment-internal",
-  "purpose": "Measure whether a flow's grain changes outcome quality as a function of how separable the task is. The independent variable is grain: holistic (fix) versus separated (build --depth high). The moderator is the task's a-priori separability band.",
-  "independent_variable": "grain: holistic fix vs separated build --depth high",
+  "purpose": "Measure whether a flow's grain changes outcome quality as a function of how separable the task is. The independent variable is grain: holistic (fix) versus separated (build --process high). The moderator is the task's a-priori separability band.",
+  "independent_variable": "grain: holistic fix vs separated build --process high",
   "moderator": "separability band (separable | mixed | entangled), pre-registered per task",
   "primary_metric": "false_fixed_rate",
   "secondary_metrics": [

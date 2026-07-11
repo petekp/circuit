@@ -1,7 +1,7 @@
 import { z } from 'zod';
 import { ChangeKindDeclaration } from './change-kind.js';
-import { CompiledDepth } from './depth.js';
 import { CompiledFlowId, InvocationId, RunId, StepId } from './ids.js';
+import { CompiledDepth } from './process.js';
 
 export const StepStatus = z.enum(['pending', 'in_progress', 'check_failed', 'complete', 'aborted']);
 export type StepStatus = z.infer<typeof StepStatus>;

@@ -10,11 +10,11 @@ import { isGraphCheckpointWaitingResult } from '../runtime/run/graph-runner.js';
 import { Axes, type Axes as AxesValue, TournamentN } from '../schemas/axes.js';
 import type { CompiledFlow } from '../schemas/compiled-flow.js';
 import { Config, type LayeredConfig } from '../schemas/config.js';
-import { Depth, type Depth as DepthValue } from '../schemas/depth.js';
 import { HostKind, type HostKind as HostKindValue } from '../schemas/host.js';
 import { CompiledFlowId, RunId } from '../schemas/ids.js';
 import { computeManifestHash } from '../schemas/manifest.js';
 import { PowerDialSetting, type PowerDialSetting as PowerDialValue } from '../schemas/power.js';
+import { Process, type Process as ProcessValue } from '../schemas/process.js';
 import {
   ProgressEvent,
   type ProgressEvent as ProgressEventValue,
@@ -23,6 +23,7 @@ import { RunResult } from '../schemas/result.js';
 import type { RunEnvelopeOutcome } from '../schemas/run-envelope.js';
 import type { WaitingCheckpointStatus } from '../schemas/run-status.js';
 import type { RunClosedOutcome } from '../schemas/trace-entry.js';
+import { type PowerDialResolution, resolvePowerDialSetting } from '../selection/power-tiers.js';
 
 import { prepareRunStartHistoryRecall } from '../app/history/run-start-recall.js';
 import { readPriorRoute, writeOperatorSummary } from '../app/operator-summary/writer.js';
@@ -96,7 +97,7 @@ export interface ParsedArgs {
   axes: AxesValue;
   power?: PowerDialValue;
   powerProvided: boolean;
-  depthProvided: boolean;
+  processProvided: boolean;
   tournamentProvided: boolean;
   autonomousProvided: boolean;
   runFolder?: string;
@@ -119,7 +120,7 @@ interface ResolvedCompiledFlowRoute {
 
 interface ResolvedEntryModeSelection {
   entryModeName?: string;
-  source?: 'explicit';
+  source?: 'explicit' | 'derived';
   reason?: string;
 }
 
@@ -161,7 +162,7 @@ export function parseExecutionArgs(command: 'run' | 'resume', argv: readonly str
   const opts = program.opts<{
     goal?: string;
     why?: string;
-    depth?: string;
+    process?: string;
     power?: string;
     tournament?: boolean | string;
     autonomous?: boolean;
@@ -186,9 +187,9 @@ export function parseExecutionArgs(command: 'run' | 'resume', argv: readonly str
     );
   }
 
-  let depth: DepthValue | undefined;
-  const depthProvided = opts.depth !== undefined;
-  if (opts.depth !== undefined) depth = Depth.parse(opts.depth);
+  let depth: ProcessValue | undefined;
+  const processProvided = opts.process !== undefined;
+  if (opts.process !== undefined) depth = Process.parse(opts.process);
 
   let power: PowerDialValue | undefined;
   const powerProvided = opts.power !== undefined;
@@ -272,9 +273,9 @@ export function parseExecutionArgs(command: 'run' | 'resume', argv: readonly str
     if (flowRoot !== undefined) {
       throw new Error('checkpoint resume loads the saved flow manifest; omit --flow-root');
     }
-    if (depthProvided || tournamentProvided || autonomousProvided) {
+    if (processProvided || tournamentProvided || autonomousProvided) {
       throw new Error(
-        'checkpoint resume reuses the saved run axes; omit --depth/--tournament/--autonomous',
+        'checkpoint resume reuses the saved run axes; omit --process/--tournament/--autonomous',
       );
     }
     if (powerProvided) {
@@ -308,7 +309,7 @@ export function parseExecutionArgs(command: 'run' | 'resume', argv: readonly str
     command,
     axes,
     powerProvided,
-    depthProvided,
+    processProvided,
     tournamentProvided,
     autonomousProvided,
     includeUntrackedContent,
@@ -356,7 +357,39 @@ function resolveCompiledFlowRoute(args: ParsedArgs): ResolvedCompiledFlowRoute {
 }
 
 function hasExplicitAxes(args: ParsedArgs): boolean {
-  return args.depthProvided || args.tournamentProvided || args.autonomousProvided;
+  return args.processProvided || args.tournamentProvided || args.autonomousProvided;
+}
+
+// Path A: the power dial word derives process thoroughness when --process is
+// absent. auto has no fixed tier of its own, so it derives medium — the same
+// default-on tier the dial resolves to elsewhere when auto has no inference.
+// Exported for characterization (cli-process-derivation.test.ts), same
+// pattern as exitCodeForClosedOutcome below.
+export function deriveProcessFromPower(setting: PowerDialResolution): ProcessValue {
+  return setting.kind === 'fixed' ? setting.value : 'medium';
+}
+
+// A derived process is never a usage error: it clamps to the flow's allowed
+// set (floor below the lowest allowed value, ceiling above the highest).
+// Every flow allows medium, so a pinned single-value set (Review, Pursue)
+// clamps any derived tier to that one value. Exported for characterization
+// (cli-process-derivation.test.ts).
+export function clampDerivedDepthToFlow(
+  derived: ProcessValue,
+  allowedDepths: readonly ProcessValue[],
+): ProcessValue {
+  if (allowedDepths.includes(derived)) return derived;
+  const order = Process.options;
+  const derivedIndex = order.indexOf(derived);
+  const allowedIndices = allowedDepths.map((candidate) => order.indexOf(candidate));
+  const minAllowed = Math.min(...allowedIndices);
+  const maxAllowed = Math.max(...allowedIndices);
+  const clampedIndex = Math.min(Math.max(derivedIndex, minAllowed), maxAllowed);
+  const clamped = order[clampedIndex];
+  if (clamped === undefined) {
+    throw new Error(`internal error: unable to clamp process '${derived}' to allowed set`);
+  }
+  return clamped;
 }
 
 function axisSelectionNameForAxes(axes: AxesValue): string {
@@ -372,15 +405,29 @@ function runtimeDepthForAxes(axes: AxesValue): string {
   return axes.depth;
 }
 
-// Entry mode (thoroughness) is explicit-only: it comes from the axis flags
-// (--depth/--tournament/--autonomous), never inferred from goal text.
-function resolveEntryModeSelection(args: ParsedArgs): ResolvedEntryModeSelection {
+// Entry mode (thoroughness) names the run's tier on the operator surface. It
+// comes from the axis flags (--process/--tournament/--autonomous) or — when
+// only --power was given — from the tier the dial derived, never from goal
+// text. A derived tier is named only when it lands off the flow default, so
+// a bare run keeps the plain "Chose <flow>." line. finalAxes must be the
+// post-derivation, post-clamp axes. Exported for characterization
+// (cli-process-derivation.test.ts).
+export function resolveEntryModeSelection(
+  args: ParsedArgs,
+  finalAxes: AxesValue,
+): ResolvedEntryModeSelection {
   if (hasExplicitAxes(args)) {
     return {
       entryModeName: axisSelectionNameForAxes(args.axes),
       source: 'explicit',
       reason: 'explicit axis flags',
     };
+  }
+  if (args.power !== undefined) {
+    const entryModeName = axisSelectionNameForAxes(finalAxes);
+    if (entryModeName !== 'default') {
+      return { entryModeName, source: 'derived', reason: 'derived from the power dial' };
+    }
   }
   return {};
 }
@@ -405,7 +452,7 @@ function validateFlowAxes(input: {
   const flowId = input.flow.id as unknown as string;
   const allowList = axisAllowListText(flowId, support);
   if (!support.allowedDepths.includes(axes.depth)) {
-    throw new Error(`--depth ${axes.depth} is not supported by flow '${flowId}'. ${allowList}`);
+    throw new Error(`--process ${axes.depth} is not supported by flow '${flowId}'. ${allowList}`);
   }
   if (axes.tournament && !support.supportsTournament) {
     throw new Error(`--tournament is not supported by flow '${flowId}'. ${allowList}`);
@@ -471,13 +518,16 @@ function selectedEntryModeName(
   return entryModeSelection.entryModeName ?? 'default';
 }
 
+// args.axes.depth always carries the run's final process word by the time
+// this runs, whether from an explicit --process or the power-derived,
+// flow-clamped value resolved earlier in runExecutionCommand — so this reads
+// it directly rather than falling back to the flow's own default.
 function selectedDepth(
-  flow: CompiledFlow,
+  _flow: CompiledFlow,
   args: ParsedArgs,
   _entryModeSelection: ResolvedEntryModeSelection,
 ): string {
-  if (hasExplicitAxes(args)) return runtimeDepthForAxes(args.axes);
-  return runtimeDepthForAxes(flow.axes.default);
+  return runtimeDepthForAxes(args.axes);
 }
 
 function classifyRuntimeSupport(input: {
@@ -835,8 +885,39 @@ export async function runExecutionCommand(
     process.stderr.write(`error: ${(err as Error).message}\n`);
     return 2;
   }
-  const entryModeSelection = resolveEntryModeSelection(args);
-  const fixtureSelectionName = compiledFlowSelectionNameForAxes(args.axes);
+  // Path A: config discovery moves ahead of fixture/axis resolution because an
+  // absent --process derives its value from the resolved power dial (config
+  // layers + --power), and that derived value must be known before the
+  // fixture/mode is selected below.
+  const runtimeConfigLayers = discoverRuntimeConfigLayers({
+    ...(options.configHomeDir !== undefined ? { homeDir: options.configHomeDir } : {}),
+    ...(options.configCwd !== undefined ? { cwd: options.configCwd } : {}),
+    // --power rides the existing invocation config layer, so it composes with
+    // (and outranks) a user-global or project `defaults.power` exactly like
+    // any other layered config opinion.
+    ...(args.power === undefined
+      ? {}
+      : {
+          invocationConfig: Config.parse({
+            schema_version: 1,
+            defaults: { power: args.power },
+          }),
+        }),
+  });
+  const { policyLayers, selectionConfigLayers } = runtimeConfigLayers;
+
+  // An explicit --process always wins. Absent one, the power dial word derives
+  // process thoroughness (auto derives medium); the flow's allowed set clamps
+  // it below once the flow itself is loaded.
+  let axes = args.axes;
+  if (!args.processProvided) {
+    axes = Axes.parse({
+      ...axes,
+      depth: deriveProcessFromPower(resolvePowerDialSetting(selectionConfigLayers)),
+    });
+  }
+
+  const fixtureSelectionName = compiledFlowSelectionNameForAxes(axes);
   const fixturePath = resolveCompiledFlowPath(
     route.flowName,
     fixtureSelectionName,
@@ -867,15 +948,32 @@ export async function runExecutionCommand(
   }
   const { flow, bytes } = loadCompiledFlow(fixturePath);
   assertFixtureMatchesRoute(flow, route);
+  // A derived (non-explicit) process clamps silently to the flow's supported
+  // set (floor Prototype to medium, pin Review/Pursue to medium, no-op for
+  // the full ladder); an explicit --process outside the set stays a usage
+  // error, checked by validateFlowAxes below unchanged.
+  if (!args.processProvided) {
+    axes = Axes.parse({
+      ...axes,
+      depth: clampDerivedDepthToFlow(axes.depth, flow.axes.allowed_depths),
+    });
+  }
+  // runArgs carries the run's final axes (explicit or power-derived and
+  // flow-clamped) through the rest of the run: every downstream read of the
+  // axes/depth must see this resolved value, not the pre-derivation args.
+  const runArgs: ParsedArgs = axes === args.axes ? args : { ...args, axes };
+  // Resolved after derivation+clamp so a power-derived tier is named on the
+  // operator surface (status text, entry_mode fields) like an explicit one.
+  const entryModeSelection = resolveEntryModeSelection(args, runArgs.axes);
   try {
-    validateFlowAxes({ flow, args, route, fixturePath });
+    validateFlowAxes({ flow, args: runArgs, route, fixturePath });
   } catch (err) {
     process.stderr.write(`error: ${(err as Error).message}\n`);
     return 2;
   }
   const runId = RunId.parse(options.runId ?? randomUUID());
   const now = options.now ?? (() => new Date());
-  const progress = progressReporter(args.progress === 'jsonl');
+  const progress = progressReporter(runArgs.progress === 'jsonl');
   const selectedStatusText = routeSelectedStatusText(flow.id, entryModeSelection.entryModeName);
   progress?.({
     schema_version: 1,
@@ -903,27 +1001,11 @@ export async function runExecutionCommand(
       : { entry_mode_source: entryModeSelection.source }),
   });
   const runFolder =
-    args.runFolder === undefined
+    runArgs.runFolder === undefined
       ? join(runsRoot(process.cwd()), runId as unknown as string)
-      : resolve(args.runFolder);
-  const runtimeConfigLayers = discoverRuntimeConfigLayers({
-    ...(options.configHomeDir !== undefined ? { homeDir: options.configHomeDir } : {}),
-    ...(options.configCwd !== undefined ? { cwd: options.configCwd } : {}),
-    // --power rides the existing invocation config layer, so it composes with
-    // (and outranks) a user-global or project `defaults.power` exactly like
-    // any other layered config opinion.
-    ...(args.power === undefined
-      ? {}
-      : {
-          invocationConfig: Config.parse({
-            schema_version: 1,
-            defaults: { power: args.power },
-          }),
-        }),
-  });
-  const { policyLayers, selectionConfigLayers } = runtimeConfigLayers;
+      : resolve(runArgs.runFolder);
   try {
-    validateFlowConfigRequirements({ flow, axes: args.axes, selectionConfigLayers });
+    validateFlowConfigRequirements({ flow, axes: runArgs.axes, selectionConfigLayers });
   } catch (err) {
     process.stderr.write(`error: ${(err as Error).message}\n`);
     return 2;
@@ -946,7 +1028,7 @@ export async function runExecutionCommand(
 
   const runtimeSupport = classifyRuntimeSupport({
     flow,
-    args,
+    args: runArgs,
     route,
     entryModeSelection,
     fixturePath,
@@ -954,7 +1036,7 @@ export async function runExecutionCommand(
   const runtimeDecisionDiagnostics = showRuntimeDecision();
   const defaultRuntimeSupport = applyComposeWriterPolicy(
     applyFixturePolicy(runtimeSupport, {
-      args,
+      args: runArgs,
       fixturePath,
     }),
     { hasComposeWriter: options.composeWriter !== undefined },
@@ -963,7 +1045,7 @@ export async function runExecutionCommand(
 
   const ttyNotices = ttyNoticesEnabled({
     stream: process.stderr,
-    progressJsonl: args.progress === 'jsonl',
+    progressJsonl: runArgs.progress === 'jsonl',
   });
 
   if (routeToRuntime) {
@@ -996,12 +1078,12 @@ export async function runExecutionCommand(
       runDir: runFolder,
       runId,
       goal: operatorGoal,
-      ...(args.why === undefined ? {} : { why: args.why }),
+      ...(runArgs.why === undefined ? {} : { why: runArgs.why }),
       now,
       projectRoot,
-      childCompiledFlowResolver: defaultChildCompiledFlowResolver(args.flowRoot),
-      depth: selectedDepth(flow, args, entryModeSelection),
-      axes: args.axes,
+      childCompiledFlowResolver: defaultChildCompiledFlowResolver(runArgs.flowRoot),
+      depth: selectedDepth(flow, runArgs, entryModeSelection),
+      axes: runArgs.axes,
       ...(entryModeSelection.entryModeName === undefined
         ? {}
         : { entryModeName: entryModeSelection.entryModeName }),
@@ -1015,12 +1097,12 @@ export async function runExecutionCommand(
       ...(historyRecall === undefined ? {} : { memoryInputs: historyRecall.report.memory_inputs }),
       ...(historyRecall === undefined ? {} : { historyRecallReport: historyRecall.report }),
       ...(historyRecall === undefined ? {} : { historyRecallPrecision: historyRecall.precision }),
-      ...(args.includeUntrackedContent
+      ...(runArgs.includeUntrackedContent
         ? { evidencePolicy: { includeUntrackedFileContent: true } }
         : {}),
-      ...(args.reuseChildrenFrom === undefined
+      ...(runArgs.reuseChildrenFrom === undefined
         ? {}
-        : { reuseChildrenFrom: resolve(args.reuseChildrenFrom) }),
+        : { reuseChildrenFrom: resolve(runArgs.reuseChildrenFrom) }),
     });
     if (isGraphCheckpointWaitingResult(runtimeResult)) {
       const waitingResult = {
@@ -1048,7 +1130,7 @@ export async function runExecutionCommand(
       });
       const postRunArtifactWarnings: PostRunArtifactWarning[] = [];
       const postRunArtifactContext: PostRunArtifactContext = {
-        progressJsonl: args.progress === 'jsonl',
+        progressJsonl: runArgs.progress === 'jsonl',
         warnings: postRunArtifactWarnings,
       };
       const recordedAt = now().toISOString();
@@ -1158,7 +1240,7 @@ export async function runExecutionCommand(
     });
     const postRunArtifactWarnings: PostRunArtifactWarning[] = [];
     const postRunArtifactContext: PostRunArtifactContext = {
-      progressJsonl: args.progress === 'jsonl',
+      progressJsonl: runArgs.progress === 'jsonl',
       warnings: postRunArtifactWarnings,
     };
     const recordedAt = now().toISOString();
@@ -1198,13 +1280,13 @@ export async function runExecutionCommand(
     // complete by exhaustion. Failures degrade to the normal single-shot result.
     let autonomousLoop: Awaited<ReturnType<typeof runAutonomousContinuation>> | undefined;
     if (
-      args.axes.autonomous === true &&
+      runArgs.axes.autonomous === true &&
       processEvidence !== undefined &&
       runEnvelope !== undefined
     ) {
       const primaryProjection = processEvidence.projection;
       const contract = runEnvelope.record.goal_contract;
-      const parentAxes = args.axes;
+      const parentAxes = runArgs.axes;
       try {
         autonomousLoop = await runAutonomousContinuation({
           contract,
@@ -1212,7 +1294,7 @@ export async function runExecutionCommand(
           runFlow: createRecoveryAttemptRunner({
             primaryProjection,
             fixtureSelectionName,
-            flowRoot: args.flowRoot,
+            flowRoot: runArgs.flowRoot,
             parentAxes,
             runFolder,
             operatorGoal,
@@ -1231,7 +1313,7 @@ export async function runExecutionCommand(
       } catch (err) {
         const message = err instanceof Error ? err.message : String(err);
         postRunArtifactWarnings.push({ label: 'autonomous-loop', message });
-        if (args.progress !== 'jsonl') {
+        if (runArgs.progress !== 'jsonl') {
           process.stderr.write(`warning: autonomous loop failed: ${message}\n`);
         }
         autonomousLoop = undefined;
@@ -1240,7 +1322,7 @@ export async function runExecutionCommand(
     // Record the resolved axes on the envelope so a reader can audit which
     // depth/tournament/autonomous selection actually ran (F-M-1). entry_mode
     // collapses the three axes into one name; resolved_axes keeps them explicit.
-    const resolvedAxes = args.axes;
+    const resolvedAxes = runArgs.axes;
     process.stdout.write(
       `${JSON.stringify(
         composeRunStdoutEnvelope({

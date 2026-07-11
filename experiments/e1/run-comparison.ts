@@ -8,7 +8,7 @@
 // The default (fixture) lane renders the bundled recorded run folders through
 // the exact same extract -> compare -> report pipeline the live lane uses, so
 // the measurement loop is provable without spending a cent. The `--live` lane
-// runs the holistic (`fix`) and separated (`build --depth high`) variants for
+// runs the holistic (`fix`) and separated (`build --process high`) variants for
 // real, each in an isolated worktree, and is the single ready-to-run command
 // the brief asks for. It is gated behind `--live` precisely so an unattended
 // invocation can never spend budget by accident.
@@ -84,7 +84,7 @@ function printHelpAndExit(code = 0): never {
       '',
       'Lanes:',
       '  (default)    Render the bundled fixture comparison. Spends ZERO budget.',
-      '  --live       Run the holistic (fix) and separated (build --depth high)',
+      '  --live       Run the holistic (fix) and separated (build --process high)',
       '               variants for real. SPENDS MODEL BUDGET. One fix run + one',
       '               build run, each in an isolated worktree, then stop.',
       '',
@@ -118,7 +118,7 @@ async function buildComparison(options: CliOptions): Promise<ExperimentCompariso
       `      task:   ${options.taskId}`,
       `      power:  ${options.power}`,
       `      work:   ${workRoot}`,
-      '      Running one `fix` and one `build --depth high`, then stopping.',
+      '      Running one `fix` and one `build --process high`, then stopping.',
       '',
     ].join('\n'),
   );

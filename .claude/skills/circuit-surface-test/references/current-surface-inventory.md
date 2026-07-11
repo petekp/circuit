@@ -98,11 +98,14 @@ Top-level commands:
 
 Run-axis flags:
 
-- `--depth <low|medium|high>` (bespoke per-flow allow-list error at
-  `src/cli/run.ts`: `--depth X is not supported by flow '<id>'. <id> allows
-  depths: ...`)
 - `--power <auto|low|medium|high>` (default `medium`; `auto` resolved once by
-  the engine via the `run.power-inference` trace)
+  the engine via the `run.power-inference` trace; also derives process
+  thoroughness when `--process` is absent — `low`→`low`, `medium`→`medium`,
+  `high`→`high`, `auto`→`medium` — clamped to the target flow's supported set)
+- `--process <low|medium|high>` (advanced override; beats the power-derived
+  value; bespoke per-flow allow-list error at `src/cli/run.ts`: `--process X
+  is not supported by flow '<id>'. <id> allows depths: ...`). The retired
+  `--depth` flag is rejected as an unknown option.
 - `--why <why>`
 - `--tournament [2|3|4]` (bare flag keeps the default count of 3; an inline
   value sets the count, bounds 2 to 4)

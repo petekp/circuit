@@ -10,9 +10,9 @@ import {
   type ResolvedConnector,
   connectorToolScopeCapability,
 } from '../../schemas/connector.js';
-import { CompiledDepth } from '../../schemas/depth.js';
 import type { GuidanceDecisionTraceEntryBody } from '../../schemas/guidance-decision.js';
 import { canonicalJson, sha256OfString } from '../../schemas/hashing.js';
+import { CompiledDepth } from '../../schemas/process.js';
 import {
   ProofAssessment,
   type Evidence as ProofEvidence,

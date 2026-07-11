@@ -514,7 +514,8 @@ property-test harness + reducer exist in Stage 2.
 - **change_kind** (`src/schemas/change-kind.ts`) — `RunBootstrappedTraceEntry.change_kind` is a
   required `ChangeKindDeclaration`. RUN-I6 binds it into the Snapshot; evidence
   invariant 3 (every Run carries change_kind) is load-bearing.
-- **depth** (`src/schemas/depth.ts`) — frozen at bootstrap (RUN-I6).
+- **process** (`src/schemas/process.ts`) — the process dial and the compiled
+  depth scalar; the resolved depth is frozen at bootstrap (RUN-I6).
 - **ids** (`src/schemas/ids.ts`) — `RunId`, `CompiledFlowId`, `InvocationId`,
   `StepId` branded slugs.
 

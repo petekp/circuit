@@ -163,15 +163,15 @@ CLI: `run explore --goal 'explain how the catalog wires flows into the engine'`
 Pass: criteria above + the summary names at least one source file considered.
 Explore is read-only; the working tree stays unchanged.
 
-### A2. explore - `--depth low`
+### A2. explore - `--process low`
 
-CLI: `run explore --depth low --goal 'summarize the scratch repo structure'`
+CLI: `run explore --process low --goal 'summarize the scratch repo structure'`
 
 Pass: run completes and the trace or summary reflects low depth.
 
-### A3. explore - `--depth high`
+### A3. explore - `--process high`
 
-CLI: `run explore --depth high --goal 'compare the tradeoffs of small vs broad investigation'`
+CLI: `run explore --process high --goal 'compare the tradeoffs of small vs broad investigation'`
 
 Pass: run completes and the trace or summary reflects high depth.
 
@@ -210,7 +210,7 @@ tree is otherwise unchanged.
 ### A7. review - unsupported axes reject
 
 ```bash
-run review --goal 'review the staged evil.js' --depth high \
+run review --goal 'review the staged evil.js' --process high \
   --run-folder "$REPORT_ROOT/A7-review-high-reject" --progress jsonl
 ```
 
@@ -245,15 +245,15 @@ CLI: `run fix --goal 'the buggyAdd in bug.js subtracts instead of adding'`
 
 Pass: criteria above + `bug.js` is corrected.
 
-### A10. fix - `--depth low`
+### A10. fix - `--process low`
 
 Plant a README typo, then:
 
-CLI: `run fix --depth low --goal 'typo in README - change "fixture" to "fixtures"'`
+CLI: `run fix --process low --goal 'typo in README - change "fixture" to "fixtures"'`
 
 Pass: run completes and the low path skips only flow-declared optional review.
 
-### A11. fix - `--depth high`
+### A11. fix - `--process high`
 
 Set up:
 
@@ -263,7 +263,7 @@ echo "README expects buggyAdd to add numbers." >> README.md
 echo "function buggyAdd(a, b) { return a - b; }" > bug.js
 ```
 
-CLI: `run fix --depth high --goal 'make buggyAdd match the README expectation that it adds numbers'`
+CLI: `run fix --process high --goal 'make buggyAdd match the README expectation that it adds numbers'`
 
 Pass: run completes and high depth is reflected in the trace or summary.
 
@@ -289,18 +289,18 @@ contain a `slices` array; that is fine — the loop just does not iterate below
 high.) A `(slice N)` suffix or `slice_index` under medium depth means the loop
 activated below its high floor — a regression.
 
-### A14. build - `--depth low`
+### A14. build - `--process low`
 
-CLI: `run build --depth low --goal 'export a constant TWO = 2 from add.js'`
+CLI: `run build --process low --goal 'export a constant TWO = 2 from add.js'`
 
 Pass: run completes and low depth is reflected.
 
 Negative slice assertion: same as A13 — under low depth there must be ZERO
 `(slice N)` progress suffixes and ZERO `slice_index` trace keys.
 
-### A15. build - `--depth high` (per-slice loop)
+### A15. build - `--process high` (per-slice loop)
 
-CLI: `run build --depth high --goal 'add an exported double(n) and an exported triple(n) to add.js, each independently verifiable'`
+CLI: `run build --process high --goal 'add an exported double(n) and an exported triple(n) to add.js, each independently verifiable'`
 
 Drive past the frame/plan checkpoint if it waits (continue under C1, or use
 `--autonomous`).
@@ -339,9 +339,9 @@ Pass: criteria above + prototype evidence is written under the run folder. If
 the flow asks whether to keep, save, or discard the prototype, continue under
 C1.
 
-### A18. prototype - `--depth high`
+### A18. prototype - `--process high`
 
-CLI: `run prototype --depth high --goal 'compare two small README note variants'`
+CLI: `run prototype --process high --goal 'compare two small README note variants'`
 
 Pass: run completes and high depth is reflected.
 
@@ -371,7 +371,7 @@ folder / aborts mid-run instead of rejecting up-front.
 ### A20. prototype - unsupported low rejects
 
 ```bash
-run prototype --goal 'sketch a disposable README note' --depth low \
+run prototype --goal 'sketch a disposable README note' --process low \
   --run-folder "$REPORT_ROOT/A20-prototype-low-reject" --progress jsonl
 ```
 
@@ -400,7 +400,7 @@ unsupported-policy reason; an `autonomous_loop` field is present (see A-Loop).
 ### A23. pursue - unsupported depth/tournament rejects
 
 ```bash
-run pursue --goal 'coordinate two tiny pursuits' --depth high \
+run pursue --goal 'coordinate two tiny pursuits' --process high \
   --run-folder "$REPORT_ROOT/A23-pursue-high-reject" --progress jsonl
 ```
 
@@ -451,7 +451,7 @@ Pass: the final JSON includes an `autonomous_loop` object with `outcome`,
 run folder. The loop never reports `complete` purely by exhausting attempts.
 
 Add-on (autonomous + high-depth slice loop coexist): rerun with
-`run build --depth high --autonomous --goal 'add an exported double(n) and an
+`run build --process high --autonomous --goal 'add an exported double(n) and an
 exported triple(n) to add.js, each independently verifiable'`. Pass: the frame
 checkpoint auto-resolves (no prompt), the high-depth slice loop iterates with
 `(slice N)` suffixes (per A15), AND the final JSON still carries the

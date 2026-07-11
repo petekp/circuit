@@ -428,7 +428,7 @@ function runDoctor(): number {
           'build',
           '--goal',
           'develop: add a focused feature that waits for framing',
-          '--depth',
+          '--process',
           'high',
           '--flow-root',
           packagedFlowRoot,

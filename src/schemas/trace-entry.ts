@@ -7,7 +7,6 @@ import {
   SafeApplyReasonCode,
 } from './change-packet.js';
 import { RelayResolutionSource, ResolvedConnector } from './connector.js';
-import { CompiledDepth } from './depth.js';
 import { EquipmentEnforcement } from './equipment-scope.js';
 import {
   GuidanceDecisionId,
@@ -16,6 +15,7 @@ import {
 } from './guidance-decision.js';
 import { CompiledFlowId, InvocationId, RunId, SkillId, SkillSlotId, StepId } from './ids.js';
 import { Power } from './power.js';
+import { CompiledDepth } from './process.js';
 import { ProofAssessmentId, ProofStatus } from './proof-assessment.js';
 import { Ref, Sha256 } from './ref.js';
 import { RuntimeTouchedFilesEvidenceRef } from './runtime-evidence.js';

@@ -5,7 +5,7 @@ import { validateCompiledFlowKindPolicy } from '../flows/canonical-stage-policy.
 import type { ChildCompiledFlowResolver } from '../runtime/run/child-runner.js';
 import type { Axes as AxesValue } from '../schemas/axes.js';
 import { CompiledFlow } from '../schemas/compiled-flow.js';
-import type { Depth as DepthValue } from '../schemas/depth.js';
+import type { Process as ProcessValue } from '../schemas/process.js';
 
 // Compiled-flow loading and axis-support projection, shared by the
 // run/resume command (src/cli/run.ts) and the autonomous recovery-attempt
@@ -15,7 +15,7 @@ import type { Depth as DepthValue } from '../schemas/depth.js';
 // avoid the "fixture" name reserved for test inputs (UBIQUITOUS_LANGUAGE.md).
 
 export interface AxisSupport {
-  allowedDepths: readonly DepthValue[];
+  allowedDepths: readonly ProcessValue[];
   supportsTournament: boolean;
   supportsAutonomous: boolean;
 }

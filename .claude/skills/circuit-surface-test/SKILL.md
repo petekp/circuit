@@ -353,7 +353,7 @@ deeper. The probes that tend to find real issues:
   rule in every command requires single-quote wrapping with `'\''` for
   literal apostrophes — verify it actually holds.
 - **Axis combinations** the checklist did not cover. Try valid combinations
-  such as Explore `--depth high --tournament 2`, power dials
+  such as Explore `--process high --tournament 2`, power dials
   (`--power low`, `--power auto`), and supported autonomous runs. Also test
   fail-closed combinations such as Build `--tournament`, Review `--autonomous`,
   and `--tournament 5` outside the v1 range.

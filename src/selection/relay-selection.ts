@@ -8,8 +8,8 @@ import {
   LayeredConfig,
   type LayeredConfig as LayeredConfigValue,
 } from '../schemas/config.js';
-import type { CompiledDepth } from '../schemas/depth.js';
 import type { CompiledFlowId } from '../schemas/ids.js';
+import type { CompiledDepth } from '../schemas/process.js';
 import type { ResolvedSelection } from '../schemas/selection-policy.js';
 import {
   type GuidanceSelectionFlow,
