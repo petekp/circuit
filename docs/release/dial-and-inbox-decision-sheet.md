@@ -1,7 +1,8 @@
 # Decision sheet: dial shape and the inbox name
 
-Status: awaiting the operator's redline. Written 2026-07-10. Covers punch
-items 4, 5, and 6 from
+Status: decided 2026-07-10. Path A for the dials (one power dial with an
+advanced `--process` override) and `circuit checkpoints` for the inbox.
+Written 2026-07-10. Covers punch items 4, 5, and 6 from
 [pre-release-punch-list.md](pre-release-punch-list.md). These two
 decisions gate the final rename sweep, the operator-skill refresh, the
 circuit-land sweep, and the next release cut.

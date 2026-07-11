@@ -149,7 +149,8 @@ page's dial section. Cross-repo item.
 Interacts with item 1: both touch the run-flag surface (usage strings,
 vocabulary, tests). Batch the flag migrations into one pass.
 
-- [ ] Choose the two names (operator decision)
+- [x] Choose the two names (operator decision) (decided 2026-07-10:
+      combine instead of rename; Path A in the decision sheet)
 - [ ] Rename across engine, CLI, config, preview, and generated surfaces
 - [ ] Sweep circuit-land docs and the landing dial section
 
@@ -213,7 +214,8 @@ generated host surfaces that mention the command, and circuit-land
 `meta.json`). Rename clean, no alias, per the standing no-back-compat
 bias. Cross-repo item.
 
-- [ ] Choose the new name (operator decision)
+- [x] Choose the new name (operator decision) (decided 2026-07-10:
+      `circuit checkpoints`)
 - [ ] Rename command, modules, vocabulary, front door, and prose
 - [ ] Rename the circuit-land CLI page and nav entry
 
