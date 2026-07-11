@@ -136,7 +136,10 @@ describe('host experience docs', () => {
     for (const line of doc.split('\n').filter((l) => l.includes('doctor'))) {
       expect(line).toContain('circuit doctor');
     }
-    expect(doc).not.toMatch(/\b[Ww]orkflow(s)?\b/);
+    // The settled identity noun (2026-07-10) is "workflow engine"; the
+    // things it runs stay "flows". Only that exact category phrase is
+    // allowed — any other workflow(s) usage is still vocabulary drift.
+    expect(doc.replaceAll('workflow engine', '')).not.toMatch(/\b[Ww]orkflow(s)?\b/);
 
     expect(operatorGuide).not.toContain('old intent prefixes');
     expect(operatorGuide).not.toContain('develop:');

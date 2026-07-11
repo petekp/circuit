@@ -64,7 +64,8 @@ Known places that say plugin-first today:
 Honest tension to preserve, not paper over: distribution and the operator
 surface (slash commands, skills) ARE the plugins today, and the first-run
 funnel installs through plugin marketplaces. The shift is identity and
-emphasis (CLI engine first), not a claim that the plugins are optional for
+emphasis (workflow engine first, drivable as a plain CLI; wording settled
+2026-07-10), not a claim that the plugins are optional for
 the current first-run path. Related support for the CLI-first frame:
 `alternative-to-chat.md` ("the whole engine is one CLI") and
 [`../ideas/cloud-routines-and-intake.md`](../ideas/cloud-routines-and-intake.md)
