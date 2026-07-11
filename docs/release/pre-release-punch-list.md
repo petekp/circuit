@@ -155,7 +155,10 @@ vocabulary, tests). Batch the flag migrations into one pass.
       (shipped as the Path A combine, 513c0de2, 2026-07-10: power derives
       process, --process is the explicit override, --depth retired; config
       keys unchanged)
-- [ ] Sweep circuit-land docs and the landing dial section
+- [x] Sweep circuit-land docs and the landing dial section
+      (circuit-land vocab-sweep branch, 8cae168, 2026-07-11: run.mdx flag
+      table + clamp/reject split, modes.mdx retitled with a Process
+      section, dial-section and flow-explorer receipt say process)
 
 Decision sheet:
 [dial-and-inbox-decision-sheet.md](dial-and-inbox-decision-sheet.md)
@@ -192,9 +195,9 @@ and item 3 (the how-it-works rewrite should use it). Cross-repo item.
 - [x] Add archetype to UBIQUITOUS_LANGUAGE.md
 - [x] Surface it in preview/selection readouts where roles appear
       (`circuit preview`'s ROLE column is now labeled ARCHETYPE)
-- [ ] Sweep positioning.md and circuit-land to use it consistently
-      (positioning.md claim 3 done 2026-07-11; circuit-land sweep still
-      open, cross-repo)
+- [x] Sweep positioning.md and circuit-land to use it consistently
+      (positioning.md claim 3 done 2026-07-11; circuit-land glossary and
+      dial section say archetype as of vocab-sweep 8cae168)
 
 ### 6. Rename the `circuit inbox` command
 
@@ -227,7 +230,9 @@ bias. Cross-repo item.
       `src/app/checkpoints/`, command list, front door, resume-input.ts
       and run.ts messages, launch-plan prose, generated plugin runtimes,
       and tests; no alias)
-- [ ] Rename the circuit-land CLI page and nav entry
+- [x] Rename the circuit-land CLI page and nav entry
+      (circuit-land vocab-sweep branch, 8cae168, 2026-07-11:
+      checkpoints.mdx + meta.json + every cross-link)
 
 Decision sheet:
 [dial-and-inbox-decision-sheet.md](dial-and-inbox-decision-sheet.md)
