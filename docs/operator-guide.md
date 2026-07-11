@@ -132,7 +132,7 @@ The CLI also ships small inspection utilities:
 | Command | What it does |
 | --- | --- |
 | `./bin/circuit preview [flow] [--power <tier>] [--matrix]` | Show which connector, model, and effort each step would get, without spawning anything. With no flow named it surveys every public flow at the chosen dial. `--matrix` prints every power setting at once for one flow. |
-| `./bin/circuit doctor [--json]` | Check that the connector CLIs (claude, codex, cursor-agent) are installed and signed in, before a run spends anything on a broken one. Each problem comes with the fix. |
+| `./bin/circuit doctor [--json]` | Confirm the connectors your runs actually route through are ready, before a run spends anything on a broken one. Exits 0 once every routed connector is ready. Each problem comes with the fix; connectors your config never routes to are listed separately as optional. |
 | `./bin/circuit runs show --run-folder <path> --json` | Print the recorded result for one run folder. |
 | `./bin/circuit history rebuild\|query\|status --json` | Rebuild, query, or check the local run history index. For `history pull`, see [`docs/reference/history-pull.md`](reference/history-pull.md). |
 | `./bin/circuit memory note --flow <id> "<text>"` | Add a flow memory note. `memory list` and `memory forget <id>` list and remove notes. |

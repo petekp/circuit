@@ -106,8 +106,10 @@ circuit run <flow> --goal '<your task>'
 ```
 
 Circuit does the work through connector CLIs (`claude` by default), so a
-signed-in Claude Code install is a prerequisite. `circuit doctor` checks
-your connectors before a run spends anything on a broken one.
+signed-in Claude Code install is a prerequisite. `circuit doctor` confirms
+the connectors your runs actually route through are ready, before a run
+spends anything on a broken one, and lists any other connector CLI as
+optional.
 
 Working from this checkout instead?
 

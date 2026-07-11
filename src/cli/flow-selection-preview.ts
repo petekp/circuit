@@ -128,7 +128,10 @@ export interface FlowSelectionPreviewInput {
   readonly codexDefaultModel?: () => string;
 }
 
-function firstCompiledFlow(result: CompileResult) {
+// Exported for `circuit doctor`'s routed-connector-set computation (see
+// routed-connectors.ts), which reuses this compile step rather than
+// duplicating it.
+export function firstCompiledFlow(result: CompileResult) {
   if (result.kind === 'single') return result.flow;
   const first = [...result.flows.values()][0];
   if (first === undefined) throw new Error('per-mode compile produced no flows');
@@ -146,7 +149,10 @@ function builtinConnector(name: string): ResolvedConnector | undefined {
 // builtin or a config-declared custom connector. Returns undefined for an
 // unpinned step (so connector resolution falls through to role/flow/auto) or a
 // pinned name the config does not declare (best-effort: fall through too).
-function explicitConnectorForStep(
+// Exported for `circuit doctor`'s routed-connector-set computation (see
+// routed-connectors.ts), which resolves the same per-step pin without
+// duplicating this security-sensitive lookup.
+export function explicitConnectorForStep(
   step: RuntimeIndexedRelayStep,
   layers: readonly LayeredConfigValue[],
 ): ResolvedConnector | undefined {

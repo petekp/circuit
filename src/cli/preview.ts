@@ -12,7 +12,14 @@ import {
   resolveFlowSelectionPreview,
 } from './flow-selection-preview.js';
 import {
-  type Paint,
+  type Cell,
+  type TableRow,
+  cell,
+  columnHeader,
+  diamondHeaderLine,
+  renderStyledTable,
+} from './styled-table.js';
+import {
   type TerminalPalette,
   colorEnabled,
   composePaints,
@@ -105,53 +112,6 @@ function modelCell(step: RelayStepSelectionPreview): string {
   return '(none)';
 }
 
-// A table cell carries its raw text plus an optional paint. Widths are
-// computed on raw text and styling is applied afterwards, because ANSI escape
-// sequences have no visible width and would wreck column alignment.
-interface Cell {
-  readonly text: string;
-  readonly paint?: Paint;
-}
-type TableRow = readonly Cell[] | 'rule' | 'gap';
-
-function cell(text: string, paint?: Paint): Cell {
-  return paint === undefined ? { text } : { text, paint };
-}
-
-function renderStyledTable(palette: TerminalPalette, rows: readonly TableRow[]): string {
-  const dataRows = rows.filter((row): row is readonly Cell[] => Array.isArray(row));
-  const widths: number[] = [];
-  for (const row of dataRows) {
-    row.forEach((c, i) => {
-      widths[i] = Math.max(widths[i] ?? 0, c.text.length);
-    });
-  }
-  const tableWidth = widths.reduce((sum, w) => sum + w, 0) + 2 * Math.max(0, widths.length - 1);
-  return rows
-    .map((row) => {
-      if (row === 'gap') return '';
-      if (row === 'rule') return palette.dim('─'.repeat(tableWidth));
-      return row
-        .map((c, i) => {
-          const spaces = ' '.repeat(Math.max(0, (widths[i] ?? 0) - c.text.length));
-          const painted = c.text === '' || c.paint === undefined ? c.text : c.paint(c.text);
-          return painted + spaces;
-        })
-        .join('  ')
-        .trimEnd();
-    })
-    .join('\n');
-}
-
-function headerLine(palette: TerminalPalette, subject: string, dialText: string): string {
-  const sep = palette.dim('·');
-  return `${palette.accent('◆')} ${palette.bold('circuit preview')} ${sep} ${subject} ${sep} ${dialText}`;
-}
-
-function columnHeader(palette: TerminalPalette, labels: readonly string[]): readonly Cell[] {
-  return labels.map((label) => cell(label, palette.dim));
-}
-
 // `pinned` is an explicit decision (operator config or a pin the flow itself
 // carries); everything else is a default the engine filled in. Weight carries
 // that split: pinned values are bold, dial defaults plain, absent values dim —
@@ -212,11 +172,10 @@ export function renderSinglePreview(
     preview.dial === preview.dialResolvesTo
       ? `dial: ${preview.dial}`
       : `dial: ${preview.dial} (resolves to ${preview.dialResolvesTo})`;
-  const header = headerLine(
-    palette,
+  const header = diamondHeaderLine(palette, 'circuit preview', [
     `${preview.flowId} (${preview.visibility})`,
     `${dialLine} · process: ${preview.process}`,
-  );
+  ]);
 
   const rows: TableRow[] = [
     columnHeader(palette, ['STEP', 'ARCHETYPE', 'CONNECTOR', 'MODEL', 'EFFORT', 'SOURCE']),
@@ -277,7 +236,10 @@ function renderOverview(
   palette: TerminalPalette,
   previews: readonly FlowSelectionPreview[],
 ): string {
-  const header = headerLine(palette, 'public flows', overviewDialLine(previews));
+  const header = diamondHeaderLine(palette, 'circuit preview', [
+    'public flows',
+    overviewDialLine(previews),
+  ]);
 
   const rows: TableRow[] = [
     columnHeader(palette, ['FLOW', 'STEP', 'ARCHETYPE', 'CONNECTOR', 'MODEL', 'EFFORT', 'SOURCE']),
@@ -314,11 +276,10 @@ export function renderMatrix(
 ): string {
   const first = previews[0];
   if (first === undefined) return '';
-  const header = headerLine(
-    palette,
+  const header = diamondHeaderLine(palette, 'circuit preview', [
     `${first.flowId} (${first.visibility})`,
     `dial matrix: ${previews.map((p) => p.dial).join(' / ')}`,
-  );
+  ]);
 
   // One row per relay step, one model+effort column per dial.
   const columnLabels = previews.map((p) => p.dial.toUpperCase());

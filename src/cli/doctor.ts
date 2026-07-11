@@ -1,16 +1,30 @@
-// `circuit doctor` — proactive connector health.
+// `circuit doctor` — a readiness report for the connectors your runs
+// actually route through.
 //
 // A run that relays through a broken or signed-out connector CLI dies
 // mid-flight, after real spend on the branches that were healthy. Doctor
 // probes the same binaries a run would spawn (a version call for presence, a
-// status call for sign-in where the CLI has one) and answers in plain
-// English with a fix per connector. Informational by design: exit 1 means at
-// least one connector needs attention, so scripts and CI can gate on it.
-
+// status call for sign-in where the CLI has one) and answers in plain English
+// with a fix per connector. It grades readiness against the ROUTED connector
+// set — the connectors at least one public flow's relay step would actually
+// dispatch through, under the operator's config and host kind — so a fresh
+// machine that only has claude-code installed reads Ready, not a false alarm
+// about codex and cursor-agent it never routes to. Unrouted connectors still
+// get probed and reported, but only informationally: their state never
+// affects the exit code.
 import { Command } from 'commander';
 
-import { type ConnectorHealthCheck, probeBuiltinConnectors } from '../connectors/health.js';
+import {
+  type ConnectorHealthCheck,
+  probeBuiltinConnectors,
+  probeCustomConnectorPresence,
+} from '../connectors/health.js';
+import { discoverRuntimeConfigLayers } from '../shared/config-loader.js';
 import { commanderErrorMessage, configureCommanderProgram } from './commander-support.js';
+import { hostKindFromEnv } from './preview.js';
+import { resolveRoutedConnectors } from './routed-connectors.js';
+import { cell, columnHeader, diamondHeaderLine, renderStyledTable } from './styled-table.js';
+import { type TerminalPalette, colorEnabled, terminalPalette } from './terminal-style.js';
 
 interface ParsedDoctorArgs {
   readonly json: boolean;
@@ -33,32 +47,100 @@ function parseDoctorArgs(argv: readonly string[]): ParsedDoctorArgs | string {
   return { json: options.json === true };
 }
 
+export interface DoctorConnectorEntry extends ConnectorHealthCheck {
+  // Whether at least one public flow's relay step would dispatch through this
+  // connector under the operator's config and host kind. Only routed
+  // connectors count toward readiness and the exit code.
+  readonly routed: boolean;
+}
+
 const STATE_LABELS: Record<ConnectorHealthCheck['state'], string> = {
   ok: 'ok',
   needs_attention: 'needs attention',
   unknown: 'could not check',
 };
 
-export function renderDoctorReport(checks: readonly ConnectorHealthCheck[]): string {
-  const lines = ['Connector health:', ''];
-  const nameWidth = Math.max(...checks.map((check) => check.connector.length));
-  for (const check of checks) {
-    const name = check.connector.padEnd(nameWidth);
-    lines.push(`  ${name}  ${STATE_LABELS[check.state]}  ${check.detail}`);
-    if (check.remediation !== undefined) {
-      lines.push(`  ${' '.repeat(nameWidth)}  ${check.remediation}`);
+function statePaint(
+  palette: TerminalPalette,
+  state: ConnectorHealthCheck['state'],
+): TerminalPalette['dim'] {
+  if (state === 'ok') return palette.accent;
+  if (state === 'needs_attention') return palette.warn;
+  return palette.dim;
+}
+
+function connectorRows(
+  palette: TerminalPalette,
+  entries: readonly DoctorConnectorEntry[],
+): readonly (readonly ReturnType<typeof cell>[])[] {
+  const rows: (readonly ReturnType<typeof cell>[])[] = [];
+  for (const entry of entries) {
+    rows.push([
+      cell(entry.connector),
+      cell(STATE_LABELS[entry.state], statePaint(palette, entry.state)),
+      cell(entry.detail),
+    ]);
+    if (entry.remediation !== undefined) {
+      rows.push([cell(''), cell(''), cell(entry.remediation, palette.dim)]);
     }
   }
-  lines.push('');
-  const attention = checks.filter((check) => check.state === 'needs_attention').length;
-  if (attention === 0) {
-    lines.push('All connectors look healthy.');
-  } else {
-    const noun = attention === 1 ? 'connector needs' : 'connectors need';
+  return rows;
+}
+
+function brokenRoutedNames(entries: readonly DoctorConnectorEntry[]): readonly string[] {
+  return entries
+    .filter((entry) => entry.routed && entry.state === 'needs_attention')
+    .map((entry) => entry.connector);
+}
+
+function verdictLine(palette: TerminalPalette, entries: readonly DoctorConnectorEntry[]): string {
+  const broken = brokenRoutedNames(entries);
+  if (broken.length === 0) return palette.bold(palette.accent('Ready.'));
+  const noun = broken.length === 1 ? 'connector needs' : 'connectors need';
+  return palette.bold(palette.warn(`Not ready: ${broken.join(', ')} ${noun} attention.`));
+}
+
+export function renderDoctorReport(
+  palette: TerminalPalette,
+  entries: readonly DoctorConnectorEntry[],
+): string {
+  const routed = entries.filter((entry) => entry.routed);
+  const unrouted = entries.filter((entry) => !entry.routed);
+
+  const lines: string[] = [
+    diamondHeaderLine(palette, 'circuit doctor'),
+    '',
+    verdictLine(palette, entries),
+  ];
+
+  if (routed.length > 0) {
     lines.push(
-      `${attention} ${noun} attention. Runs that relay through ${attention === 1 ? 'it' : 'them'} will fail until fixed.`,
+      '',
+      palette.dim('routed connectors (used by your flows):'),
+      '',
+      renderStyledTable(palette, [
+        columnHeader(palette, ['CONNECTOR', 'STATE', 'DETAIL']),
+        'rule',
+        ...connectorRows(palette, routed),
+      ]),
     );
   }
+
+  if (unrouted.length > 0) {
+    lines.push(
+      '',
+      palette.dim(
+        'unrouted connectors (not used by your config; install only if you route work there):',
+      ),
+      '',
+      renderStyledTable(palette, [
+        columnHeader(palette, ['CONNECTOR', 'STATE', 'DETAIL']),
+        'rule',
+        ...connectorRows(palette, unrouted),
+      ]),
+    );
+  }
+
   return lines.join('\n');
 }
 
@@ -68,11 +150,44 @@ export async function runDoctorCommand(argv: readonly string[]): Promise<number>
     process.stderr.write(`error: ${parsed}\n`);
     return 2;
   }
-  const checks = await probeBuiltinConnectors();
+
+  const configLayers = discoverRuntimeConfigLayers({}).selectionConfigLayers;
+  const hostKind = hostKindFromEnv();
+  const routed = resolveRoutedConnectors({
+    configLayers,
+    ...(hostKind === undefined ? {} : { hostKind }),
+  });
+
+  const builtinChecks = await probeBuiltinConnectors();
+  const customChecks = await Promise.all(
+    [...routed.custom.values()].map((descriptor) =>
+      probeCustomConnectorPresence(descriptor.name, descriptor.command[0] as string),
+    ),
+  );
+
+  const entries: DoctorConnectorEntry[] = [
+    ...builtinChecks.map((check) => ({ ...check, routed: routed.names.has(check.connector) })),
+    ...customChecks.map((check) => ({ ...check, routed: true })),
+  ];
+
+  const ready = brokenRoutedNames(entries).length === 0;
+
   if (parsed.json) {
-    process.stdout.write(`${JSON.stringify({ schema_version: 1, connectors: checks }, null, 2)}\n`);
+    process.stdout.write(
+      `${JSON.stringify(
+        {
+          schema_version: 2,
+          ready,
+          routed_connectors: [...routed.names].sort(),
+          connectors: entries,
+        },
+        null,
+        2,
+      )}\n`,
+    );
   } else {
-    process.stdout.write(`${renderDoctorReport(checks)}\n`);
+    const palette = terminalPalette(colorEnabled());
+    process.stdout.write(`${renderDoctorReport(palette, entries)}\n`);
   }
-  return checks.some((check) => check.state === 'needs_attention') ? 1 : 0;
+  return ready ? 0 : 1;
 }

@@ -22,7 +22,9 @@ export type ProbeOutcome =
     };
 
 export interface ConnectorHealthCheck {
-  readonly connector: BuiltinConnectorName;
+  // A builtin connector name for the three probes below; a routed custom
+  // connector's config-declared name for `probeCustomConnectorPresence`.
+  readonly connector: string;
   readonly executable: string;
   readonly state: 'ok' | 'needs_attention' | 'unknown';
   readonly detail: string;
@@ -198,4 +200,32 @@ export async function probeBuiltinConnectors(options?: {
   return await Promise.all(
     BUILTIN_CONNECTOR_NAMES.map((name) => probeBuiltinConnector(name, options)),
   );
+}
+
+// A routed custom connector has no scripted sign-in probe (its command is
+// arbitrary, config-declared), so this checks only that its executable can
+// start — a presence probe, not a health probe. Sign-in state always reports
+// `unknown` ("could not check"): a successful spawn confirms the binary
+// exists, not that it is signed in.
+export async function probeCustomConnectorPresence(
+  connector: string,
+  executable: string,
+  options?: { readonly env?: NodeJS.ProcessEnv },
+): Promise<ConnectorHealthCheck> {
+  const presence = await runProbe(executable, [], options?.env ?? process.env);
+  if (presence.kind === 'spawn_error') {
+    return {
+      connector,
+      executable,
+      state: 'needs_attention',
+      detail: `the '${executable}' command was not found or could not start (${presence.message})`,
+      remediation: `Fix: check that '${executable}' is installed and on PATH.`,
+    };
+  }
+  return {
+    connector,
+    executable,
+    state: 'unknown',
+    detail: 'could not check: custom connectors have no scripted sign-in probe',
+  };
 }
