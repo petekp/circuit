@@ -39,7 +39,7 @@ can also pass these controls when the selected flow supports them:
 | Control | CLI flag | Supported by |
 | --- | --- | --- |
 | Power, fixed or self-chosen | `--power <auto|low|medium|high>` | Every flow. `auto` lets the run pick its own tier from what the research step reads. |
-| Process, an advanced override | `--process <low|medium|high>` | Build, Explore, and Fix. Prototype supports medium or high. Review and Pursue only support medium process. |
+| Process, an advanced override | `--process <low|medium|high>` | Build, Explore, and Fix. Prototype supports medium or high. Review only supports medium process. |
 | Tournament | `--tournament [2|3|4]` | Explore and Prototype. |
 | Autonomous continuation | `--autonomous` | Build, Explore, Fix, and Prototype. |
 
@@ -49,8 +49,8 @@ Unsupported combinations fail before the run starts.
 (default `medium`) and, by the same value, derives how much process
 thoroughness the run gets: `low`→`low`, `medium`→`medium`, `high`→`high`,
 `auto`→`medium`. The derived process clamps to what the target flow
-supports — Review and Pursue always land on medium, Prototype floors at
-medium, and Build, Explore, and Fix use the full low/medium/high ladder.
+supports — Review always lands on medium, Prototype floors at medium,
+and Build, Explore, and Fix use the full low/medium/high ladder.
 
 `--process` is the advanced escape hatch when the derived pairing is not
 what you want: pass it explicitly to decouple process from power, for
