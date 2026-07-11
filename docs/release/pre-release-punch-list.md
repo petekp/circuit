@@ -73,7 +73,8 @@ the current first-run path. Related support for the CLI-first frame:
 
 - [x] Sweep this repo's identity statements (README, AGENTS.md, launch
       plan, positioning.md) to CLI-first framing
-- [ ] Same sweep in circuit-land (landing + docs site)
+- [x] Same sweep in circuit-land (landing + docs site; circuit-land
+      commit 6e698cd, 2026-07-10)
 - [x] Check generated host surfaces and command help text for plugin-first
       phrasing
 
@@ -111,9 +112,11 @@ claims):
 Interacts with item 2: the rewrite should present the CLI as the engine
 and the plugins as the bridge, matching the CLI-first framing sweep.
 
-- [ ] Rewrite the page around the differentiators, with the mechanics tour
+- [x] Rewrite the page around the differentiators, with the mechanics tour
       demoted to supporting detail
-- [ ] Cross-check every claim against positioning.md before publishing
+- [x] Cross-check every claim against positioning.md before publishing
+
+Shipped to circuit-land main 2026-07-10 (commit 6e698cd).
 
 ### 4. "Depth" and "power" are not semantically distinguishable
 
@@ -149,6 +152,10 @@ vocabulary, tests). Batch the flag migrations into one pass.
 - [ ] Choose the two names (operator decision)
 - [ ] Rename across engine, CLI, config, preview, and generated surfaces
 - [ ] Sweep circuit-land docs and the landing dial section
+
+Decision sheet:
+[dial-and-inbox-decision-sheet.md](dial-and-inbox-decision-sheet.md)
+(recommends combining the dials rather than renaming both).
 
 ### 5. Emphasize "Archetype" for model-role assignment
 
@@ -210,6 +217,10 @@ bias. Cross-repo item.
 - [ ] Rename command, modules, vocabulary, front door, and prose
 - [ ] Rename the circuit-land CLI page and nav entry
 
+Decision sheet:
+[dial-and-inbox-decision-sheet.md](dial-and-inbox-decision-sheet.md)
+(shortlist: `checkpoints`, `parked`, `docket`).
+
 ### 7. Skills are poorly explained; demonstrate auto-injection
 
 Reported 2026-07-10. Mostly a circuit-land item.
@@ -245,11 +256,14 @@ the story. Link the contract for the exact dispatch rules.
 Interacts with item 3: the how-it-works rewrite should mention skill
 injection as part of the micro-harness story and link here.
 
-- [ ] Rewrite the skills page capability-first with the worked
+- [x] Rewrite the skills page capability-first with the worked
       file-extension demo
-- [ ] Decide whether skills earn a concepts page alongside the config
-      reference
-- [ ] Show the trace evidence that an injected skill actually fired
+- [x] Decide whether skills earn a concepts page alongside the config
+      reference (decided: one capability-first configuration page, no
+      separate concepts page)
+- [x] Show the trace evidence that an injected skill actually fired
+
+Shipped to circuit-land main 2026-07-10 (commit af147b7).
 
 ### 8. No good explanation of "block" or "micro-harness"
 
@@ -287,9 +301,11 @@ Interacts with item 3 (how-it-works links here instead of carrying the
 weight), item 5 (archetype is the role facet of the micro-harness), and
 item 7 (skills inject into the micro-harness).
 
-- [ ] Write the block explanation grounded in real catalog blocks
-- [ ] Write the canonical micro-harness page
-- [ ] Update glossary and cross-links from concepts pages
+- [x] Write the block explanation grounded in real catalog blocks
+- [x] Write the canonical micro-harness page
+- [x] Update glossary and cross-links from concepts pages
+
+Shipped to circuit-land main 2026-07-10 (commit af147b7).
 
 ### 9. Checkpoints docs skip the rich HTML decision artifacts
 
@@ -318,10 +334,13 @@ place in the docs story.
 Interacts with item 3 (this is differentiator material for the
 how-it-works rewrite) and item 8 (the run folder as the readable record).
 
-- [ ] Rewrite the checkpoints page around the decision experience,
+- [x] Rewrite the checkpoints page around the decision experience,
       including the rendered HTML artifact with a real example
-- [ ] Document which checkpoint kinds produce pages and where they land
-- [ ] Consider a tournament-checkpoint walkthrough as the flagship demo
+- [x] Document which checkpoint kinds produce pages and where they land
+- [x] Consider a tournament-checkpoint walkthrough as the flagship demo
+      (shipped as "Walkthrough: the tournament checkpoint")
+
+Shipped to circuit-land main 2026-07-10 (commit af147b7).
 
 ### 10. Simple command-line installation experience and instructions
 
