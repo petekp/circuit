@@ -31,6 +31,24 @@
   ],
   "entries": [
     {
+      "path": "docs/ideas/cli-first-principles.md",
+      "title": "The Circuit CLI, from first principles",
+      "status": "current-proposal",
+      "category": "run-inspection-and-output",
+      "impact": 4,
+      "tags": [
+        "cli-ux",
+        "onboarding",
+        "driver-contract",
+        "flows-as-verbs",
+        "plan-header",
+        "watch-detach"
+      ],
+      "current_reading": "Ground-up CLI design written against the CLI/TUI ecosystem research, then reconciled against an adversarial review and the repo's real contracts (config.yaml, power/process axes, the ProgressEvent stream, the host-adapter stable-namespace rule, preview as a named command). Seven principles, a target grammar, and five post-announcement waves: conventions, runs surface, built-in flows-as-verbs, driver stream (heartbeat on the existing progress contract), reach. Nothing ships before the v1 announcement; open forks (verb aliases, plan-confirm threshold, bare-circuit scope, demo timing) await the operator. The review round also surfaced and fixed a real packaged-install flow-loading bug (src/cli/compiled-flow-loading.ts defaultFlowRoot), which shipped independently of this note.",
+      "related": ["docs/release/v1-launch-plan.md", "docs/ideas/run-milestone-stream.md"],
+      "last_checked": "2026-07-12"
+    },
+    {
       "path": "docs/ideas/until-loop.md",
       "title": "The until-loop: condition-gated iteration for flows",
       "status": "implemented",

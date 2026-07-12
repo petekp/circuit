@@ -170,9 +170,10 @@ The CLI exit code tells scripts how the run ended without parsing the JSON
 output: a run that closes complete exits 0, a pause at a checkpoint exits 0
 (the run is parked, waiting for your decision), any close short of complete
 (aborted, stopped, escalated, handoff) exits 1, and a usage error exits 2.
-Chaining a follow-up command with `&&` therefore only proceeds on a completed
-run; the JSON `outcome` field carries the specific ending for callers that
-need it.
+Chaining a follow-up command with `&&` therefore proceeds on a completed run
+and also on a checkpoint pause, since both exit 0. A script that must act
+only on a completed run should check the JSON `outcome` field, which carries
+the specific ending.
 
 Build, Fix, and Prototype disclose worker write access before
 write-capable work starts:
