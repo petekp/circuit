@@ -52,6 +52,10 @@ export interface DoctorConnectorEntry extends ConnectorHealthCheck {
   // connector under the operator's config and host kind. Only routed
   // connectors count toward readiness and the exit code.
   readonly routed: boolean;
+  // Why it is routed: the distinct resolution sources that picked it, as
+  // short phrases naming the config lever (`auto`, `default`,
+  // `role: reviewer`, `flow: fix`, `step pin`). Empty for unrouted entries.
+  readonly routed_via: readonly string[];
 }
 
 const STATE_LABELS: Record<ConnectorHealthCheck['state'], string> = {
@@ -76,12 +80,13 @@ function connectorRows(
   const rows: (readonly ReturnType<typeof cell>[])[] = [];
   for (const entry of entries) {
     rows.push([
-      cell(entry.connector),
+      cell(entry.connector, entry.routed ? palette.bold : undefined),
+      entry.routed ? cell(entry.routed_via.join(', '), palette.accent) : cell('-', palette.dim),
       cell(STATE_LABELS[entry.state], statePaint(palette, entry.state)),
-      cell(entry.detail),
+      cell(entry.detail, entry.routed ? undefined : palette.dim),
     ]);
     if (entry.remediation !== undefined) {
-      rows.push([cell(''), cell(''), cell(entry.remediation, palette.dim)]);
+      rows.push([cell(''), cell(''), cell(''), cell(entry.remediation, palette.dim)]);
     }
   }
   return rows;
@@ -104,44 +109,29 @@ export function renderDoctorReport(
   palette: TerminalPalette,
   entries: readonly DoctorConnectorEntry[],
 ): string {
-  const routed = entries.filter((entry) => entry.routed);
-  const unrouted = entries.filter((entry) => !entry.routed);
+  // One table, routed connectors first (Array.prototype.sort is stable, so
+  // the probe order survives within each group). The ROUTED VIA column is
+  // both the routed/unrouted split and the teaching surface: it names the
+  // exact resolution source behind every routing decision, and `-` marks a
+  // connector no flow would dispatch through.
+  const ordered = [...entries].sort((a, b) => Number(b.routed) - Number(a.routed));
 
-  const lines: string[] = [
+  return [
     diamondHeaderLine(palette, 'circuit doctor'),
     '',
     verdictLine(palette, entries),
-  ];
-
-  if (routed.length > 0) {
-    lines.push(
-      '',
-      palette.dim('routed connectors (used by your flows):'),
-      '',
-      renderStyledTable(palette, [
-        columnHeader(palette, ['CONNECTOR', 'STATE', 'DETAIL']),
-        'rule',
-        ...connectorRows(palette, routed),
-      ]),
-    );
-  }
-
-  if (unrouted.length > 0) {
-    lines.push(
-      '',
-      palette.dim(
-        'unrouted connectors (not used by your config; install only if you route work there):',
-      ),
-      '',
-      renderStyledTable(palette, [
-        columnHeader(palette, ['CONNECTOR', 'STATE', 'DETAIL']),
-        'rule',
-        ...connectorRows(palette, unrouted),
-      ]),
-    );
-  }
-
-  return lines.join('\n');
+    '',
+    renderStyledTable(palette, [
+      columnHeader(palette, ['CONNECTOR', 'ROUTED VIA', 'STATE', 'DETAIL']),
+      'rule',
+      ...connectorRows(palette, ordered),
+    ]),
+    '',
+    palette.dim('unrouted (-) connectors are optional and never fail this check. change routing:'),
+    palette.dim(
+      '  circuit config set relay.default codex   (also: relay.roles.reviewer, relay.flows.fix; then: circuit preview)',
+    ),
+  ].join('\n');
 }
 
 export async function runDoctorCommand(argv: readonly string[]): Promise<number> {
@@ -166,8 +156,16 @@ export async function runDoctorCommand(argv: readonly string[]): Promise<number>
   );
 
   const entries: DoctorConnectorEntry[] = [
-    ...builtinChecks.map((check) => ({ ...check, routed: routed.names.has(check.connector) })),
-    ...customChecks.map((check) => ({ ...check, routed: true })),
+    ...builtinChecks.map((check) => ({
+      ...check,
+      routed: routed.names.has(check.connector),
+      routed_via: routed.routes.get(check.connector) ?? [],
+    })),
+    ...customChecks.map((check) => ({
+      ...check,
+      routed: true,
+      routed_via: routed.routes.get(check.connector) ?? [],
+    })),
   ];
 
   const ready = brokenRoutedNames(entries).length === 0;

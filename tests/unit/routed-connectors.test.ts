@@ -11,6 +11,9 @@ describe('resolveRoutedConnectors: fresh machine', () => {
     const routed = resolveRoutedConnectors();
     expect([...routed.names]).toEqual(['claude-code']);
     expect(routed.custom.size).toBe(0);
+    // Every step fell through to the host-aware auto fallback, so the
+    // teachable provenance is a single phrase.
+    expect(routed.routes.get('claude-code')).toEqual(['auto']);
   });
 
   it('resolves exactly {claude-code} with empty config layers', () => {
@@ -30,6 +33,8 @@ describe('resolveRoutedConnectors: config overrides', () => {
     });
     const routed = resolveRoutedConnectors({ configLayers: [layer] });
     expect(routed.names.has('codex')).toBe(true);
+    expect(routed.routes.get('codex')).toEqual(['role: reviewer']);
+    expect(routed.routes.get('claude-code')).toEqual(['auto']);
   });
 
   it('a relay default of codex makes codex the whole routed set', () => {
@@ -39,6 +44,7 @@ describe('resolveRoutedConnectors: config overrides', () => {
     });
     const routed = resolveRoutedConnectors({ configLayers: [layer] });
     expect([...routed.names]).toEqual(['codex']);
+    expect(routed.routes.get('codex')).toEqual(['default']);
   });
 });
 

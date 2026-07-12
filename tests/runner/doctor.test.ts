@@ -126,7 +126,7 @@ describe('circuit doctor: readiness on the routed set', () => {
     expect(plain).toContain('needs attention');
   });
 
-  it('unrouted connectors render in a clearly secondary, neutrally phrased section', async () => {
+  it('renders one table: ROUTED VIA names the resolution source, unrouted rows show -', async () => {
     const bin = stubBinDir();
     healthyClaude(bin);
     healthyCodex(bin);
@@ -137,13 +137,21 @@ describe('circuit doctor: readiness on the routed set', () => {
     );
 
     const plain = stripAnsi(stdout);
-    expect(plain).toContain('routed connectors');
-    expect(plain).toContain(
-      'unrouted connectors (not used by your config; install only if you route work there):',
-    );
-    // The routed section (claude-code) appears before the unrouted section.
-    expect(plain.indexOf('routed connectors')).toBeLessThan(plain.indexOf('unrouted connectors'));
-    expect(plain.indexOf('unrouted connectors')).toBeLessThan(plain.indexOf('codex-cli'));
+    // One table, one header.
+    expect(plain.match(/CONNECTOR/g)).toHaveLength(1);
+    expect(plain).toContain('ROUTED VIA');
+    const rows = plain.split('\n').filter((line) => /^\S/.test(line));
+    const claudeRow = rows.find((line) => line.startsWith('claude-code'));
+    const codexRow = rows.find((line) => line.startsWith('codex'));
+    const cursorRow = rows.find((line) => line.startsWith('cursor-agent'));
+    // The routed connector names its resolution source; unrouted rows show -.
+    expect(claudeRow).toContain('auto');
+    expect(codexRow).toMatch(/codex\s+-\s/);
+    expect(cursorRow).toMatch(/cursor-agent\s+-\s/);
+    // Routed rows sort first.
+    expect(plain.indexOf('claude-code')).toBeLessThan(plain.indexOf('codex'));
+    // The footer teaches the routing lever.
+    expect(plain).toContain('circuit config set relay.default');
   });
 
   it('CIRCUIT_HOST_KIND=codex routes codex instead of claude-code', async () => {
@@ -208,6 +216,7 @@ describe('circuit doctor: readiness on the routed set', () => {
         state: string;
         remediation?: string;
         routed: boolean;
+        routed_via: string[];
       }>;
     };
     expect(parsed.schema_version).toBe(2);
@@ -218,11 +227,13 @@ describe('circuit doctor: readiness on the routed set', () => {
     const claude = parsed.connectors.find((entry) => entry.connector === 'claude-code');
     expect(claude?.state).toBe('ok');
     expect(claude?.routed).toBe(true);
+    expect(claude?.routed_via).toEqual(['auto']);
 
     const cursor = parsed.connectors.find((entry) => entry.connector === 'cursor-agent');
     expect(cursor?.state).toBe('needs_attention');
     expect(cursor?.remediation).toBeTruthy();
     expect(cursor?.routed).toBe(false);
+    expect(cursor?.routed_via).toEqual([]);
 
     const codex = parsed.connectors.find((entry) => entry.connector === 'codex');
     expect(codex?.state).toBe('ok');
