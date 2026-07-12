@@ -1,5 +1,6 @@
 import { existsSync, readFileSync } from 'node:fs';
-import { resolve } from 'node:path';
+import { dirname, resolve } from 'node:path';
+import { fileURLToPath } from 'node:url';
 
 import { validateCompiledFlowKindPolicy } from '../flows/canonical-stage-policy.js';
 import type { ChildCompiledFlowResolver } from '../runtime/run/child-runner.js';
@@ -20,6 +21,32 @@ export interface AxisSupport {
   supportsAutonomous: boolean;
 }
 
+// The npm package ships generated/flows (package.json "files"), two levels
+// above this module: dist/cli/ in a build, src/cli/ in a source checkout.
+// Both land on the package root.
+// Marketplace-safe by source-tree fallback: defaultFlowRoot only uses this
+// path when the directory actually exists (npm package or checkout). In a
+// marketplace bundle, two-up from runtime/ ships no generated/flows, so the
+// probe misses and the cwd default holds, same as before this fallback.
+const packageFlowRoot = resolve(
+  dirname(fileURLToPath(import.meta.url)),
+  '../..',
+  'generated/flows',
+);
+
+// Default root when no --flow-root is given. The working directory's copy
+// wins so a circuit checkout (or a blessed local mirror) behaves as before;
+// otherwise fall back to the copy shipped inside the installed package, so
+// `circuit run <flow>` works from any project directory after
+// `npm install -g` (the path the README advertises). When neither exists,
+// keep the cwd path so error messages name the place the operator expected.
+export function defaultFlowRoot(): string {
+  const cwdRoot = resolve('generated/flows');
+  if (existsSync(cwdRoot)) return cwdRoot;
+  if (existsSync(packageFlowRoot)) return packageFlowRoot;
+  return cwdRoot;
+}
+
 export function resolveCompiledFlowPath(
   flowName: string,
   modeName: string | undefined,
@@ -27,7 +54,7 @@ export function resolveCompiledFlowPath(
   flowRoot: string | undefined,
 ): string {
   if (override !== undefined) return resolve(override);
-  const root = resolve(flowRoot ?? 'generated/flows');
+  const root = flowRoot !== undefined ? resolve(flowRoot) : defaultFlowRoot();
   // When a mode is explicitly requested, prefer the per-mode file if the
   // schematic author emitted one. Schematics with route_overrides produce
   // <mode>.json siblings of circuit.json — see scripts/flows/emit.ts.

@@ -125,7 +125,53 @@ export function checkNpmPackageInstall(repoRoot: string): PackageInstallCheckRes
       };
     }
 
-    return { ok: true, detail: `packed install ok: version ${expectedVersion}, preview rendered` };
+    // Prove the packed install can load a bundled compiled flow from an
+    // unrelated working directory, the way `circuit run <flow>` is
+    // advertised. Preview cannot prove this: it reads the catalog compiled
+    // into dist/, not the generated/flows files the run path loads.
+    // The probe asks fix for --tournament, which fix's allow-list rejects,
+    // so the rejection is only reachable after the packaged flow file
+    // loaded, and the probe can never start a real (spending) run.
+    const packedFlowPath = join(packageDir, 'generated/flows/fix/circuit.json');
+    if (!existsSync(packedFlowPath)) {
+      return { ok: false, detail: `packed tarball ships no compiled flow at ${packedFlowPath}` };
+    }
+    const packedFlow = JSON.parse(readFileSync(packedFlowPath, 'utf8')) as {
+      axes?: { supports_tournament?: boolean };
+    };
+    if (packedFlow.axes?.supports_tournament !== false) {
+      return {
+        ok: false,
+        detail:
+          'flow-load probe assumes fix rejects --tournament; fix now supports it, so point the probe at a flow whose allow-list still rejects an axis',
+      };
+    }
+    const flowLoad = spawnSync(
+      process.execPath,
+      [launcher, 'run', 'fix', '--goal', 'packaged flow load probe', '--tournament'],
+      { cwd: isolatedCwd, env, encoding: 'utf8' },
+    );
+    const flowLoadOutput = `${flowLoad.stdout}\n${flowLoad.stderr}`;
+    if (flowLoadOutput.includes('No flows were found')) {
+      return {
+        ok: false,
+        detail: `packed install cannot find its bundled flows from an unrelated directory: ${flowLoadOutput.trim()}`,
+      };
+    }
+    if (
+      flowLoad.status === 0 ||
+      !flowLoadOutput.includes("--tournament is not supported by flow 'fix'")
+    ) {
+      return {
+        ok: false,
+        detail: `flow-load probe expected the fix allow-list rejection (exit != 0); got exit ${flowLoad.status}: ${flowLoadOutput.trim()}`,
+      };
+    }
+
+    return {
+      ok: true,
+      detail: `packed install ok: version ${expectedVersion}, preview rendered, bundled flow loads from an unrelated cwd`,
+    };
   } finally {
     rmSync(workDir, { recursive: true, force: true });
     rmSync(isolatedCwd, { recursive: true, force: true });

@@ -47,6 +47,7 @@ import {
   axisSupportFromFlow,
   compiledFlowSelectionNameForAxes,
   defaultChildCompiledFlowResolver,
+  defaultFlowRoot,
   loadCompiledFlow,
   resolveCompiledFlowPath,
 } from './compiled-flow-loading.js';
@@ -848,7 +849,9 @@ export function exitCodeForRun(input: {
 // that is not a circuit checkout, so the message names where the CLI looked
 // and how to point it somewhere real instead of offering an empty list.
 function unknownFlowMessage(flowName: string, flowRoot: string | undefined): string {
-  const root = resolve(flowRoot ?? 'generated/flows');
+  // Mirror resolveCompiledFlowPath's default so the message names the
+  // directory the loader actually searched (package fallback included).
+  const root = flowRoot !== undefined ? resolve(flowRoot) : defaultFlowRoot();
   let available: string[] = [];
   try {
     available = readdirSync(root, { withFileTypes: true })

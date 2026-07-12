@@ -105361,11 +105361,20 @@ var init_autonomous_run = __esm({
 
 // dist/cli/compiled-flow-loading.js
 import { existsSync as existsSync37, readFileSync as readFileSync57 } from "node:fs";
-import { resolve as resolve25 } from "node:path";
+import { dirname as dirname14, resolve as resolve25 } from "node:path";
+import { fileURLToPath as fileURLToPath2 } from "node:url";
+function defaultFlowRoot() {
+  const cwdRoot = resolve25("generated/flows");
+  if (existsSync37(cwdRoot))
+    return cwdRoot;
+  if (existsSync37(packageFlowRoot))
+    return packageFlowRoot;
+  return cwdRoot;
+}
 function resolveCompiledFlowPath(flowName, modeName, override, flowRoot2) {
   if (override !== void 0)
     return resolve25(override);
-  const root = resolve25(flowRoot2 ?? "generated/flows");
+  const root = flowRoot2 !== void 0 ? resolve25(flowRoot2) : defaultFlowRoot();
   if (modeName !== void 0) {
     const perMode = resolve25(root, flowName, `${modeName}.json`);
     if (existsSync37(perMode))
@@ -105413,11 +105422,13 @@ function defaultChildCompiledFlowResolver(flowRoot2) {
     return { flowBytes: bytes };
   };
 }
+var packageFlowRoot;
 var init_compiled_flow_loading = __esm({
   "dist/cli/compiled-flow-loading.js"() {
     "use strict";
     init_canonical_stage_policy();
     init_compiled_flow();
+    packageFlowRoot = resolve25(dirname14(fileURLToPath2(import.meta.url)), "../..", "generated/flows");
   }
 });
 
@@ -105425,8 +105436,8 @@ var init_compiled_flow_loading = __esm({
 import { createHash as createHash6 } from "node:crypto";
 import { accessSync as accessSync2, copyFileSync, existsSync as existsSync38, constants as fsConstants, mkdirSync as mkdirSync11, readFileSync as readFileSync58, writeFileSync as writeFileSync12 } from "node:fs";
 import { homedir as homedir5 } from "node:os";
-import { dirname as dirname14, join as join37, resolve as resolve26 } from "node:path";
-import { fileURLToPath as fileURLToPath2 } from "node:url";
+import { dirname as dirname15, join as join37, resolve as resolve26 } from "node:path";
+import { fileURLToPath as fileURLToPath3 } from "node:url";
 function defaultCodexHooksFile() {
   const codexHome = process.env.CODEX_HOME ?? resolve26(homedir5(), ".codex");
   return resolve26(codexHome, "hooks.json");
@@ -105445,7 +105456,7 @@ function missingDefaultLauncherMessage(launcher) {
   ].join(" ");
 }
 function defaultLauncherPath() {
-  return resolveDefaultLauncher(process.env.CIRCUIT_PLUGIN_ROOT, dirname14(fileURLToPath2(import.meta.url)));
+  return resolveDefaultLauncher(process.env.CIRCUIT_PLUGIN_ROOT, dirname15(fileURLToPath3(import.meta.url)));
 }
 function parseCodexHooksHost(args) {
   if (args.host === "codex")
@@ -105611,7 +105622,7 @@ function isExecutableFile(path) {
   }
 }
 function writeHooksConfig(path, config2) {
-  mkdirSync11(dirname14(path), { recursive: true });
+  mkdirSync11(dirname15(path), { recursive: true });
   let backupPath;
   if (existsSync38(path)) {
     const candidate = `${path}.circuit-backup`;
@@ -105835,7 +105846,7 @@ function codexHookInstallState(hooksPath) {
 function writeNudgeMarker(markerPath, now) {
   const stampedAt = (now ?? (() => /* @__PURE__ */ new Date()))().toISOString();
   try {
-    mkdirSync11(dirname14(markerPath), { recursive: true });
+    mkdirSync11(dirname15(markerPath), { recursive: true });
     writeFileSync12(markerPath, `nudged at ${stampedAt}
 `);
   } catch {
@@ -105885,7 +105896,7 @@ var init_handoff_codex_hooks = __esm({
 
 // dist/app/run-envelope/shadow-record.js
 import { mkdirSync as mkdirSync12, writeFileSync as writeFileSync13 } from "node:fs";
-import { dirname as dirname15, join as join38 } from "node:path";
+import { dirname as dirname16, join as join38 } from "node:path";
 function reportRef2(input) {
   return {
     kind: "report",
@@ -105974,7 +105985,7 @@ function writeRunEnvelopeShadowRecord(input) {
     artifact_links: artifactLinks
   });
   const outPath = join38(input.runFolder, RUN_ENVELOPE_SHADOW_RELATIVE_PATH);
-  mkdirSync12(dirname15(outPath), { recursive: true });
+  mkdirSync12(dirname16(outPath), { recursive: true });
   writeFileSync13(outPath, `${JSON.stringify(record2, null, 2)}
 `);
   return { path: outPath, record: record2 };
@@ -106422,7 +106433,7 @@ var init_tty_notice = __esm({
 // dist/cli/run.js
 import { randomUUID as randomUUID9 } from "node:crypto";
 import { existsSync as existsSync39, mkdirSync as mkdirSync13, readFileSync as readFileSync61, readdirSync as readdirSync7, writeFileSync as writeFileSync14 } from "node:fs";
-import { dirname as dirname16, join as join44, resolve as resolve28 } from "node:path";
+import { dirname as dirname17, join as join44, resolve as resolve28 } from "node:path";
 function runtimeHostKind(options) {
   if (options.hostKind !== void 0)
     return options.hostKind;
@@ -106921,7 +106932,7 @@ function exitCodeForRun(input) {
   return 0;
 }
 function unknownFlowMessage(flowName, flowRoot2) {
-  const root = resolve28(flowRoot2 ?? "generated/flows");
+  const root = flowRoot2 !== void 0 ? resolve28(flowRoot2) : defaultFlowRoot();
   let available = [];
   try {
     available = readdirSync7(root, { withFileTypes: true }).filter((entry) => entry.isDirectory() && existsSync39(join44(root, entry.name, "circuit.json"))).map((entry) => entry.name).filter((name) => !INTERNAL_FLOW_IDS.has(name)).sort();
@@ -107279,7 +107290,7 @@ async function runExecutionCommand(args, options) {
           })
         });
         const autonomousLoopPath = join44(runFolder, AUTONOMOUS_LOOP_RELATIVE_PATH);
-        mkdirSync13(dirname16(autonomousLoopPath), { recursive: true });
+        mkdirSync13(dirname17(autonomousLoopPath), { recursive: true });
         writeFileSync14(autonomousLoopPath, `${JSON.stringify(autonomousLoop, null, 2)}
 `);
       } catch (err) {
@@ -107811,13 +107822,13 @@ var init_preview = __esm({
 
 // dist/cli/version-info.js
 import { readFileSync as readFileSync62 } from "node:fs";
-import { dirname as dirname17, resolve as resolve29 } from "node:path";
-import { fileURLToPath as fileURLToPath3 } from "node:url";
+import { dirname as dirname18, resolve as resolve29 } from "node:path";
+import { fileURLToPath as fileURLToPath4 } from "node:url";
 function readSourceVersion() {
   if (true)
     return "0.1.0-alpha.10";
   const candidates = [
-    resolve29(dirname17(fileURLToPath3(import.meta.url)), "../../plugins/version.json"),
+    resolve29(dirname18(fileURLToPath4(import.meta.url)), "../../plugins/version.json"),
     resolve29(process.cwd(), "plugins/version.json")
   ];
   for (const candidate of candidates) {
