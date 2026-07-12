@@ -149166,10 +149166,8 @@ async function probeCustomConnectorPresence(connector, executable, options) {
 
 // dist/cli/doctor.js
 init_config_loader();
-init_commander_support();
-init_preview();
 
-// dist/cli/routed-connectors.js
+// dist/cli/chosen-connectors.js
 init_resolver();
 init_catalog();
 init_compile_schematic_to_flow();
@@ -149191,7 +149189,7 @@ function describeResolutionSource(source) {
       return "auto";
   }
 }
-function routedConnectorsForFlow(flowId, layers, hostKind) {
+function chosenConnectorsForFlow(flowId, layers, hostKind) {
   const definition = flowDefinitions.find((candidate) => candidate.id === flowId);
   if (definition === void 0)
     throw new Error(`unknown flow '${flowId}'`);
@@ -149212,37 +149210,39 @@ function routedConnectorsForFlow(flowId, layers, hostKind) {
     });
     resolved.push({
       connectorName: decision2.connectorName,
-      route: describeResolutionSource(decision2.resolvedFrom),
+      source: describeResolutionSource(decision2.resolvedFrom),
       descriptor: decision2.connector.kind === "custom" ? decision2.connector : void 0
     });
   }
   return resolved;
 }
-function resolveRoutedConnectors(input = {}) {
+function resolveChosenConnectors(input = {}) {
   const layers = input.configLayers ?? [];
   const names = /* @__PURE__ */ new Set();
-  const routeSets = /* @__PURE__ */ new Map();
+  const sourceSets = /* @__PURE__ */ new Map();
   const custom2 = /* @__PURE__ */ new Map();
   for (const definition of flowDefinitions) {
     if (definition.visibility !== "public")
       continue;
-    for (const step of routedConnectorsForFlow(definition.id, layers, input.hostKind)) {
+    for (const step of chosenConnectorsForFlow(definition.id, layers, input.hostKind)) {
       names.add(step.connectorName);
-      const routeSet = routeSets.get(step.connectorName) ?? /* @__PURE__ */ new Set();
-      routeSet.add(step.route);
-      routeSets.set(step.connectorName, routeSet);
+      const sourceSet = sourceSets.get(step.connectorName) ?? /* @__PURE__ */ new Set();
+      sourceSet.add(step.source);
+      sourceSets.set(step.connectorName, sourceSet);
       if (step.descriptor !== void 0)
         custom2.set(step.connectorName, step.descriptor);
     }
   }
-  const routes = /* @__PURE__ */ new Map();
-  for (const [name, routeSet] of routeSets) {
-    routes.set(name, [...routeSet].sort());
+  const sources = /* @__PURE__ */ new Map();
+  for (const [name, sourceSet] of sourceSets) {
+    sources.set(name, [...sourceSet].sort());
   }
-  return { names, routes, custom: custom2 };
+  return { names, sources, custom: custom2 };
 }
 
 // dist/cli/doctor.js
+init_commander_support();
+init_preview();
 init_styled_table();
 init_terminal_style();
 function parseDoctorArgs(argv) {
@@ -149275,10 +149275,10 @@ function connectorRows(palette, entries) {
   const rows = [];
   for (const entry of entries) {
     rows.push([
-      cell2(entry.connector, entry.routed ? palette.bold : void 0),
-      entry.routed ? cell2(entry.routed_via.join(", "), palette.accent) : cell2("-", palette.dim),
+      cell2(entry.connector, entry.chosen ? palette.bold : void 0),
+      entry.chosen ? cell2(entry.chosen_by.join(", "), palette.accent) : cell2("-", palette.dim),
       cell2(STATE_LABELS[entry.state], statePaint(palette, entry.state)),
-      cell2(entry.detail, entry.routed ? void 0 : palette.dim)
+      cell2(entry.detail, entry.chosen ? void 0 : palette.dim)
     ]);
     if (entry.remediation !== void 0) {
       rows.push([cell2(""), cell2(""), cell2(""), cell2(entry.remediation, palette.dim)]);
@@ -149286,30 +149286,30 @@ function connectorRows(palette, entries) {
   }
   return rows;
 }
-function brokenRoutedNames(entries) {
-  return entries.filter((entry) => entry.routed && entry.state === "needs_attention").map((entry) => entry.connector);
+function brokenChosenNames(entries) {
+  return entries.filter((entry) => entry.chosen && entry.state === "needs_attention").map((entry) => entry.connector);
 }
 function verdictLine(palette, entries) {
-  const broken = brokenRoutedNames(entries);
+  const broken = brokenChosenNames(entries);
   if (broken.length === 0)
     return palette.bold(palette.accent("Ready."));
   const noun = broken.length === 1 ? "connector needs" : "connectors need";
   return palette.bold(palette.warn(`Not ready: ${broken.join(", ")} ${noun} attention.`));
 }
 function renderDoctorReport(palette, entries) {
-  const ordered = [...entries].sort((a, b) => Number(b.routed) - Number(a.routed));
+  const ordered = [...entries].sort((a, b) => Number(b.chosen) - Number(a.chosen));
   return [
     diamondHeaderLine(palette, "circuit doctor"),
     "",
     verdictLine(palette, entries),
     "",
     renderStyledTable(palette, [
-      columnHeader(palette, ["CONNECTOR", "ROUTED VIA", "STATE", "DETAIL"]),
+      columnHeader(palette, ["CONNECTOR", "CHOSEN BY", "STATE", "DETAIL"]),
       "rule",
       ...connectorRows(palette, ordered)
     ]),
     "",
-    palette.dim("unrouted (-) connectors are optional and never fail this check. change routing:"),
+    palette.dim("connectors marked - are optional (no flow step chooses them) and never fail this check. to change:"),
     palette.dim("  circuit config set relay.default codex   (also: relay.roles.reviewer, relay.flows.fix; then: circuit preview)")
   ].join("\n");
 }
@@ -149322,30 +149322,30 @@ async function runDoctorCommand(argv) {
   }
   const configLayers = discoverRuntimeConfigLayers({}).selectionConfigLayers;
   const hostKind = hostKindFromEnv();
-  const routed = resolveRoutedConnectors({
+  const chosen = resolveChosenConnectors({
     configLayers,
     ...hostKind === void 0 ? {} : { hostKind }
   });
   const builtinChecks = await probeBuiltinConnectors();
-  const customChecks = await Promise.all([...routed.custom.values()].map((descriptor) => probeCustomConnectorPresence(descriptor.name, descriptor.command[0])));
+  const customChecks = await Promise.all([...chosen.custom.values()].map((descriptor) => probeCustomConnectorPresence(descriptor.name, descriptor.command[0])));
   const entries = [
     ...builtinChecks.map((check3) => ({
       ...check3,
-      routed: routed.names.has(check3.connector),
-      routed_via: routed.routes.get(check3.connector) ?? []
+      chosen: chosen.names.has(check3.connector),
+      chosen_by: chosen.sources.get(check3.connector) ?? []
     })),
     ...customChecks.map((check3) => ({
       ...check3,
-      routed: true,
-      routed_via: routed.routes.get(check3.connector) ?? []
+      chosen: true,
+      chosen_by: chosen.sources.get(check3.connector) ?? []
     }))
   ];
-  const ready = brokenRoutedNames(entries).length === 0;
+  const ready = brokenChosenNames(entries).length === 0;
   if (parsed.json) {
     process.stdout.write(`${JSON.stringify({
       schema_version: 2,
       ready,
-      routed_connectors: [...routed.names].sort(),
+      chosen_connectors: [...chosen.names].sort(),
       connectors: entries
     }, null, 2)}
 `);

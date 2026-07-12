@@ -1,8 +1,8 @@
-// The routed connector set — every connector at least one public flow's relay
+// The chosen connector set — every connector at least one public flow's relay
 // step would actually dispatch through, under the effective config layers and
 // host kind. `circuit doctor` grades only these connectors for readiness;
 // everything else is reported informationally, since a broken connector no
-// flow routes to cannot break a run.
+// flow ever chooses cannot break a run.
 //
 // Reuses the exact connector-resolution seam `circuit preview` walks
 // (explicitConnectorForStep + resolveConnectorForGuidanceInput) rather than
@@ -20,22 +20,22 @@ import type { HostKind } from '../schemas/host.js';
 import { RelayRole as RelayRoleSchema } from '../schemas/step.js';
 import { explicitConnectorForStep, firstCompiledFlow } from './flow-selection-preview.js';
 
-export interface RoutedConnectorsInput {
+export interface ChosenConnectorsInput {
   readonly configLayers?: readonly LayeredConfigValue[];
   readonly hostKind?: HostKind;
 }
 
-export interface RoutedConnectors {
+export interface ChosenConnectors {
   // Every connector name (builtin or custom) at least one public flow's relay
   // step resolves to under the given config layers and host kind.
   readonly names: ReadonlySet<string>;
-  // Why each routed connector is routed, keyed by name: the distinct
-  // resolution sources that picked it, as short teachable phrases (`auto`,
-  // `default`, `role: reviewer`, `flow: fix`, `step pin`), sorted. This is
-  // what `circuit doctor` prints in its ROUTED VIA column, so the readout
-  // names the exact config lever behind every routing decision.
-  readonly routes: ReadonlyMap<string, readonly string[]>;
-  // Full descriptor for a routed custom connector, keyed by name — the health
+  // Why each connector was chosen, keyed by name: the distinct resolution
+  // sources that picked it, as short teachable phrases (`auto`, `default`,
+  // `role: reviewer`, `flow: fix`, `step pin`), sorted. This is what
+  // `circuit doctor` prints in its CHOSEN BY column, so the readout names
+  // the exact config lever behind every decision.
+  readonly sources: ReadonlyMap<string, readonly string[]>;
+  // Full descriptor for a chosen custom connector, keyed by name — the health
   // probe needs `command[0]` to run a presence check.
   readonly custom: ReadonlyMap<string, CustomConnectorDescriptor>;
 }
@@ -58,13 +58,13 @@ function describeResolutionSource(source: RelayResolutionSource): string {
   }
 }
 
-function routedConnectorsForFlow(
+function chosenConnectorsForFlow(
   flowId: string,
   layers: readonly LayeredConfigValue[],
   hostKind: HostKind | undefined,
 ): readonly {
   readonly connectorName: string;
-  readonly route: string;
+  readonly source: string;
   readonly descriptor: CustomConnectorDescriptor | undefined;
 }[] {
   const definition = flowDefinitions.find((candidate) => candidate.id === flowId);
@@ -74,7 +74,7 @@ function routedConnectorsForFlow(
 
   const resolved: {
     connectorName: string;
-    route: string;
+    source: string;
     descriptor: CustomConnectorDescriptor | undefined;
   }[] = [];
   for (const step of index.flow.steps as readonly RuntimeIndexedStep[]) {
@@ -90,31 +90,31 @@ function routedConnectorsForFlow(
     });
     resolved.push({
       connectorName: decision.connectorName,
-      route: describeResolutionSource(decision.resolvedFrom),
+      source: describeResolutionSource(decision.resolvedFrom),
       descriptor: decision.connector.kind === 'custom' ? decision.connector : undefined,
     });
   }
   return resolved;
 }
 
-export function resolveRoutedConnectors(input: RoutedConnectorsInput = {}): RoutedConnectors {
+export function resolveChosenConnectors(input: ChosenConnectorsInput = {}): ChosenConnectors {
   const layers = input.configLayers ?? [];
   const names = new Set<string>();
-  const routeSets = new Map<string, Set<string>>();
+  const sourceSets = new Map<string, Set<string>>();
   const custom = new Map<string, CustomConnectorDescriptor>();
   for (const definition of flowDefinitions) {
     if (definition.visibility !== 'public') continue;
-    for (const step of routedConnectorsForFlow(definition.id, layers, input.hostKind)) {
+    for (const step of chosenConnectorsForFlow(definition.id, layers, input.hostKind)) {
       names.add(step.connectorName);
-      const routeSet = routeSets.get(step.connectorName) ?? new Set<string>();
-      routeSet.add(step.route);
-      routeSets.set(step.connectorName, routeSet);
+      const sourceSet = sourceSets.get(step.connectorName) ?? new Set<string>();
+      sourceSet.add(step.source);
+      sourceSets.set(step.connectorName, sourceSet);
       if (step.descriptor !== undefined) custom.set(step.connectorName, step.descriptor);
     }
   }
-  const routes = new Map<string, readonly string[]>();
-  for (const [name, routeSet] of routeSets) {
-    routes.set(name, [...routeSet].sort());
+  const sources = new Map<string, readonly string[]>();
+  for (const [name, sourceSet] of sourceSets) {
+    sources.set(name, [...sourceSet].sort());
   }
-  return { names, routes, custom };
+  return { names, sources, custom };
 }

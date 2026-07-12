@@ -7,19 +7,19 @@ import { main } from '../../src/cli/circuit.js';
 import { captureStreams } from '../helpers/runtime-fixtures.js';
 import { withScopedEnv } from '../helpers/scoped-env.js';
 
-// `circuit doctor` — a readiness report for the connectors your runs actually
-// route through. The live incident this encodes: a tournament died mid-flight
+// `circuit doctor` — a readiness report for the connectors your runs would
+// actually use. The live incident this encodes: a tournament died mid-flight
 // (after real spend on the healthy branch) because the codex CLI was broken
 // and cursor-agent was signed out. Doctor probes the same binaries a run
 // would relay through, before any spend, and answers in plain English with a
 // fix per connector — but it only grades readiness (and the exit code) on the
-// connectors this machine's flows actually route through, so a healthy
+// connectors this machine's flows would actually choose, so a healthy
 // machine with only claude-code installed is not a false alarm about codex
 // and cursor-agent it never dispatches to.
 //
 // This repo's own `.circuit/config.yaml` sets `relay: { default: auto }` with
 // no role/flow overrides, so under the real config discovery these tests run
-// against, the routed set is exactly `{claude-code}` unless a test overrides
+// against, the chosen set is exactly `{claude-code}` unless a test overrides
 // `CIRCUIT_HOST_KIND`.
 
 const tempRoots: string[] = [];
@@ -71,8 +71,8 @@ function healthyCursorAgent(dir: string): void {
 const ANSI_PATTERN = new RegExp(`${String.fromCharCode(27)}\\[[0-9;]*m`, 'g');
 const stripAnsi = (text: string): string => text.replace(ANSI_PATTERN, '');
 
-describe('circuit doctor: readiness on the routed set', () => {
-  it('reports the routed claude-code healthy, verdict Ready first, and exits 0', async () => {
+describe('circuit doctor: readiness on the chosen set', () => {
+  it('reports the chosen claude-code healthy, verdict Ready first, and exits 0', async () => {
     const bin = stubBinDir();
     healthyClaude(bin);
     healthyCodex(bin);
@@ -90,7 +90,7 @@ describe('circuit doctor: readiness on the routed set', () => {
     expect(plain).toContain('9.9.9 (Claude Code stub)');
   });
 
-  it('a broken routed connector (claude-code) names it, gives the fix, and exits 1', async () => {
+  it('a broken chosen connector (claude-code) names it, gives the fix, and exits 1', async () => {
     const bin = stubBinDir();
     // No claude stub: spawning it fails the way a broken install does.
     healthyCodex(bin);
@@ -108,11 +108,11 @@ describe('circuit doctor: readiness on the routed set', () => {
     expect(plain).toContain('Fix:');
   });
 
-  it('a broken but unrouted connector (cursor-agent) is reported informationally and exits 0', async () => {
+  it('a broken but unchosen connector (cursor-agent) is reported informationally and exits 0', async () => {
     const bin = stubBinDir();
     healthyClaude(bin);
     healthyCodex(bin);
-    // No cursor-agent stub, but cursor-agent is not in the routed set on this
+    // No cursor-agent stub, but cursor-agent is not in the chosen set on this
     // repo's config, so it must not sink the exit code.
 
     const { result, stdout } = await withScopedEnv({ PATH: bin }, () =>
@@ -126,7 +126,7 @@ describe('circuit doctor: readiness on the routed set', () => {
     expect(plain).toContain('needs attention');
   });
 
-  it('renders one table: ROUTED VIA names the resolution source, unrouted rows show -', async () => {
+  it('renders one table: CHOSEN BY names the resolution source, unchosen rows show -', async () => {
     const bin = stubBinDir();
     healthyClaude(bin);
     healthyCodex(bin);
@@ -139,24 +139,24 @@ describe('circuit doctor: readiness on the routed set', () => {
     const plain = stripAnsi(stdout);
     // One table, one header.
     expect(plain.match(/CONNECTOR/g)).toHaveLength(1);
-    expect(plain).toContain('ROUTED VIA');
+    expect(plain).toContain('CHOSEN BY');
     const rows = plain.split('\n').filter((line) => /^\S/.test(line));
     const claudeRow = rows.find((line) => line.startsWith('claude-code'));
     const codexRow = rows.find((line) => line.startsWith('codex'));
     const cursorRow = rows.find((line) => line.startsWith('cursor-agent'));
-    // The routed connector names its resolution source; unrouted rows show -.
+    // The chosen connector names its resolution source; unchosen rows show -.
     expect(claudeRow).toContain('auto');
     expect(codexRow).toMatch(/codex\s+-\s/);
     expect(cursorRow).toMatch(/cursor-agent\s+-\s/);
-    // Routed rows sort first.
+    // Chosen rows sort first.
     expect(plain.indexOf('claude-code')).toBeLessThan(plain.indexOf('codex'));
-    // The footer teaches the routing lever.
+    // The footer teaches the config lever behind the choice.
     expect(plain).toContain('circuit config set relay.default');
   });
 
-  it('CIRCUIT_HOST_KIND=codex routes codex instead of claude-code', async () => {
+  it('CIRCUIT_HOST_KIND=codex chooses codex instead of claude-code', async () => {
     const bin = stubBinDir();
-    // No claude stub at all: codex is the routed connector under this host
+    // No claude stub at all: codex is the chosen connector under this host
     // kind, so a missing claude-code must not affect readiness.
     healthyCodex(bin);
 
@@ -167,12 +167,19 @@ describe('circuit doctor: readiness on the routed set', () => {
     expect(result).toBe(0);
     const plain = stripAnsi(stdout);
     expect(plain).toContain('Ready.');
-    expect(plain.indexOf('routed connectors')).toBeLessThan(plain.indexOf('codex'));
+    const rows = plain.split('\n').filter((line) => /^\S/.test(line));
+    const codexRow = rows.find((line) => line.startsWith('codex'));
+    const claudeRow = rows.find((line) => line.startsWith('claude-code'));
+    // Codex carries the resolution source; claude-code is unchosen here.
+    expect(codexRow).toContain('auto');
+    expect(claudeRow).toMatch(/claude-code\s+-\s/);
+    // The chosen row sorts first.
+    expect(plain.indexOf('codex')).toBeLessThan(plain.indexOf('claude-code'));
   });
 
   it('CIRCUIT_HOST_KIND=codex with a broken codex exits 1', async () => {
     const bin = stubBinDir();
-    // No codex stub: codex is routed under this host kind and broken.
+    // No codex stub: codex is chosen under this host kind and broken.
 
     const { result, stdout } = await withScopedEnv({ PATH: bin, CIRCUIT_HOST_KIND: 'codex' }, () =>
       captureStreams(() => main(['doctor'])),
@@ -196,11 +203,11 @@ describe('circuit doctor: readiness on the routed set', () => {
     expect(stdout).toBe(stripAnsi(stdout));
   });
 
-  it('emits machine-readable results with --json: schema_version 2, ready, routed_connectors, per-entry routed', async () => {
+  it('emits machine-readable results with --json: schema_version 2, ready, chosen_connectors, per-entry chosen', async () => {
     const bin = stubBinDir();
     healthyClaude(bin);
     healthyCodex(bin);
-    // No cursor-agent stub (unrouted and broken; must not affect `ready`).
+    // No cursor-agent stub (unchosen and broken; must not affect `ready`).
 
     const { result, stdout } = await withScopedEnv({ PATH: bin }, () =>
       captureStreams(() => main(['doctor', '--json'])),
@@ -210,39 +217,39 @@ describe('circuit doctor: readiness on the routed set', () => {
     const parsed = JSON.parse(stdout) as {
       schema_version: number;
       ready: boolean;
-      routed_connectors: string[];
+      chosen_connectors: string[];
       connectors: Array<{
         connector: string;
         state: string;
         remediation?: string;
-        routed: boolean;
-        routed_via: string[];
+        chosen: boolean;
+        chosen_by: string[];
       }>;
     };
     expect(parsed.schema_version).toBe(2);
     expect(parsed.ready).toBe(true);
-    expect(parsed.routed_connectors).toEqual(['claude-code']);
+    expect(parsed.chosen_connectors).toEqual(['claude-code']);
     expect(parsed.connectors).toHaveLength(3);
 
     const claude = parsed.connectors.find((entry) => entry.connector === 'claude-code');
     expect(claude?.state).toBe('ok');
-    expect(claude?.routed).toBe(true);
-    expect(claude?.routed_via).toEqual(['auto']);
+    expect(claude?.chosen).toBe(true);
+    expect(claude?.chosen_by).toEqual(['auto']);
 
     const cursor = parsed.connectors.find((entry) => entry.connector === 'cursor-agent');
     expect(cursor?.state).toBe('needs_attention');
     expect(cursor?.remediation).toBeTruthy();
-    expect(cursor?.routed).toBe(false);
-    expect(cursor?.routed_via).toEqual([]);
+    expect(cursor?.chosen).toBe(false);
+    expect(cursor?.chosen_by).toEqual([]);
 
     const codex = parsed.connectors.find((entry) => entry.connector === 'codex');
     expect(codex?.state).toBe('ok');
-    expect(codex?.routed).toBe(false);
+    expect(codex?.chosen).toBe(false);
   });
 
-  it('--json reports ready=false and exits 1 when the routed connector is broken', async () => {
+  it('--json reports ready=false and exits 1 when the chosen connector is broken', async () => {
     const bin = stubBinDir();
-    // No claude stub: the routed connector is broken.
+    // No claude stub: the chosen connector is broken.
     healthyCodex(bin);
     healthyCursorAgent(bin);
 
@@ -251,8 +258,8 @@ describe('circuit doctor: readiness on the routed set', () => {
     );
 
     expect(result).toBe(1);
-    const parsed = JSON.parse(stdout) as { ready: boolean; routed_connectors: string[] };
+    const parsed = JSON.parse(stdout) as { ready: boolean; chosen_connectors: string[] };
     expect(parsed.ready).toBe(false);
-    expect(parsed.routed_connectors).toEqual(['claude-code']);
+    expect(parsed.chosen_connectors).toEqual(['claude-code']);
   });
 });

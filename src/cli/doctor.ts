@@ -1,16 +1,16 @@
-// `circuit doctor` — a readiness report for the connectors your runs
-// actually route through.
+// `circuit doctor` — a readiness report for the connectors your runs would
+// actually use.
 //
 // A run that relays through a broken or signed-out connector CLI dies
 // mid-flight, after real spend on the branches that were healthy. Doctor
 // probes the same binaries a run would spawn (a version call for presence, a
 // status call for sign-in where the CLI has one) and answers in plain English
-// with a fix per connector. It grades readiness against the ROUTED connector
+// with a fix per connector. It grades readiness against the CHOSEN connector
 // set — the connectors at least one public flow's relay step would actually
 // dispatch through, under the operator's config and host kind — so a fresh
 // machine that only has claude-code installed reads Ready, not a false alarm
-// about codex and cursor-agent it never routes to. Unrouted connectors still
-// get probed and reported, but only informationally: their state never
+// about codex and cursor-agent no flow would choose. Unchosen connectors
+// still get probed and reported, but only informationally: their state never
 // affects the exit code.
 import { Command } from 'commander';
 
@@ -20,9 +20,9 @@ import {
   probeCustomConnectorPresence,
 } from '../connectors/health.js';
 import { discoverRuntimeConfigLayers } from '../shared/config-loader.js';
+import { resolveChosenConnectors } from './chosen-connectors.js';
 import { commanderErrorMessage, configureCommanderProgram } from './commander-support.js';
 import { hostKindFromEnv } from './preview.js';
-import { resolveRoutedConnectors } from './routed-connectors.js';
 import { cell, columnHeader, diamondHeaderLine, renderStyledTable } from './styled-table.js';
 import { type TerminalPalette, colorEnabled, terminalPalette } from './terminal-style.js';
 
@@ -49,13 +49,13 @@ function parseDoctorArgs(argv: readonly string[]): ParsedDoctorArgs | string {
 
 export interface DoctorConnectorEntry extends ConnectorHealthCheck {
   // Whether at least one public flow's relay step would dispatch through this
-  // connector under the operator's config and host kind. Only routed
+  // connector under the operator's config and host kind. Only chosen
   // connectors count toward readiness and the exit code.
-  readonly routed: boolean;
-  // Why it is routed: the distinct resolution sources that picked it, as
+  readonly chosen: boolean;
+  // Why it was chosen: the distinct resolution sources that picked it, as
   // short phrases naming the config lever (`auto`, `default`,
-  // `role: reviewer`, `flow: fix`, `step pin`). Empty for unrouted entries.
-  readonly routed_via: readonly string[];
+  // `role: reviewer`, `flow: fix`, `step pin`). Empty for unchosen entries.
+  readonly chosen_by: readonly string[];
 }
 
 const STATE_LABELS: Record<ConnectorHealthCheck['state'], string> = {
@@ -80,10 +80,10 @@ function connectorRows(
   const rows: (readonly ReturnType<typeof cell>[])[] = [];
   for (const entry of entries) {
     rows.push([
-      cell(entry.connector, entry.routed ? palette.bold : undefined),
-      entry.routed ? cell(entry.routed_via.join(', '), palette.accent) : cell('-', palette.dim),
+      cell(entry.connector, entry.chosen ? palette.bold : undefined),
+      entry.chosen ? cell(entry.chosen_by.join(', '), palette.accent) : cell('-', palette.dim),
       cell(STATE_LABELS[entry.state], statePaint(palette, entry.state)),
-      cell(entry.detail, entry.routed ? undefined : palette.dim),
+      cell(entry.detail, entry.chosen ? undefined : palette.dim),
     ]);
     if (entry.remediation !== undefined) {
       rows.push([cell(''), cell(''), cell(''), cell(entry.remediation, palette.dim)]);
@@ -92,14 +92,14 @@ function connectorRows(
   return rows;
 }
 
-function brokenRoutedNames(entries: readonly DoctorConnectorEntry[]): readonly string[] {
+function brokenChosenNames(entries: readonly DoctorConnectorEntry[]): readonly string[] {
   return entries
-    .filter((entry) => entry.routed && entry.state === 'needs_attention')
+    .filter((entry) => entry.chosen && entry.state === 'needs_attention')
     .map((entry) => entry.connector);
 }
 
 function verdictLine(palette: TerminalPalette, entries: readonly DoctorConnectorEntry[]): string {
-  const broken = brokenRoutedNames(entries);
+  const broken = brokenChosenNames(entries);
   if (broken.length === 0) return palette.bold(palette.accent('Ready.'));
   const noun = broken.length === 1 ? 'connector needs' : 'connectors need';
   return palette.bold(palette.warn(`Not ready: ${broken.join(', ')} ${noun} attention.`));
@@ -109,12 +109,12 @@ export function renderDoctorReport(
   palette: TerminalPalette,
   entries: readonly DoctorConnectorEntry[],
 ): string {
-  // One table, routed connectors first (Array.prototype.sort is stable, so
-  // the probe order survives within each group). The ROUTED VIA column is
-  // both the routed/unrouted split and the teaching surface: it names the
-  // exact resolution source behind every routing decision, and `-` marks a
-  // connector no flow would dispatch through.
-  const ordered = [...entries].sort((a, b) => Number(b.routed) - Number(a.routed));
+  // One table, chosen connectors first (Array.prototype.sort is stable, so
+  // the probe order survives within each group). The CHOSEN BY column is
+  // both the chosen/unchosen split and the teaching surface: it names the
+  // exact resolution source behind every decision, and `-` marks a connector
+  // no flow would dispatch through.
+  const ordered = [...entries].sort((a, b) => Number(b.chosen) - Number(a.chosen));
 
   return [
     diamondHeaderLine(palette, 'circuit doctor'),
@@ -122,12 +122,14 @@ export function renderDoctorReport(
     verdictLine(palette, entries),
     '',
     renderStyledTable(palette, [
-      columnHeader(palette, ['CONNECTOR', 'ROUTED VIA', 'STATE', 'DETAIL']),
+      columnHeader(palette, ['CONNECTOR', 'CHOSEN BY', 'STATE', 'DETAIL']),
       'rule',
       ...connectorRows(palette, ordered),
     ]),
     '',
-    palette.dim('unrouted (-) connectors are optional and never fail this check. change routing:'),
+    palette.dim(
+      'connectors marked - are optional (no flow step chooses them) and never fail this check. to change:',
+    ),
     palette.dim(
       '  circuit config set relay.default codex   (also: relay.roles.reviewer, relay.flows.fix; then: circuit preview)',
     ),
@@ -143,14 +145,14 @@ export async function runDoctorCommand(argv: readonly string[]): Promise<number>
 
   const configLayers = discoverRuntimeConfigLayers({}).selectionConfigLayers;
   const hostKind = hostKindFromEnv();
-  const routed = resolveRoutedConnectors({
+  const chosen = resolveChosenConnectors({
     configLayers,
     ...(hostKind === undefined ? {} : { hostKind }),
   });
 
   const builtinChecks = await probeBuiltinConnectors();
   const customChecks = await Promise.all(
-    [...routed.custom.values()].map((descriptor) =>
+    [...chosen.custom.values()].map((descriptor) =>
       probeCustomConnectorPresence(descriptor.name, descriptor.command[0] as string),
     ),
   );
@@ -158,17 +160,17 @@ export async function runDoctorCommand(argv: readonly string[]): Promise<number>
   const entries: DoctorConnectorEntry[] = [
     ...builtinChecks.map((check) => ({
       ...check,
-      routed: routed.names.has(check.connector),
-      routed_via: routed.routes.get(check.connector) ?? [],
+      chosen: chosen.names.has(check.connector),
+      chosen_by: chosen.sources.get(check.connector) ?? [],
     })),
     ...customChecks.map((check) => ({
       ...check,
-      routed: true,
-      routed_via: routed.routes.get(check.connector) ?? [],
+      chosen: true,
+      chosen_by: chosen.sources.get(check.connector) ?? [],
     })),
   ];
 
-  const ready = brokenRoutedNames(entries).length === 0;
+  const ready = brokenChosenNames(entries).length === 0;
 
   if (parsed.json) {
     process.stdout.write(
@@ -176,7 +178,7 @@ export async function runDoctorCommand(argv: readonly string[]): Promise<number>
         {
           schema_version: 2,
           ready,
-          routed_connectors: [...routed.names].sort(),
+          chosen_connectors: [...chosen.names].sort(),
           connectors: entries,
         },
         null,

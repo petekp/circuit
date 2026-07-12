@@ -107,7 +107,7 @@ circuit run <flow> --goal '<your task>'
 
 Circuit does the work through connector CLIs (`claude` by default), so a
 signed-in Claude Code install is a prerequisite. `circuit doctor` confirms
-the connectors your runs actually route through are ready, before a run
+the connectors your runs would actually use are ready, before a run
 spends anything on a broken one, and lists any other connector CLI as
 optional.
 
