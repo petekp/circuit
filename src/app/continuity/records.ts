@@ -14,14 +14,21 @@ import {
 } from '../../schemas/continuity.js';
 import type { ControlPlaneFileStem } from '../../schemas/scalars.js';
 import type { Snapshot, SnapshotStatus } from '../../schemas/snapshot.js';
-import { CONTROL_PLANE_DIR, controlPlaneRoot } from '../../shared/control-plane-paths.js';
+import {
+  CONTROL_PLANE_DIR,
+  controlPlaneRoot,
+  normalizeProjectRoot,
+} from '../../shared/control-plane-paths.js';
 import { readManifestSnapshot } from '../../shared/manifest-snapshot.js';
 import { projectRunStatusFromRunFolder } from '../run-status/run-folder-projector.js';
 
 export const DEFAULT_CONTROL_PLANE = CONTROL_PLANE_DIR;
 
 export function resolveProjectRootArg(args: { readonly projectRoot?: string }): string {
-  return resolve(args.projectRoot ?? process.cwd());
+  // A claimed root inside `.circuit` (a hook or save fired from a run folder)
+  // re-anchors to the enclosing project so no store nests inside the control
+  // plane and every recorded project_root names the real root.
+  return normalizeProjectRoot(args.projectRoot ?? process.cwd());
 }
 
 export function resolveControlPlaneArg(args: {

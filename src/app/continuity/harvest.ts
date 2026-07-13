@@ -15,7 +15,7 @@ import { ContinuityIndex, ContinuityRecord } from '../../schemas/continuity.js';
 import type { ControlPlaneFileStem } from '../../schemas/scalars.js';
 import { writeJsonAtomic } from '../../shared/atomic-io.js';
 import { ensureCircuitGitignore } from '../../shared/control-plane-gitignore.js';
-import { controlPlaneRoot } from '../../shared/control-plane-paths.js';
+import { controlPlaneRoot, normalizeProjectRoot } from '../../shared/control-plane-paths.js';
 import {
   continuityRoot,
   indexPath,
@@ -39,6 +39,11 @@ export type AmbientSource = 'stop' | 'session-end' | 'pre-compact';
 // CONT-I13..I18).
 
 const DEFAULT_AMBIENT_RECORD_STEM = 'ambient-latest';
+// An ambient record is a mechanical hint, not a transcript: intents clip at
+// one long sentence (280 chars) and only the four freshest survive, because
+// the record's job is "what was I doing" orientation and anything richer
+// belongs to a deliberate handoff save. Older per-session records GC past the
+// ten most recent (AMBIENT_RECORDS_KEPT below).
 const AMBIENT_INTENT_MAX_CHARS = 280;
 const AMBIENT_MAX_INTENTS = 4;
 
@@ -636,7 +641,10 @@ function composeAmbientStateMarkdown(
 }
 
 export function harvestAmbientContinuity(input: AmbientHarvestInput): AmbientHarvestResult {
-  const projectRoot = resolve(input.projectRoot);
+  // A hook fired from inside the control plane (cwd = `.circuit/runs/<id>`)
+  // claims a project root no store should ever anchor to; normalize so the
+  // recorded project_root and the store location agree on the real root.
+  const projectRoot = normalizeProjectRoot(input.projectRoot);
   const controlPlane =
     input.controlPlane === undefined ? controlPlaneRoot(projectRoot) : resolve(input.controlPlane);
   const skip = (

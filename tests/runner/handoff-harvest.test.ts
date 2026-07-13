@@ -473,6 +473,54 @@ describe('circuit handoff harvest (ambient continuity producer)', () => {
     expect(record.narrative.state_markdown).toContain('newer activity wins');
     expect(record.narrative.state_markdown).not.toContain('older activity');
   });
+
+  // Regression: a hook fired from a worker whose cwd sat inside the control
+  // plane (`.circuit/runs`) passed that cwd as --project-root, and harvest
+  // nested a second store at `.circuit/runs/.circuit/continuity` with a
+  // project_root pointing inside the real store (observed 2026-06-16 and
+  // 2026-07-12 in two repos). A directory inside `.circuit` is never a project
+  // root: harvest must re-anchor to the control plane's parent.
+  it('re-roots a --project-root that lies inside the control plane instead of nesting a store', async () => {
+    const projectRoot = tempRoot('circuit-harvest-nested-');
+    const insideControlPlane = join(projectRoot, '.circuit', 'runs');
+    mkdirSync(insideControlPlane, { recursive: true });
+    const transcript = join(projectRoot, 'transcript.jsonl');
+    writeFileSync(transcript, jsonl([userString('work that happened inside a run folder')]));
+
+    const harvest = await captureMain(
+      [
+        'handoff',
+        'harvest',
+        '--transcript-path',
+        transcript,
+        '--project-root',
+        insideControlPlane,
+        '--session-id',
+        's-nested',
+        '--source',
+        'stop',
+        '--record-id',
+        'ambient-latest',
+      ],
+      { now: NOW },
+    );
+    expect(harvest.code, harvest.stderr).toBe(0);
+    const result = JSON.parse(harvest.stdout) as { status: string; continuity_path: string };
+    expect(result.status).toBe('harvested');
+
+    // The record lands in the REAL store, no nested control plane appears, and
+    // the recorded project_root names the real project root.
+    expect(result.continuity_path).toBe(
+      join(projectRoot, '.circuit/continuity/records/ambient-latest.json'),
+    );
+    expect(existsSync(join(insideControlPlane, '.circuit'))).toBe(false);
+    const record = ContinuityRecord.parse(JSON.parse(readFileSync(result.continuity_path, 'utf8')));
+    expect(record.project_root).toBe(projectRoot);
+    const index = ContinuityIndex.parse(
+      JSON.parse(readFileSync(join(projectRoot, '.circuit/continuity/index.json'), 'utf8')),
+    );
+    expect(index.project_root).toBe(projectRoot);
+  });
 });
 
 // C2: when a compaction summary exists it is the richest signal in the

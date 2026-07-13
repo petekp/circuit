@@ -13,9 +13,10 @@
 // exactly once and can never drift between seams.
 
 import { existsSync } from 'node:fs';
-import { basename, dirname, join, resolve } from 'node:path';
+import { join } from 'node:path';
 import { writeTextAtomic } from './atomic-io.js';
-import { CONTROL_PLANE_DIR } from './control-plane-paths.js';
+
+export { controlPlaneRootFromDescendant } from './control-plane-paths.js';
 
 const CIRCUIT_GITIGNORE_CONTENTS = [
   '# Circuit machine-written records — do not commit',
@@ -42,21 +43,6 @@ export function ensureCircuitGitignore(circuitDir: string): void {
   }
 }
 
-/**
- * The nearest ancestor directory named `.circuit`, or undefined when
- * `descendant` is not under a control plane (for example a test's temp run
- * directory). This lets a run seed its control-plane `.gitignore` straight from
- * its run folder without threading the project root through the runtime
- * boundary, and makes the seed a safe no-op for any run directory that does not
- * live under `.circuit`.
- */
-export function controlPlaneRootFromDescendant(descendant: string): string | undefined {
-  let current = resolve(descendant);
-  let parent = dirname(current);
-  while (parent !== current) {
-    if (basename(current) === CONTROL_PLANE_DIR) return current;
-    current = parent;
-    parent = dirname(current);
-  }
-  return basename(current) === CONTROL_PLANE_DIR ? current : undefined;
-}
+// controlPlaneRootFromDescendant moved to control-plane-paths.ts (the path
+// helpers there use it to reject nested control planes) and is re-exported
+// above so run-boundary call sites keep their import.
