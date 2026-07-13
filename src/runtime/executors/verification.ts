@@ -34,15 +34,59 @@ function verificationFailureReason(stepId: string, error: unknown): string {
   return `verification step '${stepId}': report writer failed (${message})`;
 }
 
+// Bounds for the command string and quoted output lines embedded in a failure
+// reason. Long enough to identify what ran and what it said; short enough that
+// the reason stays a sentence, not a dump.
+const FAILURE_REASON_ARGV_MAX_CHARS = 160;
+const FAILURE_REASON_OUTPUT_LINE_MAX_CHARS = 200;
+
+function clipped(text: string, maxChars: number): string {
+  return text.length > maxChars ? `${text.slice(0, maxChars)}…` : text;
+}
+
+function lastNonEmptyLine(text: string): string | undefined {
+  const lines = text.split('\n');
+  for (let index = lines.length - 1; index >= 0; index -= 1) {
+    const line = (lines[index] as string).trim();
+    if (line.length > 0) return line;
+  }
+  return undefined;
+}
+
+// The last non-empty line of each captured stream, quoted — what the command
+// said as it died, without the head-of-output padding that used to crowd out
+// the useful part. Says so plainly when there was no output at all.
+function observationOutputTail(observation: VerificationCommandObservation): string {
+  const parts: string[] = [];
+  const stdoutLine = lastNonEmptyLine(observation.stdout_summary);
+  const stderrLine = lastNonEmptyLine(observation.stderr_summary);
+  if (stdoutLine !== undefined) {
+    parts.push(
+      `last stdout: ${JSON.stringify(clipped(stdoutLine, FAILURE_REASON_OUTPUT_LINE_MAX_CHARS))}`,
+    );
+  }
+  if (stderrLine !== undefined) {
+    parts.push(
+      `last stderr: ${JSON.stringify(clipped(stderrLine, FAILURE_REASON_OUTPUT_LINE_MAX_CHARS))}`,
+    );
+  }
+  if (parts.length === 0) return ' — the command produced no output';
+  return ` — ${parts.join('; ')}`;
+}
+
 // Names the evidence the failing observations already hold instead of a
 // constant string, so the reason that reaches the trace, the close reason,
 // and the operator summary's Stop-reason line tells the operator whether a
-// command actually failed or merely ran out of its budget (F3).
+// command actually failed or merely ran out of its budget (F3) — and names
+// WHAT ran (the command string), how it died (exit code or budget), and the
+// last thing it said (R5).
 function failingObservationDetail(observation: VerificationCommandObservation): string {
+  const commandText = clipped(observation.command.argv.join(' '), FAILURE_REASON_ARGV_MAX_CHARS);
+  const named = `command '${observation.command.id}' (\`${commandText}\`)`;
   if (observation.timed_out) {
-    return `command '${observation.command.id}' timed out after ${observation.duration_ms}ms (budget ${observation.command.timeout_ms}ms)`;
+    return `${named} timed out after ${observation.duration_ms}ms (budget ${observation.command.timeout_ms}ms)${observationOutputTail(observation)}`;
   }
-  return `command '${observation.command.id}' exited ${observation.exit_code}`;
+  return `${named} exited ${observation.exit_code}${observationOutputTail(observation)}`;
 }
 
 function verificationCommandFailureReason(input: {

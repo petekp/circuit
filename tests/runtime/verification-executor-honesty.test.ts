@@ -128,8 +128,10 @@ describe('verification executor honesty', () => {
       throw new Error('expected a routed outcome, not a checkpoint');
     expect(result.outcome.route).toBe('retry');
     const reason = result.outcome.details?.reason;
-    expect(reason).toContain("command 'unit-tests' exited 1");
-    expect(reason).toMatch(/command 'full-suite' timed out after \d+ms \(budget 200ms\)/);
+    // The reason names each command by id AND by the command string that ran
+    // (R5: the operator must see WHAT failed without opening the run folder).
+    expect(reason).toMatch(/command 'unit-tests' \(`.*?`\) exited 1/);
+    expect(reason).toMatch(/command 'full-suite' \(`.*?`\) timed out after \d+ms \(budget 200ms\)/);
   });
 
   it('skips recovery routing and fails directly when every failing command timed out', async () => {
