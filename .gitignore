@@ -18,6 +18,8 @@ coverage/
 # Runtime lock from the Claude Code harness (sessionId/pid/acquiredAt). Not
 # a deliverable; per-machine ephemeral state.
 .claude/scheduled_tasks.lock
+# Statusline HUD state from the Claude Code harness; per-machine ephemeral.
+.claude/hud-status.json
 
 # Tool-run state for the Circuit harness used by this project. Ephemeral
 # per-machine state; nothing here is a deliverable.
