@@ -18866,21 +18866,37 @@ var init_atomic_io = __esm({
 });
 
 // dist/shared/control-plane-paths.js
-import { resolve } from "node:path";
+import { basename, dirname as dirname2, resolve } from "node:path";
+function controlPlaneRootFromDescendant(descendant) {
+  let current = resolve(descendant);
+  let parent = dirname2(current);
+  while (parent !== current) {
+    if (basename(current) === CONTROL_PLANE_DIR)
+      return current;
+    current = parent;
+    parent = dirname2(current);
+  }
+  return basename(current) === CONTROL_PLANE_DIR ? current : void 0;
+}
+function normalizeProjectRoot(projectRoot) {
+  const resolved = resolve(projectRoot);
+  const enclosingControlPlane = controlPlaneRootFromDescendant(resolved);
+  return enclosingControlPlane === void 0 ? resolved : dirname2(enclosingControlPlane);
+}
 function controlPlaneRoot(projectRoot) {
-  return resolve(projectRoot, CONTROL_PLANE_DIR);
+  return resolve(normalizeProjectRoot(projectRoot), CONTROL_PLANE_DIR);
 }
 function runsRoot(projectRoot) {
-  return resolve(projectRoot, CONTROL_PLANE_RUNS_DIR);
+  return resolve(normalizeProjectRoot(projectRoot), CONTROL_PLANE_RUNS_DIR);
 }
 function historyRoot(projectRoot) {
-  return resolve(projectRoot, CONTROL_PLANE_HISTORY_DIR);
+  return resolve(normalizeProjectRoot(projectRoot), CONTROL_PLANE_HISTORY_DIR);
 }
 function memoryRoot(projectRoot) {
-  return resolve(projectRoot, CONTROL_PLANE_MEMORY_DIR);
+  return resolve(normalizeProjectRoot(projectRoot), CONTROL_PLANE_MEMORY_DIR);
 }
 function projectConfigPath(projectRoot) {
-  return resolve(projectRoot, ...PROJECT_CONFIG_RELATIVE_SEGMENTS);
+  return resolve(normalizeProjectRoot(projectRoot), ...PROJECT_CONFIG_RELATIVE_SEGMENTS);
 }
 var CONTROL_PLANE_DIR, CONTROL_PLANE_RUNS_DIR, CONTROL_PLANE_HISTORY_DIR, CONTROL_PLANE_MEMORY_DIR, CONTROL_PLANE_PROTOTYPES_DIR, PROJECT_CONFIG_RELATIVE_SEGMENTS;
 var init_control_plane_paths = __esm({
@@ -18897,7 +18913,7 @@ var init_control_plane_paths = __esm({
 
 // dist/shared/control-plane-gitignore.js
 import { existsSync } from "node:fs";
-import { basename, dirname as dirname2, join, resolve as resolve2 } from "node:path";
+import { join } from "node:path";
 function ensureCircuitGitignore(circuitDir) {
   const gitignorePath = join(circuitDir, ".gitignore");
   if (existsSync(gitignorePath))
@@ -18906,17 +18922,6 @@ function ensureCircuitGitignore(circuitDir) {
     writeTextAtomic(gitignorePath, CIRCUIT_GITIGNORE_CONTENTS);
   } catch {
   }
-}
-function controlPlaneRootFromDescendant(descendant) {
-  let current = resolve2(descendant);
-  let parent = dirname2(current);
-  while (parent !== current) {
-    if (basename(current) === CONTROL_PLANE_DIR)
-      return current;
-    current = parent;
-    parent = dirname2(current);
-  }
-  return basename(current) === CONTROL_PLANE_DIR ? current : void 0;
 }
 var CIRCUIT_GITIGNORE_CONTENTS;
 var init_control_plane_gitignore = __esm({
@@ -20279,7 +20284,11 @@ var init_step = __esm({
       route_from_report: RouteFromReport.optional(),
       budgets: external_exports.object({
         max_attempts: external_exports.number().int().positive().max(10),
-        wall_clock_ms: external_exports.number().int().positive().optional()
+        wall_clock_ms: external_exports.number().int().positive().optional(),
+        // Per-step inactivity ceiling forwarded to the connector watchdog; for
+        // steps whose relay legitimately goes silent longer than the connector
+        // default.
+        inactivity_ms: external_exports.number().int().positive().optional()
       }).optional()
     });
     ComposeStep = StepBase.extend({
@@ -21026,7 +21035,7 @@ var init_result_path = __esm({
 
 // dist/shared/run-file-paths.js
 import { existsSync as existsSync2, lstatSync, realpathSync } from "node:fs";
-import { isAbsolute, relative, resolve as resolve3, sep } from "node:path";
+import { isAbsolute, relative, resolve as resolve2, sep } from "node:path";
 function isInsideOrSame(root, target) {
   const fromRoot = relative(root, target);
   return fromRoot === "" || !fromRoot.startsWith("..") && !isAbsolute(fromRoot);
@@ -21057,8 +21066,8 @@ function resolveRunFilePath(runDir, runRelativePath2) {
   if (isAbsolute(runRelativePath2)) {
     throw new Error(`run file path must be relative: ${runRelativePath2}`);
   }
-  const root = resolve3(runDir);
-  const fullPath = resolve3(root, runRelativePath2);
+  const root = resolve2(runDir);
+  const fullPath = resolve2(root, runRelativePath2);
   if (fullPath !== root && !fullPath.startsWith(`${root}${sep}`)) {
     throw new Error(`run file path escapes run directory: ${runRelativePath2}`);
   }
@@ -21076,7 +21085,7 @@ function resolveRunFilePath(runDir, runRelativePath2) {
     const rootReal = realpathSync.native(root);
     let cursor = root;
     for (const segment of runRelativePath2.split("/")) {
-      cursor = resolve3(cursor, segment);
+      cursor = resolve2(cursor, segment);
       if (!existsSync2(cursor))
         break;
       if (lstatSync(cursor).isSymbolicLink()) {
@@ -22444,7 +22453,7 @@ var init_proof_assessment = __esm({
 });
 
 // dist/schemas/trace-entry.js
-var TraceEntryBase, ContentHash, CatalogSourcedBinding, RunBootstrappedTraceEntry, SliceIndex, StepEnteredTraceEntry, StepReportWrittenTraceEntry, CheckEvaluatedTraceEntry, VerificationCommandEvaluatedTraceEntry, ProofAssessmentRef, ChangePacketRef2, SafeApplyBaseRef, SafeApplyResultRef, SafeApplyFinalVerificationRef, CheckpointBoundaryRef, ProofScope2, ProofAssessedTraceEntry, SafeApplyScope, SafeApplyResultTraceEntry, CheckpointRequestedTraceEntry, CheckpointResolvedTraceEntry, EquipmentEnforcementEvidence, RelayStartedTraceEntry, LoadedSkillCause, LoadedSkillEvidence, SkillsLoadedTraceEntry, RelayUsageEvidence, RelayCompletedTraceEntry, RelayRequestTraceEntry, RelayFailedTraceEntry, RelayReceiptTraceEntry, RelayResultTraceEntry, StepCompletedTraceEntry, StepAbortedTraceEntry, RunClosedOutcome, SubRunStartedTraceEntry, SubRunCompletedTraceEntry, FanoutConcurrencyLimit, FanoutExecutionPolicy, FanoutStartedTraceEntry, FanoutBranchStartedTraceEntry, FanoutBranchCompletedTraceEntry, FanoutJoinedTraceEntry, RunClosedTraceEntry, RunSkillHookTraceEntry, RunSkillHookErrorTraceEntry, PowerInferenceResolvedTraceEntry, RunEquipmentReshapeTraceEntry, RunContextPullTraceEntry, RunContextDeliveryTraceEntry, RunUntilJudgmentTraceEntry, TraceEntry;
+var TraceEntryBase, ContentHash, CatalogSourcedBinding, RunBootstrappedTraceEntry, SliceIndex, StepEnteredTraceEntry, StepReportWrittenTraceEntry, StepReportSkippedTraceEntry, CheckEvaluatedTraceEntry, VerificationCommandEvaluatedTraceEntry, ProofAssessmentRef, ChangePacketRef2, SafeApplyBaseRef, SafeApplyResultRef, SafeApplyFinalVerificationRef, CheckpointBoundaryRef, ProofScope2, ProofAssessedTraceEntry, SafeApplyScope, SafeApplyResultTraceEntry, CheckpointRequestedTraceEntry, CheckpointResolvedTraceEntry, EquipmentEnforcementEvidence, RelayStartedTraceEntry, LoadedSkillCause, LoadedSkillEvidence, SkillsLoadedTraceEntry, RelayUsageEvidence, RelayCompletedTraceEntry, RelayRequestTraceEntry, RelayFailedTraceEntry, RelayReceiptTraceEntry, RelayResultTraceEntry, StepCompletedTraceEntry, StepAbortedTraceEntry, RunClosedOutcome, SubRunStartedTraceEntry, SubRunCompletedTraceEntry, FanoutConcurrencyLimit, FanoutExecutionPolicy, FanoutStartedTraceEntry, FanoutBranchStartedTraceEntry, FanoutBranchCompletedTraceEntry, FanoutJoinedTraceEntry, RunClosedTraceEntry, RunSkillHookTraceEntry, RunSkillHookErrorTraceEntry, PowerInferenceResolvedTraceEntry, PowerInferenceErrorTraceEntry, ContextDeliveryErrorTraceEntry, RunEquipmentReshapeTraceEntry, RunContextPullTraceEntry, RunContextDeliveryTraceEntry, RunUntilJudgmentTraceEntry, TraceEntry;
 var init_trace_entry = __esm({
   "dist/schemas/trace-entry.js"() {
     "use strict";
@@ -22506,6 +22515,13 @@ var init_trace_entry = __esm({
       attempt: external_exports.number().int().positive(),
       report_path: external_exports.string().min(1),
       report_schema: external_exports.string().min(1)
+    }).strict();
+    StepReportSkippedTraceEntry = TraceEntryBase.extend({
+      kind: external_exports.literal("step.report_skipped"),
+      step_id: StepId,
+      attempt: external_exports.number().int().positive(),
+      report_path: external_exports.string().min(1),
+      reason: external_exports.string().min(1)
     }).strict();
     CheckEvaluatedTraceEntry = TraceEntryBase.extend({
       kind: external_exports.literal("check.evaluated"),
@@ -22909,6 +22925,16 @@ var init_trace_entry = __esm({
       resolved: Power,
       clamped: external_exports.boolean()
     }).strict();
+    PowerInferenceErrorTraceEntry = TraceEntryBase.extend({
+      kind: external_exports.literal("run.power-inference-error"),
+      step_id: StepId.optional(),
+      message: external_exports.string().min(1)
+    }).strict();
+    ContextDeliveryErrorTraceEntry = TraceEntryBase.extend({
+      kind: external_exports.literal("run.context-delivery-error"),
+      step_id: StepId,
+      message: external_exports.string().min(1)
+    }).strict();
     RunEquipmentReshapeTraceEntry = TraceEntryBase.extend({
       kind: external_exports.literal("run.equipment-reshape"),
       step_id: StepId,
@@ -22951,6 +22977,7 @@ var init_trace_entry = __esm({
       RunBootstrappedTraceEntry,
       StepEnteredTraceEntry,
       StepReportWrittenTraceEntry,
+      StepReportSkippedTraceEntry,
       CheckEvaluatedTraceEntry,
       VerificationCommandEvaluatedTraceEntry,
       ProofAssessedTraceEntry,
@@ -22976,9 +23003,11 @@ var init_trace_entry = __esm({
       RunSkillHookTraceEntry,
       RunSkillHookErrorTraceEntry,
       PowerInferenceResolvedTraceEntry,
+      PowerInferenceErrorTraceEntry,
       RunEquipmentReshapeTraceEntry,
       RunContextPullTraceEntry,
       RunContextDeliveryTraceEntry,
+      ContextDeliveryErrorTraceEntry,
       RunUntilJudgmentTraceEntry,
       GuidanceDecisionTraceEntryBody
     ]).superRefine((ev, ctx) => {
@@ -23551,7 +23580,7 @@ var init_honesty_ledger = __esm({
 // dist/shared/proof-plan.js
 import { spawnSync } from "node:child_process";
 import { existsSync as existsSync3, lstatSync as lstatSync2, readFileSync as readFileSync3, realpathSync as realpathSync2 } from "node:fs";
-import { isAbsolute as isAbsolute2, join as join5, relative as relative2, resolve as resolve4 } from "node:path";
+import { isAbsolute as isAbsolute2, join as join5, relative as relative2, resolve as resolve3 } from "node:path";
 function isProofPlanBlockedError(error52) {
   return error52 instanceof ProofPlanBlockedError || error52 instanceof Error && error52.name === "ProofPlanBlockedError";
 }
@@ -23560,8 +23589,8 @@ function isInsideOrSame2(root, target) {
   return fromRoot === "" || !fromRoot.startsWith("..") && !isAbsolute2(fromRoot);
 }
 function resolveProjectRelativeProofCwd(projectRoot, cwd2) {
-  const rootAbs = resolve4(projectRoot);
-  const targetAbs = resolve4(rootAbs, cwd2);
+  const rootAbs = resolve3(projectRoot);
+  const targetAbs = resolve3(rootAbs, cwd2);
   if (!isInsideOrSame2(rootAbs, targetAbs)) {
     throw new ProofPlanBlockedError(`verification cwd rejected: ${JSON.stringify(cwd2)} escapes project root`);
   }
@@ -23573,7 +23602,7 @@ function resolveProjectRelativeProofCwd(projectRoot, cwd2) {
   for (const segment of cwd2.split("/")) {
     if (segment === ".")
       continue;
-    cursor = resolve4(cursor, segment);
+    cursor = resolve3(cursor, segment);
     if (!existsSync3(cursor)) {
       throw new ProofPlanBlockedError(`verification cwd rejected: ${JSON.stringify(cwd2)} does not exist`);
     }
@@ -24438,6 +24467,11 @@ var init_run_status = __esm({
     OpenRunStatusProjectionV1 = ValidRunStatusBase.extend({
       engine_state: external_exports.literal("open"),
       reason: external_exports.literal("active_or_unknown"),
+      // 'open' is genuinely ambiguous: from the run folder alone a live run and
+      // one whose process died before recording an outcome look identical. The
+      // notice states that ambiguity in plain language so consumers never present
+      // 'open' as "definitely still running".
+      status_notice: external_exports.string().min(1),
       legal_next_actions: external_exports.tuple([external_exports.literal("inspect")]),
       current_step: CurrentStepStatus.optional()
     }).strict();
@@ -25108,6 +25142,7 @@ function projectRuntimeRunStatusFromRunFolder(runFolder, manifest) {
     run_folder: runFolder,
     engine_state: "open",
     reason: "active_or_unknown",
+    status_notice: "no outcome recorded: this run is either still in progress or was interrupted before it could record one. If nothing is working on this run right now, treat it as interrupted; last_event shows the last thing it recorded.",
     legal_next_actions: ["inspect"],
     run_id: bootstrapRunId,
     flow_id: bootstrapFlowId,
@@ -25132,7 +25167,7 @@ var init_runtime_run_folder = __esm({
 
 // dist/app/run-status/run-folder-projector.js
 import { constants, accessSync, statSync } from "node:fs";
-import { resolve as resolve5 } from "node:path";
+import { resolve as resolve4 } from "node:path";
 function assertReadableRunFolder(runFolder) {
   let stat2;
   try {
@@ -25154,7 +25189,7 @@ function assertReadableRunFolder(runFolder) {
   }
 }
 function projectRunStatusFromRunFolder(runFolder) {
-  const resolvedRunFolder = resolve5(runFolder);
+  const resolvedRunFolder = resolve4(runFolder);
   assertReadableRunFolder(resolvedRunFolder);
   let manifest;
   try {
@@ -25204,17 +25239,17 @@ var init_run_folder_projector = __esm({
 // dist/app/continuity/records.js
 import { randomUUID as randomUUID2 } from "node:crypto";
 import { existsSync as existsSync7, mkdirSync as mkdirSync2, readFileSync as readFileSync6, writeFileSync as writeFileSync3 } from "node:fs";
-import { dirname as dirname4, join as join9, resolve as resolve6 } from "node:path";
+import { dirname as dirname4, join as join9, resolve as resolve5 } from "node:path";
 function resolveProjectRootArg(args) {
-  return resolve6(args.projectRoot ?? process.cwd());
+  return normalizeProjectRoot(args.projectRoot ?? process.cwd());
 }
 function resolveControlPlaneArg(args) {
   if (args.controlPlane !== void 0)
-    return resolve6(args.controlPlane);
+    return resolve5(args.controlPlane);
   return controlPlaneRoot(resolveProjectRootArg(args));
 }
 function continuityRoot(controlPlane) {
-  return resolve6(controlPlane, "continuity");
+  return resolve5(controlPlane, "continuity");
 }
 function recordsRoot(controlPlane) {
   return join9(continuityRoot(controlPlane), "records");
@@ -25323,7 +25358,7 @@ function buildRecord(args, now) {
       }
     });
   }
-  const runFolder = resolve6(args.runFolder);
+  const runFolder = resolve5(args.runFolder);
   const { snapshot, currentStage } = loadRunBackedSnapshot(runFolder);
   if (snapshot.current_step === void 0) {
     throw new Error(`cannot save run-backed continuity: ${runFolder} has no current step`);
@@ -25421,12 +25456,20 @@ function commanderErrorMessage(err) {
     return err.message.replace(/^error: /, "");
   return err instanceof Error ? err.message : String(err);
 }
+function isCommanderHelpSignal(err) {
+  return err instanceof CommanderError && (err.code === "commander.helpDisplayed" || err.code === "commander.help");
+}
 function parseCommanderOrThrow(program2, argv) {
   try {
     configureCommanderProgram(program2).parse(argv, { from: "user" });
   } catch (err) {
     if (err instanceof CommanderError && err.code === "commander.helpDisplayed")
       process.exit(0);
+    if (err instanceof CommanderError && err.code === "commander.help") {
+      if (err.exitCode === 0)
+        process.exit(0);
+      throw new Error("missing subcommand");
+    }
     if (err instanceof CommanderError)
       throw new Error(err.message.replace(/^error: /, ""));
     throw err;
@@ -33199,7 +33242,7 @@ var init_policy_envelope = __esm({
 // dist/shared/config-loader.js
 import { existsSync as existsSync10, readFileSync as readFileSync9 } from "node:fs";
 import { homedir } from "node:os";
-import { join as join12, resolve as resolve11 } from "node:path";
+import { join as join12, resolve as resolve10 } from "node:path";
 function userGlobalConfigPath(homeDir = homedir()) {
   return join12(homeDir, ...USER_GLOBAL_CONFIG_RELATIVE_PATH);
 }
@@ -33229,7 +33272,7 @@ The \`circuits\` config key was renamed to \`flows\` in v1. Rename \`circuits:\`
 An unrecognized key is either a typo or a key from a newer Circuit than this one. Check the spelling, or update Circuit if the config needs the newer key.`);
 }
 function loadRuntimeConfigLayerFromPath(layer, sourcePath) {
-  const abs = resolve11(sourcePath);
+  const abs = resolve10(sourcePath);
   if (!existsSync10(abs))
     return void 0;
   const raw = parseConfigYaml(readFileSync9(abs, "utf8"), abs);
@@ -33372,7 +33415,7 @@ var init_terminal_style = __esm({
 });
 
 // dist/cli/config-command.js
-import { existsSync as existsSync11, mkdirSync as mkdirSync3, readFileSync as readFileSync10, writeFileSync as writeFileSync4 } from "node:fs";
+import { existsSync as existsSync11, mkdirSync as mkdirSync3, readFileSync as readFileSync10, rmSync as rmSync3, writeFileSync as writeFileSync4 } from "node:fs";
 import { dirname as dirname5 } from "node:path";
 function invalid(message) {
   process.stderr.write(`error: ${message}
@@ -33402,10 +33445,34 @@ function loadDocument(filePath) {
   }
   return doc;
 }
+function topLevelConfigKeys() {
+  return Object.keys(Config.shape).filter((key) => key !== "schema_version").join(", ");
+}
+function describeIssue(issue2) {
+  const path = issue2.path.map(String).join(".");
+  if (issue2.code === "unrecognized_keys") {
+    const keys = issue2.keys ?? [];
+    const named = keys.map((key) => `'${key}'`).join(", ");
+    if (issue2.path.length === 0) {
+      const noun2 = keys.length === 1 ? "is not a config key" : "are not config keys";
+      return `${named} ${noun2}. Valid top-level keys: ${topLevelConfigKeys()}`;
+    }
+    const noun = keys.length === 1 ? "is not a key" : "are not keys";
+    return `${named} ${noun} under ${path}. Check the spelling`;
+  }
+  const wantsObject = issue2.expected === "object" || issue2.message.includes("expected object");
+  if (wantsObject && path.length > 0) {
+    if (path.startsWith("relay.roles.") || path.startsWith("relay.flows.")) {
+      return `${path} takes a connector reference object, not a bare name. Set it with inline YAML: circuit config set ${path} ${CONNECTOR_REFERENCE_EXAMPLE}`;
+    }
+    return `${path} takes an object value. Pass it as inline YAML, like ${CONNECTOR_REFERENCE_EXAMPLE}`;
+  }
+  return `${path || "(root)"}: ${issue2.message}`;
+}
 function formatSchemaIssues(err) {
   if (err && typeof err === "object" && "issues" in err) {
     const issues = err.issues;
-    return issues.map((i) => `${i.path.map(String).join(".") || "(root)"}: ${i.message}`).join("; ");
+    return issues.map(describeIssue).join("; ");
   }
   return err instanceof Error ? err.message : String(err);
 }
@@ -33442,6 +33509,24 @@ function applyConfigSet(key, rawValue, target, options = {}) {
   writeDocument(filePath, doc);
   return { ok: true, filePath, layerName };
 }
+function documentIsEmptyOfUserContent(doc) {
+  const js = doc.toJS() ?? {};
+  if (typeof js !== "object" || js === null || Array.isArray(js))
+    return false;
+  const hasContent = (value) => {
+    if (value === null || value === void 0)
+      return false;
+    if (Array.isArray(value))
+      return value.length > 0;
+    if (typeof value === "object")
+      return Object.values(value).some(hasContent);
+    return true;
+  };
+  const entries = Object.entries(js).filter(([key]) => key !== "schema_version");
+  if (entries.some(([, value]) => hasContent(value)))
+    return false;
+  return !doc.toString().includes("#");
+}
 function applyConfigUnset(key, target, options = {}) {
   const { filePath, layerName } = targetPaths(target, options);
   if (!existsSync11(filePath))
@@ -33456,6 +33541,10 @@ function applyConfigUnset(key, target, options = {}) {
   const problem = validateDocument(doc);
   if (problem !== void 0)
     return { ok: false, message: problem };
+  if (documentIsEmptyOfUserContent(doc)) {
+    rmSync3(filePath);
+    return { ok: true, filePath, layerName, removedFile: true };
+  }
   writeDocument(filePath, doc);
   return { ok: true, filePath, layerName };
 }
@@ -33516,6 +33605,10 @@ function runUnset(argv, options) {
   }
   process.stdout.write(`${palette.accent("\u2713")} ${key} ${palette.dim(`unset (${result.layerName}: ${result.filePath})`)}
 `);
+  if (result.removedFile === true) {
+    process.stdout.write(`${palette.dim(`removed ${result.filePath}: nothing was set anymore, and defaults need no file`)}
+`);
+  }
   return 0;
 }
 function valueAtPath2(config2, path) {
@@ -33527,18 +33620,35 @@ function valueAtPath2(config2, path) {
   }
   return node;
 }
+function rawLayerDocument(sourcePath) {
+  if (sourcePath === void 0)
+    return void 0;
+  try {
+    return (0, import_yaml2.parse)(readFileSync10(sourcePath, "utf8"));
+  } catch {
+    return void 0;
+  }
+}
 function summarizeConfig(options = {}) {
   const layers = discoverRuntimeConfigLayers({
     ...options.homeDir === void 0 ? {} : { homeDir: options.homeDir },
     ...options.cwd === void 0 ? {} : { cwd: options.cwd }
   }).selectionConfigLayers;
+  const rawByLayer = /* @__PURE__ */ new Map();
+  for (const layer of layers) {
+    if (layer.layer === "project" || layer.layer === "user-global") {
+      rawByLayer.set(layer.layer, rawLayerDocument(layer.source_path));
+    }
+  }
   const effective = {};
   for (const { key, fallback } of SHOW_KEYS) {
     const path = key.split(".");
     let entry = { value: fallback, source: "default" };
     for (const layer of layers) {
-      const value = valueAtPath2(layer.config, path);
-      if (value !== void 0 && (layer.layer === "project" || layer.layer === "user-global")) {
+      if (layer.layer !== "project" && layer.layer !== "user-global")
+        continue;
+      const value = valueAtPath2(rawByLayer.get(layer.layer), path);
+      if (value !== void 0) {
         entry = { value, source: layer.layer };
       }
     }
@@ -33564,7 +33674,7 @@ function runShow(argv, options) {
   }
   const { layers, effective } = summary;
   if (flags.json === true) {
-    process.stdout.write(`${JSON.stringify({ layers, effective }, null, 2)}
+    process.stdout.write(`${JSON.stringify({ schema_version: 1, layers, effective }, null, 2)}
 `);
     return 0;
   }
@@ -33611,7 +33721,7 @@ function runConfigCommand(argv, options = {}) {
     return runUnset(rest, options);
   return invalid(`unknown config action '${action}': use show, set, or unset`);
 }
-var import_yaml2, SHOW_KEYS;
+var import_yaml2, CONNECTOR_REFERENCE_EXAMPLE, SHOW_KEYS;
 var init_config_command = __esm({
   "dist/cli/config-command.js"() {
     "use strict";
@@ -33621,6 +33731,7 @@ var init_config_command = __esm({
     init_config_loader();
     init_commander_support();
     init_terminal_style();
+    CONNECTOR_REFERENCE_EXAMPLE = "'{kind: builtin, name: codex}'";
     SHOW_KEYS = [
       { key: "defaults.power", fallback: "medium" },
       { key: "relay.default", fallback: "auto" }
@@ -34729,21 +34840,21 @@ var require_react_development = __commonJS({
         );
         actScopeDepth = prevActScopeDepth;
       }
-      function recursivelyFlushAsyncActWork(returnValue, resolve33, reject) {
+      function recursivelyFlushAsyncActWork(returnValue, resolve32, reject) {
         var queue = ReactSharedInternals.actQueue;
         if (null !== queue)
           if (0 !== queue.length)
             try {
               flushActQueue(queue);
               enqueueTask(function() {
-                return recursivelyFlushAsyncActWork(returnValue, resolve33, reject);
+                return recursivelyFlushAsyncActWork(returnValue, resolve32, reject);
               });
               return;
             } catch (error52) {
               ReactSharedInternals.thrownErrors.push(error52);
             }
           else ReactSharedInternals.actQueue = null;
-        0 < ReactSharedInternals.thrownErrors.length ? (queue = aggregateErrors(ReactSharedInternals.thrownErrors), ReactSharedInternals.thrownErrors.length = 0, reject(queue)) : resolve33(returnValue);
+        0 < ReactSharedInternals.thrownErrors.length ? (queue = aggregateErrors(ReactSharedInternals.thrownErrors), ReactSharedInternals.thrownErrors.length = 0, reject(queue)) : resolve32(returnValue);
       }
       function flushActQueue(queue) {
         if (!isFlushing) {
@@ -34930,7 +35041,7 @@ var require_react_development = __commonJS({
             ));
           });
           return {
-            then: function(resolve33, reject) {
+            then: function(resolve32, reject) {
               didAwaitActCall = true;
               thenable.then(
                 function(returnValue) {
@@ -34940,7 +35051,7 @@ var require_react_development = __commonJS({
                       flushActQueue(queue), enqueueTask(function() {
                         return recursivelyFlushAsyncActWork(
                           returnValue,
-                          resolve33,
+                          resolve32,
                           reject
                         );
                       });
@@ -34954,7 +35065,7 @@ var require_react_development = __commonJS({
                       ReactSharedInternals.thrownErrors.length = 0;
                       reject(_thrownError);
                     }
-                  } else resolve33(returnValue);
+                  } else resolve32(returnValue);
                 },
                 function(error52) {
                   popActScope(prevActQueue, prevActScopeDepth);
@@ -34976,15 +35087,15 @@ var require_react_development = __commonJS({
         if (0 < ReactSharedInternals.thrownErrors.length)
           throw callback = aggregateErrors(ReactSharedInternals.thrownErrors), ReactSharedInternals.thrownErrors.length = 0, callback;
         return {
-          then: function(resolve33, reject) {
+          then: function(resolve32, reject) {
             didAwaitActCall = true;
             0 === prevActScopeDepth ? (ReactSharedInternals.actQueue = queue, enqueueTask(function() {
               return recursivelyFlushAsyncActWork(
                 returnValue$jscomp$0,
-                resolve33,
+                resolve32,
                 reject
               );
-            })) : resolve33(returnValue$jscomp$0);
+            })) : resolve32(returnValue$jscomp$0);
           }
         };
       };
@@ -46374,7 +46485,7 @@ var require_react_dom_server_node_production = __commonJS({
       };
     }
     exports.prerender = function(children, options) {
-      return new Promise(function(resolve33, reject) {
+      return new Promise(function(resolve32, reject) {
         var onHeaders = options ? options.onHeaders : void 0, onHeadersImpl;
         onHeaders && (onHeadersImpl = function(headersDescriptor) {
           onHeaders(new Headers(headersDescriptor));
@@ -46417,7 +46528,7 @@ var require_react_dom_server_node_production = __commonJS({
               { highWaterMark: 0 }
             );
             stream2 = { postponed: getPostponedState(request), prelude: stream2 };
-            resolve33(stream2);
+            resolve32(stream2);
           },
           void 0,
           void 0,
@@ -46439,7 +46550,7 @@ var require_react_dom_server_node_production = __commonJS({
       });
     };
     exports.prerenderToNodeStream = function(children, options) {
-      return new Promise(function(resolve33, reject) {
+      return new Promise(function(resolve32, reject) {
         var resumableState = createResumableState(
           options ? options.identifierPrefix : void 0,
           options ? options.unstable_externalRuntimeSrc : void 0,
@@ -46470,7 +46581,7 @@ var require_react_dom_server_node_production = __commonJS({
               postponed: getPostponedState(request),
               prelude: readable
             };
-            resolve33(readable);
+            resolve32(readable);
           },
           void 0,
           void 0,
@@ -46526,7 +46637,7 @@ var require_react_dom_server_node_production = __commonJS({
       };
     };
     exports.renderToReadableStream = function(children, options) {
-      return new Promise(function(resolve33, reject) {
+      return new Promise(function(resolve32, reject) {
         var onFatalError, onAllReady, allReady = new Promise(function(res, rej) {
           onAllReady = res;
           onFatalError = rej;
@@ -46575,7 +46686,7 @@ var require_react_dom_server_node_production = __commonJS({
               { highWaterMark: 0 }
             );
             stream2.allReady = allReady;
-            resolve33(stream2);
+            resolve32(stream2);
           },
           function(error52) {
             allReady.catch(function() {
@@ -46601,7 +46712,7 @@ var require_react_dom_server_node_production = __commonJS({
       });
     };
     exports.resume = function(children, postponedState, options) {
-      return new Promise(function(resolve33, reject) {
+      return new Promise(function(resolve32, reject) {
         var onFatalError, onAllReady, allReady = new Promise(function(res, rej) {
           onAllReady = res;
           onFatalError = rej;
@@ -46638,7 +46749,7 @@ var require_react_dom_server_node_production = __commonJS({
               { highWaterMark: 0 }
             );
             stream2.allReady = allReady;
-            resolve33(stream2);
+            resolve32(stream2);
           },
           function(error52) {
             allReady.catch(function() {
@@ -46663,7 +46774,7 @@ var require_react_dom_server_node_production = __commonJS({
       });
     };
     exports.resumeAndPrerender = function(children, postponedState, options) {
-      return new Promise(function(resolve33, reject) {
+      return new Promise(function(resolve32, reject) {
         var request = resumeAndPrerenderRequest(
           children,
           postponedState,
@@ -46694,7 +46805,7 @@ var require_react_dom_server_node_production = __commonJS({
               { highWaterMark: 0 }
             );
             stream2 = { postponed: getPostponedState(request), prelude: stream2 };
-            resolve33(stream2);
+            resolve32(stream2);
           },
           void 0,
           void 0,
@@ -46716,7 +46827,7 @@ var require_react_dom_server_node_production = __commonJS({
       });
     };
     exports.resumeAndPrerenderToNodeStream = function(children, postponedState, options) {
-      return new Promise(function(resolve33, reject) {
+      return new Promise(function(resolve32, reject) {
         var request = resumeAndPrerenderRequest(
           children,
           postponedState,
@@ -46736,7 +46847,7 @@ var require_react_dom_server_node_production = __commonJS({
               }
             }), writable = createFakeWritableFromReadable(readable);
             readable = { postponed: getPostponedState(request), prelude: readable };
-            resolve33(readable);
+            resolve32(readable);
           },
           void 0,
           void 0,
@@ -61363,7 +61474,7 @@ var require_react_dom_server_node_development = __commonJS({
       ensureCorrectIsomorphicReactVersion();
       ensureCorrectIsomorphicReactVersion();
       exports.prerender = function(children, options) {
-        return new Promise(function(resolve33, reject) {
+        return new Promise(function(resolve32, reject) {
           var onHeaders = options ? options.onHeaders : void 0, onHeadersImpl;
           onHeaders && (onHeadersImpl = function(headersDescriptor) {
             onHeaders(new Headers(headersDescriptor));
@@ -61411,7 +61522,7 @@ var require_react_dom_server_node_development = __commonJS({
                 postponed: getPostponedState(request),
                 prelude: stream2
               };
-              resolve33(stream2);
+              resolve32(stream2);
             },
             void 0,
             void 0,
@@ -61433,7 +61544,7 @@ var require_react_dom_server_node_development = __commonJS({
         });
       };
       exports.prerenderToNodeStream = function(children, options) {
-        return new Promise(function(resolve33, reject) {
+        return new Promise(function(resolve32, reject) {
           var resumableState = createResumableState(
             options ? options.identifierPrefix : void 0,
             options ? options.unstable_externalRuntimeSrc : void 0,
@@ -61464,7 +61575,7 @@ var require_react_dom_server_node_development = __commonJS({
                 postponed: getPostponedState(request),
                 prelude: readable
               };
-              resolve33(readable);
+              resolve32(readable);
             },
             void 0,
             void 0,
@@ -61520,7 +61631,7 @@ var require_react_dom_server_node_development = __commonJS({
         };
       };
       exports.renderToReadableStream = function(children, options) {
-        return new Promise(function(resolve33, reject) {
+        return new Promise(function(resolve32, reject) {
           var onFatalError, onAllReady, allReady = new Promise(function(res, rej) {
             onAllReady = res;
             onFatalError = rej;
@@ -61569,7 +61680,7 @@ var require_react_dom_server_node_development = __commonJS({
                 { highWaterMark: 0 }
               );
               stream2.allReady = allReady;
-              resolve33(stream2);
+              resolve32(stream2);
             },
             function(error52) {
               allReady.catch(function() {
@@ -61595,7 +61706,7 @@ var require_react_dom_server_node_development = __commonJS({
         });
       };
       exports.resume = function(children, postponedState, options) {
-        return new Promise(function(resolve33, reject) {
+        return new Promise(function(resolve32, reject) {
           var onFatalError, onAllReady, allReady = new Promise(function(res, rej) {
             onAllReady = res;
             onFatalError = rej;
@@ -61632,7 +61743,7 @@ var require_react_dom_server_node_development = __commonJS({
                 { highWaterMark: 0 }
               );
               stream2.allReady = allReady;
-              resolve33(stream2);
+              resolve32(stream2);
             },
             function(error52) {
               allReady.catch(function() {
@@ -61657,7 +61768,7 @@ var require_react_dom_server_node_development = __commonJS({
         });
       };
       exports.resumeAndPrerender = function(children, postponedState, options) {
-        return new Promise(function(resolve33, reject) {
+        return new Promise(function(resolve32, reject) {
           var request = resumeAndPrerenderRequest(
             children,
             postponedState,
@@ -61690,7 +61801,7 @@ var require_react_dom_server_node_development = __commonJS({
                 { highWaterMark: 0 }
               );
               stream2 = { postponed: getPostponedState(request), prelude: stream2 };
-              resolve33(stream2);
+              resolve32(stream2);
             },
             void 0,
             void 0,
@@ -61712,7 +61823,7 @@ var require_react_dom_server_node_development = __commonJS({
         });
       };
       exports.resumeAndPrerenderToNodeStream = function(children, postponedState, options) {
-        return new Promise(function(resolve33, reject) {
+        return new Promise(function(resolve32, reject) {
           var request = resumeAndPrerenderRequest(
             children,
             postponedState,
@@ -61735,7 +61846,7 @@ var require_react_dom_server_node_development = __commonJS({
                 postponed: getPostponedState(request),
                 prelude: readable
               };
-              resolve33(readable);
+              resolve32(readable);
             },
             void 0,
             void 0,
@@ -70054,7 +70165,7 @@ var init_git_state_command = __esm({
 
 // dist/shared/run-relative-path.js
 import { existsSync as existsSync12, lstatSync as lstatSync3, realpathSync as realpathSync3 } from "node:fs";
-import { isAbsolute as isAbsolute3, relative as relative3, resolve as resolve12 } from "node:path";
+import { isAbsolute as isAbsolute3, relative as relative3, resolve as resolve11 } from "node:path";
 function isInside(root, target) {
   const fromRoot = relative3(root, target);
   return fromRoot !== "" && !fromRoot.startsWith("..") && !isAbsolute3(fromRoot);
@@ -70065,8 +70176,8 @@ function resolveRunRelative(runFolder, relPath) {
     const detail = parsed.error.issues.map((issue2) => issue2.message).join("; ");
     throw new Error(`run-relative path rejected: ${JSON.stringify(relPath)} (${detail})`);
   }
-  const rootAbs = resolve12(runFolder);
-  const targetAbs = resolve12(rootAbs, parsed.data);
+  const rootAbs = resolve11(runFolder);
+  const targetAbs = resolve11(rootAbs, parsed.data);
   if (!isInside(rootAbs, targetAbs)) {
     throw new Error(`run-relative path rejected: ${JSON.stringify(relPath)} escapes run folder`);
   }
@@ -70075,7 +70186,7 @@ function resolveRunRelative(runFolder, relPath) {
   const rootReal = realpathSync3.native(rootAbs);
   let cursor = rootAbs;
   for (const segment of parsed.data.split("/")) {
-    cursor = resolve12(cursor, segment);
+    cursor = resolve11(cursor, segment);
     if (!existsSync12(cursor))
       break;
     const stat2 = lstatSync3(cursor);
@@ -81032,7 +81143,7 @@ var init_flow9 = __esm({
 });
 
 // dist/shared/html/multi-variant.js
-import { isAbsolute as isAbsolute7, relative as relative7, resolve as resolve13 } from "node:path";
+import { isAbsolute as isAbsolute7, relative as relative7, resolve as resolve12 } from "node:path";
 import { pathToFileURL } from "node:url";
 function withoutQueryOrHash(value) {
   const queryIndex = value.search(/[?#]/);
@@ -81060,16 +81171,16 @@ function isInside2(root, target) {
   return fromRoot !== "" && !fromRoot.startsWith("..") && !isAbsolute7(fromRoot);
 }
 function runIdFromFolder(runFolder) {
-  const parts = toBrowserPath(resolve13(runFolder)).split("/").filter((part) => part.length > 0);
+  const parts = toBrowserPath(resolve12(runFolder)).split("/").filter((part) => part.length > 0);
   return parts.at(-1);
 }
 function runArtifactPreviewHref(input) {
   if (!isPreviewableArtifactPath(input.entryPath))
     return void 0;
-  const reportsDir = resolve13(input.runFolder, "reports");
-  const runRoot = resolve13(input.runFolder);
+  const reportsDir = resolve12(input.runFolder, "reports");
+  const runRoot = resolve12(input.runFolder);
   if (isAbsolute7(input.entryPath)) {
-    const absoluteEntry = resolve13(input.entryPath);
+    const absoluteEntry = resolve12(input.entryPath);
     if (!isInside2(runRoot, absoluteEntry))
       return void 0;
     return encodeUrlPath(toBrowserPath(relative7(reportsDir, absoluteEntry)));
@@ -81085,8 +81196,8 @@ function runArtifactPreviewHref(input) {
     return encodeUrlPath(`../${normalized.slice(currentRunPrefix.length)}`);
   }
   if (input.projectRoot !== void 0) {
-    const projectRoot = resolve13(input.projectRoot);
-    const absoluteEntry = resolve13(projectRoot, normalized);
+    const projectRoot = resolve12(input.projectRoot);
+    const absoluteEntry = resolve12(projectRoot, normalized);
     if (!isInside2(projectRoot, absoluteEntry))
       return void 0;
     return pathToFileURL(absoluteEntry).href;
@@ -82985,7 +83096,7 @@ var init_intake_projection = __esm({
 // dist/flows/review/writers/intake.js
 import { spawnSync as spawnSync3 } from "node:child_process";
 import { closeSync as closeSync2, lstatSync as lstatSync4, openSync as openSync2, readSync as readSync2 } from "node:fs";
-import { isAbsolute as isAbsolute8, relative as relative8, resolve as resolve14 } from "node:path";
+import { isAbsolute as isAbsolute8, relative as relative8, resolve as resolve13 } from "node:path";
 function truncateText(text, maxChars) {
   if (text.length <= maxChars)
     return { text, truncated: false };
@@ -83047,7 +83158,7 @@ function insideProject(projectRoot, path) {
   return rel === "" || !rel.startsWith("..") && !isAbsolute8(rel);
 }
 function readUntrackedFile(projectRoot, path, contentPolicy) {
-  const abs = resolve14(projectRoot, path);
+  const abs = resolve13(projectRoot, path);
   if (!insideProject(projectRoot, abs)) {
     return { path, byte_length: 0, skipped_reason: "path resolves outside project root" };
   }
@@ -86026,9 +86137,9 @@ var init_custom_flow_descriptor = __esm({
 
 // dist/cli/custom-flow-package.js
 import { randomUUID as randomUUID3 } from "node:crypto";
-import { existsSync as existsSync20, mkdirSync as mkdirSync4, readFileSync as readFileSync37, rmSync as rmSync3, writeFileSync as writeFileSync5 } from "node:fs";
+import { existsSync as existsSync20, mkdirSync as mkdirSync4, readFileSync as readFileSync37, rmSync as rmSync4, writeFileSync as writeFileSync5 } from "node:fs";
 import { homedir as homedir2 } from "node:os";
-import { dirname as dirname6, join as join15, resolve as resolve15 } from "node:path";
+import { dirname as dirname6, join as join15, resolve as resolve14 } from "node:path";
 function slugify2(value) {
   const slug = value.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-+|-+$/g, "").slice(0, 48).replace(/-+$/g, "");
   return slug.length > 0 ? slug : `custom-${randomUUID3().slice(0, 8)}`;
@@ -86042,7 +86153,7 @@ function assertValidSlug(slug) {
   }
 }
 function customHome(home) {
-  return resolve15(home ?? join15(homedir2(), ".config", "circuit", "custom"));
+  return resolve14(home ?? join15(homedir2(), ".config", "circuit", "custom"));
 }
 function draftRoot(home, slug) {
   return join15(home, "drafts", slug);
@@ -86213,7 +86324,7 @@ function readDraftMetadata(home, slug) {
 function writeDraft(input) {
   const source = input.source ?? "template";
   const root = draftRoot(input.home, input.slug);
-  rmSync3(root, { recursive: true, force: true });
+  rmSync4(root, { recursive: true, force: true });
   mkdirSync4(root, { recursive: true });
   const descriptor = circuitYaml(input.slug, input.description);
   validateCircuitYamlDescriptor(descriptor, join15(root, "circuit.yaml"), input.slug);
@@ -86252,7 +86363,7 @@ function publishDraft(input) {
   const { filenames } = readDraftMetadata(input.home, input.slug);
   const skillRoot = publishedRoot(input.home, input.slug);
   const customFlowRoot = join15(flowRoot(input.home), input.slug);
-  rmSync3(customFlowRoot, { recursive: true, force: true });
+  rmSync4(customFlowRoot, { recursive: true, force: true });
   mkdirSync4(skillRoot, { recursive: true });
   mkdirSync4(customFlowRoot, { recursive: true });
   writeText(join15(skillRoot, "SKILL.md"), readFileSync37(join15(draft, "SKILL.md"), "utf8"));
@@ -86279,7 +86390,7 @@ var init_custom_flow_package = __esm({
 
 // dist/cli/runtime-routing-policy.js
 import { readFileSync as readFileSync38 } from "node:fs";
-import { basename as basename4, dirname as dirname7, relative as relative9, resolve as resolve16 } from "node:path";
+import { basename as basename4, dirname as dirname7, relative as relative9, resolve as resolve15 } from "node:path";
 function pathIsInside(parent, child) {
   const rel = relative9(parent, child);
   return rel.length === 0 || !rel.startsWith("..") && !rel.startsWith("/");
@@ -86287,8 +86398,8 @@ function pathIsInside(parent, child) {
 function fixtureEligibleForRuntime(input) {
   if (input.args.fixturePath === void 0 && input.args.flowRoot === void 0)
     return true;
-  const fixturePath = resolve16(input.fixturePath);
-  if (pathIsInside(resolve16(input.generatedFlowsRoot ?? "generated/flows"), fixturePath)) {
+  const fixturePath = resolve15(input.fixturePath);
+  if (pathIsInside(resolve15(input.generatedFlowsRoot ?? "generated/flows"), fixturePath)) {
     return true;
   }
   if (input.args.flowRoot !== void 0 && publishedCustomFlowMatches(input.args.flowRoot, fixturePath)) {
@@ -86298,12 +86409,12 @@ function fixtureEligibleForRuntime(input) {
   if (mirrorRoot === void 0 || mirrorRoot.length === 0 || input.args.flowRoot === void 0) {
     return false;
   }
-  const trustedMirrorRoot = resolve16(mirrorRoot);
-  return resolve16(input.args.flowRoot) === trustedMirrorRoot && pathIsInside(trustedMirrorRoot, fixturePath);
+  const trustedMirrorRoot = resolve15(mirrorRoot);
+  return resolve15(input.args.flowRoot) === trustedMirrorRoot && pathIsInside(trustedMirrorRoot, fixturePath);
 }
 function readCustomFlowEntries(flowRoot2) {
   try {
-    const manifest = JSON.parse(readFileSync38(resolve16(dirname7(resolve16(flowRoot2)), "manifest.json"), "utf8"));
+    const manifest = JSON.parse(readFileSync38(resolve15(dirname7(resolve15(flowRoot2)), "manifest.json"), "utf8"));
     if (manifest === null || typeof manifest !== "object" || Array.isArray(manifest))
       return [];
     const customFlows = manifest.custom_flows;
@@ -86318,12 +86429,12 @@ function recordedFlowPaths(candidate) {
   const paths = [];
   const flowPath = candidate.flow_path;
   if (typeof flowPath === "string")
-    paths.push(resolve16(flowPath));
+    paths.push(resolve15(flowPath));
   const flowPaths = candidate.flow_paths;
   if (Array.isArray(flowPaths)) {
     for (const entry of flowPaths) {
       if (typeof entry === "string")
-        paths.push(resolve16(entry));
+        paths.push(resolve15(entry));
     }
   }
   return paths;
@@ -86335,7 +86446,7 @@ function unrecordedPublishedSiblingReason(input) {
   const flowRoot2 = input.args.flowRoot;
   if (flowRoot2 === void 0)
     return void 0;
-  const fixturePath = resolve16(input.fixturePath);
+  const fixturePath = resolve15(input.fixturePath);
   const fixtureDir = dirname7(fixturePath);
   for (const candidate of readCustomFlowEntries(flowRoot2)) {
     const recorded = recordedFlowPaths(candidate);
@@ -86559,9 +86670,113 @@ function cappedSuffix(capped, stream) {
 }
 function describeTimeout(result, bounds) {
   if (result.timeoutKind === "idle" && bounds.idleMs !== void 0) {
-    return `no output for ${bounds.idleMs}ms (inactivity)`;
+    return `no output for ${bounds.idleMs}ms (inactivity; a step that legitimately goes silent longer can raise budgets.inactivity_ms)`;
   }
   return `exceeded the ${bounds.absoluteMs}ms wall-clock backstop`;
+}
+function launchFailureSummary(cli, errorText) {
+  if (errorText.includes("ENOENT")) {
+    return `The ${cli} CLI is not installed or not on your PATH (spawn ENOENT). Run \`circuit doctor\` to check connector health.`;
+  }
+  if (errorText.includes("EACCES")) {
+    return `The ${cli} CLI was found but cannot be executed (EACCES). Fix its file permissions, or run \`circuit doctor\` to check connector health.`;
+  }
+  return `The ${cli} CLI failed to start. Run \`circuit doctor\` to check connector health.`;
+}
+function connectorFailureSummary(input) {
+  const scanned = `${input.stderr}
+${input.stdout}
+${input.streamError ?? ""}`;
+  if (SIGNED_OUT_OUTPUT_PATTERN.test(scanned)) {
+    return `The ${input.cli} CLI is not logged in. ${input.signInHint}, or run \`circuit doctor\` to check connector health.`;
+  }
+  const denialCount = (scanned.match(SANDBOX_DENIAL_PATTERN) ?? []).length;
+  if (denialCount >= SANDBOX_DENIAL_MIN_COUNT) {
+    const realFailure = lastLineWithout(input.stderr, /operation not permitted/i);
+    const lastErrorClause = realFailure === void 0 ? "" : ` Last error: ${JSON.stringify(realFailure)}.`;
+    return `The ${input.cli} CLI was blocked by this machine's sandbox (${denialCount} "Operation not permitted" errors).${lastErrorClause} Rerun outside the sandbox that is blocking it, or run \`circuit doctor\` to check connector health.`;
+  }
+  if (input.streamError !== void 0) {
+    const trimmed = input.streamError.trim();
+    return `The ${input.cli} CLI reported an error: ${trimmed}${trimmed.endsWith(".") ? "" : "."}`;
+  }
+  return void 0;
+}
+function lastLineWithout(text, exclude) {
+  const lines = text.split("\n");
+  for (let i = lines.length - 1; i >= 0; i -= 1) {
+    const line = lines[i].trim();
+    if (line.length > 0 && !exclude.test(line))
+      return line;
+  }
+  return void 0;
+}
+function lastStreamErrorMessage(stdout) {
+  let found;
+  for (const line of stdout.split("\n")) {
+    if (line.trim().length === 0)
+      continue;
+    let parsed;
+    try {
+      parsed = JSON.parse(line);
+    } catch {
+      continue;
+    }
+    if (typeof parsed !== "object" || parsed === null || Array.isArray(parsed))
+      continue;
+    const message = streamErrorMessageFrom(parsed);
+    if (message !== void 0)
+      found = message;
+  }
+  return found === void 0 ? void 0 : found.slice(0, STREAM_ERROR_MESSAGE_MAX_CHARS);
+}
+function streamErrorMessageFrom(entry) {
+  const item = entry.item;
+  if (typeof item === "object" && item !== null && !Array.isArray(item)) {
+    const itemRecord = item;
+    if (itemRecord.type === "error") {
+      return typeof itemRecord.message === "string" && itemRecord.message.length > 0 ? itemRecord.message : JSON.stringify(itemRecord).slice(0, STREAM_ERROR_MESSAGE_MAX_CHARS);
+    }
+  }
+  const errorField = entry.error === null ? void 0 : entry.error;
+  const errorTyped = entry.type === "error" || entry.type === "turn.failed";
+  const errorResult = entry.is_error === true;
+  if (!errorTyped && !errorResult && errorField === void 0)
+    return void 0;
+  if (typeof entry.message === "string" && entry.message.length > 0)
+    return entry.message;
+  if (typeof entry.result === "string" && entry.result.length > 0)
+    return entry.result;
+  if (typeof errorField === "string" && errorField.length > 0)
+    return errorField;
+  if (typeof errorField === "object" && errorField !== null && !Array.isArray(errorField)) {
+    const nested = errorField.message;
+    if (typeof nested === "string" && nested.length > 0)
+      return nested;
+  }
+  if (errorTyped || errorResult) {
+    return JSON.stringify(entry).slice(0, STREAM_ERROR_MESSAGE_MAX_CHARS);
+  }
+  return void 0;
+}
+function condenseRepeatedLines(text) {
+  const lines = text.split("\n");
+  const out = [];
+  let i = 0;
+  while (i < lines.length) {
+    const line = lines[i];
+    let j = i + 1;
+    while (j < lines.length && lines[j] === line)
+      j += 1;
+    const count = j - i;
+    if (count > 1) {
+      out.push(line.trim().length === 0 ? line : `${line} [repeated ${count} times]`);
+    } else {
+      out.push(line);
+    }
+    i = j;
+  }
+  return out.join("\n");
 }
 function parseNdjsonObjects(stdout, label) {
   const lines = stdout.split("\n").filter((line) => line.length > 0);
@@ -86582,7 +86797,7 @@ function parseNdjsonObjects(stdout, label) {
 }
 async function runConnectorSubprocess(input) {
   const start = performance2.now();
-  return await new Promise((resolve33, reject) => {
+  return await new Promise((resolve32, reject) => {
     let child;
     try {
       child = spawn(input.executable, [...input.args], {
@@ -86664,7 +86879,7 @@ async function runConnectorSubprocess(input) {
     });
     child.on("close", (code, signal) => {
       clearAllTimers();
-      resolve33({
+      resolve32({
         stdout,
         stderr,
         stdoutCapped,
@@ -86679,7 +86894,7 @@ async function runConnectorSubprocess(input) {
     });
   });
 }
-var ConnectorSubprocessSpawnError;
+var ConnectorSubprocessSpawnError, SIGNED_OUT_OUTPUT_PATTERN, SANDBOX_DENIAL_PATTERN, SANDBOX_DENIAL_MIN_COUNT, STREAM_ERROR_MESSAGE_MAX_CHARS;
 var init_subprocess = __esm({
   "dist/connectors/subprocess.js"() {
     "use strict";
@@ -86691,6 +86906,10 @@ var init_subprocess = __esm({
         this.name = "ConnectorSubprocessSpawnError";
       }
     };
+    SIGNED_OUT_OUTPUT_PATTERN = /not logged in|logged out|unauthenticated|login required|not signed in|sign in required|please run \/login|invalid api key/i;
+    SANDBOX_DENIAL_PATTERN = /operation not permitted/gi;
+    SANDBOX_DENIAL_MIN_COUNT = 3;
+    STREAM_ERROR_MESSAGE_MAX_CHARS = 400;
   }
 });
 
@@ -86733,12 +86952,16 @@ function buildClaudeCodeArgs(input) {
 function claudeCodeEmitsStructuredOutputFlag(input) {
   return input.responseSchema !== void 0 && isClaudeCodeStructuredOutputCompatible(input.responseSchema);
 }
-function claudeCodeStdoutDiagnostic(stdout) {
+function claudeCodeStdoutDiagnostic(stdout, streamError) {
   try {
     parseClaudeCodeStdout(stdout, "", 0);
     return void 0;
   } catch (error52) {
-    return error52 instanceof Error ? error52.message : String(error52);
+    const parseMessage = error52 instanceof Error ? error52.message : String(error52);
+    if (streamError !== void 0 && !parseMessage.includes(streamError)) {
+      return `${streamError} (stream parse: ${parseMessage})`;
+    }
+    return parseMessage;
   }
 }
 function isClaudeCodeStructuredOutputCompatible(schema) {
@@ -86746,6 +86969,7 @@ function isClaudeCodeStructuredOutputCompatible(schema) {
 }
 async function relayClaudeCode(input) {
   const absoluteTimeoutMs = input.timeoutMs ?? DEFAULT_ABSOLUTE_TIMEOUT_MS;
+  const idleTimeoutMs = input.idleTimeoutMs ?? DEFAULT_IDLE_TIMEOUT_MS;
   const args = buildClaudeCodeArgs(input);
   let result;
   try {
@@ -86753,7 +86977,7 @@ async function relayClaudeCode(input) {
       executable: CLAUDE_CODE_EXECUTABLE,
       args,
       timeoutMs: absoluteTimeoutMs,
-      idleTimeoutMs: DEFAULT_IDLE_TIMEOUT_MS,
+      idleTimeoutMs,
       stdoutMaxBytes: STDOUT_MAX_BYTES,
       stderrMaxBytes: STDERR_MAX_BYTES,
       sigtermToSigkillGraceMs: SIGTERM_TO_SIGKILL_GRACE_MS,
@@ -86766,7 +86990,7 @@ async function relayClaudeCode(input) {
     });
   } catch (error52) {
     if (isConnectorSubprocessSpawnError(error52)) {
-      throw new Error(`claude-code subprocess ${spawnErrorVerb(error52)}: ${error52.message}. ${connectorRemediation("claude-code")}`);
+      throw new Error(`${launchFailureSummary(CLAUDE_CODE_EXECUTABLE, error52.message)} claude-code subprocess ${spawnErrorVerb(error52)}: ${error52.message}. ${connectorRemediation("claude-code")}`);
     }
     throw error52;
   }
@@ -86774,7 +86998,7 @@ async function relayClaudeCode(input) {
     const stdoutSuffix = cappedSuffix(result.stdoutCapped, "stdout");
     const stderrSuffix = cappedSuffix(result.stderrCapped, "stderr");
     const cause = describeTimeout(result, {
-      idleMs: DEFAULT_IDLE_TIMEOUT_MS,
+      idleMs: idleTimeoutMs,
       absoluteMs: absoluteTimeoutMs
     });
     throw new Error(`claude-code subprocess timed out: ${cause}; group-kill ${result.killGroupSucceeded ? "sent" : "failed"}; final signal=${result.signal ?? "none"}; stdout[:500]=${result.stdout.slice(0, 500)}${stdoutSuffix}; stderr[:500]=${result.stderr.slice(0, 500)}${stderrSuffix}`);
@@ -86782,9 +87006,18 @@ async function relayClaudeCode(input) {
   if (result.code !== 0) {
     const stdoutSuffix = cappedSuffix(result.stdoutCapped, "stdout");
     const stderrSuffix = cappedSuffix(result.stderrCapped, "stderr");
-    const stdoutDiagnostic = claudeCodeStdoutDiagnostic(result.stdout);
+    const streamError = lastStreamErrorMessage(result.stdout);
+    const stdoutDiagnostic = claudeCodeStdoutDiagnostic(result.stdout, streamError);
     const diagnosticText = stdoutDiagnostic === void 0 ? "" : `; stdout_diagnostic=${stdoutDiagnostic}`;
-    throw new Error(`claude-code subprocess exited with code ${result.code}${result.signal ? ` (signal ${result.signal})` : ""}${diagnosticText}; stdout[:500]=${result.stdout.slice(0, 500)}${stdoutSuffix}; stderr[:500]=${result.stderr.slice(0, 500)}${stderrSuffix}`);
+    const summary = connectorFailureSummary({
+      cli: CLAUDE_CODE_EXECUTABLE,
+      signInHint: "Run `claude` once to sign in",
+      stderr: result.stderr,
+      stdout: "",
+      streamError
+    });
+    const lead = summary === void 0 ? "" : `${summary} `;
+    throw new Error(`${lead}claude-code subprocess exited with code ${result.code}${result.signal ? ` (signal ${result.signal})` : ""}${diagnosticText}; stdout[:500]=${result.stdout.slice(0, 500)}${stdoutSuffix}; stderr[:500]=${condenseRepeatedLines(result.stderr).slice(0, 500)}${stderrSuffix}`);
   }
   if (result.stdoutCapped) {
     throw new Error(`claude-code subprocess stdout exceeded ${STDOUT_MAX_BYTES} bytes; capability-boundary check cannot be evaluated on truncated stream`);
@@ -86869,24 +87102,24 @@ function parseClaudeCodeStdout(stdout, prompt, duration_ms, requestedTools, stru
     }
     result_body = extractJsonObject(result_body_raw);
   }
-  const usage2 = extractRelayUsage(resultTraceEntry);
+  const usage = extractRelayUsage(resultTraceEntry);
   return {
     request_payload: prompt,
     receipt_id,
     result_body,
     duration_ms,
     cli_version,
-    ...usage2 === void 0 ? {} : { usage: usage2 }
+    ...usage === void 0 ? {} : { usage }
   };
 }
 function extractRelayUsage(resultTraceEntry) {
-  const usage2 = resultTraceEntry.usage;
+  const usage = resultTraceEntry.usage;
   const modelUsage = resultTraceEntry.modelUsage;
-  const hasUsage = usage2 !== null && typeof usage2 === "object";
+  const hasUsage = usage !== null && typeof usage === "object";
   const hasModelUsage = modelUsage !== null && typeof modelUsage === "object";
   if (!hasUsage && !hasModelUsage)
     return void 0;
-  const u = hasUsage ? usage2 : {};
+  const u = hasUsage ? usage : {};
   const cacheCreation = u.cache_creation ?? {};
   const models = [];
   if (hasModelUsage) {
@@ -86963,7 +87196,7 @@ var init_claude_code = __esm({
     ];
     CLAUDE_CODE_STRUCTURED_OUTPUT_TOOLS = ["StructuredOutput"];
     CLAUDE_CODE_EXECUTABLE = "claude";
-    DEFAULT_IDLE_TIMEOUT_MS = 18e4;
+    DEFAULT_IDLE_TIMEOUT_MS = 6e5;
     DEFAULT_ABSOLUTE_TIMEOUT_MS = 36e5;
     SIGTERM_TO_SIGKILL_GRACE_MS = 2e3;
     STDOUT_MAX_BYTES = 16 * 1024 * 1024;
@@ -87067,6 +87300,7 @@ var init_codex_default_model = __esm({
 
 // dist/connectors/codex.js
 import { execFileSync as execFileSync3 } from "node:child_process";
+import { readFileSync as readFileSync40 } from "node:fs";
 import { mkdtemp, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join as joinPath } from "node:path";
@@ -87081,7 +87315,8 @@ function captureCodexVersion() {
       stdio: ["ignore", "pipe", "pipe"]
     });
   } catch (err) {
-    throw new Error(`codex --version failed: ${err.message}`);
+    const message = err.message;
+    throw new Error(`${launchFailureSummary(CODEX_EXECUTABLE, message)} codex --version failed: ${message}. ${connectorRemediation("codex")}`);
   }
   const version3 = stdout.trim();
   if (version3.length === 0) {
@@ -87222,8 +87457,28 @@ async function cleanupSchemaTempDir(dir) {
   } catch {
   }
 }
+function codexModelCacheHint(model, streamError) {
+  if (model === void 0 || streamError === void 0)
+    return "";
+  if (!/model/i.test(streamError))
+    return "";
+  let slugs;
+  try {
+    const parsed = JSON.parse(readFileSync40(codexModelsCachePath(), "utf8"));
+    const models = parsed?.models;
+    if (!Array.isArray(models))
+      return "";
+    slugs = models.map((entry) => typeof entry === "object" && entry !== null ? entry.slug : void 0).filter((slug) => typeof slug === "string");
+  } catch {
+    return "";
+  }
+  if (slugs.includes(model))
+    return "";
+  return ` The model id '${model}' is not in the local Codex models cache, so it may be misspelled or not available to this account. Check the model set in your Circuit config, or run \`circuit doctor\`.`;
+}
 async function relayCodex(input) {
   const absoluteTimeoutMs = input.timeoutMs ?? DEFAULT_ABSOLUTE_TIMEOUT_MS2;
+  const idleTimeoutMs = input.idleTimeoutMs ?? DEFAULT_IDLE_TIMEOUT_MS2;
   const cli_version = captureCodexVersion();
   let tempDir;
   let schemaPath;
@@ -87241,7 +87496,7 @@ async function relayCodex(input) {
         executable: CODEX_EXECUTABLE,
         args,
         timeoutMs: absoluteTimeoutMs,
-        idleTimeoutMs: DEFAULT_IDLE_TIMEOUT_MS2,
+        idleTimeoutMs,
         stdoutMaxBytes: STDOUT_MAX_BYTES2,
         stderrMaxBytes: STDERR_MAX_BYTES2,
         sigtermToSigkillGraceMs: SIGTERM_TO_SIGKILL_GRACE_MS2,
@@ -87250,7 +87505,7 @@ async function relayCodex(input) {
       });
     } catch (error52) {
       if (isConnectorSubprocessSpawnError(error52)) {
-        throw new Error(`codex subprocess ${spawnErrorVerb(error52)}: ${error52.message}. ${connectorRemediation("codex")}`);
+        throw new Error(`${launchFailureSummary(CODEX_EXECUTABLE, error52.message)} codex subprocess ${spawnErrorVerb(error52)}: ${error52.message}. ${connectorRemediation("codex")}`);
       }
       throw error52;
     }
@@ -87258,7 +87513,7 @@ async function relayCodex(input) {
       const stdoutSuffix = cappedSuffix(result.stdoutCapped, "stdout");
       const stderrSuffix = cappedSuffix(result.stderrCapped, "stderr");
       const cause = describeTimeout(result, {
-        idleMs: DEFAULT_IDLE_TIMEOUT_MS2,
+        idleMs: idleTimeoutMs,
         absoluteMs: absoluteTimeoutMs
       });
       throw new Error(`codex subprocess timed out: ${cause}; group-kill ${result.killGroupSucceeded ? "sent" : "failed"}; final signal=${result.signal ?? "none"}; stdout[:500]=${result.stdout.slice(0, 500)}${stdoutSuffix}; stderr[:2000]=${result.stderr.slice(0, 2e3)}${stderrSuffix}`);
@@ -87266,7 +87521,17 @@ async function relayCodex(input) {
     if (result.code !== 0) {
       const stdoutSuffix = cappedSuffix(result.stdoutCapped, "stdout");
       const stderrSuffix = cappedSuffix(result.stderrCapped, "stderr");
-      throw new Error(`codex subprocess exited with code ${result.code}${result.signal ? ` (signal ${result.signal})` : ""}; stdout[:500]=${result.stdout.slice(0, 500)}${stdoutSuffix}; stderr[:2000]=${result.stderr.slice(0, 2e3)}${stderrSuffix}`);
+      const streamError = lastStreamErrorMessage(result.stdout);
+      const summary = connectorFailureSummary({
+        cli: CODEX_EXECUTABLE,
+        signInHint: "Run `codex login` to sign in",
+        stderr: result.stderr,
+        stdout: "",
+        streamError
+      });
+      const modelHint = codexModelCacheHint(effectiveModel, streamError);
+      const lead = summary === void 0 ? "" : `${summary}${modelHint} `;
+      throw new Error(`${lead}codex subprocess exited with code ${result.code}${result.signal ? ` (signal ${result.signal})` : ""}; stdout[:500]=${result.stdout.slice(0, 500)}${stdoutSuffix}; stderr[:2000]=${condenseRepeatedLines(result.stderr).slice(0, 2e3)}${stderrSuffix}`);
     }
     if (result.stdoutCapped) {
       throw new Error(`codex subprocess stdout exceeded ${STDOUT_MAX_BYTES2} bytes; capability-boundary check cannot be evaluated on truncated stream`);
@@ -87417,7 +87682,7 @@ var init_codex = __esm({
         throw new Error(`CODEX_WRITE_FLAGS boundary invariant broken: must NOT include "${forbidden}" (forbidden-token set)`);
       }
     }
-    DEFAULT_IDLE_TIMEOUT_MS2 = 18e4;
+    DEFAULT_IDLE_TIMEOUT_MS2 = 6e5;
     DEFAULT_ABSOLUTE_TIMEOUT_MS2 = 36e5;
     SIGTERM_TO_SIGKILL_GRACE_MS2 = 2e3;
     STDOUT_MAX_BYTES2 = 16 * 1024 * 1024;
@@ -87495,7 +87760,8 @@ function captureCursorAgentVersion() {
       stdio: ["ignore", "pipe", "pipe"]
     });
   } catch (err) {
-    throw new Error(`cursor-agent --version failed: ${err.message}`);
+    const message = err.message;
+    throw new Error(`${launchFailureSummary(CURSOR_AGENT_EXECUTABLE, message)} cursor-agent --version failed: ${message}. ${connectorRemediation("cursor-agent")}`);
   }
   const version3 = stdout.trim();
   if (version3.length === 0) {
@@ -87536,6 +87802,7 @@ function buildCursorAgentArgs(input) {
 }
 async function relayCursorAgent(input) {
   const absoluteTimeoutMs = input.timeoutMs ?? DEFAULT_ABSOLUTE_TIMEOUT_MS3;
+  const idleTimeoutMs = input.idleTimeoutMs ?? DEFAULT_IDLE_TIMEOUT_MS3;
   const cliVersion = captureCursorAgentVersion();
   const args = buildCursorAgentArgs(input);
   let result;
@@ -87544,7 +87811,7 @@ async function relayCursorAgent(input) {
       executable: CURSOR_AGENT_EXECUTABLE,
       args,
       timeoutMs: absoluteTimeoutMs,
-      idleTimeoutMs: DEFAULT_IDLE_TIMEOUT_MS3,
+      idleTimeoutMs,
       stdoutMaxBytes: STDOUT_MAX_BYTES3,
       stderrMaxBytes: STDERR_MAX_BYTES3,
       sigtermToSigkillGraceMs: SIGTERM_TO_SIGKILL_GRACE_MS3,
@@ -87553,7 +87820,7 @@ async function relayCursorAgent(input) {
     });
   } catch (error52) {
     if (isConnectorSubprocessSpawnError(error52)) {
-      throw new Error(`cursor-agent subprocess ${spawnErrorVerb(error52)}: ${error52.message}. ${connectorRemediation("cursor-agent")}`);
+      throw new Error(`${launchFailureSummary(CURSOR_AGENT_EXECUTABLE, error52.message)} cursor-agent subprocess ${spawnErrorVerb(error52)}: ${error52.message}. ${connectorRemediation("cursor-agent")}`);
     }
     throw error52;
   }
@@ -87561,7 +87828,7 @@ async function relayCursorAgent(input) {
     const stdoutSuffix = cappedSuffix(result.stdoutCapped, "stdout");
     const stderrSuffix = cappedSuffix(result.stderrCapped, "stderr");
     const cause = describeTimeout(result, {
-      idleMs: DEFAULT_IDLE_TIMEOUT_MS3,
+      idleMs: idleTimeoutMs,
       absoluteMs: absoluteTimeoutMs
     });
     throw new Error(`cursor-agent subprocess timed out: ${cause}; group-kill ${result.killGroupSucceeded ? "sent" : "failed"}; final signal=${result.signal ?? "none"}; stdout[:500]=${result.stdout.slice(0, 500)}${stdoutSuffix}; stderr[:500]=${result.stderr.slice(0, 500)}${stderrSuffix}`);
@@ -87569,7 +87836,15 @@ async function relayCursorAgent(input) {
   if (result.code !== 0) {
     const stdoutSuffix = cappedSuffix(result.stdoutCapped, "stdout");
     const stderrSuffix = cappedSuffix(result.stderrCapped, "stderr");
-    throw new Error(`cursor-agent subprocess exited with code ${result.code}${result.signal ? ` (signal ${result.signal})` : ""}; stdout[:500]=${result.stdout.slice(0, 500)}${stdoutSuffix}; stderr[:500]=${result.stderr.slice(0, 500)}${stderrSuffix}`);
+    const summary = connectorFailureSummary({
+      cli: CURSOR_AGENT_EXECUTABLE,
+      signInHint: "Run `cursor-agent login` to sign in",
+      stderr: result.stderr,
+      stdout: result.stdout,
+      streamError: void 0
+    });
+    const lead = summary === void 0 ? "" : `${summary} `;
+    throw new Error(`${lead}cursor-agent subprocess exited with code ${result.code}${result.signal ? ` (signal ${result.signal})` : ""}; stdout[:500]=${result.stdout.slice(0, 500)}${stdoutSuffix}; stderr[:500]=${condenseRepeatedLines(result.stderr).slice(0, 500)}${stderrSuffix}`);
   }
   if (result.stdoutCapped) {
     throw new Error(`cursor-agent subprocess stdout exceeded ${STDOUT_MAX_BYTES3} bytes; connector output cannot be evaluated on truncated stream`);
@@ -87603,7 +87878,7 @@ var init_cursor_agent = __esm({
       "--trust",
       "--force"
     ]);
-    DEFAULT_IDLE_TIMEOUT_MS3 = 18e4;
+    DEFAULT_IDLE_TIMEOUT_MS3 = 6e5;
     DEFAULT_ABSOLUTE_TIMEOUT_MS3 = 36e5;
     SIGTERM_TO_SIGKILL_GRACE_MS3 = 2e3;
     STDOUT_MAX_BYTES3 = 16 * 1024 * 1024;
@@ -90106,9 +90381,9 @@ var init_fanout_branch_template = __esm({
 });
 
 // dist/shared/user-skill-registry.js
-import { existsSync as existsSync22, readFileSync as readFileSync40, readdirSync as readdirSync3 } from "node:fs";
+import { existsSync as existsSync22, readFileSync as readFileSync41, readdirSync as readdirSync3 } from "node:fs";
 import { homedir as homedir4 } from "node:os";
-import { join as join18, resolve as resolve17 } from "node:path";
+import { join as join18, resolve as resolve16 } from "node:path";
 function defaultUserSkillRoots(homeDir = homedir4()) {
   return [join18(homeDir, ".agents", "skills"), join18(homeDir, ".claude", "skills")];
 }
@@ -90141,7 +90416,7 @@ function parseSkillMarkdown(text, skillPath) {
 function discoverCandidates(roots) {
   const candidates = /* @__PURE__ */ new Map();
   for (const root of roots) {
-    const rootAbs = resolve17(root);
+    const rootAbs = resolve16(root);
     if (!existsSync22(rootAbs))
       continue;
     for (const entry of readdirSync3(rootAbs, { withFileTypes: true })) {
@@ -90168,7 +90443,7 @@ function discoverCandidates(roots) {
 function loadCandidate(candidate) {
   let text;
   try {
-    text = readFileSync40(candidate.path, "utf8");
+    text = readFileSync41(candidate.path, "utf8");
   } catch (err) {
     throw new Error(`selected skill '${candidate.id}' could not be read at ${candidate.path}: ${err.message}`);
   }
@@ -90186,7 +90461,7 @@ function loadCandidate(candidate) {
 function createUserSkillRegistry(options = {}) {
   const roots = options.roots ?? defaultUserSkillRoots(options.homeDir);
   const candidates = discoverCandidates(roots);
-  const searchedRoots = roots.map((root) => resolve17(root));
+  const searchedRoots = roots.map((root) => resolve16(root));
   const cache3 = /* @__PURE__ */ new Map();
   const loadCached = (key, candidate) => {
     const cached2 = cache3.get(key);
@@ -91955,6 +92230,7 @@ async function relayCustom(input) {
   await writeFile2(promptFile, input.prompt, "utf8");
   const args = [...baseArgs, promptFile, outputFile];
   const timeoutMs2 = input.timeoutMs ?? DEFAULT_TIMEOUT_MS;
+  const idleTimeoutMs = input.idleTimeoutMs;
   try {
     let result;
     try {
@@ -91962,6 +92238,7 @@ async function relayCustom(input) {
         executable,
         args,
         timeoutMs: timeoutMs2,
+        ...idleTimeoutMs === void 0 ? {} : { idleTimeoutMs },
         stdoutMaxBytes: STDOUT_MAX_BYTES4,
         stderrMaxBytes: STDERR_MAX_BYTES4,
         sigtermToSigkillGraceMs: SIGTERM_TO_SIGKILL_GRACE_MS4,
@@ -91974,7 +92251,12 @@ async function relayCustom(input) {
       throw error52;
     }
     if (result.timedOut) {
-      throw new Error(`custom connector '${descriptor.name}' timed out after ${timeoutMs2}ms; group-kill ${result.killGroupSucceeded ? "sent" : "failed"}; final signal=${result.signal ?? "none"}; stderr[:500]=${result.stderr.slice(0, 500)}`);
+      const cause = describeTimeout(result, {
+        absoluteMs: timeoutMs2,
+        ...idleTimeoutMs === void 0 ? {} : { idleMs: idleTimeoutMs }
+      });
+      const remedy = result.timeoutKind === "idle" && idleTimeoutMs !== void 0 ? "" : " (a step that legitimately runs longer can raise budgets.wall_clock_ms)";
+      throw new Error(`custom connector '${descriptor.name}' timed out: ${cause}${remedy}; group-kill ${result.killGroupSucceeded ? "sent" : "failed"}; final signal=${result.signal ?? "none"}; stderr[:500]=${result.stderr.slice(0, 500)}`);
     }
     if (result.code !== 0) {
       throw new Error(`custom connector '${descriptor.name}' exited with code ${result.code}${result.signal ? ` (signal ${result.signal})` : ""}; stderr[:500]=${result.stderr.slice(0, 500)}`);
@@ -92003,7 +92285,7 @@ var init_custom = __esm({
     "use strict";
     init_json_extraction();
     init_subprocess();
-    DEFAULT_TIMEOUT_MS = 12e4;
+    DEFAULT_TIMEOUT_MS = 36e5;
     SIGTERM_TO_SIGKILL_GRACE_MS4 = 2e3;
     OUTPUT_MAX_BYTES = 16 * 1024 * 1024;
     STDOUT_MAX_BYTES4 = 16 * 1024 * 1024;
@@ -94542,7 +94824,7 @@ var init_schemas3 = __esm({
 });
 
 // dist/runtime/run/relay-support.js
-import { existsSync as existsSync23, readFileSync as readFileSync41 } from "node:fs";
+import { existsSync as existsSync23, readFileSync as readFileSync42 } from "node:fs";
 function evaluateRelayCheck(step, resultBody) {
   let parsed;
   try {
@@ -94782,7 +95064,7 @@ function composeRelayPrompt(step, runFolder, loadedSkills = [], acceptanceRetryF
     const abs = resolveRunRelative(runFolder, path);
     if (!existsSync23(abs))
       return `[reads unavailable: ${path}]`;
-    return fencedBlock("read", ` path="${path}"`, readFileSync41(abs, "utf8"));
+    return fencedBlock("read", ` path="${path}"`, readFileSync42(abs, "utf8"));
   }).join("\n\n");
   const skillsSection = selectedSkillsSection(loadedSkills);
   const houseStyle = houseStyleSection(step, loadedSkills);
@@ -94867,6 +95149,7 @@ async function relayWithResolvedConnector(connector, input) {
   const relayInput = {
     prompt: input.prompt,
     ...input.timeoutMs === void 0 ? {} : { timeoutMs: input.timeoutMs },
+    ...input.idleTimeoutMs === void 0 ? {} : { idleTimeoutMs: input.idleTimeoutMs },
     ...input.cwd === void 0 ? {} : { cwd: input.cwd },
     ...input.resolvedSelection === void 0 ? {} : { resolvedSelection: ResolvedSelection.parse(input.resolvedSelection) },
     ...input.responseSchema === void 0 ? {} : { responseSchema: input.responseSchema },
@@ -94880,6 +95163,10 @@ async function relayWithResolvedConnector(connector, input) {
 function timeoutMs(step) {
   const wallClock = step.budgets?.wall_clock_ms;
   return typeof wallClock === "number" ? wallClock : void 0;
+}
+function inactivityMs(step) {
+  const inactivity = step.budgets?.inactivity_ms;
+  return typeof inactivity === "number" ? inactivity : void 0;
 }
 function equipmentEnforcementEvidence(scope, decision2) {
   if (scope === void 0 || scope.tools === "full")
@@ -95242,9 +95529,11 @@ async function executeProductionRelayAttempt(input) {
   let relayResult;
   try {
     const relayTimeoutMs = timeoutMs(step);
+    const relayInactivityMs = inactivityMs(step);
     relayResult = context.relayer === void 0 ? await relayWithResolvedConnector(relayExecution.connector, {
       prompt,
       ...relayTimeoutMs === void 0 ? {} : { timeoutMs: relayTimeoutMs },
+      ...relayInactivityMs === void 0 ? {} : { idleTimeoutMs: relayInactivityMs },
       ...context.projectRoot === void 0 ? {} : { cwd: context.projectRoot },
       resolvedSelection,
       ...responseSchema === void 0 ? {} : { responseSchema },
@@ -95255,6 +95544,7 @@ async function executeProductionRelayAttempt(input) {
       prompt,
       connector: relayExecution.connectorName,
       ...relayTimeoutMs === void 0 ? {} : { timeoutMs: relayTimeoutMs },
+      ...relayInactivityMs === void 0 ? {} : { idleTimeoutMs: relayInactivityMs },
       ...context.projectRoot === void 0 ? {} : { cwd: context.projectRoot },
       resolvedSelection,
       ...responseSchema === void 0 ? {} : { responseSchema },
@@ -95319,11 +95609,13 @@ async function executeProductionRelayAttempt(input) {
     failureKind = validation.failureKind;
     acceptance = validation.acceptance;
   }
+  let backfillParseError;
   if (checkEvaluation.kind === "pass" && evaluation.kind === "pass" && parsedBody === void 0) {
     try {
       parsedBody = JSON.parse(relayResult.result_body);
-    } catch {
+    } catch (err) {
       parsedBody = void 0;
+      backfillParseError = err instanceof Error ? err.message : String(err);
     }
   }
   const relayCompletedVerdict = evaluation.kind === "pass" ? evaluation.verdict : evaluation.observedVerdict ?? NO_VERDICT_SENTINEL;
@@ -95347,6 +95639,15 @@ async function executeProductionRelayAttempt(input) {
       await context.files.writeJson(step.report, reportBody);
       parsedBody = reportBody;
       writtenReportPath = step.report.path;
+    } else if (checkEvaluation.kind === "pass" && evaluation.kind === "pass") {
+      await context.trace.append({
+        run_id: context.runId,
+        kind: "step.report_skipped",
+        step_id: step.id,
+        attempt,
+        report_path: step.report.path,
+        reason: `relay step '${step.id}' passed its check, but its result body could not be re-parsed when writing the ${step.report.path} report${backfillParseError === void 0 ? "" : ` (${backfillParseError})`}. The raw result is intact at ${result.path}; read it directly, and rerun the flow if downstream steps need the report file.`
+      });
     }
   }
   await context.trace.append({
@@ -95798,7 +96099,7 @@ var init_sub_run = __esm({
 });
 
 // dist/runtime/run/reuse-children.js
-import { existsSync as existsSync24, readFileSync as readFileSync42 } from "node:fs";
+import { existsSync as existsSync24, readFileSync as readFileSync43 } from "node:fs";
 import { isAbsolute as isAbsolute9, join as join21 } from "node:path";
 function isCompletedSubRunBranch(entry, stepId, branchId) {
   return entry.kind === "fanout.branch_completed" && entry.step_id === stepId && entry.branch_id === branchId && entry.branch_kind === "sub-run" && entry.child_outcome === "complete";
@@ -95831,7 +96132,7 @@ async function lookupReusableSubRunBranch(input) {
   const resultAbs = isAbsolute9(completed.result_path) ? completed.result_path : join21(input.priorRunFolder, completed.result_path);
   let resultBody;
   try {
-    resultBody = RunResult.parse(JSON.parse(readFileSync42(resultAbs, "utf8")));
+    resultBody = RunResult.parse(JSON.parse(readFileSync43(resultAbs, "utf8")));
   } catch {
     return void 0;
   }
@@ -96457,7 +96758,7 @@ var init_branch_expansion = __esm({
 });
 
 // dist/runtime/fanout/run-owner-lock.js
-import { mkdirSync as mkdirSync5, readFileSync as readFileSync43, rmSync as rmSync4, writeFileSync as writeFileSync6 } from "node:fs";
+import { mkdirSync as mkdirSync5, readFileSync as readFileSync44, rmSync as rmSync5, writeFileSync as writeFileSync6 } from "node:fs";
 import { join as join23 } from "node:path";
 function ownerLockPath(worktreesRoot, runId) {
   return join23(worktreesRoot, runId, OWNER_LOCK_FILENAME);
@@ -96472,14 +96773,14 @@ function writeOwnerLock(worktreesRoot, runId, startedAt) {
 }
 function removeOwnerLock(worktreesRoot, runId) {
   try {
-    rmSync4(ownerLockPath(worktreesRoot, runId), { force: true });
+    rmSync5(ownerLockPath(worktreesRoot, runId), { force: true });
   } catch {
   }
 }
 function isRunLiveByOwnerLock(worktreesRoot, runId, processAlive = defaultProcessAlive) {
   let raw;
   try {
-    raw = readFileSync43(ownerLockPath(worktreesRoot, runId), "utf8");
+    raw = readFileSync44(ownerLockPath(worktreesRoot, runId), "utf8");
   } catch {
     return false;
   }
@@ -96825,7 +97126,7 @@ var init_fanout = __esm({
 });
 
 // dist/runtime/run/oracle-command-pin.js
-import { existsSync as existsSync25, readFileSync as readFileSync44 } from "node:fs";
+import { existsSync as existsSync25, readFileSync as readFileSync45 } from "node:fs";
 import { join as join24 } from "node:path";
 function createOracleCommandPinChannel() {
   return { pins: /* @__PURE__ */ new Map() };
@@ -96841,7 +97142,7 @@ function readReferencedScriptBody(command, projectRoot) {
   }
   let parsed;
   try {
-    parsed = JSON.parse(readFileSync44(packageJsonPath, "utf8"));
+    parsed = JSON.parse(readFileSync45(packageJsonPath, "utf8"));
   } catch (error52) {
     const message = error52 instanceof Error ? error52.message : String(error52);
     throw new OracleCommandDriftError(`oracle script "${script}" for command '${command.id}' unreadable: ${message}`);
@@ -96905,11 +97206,39 @@ function verificationFailureReason(stepId, error52) {
   const message = error52 instanceof Error ? error52.message : String(error52);
   return `verification step '${stepId}': report writer failed (${message})`;
 }
-function failingObservationDetail(observation) {
-  if (observation.timed_out) {
-    return `command '${observation.command.id}' timed out after ${observation.duration_ms}ms (budget ${observation.command.timeout_ms}ms)`;
+function clipped(text, maxChars) {
+  return text.length > maxChars ? `${text.slice(0, maxChars)}\u2026` : text;
+}
+function lastNonEmptyLine(text) {
+  const lines = text.split("\n");
+  for (let index = lines.length - 1; index >= 0; index -= 1) {
+    const line = lines[index].trim();
+    if (line.length > 0)
+      return line;
   }
-  return `command '${observation.command.id}' exited ${observation.exit_code}`;
+  return void 0;
+}
+function observationOutputTail(observation) {
+  const parts = [];
+  const stdoutLine = lastNonEmptyLine(observation.stdout_summary);
+  const stderrLine = lastNonEmptyLine(observation.stderr_summary);
+  if (stdoutLine !== void 0) {
+    parts.push(`last stdout: ${JSON.stringify(clipped(stdoutLine, FAILURE_REASON_OUTPUT_LINE_MAX_CHARS))}`);
+  }
+  if (stderrLine !== void 0) {
+    parts.push(`last stderr: ${JSON.stringify(clipped(stderrLine, FAILURE_REASON_OUTPUT_LINE_MAX_CHARS))}`);
+  }
+  if (parts.length === 0)
+    return " \u2014 the command produced no output";
+  return ` \u2014 ${parts.join("; ")}`;
+}
+function failingObservationDetail(observation) {
+  const commandText3 = clipped(observation.command.argv.join(" "), FAILURE_REASON_ARGV_MAX_CHARS);
+  const named = `command '${observation.command.id}' (\`${commandText3}\`)`;
+  if (observation.timed_out) {
+    return `${named} timed out after ${observation.duration_ms}ms (budget ${observation.command.timeout_ms}ms)${observationOutputTail(observation)}`;
+  }
+  return `${named} exited ${observation.exit_code}${observationOutputTail(observation)}`;
 }
 function verificationCommandFailureReason(input) {
   const failing = input.observations.filter((observation) => observation.status === "failed");
@@ -97193,6 +97522,7 @@ async function executeVerificationResult(step, context) {
 async function executeVerification(step, context) {
   return unwrapStepExecutionResult(await executeVerificationResult(step, context));
 }
+var FAILURE_REASON_ARGV_MAX_CHARS, FAILURE_REASON_OUTPUT_LINE_MAX_CHARS;
 var init_verification10 = __esm({
   "dist/runtime/executors/verification.js"() {
     "use strict";
@@ -97207,6 +97537,8 @@ var init_verification10 = __esm({
     init_recovery_selection();
     init_result3();
     init_shared();
+    FAILURE_REASON_ARGV_MAX_CHARS = 160;
+    FAILURE_REASON_OUTPUT_LINE_MAX_CHARS = 200;
   }
 });
 
@@ -97308,8 +97640,8 @@ var init_carried_notes = __esm({
 
 // dist/runtime/run/frozen-eval.js
 import { createHash as createHash5 } from "node:crypto";
-import { readFileSync as readFileSync45 } from "node:fs";
-import { resolve as resolve18 } from "node:path";
+import { readFileSync as readFileSync46 } from "node:fs";
+import { resolve as resolve17 } from "node:path";
 var ABSENT, FrozenEvalGuard;
 var init_frozen_eval = __esm({
   "dist/runtime/run/frozen-eval.js"() {
@@ -97328,7 +97660,7 @@ var init_frozen_eval = __esm({
       // or unreadable. Resolved against the injected project root; never cwd.
       fingerprint(declaredPath) {
         try {
-          const bytes = readFileSync45(resolve18(this.projectRoot, declaredPath));
+          const bytes = readFileSync46(resolve17(this.projectRoot, declaredPath));
           return createHash5("sha256").update(bytes).digest("hex");
         } catch {
           return ABSENT;
@@ -98315,7 +98647,7 @@ var init_external_files = __esm({
 });
 
 // dist/runtime/run/run-boundary.js
-import { readFileSync as readFileSync46 } from "node:fs";
+import { readFileSync as readFileSync47 } from "node:fs";
 import { lstat, mkdir as mkdir3, readdir } from "node:fs/promises";
 async function assertFreshRunDir(runDir) {
   let stat2;
@@ -98373,7 +98705,7 @@ async function openRunBoundary(options) {
     files: {
       readText(path) {
         try {
-          return readFileSync46(path, "utf8");
+          return readFileSync47(path, "utf8");
         } catch {
           return void 0;
         }
@@ -98568,14 +98900,14 @@ function summarizeSpend(entries) {
   for (const entry of entries) {
     if (entry.kind !== "relay.completed")
       continue;
-    const usage2 = RelayUsageEvidence.safeParse(entry.usage);
-    if (!usage2.success) {
+    const usage = RelayUsageEvidence.safeParse(entry.usage);
+    if (!usage.success) {
       relaysMissingUsage += 1;
       continue;
     }
-    tokens += usage2.data.input_tokens + usage2.data.output_tokens;
-    if (usage2.data.total_cost_usd_reported !== void 0) {
-      costUsd = (costUsd ?? 0) + usage2.data.total_cost_usd_reported;
+    tokens += usage.data.input_tokens + usage.data.output_tokens;
+    if (usage.data.total_cost_usd_reported !== void 0) {
+      costUsd = (costUsd ?? 0) + usage.data.total_cost_usd_reported;
     }
   }
   return { costUsd, inputPlusOutputTokens: tokens, relaysMissingUsage };
@@ -99356,7 +99688,16 @@ async function executeExecutableFlowOutcomeUnsafe(flow, options) {
               }
             }
           }
-        } catch {
+        } catch (deliveryError) {
+          try {
+            await trace.append({
+              run_id: runId,
+              kind: "run.context-delivery-error",
+              step_id: step.id,
+              message: `context delivery failed at step '${step.id}'; the run continued on the starved result. Cause: ${deliveryError instanceof Error ? deliveryError.message : String(deliveryError)}`
+            });
+          } catch {
+          }
         }
       }
       route = outcome.route;
@@ -99711,7 +100052,16 @@ async function executeExecutableFlowOutcomeUnsafe(flow, options) {
           }
         }
       }
-    } catch {
+    } catch (err) {
+      try {
+        await trace.append({
+          run_id: runId,
+          kind: "run.power-inference-error",
+          step_id: step.id,
+          message: `auto power inference failed after step '${step.id}'; the run continued on the medium fallback. To pin the dial instead, set defaults.power to a fixed tier. Cause: ${err instanceof Error ? err.message : String(err)}`
+        });
+      } catch {
+      }
     }
     const equipmentReshaper = options.equipmentReshaper;
     if (equipmentReshaper !== void 0 && targetTransition.kind !== "terminal_close" && !sliceCorridor.isActive()) {
@@ -99971,7 +100321,7 @@ var init_compiled_flow_runner = __esm({
 });
 
 // dist/runtime/run/resume-lock.js
-import { mkdirSync as mkdirSync6, readFileSync as readFileSync47, rmSync as rmSync5, writeFileSync as writeFileSync7 } from "node:fs";
+import { mkdirSync as mkdirSync6, readFileSync as readFileSync48, rmSync as rmSync6, writeFileSync as writeFileSync7 } from "node:fs";
 import { join as join28 } from "node:path";
 function resumeLockPath(runDir) {
   return join28(runDir, RESUME_LOCK_FILENAME);
@@ -99992,7 +100342,7 @@ function createExclusive(path, payload) {
 function recordedPid(path) {
   let raw;
   try {
-    raw = readFileSync47(path, "utf8");
+    raw = readFileSync48(path, "utf8");
   } catch {
     return void 0;
   }
@@ -100024,7 +100374,7 @@ function acquireResumeLock(runDir, options = {}) {
   const handle = {
     release() {
       try {
-        rmSync5(primary, { force: true });
+        rmSync6(primary, { force: true });
       } catch {
       }
     }
@@ -100041,19 +100391,19 @@ function acquireResumeLock(runDir, options = {}) {
       if (heldByLiveOwner(intent, processAlive)) {
         return { ok: false, message: RESUME_IN_PROGRESS_MESSAGE };
       }
-      rmSync5(intent, { force: true });
+      rmSync6(intent, { force: true });
       continue;
     }
     try {
       if (heldByLiveOwner(primary, processAlive)) {
         return { ok: false, message: RESUME_IN_PROGRESS_MESSAGE };
       }
-      rmSync5(primary, { force: true });
+      rmSync6(primary, { force: true });
       if (createExclusive(primary, payload())) {
         return { ok: true, handle };
       }
     } finally {
-      rmSync5(intent, { force: true });
+      rmSync6(intent, { force: true });
     }
   }
   return { ok: false, message: RESUME_IN_PROGRESS_MESSAGE };
@@ -100071,7 +100421,7 @@ var init_resume_lock = __esm({
 });
 
 // dist/runtime/run/checkpoint-resume.js
-import { readFileSync as readFileSync48 } from "node:fs";
+import { readFileSync as readFileSync49 } from "node:fs";
 function errorFromUnknown3(error52) {
   return error52 instanceof Error ? error52 : new Error(String(error52));
 }
@@ -100150,7 +100500,7 @@ function readCheckpointRequestContextResult(input) {
   const requestAbs = resolveRunFilePath(input.runDir, input.requestPath);
   let requestText;
   try {
-    requestText = readFileSync48(requestAbs, "utf8");
+    requestText = readFileSync49(requestAbs, "utf8");
   } catch (error52) {
     return checkpointResumeRejectedFrom(error52);
   }
@@ -100546,11 +100896,11 @@ var init_checkpoint_resume = __esm({
 });
 
 // dist/memory/project-store.js
-import { existsSync as existsSync26, readFileSync as readFileSync49 } from "node:fs";
-import { join as join29, resolve as resolve19 } from "node:path";
+import { existsSync as existsSync26, readFileSync as readFileSync50 } from "node:fs";
+import { join as join29, resolve as resolve18 } from "node:path";
 function resolveProjectStorePaths(options = {}) {
-  const repoRoot = resolve19(options.repoRoot ?? process.cwd());
-  const memoryDir = options.memoryDir === void 0 ? memoryRoot(repoRoot) : resolve19(repoRoot, options.memoryDir);
+  const repoRoot = resolve18(options.repoRoot ?? process.cwd());
+  const memoryDir = options.memoryDir === void 0 ? memoryRoot(repoRoot) : resolve18(repoRoot, options.memoryDir);
   return {
     repoRoot,
     memoryDir,
@@ -100565,7 +100915,7 @@ function readProjectFacts(options = {}) {
   }
   let raw = "";
   try {
-    raw = readFileSync49(paths.factsPath, "utf8");
+    raw = readFileSync50(paths.factsPath, "utf8");
   } catch (error52) {
     return {
       facts: [],
@@ -100660,8 +101010,8 @@ var init_project_store = __esm({
 });
 
 // dist/memory/project-injection.js
-import { existsSync as existsSync27, readFileSync as readFileSync50 } from "node:fs";
-import { join as join30, resolve as resolve20 } from "node:path";
+import { existsSync as existsSync27, readFileSync as readFileSync51 } from "node:fs";
+import { join as join30, resolve as resolve19 } from "node:path";
 function reverifyStaleness(fact, runsBase, checkedAt) {
   const sourceSha = fact.source.sha256 ?? fact.source.ref.sha256;
   const runId = fact.source.ref.run_id;
@@ -100674,7 +101024,7 @@ function reverifyStaleness(fact, runsBase, checkedAt) {
     if (!existsSync27(abs)) {
       return { status: "stale", checked_at: checkedAt, reason_codes: ["memory_stale"] };
     }
-    const currentHash = sha256OfString(readFileSync50(abs, "utf8"));
+    const currentHash = sha256OfString(readFileSync51(abs, "utf8"));
     return currentHash === sourceSha ? { status: "fresh", checked_at: checkedAt, reason_codes: ["source_hash_verified"] } : { status: "stale", checked_at: checkedAt, reason_codes: ["memory_stale"] };
   } catch {
     return { status: "unknown", checked_at: checkedAt, reason_codes: ["memory_unverified"] };
@@ -100684,7 +101034,7 @@ function loadProjectFactCandidates(options) {
   if (options.flowId === void 0) {
     return { candidates: [] };
   }
-  const runsBase = options.runsBase === void 0 ? runsRoot(options.repoRoot) : resolve20(options.runsBase);
+  const runsBase = options.runsBase === void 0 ? runsRoot(options.repoRoot) : resolve19(options.runsBase);
   const now = options.now ?? (() => /* @__PURE__ */ new Date());
   const checkedAt = now().toISOString();
   const { facts } = readProjectFacts({
@@ -100778,18 +101128,18 @@ var init_run_artifact_io = __esm({
 
 // dist/app/history/run-source-files.js
 import { existsSync as existsSync29, lstatSync as lstatSync5, readdirSync as readdirSync5, realpathSync as realpathSync4 } from "node:fs";
-import { isAbsolute as isAbsolute11, relative as relative11, resolve as resolve21 } from "node:path";
+import { isAbsolute as isAbsolute11, relative as relative11, resolve as resolve20 } from "node:path";
 function collectRunSourceFiles(runFolder) {
-  const runFolderAbs = resolve21(runFolder);
+  const runFolderAbs = resolve20(runFolder);
   const files = /* @__PURE__ */ new Set();
   for (const candidate of [
-    resolve21(runFolderAbs, "manifest.snapshot.json"),
-    resolve21(runFolderAbs, "trace.ndjson")
+    resolve20(runFolderAbs, "manifest.snapshot.json"),
+    resolve20(runFolderAbs, "trace.ndjson")
   ]) {
     if (existsSync29(candidate) && !isSymlink(candidate))
       files.add(candidate);
   }
-  const reportsRoot2 = resolve21(runFolderAbs, "reports");
+  const reportsRoot2 = resolve20(runFolderAbs, "reports");
   for (const absPath of walkReportJsonFiles(reportsRoot2)) {
     files.add(absPath);
   }
@@ -100817,7 +101167,7 @@ function walkReportJsonFiles(reportsRoot2) {
     if (current === void 0)
       continue;
     for (const entry of readdirSync5(current, { withFileTypes: true })) {
-      const absPath = resolve21(current, entry.name);
+      const absPath = resolve20(current, entry.name);
       if (entry.isSymbolicLink() || lstatSync5(absPath).isSymbolicLink())
         continue;
       const real = realpathSync4.native(absPath);
@@ -100839,8 +101189,8 @@ var init_run_source_files = __esm({
 });
 
 // dist/app/history/extract.js
-import { existsSync as existsSync30, lstatSync as lstatSync6, readFileSync as readFileSync51, readdirSync as readdirSync6, realpathSync as realpathSync5 } from "node:fs";
-import { basename as basename6, isAbsolute as isAbsolute12, relative as relative12, resolve as resolve22 } from "node:path";
+import { existsSync as existsSync30, lstatSync as lstatSync6, readFileSync as readFileSync52, readdirSync as readdirSync6, realpathSync as realpathSync5 } from "node:fs";
+import { basename as basename6, isAbsolute as isAbsolute12, relative as relative12, resolve as resolve21 } from "node:path";
 function isObject3(value) {
   return value !== null && typeof value === "object" && !Array.isArray(value);
 }
@@ -100857,7 +101207,7 @@ function safeDateString(value) {
   return Number.isNaN(Date.parse(raw)) ? void 0 : new Date(raw).toISOString();
 }
 function readJson4(path) {
-  return JSON.parse(readFileSync51(path, "utf8"));
+  return JSON.parse(readFileSync52(path, "utf8"));
 }
 function readJsonRecord(path) {
   try {
@@ -100868,21 +101218,21 @@ function readJsonRecord(path) {
   }
 }
 function sha256File(path) {
-  return sha256OfString(readFileSync51(path, "utf8"));
+  return sha256OfString(readFileSync52(path, "utf8"));
 }
 function isInside4(root, target) {
   const fromRoot = relative12(root, target);
   return fromRoot === "" || !fromRoot.startsWith("..") && !isAbsolute12(fromRoot);
 }
 function listFiles(root, prefix = "") {
-  const absRoot = resolve22(root);
+  const absRoot = resolve21(root);
   if (!existsSync30(absRoot))
     return [];
   const rootReal = realpathSync5.native(absRoot);
   const out = [];
   function walk(absDir, relDir) {
     for (const entry of readdirSync6(absDir, { withFileTypes: true })) {
-      const absPath = resolve22(absDir, entry.name);
+      const absPath = resolve21(absDir, entry.name);
       if (lstatSync6(absPath).isSymbolicLink())
         continue;
       const real = realpathSync5.native(absPath);
@@ -100920,13 +101270,13 @@ function validStepId(value) {
   return StepId.safeParse(value).success ? value : void 0;
 }
 function parseTrace(runFolder, runFolderName) {
-  const tracePath = resolve22(runFolder, "trace.ndjson");
+  const tracePath = resolve21(runFolder, "trace.ndjson");
   if (!existsSync30(tracePath)) {
     return { entries: [], reportWrites: /* @__PURE__ */ new Map(), traceValidForDocs: false };
   }
   let entries = [];
   try {
-    entries = readFileSync51(tracePath, "utf8").split("\n").filter((line) => line.trim().length > 0).map((line) => JSON.parse(line)).filter(isObject3);
+    entries = readFileSync52(tracePath, "utf8").split("\n").filter((line) => line.trim().length > 0).map((line) => JSON.parse(line)).filter(isObject3);
   } catch (error52) {
     return {
       entries: [],
@@ -101021,11 +101371,11 @@ function extractText(value, options) {
     const role = segment ?? "value";
     const isHighValue = HIGH_VALUE_FIELDS.has(role);
     const limit = isHighValue ? HIGH_VALUE_TEXT_LIMIT : NORMAL_TEXT_LIMIT;
-    const clipped = raw.length > limit ? `${raw.slice(0, limit)}...` : raw;
-    lines.push(`${role}: ${clipped}`);
+    const clipped2 = raw.length > limit ? `${raw.slice(0, limit)}...` : raw;
+    lines.push(`${role}: ${clipped2}`);
     extractedFrom.push({ json_pointer: jsonPointer(path), field_role: role });
     if (isHighValue && !highValue.has(role))
-      highValue.set(role, clipped);
+      highValue.set(role, clipped2);
   }
   visit(value, []);
   return {
@@ -101145,7 +101495,7 @@ function resolveRunIdentity(input) {
 }
 function makeRunDocument(input) {
   const sourcePath = input.resultPath ?? "trace.ndjson";
-  const sourceAbs = resolve22(input.runFolder, sourcePath);
+  const sourceAbs = resolve21(input.runFolder, sourcePath);
   if (!existsSync30(sourceAbs))
     return void 0;
   const sourceSha = input.resultPath === void 0 ? input.traceSha : sha256File(sourceAbs);
@@ -101362,18 +101712,18 @@ function makeTraceDocument(input) {
   });
 }
 function extractRunHistoryDocuments(runFolder) {
-  const runFolderAbs = resolve22(runFolder);
+  const runFolderAbs = resolve21(runFolder);
   const runFolderName = basename6(runFolderAbs);
   const warnings = [];
   const documents = [];
-  const manifestPath2 = resolve22(runFolderAbs, "manifest.snapshot.json");
-  const resultPath2 = resolve22(runFolderAbs, "reports/result.json");
+  const manifestPath2 = resolve21(runFolderAbs, "manifest.snapshot.json");
+  const resultPath2 = resolve21(runFolderAbs, "reports/result.json");
   const manifest = existsSync30(manifestPath2) ? readJsonRecord(manifestPath2) : void 0;
   const result = existsSync30(resultPath2) ? readJsonRecord(resultPath2) : void 0;
   const trace = parseTrace(runFolderAbs, runFolderName);
   if (trace.warning !== void 0)
     warnings.push(trace.warning);
-  const tracePath = resolve22(runFolderAbs, "trace.ndjson");
+  const tracePath = resolve21(runFolderAbs, "trace.ndjson");
   const traceExists = existsSync30(tracePath);
   const traceSha = traceExists ? sha256File(tracePath) : void 0;
   const traceMtime = traceExists ? mtimeMs(tracePath) : void 0;
@@ -101394,9 +101744,9 @@ function extractRunHistoryDocuments(runFolder) {
   });
   if (runDocument !== void 0)
     documents.push(runDocument);
-  const reportRoot = resolve22(runFolderAbs, "reports");
+  const reportRoot = resolve21(runFolderAbs, "reports");
   for (const relPath of listFiles(reportRoot, "reports")) {
-    const absPath = resolve22(runFolderAbs, relPath);
+    const absPath = resolve21(runFolderAbs, relPath);
     if (absPath !== resolveRunFilePath(runFolderAbs, relPath))
       continue;
     if (skipReport(relPath))
@@ -101504,12 +101854,12 @@ var init_extract = __esm({
 });
 
 // dist/app/history/indexer.js
-import { existsSync as existsSync31, mkdirSync as mkdirSync7, readFileSync as readFileSync52, renameSync as renameSync2, writeFileSync as writeFileSync8 } from "node:fs";
-import { join as join32, resolve as resolve23 } from "node:path";
+import { existsSync as existsSync31, mkdirSync as mkdirSync7, readFileSync as readFileSync53, renameSync as renameSync2, writeFileSync as writeFileSync8 } from "node:fs";
+import { join as join32, resolve as resolve22 } from "node:path";
 function resolveHistoryPaths(options = {}) {
-  const repoRoot = resolve23(options.repoRoot ?? process.cwd());
-  const runsBase = options.runsBase === void 0 ? runsRoot(repoRoot) : resolve23(repoRoot, options.runsBase);
-  const indexDir = options.indexDir === void 0 ? historyRoot(repoRoot) : resolve23(repoRoot, options.indexDir);
+  const repoRoot = resolve22(options.repoRoot ?? process.cwd());
+  const runsBase = options.runsBase === void 0 ? runsRoot(repoRoot) : resolve22(repoRoot, options.runsBase);
+  const indexDir = options.indexDir === void 0 ? historyRoot(repoRoot) : resolve22(repoRoot, options.indexDir);
   return {
     repoRoot,
     runsBase,
@@ -101599,8 +101949,8 @@ function rebuildHistoryIndex(options = {}) {
   const manifestTmp = `${paths.manifestPath}.tmp-${process.pid}`;
   writeFileSync8(documentsTmp, documentsJsonl, "utf8");
   writeFileSync8(manifestTmp, manifestJson, "utf8");
-  HistoryManifestV1.parse(JSON.parse(readFileSync52(manifestTmp, "utf8")));
-  for (const line of readFileSync52(documentsTmp, "utf8").split("\n")) {
+  HistoryManifestV1.parse(JSON.parse(readFileSync53(manifestTmp, "utf8")));
+  for (const line of readFileSync53(documentsTmp, "utf8").split("\n")) {
     if (line.trim().length === 0)
       continue;
     HistoryDocumentV1.parse(JSON.parse(line));
@@ -101621,7 +101971,7 @@ function readHistoryManifest(paths) {
   }
   let raw;
   try {
-    raw = JSON.parse(readFileSync52(paths.manifestPath, "utf8"));
+    raw = JSON.parse(readFileSync53(paths.manifestPath, "utf8"));
   } catch (error52) {
     throw new HistoryCommandError("index_corrupt", `history manifest corrupt: ${error52 instanceof Error ? error52.message : String(error52)}`, { runsBase: paths.runsBase, indexDir: paths.indexDir });
   }
@@ -101645,7 +101995,7 @@ function readHistoryIndex(options = {}) {
   const manifest = readHistoryManifest(paths);
   let documentsRaw = "";
   try {
-    documentsRaw = readFileSync52(paths.documentsPath, "utf8");
+    documentsRaw = readFileSync53(paths.documentsPath, "utf8");
   } catch (error52) {
     throw new HistoryCommandError("index_corrupt", `history documents unreadable: ${error52 instanceof Error ? error52.message : String(error52)}`, { runsBase: paths.runsBase, indexDir: paths.indexDir });
   }
@@ -101732,7 +102082,7 @@ var init_indexer = __esm({
 });
 
 // dist/app/history/memory-effect-read.js
-import { existsSync as existsSync32, readFileSync as readFileSync53 } from "node:fs";
+import { existsSync as existsSync32, readFileSync as readFileSync54 } from "node:fs";
 import { join as join33 } from "node:path";
 function loadMemoryEffectReport(paths) {
   const effectPath = join33(paths.indexDir, HISTORY_MEMORY_EFFECT_FILE);
@@ -101748,7 +102098,7 @@ function loadMemoryEffectReport(paths) {
     };
   }
   try {
-    const report = HistoryMemoryEffectV1.parse(JSON.parse(readFileSync53(effectPath, "utf8")));
+    const report = HistoryMemoryEffectV1.parse(JSON.parse(readFileSync54(effectPath, "utf8")));
     return { report, warnings: [] };
   } catch (error52) {
     return {
@@ -101861,7 +102211,7 @@ var init_memory_preview = __esm({
 });
 
 // dist/app/history/query.js
-import { existsSync as existsSync33, readFileSync as readFileSync54 } from "node:fs";
+import { existsSync as existsSync33, readFileSync as readFileSync55 } from "node:fs";
 function tokenize(text) {
   return text.toLowerCase().split(/[^a-z0-9]+/).filter((term) => term.length >= 2 && !STOPWORDS.has(term));
 }
@@ -102028,7 +102378,7 @@ function sourceStaleness(doc, checkedAt) {
         checked_at: checkedAt
       };
     }
-    const currentHash = sha256OfString(readFileSync54(sourcePath, "utf8"));
+    const currentHash = sha256OfString(readFileSync55(sourcePath, "utf8"));
     return currentHash === doc.source_sha256 ? {
       status: "fresh",
       reason_codes: ["source_hash_verified"],
@@ -102440,15 +102790,15 @@ function emptyUsage() {
 function iterationLedgerFromTrace(entries) {
   const ordered = [...entries].sort((a, b) => a.sequence - b.sequence);
   const rows = [];
-  let usage2 = emptyUsage();
+  let usage = emptyUsage();
   for (const entry of ordered) {
     if (entry.kind === "relay.completed") {
       const parsed = RelayUsageEvidence.safeParse(entry.usage);
       if (!parsed.success)
         continue;
-      usage2.tokens += parsed.data.input_tokens + parsed.data.output_tokens;
+      usage.tokens += parsed.data.input_tokens + parsed.data.output_tokens;
       if (parsed.data.total_cost_usd_reported !== void 0) {
-        usage2.costUsd = (usage2.costUsd ?? 0) + parsed.data.total_cost_usd_reported;
+        usage.costUsd = (usage.costUsd ?? 0) + parsed.data.total_cost_usd_reported;
       }
       continue;
     }
@@ -102462,10 +102812,10 @@ function iterationLedgerFromTrace(entries) {
       openLatchCount: entry.open_latch_count,
       noProgressCount: entry.no_progress_count,
       ...entry.lesson === void 0 ? {} : { lesson: entry.lesson },
-      inputPlusOutputTokens: usage2.tokens,
-      ...usage2.costUsd === void 0 ? {} : { costUsd: usage2.costUsd }
+      inputPlusOutputTokens: usage.tokens,
+      ...usage.costUsd === void 0 ? {} : { costUsd: usage.costUsd }
     });
-    usage2 = emptyUsage();
+    usage = emptyUsage();
   }
   return rows;
 }
@@ -102502,7 +102852,7 @@ var init_iteration_ledger = __esm({
 });
 
 // dist/shared/operator-summary/json.js
-import { existsSync as existsSync34, readFileSync as readFileSync55 } from "node:fs";
+import { existsSync as existsSync34, readFileSync as readFileSync56 } from "node:fs";
 function isObject4(value) {
   return value !== null && typeof value === "object" && !Array.isArray(value);
 }
@@ -102510,7 +102860,7 @@ function readJsonIfPresent(runFolder, relPath) {
   const path = resolveRunRelative(runFolder, relPath);
   if (!existsSync34(path))
     return void 0;
-  const parsed = JSON.parse(readFileSync55(path, "utf8"));
+  const parsed = JSON.parse(readFileSync56(path, "utf8"));
   return isObject4(parsed) ? parsed : void 0;
 }
 function stringField2(report, key) {
@@ -103159,14 +103509,14 @@ var init_operator_summary2 = __esm({
 });
 
 // dist/app/operator-summary/writer.js
-import { existsSync as existsSync35, mkdirSync as mkdirSync8, readFileSync as readFileSync56, rmSync as rmSync6, writeFileSync as writeFileSync9 } from "node:fs";
-import { dirname as dirname11, isAbsolute as isAbsolute13, join as join34, relative as relative13, resolve as resolve24 } from "node:path";
+import { existsSync as existsSync35, mkdirSync as mkdirSync8, readFileSync as readFileSync57, rmSync as rmSync7, writeFileSync as writeFileSync9 } from "node:fs";
+import { dirname as dirname11, isAbsolute as isAbsolute13, join as join34, relative as relative13, resolve as resolve23 } from "node:path";
 function readPriorRoute(runFolder) {
   const path = join34(runFolder, "reports", "operator-summary.json");
   if (!existsSync35(path))
     return {};
   try {
-    const raw = JSON.parse(readFileSync56(path, "utf8"));
+    const raw = JSON.parse(readFileSync57(path, "utf8"));
     if (!isObject4(raw))
       return {};
     const routedBy = raw.routed_by;
@@ -103178,6 +103528,18 @@ function readPriorRoute(runFolder) {
   } catch {
     return {};
   }
+}
+function capWithOverflow(items, max) {
+  if (max <= 0)
+    return [];
+  if (items.length <= max)
+    return [...items];
+  const shown = items.slice(0, max - 1);
+  return [...shown, `+${items.length - shown.length} more in operator-summary.json.`];
+}
+function briefKeyPoints(priority, candidates) {
+  const front = priority.slice(0, MAX_KEY_POINTS);
+  return [...front, ...capWithOverflow(candidates, MAX_KEY_POINTS - front.length)];
 }
 function verificationFailureLine(runFolder, flowId) {
   const path = VERIFICATION_REPORT_PATH_BY_FLOW[flowId];
@@ -103235,16 +103597,16 @@ function isInsideOrSame4(root, target) {
 function readCheckpointRequest(runFolder, checkpoint) {
   let requestPath;
   try {
-    requestPath = isAbsolute13(checkpoint.request_path) ? resolve24(checkpoint.request_path) : resolveRunRelative(runFolder, checkpoint.request_path);
+    requestPath = isAbsolute13(checkpoint.request_path) ? resolve23(checkpoint.request_path) : resolveRunRelative(runFolder, checkpoint.request_path);
   } catch {
     return void 0;
   }
-  if (!isInsideOrSame4(resolve24(runFolder), requestPath))
+  if (!isInsideOrSame4(resolve23(runFolder), requestPath))
     return void 0;
   if (!existsSync35(requestPath))
     return void 0;
   try {
-    const parsed = JSON.parse(readFileSync56(requestPath, "utf8"));
+    const parsed = JSON.parse(readFileSync57(requestPath, "utf8"));
     return isObject4(parsed) ? parsed : void 0;
   } catch {
     return void 0;
@@ -103451,7 +103813,7 @@ function normalizedAssessment(details, fallback) {
     return withoutDetailPrefix(result, "Result: ");
   return sentence2(fallback.replace(/^Circuit:\s*/i, "").replace(/^Circuit\s*·\s*/i, "").trim());
 }
-function keyPointsFromDetails(details) {
+function keyPointCandidatesFromDetails(details) {
   const points = [];
   const resultIsAssessmentSource = !details.some((detail) => detail.startsWith("Assessment: ")) && !details.some((detail) => detail.startsWith("Recommendation: "));
   const add = (point) => {
@@ -103459,8 +103821,6 @@ function keyPointsFromDetails(details) {
     if (trimmed.length === 0)
       return;
     if (points.includes(trimmed))
-      return;
-    if (points.length >= MAX_KEY_POINTS)
       return;
     points.push(trimmed);
   };
@@ -103500,6 +103860,9 @@ function keyPointsFromDetails(details) {
   }
   return points;
 }
+function keyPointsFromDetails(details) {
+  return capWithOverflow(keyPointCandidatesFromDetails(details), MAX_KEY_POINTS);
+}
 function caveatsFrom(input) {
   const caveats = [];
   const add = (caveat) => {
@@ -103508,10 +103871,11 @@ function caveatsFrom(input) {
       return;
     if (caveats.includes(trimmed))
       return;
-    if (caveats.length >= MAX_CAVEATS)
-      return;
     caveats.push(trimmed);
   };
+  for (const warning of input.warnings) {
+    add(`${warning.kind}: ${warning.message}`);
+  }
   for (const detail of input.details) {
     if (detail.startsWith("Confidence limitations: ")) {
       for (const caveat of splitSemicolonDetail(detail, "Confidence limitations: ")) {
@@ -103529,10 +103893,7 @@ function caveatsFrom(input) {
     if (detail.startsWith("Consider: "))
       add(withoutDetailPrefix(detail, "Consider: "));
   }
-  for (const warning of input.warnings) {
-    add(`${warning.kind}: ${warning.message}`);
-  }
-  return caveats;
+  return capWithOverflow(caveats, MAX_CAVEATS);
 }
 function nextActionFrom(details, flowId, outcomeLabel) {
   const nextAction = detailWithPrefix(details, "Next action: ");
@@ -103554,17 +103915,16 @@ function nextActionFrom(details, flowId, outcomeLabel) {
   return "nothing required.";
 }
 function runOutcomeOverrideBrief(input) {
-  const keyPoints = keyPointsFromDetails(input.details);
+  const keyPoints = keyPointCandidatesFromDetails(input.details);
   if (input.runResult.outcome === "checkpoint_waiting") {
     return {
       headline: digestHeadline(input.flowName),
       assessment: "Circuit is waiting for a checkpoint choice before this flow can continue.",
-      key_points: [
+      key_points: briefKeyPoints([
         `Checkpoint step: ${input.runResult.checkpoint.step_id}`,
         `Choices: ${input.runResult.checkpoint.allowed_choices.join(", ")}`,
-        ...input.checkpointDefaultChoice === void 0 ? [] : [`Default if unanswered: ${input.checkpointDefaultChoice}`],
-        ...keyPoints
-      ].slice(0, MAX_KEY_POINTS),
+        ...input.checkpointDefaultChoice === void 0 ? [] : [`Default if unanswered: ${input.checkpointDefaultChoice}`]
+      ], keyPoints),
       caveats: [],
       next_action: "choose a checkpoint option to continue."
     };
@@ -103573,11 +103933,10 @@ function runOutcomeOverrideBrief(input) {
     return {
       headline: digestHeadline(input.flowName),
       assessment: "The run aborted before this flow could finish.",
-      key_points: [
+      key_points: briefKeyPoints([
         ...input.runResult.reason === void 0 ? [] : [`Abort reason: ${input.runResult.reason}`],
-        ...salvageKeyPoints({ runFolder: input.runFolder, flowId: input.flowId }),
-        ...keyPoints
-      ].slice(0, MAX_KEY_POINTS),
+        ...salvageKeyPoints({ runFolder: input.runFolder, flowId: input.flowId })
+      ], keyPoints),
       caveats: [],
       next_action: SALVAGE_NEXT_ACTION
     };
@@ -103586,10 +103945,7 @@ function runOutcomeOverrideBrief(input) {
     return {
       headline: digestHeadline(input.flowName),
       assessment: "The run escalated because Circuit could not close the flow safely.",
-      key_points: [
-        ...input.runResult.reason === void 0 ? [] : [`Escalation reason: ${input.runResult.reason}`],
-        ...keyPoints
-      ].slice(0, MAX_KEY_POINTS),
+      key_points: briefKeyPoints(input.runResult.reason === void 0 ? [] : [`Escalation reason: ${input.runResult.reason}`], keyPoints),
       caveats: [],
       next_action: "inspect the escalation reason and choose the recovery path."
     };
@@ -103598,10 +103954,7 @@ function runOutcomeOverrideBrief(input) {
     return {
       headline: digestHeadline(input.flowName),
       assessment: "The flow prepared a handoff instead of closing complete.",
-      key_points: [
-        ...input.runResult.reason === void 0 ? [] : [`Handoff reason: ${input.runResult.reason}`],
-        ...keyPoints
-      ].slice(0, MAX_KEY_POINTS),
+      key_points: briefKeyPoints(input.runResult.reason === void 0 ? [] : [`Handoff reason: ${input.runResult.reason}`], keyPoints),
       caveats: [],
       next_action: "resume from the handoff record."
     };
@@ -103610,11 +103963,10 @@ function runOutcomeOverrideBrief(input) {
     return {
       headline: digestHeadline(input.flowName),
       assessment: "The flow stopped before complete evidence was produced.",
-      key_points: [
+      key_points: briefKeyPoints([
         ...input.runResult.reason === void 0 ? [] : [`Stop reason: ${input.runResult.reason}`],
-        ...salvageKeyPoints({ runFolder: input.runFolder, flowId: input.flowId }),
-        ...keyPoints
-      ].slice(0, MAX_KEY_POINTS),
+        ...salvageKeyPoints({ runFolder: input.runFolder, flowId: input.flowId })
+      ], keyPoints),
       caveats: [],
       next_action: SALVAGE_NEXT_ACTION
     };
@@ -103649,26 +104001,33 @@ function buildBriefSlots(input) {
   };
 }
 function evidenceLinks2(runFolder, report) {
-  return arrayField(report, "evidence_links").flatMap((item) => {
+  const links = [];
+  const warnings = [];
+  for (const item of arrayField(report, "evidence_links")) {
     if (!isObject4(item))
-      return [];
+      continue;
     const reportId = stringField2(item, "report_id");
     const path = stringField2(item, "path");
     if (reportId === void 0 || path === void 0)
-      return [];
+      continue;
     try {
-      return [reportLink(runFolder, reportId, path, stringField2(item, "schema"))];
-    } catch {
-      return [];
+      links.push(reportLink(runFolder, reportId, path, stringField2(item, "schema")));
+    } catch (err) {
+      warnings.push({
+        kind: "evidence_link_dropped",
+        message: `evidence link '${reportId}' could not be added to the summary: ${err instanceof Error ? err.message : String(err)}`,
+        path
+      });
     }
-  });
+  }
+  return { links, warnings };
 }
 function readAutoResolutions(runFolder) {
   const tracePath = join34(runFolder, "trace.ndjson");
   if (!existsSync35(tracePath))
     return [];
   const records = [];
-  for (const line of readFileSync56(tracePath, "utf8").split(/\r?\n/)) {
+  for (const line of readFileSync57(tracePath, "utf8").split(/\r?\n/)) {
     if (line.trim().length === 0)
       continue;
     let entry;
@@ -103723,7 +104082,7 @@ function readRunReceipt(runFolder) {
   let spendRelaysMissingUsage = 0;
   let anyUsage = false;
   let anyCostMissing = false;
-  for (const line of readFileSync56(tracePath, "utf8").split(/\r?\n/)) {
+  for (const line of readFileSync57(tracePath, "utf8").split(/\r?\n/)) {
     if (line.trim().length === 0)
       continue;
     let entry;
@@ -103784,21 +104143,21 @@ function readRunReceipt(runFolder) {
       if (started.model !== void 0 && !totals.models.includes(started.model)) {
         totals.models.push(started.model);
       }
-      const usage2 = RelayUsageEvidence.safeParse(entry.usage);
-      if (!usage2.success) {
+      const usage = RelayUsageEvidence.safeParse(entry.usage);
+      if (!usage.success) {
         totals.relays_missing_usage += 1;
         spendRelaysMissingUsage += 1;
         continue;
       }
       anyUsage = true;
-      totals.input_tokens += usage2.data.input_tokens;
-      totals.output_tokens += usage2.data.output_tokens;
-      totals.cache_read_tokens += usage2.data.cache_read_tokens;
-      totals.cache_creation_tokens += usage2.data.cache_creation_tokens;
-      if (usage2.data.total_cost_usd_reported === void 0) {
+      totals.input_tokens += usage.data.input_tokens;
+      totals.output_tokens += usage.data.output_tokens;
+      totals.cache_read_tokens += usage.data.cache_read_tokens;
+      totals.cache_creation_tokens += usage.data.cache_creation_tokens;
+      if (usage.data.total_cost_usd_reported === void 0) {
         anyCostMissing = true;
       } else {
-        totals.cost_usd_reported = (totals.cost_usd_reported ?? 0) + usage2.data.total_cost_usd_reported;
+        totals.cost_usd_reported = (totals.cost_usd_reported ?? 0) + usage.data.total_cost_usd_reported;
       }
       continue;
     }
@@ -103938,7 +104297,7 @@ function readSkillHookSummary(runFolder) {
   const seen = /* @__PURE__ */ new Set();
   const activations = [];
   const warnings = [];
-  for (const line of readFileSync56(tracePath, "utf8").split(/\r?\n/)) {
+  for (const line of readFileSync57(tracePath, "utf8").split(/\r?\n/)) {
     if (line.trim().length === 0)
       continue;
     let entry;
@@ -103986,6 +104345,90 @@ function readSkillHookSummary(runFolder) {
   }
   return { activations, warnings };
 }
+function readDegradationWarnings(runFolder) {
+  const tracePath = join34(runFolder, "trace.ndjson");
+  if (!existsSync35(tracePath))
+    return [];
+  const warnings = [];
+  for (const line of readFileSync57(tracePath, "utf8").split(/\r?\n/)) {
+    if (line.trim().length === 0)
+      continue;
+    let entry;
+    try {
+      entry = JSON.parse(line);
+    } catch {
+      continue;
+    }
+    if (!isObject4(entry))
+      continue;
+    if (entry.kind === "run.power-inference-error") {
+      const message = stringField2(entry, "message");
+      if (message !== void 0) {
+        warnings.push({ kind: "power_inference_failed", message: firstLine2(message) });
+      }
+      continue;
+    }
+    if (entry.kind === "step.report_skipped") {
+      const reason = stringField2(entry, "reason");
+      const reportPath = stringField2(entry, "report_path");
+      if (reason !== void 0) {
+        warnings.push({
+          kind: "relay_report_skipped",
+          message: firstLine2(reason),
+          ...reportPath === void 0 ? {} : { path: reportPath }
+        });
+      }
+      continue;
+    }
+    if (entry.kind === "run.context-delivery-error") {
+      const message = stringField2(entry, "message");
+      if (message !== void 0) {
+        warnings.push({ kind: "context_delivery_failed", message: firstLine2(message) });
+      }
+    }
+  }
+  return warnings;
+}
+function friendlyAbortReason(reason) {
+  const binding = RECOVERY_BINDING_ABORT_PATTERN.exec(reason);
+  if (binding !== null) {
+    return `Step '${binding[1]}' failed, and the flow tried to recover through its '${binding[2]}' route, but the flow's safety rules do not allow that recovery for this kind of failure \u2014 so Circuit stopped the run. This is a problem in the flow definition, not in your project. Update or regenerate the flow, then run it again.`;
+  }
+  const noEvidence = RECOVERY_NO_EVIDENCE_ABORT_PATTERN.exec(reason);
+  if (noEvidence !== null) {
+    return `Step '${noEvidence[1]}' took its '${noEvidence[2]}' recovery route without a recorded failure to justify it, so Circuit stopped the run. This is a problem in the flow definition, not in your project. Update or regenerate the flow, then run it again.`;
+  }
+  return void 0;
+}
+function readAutoConnectorPicks(runFolder) {
+  const tracePath = join34(runFolder, "trace.ndjson");
+  const picks = /* @__PURE__ */ new Map();
+  if (!existsSync35(tracePath))
+    return picks;
+  for (const line of readFileSync57(tracePath, "utf8").split(/\r?\n/)) {
+    if (line.trim().length === 0)
+      continue;
+    let entry;
+    try {
+      entry = JSON.parse(line);
+    } catch {
+      continue;
+    }
+    if (!isObject4(entry) || entry.kind !== "relay.started")
+      continue;
+    const resolvedFrom = entry.resolved_from;
+    if (!isObject4(resolvedFrom) || resolvedFrom.source !== "auto")
+      continue;
+    const connector = entry.connector;
+    if (!isObject4(connector))
+      continue;
+    const name = stringField2(connector, "name");
+    if (name === void 0)
+      continue;
+    picks.set(name, (picks.get(name) ?? 0) + 1);
+  }
+  return picks;
+}
 function skillHookActivationLine(activation) {
   const provenance = activation.policy_ref ?? skillHookSourceLabel(activation.source);
   if (activation.mode === "mute") {
@@ -104012,7 +104455,7 @@ function readEquipmentReshapeSummary(runFolder) {
   const seen = /* @__PURE__ */ new Set();
   const reshapes = [];
   const warnings = [];
-  for (const line of readFileSync56(tracePath, "utf8").split(/\r?\n/)) {
+  for (const line of readFileSync57(tracePath, "utf8").split(/\r?\n/)) {
     if (line.trim().length === 0)
       continue;
     let entry;
@@ -104066,7 +104509,7 @@ function readIterationLedger(runFolder) {
   if (!existsSync35(tracePath))
     return [];
   const entries = [];
-  for (const line of readFileSync56(tracePath, "utf8").split(/\r?\n/)) {
+  for (const line of readFileSync57(tracePath, "utf8").split(/\r?\n/)) {
     if (line.trim().length === 0)
       continue;
     let raw;
@@ -104129,8 +104572,8 @@ function renderMarkdown(summary, ledgerRows) {
     lines2.push("", `Next: ${summary.brief_slots.next_action}`);
     if (summary.auto_resolutions !== void 0 && summary.auto_resolutions.length > 0) {
       lines2.push("", "Auto-resolutions:");
-      for (const resolution of summary.auto_resolutions.slice(0, MAX_KEY_POINTS)) {
-        lines2.push(`- ${autoResolutionSummaryLine(resolution)}`);
+      for (const line of capWithOverflow(summary.auto_resolutions.map((resolution) => autoResolutionSummaryLine(resolution)), MAX_KEY_POINTS)) {
+        lines2.push(`- ${line}`);
       }
     }
     if (summary.skill_hook_activations !== void 0 && summary.skill_hook_activations.length > 0) {
@@ -104273,14 +104716,14 @@ function writeOperatorSummary(input) {
   }
   if (renderedHtml === void 0) {
     if (existsSync35(candidateHtmlPath))
-      rmSync6(candidateHtmlPath, { force: true, recursive: true });
+      rmSync7(candidateHtmlPath, { force: true, recursive: true });
   } else {
     try {
       writeFileSync9(candidateHtmlPath, renderedHtml);
       outHtmlPath = candidateHtmlPath;
     } catch (err) {
       if (existsSync35(candidateHtmlPath))
-        rmSync6(candidateHtmlPath, { force: true, recursive: true });
+        rmSync7(candidateHtmlPath, { force: true, recursive: true });
       htmlEmitWarning = {
         kind: "html_write_failed",
         message: err instanceof Error ? err.message : String(err),
@@ -104304,7 +104747,8 @@ function writeOperatorSummary(input) {
       path: checkpoint.request_path
     });
   }
-  reportPaths.push(...evidenceLinks2(input.runFolder, flowReport));
+  const evidence2 = evidenceLinks2(input.runFolder, flowReport);
+  reportPaths.push(...evidence2.links);
   const projection = projectSummary({
     runFolder: input.runFolder,
     flowId,
@@ -104324,6 +104768,9 @@ function writeOperatorSummary(input) {
       details.push(`Checkpoint options: ${optionDetails.join("; ")}`);
   }
   if (input.runResult.outcome === "aborted" && input.runResult.reason !== void 0) {
+    const friendly = friendlyAbortReason(input.runResult.reason);
+    if (friendly !== void 0)
+      details.push(`What happened: ${friendly}`);
     details.push(`Abort reason: ${input.runResult.reason}`);
   }
   if (input.runResult.outcome === "escalated" && input.runResult.reason !== void 0) {
@@ -104333,11 +104780,16 @@ function writeOperatorSummary(input) {
     const capped = receipt.power_clamped === true && receipt.power_recommended !== void 0 ? ` (recommended ${receipt.power_recommended}, held to the configured bounds)` : "";
     details.push(`Power dial: auto chose ${receipt.power}${capped}. Reason: ${receipt.power_rationale}`);
   }
+  for (const [name, count] of readAutoConnectorPicks(input.runFolder)) {
+    details.push(`Connector: nothing was configured, so '${name}' was the automatic pick for ${count} relay step(s). To choose explicitly: circuit config set relay.default ${name}`);
+  }
   const warnings = [
     ...warningRecords(flowReport),
     ...htmlEmitWarning === void 0 ? [] : [htmlEmitWarning],
+    ...evidence2.warnings,
     ...skillHookSummary.warnings,
-    ...equipmentReshapeSummary.warnings
+    ...equipmentReshapeSummary.warnings,
+    ...readDegradationWarnings(input.runFolder)
   ];
   const briefSlots = buildBriefSlots({
     runFolder: input.runFolder,
@@ -104382,7 +104834,7 @@ function writeOperatorSummary(input) {
     htmlPath: outHtmlPath
   };
 }
-var HTML_REPORT_LABEL, MAX_KEY_POINTS, MAX_CAVEATS, SALVAGE_NEXT_ACTION, VERIFICATION_REPORT_PATH_BY_FLOW, REVIEW_REPORT_PATH_BY_FLOW, SPEND_ROLE_ORDER, REDUCED_BINDING_LABELS;
+var HTML_REPORT_LABEL, MAX_KEY_POINTS, MAX_CAVEATS, SALVAGE_NEXT_ACTION, VERIFICATION_REPORT_PATH_BY_FLOW, REVIEW_REPORT_PATH_BY_FLOW, SPEND_ROLE_ORDER, REDUCED_BINDING_LABELS, RECOVERY_BINDING_ABORT_PATTERN, RECOVERY_NO_EVIDENCE_ABORT_PATTERN;
 var init_writer = __esm({
   "dist/app/operator-summary/writer.js"() {
     "use strict";
@@ -104421,6 +104873,8 @@ var init_writer = __esm({
       terminal_outcome_binding: "terminal outcome",
       primary_result_surface: "primary result"
     };
+    RECOVERY_BINDING_ABORT_PATTERN = /^step '([^']+)' selected recovery route '([^']+)' (?:after|for) \S+,? but (?:the WorkContract does not declare a matching recovery binding|its WorkContract binding only allows: .+)$/;
+    RECOVERY_NO_EVIDENCE_ABORT_PATTERN = /^step '([^']+)' selected recovery route '([^']+)' without failure evidence$/;
   }
 });
 
@@ -105360,11 +105814,11 @@ var init_autonomous_run = __esm({
 });
 
 // dist/cli/compiled-flow-loading.js
-import { existsSync as existsSync37, readFileSync as readFileSync57 } from "node:fs";
-import { dirname as dirname14, resolve as resolve25 } from "node:path";
+import { existsSync as existsSync37, readFileSync as readFileSync58 } from "node:fs";
+import { dirname as dirname14, resolve as resolve24 } from "node:path";
 import { fileURLToPath as fileURLToPath2 } from "node:url";
 function defaultFlowRoot() {
-  const cwdRoot = resolve25("generated/flows");
+  const cwdRoot = resolve24("generated/flows");
   if (existsSync37(cwdRoot))
     return cwdRoot;
   if (existsSync37(packageFlowRoot))
@@ -105373,14 +105827,14 @@ function defaultFlowRoot() {
 }
 function resolveCompiledFlowPath(flowName, modeName, override, flowRoot2) {
   if (override !== void 0)
-    return resolve25(override);
-  const root = flowRoot2 !== void 0 ? resolve25(flowRoot2) : defaultFlowRoot();
+    return resolve24(override);
+  const root = flowRoot2 !== void 0 ? resolve24(flowRoot2) : defaultFlowRoot();
   if (modeName !== void 0) {
-    const perMode = resolve25(root, flowName, `${modeName}.json`);
+    const perMode = resolve24(root, flowName, `${modeName}.json`);
     if (existsSync37(perMode))
       return perMode;
   }
-  return resolve25(root, flowName, "circuit.json");
+  return resolve24(root, flowName, "circuit.json");
 }
 function compiledFlowSelectionNameForAxes(axes) {
   if (axes.tournament)
@@ -105405,7 +105859,7 @@ function loadCompiledFlow(compiledFlowPath) {
   if (!existsSync37(compiledFlowPath)) {
     throw new Error(`compiled flow not found: ${compiledFlowPath}`);
   }
-  const bytes = readFileSync57(compiledFlowPath);
+  const bytes = readFileSync58(compiledFlowPath);
   const raw = JSON.parse(bytes.toString("utf8"));
   const flow = CompiledFlow.parse(raw);
   const policy2 = validateCompiledFlowKindPolicy(flow);
@@ -105428,25 +105882,25 @@ var init_compiled_flow_loading = __esm({
     "use strict";
     init_canonical_stage_policy();
     init_compiled_flow();
-    packageFlowRoot = resolve25(dirname14(fileURLToPath2(import.meta.url)), "../..", "generated/flows");
+    packageFlowRoot = resolve24(dirname14(fileURLToPath2(import.meta.url)), "../..", "generated/flows");
   }
 });
 
 // dist/cli/handoff-codex-hooks.js
 import { createHash as createHash6 } from "node:crypto";
-import { accessSync as accessSync2, copyFileSync, existsSync as existsSync38, constants as fsConstants, mkdirSync as mkdirSync11, readFileSync as readFileSync58, writeFileSync as writeFileSync12 } from "node:fs";
+import { accessSync as accessSync2, copyFileSync, existsSync as existsSync38, constants as fsConstants, mkdirSync as mkdirSync11, readFileSync as readFileSync59, writeFileSync as writeFileSync12 } from "node:fs";
 import { homedir as homedir5 } from "node:os";
-import { dirname as dirname15, join as join37, resolve as resolve26 } from "node:path";
+import { dirname as dirname15, join as join37, resolve as resolve25 } from "node:path";
 import { fileURLToPath as fileURLToPath3 } from "node:url";
 function defaultCodexHooksFile() {
-  const codexHome = process.env.CODEX_HOME ?? resolve26(homedir5(), ".codex");
-  return resolve26(codexHome, "hooks.json");
+  const codexHome = process.env.CODEX_HOME ?? resolve25(homedir5(), ".codex");
+  return resolve25(codexHome, "hooks.json");
 }
 function resolveDefaultLauncher(pluginRoot, moduleDir) {
   if (pluginRoot !== void 0 && pluginRoot.length > 0) {
-    return resolve26(pluginRoot, "scripts/circuit.js");
+    return resolve25(pluginRoot, "scripts/circuit.js");
   }
-  return resolve26(moduleDir, "../..", "bin/circuit");
+  return resolve25(moduleDir, "../..", "bin/circuit");
 }
 function missingDefaultLauncherMessage(launcher) {
   return [
@@ -105464,10 +105918,10 @@ function parseCodexHooksHost(args) {
   throw new Error("handoff hooks requires --host codex");
 }
 function resolveHooksFileArg(args) {
-  return resolve26(args.hooksFile ?? defaultCodexHooksFile());
+  return resolve25(args.hooksFile ?? defaultCodexHooksFile());
 }
 function resolveLauncherArg(args) {
-  const launcher = resolve26(args.launcher ?? defaultLauncherPath());
+  const launcher = resolve25(args.launcher ?? defaultLauncherPath());
   if (!existsSync38(launcher)) {
     if (args.launcher === void 0 && (process.env.CIRCUIT_PLUGIN_ROOT ?? "").length === 0) {
       throw new Error(missingDefaultLauncherMessage(launcher));
@@ -105496,7 +105950,7 @@ function defaultHooksConfig() {
 function readHooksConfig(path) {
   if (!existsSync38(path))
     return defaultHooksConfig();
-  const parsed = JSON.parse(readFileSync58(path, "utf8"));
+  const parsed = JSON.parse(readFileSync59(path, "utf8"));
   if (typeof parsed !== "object" || parsed === null || Array.isArray(parsed)) {
     throw new Error("hooks file must contain a JSON object");
   }
@@ -106003,7 +106457,7 @@ var init_shadow_record = __esm({
 });
 
 // dist/cli/post-run-artifacts.js
-import { readFileSync as readFileSync59 } from "node:fs";
+import { readFileSync as readFileSync60 } from "node:fs";
 import { join as join39 } from "node:path";
 function tryPostRunArtifact(label, context, write) {
   try {
@@ -106034,7 +106488,7 @@ function resolveFlowPrimaryResult(input) {
     return {};
   let primaryResult;
   try {
-    primaryResult = JSON.parse(readFileSync59(join39(input.runFolder, primaryResultPath), "utf8"));
+    primaryResult = JSON.parse(readFileSync60(join39(input.runFolder, primaryResultPath), "utf8"));
   } catch {
     return {};
   }
@@ -106091,7 +106545,7 @@ var init_post_run_artifacts = __esm({
 
 // dist/cli/recovery-attempt-runner.js
 import { randomUUID as randomUUID8 } from "node:crypto";
-import { readFileSync as readFileSync60 } from "node:fs";
+import { readFileSync as readFileSync61 } from "node:fs";
 import { join as join40 } from "node:path";
 function createRecoveryAttemptRunner(deps) {
   const { primaryProjection, fixtureSelectionName, flowRoot: flowRoot2, parentAxes, runFolder, operatorGoal, now, projectRoot, relayer, runtimeExecutors, hostKind, selectionConfigLayers, policyLayers } = deps;
@@ -106154,7 +106608,7 @@ function createRecoveryAttemptRunner(deps) {
         })
       };
     }
-    const recoveryRunResult = RunResult.parse(JSON.parse(readFileSync60(recoveryResult.resultPath, "utf8")));
+    const recoveryRunResult = RunResult.parse(JSON.parse(readFileSync61(recoveryResult.resultPath, "utf8")));
     return {
       projection: projectClosedProcessEvidence({
         runFolder: attemptFolder,
@@ -106179,7 +106633,7 @@ var init_recovery_attempt_runner = __esm({
 });
 
 // dist/cli/resume-input.js
-import { join as join41, resolve as resolve27 } from "node:path";
+import { join as join41, resolve as resolve26 } from "node:path";
 function matchCheckpointChoice(raw, choices) {
   for (const choice of choices) {
     if (choice.id === raw)
@@ -106212,7 +106666,7 @@ function invalidCheckpointChoiceMessage(input) {
   return lines.join("\n");
 }
 function runFolderCandidates(argument, cwd2) {
-  const direct = resolve27(cwd2, argument);
+  const direct = resolve26(cwd2, argument);
   const isBareName = !argument.includes("/") && !argument.includes("\\") && argument !== "." && argument !== "..";
   if (!isBareName)
     return [direct];
@@ -106432,8 +106886,11 @@ var init_tty_notice = __esm({
 
 // dist/cli/run.js
 import { randomUUID as randomUUID9 } from "node:crypto";
-import { existsSync as existsSync39, mkdirSync as mkdirSync13, readFileSync as readFileSync61, readdirSync as readdirSync7, writeFileSync as writeFileSync14 } from "node:fs";
-import { dirname as dirname17, join as join44, resolve as resolve28 } from "node:path";
+import { existsSync as existsSync39, mkdirSync as mkdirSync13, readFileSync as readFileSync62, readdirSync as readdirSync7, writeFileSync as writeFileSync14 } from "node:fs";
+import { dirname as dirname17, join as join44, resolve as resolve27 } from "node:path";
+function publicFlowNameOffer() {
+  return catalogFlowIds.filter((id) => !INTERNAL_FLOW_IDS.has(id)).sort().join("|");
+}
 function runtimeHostKind(options) {
   if (options.hostKind !== void 0)
     return options.hostKind;
@@ -106458,8 +106915,13 @@ function parseExecutionArgs(command, argv) {
   }
   let depth;
   const processProvided = opts.process !== void 0;
-  if (opts.process !== void 0)
-    depth = Process.parse(opts.process);
+  if (opts.process !== void 0) {
+    const parsedProcess = Process.safeParse(opts.process);
+    if (!parsedProcess.success) {
+      throw new Error(`--process must be one of ${Process.options.join(", ")}`);
+    }
+    depth = parsedProcess.data;
+  }
   let power;
   const powerProvided = opts.power !== void 0;
   if (opts.power !== void 0) {
@@ -106542,8 +107004,20 @@ function parseExecutionArgs(command, argv) {
     if (reuseChildrenFrom !== void 0) {
       throw new Error("checkpoint resume continues this run in place; --reuse-children-from starts a fresh run that reuses children from a dead run folder, so omit it on resume");
     }
-  } else if (goal === void 0 || goal.length === 0) {
-    throw new Error("--goal is required and must be non-empty");
+  } else {
+    const missingRunInputs = [];
+    const runRemedies = [];
+    if (flowName === void 0) {
+      missingRunInputs.push("a flow name");
+      runRemedies.push(`pass one of ${publicFlowNameOffer()} as the first argument`);
+    }
+    if (goal === void 0 || goal.length === 0) {
+      missingRunInputs.push("--goal");
+      runRemedies.push("state the goal with a non-empty --goal");
+    }
+    if (missingRunInputs.length > 0) {
+      throw new Error(`${missingRunInputs.join(" and ")} ${missingRunInputs.length > 1 ? "are" : "is"} required: ${runRemedies.join(" and ")}`);
+    }
   }
   const axes = Axes.parse({
     ...depth === void 0 ? {} : { depth },
@@ -106602,7 +107076,7 @@ function resolveCompiledFlowRoute(args) {
       reason: "explicit flow positional argument"
     };
   }
-  throw new Error("a flow name is required: pass one of build|fix|review|explore|prototype|pursue as the first argument");
+  throw new Error(`a flow name is required: pass one of ${publicFlowNameOffer()} as the first argument`);
 }
 function hasExplicitAxes(args) {
   return args.processProvided || args.tournamentProvided || args.autonomousProvided;
@@ -106661,8 +107135,8 @@ function progressSurfaceForFlowId(flowId) {
   return findFlowRuntimeSurfaceById(flowId)?.progress;
 }
 function axisAllowListText(flowId, support) {
-  const depths = support.allowedDepths.join(", ");
-  return `${flowId} allows depths: ${depths}; tournament: ${support.supportsTournament ? "yes" : "no"}; autonomous: ${support.supportsAutonomous ? "yes" : "no"}`;
+  const allowedProcesses = support.allowedDepths.join(", ");
+  return `${flowId} allows process: ${allowedProcesses}; tournament: ${support.supportsTournament ? "yes" : "no"}; autonomous: ${support.supportsAutonomous ? "yes" : "no"}`;
 }
 function validateFlowAxes(input) {
   const axes = input.args.axes;
@@ -106787,7 +107261,7 @@ function waitingCheckpointStatus(runFolder) {
 async function runResumeCommand(args, options) {
   if (args.command === "resume" && args.runFolder !== void 0 && args.checkpointChoice !== void 0) {
     const candidates = runFolderCandidates(args.runFolder, process.cwd());
-    let runFolder = candidates[0] ?? resolve28(args.runFolder);
+    let runFolder = candidates[0] ?? resolve27(args.runFolder);
     for (const candidate of candidates) {
       if (await isRuntimeRunFolder(candidate)) {
         runFolder = candidate;
@@ -106830,7 +107304,7 @@ async function runResumeCommand(args, options) {
 `);
         return 2;
       }
-      const runResult = RunResult.parse(JSON.parse(readFileSync61(runtimeResult.resultPath, "utf8")));
+      const runResult = RunResult.parse(JSON.parse(readFileSync62(runtimeResult.resultPath, "utf8")));
       const priorRoute = readPriorRoute(runFolder);
       const postRunArtifactWarnings = [];
       const postRunArtifactContext = {
@@ -106932,7 +107406,7 @@ function exitCodeForRun(input) {
   return 0;
 }
 function unknownFlowMessage(flowName, flowRoot2) {
-  const root = flowRoot2 !== void 0 ? resolve28(flowRoot2) : defaultFlowRoot();
+  const root = flowRoot2 !== void 0 ? resolve27(flowRoot2) : defaultFlowRoot();
   let available = [];
   try {
     available = readdirSync7(root, { withFileTypes: true }).filter((entry) => entry.isDirectory() && existsSync39(join44(root, entry.name, "circuit.json"))).map((entry) => entry.name).filter((name) => !INTERNAL_FLOW_IDS.has(name)).sort();
@@ -107039,7 +107513,7 @@ async function runExecutionCommand(args, options) {
     ...entryModeSelection.entryModeName === void 0 ? {} : { entry_mode: entryModeSelection.entryModeName },
     ...entryModeSelection.source === void 0 ? {} : { entry_mode_source: entryModeSelection.source }
   });
-  const runFolder = runArgs.runFolder === void 0 ? join44(runsRoot(process.cwd()), runId) : resolve28(runArgs.runFolder);
+  const runFolder = runArgs.runFolder === void 0 ? join44(runsRoot(process.cwd()), runId) : resolve27(runArgs.runFolder);
   try {
     validateFlowConfigRequirements({ flow, axes: runArgs.axes, selectionConfigLayers });
   } catch (err) {
@@ -107048,7 +107522,7 @@ async function runExecutionCommand(args, options) {
     return 2;
   }
   const hostKind = runtimeHostKind(options);
-  const projectRoot = resolve28(options.configCwd ?? process.cwd());
+  const projectRoot = resolve27(options.configCwd ?? process.cwd());
   if (hostKind === "codex") {
     try {
       const assurance = codexInstallAssurance({ projectRoot, now });
@@ -107117,7 +107591,7 @@ async function runExecutionCommand(args, options) {
       ...historyRecall === void 0 ? {} : { historyRecallReport: historyRecall.report },
       ...historyRecall === void 0 ? {} : { historyRecallPrecision: historyRecall.precision },
       ...runArgs.includeUntrackedContent ? { evidencePolicy: { includeUntrackedFileContent: true } } : {},
-      ...runArgs.reuseChildrenFrom === void 0 ? {} : { reuseChildrenFrom: resolve28(runArgs.reuseChildrenFrom) }
+      ...runArgs.reuseChildrenFrom === void 0 ? {} : { reuseChildrenFrom: resolve27(runArgs.reuseChildrenFrom) }
     });
     if (isGraphCheckpointWaitingResult(runtimeResult)) {
       const waitingResult = {
@@ -107223,7 +107697,7 @@ async function runExecutionCommand(args, options) {
       }
       return 0;
     }
-    const runResult = RunResult.parse(JSON.parse(readFileSync61(runtimeResult.resultPath, "utf8")));
+    const runResult = RunResult.parse(JSON.parse(readFileSync62(runtimeResult.resultPath, "utf8")));
     const selectedProcess = selectedProcessFields({
       processId: flow.id,
       routedBy: route.source,
@@ -107483,17 +107957,52 @@ function previewRelayStep(input) {
     ...resolved.power === void 0 ? {} : { power: resolved.power },
     powerSource: resolved.power_source ?? "fixed",
     escalated: resolved.power_escalated === true,
-    ...problem === void 0 ? {} : { problem }
+    ...problem === void 0 ? {} : { problem },
+    ...input.skipped ? { skippedAtProcess: true } : {}
   };
+}
+function enumeratePreviewSteps(result, definition, process15) {
+  if (result.kind === "single") {
+    const index = buildRuntimePackageIndex(fromCompiledFlow(result.flow));
+    return index.flow.steps.map((step) => ({ step, flow: index.flow, skipped: false }));
+  }
+  const axes = firstCompiledFlow(result).axes;
+  const selections = axisSelectionsForAxes(definition.id, axes);
+  const processDepths = axes.allowed_depths.filter((depth) => depth === "low" || depth === "medium" || depth === "high");
+  const indexByProcess = /* @__PURE__ */ new Map();
+  for (const depth of processDepths) {
+    const modeName = selections.find((selection) => selection.depth === depth)?.name;
+    const modeFlow = modeName === void 0 ? void 0 : result.flows.get(modeName);
+    if (modeFlow !== void 0) {
+      indexByProcess.set(depth, buildRuntimePackageIndex(fromCompiledFlow(modeFlow)));
+    }
+  }
+  const current = indexByProcess.get(process15) ?? buildRuntimePackageIndex(fromCompiledFlow(firstCompiledFlow(result)));
+  const enumerated = [];
+  for (const item of definition.schematic.items) {
+    const stepId = item.id;
+    const inCurrent = current.stepsById.get(stepId);
+    if (inCurrent !== void 0) {
+      enumerated.push({ step: inCurrent, flow: current.flow, skipped: false });
+      continue;
+    }
+    for (const index of indexByProcess.values()) {
+      const step = index.stepsById.get(stepId);
+      if (step !== void 0) {
+        enumerated.push({ step, flow: index.flow, skipped: true });
+        break;
+      }
+    }
+  }
+  return enumerated;
 }
 function resolveFlowSelectionPreview(input) {
   const definition = flowDefinitions.find((candidate) => candidate.id === input.flowId);
   if (definition === void 0) {
     throw new Error(`unknown flow '${input.flowId}'`);
   }
-  const compiled = firstCompiledFlow(compileSchematicToCompiledFlow(definition.schematic));
-  const index = buildRuntimePackageIndex(fromCompiledFlow(compiled));
-  const flow = index.flow;
+  const compileResult = compileSchematicToCompiledFlow(definition.schematic);
+  const compiled = firstCompiledFlow(compileResult);
   const layers = withPowerLayer(input.configLayers ?? [], input.power);
   const setting = resolvePowerDialSetting(layers);
   const dial = setting.kind === "fixed" ? setting.value : "auto";
@@ -107503,7 +108012,7 @@ function resolveFlowSelectionPreview(input) {
   const depth = process15;
   const relaySteps = [];
   const nonRelaySteps = [];
-  for (const step of flow.steps) {
+  for (const { step, flow, skipped } of enumeratePreviewSteps(compileResult, definition, process15)) {
     if (step.kind === "relay") {
       relaySteps.push(previewRelayStep({
         step,
@@ -107512,10 +108021,15 @@ function resolveFlowSelectionPreview(input) {
         layers,
         depth,
         hostKind: input.hostKind,
-        codexDefaultModel
+        codexDefaultModel,
+        skipped
       }));
     } else {
-      nonRelaySteps.push({ stepId: step.id, kind: step.kind });
+      nonRelaySteps.push({
+        stepId: step.id,
+        kind: step.kind,
+        ...skipped ? { skippedAtProcess: true } : {}
+      });
     }
   }
   return {
@@ -107533,6 +108047,7 @@ var init_flow_selection_preview = __esm({
     "use strict";
     init_codex_default_model();
     init_resolver();
+    init_axis_selections();
     init_catalog();
     init_compile_schematic_to_flow();
     init_from_compiled_flow();
@@ -107649,7 +108164,17 @@ function sourceCellText(modelSource, effortSource) {
   }
   return `${modelSource} \xB7 effort:${effortSource}`;
 }
-function stepCells(palette, step) {
+function stepCells(palette, step, process15) {
+  if (step.skippedAtProcess === true) {
+    return [
+      cell2(step.stepId, palette.dim),
+      cell2(step.role, palette.dim),
+      cell2(step.connector, palette.dim),
+      cell2(modelCell(step), palette.dim),
+      cell2(step.effort ?? "-", palette.dim),
+      cell2(`skipped at process: ${process15}`, palette.dim)
+    ];
+  }
   const modelPaint = step.model === void 0 ? palette.dim : isExplicit(step.modelSource) ? composePaints(palette.bold, palette.provider(step.provider)) : palette.provider(step.provider);
   const effortPaint = step.effort === void 0 ? palette.dim : isExplicit(step.effortSource) ? palette.bold : void 0;
   return [
@@ -107677,12 +108202,12 @@ function renderSinglePreview(palette, preview) {
     "rule"
   ];
   for (const step of preview.relaySteps) {
-    rows.push(stepCells(palette, step));
+    rows.push(stepCells(palette, step, preview.process));
   }
   const problemLines = preview.relaySteps.filter((step) => step.problem !== void 0).map((step) => `  ! ${step.stepId}: ${step.problem}`);
   const nonRelay = preview.nonRelaySteps.length === 0 ? [] : [
     "",
-    palette.dim(`non-relay steps: ${preview.nonRelaySteps.map((step) => `${step.stepId} (${step.kind})`).join(", ")}`)
+    palette.dim(`non-relay steps: ${preview.nonRelaySteps.map((step) => step.skippedAtProcess === true ? `${step.stepId} (${step.kind}, skipped at process: ${preview.process})` : `${step.stepId} (${step.kind})`).join(", ")}`)
   ];
   return [
     header,
@@ -107718,7 +108243,7 @@ function renderOverview(palette, previews) {
     preview.relaySteps.forEach((step, index) => {
       rows.push([
         cell2(index === 0 ? preview.flowId : "", palette.bold),
-        ...stepCells(palette, step)
+        ...stepCells(palette, step, preview.process)
       ]);
       if (step.problem !== void 0) {
         problemLines.push(`  ! ${preview.flowId} ${step.stepId}: ${step.problem}`);
@@ -107760,6 +108285,8 @@ function renderMatrix(palette, previews) {
       const match = p.relaySteps.find((candidate) => candidate.stepId === step.stepId);
       if (match === void 0)
         return cell2("-", palette.dim);
+      if (match.skippedAtProcess === true)
+        return cell2("(skipped)", palette.dim);
       const model = modelCell(match);
       const effort = match.effort ?? "-";
       const pinned = isExplicit(match.modelSource) || isExplicit(match.effortSource);
@@ -107794,7 +108321,11 @@ function runPreviewCommand(argv) {
     return invalid2(err instanceof Error ? err.message : String(err));
   }
   if (parsed.json) {
-    writeJson3(parsed.matrix || parsed.flowId === void 0 ? previews : previews[0]);
+    const stamped = previews.map((preview) => ({
+      schema_version: PREVIEW_JSON_SCHEMA_VERSION,
+      ...preview
+    }));
+    writeJson3(parsed.matrix || parsed.flowId === void 0 ? stamped : stamped[0]);
     return 0;
   }
   const palette = terminalPalette(colorEnabled());
@@ -107803,7 +108334,7 @@ function runPreviewCommand(argv) {
 `);
   return 0;
 }
-var DIAL_CHOICES, MATRIX_DIALS;
+var PREVIEW_JSON_SCHEMA_VERSION, DIAL_CHOICES, MATRIX_DIALS;
 var init_preview = __esm({
   "dist/cli/preview.js"() {
     "use strict";
@@ -107815,25 +108346,26 @@ var init_preview = __esm({
     init_flow_selection_preview();
     init_styled_table();
     init_terminal_style();
+    PREVIEW_JSON_SCHEMA_VERSION = 1;
     DIAL_CHOICES = ["auto", "low", "medium", "high"];
     MATRIX_DIALS = ["high", "medium", "low"];
   }
 });
 
 // dist/cli/version-info.js
-import { readFileSync as readFileSync62 } from "node:fs";
-import { dirname as dirname18, resolve as resolve29 } from "node:path";
+import { readFileSync as readFileSync63 } from "node:fs";
+import { dirname as dirname18, resolve as resolve28 } from "node:path";
 import { fileURLToPath as fileURLToPath4 } from "node:url";
 function readSourceVersion() {
   if (true)
     return "0.1.0-alpha.10";
   const candidates = [
-    resolve29(dirname18(fileURLToPath4(import.meta.url)), "../../plugins/version.json"),
-    resolve29(process.cwd(), "plugins/version.json")
+    resolve28(dirname18(fileURLToPath4(import.meta.url)), "../../plugins/version.json"),
+    resolve28(process.cwd(), "plugins/version.json")
   ];
   for (const candidate of candidates) {
     try {
-      const raw = JSON.parse(readFileSync62(candidate, "utf8"));
+      const raw = JSON.parse(readFileSync63(candidate, "utf8"));
       if (typeof raw.version === "string" && raw.version.length > 0)
         return raw.version;
     } catch {
@@ -109267,13 +109799,19 @@ function parseArgs2(argv) {
   if (!Number.isInteger(timeoutMs2) || timeoutMs2 <= 0) {
     throw new Error("--timeout-ms must be a positive integer");
   }
+  if (opts.description === void 0 || opts.description.length === 0) {
+    throw new Error("--description is required");
+  }
+  if (opts.publish === true && opts.yes !== true) {
+    throw new Error("--publish requires --yes so publish confirmation is explicit");
+  }
   return {
     publish: opts.publish === true,
     yes: opts.yes === true,
     progress: opts.progress === "jsonl",
     maxRepair,
     timeoutMs: timeoutMs2,
-    ...opts.description === void 0 ? {} : { description: opts.description },
+    description: opts.description,
     ...opts.name === void 0 ? {} : { name: opts.name },
     ...opts.home === void 0 ? {} : { home: opts.home },
     ...opts.createdAt === void 0 ? {} : { createdAt: opts.createdAt }
@@ -109389,12 +109927,6 @@ async function runGenerateCommand(argv, options = {}) {
     });
   }
   try {
-    if (args.description === void 0 || args.description.length === 0) {
-      throw new Error("--description is required");
-    }
-    if (args.publish && !args.yes) {
-      throw new Error("--publish requires --yes so publish confirmation is explicit");
-    }
     const home = customHome(args.home);
     const relay = options.relayer ?? productionRelay;
     if (args.name !== void 0) {
@@ -114271,8 +114803,8 @@ var require_react_reconciler_production = __commonJS({
           currentEntangledActionThenable = {
             status: "pending",
             value: void 0,
-            then: function(resolve33) {
-              entangledListeners.push(resolve33);
+            then: function(resolve32) {
+              entangledListeners.push(resolve32);
             }
           };
         }
@@ -114295,8 +114827,8 @@ var require_react_reconciler_production = __commonJS({
           status: "pending",
           value: null,
           reason: null,
-          then: function(resolve33) {
-            listeners.push(resolve33);
+          then: function(resolve32) {
+            listeners.push(resolve32);
           }
         };
         thenable.then(
@@ -123895,8 +124427,8 @@ var require_react_reconciler_development = __commonJS({
           currentEntangledActionThenable = {
             status: "pending",
             value: void 0,
-            then: function(resolve33) {
-              entangledListeners.push(resolve33);
+            then: function(resolve32) {
+              entangledListeners.push(resolve32);
             }
           };
         }
@@ -123919,8 +124451,8 @@ var require_react_reconciler_development = __commonJS({
           status: "pending",
           value: null,
           reason: null,
-          then: function(resolve33) {
-            listeners.push(resolve33);
+          then: function(resolve32) {
+            listeners.push(resolve32);
           }
         };
         thenable.then(
@@ -141162,22 +141694,22 @@ var init_devtools = __esm({
     init_devtools_window_polyfill();
     init_wrapper();
     init_react_devtools_stub();
-    isDevToolsReachable = async () => new Promise((resolve33) => {
+    isDevToolsReachable = async () => new Promise((resolve32) => {
       const socket = new wrapper_default("ws://localhost:8097");
       const timeout = setTimeout(() => {
         socket.terminate();
-        resolve33(false);
+        resolve32(false);
       }, 2e3);
       timeout.unref();
       socket.on("open", () => {
         clearTimeout(timeout);
         socket.terminate();
-        resolve33(true);
+        resolve32(true);
       });
       socket.on("error", () => {
         clearTimeout(timeout);
         socket.terminate();
-        resolve33(false);
+        resolve32(false);
       });
     });
     if (await isDevToolsReachable()) {
@@ -142394,7 +142926,7 @@ var init_render_node_to_output = __esm({
           }
           return;
         }
-        let clipped = false;
+        let clipped2 = false;
         if (node.nodeName === "ink-box") {
           render_background_default(x, y, node, output);
           render_border_default(x, y, node, output);
@@ -142406,7 +142938,7 @@ var init_render_node_to_output = __esm({
             const y1 = clipVertically ? y + yogaNode.getComputedBorder(src_default.EDGE_TOP) : void 0;
             const y2 = clipVertically ? y + yogaNode.getComputedHeight() - yogaNode.getComputedBorder(src_default.EDGE_BOTTOM) : void 0;
             output.clip({ x1, x2, y1, y2 });
-            clipped = true;
+            clipped2 = true;
           }
         }
         if (node.nodeName === "ink-root" || node.nodeName === "ink-box") {
@@ -142418,7 +142950,7 @@ var init_render_node_to_output = __esm({
               skipStaticElements
             });
           }
-          if (clipped) {
+          if (clipped2) {
             output.unclip();
           }
         }
@@ -145154,8 +145686,8 @@ var init_ink = __esm({
     noop2 = () => {
     };
     textEncoder = new TextEncoder();
-    yieldImmediate = async () => new Promise((resolve33) => {
-      setImmediate(resolve33);
+    yieldImmediate = async () => new Promise((resolve32) => {
+      setImmediate(resolve32);
     });
     kittyQueryEscapeByte = 27;
     kittyQueryOpenBracketByte = 91;
@@ -145372,8 +145904,8 @@ var init_ink = __esm({
           };
         }
         this.initKittyKeyboard();
-        this.exitPromise = new Promise((resolve33, reject) => {
-          this.resolveExitPromise = resolve33;
+        this.exitPromise = new Promise((resolve32, reject) => {
+          this.resolveExitPromise = resolve32;
           this.rejectExitPromise = reject;
         });
         void this.exitPromise.catch(noop2);
@@ -145684,9 +146216,9 @@ var init_ink = __esm({
         settleThrottle(this.throttledOnRender, canWriteToStdout);
         settleThrottle(this.throttledLog, canWriteToStdout);
         if (canWriteToStdout && hasWritableState) {
-          await new Promise((resolve33) => {
+          await new Promise((resolve32) => {
             this.options.stdout.write("", () => {
-              resolve33();
+              resolve32();
             });
           });
           return;
@@ -145772,8 +146304,8 @@ var init_ink = __esm({
       async awaitNextRender() {
         if (!this.nextRenderCommit) {
           let resolveRender;
-          const promise2 = new Promise((resolve33) => {
-            resolveRender = resolve33;
+          const promise2 = new Promise((resolve32) => {
+            resolveRender = resolve32;
           });
           this.nextRenderCommit = { promise: promise2, resolve: resolveRender };
         }
@@ -147384,17 +147916,17 @@ init_esm();
 
 // dist/cli/checkpoints.js
 init_esm();
-import { resolve as resolve10 } from "node:path";
+import { resolve as resolve9 } from "node:path";
 
 // dist/app/checkpoints/discover.js
 import { readdirSync as readdirSync2 } from "node:fs";
-import { join as join11, resolve as resolve9 } from "node:path";
+import { join as join11, resolve as resolve8 } from "node:path";
 
 // dist/app/continuity/brief.js
 init_continuity();
 import { execFileSync as execFileSync2 } from "node:child_process";
 import { existsSync as existsSync9, readFileSync as readFileSync8 } from "node:fs";
-import { basename as basename3, resolve as resolve8 } from "node:path";
+import { basename as basename3, resolve as resolve7 } from "node:path";
 
 // dist/app/continuity/harvest.js
 init_continuity();
@@ -147405,7 +147937,7 @@ init_records();
 import { execFileSync } from "node:child_process";
 import { createHash as createHash3 } from "node:crypto";
 import { closeSync, existsSync as existsSync8, openSync, readFileSync as readFileSync7, readSync, readdirSync, rmSync as rmSync2, statSync as statSync2 } from "node:fs";
-import { basename as basename2, join as join10, resolve as resolve7 } from "node:path";
+import { basename as basename2, join as join10, resolve as resolve6 } from "node:path";
 var DEFAULT_AMBIENT_RECORD_STEM = "ambient-latest";
 var AMBIENT_INTENT_MAX_CHARS = 280;
 var AMBIENT_MAX_INTENTS = 4;
@@ -147770,8 +148302,8 @@ function composeAmbientStateMarkdown(intents, summary, git, transcriptPath) {
   return lines.join("\n");
 }
 function harvestAmbientContinuity(input) {
-  const projectRoot = resolve7(input.projectRoot);
-  const controlPlane = input.controlPlane === void 0 ? controlPlaneRoot(projectRoot) : resolve7(input.controlPlane);
+  const projectRoot = normalizeProjectRoot(input.projectRoot);
+  const controlPlane = input.controlPlane === void 0 ? controlPlaneRoot(projectRoot) : resolve6(input.controlPlane);
   const skip = (reason) => ({
     schema_version: 1,
     action: "harvest",
@@ -148142,7 +148674,7 @@ function resolvePointerBrief(args, controlPlane, pointer, source, now, gitProbe)
   if (record2.continuity_kind !== pointer.continuity_kind) {
     return invalidBrief(args, "record_kind_mismatch", "Continuity index kind disagrees with the pointed record.", pointer.record_id);
   }
-  const staleness = record2.continuity_kind === "ambient" && resolve8(record2.git.cwd) === resolve8(projectRoot) ? gitProbe({
+  const staleness = record2.continuity_kind === "ambient" && resolve7(record2.git.cwd) === resolve7(projectRoot) ? gitProbe({
     projectRoot,
     ...record2.git.head === void 0 ? {} : { capturedHead: record2.git.head },
     ...record2.git.branch === void 0 ? {} : { capturedBranch: record2.git.branch }
@@ -148307,7 +148839,7 @@ function listRunFolders(runsRoot2) {
   return entries.filter((entry) => entry.isDirectory()).map((entry) => join11(runsRoot2, entry.name)).sort();
 }
 function discoverCheckpointsList(input) {
-  const runsRoot2 = resolve9(input.runsRoot);
+  const runsRoot2 = resolve8(input.runsRoot);
   const projectRoot = input.projectRoot ?? process.cwd();
   const gitProbe = input.gitProbe ?? realBriefGitProbe;
   const baselineFor = input.capturedBaselineFor ?? (() => void 0);
@@ -148382,7 +148914,7 @@ function renderRow(row, index) {
 }
 function renderCheckpointsList(checkpoints) {
   if (checkpoints.rows.length === 0) {
-    return "No runs are waiting on a decision.";
+    return "No runs are waiting on a decision. See recent runs with: circuit runs";
   }
   const count = checkpoints.rows.length;
   const header = `${count} run${count === 1 ? "" : "s"} waiting on a decision:`;
@@ -148407,8 +148939,8 @@ function parseCheckpointsArgs(argv) {
   }
   if (options === void 0)
     return "checkpoints could not parse its arguments";
-  const projectRoot = resolve10(options.projectRoot ?? process.cwd());
-  const runsBase = options.runsBase === void 0 ? runsRoot(projectRoot) : resolve10(options.runsBase);
+  const projectRoot = resolve9(options.projectRoot ?? process.cwd());
+  const runsBase = options.runsBase === void 0 ? runsRoot(projectRoot) : resolve9(options.runsBase);
   return { projectRoot, runsBase, json: options.json === true };
 }
 function runCheckpointsCommand(argv, options = {}) {
@@ -148424,7 +148956,7 @@ function runCheckpointsCommand(argv, options = {}) {
     ...options.briefGitProbe === void 0 ? {} : { gitProbe: options.briefGitProbe }
   });
   if (parsed.json) {
-    process.stdout.write(`${JSON.stringify(checkpoints, null, 2)}
+    process.stdout.write(`${JSON.stringify({ schema_version: 1, ...checkpoints }, null, 2)}
 `);
   } else {
     process.stdout.write(`${renderCheckpointsList(checkpoints)}
@@ -148834,13 +149366,19 @@ function parseArgs(argv) {
   if (opts.progress !== void 0 && opts.progress !== "jsonl") {
     throw new Error("--progress only supports 'jsonl'");
   }
+  if (opts.description === void 0 || opts.description.length === 0) {
+    throw new Error("--description is required");
+  }
+  if (opts.publish === true && opts.yes !== true) {
+    throw new Error("--publish requires --yes so publish confirmation is explicit");
+  }
   return {
     publish: opts.publish === true,
     yes: opts.yes === true,
     decompose: opts.decompose === true,
     progress: opts.progress === "jsonl",
+    description: opts.description,
     ...opts.name === void 0 ? {} : { name: opts.name },
-    ...opts.description === void 0 ? {} : { description: opts.description },
     ...opts.home === void 0 ? {} : { home: opts.home },
     ...opts.createdAt === void 0 ? {} : { createdAt: opts.createdAt }
   };
@@ -148920,12 +149458,6 @@ async function runCreateCommand(argv, options = {}) {
     });
   }
   try {
-    if (args.description === void 0 || args.description.length === 0) {
-      throw new Error("--description is required");
-    }
-    if (args.publish && !args.yes) {
-      throw new Error("--publish requires --yes so publish confirmation is explicit");
-    }
     const slug = slugify2(args.name ?? args.description);
     assertValidSlug(slug);
     const home = customHome(args.home);
@@ -149321,7 +149853,11 @@ function renderDoctorReport(palette, entries) {
     ]),
     "",
     palette.dim("connectors marked - are optional (no flow step chooses them) and never fail this check. to change:"),
-    palette.dim("  circuit config set relay.default codex   (also: relay.roles.reviewer, relay.flows.fix; then: circuit preview)")
+    // Remedies must work when pasted: relay.roles.* and relay.flows.* take
+    // connector reference objects, so the role/flow lever shows the
+    // inline-YAML object form a bare name would fail.
+    palette.dim("  circuit config set relay.default codex"),
+    palette.dim("  circuit config set relay.roles.reviewer '{kind: builtin, name: codex}'   (also: relay.flows.<flow>; check with: circuit preview)")
   ].join("\n");
 }
 async function runDoctorCommand(argv) {
@@ -149393,6 +149929,7 @@ function renderFrontDoor() {
     "",
     `${palette.bold("history and upkeep")}`,
     line("circuit runs show / history / memory", "inspect past runs and operator notes"),
+    line("circuit doctor", "connector health and run readiness"),
     line("circuit reclaim / uninstall / version", "housekeeping"),
     "",
     palette.dim("interactive: run `circuit` in a terminal to browse, configure, and create flows"),
@@ -149410,8 +149947,8 @@ init_generate();
 
 // dist/cli/handoff.js
 init_esm();
-import { existsSync as existsSync41, readFileSync as readFileSync63 } from "node:fs";
-import { resolve as resolve30 } from "node:path";
+import { existsSync as existsSync41, readFileSync as readFileSync64 } from "node:fs";
+import { resolve as resolve29 } from "node:path";
 init_records();
 init_continuity();
 init_control_plane_paths();
@@ -149427,7 +149964,7 @@ function parseArgs3(argv) {
   const program2 = addHandoffOptions(new Command("circuit handoff").exitOverride().configureOutput({ writeErr: () => {
   } }).enablePositionalOptions());
   program2.action(() => {
-    parsed = { action: "save", opts: program2.opts() };
+    parsed = { action: "save", bare: true, opts: program2.opts() };
   });
   const addAction = (action2) => {
     const command = addHandoffOptions(program2.command(action2));
@@ -149456,12 +149993,13 @@ function parseArgs3(argv) {
   parseCommanderOrThrow(program2, argv);
   if (parsed === void 0)
     throw new Error("handoff requires a subcommand");
-  const { action, hooksAction, opts } = parsed;
+  const { action, bare, hooksAction, opts } = parsed;
   if (opts.progress !== void 0 && opts.progress !== "jsonl") {
     throw new Error("--progress only supports 'jsonl'");
   }
   return {
     action,
+    bareInvocation: bare === true,
     ...hooksAction === void 0 ? {} : { hooksAction },
     ...opts.host === void 0 ? {} : { host: opts.host },
     progress: opts.progress === "jsonl",
@@ -149493,7 +150031,7 @@ function debugHook(message) {
 function readHookInput() {
   if (process.stdin.isTTY)
     return {};
-  const raw = readFileSync63(0, "utf8");
+  const raw = readFileSync64(0, "utf8");
   if (raw.trim().length === 0)
     return {};
   return JSON.parse(raw);
@@ -149788,7 +150326,7 @@ function runHandoffHarvest(args, now) {
   }
   const resolvedProjectRoot = projectRoot ?? process.cwd();
   const source = ambientSourceFrom(args.source, hookEventName);
-  const controlPlane = args.controlPlane === void 0 ? void 0 : resolve30(args.controlPlane);
+  const controlPlane = args.controlPlane === void 0 ? void 0 : resolve29(args.controlPlane);
   const fallbackIndexPath = indexPath(controlPlane ?? controlPlaneRoot(resolvedProjectRoot));
   if (transcriptPath === void 0) {
     const result = {
@@ -149865,6 +150403,20 @@ async function runHandoffCommand(argv, options = {}) {
       return 1;
     }
   }
+  if (args.action === "save") {
+    const missingSaveFlags = [];
+    if (args.goal === void 0 || args.goal.length === 0)
+      missingSaveFlags.push("--goal");
+    if (args.next === void 0 || args.next.length === 0)
+      missingSaveFlags.push("--next");
+    if (missingSaveFlags.length > 0) {
+      const lead = `saving handoff continuity requires ${missingSaveFlags.join(" and ")}.`;
+      const shape = args.bareInvocation ? " Bare `circuit handoff` saves by default. Subcommands: save, resume, done, brief, hook, hooks, harvest." : "";
+      process.stderr.write(`error: ${lead}${shape}
+`);
+      return 2;
+    }
+  }
   const now = options.now ?? (() => /* @__PURE__ */ new Date());
   const progress = utilityProgress({
     enabled: args.progress,
@@ -149933,6 +150485,291 @@ async function runHandoffCommand(argv, options = {}) {
   }
 }
 
+// dist/cli/help.js
+init_command_vocabulary();
+init_run_flag_vocabulary();
+init_runtime_routing_policy();
+var HELP_FLAGS = /* @__PURE__ */ new Set(["--help", "-h"]);
+function isCommandName(word) {
+  return CLI_COMMAND_NAMES.includes(word);
+}
+function commandWordList() {
+  const names = CLI_COMMAND_NAMES.slice(0, -1).join(", ");
+  return `${names}, or ${CLI_COMMAND_NAMES[CLI_COMMAND_NAMES.length - 1]}`;
+}
+function resolveHelpInvocation(argv) {
+  const first = argv[0];
+  if (first === void 0)
+    return void 0;
+  if (HELP_FLAGS.has(first))
+    return { kind: "root" };
+  if (first === "help") {
+    const topic = argv[1];
+    if (topic === void 0 || topic === "help")
+      return { kind: "root" };
+    if (isCommandName(topic))
+      return { kind: "command", command: topic };
+    return { kind: "unknown-command", word: topic };
+  }
+  if (!isCommandName(first))
+    return void 0;
+  const rest = argv.slice(1);
+  const terminator = rest.indexOf("--");
+  const scope = terminator === -1 ? rest : rest.slice(0, terminator);
+  if (scope.some((token) => HELP_FLAGS.has(token)))
+    return { kind: "command", command: first };
+  return void 0;
+}
+function renderRootHelp() {
+  return renderFrontDoor();
+}
+var RUN_FLAG_BLURBS = {
+  "--goal": "what the run must accomplish (required)",
+  "--why": "why the goal matters; extra context the run may use",
+  "--process": "thoroughness override; normally derived from --power",
+  "--power": "model dial; default medium, auto lets the run pick within configured bounds",
+  "--tournament": "fan out branches and select one; optional count, default 3",
+  "--autonomous": "auto-resolve supported checkpoints in a bounded continuation loop",
+  "--run-folder": "where the run stores its trace, reports, and evidence",
+  "--fixture": "compiled flow file to load; trusted paths only",
+  "--flow-root": "load flows from this root instead of the packaged flows",
+  "--checkpoint-choice": "used by resume; answers the pending checkpoint",
+  "--progress": "stream progress events; use jsonl",
+  "--include-untracked-content": "let Review send untracked file contents to the configured worker",
+  "--reuse-children-from": "reuse finished child branches from a prior crashed run's folder (fresh runs only)"
+};
+function runFlagHelp() {
+  return RUN_EXECUTION_FLAGS.filter((row) => row.docValid).map((row) => ({
+    flag: row.valueHint === void 0 ? row.flag : `${row.flag} ${row.valueHint}`,
+    blurb: RUN_FLAG_BLURBS[row.flag] ?? ""
+  }));
+}
+var EXIT_CODE_NOTE = "Exit codes: 0 = run complete or paused at a checkpoint, 1 = closed short of complete, 2 = usage error.";
+var COMMAND_HELP = {
+  run: {
+    summary: "execute one flow against a goal, with evidence and a report",
+    usage: ['circuit run <flow-name> --goal "<goal>" [options]'],
+    flags: runFlagHelp(),
+    notes: [
+      "The flow name is required: pass one of build|fix|review|explore|prototype|pursue, or a published custom flow name.",
+      "Routing is model-only; the host or operator names the flow, and the CLI never classifies the goal text.",
+      "--power also derives the process level, clamped to what the flow supports. An explicit --process wins.",
+      "Config layers: ~/.config/circuit/config.yaml, then ./.circuit/config.yaml, then flags. Later layers win.",
+      CLI_RUNTIME_ROUTING_POLICY,
+      EXIT_CODE_NOTE
+    ],
+    example: 'circuit run fix --goal "fix the flaky retry test in tests/runner"',
+    next: "circuit checkpoints lists paused runs; circuit runs show --run-folder <path> --json inspects a finished run."
+  },
+  resume: {
+    summary: "continue a paused run by answering its checkpoint",
+    usage: ["circuit resume --run-folder <path> --checkpoint-choice <choice> [--progress jsonl]"],
+    flags: [
+      { flag: "--run-folder <path>", blurb: "the paused run folder (required)" },
+      { flag: "--checkpoint-choice <choice>", blurb: "the checkpoint answer (required)" },
+      { flag: "--progress <format>", blurb: "stream progress events; use jsonl" }
+    ],
+    notes: [EXIT_CODE_NOTE],
+    example: "circuit resume --run-folder .circuit/runs/<run_id> --checkpoint-choice continue",
+    next: "circuit checkpoints shows every paused run and the choices it is waiting on."
+  },
+  handoff: {
+    summary: "save, resume, or finish a continuity record for cross-session work",
+    usage: [
+      "circuit handoff [save] [--goal <goal>] [--next <next>] [--run-folder <path>]",
+      "circuit handoff resume | done | brief | harvest [--json]",
+      "circuit handoff hooks install [--launcher <path>]"
+    ],
+    flags: [
+      { flag: "--goal <goal>", blurb: "the goal the next session should pick up" },
+      { flag: "--next <next>", blurb: "the concrete next step to take on resume" },
+      { flag: "--run-folder <path>", blurb: "attach the record to a live run folder" },
+      { flag: "--json", blurb: "machine-readable output" },
+      { flag: "--progress <format>", blurb: "stream progress events; use jsonl" }
+    ],
+    notes: [
+      "save is the default action.",
+      "hook is the host-invoked entry; hosts pass --source and the hook payload on stdin."
+    ],
+    example: "circuit handoff brief",
+    next: "circuit handoff resume picks the saved record back up in a new session."
+  },
+  history: {
+    summary: "search and maintain the cross-run history index",
+    usage: [
+      "circuit history rebuild [--json]",
+      'circuit history query "<text>" [--flow <id>] [--kind <run|report|trace|checkpoint>] [--json]',
+      'circuit history pull "<text>" --flow <id> --decision-point <label> --run-folder <path>',
+      "circuit history status [--json]",
+      "circuit history memory-merge [--write] [--json]",
+      "circuit history memory-effect [--write] [--json]"
+    ],
+    flags: [
+      { flag: "--runs-base <path>", blurb: "override where recorded runs are read from" },
+      { flag: "--index-dir <path>", blurb: "override where the index lives" },
+      { flag: "--limit <n>", blurb: "cap the number of results" },
+      { flag: "--per-run-limit <n>", blurb: "cap results per run" },
+      { flag: "--rebuild-if-stale", blurb: "rebuild the index first when it is out of date" }
+    ],
+    example: 'circuit history query "flaky test" --json',
+    next: "circuit memory note records an operator note future runs can surface."
+  },
+  memory: {
+    summary: "record and manage operator notes that future runs can surface",
+    usage: [
+      'circuit memory note "<text>" --flow <flow-id> [--applies-to <kind>]',
+      "circuit memory list [--flow <flow-id>] [--json]",
+      "circuit memory forget <memory-id>"
+    ],
+    flags: [
+      { flag: "--flow <flow-id>", blurb: "the flow the note applies to (required for note)" },
+      { flag: "--applies-to <kind>", blurb: "hint category; default operator_note" },
+      { flag: "--run-folder <path>", blurb: "cite a specific run folder instead of the latest" },
+      { flag: "--runs-base <path>", blurb: "override where recorded runs are read from" },
+      { flag: "--memory-dir <path>", blurb: "override where notes are stored" },
+      { flag: "--json", blurb: "machine-readable output" }
+    ],
+    example: 'circuit memory note "prefer fakes over mocks in this repo" --flow fix',
+    next: "circuit history query searches notes and run evidence together."
+  },
+  create: {
+    summary: "create a custom flow from a proven template",
+    usage: ['circuit create --description "<flow idea>" [--name <slug>] [--publish --yes]'],
+    flags: [
+      { flag: "--description <flow idea>", blurb: "what the flow should do (required)" },
+      { flag: "--name <slug>", blurb: "the flow name; derived from the description when omitted" },
+      { flag: "--decompose", blurb: "force the fully decomposed build shape" },
+      { flag: "--publish", blurb: "publish the flow so circuit run can execute it" },
+      { flag: "--yes", blurb: "skip the publish confirmation" },
+      { flag: "--progress <format>", blurb: "stream progress events; use jsonl" }
+    ],
+    example: 'circuit create --description "review a pull request for accessibility regressions"',
+    next: 'circuit run <name> --goal "<goal>" executes a published custom flow.'
+  },
+  generate: {
+    summary: "generate a custom flow block-by-block with a model",
+    usage: ['circuit generate --description "<task to encode>" [--name <slug>] [--publish --yes]'],
+    flags: [
+      { flag: "--description <task>", blurb: "the task the flow should encode (required)" },
+      { flag: "--name <slug>", blurb: "the flow name; derived from the description when omitted" },
+      { flag: "--publish", blurb: "publish the flow so circuit run can execute it" },
+      { flag: "--yes", blurb: "skip the publish confirmation" },
+      { flag: "--max-repair <n>", blurb: "retry budget for schema repair" },
+      { flag: "--timeout-ms <ms>", blurb: "model call timeout" },
+      { flag: "--progress <format>", blurb: "stream progress events; use jsonl" }
+    ],
+    notes: ["generate calls a model through a connector, so it needs a working connector setup."],
+    example: 'circuit generate --description "port a bug fix across three sibling services"',
+    next: 'circuit run <name> --goal "<goal>" executes a published custom flow.'
+  },
+  uninstall: {
+    summary: "remove the Circuit instruction block and print plugin removal steps",
+    usage: ["circuit uninstall [--dir <path>] [--json]"],
+    flags: [
+      { flag: "--dir <path>", blurb: "project directory to clean; defaults to the current one" },
+      { flag: "--json", blurb: "machine-readable output" }
+    ],
+    example: "circuit uninstall --json",
+    next: "reinstalling the plugin restores the instruction block."
+  },
+  runs: {
+    summary: "inspect one recorded run",
+    usage: ["circuit runs show --run-folder <path> --json"],
+    flags: [
+      { flag: "--run-folder <path>", blurb: "the run folder to project (required)" },
+      { flag: "--json", blurb: "required; the projection is JSON" }
+    ],
+    example: "circuit runs show --run-folder .circuit/runs/<run_id> --json",
+    next: "circuit history query searches across all recorded runs."
+  },
+  reclaim: {
+    summary: "remove orphaned fanout worktrees left behind by killed runs",
+    usage: ["circuit reclaim [--project-root <path>] [--json]"],
+    flags: [
+      { flag: "--project-root <path>", blurb: "project to reclaim; defaults to the current one" },
+      { flag: "--json", blurb: "machine-readable output" }
+    ],
+    notes: ["Safe to run any time; worktrees of live runs are left alone."],
+    example: "circuit reclaim --json",
+    next: "circuit runs show --run-folder <path> --json explains what a leftover run did."
+  },
+  checkpoints: {
+    summary: "list pending checkpoints across active runs",
+    usage: ["circuit checkpoints [--project-root <path>] [--runs-base <path>] [--json]"],
+    flags: [
+      { flag: "--project-root <path>", blurb: "project to scan; defaults to the current one" },
+      { flag: "--runs-base <path>", blurb: "override where recorded runs are read from" },
+      { flag: "--json", blurb: "machine-readable output" }
+    ],
+    example: "circuit checkpoints --json",
+    next: "circuit resume --run-folder <path> --checkpoint-choice <choice> answers one."
+  },
+  preview: {
+    summary: "show the connector, model, and effort each relay step would use, spawn-free",
+    usage: ["circuit preview [flow] [--power <auto|low|medium|high>] [--matrix] [--json]"],
+    flags: [
+      { flag: "--power <auto|low|medium|high>", blurb: "preview under this model dial setting" },
+      { flag: "--matrix", blurb: "every flow by every power setting" },
+      { flag: "--json", blurb: "machine-readable output" }
+    ],
+    example: "circuit preview fix --power high",
+    next: "circuit doctor checks that the chosen connectors are actually ready."
+  },
+  doctor: {
+    summary: "check connector health and grade run readiness",
+    usage: ["circuit doctor [--json]"],
+    flags: [{ flag: "--json", blurb: "machine-readable output" }],
+    notes: [
+      "Readiness is graded on the connectors your flows would actually use; other connectors are reported informationally."
+    ],
+    example: "circuit doctor",
+    next: "circuit preview shows which connector each relay step would use."
+  },
+  config: {
+    summary: "read and edit the layered selection config",
+    usage: [
+      "circuit config [show] [--json]",
+      "circuit config set <key> <value> [--project|--global]",
+      "circuit config unset <key> [--project|--global]"
+    ],
+    flags: [
+      { flag: "--project", blurb: "target ./.circuit/config.yaml (default)" },
+      { flag: "--global", blurb: "target ~/.config/circuit/config.yaml" },
+      { flag: "--json", blurb: "machine-readable output (show only)" }
+    ],
+    example: "circuit config set defaults.power high",
+    next: "circuit preview shows the selections your config produces."
+  },
+  version: {
+    summary: "print the Circuit version",
+    usage: ["circuit version [--json]"],
+    flags: [{ flag: "--json", blurb: "include runtime provenance fields" }],
+    example: "circuit version --json",
+    next: "circuit doctor checks the connectors this install would use."
+  }
+};
+function renderHelp(name, help) {
+  const lines = [`circuit ${name}: ${help.summary}`, "", "usage:"];
+  for (const usage of help.usage)
+    lines.push(`  ${usage}`);
+  if (help.flags.length > 0) {
+    const width = Math.max(...help.flags.map((row) => row.flag.length)) + 2;
+    lines.push("", "flags:");
+    for (const row of help.flags)
+      lines.push(`  ${row.flag.padEnd(width)}${row.blurb}`.trimEnd());
+  }
+  if (help.notes !== void 0 && help.notes.length > 0) {
+    lines.push("", "notes:");
+    for (const note of help.notes)
+      lines.push(`  ${note}`);
+  }
+  lines.push("", "example:", `  ${help.example}`, "", `next: ${help.next}`);
+  return lines.join("\n");
+}
+function renderCommandHelp(command) {
+  return renderHelp(command, COMMAND_HELP[command]);
+}
+
 // dist/cli/history.js
 init_esm();
 init_indexer();
@@ -149952,7 +150789,7 @@ init_atomic_io();
 init_outcome();
 init_indexer();
 init_memory_identity();
-import { existsSync as existsSync42, readFileSync as readFileSync64 } from "node:fs";
+import { existsSync as existsSync42, readFileSync as readFileSync65 } from "node:fs";
 import { join as join46 } from "node:path";
 var RUN_ENVELOPE_RELATIVE_PATH2 = "reports/run-envelope.json";
 var RECALL_REPORT_RELATIVE_PATH = "reports/history/recall.json";
@@ -149975,7 +150812,7 @@ function readRecallInputs(runFolder, warnings) {
     return void 0;
   }
   try {
-    const recall = HistoryRecallReportV1.parse(JSON.parse(readFileSync64(recallPath, "utf8")));
+    const recall = HistoryRecallReportV1.parse(JSON.parse(readFileSync65(recallPath, "utf8")));
     return new Map(recall.memory_inputs.map((memory) => [memory.memory_id, memory]));
   } catch (error52) {
     warnings.push({
@@ -150032,7 +150869,7 @@ function extractRunMemoryLinkage(runFolder) {
   }
   let envelope;
   try {
-    envelope = RunEnvelopeRecord.parse(JSON.parse(readFileSync64(envelopePath, "utf8")));
+    envelope = RunEnvelopeRecord.parse(JSON.parse(readFileSync65(envelopePath, "utf8")));
   } catch (error52) {
     warnings.push({
       code: "source_invalid",
@@ -150341,7 +151178,7 @@ init_memory_preview();
 // dist/app/history/pull-log.js
 init_schemas3();
 init_atomic_io();
-import { existsSync as existsSync43, readFileSync as readFileSync65 } from "node:fs";
+import { existsSync as existsSync43, readFileSync as readFileSync66 } from "node:fs";
 import { join as join48 } from "node:path";
 var HISTORY_PULL_LOG_RELATIVE_PATH = "reports/history/pull-log.json";
 function pullLogUnavailable(runFolder, error52) {
@@ -150357,7 +151194,7 @@ function readPullLog(runFolder) {
   if (!existsSync43(path))
     return void 0;
   try {
-    return HistoryPullLogV1.parse(JSON.parse(readFileSync65(path, "utf8")));
+    return HistoryPullLogV1.parse(JSON.parse(readFileSync66(path, "utf8")));
   } catch {
     return void 0;
   }
@@ -150368,7 +151205,7 @@ function appendPullLogEntry(runFolder, input) {
   let existing;
   try {
     if (existsSync43(outPath)) {
-      existing = HistoryPullLogV1.parse(JSON.parse(readFileSync65(outPath, "utf8")));
+      existing = HistoryPullLogV1.parse(JSON.parse(readFileSync66(outPath, "utf8")));
     }
   } catch (error52) {
     warnings.push(pullLogUnavailable(runFolder, error52));
@@ -150565,10 +151402,12 @@ function parseHistoryArgs(argv) {
   try {
     program2.parse(argv, { from: "user" });
   } catch (err) {
-    return commanderErrorMessage(err);
+    if (!isCommanderHelpSignal(err))
+      return commanderErrorMessage(err);
   }
-  if (parsed === void 0)
-    return "history requires a subcommand";
+  if (parsed === void 0) {
+    return "history requires a subcommand: rebuild, query, pull, status, memory-merge, or memory-effect";
+  }
   return parsed;
 }
 function pathOptions(parsed) {
@@ -150723,7 +151562,7 @@ init_esm();
 init_indexer();
 init_catalog();
 import { createHash as createHash7 } from "node:crypto";
-import { existsSync as existsSync45, readFileSync as readFileSync67 } from "node:fs";
+import { existsSync as existsSync45, readFileSync as readFileSync68 } from "node:fs";
 import { basename as basename8, join as join49 } from "node:path";
 
 // dist/memory/project-identity.js
@@ -150734,7 +151573,7 @@ init_connector_relay();
 init_control_plane_paths();
 init_project_store();
 import { execFileSync as execFileSync5 } from "node:child_process";
-import { existsSync as existsSync44, readFileSync as readFileSync66 } from "node:fs";
+import { existsSync as existsSync44, readFileSync as readFileSync67 } from "node:fs";
 function hashedId(prefix, basis) {
   return `proj-${prefix}-${sha256OfString(basis).slice(0, 16)}`;
 }
@@ -150755,7 +151594,7 @@ function readConfigProjectId(repoRoot) {
     return void 0;
   let raw;
   try {
-    raw = (0, import_yaml5.parse)(readFileSync66(configPath, "utf8"));
+    raw = (0, import_yaml5.parse)(readFileSync67(configPath, "utf8"));
   } catch {
     return void 0;
   }
@@ -150902,7 +151741,7 @@ function resolveNoteSource(input) {
     const abs = join49(input.runFolder, candidate.rel);
     if (!existsSync45(abs))
       continue;
-    const sha2564 = sha256Text(readFileSync67(abs, "utf8"));
+    const sha2564 = sha256Text(readFileSync68(abs, "utf8"));
     const ref = Ref.parse({
       kind: candidate.kind,
       ref: candidate.rel,
@@ -150914,7 +151753,7 @@ function resolveNoteSource(input) {
   const tracePath = join49(input.runFolder, "trace.ndjson");
   if (existsSync45(tracePath)) {
     const runId = basename8(input.runFolder);
-    const sha2564 = sha256Text(readFileSync67(tracePath, "utf8"));
+    const sha2564 = sha256Text(readFileSync68(tracePath, "utf8"));
     const trace = Ref.safeParse({
       kind: "trace",
       ref: "trace.ndjson#sequence=0",
@@ -151042,7 +151881,7 @@ async function runMemoryCommand(argv, options = {}) {
       if (parsed.json) {
         writeJson5(payload2);
       } else if (facts.length === 0) {
-        process.stdout.write("No project memory recorded.\n");
+        process.stdout.write('No project memory recorded. Record one with: circuit memory note "<what you learned>" --flow <flow-id>\n');
       } else {
         for (const fact of facts) {
           process.stdout.write(`${fact.memory_id} [${fact.source.ref.flow_id ?? "no-flow"}] ${fact.summary}
@@ -151086,7 +151925,7 @@ init_preview();
 
 // dist/cli/reclaim.js
 init_esm();
-import { join as join51, resolve as resolve31 } from "node:path";
+import { join as join51, resolve as resolve30 } from "node:path";
 
 // dist/runtime/fanout/worktree-reaper.js
 init_trace_store();
@@ -151234,7 +152073,7 @@ function parseReclaimArgs(argv) {
   }
   return {
     json: options?.json === true,
-    projectRoot: resolve31(options?.projectRoot ?? process.cwd())
+    projectRoot: resolve30(options?.projectRoot ?? process.cwd())
   };
 }
 async function runReclaimCommand(argv) {
@@ -151304,10 +152143,12 @@ function parseShowArgs(argv) {
   try {
     program2.parse(argv, { from: "user" });
   } catch (err) {
-    return commanderErrorMessage(err);
+    if (!isCommanderHelpSignal(err))
+      return commanderErrorMessage(err);
   }
-  if (showOptions === void 0)
-    return "runs requires a subcommand";
+  if (showOptions === void 0) {
+    return "runs requires a subcommand: use circuit runs show --run-folder <path> --json";
+  }
   if (showOptions.json !== true)
     return "runs show requires --json";
   if (showOptions.runFolder === void 0)
@@ -151340,17 +152181,14 @@ async function runRunsCommand(argv) {
   }
 }
 
-// dist/cli/circuit.js
-init_runtime_routing_policy();
-
 // dist/cli/uninstall.js
 init_esm();
 init_host();
 init_atomic_io();
 init_commander_support();
 init_run2();
-import { existsSync as existsSync46, readFileSync as readFileSync68 } from "node:fs";
-import { join as join52, resolve as resolve32 } from "node:path";
+import { existsSync as existsSync46, readFileSync as readFileSync69 } from "node:fs";
+import { join as join52, resolve as resolve31 } from "node:path";
 var START_LINE = /^\s*<!--\s*circuit:start\s*-->\s*$/;
 var END_LINE = /^\s*<!--\s*circuit:end\s*-->\s*$/;
 var UNINSTALL_TARGET_FILES = ["AGENTS.md", "CLAUDE.md"];
@@ -151414,7 +152252,7 @@ function parseArgs4(argv, cwd2) {
     throw new Error(`unexpected argument: ${program2.args[0]}`);
   const opts = program2.opts();
   return {
-    dir: resolve32(opts.dir ?? cwd2),
+    dir: resolve31(opts.dir ?? cwd2),
     json: opts.json === true
   };
 }
@@ -151508,7 +152346,7 @@ async function runUninstallCommand(argv, options = {}) {
     }
     let content;
     try {
-      content = readFileSync68(path, "utf8");
+      content = readFileSync69(path, "utf8");
     } catch (err) {
       process.stderr.write(`error: could not read ${path}: ${err.message}
 `);
@@ -151569,37 +152407,6 @@ async function runUninstallCommand(argv, options = {}) {
 // dist/cli/circuit.js
 init_version_info();
 init_run2();
-function usage() {
-  return [
-    'usage: circuit run <flow-name> --goal "<goal>" [--why <why>] [--power <auto|low|medium|high>] [--process <low|medium|high>] [--tournament [2|3|4]] [--autonomous] [--run-folder <path>] [--fixture <path>] [--flow-root <path>] [--progress jsonl]',
-    "       circuit resume --run-folder <path> --checkpoint-choice <choice> [--progress jsonl]",
-    "       circuit runs show --run-folder <path> --json",
-    "       circuit checkpoints [--project-root <path>] [--runs-base <path>] [--json]",
-    "       circuit history rebuild|query|pull|status|memory-merge|memory-effect --json [options]",
-    '       circuit memory note --flow <id> [--applies-to <kind>] "<text>" | memory list | memory forget <id>',
-    "       circuit handoff [save|resume|done|brief|hook|hooks|harvest] [options]",
-    '       circuit create --description "<flow idea>" [--name <slug>] [--publish --yes]',
-    '       circuit generate --description "<task to encode>" [--name <slug>] [--publish --yes]',
-    "       circuit uninstall [--dir <path>] [--json]",
-    "       circuit reclaim [--json]",
-    "       circuit preview [flow-name] [--power <auto|low|medium|high>] [--matrix] [--json]",
-    "       circuit doctor [--json]",
-    "       circuit config [show [--json] | set <key> <value> | unset <key>] [--project|--global]",
-    "       circuit version [--json]",
-    "",
-    "Axes: `--power` sets the model tier (`auto`, `low`, `medium`, `high`; default `medium`; `auto` lets the run's research read pick within configured bounds) and also derives process thoroughness (`low`\u2192`low`, `medium`\u2192`medium`, `high`\u2192`high`, `auto`\u2192`medium`), clamped to each flow's supported set; `--process` overrides the derived care level (`low`, `medium`, `high`) when an explicit value beats the derivation; `--tournament` turns on option fan-out, with an optional inline count in the v1 range [2, 4] (e.g. `--tournament 3`; default 3 when omitted); `--autonomous` auto-resolves supported checkpoints and runs a bounded continuation loop (recovery routed by unmet evidence kind; never completes by exhaustion). Unsupported tuples are rejected per flow with the flow allow-list.",
-    "",
-    "With an explicit flow name, loads generated/flows/<name>/circuit.json. The flow name is required: pass one of build|fix|review|explore|prototype|pursue. Routing is model-only; the host or operator names the flow, and the CLI never classifies the goal text.",
-    "",
-    "Config: if present, loads ~/.config/circuit/config.yaml and ./.circuit/config.yaml from the current working directory into the selection resolver before relay.",
-    "",
-    "Note: `--dry-run` is not implemented and is rejected. An earlier version silently invoked the real connector while reporting dry_run:true, which is a safety bug; the flag stays rejected until real dry-run support lands.",
-    "",
-    CLI_RUNTIME_ROUTING_POLICY,
-    "",
-    "Review evidence: untracked file contents are omitted by default. Add `--include-untracked-content` only when those files are safe to relay to the configured worker."
-  ].join("\n");
-}
 function versionInfo() {
   return {
     schema_version: 1,
@@ -151639,6 +152446,15 @@ function runVersionCommand(argv) {
 `);
   return 0;
 }
+function withRootRemedy(message) {
+  if (message.startsWith("unknown option '--version'") || message.startsWith("unknown option '-V'")) {
+    return `${message}. The version is a command here: run 'circuit version'.`;
+  }
+  if (message.startsWith("unknown command") && !message.includes("Did you mean")) {
+    return `${message}. Valid commands: ${commandWordList()}. See 'circuit --help'.`;
+  }
+  return message;
+}
 function parseTopLevelInvocation(argv) {
   let invocation;
   const program2 = new Command("circuit").exitOverride().configureOutput({ writeErr: () => {
@@ -151650,9 +152466,13 @@ function parseTopLevelInvocation(argv) {
   };
   for (const name of CLI_COMMAND_NAMES)
     addForwardingCommand(name);
-  parseCommanderOrThrow(program2, argv);
+  try {
+    parseCommanderOrThrow(program2, argv);
+  } catch (err) {
+    throw new Error(withRootRemedy(err instanceof Error ? err.message : String(err)));
+  }
   if (invocation === void 0) {
-    throw new Error("missing command: use run, resume, handoff, history, memory, create, generate, uninstall, runs, reclaim, checkpoints, preview, doctor, config, or version");
+    throw new Error(`missing command: use ${commandWordList()}`);
   }
   return invocation;
 }
@@ -151666,6 +152486,18 @@ async function main(argv, options = {}) {
       return launch();
     }
     return runFrontDoorCommand();
+  }
+  const help = resolveHelpInvocation(argv);
+  if (help !== void 0) {
+    if (help.kind === "unknown-command") {
+      process.stderr.write(`error: unknown command '${help.word}'. Valid commands: ${commandWordList()}. See 'circuit --help'.
+`);
+      return 2;
+    }
+    const page = help.kind === "root" ? renderRootHelp() : renderCommandHelp(help.command);
+    process.stdout.write(`${page}
+`);
+    return 0;
   }
   let invocation;
   try {
@@ -151749,8 +152581,7 @@ if (invokedDirectly) {
 }
 export {
   CIRCUIT_HOST_KIND_ENV,
-  main,
-  usage
+  main
 };
 /*! Bundled license information:
 
