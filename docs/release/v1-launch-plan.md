@@ -86,6 +86,25 @@ operator-reported issues land on the
    "It can't fake done" card overclaims; the current framing is "it can't
    skip the proof." Landing copy follows positioning.md, and the two new
    entries from item 2 unblock the loop and multi-model cards.
+8. **Pass the failure-legibility gate.** Adopted 2026-07-12 after a field
+   failure (Build run 37a27314: a healthy worker was killed at a 3-minute
+   silence bound that lived only in a source comment). Two rules, checked
+   before the announcement:
+   - *No mysterious failures.* Every terminal outcome names what happened,
+     whose fault it was (setup, agent, task, or Circuit), and what to do
+     next. A run may fail; it may not fail unexplained.
+   - *No silent tradeoffs.* Every shipped limit an operator can hit is
+     visible in operator docs or in the failure message itself, never only
+     in a source comment.
+   The 2026-07-12 audit ran four sweeps against this gate (CLI surface,
+   run-corpus failure mining, source sweep for silent tradeoffs, plus the
+   watchdog root-cause). Fix clusters: watchdog recalibration +
+   `budgets.inactivity_ms`, help/discovery, usage errors, honesty surfaces
+   (preview/config/doctor), custom-connector bounds, summary caveat
+   eviction, connector launch-failure interpretation, verification-abort
+   naming, nested-`.circuit` store guard, and a recovery-binding
+   compile-time gate. Checkable: the punch list in this section's audit
+   record plus green `verify` and the container first-run lab.
 
 ## Messaging: the framing ladder
 

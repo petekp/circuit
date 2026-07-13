@@ -51,6 +51,10 @@ export type BriefGitProbe = (input: {
 
 const HANDOFF_BRIEF_API_VERSION = 'handoff-brief-v1';
 const HANDOFF_BRIEF_SCHEMA_VERSION = 1;
+// The brief is injected into a fresh session's context, where it competes with
+// the operator's actual task for attention; ~3000 chars keeps it to about a
+// screenful. Truncation appends a visible [truncated] marker, and the full
+// record stays on disk under .circuit/continuity/records/.
 const HANDOFF_BRIEF_MAX_CHARS = 3000;
 
 type HandoffBriefRenderResult =

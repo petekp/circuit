@@ -46,6 +46,11 @@ const NOISY_FIELDS = new Set([
   'body',
 ]);
 
+// Extraction feeds later runs' prompt injection, so these caps bound how much
+// any one report can crowd a future prompt: whole report bodies stop at 8k
+// chars, high-value fields (verdicts, summaries) at 2k, everything else at
+// 500. Clipping trades depth in one run for breadth across runs; the uncut
+// report stays in its run folder.
 const REPORT_TEXT_LIMIT = 8000;
 const HIGH_VALUE_TEXT_LIMIT = 2000;
 const NORMAL_TEXT_LIMIT = 500;

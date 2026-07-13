@@ -110,9 +110,12 @@ When the positional flow is present, the route is:
 - `router_reason`: `explicit flow positional argument`.
 
 When the positional flow is absent, the CLI rejects the run with a clear error
-(`a flow name is required: pass one of build|fix|review|explore|prototype|pursue`).
+(`a flow name is required: pass one of build|explore|fix|prototype|review as
+the first argument`). The offered names derive from the catalog's visibility,
+so internal flows are never advertised. When `--goal` is also missing, the
+same error collects both requirements into one message.
 
-Public flows are Build, Explore, Fix, Prototype, Pursue, and Review. Goal,
+Public flows are Build, Explore, Fix, Prototype, and Review. Goal, Pursue,
 runtime-proof, converge-proof, fix-until-green, cross-tool-build, and
 explainer are internal and are not offered as selectable flows. Three of the
 internal flows exist to prove engine machinery end to end: fix-until-green

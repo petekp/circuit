@@ -25,9 +25,11 @@ run without one:
 | CLI | `./bin/circuit run review --goal "current diff"` | Review. |
 | CLI | `./bin/circuit run build --goal "add a focused feature"` | Build. |
 
-Run the CLI from the checkout root; it loads compiled flows from
-`generated/flows` under the current working directory. Pass `--flow-root
-<path>` to run from somewhere else.
+The CLI runs from any directory. It prefers compiled flows in
+`generated/flows` under the current working directory when that folder
+exists, and falls back to the flows bundled with the installed package
+everywhere else. Pass `--flow-root <path>` only to point at a specific
+compiled-flow folder.
 
 Use `/circuit:run` for bounded objectives and completion discipline. From the
 operator's seat, Goal is not a kind of work; it is the completion standard Run
@@ -42,6 +44,7 @@ can also pass these controls when the selected flow supports them:
 | Process, an advanced override | `--process <low|medium|high>` | Build, Explore, and Fix. Prototype supports medium or high. Review only supports medium process. |
 | Tournament | `--tournament [2|3|4]` | Explore and Prototype. |
 | Autonomous continuation | `--autonomous` | Build, Explore, Fix, and Prototype. |
+| Reason behind the goal | `--why '<reason>'` | Every flow. Renders under the goal in worker prompts and is recorded with the run. Omit it when resuming a checkpoint; a resumed run keeps its saved goal. |
 
 Unsupported combinations fail before the run starts.
 
@@ -257,5 +260,53 @@ the allowed checkpoint choices:
   --checkpoint-choice '<choice>'
 ```
 
+**A run died partway and you want to keep its finished work.** A fresh run
+can reuse the dead run's finished sub-run children instead of redoing them:
+
+```bash
+./bin/circuit run <flow> --goal '<same goal>' \
+  --reuse-children-from '<dead-run-folder>'
+```
+
+Reuse is guarded: only finished children of the same flow, with a usable
+worktree, are admitted; anything unsafe falls back to fresh work. One
+limit to know: the guard does not compare flow versions or the base
+commit, so only reuse children from a run of the same flow version against
+the same code.
+
 If a run cannot recover, delete its run folder under `.circuit/runs/` and start
 the task again.
+
+## Limits You Can Hit
+
+Every bound Circuit ships that an operator can plausibly run into, in one
+place. When one of these bites, the failure message or the run report names
+it; this list exists so none of them is a surprise.
+
+- **Worker silence.** A worker subprocess that produces no output for 10
+  minutes is treated as hung and stopped; a step that legitimately goes
+  silent longer (a long test suite, a long thinking turn) can raise its own
+  bound with `budgets.inactivity_ms` in the flow. A separate 60-minute
+  wall-clock backstop catches runaways that never go quiet.
+- **Custom connectors.** A custom connector gets the same 60-minute
+  wall-clock backstop as the built-ins, but no silence bound by default —
+  an arbitrary command may be legitimately quiet for its whole life. Set
+  `budgets.inactivity_ms` on a step to arm one.
+- **Doctor probes.** `circuit doctor` gives each connector CLI 10 seconds to
+  answer a version probe. A healthy-but-cold install can miss that window;
+  rerun doctor before distrusting a connector.
+- **Handoff briefs.** The injected brief is capped near 3000 characters and
+  marked `[truncated]` when cut. The full record stays under
+  `.circuit/continuity/records/`.
+- **Ambient continuity.** Automatic capture keeps the 4 freshest intents (280
+  characters each) per session and the 10 most recent session records per
+  repo; older records are garbage-collected.
+- **Prior-run recall.** A new run injects at most 3 prior-run memories. What
+  was considered and why lives in `reports/history/recall.json` and
+  `recall-precision.json` inside the run folder.
+- **Cross-step context pulls.** A step may ask the run for at most 3 typed
+  context slices; past that it proceeds with what it has and the report
+  records the refusal as a finding.
+- **Crash-torn traces.** After a hard crash, a half-written final trace line
+  is dropped on resume so the trace stays readable; the interrupted event was
+  never durably recorded.

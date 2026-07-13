@@ -120,8 +120,9 @@ npm run build
 ```
 
 The flow name is required: one of `build`, `fix`, `review`, `explore`, or
-`prototype`. Run the CLI from the checkout root; the operator guide
-covers running from another directory with `--flow-root`.
+`prototype`. The CLI runs from any directory: it prefers compiled flows in
+the current project and falls back to its own bundled copies. The operator
+guide covers pointing at a specific flow folder with `--flow-root`.
 
 Circuit requires Node.js `22.18.0` or newer.
 

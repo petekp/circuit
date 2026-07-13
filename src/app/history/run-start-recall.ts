@@ -15,6 +15,11 @@ import { applyEarnedPrecision } from './recall-precision.js';
 
 export const HISTORY_RECALL_REPORT_PATH = 'reports/history/recall.json';
 export const HISTORY_RECALL_PRECISION_PATH = 'reports/history/recall-precision.json';
+// Three prior-run memories is a prompt-budget choice, not a relevance ceiling:
+// each recalled memory costs context in every relay of the new run, and past
+// three the marginal memory tends to restate the same project facts. From the
+// operator's seat a capped result looks like a sparse one; the recall report
+// in reports/history/ is where to check what was considered.
 const DEFAULT_RECALL_LIMIT = 3;
 
 export interface RunStartHistoryRecallOptions {
