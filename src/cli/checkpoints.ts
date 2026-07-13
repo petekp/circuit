@@ -68,7 +68,9 @@ export function runCheckpointsCommand(
   });
 
   if (parsed.json) {
-    process.stdout.write(`${JSON.stringify(checkpoints, null, 2)}\n`);
+    // Machine surface versioning (matches doctor's top-level schema_version).
+    // Additive: the read model's own shape (runs_root, rows) is unchanged.
+    process.stdout.write(`${JSON.stringify({ schema_version: 1, ...checkpoints }, null, 2)}\n`);
   } else {
     process.stdout.write(`${renderCheckpointsList(checkpoints)}\n`);
   }

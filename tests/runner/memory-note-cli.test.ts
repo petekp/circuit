@@ -153,6 +153,15 @@ describe('circuit memory note|list|forget (Slice 5 phase 1)', () => {
     expect(JSON.parse(stdout).count).toBe(0);
   });
 
+  it('plain list over an empty store points at the note command (P11)', async () => {
+    const { memoryDir } = tempProject();
+    const { code, stdout } = await run(['list', '--memory-dir', memoryDir]);
+    expect(code).toBe(0);
+    expect(stdout).toContain('No project memory recorded');
+    // Endings point forward: name the command that records the first fact.
+    expect(stdout).toContain('circuit memory note');
+  });
+
   it('memory with no subcommand reports the required-subcommand hint (F-L-1)', async () => {
     const { result, stderr } = await captureStreams(() => runMemoryCommand([]));
     expect(result).toBe(2);

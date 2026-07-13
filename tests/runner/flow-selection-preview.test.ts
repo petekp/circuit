@@ -183,6 +183,58 @@ describe('resolveFlowSelectionPreview: generality on another flow', () => {
   });
 });
 
+// B5 — preview honesty on route-conditional flows. Fix's routing data
+// (route_overrides in its assembly spec) sends a low-process run from
+// fix-regression-rerun straight to fix-close-low, skipping review. The preview
+// is Circuit's spend-free honesty surface: it must not advertise a reviewer
+// relay the run would skip, and it must not hide the close step the run would
+// actually take. The mechanism must derive from the compiled per-mode graphs,
+// not a fix-flow special case.
+describe('resolveFlowSelectionPreview: route-conditional steps (fix)', () => {
+  const shared = {
+    flowId: 'fix',
+    configLayers: [],
+    hostKind: 'claude-code',
+    codexDefaultModel: codexStub,
+  } as const;
+
+  it('at low process keeps the review row but marks it skipped', () => {
+    const p = resolveFlowSelectionPreview({ ...shared, power: 'low' });
+    expect(p.process).toBe('low');
+    const review = p.relaySteps.find((s) => s.stepId === 'fix-review');
+    expect(review).toBeDefined();
+    expect(review?.skippedAtProcess).toBe(true);
+    // Every other relay step runs at low and carries no skip mark.
+    for (const step of p.relaySteps) {
+      if (step.stepId !== 'fix-review') expect(step.skippedAtProcess).toBeUndefined();
+    }
+    // The low graph closes through fix-close-low; the reviewed close is the
+    // skipped one. Both appear, honestly labeled.
+    const nonRelayById = new Map(p.nonRelaySteps.map((s) => [s.stepId, s]));
+    expect(nonRelayById.get('fix-close-low')?.skippedAtProcess).toBeUndefined();
+    expect(nonRelayById.get('fix-close')?.skippedAtProcess).toBe(true);
+  });
+
+  it('at medium process the review relay runs and fix-close-low is the skipped step', () => {
+    const p = resolveFlowSelectionPreview({ ...shared, power: 'medium' });
+    const review = p.relaySteps.find((s) => s.stepId === 'fix-review');
+    expect(review).toBeDefined();
+    expect(review?.skippedAtProcess).toBeUndefined();
+    const nonRelayById = new Map(p.nonRelaySteps.map((s) => [s.stepId, s]));
+    expect(nonRelayById.get('fix-close-low')?.skippedAtProcess).toBe(true);
+    expect(nonRelayById.get('fix-close')?.skippedAtProcess).toBeUndefined();
+  });
+
+  it('single-graph flows (cross-tool-build) carry no skip marks at any dial', () => {
+    for (const power of ['low', 'medium', 'high'] as const) {
+      const p = preview(power);
+      for (const step of [...p.relaySteps, ...p.nonRelaySteps]) {
+        expect(step.skippedAtProcess).toBeUndefined();
+      }
+    }
+  });
+});
+
 // Path A: the preview must show the same process the dial word would derive
 // in a real run (deriveProcessFromPower + clampDerivedDepthToFlow in
 // src/cli/run.ts), not the pre-Path-A hardcoded 'medium'.

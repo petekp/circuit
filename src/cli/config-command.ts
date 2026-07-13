@@ -1,4 +1,4 @@
-import { existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs';
+import { existsSync, mkdirSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { dirname } from 'node:path';
 import { Command } from 'commander';
 import { Document, parseDocument, parse as parseYaml } from 'yaml';
@@ -71,12 +71,56 @@ function loadDocument(filePath: string): Document | string {
   return doc;
 }
 
+// Operator-facing rendering of schema rejections. The raw zod issue list is
+// precise but speaks parser — `(root): Unrecognized key` or `Invalid input:
+// expected object, received string` — and the constitution says every failure
+// names a remedy in plain English. Two cases get bespoke wording: unknown
+// keys (name the valid keys) and object-typed keys handed a bare scalar
+// (name the inline-YAML form that works). Everything else keeps the
+// path-prefixed schema message.
+const CONNECTOR_REFERENCE_EXAMPLE = "'{kind: builtin, name: codex}'";
+
+// Derived from the schema so the list cannot rot as keys are added.
+function topLevelConfigKeys(): string {
+  return Object.keys(Config.shape)
+    .filter((key) => key !== 'schema_version')
+    .join(', ');
+}
+
+interface SchemaIssue {
+  readonly code?: string;
+  readonly path: PropertyKey[];
+  readonly message: string;
+  readonly keys?: readonly string[];
+  readonly expected?: string;
+}
+
+function describeIssue(issue: SchemaIssue): string {
+  const path = issue.path.map(String).join('.');
+  if (issue.code === 'unrecognized_keys') {
+    const keys = issue.keys ?? [];
+    const named = keys.map((key) => `'${key}'`).join(', ');
+    if (issue.path.length === 0) {
+      const noun = keys.length === 1 ? 'is not a config key' : 'are not config keys';
+      return `${named} ${noun}. Valid top-level keys: ${topLevelConfigKeys()}`;
+    }
+    const noun = keys.length === 1 ? 'is not a key' : 'are not keys';
+    return `${named} ${noun} under ${path}. Check the spelling`;
+  }
+  const wantsObject = issue.expected === 'object' || issue.message.includes('expected object');
+  if (wantsObject && path.length > 0) {
+    if (path.startsWith('relay.roles.') || path.startsWith('relay.flows.')) {
+      return `${path} takes a connector reference object, not a bare name. Set it with inline YAML: circuit config set ${path} ${CONNECTOR_REFERENCE_EXAMPLE}`;
+    }
+    return `${path} takes an object value. Pass it as inline YAML, like ${CONNECTOR_REFERENCE_EXAMPLE}`;
+  }
+  return `${path || '(root)'}: ${issue.message}`;
+}
+
 function formatSchemaIssues(err: unknown): string {
   if (err && typeof err === 'object' && 'issues' in err) {
-    const issues = (err as { issues: Array<{ path: PropertyKey[]; message: string }> }).issues;
-    return issues
-      .map((i) => `${i.path.map(String).join('.') || '(root)'}: ${i.message}`)
-      .join('; ');
+    const issues = (err as { issues: SchemaIssue[] }).issues;
+    return issues.map(describeIssue).join('; ');
   }
   return err instanceof Error ? err.message : String(err);
 }
@@ -96,7 +140,14 @@ function writeDocument(filePath: string, doc: Document): void {
 // one test surface). They return a result instead of printing so the shell
 // can render receipts its own way.
 export type ConfigWriteResult =
-  | { readonly ok: true; readonly filePath: string; readonly layerName: 'project' | 'user-global' }
+  | {
+      readonly ok: true;
+      readonly filePath: string;
+      readonly layerName: 'project' | 'user-global';
+      // Set when an unset emptied the file of user content and removed it
+      // (healthy defaults write no config).
+      readonly removedFile?: boolean;
+    }
   | { readonly ok: true; readonly noop: 'already-unset'; readonly layerName: string }
   | { readonly ok: false; readonly message: string };
 
@@ -134,6 +185,28 @@ export function applyConfigSet(
   return { ok: true, filePath, layerName };
 }
 
+// Healthy defaults write no config (product rule 7). After an unset, a file
+// holding nothing but `schema_version` and empty containers is residue, not
+// configuration — but only when it is truly empty of user content. Operator
+// comments are user content and keep the file. The '#' scan is sound here:
+// an empty-of-content document has no string scalars left, so a '#' can only
+// be a comment.
+function documentIsEmptyOfUserContent(doc: Document): boolean {
+  const js = doc.toJS() ?? {};
+  if (typeof js !== 'object' || js === null || Array.isArray(js)) return false;
+  const hasContent = (value: unknown): boolean => {
+    if (value === null || value === undefined) return false;
+    if (Array.isArray(value)) return value.length > 0;
+    if (typeof value === 'object') return Object.values(value).some(hasContent);
+    return true;
+  };
+  const entries = Object.entries(js as Record<string, unknown>).filter(
+    ([key]) => key !== 'schema_version',
+  );
+  if (entries.some(([, value]) => hasContent(value))) return false;
+  return !doc.toString().includes('#');
+}
+
 export function applyConfigUnset(
   key: string,
   target: Target,
@@ -150,6 +223,11 @@ export function applyConfigUnset(
   doc.deleteIn(path);
   const problem = validateDocument(doc);
   if (problem !== undefined) return { ok: false, message: problem };
+
+  if (documentIsEmptyOfUserContent(doc)) {
+    rmSync(filePath);
+    return { ok: true, filePath, layerName, removedFile: true };
+  }
 
   writeDocument(filePath, doc);
   return { ok: true, filePath, layerName };
@@ -222,6 +300,11 @@ function runUnset(argv: readonly string[], options: ConfigCommandOptions): numbe
   process.stdout.write(
     `${palette.accent('✓')} ${key} ${palette.dim(`unset (${result.layerName}: ${result.filePath})`)}\n`,
   );
+  if (result.removedFile === true) {
+    process.stdout.write(
+      `${palette.dim(`removed ${result.filePath}: nothing was set anymore, and defaults need no file`)}\n`,
+    );
+  }
   return 0;
 }
 
@@ -253,6 +336,22 @@ export interface ConfigSummary {
   readonly effective: Record<string, EffectiveEntry>;
 }
 
+// Provenance must come from the raw layer document, pre-defaulting: the
+// Config parse materializes schema defaults (relay.default becomes 'auto' in
+// every parsed layer), so the parsed layer.config cannot answer "who set
+// this?". Re-read the file raw; a value counts for a layer only when its
+// document actually carries it. Discovery already parsed the file, so a
+// failed raw read is unexpected — fall back to claiming nothing rather than
+// inventing provenance.
+function rawLayerDocument(sourcePath: string | undefined): unknown {
+  if (sourcePath === undefined) return undefined;
+  try {
+    return parseYaml(readFileSync(sourcePath, 'utf8'));
+  } catch {
+    return undefined;
+  }
+}
+
 // Layers plus effective values with provenance for the curated key set —
 // shared by `config show` and the interactive configure screen.
 export function summarizeConfig(options: ConfigCommandOptions = {}): ConfigSummary {
@@ -261,6 +360,13 @@ export function summarizeConfig(options: ConfigCommandOptions = {}): ConfigSumma
     ...(options.cwd === undefined ? {} : { cwd: options.cwd }),
   }).selectionConfigLayers;
 
+  const rawByLayer = new Map<'project' | 'user-global', unknown>();
+  for (const layer of layers) {
+    if (layer.layer === 'project' || layer.layer === 'user-global') {
+      rawByLayer.set(layer.layer, rawLayerDocument(layer.source_path));
+    }
+  }
+
   const effective: Record<string, EffectiveEntry> = {};
   for (const { key, fallback } of SHOW_KEYS) {
     const path = key.split('.');
@@ -268,8 +374,9 @@ export function summarizeConfig(options: ConfigCommandOptions = {}): ConfigSumma
     // Later layers win: user-global then project, so walk in order and let
     // the last defined value stand.
     for (const layer of layers) {
-      const value = valueAtPath(layer.config, path);
-      if (value !== undefined && (layer.layer === 'project' || layer.layer === 'user-global')) {
+      if (layer.layer !== 'project' && layer.layer !== 'user-global') continue;
+      const value = valueAtPath(rawByLayer.get(layer.layer), path);
+      if (value !== undefined) {
         entry = { value, source: layer.layer };
       }
     }
@@ -300,7 +407,8 @@ function runShow(argv: readonly string[], options: ConfigCommandOptions): number
   const { layers, effective } = summary;
 
   if (flags.json === true) {
-    process.stdout.write(`${JSON.stringify({ layers, effective }, null, 2)}\n`);
+    // Machine surface versioning (matches doctor's top-level schema_version).
+    process.stdout.write(`${JSON.stringify({ schema_version: 1, layers, effective }, null, 2)}\n`);
     return 0;
   }
 

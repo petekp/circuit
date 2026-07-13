@@ -316,12 +316,15 @@ describe('checkpoints list discovery', () => {
     );
   });
 
-  it('renders an empty-state line when no run is waiting', () => {
+  it('renders an empty-state line when no run is waiting, pointing at the next command', () => {
     const runsRoot = newRunsRoot();
     makeClosedFolder(runsRoot, CLOSED_RUN_ID);
     const checkpoints = discoverCheckpointsList({ runsRoot, gitProbe: stubProbe });
     const text = renderCheckpointsList(checkpoints);
     expect(text).toMatch(/no runs are waiting/i);
+    // P11 — endings point forward: the empty state names the natural next
+    // command instead of stopping cold.
+    expect(text).toContain('circuit runs');
   });
 });
 
@@ -338,8 +341,11 @@ describe('circuit checkpoints CLI', () => {
 
     expect(exit).toBe(0);
     const parsed = JSON.parse(stdout) as {
+      schema_version: number;
       rows: Array<{ run_folder: string; goal: string; resume_command: string }>;
     };
+    // P4 — machine surfaces carry a schema version.
+    expect(parsed.schema_version).toBe(1);
     expect(parsed.rows).toHaveLength(1);
     expect(parsed.rows[0]?.run_folder).toBe(resolve(parkedFolder));
     expect(parsed.rows[0]?.goal).toBe('Fix the checkout bug');

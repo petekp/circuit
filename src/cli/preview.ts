@@ -33,6 +33,11 @@ import {
 // no flow named it surveys every public flow at the chosen dial, so the bare
 // command answers "what would I get?" instead of demanding an argument.
 
+// First versioned emission of the preview JSON surface. Bump on any change a
+// consumer could not ignore (removals, renames, meaning changes) — additive
+// fields do not require a bump.
+const PREVIEW_JSON_SCHEMA_VERSION = 1;
+
 const DIAL_CHOICES = ['auto', 'low', 'medium', 'high'] as const;
 type DialChoice = (typeof DIAL_CHOICES)[number];
 // Highest tier first, so the strongest configuration reads left-to-right.
@@ -134,7 +139,25 @@ export function sourceCellText(
   return `${modelSource} · effort:${effortSource}`;
 }
 
-function stepCells(palette: TerminalPalette, step: RelayStepSelectionPreview): readonly Cell[] {
+function stepCells(
+  palette: TerminalPalette,
+  step: RelayStepSelectionPreview,
+  process: string,
+): readonly Cell[] {
+  // A step routing excludes at this process must not read as work that will
+  // run: the whole row dims and the SOURCE cell says so in plain characters
+  // (pipes and NO_COLOR must see it too). Model and effort stay visible —
+  // they are what the step would use at a process where it runs.
+  if (step.skippedAtProcess === true) {
+    return [
+      cell(step.stepId, palette.dim),
+      cell(step.role, palette.dim),
+      cell(step.connector, palette.dim),
+      cell(modelCell(step), palette.dim),
+      cell(step.effort ?? '-', palette.dim),
+      cell(`skipped at process: ${process}`, palette.dim),
+    ];
+  }
   const modelPaint =
     step.model === undefined
       ? palette.dim
@@ -182,7 +205,7 @@ export function renderSinglePreview(
     'rule',
   ];
   for (const step of preview.relaySteps) {
-    rows.push(stepCells(palette, step));
+    rows.push(stepCells(palette, step, preview.process));
   }
 
   const problemLines = preview.relaySteps
@@ -196,7 +219,11 @@ export function renderSinglePreview(
           '',
           palette.dim(
             `non-relay steps: ${preview.nonRelaySteps
-              .map((step) => `${step.stepId} (${step.kind})`)
+              .map((step) =>
+                step.skippedAtProcess === true
+                  ? `${step.stepId} (${step.kind}, skipped at process: ${preview.process})`
+                  : `${step.stepId} (${step.kind})`,
+              )
               .join(', ')}`,
           ),
         ];
@@ -251,7 +278,7 @@ function renderOverview(
     preview.relaySteps.forEach((step, index) => {
       rows.push([
         cell(index === 0 ? preview.flowId : '', palette.bold),
-        ...stepCells(palette, step),
+        ...stepCells(palette, step, preview.process),
       ]);
       if (step.problem !== undefined) {
         problemLines.push(`  ! ${preview.flowId} ${step.stepId}: ${step.problem}`);
@@ -299,6 +326,9 @@ export function renderMatrix(
     const dialCells = previews.map((p) => {
       const match = p.relaySteps.find((candidate) => candidate.stepId === step.stepId);
       if (match === undefined) return cell('-', palette.dim);
+      // Routing excludes this step at this column's process (the process row
+      // above names it): say so instead of advertising a selection.
+      if (match.skippedAtProcess === true) return cell('(skipped)', palette.dim);
       const model = modelCell(match);
       const effort = match.effort ?? '-';
       // Same encoding as the step tables: weight is provenance, hue is
@@ -353,7 +383,14 @@ export function runPreviewCommand(argv: readonly string[]): number {
   }
 
   if (parsed.json) {
-    writeJson(parsed.matrix || parsed.flowId === undefined ? previews : previews[0]);
+    // Machine surface versioning (matches doctor's top-level schema_version).
+    // Array forms (--matrix, the bare overview) stamp each element instead of
+    // wrapping in an envelope, so the shape stays additive for consumers.
+    const stamped = previews.map((preview) => ({
+      schema_version: PREVIEW_JSON_SCHEMA_VERSION,
+      ...preview,
+    }));
+    writeJson(parsed.matrix || parsed.flowId === undefined ? stamped : stamped[0]);
     return 0;
   }
 

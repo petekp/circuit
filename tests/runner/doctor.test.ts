@@ -154,6 +154,27 @@ describe('circuit doctor: readiness on the chosen set', () => {
     expect(plain).toContain('circuit config set relay.default');
   });
 
+  // M1 — the footer's remedies must work when pasted. relay.roles.* and
+  // relay.flows.* take connector reference objects, so a bare-name suggestion
+  // like `relay.roles.reviewer codex` would be rejected by `config set`.
+  it('footer remedies work as pasted: object-typed keys show the object form', async () => {
+    const bin = stubBinDir();
+    healthyClaude(bin);
+    healthyCodex(bin);
+    healthyCursorAgent(bin);
+
+    const { stdout } = await withScopedEnv({ PATH: bin }, () =>
+      captureStreams(() => main(['doctor'])),
+    );
+
+    const plain = stripAnsi(stdout);
+    // The bare-name form fails when pasted; it must not be suggested.
+    expect(plain).not.toMatch(/relay\.roles\.reviewer codex/);
+    expect(plain).not.toMatch(/relay\.flows\.fix[^ ]* codex/);
+    // Whatever role/flow lever the footer teaches must carry the object form.
+    expect(plain).toContain("'{kind: builtin, name: codex}'");
+  });
+
   it('CIRCUIT_HOST_KIND=codex chooses codex instead of claude-code', async () => {
     const bin = stubBinDir();
     // No claude stub at all: codex is the chosen connector under this host

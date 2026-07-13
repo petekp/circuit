@@ -19,6 +19,7 @@ import {
   customConnectorRegistryFromLayers,
   resolveConnectorForGuidanceInput,
 } from '../connectors/resolver.js';
+import { axisSelectionsForAxes } from '../flows/axis-selections.js';
 import { flowDefinitions } from '../flows/catalog.js';
 import {
   type CompileResult,
@@ -28,6 +29,7 @@ import type {
   RuntimeIndexedFlow,
   RuntimeIndexedRelayStep,
   RuntimeIndexedStep,
+  RuntimePackageIndex,
 } from '../flows/registries/runtime-index.js';
 import type { CompiledFlowVisibility } from '../flows/types.js';
 import { fromCompiledFlow } from '../runtime/manifest/from-compiled-flow.js';
@@ -90,11 +92,20 @@ export interface RelayStepSelectionPreview {
   // effort (a misconfigured tier table or an incompatible pin). Preview reports
   // the mismatch instead of throwing, so one bad step never sinks the whole view.
   readonly problem?: string;
+  // True when the flow's routing data excludes this step at the previewed
+  // process (fix routes past review into fix-close-low at process low).
+  // Absent means the step runs. Derived from the compiled per-mode graphs,
+  // never from a per-flow special case, so the preview cannot advertise work
+  // a run would skip.
+  readonly skippedAtProcess?: boolean;
 }
 
 export interface NonRelayStepSelectionPreview {
   readonly stepId: string;
   readonly kind: string;
+  // Same meaning as on relay steps: routing excludes this step at the
+  // previewed process. Absent means the step runs.
+  readonly skippedAtProcess?: boolean;
 }
 
 export interface FlowSelectionPreview {
@@ -191,6 +202,7 @@ function previewRelayStep(input: {
   readonly depth: CompiledDepth;
   readonly hostKind: HostKind | undefined;
   readonly codexDefaultModel: () => string;
+  readonly skipped: boolean;
 }): RelayStepSelectionPreview {
   const { step, flow, layers } = input;
   const role = RelayRoleSchema.parse(step.role);
@@ -271,7 +283,74 @@ function previewRelayStep(input: {
     powerSource: resolved.power_source ?? 'fixed',
     escalated: resolved.power_escalated === true,
     ...(problem === undefined ? {} : { problem }),
+    ...(input.skipped ? { skippedAtProcess: true } : {}),
   };
+}
+
+// Route-aware step enumeration. A schematic with route_overrides compiles to
+// one graph per mode, so which steps actually run depends on the previewed
+// process. Honesty rule: enumerate the union of steps across every process
+// the operator could dial to (schematic order), and mark any step the current
+// process's graph excludes as skipped — the row stays visible, but the
+// preview must not advertise it as work that will run. Tournament- and
+// autonomous-only steps stay out: no process setting reaches them, so listing
+// them would be the same lie in the other direction.
+interface PreviewStepEnumeration {
+  readonly step: RuntimeIndexedStep;
+  // The graph this step was found in — skipped steps do not exist in the
+  // current process's graph, so their selection resolves against a graph
+  // that carries them.
+  readonly flow: RuntimeIndexedFlow;
+  readonly skipped: boolean;
+}
+
+function enumeratePreviewSteps(
+  result: CompileResult,
+  definition: (typeof flowDefinitions)[number],
+  process: ProcessValue,
+): readonly PreviewStepEnumeration[] {
+  if (result.kind === 'single') {
+    // One graph for every mode: every step runs at every process.
+    const index = buildRuntimePackageIndex(fromCompiledFlow(result.flow));
+    return index.flow.steps.map((step) => ({ step, flow: index.flow, skipped: false }));
+  }
+
+  const axes = firstCompiledFlow(result).axes;
+  const selections = axisSelectionsForAxes(definition.id, axes);
+  const processDepths = axes.allowed_depths.filter(
+    (depth): depth is ProcessValue => depth === 'low' || depth === 'medium' || depth === 'high',
+  );
+  const indexByProcess = new Map<ProcessValue, RuntimePackageIndex>();
+  for (const depth of processDepths) {
+    const modeName = selections.find((selection) => selection.depth === depth)?.name;
+    const modeFlow = modeName === undefined ? undefined : result.flows.get(modeName);
+    if (modeFlow !== undefined) {
+      indexByProcess.set(depth, buildRuntimePackageIndex(fromCompiledFlow(modeFlow)));
+    }
+  }
+  // The clamp guarantees the previewed process is an allowed depth, so the
+  // fallback only guards a malformed compile result.
+  const current =
+    indexByProcess.get(process) ??
+    buildRuntimePackageIndex(fromCompiledFlow(firstCompiledFlow(result)));
+
+  const enumerated: PreviewStepEnumeration[] = [];
+  for (const item of definition.schematic.items) {
+    const stepId = item.id as unknown as string;
+    const inCurrent = current.stepsById.get(stepId);
+    if (inCurrent !== undefined) {
+      enumerated.push({ step: inCurrent, flow: current.flow, skipped: false });
+      continue;
+    }
+    for (const index of indexByProcess.values()) {
+      const step = index.stepsById.get(stepId);
+      if (step !== undefined) {
+        enumerated.push({ step, flow: index.flow, skipped: true });
+        break;
+      }
+    }
+  }
+  return enumerated;
 }
 
 export function resolveFlowSelectionPreview(
@@ -281,9 +360,10 @@ export function resolveFlowSelectionPreview(
   if (definition === undefined) {
     throw new Error(`unknown flow '${input.flowId}'`);
   }
-  const compiled = firstCompiledFlow(compileSchematicToCompiledFlow(definition.schematic));
-  const index = buildRuntimePackageIndex(fromCompiledFlow(compiled));
-  const flow = index.flow;
+  const compileResult = compileSchematicToCompiledFlow(definition.schematic);
+  // Axes are identical across per-mode graphs, so any mode's flow serves the
+  // process clamp below.
+  const compiled = firstCompiledFlow(compileResult);
 
   const layers = withPowerLayer(input.configLayers ?? [], input.power);
   const setting = resolvePowerDialSetting(layers);
@@ -302,7 +382,7 @@ export function resolveFlowSelectionPreview(
 
   const relaySteps: RelayStepSelectionPreview[] = [];
   const nonRelaySteps: NonRelayStepSelectionPreview[] = [];
-  for (const step of flow.steps as readonly RuntimeIndexedStep[]) {
+  for (const { step, flow, skipped } of enumeratePreviewSteps(compileResult, definition, process)) {
     if (step.kind === 'relay') {
       relaySteps.push(
         previewRelayStep({
@@ -313,10 +393,15 @@ export function resolveFlowSelectionPreview(
           depth,
           hostKind: input.hostKind,
           codexDefaultModel,
+          skipped,
         }),
       );
     } else {
-      nonRelaySteps.push({ stepId: step.id, kind: step.kind });
+      nonRelaySteps.push({
+        stepId: step.id,
+        kind: step.kind,
+        ...(skipped ? { skippedAtProcess: true } : {}),
+      });
     }
   }
 

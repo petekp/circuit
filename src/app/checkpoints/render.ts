@@ -62,7 +62,8 @@ function renderRow(row: CheckpointRow, index: number): string {
 /** Render the whole checkpoints list as a printable, plain-English list. */
 export function renderCheckpointsList(checkpoints: CheckpointsList): string {
   if (checkpoints.rows.length === 0) {
-    return 'No runs are waiting on a decision.';
+    // Endings point forward: name the natural next command.
+    return 'No runs are waiting on a decision. See recent runs with: circuit runs';
   }
   const count = checkpoints.rows.length;
   const header = `${count} run${count === 1 ? '' : 's'} waiting on a decision:`;

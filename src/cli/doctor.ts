@@ -130,8 +130,12 @@ export function renderDoctorReport(
     palette.dim(
       'connectors marked - are optional (no flow step chooses them) and never fail this check. to change:',
     ),
+    // Remedies must work when pasted: relay.roles.* and relay.flows.* take
+    // connector reference objects, so the role/flow lever shows the
+    // inline-YAML object form a bare name would fail.
+    palette.dim('  circuit config set relay.default codex'),
     palette.dim(
-      '  circuit config set relay.default codex   (also: relay.roles.reviewer, relay.flows.fix; then: circuit preview)',
+      "  circuit config set relay.roles.reviewer '{kind: builtin, name: codex}'   (also: relay.flows.<flow>; check with: circuit preview)",
     ),
   ].join('\n');
 }

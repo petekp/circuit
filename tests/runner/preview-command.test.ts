@@ -154,6 +154,71 @@ describe('circuit preview: front door', () => {
     expect(reviewerModel(previews[2] as FlowSelectionPreview)).toBe('sonnet');
   });
 
+  // B5 — the rendered preview must not advertise work the run would skip.
+  it('fix --power low renders the review row marked skipped at this process', () => {
+    const code = runPreviewCommand(['fix', '--power', 'low']);
+    expect(code).toBe(0);
+    const out = plainStdout();
+    const reviewLine = out.split('\n').find((line) => line.trim().startsWith('fix-review'));
+    expect(reviewLine).toBeDefined();
+    expect(reviewLine).toContain('skipped at process: low');
+    // The low graph's real close step appears; the reviewed close is labeled.
+    expect(out).toContain('fix-close-low (compose)');
+    expect(out).toContain('fix-close (compose, skipped at process: low)');
+  });
+
+  it('fix --power medium leaves the review row unmarked and labels fix-close-low instead', () => {
+    const code = runPreviewCommand(['fix', '--power', 'medium']);
+    expect(code).toBe(0);
+    const out = plainStdout();
+    const reviewLine = out.split('\n').find((line) => line.trim().startsWith('fix-review'));
+    expect(reviewLine).toBeDefined();
+    expect(reviewLine).not.toContain('skipped');
+    expect(out).toContain('fix-close-low (compose, skipped at process: medium)');
+  });
+
+  it('fix --power low --json carries the additive skippedAtProcess flag', () => {
+    const code = runPreviewCommand(['fix', '--power', 'low', '--json']);
+    expect(code).toBe(0);
+    const preview = json<FlowSelectionPreview>();
+    const review = preview.relaySteps.find((s) => s.stepId === 'fix-review');
+    expect(review?.skippedAtProcess).toBe(true);
+    const act = preview.relaySteps.find((s) => s.stepId === 'fix-act');
+    expect(act?.skippedAtProcess).toBeUndefined();
+  });
+
+  it('fix --matrix shows the review relay as skipped in the LOW column only', () => {
+    const code = runPreviewCommand(['fix', '--matrix']);
+    expect(code).toBe(0);
+    const out = plainStdout();
+    const reviewLine = out.split('\n').find((line) => line.trim().startsWith('fix-review'));
+    expect(reviewLine).toBeDefined();
+    // Columns run high / medium / low; only the low cell is skipped.
+    expect(reviewLine?.match(/\(skipped\)/g)).toHaveLength(1);
+  });
+
+  // P4 — machine surfaces carry a schema version.
+  it('--json stamps schema_version 1 on the single preview and on every array element', () => {
+    const code = runPreviewCommand(['fix', '--power', 'low', '--json']);
+    expect(code).toBe(0);
+    const preview = json<FlowSelectionPreview & { schema_version: number }>();
+    expect(preview.schema_version).toBe(1);
+  });
+
+  it('bare --json and --matrix --json stamp schema_version 1 on each element', () => {
+    let code = runPreviewCommand(['--json']);
+    expect(code).toBe(0);
+    for (const preview of json<Array<{ schema_version: number }>>()) {
+      expect(preview.schema_version).toBe(1);
+    }
+    stdout.length = 0;
+    code = runPreviewCommand(['fix', '--matrix', '--json']);
+    expect(code).toBe(0);
+    for (const preview of json<Array<{ schema_version: number }>>()) {
+      expect(preview.schema_version).toBe(1);
+    }
+  });
+
   it('a single-flow preview displays the process the dial word derives', () => {
     const code = runPreviewCommand(['build', '--power', 'low']);
     expect(code).toBe(0);

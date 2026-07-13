@@ -1,4 +1,4 @@
-import { mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
+import { existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
@@ -102,6 +102,37 @@ describe('circuit config set', () => {
     expect(stderr.join('')).toContain('powr');
   });
 
+  // M1 — object-typed keys must reject a bare name by naming the shape that
+  // works, not with schema parser jargon.
+  it('rejects a bare connector name for an object-typed key and names the working form', () => {
+    const code = run(['set', 'relay.roles.reviewer', 'codex']);
+    expect(code).toBe(2);
+    const err = stderr.join('');
+    expect(err).toContain('relay.roles.reviewer');
+    expect(err).toContain("'{kind: builtin, name: codex}'");
+    expect(err).not.toContain('Invalid input');
+  });
+
+  it('accepts the suggested inline-YAML object form for object-typed keys', () => {
+    const code = run(['set', 'relay.roles.reviewer', '{kind: builtin, name: codex}']);
+    expect(code).toBe(0);
+    const body = readFileSync(projectConfigFile(), 'utf8');
+    expect(body).toContain('kind: builtin');
+    expect(body).toContain('name: codex');
+  });
+
+  // P10a — unknown top-level keys get plain English plus the valid key list,
+  // not a zod path like `(root)`.
+  it('rejects an unknown top-level key in plain English naming the valid keys', () => {
+    const code = run(['set', 'banana.split', 'yes']);
+    expect(code).toBe(2);
+    const err = stderr.join('');
+    expect(err).toContain('banana');
+    expect(err).not.toContain('(root)');
+    expect(err).toContain('relay');
+    expect(err).toContain('defaults');
+  });
+
   it('refuses to edit a policy envelope (schema_version 2) file', () => {
     mkdirSync(join(projectDir, '.circuit'), { recursive: true });
     writeFileSync(projectConfigFile(), 'schema_version: 2\n');
@@ -113,21 +144,60 @@ describe('circuit config set', () => {
 });
 
 describe('circuit config unset', () => {
-  it('removes a key and keeps the file valid', () => {
+  it('removes a key and keeps the file valid when other content remains', () => {
     mkdirSync(join(projectDir, '.circuit'), { recursive: true });
     writeFileSync(
       projectConfigFile(),
-      ['schema_version: 1', 'defaults:', '  power: high', ''].join('\n'),
+      ['schema_version: 1', 'project_id: my-project', 'defaults:', '  power: high', ''].join('\n'),
     );
     const code = run(['unset', 'defaults.power']);
     expect(code).toBe(0);
-    expect(readFileSync(projectConfigFile(), 'utf8')).not.toContain('power');
+    const body = readFileSync(projectConfigFile(), 'utf8');
+    expect(body).not.toContain('power');
+    expect(body).toContain('project_id: my-project');
   });
 
   it('reports already-unset keys without failing', () => {
     const code = run(['unset', 'defaults.power']);
     expect(code).toBe(0);
     expect(plainStdout()).toContain('already unset');
+  });
+
+  // P10b — product rule 7: healthy defaults write no config. Unsetting the
+  // last user-set value must not leave a residue file behind.
+  it('removes the file when the last user-set value is unset', () => {
+    run(['set', 'defaults.power', 'high']);
+    expect(existsSync(projectConfigFile())).toBe(true);
+    const code = run(['unset', 'defaults.power']);
+    expect(code).toBe(0);
+    expect(existsSync(projectConfigFile())).toBe(false);
+    expect(plainStdout()).toContain('removed');
+  });
+
+  it('keeps the file when other user content remains', () => {
+    mkdirSync(join(projectDir, '.circuit'), { recursive: true });
+    writeFileSync(
+      projectConfigFile(),
+      ['schema_version: 1', 'project_id: my-project', 'defaults:', '  power: high', ''].join('\n'),
+    );
+    const code = run(['unset', 'defaults.power']);
+    expect(code).toBe(0);
+    expect(existsSync(projectConfigFile())).toBe(true);
+    expect(readFileSync(projectConfigFile(), 'utf8')).toContain('project_id: my-project');
+  });
+
+  it('keeps the file when it carries operator comments', () => {
+    mkdirSync(join(projectDir, '.circuit'), { recursive: true });
+    writeFileSync(
+      projectConfigFile(),
+      ['# operator notes live here', 'schema_version: 1', 'defaults:', '  power: high', ''].join(
+        '\n',
+      ),
+    );
+    const code = run(['unset', 'defaults.power']);
+    expect(code).toBe(0);
+    expect(existsSync(projectConfigFile())).toBe(true);
+    expect(readFileSync(projectConfigFile(), 'utf8')).toContain('# operator notes live here');
   });
 });
 
@@ -149,6 +219,46 @@ describe('circuit config show', () => {
     expect(out).toMatch(/defaults\.power.*high.*project/s);
     // Untouched keys read as defaults.
     expect(out).toContain('default');
+  });
+
+  // B6 — provenance comes from the raw layer documents, pre-defaulting. A
+  // schema default that materializes on parse (relay.default: auto) must read
+  // as the built-in default, never as a value the project set.
+  it('a config file with no set values reads as defaults, not project-set', () => {
+    mkdirSync(join(projectDir, '.circuit'), { recursive: true });
+    writeFileSync(projectConfigFile(), ['schema_version: 1', 'defaults: {}', ''].join('\n'));
+    const code = run(['show']);
+    expect(code).toBe(0);
+    const out = plainStdout();
+    const relayLine = out.split('\n').find((line) => line.startsWith('relay.default'));
+    expect(relayLine).toBeDefined();
+    expect(relayLine).toContain('default');
+    expect(relayLine).not.toContain('project');
+  });
+
+  it('show --json reports source project only for values the document really sets', () => {
+    mkdirSync(join(projectDir, '.circuit'), { recursive: true });
+    writeFileSync(
+      projectConfigFile(),
+      ['schema_version: 1', 'relay:', '  default: codex', ''].join('\n'),
+    );
+    const code = run(['show', '--json']);
+    expect(code).toBe(0);
+    const parsed = JSON.parse(stdout.join('')) as {
+      effective: Record<string, { value: unknown; source: string }>;
+    };
+    expect(parsed.effective['relay.default']?.value).toBe('codex');
+    expect(parsed.effective['relay.default']?.source).toBe('project');
+    // Nothing set defaults.power, so it must read as the built-in default.
+    expect(parsed.effective['defaults.power']?.source).toBe('default');
+  });
+
+  // P4 — machine surfaces carry a schema version.
+  it('show --json carries schema_version 1', () => {
+    const code = run(['show', '--json']);
+    expect(code).toBe(0);
+    const parsed = JSON.parse(stdout.join('')) as { schema_version: number };
+    expect(parsed.schema_version).toBe(1);
   });
 
   it('emits the discovered layers as JSON with --json', () => {

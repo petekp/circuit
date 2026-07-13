@@ -365,7 +365,10 @@ export async function runMemoryCommand(
       if (parsed.json) {
         writeJson(payload);
       } else if (facts.length === 0) {
-        process.stdout.write('No project memory recorded.\n');
+        // Endings point forward: name the command that records the first fact.
+        process.stdout.write(
+          'No project memory recorded. Record one with: circuit memory note "<what you learned>" --flow <flow-id>\n',
+        );
       } else {
         for (const fact of facts) {
           process.stdout.write(
