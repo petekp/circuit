@@ -1,5 +1,11 @@
 # Long-horizon supervision — heartbeat course-correction and crow's-nest views
 
+Scope note, 2026-07-11: this remains a future model-in-the-loop idea. Its
+“supervisor” is a trajectory reviewer, not the deterministic local process
+supervisor in [the CLI rebuild plan](cli-first-principles.md). Its heartbeat is
+scheduled model work, not worker health or lease liveness. The CLI rebuild owns
+those lifecycle contracts.
+
 Idea for letting Circuit drive multi-hour, mostly-unattended runs the
 way an operator would supervise a junior engineer: an executor agent
 grinds on the work, a supervisor agent wakes up periodically to check

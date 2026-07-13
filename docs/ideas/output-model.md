@@ -1,8 +1,11 @@
 # Output Model: Flow Status Indicator and Final Digest
 
-Status: proposal, 2026-06-02, revised after an adversarial review the same day.
-Locked decisions: write this spec before any build; surface the chosen flow and
-its reason before the flow body runs (the decider owns the why). Companion to
+Status: scoped proposal, 2026-06-02, revised 2026-07-11. The final-digest
+content and host display research remain useful. The
+[CLI rebuild plan](cli-first-principles.md) supersedes this document's
+transport, routing-checkpoint, direct terminal, and progress-stream mechanics.
+Its host constraints describe host plugins, not the new direct CLI TUI.
+Companion to
 [docs/contracts/host-rendering.md](../contracts/host-rendering.md) and
 [docs/specs/narration-display-profiles.md](../specs/narration-display-profiles.md).
 

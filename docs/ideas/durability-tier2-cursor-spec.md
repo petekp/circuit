@@ -1,5 +1,13 @@
 # Durability Tier-2: the forward-recovery cursor (decision-ready spec)
 
+> Rebuild note (2026-07-11):
+> [`cli-first-principles.md`](cli-first-principles.md) supersedes the “never
+> build a forward cursor” roadmap decision for new storage-v2 Runs only. The new
+> plan requires a complete, versioned `SafeReentryReceiptV1` and topology
+> reducer before any topology may resume automatically. This file remains the
+> historical record of why the current engine chose restart-cheapness; no
+> existing Run gains forward recovery from this planning change.
+
 > Status: **DECIDED (Option C) — foundation slice shipped to `main`; the
 > forward-recovery cursor itself is the path NOT taken.** Updated 2026-06-16. The
 > fork below was resolved: both load-bearing probes ran (see "Decision: Option C

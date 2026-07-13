@@ -32,21 +32,29 @@
   "entries": [
     {
       "path": "docs/ideas/cli-first-principles.md",
-      "title": "The Circuit CLI, from first principles",
-      "status": "current-proposal",
+      "title": "Circuit CLI rebuild plan",
+      "status": "implementation-spec",
       "category": "run-inspection-and-output",
-      "impact": 4,
+      "impact": 5,
       "tags": [
         "cli-ux",
         "onboarding",
-        "driver-contract",
-        "flows-as-verbs",
-        "plan-header",
-        "watch-detach"
+        "run-lifecycle",
+        "local-supervisor",
+        "worker-runtime",
+        "event-protocol",
+        "installation",
+        "configuration"
       ],
-      "current_reading": "Ground-up CLI design written against the CLI/TUI ecosystem research, then reconciled against an adversarial review and the repo's real contracts (config.yaml, power/process axes, the ProgressEvent stream, the host-adapter stable-namespace rule, preview as a named command). Seven principles, a target grammar, and five post-announcement waves: conventions, runs surface, built-in flows-as-verbs, driver stream (heartbeat on the existing progress contract), reach. Nothing ships before the v1 announcement; open forks (verb aliases, plan-confirm threshold, bare-circuit scope, demo timing) await the operator. The review round also surfaced and fixed a real packaged-install flow-loading bug (src/cli/compiled-flow-loading.ts defaultFlowRoot), which shipped independently of this note.",
-      "related": ["docs/release/v1-launch-plan.md", "docs/ideas/run-milestone-stream.md"],
-      "last_checked": "2026-07-12"
+      "current_reading": "Implementation-ready replacement plan for the CLI and run-ownership boundary. Phase 0 is complete. The target uses an elected on-demand supervisor, one fenced worker per durable root Invocation, an explicit client-bound foreground profile, consequence-based StartAuthorization, ordered cancellation and effect admission, non-bearer force decisions, isolated workspaces, bounded reconciliation probes, a Trace-derived ProgressEventV2 feed with acknowledged reconnect expiry, exact action/output/exit contracts, a shared version-pinned runtime, crash-safe frontend update and quarantine, Config v3 trust, project relocation, explicit legacy Flow/Run migration, frozen platform gates, and a dependency-graph deletion ratchet. It preserves flows, reports, evidence, generated host surfaces, historical readers, and proof tests while replacing unsafe execution seams. Execution is held for post-v1 (decided 2026-07-12): only Phase 0 shipped pre-release, and pre-release CLI work stays limited to hardening the current surface.",
+      "related": [
+        "docs/ideas/run-milestone-stream.md",
+        "docs/ideas/output-model.md",
+        "docs/ideas/long-horizon-supervision.md",
+        "docs/contracts/host-adapter.md",
+        "docs/architecture/run-process.md"
+      ],
+      "last_checked": "2026-07-11"
     },
     {
       "path": "docs/ideas/until-loop.md",
@@ -188,9 +196,13 @@
       "category": "run-inspection-and-output",
       "impact": 2,
       "tags": ["durability", "resumability", "crash-recovery", "recovery-corridor", "spec"],
-      "current_reading": "Decision-ready spec for Tier-2 forward recovery, companion to the fallible-executor audit. DECIDED: Option C (restart-cheapness, not a resumable cursor). Both load-bearing probes ran (2026-06-16): relay is the lone linear step kind that is not cheaply idempotent, and the staleness boundary resolved as a cheap runtime-owned port. The foundation slice shipped (RecoveryCorridor.seedFromTrace, structural-only, behind resume; PR #93) and the worktree reaper landed (PR #99); the forward-recovery cursor itself is the path NOT taken. The re-entry mechanism for skip-finished children moved to the tier-3 restart-linkage spec (now in the deprioritized ledger) and has since shipped as circuit run --reuse-children-from (PR #106, src/runtime/run/reuse-children.ts). Pinned: scored low on the impact axis but kept in place because shipped code, tests, experiments, or eval harnesses cite it.",
-      "related": ["docs/ideas/deprioritized-ledger.md", "docs/ideas/north-star-status.md"],
-      "last_checked": "2026-07-08"
+      "current_reading": "Historical decision record for the current engine's Option C choice: restart-cheapness instead of a resumable cursor. RecoveryCorridor.seedFromTrace and reuse-children shipped, while the general forward cursor did not. The CLI rebuild plan now supersedes that roadmap choice only for new storage-v2 Runs whose complete SafeReentryReceiptV1 and topology reducer pass the crash matrix; existing and unsupported Runs remain checkpoint/restart-only. Pinned because shipped code, tests, experiments, and eval harnesses cite it.",
+      "related": [
+        "docs/ideas/cli-first-principles.md",
+        "docs/ideas/deprioritized-ledger.md",
+        "docs/ideas/north-star-status.md"
+      ],
+      "last_checked": "2026-07-11"
     },
     {
       "path": "docs/ideas/first-class-composition-sequence.md",
@@ -239,8 +251,8 @@
       "category": "run-inspection-and-output",
       "impact": 4,
       "tags": ["long-horizon", "supervision", "heartbeat", "status-view"],
-      "current_reading": "Idea for executor/supervisor heartbeat and overview surfaces. Future work, not current behavior.",
-      "last_checked": "2026-07-08"
+      "current_reading": "Future model-in-the-loop trajectory review and overview idea. Its model heartbeat is not process liveness, and its trajectory supervisor is separate from the deterministic local supervisor in the CLI rebuild plan.",
+      "last_checked": "2026-07-11"
     },
     {
       "path": "docs/ideas/paper-to-site-flow-brief.md",
@@ -306,8 +318,8 @@
       "category": "run-inspection-and-output",
       "impact": 4,
       "tags": ["output", "host-rendering", "status", "digest"],
-      "current_reading": "Proposal for a three-channel output model, flow status indicator, routing checkpoint, and final digest. Revised after adversarial review; not yet built.",
-      "last_checked": "2026-07-08"
+      "current_reading": "Current only for final-digest content and host display research. The CLI rebuild plan supersedes its transport, routing-checkpoint, direct-terminal, and progress-stream mechanics.",
+      "last_checked": "2026-07-11"
     },
     {
       "path": "docs/ideas/portable-run-captures.md",
@@ -322,7 +334,7 @@
     {
       "path": "docs/ideas/run-milestone-stream.md",
       "title": "Run milestone stream: live legibility for backgrounded runs",
-      "status": "current-proposal",
+      "status": "superseded",
       "category": "run-inspection-and-output",
       "impact": 4,
       "tags": [
@@ -333,14 +345,14 @@
         "trace-projection",
         "post-v1"
       ],
-      "current_reading": "Proposal for a low-rate, engine-emitted milestone stream (working name status.ndjson) written beside the trace: each line is a typed event whose text is already operator language, derived deterministically from trace entries with no model in the emission path. Consumers stay thin: a circuit watch / status --follow verb, host agents taught a background-and-watch narration pattern, the TUI, and a later notify-hook config surface. Anomaly milestones (relay overdue, verification timed out, recovery routed, checkpoint pause) are first-class, and the checkpoint pause is named the highest-value push event in the system. Grounded in the pursue battle-test run 4cb86d0b (2026-07-10), where a supervising host agent had to hand-build filtering, translation, rate control, and anomaly awareness from the raw trace. Positioned as the deterministic substrate under output-model.md (foreground wrapper rendering) and long-horizon-supervision.md (model-in-the-loop supervision). First slice is docs-only teaching and freeze-compatible; every engine surface waits for post-v1. Nothing built.",
+      "current_reading": "Retained for its problem evidence and milestone examples. Do not build the proposed durable status.ndjson; the CLI rebuild replaces it with ProgressEventV2 projected from Trace, watch <run-id>, and transient lease health.",
       "related": [
         "docs/ideas/output-model.md",
         "docs/ideas/long-horizon-supervision.md",
         "docs/ideas/multi-channel-hitl-proposal.md",
         "docs/release/agent-friction-remediation.md"
       ],
-      "last_checked": "2026-07-10"
+      "last_checked": "2026-07-11"
     },
     {
       "path": "docs/ideas/popular-workflow-market-scan.md",

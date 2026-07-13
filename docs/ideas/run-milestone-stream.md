@@ -1,8 +1,11 @@
 # Run milestone stream: live legibility for backgrounded runs
 
-Status: proposal, nothing built. Recorded 2026-07-10 during the v1 launch
-freeze; everything here except the docs-only teaching slice waits until after
-the announcement. The evidence base is the pursue battle-test run
+Status: superseded as an implementation design by
+[the CLI rebuild plan](cli-first-principles.md). Keep this document for its
+problem evidence and milestone examples. Do not build `status.ndjson`: the
+replacement is ProgressEventV2 projected from Trace, consumed through
+`watch <run-id>`, with lease health kept transient. Recorded 2026-07-10. The
+evidence base is the pursue battle-test run
 `4cb86d0b` (2026-07-10), where the supervising host agent had to hand-build
 live narration from the raw trace, and the friction findings in
 [docs/release/agent-friction-remediation.md](../release/agent-friction-remediation.md).
