@@ -6,6 +6,7 @@ import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import { captureStreams, deterministicNow, makeStubRelayer } from '../helpers/runtime-fixtures.js';
 
 import { main } from '../../src/cli/circuit.js';
+import { renderCommandHelp } from '../../src/cli/help.js';
 import { ReviewIntake } from '../../src/flows/review/reports.js';
 import { ProgressEvent } from '../../src/schemas/progress-event.js';
 import type { RelayFn } from '../../src/shared/relay-runtime-types.js';
@@ -1014,7 +1015,7 @@ describe('CLI router', () => {
 
     expect(result.exit).toBe(2);
     expect(result.stderr).toContain("--tournament is not supported by flow 'fix'");
-    expect(result.stderr).toContain('fix allows depths:');
+    expect(result.stderr).toContain('fix allows process:');
     expect(existsSync(runFolder)).toBe(false);
   });
 
@@ -1765,11 +1766,13 @@ describe('CLI router', () => {
   });
 
   it('keeps CLI help text aligned with the explicit-flow contract', () => {
-    const source = readFileSync(join(process.cwd(), 'src/cli/circuit.ts'), 'utf-8');
-    expect(source).toContain('pass one of build|fix|review|explore|prototype|pursue');
-    expect(source).toContain('the CLI never classifies the goal text');
-    expect(source).not.toContain('classifies the free-form goal');
-    expect(source).not.toContain('registered explore/review/build flows');
-    expect(source).not.toContain('registered explore/review flows');
+    // The pin moved from the deleted usage() source text to the rendered
+    // `circuit run --help` page, which now owns this teaching.
+    const text = renderCommandHelp('run');
+    expect(text).toContain('pass one of build|fix|review|explore|prototype|pursue');
+    expect(text).toContain('the CLI never classifies the goal text');
+    expect(text).not.toContain('classifies the free-form goal');
+    expect(text).not.toContain('registered explore/review/build flows');
+    expect(text).not.toContain('registered explore/review flows');
   });
 });

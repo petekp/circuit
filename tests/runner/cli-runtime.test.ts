@@ -3,7 +3,8 @@ import { existsSync, mkdirSync, readFileSync, rmSync, writeFileSync } from 'node
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
-import { main, usage } from '../../src/cli/circuit.js';
+import { main } from '../../src/cli/circuit.js';
+import { renderCommandHelp } from '../../src/cli/help.js';
 import {
   CLI_RUNTIME_ROUTING_POLICY,
   COMPOSE_WRITER_RUNTIME_POLICY,
@@ -119,7 +120,9 @@ afterEach(() => {
 
 describe('CLI runtime', () => {
   it('documents current runtime routing without migration flags', () => {
-    const text = usage();
+    // The routing policy must stay operator-discoverable: `circuit run --help`
+    // (rendered by renderCommandHelp) carries it verbatim.
+    const text = renderCommandHelp('run');
     expect(text).toContain(CLI_RUNTIME_ROUTING_POLICY);
     expect(text).toContain('CIRCUIT_SHOW_RUNTIME_DECISION=1');
     expect(text).toContain('includes runtime_reason');

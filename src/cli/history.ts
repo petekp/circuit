@@ -23,7 +23,11 @@ import {
   type HistoryMemoryInputPreviewV1,
   type PullLogEntryV1,
 } from '../schemas/index.js';
-import { commanderErrorMessage, configureCommanderProgram } from './commander-support.js';
+import {
+  commanderErrorMessage,
+  configureCommanderProgram,
+  isCommanderHelpSignal,
+} from './commander-support.js';
 
 type ParsedHistoryArgs =
   | {
@@ -329,10 +333,15 @@ function parseHistoryArgs(argv: readonly string[]): ParsedHistoryArgs | string {
   try {
     program.parse(argv, { from: 'user' });
   } catch (err) {
-    return commanderErrorMessage(err);
+    // Bare `circuit history` makes Commander raise its internal help error
+    // ('(outputHelp)') before any action runs; fall through so the operator
+    // sees the real missing-subcommand message below instead of the token.
+    if (!isCommanderHelpSignal(err)) return commanderErrorMessage(err);
   }
 
-  if (parsed === undefined) return 'history requires a subcommand';
+  if (parsed === undefined) {
+    return 'history requires a subcommand: rebuild, query, pull, status, memory-merge, or memory-effect';
+  }
   return parsed;
 }
 

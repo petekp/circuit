@@ -24,16 +24,37 @@ export function commanderErrorMessage(err: unknown): string {
   return err instanceof Error ? err.message : String(err);
 }
 
-// Configure and parse a program, normalizing CommanderError. A displayed
-// --help exits the process with code 0 (Commander's helpDisplayed signal);
-// any other CommanderError is rethrown as a plain Error carrying the
-// prefix-stripped message; non-Commander errors propagate unchanged. Used
-// by call sites that throw on parse failure (circuit, handoff, create).
+// Commander signals help through two error codes, and neither message is fit
+// for an operator: `commander.helpDisplayed` (an explicit --help/-h, help
+// already printed, exit 0) and `commander.help` (the internal '(outputHelp)'
+// error raised by the help command and by a bare invocation of a program
+// that requires a subcommand). Callers that return messages (runs, history,
+// memory) use this predicate to substitute their real missing-subcommand
+// message instead of leaking the raw '(outputHelp)' token.
+export function isCommanderHelpSignal(err: unknown): err is CommanderError {
+  return (
+    err instanceof CommanderError &&
+    (err.code === 'commander.helpDisplayed' || err.code === 'commander.help')
+  );
+}
+
+// Configure and parse a program, normalizing CommanderError. A successfully
+// displayed help (--help/-h, or a help command that printed and would exit
+// 0) exits the process with code 0; a help raised as a usage error (bare
+// invocation of a subcommand-only program) becomes a plain 'missing
+// subcommand' Error rather than leaking '(outputHelp)'; any other
+// CommanderError is rethrown as a plain Error carrying the prefix-stripped
+// message; non-Commander errors propagate unchanged. Used by call sites
+// that throw on parse failure (circuit, handoff, create).
 export function parseCommanderOrThrow(program: Command, argv: readonly string[]): void {
   try {
     configureCommanderProgram(program).parse(argv, { from: 'user' });
   } catch (err) {
     if (err instanceof CommanderError && err.code === 'commander.helpDisplayed') process.exit(0);
+    if (err instanceof CommanderError && err.code === 'commander.help') {
+      if (err.exitCode === 0) process.exit(0);
+      throw new Error('missing subcommand');
+    }
     if (err instanceof CommanderError) throw new Error(err.message.replace(/^error: /, ''));
     throw err;
   }

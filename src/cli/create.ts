@@ -40,7 +40,7 @@ import { utilityProgress } from './utility-progress.js';
 
 interface CreateArgs {
   readonly name?: string;
-  readonly description?: string;
+  readonly description: string;
   readonly home?: string;
   readonly publish: boolean;
   readonly yes: boolean;
@@ -81,14 +81,23 @@ function parseArgs(argv: readonly string[]): CreateArgs {
   if (opts.progress !== undefined && opts.progress !== 'jsonl') {
     throw new Error("--progress only supports 'jsonl'");
   }
+  // Flag misuse is a usage error and exits 2 through the parse-error path,
+  // like every other command; the operational try/catch below keeps exit 1
+  // for real failures (B4).
+  if (opts.description === undefined || opts.description.length === 0) {
+    throw new Error('--description is required');
+  }
+  if (opts.publish === true && opts.yes !== true) {
+    throw new Error('--publish requires --yes so publish confirmation is explicit');
+  }
 
   return {
     publish: opts.publish === true,
     yes: opts.yes === true,
     decompose: opts.decompose === true,
     progress: opts.progress === 'jsonl',
+    description: opts.description,
     ...(opts.name === undefined ? {} : { name: opts.name }),
-    ...(opts.description === undefined ? {} : { description: opts.description }),
     ...(opts.home === undefined ? {} : { home: opts.home }),
     ...(opts.createdAt === undefined ? {} : { createdAt: opts.createdAt }),
   };
@@ -220,12 +229,6 @@ export async function runCreateCommand(
   }
 
   try {
-    if (args.description === undefined || args.description.length === 0) {
-      throw new Error('--description is required');
-    }
-    if (args.publish && !args.yes) {
-      throw new Error('--publish requires --yes so publish confirmation is explicit');
-    }
     const slug = slugify(args.name ?? args.description);
     assertValidSlug(slug);
     const home = customHome(args.home);

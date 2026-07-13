@@ -36,7 +36,7 @@ import {
   RunStatusFolderError,
   projectRunStatusFromRunFolder,
 } from '../app/run-status/run-folder-projector.js';
-import { INTERNAL_FLOW_IDS, findFlowRuntimeSurfaceById } from '../flows/catalog.js';
+import { INTERNAL_FLOW_IDS, catalogFlowIds, findFlowRuntimeSurfaceById } from '../flows/catalog.js';
 import { discoverRuntimeConfigLayers } from '../shared/config-loader.js';
 import { runsRoot } from '../shared/control-plane-paths.js';
 import { progressDisplay, progressPresentation } from '../shared/progress-output.js';
@@ -139,6 +139,17 @@ export interface RunCommandOptions {
 
 export const CIRCUIT_HOST_KIND_ENV = 'CIRCUIT_HOST_KIND';
 
+// The flow names a misuse error may offer, derived from the catalog's
+// visibility (the same source of truth as INTERNAL_FLOW_IDS) so an internal
+// flow such as pursue is never advertised. Sorted to match the order the
+// unknown-flow listing uses.
+function publicFlowNameOffer(): string {
+  return catalogFlowIds
+    .filter((id) => !INTERNAL_FLOW_IDS.has(id))
+    .sort()
+    .join('|');
+}
+
 function runtimeHostKind(options: RunCommandOptions): HostKindValue | undefined {
   if (options.hostKind !== undefined) return options.hostKind;
   const raw = process.env[CIRCUIT_HOST_KIND_ENV];
@@ -190,7 +201,15 @@ export function parseExecutionArgs(command: 'run' | 'resume', argv: readonly str
 
   let depth: ProcessValue | undefined;
   const processProvided = opts.process !== undefined;
-  if (opts.process !== undefined) depth = Process.parse(opts.process);
+  if (opts.process !== undefined) {
+    // Mirror the --power rejection below: a bad value gets one line naming
+    // the valid values, never a raw schema-error dump.
+    const parsedProcess = Process.safeParse(opts.process);
+    if (!parsedProcess.success) {
+      throw new Error(`--process must be one of ${Process.options.join(', ')}`);
+    }
+    depth = parsedProcess.data;
+  }
 
   let power: PowerDialValue | undefined;
   const powerProvided = opts.power !== undefined;
@@ -295,8 +314,27 @@ export function parseExecutionArgs(command: 'run' | 'resume', argv: readonly str
         'checkpoint resume continues this run in place; --reuse-children-from starts a fresh run that reuses children from a dead run folder, so omit it on resume',
       );
     }
-  } else if (goal === undefined || goal.length === 0) {
-    throw new Error('--goal is required and must be non-empty');
+  } else {
+    // Launch-path mirror of the resume branch above: collect every missing
+    // requirement into one message, so a bare `circuit run` does not reveal
+    // the flow-name requirement only after --goal is supplied.
+    const missingRunInputs: string[] = [];
+    const runRemedies: string[] = [];
+    if (flowName === undefined) {
+      missingRunInputs.push('a flow name');
+      runRemedies.push(`pass one of ${publicFlowNameOffer()} as the first argument`);
+    }
+    if (goal === undefined || goal.length === 0) {
+      missingRunInputs.push('--goal');
+      runRemedies.push('state the goal with a non-empty --goal');
+    }
+    if (missingRunInputs.length > 0) {
+      throw new Error(
+        `${missingRunInputs.join(' and ')} ${
+          missingRunInputs.length > 1 ? 'are' : 'is'
+        } required: ${runRemedies.join(' and ')}`,
+      );
+    }
   }
 
   const axes = Axes.parse({
@@ -351,9 +389,11 @@ function resolveCompiledFlowRoute(args: ParsedArgs): ResolvedCompiledFlowRoute {
     };
   }
   // Routing is model-only: the host or operator names the flow. There is no
-  // deterministic classifier to guess one from the goal text.
+  // deterministic classifier to guess one from the goal text. Defensive:
+  // parseExecutionArgs already rejects a missing flow name on the CLI path,
+  // and both messages derive the offer from the catalog's visibility.
   throw new Error(
-    'a flow name is required: pass one of build|fix|review|explore|prototype|pursue as the first argument',
+    `a flow name is required: pass one of ${publicFlowNameOffer()} as the first argument`,
   );
 }
 
@@ -438,8 +478,10 @@ function progressSurfaceForFlowId(flowId: string) {
 }
 
 function axisAllowListText(flowId: string, support: AxisSupport): string {
-  const depths = support.allowedDepths.join(', ');
-  return `${flowId} allows depths: ${depths}; tournament: ${support.supportsTournament ? 'yes' : 'no'}; autonomous: ${support.supportsAutonomous ? 'yes' : 'no'}`;
+  // Operator prose says "process" (the --process dial); "depth" is a retired
+  // name (UBIQUITOUS_LANGUAGE.md) that stays internal-only.
+  const allowedProcesses = support.allowedDepths.join(', ');
+  return `${flowId} allows process: ${allowedProcesses}; tournament: ${support.supportsTournament ? 'yes' : 'no'}; autonomous: ${support.supportsAutonomous ? 'yes' : 'no'}`;
 }
 
 function validateFlowAxes(input: {

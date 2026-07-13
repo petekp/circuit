@@ -275,7 +275,11 @@ describe('power-derived process clamps to the flow (Review, pinned to medium)', 
     );
     expect(exit).toBe(2);
     expect(stderr).toContain("--process low is not supported by flow 'review'");
-    expect(stderr).toContain('review allows depths: medium');
+    // The allow-list speaks the live vocabulary: the dial is --process, and
+    // "depth" is a retired name (UBIQUITOUS_LANGUAGE.md) that must not appear
+    // on the operator surface.
+    expect(stderr).toContain('review allows process: medium');
+    expect(stderr).not.toContain('depths');
   });
 });
 

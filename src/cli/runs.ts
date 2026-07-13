@@ -5,7 +5,11 @@ import {
   projectRunStatusFromRunFolder,
 } from '../app/run-status/run-folder-projector.js';
 import { type EngineErrorCodeV1, EngineErrorV1 } from '../schemas/run-status.js';
-import { commanderErrorMessage, configureCommanderProgram } from './commander-support.js';
+import {
+  commanderErrorMessage,
+  configureCommanderProgram,
+  isCommanderHelpSignal,
+} from './commander-support.js';
 
 function engineError(input: {
   readonly code: EngineErrorCodeV1;
@@ -51,10 +55,15 @@ function parseShowArgs(argv: readonly string[]): { readonly runFolder: string } 
   try {
     program.parse(argv, { from: 'user' });
   } catch (err) {
-    return commanderErrorMessage(err);
+    // Bare `circuit runs` makes Commander raise its internal help error
+    // ('(outputHelp)') before any action runs; fall through so the operator
+    // sees the real missing-subcommand message below instead of the token.
+    if (!isCommanderHelpSignal(err)) return commanderErrorMessage(err);
   }
 
-  if (showOptions === undefined) return 'runs requires a subcommand';
+  if (showOptions === undefined) {
+    return 'runs requires a subcommand: use circuit runs show --run-folder <path> --json';
+  }
 
   if (showOptions.json !== true) return 'runs show requires --json';
   if (showOptions.runFolder === undefined) return '--run-folder is required';

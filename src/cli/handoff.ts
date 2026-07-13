@@ -48,6 +48,9 @@ type HandoffAction = 'save' | 'resume' | 'done' | 'brief' | 'hook' | 'hooks' | '
 
 interface HandoffArgs {
   readonly action: HandoffAction;
+  // True when the operator typed no subcommand and the parser defaulted to
+  // save. A failure on this path also teaches the command's shape (P9).
+  readonly bareInvocation: boolean;
   readonly hooksAction?: HandoffHooksAction;
   readonly host?: string;
   readonly goal?: string;
@@ -124,6 +127,7 @@ function parseArgs(argv: readonly string[]): HandoffArgs {
   let parsed:
     | {
         readonly action: HandoffAction;
+        readonly bare?: boolean;
         readonly hooksAction?: HandoffHooksAction;
         readonly opts: HandoffCommanderOptions;
       }
@@ -135,7 +139,7 @@ function parseArgs(argv: readonly string[]): HandoffArgs {
       .enablePositionalOptions(),
   );
   program.action(() => {
-    parsed = { action: 'save', opts: program.opts<HandoffCommanderOptions>() };
+    parsed = { action: 'save', bare: true, opts: program.opts<HandoffCommanderOptions>() };
   });
   const addAction = (action: Exclude<HandoffAction, 'hooks'>) => {
     const command = addHandoffOptions(program.command(action));
@@ -165,13 +169,14 @@ function parseArgs(argv: readonly string[]): HandoffArgs {
   parseCommanderOrThrow(program, argv);
   if (parsed === undefined) throw new Error('handoff requires a subcommand');
 
-  const { action, hooksAction, opts } = parsed;
+  const { action, bare, hooksAction, opts } = parsed;
   if (opts.progress !== undefined && opts.progress !== 'jsonl') {
     throw new Error("--progress only supports 'jsonl'");
   }
 
   return {
     action,
+    bareInvocation: bare === true,
     ...(hooksAction === undefined ? {} : { hooksAction }),
     ...(opts.host === undefined ? {} : { host: opts.host }),
     progress: opts.progress === 'jsonl',
@@ -702,6 +707,25 @@ export async function runHandoffCommand(
     } catch (err) {
       process.stderr.write(`error: ${(err as Error).message}\n`);
       return 1;
+    }
+  }
+
+  // Missing save inputs are a usage error and exit 2, like every other
+  // command's misuse path (B4). Both required flags are collected into one
+  // message. The bare form defaulted to save without the operator naming a
+  // subcommand, so its failure also names the subcommands (P9); the
+  // default-to-save behavior itself is unchanged.
+  if (args.action === 'save') {
+    const missingSaveFlags: string[] = [];
+    if (args.goal === undefined || args.goal.length === 0) missingSaveFlags.push('--goal');
+    if (args.next === undefined || args.next.length === 0) missingSaveFlags.push('--next');
+    if (missingSaveFlags.length > 0) {
+      const lead = `saving handoff continuity requires ${missingSaveFlags.join(' and ')}.`;
+      const shape = args.bareInvocation
+        ? ' Bare `circuit handoff` saves by default. Subcommands: save, resume, done, brief, hook, hooks, harvest.'
+        : '';
+      process.stderr.write(`error: ${lead}${shape}\n`);
+      return 2;
     }
   }
 

@@ -72,7 +72,7 @@ const productionRelay: RelayFn = {
 };
 
 interface GenerateArgs {
-  readonly description?: string;
+  readonly description: string;
   readonly name?: string;
   readonly home?: string;
   readonly publish: boolean;
@@ -125,6 +125,15 @@ function parseArgs(argv: readonly string[]): GenerateArgs {
   if (!Number.isInteger(timeoutMs) || timeoutMs <= 0) {
     throw new Error('--timeout-ms must be a positive integer');
   }
+  // Flag misuse is a usage error and exits 2 through the parse-error path,
+  // like every other command; the operational try/catch below keeps exit 1
+  // for real failures (B4).
+  if (opts.description === undefined || opts.description.length === 0) {
+    throw new Error('--description is required');
+  }
+  if (opts.publish === true && opts.yes !== true) {
+    throw new Error('--publish requires --yes so publish confirmation is explicit');
+  }
 
   return {
     publish: opts.publish === true,
@@ -132,7 +141,7 @@ function parseArgs(argv: readonly string[]): GenerateArgs {
     progress: opts.progress === 'jsonl',
     maxRepair,
     timeoutMs,
-    ...(opts.description === undefined ? {} : { description: opts.description }),
+    description: opts.description,
     ...(opts.name === undefined ? {} : { name: opts.name }),
     ...(opts.home === undefined ? {} : { home: opts.home }),
     ...(opts.createdAt === undefined ? {} : { createdAt: opts.createdAt }),
@@ -294,12 +303,6 @@ export async function runGenerateCommand(
   }
 
   try {
-    if (args.description === undefined || args.description.length === 0) {
-      throw new Error('--description is required');
-    }
-    if (args.publish && !args.yes) {
-      throw new Error('--publish requires --yes so publish confirmation is explicit');
-    }
     const home = customHome(args.home);
     const relay = options.relayer ?? productionRelay;
 

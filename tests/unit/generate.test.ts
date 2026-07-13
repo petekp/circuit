@@ -191,11 +191,30 @@ describe('circuit generate — composes and publishes a bespoke flow', () => {
     expect(relay).not.toHaveBeenCalled();
   });
 
-  it('requires --yes to publish', async () => {
+  it('requires --yes to publish, exiting 2 (usage error)', async () => {
     const code = await runGenerateCommand(
       ['--description', 'triage a flaky test', '--home', home, '--publish'],
       { relayer: stubRelayServing(JSON.stringify(RUNNABLE_ROLESET)) },
     );
-    expect(code).toBe(1);
+    expect(code).toBe(2);
+  });
+
+  it('rejects a missing --description as a usage error (exit 2) without spending a model call', async () => {
+    // Missing-flag misuse exits 2 like every other command; the relay must
+    // never fire on a rejected invocation (B4).
+    const relay = vi.fn(
+      async (input: RelayInput): Promise<RelayResult> => ({
+        request_payload: input.prompt,
+        receipt_id: 'stub',
+        result_body: JSON.stringify(RUNNABLE_ROLESET),
+        duration_ms: 1,
+        cli_version: '0.0.0-stub',
+      }),
+    );
+    const code = await runGenerateCommand(['--home', home], {
+      relayer: { connectorName: 'stub', relay },
+    });
+    expect(code).toBe(2);
+    expect(relay).not.toHaveBeenCalled();
   });
 });

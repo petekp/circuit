@@ -389,8 +389,17 @@ describe('utility CLI commands', () => {
       '--publish',
     ]);
 
-    expect(result.code).toBe(1);
+    expect(result.code).toBe(2);
     expect(result.stderr).toContain('--publish requires --yes');
+  });
+
+  it('rejects create without --description as a usage error (exit 2)', async () => {
+    // Missing-flag misuse exits 2 like run/resume/config/memory; exit 1 stays
+    // reserved for operational failures (B4).
+    const result = await captureMain(['create']);
+
+    expect(result.code).toBe(2);
+    expect(result.stderr).toContain('--description is required');
   });
 
   it('accepts equals-form create options through Commander', async () => {
@@ -487,6 +496,36 @@ describe('utility CLI commands', () => {
       action: 'save',
       status: 'saved',
     });
+  });
+
+  it('answers a bare handoff missing its save inputs with the subcommand list (exit 2)', async () => {
+    // Bare `circuit handoff` defaults to save. When that fails for missing
+    // flags, the error must exit 2 (usage) and teach the command's shape by
+    // naming the subcommands, since the operator never typed one (B4/P9).
+    const controlPlane = tempRoot('circuit-handoff-bare-usage-');
+    const result = await captureMain(['handoff', '--control-plane', controlPlane]);
+
+    expect(result.code).toBe(2);
+    expect(result.stderr).toContain('--goal');
+    expect(result.stderr).toContain('--next');
+    expect(result.stderr).toContain('save, resume, done, brief, hook, hooks, harvest');
+  });
+
+  it('rejects handoff save without --goal as a usage error (exit 2)', async () => {
+    const controlPlane = tempRoot('circuit-handoff-save-usage-');
+    const result = await captureMain([
+      'handoff',
+      'save',
+      '--next',
+      'DO: continue the parity matrix',
+      '--control-plane',
+      controlPlane,
+    ]);
+
+    expect(result.code).toBe(2);
+    expect(result.stderr).toContain('--goal');
+    // --next was supplied, so the collected message must not demand it.
+    expect(result.stderr).not.toContain('--next');
   });
 
   it('returns a clean invalid envelope and exits non-zero when resuming a malformed record', async () => {

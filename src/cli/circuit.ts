@@ -10,6 +10,12 @@ import { runDoctorCommand } from './doctor.js';
 import { runFrontDoorCommand } from './front-door.js';
 import { runGenerateCommand } from './generate.js';
 import { runHandoffCommand } from './handoff.js';
+import {
+  commandWordList,
+  renderCommandHelp,
+  renderRootHelp,
+  resolveHelpInvocation,
+} from './help.js';
 import { runHistoryCommand } from './history.js';
 import { runMemoryCommand } from './memory.js';
 import { runPreviewCommand } from './preview.js';
@@ -22,7 +28,6 @@ import {
   runResumeCommand,
 } from './run.js';
 import { runRunsCommand } from './runs.js';
-import { CLI_RUNTIME_ROUTING_POLICY } from './runtime-routing-policy.js';
 import { runUninstallCommand } from './uninstall.js';
 import { readSourceVersion } from './version-info.js';
 
@@ -48,38 +53,6 @@ export interface CliMainOptions extends RunCommandOptions {
 }
 
 export { CIRCUIT_HOST_KIND_ENV } from './run.js';
-
-export function usage(): string {
-  return [
-    'usage: circuit run <flow-name> --goal "<goal>" [--why <why>] [--power <auto|low|medium|high>] [--process <low|medium|high>] [--tournament [2|3|4]] [--autonomous] [--run-folder <path>] [--fixture <path>] [--flow-root <path>] [--progress jsonl]',
-    '       circuit resume --run-folder <path> --checkpoint-choice <choice> [--progress jsonl]',
-    '       circuit runs show --run-folder <path> --json',
-    '       circuit checkpoints [--project-root <path>] [--runs-base <path>] [--json]',
-    '       circuit history rebuild|query|pull|status|memory-merge|memory-effect --json [options]',
-    '       circuit memory note --flow <id> [--applies-to <kind>] "<text>" | memory list | memory forget <id>',
-    '       circuit handoff [save|resume|done|brief|hook|hooks|harvest] [options]',
-    '       circuit create --description "<flow idea>" [--name <slug>] [--publish --yes]',
-    '       circuit generate --description "<task to encode>" [--name <slug>] [--publish --yes]',
-    '       circuit uninstall [--dir <path>] [--json]',
-    '       circuit reclaim [--json]',
-    '       circuit preview [flow-name] [--power <auto|low|medium|high>] [--matrix] [--json]',
-    '       circuit doctor [--json]',
-    '       circuit config [show [--json] | set <key> <value> | unset <key>] [--project|--global]',
-    '       circuit version [--json]',
-    '',
-    "Axes: `--power` sets the model tier (`auto`, `low`, `medium`, `high`; default `medium`; `auto` lets the run's research read pick within configured bounds) and also derives process thoroughness (`low`→`low`, `medium`→`medium`, `high`→`high`, `auto`→`medium`), clamped to each flow's supported set; `--process` overrides the derived care level (`low`, `medium`, `high`) when an explicit value beats the derivation; `--tournament` turns on option fan-out, with an optional inline count in the v1 range [2, 4] (e.g. `--tournament 3`; default 3 when omitted); `--autonomous` auto-resolves supported checkpoints and runs a bounded continuation loop (recovery routed by unmet evidence kind; never completes by exhaustion). Unsupported tuples are rejected per flow with the flow allow-list.",
-    '',
-    'With an explicit flow name, loads generated/flows/<name>/circuit.json. The flow name is required: pass one of build|fix|review|explore|prototype|pursue. Routing is model-only; the host or operator names the flow, and the CLI never classifies the goal text.',
-    '',
-    'Config: if present, loads ~/.config/circuit/config.yaml and ./.circuit/config.yaml from the current working directory into the selection resolver before relay.',
-    '',
-    'Note: `--dry-run` is not implemented and is rejected. An earlier version silently invoked the real connector while reporting dry_run:true, which is a safety bug; the flag stays rejected until real dry-run support lands.',
-    '',
-    CLI_RUNTIME_ROUTING_POLICY,
-    '',
-    'Review evidence: untracked file contents are omitted by default. Add `--include-untracked-content` only when those files are safe to relay to the configured worker.',
-  ].join('\n');
-}
 
 function versionInfo(): Record<string, unknown> {
   return {
@@ -127,6 +100,23 @@ function runVersionCommand(argv: readonly string[]): number {
   return 0;
 }
 
+// Rewrite root parse errors so the message names its remedy. A far-miss
+// unknown command gets the front-door pointer (near misses already carry
+// Commander's did-you-mean suggestion); `--version` names the version
+// command (the grammar is frozen, so the flag itself stays rejected).
+function withRootRemedy(message: string): string {
+  if (
+    message.startsWith("unknown option '--version'") ||
+    message.startsWith("unknown option '-V'")
+  ) {
+    return `${message}. The version is a command here: run 'circuit version'.`;
+  }
+  if (message.startsWith('unknown command') && !message.includes('Did you mean')) {
+    return `${message}. Valid commands: ${commandWordList()}. See 'circuit --help'.`;
+  }
+  return message;
+}
+
 function parseTopLevelInvocation(argv: readonly string[]): TopLevelInvocation {
   let invocation: TopLevelInvocation | undefined;
   const program = new Command('circuit').exitOverride().configureOutput({ writeErr: () => {} });
@@ -142,12 +132,14 @@ function parseTopLevelInvocation(argv: readonly string[]): TopLevelInvocation {
   };
   for (const name of CLI_COMMAND_NAMES) addForwardingCommand(name);
 
-  parseCommanderOrThrow(program, argv);
+  try {
+    parseCommanderOrThrow(program, argv);
+  } catch (err) {
+    throw new Error(withRootRemedy(err instanceof Error ? err.message : String(err)));
+  }
 
   if (invocation === undefined) {
-    throw new Error(
-      'missing command: use run, resume, handoff, history, memory, create, generate, uninstall, runs, reclaim, checkpoints, preview, doctor, config, or version',
-    );
+    throw new Error(`missing command: use ${commandWordList()}`);
   }
   return invocation;
 }
@@ -169,6 +161,24 @@ export async function main(argv: readonly string[], options: CliMainOptions = {}
       return launch();
     }
     return runFrontDoorCommand();
+  }
+
+  // Help never reaches the Commander forwarding parser below: its stubs
+  // parse `<cmd> [args...]` and Commander's generated help for them is an
+  // empty shell. Successful help prints to stdout and RETURNS 0 (no
+  // process.exit, nothing on stderr); an unknown help topic is a usage
+  // error (2) that names the valid commands.
+  const help = resolveHelpInvocation(argv);
+  if (help !== undefined) {
+    if (help.kind === 'unknown-command') {
+      process.stderr.write(
+        `error: unknown command '${help.word}'. Valid commands: ${commandWordList()}. See 'circuit --help'.\n`,
+      );
+      return 2;
+    }
+    const page = help.kind === 'root' ? renderRootHelp() : renderCommandHelp(help.command);
+    process.stdout.write(`${page}\n`);
+    return 0;
   }
 
   let invocation: TopLevelInvocation;

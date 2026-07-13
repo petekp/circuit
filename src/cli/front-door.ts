@@ -30,6 +30,7 @@ export function renderFrontDoor(): string {
     '',
     `${palette.bold('history and upkeep')}`,
     line('circuit runs show / history / memory', 'inspect past runs and operator notes'),
+    line('circuit doctor', 'connector health and run readiness'),
     line('circuit reclaim / uninstall / version', 'housekeeping'),
     '',
     palette.dim('interactive: run `circuit` in a terminal to browse, configure, and create flows'),
