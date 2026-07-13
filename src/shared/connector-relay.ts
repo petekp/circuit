@@ -50,7 +50,13 @@ export interface RelayResult {
 
 export interface ConnectorRelayInput {
   prompt: string;
+  // Per-step absolute wall-clock ceiling (budgets.wall_clock_ms). The
+  // connector's default backstop applies when absent.
   timeoutMs?: number;
+  // Per-step inactivity ceiling (budgets.inactivity_ms), for steps whose relay
+  // legitimately goes silent longer than the connector default. The connector's
+  // default inactivity bound applies when absent.
+  idleTimeoutMs?: number;
   cwd?: string;
   resolvedSelection?: ResolvedSelection;
   // JSON Schema (draft-07) describing the worker's final response shape.

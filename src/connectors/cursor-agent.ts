@@ -12,8 +12,11 @@ import { connectorRemediation } from './remediation.js';
 import {
   type ConnectorSubprocessResult,
   cappedSuffix,
+  condenseRepeatedLines,
+  connectorFailureSummary,
   describeTimeout,
   isConnectorSubprocessSpawnError,
+  launchFailureSummary,
   runConnectorSubprocess,
   spawnErrorVerb,
 } from './subprocess.js';
@@ -33,9 +36,11 @@ export const CURSOR_AGENT_DISPATCH_FLAGS = Object.freeze([
 
 // Inactivity + absolute backstop bounds, kept in step with the other CLI-agent
 // connectors; see claude-code.ts for the rationale (silence, not total elapsed
-// time, is what a hung streaming relay looks like). A step's
-// `budgets.wall_clock_ms` overrides the absolute backstop when present.
-const DEFAULT_IDLE_TIMEOUT_MS = 180_000;
+// time, is what a hung streaming relay looks like — 10 minutes because the
+// 3-minute default killed a healthy silent relay in Build run 37a27314). A
+// step's `budgets.wall_clock_ms` overrides the absolute backstop and its
+// `budgets.inactivity_ms` overrides the inactivity bound when present.
+const DEFAULT_IDLE_TIMEOUT_MS = 600_000;
 const DEFAULT_ABSOLUTE_TIMEOUT_MS = 3_600_000;
 const SIGTERM_TO_SIGKILL_GRACE_MS = 2_000;
 const STDOUT_MAX_BYTES = 16 * 1024 * 1024;
@@ -55,7 +60,12 @@ function captureCursorAgentVersion(): string {
       stdio: ['ignore', 'pipe', 'pipe'],
     });
   } catch (err) {
-    throw new Error(`cursor-agent --version failed: ${(err as Error).message}`);
+    const message = (err as Error).message;
+    // A dead `cursor-agent --version` is a launch failure: lead with the plain
+    // sentence (ENOENT = not installed) and keep the raw detail after it.
+    throw new Error(
+      `${launchFailureSummary(CURSOR_AGENT_EXECUTABLE, message)} cursor-agent --version failed: ${message}. ${connectorRemediation('cursor-agent')}`,
+    );
   }
   const version = stdout.trim();
   if (version.length === 0) {
@@ -104,9 +114,11 @@ export function buildCursorAgentArgs(input: CursorAgentRelayInput): string[] {
 }
 
 export async function relayCursorAgent(input: CursorAgentRelayInput): Promise<RelayResult> {
-  // A per-step budget maps to the absolute wall-clock backstop; the inactivity
-  // bound stays at its default and is what reclaims a silent (wedged) relay.
+  // Per-step budgets map onto both bounds: budgets.wall_clock_ms overrides the
+  // absolute backstop, budgets.inactivity_ms overrides the inactivity bound.
+  // Each falls back to the connector default when absent.
   const absoluteTimeoutMs = input.timeoutMs ?? DEFAULT_ABSOLUTE_TIMEOUT_MS;
+  const idleTimeoutMs = input.idleTimeoutMs ?? DEFAULT_IDLE_TIMEOUT_MS;
   const cliVersion = captureCursorAgentVersion();
   const args = buildCursorAgentArgs(input);
   let result: ConnectorSubprocessResult;
@@ -115,7 +127,7 @@ export async function relayCursorAgent(input: CursorAgentRelayInput): Promise<Re
       executable: CURSOR_AGENT_EXECUTABLE,
       args,
       timeoutMs: absoluteTimeoutMs,
-      idleTimeoutMs: DEFAULT_IDLE_TIMEOUT_MS,
+      idleTimeoutMs,
       stdoutMaxBytes: STDOUT_MAX_BYTES,
       stderrMaxBytes: STDERR_MAX_BYTES,
       sigtermToSigkillGraceMs: SIGTERM_TO_SIGKILL_GRACE_MS,
@@ -124,8 +136,10 @@ export async function relayCursorAgent(input: CursorAgentRelayInput): Promise<Re
     });
   } catch (error) {
     if (isConnectorSubprocessSpawnError(error)) {
+      // Lead with one plain sentence naming what happened and the fix; the
+      // raw spawn detail follows it.
       throw new Error(
-        `cursor-agent subprocess ${spawnErrorVerb(error)}: ${error.message}. ${connectorRemediation('cursor-agent')}`,
+        `${launchFailureSummary(CURSOR_AGENT_EXECUTABLE, error.message)} cursor-agent subprocess ${spawnErrorVerb(error)}: ${error.message}. ${connectorRemediation('cursor-agent')}`,
       );
     }
     throw error;
@@ -134,7 +148,7 @@ export async function relayCursorAgent(input: CursorAgentRelayInput): Promise<Re
     const stdoutSuffix = cappedSuffix(result.stdoutCapped, 'stdout');
     const stderrSuffix = cappedSuffix(result.stderrCapped, 'stderr');
     const cause = describeTimeout(result, {
-      idleMs: DEFAULT_IDLE_TIMEOUT_MS,
+      idleMs: idleTimeoutMs,
       absoluteMs: absoluteTimeoutMs,
     });
     throw new Error(
@@ -144,8 +158,19 @@ export async function relayCursorAgent(input: CursorAgentRelayInput): Promise<Re
   if (result.code !== 0) {
     const stdoutSuffix = cappedSuffix(result.stdoutCapped, 'stdout');
     const stderrSuffix = cappedSuffix(result.stderrCapped, 'stderr');
+    // One plain sentence leads when the failure matches a known class. This
+    // connector's output is plain text (no structured stream), and the CLI
+    // reports sign-in problems on stdout, so stdout is scanned here too.
+    const summary = connectorFailureSummary({
+      cli: CURSOR_AGENT_EXECUTABLE,
+      signInHint: 'Run `cursor-agent login` to sign in',
+      stderr: result.stderr,
+      stdout: result.stdout,
+      streamError: undefined,
+    });
+    const lead = summary === undefined ? '' : `${summary} `;
     throw new Error(
-      `cursor-agent subprocess exited with code ${result.code}${result.signal ? ` (signal ${result.signal})` : ''}; stdout[:500]=${result.stdout.slice(0, 500)}${stdoutSuffix}; stderr[:500]=${result.stderr.slice(0, 500)}${stderrSuffix}`,
+      `${lead}cursor-agent subprocess exited with code ${result.code}${result.signal ? ` (signal ${result.signal})` : ''}; stdout[:500]=${result.stdout.slice(0, 500)}${stdoutSuffix}; stderr[:500]=${condenseRepeatedLines(result.stderr).slice(0, 500)}${stderrSuffix}`,
     );
   }
   if (result.stdoutCapped) {

@@ -159,9 +159,174 @@ export function describeTimeout(
   bounds: { readonly idleMs?: number; readonly absoluteMs: number },
 ): string {
   if (result.timeoutKind === 'idle' && bounds.idleMs !== undefined) {
-    return `no output for ${bounds.idleMs}ms (inactivity)`;
+    return `no output for ${bounds.idleMs}ms (inactivity; a step that legitimately goes silent longer can raise budgets.inactivity_ms)`;
   }
   return `exceeded the ${bounds.absoluteMs}ms wall-clock backstop`;
+}
+
+// ---------------------------------------------------------------------------
+// Launch-failure interpreter, shared by the CLI-agent connectors
+// (claude-code, codex, cursor-agent). When a connector CLI dies at launch, the
+// raw evidence — a Node spawn error, a stderr storm, a stream error buried at
+// the end of stdout — is illegible on its own. These helpers turn the known
+// failure classes into ONE plain sentence that leads the relay error: what
+// happened, whose fault it is, and what to do next. The raw detail always
+// stays AFTER the plain sentence (truncated), never instead of it.
+// ---------------------------------------------------------------------------
+
+// Sign-in failure wording observed across the three CLIs (claude prints
+// "Not logged in - Please run /login"; codex and cursor-agent print variants
+// of "not logged in"). Kept in step with the doctor-side pattern in
+// health.ts (which subprocess.ts cannot import without a cycle).
+const SIGNED_OUT_OUTPUT_PATTERN =
+  /not logged in|logged out|unauthenticated|login required|not signed in|sign in required|please run \/login|invalid api key/i;
+
+const SANDBOX_DENIAL_PATTERN = /operation not permitted/gi;
+// A single "Operation not permitted" can be an app-level detail; a repeated
+// storm of them is the signature of a sandboxed launch (observed 10x in one
+// codex run, drowning the actual failure).
+const SANDBOX_DENIAL_MIN_COUNT = 3;
+
+const STREAM_ERROR_MESSAGE_MAX_CHARS = 400;
+
+// One plain sentence for a subprocess that never launched (spawn threw or the
+// CLI's --version shellout failed). `errorText` is the raw error message the
+// failure produced; it is only pattern-matched here — callers keep it in the
+// detail section of their error.
+export function launchFailureSummary(cli: string, errorText: string): string {
+  if (errorText.includes('ENOENT')) {
+    return `The ${cli} CLI is not installed or not on your PATH (spawn ENOENT). Run \`circuit doctor\` to check connector health.`;
+  }
+  if (errorText.includes('EACCES')) {
+    return `The ${cli} CLI was found but cannot be executed (EACCES). Fix its file permissions, or run \`circuit doctor\` to check connector health.`;
+  }
+  return `The ${cli} CLI failed to start. Run \`circuit doctor\` to check connector health.`;
+}
+
+export interface ConnectorFailureSummaryInput {
+  // Executable name as the operator knows it: 'claude', 'codex', 'cursor-agent'.
+  readonly cli: string;
+  // Connector-specific sign-in instruction, e.g. 'Run `codex login` to sign in'.
+  readonly signInHint: string;
+  readonly stderr: string;
+  // Scanned for sign-in wording only where the CLI reports failures on stdout
+  // as plain text (cursor-agent). Pass '' for stream-JSON connectors — their
+  // stdout is conversation content and would false-positive.
+  readonly stdout: string;
+  // The last error-typed stream event extracted from stdout (see
+  // lastStreamErrorMessage), when the connector has a structured stream.
+  readonly streamError: string | undefined;
+}
+
+// One plain sentence for a CLI that launched and then failed, classified from
+// its captured output. Returns undefined when nothing recognizable matched —
+// callers then fall back to their existing raw-detail error.
+export function connectorFailureSummary(input: ConnectorFailureSummaryInput): string | undefined {
+  const scanned = `${input.stderr}\n${input.stdout}\n${input.streamError ?? ''}`;
+  if (SIGNED_OUT_OUTPUT_PATTERN.test(scanned)) {
+    return `The ${input.cli} CLI is not logged in. ${input.signInHint}, or run \`circuit doctor\` to check connector health.`;
+  }
+  const denialCount = (scanned.match(SANDBOX_DENIAL_PATTERN) ?? []).length;
+  if (denialCount >= SANDBOX_DENIAL_MIN_COUNT) {
+    // The storm itself is noise; the real failure is usually the last stderr
+    // line that is NOT part of it. Surface that line so it stops drowning.
+    const realFailure = lastLineWithout(input.stderr, /operation not permitted/i);
+    const lastErrorClause =
+      realFailure === undefined ? '' : ` Last error: ${JSON.stringify(realFailure)}.`;
+    return `The ${input.cli} CLI was blocked by this machine's sandbox (${denialCount} "Operation not permitted" errors).${lastErrorClause} Rerun outside the sandbox that is blocking it, or run \`circuit doctor\` to check connector health.`;
+  }
+  if (input.streamError !== undefined) {
+    const trimmed = input.streamError.trim();
+    return `The ${input.cli} CLI reported an error: ${trimmed}${trimmed.endsWith('.') ? '' : '.'}`;
+  }
+  return undefined;
+}
+
+function lastLineWithout(text: string, exclude: RegExp): string | undefined {
+  const lines = text.split('\n');
+  for (let i = lines.length - 1; i >= 0; i -= 1) {
+    const line = (lines[i] as string).trim();
+    if (line.length > 0 && !exclude.test(line)) return line;
+  }
+  return undefined;
+}
+
+// Scan a captured stream-JSON stdout for the LAST error-typed event and return
+// its human message. A failed relay puts the real failure near the END of the
+// stream (the head is the init handshake), so an error built from the head
+// alone cuts the diagnosis off. Tolerant by design: lines that fail to parse
+// are skipped rather than aborting the scan — a partial stream must still give
+// up its terminal error. Covers the claude-code shapes (type:'error', an
+// `error` field, a result flagged is_error) and the codex shapes (type:'error',
+// type:'turn.failed', a nested error item).
+export function lastStreamErrorMessage(stdout: string): string | undefined {
+  let found: string | undefined;
+  for (const line of stdout.split('\n')) {
+    if (line.trim().length === 0) continue;
+    let parsed: unknown;
+    try {
+      parsed = JSON.parse(line);
+    } catch {
+      continue;
+    }
+    if (typeof parsed !== 'object' || parsed === null || Array.isArray(parsed)) continue;
+    const message = streamErrorMessageFrom(parsed as Record<string, unknown>);
+    if (message !== undefined) found = message;
+  }
+  return found === undefined ? undefined : found.slice(0, STREAM_ERROR_MESSAGE_MAX_CHARS);
+}
+
+function streamErrorMessageFrom(entry: Record<string, unknown>): string | undefined {
+  // codex nested error item: {type:'item.completed', item:{type:'error', message}}.
+  const item = entry.item;
+  if (typeof item === 'object' && item !== null && !Array.isArray(item)) {
+    const itemRecord = item as Record<string, unknown>;
+    if (itemRecord.type === 'error') {
+      return typeof itemRecord.message === 'string' && itemRecord.message.length > 0
+        ? itemRecord.message
+        : JSON.stringify(itemRecord).slice(0, STREAM_ERROR_MESSAGE_MAX_CHARS);
+    }
+  }
+  const errorField = entry.error === null ? undefined : entry.error;
+  const errorTyped = entry.type === 'error' || entry.type === 'turn.failed';
+  const errorResult = entry.is_error === true;
+  if (!errorTyped && !errorResult && errorField === undefined) return undefined;
+  if (typeof entry.message === 'string' && entry.message.length > 0) return entry.message;
+  if (typeof entry.result === 'string' && entry.result.length > 0) return entry.result;
+  if (typeof errorField === 'string' && errorField.length > 0) return errorField;
+  if (typeof errorField === 'object' && errorField !== null && !Array.isArray(errorField)) {
+    const nested = (errorField as Record<string, unknown>).message;
+    if (typeof nested === 'string' && nested.length > 0) return nested;
+  }
+  if (errorTyped || errorResult) {
+    return JSON.stringify(entry).slice(0, STREAM_ERROR_MESSAGE_MAX_CHARS);
+  }
+  // An inert `error` field with no readable message is not clearly an error
+  // event; claiming it would put noise ahead of real diagnostics.
+  return undefined;
+}
+
+// Collapse consecutive identical lines into one line plus a repeat marker, so
+// a warning storm (the observed codex sandbox case: the same WARN line 10x)
+// cannot push the real failure past a truncation cap. Runs of blank lines
+// collapse silently to one.
+export function condenseRepeatedLines(text: string): string {
+  const lines = text.split('\n');
+  const out: string[] = [];
+  let i = 0;
+  while (i < lines.length) {
+    const line = lines[i] as string;
+    let j = i + 1;
+    while (j < lines.length && lines[j] === line) j += 1;
+    const count = j - i;
+    if (count > 1) {
+      out.push(line.trim().length === 0 ? line : `${line} [repeated ${count} times]`);
+    } else {
+      out.push(line);
+    }
+    i = j;
+  }
+  return out.join('\n');
 }
 
 // Split a connector's stdout into NDJSON objects: one JSON object per
@@ -222,6 +387,14 @@ export async function runConnectorSubprocess(
     let timeoutKind: ConnectorTimeoutKind | undefined;
     let killGroupSucceeded = false;
 
+    // Kill the whole process group, falling back to the direct child if the
+    // group signal is refused (the child already died and took the group with
+    // it, or the platform rejects group signals). Known limit: if BOTH kills
+    // fail, this returns false and the worker may be left running as an
+    // orphan — the timeout message's 'group-kill failed' marker is the only
+    // signal. There is no safe third option from this process: retrying
+    // signals a possibly-reused pid, so the honest move is to report and
+    // move on.
     const killProcessGroup = (signal: NodeJS.Signals): boolean => {
       const pid = child.pid;
       if (typeof pid !== 'number') return false;

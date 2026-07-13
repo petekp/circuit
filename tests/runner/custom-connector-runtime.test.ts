@@ -150,7 +150,7 @@ describe('custom connector runtime protocol', () => {
     );
   });
 
-  it('fails timed-out connectors with a timeout reason', async () => {
+  it('fails timed-out connectors naming the bound that fired and its remedy', async () => {
     const script = [
       "console.error('custom connector still running');",
       'setInterval(() => {}, 1000);',
@@ -163,6 +163,8 @@ describe('custom connector runtime protocol', () => {
         timeoutMs: 20,
         resolvedSelection: { skills: [], invocation_options: {} },
       }),
-    ).rejects.toThrow(/custom connector 'test-reviewer' timed out after 20ms;.*stderr\[:500\]=/s);
+    ).rejects.toThrow(
+      /custom connector 'test-reviewer' timed out: exceeded the 20ms wall-clock backstop.*budgets\.wall_clock_ms.*stderr\[:500\]=/s,
+    );
   });
 });

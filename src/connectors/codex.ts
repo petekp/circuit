@@ -1,4 +1,5 @@
 import { execFileSync } from 'node:child_process';
+import { readFileSync } from 'node:fs';
 import { mkdtemp, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join as joinPath } from 'node:path';
@@ -7,13 +8,17 @@ import type { Effort } from '../schemas/selection-policy.js';
 import type { ResolvedSelection } from '../schemas/selection-policy.js';
 import type { ConnectorRelayInput, RelayResult } from '../shared/connector-relay.js';
 import { extractJsonObject } from '../shared/json-extraction.js';
-import { resolveCodexDefaultModel } from './codex-default-model.js';
+import { codexModelsCachePath, resolveCodexDefaultModel } from './codex-default-model.js';
 import { connectorRemediation } from './remediation.js';
 import {
   type ConnectorSubprocessResult,
   cappedSuffix,
+  condenseRepeatedLines,
+  connectorFailureSummary,
   describeTimeout,
   isConnectorSubprocessSpawnError,
+  lastStreamErrorMessage,
+  launchFailureSummary,
   parseNdjsonObjects,
   runConnectorSubprocess,
   spawnErrorVerb,
@@ -125,11 +130,13 @@ for (const forbidden of CODEX_FORBIDDEN_ARGV_TOKENS) {
 
 // Inactivity + absolute backstop bounds, kept in step with the other CLI-agent
 // connectors; see claude-code.ts for the rationale (silence, not total elapsed
-// time, is what a hung streaming relay looks like). Codex streams its `--json`
-// events while it works, so the inactivity bound reclaims a wedged relay while a
-// slow-but-alive one runs to completion. A step's `budgets.wall_clock_ms`
-// overrides the absolute backstop when present.
-const DEFAULT_IDLE_TIMEOUT_MS = 180_000;
+// time, is what a hung streaming relay looks like — 10 minutes because the
+// 3-minute default killed a healthy silent relay in Build run 37a27314). Codex
+// streams its `--json` events while it works, so the inactivity bound reclaims
+// a wedged relay while a slow-but-alive one runs to completion. A step's
+// `budgets.wall_clock_ms` overrides the absolute backstop and its
+// `budgets.inactivity_ms` overrides the inactivity bound when present.
+const DEFAULT_IDLE_TIMEOUT_MS = 600_000;
 const DEFAULT_ABSOLUTE_TIMEOUT_MS = 3_600_000;
 
 // Grace period between SIGTERM and SIGKILL, modeled on claude-code.ts.
@@ -182,7 +189,12 @@ function captureCodexVersion(): string {
       stdio: ['ignore', 'pipe', 'pipe'],
     });
   } catch (err) {
-    throw new Error(`codex --version failed: ${(err as Error).message}`);
+    const message = (err as Error).message;
+    // A dead `codex --version` is a launch failure: lead with the plain
+    // sentence (ENOENT = not installed) and keep the raw detail after it.
+    throw new Error(
+      `${launchFailureSummary(CODEX_EXECUTABLE, message)} codex --version failed: ${message}. ${connectorRemediation('codex')}`,
+    );
   }
   // Expected format: "codex-cli 0.118.0" (one line, may include trailing
   // newline). Parse liberally: strip whitespace, keep whatever token(s)
@@ -433,10 +445,41 @@ async function cleanupSchemaTempDir(dir: string | undefined): Promise<void> {
   }
 }
 
+// When a failed relay's stream error mentions the model, check the spawned
+// model id against the local codex models cache — the same file the default
+// resolver reads (codex-default-model.ts). Entirely local: no network, and
+// silent on ANY doubt (unreadable cache, malformed cache, model present).
+// This is deliberately an error-path hint, not a pre-spawn gate: the cache
+// can be stale or list-only, so a model missing from it can still be valid —
+// refusing to spawn on that evidence would abort healthy runs.
+function codexModelCacheHint(model: string | undefined, streamError: string | undefined): string {
+  if (model === undefined || streamError === undefined) return '';
+  if (!/model/i.test(streamError)) return '';
+  let slugs: readonly string[];
+  try {
+    const parsed: unknown = JSON.parse(readFileSync(codexModelsCachePath(), 'utf8'));
+    const models = (parsed as { models?: unknown } | null)?.models;
+    if (!Array.isArray(models)) return '';
+    slugs = models
+      .map((entry) =>
+        typeof entry === 'object' && entry !== null
+          ? (entry as Record<string, unknown>).slug
+          : undefined,
+      )
+      .filter((slug): slug is string => typeof slug === 'string');
+  } catch {
+    return '';
+  }
+  if (slugs.includes(model)) return '';
+  return ` The model id '${model}' is not in the local Codex models cache, so it may be misspelled or not available to this account. Check the model set in your Circuit config, or run \`circuit doctor\`.`;
+}
+
 export async function relayCodex(input: CodexRelayInput): Promise<RelayResult> {
-  // A per-step budget maps to the absolute wall-clock backstop; the inactivity
-  // bound stays at its default and is what reclaims a silent (wedged) relay.
+  // Per-step budgets map onto both bounds: budgets.wall_clock_ms overrides the
+  // absolute backstop, budgets.inactivity_ms overrides the inactivity bound.
+  // Each falls back to the connector default when absent.
   const absoluteTimeoutMs = input.timeoutMs ?? DEFAULT_ABSOLUTE_TIMEOUT_MS;
+  const idleTimeoutMs = input.idleTimeoutMs ?? DEFAULT_IDLE_TIMEOUT_MS;
   const cli_version = captureCodexVersion();
   // Acquire the schema temp file FIRST and put every subsequent operation
   // inside the try block. If `buildCodexArgs` throws (boundary assertion)
@@ -475,7 +518,7 @@ export async function relayCodex(input: CodexRelayInput): Promise<RelayResult> {
         executable: CODEX_EXECUTABLE,
         args,
         timeoutMs: absoluteTimeoutMs,
-        idleTimeoutMs: DEFAULT_IDLE_TIMEOUT_MS,
+        idleTimeoutMs,
         stdoutMaxBytes: STDOUT_MAX_BYTES,
         stderrMaxBytes: STDERR_MAX_BYTES,
         sigtermToSigkillGraceMs: SIGTERM_TO_SIGKILL_GRACE_MS,
@@ -484,8 +527,10 @@ export async function relayCodex(input: CodexRelayInput): Promise<RelayResult> {
       });
     } catch (error) {
       if (isConnectorSubprocessSpawnError(error)) {
+        // Lead with one plain sentence naming what happened and the fix; the
+        // raw spawn detail follows it.
         throw new Error(
-          `codex subprocess ${spawnErrorVerb(error)}: ${error.message}. ${connectorRemediation('codex')}`,
+          `${launchFailureSummary(CODEX_EXECUTABLE, error.message)} codex subprocess ${spawnErrorVerb(error)}: ${error.message}. ${connectorRemediation('codex')}`,
         );
       }
       throw error;
@@ -495,7 +540,7 @@ export async function relayCodex(input: CodexRelayInput): Promise<RelayResult> {
       const stdoutSuffix = cappedSuffix(result.stdoutCapped, 'stdout');
       const stderrSuffix = cappedSuffix(result.stderrCapped, 'stderr');
       const cause = describeTimeout(result, {
-        idleMs: DEFAULT_IDLE_TIMEOUT_MS,
+        idleMs: idleTimeoutMs,
         absoluteMs: absoluteTimeoutMs,
       });
       throw new Error(
@@ -505,8 +550,24 @@ export async function relayCodex(input: CodexRelayInput): Promise<RelayResult> {
     if (result.code !== 0) {
       const stdoutSuffix = cappedSuffix(result.stdoutCapped, 'stdout');
       const stderrSuffix = cappedSuffix(result.stderrCapped, 'stderr');
+      // The stream's LAST error-typed event is the real diagnosis for a failed
+      // --json relay: the stdout head is handshake events, so a message built
+      // from the head alone cuts the actual failure off.
+      const streamError = lastStreamErrorMessage(result.stdout);
+      const summary = connectorFailureSummary({
+        cli: CODEX_EXECUTABLE,
+        signInHint: 'Run `codex login` to sign in',
+        stderr: result.stderr,
+        stdout: '',
+        streamError,
+      });
+      // Purely local model-id check against the same models cache the default
+      // resolver reads — no network. Only speaks up when the stream error
+      // looks model-related AND the spawned model is absent from the cache.
+      const modelHint = codexModelCacheHint(effectiveModel, streamError);
+      const lead = summary === undefined ? '' : `${summary}${modelHint} `;
       throw new Error(
-        `codex subprocess exited with code ${result.code}${result.signal ? ` (signal ${result.signal})` : ''}; stdout[:500]=${result.stdout.slice(0, 500)}${stdoutSuffix}; stderr[:2000]=${result.stderr.slice(0, 2000)}${stderrSuffix}`,
+        `${lead}codex subprocess exited with code ${result.code}${result.signal ? ` (signal ${result.signal})` : ''}; stdout[:500]=${result.stdout.slice(0, 500)}${stdoutSuffix}; stderr[:2000]=${condenseRepeatedLines(result.stderr).slice(0, 2000)}${stderrSuffix}`,
       );
     }
     if (result.stdoutCapped) {
@@ -602,11 +663,7 @@ const CODEX_TESTED_CLI_RANGE = '0.118 to 0.130';
 // stays fail-closed — this only makes the cause and the fix legible.
 // `detectedVersion` is the `codex --version` string captured for this relay.
 function codexUnknownTypeRemediation(detectedVersion: string): string {
-  return (
-    `Circuit was tested against Codex CLI ${CODEX_TESTED_CLI_RANGE}, and your Codex CLI reports "${detectedVersion}". ` +
-    'The likely cause is a Codex CLI newer than Circuit has been tested against, which added a type Circuit has not reviewed yet. ' +
-    'Check your Codex CLI version with: codex --version, and pin it to a version in the tested range if it is newer.'
-  );
+  return `Circuit was tested against Codex CLI ${CODEX_TESTED_CLI_RANGE}, and your Codex CLI reports "${detectedVersion}". The likely cause is a Codex CLI newer than Circuit has been tested against, which added a type Circuit has not reviewed yet. Check your Codex CLI version with: codex --version, and pin it to a version in the tested range if it is newer.`;
 }
 
 export function parseCodexStdout(

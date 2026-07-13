@@ -15,13 +15,23 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 // a hang purely because the cap bounded total time, not liveness. The inactivity
 // bound reclaims true hangs (silence) without punishing slow-but-alive work.
 //
+// The inactivity default itself has regression context: at 3 minutes it killed
+// a healthy implementation relay in Build run 37a27314 (2026-07-11) while the
+// agent sat in a long silent tool call — this repo's own verify suite runs
+// ~223s with no output, and a long thinking turn emits nothing on the
+// stream-json channel either. Silence and death are not locally
+// distinguishable (a child waiting on the network and a wedged child both show
+// a live PID and no output), so the default must accommodate legitimate silent
+// stretches, and a step that expects even longer silence declares
+// budgets.inactivity_ms.
+//
 // These pin the bounds as observable BEHAVIOR — the values actually handed to
 // the shared subprocess helper — not as private-constant change detectors. The
 // three CLI-agent connectors (claude-code, cursor-agent, codex) are peers and
 // must share the same bounds; all three are asserted here.
 
 const EXPECTED_ABSOLUTE_TIMEOUT_MS = 3_600_000; // 60-minute wall-clock backstop
-const EXPECTED_IDLE_TIMEOUT_MS = 180_000; // 3-minute inactivity bound
+const EXPECTED_IDLE_TIMEOUT_MS = 600_000; // 10-minute inactivity bound
 
 const { runConnectorSubprocessMock } = vi.hoisted(() => ({
   runConnectorSubprocessMock: vi.fn(),
@@ -70,7 +80,7 @@ beforeEach(() => {
   });
 });
 
-describe('CLI-agent connectors default to a 3-minute inactivity bound + 60-minute backstop', () => {
+describe('CLI-agent connectors default to a 10-minute inactivity bound + 60-minute backstop', () => {
   it('claude-code uses both default bounds when no per-step budget is supplied', async () => {
     const { relayClaudeCode } = await import('../../src/connectors/claude-code.js');
     await relayClaudeCode({ prompt: 'x' }).catch(() => {});
@@ -102,11 +112,51 @@ describe('CLI-agent connectors default to a 3-minute inactivity bound + 60-minut
     expect(bounds.idleTimeoutMs).toBe(EXPECTED_IDLE_TIMEOUT_MS);
   });
 
-  it('an explicit per-step budget overrides the absolute backstop but not the inactivity bound', async () => {
+  it('an explicit per-step wall-clock budget overrides the absolute backstop but not the inactivity bound', async () => {
     const { relayClaudeCode } = await import('../../src/connectors/claude-code.js');
     await relayClaudeCode({ prompt: 'x', timeoutMs: 5_000 }).catch(() => {});
     const bounds = boundsPassedToSubprocess();
     expect(bounds.timeoutMs).toBe(5_000);
     expect(bounds.idleTimeoutMs).toBe(EXPECTED_IDLE_TIMEOUT_MS);
+  });
+
+  it('claude-code forwards a per-step inactivity override without touching the backstop', async () => {
+    const { relayClaudeCode } = await import('../../src/connectors/claude-code.js');
+    await relayClaudeCode({ prompt: 'x', idleTimeoutMs: 900_000 }).catch(() => {});
+    const bounds = boundsPassedToSubprocess();
+    expect(bounds.timeoutMs).toBe(EXPECTED_ABSOLUTE_TIMEOUT_MS);
+    expect(bounds.idleTimeoutMs).toBe(900_000);
+  });
+
+  it('cursor-agent forwards a per-step inactivity override without touching the backstop', async () => {
+    const { relayCursorAgent } = await import('../../src/connectors/cursor-agent.js');
+    await relayCursorAgent({ prompt: 'x', idleTimeoutMs: 900_000 }).catch(() => {});
+    const bounds = boundsPassedToSubprocess();
+    expect(bounds.timeoutMs).toBe(EXPECTED_ABSOLUTE_TIMEOUT_MS);
+    expect(bounds.idleTimeoutMs).toBe(900_000);
+  });
+
+  it('codex forwards a per-step inactivity override without touching the backstop', async () => {
+    const { relayCodex } = await import('../../src/connectors/codex.js');
+    await relayCodex({
+      prompt: 'x',
+      idleTimeoutMs: 900_000,
+      resolvedSelection: {
+        model: { provider: 'openai', model: 'gpt-5.4' },
+        skills: [],
+        invocation_options: {},
+      },
+    }).catch(() => {});
+    const bounds = boundsPassedToSubprocess();
+    expect(bounds.timeoutMs).toBe(EXPECTED_ABSOLUTE_TIMEOUT_MS);
+    expect(bounds.idleTimeoutMs).toBe(900_000);
+  });
+
+  it('a step may override both bounds independently', async () => {
+    const { relayClaudeCode } = await import('../../src/connectors/claude-code.js');
+    await relayClaudeCode({ prompt: 'x', timeoutMs: 5_000, idleTimeoutMs: 7_000 }).catch(() => {});
+    const bounds = boundsPassedToSubprocess();
+    expect(bounds.timeoutMs).toBe(5_000);
+    expect(bounds.idleTimeoutMs).toBe(7_000);
   });
 });

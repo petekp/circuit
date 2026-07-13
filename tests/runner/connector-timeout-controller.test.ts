@@ -142,10 +142,12 @@ describe('createTimeoutController', () => {
 });
 
 describe('describeTimeout', () => {
-  it('names the inactivity bound when the idle window elapsed', () => {
+  it('names the inactivity bound and its per-step remedy when the idle window elapsed', () => {
     expect(
       describeTimeout({ timeoutKind: 'idle' }, { idleMs: 180_000, absoluteMs: 3_600_000 }),
-    ).toBe('no output for 180000ms (inactivity)');
+    ).toBe(
+      'no output for 180000ms (inactivity; a step that legitimately goes silent longer can raise budgets.inactivity_ms)',
+    );
   });
 
   it('names the wall-clock backstop when the absolute ceiling elapsed', () => {

@@ -109,8 +109,12 @@ enforced via `src/schemas/step.ts`, `src/schemas/check.ts`, and
 
 - **STEP-I5 — Budget bounds.** When `budgets` is present,
   `budgets.max_attempts` is an integer in `[1, 10]` and, if set,
-  `budgets.wall_clock_ms` is a positive integer. Enforced by
-  `StepBase.shape.budgets` in `src/schemas/step.ts`.
+  `budgets.wall_clock_ms` and `budgets.inactivity_ms` are positive
+  integers. `wall_clock_ms` caps a relay's total elapsed time.
+  `inactivity_ms` caps how long its connector subprocess may stay
+  silent before the watchdog kills it; declare it on a step whose relay
+  legitimately goes silent longer than the connector default. Enforced
+  by `StepBase.shape.budgets` in `src/schemas/step.ts`.
 
 - **STEP-I6 — Role only on relay; surplus keys rejected.** Only
   `RelayStep` carries a `role` field, and it is a required

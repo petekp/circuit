@@ -266,9 +266,23 @@ describe('Step discriminated union', () => {
       { max_attempts: 1.5 },
       { max_attempts: 1, wall_clock_ms: 0 },
       { max_attempts: 1, wall_clock_ms: 1.5 },
+      { max_attempts: 1, inactivity_ms: 0 },
+      { max_attempts: 1, inactivity_ms: 1.5 },
     ]) {
       expect(Step.safeParse({ ...baseCompose, budgets }).success).toBe(false);
     }
+  });
+
+  it('STEP-I5b — accepts an inactivity budget beside the wall-clock budget', () => {
+    // A step whose relay legitimately goes silent longer than the connector
+    // default (a long test suite, a long thinking turn) declares its own
+    // inactivity ceiling; regression context is Build run 37a27314, where the
+    // 3-minute default killed a healthy silent relay.
+    const ok = Step.safeParse({
+      ...baseCompose,
+      budgets: { max_attempts: 1, wall_clock_ms: 3_600_000, inactivity_ms: 900_000 },
+    });
+    expect(ok.success).toBe(true);
   });
 
   it('STEP-I7 — rejects a step without protocol', () => {

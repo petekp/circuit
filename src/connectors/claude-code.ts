@@ -13,8 +13,12 @@ import { connectorRemediation } from './remediation.js';
 import {
   type ConnectorSubprocessResult,
   cappedSuffix,
+  condenseRepeatedLines,
+  connectorFailureSummary,
   describeTimeout,
   isConnectorSubprocessSpawnError,
+  lastStreamErrorMessage,
+  launchFailureSummary,
   parseNdjsonObjects,
   runConnectorSubprocess,
   spawnErrorVerb,
@@ -116,21 +120,26 @@ export { CLAUDE_CODE_SUPPORTED_EFFORTS };
 // so silence — not total elapsed time — is what a hung relay looks like. Every
 // chunk of output resets the window.
 //
-// 3 minutes. Long enough to sit through a slow tool call the worker runs
+// 10 minutes. Long enough to sit through a slow tool call the worker runs
 // mid-step (a multi-minute test or build that emits nothing until it finishes)
 // without a false kill; short enough that a genuinely wedged subprocess is
-// reclaimed promptly instead of holding a slot until the backstop. The prior
-// fixed wall-clock cap killed live-but-slow steps: in the multi-file build
-// probe (experiments/build-probe-multifile/VERDICT.md) the heavy `diff` slice
-// of a 6-file build was group-killed mid-write at the 600000ms ceiling while it
-// was still making progress. An inactivity bound reclaims true hangs without
+// reclaimed well before the backstop. The prior fixed wall-clock cap killed
+// live-but-slow steps: in the multi-file build probe
+// (experiments/build-probe-multifile/VERDICT.md) the heavy `diff` slice of a
+// 6-file build was group-killed mid-write at the 600000ms ceiling while it was
+// still making progress. An inactivity bound reclaims true hangs without
 // punishing a step that is slow but alive.
 //
-// Known limit: a single silent tool call longer than this window reads as a
-// hang and is killed. The mitigation is a per-step inactivity override (a
-// follow-up to budgets.wall_clock_ms); until then a step that legitimately goes
-// silent for over 3 minutes should raise its own progress cadence.
-const DEFAULT_IDLE_TIMEOUT_MS = 180_000;
+// The default itself has regression context: at 3 minutes it killed a healthy
+// implementation relay in Build run 37a27314 while the agent sat in a
+// legitimately silent long tool call (a verify suite that runs ~223s with no
+// output). Silence and death are not locally distinguishable — a child waiting
+// on a slow tool and a wedged child both show a live PID and no output — so
+// the default must accommodate legitimate silent stretches. A step that
+// expects even longer silence declares `budgets.inactivity_ms`
+// (src/schemas/step.ts StepBase.budgets), which arrives here as
+// `input.idleTimeoutMs` and overrides this default.
+const DEFAULT_IDLE_TIMEOUT_MS = 600_000;
 
 // Absolute wall-clock backstop, never reset. Bounds a pathological subprocess
 // that keeps dribbling output forever (so the inactivity bound never fires) at a
@@ -230,12 +239,19 @@ export function claudeCodeEmitsStructuredOutputFlag(input: ClaudeCodeRelayInput)
   );
 }
 
-function claudeCodeStdoutDiagnostic(stdout: string): string | undefined {
+function claudeCodeStdoutDiagnostic(stdout: string, streamError?: string): string | undefined {
   try {
     parseClaudeCodeStdout(stdout, '', 0);
     return undefined;
   } catch (error) {
-    return error instanceof Error ? error.message : String(error);
+    const parseMessage = error instanceof Error ? error.message : String(error);
+    // Prefer the stream's own terminal error over a structural parse complaint:
+    // a failed stream is usually ALSO missing its result entry, and "result
+    // trace_entry missing" tells the operator nothing about why the CLI died.
+    if (streamError !== undefined && !parseMessage.includes(streamError)) {
+      return `${streamError} (stream parse: ${parseMessage})`;
+    }
+    return parseMessage;
   }
 }
 
@@ -244,9 +260,11 @@ export function isClaudeCodeStructuredOutputCompatible(schema: Record<string, un
 }
 
 export async function relayClaudeCode(input: ClaudeCodeRelayInput): Promise<RelayResult> {
-  // A per-step budget maps to the absolute wall-clock backstop; the inactivity
-  // bound stays at its default and is what reclaims a silent (wedged) relay.
+  // Per-step budgets map onto both bounds: budgets.wall_clock_ms overrides the
+  // absolute backstop, budgets.inactivity_ms overrides the inactivity bound.
+  // Each falls back to the connector default when absent.
   const absoluteTimeoutMs = input.timeoutMs ?? DEFAULT_ABSOLUTE_TIMEOUT_MS;
+  const idleTimeoutMs = input.idleTimeoutMs ?? DEFAULT_IDLE_TIMEOUT_MS;
   const args = buildClaudeCodeArgs(input);
   let result: ConnectorSubprocessResult;
   try {
@@ -257,7 +275,7 @@ export async function relayClaudeCode(input: ClaudeCodeRelayInput): Promise<Rela
       executable: CLAUDE_CODE_EXECUTABLE,
       args,
       timeoutMs: absoluteTimeoutMs,
-      idleTimeoutMs: DEFAULT_IDLE_TIMEOUT_MS,
+      idleTimeoutMs,
       stdoutMaxBytes: STDOUT_MAX_BYTES,
       stderrMaxBytes: STDERR_MAX_BYTES,
       sigtermToSigkillGraceMs: SIGTERM_TO_SIGKILL_GRACE_MS,
@@ -270,8 +288,10 @@ export async function relayClaudeCode(input: ClaudeCodeRelayInput): Promise<Rela
     });
   } catch (error) {
     if (isConnectorSubprocessSpawnError(error)) {
+      // Lead with one plain sentence naming what happened and the fix (spawn
+      // ENOENT = not installed, etc.); the raw spawn detail follows it.
       throw new Error(
-        `claude-code subprocess ${spawnErrorVerb(error)}: ${error.message}. ${connectorRemediation('claude-code')}`,
+        `${launchFailureSummary(CLAUDE_CODE_EXECUTABLE, error.message)} claude-code subprocess ${spawnErrorVerb(error)}: ${error.message}. ${connectorRemediation('claude-code')}`,
       );
     }
     throw error;
@@ -281,7 +301,7 @@ export async function relayClaudeCode(input: ClaudeCodeRelayInput): Promise<Rela
     const stdoutSuffix = cappedSuffix(result.stdoutCapped, 'stdout');
     const stderrSuffix = cappedSuffix(result.stderrCapped, 'stderr');
     const cause = describeTimeout(result, {
-      idleMs: DEFAULT_IDLE_TIMEOUT_MS,
+      idleMs: idleTimeoutMs,
       absoluteMs: absoluteTimeoutMs,
     });
     throw new Error(
@@ -291,11 +311,26 @@ export async function relayClaudeCode(input: ClaudeCodeRelayInput): Promise<Rela
   if (result.code !== 0) {
     const stdoutSuffix = cappedSuffix(result.stdoutCapped, 'stdout');
     const stderrSuffix = cappedSuffix(result.stderrCapped, 'stderr');
-    const stdoutDiagnostic = claudeCodeStdoutDiagnostic(result.stdout);
+    // The stream's LAST error-typed event is the real diagnosis for a failed
+    // stream-json relay — the stdout head is just the init handshake, so a
+    // message built from the head alone cuts the actual failure off.
+    const streamError = lastStreamErrorMessage(result.stdout);
+    const stdoutDiagnostic = claudeCodeStdoutDiagnostic(result.stdout, streamError);
     const diagnosticText =
       stdoutDiagnostic === undefined ? '' : `; stdout_diagnostic=${stdoutDiagnostic}`;
+    // One plain sentence leads when the failure matches a known class (signed
+    // out, sandbox denial) or the stream carried a terminal error; the raw
+    // detail always follows, truncated — never replaced.
+    const summary = connectorFailureSummary({
+      cli: CLAUDE_CODE_EXECUTABLE,
+      signInHint: 'Run `claude` once to sign in',
+      stderr: result.stderr,
+      stdout: '',
+      streamError,
+    });
+    const lead = summary === undefined ? '' : `${summary} `;
     throw new Error(
-      `claude-code subprocess exited with code ${result.code}${result.signal ? ` (signal ${result.signal})` : ''}${diagnosticText}; stdout[:500]=${result.stdout.slice(0, 500)}${stdoutSuffix}; stderr[:500]=${result.stderr.slice(0, 500)}${stderrSuffix}`,
+      `${lead}claude-code subprocess exited with code ${result.code}${result.signal ? ` (signal ${result.signal})` : ''}${diagnosticText}; stdout[:500]=${result.stdout.slice(0, 500)}${stdoutSuffix}; stderr[:500]=${condenseRepeatedLines(result.stderr).slice(0, 500)}${stderrSuffix}`,
     );
   }
   if (result.stdoutCapped) {

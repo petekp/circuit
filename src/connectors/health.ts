@@ -141,6 +141,11 @@ export function classifyConnectorHealth(input: {
   };
 }
 
+// A doctor probe runs `<cli> --version`-class commands, which answer in well
+// under a second on a healthy install; 10s absorbs a cold start without
+// letting `circuit doctor` hang on a wedged CLI. A connector that is healthy
+// but slower than this reports unhealthy — rerunning doctor is the cheap
+// retry.
 const PROBE_TIMEOUT_MS = 10_000;
 const PROBE_OUTPUT_MAX_BYTES = 16_384;
 

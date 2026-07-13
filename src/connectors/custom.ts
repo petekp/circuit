@@ -12,12 +12,19 @@ import { extractJsonObject } from '../shared/json-extraction.js';
 import {
   type ConnectorSubprocessResult,
   cappedSuffix,
+  describeTimeout,
   isConnectorSubprocessSpawnError,
   runConnectorSubprocess,
   spawnErrorVerb,
 } from './subprocess.js';
 
-const DEFAULT_TIMEOUT_MS = 120_000;
+// Absolute wall-clock backstop, matching the built-in CLI-agent connectors'
+// 60-minute ceiling (pinned in tests/runner/connector-default-timeout.test.ts).
+// A custom connector wraps an agent CLI just as the built-ins do, so it earns
+// the same generous backstop; the old 2-minute cap killed slow-but-healthy
+// connectors mid-work. A step that wants a tighter cap declares
+// `budgets.wall_clock_ms` (forwarded here as `timeoutMs`).
+const DEFAULT_TIMEOUT_MS = 3_600_000;
 const SIGTERM_TO_SIGKILL_GRACE_MS = 2_000;
 const OUTPUT_MAX_BYTES = 16 * 1024 * 1024;
 const STDOUT_MAX_BYTES = 16 * 1024 * 1024;
@@ -85,6 +92,13 @@ export async function relayCustom(input: CustomRelayInput): Promise<RelayResult>
   await writeFile(promptFile, input.prompt, 'utf8');
   const args = [...baseArgs, promptFile, outputFile];
   const timeoutMs = input.timeoutMs ?? DEFAULT_TIMEOUT_MS;
+  // Deliberate asymmetry with the built-in connectors: NO default inactivity
+  // bound here. A custom command may legitimately produce no stdout/stderr for
+  // its whole life (its durable result travels through the output file), so
+  // silence is not evidence of a hang. Only an explicit per-step
+  // `budgets.inactivity_ms` (forwarded here as `idleTimeoutMs`) arms the idle
+  // watchdog.
+  const idleTimeoutMs = input.idleTimeoutMs;
 
   try {
     let result: ConnectorSubprocessResult;
@@ -93,6 +107,7 @@ export async function relayCustom(input: CustomRelayInput): Promise<RelayResult>
         executable,
         args,
         timeoutMs,
+        ...(idleTimeoutMs === undefined ? {} : { idleTimeoutMs }),
         stdoutMaxBytes: STDOUT_MAX_BYTES,
         stderrMaxBytes: STDERR_MAX_BYTES,
         sigtermToSigkillGraceMs: SIGTERM_TO_SIGKILL_GRACE_MS,
@@ -108,8 +123,20 @@ export async function relayCustom(input: CustomRelayInput): Promise<RelayResult>
     }
 
     if (result.timedOut) {
+      // Name which bound fired, via the same helper the built-ins use. The
+      // inactivity wording already carries its remedy (budgets.inactivity_ms);
+      // the wall-clock case gets its remedy appended here so every timeout
+      // failure tells the operator how to loosen the right bound.
+      const cause = describeTimeout(result, {
+        absoluteMs: timeoutMs,
+        ...(idleTimeoutMs === undefined ? {} : { idleMs: idleTimeoutMs }),
+      });
+      const remedy =
+        result.timeoutKind === 'idle' && idleTimeoutMs !== undefined
+          ? ''
+          : ' (a step that legitimately runs longer can raise budgets.wall_clock_ms)';
       throw new Error(
-        `custom connector '${descriptor.name}' timed out after ${timeoutMs}ms; group-kill ${result.killGroupSucceeded ? 'sent' : 'failed'}; final signal=${result.signal ?? 'none'}; stderr[:500]=${result.stderr.slice(0, 500)}`,
+        `custom connector '${descriptor.name}' timed out: ${cause}${remedy}; group-kill ${result.killGroupSucceeded ? 'sent' : 'failed'}; final signal=${result.signal ?? 'none'}; stderr[:500]=${result.stderr.slice(0, 500)}`,
       );
     }
     if (result.code !== 0) {

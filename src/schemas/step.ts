@@ -58,6 +58,10 @@ const StepBase = z.object({
     .object({
       max_attempts: z.number().int().positive().max(10),
       wall_clock_ms: z.number().int().positive().optional(),
+      // Per-step inactivity ceiling forwarded to the connector watchdog; for
+      // steps whose relay legitimately goes silent longer than the connector
+      // default.
+      inactivity_ms: z.number().int().positive().optional(),
     })
     .optional(),
 });
