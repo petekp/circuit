@@ -127,8 +127,39 @@ export type OperatorSummaryRunResult = RunResult | CheckpointWaitingOperatorSumm
 // for control flow — markdown rendering and CLI plumbing read summary.html_path
 // directly. Kept as a friendly label for the report list.
 const HTML_REPORT_LABEL = 'Operator summary (HTML)' as const;
+// The brief is a fixed-size digest: OperatorBriefSlots (the schema) caps key
+// points at 4 and caveats at 3 so the rendered card stays scannable at a
+// glance. The caps are honest only because capWithOverflow (below) turns
+// anything beyond them into an explicit "+N more" line — a capped brief may
+// be short, but it can never silently read as the whole story.
 const MAX_KEY_POINTS = 4;
 const MAX_CAVEATS = 3;
+
+// Cap a list for the fixed-size brief. When items overflow the cap, the last
+// slot becomes an explicit "+N more in operator-summary.json." pointer instead
+// of a silent drop: the brief stays schema-sized while telling the operator
+// how much it is not showing and where the full record lives (the JSON
+// summary carries the uncapped details, evidence_warnings, and checkpoint
+// data the brief draws from). With no slot left for even the pointer
+// (max <= 0), the caller has filled the card with lines that outrank these.
+function capWithOverflow(items: readonly string[], max: number): string[] {
+  if (max <= 0) return [];
+  if (items.length <= max) return [...items];
+  const shown = items.slice(0, max - 1);
+  return [...shown, `+${items.length - shown.length} more in operator-summary.json.`];
+}
+
+// Key points for the outcome-override briefs. Priority lines (the abort or
+// stop reason, the salvage handover, the checkpoint prompt) always keep their
+// slots: several of them exist ONLY in the brief, so evicting one for an
+// overflow pointer would lose it outright. Detail-derived candidates fill
+// whatever space remains, with the usual overflow accounting; when priority
+// lines fill the card, the dropped candidates still live in the details array
+// of the same operator-summary.json this brief is part of.
+function briefKeyPoints(priority: readonly string[], candidates: readonly string[]): string[] {
+  const front = priority.slice(0, MAX_KEY_POINTS);
+  return [...front, ...capWithOverflow(candidates, MAX_KEY_POINTS - front.length)];
+}
 
 // The real salvage menu for a stopped or aborted run: the operator inspects
 // the diff, proves the change on their own terms, then decides what happens
@@ -488,7 +519,11 @@ function normalizedAssessment(details: readonly string[], fallback: string): str
   );
 }
 
-function keyPointsFromDetails(details: readonly string[]): string[] {
+// Uncapped key-point candidates, in render order. Callers that prepend their
+// own lines (the outcome-override briefs) combine first and cap once —
+// capping twice would let an inner "+N more" line survive while real points
+// drop.
+function keyPointCandidatesFromDetails(details: readonly string[]): string[] {
   const points: string[] = [];
   // `Result: ` is the third-choice assessment source (after Assessment: and
   // Recommendation: — see normalizedAssessment). When neither higher-precedence
@@ -502,7 +537,6 @@ function keyPointsFromDetails(details: readonly string[]): string[] {
     const trimmed = point.trim();
     if (trimmed.length === 0) return;
     if (points.includes(trimmed)) return;
-    if (points.length >= MAX_KEY_POINTS) return;
     points.push(trimmed);
   };
   for (const detail of details) {
@@ -528,6 +562,10 @@ function keyPointsFromDetails(details: readonly string[]): string[] {
   return points;
 }
 
+function keyPointsFromDetails(details: readonly string[]): string[] {
+  return capWithOverflow(keyPointCandidatesFromDetails(details), MAX_KEY_POINTS);
+}
+
 function caveatsFrom(input: {
   readonly details: readonly string[];
   readonly warnings: readonly OperatorSummaryWarning[];
@@ -537,9 +575,15 @@ function caveatsFrom(input: {
     const trimmed = caveat.trim();
     if (trimmed.length === 0) return;
     if (caveats.includes(trimmed)) return;
-    if (caveats.length >= MAX_CAVEATS) return;
     caveats.push(trimmed);
   };
+  // Machine warnings FIRST. A warning records a subsystem failure the run
+  // survived (a swallowed hook dispatch, a failed HTML render, a parked
+  // discovery); it must never lose its brief slot to an ordinary review
+  // caveat, so position here is survival priority under the cap below.
+  for (const warning of input.warnings) {
+    add(`${warning.kind}: ${warning.message}`);
+  }
   for (const detail of input.details) {
     if (detail.startsWith('Confidence limitations: ')) {
       for (const caveat of splitSemicolonDetail(detail, 'Confidence limitations: ')) {
@@ -555,10 +599,7 @@ function caveatsFrom(input: {
       add(withoutDetailPrefix(detail, 'Required fold-in: '));
     if (detail.startsWith('Consider: ')) add(withoutDetailPrefix(detail, 'Consider: '));
   }
-  for (const warning of input.warnings) {
-    add(`${warning.kind}: ${warning.message}`);
-  }
-  return caveats;
+  return capWithOverflow(caveats, MAX_CAVEATS);
 }
 
 function nextActionFrom(details: readonly string[], flowId: string, outcomeLabel: string): string {
@@ -585,19 +626,24 @@ function runOutcomeOverrideBrief(input: {
   readonly details: readonly string[];
   readonly checkpointDefaultChoice?: string | undefined;
 }): OperatorBriefSlots | undefined {
-  const keyPoints = keyPointsFromDetails(input.details);
+  // Uncapped candidates: each branch prepends its own lines (reason, salvage,
+  // checkpoint) and caps ONCE, so priority lines hold the front slots and one
+  // overflow line accounts for everything dropped.
+  const keyPoints = keyPointCandidatesFromDetails(input.details);
   if (input.runResult.outcome === 'checkpoint_waiting') {
     return {
       headline: digestHeadline(input.flowName),
       assessment: 'Circuit is waiting for a checkpoint choice before this flow can continue.',
-      key_points: [
-        `Checkpoint step: ${input.runResult.checkpoint.step_id}`,
-        `Choices: ${input.runResult.checkpoint.allowed_choices.join(', ')}`,
-        ...(input.checkpointDefaultChoice === undefined
-          ? []
-          : [`Default if unanswered: ${input.checkpointDefaultChoice}`]),
-        ...keyPoints,
-      ].slice(0, MAX_KEY_POINTS),
+      key_points: briefKeyPoints(
+        [
+          `Checkpoint step: ${input.runResult.checkpoint.step_id}`,
+          `Choices: ${input.runResult.checkpoint.allowed_choices.join(', ')}`,
+          ...(input.checkpointDefaultChoice === undefined
+            ? []
+            : [`Default if unanswered: ${input.checkpointDefaultChoice}`]),
+        ],
+        keyPoints,
+      ),
       caveats: [],
       next_action: 'choose a checkpoint option to continue.',
     };
@@ -606,13 +652,15 @@ function runOutcomeOverrideBrief(input: {
     return {
       headline: digestHeadline(input.flowName),
       assessment: 'The run aborted before this flow could finish.',
-      key_points: [
-        ...(input.runResult.reason === undefined
-          ? []
-          : [`Abort reason: ${input.runResult.reason}`]),
-        ...salvageKeyPoints({ runFolder: input.runFolder, flowId: input.flowId }),
-        ...keyPoints,
-      ].slice(0, MAX_KEY_POINTS),
+      key_points: briefKeyPoints(
+        [
+          ...(input.runResult.reason === undefined
+            ? []
+            : [`Abort reason: ${input.runResult.reason}`]),
+          ...salvageKeyPoints({ runFolder: input.runFolder, flowId: input.flowId }),
+        ],
+        keyPoints,
+      ),
       caveats: [],
       next_action: SALVAGE_NEXT_ACTION,
     };
@@ -621,12 +669,12 @@ function runOutcomeOverrideBrief(input: {
     return {
       headline: digestHeadline(input.flowName),
       assessment: 'The run escalated because Circuit could not close the flow safely.',
-      key_points: [
-        ...(input.runResult.reason === undefined
+      key_points: briefKeyPoints(
+        input.runResult.reason === undefined
           ? []
-          : [`Escalation reason: ${input.runResult.reason}`]),
-        ...keyPoints,
-      ].slice(0, MAX_KEY_POINTS),
+          : [`Escalation reason: ${input.runResult.reason}`],
+        keyPoints,
+      ),
       caveats: [],
       next_action: 'inspect the escalation reason and choose the recovery path.',
     };
@@ -635,12 +683,10 @@ function runOutcomeOverrideBrief(input: {
     return {
       headline: digestHeadline(input.flowName),
       assessment: 'The flow prepared a handoff instead of closing complete.',
-      key_points: [
-        ...(input.runResult.reason === undefined
-          ? []
-          : [`Handoff reason: ${input.runResult.reason}`]),
-        ...keyPoints,
-      ].slice(0, MAX_KEY_POINTS),
+      key_points: briefKeyPoints(
+        input.runResult.reason === undefined ? [] : [`Handoff reason: ${input.runResult.reason}`],
+        keyPoints,
+      ),
       caveats: [],
       next_action: 'resume from the handoff record.',
     };
@@ -649,11 +695,15 @@ function runOutcomeOverrideBrief(input: {
     return {
       headline: digestHeadline(input.flowName),
       assessment: 'The flow stopped before complete evidence was produced.',
-      key_points: [
-        ...(input.runResult.reason === undefined ? [] : [`Stop reason: ${input.runResult.reason}`]),
-        ...salvageKeyPoints({ runFolder: input.runFolder, flowId: input.flowId }),
-        ...keyPoints,
-      ].slice(0, MAX_KEY_POINTS),
+      key_points: briefKeyPoints(
+        [
+          ...(input.runResult.reason === undefined
+            ? []
+            : [`Stop reason: ${input.runResult.reason}`]),
+          ...salvageKeyPoints({ runFolder: input.runFolder, flowId: input.flowId }),
+        ],
+        keyPoints,
+      ),
       caveats: [],
       next_action: SALVAGE_NEXT_ACTION,
     };
@@ -702,22 +752,31 @@ function buildBriefSlots(input: {
 function evidenceLinks(
   runFolder: string,
   report: JsonObject | undefined,
-): OperatorSummaryReportLink[] {
-  return arrayField(report, 'evidence_links').flatMap((item) => {
-    if (!isObject(item)) return [];
+): { readonly links: OperatorSummaryReportLink[]; readonly warnings: OperatorSummaryWarning[] } {
+  const links: OperatorSummaryReportLink[] = [];
+  const warnings: OperatorSummaryWarning[] = [];
+  for (const item of arrayField(report, 'evidence_links')) {
+    if (!isObject(item)) continue;
     const reportId = stringField(item, 'report_id');
     const path = stringField(item, 'path');
-    if (reportId === undefined || path === undefined) return [];
+    if (reportId === undefined || path === undefined) continue;
     try {
-      return [reportLink(runFolder, reportId, path, stringField(item, 'schema'))];
-    } catch {
+      links.push(reportLink(runFolder, reportId, path, stringField(item, 'schema')));
+    } catch (err) {
       // A malformed evidence_links[].path (traversal, absolute, symlink-cross)
       // would otherwise throw inside resolveRunRelative and abort the close.
-      // Drop the link instead — the operator summary stays whole, with the
-      // bad link silently omitted.
-      return [];
+      // Keep the summary whole, but say the link was dropped — a silently
+      // missing report reads as "never produced" when it may exist.
+      warnings.push({
+        kind: 'evidence_link_dropped',
+        message: `evidence link '${reportId}' could not be added to the summary: ${
+          err instanceof Error ? err.message : String(err)
+        }`,
+        path,
+      });
     }
-  });
+  }
+  return { links, warnings };
 }
 
 function readAutoResolutions(runFolder: string): OperatorAutoResolutionValue[] {
@@ -1139,6 +1198,108 @@ function readSkillHookSummary(runFolder: string): {
   return { activations, warnings };
 }
 
+// Read the trace's best-effort degradation markers into operator warnings.
+// Both kinds record a subsystem failure the run survived (mirroring
+// `run.skill-hook-error` above): auto-power inference crashing leaves the
+// dial at the medium fallback, and a passed relay whose report could not be
+// materialized leaves a gap where `writes.report.path` should be. Surfacing
+// them here is what makes the trace markers reach the operator's eyes —
+// warnings are never evicted from the brief's caveats (see caveatsFrom).
+function readDegradationWarnings(runFolder: string): OperatorSummaryWarning[] {
+  const tracePath = join(runFolder, 'trace.ndjson');
+  if (!existsSync(tracePath)) return [];
+  const warnings: OperatorSummaryWarning[] = [];
+  for (const line of readFileSync(tracePath, 'utf8').split(/\r?\n/)) {
+    if (line.trim().length === 0) continue;
+    let entry: unknown;
+    try {
+      entry = JSON.parse(line);
+    } catch {
+      continue;
+    }
+    if (!isObject(entry)) continue;
+    if (entry.kind === 'run.power-inference-error') {
+      const message = stringField(entry, 'message');
+      if (message !== undefined) {
+        warnings.push({ kind: 'power_inference_failed', message: firstLine(message) });
+      }
+      continue;
+    }
+    if (entry.kind === 'step.report_skipped') {
+      const reason = stringField(entry, 'reason');
+      const reportPath = stringField(entry, 'report_path');
+      if (reason !== undefined) {
+        warnings.push({
+          kind: 'relay_report_skipped',
+          message: firstLine(reason),
+          ...(reportPath === undefined ? {} : { path: reportPath }),
+        });
+      }
+      continue;
+    }
+    if (entry.kind === 'run.context-delivery-error') {
+      const message = stringField(entry, 'message');
+      if (message !== undefined) {
+        warnings.push({ kind: 'context_delivery_failed', message: firstLine(message) });
+      }
+    }
+  }
+  return warnings;
+}
+
+// The recovery-binding verdict layer aborts with reason strings that are part
+// of the runtime contract and pinned by tests — they speak engine vocabulary
+// ("WorkContract", "recovery binding", raw failure-cause ids) and must stay
+// verbatim in the trace and the result. This is the operator-facing
+// translation seam: recognize the pinned shapes and lead with what happened
+// in plain words, whose problem it is, and what to do next. Unrecognized
+// reasons get no translation — a wrong guess is worse than the raw string.
+const RECOVERY_BINDING_ABORT_PATTERN =
+  /^step '([^']+)' selected recovery route '([^']+)' (?:after|for) \S+,? but (?:the WorkContract does not declare a matching recovery binding|its WorkContract binding only allows: .+)$/;
+const RECOVERY_NO_EVIDENCE_ABORT_PATTERN =
+  /^step '([^']+)' selected recovery route '([^']+)' without failure evidence$/;
+
+function friendlyAbortReason(reason: string): string | undefined {
+  const binding = RECOVERY_BINDING_ABORT_PATTERN.exec(reason);
+  if (binding !== null) {
+    return `Step '${binding[1]}' failed, and the flow tried to recover through its '${binding[2]}' route, but the flow's safety rules do not allow that recovery for this kind of failure — so Circuit stopped the run. This is a problem in the flow definition, not in your project. Update or regenerate the flow, then run it again.`;
+  }
+  const noEvidence = RECOVERY_NO_EVIDENCE_ABORT_PATTERN.exec(reason);
+  if (noEvidence !== null) {
+    return `Step '${noEvidence[1]}' took its '${noEvidence[2]}' recovery route without a recorded failure to justify it, so Circuit stopped the run. This is a problem in the flow definition, not in your project. Update or regenerate the flow, then run it again.`;
+  }
+  return undefined;
+}
+
+// When nothing in config or the flow chose a connector, resolution falls back
+// to an automatic pick (recorded per relay as resolved_from.source === 'auto').
+// The pick is legible in the trace but an operator who assumed a configured
+// default was used would never look there. Collect the distinct auto-picked
+// connector names with relay counts so the summary can say what happened.
+function readAutoConnectorPicks(runFolder: string): Map<string, number> {
+  const tracePath = join(runFolder, 'trace.ndjson');
+  const picks = new Map<string, number>();
+  if (!existsSync(tracePath)) return picks;
+  for (const line of readFileSync(tracePath, 'utf8').split(/\r?\n/)) {
+    if (line.trim().length === 0) continue;
+    let entry: unknown;
+    try {
+      entry = JSON.parse(line);
+    } catch {
+      continue;
+    }
+    if (!isObject(entry) || entry.kind !== 'relay.started') continue;
+    const resolvedFrom = entry.resolved_from;
+    if (!isObject(resolvedFrom) || resolvedFrom.source !== 'auto') continue;
+    const connector = entry.connector;
+    if (!isObject(connector)) continue;
+    const name = stringField(connector, 'name');
+    if (name === undefined) continue;
+    picks.set(name, (picks.get(name) ?? 0) + 1);
+  }
+  return picks;
+}
+
 function skillHookActivationLine(activation: OperatorSkillHookActivationValue): string {
   const provenance = activation.policy_ref ?? skillHookSourceLabel(activation.source);
   if (activation.mode === 'mute') {
@@ -1310,8 +1471,14 @@ function renderMarkdown(
     lines.push('', `Next: ${summary.brief_slots.next_action}`);
     if (summary.auto_resolutions !== undefined && summary.auto_resolutions.length > 0) {
       lines.push('', 'Auto-resolutions:');
-      for (const resolution of summary.auto_resolutions.slice(0, MAX_KEY_POINTS)) {
-        lines.push(`- ${autoResolutionSummaryLine(resolution)}`);
+      // Same cap-with-overflow treatment as the brief lists: the digest shows
+      // at most MAX_KEY_POINTS resolutions and announces the rest instead of
+      // dropping them silently (the JSON summary carries all of them).
+      for (const line of capWithOverflow(
+        summary.auto_resolutions.map((resolution) => autoResolutionSummaryLine(resolution)),
+        MAX_KEY_POINTS,
+      )) {
+        lines.push(`- ${line}`);
       }
     }
     if (summary.skill_hook_activations !== undefined && summary.skill_hook_activations.length > 0) {
@@ -1527,7 +1694,8 @@ export function writeOperatorSummary(input: {
       path: checkpoint.request_path,
     });
   }
-  reportPaths.push(...evidenceLinks(input.runFolder, flowReport));
+  const evidence = evidenceLinks(input.runFolder, flowReport);
+  reportPaths.push(...evidence.links);
 
   // Compute headline + per-flow details via the registry, then overlay shared
   // concerns: worker disclosure, run note framing, abort reason, checkpoint
@@ -1555,6 +1723,10 @@ export function writeOperatorSummary(input: {
     if (optionDetails.length > 0) details.push(`Checkpoint options: ${optionDetails.join('; ')}`);
   }
   if (input.runResult.outcome === 'aborted' && input.runResult.reason !== undefined) {
+    // Lead with the plain-language translation when the reason is one of the
+    // pinned engine shapes; the raw reason always follows, verbatim.
+    const friendly = friendlyAbortReason(input.runResult.reason);
+    if (friendly !== undefined) details.push(`What happened: ${friendly}`);
     details.push(`Abort reason: ${input.runResult.reason}`);
   }
   // An escalated run is a failure (it ran out of recovery and handed up), but
@@ -1576,12 +1748,24 @@ export function writeOperatorSummary(input: {
       `Power dial: auto chose ${receipt.power}${capped}. Reason: ${receipt.power_rationale}`,
     );
   }
+  // Connector transparency, mirroring the power-dial line: when nothing chose
+  // a connector, say which one the automatic fallback picked and how to make
+  // the choice explicit. Absent entirely when every relay was chosen by
+  // config, flow, or step pin.
+  for (const [name, count] of readAutoConnectorPicks(input.runFolder)) {
+    details.push(
+      `Connector: nothing was configured, so '${name}' was the automatic pick for ` +
+        `${count} relay step(s). To choose explicitly: circuit config set relay.default ${name}`,
+    );
+  }
 
   const warnings = [
     ...warningRecords(flowReport),
     ...(htmlEmitWarning === undefined ? [] : [htmlEmitWarning]),
+    ...evidence.warnings,
     ...skillHookSummary.warnings,
     ...equipmentReshapeSummary.warnings,
+    ...readDegradationWarnings(input.runFolder),
   ];
   const briefSlots = buildBriefSlots({
     runFolder: input.runFolder,

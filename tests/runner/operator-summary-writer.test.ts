@@ -520,16 +520,20 @@ describe('operator summary writer', () => {
       headline: 'Circuit · Review',
       assessment:
         'Reviewer inspected the staged diff and the new test fixture; nothing actionable surfaced.',
+      // Five reviewer steps overflow the four-point cap: the last slot
+      // announces the overflow instead of silently dropping the rest.
       key_points: [
         'Read src/example.ts',
         'Replayed the staged diff against tests/example.test.ts',
         'Checked generated docs',
-        'Ran npm test',
+        '+2 more in operator-summary.json.',
       ],
+      // The machine warning takes the front slot (warnings never lose to
+      // ordinary caveats), and the capped tail is announced, not hidden.
       caveats: [
+        'diff_truncated: staged diff was truncated before relay',
         'HEAD~1 history was out of scope for this review.',
-        'No untracked content was relayed.',
-        'A third reviewer limitation should be visible.',
+        '+3 more in operator-summary.json.',
       ],
       next_action: 'nothing required.',
     });
@@ -555,10 +559,10 @@ describe('operator summary writer', () => {
         '- Read src/example.ts',
         '- Replayed the staged diff against tests/example.test.ts',
         '- Checked generated docs',
-        '- Ran npm test',
+        '- +2 more in operator-summary.json.',
+        '- Caveat: diff_truncated: staged diff was truncated before relay',
         '- Caveat: HEAD~1 history was out of scope for this review.',
-        '- Caveat: No untracked content was relayed.',
-        '- Caveat: A third reviewer limitation should be visible.',
+        '- Caveat: +3 more in operator-summary.json.',
         '',
         'Next: nothing required.',
         '',
@@ -569,7 +573,6 @@ describe('operator summary writer', () => {
     expect(markdown).not.toContain('CIRCUIT');
     expect(markdown).not.toContain('Skipped fifth proof');
     expect(markdown).not.toContain('A fourth reviewer limitation');
-    expect(markdown).not.toContain('diff_truncated');
   });
 
   it('renders clean Review results with low-severity notes without saying Findings are blocking', () => {
@@ -901,6 +904,135 @@ describe('operator summary writer', () => {
         true,
       );
     }
+  });
+
+  // A crashed context-delivery seam records run.context-delivery-error in the
+  // trace; the summary must project it as a warning so the operator learns
+  // delivery was attempted and failed without reading the trace.
+  it('surfaces a context-delivery seam failure as an evidence warning', () => {
+    writeTrace([
+      {
+        schema_version: 1,
+        sequence: 0,
+        recorded_at: '2026-04-28T11:00:00.000Z',
+        run_id: '87000000-0000-0000-0000-000000000001',
+        kind: 'run.context-delivery-error',
+        step_id: 'act-step',
+        message:
+          "context delivery failed at step 'act-step'; the run continued on the starved result. Cause: boom",
+      },
+    ]);
+
+    const written = writeOperatorSummary({
+      runFolder,
+      runResult: baseResult('build'),
+      route: { selectedFlow: 'build' },
+    });
+
+    expect(written.summary.evidence_warnings).toContainEqual(
+      expect.objectContaining({
+        kind: 'context_delivery_failed',
+        message: expect.stringContaining('act-step'),
+      }),
+    );
+  });
+
+  // When no connector is configured anywhere, resolution falls back to an
+  // automatic pick. That decision is in the trace but an operator who assumed
+  // their configured default was used never sees it. The summary must name
+  // the automatic pick and how to make the choice explicit.
+  it('names an automatic connector pick in the summary details', () => {
+    writeTrace([
+      {
+        schema_version: 1,
+        sequence: 0,
+        recorded_at: '2026-04-28T11:00:00.000Z',
+        run_id: '87000000-0000-0000-0000-000000000001',
+        kind: 'relay.started',
+        step_id: 'build-step',
+        attempt: 1,
+        connector: { kind: 'builtin', name: 'claude-code' },
+        role: 'implementer',
+        resolved_selection: { model: 'sonnet' },
+        resolved_from: { source: 'auto' },
+      },
+    ]);
+
+    const written = writeOperatorSummary({
+      runFolder,
+      runResult: baseResult('build'),
+      route: { selectedFlow: 'build' },
+    });
+
+    const connectorLine = written.summary.details.find((detail) => detail.startsWith('Connector:'));
+    expect(connectorLine).toBeDefined();
+    expect(connectorLine).toContain("'claude-code'");
+    expect(connectorLine).toContain('automatic');
+    expect(connectorLine).toContain('circuit config set relay.default');
+  });
+
+  it('does not add a connector line when the connector was chosen explicitly', () => {
+    writeTrace([
+      {
+        schema_version: 1,
+        sequence: 0,
+        recorded_at: '2026-04-28T11:00:00.000Z',
+        run_id: '87000000-0000-0000-0000-000000000001',
+        kind: 'relay.started',
+        step_id: 'build-step',
+        attempt: 1,
+        connector: { kind: 'builtin', name: 'codex' },
+        role: 'implementer',
+        resolved_selection: { model: 'gpt-5' },
+        resolved_from: { source: 'default' },
+      },
+    ]);
+
+    const written = writeOperatorSummary({
+      runFolder,
+      runResult: baseResult('build'),
+      route: { selectedFlow: 'build' },
+    });
+
+    expect(
+      written.summary.details.find((detail) => detail.startsWith('Connector:')),
+    ).toBeUndefined();
+  });
+
+  // A malformed evidence link (traversal, absolute, symlink-cross) cannot be
+  // rendered as a report path, but dropping it silently means an operator
+  // never learns a report they were promised is unreachable. The drop must
+  // surface as an evidence warning naming the link.
+  it('surfaces a dropped malformed evidence link as a warning instead of omitting it silently', () => {
+    writeReport('reports/build-result.json', {
+      summary: 'Build result for feature: implemented change',
+      outcome: 'complete',
+      evidence_links: [
+        {
+          report_id: 'build.review',
+          path: 'reports/build/review.json',
+          schema: 'build.review@v1',
+        },
+        { report_id: 'build.escaped', path: '../outside-the-run.json' },
+      ],
+    });
+
+    const written = writeOperatorSummary({
+      runFolder,
+      runResult: baseResult('build'),
+      route: { selectedFlow: 'build' },
+    });
+
+    const labels = written.summary.report_paths.map((report) => report.label);
+    expect(labels).toContain('build.review');
+    expect(labels).not.toContain('build.escaped');
+    expect(written.summary.evidence_warnings).toContainEqual(
+      expect.objectContaining({
+        kind: 'evidence_link_dropped',
+        message: expect.stringContaining('build.escaped'),
+        path: '../outside-the-run.json',
+      }),
+    );
   });
 
   it('does not repeat the Pursue Result summary as a key point (F-L-1)', () => {
@@ -2563,6 +2695,57 @@ describe('operator summary writer', () => {
     );
   });
 
+  // The recovery-binding abort reasons are contract-pinned trace strings full
+  // of engine vocabulary ("WorkContract", "recovery binding", raw cause ids).
+  // The trace keeps them verbatim; the summary must lead with what actually
+  // happened in plain words, whose problem it is, and what to do next.
+  it('translates a recovery-binding abort into plain language while keeping the raw reason', () => {
+    const rawReason =
+      "step 'build-step' selected recovery route 'stop' after failed_check but the WorkContract does not declare a matching recovery binding";
+    const result = RunResult.parse({
+      ...baseResult('build'),
+      outcome: 'aborted',
+      summary: 'build aborted',
+      reason: rawReason,
+    });
+
+    const written = writeOperatorSummary({
+      runFolder,
+      runResult: result,
+      route: { selectedFlow: 'build' },
+    });
+
+    const friendly = written.summary.details.find((detail) => detail.startsWith('What happened:'));
+    expect(friendly).toBeDefined();
+    // Plain words: names the step, says the flow definition is at fault, and
+    // gives a next step — without the engine vocabulary.
+    expect(friendly).toContain("'build-step'");
+    expect(friendly).toContain('flow');
+    expect(friendly).not.toContain('WorkContract');
+    expect(friendly).not.toContain('failed_check');
+    // The raw engine reason stays available, verbatim.
+    expect(written.summary.details).toContain(`Abort reason: ${rawReason}`);
+  });
+
+  it('adds no translation line for an abort reason it does not recognize', () => {
+    const result = RunResult.parse({
+      ...baseResult('review'),
+      outcome: 'aborted',
+      summary: 'review aborted',
+      reason: 'relay result failed schema validation',
+    });
+
+    const written = writeOperatorSummary({
+      runFolder,
+      runResult: result,
+      route: { selectedFlow: 'review' },
+    });
+
+    expect(
+      written.summary.details.find((detail) => detail.startsWith('What happened:')),
+    ).toBeUndefined();
+  });
+
   it('hands over the salvage for an aborted Build run: the timed-out command, uncommitted edits, and skipped review', () => {
     writeReport('reports/build/verification.json', {
       overall_status: 'failed',
@@ -4036,5 +4219,199 @@ describe('operator summary writer: experiment ledger', () => {
     const markdown = readFileSync(written.markdownPath, 'utf8');
     expect(markdown).not.toContain('| Iteration |');
     expect(markdown).not.toContain('Goal proposed');
+  });
+});
+
+// Defect: MAX_CAVEATS hard-capped the caveat list with machine warnings
+// appended LAST, so benign review caveats evicted real subsystem-failure
+// warnings and a run with a real failure could render a clean brief. The
+// contract now: warnings take the front slots (they must never lose to an
+// ordinary caveat), and anything the cap still drops is announced by an
+// explicit "+N more" overflow line — never a silent drop. Key points get the
+// same overflow treatment.
+describe('brief caps never hide warnings and always announce overflow', () => {
+  it('orders machine warnings ahead of ordinary caveats and renders an overflow line', () => {
+    writeReport('reports/review-result.json', {
+      scope: 'review the staged change',
+      findings: [],
+      verdict: 'CLEAN',
+      outcome: 'complete',
+      assessment: 'Reviewer found nothing actionable.',
+      confidence_limitations: [
+        'First benign limitation.',
+        'Second benign limitation.',
+        'Third benign limitation.',
+        'Fourth benign limitation.',
+      ],
+      evidence_warnings: [
+        {
+          kind: 'skill_hook_dispatch_failed',
+          message: 'hook dispatcher threw mid-run',
+        },
+      ],
+    });
+
+    const written = writeOperatorSummary({
+      runFolder,
+      runResult: baseResult('review'),
+      route: { selectedFlow: 'review' },
+    });
+
+    const caveats = written.summary.brief_slots?.caveats ?? [];
+    // The machine warning holds the FIRST slot; it can never be evicted by
+    // benign limitations.
+    expect(caveats[0]).toBe('skill_hook_dispatch_failed: hook dispatcher threw mid-run');
+    // The cap still holds (schema max 3), and the final slot announces what
+    // was dropped instead of dropping it silently.
+    expect(caveats).toHaveLength(3);
+    expect(caveats[2]).toMatch(/^\+\d+ more in operator-summary\.json\.$/);
+    const markdown = readFileSync(written.markdownPath, 'utf8');
+    expect(markdown).toContain('Caveat: skill_hook_dispatch_failed: hook dispatcher threw mid-run');
+    expect(markdown).toMatch(/Caveat: \+\d+ more in operator-summary\.json\./);
+    // Everything dropped from the brief is still durable in the JSON record.
+    expect(written.summary.details).toContainEqual(
+      expect.stringContaining('Fourth benign limitation.'),
+    );
+  });
+
+  it('announces key-point overflow with a +N more line instead of a silent drop', () => {
+    writeReport('reports/review-result.json', {
+      scope: 'review the staged change',
+      findings: [],
+      verdict: 'CLEAN',
+      outcome: 'complete',
+      assessment: 'Reviewer found nothing actionable.',
+      verification: [
+        'Step one.',
+        'Step two.',
+        'Step three.',
+        'Step four.',
+        'Step five.',
+        'Step six.',
+      ],
+    });
+
+    const written = writeOperatorSummary({
+      runFolder,
+      runResult: baseResult('review'),
+      route: { selectedFlow: 'review' },
+    });
+
+    const keyPoints = written.summary.brief_slots?.key_points ?? [];
+    expect(keyPoints).toHaveLength(4);
+    expect(keyPoints.slice(0, 3)).toEqual(['Step one.', 'Step two.', 'Step three.']);
+    expect(keyPoints[3]).toBe('+3 more in operator-summary.json.');
+  });
+
+  it('keeps lists that fit inside the caps free of any overflow line', () => {
+    writeReport('reports/review-result.json', {
+      scope: 'review the staged change',
+      findings: [],
+      verdict: 'CLEAN',
+      outcome: 'complete',
+      assessment: 'Reviewer found nothing actionable.',
+      verification: ['Step one.', 'Step two.'],
+      confidence_limitations: ['Only limitation.'],
+    });
+
+    const written = writeOperatorSummary({
+      runFolder,
+      runResult: baseResult('review'),
+      route: { selectedFlow: 'review' },
+    });
+
+    expect(written.summary.brief_slots?.key_points).toEqual(['Step one.', 'Step two.']);
+    expect(written.summary.brief_slots?.caveats).toEqual(['Only limitation.']);
+  });
+});
+
+describe('operator summary writer — best-effort degradation markers become warnings', () => {
+  const RUN = '87000000-0000-0000-0000-000000000001';
+
+  it('surfaces a power-inference failure as a power_inference_failed warning', () => {
+    writeTrace([
+      {
+        schema_version: 1,
+        sequence: 7,
+        recorded_at: '2026-07-12T14:00:00.000Z',
+        run_id: RUN,
+        kind: 'run.power-inference-error',
+        step_id: 'research-step',
+        message:
+          "auto power inference failed after step 'research-step'; the run continued on the medium fallback. To pin the dial instead, set defaults.power to a fixed tier. Cause: boom\nstack line",
+      },
+    ]);
+
+    const written = writeOperatorSummary({
+      runFolder,
+      runResult: baseResult('fix'),
+      route: { selectedFlow: 'fix' },
+    });
+
+    expect(written.summary.evidence_warnings).toContainEqual({
+      kind: 'power_inference_failed',
+      message:
+        "auto power inference failed after step 'research-step'; the run continued on the medium fallback. To pin the dial instead, set defaults.power to a fixed tier. Cause: boom",
+    });
+    expect(readFileSync(written.markdownPath, 'utf8')).toContain(
+      'the run continued on the medium fallback',
+    );
+  });
+
+  it('surfaces a skipped relay report as a relay_report_skipped warning carrying the report path', () => {
+    writeTrace([
+      {
+        schema_version: 1,
+        sequence: 9,
+        recorded_at: '2026-07-12T14:05:00.000Z',
+        run_id: RUN,
+        kind: 'step.report_skipped',
+        step_id: 'relay-step',
+        attempt: 1,
+        report_path: 'reports/relay-canonical.json',
+        reason:
+          "relay step 'relay-step' passed its check, but its result body could not be re-parsed when writing the reports/relay-canonical.json report. The raw result is intact at reports/relay.result.json; read it directly, and rerun the flow if downstream steps need the report file.",
+      },
+    ]);
+
+    const written = writeOperatorSummary({
+      runFolder,
+      runResult: baseResult('fix'),
+      route: { selectedFlow: 'fix' },
+    });
+
+    expect(written.summary.evidence_warnings).toContainEqual({
+      kind: 'relay_report_skipped',
+      message:
+        "relay step 'relay-step' passed its check, but its result body could not be re-parsed when writing the reports/relay-canonical.json report. The raw result is intact at reports/relay.result.json; read it directly, and rerun the flow if downstream steps need the report file.",
+      path: 'reports/relay-canonical.json',
+    });
+    expect(readFileSync(written.markdownPath, 'utf8')).toContain(
+      'The raw result is intact at reports/relay.result.json',
+    );
+  });
+
+  it('emits no degradation warnings on a clean trace', () => {
+    writeTrace([
+      {
+        schema_version: 1,
+        sequence: 1,
+        recorded_at: '2026-07-12T14:00:00.000Z',
+        run_id: RUN,
+        kind: 'step.completed',
+        step_id: 'apply-step',
+        attempt: 1,
+      },
+    ]);
+
+    const written = writeOperatorSummary({
+      runFolder,
+      runResult: baseResult('fix'),
+      route: { selectedFlow: 'fix' },
+    });
+
+    const kinds = written.summary.evidence_warnings.map((warning) => warning.kind);
+    expect(kinds).not.toContain('power_inference_failed');
+    expect(kinds).not.toContain('relay_report_skipped');
   });
 });
