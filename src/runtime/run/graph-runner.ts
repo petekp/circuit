@@ -1254,9 +1254,27 @@ async function executeExecutableFlowOutcomeUnsafe(
               }
             }
           }
-        } catch {
+        } catch (deliveryError) {
           // Fail-safe by design: any delivery failure leaves the run on the
-          // starved outcome, exactly as if delivery were off.
+          // starved outcome, exactly as if delivery were off. But not silent —
+          // without a record, a broken delivery seam reads exactly like a
+          // worker that never asked for context. Record the marker (the
+          // sibling of run.power-inference-error below); if recording itself
+          // fails, stay silent rather than break the run.
+          try {
+            await trace.append({
+              run_id: runId,
+              kind: 'run.context-delivery-error',
+              step_id: step.id,
+              message:
+                `context delivery failed at step '${step.id}'; the run continued on the ` +
+                `starved result. Cause: ${
+                  deliveryError instanceof Error ? deliveryError.message : String(deliveryError)
+                }`,
+            });
+          } catch {
+            // Last-resort: never let observability break the run.
+          }
         }
       }
 
@@ -1850,9 +1868,24 @@ async function executeExecutableFlowOutcomeUnsafe(
           }
         }
       }
-    } catch {
+    } catch (err) {
       // Non-critical by design: an unreadable result body or a trace-append
-      // failure leaves the dial at the documented medium fallback.
+      // failure leaves the dial at the documented medium fallback. But the
+      // failure must not be silent — without a record, "inference crashed"
+      // reads exactly like "the researcher never recommended a tier". Record
+      // a marker (the sibling of run.skill-hook-error above) naming the
+      // fallback and the remedy. If recording the marker itself fails, stay
+      // silent rather than break the run.
+      try {
+        await trace.append({
+          run_id: runId,
+          kind: 'run.power-inference-error',
+          step_id: step.id,
+          message: `auto power inference failed after step '${step.id}'; the run continued on the medium fallback. To pin the dial instead, set defaults.power to a fixed tier. Cause: ${err instanceof Error ? err.message : String(err)}`,
+        });
+      } catch {
+        // Last-resort: never let observability break the run.
+      }
     }
 
     // Step 2 — the live equipment reshape. The first time the engine adapts a

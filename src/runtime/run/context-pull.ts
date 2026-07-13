@@ -19,6 +19,9 @@ export type { ContextQuery, ContextRequest };
 // so one step pulling its fill never starves the next (the conservative default
 // in the design note). Independent steps hold independent budgets by construction.
 
+// Three covers every shipped flow's declared reads with one retry to spare
+// while keeping a runaway asker bounded; exhaustion degrades to proceed-as-is
+// and is recorded as a finding, so the cap is visible when it bites.
 export const CONTEXT_PULL_BUDGET = 3;
 
 // A field_path of '*' (or empty) is the "give me everything" smell. The typed

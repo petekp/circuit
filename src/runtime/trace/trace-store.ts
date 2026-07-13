@@ -141,6 +141,9 @@ export class TraceStore {
       if (this.healToByteLength !== undefined) {
         // A prior load() dropped a torn trailing line. Truncate the torn bytes
         // before appending so the new record starts on a clean line boundary.
+        // The torn event is unrecoverable by construction: it was cut mid-write
+        // by a crash, so it never durably happened from the trace's point of
+        // view. Accepted tradeoff — the alternative is refusing to resume.
         await truncate(this.tracePath, this.healToByteLength);
         this.healToByteLength = undefined;
       }

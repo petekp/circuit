@@ -92,6 +92,21 @@ export const StepReportWrittenTraceEntry = TraceEntryBase.extend({
 }).strict();
 export type StepReportWrittenTraceEntry = z.infer<typeof StepReportWrittenTraceEntry>;
 
+// A passed relay whose schema-tied report could NOT be materialized. Narrow
+// seam: the result body parsed at check time and satisfied the schema, but the
+// re-parse that feeds the report writer failed, so `writes.report.path` never
+// appears on disk. The pass verdict stands — the check already ruled — but
+// without this record every downstream reader sees "no report" with no
+// explanation. The reason names the raw-result fallback and the remedy.
+export const StepReportSkippedTraceEntry = TraceEntryBase.extend({
+  kind: z.literal('step.report_skipped'),
+  step_id: StepId,
+  attempt: z.number().int().positive(),
+  report_path: z.string().min(1),
+  reason: z.string().min(1),
+}).strict();
+export type StepReportSkippedTraceEntry = z.infer<typeof StepReportSkippedTraceEntry>;
+
 export const CheckEvaluatedTraceEntry = TraceEntryBase.extend({
   kind: z.literal('check.evaluated'),
   step_id: StepId,
@@ -692,6 +707,34 @@ export const PowerInferenceResolvedTraceEntry = TraceEntryBase.extend({
 }).strict();
 export type PowerInferenceResolvedTraceEntry = z.infer<typeof PowerInferenceResolvedTraceEntry>;
 
+// Auto-power inference is best-effort: a crash while resolving the dial must
+// never break the run — it proceeds on the documented medium fallback. But the
+// failure must not be invisible either, or "inference crashed" reads exactly
+// like "the researcher never recommended a tier". When the inference seam
+// throws, the graph-runner records this marker (the sibling of
+// `run.skill-hook-error`) so the trace and the operator summary can say why
+// the dial stayed at medium.
+export const PowerInferenceErrorTraceEntry = TraceEntryBase.extend({
+  kind: z.literal('run.power-inference-error'),
+  step_id: StepId.optional(),
+  message: z.string().min(1),
+}).strict();
+export type PowerInferenceErrorTraceEntry = z.infer<typeof PowerInferenceErrorTraceEntry>;
+
+// Pull-then-retry context delivery is fail-safe: a crash anywhere in the
+// delivery seam leaves the run on the starved outcome, exactly as if delivery
+// were off. But without a record, "the seam broke" reads exactly like "the
+// worker never asked for context". When the seam's outer guard catches, the
+// graph-runner records this marker (the sibling of
+// `run.power-inference-error`) so the trace and the operator summary can say
+// delivery was attempted and failed.
+export const ContextDeliveryErrorTraceEntry = TraceEntryBase.extend({
+  kind: z.literal('run.context-delivery-error'),
+  step_id: StepId,
+  message: z.string().min(1),
+}).strict();
+export type ContextDeliveryErrorTraceEntry = z.infer<typeof ContextDeliveryErrorTraceEntry>;
+
 // Step 2 — the durable record of a live equipment-reshape decision: the first
 // time the engine adapts a RUNNING flow. Written in the post-step seam when a
 // relay surfaces an equipment discovery. `reshaped:true` means the discovery was
@@ -792,6 +835,7 @@ export const TraceEntry = z
     RunBootstrappedTraceEntry,
     StepEnteredTraceEntry,
     StepReportWrittenTraceEntry,
+    StepReportSkippedTraceEntry,
     CheckEvaluatedTraceEntry,
     VerificationCommandEvaluatedTraceEntry,
     ProofAssessedTraceEntry,
@@ -817,9 +861,11 @@ export const TraceEntry = z
     RunSkillHookTraceEntry,
     RunSkillHookErrorTraceEntry,
     PowerInferenceResolvedTraceEntry,
+    PowerInferenceErrorTraceEntry,
     RunEquipmentReshapeTraceEntry,
     RunContextPullTraceEntry,
     RunContextDeliveryTraceEntry,
+    ContextDeliveryErrorTraceEntry,
     RunUntilJudgmentTraceEntry,
     GuidanceDecisionTraceEntryBody,
   ])

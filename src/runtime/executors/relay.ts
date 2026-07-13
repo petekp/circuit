@@ -94,6 +94,7 @@ export async function relayWithResolvedConnector(
   input: {
     readonly prompt: string;
     readonly timeoutMs?: number;
+    readonly idleTimeoutMs?: number;
     readonly cwd?: string;
     readonly resolvedSelection?: unknown;
     readonly responseSchema?: Record<string, unknown>;
@@ -103,6 +104,7 @@ export async function relayWithResolvedConnector(
   const relayInput = {
     prompt: input.prompt,
     ...(input.timeoutMs === undefined ? {} : { timeoutMs: input.timeoutMs }),
+    ...(input.idleTimeoutMs === undefined ? {} : { idleTimeoutMs: input.idleTimeoutMs }),
     ...(input.cwd === undefined ? {} : { cwd: input.cwd }),
     ...(input.resolvedSelection === undefined
       ? {}
@@ -130,6 +132,14 @@ const BUILTIN_CONNECTOR_RELAYERS = {
 function timeoutMs(step: RelayStep): number | undefined {
   const wallClock = step.budgets?.wall_clock_ms;
   return typeof wallClock === 'number' ? wallClock : undefined;
+}
+
+// Sibling of timeoutMs: the step's declared inactivity ceiling, forwarded to
+// the connector watchdog as idleTimeoutMs. Undefined means the connector's
+// default inactivity bound applies.
+function inactivityMs(step: RelayStep): number | undefined {
+  const inactivity = step.budgets?.inactivity_ms;
+  return typeof inactivity === 'number' ? inactivity : undefined;
 }
 
 // Build the relay.started equipment evidence from the resolved decision.
@@ -616,11 +626,13 @@ export async function executeProductionRelayAttempt(input: {
   let relayResult: RelayResult;
   try {
     const relayTimeoutMs = timeoutMs(step);
+    const relayInactivityMs = inactivityMs(step);
     relayResult =
       context.relayer === undefined
         ? await relayWithResolvedConnector(relayExecution.connector, {
             prompt,
             ...(relayTimeoutMs === undefined ? {} : { timeoutMs: relayTimeoutMs }),
+            ...(relayInactivityMs === undefined ? {} : { idleTimeoutMs: relayInactivityMs }),
             ...(context.projectRoot === undefined ? {} : { cwd: context.projectRoot }),
             resolvedSelection,
             ...(responseSchema === undefined ? {} : { responseSchema }),
@@ -634,6 +646,7 @@ export async function executeProductionRelayAttempt(input: {
             prompt,
             connector: relayExecution.connectorName,
             ...(relayTimeoutMs === undefined ? {} : { timeoutMs: relayTimeoutMs }),
+            ...(relayInactivityMs === undefined ? {} : { idleTimeoutMs: relayInactivityMs }),
             ...(context.projectRoot === undefined ? {} : { cwd: context.projectRoot }),
             resolvedSelection,
             ...(responseSchema === undefined ? {} : { responseSchema }),
@@ -706,11 +719,17 @@ export async function executeProductionRelayAttempt(input: {
     failureKind = validation.failureKind;
     acceptance = validation.acceptance;
   }
+  // Backfill parse for the report writer below. The catch keeps the pass
+  // verdict intact (the check already ruled on this body), but the error is
+  // captured — if a report was expected, the writer block records the skip
+  // instead of leaving a silent gap where the report should be.
+  let backfillParseError: string | undefined;
   if (checkEvaluation.kind === 'pass' && evaluation.kind === 'pass' && parsedBody === undefined) {
     try {
       parsedBody = JSON.parse(relayResult.result_body) as unknown;
-    } catch {
+    } catch (err) {
       parsedBody = undefined;
+      backfillParseError = err instanceof Error ? err.message : String(err);
     }
   }
 
@@ -751,6 +770,22 @@ export async function executeProductionRelayAttempt(input: {
       await context.files.writeJson(step.report, reportBody);
       parsedBody = reportBody;
       writtenReportPath = step.report.path;
+    } else if (checkEvaluation.kind === 'pass' && evaluation.kind === 'pass') {
+      // Passed step, no report body: the check accepted this body, but the
+      // re-parse that feeds the writer failed, so `writes.report.path` will
+      // never appear on disk. The pass verdict stands — the check already
+      // ruled — but the gap must be a durable record, not a silent absence:
+      // without it, downstream readers cannot tell "this step writes no
+      // report" from "the report vanished". (The check-fail branch above
+      // needs no marker; its abort reason already explains the missing file.)
+      await context.trace.append({
+        run_id: context.runId,
+        kind: 'step.report_skipped',
+        step_id: step.id,
+        attempt,
+        report_path: step.report.path,
+        reason: `relay step '${step.id}' passed its check, but its result body could not be re-parsed when writing the ${step.report.path} report${backfillParseError === undefined ? '' : ` (${backfillParseError})`}. The raw result is intact at ${result.path}; read it directly, and rerun the flow if downstream steps need the report file.`,
+      });
     }
   }
 
