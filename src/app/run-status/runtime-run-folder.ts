@@ -513,6 +513,11 @@ export function projectRuntimeRunStatusFromRunFolder(
     run_folder: runFolder,
     engine_state: 'open',
     reason: 'active_or_unknown',
+    status_notice:
+      'no outcome recorded: this run is either still in progress or was ' +
+      'interrupted before it could record one. If nothing is working on this ' +
+      'run right now, treat it as interrupted; last_event shows the last thing ' +
+      'it recorded.',
     legal_next_actions: ['inspect'],
     run_id: bootstrapRunId,
     flow_id: bootstrapFlowId,

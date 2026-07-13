@@ -472,6 +472,26 @@ describe('run folder status projection', () => {
     );
   });
 
+  // A trace that simply stops (no run.closed, no unresolved checkpoint) looks
+  // identical for a live run and one whose process died without recording an
+  // outcome. The projection cannot tell them apart from the folder alone, so
+  // the open state must say so in plain language instead of letting 'open'
+  // read as "definitely still running".
+  it('explains that an open run has no recorded outcome and may be interrupted', () => {
+    const runFolder = tempRunFolder('circuit-run-status-open-notice-');
+    const manifestHash = writeManifest({ runFolder });
+    writeRawTrace(runFolder, [bootstrap({ manifestHash }), stepEntered(1, 'fix-act')]);
+
+    const projection = projectRunStatusFromRunFolder(runFolder);
+
+    expect(projection.engine_state).toBe('open');
+    const notice = projection.engine_state === 'open' ? projection.status_notice : '';
+    expect(notice).toContain('no outcome recorded');
+    expect(notice).toContain('still in progress');
+    expect(notice).toContain('interrupted');
+    expect(notice).toContain('last_event');
+  });
+
   it('fails closed when a current runtime trace has a sequence gap', () => {
     const runFolder = tempRunFolder('circuit-run-status-sequence-gap-');
     const manifestHash = writeManifest({ runFolder });

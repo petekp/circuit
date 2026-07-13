@@ -96,6 +96,11 @@ const ValidRunStatusBase = z
 const OpenRunStatusProjectionV1 = ValidRunStatusBase.extend({
   engine_state: z.literal('open'),
   reason: z.literal('active_or_unknown'),
+  // 'open' is genuinely ambiguous: from the run folder alone a live run and
+  // one whose process died before recording an outcome look identical. The
+  // notice states that ambiguity in plain language so consumers never present
+  // 'open' as "definitely still running".
+  status_notice: z.string().min(1),
   legal_next_actions: z.tuple([z.literal('inspect')]),
   current_step: CurrentStepStatus.optional(),
 }).strict();
