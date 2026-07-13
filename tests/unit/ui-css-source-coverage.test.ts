@@ -109,11 +109,7 @@ describe('design-system @source coverage', () => {
     const uncovered = emitters.filter((rel) => !matchers.some((re) => re.test(rel)));
     expect(
       uncovered,
-      'these flow files emit Tailwind classes but sit outside the theme.css @source globs, ' +
-        'so their classes are dropped from css.generated.ts and the page ships unstyled. ' +
-        'Move them under the projector convention (src/flows/<id>/writers/<name>-html.tsx) ' +
-        'or widen the @source glob in src/shared/html/ui/theme.css:\n' +
-        uncovered.join('\n'),
+      `these flow files emit Tailwind classes but sit outside the theme.css @source globs, so their classes are dropped from css.generated.ts and the page ships unstyled. Move them under the projector convention (src/flows/<id>/writers/<name>-html.tsx) or widen the @source glob in src/shared/html/ui/theme.css:\n${uncovered.join('\n')}`,
     ).toEqual([]);
   });
 });
