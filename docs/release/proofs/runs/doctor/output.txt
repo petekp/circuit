@@ -10,7 +10,7 @@ stdout:
   "flow_root": "<repo>/plugins/codex/flows",
   "runtime_source": "bundled",
   "runtime_path": "<repo>/plugins/codex/runtime/circuit.js",
-  "runtime_version": "0.1.0-alpha.10",
+  "runtime_version": "0.1.0",
   "checks": [
     {
       "name": "plugin_manifest_exists",
@@ -143,7 +143,7 @@ stdout:
     {
       "name": "temp_repo_review_smoke",
       "ok": true,
-      "detail": "status=0 error=none stderr={\"schema_version\":1,\"type\":\"route.selected\",\"run_id\":\"41ed4cbb-c6d9-4034-ac9b-dfcd8a1672c5\",\"flow_id\":\"review\",\"recorded_at\":\"2026-07-09T18:06:23.339Z\",\"label\":\"Selected review\",\"display\":{\"text\":\"Circuit: Chose review.\",\"importance\":\"major\",\"tone\":\"info\"},\"presentation\":{\"block_id\":\"41ed4cbb-c6d9-4034-ac9b-dfcd8a1672c5\",\"line_mode\":\"append\",\"status_text\":\"Chose review.\"},\"selected_flow\":\"review\",\"routed_by\":\"explicit\",\"router_reason\":\"explicit flow positional argument\"}\n{\"schema_version\":1,\"typ"
+      "detail": "status=0 error=none stderr={\"schema_version\":1,\"type\":\"route.selected\",\"run_id\":\"98ae2edf-7d2b-47ac-afd7-9bb4b8dda3be\",\"flow_id\":\"review\",\"recorded_at\":\"2026-07-13T23:22:34.819Z\",\"label\":\"Selected review\",\"display\":{\"text\":\"Circuit: Chose review.\",\"importance\":\"major\",\"tone\":\"info\"},\"presentation\":{\"block_id\":\"98ae2edf-7d2b-47ac-afd7-9bb4b8dda3be\",\"line_mode\":\"append\",\"status_text\":\"Chose review.\"},\"selected_flow\":\"review\",\"routed_by\":\"explicit\",\"router_reason\":\"explicit flow positional argument\"}\n{\"schema_version\":1,\"typ"
     },
     {
       "name": "temp_repo_review_progress",

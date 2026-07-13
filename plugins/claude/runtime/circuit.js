@@ -108358,7 +108358,7 @@ import { dirname as dirname18, resolve as resolve28 } from "node:path";
 import { fileURLToPath as fileURLToPath4 } from "node:url";
 function readSourceVersion() {
   if (true)
-    return "0.1.0-alpha.10";
+    return "0.1.0";
   const candidates = [
     resolve28(dirname18(fileURLToPath4(import.meta.url)), "../../plugins/version.json"),
     resolve28(process.cwd(), "plugins/version.json")

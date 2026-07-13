@@ -77,7 +77,7 @@ create a symlink to get started this way.
 Install the published plugin from the marketplace:
 
 ```bash
-codex plugin marketplace add petekp/circuit --ref circuit--v0.1.0-alpha.10
+codex plugin marketplace add petekp/circuit --ref circuit--v0.1.0
 ```
 
 Working from this checkout instead? Refresh the local plugin package and
