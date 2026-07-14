@@ -4,7 +4,7 @@ import { join, resolve } from 'node:path';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import { resolveCompiledFlowPath } from '../../src/cli/compiled-flow-loading.js';
 
-// A packaged install (npm install -g @petekp/circuit) ships generated/flows
+// A packaged install (npm install -g @petepetrash/circuit) ships generated/flows
 // inside the package, but the operator's working directory is their own
 // project, which has no generated/flows. The default flow root must fall
 // back to the package's own copy so `circuit run <flow>` works from any

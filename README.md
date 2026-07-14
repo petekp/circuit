@@ -100,7 +100,7 @@ Codex can recommend the right Circuit flow from your natural-language request.
 Install the CLI directly from npm:
 
 ```bash
-npm install -g @petekp/circuit
+npm install -g @petepetrash/circuit
 circuit doctor
 circuit run <flow> --goal '<your task>'
 ```

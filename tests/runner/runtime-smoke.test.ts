@@ -303,6 +303,9 @@ describe('runtime-proof runner smoke', () => {
       bin?: Record<string, string>;
     };
     expect(pkg.scripts?.['circuit:run']).toBe('./bin/circuit');
-    expect(pkg.bin?.circuit).toBe('./bin/circuit');
+    // npm normalizes bin targets to the ./-less form at publish (and warns,
+    // confusingly, that the entry "was invalid and removed" when it has to);
+    // package.json carries the normalized form so publishes are warning-free.
+    expect(pkg.bin?.circuit).toBe('bin/circuit');
   });
 });

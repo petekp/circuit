@@ -1,7 +1,7 @@
 #!/usr/bin/env node
 //
 // Proves the published tarball is actually installable and runnable outside
-// this checkout, the way a real `npm install -g @petekp/circuit` user would
+// this checkout, the way a real `npm install -g @petepetrash/circuit` user would
 // experience it. `npm pack` only proves the tarball builds; it says nothing
 // about whether the packed bin launcher can find its compiled CLI and its
 // declared dependencies once unpacked somewhere else.

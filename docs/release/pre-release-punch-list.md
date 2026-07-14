@@ -375,6 +375,13 @@ DECIDED 2026-07-10: publish to npm as `@petekp/circuit` (name confirmed
 free on the registry; the bin stays `circuit`). Scoped packages publish
 restricted by default, so the pipeline needs `--access public`.
 
+AMENDED 2026-07-13 (at the 0.1.0 publish): the `@petekp` scope belongs
+to a different npm account ("free on the registry" checked the package,
+not the scope), so the publish PUT was rejected. Renamed to
+`@petepetrash/circuit`, the scope of the account that actually
+publishes. The GitHub repo, plugin marketplaces, and release tags keep
+`petekp/circuit`.
+
 Remaining decision (operator call):
 
 - What the installed CLI includes relative to the host plugins (the
