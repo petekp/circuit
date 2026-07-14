@@ -8,6 +8,12 @@ each against current source before building. See
 reshapes, and [`proactive-power-floors.md`](deprioritized-ledger.md) for the
 adjacent power-floor idea.
 
+A 2026-07-13 operator ruling (final section) upgrades this note's defaults
+posture: the roster ships pre-staffed from model reputations, the first run
+asks nothing, and Circuit communicates its choices after the fact. Read that
+section as the current direction; the body below remains the mechanics it
+builds on.
+
 ## The problem
 
 Circuit can already route different steps of one flow to different connectors
@@ -234,3 +240,97 @@ Open:
 - Large-N homogeneous swarm: does it need a branch-generator, or is explicit
   small-N differentiated fan-out enough for the first swarm archetype? Confirm
   against `expandFanoutBranches`.
+
+## 2026-07-13 operator ruling: defaults do the work, communicate after
+
+The operator's ruling, recorded near-verbatim: this kind of tool is new for a
+lot of people, and we are asking a lot of them to set things up. Err on the
+side of smart defaults, particularly for configuring models. Do as much work
+for the user up front as possible. The general archetypes of the well-known
+models are understood well enough that Circuit should pre-define them rather
+than leave them blank or wait for the user: Claude is known as a great writer.
+Codex is known for being thorough and meticulous with code. Fable is known as
+a very deep thinker. The best first-time experience is saying "build a
+prototype that does such and such" and Circuit automatically configures
+whatever flow runs first from the models the user has available, including
+effort levels. Circuit then tells the user it made that configuration
+automatically and explains how to adjust it. Circuit needs to just work. It
+takes decisions off your plate. Part of the promise is that Circuit brings
+best practices to you, rather than you having to seek them out.
+
+This ruling upgrades three positions in the body above:
+
+1. **The roster ships pre-staffed, not blank.** The 2026-06-30 shape lifted
+   the frozen roster into operator-editable config with "gut-feel" starter
+   values. The ruling goes further: Circuit ships a release-reviewed
+   temperament table, the same posture as `DEFAULT_POWER_TIERS` in
+   [`power-tiers.ts`](../../src/selection/power-tiers.ts) (data reviewed at
+   release time, never engine logic, keyed by durable aliases so it does not
+   rot with model generations). Role seats staff themselves from temperament:
+   the researcher seat wants a deep thinker, the implementer seat wants a
+   meticulous coder, the reviewer seat wants a critical meticulous reader,
+   and writing-heavy steps (the craft flows) want the strong writer. The
+   operator edits the roster; they never have to author it.
+
+2. **The first run asks nothing.** The body's journey had "propose a
+   smart-default roster, let the operator accept or tweak. One decision."
+   The ruling replaces confirm-before with communicate-after: detect what is
+   installed and healthy, cast the flow, run it, and print a plain readout of
+   what was chosen and how to change it. Something like: "Circuit configured
+   this run automatically from the tools on your machine: diagnose runs on
+   Claude Opus (deep analysis), implement runs on Codex at high effort
+   (meticulous code), review runs on Claude Sonnet. Adjust with `circuit
+   config`, or pin per run with `--connector` / `--model`. See `circuit
+   preview <flow>` for the full readout before spending." The expanded
+   explanation shows once, on the first run; after that a single line plus
+   the preview pointer is enough.
+
+3. **Casting consults availability, not just the host.** Today's `auto`
+   connector is a host mirror (`autoConnectorForHost` in
+   [`resolver.ts`](../../src/connectors/resolver.ts): Claude host means every
+   relay runs claude-code), and it never checks that the mirrored CLI is even
+   installed. Since this note was first written, `circuit doctor` gained real
+   connector probes and grades readiness on the routed connector set. The
+   ruling turns that machinery into the casting input: probe the connectors
+   at run start (this also closes the friction-log gap where a dead connector
+   aborts mid-run instead of pre-spend), then staff seats from the healthy
+   set. One healthy connector means today's behavior is the floor: everything
+   runs there, with power-tier sizing. Two or more healthy connectors means
+   cross-connector casting by default, per the ruling.
+
+Shipped-since reconciliation (grounded 2026-07-13): the recommended first
+slice landed as `circuit preview` (`src/cli/preview.ts`,
+`src/cli/flow-selection-preview.ts`); the codex flagship default resolves
+from the live models cache (`src/connectors/codex-default-model.ts`, on
+main); per-step connector pinning ships in `src/flows/cross-tool-build/`;
+doctor's connector probes exist. Still unbuilt: the role-to-(model, effort)
+binding, the temperament table, dial-as-scalar, detection-driven casting,
+and the first-run readout.
+
+Build order under the ruling (all post-announcement; the v1 freeze applies):
+
+1. Availability preflight at run start plus the run-start readout line. This
+   is the smallest slice, pairs with the friction-log preflight fix, and
+   makes every later casting decision visible.
+2. The temperament-staffed default roster: the role-to-(model, effort)
+   binding this note names as the core new capability, with the shipped
+   temperament table as its default values, and cross-connector casting from
+   the healthy set.
+3. Roster-as-editable-config and dial-as-scalar, unchanged from the body.
+4. The writer seat and class specialization when a craft flow demands it.
+
+Two cautions to carry into the build:
+
+- **Spend surprise.** Cross-connector casting by default means a user who
+  installed Circuit through the Claude plugin may see their Codex
+  subscription spend, or the reverse. The ruling accepts this (configure
+  automatically, then communicate), so the mitigation is the loud first-run
+  readout plus a one-line pin-back (`relay.default: claude-code` already
+  works today). The safety walls stay: provider and effort compatibility
+  asserted at resolution, read-only connectors never staff write steps.
+- **Vocabulary collision.** "Archetype" now also names flow families in the
+  task-aware assembler (`src/flows/resolvers/archetype.ts`,
+  `ArchetypeFamily` in `signals.ts`). The model side needs its own word
+  before anything user-facing ships. Candidate: casting (flows have roles;
+  Circuit casts the best available model into each seat). Operator's taste
+  call, and it must land in `UBIQUITOUS_LANGUAGE.md` when it does.
