@@ -307,6 +307,10 @@ doctor's connector probes exist. Still unbuilt: the role-to-(model, effort)
 binding, the temperament table, dial-as-scalar, detection-driven casting,
 and the first-run readout.
 
+The setup and first-run experience this feeds (when configuration happens,
+who performs it, how it is communicated) is designed in
+[`turnkey-first-run.md`](turnkey-first-run.md).
+
 Build order under the ruling (all post-announcement; the v1 freeze applies):
 
 1. Availability preflight at run start plus the run-start readout line. This
