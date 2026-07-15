@@ -107,6 +107,9 @@ export const StepCompletedProgressEvent = ProgressEventBase.extend({
   step_title: z.string().min(1),
   attempt: z.number().int().positive(),
   route_taken: z.string().min(1),
+  // Present only when the attempt's check failed and a failure reason was
+  // recorded; the display copy stays short and this carries the detail.
+  failure_reason: z.string().min(1).optional(),
 }).strict();
 
 export const StepAbortedProgressEvent = ProgressEventBase.extend({
@@ -248,6 +251,9 @@ export const RunCompletedProgressEvent = ProgressEventBase.extend({
   type: z.literal('run.completed'),
   outcome: RunClosedOutcome,
   result_path: z.string().min(1),
+  // Present for non-complete outcomes (stopped, handoff, escalated) when the
+  // run.closed trace entry recorded why.
+  reason: z.string().min(1).optional(),
 }).strict();
 
 export const RunAbortedProgressEvent = ProgressEventBase.extend({

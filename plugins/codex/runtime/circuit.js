@@ -85687,7 +85687,10 @@ var init_progress_event = __esm({
       step_id: StepId,
       step_title: external_exports.string().min(1),
       attempt: external_exports.number().int().positive(),
-      route_taken: external_exports.string().min(1)
+      route_taken: external_exports.string().min(1),
+      // Present only when the attempt's check failed and a failure reason was
+      // recorded; the display copy stays short and this carries the detail.
+      failure_reason: external_exports.string().min(1).optional()
     }).strict();
     StepAbortedProgressEvent = ProgressEventBase.extend({
       type: external_exports.literal("step.aborted"),
@@ -85805,7 +85808,10 @@ var init_progress_event = __esm({
     RunCompletedProgressEvent = ProgressEventBase.extend({
       type: external_exports.literal("run.completed"),
       outcome: RunClosedOutcome,
-      result_path: external_exports.string().min(1)
+      result_path: external_exports.string().min(1),
+      // Present for non-complete outcomes (stopped, handoff, escalated) when the
+      // run.closed trace entry recorded why.
+      reason: external_exports.string().min(1).optional()
     }).strict();
     RunAbortedProgressEvent = ProgressEventBase.extend({
       type: external_exports.literal("run.aborted"),
@@ -98218,6 +98224,7 @@ function createProgressProjector(input) {
   const taskStatuses = new Map(input.flow.steps.map((step) => [step.id, "pending"]));
   const stepDisplayById = new Map(input.progressSurface?.steps.map((step) => [step.stepId, step]) ?? []);
   const activeAttempts = /* @__PURE__ */ new Map();
+  const failedChecks = /* @__PURE__ */ new Map();
   const flowId = input.flow.id;
   const runId = input.runId;
   return (entry) => {
@@ -98539,13 +98546,63 @@ function createProgressProjector(input) {
         });
         break;
       }
+      case "check.evaluated": {
+        if (entry.outcome !== "fail" || entry.step_id === void 0 || entry.attempt === void 0) {
+          break;
+        }
+        const existing = failedChecks.get(entry.step_id);
+        if (existing !== void 0 && existing.attempt === entry.attempt)
+          break;
+        const reason = [entry.reason, entry.stderr_summary].find((text) => typeof text === "string" && text.length > 0);
+        failedChecks.set(entry.step_id, {
+          attempt: entry.attempt,
+          ...reason === void 0 ? {} : { reason }
+        });
+        break;
+      }
       case "step.completed": {
         const stepId = entry.step_id;
         if (stepId === void 0 || entry.attempt === void 0 || entry.route_taken === void 0) {
           break;
         }
-        taskStatuses.set(stepId, "completed");
+        const recorded = failedChecks.get(stepId);
+        const failedCheck = recorded !== void 0 && recorded.attempt === entry.attempt ? recorded : void 0;
+        if (failedCheck !== void 0)
+          failedChecks.delete(stepId);
+        taskStatuses.set(stepId, failedCheck === void 0 ? "completed" : "failed");
         const display = stepDisplay({ flow: input.flow, stepDisplayById, stepId });
+        if (failedCheck !== void 0) {
+          const move = RECOVERY_MOVE_COPY[entry.route_taken] ?? "rerouting the run";
+          const statusText = `${display.taskTitle} did not pass on attempt ${entry.attempt}; ${move}.`;
+          reportProgress(input.progress, {
+            schema_version: 1,
+            type: "step.completed",
+            run_id: runId,
+            flow_id: flowId,
+            recorded_at: recordedAt,
+            label: `${display.title} did not pass`,
+            display: progressDisplay(circuitDisplayText(statusText), "major", "warning"),
+            presentation: appendStatus(runId, statusText),
+            step_id: stepId,
+            step_title: display.title,
+            attempt: entry.attempt,
+            route_taken: entry.route_taken,
+            ...failedCheck.reason === void 0 ? {} : { failure_reason: failedCheck.reason }
+          });
+          reportTaskListProgress({
+            progress: input.progress,
+            runId,
+            flowId,
+            flow: input.flow,
+            stepDisplayById,
+            recordedAt,
+            statuses: taskStatuses,
+            label: `${display.title} did not pass`,
+            displayText: circuitDisplayText(statusText),
+            tone: "warning"
+          });
+          break;
+        }
         reportProgress(input.progress, {
           schema_version: 1,
           type: "step.completed",
@@ -98627,6 +98684,9 @@ function createProgressProjector(input) {
             ...reason === void 0 ? {} : { reason }
           });
         } else {
+          const verb = RUN_CLOSE_VERB[outcome];
+          const reason = verb === void 0 ? void 0 : runReason(entry);
+          const statusText = verb === void 0 ? `Finished ${flowLabel(input.flow.id)}.` : reason === void 0 ? `${verb} ${flowLabel(input.flow.id)}.` : `${verb} ${flowLabel(input.flow.id)}: ${reason}`;
           reportProgress(input.progress, {
             schema_version: 1,
             type: "run.completed",
@@ -98634,10 +98694,11 @@ function createProgressProjector(input) {
             flow_id: flowId,
             recorded_at: recordedAt,
             label: `Circuit run ${outcome}`,
-            display: progressDisplay(`Circuit: Finished ${flowLabel(input.flow.id)}.`, "major", "success"),
-            presentation: appendStatus(runId, `Finished ${flowLabel(input.flow.id)}.`),
+            display: progressDisplay(circuitDisplayText(statusText), "major", verb === void 0 ? "success" : "warning"),
+            presentation: appendStatus(runId, statusText),
             outcome,
-            result_path: runResultPath(input.runDir)
+            result_path: runResultPath(input.runDir),
+            ...reason === void 0 ? {} : { reason }
           });
         }
         break;
@@ -98647,6 +98708,7 @@ function createProgressProjector(input) {
     }
   };
 }
+var RECOVERY_MOVE_COPY, RUN_CLOSE_VERB;
 var init_progress = __esm({
   "dist/runtime/projections/progress.js"() {
     "use strict";
@@ -98655,6 +98717,19 @@ var init_progress = __esm({
     init_write_capable_worker_disclosure();
     init_trace_fields();
     init_tournament_checkpoint_context();
+    RECOVERY_MOVE_COPY = {
+      retry: "trying again",
+      revise: "sending the work back for revision",
+      ask: "asking for your input",
+      stop: "stopping the run",
+      handoff: "handing the run off",
+      escalate: "escalating the run"
+    };
+    RUN_CLOSE_VERB = {
+      stopped: "Stopped",
+      handoff: "Handed off",
+      escalated: "Escalated"
+    };
   }
 });
 

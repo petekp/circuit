@@ -265,6 +265,166 @@ describe('runtime progress projection', () => {
     expect(abortedEvent?.display.text).toBe('Circuit: Run aborted: boom');
   });
 
+  it('reports a failed check honestly when the step routes to recovery', () => {
+    // Honesty regression: a step whose check failed used to emit the same
+    // detail/success/suppressed "Finished ..." copy as a passing step, so a
+    // failed verification and its retry were invisible in the live stream.
+    const progress = projectProgress('fix', [
+      trace({ sequence: 0, kind: 'run.bootstrapped', flow_id: 'fix' }),
+      trace({ sequence: 1, kind: 'step.entered', step_id: 'fix-verify', attempt: 1 }),
+      trace({
+        sequence: 2,
+        kind: 'check.evaluated',
+        step_id: 'fix-verify',
+        attempt: 1,
+        check_kind: 'acceptance_criteria',
+        outcome: 'fail',
+        reason: 'npm test exited 1',
+      }),
+      trace({
+        sequence: 3,
+        kind: 'step.completed',
+        step_id: 'fix-verify',
+        attempt: 1,
+        route_taken: 'retry',
+      }),
+    ]);
+
+    const completed = progress.find((event) => event.type === 'step.completed');
+    expect(completed?.display.text).toBe(
+      'Circuit: Check the work did not pass on attempt 1; trying again.',
+    );
+    expect(completed?.display.importance).toBe('major');
+    expect(completed?.display.tone).toBe('warning');
+    expect(completed?.presentation).toMatchObject({
+      line_mode: 'append',
+      status_text: 'Check the work did not pass on attempt 1; trying again.',
+    });
+    expect(completed).toMatchObject({ route_taken: 'retry', failure_reason: 'npm test exited 1' });
+
+    const lastTaskList = progress.filter((event) => event.type === 'task_list.updated').at(-1);
+    expect(lastTaskList?.display.tone).toBe('warning');
+    expect(lastTaskList?.tasks.find((task) => task.id === 'fix-verify')?.status).toBe('failed');
+  });
+
+  it('keeps success copy for a later attempt that passes after a failed one', () => {
+    const progress = projectProgress('fix', [
+      trace({ sequence: 0, kind: 'run.bootstrapped', flow_id: 'fix' }),
+      trace({ sequence: 1, kind: 'step.entered', step_id: 'fix-verify', attempt: 1 }),
+      trace({
+        sequence: 2,
+        kind: 'check.evaluated',
+        step_id: 'fix-verify',
+        attempt: 1,
+        check_kind: 'acceptance_criteria',
+        outcome: 'fail',
+      }),
+      trace({
+        sequence: 3,
+        kind: 'step.completed',
+        step_id: 'fix-verify',
+        attempt: 1,
+        route_taken: 'retry',
+      }),
+      trace({ sequence: 4, kind: 'step.entered', step_id: 'fix-verify', attempt: 2 }),
+      trace({
+        sequence: 5,
+        kind: 'check.evaluated',
+        step_id: 'fix-verify',
+        attempt: 2,
+        check_kind: 'acceptance_criteria',
+        outcome: 'pass',
+      }),
+      trace({
+        sequence: 6,
+        kind: 'step.completed',
+        step_id: 'fix-verify',
+        attempt: 2,
+        route_taken: 'pass',
+      }),
+    ]);
+
+    const completions = progress.filter((event) => event.type === 'step.completed');
+    expect(completions.at(-1)?.display.text).toBe('Finished checking the work.');
+    expect(completions.at(-1)?.display.tone).toBe('success');
+    const lastTaskList = progress.filter((event) => event.type === 'task_list.updated').at(-1);
+    expect(lastTaskList?.tasks.find((task) => task.id === 'fix-verify')?.status).toBe('completed');
+  });
+
+  it('keeps success copy when a passing check routes to a non-pass route', () => {
+    // A decision step can legitimately route to 'stop' on a passing check
+    // (for example, fix's no-repro decision). Only a failed check is a
+    // failure; the route name alone is not.
+    const progress = projectProgress('fix', [
+      trace({ sequence: 0, kind: 'run.bootstrapped', flow_id: 'fix' }),
+      trace({ sequence: 1, kind: 'step.entered', step_id: 'fix-no-repro-decision', attempt: 1 }),
+      trace({
+        sequence: 2,
+        kind: 'check.evaluated',
+        step_id: 'fix-no-repro-decision',
+        attempt: 1,
+        check_kind: 'result_verdict',
+        outcome: 'pass',
+      }),
+      trace({
+        sequence: 3,
+        kind: 'step.completed',
+        step_id: 'fix-no-repro-decision',
+        attempt: 1,
+        route_taken: 'stop',
+      }),
+    ]);
+
+    const completed = progress.find((event) => event.type === 'step.completed');
+    expect(completed?.display.tone).toBe('success');
+    expect(completed?.display.importance).toBe('detail');
+  });
+
+  it('reports non-complete run closes as warnings, not success', () => {
+    // Honesty regression: a run that closed stopped/partial streamed
+    // "Circuit: Finished Fix." with tone success as its final event.
+    const stopped = projectProgress('fix', [
+      trace({ sequence: 0, kind: 'run.bootstrapped', flow_id: 'fix' }),
+      trace({
+        sequence: 1,
+        kind: 'run.closed',
+        outcome: 'stopped',
+        reason: "primary result 'reports/fix-result.json' reported outcome 'partial'",
+      }),
+    ]);
+    const stoppedEvent = stopped.find((event) => event.type === 'run.completed');
+    expect(stoppedEvent?.display.text).toBe(
+      "Circuit: Stopped Fix: primary result 'reports/fix-result.json' reported outcome 'partial'",
+    );
+    expect(stoppedEvent?.display.tone).toBe('warning');
+    expect(stoppedEvent?.display.importance).toBe('major');
+    expect(stoppedEvent?.presentation).toMatchObject({
+      line_mode: 'append',
+      status_text:
+        "Stopped Fix: primary result 'reports/fix-result.json' reported outcome 'partial'",
+    });
+    expect(stoppedEvent).toMatchObject({
+      outcome: 'stopped',
+      reason: "primary result 'reports/fix-result.json' reported outcome 'partial'",
+    });
+
+    const handedOff = projectProgress('fix', [
+      trace({ sequence: 0, kind: 'run.bootstrapped', flow_id: 'fix' }),
+      trace({ sequence: 1, kind: 'run.closed', outcome: 'handoff' }),
+    ]);
+    const handoffEvent = handedOff.find((event) => event.type === 'run.completed');
+    expect(handoffEvent?.display.text).toBe('Circuit: Handed off Fix.');
+    expect(handoffEvent?.display.tone).toBe('warning');
+
+    const complete = projectProgress('fix', [
+      trace({ sequence: 0, kind: 'run.bootstrapped', flow_id: 'fix' }),
+      trace({ sequence: 1, kind: 'run.closed', outcome: 'complete' }),
+    ]);
+    const completeEvent = complete.find((event) => event.type === 'run.completed');
+    expect(completeEvent?.display.text).toBe('Circuit: Finished Fix.');
+    expect(completeEvent?.display.tone).toBe('success');
+  });
+
   it('keeps non-Explore relay started and completed copy stable', () => {
     const progress = projectProgress('review', [
       trace({ sequence: 0, kind: 'run.bootstrapped', flow_id: 'review' }),

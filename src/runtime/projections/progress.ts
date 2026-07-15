@@ -54,6 +54,28 @@ function flowLabel(flowId: string): string {
     .join(' ');
 }
 
+// Operator copy for the move a failed check routes the run to. Keyed by the
+// conventional recovery route ids (see FALLBACK_RECOVERY_ROUTE_ORDER in
+// run/recovery-selection.ts). Schematics may declare other recovery route
+// ids; those fall back to a generic move so a failed check is never
+// rendered as a success.
+const RECOVERY_MOVE_COPY: Readonly<Record<string, string>> = {
+  retry: 'trying again',
+  revise: 'sending the work back for revision',
+  ask: 'asking for your input',
+  stop: 'stopping the run',
+  handoff: 'handing the run off',
+  escalate: 'escalating the run',
+};
+
+// Non-complete close outcomes render as warnings with an honest verb; only
+// 'complete' earns "Finished" with a success tone.
+const RUN_CLOSE_VERB: Readonly<Partial<Record<string, string>>> = {
+  stopped: 'Stopped',
+  handoff: 'Handed off',
+  escalated: 'Escalated',
+};
+
 function fallbackRelayStartedStatusText(role: ProgressRelayRole): string {
   if (role === 'researcher') {
     return 'Asking the researcher to clarify the task...';
@@ -333,6 +355,10 @@ export function createProgressProjector(input: {
     input.progressSurface?.steps.map((step) => [step.stepId, step]) ?? [],
   );
   const activeAttempts = new Map<string, number>();
+  // Latest failed check per step, so step.completed can tell an attempt whose
+  // check failed (routed to recovery) apart from one that passed. Keeps the
+  // first failure's reason for the attempt; cleared when the attempt reports.
+  const failedChecks = new Map<string, { attempt: number; reason?: string }>();
   const flowId = input.flow.id as CompiledFlowId;
   const runId = input.runId as ProgressRunId;
 
@@ -709,6 +735,25 @@ export function createProgressProjector(input: {
         });
         break;
       }
+      case 'check.evaluated': {
+        if (
+          entry.outcome !== 'fail' ||
+          entry.step_id === undefined ||
+          entry.attempt === undefined
+        ) {
+          break;
+        }
+        const existing = failedChecks.get(entry.step_id);
+        if (existing !== undefined && existing.attempt === entry.attempt) break;
+        const reason = [entry.reason, entry.stderr_summary].find(
+          (text): text is string => typeof text === 'string' && text.length > 0,
+        );
+        failedChecks.set(entry.step_id, {
+          attempt: entry.attempt,
+          ...(reason === undefined ? {} : { reason }),
+        });
+        break;
+      }
       case 'step.completed': {
         const stepId = entry.step_id;
         if (
@@ -718,8 +763,44 @@ export function createProgressProjector(input: {
         ) {
           break;
         }
-        taskStatuses.set(stepId, 'completed');
+        const recorded = failedChecks.get(stepId);
+        const failedCheck =
+          recorded !== undefined && recorded.attempt === entry.attempt ? recorded : undefined;
+        if (failedCheck !== undefined) failedChecks.delete(stepId);
+        taskStatuses.set(stepId, failedCheck === undefined ? 'completed' : 'failed');
         const display = stepDisplay({ flow: input.flow, stepDisplayById, stepId });
+        if (failedCheck !== undefined) {
+          const move = RECOVERY_MOVE_COPY[entry.route_taken] ?? 'rerouting the run';
+          const statusText = `${display.taskTitle} did not pass on attempt ${entry.attempt}; ${move}.`;
+          reportProgress(input.progress, {
+            schema_version: 1,
+            type: 'step.completed',
+            run_id: runId,
+            flow_id: flowId,
+            recorded_at: recordedAt,
+            label: `${display.title} did not pass`,
+            display: progressDisplay(circuitDisplayText(statusText), 'major', 'warning'),
+            presentation: appendStatus(runId, statusText),
+            step_id: stepId,
+            step_title: display.title,
+            attempt: entry.attempt,
+            route_taken: entry.route_taken,
+            ...(failedCheck.reason === undefined ? {} : { failure_reason: failedCheck.reason }),
+          });
+          reportTaskListProgress({
+            progress: input.progress,
+            runId,
+            flowId,
+            flow: input.flow,
+            stepDisplayById,
+            recordedAt,
+            statuses: taskStatuses,
+            label: `${display.title} did not pass`,
+            displayText: circuitDisplayText(statusText),
+            tone: 'warning',
+          });
+          break;
+        }
         reportProgress(input.progress, {
           schema_version: 1,
           type: 'step.completed',
@@ -816,6 +897,14 @@ export function createProgressProjector(input: {
             ...(reason === undefined ? {} : { reason }),
           });
         } else {
+          const verb = RUN_CLOSE_VERB[outcome];
+          const reason = verb === undefined ? undefined : runReason(entry);
+          const statusText =
+            verb === undefined
+              ? `Finished ${flowLabel(input.flow.id)}.`
+              : reason === undefined
+                ? `${verb} ${flowLabel(input.flow.id)}.`
+                : `${verb} ${flowLabel(input.flow.id)}: ${reason}`;
           reportProgress(input.progress, {
             schema_version: 1,
             type: 'run.completed',
@@ -824,13 +913,14 @@ export function createProgressProjector(input: {
             recorded_at: recordedAt,
             label: `Circuit run ${outcome}`,
             display: progressDisplay(
-              `Circuit: Finished ${flowLabel(input.flow.id)}.`,
+              circuitDisplayText(statusText),
               'major',
-              'success',
+              verb === undefined ? 'success' : 'warning',
             ),
-            presentation: appendStatus(runId, `Finished ${flowLabel(input.flow.id)}.`),
+            presentation: appendStatus(runId, statusText),
             outcome,
             result_path: runResultPath(input.runDir),
+            ...(reason === undefined ? {} : { reason }),
           });
         }
         break;
