@@ -1,3 +1,6 @@
+import { mkdtempSync, rmSync } from 'node:fs';
+import { tmpdir } from 'node:os';
+import { join } from 'node:path';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import type { FlowSelectionPreview } from '../../src/cli/flow-selection-preview.js';
 import { runPreviewCommand, sourceCellText } from '../../src/cli/preview.js';
@@ -7,11 +10,22 @@ import { runPreviewCommand, sourceCellText } from '../../src/cli/preview.js';
 // do not depend on the machine (connector pins from the schematic, dial-driven
 // effort from the shipped tier tables, exit codes) — never on the codex default
 // model, which is read from the operator's local cache and varies by machine.
+//
+// Preview discovers operator config from the working directory, so the suite
+// runs from an empty temp directory: a developer's own .circuit/config.yaml
+// (dial defaults, effort pins) must not change the output these tests pin.
+// The user-global layer (~/.circuit/config.yaml) has no injection seam here;
+// if that file ever appears on a dev machine these assertions would see it.
 
 let stdout: string[];
 let stderr: string[];
+let previousCwd: string;
+let isolatedCwd: string;
 
 beforeEach(() => {
+  previousCwd = process.cwd();
+  isolatedCwd = mkdtempSync(join(tmpdir(), 'circuit-preview-hermetic-'));
+  process.chdir(isolatedCwd);
   stdout = [];
   stderr = [];
   vi.spyOn(process.stdout, 'write').mockImplementation((chunk: unknown) => {
@@ -26,6 +40,8 @@ beforeEach(() => {
 
 afterEach(() => {
   vi.restoreAllMocks();
+  process.chdir(previousCwd);
+  rmSync(isolatedCwd, { recursive: true, force: true });
 });
 
 function json<T>(): T {
