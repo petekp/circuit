@@ -130,12 +130,25 @@ as literal user-controlled text when constructing shell commands.
    `presentation.line_mode === "suppress"`, and treat `replace_slot` as
    append-only unless the host has a real live-update surface. If
    `presentation` is absent, render `display.text` for major, warning, error,
-   or checkpoint events and suppress detail. Do not show raw JSON, raw step
-   IDs, or trace internals by default. When `task_list.updated` arrives,
+   or checkpoint events and suppress detail. Render engine text verbatim:
+   the engine wrote each line for the operator, so do not paraphrase it,
+   summarize it, or merge lines. Never write your own words inside a
+   `CIRCUIT` block. A Circuit-labeled line is an engine statement; put your
+   own commentary (what you are waiting for, what you will do next) outside
+   the block, in your own voice. Do not show raw JSON, raw step
+   IDs, or trace internals by default. Surface events whose `tone` is
+   `checkpoint` or `error` as soon as they arrive; do not hold them for the
+   next batch of routine updates. For a run you expect to take more than a
+   few minutes, start it in the background with stderr redirected to a file
+   you choose (append `2>"$PROGRESS_LOG" &` to the invocation), then poll
+   that file with a bounded tail-and-sleep loop and relay new events between
+   polls, so a parked or failed run is noticed while it can still be acted
+   on. When `task_list.updated` arrives,
    update the host task or plan surface when available. When
    `user_input.requested` arrives, ask with a native user-question surface
    when available, otherwise in-thread, and resume with the selected option's
-   `checkpoint_choice`.
+   `checkpoint_choice`. When `checkpoint.waiting` arrives, say the run is
+   waiting and quote the exact resume command.
 5. **Parse the CLI's final JSON output and surface:** `selected_flow`,
    `routed_by`, `router_reason`, `outcome`, `run_folder`, `trace_entries_observed`,
    `run_surface_markdown_path`, `run_envelope_path`,
