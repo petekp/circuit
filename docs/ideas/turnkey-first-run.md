@@ -459,3 +459,12 @@ milestone stream ([`run-milestone-stream.md`](run-milestone-stream.md)).
     first-run experience. Sequencing language in this doc ("post-
     announcement") should be read as "after the experience is nailed",
     not as a calendar commitment.
+
+25. **Preferences persist project-local, ruled 2026-07-14.** The
+    where-profiles-live fork is closed for now: `.circuit/config.yaml`
+    is the only preference store. A preference is a statement about how
+    this project's work gets done; availability is a machine fact that
+    a user-global profile would fight; a committed project config is
+    the compounding artifact teammates inherit. A per-user layer waits
+    for demonstrated demand. Same ruling green-lit designing the run
+    milestone stream ([`run-milestone-stream.md`](run-milestone-stream.md)).
