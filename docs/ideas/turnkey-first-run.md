@@ -6,7 +6,9 @@ addendum: consider an agentic setup process automatically kicked off on the
 user's first Circuit invocation as the lead candidate, without overindexing
 on it. Nothing here is built; the v1 launch freeze applies. Code citations
 grounded against `src/` and `plugins/` on 2026-07-13; verify before
-building.
+building. A 2026-07-14 operator review of the demonstrated journey (final
+section) corrects one mechanism and adds rulings; it overrides the body
+where they conflict.
 
 This note owns the setup and first-run experience: when configuration
 happens, who performs it, and how it is communicated.
@@ -151,10 +153,12 @@ expanded: what was detected, what was cast per seat and why, the three
 adjustment paths (`circuit config`, per-run flags, `circuit preview`).
 On every later run, one line. In pipe mode, an envelope field (precedent:
 `run-stdout-envelope.ts` carries history_recall the same way). On the
-Claude host the SessionStart hook can carry the one-time "Circuit is
-ready: found claude + codex healthy" note through the same
-additionalContext channel the continuity brief uses, staying silent
-otherwise, exactly like the brief does today.
+Claude host the SessionStart hook injects a one-time brief through the
+same additionalContext channel the continuity brief uses. That channel
+reaches the model, not the screen, so the host speaks the note in its own
+voice and asks the auto-use consent question (see the 2026-07-14 feedback
+section below), staying silent otherwise, exactly like the brief does
+today.
 
 **Moment 2, first run in a project: the agentic part, inside paid work
 (B3).** The run's existing early relay steps learn the project anyway.
@@ -260,3 +264,57 @@ The load-bearing findings for this design:
 - **A repeated question is a bug; a blocked non-TTY prompt is a bug.**
   First-run state must be persisted and content-keyed; nothing in this
   design may prompt in pipe mode.
+
+## 2026-07-14 operator review of the demonstrated journey
+
+The recommendation above was demonstrated to the operator as an
+eight-scene mock journey (session artifact, terminal frames with real
+copy). His feedback corrects one mechanism and adds rulings. Where they
+conflict with the body, this section wins.
+
+1. **Correction: the session hook cannot show the user anything.**
+   additionalContext reaches the model, not the screen. Anything the user
+   sees at first contact is spoken by the host, because the injected brief
+   instructed it to. Design change: the first-contact brief instructs the
+   host to tell the user Circuit is installed and which agents were found
+   healthy, to offer bringing Circuit in automatically when a task fits
+   and ask for consent, and to name the exits up front (stop using
+   Circuit, uninstall it). The consent answer persists in per-user state;
+   the question never repeats. Auto-use announces itself on every handoff
+   so the user always knows Circuit is involved.
+
+2. **Ruling: the agent is the interface for plugin users.** Receipts and
+   run-start summaries contain no CLI commands. Adjustments happen in
+   conversation: the user says "use fable for research", the host asks the
+   one follow-up that matters (effort level), then drives `circuit config`
+   under the hood. Manual controls stay documented for power users, and
+   first contact may point at them once. The run-end recap stays and stays
+   succinct: which model did what, what was learned, no commands.
+
+3. **Ruling: keep the in-run learning shape, tentatively.** Learning the
+   project inside the first paid run (the B3 shape) stands, to avoid
+   front-loading decisions. A pre-run learning pass remains an open
+   variant if the in-run shape proves confusing in practice.
+
+4. **Open problem: live run feedback.** Neither host gives Circuit a
+   reliable way to show run internals while a run executes. The host can
+   be asked to narrate progress, but compliance is hit or miss. The
+   guaranteed surfaces are run start and run end; design copy may claim
+   only those. A real live-feedback channel needs its own design note
+   before the Stage 2 copy is finalized.
+
+5. **Vocabulary: "cast" is rejected** (reads like theater roles), and
+   "readout", "first run on this machine", and "nothing was written to
+   disk" all read wrong as user-facing phrasing. User copy says "who does
+   what" and "these are Circuit's defaults; nothing is locked in". The
+   internal term for the mechanism still awaits the ubiquitous-language
+   ruling.
+
+6. **Confirmed: asking to configure shows the whole effective setup.**
+   When the user asks how Circuit is set up, the host shows the full
+   effective configuration with smart defaults included and offers
+   changes, labeling defaults, learned facts, and the user's own choices
+   apart, so "what did I decide versus what was decided for me" is always
+   answerable. Underneath it is the same proposal machinery as `circuit
+   setup`: evidence per decision, nothing applied until accepted, never
+   run unasked.
