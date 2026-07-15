@@ -334,7 +334,7 @@
     {
       "path": "docs/ideas/run-milestone-stream.md",
       "title": "Run milestone stream: live legibility for backgrounded runs",
-      "status": "superseded",
+      "status": "current-proposal",
       "category": "run-inspection-and-output",
       "impact": 4,
       "tags": [
@@ -343,9 +343,9 @@
         "host-experience",
         "checkpoints",
         "trace-projection",
-        "post-v1"
+        "first-run"
       ],
-      "current_reading": "Retained for its problem evidence and milestone examples. Do not build the proposed durable status.ndjson; the CLI rebuild replaces it with ProgressEventV2 projected from Trace, watch <run-id>, and transient lease health.",
+      "current_reading": "Reactivated 2026-07-14 as the live run feedback design for the first-run experience, green-lit by the operator. Corrected diagnosis: the engine already emits the milestone stream (ProgressEvent v1 on stderr under --progress jsonl, with operator-language display.text, importance, and tone); the gap is delivery, because the host model cannot run while a blocking shell call holds the run. Design = a delivery pattern with no engine changes in the first slice: background the run (Claude backgrounds and monitors the task, Codex redirects stderr to a file and polls; both spike-proven), relay major-importance text near-verbatim with no added summary, push checkpoint and error tones plus user_input.requested immediately, close on the unchanged receipt. Degradation is today's silent run with an intact receipt. The durable status.ndjson stays dead per the CLI rebuild ledger (no second persisted feed); the rebuild's ProgressEventV2 and watch subsume this later and the relay rules carry over. Launch-scope build slice: teach the pattern in both hosts' generated command surfaces and fix the asymmetry where the Claude run command never requests --progress jsonl.",
       "related": [
         "docs/ideas/output-model.md",
         "docs/ideas/long-horizon-supervision.md",
