@@ -38,11 +38,11 @@ describe('eval registry', () => {
     }
   });
 
-  it('keeps fix-vs-vanilla as the only claim-grade eval', () => {
+  it('publishes no eval number, so no eval is claim-grade', () => {
     const claimGradeIds = registry.evals
       .filter((entry) => entry.claim_level === 'claim-grade')
       .map((entry) => entry.id);
-    expect(claimGradeIds).toEqual(['fix-vs-vanilla']);
+    expect(claimGradeIds).toEqual([]);
   });
 
   it('does not track raw eval result folders', () => {

@@ -6,7 +6,11 @@ import { readJson } from './shared/json.ts';
 const REPO_ROOT = resolve(import.meta.dirname, '../..');
 const REGISTRY_PATH = resolve(REPO_ROOT, 'evals/registry.json');
 const CLAIM_LEVELS = new Set(['smoke', 'regression', 'discovery', 'claim-grade']);
-const CLAIM_GRADE_EVAL_IDS = new Set(['fix-vs-vanilla']);
+// Empty by design. As of 0.1.1 Circuit publishes no eval number, so no eval
+// carries the 'claim-grade' level. If we ever publish an eval number again,
+// register its id here and set its cadence back to 'release-or-milestone' the
+// same day: a published number and a release gate move together.
+const CLAIM_GRADE_EVAL_IDS = new Set<string>();
 
 type EvalRegistryEntry = {
   id: string;
@@ -39,7 +43,7 @@ function checkRegistry(): EvalRegistry {
       fail(`${entry.id}: invalid claim_level ${entry.claim_level}`);
     }
     if (entry.claim_level === 'claim-grade' && !CLAIM_GRADE_EVAL_IDS.has(entry.id)) {
-      fail(`${entry.id}: fix-vs-vanilla is the only claim-grade eval today`);
+      fail(`${entry.id}: claim-grade requires registering the id in CLAIM_GRADE_EVAL_IDS (none are registered today)`);
     }
     if (CLAIM_GRADE_EVAL_IDS.has(entry.id) && entry.claim_level !== 'claim-grade') {
       fail(`${entry.id}: expected claim_level claim-grade`);

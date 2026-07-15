@@ -3,7 +3,7 @@
   "evals": [
     {
       "id": "fix-vs-vanilla",
-      "claim_level": "claim-grade",
+      "claim_level": "discovery",
       "flow": "fix",
       "primary_metric": "false_fixed_rate",
       "secondary_metrics": [
@@ -22,8 +22,8 @@
         "held-out"
       ],
       "cost_class": "live-model",
-      "cadence": "release-or-milestone",
-      "claim_eligible": true,
+      "cadence": "ad-hoc",
+      "claim_eligible": false,
       "readme_path": "evals/fix-vs-vanilla/README.md"
     },
     {
@@ -86,7 +86,7 @@
         "evals/verdict-correctness/index.ts"
       ],
       "cost_class": "live-model",
-      "cadence": "release-or-milestone",
+      "cadence": "ad-hoc",
       "claim_eligible": false,
       "readme_path": "evals/verdict-correctness/README.md"
     },

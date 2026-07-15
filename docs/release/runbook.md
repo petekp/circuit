@@ -79,6 +79,24 @@ install smoke) and skips the effectful steps. Read the report it writes.
 If `check-release-ready` reports an eval-cadence blocker, run the demanded
 evals (they spend real model tokens) or record a waiver before retrying.
 
+As of 0.1.1 no eval carries the `release-or-milestone` cadence, so the
+eval-cadence gate stays quiet on a routine release. Two evals moved to
+`ad-hoc` when the vanilla-comparison claim was retired:
+
+- **fix-vs-vanilla** measured Circuit against a plain agent run, a claim we
+  no longer make. Keep the harness as an on-demand Fix regression instrument:
+  run the Circuit arm alone for the false-fixed rate and skip the vanilla arm,
+  which only re-measures the dead claim.
+- **verdict-correctness** backs the honesty-floor claim (judges catching
+  false-done work). Run it before a release only when that release changes
+  verdict admission, judge prompts, or review-step machinery. Otherwise skip.
+
+The deterministic gates below the eval line do the every-release work: the
+golden-run proofs, the parity matrix, and the `false-done-fix` test-suite
+gate are free and run each time. If we ever publish an eval number again,
+restore that eval's `release-or-milestone` cadence the same day so the gate
+guards it. A published number and a release gate move together.
+
 ## 6. Publish
 
 ```bash

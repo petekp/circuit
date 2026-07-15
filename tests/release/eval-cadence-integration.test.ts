@@ -2,21 +2,21 @@ import { resolve } from 'node:path';
 import { describe, expect, it } from 'vitest';
 
 import {
+  RELEASE_CADENCE,
   currentPluginVersion,
   evalCadenceBlockers,
   lastReleaseTagDate,
   readLedgerEntries,
   readRegistryEvals,
-  readWaivers,
 } from '../../scripts/release/eval-cadence.ts';
 
 // These exercise the real readers against the committed repo (registry,
 // seeded ledger, plugin.json) so the wiring in check-release-ready.ts is
-// covered, not just the pure gate. The probe dates derive from the committed
-// ledger so appending a fresh entry (which every release requires) cannot
-// break them.
+// covered, not just the pure gate. The gate's own blocking logic is unit-tested
+// exhaustively in eval-cadence.test.ts; here we only assert how the readers and
+// gate behave against the committed state. The probe dates derive from the
+// committed ledger so appending a fresh entry cannot break them.
 const REPO_ROOT = resolve(import.meta.dirname, '../..');
-const BEFORE_SEEDS = '2026-06-10T00:00:00.000Z';
 
 function afterEveryLedgerEntry(): string {
   const newest = Math.max(...readLedgerEntries(REPO_ROOT).map((entry) => Date.parse(entry.ran_at)));
@@ -24,19 +24,19 @@ function afterEveryLedgerEntry(): string {
 }
 
 describe('eval cadence readers', () => {
-  it('reads both release-or-milestone evals from the registry', () => {
-    const evals = readRegistryEvals(REPO_ROOT);
-    const release = evals.filter((e) => e.cadence === 'release-or-milestone').map((e) => e.id);
-    expect(release).toContain('fix-vs-vanilla');
-    expect(release).toContain('verdict-correctness');
+  it('has no release-or-milestone evals today, so the cadence gate stays quiet', () => {
+    // As of 0.1.1 Circuit publishes no eval number, so no eval carries the
+    // release cadence. This is the policy invariant: if it ever fails, someone
+    // re-added a release-gated eval and must wire the ledger/waiver flow for it.
+    const release = readRegistryEvals(REPO_ROOT).filter((e) => e.cadence === RELEASE_CADENCE);
+    expect(release).toEqual([]);
   });
 
-  it('reads seeded ledger entries for both release evals', () => {
+  it('reads the seeded ledger entries with parseable timestamps', () => {
     const entries = readLedgerEntries(REPO_ROOT);
     const ids = new Set(entries.map((e) => e.eval_id));
     expect(ids.has('fix-vs-vanilla')).toBe(true);
     expect(ids.has('verdict-correctness')).toBe(true);
-    // every entry carries a parseable ran_at
     for (const entry of entries) {
       expect(Number.isNaN(Date.parse(entry.ran_at))).toBe(false);
     }
@@ -53,38 +53,16 @@ describe('eval cadence readers', () => {
 });
 
 describe('eval cadence gate against the committed repo', () => {
-  it('passes: the seeded ledger entries are newer than a pre-seed release', () => {
-    const blockers = evalCadenceBlockers({
-      evals: readRegistryEvals(REPO_ROOT),
-      ledgerEntries: readLedgerEntries(REPO_ROOT),
-      lastReleaseDate: BEFORE_SEEDS,
-      currentVersion: currentPluginVersion(REPO_ROOT),
-      waivers: readWaivers(REPO_ROOT),
-    });
-    expect(blockers).toEqual([]);
-  });
-
-  it('blocks both release evals when the release tag is newer than every entry', () => {
+  it('produces no blockers even when the release tag postdates every ledger entry', () => {
+    // With no release-cadence eval in the registry, the gate cannot block a
+    // routine release regardless of how stale the ledger is or whether any
+    // waiver exists. This is the whole point of the cadence retirement.
     const blockers = evalCadenceBlockers({
       evals: readRegistryEvals(REPO_ROOT),
       ledgerEntries: readLedgerEntries(REPO_ROOT),
       lastReleaseDate: afterEveryLedgerEntry(),
       currentVersion: currentPluginVersion(REPO_ROOT),
       waivers: new Set(),
-    });
-    expect(blockers).toHaveLength(2);
-    expect(blockers.join('\n')).toContain('fix-vs-vanilla');
-    expect(blockers.join('\n')).toContain('verdict-correctness');
-  });
-
-  it('a current-version waiver clears an otherwise-stale eval', () => {
-    const version = currentPluginVersion(REPO_ROOT);
-    const blockers = evalCadenceBlockers({
-      evals: readRegistryEvals(REPO_ROOT),
-      ledgerEntries: readLedgerEntries(REPO_ROOT),
-      lastReleaseDate: afterEveryLedgerEntry(),
-      currentVersion: version,
-      waivers: new Set([`fix-vs-vanilla-${version}`, `verdict-correctness-${version}`]),
     });
     expect(blockers).toEqual([]);
   });
