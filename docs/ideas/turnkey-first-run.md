@@ -468,3 +468,14 @@ milestone stream ([`run-milestone-stream.md`](run-milestone-stream.md)).
     the compounding artifact teammates inherit. A per-user layer waits
     for demonstrated demand. Same ruling green-lit designing the run
     milestone stream ([`run-milestone-stream.md`](run-milestone-stream.md)).
+
+26. **No host words inside Circuit-voiced surfaces, field-confirmed
+    2026-07-14.** Constraint 9 (every Circuit-voiced surface uses one
+    structured grammar) has a newly observed failure mode: a host
+    narrating a live run rendered Circuit-labeled status blocks that
+    mixed genuine engine lines with its own first-person improvisation,
+    and the operator could not tell them apart. The binding rule:
+    anything inside a Circuit-labeled block is engine-authored, relayed
+    verbatim; host commentary lives outside the block in the host's own
+    voice. This rides the same command surfaces as the milestone-stream
+    delivery rules ([`run-milestone-stream.md`](run-milestone-stream.md)).

@@ -85,6 +85,15 @@ applies three rules instead of judgment:
   unnoticed; this stays the highest-value event in the design.
 - Ignore `importance: detail` lines. They exist for attached wrappers and
   debugging, not conversation.
+- Never put host-authored words inside a Circuit-voiced surface. If the
+  host wants to add commentary (what it is waiting for, what it will do
+  next), that goes outside the block, in the host's own voice. Field
+  evidence, 2026-07-14: a Codex session narrating a live Fix run
+  rendered Circuit-labeled status blocks that mixed genuine engine
+  lines with its own first-person improvisation ("I'm keeping it
+  uninterrupted..."), and the two were indistinguishable to the
+  operator. A Circuit-labeled line is an engine assertion; the host
+  must not be able to put claims in Circuit's mouth.
 
 **3. Close on the receipt.** The final stdout JSON and the operator summary
 stay the terminal surface, unchanged. The stream never replaces the
