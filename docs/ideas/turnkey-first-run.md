@@ -318,3 +318,38 @@ conflict with the body, this section wins.
    answerable. Underneath it is the same proposal machinery as `circuit
    setup`: evidence per decision, nothing applied until accepted, never
    run unasked.
+
+### Second pass, same day
+
+7. **Automatic or manual is a setting, not a yes/no consent.** The
+   first-contact question offers two modes: automatic (the host brings
+   Circuit in whenever a task fits) or manual (only when the user asks).
+   Persisted in per-user state, switchable in a sentence, shown in the
+   configuration review as a `mode` row.
+
+8. **The handoff announcement is minimal.** "Running Circuit: Build" and
+   nothing else. No preamble, no reminder of what the user chose or why.
+
+9. **The expanded who-does-what shows before the first run of each
+   flow**, because staffing differs by flow; every later run of that flow
+   gets a compact labeled start line. Preference changes always state
+   their scope in the confirmation: persisted for this project going
+   forward, or one run only ("just this run").
+
+10. **Every Circuit-voiced surface is structured.** Start lines,
+    progress, receipts, walls, and the configuration review all use
+    scannable labeled rows (result / who did what / learned; status /
+    instead / later; status / why / fix), one consistent grammar across
+    the journey. Prose paragraphs are for the assistant's own voice, not
+    for Circuit's facts.
+
+11. **Open design work: how defaults are derived per environment.** The
+    temperament table covers the happy path (both major vendors present,
+    flagship models). One vendor only, small models only, and unfamiliar
+    model names all need an explicit decision procedure before the
+    casting stage builds.
+
+12. **Open work: first-contact delivery needs live testing.** Whether
+    and when the host actually surfaces the injected first-contact brief
+    as speech is unverified, and the timing and verbiage will need
+    tuning against real host behavior.
