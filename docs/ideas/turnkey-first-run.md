@@ -353,3 +353,62 @@ conflict with the body, this section wins.
     and when the host actually surfaces the injected first-contact brief
     as speech is unverified, and the timing and verbiage will need
     tuning against real host behavior.
+
+### Adversarial review pass, applied
+
+An adversarial pass against the operator's feedback found two remaining
+contradictions and a set of gaps. Fixes are applied to the demo; they
+bind as design constraints.
+
+13. **Nothing can speak first in a fresh session.** The demo had the
+    assistant greeting the user before any turn, which the host cannot
+    do. The first-contact note rides the assistant's reply to the user's
+    first message, after answering what was actually asked. Open
+    alternative: hold the mode question until the first Circuit-fit
+    task, where it has context.
+
+14. **Mid-run narration is impossible today, not merely unreliable.**
+    The host launches a run as a blocking call and learns nothing until
+    it returns, so it cannot narrate progress no matter how it is
+    instructed. Any live progress surface depends on a Circuit-emitted
+    milestone stream the host or a watch page can read
+    ([`run-milestone-stream.md`](run-milestone-stream.md) is the natural
+    home). Until then the honest in-run surface is silence, and design
+    copy shows exactly that, with the structured progress view labeled
+    as gated on that channel.
+
+15. **Spend is named before it happens.** The first who-does-what table
+    carries one plain line ("This run spends on both your claude and
+    codex plans"). This closes the spend-surprise caution recorded in
+    the roster note; "keep it on claude" stays a one-sentence pin-back.
+
+16. **Conversational config validates availability.** Confirmations name
+    the connector that will serve a requested model, and asking for a
+    model that is not on the machine gets a plain refusal plus what is
+    available, never a silent nod.
+
+17. **Learned facts name their file.** The receipt says the verify
+    command was saved in `.circuit/config.yaml`, so the user's next git
+    status holds no surprise. A path is not a command; the no-commands
+    rule stands.
+
+18. **The uninstall promise has a build dependency.** Uninstall is a
+    CLI-only command today, invisible to plugin users. Making uninstall
+    and mode switching host-drivable is required before "you can
+    uninstall at any time" is honest, and belongs in the staged plan.
+
+19. **Open fork, operator's call: the mode question is confirm-before.**
+    The automatic-or-manual question is the one deviation from the
+    communicate-after ruling. Reconciliation available: default to
+    automatic and carry the disclosure inline on the first handoff line
+    ("say manual if you'd rather I only use it when asked"), keeping
+    reversal at one sentence. Not applied; awaiting ruling.
+
+20. **Noted, not applied (low severity):** the effort follow-up question
+    could default-and-state instead of asking, asking only when no
+    obvious default exists; preference scope currently defaults to
+    project-local while the where-profiles-live fork is open; per-flow
+    expanded tables risk ceremony fatigue (a diff-style second table is
+    the candidate); degradation walls should distinguish skipping a
+    default from skipping an explicit user preference, which deserves a
+    louder notice.
