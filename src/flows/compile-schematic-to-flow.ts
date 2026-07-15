@@ -416,6 +416,7 @@ function compileItem(
           kind: 'result_verdict',
           source: { kind: 'relay_result', ref: 'result' },
           pass: requireCheckField(check.pass, 'pass', item.id, 'relay'),
+          ...(check.require_empty === undefined ? {} : { require_empty: check.require_empty }),
         },
       } as Step;
     }
@@ -455,6 +456,7 @@ function compileItem(
           kind: 'result_verdict',
           source: { kind: 'sub_run_result', ref: 'result' },
           pass: requireCheckField(check.pass, 'pass', item.id, 'sub-run'),
+          ...(check.require_empty === undefined ? {} : { require_empty: check.require_empty }),
         },
       } as Step;
     }

@@ -113,10 +113,10 @@ function fixVerificationOverride(): ExecutorRegistry['verification'] {
       });
       return { route: 'pass', details: { stub: 'baseline-snapshot' } };
     }
-    if (step.id === 'fix-change-set') {
+    if (step.id === 'fix-change-set' || step.id === 'fix-final-change-set') {
       const report = step.writes?.report;
       if (report === undefined) {
-        throw new Error('fix-change-set step missing writes.report');
+        throw new Error(`${step.id} step missing writes.report`);
       }
       const changeSet = FixChangeSet.parse({
         status: 'pass',
@@ -139,7 +139,7 @@ function fixVerificationOverride(): ExecutorRegistry['verification'] {
         report_path: report.path,
         ...(report.schema === undefined ? {} : { report_schema: report.schema }),
       });
-      return { route: 'pass', details: { stub: 'change-set' } };
+      return { route: 'pass', details: { stub: step.id } };
     }
     if (step.id === 'fix-regression-rerun') {
       const report = step.writes?.report;
@@ -340,6 +340,85 @@ function relayer(projectRoot: string): RelayFn {
   };
 }
 
+interface DiagnosisSchemaRetryRecorder {
+  readonly contextPrompts: string[];
+  readonly diagnosisPrompts: string[];
+}
+
+function relayerWithDiagnosisSchemaCorrection(
+  projectRoot: string,
+  recorder: DiagnosisSchemaRetryRecorder,
+): RelayFn {
+  return {
+    connectorName: 'claude-code',
+    relay: async (input): Promise<RelayResult> => {
+      if (input.prompt.includes('Step: fix-gather-context')) {
+        recorder.contextPrompts.push(input.prompt);
+        return {
+          request_payload: input.prompt,
+          receipt_id: `stub-fix-context-${recorder.contextPrompts.length}`,
+          result_body: JSON.stringify({
+            verdict: 'accept',
+            sources: [{ kind: 'file', ref: 'src/test.ts:1', summary: 'schema retry fixture' }],
+            observations: ['The diagnosis input is sufficient.'],
+            open_questions: [],
+          }),
+          duration_ms: 1,
+          cli_version: '0.0.0-stub',
+        };
+      }
+
+      if (input.prompt.includes('Step: fix-diagnose')) {
+        recorder.diagnosisPrompts.push(input.prompt);
+        const firstAttempt = recorder.diagnosisPrompts.length === 1;
+        return {
+          request_payload: input.prompt,
+          receipt_id: `stub-fix-diagnose-${recorder.diagnosisPrompts.length}`,
+          result_body: JSON.stringify({
+            verdict: 'accept',
+            reproduction_status: 'reproduced',
+            cause_summary: 'The response shape needs one correction.',
+            confidence: 'high',
+            evidence: ['The schema path identifies the mistyped boolean.'],
+            residual_uncertainty: [],
+            ...(firstAttempt
+              ? {
+                  equipment_discovery: {
+                    confirmed: 'true',
+                    domain_tags: ['react'],
+                    evidence: 'The project uses React.',
+                  },
+                }
+              : {}),
+          }),
+          duration_ms: 1,
+          cli_version: '0.0.0-stub',
+        };
+      }
+
+      if (input.prompt.includes('Step: fix-act')) {
+        const body = JSON.stringify({
+          verdict: 'accept',
+          summary: 'Applied the focused correction.',
+          diagnosis_ref: 'fix.diagnosis@v1',
+          changed_files: ['src/test.ts'],
+          evidence: ['The correction is covered by the runtime proof.'],
+        });
+        reflectClaimedChangedFiles(projectRoot, body);
+        return {
+          request_payload: input.prompt,
+          receipt_id: 'stub-fix-act-after-schema-retry',
+          result_body: body,
+          duration_ms: 1,
+          cli_version: '0.0.0-stub',
+        };
+      }
+
+      throw new Error(`unexpected relay prompt: ${input.prompt.slice(0, 120)}`);
+    },
+  };
+}
+
 function relayerWithUnavailableReview(projectRoot: string): RelayFn {
   return {
     connectorName: 'claude-code',
@@ -357,13 +436,13 @@ interface ReviewReworkRecorder {
   readonly reviewPrompts: string[];
 }
 
-const REJECTING_REVIEW_MARKER =
+const ACTIONABLE_REVIEW_MARKER =
   'BLOCKING_REVIEW_FEEDBACK_TOKEN: keep the newest tile owner authoritative';
 
 function relayerWithReviewRework(
   projectRoot: string,
   recorder: ReviewReworkRecorder,
-  reviewVerdicts: readonly ('reject' | 'accept')[],
+  reviewVerdicts: readonly ('reject' | 'accept-with-fixes' | 'accept-with-findings' | 'accept')[],
 ): RelayFn {
   return {
     connectorName: 'claude-code',
@@ -389,17 +468,21 @@ function relayerWithReviewRework(
 
       if (input.prompt.includes('Step: fix-review')) {
         recorder.reviewPrompts.push(input.prompt);
-        const verdict =
+        const configuredVerdict =
           reviewVerdicts[Math.min(recorder.reviewPrompts.length - 1, reviewVerdicts.length - 1)];
+        const verdict = configuredVerdict === 'accept-with-findings' ? 'accept' : configuredVerdict;
         const body =
-          verdict === 'reject'
+          configuredVerdict !== 'accept'
             ? {
-                verdict: 'reject',
-                summary: 'Blocking issue found',
+                verdict,
+                summary:
+                  configuredVerdict === 'reject'
+                    ? 'Blocking issue found'
+                    : 'Actionable follow-up fix found',
                 findings: [
                   {
-                    severity: 'high',
-                    text: REJECTING_REVIEW_MARKER,
+                    severity: configuredVerdict === 'reject' ? 'high' : 'medium',
+                    text: ACTIONABLE_REVIEW_MARKER,
                     file_refs: ['src/test.ts:1'],
                   },
                 ],
@@ -462,6 +545,7 @@ describe('Lite Fix runtime wiring', () => {
     expect(existsSync(join(runFolder, 'reports/fix/diagnosis.json'))).toBe(true);
     expect(existsSync(join(runFolder, 'reports/fix/change.json'))).toBe(true);
     expect(existsSync(join(runFolder, 'reports/fix/verification.json'))).toBe(true);
+    expect(existsSync(join(runFolder, 'reports/fix/final-change-set.json'))).toBe(true);
     expect(existsSync(join(runFolder, 'reports/fix-result.json'))).toBe(true);
 
     const result = FixResult.parse(
@@ -482,7 +566,63 @@ describe('Lite Fix runtime wiring', () => {
       'fix.verification',
       'fix.regression-rerun',
       'fix.change-set',
+      'fix.final-change-set',
     ]);
+  });
+
+  it('retries an invalid diagnosis with the same producer and exact schema feedback', async () => {
+    const { bytes } = loadLiteFixture();
+    const runFolder = join(runFolderBase, 'diagnosis-schema-retry');
+    const recorder: DiagnosisSchemaRetryRecorder = { contextPrompts: [], diagnosisPrompts: [] };
+
+    const outcome = await runCompiledFlow({
+      runDir: runFolder,
+      flowBytes: bytes,
+      runId: 'f1000000-0000-0000-0000-000000000004',
+      goal: 'correct a mistyped diagnosis response without repeating context gathering',
+      depth: 'low',
+      now: deterministicNow(Date.UTC(2026, 3, 26, 14, 0, 0)),
+      relayer: relayerWithDiagnosisSchemaCorrection(projectRoot, recorder),
+      executors: frameOverrideExecutors(),
+      projectRoot,
+    });
+
+    expect(outcome.outcome).toBe('complete');
+    expect(recorder.contextPrompts).toHaveLength(1);
+    expect(recorder.diagnosisPrompts).toHaveLength(2);
+    expect(recorder.diagnosisPrompts[0]).not.toContain('Response Validation Feedback:');
+    expect(recorder.diagnosisPrompts[1]).toContain('Response Validation Feedback:');
+    expect(recorder.diagnosisPrompts[1]).toContain('equipment_discovery.confirmed');
+    expect(recorder.diagnosisPrompts[1]).toMatch(/expected boolean, received string/i);
+
+    const traceEntries = await new TraceStore(runFolder).load();
+    expect(traceEntries).toContainEqual(
+      expect.objectContaining({
+        kind: 'step.completed',
+        step_id: 'fix-diagnose',
+        attempt: 1,
+        route_taken: 'retry',
+      }),
+    );
+    expect(traceEntries).toContainEqual(
+      expect.objectContaining({
+        kind: 'step.completed',
+        step_id: 'fix-diagnose',
+        attempt: 2,
+        route_taken: 'pass',
+      }),
+    );
+    expect(traceEntries).toContainEqual(
+      expect.objectContaining({
+        kind: 'guidance.decision',
+        subject: 'recovery_route',
+        selected: expect.objectContaining({
+          route_id: 'retry',
+          recovery_kind: 'retry_same_step_with_feedback',
+          failure_cause: 'relay_result_invalid',
+        }),
+      }),
+    );
   });
 });
 
@@ -569,8 +709,98 @@ describe('Standard Fix review rework wiring', () => {
     expect(recorder.reviewPrompts).toHaveLength(2);
     expect(recorder.actPrompts[0]).toContain('[reads unavailable: reports/fix/review.json]');
     expect(recorder.actPrompts[1]).toContain('<read path="reports/fix/review.json">');
-    expect(recorder.actPrompts[1]).toContain(REJECTING_REVIEW_MARKER);
+    expect(recorder.actPrompts[1]).toContain(ACTIONABLE_REVIEW_MARKER);
     expect(recorder.actPrompts[1]).toContain('src/test.ts:1');
+  }, 120_000);
+
+  it('routes accept-with-fixes back to act and closes only after a clean review', async () => {
+    const { bytes } = loadDefaultFixture();
+    const runFolder = join(runFolderBase, 'review-accept-with-fixes-then-accept');
+    const recorder: ReviewReworkRecorder = { actPrompts: [], reviewPrompts: [] };
+
+    const outcome = await runCompiledFlow({
+      runDir: runFolder,
+      flowBytes: bytes,
+      runId: 'f1000000-0000-0000-0000-000000000005',
+      goal: 'address every actionable review finding before close',
+      depth: 'medium',
+      now: deterministicNow(Date.UTC(2026, 3, 26, 15, 0, 0)),
+      relayer: relayerWithReviewRework(projectRoot, recorder, ['accept-with-fixes', 'accept']),
+      executors: frameOverrideExecutors(),
+      projectRoot,
+    });
+
+    expect(outcome.outcome).toBe('complete');
+    expect(recorder.actPrompts).toHaveLength(2);
+    expect(recorder.reviewPrompts).toHaveLength(2);
+    expect(recorder.actPrompts[1]).toContain('<read path="reports/fix/review.json">');
+    expect(recorder.actPrompts[1]).toContain('"verdict": "accept-with-fixes"');
+    expect(recorder.actPrompts[1]).toContain(ACTIONABLE_REVIEW_MARKER);
+    expect(recorder.actPrompts[1]).toContain('"severity": "medium"');
+
+    const traceEntries = await new TraceStore(runFolder).load();
+    const reviewRoutes = traceEntries.flatMap((entry) =>
+      entry.kind === 'step.completed' && entry.step_id === 'fix-review' ? [entry.route_taken] : [],
+    );
+    expect(reviewRoutes).toEqual(['retry', 'pass']);
+
+    const finalGateRoutes = traceEntries.flatMap((entry) =>
+      entry.kind === 'step.completed' && entry.step_id === 'fix-final-change-set'
+        ? [entry.route_taken]
+        : [],
+    );
+    expect(finalGateRoutes).toEqual(['pass']);
+
+    const result = FixResult.parse(
+      JSON.parse(readFileSync(join(runFolder, 'reports/fix-result.json'), 'utf8')),
+    );
+    expect(result.outcome).toBe('fixed');
+    expect(result.review_verdict).toBe('accept');
+  }, 120_000);
+
+  it('routes accept with findings back to act and closes only after a clean review', async () => {
+    const { bytes } = loadDefaultFixture();
+    const runFolder = join(runFolderBase, 'review-accept-with-findings-then-clean');
+    const recorder: ReviewReworkRecorder = { actPrompts: [], reviewPrompts: [] };
+
+    const outcome = await runCompiledFlow({
+      runDir: runFolder,
+      flowBytes: bytes,
+      runId: 'f1000000-0000-0000-0000-000000000006',
+      goal: 'do not close while an accepted review still carries findings',
+      depth: 'medium',
+      now: deterministicNow(Date.UTC(2026, 3, 26, 16, 0, 0)),
+      relayer: relayerWithReviewRework(projectRoot, recorder, ['accept-with-findings', 'accept']),
+      executors: frameOverrideExecutors(),
+      projectRoot,
+    });
+
+    expect(outcome.outcome).toBe('complete');
+    expect(recorder.actPrompts).toHaveLength(2);
+    expect(recorder.reviewPrompts).toHaveLength(2);
+    expect(recorder.actPrompts[1]).toContain('<read path="reports/fix/review.json">');
+    expect(recorder.actPrompts[1]).toContain('"verdict": "accept"');
+    expect(recorder.actPrompts[1]).toContain(ACTIONABLE_REVIEW_MARKER);
+    expect(recorder.actPrompts[1]).toContain('"severity": "medium"');
+
+    const traceEntries = await new TraceStore(runFolder).load();
+    const reviewRoutes = traceEntries.flatMap((entry) =>
+      entry.kind === 'step.completed' && entry.step_id === 'fix-review' ? [entry.route_taken] : [],
+    );
+    expect(reviewRoutes).toEqual(['retry', 'pass']);
+
+    const finalGateRoutes = traceEntries.flatMap((entry) =>
+      entry.kind === 'step.completed' && entry.step_id === 'fix-final-change-set'
+        ? [entry.route_taken]
+        : [],
+    );
+    expect(finalGateRoutes).toEqual(['pass']);
+
+    const result = FixResult.parse(
+      JSON.parse(readFileSync(join(runFolder, 'reports/fix-result.json'), 'utf8')),
+    );
+    expect(result.outcome).toBe('fixed');
+    expect(result.review_verdict).toBe('accept');
   }, 120_000);
 
   it('uses the current retry reason when act attempts exhaust inside an older review corridor', async () => {

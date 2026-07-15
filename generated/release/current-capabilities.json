@@ -52,6 +52,7 @@
         "fix.change@v1",
         "fix.context@v1",
         "fix.diagnosis@v1",
+        "fix.final-change-set@v1",
         "fix.regression-proof@v1",
         "fix.regression-rerun@v1",
         "fix.result@v1",
@@ -61,7 +62,7 @@
       "writers": {
         "compose": 1,
         "close": 1,
-        "verification": 5,
+        "verification": 6,
         "checkpoint": 0
       },
       "route_outcomes": [

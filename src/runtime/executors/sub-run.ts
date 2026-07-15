@@ -14,6 +14,7 @@ import { type RunResult as ParsedRunResult, RunResult } from '../../schemas/resu
 import type { StepOutcome } from '../domain/step.js';
 import type { SubRunStep } from '../manifest/executable-flow.js';
 import { NO_VERDICT_SENTINEL } from '../run/relay-support.js';
+import { requiredEmptyResultFieldFailure } from '../run/result-verdict-admission.js';
 import type { RunContext } from '../run/run-context.js';
 import {
   type StepExecutionResult,
@@ -72,6 +73,14 @@ function evaluateChildResult(
       verdict,
       admitted: false,
       failureReason: `sub-run step '${step.id}': child verdict '${verdict}' is not in check.pass [${pass.join(', ')}]`,
+    };
+  }
+  const requiredEmptyFailure = requiredEmptyResultFieldFailure(step.check, resultBody);
+  if (requiredEmptyFailure !== undefined) {
+    return {
+      verdict,
+      admitted: false,
+      failureReason: `sub-run step '${step.id}': ${requiredEmptyFailure}`,
     };
   }
   return { verdict, admitted: true };

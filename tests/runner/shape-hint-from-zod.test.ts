@@ -26,6 +26,15 @@ describe('renderShapeSkeleton', () => {
     expect(renderShapeSkeleton(schema)).toBe('{ "ref": "<project-relative path>" }');
   });
 
+  it('keeps a described boolean visibly boolean instead of quoting it as a string', () => {
+    const schema = z.object({
+      confirmed: z.boolean().describe('true only when evidence is conclusive'),
+    });
+    expect(renderShapeSkeleton(schema)).toBe(
+      '{ "confirmed": <true|false: true only when evidence is conclusive> }',
+    );
+  });
+
   it('renders enum values as a pipe-separated placeholder', () => {
     const schema = z.object({
       severity: z.enum(['low', 'medium', 'high']),
@@ -130,6 +139,8 @@ describe('renderShapeSkeleton', () => {
     expect(out).toContain('"confidence": "<low|medium|high>"');
     expect(out).toContain('"evidence":');
     expect(out).toContain('"residual_uncertainty":');
+    expect(out).toContain('"confirmed": <true|false:');
+    expect(out).not.toContain('"confirmed": "<true ONLY');
   });
 
   it('renders fix.change@v1 with changed_files and evidence arrays', () => {

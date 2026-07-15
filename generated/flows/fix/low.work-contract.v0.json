@@ -3,7 +3,7 @@
   "contract_ref": {
     "kind": "work_contract",
     "ref": "generated/flows/fix/low.work-contract.v0.json",
-    "sha256": "181dc410514d8939d49dc563057aa0286c110133d72c240f82618ad04df6c079",
+    "sha256": "86906085551afb070a3b90744cb6b5a8fe398c38024dc6cf8e132526efaac7f9",
     "flow_id": "fix"
   },
   "work_contract": {
@@ -53,7 +53,8 @@
             "fix-baseline-snapshot",
             "fix-verify",
             "fix-change-set",
-            "fix-regression-rerun"
+            "fix-regression-rerun",
+            "fix-final-change-set"
           ]
         },
         {
@@ -131,8 +132,13 @@
         },
         {
           "step_id": "fix-diagnose",
-          "route_id": "retry",
+          "route_id": "revise",
           "target": "fix-gather-context"
+        },
+        {
+          "step_id": "fix-diagnose",
+          "route_id": "retry",
+          "target": "fix-diagnose"
         },
         {
           "step_id": "fix-diagnose",
@@ -287,12 +293,12 @@
         {
           "step_id": "fix-regression-rerun",
           "route_id": "continue",
-          "target": "fix-close-low"
+          "target": "fix-final-change-set"
         },
         {
           "step_id": "fix-regression-rerun",
           "route_id": "pass",
-          "target": "fix-close-low"
+          "target": "fix-final-change-set"
         },
         {
           "step_id": "fix-regression-rerun",
@@ -301,6 +307,26 @@
         },
         {
           "step_id": "fix-regression-rerun",
+          "route_id": "stop",
+          "target": "@stop"
+        },
+        {
+          "step_id": "fix-final-change-set",
+          "route_id": "continue",
+          "target": "fix-close-low"
+        },
+        {
+          "step_id": "fix-final-change-set",
+          "route_id": "pass",
+          "target": "fix-close-low"
+        },
+        {
+          "step_id": "fix-final-change-set",
+          "route_id": "retry",
+          "target": "fix-act"
+        },
+        {
+          "step_id": "fix-final-change-set",
           "route_id": "stop",
           "target": "@stop"
         },
@@ -435,7 +461,8 @@
         "routes": {
           "continue": "fix-act",
           "pass": "fix-act",
-          "retry": "fix-gather-context",
+          "revise": "fix-gather-context",
+          "retry": "fix-diagnose",
           "ask": "fix-no-repro-decision",
           "stop": "@stop"
         }
@@ -534,6 +561,7 @@
           "reports/fix/diagnosis.json",
           "reports/fix/verification.json",
           "reports/fix/change-set.json",
+          "reports/fix/final-change-set.json",
           "reports/fix/regression-rerun.json"
         ],
         "writes": {
@@ -641,6 +669,34 @@
           "required": ["status", "overall_status"]
         },
         "routes": {
+          "continue": "fix-final-change-set",
+          "pass": "fix-final-change-set",
+          "retry": "fix-act",
+          "stop": "@stop"
+        }
+      },
+      {
+        "step_id": "fix-final-change-set",
+        "title": "Verify — recheck final fix change-set",
+        "kind": "verification",
+        "executor": "orchestrator",
+        "protocol": "fix-final-change-set@v1",
+        "reads": ["reports/fix/baseline-snapshot.json", "reports/fix/change-set.json"],
+        "writes": {
+          "report": {
+            "path": "reports/fix/final-change-set.json",
+            "schema": "fix.final-change-set@v1"
+          }
+        },
+        "check": {
+          "kind": "schema_sections",
+          "source": {
+            "kind": "report",
+            "ref": "report"
+          },
+          "required": ["status", "overall_status"]
+        },
+        "routes": {
           "continue": "fix-close-low",
           "pass": "fix-close-low",
           "retry": "fix-act",
@@ -662,7 +718,7 @@
           "reports/fix/change.json",
           "reports/fix/verification.json",
           "reports/fix/regression-rerun.json",
-          "reports/fix/change-set.json"
+          "reports/fix/final-change-set.json"
         ],
         "writes": {
           "report": {
@@ -881,6 +937,12 @@
           "schema": "fix.regression-rerun@v1"
         },
         {
+          "step_id": "fix-final-change-set",
+          "slot": "report",
+          "path": "reports/fix/final-change-set.json",
+          "schema": "fix.final-change-set@v1"
+        },
+        {
           "step_id": "fix-close-low",
           "slot": "report",
           "path": "reports/fix-result.json",
@@ -975,6 +1037,14 @@
           }
         },
         {
+          "step_id": "fix-final-change-set",
+          "check_kind": "schema_sections",
+          "source": {
+            "kind": "report",
+            "ref": "report"
+          }
+        },
+        {
           "step_id": "fix-close-low",
           "check_kind": "schema_sections",
           "source": {
@@ -1002,12 +1072,6 @@
                 "id": "changed-files-present",
                 "path": ["changed_files"],
                 "predicate": "present"
-              },
-              {
-                "kind": "report_field",
-                "id": "changed-files-on-disk",
-                "path": ["changed_files"],
-                "predicate": "changed_on_disk"
               },
               {
                 "kind": "report_field",
@@ -1045,7 +1109,7 @@
         "source_ref": {
           "kind": "work_contract",
           "ref": "compiled-flow/steps/fix-frame/routes/revise",
-          "sha256": "3e9ad51323d79c90a4bc3fde622907ab9242c6e5af8abe34dc4c46f448bc3110",
+          "sha256": "527648618ee776537c1e42592b4a05762010cb2484d27f4d5bf89ac1f0948490",
           "flow_id": "fix"
         }
       },
@@ -1075,7 +1139,7 @@
         "source_ref": {
           "kind": "work_contract",
           "ref": "compiled-flow/steps/fix-frame/routes/ask",
-          "sha256": "3e9ad51323d79c90a4bc3fde622907ab9242c6e5af8abe34dc4c46f448bc3110",
+          "sha256": "527648618ee776537c1e42592b4a05762010cb2484d27f4d5bf89ac1f0948490",
           "flow_id": "fix"
         }
       },
@@ -1106,7 +1170,7 @@
         "source_ref": {
           "kind": "work_contract",
           "ref": "compiled-flow/steps/fix-frame/routes/stop",
-          "sha256": "3e9ad51323d79c90a4bc3fde622907ab9242c6e5af8abe34dc4c46f448bc3110",
+          "sha256": "527648618ee776537c1e42592b4a05762010cb2484d27f4d5bf89ac1f0948490",
           "flow_id": "fix"
         }
       },
@@ -1121,7 +1185,7 @@
           "failed_acceptance_criteria",
           "relay_result_invalid"
         ],
-        "required_refs": ["failed_check", "acceptance_feedback", "budget_state"],
+        "required_refs": ["failed_check", "retry_feedback", "budget_state"],
         "operator_authority": "not_required",
         "attempt_budget": {
           "consumes_step_attempt": true,
@@ -1135,7 +1199,7 @@
         "source_ref": {
           "kind": "work_contract",
           "ref": "compiled-flow/steps/fix-gather-context/routes/retry",
-          "sha256": "3e9ad51323d79c90a4bc3fde622907ab9242c6e5af8abe34dc4c46f448bc3110",
+          "sha256": "527648618ee776537c1e42592b4a05762010cb2484d27f4d5bf89ac1f0948490",
           "flow_id": "fix"
         }
       },
@@ -1165,7 +1229,7 @@
         "source_ref": {
           "kind": "work_contract",
           "ref": "compiled-flow/steps/fix-gather-context/routes/ask",
-          "sha256": "3e9ad51323d79c90a4bc3fde622907ab9242c6e5af8abe34dc4c46f448bc3110",
+          "sha256": "527648618ee776537c1e42592b4a05762010cb2484d27f4d5bf89ac1f0948490",
           "flow_id": "fix"
         }
       },
@@ -1196,14 +1260,14 @@
         "source_ref": {
           "kind": "work_contract",
           "ref": "compiled-flow/steps/fix-gather-context/routes/stop",
-          "sha256": "3e9ad51323d79c90a4bc3fde622907ab9242c6e5af8abe34dc4c46f448bc3110",
+          "sha256": "527648618ee776537c1e42592b4a05762010cb2484d27f4d5bf89ac1f0948490",
           "flow_id": "fix"
         }
       },
       {
         "schema_version": 0,
         "step_id": "fix-diagnose",
-        "route_id": "retry",
+        "route_id": "revise",
         "route_target": "fix-gather-context",
         "kind": "narrow_scope",
         "allowed_failure_causes": ["failed_check", "scope_drift", "weak_proof", "unproved_claim"],
@@ -1220,8 +1284,37 @@
         },
         "source_ref": {
           "kind": "work_contract",
+          "ref": "compiled-flow/steps/fix-diagnose/routes/revise",
+          "sha256": "527648618ee776537c1e42592b4a05762010cb2484d27f4d5bf89ac1f0948490",
+          "flow_id": "fix"
+        }
+      },
+      {
+        "schema_version": 0,
+        "step_id": "fix-diagnose",
+        "route_id": "retry",
+        "route_target": "fix-diagnose",
+        "kind": "retry_same_step_with_feedback",
+        "allowed_failure_causes": [
+          "failed_check",
+          "failed_acceptance_criteria",
+          "relay_result_invalid"
+        ],
+        "required_refs": ["failed_check", "retry_feedback", "budget_state"],
+        "operator_authority": "not_required",
+        "attempt_budget": {
+          "consumes_step_attempt": true,
+          "must_respect_max_attempts": true,
+          "retry_target": "same_step"
+        },
+        "guidance": {
+          "subject": "recovery_route",
+          "must_match_step_completed": true
+        },
+        "source_ref": {
+          "kind": "work_contract",
           "ref": "compiled-flow/steps/fix-diagnose/routes/retry",
-          "sha256": "3e9ad51323d79c90a4bc3fde622907ab9242c6e5af8abe34dc4c46f448bc3110",
+          "sha256": "527648618ee776537c1e42592b4a05762010cb2484d27f4d5bf89ac1f0948490",
           "flow_id": "fix"
         }
       },
@@ -1251,7 +1344,7 @@
         "source_ref": {
           "kind": "work_contract",
           "ref": "compiled-flow/steps/fix-diagnose/routes/ask",
-          "sha256": "3e9ad51323d79c90a4bc3fde622907ab9242c6e5af8abe34dc4c46f448bc3110",
+          "sha256": "527648618ee776537c1e42592b4a05762010cb2484d27f4d5bf89ac1f0948490",
           "flow_id": "fix"
         }
       },
@@ -1282,7 +1375,7 @@
         "source_ref": {
           "kind": "work_contract",
           "ref": "compiled-flow/steps/fix-diagnose/routes/stop",
-          "sha256": "3e9ad51323d79c90a4bc3fde622907ab9242c6e5af8abe34dc4c46f448bc3110",
+          "sha256": "527648618ee776537c1e42592b4a05762010cb2484d27f4d5bf89ac1f0948490",
           "flow_id": "fix"
         }
       },
@@ -1307,7 +1400,7 @@
         "source_ref": {
           "kind": "work_contract",
           "ref": "compiled-flow/steps/fix-no-repro-decision/routes/revise",
-          "sha256": "3e9ad51323d79c90a4bc3fde622907ab9242c6e5af8abe34dc4c46f448bc3110",
+          "sha256": "527648618ee776537c1e42592b4a05762010cb2484d27f4d5bf89ac1f0948490",
           "flow_id": "fix"
         }
       },
@@ -1338,7 +1431,7 @@
         "source_ref": {
           "kind": "work_contract",
           "ref": "compiled-flow/steps/fix-no-repro-decision/routes/stop",
-          "sha256": "3e9ad51323d79c90a4bc3fde622907ab9242c6e5af8abe34dc4c46f448bc3110",
+          "sha256": "527648618ee776537c1e42592b4a05762010cb2484d27f4d5bf89ac1f0948490",
           "flow_id": "fix"
         }
       },
@@ -1363,7 +1456,7 @@
         "source_ref": {
           "kind": "work_contract",
           "ref": "compiled-flow/steps/fix-no-repro-decision/routes/handoff",
-          "sha256": "3e9ad51323d79c90a4bc3fde622907ab9242c6e5af8abe34dc4c46f448bc3110",
+          "sha256": "527648618ee776537c1e42592b4a05762010cb2484d27f4d5bf89ac1f0948490",
           "flow_id": "fix"
         }
       },
@@ -1388,7 +1481,7 @@
         "source_ref": {
           "kind": "work_contract",
           "ref": "compiled-flow/steps/fix-no-repro-decision/routes/escalate",
-          "sha256": "3e9ad51323d79c90a4bc3fde622907ab9242c6e5af8abe34dc4c46f448bc3110",
+          "sha256": "527648618ee776537c1e42592b4a05762010cb2484d27f4d5bf89ac1f0948490",
           "flow_id": "fix"
         }
       },
@@ -1413,7 +1506,7 @@
         "source_ref": {
           "kind": "work_contract",
           "ref": "compiled-flow/steps/fix-regression-baseline/routes/retry",
-          "sha256": "3e9ad51323d79c90a4bc3fde622907ab9242c6e5af8abe34dc4c46f448bc3110",
+          "sha256": "527648618ee776537c1e42592b4a05762010cb2484d27f4d5bf89ac1f0948490",
           "flow_id": "fix"
         }
       },
@@ -1444,7 +1537,7 @@
         "source_ref": {
           "kind": "work_contract",
           "ref": "compiled-flow/steps/fix-regression-baseline/routes/stop",
-          "sha256": "3e9ad51323d79c90a4bc3fde622907ab9242c6e5af8abe34dc4c46f448bc3110",
+          "sha256": "527648618ee776537c1e42592b4a05762010cb2484d27f4d5bf89ac1f0948490",
           "flow_id": "fix"
         }
       },
@@ -1475,7 +1568,7 @@
         "source_ref": {
           "kind": "work_contract",
           "ref": "compiled-flow/steps/fix-baseline-snapshot/routes/stop",
-          "sha256": "3e9ad51323d79c90a4bc3fde622907ab9242c6e5af8abe34dc4c46f448bc3110",
+          "sha256": "527648618ee776537c1e42592b4a05762010cb2484d27f4d5bf89ac1f0948490",
           "flow_id": "fix"
         }
       },
@@ -1490,7 +1583,7 @@
           "failed_acceptance_criteria",
           "relay_result_invalid"
         ],
-        "required_refs": ["failed_check", "acceptance_feedback", "budget_state"],
+        "required_refs": ["failed_check", "retry_feedback", "budget_state"],
         "operator_authority": "not_required",
         "attempt_budget": {
           "consumes_step_attempt": true,
@@ -1504,7 +1597,7 @@
         "source_ref": {
           "kind": "work_contract",
           "ref": "compiled-flow/steps/fix-act/routes/retry",
-          "sha256": "3e9ad51323d79c90a4bc3fde622907ab9242c6e5af8abe34dc4c46f448bc3110",
+          "sha256": "527648618ee776537c1e42592b4a05762010cb2484d27f4d5bf89ac1f0948490",
           "flow_id": "fix"
         }
       },
@@ -1534,7 +1627,7 @@
         "source_ref": {
           "kind": "work_contract",
           "ref": "compiled-flow/steps/fix-act/routes/ask",
-          "sha256": "3e9ad51323d79c90a4bc3fde622907ab9242c6e5af8abe34dc4c46f448bc3110",
+          "sha256": "527648618ee776537c1e42592b4a05762010cb2484d27f4d5bf89ac1f0948490",
           "flow_id": "fix"
         }
       },
@@ -1565,7 +1658,7 @@
         "source_ref": {
           "kind": "work_contract",
           "ref": "compiled-flow/steps/fix-act/routes/stop",
-          "sha256": "3e9ad51323d79c90a4bc3fde622907ab9242c6e5af8abe34dc4c46f448bc3110",
+          "sha256": "527648618ee776537c1e42592b4a05762010cb2484d27f4d5bf89ac1f0948490",
           "flow_id": "fix"
         }
       },
@@ -1590,7 +1683,7 @@
         "source_ref": {
           "kind": "work_contract",
           "ref": "compiled-flow/steps/fix-act/routes/handoff",
-          "sha256": "3e9ad51323d79c90a4bc3fde622907ab9242c6e5af8abe34dc4c46f448bc3110",
+          "sha256": "527648618ee776537c1e42592b4a05762010cb2484d27f4d5bf89ac1f0948490",
           "flow_id": "fix"
         }
       },
@@ -1615,7 +1708,7 @@
         "source_ref": {
           "kind": "work_contract",
           "ref": "compiled-flow/steps/fix-verify/routes/retry",
-          "sha256": "3e9ad51323d79c90a4bc3fde622907ab9242c6e5af8abe34dc4c46f448bc3110",
+          "sha256": "527648618ee776537c1e42592b4a05762010cb2484d27f4d5bf89ac1f0948490",
           "flow_id": "fix"
         }
       },
@@ -1645,7 +1738,7 @@
         "source_ref": {
           "kind": "work_contract",
           "ref": "compiled-flow/steps/fix-verify/routes/ask",
-          "sha256": "3e9ad51323d79c90a4bc3fde622907ab9242c6e5af8abe34dc4c46f448bc3110",
+          "sha256": "527648618ee776537c1e42592b4a05762010cb2484d27f4d5bf89ac1f0948490",
           "flow_id": "fix"
         }
       },
@@ -1676,7 +1769,7 @@
         "source_ref": {
           "kind": "work_contract",
           "ref": "compiled-flow/steps/fix-verify/routes/stop",
-          "sha256": "3e9ad51323d79c90a4bc3fde622907ab9242c6e5af8abe34dc4c46f448bc3110",
+          "sha256": "527648618ee776537c1e42592b4a05762010cb2484d27f4d5bf89ac1f0948490",
           "flow_id": "fix"
         }
       },
@@ -1701,7 +1794,7 @@
         "source_ref": {
           "kind": "work_contract",
           "ref": "compiled-flow/steps/fix-change-set/routes/retry",
-          "sha256": "3e9ad51323d79c90a4bc3fde622907ab9242c6e5af8abe34dc4c46f448bc3110",
+          "sha256": "527648618ee776537c1e42592b4a05762010cb2484d27f4d5bf89ac1f0948490",
           "flow_id": "fix"
         }
       },
@@ -1732,7 +1825,7 @@
         "source_ref": {
           "kind": "work_contract",
           "ref": "compiled-flow/steps/fix-change-set/routes/stop",
-          "sha256": "3e9ad51323d79c90a4bc3fde622907ab9242c6e5af8abe34dc4c46f448bc3110",
+          "sha256": "527648618ee776537c1e42592b4a05762010cb2484d27f4d5bf89ac1f0948490",
           "flow_id": "fix"
         }
       },
@@ -1757,7 +1850,7 @@
         "source_ref": {
           "kind": "work_contract",
           "ref": "compiled-flow/steps/fix-regression-rerun/routes/retry",
-          "sha256": "3e9ad51323d79c90a4bc3fde622907ab9242c6e5af8abe34dc4c46f448bc3110",
+          "sha256": "527648618ee776537c1e42592b4a05762010cb2484d27f4d5bf89ac1f0948490",
           "flow_id": "fix"
         }
       },
@@ -1788,7 +1881,63 @@
         "source_ref": {
           "kind": "work_contract",
           "ref": "compiled-flow/steps/fix-regression-rerun/routes/stop",
-          "sha256": "3e9ad51323d79c90a4bc3fde622907ab9242c6e5af8abe34dc4c46f448bc3110",
+          "sha256": "527648618ee776537c1e42592b4a05762010cb2484d27f4d5bf89ac1f0948490",
+          "flow_id": "fix"
+        }
+      },
+      {
+        "schema_version": 0,
+        "step_id": "fix-final-change-set",
+        "route_id": "retry",
+        "route_target": "fix-act",
+        "kind": "narrow_scope",
+        "allowed_failure_causes": ["failed_check", "scope_drift", "weak_proof", "unproved_claim"],
+        "required_refs": ["proof_assessment", "runtime_diff"],
+        "operator_authority": "not_required",
+        "attempt_budget": {
+          "consumes_step_attempt": false,
+          "must_respect_max_attempts": true,
+          "retry_target": "declared_step"
+        },
+        "guidance": {
+          "subject": "recovery_route",
+          "must_match_step_completed": true
+        },
+        "source_ref": {
+          "kind": "work_contract",
+          "ref": "compiled-flow/steps/fix-final-change-set/routes/retry",
+          "sha256": "527648618ee776537c1e42592b4a05762010cb2484d27f4d5bf89ac1f0948490",
+          "flow_id": "fix"
+        }
+      },
+      {
+        "schema_version": 0,
+        "step_id": "fix-final-change-set",
+        "route_id": "stop",
+        "route_target": "@stop",
+        "kind": "stop_unsafe",
+        "allowed_failure_causes": [
+          "failed_check",
+          "contradicted_evidence",
+          "scope_drift",
+          "budget_exceeded",
+          "unknown_failure"
+        ],
+        "required_refs": ["failed_check", "trace"],
+        "operator_authority": "not_required",
+        "attempt_budget": {
+          "consumes_step_attempt": false,
+          "must_respect_max_attempts": true,
+          "retry_target": "declared_step"
+        },
+        "guidance": {
+          "subject": "recovery_route",
+          "must_match_step_completed": true
+        },
+        "source_ref": {
+          "kind": "work_contract",
+          "ref": "compiled-flow/steps/fix-final-change-set/routes/stop",
+          "sha256": "527648618ee776537c1e42592b4a05762010cb2484d27f4d5bf89ac1f0948490",
           "flow_id": "fix"
         }
       },
@@ -1819,7 +1968,7 @@
         "source_ref": {
           "kind": "work_contract",
           "ref": "compiled-flow/steps/fix-close-low/routes/stop",
-          "sha256": "3e9ad51323d79c90a4bc3fde622907ab9242c6e5af8abe34dc4c46f448bc3110",
+          "sha256": "527648618ee776537c1e42592b4a05762010cb2484d27f4d5bf89ac1f0948490",
           "flow_id": "fix"
         }
       },
@@ -1844,7 +1993,7 @@
         "source_ref": {
           "kind": "work_contract",
           "ref": "compiled-flow/steps/fix-close-low/routes/handoff",
-          "sha256": "3e9ad51323d79c90a4bc3fde622907ab9242c6e5af8abe34dc4c46f448bc3110",
+          "sha256": "527648618ee776537c1e42592b4a05762010cb2484d27f4d5bf89ac1f0948490",
           "flow_id": "fix"
         }
       },
@@ -1869,7 +2018,7 @@
         "source_ref": {
           "kind": "work_contract",
           "ref": "compiled-flow/steps/fix-close-low/routes/escalate",
-          "sha256": "3e9ad51323d79c90a4bc3fde622907ab9242c6e5af8abe34dc4c46f448bc3110",
+          "sha256": "527648618ee776537c1e42592b4a05762010cb2484d27f4d5bf89ac1f0948490",
           "flow_id": "fix"
         }
       },
@@ -1900,7 +2049,7 @@
         "source_ref": {
           "kind": "work_contract",
           "ref": "compiled-flow/steps/fix-handoff/routes/stop",
-          "sha256": "3e9ad51323d79c90a4bc3fde622907ab9242c6e5af8abe34dc4c46f448bc3110",
+          "sha256": "527648618ee776537c1e42592b4a05762010cb2484d27f4d5bf89ac1f0948490",
           "flow_id": "fix"
         }
       }
@@ -1917,7 +2066,7 @@
       {
         "kind": "work_contract",
         "ref": "compiled-flow/steps/fix-no-repro-decision/policy/safe_default_choice",
-        "sha256": "3e9ad51323d79c90a4bc3fde622907ab9242c6e5af8abe34dc4c46f448bc3110",
+        "sha256": "527648618ee776537c1e42592b4a05762010cb2484d27f4d5bf89ac1f0948490",
         "flow_id": "fix"
       }
     ],

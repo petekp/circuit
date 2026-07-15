@@ -17,6 +17,7 @@ report_ids:
   - fix.verification
   - fix.regression-rerun
   - fix.review
+  - fix.final-change-set
   - fix.result
 invariant_ids: []
 property_ids: []
@@ -50,6 +51,7 @@ skips the review relay after verification; medium and high keep it.
 | `fix.verification` | Executed proof evidence (brief's verification candidates) | `<run-folder>/reports/fix/verification.json` |
 | `fix.regression-rerun` | Post-fix rerun of the brief's regression command | `<run-folder>/reports/fix/regression-rerun.json` |
 | `fix.review` | Independent review result when the mode requires it | `<run-folder>/reports/fix/review.json` |
+| `fix.final-change-set` | Final baseline-relative worktree state after proof commands and review | `<run-folder>/reports/fix/final-change-set.json` |
 | `fix.result` | Close summary | `<run-folder>/reports/fix-result.json` |
 
 The `fix.no-repro-decision` report and the Fix `handoff` step are compiled into
@@ -128,6 +130,30 @@ route back for another act attempt. On a retry it carries forward declarations
 from the prior passing change-set only while those paths still differ from the
 same run baseline. Current-attempt declarations are never filtered, so a new
 overclaim still fails as `missing_declared`.
+
+Because this change-set is baseline-aware, it is the immediate gate for
+`fix.change.changed_files`. Fix does not apply the generic HEAD-relative
+`changed_on_disk` acceptance check to its act step: that check cannot distinguish
+untouched operator dirt from a run mutation, and it rejects a valid repair that
+restores a baseline-dirty path to its committed content. The immediate
+change-set catches both cases against the captured run baseline instead.
+
+`fix.final-change-set@v1` recaptures the same baseline-relative state after the
+verification commands, regression rerun, and (when enabled) review. It compares
+that final state with the immediate change-set's cumulative declarations. Close
+uses this final report as the authoritative change-set status, so a passing
+proof command or reviewer cannot introduce an undeclared file after the
+immediate gate and still close the run as fixed. When this final gate fails,
+its report is fed back to the next `fix-act` attempt so the implementer can see
+and repair the exact final-state mismatch.
+
+`fix-review` advances only on `verdict: "accept"` with no findings. Its
+`result_verdict` check admits `accept` and separately requires `findings` to be
+empty, so even a schema-valid `accept` carrying findings cannot close the run.
+That result, plus schema-valid `accept-with-fixes` and `reject` results, writes
+`reports/fix/review.json` and routes back to `fix-act`; the next implementer
+attempt reads that report before changing the checkout. This loop remains
+bounded by the normal step-attempt budget.
 
 `fix.regression-rerun@v1` reruns the brief's regression command after
 fix-verify and emits `cleared` (regression now passes), `still-failing`

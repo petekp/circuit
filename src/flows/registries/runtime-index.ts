@@ -68,6 +68,7 @@ export interface RuntimeIndexedRelayStep extends RuntimeIndexedStepBase {
     readonly kind?: string | undefined;
     readonly source?: unknown | undefined;
     readonly pass: readonly string[];
+    readonly require_empty?: readonly (readonly string[])[] | undefined;
   };
   readonly writes: RuntimeIndexedStepBase['writes'] & {
     readonly request: string;

@@ -642,7 +642,7 @@ const fixProofComposeExecutor: StepExecutor = async (step, context) => {
 };
 
 // Stub the runtime-owned verification steps that shell out to git
-// (fix-baseline-snapshot and fix-change-set). The synthetic Fix proof never
+// (fix-baseline-snapshot plus the immediate and final change-set gates). The synthetic Fix proof never
 // actually modifies files, so the live executors would observe an empty file
 // list and the change-set writer would refuse the run with "missing declared:
 // src/login.ts". This stub writes passing reports for both steps so the
@@ -683,7 +683,7 @@ const fixProofVerificationExecutor: StepExecutor = async (step, context) => {
     });
     return { route: 'pass', details: { writer: 'fix-proof', proof: 'baseline-snapshot' } };
   }
-  if (step.id === 'fix-change-set') {
+  if (step.id === 'fix-change-set' || step.id === 'fix-final-change-set') {
     await writePassing({
       status: 'pass',
       overall_status: 'passed',
@@ -696,7 +696,7 @@ const fixProofVerificationExecutor: StepExecutor = async (step, context) => {
       baseline_dirty_mutated: [],
       hidden_index_flags: [],
     });
-    return { route: 'pass', details: { writer: 'fix-proof', proof: 'change-set' } };
+    return { route: 'pass', details: { writer: 'fix-proof', proof: step.id } };
   }
   // Other verification steps (fix-regression-baseline, fix-verify,
   // fix-regression-rerun) keep the live executor — they already work against

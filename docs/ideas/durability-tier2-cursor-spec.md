@@ -79,26 +79,27 @@ restores *structure only*.
 | `route` | `route` taken | **yes** — `step.completed.route_taken` |
 | `reason` | `details.reason` (executor outcome) | **no** |
 | `failure` | `recoveryFailure` (trace-derived + `details`-classified) | **partial** (see below) |
-| `acceptanceFeedback` | `details.acceptance_feedback` (executor outcome) | **no** |
+| `retryFeedback` | `details.retry_feedback` (executor outcome) | **no** |
 
 `details` is the executor's `outcome.details` (`graph-runner.ts` `details =
 outcome.details ?? {}`). It is **never persisted**: `StepCompletedTraceEntry`
 (`src/schemas/trace-entry.ts`) is `.strict()` and carries only `step_id`,
 `attempt`, `route_taken`, and optional `slice_index`. So `reason` and
-`acceptanceFeedback` are not reconstructable.
+`retryFeedback` are not reconstructable.
 
 `failure` is subtler. The `evidenceFor()` path already derives a failure ref
 lazily from the trace at consume time, and a `guidance.decision` entry of
 subject `recovery_route` *does* persist `failure_cause`/`failure_ref` — but only
 when guidance fired (binding present, failure present, cause allowed), and the
 `enter()`-time cause classification still depends on `details`
-(`acceptance_feedback` → `failed_acceptance_criteria`; `route_source: 'report'`
-→ `checkpoint_boundary`). So `failure` is at best partially and conditionally
-reconstructable, not faithfully.
+(`retry_feedback.kind: 'acceptance_criteria'` → `failed_acceptance_criteria`;
+`retry_feedback.kind: 'response_validation'` → `relay_result_invalid`;
+`route_source: 'report'` → `checkpoint_boundary`). So `failure` is at best
+partially and conditionally reconstructable, not faithfully.
 
 **Honest consequence, proven by a test** (`tests/runtime/recovery-corridor-rehydrate.test.ts`,
 third case): after `seedFromTrace`, `lastReasonSuffix()` returns `''` and
-`acceptanceFeedbackForReentry()` returns `undefined` even where the live run
+`retryFeedbackForReentry()` returns `undefined` even where the live run
 carried a reason / feedback. The method documents this loudly and the test pins
 it so no future consumer is silently misled. Restoring the payload is a spec
 line below, not a fake in this slice.

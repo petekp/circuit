@@ -13,7 +13,7 @@
   "result_ref": {
     "kind": "report",
     "ref": "reports/result.json",
-    "sha256": "35d99bd1f70cb123033e82395f4a425927f39fb681e93b4e90cfb727f4fb6ff7",
+    "sha256": "77f10a37326d8a1b6a034af9340be3f3ff4b9ae481c0ec2849f161e8738f774e",
     "run_id": "44444444-4444-4444-4444-444444444407",
     "flow_id": "fix"
   },
@@ -21,14 +21,14 @@
     {
       "kind": "report",
       "ref": "reports/result.json",
-      "sha256": "35d99bd1f70cb123033e82395f4a425927f39fb681e93b4e90cfb727f4fb6ff7",
+      "sha256": "77f10a37326d8a1b6a034af9340be3f3ff4b9ae481c0ec2849f161e8738f774e",
       "run_id": "44444444-4444-4444-4444-444444444407",
       "flow_id": "fix"
     },
     {
       "kind": "report",
       "ref": "reports/fix-result.json",
-      "sha256": "6c8790f3c3128be08725fdf76589e868af7a02129a9a1d0d152df3c8429f15dd",
+      "sha256": "89c63634e3683a591a35df33a7262c6ecc7a7ffdcfebc08bd5fcd04f6479a7d6",
       "run_id": "44444444-4444-4444-4444-444444444407",
       "flow_id": "fix"
     }
@@ -43,7 +43,7 @@
       "next_action": "Inspect the child process result before closing Run."
     }
   ],
-  "trace_entries_observed": 69,
-  "manifest_hash": "ed31afd9371ae9bae3675d937bae594faa110ad938b5db7241eef274b101b6fc",
+  "trace_entries_observed": 71,
+  "manifest_hash": "ef3cade2d975681d91cf5988c1840f115b5fb3ce767f94c49cca911b869151dc",
   "blocked_reason": "primary result 'reports/fix-result.json' reported outcome 'partial'"
 }

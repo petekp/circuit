@@ -11,9 +11,9 @@ import type { RecoveryRouteBindingV0 } from '../../schemas/recovery-route-kind.j
 import type { Ref } from '../../schemas/ref.js';
 import type { ProofAssessedTraceEntry } from '../../schemas/trace-entry.js';
 import type { SkillHookInjectionChannel } from '../../skill-hooks/injection.js';
-import { isAcceptanceRetryFeedback } from '../acceptance-criteria.js';
 import type { TraceEntry } from '../domain/trace.js';
 import type { RecoveryFailureEvidence } from './recovery-binding-verdict.js';
+import { isRelayRetryFeedback } from './relay-retry-feedback.js';
 import type { RunContext } from './run-context.js';
 import type { SliceCorridor } from './slice-corridor.js';
 
@@ -65,9 +65,13 @@ export function latestRecoveryFailureEvidence(input: {
           attempt: input.attempt,
           sequence: entry.sequence,
         }),
-        cause: isAcceptanceRetryFeedback(input.details.acceptance_feedback)
-          ? 'failed_acceptance_criteria'
-          : 'failed_check',
+        cause: (() => {
+          const feedback = input.details.retry_feedback;
+          if (!isRelayRetryFeedback(feedback)) return 'failed_check';
+          return feedback.kind === 'response_validation'
+            ? 'relay_result_invalid'
+            : 'failed_acceptance_criteria';
+        })(),
       };
     }
     return {

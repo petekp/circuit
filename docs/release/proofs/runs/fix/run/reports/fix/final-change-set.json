@@ -1,0 +1,16 @@
+{
+  "status": "pass",
+  "overall_status": "passed",
+  "baseline_head_sha": "0000000000000000000000000000000000000000",
+  "head_sha": "0000000000000000000000000000000000000000",
+  "declared": [
+    "src/login.ts"
+  ],
+  "observed": [
+    "src/login.ts"
+  ],
+  "undeclared_extras": [],
+  "missing_declared": [],
+  "baseline_dirty_mutated": [],
+  "hidden_index_flags": []
+}

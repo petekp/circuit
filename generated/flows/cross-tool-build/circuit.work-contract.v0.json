@@ -3,7 +3,7 @@
   "contract_ref": {
     "kind": "work_contract",
     "ref": "generated/flows/cross-tool-build/circuit.work-contract.v0.json",
-    "sha256": "e58e033b9ffdeeb68286b92c24a58ea05cabd42fde57977e15cef69b70bc98ac",
+    "sha256": "1f7278928c3fbfb6954e4aabe7554bcef7a248a5de64b32b6cca92b0b1eedcfc",
     "flow_id": "cross-tool-build"
   },
   "work_contract": {
@@ -734,7 +734,7 @@
           "failed_acceptance_criteria",
           "relay_result_invalid"
         ],
-        "required_refs": ["failed_check", "acceptance_feedback", "budget_state"],
+        "required_refs": ["failed_check", "retry_feedback", "budget_state"],
         "operator_authority": "not_required",
         "attempt_budget": {
           "consumes_step_attempt": true,
@@ -794,7 +794,7 @@
           "failed_acceptance_criteria",
           "relay_result_invalid"
         ],
-        "required_refs": ["failed_check", "acceptance_feedback", "budget_state"],
+        "required_refs": ["failed_check", "retry_feedback", "budget_state"],
         "operator_authority": "not_required",
         "attempt_budget": {
           "consumes_step_attempt": true,
@@ -854,7 +854,7 @@
           "failed_acceptance_criteria",
           "relay_result_invalid"
         ],
-        "required_refs": ["failed_check", "acceptance_feedback", "budget_state"],
+        "required_refs": ["failed_check", "retry_feedback", "budget_state"],
         "operator_authority": "not_required",
         "attempt_budget": {
           "consumes_step_attempt": true,
@@ -914,7 +914,7 @@
           "failed_acceptance_criteria",
           "relay_result_invalid"
         ],
-        "required_refs": ["failed_check", "acceptance_feedback", "budget_state"],
+        "required_refs": ["failed_check", "retry_feedback", "budget_state"],
         "operator_authority": "not_required",
         "attempt_budget": {
           "consumes_step_attempt": true,
@@ -974,7 +974,7 @@
           "failed_acceptance_criteria",
           "relay_result_invalid"
         ],
-        "required_refs": ["failed_check", "acceptance_feedback", "budget_state"],
+        "required_refs": ["failed_check", "retry_feedback", "budget_state"],
         "operator_authority": "not_required",
         "attempt_budget": {
           "consumes_step_attempt": true,

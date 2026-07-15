@@ -14,6 +14,7 @@ import {
   FixChangeSet,
   FixContext,
   FixDiagnosis,
+  FixFinalChangeSet,
   FixNoReproDecision,
   FixRegressionProof,
   FixRegressionRerun,
@@ -25,6 +26,7 @@ import { fixBaselineSnapshotWriter } from './writers/baseline-snapshot.js';
 import { fixBriefComposeBuilder } from './writers/brief.js';
 import { fixChangeSetWriter } from './writers/change-set.js';
 import { fixCloseBuilder } from './writers/close.js';
+import { fixFinalChangeSetWriter } from './writers/final-change-set.js';
 import { fixRegressionBaselineWriter } from './writers/regression-baseline.js';
 import { fixRegressionRerunWriter } from './writers/regression-rerun.js';
 import { fixVerificationWriter } from './writers/verification.js';
@@ -124,6 +126,12 @@ export const fixFlowData = {
       writers: { verification: [fixChangeSetWriter] },
     },
     {
+      schemaName: 'fix.final-change-set@v1',
+      channel: 'report',
+      schema: FixFinalChangeSet,
+      writers: { verification: [fixFinalChangeSetWriter] },
+    },
+    {
       schemaName: 'fix.result@v1',
       channel: 'report',
       schema: FixResult,
@@ -204,6 +212,11 @@ export const fixFlowData = {
           relayRole: 'reviewer',
           relayStartedText: 'Asking the reviewer to check the result...',
           relayCompletedText: 'Finished checking the result.',
+        },
+        {
+          stepId: 'fix-final-change-set',
+          taskTitle: 'Check the final state',
+          activeText: 'Checking the final state',
         },
         {
           stepId: 'fix-close-low',

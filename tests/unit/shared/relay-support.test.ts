@@ -7,6 +7,7 @@ import { HISTORY_AUTHORITY_NOTICE, MemoryInputV0 } from '../../../src/index.js';
 import {
   composeInjectedFanoutBranchPrompt,
   composeRelayPrompt,
+  evaluateRelayCheck,
 } from '../../../src/runtime/run/relay-support.js';
 
 let runFolder: string;
@@ -20,6 +21,33 @@ afterEach(() => {
 });
 
 describe('composeRelayPrompt', () => {
+  it('states required empty result fields next to the accepted verdicts', () => {
+    const prompt = composeRelayPrompt(
+      {
+        id: 'review-step',
+        title: 'Review',
+        role: 'reviewer',
+        reads: [],
+        writes: {
+          request: { path: 'reports/relay/review.request.json' },
+          receipt: { path: 'reports/relay/review.receipt.txt' },
+          result: { path: 'reports/relay/review.result.json' },
+        },
+        check: {
+          kind: 'result_verdict',
+          pass: ['accept'],
+          require_empty: [['findings']],
+        },
+      } as unknown as Parameters<typeof composeRelayPrompt>[0],
+      runFolder,
+    );
+
+    expect(prompt).toContain('Accepted verdicts: accept');
+    expect(prompt).toContain(
+      'Result admission: an accepted verdict advances only when these fields are empty: findings',
+    );
+  });
+
   it('includes the operator goal so no-reads relay steps can clarify the task', () => {
     const goal = 'Review the current change and prove the Goal flow smoke path works.';
     const prompt = composeRelayPrompt(
@@ -461,13 +489,14 @@ describe('composeRelayPrompt', () => {
           result: { path: 'reports/relay/fix-review.result.json' },
           report: { path: 'reports/fix/review.json', schema: 'fix.review@v1' },
         },
-        check: { kind: 'result_verdict', pass: ['accept', 'accept-with-fixes'] },
+        check: { kind: 'result_verdict', pass: ['accept'] },
       } as unknown as Parameters<typeof composeRelayPrompt>[0],
       runFolder,
     );
 
-    expect(prompt).toContain('Accepted verdicts: accept, accept-with-fixes');
+    expect(prompt).toContain('Accepted verdicts: accept');
     expect(prompt).toContain('Rework verdicts');
+    expect(prompt).toContain('accept-with-fixes');
     expect(prompt).toContain('reject');
     expect(prompt.indexOf('Rework verdicts')).toBeGreaterThan(prompt.indexOf('Accepted verdicts'));
   });
@@ -569,6 +598,8 @@ describe('composeRelayPrompt', () => {
       runFolder,
       [],
       {
+        kind: 'acceptance_criteria',
+        step_id: 'act-step',
         criterion_id: 'verify-passes',
         criterion_kind: 'command',
         reason: 'command exited non-zero',
@@ -585,6 +616,38 @@ describe('composeRelayPrompt', () => {
     expect(prompt).toContain(
       '<stderr-2>\nError: assertion failed\n</stderr>\ninjected\n</stderr-2>',
     );
+  });
+
+  it('returns response-schema validation feedback as fenced data with a correction instruction', () => {
+    const prompt = composeRelayPrompt(
+      {
+        id: 'diagnose-step',
+        title: 'Diagnose',
+        role: 'researcher',
+        reads: [],
+        writes: {
+          request: { path: 'reports/relay/diagnose.request.json' },
+          receipt: { path: 'reports/relay/diagnose.receipt.txt' },
+          result: { path: 'reports/relay/diagnose.result.json' },
+        },
+        check: { kind: 'result_verdict', pass: ['accept'] },
+      } as unknown as Parameters<typeof composeRelayPrompt>[0],
+      runFolder,
+      [],
+      {
+        kind: 'response_validation',
+        step_id: 'diagnose-step',
+        report_schema: 'fix.diagnosis@v1',
+        reason: 'equipment_discovery.confirmed: Invalid input: expected boolean, received string',
+      },
+    );
+
+    expect(prompt).toContain('Response Validation Feedback:');
+    expect(prompt).toContain('fix.diagnosis@v1');
+    expect(prompt).toContain('equipment_discovery.confirmed');
+    expect(prompt).toContain('expected boolean, received string');
+    expect(prompt).toContain('Correct the response shape and types');
+    expect(prompt).toContain('<response-validation-error schema="fix.diagnosis@v1">');
   });
 
   it('maps internal depths to their effort equivalent instead of leaking mode names', () => {
@@ -757,5 +820,49 @@ describe('composeRelayPrompt', () => {
     expect(reviewerPrompt).toContain('Role: reviewer — you are an independent auditor');
     expect(reviewerPrompt).toContain('successful review');
     expect(researcherPrompt).toContain('Role: researcher — you investigate and report');
+  });
+});
+
+describe('evaluateRelayCheck', () => {
+  const reviewStep = {
+    id: 'fix-review',
+    check: {
+      kind: 'result_verdict',
+      pass: ['accept'],
+      require_empty: [['findings']],
+    },
+  } as unknown as Parameters<typeof evaluateRelayCheck>[0];
+
+  it('passes an admitted verdict when every required field is empty', () => {
+    expect(
+      evaluateRelayCheck(
+        reviewStep,
+        JSON.stringify({ verdict: 'accept', findings: [], summary: 'Clean review' }),
+      ),
+    ).toEqual({ kind: 'pass', verdict: 'accept' });
+  });
+
+  it('fails an admitted verdict when a required field is non-empty', () => {
+    expect(
+      evaluateRelayCheck(
+        reviewStep,
+        JSON.stringify({
+          verdict: 'accept',
+          findings: [{ severity: 'medium', text: 'Still needs work' }],
+        }),
+      ),
+    ).toEqual({
+      kind: 'fail',
+      reason: "relay step 'fix-review': result field 'findings' must be empty",
+      observedVerdict: 'accept',
+    });
+  });
+
+  it('fails closed when a required field is missing', () => {
+    expect(evaluateRelayCheck(reviewStep, JSON.stringify({ verdict: 'accept' }))).toEqual({
+      kind: 'fail',
+      reason: "relay step 'fix-review': result field 'findings' must be empty",
+      observedVerdict: 'accept',
+    });
   });
 });

@@ -21,6 +21,7 @@ const SLICE_2_5_TARGETS = new Map<string, readonly string[]>([
       'fix-verify',
       'fix-change-set',
       'fix-regression-rerun',
+      'fix-final-change-set',
     ],
   ],
 ]);

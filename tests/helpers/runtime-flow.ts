@@ -348,6 +348,7 @@ function reportBody(
         hidden_index_flags: [],
       });
     case 'fix.change-set@v1':
+    case 'fix.final-change-set@v1':
       return FixChangeSet.parse({
         status: 'pass',
         overall_status: 'passed',
@@ -428,6 +429,11 @@ function reportBody(
             report_id: 'fix.change-set',
             path: 'reports/fix/change-set.json',
             schema: 'fix.change-set@v1',
+          },
+          {
+            report_id: 'fix.final-change-set',
+            path: 'reports/fix/final-change-set.json',
+            schema: 'fix.final-change-set@v1',
           },
           { report_id: 'fix.review', path: 'reports/fix/review.json', schema: 'fix.review@v1' },
         ],

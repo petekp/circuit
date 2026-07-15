@@ -572,7 +572,7 @@ describe('FlowDefinition compiler', () => {
     ] as const) {
       expect(packageFor(flowId).paths.command).toBeUndefined();
     }
-    expect(packageFor('fix').runtimeSurface?.progress?.steps).toHaveLength(14);
+    expect(packageFor('fix').runtimeSurface?.progress?.steps).toHaveLength(15);
     // Stage 3b (first-class composition): build and prototype follow goal off
     // the by-id catalog package onto their compiled manifests. Their packages no
     // longer carry engineFlags; the manifests do (proved in

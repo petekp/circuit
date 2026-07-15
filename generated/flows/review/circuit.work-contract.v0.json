@@ -3,7 +3,7 @@
   "contract_ref": {
     "kind": "work_contract",
     "ref": "generated/flows/review/circuit.work-contract.v0.json",
-    "sha256": "168cce20d1cb98e0ef55312b9c0959203d0e2a43185effb9a099825eb600cde5",
+    "sha256": "8f77ab73579b94f3d32b2aed197b67f98f3068dfc56710faa7f03b33d027cb6d",
     "flow_id": "review"
   },
   "work_contract": {
@@ -296,7 +296,7 @@
           "failed_acceptance_criteria",
           "relay_result_invalid"
         ],
-        "required_refs": ["failed_check", "acceptance_feedback", "budget_state"],
+        "required_refs": ["failed_check", "retry_feedback", "budget_state"],
         "operator_authority": "not_required",
         "attempt_budget": {
           "consumes_step_attempt": true,

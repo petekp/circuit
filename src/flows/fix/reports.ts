@@ -16,6 +16,7 @@ const FIX_RESULT_SCHEMA_BY_ARTIFACT_ID = {
   'fix.verification': 'fix.verification@v1',
   'fix.regression-rerun': 'fix.regression-rerun@v1',
   'fix.change-set': 'fix.change-set@v1',
+  'fix.final-change-set': 'fix.final-change-set@v1',
   'fix.review': 'fix.review@v1',
 } as const;
 
@@ -30,6 +31,7 @@ const FIX_RESULT_PATH_BY_ARTIFACT_ID = {
   'fix.verification': 'reports/fix/verification.json',
   'fix.regression-rerun': 'reports/fix/regression-rerun.json',
   'fix.change-set': 'reports/fix/change-set.json',
+  'fix.final-change-set': 'reports/fix/final-change-set.json',
   'fix.review': 'reports/fix/review.json',
 } as const;
 
@@ -43,6 +45,7 @@ const REQUIRED_FIX_RESULT_ARTIFACT_IDS = [
   'fix.verification',
   'fix.regression-rerun',
   'fix.change-set',
+  'fix.final-change-set',
 ] as const;
 
 const NonEmptyStringArray = z.array(z.string().min(1)).min(1);
@@ -478,8 +481,9 @@ export const FixBaselineSnapshot = z
   .strict();
 export type FixBaselineSnapshot = z.infer<typeof FixBaselineSnapshot>;
 
-// Runtime-owned change-set verdict. After fix-verify the runtime captures the
-// post-fix git state and computes the actual file list touched by the fix:
+// Runtime-owned immediate change-set verdict. After fix-act the runtime captures
+// git state and computes the actual file list touched by the fix so recovery can
+// carry accepted declarations into another act attempt:
 //
 //   observed = (paths newly-dirty post-fix)
 //            ∪ (paths dirty at baseline whose fingerprint changed)
@@ -599,6 +603,12 @@ export const FixChangeSet = z
     }
   });
 export type FixChangeSet = z.infer<typeof FixChangeSet>;
+
+// Final-state recheck after verification, the regression rerun, and review.
+// It intentionally shares the immediate change-set shape: the distinction is
+// timing and authority, not data representation.
+export const FixFinalChangeSet = FixChangeSet;
+export type FixFinalChangeSet = z.infer<typeof FixFinalChangeSet>;
 
 // Runtime-owned post-fix rerun of the brief's regression command. The
 // regression-baseline step ran the same command BEFORE fix-act and recorded
@@ -751,6 +761,7 @@ export const FixResultReportId = z.enum([
   'fix.verification',
   'fix.regression-rerun',
   'fix.change-set',
+  'fix.final-change-set',
   'fix.review',
 ]);
 export type FixResultReportId = z.infer<typeof FixResultReportId>;

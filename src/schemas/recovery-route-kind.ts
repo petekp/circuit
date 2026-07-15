@@ -37,6 +37,7 @@ export type RecoveryFailureCause = z.infer<typeof RecoveryFailureCause>;
 export const RecoveryRequiredRefKind = z.enum([
   'failed_check',
   'acceptance_feedback',
+  'retry_feedback',
   'proof_assessment',
   'runtime_diff',
   'relay_result',
@@ -66,7 +67,7 @@ export type RecoveryKindContractRule = {
 export const RECOVERY_KIND_CONTRACT_RULES = {
   retry_same_step_with_feedback: {
     allowedFailureCauses: ['failed_check', 'failed_acceptance_criteria', 'relay_result_invalid'],
-    defaultRequiredRefs: ['failed_check', 'acceptance_feedback', 'budget_state'],
+    defaultRequiredRefs: ['failed_check', 'retry_feedback', 'budget_state'],
     rejectsUnknownFailure: true,
   },
   narrow_scope: {
@@ -196,11 +197,11 @@ export const RecoveryRouteBindingV0 = z
           message: 'retry_same_step_with_feedback must target the same step',
         });
       }
-      if (!requiredRefs.has('acceptance_feedback')) {
+      if (!requiredRefs.has('retry_feedback') && !requiredRefs.has('acceptance_feedback')) {
         ctx.addIssue({
           code: 'custom',
           path: ['required_refs'],
-          message: 'retry_same_step_with_feedback requires acceptance_feedback refs',
+          message: 'retry_same_step_with_feedback requires retry_feedback refs',
         });
       }
       if (!binding.attempt_budget.consumes_step_attempt) {

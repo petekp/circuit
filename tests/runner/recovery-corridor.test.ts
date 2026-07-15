@@ -63,7 +63,7 @@ describe('RecoveryCorridor', () => {
       route: 'retry',
       recoveryReason: 'verification failed',
       recoveryFailure: undefined,
-      acceptanceFeedback: undefined,
+      retryFeedback: undefined,
     });
     expect(corridor.isActiveRoute('retry')).toBe(true);
     expect(corridor.isActiveRoute('pass')).toBe(false);
@@ -83,7 +83,7 @@ describe('RecoveryCorridor', () => {
       route: 'retry',
       recoveryReason: 'needs repair',
       recoveryFailure: undefined,
-      acceptanceFeedback: undefined,
+      retryFeedback: undefined,
     });
 
     // Stepping back into 'act' from 'verify' via the non-recovery 'fix' route is
@@ -105,7 +105,7 @@ describe('RecoveryCorridor', () => {
       route: 'retry',
       recoveryReason: 'failed',
       recoveryFailure: failure,
-      acceptanceFeedback: undefined,
+      retryFeedback: undefined,
     });
 
     expect(corridor.evidenceFor({ stepId: 'act', attempt: 2, binding: undefined })).toEqual({
@@ -121,7 +121,7 @@ describe('RecoveryCorridor', () => {
       route: 'retry',
       recoveryReason: 'failed',
       recoveryFailure: undefined,
-      acceptanceFeedback: undefined,
+      retryFeedback: undefined,
     });
     expect(corridor.isActiveRoute('retry')).toBe(true);
 

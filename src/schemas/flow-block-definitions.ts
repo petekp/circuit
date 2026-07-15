@@ -288,7 +288,7 @@ const FLOW_BLOCK_DEFINITION_INPUTS = [
       description:
         'The diagnosis must distinguish known facts, hypotheses, and unresolved questions.',
     },
-    allowed_routes: ['continue', 'retry', 'ask', 'stop'],
+    allowed_routes: ['continue', 'retry', 'revise', 'ask', 'stop'],
     human_interaction: 'optional',
     host_capabilities: {
       claude: [],

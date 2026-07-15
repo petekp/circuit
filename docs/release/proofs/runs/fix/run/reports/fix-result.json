@@ -53,6 +53,11 @@
       "report_id": "fix.change-set",
       "path": "reports/fix/change-set.json",
       "schema": "fix.change-set@v1"
+    },
+    {
+      "report_id": "fix.final-change-set",
+      "path": "reports/fix/final-change-set.json",
+      "schema": "fix.final-change-set@v1"
     }
   ]
 }

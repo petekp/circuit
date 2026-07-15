@@ -1,13 +1,13 @@
 ---
 contract: step
 status: draft
-version: 0.6
+version: 0.7
 schema_source: src/schemas/step.ts
-last_updated: 2026-07-09
+last_updated: 2026-07-15
 depends_on: [ids, check, selection-policy, scalars, skill, skill-hook, acceptance-criteria, equipment-scope]
 report_ids:
   - step.definition
-invariant_ids: [STEP-I1, STEP-I2, STEP-I3, STEP-I4, STEP-I5, STEP-I6, STEP-I7, STEP-I8, STEP-I9, STEP-I10, STEP-I11, STEP-I12, STEP-I13, STEP-I14]
+invariant_ids: [STEP-I1, STEP-I2, STEP-I3, STEP-I4, STEP-I5, STEP-I6, STEP-I7, STEP-I8, STEP-I9, STEP-I10, STEP-I11, STEP-I12, STEP-I13, STEP-I14, STEP-I15]
 property_ids: [step.prop.budget_bounds, step.prop.relay_role_presence, step.prop.check_kind_source_kind_pairing, step.prop.check_source_ref_closure, step.prop.run_relative_paths, step.prop.writes_shape_per_variant, step.prop.skill_slots_unique, step.prop.skill_hooks_unique, step.prop.relay_acceptance_criteria_shape]
 ---
 
@@ -223,6 +223,16 @@ enforced via `src/schemas/step.ts`, `src/schemas/check.ts`, and
   Enforced by `RouteFromReport` in `src/schemas/step.ts`, resolved by
   `readRouteFromReport` in `src/runtime/executors/shared.ts`, and applied in
   `src/runtime/executors/relay.ts` and `src/runtime/executors/compose.ts`.
+
+- **STEP-I15 — Result-verdict admission may require empty fields.** Relay and
+  sub-run `result_verdict` checks may declare `require_empty`, a non-empty list
+  of non-empty field paths. The runtime evaluates these paths only after the
+  result's verdict appears in `check.pass`. Every named value must be an empty
+  string, array, or object. A missing field, `null`, boolean, number, or
+  non-empty value fails the check. Relay check failures still materialize a
+  schema-valid typed report, so a recovery step can read the rejected result.
+  Enforced by `ResultVerdictCheck` in `src/schemas/check.ts`, schematic
+  execution-shape validation, and the shared result-verdict admission helper.
 
 ## Pre-conditions
 

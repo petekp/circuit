@@ -22,7 +22,7 @@ function retryBinding(overrides: Record<string, unknown> = {}) {
     route_target: 'act-step',
     kind: 'retry_same_step_with_feedback',
     allowed_failure_causes: ['failed_acceptance_criteria'],
-    required_refs: ['acceptance_feedback'],
+    required_refs: ['retry_feedback'],
     operator_authority: 'not_required',
     attempt_budget: {
       consumes_step_attempt: true,

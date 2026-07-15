@@ -30,6 +30,7 @@ const FIX_ARTIFACT_IDS = [
   'fix.verification',
   'fix.regression-rerun',
   'fix.change-set',
+  'fix.final-change-set',
   'fix.review',
   'fix.result',
 ] as const;
@@ -53,6 +54,10 @@ const EXPECTED_REPORT_WRITES = {
     schema: 'fix.regression-rerun@v1',
   },
   'fix.change-set': { path: 'reports/fix/change-set.json', schema: 'fix.change-set@v1' },
+  'fix.final-change-set': {
+    path: 'reports/fix/final-change-set.json',
+    schema: 'fix.final-change-set@v1',
+  },
   'fix.review': { path: 'reports/fix/review.json', schema: 'fix.review@v1' },
   'fix.result': { path: 'reports/fix-result.json', schema: 'fix.result@v1' },
 } as const;
@@ -119,6 +124,11 @@ function resultPointers(
       report_id: 'fix.change-set',
       path: 'reports/fix/change-set.json',
       schema: 'fix.change-set@v1',
+    }),
+    FixResultReportPointer.parse({
+      report_id: 'fix.final-change-set',
+      path: 'reports/fix/final-change-set.json',
+      schema: 'fix.final-change-set@v1',
     }),
   ];
 

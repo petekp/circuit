@@ -111,9 +111,12 @@ function carriedDescription(node: ZodSchema): string | undefined {
   return undefined;
 }
 
-function leafDescriptionOr(node: ZodSchema, fallback: string): string {
+function leafDescriptionOr(node: ZodSchema, fallback: string, valueType?: string): string {
   const description = carriedDescription(node);
   if (description !== undefined) {
+    if (valueType !== undefined) {
+      return `<${valueType}: ${description}>`;
+    }
     return `"<${escapeJsonInner(description)}>"`;
   }
   return fallback;
@@ -273,11 +276,11 @@ function renderNodeInner(node: ZodSchema, visited: Set<ZodSchema>, depth: number
     case 'string':
       return leafDescriptionOr(node, '"<string>"');
     case 'number':
-      return leafDescriptionOr(node, '<number>');
+      return leafDescriptionOr(node, '<number>', 'number');
     case 'bigint':
-      return leafDescriptionOr(node, '<bigint>');
+      return leafDescriptionOr(node, '<bigint>', 'bigint');
     case 'boolean':
-      return leafDescriptionOr(node, '<true|false>');
+      return leafDescriptionOr(node, '<true|false>', 'true|false');
     case 'date':
       return leafDescriptionOr(node, '"<iso-date>"');
     case 'null':
@@ -285,9 +288,9 @@ function renderNodeInner(node: ZodSchema, visited: Set<ZodSchema>, depth: number
     case 'undefined':
       return '<undefined>';
     case 'any':
-      return leafDescriptionOr(node, '<any>');
+      return leafDescriptionOr(node, '<any>', 'any');
     case 'unknown':
-      return leafDescriptionOr(node, '<unknown>');
+      return leafDescriptionOr(node, '<unknown>', 'unknown');
     case 'never':
       return '<never>';
     case 'record':

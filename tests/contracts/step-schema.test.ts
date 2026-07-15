@@ -87,6 +87,54 @@ describe('Step discriminated union', () => {
     expect(ok.success).toBe(true);
   });
 
+  it('accepts deterministic empty-field admission on result verdict checks', () => {
+    const ok = Step.safeParse({
+      ...baseCompose,
+      executor: 'worker',
+      kind: 'relay',
+      role: 'reviewer',
+      writes: {
+        request: 'r.json',
+        receipt: 'c.json',
+        result: 's.json',
+      },
+      check: {
+        kind: 'result_verdict',
+        source: { kind: 'relay_result', ref: 'result' },
+        pass: ['accept'],
+        require_empty: [['findings'], ['scope', 'violations']],
+      },
+    });
+
+    expect(ok.success).toBe(true);
+  });
+
+  it.each([
+    { label: 'an empty condition list', require_empty: [] },
+    { label: 'an empty field path', require_empty: [[]] },
+    { label: 'an empty path segment', require_empty: [['findings', '']] },
+  ])('rejects $label in result verdict admission', ({ require_empty }) => {
+    const bad = Step.safeParse({
+      ...baseCompose,
+      executor: 'worker',
+      kind: 'relay',
+      role: 'reviewer',
+      writes: {
+        request: 'r.json',
+        receipt: 'c.json',
+        result: 's.json',
+      },
+      check: {
+        kind: 'result_verdict',
+        source: { kind: 'relay_result', ref: 'result' },
+        pass: ['accept'],
+        require_empty,
+      },
+    });
+
+    expect(bad.success).toBe(false);
+  });
+
   it('accepts relay skill slots with kebab-case ids', () => {
     const ok = Step.safeParse({
       ...baseCompose,

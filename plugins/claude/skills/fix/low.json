@@ -43,7 +43,8 @@
         "fix-baseline-snapshot",
         "fix-verify",
         "fix-change-set",
-        "fix-regression-rerun"
+        "fix-regression-rerun",
+        "fix-final-change-set"
       ]
     },
     {
@@ -135,7 +136,8 @@
       "routes": {
         "continue": "fix-act",
         "pass": "fix-act",
-        "retry": "fix-gather-context",
+        "revise": "fix-gather-context",
+        "retry": "fix-diagnose",
         "ask": "fix-no-repro-decision",
         "stop": "@stop"
       },
@@ -268,6 +270,7 @@
         "reports/fix/diagnosis.json",
         "reports/fix/verification.json",
         "reports/fix/change-set.json",
+        "reports/fix/final-change-set.json",
         "reports/fix/regression-rerun.json"
       ],
       "routes": {
@@ -300,12 +303,6 @@
             "id": "changed-files-present",
             "path": ["changed_files"],
             "predicate": "present"
-          },
-          {
-            "kind": "report_field",
-            "id": "changed-files-on-disk",
-            "path": ["changed_files"],
-            "predicate": "changed_on_disk"
           },
           {
             "kind": "report_field",
@@ -399,8 +396,8 @@
       "protocol": "fix-regression-rerun@v1",
       "reads": ["reports/fix/brief.json"],
       "routes": {
-        "continue": "fix-close-low",
-        "pass": "fix-close-low",
+        "continue": "fix-final-change-set",
+        "pass": "fix-final-change-set",
         "retry": "fix-act",
         "stop": "@stop"
       },
@@ -410,6 +407,34 @@
         "report": {
           "path": "reports/fix/regression-rerun.json",
           "schema": "fix.regression-rerun@v1"
+        }
+      },
+      "check": {
+        "kind": "schema_sections",
+        "source": {
+          "kind": "report",
+          "ref": "report"
+        },
+        "required": ["status", "overall_status"]
+      }
+    },
+    {
+      "id": "fix-final-change-set",
+      "title": "Verify — recheck final fix change-set",
+      "protocol": "fix-final-change-set@v1",
+      "reads": ["reports/fix/baseline-snapshot.json", "reports/fix/change-set.json"],
+      "routes": {
+        "continue": "fix-close-low",
+        "pass": "fix-close-low",
+        "retry": "fix-act",
+        "stop": "@stop"
+      },
+      "executor": "orchestrator",
+      "kind": "verification",
+      "writes": {
+        "report": {
+          "path": "reports/fix/final-change-set.json",
+          "schema": "fix.final-change-set@v1"
         }
       },
       "check": {
@@ -434,7 +459,7 @@
         "reports/fix/change.json",
         "reports/fix/verification.json",
         "reports/fix/regression-rerun.json",
-        "reports/fix/change-set.json"
+        "reports/fix/final-change-set.json"
       ],
       "routes": {
         "complete": "@complete",

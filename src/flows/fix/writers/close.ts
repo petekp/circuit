@@ -1,7 +1,7 @@
 // Fix close-with-evidence builder.
 //
 // Reads brief + context + diagnosis + regression-proof + baseline-snapshot +
-// change + verification + regression-rerun + change-set (all required) plus
+// change + verification + regression-rerun + final-change-set (all required) plus
 // review (optional — lite mode skips review via route_overrides).
 //
 // All outcome and pillar-status logic lives in `projectFixResult`. This
@@ -17,9 +17,9 @@ import {
   FixBaselineSnapshot,
   FixBrief,
   FixChange,
-  FixChangeSet,
   FixContext,
   FixDiagnosis,
+  FixFinalChangeSet,
   FixRegressionProof,
   FixRegressionRerun,
   type FixResultReportPointer,
@@ -38,6 +38,7 @@ const REQUIRED_POINTERS = [
   { report_id: 'fix.verification', schema: 'fix.verification@v1' },
   { report_id: 'fix.regression-rerun', schema: 'fix.regression-rerun@v1' },
   { report_id: 'fix.change-set', schema: 'fix.change-set@v1' },
+  { report_id: 'fix.final-change-set', schema: 'fix.final-change-set@v1' },
 ] as const;
 
 const OPTIONAL_REVIEW_POINTER = {
@@ -56,7 +57,7 @@ export const fixCloseBuilder: CloseBuilder = {
     { name: 'change', schema: 'fix.change@v1', required: true },
     { name: 'verification', schema: 'fix.verification@v1', required: true },
     { name: 'regression_rerun', schema: 'fix.regression-rerun@v1', required: true },
-    { name: 'change_set', schema: 'fix.change-set@v1', required: true },
+    { name: 'change_set', schema: 'fix.final-change-set@v1', required: true },
     { name: 'review', schema: 'fix.review@v1', required: false },
   ],
   build(context: CloseBuildContext): unknown {
@@ -68,7 +69,7 @@ export const fixCloseBuilder: CloseBuilder = {
     const change = FixChange.parse(context.inputs.change);
     const verification = FixVerification.parse(context.inputs.verification);
     const regressionRerun = FixRegressionRerun.parse(context.inputs.regression_rerun);
-    const changeSet = FixChangeSet.parse(context.inputs.change_set);
+    const changeSet = FixFinalChangeSet.parse(context.inputs.change_set);
     const review =
       context.inputs.review === undefined ? undefined : FixReview.parse(context.inputs.review);
 

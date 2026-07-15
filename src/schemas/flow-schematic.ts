@@ -3,7 +3,7 @@ import { AcceptanceCriteria } from './acceptance-criteria.js';
 import { FlowAxes } from './axes.js';
 import { AxisConfigRequirementList } from './axis-config-requirement.js';
 import { ChangeKind } from './change-kind.js';
-import { CheckpointAllowFrom, FanoutJoinPolicy } from './check.js';
+import { CheckpointAllowFrom, FanoutJoinPolicy, ResultFieldPath } from './check.js';
 import { EngineFlagsManifest } from './engine-flags.js';
 import { EquipmentScope } from './equipment-scope.js';
 import {
@@ -173,7 +173,9 @@ export type SchematicFanout = z.infer<typeof SchematicFanout>;
 // Per-item check metadata. Conditional on execution.kind:
 //   compose | verification           → required: SchemaSectionsCheck.required
 //   checkpoint                         → allow: CheckpointSelectionCheck.allow
-//   relay | sub-run | fanout          → pass: ResultVerdictCheck.pass / Fanout admit list
+//   relay | sub-run                  → pass: ResultVerdictCheck.pass;
+//                                      require_empty: optional result-field admission conditions
+//   fanout                           → pass: Fanout admit list
 // Cross-field shape is enforced at the SchematicStep superRefine.
 export const StepCheck = z
   .object({
@@ -181,6 +183,7 @@ export const StepCheck = z
     allow: z.array(z.string().min(1)).min(1).optional(),
     allow_from: CheckpointAllowFrom.optional(),
     pass: z.array(z.string().min(1)).min(1).optional(),
+    require_empty: z.array(ResultFieldPath).min(1).optional(),
   })
   .strict();
 export type StepCheck = z.infer<typeof StepCheck>;
@@ -431,7 +434,7 @@ function validateExecutionShape(
       }
     };
     const forbidField = (
-      field: 'required' | 'allow' | 'allow_from' | 'pass',
+      field: 'required' | 'allow' | 'allow_from' | 'pass' | 'require_empty',
       allowedKinds: string,
     ) => {
       if (g[field] !== undefined) {
@@ -449,6 +452,7 @@ function validateExecutionShape(
         forbidField('allow', 'checkpoint');
         forbidField('allow_from', 'checkpoint');
         forbidField('pass', 'relay|sub-run');
+        forbidField('require_empty', 'relay|sub-run');
         break;
       case 'checkpoint':
         if (g.allow === undefined && g.allow_from === undefined) {
@@ -467,6 +471,7 @@ function validateExecutionShape(
         }
         forbidField('required', 'compose|verification');
         forbidField('pass', 'relay|sub-run');
+        forbidField('require_empty', 'relay|sub-run');
         break;
       case 'relay':
       case 'sub-run':
@@ -480,6 +485,7 @@ function validateExecutionShape(
         forbidField('required', 'compose|verification');
         forbidField('allow', 'checkpoint');
         forbidField('allow_from', 'checkpoint');
+        forbidField('require_empty', 'relay|sub-run');
         break;
     }
   }

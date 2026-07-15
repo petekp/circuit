@@ -254,6 +254,11 @@ function pointers(
       schema: 'fix.change-set@v1',
       path: 'reports/fix/change-set.json',
     },
+    {
+      report_id: 'fix.final-change-set',
+      schema: 'fix.final-change-set@v1',
+      path: 'reports/fix/final-change-set.json',
+    },
   ];
   if (options.withNoRepro === true) {
     base.push({

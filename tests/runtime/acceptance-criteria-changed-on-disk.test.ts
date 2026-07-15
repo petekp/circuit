@@ -131,7 +131,7 @@ describe('acceptance criteria schema — changed_on_disk is a legal predicate', 
   });
 });
 
-describe('fix-act and build-act wire the changed_on_disk gate', () => {
+describe('built-in act steps choose the appropriate changed-file gate', () => {
   function actStepChecks(
     items: typeof fixBlockItems,
   ): readonly { id?: string; predicate?: string }[] {
@@ -145,9 +145,12 @@ describe('fix-act and build-act wire the changed_on_disk gate', () => {
     }));
   }
 
-  it('fix-act carries a changed_on_disk check on changed_files', () => {
+  it('fix-act defers changed-file truth to its baseline-aware immediate change-set', () => {
     const checks = actStepChecks(fixBlockItems);
-    expect(checks).toContainEqual({ id: 'changed-files-on-disk', predicate: 'changed_on_disk' });
+    expect(checks).not.toContainEqual({
+      id: 'changed-files-on-disk',
+      predicate: 'changed_on_disk',
+    });
   });
 
   it('build-act carries a changed_on_disk check on changed_files', () => {

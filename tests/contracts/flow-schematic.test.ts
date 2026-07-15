@@ -62,6 +62,7 @@ describe('flow schematic schema — active Fix schematic', () => {
       'run-verification',
       'run-verification',
       'run-verification',
+      'run-verification',
       'review',
       'close-with-evidence',
       'close-with-evidence',
@@ -82,6 +83,7 @@ describe('flow schematic schema — active Fix schematic', () => {
       ['fix-verify', 'verify'],
       ['fix-change-set', 'verify'],
       ['fix-regression-rerun', 'verify'],
+      ['fix-final-change-set', 'verify'],
       ['fix-review', 'review'],
       ['fix-close-low', 'close'],
       ['fix-close', 'close'],
@@ -102,6 +104,7 @@ describe('flow schematic schema — active Fix schematic', () => {
       ['fix-verify', { kind: 'verification' }],
       ['fix-change-set', { kind: 'verification' }],
       ['fix-regression-rerun', { kind: 'verification' }],
+      ['fix-final-change-set', { kind: 'verification' }],
       ['fix-review', { kind: 'relay', role: 'reviewer' }],
       ['fix-close-low', { kind: 'compose' }],
       ['fix-close', { kind: 'compose' }],
@@ -119,12 +122,14 @@ describe('flow schematic schema — active Fix schematic', () => {
       diagnosis: 'fix.diagnosis@v1',
       verification: 'fix.verification@v1',
       change_set: 'fix.change-set@v1',
+      final_change_set: 'fix.final-change-set@v1',
       regression_rerun: 'fix.regression-rerun@v1',
       review: 'fix.review@v1',
     });
     expect(act.optional_inputs).toEqual([
       'verification',
       'change_set',
+      'final_change_set',
       'regression_rerun',
       'review',
     ]);
@@ -136,12 +141,6 @@ describe('flow schematic schema — active Fix schematic', () => {
           id: 'changed-files-present',
           path: ['changed_files'],
           predicate: 'present',
-        },
-        {
-          kind: 'report_field',
-          id: 'changed-files-on-disk',
-          path: ['changed_files'],
-          predicate: 'changed_on_disk',
         },
         {
           kind: 'report_field',
@@ -198,7 +197,7 @@ describe('flow schematic schema — active Fix schematic', () => {
       change: 'fix.change@v1',
       verification: 'fix.verification@v1',
       regression_rerun: 'fix.regression-rerun@v1',
-      change_set: 'fix.change-set@v1',
+      change_set: 'fix.final-change-set@v1',
     });
     expect(closeLow.input).not.toHaveProperty('review');
     expect(close.input).toMatchObject({
@@ -210,14 +209,12 @@ describe('flow schematic schema — active Fix schematic', () => {
       change: 'fix.change@v1',
       verification: 'fix.verification@v1',
       regression_rerun: 'fix.regression-rerun@v1',
-      change_set: 'fix.change-set@v1',
+      change_set: 'fix.final-change-set@v1',
       review: 'fix.review@v1',
     });
   });
 
-  it('routes low-depth regression-rerun directly to a no-review close item via route_overrides', () => {
-    // Slice 2 v2: regression-rerun is the last verification step before
-    // close, so the low override sits there (not on change-set as in v1).
+  it('routes every successful path through a final state gate before close', () => {
     const schematic = parseFixSchematic();
     const verify = schematic.items.find((item) => (item.id as unknown as string) === 'fix-verify');
     if (verify === undefined) throw new Error('fix-verify missing');
@@ -231,6 +228,10 @@ describe('flow schematic schema — active Fix schematic', () => {
     if (regressionRerun === undefined) throw new Error('fix-regression-rerun missing');
     const review = schematic.items.find((item) => (item.id as unknown as string) === 'fix-review');
     if (review === undefined) throw new Error('fix-review missing');
+    const finalChangeSet = schematic.items.find(
+      (item) => (item.id as unknown as string) === 'fix-final-change-set',
+    );
+    if (finalChangeSet === undefined) throw new Error('fix-final-change-set missing');
 
     const act = schematic.items.find((item) => (item.id as unknown as string) === 'fix-act');
     if (act === undefined) throw new Error('fix-act missing');
@@ -240,8 +241,17 @@ describe('flow schematic schema — active Fix schematic', () => {
     expect(verify.routes.continue).toBe('fix-regression-rerun');
     expect(regressionRerun.routes.continue).toBe('fix-review');
     expect(review.input).toMatchObject({ change_set: 'fix.change-set@v1' });
-    expect(review.routes['connector-failed']).toBe('fix-close');
+    expect(review.check).toEqual({ pass: ['accept'], require_empty: [['findings']] });
+    expect(review.routes.continue).toBe('fix-final-change-set');
+    expect(review.routes['connector-failed']).toBe('fix-final-change-set');
     expect(regressionRerun.route_overrides).toEqual({
+      continue: {
+        low: 'fix-final-change-set',
+      },
+    });
+    expect(finalChangeSet.routes.continue).toBe('fix-close');
+    expect(finalChangeSet.routes.retry).toBe('fix-act');
+    expect(finalChangeSet.route_overrides).toEqual({
       continue: {
         low: 'fix-close-low',
       },
@@ -256,6 +266,8 @@ describe('flow schematic schema — active Fix schematic', () => {
     expect(byId.get('fix-regression-baseline')?.routes.continue).toBe('fix-baseline-snapshot');
     expect(byId.get('fix-baseline-snapshot')?.routes.continue).toBe('fix-gather-context');
     expect(byId.get('fix-diagnose')?.routes.continue).toBe('fix-act');
+    expect(byId.get('fix-diagnose')?.routes.retry).toBe('fix-diagnose');
+    expect(byId.get('fix-diagnose')?.routes.revise).toBe('fix-gather-context');
     expect(byId.get('fix-no-repro-decision')?.routes.continue).toBe('fix-act');
   });
 
@@ -513,6 +525,9 @@ describe('flow schematic schema — active Fix schematic', () => {
     const verify = schematic.items.find((item) => (item.id as unknown as string) === 'fix-verify');
     if (verify === undefined) throw new Error('fix-verify missing');
     verify.routes.continue = StepId.parse('fix-close');
+    const close = schematic.items.find((item) => (item.id as unknown as string) === 'fix-close');
+    if (close === undefined) throw new Error('fix-close missing');
+    close.optional_inputs = [];
 
     const issues = validateFlowSchematicCatalogCompatibility(schematic, parseBlockCatalog());
     expect(issues).toContainEqual({
@@ -827,6 +842,40 @@ describe('flow schematic compiler-required metadata', () => {
     ]);
     const result = FlowSchematic.safeParse(schematic);
     expect(result.success).toBe(true);
+  });
+
+  it('accepts result-field admission conditions on relay items', () => {
+    const schematic = baseSchematic([
+      actItemWithExtras({
+        protocol: 'demo-act@v1',
+        writes: {
+          report_path: 'reports/change.json',
+          request_path: 'reports/relay/act.request.json',
+          receipt_path: 'reports/relay/act.receipt.txt',
+          result_path: 'reports/relay/act.result.json',
+        },
+        check: { pass: ['accept'], require_empty: [['findings']] },
+      }),
+    ]);
+
+    expect(FlowSchematic.safeParse(schematic).success).toBe(true);
+  });
+
+  it('rejects result-field admission conditions on compose items', () => {
+    const schematic = baseSchematic([
+      frameItemWithExtras({
+        writes: { report_path: 'reports/brief.json' },
+        check: { required: ['scope'], require_empty: [['findings']] },
+      }),
+    ]);
+    const result = FlowSchematic.safeParse(schematic);
+
+    expect(result.success).toBe(false);
+    if (!result.success) {
+      expect(result.error.message).toMatch(
+        /check\.require_empty is only allowed for relay\|sub-run execution/,
+      );
+    }
   });
 
   it('accepts relay skill slots with kebab-case ids', () => {

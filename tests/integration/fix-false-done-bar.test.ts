@@ -214,10 +214,10 @@ function fixVerificationOverride(scenario: ScenarioConfig): ExecutorRegistry['ve
       });
       return { route: 'pass', details: { stub: 'baseline-snapshot' } };
     }
-    if (step.id === 'fix-change-set') {
+    if (step.id === 'fix-change-set' || step.id === 'fix-final-change-set') {
       const report = step.writes?.report;
       if (report === undefined) {
-        throw new Error('fix-change-set step missing writes.report');
+        throw new Error(`${step.id} step missing writes.report`);
       }
       const declared = [...scenario.declaredChangedFiles].sort((a, b) => a.localeCompare(b));
       const observed = [...scenario.observedFiles].sort((a, b) => a.localeCompare(b));

@@ -98,6 +98,13 @@ export const CheckpointSelectionCheck = z
   .strict();
 export type CheckpointSelectionCheck = z.infer<typeof CheckpointSelectionCheck>;
 
+// A path into a parsed JSON result body. Result-verdict admission uses these
+// paths to express small, deterministic conditions that must hold in addition
+// to the verdict allowlist (for example, a review may only advance when its
+// `findings` array is empty).
+export const ResultFieldPath = z.array(z.string().min(1)).min(1);
+export type ResultFieldPath = z.infer<typeof ResultFieldPath>;
+
 // `result_verdict` admits a result body produced by either a relay worker
 // or a sub-run child flow — both materialise a `.verdict` field with the
 // same semantics. The source kind disambiguates the producer at audit time;
@@ -107,6 +114,7 @@ export const ResultVerdictCheck = z
     kind: z.literal('result_verdict'),
     source: z.discriminatedUnion('kind', [RelayResultSource, SubRunResultSource]),
     pass: z.array(z.string().min(1)).min(1),
+    require_empty: z.array(ResultFieldPath).min(1).optional(),
   })
   .strict();
 export type ResultVerdictCheck = z.infer<typeof ResultVerdictCheck>;

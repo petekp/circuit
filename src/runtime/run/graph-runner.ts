@@ -27,7 +27,6 @@ import { createUserSkillRegistry } from '../../shared/user-skill-registry.js';
 import { dispatchSkillHooks } from '../../skill-hooks/dispatch.js';
 import { createSkillHookInjectionChannel } from '../../skill-hooks/injection.js';
 import { surfaceSourcesFromDeclarations } from '../../skill-hooks/surface-sources.js';
-import { isAcceptanceRetryFeedback } from '../acceptance-criteria.js';
 import type { RouteTarget } from '../domain/route.js';
 import { isWaitingCheckpointStepOutcome } from '../domain/step.js';
 import { type ExecutorRegistry, createDefaultExecutors } from '../executors/index.js';
@@ -54,6 +53,7 @@ import { writeRuntimeManifestSnapshot } from './manifest-snapshot.js';
 import { createOracleCommandPinChannel } from './oracle-command-pin.js';
 import { recoveryBindingVerdict, recoveryCauseAllowed } from './recovery-binding-verdict.js';
 import { RecoveryCorridor } from './recovery-corridor.js';
+import { isRelayRetryFeedback } from './relay-retry-feedback.js';
 import { openRunBoundary } from './run-boundary.js';
 import {
   type GraphClosedOutcome,
@@ -1088,7 +1088,7 @@ async function executeExecutableFlowOutcomeUnsafe(
     let route: string;
     let details: Record<string, unknown>;
     try {
-      const acceptanceRetryFeedback = corridor.acceptanceFeedbackForReentry({
+      const relayRetryFeedback = corridor.retryFeedbackForReentry({
         stepId: step.id,
         incomingRoute: incomingRouteTaken,
       });
@@ -1106,7 +1106,7 @@ async function executeExecutableFlowOutcomeUnsafe(
         // provisioning" contract that RunValue, ComposeBuildContext, and plan.ts
         // document literally true end to end, not present-but-false.
         ...(contextDeliveryActive ? { contextDeliveryActive } : {}),
-        ...(acceptanceRetryFeedback === undefined ? {} : { acceptanceRetryFeedback }),
+        ...(relayRetryFeedback === undefined ? {} : { relayRetryFeedback }),
         // The iteration scope feeds executors that stamp slice_index on their
         // check.evaluated entries (relay, verification), so an until body step's
         // failure evidence is filed under its iteration and the recovery resolver
@@ -1723,8 +1723,8 @@ async function executeExecutableFlowOutcomeUnsafe(
         route,
         recoveryReason: details.reason,
         recoveryFailure,
-        acceptanceFeedback: isAcceptanceRetryFeedback(details.acceptance_feedback)
-          ? details.acceptance_feedback
+        retryFeedback: isRelayRetryFeedback(details.retry_feedback)
+          ? details.retry_feedback
           : undefined,
       });
     }

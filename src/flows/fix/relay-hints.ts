@@ -51,7 +51,7 @@ export const fixReviewShapeHint: SchemaShapeHint = {
   instruction: [
     shapeInstruction(renderShapeSkeleton(FixReview)),
     "Review the change against the diagnosed cause and the brief's success criteria, not just against passing verification. Look for missed edge cases, partially handled input variants, and changes that broaden semantics beyond the bug being fixed even when the regression test passes.",
-    'Use an empty findings array only with verdict "accept". Verdicts "accept-with-fixes" and "reject" must include at least one finding. Use an empty file_refs array when a finding has no file-specific reference.',
+    'Verdict "accept" is only for a clean review and must use an empty findings array. Any actionable finding must use verdict "accept-with-fixes" or "reject" and will route the work back for another implementation pass. Those rework verdicts must include at least one finding. Use an empty file_refs array when a finding has no file-specific reference.',
     mechanicalTail('fix.review@v1', 'reports/fix/review.json'),
   ].join(' '),
 };

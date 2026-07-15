@@ -3,10 +3,10 @@ Circuit · Fix
 The flow stopped before complete evidence was produced.
 
 - Stop reason: primary result 'reports/fix-result.json' reported outcome 'partial'
-- Worker access: A worker can edit this checkout.
-- Verification: passed.
-- Regression: not proven by a command, so the relevance of the change to the bug is unverified.
+- Working tree: the attempt's edits remain uncommitted.
+- Review: independent review did not run.
+- +4 more in operator-summary.json.
 
-Next: inspect the stopped run and choose whether to rerun or hand off.
+Next: review the diff, run verification at your own budget, then resume, rerun, or discard the attempt.
 
-⎿ depth medium · power medium · 4 worker runs · all checks passed
+⎿ power medium · process medium · 4 worker runs · all checks passed

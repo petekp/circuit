@@ -15,12 +15,18 @@ export type FixChangeSetProjectorInputs = {
   readonly ignoredPathPrefixes?: readonly string[];
 };
 
+export type FixFinalChangeSetProjectorInputs = {
+  readonly baseline: FixBaselineSnapshot;
+  readonly post: GitStateHelperOutput;
+  readonly declaredPaths: readonly string[];
+  readonly ignoredPathPrefixes?: readonly string[];
+};
+
 function isIgnoredPath(path: string, prefixes: readonly string[]): boolean {
   return prefixes.some((prefix) => path === prefix || path.startsWith(`${prefix}/`));
 }
 
 export function projectFixChangeSet(inputs: FixChangeSetProjectorInputs): FixChangeSet {
-  const ignoredPathPrefixes = inputs.ignoredPathPrefixes ?? [];
   // A review rework writes a fresh fix.change report containing the files from
   // that rework pass. Keep declarations from earlier accepted act attempts when
   // those paths still differ from the run baseline, while dropping paths a later
@@ -46,6 +52,20 @@ export function projectFixChangeSet(inputs: FixChangeSetProjectorInputs): FixCha
   const carriedDeclarations = (inputs.priorDeclaredPaths ?? []).filter((path) =>
     observedPaths.has(path),
   );
+  return projectFixChangeSetForDeclaredPaths({
+    baseline: inputs.baseline,
+    post: inputs.post,
+    declaredPaths: [...carriedDeclarations, ...inputs.change.changed_files],
+    ...(inputs.ignoredPathPrefixes === undefined
+      ? {}
+      : { ignoredPathPrefixes: inputs.ignoredPathPrefixes }),
+  });
+}
+
+export function projectFixChangeSetForDeclaredPaths(
+  inputs: FixFinalChangeSetProjectorInputs,
+): FixChangeSet {
+  const ignoredPathPrefixes = inputs.ignoredPathPrefixes ?? [];
   const runtimeTouchedFiles = projectRuntimeTouchedFiles({
     baseline: {
       head_sha: inputs.baseline.head_sha,
@@ -57,7 +77,7 @@ export function projectFixChangeSet(inputs: FixChangeSetProjectorInputs): FixCha
       entries: inputs.post.entries,
       hidden_index_flags: inputs.post.hidden_index_flags,
     },
-    workerDeclaredPaths: [...carriedDeclarations, ...inputs.change.changed_files],
+    workerDeclaredPaths: inputs.declaredPaths,
     ...(inputs.ignoredPathPrefixes === undefined
       ? {}
       : { ignoredPathPrefixes: inputs.ignoredPathPrefixes }),

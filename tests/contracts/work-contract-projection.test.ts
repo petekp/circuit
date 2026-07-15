@@ -332,7 +332,7 @@ describe('WorkContractProjectionV0', () => {
     if (sameStepRetry === undefined) throw new Error('expected a same-step retry route');
 
     expect(sameStepRetry.route_target).toBe(sameStepRetry.step_id);
-    expect(sameStepRetry.required_refs).toContain('acceptance_feedback');
+    expect(sameStepRetry.required_refs).toContain('retry_feedback');
     expect(sameStepRetry.attempt_budget).toMatchObject({
       consumes_step_attempt: true,
       must_respect_max_attempts: true,
@@ -365,6 +365,26 @@ describe('WorkContractProjectionV0', () => {
 
     expect(broadRetry.kind).not.toBe('retry_same_step_with_feedback');
     expect(broadRetry.kind).toBe('narrow_scope');
+  });
+
+  it('projects Fix diagnosis schema correction as a same-step feedback retry', () => {
+    const fix = compiledBuiltInFlows().find((flow) => flow.id === 'fix');
+    if (fix === undefined) throw new Error('expected compiled Fix flow');
+    const binding = buildProjection(fix).work_contract.recovery.find(
+      (route) => route.step_id === 'fix-diagnose' && route.route_id === 'retry',
+    );
+
+    expect(binding).toMatchObject({
+      route_target: 'fix-diagnose',
+      kind: 'retry_same_step_with_feedback',
+      allowed_failure_causes: expect.arrayContaining(['relay_result_invalid']),
+      required_refs: expect.arrayContaining(['retry_feedback']),
+      attempt_budget: {
+        consumes_step_attempt: true,
+        must_respect_max_attempts: true,
+        retry_target: 'same_step',
+      },
+    });
   });
 
   it('rejects recovery bindings that are duplicated or not backed by declared routes', () => {

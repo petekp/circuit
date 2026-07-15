@@ -5,7 +5,6 @@ import type { Ref } from '../../schemas/ref.js';
 import type { PowerInferenceChannel } from '../../selection/power-inference.js';
 import type { UserSkillRegistry } from '../../shared/user-skill-registry.js';
 import type { SkillHookInjectionChannel } from '../../skill-hooks/injection.js';
-import type { AcceptanceRetryFeedback } from '../acceptance-criteria.js';
 import type { RunId } from '../domain/run.js';
 import type { ExecutableFlow } from '../manifest/executable-flow.js';
 import type { RunFileStore } from '../run-files/run-file-store.js';
@@ -15,6 +14,7 @@ import type { DeliveredContextSlice } from './context-delivery.js';
 import type { ExternalFileReader } from './external-files.js';
 import type { HonestyLedger } from './honesty-ledger.js';
 import type { OracleCommandPinChannel } from './oracle-command-pin.js';
+import type { RelayRetryFeedback } from './relay-retry-feedback.js';
 
 export interface RunContext
   extends Omit<RuntimeExecutionCapabilities, 'executors' | 'progressSurface'> {
@@ -65,7 +65,7 @@ export interface RunContext
   readonly trace: TraceStore;
   readonly externalFiles: ExternalFileReader;
   readonly activeStepAttempt?: number;
-  readonly acceptanceRetryFeedback?: AcceptanceRetryFeedback;
+  readonly relayRetryFeedback?: RelayRetryFeedback;
   // Set by the graph-runner on a loop-body step during an active slice loop
   // (deep-depth Build): the 0-based index of the slice being executed and the
   // slice's metadata, so executors can tag trace entries and the relay prompt

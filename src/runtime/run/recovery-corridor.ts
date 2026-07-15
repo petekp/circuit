@@ -19,17 +19,17 @@ import type {
   RecoveryRouteBindingV0,
 } from '../../schemas/recovery-route-kind.js';
 import type { Ref } from '../../schemas/ref.js';
-import type { AcceptanceRetryFeedback } from '../acceptance-criteria.js';
 import type { TraceEntry } from '../domain/trace.js';
 import type { ExecutableStep } from '../manifest/executable-flow.js';
 import type { RecoveryFailureEvidence } from './recovery-binding-verdict.js';
+import type { RelayRetryFeedback } from './relay-retry-feedback.js';
 
 interface ActiveRecovery {
   readonly originStepId: string;
   readonly route: string;
   readonly reason?: string;
   readonly failure?: RecoveryFailureEvidence;
-  readonly acceptanceFeedback?: AcceptanceRetryFeedback;
+  readonly retryFeedback?: RelayRetryFeedback;
 }
 
 /** Decides whether a route on a step carries WorkContract recovery mechanics. */
@@ -56,7 +56,7 @@ export interface CorridorEnterInput {
   readonly route: string;
   readonly recoveryReason: unknown;
   readonly recoveryFailure: RecoveryFailureEvidence | undefined;
-  readonly acceptanceFeedback: AcceptanceRetryFeedback | undefined;
+  readonly retryFeedback: RelayRetryFeedback | undefined;
 }
 
 export class RecoveryCorridor {
@@ -91,16 +91,16 @@ export class RecoveryCorridor {
   }
 
   /**
-   * Acceptance-retry feedback to surface when `stepId` re-enters as the corridor
+   * Relay retry feedback to surface when `stepId` re-enters as the corridor
    * origin via the active recovery route.
    */
-  acceptanceFeedbackForReentry(input: {
+  retryFeedbackForReentry(input: {
     readonly stepId: string;
     readonly incomingRoute: string | undefined;
-  }): AcceptanceRetryFeedback | undefined {
+  }): RelayRetryFeedback | undefined {
     if (this.active?.originStepId !== input.stepId) return undefined;
     if (!this.isActiveRoute(input.incomingRoute)) return undefined;
-    return this.active.acceptanceFeedback;
+    return this.active.retryFeedback;
   }
 
   /**
@@ -128,9 +128,7 @@ export class RecoveryCorridor {
       originStepId: input.originStepId,
       route: input.route,
       ...(input.recoveryFailure === undefined ? {} : { failure: input.recoveryFailure }),
-      ...(input.acceptanceFeedback === undefined
-        ? {}
-        : { acceptanceFeedback: input.acceptanceFeedback }),
+      ...(input.retryFeedback === undefined ? {} : { retryFeedback: input.retryFeedback }),
     };
     this.active =
       typeof input.recoveryReason === 'string' ? { ...base, reason: input.recoveryReason } : base;
@@ -166,12 +164,12 @@ export class RecoveryCorridor {
    * Faithfulness boundary — read before relying on this. The durable
    * `step.completed` entry carries only `route_taken` (+ ids/attempt/slice).
    * The live `enter()` also took executor-outcome fields — `recoveryReason`
-   * (details.reason), `recoveryFailure`, and `acceptanceFeedback`
-   * (details.acceptance_feedback) — that are NOT persisted to the trace. This
+   * (details.reason), `recoveryFailure`, and `retryFeedback`
+   * (details.retry_feedback) — that are NOT persisted to the trace. This
    * reseed therefore restores ONLY the structural fields (originStepId, route)
    * and deliberately leaves the payload fields undefined. The consequence is
    * exact: after reseed `lastReasonSuffix()` returns '' and
-   * `acceptanceFeedbackForReentry()` returns undefined even where the live run
+   * `retryFeedbackForReentry()` returns undefined even where the live run
    * carried a reason / feedback. `evidenceFor()` likewise has no seeded failure
    * to surface. That payload gap is the spec line for the full cursor
    * (docs/ideas/durability-tier2-cursor-spec.md); restoring it requires
@@ -197,7 +195,7 @@ export class RecoveryCorridor {
           route,
           recoveryReason: undefined,
           recoveryFailure: undefined,
-          acceptanceFeedback: undefined,
+          retryFeedback: undefined,
         });
       }
       this.clearIfExitingOrigin({ stepId: entry.step_id, routeHasRecoveryMechanics });

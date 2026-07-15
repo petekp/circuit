@@ -20,7 +20,7 @@ import { RunId, StepId } from '../../src/schemas/ids.js';
 // Faithfulness boundary (proven by the third test): only `route_taken` survives
 // to the durable trace, so seedFromTrace reproduces the STRUCTURAL fields
 // (originStepId, route) and not the executor-outcome payload (reason,
-// acceptanceFeedback). It must not pretend otherwise.
+// retryFeedback). It must not pretend otherwise.
 
 function stepRoute(stepId: string): RouteTarget {
   return { kind: 'step', stepId };
@@ -89,7 +89,7 @@ describe('RecoveryCorridor.seedFromTrace', () => {
       route: 'retry',
       recoveryReason: undefined,
       recoveryFailure: undefined,
-      acceptanceFeedback: undefined,
+      retryFeedback: undefined,
     });
     live.clearIfExitingOrigin({ stepId: 'act', routeHasRecoveryMechanics: true });
     live.clearIfExitingOrigin({ stepId: 'verify', routeHasRecoveryMechanics: false });
@@ -126,7 +126,7 @@ describe('RecoveryCorridor.seedFromTrace', () => {
       route: 'retry',
       recoveryReason: undefined,
       recoveryFailure: undefined,
-      acceptanceFeedback: undefined,
+      retryFeedback: undefined,
     });
     live.clearIfExitingOrigin({ stepId: 'act', routeHasRecoveryMechanics: true });
     live.clearIfExitingOrigin({ stepId: 'verify', routeHasRecoveryMechanics: false });
@@ -149,20 +149,30 @@ describe('RecoveryCorridor.seedFromTrace', () => {
     expect(rehydrated.lastReasonSuffix()).toBe('');
   });
 
-  it('honestly does not rehydrate executor-outcome payload (reason) — it is not in the durable trace', () => {
+  it('honestly does not rehydrate executor-outcome payload — it is not in the durable trace', () => {
     const steps = fixLoopSteps();
     const recoveryRoutes = new Set(['retry']);
+    const retryFeedback = {
+      kind: 'response_validation' as const,
+      step_id: 'act',
+      report_schema: 'example.report@v1',
+      reason: 'expected boolean, received string',
+    };
 
-    // The live run entered with a recovery reason from the executor outcome.
+    // The live run entered with a recovery reason and retry feedback from the
+    // executor outcome.
     const live = new RecoveryCorridor(makeDeps(steps, recoveryRoutes));
     live.enter({
       originStepId: 'act',
       route: 'retry',
       recoveryReason: 'verification failed',
       recoveryFailure: undefined,
-      acceptanceFeedback: undefined,
+      retryFeedback,
     });
     expect(live.lastReasonSuffix()).toBe('; last recovery reason: verification failed');
+    expect(live.retryFeedbackForReentry({ stepId: 'act', incomingRoute: 'retry' })).toEqual(
+      retryFeedback,
+    );
 
     // step.completed carries only route_taken — never details.reason — so the
     // rehydrated corridor must NOT fabricate a reason. The structural identity
@@ -174,7 +184,10 @@ describe('RecoveryCorridor.seedFromTrace', () => {
     rehydrated.seedFromTrace(trace);
 
     expect(rehydrated.isActiveRoute('retry')).toBe(true);
-    // Honest gap: the reason payload is not reconstructable from the trace.
+    // Honest gap: neither payload is reconstructable from the trace.
     expect(rehydrated.lastReasonSuffix()).toBe('');
+    expect(
+      rehydrated.retryFeedbackForReentry({ stepId: 'act', incomingRoute: 'retry' }),
+    ).toBeUndefined();
   });
 });

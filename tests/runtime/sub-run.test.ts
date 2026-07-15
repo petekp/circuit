@@ -24,7 +24,11 @@ afterEach(async () => {
 
 function parentFlow(
   pass: readonly string[] = ['accept'],
-  options: { readonly reportPath?: string; readonly stopRoute?: boolean } = {},
+  options: {
+    readonly reportPath?: string;
+    readonly stopRoute?: boolean;
+    readonly requireEmpty?: readonly (readonly string[])[];
+  } = {},
 ): ExecutableFlow {
   return {
     id: 'parent-test',
@@ -55,6 +59,9 @@ function parentFlow(
           kind: 'result_verdict',
           source: { kind: 'sub_run_result', ref: 'result' },
           pass: [...pass],
+          ...(options.requireEmpty === undefined
+            ? {}
+            : { require_empty: options.requireEmpty.map((path) => [...path]) }),
         },
       },
     ],
@@ -247,6 +254,31 @@ describe('runtime sub-run executor', () => {
     const entries = await trace(runDir);
     expect(entries.find((entry) => entry.kind === 'sub_run.completed')?.verdict).toBe('reject');
     expect(entries.find((entry) => entry.kind === 'check.evaluated')?.outcome).toBe('fail');
+  });
+
+  it('rejects an allowed child verdict when a required result field is non-empty', async () => {
+    const runDir = join(baseDir, 'parent-non-empty-result-field-run');
+    const result = await executeExecutableFlow(
+      parentFlow(['accept'], { requireEmpty: [['summary']] }),
+      {
+        runDir,
+        runId: randomUUID(),
+        goal: 'parent goal',
+        childCompiledFlowResolver: () => ({ flowBytes: childFlowBytes() }),
+        childRunner: stubChildRunner('accept'),
+        now: () => new Date('2026-05-03T00:00:00.000Z'),
+      },
+    );
+
+    expect(result.outcome).toBe('aborted');
+    expect(result.reason).toContain("result field 'summary' must be empty");
+    const entries = await trace(runDir);
+    expect(entries.find((entry) => entry.kind === 'check.evaluated')).toEqual(
+      expect.objectContaining({
+        outcome: 'fail',
+        reason: expect.stringContaining("result field 'summary' must be empty"),
+      }),
+    );
   });
 
   it('does not admit an allowed child verdict when the child run closes non-complete', async () => {

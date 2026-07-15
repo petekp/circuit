@@ -279,6 +279,58 @@ function relayerWithTwoDeltaActs(repo: string, recordedDeclarations: string[][])
   };
 }
 
+function relayerWithFinalChangeSetRepair(
+  repo: string,
+  sideEffectPath: string,
+  actPrompts: string[],
+): RelayFn {
+  const supportRelayer = relayer(repo, {
+    declaredChangedFiles: ['src/unreachable.ts'],
+    mutate: () => {
+      throw new Error('support relayer must not execute fix-act');
+    },
+  });
+  let actAttempt = 0;
+
+  return {
+    connectorName: 'claude-code',
+    relay: async (input): Promise<RelayResult> => {
+      if (!input.prompt.includes('Step: fix-act')) {
+        return await supportRelayer.relay(input);
+      }
+
+      actAttempt += 1;
+      actPrompts.push(input.prompt);
+      if (actAttempt === 1) {
+        writeRepoFile(repo, 'src/status.ts', 'export const status = "healthy";\n');
+      } else if (actAttempt === 2) {
+        rmSync(join(repo, sideEffectPath), { force: true });
+      } else {
+        throw new Error(`expected exactly two fix-act attempts, got attempt ${actAttempt}`);
+      }
+
+      return {
+        request_payload: input.prompt,
+        receipt_id: `live-fix-final-change-set-repair-${actAttempt}`,
+        result_body: JSON.stringify({
+          verdict: 'accept',
+          summary:
+            actAttempt === 1
+              ? 'repair the reported bug'
+              : 'remove the undeclared verification side effect',
+          diagnosis_ref: 'fix.diagnosis@v1',
+          changed_files: ['src/status.ts'],
+          evidence: [
+            actAttempt === 1 ? 'status is healthy' : `removed undeclared ${sideEffectPath}`,
+          ],
+        }),
+        duration_ms: 1,
+        cli_version: '0.0.0-live',
+      };
+    },
+  };
+}
+
 let runFolderBase: string;
 const repos: string[] = [];
 
@@ -292,6 +344,186 @@ afterEach(() => {
 });
 
 describe('Live False-Done Fix bar', () => {
+  it(
+    'feeds a failed final change-set back to fix-act so the side effect can be repaired',
+    async () => {
+      const brokenBody = 'export const status = "broken";\n';
+      const healthyBody = 'export const status = "healthy";\n';
+      const sideEffectPath = 'src/verification-side-effect.ts';
+      const sideEffectOnceMarker = join(runFolderBase, 'verification-side-effect-created');
+      const repo = initRepo({ initialFiles: { 'src/status.ts': brokenBody } });
+      repos.push(repo);
+      const regression = regressionCommandThatChecksFile(repo, 'src/status.ts', healthyBody);
+      const verificationWithOneSideEffect: FixVerificationCommand = {
+        id: 'passing-verification-with-one-side-effect',
+        cwd: '.',
+        argv: [
+          process.execPath,
+          '-e',
+          [
+            "const fs = require('node:fs');",
+            `const marker = ${JSON.stringify(sideEffectOnceMarker)};`,
+            'if (!fs.existsSync(marker)) {',
+            `  fs.writeFileSync(${JSON.stringify(sideEffectPath)}, 'export const proofSideEffect = true;\\n');`,
+            "  fs.writeFileSync(marker, 'created');",
+            '}',
+          ].join('\n'),
+        ],
+        timeout_ms: 30_000,
+        max_output_bytes: 200_000,
+        env: {},
+      };
+      const runFolder = join(runFolderBase, 'repair-verification-side-effect');
+      const actPrompts: string[] = [];
+
+      const outcome = await runCompiledFlow({
+        runDir: runFolder,
+        flowBytes: loadLiteFixture().bytes,
+        runId: 'f1000000-0000-0000-0000-000000000097',
+        goal: 'repair a proof command side effect after the final state gate reports it',
+        depth: 'low',
+        now: deterministicNow(Date.UTC(2026, 4, 10, 11, 0, 0)),
+        relayer: relayerWithFinalChangeSetRepair(repo, sideEffectPath, actPrompts),
+        executors: frameOverrideExecutors({
+          goal: 'repair a proof command side effect after the final state gate reports it',
+          regression: {
+            expected_behavior: 'status file contains healthy content',
+            actual_behavior: 'status file contains broken content',
+            repro: { kind: 'command', command: regression },
+            regression_test: { status: 'failing-before-fix', command: regression },
+          },
+          verificationCommand: verificationWithOneSideEffect,
+        }),
+        projectRoot: repo,
+      });
+
+      expect(outcome.outcome).toBe('complete');
+      expect(actPrompts).toHaveLength(2);
+      expect(actPrompts[0]).toContain('[reads unavailable: reports/fix/final-change-set.json]');
+      expect(actPrompts[1]).toContain('<read path="reports/fix/final-change-set.json">');
+      expect(actPrompts[1]).toContain(sideEffectPath);
+      expect(actPrompts[1]).toContain('undeclared extras');
+
+      const finalChangeSet = FixChangeSet.parse(
+        JSON.parse(readFileSync(join(runFolder, 'reports/fix/final-change-set.json'), 'utf8')),
+      );
+      expect(finalChangeSet.status).toBe('pass');
+      expect(finalChangeSet.undeclared_extras).toEqual([]);
+      expect(git(repo, ['status', '--short'])).toBe(' M src/status.ts\n');
+    },
+    LIVE_FALSE_DONE_TIMEOUT_MS,
+  );
+
+  it(
+    'denies fixed when a passing verification command creates an undeclared file',
+    async () => {
+      const brokenBody = 'export const status = "broken";\n';
+      const healthyBody = 'export const status = "healthy";\n';
+      const sideEffectPath = 'src/verification-side-effect.ts';
+      const repo = initRepo({ initialFiles: { 'src/status.ts': brokenBody } });
+      repos.push(repo);
+      const regression = regressionCommandThatChecksFile(repo, 'src/status.ts', healthyBody);
+      const verificationWithSideEffect: FixVerificationCommand = {
+        id: 'passing-verification-with-side-effect',
+        cwd: '.',
+        argv: [
+          process.execPath,
+          '-e',
+          `require('node:fs').writeFileSync(${JSON.stringify(sideEffectPath)}, 'export const proofSideEffect = true;\\n');`,
+        ],
+        timeout_ms: 30_000,
+        max_output_bytes: 200_000,
+        env: {},
+      };
+      const runFolder = join(runFolderBase, 'verification-side-effect-final-state-gate');
+
+      const outcome = await runCompiledFlow({
+        runDir: runFolder,
+        flowBytes: loadLiteFixture().bytes,
+        runId: 'f1000000-0000-0000-0000-000000000098',
+        goal: 'reject a passing proof command that changes an undeclared file',
+        depth: 'low',
+        now: deterministicNow(Date.UTC(2026, 4, 10, 11, 30, 0)),
+        relayer: relayer(repo, {
+          declaredChangedFiles: ['src/status.ts'],
+          mutate: (project) => writeRepoFile(project, 'src/status.ts', healthyBody),
+        }),
+        executors: frameOverrideExecutors({
+          goal: 'reject a passing proof command that changes an undeclared file',
+          regression: {
+            expected_behavior: 'status file contains healthy content',
+            actual_behavior: 'status file contains broken content',
+            repro: { kind: 'command', command: regression },
+            regression_test: { status: 'failing-before-fix', command: regression },
+          },
+          verificationCommand: verificationWithSideEffect,
+        }),
+        projectRoot: repo,
+      });
+
+      expect(outcome.outcome).not.toBe('complete');
+      expect(outcome.reason).toContain(sideEffectPath);
+
+      const finalChangeSet = FixChangeSet.parse(
+        JSON.parse(readFileSync(join(runFolder, 'reports/fix/final-change-set.json'), 'utf8')),
+      );
+      expect(finalChangeSet.status).toBe('fail');
+      expect(finalChangeSet.undeclared_extras).toContain(sideEffectPath);
+    },
+    LIVE_FALSE_DONE_TIMEOUT_MS,
+  );
+
+  it(
+    'accepts a declared repair that restores a baseline-dirty file to HEAD',
+    async () => {
+      const healthyBody = 'export const status = "healthy";\n';
+      const repo = initRepo({ initialFiles: { 'src/status.ts': healthyBody } });
+      repos.push(repo);
+      writeRepoFile(repo, 'src/status.ts', 'export const status = "broken";\n');
+      const regression = regressionCommandThatChecksFile(repo, 'src/status.ts', healthyBody);
+      const runFolder = join(runFolderBase, 'restore-baseline-dirty-to-head');
+
+      const outcome = await runCompiledFlow({
+        runDir: runFolder,
+        flowBytes: loadLiteFixture().bytes,
+        runId: 'f1000000-0000-0000-0000-000000000099',
+        goal: 'restore the dirty status file to its healthy committed content',
+        depth: 'low',
+        now: deterministicNow(Date.UTC(2026, 4, 10, 12, 0, 0)),
+        relayer: relayer(repo, {
+          declaredChangedFiles: ['src/status.ts'],
+          mutate: (project) => writeRepoFile(project, 'src/status.ts', healthyBody),
+        }),
+        executors: frameOverrideExecutors({
+          goal: 'restore the dirty status file to its healthy committed content',
+          regression: {
+            expected_behavior: 'status file contains healthy committed content',
+            actual_behavior: 'status file contains broken operator dirt',
+            repro: { kind: 'command', command: regression },
+            regression_test: { status: 'failing-before-fix', command: regression },
+          },
+        }),
+        projectRoot: repo,
+      });
+
+      if (outcome.outcome !== 'complete') {
+        throw new Error(
+          `expected complete, got ${outcome.outcome}: ${outcome.reason ?? '<no reason>'}`,
+        );
+      }
+
+      const changeSet = FixChangeSet.parse(
+        JSON.parse(readFileSync(join(runFolder, 'reports/fix/change-set.json'), 'utf8')),
+      );
+      expect(changeSet.status).toBe('pass');
+      expect(changeSet.declared).toEqual(['src/status.ts']);
+      expect(changeSet.observed).toEqual(['src/status.ts']);
+      expect(changeSet.baseline_dirty_mutated).toEqual(['src/status.ts']);
+      expect(git(repo, ['status', '--short'])).toBe('');
+    },
+    LIVE_FALSE_DONE_TIMEOUT_MS,
+  );
+
   it(
     'carries accepted act declarations across a verification retry',
     async () => {

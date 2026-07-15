@@ -679,6 +679,72 @@ describe('Build runtime wiring', () => {
   );
 
   it(
+    'keeps cross-step review recovery when the first review report is schema-invalid',
+    async () => {
+      const { bytes } = loadFixture();
+      const runFolder = join(runFolderBase, 'review-schema-repair');
+      const baseRelayer = relayerWith();
+      let actCalls = 0;
+      let reviewCalls = 0;
+      const relayer: RelayFn = {
+        connectorName: baseRelayer.connectorName,
+        relay: async (input) => {
+          if (input.prompt.includes('Step: act-step')) actCalls += 1;
+          if (!input.prompt.includes('Step: review-step')) return baseRelayer.relay(input);
+          reviewCalls += 1;
+          if (reviewCalls > 1) return baseRelayer.relay(input);
+          return {
+            request_payload: input.prompt,
+            receipt_id: 'stub-build-review-invalid',
+            result_body: JSON.stringify({
+              verdict: 'accept',
+              summary: 'Missing the required findings and alignment fields',
+            }),
+            duration_ms: 1,
+            cli_version: '0.0.0-stub',
+          };
+        },
+      };
+
+      const outcome = await runCompiledFlow({
+        runDir: runFolder,
+        flowBytes: bytes,
+        runId: 'b2000000-0000-0000-0000-000000000013',
+        goal: 'Repair a malformed Build review through the existing implementation loop',
+        depth: 'medium',
+        now: deterministicNow(Date.UTC(2026, 3, 25, 8, 32, 0)),
+        relayer,
+        projectRoot: makeVerificationProjectRoot(),
+      });
+
+      expect(outcome.outcome).toBe('complete');
+      expect(actCalls).toBe(2);
+      expect(reviewCalls).toBe(2);
+
+      const traceEntries = await readTraceEntries(runFolder);
+      expect(traceEntries).toContainEqual(
+        expect.objectContaining({
+          kind: 'step.completed',
+          step_id: 'review-step',
+          attempt: 1,
+          route_taken: 'retry',
+        }),
+      );
+      expect(traceEntries).toContainEqual(
+        expect.objectContaining({
+          kind: 'guidance.decision',
+          subject: 'recovery_route',
+          selected: expect.objectContaining({
+            route_id: 'retry',
+            failure_cause: 'failed_check',
+          }),
+        }),
+      );
+    },
+    BUILD_RUNTIME_TIMEOUT_MS,
+  );
+
+  it(
     'stops (needs attention) when review accepts with required fixes',
     async () => {
       const { bytes } = loadFixture();

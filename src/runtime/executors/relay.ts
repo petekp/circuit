@@ -46,6 +46,10 @@ import { appendProofPolicyGuidance, appendRelayExecutionGuidance } from '../run/
 import { recoveryBindingForFailure, recoveryRouteForFailure } from '../run/recovery-selection.js';
 import { planRelayGuidanceDecision } from '../run/relay-guidance.js';
 import {
+  type RelayRetryFeedback,
+  acceptanceCriteriaRetryFeedback,
+} from '../run/relay-retry-feedback.js';
+import {
   type CheckEvaluation,
   type RelayStep as CompiledRelayStepV1,
   NO_VERDICT_SENTINEL,
@@ -412,6 +416,7 @@ export type ProductionRelayAttemptResult =
       readonly result_path: string;
       readonly parsed_body?: unknown;
       readonly report_path?: string;
+      readonly retry_feedback?: RelayRetryFeedback;
       readonly acceptance_failure?: Extract<
         AcceptanceCriteriaEvaluationResult,
         { readonly kind: 'fail' }
@@ -513,7 +518,7 @@ export async function executeProductionRelayAttempt(input: {
     compiledStep,
     context.runDir,
     loadedSkills,
-    context.acceptanceRetryFeedback,
+    context.relayRetryFeedback,
     context.goal,
     context.memoryInputs ?? [],
     // Slice 4 D4: thread the active flow into the always-on pull affordance so the
@@ -853,6 +858,19 @@ export async function executeProductionRelayAttempt(input: {
     result_path: result.path,
     ...(parsedBody === undefined ? {} : { parsed_body: parsedBody }),
     ...(writtenReportPath === undefined ? {} : { report_path: writtenReportPath }),
+    ...(failureKind === 'schema' && step.report?.schema !== undefined
+      ? {
+          retry_feedback: {
+            kind: 'response_validation' as const,
+            step_id: step.id,
+            report_schema: step.report.schema,
+            reason:
+              evaluation.kind === 'fail'
+                ? evaluation.reason
+                : `relay step '${step.id}' returned an invalid report`,
+          },
+        }
+      : {}),
     ...(acceptance?.kind === 'fail' ? { acceptance_failure: acceptance } : {}),
   };
 }
@@ -982,11 +1000,35 @@ async function executeProductionRelay(step: RelayStep, context: RunContext): Pro
           }) ?? 'retry',
         details: {
           reason: evaluation.reason,
-          acceptance_feedback: failure.feedback,
+          retry_feedback: acceptanceCriteriaRetryFeedback(failure.feedback),
         },
       };
     }
     throw new Error(evaluation.reason);
+  }
+
+  if (relayAttempt.retry_feedback?.kind === 'response_validation') {
+    const recoveryRoute = recoveryRouteForFailure({
+      step,
+      workContractRef: context.workContractRef,
+      recoveryRouteBindings: context.recoveryRouteBindings,
+      cause: 'relay_result_invalid',
+      preferredRoute: 'retry',
+    });
+    const retryTarget = recoveryRoute === undefined ? undefined : step.routes[recoveryRoute];
+    if (
+      recoveryRoute !== undefined &&
+      retryTarget?.kind === 'step' &&
+      retryTarget.stepId === step.id
+    ) {
+      return {
+        route: recoveryRoute,
+        details: {
+          reason: evaluation.reason,
+          retry_feedback: relayAttempt.retry_feedback,
+        },
+      };
+    }
   }
 
   const recoveryRoute = recoveryRouteForFailure({
