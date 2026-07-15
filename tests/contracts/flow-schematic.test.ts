@@ -129,6 +129,9 @@ describe('flow schematic schema — active Fix schematic', () => {
       'review',
     ]);
 
+    // No changed_on_disk check here: an honest restore-to-HEAD within the
+    // attempt would fail it, and the fix-change-set step is the authoritative
+    // overclaim gate (run-baseline comparison, cross-attempt aware).
     expect(act.acceptance_criteria).toEqual({
       checks: [
         {
@@ -136,12 +139,6 @@ describe('flow schematic schema — active Fix schematic', () => {
           id: 'changed-files-present',
           path: ['changed_files'],
           predicate: 'present',
-        },
-        {
-          kind: 'report_field',
-          id: 'changed-files-on-disk',
-          path: ['changed_files'],
-          predicate: 'changed_on_disk',
         },
         {
           kind: 'report_field',

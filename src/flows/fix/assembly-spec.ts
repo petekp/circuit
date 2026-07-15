@@ -177,12 +177,10 @@ export const fixBlockItems: readonly BlockStepUse[] = [
           path: ['changed_files'],
           predicate: 'present',
         },
-        {
-          kind: 'report_field',
-          id: 'changed-files-on-disk',
-          path: ['changed_files'],
-          predicate: 'changed_on_disk',
-        },
+        // No changed_on_disk gate here: an honest worker that restores a file
+        // to its checked-in state within the attempt would fail it, and the
+        // fix-change-set step already polices overclaims against the run
+        // baseline with cross-attempt awareness. One authority, one budget.
         {
           kind: 'report_field',
           id: 'evidence-non-empty',

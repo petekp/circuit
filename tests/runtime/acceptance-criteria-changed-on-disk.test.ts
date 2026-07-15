@@ -131,13 +131,17 @@ describe('acceptance criteria schema — changed_on_disk is a legal predicate', 
   });
 });
 
-describe('fix-act and build-act wire the changed_on_disk gate', () => {
+describe('fix-act and build-act changed_on_disk wiring', () => {
+  function actStep(items: typeof fixBlockItems): { acceptanceCriteria?: AcceptanceCriteria } {
+    const act = items.find((item) => item.block === 'act');
+    if (act === undefined) throw new Error('expected an act step');
+    return act as { acceptanceCriteria?: AcceptanceCriteria };
+  }
+
   function actStepChecks(
     items: typeof fixBlockItems,
   ): readonly { id?: string; predicate?: string }[] {
-    const act = items.find((item) => item.block === 'act');
-    if (act === undefined) throw new Error('expected an act step');
-    const criteria = (act as { acceptanceCriteria?: AcceptanceCriteria }).acceptanceCriteria;
+    const criteria = actStep(items).acceptanceCriteria;
     if (criteria === undefined) throw new Error('expected act step to carry acceptance criteria');
     return criteria.checks.map((c) => ({
       id: c.id,
@@ -145,9 +149,39 @@ describe('fix-act and build-act wire the changed_on_disk gate', () => {
     }));
   }
 
-  it('fix-act carries a changed_on_disk check on changed_files', () => {
+  // Fix dropped the instantaneous disk gate: it false-rejects a worker that
+  // honestly restores a file to its checked-in state within the same attempt,
+  // and the dedicated change-set step already polices overclaims against the
+  // run baseline with cross-attempt awareness. Two gates charging the same
+  // shared retry budget for one root cause aborted live runs.
+  it('fix-act does not gate changed_files on instantaneous disk state', () => {
     const checks = actStepChecks(fixBlockItems);
-    expect(checks).toContainEqual({ id: 'changed-files-on-disk', predicate: 'changed_on_disk' });
+    expect(checks).not.toContainEqual({
+      id: 'changed-files-on-disk',
+      predicate: 'changed_on_disk',
+    });
+    expect(checks).toContainEqual({ id: 'changed-files-present', predicate: 'present' });
+    expect(checks).toContainEqual({ id: 'evidence-non-empty', predicate: 'non_empty' });
+  });
+
+  it('fix-act accepts an honest report whose claimed file was restored to HEAD', () => {
+    const criteria = actStep(fixBlockItems).acceptanceCriteria;
+    if (criteria === undefined) throw new Error('expected fix-act acceptance criteria');
+    const result = evaluateAcceptanceCriteria({
+      stepId: 'fix-act',
+      criteria,
+      // The worker edited src/paginate.mjs, concluded the edit was wrong, and
+      // restored it byte-for-byte — then reported what it touched. git status
+      // shows the path clean, so the old disk gate branded this honest report
+      // an overclaim and burned a retry.
+      resultBody: JSON.stringify({
+        changed_files: ['src/paginate.mjs'],
+        evidence: ['restored src/paginate.mjs to the checked-in revision after a wrong turn'],
+      }),
+      projectRoot: PROJECT_ROOT,
+      captureChangedPaths: () => new Set(['reports/fix/change.json']),
+    });
+    expect(result.kind).toBe('pass');
   });
 
   it('build-act carries a changed_on_disk check on changed_files', () => {
