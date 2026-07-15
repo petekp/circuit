@@ -18,6 +18,12 @@ good after the announcement. This rule exists because the project has a strong
 pull toward building one more thing, and v1 has been ready to meet users for
 a while.
 
+Operator ruling, 2026-07-14: the announcement date is provisional and carries
+no weight of its own. The bar for announcing is the first-run experience, not
+a calendar. The announcement redline is not a pending work item; it gets
+rewritten when the experience it describes is real. The no-new-features rule
+stands, with first-run experience work explicitly in scope as it always was.
+
 ## What v1 is
 
 Circuit is a workflow engine that runs typed developer flows through a

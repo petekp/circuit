@@ -425,3 +425,37 @@ dropped in favor of default-and-state) live in
 [`docs/learnings/first-run-feasibility-spikes.md`](../learnings/first-run-feasibility-spikes.md).
 The remaining build dependency for scene 4 is confirmed to be only the
 milestone stream ([`run-milestone-stream.md`](run-milestone-stream.md)).
+
+### Rulings, same day, after the spikes
+
+21. **Fork 19 is resolved: default-automatic with the inline
+    disclosure.** No question blocks first contact. The first-contact
+    note states that Circuit runs automatically when a task fits and
+    carries the reversal in the same breath ("say manual if you would
+    rather I only use it when you ask"). A manual reply persists
+    per-user and is never re-asked. This removes the journey's one
+    confirm-before moment; the communicate-after ruling now holds
+    everywhere.
+
+22. **The effort follow-up is resolved: default-and-state.** Relay
+    hints never script an effort question. A model request ("use fable
+    for research") gets acted on with Circuit's default effort for that
+    step archetype, and the confirmation names the effort it picked,
+    its scope, and how to change it. The spikes showed neither host
+    asks a follow-up naturally, so this ruling aligns the design with
+    both the communicate-after principle and observed model behavior.
+
+23. **The npm-family verification gate is owned by this design.** The
+    operator confirmed the fix shape: Moment 2's in-run fact harvest
+    detects the real verification command (a Makefile target, pytest,
+    cargo test) and persists it to `.circuit/config.yaml`; the
+    verification resolver learns to read that key as its first-priority
+    source. Detect, not demand. The resolver change is small and
+    engine-side; the detection rides work the user already paid for.
+
+24. **Announcement timing is explicitly subordinate to this
+    experience.** Operator ruling: the announcement redline is
+    provisional and dates are arbitrary; what matters is nailing the
+    first-run experience. Sequencing language in this doc ("post-
+    announcement") should be read as "after the experience is nailed",
+    not as a calendar commitment.
