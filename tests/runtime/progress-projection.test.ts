@@ -292,13 +292,13 @@ describe('runtime progress projection', () => {
 
     const completed = progress.find((event) => event.type === 'step.completed');
     expect(completed?.display.text).toBe(
-      'Circuit: Check the work did not pass on attempt 1; trying again.',
+      'Circuit: Verify the fix did not pass on attempt 1; trying again.',
     );
     expect(completed?.display.importance).toBe('major');
     expect(completed?.display.tone).toBe('warning');
     expect(completed?.presentation).toMatchObject({
       line_mode: 'append',
-      status_text: 'Check the work did not pass on attempt 1; trying again.',
+      status_text: 'Verify the fix did not pass on attempt 1; trying again.',
     });
     expect(completed).toMatchObject({ route_taken: 'retry', failure_reason: 'npm test exited 1' });
 
@@ -345,7 +345,7 @@ describe('runtime progress projection', () => {
     ]);
 
     const completions = progress.filter((event) => event.type === 'step.completed');
-    expect(completions.at(-1)?.display.text).toBe('Finished checking the work.');
+    expect(completions.at(-1)?.display.text).toBe('Finished verifying the fix.');
     expect(completions.at(-1)?.display.tone).toBe('success');
     const lastTaskList = progress.filter((event) => event.type === 'task_list.updated').at(-1);
     expect(lastTaskList?.tasks.find((task) => task.id === 'fix-verify')?.status).toBe('completed');
