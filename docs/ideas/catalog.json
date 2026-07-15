@@ -62,7 +62,13 @@
       "status": "implemented",
       "category": "flows-and-blocks",
       "impact": 4,
-      "tags": ["runtime-loop", "engine-flag", "while-loop", "convergence", "honesty-ledger"],
+      "tags": [
+        "runtime-loop",
+        "engine-flag",
+        "while-loop",
+        "convergence",
+        "honesty-ledger"
+      ],
       "current_reading": "The canonical design for the third flow control shape, a while loop. SHIPPED TO MAIN: the iteratesUntilCondition engine flag (src/flows/types.ts), the propose-then-dispose stop judge, the append-only honesty ledger plus finalize() that make a succeeded verdict structurally unreachable through any exhaustion path or open latch, carried notes, the fail-closed budget cap, and no-progress steering all run on main (src/runtime/run/until-corridor.ts, honesty-ledger.ts, until-budget.ts, iteration-ledger.ts), hardened by the frozen-eval guard (src/runtime/run/frozen-eval.ts) so a body cannot edit its own verification command and false-green. Two internal catalog flows opt in and prove it (fix-until-green, converge-proof), the composer emits a gated Converge shape, and a composed Converge has run to green at complete. Read as the design record; the operator-facing Converge surface is launch work tracked in docs/release/v1-launch-plan.md.",
       "related": [
         "docs/ideas/bespoke-flow-generation-design.md",
@@ -76,9 +82,16 @@
       "status": "current-idea",
       "category": "verification-and-evals",
       "impact": 4,
-      "tags": ["verification", "adversarial-review", "fanout", "retries"],
+      "tags": [
+        "verification",
+        "adversarial-review",
+        "fanout",
+        "retries"
+      ],
       "current_reading": "Independent refutation gate for model-judged claims plus verify-then-escalate retries. Companion to per-step validation.",
-      "related": ["docs/ideas/deprioritized-ledger.md"],
+      "related": [
+        "docs/ideas/deprioritized-ledger.md"
+      ],
       "last_checked": "2026-07-08"
     },
     {
@@ -87,7 +100,12 @@
       "status": "pre-implementation",
       "category": "flows-and-blocks",
       "impact": 2,
-      "tags": ["build", "slicing", "verification", "runtime-loop"],
+      "tags": [
+        "build",
+        "slicing",
+        "verification",
+        "runtime-loop"
+      ],
       "current_reading": "Pre-implementation design for sequential Build slices and per-slice verification. Check current Build runtime before using it as implementation truth. Pinned: scored low on the impact axis but kept in place because shipped code, tests, experiments, or eval harnesses cite it.",
       "last_checked": "2026-07-08"
     },
@@ -122,7 +140,11 @@
       "status": "current-idea",
       "category": "flows-and-blocks",
       "impact": 4,
-      "tags": ["dynamic-flows", "ratchet", "flow-composition"],
+      "tags": [
+        "dynamic-flows",
+        "ratchet",
+        "flow-composition"
+      ],
       "current_reading": "Future-facing idea for runtime-generated flows and eventual crystallization into reusable structures. Since written, the generation half shipped: circuit generate (src/cli/generate.ts) composes and runs a bespoke flow per task, proposeFlow is a callable, and a second family composes and runs live. The measured nuance stands: what ships is instantiation of registered families plus gated Converge shapes, not free-form block composition. The crystallization half (runs hardening into reusable flows) remains unbuilt.",
       "last_checked": "2026-07-08"
     },
@@ -132,9 +154,17 @@
       "status": "implementation-spec",
       "category": "verification-and-evals",
       "impact": 1,
-      "tags": ["evals", "experiments", "decomposition", "fix-vs-build"],
+      "tags": [
+        "evals",
+        "experiments",
+        "decomposition",
+        "fix-vs-build"
+      ],
       "current_reading": "Build brief for the E1 experiment-runner: one task under two decomposition grains, measured. Implemented under experiments/e1/; see the run report. Pinned: scored low on the impact axis but kept in place because shipped code, tests, experiments, or eval harnesses cite it.",
-      "related": ["docs/ideas/deprioritized-ledger.md", "docs/ideas/e1-run-report.md"],
+      "related": [
+        "docs/ideas/deprioritized-ledger.md",
+        "docs/ideas/e1-run-report.md"
+      ],
       "last_checked": "2026-07-08"
     },
     {
@@ -143,9 +173,16 @@
       "status": "partially-implemented",
       "category": "verification-and-evals",
       "impact": 1,
-      "tags": ["evals", "experiments", "harness", "report"],
+      "tags": [
+        "evals",
+        "experiments",
+        "harness",
+        "report"
+      ],
       "current_reading": "Build report for the E1 harness: Step 0 GO, two-lane (fixture + live) design, fixture-proven, one live comparison pending. Code under experiments/e1/. Pinned: scored low on the impact axis but kept in place because shipped code, tests, experiments, or eval harnesses cite it.",
-      "related": ["docs/ideas/e1-implementation-brief.md"],
+      "related": [
+        "docs/ideas/e1-implementation-brief.md"
+      ],
       "last_checked": "2026-07-08"
     },
     {
@@ -154,7 +191,13 @@
       "status": "implemented",
       "category": "flows-and-blocks",
       "impact": 3,
-      "tags": ["composition", "equipment-scope", "manifest-first", "decomposition", "experiments"],
+      "tags": [
+        "composition",
+        "equipment-scope",
+        "manifest-first",
+        "decomposition",
+        "experiments"
+      ],
       "current_reading": "Design for equipment scope (primitive 3b) as a declared, manifest-first field with write-tier enforcement, turning decomposition grain into a per-step dial. Since built: the per-step tools axis (declared + enforced via claude-code --tools, honest downgrade) shipped as PR #89, and the skills half (real house-style injection through skill_slots plus the equipment resolver) as PRs #96/#97. The doc is now the record of what was built; verify exact field shapes against current schemas. Pinned: scored low on the impact axis but kept in place because shipped code, tests, experiments, or eval harnesses cite it.",
       "related": [
         "docs/ideas/deprioritized-ledger.md",
@@ -169,7 +212,13 @@
       "status": "implemented",
       "category": "flows-and-blocks",
       "impact": 1,
-      "tags": ["composition", "equipment-scope", "manifest-first", "tools", "build-brief"],
+      "tags": [
+        "composition",
+        "equipment-scope",
+        "manifest-first",
+        "tools",
+        "build-brief"
+      ],
       "current_reading": "Build brief for the equipment-scope mechanism (declared tools sub-axis + write-tier enforcement). This batch shipped to main: the tools half via claude-code --tools with honest downgrade (PR #89), then the skills half via real skill_slot injection plus the equipment resolver (PRs #96/#97). Of the four micro-harness scopes (context, equipment, model/effort, structure), equipment moved from absent to real here. See the enforcement-mechanism report and the north-star status map. Pinned: scored low on the impact axis but kept in place because shipped code, tests, experiments, or eval harnesses cite it.",
       "related": [
         "docs/ideas/e2-equipment-scope-spec.md",
@@ -184,9 +233,17 @@
       "status": "partially-implemented",
       "category": "memory-and-ratchet",
       "impact": 4,
-      "tags": ["memory", "ratchet", "history", "project-facts"],
+      "tags": [
+        "memory",
+        "ratchet",
+        "history",
+        "project-facts"
+      ],
       "current_reading": "Memory substrate, pull surface, recall precision, failure legibility, and local project facts exist; automatic lesson capture and measured value claims remain open.",
-      "related": ["docs/ideas/self-auditing-memory.md", "docs/ideas/deprioritized-ledger.md"],
+      "related": [
+        "docs/ideas/self-auditing-memory.md",
+        "docs/ideas/deprioritized-ledger.md"
+      ],
       "last_checked": "2026-07-08"
     },
     {
@@ -195,7 +252,13 @@
       "status": "partially-implemented",
       "category": "run-inspection-and-output",
       "impact": 2,
-      "tags": ["durability", "resumability", "crash-recovery", "recovery-corridor", "spec"],
+      "tags": [
+        "durability",
+        "resumability",
+        "crash-recovery",
+        "recovery-corridor",
+        "spec"
+      ],
       "current_reading": "Historical decision record for the current engine's Option C choice: restart-cheapness instead of a resumable cursor. RecoveryCorridor.seedFromTrace and reuse-children shipped, while the general forward cursor did not. The CLI rebuild plan now supersedes that roadmap choice only for new storage-v2 Runs whose complete SafeReentryReceiptV1 and topology reducer pass the crash matrix; existing and unsupported Runs remain checkpoint/restart-only. Pinned because shipped code, tests, experiments, and eval harnesses cite it.",
       "related": [
         "docs/ideas/cli-first-principles.md",
@@ -210,7 +273,13 @@
       "status": "superseded",
       "category": "archived-or-superseded",
       "impact": 1,
-      "tags": ["composition", "flows-and-blocks", "migration", "superseded", "historical-lineage"],
+      "tags": [
+        "composition",
+        "flows-and-blocks",
+        "migration",
+        "superseded",
+        "historical-lineage"
+      ],
       "current_reading": "Superseded staged migration plan (Stages 1-6) for making block composition first-class. The work shipped as milestones M1-M9; where it disagrees with the optimal-path architecture doc, that doc governs. Kept as the design record the merged code cites by stage number. Pinned: scored low on the impact axis but kept in place because shipped code, tests, experiments, or eval harnesses cite it.",
       "related": [
         "docs/architecture/first-class-composition-optimal-path.md",
@@ -224,7 +293,11 @@
       "status": "current-strategy-context",
       "category": "strategy-and-comparisons",
       "impact": 4,
-      "tags": ["strategy", "model-improvement", "orchestration"],
+      "tags": [
+        "strategy",
+        "model-improvement",
+        "orchestration"
+      ],
       "current_reading": "Strategy note on which Circuit bets compound as models improve and which erode. No direct implementation status.",
       "last_checked": "2026-07-08"
     },
@@ -234,7 +307,13 @@
       "status": "design-evaluation",
       "category": "verification-and-evals",
       "impact": 1,
-      "tags": ["experiments", "composition", "evals", "grain", "methodology"],
+      "tags": [
+        "experiments",
+        "composition",
+        "evals",
+        "grain",
+        "methodology"
+      ],
       "current_reading": "Pre-registered experiment design that pits two opposing hypotheses (coherence-loss vs verification-gain) about whether chopping a task into separated steps helps or hurts, to settle the assembler's chop/hold default. Designed AND run (2026-06-16): the verdict was NULL (the false-fixed rate was 0 in every cell, both grains and both bands, so the hypotheses could not be adjudicated and the thin-conservative chooser was held). This is the design record; the outcome record now lives in the deprioritized ledger. Pinned: scored low on the impact axis but kept in place because shipped code, tests, experiments, or eval harnesses cite it.",
       "related": [
         "docs/ideas/e1-run-report.md",
@@ -250,7 +329,12 @@
       "status": "current-idea",
       "category": "run-inspection-and-output",
       "impact": 4,
-      "tags": ["long-horizon", "supervision", "heartbeat", "status-view"],
+      "tags": [
+        "long-horizon",
+        "supervision",
+        "heartbeat",
+        "status-view"
+      ],
       "current_reading": "Future model-in-the-loop trajectory review and overview idea. Its model heartbeat is not process liveness, and its trajectory supervisor is separate from the deterministic local supervisor in the CLI rebuild plan.",
       "last_checked": "2026-07-11"
     },
@@ -260,9 +344,18 @@
       "status": "partially-implemented",
       "category": "flows-and-blocks",
       "impact": 2,
-      "tags": ["flows", "explainer", "paper-to-site", "hand-authored", "build-brief"],
+      "tags": [
+        "flows",
+        "explainer",
+        "paper-to-site",
+        "hand-authored",
+        "build-brief"
+      ],
       "current_reading": "Build brief for the explainer flow, the operator's research-paper to interactive-site pipeline codified as the first hand-authored, non-build-shaped flow. v1 shipped to main (PR #90; src/flows/explainer/): intake, lossless digest, persona-lensed ideation, a six-criteria tournament, an adversarial fidelity hardening pass, an operator pick, a house-style spec, a child build sub-run, verification, an operator fidelity sign-off, and an honest close. It was then run on a second paper, which generalized the editorial spine but exposed findings: the headline recovery-binding hard-abort is now fixed on main (PR #105), while the greenfield-scaffold gap, a post-editorial checkpoint, and craft gaps remain open. The second-run findings record now lives in the deprioritized ledger. Pinned: scored low on the impact axis but kept in place because shipped code, tests, experiments, or eval harnesses cite it.",
-      "related": ["docs/ideas/deprioritized-ledger.md", "docs/ideas/north-star-status.md"],
+      "related": [
+        "docs/ideas/deprioritized-ledger.md",
+        "docs/ideas/north-star-status.md"
+      ],
       "last_checked": "2026-07-08"
     },
     {
@@ -271,9 +364,16 @@
       "status": "implemented",
       "category": "memory-and-ratchet",
       "impact": 1,
-      "tags": ["memory", "failure-legibility", "history", "implementation-spec"],
+      "tags": [
+        "memory",
+        "failure-legibility",
+        "history",
+        "implementation-spec"
+      ],
       "current_reading": "Implemented failure outcome reconciliation and failure-query ranking slice. Current code lives in history, run-envelope, outcome, and related tests. Pinned: scored low on the impact axis but kept in place because shipped code, tests, experiments, or eval harnesses cite it.",
-      "related": ["docs/ideas/effective-memory-program.md"],
+      "related": [
+        "docs/ideas/effective-memory-program.md"
+      ],
       "last_checked": "2026-07-08"
     },
     {
@@ -306,9 +406,17 @@
       "status": "current-proposal",
       "category": "hosts-connectors-and-hitl",
       "impact": 4,
-      "tags": ["hitl", "checkpoint", "email", "sms", "mcp"],
+      "tags": [
+        "hitl",
+        "checkpoint",
+        "email",
+        "sms",
+        "mcp"
+      ],
       "current_reading": "Architecture proposal for multi-channel HITL as a delivery gateway around existing Human Decision and Checkpoint semantics. Not current runtime behavior.",
-      "related": ["docs/ideas/deprioritized-ledger.md"],
+      "related": [
+        "docs/ideas/deprioritized-ledger.md"
+      ],
       "last_checked": "2026-07-08"
     },
     {
@@ -317,7 +425,12 @@
       "status": "current-proposal",
       "category": "run-inspection-and-output",
       "impact": 4,
-      "tags": ["output", "host-rendering", "status", "digest"],
+      "tags": [
+        "output",
+        "host-rendering",
+        "status",
+        "digest"
+      ],
       "current_reading": "Current only for final-digest content and host display research. The CLI rebuild plan supersedes its transport, routing-checkpoint, direct-terminal, and progress-stream mechanics.",
       "last_checked": "2026-07-11"
     },
@@ -327,7 +440,11 @@
       "status": "current-idea",
       "category": "run-inspection-and-output",
       "impact": 4,
-      "tags": ["run-captures", "portability", "sharing"],
+      "tags": [
+        "run-captures",
+        "portability",
+        "sharing"
+      ],
       "current_reading": "Idea for exporting successful Runs as reusable team or personal process patterns. Future behavior.",
       "last_checked": "2026-07-08"
     },
@@ -345,7 +462,7 @@
         "trace-projection",
         "first-run"
       ],
-      "current_reading": "Reactivated 2026-07-14 as the live run feedback design for the first-run experience, green-lit by the operator. Corrected diagnosis: the engine already emits the milestone stream (ProgressEvent v1 on stderr under --progress jsonl, with operator-language display.text, importance, and tone); the gap is delivery, because the host model cannot run while a blocking shell call holds the run. Design = a delivery pattern with no engine changes in the first slice: background the run (Claude backgrounds and monitors the task, Codex redirects stderr to a file and polls; both spike-proven), relay major-importance text near-verbatim with no added summary, push checkpoint and error tones plus user_input.requested immediately, close on the unchanged receipt, and never put host-authored words inside a Circuit-voiced surface (field-confirmed 2026-07-14: a live Codex session mixed its own first-person lines into Circuit-labeled blocks, indistinguishable to the operator). Degradation is today's silent run with an intact receipt. The durable status.ndjson stays dead per the CLI rebuild ledger (no second persisted feed); the rebuild's ProgressEventV2 and watch subsume this later and the relay rules carry over. Corrected same day: the Claude surface deliberately hides the flag behind the plugin's present wrapper, which already streams live status blocks to the operator's terminal; the Claude gap is model-in-the-loop narration, not the feed. Launch-scope slice: tighten the Codex progress instruction (verbatim, voice, push-immediately, background-and-poll) and the Claude checkpoint handling; the foreground-vs-background Claude fork is an open operator decision.",
+      "current_reading": "Reactivated 2026-07-14 as the live run feedback design for the first-run experience, green-lit by the operator. Corrected diagnosis: the engine already emits the milestone stream (ProgressEvent v1 on stderr under --progress jsonl, with operator-language display.text, importance, and tone); the gap is delivery, because the host model cannot run while a blocking shell call holds the run. Design = a delivery pattern with no engine changes in the first slice: background the run (Claude backgrounds and monitors the task, Codex redirects stderr to a file and polls; both spike-proven), relay major-importance text near-verbatim with no added summary, push checkpoint and error tones plus user_input.requested immediately, close on the unchanged receipt, and never put host-authored words inside a Circuit-voiced surface (field-confirmed 2026-07-14: a live Codex session mixed its own first-person lines into Circuit-labeled blocks, indistinguishable to the operator). Degradation is today's silent run with an intact receipt. The durable status.ndjson stays dead per the CLI rebuild ledger (no second persisted feed); the rebuild's ProgressEventV2 and watch subsume this later and the relay rules carry over. Corrected same day: the Claude surface deliberately hides the flag behind the plugin's present wrapper, which already streams live status blocks to the operator's terminal; the Claude gap is model-in-the-loop narration, not the feed. Launch-scope slice: tighten the Codex progress instruction (verbatim, voice, push-immediately, background-and-poll) and the Claude checkpoint handling; the foreground-vs-background Claude fork is an open operator decision. Shipped 2026-07-15 (launch-scope, ahead of the full stream build): the delivery slice landed as 1d29796f (both hosts' run-command duties: verbatim engine voice, immediate checkpoint/error surfacing, background-and-poll, resume-command quoting), and the stream's honesty floor landed as 95fafd7a + 968cdb48 (failed checks and non-complete closes emit visible warnings with reasons; every fix step has a distinct label). The full milestone-stream design remains unbuilt.",
       "related": [
         "docs/ideas/output-model.md",
         "docs/ideas/long-horizon-supervision.md",
@@ -369,7 +486,9 @@
         "net-new-flows"
       ],
       "current_reading": "A six-angle scan of the 2026 developer-workflow market, created 2026-07-06, scored against Circuit's engine primitives and launch positioning; it extends the flow-ideas.md stack rank rather than replacing it. Headline: the backlog is well-aimed, because the market's three loudest 2026 patterns map onto the top three backlog flows (fleet PR triage is Merge Gate, decompose-and-parallelize is Decompose plus Dispatch, promote-on-evidence is Promote), so the highest-leverage post-v1 move is to build the backlog in order. Surfaces three net-new evidence-gated flows worth adding (Sweep, Migrate, Property-check, all fast-follow) plus one cheap early-look candidate (Onboard, the only v1-reconsider slice); none need a new engine primitive. Records the popular patterns Circuit declines with a mechanical reason for each (fully-dynamic swarms, cloud middle-manager orchestrators, webhook-triggered resolvers, raw-number coverage goals, mid-task model switching), to turn into launch narrative. Prioritization context only; the v1 launch freeze applies and nothing here is being built.",
-      "related": ["docs/ideas/flow-ideas.md"],
+      "related": [
+        "docs/ideas/flow-ideas.md"
+      ],
       "last_checked": "2026-07-08"
     },
     {
@@ -378,9 +497,18 @@
       "status": "current-proposal",
       "category": "memory-and-ratchet",
       "impact": 4,
-      "tags": ["memory", "lessons", "run-close", "project-facts", "compounding-loop"],
+      "tags": [
+        "memory",
+        "lessons",
+        "run-close",
+        "project-facts",
+        "compounding-loop"
+      ],
       "current_reading": "Post-v1 proposal for closing the loop from run evidence to one cited, stale-checked, hint-only project fact that future same-flow runs read automatically. Builds on the existing memory substrate and keeps the lesson non-authoritative; not current behavior.",
-      "related": ["docs/ideas/self-auditing-memory.md", "docs/ideas/deprioritized-ledger.md"],
+      "related": [
+        "docs/ideas/self-auditing-memory.md",
+        "docs/ideas/deprioritized-ledger.md"
+      ],
       "last_checked": "2026-07-08"
     },
     {
@@ -389,7 +517,14 @@
       "status": "current-gap-analysis",
       "category": "flows-and-blocks",
       "impact": 2,
-      "tags": ["resolvers", "decision-layer", "assembly", "abstraction", "equipment", "structure"],
+      "tags": [
+        "resolvers",
+        "decision-layer",
+        "assembly",
+        "abstraction",
+        "equipment",
+        "structure"
+      ],
       "current_reading": "Records the four-part shape the two in-src decision-layer resolvers (src/flows/resolvers/structure.ts + equipment.ts) independently landed on, plus the four load-bearing divergences (per-flow vs per-step scope, enforced vs trusted-only, downgrade/finding channel, binding time). The shared Resolver type is earnable but deliberately NOT extracted; a third instance (context or depth) is the honest trigger. Pinned: scored low on the impact axis but kept in place because shipped code, tests, experiments, or eval harnesses cite it.",
       "related": [
         "docs/ideas/e2-equipment-scope-spec.md",
@@ -403,9 +538,16 @@
       "status": "implemented",
       "category": "memory-and-ratchet",
       "impact": 1,
-      "tags": ["memory", "memory-merge", "history", "slice-spec"],
+      "tags": [
+        "memory",
+        "memory-merge",
+        "history",
+        "slice-spec"
+      ],
       "current_reading": "Implemented memory-merge artifact and CLI slice. Some path references inside use older source locations. Pinned: scored low on the impact axis but kept in place because shipped code, tests, experiments, or eval harnesses cite it.",
-      "related": ["docs/ideas/self-auditing-memory.md"],
+      "related": [
+        "docs/ideas/self-auditing-memory.md"
+      ],
       "last_checked": "2026-07-08"
     },
     {
@@ -414,9 +556,16 @@
       "status": "implemented",
       "category": "memory-and-ratchet",
       "impact": 1,
-      "tags": ["memory", "memory-effect", "history", "slice-spec"],
+      "tags": [
+        "memory",
+        "memory-effect",
+        "history",
+        "slice-spec"
+      ],
       "current_reading": "Implemented cross-run memory-effect aggregation slice. Some path references inside use older source locations. Pinned: scored low on the impact axis but kept in place because shipped code, tests, experiments, or eval harnesses cite it.",
-      "related": ["docs/ideas/self-auditing-memory.md"],
+      "related": [
+        "docs/ideas/self-auditing-memory.md"
+      ],
       "last_checked": "2026-07-08"
     },
     {
@@ -425,9 +574,16 @@
       "status": "implemented",
       "category": "memory-and-ratchet",
       "impact": 1,
-      "tags": ["memory", "recall-precision", "injection", "slice-spec"],
+      "tags": [
+        "memory",
+        "recall-precision",
+        "injection",
+        "slice-spec"
+      ],
       "current_reading": "Implemented flow-scoped earned-precision run-start recall. Some path references inside use older source locations. Pinned: scored low on the impact axis but kept in place because shipped code, tests, experiments, or eval harnesses cite it.",
-      "related": ["docs/ideas/self-auditing-memory.md"],
+      "related": [
+        "docs/ideas/self-auditing-memory.md"
+      ],
       "last_checked": "2026-07-08"
     },
     {
@@ -436,9 +592,16 @@
       "status": "implemented",
       "category": "memory-and-ratchet",
       "impact": 1,
-      "tags": ["memory", "history-pull", "pull-log", "slice-spec"],
+      "tags": [
+        "memory",
+        "history-pull",
+        "pull-log",
+        "slice-spec"
+      ],
       "current_reading": "Implemented history pull, pull-log schema, suppression path, and relay affordance. Some path references inside use older source locations. Pinned: scored low on the impact axis but kept in place because shipped code, tests, experiments, or eval harnesses cite it.",
-      "related": ["docs/ideas/self-auditing-memory.md"],
+      "related": [
+        "docs/ideas/self-auditing-memory.md"
+      ],
       "last_checked": "2026-07-08"
     },
     {
@@ -447,7 +610,12 @@
       "status": "partially-implemented",
       "category": "memory-and-ratchet",
       "impact": 4,
-      "tags": ["memory", "ratchet", "history", "effectiveness"],
+      "tags": [
+        "memory",
+        "ratchet",
+        "history",
+        "effectiveness"
+      ],
       "current_reading": "Design thesis with slices 1-4 implemented and slice 5 partial; lifecycle promotion/retirement and automatic run-close fact write-back remain future work.",
       "related": [
         "docs/ideas/self-auditing-memory-slice-1-spec.md",
@@ -464,7 +632,12 @@
       "status": "implementation-spec",
       "category": "skill-hooks-and-expertise",
       "impact": 1,
-      "tags": ["skill-hooks", "dispatch", "auto", "runtime"],
+      "tags": [
+        "skill-hooks",
+        "dispatch",
+        "auto",
+        "runtime"
+      ],
       "current_reading": "Implementation spec for Skill Hooks dispatch slices. Use as build lineage; verify exact mode names and hook names against current code and vocabulary docs. Pinned: scored low on the impact axis but kept in place because shipped code, tests, experiments, or eval harnesses cite it.",
       "related": [
         "docs/ideas/skill-hooks-first-principles.md",
@@ -479,9 +652,16 @@
       "status": "archived",
       "category": "skill-hooks-and-expertise",
       "impact": 1,
-      "tags": ["skill-hooks", "expertise-routing", "historical"],
+      "tags": [
+        "skill-hooks",
+        "expertise-routing",
+        "historical"
+      ],
       "current_reading": "Historical design exploration from before runtime dispatch shipped. Useful for framing, but stale names and behavior claims need current-code checks. Pinned: scored low on the impact axis but kept in place because shipped code, tests, experiments, or eval harnesses cite it.",
-      "related": ["docs/ideas/skill-hooks-dispatch-spec.md", "docs/ideas/deprioritized-ledger.md"],
+      "related": [
+        "docs/ideas/skill-hooks-dispatch-spec.md",
+        "docs/ideas/deprioritized-ledger.md"
+      ],
       "last_checked": "2026-07-08"
     },
     {
@@ -490,7 +670,13 @@
       "status": "partially-implemented",
       "category": "flows-and-blocks",
       "impact": 3,
-      "tags": ["adaptive", "recompile", "bubble-up", "deep-fork", "spike"],
+      "tags": [
+        "adaptive",
+        "recompile",
+        "bubble-up",
+        "deep-fork",
+        "spike"
+      ],
       "current_reading": "Spike plus decision-ready spec for a run that re-decomposes itself mid-flight when a step surfaces new structure. Steps 0-2 shipped: the offline recompile demonstrator (experiments/flow-lab/), the Step 1 recursion bound (src/), and Step 2, the first live reshape - additive equipment injection (PR #103, merge 4fa7dae4, src/flows/equipment-reshape.ts + src/runtime/run/equipment-reshape.ts), where a relay bubbles up a confirmed equipment_discovery and the runner re-equips the remaining relay steps and re-compiles through the existing chain with no splice seam. Structural re-decomposition / splice (Step 3) is deferred behind ratification, with the finding-and-checkpoint hand-off as the conservative default. The foundation and Step 2 run reports now live in the deprioritized ledger. Pinned: scored low on the impact axis but kept in place because shipped code, tests, experiments, or eval harnesses cite it.",
       "related": [
         "docs/ideas/deprioritized-ledger.md",
@@ -506,7 +692,14 @@
       "status": "pre-implementation",
       "category": "flows-and-blocks",
       "impact": 3,
-      "tags": ["deep-fork", "splice", "structural-reshape", "recursion", "resume", "surface-only"],
+      "tags": [
+        "deep-fork",
+        "splice",
+        "structural-reshape",
+        "recursion",
+        "resume",
+        "surface-only"
+      ],
       "current_reading": "Surface-only, ratification-gated design for the one runner branch two forks both need: structural recompile (decompose a running step into a subtree) and splice-as-leaf (inline a sub-tree where a leaf relay sits). Both reshape the live step set and both name the same spliceIntoRemainingSteps seam. Grounded in why Step 2's additive equipment reshape was safe (step set unchanged) and why structural is a different class: it must migrate the cursor, routes, slice corridor, and completion counts across a changed step set, re-run the block-catalog gate the additive path skips (routes and contracts can regress), and add a structural resume reseed that rebuilds the spliced shape, not just state on a fixed shape. Conservative defaults (decompose-down only, bounded by the shipped budget + cycle guard, refuse inside a slice loop, fail-closed) and a four-phase build plan, each phase its own gate. Builds nothing in src/. See deepfork-adaptive-bubble-up-recompile-spec.md; the uniform-recursion E3 spec now lives in the deprioritized ledger. Pinned: scored low on the impact axis but kept in place because shipped code, tests, experiments, or eval harnesses cite it.",
       "related": [
         "docs/ideas/deepfork-adaptive-bubble-up-recompile-spec.md",
@@ -521,7 +714,13 @@
       "status": "current-strategy-context",
       "category": "flows-and-blocks",
       "impact": 2,
-      "tags": ["decision-layer", "resolver", "exploration", "design-sketch", "deep-fork"],
+      "tags": [
+        "decision-layer",
+        "resolver",
+        "exploration",
+        "design-sketch",
+        "deep-fork"
+      ],
       "current_reading": "Framing lens, a design sketch rather than a build plan, for making Circuit's per-step decisions (how to chop, what tools, which context) first-class and trialable. Applies the same find-the-unit-and-compose move that blocks and recursion applied to work, now to the decisions about work. Both concrete instances it called for have shipped to src/ (the structure chooser PR #95 and the equipment resolver PR #96); per its central instruction of restraint the unified resolver abstraction is deliberately NOT extracted yet, pending a third instance. Pinned: scored low on the impact axis but kept in place because shipped code, tests, experiments, or eval harnesses cite it.",
       "related": [
         "docs/ideas/next-phase-build-brief.md",
@@ -538,9 +737,19 @@
       "status": "partially-implemented",
       "category": "flows-and-blocks",
       "impact": 1,
-      "tags": ["flow-lab", "resolver", "structure", "equipment", "build-brief", "offline"],
+      "tags": [
+        "flow-lab",
+        "resolver",
+        "structure",
+        "equipment",
+        "build-brief",
+        "offline"
+      ],
       "current_reading": "Build brief for an offline, cheap flow lab that generates assembled flows, inspects their shape, and ratchets their quality before anything touches a real codebase, plus the first two resolvers (structure chop/hold and equipment skill injection) shaped as if they will be unified later. The flow lab and resolvers were built as a held PR; the recompile foundation run reused the flow-lab quality ratchet to score its demonstrator. Pinned: scored low on the impact axis but kept in place because shipped code, tests, experiments, or eval harnesses cite it.",
-      "related": ["docs/ideas/decision-layer-exploration.md", "docs/ideas/deprioritized-ledger.md"],
+      "related": [
+        "docs/ideas/decision-layer-exploration.md",
+        "docs/ideas/deprioritized-ledger.md"
+      ],
       "last_checked": "2026-07-08"
     },
     {
@@ -549,7 +758,14 @@
       "status": "current-strategy-context",
       "category": "strategy-and-comparisons",
       "impact": 5,
-      "tags": ["roadmap", "status-map", "recompile", "recursion", "resolver", "north-star"],
+      "tags": [
+        "roadmap",
+        "status-map",
+        "recompile",
+        "recursion",
+        "resolver",
+        "north-star"
+      ],
       "current_reading": "The canonical status and roadmap map for the recursive / adaptive-workflow frontier. Reconciles what has shipped to main against what is still surfaced: the four micro-harness scopes (context, equipment, model/effort, structure) and their build status, the fixed-or-JIT assembler and typed seam, the durability tiers, the recompile/recursion frontier (Steps 0-2 shipped, Step 3 deferred), the paper-to-site flagship and its open findings, and what is reserved for operator ratification. A living map; verify any single claim against code and the linked run reports.",
       "related": [
         "docs/ideas/deprioritized-ledger.md",
@@ -566,7 +782,13 @@
       "status": "partially-implemented-research",
       "category": "flows-and-blocks",
       "impact": 3,
-      "tags": ["context", "runtime-binding", "recompile", "pull", "deep-fork"],
+      "tags": [
+        "context",
+        "runtime-binding",
+        "recompile",
+        "pull",
+        "deep-fork"
+      ],
       "current_reading": "Default each step to a minimal context envelope and let it pull more from its parent(s) on demand through a typed, queryable surface, instead of pushing a fixed envelope decided at assembly time. The runtime-binding sibling of adaptive bubble-up recompile (recompile bubbles up a discovery and re-plans; this bubbles up a request for context and has it answered). SPIKED and validated offline (PR #107): a pure-function demonstrator in experiments/flow-lab/ shows targeted typed pull reaching fat-push completeness at about a tenth of the carried bytes. No live/src channel yet; sequenced after the live recompile work matures. Pinned: scored low on the impact axis but kept in place because shipped code, tests, experiments, or eval harnesses cite it.",
       "related": [
         "docs/ideas/deepfork-adaptive-bubble-up-recompile-spec.md",
@@ -581,9 +803,17 @@
       "status": "pre-implementation",
       "category": "verification-and-evals",
       "impact": 1,
-      "tags": ["assembler", "pre-registration", "eval", "decision-rule", "anti-fitting"],
+      "tags": [
+        "assembler",
+        "pre-registration",
+        "eval",
+        "decision-rule",
+        "anti-fitting"
+      ],
       "current_reading": "Pre-registered (committed before any eval data) task set, structural rubric, and numeric decision rule for evaluating a task-aware flow assembler. Locks 8 NL tasks spanning the archetype families plus a surface/risk pair, a per-family structural feature checklist scored offline over the compiled flow, a per-task PASS definition, and the VIABLE / PROMISING / RESEARCH-GRADE-NOT-READY classification thresholds (with a validity override and a live-failure downgrade). The scientific spine of the assembler rebuild run; no fitting the story to the data later. Pinned: scored low on the impact axis but kept in place because shipped code, tests, experiments, or eval harnesses cite it.",
-      "related": ["docs/ideas/deprioritized-ledger.md"],
+      "related": [
+        "docs/ideas/deprioritized-ledger.md"
+      ],
       "last_checked": "2026-07-08"
     },
     {
@@ -592,7 +822,13 @@
       "status": "pre-implementation",
       "category": "verification-and-evals",
       "impact": 1,
-      "tags": ["composition", "pre-registration", "eval", "decision-rule", "anti-fitting"],
+      "tags": [
+        "composition",
+        "pre-registration",
+        "eval",
+        "decision-rule",
+        "anti-fitting"
+      ],
       "current_reading": "Pre-registered (committed before any data) rubric and numeric decision rule for the genuine flow-shape composer: a Phase 0 make-or-break gate (>=1 novel, valid, sensible flow offline), a Phase 1 classification across 8 topologies (WORKS / PARTIAL / INTRACTABLE on Val/Nov/Sen/App/Pass/Con), and a confirmatory Phase 2 live arm with a live-failure downgrade (a shape that composes but cannot run drops one tier). The anti-fitting hard line: bind only registered actuals, never invent a contract body, report unreachable topologies rather than swap them. Outcome in flow-composition-run-report.md. Pinned: scored low on the impact axis but kept in place because shipped code, tests, experiments, or eval harnesses cite it.",
       "related": [
         "docs/ideas/flow-composition-run-report.md",
@@ -606,7 +842,13 @@
       "status": "partially-implemented-research",
       "category": "flows-and-blocks",
       "impact": 2,
-      "tags": ["composition", "run-report", "flows", "writers", "research-problem"],
+      "tags": [
+        "composition",
+        "run-report",
+        "flows",
+        "writers",
+        "research-problem"
+      ],
       "current_reading": "Outcome of the genuine flow-shape composition run. Phase 0 PASS (a novel research-then-build flow is valid, novel, sensible offline). Phase 1 PARTIAL offline (5/8 topologies valid, novel, sensible; 3 principled catalog walls reported not swapped). Phase 2 live: composed flows do NOT run - the runtime compose/close writers are coupled to their origin family's exact contract schemas and full pipeline reads, so they reject cross-family and short-tail composed wiring (two concrete runtime aborts captured). By the pre-registered live-failure downgrade, PARTIAL becomes INTRACTABLE-as-built. The frontier advanced one layer: the typing gate is solved (binds registered actuals), the wall is now the writer contract. Next target: writers read by generic + fold-tolerant evidence + an offline writer-required-reads-closure check. The composer module is additive and default-OFF (nothing imports it); built-ins byte-identical; verify green. Pinned: scored low on the impact axis but kept in place because shipped code, tests, experiments, or eval harnesses cite it.",
       "related": [
         "docs/ideas/flow-composition-preregistration.md",
@@ -620,7 +862,13 @@
       "status": "implemented",
       "category": "verification-and-evals",
       "impact": 1,
-      "tags": ["evals", "assembler", "cost-capture", "pre-registration", "experiments"],
+      "tags": [
+        "evals",
+        "assembler",
+        "cost-capture",
+        "pre-registration",
+        "experiments"
+      ],
       "current_reading": "Decision-ready brief + pre-registration (locked before any data) for the task-aware assembler's next step: run a generated (instantiated) flow against the hand-authored reference on fix + build, on a held-out task set with the committed cost instrument, against a locked WORTH-INVESTING / MIXED / NOT-YET rule. RUN COMPLETE 2026-06-19 (48 live runs, pinned claude-haiku-4-5): verdict WORTH-INVESTING. The harness lives in evals/dynamic-vs-reference/; the outcome is in dynamic-vs-reference-run-report.md and the next-direction note now lives in the deprioritized ledger. Pinned: scored low on the impact axis but kept in place because shipped code, tests, experiments, or eval harnesses cite it.",
       "related": [
         "docs/ideas/dynamic-vs-reference-run-report.md",
@@ -636,7 +884,13 @@
       "status": "design-evaluation",
       "category": "verification-and-evals",
       "impact": 2,
-      "tags": ["evals", "assembler", "cost-capture", "experiments", "run-report"],
+      "tags": [
+        "evals",
+        "assembler",
+        "cost-capture",
+        "experiments",
+        "run-report"
+      ],
       "current_reading": "Run report for the 48-run dynamic-vs-reference experiment (pinned claude-haiku-4-5, both arms Circuit, scored with the fix-vs-vanilla machinery). Verdict WORTH-INVESTING by the locked section-5 rule: an instantiated generated flow matched the hand-authored reference on quality and honesty on both fix and build, with zero false-fixed across all 48 runs and zero pipeline failures. On build the generated grain folded to whole on small/low tasks (5 steps vs the reference's 9) and finished for about a third of the cost at equal quality; on the large/high task it held the full decomposed shape. fix is a wash on cost (the seed instantiation is structurally identical, 13 steps both arms). The one generated quality miss was an honest partial, not a laundered done. Proves the instantiation path, not genuine block-composition. Pinned: scored low on the impact axis but kept in place because shipped code, tests, experiments, or eval harnesses cite it.",
       "related": [
         "docs/ideas/dynamic-vs-reference-experiment-brief.md",
@@ -651,7 +905,14 @@
       "status": "pre-implementation",
       "category": "flows-and-blocks",
       "impact": 4,
-      "tags": ["composition", "generation", "assembler", "propose-and-verify", "sub-run", "evals"],
+      "tags": [
+        "composition",
+        "generation",
+        "assembler",
+        "propose-and-verify",
+        "sub-run",
+        "evals"
+      ],
       "current_reading": "Design dossier toward genuine novel-flow generation. Built from a grounded multi-agent audit plus an adversarial review that returned OVERCLAIMS; the six corrections are folded in. Spine: the validity-vs-efficacy distinction (validity is checkable offline and inherited free by instantiation; efficacy must be earned by running and scoring); the floor-as-verifier reframe (a generator proposes a topology from registered blocks, the deterministic assemble/compile/catalog gates dispose, so a model in the proposer seat is safe for VALIDITY on static proposals only, structural not semantic); the eight spike walls, dissolved only for the registered 9-block linear band; the real frontier is catalog coverage (16 of 29 blocks unplaceable, composeFlow throws on sub-run/fanout). Lays a Rung 0/1/2 ladder, a Rung 1 first slice (a single-leaf sub-run orchestration that clears the real floor offline), an efficacy-certification plan, and a zero-cost catalog-coverage probe. SUPERSEDED IN PART by what was since walked: the eight walls have been dissolved across the non-linear shapes (loop/sub-run/fanout all run live, PRs #123-133) and the two composer-intelligence layers this dossier reserved — producibility-aware selection and family reachability — both SHIPPED as frontier phases A-D (PRs #134-138), with a second family (build) now composing and running live and a topology efficacy-flat finding. See non-linear-composition-frontier.md for the as-walked record. This dossier remains the design rationale and the propose-half plan (a model that PROPOSES topologies, not just linearizes a hand-authored role-set) is still un-built. No src change; the genuine-generation spike stays untracked.",
       "related": [
         "docs/ideas/north-star-status.md",
@@ -668,7 +929,13 @@
       "status": "partially-implemented-research",
       "category": "flows-and-blocks",
       "impact": 4,
-      "tags": ["composition", "generation", "non-linear", "sub-run", "fanout"],
+      "tags": [
+        "composition",
+        "generation",
+        "non-linear",
+        "sub-run",
+        "fanout"
+      ],
       "current_reading": "Empirical companion to the bespoke-generation dossier: the non-linear frontier as actually walked, now well past the original three-tier sweep. The whole validity ladder is built and on main: the bounded inspect/fix/verify LOOP (PR #123), SUB-RUN across a flow boundary (#124), static FANOUT joined by aggregate-survivors (#125/#126), a plain-LINEAR triage close (#130), and an offline RUNNABILITY detector that catches un-runnable composed flows the structural floor was blind to (#131). The composed-vs-reference efficacy arm then landed COMPOSITION-VIABLE (#132), and the fanout terminal-close fix (PR #133, f42c2e4e) made the composed FANOUT shape run LIVE end-to-end. The 2026-06-20 synthesis named the remaining composer-intelligence frontier as TWO LAYERS — producibility-aware SELECTION and family REACHABILITY — and BOTH HAVE SINCE SHIPPED (frontier phases A-D, all merged to main): Phase A (PR #134) turned the runnability gate from detect-only into repair-then-wall via a family-coherence tiebreak in selectActual; Phase C (PR #135) made the goal opener's clarified-task producible (the goal family's own clarify relay) plus an always-on intermediate compose-reads wiring pass, closing the last shape that wasn't full-flow runnable; Phase B-offline (PR #136) made the build family reachable (checkpointWritesReport + donor report_template) so build composes end-to-end. Phase B-live (PR #137) then ran a composed BUILD flow vs the hand-authored reference — 4/4 objective-fixed, 0 false-fixed, strictly cheaper every task — an EXISTENCE PROOF that a second family composes and runs live, not just fix. Phase D (PR #138) ran the same composed fix arc at three topologies (lean 5-block / full 6-block / loop 6-block+retry) and found flow topology EFFICACY-FLAT and COST-REAL: extra blocks bought cost (lean ~32% cheaper, ~31% faster), not capability; the recovery loop never fired; step-level judgement, not graph shape, is the scarce ingredient. Findings in evals/dynamic-vs-reference/{composed-build-arm-finding,composed-shape-sensitivity-finding}.md. RESEARCH_THEN_BUILD still walls honestly (no runnable family). Remaining open: the proof-richness gap (generic flow.result@v1 closes leaner than a family's full proof bundle — disclosed, not laundered), a discriminating (failure-inducing) task set so the loop's recovery branch can fire, and the low-value Tier-2 forward branch / self-loop. Default-OFF; built-ins byte-identical throughout.",
       "related": [
         "docs/ideas/bespoke-flow-generation-design.md",
@@ -683,7 +950,14 @@
       "status": "current-strategy-context",
       "category": "strategy-and-comparisons",
       "impact": 5,
-      "tags": ["strategy", "positioning", "messaging", "on-loop", "run-legibility", "honesty-gate"],
+      "tags": [
+        "strategy",
+        "positioning",
+        "messaging",
+        "on-loop",
+        "run-legibility",
+        "honesty-gate"
+      ],
       "current_reading": "Strategy deliverable (2026-06-29 multi-agent exploration plus an editorial and honesty pass against docs/positioning.md). Thesis: Circuit moves the human from inside the loop (orchestrator, memory, router, verifier) to on the loop (author the process once, review the evidence); the defensible claim is where chat-work graduates when it must be repeated, scheduled, chained, or trusted by someone who was not watching, and the one genuinely new thing is an evidence-provenance gate the worker cannot talk past. Three keystone bets (readable run, honest stop, promote-a-run) plus open forks. Honest limits are load-bearing: do not say 'alternative to chat' unqualified, do not say 'it can't fake done', do not promise 'turn your past chats into flows'. Messaging and product context, not shipped behavior; no copy ships without operator sign-off.",
       "related": [
         "docs/ideas/output-model.md",
@@ -698,9 +972,19 @@
       "status": "current-proposal",
       "category": "flows-and-blocks",
       "impact": 5,
-      "tags": ["improve", "outer-loop", "run-history", "ratchet", "flow", "evidence"],
+      "tags": [
+        "improve",
+        "outer-loop",
+        "run-history",
+        "ratchet",
+        "flow",
+        "evidence"
+      ],
       "current_reading": "Product and flow proposal for an `Improve` flow: a controlled outer loop that studies prior Circuit runs, ranks repeated or high-value signals, and proposes exactly one bounded change to a flow, check, Skill Hook, Power policy, eval, or doc. V1 is proposal-only: frame one target flow/window/proposal kind, read run folders/traces/reports/operator summaries/history index/Git/test output/optional CI metadata, emit `improve.signals@v1` plus `improve.proposal@v1`, then stop at a Checkpoint before any write. It is not an autonomous daemon, not memory authority, not the until-loop, and not a generic make-Circuit-better prompt. Constraints: history remains hint-only; traces/reports/files/commits/checks/operator-declared decisions are authoritative; runtime stays flow-neutral; writes are explicit; cost is bounded. First useful slice needs no new engine primitive. Later slices can add branch mode, flow/check edits, Skill Hook suggestions, Power bounds, batch ranking, and scheduled notification. Includes a starter `/goal` for implementing the proposal-only flow. Nothing built.",
-      "related": ["docs/ideas/deprioritized-ledger.md", "docs/ideas/until-loop.md"],
+      "related": [
+        "docs/ideas/deprioritized-ledger.md",
+        "docs/ideas/until-loop.md"
+      ],
       "last_checked": "2026-07-08"
     },
     {
@@ -742,7 +1026,10 @@
         "onboarding"
       ],
       "current_reading": "Concept-first design note on collapsing model, effort, and connector selection into two operator knobs: a global roster (archetype to connector plus a baseline rung, with per-flow and per-step overrides) and one intensity dial that offsets every archetype along per-connector (model, effort) ladders. Reframes the shipped power dial as a hard-coded roster to promote into editable config. Its recommended first slice has since SHIPPED TO MAIN: the resolve-without-spawn readout landed as circuit preview (src/cli/preview.ts, src/cli/flow-selection-preview.ts), the codex default model now resolves from the live models cache (src/connectors/codex-default-model.ts), and per-step connector pinning ships as a working flow (src/flows/cross-tool-build/). A 2026-07-13 operator ruling (final section) upgrades the defaults posture and makes this the active direction for post-announcement model UX: the roster ships pre-staffed from a release-reviewed model-temperament table (Claude writes, Codex is meticulous with code, deep thinkers take research seats), the first run asks nothing (detect installed connectors, cast automatically, run, then print what was chosen and how to adjust it), and casting staffs seats from the doctor-probed healthy connector set instead of mirroring the host. Build order recorded in that section; the v1 launch freeze applies. Still unbuilt: role-to-(model, effort) binding, the temperament table, dial-as-scalar, detection-driven casting, the first-run readout.",
-      "related": ["docs/ideas/deprioritized-ledger.md", "docs/ideas/turnkey-first-run.md"],
+      "related": [
+        "docs/ideas/deprioritized-ledger.md",
+        "docs/ideas/turnkey-first-run.md"
+      ],
       "last_checked": "2026-07-13"
     },
     {
@@ -775,7 +1062,12 @@
       "status": "archived",
       "category": "archived-or-superseded",
       "impact": 3,
-      "tags": ["consolidation", "ledger", "deprioritized", "impact-scoring"],
+      "tags": [
+        "consolidation",
+        "ledger",
+        "deprioritized",
+        "impact-scoring"
+      ],
       "current_reading": "The consolidation record from the 2026-07-08 impact-scoring pass: one entry per removed idea doc (title, impact score, status at removal, essence). Structural record, not a candidate; keep it regardless of its score. Full texts are recoverable from git history.",
       "last_checked": "2026-07-08"
     },

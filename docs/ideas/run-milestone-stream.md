@@ -3,7 +3,17 @@
 Status: active design, green-lit by the operator 2026-07-14 as the live
 run feedback piece of the first-run experience
 ([turnkey-first-run.md](turnkey-first-run.md), constraint: the honest
-in-run surface is silence until a milestone stream exists). One earlier
+in-run surface is silence until a milestone stream exists).
+
+Shipped ahead of the full build (2026-07-15, launch scope): the delivery
+slice landed as `1d29796f` (both hosts' run-command duties: render engine
+text verbatim, keep host words out of Circuit-voiced blocks, surface
+checkpoint and error tones immediately, background-and-poll for long
+runs, quote the exact resume command), and the stream's honesty floor
+landed as `95fafd7a` and `968cdb48` (failed checks and non-complete run
+closes now emit visible warnings with reasons; every fix step has a
+distinct progress label). Field evidence for both is recorded in the
+2026-07-15 live fixture runs. The full design below remains unbuilt. One earlier
 idea in this document stays dead: do not build a second persisted
 `status.ndjson` beside the trace. The
 [CLI rebuild plan](cli-first-principles.md) rejected dual persistence with
