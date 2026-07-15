@@ -1,7 +1,7 @@
 // Fix change-set writer.
 //
-// Runs after fix-verify (and after fix-regression-rerun, which sits between
-// them in the schematic). Captures the post-fix git state via the same
+// Runs immediately after every accepted fix-act, before later verification can
+// route back for rework. Captures the post-fix git state via the same
 // git-state helper used by fix-baseline-snapshot, then computes the set of
 // files actually touched by the fix as:
 //
@@ -20,12 +20,17 @@
 // This is a fail-closed default — supporting committed diffs would require
 // reading a baseline..HEAD range and is out of scope for this slice.
 //
+// On a later accepted act attempt, the prior passing change-set supplies the
+// cumulative declarations. Only declarations still observed against the same
+// baseline carry forward; current-attempt declarations stay unfiltered so a
+// new overclaim still fails.
+//
 // hidden_index_flags from the post-fix snapshot are also a hard fail. A path
 // flagged assume-unchanged or skip-worktree is invisible to git status and
 // can hide tracked edits; the writer refuses status='pass' if any such flag
 // exists in the working tree.
 
-import { readFileSync } from 'node:fs';
+import { existsSync, readFileSync } from 'node:fs';
 import { isAbsolute, relative } from 'node:path';
 import { gitStateCommand, parseGitStateObservation } from '../../../shared/git-state-command.js';
 import { resolveRunRelative } from '../../../shared/run-relative-path.js';
@@ -36,7 +41,7 @@ import type {
   VerificationCommand,
   VerificationCommandObservation,
 } from '../../registries/verification-writers/types.js';
-import { FixBaselineSnapshot, FixChange } from '../reports.js';
+import { FixBaselineSnapshot, FixChange, FixChangeSet } from '../reports.js';
 import { projectFixChangeSet } from './change-set-projection.js';
 
 function runFolderPrefix(input: { readonly projectRoot?: string; readonly runFolder: string }) {
@@ -90,12 +95,23 @@ export const fixChangeSetWriter: VerificationBuilder = {
 
     const baselinePath = reportPathForSchemaInRuntimeFlow(context.flow, 'fix.baseline-snapshot@v1');
     const changePath = reportPathForSchemaInRuntimeFlow(context.flow, 'fix.change@v1');
+    const changeSetPath = reportPathForSchemaInRuntimeFlow(context.flow, 'fix.change-set@v1');
     const baseline = FixBaselineSnapshot.parse(
       JSON.parse(readFileSync(resolveRunRelative(context.runFolder, baselinePath), 'utf8')),
     );
     const change = FixChange.parse(
       JSON.parse(readFileSync(resolveRunRelative(context.runFolder, changePath), 'utf8')),
     );
+    const priorChangeSetFile = resolveRunRelative(context.runFolder, changeSetPath);
+    const priorChangeSet = existsSync(priorChangeSetFile)
+      ? FixChangeSet.parse(JSON.parse(readFileSync(priorChangeSetFile, 'utf8')))
+      : undefined;
+    if (priorChangeSet !== undefined && priorChangeSet.baseline_head_sha !== baseline.head_sha) {
+      throw new Error(
+        `fix.change-set@v1: prior change-set baseline ${priorChangeSet.baseline_head_sha} does not match current baseline ${baseline.head_sha}`,
+      );
+    }
+    const priorDeclaredPaths = priorChangeSet?.status === 'pass' ? priorChangeSet.declared : [];
 
     const ignoredRunFolderPrefix = runFolderPrefix({
       runFolder: context.runFolder,
@@ -106,6 +122,7 @@ export const fixChangeSetWriter: VerificationBuilder = {
       baseline,
       post,
       change,
+      priorDeclaredPaths,
       ...(ignoredRunFolderPrefix === undefined
         ? {}
         : { ignoredPathPrefixes: [ignoredRunFolderPrefix] }),

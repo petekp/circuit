@@ -297,9 +297,13 @@
       "stage": "act",
       "input": {
         "brief": "fix.brief@v1",
-        "diagnosis": "fix.diagnosis@v1"
+        "diagnosis": "fix.diagnosis@v1",
+        "verification": "fix.verification@v1",
+        "change_set": "fix.change-set@v1",
+        "regression_rerun": "fix.regression-rerun@v1",
+        "review": "fix.review@v1"
       },
-      "optional_inputs": [],
+      "optional_inputs": ["verification", "change_set", "regression_rerun", "review"],
       "output": "fix.change@v1",
       "evidence_requirements": ["changed files", "change rationale", "declared follow-up proof"],
       "execution": {
@@ -319,7 +323,7 @@
         "enforcement": "enforced"
       },
       "routes": {
-        "continue": "fix-verify",
+        "continue": "fix-change-set",
         "retry": "fix-act",
         "ask": "fix-no-repro-decision",
         "stop": "@stop",
@@ -380,7 +384,7 @@
       },
       "skill_slots": [],
       "routes": {
-        "continue": "fix-change-set",
+        "continue": "fix-regression-rerun",
         "retry": "fix-act",
         "ask": "fix-no-repro-decision",
         "stop": "@stop"
@@ -412,7 +416,7 @@
       },
       "skill_slots": [],
       "routes": {
-        "continue": "fix-regression-rerun",
+        "continue": "fix-verify",
         "retry": "fix-act",
         "stop": "@stop"
       },
@@ -467,6 +471,7 @@
       "input": {
         "brief": "fix.brief@v1",
         "change": "fix.change@v1",
+        "change_set": "fix.change-set@v1",
         "verification": "fix.verification@v1"
       },
       "optional_inputs": [],

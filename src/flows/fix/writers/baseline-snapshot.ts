@@ -1,7 +1,7 @@
 // Fix baseline-snapshot writer.
 //
 // Runs immediately before fix-act. Snapshots the working tree's git state so
-// the post-fix-verify change-set step has a reference point. The snapshot is
+// the post-fix-act change-set step has a reference point. The snapshot is
 // what counts as "before the fix" — anything that becomes dirty between this
 // snapshot and the change-set step is owned by fix-act.
 //

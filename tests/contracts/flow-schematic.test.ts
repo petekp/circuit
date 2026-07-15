@@ -114,6 +114,21 @@ describe('flow schematic schema — active Fix schematic', () => {
     const act = schematic.items.find((item) => (item.id as unknown as string) === 'fix-act');
     if (act === undefined) throw new Error('fix-act missing');
 
+    expect(act.input).toMatchObject({
+      brief: 'fix.brief@v1',
+      diagnosis: 'fix.diagnosis@v1',
+      verification: 'fix.verification@v1',
+      change_set: 'fix.change-set@v1',
+      regression_rerun: 'fix.regression-rerun@v1',
+      review: 'fix.review@v1',
+    });
+    expect(act.optional_inputs).toEqual([
+      'verification',
+      'change_set',
+      'regression_rerun',
+      'review',
+    ]);
+
     expect(act.acceptance_criteria).toEqual({
       checks: [
         {
@@ -214,12 +229,17 @@ describe('flow schematic schema — active Fix schematic', () => {
       (item) => (item.id as unknown as string) === 'fix-regression-rerun',
     );
     if (regressionRerun === undefined) throw new Error('fix-regression-rerun missing');
-
-    expect(verify.routes.continue).toBe('fix-change-set');
-    expect(changeSet.routes.continue).toBe('fix-regression-rerun');
-    expect(regressionRerun.routes.continue).toBe('fix-review');
     const review = schematic.items.find((item) => (item.id as unknown as string) === 'fix-review');
     if (review === undefined) throw new Error('fix-review missing');
+
+    const act = schematic.items.find((item) => (item.id as unknown as string) === 'fix-act');
+    if (act === undefined) throw new Error('fix-act missing');
+
+    expect(act.routes.continue).toBe('fix-change-set');
+    expect(changeSet.routes.continue).toBe('fix-verify');
+    expect(verify.routes.continue).toBe('fix-regression-rerun');
+    expect(regressionRerun.routes.continue).toBe('fix-review');
+    expect(review.input).toMatchObject({ change_set: 'fix.change-set@v1' });
     expect(review.routes['connector-failed']).toBe('fix-close');
     expect(regressionRerun.route_overrides).toEqual({
       continue: {

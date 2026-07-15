@@ -190,12 +190,17 @@ function computeReads(
 ): string[] {
   const reads: string[] = [];
   const seen = new Set<string>();
+  const optionalInputs = new Set(item.optional_inputs);
   // Iterate inputs in declaration order so the emitted reads list is
   // stable and matches the schematic author's intent.
-  for (const contract of Object.values(item.input)) {
+  for (const [name, contract] of Object.entries(item.input)) {
     if (initialContracts.has(contract)) continue;
     const producer = producerByContract.get(contract);
     if (producer === undefined) {
+      // A mode may legitimately omit the only producer for a route-disjoint
+      // optional input. In modes where the producer remains reachable, keep
+      // the read so the first pass gets a placeholder and a retry gets data.
+      if (optionalInputs.has(name)) continue;
       fail(
         `schematic item '${item.id}' input contract '${contract}' has no producer reachable in this mode and is not in initial_contracts`,
       );

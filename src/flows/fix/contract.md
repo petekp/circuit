@@ -13,9 +13,9 @@ report_ids:
   - fix.regression-proof
   - fix.baseline-snapshot
   - fix.change
+  - fix.change-set
   - fix.verification
   - fix.regression-rerun
-  - fix.change-set
   - fix.review
   - fix.result
 invariant_ids: []
@@ -46,9 +46,9 @@ skips the review relay after verification; medium and high keep it.
 | `fix.regression-proof` | Pre-fix observation of the brief's regression command | `<run-folder>/reports/fix/regression-proof.json` |
 | `fix.baseline-snapshot` | Pre-fix-act git state with per-path content fingerprints | `<run-folder>/reports/fix/baseline-snapshot.json` |
 | `fix.change` | Focused change evidence | `<run-folder>/reports/fix/change.json` |
+| `fix.change-set` | Cumulative run diff against the baseline plus accepted act declarations | `<run-folder>/reports/fix/change-set.json` |
 | `fix.verification` | Executed proof evidence (brief's verification candidates) | `<run-folder>/reports/fix/verification.json` |
 | `fix.regression-rerun` | Post-fix rerun of the brief's regression command | `<run-folder>/reports/fix/regression-rerun.json` |
-| `fix.change-set` | Post-fix git state diffed against baseline + declared changes | `<run-folder>/reports/fix/change-set.json` |
 | `fix.review` | Independent review result when the mode requires it | `<run-folder>/reports/fix/review.json` |
 | `fix.result` | Close summary | `<run-folder>/reports/fix-result.json` |
 
@@ -123,6 +123,11 @@ operator's prior dirt.
 non-empty `hidden_index_flags` (assume-unchanged or skip-worktree paths
 that bypass `git status`), undeclared extras, missing declared paths, and
 content mutation of any baseline-dirty path that is not in `changed_files`.
+It runs immediately after each accepted `fix-act`, before proof commands can
+route back for another act attempt. On a retry it carries forward declarations
+from the prior passing change-set only while those paths still differ from the
+same run baseline. Current-attempt declarations are never filtered, so a new
+overclaim still fails as `missing_declared`.
 
 `fix.regression-rerun@v1` reruns the brief's regression command after
 fix-verify and emits `cleared` (regression now passes), `still-failing`

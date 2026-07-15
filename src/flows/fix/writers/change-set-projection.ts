@@ -11,6 +11,7 @@ export type FixChangeSetProjectorInputs = {
   readonly baseline: FixBaselineSnapshot;
   readonly post: GitStateHelperOutput;
   readonly change: FixChange;
+  readonly priorDeclaredPaths?: readonly string[];
   readonly ignoredPathPrefixes?: readonly string[];
 };
 
@@ -20,6 +21,31 @@ function isIgnoredPath(path: string, prefixes: readonly string[]): boolean {
 
 export function projectFixChangeSet(inputs: FixChangeSetProjectorInputs): FixChangeSet {
   const ignoredPathPrefixes = inputs.ignoredPathPrefixes ?? [];
+  // A review rework writes a fresh fix.change report containing the files from
+  // that rework pass. Keep declarations from earlier accepted act attempts when
+  // those paths still differ from the run baseline, while dropping paths a later
+  // attempt intentionally restored. Latest-pass declarations remain unfiltered
+  // so a fresh overclaim still fails as missing_declared.
+  const observedBeforeClaims = projectRuntimeTouchedFiles({
+    baseline: {
+      head_sha: inputs.baseline.head_sha,
+      entries: inputs.baseline.entries,
+      hidden_index_flags: inputs.baseline.hidden_index_flags,
+    },
+    post: {
+      head_sha: inputs.post.head_sha,
+      entries: inputs.post.entries,
+      hidden_index_flags: inputs.post.hidden_index_flags,
+    },
+    workerDeclaredPaths: [],
+    ...(inputs.ignoredPathPrefixes === undefined
+      ? {}
+      : { ignoredPathPrefixes: inputs.ignoredPathPrefixes }),
+  });
+  const observedPaths = new Set(observedBeforeClaims.files.map((file) => file.path));
+  const carriedDeclarations = (inputs.priorDeclaredPaths ?? []).filter((path) =>
+    observedPaths.has(path),
+  );
   const runtimeTouchedFiles = projectRuntimeTouchedFiles({
     baseline: {
       head_sha: inputs.baseline.head_sha,
@@ -31,7 +57,7 @@ export function projectFixChangeSet(inputs: FixChangeSetProjectorInputs): FixCha
       entries: inputs.post.entries,
       hidden_index_flags: inputs.post.hidden_index_flags,
     },
-    workerDeclaredPaths: inputs.change.changed_files,
+    workerDeclaredPaths: [...carriedDeclarations, ...inputs.change.changed_files],
     ...(inputs.ignoredPathPrefixes === undefined
       ? {}
       : { ignoredPathPrefixes: inputs.ignoredPathPrefixes }),

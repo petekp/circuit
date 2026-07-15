@@ -1690,6 +1690,12 @@ async function executeExecutableFlowOutcomeUnsafe(
       target.kind === 'step' && targetStep !== undefined
         ? maxAttemptsForRoute(targetStep, routeHasRecoveryMechanics, policyMaxAttemptsCap)
         : maxAttemptsForRoute(step, routeHasRecoveryMechanics, policyMaxAttemptsCap);
+    const currentRecoveryReasonSuffix =
+      routeHasRecoveryMechanics &&
+      typeof details.reason === 'string' &&
+      details.reason.trim().length > 0
+        ? `; last recovery reason: ${details.reason.trim()}`
+        : corridor.lastReasonSuffix();
     const targetTransition = classifyRouteTargetTransition({
       stepId: step.id,
       route,
@@ -1698,7 +1704,7 @@ async function executeExecutableFlowOutcomeUnsafe(
       isRecoveryReturnToOrigin,
       routeHasRecoveryMechanics,
       targetMaxAttempts,
-      recoveryReasonSuffix: corridor.lastReasonSuffix(),
+      recoveryReasonSuffix: currentRecoveryReasonSuffix,
     });
     if (isRouteTargetAbort(targetTransition)) {
       await trace.append({

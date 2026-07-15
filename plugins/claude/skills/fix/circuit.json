@@ -269,10 +269,17 @@
       "id": "fix-act",
       "title": "Act — apply focused fix",
       "protocol": "fix-act@v1",
-      "reads": ["reports/fix/brief.json", "reports/fix/diagnosis.json"],
+      "reads": [
+        "reports/fix/brief.json",
+        "reports/fix/diagnosis.json",
+        "reports/fix/verification.json",
+        "reports/fix/change-set.json",
+        "reports/fix/regression-rerun.json",
+        "reports/fix/review.json"
+      ],
       "routes": {
-        "continue": "fix-verify",
-        "pass": "fix-verify",
+        "continue": "fix-change-set",
+        "pass": "fix-change-set",
         "retry": "fix-act",
         "ask": "fix-no-repro-decision",
         "stop": "@stop",
@@ -342,8 +349,8 @@
       "protocol": "fix-verify@v1",
       "reads": ["reports/fix/brief.json", "reports/fix/change.json"],
       "routes": {
-        "continue": "fix-change-set",
-        "pass": "fix-change-set",
+        "continue": "fix-regression-rerun",
+        "pass": "fix-regression-rerun",
         "retry": "fix-act",
         "ask": "fix-no-repro-decision",
         "stop": "@stop"
@@ -371,8 +378,8 @@
       "protocol": "fix-change-set@v1",
       "reads": ["reports/fix/baseline-snapshot.json", "reports/fix/change.json"],
       "routes": {
-        "continue": "fix-regression-rerun",
-        "pass": "fix-regression-rerun",
+        "continue": "fix-verify",
+        "pass": "fix-verify",
         "retry": "fix-act",
         "stop": "@stop"
       },
@@ -428,6 +435,7 @@
       "reads": [
         "reports/fix/brief.json",
         "reports/fix/change.json",
+        "reports/fix/change-set.json",
         "reports/fix/verification.json"
       ],
       "routes": {

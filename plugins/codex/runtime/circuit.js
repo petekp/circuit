@@ -75570,7 +75570,15 @@ var init_assembly_spec6 = __esm({
         title: "Act \u2014 apply focused fix",
         stage: "act",
         block: "act",
-        input: { brief: "fix.brief@v1", diagnosis: "fix.diagnosis@v1" },
+        input: {
+          brief: "fix.brief@v1",
+          diagnosis: "fix.diagnosis@v1",
+          verification: "fix.verification@v1",
+          change_set: "fix.change-set@v1",
+          regression_rerun: "fix.regression-rerun@v1",
+          review: "fix.review@v1"
+        },
+        optional_inputs: ["verification", "change_set", "regression_rerun", "review"],
         output: "fix.change@v1",
         execution: { kind: "relay", role: "implementer" },
         protocol: "fix-act@v1",
@@ -75615,7 +75623,7 @@ var init_assembly_spec6 = __esm({
           enforcement: "enforced"
         },
         routes: {
-          continue: "fix-verify",
+          continue: "fix-change-set",
           retry: "fix-act",
           ask: "fix-no-repro-decision",
           stop: "@stop",
@@ -75633,7 +75641,7 @@ var init_assembly_spec6 = __esm({
         writes: { report_path: "reports/fix/verification.json" },
         check: { required: ["overall_status", "commands"] },
         routes: {
-          continue: "fix-change-set",
+          continue: "fix-regression-rerun",
           retry: "fix-act",
           ask: "fix-no-repro-decision",
           stop: "@stop"
@@ -75653,7 +75661,7 @@ var init_assembly_spec6 = __esm({
         protocol: "fix-change-set@v1",
         writes: { report_path: "reports/fix/change-set.json" },
         check: { required: ["status", "overall_status"] },
-        routes: { continue: "fix-regression-rerun", retry: "fix-act", stop: "@stop" }
+        routes: { continue: "fix-verify", retry: "fix-act", stop: "@stop" }
       },
       {
         id: "fix-regression-rerun",
@@ -75673,7 +75681,12 @@ var init_assembly_spec6 = __esm({
         title: "Review \u2014 independent audit of Fix change",
         stage: "review",
         block: "review",
-        input: { brief: "fix.brief@v1", change: "fix.change@v1", verification: "fix.verification@v1" },
+        input: {
+          brief: "fix.brief@v1",
+          change: "fix.change@v1",
+          change_set: "fix.change-set@v1",
+          verification: "fix.verification@v1"
+        },
         output: "fix.review@v1",
         execution: { kind: "relay", role: "reviewer" },
         protocol: "fix-review@v1",
@@ -76759,6 +76772,22 @@ function isIgnoredPath(path, prefixes) {
 }
 function projectFixChangeSet(inputs) {
   const ignoredPathPrefixes = inputs.ignoredPathPrefixes ?? [];
+  const observedBeforeClaims = projectRuntimeTouchedFiles({
+    baseline: {
+      head_sha: inputs.baseline.head_sha,
+      entries: inputs.baseline.entries,
+      hidden_index_flags: inputs.baseline.hidden_index_flags
+    },
+    post: {
+      head_sha: inputs.post.head_sha,
+      entries: inputs.post.entries,
+      hidden_index_flags: inputs.post.hidden_index_flags
+    },
+    workerDeclaredPaths: [],
+    ...inputs.ignoredPathPrefixes === void 0 ? {} : { ignoredPathPrefixes: inputs.ignoredPathPrefixes }
+  });
+  const observedPaths = new Set(observedBeforeClaims.files.map((file2) => file2.path));
+  const carriedDeclarations = (inputs.priorDeclaredPaths ?? []).filter((path) => observedPaths.has(path));
   const runtimeTouchedFiles = projectRuntimeTouchedFiles({
     baseline: {
       head_sha: inputs.baseline.head_sha,
@@ -76770,7 +76799,7 @@ function projectFixChangeSet(inputs) {
       entries: inputs.post.entries,
       hidden_index_flags: inputs.post.hidden_index_flags
     },
-    workerDeclaredPaths: inputs.change.changed_files,
+    workerDeclaredPaths: [...carriedDeclarations, ...inputs.change.changed_files],
     ...inputs.ignoredPathPrefixes === void 0 ? {} : { ignoredPathPrefixes: inputs.ignoredPathPrefixes }
   });
   const postHiddenFlags = inputs.post.hidden_index_flags.filter((flag) => !isIgnoredPath(flag.path, ignoredPathPrefixes));
@@ -76820,7 +76849,7 @@ var init_change_set_projection = __esm({
 });
 
 // dist/flows/fix/writers/change-set.js
-import { readFileSync as readFileSync22 } from "node:fs";
+import { existsSync as existsSync15, readFileSync as readFileSync22 } from "node:fs";
 import { isAbsolute as isAbsolute5, relative as relative5 } from "node:path";
 function runFolderPrefix2(input) {
   if (input.projectRoot === void 0)
@@ -76872,8 +76901,15 @@ var init_change_set = __esm({
         const post = parseGitStateObservation(observation, "fix.change-set@v1");
         const baselinePath = reportPathForSchemaInRuntimeFlow(context.flow, "fix.baseline-snapshot@v1");
         const changePath = reportPathForSchemaInRuntimeFlow(context.flow, "fix.change@v1");
+        const changeSetPath = reportPathForSchemaInRuntimeFlow(context.flow, "fix.change-set@v1");
         const baseline = FixBaselineSnapshot.parse(JSON.parse(readFileSync22(resolveRunRelative(context.runFolder, baselinePath), "utf8")));
         const change = FixChange.parse(JSON.parse(readFileSync22(resolveRunRelative(context.runFolder, changePath), "utf8")));
+        const priorChangeSetFile = resolveRunRelative(context.runFolder, changeSetPath);
+        const priorChangeSet = existsSync15(priorChangeSetFile) ? FixChangeSet.parse(JSON.parse(readFileSync22(priorChangeSetFile, "utf8"))) : void 0;
+        if (priorChangeSet !== void 0 && priorChangeSet.baseline_head_sha !== baseline.head_sha) {
+          throw new Error(`fix.change-set@v1: prior change-set baseline ${priorChangeSet.baseline_head_sha} does not match current baseline ${baseline.head_sha}`);
+        }
+        const priorDeclaredPaths = priorChangeSet?.status === "pass" ? priorChangeSet.declared : [];
         const ignoredRunFolderPrefix = runFolderPrefix2({
           runFolder: context.runFolder,
           ...context.projectRoot === void 0 ? {} : { projectRoot: context.projectRoot }
@@ -76882,6 +76918,7 @@ var init_change_set = __esm({
           baseline,
           post,
           change,
+          priorDeclaredPaths,
           ...ignoredRunFolderPrefix === void 0 ? {} : { ignoredPathPrefixes: [ignoredRunFolderPrefix] }
         });
       }
@@ -78295,11 +78332,11 @@ var init_relay_hints7 = __esm({
 });
 
 // dist/flows/goal/writers/attempt.js
-import { existsSync as existsSync15, readFileSync as readFileSync26 } from "node:fs";
+import { existsSync as existsSync16, readFileSync as readFileSync26 } from "node:fs";
 function readChildResult(runFolder, target) {
   const relPath = CHILD_RESULT_PATHS[target];
   const absPath = resolveRunRelative(runFolder, relPath);
-  if (!existsSync15(absPath))
+  if (!existsSync16(absPath))
     return void 0;
   return JSON.parse(readFileSync26(absPath, "utf8"));
 }
@@ -78565,10 +78602,10 @@ var init_contract = __esm({
 });
 
 // dist/flows/goal/writers/evidence-evaluation.js
-import { existsSync as existsSync16, readFileSync as readFileSync27 } from "node:fs";
+import { existsSync as existsSync17, readFileSync as readFileSync27 } from "node:fs";
 function readChildRunResult(runFolder, path) {
   const absPath = resolveRunRelative(runFolder, path);
-  if (!existsSync16(absPath))
+  if (!existsSync17(absPath))
     return void 0;
   return RunResult.parse(JSON.parse(readFileSync27(absPath, "utf8")));
 }
@@ -78659,7 +78696,7 @@ var init_evidence_evaluation = __esm({
 });
 
 // dist/flows/goal/writers/recovery.js
-import { existsSync as existsSync17, readFileSync as readFileSync28 } from "node:fs";
+import { existsSync as existsSync18, readFileSync as readFileSync28 } from "node:fs";
 function routeFromEvaluation(evaluation) {
   if (evaluation.verdict === "missing-evidence") {
     return {
@@ -78694,7 +78731,7 @@ function routeFromGate(gate) {
 function readLatestGate(runFolder) {
   for (const path of ["reports/goal/gate.json", "reports/goal/gate-pass-1.json"]) {
     const absolutePath = resolveRunRelative(runFolder, path);
-    if (!existsSync17(absolutePath))
+    if (!existsSync18(absolutePath))
       continue;
     return GoalGate.parse(JSON.parse(readFileSync28(absolutePath, "utf8")));
   }
@@ -80071,7 +80108,7 @@ var init_brief3 = __esm({
 });
 
 // dist/flows/prototype/writers/close.js
-import { existsSync as existsSync18, readFileSync as readFileSync29 } from "node:fs";
+import { existsSync as existsSync19, readFileSync as readFileSync29 } from "node:fs";
 function checkpointStep(context, stepId) {
   const step = context.flow.steps.find((candidate) => candidate.id === stepId && candidate.kind === "checkpoint");
   return step;
@@ -80082,7 +80119,7 @@ function readCheckpointResponse(context) {
     return void 0;
   const responsePath = step.writes.response;
   const abs = resolveRunRelative(context.runFolder, responsePath);
-  if (!existsSync18(abs))
+  if (!existsSync19(abs))
     return void 0;
   const raw = JSON.parse(readFileSync29(abs, "utf8"));
   return { path: responsePath, response: CheckpointResponse.parse(raw) };
@@ -80093,7 +80130,7 @@ function readVariantCheckpointResponse(context) {
     return void 0;
   const responsePath = step.writes.response;
   const abs = resolveRunRelative(context.runFolder, responsePath);
-  if (!existsSync18(abs))
+  if (!existsSync19(abs))
     return void 0;
   const raw = JSON.parse(readFileSync29(abs, "utf8"));
   return { path: responsePath, response: VariantCheckpointResponse.parse(raw) };
@@ -80103,14 +80140,14 @@ function existingCheckpointRequestPath(context) {
   if (step === void 0)
     return void 0;
   const requestPath = step.writes.request;
-  return existsSync18(resolveRunRelative(context.runFolder, requestPath)) ? requestPath : void 0;
+  return existsSync19(resolveRunRelative(context.runFolder, requestPath)) ? requestPath : void 0;
 }
 function existingVariantCheckpointRequestPath(context) {
   const step = checkpointStep(context, "prototype-variant-checkpoint-step");
   if (step === void 0)
     return void 0;
   const requestPath = step.writes.request;
-  return existsSync18(resolveRunRelative(context.runFolder, requestPath)) ? requestPath : void 0;
+  return existsSync19(resolveRunRelative(context.runFolder, requestPath)) ? requestPath : void 0;
 }
 function evidenceLinks(context, checkpointResponse) {
   const links = BASE_SINGLE_POINTERS.map((pointer) => ({
@@ -80143,12 +80180,12 @@ function evidenceLinks(context, checkpointResponse) {
 }
 function reportExists(context, schemaName) {
   const path = reportPathForSchemaInRuntimeFlow(context.flow, schemaName);
-  return existsSync18(resolveRunRelative(context.runFolder, path));
+  return existsSync19(resolveRunRelative(context.runFolder, path));
 }
 function readOptionalReport(context, schemaName, parse3) {
   const path = reportPathForSchemaInRuntimeFlow(context.flow, schemaName);
   const abs = resolveRunRelative(context.runFolder, path);
-  if (!existsSync18(abs))
+  if (!existsSync19(abs))
     return void 0;
   return parse3(JSON.parse(readFileSync29(abs, "utf8")));
 }
@@ -80601,11 +80638,11 @@ var init_variant_options = __esm({
 });
 
 // dist/flows/prototype/writers/variant-provider-evidence.js
-import { existsSync as existsSync19, readFileSync as readFileSync30 } from "node:fs";
+import { existsSync as existsSync20, readFileSync as readFileSync30 } from "node:fs";
 import { join as join14 } from "node:path";
 function readTraceEntries(runFolder) {
   const tracePath = join14(runFolder, "trace.ndjson");
-  if (!existsSync19(tracePath))
+  if (!existsSync20(tracePath))
     return [];
   return readFileSync30(tracePath, "utf8").split("\n").filter((line) => line.trim().length > 0).map((line) => JSON.parse(line));
 }
@@ -84119,14 +84156,14 @@ var init_census = __esm({
 });
 
 // dist/flows/sweep/writers/partition.js
-import { existsSync as existsSync20, readFileSync as readFileSync35 } from "node:fs";
+import { existsSync as existsSync21, readFileSync as readFileSync35 } from "node:fs";
 function sanitizeForBranchId(value) {
   const cleaned = value.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-+|-+$/g, "");
   return cleaned.length === 0 ? "unit" : cleaned;
 }
 function latestLesson(runFolder) {
   const notesPath = resolveRunRelative(runFolder, SWEEP_CARRIED_NOTES_PATH);
-  if (!existsSync20(notesPath))
+  if (!existsSync21(notesPath))
     return void 0;
   let parsed;
   try {
@@ -85087,11 +85124,14 @@ function readPathForProducer(producer) {
 function computeReads(item, initialContracts, producerByContract) {
   const reads = [];
   const seen = /* @__PURE__ */ new Set();
-  for (const contract of Object.values(item.input)) {
+  const optionalInputs = new Set(item.optional_inputs);
+  for (const [name, contract] of Object.entries(item.input)) {
     if (initialContracts.has(contract))
       continue;
     const producer = producerByContract.get(contract);
     if (producer === void 0) {
+      if (optionalInputs.has(name))
+        continue;
       fail(`schematic item '${item.id}' input contract '${contract}' has no producer reachable in this mode and is not in initial_contracts`);
     }
     const path = readPathForProducer(producer);
@@ -86146,7 +86186,7 @@ var init_custom_flow_descriptor = __esm({
 
 // dist/cli/custom-flow-package.js
 import { randomUUID as randomUUID3 } from "node:crypto";
-import { existsSync as existsSync21, mkdirSync as mkdirSync4, readFileSync as readFileSync37, rmSync as rmSync4, writeFileSync as writeFileSync5 } from "node:fs";
+import { existsSync as existsSync22, mkdirSync as mkdirSync4, readFileSync as readFileSync37, rmSync as rmSync4, writeFileSync as writeFileSync5 } from "node:fs";
 import { homedir as homedir2 } from "node:os";
 import { dirname as dirname6, join as join15, resolve as resolve14 } from "node:path";
 function slugify2(value) {
@@ -86284,7 +86324,7 @@ function publishManifest(input) {
     schema_version: 1,
     custom_flows: []
   };
-  if (existsSync21(manifestPath(input.home))) {
+  if (existsSync22(manifestPath(input.home))) {
     existing = JSON.parse(readFileSync37(manifestPath(input.home), "utf8"));
   }
   const withoutSlug = existing.custom_flows.filter((flow) => !(typeof flow === "object" && flow !== null && "id" in flow && flow.id === input.slug));
@@ -86364,7 +86404,7 @@ function loadDraftFlow(home, slug) {
 }
 function publishDraft(input) {
   const draft = draftRoot(input.home, input.slug);
-  if (!existsSync21(join15(draft, "SKILL.md"))) {
+  if (!existsSync22(join15(draft, "SKILL.md"))) {
     throw new Error(`draft missing for ${input.slug}: ${draft}`);
   }
   const descriptor = readFileSync37(join15(draft, "circuit.yaml"), "utf8");
@@ -90390,7 +90430,7 @@ var init_fanout_branch_template = __esm({
 });
 
 // dist/shared/user-skill-registry.js
-import { existsSync as existsSync23, readFileSync as readFileSync41, readdirSync as readdirSync3 } from "node:fs";
+import { existsSync as existsSync24, readFileSync as readFileSync41, readdirSync as readdirSync3 } from "node:fs";
 import { homedir as homedir4 } from "node:os";
 import { join as join18, resolve as resolve16 } from "node:path";
 function defaultUserSkillRoots(homeDir = homedir4()) {
@@ -90426,7 +90466,7 @@ function discoverCandidates(roots) {
   const candidates = /* @__PURE__ */ new Map();
   for (const root of roots) {
     const rootAbs = resolve16(root);
-    if (!existsSync23(rootAbs))
+    if (!existsSync24(rootAbs))
       continue;
     for (const entry of readdirSync3(rootAbs, { withFileTypes: true })) {
       if (!entry.isDirectory())
@@ -90438,7 +90478,7 @@ function discoverCandidates(roots) {
       if (candidates.has(key))
         continue;
       const skillPath = join18(rootAbs, entry.name, "SKILL.md");
-      if (!existsSync23(skillPath))
+      if (!existsSync24(skillPath))
         continue;
       candidates.set(key, {
         id: id.data,
@@ -94833,7 +94873,7 @@ var init_schemas3 = __esm({
 });
 
 // dist/runtime/run/relay-support.js
-import { existsSync as existsSync24, readFileSync as readFileSync42 } from "node:fs";
+import { existsSync as existsSync25, readFileSync as readFileSync42 } from "node:fs";
 function evaluateRelayCheck(step, resultBody) {
   let parsed;
   try {
@@ -95071,7 +95111,7 @@ function deliveredContextSection(slices) {
 function composeRelayPrompt(step, runFolder, loadedSkills = [], acceptanceRetryFeedback, operatorGoal, memoryInputs = [], flowId, depth, activeSlice, operatorWhy, powerDialAuto, branchGoal, deliveredContextSlices) {
   const readsBody = step.reads.length === 0 ? "(no reads)" : step.reads.map((path) => {
     const abs = resolveRunRelative(runFolder, path);
-    if (!existsSync24(abs))
+    if (!existsSync25(abs))
       return `[reads unavailable: ${path}]`;
     return fencedBlock("read", ` path="${path}"`, readFileSync42(abs, "utf8"));
   }).join("\n\n");
@@ -96108,7 +96148,7 @@ var init_sub_run = __esm({
 });
 
 // dist/runtime/run/reuse-children.js
-import { existsSync as existsSync25, readFileSync as readFileSync43 } from "node:fs";
+import { existsSync as existsSync26, readFileSync as readFileSync43 } from "node:fs";
 import { isAbsolute as isAbsolute9, join as join21 } from "node:path";
 function isCompletedSubRunBranch(entry, stepId, branchId) {
   return entry.kind === "fanout.branch_completed" && entry.step_id === stepId && entry.branch_id === branchId && entry.branch_kind === "sub-run" && entry.child_outcome === "complete";
@@ -96136,7 +96176,7 @@ async function lookupReusableSubRunBranch(input) {
   }
   if (worktreePath === void 0)
     return void 0;
-  if (!existsSync25(join21(worktreePath, ".git")))
+  if (!existsSync26(join21(worktreePath, ".git")))
     return void 0;
   const resultAbs = isAbsolute9(completed.result_path) ? completed.result_path : join21(input.priorRunFolder, completed.result_path);
   let resultBody;
@@ -97135,7 +97175,7 @@ var init_fanout = __esm({
 });
 
 // dist/runtime/run/oracle-command-pin.js
-import { existsSync as existsSync26, readFileSync as readFileSync45 } from "node:fs";
+import { existsSync as existsSync27, readFileSync as readFileSync45 } from "node:fs";
 import { join as join24 } from "node:path";
 function createOracleCommandPinChannel() {
   return { pins: /* @__PURE__ */ new Map() };
@@ -97146,7 +97186,7 @@ function readReferencedScriptBody(command, projectRoot) {
     return void 0;
   const cwdAbs = resolveProjectRelativeProofCwd(projectRoot, command.cwd);
   const packageJsonPath = join24(cwdAbs, "package.json");
-  if (!existsSync26(packageJsonPath)) {
+  if (!existsSync27(packageJsonPath)) {
     throw new OracleCommandDriftError(`oracle script "${script}" for command '${command.id}' vanished: package.json missing at its cwd`);
   }
   let parsed;
@@ -97251,8 +97291,10 @@ function failingObservationDetail(observation) {
 }
 function verificationCommandFailureReason(input) {
   const failing = input.observations.filter((observation) => observation.status === "failed");
-  const detail = failing.map(failingObservationDetail).join("; ");
-  return `verification step '${input.stepId}' failed: ${detail}`;
+  const reportReason = typeof input.reportReason === "string" && input.reportReason.trim().length > 0 ? input.reportReason.trim() : void 0;
+  const detail = [reportReason, ...failing.map(failingObservationDetail)].filter((part) => part !== void 0).join("; ");
+  const legibleDetail = detail.length > 0 ? detail : "report returned a failing overall_status without a reason or failed command";
+  return `verification step '${input.stepId}' failed: ${legibleDetail}`;
 }
 function allFailuresTimedOut(observations) {
   const failing = observations.filter((observation) => observation.status === "failed");
@@ -97496,7 +97538,11 @@ async function executeVerificationResult(step, context) {
     });
     return stepExecutionOutcome({ route: "pass", details: { overall_status: "passed" } });
   }
-  const reason = verificationCommandFailureReason({ stepId: step.id, observations });
+  const reason = verificationCommandFailureReason({
+    stepId: step.id,
+    observations,
+    reportReason: body.reason
+  });
   await context.trace.append({
     run_id: context.runId,
     kind: "check.evaluated",
@@ -99943,6 +99989,7 @@ async function executeExecutableFlowOutcomeUnsafe(flow, options) {
       route
     }) : false;
     const targetMaxAttempts = target.kind === "step" && targetStep !== void 0 ? maxAttemptsForRoute(targetStep, routeHasRecoveryMechanics, policyMaxAttemptsCap) : maxAttemptsForRoute(step, routeHasRecoveryMechanics, policyMaxAttemptsCap);
+    const currentRecoveryReasonSuffix = routeHasRecoveryMechanics && typeof details.reason === "string" && details.reason.trim().length > 0 ? `; last recovery reason: ${details.reason.trim()}` : corridor.lastReasonSuffix();
     const targetTransition = classifyRouteTargetTransition({
       stepId: step.id,
       route,
@@ -99951,7 +99998,7 @@ async function executeExecutableFlowOutcomeUnsafe(flow, options) {
       isRecoveryReturnToOrigin,
       routeHasRecoveryMechanics,
       targetMaxAttempts,
-      recoveryReasonSuffix: corridor.lastReasonSuffix()
+      recoveryReasonSuffix: currentRecoveryReasonSuffix
     });
     if (isRouteTargetAbort(targetTransition)) {
       await trace.append({
@@ -100905,7 +100952,7 @@ var init_checkpoint_resume = __esm({
 });
 
 // dist/memory/project-store.js
-import { existsSync as existsSync27, readFileSync as readFileSync50 } from "node:fs";
+import { existsSync as existsSync28, readFileSync as readFileSync50 } from "node:fs";
 import { join as join29, resolve as resolve18 } from "node:path";
 function resolveProjectStorePaths(options = {}) {
   const repoRoot = resolve18(options.repoRoot ?? process.cwd());
@@ -100919,7 +100966,7 @@ function resolveProjectStorePaths(options = {}) {
 }
 function readProjectFacts(options = {}) {
   const paths = resolveProjectStorePaths(options);
-  if (!existsSync27(paths.factsPath)) {
+  if (!existsSync28(paths.factsPath)) {
     return { facts: [], warnings: [] };
   }
   let raw = "";
@@ -101019,7 +101066,7 @@ var init_project_store = __esm({
 });
 
 // dist/memory/project-injection.js
-import { existsSync as existsSync28, readFileSync as readFileSync51 } from "node:fs";
+import { existsSync as existsSync29, readFileSync as readFileSync51 } from "node:fs";
 import { join as join30, resolve as resolve19 } from "node:path";
 function reverifyStaleness(fact, runsBase, checkedAt) {
   const sourceSha = fact.source.sha256 ?? fact.source.ref.sha256;
@@ -101030,7 +101077,7 @@ function reverifyStaleness(fact, runsBase, checkedAt) {
   try {
     const relPath = fact.source.ref.ref.split("#")[0] ?? fact.source.ref.ref;
     const abs = join30(runsBase, runId, relPath);
-    if (!existsSync28(abs)) {
+    if (!existsSync29(abs)) {
       return { status: "stale", checked_at: checkedAt, reason_codes: ["memory_stale"] };
     }
     const currentHash = sha256OfString(readFileSync51(abs, "utf8"));
@@ -101071,13 +101118,13 @@ var init_project_injection = __esm({
 });
 
 // dist/history/run-corpus.js
-import { existsSync as existsSync29, readdirSync as readdirSync4, statSync as statSync3 } from "node:fs";
+import { existsSync as existsSync30, readdirSync as readdirSync4, statSync as statSync3 } from "node:fs";
 import { basename as basename5, join as join31 } from "node:path";
 function isCandidateRunFolder(runFolder) {
-  return existsSync29(join31(runFolder, "manifest.snapshot.json")) || existsSync29(join31(runFolder, "trace.ndjson")) || existsSync29(join31(runFolder, "reports/result.json"));
+  return existsSync30(join31(runFolder, "manifest.snapshot.json")) || existsSync30(join31(runFolder, "trace.ndjson")) || existsSync30(join31(runFolder, "reports/result.json"));
 }
 function listCandidateRunFolders(runsBase) {
-  if (!existsSync29(runsBase)) {
+  if (!existsSync30(runsBase)) {
     throw new HistoryCommandError("runs_base_not_found", `runs base not found: ${runsBase}`, {
       runsBase
     });
@@ -101136,7 +101183,7 @@ var init_run_artifact_io = __esm({
 });
 
 // dist/app/history/run-source-files.js
-import { existsSync as existsSync30, lstatSync as lstatSync5, readdirSync as readdirSync5, realpathSync as realpathSync4 } from "node:fs";
+import { existsSync as existsSync31, lstatSync as lstatSync5, readdirSync as readdirSync5, realpathSync as realpathSync4 } from "node:fs";
 import { isAbsolute as isAbsolute11, relative as relative11, resolve as resolve20 } from "node:path";
 function collectRunSourceFiles(runFolder) {
   const runFolderAbs = resolve20(runFolder);
@@ -101145,7 +101192,7 @@ function collectRunSourceFiles(runFolder) {
     resolve20(runFolderAbs, "manifest.snapshot.json"),
     resolve20(runFolderAbs, "trace.ndjson")
   ]) {
-    if (existsSync30(candidate) && !isSymlink(candidate))
+    if (existsSync31(candidate) && !isSymlink(candidate))
       files.add(candidate);
   }
   const reportsRoot2 = resolve20(runFolderAbs, "reports");
@@ -101166,7 +101213,7 @@ function isInside3(root, target) {
   return fromRoot === "" || !fromRoot.startsWith("..") && !isAbsolute11(fromRoot);
 }
 function walkReportJsonFiles(reportsRoot2) {
-  if (!existsSync30(reportsRoot2))
+  if (!existsSync31(reportsRoot2))
     return [];
   const rootReal = realpathSync4.native(reportsRoot2);
   const out = [];
@@ -101198,7 +101245,7 @@ var init_run_source_files = __esm({
 });
 
 // dist/app/history/extract.js
-import { existsSync as existsSync31, lstatSync as lstatSync6, readFileSync as readFileSync52, readdirSync as readdirSync6, realpathSync as realpathSync5 } from "node:fs";
+import { existsSync as existsSync32, lstatSync as lstatSync6, readFileSync as readFileSync52, readdirSync as readdirSync6, realpathSync as realpathSync5 } from "node:fs";
 import { basename as basename6, isAbsolute as isAbsolute12, relative as relative12, resolve as resolve21 } from "node:path";
 function isObject3(value) {
   return value !== null && typeof value === "object" && !Array.isArray(value);
@@ -101235,7 +101282,7 @@ function isInside4(root, target) {
 }
 function listFiles(root, prefix = "") {
   const absRoot = resolve21(root);
-  if (!existsSync31(absRoot))
+  if (!existsSync32(absRoot))
     return [];
   const rootReal = realpathSync5.native(absRoot);
   const out = [];
@@ -101280,7 +101327,7 @@ function validStepId(value) {
 }
 function parseTrace(runFolder, runFolderName) {
   const tracePath = resolve21(runFolder, "trace.ndjson");
-  if (!existsSync31(tracePath)) {
+  if (!existsSync32(tracePath)) {
     return { entries: [], reportWrites: /* @__PURE__ */ new Map(), traceValidForDocs: false };
   }
   let entries = [];
@@ -101505,7 +101552,7 @@ function resolveRunIdentity(input) {
 function makeRunDocument(input) {
   const sourcePath = input.resultPath ?? "trace.ndjson";
   const sourceAbs = resolve21(input.runFolder, sourcePath);
-  if (!existsSync31(sourceAbs))
+  if (!existsSync32(sourceAbs))
     return void 0;
   const sourceSha = input.resultPath === void 0 ? input.traceSha : sha256File(sourceAbs);
   if (sourceSha === void 0)
@@ -101727,13 +101774,13 @@ function extractRunHistoryDocuments(runFolder) {
   const documents = [];
   const manifestPath2 = resolve21(runFolderAbs, "manifest.snapshot.json");
   const resultPath2 = resolve21(runFolderAbs, "reports/result.json");
-  const manifest = existsSync31(manifestPath2) ? readJsonRecord(manifestPath2) : void 0;
-  const result = existsSync31(resultPath2) ? readJsonRecord(resultPath2) : void 0;
+  const manifest = existsSync32(manifestPath2) ? readJsonRecord(manifestPath2) : void 0;
+  const result = existsSync32(resultPath2) ? readJsonRecord(resultPath2) : void 0;
   const trace = parseTrace(runFolderAbs, runFolderName);
   if (trace.warning !== void 0)
     warnings.push(trace.warning);
   const tracePath = resolve21(runFolderAbs, "trace.ndjson");
-  const traceExists = existsSync31(tracePath);
+  const traceExists = existsSync32(tracePath);
   const traceSha = traceExists ? sha256File(tracePath) : void 0;
   const traceMtime = traceExists ? mtimeMs(tracePath) : void 0;
   const identity2 = resolveRunIdentity({
@@ -101745,7 +101792,7 @@ function extractRunHistoryDocuments(runFolder) {
   const runDocument = makeRunDocument({
     runFolder: runFolderAbs,
     identity: identity2,
-    ...existsSync31(resultPath2) ? { resultPath: "reports/result.json" } : {},
+    ...existsSync32(resultPath2) ? { resultPath: "reports/result.json" } : {},
     result,
     traceEntries: trace.entries,
     traceSha,
@@ -101863,7 +101910,7 @@ var init_extract = __esm({
 });
 
 // dist/app/history/indexer.js
-import { existsSync as existsSync32, mkdirSync as mkdirSync7, readFileSync as readFileSync53, renameSync as renameSync2, writeFileSync as writeFileSync8 } from "node:fs";
+import { existsSync as existsSync33, mkdirSync as mkdirSync7, readFileSync as readFileSync53, renameSync as renameSync2, writeFileSync as writeFileSync8 } from "node:fs";
 import { join as join32, resolve as resolve22 } from "node:path";
 function resolveHistoryPaths(options = {}) {
   const repoRoot = resolve22(options.repoRoot ?? process.cwd());
@@ -101972,7 +102019,7 @@ function rebuildHistoryIndex(options = {}) {
   };
 }
 function readHistoryManifest(paths) {
-  if (!existsSync32(paths.manifestPath) || !existsSync32(paths.documentsPath)) {
+  if (!existsSync33(paths.manifestPath) || !existsSync33(paths.documentsPath)) {
     throw new HistoryCommandError("index_missing", `history index missing: ${paths.indexDir}`, {
       runsBase: paths.runsBase,
       indexDir: paths.indexDir
@@ -102091,11 +102138,11 @@ var init_indexer = __esm({
 });
 
 // dist/app/history/memory-effect-read.js
-import { existsSync as existsSync33, readFileSync as readFileSync54 } from "node:fs";
+import { existsSync as existsSync34, readFileSync as readFileSync54 } from "node:fs";
 import { join as join33 } from "node:path";
 function loadMemoryEffectReport(paths) {
   const effectPath = join33(paths.indexDir, HISTORY_MEMORY_EFFECT_FILE);
-  if (!existsSync33(effectPath)) {
+  if (!existsSync34(effectPath)) {
     return {
       warnings: [
         {
@@ -102220,7 +102267,7 @@ var init_memory_preview = __esm({
 });
 
 // dist/app/history/query.js
-import { existsSync as existsSync34, readFileSync as readFileSync55 } from "node:fs";
+import { existsSync as existsSync35, readFileSync as readFileSync55 } from "node:fs";
 function tokenize(text) {
   return text.toLowerCase().split(/[^a-z0-9]+/).filter((term) => term.length >= 2 && !STOPWORDS.has(term));
 }
@@ -102380,7 +102427,7 @@ function sourceStaleness(doc, checkedAt) {
   }
   try {
     const sourcePath = resolveRunFilePath(doc.run_folder, doc.source_path);
-    if (!existsSync34(sourcePath)) {
+    if (!existsSync35(sourcePath)) {
       return {
         status: "stale",
         reason_codes: ["memory_stale"],
@@ -102861,13 +102908,13 @@ var init_iteration_ledger = __esm({
 });
 
 // dist/shared/operator-summary/json.js
-import { existsSync as existsSync35, readFileSync as readFileSync56 } from "node:fs";
+import { existsSync as existsSync36, readFileSync as readFileSync56 } from "node:fs";
 function isObject4(value) {
   return value !== null && typeof value === "object" && !Array.isArray(value);
 }
 function readJsonIfPresent(runFolder, relPath) {
   const path = resolveRunRelative(runFolder, relPath);
-  if (!existsSync35(path))
+  if (!existsSync36(path))
     return void 0;
   const parsed = JSON.parse(readFileSync56(path, "utf8"));
   return isObject4(parsed) ? parsed : void 0;
@@ -103518,11 +103565,11 @@ var init_operator_summary2 = __esm({
 });
 
 // dist/app/operator-summary/writer.js
-import { existsSync as existsSync36, mkdirSync as mkdirSync8, readFileSync as readFileSync57, rmSync as rmSync7, writeFileSync as writeFileSync9 } from "node:fs";
+import { existsSync as existsSync37, mkdirSync as mkdirSync8, readFileSync as readFileSync57, rmSync as rmSync7, writeFileSync as writeFileSync9 } from "node:fs";
 import { dirname as dirname11, isAbsolute as isAbsolute13, join as join34, relative as relative13, resolve as resolve23 } from "node:path";
 function readPriorRoute(runFolder) {
   const path = join34(runFolder, "reports", "operator-summary.json");
-  if (!existsSync36(path))
+  if (!existsSync37(path))
     return {};
   try {
     const raw = JSON.parse(readFileSync57(path, "utf8"));
@@ -103612,7 +103659,7 @@ function readCheckpointRequest(runFolder, checkpoint) {
   }
   if (!isInsideOrSame4(resolve23(runFolder), requestPath))
     return void 0;
-  if (!existsSync36(requestPath))
+  if (!existsSync37(requestPath))
     return void 0;
   try {
     const parsed = JSON.parse(readFileSync57(requestPath, "utf8"));
@@ -104033,7 +104080,7 @@ function evidenceLinks2(runFolder, report) {
 }
 function readAutoResolutions(runFolder) {
   const tracePath = join34(runFolder, "trace.ndjson");
-  if (!existsSync36(tracePath))
+  if (!existsSync37(tracePath))
     return [];
   const records = [];
   for (const line of readFileSync57(tracePath, "utf8").split(/\r?\n/)) {
@@ -104073,7 +104120,7 @@ function emptySpendTotals() {
 }
 function readRunReceipt(runFolder) {
   const tracePath = join34(runFolder, "trace.ndjson");
-  if (!existsSync36(tracePath))
+  if (!existsSync37(tracePath))
     return void 0;
   let depth;
   let reducedBindings;
@@ -104301,7 +104348,7 @@ function skillHookSourceLabel(source) {
 }
 function readSkillHookSummary(runFolder) {
   const tracePath = join34(runFolder, "trace.ndjson");
-  if (!existsSync36(tracePath))
+  if (!existsSync37(tracePath))
     return { activations: [], warnings: [] };
   const seen = /* @__PURE__ */ new Set();
   const activations = [];
@@ -104356,7 +104403,7 @@ function readSkillHookSummary(runFolder) {
 }
 function readDegradationWarnings(runFolder) {
   const tracePath = join34(runFolder, "trace.ndjson");
-  if (!existsSync36(tracePath))
+  if (!existsSync37(tracePath))
     return [];
   const warnings = [];
   for (const line of readFileSync57(tracePath, "utf8").split(/\r?\n/)) {
@@ -104412,7 +104459,7 @@ function friendlyAbortReason(reason) {
 function readAutoConnectorPicks(runFolder) {
   const tracePath = join34(runFolder, "trace.ndjson");
   const picks = /* @__PURE__ */ new Map();
-  if (!existsSync36(tracePath))
+  if (!existsSync37(tracePath))
     return picks;
   for (const line of readFileSync57(tracePath, "utf8").split(/\r?\n/)) {
     if (line.trim().length === 0)
@@ -104459,7 +104506,7 @@ function skillHookActivationLine(activation) {
 }
 function readEquipmentReshapeSummary(runFolder) {
   const tracePath = join34(runFolder, "trace.ndjson");
-  if (!existsSync36(tracePath))
+  if (!existsSync37(tracePath))
     return { reshapes: [], warnings: [] };
   const seen = /* @__PURE__ */ new Set();
   const reshapes = [];
@@ -104515,7 +104562,7 @@ function equipmentReshapeLine(reshape) {
 }
 function readIterationLedger(runFolder) {
   const tracePath = join34(runFolder, "trace.ndjson");
-  if (!existsSync36(tracePath))
+  if (!existsSync37(tracePath))
     return [];
   const entries = [];
   for (const line of readFileSync57(tracePath, "utf8").split(/\r?\n/)) {
@@ -104724,14 +104771,14 @@ function writeOperatorSummary(input) {
     }
   }
   if (renderedHtml === void 0) {
-    if (existsSync36(candidateHtmlPath))
+    if (existsSync37(candidateHtmlPath))
       rmSync7(candidateHtmlPath, { force: true, recursive: true });
   } else {
     try {
       writeFileSync9(candidateHtmlPath, renderedHtml);
       outHtmlPath = candidateHtmlPath;
     } catch (err) {
-      if (existsSync36(candidateHtmlPath))
+      if (existsSync37(candidateHtmlPath))
         rmSync7(candidateHtmlPath, { force: true, recursive: true });
       htmlEmitWarning = {
         kind: "html_write_failed",
@@ -104888,7 +104935,7 @@ var init_writer = __esm({
 });
 
 // dist/app/process-evidence/projection.js
-import { existsSync as existsSync37, mkdirSync as mkdirSync9, writeFileSync as writeFileSync10 } from "node:fs";
+import { existsSync as existsSync38, mkdirSync as mkdirSync9, writeFileSync as writeFileSync10 } from "node:fs";
 import { dirname as dirname12, join as join35 } from "node:path";
 function traceRef2(runId) {
   return {
@@ -104946,7 +104993,7 @@ function projectClosedProcessEvidence(input) {
     runId: input.runResult.run_id,
     flowId
   });
-  const declaredReportRefs = declaredPaths.filter((path) => existsSync37(join35(input.runFolder, path))).map((path) => reportRef({
+  const declaredReportRefs = declaredPaths.filter((path) => existsSync38(join35(input.runFolder, path))).map((path) => reportRef({
     runFolder: input.runFolder,
     path: join35(input.runFolder, path),
     runId: input.runResult.run_id,
@@ -105823,14 +105870,14 @@ var init_autonomous_run = __esm({
 });
 
 // dist/cli/compiled-flow-loading.js
-import { existsSync as existsSync38, readFileSync as readFileSync58 } from "node:fs";
+import { existsSync as existsSync39, readFileSync as readFileSync58 } from "node:fs";
 import { dirname as dirname14, resolve as resolve24 } from "node:path";
 import { fileURLToPath as fileURLToPath2 } from "node:url";
 function defaultFlowRoot() {
   const cwdRoot = resolve24("generated/flows");
-  if (existsSync38(cwdRoot))
+  if (existsSync39(cwdRoot))
     return cwdRoot;
-  if (existsSync38(packageFlowRoot))
+  if (existsSync39(packageFlowRoot))
     return packageFlowRoot;
   return cwdRoot;
 }
@@ -105840,7 +105887,7 @@ function resolveCompiledFlowPath(flowName, modeName, override, flowRoot2) {
   const root = flowRoot2 !== void 0 ? resolve24(flowRoot2) : defaultFlowRoot();
   if (modeName !== void 0) {
     const perMode = resolve24(root, flowName, `${modeName}.json`);
-    if (existsSync38(perMode))
+    if (existsSync39(perMode))
       return perMode;
   }
   return resolve24(root, flowName, "circuit.json");
@@ -105865,7 +105912,7 @@ function axisSupportFromFlow(input) {
   return axisSupportFromAxes(input.flow.axes);
 }
 function loadCompiledFlow(compiledFlowPath) {
-  if (!existsSync38(compiledFlowPath)) {
+  if (!existsSync39(compiledFlowPath)) {
     throw new Error(`compiled flow not found: ${compiledFlowPath}`);
   }
   const bytes = readFileSync58(compiledFlowPath);
@@ -105897,7 +105944,7 @@ var init_compiled_flow_loading = __esm({
 
 // dist/cli/handoff-codex-hooks.js
 import { createHash as createHash6 } from "node:crypto";
-import { accessSync as accessSync2, copyFileSync, existsSync as existsSync39, constants as fsConstants, mkdirSync as mkdirSync11, readFileSync as readFileSync59, writeFileSync as writeFileSync12 } from "node:fs";
+import { accessSync as accessSync2, copyFileSync, existsSync as existsSync40, constants as fsConstants, mkdirSync as mkdirSync11, readFileSync as readFileSync59, writeFileSync as writeFileSync12 } from "node:fs";
 import { homedir as homedir5 } from "node:os";
 import { dirname as dirname15, join as join37, resolve as resolve25 } from "node:path";
 import { fileURLToPath as fileURLToPath3 } from "node:url";
@@ -105931,7 +105978,7 @@ function resolveHooksFileArg(args) {
 }
 function resolveLauncherArg(args) {
   const launcher = resolve25(args.launcher ?? defaultLauncherPath());
-  if (!existsSync39(launcher)) {
+  if (!existsSync40(launcher)) {
     if (args.launcher === void 0 && (process.env.CIRCUIT_PLUGIN_ROOT ?? "").length === 0) {
       throw new Error(missingDefaultLauncherMessage(launcher));
     }
@@ -105957,7 +106004,7 @@ function defaultHooksConfig() {
   return { hooks: {} };
 }
 function readHooksConfig(path) {
-  if (!existsSync39(path))
+  if (!existsSync40(path))
     return defaultHooksConfig();
   const parsed = JSON.parse(readFileSync59(path, "utf8"));
   if (typeof parsed !== "object" || parsed === null || Array.isArray(parsed)) {
@@ -106087,9 +106134,9 @@ function isExecutableFile(path) {
 function writeHooksConfig(path, config2) {
   mkdirSync11(dirname15(path), { recursive: true });
   let backupPath;
-  if (existsSync39(path)) {
+  if (existsSync40(path)) {
     const candidate = `${path}.circuit-backup`;
-    if (!existsSync39(candidate)) {
+    if (!existsSync40(candidate)) {
       copyFileSync(path, candidate);
       backupPath = candidate;
     }
@@ -106140,7 +106187,7 @@ function installCodexHandoffHook(args) {
 function uninstallCodexHandoffHook(args) {
   parseCodexHooksHost(args);
   const hooksPath = resolveHooksFileArg(args);
-  if (!existsSync39(hooksPath)) {
+  if (!existsSync40(hooksPath)) {
     return {
       api_version: HANDOFF_HOOKS_API_VERSION,
       schema_version: HANDOFF_HOOKS_SCHEMA_VERSION,
@@ -106179,7 +106226,7 @@ function doctorCodexHandoffHook(args) {
   parseCodexHooksHost(args);
   const hooksPath = resolveHooksFileArg(args);
   const checks = [];
-  checks.push({ name: "hooks_file_exists", ok: existsSync39(hooksPath), detail: hooksPath });
+  checks.push({ name: "hooks_file_exists", ok: existsSync40(hooksPath), detail: hooksPath });
   let config2;
   try {
     config2 = readHooksConfig(hooksPath);
@@ -106211,7 +106258,7 @@ function doctorCodexHandoffHook(args) {
       });
       checks.push({
         name: "circuit_handoff_hook_launcher_exists",
-        ok: launchers.length > 0 && launchers.every((launcher) => existsSync39(launcher)),
+        ok: launchers.length > 0 && launchers.every((launcher) => existsSync40(launcher)),
         detail: launchers.length > 0 ? launchers.join(", ") : "launcher not found in hook command"
       });
       checks.push({
@@ -106245,7 +106292,7 @@ function doctorCodexHandoffHook(args) {
   const failed = checks.filter((item) => !item.ok && item.severity !== "warning");
   const installedCheck = checks.find((item) => item.name === "circuit_handoff_hook_installed");
   const structuralFailure = failed.some((item) => item.name === "hooks_file_parseable" || item.name === "session_start_array");
-  const status = !existsSync39(hooksPath) ? "missing" : structuralFailure ? "invalid" : installedCheck?.ok === false ? "missing" : failed.length === 0 ? "ok" : "invalid";
+  const status = !existsSync40(hooksPath) ? "missing" : structuralFailure ? "invalid" : installedCheck?.ok === false ? "missing" : failed.length === 0 ? "ok" : "invalid";
   return {
     api_version: HANDOFF_HOOKS_API_VERSION,
     schema_version: HANDOFF_HOOKS_SCHEMA_VERSION,
@@ -106273,7 +106320,7 @@ function codexReinstallNudgeMarkerPath(controlPlane, staleLauncher) {
   return join37(continuityRoot(controlPlane), `${CODEX_REINSTALL_NUDGE_MARKER}-${digest}`);
 }
 function codexHookInstallState(hooksPath) {
-  if (!existsSync39(hooksPath))
+  if (!existsSync40(hooksPath))
     return { kind: "absent" };
   let config2;
   try {
@@ -106291,7 +106338,7 @@ function codexHookInstallState(hooksPath) {
   if (commands.length === 0)
     return { kind: "absent" };
   const launchers = commands.map(launcherPathFromCircuitHookCommand).filter((launcher) => launcher !== void 0);
-  const missingLauncher = launchers.find((launcher) => !existsSync39(launcher));
+  const missingLauncher = launchers.find((launcher) => !existsSync40(launcher));
   if (launchers.length === 0 || missingLauncher !== void 0) {
     return {
       kind: "stale",
@@ -106324,7 +106371,7 @@ function codexInstallAssurance(input) {
   }
   if (state.kind === "stale") {
     const markerPath2 = codexReinstallNudgeMarkerPath(controlPlane, state.stalePath);
-    if (existsSync39(markerPath2)) {
+    if (existsSync40(markerPath2)) {
       return { status: "already_reinstall_nudged", marker_path: markerPath2 };
     }
     writeNudgeMarker(markerPath2, input.now);
@@ -106335,7 +106382,7 @@ function codexInstallAssurance(input) {
     };
   }
   const markerPath = codexInstallNudgeMarkerPath(controlPlane);
-  if (existsSync39(markerPath))
+  if (existsSync40(markerPath))
     return { status: "already_nudged", marker_path: markerPath };
   writeNudgeMarker(markerPath, input.now);
   return { status: "nudge", notice: CODEX_INSTALL_NUDGE_NOTICE, marker_path: markerPath };
@@ -106895,7 +106942,7 @@ var init_tty_notice = __esm({
 
 // dist/cli/run.js
 import { randomUUID as randomUUID9 } from "node:crypto";
-import { existsSync as existsSync40, mkdirSync as mkdirSync13, readFileSync as readFileSync62, readdirSync as readdirSync7, writeFileSync as writeFileSync14 } from "node:fs";
+import { existsSync as existsSync41, mkdirSync as mkdirSync13, readFileSync as readFileSync62, readdirSync as readdirSync7, writeFileSync as writeFileSync14 } from "node:fs";
 import { dirname as dirname17, join as join44, resolve as resolve27 } from "node:path";
 function publicFlowNameOffer() {
   return catalogFlowIds.filter((id) => !INTERNAL_FLOW_IDS.has(id)).sort().join("|");
@@ -107385,7 +107432,7 @@ async function runResumeCommand(args, options) {
         envelopeOutcome: runEnvelope?.record.outcome
       });
     }
-    process.stderr.write(`${missingRunFolderMessage({ resolved: runFolder, exists: existsSync40(runFolder) })}
+    process.stderr.write(`${missingRunFolderMessage({ resolved: runFolder, exists: existsSync41(runFolder) })}
 `);
     return 2;
   }
@@ -107418,7 +107465,7 @@ function unknownFlowMessage(flowName, flowRoot2) {
   const root = flowRoot2 !== void 0 ? resolve27(flowRoot2) : defaultFlowRoot();
   let available = [];
   try {
-    available = readdirSync7(root, { withFileTypes: true }).filter((entry) => entry.isDirectory() && existsSync40(join44(root, entry.name, "circuit.json"))).map((entry) => entry.name).filter((name) => !INTERNAL_FLOW_IDS.has(name)).sort();
+    available = readdirSync7(root, { withFileTypes: true }).filter((entry) => entry.isDirectory() && existsSync41(join44(root, entry.name, "circuit.json"))).map((entry) => entry.name).filter((name) => !INTERNAL_FLOW_IDS.has(name)).sort();
   } catch {
     available = [];
   }
@@ -107468,7 +107515,7 @@ async function runExecutionCommand(args, options) {
   }
   const fixtureSelectionName = compiledFlowSelectionNameForAxes(axes);
   const fixturePath = resolveCompiledFlowPath(route.flowName, fixtureSelectionName, args.fixturePath, args.flowRoot);
-  if (!existsSync40(fixturePath)) {
+  if (!existsSync41(fixturePath)) {
     if (INTERNAL_FLOW_IDS.has(route.flowName)) {
       process.stderr.write(`error: ${route.flowName} is an internal flow and is not available through the host run surface.
 `);
@@ -109789,7 +109836,7 @@ var generate_exports = {};
 __export(generate_exports, {
   runGenerateCommand: () => runGenerateCommand
 });
-import { existsSync as existsSync41 } from "node:fs";
+import { existsSync as existsSync42 } from "node:fs";
 import { join as join45 } from "node:path";
 function parseArgs2(argv) {
   const program2 = new Command("circuit generate").option("--description <task>").option("--name <slug>").option("--home <path>").option("--created-at <iso>").option("--publish").option("--yes").option("--max-repair <n>").option("--timeout-ms <ms>").option("--progress <format>");
@@ -109941,7 +109988,7 @@ async function runGenerateCommand(argv, options = {}) {
     if (args.name !== void 0) {
       const namedSlug = slugify2(args.name);
       assertValidSlug(namedSlug);
-      if (args.publish && existsSync41(join45(flowRoot(home), namedSlug, "circuit.json"))) {
+      if (args.publish && existsSync42(join45(flowRoot(home), namedSlug, "circuit.json"))) {
         throw new Error(`custom flow already published: ${namedSlug}`);
       }
     }
@@ -109984,7 +110031,7 @@ async function runGenerateCommand(argv, options = {}) {
       return 1;
     }
     const slug = composed.slug;
-    if (args.publish && existsSync41(join45(flowRoot(home), slug, "circuit.json"))) {
+    if (args.publish && existsSync42(join45(flowRoot(home), slug, "circuit.json"))) {
       throw new Error(`custom flow already published: ${slug}`);
     }
     const createdAt = args.createdAt ?? now().toISOString();
@@ -148983,7 +149030,7 @@ init_config_command();
 init_esm();
 init_compile_schematic_to_flow();
 init_compiled_flow_file_plan();
-import { existsSync as existsSync22 } from "node:fs";
+import { existsSync as existsSync23 } from "node:fs";
 import { join as join16 } from "node:path";
 
 // dist/flows/resolvers/archetype.js
@@ -149470,11 +149517,11 @@ async function runCreateCommand(argv, options = {}) {
     const slug = slugify2(args.name ?? args.description);
     assertValidSlug(slug);
     const home = customHome(args.home);
-    if (args.publish && existsSync22(join16(flowRoot(home), slug, "circuit.json"))) {
+    if (args.publish && existsSync23(join16(flowRoot(home), slug, "circuit.json"))) {
       throw new Error(`custom flow already published: ${slug}`);
     }
     const createdAt = args.createdAt ?? now().toISOString();
-    const draftExists = existsSync22(join16(draftRoot(home, slug), "circuit.json"));
+    const draftExists = existsSync23(join16(draftRoot(home, slug), "circuit.json"));
     let files;
     let mainFlow;
     let archetype;
@@ -149956,7 +150003,7 @@ init_generate();
 
 // dist/cli/handoff.js
 init_esm();
-import { existsSync as existsSync42, readFileSync as readFileSync64 } from "node:fs";
+import { existsSync as existsSync43, readFileSync as readFileSync64 } from "node:fs";
 import { resolve as resolve29 } from "node:path";
 init_records();
 init_continuity();
@@ -150202,7 +150249,7 @@ Saved continuity record could not be resumed: ${message}`);
 function resumeContinuity(args) {
   const controlPlane = resolveControlPlaneArg(args);
   const indexAbs = indexPath(controlPlane);
-  if (!existsSync42(indexAbs)) {
+  if (!existsSync43(indexAbs)) {
     const summaryPath3 = operatorSummaryPath(controlPlane);
     writeMarkdown(summaryPath3, "# Circuit Handoff\n\nNo saved continuity found.");
     const result2 = {
@@ -150240,7 +150287,7 @@ function resumeContinuity(args) {
     return { ...result2, result_path: resultPath3 };
   }
   const recordAbs = recordPath(controlPlane, index.pending_record.record_id);
-  if (!existsSync42(recordAbs)) {
+  if (!existsSync43(recordAbs)) {
     return invalidResumeResult(controlPlane, "record_missing", "Continuity index points at a missing record.", index.pending_record.record_id);
   }
   const recordRaw = readJsonSafely(recordAbs);
@@ -150798,7 +150845,7 @@ init_atomic_io();
 init_outcome();
 init_indexer();
 init_memory_identity();
-import { existsSync as existsSync43, readFileSync as readFileSync65 } from "node:fs";
+import { existsSync as existsSync44, readFileSync as readFileSync65 } from "node:fs";
 import { join as join46 } from "node:path";
 var RUN_ENVELOPE_RELATIVE_PATH2 = "reports/run-envelope.json";
 var RECALL_REPORT_RELATIVE_PATH = "reports/history/recall.json";
@@ -150811,7 +150858,7 @@ function deriveAbortReason(envelope) {
 }
 function readRecallInputs(runFolder, warnings) {
   const recallPath = join46(runFolder, RECALL_REPORT_RELATIVE_PATH);
-  if (!existsSync43(recallPath)) {
+  if (!existsSync44(recallPath)) {
     warnings.push({
       code: "recall_report_missing",
       message: "memory was used but no recall report was found; content identity is unavailable",
@@ -150867,7 +150914,7 @@ function resolveInput(memoryInputId, recallInputs, runFolder, warnings) {
 function extractRunMemoryLinkage(runFolder) {
   const warnings = [];
   const envelopePath = join46(runFolder, RUN_ENVELOPE_RELATIVE_PATH2);
-  if (!existsSync43(envelopePath)) {
+  if (!existsSync44(envelopePath)) {
     warnings.push({
       code: "envelope_missing",
       message: "no run.envelope@v0 record (resume or non-source run); skipped from linkage",
@@ -151187,7 +151234,7 @@ init_memory_preview();
 // dist/app/history/pull-log.js
 init_schemas3();
 init_atomic_io();
-import { existsSync as existsSync44, readFileSync as readFileSync66 } from "node:fs";
+import { existsSync as existsSync45, readFileSync as readFileSync66 } from "node:fs";
 import { join as join48 } from "node:path";
 var HISTORY_PULL_LOG_RELATIVE_PATH = "reports/history/pull-log.json";
 function pullLogUnavailable(runFolder, error52) {
@@ -151200,7 +151247,7 @@ function pullLogUnavailable(runFolder, error52) {
 }
 function readPullLog(runFolder) {
   const path = join48(runFolder, HISTORY_PULL_LOG_RELATIVE_PATH);
-  if (!existsSync44(path))
+  if (!existsSync45(path))
     return void 0;
   try {
     return HistoryPullLogV1.parse(JSON.parse(readFileSync66(path, "utf8")));
@@ -151213,7 +151260,7 @@ function appendPullLogEntry(runFolder, input) {
   const warnings = [];
   let existing;
   try {
-    if (existsSync44(outPath)) {
+    if (existsSync45(outPath)) {
       existing = HistoryPullLogV1.parse(JSON.parse(readFileSync66(outPath, "utf8")));
     }
   } catch (error52) {
@@ -151571,7 +151618,7 @@ init_esm();
 init_indexer();
 init_catalog();
 import { createHash as createHash7 } from "node:crypto";
-import { existsSync as existsSync46, readFileSync as readFileSync68 } from "node:fs";
+import { existsSync as existsSync47, readFileSync as readFileSync68 } from "node:fs";
 import { basename as basename8, join as join49 } from "node:path";
 
 // dist/memory/project-identity.js
@@ -151582,7 +151629,7 @@ init_connector_relay();
 init_control_plane_paths();
 init_project_store();
 import { execFileSync as execFileSync5 } from "node:child_process";
-import { existsSync as existsSync45, readFileSync as readFileSync67 } from "node:fs";
+import { existsSync as existsSync46, readFileSync as readFileSync67 } from "node:fs";
 function hashedId(prefix, basis) {
   return `proj-${prefix}-${sha256OfString(basis).slice(0, 16)}`;
 }
@@ -151599,7 +151646,7 @@ function normalizeGitRemoteUrl(url2) {
 }
 function readConfigProjectId(repoRoot) {
   const configPath = projectConfigPath(repoRoot);
-  if (!existsSync45(configPath))
+  if (!existsSync46(configPath))
     return void 0;
   let raw;
   try {
@@ -151748,7 +151795,7 @@ function resolveNoteSource(input) {
   ];
   for (const candidate of candidates) {
     const abs = join49(input.runFolder, candidate.rel);
-    if (!existsSync46(abs))
+    if (!existsSync47(abs))
       continue;
     const sha2564 = sha256Text(readFileSync68(abs, "utf8"));
     const ref = Ref.parse({
@@ -151760,7 +151807,7 @@ function resolveNoteSource(input) {
     return { ref, sha256: sha2564 };
   }
   const tracePath = join49(input.runFolder, "trace.ndjson");
-  if (existsSync46(tracePath)) {
+  if (existsSync47(tracePath)) {
     const runId = basename8(input.runFolder);
     const sha2564 = sha256Text(readFileSync68(tracePath, "utf8"));
     const trace = Ref.safeParse({
@@ -152196,7 +152243,7 @@ init_host();
 init_atomic_io();
 init_commander_support();
 init_run2();
-import { existsSync as existsSync47, readFileSync as readFileSync69 } from "node:fs";
+import { existsSync as existsSync48, readFileSync as readFileSync69 } from "node:fs";
 import { join as join52, resolve as resolve31 } from "node:path";
 var START_LINE = /^\s*<!--\s*circuit:start\s*-->\s*$/;
 var END_LINE = /^\s*<!--\s*circuit:end\s*-->\s*$/;
@@ -152349,7 +152396,7 @@ async function runUninstallCommand(argv, options = {}) {
   let strippedAny = false;
   for (const file2 of UNINSTALL_TARGET_FILES) {
     const path = join52(args.dir, file2);
-    if (!existsSync47(path)) {
+    if (!existsSync48(path)) {
       files.push({ file: file2, path, status: "absent" });
       continue;
     }

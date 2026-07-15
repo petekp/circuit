@@ -41,10 +41,17 @@ import { dirname, join, resolve } from 'node:path';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import { deterministicNow } from '../helpers/runtime-fixtures.js';
 
-import { FixBrief, type FixRegressionContract, FixResult } from '../../src/flows/fix/reports.js';
+import {
+  FixBrief,
+  FixChangeSet,
+  type FixRegressionContract,
+  FixResult,
+  type FixVerificationCommand,
+} from '../../src/flows/fix/reports.js';
 import { executeCompose } from '../../src/runtime/executors/compose.js';
 import type { ExecutorRegistry } from '../../src/runtime/executors/index.js';
 import { runCompiledFlow } from '../../src/runtime/run/compiled-flow-runner.js';
+import { TraceStore } from '../../src/runtime/trace/trace-store.js';
 import type { RelayResult } from '../../src/shared/connector-relay.js';
 import type { RelayFn } from '../../src/shared/relay-runtime-types.js';
 
@@ -134,6 +141,7 @@ function regressionCommandThatChecksFile(repo: string, relPath: string, expected
 interface BarBriefOptions {
   readonly goal: string;
   readonly regression: FixRegressionContract;
+  readonly verificationCommand?: FixVerificationCommand;
 }
 
 function frameOverrideExecutors(options: BarBriefOptions): Pick<ExecutorRegistry, 'compose'> {
@@ -152,7 +160,7 @@ function frameOverrideExecutors(options: BarBriefOptions): Pick<ExecutorRegistry
         scope: 'live false-done bar',
         regression_contract: options.regression,
         success_criteria: [`Verify exits 0 for: ${options.goal}`],
-        verification_command_candidates: [NOOP_VERIFY_COMMAND],
+        verification_command_candidates: [options.verificationCommand ?? NOOP_VERIFY_COMMAND],
       });
       await context.files.writeJson(report, brief);
       await context.trace.append({
@@ -226,6 +234,51 @@ function relayer(repo: string, options: ActMutationOptions): RelayFn {
   };
 }
 
+function relayerWithTwoDeltaActs(repo: string, recordedDeclarations: string[][]): RelayFn {
+  const supportRelayer = relayer(repo, {
+    declaredChangedFiles: ['src/unreachable.ts'],
+    mutate: () => {
+      throw new Error('support relayer must not execute fix-act');
+    },
+  });
+  let actAttempt = 0;
+
+  return {
+    connectorName: 'claude-code',
+    relay: async (input): Promise<RelayResult> => {
+      if (!input.prompt.includes('Step: fix-act')) {
+        return await supportRelayer.relay(input);
+      }
+
+      actAttempt += 1;
+      const declaredChangedFiles =
+        actAttempt === 1 ? ['src/a.ts'] : actAttempt === 2 ? ['src/b.ts'] : undefined;
+      if (declaredChangedFiles === undefined) {
+        throw new Error(`expected exactly two fix-act attempts, got attempt ${actAttempt}`);
+      }
+
+      const changedFile = declaredChangedFiles[0];
+      if (changedFile === undefined) throw new Error('delta act declaration missing');
+      writeRepoFile(repo, changedFile, `export const attempt = ${actAttempt};\n`);
+      recordedDeclarations.push([...declaredChangedFiles]);
+
+      return {
+        request_payload: input.prompt,
+        receipt_id: `live-fix-delta-act-${actAttempt}`,
+        result_body: JSON.stringify({
+          verdict: 'accept',
+          summary: `live delta attempt ${actAttempt}`,
+          diagnosis_ref: 'fix.diagnosis@v1',
+          changed_files: declaredChangedFiles,
+          evidence: [`created ${changedFile}`],
+        }),
+        duration_ms: 1,
+        cli_version: '0.0.0-live',
+      };
+    },
+  };
+}
+
 let runFolderBase: string;
 const repos: string[] = [];
 
@@ -239,6 +292,87 @@ afterEach(() => {
 });
 
 describe('Live False-Done Fix bar', () => {
+  it(
+    'carries accepted act declarations across a verification retry',
+    async () => {
+      const repo = initRepo();
+      repos.push(repo);
+      const runFolder = join(runFolderBase, 'verification-retry-cumulative-change-set');
+      const recordedDeclarations: string[][] = [];
+      const verifySecondDeltaExists: FixVerificationCommand = {
+        id: 'verify-second-delta-exists',
+        cwd: '.',
+        argv: [
+          process.execPath,
+          '-e',
+          `const fs=require('node:fs'); process.exit(fs.existsSync(${JSON.stringify(join(repo, 'src/b.ts'))})?0:1);`,
+        ],
+        timeout_ms: 30_000,
+        max_output_bytes: 200_000,
+        env: {},
+      };
+      const regressionFirstDeltaExists: FixVerificationCommand = {
+        ...verifySecondDeltaExists,
+        id: 'regression-first-delta-exists',
+        argv: [
+          process.execPath,
+          '-e',
+          `const fs=require('node:fs'); process.exit(fs.existsSync(${JSON.stringify(join(repo, 'src/a.ts'))})?0:1);`,
+        ],
+      };
+
+      const outcome = await runCompiledFlow({
+        runDir: runFolder,
+        flowBytes: loadLiteFixture().bytes,
+        runId: 'f1000000-0000-0000-0000-0000000000aa',
+        goal: 'carry cumulative declarations across verification rework',
+        depth: 'low',
+        now: deterministicNow(Date.UTC(2026, 4, 10, 12, 0, 0)),
+        relayer: relayerWithTwoDeltaActs(repo, recordedDeclarations),
+        executors: frameOverrideExecutors({
+          goal: 'carry cumulative declarations across verification rework',
+          regression: {
+            expected_behavior: 'both accepted deltas remain in the final fix',
+            actual_behavior: 'a retry can replace the first declaration with the second delta',
+            repro: { kind: 'command', command: regressionFirstDeltaExists },
+            regression_test: {
+              status: 'failing-before-fix',
+              command: regressionFirstDeltaExists,
+            },
+          },
+          verificationCommand: verifySecondDeltaExists,
+        }),
+        projectRoot: repo,
+      });
+
+      if (outcome.outcome !== 'complete') {
+        throw new Error(
+          `expected complete, got ${outcome.outcome}: ${outcome.reason ?? '<no reason>'}`,
+        );
+      }
+      expect(recordedDeclarations).toEqual([['src/a.ts'], ['src/b.ts']]);
+
+      const changeSet = FixChangeSet.parse(
+        JSON.parse(readFileSync(join(runFolder, 'reports/fix/change-set.json'), 'utf8')),
+      );
+      expect(changeSet.status).toBe('pass');
+      expect(changeSet.declared).toEqual(['src/a.ts', 'src/b.ts']);
+      expect(changeSet.observed).toEqual(['src/a.ts', 'src/b.ts']);
+      expect(changeSet.undeclared_extras).toEqual([]);
+      expect(changeSet.missing_declared).toEqual([]);
+
+      const trace = await new TraceStore(runFolder).load();
+      const verificationChecks = trace.filter(
+        (entry): entry is Extract<(typeof trace)[number], { kind: 'check.evaluated' }> =>
+          entry.kind === 'check.evaluated' &&
+          entry.step_id === 'fix-verify' &&
+          entry.check_kind === 'schema_sections',
+      );
+      expect(verificationChecks.map((entry) => entry.outcome)).toEqual(['fail', 'pass']);
+    },
+    LIVE_FALSE_DONE_TIMEOUT_MS,
+  );
+
   it(
     "denies 'fixed' when fix-act mutates a baseline-dirty file but omits it from changed_files",
     async () => {
