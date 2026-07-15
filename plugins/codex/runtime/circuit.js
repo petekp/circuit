@@ -94903,11 +94903,9 @@ function evaluateRelayCheck(step, resultBody) {
     };
   }
   if (!step.check.pass.includes(verdictRaw)) {
-    return {
-      kind: "fail",
-      reason: `relay step '${step.id}': connector declared verdict '${verdictRaw}' which is not in check.pass [${step.check.pass.join(", ")}]`,
-      observedVerdict: verdictRaw
-    };
+    const passList = step.check.pass.join(", ");
+    const reason = reworkVerdicts(step).includes(verdictRaw) ? `relay step '${step.id}': the ${step.role} rejected the work (verdict '${verdictRaw}'); verdicts that pass this step: ${passList}` : `relay step '${step.id}': connector declared verdict '${verdictRaw}' which is not in check.pass [${passList}]`;
+    return { kind: "fail", reason, observedVerdict: verdictRaw };
   }
   return { kind: "pass", verdict: verdictRaw };
 }

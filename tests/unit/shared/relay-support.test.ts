@@ -7,6 +7,7 @@ import { HISTORY_AUTHORITY_NOTICE, MemoryInputV0 } from '../../../src/index.js';
 import {
   composeInjectedFanoutBranchPrompt,
   composeRelayPrompt,
+  evaluateRelayCheck,
 } from '../../../src/runtime/run/relay-support.js';
 
 let runFolder: string;
@@ -757,5 +758,80 @@ describe('composeRelayPrompt', () => {
     expect(reviewerPrompt).toContain('Role: reviewer — you are an independent auditor');
     expect(reviewerPrompt).toContain('successful review');
     expect(researcherPrompt).toContain('Role: researcher — you investigate and report');
+  });
+});
+
+// A non-passing verdict comes in two distinct kinds, and the failure reason
+// must not conflate them. When the step's report schema declares the verdict
+// (fix.review@v1 declares 'reject'), a non-passing verdict is a JUDGMENT — the
+// reviewer looked at the work and said no — and the reason must read that way.
+// Field runs surfaced plain review rejections aborting with "connector
+// declared verdict 'reject' which is not in check.pass [...]", which operators
+// read as a plumbing failure, not a review outcome. Only a verdict the schema
+// does not declare is a genuine protocol violation.
+describe('evaluateRelayCheck — non-passing verdict legibility', () => {
+  function reviewStep(overrides?: {
+    schema?: string | undefined;
+  }): Parameters<typeof evaluateRelayCheck>[0] {
+    return {
+      id: 'fix-review',
+      title: 'Review the fix',
+      role: 'reviewer',
+      reads: [],
+      writes: {
+        request: { path: 'reports/relay/review.request.json' },
+        receipt: { path: 'reports/relay/review.receipt.txt' },
+        result: { path: 'reports/relay/review.result.json' },
+        ...(overrides !== undefined && overrides.schema === undefined
+          ? {}
+          : {
+              report: {
+                path: 'reports/fix/review.json',
+                schema: overrides?.schema ?? 'fix.review@v1',
+              },
+            }),
+      },
+      check: { kind: 'result_verdict', pass: ['accept', 'accept-with-fixes'] },
+    } as unknown as Parameters<typeof evaluateRelayCheck>[0];
+  }
+
+  it('phrases a schema-declared rejection as the judgment it is, not a protocol violation', () => {
+    const result = evaluateRelayCheck(
+      reviewStep(),
+      JSON.stringify({ verdict: 'reject', findings: [{ summary: 'off-by-one persists' }] }),
+    );
+    expect(result.kind).toBe('fail');
+    if (result.kind !== 'fail') return;
+    // The operator-facing sentence: who judged, what they said, what passes.
+    expect(result.reason).toBe(
+      "relay step 'fix-review': the reviewer rejected the work (verdict 'reject'); verdicts that pass this step: accept, accept-with-fixes",
+    );
+    // No plumbing vocabulary on the judged path.
+    expect(result.reason).not.toContain('check.pass');
+    expect(result.reason).not.toContain('connector declared');
+    // Downstream consumers (relay.completed, retry accounting) still get the
+    // observed verdict.
+    expect(result.observedVerdict).toBe('reject');
+  });
+
+  it('keeps the protocol-violation phrasing for a verdict the schema does not declare', () => {
+    const result = evaluateRelayCheck(reviewStep(), JSON.stringify({ verdict: 'banana' }));
+    expect(result.kind).toBe('fail');
+    if (result.kind !== 'fail') return;
+    expect(result.reason).toContain("connector declared verdict 'banana'");
+    expect(result.reason).toContain('not in check.pass [accept, accept-with-fixes]');
+    expect(result.observedVerdict).toBe('banana');
+  });
+
+  it('keeps the protocol-violation phrasing when the step writes no typed report', () => {
+    // No schema → no declared verdict set → nothing marks 'reject' as a
+    // handled judgment; the conservative protocol phrasing stands.
+    const result = evaluateRelayCheck(
+      reviewStep({ schema: undefined }),
+      JSON.stringify({ verdict: 'reject' }),
+    );
+    expect(result.kind).toBe('fail');
+    if (result.kind !== 'fail') return;
+    expect(result.reason).toContain('not in check.pass [accept, accept-with-fixes]');
   });
 });

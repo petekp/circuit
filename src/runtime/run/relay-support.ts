@@ -59,11 +59,15 @@ export function evaluateRelayCheck(step: RelayStep, resultBody: string): CheckEv
     };
   }
   if (!step.check.pass.includes(verdictRaw)) {
-    return {
-      kind: 'fail',
-      reason: `relay step '${step.id}': connector declared verdict '${verdictRaw}' which is not in check.pass [${step.check.pass.join(', ')}]`,
-      observedVerdict: verdictRaw,
-    };
+    // Two distinct failures share this branch. A verdict the report schema
+    // declares (a reviewer's 'reject') is a JUDGMENT on the work — phrase it
+    // as one, or the operator reads a review outcome as a plumbing failure.
+    // Only a verdict outside the schema is a genuine protocol violation.
+    const passList = step.check.pass.join(', ');
+    const reason = reworkVerdicts(step).includes(verdictRaw)
+      ? `relay step '${step.id}': the ${step.role} rejected the work (verdict '${verdictRaw}'); verdicts that pass this step: ${passList}`
+      : `relay step '${step.id}': connector declared verdict '${verdictRaw}' which is not in check.pass [${passList}]`;
+    return { kind: 'fail', reason, observedVerdict: verdictRaw };
   }
   return { kind: 'pass', verdict: verdictRaw };
 }
