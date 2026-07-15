@@ -51,10 +51,22 @@ already has it:
   an exact resume command, designed for a host to re-ask in its own UI.
 
 So the gap is not emission. It is that nothing teaches a host to get out of
-the blocking call and watch the stream. Two smaller gaps compound it: the
-generated Claude run command never requests `--progress jsonl` (the Codex
-one does), and hosts that do see the stream tend to append their own
-summaries instead of relaying Circuit's text (spike finding).
+the blocking call and watch the stream with the model in the loop.
+
+A correction to this document's first version of that claim: the Claude
+surface is not missing the flag by accident. The Claude plugin deliberately
+wraps runs in `present` mode (`plugins/claude/scripts/circuit.ts`, rendering
+rules in `docs/contracts/host-rendering.md`): the wrapper itself passes
+`--progress jsonl`, parses the stderr events, and streams `⎿ status_text`
+blocks into the foreground shell output, which the operator watches live in
+the terminal. The operator-visible feed exists on Claude today. What the
+foreground call cannot give is the model: it cannot narrate
+conversationally, cannot map `user_input.requested` to the host's question
+UI mid-run, and cannot do anything else while the run holds its turn. Codex
+has no present wrapper; its command doc asks the agent to parse the events
+and render the blocks itself, which is where the observed improvised-voice
+narration came from (agents add their own lines inside the blocks unless
+forbidden).
 
 ## The design: a delivery pattern, not a new surface
 
@@ -135,15 +147,20 @@ without the engine owning a second source of truth.
 ## Sequencing
 
 1. **Done: this design.** Docs only.
-2. **Launch scope (first-run experience work): the delivery slice.** Update
-   `src/commands/run.md` and the flow command sources so both generated
-   host surfaces request `--progress jsonl`, teach the per-host
-   background-and-watch pattern, and carry the no-summary and
-   push-immediately rules. Fix the Claude/Codex asymmetry (Claude's
-   generated command currently never requests the flag). Prove it in the
-   container first-run lab with a live run on each host. Failing check
-   first: extend the host-adapter conformance checks that already assert
-   command files request `--progress jsonl` so both hosts are covered.
+2. **Launch scope (first-run experience work): the delivery slice.** Two
+   host-specific halves. Codex: tighten the progress instruction in
+   `src/commands/run.md` (which the Codex mirror keeps) to carry the
+   verbatim rule, the voice-attribution rule, the push-immediately rule,
+   and the background-and-poll pattern for long runs. Claude: keep the
+   present wrapper as the foreground default (it is test-locked and
+   already gives the operator a live feed); strengthen the generated
+   instruction so the model handles checkpoint parks by re-asking through
+   its question UI and never adds its own lines to a Circuit-labeled
+   block. Prove in the container first-run lab. The bigger Claude fork,
+   switching long runs to background-plus-monitor so the model can
+   narrate conversationally per the spike evidence, is a UX decision for
+   the operator, not a doc slice; it is recorded as an open question
+   below.
 3. **Post-v1: anomaly events.** Relay running far past typical duration,
    verification `timed_out`, recovery routed. These are new event types in
    the v1 family or arrivals in ProgressEventV2, whichever ships first.
@@ -182,6 +199,12 @@ without the engine owning a second source of truth.
 
 ## Open questions
 
+- The Claude foreground fork, for the operator: keep `present` (a live
+  terminal feed, model out of the loop until the call returns) or move
+  long runs to background-plus-monitor (conversational narration and live
+  question relay, no streaming terminal blocks). The spike proved the
+  second works; the first is shipped and test-locked. They can also
+  coexist by run length, at the cost of two code paths to teach.
 - Should milestone text vary per host profile, or is one plain-English
   rendering enough? Start with one; profiles only if a real host needs it.
 - When the rebuild's ProgressEventV2 lands, does the v1 stream bridge or
