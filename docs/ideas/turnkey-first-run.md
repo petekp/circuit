@@ -412,3 +412,16 @@ bind as design constraints.
     the candidate); degradation walls should distinguish skipping a
     default from skipping an explicit user preference, which deserves a
     louder notice.
+
+### Feasibility spikes, same day
+
+Every host-behavior assumption above was then tested live on both
+hosts. All passed: first-contact injection, verbatim relay of the
+who-does-what block, milestone-file narration, and conversational
+config with honest scope. The evidence, the per-host mechanics, and
+the two cheap fixes the spikes surfaced (a no-summary sentence in the
+relay hints; the effort follow-up must be asked for explicitly or
+dropped in favor of default-and-state) live in
+[`docs/learnings/first-run-feasibility-spikes.md`](../learnings/first-run-feasibility-spikes.md).
+The remaining build dependency for scene 4 is confirmed to be only the
+milestone stream ([`run-milestone-stream.md`](run-milestone-stream.md)).
