@@ -1,6 +1,6 @@
 {
   "name": "@petepetrash/circuit",
-  "version": "0.1.0",
+  "version": "0.1.1",
   "license": "MIT",
   "type": "module",
   "description": "Workflow engine that runs structured developer flows from a plain CLI, with per-step configurability, evidence, checks, traces, and reports. Claude Code and Codex plugins are the bridge that teaches a host agent to drive it.",
