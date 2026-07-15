@@ -16,27 +16,28 @@ export const RUNTIME_BUNDLE_OUTPUT_PATHS = [
   'plugins/codex/runtime/circuit.js',
 ];
 
-// The bundled CLI resolves git-state.ts via `new URL('./git-state.ts',
-// import.meta.url)` from src/shared/git-state-command.ts, so the helper must
-// live next to circuit.js in every plugin runtime directory. tsc -p
-// tsconfig.build.json does not copy .ts assets, so we also mirror the helper
-// into dist/shared/ so source-tree CLI runs (used by npm test and by
-// `node dist/cli/circuit.js`) find it.
-export const RUNTIME_BUNDLE_ASSET_SIDECARS: Array<{ src: string; outs: readonly string[] }> = [
+// The bundled CLI spawns the git-state helper as a compiled .js child
+// process resolved next to itself (see src/shared/git-state-command.ts: an
+// npm install puts the package under node_modules, where Node refuses to
+// type-strip .ts files, so the spawned helper must be .js everywhere). tsc
+// already emits dist/shared/git-state.js for source-tree and npm-package
+// runs; this script compiles the same source into a self-contained
+// git-state.js sidecar next to circuit.js in every plugin runtime directory,
+// and --check mode fails if a sidecar is missing or drifts from src/.
+export const RUNTIME_BUNDLE_COMPILED_SIDECARS: Array<{ src: string; outs: readonly string[] }> = [
   {
     src: 'src/shared/git-state.ts',
-    outs: [
-      'plugins/claude/runtime/git-state.ts',
-      'plugins/codex/runtime/git-state.ts',
-      'dist/shared/git-state.ts',
-    ],
+    outs: ['plugins/claude/runtime/git-state.js', 'plugins/codex/runtime/git-state.js'],
   },
-  // The host wrappers (plugins/{claude,codex}/scripts/circuit.ts) import the
-  // shared launcher core relatively at runtime, the same way the Claude wrapper
-  // imports ./auto-open-policy.ts. plugins/shared/launcher-core.ts is the single
-  // source; mirror it next to each wrapper so the relative import resolves. The
-  // wrappers run from scripts/ (not dist/), so no dist/ out is needed; both
-  // committed copies are drift-checked.
+];
+
+// The host wrappers (plugins/{claude,codex}/scripts/circuit.ts) import the
+// shared launcher core relatively at runtime, the same way the Claude wrapper
+// imports ./auto-open-policy.ts. plugins/shared/launcher-core.ts is the single
+// source; mirror it next to each wrapper so the relative import resolves. The
+// wrappers run from scripts/ (not dist/), so no dist/ out is needed; both
+// committed copies are drift-checked.
+export const RUNTIME_BUNDLE_ASSET_SIDECARS: Array<{ src: string; outs: readonly string[] }> = [
   {
     src: 'plugins/shared/launcher-core.ts',
     outs: ['plugins/claude/scripts/launcher-core.ts', 'plugins/codex/scripts/launcher-core.ts'],
@@ -85,6 +86,30 @@ async function buildRuntimeBundle(): Promise<string> {
       define: {
         'process.env.CIRCUIT_VERSION': JSON.stringify(readVersion()),
       },
+    });
+    return normalizeRuntimeBundle(readFileSync(tempFile, 'utf8'));
+  } finally {
+    rmSync(tempDir, { recursive: true, force: true });
+  }
+}
+
+// Compile one sidecar source into a self-contained ESM .js file. git-state.ts
+// only uses node builtins, so bundling is a plain type-strip plus wrapper,
+// but bundle mode keeps the output self-contained if the helper ever gains
+// an import.
+async function buildCompiledSidecar(srcRel: string): Promise<string> {
+  const tempDir = mkdtempSync(join(tmpdir(), 'circuit-plugin-sidecar-'));
+  const tempFile = resolve(tempDir, 'sidecar.js');
+  try {
+    await build({
+      entryPoints: [resolve(repoRoot, srcRel)],
+      outfile: tempFile,
+      bundle: true,
+      platform: 'node',
+      format: 'esm',
+      target: 'node22',
+      sourcemap: false,
+      minify: false,
     });
     return normalizeRuntimeBundle(readFileSync(tempFile, 'utf8'));
   } finally {
@@ -143,16 +168,37 @@ async function main(): Promise<void> {
     }
   }
 
+  for (const sidecar of RUNTIME_BUNDLE_COMPILED_SIDECARS) {
+    const compiledBody = await buildCompiledSidecar(sidecar.src);
+    for (const rel of sidecar.outs) {
+      const outAbs = resolve(repoRoot, rel);
+      if (checkMode) {
+        let current: string | undefined;
+        try {
+          current = readFileSync(outAbs, 'utf8');
+        } catch {
+          current = undefined;
+        }
+        if (current === compiledBody) {
+          console.log(`✓ ${rel} is in sync with ${sidecar.src}`);
+        } else {
+          console.error(`✗ ${rel} drifted from ${sidecar.src}; run npm run build-plugin-runtime`);
+          drifted = true;
+        }
+      } else {
+        mkdirSync(dirname(outAbs), { recursive: true });
+        writeFileSync(outAbs, compiledBody);
+        console.log(`emitted ${rel}`);
+      }
+    }
+  }
+
   for (const sidecar of RUNTIME_BUNDLE_ASSET_SIDECARS) {
     const srcAbs = resolve(repoRoot, sidecar.src);
     const sourceBody = readFileSync(srcAbs, 'utf8');
     for (const rel of sidecar.outs) {
       const outAbs = resolve(repoRoot, rel);
-      // dist/* targets are gitignored local-build artifacts that tsc does not
-      // emit, so they need to be brought into being in --check mode too;
-      // committed targets under plugins/* still go through the drift check.
-      const emitOnly = rel.startsWith('dist/');
-      if (checkMode && !emitOnly) {
+      if (checkMode) {
         let current: string | undefined;
         try {
           current = readFileSync(outAbs, 'utf8');

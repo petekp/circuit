@@ -188,8 +188,10 @@ describe('fixChangeSetWriter.loadCommands', () => {
     if (command === undefined) throw new Error('expected one command');
     // argv[0] is the runtime's node binary (process.execPath); argv[1] is
     // the helper script path. We don't pin the binary, but we do pin the
-    // helper script name.
-    expect(command.argv[1]).toMatch(/git-state\.ts$/);
+    // helper script name. Compiled layouts spawn git-state.js; the source
+    // tree these tests run from falls back to git-state.ts (see
+    // tests/unit/git-state-helper-path.test.ts for the resolution rule).
+    expect(command.argv[1]).toMatch(/git-state\.(js|ts)$/);
     expect(command.cwd).toBe('.');
   });
 

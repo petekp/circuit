@@ -10,20 +10,38 @@
 // empty), and TypeScript's structural typing makes the flow-side assignments
 // safe without the import.
 
+import { existsSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import { RuntimeGitStateSnapshot } from '../schemas/runtime-evidence.js';
 
 const GIT_TIMEOUT_MS = 60_000;
 const GIT_MAX_OUTPUT_BYTES = 5_000_000;
 
-// Marketplace-safe by build-pipeline emission: git-state.ts runs as a child
-// process, so it has to live as a real file on disk next to this module.
-// scripts/plugins/runtime-bundle.ts emits the helper as a sidecar to every
-// bundle target (plugins/<host>/runtime/git-state.ts next to the bundled CLI,
-// dist/shared/git-state.ts for source-tree CLI runs) and --check mode fails
-// if any sidecar is missing or drifts from src/. Sibling-of-module resolution
-// is correct in every layout because the build pipeline puts a sibling there.
-const GIT_STATE_HELPER_PATH = fileURLToPath(new URL('./git-state.ts', import.meta.url));
+// The git-state helper runs as a child process, so it has to live as a real
+// file on disk next to this module, and it must be spawned in its compiled
+// .js form: an npm install puts dist/ under node_modules, and Node refuses
+// to type-strip .ts files there (ERR_UNSUPPORTED_NODE_MODULES_TYPE_STRIPPING).
+// Resolution happens lazily at loadCommands time, not import time, so flows
+// that never capture git state are unaffected by a missing helper.
+//
+// Marketplace-safe by build-pipeline emission: tsc emits dist/shared/
+// git-state.js next to this module's dist twin, and runtime-bundle.ts emits
+// a compiled git-state.js sidecar next to each plugin runtime bundle (with
+// --check drift enforcement), so every compiled layout has the .js sibling.
+// Marketplace-safe by source-tree fallback: only source-tree runs (vitest or
+// tsx executing src/ directly) lack a .js sibling and fall back to the .ts
+// source, which Node can type-strip because a checkout is not under
+// node_modules.
+export function resolveGitStateHelperPath(moduleUrl: string = import.meta.url): string {
+  const compiled = fileURLToPath(new URL('./git-state.js', moduleUrl));
+  if (existsSync(compiled)) return compiled;
+  const source = fileURLToPath(new URL('./git-state.ts', moduleUrl));
+  if (existsSync(source)) return source;
+  throw new Error(
+    `git-state helper is missing next to ${fileURLToPath(moduleUrl)}: ` +
+      `expected ${compiled} (compiled layouts) or ${source} (source tree)`,
+  );
+}
 
 // Structural twin of the flow-layer VerificationCommand (see header).
 export type GitStateVerificationCommand = {
@@ -54,7 +72,7 @@ export function gitStateCommand(id: string): GitStateVerificationCommand {
   return {
     id,
     cwd: '.',
-    argv: [process.execPath, GIT_STATE_HELPER_PATH],
+    argv: [process.execPath, resolveGitStateHelperPath()],
     timeout_ms: GIT_TIMEOUT_MS,
     max_output_bytes: GIT_MAX_OUTPUT_BYTES,
     env: {},

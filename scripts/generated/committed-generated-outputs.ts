@@ -19,15 +19,19 @@
 import { classifyAll } from '../docs/doc-classes.ts';
 import {
   RUNTIME_BUNDLE_ASSET_SIDECARS,
+  RUNTIME_BUNDLE_COMPILED_SIDECARS,
   RUNTIME_BUNDLE_OUTPUT_PATHS,
 } from '../plugins/runtime-bundle.ts';
 
 // Generated code artifacts the runtime-bundle generator commits next to each
 // host: the esbuild bundle plus the git-state and launcher-core sidecars.
-// dist/* sidecar targets are gitignored local-build artifacts, not committed,
-// so they are excluded.
+// dist/* sidecar targets, if a generator ever grows one, are gitignored
+// local-build artifacts, not committed, so they are excluded.
 export function committedRuntimeBundleOutputs(): string[] {
-  const sidecarOuts = RUNTIME_BUNDLE_ASSET_SIDECARS.flatMap((sidecar) => sidecar.outs);
+  const sidecarOuts = [
+    ...RUNTIME_BUNDLE_COMPILED_SIDECARS,
+    ...RUNTIME_BUNDLE_ASSET_SIDECARS,
+  ].flatMap((sidecar) => sidecar.outs);
   return [...RUNTIME_BUNDLE_OUTPUT_PATHS, ...sidecarOuts]
     .filter((rel) => !rel.startsWith('dist/'))
     .sort();

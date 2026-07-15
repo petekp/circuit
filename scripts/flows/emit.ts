@@ -282,7 +282,7 @@ function renderSurfaceInventory(): string {
       'no',
       '`plugins/claude/runtime/circuit.js`<br>`plugins/codex/runtime/circuit.js`',
       '`npm run check-plugin-runtime` (runs under `npm run check-flow-drift`)',
-      'esbuild bundle of the whole CLI engine that each host loads at runtime, plus the `runtime/git-state.ts` and `scripts/launcher-core.ts` sidecars. Editing any engine source under `src/` restales this bundle even when `node scripts/flows/emit.ts --check` reports clean; `npm run emit-flows` rebuilds it.',
+      'esbuild bundle of the whole CLI engine that each host loads at runtime, plus the compiled `runtime/git-state.js` and copied `scripts/launcher-core.ts` sidecars. Editing any engine source under `src/` restales this bundle even when `node scripts/flows/emit.ts --check` reports clean; `npm run emit-flows` rebuilds it.',
     ],
     [
       'Command ownership note',

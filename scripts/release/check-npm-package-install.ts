@@ -21,8 +21,10 @@ import {
   mkdtempSync,
   readFileSync,
   readdirSync,
+  renameSync,
   rmSync,
   symlinkSync,
+  writeFileSync,
 } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { dirname, join, resolve } from 'node:path';
@@ -83,7 +85,18 @@ export function checkNpmPackageInstall(repoRoot: string): PackageInstallCheckRes
       return { ok: false, detail: `tar extraction failed: ${tar.stderr.trim()}` };
     }
 
-    const packageDir = join(extractDir, 'package');
+    // Place the package under a node_modules directory the way a real
+    // `npm install -g` does (<prefix>/lib/node_modules/<name>). Node treats
+    // files under node_modules specially (for example, it refuses to
+    // type-strip .ts files there), so probing from a bare extract dir would
+    // miss failures that only appear in the installed layout.
+    const extractedDir = join(extractDir, 'package');
+    const packageName = (
+      JSON.parse(readFileSync(join(extractedDir, 'package.json'), 'utf8')) as { name: string }
+    ).name;
+    const packageDir = join(workDir, 'install', 'node_modules', ...packageName.split('/'));
+    mkdirSync(dirname(packageDir), { recursive: true });
+    renameSync(extractedDir, packageDir);
     symlinkSync(resolve(repoRoot, 'node_modules'), join(packageDir, 'node_modules'), 'dir');
 
     const launcher = join(packageDir, 'bin/circuit');
@@ -168,9 +181,94 @@ export function checkNpmPackageInstall(repoRoot: string): PackageInstallCheckRes
       };
     }
 
+    // Prove the packed install can actually run the git-state helper that
+    // fix/build spawn for their baseline snapshots. The helper runs as a
+    // child process resolved next to the compiled module, and only the
+    // node_modules layout above reveals resolution bugs like spawning a .ts
+    // file Node refuses to type-strip under node_modules. The probe imports
+    // gitStateCommand from the packed dist and spawns its argv exactly the
+    // way the verification runtime does.
+    const probeRepo = join(workDir, 'git-state-probe-repo');
+    mkdirSync(probeRepo, { recursive: true });
+    const gitInit = spawnSync('git', ['init', '--quiet'], { cwd: probeRepo, encoding: 'utf8' });
+    if (gitInit.status !== 0) {
+      return {
+        ok: false,
+        detail: `git init failed for the git-state probe: ${gitInit.stderr.trim()}`,
+      };
+    }
+    const gitCommit = spawnSync(
+      'git',
+      [
+        '-c',
+        'user.email=probe@circuit.invalid',
+        '-c',
+        'user.name=circuit-probe',
+        'commit',
+        '--allow-empty',
+        '-m',
+        'probe',
+      ],
+      { cwd: probeRepo, encoding: 'utf8' },
+    );
+    if (gitCommit.status !== 0) {
+      return {
+        ok: false,
+        detail: `git commit failed for the git-state probe: ${gitCommit.stderr.trim()}`,
+      };
+    }
+    const commandModuleUrl = pathToFileURL(join(packageDir, 'dist/shared/git-state-command.js'));
+    const probeScript = join(workDir, 'git-state-probe.mjs');
+    writeFileSync(
+      probeScript,
+      [
+        "import { spawnSync } from 'node:child_process';",
+        `const { gitStateCommand } = await import(${JSON.stringify(commandModuleUrl.href)});`,
+        "const command = gitStateCommand('npm-install-probe');",
+        'const helper = spawnSync(command.argv[0], command.argv.slice(1), {',
+        '  cwd: process.cwd(),',
+        "  encoding: 'utf8',",
+        '});',
+        'if (helper.status !== 0) {',
+        "  process.stderr.write(helper.stderr ?? String(helper.error ?? 'spawn failed'));",
+        '  process.exit(1);',
+        '}',
+        'process.stdout.write(helper.stdout);',
+        '',
+      ].join('\n'),
+    );
+    const gitState = spawnSync(process.execPath, [probeScript], {
+      cwd: probeRepo,
+      env,
+      encoding: 'utf8',
+    });
+    if (gitState.status !== 0) {
+      return {
+        ok: false,
+        detail: `git-state helper failed from packed install: ${
+          gitState.stderr.trim() || gitState.stdout.trim()
+        }`,
+      };
+    }
+    let snapshot: { head_sha?: unknown };
+    try {
+      snapshot = JSON.parse(gitState.stdout) as { head_sha?: unknown };
+    } catch {
+      return {
+        ok: false,
+        detail: `git-state helper stdout from packed install was not JSON: ${gitState.stdout.trim()}`,
+      };
+    }
+    if (typeof snapshot.head_sha !== 'string' || !/^[0-9a-f]{40}$/.test(snapshot.head_sha)) {
+      return {
+        ok: false,
+        detail: `git-state helper snapshot is missing a valid head_sha: ${gitState.stdout.trim()}`,
+      };
+    }
+
     return {
       ok: true,
-      detail: `packed install ok: version ${expectedVersion}, preview rendered, bundled flow loads from an unrelated cwd`,
+      detail: `packed install ok: version ${expectedVersion}, preview rendered, bundled flow loads from an unrelated cwd, git-state helper runs`,
     };
   } finally {
     rmSync(workDir, { recursive: true, force: true });
