@@ -59,12 +59,16 @@ function writeJson(runFolder: string, relPath: string, body: unknown): void {
 function makeFixture(options: {
   baseline: FixBaselineSnapshot;
   change: FixChange;
+  priorChangeSet?: FixChangeSet;
   runFolder?: string;
   projectRoot?: string;
 }): { runFolder: string; context: VerificationBuildContext } {
   const runFolder = options.runFolder ?? tempRunFolder();
   writeJson(runFolder, 'reports/fix/baseline-snapshot.json', options.baseline);
   writeJson(runFolder, 'reports/fix/change.json', options.change);
+  if (options.priorChangeSet !== undefined) {
+    writeJson(runFolder, 'reports/fix/change-set.json', options.priorChangeSet);
+  }
   // Minimal CompiledFlow stub: only the `steps` lookup that
   // reportPathForSchemaInRuntimeFlow uses needs to resolve.
   const flow = {
@@ -214,6 +218,190 @@ describe('fixChangeSetWriter.loadCommands', () => {
 });
 
 describe('fixChangeSetWriter.buildResult', () => {
+  it('carries forward still-observed declarations from a prior accepted act attempt', () => {
+    const { context } = makeFixture({
+      baseline: {
+        overall_status: 'passed',
+        head_sha: HEAD_BEFORE,
+        entries: [],
+        hidden_index_flags: [],
+      },
+      change: {
+        verdict: 'accept',
+        summary: 'review rework changed one file',
+        diagnosis_ref: 'fix.review@v1',
+        changed_files: ['src/rework.ts'],
+        evidence: ['review finding fixed'],
+      },
+      priorChangeSet: {
+        status: 'pass',
+        overall_status: 'passed',
+        baseline_head_sha: HEAD_BEFORE,
+        head_sha: HEAD_BEFORE,
+        declared: ['src/first-pass.ts'],
+        observed: ['src/first-pass.ts'],
+        undeclared_extras: [],
+        missing_declared: [],
+        baseline_dirty_mutated: [],
+        hidden_index_flags: [],
+      },
+    });
+    const [helper] = loadCommandsForContext(context);
+    const result = fixChangeSetWriter.buildResult(
+      [
+        helperObservation(helper as VerificationCommand, {
+          head_sha: HEAD_AFTER_SAME,
+          entries: [
+            { status_code: ' M', path: 'src/first-pass.ts', fingerprint: BLOB_A },
+            { status_code: ' M', path: 'src/rework.ts', fingerprint: BLOB_B },
+          ],
+        }),
+      ],
+      context,
+    ) as FixChangeSet;
+
+    expect(result.status).toBe('pass');
+    expect(result.declared).toEqual(['src/first-pass.ts', 'src/rework.ts']);
+    expect(result.observed).toEqual(['src/first-pass.ts', 'src/rework.ts']);
+    expect(result.undeclared_extras).toEqual([]);
+    expect(result.missing_declared).toEqual([]);
+  });
+
+  it('drops a prior declaration when a rework restores that path to the baseline', () => {
+    const { context } = makeFixture({
+      baseline: {
+        overall_status: 'passed',
+        head_sha: HEAD_BEFORE,
+        entries: [],
+        hidden_index_flags: [],
+      },
+      change: {
+        verdict: 'accept',
+        summary: 'rework restored the old path and changed another',
+        diagnosis_ref: 'fix.review@v1',
+        changed_files: ['src/rework.ts'],
+        evidence: ['review finding fixed'],
+      },
+      priorChangeSet: {
+        status: 'pass',
+        overall_status: 'passed',
+        baseline_head_sha: HEAD_BEFORE,
+        head_sha: HEAD_BEFORE,
+        declared: ['src/restored.ts'],
+        observed: ['src/restored.ts'],
+        undeclared_extras: [],
+        missing_declared: [],
+        baseline_dirty_mutated: [],
+        hidden_index_flags: [],
+      },
+    });
+    const [helper] = loadCommandsForContext(context);
+    const result = fixChangeSetWriter.buildResult(
+      [
+        helperObservation(helper as VerificationCommand, {
+          head_sha: HEAD_AFTER_SAME,
+          entries: [{ status_code: ' M', path: 'src/rework.ts', fingerprint: BLOB_B }],
+        }),
+      ],
+      context,
+    ) as FixChangeSet;
+
+    expect(result.status).toBe('pass');
+    expect(result.declared).toEqual(['src/rework.ts']);
+    expect(result.observed).toEqual(['src/rework.ts']);
+  });
+
+  it('does not carry declarations from a prior failed change-set', () => {
+    const { context } = makeFixture({
+      baseline: {
+        overall_status: 'passed',
+        head_sha: HEAD_BEFORE,
+        entries: [],
+        hidden_index_flags: [],
+      },
+      change: {
+        verdict: 'accept',
+        summary: 'retry changed only the declared rework file',
+        diagnosis_ref: 'fix.change-set@v1',
+        changed_files: ['src/rework.ts'],
+        evidence: ['change-set retry completed'],
+      },
+      priorChangeSet: {
+        status: 'fail',
+        overall_status: 'failed',
+        reason: 'missing declared: src/unproven.ts',
+        baseline_head_sha: HEAD_BEFORE,
+        head_sha: HEAD_BEFORE,
+        declared: ['src/unproven.ts'],
+        observed: [],
+        undeclared_extras: [],
+        missing_declared: ['src/unproven.ts'],
+        baseline_dirty_mutated: [],
+        hidden_index_flags: [],
+      },
+    });
+    const [helper] = loadCommandsForContext(context);
+    const result = fixChangeSetWriter.buildResult(
+      [
+        helperObservation(helper as VerificationCommand, {
+          head_sha: HEAD_AFTER_SAME,
+          entries: [
+            { status_code: ' M', path: 'src/rework.ts', fingerprint: BLOB_B },
+            { status_code: ' M', path: 'src/unproven.ts', fingerprint: BLOB_A },
+          ],
+        }),
+      ],
+      context,
+    ) as FixChangeSet;
+
+    expect(result.status).toBe('fail');
+    expect(result.declared).toEqual(['src/rework.ts']);
+    expect(result.undeclared_extras).toEqual(['src/unproven.ts']);
+  });
+
+  it('rejects a prior change-set from a different baseline', () => {
+    const { context } = makeFixture({
+      baseline: {
+        overall_status: 'passed',
+        head_sha: HEAD_BEFORE,
+        entries: [],
+        hidden_index_flags: [],
+      },
+      change: {
+        verdict: 'accept',
+        summary: 'current attempt',
+        diagnosis_ref: 'fix.diagnosis@v1',
+        changed_files: ['src/a.ts'],
+        evidence: ['current evidence'],
+      },
+      priorChangeSet: {
+        status: 'pass',
+        overall_status: 'passed',
+        baseline_head_sha: HEAD_AFTER_MOVED,
+        head_sha: HEAD_AFTER_MOVED,
+        declared: ['src/a.ts'],
+        observed: ['src/a.ts'],
+        undeclared_extras: [],
+        missing_declared: [],
+        baseline_dirty_mutated: [],
+        hidden_index_flags: [],
+      },
+    });
+    const [helper] = loadCommandsForContext(context);
+
+    expect(() =>
+      fixChangeSetWriter.buildResult(
+        [
+          helperObservation(helper as VerificationCommand, {
+            head_sha: HEAD_AFTER_SAME,
+            entries: [{ status_code: ' M', path: 'src/a.ts', fingerprint: BLOB_A }],
+          }),
+        ],
+        context,
+      ),
+    ).toThrow(/prior change-set baseline.*does not match current baseline/);
+  });
+
   it('returns pass when declared exactly matches observed', () => {
     const { context } = makeFixture({
       baseline: {

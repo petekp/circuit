@@ -541,6 +541,19 @@ describe('FlowDefinition compiler', () => {
     }
   });
 
+  it('omits a route-disjoint optional read when its producer is absent in one mode', () => {
+    const compiled = compileSchematicToCompiledFlow(
+      schematicForFlowDefinition(definitionFor('fix')),
+    );
+    if (compiled.kind !== 'per-mode') throw new Error('expected Fix to compile per mode');
+
+    const defaultAct = compiled.flows.get('default')?.steps.find((step) => step.id === 'fix-act');
+    const lowAct = compiled.flows.get('low')?.steps.find((step) => step.id === 'fix-act');
+
+    expect(defaultAct?.reads).toContain('reports/fix/review.json');
+    expect(lowAct?.reads).not.toContain('reports/fix/review.json');
+  });
+
   it('preserves per-flow runtime and routed command ownership expectations', () => {
     for (const flowId of ['review', 'build', 'explore', 'prototype', 'pursue'] as const) {
       expect(packageFor(flowId).runtimeSurface).not.toHaveProperty('supportedEntryModes');

@@ -92,10 +92,21 @@ function failingObservationDetail(observation: VerificationCommandObservation): 
 function verificationCommandFailureReason(input: {
   readonly stepId: string;
   readonly observations: readonly VerificationCommandObservation[];
+  readonly reportReason?: unknown;
 }): string {
   const failing = input.observations.filter((observation) => observation.status === 'failed');
-  const detail = failing.map(failingObservationDetail).join('; ');
-  return `verification step '${input.stepId}' failed: ${detail}`;
+  const reportReason =
+    typeof input.reportReason === 'string' && input.reportReason.trim().length > 0
+      ? input.reportReason.trim()
+      : undefined;
+  const detail = [reportReason, ...failing.map(failingObservationDetail)]
+    .filter((part): part is string => part !== undefined)
+    .join('; ');
+  const legibleDetail =
+    detail.length > 0
+      ? detail
+      : 'report returned a failing overall_status without a reason or failed command';
+  return `verification step '${input.stepId}' failed: ${legibleDetail}`;
 }
 
 // A deterministic timeout does not become a red test on retry: the budget is
@@ -297,6 +308,7 @@ export async function executeVerificationResult(
   let reportSchema: string;
   let body: {
     readonly overall_status?: unknown;
+    readonly reason?: unknown;
   };
   let observations: VerificationCommandObservation[];
   try {
@@ -363,6 +375,7 @@ export async function executeVerificationResult(
     }
     body = builder.buildResult(observations, builderContext) as {
       readonly overall_status?: unknown;
+      readonly reason?: unknown;
     };
     await context.files.writeJson(report, body);
   } catch (error) {
@@ -410,7 +423,11 @@ export async function executeVerificationResult(
     return stepExecutionOutcome({ route: 'pass', details: { overall_status: 'passed' } });
   }
 
-  const reason = verificationCommandFailureReason({ stepId: step.id, observations });
+  const reason = verificationCommandFailureReason({
+    stepId: step.id,
+    observations,
+    reportReason: body.reason,
+  });
   await context.trace.append({
     run_id: context.runId,
     kind: 'check.evaluated',

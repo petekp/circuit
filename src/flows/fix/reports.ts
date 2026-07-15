@@ -452,7 +452,7 @@ export type FixHiddenIndexFlag = z.infer<typeof FixHiddenIndexFlag>;
 
 // Runtime-owned pre-fix-act snapshot of git state. Captured before the
 // implementer touches the working tree, the snapshot becomes the baseline for
-// the post-verify change-set step. The change-set step compares entries it
+// the post-act change-set step. The change-set step compares entries it
 // observes after the fix against this snapshot's entries:
 //   - paths in the post snapshot but not in baseline = newly-dirty paths
 //     (introduced by fix-act)

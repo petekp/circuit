@@ -1,10 +1,13 @@
+import { execFileSync } from 'node:child_process';
 import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import { deterministicNow } from '../helpers/runtime-fixtures.js';
+import { initGitProjectRoot, reflectChangedFiles } from '../helpers/working-tree.js';
 
 import { BuildPlan } from '../../src/flows/build/reports.js';
+import { FixBaselineSnapshot, FixChange } from '../../src/flows/fix/reports.js';
 import { executeVerificationResult } from '../../src/runtime/executors/verification.js';
 import type { ExecutableFlow } from '../../src/runtime/manifest/executable-flow.js';
 import { buildRuntimePackageIndex } from '../../src/runtime/manifest/runtime-package-index.js';
@@ -58,6 +61,64 @@ function verificationFlow(): ExecutableFlow {
         },
         writes: {
           report: { path: 'reports/build/verification.json', schema: 'build.verification@v1' },
+        },
+        check: { kind: 'schema_sections', source: { kind: 'report', ref: 'report' }, required: [] },
+      },
+    ],
+  };
+}
+
+function reportLevelFailureFlow(): ExecutableFlow {
+  return {
+    id: 'verification-report-reason-fixture',
+    version: '0.0.0',
+    entry: 'baseline-source',
+    stages: [
+      {
+        id: 'stage',
+        stepIds: ['baseline-source', 'change-source', 'fix-change-set'],
+      },
+    ],
+    steps: [
+      {
+        id: 'baseline-source',
+        kind: 'compose',
+        writer: 'noop',
+        routes: { pass: { kind: 'step', stepId: 'change-source' } },
+        writes: {
+          report: {
+            path: 'reports/fix/baseline-snapshot.json',
+            schema: 'fix.baseline-snapshot@v1',
+          },
+        },
+        check: { kind: 'schema_sections', source: { kind: 'report', ref: 'report' }, required: [] },
+      },
+      {
+        id: 'change-source',
+        kind: 'compose',
+        writer: 'noop',
+        routes: { pass: { kind: 'step', stepId: 'fix-change-set' } },
+        writes: {
+          report: { path: 'reports/fix/change.json', schema: 'fix.change@v1' },
+        },
+        check: { kind: 'schema_sections', source: { kind: 'report', ref: 'report' }, required: [] },
+      },
+      {
+        id: 'fix-change-set',
+        kind: 'verification',
+        reads: [
+          {
+            path: 'reports/fix/baseline-snapshot.json',
+            schema: 'fix.baseline-snapshot@v1',
+          },
+          { path: 'reports/fix/change.json', schema: 'fix.change@v1' },
+        ],
+        routes: {
+          pass: { kind: 'terminal', target: '@complete' },
+          retry: { kind: 'terminal', target: '@stop' },
+        },
+        writes: {
+          report: { path: 'reports/fix/change-set.json', schema: 'fix.change-set@v1' },
         },
         check: { kind: 'schema_sections', source: { kind: 'report', ref: 'report' }, required: [] },
       },
@@ -136,6 +197,68 @@ describe('verification failure reasons name the failing command', () => {
     expect(reason).toContain('last stderr: "assertion blew up"');
     // The head-of-output lines must NOT crowd the reason.
     expect(reason).not.toContain('suite started');
+  });
+
+  it('uses a failed verification report reason when every helper command passed', async () => {
+    initGitProjectRoot(projectRoot);
+    const headSha = execFileSync('git', ['rev-parse', 'HEAD'], {
+      cwd: projectRoot,
+      encoding: 'utf8',
+    }).trim();
+    const reportsDir = join(runFolder, 'reports/fix');
+    mkdirSync(reportsDir, { recursive: true });
+    writeFileSync(
+      join(reportsDir, 'baseline-snapshot.json'),
+      `${JSON.stringify(
+        FixBaselineSnapshot.parse({
+          overall_status: 'passed',
+          head_sha: headSha,
+          entries: [],
+          hidden_index_flags: [],
+        }),
+        null,
+        2,
+      )}\n`,
+    );
+    writeFileSync(
+      join(reportsDir, 'change.json'),
+      `${JSON.stringify(
+        FixChange.parse({
+          verdict: 'accept',
+          summary: 'declare only the intended file',
+          diagnosis_ref: 'fixture diagnosis',
+          changed_files: ['src/declared.ts'],
+          evidence: ['fixture evidence'],
+        }),
+        null,
+        2,
+      )}\n`,
+    );
+    reflectChangedFiles(projectRoot, ['src/declared.ts', 'src/undeclared.ts']);
+
+    const flow = reportLevelFailureFlow();
+    const step = flow.steps[2];
+    if (step === undefined || step.kind !== 'verification') throw new Error('expected step');
+    const result = await executeVerificationResult(step, contextFor(flow));
+    const reason =
+      result.kind === 'failed'
+        ? result.reason
+        : result.kind === 'outcome' && !('checkpoint' in result.outcome)
+          ? result.outcome.details?.reason
+          : undefined;
+
+    expect(reason).toContain("verification step 'fix-change-set' failed:");
+    expect(reason).toContain('undeclared extras: src/undeclared.ts');
+
+    const trace = await new TraceStore(runFolder).load();
+    expect(trace).toContainEqual(
+      expect.objectContaining({
+        kind: 'verification.command_evaluated',
+        step_id: 'fix-change-set',
+        command_id: 'fix-change-set-git-state',
+        status: 'passed',
+      }),
+    );
   });
 
   it('says plainly when the failing command produced no output', async () => {
