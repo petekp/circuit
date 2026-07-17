@@ -28,12 +28,16 @@ Support claims for each host adapter are governed by
 Every host adapter MUST support:
 
 - Explicit runs: `circuit run <flow> --goal "<task>"`.
-- Checkpoint resume: `circuit resume --run-folder <path> --checkpoint-choice <choice>`.
+- Checkpoint resume with either a bare choice or the typed response prepared by
+  the HTML review page: `circuit resume --run-folder <path>
+  (--checkpoint-choice <choice> | --checkpoint-response <response>)`.
 - Stable final JSON parsing from stdout.
 - Progress JSONL parsing from stderr when invoked with `--progress jsonl`.
 - Task-list rendering from `task_list.updated` progress events.
 - User-input rendering from `user_input.requested` progress events.
 - Report reading from the returned `run_folder` and `result_path`.
+- Checkpoint review-page presentation from `operator_summary_html_path` when it
+  is present.
 - Verbatim host rendering from `display.text` and
   `operator_summary_markdown_path` per
   [docs/contracts/host-rendering.md](host-rendering.md).

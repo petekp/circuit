@@ -25,3 +25,25 @@ jobs:
           cache: npm
       - run: npm ci
       - run: npm run verify
+
+  checkpoint-browser:
+    name: checkpoint review (Chromium)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-node@v6
+        with:
+          node-version: '22'
+          cache: npm
+      - run: npm ci
+      - run: npx playwright install --with-deps chromium
+      - run: npm run test:browser
+        env:
+          PLAYWRIGHT_OUTPUT_DIR: test-results/checkpoint-browser
+      - name: Upload browser evidence
+        if: ${{ !cancelled() }}
+        uses: actions/upload-artifact@v4
+        with:
+          name: checkpoint-browser-results
+          path: test-results/checkpoint-browser
+          if-no-files-found: ignore

@@ -163,6 +163,15 @@ that work, `trace` as the ordered record, `report` as typed output, and
    run folder under `.circuit/runs/`.
 6. If a checkpoint needs your choice, Circuit pauses. Resume it with:
 
+   Open the `operator_summary_html_path` returned by the CLI when it is
+   available. It is a local review workspace. You can move between options,
+   inspect visual artifacts, and leave notes. The page saves the draft in that
+   browser and prepares one typed resume command containing the choice and
+   comments. Those notes are saved with the checkpoint record and any flow
+   report that explicitly carries review comments.
+
+   The plain choice command remains available as a fallback:
+
    ```bash
    ./bin/circuit resume \
      --run-folder '<run_folder>' \
@@ -252,7 +261,13 @@ connector works without Codex. Install Codex only if you want Circuit to route
 worker relays through the Codex CLI.
 
 **A run is waiting at a checkpoint.** Resume it with the run folder and one of
-the allowed checkpoint choices:
+the allowed checkpoint choices. If the CLI returned an
+`operator_summary_html_path`, open that page first to review the options and
+prepare a response with comments. The page tells you when the draft is only
+saved in the browser; Circuit does not receive it until you run the copied
+command.
+
+The plain choice form remains supported:
 
 ```bash
 ./bin/circuit resume \

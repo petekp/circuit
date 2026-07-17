@@ -98,7 +98,9 @@ Names use `<subject>.<event>`. Grouped by subject:
   options and the boundary reference.
 - `checkpoint.resolved` — a checkpoint was answered. Carries the selection, the
   route, and the resolution source (`declared-default`, `operator`, or
-  `policy`).
+  `policy`). New entries also point to an immutable, attempt-specific response
+  and carry its SHA-256 hash. The stable response path remains available as the
+  latest answer, while earlier review comments stay preserved.
 
 **relay**
 

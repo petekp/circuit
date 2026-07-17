@@ -369,6 +369,7 @@ const buildProofCheckpointExecutor: StepExecutor = async (step, context) => {
         stepId: step.id,
         attempt,
         requestPath: context.files.resolve(request),
+        requestSha256: requestHash,
         allowedChoices: step.choices,
       },
     };

@@ -76,11 +76,9 @@ function runHook(
       ...process.env,
       CIRCUIT_HANDOFF_HOOK_LAUNCHER: options.launcher,
       CAPTURE_PATH: options.capturePath,
+      CIRCUIT_HANDOFF_HOOK_TIMEOUT_MS: String(options.timeoutMs ?? 20_000),
       ...(options.status === undefined ? {} : { STUB_STATUS: options.status }),
       ...(options.debug === true ? { CIRCUIT_HANDOFF_HOOK_DEBUG: '1' } : {}),
-      ...(options.timeoutMs === undefined
-        ? {}
-        : { CIRCUIT_HANDOFF_HOOK_TIMEOUT_MS: String(options.timeoutMs) }),
       ...(options.env ?? {}),
     },
     stdio: ['pipe', 'pipe', 'pipe'],

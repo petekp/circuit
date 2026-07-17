@@ -3,6 +3,8 @@ import { describe, expect, it } from 'vitest';
 import { buildCheckpointProjector } from '../../../../src/flows/build/index.js';
 import type { HtmlProjectorContext, JsonObject } from '../../../../src/shared/html/projector.js';
 
+const CHECKPOINT_IDENTITY = { attempt: 1, request_sha256: 'd'.repeat(64) } as const;
+
 function verificationCommand(overrides: Record<string, unknown> = {}) {
   return {
     id: 'build-verify',
@@ -110,6 +112,7 @@ function buildContext(
             overrides.checkpoint === undefined
               ? {
                   step_id: 'frame-step',
+                  ...CHECKPOINT_IDENTITY,
                   request_path: `${runFolder}/reports/checkpoints/frame-step-request.json`,
                   allowed_choices: ['continue'],
                 }
@@ -140,12 +143,12 @@ describe('buildCheckpointProjector — rendering', () => {
     const html = buildCheckpointProjector(buildContext()) as string;
     expect(html).toContain('<!doctype html>');
     expect(html).toMatch(/<h1[^>]*>Add checkpoint HTML<\/h1>/);
-    expect(html).toMatch(/<span[^>]*data-slot="badge"[^>]*>Recommended</);
+    expect(html).toMatch(/<span[^>]*cp-recommended[^>]*>Suggested</);
     expect(html).toContain('The scope is bounded and the proof plan is explicit.');
     expect(html).toContain('Touch Build checkpoint presentation only');
     expect(html).toContain('Scope mismatch is the meaningful risk.');
     expect(html).toContain('Circuit will verify with npm run verify.');
-    expect(html).toContain('Copy resume command');
+    expect(html).toContain('Copy decision command');
     expect(html).toContain('Raw evidence and resume command');
   });
 
@@ -161,7 +164,7 @@ describe('buildCheckpointProjector — rendering', () => {
       buildContext({ runFolder: "/tmp/circuit run's" }),
     ) as string;
     expect(html).toContain(
-      'data-prompt="circuit resume --run-folder &#x27;/tmp/circuit run&#x27;\\&#x27;&#x27;s&#x27; --checkpoint-choice &#x27;continue&#x27;"',
+      'circuit resume --run-folder &#x27;/tmp/circuit run&#x27;\\&#x27;&#x27;s&#x27; --checkpoint-choice &#x27;continue&#x27;',
     );
   });
 
@@ -199,6 +202,6 @@ describe('buildCheckpointProjector — rendering', () => {
     const html = buildCheckpointProjector(buildContext({ brief: bidiBrief })) as string;
     expect(html).not.toContain('‮');
     expect(html).toContain('safegnp.exe');
-    expect(html).toContain('Continueevil');
+    expect(html).not.toContain('Continue‮evil');
   });
 });

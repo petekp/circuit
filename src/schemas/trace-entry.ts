@@ -285,6 +285,11 @@ export const CheckpointResolvedTraceEntry = TraceEntryBase.extend({
   auto_resolved: z.boolean(),
   resolution_source: z.enum(['declared-default', 'operator', 'policy']),
   response_path: z.string().min(1),
+  // `response_path` remains the stable latest-response location for existing
+  // readers. New runs also point at the immutable response for this attempt so
+  // later visits to the same checkpoint cannot erase earlier review notes.
+  response_attempt_path: z.string().min(1).optional(),
+  response_report_hash: ContentHash.optional(),
 }).strict();
 export type CheckpointResolvedTraceEntry = z.infer<typeof CheckpointResolvedTraceEntry>;
 

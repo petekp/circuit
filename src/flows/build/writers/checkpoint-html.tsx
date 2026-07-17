@@ -192,7 +192,8 @@ export const buildCheckpointProjector: HtmlProjector = (ctx) => {
   }));
   const defaultChoice = options.find((option) => option.id === safeDefaultId);
 
-  const resumeCommandTemplate = `circuit resume --run-folder ${shellSingleQuote(
+  const commandPrefix = ctx.resumeCommandPrefix ?? 'circuit resume';
+  const resumeCommandTemplate = `${commandPrefix} --run-folder ${shellSingleQuote(
     ctx.runFolder,
   )} --checkpoint-choice '<choice>'`;
   const rawEvidence = [
@@ -235,7 +236,12 @@ export const buildCheckpointProjector: HtmlProjector = (ctx) => {
         resumeCommandTemplate={resumeCommandTemplate}
       />
     ),
-    resume: { runFolder: ctx.runFolder },
+    resume: {
+      runFolder: ctx.runFolder,
+      commandPrefix,
+      attempt: ctx.checkpoint.attempt,
+      requestSha256: ctx.checkpoint.request_sha256,
+    },
     footerLeft: `circuit · build · ${ctx.runId}`,
     footerRight: BUILD_BRIEF_PATH,
   });

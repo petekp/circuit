@@ -12,6 +12,7 @@ import type { CheckpointStep as IndexedCheckpointStep } from '../../flows/regist
 import type { CompiledFlowProgressSurface } from '../../flows/types.js';
 import { policyRefsForRuntimeInputs } from '../../policy/policy-envelope.js';
 import { Axes, type Axes as AxesValue } from '../../schemas/axes.js';
+import type { CheckpointReviewResponse } from '../../schemas/checkpoint-review-response.js';
 import type { CompiledFlow } from '../../schemas/compiled-flow.js';
 import type { LayeredConfig as LayeredConfigValue } from '../../schemas/config.js';
 import { LayeredConfig } from '../../schemas/config.js';
@@ -61,6 +62,7 @@ import type { GraphRunResult } from './run-close.js';
 export interface ResumeCompiledFlowOptions {
   readonly runDir: string;
   readonly selection: string;
+  readonly checkpointResponse?: CheckpointReviewResponse;
   readonly now?: () => Date;
   readonly relayConnector?: RelayConnector;
   readonly relayer?: RelayFn;
@@ -617,6 +619,28 @@ async function resumeCompiledFlowResultLocked(
       `runtime checkpoint resume rejected: selection '${options.selection}' is not allowed for checkpoint '${stepId}'`,
     );
   }
+  if (options.checkpointResponse !== undefined) {
+    const response = options.checkpointResponse;
+    if (
+      (response.run_id as unknown as string) !== bootstrapRunId ||
+      (response.step_id as unknown as string) !== stepId ||
+      response.attempt !== attempt ||
+      response.request_sha256 !== requestHash ||
+      response.selection !== options.selection
+    ) {
+      return checkpointResumeRejected(
+        'runtime checkpoint resume rejected: checkpoint response does not match this run and checkpoint',
+      );
+    }
+    const staleComment = response.comments.find(
+      (comment) => comment.scope === 'choice' && !savedChoices.includes(comment.choice_id),
+    );
+    if (staleComment !== undefined && staleComment.scope === 'choice') {
+      return checkpointResumeRejected(
+        `runtime checkpoint resume rejected: comment choice '${staleComment.choice_id}' is not available at checkpoint '${stepId}'`,
+      );
+    }
+  }
   const compiledStep = flow.steps.find(
     (candidate) => (candidate.id as unknown as string) === stepId,
   );
@@ -732,7 +756,14 @@ async function resumeCompiledFlowResultLocked(
       : { policyLayers: requestContext.policyLayers }),
     ...(options.progress === undefined ? {} : { progress: options.progress }),
     ...(progressSurface === undefined ? {} : { progressSurface }),
-    resumeCheckpoint: { stepId, attempt, selection: options.selection },
+    resumeCheckpoint: {
+      stepId,
+      attempt,
+      selection: options.selection,
+      ...(options.checkpointResponse === undefined
+        ? {}
+        : { comments: options.checkpointResponse.comments }),
+    },
   });
   if (isGraphRejectedOutcome(result)) {
     return checkpointResumeRejected(result.reason, result.error);

@@ -327,6 +327,25 @@ describe('Prototype report schemas', () => {
     expect(PrototypeResult.parse(result()).outcome).toBe('kept');
   });
 
+  it('carries review comments only for an operator-selected checkpoint', () => {
+    const checkpointComments = [
+      {
+        scope: 'choice' as const,
+        choice_id: 'keep-prototype',
+        body: 'Keep the artifact, but shorten the opening copy.',
+      },
+      { scope: 'overall' as const, body: 'Use this as evidence for the next Build brief.' },
+    ];
+    const parsed = PrototypeResult.parse(
+      result({ checkpoint_status: 'operator_selected', checkpoint_comments: checkpointComments }),
+    );
+
+    expect(parsed.checkpoint_comments).toEqual(checkpointComments);
+    expect(
+      PrototypeResult.safeParse(result({ checkpoint_comments: checkpointComments })).success,
+    ).toBe(false);
+  });
+
   it('accepts the smallest valid model-comparison V1 reports', () => {
     expect(PrototypeVariantOptions.parse(variantOptions()).variant_count).toBe(2);
     expect(PrototypeVariantArtifact.parse(variantArtifact()).variant_id).toBe('variant-a');
@@ -379,6 +398,27 @@ describe('Prototype report schemas', () => {
         ],
       }).choices,
     ).toHaveLength(2);
+  });
+
+  it('qualifies variant-relative worker paths under variant_root', () => {
+    const parsed = PrototypeVariantArtifact.parse(
+      variantArtifact('variant-a', {
+        created_files: ['index.html', 'assets/icon.svg'],
+        entry_points: ['index.html'],
+      }),
+    );
+
+    expect(parsed.created_files).toEqual([
+      `${PROTOTYPE_ROOT}/variants/variant-a/index.html`,
+      `${PROTOTYPE_ROOT}/variants/variant-a/assets/icon.svg`,
+    ]);
+    expect(parsed.entry_points).toEqual([`${PROTOTYPE_ROOT}/variants/variant-a/index.html`]);
+
+    expect(() =>
+      PrototypeVariantArtifact.parse(
+        variantArtifact('variant-a', { created_files: ['../escape.html'] }),
+      ),
+    ).toThrow(/escape the project root/);
   });
 
   it('builds checkpoint choices only from verified variants with captured provider evidence', () => {

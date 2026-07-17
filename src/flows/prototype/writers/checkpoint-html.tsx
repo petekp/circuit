@@ -301,6 +301,7 @@ function variantComparisonItems(input: {
   readonly choices: PrototypeVariantChoiceOptions['choices'];
   readonly recommendedChoiceId: string;
   readonly runFolder: string;
+  readonly commandPrefix: string;
   readonly projectRoot?: string | undefined;
 }): MultiVariantItem[] {
   return input.choices.map((choice) => {
@@ -333,12 +334,12 @@ function variantComparisonItems(input: {
         { label: 'Verdict', value: branch?.verdict ?? 'not reported' },
         { label: 'Review', value: choice.review_recommendation ? 'recommended' : 'compared' },
       ],
-      evidence: [...entryPoints, ...createdFiles, ...artifactEvidence],
+      evidence: Array.from(new Set([...entryPoints, ...createdFiles, ...artifactEvidence])),
       risks,
-      ...(preview === undefined ? {} : { preview }),
+      preview,
       action: {
-        label: 'Copy resume command',
-        prompt: resumeCommandForChoice(input.runFolder, choice.id),
+        label: 'Choose this option',
+        prompt: resumeCommandForChoice(input.runFolder, choice.id, input.commandPrefix),
         primary: true,
       },
     };
@@ -346,6 +347,7 @@ function variantComparisonItems(input: {
 }
 
 function renderVariantCheckpoint(ctx: Parameters<HtmlProjector>[0]): string | undefined {
+  if (ctx.checkpoint === undefined) return undefined;
   const aggregate = load(ctx.readJsonRunRelative, PROTOTYPE_VARIANT_AGGREGATE_PATH, (raw) =>
     PrototypeVariantAggregate.safeParse(raw),
   );
@@ -372,7 +374,7 @@ function renderVariantCheckpoint(ctx: Parameters<HtmlProjector>[0]): string | un
   ) {
     return undefined;
   }
-  const allowed = new Set(ctx.checkpoint?.allowed_choices ?? []);
+  const allowed = new Set(ctx.checkpoint.allowed_choices);
   const visibleChoices = choices.choices.filter((choice) => allowed.has(choice.id));
   if (visibleChoices.length === 0) return undefined;
   const recommended =
@@ -380,16 +382,16 @@ function renderVariantCheckpoint(ctx: Parameters<HtmlProjector>[0]): string | un
     visibleChoices.find((choice) => choice.recommended) ??
     visibleChoices[0];
   if (recommended === undefined) return undefined;
-  const resumeCommand = `circuit resume --run-folder ${shellSingleQuote(
+  const commandPrefix = ctx.resumeCommandPrefix ?? 'circuit resume';
+  const resumeCommand = `${commandPrefix} --run-folder ${shellSingleQuote(
     ctx.runFolder,
   )} --checkpoint-choice '<variant-id>'`;
 
   return renderMultiVariantComparisonPage({
-    title: 'Prototype model comparison checkpoint',
-    metaLine: `Prototype model comparison · ${ctx.runId}`,
-    headline: 'Choose a prototype variant',
-    subtitle:
-      'Compare local prototype artifacts using captured relay selection evidence, then keep one variant.',
+    title: 'Prototype review',
+    metaLine: `Prototype review · ${ctx.runId}`,
+    headline: 'Choose a prototype direction',
+    subtitle: 'Experience each local prototype, record your review notes, then choose a direction.',
     recommendation: {
       label: recommended.label,
       rationale: review.comparison_summary,
@@ -403,8 +405,17 @@ function renderVariantCheckpoint(ctx: Parameters<HtmlProjector>[0]): string | un
       choices: visibleChoices,
       recommendedChoiceId: recommended.id,
       runFolder: ctx.runFolder,
+      commandPrefix,
       projectRoot: ctx.projectRoot,
     }),
+    resume: {
+      runFolder: ctx.runFolder,
+      runId: ctx.runId,
+      stepId: ctx.checkpoint.step_id,
+      commandPrefix,
+      attempt: ctx.checkpoint.attempt,
+      requestSha256: ctx.checkpoint.request_sha256,
+    },
     details: (
       <VariantDetails
         review={review}
@@ -460,7 +471,8 @@ export const prototypeCheckpointProjector: HtmlProjector = (ctx) => {
   }));
   const defaultChoice = options.find((option) => option.id === safeDefaultId);
 
-  const resumeCommandTemplate = `circuit resume --run-folder ${shellSingleQuote(
+  const commandPrefix = ctx.resumeCommandPrefix ?? 'circuit resume';
+  const resumeCommandTemplate = `${commandPrefix} --run-folder ${shellSingleQuote(
     ctx.runFolder,
   )} --checkpoint-choice '<choice>'`;
   const rawEvidence = [
@@ -470,6 +482,11 @@ export const prototypeCheckpointProjector: HtmlProjector = (ctx) => {
     PROTOTYPE_VERIFICATION_PATH,
     ctx.checkpoint.request_path,
   ];
+  const artifactPreview = previewForEntryPoints({
+    entryPoints: artifact.entry_points,
+    runFolder: ctx.runFolder,
+    projectRoot: ctx.projectRoot,
+  });
 
   return renderCheckpointPage({
     meta: { flowLabel: 'Prototype', runId: ctx.runId, stepId: ctx.checkpoint.step_id },
@@ -485,6 +502,11 @@ export const prototypeCheckpointProjector: HtmlProjector = (ctx) => {
       rationale: 'Safe default: keep the prototype evidence and decide on Build separately.',
     },
     options,
+    artifact: {
+      title: 'Prototype preview',
+      description: artifact.summary,
+      preview: artifactPreview,
+    },
     ...(defaultChoice === undefined
       ? {}
       : { defaultChoice: { id: defaultChoice.id, label: defaultChoice.label } }),
@@ -497,7 +519,12 @@ export const prototypeCheckpointProjector: HtmlProjector = (ctx) => {
       </div>
     ),
     appendix: <Appendix rawEvidence={rawEvidence} resumeCommandTemplate={resumeCommandTemplate} />,
-    resume: { runFolder: ctx.runFolder },
+    resume: {
+      runFolder: ctx.runFolder,
+      commandPrefix,
+      attempt: ctx.checkpoint.attempt,
+      requestSha256: ctx.checkpoint.request_sha256,
+    },
     footerLeft: `circuit · prototype · ${ctx.runId}`,
     footerRight: PROTOTYPE_ARTIFACT_PATH,
   });

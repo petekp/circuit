@@ -21,6 +21,7 @@ import type {
 import { runCompiledFlowWithWaiting } from '../../src/runtime/run/compiled-flow-runner.js';
 import { isGraphCheckpointWaitingResult } from '../../src/runtime/run/graph-runner.js';
 import type { GraphRunResult } from '../../src/runtime/run/run-close.js';
+import { CheckpointReviewResponse } from '../../src/schemas/checkpoint-review-response.js';
 import { LayeredConfig } from '../../src/schemas/config.js';
 import { PolicyLayer } from '../../src/schemas/policy-envelope.js';
 import { ProgressEvent } from '../../src/schemas/progress-event.js';
@@ -1131,6 +1132,21 @@ describe('runtime checkpoint pause/resume fixture', () => {
     const result = await resumeCompiledFlow({
       runDir,
       selection: 'continue',
+      checkpointResponse: CheckpointReviewResponse.parse({
+        schema: 'checkpoint.review-response@v1',
+        run_id: RUN_ID,
+        step_id: 'checkpoint-step',
+        attempt: before.checkpoint.attempt,
+        request_sha256: before.checkpoint.requestSha256,
+        selection: 'continue',
+        comments: [
+          {
+            scope: 'choice',
+            choice_id: 'continue',
+            body: 'Keep the direction, but make the summary shorter.',
+          },
+        ],
+      }),
       now: deterministicNow(Date.UTC(2026, 0, 3)),
       relayer: fixtureRelayer(),
       executors: fixtureExecutors(observed),
@@ -1150,6 +1166,32 @@ describe('runtime checkpoint pause/resume fixture', () => {
         policyLayerCount: 0,
       },
     ]);
+    expect(
+      JSON.parse(
+        readFileSync(join(runDir, 'reports/checkpoints/checkpoint-step-response.json'), 'utf8'),
+      ),
+    ).toMatchObject({
+      selection: 'continue',
+      comments: [
+        {
+          scope: 'choice',
+          choice_id: 'continue',
+          body: 'Keep the direction, but make the summary shorter.',
+        },
+      ],
+    });
+    const attemptResponsePath = 'reports/checkpoints/checkpoint-step-response.attempt-1.json';
+    const attemptResponseRaw = readFileSync(join(runDir, attemptResponsePath), 'utf8');
+    expect(JSON.parse(attemptResponseRaw)).toMatchObject({
+      selection: 'continue',
+      comments: [
+        {
+          scope: 'choice',
+          choice_id: 'continue',
+          body: 'Keep the direction, but make the summary shorter.',
+        },
+      ],
+    });
 
     const trace = await readTrace(runDir);
     const guidance = trace.find(
@@ -1175,6 +1217,8 @@ describe('runtime checkpoint pause/resume fixture', () => {
       auto_resolved: false,
       resolution_source: 'operator',
       response_path: 'reports/checkpoints/checkpoint-step-response.json',
+      response_attempt_path: attemptResponsePath,
+      response_report_hash: sha256Hex(attemptResponseRaw),
     });
     expect(trace.map((entry) => entry.kind)).toEqual(
       expect.arrayContaining([
@@ -1192,6 +1236,56 @@ describe('runtime checkpoint pause/resume fixture', () => {
       terminal_outcome: 'complete',
     });
   });
+
+  it.each([
+    {
+      label: 'a different attempt',
+      responseIdentity: (attempt: number, requestSha256: string) => ({
+        attempt: attempt + 1,
+        request_sha256: requestSha256,
+      }),
+    },
+    {
+      label: 'a different request hash',
+      responseIdentity: (attempt: number) => ({
+        attempt,
+        request_sha256: 'f'.repeat(64),
+      }),
+    },
+  ])(
+    'rejects a typed response for $label without changing the trace',
+    async ({ responseIdentity }) => {
+      const runDir = join(tempDir, `stale-response-${randomUUID()}`);
+      const waiting = await createWaitingFixture({
+        runDir,
+        now: deterministicNow(Date.UTC(2026, 0, 2)),
+      });
+      const traceBefore = await readTrace(runDir);
+      const identity = responseIdentity(
+        waiting.checkpoint.attempt,
+        waiting.checkpoint.requestSha256,
+      );
+
+      const result = await resumeCompiledFlowResult({
+        runDir,
+        selection: 'continue',
+        checkpointResponse: CheckpointReviewResponse.parse({
+          schema: 'checkpoint.review-response@v1',
+          run_id: RUN_ID,
+          step_id: 'checkpoint-step',
+          ...identity,
+          selection: 'continue',
+          comments: [],
+        }),
+        now: deterministicNow(Date.UTC(2026, 0, 3)),
+      });
+
+      expect(isCheckpointResumeRejectedResult(result)).toBe(true);
+      if (!isCheckpointResumeRejectedResult(result)) throw new Error('expected stale response');
+      expect(result.reason).toContain('checkpoint response does not match');
+      expect(await readTrace(runDir)).toEqual(traceBefore);
+    },
+  );
 
   it('re-threads the typed-lookup context channel on resume so a resumed step that asks for context is recorded', async () => {
     // BUILD 3 — the resume re-thread. A run parks at a checkpoint, then resumes

@@ -1,3 +1,8 @@
+import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from 'node:fs';
+import { tmpdir } from 'node:os';
+import { dirname, join } from 'node:path';
+import { pathToFileURL } from 'node:url';
+
 import { describe, expect, it } from 'vitest';
 
 import { prototypeCheckpointProjector } from '../../../../src/flows/prototype/index.js';
@@ -5,6 +10,7 @@ import type { HtmlProjectorContext, JsonObject } from '../../../../src/shared/ht
 
 const ROOT = '.circuit/prototypes/html-test';
 const RUN_ARTIFACT_ROOT = '.circuit/runs/html-test/prototype-files';
+const CHECKPOINT_IDENTITY = { attempt: 1, request_sha256: 'e'.repeat(64) } as const;
 
 function brief(overrides: Record<string, unknown> = {}): JsonObject {
   return {
@@ -293,6 +299,7 @@ function context(
             overrides.checkpoint === undefined
               ? {
                   step_id: 'prototype-checkpoint-step',
+                  ...CHECKPOINT_IDENTITY,
                   request_path: `${runFolder}/reports/checkpoints/prototype-review-request.json`,
                   allowed_choices: ['keep-prototype', 'save-build-input', 'discard-prototype'],
                 }
@@ -314,6 +321,7 @@ describe('prototypeCheckpointProjector', () => {
         context({
           checkpoint: {
             step_id: 'other-checkpoint',
+            ...CHECKPOINT_IDENTITY,
             request_path: '/tmp/request.json',
             allowed_choices: ['keep-prototype'],
           },
@@ -344,6 +352,7 @@ describe('prototypeCheckpointProjector', () => {
       context({
         checkpoint: {
           step_id: 'prototype-checkpoint-step',
+          ...CHECKPOINT_IDENTITY,
           request_path: '/tmp/request.json',
           allowed_choices: ['keep-prototype', 'save-build-input'],
         },
@@ -356,74 +365,145 @@ describe('prototypeCheckpointProjector', () => {
     expect(html).toContain('Save Build Input');
     expect(html).not.toContain('Discard Prototype');
     expect(html).toContain(`${ROOT}/index.html`);
-    expect(html).toContain('Copy resume command');
+    expect(html).toContain('Review decision');
+    expect(html).toContain('--checkpoint-response');
     expect(html).toContain('--checkpoint-choice &#x27;keep-prototype&#x27;');
     expect(html).toContain('not production');
     expect(html).toContain('not deployed');
   });
 
-  it('renders non-visual model-comparison checkpoints as evidence-first comparisons', () => {
+  it('puts a readable single Prototype artifact in a prominent interactive preview', () => {
+    const projectRoot = mkdtempSync(join(tmpdir(), 'circuit-single-prototype-preview-'));
+    const runFolder = join(projectRoot, '.circuit/runs/html-test');
+    const entryPoint = join(projectRoot, ROOT, 'index.html');
+    mkdirSync(dirname(entryPoint), { recursive: true });
+    writeFileSync(
+      entryPoint,
+      '<!doctype html><button type="button" onclick="this.textContent=\'Opened\'">Open</button>',
+    );
+
+    try {
+      const html = prototypeCheckpointProjector(context({ projectRoot, runFolder })) as string;
+      const href = pathToFileURL(entryPoint).href;
+
+      expect(html).toContain('<iframe');
+      expect(html).toContain(`data-mv-preview-src="${href}"`);
+      expect(html).toContain('sandbox="allow-scripts allow-forms allow-pointer-lock"');
+      expect(html).toContain(`href="${href}"`);
+      expect(html).toContain('Open full size');
+    } finally {
+      rmSync(projectRoot, { recursive: true, force: true });
+    }
+  });
+
+  it('shows a prominent missing-preview state for a reported single artifact that is unreadable', () => {
+    const projectRoot = mkdtempSync(join(tmpdir(), 'circuit-single-prototype-missing-'));
+    const runFolder = join(projectRoot, '.circuit/runs/html-test');
+
+    try {
+      const html = prototypeCheckpointProjector(context({ projectRoot, runFolder })) as string;
+
+      expect(html).toContain('Preview file missing');
+      expect(html).toContain(`${ROOT}/index.html`);
+      expect(html).not.toContain('<iframe');
+    } finally {
+      rmSync(projectRoot, { recursive: true, force: true });
+    }
+  });
+
+  it('keeps non-visual model-comparison checkpoints in the review workspace', () => {
     const html = prototypeCheckpointProjector(
       context({
         checkpoint: {
           step_id: 'prototype-variant-checkpoint-step',
+          ...CHECKPOINT_IDENTITY,
           request_path: '/tmp/request.json',
           allowed_choices: ['variant-a', 'variant-b'],
         },
         reports: variantReports(),
       }),
     ) as string;
-    expect(html).toContain('Choose a prototype variant');
+    expect(html).toContain('Choose a prototype direction');
     expect(html).toContain('Variant A');
     expect(html).toContain('Variant B');
     expect(html).toContain('anthropic/local-fixture-a');
     expect(html).toContain('anthropic/local-fixture-b');
     expect(html).toContain('--checkpoint-choice &#x27;variant-a&#x27;');
-    expect(html).toContain('mv-wrap mv-evidence');
-    expect(html).not.toContain('data-mv-frame');
+    expect(html).toContain('mv-wrap mv-visual');
+    expect(html).toContain('Preview format unsupported');
+    expect(html).toContain('data-mv-comment');
+    expect(html).not.toContain('<iframe data-mv-frame');
   });
 
-  it('renders model-comparison checkpoints with a pinned preview rail for current-run visual artifacts', () => {
-    const html = prototypeCheckpointProjector(
-      context({
-        runFolder: '/tmp/project/.circuit/runs/html-test',
-        checkpoint: {
-          step_id: 'prototype-variant-checkpoint-step',
-          request_path: '/tmp/request.json',
-          allowed_choices: ['variant-a', 'variant-b'],
-        },
-        reports: variantReports(RUN_ARTIFACT_ROOT),
-      }),
-    ) as string;
-    expect(html).toContain('Choose a prototype variant');
-    expect(html).toContain('mv-wrap mv-visual');
-    expect(html).toContain('Selected variant preview');
-    expect(html).toContain('data-mv-frame');
-    expect(html).toContain('overscroll-behavior:contain');
-    expect(html).toContain('src="../prototype-files/variants/variant-a/index.html"');
-    expect(html).toContain(
-      'data-mv-preview-src="../prototype-files/variants/variant-b/index.html"',
-    );
-    expect(html).toContain('--checkpoint-choice &#x27;variant-a&#x27;');
+  it('renders current-run visual artifacts in a preview-first review workspace', () => {
+    const projectRoot = mkdtempSync(join(tmpdir(), 'circuit-prototype-preview-'));
+    const runFolder = join(projectRoot, '.circuit/runs/html-test');
+    for (const variant of ['variant-a', 'variant-b']) {
+      const artifact = join(runFolder, `prototype-files/variants/${variant}/index.html`);
+      mkdirSync(dirname(artifact), { recursive: true });
+      writeFileSync(artifact, `<!doctype html><title>${variant}</title>`);
+    }
+    try {
+      const html = prototypeCheckpointProjector(
+        context({
+          runFolder,
+          checkpoint: {
+            step_id: 'prototype-variant-checkpoint-step',
+            ...CHECKPOINT_IDENTITY,
+            request_path: '/tmp/request.json',
+            allowed_choices: ['variant-a', 'variant-b'],
+          },
+          reports: variantReports(RUN_ARTIFACT_ROOT),
+        }),
+      ) as string;
+      expect(html).toContain('Choose a prototype direction');
+      expect(html).toContain('mv-wrap mv-visual');
+      expect(html).toContain('data-mv-workspace');
+      expect(html).toContain('role="tablist"');
+      expect(html).toContain('Comment on this option');
+      expect(html).toContain('Choose this option');
+      expect(html).toContain('data-mv-frame');
+      expect(html).toContain('overscroll-behavior:contain');
+      expect(html).toContain(
+        'data-mv-frame="" data-mv-preview-src="../prototype-files/variants/variant-a/index.html"',
+      );
+      expect(html).toContain(
+        'data-mv-preview-src="../prototype-files/variants/variant-b/index.html"',
+      );
+      expect(html).toContain('--checkpoint-choice &#x27;variant-a&#x27;');
+    } finally {
+      rmSync(projectRoot, { recursive: true, force: true });
+    }
   });
 
-  it('renders a pinned preview rail for project-root visual artifacts when the run folder is external', () => {
-    const html = prototypeCheckpointProjector(
-      context({
-        runFolder: '/tmp/external-run',
-        projectRoot: '/tmp/project',
-        checkpoint: {
-          step_id: 'prototype-variant-checkpoint-step',
-          request_path: '/tmp/request.json',
-          allowed_choices: ['variant-a', 'variant-b'],
-        },
-        reports: variantReports(ROOT),
-      }),
-    ) as string;
-    expect(html).toContain('mv-wrap mv-visual');
-    expect(html).toContain(
-      'src="file:///tmp/project/.circuit/prototypes/html-test/variants/variant-a/index.html"',
-    );
+  it('renders a review workspace for project-root visual artifacts when the run folder is external', () => {
+    const projectRoot = mkdtempSync(join(tmpdir(), 'circuit-project-preview-'));
+    for (const variant of ['variant-a', 'variant-b']) {
+      const artifact = join(projectRoot, ROOT, 'variants', variant, 'index.html');
+      mkdirSync(dirname(artifact), { recursive: true });
+      writeFileSync(artifact, `<!doctype html><title>${variant}</title>`);
+    }
+    try {
+      const html = prototypeCheckpointProjector(
+        context({
+          runFolder: '/tmp/external-run',
+          projectRoot,
+          checkpoint: {
+            step_id: 'prototype-variant-checkpoint-step',
+            ...CHECKPOINT_IDENTITY,
+            request_path: '/tmp/request.json',
+            allowed_choices: ['variant-a', 'variant-b'],
+          },
+          reports: variantReports(ROOT),
+        }),
+      ) as string;
+      expect(html).toContain('mv-wrap mv-visual');
+      expect(html).toContain(
+        `data-mv-frame="" data-mv-preview-src="${pathToFileURL(join(projectRoot, ROOT, 'variants/variant-a/index.html')).href}"`,
+      );
+    } finally {
+      rmSync(projectRoot, { recursive: true, force: true });
+    }
   });
 
   it('quotes copied resume commands for run folders with spaces and quotes', () => {
@@ -431,7 +511,7 @@ describe('prototypeCheckpointProjector', () => {
       context({ runFolder: "/tmp/prototype run's" }),
     ) as string;
     expect(html).toContain(
-      'data-prompt="circuit resume --run-folder &#x27;/tmp/prototype run&#x27;\\&#x27;&#x27;s&#x27; --checkpoint-choice &#x27;keep-prototype&#x27;"',
+      'circuit resume --run-folder &#x27;/tmp/prototype run&#x27;\\&#x27;&#x27;s&#x27; --checkpoint-choice &#x27;keep-prototype&#x27;',
     );
   });
 

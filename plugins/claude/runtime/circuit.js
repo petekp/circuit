@@ -22672,7 +22672,12 @@ var init_trace_entry = __esm({
       route_id: external_exports.string().min(1),
       auto_resolved: external_exports.boolean(),
       resolution_source: external_exports.enum(["declared-default", "operator", "policy"]),
-      response_path: external_exports.string().min(1)
+      response_path: external_exports.string().min(1),
+      // `response_path` remains the stable latest-response location for existing
+      // readers. New runs also point at the immutable response for this attempt so
+      // later visits to the same checkpoint cannot erase earlier review notes.
+      response_attempt_path: external_exports.string().min(1).optional(),
+      response_report_hash: ContentHash.optional()
     }).strict();
     EquipmentEnforcementEvidence = external_exports.object({
       declared: EquipmentEnforcement,
@@ -29463,10 +29468,10 @@ var require_resolve_block_map = __commonJS({
       let offset = bm.offset;
       let commentEnd = null;
       for (const collItem of bm.items) {
-        const { start, key, sep: sep2, value } = collItem;
+        const { start, key, sep: sep3, value } = collItem;
         const keyProps = resolveProps.resolveProps(start, {
           indicator: "explicit-key-ind",
-          next: key ?? sep2?.[0],
+          next: key ?? sep3?.[0],
           offset,
           onError,
           parentIndent: bm.indent,
@@ -29480,7 +29485,7 @@ var require_resolve_block_map = __commonJS({
             else if ("indent" in key && key.indent !== bm.indent)
               onError(offset, "BAD_INDENT", startColMsg);
           }
-          if (!keyProps.anchor && !keyProps.tag && !sep2) {
+          if (!keyProps.anchor && !keyProps.tag && !sep3) {
             commentEnd = keyProps.end;
             if (keyProps.comment) {
               if (map2.comment)
@@ -29504,7 +29509,7 @@ var require_resolve_block_map = __commonJS({
         ctx.atKey = false;
         if (utilMapIncludes.mapIncludes(ctx, map2.items, keyNode))
           onError(keyStart, "DUPLICATE_KEY", "Map keys must be unique");
-        const valueProps = resolveProps.resolveProps(sep2 ?? [], {
+        const valueProps = resolveProps.resolveProps(sep3 ?? [], {
           indicator: "map-value-ind",
           next: value,
           offset: keyNode.range[2],
@@ -29520,7 +29525,7 @@ var require_resolve_block_map = __commonJS({
             if (ctx.options.strict && keyProps.start < valueProps.found.offset - 1024)
               onError(keyNode.range, "KEY_OVER_1024_CHARS", "The : indicator must be at most 1024 chars after the start of an implicit block mapping key");
           }
-          const valueNode = value ? composeNode(ctx, value, valueProps, onError) : composeEmptyNode(ctx, offset, sep2, null, valueProps, onError);
+          const valueNode = value ? composeNode(ctx, value, valueProps, onError) : composeEmptyNode(ctx, offset, sep3, null, valueProps, onError);
           if (ctx.schema.compat)
             utilFlowIndentCheck.flowIndentCheck(bm.indent, value, onError);
           offset = valueNode.range[2];
@@ -29611,7 +29616,7 @@ var require_resolve_end = __commonJS({
       let comment = "";
       if (end) {
         let hasSpace = false;
-        let sep2 = "";
+        let sep3 = "";
         for (const token of end) {
           const { source, type } = token;
           switch (type) {
@@ -29625,13 +29630,13 @@ var require_resolve_end = __commonJS({
               if (!comment)
                 comment = cb;
               else
-                comment += sep2 + cb;
-              sep2 = "";
+                comment += sep3 + cb;
+              sep3 = "";
               break;
             }
             case "newline":
               if (comment)
-                sep2 += source;
+                sep3 += source;
               hasSpace = true;
               break;
             default:
@@ -29674,18 +29679,18 @@ var require_resolve_flow_collection = __commonJS({
       let offset = fc.offset + fc.start.source.length;
       for (let i = 0; i < fc.items.length; ++i) {
         const collItem = fc.items[i];
-        const { start, key, sep: sep2, value } = collItem;
+        const { start, key, sep: sep3, value } = collItem;
         const props = resolveProps.resolveProps(start, {
           flow: fcName,
           indicator: "explicit-key-ind",
-          next: key ?? sep2?.[0],
+          next: key ?? sep3?.[0],
           offset,
           onError,
           parentIndent: fc.indent,
           startOnNewline: false
         });
         if (!props.found) {
-          if (!props.anchor && !props.tag && !sep2 && !value) {
+          if (!props.anchor && !props.tag && !sep3 && !value) {
             if (i === 0 && props.comma)
               onError(props.comma, "UNEXPECTED_TOKEN", `Unexpected , in ${fcName}`);
             else if (i < fc.items.length - 1)
@@ -29739,8 +29744,8 @@ var require_resolve_flow_collection = __commonJS({
             }
           }
         }
-        if (!isMap && !sep2 && !props.found) {
-          const valueNode = value ? composeNode(ctx, value, props, onError) : composeEmptyNode(ctx, props.end, sep2, null, props, onError);
+        if (!isMap && !sep3 && !props.found) {
+          const valueNode = value ? composeNode(ctx, value, props, onError) : composeEmptyNode(ctx, props.end, sep3, null, props, onError);
           coll.items.push(valueNode);
           offset = valueNode.range[2];
           if (isBlock(value))
@@ -29752,7 +29757,7 @@ var require_resolve_flow_collection = __commonJS({
           if (isBlock(key))
             onError(keyNode.range, "BLOCK_IN_FLOW", blockMsg);
           ctx.atKey = false;
-          const valueProps = resolveProps.resolveProps(sep2 ?? [], {
+          const valueProps = resolveProps.resolveProps(sep3 ?? [], {
             flow: fcName,
             indicator: "map-value-ind",
             next: value,
@@ -29763,8 +29768,8 @@ var require_resolve_flow_collection = __commonJS({
           });
           if (valueProps.found) {
             if (!isMap && !props.found && ctx.options.strict) {
-              if (sep2)
-                for (const st of sep2) {
+              if (sep3)
+                for (const st of sep3) {
                   if (st === valueProps.found)
                     break;
                   if (st.type === "newline") {
@@ -29781,7 +29786,7 @@ var require_resolve_flow_collection = __commonJS({
             else
               onError(valueProps.start, "MISSING_CHAR", `Missing , or : between ${fcName} items`);
           }
-          const valueNode = value ? composeNode(ctx, value, valueProps, onError) : valueProps.found ? composeEmptyNode(ctx, valueProps.end, sep2, null, valueProps, onError) : null;
+          const valueNode = value ? composeNode(ctx, value, valueProps, onError) : valueProps.found ? composeEmptyNode(ctx, valueProps.end, sep3, null, valueProps, onError) : null;
           if (valueNode) {
             if (isBlock(value))
               onError(valueNode.range, "BLOCK_IN_FLOW", blockMsg);
@@ -29961,7 +29966,7 @@ var require_resolve_block_scalar = __commonJS({
           chompStart = i + 1;
       }
       let value = "";
-      let sep2 = "";
+      let sep3 = "";
       let prevMoreIndented = false;
       for (let i = 0; i < contentStart; ++i)
         value += lines[i][0].slice(trimIndent) + "\n";
@@ -29978,24 +29983,24 @@ var require_resolve_block_scalar = __commonJS({
           indent = "";
         }
         if (type === Scalar.Scalar.BLOCK_LITERAL) {
-          value += sep2 + indent.slice(trimIndent) + content;
-          sep2 = "\n";
+          value += sep3 + indent.slice(trimIndent) + content;
+          sep3 = "\n";
         } else if (indent.length > trimIndent || content[0] === "	") {
-          if (sep2 === " ")
-            sep2 = "\n";
-          else if (!prevMoreIndented && sep2 === "\n")
-            sep2 = "\n\n";
-          value += sep2 + indent.slice(trimIndent) + content;
-          sep2 = "\n";
+          if (sep3 === " ")
+            sep3 = "\n";
+          else if (!prevMoreIndented && sep3 === "\n")
+            sep3 = "\n\n";
+          value += sep3 + indent.slice(trimIndent) + content;
+          sep3 = "\n";
           prevMoreIndented = true;
         } else if (content === "") {
-          if (sep2 === "\n")
+          if (sep3 === "\n")
             value += "\n";
           else
-            sep2 = "\n";
+            sep3 = "\n";
         } else {
-          value += sep2 + content;
-          sep2 = " ";
+          value += sep3 + content;
+          sep3 = " ";
           prevMoreIndented = false;
         }
       }
@@ -30177,25 +30182,25 @@ var require_resolve_flow_scalar = __commonJS({
       if (!match)
         return source;
       let res = match[1];
-      let sep2 = " ";
+      let sep3 = " ";
       let pos = first.lastIndex;
       line.lastIndex = pos;
       while (match = line.exec(source)) {
         if (match[1] === "") {
-          if (sep2 === "\n")
-            res += sep2;
+          if (sep3 === "\n")
+            res += sep3;
           else
-            sep2 = "\n";
+            sep3 = "\n";
         } else {
-          res += sep2 + match[1];
-          sep2 = " ";
+          res += sep3 + match[1];
+          sep3 = " ";
         }
         pos = line.lastIndex;
       }
       const last = /[ \t]*(.*)/sy;
       last.lastIndex = pos;
       match = last.exec(source);
-      return res + sep2 + (match?.[1] ?? "");
+      return res + sep3 + (match?.[1] ?? "");
     }
     function doubleQuotedValue(source, onError) {
       let res = "";
@@ -31002,14 +31007,14 @@ var require_cst_stringify = __commonJS({
         }
       }
     }
-    function stringifyItem({ start, key, sep: sep2, value }) {
+    function stringifyItem({ start, key, sep: sep3, value }) {
       let res = "";
       for (const st of start)
         res += st.source;
       if (key)
         res += stringifyToken(key);
-      if (sep2)
-        for (const st of sep2)
+      if (sep3)
+        for (const st of sep3)
           res += st.source;
       if (value)
         res += stringifyToken(value);
@@ -32159,18 +32164,18 @@ var require_parser = __commonJS({
         if (this.type === "map-value-ind") {
           const prev = getPrevProps(this.peek(2));
           const start = getFirstKeyStartProps(prev);
-          let sep2;
+          let sep3;
           if (scalar.end) {
-            sep2 = scalar.end;
-            sep2.push(this.sourceToken);
+            sep3 = scalar.end;
+            sep3.push(this.sourceToken);
             delete scalar.end;
           } else
-            sep2 = [this.sourceToken];
+            sep3 = [this.sourceToken];
           const map2 = {
             type: "block-map",
             offset: scalar.offset,
             indent: scalar.indent,
-            items: [{ start, key: scalar, sep: sep2 }]
+            items: [{ start, key: scalar, sep: sep3 }]
           };
           this.onKeyLine = true;
           this.stack[this.stack.length - 1] = map2;
@@ -32323,15 +32328,15 @@ var require_parser = __commonJS({
                 } else if (isFlowToken(it.key) && !includesToken(it.sep, "newline")) {
                   const start2 = getFirstKeyStartProps(it.start);
                   const key = it.key;
-                  const sep2 = it.sep;
-                  sep2.push(this.sourceToken);
+                  const sep3 = it.sep;
+                  sep3.push(this.sourceToken);
                   delete it.key;
                   delete it.sep;
                   this.stack.push({
                     type: "block-map",
                     offset: this.offset,
                     indent: this.indent,
-                    items: [{ start: start2, key, sep: sep2 }]
+                    items: [{ start: start2, key, sep: sep3 }]
                   });
                 } else if (start.length > 0) {
                   it.sep = it.sep.concat(start, this.sourceToken);
@@ -32525,13 +32530,13 @@ var require_parser = __commonJS({
             const prev = getPrevProps(parent);
             const start = getFirstKeyStartProps(prev);
             fixFlowSeqItems(fc);
-            const sep2 = fc.end.splice(1, fc.end.length);
-            sep2.push(this.sourceToken);
+            const sep3 = fc.end.splice(1, fc.end.length);
+            sep3.push(this.sourceToken);
             const map2 = {
               type: "block-map",
               offset: fc.offset,
               indent: fc.indent,
-              items: [{ start, key: fc, sep: sep2 }]
+              items: [{ start, key: fc, sep: sep3 }]
             };
             this.onKeyLine = true;
             this.stack[this.stack.length - 1] = map2;
@@ -33679,9 +33684,9 @@ function runShow(argv, options) {
     return 0;
   }
   const palette = terminalPalette(colorEnabled());
-  const sep2 = palette.dim("\xB7");
+  const sep3 = palette.dim("\xB7");
   const lines = [
-    `${palette.accent("\u25C6")} ${palette.bold("circuit config")} ${sep2} layered selection config`,
+    `${palette.accent("\u25C6")} ${palette.bold("circuit config")} ${sep3} layered selection config`,
     ""
   ];
   for (const [layerName, filePath] of [
@@ -34840,21 +34845,21 @@ var require_react_development = __commonJS({
         );
         actScopeDepth = prevActScopeDepth;
       }
-      function recursivelyFlushAsyncActWork(returnValue, resolve32, reject) {
+      function recursivelyFlushAsyncActWork(returnValue, resolve33, reject) {
         var queue = ReactSharedInternals.actQueue;
         if (null !== queue)
           if (0 !== queue.length)
             try {
               flushActQueue(queue);
               enqueueTask(function() {
-                return recursivelyFlushAsyncActWork(returnValue, resolve32, reject);
+                return recursivelyFlushAsyncActWork(returnValue, resolve33, reject);
               });
               return;
             } catch (error52) {
               ReactSharedInternals.thrownErrors.push(error52);
             }
           else ReactSharedInternals.actQueue = null;
-        0 < ReactSharedInternals.thrownErrors.length ? (queue = aggregateErrors(ReactSharedInternals.thrownErrors), ReactSharedInternals.thrownErrors.length = 0, reject(queue)) : resolve32(returnValue);
+        0 < ReactSharedInternals.thrownErrors.length ? (queue = aggregateErrors(ReactSharedInternals.thrownErrors), ReactSharedInternals.thrownErrors.length = 0, reject(queue)) : resolve33(returnValue);
       }
       function flushActQueue(queue) {
         if (!isFlushing) {
@@ -35041,7 +35046,7 @@ var require_react_development = __commonJS({
             ));
           });
           return {
-            then: function(resolve32, reject) {
+            then: function(resolve33, reject) {
               didAwaitActCall = true;
               thenable.then(
                 function(returnValue) {
@@ -35051,7 +35056,7 @@ var require_react_development = __commonJS({
                       flushActQueue(queue), enqueueTask(function() {
                         return recursivelyFlushAsyncActWork(
                           returnValue,
-                          resolve32,
+                          resolve33,
                           reject
                         );
                       });
@@ -35065,7 +35070,7 @@ var require_react_development = __commonJS({
                       ReactSharedInternals.thrownErrors.length = 0;
                       reject(_thrownError);
                     }
-                  } else resolve32(returnValue);
+                  } else resolve33(returnValue);
                 },
                 function(error52) {
                   popActScope(prevActQueue, prevActScopeDepth);
@@ -35087,15 +35092,15 @@ var require_react_development = __commonJS({
         if (0 < ReactSharedInternals.thrownErrors.length)
           throw callback = aggregateErrors(ReactSharedInternals.thrownErrors), ReactSharedInternals.thrownErrors.length = 0, callback;
         return {
-          then: function(resolve32, reject) {
+          then: function(resolve33, reject) {
             didAwaitActCall = true;
             0 === prevActScopeDepth ? (ReactSharedInternals.actQueue = queue, enqueueTask(function() {
               return recursivelyFlushAsyncActWork(
                 returnValue$jscomp$0,
-                resolve32,
+                resolve33,
                 reject
               );
-            })) : resolve32(returnValue$jscomp$0);
+            })) : resolve33(returnValue$jscomp$0);
           }
         };
       };
@@ -46485,7 +46490,7 @@ var require_react_dom_server_node_production = __commonJS({
       };
     }
     exports.prerender = function(children, options) {
-      return new Promise(function(resolve32, reject) {
+      return new Promise(function(resolve33, reject) {
         var onHeaders = options ? options.onHeaders : void 0, onHeadersImpl;
         onHeaders && (onHeadersImpl = function(headersDescriptor) {
           onHeaders(new Headers(headersDescriptor));
@@ -46528,7 +46533,7 @@ var require_react_dom_server_node_production = __commonJS({
               { highWaterMark: 0 }
             );
             stream2 = { postponed: getPostponedState(request), prelude: stream2 };
-            resolve32(stream2);
+            resolve33(stream2);
           },
           void 0,
           void 0,
@@ -46550,7 +46555,7 @@ var require_react_dom_server_node_production = __commonJS({
       });
     };
     exports.prerenderToNodeStream = function(children, options) {
-      return new Promise(function(resolve32, reject) {
+      return new Promise(function(resolve33, reject) {
         var resumableState = createResumableState(
           options ? options.identifierPrefix : void 0,
           options ? options.unstable_externalRuntimeSrc : void 0,
@@ -46581,7 +46586,7 @@ var require_react_dom_server_node_production = __commonJS({
               postponed: getPostponedState(request),
               prelude: readable
             };
-            resolve32(readable);
+            resolve33(readable);
           },
           void 0,
           void 0,
@@ -46637,7 +46642,7 @@ var require_react_dom_server_node_production = __commonJS({
       };
     };
     exports.renderToReadableStream = function(children, options) {
-      return new Promise(function(resolve32, reject) {
+      return new Promise(function(resolve33, reject) {
         var onFatalError, onAllReady, allReady = new Promise(function(res, rej) {
           onAllReady = res;
           onFatalError = rej;
@@ -46686,7 +46691,7 @@ var require_react_dom_server_node_production = __commonJS({
               { highWaterMark: 0 }
             );
             stream2.allReady = allReady;
-            resolve32(stream2);
+            resolve33(stream2);
           },
           function(error52) {
             allReady.catch(function() {
@@ -46712,7 +46717,7 @@ var require_react_dom_server_node_production = __commonJS({
       });
     };
     exports.resume = function(children, postponedState, options) {
-      return new Promise(function(resolve32, reject) {
+      return new Promise(function(resolve33, reject) {
         var onFatalError, onAllReady, allReady = new Promise(function(res, rej) {
           onAllReady = res;
           onFatalError = rej;
@@ -46749,7 +46754,7 @@ var require_react_dom_server_node_production = __commonJS({
               { highWaterMark: 0 }
             );
             stream2.allReady = allReady;
-            resolve32(stream2);
+            resolve33(stream2);
           },
           function(error52) {
             allReady.catch(function() {
@@ -46774,7 +46779,7 @@ var require_react_dom_server_node_production = __commonJS({
       });
     };
     exports.resumeAndPrerender = function(children, postponedState, options) {
-      return new Promise(function(resolve32, reject) {
+      return new Promise(function(resolve33, reject) {
         var request = resumeAndPrerenderRequest(
           children,
           postponedState,
@@ -46805,7 +46810,7 @@ var require_react_dom_server_node_production = __commonJS({
               { highWaterMark: 0 }
             );
             stream2 = { postponed: getPostponedState(request), prelude: stream2 };
-            resolve32(stream2);
+            resolve33(stream2);
           },
           void 0,
           void 0,
@@ -46827,7 +46832,7 @@ var require_react_dom_server_node_production = __commonJS({
       });
     };
     exports.resumeAndPrerenderToNodeStream = function(children, postponedState, options) {
-      return new Promise(function(resolve32, reject) {
+      return new Promise(function(resolve33, reject) {
         var request = resumeAndPrerenderRequest(
           children,
           postponedState,
@@ -46847,7 +46852,7 @@ var require_react_dom_server_node_production = __commonJS({
               }
             }), writable = createFakeWritableFromReadable(readable);
             readable = { postponed: getPostponedState(request), prelude: readable };
-            resolve32(readable);
+            resolve33(readable);
           },
           void 0,
           void 0,
@@ -61474,7 +61479,7 @@ var require_react_dom_server_node_development = __commonJS({
       ensureCorrectIsomorphicReactVersion();
       ensureCorrectIsomorphicReactVersion();
       exports.prerender = function(children, options) {
-        return new Promise(function(resolve32, reject) {
+        return new Promise(function(resolve33, reject) {
           var onHeaders = options ? options.onHeaders : void 0, onHeadersImpl;
           onHeaders && (onHeadersImpl = function(headersDescriptor) {
             onHeaders(new Headers(headersDescriptor));
@@ -61522,7 +61527,7 @@ var require_react_dom_server_node_development = __commonJS({
                 postponed: getPostponedState(request),
                 prelude: stream2
               };
-              resolve32(stream2);
+              resolve33(stream2);
             },
             void 0,
             void 0,
@@ -61544,7 +61549,7 @@ var require_react_dom_server_node_development = __commonJS({
         });
       };
       exports.prerenderToNodeStream = function(children, options) {
-        return new Promise(function(resolve32, reject) {
+        return new Promise(function(resolve33, reject) {
           var resumableState = createResumableState(
             options ? options.identifierPrefix : void 0,
             options ? options.unstable_externalRuntimeSrc : void 0,
@@ -61575,7 +61580,7 @@ var require_react_dom_server_node_development = __commonJS({
                 postponed: getPostponedState(request),
                 prelude: readable
               };
-              resolve32(readable);
+              resolve33(readable);
             },
             void 0,
             void 0,
@@ -61631,7 +61636,7 @@ var require_react_dom_server_node_development = __commonJS({
         };
       };
       exports.renderToReadableStream = function(children, options) {
-        return new Promise(function(resolve32, reject) {
+        return new Promise(function(resolve33, reject) {
           var onFatalError, onAllReady, allReady = new Promise(function(res, rej) {
             onAllReady = res;
             onFatalError = rej;
@@ -61680,7 +61685,7 @@ var require_react_dom_server_node_development = __commonJS({
                 { highWaterMark: 0 }
               );
               stream2.allReady = allReady;
-              resolve32(stream2);
+              resolve33(stream2);
             },
             function(error52) {
               allReady.catch(function() {
@@ -61706,7 +61711,7 @@ var require_react_dom_server_node_development = __commonJS({
         });
       };
       exports.resume = function(children, postponedState, options) {
-        return new Promise(function(resolve32, reject) {
+        return new Promise(function(resolve33, reject) {
           var onFatalError, onAllReady, allReady = new Promise(function(res, rej) {
             onAllReady = res;
             onFatalError = rej;
@@ -61743,7 +61748,7 @@ var require_react_dom_server_node_development = __commonJS({
                 { highWaterMark: 0 }
               );
               stream2.allReady = allReady;
-              resolve32(stream2);
+              resolve33(stream2);
             },
             function(error52) {
               allReady.catch(function() {
@@ -61768,7 +61773,7 @@ var require_react_dom_server_node_development = __commonJS({
         });
       };
       exports.resumeAndPrerender = function(children, postponedState, options) {
-        return new Promise(function(resolve32, reject) {
+        return new Promise(function(resolve33, reject) {
           var request = resumeAndPrerenderRequest(
             children,
             postponedState,
@@ -61801,7 +61806,7 @@ var require_react_dom_server_node_development = __commonJS({
                 { highWaterMark: 0 }
               );
               stream2 = { postponed: getPostponedState(request), prelude: stream2 };
-              resolve32(stream2);
+              resolve33(stream2);
             },
             void 0,
             void 0,
@@ -61823,7 +61828,7 @@ var require_react_dom_server_node_development = __commonJS({
         });
       };
       exports.resumeAndPrerenderToNodeStream = function(children, postponedState, options) {
-        return new Promise(function(resolve32, reject) {
+        return new Promise(function(resolve33, reject) {
           var request = resumeAndPrerenderRequest(
             children,
             postponedState,
@@ -61846,7 +61851,7 @@ var require_react_dom_server_node_development = __commonJS({
                 postponed: getPostponedState(request),
                 prelude: readable
               };
-              resolve32(readable);
+              resolve33(readable);
             },
             void 0,
             void 0,
@@ -61931,7 +61936,7 @@ var init_css_generated = __esm({
   "dist/shared/html/ui/css.generated.js"() {
     "use strict";
     UI_CSS = `/*! tailwindcss v4.3.2 | MIT License | https://tailwindcss.com */
-@layer properties{@supports (((-webkit-hyphens:none)) and (not (margin-trim:inline))) or ((-moz-orient:inline) and (not (color:rgb(from red r g b)))){*,:before,:after,::backdrop{--tw-space-y-reverse:0;--tw-border-style:solid;--tw-leading:initial;--tw-font-weight:initial;--tw-tracking:initial;--tw-shadow:0 0 #0000;--tw-shadow-color:initial;--tw-shadow-alpha:100%;--tw-inset-shadow:0 0 #0000;--tw-inset-shadow-color:initial;--tw-inset-shadow-alpha:100%;--tw-ring-color:initial;--tw-ring-shadow:0 0 #0000;--tw-inset-ring-color:initial;--tw-inset-ring-shadow:0 0 #0000;--tw-ring-inset:initial;--tw-ring-offset-width:0px;--tw-ring-offset-color:#fff;--tw-ring-offset-shadow:0 0 #0000;--tw-outline-style:solid;--tw-translate-x:0;--tw-translate-y:0;--tw-translate-z:0}}}@layer theme{:root,:host{--font-sans:ui-sans-serif, system-ui, sans-serif, "Apple Color Emoji", "Segoe UI Emoji", "Segoe UI Symbol", "Noto Color Emoji";--font-mono:ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace;--color-white:#fff;--spacing:.25rem;--container-4xl:56rem;--container-6xl:72rem;--text-xs:.75rem;--text-xs--line-height:calc(1 / .75);--text-sm:.875rem;--text-sm--line-height:calc(1.25 / .875);--text-base:1rem;--text-base--line-height:calc(1.5 / 1);--text-lg:1.125rem;--text-lg--line-height:calc(1.75 / 1.125);--font-weight-normal:400;--font-weight-medium:500;--font-weight-semibold:600;--tracking-tight:-.025em;--leading-tight:1.25;--leading-snug:1.375;--leading-normal:1.5;--leading-relaxed:1.625;--default-transition-duration:.15s;--default-transition-timing-function:cubic-bezier(.4, 0, .2, 1);--default-font-family:var(--font-sans);--default-mono-font-family:var(--font-mono)}}@layer base{*,:after,:before,::backdrop{box-sizing:border-box;border:0 solid;margin:0;padding:0}::file-selector-button{box-sizing:border-box;border:0 solid;margin:0;padding:0}html,:host{-webkit-text-size-adjust:100%;tab-size:4;line-height:1.5;font-family:var(--default-font-family,ui-sans-serif, system-ui, sans-serif, "Apple Color Emoji", "Segoe UI Emoji", "Segoe UI Symbol", "Noto Color Emoji");font-feature-settings:var(--default-font-feature-settings,normal);font-variation-settings:var(--default-font-variation-settings,normal);-webkit-tap-highlight-color:transparent}hr{height:0;color:inherit;border-top-width:1px}abbr:where([title]){-webkit-text-decoration:underline dotted;text-decoration:underline dotted}h1,h2,h3,h4,h5,h6{font-size:inherit;font-weight:inherit}a{color:inherit;-webkit-text-decoration:inherit;-webkit-text-decoration:inherit;-webkit-text-decoration:inherit;text-decoration:inherit}b,strong{font-weight:bolder}code,kbd,samp,pre{font-family:var(--default-mono-font-family,ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace);font-feature-settings:var(--default-mono-font-feature-settings,normal);font-variation-settings:var(--default-mono-font-variation-settings,normal);font-size:1em}small{font-size:80%}sub,sup{vertical-align:baseline;font-size:75%;line-height:0;position:relative}sub{bottom:-.25em}sup{top:-.5em}table{text-indent:0;border-color:inherit;border-collapse:collapse}:-moz-focusring{outline:auto}progress{vertical-align:baseline}summary{display:list-item}ol,ul,menu{list-style:none}img,svg,video,canvas,audio,iframe,embed,object{vertical-align:middle;display:block}img,video{max-width:100%;height:auto}button,input,select,optgroup,textarea{font:inherit;font-feature-settings:inherit;font-variation-settings:inherit;letter-spacing:inherit;color:inherit;opacity:1;background-color:#0000;border-radius:0}::file-selector-button{font:inherit;font-feature-settings:inherit;font-variation-settings:inherit;letter-spacing:inherit;color:inherit;opacity:1;background-color:#0000;border-radius:0}:where(select:is([multiple],[size])) optgroup{font-weight:bolder}:where(select:is([multiple],[size])) optgroup option{padding-inline-start:20px}::file-selector-button{margin-inline-end:4px}::placeholder{opacity:1}@supports (not ((-webkit-appearance:-apple-pay-button))) or (contain-intrinsic-size:1px){::placeholder{color:currentColor}@supports (color:color-mix(in lab, red, red)){::placeholder{color:color-mix(in oklab, currentcolor 50%, transparent)}}}textarea{resize:vertical}::-webkit-search-decoration{-webkit-appearance:none}::-webkit-date-and-time-value{min-height:1lh;text-align:inherit}::-webkit-datetime-edit{display:inline-flex}::-webkit-datetime-edit-fields-wrapper{padding:0}::-webkit-datetime-edit{padding-block:0}::-webkit-datetime-edit-year-field{padding-block:0}::-webkit-datetime-edit-month-field{padding-block:0}::-webkit-datetime-edit-day-field{padding-block:0}::-webkit-datetime-edit-hour-field{padding-block:0}::-webkit-datetime-edit-minute-field{padding-block:0}::-webkit-datetime-edit-second-field{padding-block:0}::-webkit-datetime-edit-millisecond-field{padding-block:0}::-webkit-datetime-edit-meridiem-field{padding-block:0}::-webkit-calendar-picker-indicator{line-height:1}:-moz-ui-invalid{box-shadow:none}button,input:where([type=button],[type=reset],[type=submit]){appearance:button}::file-selector-button{appearance:button}::-webkit-inner-spin-button{height:auto}::-webkit-outer-spin-button{height:auto}[hidden]:where(:not([hidden=until-found])){display:none!important}*{border-color:var(--border);outline-color:var(--ring)}@supports (color:color-mix(in lab, red, red)){*{outline-color:color-mix(in oklab, var(--ring) 50%, transparent)}}body{background-color:var(--background);color:var(--foreground)}}@layer components{input[data-slot=checkbox]:checked{background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%23fafaf9' stroke-width='3' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M20 6 9 17l-5-5'/%3E%3C/svg%3E");background-position:50%;background-repeat:no-repeat;background-size:.75rem}input[data-slot=radio-group-item]:checked{background-image:radial-gradient(circle closest-side, var(--primary) 45%, transparent 50%)}}@layer utilities{.\\@container\\/card-header{container:card-header/inline-size}.\\@container\\/field-group{container:field-group/inline-size}.pointer-events-none{pointer-events:none}.visible{visibility:visible}.absolute{position:absolute}.relative{position:relative}.static{position:static}.inset-0{inset:0}.top-1\\/2{top:50%}.col-start-2{grid-column-start:2}.row-span-2{grid-row:span 2/span 2}.row-start-1{grid-row-start:1}.m-0{margin:0}.mx-auto{margin-inline:auto}.-my-2{margin-block:calc(var(--spacing) * -2)}.mt-2{margin-top:calc(var(--spacing) * 2)}.mt-2\\.5{margin-top:calc(var(--spacing) * 2.5)}.mt-3{margin-top:calc(var(--spacing) * 3)}.mt-4{margin-top:calc(var(--spacing) * 4)}.mt-5{margin-top:calc(var(--spacing) * 5)}.mt-8{margin-top:calc(var(--spacing) * 8)}.mt-12{margin-top:calc(var(--spacing) * 12)}.mb-0\\.5{margin-bottom:calc(var(--spacing) * .5)}.mb-1\\.5{margin-bottom:calc(var(--spacing) * 1.5)}.mb-2{margin-bottom:calc(var(--spacing) * 2)}.mb-2\\.5{margin-bottom:calc(var(--spacing) * 2.5)}.mb-3{margin-bottom:calc(var(--spacing) * 3)}.mb-6{margin-bottom:calc(var(--spacing) * 6)}.mb-7{margin-bottom:calc(var(--spacing) * 7)}.ml-4{margin-left:calc(var(--spacing) * 4)}.line-clamp-1{-webkit-line-clamp:1;-webkit-box-orient:vertical;display:-webkit-box;overflow:hidden}.block{display:block}.flex{display:flex}.grid{display:grid}.hidden{display:none}.inline-flex{display:inline-flex}.table{display:table}.table-caption{display:table-caption}.table-cell{display:table-cell}.table-row{display:table-row}.field-sizing-content{field-sizing:content}.aspect-square{aspect-ratio:1}.size-4{width:calc(var(--spacing) * 4);height:calc(var(--spacing) * 4)}.size-8{width:calc(var(--spacing) * 8);height:calc(var(--spacing) * 8)}.size-9{width:calc(var(--spacing) * 9);height:calc(var(--spacing) * 9)}.size-10{width:calc(var(--spacing) * 10);height:calc(var(--spacing) * 10)}.h-5{height:calc(var(--spacing) * 5)}.h-8{height:calc(var(--spacing) * 8)}.h-9{height:calc(var(--spacing) * 9)}.h-10{height:calc(var(--spacing) * 10)}.min-h-4{min-height:calc(var(--spacing) * 4)}.min-h-16{min-height:calc(var(--spacing) * 16)}.w-fit{width:fit-content}.w-full{width:100%}.max-w-4xl{max-width:var(--container-4xl)}.max-w-6xl{max-width:var(--container-6xl)}.max-w-full{max-width:100%}.min-w-0{min-width:0}.min-w-5{min-width:calc(var(--spacing) * 5)}.min-w-\\[200px\\]{min-width:200px}.flex-1{flex:1}.shrink-0{flex-shrink:0}.caption-bottom{caption-side:bottom}.cursor-pointer{cursor:pointer}.list-disc{list-style-type:disc}.appearance-none{appearance:none}.auto-rows-min{grid-auto-rows:min-content}.grid-cols-1{grid-template-columns:repeat(1,minmax(0,1fr))}.grid-cols-\\[0_1fr\\]{grid-template-columns:0 1fr}.grid-cols-\\[repeat\\(auto-fit\\,minmax\\(320px\\,1fr\\)\\)\\]{grid-template-columns:repeat(auto-fit,minmax(320px,1fr))}.grid-rows-\\[auto_auto\\]{grid-template-rows:auto auto}.flex-col{flex-direction:column}.flex-row{flex-direction:row}.flex-wrap{flex-wrap:wrap}.items-baseline{align-items:baseline}.items-center{align-items:center}.items-start{align-items:flex-start}.justify-between{justify-content:space-between}.justify-center{justify-content:center}.justify-items-start{justify-items:start}.gap-1{gap:var(--spacing)}.gap-1\\.5{gap:calc(var(--spacing) * 1.5)}.gap-2{gap:calc(var(--spacing) * 2)}.gap-2\\.5{gap:calc(var(--spacing) * 2.5)}.gap-3{gap:calc(var(--spacing) * 3)}.gap-3\\.5{gap:calc(var(--spacing) * 3.5)}.gap-4{gap:calc(var(--spacing) * 4)}.gap-6{gap:calc(var(--spacing) * 6)}.gap-7{gap:calc(var(--spacing) * 7)}:where(.space-y-1\\.5>:not(:last-child)){--tw-space-y-reverse:0;margin-block-start:calc(calc(var(--spacing) * 1.5) * var(--tw-space-y-reverse));margin-block-end:calc(calc(var(--spacing) * 1.5) * calc(1 - var(--tw-space-y-reverse)))}.gap-y-0\\.5{row-gap:calc(var(--spacing) * .5)}.self-start{align-self:flex-start}.justify-self-end{justify-self:flex-end}.truncate{text-overflow:ellipsis;white-space:nowrap;overflow:hidden}.overflow-hidden{overflow:hidden}.overflow-x-auto{overflow-x:auto}.rounded-\\[4px\\]{border-radius:4px}.rounded-full{border-radius:3.40282e38px}.rounded-lg{border-radius:var(--radius)}.rounded-md{border-radius:calc(var(--radius) - 2px)}.rounded-sm{border-radius:calc(var(--radius) - 4px)}.rounded-xl{border-radius:calc(var(--radius) + 4px)}.border{border-style:var(--tw-border-style);border-width:1px}.border-t{border-top-style:var(--tw-border-style);border-top-width:1px}.border-b{border-bottom-style:var(--tw-border-style);border-bottom-width:1px}.border-dashed{--tw-border-style:dashed;border-style:dashed}.border-attention\\/60{border-color:var(--attention)}@supports (color:color-mix(in lab, red, red)){.border-attention\\/60{border-color:color-mix(in oklab, var(--attention) 60%, transparent)}}.border-border{border-color:var(--border)}.border-destructive\\/50{border-color:var(--destructive)}@supports (color:color-mix(in lab, red, red)){.border-destructive\\/50{border-color:color-mix(in oklab, var(--destructive) 50%, transparent)}}.border-destructive\\/60{border-color:var(--destructive)}@supports (color:color-mix(in lab, red, red)){.border-destructive\\/60{border-color:color-mix(in oklab, var(--destructive) 60%, transparent)}}.border-info\\/50{border-color:var(--info)}@supports (color:color-mix(in lab, red, red)){.border-info\\/50{border-color:color-mix(in oklab, var(--info) 50%, transparent)}}.border-input{border-color:var(--input)}.border-positive\\/50{border-color:var(--positive)}@supports (color:color-mix(in lab, red, red)){.border-positive\\/50{border-color:color-mix(in oklab, var(--positive) 50%, transparent)}}.border-positive\\/60{border-color:var(--positive)}@supports (color:color-mix(in lab, red, red)){.border-positive\\/60{border-color:color-mix(in oklab, var(--positive) 60%, transparent)}}.border-transparent{border-color:#0000}.bg-attention\\/5{background-color:var(--attention)}@supports (color:color-mix(in lab, red, red)){.bg-attention\\/5{background-color:color-mix(in oklab, var(--attention) 5%, transparent)}}.bg-background{background-color:var(--background)}.bg-border{background-color:var(--border)}.bg-card{background-color:var(--card)}.bg-destructive,.bg-destructive\\/5{background-color:var(--destructive)}@supports (color:color-mix(in lab, red, red)){.bg-destructive\\/5{background-color:color-mix(in oklab, var(--destructive) 5%, transparent)}}.bg-info\\/5{background-color:var(--info)}@supports (color:color-mix(in lab, red, red)){.bg-info\\/5{background-color:color-mix(in oklab, var(--info) 5%, transparent)}}.bg-muted,.bg-muted\\/40{background-color:var(--muted)}@supports (color:color-mix(in lab, red, red)){.bg-muted\\/40{background-color:color-mix(in oklab, var(--muted) 40%, transparent)}}.bg-muted\\/50{background-color:var(--muted)}@supports (color:color-mix(in lab, red, red)){.bg-muted\\/50{background-color:color-mix(in oklab, var(--muted) 50%, transparent)}}.bg-positive\\/5{background-color:var(--positive)}@supports (color:color-mix(in lab, red, red)){.bg-positive\\/5{background-color:color-mix(in oklab, var(--positive) 5%, transparent)}}.bg-primary{background-color:var(--primary)}.bg-secondary{background-color:var(--secondary)}.bg-transparent{background-color:#0000}.p-2{padding:calc(var(--spacing) * 2)}.px-1{padding-inline:var(--spacing)}.px-2{padding-inline:calc(var(--spacing) * 2)}.px-2\\.5{padding-inline:calc(var(--spacing) * 2.5)}.px-3{padding-inline:calc(var(--spacing) * 3)}.px-4{padding-inline:calc(var(--spacing) * 4)}.px-5{padding-inline:calc(var(--spacing) * 5)}.px-6{padding-inline:calc(var(--spacing) * 6)}.py-0\\.5{padding-block:calc(var(--spacing) * .5)}.py-1{padding-block:var(--spacing)}.py-1\\.5{padding-block:calc(var(--spacing) * 1.5)}.py-2{padding-block:calc(var(--spacing) * 2)}.py-3{padding-block:calc(var(--spacing) * 3)}.py-3\\.5{padding-block:calc(var(--spacing) * 3.5)}.py-4{padding-block:calc(var(--spacing) * 4)}.py-5{padding-block:calc(var(--spacing) * 5)}.py-6{padding-block:calc(var(--spacing) * 6)}.py-12{padding-block:calc(var(--spacing) * 12)}.pt-0\\.5{padding-top:calc(var(--spacing) * .5)}.pt-4{padding-top:calc(var(--spacing) * 4)}.pt-6{padding-top:calc(var(--spacing) * 6)}.pb-24{padding-bottom:calc(var(--spacing) * 24)}.pl-4{padding-left:calc(var(--spacing) * 4)}.text-left{text-align:left}.align-middle{vertical-align:middle}.font-mono{font-family:var(--font-mono)}.font-sans{font-family:var(--font-sans)}.text-base{font-size:var(--text-base);line-height:var(--tw-leading,var(--text-base--line-height))}.text-lg{font-size:var(--text-lg);line-height:var(--tw-leading,var(--text-lg--line-height))}.text-sm{font-size:var(--text-sm);line-height:var(--tw-leading,var(--text-sm--line-height))}.text-xs{font-size:var(--text-xs);line-height:var(--tw-leading,var(--text-xs--line-height))}.text-\\[10px\\]{font-size:10px}.text-\\[11px\\]{font-size:11px}.text-\\[13\\.5px\\]{font-size:13.5px}.text-\\[13px\\]{font-size:13px}.text-\\[15px\\]{font-size:15px}.text-\\[27px\\]{font-size:27px}.leading-none{--tw-leading:1;line-height:1}.leading-normal{--tw-leading:var(--leading-normal);line-height:var(--leading-normal)}.leading-relaxed{--tw-leading:var(--leading-relaxed);line-height:var(--leading-relaxed)}.leading-snug{--tw-leading:var(--leading-snug);line-height:var(--leading-snug)}.leading-tight{--tw-leading:var(--leading-tight);line-height:var(--leading-tight)}.font-medium{--tw-font-weight:var(--font-weight-medium);font-weight:var(--font-weight-medium)}.font-normal{--tw-font-weight:var(--font-weight-normal);font-weight:var(--font-weight-normal)}.font-semibold{--tw-font-weight:var(--font-weight-semibold);font-weight:var(--font-weight-semibold)}.tracking-\\[0\\.05em\\]{--tw-tracking:.05em;letter-spacing:.05em}.tracking-\\[0\\.06em\\]{--tw-tracking:.06em;letter-spacing:.06em}.tracking-\\[0\\.08em\\]{--tw-tracking:.08em;letter-spacing:.08em}.tracking-tight{--tw-tracking:var(--tracking-tight);letter-spacing:var(--tracking-tight)}.text-balance{text-wrap:balance}.break-words{overflow-wrap:break-word}.whitespace-nowrap{white-space:nowrap}.whitespace-pre{white-space:pre}.text-attention{color:var(--attention)}.text-card-foreground{color:var(--card-foreground)}.text-destructive{color:var(--destructive)}.text-foreground{color:var(--foreground)}.text-info{color:var(--info)}.text-muted-foreground,.text-muted-foreground\\/80{color:var(--muted-foreground)}@supports (color:color-mix(in lab, red, red)){.text-muted-foreground\\/80{color:color-mix(in oklab, var(--muted-foreground) 80%, transparent)}}.text-positive{color:var(--positive)}.text-primary{color:var(--primary)}.text-primary-foreground{color:var(--primary-foreground)}.text-secondary-foreground{color:var(--secondary-foreground)}.text-white{color:var(--color-white)}.lowercase{text-transform:lowercase}.uppercase{text-transform:uppercase}.underline-offset-4{text-underline-offset:4px}.antialiased{-webkit-font-smoothing:antialiased;-moz-osx-font-smoothing:grayscale}.shadow-none{--tw-shadow:0 0 #0000;box-shadow:var(--tw-inset-shadow), var(--tw-inset-ring-shadow), var(--tw-ring-offset-shadow), var(--tw-ring-shadow), var(--tw-shadow)}.shadow-sm{--tw-shadow:0 1px 3px 0 var(--tw-shadow-color,#0000001a), 0 1px 2px -1px var(--tw-shadow-color,#0000001a);box-shadow:var(--tw-inset-shadow), var(--tw-inset-ring-shadow), var(--tw-ring-offset-shadow), var(--tw-ring-shadow), var(--tw-shadow)}.shadow-xs{--tw-shadow:0 1px 2px 0 var(--tw-shadow-color,#0000000d);box-shadow:var(--tw-inset-shadow), var(--tw-inset-ring-shadow), var(--tw-ring-offset-shadow), var(--tw-ring-shadow), var(--tw-shadow)}.ring-\\[3px\\]{--tw-ring-shadow:var(--tw-ring-inset,) 0 0 0 calc(3px + var(--tw-ring-offset-width)) var(--tw-ring-color,currentcolor);box-shadow:var(--tw-inset-shadow), var(--tw-inset-ring-shadow), var(--tw-ring-offset-shadow), var(--tw-ring-shadow), var(--tw-shadow)}.ring-attention\\/10{--tw-ring-color:var(--attention)}@supports (color:color-mix(in lab, red, red)){.ring-attention\\/10{--tw-ring-color:color-mix(in oklab, var(--attention) 10%, transparent)}}.ring-destructive\\/10{--tw-ring-color:var(--destructive)}@supports (color:color-mix(in lab, red, red)){.ring-destructive\\/10{--tw-ring-color:color-mix(in oklab, var(--destructive) 10%, transparent)}}.ring-info\\/10{--tw-ring-color:var(--info)}@supports (color:color-mix(in lab, red, red)){.ring-info\\/10{--tw-ring-color:color-mix(in oklab, var(--info) 10%, transparent)}}.ring-positive\\/10{--tw-ring-color:var(--positive)}@supports (color:color-mix(in lab, red, red)){.ring-positive\\/10{--tw-ring-color:color-mix(in oklab, var(--positive) 10%, transparent)}}.outline{outline-style:var(--tw-outline-style);outline-width:1px}.transition-\\[color\\,box-shadow\\]{transition-property:color,box-shadow;transition-timing-function:var(--tw-ease,var(--default-transition-timing-function));transition-duration:var(--tw-duration,var(--default-transition-duration))}.transition-all{transition-property:all;transition-timing-function:var(--tw-ease,var(--default-transition-timing-function));transition-duration:var(--tw-duration,var(--default-transition-duration))}.transition-colors{transition-property:color,background-color,border-color,outline-color,text-decoration-color,fill,stroke,--tw-gradient-from,--tw-gradient-via,--tw-gradient-to;transition-timing-function:var(--tw-ease,var(--default-transition-timing-function));transition-duration:var(--tw-duration,var(--default-transition-duration))}.transition-shadow{transition-property:box-shadow;transition-timing-function:var(--tw-ease,var(--default-transition-timing-function));transition-duration:var(--tw-duration,var(--default-transition-duration))}.outline-none{--tw-outline-style:none;outline-style:none}.select-none{-webkit-user-select:none;user-select:none}.group-has-\\[\\[data-orientation\\=horizontal\\]\\]\\/field\\:text-balance:is(:where(.group\\/field):has([data-orientation=horizontal]) *){text-wrap:balance}.group-data-\\[disabled\\=true\\]\\:pointer-events-none:is(:where(.group)[data-disabled=true] *){pointer-events:none}.group-data-\\[disabled\\=true\\]\\:opacity-50:is(:where(.group)[data-disabled=true] *),.group-data-\\[disabled\\=true\\]\\/field\\:opacity-50:is(:where(.group\\/field)[data-disabled=true] *){opacity:.5}.group-data-\\[variant\\=outline\\]\\/field-group\\:-mb-2:is(:where(.group\\/field-group)[data-variant=outline] *){margin-bottom:calc(var(--spacing) * -2)}.peer-disabled\\:cursor-not-allowed:is(:where(.peer):disabled~*){cursor:not-allowed}.peer-disabled\\:opacity-50:is(:where(.peer):disabled~*),.peer-\\[\\[data-disabled\\]\\]\\:opacity-50:is(:where(.peer)[data-disabled]~*){opacity:.5}.marker\\:text-muted-foreground\\/60 ::marker{color:var(--muted-foreground)}@supports (color:color-mix(in lab, red, red)){.marker\\:text-muted-foreground\\/60 ::marker{color:color-mix(in oklab, var(--muted-foreground) 60%, transparent)}}.marker\\:text-muted-foreground\\/60::marker{color:var(--muted-foreground)}@supports (color:color-mix(in lab, red, red)){.marker\\:text-muted-foreground\\/60::marker{color:color-mix(in oklab, var(--muted-foreground) 60%, transparent)}}.marker\\:text-muted-foreground\\/60 ::-webkit-details-marker{color:var(--muted-foreground)}@supports (color:color-mix(in lab, red, red)){.marker\\:text-muted-foreground\\/60 ::-webkit-details-marker{color:color-mix(in oklab, var(--muted-foreground) 60%, transparent)}}.marker\\:text-muted-foreground\\/60::-webkit-details-marker{color:var(--muted-foreground)}@supports (color:color-mix(in lab, red, red)){.marker\\:text-muted-foreground\\/60::-webkit-details-marker{color:color-mix(in oklab, var(--muted-foreground) 60%, transparent)}}.selection\\:bg-primary ::selection{background-color:var(--primary)}.selection\\:bg-primary::selection{background-color:var(--primary)}.selection\\:text-primary-foreground ::selection{color:var(--primary-foreground)}.selection\\:text-primary-foreground::selection{color:var(--primary-foreground)}.file\\:inline-flex::file-selector-button{display:inline-flex}.file\\:h-7::file-selector-button{height:calc(var(--spacing) * 7)}.file\\:border-0::file-selector-button{border-style:var(--tw-border-style);border-width:0}.file\\:bg-transparent::file-selector-button{background-color:#0000}.file\\:text-sm::file-selector-button{font-size:var(--text-sm);line-height:var(--tw-leading,var(--text-sm--line-height))}.file\\:font-medium::file-selector-button{--tw-font-weight:var(--font-weight-medium);font-weight:var(--font-weight-medium)}.file\\:text-foreground::file-selector-button{color:var(--foreground)}.placeholder\\:text-muted-foreground::placeholder{color:var(--muted-foreground)}.last\\:mt-0:last-child{margin-top:0}.checked\\:border-primary:checked{border-color:var(--primary)}.checked\\:bg-primary:checked{background-color:var(--primary)}@media (hover:hover){.hover\\:bg-accent:hover{background-color:var(--accent)}.hover\\:bg-destructive\\/90:hover{background-color:var(--destructive)}@supports (color:color-mix(in lab, red, red)){.hover\\:bg-destructive\\/90:hover{background-color:color-mix(in oklab, var(--destructive) 90%, transparent)}}.hover\\:bg-muted\\/50:hover{background-color:var(--muted)}@supports (color:color-mix(in lab, red, red)){.hover\\:bg-muted\\/50:hover{background-color:color-mix(in oklab, var(--muted) 50%, transparent)}}.hover\\:bg-primary\\/90:hover{background-color:var(--primary)}@supports (color:color-mix(in lab, red, red)){.hover\\:bg-primary\\/90:hover{background-color:color-mix(in oklab, var(--primary) 90%, transparent)}}.hover\\:bg-secondary\\/80:hover{background-color:var(--secondary)}@supports (color:color-mix(in lab, red, red)){.hover\\:bg-secondary\\/80:hover{background-color:color-mix(in oklab, var(--secondary) 80%, transparent)}}.hover\\:text-accent-foreground:hover{color:var(--accent-foreground)}.hover\\:text-foreground:hover{color:var(--foreground)}.hover\\:underline:hover{text-decoration-line:underline}}.focus-visible\\:border-ring:focus-visible{border-color:var(--ring)}.focus-visible\\:ring-\\[3px\\]:focus-visible{--tw-ring-shadow:var(--tw-ring-inset,) 0 0 0 calc(3px + var(--tw-ring-offset-width)) var(--tw-ring-color,currentcolor);box-shadow:var(--tw-inset-shadow), var(--tw-inset-ring-shadow), var(--tw-ring-offset-shadow), var(--tw-ring-shadow), var(--tw-shadow)}.focus-visible\\:ring-destructive\\/20:focus-visible{--tw-ring-color:var(--destructive)}@supports (color:color-mix(in lab, red, red)){.focus-visible\\:ring-destructive\\/20:focus-visible{--tw-ring-color:color-mix(in oklab, var(--destructive) 20%, transparent)}}.focus-visible\\:ring-ring\\/50:focus-visible{--tw-ring-color:var(--ring)}@supports (color:color-mix(in lab, red, red)){.focus-visible\\:ring-ring\\/50:focus-visible{--tw-ring-color:color-mix(in oklab, var(--ring) 50%, transparent)}}.disabled\\:pointer-events-none:disabled{pointer-events:none}.disabled\\:cursor-not-allowed:disabled{cursor:not-allowed}.disabled\\:opacity-50:disabled{opacity:.5}.has-data-\\[slot\\=card-action\\]\\:grid-cols-\\[1fr_auto\\]:has([data-slot=card-action]){grid-template-columns:1fr auto}.has-data-\\[state\\=checked\\]\\:border-primary:has([data-state=checked]){border-color:var(--primary)}.has-data-\\[state\\=checked\\]\\:bg-primary\\/5:has([data-state=checked]){background-color:var(--primary)}@supports (color:color-mix(in lab, red, red)){.has-data-\\[state\\=checked\\]\\:bg-primary\\/5:has([data-state=checked]){background-color:color-mix(in oklab, var(--primary) 5%, transparent)}}.has-\\[\\>\\[data-slot\\=checkbox-group\\]\\]\\:gap-3:has(>[data-slot=checkbox-group]){gap:calc(var(--spacing) * 3)}.has-\\[\\>\\[data-slot\\=field-content\\]\\]\\:items-start:has(>[data-slot=field-content]){align-items:flex-start}.has-\\[\\>\\[data-slot\\=field\\]\\]\\:w-full:has(>[data-slot=field]){width:100%}.has-\\[\\>\\[data-slot\\=field\\]\\]\\:flex-col:has(>[data-slot=field]){flex-direction:column}.has-\\[\\>\\[data-slot\\=field\\]\\]\\:rounded-md:has(>[data-slot=field]){border-radius:calc(var(--radius) - 2px)}.has-\\[\\>\\[data-slot\\=field\\]\\]\\:border:has(>[data-slot=field]){border-style:var(--tw-border-style);border-width:1px}.has-\\[\\>\\[data-slot\\=radio-group\\]\\]\\:gap-3:has(>[data-slot=radio-group]){gap:calc(var(--spacing) * 3)}.has-\\[\\>svg\\]\\:grid-cols-\\[calc\\(var\\(--spacing\\)\\*4\\)_1fr\\]:has(>svg){grid-template-columns:calc(var(--spacing) * 4) 1fr}.has-\\[\\>svg\\]\\:gap-x-3:has(>svg){column-gap:calc(var(--spacing) * 3)}.has-\\[\\>svg\\]\\:px-2\\.5:has(>svg){padding-inline:calc(var(--spacing) * 2.5)}.has-\\[\\>svg\\]\\:px-3:has(>svg){padding-inline:calc(var(--spacing) * 3)}.has-\\[\\>svg\\]\\:px-4:has(>svg){padding-inline:calc(var(--spacing) * 4)}.aria-invalid\\:border-destructive[aria-invalid=true]{border-color:var(--destructive)}.aria-invalid\\:ring-destructive\\/20[aria-invalid=true]{--tw-ring-color:var(--destructive)}@supports (color:color-mix(in lab, red, red)){.aria-invalid\\:ring-destructive\\/20[aria-invalid=true]{--tw-ring-color:color-mix(in oklab, var(--destructive) 20%, transparent)}}.data-\\[invalid\\=true\\]\\:text-destructive[data-invalid=true]{color:var(--destructive)}.data-\\[orientation\\=horizontal\\]\\:h-px[data-orientation=horizontal]{height:1px}.data-\\[orientation\\=horizontal\\]\\:w-full[data-orientation=horizontal]{width:100%}.data-\\[orientation\\=vertical\\]\\:h-full[data-orientation=vertical]{height:100%}.data-\\[orientation\\=vertical\\]\\:w-px[data-orientation=vertical]{width:1px}:is(.\\*\\:data-\\[slot\\=alert-description\\]\\:text-destructive\\/90>*)[data-slot=alert-description]{color:var(--destructive)}@supports (color:color-mix(in lab, red, red)){:is(.\\*\\:data-\\[slot\\=alert-description\\]\\:text-destructive\\/90>*)[data-slot=alert-description]{color:color-mix(in oklab, var(--destructive) 90%, transparent)}}.data-\\[slot\\=checkbox-group\\]\\:gap-3[data-slot=checkbox-group]{gap:calc(var(--spacing) * 3)}.data-\\[state\\=selected\\]\\:bg-muted[data-state=selected]{background-color:var(--muted)}.data-\\[variant\\=label\\]\\:text-sm[data-variant=label]{font-size:var(--text-sm);line-height:var(--tw-leading,var(--text-sm--line-height))}.data-\\[variant\\=legend\\]\\:text-base[data-variant=legend]{font-size:var(--text-base);line-height:var(--tw-leading,var(--text-base--line-height))}.nth-last-2\\:-mt-1:nth-last-child(2){margin-top:calc(var(--spacing) * -1)}@media (min-width:40rem){.sm\\:grid-cols-2{grid-template-columns:repeat(2,minmax(0,1fr))}}@media (min-width:48rem){.md\\:grid-cols-2{grid-template-columns:repeat(2,minmax(0,1fr))}.md\\:text-sm{font-size:var(--text-sm);line-height:var(--tw-leading,var(--text-sm--line-height))}}@container field-group (min-width:28rem){.\\@md\\/field-group\\:flex-row{flex-direction:row}.\\@md\\/field-group\\:items-center{align-items:center}.\\@md\\/field-group\\:has-\\[\\>\\[data-slot\\=field-content\\]\\]\\:items-start:has(>[data-slot=field-content]){align-items:flex-start}}@media (prefers-color-scheme:dark){.dark\\:border-input{border-color:var(--input)}.dark\\:bg-destructive\\/60{background-color:var(--destructive)}@supports (color:color-mix(in lab, red, red)){.dark\\:bg-destructive\\/60{background-color:color-mix(in oklab, var(--destructive) 60%, transparent)}}.dark\\:bg-input\\/30{background-color:var(--input)}@supports (color:color-mix(in lab, red, red)){.dark\\:bg-input\\/30{background-color:color-mix(in oklab, var(--input) 30%, transparent)}}.dark\\:checked\\:bg-primary:checked{background-color:var(--primary)}@media (hover:hover){.dark\\:hover\\:bg-accent\\/50:hover{background-color:var(--accent)}@supports (color:color-mix(in lab, red, red)){.dark\\:hover\\:bg-accent\\/50:hover{background-color:color-mix(in oklab, var(--accent) 50%, transparent)}}.dark\\:hover\\:bg-input\\/50:hover{background-color:var(--input)}@supports (color:color-mix(in lab, red, red)){.dark\\:hover\\:bg-input\\/50:hover{background-color:color-mix(in oklab, var(--input) 50%, transparent)}}}.dark\\:focus-visible\\:ring-destructive\\/40:focus-visible{--tw-ring-color:var(--destructive)}@supports (color:color-mix(in lab, red, red)){.dark\\:focus-visible\\:ring-destructive\\/40:focus-visible{--tw-ring-color:color-mix(in oklab, var(--destructive) 40%, transparent)}}.dark\\:has-data-\\[state\\=checked\\]\\:bg-primary\\/10:has([data-state=checked]){background-color:var(--primary)}@supports (color:color-mix(in lab, red, red)){.dark\\:has-data-\\[state\\=checked\\]\\:bg-primary\\/10:has([data-state=checked]){background-color:color-mix(in oklab, var(--primary) 10%, transparent)}}.dark\\:aria-invalid\\:ring-destructive\\/40[aria-invalid=true]{--tw-ring-color:var(--destructive)}@supports (color:color-mix(in lab, red, red)){.dark\\:aria-invalid\\:ring-destructive\\/40[aria-invalid=true]{--tw-ring-color:color-mix(in oklab, var(--destructive) 40%, transparent)}}}.\\[\\&_p\\]\\:leading-relaxed p{--tw-leading:var(--leading-relaxed);line-height:var(--leading-relaxed)}.\\[\\&_svg\\]\\:pointer-events-none svg{pointer-events:none}.\\[\\&_svg\\]\\:shrink-0 svg{flex-shrink:0}.\\[\\&_svg\\:not\\(\\[class\\*\\=\\'size-\\'\\]\\)\\]\\:size-3 svg:not([class*=size-]){width:calc(var(--spacing) * 3);height:calc(var(--spacing) * 3)}.\\[\\&_svg\\:not\\(\\[class\\*\\=\\'size-\\'\\]\\)\\]\\:size-4 svg:not([class*=size-]){width:calc(var(--spacing) * 4);height:calc(var(--spacing) * 4)}.\\[\\&_tr\\]\\:border-b tr{border-bottom-style:var(--tw-border-style);border-bottom-width:1px}.\\[\\&_tr\\:last-child\\]\\:border-0 tr:last-child{border-style:var(--tw-border-style);border-width:0}.\\[\\&\\:has\\(\\[role\\=checkbox\\]\\)\\]\\:pr-0:has([role=checkbox]){padding-right:0}.\\[\\.border-b\\]\\:pb-6.border-b{padding-bottom:calc(var(--spacing) * 6)}.\\[\\.border-t\\]\\:pt-6.border-t{padding-top:calc(var(--spacing) * 6)}.\\[\\&\\>\\*\\]\\:w-full>*{width:100%}.\\[\\&\\>\\*\\]\\:data-\\[slot\\=field\\]\\:p-4>[data-slot=field]{padding:calc(var(--spacing) * 4)}@container field-group (min-width:28rem){.\\@md\\/field-group\\:\\[\\&\\>\\*\\]\\:w-auto>*{width:auto}}.\\[\\&\\>\\.sr-only\\]\\:w-auto>.sr-only{width:auto}.\\[\\&\\>\\[data-slot\\=field-group\\]\\]\\:gap-4>[data-slot=field-group]{gap:calc(var(--spacing) * 4)}.\\[\\&\\>\\[data-slot\\=field-label\\]\\]\\:flex-auto>[data-slot=field-label]{flex:auto}@container field-group (min-width:28rem){.\\@md\\/field-group\\:\\[\\&\\>\\[data-slot\\=field-label\\]\\]\\:flex-auto>[data-slot=field-label]{flex:auto}}.\\[\\&\\>\\[role\\=checkbox\\]\\]\\:translate-y-\\[2px\\]>[role=checkbox]{--tw-translate-y:2px;translate:var(--tw-translate-x) var(--tw-translate-y)}.has-\\[\\>\\[data-slot\\=field-content\\]\\]\\:\\[\\&\\>\\[role\\=checkbox\\]\\,\\[role\\=radio\\]\\]\\:mt-px:has(>[data-slot=field-content])>[role=checkbox],.has-\\[\\>\\[data-slot\\=field-content\\]\\]\\:\\[\\&\\>\\[role\\=checkbox\\]\\,\\[role\\=radio\\]\\]\\:mt-px:has(>[data-slot=field-content]) [role=radio]{margin-top:1px}@container field-group (min-width:28rem){.\\@md\\/field-group\\:has-\\[\\>\\[data-slot\\=field-content\\]\\]\\:\\[\\&\\>\\[role\\=checkbox\\]\\,\\[role\\=radio\\]\\]\\:mt-px:has(>[data-slot=field-content])>[role=checkbox],.\\@md\\/field-group\\:has-\\[\\>\\[data-slot\\=field-content\\]\\]\\:\\[\\&\\>\\[role\\=checkbox\\]\\,\\[role\\=radio\\]\\]\\:mt-px:has(>[data-slot=field-content]) [role=radio]{margin-top:1px}}.\\[\\&\\>a\\]\\:underline>a{text-decoration-line:underline}.\\[\\&\\>a\\]\\:underline-offset-4>a{text-underline-offset:4px}.\\[\\&\\>a\\:hover\\]\\:text-primary>a:hover{color:var(--primary)}.\\[\\&\\>svg\\]\\:pointer-events-none>svg{pointer-events:none}.\\[\\&\\>svg\\]\\:size-3>svg{width:calc(var(--spacing) * 3);height:calc(var(--spacing) * 3)}.\\[\\&\\>svg\\]\\:size-4>svg{width:calc(var(--spacing) * 4);height:calc(var(--spacing) * 4)}.\\[\\&\\>svg\\]\\:translate-y-0\\.5>svg{--tw-translate-y:calc(var(--spacing) * .5);translate:var(--tw-translate-x) var(--tw-translate-y)}.\\[\\&\\>svg\\]\\:text-current>svg{color:currentColor}.\\[\\&\\>tr\\]\\:last\\:border-b-0>tr:last-child{border-bottom-style:var(--tw-border-style);border-bottom-width:0}[data-slot=tooltip-content] .\\[\\[data-slot\\=tooltip-content\\]_\\&\\]\\:bg-background\\/20{background-color:var(--background)}@supports (color:color-mix(in lab, red, red)){[data-slot=tooltip-content] .\\[\\[data-slot\\=tooltip-content\\]_\\&\\]\\:bg-background\\/20{background-color:color-mix(in oklab, var(--background) 20%, transparent)}}[data-slot=tooltip-content] .\\[\\[data-slot\\=tooltip-content\\]_\\&\\]\\:text-background{color:var(--background)}@media (prefers-color-scheme:dark){[data-slot=tooltip-content] .dark\\:\\[\\[data-slot\\=tooltip-content\\]_\\&\\]\\:bg-background\\/10{background-color:var(--background)}@supports (color:color-mix(in lab, red, red)){[data-slot=tooltip-content] .dark\\:\\[\\[data-slot\\=tooltip-content\\]_\\&\\]\\:bg-background\\/10{background-color:color-mix(in oklab, var(--background) 10%, transparent)}}}[data-variant=legend]+.\\[\\[data-variant\\=legend\\]\\+\\&\\]\\:-mt-1\\.5{margin-top:calc(var(--spacing) * -1.5)}@media (hover:hover){a.\\[a\\&\\]\\:hover\\:bg-accent:hover{background-color:var(--accent)}a.\\[a\\&\\]\\:hover\\:bg-destructive\\/90:hover{background-color:var(--destructive)}@supports (color:color-mix(in lab, red, red)){a.\\[a\\&\\]\\:hover\\:bg-destructive\\/90:hover{background-color:color-mix(in oklab, var(--destructive) 90%, transparent)}}a.\\[a\\&\\]\\:hover\\:bg-primary\\/90:hover{background-color:var(--primary)}@supports (color:color-mix(in lab, red, red)){a.\\[a\\&\\]\\:hover\\:bg-primary\\/90:hover{background-color:color-mix(in oklab, var(--primary) 90%, transparent)}}a.\\[a\\&\\]\\:hover\\:bg-secondary\\/90:hover{background-color:var(--secondary)}@supports (color:color-mix(in lab, red, red)){a.\\[a\\&\\]\\:hover\\:bg-secondary\\/90:hover{background-color:color-mix(in oklab, var(--secondary) 90%, transparent)}}a.\\[a\\&\\]\\:hover\\:text-accent-foreground:hover{color:var(--accent-foreground)}}}:root{--radius:.625rem;--background:oklch(100% 0 0);--foreground:oklch(14.7% .004 49.25);--card:oklch(100% 0 0);--card-foreground:oklch(14.7% .004 49.25);--popover:oklch(100% 0 0);--popover-foreground:oklch(14.7% .004 49.25);--primary:oklch(21.6% .006 56.043);--primary-foreground:oklch(98.5% .001 106.423);--secondary:oklch(97% .001 106.424);--secondary-foreground:oklch(21.6% .006 56.043);--muted:oklch(97% .001 106.424);--muted-foreground:oklch(55.3% .013 58.071);--accent:oklch(97% .001 106.424);--accent-foreground:oklch(21.6% .006 56.043);--destructive:oklch(57.7% .245 27.325);--border:oklch(92.3% .003 48.717);--input:oklch(92.3% .003 48.717);--ring:oklch(70.9% .01 56.259);--positive:oklch(62.7% .194 149.214);--attention:oklch(66.6% .179 58.318);--info:oklch(54.6% .245 262.881)}@media (prefers-color-scheme:dark){:root{--background:oklch(14.7% .004 49.25);--foreground:oklch(98.5% .001 106.423);--card:oklch(21.6% .006 56.043);--card-foreground:oklch(98.5% .001 106.423);--popover:oklch(21.6% .006 56.043);--popover-foreground:oklch(98.5% .001 106.423);--primary:oklch(92.3% .003 48.717);--primary-foreground:oklch(21.6% .006 56.043);--secondary:oklch(26.8% .007 34.298);--secondary-foreground:oklch(98.5% .001 106.423);--muted:oklch(26.8% .007 34.298);--muted-foreground:oklch(70.9% .01 56.259);--accent:oklch(26.8% .007 34.298);--accent-foreground:oklch(98.5% .001 106.423);--destructive:oklch(70.4% .191 22.216);--border:oklch(100% 0 0/.1);--input:oklch(100% 0 0/.15);--ring:oklch(55.3% .013 58.071);--positive:oklch(79.2% .209 151.711);--attention:oklch(82.8% .189 84.429);--info:oklch(70.7% .165 254.624)}input[data-slot=checkbox]:checked{background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%23292524' stroke-width='3' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M20 6 9 17l-5-5'/%3E%3C/svg%3E")}}@property --tw-space-y-reverse{syntax:"*";inherits:false;initial-value:0}@property --tw-border-style{syntax:"*";inherits:false;initial-value:solid}@property --tw-leading{syntax:"*";inherits:false}@property --tw-font-weight{syntax:"*";inherits:false}@property --tw-tracking{syntax:"*";inherits:false}@property --tw-shadow{syntax:"*";inherits:false;initial-value:0 0 #0000}@property --tw-shadow-color{syntax:"*";inherits:false}@property --tw-shadow-alpha{syntax:"<percentage>";inherits:false;initial-value:100%}@property --tw-inset-shadow{syntax:"*";inherits:false;initial-value:0 0 #0000}@property --tw-inset-shadow-color{syntax:"*";inherits:false}@property --tw-inset-shadow-alpha{syntax:"<percentage>";inherits:false;initial-value:100%}@property --tw-ring-color{syntax:"*";inherits:false}@property --tw-ring-shadow{syntax:"*";inherits:false;initial-value:0 0 #0000}@property --tw-inset-ring-color{syntax:"*";inherits:false}@property --tw-inset-ring-shadow{syntax:"*";inherits:false;initial-value:0 0 #0000}@property --tw-ring-inset{syntax:"*";inherits:false}@property --tw-ring-offset-width{syntax:"<length>";inherits:false;initial-value:0}@property --tw-ring-offset-color{syntax:"*";inherits:false;initial-value:#fff}@property --tw-ring-offset-shadow{syntax:"*";inherits:false;initial-value:0 0 #0000}@property --tw-outline-style{syntax:"*";inherits:false;initial-value:solid}@property --tw-translate-x{syntax:"*";inherits:false;initial-value:0}@property --tw-translate-y{syntax:"*";inherits:false;initial-value:0}@property --tw-translate-z{syntax:"*";inherits:false;initial-value:0}`;
+@layer properties{@supports (((-webkit-hyphens:none)) and (not (margin-trim:inline))) or ((-moz-orient:inline) and (not (color:rgb(from red r g b)))){*,:before,:after,::backdrop{--tw-space-y-reverse:0;--tw-border-style:solid;--tw-leading:initial;--tw-font-weight:initial;--tw-tracking:initial;--tw-shadow:0 0 #0000;--tw-shadow-color:initial;--tw-shadow-alpha:100%;--tw-inset-shadow:0 0 #0000;--tw-inset-shadow-color:initial;--tw-inset-shadow-alpha:100%;--tw-ring-color:initial;--tw-ring-shadow:0 0 #0000;--tw-inset-ring-color:initial;--tw-inset-ring-shadow:0 0 #0000;--tw-ring-inset:initial;--tw-ring-offset-width:0px;--tw-ring-offset-color:#fff;--tw-ring-offset-shadow:0 0 #0000;--tw-outline-style:solid;--tw-translate-x:0;--tw-translate-y:0;--tw-translate-z:0}}}@layer theme{:root,:host{--font-sans:ui-sans-serif, system-ui, sans-serif, "Apple Color Emoji", "Segoe UI Emoji", "Segoe UI Symbol", "Noto Color Emoji";--font-mono:ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace;--color-white:#fff;--spacing:.25rem;--container-6xl:72rem;--text-xs:.75rem;--text-xs--line-height:calc(1 / .75);--text-sm:.875rem;--text-sm--line-height:calc(1.25 / .875);--text-base:1rem;--text-base--line-height:calc(1.5 / 1);--text-lg:1.125rem;--text-lg--line-height:calc(1.75 / 1.125);--font-weight-normal:400;--font-weight-medium:500;--font-weight-semibold:600;--tracking-tight:-.025em;--leading-tight:1.25;--leading-snug:1.375;--leading-normal:1.5;--leading-relaxed:1.625;--default-transition-duration:.15s;--default-transition-timing-function:cubic-bezier(.4, 0, .2, 1);--default-font-family:var(--font-sans);--default-mono-font-family:var(--font-mono)}}@layer base{*,:after,:before,::backdrop{box-sizing:border-box;border:0 solid;margin:0;padding:0}::file-selector-button{box-sizing:border-box;border:0 solid;margin:0;padding:0}html,:host{-webkit-text-size-adjust:100%;tab-size:4;line-height:1.5;font-family:var(--default-font-family,ui-sans-serif, system-ui, sans-serif, "Apple Color Emoji", "Segoe UI Emoji", "Segoe UI Symbol", "Noto Color Emoji");font-feature-settings:var(--default-font-feature-settings,normal);font-variation-settings:var(--default-font-variation-settings,normal);-webkit-tap-highlight-color:transparent}hr{height:0;color:inherit;border-top-width:1px}abbr:where([title]){-webkit-text-decoration:underline dotted;text-decoration:underline dotted}h1,h2,h3,h4,h5,h6{font-size:inherit;font-weight:inherit}a{color:inherit;-webkit-text-decoration:inherit;-webkit-text-decoration:inherit;-webkit-text-decoration:inherit;text-decoration:inherit}b,strong{font-weight:bolder}code,kbd,samp,pre{font-family:var(--default-mono-font-family,ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace);font-feature-settings:var(--default-mono-font-feature-settings,normal);font-variation-settings:var(--default-mono-font-variation-settings,normal);font-size:1em}small{font-size:80%}sub,sup{vertical-align:baseline;font-size:75%;line-height:0;position:relative}sub{bottom:-.25em}sup{top:-.5em}table{text-indent:0;border-color:inherit;border-collapse:collapse}:-moz-focusring{outline:auto}progress{vertical-align:baseline}summary{display:list-item}ol,ul,menu{list-style:none}img,svg,video,canvas,audio,iframe,embed,object{vertical-align:middle;display:block}img,video{max-width:100%;height:auto}button,input,select,optgroup,textarea{font:inherit;font-feature-settings:inherit;font-variation-settings:inherit;letter-spacing:inherit;color:inherit;opacity:1;background-color:#0000;border-radius:0}::file-selector-button{font:inherit;font-feature-settings:inherit;font-variation-settings:inherit;letter-spacing:inherit;color:inherit;opacity:1;background-color:#0000;border-radius:0}:where(select:is([multiple],[size])) optgroup{font-weight:bolder}:where(select:is([multiple],[size])) optgroup option{padding-inline-start:20px}::file-selector-button{margin-inline-end:4px}::placeholder{opacity:1}@supports (not ((-webkit-appearance:-apple-pay-button))) or (contain-intrinsic-size:1px){::placeholder{color:currentColor}@supports (color:color-mix(in lab, red, red)){::placeholder{color:color-mix(in oklab, currentcolor 50%, transparent)}}}textarea{resize:vertical}::-webkit-search-decoration{-webkit-appearance:none}::-webkit-date-and-time-value{min-height:1lh;text-align:inherit}::-webkit-datetime-edit{display:inline-flex}::-webkit-datetime-edit-fields-wrapper{padding:0}::-webkit-datetime-edit{padding-block:0}::-webkit-datetime-edit-year-field{padding-block:0}::-webkit-datetime-edit-month-field{padding-block:0}::-webkit-datetime-edit-day-field{padding-block:0}::-webkit-datetime-edit-hour-field{padding-block:0}::-webkit-datetime-edit-minute-field{padding-block:0}::-webkit-datetime-edit-second-field{padding-block:0}::-webkit-datetime-edit-millisecond-field{padding-block:0}::-webkit-datetime-edit-meridiem-field{padding-block:0}::-webkit-calendar-picker-indicator{line-height:1}:-moz-ui-invalid{box-shadow:none}button,input:where([type=button],[type=reset],[type=submit]){appearance:button}::file-selector-button{appearance:button}::-webkit-inner-spin-button{height:auto}::-webkit-outer-spin-button{height:auto}[hidden]:where(:not([hidden=until-found])){display:none!important}*{border-color:var(--border);outline-color:var(--ring)}@supports (color:color-mix(in lab, red, red)){*{outline-color:color-mix(in oklab, var(--ring) 50%, transparent)}}body{background-color:var(--background);color:var(--foreground)}}@layer components{input[data-slot=checkbox]:checked{background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%23fafaf9' stroke-width='3' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M20 6 9 17l-5-5'/%3E%3C/svg%3E");background-position:50%;background-repeat:no-repeat;background-size:.75rem}input[data-slot=radio-group-item]:checked{background-image:radial-gradient(circle closest-side, var(--primary) 45%, transparent 50%)}}@layer utilities{.\\@container\\/card-header{container:card-header/inline-size}.\\@container\\/field-group{container:field-group/inline-size}.pointer-events-none{pointer-events:none}.visible{visibility:visible}.absolute{position:absolute}.relative{position:relative}.static{position:static}.inset-0{inset:0}.top-1\\/2{top:50%}.col-start-2{grid-column-start:2}.row-span-2{grid-row:span 2/span 2}.row-start-1{grid-row-start:1}.m-0{margin:0}.mx-auto{margin-inline:auto}.-my-2{margin-block:calc(var(--spacing) * -2)}.mt-2{margin-top:calc(var(--spacing) * 2)}.mt-2\\.5{margin-top:calc(var(--spacing) * 2.5)}.mt-3{margin-top:calc(var(--spacing) * 3)}.mt-4{margin-top:calc(var(--spacing) * 4)}.mt-8{margin-top:calc(var(--spacing) * 8)}.mt-12{margin-top:calc(var(--spacing) * 12)}.mb-0\\.5{margin-bottom:calc(var(--spacing) * .5)}.mb-1\\.5{margin-bottom:calc(var(--spacing) * 1.5)}.mb-2{margin-bottom:calc(var(--spacing) * 2)}.mb-2\\.5{margin-bottom:calc(var(--spacing) * 2.5)}.mb-3{margin-bottom:calc(var(--spacing) * 3)}.mb-6{margin-bottom:calc(var(--spacing) * 6)}.ml-4{margin-left:calc(var(--spacing) * 4)}.line-clamp-1{-webkit-line-clamp:1;-webkit-box-orient:vertical;display:-webkit-box;overflow:hidden}.block{display:block}.flex{display:flex}.grid{display:grid}.hidden{display:none}.inline-flex{display:inline-flex}.table{display:table}.table-caption{display:table-caption}.table-cell{display:table-cell}.table-row{display:table-row}.field-sizing-content{field-sizing:content}.aspect-square{aspect-ratio:1}.size-4{width:calc(var(--spacing) * 4);height:calc(var(--spacing) * 4)}.size-8{width:calc(var(--spacing) * 8);height:calc(var(--spacing) * 8)}.size-9{width:calc(var(--spacing) * 9);height:calc(var(--spacing) * 9)}.size-10{width:calc(var(--spacing) * 10);height:calc(var(--spacing) * 10)}.h-5{height:calc(var(--spacing) * 5)}.h-8{height:calc(var(--spacing) * 8)}.h-9{height:calc(var(--spacing) * 9)}.h-10{height:calc(var(--spacing) * 10)}.min-h-4{min-height:calc(var(--spacing) * 4)}.min-h-16{min-height:calc(var(--spacing) * 16)}.w-fit{width:fit-content}.w-full{width:100%}.max-w-6xl{max-width:var(--container-6xl)}.min-w-0{min-width:0}.min-w-5{min-width:calc(var(--spacing) * 5)}.min-w-\\[200px\\]{min-width:200px}.flex-1{flex:1}.shrink-0{flex-shrink:0}.caption-bottom{caption-side:bottom}.cursor-pointer{cursor:pointer}.list-disc{list-style-type:disc}.appearance-none{appearance:none}.auto-rows-min{grid-auto-rows:min-content}.grid-cols-1{grid-template-columns:repeat(1,minmax(0,1fr))}.grid-cols-\\[0_1fr\\]{grid-template-columns:0 1fr}.grid-cols-\\[repeat\\(auto-fit\\,minmax\\(320px\\,1fr\\)\\)\\]{grid-template-columns:repeat(auto-fit,minmax(320px,1fr))}.grid-rows-\\[auto_auto\\]{grid-template-rows:auto auto}.flex-col{flex-direction:column}.flex-row{flex-direction:row}.flex-wrap{flex-wrap:wrap}.items-baseline{align-items:baseline}.items-center{align-items:center}.items-start{align-items:flex-start}.justify-between{justify-content:space-between}.justify-center{justify-content:center}.justify-items-start{justify-items:start}.gap-1{gap:var(--spacing)}.gap-1\\.5{gap:calc(var(--spacing) * 1.5)}.gap-2{gap:calc(var(--spacing) * 2)}.gap-2\\.5{gap:calc(var(--spacing) * 2.5)}.gap-3{gap:calc(var(--spacing) * 3)}.gap-3\\.5{gap:calc(var(--spacing) * 3.5)}.gap-4{gap:calc(var(--spacing) * 4)}.gap-6{gap:calc(var(--spacing) * 6)}.gap-7{gap:calc(var(--spacing) * 7)}:where(.space-y-1\\.5>:not(:last-child)){--tw-space-y-reverse:0;margin-block-start:calc(calc(var(--spacing) * 1.5) * var(--tw-space-y-reverse));margin-block-end:calc(calc(var(--spacing) * 1.5) * calc(1 - var(--tw-space-y-reverse)))}.gap-y-0\\.5{row-gap:calc(var(--spacing) * .5)}.self-start{align-self:flex-start}.justify-self-end{justify-self:flex-end}.truncate{text-overflow:ellipsis;white-space:nowrap;overflow:hidden}.overflow-hidden{overflow:hidden}.overflow-x-auto{overflow-x:auto}.rounded-\\[4px\\]{border-radius:4px}.rounded-full{border-radius:3.40282e38px}.rounded-lg{border-radius:var(--radius)}.rounded-md{border-radius:calc(var(--radius) - 2px)}.rounded-sm{border-radius:calc(var(--radius) - 4px)}.rounded-xl{border-radius:calc(var(--radius) + 4px)}.border{border-style:var(--tw-border-style);border-width:1px}.border-t{border-top-style:var(--tw-border-style);border-top-width:1px}.border-b{border-bottom-style:var(--tw-border-style);border-bottom-width:1px}.border-attention\\/60{border-color:var(--attention)}@supports (color:color-mix(in lab, red, red)){.border-attention\\/60{border-color:color-mix(in oklab, var(--attention) 60%, transparent)}}.border-border{border-color:var(--border)}.border-destructive\\/50{border-color:var(--destructive)}@supports (color:color-mix(in lab, red, red)){.border-destructive\\/50{border-color:color-mix(in oklab, var(--destructive) 50%, transparent)}}.border-destructive\\/60{border-color:var(--destructive)}@supports (color:color-mix(in lab, red, red)){.border-destructive\\/60{border-color:color-mix(in oklab, var(--destructive) 60%, transparent)}}.border-info\\/50{border-color:var(--info)}@supports (color:color-mix(in lab, red, red)){.border-info\\/50{border-color:color-mix(in oklab, var(--info) 50%, transparent)}}.border-input{border-color:var(--input)}.border-positive\\/50{border-color:var(--positive)}@supports (color:color-mix(in lab, red, red)){.border-positive\\/50{border-color:color-mix(in oklab, var(--positive) 50%, transparent)}}.border-positive\\/60{border-color:var(--positive)}@supports (color:color-mix(in lab, red, red)){.border-positive\\/60{border-color:color-mix(in oklab, var(--positive) 60%, transparent)}}.border-transparent{border-color:#0000}.bg-attention\\/5{background-color:var(--attention)}@supports (color:color-mix(in lab, red, red)){.bg-attention\\/5{background-color:color-mix(in oklab, var(--attention) 5%, transparent)}}.bg-background{background-color:var(--background)}.bg-border{background-color:var(--border)}.bg-card{background-color:var(--card)}.bg-destructive,.bg-destructive\\/5{background-color:var(--destructive)}@supports (color:color-mix(in lab, red, red)){.bg-destructive\\/5{background-color:color-mix(in oklab, var(--destructive) 5%, transparent)}}.bg-info\\/5{background-color:var(--info)}@supports (color:color-mix(in lab, red, red)){.bg-info\\/5{background-color:color-mix(in oklab, var(--info) 5%, transparent)}}.bg-muted,.bg-muted\\/40{background-color:var(--muted)}@supports (color:color-mix(in lab, red, red)){.bg-muted\\/40{background-color:color-mix(in oklab, var(--muted) 40%, transparent)}}.bg-muted\\/50{background-color:var(--muted)}@supports (color:color-mix(in lab, red, red)){.bg-muted\\/50{background-color:color-mix(in oklab, var(--muted) 50%, transparent)}}.bg-positive\\/5{background-color:var(--positive)}@supports (color:color-mix(in lab, red, red)){.bg-positive\\/5{background-color:color-mix(in oklab, var(--positive) 5%, transparent)}}.bg-primary{background-color:var(--primary)}.bg-secondary{background-color:var(--secondary)}.bg-transparent{background-color:#0000}.p-2{padding:calc(var(--spacing) * 2)}.px-1{padding-inline:var(--spacing)}.px-2{padding-inline:calc(var(--spacing) * 2)}.px-3{padding-inline:calc(var(--spacing) * 3)}.px-4{padding-inline:calc(var(--spacing) * 4)}.px-5{padding-inline:calc(var(--spacing) * 5)}.px-6{padding-inline:calc(var(--spacing) * 6)}.py-0\\.5{padding-block:calc(var(--spacing) * .5)}.py-1{padding-block:var(--spacing)}.py-2{padding-block:calc(var(--spacing) * 2)}.py-3{padding-block:calc(var(--spacing) * 3)}.py-4{padding-block:calc(var(--spacing) * 4)}.py-5{padding-block:calc(var(--spacing) * 5)}.py-6{padding-block:calc(var(--spacing) * 6)}.py-12{padding-block:calc(var(--spacing) * 12)}.pt-0\\.5{padding-top:calc(var(--spacing) * .5)}.pt-4{padding-top:calc(var(--spacing) * 4)}.pt-6{padding-top:calc(var(--spacing) * 6)}.pb-24{padding-bottom:calc(var(--spacing) * 24)}.pl-4{padding-left:calc(var(--spacing) * 4)}.text-left{text-align:left}.align-middle{vertical-align:middle}.font-mono{font-family:var(--font-mono)}.font-sans{font-family:var(--font-sans)}.text-base{font-size:var(--text-base);line-height:var(--tw-leading,var(--text-base--line-height))}.text-lg{font-size:var(--text-lg);line-height:var(--tw-leading,var(--text-lg--line-height))}.text-sm{font-size:var(--text-sm);line-height:var(--tw-leading,var(--text-sm--line-height))}.text-xs{font-size:var(--text-xs);line-height:var(--tw-leading,var(--text-xs--line-height))}.text-\\[10px\\]{font-size:10px}.text-\\[11px\\]{font-size:11px}.text-\\[13px\\]{font-size:13px}.text-\\[15px\\]{font-size:15px}.text-\\[27px\\]{font-size:27px}.leading-none{--tw-leading:1;line-height:1}.leading-normal{--tw-leading:var(--leading-normal);line-height:var(--leading-normal)}.leading-relaxed{--tw-leading:var(--leading-relaxed);line-height:var(--leading-relaxed)}.leading-snug{--tw-leading:var(--leading-snug);line-height:var(--leading-snug)}.leading-tight{--tw-leading:var(--leading-tight);line-height:var(--leading-tight)}.font-medium{--tw-font-weight:var(--font-weight-medium);font-weight:var(--font-weight-medium)}.font-normal{--tw-font-weight:var(--font-weight-normal);font-weight:var(--font-weight-normal)}.font-semibold{--tw-font-weight:var(--font-weight-semibold);font-weight:var(--font-weight-semibold)}.tracking-\\[0\\.05em\\]{--tw-tracking:.05em;letter-spacing:.05em}.tracking-\\[0\\.06em\\]{--tw-tracking:.06em;letter-spacing:.06em}.tracking-\\[0\\.08em\\]{--tw-tracking:.08em;letter-spacing:.08em}.tracking-tight{--tw-tracking:var(--tracking-tight);letter-spacing:var(--tracking-tight)}.text-balance{text-wrap:balance}.break-words{overflow-wrap:break-word}.whitespace-nowrap{white-space:nowrap}.text-attention{color:var(--attention)}.text-card-foreground{color:var(--card-foreground)}.text-destructive{color:var(--destructive)}.text-foreground{color:var(--foreground)}.text-info{color:var(--info)}.text-muted-foreground,.text-muted-foreground\\/80{color:var(--muted-foreground)}@supports (color:color-mix(in lab, red, red)){.text-muted-foreground\\/80{color:color-mix(in oklab, var(--muted-foreground) 80%, transparent)}}.text-positive{color:var(--positive)}.text-primary{color:var(--primary)}.text-primary-foreground{color:var(--primary-foreground)}.text-secondary-foreground{color:var(--secondary-foreground)}.text-white{color:var(--color-white)}.lowercase{text-transform:lowercase}.uppercase{text-transform:uppercase}.underline-offset-4{text-underline-offset:4px}.antialiased{-webkit-font-smoothing:antialiased;-moz-osx-font-smoothing:grayscale}.shadow-none{--tw-shadow:0 0 #0000;box-shadow:var(--tw-inset-shadow), var(--tw-inset-ring-shadow), var(--tw-ring-offset-shadow), var(--tw-ring-shadow), var(--tw-shadow)}.shadow-sm{--tw-shadow:0 1px 3px 0 var(--tw-shadow-color,#0000001a), 0 1px 2px -1px var(--tw-shadow-color,#0000001a);box-shadow:var(--tw-inset-shadow), var(--tw-inset-ring-shadow), var(--tw-ring-offset-shadow), var(--tw-ring-shadow), var(--tw-shadow)}.shadow-xs{--tw-shadow:0 1px 2px 0 var(--tw-shadow-color,#0000000d);box-shadow:var(--tw-inset-shadow), var(--tw-inset-ring-shadow), var(--tw-ring-offset-shadow), var(--tw-ring-shadow), var(--tw-shadow)}.ring-\\[3px\\]{--tw-ring-shadow:var(--tw-ring-inset,) 0 0 0 calc(3px + var(--tw-ring-offset-width)) var(--tw-ring-color,currentcolor);box-shadow:var(--tw-inset-shadow), var(--tw-inset-ring-shadow), var(--tw-ring-offset-shadow), var(--tw-ring-shadow), var(--tw-shadow)}.ring-attention\\/10{--tw-ring-color:var(--attention)}@supports (color:color-mix(in lab, red, red)){.ring-attention\\/10{--tw-ring-color:color-mix(in oklab, var(--attention) 10%, transparent)}}.ring-destructive\\/10{--tw-ring-color:var(--destructive)}@supports (color:color-mix(in lab, red, red)){.ring-destructive\\/10{--tw-ring-color:color-mix(in oklab, var(--destructive) 10%, transparent)}}.ring-info\\/10{--tw-ring-color:var(--info)}@supports (color:color-mix(in lab, red, red)){.ring-info\\/10{--tw-ring-color:color-mix(in oklab, var(--info) 10%, transparent)}}.ring-positive\\/10{--tw-ring-color:var(--positive)}@supports (color:color-mix(in lab, red, red)){.ring-positive\\/10{--tw-ring-color:color-mix(in oklab, var(--positive) 10%, transparent)}}.outline{outline-style:var(--tw-outline-style);outline-width:1px}.transition-\\[color\\,box-shadow\\]{transition-property:color,box-shadow;transition-timing-function:var(--tw-ease,var(--default-transition-timing-function));transition-duration:var(--tw-duration,var(--default-transition-duration))}.transition-all{transition-property:all;transition-timing-function:var(--tw-ease,var(--default-transition-timing-function));transition-duration:var(--tw-duration,var(--default-transition-duration))}.transition-colors{transition-property:color,background-color,border-color,outline-color,text-decoration-color,fill,stroke,--tw-gradient-from,--tw-gradient-via,--tw-gradient-to;transition-timing-function:var(--tw-ease,var(--default-transition-timing-function));transition-duration:var(--tw-duration,var(--default-transition-duration))}.transition-shadow{transition-property:box-shadow;transition-timing-function:var(--tw-ease,var(--default-transition-timing-function));transition-duration:var(--tw-duration,var(--default-transition-duration))}.outline-none{--tw-outline-style:none;outline-style:none}.select-none{-webkit-user-select:none;user-select:none}.group-has-\\[\\[data-orientation\\=horizontal\\]\\]\\/field\\:text-balance:is(:where(.group\\/field):has([data-orientation=horizontal]) *){text-wrap:balance}.group-data-\\[disabled\\=true\\]\\:pointer-events-none:is(:where(.group)[data-disabled=true] *){pointer-events:none}.group-data-\\[disabled\\=true\\]\\:opacity-50:is(:where(.group)[data-disabled=true] *),.group-data-\\[disabled\\=true\\]\\/field\\:opacity-50:is(:where(.group\\/field)[data-disabled=true] *){opacity:.5}.group-data-\\[variant\\=outline\\]\\/field-group\\:-mb-2:is(:where(.group\\/field-group)[data-variant=outline] *){margin-bottom:calc(var(--spacing) * -2)}.peer-disabled\\:cursor-not-allowed:is(:where(.peer):disabled~*){cursor:not-allowed}.peer-disabled\\:opacity-50:is(:where(.peer):disabled~*),.peer-\\[\\[data-disabled\\]\\]\\:opacity-50:is(:where(.peer)[data-disabled]~*){opacity:.5}.marker\\:text-muted-foreground\\/60 ::marker{color:var(--muted-foreground)}@supports (color:color-mix(in lab, red, red)){.marker\\:text-muted-foreground\\/60 ::marker{color:color-mix(in oklab, var(--muted-foreground) 60%, transparent)}}.marker\\:text-muted-foreground\\/60::marker{color:var(--muted-foreground)}@supports (color:color-mix(in lab, red, red)){.marker\\:text-muted-foreground\\/60::marker{color:color-mix(in oklab, var(--muted-foreground) 60%, transparent)}}.marker\\:text-muted-foreground\\/60 ::-webkit-details-marker{color:var(--muted-foreground)}@supports (color:color-mix(in lab, red, red)){.marker\\:text-muted-foreground\\/60 ::-webkit-details-marker{color:color-mix(in oklab, var(--muted-foreground) 60%, transparent)}}.marker\\:text-muted-foreground\\/60::-webkit-details-marker{color:var(--muted-foreground)}@supports (color:color-mix(in lab, red, red)){.marker\\:text-muted-foreground\\/60::-webkit-details-marker{color:color-mix(in oklab, var(--muted-foreground) 60%, transparent)}}.selection\\:bg-primary ::selection{background-color:var(--primary)}.selection\\:bg-primary::selection{background-color:var(--primary)}.selection\\:text-primary-foreground ::selection{color:var(--primary-foreground)}.selection\\:text-primary-foreground::selection{color:var(--primary-foreground)}.file\\:inline-flex::file-selector-button{display:inline-flex}.file\\:h-7::file-selector-button{height:calc(var(--spacing) * 7)}.file\\:border-0::file-selector-button{border-style:var(--tw-border-style);border-width:0}.file\\:bg-transparent::file-selector-button{background-color:#0000}.file\\:text-sm::file-selector-button{font-size:var(--text-sm);line-height:var(--tw-leading,var(--text-sm--line-height))}.file\\:font-medium::file-selector-button{--tw-font-weight:var(--font-weight-medium);font-weight:var(--font-weight-medium)}.file\\:text-foreground::file-selector-button{color:var(--foreground)}.placeholder\\:text-muted-foreground::placeholder{color:var(--muted-foreground)}.last\\:mt-0:last-child{margin-top:0}.checked\\:border-primary:checked{border-color:var(--primary)}.checked\\:bg-primary:checked{background-color:var(--primary)}@media (hover:hover){.hover\\:bg-accent:hover{background-color:var(--accent)}.hover\\:bg-destructive\\/90:hover{background-color:var(--destructive)}@supports (color:color-mix(in lab, red, red)){.hover\\:bg-destructive\\/90:hover{background-color:color-mix(in oklab, var(--destructive) 90%, transparent)}}.hover\\:bg-muted\\/50:hover{background-color:var(--muted)}@supports (color:color-mix(in lab, red, red)){.hover\\:bg-muted\\/50:hover{background-color:color-mix(in oklab, var(--muted) 50%, transparent)}}.hover\\:bg-primary\\/90:hover{background-color:var(--primary)}@supports (color:color-mix(in lab, red, red)){.hover\\:bg-primary\\/90:hover{background-color:color-mix(in oklab, var(--primary) 90%, transparent)}}.hover\\:bg-secondary\\/80:hover{background-color:var(--secondary)}@supports (color:color-mix(in lab, red, red)){.hover\\:bg-secondary\\/80:hover{background-color:color-mix(in oklab, var(--secondary) 80%, transparent)}}.hover\\:text-accent-foreground:hover{color:var(--accent-foreground)}.hover\\:text-foreground:hover{color:var(--foreground)}.hover\\:underline:hover{text-decoration-line:underline}}.focus-visible\\:border-ring:focus-visible{border-color:var(--ring)}.focus-visible\\:ring-\\[3px\\]:focus-visible{--tw-ring-shadow:var(--tw-ring-inset,) 0 0 0 calc(3px + var(--tw-ring-offset-width)) var(--tw-ring-color,currentcolor);box-shadow:var(--tw-inset-shadow), var(--tw-inset-ring-shadow), var(--tw-ring-offset-shadow), var(--tw-ring-shadow), var(--tw-shadow)}.focus-visible\\:ring-destructive\\/20:focus-visible{--tw-ring-color:var(--destructive)}@supports (color:color-mix(in lab, red, red)){.focus-visible\\:ring-destructive\\/20:focus-visible{--tw-ring-color:color-mix(in oklab, var(--destructive) 20%, transparent)}}.focus-visible\\:ring-ring\\/50:focus-visible{--tw-ring-color:var(--ring)}@supports (color:color-mix(in lab, red, red)){.focus-visible\\:ring-ring\\/50:focus-visible{--tw-ring-color:color-mix(in oklab, var(--ring) 50%, transparent)}}.disabled\\:pointer-events-none:disabled{pointer-events:none}.disabled\\:cursor-not-allowed:disabled{cursor:not-allowed}.disabled\\:opacity-50:disabled{opacity:.5}.has-data-\\[slot\\=card-action\\]\\:grid-cols-\\[1fr_auto\\]:has([data-slot=card-action]){grid-template-columns:1fr auto}.has-data-\\[state\\=checked\\]\\:border-primary:has([data-state=checked]){border-color:var(--primary)}.has-data-\\[state\\=checked\\]\\:bg-primary\\/5:has([data-state=checked]){background-color:var(--primary)}@supports (color:color-mix(in lab, red, red)){.has-data-\\[state\\=checked\\]\\:bg-primary\\/5:has([data-state=checked]){background-color:color-mix(in oklab, var(--primary) 5%, transparent)}}.has-\\[\\>\\[data-slot\\=checkbox-group\\]\\]\\:gap-3:has(>[data-slot=checkbox-group]){gap:calc(var(--spacing) * 3)}.has-\\[\\>\\[data-slot\\=field-content\\]\\]\\:items-start:has(>[data-slot=field-content]){align-items:flex-start}.has-\\[\\>\\[data-slot\\=field\\]\\]\\:w-full:has(>[data-slot=field]){width:100%}.has-\\[\\>\\[data-slot\\=field\\]\\]\\:flex-col:has(>[data-slot=field]){flex-direction:column}.has-\\[\\>\\[data-slot\\=field\\]\\]\\:rounded-md:has(>[data-slot=field]){border-radius:calc(var(--radius) - 2px)}.has-\\[\\>\\[data-slot\\=field\\]\\]\\:border:has(>[data-slot=field]){border-style:var(--tw-border-style);border-width:1px}.has-\\[\\>\\[data-slot\\=radio-group\\]\\]\\:gap-3:has(>[data-slot=radio-group]){gap:calc(var(--spacing) * 3)}.has-\\[\\>svg\\]\\:grid-cols-\\[calc\\(var\\(--spacing\\)\\*4\\)_1fr\\]:has(>svg){grid-template-columns:calc(var(--spacing) * 4) 1fr}.has-\\[\\>svg\\]\\:gap-x-3:has(>svg){column-gap:calc(var(--spacing) * 3)}.has-\\[\\>svg\\]\\:px-2\\.5:has(>svg){padding-inline:calc(var(--spacing) * 2.5)}.has-\\[\\>svg\\]\\:px-3:has(>svg){padding-inline:calc(var(--spacing) * 3)}.has-\\[\\>svg\\]\\:px-4:has(>svg){padding-inline:calc(var(--spacing) * 4)}.aria-invalid\\:border-destructive[aria-invalid=true]{border-color:var(--destructive)}.aria-invalid\\:ring-destructive\\/20[aria-invalid=true]{--tw-ring-color:var(--destructive)}@supports (color:color-mix(in lab, red, red)){.aria-invalid\\:ring-destructive\\/20[aria-invalid=true]{--tw-ring-color:color-mix(in oklab, var(--destructive) 20%, transparent)}}.data-\\[invalid\\=true\\]\\:text-destructive[data-invalid=true]{color:var(--destructive)}.data-\\[orientation\\=horizontal\\]\\:h-px[data-orientation=horizontal]{height:1px}.data-\\[orientation\\=horizontal\\]\\:w-full[data-orientation=horizontal]{width:100%}.data-\\[orientation\\=vertical\\]\\:h-full[data-orientation=vertical]{height:100%}.data-\\[orientation\\=vertical\\]\\:w-px[data-orientation=vertical]{width:1px}:is(.\\*\\:data-\\[slot\\=alert-description\\]\\:text-destructive\\/90>*)[data-slot=alert-description]{color:var(--destructive)}@supports (color:color-mix(in lab, red, red)){:is(.\\*\\:data-\\[slot\\=alert-description\\]\\:text-destructive\\/90>*)[data-slot=alert-description]{color:color-mix(in oklab, var(--destructive) 90%, transparent)}}.data-\\[slot\\=checkbox-group\\]\\:gap-3[data-slot=checkbox-group]{gap:calc(var(--spacing) * 3)}.data-\\[state\\=selected\\]\\:bg-muted[data-state=selected]{background-color:var(--muted)}.data-\\[variant\\=label\\]\\:text-sm[data-variant=label]{font-size:var(--text-sm);line-height:var(--tw-leading,var(--text-sm--line-height))}.data-\\[variant\\=legend\\]\\:text-base[data-variant=legend]{font-size:var(--text-base);line-height:var(--tw-leading,var(--text-base--line-height))}.nth-last-2\\:-mt-1:nth-last-child(2){margin-top:calc(var(--spacing) * -1)}@media (min-width:40rem){.sm\\:grid-cols-2{grid-template-columns:repeat(2,minmax(0,1fr))}}@media (min-width:48rem){.md\\:grid-cols-2{grid-template-columns:repeat(2,minmax(0,1fr))}.md\\:text-sm{font-size:var(--text-sm);line-height:var(--tw-leading,var(--text-sm--line-height))}}@container field-group (min-width:28rem){.\\@md\\/field-group\\:flex-row{flex-direction:row}.\\@md\\/field-group\\:items-center{align-items:center}.\\@md\\/field-group\\:has-\\[\\>\\[data-slot\\=field-content\\]\\]\\:items-start:has(>[data-slot=field-content]){align-items:flex-start}}@media (prefers-color-scheme:dark){.dark\\:border-input{border-color:var(--input)}.dark\\:bg-destructive\\/60{background-color:var(--destructive)}@supports (color:color-mix(in lab, red, red)){.dark\\:bg-destructive\\/60{background-color:color-mix(in oklab, var(--destructive) 60%, transparent)}}.dark\\:bg-input\\/30{background-color:var(--input)}@supports (color:color-mix(in lab, red, red)){.dark\\:bg-input\\/30{background-color:color-mix(in oklab, var(--input) 30%, transparent)}}.dark\\:checked\\:bg-primary:checked{background-color:var(--primary)}@media (hover:hover){.dark\\:hover\\:bg-accent\\/50:hover{background-color:var(--accent)}@supports (color:color-mix(in lab, red, red)){.dark\\:hover\\:bg-accent\\/50:hover{background-color:color-mix(in oklab, var(--accent) 50%, transparent)}}.dark\\:hover\\:bg-input\\/50:hover{background-color:var(--input)}@supports (color:color-mix(in lab, red, red)){.dark\\:hover\\:bg-input\\/50:hover{background-color:color-mix(in oklab, var(--input) 50%, transparent)}}}.dark\\:focus-visible\\:ring-destructive\\/40:focus-visible{--tw-ring-color:var(--destructive)}@supports (color:color-mix(in lab, red, red)){.dark\\:focus-visible\\:ring-destructive\\/40:focus-visible{--tw-ring-color:color-mix(in oklab, var(--destructive) 40%, transparent)}}.dark\\:has-data-\\[state\\=checked\\]\\:bg-primary\\/10:has([data-state=checked]){background-color:var(--primary)}@supports (color:color-mix(in lab, red, red)){.dark\\:has-data-\\[state\\=checked\\]\\:bg-primary\\/10:has([data-state=checked]){background-color:color-mix(in oklab, var(--primary) 10%, transparent)}}.dark\\:aria-invalid\\:ring-destructive\\/40[aria-invalid=true]{--tw-ring-color:var(--destructive)}@supports (color:color-mix(in lab, red, red)){.dark\\:aria-invalid\\:ring-destructive\\/40[aria-invalid=true]{--tw-ring-color:color-mix(in oklab, var(--destructive) 40%, transparent)}}}.\\[\\&_p\\]\\:leading-relaxed p{--tw-leading:var(--leading-relaxed);line-height:var(--leading-relaxed)}.\\[\\&_svg\\]\\:pointer-events-none svg{pointer-events:none}.\\[\\&_svg\\]\\:shrink-0 svg{flex-shrink:0}.\\[\\&_svg\\:not\\(\\[class\\*\\=\\'size-\\'\\]\\)\\]\\:size-3 svg:not([class*=size-]){width:calc(var(--spacing) * 3);height:calc(var(--spacing) * 3)}.\\[\\&_svg\\:not\\(\\[class\\*\\=\\'size-\\'\\]\\)\\]\\:size-4 svg:not([class*=size-]){width:calc(var(--spacing) * 4);height:calc(var(--spacing) * 4)}.\\[\\&_tr\\]\\:border-b tr{border-bottom-style:var(--tw-border-style);border-bottom-width:1px}.\\[\\&_tr\\:last-child\\]\\:border-0 tr:last-child{border-style:var(--tw-border-style);border-width:0}.\\[\\&\\:has\\(\\[role\\=checkbox\\]\\)\\]\\:pr-0:has([role=checkbox]){padding-right:0}.\\[\\.border-b\\]\\:pb-6.border-b{padding-bottom:calc(var(--spacing) * 6)}.\\[\\.border-t\\]\\:pt-6.border-t{padding-top:calc(var(--spacing) * 6)}.\\[\\&\\>\\*\\]\\:w-full>*{width:100%}.\\[\\&\\>\\*\\]\\:data-\\[slot\\=field\\]\\:p-4>[data-slot=field]{padding:calc(var(--spacing) * 4)}@container field-group (min-width:28rem){.\\@md\\/field-group\\:\\[\\&\\>\\*\\]\\:w-auto>*{width:auto}}.\\[\\&\\>\\.sr-only\\]\\:w-auto>.sr-only{width:auto}.\\[\\&\\>\\[data-slot\\=field-group\\]\\]\\:gap-4>[data-slot=field-group]{gap:calc(var(--spacing) * 4)}.\\[\\&\\>\\[data-slot\\=field-label\\]\\]\\:flex-auto>[data-slot=field-label]{flex:auto}@container field-group (min-width:28rem){.\\@md\\/field-group\\:\\[\\&\\>\\[data-slot\\=field-label\\]\\]\\:flex-auto>[data-slot=field-label]{flex:auto}}.\\[\\&\\>\\[role\\=checkbox\\]\\]\\:translate-y-\\[2px\\]>[role=checkbox]{--tw-translate-y:2px;translate:var(--tw-translate-x) var(--tw-translate-y)}.has-\\[\\>\\[data-slot\\=field-content\\]\\]\\:\\[\\&\\>\\[role\\=checkbox\\]\\,\\[role\\=radio\\]\\]\\:mt-px:has(>[data-slot=field-content])>[role=checkbox],.has-\\[\\>\\[data-slot\\=field-content\\]\\]\\:\\[\\&\\>\\[role\\=checkbox\\]\\,\\[role\\=radio\\]\\]\\:mt-px:has(>[data-slot=field-content]) [role=radio]{margin-top:1px}@container field-group (min-width:28rem){.\\@md\\/field-group\\:has-\\[\\>\\[data-slot\\=field-content\\]\\]\\:\\[\\&\\>\\[role\\=checkbox\\]\\,\\[role\\=radio\\]\\]\\:mt-px:has(>[data-slot=field-content])>[role=checkbox],.\\@md\\/field-group\\:has-\\[\\>\\[data-slot\\=field-content\\]\\]\\:\\[\\&\\>\\[role\\=checkbox\\]\\,\\[role\\=radio\\]\\]\\:mt-px:has(>[data-slot=field-content]) [role=radio]{margin-top:1px}}.\\[\\&\\>a\\]\\:underline>a{text-decoration-line:underline}.\\[\\&\\>a\\]\\:underline-offset-4>a{text-underline-offset:4px}.\\[\\&\\>a\\:hover\\]\\:text-primary>a:hover{color:var(--primary)}.\\[\\&\\>svg\\]\\:pointer-events-none>svg{pointer-events:none}.\\[\\&\\>svg\\]\\:size-3>svg{width:calc(var(--spacing) * 3);height:calc(var(--spacing) * 3)}.\\[\\&\\>svg\\]\\:size-4>svg{width:calc(var(--spacing) * 4);height:calc(var(--spacing) * 4)}.\\[\\&\\>svg\\]\\:translate-y-0\\.5>svg{--tw-translate-y:calc(var(--spacing) * .5);translate:var(--tw-translate-x) var(--tw-translate-y)}.\\[\\&\\>svg\\]\\:text-current>svg{color:currentColor}.\\[\\&\\>tr\\]\\:last\\:border-b-0>tr:last-child{border-bottom-style:var(--tw-border-style);border-bottom-width:0}[data-slot=tooltip-content] .\\[\\[data-slot\\=tooltip-content\\]_\\&\\]\\:bg-background\\/20{background-color:var(--background)}@supports (color:color-mix(in lab, red, red)){[data-slot=tooltip-content] .\\[\\[data-slot\\=tooltip-content\\]_\\&\\]\\:bg-background\\/20{background-color:color-mix(in oklab, var(--background) 20%, transparent)}}[data-slot=tooltip-content] .\\[\\[data-slot\\=tooltip-content\\]_\\&\\]\\:text-background{color:var(--background)}@media (prefers-color-scheme:dark){[data-slot=tooltip-content] .dark\\:\\[\\[data-slot\\=tooltip-content\\]_\\&\\]\\:bg-background\\/10{background-color:var(--background)}@supports (color:color-mix(in lab, red, red)){[data-slot=tooltip-content] .dark\\:\\[\\[data-slot\\=tooltip-content\\]_\\&\\]\\:bg-background\\/10{background-color:color-mix(in oklab, var(--background) 10%, transparent)}}}[data-variant=legend]+.\\[\\[data-variant\\=legend\\]\\+\\&\\]\\:-mt-1\\.5{margin-top:calc(var(--spacing) * -1.5)}@media (hover:hover){a.\\[a\\&\\]\\:hover\\:bg-accent:hover{background-color:var(--accent)}a.\\[a\\&\\]\\:hover\\:bg-destructive\\/90:hover{background-color:var(--destructive)}@supports (color:color-mix(in lab, red, red)){a.\\[a\\&\\]\\:hover\\:bg-destructive\\/90:hover{background-color:color-mix(in oklab, var(--destructive) 90%, transparent)}}a.\\[a\\&\\]\\:hover\\:bg-primary\\/90:hover{background-color:var(--primary)}@supports (color:color-mix(in lab, red, red)){a.\\[a\\&\\]\\:hover\\:bg-primary\\/90:hover{background-color:color-mix(in oklab, var(--primary) 90%, transparent)}}a.\\[a\\&\\]\\:hover\\:bg-secondary\\/90:hover{background-color:var(--secondary)}@supports (color:color-mix(in lab, red, red)){a.\\[a\\&\\]\\:hover\\:bg-secondary\\/90:hover{background-color:color-mix(in oklab, var(--secondary) 90%, transparent)}}a.\\[a\\&\\]\\:hover\\:text-accent-foreground:hover{color:var(--accent-foreground)}}}:root{--radius:.625rem;--background:oklch(100% 0 0);--foreground:oklch(14.7% .004 49.25);--card:oklch(100% 0 0);--card-foreground:oklch(14.7% .004 49.25);--popover:oklch(100% 0 0);--popover-foreground:oklch(14.7% .004 49.25);--primary:oklch(21.6% .006 56.043);--primary-foreground:oklch(98.5% .001 106.423);--secondary:oklch(97% .001 106.424);--secondary-foreground:oklch(21.6% .006 56.043);--muted:oklch(97% .001 106.424);--muted-foreground:oklch(55.3% .013 58.071);--accent:oklch(97% .001 106.424);--accent-foreground:oklch(21.6% .006 56.043);--destructive:oklch(57.7% .245 27.325);--border:oklch(92.3% .003 48.717);--input:oklch(92.3% .003 48.717);--ring:oklch(70.9% .01 56.259);--positive:oklch(62.7% .194 149.214);--attention:oklch(66.6% .179 58.318);--info:oklch(54.6% .245 262.881)}@media (prefers-color-scheme:dark){:root{--background:oklch(14.7% .004 49.25);--foreground:oklch(98.5% .001 106.423);--card:oklch(21.6% .006 56.043);--card-foreground:oklch(98.5% .001 106.423);--popover:oklch(21.6% .006 56.043);--popover-foreground:oklch(98.5% .001 106.423);--primary:oklch(92.3% .003 48.717);--primary-foreground:oklch(21.6% .006 56.043);--secondary:oklch(26.8% .007 34.298);--secondary-foreground:oklch(98.5% .001 106.423);--muted:oklch(26.8% .007 34.298);--muted-foreground:oklch(70.9% .01 56.259);--accent:oklch(26.8% .007 34.298);--accent-foreground:oklch(98.5% .001 106.423);--destructive:oklch(70.4% .191 22.216);--border:oklch(100% 0 0/.1);--input:oklch(100% 0 0/.15);--ring:oklch(55.3% .013 58.071);--positive:oklch(79.2% .209 151.711);--attention:oklch(82.8% .189 84.429);--info:oklch(70.7% .165 254.624)}input[data-slot=checkbox]:checked{background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%23292524' stroke-width='3' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M20 6 9 17l-5-5'/%3E%3C/svg%3E")}}@property --tw-space-y-reverse{syntax:"*";inherits:false;initial-value:0}@property --tw-border-style{syntax:"*";inherits:false;initial-value:solid}@property --tw-leading{syntax:"*";inherits:false}@property --tw-font-weight{syntax:"*";inherits:false}@property --tw-tracking{syntax:"*";inherits:false}@property --tw-shadow{syntax:"*";inherits:false;initial-value:0 0 #0000}@property --tw-shadow-color{syntax:"*";inherits:false}@property --tw-shadow-alpha{syntax:"<percentage>";inherits:false;initial-value:100%}@property --tw-inset-shadow{syntax:"*";inherits:false;initial-value:0 0 #0000}@property --tw-inset-shadow-color{syntax:"*";inherits:false}@property --tw-inset-shadow-alpha{syntax:"<percentage>";inherits:false;initial-value:100%}@property --tw-ring-color{syntax:"*";inherits:false}@property --tw-ring-shadow{syntax:"*";inherits:false;initial-value:0 0 #0000}@property --tw-inset-ring-color{syntax:"*";inherits:false}@property --tw-inset-ring-shadow{syntax:"*";inherits:false;initial-value:0 0 #0000}@property --tw-ring-inset{syntax:"*";inherits:false}@property --tw-ring-offset-width{syntax:"<length>";inherits:false;initial-value:0}@property --tw-ring-offset-color{syntax:"*";inherits:false;initial-value:#fff}@property --tw-ring-offset-shadow{syntax:"*";inherits:false;initial-value:0 0 #0000}@property --tw-outline-style{syntax:"*";inherits:false;initial-value:solid}@property --tw-translate-x{syntax:"*";inherits:false;initial-value:0}@property --tw-translate-y{syntax:"*";inherits:false;initial-value:0}@property --tw-translate-z{syntax:"*";inherits:false;initial-value:0}`;
   }
 });
 
@@ -61970,6 +61975,5338 @@ var init_react_page = __esm({
       "catch(e){btn.textContent='Copy failed';}",
       "});});"
     ].join("");
+  }
+});
+
+// dist/shared/html/artifact-preview.js
+import { createHash as createHash4 } from "node:crypto";
+import { constants as constants2, accessSync as accessSync2, lstatSync as lstatSync3, readFileSync as readFileSync11, realpathSync as realpathSync3, statSync as statSync3 } from "node:fs";
+import { dirname as dirname6, isAbsolute as isAbsolute3, relative as relative3, resolve as resolve11, sep as sep2 } from "node:path";
+import { pathToFileURL } from "node:url";
+function withoutQueryOrHash(value) {
+  const queryIndex = value.search(/[?#]/);
+  return queryIndex === -1 ? value : value.slice(0, queryIndex);
+}
+function extensionForPath(value) {
+  const cleaned = withoutQueryOrHash(value).toLowerCase();
+  const dotIndex = cleaned.lastIndexOf(".");
+  if (dotIndex === -1)
+    return "";
+  const slashIndex = cleaned.lastIndexOf("/");
+  return dotIndex > slashIndex ? cleaned.slice(dotIndex) : "";
+}
+function isPreviewableArtifactPath(value) {
+  return PREVIEWABLE_EXTENSIONS.has(extensionForPath(value));
+}
+function toBrowserPath(value) {
+  return value.replace(/\\/g, "/");
+}
+function encodeUrlPath(value) {
+  return value.split("/").map((part) => part === ".." || part === "." ? part : encodeURIComponent(part)).join("/");
+}
+function isInside(root, target) {
+  const fromRoot = relative3(root, target);
+  return fromRoot !== "" && !fromRoot.startsWith("..") && !isAbsolute3(fromRoot);
+}
+function runIdFromFolder(runFolder) {
+  const parts = toBrowserPath(resolve11(runFolder)).split("/").filter((part) => part.length > 0);
+  return parts.at(-1);
+}
+function artifactPreviewLocation(input) {
+  if (!isPreviewableArtifactPath(input.entryPath))
+    return void 0;
+  const reportsDir = resolve11(input.runFolder, "reports");
+  const runRoot = resolve11(input.runFolder);
+  if (isAbsolute3(input.entryPath)) {
+    const absoluteEntry = resolve11(input.entryPath);
+    if (isInside(runRoot, absoluteEntry)) {
+      return {
+        absolutePath: absoluteEntry,
+        allowedRoot: runRoot,
+        href: encodeUrlPath(toBrowserPath(relative3(reportsDir, absoluteEntry)))
+      };
+    }
+    if (input.projectRoot !== void 0 && isInside(resolve11(input.projectRoot), absoluteEntry)) {
+      return {
+        absolutePath: absoluteEntry,
+        allowedRoot: resolve11(input.projectRoot),
+        href: pathToFileURL(absoluteEntry).href
+      };
+    }
+    return void 0;
+  }
+  const normalized = toBrowserPath(input.entryPath).replace(/^\.\//, "");
+  if (normalized.split("/").some((part) => part === ".."))
+    return void 0;
+  if (normalized.startsWith("prototype-files/")) {
+    return {
+      absolutePath: resolve11(runRoot, normalized),
+      allowedRoot: runRoot,
+      href: encodeUrlPath(`../${normalized}`)
+    };
+  }
+  const runId = runIdFromFolder(input.runFolder);
+  const currentRunPrefix = runId === void 0 ? void 0 : `${CONTROL_PLANE_RUNS_DIR}/${runId}/`;
+  if (currentRunPrefix !== void 0 && normalized.startsWith(currentRunPrefix)) {
+    const runRelative = normalized.slice(currentRunPrefix.length);
+    return {
+      absolutePath: resolve11(runRoot, runRelative),
+      allowedRoot: runRoot,
+      href: encodeUrlPath(`../${runRelative}`)
+    };
+  }
+  if (input.projectRoot !== void 0) {
+    const projectRoot = resolve11(input.projectRoot);
+    const absoluteEntry = resolve11(projectRoot, normalized);
+    if (!isInside(projectRoot, absoluteEntry))
+      return void 0;
+    return {
+      absolutePath: absoluteEntry,
+      allowedRoot: projectRoot,
+      href: pathToFileURL(absoluteEntry).href
+    };
+  }
+  return void 0;
+}
+function safeReadablePath(location) {
+  try {
+    const root = resolve11(location.allowedRoot);
+    const target = resolve11(location.absolutePath);
+    if (!isInside(root, target) || lstatSync3(root).isSymbolicLink())
+      return void 0;
+    const realRoot = realpathSync3.native(root);
+    let cursor = root;
+    for (const segment of relative3(root, target).split(sep2)) {
+      cursor = resolve11(cursor, segment);
+      if (lstatSync3(cursor).isSymbolicLink())
+        return void 0;
+      if (!isInside(realRoot, realpathSync3.native(cursor)))
+        return void 0;
+    }
+    const realTarget = realpathSync3.native(target);
+    if (!isInside(realRoot, realTarget) || !statSync3(realTarget).isFile())
+      return void 0;
+    accessSync2(realTarget, constants2.R_OK);
+    return realTarget;
+  } catch {
+    return void 0;
+  }
+}
+function injectHtmlPreviewBootstrap(source, bootstrap) {
+  const doctype = source.match(/^\uFEFF?\s*<!doctype[^>]*>/i)?.[0] ?? "";
+  const body = source.slice(doctype.length);
+  const headOpen = body.match(/<head\b[^>]*>/i);
+  if (headOpen !== null && headOpen.index !== void 0) {
+    const insertAt = headOpen.index + headOpen[0].length;
+    return `${doctype}${body.slice(0, insertAt)}${bootstrap}${body.slice(insertAt)}`;
+  }
+  const htmlOpen = body.match(/<html\b[^>]*>/i);
+  if (htmlOpen !== null && htmlOpen.index !== void 0) {
+    const insertAt = htmlOpen.index + htmlOpen[0].length;
+    return `${doctype}${body.slice(0, insertAt)}<head>${bootstrap}</head>${body.slice(insertAt)}`;
+  }
+  return `${doctype}<head>${bootstrap}</head>${body}`;
+}
+function embeddedHtmlSnapshot(location) {
+  const source = readFileSync11(location.absolutePath, "utf8");
+  const proof = createHash4("sha256").update(location.absolutePath).update("\0").update(source).digest("hex");
+  const baseHref = pathToFileURL(`${dirname6(location.absolutePath)}${sep2}`).href;
+  const bootstrap = `<base href=${JSON.stringify(baseHref)}><script>(()=>{const announce=()=>parent.postMessage({type:${JSON.stringify(ARTIFACT_PREVIEW_HANDSHAKE)},proof:${JSON.stringify(proof)}},'*');const announceAfterReady=()=>setTimeout(announce,0);if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',announceAfterReady,{once:true});else announceAfterReady();})()</script>`;
+  const html = injectHtmlPreviewBootstrap(source, bootstrap);
+  return {
+    status: "ready",
+    href: location.href,
+    sourcePath: "",
+    embedded: { base64: Buffer.from(html, "utf8").toString("base64"), proof }
+  };
+}
+function previewForEntryPoints(input) {
+  if (input.entryPoints.length === 0)
+    return { status: "unavailable" };
+  let firstMissing;
+  for (const entryPoint of input.entryPoints) {
+    const location = artifactPreviewLocation({
+      entryPath: entryPoint,
+      runFolder: input.runFolder,
+      projectRoot: input.projectRoot
+    });
+    if (location === void 0)
+      continue;
+    const readablePath = safeReadablePath(location);
+    if (readablePath === void 0) {
+      firstMissing ??= { status: "missing", sourcePath: entryPoint };
+      continue;
+    }
+    const safeLocation = { ...location, absolutePath: readablePath };
+    const extension2 = extensionForPath(location.absolutePath);
+    if (extension2 === ".html" || extension2 === ".htm") {
+      try {
+        return { ...embeddedHtmlSnapshot(safeLocation), sourcePath: entryPoint };
+      } catch {
+        firstMissing ??= { status: "missing", sourcePath: entryPoint };
+        continue;
+      }
+    }
+    return { status: "ready", href: location.href, sourcePath: entryPoint };
+  }
+  return firstMissing ?? { status: "unsupported", sourcePath: input.entryPoints[0] ?? "" };
+}
+function ArtifactPreviewFrame({ preview, title, eager = false }) {
+  if (preview.status !== "ready") {
+    const copy = preview.status === "missing" ? {
+      title: "Preview file missing",
+      detail: "Circuit could not find or read this reported file. Review the evidence instead."
+    } : preview.status === "unsupported" ? {
+      title: "Preview format unsupported",
+      detail: "This entry point cannot be shown in a browser. Review the evidence instead."
+    } : {
+      title: "Preview unavailable",
+      detail: "This option did not report a browser-viewable entry point."
+    };
+    return (0, import_jsx_runtime2.jsxs)("div", { className: "ap-empty", "data-artifact-preview-state": preview.status, children: [(0, import_jsx_runtime2.jsx)("strong", { children: copy.title }), (0, import_jsx_runtime2.jsx)("span", { children: copy.detail }), "sourcePath" in preview ? (0, import_jsx_runtime2.jsx)("code", { children: t(preview.sourcePath, MAX_PROMPT_LEN) }) : null] });
+  }
+  return (0, import_jsx_runtime2.jsxs)("div", { className: "ap-shell", "data-artifact-preview-shell": "", "data-artifact-preview-state": "loading", "data-mv-preview-shell": "", "data-mv-preview-state": "loading", "aria-busy": "true", children: [(0, import_jsx_runtime2.jsxs)("output", { className: "ap-status", "aria-live": "polite", children: [(0, import_jsx_runtime2.jsx)("strong", { "data-artifact-preview-message": "", children: "Loading preview\u2026" }), (0, import_jsx_runtime2.jsx)("span", { "data-artifact-preview-detail": "", children: "Preparing the local artifact." }), (0, import_jsx_runtime2.jsx)("button", { className: "ap-retry", type: "button", "data-artifact-preview-retry": "", "data-mv-preview-retry": "", hidden: true, children: "Retry preview" })] }), (0, import_jsx_runtime2.jsx)("iframe", { "data-mv-frame": "", "data-mv-preview-src": preview.href, "data-artifact-preview-frame": "", "data-artifact-preview-src": preview.href, ...preview.embedded === void 0 ? {} : {
+    "data-artifact-preview-embedded": preview.embedded.base64,
+    "data-artifact-preview-proof": preview.embedded.proof
+  }, title: t(title, 220), sandbox: "allow-scripts allow-forms allow-pointer-lock", loading: eager ? "eager" : "lazy" })] });
+}
+var import_jsx_runtime2, ARTIFACT_PREVIEW_HANDSHAKE, PREVIEWABLE_EXTENSIONS, ARTIFACT_PREVIEW_STYLE, ARTIFACT_PREVIEW_SCRIPT;
+var init_artifact_preview = __esm({
+  "dist/shared/html/artifact-preview.js"() {
+    "use strict";
+    import_jsx_runtime2 = __toESM(require_jsx_runtime(), 1);
+    init_control_plane_paths();
+    init_page();
+    init_react_page();
+    ARTIFACT_PREVIEW_HANDSHAKE = "circuit.artifact-preview-ready@v1";
+    PREVIEWABLE_EXTENSIONS = /* @__PURE__ */ new Set([
+      ".gif",
+      ".htm",
+      ".html",
+      ".jpeg",
+      ".jpg",
+      ".pdf",
+      ".png",
+      ".svg",
+      ".webp"
+    ]);
+    ARTIFACT_PREVIEW_STYLE = [
+      ".ap-shell{position:absolute;inset:0;min-width:0;background:#fff}",
+      ".ap-shell iframe{display:block;width:100%;height:100%;border:0;background:#fff}",
+      ".ap-status{position:absolute;inset:0;z-index:1;display:grid;place-content:center;justify-items:center;gap:9px;padding:28px;background:#fff;color:#71717a;text-align:center}",
+      ".ap-status strong{color:#18181b;font-size:16px}",
+      '.ap-status code{max-width:min(560px,80vw);overflow-wrap:anywhere;color:#52525b;font:500 10px/1.45 ui-monospace,"SF Mono",Menlo,monospace}',
+      '.ap-shell[data-artifact-preview-state="ready"] .ap-status{display:none}',
+      '.ap-shell[data-artifact-preview-state="failed"] iframe{visibility:hidden}',
+      ".ap-retry{min-height:38px;margin-top:4px;border:1px solid #d4d4d8;border-radius:8px;background:#fff;padding:0 13px;color:#18181b;font-size:12px;font-weight:580}",
+      ".ap-empty{height:100%;display:grid;place-content:center;gap:10px;padding:28px;background:#fff;color:#71717a;text-align:center}",
+      ".ap-empty strong{color:#18181b;font-size:16px}",
+      '.ap-empty code{max-width:min(560px,80vw);overflow-wrap:anywhere;color:#52525b;font:500 10px/1.45 ui-monospace,"SF Mono",Menlo,monospace}'
+    ].join("");
+    ARTIFACT_PREVIEW_SCRIPT = `(()=>{const type=${JSON.stringify(ARTIFACT_PREVIEW_HANDSHAKE)};const shells=[...document.querySelectorAll('[data-artifact-preview-shell]')];const timeoutMs=8000;const decode=value=>{const binary=atob(value);const bytes=Uint8Array.from(binary,char=>char.charCodeAt(0));return new TextDecoder().decode(bytes);};const state=(shell,value)=>{shell.dataset.artifactPreviewState=value;if(shell.hasAttribute('data-mv-preview-state'))shell.dataset.mvPreviewState=value;};function start(shell){if(shell.dataset.artifactPreviewStarted==='true'&&shell.dataset.artifactPreviewState!=='failed')return;const frame=shell.querySelector('[data-artifact-preview-frame]');const message=shell.querySelector('[data-artifact-preview-message]');const detail=shell.querySelector('[data-artifact-preview-detail]');const retry=shell.querySelector('[data-artifact-preview-retry]');if(!frame||!message||!detail||!retry)return;const generation=String(Number(shell.dataset.artifactPreviewGeneration||'0')+1);shell.dataset.artifactPreviewGeneration=generation;shell.dataset.artifactPreviewStarted='true';state(shell,'loading');shell.setAttribute('aria-busy','true');message.textContent='Loading preview\u2026';detail.textContent='Preparing the local artifact.';retry.hidden=true;let settled=false;const proof=frame.dataset.artifactPreviewProof||'';const embedded=frame.dataset.artifactPreviewEmbedded||'';const source=frame.dataset.artifactPreviewSrc||'';const htmlLike=/\\.html?(?:[?#]|$)/i.test(source);const cleanup=()=>window.removeEventListener('message',onMessage);const timer=setTimeout(()=>fail('Preview took too long to load','You can retry it or open the artifact full size.'),timeoutMs);function finish(){if(settled||shell.dataset.artifactPreviewGeneration!==generation)return;settled=true;clearTimeout(timer);cleanup();state(shell,'ready');shell.setAttribute('aria-busy','false');}function fail(title,copy){if(settled||shell.dataset.artifactPreviewGeneration!==generation)return;settled=true;clearTimeout(timer);cleanup();state(shell,'failed');shell.setAttribute('aria-busy','false');message.textContent=title;detail.textContent=copy;retry.hidden=false;}function onMessage(event){const value=event.data;if(event.source===frame.contentWindow&&proof.length>0&&value&&value.type===type&&value.proof===proof)finish();}window.addEventListener('message',onMessage);frame.addEventListener('error',()=>fail('Preview could not be loaded','You can retry it or open the artifact full size.'),{once:true});if(embedded.length>0){try{frame.srcdoc=decode(embedded);}catch{fail('Preview could not be loaded','The embedded artifact snapshot could not be read. Open it full size instead.');}}else{if(!htmlLike)frame.addEventListener('load',finish,{once:true});frame.src=source;}}shells.forEach(shell=>{const panel=shell.closest('[data-artifact-preview-panel]');const begin=()=>{if(!panel||!panel.hidden)start(shell);};begin();if(panel)new MutationObserver(begin).observe(panel,{attributes:true,attributeFilter:['hidden']});const retry=shell.querySelector('[data-artifact-preview-retry]');if(retry)retry.addEventListener('click',()=>{const frame=shell.querySelector('[data-artifact-preview-frame]');if(!frame)return;const replacement=frame.cloneNode();replacement.removeAttribute('src');replacement.removeAttribute('srcdoc');frame.replaceWith(replacement);shell.dataset.artifactPreviewStarted='false';start(shell);});});})();`;
+  }
+});
+
+// dist/shared/html/checkpoint-review-runtime.generated.js
+var CHECKPOINT_REVIEW_RUNTIME;
+var init_checkpoint_review_runtime_generated = __esm({
+  "dist/shared/html/checkpoint-review-runtime.generated.js"() {
+    "use strict";
+    CHECKPOINT_REVIEW_RUNTIME = '"use strict";(()=>{var U="Too many comments. Keep notes on at most 24 choices, including the overall note.",X="Review notes are too large. Shorten them before preparing the decision.",Y="Each comment can be at most 2,000 characters. Shorten the longer notes before preparing the decision.";function S(e){if(e.comments.length>24)return U;if(new TextEncoder().encode(JSON.stringify(e)).byteLength>6e4)return X;if(e.comments.some(n=>n.body.length>2e3))return Y}var L="checkpoint.review-draft@v1",G="The saved choice is no longer available. Review started from the current default.",Q="This saved draft uses a different version. Review started fresh.";function H(e){return typeof e=="object"&&e!==null&&!Array.isArray(e)}function M(e){return Array.from(new Set(e.filter(t=>t.length>0)))}function x(e){let t=M(e.choiceIds);if(t.length===0)throw new Error("checkpoint review requires at least one choice");return t}function z(e,t){return e.includes(t)?t:e[0]??""}function A(e){return`circuit:checkpoint-review:${e.runId}:${e.stepId}:${e.attempt}:${e.requestSha256}`}function Z(e){let t=x(e),n=z(t,e.defaultSelection);return{schema:L,selection:n,notes:{},overall:"",visited:[n]}}function _(e,t){let n=x(t);if(H(e)){if("schema"in e&&e.schema!==L)return Q;if(typeof e.selection=="string"&&!n.includes(e.selection))return G}}function D(e,t){let n=x(t),r=Z(t);if(!H(e)||"schema"in e&&e.schema!==L)return r;let m=typeof e.selection=="string"&&n.includes(e.selection)?e.selection:r.selection,C=H(e.notes)?Object.fromEntries(Object.entries(e.notes).filter(v=>n.includes(v[0])&&typeof v[1]=="string")):{},E=typeof e.overall=="string"?e.overall:"",o=Array.isArray(e.visited)?Array.from(new Set(e.visited.filter(v=>typeof v=="string"&&n.includes(v)))):[];return o.includes(m)||o.push(m),{schema:L,selection:m,notes:C,overall:E,visited:o}}function O(e,t,n){if(!n.includes(t))return e;let r=e.visited.includes(t)?e.visited:[...e.visited,t];return e.selection===t&&r===e.visited?e:{...e,selection:t,visited:r}}function b(e,t,n,r){return!r.includes(t)||e.notes[t]===n?e:{...e,notes:{...e.notes,[t]:n}}}function I(e,t){return e.overall===t?e:{...e,overall:t}}function N(e,t){let n=M(t);return{choiceCommentCount:n.filter(r=>(e.notes[r]??"").trim().length>0).length,hasOverallComment:e.overall.trim().length>0,unvisitedCount:n.filter(r=>!e.visited.includes(r)).length}}function B(e,t,n){let r=M(n);if(!r.includes(e.selection))throw new Error(`checkpoint review selection \'${e.selection}\' is unavailable`);let m=[];for(let E of r){let o=(e.notes[E]??"").trim();o.length>0&&m.push({scope:"choice",choice_id:E,body:o})}let C=e.overall.trim();return C.length>0&&m.push({scope:"overall",body:C}),{schema:"checkpoint.review-response@v1",run_id:t.runId,step_id:t.stepId,attempt:t.attempt,request_sha256:t.requestSha256,selection:e.selection,comments:m}}function l(e,t){return e.querySelector(t)}function f(e,t){return Array.from(e.querySelectorAll(t))}function W(e,t){let n=e.findIndex(r=>r.id===t);return n<0?0:n}function ee(e,t){return(e%t+t)%t}function K(e,t){return(e.notes[t]??"").trim().length>0?1:0}function q(e,t){e!==null&&(e.textContent=String(t),e.hidden=t===0)}function te(e){let t=f(e,"[data-cp-option]"),n=t.map(s=>({id:s.dataset.cpChoiceId??"",label:s.dataset.cpLabel??s.dataset.cpChoiceId??"",description:s.dataset.cpDescription??"",previewHref:"",control:s})),r=n[0];if(r===void 0)return;let m=t.find(s=>s.checked),C=f(e,"[data-cp-option-detail]"),E=l(e,"[data-cp-selected-label]"),o=l(e,"[data-cp-selected-description]"),v=l(e,"[data-cp-footer-label]"),w=l(e,"[data-cp-live]"),y={root:e,choices:n,defaultSelection:m?.dataset.cpChoiceId??r.id,comment:l(e,"[data-cp-comment]"),overall:l(e,"[data-cp-overall-comment]"),saveState:l(e,"[data-cp-save-state]"),dialog:l(e,"[data-cp-dialog]"),confirmTitle:l(e,"[data-cp-confirm-title]"),confirmSummary:l(e,"[data-cp-confirm-summary]"),command:l(e,"[data-cp-command]"),commandState:l(e,"[data-cp-command-state]"),finishButtons:f(e,"[data-cp-finish]"),closeButtons:f(e,"[data-cp-close-dialog]"),copyButtons:f(e,"[data-cp-copy-decision]"),exportButtons:f(e,"[data-cp-export]"),previousButtons:f(e,"[data-cp-previous]"),nextButtons:f(e,"[data-cp-next]"),renderSelection(s,c){let d=n.find(p=>p.id===s.selection)??r;for(let p of n){let u=p.id===d.id,h=p.control;h.checked=u,h.tabIndex=u?0:-1}for(let p of C)p.hidden=p.dataset.cpChoiceId!==d.id;y.comment!==null&&(y.comment.value=s.notes[d.id]??""),E!==null&&(E.textContent=d.label),o!==null&&(o.textContent=d.description,o.hidden=d.description.length===0),v!==null&&(v.textContent=d.label),c.announce&&w!==null&&(w.textContent=`${d.label} selected`),y.refreshNoteBadges(s),c.focus&&d.control.focus()},refreshNoteBadges(s){for(let c of n){let d=c.control.closest(".cp-option");q(l(d??c.control,"[data-cp-note-count]"),K(s,c.id))}}};return y}function ne(e){let t=f(e,"[data-mv-option]"),n=t.map(c=>({id:c.dataset.mvVariantId??"",label:c.dataset.mvLabel??c.dataset.mvVariantId??"",description:"",previewHref:c.dataset.mvPreviewSrc??"",control:c})),r=n[0];if(r===void 0)return;let m=t.find(c=>c.getAttribute("aria-selected")==="true"),C=f(e,"[data-mv-panel]"),E=f(e,"[data-mv-inspector]"),o=l(e,"[data-mv-stage-title]"),v=l(e,"[data-mv-position]"),w=l(e,"[data-mv-open]"),y=l(e,"[data-mv-live]"),s={root:e,choices:n,defaultSelection:m?.dataset.mvVariantId??r.id,comment:l(e,"[data-mv-comment]"),overall:l(e,"[data-mv-overall-comment]"),saveState:l(e,"[data-mv-save-state]"),dialog:l(e,"[data-mv-dialog]"),confirmTitle:l(e,"[data-mv-confirm-title]"),confirmSummary:l(e,"[data-mv-confirm-summary]"),command:l(e,"[data-mv-command]"),commandState:l(e,"[data-mv-command-state]"),finishButtons:f(e,"[data-mv-finish]"),closeButtons:f(e,"[data-mv-close-dialog]"),copyButtons:f(e,"[data-mv-copy-decision]"),exportButtons:f(e,"[data-mv-export]"),previousButtons:f(e,"[data-mv-previous]"),nextButtons:f(e,"[data-mv-next]"),renderSelection(c,d){let p=W(n,c.selection),u=n[p]??r;for(let h of n){let R=h.id===u.id;h.control.setAttribute("aria-selected",String(R)),h.control.tabIndex=R?0:-1}for(let h of C)h.hidden=h.dataset.mvVariantId!==u.id;for(let h of E)h.hidden=h.dataset.mvVariantId!==u.id;s.comment!==null&&(s.comment.value=c.notes[u.id]??""),o!==null&&(o.textContent=u.label),v!==null&&(v.textContent=`${p+1} of ${n.length}`),w!==null&&(w.hidden=u.previewHref.length===0,u.previewHref.length>0?w.href=u.previewHref:w.removeAttribute("href")),d.announce&&y!==null&&(y.textContent=`${u.label} selected`),s.refreshNoteBadges(c),d.focus&&u.control.focus()},refreshNoteBadges(c){for(let d of n)q(l(d.control,"[data-mv-note-count]"),K(c,d.id))}};return s}function oe(e){return{runId:e.dataset.runId??"",stepId:e.dataset.stepId??"",attempt:Number(e.dataset.attempt??"0"),requestSha256:e.dataset.requestSha256??""}}function ie(e,t){let n;try{n=window.localStorage.getItem(e)}catch{return t!==null&&(t.textContent="Draft won\\u2019t survive reload"),{saved:void 0,storageAvailable:!1}}if(n===null)return{saved:void 0,storageAvailable:!0};try{return{saved:JSON.parse(n),storageAvailable:!0}}catch{return t!==null&&(t.textContent="Saved draft couldn\\u2019t be read. Starting fresh."),{saved:void 0,storageAvailable:!0}}}function re(e){let t=new TextEncoder().encode(JSON.stringify(e)),n="";for(let r of t)n+=String.fromCharCode(r);return`ckr1.${btoa(n).replace(/\\+/g,"-").replace(/\\//g,"_").replace(/=+$/g,"")}`}function V(e){return`\'${e.replace(/\'/g,"\'\\\\\'\'")}\'`}function ce(e,t){let n=N(e,t),r=`${n.choiceCommentCount} option ${n.choiceCommentCount===1?"comment":"comments"}`,m=n.hasOverallComment?"Overall note added":"No overall note",C=n.unvisitedCount===0?"All options visited":`${n.unvisitedCount} ${n.unvisitedCount===1?"option":"options"} unvisited`;return`${r} \\xB7 ${m} \\xB7 ${C}`}function j(e){let t=oe(e.root),n=e.choices.map(i=>i.id),r=A(t),m=ie(r,e.saveState),C=m.storageAvailable,E=_(m.saved,{choiceIds:n,defaultSelection:e.defaultSelection}),o=D(m.saved,{choiceIds:n,defaultSelection:e.defaultSelection});E!==void 0&&e.saveState!==null&&(e.saveState.textContent=E);let v=null;function w(){let i=v;v=null,i?.focus()}function y(){if(!C){e.saveState!==null&&(e.saveState.textContent="Draft won\\u2019t survive reload");return}try{window.localStorage.setItem(r,JSON.stringify(o)),e.saveState!==null&&(e.saveState.textContent="Saved in this browser")}catch{C=!1,e.saveState!==null&&(e.saveState.textContent="Draft won\\u2019t survive reload")}}function s(){e.command!==null&&(e.command.hidden=!0,e.command.textContent=""),e.commandState!==null&&(e.commandState.textContent="")}function c(){let i=e.choices.find(a=>a.id===o.selection);e.confirmTitle!==null&&(e.confirmTitle.textContent=i?.label??o.selection),e.confirmSummary!==null&&(e.confirmSummary.textContent=ce(o,n))}function d(){e.comment!==null&&(o=b(o,o.selection,e.comment.value,n)),e.overall!==null&&(o=I(o,e.overall.value))}function p(i,a){d(),o=O(o,i,n),e.renderSelection(o,{focus:a,announce:!0}),c(),y(),s()}function u(i,a){let g=W(e.choices,o.selection),k=e.choices[ee(g+i,e.choices.length)];k!==void 0&&p(k.id,a)}function h(){return d(),B(o,t,n)}function R(i){e.command!==null&&(e.command.hidden=!0,e.command.textContent=""),e.commandState!==null&&(e.commandState.textContent=i)}async function F(){let i=h();y(),c();let a=S(i);if(a!==void 0){R(a);return}let g=e.root.dataset.resumePrefix??"circuit resume",k=e.root.dataset.runFolder??"",T=`${g} --run-folder ${V(k)} --checkpoint-response ${V(re(i))}`;e.command!==null&&(e.command.textContent=T,e.command.hidden=!1);try{if(navigator.clipboard===void 0)throw new Error("clipboard unavailable");await navigator.clipboard.writeText(T),e.commandState!==null&&(e.commandState.textContent="Decision prepared \\u2014 paste the command in your terminal.")}catch{e.commandState!==null&&(e.commandState.textContent="Decision prepared \\u2014 copy the command shown above.")}}function J(){let i=h();y(),c();let a=S(i);if(a!==void 0){R(a);return}let g=new Blob([`${JSON.stringify(i,null,2)}\n`],{type:"application/json"}),k=URL.createObjectURL(g),T=document.createElement("a");T.href=k,T.download="checkpoint-review.json",document.body.append(T),T.click(),T.remove(),window.setTimeout(()=>URL.revokeObjectURL(k),0)}e.overall!==null&&(e.overall.value=o.overall),e.renderSelection(o,{focus:!1,announce:!1}),c();for(let i of e.choices)i.control.addEventListener("click",()=>p(i.id,!1)),i.control.addEventListener("keydown",a=>{if(a.key==="ArrowRight"||a.key==="ArrowDown")a.preventDefault(),u(1,!0);else if(a.key==="ArrowLeft"||a.key==="ArrowUp")a.preventDefault(),u(-1,!0);else if(a.key==="Home"){a.preventDefault();let g=e.choices[0];g!==void 0&&p(g.id,!0)}else if(a.key==="End"){a.preventDefault();let g=e.choices[e.choices.length-1];g!==void 0&&p(g.id,!0)}});for(let i of e.previousButtons)i.addEventListener("click",()=>u(-1,!1));for(let i of e.nextButtons)i.addEventListener("click",()=>u(1,!1));e.comment!==null&&e.comment.addEventListener("input",()=>{o=b(o,o.selection,e.comment?.value??"",n),e.refreshNoteBadges(o),c(),y(),s()}),e.overall!==null&&e.overall.addEventListener("input",()=>{o=I(o,e.overall?.value??""),c(),y(),s()}),e.dialog?.addEventListener("close",w);for(let i of e.finishButtons)i.addEventListener("click",()=>{v=i,d(),y(),c(),e.dialog!==null&&typeof e.dialog.showModal=="function"?e.dialog.showModal():e.dialog?.setAttribute("open","")});for(let i of e.closeButtons)i.addEventListener("click",()=>{e.dialog!==null&&typeof e.dialog.close=="function"?e.dialog.close():(e.dialog?.removeAttribute("open"),w())});for(let i of e.copyButtons)i.addEventListener("click",()=>{F()});for(let i of e.exportButtons)i.addEventListener("click",J)}var P=document.querySelector("[data-cp-workspace]");if(P!==null){let e=te(P);e!==void 0&&j(e)}var $=document.querySelector("[data-mv-workspace]");if($!==null){let e=ne($);e!==void 0&&j(e)}})();';
+  }
+});
+
+// dist/shared/html/checkpoint-page.js
+function shellSingleQuote(value) {
+  return `'${value.replace(/'/g, "'\\''")}'`;
+}
+function resumeCommandForChoice(runFolder, choiceId, commandPrefix = "circuit resume") {
+  return `${commandPrefix} --run-folder ${shellSingleQuote(runFolder)} --checkpoint-choice ${shellSingleQuote(choiceId)}`;
+}
+function OptionDetail({ option, selected }) {
+  return (0, import_jsx_runtime3.jsx)("div", { "data-cp-option-detail": "", "data-cp-choice-id": option.id, hidden: !selected, children: option.extra ?? null });
+}
+function CheckpointPage({ input }) {
+  const selectedIndex = Math.max(0, input.options.findIndex((option) => option.isRecommended === true || option.isDefault === true));
+  const selected = input.options[selectedIndex] ?? input.options[0];
+  if (selected === void 0)
+    return null;
+  const subtitle = input.subtitle ?? "Review the choices, add context if useful, then prepare your decision.";
+  return (0, import_jsx_runtime3.jsxs)("div", { className: "cp-wrap", "data-cp-workspace": "", "data-run-folder": input.resume.runFolder, "data-resume-prefix": input.resume.commandPrefix, "data-run-id": input.meta.runId, "data-step-id": input.meta.stepId, "data-attempt": input.resume.attempt, "data-request-sha256": input.resume.requestSha256, children: [(0, import_jsx_runtime3.jsxs)("div", { "data-cp-interactive": "", children: [(0, import_jsx_runtime3.jsx)("a", { className: "cp-skip", href: "#cp-options", children: "Skip to choices" }), (0, import_jsx_runtime3.jsx)("a", { className: "cp-skip", href: "#cp-comment", children: "Skip to review note" }), (0, import_jsx_runtime3.jsxs)("div", { className: `cp-shell${input.artifact === void 0 ? "" : " cp-shell-artifact"}`, children: [(0, import_jsx_runtime3.jsxs)("header", { className: "cp-topbar", children: [(0, import_jsx_runtime3.jsxs)("div", { className: "cp-brand", children: ["Circuit \xB7 ", t(input.meta.flowLabel, 120)] }), (0, import_jsx_runtime3.jsx)("div", { className: "cp-state", children: "Waiting for your review" })] }), (0, import_jsx_runtime3.jsxs)("section", { className: "cp-hero", children: [input.ribbon.length === 0 ? null : (0, import_jsx_runtime3.jsx)("div", { className: "cp-ribbon", children: input.ribbon.map((tag) => (0, import_jsx_runtime3.jsx)("span", { className: "cp-pill", children: t(tag, 120) }, tag)) }), (0, import_jsx_runtime3.jsx)("h1", { children: t(input.question, MAX_PROMPT_LEN) }), (0, import_jsx_runtime3.jsx)("p", { className: "cp-subtitle", children: t(subtitle, MAX_PROMPT_LEN) })] }), (0, import_jsx_runtime3.jsxs)("main", { className: `cp-layout${input.artifact === void 0 ? "" : " cp-layout-artifact"}`, children: [input.artifact === void 0 ? null : (0, import_jsx_runtime3.jsxs)("section", { className: "cp-card cp-artifact", "aria-label": "Artifact preview", "data-artifact-preview-panel": "", children: [(0, import_jsx_runtime3.jsxs)("div", { className: "cp-artifact-bar", children: [(0, import_jsx_runtime3.jsxs)("div", { className: "cp-artifact-title", children: [(0, import_jsx_runtime3.jsx)("strong", { children: t(input.artifact.title, MAX_PROMPT_LEN) }), input.artifact.description === void 0 ? null : (0, import_jsx_runtime3.jsx)("span", { children: t(input.artifact.description, MAX_PROMPT_LEN) })] }), input.artifact.preview.status === "ready" ? (0, import_jsx_runtime3.jsx)("a", { className: "cp-open-link", href: input.artifact.preview.href, target: "_blank", rel: "noreferrer", children: "Open full size \u2197" }) : null] }), (0, import_jsx_runtime3.jsx)("div", { className: "cp-artifact-canvas", children: (0, import_jsx_runtime3.jsx)(ArtifactPreviewFrame, { preview: input.artifact.preview, title: `${t(input.artifact.title, MAX_PROMPT_LEN)} artifact preview`, eager: true }) }), (0, import_jsx_runtime3.jsx)("p", { className: "cp-artifact-note", children: "The embedded preview is isolated for safety. Open it full size if a browser feature is unavailable here." })] }), (0, import_jsx_runtime3.jsxs)("section", { className: "cp-card", id: "cp-options", "aria-labelledby": "cp-options-heading", tabIndex: -1, children: [(0, import_jsx_runtime3.jsxs)("div", { className: "cp-list-head", children: [(0, import_jsx_runtime3.jsx)("span", { className: "cp-eyebrow", id: "cp-options-heading", children: "Choose one" }), (0, import_jsx_runtime3.jsxs)("span", { className: "cp-eyebrow", children: [input.options.length, " ", input.options.length === 1 ? "option" : "options"] })] }), (0, import_jsx_runtime3.jsx)("div", { className: "cp-list", role: "radiogroup", "aria-label": "Checkpoint choices", children: input.options.map((option, index) => {
+    const isSelected = index === selectedIndex;
+    return (0, import_jsx_runtime3.jsxs)("label", { className: "cp-option", children: [(0, import_jsx_runtime3.jsx)("input", { className: "cp-native-radio", type: "radio", name: "checkpoint-choice", value: option.id, defaultChecked: isSelected, tabIndex: isSelected ? 0 : -1, "data-cp-option": "", "data-cp-choice-id": option.id, "data-cp-label": t(option.label, MAX_PROMPT_LEN), "data-cp-description": t(option.description ?? "", MAX_PROMPT_LEN) }), (0, import_jsx_runtime3.jsx)("span", { className: "cp-radio", "aria-hidden": "true" }), (0, import_jsx_runtime3.jsxs)("span", { className: "cp-option-copy", children: [(0, import_jsx_runtime3.jsx)("span", { className: "cp-option-title", children: t(option.label, MAX_PROMPT_LEN) }), option.description === void 0 ? null : (0, import_jsx_runtime3.jsx)("span", { className: "cp-option-description", children: t(option.description, MAX_PROMPT_LEN) })] }), (0, import_jsx_runtime3.jsxs)("span", { className: "cp-badges", children: [option.isRecommended === true ? (0, import_jsx_runtime3.jsx)("span", { className: "cp-badge cp-recommended", children: "Suggested" }) : null, option.isDefault === true ? (0, import_jsx_runtime3.jsx)("span", { className: "cp-badge", children: "Default" }) : null, (0, import_jsx_runtime3.jsx)("span", { className: "cp-badge", "data-cp-note-count": "", hidden: true, children: "0 notes" })] })] }, option.id);
+  }) }), (0, import_jsx_runtime3.jsxs)("div", { className: "cp-default", children: [(0, import_jsx_runtime3.jsx)("strong", { children: "If you do nothing: " }), input.defaultChoice === void 0 ? (0, import_jsx_runtime3.jsx)(import_jsx_runtime3.Fragment, { children: "the run stays parked here until you choose." }) : (0, import_jsx_runtime3.jsxs)(import_jsx_runtime3.Fragment, { children: ["the run stays parked here. The declared default is", " ", t(input.defaultChoice.label, MAX_PROMPT_LEN), "."] })] })] }), (0, import_jsx_runtime3.jsxs)("aside", { className: "cp-card cp-inspector", "aria-label": "Decision notes", children: [(0, import_jsx_runtime3.jsxs)("div", { className: "cp-inspector-main", children: [(0, import_jsx_runtime3.jsx)("div", { className: "cp-eyebrow", children: "Your current choice" }), (0, import_jsx_runtime3.jsx)("h2", { "data-cp-selected-label": "", children: t(selected.label, MAX_PROMPT_LEN) }), (0, import_jsx_runtime3.jsx)("p", { className: "cp-selection-description", "data-cp-selected-description": "", hidden: selected.description === void 0, children: t(selected.description ?? "", MAX_PROMPT_LEN) }), (0, import_jsx_runtime3.jsx)("label", { className: "cp-field-label", htmlFor: "cp-comment", children: "Review note for this choice (optional)" }), (0, import_jsx_runtime3.jsx)("textarea", { className: "cp-comment", id: "cp-comment", "data-cp-comment": "", maxLength: 2e3, placeholder: "Record why you made this choice." }), (0, import_jsx_runtime3.jsx)("div", { className: "cp-save-state", "data-cp-save-state": "", children: "Saved in this browser" }), input.options.map((option, index) => (0, import_jsx_runtime3.jsx)(OptionDetail, { option, selected: index === selectedIndex }, option.id))] }), input.recommendation?.rationale === void 0 ? null : (0, import_jsx_runtime3.jsxs)("details", { className: "cp-disclosure", children: [(0, import_jsx_runtime3.jsxs)("summary", { children: ["Why Circuit suggested ", t(input.recommendation.label, MAX_PROMPT_LEN)] }), (0, import_jsx_runtime3.jsx)("div", { className: "cp-disclosure-body", children: t(input.recommendation.rationale, MAX_PROMPT_LEN) })] }), input.context === void 0 ? null : (0, import_jsx_runtime3.jsxs)("details", { className: "cp-disclosure", children: [(0, import_jsx_runtime3.jsx)("summary", { children: "Review context" }), (0, import_jsx_runtime3.jsx)("div", { className: "cp-disclosure-body", children: input.context })] }), input.appendix === void 0 ? null : (0, import_jsx_runtime3.jsxs)("details", { className: "cp-disclosure", children: [(0, import_jsx_runtime3.jsx)("summary", { children: "Full evidence" }), (0, import_jsx_runtime3.jsx)("div", { className: "cp-disclosure-body", children: input.appendix })] })] })] }), (0, import_jsx_runtime3.jsxs)("div", { className: "cp-meta", children: [t(input.footerLeft ?? `circuit \xB7 ${input.meta.stepId} \xB7 ${input.meta.runId}`, 300), input.footerRight === void 0 ? null : (0, import_jsx_runtime3.jsxs)(import_jsx_runtime3.Fragment, { children: [" \xB7 ", t(input.footerRight, 300)] })] })] }), (0, import_jsx_runtime3.jsx)("footer", { className: "cp-footer", children: (0, import_jsx_runtime3.jsxs)("div", { className: "cp-footer-inner", children: [(0, import_jsx_runtime3.jsxs)("div", { className: "cp-footer-choice", children: [(0, import_jsx_runtime3.jsx)("small", { children: "Selected" }), (0, import_jsx_runtime3.jsx)("strong", { "data-cp-footer-label": "", children: t(selected.label, MAX_PROMPT_LEN) })] }), (0, import_jsx_runtime3.jsx)("button", { className: "cp-primary", type: "button", "data-cp-finish": "", children: "Review decision" })] }) }), (0, import_jsx_runtime3.jsx)("dialog", { className: "cp-dialog", "data-cp-dialog": "", "aria-labelledby": "cp-dialog-title", "aria-describedby": "cp-dialog-summary cp-dialog-description", children: (0, import_jsx_runtime3.jsxs)("div", { className: "cp-dialog-body", children: [(0, import_jsx_runtime3.jsx)("div", { className: "cp-eyebrow", children: "Finish review" }), (0, import_jsx_runtime3.jsxs)("h2", { id: "cp-dialog-title", children: ["Choose ", (0, import_jsx_runtime3.jsx)("span", { "data-cp-confirm-title": "", children: t(selected.label, MAX_PROMPT_LEN) }), "?"] }), (0, import_jsx_runtime3.jsxs)("p", { className: "cp-dialog-summary", id: "cp-dialog-summary", "data-cp-confirm-summary": "", children: ["0 option comments", input.options.length > 1 ? ` \xB7 ${input.options.length - 1} unvisited` : ""] }), (0, import_jsx_runtime3.jsx)("p", { className: "cp-dialog-copy", id: "cp-dialog-description", children: "Circuit will save your selection and notes with the checkpoint record. Later steps do not read these notes automatically." }), (0, import_jsx_runtime3.jsx)("label", { className: "cp-field-label", htmlFor: "cp-overall-comment", children: "Note for the run record (optional)" }), (0, import_jsx_runtime3.jsx)("textarea", { className: "cp-comment", id: "cp-overall-comment", "data-cp-overall-comment": "", maxLength: 2e3, placeholder: "Add any context you want saved with this review." }), (0, import_jsx_runtime3.jsx)("code", { className: "cp-command", "data-cp-command": "", hidden: true }), (0, import_jsx_runtime3.jsx)("div", { className: "cp-command-state", "data-cp-command-state": "", role: "status", "aria-live": "polite" }), (0, import_jsx_runtime3.jsxs)("div", { className: "cp-dialog-actions", children: [(0, import_jsx_runtime3.jsx)("button", { className: "cp-secondary", type: "button", "data-cp-close-dialog": "", children: "Keep reviewing" }), (0, import_jsx_runtime3.jsx)("button", { className: "cp-primary", type: "button", "data-cp-copy-decision": "", children: "Copy decision command" })] })] }) }), (0, import_jsx_runtime3.jsx)("div", { className: "cp-live", "aria-live": "polite", "data-cp-live": "" })] }), (0, import_jsx_runtime3.jsxs)("noscript", { children: [(0, import_jsx_runtime3.jsx)("style", { children: "[data-cp-interactive]{display:none!important}" }), (0, import_jsx_runtime3.jsxs)("div", { className: "cp-noscript", children: [(0, import_jsx_runtime3.jsx)("h1", { children: t(input.question, MAX_PROMPT_LEN) }), (0, import_jsx_runtime3.jsx)("p", { children: "JavaScript is off. These commands record the choice only; comments require the full review page." }), input.artifact === void 0 ? null : (0, import_jsx_runtime3.jsxs)("section", { className: "cp-noscript-option cp-noscript-artifact", children: [(0, import_jsx_runtime3.jsx)("strong", { children: t(input.artifact.title, MAX_PROMPT_LEN) }), input.artifact.description === void 0 ? null : (0, import_jsx_runtime3.jsx)("span", { children: t(input.artifact.description, MAX_PROMPT_LEN) }), input.artifact.preview.status === "ready" ? (0, import_jsx_runtime3.jsx)("a", { href: input.artifact.preview.href, children: "Open artifact" }) : (0, import_jsx_runtime3.jsx)("span", { children: input.artifact.preview.status === "missing" ? "Preview file missing" : input.artifact.preview.status === "unsupported" ? "Preview format unsupported" : "Preview unavailable" })] }), (0, import_jsx_runtime3.jsx)("div", { className: "cp-noscript-list", children: input.options.map((option) => (0, import_jsx_runtime3.jsxs)("section", { className: "cp-noscript-option", children: [(0, import_jsx_runtime3.jsx)("strong", { children: t(option.label, MAX_PROMPT_LEN) }), option.description === void 0 ? null : (0, import_jsx_runtime3.jsx)("span", { children: t(option.description, MAX_PROMPT_LEN) }), option.isRecommended === true ? (0, import_jsx_runtime3.jsx)("span", { children: "Suggested" }) : null, option.isDefault === true ? (0, import_jsx_runtime3.jsx)("span", { children: "Declared default" }) : null, (0, import_jsx_runtime3.jsx)("code", { children: truncate2(resumeCommandForChoice(t(input.resume.runFolder), option.id, input.resume.commandPrefix), MAX_PROMPT_LEN) })] }, option.id)) })] })] })] });
+}
+function renderCheckpointPage(input) {
+  if (input.options.length === 0)
+    throw new Error("checkpoint page requires at least one option");
+  return renderHtmlDocument({
+    title: `${truncate2(input.question, 80)} \xB7 Circuit ${input.meta.flowLabel} checkpoint`,
+    body: (0, import_jsx_runtime3.jsx)(CheckpointPage, { input }),
+    extraStyle: CHECKPOINT_STYLE,
+    extraScript: `${CHECKPOINT_REVIEW_RUNTIME}
+${ARTIFACT_PREVIEW_SCRIPT}`
+  });
+}
+function flowLabelFromId(flowId) {
+  return flowId.split("-").map((part) => `${part.slice(0, 1).toUpperCase()}${part.slice(1)}`).join(" ");
+}
+function genericCheckpointHtml(ctx) {
+  if (ctx.runOutcome !== "checkpoint_waiting")
+    return void 0;
+  const checkpoint = ctx.checkpoint;
+  if (checkpoint === void 0)
+    return void 0;
+  const allowed = new Set(checkpoint.allowed_choices);
+  const labeled = (checkpoint.choices ?? []).filter((choice) => allowed.has(choice.id));
+  const covered = new Set(labeled.map((choice) => choice.id));
+  const options = [
+    ...labeled.map((choice) => ({
+      id: choice.id,
+      label: choice.label ?? choice.id,
+      ...choice.description === void 0 ? {} : { description: choice.description },
+      ...checkpoint.safe_default_choice === choice.id ? { isDefault: true } : {}
+    })),
+    ...checkpoint.allowed_choices.filter((id) => !covered.has(id)).map((id) => ({
+      id,
+      label: id,
+      ...checkpoint.safe_default_choice === id ? { isDefault: true } : {}
+    }))
+  ];
+  if (options.length === 0)
+    return void 0;
+  const defaultOption = checkpoint.safe_default_choice === void 0 ? void 0 : options.find((option) => option.id === checkpoint.safe_default_choice);
+  const flowLabel2 = flowLabelFromId(ctx.flowId);
+  const question = checkpoint.prompt ?? `The ${flowLabel2} flow is waiting for your choice at ${checkpoint.step_id}.`;
+  const ribbon = [
+    "Waiting for you",
+    ...checkpoint.depth === void 0 ? [] : [`Depth ${checkpoint.depth}`],
+    `${options.length} ${options.length === 1 ? "choice" : "choices"}`
+  ];
+  const requestPath = checkpoint.request_path.startsWith(`${ctx.runFolder}/`) ? checkpoint.request_path.slice(ctx.runFolder.length + 1) : checkpoint.request_path;
+  return renderCheckpointPage({
+    meta: { flowLabel: flowLabel2, runId: ctx.runId, stepId: checkpoint.step_id },
+    question,
+    ribbon,
+    options,
+    ...defaultOption === void 0 ? {} : { defaultChoice: { id: defaultOption.id, label: defaultOption.label } },
+    resume: {
+      runFolder: ctx.runFolder,
+      commandPrefix: ctx.resumeCommandPrefix ?? "circuit resume",
+      attempt: checkpoint.attempt,
+      requestSha256: checkpoint.request_sha256
+    },
+    footerLeft: `circuit \xB7 ${checkpoint.step_id} \xB7 ${ctx.runId}`,
+    footerRight: requestPath
+  });
+}
+var import_jsx_runtime3, CHECKPOINT_STYLE;
+var init_checkpoint_page = __esm({
+  "dist/shared/html/checkpoint-page.js"() {
+    "use strict";
+    import_jsx_runtime3 = __toESM(require_jsx_runtime(), 1);
+    init_artifact_preview();
+    init_checkpoint_review_runtime_generated();
+    init_page();
+    init_react_page();
+    CHECKPOINT_STYLE = [
+      ARTIFACT_PREVIEW_STYLE,
+      ".cp-wrap{min-height:100dvh;min-width:0;background:var(--muted);color:var(--foreground);font-size:14px;line-height:1.5}",
+      ".cp-skip{position:fixed;left:12px;top:10px;z-index:50;transform:translateY(-150%);border-radius:8px;background:var(--foreground);color:var(--background);padding:9px 12px;font-size:13px}",
+      ".cp-skip:focus{transform:translateY(0)}",
+      ".cp-shell{width:min(1120px,calc(100% - 32px));min-width:0;margin:0 auto;padding:24px 0 110px}",
+      ".cp-shell-artifact{width:min(1280px,calc(100% - 32px))}",
+      ".cp-topbar{min-width:0;display:flex;align-items:center;justify-content:space-between;gap:20px;margin-bottom:28px}",
+      ".cp-brand{font-size:12px;font-weight:650;letter-spacing:.045em;text-transform:uppercase}",
+      ".cp-state{display:flex;align-items:center;gap:7px;color:var(--muted-foreground);font-size:12px}",
+      '.cp-state::before{content:"";width:7px;height:7px;border-radius:999px;background:var(--positive)}',
+      ".cp-hero{min-width:0;max-width:760px;margin-bottom:26px}",
+      ".cp-ribbon{display:flex;flex-wrap:wrap;gap:7px;margin-bottom:12px}",
+      ".cp-pill{border:1px solid var(--border);border-radius:999px;background:var(--background);padding:3px 9px;color:var(--muted-foreground);font-size:10px;font-weight:650;letter-spacing:.045em;text-transform:uppercase}",
+      ".cp-hero h1{min-width:0;overflow-wrap:anywhere;word-break:break-word;font-size:clamp(25px,3vw,38px);line-height:1.12;font-weight:650;letter-spacing:-.035em;text-wrap:balance}",
+      ".cp-subtitle{min-width:0;max-width:650px;margin-top:10px;overflow-wrap:anywhere;color:var(--muted-foreground);font-size:15px}",
+      ".cp-layout{min-width:0;display:grid;grid-template-columns:minmax(0,1.15fr) minmax(310px,.85fr);gap:18px;align-items:start}",
+      ".cp-layout>*{min-width:0}",
+      '.cp-layout-artifact{grid-template-columns:minmax(0,1.6fr) minmax(340px,.8fr);grid-template-areas:"artifact choices" "artifact inspector"}',
+      ".cp-layout-artifact .cp-artifact{grid-area:artifact}",
+      ".cp-layout-artifact #cp-options{grid-area:choices}",
+      ".cp-layout-artifact .cp-inspector{grid-area:inspector;position:static}",
+      ".cp-card{min-width:0;border:1px solid var(--border);border-radius:16px;background:var(--background);box-shadow:0 1px 2px rgba(0,0,0,.025)}",
+      ".cp-artifact{position:sticky;top:18px;overflow:hidden}",
+      ".cp-artifact-bar{min-width:0;display:flex;align-items:center;justify-content:space-between;gap:16px;padding:13px 14px;border-bottom:1px solid var(--border)}",
+      ".cp-artifact-title{min-width:0}",
+      ".cp-artifact-title strong{display:block;overflow-wrap:anywhere;font-size:13px;font-weight:620}",
+      ".cp-artifact-title span{display:block;max-width:650px;margin-top:2px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;color:var(--muted-foreground);font-size:11px}",
+      ".cp-open-link{display:inline-flex;flex:none;align-items:center;justify-content:center;min-height:38px;border:1px solid var(--border);border-radius:9px;background:var(--background);padding:0 11px;color:var(--foreground);font-size:12px;font-weight:580;text-decoration:none}",
+      ".cp-artifact-canvas{position:relative;height:clamp(420px,56dvh,620px);min-width:0;background:#fff}",
+      ".cp-artifact-note{padding:9px 14px;border-top:1px solid var(--border);color:var(--muted-foreground);font-size:10.5px}",
+      ".cp-list-head{display:flex;align-items:center;justify-content:space-between;gap:16px;padding:17px 18px 10px}",
+      ".cp-eyebrow{color:var(--muted-foreground);font-size:10px;font-weight:680;letter-spacing:.065em;text-transform:uppercase}",
+      ".cp-list{display:flex;flex-direction:column;gap:8px;padding:8px}",
+      ".cp-option{position:relative;width:100%;display:grid;grid-template-columns:32px minmax(0,1fr) auto;gap:12px;align-items:start;border:1px solid transparent;border-radius:12px;background:transparent;padding:13px;text-align:left;cursor:pointer}",
+      ".cp-native-radio{position:absolute;width:1px;height:1px;opacity:0;pointer-events:none}",
+      ".cp-option:hover{background:var(--accent)}",
+      ".cp-option:has(.cp-native-radio:checked){border-color:var(--border);background:var(--secondary);box-shadow:inset 0 0 0 1px color-mix(in oklab,var(--ring) 10%,transparent)}",
+      ".cp-option:focus-within{outline:3px solid color-mix(in oklab,var(--ring) 38%,transparent);outline-offset:1px}",
+      ".cp-radio{display:grid;place-items:center;width:22px;height:22px;margin-top:1px;border:1.5px solid var(--input);border-radius:999px;background:var(--background)}",
+      ".cp-option:has(.cp-native-radio:checked) .cp-radio{border:6px solid var(--foreground)}",
+      ".cp-option-copy{min-width:0}",
+      ".cp-option-title{display:block;overflow-wrap:anywhere;word-break:break-word;font-size:14px;font-weight:620;line-height:1.35}",
+      ".cp-option-description{display:-webkit-box;-webkit-box-orient:vertical;-webkit-line-clamp:3;margin-top:4px;overflow:hidden;overflow-wrap:anywhere;color:var(--muted-foreground);font-size:12.5px;line-height:1.45}",
+      ".cp-badges{display:flex;flex-wrap:wrap;justify-content:flex-end;gap:5px}",
+      ".cp-badge{border:1px solid var(--border);border-radius:999px;padding:2px 7px;color:var(--muted-foreground);font-size:9px;font-weight:680;letter-spacing:.045em;text-transform:uppercase}",
+      ".cp-badge.cp-recommended{border-color:color-mix(in oklab,var(--positive) 48%,var(--border));color:var(--positive)}",
+      ".cp-default{margin:5px 18px 17px;padding-top:12px;border-top:1px solid var(--border);color:var(--muted-foreground);font-size:11.5px}",
+      ".cp-inspector{position:sticky;top:18px;overflow:hidden}",
+      ".cp-inspector-main{padding:20px}",
+      ".cp-inspector h2{margin-top:5px;overflow-wrap:anywhere;word-break:break-word;font-size:21px;line-height:1.25;font-weight:640;letter-spacing:-.025em}",
+      ".cp-selection-description{margin-top:7px;overflow-wrap:anywhere;color:var(--muted-foreground);font-size:13px}",
+      ".cp-field-label{display:block;margin:22px 0 7px;font-size:12px;font-weight:620}",
+      ".cp-comment{display:block;width:100%;min-height:116px;resize:vertical;border:1px solid var(--input);border-radius:11px;background:var(--background);padding:11px 12px;font:inherit;font-size:13px;line-height:1.45;outline:none}",
+      ".cp-comment:focus{border-color:var(--ring);box-shadow:0 0 0 3px color-mix(in oklab,var(--ring) 18%,transparent)}",
+      ".cp-save-state{min-height:18px;margin-top:7px;color:var(--muted-foreground);font-size:11px}",
+      ".cp-option-detail[hidden]{display:none}",
+      ".cp-disclosure{border-top:1px solid var(--border)}",
+      ".cp-disclosure summary{display:flex;align-items:center;justify-content:space-between;min-height:46px;padding:0 20px;cursor:pointer;list-style:none;font-size:12.5px;font-weight:590}",
+      ".cp-disclosure summary::-webkit-details-marker{display:none}",
+      '.cp-disclosure summary::after{content:"+";color:var(--muted-foreground);font-size:17px;font-weight:400}',
+      '.cp-disclosure[open] summary::after{content:"\u2212"}',
+      ".cp-disclosure-body{min-width:0;padding:0 20px 18px;overflow-wrap:anywhere;color:var(--muted-foreground);font-size:12.5px}",
+      '.cp-disclosure-body [data-slot="card"]{box-shadow:none}',
+      ".cp-footer{position:fixed;left:0;right:0;bottom:0;z-index:20;border-top:1px solid var(--border);background:color-mix(in oklab,var(--background) 94%,transparent);backdrop-filter:blur(18px)}",
+      ".cp-footer-inner{width:min(1120px,calc(100% - 32px));min-width:0;min-height:74px;margin:0 auto;display:flex;align-items:center;justify-content:space-between;gap:20px}",
+      ".cp-footer-choice{min-width:0;flex:1}",
+      ".cp-footer-choice small{display:block;color:var(--muted-foreground);font-size:10px;text-transform:uppercase;letter-spacing:.06em}",
+      ".cp-footer-choice strong{display:block;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-size:13px}",
+      ".cp-primary,.cp-secondary{display:inline-flex;min-width:0;align-items:center;justify-content:center;min-height:42px;border-radius:10px;padding:0 16px;font-size:13px;font-weight:620;cursor:pointer;touch-action:manipulation}",
+      ".cp-primary{border:1px solid var(--primary);background:var(--primary);color:var(--primary-foreground)}",
+      ".cp-secondary{border:1px solid var(--border);background:var(--background);color:var(--foreground)}",
+      ".cp-primary:active,.cp-secondary:active{transform:scale(.98)}",
+      ".cp-dialog{position:fixed;inset:0;width:min(540px,calc(100% - 28px));max-height:calc(100dvh - 32px);margin:auto;overflow:auto;border:1px solid var(--border);border-radius:18px;background:var(--background);color:var(--foreground);padding:0;box-shadow:0 24px 80px rgba(0,0,0,.22)}",
+      ".cp-dialog::backdrop{background:rgba(0,0,0,.38);backdrop-filter:blur(4px)}",
+      ".cp-dialog-body{padding:24px}",
+      ".cp-dialog h2{margin-top:5px;overflow-wrap:anywhere;word-break:break-word;font-size:23px;line-height:1.2;font-weight:650;letter-spacing:-.03em}",
+      ".cp-dialog-summary{margin-top:8px;color:var(--foreground);font-size:12px;font-weight:600}",
+      ".cp-dialog-copy{margin-top:8px;overflow-wrap:anywhere;color:var(--muted-foreground);font-size:13px}",
+      '.cp-command{display:block;max-height:140px;margin-top:16px;overflow:auto;border:1px solid var(--border);border-radius:9px;background:var(--muted);padding:10px;overflow-wrap:anywhere;white-space:pre-wrap;font:500 10px/1.45 ui-monospace,"SF Mono",Menlo,monospace}',
+      ".cp-command-state{min-height:18px;margin-top:8px;color:var(--muted-foreground);font-size:11px}",
+      ".cp-dialog-actions{display:flex;justify-content:flex-end;gap:8px;margin-top:20px}",
+      ".cp-noscript{width:min(760px,calc(100% - 32px));margin:24px auto;border:1px solid var(--border);border-radius:16px;background:var(--background);padding:24px}",
+      ".cp-noscript h1{font-size:24px;line-height:1.2;font-weight:650;letter-spacing:-.025em}",
+      ".cp-noscript>p{margin-top:8px;color:var(--muted-foreground)}",
+      ".cp-noscript-list{display:grid;gap:12px;margin-top:20px}",
+      ".cp-noscript-option{min-width:0;border:1px solid var(--border);border-radius:12px;background:var(--muted);padding:15px}",
+      ".cp-noscript-artifact{margin-top:20px}",
+      ".cp-noscript-option strong{display:block;overflow-wrap:anywhere;font-size:14px}",
+      ".cp-noscript-option span,.cp-noscript-option a{display:block;margin-top:3px;overflow-wrap:anywhere;color:var(--muted-foreground);font-size:11px}",
+      '.cp-noscript code{display:block;margin-top:10px;overflow-wrap:anywhere;white-space:pre-wrap;user-select:all;font:500 13px/1.55 ui-monospace,"SF Mono",Menlo,monospace}',
+      ".cp-meta{margin-top:18px;overflow-wrap:anywhere;color:var(--muted-foreground);font-size:10px}",
+      ".cp-live{position:absolute;width:1px;height:1px;overflow:hidden;clip-path:inset(50%);white-space:nowrap}",
+      '@media(max-width:900px){.cp-layout-artifact{grid-template-columns:1fr;grid-template-areas:"artifact" "choices" "inspector"}.cp-artifact{position:static}.cp-artifact-canvas{height:min(58dvh,540px);min-height:380px}}',
+      "@media(max-width:760px){.cp-shell{width:min(100% - 20px,680px);padding-top:16px}.cp-topbar{align-items:flex-start;margin-bottom:20px}.cp-brand,.cp-state{min-width:0;overflow-wrap:anywhere}.cp-layout{grid-template-columns:1fr}.cp-inspector{position:static}.cp-hero h1{font-size:28px}.cp-option{grid-template-columns:28px minmax(0,1fr)}.cp-badges{grid-column:2;justify-content:flex-start}.cp-footer-inner{width:calc(100% - 20px);gap:10px}.cp-primary{flex:none;padding:0 13px}.cp-dialog-actions{flex-direction:column-reverse}.cp-dialog-actions button{width:100%}}",
+      "@media(max-width:600px){.cp-artifact-bar{align-items:flex-start}.cp-artifact-title span{white-space:normal}.cp-open-link{min-height:44px}.cp-artifact-canvas{height:52dvh;min-height:350px}.cp-dialog{inset:auto 8px 8px;width:auto;max-height:calc(100dvh - 16px);margin:auto 0 0;border-radius:18px}.cp-dialog-body{padding:20px}.cp-noscript{width:calc(100% - 20px);margin:10px auto;padding:18px}.cp-noscript code{font-size:12px}}",
+      "@media(prefers-reduced-motion:no-preference){.cp-option,.cp-primary,.cp-secondary{transition:background-color .16s ease,border-color .16s ease,transform .12s ease}}"
+    ].join("");
+  }
+});
+
+// dist/shared/html/index.js
+function registerHtmlProjector(flowId, projector) {
+  HTML_PROJECTORS.set(flowId, projector);
+}
+function getHtmlProjector(flowId) {
+  return HTML_PROJECTORS.get(flowId);
+}
+var HTML_PROJECTORS;
+var init_html = __esm({
+  "dist/shared/html/index.js"() {
+    "use strict";
+    init_checkpoint_page();
+    HTML_PROJECTORS = /* @__PURE__ */ new Map();
+  }
+});
+
+// dist/schemas/flow-blocks.js
+var FLOW_BLOCK_IDS, FlowBlockId, FlowRoute, FlowBlockActionSurface, FlowBlockCheckKind, FlowBlockHumanInteraction, FlowContractRef, FlowInputContractSet, nonEmptyUniqueStrings, HostCapabilities, FlowBlock, FlowBlockCatalog;
+var init_flow_blocks = __esm({
+  "dist/schemas/flow-blocks.js"() {
+    "use strict";
+    init_zod();
+    FLOW_BLOCK_IDS = [
+      "intake",
+      "route",
+      "frame",
+      "clarify",
+      "human-decision",
+      "gather-context",
+      "diagnose",
+      "plan",
+      "act",
+      "run-verification",
+      "review",
+      "goal",
+      "goal-child-run",
+      "goal-attempt",
+      "goal-evaluate",
+      "goal-recover",
+      "goal-checkpoint",
+      "goal-gate-review",
+      "goal-close",
+      "pursue",
+      "coordinate-pursuits",
+      "queue",
+      "batch",
+      "risk-rollback-check",
+      "close-with-evidence",
+      "handoff",
+      "review-intake",
+      "prototype-variant-evidence",
+      "prototype-checkpoint"
+    ];
+    FlowBlockId = external_exports.enum(FLOW_BLOCK_IDS);
+    FlowRoute = external_exports.enum([
+      "continue",
+      "connector-failed",
+      "retry",
+      "revise",
+      "ask",
+      "split",
+      "stop",
+      "handoff",
+      "escalate",
+      "complete",
+      "fix",
+      "build",
+      "review",
+      "explore",
+      "pursue",
+      "completion-gate",
+      "retry-selected-flow",
+      "run-fix",
+      "run-review",
+      "run-explore",
+      "split-to-pursue",
+      "checkpoint",
+      "blocked",
+      "recover",
+      "run-next-gate-pass",
+      "close",
+      // Slice-loop forward edge: a passed slice verify re-enters the loop head
+      // for the next slice (deep-depth Build). See
+      // docs/ideas/build-slice-decomposition.md.
+      "advance"
+    ]);
+    FlowBlockActionSurface = external_exports.enum(["orchestrator", "worker", "host", "mixed"]);
+    FlowBlockCheckKind = external_exports.enum([
+      "schema",
+      "decision",
+      "command",
+      "review",
+      "risk",
+      "queue",
+      "coordination"
+    ]);
+    FlowBlockHumanInteraction = external_exports.enum([
+      "never",
+      "optional",
+      "required",
+      "mode-dependent"
+    ]);
+    FlowContractRef = external_exports.string().regex(/^[a-z][a-z0-9-]*(?:\.[a-z][a-z0-9-]*)+@v[0-9]+$/);
+    FlowInputContractSet = external_exports.array(FlowContractRef).min(1).superRefine((contracts, ctx) => {
+      const seen = /* @__PURE__ */ new Set();
+      for (const [index, contract] of contracts.entries()) {
+        if (seen.has(contract)) {
+          ctx.addIssue({
+            code: "custom",
+            path: [index],
+            message: `duplicate input contract: ${contract}`
+          });
+        }
+        seen.add(contract);
+      }
+    });
+    nonEmptyUniqueStrings = external_exports.array(external_exports.string().min(1)).min(1).superRefine((values, ctx) => {
+      const seen = /* @__PURE__ */ new Set();
+      for (const [index, value] of values.entries()) {
+        if (seen.has(value)) {
+          ctx.addIssue({
+            code: "custom",
+            path: [index],
+            message: `duplicate value: ${value}`
+          });
+        }
+        seen.add(value);
+      }
+    });
+    HostCapabilities = external_exports.object({
+      claude: external_exports.array(external_exports.string().min(1)).default([]),
+      codex: external_exports.array(external_exports.string().min(1)).default([]),
+      non_interactive: external_exports.array(external_exports.string().min(1)).default([])
+    }).strict();
+    FlowBlock = external_exports.object({
+      id: FlowBlockId,
+      title: external_exports.string().min(1),
+      purpose: external_exports.string().min(1),
+      input_contracts: FlowInputContractSet,
+      alternative_input_contracts: external_exports.array(FlowInputContractSet).default([]),
+      output_contract: FlowContractRef,
+      action_surface: FlowBlockActionSurface,
+      produces_evidence: nonEmptyUniqueStrings,
+      check: external_exports.object({
+        kind: FlowBlockCheckKind,
+        description: external_exports.string().min(1)
+      }).strict(),
+      allowed_routes: external_exports.array(FlowRoute).min(1),
+      human_interaction: FlowBlockHumanInteraction,
+      host_capabilities: HostCapabilities,
+      notes: external_exports.string().min(1).optional()
+    }).strict().superRefine((block, ctx) => {
+      const routeSet = /* @__PURE__ */ new Set();
+      for (const [index, route] of block.allowed_routes.entries()) {
+        if (routeSet.has(route)) {
+          ctx.addIssue({
+            code: "custom",
+            path: ["allowed_routes", index],
+            message: `duplicate route: ${route}`
+          });
+        }
+        routeSet.add(route);
+      }
+      if (block.id === "human-decision") {
+        if (block.human_interaction !== "mode-dependent") {
+          ctx.addIssue({
+            code: "custom",
+            path: ["human_interaction"],
+            message: "human-decision must be mode-dependent"
+          });
+        }
+        if (block.host_capabilities.claude.length === 0) {
+          ctx.addIssue({
+            code: "custom",
+            path: ["host_capabilities", "claude"],
+            message: "human-decision must name a Claude host strategy"
+          });
+        }
+        if (block.host_capabilities.codex.length === 0) {
+          ctx.addIssue({
+            code: "custom",
+            path: ["host_capabilities", "codex"],
+            message: "human-decision must name a Codex host strategy"
+          });
+        }
+        if (block.host_capabilities.non_interactive.length === 0) {
+          ctx.addIssue({
+            code: "custom",
+            path: ["host_capabilities", "non_interactive"],
+            message: "human-decision must name a non-interactive host strategy"
+          });
+        }
+      }
+      if (block.id === "close-with-evidence" && !routeSet.has("complete")) {
+        ctx.addIssue({
+          code: "custom",
+          path: ["allowed_routes"],
+          message: "close-with-evidence must allow complete"
+        });
+      }
+    });
+    FlowBlockCatalog = external_exports.object({
+      schema_version: external_exports.literal("1"),
+      blocks: external_exports.array(FlowBlock).min(FLOW_BLOCK_IDS.length)
+    }).strict().superRefine((catalog, ctx) => {
+      const seen = /* @__PURE__ */ new Map();
+      for (const [index, block] of catalog.blocks.entries()) {
+        const prior = seen.get(block.id);
+        if (prior !== void 0) {
+          ctx.addIssue({
+            code: "custom",
+            path: ["blocks", index, "id"],
+            message: `duplicate block id: ${block.id} also appears at index ${prior}`
+          });
+        }
+        seen.set(block.id, index);
+      }
+      for (const requiredId of FLOW_BLOCK_IDS) {
+        if (!seen.has(requiredId)) {
+          ctx.addIssue({
+            code: "custom",
+            path: ["blocks"],
+            message: `missing block id: ${requiredId}`
+          });
+        }
+      }
+    });
+  }
+});
+
+// dist/schemas/flow-block-definitions.js
+function conservativeAuthoringPolicy(schematicPolicy) {
+  const executionKind = schematicPolicy.executionKinds.length === 1 ? schematicPolicy.executionKinds[0] : void 0;
+  return {
+    defaults: {
+      evidenceRequirements: "block-produces-evidence",
+      output: "block-output-contract",
+      ...executionKind === void 0 ? {} : { executionKind }
+    },
+    required: {
+      always: BASE_REQUIRED_AUTHORING_FIELDS,
+      whenExecutionKind: EXECUTION_REQUIRED_AUTHORING_FIELDS
+    }
+  };
+}
+function defineFlowBlockDefinition(definition) {
+  return {
+    ...definition,
+    authoringPolicy: conservativeAuthoringPolicy(definition.schematicPolicy)
+  };
+}
+function blockCatalogEntry(definition) {
+  const { authoringPolicy: _authoringPolicy, schematicPolicy: _schematicPolicy, ...block } = definition;
+  return block;
+}
+var BASE_REQUIRED_AUTHORING_FIELDS, EXECUTION_REQUIRED_AUTHORING_FIELDS, FLOW_BLOCK_DEFINITION_INPUTS, FLOW_BLOCK_DEFINITIONS, FLOW_BLOCK_CATALOG, flowBlockSchematicPolicy, flowBlockAuthoringPolicy, FLOW_BLOCK_SCHEMATIC_POLICY, FLOW_BLOCK_AUTHORING_POLICY;
+var init_flow_block_definitions = __esm({
+  "dist/schemas/flow-block-definitions.js"() {
+    "use strict";
+    init_flow_blocks();
+    init_stage();
+    BASE_REQUIRED_AUTHORING_FIELDS = [
+      "id",
+      "title",
+      "stage",
+      "input",
+      "routes",
+      "protocol",
+      "writes",
+      "check"
+    ];
+    EXECUTION_REQUIRED_AUTHORING_FIELDS = {
+      relay: ["relay_role"],
+      checkpoint: ["checkpoint_policy"],
+      fanout: ["fanout"],
+      "sub-run": ["sub_run_ref", "sub_run_goal", "sub_run_depth"]
+    };
+    FLOW_BLOCK_DEFINITION_INPUTS = [
+      {
+        id: "intake",
+        title: "Intake",
+        purpose: "Capture the user's goal, requested mode, explicit flow choice, and immediate constraints.",
+        input_contracts: ["user.goal@v1"],
+        alternative_input_contracts: [],
+        output_contract: "task.intake@v1",
+        action_surface: "orchestrator",
+        produces_evidence: ["normalized goal", "requested flow", "operator constraints"],
+        check: {
+          kind: "schema",
+          description: "The normalized task must preserve the user's goal and expose any explicit flow or mode choice."
+        },
+        allowed_routes: ["continue", "ask", "stop"],
+        human_interaction: "optional",
+        host_capabilities: {
+          claude: [],
+          codex: [],
+          non_interactive: []
+        },
+        schematicPolicy: {
+          executionKinds: ["compose", "checkpoint", "sub-run", "fanout"],
+          stages: ["frame"]
+        }
+      },
+      {
+        id: "route",
+        title: "Route",
+        purpose: "Choose the flow or schematic path from the normalized task.",
+        input_contracts: ["task.intake@v1", "flow.catalog@v1"],
+        alternative_input_contracts: [],
+        output_contract: "route.decision@v1",
+        action_surface: "orchestrator",
+        produces_evidence: ["selected flow", "selection reason", "fallback reason when conservative"],
+        check: {
+          kind: "schema",
+          description: "The route decision must name one known flow or stop with an explicit reason."
+        },
+        allowed_routes: ["continue", "ask", "stop"],
+        human_interaction: "optional",
+        host_capabilities: {
+          claude: [],
+          codex: [],
+          non_interactive: []
+        },
+        schematicPolicy: {
+          executionKinds: ["compose", "checkpoint", "sub-run", "fanout"],
+          stages: ["frame"]
+        }
+      },
+      {
+        id: "frame",
+        title: "Frame",
+        purpose: "Define the work boundary, constraints, and proof needed for the selected path.",
+        input_contracts: ["task.intake@v1", "route.decision@v1"],
+        alternative_input_contracts: [],
+        output_contract: "flow.brief@v1",
+        action_surface: "orchestrator",
+        produces_evidence: ["scope boundary", "constraints", "proof plan"],
+        check: {
+          kind: "schema",
+          description: "The brief must state what is in scope, what is out of scope, and how success will be proved."
+        },
+        allowed_routes: ["continue", "revise", "ask", "stop"],
+        human_interaction: "optional",
+        host_capabilities: {
+          claude: [],
+          codex: [],
+          non_interactive: []
+        },
+        schematicPolicy: {
+          executionKinds: ["compose", "checkpoint", "sub-run", "fanout"],
+          stages: ["frame"]
+        }
+      },
+      {
+        id: "clarify",
+        title: "Clarify",
+        purpose: "Turn a rough operator request into a clear task for the selected flow.",
+        input_contracts: ["task.intake@v1", "route.decision@v1"],
+        alternative_input_contracts: [["task.intake@v1"]],
+        output_contract: "clarified.task@v1",
+        action_surface: "worker",
+        produces_evidence: [
+          "original request",
+          "clarified task",
+          "desired outcome",
+          "proof needed",
+          "constraints",
+          "scope",
+          "assumptions",
+          "missing information",
+          "stop conditions"
+        ],
+        check: {
+          kind: "schema",
+          description: "The clarified task must preserve the operator request, name the outcome, identify proof, and separate assumptions from missing information."
+        },
+        allowed_routes: ["continue", "ask", "stop"],
+        human_interaction: "optional",
+        host_capabilities: {
+          claude: [],
+          codex: [],
+          non_interactive: []
+        },
+        schematicPolicy: {
+          executionKinds: ["relay"],
+          stages: ["frame"]
+        }
+      },
+      {
+        id: "human-decision",
+        title: "Human Decision",
+        purpose: "Ask the operator a bounded question and record the answer as flow evidence.",
+        input_contracts: ["flow.question@v1", "flow.evidence@v1"],
+        alternative_input_contracts: [],
+        output_contract: "decision.answer@v1",
+        action_surface: "host",
+        produces_evidence: ["question", "available options", "selected option", "answer source"],
+        check: {
+          kind: "decision",
+          description: "The selected option must be one of the declared options or the run must pause, stop, or fail clearly."
+        },
+        allowed_routes: ["continue", "revise", "stop", "handoff", "escalate"],
+        human_interaction: "mode-dependent",
+        host_capabilities: {
+          claude: ["AskUserQuestion or native user-question tool when available"],
+          codex: ["native interactive question mechanism when available"],
+          non_interactive: ["use declared default", "pause", "fail clearly"]
+        },
+        schematicPolicy: {
+          executionKinds: ["checkpoint"],
+          stages: CANONICAL_STAGES
+        }
+      },
+      {
+        id: "gather-context",
+        title: "Gather Context",
+        purpose: "Collect relevant facts, files, commands, or references before deciding or acting.",
+        input_contracts: ["flow.brief@v1", "context.request@v1"],
+        alternative_input_contracts: [],
+        output_contract: "context.packet@v1",
+        action_surface: "worker",
+        produces_evidence: ["source list", "observations", "confidence notes"],
+        check: {
+          kind: "schema",
+          description: "The context packet must cite its sources and separate observed facts from interpretation."
+        },
+        allowed_routes: ["continue", "retry", "ask", "stop"],
+        human_interaction: "optional",
+        host_capabilities: {
+          claude: [],
+          codex: [],
+          non_interactive: []
+        },
+        schematicPolicy: {
+          executionKinds: ["relay", "compose", "fanout"],
+          stages: ["analyze"]
+        }
+      },
+      {
+        id: "diagnose",
+        title: "Diagnose",
+        purpose: "Explain what is broken, unknown, risky, or likely causing the observed behavior.",
+        input_contracts: ["flow.brief@v1", "context.packet@v1"],
+        alternative_input_contracts: [],
+        output_contract: "diagnosis.result@v1",
+        action_surface: "worker",
+        produces_evidence: ["cause hypothesis", "confidence", "reproduction status", "diagnostic path"],
+        check: {
+          kind: "schema",
+          description: "The diagnosis must distinguish known facts, hypotheses, and unresolved questions."
+        },
+        allowed_routes: ["continue", "retry", "ask", "stop"],
+        human_interaction: "optional",
+        host_capabilities: {
+          claude: [],
+          codex: [],
+          non_interactive: []
+        },
+        schematicPolicy: {
+          executionKinds: ["relay", "compose", "fanout"],
+          stages: ["analyze"]
+        }
+      },
+      {
+        id: "plan",
+        title: "Plan",
+        purpose: "Choose a bounded implementation, investigation, or migration path.",
+        input_contracts: ["flow.brief@v1", "context.packet@v1", "diagnosis.result@v1"],
+        alternative_input_contracts: [["flow.brief@v1"], ["flow.brief@v1", "context.packet@v1"]],
+        output_contract: "plan.strategy@v1",
+        action_surface: "worker",
+        produces_evidence: ["ordered steps", "risk notes", "proof strategy"],
+        check: {
+          kind: "schema",
+          description: "The plan must name concrete steps, expected proof, and known risks."
+        },
+        allowed_routes: ["continue", "revise", "ask", "stop"],
+        human_interaction: "optional",
+        host_capabilities: {
+          claude: [],
+          codex: [],
+          non_interactive: []
+        },
+        schematicPolicy: {
+          executionKinds: ["relay", "compose", "fanout"],
+          stages: ["plan"]
+        }
+      },
+      {
+        id: "act",
+        title: "Act",
+        purpose: "Make or delegate the change within the declared scope.",
+        input_contracts: ["flow.brief@v1", "diagnosis.result@v1"],
+        alternative_input_contracts: [
+          ["flow.brief@v1", "plan.strategy@v1"],
+          ["flow.brief@v1", "plan.strategy@v1", "diagnosis.result@v1"]
+        ],
+        output_contract: "change.evidence@v1",
+        action_surface: "worker",
+        produces_evidence: ["changed files", "change rationale", "declared follow-up proof"],
+        check: {
+          kind: "schema",
+          description: "The action evidence must name what changed and why it stays inside scope."
+        },
+        allowed_routes: ["continue", "retry", "ask", "stop", "handoff"],
+        human_interaction: "optional",
+        host_capabilities: {
+          claude: [],
+          codex: [],
+          non_interactive: []
+        },
+        schematicPolicy: {
+          executionKinds: ["relay", "compose", "fanout"],
+          // 'plan' is included because Explore runs its genuine implementer
+          // synthesis (synthesize-step) inside its canonical plan stage: Explore
+          // omits the act/verify/review canonical stages (EXPLORE-I1), so the act
+          // that composes the recommendation is runtime-locked to the plan stage.
+          // This mirrors the same widening already applied to the review block for
+          // Explore's review-step. See src/flows/explore/contract.md.
+          stages: ["act", "plan"]
+        }
+      },
+      {
+        id: "run-verification",
+        title: "Run Verification",
+        purpose: "Run declared proof commands or checks and capture their result.",
+        input_contracts: ["verification.plan@v1", "change.evidence@v1"],
+        alternative_input_contracts: [["verification.plan@v1"]],
+        output_contract: "verification.result@v1",
+        action_surface: "orchestrator",
+        produces_evidence: ["command list", "exit status", "bounded output", "pass or fail"],
+        check: {
+          kind: "command",
+          description: "Each verification command must have a captured exit status and bounded output."
+        },
+        allowed_routes: ["continue", "retry", "ask", "stop"],
+        human_interaction: "optional",
+        host_capabilities: {
+          claude: [],
+          codex: [],
+          non_interactive: []
+        },
+        schematicPolicy: {
+          executionKinds: ["verification"],
+          stages: ["verify"]
+        }
+      },
+      {
+        id: "review",
+        title: "Review",
+        purpose: "Judge whether the result satisfies the brief and whether any fixes are required.",
+        input_contracts: ["flow.brief@v1", "change.evidence@v1", "verification.result@v1"],
+        alternative_input_contracts: [["flow.brief@v1"], ["flow.brief@v1", "change.evidence@v1"]],
+        output_contract: "review.verdict@v1",
+        action_surface: "worker",
+        produces_evidence: ["verdict", "findings", "confidence", "required fixes"],
+        check: {
+          kind: "review",
+          description: "The verdict must be one of the declared review outcomes and must include findings when it blocks."
+        },
+        allowed_routes: ["continue", "connector-failed", "retry", "revise", "ask", "stop"],
+        human_interaction: "optional",
+        host_capabilities: {
+          claude: [],
+          codex: [],
+          non_interactive: []
+        },
+        schematicPolicy: {
+          executionKinds: ["relay", "compose", "fanout"],
+          // 'plan' is included because Explore runs a genuine reviewer pass
+          // (review-step) inside its canonical plan stage: Explore omits the
+          // act/verify/review canonical stages (EXPLORE-I1), so its adversarial
+          // review of the synthesized composition is runtime-locked to the plan
+          // stage. See src/flows/explore/contract.md.
+          stages: ["review", "analyze", "plan"]
+        }
+      },
+      {
+        id: "goal",
+        title: "Goal",
+        purpose: "Turn a user objective into a bounded goal contract with proof, recovery, and safety-review policy.",
+        input_contracts: ["task.intake@v1", "route.decision@v1"],
+        alternative_input_contracts: [["task.intake@v1"]],
+        output_contract: "goal.contract@v1",
+        action_surface: "orchestrator",
+        produces_evidence: [
+          "goal contract",
+          "done claims",
+          "proof requirements",
+          "allowed flow targets",
+          "recovery routes",
+          "safety review policy"
+        ],
+        check: {
+          kind: "schema",
+          description: "The goal contract must preserve the operator objective, declare proof requirements, constrain flow targets, and name recovery and close rules."
+        },
+        allowed_routes: ["continue", "ask", "stop", "fix", "build", "review", "explore", "pursue"],
+        human_interaction: "optional",
+        host_capabilities: {
+          claude: [],
+          codex: [],
+          non_interactive: []
+        },
+        schematicPolicy: {
+          executionKinds: ["compose", "checkpoint", "sub-run"],
+          stages: ["frame"]
+        }
+      },
+      {
+        id: "goal-child-run",
+        title: "Goal Child Run",
+        purpose: "Run the statically selected child flow for the goal contract and capture its result as a goal attempt input.",
+        input_contracts: ["goal.contract@v1"],
+        alternative_input_contracts: [],
+        output_contract: "goal.child-run@v1",
+        action_surface: "orchestrator",
+        produces_evidence: ["static child flow target", "child result file", "parent trace link"],
+        check: {
+          kind: "schema",
+          description: "The child run must record which static flow target ran and where its result and reports landed."
+        },
+        allowed_routes: ["continue", "stop"],
+        human_interaction: "never",
+        host_capabilities: {
+          claude: [],
+          codex: [],
+          non_interactive: []
+        },
+        schematicPolicy: {
+          executionKinds: ["sub-run"],
+          stages: ["act"]
+        }
+      },
+      {
+        id: "goal-attempt",
+        title: "Goal Attempt",
+        purpose: "Summarize one child-flow attempt against the goal contract into a typed attempt record.",
+        input_contracts: ["goal.contract@v1"],
+        alternative_input_contracts: [],
+        output_contract: "goal.attempt@v1",
+        action_surface: "orchestrator",
+        produces_evidence: ["child result path", "child report paths", "attempt outcome"],
+        check: {
+          kind: "schema",
+          description: "The attempt must name the flow target, point at the child result, and state an outcome."
+        },
+        allowed_routes: ["continue", "stop"],
+        human_interaction: "never",
+        host_capabilities: {
+          claude: [],
+          codex: [],
+          non_interactive: []
+        },
+        schematicPolicy: {
+          executionKinds: ["compose"],
+          stages: ["act"]
+        }
+      },
+      {
+        id: "goal-evaluate",
+        title: "Goal Evaluate",
+        purpose: "Compare attempt evidence to the goal contract done claims and choose the next typed route.",
+        input_contracts: ["goal.contract@v1", "goal.attempt@v1"],
+        alternative_input_contracts: [],
+        output_contract: "goal.evidence-evaluation@v1",
+        action_surface: "orchestrator",
+        produces_evidence: ["claim results", "evidence gaps", "next typed route"],
+        check: {
+          kind: "schema",
+          description: "The evaluation must report each done-claim result, name remaining evidence gaps, and select one typed next route."
+        },
+        allowed_routes: [
+          "continue",
+          "completion-gate",
+          "retry-selected-flow",
+          "run-fix",
+          "run-review",
+          "run-explore",
+          "split-to-pursue",
+          "checkpoint",
+          "handoff",
+          "blocked",
+          "stop"
+        ],
+        human_interaction: "never",
+        host_capabilities: {
+          claude: [],
+          codex: [],
+          non_interactive: []
+        },
+        schematicPolicy: {
+          executionKinds: ["compose"],
+          stages: ["verify"]
+        }
+      },
+      {
+        id: "goal-recover",
+        title: "Goal Recover",
+        purpose: "Choose a typed recovery action when the goal attempt did not satisfy the contract.",
+        input_contracts: ["goal.evidence-evaluation@v1", "goal.attempt@v1"],
+        alternative_input_contracts: [],
+        output_contract: "goal.recovery@v1",
+        action_surface: "orchestrator",
+        produces_evidence: ["recovery reason", "selected route", "operator input need"],
+        check: {
+          kind: "schema",
+          description: "The recovery must give a reason, select one typed route, and state whether operator input is needed."
+        },
+        allowed_routes: [
+          "continue",
+          "retry-selected-flow",
+          "run-fix",
+          "run-review",
+          "run-explore",
+          "split-to-pursue",
+          "checkpoint",
+          "blocked",
+          "handoff",
+          "stop"
+        ],
+        human_interaction: "never",
+        host_capabilities: {
+          claude: [],
+          codex: [],
+          non_interactive: []
+        },
+        schematicPolicy: {
+          executionKinds: ["compose"],
+          stages: ["verify"]
+        }
+      },
+      {
+        id: "goal-checkpoint",
+        title: "Goal Checkpoint",
+        purpose: "Pause for operator judgment on a goal recovery decision and record the chosen option.",
+        input_contracts: ["flow.question@v1", "goal.recovery@v1"],
+        alternative_input_contracts: [],
+        output_contract: "goal.checkpoint@v1",
+        action_surface: "host",
+        produces_evidence: ["question", "available options", "selected option", "answer source"],
+        check: {
+          kind: "decision",
+          description: "The selected option must be one of the declared options or the run must pause, stop, or hand off clearly."
+        },
+        allowed_routes: ["continue", "blocked", "handoff", "stop"],
+        human_interaction: "required",
+        host_capabilities: {
+          claude: [],
+          codex: [],
+          non_interactive: []
+        },
+        schematicPolicy: {
+          executionKinds: ["checkpoint"],
+          stages: ["verify"]
+        }
+      },
+      {
+        id: "goal-gate-review",
+        title: "Goal Gate Review",
+        purpose: "Run one safety-review pass over the goal evaluation before the run is allowed to close.",
+        input_contracts: ["goal.contract@v1", "goal.evidence-evaluation@v1"],
+        alternative_input_contracts: [],
+        output_contract: "goal.gate-review@v1",
+        action_surface: "worker",
+        produces_evidence: ["safety review pass", "review lens", "evidence checked"],
+        check: {
+          kind: "review",
+          description: "Each gate pass must record the review lens applied and the evidence it checked."
+        },
+        // The gate-pass items route from the reviewer's report: route_from_report
+        // reads `next_route`, whose schema enum (GoalGate.next_route) is exactly
+        // {run-next-gate-pass, recover, close}. So those three are the routes this
+        // block actually emits at runtime, plus retry/stop as the failed-check
+        // recovery and terminal fallbacks (continue survives as the compiled `pass`
+        // twin the relay returns on a clean check in tests). allowed_routes lists the
+        // full declared vocabulary so the catalog model matches the items instead of
+        // claiming routes the block never uses. recover and run-next-gate-pass are
+        // flow-specific (not NORMAL, not recovery-bound), so they must be listed
+        // explicitly; gate-recognition reconciliation already clears close (NORMAL),
+        // retry, and stop (recovery-bound).
+        allowed_routes: ["continue", "run-next-gate-pass", "recover", "retry", "close", "stop"],
+        human_interaction: "never",
+        host_capabilities: {
+          claude: [],
+          codex: [],
+          non_interactive: []
+        },
+        schematicPolicy: {
+          executionKinds: ["relay"],
+          stages: ["review"]
+        }
+      },
+      {
+        id: "goal-close",
+        title: "Goal Close",
+        purpose: "Emit the final goal result from the contract, attempt, and evaluation reports.",
+        input_contracts: ["goal.contract@v1", "goal.attempt@v1", "goal.evidence-evaluation@v1"],
+        alternative_input_contracts: [],
+        output_contract: "goal.result@v1",
+        action_surface: "orchestrator",
+        produces_evidence: ["outcome", "evidence pointers", "residual risks", "follow-ups"],
+        check: {
+          kind: "schema",
+          description: "The goal result must state the outcome, point at evidence, and name residual risks and follow-ups."
+        },
+        allowed_routes: ["complete", "stop"],
+        human_interaction: "never",
+        host_capabilities: {
+          claude: [],
+          codex: [],
+          non_interactive: []
+        },
+        schematicPolicy: {
+          executionKinds: ["compose"],
+          stages: ["close"]
+        }
+      },
+      {
+        id: "pursue",
+        title: "Pursue",
+        purpose: "Turn a rough operator idea into a bounded autonomous ownership contract.",
+        input_contracts: ["task.intake@v1", "route.decision@v1"],
+        alternative_input_contracts: [],
+        output_contract: "pursuit.contract@v1",
+        action_surface: "orchestrator",
+        produces_evidence: [
+          "ownership contract",
+          "estimated touch set",
+          "proof plan",
+          "check-in triggers"
+        ],
+        check: {
+          kind: "schema",
+          description: "The pursuit contract must preserve the operator goal, declare scope, estimate likely touch points, and name when Circuit should check in."
+        },
+        allowed_routes: ["continue", "ask", "stop"],
+        human_interaction: "optional",
+        host_capabilities: {
+          claude: [],
+          codex: [],
+          non_interactive: []
+        },
+        schematicPolicy: {
+          executionKinds: ["compose", "checkpoint", "sub-run", "fanout"],
+          stages: ["frame"]
+        }
+      },
+      {
+        id: "coordinate-pursuits",
+        title: "Coordinate Pursuits",
+        purpose: "Prioritize multiple pursuit contracts by dependency, conflict risk, and safe composition.",
+        input_contracts: ["pursuit.contract@v1"],
+        alternative_input_contracts: [],
+        output_contract: "pursuit.graph@v1",
+        action_surface: "orchestrator",
+        produces_evidence: [
+          "dependency graph",
+          "conflict analysis",
+          "serial groups",
+          "parallel read-only groups"
+        ],
+        check: {
+          kind: "coordination",
+          description: "The graph must account for every pursuit and explain which work serializes, which discovery can run in parallel, and why."
+        },
+        allowed_routes: ["continue", "ask", "stop"],
+        human_interaction: "optional",
+        host_capabilities: {
+          claude: [],
+          codex: [],
+          non_interactive: []
+        },
+        schematicPolicy: {
+          executionKinds: ["compose", "checkpoint", "sub-run", "fanout"],
+          stages: ["plan"]
+        }
+      },
+      {
+        id: "queue",
+        title: "Queue",
+        purpose: "Turn broad work into ordered items with state and risk class.",
+        input_contracts: ["flow.brief@v1", "context.packet@v1"],
+        alternative_input_contracts: [],
+        output_contract: "work.queue@v1",
+        action_surface: "orchestrator",
+        produces_evidence: ["ordered items", "item state", "risk class", "selection rule"],
+        check: {
+          kind: "queue",
+          description: "Each queue item must have an identifier, state, and reason it belongs in the queue."
+        },
+        allowed_routes: ["continue", "ask", "stop"],
+        human_interaction: "optional",
+        host_capabilities: {
+          claude: [],
+          codex: [],
+          non_interactive: []
+        },
+        schematicPolicy: {
+          executionKinds: ["compose", "checkpoint", "sub-run", "fanout"],
+          stages: ["plan"]
+        }
+      },
+      {
+        id: "batch",
+        title: "Batch",
+        purpose: "Process a bounded set of queue items and record what completed, skipped, blocked, or failed.",
+        input_contracts: ["work.queue@v1", "flow.brief@v1"],
+        alternative_input_contracts: [],
+        output_contract: "batch.result@v1",
+        action_surface: "mixed",
+        produces_evidence: ["completed items", "skipped items", "blocked items", "failed items"],
+        check: {
+          kind: "schema",
+          description: "The batch result must account for every selected item exactly once."
+        },
+        allowed_routes: ["continue", "retry", "ask", "stop", "handoff"],
+        human_interaction: "optional",
+        host_capabilities: {
+          claude: [],
+          codex: [],
+          non_interactive: []
+        },
+        schematicPolicy: {
+          // 'relay' is included because Pursue's batch-step delegates each work
+          // item to an implementer-role worker (a relay), which the pursue runtime
+          // wiring locks in. Batch already declares multiple kinds, so the
+          // single-kind authoring default stays undefined and the widening is
+          // runtime byte-identical.
+          executionKinds: ["compose", "relay", "checkpoint", "sub-run", "fanout"],
+          stages: ["act"]
+        }
+      },
+      {
+        id: "risk-rollback-check",
+        title: "Risk/Rollback Check",
+        purpose: "Decide whether continuing is safe and what recovery path exists if it is not.",
+        input_contracts: ["change.evidence@v1", "verification.result@v1", "flow.brief@v1"],
+        alternative_input_contracts: [],
+        output_contract: "risk.decision@v1",
+        action_surface: "orchestrator",
+        produces_evidence: ["risk class", "allowed next action", "recovery option"],
+        check: {
+          kind: "risk",
+          description: "The decision must explicitly allow, split, stop, hand off, or escalate the next action."
+        },
+        allowed_routes: ["continue", "split", "ask", "stop", "handoff", "escalate"],
+        human_interaction: "optional",
+        host_capabilities: {
+          claude: [],
+          codex: [],
+          non_interactive: []
+        },
+        schematicPolicy: {
+          executionKinds: ["compose", "relay", "verification", "checkpoint", "sub-run", "fanout"],
+          stages: ["verify", "close"]
+        }
+      },
+      {
+        id: "close-with-evidence",
+        title: "Close With Evidence",
+        purpose: "End the run honestly with outcome, evidence pointers, and residual risks.",
+        input_contracts: ["flow.brief@v1", "verification.result@v1", "review.verdict@v1"],
+        alternative_input_contracts: [
+          ["flow.brief@v1", "verification.result@v1"],
+          ["flow.brief@v1", "review.verdict@v1"],
+          ["flow.brief@v1"]
+        ],
+        output_contract: "flow.result@v1",
+        action_surface: "orchestrator",
+        produces_evidence: ["outcome", "evidence pointers", "residual risks", "follow-ups"],
+        check: {
+          kind: "schema",
+          description: "The final result must align with the evidence and cannot report completion when a stop, handoff, or escalation route was selected."
+        },
+        allowed_routes: ["complete", "stop", "handoff", "escalate"],
+        human_interaction: "never",
+        host_capabilities: {
+          claude: [],
+          codex: [],
+          non_interactive: []
+        },
+        schematicPolicy: {
+          executionKinds: ["compose", "checkpoint", "sub-run", "fanout"],
+          stages: ["close"]
+        }
+      },
+      {
+        id: "handoff",
+        title: "Handoff",
+        purpose: "Persist enough state for a later session to resume with context and next action.",
+        input_contracts: ["flow.state@v1", "flow.brief@v1"],
+        alternative_input_contracts: [],
+        output_contract: "continuity.record@v1",
+        action_surface: "orchestrator",
+        produces_evidence: ["goal", "completed moves", "pending evidence", "next action", "known debt"],
+        check: {
+          kind: "schema",
+          description: "The handoff record must contain enough state for a later run to continue without relying on chat memory."
+        },
+        allowed_routes: ["complete", "stop"],
+        human_interaction: "never",
+        host_capabilities: {
+          claude: [],
+          codex: [],
+          non_interactive: []
+        },
+        schematicPolicy: {
+          executionKinds: ["compose", "checkpoint", "sub-run", "fanout"],
+          stages: ["close"]
+        }
+      },
+      {
+        id: "review-intake",
+        title: "Review Intake",
+        purpose: "Frame an independent review: fix the audit scope and capture the working-tree state to review against.",
+        input_contracts: ["task.intake@v1", "route.decision@v1"],
+        alternative_input_contracts: [],
+        output_contract: "review.intake@v1",
+        action_surface: "orchestrator",
+        produces_evidence: ["scope boundary", "working tree status", "diff or unavailable reason"],
+        check: {
+          kind: "schema",
+          description: "The intake must state what is in scope for the review and record the working tree state, or why a diff is unavailable."
+        },
+        allowed_routes: ["continue", "stop"],
+        human_interaction: "optional",
+        host_capabilities: {
+          claude: [],
+          codex: [],
+          non_interactive: []
+        },
+        schematicPolicy: {
+          executionKinds: ["compose"],
+          stages: ["frame"]
+        }
+      },
+      {
+        id: "prototype-variant-evidence",
+        title: "Prototype Variant Evidence",
+        purpose: "Compose the provider evidence for the model-comparison variants before the variants are verified.",
+        input_contracts: ["flow.brief@v1", "plan.strategy@v1", "change.evidence@v1"],
+        alternative_input_contracts: [],
+        output_contract: "prototype.variant-provider-evidence@v1",
+        action_surface: "orchestrator",
+        produces_evidence: ["captured variant count", "per-variant provider evidence"],
+        check: {
+          kind: "schema",
+          description: "The provider evidence must record how many variants were captured and attribute the evidence to each variant."
+        },
+        allowed_routes: ["complete", "stop"],
+        human_interaction: "never",
+        host_capabilities: {
+          claude: [],
+          codex: [],
+          non_interactive: []
+        },
+        schematicPolicy: {
+          executionKinds: ["compose"],
+          stages: ["verify"]
+        }
+      },
+      {
+        id: "prototype-checkpoint",
+        title: "Prototype Checkpoint",
+        purpose: "Pause for the operator to decide what to do with a built and verified prototype artifact.",
+        input_contracts: ["change.evidence@v1", "verification.result@v1"],
+        alternative_input_contracts: [],
+        output_contract: "prototype.checkpoint@v1",
+        action_surface: "host",
+        produces_evidence: ["question", "available options", "selected option", "answer source"],
+        check: {
+          kind: "decision",
+          description: "The selected option must be one of the declared prototype dispositions or the run must pause or stop clearly."
+        },
+        allowed_routes: ["continue", "stop"],
+        human_interaction: "mode-dependent",
+        host_capabilities: {
+          claude: [],
+          codex: [],
+          non_interactive: []
+        },
+        schematicPolicy: {
+          executionKinds: ["checkpoint"],
+          stages: ["review"]
+        }
+      }
+    ];
+    FLOW_BLOCK_DEFINITIONS = FLOW_BLOCK_DEFINITION_INPUTS.map(defineFlowBlockDefinition);
+    FLOW_BLOCK_CATALOG = FlowBlockCatalog.parse({
+      schema_version: "1",
+      blocks: FLOW_BLOCK_DEFINITIONS.map(blockCatalogEntry)
+    });
+    flowBlockSchematicPolicy = {};
+    flowBlockAuthoringPolicy = {};
+    for (const definition of FLOW_BLOCK_DEFINITIONS) {
+      flowBlockSchematicPolicy[definition.id] = definition.schematicPolicy;
+      flowBlockAuthoringPolicy[definition.id] = definition.authoringPolicy;
+    }
+    FLOW_BLOCK_SCHEMATIC_POLICY = flowBlockSchematicPolicy;
+    FLOW_BLOCK_AUTHORING_POLICY = flowBlockAuthoringPolicy;
+  }
+});
+
+// dist/schemas/flow-schematic-policy.js
+function schematicExecutionKindsForBlock(block) {
+  return FLOW_BLOCK_SCHEMATIC_POLICY[block.id].executionKinds;
+}
+function schematicStagesForBlock(block) {
+  return FLOW_BLOCK_SCHEMATIC_POLICY[block.id].stages;
+}
+var init_flow_schematic_policy = __esm({
+  "dist/schemas/flow-schematic-policy.js"() {
+    "use strict";
+    init_flow_block_definitions();
+  }
+});
+
+// dist/schemas/flow-schematic.js
+function validateExecutionShape(item, ctx) {
+  const kind = item.execution.kind;
+  if (item.writes !== void 0) {
+    const w = item.writes;
+    const has = (key) => w[key] !== void 0;
+    const expectReport = () => {
+      if (!has("report_path")) {
+        ctx.addIssue({
+          code: "custom",
+          path: ["writes", "report_path"],
+          message: `${kind} execution requires writes.report_path`
+        });
+      }
+    };
+    const expectRelaySlots = () => {
+      for (const key of ["request_path", "receipt_path", "result_path"]) {
+        if (!has(key)) {
+          ctx.addIssue({
+            code: "custom",
+            path: ["writes", key],
+            message: `relay execution requires writes.${key}`
+          });
+        }
+      }
+    };
+    const expectCheckpointSlots = () => {
+      for (const key of ["checkpoint_request_path", "checkpoint_response_path"]) {
+        if (!has(key)) {
+          ctx.addIssue({
+            code: "custom",
+            path: ["writes", key],
+            message: `checkpoint execution requires writes.${key}`
+          });
+        }
+      }
+    };
+    const expectSubRunSlots = () => {
+      if (!has("result_path")) {
+        ctx.addIssue({
+          code: "custom",
+          path: ["writes", "result_path"],
+          message: "sub-run execution requires writes.result_path"
+        });
+      }
+    };
+    const forbid = (key, allowedKinds) => {
+      if (has(key)) {
+        ctx.addIssue({
+          code: "custom",
+          path: ["writes", key],
+          message: `writes.${key} is only allowed for ${allowedKinds} execution`
+        });
+      }
+    };
+    switch (kind) {
+      case "compose":
+      case "verification":
+        expectReport();
+        forbid("request_path", "relay");
+        forbid("receipt_path", "relay");
+        forbid("result_path", "relay|sub-run");
+        forbid("branches_dir_path", "fanout");
+        forbid("checkpoint_request_path", "checkpoint");
+        forbid("checkpoint_response_path", "checkpoint");
+        break;
+      case "relay":
+        expectRelaySlots();
+        forbid("branches_dir_path", "fanout");
+        forbid("checkpoint_request_path", "checkpoint");
+        forbid("checkpoint_response_path", "checkpoint");
+        break;
+      case "checkpoint":
+        expectCheckpointSlots();
+        forbid("request_path", "relay");
+        forbid("receipt_path", "relay");
+        forbid("result_path", "relay|sub-run");
+        forbid("branches_dir_path", "fanout");
+        break;
+      case "sub-run":
+        expectSubRunSlots();
+        forbid("report_path", "compose|verification");
+        forbid("request_path", "relay");
+        forbid("receipt_path", "relay");
+        forbid("branches_dir_path", "fanout");
+        forbid("checkpoint_request_path", "checkpoint");
+        forbid("checkpoint_response_path", "checkpoint");
+        break;
+      case "fanout":
+        expectReport();
+        if (!has("branches_dir_path")) {
+          ctx.addIssue({
+            code: "custom",
+            path: ["writes", "branches_dir_path"],
+            message: "fanout execution requires writes.branches_dir_path"
+          });
+        }
+        forbid("request_path", "relay");
+        forbid("receipt_path", "relay");
+        forbid("result_path", "relay|sub-run");
+        forbid("checkpoint_request_path", "checkpoint");
+        forbid("checkpoint_response_path", "checkpoint");
+        break;
+    }
+  }
+  if (item.check !== void 0) {
+    const g = item.check;
+    const expectField = (field, forKinds) => {
+      if (g[field] === void 0) {
+        ctx.addIssue({
+          code: "custom",
+          path: ["check", field],
+          message: `${forKinds} execution requires check.${field}`
+        });
+      }
+    };
+    const forbidField = (field, allowedKinds) => {
+      if (g[field] !== void 0) {
+        ctx.addIssue({
+          code: "custom",
+          path: ["check", field],
+          message: `check.${field} is only allowed for ${allowedKinds} execution`
+        });
+      }
+    };
+    switch (kind) {
+      case "compose":
+      case "verification":
+        expectField("required", `${kind}`);
+        forbidField("allow", "checkpoint");
+        forbidField("allow_from", "checkpoint");
+        forbidField("pass", "relay|sub-run");
+        break;
+      case "checkpoint":
+        if (g.allow === void 0 && g.allow_from === void 0) {
+          ctx.addIssue({
+            code: "custom",
+            path: ["check", "allow"],
+            message: "checkpoint execution requires check.allow or check.allow_from"
+          });
+        }
+        if (g.allow !== void 0 && g.allow_from !== void 0) {
+          ctx.addIssue({
+            code: "custom",
+            path: ["check", "allow"],
+            message: "checkpoint execution cannot declare both check.allow and check.allow_from"
+          });
+        }
+        forbidField("required", "compose|verification");
+        forbidField("pass", "relay|sub-run");
+        break;
+      case "relay":
+      case "sub-run":
+        expectField("pass", `${kind}`);
+        forbidField("required", "compose|verification");
+        forbidField("allow", "checkpoint");
+        forbidField("allow_from", "checkpoint");
+        break;
+      case "fanout":
+        expectField("pass", "fanout");
+        forbidField("required", "compose|verification");
+        forbidField("allow", "checkpoint");
+        forbidField("allow_from", "checkpoint");
+        break;
+    }
+  }
+  if (item.checkpoint_policy !== void 0 && kind !== "checkpoint") {
+    ctx.addIssue({
+      code: "custom",
+      path: ["checkpoint_policy"],
+      message: "checkpoint_policy is only allowed for checkpoint execution"
+    });
+  }
+  if (item.acceptance_criteria !== void 0 && kind !== "relay") {
+    ctx.addIssue({
+      code: "custom",
+      path: ["acceptance_criteria"],
+      message: "acceptance_criteria is only allowed for relay execution"
+    });
+  }
+  if (item.route_from_report !== void 0 && kind !== "compose" && kind !== "relay") {
+    ctx.addIssue({
+      code: "custom",
+      path: ["route_from_report"],
+      message: "route_from_report is only allowed for compose or relay execution"
+    });
+  }
+  if (kind === "fanout" && item.fanout === void 0) {
+    ctx.addIssue({
+      code: "custom",
+      path: ["fanout"],
+      message: "fanout execution requires fanout metadata"
+    });
+  }
+  if (item.fanout !== void 0 && kind !== "fanout") {
+    ctx.addIssue({
+      code: "custom",
+      path: ["fanout"],
+      message: "fanout metadata is only allowed for fanout execution"
+    });
+  }
+}
+function validateActiveSchematicCompleteness(schematic, ctx) {
+  if (schematic.status !== "active")
+    return;
+  const requireField = (field) => {
+    if (schematic[field] !== void 0)
+      return;
+    ctx.addIssue({
+      code: "custom",
+      path: [field],
+      message: `active schematic requires ${field}`
+    });
+  };
+  requireField("version");
+  requireField("axes");
+  requireField("stage_path_policy");
+  requireField("stages");
+  for (const [index, item] of schematic.items.entries()) {
+    if (item.protocol === void 0) {
+      ctx.addIssue({
+        code: "custom",
+        path: ["items", index, "protocol"],
+        message: "active schematic item requires protocol"
+      });
+    }
+    if (item.writes === void 0) {
+      ctx.addIssue({
+        code: "custom",
+        path: ["items", index, "writes"],
+        message: "active schematic item requires writes"
+      });
+    }
+    if (item.check === void 0) {
+      ctx.addIssue({
+        code: "custom",
+        path: ["items", index, "check"],
+        message: "active schematic item requires check"
+      });
+    }
+    if (item.execution.kind === "checkpoint" && item.checkpoint_policy === void 0) {
+      ctx.addIssue({
+        code: "custom",
+        path: ["items", index, "checkpoint_policy"],
+        message: "active checkpoint schematic item requires checkpoint_policy"
+      });
+    }
+  }
+}
+function contractIsCompatible(expected, actual, aliases) {
+  if (expected === actual)
+    return true;
+  return aliases.some((alias) => alias.generic === expected && alias.actual === actual);
+}
+function blockAcceptedInputSets(block) {
+  return [block.input_contracts, ...block.alternative_input_contracts];
+}
+function schematicStepSatisfiesInputSet(item, expectedContracts, aliases) {
+  const actualContracts = Object.values(item.input);
+  return expectedContracts.every((expected) => actualContracts.some((actual) => contractIsCompatible(expected, actual, aliases)));
+}
+function formatContractSet(contracts) {
+  return `[${contracts.join(", ")}]`;
+}
+function isTerminalTarget(target) {
+  return StepRouteTerminalTarget.safeParse(target).success;
+}
+function schematicStepRouteTargets(item) {
+  return [
+    ...Object.values(item.routes),
+    ...Object.values(item.route_overrides).flatMap((overrides) => Object.values(overrides))
+  ];
+}
+function schematicStepRouteOutcomes(item) {
+  return [.../* @__PURE__ */ new Set([...Object.keys(item.routes), ...Object.keys(item.route_overrides)])];
+}
+function intersectContracts(left, right) {
+  const intersection2 = /* @__PURE__ */ new Set();
+  for (const value of left) {
+    if (right.has(value))
+      intersection2.add(value);
+  }
+  return intersection2;
+}
+function contractSetsEqual(left, right) {
+  if (left.size !== right.size)
+    return false;
+  for (const value of left) {
+    if (!right.has(value))
+      return false;
+  }
+  return true;
+}
+function collectRouteAwareAvailability(schematic) {
+  const itemById = new Map(schematic.items.map((item) => [item.id, item]));
+  const availableAt = /* @__PURE__ */ new Map();
+  const worklist = [schematic.starts_at];
+  availableAt.set(schematic.starts_at, new Set(schematic.initial_contracts));
+  while (worklist.length > 0) {
+    const itemId = worklist.shift();
+    if (itemId === void 0)
+      continue;
+    const item = itemById.get(itemId);
+    const current = availableAt.get(itemId);
+    if (item === void 0 || current === void 0)
+      continue;
+    const afterItem = new Set(current);
+    afterItem.add(item.output);
+    for (const target of schematicStepRouteTargets(item)) {
+      if (isTerminalTarget(target))
+        continue;
+      const prior = availableAt.get(target);
+      if (prior === void 0) {
+        availableAt.set(target, new Set(afterItem));
+        worklist.push(target);
+        continue;
+      }
+      const narrowed = intersectContracts(prior, afterItem);
+      if (!contractSetsEqual(prior, narrowed)) {
+        availableAt.set(target, narrowed);
+        worklist.push(target);
+      }
+    }
+  }
+  return availableAt;
+}
+function collectRouteAwareAvailabilityUnion(schematic) {
+  const itemById = new Map(schematic.items.map((item) => [item.id, item]));
+  const availableAt = /* @__PURE__ */ new Map();
+  const worklist = [schematic.starts_at];
+  availableAt.set(schematic.starts_at, new Set(schematic.initial_contracts));
+  while (worklist.length > 0) {
+    const itemId = worklist.shift();
+    if (itemId === void 0)
+      continue;
+    const item = itemById.get(itemId);
+    const current = availableAt.get(itemId);
+    if (item === void 0 || current === void 0)
+      continue;
+    const afterItem = new Set(current);
+    afterItem.add(item.output);
+    for (const target of schematicStepRouteTargets(item)) {
+      if (isTerminalTarget(target))
+        continue;
+      const prior = availableAt.get(target);
+      if (prior === void 0) {
+        availableAt.set(target, new Set(afterItem));
+        worklist.push(target);
+        continue;
+      }
+      let grew = false;
+      for (const contract of afterItem) {
+        if (!prior.has(contract)) {
+          prior.add(contract);
+          grew = true;
+        }
+      }
+      if (grew)
+        worklist.push(target);
+    }
+  }
+  return availableAt;
+}
+function validateFlowSchematicCatalogCompatibility(schematic, catalog, options = {}) {
+  const parsedCatalog = FlowBlockCatalog.safeParse(catalog);
+  if (!parsedCatalog.success) {
+    return [{ message: `block catalog failed to parse: ${parsedCatalog.error.message}` }];
+  }
+  const recognizeRoute = options.recognizeRoute ?? (() => false);
+  const blockById = new Map(parsedCatalog.data.blocks.map((p) => [p.id, p]));
+  const issues = [];
+  for (const item of schematic.items) {
+    const block = blockById.get(item.block);
+    if (block === void 0) {
+      issues.push({
+        item_id: item.id,
+        message: `unknown block id: ${item.block}`
+      });
+      continue;
+    }
+    for (const route of schematicStepRouteOutcomes(item)) {
+      if (block.allowed_routes.includes(route))
+        continue;
+      const routeTarget = item.routes[route] ?? "";
+      if (recognizeRoute({ routeId: route, routeTarget, stepId: item.id })) {
+        continue;
+      }
+      issues.push({
+        item_id: item.id,
+        message: `route "${route}" is not allowed by block "${item.block}"`
+      });
+    }
+    const acceptedInputSets = blockAcceptedInputSets(block);
+    if (!acceptedInputSets.some((expectedContracts) => schematicStepSatisfiesInputSet(item, expectedContracts, schematic.contract_aliases))) {
+      issues.push({
+        item_id: item.id,
+        message: `inputs do not satisfy block "${item.block}"; expected one of ${acceptedInputSets.map(formatContractSet).join(" or ")}`
+      });
+    }
+    if (!contractIsCompatible(block.output_contract, item.output, schematic.contract_aliases)) {
+      issues.push({
+        item_id: item.id,
+        message: `output "${item.output}" is not compatible with block output "${block.output_contract}"`
+      });
+    }
+    for (const requirement of block.produces_evidence) {
+      if (!item.evidence_requirements.includes(requirement)) {
+        issues.push({
+          item_id: item.id,
+          message: `evidence requirement "${requirement}" from block "${item.block}" is not declared by schematic item`
+        });
+      }
+    }
+    const executionKinds = schematicExecutionKindsForBlock(block);
+    if (!executionKinds.includes(item.execution.kind)) {
+      issues.push({
+        item_id: item.id,
+        message: `execution kind "${item.execution.kind}" is not compatible with block "${item.block}"; expected one of ${executionKinds.join(", ")}`
+      });
+    }
+    const stages = schematicStagesForBlock(block);
+    if (!stages.includes(item.stage)) {
+      issues.push({
+        item_id: item.id,
+        message: `stage "${item.stage}" is not compatible with block "${item.block}"; expected one of ${stages.join(", ")}`
+      });
+    }
+  }
+  const availableAt = collectRouteAwareAvailability(schematic);
+  const availableAtAny = collectRouteAwareAvailabilityUnion(schematic);
+  for (const item of schematic.items) {
+    const availableContracts = availableAt.get(item.id);
+    if (availableContracts === void 0) {
+      issues.push({
+        item_id: item.id,
+        message: "schematic item is unreachable from starts_at"
+      });
+      continue;
+    }
+    const optionalKeys2 = new Set(item.optional_inputs);
+    const anyContracts = availableAtAny.get(item.id) ?? /* @__PURE__ */ new Set();
+    for (const [name, contract] of Object.entries(item.input)) {
+      if (optionalKeys2.has(name)) {
+        if (!anyContracts.has(contract)) {
+          issues.push({
+            item_id: item.id,
+            message: `optional input "${name}" references contract "${contract}" that no reachable route produces`
+          });
+        }
+        continue;
+      }
+      if (!availableContracts.has(contract)) {
+        issues.push({
+          item_id: item.id,
+          message: `input "${name}" references unavailable contract "${contract}" on at least one reachable route`
+        });
+      }
+    }
+  }
+  return issues;
+}
+var FlowSchematicStatus, StepRouteTerminalTarget, StepRouteTarget, SchematicRouteModeOverrides, SchematicContractAlias, SchematicEvidenceRequirement, SchematicEvidenceRequirements, StepExecutionKind, ComposeStepExecution, VerificationStepExecution, CheckpointStepExecution, FanoutStepExecution, RelayStepExecution, SubRunStepExecution, StepExecution, StepWrites, SchematicFanout, StepCheck, SchematicStep, FlowAxisSelection, SchematicStage, TOURNAMENT_FANOUT_CONTRACT_MESSAGE2, FlowSchematic;
+var init_flow_schematic = __esm({
+  "dist/schemas/flow-schematic.js"() {
+    "use strict";
+    init_zod();
+    init_acceptance_criteria();
+    init_axes();
+    init_axis_config_requirement();
+    init_change_kind();
+    init_check();
+    init_engine_flags();
+    init_equipment_scope();
+    init_flow_blocks();
+    init_flow_schematic_policy();
+    init_ids();
+    init_process();
+    init_report_file_surface();
+    init_scalars();
+    init_selection_policy();
+    init_skill();
+    init_stage();
+    init_step();
+    FlowSchematicStatus = external_exports.enum(["candidate", "active", "deprecated"]);
+    StepRouteTerminalTarget = external_exports.enum(["@complete", "@stop", "@handoff", "@escalate"]);
+    StepRouteTarget = external_exports.union([StepId, StepRouteTerminalTarget]);
+    SchematicRouteModeOverrides = external_exports.partialRecord(CompiledDepth, StepRouteTarget).refine((overrides) => Object.keys(overrides).length > 0, {
+      message: "route override must declare at least one depth"
+    });
+    SchematicContractAlias = external_exports.object({
+      generic: FlowContractRef,
+      actual: FlowContractRef
+    }).strict();
+    SchematicEvidenceRequirement = external_exports.string().min(1);
+    SchematicEvidenceRequirements = external_exports.array(SchematicEvidenceRequirement).min(1).superRefine((requirements, ctx) => {
+      const seen = /* @__PURE__ */ new Set();
+      for (const [index, requirement] of requirements.entries()) {
+        if (seen.has(requirement)) {
+          ctx.addIssue({
+            code: "custom",
+            path: [index],
+            message: `duplicate evidence requirement: ${requirement}`
+          });
+        }
+        seen.add(requirement);
+      }
+    });
+    StepExecutionKind = external_exports.enum([
+      "compose",
+      "relay",
+      "verification",
+      "checkpoint",
+      "sub-run",
+      "fanout"
+    ]);
+    ComposeStepExecution = external_exports.object({ kind: external_exports.literal("compose") }).strict();
+    VerificationStepExecution = external_exports.object({ kind: external_exports.literal("verification") }).strict();
+    CheckpointStepExecution = external_exports.object({ kind: external_exports.literal("checkpoint") }).strict();
+    FanoutStepExecution = external_exports.object({ kind: external_exports.literal("fanout") }).strict();
+    RelayStepExecution = external_exports.object({
+      kind: external_exports.literal("relay"),
+      role: RelayRole,
+      // Optional per-step worker pin. When set, this relay step always runs on
+      // the named connector (e.g. 'codex' or 'claude-code'), making the worker
+      // choice a property of the flow rather than of operator config. The
+      // compiler lifts this onto the compiled relay step's `connector`, which the
+      // runtime relay path already reads as the top-priority connector choice
+      // (relay-guidance: stepConnector). Omitted → connector resolves the usual
+      // way (policy/config role preference, then host auto-detect).
+      connector: RelayConnectorName.optional()
+    }).strict();
+    SubRunStepExecution = external_exports.object({
+      kind: external_exports.literal("sub-run"),
+      flow_ref: CompiledFlowRef,
+      goal: external_exports.string().min(1),
+      depth: CompiledDepth
+    }).strict();
+    StepExecution = external_exports.discriminatedUnion("kind", [
+      ComposeStepExecution,
+      RelayStepExecution,
+      VerificationStepExecution,
+      CheckpointStepExecution,
+      SubRunStepExecution,
+      FanoutStepExecution
+    ]);
+    StepWrites = external_exports.object({
+      report_path: RunRelativePath.optional(),
+      request_path: RunRelativePath.optional(),
+      receipt_path: RunRelativePath.optional(),
+      result_path: RunRelativePath.optional(),
+      branches_dir_path: RunRelativePath.optional(),
+      checkpoint_request_path: RunRelativePath.optional(),
+      checkpoint_response_path: RunRelativePath.optional()
+    }).strict();
+    SchematicFanout = external_exports.object({
+      branches: FanoutBranches,
+      concurrency: FanoutConcurrency.optional(),
+      on_child_failure: FanoutFailurePolicy.optional(),
+      join: FanoutJoinPolicy,
+      rubric: FanoutRubric.optional()
+    }).strict();
+    StepCheck = external_exports.object({
+      required: external_exports.array(external_exports.string().min(1)).min(1).optional(),
+      allow: external_exports.array(external_exports.string().min(1)).min(1).optional(),
+      allow_from: CheckpointAllowFrom.optional(),
+      pass: external_exports.array(external_exports.string().min(1)).min(1).optional()
+    }).strict();
+    SchematicStep = external_exports.object({
+      id: StepId,
+      block: FlowBlockId,
+      title: external_exports.string().min(1),
+      stage: CanonicalStage,
+      input: external_exports.record(external_exports.string().regex(/^[a-z][a-z0-9_]*$/), FlowContractRef).default({}),
+      // Input keys (from `input` above) whose contract may legitimately be absent
+      // on some reachable routes — the consumer reads them best-effort and tolerates
+      // the gap. Example: goal-close reads `recovery` and `gate`, each present on only
+      // one of two mutually exclusive routes; its close builder already reads both
+      // with required:false. The route-aware availability check verifies a required
+      // input on every reaching route (intersection) and an optional input on at
+      // least one (union). This lifts the runtime writer's required:false truth into
+      // the schematic so the validator models route-disjoint gathers by correction,
+      // not by aliasing or widening.
+      optional_inputs: external_exports.array(external_exports.string().regex(/^[a-z][a-z0-9_]*$/)).default([]),
+      output: FlowContractRef,
+      evidence_requirements: SchematicEvidenceRequirements,
+      execution: StepExecution,
+      selection: SelectionOverride.optional(),
+      skill_slots: SkillSlotArray.default([]),
+      // The tools sub-axis of equipment scope (the skills sub-axis rides
+      // `skill_slots` above). Optional so flows that declare nothing stay
+      // byte-stable; an enforced scope is constrained to relay steps (any role)
+      // by the cross-field guard in superRefine below.
+      equipment_scope: EquipmentScope.optional(),
+      routes: external_exports.record(external_exports.string(), StepRouteTarget).refine((routes) => {
+        return Object.keys(routes).length > 0;
+      }, "schematic item must declare at least one route"),
+      route_overrides: external_exports.record(external_exports.string(), SchematicRouteModeOverrides).default({}),
+      route_from_report: RouteFromReport.optional(),
+      // The fields below are required by the schematic → CompiledFlow compiler. They
+      // are optional for candidate schematics so drafts remain parseable while
+      // they are being shaped. Active schematics require them at parse time; the
+      // compiler keeps its own guards for callers that mutate parsed values.
+      protocol: ProtocolId.optional(),
+      writes: StepWrites.optional(),
+      check: StepCheck.optional(),
+      acceptance_criteria: AcceptanceCriteria.optional(),
+      checkpoint_policy: CheckpointPolicy.optional(),
+      fanout: SchematicFanout.optional()
+    }).strict().superRefine((item, ctx) => {
+      const seenRoutes = /* @__PURE__ */ new Set();
+      for (const route of Object.keys(item.routes)) {
+        if (!FlowRoute.safeParse(route).success) {
+          ctx.addIssue({
+            code: "custom",
+            path: ["routes", route],
+            message: `unknown schematic route outcome: ${route}`
+          });
+        }
+        if (seenRoutes.has(route)) {
+          ctx.addIssue({
+            code: "custom",
+            path: ["routes", route],
+            message: `duplicate route outcome: ${route}`
+          });
+        }
+        seenRoutes.add(route);
+      }
+      for (const route of Object.keys(item.route_overrides)) {
+        if (!FlowRoute.safeParse(route).success) {
+          ctx.addIssue({
+            code: "custom",
+            path: ["route_overrides", route],
+            message: `unknown schematic route outcome: ${route}`
+          });
+        }
+        if (!Object.hasOwn(item.routes, route)) {
+          ctx.addIssue({
+            code: "custom",
+            path: ["route_overrides", route],
+            message: `route override must target a declared route outcome: ${route}`
+          });
+        }
+      }
+      for (const key of item.optional_inputs) {
+        if (!Object.hasOwn(item.input, key)) {
+          ctx.addIssue({
+            code: "custom",
+            path: ["optional_inputs", key],
+            message: `optional_inputs entry "${key}" is not a declared input key`
+          });
+        }
+      }
+      if (item.equipment_scope?.enforcement === "enforced") {
+        const isRelay = item.execution.kind === "relay";
+        if (!isRelay) {
+          ctx.addIssue({
+            code: "custom",
+            path: ["equipment_scope", "enforcement"],
+            message: 'enforced equipment scope is only valid on a relay step (a tool-scoped worker); use enforcement "trusted" on orchestrator steps'
+          });
+        }
+      }
+      validateExecutionShape(item, ctx);
+    });
+    FlowAxisSelection = external_exports.object({
+      name: external_exports.string().regex(/^[a-z][a-z0-9-]*$/),
+      depth: CompiledDepth,
+      description: external_exports.string().min(1),
+      default_change_kind: ChangeKind.optional()
+    }).strict();
+    SchematicStage = external_exports.object({
+      canonical: CanonicalStage,
+      id: StageId,
+      title: external_exports.string().min(1)
+    }).strict();
+    TOURNAMENT_FANOUT_CONTRACT_MESSAGE2 = "tournament fanout requires on_child_failure: continue-others and join.policy: aggregate-survivors";
+    FlowSchematic = external_exports.object({
+      schema_version: external_exports.literal("2"),
+      id: CompiledFlowId,
+      title: external_exports.string().min(1),
+      purpose: external_exports.string().min(1),
+      status: FlowSchematicStatus,
+      starts_at: StepId,
+      initial_contracts: external_exports.array(FlowContractRef).default([]),
+      contract_aliases: external_exports.array(SchematicContractAlias).default([]),
+      items: external_exports.array(SchematicStep).min(1),
+      // Compiler-required metadata. Optional for candidate schematics; required
+      // at parse time once a schematic is active.
+      version: external_exports.string().min(1).optional(),
+      axes: FlowAxes.optional(),
+      stage_path_policy: SpinePolicy.optional(),
+      stages: external_exports.array(SchematicStage).optional(),
+      default_selection: SelectionOverride.optional(),
+      // Stage 3 (first-class composition): engine-visible behavior flags the flow
+      // DECLARES on its schematic. The compiler propagates them verbatim to the
+      // compiled manifest's `engine_flags`, where the engine reads them through
+      // `resolveEngineFlags`. Absent = the flow declares none (the engine then
+      // resolves any from the by-id catalog package during the migration).
+      engine_flags: EngineFlagsManifest.optional(),
+      // Stage 3b (first-class composition): execution-bearing declarations the
+      // flow DECLARES on its schematic; the compiler propagates them verbatim to
+      // the compiled manifest so the engine reads them without a by-id catalog
+      // package. `report_file_surfaces` (keyed by report schema name) marks which
+      // written reports are edit-file surfaces; `required_config` is the CLI's
+      // up-front config gate. `runtime_surface.primary_result` is NOT authored
+      // here — the compiler derives it from the close-stage compose step. Absent =
+      // the flow declares none.
+      report_file_surfaces: ReportFileSurfaceMap.optional(),
+      required_config: AxisConfigRequirementList.optional()
+    }).strict().superRefine((schematic, ctx) => {
+      const itemIds = /* @__PURE__ */ new Map();
+      for (const [index, item] of schematic.items.entries()) {
+        const prior = itemIds.get(item.id);
+        if (prior !== void 0) {
+          ctx.addIssue({
+            code: "custom",
+            path: ["items", index, "id"],
+            message: `duplicate schematic item id: ${item.id} also appears at index ${prior}`
+          });
+        }
+        itemIds.set(item.id, index);
+      }
+      if (!itemIds.has(schematic.starts_at)) {
+        ctx.addIssue({
+          code: "custom",
+          path: ["starts_at"],
+          message: `starts_at references unknown item id: ${schematic.starts_at}`
+        });
+      }
+      for (const [index, item] of schematic.items.entries()) {
+        for (const [route, target] of Object.entries(item.routes)) {
+          if (StepRouteTerminalTarget.safeParse(target).success)
+            continue;
+          if (!itemIds.has(target)) {
+            ctx.addIssue({
+              code: "custom",
+              path: ["items", index, "routes", route],
+              message: `route target references unknown schematic item id: ${target}`
+            });
+          }
+        }
+        for (const [route, overrides] of Object.entries(item.route_overrides)) {
+          for (const [depth, target] of Object.entries(overrides)) {
+            if (StepRouteTerminalTarget.safeParse(target).success)
+              continue;
+            if (!itemIds.has(target)) {
+              ctx.addIssue({
+                code: "custom",
+                path: ["items", index, "route_overrides", route, depth],
+                message: `route override target references unknown schematic item id: ${target}`
+              });
+            }
+          }
+        }
+      }
+      const aliases = /* @__PURE__ */ new Set();
+      for (const [index, alias] of schematic.contract_aliases.entries()) {
+        const key = `${alias.generic}\0${alias.actual}`;
+        if (aliases.has(key)) {
+          ctx.addIssue({
+            code: "custom",
+            path: ["contract_aliases", index],
+            message: `duplicate contract alias: ${alias.generic} -> ${alias.actual}`
+          });
+        }
+        aliases.add(key);
+      }
+      if (schematic.stages !== void 0) {
+        const seenCanonicals = /* @__PURE__ */ new Set();
+        const seenIds = /* @__PURE__ */ new Set();
+        for (const [index, stage] of schematic.stages.entries()) {
+          if (seenCanonicals.has(stage.canonical)) {
+            ctx.addIssue({
+              code: "custom",
+              path: ["stages", index, "canonical"],
+              message: `duplicate canonical stage mapping: ${stage.canonical}`
+            });
+          }
+          seenCanonicals.add(stage.canonical);
+          if (seenIds.has(stage.id)) {
+            ctx.addIssue({
+              code: "custom",
+              path: ["stages", index, "id"],
+              message: `duplicate stage id: ${stage.id}`
+            });
+          }
+          seenIds.add(stage.id);
+        }
+        const itemCanonicals = new Set(schematic.items.map((item) => item.stage));
+        for (const canonical of itemCanonicals) {
+          if (!seenCanonicals.has(canonical)) {
+            ctx.addIssue({
+              code: "custom",
+              path: ["stages"],
+              message: `stages is missing an entry for canonical stage '${canonical}' which is used by at least one item`
+            });
+          }
+        }
+      }
+      if (schematic.axes?.tournament_fan_out_stage !== void 0 && schematic.stages !== void 0) {
+        const stageById = new Map(schematic.stages.map((stage2) => [stage2.id, stage2]));
+        const fanOutStage = schematic.axes.tournament_fan_out_stage;
+        const stage = stageById.get(fanOutStage);
+        if (stage === void 0) {
+          ctx.addIssue({
+            code: "custom",
+            path: ["axes", "tournament_fan_out_stage"],
+            message: `tournament_fan_out_stage references unknown stage id: ${fanOutStage}`
+          });
+        } else {
+          for (const [index, item] of schematic.items.entries()) {
+            if (item.stage !== stage.canonical || item.execution.kind !== "fanout")
+              continue;
+            if (item.fanout?.on_child_failure !== "continue-others" || item.fanout.join.policy !== "aggregate-survivors") {
+              ctx.addIssue({
+                code: "custom",
+                path: ["items", index, "fanout"],
+                message: TOURNAMENT_FANOUT_CONTRACT_MESSAGE2
+              });
+            }
+          }
+        }
+      }
+      if (schematic.stage_path_policy !== void 0 && schematic.stage_path_policy.mode === "partial") {
+        const seenOmits = /* @__PURE__ */ new Set();
+        for (const [index, omitted] of schematic.stage_path_policy.omits.entries()) {
+          if (seenOmits.has(omitted)) {
+            ctx.addIssue({
+              code: "custom",
+              path: ["stage_path_policy", "omits", index],
+              message: `duplicate omitted stage: ${omitted}`
+            });
+          }
+          seenOmits.add(omitted);
+        }
+        if (schematic.stages !== void 0) {
+          const declared = new Set(schematic.stages.map((stage) => stage.canonical));
+          for (const omitted of seenOmits) {
+            if (declared.has(omitted)) {
+              ctx.addIssue({
+                code: "custom",
+                path: ["stage_path_policy", "omits"],
+                message: `canonical stage '${omitted}' is both declared in stages and listed in stage_path_policy.omits`
+              });
+            }
+          }
+        }
+        const itemCanonicals = new Set(schematic.items.map((item) => item.stage));
+        for (const omitted of seenOmits) {
+          if (itemCanonicals.has(omitted)) {
+            ctx.addIssue({
+              code: "custom",
+              path: ["stage_path_policy", "omits"],
+              message: `canonical stage '${omitted}' is omitted but used by at least one item`
+            });
+          }
+        }
+      }
+      validateActiveSchematicCompleteness(schematic, ctx);
+    });
+  }
+});
+
+// dist/flows/report-declarations.js
+function projectFlowReportDeclarations(declarations) {
+  const relayReports = [];
+  const reportSchemas = [];
+  const compose = [];
+  const close = [];
+  const verification = [];
+  const checkpoint = [];
+  const reportFileSurfaces = {};
+  for (const declaration of declarations) {
+    if (declaration.channel === "relay") {
+      relayReports.push({
+        schemaName: declaration.schemaName,
+        schema: declaration.schema,
+        ...declaration.relayHint === void 0 ? {} : { relayHint: declaration.relayHint },
+        ...declaration.crossReportValidate === void 0 ? {} : { crossReportValidate: declaration.crossReportValidate }
+      });
+    } else {
+      reportSchemas.push({
+        schemaName: declaration.schemaName,
+        schema: declaration.schema
+      });
+    }
+    if (declaration.fileSurface !== void 0) {
+      reportFileSurfaces[declaration.schemaName] = declaration.fileSurface;
+    }
+    compose.push(...declaration.writers?.compose ?? []);
+    close.push(...declaration.writers?.close ?? []);
+    verification.push(...declaration.writers?.verification ?? []);
+    checkpoint.push(...declaration.writers?.checkpoint ?? []);
+  }
+  return {
+    relayReports,
+    reportSchemas,
+    reportFileSurfaces,
+    writers: {
+      compose,
+      close,
+      verification,
+      checkpoint
+    }
+  };
+}
+var init_report_declarations = __esm({
+  "dist/flows/report-declarations.js"() {
+    "use strict";
+  }
+});
+
+// dist/flows/flow-definition.js
+function defaultSchematicPath(flowId) {
+  return `src/flows/${flowId}/schematic.json`;
+}
+function defineFlow(definition) {
+  const schematic = FlowSchematic.parse(definition.schematic);
+  if (definition.id !== schematic.id) {
+    throw new Error(`flow definition id '${definition.id}' does not match schematic id '${schematic.id}'`);
+  }
+  return {
+    ...definition,
+    paths: definition.paths ?? {},
+    schematic
+  };
+}
+function defineFlowDataValue(data) {
+  const reportErrors = validateFlowDataReports({
+    reports: data.reports ?? [],
+    writerSchemaAliases: data.reportWriterSchemaAliases ?? []
+  });
+  if (reportErrors.length > 0)
+    return { ok: false, errors: reportErrors };
+  try {
+    return { ok: true, value: defineFlow(flowDefinitionInputFromData(data)) };
+  } catch (error52) {
+    return {
+      ok: false,
+      errors: [{ kind: "flow-data-parse-error", message: errorMessage2(error52) }]
+    };
+  }
+}
+function defineFlowData(data) {
+  const result = defineFlowDataValue(data);
+  if (result.ok)
+    return result.value;
+  throw new Error(result.errors.map(describeDefineFlowDataError).join("\n"));
+}
+function flowDefinitionInputFromData(data) {
+  const { reports, reportWriterSchemaAliases: _reportWriterSchemaAliases, ...definition } = data;
+  const reportProjection = reports === void 0 ? void 0 : projectFlowReportDeclarations(reports);
+  return {
+    ...definition,
+    ...reports === void 0 ? {} : {
+      reportDeclarations: reports,
+      relayReports: definition.relayReports ?? reportProjection?.relayReports ?? [],
+      reportSchemas: definition.reportSchemas ?? reportProjection?.reportSchemas ?? [],
+      writers: definition.writers ?? reportProjection?.writers ?? {}
+    }
+  };
+}
+function validateFlowDataReports(input) {
+  const errors = [];
+  const writerSchemaAliases = new Set(input.writerSchemaAliases);
+  const reports = input.reports;
+  for (const schemaName of duplicateValues(reports.map((report) => report.schemaName))) {
+    errors.push({ kind: "duplicate-flow-data-report", schemaName });
+  }
+  for (const report of reports) {
+    for (const slot2 of ["compose", "close", "verification", "checkpoint"]) {
+      for (const writer of report.writers?.[slot2] ?? []) {
+        if (writer.resultSchemaName !== report.schemaName && !writerSchemaAliases.has(writer.resultSchemaName)) {
+          errors.push({
+            kind: "flow-data-report-writer-drift",
+            schemaName: report.schemaName,
+            slot: slot2,
+            resultSchemaName: writer.resultSchemaName
+          });
+        }
+      }
+    }
+  }
+  return errors;
+}
+function describeDefineFlowDataError(error52) {
+  if (error52.kind === "flow-data-parse-error")
+    return error52.message;
+  if (error52.kind === "duplicate-flow-data-report") {
+    return `duplicate FlowData report schema '${error52.schemaName}'`;
+  }
+  return `FlowData report '${error52.schemaName}' binds ${error52.slot} writer for '${error52.resultSchemaName}'`;
+}
+function duplicateValues(values) {
+  const seen = /* @__PURE__ */ new Set();
+  const duplicates = /* @__PURE__ */ new Set();
+  for (const value of values) {
+    if (seen.has(value))
+      duplicates.add(value);
+    seen.add(value);
+  }
+  return [...duplicates];
+}
+function errorMessage2(error52) {
+  return error52 instanceof Error ? error52.message : String(error52);
+}
+function compilePaths(definition) {
+  const paths = {
+    schematic: definition.paths.schematic ?? defaultSchematicPath(definition.id)
+  };
+  if (definition.paths.command !== void 0) {
+    return definition.paths.contract === void 0 ? { ...paths, command: definition.paths.command } : { ...paths, command: definition.paths.command, contract: definition.paths.contract };
+  }
+  return definition.paths.contract === void 0 ? paths : { ...paths, contract: definition.paths.contract };
+}
+function validateProgressSurface(definition, progress) {
+  if (progress === void 0)
+    return;
+  const itemIds = new Set(definition.schematic.items.map((item) => item.id));
+  const seen = /* @__PURE__ */ new Set();
+  for (const [index, step] of progress.steps.entries()) {
+    if (seen.has(step.stepId)) {
+      throw new Error(`flow definition '${definition.id}' declares duplicate progress step '${step.stepId}'`);
+    }
+    seen.add(step.stepId);
+    if (!itemIds.has(step.stepId)) {
+      throw new Error(`flow definition '${definition.id}' progress step '${step.stepId}' is not a schematic item`);
+    }
+    if (step.taskTitle.length === 0 || step.activeText.length === 0) {
+      throw new Error(`flow definition '${definition.id}' progress step ${index} must declare operator text`);
+    }
+  }
+}
+function compileRuntimeSurface(definition) {
+  const runtimeSurface = definition.runtimeSurface;
+  if (runtimeSurface === void 0)
+    return void 0;
+  validateProgressSurface(definition, runtimeSurface.progress);
+  return {
+    ...runtimeSurface.primaryResult === void 0 ? {} : { primaryResult: runtimeSurface.primaryResult },
+    ...runtimeSurface.progress === void 0 ? {} : { progress: runtimeSurface.progress }
+  };
+}
+function projectDefinitionReportSurfaces(definition) {
+  const reportProjection = definition.reportDeclarations === void 0 ? void 0 : projectFlowReportDeclarations(definition.reportDeclarations);
+  return {
+    relayReports: definition.relayReports ?? reportProjection?.relayReports ?? [],
+    ...definition.reportSchemas !== void 0 ? { reportSchemas: definition.reportSchemas } : reportProjection?.reportSchemas === void 0 ? {} : { reportSchemas: reportProjection.reportSchemas },
+    ...reportProjection === void 0 || Object.keys(reportProjection.reportFileSurfaces).length === 0 ? {} : { reportFileSurfaces: reportProjection.reportFileSurfaces },
+    writers: definition.writers ?? reportProjection?.writers ?? {}
+  };
+}
+function compileFlowDefinition(definition) {
+  const runtimeSurface = compileRuntimeSurface(definition);
+  const reportSurfaces = projectDefinitionReportSurfaces(definition);
+  return {
+    id: definition.id,
+    visibility: definition.visibility,
+    paths: compilePaths(definition),
+    relayReports: reportSurfaces.relayReports,
+    ...reportSurfaces.reportSchemas === void 0 ? {} : { reportSchemas: reportSurfaces.reportSchemas },
+    ...reportSurfaces.reportFileSurfaces === void 0 ? {} : { reportFileSurfaces: reportSurfaces.reportFileSurfaces },
+    writers: {
+      compose: reportSurfaces.writers.compose ?? [],
+      close: reportSurfaces.writers.close ?? [],
+      verification: reportSurfaces.writers.verification ?? [],
+      checkpoint: reportSurfaces.writers.checkpoint ?? []
+    },
+    ...definition.structuralHints === void 0 ? {} : { structuralHints: definition.structuralHints },
+    ...runtimeSurface === void 0 ? {} : { runtimeSurface },
+    ...definition.engineFlags === void 0 ? {} : { engineFlags: definition.engineFlags },
+    ...definition.requiredConfig === void 0 ? {} : { requiredConfig: definition.requiredConfig }
+  };
+}
+function validatePackageSet(packages) {
+  const ids = /* @__PURE__ */ new Set();
+  const reportNames = /* @__PURE__ */ new Map();
+  const writerNames = /* @__PURE__ */ new Map();
+  for (const pkg of packages) {
+    if (ids.has(pkg.id)) {
+      throw new Error(`duplicate flow definition id '${pkg.id}'`);
+    }
+    ids.add(pkg.id);
+    for (const report of [...pkg.relayReports, ...pkg.reportSchemas ?? []]) {
+      const owner = reportNames.get(report.schemaName);
+      if (owner !== void 0) {
+        throw new Error(`duplicate report schema '${report.schemaName}' registered by '${owner}' and '${pkg.id}'`);
+      }
+      reportNames.set(report.schemaName, pkg.id);
+    }
+    const knownPackageReports = /* @__PURE__ */ new Set([
+      ...pkg.relayReports.map((report) => report.schemaName),
+      ...(pkg.reportSchemas ?? []).map((report) => report.schemaName)
+    ]);
+    for (const schemaName of Object.keys(pkg.reportFileSurfaces ?? {})) {
+      if (!knownPackageReports.has(schemaName)) {
+        throw new Error(`report file surface '${schemaName}' is not registered as a report schema for flow '${pkg.id}'`);
+      }
+    }
+    for (const [slot2, builders] of Object.entries(pkg.writers)) {
+      for (const builder of builders) {
+        const owner = writerNames.get(builder.resultSchemaName);
+        if (owner !== void 0) {
+          throw new Error(`duplicate writer result schema '${builder.resultSchemaName}' registered by ${owner} and ${pkg.id}.${slot2}`);
+        }
+        writerNames.set(builder.resultSchemaName, `${pkg.id}.${slot2}`);
+      }
+    }
+  }
+}
+function assertCatalogInvariants(packages) {
+  validatePackageSet(packages);
+  buildComposeRegistry(packages);
+  buildCloseRegistry(packages);
+  buildVerificationRegistry(packages);
+  buildCheckpointRegistry(packages);
+  buildReportSchemaRegistry(packages, { channels: "relay+report" });
+  buildSchemaHintMap(packages);
+  buildStructuralHintList(packages);
+  buildCrossReportValidatorRegistry(packages);
+  buildRuntimeSurfaceRegistry(packages);
+  buildReportFileSurfaceRegistry(packages);
+}
+function compileFlowDefinitions(definitions) {
+  const packages = definitions.map(compileFlowDefinition);
+  assertCatalogInvariants(packages);
+  return packages;
+}
+var init_flow_definition = __esm({
+  "dist/flows/flow-definition.js"() {
+    "use strict";
+    init_flow_schematic();
+    init_catalog_derivations();
+    init_report_declarations();
+  }
+});
+
+// dist/flows/block-step-expansion.js
+function expandBlockStepUseValue(use) {
+  const block = BLOCK_DEFINITION_BY_ID.get(use.block);
+  if (block === void 0 || FLOW_BLOCK_AUTHORING_POLICY[use.block] === void 0) {
+    return { ok: false, errors: [{ kind: "unknown-block-step-use", block: use.block }] };
+  }
+  const overrideErrors = validateOverrideOnlyFields(use, block);
+  if (overrideErrors.length > 0)
+    return { ok: false, errors: overrideErrors };
+  const execution = resolveExecution(use, block);
+  if (!execution.ok)
+    return execution;
+  const writes = resolveWrites(use, execution.value.kind);
+  if (writes === void 0) {
+    return {
+      ok: false,
+      errors: [
+        {
+          kind: "missing-block-step-writes",
+          stepId: use.id,
+          executionKind: execution.value.kind
+        }
+      ]
+    };
+  }
+  const check3 = resolveCheck(use, execution.value.kind);
+  if (check3 === void 0) {
+    return {
+      ok: false,
+      errors: [
+        {
+          kind: "missing-block-step-check",
+          stepId: use.id,
+          executionKind: execution.value.kind
+        }
+      ]
+    };
+  }
+  const parsed = SchematicStep.safeParse(schematicStepInputFromBlockUse({ use, block, execution: execution.value, writes, check: check3 }));
+  if (parsed.success)
+    return { ok: true, value: parsed.data };
+  return {
+    ok: false,
+    errors: [
+      {
+        kind: "invalid-block-step-use",
+        message: parsed.error.issues.map((issue2) => issue2.message).join("; ")
+      }
+    ]
+  };
+}
+function expandBlockStepUse(use) {
+  const result = expandBlockStepUseValue(use);
+  if (result.ok)
+    return result.value;
+  throw new Error(result.errors.map(describeExpandBlockStepUseError).join("\n"));
+}
+function validateOverrideOnlyFields(use, block) {
+  const errors = [];
+  if (use.output === block.output_contract) {
+    errors.push({
+      kind: "restated-block-step-default",
+      stepId: use.id,
+      block: block.id,
+      field: "output"
+    });
+  }
+  if (use.evidenceRequirements !== void 0 && arraysEqual(use.evidenceRequirements, block.produces_evidence)) {
+    errors.push({
+      kind: "restated-block-step-default",
+      stepId: use.id,
+      block: block.id,
+      field: "evidenceRequirements"
+    });
+  }
+  const defaultExecutionKind = block.authoringPolicy.defaults.executionKind;
+  if (defaultExecutionKind !== void 0 && use.execution?.kind === defaultExecutionKind && Object.keys(use.execution).length === 1) {
+    errors.push({
+      kind: "restated-block-step-default",
+      stepId: use.id,
+      block: block.id,
+      field: "execution"
+    });
+  }
+  return errors;
+}
+function arraysEqual(left, right) {
+  if (left.length !== right.length)
+    return false;
+  return left.every((value, index) => value === right[index]);
+}
+function resolveExecution(use, block) {
+  if (use.execution !== void 0)
+    return { ok: true, value: use.execution };
+  const executionKind = block.authoringPolicy.defaults.executionKind;
+  if (executionKind === void 0) {
+    return {
+      ok: false,
+      errors: [
+        {
+          kind: "ambiguous-block-step-execution",
+          block: block.id,
+          executionKinds: block.schematicPolicy.executionKinds
+        }
+      ]
+    };
+  }
+  return { ok: true, value: { kind: executionKind } };
+}
+function resolveWrites(use, executionKind) {
+  if (use.writes !== void 0)
+    return use.writes;
+  if (executionKind === "compose" || executionKind === "verification") {
+    return use.reportPath === void 0 ? void 0 : { report_path: use.reportPath };
+  }
+  if (executionKind === "relay") {
+    if (use.requestPath === void 0 || use.receiptPath === void 0 || use.resultPath === void 0) {
+      return void 0;
+    }
+    return {
+      request_path: use.requestPath,
+      receipt_path: use.receiptPath,
+      result_path: use.resultPath,
+      ...use.reportPath === void 0 ? {} : { report_path: use.reportPath }
+    };
+  }
+  if (executionKind === "checkpoint") {
+    if (use.checkpointRequestPath === void 0 || use.checkpointResponsePath === void 0) {
+      return void 0;
+    }
+    return {
+      checkpoint_request_path: use.checkpointRequestPath,
+      checkpoint_response_path: use.checkpointResponsePath,
+      ...use.reportPath === void 0 ? {} : { report_path: use.reportPath }
+    };
+  }
+  if (executionKind === "sub-run") {
+    return use.resultPath === void 0 ? void 0 : {
+      result_path: use.resultPath,
+      ...use.reportPath === void 0 ? {} : { report_path: use.reportPath }
+    };
+  }
+  if (executionKind === "fanout") {
+    return use.reportPath === void 0 || use.branchesDirPath === void 0 ? void 0 : { report_path: use.reportPath, branches_dir_path: use.branchesDirPath };
+  }
+  return void 0;
+}
+function resolveCheck(use, executionKind) {
+  if (use.check !== void 0)
+    return use.check;
+  if (executionKind === "compose" || executionKind === "verification") {
+    return use.required === void 0 ? void 0 : { required: use.required };
+  }
+  if (executionKind === "checkpoint") {
+    if (use.allow !== void 0)
+      return { allow: use.allow };
+    return use.allowFrom === void 0 ? void 0 : { allow_from: use.allowFrom };
+  }
+  return use.pass === void 0 ? void 0 : { pass: use.pass };
+}
+function schematicStepInputFromBlockUse(input) {
+  const { block, check: check3, execution, use, writes } = input;
+  const { checkpointPolicy, equipmentScope, evidenceRequirements, output, routeOverrides, skillSlots, acceptanceCriteria, reportPath: _reportPath, requestPath: _requestPath, receiptPath: _receiptPath, resultPath: _resultPath, branchesDirPath: _branchesDirPath, checkpointRequestPath: _checkpointRequestPath, checkpointResponsePath: _checkpointResponsePath, required: _required, allow: _allow, allowFrom: _allowFrom, pass: _pass, writes: _writes, check: _check2, execution: _execution, ...step } = use;
+  return {
+    ...step,
+    output: output ?? block.output_contract,
+    evidence_requirements: evidenceRequirements ?? block.produces_evidence,
+    execution,
+    writes,
+    check: check3,
+    ...acceptanceCriteria === void 0 ? {} : { acceptance_criteria: acceptanceCriteria },
+    ...checkpointPolicy === void 0 ? {} : { checkpoint_policy: checkpointPolicy },
+    ...routeOverrides === void 0 ? {} : { route_overrides: routeOverrides },
+    ...skillSlots === void 0 ? {} : { skill_slots: skillSlots },
+    ...equipmentScope === void 0 ? {} : { equipment_scope: equipmentScope }
+  };
+}
+function describeExpandBlockStepUseError(error52) {
+  if (error52.kind === "unknown-block-step-use")
+    return `unknown Block '${error52.block}'`;
+  if (error52.kind === "ambiguous-block-step-execution") {
+    return `Block '${error52.block}' has ambiguous execution kinds: ${error52.executionKinds.join(", ")}`;
+  }
+  if (error52.kind === "missing-block-step-writes") {
+    return `Block Step '${error52.stepId}' needs explicit paths for ${error52.executionKind} writes`;
+  }
+  if (error52.kind === "missing-block-step-check") {
+    return `Block Step '${error52.stepId}' needs explicit check data for ${error52.executionKind}`;
+  }
+  if (error52.kind === "restated-block-step-default") {
+    return `Block Step '${error52.stepId}' restates default ${error52.field} for Block '${error52.block}'`;
+  }
+  return error52.message;
+}
+var BLOCK_DEFINITION_BY_ID;
+var init_block_step_expansion = __esm({
+  "dist/flows/block-step-expansion.js"() {
+    "use strict";
+    init_flow_block_definitions();
+    init_flow_schematic();
+    BLOCK_DEFINITION_BY_ID = new Map(FLOW_BLOCK_DEFINITIONS.map((block) => [block.id, block]));
+  }
+});
+
+// dist/flows/assemble-flow-schematic.js
+function assembleFlowSchematic(spec) {
+  if (spec.items.length === 0) {
+    throw new Error(`assembleFlowSchematic: flow '${spec.id}' has no items; a flow needs at least one step`);
+  }
+  const items = spec.items.map((use) => expandBlockStepUse(use));
+  const first = items[0];
+  if (first === void 0) {
+    throw new Error(`assembleFlowSchematic: flow '${spec.id}' produced no items`);
+  }
+  const present = CANONICAL_STAGES.filter((canonical) => items.some((item) => item.stage === canonical));
+  const stages = present.map((canonical) => {
+    const label = spec.stageLabels[canonical];
+    if (label === void 0) {
+      throw new Error(`assembleFlowSchematic: flow '${spec.id}' uses canonical stage '${canonical}' but spec.stageLabels has no label for it`);
+    }
+    return { canonical, id: label.id, title: label.title };
+  });
+  const absent = CANONICAL_STAGES.filter((canonical) => !present.includes(canonical));
+  const stagePathPolicy = absent.length === 0 ? { mode: "strict" } : { mode: "partial", omits: absent, rationale: requireRationale(spec, absent) };
+  const input = {
+    schema_version: "2",
+    id: spec.id,
+    title: spec.title,
+    purpose: spec.purpose,
+    status: spec.status,
+    starts_at: first.id,
+    items,
+    stages,
+    stage_path_policy: stagePathPolicy,
+    ...spec.version === void 0 ? {} : { version: spec.version },
+    ...spec.initial_contracts === void 0 ? {} : { initial_contracts: spec.initial_contracts },
+    ...spec.contract_aliases === void 0 ? {} : { contract_aliases: spec.contract_aliases },
+    ...spec.axes === void 0 ? {} : { axes: spec.axes },
+    ...spec.default_selection === void 0 ? {} : { default_selection: spec.default_selection },
+    ...spec.engine_flags === void 0 ? {} : { engine_flags: spec.engine_flags },
+    ...spec.report_file_surfaces === void 0 ? {} : { report_file_surfaces: spec.report_file_surfaces },
+    ...spec.required_config === void 0 ? {} : { required_config: spec.required_config }
+  };
+  return FlowSchematic.parse(input);
+}
+function requireRationale(spec, absent) {
+  const rationale = spec.stagePathRationale;
+  if (rationale === void 0 || rationale.length < PARTIAL_SPINE_RATIONALE_MIN_LENGTH) {
+    const absentList = absent.map((canonical) => `'${canonical}'`).join(", ");
+    throw new Error(`assembleFlowSchematic: flow '${spec.id}' leaves canonical stage(s) ${absentList} empty; spec.stagePathRationale must explain why (min ${PARTIAL_SPINE_RATIONALE_MIN_LENGTH} chars)`);
+  }
+  return rationale;
+}
+var init_assemble_flow_schematic = __esm({
+  "dist/flows/assemble-flow-schematic.js"() {
+    "use strict";
+    init_flow_schematic();
+    init_stage();
+    init_block_step_expansion();
+  }
+});
+
+// dist/flows/build/assembly-spec.js
+var buildBlockItems, buildStageLabels, buildAssemblySpec;
+var init_assembly_spec = __esm({
+  "dist/flows/build/assembly-spec.js"() {
+    "use strict";
+    buildBlockItems = [
+      {
+        id: "frame-step",
+        title: "Frame - confirm Build brief",
+        stage: "frame",
+        block: "frame",
+        input: { task: "task.intake@v1", route: "route.decision@v1" },
+        output: "build.brief@v1",
+        execution: { kind: "checkpoint" },
+        protocol: "build-frame@v1",
+        reportPath: "reports/build/brief.json",
+        checkpointRequestPath: "reports/checkpoints/frame-step-request.json",
+        checkpointResponsePath: "reports/checkpoints/frame-step-response.json",
+        allow: ["continue"],
+        checkpointPolicy: {
+          prompt: "Confirm the Build brief before implementation starts.",
+          choices: [{ id: "continue", label: "Continue" }],
+          safe_default_choice: "continue",
+          report_template: {
+            scope: "Make the smallest safe change that satisfies the requested goal.",
+            success_criteria: [
+              "The requested behavior is implemented",
+              "Verification passes",
+              "Review completes without a blocking issue"
+            ]
+          }
+        },
+        routes: { continue: "analyze-step", stop: "@stop" }
+      },
+      {
+        id: "analyze-step",
+        title: "Analyze \u2014 read the code before planning",
+        stage: "analyze",
+        block: "gather-context",
+        input: { brief: "build.brief@v1", request: "context.request@v1" },
+        output: "build.context@v1",
+        execution: { kind: "relay", role: "researcher" },
+        protocol: "build-analyze@v1",
+        reportPath: "reports/build/context.json",
+        requestPath: "reports/relay/build-analyze.request.json",
+        receiptPath: "reports/relay/build-analyze.receipt.txt",
+        resultPath: "reports/relay/build-analyze.result.json",
+        pass: ["accept"],
+        skillSlots: [
+          {
+            id: "build-codebase-search",
+            description: "A skill for reading the codebase and tracing the call paths a change will touch before any plan is written."
+          }
+        ],
+        routes: { continue: "plan-step", retry: "analyze-step", ask: "@stop", stop: "@stop" }
+      },
+      {
+        id: "plan-step",
+        title: "Plan - produce Build plan",
+        stage: "plan",
+        block: "plan",
+        input: { brief: "build.brief@v1", context: "build.context@v1" },
+        output: "build.plan@v1",
+        execution: { kind: "compose" },
+        protocol: "build-plan@v1",
+        reportPath: "reports/build/plan.json",
+        required: ["objective", "verification"],
+        routes: { continue: "build-baseline", revise: "plan-step", stop: "@stop" }
+      },
+      {
+        id: "build-baseline",
+        title: "Verify - snapshot pre-change git state",
+        stage: "verify",
+        block: "run-verification",
+        input: { proof: "verification.plan@v1", plan: "build.plan@v1" },
+        output: "build.baseline-snapshot@v1",
+        protocol: "build-baseline-snapshot@v1",
+        reportPath: "reports/build/baseline-snapshot.json",
+        required: ["overall_status"],
+        routes: { continue: "act-step", stop: "@stop" }
+      },
+      {
+        id: "act-step",
+        title: "Act - implementation relay",
+        stage: "act",
+        block: "act",
+        input: { brief: "build.brief@v1", plan: "build.plan@v1" },
+        output: "build.implementation@v1",
+        execution: { kind: "relay", role: "implementer" },
+        protocol: "build-act@v1",
+        reportPath: "reports/build/implementation.json",
+        requestPath: "reports/relay/build-act.request.json",
+        receiptPath: "reports/relay/build-act.receipt.txt",
+        resultPath: "reports/relay/build-act.result.json",
+        pass: ["accept"],
+        acceptanceCriteria: {
+          checks: [
+            {
+              kind: "report_field",
+              id: "changed-files-present",
+              path: ["changed_files"],
+              predicate: "present"
+            },
+            {
+              kind: "report_field",
+              id: "changed-files-on-disk",
+              path: ["changed_files"],
+              predicate: "changed_on_disk"
+            },
+            {
+              kind: "report_field",
+              id: "evidence-non-empty",
+              path: ["evidence"],
+              predicate: "non_empty"
+            }
+          ],
+          on_failure: { mode: "retry-with-feedback" }
+        },
+        skillSlots: [
+          {
+            id: "build-implementation",
+            description: "A skill for implementing the planned change in the existing code style, keeping edits scoped to the plan."
+          }
+        ],
+        routes: { continue: "verify-step", retry: "act-step", stop: "@stop" }
+      },
+      {
+        id: "verify-step",
+        title: "Verify - run Build verification",
+        stage: "verify",
+        block: "run-verification",
+        input: {
+          proof: "verification.plan@v1",
+          plan: "build.plan@v1",
+          change: "build.implementation@v1"
+        },
+        output: "build.verification@v1",
+        protocol: "build-verify@v1",
+        reportPath: "reports/build/verification.json",
+        required: ["overall_status", "commands"],
+        routes: { continue: "build-touch-area", advance: "act-step", retry: "act-step", stop: "@stop" }
+      },
+      {
+        id: "build-touch-area",
+        title: "Verify - check git-proven touch area",
+        stage: "verify",
+        block: "run-verification",
+        input: {
+          proof: "verification.plan@v1",
+          plan: "build.plan@v1",
+          baseline: "build.baseline-snapshot@v1",
+          change: "build.implementation@v1"
+        },
+        output: "build.touch-area@v1",
+        protocol: "build-touch-area@v1",
+        reportPath: "reports/build/touch-area.json",
+        required: ["overall_status", "enforcement", "containment"],
+        routes: { continue: "review-step", stop: "@stop" }
+      },
+      {
+        id: "review-step",
+        title: "Review - implementation review relay",
+        stage: "review",
+        block: "review",
+        input: {
+          brief: "build.brief@v1",
+          plan: "build.plan@v1",
+          change: "build.implementation@v1",
+          verification: "build.verification@v1",
+          touch_area: "build.touch-area@v1"
+        },
+        output: "build.review@v1",
+        execution: { kind: "relay", role: "reviewer" },
+        protocol: "build-review@v1",
+        reportPath: "reports/build/review.json",
+        requestPath: "reports/relay/build-review.request.json",
+        receiptPath: "reports/relay/build-review.receipt.txt",
+        resultPath: "reports/relay/build-review.result.json",
+        // Every valid reviewer verdict flows FORWARD to close, mirroring the Review
+        // flow's verdict step. A 'reject' on a green, verified build is an honest
+        // needs-attention finding, not a contract violation: routing it back to
+        // act-step re-implemented the whole change and, when the reviewer held its
+        // objection, exhausted max_attempts and aborted a working build. With
+        // 'reject' in the pass set it takes `continue` to close, the verdict is
+        // recorded in the Build result (reject -> outcome 'failed'), and
+        // `binds_terminal_outcome_to_primary_result` maps that honest result onto
+        // the run's terminal outcome ('stopped').
+        //
+        // The retry/revise routes are KEPT: they recover a genuinely invalid relay
+        // OUTPUT (a body that fails the build.review@v1 schema, e.g. accept-with-fixes
+        // with no findings), which is a real contract failure distinct from an
+        // honest reject verdict. A valid reject is in `pass` and never takes retry,
+        // so the exhaustion-abort bug cannot recur.
+        pass: ["accept", "accept-with-fixes", "reject"],
+        skillSlots: [
+          {
+            id: "build-change-audit",
+            description: "A skill for independently auditing a change for correctness, scope creep, and regressions."
+          }
+        ],
+        routes: { continue: "close-step", retry: "act-step", revise: "act-step", stop: "@stop" }
+      },
+      {
+        id: "close-step",
+        title: "Close - emit Build result",
+        stage: "close",
+        block: "close-with-evidence",
+        input: {
+          brief: "build.brief@v1",
+          plan: "build.plan@v1",
+          implementation: "build.implementation@v1",
+          verification: "build.verification@v1",
+          review: "build.review@v1",
+          touch_area: "build.touch-area@v1"
+        },
+        output: "build.result@v1",
+        execution: { kind: "compose" },
+        protocol: "build-close@v1",
+        reportPath: "reports/build-result.json",
+        required: ["summary", "outcome", "evidence_links"],
+        routes: { complete: "@complete", stop: "@stop" }
+      }
+    ];
+    buildStageLabels = {
+      frame: { id: "frame-stage", title: "Frame" },
+      analyze: { id: "analyze-stage", title: "Analyze" },
+      plan: { id: "plan-stage", title: "Plan" },
+      act: { id: "act-stage", title: "Act" },
+      verify: { id: "verify-stage", title: "Verify" },
+      review: { id: "review-stage", title: "Review" },
+      close: { id: "close-stage", title: "Close" }
+    };
+    buildAssemblySpec = {
+      id: "build",
+      title: "Build Schematic",
+      purpose: "Build flow. Circuit frames a requested change, plans it, relays implementation to a worker, runs verification, relays review to a separate worker, and closes with a Build result file plus evidence.",
+      status: "active",
+      version: "0.1.0",
+      initial_contracts: [
+        "task.intake@v1",
+        "route.decision@v1",
+        "context.request@v1",
+        "verification.plan@v1"
+      ],
+      contract_aliases: [
+        { generic: "flow.brief@v1", actual: "build.brief@v1" },
+        { generic: "context.packet@v1", actual: "build.context@v1" },
+        { generic: "plan.strategy@v1", actual: "build.plan@v1" },
+        { generic: "change.evidence@v1", actual: "build.implementation@v1" },
+        { generic: "verification.result@v1", actual: "build.verification@v1" },
+        { generic: "verification.result@v1", actual: "build.baseline-snapshot@v1" },
+        { generic: "verification.result@v1", actual: "build.touch-area@v1" },
+        { generic: "review.verdict@v1", actual: "build.review@v1" },
+        { generic: "flow.result@v1", actual: "build.result@v1" }
+      ],
+      axes: {
+        allowed_depths: ["low", "medium", "high"],
+        supports_tournament: false,
+        supports_autonomous: true,
+        default: { depth: "medium", tournament: false, tournament_n: 3, autonomous: false }
+      },
+      engine_flags: {
+        binds_execution_depth_to_relay_selection: true,
+        // The reviewer's verdict is the Build's honest terminal signal: an
+        // accept green-lights a 'complete' close, while accept-with-fixes or a
+        // reject bind the run to the Build result's needs-attention/failed
+        // outcome ('stopped') instead of a green 'complete'. See the review-step
+        // note on why every verdict flows forward rather than reworking.
+        binds_terminal_outcome_to_primary_result: true,
+        iterates_slice_loop: {
+          head_step: "act-step",
+          tail_step: "verify-step",
+          advance_route: "advance",
+          slices_from: { report: "reports/build/plan.json", items_path: "slices" },
+          max_slices: 8,
+          activate_when_depth_at_least: "high"
+        }
+      },
+      report_file_surfaces: {
+        "build.plan@v1": {
+          timing: "before",
+          extractor: { kind: "build-plan-and-slices-anticipated-file-extensions" }
+        }
+      },
+      items: buildBlockItems,
+      stageLabels: buildStageLabels
+    };
+  }
+});
+
+// dist/flows/registries/shape-hints/from-zod.js
+function defOf(node) {
+  return node._zod.def;
+}
+function objectShape(def) {
+  const shape = def.shape;
+  return typeof shape === "function" ? shape() : shape;
+}
+function literalValues(def) {
+  if (Array.isArray(def.values))
+    return def.values;
+  if ("value" in def)
+    return [def.value];
+  return [];
+}
+function enumValues(def) {
+  const raw = def.entries ?? def.values;
+  if (Array.isArray(raw))
+    return raw;
+  if (raw === void 0 || raw === null || typeof raw !== "object")
+    return [];
+  const values = Object.values(raw);
+  const isReverseMapped = values.some((value) => typeof value === "number" && Object.hasOwn(raw, String(value)));
+  const accepted = isReverseMapped ? values.filter((value) => typeof value === "number") : values;
+  return Array.from(new Set(accepted));
+}
+function renderEnumValues(values) {
+  return values.map((value) => typeof value === "string" ? escapeJsonInner(value) : String(value)).join("|");
+}
+function escapeJsonInner(value) {
+  const serialized = JSON.stringify(value);
+  return serialized.slice(1, serialized.length - 1);
+}
+function carriedDescription(node) {
+  const nodeDescription = node.description;
+  if (typeof nodeDescription === "string" && nodeDescription.length > 0) {
+    return nodeDescription;
+  }
+  const defDescription = defOf(node).description;
+  if (typeof defDescription === "string" && defDescription.length > 0) {
+    return defDescription;
+  }
+  return void 0;
+}
+function leafDescriptionOr(node, fallback) {
+  const description = carriedDescription(node);
+  if (description !== void 0) {
+    return `"<${escapeJsonInner(description)}>"`;
+  }
+  return fallback;
+}
+function annotatesAsNonLeaf(node) {
+  let current = node;
+  for (let depth = 0; depth <= MAX_RECURSION_DEPTH; depth += 1) {
+    const def = defOf(current);
+    switch (def.type) {
+      case "optional":
+      case "nullable":
+      case "default":
+      case "readonly":
+      case "catch":
+      case "nonoptional":
+      case "success":
+        current = def.innerType;
+        continue;
+      case "pipe":
+        current = def.in ?? def.out;
+        continue;
+      default:
+        return NON_LEAF_BASE_TYPES.has(def.type);
+    }
+  }
+  return false;
+}
+function withCarriedAnnotation(node, rendered) {
+  const description = carriedDescription(node);
+  if (description === void 0 || !annotatesAsNonLeaf(node)) {
+    return rendered;
+  }
+  return `<${description}> ${rendered}`;
+}
+function renderShapeSkeleton(schema) {
+  return renderNode(schema, /* @__PURE__ */ new Set(), 0);
+}
+function verdictValuesFromSchema(schema) {
+  const out = [];
+  collectVerdictValues(schema, out, 0);
+  return [...new Set(out)];
+}
+function collectVerdictValues(node, out, depth) {
+  if (depth > MAX_RECURSION_DEPTH)
+    return;
+  const def = defOf(node);
+  switch (def.type) {
+    case "object": {
+      const verdict = objectShape(def).verdict;
+      if (verdict === void 0)
+        return;
+      const verdictDef = defOf(verdict);
+      const values = verdictDef.type === "enum" ? enumValues(verdictDef) : verdictDef.type === "literal" ? literalValues(verdictDef) : [];
+      for (const value of values) {
+        if (typeof value === "string")
+          out.push(value);
+      }
+      return;
+    }
+    case "union": {
+      for (const option of def.options) {
+        collectVerdictValues(option, out, depth + 1);
+      }
+      return;
+    }
+    case "lazy": {
+      const getter = def.getter;
+      collectVerdictValues(getter(), out, depth + 1);
+      return;
+    }
+    default:
+      return;
+  }
+}
+function renderNode(node, visited, depth) {
+  if (visited.has(node) || depth > MAX_RECURSION_DEPTH) {
+    return "<recursive>";
+  }
+  visited.add(node);
+  try {
+    const rendered = renderNodeInner(node, visited, depth + 1);
+    return withCarriedAnnotation(node, rendered);
+  } finally {
+    visited.delete(node);
+  }
+}
+function renderNodeInner(node, visited, depth) {
+  const def = defOf(node);
+  switch (def.type) {
+    case "object": {
+      const shape = objectShape(def);
+      const entries = Object.entries(shape).map(([key, child]) => `"${escapeJsonInner(key)}": ${renderNode(child, visited, depth)}`);
+      return `{ ${entries.join(", ")} }`;
+    }
+    case "array": {
+      const inner = renderNode(def.element, visited, depth);
+      return `[${inner}]`;
+    }
+    case "optional":
+    case "nullable":
+    case "default":
+    case "readonly":
+    case "catch":
+    case "nonoptional":
+    case "success":
+      return renderNode(def.innerType, visited, depth);
+    case "pipe":
+      return renderNode(def.in ?? def.out, visited, depth);
+    case "transform":
+      return "<transform>";
+    case "literal": {
+      const [value] = literalValues(def);
+      return typeof value === "string" ? JSON.stringify(value) : JSON.stringify(value);
+    }
+    case "enum": {
+      const values = enumValues(def);
+      return `"<${renderEnumValues(values)}>"`;
+    }
+    case "string":
+      return leafDescriptionOr(node, '"<string>"');
+    case "number":
+      return leafDescriptionOr(node, "<number>");
+    case "bigint":
+      return leafDescriptionOr(node, "<bigint>");
+    case "boolean":
+      return leafDescriptionOr(node, "<true|false>");
+    case "date":
+      return leafDescriptionOr(node, '"<iso-date>"');
+    case "null":
+      return "null";
+    case "undefined":
+      return "<undefined>";
+    case "any":
+      return leafDescriptionOr(node, "<any>");
+    case "unknown":
+      return leafDescriptionOr(node, "<unknown>");
+    case "never":
+      return "<never>";
+    case "record":
+    case "map":
+      return `{ "<key>": ${renderNode(def.valueType, visited, depth)} }`;
+    case "tuple": {
+      const items = def.items.map((item) => renderNode(item, visited, depth));
+      const rest = def.rest;
+      if (rest !== void 0 && rest !== null) {
+        items.push(`...${renderNode(rest, visited, depth)}`);
+      }
+      return `[${items.join(", ")}]`;
+    }
+    case "union": {
+      const options = def.options;
+      const discriminator = def.discriminator;
+      if (typeof discriminator === "string") {
+        const collapsed = collapseDiscriminatedUnion(discriminator, options, visited, depth);
+        if (collapsed !== void 0)
+          return collapsed;
+      }
+      return options.map((opt) => renderNode(opt, visited, depth)).join(" | ");
+    }
+    case "lazy": {
+      const getter = def.getter;
+      return renderNode(getter(), visited, depth);
+    }
+    case "intersection": {
+      const left = renderNode(def.left, visited, depth);
+      const right = renderNode(def.right, visited, depth);
+      return `${left} & ${right}`;
+    }
+    default:
+      return `<${def.type}>`;
+  }
+}
+function collapseDiscriminatedUnion(discriminator, options, visited, depth) {
+  if (options.length === 0)
+    return void 0;
+  const objectShapes = [];
+  const discriminatorValues = [];
+  for (const option of options) {
+    const optDef = defOf(option);
+    if (optDef.type !== "object")
+      return void 0;
+    const shape = objectShape(optDef);
+    objectShapes.push(shape);
+    const discriminatorNode = shape[discriminator];
+    if (discriminatorNode === void 0)
+      return void 0;
+    const discriminatorDef = defOf(discriminatorNode);
+    if (discriminatorDef.type !== "literal")
+      return void 0;
+    const [value] = literalValues(discriminatorDef);
+    discriminatorValues.push(value);
+  }
+  const firstShape = objectShapes[0];
+  if (firstShape === void 0)
+    return void 0;
+  const keyList = Object.keys(firstShape);
+  const keyListSorted = keyList.slice().sort();
+  for (const shape of objectShapes) {
+    const shapeKeys = Object.keys(shape).slice().sort();
+    if (shapeKeys.length !== keyListSorted.length)
+      return void 0;
+    for (let idx = 0; idx < shapeKeys.length; idx += 1) {
+      if (shapeKeys[idx] !== keyListSorted[idx])
+        return void 0;
+    }
+  }
+  const entries = keyList.map((key) => {
+    if (key === discriminator) {
+      const rendered = discriminatorValues.map((value) => typeof value === "string" ? escapeJsonInner(value) : String(value));
+      return `"${escapeJsonInner(key)}": "<${rendered.join("|")}>"`;
+    }
+    const child = firstShape[key];
+    if (child === void 0)
+      return `"${escapeJsonInner(key)}": <missing>`;
+    return `"${escapeJsonInner(key)}": ${renderNode(child, visited, depth)}`;
+  });
+  return `{ ${entries.join(", ")} }`;
+}
+var NON_LEAF_BASE_TYPES, MAX_RECURSION_DEPTH;
+var init_from_zod = __esm({
+  "dist/flows/registries/shape-hints/from-zod.js"() {
+    "use strict";
+    NON_LEAF_BASE_TYPES = /* @__PURE__ */ new Set(["object", "array", "tuple", "record", "map"]);
+    MAX_RECURSION_DEPTH = 32;
+  }
+});
+
+// dist/flows/registries/shape-hints/instruction-helpers.js
+function shapeInstruction(skeleton) {
+  return `Respond with a single raw JSON object whose top-level shape is exactly: ${skeleton}`;
+}
+function mechanicalTail(schema, reportPath) {
+  const validation = reportPath === void 0 ? `The runtime parses your response with JSON.parse, rejects verdicts the schema does not allow, and validates the full report body against ${schema}.` : `The runtime parses your response with JSON.parse, rejects verdicts the schema does not allow, and validates the full report body against ${schema} before writing ${reportPath}.`;
+  return [
+    "Do not include extra top-level keys.",
+    "Do not wrap the JSON in Markdown code fences.",
+    "Do not include any prose before or after the JSON object.",
+    validation
+  ].join(" ");
+}
+var init_instruction_helpers = __esm({
+  "dist/flows/registries/shape-hints/instruction-helpers.js"() {
+    "use strict";
+  }
+});
+
+// dist/schemas/context-request.js
+var ContextQuery, ContextRequest;
+var init_context_request = __esm({
+  "dist/schemas/context-request.js"() {
+    "use strict";
+    init_zod();
+    ContextQuery = external_exports.object({
+      from_step: external_exports.string().min(1).max(120).describe("the parent step whose typed report this query reads"),
+      field_path: external_exports.string().min(1).max(200).describe('a dotted path naming exactly one field of the parent report; never "everything"')
+    }).strict();
+    ContextRequest = external_exports.object({
+      queries: external_exports.array(ContextQuery).min(1).max(8).describe("the named parent slices this step is asking for, one field each")
+    }).strict();
+  }
+});
+
+// dist/schemas/equipment-discovery.js
+var EquipmentDiscovery;
+var init_equipment_discovery = __esm({
+  "dist/schemas/equipment-discovery.js"() {
+    "use strict";
+    init_zod();
+    EquipmentDiscovery = external_exports.object({
+      confirmed: external_exports.boolean().describe("true ONLY on unambiguous runtime evidence; a hunch or a maybe must be false"),
+      // Bounded on both axes: the value is model-controlled and is copied verbatim
+      // into the durable run.equipment-reshape trace entry. Only a handful of tags
+      // map to a domain skill (the closed DOMAIN_SKILL table), so a long list is
+      // never useful — the caps just keep a pathological report from bloating the
+      // trace. Mirrors the evidence cap above.
+      domain_tags: external_exports.array(external_exports.string().min(1).max(40)).max(16).describe('technology signals confirmed at runtime, e.g. ["react"], that map to domain skills'),
+      evidence: external_exports.string().min(1).max(280).describe("one short sentence grounding the discovery in what was read")
+    }).strict();
+  }
+});
+
+// dist/flows/report-schema-kit.js
+function resultReportPointer(reportId, schemaByReportId, pathByReportId) {
+  return external_exports.object({
+    report_id: reportId,
+    path: external_exports.string().min(1),
+    schema: external_exports.string().min(1)
+  }).strict().superRefine((pointer, ctx) => {
+    const id = pointer.report_id;
+    const expectedSchema = schemaByReportId[id];
+    if (pointer.schema !== expectedSchema) {
+      ctx.addIssue({
+        code: "custom",
+        path: ["schema"],
+        message: `schema must be '${expectedSchema}' for report_id '${pointer.report_id}'`
+      });
+    }
+    if (pathByReportId !== void 0) {
+      const expectedPath = pathByReportId[id];
+      if (pointer.path !== expectedPath) {
+        ctx.addIssue({
+          code: "custom",
+          path: ["path"],
+          message: `path must be '${expectedPath}' for report_id '${pointer.report_id}'`
+        });
+      }
+    }
+  });
+}
+var init_report_schema_kit = __esm({
+  "dist/flows/report-schema-kit.js"() {
+    "use strict";
+    init_zod();
+  }
+});
+
+// dist/flows/build/reports.js
+var BUILD_RESULT_SCHEMA_BY_ARTIFACT_ID, NonEmptyStringArray, BuildGuardrails, AllowedTouchArea, BuildSlice, BuildCheckpointPacketChoice, BuildCheckpointPacket, BuildCheckpointPointer, BuildBrief, BuildContextSource, BuildContext, BuildPlan, BuildImplementation, BuildVerification, BuildReviewVerdict, BuildReviewFinding, BuildAlignmentNonGoal, BuildAlignmentInvariant, BuildReviewAlignment, BuildReview, BuildBaselineSnapshotEntry, BuildHiddenIndexFlag, BuildBaselineCaptured, BuildBaselineInert, BuildBaselineSnapshot, BuildTouchAreaEnforcement, BuildTouchAreaContainment, BuildTouchArea, BuildResultReportId, BUILD_RESULT_REQUIRED_REPORT_IDS, BuildResultReviewVerdict, BuildResultReportPointer, BuildScope, BuildResultTouchAreaEnforcement, BuildResultTouchAreaContainment, BuildTouchAreaSummary, BuildResult;
+var init_reports = __esm({
+  "dist/flows/build/reports.js"() {
+    "use strict";
+    init_zod();
+    init_context_request();
+    init_equipment_discovery();
+    init_power();
+    init_runtime_evidence();
+    init_verification();
+    init_report_schema_kit();
+    BUILD_RESULT_SCHEMA_BY_ARTIFACT_ID = {
+      "build.brief": "build.brief@v1",
+      "build.plan": "build.plan@v1",
+      "build.implementation": "build.implementation@v1",
+      "build.verification": "build.verification@v1",
+      "build.review": "build.review@v1"
+    };
+    NonEmptyStringArray = external_exports.array(external_exports.string().min(1)).min(1);
+    BuildGuardrails = external_exports.object({
+      non_goals: external_exports.array(external_exports.string().min(1)).default([]).describe("things the change must not do, drawn from operator-stated boundaries"),
+      invariants: external_exports.array(external_exports.string().min(1)).default([]).describe("properties the change must preserve, grounded in the codebase read")
+    }).strict();
+    AllowedTouchArea = external_exports.array(external_exports.string().min(1).describe('a directory subtree ending in "/" (segment-aware, e.g. "src/flows/build/") or an exact repo-relative file path')).default([]).describe("paths the change is allowed to touch, proposed by the researcher from the codebase read; empty leaves the touch-area gate inert (opt-in)");
+    BuildSlice = external_exports.object({
+      id: external_exports.string().min(1).describe('stable slice id, e.g. "slice-1"'),
+      intent: external_exports.string().min(1).describe("one concrete, independently-verifiable unit of implementation work"),
+      anticipated_file_extensions: external_exports.array(external_exports.string().min(1)).default([]).describe('file extensions this slice is predicted to touch, e.g. ".ts"; empty when no confident prediction')
+    }).strict();
+    BuildCheckpointPacketChoice = external_exports.object({
+      id: external_exports.string().min(1),
+      label: external_exports.string().min(1),
+      description: external_exports.string().min(1),
+      route: external_exports.object({
+        key: external_exports.string().min(1),
+        target: external_exports.string().min(1)
+      }).strict()
+    }).strict();
+    BuildCheckpointPacket = external_exports.object({
+      kind: external_exports.literal("build.checkpoint_packet@v1"),
+      salience: external_exports.object({
+        summary: external_exports.string().min(1),
+        why_now: NonEmptyStringArray,
+        hidden_routine_work: NonEmptyStringArray
+      }).strict(),
+      decision: external_exports.object({
+        question: external_exports.string().min(1),
+        operator_judgment: external_exports.string().min(1)
+      }).strict(),
+      recommendation: external_exports.object({
+        choice_id: external_exports.string().min(1),
+        label: external_exports.string().min(1),
+        rationale: external_exports.string().min(1)
+      }).strict(),
+      artifact: external_exports.object({
+        title: external_exports.string().min(1),
+        preview: external_exports.string().min(1),
+        scope: external_exports.string().min(1),
+        success_criteria: NonEmptyStringArray
+      }).strict(),
+      proof: external_exports.object({
+        status: external_exports.enum(["planned", "collected", "missing"]),
+        summary: external_exports.string().min(1),
+        commands: external_exports.array(VerificationCommand).min(1),
+        evidence: NonEmptyStringArray
+      }).strict(),
+      risk: external_exports.object({
+        summary: external_exports.string().min(1),
+        tradeoffs: NonEmptyStringArray
+      }).strict(),
+      choices: external_exports.array(BuildCheckpointPacketChoice).min(1),
+      internal: external_exports.object({
+        request_path: external_exports.string().min(1),
+        response_path: external_exports.string().min(1),
+        report_path: external_exports.string().min(1),
+        raw_evidence: NonEmptyStringArray
+      }).strict()
+    }).strict().superRefine((packet, ctx) => {
+      const choiceIds = new Set(packet.choices.map((choice) => choice.id));
+      if (!choiceIds.has(packet.recommendation.choice_id)) {
+        ctx.addIssue({
+          code: "custom",
+          path: ["recommendation", "choice_id"],
+          message: "recommendation.choice_id must reference a declared checkpoint choice"
+        });
+      }
+    });
+    BuildCheckpointPointer = external_exports.object({
+      request_path: external_exports.string().min(1),
+      response_path: external_exports.string().min(1).optional(),
+      allowed_choices: NonEmptyStringArray
+    }).strict();
+    BuildBrief = external_exports.object({
+      objective: external_exports.string().min(1),
+      scope: external_exports.string().min(1),
+      success_criteria: NonEmptyStringArray,
+      verification_command_candidates: external_exports.array(VerificationCommand).min(1),
+      checkpoint: BuildCheckpointPointer,
+      checkpoint_packet: BuildCheckpointPacket.optional()
+    }).strict();
+    BuildContextSource = external_exports.object({
+      kind: external_exports.enum(["file", "command", "log", "operator-note", "reference"]),
+      ref: external_exports.string().min(1).describe("project-relative path, command id, log line, note id, or external reference"),
+      summary: external_exports.string().min(1).describe("one-line summary of what this source contributed")
+    }).strict();
+    BuildContext = external_exports.object({
+      verdict: external_exports.literal("accept"),
+      sources: external_exports.array(BuildContextSource).min(1),
+      observations: external_exports.array(external_exports.string().min(1).describe("observation grounded in the sources")).min(1),
+      open_questions: external_exports.array(external_exports.string().min(1).describe("question still unresolved after gathering context")),
+      anticipated_file_extensions: external_exports.array(external_exports.string().min(1).describe('file extension the implementation is expected to touch, e.g. ".ts" or ".test.ts"')).default([]).describe("file extensions the implementation is predicted to touch, inferred from the codebase read; empty when no confident prediction"),
+      slices: external_exports.array(BuildSlice).default([]).describe("ordered units of implementation work the change decomposes into, inferred from the codebase read; empty when the change is a single indivisible unit (the plan then runs one pass)"),
+      guardrails: BuildGuardrails.default({ non_goals: [], invariants: [] }).describe("negative space: operator-stated non_goals extracted from the goal and code-grounded invariants the change must preserve; empty when none apply"),
+      allowed_touch_area: AllowedTouchArea,
+      recommended_power: PowerRecommendation.optional().describe("ONLY when the relay context states the power dial is auto: the tier the downstream work needs, judged from the codebase read. Omit this key entirely otherwise"),
+      equipment_discovery: EquipmentDiscovery.optional().describe("ONLY when the codebase read confirms a technology the downstream steps should be equipped for (e.g. React): the engine re-equips the remaining work steps for it. Set confirmed:true ONLY on unambiguous evidence; omit this key entirely when nothing is confirmed")
+    }).strict();
+    BuildPlan = external_exports.object({
+      objective: external_exports.string().min(1),
+      approach: external_exports.string().min(1),
+      slices: external_exports.array(BuildSlice).min(1).describe("ordered units of implementation work, carried from build.context@v1; always at least one (a single-slice plan runs one implement+verify pass). At high depth the engine implements and verifies these one at a time"),
+      anticipated_file_extensions: external_exports.array(external_exports.string().min(1)).default([]).describe("file extensions the implementation is predicted to touch, surfaced from build.context@v1; empty when grounding made no confident prediction"),
+      guardrails: BuildGuardrails.default({ non_goals: [], invariants: [] }).describe("negative space carried from build.context@v1: non_goals the change must not do and invariants it must preserve; empty when none apply"),
+      allowed_touch_area: AllowedTouchArea.describe("paths the change is allowed to touch, carried from build.context@v1; empty leaves the touch-area gate inert (opt-in)"),
+      verification: external_exports.object({
+        commands: external_exports.array(VerificationCommand).min(1)
+      }).strict()
+    }).strict();
+    BuildImplementation = external_exports.object({
+      verdict: external_exports.literal("accept"),
+      summary: external_exports.string().min(1).describe("what changed"),
+      changed_files: external_exports.array(external_exports.string().min(1).describe("project-relative path")),
+      evidence: external_exports.array(external_exports.string().min(1).describe("verification or implementation evidence")).min(1),
+      context_request: ContextRequest.optional().describe(`ONLY when the thin envelope this step was handed is missing a specific named slice of an upstream report you need to do the work: a typed lookup for it (name the parent step and the one dotted field). The engine resolves each named slice from that parent's typed report and records it; an "everything"/untyped ask is refused. Omit this key entirely when the envelope is sufficient`)
+    }).strict();
+    BuildVerification = VerificationResult;
+    BuildReviewVerdict = external_exports.enum(["accept", "accept-with-fixes", "reject"]);
+    BuildReviewFinding = external_exports.object({
+      severity: external_exports.enum(["critical", "high", "medium", "low"]),
+      text: external_exports.string().min(1),
+      file_refs: external_exports.array(external_exports.string().min(1))
+    }).strict();
+    BuildAlignmentNonGoal = external_exports.object({
+      statement: external_exports.string().min(1).describe("the declared non-goal, echoed from the plan"),
+      status: external_exports.enum(["respected", "violated", "not_applicable"]),
+      evidence: external_exports.string().min(1).describe("what in the change supports this judgment")
+    }).strict();
+    BuildAlignmentInvariant = external_exports.object({
+      statement: external_exports.string().min(1).describe("the declared invariant, echoed from the plan"),
+      status: external_exports.enum(["preserved", "violated", "not_applicable"]),
+      evidence: external_exports.string().min(1).describe("what in the change supports this judgment")
+    }).strict();
+    BuildReviewAlignment = external_exports.object({
+      scope_adherence: external_exports.enum(["within_scope", "exceeds_scope"]),
+      non_goals: external_exports.array(BuildAlignmentNonGoal).default([]),
+      invariants: external_exports.array(BuildAlignmentInvariant).default([])
+    }).strict();
+    BuildReview = external_exports.object({
+      verdict: BuildReviewVerdict,
+      summary: external_exports.string().min(1),
+      findings: external_exports.array(BuildReviewFinding),
+      alignment: BuildReviewAlignment
+    }).strict().superRefine((review, ctx) => {
+      if (review.verdict !== "accept" && review.findings.length === 0) {
+        ctx.addIssue({
+          code: "custom",
+          path: ["findings"],
+          message: `findings must be non-empty when verdict is '${review.verdict}'`
+        });
+      }
+      if (review.alignment.scope_adherence === "exceeds_scope" && review.findings.length === 0) {
+        ctx.addIssue({
+          code: "custom",
+          path: ["findings"],
+          message: "findings must be non-empty when scope_adherence is 'exceeds_scope'"
+        });
+      }
+      const hasViolation = review.alignment.non_goals.some((entry) => entry.status === "violated") || review.alignment.invariants.some((entry) => entry.status === "violated");
+      if (hasViolation) {
+        if (review.verdict === "accept") {
+          ctx.addIssue({
+            code: "custom",
+            path: ["verdict"],
+            message: "verdict may not be 'accept' when a declared guardrail is violated"
+          });
+        }
+        if (review.findings.length === 0) {
+          ctx.addIssue({
+            code: "custom",
+            path: ["findings"],
+            message: "findings must be non-empty when a declared guardrail is violated"
+          });
+        }
+      }
+    });
+    BuildBaselineSnapshotEntry = RuntimeGitStateEntry;
+    BuildHiddenIndexFlag = RuntimeHiddenIndexFlag;
+    BuildBaselineCaptured = external_exports.object({
+      overall_status: external_exports.literal("passed"),
+      captured: external_exports.literal(true),
+      head_sha: external_exports.string().min(1),
+      entries: external_exports.array(BuildBaselineSnapshotEntry),
+      hidden_index_flags: external_exports.array(BuildHiddenIndexFlag)
+    }).strict();
+    BuildBaselineInert = external_exports.object({
+      overall_status: external_exports.literal("passed"),
+      captured: external_exports.literal(false)
+    }).strict();
+    BuildBaselineSnapshot = external_exports.discriminatedUnion("captured", [
+      BuildBaselineCaptured,
+      BuildBaselineInert
+    ]);
+    BuildTouchAreaEnforcement = external_exports.enum(["enforced", "not_enforced"]);
+    BuildTouchAreaContainment = external_exports.enum(["within", "out_of_bounds", "undetermined"]);
+    BuildTouchArea = external_exports.object({
+      overall_status: external_exports.literal("passed"),
+      enforcement: BuildTouchAreaEnforcement,
+      containment: BuildTouchAreaContainment,
+      allowed_area: external_exports.array(external_exports.string().min(1)),
+      observed_paths: external_exports.array(external_exports.string().min(1)),
+      out_of_bounds_paths: external_exports.array(external_exports.string().min(1)),
+      // The two git SHAs are present only when git actually ran (an area was
+      // declared). When the gate is not enforced the step skips git, so they are
+      // absent; the superRefine below requires them exactly when enforced.
+      baseline_head_sha: external_exports.string().min(1).optional(),
+      head_sha: external_exports.string().min(1).optional(),
+      head_diverged: external_exports.boolean(),
+      hidden_index_flags: external_exports.array(BuildHiddenIndexFlag),
+      reason: external_exports.string().min(1).optional()
+    }).strict().superRefine((touchArea, ctx) => {
+      const enforced = touchArea.enforcement === "enforced";
+      if (enforced && (touchArea.baseline_head_sha === void 0 || touchArea.head_sha === void 0)) {
+        ctx.addIssue({
+          code: "custom",
+          path: ["baseline_head_sha"],
+          message: 'baseline_head_sha and head_sha are required when enforcement is "enforced"'
+        });
+      }
+      if (enforced === (touchArea.allowed_area.length === 0)) {
+        ctx.addIssue({
+          code: "custom",
+          path: ["enforcement"],
+          message: "enforcement must be 'enforced' exactly when allowed_area is non-empty (and 'not_enforced' when empty)"
+        });
+      }
+      if (!enforced && touchArea.containment !== "within") {
+        ctx.addIssue({
+          code: "custom",
+          path: ["containment"],
+          message: "containment must be 'within' when enforcement is 'not_enforced'"
+        });
+      }
+      if (!enforced && touchArea.out_of_bounds_paths.length > 0) {
+        ctx.addIssue({
+          code: "custom",
+          path: ["out_of_bounds_paths"],
+          message: 'out_of_bounds_paths must be empty when enforcement is "not_enforced"'
+        });
+      }
+      if (touchArea.containment === "out_of_bounds" && touchArea.out_of_bounds_paths.length === 0) {
+        ctx.addIssue({
+          code: "custom",
+          path: ["out_of_bounds_paths"],
+          message: "out_of_bounds_paths must be non-empty when containment is 'out_of_bounds'"
+        });
+      }
+      if (touchArea.containment !== "out_of_bounds" && touchArea.out_of_bounds_paths.length > 0) {
+        ctx.addIssue({
+          code: "custom",
+          path: ["containment"],
+          message: "containment must be 'out_of_bounds' when out_of_bounds_paths is non-empty"
+        });
+      }
+      const cannotProve = touchArea.head_diverged || touchArea.hidden_index_flags.length > 0;
+      if (enforced && cannotProve && touchArea.containment !== "undetermined") {
+        ctx.addIssue({
+          code: "custom",
+          path: ["containment"],
+          message: "containment must be 'undetermined' when HEAD moved or a hidden index flag is present (enforced)"
+        });
+      }
+      if (touchArea.containment === "undetermined" && !cannotProve) {
+        ctx.addIssue({
+          code: "custom",
+          path: ["containment"],
+          message: "containment may be 'undetermined' only when HEAD moved or a hidden index flag is present"
+        });
+      }
+    });
+    BuildResultReportId = external_exports.enum([
+      "build.brief",
+      "build.plan",
+      "build.implementation",
+      "build.verification",
+      "build.review"
+    ]);
+    BUILD_RESULT_REQUIRED_REPORT_IDS = [
+      "build.brief",
+      "build.plan",
+      "build.implementation",
+      "build.verification"
+    ];
+    BuildResultReviewVerdict = external_exports.enum([...BuildReviewVerdict.options, "not_assessed"]);
+    BuildResultReportPointer = resultReportPointer(BuildResultReportId, BUILD_RESULT_SCHEMA_BY_ARTIFACT_ID);
+    BuildScope = external_exports.object({
+      adherence: external_exports.enum(["within_scope", "exceeds_scope"]),
+      violated_guardrails: external_exports.array(external_exports.string().min(1)).default([]).describe("declared guardrails the reviewer marked violated"),
+      unassessed_guardrails: external_exports.array(external_exports.string().min(1)).default([]).describe("plan-declared guardrails the reviewer did not assess in alignment")
+    }).strict();
+    BuildResultTouchAreaEnforcement = external_exports.enum([
+      ...BuildTouchAreaEnforcement.options,
+      "not_assessed"
+    ]);
+    BuildResultTouchAreaContainment = external_exports.enum([
+      ...BuildTouchAreaContainment.options,
+      "not_assessed"
+    ]);
+    BuildTouchAreaSummary = external_exports.object({
+      enforcement: BuildResultTouchAreaEnforcement,
+      containment: BuildResultTouchAreaContainment,
+      out_of_bounds_paths: external_exports.array(external_exports.string().min(1)).default([]).describe("git-proven changed paths outside the allowed area")
+    }).strict();
+    BuildResult = external_exports.object({
+      summary: external_exports.string().min(1),
+      outcome: external_exports.enum(["complete", "needs_attention", "failed"]),
+      verification_status: external_exports.enum(["passed", "failed"]),
+      review_verdict: BuildResultReviewVerdict,
+      scope: BuildScope.default({
+        adherence: "within_scope",
+        violated_guardrails: [],
+        unassessed_guardrails: []
+      }),
+      touch_area: BuildTouchAreaSummary.default({
+        enforcement: "not_enforced",
+        containment: "within",
+        out_of_bounds_paths: []
+      }),
+      // The full build flow points at all five reports. A folded flow with no
+      // review step points at the four always-present reports only; the missing
+      // 'build.review' link is dropped, never faked with an empty path. The
+      // superRefine below requires the four always-present ids and allows the
+      // review link to be absent exactly when the verdict says it was not
+      // assessed.
+      evidence_links: external_exports.array(BuildResultReportPointer).min(4).max(5)
+    }).strict().superRefine((result, ctx) => {
+      const seen = /* @__PURE__ */ new Set();
+      for (const [index, pointer] of result.evidence_links.entries()) {
+        if (seen.has(pointer.report_id)) {
+          ctx.addIssue({
+            code: "custom",
+            path: ["evidence_links", index, "report_id"],
+            message: `duplicate report_id '${pointer.report_id}'`
+          });
+        }
+        seen.add(pointer.report_id);
+      }
+      for (const reportId of BUILD_RESULT_REQUIRED_REPORT_IDS) {
+        if (!seen.has(reportId)) {
+          ctx.addIssue({
+            code: "custom",
+            path: ["evidence_links"],
+            message: `missing report_id '${reportId}'`
+          });
+        }
+      }
+      const reviewLinked = seen.has("build.review");
+      if (reviewLinked && result.review_verdict === "not_assessed") {
+        ctx.addIssue({
+          code: "custom",
+          path: ["review_verdict"],
+          message: "review_verdict may not be 'not_assessed' when the build.review report is linked"
+        });
+      }
+      if (!reviewLinked && result.review_verdict !== "not_assessed") {
+        ctx.addIssue({
+          code: "custom",
+          path: ["evidence_links"],
+          message: "evidence_links must include 'build.review' unless review_verdict is 'not_assessed'"
+        });
+      }
+      if (result.outcome === "complete") {
+        if (result.verification_status !== "passed") {
+          ctx.addIssue({
+            code: "custom",
+            path: ["verification_status"],
+            message: "verification_status must be 'passed' when outcome is 'complete'"
+          });
+        }
+        if (result.review_verdict !== "accept") {
+          ctx.addIssue({
+            code: "custom",
+            path: ["review_verdict"],
+            message: "review_verdict must be 'accept' when outcome is 'complete'"
+          });
+        }
+        if (result.scope.adherence !== "within_scope") {
+          ctx.addIssue({
+            code: "custom",
+            path: ["scope", "adherence"],
+            message: "scope.adherence must be 'within_scope' when outcome is 'complete'"
+          });
+        }
+        if (result.scope.violated_guardrails.length > 0) {
+          ctx.addIssue({
+            code: "custom",
+            path: ["scope", "violated_guardrails"],
+            message: "scope.violated_guardrails must be empty when outcome is 'complete'"
+          });
+        }
+        if (result.scope.unassessed_guardrails.length > 0) {
+          ctx.addIssue({
+            code: "custom",
+            path: ["scope", "unassessed_guardrails"],
+            message: "scope.unassessed_guardrails must be empty when outcome is 'complete'"
+          });
+        }
+        if (result.touch_area.containment !== "within") {
+          ctx.addIssue({
+            code: "custom",
+            path: ["touch_area", "containment"],
+            message: "touch_area.containment must be 'within' when outcome is 'complete'"
+          });
+        }
+        if (result.touch_area.out_of_bounds_paths.length > 0) {
+          ctx.addIssue({
+            code: "custom",
+            path: ["touch_area", "out_of_bounds_paths"],
+            message: "touch_area.out_of_bounds_paths must be empty when outcome is 'complete'"
+          });
+        }
+      }
+      if (result.outcome === "needs_attention") {
+        if (result.verification_status !== "passed") {
+          ctx.addIssue({
+            code: "custom",
+            path: ["verification_status"],
+            message: "verification_status must be 'passed' when outcome is 'needs_attention'"
+          });
+        }
+        if (result.review_verdict === "reject") {
+          ctx.addIssue({
+            code: "custom",
+            path: ["review_verdict"],
+            message: "review_verdict may not be 'reject' when outcome is 'needs_attention'"
+          });
+        }
+      }
+    });
+  }
+});
+
+// dist/flows/build/relay-hints.js
+var buildContextShapeHint, buildImplementationShapeHint, buildReviewShapeHint;
+var init_relay_hints = __esm({
+  "dist/flows/build/relay-hints.js"() {
+    "use strict";
+    init_from_zod();
+    init_instruction_helpers();
+    init_reports();
+    buildContextShapeHint = {
+      kind: "schema",
+      schema: "build.context@v1",
+      instruction: [
+        shapeInstruction(renderShapeSkeleton(BuildContext)),
+        "Read the relevant source and tests before planning. This step is read-only by intent: do not edit files, write files, or run commands that modify the checkout. Scale the breadth of your reading to the run's stated depth (provided to you): at low depth read just the directly implicated files; at high depth map the surrounding modules, callers, and local conventions. sources must contain at least one entry; observations must contain at least one entry. Use an empty open_questions array only when nothing remains unresolved. Every observation must be grounded in the cited sources - do not invent details the sources do not support.",
+        "In anticipated_file_extensions, predict the file extensions the implementer will likely touch based on what you read (for example .ts and .test.ts for a typed code change with tests). Use the implementation file types, not every file you read. Use an empty array only when the read gives no confident prediction. This list is advisory: it scopes and warns, it does not bind the implementer.",
+        'In slices, decompose the change into an ordered list of independently-verifiable units of implementation work - each a concrete step a worker implements and verification can confirm before the next begins - ordered so each builds on the last. Do NOT include global gates such as "verification passes" or "review completes"; those are not units of work. Give each slice a stable id (slice-1, slice-2, ...) and its own anticipated_file_extensions. Keep the list short: prefer the fewest slices that make the work safely incremental, and use a single slice (or an empty array) when the change is one indivisible unit. At high depth the engine implements and verifies these one at a time; at lower depths the change runs in a single pass regardless.',
+        'In guardrails, capture the negative space of the change. Put in non_goals the things the operator said the change must NOT do - boundaries drawn from the goal and brief, not invented. Put in invariants the properties the change must preserve, grounded in what you read (a contract, a data shape, an ordering, a safety property). Both default to empty arrays: declare a guardrail only when it is real and specific, never a generic "do not break anything". These carry forward to the plan and the reviewer checks the change against them.',
+        'In allowed_touch_area, name the paths this change is allowed to touch, proposed from what you read - either a directory subtree ending in "/" (for example "src/flows/build/", which covers everything beneath it) or an exact repo-relative file path. Include every place a correct change legitimately needs to reach: the source it edits, the tests that cover it, and any generated output it regenerates. State the allowed area positively; do not list off-limits files. After the build the engine compares the files actually changed - proven from git, not self-reported - against this area, and a change that reaches outside it cannot finish clean. Because the implementer is held to this without trimming the work to fit, leave the array empty whenever you cannot scope the change with confidence: an empty area turns the check off rather than guessing a box.',
+        'Include recommended_power ONLY when the relay context states the power dial is auto; omit the key entirely otherwise. When you do include it, judge from the codebase read how strong a model the downstream implementation and review need: "low" for a small localized change with good test coverage, "high" for a wide, subtle, or weakly-tested change, "medium" between. One short rationale sentence.',
+        mechanicalTail("build.context@v1", "reports/build/context.json")
+      ].join(" ")
+    };
+    buildImplementationShapeHint = {
+      kind: "schema",
+      schema: "build.implementation@v1",
+      instruction: [
+        shapeInstruction(renderShapeSkeleton(BuildImplementation)),
+        "Make the smallest behaviorally scoped change that satisfies the requested goal. Do not broaden semantics, normalize data, or add extra behavior just because tests still pass.",
+        "The plan may carry guardrails: non_goals (things this change must NOT do) and invariants (properties it must preserve). Stay inside the non_goals and preserve every invariant. These are advisory to you here, but the reviewer checks the finished change against them, so a violation will surface as a finding.",
+        "When the request names a current slice (its id and intent), implement ONLY that slice's unit of work - the smallest change that satisfies that slice's intent - and leave later slices for their own turn. When no current slice is named, implement the whole plan in one pass. Report changed_files cumulatively: every file changed so far across all slices, not only this slice's files.",
+        "The plan's anticipated_file_extensions (and the current slice's, when named) list the file types the grounding read expects to touch. Treat them as an advisory starting scope, not a hard limit: if the real change needs other file types, make the change and report the files you actually touched.",
+        "The plan may also carry allowed_touch_area: the paths the grounding read predicted this change should reach. It is advisory to you, not a cage - implement what the slice and goal actually require and report every file you really changed. After you finish, the engine compares your git-proven changes against that area; reaching outside it does not fail the build but surfaces for a human to confirm, so do not pad the change with edits it does not need, and do not trim a necessary change just to stay inside the predicted box.",
+        "Use an empty changed_files array only when no file changed. Evidence must contain at least one item.",
+        "When the thin envelope you were handed is missing a specific named slice of an upstream report you genuinely need to do the work, you may ask for it through context_request: name one parent step and one dotted field, and request only the slice you are truly missing - never reflexively, and never an everything ask. If the slice you need is not available to pull, say so honestly in your evidence and proceed on the context you have; do not invent what you could not read.",
+        mechanicalTail("build.implementation@v1", "reports/build/implementation.json")
+      ].join(" ")
+    };
+    buildReviewShapeHint = {
+      kind: "schema",
+      schema: "build.review@v1",
+      instruction: [
+        shapeInstruction(renderShapeSkeleton(BuildReview)),
+        "Review the change against the requested scope, not just against passing tests. Flag behavior that broadens semantics beyond the goal even when verification passes.",
+        `alignment is required. Set scope_adherence by judging the finished change against the brief: within_scope when it does only what the goal asked, exceeds_scope when it reaches beyond. Add one non_goals entry per non_goal the plan declared and one invariants entry per invariant, each restating the plan's text with a status and concrete evidence; use empty arrays only when the plan declared none. If you set scope_adherence to exceeds_scope, or mark any non_goal violated or any invariant violated, the verdict cannot be "accept" and you must include at least one finding that explains the breach.`,
+        "You are also given a git-proven touch_area report: the files the change actually modified and whether they stayed inside the plan's allowed_touch_area. Treat it as ground truth about what was physically touched - more reliable than the implementer's self-reported file list - and let it inform your scope_adherence judgment and your evidence. The engine enforces that boundary separately at close, so your job here is the semantic call, not to re-run the boundary check.",
+        'Use an empty findings array only with verdict "accept". Verdicts "accept-with-fixes" and "reject" must include at least one finding. Use an empty file_refs array when a finding has no file-specific reference.',
+        mechanicalTail("build.review@v1", "reports/build/review.json")
+      ].join(" ")
+    };
+  }
+});
+
+// dist/shared/git-state-command.js
+import { existsSync as existsSync12 } from "node:fs";
+import { fileURLToPath } from "node:url";
+function resolveGitStateHelperPath(moduleUrl = import.meta.url) {
+  const compiled = fileURLToPath(new URL("./git-state.js", moduleUrl));
+  if (existsSync12(compiled))
+    return compiled;
+  const source = fileURLToPath(new URL("./git-state.ts", moduleUrl));
+  if (existsSync12(source))
+    return source;
+  throw new Error(`git-state helper is missing next to ${fileURLToPath(moduleUrl)}: expected ${compiled} (compiled layouts) or ${source} (source tree)`);
+}
+function gitStateCommand(id) {
+  return {
+    id,
+    cwd: ".",
+    argv: [process.execPath, resolveGitStateHelperPath()],
+    timeout_ms: GIT_TIMEOUT_MS,
+    max_output_bytes: GIT_MAX_OUTPUT_BYTES,
+    env: {}
+  };
+}
+function parseGitStateObservation(observation, schemaName) {
+  if (observation.status !== "passed") {
+    throw new Error(`${schemaName}: git-state helper failed (exit ${observation.exit_code}): ${observation.stderr_summary}`);
+  }
+  let parsed;
+  try {
+    parsed = JSON.parse(observation.stdout_summary);
+  } catch (err) {
+    const reason = err instanceof Error ? err.message : String(err);
+    throw new Error(`${schemaName}: git-state helper stdout was not valid JSON: ${reason}`);
+  }
+  return GitStateHelperOutput.parse(parsed);
+}
+var GIT_TIMEOUT_MS, GIT_MAX_OUTPUT_BYTES, GitStateHelperOutput;
+var init_git_state_command = __esm({
+  "dist/shared/git-state-command.js"() {
+    "use strict";
+    init_runtime_evidence();
+    GIT_TIMEOUT_MS = 6e4;
+    GIT_MAX_OUTPUT_BYTES = 5e6;
+    GitStateHelperOutput = RuntimeGitStateSnapshot;
+  }
+});
+
+// dist/shared/run-relative-path.js
+import { existsSync as existsSync13, lstatSync as lstatSync4, realpathSync as realpathSync4 } from "node:fs";
+import { isAbsolute as isAbsolute4, relative as relative4, resolve as resolve12 } from "node:path";
+function isInside2(root, target) {
+  const fromRoot = relative4(root, target);
+  return fromRoot !== "" && !fromRoot.startsWith("..") && !isAbsolute4(fromRoot);
+}
+function resolveRunRelative(runFolder, relPath) {
+  const parsed = RunRelativePath.safeParse(relPath);
+  if (!parsed.success) {
+    const detail = parsed.error.issues.map((issue2) => issue2.message).join("; ");
+    throw new Error(`run-relative path rejected: ${JSON.stringify(relPath)} (${detail})`);
+  }
+  const rootAbs = resolve12(runFolder);
+  const targetAbs = resolve12(rootAbs, parsed.data);
+  if (!isInside2(rootAbs, targetAbs)) {
+    throw new Error(`run-relative path rejected: ${JSON.stringify(relPath)} escapes run folder`);
+  }
+  if (!existsSync13(rootAbs))
+    return targetAbs;
+  const rootReal = realpathSync4.native(rootAbs);
+  let cursor = rootAbs;
+  for (const segment of parsed.data.split("/")) {
+    cursor = resolve12(cursor, segment);
+    if (!existsSync13(cursor))
+      break;
+    const stat2 = lstatSync4(cursor);
+    if (stat2.isSymbolicLink()) {
+      throw new Error(`run-relative path rejected: ${JSON.stringify(relPath)} crosses symlink ${JSON.stringify(cursor)}`);
+    }
+    const cursorReal = realpathSync4.native(cursor);
+    if (!isInside2(rootReal, cursorReal)) {
+      throw new Error(`run-relative path rejected: ${JSON.stringify(relPath)} escapes real run folder through ${JSON.stringify(cursor)}`);
+    }
+  }
+  return targetAbs;
+}
+var init_run_relative_path = __esm({
+  "dist/shared/run-relative-path.js"() {
+    "use strict";
+    init_scalars();
+  }
+});
+
+// dist/flows/registries/runtime-index.js
+function requireRuntimeIndexedStep(index, stepId, kind) {
+  const indexedStep2 = index.stepsById.get(stepId);
+  if (indexedStep2 === void 0) {
+    throw new Error(`runtime package index has no step '${stepId}'`);
+  }
+  if (indexedStep2.kind !== kind) {
+    throw new Error(`runtime package index step '${stepId}' has kind '${indexedStep2.kind}', expected '${kind}'`);
+  }
+  return indexedStep2;
+}
+function reportPathForSchemaInRuntimeFlow(flow, schemaName) {
+  const matches = flow.steps.flatMap((step) => Object.values(step.writes).flatMap((write) => typeof write === "object" && write !== null && write.schema === schemaName ? [{ step, write }] : []));
+  if (matches.length !== 1) {
+    throw new Error(`expected exactly one report writer for schema '${schemaName}', found ${matches.length}`);
+  }
+  const report = matches[0]?.write;
+  if (typeof report !== "object" || report === null) {
+    throw new Error(`report writer for schema '${schemaName}' is missing a report path`);
+  }
+  return report.path;
+}
+function flowHasReportSchemaInRuntimeFlow(flow, schemaName) {
+  return flow.steps.some((step) => Object.values(step.writes).some((write) => typeof write === "object" && write !== null && write.schema === schemaName));
+}
+var init_runtime_index = __esm({
+  "dist/flows/registries/runtime-index.js"() {
+    "use strict";
+  }
+});
+
+// dist/flows/build/writers/baseline-snapshot.js
+import { readFileSync as readFileSync12 } from "node:fs";
+function planDeclaresTouchArea(context) {
+  const planPath = reportPathForSchemaInRuntimeFlow(context.flow, "build.plan@v1");
+  if (!context.step.reads.includes(planPath)) {
+    throw new Error(`build touch-area gate requires step '${context.step.id}' to read ${planPath}`);
+  }
+  const plan = BuildPlan.parse(JSON.parse(readFileSync12(resolveRunRelative(context.runFolder, planPath), "utf8")));
+  return plan.allowed_touch_area.length > 0;
+}
+var buildBaselineSnapshotWriter;
+var init_baseline_snapshot = __esm({
+  "dist/flows/build/writers/baseline-snapshot.js"() {
+    "use strict";
+    init_git_state_command();
+    init_run_relative_path();
+    init_runtime_index();
+    init_reports();
+    buildBaselineSnapshotWriter = {
+      resultSchemaName: "build.baseline-snapshot@v1",
+      // Reads the plan to decide whether the touch-area gate is on (planDeclaresTouchArea).
+      // Declared so a composer wires the read and the offline floor resolves it;
+      // loadCommands below is the enforcing source of truth.
+      reads: [{ name: "plan", schema: "build.plan@v1", required: true }],
+      loadCommands(context) {
+        if (!planDeclaresTouchArea(context))
+          return [];
+        return [gitStateCommand("build-baseline-snapshot-git-state")];
+      },
+      buildResult(observations) {
+        if (observations.length === 0) {
+          return BuildBaselineSnapshot.parse({ overall_status: "passed", captured: false });
+        }
+        if (observations.length !== 1) {
+          throw new Error(`build.baseline-snapshot@v1: expected 1 git-state observation, got ${observations.length}`);
+        }
+        const observation = observations[0];
+        if (observation === void 0) {
+          throw new Error("build.baseline-snapshot@v1: git-state observation missing");
+        }
+        const state = parseGitStateObservation(observation, "build.baseline-snapshot@v1");
+        return BuildBaselineSnapshot.parse({
+          overall_status: "passed",
+          captured: true,
+          head_sha: state.head_sha,
+          entries: state.entries,
+          hidden_index_flags: state.hidden_index_flags
+        });
+      }
+    };
+  }
+});
+
+// dist/shared/verification-resolver.js
+import { existsSync as existsSync14, readFileSync as readFileSync13 } from "node:fs";
+import { join as join13 } from "node:path";
+function readPackageInfo(projectRoot) {
+  const packageJsonPath = join13(projectRoot, "package.json");
+  if (!existsSync14(packageJsonPath)) {
+    return `Cannot choose verification commands because ${packageJsonPath} does not exist.`;
+  }
+  let parsed;
+  try {
+    parsed = JSON.parse(readFileSync13(packageJsonPath, "utf8"));
+  } catch (error52) {
+    const message = error52 instanceof Error ? error52.message : String(error52);
+    return `Cannot choose verification commands because package.json could not be parsed: ${message}.`;
+  }
+  if (parsed === null || typeof parsed !== "object" || Array.isArray(parsed)) {
+    return "Cannot choose verification commands because package.json is not a JSON object.";
+  }
+  const scriptsRaw = parsed.scripts;
+  if (scriptsRaw === null || typeof scriptsRaw !== "object" || Array.isArray(scriptsRaw)) {
+    return "Cannot choose verification commands because package.json scripts must be an object.";
+  }
+  const scripts = {};
+  for (const [name, value] of Object.entries(scriptsRaw ?? {})) {
+    if (typeof value === "string")
+      scripts[name] = value;
+  }
+  if (Object.keys(scripts).length === 0) {
+    return "Cannot choose verification commands because package.json does not define any scripts.";
+  }
+  const packageManagerRaw = parsed.packageManager;
+  return {
+    scripts,
+    ...typeof packageManagerRaw === "string" ? { packageManager: packageManagerRaw } : {}
+  };
+}
+function packageManagerFromPackageJson(value) {
+  if (value === "npm" || value.startsWith("npm@"))
+    return "npm";
+  if (value === "pnpm" || value.startsWith("pnpm@"))
+    return "pnpm";
+  if (value === "yarn" || value.startsWith("yarn@"))
+    return "yarn";
+  return `Cannot choose verification commands because packageManager ${JSON.stringify(value)} is not supported by the Node-script resolver.`;
+}
+function resolvePackageManager(projectRoot, info) {
+  if (info.packageManager !== void 0)
+    return packageManagerFromPackageJson(info.packageManager);
+  if (existsSync14(join13(projectRoot, "pnpm-lock.yaml")))
+    return "pnpm";
+  if (existsSync14(join13(projectRoot, "yarn.lock")))
+    return "yarn";
+  if (existsSync14(join13(projectRoot, "package-lock.json")))
+    return "npm";
+  return "npm";
+}
+function uniqueNeeds(needs) {
+  const source = needs === void 0 || needs.length === 0 ? ["general"] : needs;
+  return [...new Set(source)];
+}
+function firstGeneralScript(scripts) {
+  for (const name of ["verify", "test", "check"]) {
+    if (typeof scripts[name] === "string")
+      return name;
+  }
+  return void 0;
+}
+function commandForScript(input) {
+  return {
+    id: `${input.commandIdPrefix}-${input.script}`,
+    cwd: ".",
+    argv: [input.manager, "run", input.script],
+    timeout_ms: input.timeoutMs,
+    max_output_bytes: input.maxOutputBytes,
+    env: { ...input.env }
+  };
+}
+function resolveVerificationCommands(input) {
+  if (input.projectRoot === void 0) {
+    return {
+      status: "blocked",
+      reason: "Cannot choose verification commands because projectRoot was not provided."
+    };
+  }
+  const packageInfo2 = readPackageInfo(input.projectRoot);
+  if (typeof packageInfo2 === "string")
+    return { status: "blocked", reason: packageInfo2 };
+  const manager = resolvePackageManager(input.projectRoot, packageInfo2);
+  if (typeof manager === "string" && !["npm", "pnpm", "yarn"].includes(manager)) {
+    return { status: "blocked", reason: manager };
+  }
+  const needs = uniqueNeeds(input.requestedNeeds);
+  const missing = [];
+  const selectedScripts = [];
+  for (const need of needs) {
+    if (need === "general") {
+      const generalScript = firstGeneralScript(packageInfo2.scripts);
+      if (generalScript === void 0) {
+        missing.push("one of verify, test, or check");
+      } else {
+        selectedScripts.push(generalScript);
+      }
+      continue;
+    }
+    if (typeof packageInfo2.scripts[need] === "string") {
+      selectedScripts.push(need);
+    } else {
+      missing.push(need);
+    }
+  }
+  if (missing.length > 0) {
+    return {
+      status: "blocked",
+      reason: `Cannot choose verification commands because package.json is missing required script ${missing.join(", ")}.`
+    };
+  }
+  const commands = [...new Set(selectedScripts)].map((script) => commandForScript({
+    manager,
+    script,
+    commandIdPrefix: input.commandIdPrefix,
+    timeoutMs: input.timeoutMs ?? DEFAULT_VERIFICATION_TIMEOUT_MS,
+    maxOutputBytes: input.maxOutputBytes ?? 2e5,
+    env: input.env ?? {}
+  }));
+  if (commands.length === 0) {
+    return {
+      status: "blocked",
+      reason: "Cannot choose verification commands because no verification scripts were selected."
+    };
+  }
+  return { status: "ready", commands };
+}
+function requireResolvedVerificationCommands(input) {
+  const result = resolveVerificationCommands(input);
+  if (result.status === "blocked")
+    throw new ProofPlanBlockedError(result.reason);
+  return result.commands;
+}
+function goalAsksForNeed(goal, need) {
+  const escaped = need.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+  const proofWords = String.raw`(?:run|runs|pass|passes|passing|green|clean|keep|stays?|must|should|ensure|verify|verification|proof)`;
+  return new RegExp(String.raw`\b${escaped}\b\s*(?:\+|&|and|,)\s*\b(?:build|lint)\b`, "i").test(goal) || new RegExp(String.raw`\b(?:build|lint)\b\s*(?:\+|&|and|,)\s*\b${escaped}\b`, "i").test(goal) || new RegExp(String.raw`\b${proofWords}\b[\s\S]{0,40}\b${escaped}\b`, "i").test(goal) || new RegExp(String.raw`\b${escaped}\b[\s\S]{0,40}\b${proofWords}\b`, "i").test(goal);
+}
+function inferBuildVerificationNeeds(goal) {
+  const needs = [];
+  if (goalAsksForNeed(goal, "build"))
+    needs.push("build");
+  if (goalAsksForNeed(goal, "lint"))
+    needs.push("lint");
+  return needs.length > 0 ? needs : ["general"];
+}
+var DEFAULT_VERIFICATION_TIMEOUT_MS;
+var init_verification_resolver = __esm({
+  "dist/shared/verification-resolver.js"() {
+    "use strict";
+    init_proof_plan();
+    DEFAULT_VERIFICATION_TIMEOUT_MS = 6e5;
+  }
+});
+
+// dist/flows/registries/checkpoint-writers/types.js
+function checkpointChoiceIds(step) {
+  return step.policy.choices?.map((choice) => choice.id) ?? [];
+}
+var init_types = __esm({
+  "dist/flows/registries/checkpoint-writers/types.js"() {
+    "use strict";
+  }
+});
+
+// dist/flows/build/writers/checkpoint-brief-projection.js
+function titleCaseChoice(id) {
+  return id.split(/[-_\s]+/).filter((part) => part.length > 0).map((part) => `${part[0]?.toUpperCase() ?? ""}${part.slice(1)}`).join(" ");
+}
+function routeForChoice(step, choiceId) {
+  const direct = step.routes[choiceId];
+  if (direct !== void 0)
+    return { key: choiceId, target: direct };
+  const fallback = step.routes.pass;
+  if (fallback !== void 0)
+    return { key: "pass", target: fallback };
+  return void 0;
+}
+function recommendedChoiceId(step) {
+  const allowed = new Set(checkpointChoiceIds(step));
+  const safeDefault = step.policy.safe_default_choice;
+  if (safeDefault !== void 0 && allowed.has(safeDefault))
+    return safeDefault;
+  return checkpointChoiceIds(step)[0] ?? "continue";
+}
+function buildCheckpointPacket(input) {
+  const allowedChoices = checkpointChoiceIds(input.context.step);
+  const recommendationId = recommendedChoiceId(input.context.step);
+  const choices = (input.context.step.policy.choices ?? []).filter((choice) => allowedChoices.includes(choice.id)).flatMap((choice) => {
+    const route = routeForChoice(input.context.step, choice.id);
+    if (route === void 0)
+      return [];
+    return [
+      {
+        id: choice.id,
+        label: choice.label ?? titleCaseChoice(choice.id),
+        description: choice.description ?? (choice.id === recommendationId ? "Proceed on the recommended executable route." : `Resume the Build flow with checkpoint choice '${choice.id}'.`),
+        route
+      }
+    ];
+  });
+  const recommendedChoice = choices.find((choice) => choice.id === recommendationId) ?? choices[0];
+  if (recommendedChoice === void 0) {
+    throw new Error(`checkpoint step '${input.context.step.id}' has no executable checkpoint choices`);
+  }
+  const verificationCommandText = input.verificationCommands.map((command) => command.argv.join(" ")).join("; ");
+  return {
+    kind: "build.checkpoint_packet@v1",
+    salience: {
+      summary: "Confirm the Build brief before Circuit starts write-capable implementation work.",
+      why_now: [
+        "The next route can edit the checkout.",
+        `The requested objective is: ${input.context.goal}`,
+        "This is the last low-cost point to correct scope before implementation begins."
+      ],
+      hidden_routine_work: [
+        "Formatting, test execution, and ordinary implementation chores stay inside the Build flow after approval.",
+        "Raw traces and request files are linked as evidence instead of dominating the decision surface."
+      ]
+    },
+    decision: {
+      question: input.context.step.policy.prompt,
+      operator_judgment: "Decide whether this scope, success bar, and proof plan are good enough for Circuit to proceed."
+    },
+    recommendation: {
+      choice_id: recommendedChoice.id,
+      label: recommendedChoice.label,
+      rationale: `${recommendedChoice.label} is recommended because the packet has a bounded scope, explicit success criteria, and a concrete verification plan.`
+    },
+    artifact: {
+      title: "Build brief",
+      preview: `Objective: ${input.context.goal}`,
+      scope: input.template.scope,
+      success_criteria: input.template.success_criteria
+    },
+    proof: {
+      status: "planned",
+      summary: `Circuit will verify the implementation with: ${verificationCommandText}.`,
+      commands: [...input.verificationCommands],
+      evidence: [
+        "Verification is planned before implementation begins; no implementation proof has been collected yet.",
+        "The final Build close report must carry the actual verification and review evidence after resume."
+      ]
+    },
+    risk: {
+      summary: "The meaningful risk is scope mismatch: continuing spends implementation effort on this exact brief.",
+      tradeoffs: [
+        "If the brief is too narrow, the implementation may satisfy tests while missing the operator intent.",
+        "If the brief is too broad, the worker may touch more surface area than this request warrants."
+      ]
+    },
+    choices,
+    internal: {
+      request_path: input.context.step.writes.request,
+      response_path: input.context.responsePath,
+      report_path: input.context.step.writes.report?.path ?? "reports/build/brief.json",
+      raw_evidence: [
+        input.context.step.writes.request,
+        input.context.responsePath,
+        input.context.step.writes.report?.path ?? "reports/build/brief.json"
+      ]
+    }
+  };
+}
+function projectBuildBrief(inputs) {
+  return BuildBrief.parse({
+    objective: inputs.context.goal,
+    scope: inputs.template.scope,
+    success_criteria: inputs.template.success_criteria,
+    verification_command_candidates: inputs.verificationCommands,
+    checkpoint: {
+      request_path: inputs.context.step.writes.request,
+      response_path: inputs.context.responsePath,
+      allowed_choices: checkpointChoiceIds(inputs.context.step)
+    },
+    checkpoint_packet: buildCheckpointPacket(inputs)
+  });
+}
+function validateBuildBriefCheckpointOwnership(input) {
+  const expectedChoices = checkpointChoiceIds(input.step);
+  if (input.brief.checkpoint.request_path !== input.step.writes.request || input.brief.checkpoint.response_path !== input.step.writes.response || input.brief.checkpoint.allowed_choices.length !== expectedChoices.length || input.brief.checkpoint.allowed_choices.some((choice, index) => choice !== expectedChoices[index])) {
+    throw new Error(`checkpoint resume rejected: waiting Build brief does not belong to checkpoint '${input.step.id}'`);
+  }
+  return input.brief;
+}
+var BuildBriefReportTemplate;
+var init_checkpoint_brief_projection = __esm({
+  "dist/flows/build/writers/checkpoint-brief-projection.js"() {
+    "use strict";
+    init_zod();
+    init_verification();
+    init_types();
+    init_reports();
+    BuildBriefReportTemplate = external_exports.object({
+      scope: external_exports.string().min(1),
+      success_criteria: external_exports.array(external_exports.string().min(1)).min(1),
+      verification_command_candidates: external_exports.array(VerificationCommand).min(1).optional()
+    }).strict();
+  }
+});
+
+// dist/flows/build/writers/checkpoint-brief.js
+import { readFileSync as readFileSync14 } from "node:fs";
+var buildBriefCheckpointBuilder;
+var init_checkpoint_brief = __esm({
+  "dist/flows/build/writers/checkpoint-brief.js"() {
+    "use strict";
+    init_connector_relay();
+    init_run_relative_path();
+    init_verification_resolver();
+    init_reports();
+    init_checkpoint_brief_projection();
+    buildBriefCheckpointBuilder = {
+      resultSchemaName: "build.brief@v1",
+      build(context) {
+        const rawTemplate = context.step.policy.report_template;
+        if (rawTemplate === void 0) {
+          throw new Error(`checkpoint step '${context.step.id}' writing build.brief@v1 requires policy.report_template`);
+        }
+        const template = BuildBriefReportTemplate.parse(rawTemplate);
+        const verificationCommands = requireResolvedVerificationCommands({
+          ...context.projectRoot === void 0 ? {} : { projectRoot: context.projectRoot },
+          goal: context.goal,
+          requestedNeeds: inferBuildVerificationNeeds(context.goal),
+          commandIdPrefix: "build",
+          maxOutputBytes: 2e5
+        });
+        return projectBuildBrief({
+          context,
+          template,
+          verificationCommands
+        });
+      },
+      validateResumeContext(context) {
+        const reportAbs = resolveRunRelative(context.runFolder, context.reportPath);
+        const raw = readFileSync14(reportAbs, "utf8");
+        if (context.reportSha256 === void 0) {
+          throw new Error("checkpoint resume rejected: checkpoint request is missing checkpoint_report_sha256");
+        }
+        const observedHash = sha256OfString(raw);
+        if (observedHash !== context.reportSha256) {
+          throw new Error("checkpoint resume rejected: waiting Build brief hash differs from request");
+        }
+        const brief = BuildBrief.parse(JSON.parse(raw));
+        return validateBuildBriefCheckpointOwnership({ brief, step: context.step });
+      }
+    };
+  }
+});
+
+// dist/flows/build/writers/result-projection.js
+function summarizeTouchArea(touchArea) {
+  return {
+    enforcement: touchArea.enforcement,
+    containment: touchArea.containment,
+    out_of_bounds_paths: touchArea.out_of_bounds_paths
+  };
+}
+function normalizeStatement(statement) {
+  return statement.trim().replace(/\s+/g, " ").toLowerCase();
+}
+function unassessedScope(plan) {
+  return BuildScope.parse({
+    adherence: "within_scope",
+    violated_guardrails: [],
+    unassessed_guardrails: [...plan.guardrails.non_goals, ...plan.guardrails.invariants]
+  });
+}
+function computeScope(plan, review) {
+  const { alignment } = review;
+  const violated = [
+    ...alignment.non_goals.filter((entry) => entry.status === "violated"),
+    ...alignment.invariants.filter((entry) => entry.status === "violated")
+  ].map((entry) => entry.statement);
+  const assessedNonGoals = new Set(alignment.non_goals.map((entry) => normalizeStatement(entry.statement)));
+  const assessedInvariants = new Set(alignment.invariants.map((entry) => normalizeStatement(entry.statement)));
+  const unassessed = [
+    ...plan.guardrails.non_goals.filter((statement) => !assessedNonGoals.has(normalizeStatement(statement))),
+    ...plan.guardrails.invariants.filter((statement) => !assessedInvariants.has(normalizeStatement(statement)))
+  ];
+  return BuildScope.parse({
+    adherence: alignment.scope_adherence,
+    violated_guardrails: violated,
+    unassessed_guardrails: unassessed
+  });
+}
+function projectBuildResult(inputs) {
+  const { review, touchArea: touchAreaReport } = inputs;
+  const scope = review === void 0 ? unassessedScope(inputs.plan) : computeScope(inputs.plan, review);
+  const scopeClean = scope.adherence === "within_scope" && scope.violated_guardrails.length === 0 && scope.unassessed_guardrails.length === 0;
+  const touchArea = touchAreaReport === void 0 ? { enforcement: "not_assessed", containment: "not_assessed", out_of_bounds_paths: [] } : summarizeTouchArea(touchAreaReport);
+  const touchAreaClean = touchArea.containment === "within";
+  const reviewVerdict = review === void 0 ? "not_assessed" : review.verdict;
+  const outcome = inputs.verification.overall_status !== "passed" ? "failed" : reviewVerdict === "reject" ? "failed" : reviewVerdict === "accept" && scopeClean && touchAreaClean ? "complete" : "needs_attention";
+  return BuildResult.parse({
+    summary: `Build result for ${inputs.brief.objective}: ${inputs.implementation.summary}`,
+    outcome,
+    verification_status: inputs.verification.overall_status,
+    review_verdict: reviewVerdict,
+    scope,
+    touch_area: touchArea,
+    evidence_links: inputs.evidenceLinks
+  });
+}
+var init_result_projection = __esm({
+  "dist/flows/build/writers/result-projection.js"() {
+    "use strict";
+    init_reports();
+  }
+});
+
+// dist/flows/build/writers/close.js
+var ALWAYS_PRESENT_POINTERS, REVIEW_POINTER, buildCloseBuilder;
+var init_close = __esm({
+  "dist/flows/build/writers/close.js"() {
+    "use strict";
+    init_runtime_index();
+    init_reports();
+    init_result_projection();
+    ALWAYS_PRESENT_POINTERS = [
+      { report_id: "build.brief", schema: "build.brief@v1" },
+      { report_id: "build.plan", schema: "build.plan@v1" },
+      { report_id: "build.implementation", schema: "build.implementation@v1" },
+      { report_id: "build.verification", schema: "build.verification@v1" }
+    ];
+    REVIEW_POINTER = { report_id: "build.review", schema: "build.review@v1" };
+    buildCloseBuilder = {
+      resultSchemaName: "build.result@v1",
+      reads: [
+        { name: "brief", schema: "build.brief@v1", required: true },
+        { name: "plan", schema: "build.plan@v1", required: true },
+        { name: "implementation", schema: "build.implementation@v1", required: true },
+        { name: "verification", schema: "build.verification@v1", required: true },
+        // Optional so a folded flow with no review/touch-area step still closes.
+        // resolveCloseReadPaths resolves these normally when the flow declares the
+        // writer (build's full flow), so build's inputs are byte-identical; it
+        // returns undefined only when no step writes the schema at all.
+        { name: "review", schema: "build.review@v1", required: false },
+        { name: "touch_area", schema: "build.touch-area@v1", required: false }
+      ],
+      build(context) {
+        const brief = BuildBrief.parse(context.inputs.brief);
+        const plan = BuildPlan.parse(context.inputs.plan);
+        const implementation = BuildImplementation.parse(context.inputs.implementation);
+        const verification = BuildVerification.parse(context.inputs.verification);
+        const review = context.inputs.review === void 0 ? void 0 : BuildReview.parse(context.inputs.review);
+        const touchArea = context.inputs.touch_area === void 0 ? void 0 : BuildTouchArea.parse(context.inputs.touch_area);
+        const pointers = review === void 0 ? ALWAYS_PRESENT_POINTERS : [...ALWAYS_PRESENT_POINTERS, REVIEW_POINTER];
+        return projectBuildResult({
+          brief,
+          plan,
+          implementation,
+          verification,
+          ...review === void 0 ? {} : { review },
+          ...touchArea === void 0 ? {} : { touchArea },
+          evidenceLinks: pointers.map((p) => ({
+            ...p,
+            path: reportPathForSchemaInRuntimeFlow(context.flow, p.schema)
+          }))
+        });
+      }
+    };
+  }
+});
+
+// dist/flows/build/writers/plan.js
+var buildPlanComposeBuilder;
+var init_plan = __esm({
+  "dist/flows/build/writers/plan.js"() {
+    "use strict";
+    init_reports();
+    buildPlanComposeBuilder = {
+      resultSchemaName: "build.plan@v1",
+      reads: [
+        { name: "brief", schema: "build.brief@v1", required: true },
+        { name: "context", schema: "build.context@v1", required: false }
+      ],
+      build(context) {
+        const brief = BuildBrief.parse(context.inputs.brief);
+        const grounding = context.inputs.context === void 0 ? void 0 : BuildContext.parse(context.inputs.context);
+        const baseApproach = `Make the smallest safe change inside scope: ${brief.scope}`;
+        const approach = grounding === void 0 ? baseApproach : context.contextDeliveryActive === true ? `Grounded in a codebase read (${grounding.sources.length} sources); the detailed observations are recorded in the analyze-step report and available to pull on demand if this step needs them (context_request from_step "analyze-step", field_path "observations"). Then ${baseApproach}` : `Grounded in a codebase read (${grounding.sources.length} sources): ${grounding.observations.join(" ")} Then ${baseApproach}`;
+        const slices = grounding !== void 0 && grounding.slices.length > 0 ? grounding.slices : [
+          {
+            id: "slice-1",
+            intent: brief.objective,
+            anticipated_file_extensions: grounding?.anticipated_file_extensions ?? []
+          }
+        ];
+        return BuildPlan.parse({
+          objective: brief.objective,
+          approach,
+          slices,
+          anticipated_file_extensions: grounding?.anticipated_file_extensions ?? [],
+          // Carry the researcher's negative space forward so the implementer hint
+          // and the reviewer's alignment check read from the plan. A context-less
+          // plan (reduced fixtures) carries no guardrails.
+          guardrails: grounding?.guardrails ?? { non_goals: [], invariants: [] },
+          // Carry the researcher's allowed touch area forward so the touch-area gate
+          // can check the git-proven change set against it. A context-less plan
+          // carries no area, leaving the gate inert (opt-in).
+          allowed_touch_area: grounding?.allowed_touch_area ?? [],
+          verification: {
+            commands: brief.verification_command_candidates
+          }
+        });
+      }
+    };
+  }
+});
+
+// dist/shared/runtime-touched-files.js
+function isPathInPrefix(path, prefixes) {
+  return prefixes.some((prefix) => path === prefix || path.startsWith(`${prefix}/`));
+}
+function filterEntries(entries, prefixes) {
+  if (prefixes.length === 0)
+    return [...entries];
+  return entries.filter((entry) => !isPathInPrefix(entry.path, prefixes));
+}
+function filterHiddenFlags(flags, prefixes) {
+  if (prefixes.length === 0)
+    return [...flags];
+  return flags.filter((flag) => !isPathInPrefix(flag.path, prefixes));
+}
+function entriesByPath(entries) {
+  const map2 = /* @__PURE__ */ new Map();
+  for (const entry of entries) {
+    map2.set(entry.path, entry);
+  }
+  return map2;
+}
+function hiddenPaths(flags) {
+  return new Set(flags.map((flag) => flag.path));
+}
+function uniqueSorted(paths) {
+  return [...new Set(paths)].sort((a, b) => a.localeCompare(b));
+}
+function statusFromEntry(baseline, post) {
+  if (post?.from !== void 0 || post?.status_code.includes("R")) {
+    return "renamed";
+  }
+  if (post?.status_code.includes("D")) {
+    return "deleted";
+  }
+  if (baseline === void 0 && post !== void 0 && (post.status_code.includes("?") || post.status_code.includes("A"))) {
+    return "added";
+  }
+  return "modified";
+}
+function uniqueFlags(flags) {
+  const seen = /* @__PURE__ */ new Set();
+  const out = [];
+  for (const flag of flags) {
+    const key = `${flag.tag}\0${flag.path}`;
+    if (seen.has(key))
+      continue;
+    seen.add(key);
+    out.push(flag);
+  }
+  return out.sort((a, b) => a.path.localeCompare(b.path) || a.tag.localeCompare(b.tag));
+}
+function projectRuntimeTouchedFiles(options) {
+  const ignoredPathPrefixes = options.ignoredPathPrefixes ?? [];
+  const baselineEntries = filterEntries(options.baseline.entries, ignoredPathPrefixes);
+  const postEntries = filterEntries(options.post.entries, ignoredPathPrefixes);
+  const baselineHiddenFlags = filterHiddenFlags(options.baseline.hidden_index_flags, ignoredPathPrefixes);
+  const postHiddenFlags = filterHiddenFlags(options.post.hidden_index_flags, ignoredPathPrefixes);
+  const baselineByPath = entriesByPath(baselineEntries);
+  const postByPath = entriesByPath(postEntries);
+  const baselinePaths = new Set(baselineByPath.keys());
+  const postPaths = new Set(postByPath.keys());
+  const hiddenBaselinePaths = hiddenPaths(baselineHiddenFlags);
+  const newDirt = [...postPaths].filter((path) => !baselinePaths.has(path));
+  const baselineDirtyMutated = [...baselinePaths].filter((path) => {
+    if (hiddenBaselinePaths.has(path))
+      return false;
+    const before = baselineByPath.get(path);
+    const after = postByPath.get(path);
+    return before?.fingerprint !== after?.fingerprint;
+  });
+  const observed = uniqueSorted([...newDirt, ...baselineDirtyMutated]);
+  const workerDeclared = uniqueSorted((options.workerDeclaredPaths ?? []).filter((path) => !isPathInPrefix(path, ignoredPathPrefixes)));
+  const observedSet = new Set(observed);
+  const workerDeclaredSet = new Set(workerDeclared);
+  const undeclaredWorkerExtras = observed.filter((path) => !workerDeclaredSet.has(path));
+  const missingWorkerDeclared = workerDeclared.filter((path) => !observedSet.has(path));
+  return RuntimeTouchedFilesProjection.parse({
+    baseline_head_sha: options.baseline.head_sha,
+    head_sha: options.post.head_sha,
+    head_diverged: options.baseline.head_sha !== options.post.head_sha,
+    files: observed.map((path) => {
+      const baseline = baselineByPath.get(path);
+      const post = postByPath.get(path);
+      return {
+        path,
+        status: statusFromEntry(baseline, post),
+        source: "runtime_diff",
+        generated_surface: isPathInPrefix(path, options.generatedSurfacePathPrefixes ?? []),
+        protected: isPathInPrefix(path, options.protectedPathPrefixes ?? []),
+        // Carry the rename/copy source so a path-containment consumer can check
+        // both endpoints. This does NOT enter `observed` or the worker-claim
+        // comparison above, so the change-set verdict (Fix) is unchanged.
+        ...post?.from === void 0 ? {} : { from: post.from }
+      };
+    }),
+    worker_declared: workerDeclared,
+    worker_claim_matches_runtime: undeclaredWorkerExtras.length === 0 && missingWorkerDeclared.length === 0,
+    undeclared_worker_extras: undeclaredWorkerExtras,
+    missing_worker_declared: missingWorkerDeclared,
+    baseline_dirty_mutated: uniqueSorted(baselineDirtyMutated),
+    hidden_index_flags: uniqueFlags([...baselineHiddenFlags, ...postHiddenFlags])
+  });
+}
+var init_runtime_touched_files = __esm({
+  "dist/shared/runtime-touched-files.js"() {
+    "use strict";
+    init_runtime_evidence();
+  }
+});
+
+// dist/flows/build/writers/touch-area-projection.js
+function normalizeAreaEntry(entry) {
+  return entry.trim().replace(/^\.\//, "").replace(/\/+$/, "");
+}
+function isInArea(path, normalizedPrefixes) {
+  return normalizedPrefixes.some((prefix) => prefix.length > 0 && (path === prefix || path.startsWith(`${prefix}/`)));
+}
+function inertBuildTouchArea() {
+  return BuildTouchArea.parse({
+    overall_status: "passed",
+    enforcement: "not_enforced",
+    containment: "within",
+    allowed_area: [],
+    observed_paths: [],
+    out_of_bounds_paths: [],
+    head_diverged: false,
+    hidden_index_flags: []
+  });
+}
+function projectBuildTouchArea(inputs) {
+  const { allowedArea, touched } = inputs;
+  const enforced = allowedArea.length > 0;
+  const observedPaths = [
+    ...new Set(touched.files.flatMap((file2) => file2.from === void 0 ? [file2.path] : [file2.path, file2.from]))
+  ];
+  const hiddenFlags = touched.hidden_index_flags.map((flag) => ({
+    tag: flag.tag,
+    path: flag.path
+  }));
+  const base = {
+    overall_status: "passed",
+    allowed_area: [...allowedArea],
+    observed_paths: observedPaths,
+    baseline_head_sha: touched.baseline_head_sha,
+    head_sha: touched.head_sha,
+    head_diverged: touched.head_diverged,
+    hidden_index_flags: hiddenFlags
+  };
+  if (!enforced) {
+    return BuildTouchArea.parse({
+      ...base,
+      enforcement: "not_enforced",
+      containment: "within",
+      out_of_bounds_paths: []
+    });
+  }
+  if (touched.head_diverged || hiddenFlags.length > 0) {
+    const parts = [];
+    if (touched.head_diverged) {
+      parts.push(`HEAD moved during the build (baseline ${touched.baseline_head_sha}, post ${touched.head_sha}); the implementer committed mid-run, so changed paths cannot be attributed for a containment check.`);
+    }
+    if (hiddenFlags.length > 0) {
+      const labelled = hiddenFlags.map((flag) => `${flag.path} (${flag.tag})`).join(", ");
+      parts.push(`hidden index flags present (assume-unchanged or skip-worktree paths can hide tracked edits from git status): ${labelled}`);
+    }
+    return BuildTouchArea.parse({
+      ...base,
+      enforcement: "enforced",
+      containment: "undetermined",
+      out_of_bounds_paths: [],
+      reason: parts.join("; ")
+    });
+  }
+  const normalizedPrefixes = allowedArea.map(normalizeAreaEntry);
+  const outOfBounds = observedPaths.filter((path) => !isInArea(path, normalizedPrefixes));
+  if (outOfBounds.length > 0) {
+    return BuildTouchArea.parse({
+      ...base,
+      enforcement: "enforced",
+      containment: "out_of_bounds",
+      out_of_bounds_paths: outOfBounds,
+      reason: `the change touched ${outOfBounds.length} path(s) outside the allowed area: ${outOfBounds.join(", ")}`
+    });
+  }
+  return BuildTouchArea.parse({
+    ...base,
+    enforcement: "enforced",
+    containment: "within",
+    out_of_bounds_paths: []
+  });
+}
+var init_touch_area_projection = __esm({
+  "dist/flows/build/writers/touch-area-projection.js"() {
+    "use strict";
+    init_reports();
+  }
+});
+
+// dist/flows/build/writers/touch-area.js
+import { readFileSync as readFileSync15 } from "node:fs";
+import { isAbsolute as isAbsolute5, relative as relative5 } from "node:path";
+function runFolderPrefix(input) {
+  if (input.projectRoot === void 0)
+    return void 0;
+  const rel = relative5(input.projectRoot, input.runFolder).split("\\").join("/");
+  if (rel.length === 0 || rel.startsWith("../") || rel === ".." || isAbsolute5(rel)) {
+    return void 0;
+  }
+  return rel;
+}
+var SCHEMA_NAME, buildTouchAreaWriter;
+var init_touch_area = __esm({
+  "dist/flows/build/writers/touch-area.js"() {
+    "use strict";
+    init_git_state_command();
+    init_run_relative_path();
+    init_runtime_touched_files();
+    init_runtime_index();
+    init_reports();
+    init_baseline_snapshot();
+    init_touch_area_projection();
+    SCHEMA_NAME = "build.touch-area@v1";
+    buildTouchAreaWriter = {
+      resultSchemaName: SCHEMA_NAME,
+      // Hard-requires the pre-act baseline snapshot (to diff against) and the plan
+      // (for the declared allowed area). The build.implementation@v1 read in
+      // buildResult is best-effort corroboration, not required, so it is not declared
+      // here. Declared so a composer wires the reads and the offline floor resolves
+      // them; loadCommands below is the enforcing source of truth.
+      reads: [
+        { name: "baseline", schema: "build.baseline-snapshot@v1", required: true },
+        { name: "plan", schema: "build.plan@v1", required: true }
+      ],
+      loadCommands(context) {
+        const baselinePath = reportPathForSchemaInRuntimeFlow(context.flow, "build.baseline-snapshot@v1");
+        const planPath = reportPathForSchemaInRuntimeFlow(context.flow, "build.plan@v1");
+        if (!context.step.reads.includes(baselinePath)) {
+          throw new Error(`${SCHEMA_NAME} requires step '${context.step.id}' to read ${baselinePath}`);
+        }
+        if (!context.step.reads.includes(planPath)) {
+          throw new Error(`${SCHEMA_NAME} requires step '${context.step.id}' to read ${planPath}`);
+        }
+        if (!planDeclaresTouchArea(context))
+          return [];
+        return [gitStateCommand("build-touch-area-git-state")];
+      },
+      buildResult(observations, context) {
+        if (observations.length === 0) {
+          return inertBuildTouchArea();
+        }
+        if (observations.length !== 1) {
+          throw new Error(`${SCHEMA_NAME}: expected 1 git-state observation, got ${observations.length}`);
+        }
+        const observation = observations[0];
+        if (observation === void 0) {
+          throw new Error(`${SCHEMA_NAME}: git-state observation missing`);
+        }
+        const post = parseGitStateObservation(observation, SCHEMA_NAME);
+        const baselinePath = reportPathForSchemaInRuntimeFlow(context.flow, "build.baseline-snapshot@v1");
+        const planPath = reportPathForSchemaInRuntimeFlow(context.flow, "build.plan@v1");
+        const baseline = BuildBaselineSnapshot.parse(JSON.parse(readFileSync15(resolveRunRelative(context.runFolder, baselinePath), "utf8")));
+        if (baseline.captured === false) {
+          throw new Error(`${SCHEMA_NAME}: baseline snapshot is inert (captured: false) but an area was declared; baseline and touch-area steps disagree on enforcement`);
+        }
+        const plan = BuildPlan.parse(JSON.parse(readFileSync15(resolveRunRelative(context.runFolder, planPath), "utf8")));
+        let workerDeclaredPaths = [];
+        try {
+          const implementationPath = reportPathForSchemaInRuntimeFlow(context.flow, "build.implementation@v1");
+          if (context.step.reads.includes(implementationPath)) {
+            const implementation = BuildImplementation.parse(JSON.parse(readFileSync15(resolveRunRelative(context.runFolder, implementationPath), "utf8")));
+            workerDeclaredPaths = implementation.changed_files;
+          }
+        } catch {
+          workerDeclaredPaths = [];
+        }
+        const ignoredRunFolderPrefix = runFolderPrefix({
+          runFolder: context.runFolder,
+          ...context.projectRoot === void 0 ? {} : { projectRoot: context.projectRoot }
+        });
+        const touched = projectRuntimeTouchedFiles({
+          baseline: {
+            head_sha: baseline.head_sha,
+            entries: baseline.entries,
+            hidden_index_flags: baseline.hidden_index_flags
+          },
+          post: {
+            head_sha: post.head_sha,
+            entries: post.entries,
+            hidden_index_flags: post.hidden_index_flags
+          },
+          workerDeclaredPaths,
+          ...ignoredRunFolderPrefix === void 0 ? {} : { ignoredPathPrefixes: [ignoredRunFolderPrefix] }
+        });
+        return projectBuildTouchArea({ allowedArea: plan.allowed_touch_area, touched });
+      }
+    };
+  }
+});
+
+// dist/flows/build/writers/verification-projection.js
+function projectBuildVerification(observations) {
+  const overallStatus = observations.some((observation) => observation.status === "failed") ? "failed" : "passed";
+  return BuildVerification.parse({
+    overall_status: overallStatus,
+    commands: observations.map((observation) => ({
+      command_id: observation.command.id,
+      argv: observation.command.argv,
+      cwd: observation.command.cwd,
+      exit_code: observation.exit_code,
+      status: observation.status,
+      duration_ms: observation.duration_ms,
+      stdout_summary: observation.stdout_summary,
+      stderr_summary: observation.stderr_summary,
+      timed_out: observation.timed_out
+    }))
+  });
+}
+var init_verification_projection = __esm({
+  "dist/flows/build/writers/verification-projection.js"() {
+    "use strict";
+    init_reports();
+  }
+});
+
+// dist/flows/build/writers/verification.js
+import { readFileSync as readFileSync16 } from "node:fs";
+var buildVerificationWriter;
+var init_verification2 = __esm({
+  "dist/flows/build/writers/verification.js"() {
+    "use strict";
+    init_run_relative_path();
+    init_runtime_index();
+    init_reports();
+    init_verification_projection();
+    buildVerificationWriter = {
+      resultSchemaName: "build.verification@v1",
+      // Commands come from the plan's verification command list. Declared so a
+      // composer wires the read and the offline floor resolves it; loadCommands below
+      // is the enforcing source of truth.
+      reads: [{ name: "plan", schema: "build.plan@v1", required: true }],
+      loadCommands(context) {
+        const planPath = reportPathForSchemaInRuntimeFlow(context.flow, "build.plan@v1");
+        if (!context.step.reads.includes(planPath)) {
+          throw new Error(`build.verification@v1 requires step '${context.step.id}' to read ${planPath}`);
+        }
+        const plan = BuildPlan.parse(JSON.parse(readFileSync16(resolveRunRelative(context.runFolder, planPath), "utf8")));
+        return plan.verification.commands;
+      },
+      buildResult(observations) {
+        return projectBuildVerification(observations);
+      }
+    };
+  }
+});
+
+// dist/flows/build/data.js
+var buildFlowData;
+var init_data = __esm({
+  "dist/flows/build/data.js"() {
+    "use strict";
+    init_assemble_flow_schematic();
+    init_assembly_spec();
+    init_relay_hints();
+    init_reports();
+    init_baseline_snapshot();
+    init_checkpoint_brief();
+    init_close();
+    init_plan();
+    init_touch_area();
+    init_verification2();
+    buildFlowData = {
+      id: "build",
+      visibility: "public",
+      paths: {
+        schematic: "src/flows/build/schematic.json",
+        contract: "src/flows/build/contract.md"
+      },
+      // First-class composition (M9): build is the assembler's first production
+      // customer. Its block sequence and flow-level scaffolding live in
+      // ./assembly-spec.ts; `assembleFlowSchematic` derives the three sequence-level
+      // fields (starts_at, stages, stage_path_policy) and returns the validated
+      // FlowSchematic that used to be hand-authored as a literal here. The M9 truth
+      // test proves the assembled schematic is byte-identical to the former literal
+      // (schematic + compiled), and that the assembled-then-compiled build runs to
+      // @complete on the shared graph runner. The assembler is now a live producer,
+      // not a test-only artifact.
+      schematic: assembleFlowSchematic(buildAssemblySpec),
+      canonicalStagePolicy: {
+        kind: "enforce",
+        canonicals: ["frame", "analyze", "plan", "act", "verify", "review", "close"],
+        omits: [],
+        optional_canonicals: [],
+        variants: [],
+        title: "Frame \u2192 Analyze \u2192 Plan \u2192 Act \u2192 Verify \u2192 Review \u2192 Close",
+        authority: "src/flows/build/contract.md \xA7Build Flow Contract"
+      },
+      reports: [
+        {
+          schemaName: "build.implementation@v1",
+          channel: "relay",
+          schema: BuildImplementation,
+          relayHint: buildImplementationShapeHint.instruction
+        },
+        {
+          schemaName: "build.review@v1",
+          channel: "relay",
+          schema: BuildReview,
+          relayHint: buildReviewShapeHint.instruction
+        },
+        {
+          schemaName: "build.context@v1",
+          channel: "relay",
+          schema: BuildContext,
+          relayHint: buildContextShapeHint.instruction
+        },
+        {
+          schemaName: "build.brief@v1",
+          channel: "report",
+          schema: BuildBrief,
+          writers: { checkpoint: [buildBriefCheckpointBuilder] }
+        },
+        {
+          schemaName: "build.plan@v1",
+          channel: "report",
+          schema: BuildPlan,
+          fileSurface: {
+            timing: "before",
+            extractor: { kind: "build-plan-and-slices-anticipated-file-extensions" }
+          },
+          writers: { compose: [buildPlanComposeBuilder] }
+        },
+        {
+          schemaName: "build.verification@v1",
+          channel: "report",
+          schema: BuildVerification,
+          writers: { verification: [buildVerificationWriter] }
+        },
+        {
+          schemaName: "build.baseline-snapshot@v1",
+          channel: "report",
+          schema: BuildBaselineSnapshot,
+          writers: { verification: [buildBaselineSnapshotWriter] }
+        },
+        {
+          schemaName: "build.touch-area@v1",
+          channel: "report",
+          schema: BuildTouchArea,
+          writers: { verification: [buildTouchAreaWriter] }
+        },
+        {
+          schemaName: "build.result@v1",
+          channel: "report",
+          schema: BuildResult,
+          writers: { close: [buildCloseBuilder] }
+        }
+      ],
+      runtimeSurface: {
+        primaryResult: {
+          schemaName: "build.result@v1",
+          path: "reports/build-result.json",
+          label: "Build result"
+        },
+        progress: {
+          steps: [
+            {
+              stepId: "frame-step",
+              taskTitle: "Frame the work",
+              activeText: "Framing the work"
+            },
+            {
+              stepId: "analyze-step",
+              taskTitle: "Read the code",
+              activeText: "Reading the code",
+              relayRole: "researcher",
+              relayStartedText: "Asking the specialist to read the code...",
+              relayCompletedText: "Finished reading the code."
+            },
+            {
+              stepId: "plan-step",
+              taskTitle: "Plan the work",
+              activeText: "Planning the work"
+            },
+            {
+              stepId: "build-baseline",
+              taskTitle: "Note the starting point",
+              activeText: "Noting the starting point"
+            },
+            {
+              stepId: "act-step",
+              taskTitle: "Make the change",
+              activeText: "Making the change",
+              relayRole: "implementer",
+              relayStartedText: "Asking the specialist to make the change...",
+              relayCompletedText: "Finished the specialist pass."
+            },
+            {
+              stepId: "verify-step",
+              taskTitle: "Check the work",
+              activeText: "Checking the work"
+            },
+            {
+              stepId: "build-touch-area",
+              taskTitle: "Check what changed",
+              activeText: "Checking what changed"
+            },
+            {
+              stepId: "review-step",
+              taskTitle: "Check the result",
+              activeText: "Checking the result",
+              relayRole: "reviewer",
+              relayStartedText: "Asking the reviewer to check the result...",
+              relayCompletedText: "Finished checking the result."
+            },
+            {
+              stepId: "close-step",
+              taskTitle: "Wrap up",
+              activeText: "Wrapping up"
+            }
+          ]
+        }
+      }
+    };
+  }
+});
+
+// dist/flows/build/flow.js
+var buildFlowDefinition;
+var init_flow = __esm({
+  "dist/flows/build/flow.js"() {
+    "use strict";
+    init_flow_definition();
+    init_data();
+    buildFlowDefinition = defineFlowData(buildFlowData);
   }
 });
 
@@ -65880,7 +71217,7 @@ var init_utils = __esm({
 });
 
 // dist/shared/html/ui/badge.js
-function Badge({ className, variant, render: render2 = (0, import_jsx_runtime2.jsx)("span", {}), ...props }) {
+function Badge({ className, variant, render: render2 = (0, import_jsx_runtime4.jsx)("span", {}), ...props }) {
   return useRender({
     render: render2,
     props: {
@@ -65890,11 +71227,11 @@ function Badge({ className, variant, render: render2 = (0, import_jsx_runtime2.j
     }
   });
 }
-var import_jsx_runtime2, badgeVariants;
+var import_jsx_runtime4, badgeVariants;
 var init_badge = __esm({
   "dist/shared/html/ui/badge.js"() {
     "use strict";
-    import_jsx_runtime2 = __toESM(require_jsx_runtime(), 1);
+    import_jsx_runtime4 = __toESM(require_jsx_runtime(), 1);
     init_use_render();
     init_dist();
     init_utils();
@@ -65914,5441 +71251,25 @@ var init_badge = __esm({
   }
 });
 
-// node_modules/@floating-ui/utils/dist/floating-ui.utils.dom.mjs
-function hasWindow() {
-  return typeof window !== "undefined";
-}
-function getWindow(node) {
-  var _node$ownerDocument;
-  return (node == null || (_node$ownerDocument = node.ownerDocument) == null ? void 0 : _node$ownerDocument.defaultView) || window;
-}
-function isHTMLElement(value) {
-  if (!hasWindow()) {
-    return false;
-  }
-  return value instanceof HTMLElement || value instanceof getWindow(value).HTMLElement;
-}
-var init_floating_ui_utils_dom = __esm({
-  "node_modules/@floating-ui/utils/dist/floating-ui.utils.dom.mjs"() {
-  }
-});
-
-// node_modules/@base-ui/utils/safeReact.mjs
-var React5, SafeReact;
-var init_safeReact = __esm({
-  "node_modules/@base-ui/utils/safeReact.mjs"() {
-    React5 = __toESM(require_react(), 1);
-    SafeReact = {
-      ...React5
-    };
-  }
-});
-
-// node_modules/@base-ui/utils/useStableCallback.mjs
-function useStableCallback(callback) {
-  const stable = useRefWithInit(createStableCallback).current;
-  stable.next = callback;
-  useSafeInsertionEffect(stable.effect);
-  return stable.trampoline;
-}
-function createStableCallback() {
-  const stable = {
-    next: void 0,
-    callback: assertNotCalled,
-    trampoline: (...args) => stable.callback?.(...args),
-    effect: () => {
-      stable.callback = stable.next;
-    }
-  };
-  return stable;
-}
-function assertNotCalled() {
-  if (process.env.NODE_ENV !== "production") {
-    throw (
-      /* minify-error-disabled */
-      new Error("Base UI: Cannot call an event handler while rendering.")
-    );
-  }
-}
-var useInsertionEffect, useSafeInsertionEffect;
-var init_useStableCallback = __esm({
-  "node_modules/@base-ui/utils/useStableCallback.mjs"() {
-    "use client";
-    init_safeReact();
-    init_useRefWithInit();
-    useInsertionEffect = SafeReact.useInsertionEffect;
-    useSafeInsertionEffect = // React 17 doesn't have useInsertionEffect.
-    useInsertionEffect && // Preact replaces useInsertionEffect with useLayoutEffect and fires too late.
-    useInsertionEffect !== SafeReact.useLayoutEffect ? useInsertionEffect : (fn) => fn();
-  }
-});
-
-// node_modules/@base-ui/utils/error.mjs
-function error51(...messages) {
-  if (process.env.NODE_ENV !== "production") {
-    const messageKey = messages.join(" ");
-    if (!set3.has(messageKey)) {
-      set3.add(messageKey);
-      console.error(`Base UI: ${messageKey}`);
-    }
-  }
-}
-var set3;
-var init_error = __esm({
-  "node_modules/@base-ui/utils/error.mjs"() {
-    if (process.env.NODE_ENV !== "production") {
-      set3 = /* @__PURE__ */ new Set();
-    }
-  }
-});
-
-// node_modules/@base-ui/utils/useIsoLayoutEffect.mjs
-var React6, noop, useIsoLayoutEffect;
-var init_useIsoLayoutEffect = __esm({
-  "node_modules/@base-ui/utils/useIsoLayoutEffect.mjs"() {
-    "use client";
-    React6 = __toESM(require_react(), 1);
-    noop = () => {
-    };
-    useIsoLayoutEffect = typeof document !== "undefined" ? React6.useLayoutEffect : noop;
-  }
-});
-
-// node_modules/@base-ui/react/internals/composite/root/CompositeRootContext.mjs
-function useCompositeRootContext(optional2 = false) {
-  const context = React7.useContext(CompositeRootContext);
-  if (context === void 0 && !optional2) {
-    throw new Error(process.env.NODE_ENV !== "production" ? "Base UI: CompositeRootContext is missing. Composite parts must be placed within <Composite.Root>." : formatErrorMessage_default(16));
-  }
-  return context;
-}
-var React7, CompositeRootContext;
-var init_CompositeRootContext = __esm({
-  "node_modules/@base-ui/react/internals/composite/root/CompositeRootContext.mjs"() {
-    "use client";
-    init_formatErrorMessage();
-    React7 = __toESM(require_react(), 1);
-    CompositeRootContext = /* @__PURE__ */ React7.createContext(void 0);
-    if (process.env.NODE_ENV !== "production") CompositeRootContext.displayName = "CompositeRootContext";
-  }
-});
-
-// node_modules/@base-ui/react/utils/useFocusableWhenDisabled.mjs
-function useFocusableWhenDisabled(parameters) {
-  const {
-    focusableWhenDisabled,
-    disabled,
-    composite = false,
-    tabIndex: tabIndexProp = 0,
-    isNativeButton
-  } = parameters;
-  const isFocusableComposite = composite && focusableWhenDisabled !== false;
-  const isNonFocusableComposite = composite && focusableWhenDisabled === false;
-  const props = React8.useMemo(() => {
-    const additionalProps = {
-      // allow Tabbing away from focusableWhenDisabled elements
-      onKeyDown(event) {
-        if (disabled && focusableWhenDisabled && event.key !== "Tab") {
-          event.preventDefault();
-        }
-      }
-    };
-    if (!composite) {
-      additionalProps.tabIndex = tabIndexProp;
-      if (!isNativeButton && disabled) {
-        additionalProps.tabIndex = focusableWhenDisabled ? tabIndexProp : -1;
-      }
-    }
-    if (isNativeButton && (focusableWhenDisabled || isFocusableComposite) || !isNativeButton && disabled) {
-      additionalProps["aria-disabled"] = disabled;
-    }
-    if (isNativeButton && (!focusableWhenDisabled || isNonFocusableComposite)) {
-      additionalProps.disabled = disabled;
-    }
-    return additionalProps;
-  }, [composite, disabled, focusableWhenDisabled, isFocusableComposite, isNonFocusableComposite, isNativeButton, tabIndexProp]);
-  return {
-    props
-  };
-}
-var React8;
-var init_useFocusableWhenDisabled = __esm({
-  "node_modules/@base-ui/react/utils/useFocusableWhenDisabled.mjs"() {
-    "use client";
-    React8 = __toESM(require_react(), 1);
-  }
-});
-
-// node_modules/@base-ui/react/internals/use-button/useButton.mjs
-function useButton(parameters = {}) {
-  const {
-    disabled = false,
-    focusableWhenDisabled,
-    tabIndex = 0,
-    native: isNativeButton = true,
-    composite: compositeProp
-  } = parameters;
-  const elementRef = React9.useRef(null);
-  const compositeRootContext = useCompositeRootContext(true);
-  const isCompositeItem = compositeProp ?? compositeRootContext !== void 0;
-  const {
-    props: focusableWhenDisabledProps
-  } = useFocusableWhenDisabled({
-    focusableWhenDisabled,
-    disabled,
-    composite: isCompositeItem,
-    tabIndex,
-    isNativeButton
-  });
-  if (process.env.NODE_ENV !== "production") {
-    React9.useEffect(() => {
-      if (!elementRef.current) {
-        return;
-      }
-      const isButtonTag = isButtonElement(elementRef.current);
-      if (isNativeButton) {
-        if (!isButtonTag) {
-          const ownerStackMessage = SafeReact.captureOwnerStack?.() || "";
-          const message = "A component that acts as a button expected a native <button> because the `nativeButton` prop is true. Rendering a non-<button> removes native button semantics, which can impact forms and accessibility. Use a real <button> in the `render` prop, or set `nativeButton` to `false`.";
-          error51(`${message}${ownerStackMessage}`);
-        }
-      } else if (isButtonTag) {
-        const ownerStackMessage = SafeReact.captureOwnerStack?.() || "";
-        const message = "A component that acts as a button expected a non-<button> because the `nativeButton` prop is false. Rendering a <button> keeps native behavior while Base UI applies non-native attributes and handlers, which can add unintended extra attributes (such as `role` or `aria-disabled`). Use a non-<button> in the `render` prop, or set `nativeButton` to `true`.";
-        error51(`${message}${ownerStackMessage}`);
-      }
-    }, [isNativeButton]);
-  }
-  const updateDisabled = React9.useCallback(() => {
-    const element = elementRef.current;
-    if (!isButtonElement(element)) {
-      return;
-    }
-    if (isCompositeItem && disabled && focusableWhenDisabledProps.disabled === void 0 && element.disabled) {
-      element.disabled = false;
-    }
-  }, [disabled, focusableWhenDisabledProps.disabled, isCompositeItem]);
-  useIsoLayoutEffect(updateDisabled, [updateDisabled]);
-  const getButtonProps = React9.useCallback((externalProps = {}) => {
-    const {
-      onClick: externalOnClick,
-      onMouseDown: externalOnMouseDown,
-      onKeyUp: externalOnKeyUp,
-      onKeyDown: externalOnKeyDown,
-      onPointerDown: externalOnPointerDown,
-      ...otherExternalProps
-    } = externalProps;
-    return mergeProps({
-      onClick(event) {
-        if (disabled) {
-          event.preventDefault();
-          return;
-        }
-        externalOnClick?.(event);
-      },
-      onMouseDown(event) {
-        if (!disabled) {
-          externalOnMouseDown?.(event);
-        }
-      },
-      onKeyDown(event) {
-        if (disabled) {
-          return;
-        }
-        makeEventPreventable(event);
-        externalOnKeyDown?.(event);
-        if (event.baseUIHandlerPrevented) {
-          return;
-        }
-        const isCurrentTarget = event.target === event.currentTarget;
-        const currentTarget = event.currentTarget;
-        const isButton = isButtonElement(currentTarget);
-        const isLink = !isNativeButton && isValidLinkElement(currentTarget);
-        const shouldClick = isCurrentTarget && (isNativeButton ? isButton : !isLink);
-        const isEnterKey = event.key === "Enter";
-        const isSpaceKey = event.key === " ";
-        const role = currentTarget.getAttribute("role");
-        const isTextNavigationRole = role?.startsWith("menuitem") || role === "option" || role === "gridcell";
-        if (isCurrentTarget && isCompositeItem && isSpaceKey) {
-          if (event.defaultPrevented && isTextNavigationRole) {
-            return;
-          }
-          event.preventDefault();
-          if (isLink || isNativeButton && isButton) {
-            currentTarget.click();
-            event.preventBaseUIHandler();
-          } else if (shouldClick) {
-            externalOnClick?.(event);
-            event.preventBaseUIHandler();
-          }
-          return;
-        }
-        if (shouldClick) {
-          if (!isNativeButton && (isSpaceKey || isEnterKey)) {
-            event.preventDefault();
-          }
-          if (!isNativeButton && isEnterKey) {
-            externalOnClick?.(event);
-          }
-        }
-      },
-      onKeyUp(event) {
-        if (disabled) {
-          return;
-        }
-        makeEventPreventable(event);
-        externalOnKeyUp?.(event);
-        if (event.target === event.currentTarget && isNativeButton && isCompositeItem && isButtonElement(event.currentTarget) && event.key === " ") {
-          event.preventDefault();
-          return;
-        }
-        if (event.baseUIHandlerPrevented) {
-          return;
-        }
-        if (event.target === event.currentTarget && !isNativeButton && !isCompositeItem && event.key === " ") {
-          externalOnClick?.(event);
-        }
-      },
-      onPointerDown(event) {
-        if (disabled) {
-          event.preventDefault();
-          return;
-        }
-        externalOnPointerDown?.(event);
-      }
-    }, isNativeButton ? {
-      type: "button"
-    } : {
-      role: "button"
-    }, focusableWhenDisabledProps, otherExternalProps);
-  }, [disabled, focusableWhenDisabledProps, isCompositeItem, isNativeButton]);
-  const buttonRef = useStableCallback((element) => {
-    elementRef.current = element;
-    updateDisabled();
-  });
-  return {
-    getButtonProps,
-    buttonRef
-  };
-}
-function isButtonElement(elem) {
-  return isHTMLElement(elem) && elem.tagName === "BUTTON";
-}
-function isValidLinkElement(elem) {
-  return Boolean(elem?.tagName === "A" && elem?.href);
-}
-var React9;
-var init_useButton = __esm({
-  "node_modules/@base-ui/react/internals/use-button/useButton.mjs"() {
-    "use client";
-    React9 = __toESM(require_react(), 1);
-    init_floating_ui_utils_dom();
-    init_useStableCallback();
-    init_error();
-    init_safeReact();
-    init_useIsoLayoutEffect();
-    init_merge_props();
-    init_CompositeRootContext();
-    init_useFocusableWhenDisabled();
-  }
-});
-
-// node_modules/@base-ui/react/button/Button.mjs
-var React10, Button;
-var init_Button = __esm({
-  "node_modules/@base-ui/react/button/Button.mjs"() {
-    "use client";
-    React10 = __toESM(require_react(), 1);
-    init_useButton();
-    init_useRenderElement();
-    Button = /* @__PURE__ */ React10.forwardRef(function Button2(componentProps, forwardedRef) {
-      const {
-        render: render2,
-        className,
-        disabled = false,
-        focusableWhenDisabled = false,
-        nativeButton = true,
-        style,
-        ...elementProps
-      } = componentProps;
-      const {
-        getButtonProps,
-        buttonRef
-      } = useButton({
-        disabled,
-        focusableWhenDisabled,
-        native: nativeButton
-      });
-      const state = {
-        disabled
-      };
-      return useRenderElement("button", componentProps, {
-        state,
-        ref: [forwardedRef, buttonRef],
-        props: [elementProps, getButtonProps]
-      });
-    });
-    if (process.env.NODE_ENV !== "production") Button.displayName = "Button";
-  }
-});
-
-// node_modules/@base-ui/react/button/index.mjs
-var init_button = __esm({
-  "node_modules/@base-ui/react/button/index.mjs"() {
-    init_Button();
-  }
-});
-
-// dist/shared/html/ui/button.js
-function Button3({ className, variant, size, ...props }) {
-  return (0, import_jsx_runtime3.jsx)(Button, { "data-slot": "button", className: cn(buttonVariants({ variant, size, className })), ...props });
-}
-var import_jsx_runtime3, buttonVariants;
-var init_button2 = __esm({
-  "dist/shared/html/ui/button.js"() {
-    "use strict";
-    import_jsx_runtime3 = __toESM(require_jsx_runtime(), 1);
-    init_button();
-    init_dist();
-    init_utils();
-    buttonVariants = cva("inline-flex items-center justify-center gap-2 whitespace-nowrap rounded-md text-sm font-medium transition-all disabled:pointer-events-none disabled:opacity-50 [&_svg]:pointer-events-none [&_svg:not([class*='size-'])]:size-4 shrink-0 [&_svg]:shrink-0 outline-none focus-visible:border-ring focus-visible:ring-ring/50 focus-visible:ring-[3px] aria-invalid:ring-destructive/20 dark:aria-invalid:ring-destructive/40 aria-invalid:border-destructive", {
-      variants: {
-        variant: {
-          default: "bg-primary text-primary-foreground shadow-xs hover:bg-primary/90",
-          destructive: "bg-destructive text-white shadow-xs hover:bg-destructive/90 focus-visible:ring-destructive/20 dark:focus-visible:ring-destructive/40 dark:bg-destructive/60",
-          outline: "border bg-background shadow-xs hover:bg-accent hover:text-accent-foreground dark:bg-input/30 dark:border-input dark:hover:bg-input/50",
-          secondary: "bg-secondary text-secondary-foreground shadow-xs hover:bg-secondary/80",
-          ghost: "hover:bg-accent hover:text-accent-foreground dark:hover:bg-accent/50",
-          link: "text-primary underline-offset-4 hover:underline"
-        },
-        size: {
-          default: "h-9 px-4 py-2 has-[>svg]:px-3",
-          sm: "h-8 rounded-md gap-1.5 px-3 has-[>svg]:px-2.5",
-          lg: "h-10 rounded-md px-6 has-[>svg]:px-4",
-          icon: "size-9",
-          "icon-sm": "size-8",
-          "icon-lg": "size-10"
-        }
-      },
-      defaultVariants: {
-        variant: "default",
-        size: "default"
-      }
-    });
-  }
-});
-
 // dist/shared/html/ui/card.js
 function Card({ className, ...props }) {
-  return (0, import_jsx_runtime4.jsx)("div", { "data-slot": "card", className: cn("bg-card text-card-foreground flex flex-col gap-6 rounded-xl border py-6 shadow-sm", className), ...props });
+  return (0, import_jsx_runtime5.jsx)("div", { "data-slot": "card", className: cn("bg-card text-card-foreground flex flex-col gap-6 rounded-xl border py-6 shadow-sm", className), ...props });
 }
 function CardHeader({ className, ...props }) {
-  return (0, import_jsx_runtime4.jsx)("div", { "data-slot": "card-header", className: cn("@container/card-header grid auto-rows-min grid-rows-[auto_auto] items-start gap-2 px-6 has-data-[slot=card-action]:grid-cols-[1fr_auto] [.border-b]:pb-6", className), ...props });
+  return (0, import_jsx_runtime5.jsx)("div", { "data-slot": "card-header", className: cn("@container/card-header grid auto-rows-min grid-rows-[auto_auto] items-start gap-2 px-6 has-data-[slot=card-action]:grid-cols-[1fr_auto] [.border-b]:pb-6", className), ...props });
 }
 function CardTitle({ className, ...props }) {
-  return (0, import_jsx_runtime4.jsx)("div", { "data-slot": "card-title", className: cn("leading-none font-semibold", className), ...props });
+  return (0, import_jsx_runtime5.jsx)("div", { "data-slot": "card-title", className: cn("leading-none font-semibold", className), ...props });
 }
 function CardAction({ className, ...props }) {
-  return (0, import_jsx_runtime4.jsx)("div", { "data-slot": "card-action", className: cn("col-start-2 row-span-2 row-start-1 self-start justify-self-end", className), ...props });
+  return (0, import_jsx_runtime5.jsx)("div", { "data-slot": "card-action", className: cn("col-start-2 row-span-2 row-start-1 self-start justify-self-end", className), ...props });
 }
-var import_jsx_runtime4;
+var import_jsx_runtime5;
 var init_card = __esm({
   "dist/shared/html/ui/card.js"() {
     "use strict";
-    import_jsx_runtime4 = __toESM(require_jsx_runtime(), 1);
-    init_utils();
-  }
-});
-
-// dist/shared/html/checkpoint-page.js
-function shellSingleQuote(value) {
-  return `'${value.replace(/'/g, "'\\''")}'`;
-}
-function resumeCommandForChoice(runFolder, choiceId) {
-  return `circuit resume --run-folder ${shellSingleQuote(runFolder)} --checkpoint-choice ${shellSingleQuote(choiceId)}`;
-}
-function Ribbon({ tags }) {
-  if (tags.length === 0)
-    return null;
-  return (0, import_jsx_runtime5.jsx)("div", { "data-slot": "ribbon", className: "mb-7 flex flex-wrap gap-2", children: tags.map((tag) => (0, import_jsx_runtime5.jsx)(Badge, { variant: "secondary", className: "rounded-full px-3 py-1 text-[11px] uppercase tracking-[0.06em] text-muted-foreground", children: t(tag, 120) }, tag)) });
-}
-function Recommendation({ recommendation }) {
-  return (0, import_jsx_runtime5.jsxs)("div", { "data-slot": "recommendation", className: "mb-6 flex flex-wrap items-baseline gap-3 rounded-lg border border-positive/50 bg-positive/5 px-5 py-4", children: [(0, import_jsx_runtime5.jsx)(Badge, { variant: "outline", className: "border-positive/50 uppercase text-positive", children: "Recommended" }), (0, import_jsx_runtime5.jsxs)("span", { className: "min-w-[200px] flex-1 text-sm", children: [(0, import_jsx_runtime5.jsx)("strong", { className: "font-semibold", children: t(recommendation.label, MAX_PROMPT_LEN) }), recommendation.rationale === void 0 ? null : (0, import_jsx_runtime5.jsxs)("span", { className: "text-muted-foreground", children: [" ", t(recommendation.rationale, MAX_PROMPT_LEN)] })] })] });
-}
-function OptionCard({ option, runFolder }) {
-  const command = truncate2(resumeCommandForChoice(t(runFolder), option.id), MAX_PROMPT_LEN);
-  return (0, import_jsx_runtime5.jsxs)(Card, { "data-slot": "option", className: option.isRecommended === true ? "gap-2.5 border-positive/60 py-5 shadow-none ring-[3px] ring-positive/10" : "gap-2.5 py-5 shadow-none", children: [(0, import_jsx_runtime5.jsxs)("div", { className: "flex flex-wrap items-center gap-2.5 px-6", children: [(0, import_jsx_runtime5.jsx)("h2", { className: "text-base font-semibold leading-snug tracking-tight", children: t(option.label, MAX_PROMPT_LEN) }), option.isRecommended === true ? (0, import_jsx_runtime5.jsx)(Badge, { variant: "outline", className: "border-positive/50 uppercase text-positive", children: "Recommended" }) : null, option.isDefault === true ? (0, import_jsx_runtime5.jsx)(Badge, { variant: "secondary", className: "uppercase text-muted-foreground", children: "Default" }) : null] }), option.description === void 0 ? null : (0, import_jsx_runtime5.jsx)("p", { className: "px-6 text-sm text-muted-foreground", children: t(option.description, MAX_PROMPT_LEN) }), option.extra ?? null, (0, import_jsx_runtime5.jsxs)("div", { className: "flex flex-wrap items-center gap-2.5 px-6 pt-0.5", children: [(0, import_jsx_runtime5.jsx)(Button3, { variant: "outline", size: "sm", "data-prompt": command, children: "Copy resume command" }), (0, import_jsx_runtime5.jsx)("code", { className: "max-w-full overflow-x-auto whitespace-pre rounded-md border bg-muted px-2.5 py-1.5 font-mono text-xs text-muted-foreground", children: command })] })] });
-}
-function DefaultStrip({ defaultChoice }) {
-  return (0, import_jsx_runtime5.jsxs)("div", { "data-slot": "default-strip", className: "mt-5 flex flex-wrap items-baseline gap-3 rounded-lg border border-dashed border-border px-4 py-3.5 text-[13.5px] text-muted-foreground", children: [(0, import_jsx_runtime5.jsx)("span", { className: "whitespace-nowrap text-[10px] font-semibold uppercase tracking-[0.08em]", children: "If you do nothing" }), defaultChoice === void 0 ? (0, import_jsx_runtime5.jsx)("span", { children: "The run stays parked at this checkpoint until you choose." }) : (0, import_jsx_runtime5.jsxs)("span", { children: ["The run stays parked at this checkpoint. The declared default is", " ", (0, import_jsx_runtime5.jsx)("strong", { className: "font-semibold text-foreground", children: t(defaultChoice.label, MAX_PROMPT_LEN) }), "."] })] });
-}
-function CheckpointPage({ input }) {
-  const subtitle = input.subtitle ?? "This run is paused. Pick an option, then resume from the terminal.";
-  return (0, import_jsx_runtime5.jsxs)("div", { className: "mx-auto max-w-4xl px-6 py-12 pb-24 text-[15px] leading-relaxed antialiased", children: [(0, import_jsx_runtime5.jsxs)("header", { className: "mb-6", children: [(0, import_jsx_runtime5.jsx)("div", { className: "mb-2 text-xs font-medium uppercase tracking-[0.06em] text-muted-foreground", children: t(`Circuit \xB7 ${input.meta.flowLabel} \xB7 checkpoint waiting`, 160) }), (0, import_jsx_runtime5.jsx)("h1", { className: "text-[27px] font-semibold leading-tight tracking-tight text-balance", children: t(input.question, MAX_PROMPT_LEN) }), (0, import_jsx_runtime5.jsx)("p", { className: "mt-2 text-base text-muted-foreground", children: t(subtitle, MAX_PROMPT_LEN) })] }), (0, import_jsx_runtime5.jsx)(Ribbon, { tags: input.ribbon }), input.recommendation === void 0 ? null : (0, import_jsx_runtime5.jsx)(Recommendation, { recommendation: input.recommendation }), input.context ?? null, (0, import_jsx_runtime5.jsx)("div", { "data-slot": "option-list", className: "mt-2 flex flex-col gap-3", children: input.options.map((option) => (0, import_jsx_runtime5.jsx)(OptionCard, { option, runFolder: input.resume.runFolder }, option.id)) }), (0, import_jsx_runtime5.jsx)(DefaultStrip, { defaultChoice: input.defaultChoice }), input.appendix ?? null, (0, import_jsx_runtime5.jsxs)("footer", { className: "mt-12 flex flex-wrap justify-between gap-3 border-t pt-6 text-xs text-muted-foreground", children: [(0, import_jsx_runtime5.jsx)("span", { children: t(input.footerLeft ?? `circuit \xB7 ${input.meta.stepId} \xB7 ${input.meta.runId}`, 300) }), input.footerRight === void 0 ? null : (0, import_jsx_runtime5.jsx)("span", { children: (0, import_jsx_runtime5.jsx)("code", { className: "font-mono text-[11px]", children: t(input.footerRight, 300) }) })] })] });
-}
-function renderCheckpointPage(input) {
-  return renderHtmlDocument({
-    title: `${truncate2(input.question, 80)} \xB7 Circuit ${input.meta.flowLabel} checkpoint`,
-    body: (0, import_jsx_runtime5.jsx)(CheckpointPage, { input })
-  });
-}
-function flowLabelFromId(flowId) {
-  return flowId.split("-").map((part) => `${part.slice(0, 1).toUpperCase()}${part.slice(1)}`).join(" ");
-}
-function genericCheckpointHtml(ctx) {
-  if (ctx.runOutcome !== "checkpoint_waiting")
-    return void 0;
-  const checkpoint = ctx.checkpoint;
-  if (checkpoint === void 0)
-    return void 0;
-  const allowed = new Set(checkpoint.allowed_choices);
-  const labeled = (checkpoint.choices ?? []).filter((choice) => allowed.has(choice.id));
-  const covered = new Set(labeled.map((choice) => choice.id));
-  const options = [
-    ...labeled.map((choice) => ({
-      id: choice.id,
-      label: choice.label ?? choice.id,
-      ...choice.description === void 0 ? {} : { description: choice.description },
-      ...checkpoint.safe_default_choice === choice.id ? { isDefault: true } : {}
-    })),
-    ...checkpoint.allowed_choices.filter((id) => !covered.has(id)).map((id) => ({
-      id,
-      label: id,
-      ...checkpoint.safe_default_choice === id ? { isDefault: true } : {}
-    }))
-  ];
-  if (options.length === 0)
-    return void 0;
-  const defaultOption = checkpoint.safe_default_choice === void 0 ? void 0 : options.find((option) => option.id === checkpoint.safe_default_choice);
-  const flowLabel2 = flowLabelFromId(ctx.flowId);
-  const question = checkpoint.prompt ?? `The ${flowLabel2} flow is waiting for your choice at ${checkpoint.step_id}.`;
-  const ribbon = [
-    "Waiting for you",
-    ...checkpoint.depth === void 0 ? [] : [`Depth ${checkpoint.depth}`],
-    `${options.length} ${options.length === 1 ? "choice" : "choices"}`
-  ];
-  const requestPath = checkpoint.request_path.startsWith(`${ctx.runFolder}/`) ? checkpoint.request_path.slice(ctx.runFolder.length + 1) : checkpoint.request_path;
-  return renderCheckpointPage({
-    meta: { flowLabel: flowLabel2, runId: ctx.runId, stepId: checkpoint.step_id },
-    question,
-    ribbon,
-    options,
-    ...defaultOption === void 0 ? {} : { defaultChoice: { id: defaultOption.id, label: defaultOption.label } },
-    resume: { runFolder: ctx.runFolder },
-    footerLeft: `circuit \xB7 ${checkpoint.step_id} \xB7 ${ctx.runId}`,
-    footerRight: requestPath
-  });
-}
-var import_jsx_runtime5;
-var init_checkpoint_page = __esm({
-  "dist/shared/html/checkpoint-page.js"() {
-    "use strict";
     import_jsx_runtime5 = __toESM(require_jsx_runtime(), 1);
-    init_page();
-    init_react_page();
-    init_badge();
-    init_button2();
-    init_card();
-  }
-});
-
-// dist/shared/html/index.js
-function registerHtmlProjector(flowId, projector) {
-  HTML_PROJECTORS.set(flowId, projector);
-}
-function getHtmlProjector(flowId) {
-  return HTML_PROJECTORS.get(flowId);
-}
-var HTML_PROJECTORS;
-var init_html = __esm({
-  "dist/shared/html/index.js"() {
-    "use strict";
-    init_checkpoint_page();
-    HTML_PROJECTORS = /* @__PURE__ */ new Map();
-  }
-});
-
-// dist/schemas/flow-blocks.js
-var FLOW_BLOCK_IDS, FlowBlockId, FlowRoute, FlowBlockActionSurface, FlowBlockCheckKind, FlowBlockHumanInteraction, FlowContractRef, FlowInputContractSet, nonEmptyUniqueStrings, HostCapabilities, FlowBlock, FlowBlockCatalog;
-var init_flow_blocks = __esm({
-  "dist/schemas/flow-blocks.js"() {
-    "use strict";
-    init_zod();
-    FLOW_BLOCK_IDS = [
-      "intake",
-      "route",
-      "frame",
-      "clarify",
-      "human-decision",
-      "gather-context",
-      "diagnose",
-      "plan",
-      "act",
-      "run-verification",
-      "review",
-      "goal",
-      "goal-child-run",
-      "goal-attempt",
-      "goal-evaluate",
-      "goal-recover",
-      "goal-checkpoint",
-      "goal-gate-review",
-      "goal-close",
-      "pursue",
-      "coordinate-pursuits",
-      "queue",
-      "batch",
-      "risk-rollback-check",
-      "close-with-evidence",
-      "handoff",
-      "review-intake",
-      "prototype-variant-evidence",
-      "prototype-checkpoint"
-    ];
-    FlowBlockId = external_exports.enum(FLOW_BLOCK_IDS);
-    FlowRoute = external_exports.enum([
-      "continue",
-      "connector-failed",
-      "retry",
-      "revise",
-      "ask",
-      "split",
-      "stop",
-      "handoff",
-      "escalate",
-      "complete",
-      "fix",
-      "build",
-      "review",
-      "explore",
-      "pursue",
-      "completion-gate",
-      "retry-selected-flow",
-      "run-fix",
-      "run-review",
-      "run-explore",
-      "split-to-pursue",
-      "checkpoint",
-      "blocked",
-      "recover",
-      "run-next-gate-pass",
-      "close",
-      // Slice-loop forward edge: a passed slice verify re-enters the loop head
-      // for the next slice (deep-depth Build). See
-      // docs/ideas/build-slice-decomposition.md.
-      "advance"
-    ]);
-    FlowBlockActionSurface = external_exports.enum(["orchestrator", "worker", "host", "mixed"]);
-    FlowBlockCheckKind = external_exports.enum([
-      "schema",
-      "decision",
-      "command",
-      "review",
-      "risk",
-      "queue",
-      "coordination"
-    ]);
-    FlowBlockHumanInteraction = external_exports.enum([
-      "never",
-      "optional",
-      "required",
-      "mode-dependent"
-    ]);
-    FlowContractRef = external_exports.string().regex(/^[a-z][a-z0-9-]*(?:\.[a-z][a-z0-9-]*)+@v[0-9]+$/);
-    FlowInputContractSet = external_exports.array(FlowContractRef).min(1).superRefine((contracts, ctx) => {
-      const seen = /* @__PURE__ */ new Set();
-      for (const [index, contract] of contracts.entries()) {
-        if (seen.has(contract)) {
-          ctx.addIssue({
-            code: "custom",
-            path: [index],
-            message: `duplicate input contract: ${contract}`
-          });
-        }
-        seen.add(contract);
-      }
-    });
-    nonEmptyUniqueStrings = external_exports.array(external_exports.string().min(1)).min(1).superRefine((values, ctx) => {
-      const seen = /* @__PURE__ */ new Set();
-      for (const [index, value] of values.entries()) {
-        if (seen.has(value)) {
-          ctx.addIssue({
-            code: "custom",
-            path: [index],
-            message: `duplicate value: ${value}`
-          });
-        }
-        seen.add(value);
-      }
-    });
-    HostCapabilities = external_exports.object({
-      claude: external_exports.array(external_exports.string().min(1)).default([]),
-      codex: external_exports.array(external_exports.string().min(1)).default([]),
-      non_interactive: external_exports.array(external_exports.string().min(1)).default([])
-    }).strict();
-    FlowBlock = external_exports.object({
-      id: FlowBlockId,
-      title: external_exports.string().min(1),
-      purpose: external_exports.string().min(1),
-      input_contracts: FlowInputContractSet,
-      alternative_input_contracts: external_exports.array(FlowInputContractSet).default([]),
-      output_contract: FlowContractRef,
-      action_surface: FlowBlockActionSurface,
-      produces_evidence: nonEmptyUniqueStrings,
-      check: external_exports.object({
-        kind: FlowBlockCheckKind,
-        description: external_exports.string().min(1)
-      }).strict(),
-      allowed_routes: external_exports.array(FlowRoute).min(1),
-      human_interaction: FlowBlockHumanInteraction,
-      host_capabilities: HostCapabilities,
-      notes: external_exports.string().min(1).optional()
-    }).strict().superRefine((block, ctx) => {
-      const routeSet = /* @__PURE__ */ new Set();
-      for (const [index, route] of block.allowed_routes.entries()) {
-        if (routeSet.has(route)) {
-          ctx.addIssue({
-            code: "custom",
-            path: ["allowed_routes", index],
-            message: `duplicate route: ${route}`
-          });
-        }
-        routeSet.add(route);
-      }
-      if (block.id === "human-decision") {
-        if (block.human_interaction !== "mode-dependent") {
-          ctx.addIssue({
-            code: "custom",
-            path: ["human_interaction"],
-            message: "human-decision must be mode-dependent"
-          });
-        }
-        if (block.host_capabilities.claude.length === 0) {
-          ctx.addIssue({
-            code: "custom",
-            path: ["host_capabilities", "claude"],
-            message: "human-decision must name a Claude host strategy"
-          });
-        }
-        if (block.host_capabilities.codex.length === 0) {
-          ctx.addIssue({
-            code: "custom",
-            path: ["host_capabilities", "codex"],
-            message: "human-decision must name a Codex host strategy"
-          });
-        }
-        if (block.host_capabilities.non_interactive.length === 0) {
-          ctx.addIssue({
-            code: "custom",
-            path: ["host_capabilities", "non_interactive"],
-            message: "human-decision must name a non-interactive host strategy"
-          });
-        }
-      }
-      if (block.id === "close-with-evidence" && !routeSet.has("complete")) {
-        ctx.addIssue({
-          code: "custom",
-          path: ["allowed_routes"],
-          message: "close-with-evidence must allow complete"
-        });
-      }
-    });
-    FlowBlockCatalog = external_exports.object({
-      schema_version: external_exports.literal("1"),
-      blocks: external_exports.array(FlowBlock).min(FLOW_BLOCK_IDS.length)
-    }).strict().superRefine((catalog, ctx) => {
-      const seen = /* @__PURE__ */ new Map();
-      for (const [index, block] of catalog.blocks.entries()) {
-        const prior = seen.get(block.id);
-        if (prior !== void 0) {
-          ctx.addIssue({
-            code: "custom",
-            path: ["blocks", index, "id"],
-            message: `duplicate block id: ${block.id} also appears at index ${prior}`
-          });
-        }
-        seen.set(block.id, index);
-      }
-      for (const requiredId of FLOW_BLOCK_IDS) {
-        if (!seen.has(requiredId)) {
-          ctx.addIssue({
-            code: "custom",
-            path: ["blocks"],
-            message: `missing block id: ${requiredId}`
-          });
-        }
-      }
-    });
-  }
-});
-
-// dist/schemas/flow-block-definitions.js
-function conservativeAuthoringPolicy(schematicPolicy) {
-  const executionKind = schematicPolicy.executionKinds.length === 1 ? schematicPolicy.executionKinds[0] : void 0;
-  return {
-    defaults: {
-      evidenceRequirements: "block-produces-evidence",
-      output: "block-output-contract",
-      ...executionKind === void 0 ? {} : { executionKind }
-    },
-    required: {
-      always: BASE_REQUIRED_AUTHORING_FIELDS,
-      whenExecutionKind: EXECUTION_REQUIRED_AUTHORING_FIELDS
-    }
-  };
-}
-function defineFlowBlockDefinition(definition) {
-  return {
-    ...definition,
-    authoringPolicy: conservativeAuthoringPolicy(definition.schematicPolicy)
-  };
-}
-function blockCatalogEntry(definition) {
-  const { authoringPolicy: _authoringPolicy, schematicPolicy: _schematicPolicy, ...block } = definition;
-  return block;
-}
-var BASE_REQUIRED_AUTHORING_FIELDS, EXECUTION_REQUIRED_AUTHORING_FIELDS, FLOW_BLOCK_DEFINITION_INPUTS, FLOW_BLOCK_DEFINITIONS, FLOW_BLOCK_CATALOG, flowBlockSchematicPolicy, flowBlockAuthoringPolicy, FLOW_BLOCK_SCHEMATIC_POLICY, FLOW_BLOCK_AUTHORING_POLICY;
-var init_flow_block_definitions = __esm({
-  "dist/schemas/flow-block-definitions.js"() {
-    "use strict";
-    init_flow_blocks();
-    init_stage();
-    BASE_REQUIRED_AUTHORING_FIELDS = [
-      "id",
-      "title",
-      "stage",
-      "input",
-      "routes",
-      "protocol",
-      "writes",
-      "check"
-    ];
-    EXECUTION_REQUIRED_AUTHORING_FIELDS = {
-      relay: ["relay_role"],
-      checkpoint: ["checkpoint_policy"],
-      fanout: ["fanout"],
-      "sub-run": ["sub_run_ref", "sub_run_goal", "sub_run_depth"]
-    };
-    FLOW_BLOCK_DEFINITION_INPUTS = [
-      {
-        id: "intake",
-        title: "Intake",
-        purpose: "Capture the user's goal, requested mode, explicit flow choice, and immediate constraints.",
-        input_contracts: ["user.goal@v1"],
-        alternative_input_contracts: [],
-        output_contract: "task.intake@v1",
-        action_surface: "orchestrator",
-        produces_evidence: ["normalized goal", "requested flow", "operator constraints"],
-        check: {
-          kind: "schema",
-          description: "The normalized task must preserve the user's goal and expose any explicit flow or mode choice."
-        },
-        allowed_routes: ["continue", "ask", "stop"],
-        human_interaction: "optional",
-        host_capabilities: {
-          claude: [],
-          codex: [],
-          non_interactive: []
-        },
-        schematicPolicy: {
-          executionKinds: ["compose", "checkpoint", "sub-run", "fanout"],
-          stages: ["frame"]
-        }
-      },
-      {
-        id: "route",
-        title: "Route",
-        purpose: "Choose the flow or schematic path from the normalized task.",
-        input_contracts: ["task.intake@v1", "flow.catalog@v1"],
-        alternative_input_contracts: [],
-        output_contract: "route.decision@v1",
-        action_surface: "orchestrator",
-        produces_evidence: ["selected flow", "selection reason", "fallback reason when conservative"],
-        check: {
-          kind: "schema",
-          description: "The route decision must name one known flow or stop with an explicit reason."
-        },
-        allowed_routes: ["continue", "ask", "stop"],
-        human_interaction: "optional",
-        host_capabilities: {
-          claude: [],
-          codex: [],
-          non_interactive: []
-        },
-        schematicPolicy: {
-          executionKinds: ["compose", "checkpoint", "sub-run", "fanout"],
-          stages: ["frame"]
-        }
-      },
-      {
-        id: "frame",
-        title: "Frame",
-        purpose: "Define the work boundary, constraints, and proof needed for the selected path.",
-        input_contracts: ["task.intake@v1", "route.decision@v1"],
-        alternative_input_contracts: [],
-        output_contract: "flow.brief@v1",
-        action_surface: "orchestrator",
-        produces_evidence: ["scope boundary", "constraints", "proof plan"],
-        check: {
-          kind: "schema",
-          description: "The brief must state what is in scope, what is out of scope, and how success will be proved."
-        },
-        allowed_routes: ["continue", "revise", "ask", "stop"],
-        human_interaction: "optional",
-        host_capabilities: {
-          claude: [],
-          codex: [],
-          non_interactive: []
-        },
-        schematicPolicy: {
-          executionKinds: ["compose", "checkpoint", "sub-run", "fanout"],
-          stages: ["frame"]
-        }
-      },
-      {
-        id: "clarify",
-        title: "Clarify",
-        purpose: "Turn a rough operator request into a clear task for the selected flow.",
-        input_contracts: ["task.intake@v1", "route.decision@v1"],
-        alternative_input_contracts: [["task.intake@v1"]],
-        output_contract: "clarified.task@v1",
-        action_surface: "worker",
-        produces_evidence: [
-          "original request",
-          "clarified task",
-          "desired outcome",
-          "proof needed",
-          "constraints",
-          "scope",
-          "assumptions",
-          "missing information",
-          "stop conditions"
-        ],
-        check: {
-          kind: "schema",
-          description: "The clarified task must preserve the operator request, name the outcome, identify proof, and separate assumptions from missing information."
-        },
-        allowed_routes: ["continue", "ask", "stop"],
-        human_interaction: "optional",
-        host_capabilities: {
-          claude: [],
-          codex: [],
-          non_interactive: []
-        },
-        schematicPolicy: {
-          executionKinds: ["relay"],
-          stages: ["frame"]
-        }
-      },
-      {
-        id: "human-decision",
-        title: "Human Decision",
-        purpose: "Ask the operator a bounded question and record the answer as flow evidence.",
-        input_contracts: ["flow.question@v1", "flow.evidence@v1"],
-        alternative_input_contracts: [],
-        output_contract: "decision.answer@v1",
-        action_surface: "host",
-        produces_evidence: ["question", "available options", "selected option", "answer source"],
-        check: {
-          kind: "decision",
-          description: "The selected option must be one of the declared options or the run must pause, stop, or fail clearly."
-        },
-        allowed_routes: ["continue", "revise", "stop", "handoff", "escalate"],
-        human_interaction: "mode-dependent",
-        host_capabilities: {
-          claude: ["AskUserQuestion or native user-question tool when available"],
-          codex: ["native interactive question mechanism when available"],
-          non_interactive: ["use declared default", "pause", "fail clearly"]
-        },
-        schematicPolicy: {
-          executionKinds: ["checkpoint"],
-          stages: CANONICAL_STAGES
-        }
-      },
-      {
-        id: "gather-context",
-        title: "Gather Context",
-        purpose: "Collect relevant facts, files, commands, or references before deciding or acting.",
-        input_contracts: ["flow.brief@v1", "context.request@v1"],
-        alternative_input_contracts: [],
-        output_contract: "context.packet@v1",
-        action_surface: "worker",
-        produces_evidence: ["source list", "observations", "confidence notes"],
-        check: {
-          kind: "schema",
-          description: "The context packet must cite its sources and separate observed facts from interpretation."
-        },
-        allowed_routes: ["continue", "retry", "ask", "stop"],
-        human_interaction: "optional",
-        host_capabilities: {
-          claude: [],
-          codex: [],
-          non_interactive: []
-        },
-        schematicPolicy: {
-          executionKinds: ["relay", "compose", "fanout"],
-          stages: ["analyze"]
-        }
-      },
-      {
-        id: "diagnose",
-        title: "Diagnose",
-        purpose: "Explain what is broken, unknown, risky, or likely causing the observed behavior.",
-        input_contracts: ["flow.brief@v1", "context.packet@v1"],
-        alternative_input_contracts: [],
-        output_contract: "diagnosis.result@v1",
-        action_surface: "worker",
-        produces_evidence: ["cause hypothesis", "confidence", "reproduction status", "diagnostic path"],
-        check: {
-          kind: "schema",
-          description: "The diagnosis must distinguish known facts, hypotheses, and unresolved questions."
-        },
-        allowed_routes: ["continue", "retry", "ask", "stop"],
-        human_interaction: "optional",
-        host_capabilities: {
-          claude: [],
-          codex: [],
-          non_interactive: []
-        },
-        schematicPolicy: {
-          executionKinds: ["relay", "compose", "fanout"],
-          stages: ["analyze"]
-        }
-      },
-      {
-        id: "plan",
-        title: "Plan",
-        purpose: "Choose a bounded implementation, investigation, or migration path.",
-        input_contracts: ["flow.brief@v1", "context.packet@v1", "diagnosis.result@v1"],
-        alternative_input_contracts: [["flow.brief@v1"], ["flow.brief@v1", "context.packet@v1"]],
-        output_contract: "plan.strategy@v1",
-        action_surface: "worker",
-        produces_evidence: ["ordered steps", "risk notes", "proof strategy"],
-        check: {
-          kind: "schema",
-          description: "The plan must name concrete steps, expected proof, and known risks."
-        },
-        allowed_routes: ["continue", "revise", "ask", "stop"],
-        human_interaction: "optional",
-        host_capabilities: {
-          claude: [],
-          codex: [],
-          non_interactive: []
-        },
-        schematicPolicy: {
-          executionKinds: ["relay", "compose", "fanout"],
-          stages: ["plan"]
-        }
-      },
-      {
-        id: "act",
-        title: "Act",
-        purpose: "Make or delegate the change within the declared scope.",
-        input_contracts: ["flow.brief@v1", "diagnosis.result@v1"],
-        alternative_input_contracts: [
-          ["flow.brief@v1", "plan.strategy@v1"],
-          ["flow.brief@v1", "plan.strategy@v1", "diagnosis.result@v1"]
-        ],
-        output_contract: "change.evidence@v1",
-        action_surface: "worker",
-        produces_evidence: ["changed files", "change rationale", "declared follow-up proof"],
-        check: {
-          kind: "schema",
-          description: "The action evidence must name what changed and why it stays inside scope."
-        },
-        allowed_routes: ["continue", "retry", "ask", "stop", "handoff"],
-        human_interaction: "optional",
-        host_capabilities: {
-          claude: [],
-          codex: [],
-          non_interactive: []
-        },
-        schematicPolicy: {
-          executionKinds: ["relay", "compose", "fanout"],
-          // 'plan' is included because Explore runs its genuine implementer
-          // synthesis (synthesize-step) inside its canonical plan stage: Explore
-          // omits the act/verify/review canonical stages (EXPLORE-I1), so the act
-          // that composes the recommendation is runtime-locked to the plan stage.
-          // This mirrors the same widening already applied to the review block for
-          // Explore's review-step. See src/flows/explore/contract.md.
-          stages: ["act", "plan"]
-        }
-      },
-      {
-        id: "run-verification",
-        title: "Run Verification",
-        purpose: "Run declared proof commands or checks and capture their result.",
-        input_contracts: ["verification.plan@v1", "change.evidence@v1"],
-        alternative_input_contracts: [["verification.plan@v1"]],
-        output_contract: "verification.result@v1",
-        action_surface: "orchestrator",
-        produces_evidence: ["command list", "exit status", "bounded output", "pass or fail"],
-        check: {
-          kind: "command",
-          description: "Each verification command must have a captured exit status and bounded output."
-        },
-        allowed_routes: ["continue", "retry", "ask", "stop"],
-        human_interaction: "optional",
-        host_capabilities: {
-          claude: [],
-          codex: [],
-          non_interactive: []
-        },
-        schematicPolicy: {
-          executionKinds: ["verification"],
-          stages: ["verify"]
-        }
-      },
-      {
-        id: "review",
-        title: "Review",
-        purpose: "Judge whether the result satisfies the brief and whether any fixes are required.",
-        input_contracts: ["flow.brief@v1", "change.evidence@v1", "verification.result@v1"],
-        alternative_input_contracts: [["flow.brief@v1"], ["flow.brief@v1", "change.evidence@v1"]],
-        output_contract: "review.verdict@v1",
-        action_surface: "worker",
-        produces_evidence: ["verdict", "findings", "confidence", "required fixes"],
-        check: {
-          kind: "review",
-          description: "The verdict must be one of the declared review outcomes and must include findings when it blocks."
-        },
-        allowed_routes: ["continue", "connector-failed", "retry", "revise", "ask", "stop"],
-        human_interaction: "optional",
-        host_capabilities: {
-          claude: [],
-          codex: [],
-          non_interactive: []
-        },
-        schematicPolicy: {
-          executionKinds: ["relay", "compose", "fanout"],
-          // 'plan' is included because Explore runs a genuine reviewer pass
-          // (review-step) inside its canonical plan stage: Explore omits the
-          // act/verify/review canonical stages (EXPLORE-I1), so its adversarial
-          // review of the synthesized composition is runtime-locked to the plan
-          // stage. See src/flows/explore/contract.md.
-          stages: ["review", "analyze", "plan"]
-        }
-      },
-      {
-        id: "goal",
-        title: "Goal",
-        purpose: "Turn a user objective into a bounded goal contract with proof, recovery, and safety-review policy.",
-        input_contracts: ["task.intake@v1", "route.decision@v1"],
-        alternative_input_contracts: [["task.intake@v1"]],
-        output_contract: "goal.contract@v1",
-        action_surface: "orchestrator",
-        produces_evidence: [
-          "goal contract",
-          "done claims",
-          "proof requirements",
-          "allowed flow targets",
-          "recovery routes",
-          "safety review policy"
-        ],
-        check: {
-          kind: "schema",
-          description: "The goal contract must preserve the operator objective, declare proof requirements, constrain flow targets, and name recovery and close rules."
-        },
-        allowed_routes: ["continue", "ask", "stop", "fix", "build", "review", "explore", "pursue"],
-        human_interaction: "optional",
-        host_capabilities: {
-          claude: [],
-          codex: [],
-          non_interactive: []
-        },
-        schematicPolicy: {
-          executionKinds: ["compose", "checkpoint", "sub-run"],
-          stages: ["frame"]
-        }
-      },
-      {
-        id: "goal-child-run",
-        title: "Goal Child Run",
-        purpose: "Run the statically selected child flow for the goal contract and capture its result as a goal attempt input.",
-        input_contracts: ["goal.contract@v1"],
-        alternative_input_contracts: [],
-        output_contract: "goal.child-run@v1",
-        action_surface: "orchestrator",
-        produces_evidence: ["static child flow target", "child result file", "parent trace link"],
-        check: {
-          kind: "schema",
-          description: "The child run must record which static flow target ran and where its result and reports landed."
-        },
-        allowed_routes: ["continue", "stop"],
-        human_interaction: "never",
-        host_capabilities: {
-          claude: [],
-          codex: [],
-          non_interactive: []
-        },
-        schematicPolicy: {
-          executionKinds: ["sub-run"],
-          stages: ["act"]
-        }
-      },
-      {
-        id: "goal-attempt",
-        title: "Goal Attempt",
-        purpose: "Summarize one child-flow attempt against the goal contract into a typed attempt record.",
-        input_contracts: ["goal.contract@v1"],
-        alternative_input_contracts: [],
-        output_contract: "goal.attempt@v1",
-        action_surface: "orchestrator",
-        produces_evidence: ["child result path", "child report paths", "attempt outcome"],
-        check: {
-          kind: "schema",
-          description: "The attempt must name the flow target, point at the child result, and state an outcome."
-        },
-        allowed_routes: ["continue", "stop"],
-        human_interaction: "never",
-        host_capabilities: {
-          claude: [],
-          codex: [],
-          non_interactive: []
-        },
-        schematicPolicy: {
-          executionKinds: ["compose"],
-          stages: ["act"]
-        }
-      },
-      {
-        id: "goal-evaluate",
-        title: "Goal Evaluate",
-        purpose: "Compare attempt evidence to the goal contract done claims and choose the next typed route.",
-        input_contracts: ["goal.contract@v1", "goal.attempt@v1"],
-        alternative_input_contracts: [],
-        output_contract: "goal.evidence-evaluation@v1",
-        action_surface: "orchestrator",
-        produces_evidence: ["claim results", "evidence gaps", "next typed route"],
-        check: {
-          kind: "schema",
-          description: "The evaluation must report each done-claim result, name remaining evidence gaps, and select one typed next route."
-        },
-        allowed_routes: [
-          "continue",
-          "completion-gate",
-          "retry-selected-flow",
-          "run-fix",
-          "run-review",
-          "run-explore",
-          "split-to-pursue",
-          "checkpoint",
-          "handoff",
-          "blocked",
-          "stop"
-        ],
-        human_interaction: "never",
-        host_capabilities: {
-          claude: [],
-          codex: [],
-          non_interactive: []
-        },
-        schematicPolicy: {
-          executionKinds: ["compose"],
-          stages: ["verify"]
-        }
-      },
-      {
-        id: "goal-recover",
-        title: "Goal Recover",
-        purpose: "Choose a typed recovery action when the goal attempt did not satisfy the contract.",
-        input_contracts: ["goal.evidence-evaluation@v1", "goal.attempt@v1"],
-        alternative_input_contracts: [],
-        output_contract: "goal.recovery@v1",
-        action_surface: "orchestrator",
-        produces_evidence: ["recovery reason", "selected route", "operator input need"],
-        check: {
-          kind: "schema",
-          description: "The recovery must give a reason, select one typed route, and state whether operator input is needed."
-        },
-        allowed_routes: [
-          "continue",
-          "retry-selected-flow",
-          "run-fix",
-          "run-review",
-          "run-explore",
-          "split-to-pursue",
-          "checkpoint",
-          "blocked",
-          "handoff",
-          "stop"
-        ],
-        human_interaction: "never",
-        host_capabilities: {
-          claude: [],
-          codex: [],
-          non_interactive: []
-        },
-        schematicPolicy: {
-          executionKinds: ["compose"],
-          stages: ["verify"]
-        }
-      },
-      {
-        id: "goal-checkpoint",
-        title: "Goal Checkpoint",
-        purpose: "Pause for operator judgment on a goal recovery decision and record the chosen option.",
-        input_contracts: ["flow.question@v1", "goal.recovery@v1"],
-        alternative_input_contracts: [],
-        output_contract: "goal.checkpoint@v1",
-        action_surface: "host",
-        produces_evidence: ["question", "available options", "selected option", "answer source"],
-        check: {
-          kind: "decision",
-          description: "The selected option must be one of the declared options or the run must pause, stop, or hand off clearly."
-        },
-        allowed_routes: ["continue", "blocked", "handoff", "stop"],
-        human_interaction: "required",
-        host_capabilities: {
-          claude: [],
-          codex: [],
-          non_interactive: []
-        },
-        schematicPolicy: {
-          executionKinds: ["checkpoint"],
-          stages: ["verify"]
-        }
-      },
-      {
-        id: "goal-gate-review",
-        title: "Goal Gate Review",
-        purpose: "Run one safety-review pass over the goal evaluation before the run is allowed to close.",
-        input_contracts: ["goal.contract@v1", "goal.evidence-evaluation@v1"],
-        alternative_input_contracts: [],
-        output_contract: "goal.gate-review@v1",
-        action_surface: "worker",
-        produces_evidence: ["safety review pass", "review lens", "evidence checked"],
-        check: {
-          kind: "review",
-          description: "Each gate pass must record the review lens applied and the evidence it checked."
-        },
-        // The gate-pass items route from the reviewer's report: route_from_report
-        // reads `next_route`, whose schema enum (GoalGate.next_route) is exactly
-        // {run-next-gate-pass, recover, close}. So those three are the routes this
-        // block actually emits at runtime, plus retry/stop as the failed-check
-        // recovery and terminal fallbacks (continue survives as the compiled `pass`
-        // twin the relay returns on a clean check in tests). allowed_routes lists the
-        // full declared vocabulary so the catalog model matches the items instead of
-        // claiming routes the block never uses. recover and run-next-gate-pass are
-        // flow-specific (not NORMAL, not recovery-bound), so they must be listed
-        // explicitly; gate-recognition reconciliation already clears close (NORMAL),
-        // retry, and stop (recovery-bound).
-        allowed_routes: ["continue", "run-next-gate-pass", "recover", "retry", "close", "stop"],
-        human_interaction: "never",
-        host_capabilities: {
-          claude: [],
-          codex: [],
-          non_interactive: []
-        },
-        schematicPolicy: {
-          executionKinds: ["relay"],
-          stages: ["review"]
-        }
-      },
-      {
-        id: "goal-close",
-        title: "Goal Close",
-        purpose: "Emit the final goal result from the contract, attempt, and evaluation reports.",
-        input_contracts: ["goal.contract@v1", "goal.attempt@v1", "goal.evidence-evaluation@v1"],
-        alternative_input_contracts: [],
-        output_contract: "goal.result@v1",
-        action_surface: "orchestrator",
-        produces_evidence: ["outcome", "evidence pointers", "residual risks", "follow-ups"],
-        check: {
-          kind: "schema",
-          description: "The goal result must state the outcome, point at evidence, and name residual risks and follow-ups."
-        },
-        allowed_routes: ["complete", "stop"],
-        human_interaction: "never",
-        host_capabilities: {
-          claude: [],
-          codex: [],
-          non_interactive: []
-        },
-        schematicPolicy: {
-          executionKinds: ["compose"],
-          stages: ["close"]
-        }
-      },
-      {
-        id: "pursue",
-        title: "Pursue",
-        purpose: "Turn a rough operator idea into a bounded autonomous ownership contract.",
-        input_contracts: ["task.intake@v1", "route.decision@v1"],
-        alternative_input_contracts: [],
-        output_contract: "pursuit.contract@v1",
-        action_surface: "orchestrator",
-        produces_evidence: [
-          "ownership contract",
-          "estimated touch set",
-          "proof plan",
-          "check-in triggers"
-        ],
-        check: {
-          kind: "schema",
-          description: "The pursuit contract must preserve the operator goal, declare scope, estimate likely touch points, and name when Circuit should check in."
-        },
-        allowed_routes: ["continue", "ask", "stop"],
-        human_interaction: "optional",
-        host_capabilities: {
-          claude: [],
-          codex: [],
-          non_interactive: []
-        },
-        schematicPolicy: {
-          executionKinds: ["compose", "checkpoint", "sub-run", "fanout"],
-          stages: ["frame"]
-        }
-      },
-      {
-        id: "coordinate-pursuits",
-        title: "Coordinate Pursuits",
-        purpose: "Prioritize multiple pursuit contracts by dependency, conflict risk, and safe composition.",
-        input_contracts: ["pursuit.contract@v1"],
-        alternative_input_contracts: [],
-        output_contract: "pursuit.graph@v1",
-        action_surface: "orchestrator",
-        produces_evidence: [
-          "dependency graph",
-          "conflict analysis",
-          "serial groups",
-          "parallel read-only groups"
-        ],
-        check: {
-          kind: "coordination",
-          description: "The graph must account for every pursuit and explain which work serializes, which discovery can run in parallel, and why."
-        },
-        allowed_routes: ["continue", "ask", "stop"],
-        human_interaction: "optional",
-        host_capabilities: {
-          claude: [],
-          codex: [],
-          non_interactive: []
-        },
-        schematicPolicy: {
-          executionKinds: ["compose", "checkpoint", "sub-run", "fanout"],
-          stages: ["plan"]
-        }
-      },
-      {
-        id: "queue",
-        title: "Queue",
-        purpose: "Turn broad work into ordered items with state and risk class.",
-        input_contracts: ["flow.brief@v1", "context.packet@v1"],
-        alternative_input_contracts: [],
-        output_contract: "work.queue@v1",
-        action_surface: "orchestrator",
-        produces_evidence: ["ordered items", "item state", "risk class", "selection rule"],
-        check: {
-          kind: "queue",
-          description: "Each queue item must have an identifier, state, and reason it belongs in the queue."
-        },
-        allowed_routes: ["continue", "ask", "stop"],
-        human_interaction: "optional",
-        host_capabilities: {
-          claude: [],
-          codex: [],
-          non_interactive: []
-        },
-        schematicPolicy: {
-          executionKinds: ["compose", "checkpoint", "sub-run", "fanout"],
-          stages: ["plan"]
-        }
-      },
-      {
-        id: "batch",
-        title: "Batch",
-        purpose: "Process a bounded set of queue items and record what completed, skipped, blocked, or failed.",
-        input_contracts: ["work.queue@v1", "flow.brief@v1"],
-        alternative_input_contracts: [],
-        output_contract: "batch.result@v1",
-        action_surface: "mixed",
-        produces_evidence: ["completed items", "skipped items", "blocked items", "failed items"],
-        check: {
-          kind: "schema",
-          description: "The batch result must account for every selected item exactly once."
-        },
-        allowed_routes: ["continue", "retry", "ask", "stop", "handoff"],
-        human_interaction: "optional",
-        host_capabilities: {
-          claude: [],
-          codex: [],
-          non_interactive: []
-        },
-        schematicPolicy: {
-          // 'relay' is included because Pursue's batch-step delegates each work
-          // item to an implementer-role worker (a relay), which the pursue runtime
-          // wiring locks in. Batch already declares multiple kinds, so the
-          // single-kind authoring default stays undefined and the widening is
-          // runtime byte-identical.
-          executionKinds: ["compose", "relay", "checkpoint", "sub-run", "fanout"],
-          stages: ["act"]
-        }
-      },
-      {
-        id: "risk-rollback-check",
-        title: "Risk/Rollback Check",
-        purpose: "Decide whether continuing is safe and what recovery path exists if it is not.",
-        input_contracts: ["change.evidence@v1", "verification.result@v1", "flow.brief@v1"],
-        alternative_input_contracts: [],
-        output_contract: "risk.decision@v1",
-        action_surface: "orchestrator",
-        produces_evidence: ["risk class", "allowed next action", "recovery option"],
-        check: {
-          kind: "risk",
-          description: "The decision must explicitly allow, split, stop, hand off, or escalate the next action."
-        },
-        allowed_routes: ["continue", "split", "ask", "stop", "handoff", "escalate"],
-        human_interaction: "optional",
-        host_capabilities: {
-          claude: [],
-          codex: [],
-          non_interactive: []
-        },
-        schematicPolicy: {
-          executionKinds: ["compose", "relay", "verification", "checkpoint", "sub-run", "fanout"],
-          stages: ["verify", "close"]
-        }
-      },
-      {
-        id: "close-with-evidence",
-        title: "Close With Evidence",
-        purpose: "End the run honestly with outcome, evidence pointers, and residual risks.",
-        input_contracts: ["flow.brief@v1", "verification.result@v1", "review.verdict@v1"],
-        alternative_input_contracts: [
-          ["flow.brief@v1", "verification.result@v1"],
-          ["flow.brief@v1", "review.verdict@v1"],
-          ["flow.brief@v1"]
-        ],
-        output_contract: "flow.result@v1",
-        action_surface: "orchestrator",
-        produces_evidence: ["outcome", "evidence pointers", "residual risks", "follow-ups"],
-        check: {
-          kind: "schema",
-          description: "The final result must align with the evidence and cannot report completion when a stop, handoff, or escalation route was selected."
-        },
-        allowed_routes: ["complete", "stop", "handoff", "escalate"],
-        human_interaction: "never",
-        host_capabilities: {
-          claude: [],
-          codex: [],
-          non_interactive: []
-        },
-        schematicPolicy: {
-          executionKinds: ["compose", "checkpoint", "sub-run", "fanout"],
-          stages: ["close"]
-        }
-      },
-      {
-        id: "handoff",
-        title: "Handoff",
-        purpose: "Persist enough state for a later session to resume with context and next action.",
-        input_contracts: ["flow.state@v1", "flow.brief@v1"],
-        alternative_input_contracts: [],
-        output_contract: "continuity.record@v1",
-        action_surface: "orchestrator",
-        produces_evidence: ["goal", "completed moves", "pending evidence", "next action", "known debt"],
-        check: {
-          kind: "schema",
-          description: "The handoff record must contain enough state for a later run to continue without relying on chat memory."
-        },
-        allowed_routes: ["complete", "stop"],
-        human_interaction: "never",
-        host_capabilities: {
-          claude: [],
-          codex: [],
-          non_interactive: []
-        },
-        schematicPolicy: {
-          executionKinds: ["compose", "checkpoint", "sub-run", "fanout"],
-          stages: ["close"]
-        }
-      },
-      {
-        id: "review-intake",
-        title: "Review Intake",
-        purpose: "Frame an independent review: fix the audit scope and capture the working-tree state to review against.",
-        input_contracts: ["task.intake@v1", "route.decision@v1"],
-        alternative_input_contracts: [],
-        output_contract: "review.intake@v1",
-        action_surface: "orchestrator",
-        produces_evidence: ["scope boundary", "working tree status", "diff or unavailable reason"],
-        check: {
-          kind: "schema",
-          description: "The intake must state what is in scope for the review and record the working tree state, or why a diff is unavailable."
-        },
-        allowed_routes: ["continue", "stop"],
-        human_interaction: "optional",
-        host_capabilities: {
-          claude: [],
-          codex: [],
-          non_interactive: []
-        },
-        schematicPolicy: {
-          executionKinds: ["compose"],
-          stages: ["frame"]
-        }
-      },
-      {
-        id: "prototype-variant-evidence",
-        title: "Prototype Variant Evidence",
-        purpose: "Compose the provider evidence for the model-comparison variants before the variants are verified.",
-        input_contracts: ["flow.brief@v1", "plan.strategy@v1", "change.evidence@v1"],
-        alternative_input_contracts: [],
-        output_contract: "prototype.variant-provider-evidence@v1",
-        action_surface: "orchestrator",
-        produces_evidence: ["captured variant count", "per-variant provider evidence"],
-        check: {
-          kind: "schema",
-          description: "The provider evidence must record how many variants were captured and attribute the evidence to each variant."
-        },
-        allowed_routes: ["complete", "stop"],
-        human_interaction: "never",
-        host_capabilities: {
-          claude: [],
-          codex: [],
-          non_interactive: []
-        },
-        schematicPolicy: {
-          executionKinds: ["compose"],
-          stages: ["verify"]
-        }
-      },
-      {
-        id: "prototype-checkpoint",
-        title: "Prototype Checkpoint",
-        purpose: "Pause for the operator to decide what to do with a built and verified prototype artifact.",
-        input_contracts: ["change.evidence@v1", "verification.result@v1"],
-        alternative_input_contracts: [],
-        output_contract: "prototype.checkpoint@v1",
-        action_surface: "host",
-        produces_evidence: ["question", "available options", "selected option", "answer source"],
-        check: {
-          kind: "decision",
-          description: "The selected option must be one of the declared prototype dispositions or the run must pause or stop clearly."
-        },
-        allowed_routes: ["continue", "stop"],
-        human_interaction: "mode-dependent",
-        host_capabilities: {
-          claude: [],
-          codex: [],
-          non_interactive: []
-        },
-        schematicPolicy: {
-          executionKinds: ["checkpoint"],
-          stages: ["review"]
-        }
-      }
-    ];
-    FLOW_BLOCK_DEFINITIONS = FLOW_BLOCK_DEFINITION_INPUTS.map(defineFlowBlockDefinition);
-    FLOW_BLOCK_CATALOG = FlowBlockCatalog.parse({
-      schema_version: "1",
-      blocks: FLOW_BLOCK_DEFINITIONS.map(blockCatalogEntry)
-    });
-    flowBlockSchematicPolicy = {};
-    flowBlockAuthoringPolicy = {};
-    for (const definition of FLOW_BLOCK_DEFINITIONS) {
-      flowBlockSchematicPolicy[definition.id] = definition.schematicPolicy;
-      flowBlockAuthoringPolicy[definition.id] = definition.authoringPolicy;
-    }
-    FLOW_BLOCK_SCHEMATIC_POLICY = flowBlockSchematicPolicy;
-    FLOW_BLOCK_AUTHORING_POLICY = flowBlockAuthoringPolicy;
-  }
-});
-
-// dist/schemas/flow-schematic-policy.js
-function schematicExecutionKindsForBlock(block) {
-  return FLOW_BLOCK_SCHEMATIC_POLICY[block.id].executionKinds;
-}
-function schematicStagesForBlock(block) {
-  return FLOW_BLOCK_SCHEMATIC_POLICY[block.id].stages;
-}
-var init_flow_schematic_policy = __esm({
-  "dist/schemas/flow-schematic-policy.js"() {
-    "use strict";
-    init_flow_block_definitions();
-  }
-});
-
-// dist/schemas/flow-schematic.js
-function validateExecutionShape(item, ctx) {
-  const kind = item.execution.kind;
-  if (item.writes !== void 0) {
-    const w = item.writes;
-    const has = (key) => w[key] !== void 0;
-    const expectReport = () => {
-      if (!has("report_path")) {
-        ctx.addIssue({
-          code: "custom",
-          path: ["writes", "report_path"],
-          message: `${kind} execution requires writes.report_path`
-        });
-      }
-    };
-    const expectRelaySlots = () => {
-      for (const key of ["request_path", "receipt_path", "result_path"]) {
-        if (!has(key)) {
-          ctx.addIssue({
-            code: "custom",
-            path: ["writes", key],
-            message: `relay execution requires writes.${key}`
-          });
-        }
-      }
-    };
-    const expectCheckpointSlots = () => {
-      for (const key of ["checkpoint_request_path", "checkpoint_response_path"]) {
-        if (!has(key)) {
-          ctx.addIssue({
-            code: "custom",
-            path: ["writes", key],
-            message: `checkpoint execution requires writes.${key}`
-          });
-        }
-      }
-    };
-    const expectSubRunSlots = () => {
-      if (!has("result_path")) {
-        ctx.addIssue({
-          code: "custom",
-          path: ["writes", "result_path"],
-          message: "sub-run execution requires writes.result_path"
-        });
-      }
-    };
-    const forbid = (key, allowedKinds) => {
-      if (has(key)) {
-        ctx.addIssue({
-          code: "custom",
-          path: ["writes", key],
-          message: `writes.${key} is only allowed for ${allowedKinds} execution`
-        });
-      }
-    };
-    switch (kind) {
-      case "compose":
-      case "verification":
-        expectReport();
-        forbid("request_path", "relay");
-        forbid("receipt_path", "relay");
-        forbid("result_path", "relay|sub-run");
-        forbid("branches_dir_path", "fanout");
-        forbid("checkpoint_request_path", "checkpoint");
-        forbid("checkpoint_response_path", "checkpoint");
-        break;
-      case "relay":
-        expectRelaySlots();
-        forbid("branches_dir_path", "fanout");
-        forbid("checkpoint_request_path", "checkpoint");
-        forbid("checkpoint_response_path", "checkpoint");
-        break;
-      case "checkpoint":
-        expectCheckpointSlots();
-        forbid("request_path", "relay");
-        forbid("receipt_path", "relay");
-        forbid("result_path", "relay|sub-run");
-        forbid("branches_dir_path", "fanout");
-        break;
-      case "sub-run":
-        expectSubRunSlots();
-        forbid("report_path", "compose|verification");
-        forbid("request_path", "relay");
-        forbid("receipt_path", "relay");
-        forbid("branches_dir_path", "fanout");
-        forbid("checkpoint_request_path", "checkpoint");
-        forbid("checkpoint_response_path", "checkpoint");
-        break;
-      case "fanout":
-        expectReport();
-        if (!has("branches_dir_path")) {
-          ctx.addIssue({
-            code: "custom",
-            path: ["writes", "branches_dir_path"],
-            message: "fanout execution requires writes.branches_dir_path"
-          });
-        }
-        forbid("request_path", "relay");
-        forbid("receipt_path", "relay");
-        forbid("result_path", "relay|sub-run");
-        forbid("checkpoint_request_path", "checkpoint");
-        forbid("checkpoint_response_path", "checkpoint");
-        break;
-    }
-  }
-  if (item.check !== void 0) {
-    const g = item.check;
-    const expectField = (field, forKinds) => {
-      if (g[field] === void 0) {
-        ctx.addIssue({
-          code: "custom",
-          path: ["check", field],
-          message: `${forKinds} execution requires check.${field}`
-        });
-      }
-    };
-    const forbidField = (field, allowedKinds) => {
-      if (g[field] !== void 0) {
-        ctx.addIssue({
-          code: "custom",
-          path: ["check", field],
-          message: `check.${field} is only allowed for ${allowedKinds} execution`
-        });
-      }
-    };
-    switch (kind) {
-      case "compose":
-      case "verification":
-        expectField("required", `${kind}`);
-        forbidField("allow", "checkpoint");
-        forbidField("allow_from", "checkpoint");
-        forbidField("pass", "relay|sub-run");
-        break;
-      case "checkpoint":
-        if (g.allow === void 0 && g.allow_from === void 0) {
-          ctx.addIssue({
-            code: "custom",
-            path: ["check", "allow"],
-            message: "checkpoint execution requires check.allow or check.allow_from"
-          });
-        }
-        if (g.allow !== void 0 && g.allow_from !== void 0) {
-          ctx.addIssue({
-            code: "custom",
-            path: ["check", "allow"],
-            message: "checkpoint execution cannot declare both check.allow and check.allow_from"
-          });
-        }
-        forbidField("required", "compose|verification");
-        forbidField("pass", "relay|sub-run");
-        break;
-      case "relay":
-      case "sub-run":
-        expectField("pass", `${kind}`);
-        forbidField("required", "compose|verification");
-        forbidField("allow", "checkpoint");
-        forbidField("allow_from", "checkpoint");
-        break;
-      case "fanout":
-        expectField("pass", "fanout");
-        forbidField("required", "compose|verification");
-        forbidField("allow", "checkpoint");
-        forbidField("allow_from", "checkpoint");
-        break;
-    }
-  }
-  if (item.checkpoint_policy !== void 0 && kind !== "checkpoint") {
-    ctx.addIssue({
-      code: "custom",
-      path: ["checkpoint_policy"],
-      message: "checkpoint_policy is only allowed for checkpoint execution"
-    });
-  }
-  if (item.acceptance_criteria !== void 0 && kind !== "relay") {
-    ctx.addIssue({
-      code: "custom",
-      path: ["acceptance_criteria"],
-      message: "acceptance_criteria is only allowed for relay execution"
-    });
-  }
-  if (item.route_from_report !== void 0 && kind !== "compose" && kind !== "relay") {
-    ctx.addIssue({
-      code: "custom",
-      path: ["route_from_report"],
-      message: "route_from_report is only allowed for compose or relay execution"
-    });
-  }
-  if (kind === "fanout" && item.fanout === void 0) {
-    ctx.addIssue({
-      code: "custom",
-      path: ["fanout"],
-      message: "fanout execution requires fanout metadata"
-    });
-  }
-  if (item.fanout !== void 0 && kind !== "fanout") {
-    ctx.addIssue({
-      code: "custom",
-      path: ["fanout"],
-      message: "fanout metadata is only allowed for fanout execution"
-    });
-  }
-}
-function validateActiveSchematicCompleteness(schematic, ctx) {
-  if (schematic.status !== "active")
-    return;
-  const requireField = (field) => {
-    if (schematic[field] !== void 0)
-      return;
-    ctx.addIssue({
-      code: "custom",
-      path: [field],
-      message: `active schematic requires ${field}`
-    });
-  };
-  requireField("version");
-  requireField("axes");
-  requireField("stage_path_policy");
-  requireField("stages");
-  for (const [index, item] of schematic.items.entries()) {
-    if (item.protocol === void 0) {
-      ctx.addIssue({
-        code: "custom",
-        path: ["items", index, "protocol"],
-        message: "active schematic item requires protocol"
-      });
-    }
-    if (item.writes === void 0) {
-      ctx.addIssue({
-        code: "custom",
-        path: ["items", index, "writes"],
-        message: "active schematic item requires writes"
-      });
-    }
-    if (item.check === void 0) {
-      ctx.addIssue({
-        code: "custom",
-        path: ["items", index, "check"],
-        message: "active schematic item requires check"
-      });
-    }
-    if (item.execution.kind === "checkpoint" && item.checkpoint_policy === void 0) {
-      ctx.addIssue({
-        code: "custom",
-        path: ["items", index, "checkpoint_policy"],
-        message: "active checkpoint schematic item requires checkpoint_policy"
-      });
-    }
-  }
-}
-function contractIsCompatible(expected, actual, aliases) {
-  if (expected === actual)
-    return true;
-  return aliases.some((alias) => alias.generic === expected && alias.actual === actual);
-}
-function blockAcceptedInputSets(block) {
-  return [block.input_contracts, ...block.alternative_input_contracts];
-}
-function schematicStepSatisfiesInputSet(item, expectedContracts, aliases) {
-  const actualContracts = Object.values(item.input);
-  return expectedContracts.every((expected) => actualContracts.some((actual) => contractIsCompatible(expected, actual, aliases)));
-}
-function formatContractSet(contracts) {
-  return `[${contracts.join(", ")}]`;
-}
-function isTerminalTarget(target) {
-  return StepRouteTerminalTarget.safeParse(target).success;
-}
-function schematicStepRouteTargets(item) {
-  return [
-    ...Object.values(item.routes),
-    ...Object.values(item.route_overrides).flatMap((overrides) => Object.values(overrides))
-  ];
-}
-function schematicStepRouteOutcomes(item) {
-  return [.../* @__PURE__ */ new Set([...Object.keys(item.routes), ...Object.keys(item.route_overrides)])];
-}
-function intersectContracts(left, right) {
-  const intersection2 = /* @__PURE__ */ new Set();
-  for (const value of left) {
-    if (right.has(value))
-      intersection2.add(value);
-  }
-  return intersection2;
-}
-function contractSetsEqual(left, right) {
-  if (left.size !== right.size)
-    return false;
-  for (const value of left) {
-    if (!right.has(value))
-      return false;
-  }
-  return true;
-}
-function collectRouteAwareAvailability(schematic) {
-  const itemById = new Map(schematic.items.map((item) => [item.id, item]));
-  const availableAt = /* @__PURE__ */ new Map();
-  const worklist = [schematic.starts_at];
-  availableAt.set(schematic.starts_at, new Set(schematic.initial_contracts));
-  while (worklist.length > 0) {
-    const itemId = worklist.shift();
-    if (itemId === void 0)
-      continue;
-    const item = itemById.get(itemId);
-    const current = availableAt.get(itemId);
-    if (item === void 0 || current === void 0)
-      continue;
-    const afterItem = new Set(current);
-    afterItem.add(item.output);
-    for (const target of schematicStepRouteTargets(item)) {
-      if (isTerminalTarget(target))
-        continue;
-      const prior = availableAt.get(target);
-      if (prior === void 0) {
-        availableAt.set(target, new Set(afterItem));
-        worklist.push(target);
-        continue;
-      }
-      const narrowed = intersectContracts(prior, afterItem);
-      if (!contractSetsEqual(prior, narrowed)) {
-        availableAt.set(target, narrowed);
-        worklist.push(target);
-      }
-    }
-  }
-  return availableAt;
-}
-function collectRouteAwareAvailabilityUnion(schematic) {
-  const itemById = new Map(schematic.items.map((item) => [item.id, item]));
-  const availableAt = /* @__PURE__ */ new Map();
-  const worklist = [schematic.starts_at];
-  availableAt.set(schematic.starts_at, new Set(schematic.initial_contracts));
-  while (worklist.length > 0) {
-    const itemId = worklist.shift();
-    if (itemId === void 0)
-      continue;
-    const item = itemById.get(itemId);
-    const current = availableAt.get(itemId);
-    if (item === void 0 || current === void 0)
-      continue;
-    const afterItem = new Set(current);
-    afterItem.add(item.output);
-    for (const target of schematicStepRouteTargets(item)) {
-      if (isTerminalTarget(target))
-        continue;
-      const prior = availableAt.get(target);
-      if (prior === void 0) {
-        availableAt.set(target, new Set(afterItem));
-        worklist.push(target);
-        continue;
-      }
-      let grew = false;
-      for (const contract of afterItem) {
-        if (!prior.has(contract)) {
-          prior.add(contract);
-          grew = true;
-        }
-      }
-      if (grew)
-        worklist.push(target);
-    }
-  }
-  return availableAt;
-}
-function validateFlowSchematicCatalogCompatibility(schematic, catalog, options = {}) {
-  const parsedCatalog = FlowBlockCatalog.safeParse(catalog);
-  if (!parsedCatalog.success) {
-    return [{ message: `block catalog failed to parse: ${parsedCatalog.error.message}` }];
-  }
-  const recognizeRoute = options.recognizeRoute ?? (() => false);
-  const blockById = new Map(parsedCatalog.data.blocks.map((p) => [p.id, p]));
-  const issues = [];
-  for (const item of schematic.items) {
-    const block = blockById.get(item.block);
-    if (block === void 0) {
-      issues.push({
-        item_id: item.id,
-        message: `unknown block id: ${item.block}`
-      });
-      continue;
-    }
-    for (const route of schematicStepRouteOutcomes(item)) {
-      if (block.allowed_routes.includes(route))
-        continue;
-      const routeTarget = item.routes[route] ?? "";
-      if (recognizeRoute({ routeId: route, routeTarget, stepId: item.id })) {
-        continue;
-      }
-      issues.push({
-        item_id: item.id,
-        message: `route "${route}" is not allowed by block "${item.block}"`
-      });
-    }
-    const acceptedInputSets = blockAcceptedInputSets(block);
-    if (!acceptedInputSets.some((expectedContracts) => schematicStepSatisfiesInputSet(item, expectedContracts, schematic.contract_aliases))) {
-      issues.push({
-        item_id: item.id,
-        message: `inputs do not satisfy block "${item.block}"; expected one of ${acceptedInputSets.map(formatContractSet).join(" or ")}`
-      });
-    }
-    if (!contractIsCompatible(block.output_contract, item.output, schematic.contract_aliases)) {
-      issues.push({
-        item_id: item.id,
-        message: `output "${item.output}" is not compatible with block output "${block.output_contract}"`
-      });
-    }
-    for (const requirement of block.produces_evidence) {
-      if (!item.evidence_requirements.includes(requirement)) {
-        issues.push({
-          item_id: item.id,
-          message: `evidence requirement "${requirement}" from block "${item.block}" is not declared by schematic item`
-        });
-      }
-    }
-    const executionKinds = schematicExecutionKindsForBlock(block);
-    if (!executionKinds.includes(item.execution.kind)) {
-      issues.push({
-        item_id: item.id,
-        message: `execution kind "${item.execution.kind}" is not compatible with block "${item.block}"; expected one of ${executionKinds.join(", ")}`
-      });
-    }
-    const stages = schematicStagesForBlock(block);
-    if (!stages.includes(item.stage)) {
-      issues.push({
-        item_id: item.id,
-        message: `stage "${item.stage}" is not compatible with block "${item.block}"; expected one of ${stages.join(", ")}`
-      });
-    }
-  }
-  const availableAt = collectRouteAwareAvailability(schematic);
-  const availableAtAny = collectRouteAwareAvailabilityUnion(schematic);
-  for (const item of schematic.items) {
-    const availableContracts = availableAt.get(item.id);
-    if (availableContracts === void 0) {
-      issues.push({
-        item_id: item.id,
-        message: "schematic item is unreachable from starts_at"
-      });
-      continue;
-    }
-    const optionalKeys2 = new Set(item.optional_inputs);
-    const anyContracts = availableAtAny.get(item.id) ?? /* @__PURE__ */ new Set();
-    for (const [name, contract] of Object.entries(item.input)) {
-      if (optionalKeys2.has(name)) {
-        if (!anyContracts.has(contract)) {
-          issues.push({
-            item_id: item.id,
-            message: `optional input "${name}" references contract "${contract}" that no reachable route produces`
-          });
-        }
-        continue;
-      }
-      if (!availableContracts.has(contract)) {
-        issues.push({
-          item_id: item.id,
-          message: `input "${name}" references unavailable contract "${contract}" on at least one reachable route`
-        });
-      }
-    }
-  }
-  return issues;
-}
-var FlowSchematicStatus, StepRouteTerminalTarget, StepRouteTarget, SchematicRouteModeOverrides, SchematicContractAlias, SchematicEvidenceRequirement, SchematicEvidenceRequirements, StepExecutionKind, ComposeStepExecution, VerificationStepExecution, CheckpointStepExecution, FanoutStepExecution, RelayStepExecution, SubRunStepExecution, StepExecution, StepWrites, SchematicFanout, StepCheck, SchematicStep, FlowAxisSelection, SchematicStage, TOURNAMENT_FANOUT_CONTRACT_MESSAGE2, FlowSchematic;
-var init_flow_schematic = __esm({
-  "dist/schemas/flow-schematic.js"() {
-    "use strict";
-    init_zod();
-    init_acceptance_criteria();
-    init_axes();
-    init_axis_config_requirement();
-    init_change_kind();
-    init_check();
-    init_engine_flags();
-    init_equipment_scope();
-    init_flow_blocks();
-    init_flow_schematic_policy();
-    init_ids();
-    init_process();
-    init_report_file_surface();
-    init_scalars();
-    init_selection_policy();
-    init_skill();
-    init_stage();
-    init_step();
-    FlowSchematicStatus = external_exports.enum(["candidate", "active", "deprecated"]);
-    StepRouteTerminalTarget = external_exports.enum(["@complete", "@stop", "@handoff", "@escalate"]);
-    StepRouteTarget = external_exports.union([StepId, StepRouteTerminalTarget]);
-    SchematicRouteModeOverrides = external_exports.partialRecord(CompiledDepth, StepRouteTarget).refine((overrides) => Object.keys(overrides).length > 0, {
-      message: "route override must declare at least one depth"
-    });
-    SchematicContractAlias = external_exports.object({
-      generic: FlowContractRef,
-      actual: FlowContractRef
-    }).strict();
-    SchematicEvidenceRequirement = external_exports.string().min(1);
-    SchematicEvidenceRequirements = external_exports.array(SchematicEvidenceRequirement).min(1).superRefine((requirements, ctx) => {
-      const seen = /* @__PURE__ */ new Set();
-      for (const [index, requirement] of requirements.entries()) {
-        if (seen.has(requirement)) {
-          ctx.addIssue({
-            code: "custom",
-            path: [index],
-            message: `duplicate evidence requirement: ${requirement}`
-          });
-        }
-        seen.add(requirement);
-      }
-    });
-    StepExecutionKind = external_exports.enum([
-      "compose",
-      "relay",
-      "verification",
-      "checkpoint",
-      "sub-run",
-      "fanout"
-    ]);
-    ComposeStepExecution = external_exports.object({ kind: external_exports.literal("compose") }).strict();
-    VerificationStepExecution = external_exports.object({ kind: external_exports.literal("verification") }).strict();
-    CheckpointStepExecution = external_exports.object({ kind: external_exports.literal("checkpoint") }).strict();
-    FanoutStepExecution = external_exports.object({ kind: external_exports.literal("fanout") }).strict();
-    RelayStepExecution = external_exports.object({
-      kind: external_exports.literal("relay"),
-      role: RelayRole,
-      // Optional per-step worker pin. When set, this relay step always runs on
-      // the named connector (e.g. 'codex' or 'claude-code'), making the worker
-      // choice a property of the flow rather than of operator config. The
-      // compiler lifts this onto the compiled relay step's `connector`, which the
-      // runtime relay path already reads as the top-priority connector choice
-      // (relay-guidance: stepConnector). Omitted → connector resolves the usual
-      // way (policy/config role preference, then host auto-detect).
-      connector: RelayConnectorName.optional()
-    }).strict();
-    SubRunStepExecution = external_exports.object({
-      kind: external_exports.literal("sub-run"),
-      flow_ref: CompiledFlowRef,
-      goal: external_exports.string().min(1),
-      depth: CompiledDepth
-    }).strict();
-    StepExecution = external_exports.discriminatedUnion("kind", [
-      ComposeStepExecution,
-      RelayStepExecution,
-      VerificationStepExecution,
-      CheckpointStepExecution,
-      SubRunStepExecution,
-      FanoutStepExecution
-    ]);
-    StepWrites = external_exports.object({
-      report_path: RunRelativePath.optional(),
-      request_path: RunRelativePath.optional(),
-      receipt_path: RunRelativePath.optional(),
-      result_path: RunRelativePath.optional(),
-      branches_dir_path: RunRelativePath.optional(),
-      checkpoint_request_path: RunRelativePath.optional(),
-      checkpoint_response_path: RunRelativePath.optional()
-    }).strict();
-    SchematicFanout = external_exports.object({
-      branches: FanoutBranches,
-      concurrency: FanoutConcurrency.optional(),
-      on_child_failure: FanoutFailurePolicy.optional(),
-      join: FanoutJoinPolicy,
-      rubric: FanoutRubric.optional()
-    }).strict();
-    StepCheck = external_exports.object({
-      required: external_exports.array(external_exports.string().min(1)).min(1).optional(),
-      allow: external_exports.array(external_exports.string().min(1)).min(1).optional(),
-      allow_from: CheckpointAllowFrom.optional(),
-      pass: external_exports.array(external_exports.string().min(1)).min(1).optional()
-    }).strict();
-    SchematicStep = external_exports.object({
-      id: StepId,
-      block: FlowBlockId,
-      title: external_exports.string().min(1),
-      stage: CanonicalStage,
-      input: external_exports.record(external_exports.string().regex(/^[a-z][a-z0-9_]*$/), FlowContractRef).default({}),
-      // Input keys (from `input` above) whose contract may legitimately be absent
-      // on some reachable routes — the consumer reads them best-effort and tolerates
-      // the gap. Example: goal-close reads `recovery` and `gate`, each present on only
-      // one of two mutually exclusive routes; its close builder already reads both
-      // with required:false. The route-aware availability check verifies a required
-      // input on every reaching route (intersection) and an optional input on at
-      // least one (union). This lifts the runtime writer's required:false truth into
-      // the schematic so the validator models route-disjoint gathers by correction,
-      // not by aliasing or widening.
-      optional_inputs: external_exports.array(external_exports.string().regex(/^[a-z][a-z0-9_]*$/)).default([]),
-      output: FlowContractRef,
-      evidence_requirements: SchematicEvidenceRequirements,
-      execution: StepExecution,
-      selection: SelectionOverride.optional(),
-      skill_slots: SkillSlotArray.default([]),
-      // The tools sub-axis of equipment scope (the skills sub-axis rides
-      // `skill_slots` above). Optional so flows that declare nothing stay
-      // byte-stable; an enforced scope is constrained to relay steps (any role)
-      // by the cross-field guard in superRefine below.
-      equipment_scope: EquipmentScope.optional(),
-      routes: external_exports.record(external_exports.string(), StepRouteTarget).refine((routes) => {
-        return Object.keys(routes).length > 0;
-      }, "schematic item must declare at least one route"),
-      route_overrides: external_exports.record(external_exports.string(), SchematicRouteModeOverrides).default({}),
-      route_from_report: RouteFromReport.optional(),
-      // The fields below are required by the schematic → CompiledFlow compiler. They
-      // are optional for candidate schematics so drafts remain parseable while
-      // they are being shaped. Active schematics require them at parse time; the
-      // compiler keeps its own guards for callers that mutate parsed values.
-      protocol: ProtocolId.optional(),
-      writes: StepWrites.optional(),
-      check: StepCheck.optional(),
-      acceptance_criteria: AcceptanceCriteria.optional(),
-      checkpoint_policy: CheckpointPolicy.optional(),
-      fanout: SchematicFanout.optional()
-    }).strict().superRefine((item, ctx) => {
-      const seenRoutes = /* @__PURE__ */ new Set();
-      for (const route of Object.keys(item.routes)) {
-        if (!FlowRoute.safeParse(route).success) {
-          ctx.addIssue({
-            code: "custom",
-            path: ["routes", route],
-            message: `unknown schematic route outcome: ${route}`
-          });
-        }
-        if (seenRoutes.has(route)) {
-          ctx.addIssue({
-            code: "custom",
-            path: ["routes", route],
-            message: `duplicate route outcome: ${route}`
-          });
-        }
-        seenRoutes.add(route);
-      }
-      for (const route of Object.keys(item.route_overrides)) {
-        if (!FlowRoute.safeParse(route).success) {
-          ctx.addIssue({
-            code: "custom",
-            path: ["route_overrides", route],
-            message: `unknown schematic route outcome: ${route}`
-          });
-        }
-        if (!Object.hasOwn(item.routes, route)) {
-          ctx.addIssue({
-            code: "custom",
-            path: ["route_overrides", route],
-            message: `route override must target a declared route outcome: ${route}`
-          });
-        }
-      }
-      for (const key of item.optional_inputs) {
-        if (!Object.hasOwn(item.input, key)) {
-          ctx.addIssue({
-            code: "custom",
-            path: ["optional_inputs", key],
-            message: `optional_inputs entry "${key}" is not a declared input key`
-          });
-        }
-      }
-      if (item.equipment_scope?.enforcement === "enforced") {
-        const isRelay = item.execution.kind === "relay";
-        if (!isRelay) {
-          ctx.addIssue({
-            code: "custom",
-            path: ["equipment_scope", "enforcement"],
-            message: 'enforced equipment scope is only valid on a relay step (a tool-scoped worker); use enforcement "trusted" on orchestrator steps'
-          });
-        }
-      }
-      validateExecutionShape(item, ctx);
-    });
-    FlowAxisSelection = external_exports.object({
-      name: external_exports.string().regex(/^[a-z][a-z0-9-]*$/),
-      depth: CompiledDepth,
-      description: external_exports.string().min(1),
-      default_change_kind: ChangeKind.optional()
-    }).strict();
-    SchematicStage = external_exports.object({
-      canonical: CanonicalStage,
-      id: StageId,
-      title: external_exports.string().min(1)
-    }).strict();
-    TOURNAMENT_FANOUT_CONTRACT_MESSAGE2 = "tournament fanout requires on_child_failure: continue-others and join.policy: aggregate-survivors";
-    FlowSchematic = external_exports.object({
-      schema_version: external_exports.literal("2"),
-      id: CompiledFlowId,
-      title: external_exports.string().min(1),
-      purpose: external_exports.string().min(1),
-      status: FlowSchematicStatus,
-      starts_at: StepId,
-      initial_contracts: external_exports.array(FlowContractRef).default([]),
-      contract_aliases: external_exports.array(SchematicContractAlias).default([]),
-      items: external_exports.array(SchematicStep).min(1),
-      // Compiler-required metadata. Optional for candidate schematics; required
-      // at parse time once a schematic is active.
-      version: external_exports.string().min(1).optional(),
-      axes: FlowAxes.optional(),
-      stage_path_policy: SpinePolicy.optional(),
-      stages: external_exports.array(SchematicStage).optional(),
-      default_selection: SelectionOverride.optional(),
-      // Stage 3 (first-class composition): engine-visible behavior flags the flow
-      // DECLARES on its schematic. The compiler propagates them verbatim to the
-      // compiled manifest's `engine_flags`, where the engine reads them through
-      // `resolveEngineFlags`. Absent = the flow declares none (the engine then
-      // resolves any from the by-id catalog package during the migration).
-      engine_flags: EngineFlagsManifest.optional(),
-      // Stage 3b (first-class composition): execution-bearing declarations the
-      // flow DECLARES on its schematic; the compiler propagates them verbatim to
-      // the compiled manifest so the engine reads them without a by-id catalog
-      // package. `report_file_surfaces` (keyed by report schema name) marks which
-      // written reports are edit-file surfaces; `required_config` is the CLI's
-      // up-front config gate. `runtime_surface.primary_result` is NOT authored
-      // here — the compiler derives it from the close-stage compose step. Absent =
-      // the flow declares none.
-      report_file_surfaces: ReportFileSurfaceMap.optional(),
-      required_config: AxisConfigRequirementList.optional()
-    }).strict().superRefine((schematic, ctx) => {
-      const itemIds = /* @__PURE__ */ new Map();
-      for (const [index, item] of schematic.items.entries()) {
-        const prior = itemIds.get(item.id);
-        if (prior !== void 0) {
-          ctx.addIssue({
-            code: "custom",
-            path: ["items", index, "id"],
-            message: `duplicate schematic item id: ${item.id} also appears at index ${prior}`
-          });
-        }
-        itemIds.set(item.id, index);
-      }
-      if (!itemIds.has(schematic.starts_at)) {
-        ctx.addIssue({
-          code: "custom",
-          path: ["starts_at"],
-          message: `starts_at references unknown item id: ${schematic.starts_at}`
-        });
-      }
-      for (const [index, item] of schematic.items.entries()) {
-        for (const [route, target] of Object.entries(item.routes)) {
-          if (StepRouteTerminalTarget.safeParse(target).success)
-            continue;
-          if (!itemIds.has(target)) {
-            ctx.addIssue({
-              code: "custom",
-              path: ["items", index, "routes", route],
-              message: `route target references unknown schematic item id: ${target}`
-            });
-          }
-        }
-        for (const [route, overrides] of Object.entries(item.route_overrides)) {
-          for (const [depth, target] of Object.entries(overrides)) {
-            if (StepRouteTerminalTarget.safeParse(target).success)
-              continue;
-            if (!itemIds.has(target)) {
-              ctx.addIssue({
-                code: "custom",
-                path: ["items", index, "route_overrides", route, depth],
-                message: `route override target references unknown schematic item id: ${target}`
-              });
-            }
-          }
-        }
-      }
-      const aliases = /* @__PURE__ */ new Set();
-      for (const [index, alias] of schematic.contract_aliases.entries()) {
-        const key = `${alias.generic}\0${alias.actual}`;
-        if (aliases.has(key)) {
-          ctx.addIssue({
-            code: "custom",
-            path: ["contract_aliases", index],
-            message: `duplicate contract alias: ${alias.generic} -> ${alias.actual}`
-          });
-        }
-        aliases.add(key);
-      }
-      if (schematic.stages !== void 0) {
-        const seenCanonicals = /* @__PURE__ */ new Set();
-        const seenIds = /* @__PURE__ */ new Set();
-        for (const [index, stage] of schematic.stages.entries()) {
-          if (seenCanonicals.has(stage.canonical)) {
-            ctx.addIssue({
-              code: "custom",
-              path: ["stages", index, "canonical"],
-              message: `duplicate canonical stage mapping: ${stage.canonical}`
-            });
-          }
-          seenCanonicals.add(stage.canonical);
-          if (seenIds.has(stage.id)) {
-            ctx.addIssue({
-              code: "custom",
-              path: ["stages", index, "id"],
-              message: `duplicate stage id: ${stage.id}`
-            });
-          }
-          seenIds.add(stage.id);
-        }
-        const itemCanonicals = new Set(schematic.items.map((item) => item.stage));
-        for (const canonical of itemCanonicals) {
-          if (!seenCanonicals.has(canonical)) {
-            ctx.addIssue({
-              code: "custom",
-              path: ["stages"],
-              message: `stages is missing an entry for canonical stage '${canonical}' which is used by at least one item`
-            });
-          }
-        }
-      }
-      if (schematic.axes?.tournament_fan_out_stage !== void 0 && schematic.stages !== void 0) {
-        const stageById = new Map(schematic.stages.map((stage2) => [stage2.id, stage2]));
-        const fanOutStage = schematic.axes.tournament_fan_out_stage;
-        const stage = stageById.get(fanOutStage);
-        if (stage === void 0) {
-          ctx.addIssue({
-            code: "custom",
-            path: ["axes", "tournament_fan_out_stage"],
-            message: `tournament_fan_out_stage references unknown stage id: ${fanOutStage}`
-          });
-        } else {
-          for (const [index, item] of schematic.items.entries()) {
-            if (item.stage !== stage.canonical || item.execution.kind !== "fanout")
-              continue;
-            if (item.fanout?.on_child_failure !== "continue-others" || item.fanout.join.policy !== "aggregate-survivors") {
-              ctx.addIssue({
-                code: "custom",
-                path: ["items", index, "fanout"],
-                message: TOURNAMENT_FANOUT_CONTRACT_MESSAGE2
-              });
-            }
-          }
-        }
-      }
-      if (schematic.stage_path_policy !== void 0 && schematic.stage_path_policy.mode === "partial") {
-        const seenOmits = /* @__PURE__ */ new Set();
-        for (const [index, omitted] of schematic.stage_path_policy.omits.entries()) {
-          if (seenOmits.has(omitted)) {
-            ctx.addIssue({
-              code: "custom",
-              path: ["stage_path_policy", "omits", index],
-              message: `duplicate omitted stage: ${omitted}`
-            });
-          }
-          seenOmits.add(omitted);
-        }
-        if (schematic.stages !== void 0) {
-          const declared = new Set(schematic.stages.map((stage) => stage.canonical));
-          for (const omitted of seenOmits) {
-            if (declared.has(omitted)) {
-              ctx.addIssue({
-                code: "custom",
-                path: ["stage_path_policy", "omits"],
-                message: `canonical stage '${omitted}' is both declared in stages and listed in stage_path_policy.omits`
-              });
-            }
-          }
-        }
-        const itemCanonicals = new Set(schematic.items.map((item) => item.stage));
-        for (const omitted of seenOmits) {
-          if (itemCanonicals.has(omitted)) {
-            ctx.addIssue({
-              code: "custom",
-              path: ["stage_path_policy", "omits"],
-              message: `canonical stage '${omitted}' is omitted but used by at least one item`
-            });
-          }
-        }
-      }
-      validateActiveSchematicCompleteness(schematic, ctx);
-    });
-  }
-});
-
-// dist/flows/report-declarations.js
-function projectFlowReportDeclarations(declarations) {
-  const relayReports = [];
-  const reportSchemas = [];
-  const compose = [];
-  const close = [];
-  const verification = [];
-  const checkpoint = [];
-  const reportFileSurfaces = {};
-  for (const declaration of declarations) {
-    if (declaration.channel === "relay") {
-      relayReports.push({
-        schemaName: declaration.schemaName,
-        schema: declaration.schema,
-        ...declaration.relayHint === void 0 ? {} : { relayHint: declaration.relayHint },
-        ...declaration.crossReportValidate === void 0 ? {} : { crossReportValidate: declaration.crossReportValidate }
-      });
-    } else {
-      reportSchemas.push({
-        schemaName: declaration.schemaName,
-        schema: declaration.schema
-      });
-    }
-    if (declaration.fileSurface !== void 0) {
-      reportFileSurfaces[declaration.schemaName] = declaration.fileSurface;
-    }
-    compose.push(...declaration.writers?.compose ?? []);
-    close.push(...declaration.writers?.close ?? []);
-    verification.push(...declaration.writers?.verification ?? []);
-    checkpoint.push(...declaration.writers?.checkpoint ?? []);
-  }
-  return {
-    relayReports,
-    reportSchemas,
-    reportFileSurfaces,
-    writers: {
-      compose,
-      close,
-      verification,
-      checkpoint
-    }
-  };
-}
-var init_report_declarations = __esm({
-  "dist/flows/report-declarations.js"() {
-    "use strict";
-  }
-});
-
-// dist/flows/flow-definition.js
-function defaultSchematicPath(flowId) {
-  return `src/flows/${flowId}/schematic.json`;
-}
-function defineFlow(definition) {
-  const schematic = FlowSchematic.parse(definition.schematic);
-  if (definition.id !== schematic.id) {
-    throw new Error(`flow definition id '${definition.id}' does not match schematic id '${schematic.id}'`);
-  }
-  return {
-    ...definition,
-    paths: definition.paths ?? {},
-    schematic
-  };
-}
-function defineFlowDataValue(data) {
-  const reportErrors = validateFlowDataReports({
-    reports: data.reports ?? [],
-    writerSchemaAliases: data.reportWriterSchemaAliases ?? []
-  });
-  if (reportErrors.length > 0)
-    return { ok: false, errors: reportErrors };
-  try {
-    return { ok: true, value: defineFlow(flowDefinitionInputFromData(data)) };
-  } catch (error52) {
-    return {
-      ok: false,
-      errors: [{ kind: "flow-data-parse-error", message: errorMessage2(error52) }]
-    };
-  }
-}
-function defineFlowData(data) {
-  const result = defineFlowDataValue(data);
-  if (result.ok)
-    return result.value;
-  throw new Error(result.errors.map(describeDefineFlowDataError).join("\n"));
-}
-function flowDefinitionInputFromData(data) {
-  const { reports, reportWriterSchemaAliases: _reportWriterSchemaAliases, ...definition } = data;
-  const reportProjection = reports === void 0 ? void 0 : projectFlowReportDeclarations(reports);
-  return {
-    ...definition,
-    ...reports === void 0 ? {} : {
-      reportDeclarations: reports,
-      relayReports: definition.relayReports ?? reportProjection?.relayReports ?? [],
-      reportSchemas: definition.reportSchemas ?? reportProjection?.reportSchemas ?? [],
-      writers: definition.writers ?? reportProjection?.writers ?? {}
-    }
-  };
-}
-function validateFlowDataReports(input) {
-  const errors = [];
-  const writerSchemaAliases = new Set(input.writerSchemaAliases);
-  const reports = input.reports;
-  for (const schemaName of duplicateValues(reports.map((report) => report.schemaName))) {
-    errors.push({ kind: "duplicate-flow-data-report", schemaName });
-  }
-  for (const report of reports) {
-    for (const slot2 of ["compose", "close", "verification", "checkpoint"]) {
-      for (const writer of report.writers?.[slot2] ?? []) {
-        if (writer.resultSchemaName !== report.schemaName && !writerSchemaAliases.has(writer.resultSchemaName)) {
-          errors.push({
-            kind: "flow-data-report-writer-drift",
-            schemaName: report.schemaName,
-            slot: slot2,
-            resultSchemaName: writer.resultSchemaName
-          });
-        }
-      }
-    }
-  }
-  return errors;
-}
-function describeDefineFlowDataError(error52) {
-  if (error52.kind === "flow-data-parse-error")
-    return error52.message;
-  if (error52.kind === "duplicate-flow-data-report") {
-    return `duplicate FlowData report schema '${error52.schemaName}'`;
-  }
-  return `FlowData report '${error52.schemaName}' binds ${error52.slot} writer for '${error52.resultSchemaName}'`;
-}
-function duplicateValues(values) {
-  const seen = /* @__PURE__ */ new Set();
-  const duplicates = /* @__PURE__ */ new Set();
-  for (const value of values) {
-    if (seen.has(value))
-      duplicates.add(value);
-    seen.add(value);
-  }
-  return [...duplicates];
-}
-function errorMessage2(error52) {
-  return error52 instanceof Error ? error52.message : String(error52);
-}
-function compilePaths(definition) {
-  const paths = {
-    schematic: definition.paths.schematic ?? defaultSchematicPath(definition.id)
-  };
-  if (definition.paths.command !== void 0) {
-    return definition.paths.contract === void 0 ? { ...paths, command: definition.paths.command } : { ...paths, command: definition.paths.command, contract: definition.paths.contract };
-  }
-  return definition.paths.contract === void 0 ? paths : { ...paths, contract: definition.paths.contract };
-}
-function validateProgressSurface(definition, progress) {
-  if (progress === void 0)
-    return;
-  const itemIds = new Set(definition.schematic.items.map((item) => item.id));
-  const seen = /* @__PURE__ */ new Set();
-  for (const [index, step] of progress.steps.entries()) {
-    if (seen.has(step.stepId)) {
-      throw new Error(`flow definition '${definition.id}' declares duplicate progress step '${step.stepId}'`);
-    }
-    seen.add(step.stepId);
-    if (!itemIds.has(step.stepId)) {
-      throw new Error(`flow definition '${definition.id}' progress step '${step.stepId}' is not a schematic item`);
-    }
-    if (step.taskTitle.length === 0 || step.activeText.length === 0) {
-      throw new Error(`flow definition '${definition.id}' progress step ${index} must declare operator text`);
-    }
-  }
-}
-function compileRuntimeSurface(definition) {
-  const runtimeSurface = definition.runtimeSurface;
-  if (runtimeSurface === void 0)
-    return void 0;
-  validateProgressSurface(definition, runtimeSurface.progress);
-  return {
-    ...runtimeSurface.primaryResult === void 0 ? {} : { primaryResult: runtimeSurface.primaryResult },
-    ...runtimeSurface.progress === void 0 ? {} : { progress: runtimeSurface.progress }
-  };
-}
-function projectDefinitionReportSurfaces(definition) {
-  const reportProjection = definition.reportDeclarations === void 0 ? void 0 : projectFlowReportDeclarations(definition.reportDeclarations);
-  return {
-    relayReports: definition.relayReports ?? reportProjection?.relayReports ?? [],
-    ...definition.reportSchemas !== void 0 ? { reportSchemas: definition.reportSchemas } : reportProjection?.reportSchemas === void 0 ? {} : { reportSchemas: reportProjection.reportSchemas },
-    ...reportProjection === void 0 || Object.keys(reportProjection.reportFileSurfaces).length === 0 ? {} : { reportFileSurfaces: reportProjection.reportFileSurfaces },
-    writers: definition.writers ?? reportProjection?.writers ?? {}
-  };
-}
-function compileFlowDefinition(definition) {
-  const runtimeSurface = compileRuntimeSurface(definition);
-  const reportSurfaces = projectDefinitionReportSurfaces(definition);
-  return {
-    id: definition.id,
-    visibility: definition.visibility,
-    paths: compilePaths(definition),
-    relayReports: reportSurfaces.relayReports,
-    ...reportSurfaces.reportSchemas === void 0 ? {} : { reportSchemas: reportSurfaces.reportSchemas },
-    ...reportSurfaces.reportFileSurfaces === void 0 ? {} : { reportFileSurfaces: reportSurfaces.reportFileSurfaces },
-    writers: {
-      compose: reportSurfaces.writers.compose ?? [],
-      close: reportSurfaces.writers.close ?? [],
-      verification: reportSurfaces.writers.verification ?? [],
-      checkpoint: reportSurfaces.writers.checkpoint ?? []
-    },
-    ...definition.structuralHints === void 0 ? {} : { structuralHints: definition.structuralHints },
-    ...runtimeSurface === void 0 ? {} : { runtimeSurface },
-    ...definition.engineFlags === void 0 ? {} : { engineFlags: definition.engineFlags },
-    ...definition.requiredConfig === void 0 ? {} : { requiredConfig: definition.requiredConfig }
-  };
-}
-function validatePackageSet(packages) {
-  const ids = /* @__PURE__ */ new Set();
-  const reportNames = /* @__PURE__ */ new Map();
-  const writerNames = /* @__PURE__ */ new Map();
-  for (const pkg of packages) {
-    if (ids.has(pkg.id)) {
-      throw new Error(`duplicate flow definition id '${pkg.id}'`);
-    }
-    ids.add(pkg.id);
-    for (const report of [...pkg.relayReports, ...pkg.reportSchemas ?? []]) {
-      const owner = reportNames.get(report.schemaName);
-      if (owner !== void 0) {
-        throw new Error(`duplicate report schema '${report.schemaName}' registered by '${owner}' and '${pkg.id}'`);
-      }
-      reportNames.set(report.schemaName, pkg.id);
-    }
-    const knownPackageReports = /* @__PURE__ */ new Set([
-      ...pkg.relayReports.map((report) => report.schemaName),
-      ...(pkg.reportSchemas ?? []).map((report) => report.schemaName)
-    ]);
-    for (const schemaName of Object.keys(pkg.reportFileSurfaces ?? {})) {
-      if (!knownPackageReports.has(schemaName)) {
-        throw new Error(`report file surface '${schemaName}' is not registered as a report schema for flow '${pkg.id}'`);
-      }
-    }
-    for (const [slot2, builders] of Object.entries(pkg.writers)) {
-      for (const builder of builders) {
-        const owner = writerNames.get(builder.resultSchemaName);
-        if (owner !== void 0) {
-          throw new Error(`duplicate writer result schema '${builder.resultSchemaName}' registered by ${owner} and ${pkg.id}.${slot2}`);
-        }
-        writerNames.set(builder.resultSchemaName, `${pkg.id}.${slot2}`);
-      }
-    }
-  }
-}
-function assertCatalogInvariants(packages) {
-  validatePackageSet(packages);
-  buildComposeRegistry(packages);
-  buildCloseRegistry(packages);
-  buildVerificationRegistry(packages);
-  buildCheckpointRegistry(packages);
-  buildReportSchemaRegistry(packages, { channels: "relay+report" });
-  buildSchemaHintMap(packages);
-  buildStructuralHintList(packages);
-  buildCrossReportValidatorRegistry(packages);
-  buildRuntimeSurfaceRegistry(packages);
-  buildReportFileSurfaceRegistry(packages);
-}
-function compileFlowDefinitions(definitions) {
-  const packages = definitions.map(compileFlowDefinition);
-  assertCatalogInvariants(packages);
-  return packages;
-}
-var init_flow_definition = __esm({
-  "dist/flows/flow-definition.js"() {
-    "use strict";
-    init_flow_schematic();
-    init_catalog_derivations();
-    init_report_declarations();
-  }
-});
-
-// dist/flows/block-step-expansion.js
-function expandBlockStepUseValue(use) {
-  const block = BLOCK_DEFINITION_BY_ID.get(use.block);
-  if (block === void 0 || FLOW_BLOCK_AUTHORING_POLICY[use.block] === void 0) {
-    return { ok: false, errors: [{ kind: "unknown-block-step-use", block: use.block }] };
-  }
-  const overrideErrors = validateOverrideOnlyFields(use, block);
-  if (overrideErrors.length > 0)
-    return { ok: false, errors: overrideErrors };
-  const execution = resolveExecution(use, block);
-  if (!execution.ok)
-    return execution;
-  const writes = resolveWrites(use, execution.value.kind);
-  if (writes === void 0) {
-    return {
-      ok: false,
-      errors: [
-        {
-          kind: "missing-block-step-writes",
-          stepId: use.id,
-          executionKind: execution.value.kind
-        }
-      ]
-    };
-  }
-  const check3 = resolveCheck(use, execution.value.kind);
-  if (check3 === void 0) {
-    return {
-      ok: false,
-      errors: [
-        {
-          kind: "missing-block-step-check",
-          stepId: use.id,
-          executionKind: execution.value.kind
-        }
-      ]
-    };
-  }
-  const parsed = SchematicStep.safeParse(schematicStepInputFromBlockUse({ use, block, execution: execution.value, writes, check: check3 }));
-  if (parsed.success)
-    return { ok: true, value: parsed.data };
-  return {
-    ok: false,
-    errors: [
-      {
-        kind: "invalid-block-step-use",
-        message: parsed.error.issues.map((issue2) => issue2.message).join("; ")
-      }
-    ]
-  };
-}
-function expandBlockStepUse(use) {
-  const result = expandBlockStepUseValue(use);
-  if (result.ok)
-    return result.value;
-  throw new Error(result.errors.map(describeExpandBlockStepUseError).join("\n"));
-}
-function validateOverrideOnlyFields(use, block) {
-  const errors = [];
-  if (use.output === block.output_contract) {
-    errors.push({
-      kind: "restated-block-step-default",
-      stepId: use.id,
-      block: block.id,
-      field: "output"
-    });
-  }
-  if (use.evidenceRequirements !== void 0 && arraysEqual(use.evidenceRequirements, block.produces_evidence)) {
-    errors.push({
-      kind: "restated-block-step-default",
-      stepId: use.id,
-      block: block.id,
-      field: "evidenceRequirements"
-    });
-  }
-  const defaultExecutionKind = block.authoringPolicy.defaults.executionKind;
-  if (defaultExecutionKind !== void 0 && use.execution?.kind === defaultExecutionKind && Object.keys(use.execution).length === 1) {
-    errors.push({
-      kind: "restated-block-step-default",
-      stepId: use.id,
-      block: block.id,
-      field: "execution"
-    });
-  }
-  return errors;
-}
-function arraysEqual(left, right) {
-  if (left.length !== right.length)
-    return false;
-  return left.every((value, index) => value === right[index]);
-}
-function resolveExecution(use, block) {
-  if (use.execution !== void 0)
-    return { ok: true, value: use.execution };
-  const executionKind = block.authoringPolicy.defaults.executionKind;
-  if (executionKind === void 0) {
-    return {
-      ok: false,
-      errors: [
-        {
-          kind: "ambiguous-block-step-execution",
-          block: block.id,
-          executionKinds: block.schematicPolicy.executionKinds
-        }
-      ]
-    };
-  }
-  return { ok: true, value: { kind: executionKind } };
-}
-function resolveWrites(use, executionKind) {
-  if (use.writes !== void 0)
-    return use.writes;
-  if (executionKind === "compose" || executionKind === "verification") {
-    return use.reportPath === void 0 ? void 0 : { report_path: use.reportPath };
-  }
-  if (executionKind === "relay") {
-    if (use.requestPath === void 0 || use.receiptPath === void 0 || use.resultPath === void 0) {
-      return void 0;
-    }
-    return {
-      request_path: use.requestPath,
-      receipt_path: use.receiptPath,
-      result_path: use.resultPath,
-      ...use.reportPath === void 0 ? {} : { report_path: use.reportPath }
-    };
-  }
-  if (executionKind === "checkpoint") {
-    if (use.checkpointRequestPath === void 0 || use.checkpointResponsePath === void 0) {
-      return void 0;
-    }
-    return {
-      checkpoint_request_path: use.checkpointRequestPath,
-      checkpoint_response_path: use.checkpointResponsePath,
-      ...use.reportPath === void 0 ? {} : { report_path: use.reportPath }
-    };
-  }
-  if (executionKind === "sub-run") {
-    return use.resultPath === void 0 ? void 0 : {
-      result_path: use.resultPath,
-      ...use.reportPath === void 0 ? {} : { report_path: use.reportPath }
-    };
-  }
-  if (executionKind === "fanout") {
-    return use.reportPath === void 0 || use.branchesDirPath === void 0 ? void 0 : { report_path: use.reportPath, branches_dir_path: use.branchesDirPath };
-  }
-  return void 0;
-}
-function resolveCheck(use, executionKind) {
-  if (use.check !== void 0)
-    return use.check;
-  if (executionKind === "compose" || executionKind === "verification") {
-    return use.required === void 0 ? void 0 : { required: use.required };
-  }
-  if (executionKind === "checkpoint") {
-    if (use.allow !== void 0)
-      return { allow: use.allow };
-    return use.allowFrom === void 0 ? void 0 : { allow_from: use.allowFrom };
-  }
-  return use.pass === void 0 ? void 0 : { pass: use.pass };
-}
-function schematicStepInputFromBlockUse(input) {
-  const { block, check: check3, execution, use, writes } = input;
-  const { checkpointPolicy, equipmentScope, evidenceRequirements, output, routeOverrides, skillSlots, acceptanceCriteria, reportPath: _reportPath, requestPath: _requestPath, receiptPath: _receiptPath, resultPath: _resultPath, branchesDirPath: _branchesDirPath, checkpointRequestPath: _checkpointRequestPath, checkpointResponsePath: _checkpointResponsePath, required: _required, allow: _allow, allowFrom: _allowFrom, pass: _pass, writes: _writes, check: _check2, execution: _execution, ...step } = use;
-  return {
-    ...step,
-    output: output ?? block.output_contract,
-    evidence_requirements: evidenceRequirements ?? block.produces_evidence,
-    execution,
-    writes,
-    check: check3,
-    ...acceptanceCriteria === void 0 ? {} : { acceptance_criteria: acceptanceCriteria },
-    ...checkpointPolicy === void 0 ? {} : { checkpoint_policy: checkpointPolicy },
-    ...routeOverrides === void 0 ? {} : { route_overrides: routeOverrides },
-    ...skillSlots === void 0 ? {} : { skill_slots: skillSlots },
-    ...equipmentScope === void 0 ? {} : { equipment_scope: equipmentScope }
-  };
-}
-function describeExpandBlockStepUseError(error52) {
-  if (error52.kind === "unknown-block-step-use")
-    return `unknown Block '${error52.block}'`;
-  if (error52.kind === "ambiguous-block-step-execution") {
-    return `Block '${error52.block}' has ambiguous execution kinds: ${error52.executionKinds.join(", ")}`;
-  }
-  if (error52.kind === "missing-block-step-writes") {
-    return `Block Step '${error52.stepId}' needs explicit paths for ${error52.executionKind} writes`;
-  }
-  if (error52.kind === "missing-block-step-check") {
-    return `Block Step '${error52.stepId}' needs explicit check data for ${error52.executionKind}`;
-  }
-  if (error52.kind === "restated-block-step-default") {
-    return `Block Step '${error52.stepId}' restates default ${error52.field} for Block '${error52.block}'`;
-  }
-  return error52.message;
-}
-var BLOCK_DEFINITION_BY_ID;
-var init_block_step_expansion = __esm({
-  "dist/flows/block-step-expansion.js"() {
-    "use strict";
-    init_flow_block_definitions();
-    init_flow_schematic();
-    BLOCK_DEFINITION_BY_ID = new Map(FLOW_BLOCK_DEFINITIONS.map((block) => [block.id, block]));
-  }
-});
-
-// dist/flows/assemble-flow-schematic.js
-function assembleFlowSchematic(spec) {
-  if (spec.items.length === 0) {
-    throw new Error(`assembleFlowSchematic: flow '${spec.id}' has no items; a flow needs at least one step`);
-  }
-  const items = spec.items.map((use) => expandBlockStepUse(use));
-  const first = items[0];
-  if (first === void 0) {
-    throw new Error(`assembleFlowSchematic: flow '${spec.id}' produced no items`);
-  }
-  const present = CANONICAL_STAGES.filter((canonical) => items.some((item) => item.stage === canonical));
-  const stages = present.map((canonical) => {
-    const label = spec.stageLabels[canonical];
-    if (label === void 0) {
-      throw new Error(`assembleFlowSchematic: flow '${spec.id}' uses canonical stage '${canonical}' but spec.stageLabels has no label for it`);
-    }
-    return { canonical, id: label.id, title: label.title };
-  });
-  const absent = CANONICAL_STAGES.filter((canonical) => !present.includes(canonical));
-  const stagePathPolicy = absent.length === 0 ? { mode: "strict" } : { mode: "partial", omits: absent, rationale: requireRationale(spec, absent) };
-  const input = {
-    schema_version: "2",
-    id: spec.id,
-    title: spec.title,
-    purpose: spec.purpose,
-    status: spec.status,
-    starts_at: first.id,
-    items,
-    stages,
-    stage_path_policy: stagePathPolicy,
-    ...spec.version === void 0 ? {} : { version: spec.version },
-    ...spec.initial_contracts === void 0 ? {} : { initial_contracts: spec.initial_contracts },
-    ...spec.contract_aliases === void 0 ? {} : { contract_aliases: spec.contract_aliases },
-    ...spec.axes === void 0 ? {} : { axes: spec.axes },
-    ...spec.default_selection === void 0 ? {} : { default_selection: spec.default_selection },
-    ...spec.engine_flags === void 0 ? {} : { engine_flags: spec.engine_flags },
-    ...spec.report_file_surfaces === void 0 ? {} : { report_file_surfaces: spec.report_file_surfaces },
-    ...spec.required_config === void 0 ? {} : { required_config: spec.required_config }
-  };
-  return FlowSchematic.parse(input);
-}
-function requireRationale(spec, absent) {
-  const rationale = spec.stagePathRationale;
-  if (rationale === void 0 || rationale.length < PARTIAL_SPINE_RATIONALE_MIN_LENGTH) {
-    const absentList = absent.map((canonical) => `'${canonical}'`).join(", ");
-    throw new Error(`assembleFlowSchematic: flow '${spec.id}' leaves canonical stage(s) ${absentList} empty; spec.stagePathRationale must explain why (min ${PARTIAL_SPINE_RATIONALE_MIN_LENGTH} chars)`);
-  }
-  return rationale;
-}
-var init_assemble_flow_schematic = __esm({
-  "dist/flows/assemble-flow-schematic.js"() {
-    "use strict";
-    init_flow_schematic();
-    init_stage();
-    init_block_step_expansion();
-  }
-});
-
-// dist/flows/build/assembly-spec.js
-var buildBlockItems, buildStageLabels, buildAssemblySpec;
-var init_assembly_spec = __esm({
-  "dist/flows/build/assembly-spec.js"() {
-    "use strict";
-    buildBlockItems = [
-      {
-        id: "frame-step",
-        title: "Frame - confirm Build brief",
-        stage: "frame",
-        block: "frame",
-        input: { task: "task.intake@v1", route: "route.decision@v1" },
-        output: "build.brief@v1",
-        execution: { kind: "checkpoint" },
-        protocol: "build-frame@v1",
-        reportPath: "reports/build/brief.json",
-        checkpointRequestPath: "reports/checkpoints/frame-step-request.json",
-        checkpointResponsePath: "reports/checkpoints/frame-step-response.json",
-        allow: ["continue"],
-        checkpointPolicy: {
-          prompt: "Confirm the Build brief before implementation starts.",
-          choices: [{ id: "continue", label: "Continue" }],
-          safe_default_choice: "continue",
-          report_template: {
-            scope: "Make the smallest safe change that satisfies the requested goal.",
-            success_criteria: [
-              "The requested behavior is implemented",
-              "Verification passes",
-              "Review completes without a blocking issue"
-            ]
-          }
-        },
-        routes: { continue: "analyze-step", stop: "@stop" }
-      },
-      {
-        id: "analyze-step",
-        title: "Analyze \u2014 read the code before planning",
-        stage: "analyze",
-        block: "gather-context",
-        input: { brief: "build.brief@v1", request: "context.request@v1" },
-        output: "build.context@v1",
-        execution: { kind: "relay", role: "researcher" },
-        protocol: "build-analyze@v1",
-        reportPath: "reports/build/context.json",
-        requestPath: "reports/relay/build-analyze.request.json",
-        receiptPath: "reports/relay/build-analyze.receipt.txt",
-        resultPath: "reports/relay/build-analyze.result.json",
-        pass: ["accept"],
-        skillSlots: [
-          {
-            id: "build-codebase-search",
-            description: "A skill for reading the codebase and tracing the call paths a change will touch before any plan is written."
-          }
-        ],
-        routes: { continue: "plan-step", retry: "analyze-step", ask: "@stop", stop: "@stop" }
-      },
-      {
-        id: "plan-step",
-        title: "Plan - produce Build plan",
-        stage: "plan",
-        block: "plan",
-        input: { brief: "build.brief@v1", context: "build.context@v1" },
-        output: "build.plan@v1",
-        execution: { kind: "compose" },
-        protocol: "build-plan@v1",
-        reportPath: "reports/build/plan.json",
-        required: ["objective", "verification"],
-        routes: { continue: "build-baseline", revise: "plan-step", stop: "@stop" }
-      },
-      {
-        id: "build-baseline",
-        title: "Verify - snapshot pre-change git state",
-        stage: "verify",
-        block: "run-verification",
-        input: { proof: "verification.plan@v1", plan: "build.plan@v1" },
-        output: "build.baseline-snapshot@v1",
-        protocol: "build-baseline-snapshot@v1",
-        reportPath: "reports/build/baseline-snapshot.json",
-        required: ["overall_status"],
-        routes: { continue: "act-step", stop: "@stop" }
-      },
-      {
-        id: "act-step",
-        title: "Act - implementation relay",
-        stage: "act",
-        block: "act",
-        input: { brief: "build.brief@v1", plan: "build.plan@v1" },
-        output: "build.implementation@v1",
-        execution: { kind: "relay", role: "implementer" },
-        protocol: "build-act@v1",
-        reportPath: "reports/build/implementation.json",
-        requestPath: "reports/relay/build-act.request.json",
-        receiptPath: "reports/relay/build-act.receipt.txt",
-        resultPath: "reports/relay/build-act.result.json",
-        pass: ["accept"],
-        acceptanceCriteria: {
-          checks: [
-            {
-              kind: "report_field",
-              id: "changed-files-present",
-              path: ["changed_files"],
-              predicate: "present"
-            },
-            {
-              kind: "report_field",
-              id: "changed-files-on-disk",
-              path: ["changed_files"],
-              predicate: "changed_on_disk"
-            },
-            {
-              kind: "report_field",
-              id: "evidence-non-empty",
-              path: ["evidence"],
-              predicate: "non_empty"
-            }
-          ],
-          on_failure: { mode: "retry-with-feedback" }
-        },
-        skillSlots: [
-          {
-            id: "build-implementation",
-            description: "A skill for implementing the planned change in the existing code style, keeping edits scoped to the plan."
-          }
-        ],
-        routes: { continue: "verify-step", retry: "act-step", stop: "@stop" }
-      },
-      {
-        id: "verify-step",
-        title: "Verify - run Build verification",
-        stage: "verify",
-        block: "run-verification",
-        input: {
-          proof: "verification.plan@v1",
-          plan: "build.plan@v1",
-          change: "build.implementation@v1"
-        },
-        output: "build.verification@v1",
-        protocol: "build-verify@v1",
-        reportPath: "reports/build/verification.json",
-        required: ["overall_status", "commands"],
-        routes: { continue: "build-touch-area", advance: "act-step", retry: "act-step", stop: "@stop" }
-      },
-      {
-        id: "build-touch-area",
-        title: "Verify - check git-proven touch area",
-        stage: "verify",
-        block: "run-verification",
-        input: {
-          proof: "verification.plan@v1",
-          plan: "build.plan@v1",
-          baseline: "build.baseline-snapshot@v1",
-          change: "build.implementation@v1"
-        },
-        output: "build.touch-area@v1",
-        protocol: "build-touch-area@v1",
-        reportPath: "reports/build/touch-area.json",
-        required: ["overall_status", "enforcement", "containment"],
-        routes: { continue: "review-step", stop: "@stop" }
-      },
-      {
-        id: "review-step",
-        title: "Review - implementation review relay",
-        stage: "review",
-        block: "review",
-        input: {
-          brief: "build.brief@v1",
-          plan: "build.plan@v1",
-          change: "build.implementation@v1",
-          verification: "build.verification@v1",
-          touch_area: "build.touch-area@v1"
-        },
-        output: "build.review@v1",
-        execution: { kind: "relay", role: "reviewer" },
-        protocol: "build-review@v1",
-        reportPath: "reports/build/review.json",
-        requestPath: "reports/relay/build-review.request.json",
-        receiptPath: "reports/relay/build-review.receipt.txt",
-        resultPath: "reports/relay/build-review.result.json",
-        // Every valid reviewer verdict flows FORWARD to close, mirroring the Review
-        // flow's verdict step. A 'reject' on a green, verified build is an honest
-        // needs-attention finding, not a contract violation: routing it back to
-        // act-step re-implemented the whole change and, when the reviewer held its
-        // objection, exhausted max_attempts and aborted a working build. With
-        // 'reject' in the pass set it takes `continue` to close, the verdict is
-        // recorded in the Build result (reject -> outcome 'failed'), and
-        // `binds_terminal_outcome_to_primary_result` maps that honest result onto
-        // the run's terminal outcome ('stopped').
-        //
-        // The retry/revise routes are KEPT: they recover a genuinely invalid relay
-        // OUTPUT (a body that fails the build.review@v1 schema, e.g. accept-with-fixes
-        // with no findings), which is a real contract failure distinct from an
-        // honest reject verdict. A valid reject is in `pass` and never takes retry,
-        // so the exhaustion-abort bug cannot recur.
-        pass: ["accept", "accept-with-fixes", "reject"],
-        skillSlots: [
-          {
-            id: "build-change-audit",
-            description: "A skill for independently auditing a change for correctness, scope creep, and regressions."
-          }
-        ],
-        routes: { continue: "close-step", retry: "act-step", revise: "act-step", stop: "@stop" }
-      },
-      {
-        id: "close-step",
-        title: "Close - emit Build result",
-        stage: "close",
-        block: "close-with-evidence",
-        input: {
-          brief: "build.brief@v1",
-          plan: "build.plan@v1",
-          implementation: "build.implementation@v1",
-          verification: "build.verification@v1",
-          review: "build.review@v1",
-          touch_area: "build.touch-area@v1"
-        },
-        output: "build.result@v1",
-        execution: { kind: "compose" },
-        protocol: "build-close@v1",
-        reportPath: "reports/build-result.json",
-        required: ["summary", "outcome", "evidence_links"],
-        routes: { complete: "@complete", stop: "@stop" }
-      }
-    ];
-    buildStageLabels = {
-      frame: { id: "frame-stage", title: "Frame" },
-      analyze: { id: "analyze-stage", title: "Analyze" },
-      plan: { id: "plan-stage", title: "Plan" },
-      act: { id: "act-stage", title: "Act" },
-      verify: { id: "verify-stage", title: "Verify" },
-      review: { id: "review-stage", title: "Review" },
-      close: { id: "close-stage", title: "Close" }
-    };
-    buildAssemblySpec = {
-      id: "build",
-      title: "Build Schematic",
-      purpose: "Build flow. Circuit frames a requested change, plans it, relays implementation to a worker, runs verification, relays review to a separate worker, and closes with a Build result file plus evidence.",
-      status: "active",
-      version: "0.1.0",
-      initial_contracts: [
-        "task.intake@v1",
-        "route.decision@v1",
-        "context.request@v1",
-        "verification.plan@v1"
-      ],
-      contract_aliases: [
-        { generic: "flow.brief@v1", actual: "build.brief@v1" },
-        { generic: "context.packet@v1", actual: "build.context@v1" },
-        { generic: "plan.strategy@v1", actual: "build.plan@v1" },
-        { generic: "change.evidence@v1", actual: "build.implementation@v1" },
-        { generic: "verification.result@v1", actual: "build.verification@v1" },
-        { generic: "verification.result@v1", actual: "build.baseline-snapshot@v1" },
-        { generic: "verification.result@v1", actual: "build.touch-area@v1" },
-        { generic: "review.verdict@v1", actual: "build.review@v1" },
-        { generic: "flow.result@v1", actual: "build.result@v1" }
-      ],
-      axes: {
-        allowed_depths: ["low", "medium", "high"],
-        supports_tournament: false,
-        supports_autonomous: true,
-        default: { depth: "medium", tournament: false, tournament_n: 3, autonomous: false }
-      },
-      engine_flags: {
-        binds_execution_depth_to_relay_selection: true,
-        // The reviewer's verdict is the Build's honest terminal signal: an
-        // accept green-lights a 'complete' close, while accept-with-fixes or a
-        // reject bind the run to the Build result's needs-attention/failed
-        // outcome ('stopped') instead of a green 'complete'. See the review-step
-        // note on why every verdict flows forward rather than reworking.
-        binds_terminal_outcome_to_primary_result: true,
-        iterates_slice_loop: {
-          head_step: "act-step",
-          tail_step: "verify-step",
-          advance_route: "advance",
-          slices_from: { report: "reports/build/plan.json", items_path: "slices" },
-          max_slices: 8,
-          activate_when_depth_at_least: "high"
-        }
-      },
-      report_file_surfaces: {
-        "build.plan@v1": {
-          timing: "before",
-          extractor: { kind: "build-plan-and-slices-anticipated-file-extensions" }
-        }
-      },
-      items: buildBlockItems,
-      stageLabels: buildStageLabels
-    };
-  }
-});
-
-// dist/flows/registries/shape-hints/from-zod.js
-function defOf(node) {
-  return node._zod.def;
-}
-function objectShape(def) {
-  const shape = def.shape;
-  return typeof shape === "function" ? shape() : shape;
-}
-function literalValues(def) {
-  if (Array.isArray(def.values))
-    return def.values;
-  if ("value" in def)
-    return [def.value];
-  return [];
-}
-function enumValues(def) {
-  const raw = def.entries ?? def.values;
-  if (Array.isArray(raw))
-    return raw;
-  if (raw === void 0 || raw === null || typeof raw !== "object")
-    return [];
-  const values = Object.values(raw);
-  const isReverseMapped = values.some((value) => typeof value === "number" && Object.hasOwn(raw, String(value)));
-  const accepted = isReverseMapped ? values.filter((value) => typeof value === "number") : values;
-  return Array.from(new Set(accepted));
-}
-function renderEnumValues(values) {
-  return values.map((value) => typeof value === "string" ? escapeJsonInner(value) : String(value)).join("|");
-}
-function escapeJsonInner(value) {
-  const serialized = JSON.stringify(value);
-  return serialized.slice(1, serialized.length - 1);
-}
-function carriedDescription(node) {
-  const nodeDescription = node.description;
-  if (typeof nodeDescription === "string" && nodeDescription.length > 0) {
-    return nodeDescription;
-  }
-  const defDescription = defOf(node).description;
-  if (typeof defDescription === "string" && defDescription.length > 0) {
-    return defDescription;
-  }
-  return void 0;
-}
-function leafDescriptionOr(node, fallback) {
-  const description = carriedDescription(node);
-  if (description !== void 0) {
-    return `"<${escapeJsonInner(description)}>"`;
-  }
-  return fallback;
-}
-function annotatesAsNonLeaf(node) {
-  let current = node;
-  for (let depth = 0; depth <= MAX_RECURSION_DEPTH; depth += 1) {
-    const def = defOf(current);
-    switch (def.type) {
-      case "optional":
-      case "nullable":
-      case "default":
-      case "readonly":
-      case "catch":
-      case "nonoptional":
-      case "success":
-        current = def.innerType;
-        continue;
-      case "pipe":
-        current = def.in ?? def.out;
-        continue;
-      default:
-        return NON_LEAF_BASE_TYPES.has(def.type);
-    }
-  }
-  return false;
-}
-function withCarriedAnnotation(node, rendered) {
-  const description = carriedDescription(node);
-  if (description === void 0 || !annotatesAsNonLeaf(node)) {
-    return rendered;
-  }
-  return `<${description}> ${rendered}`;
-}
-function renderShapeSkeleton(schema) {
-  return renderNode(schema, /* @__PURE__ */ new Set(), 0);
-}
-function verdictValuesFromSchema(schema) {
-  const out = [];
-  collectVerdictValues(schema, out, 0);
-  return [...new Set(out)];
-}
-function collectVerdictValues(node, out, depth) {
-  if (depth > MAX_RECURSION_DEPTH)
-    return;
-  const def = defOf(node);
-  switch (def.type) {
-    case "object": {
-      const verdict = objectShape(def).verdict;
-      if (verdict === void 0)
-        return;
-      const verdictDef = defOf(verdict);
-      const values = verdictDef.type === "enum" ? enumValues(verdictDef) : verdictDef.type === "literal" ? literalValues(verdictDef) : [];
-      for (const value of values) {
-        if (typeof value === "string")
-          out.push(value);
-      }
-      return;
-    }
-    case "union": {
-      for (const option of def.options) {
-        collectVerdictValues(option, out, depth + 1);
-      }
-      return;
-    }
-    case "lazy": {
-      const getter = def.getter;
-      collectVerdictValues(getter(), out, depth + 1);
-      return;
-    }
-    default:
-      return;
-  }
-}
-function renderNode(node, visited, depth) {
-  if (visited.has(node) || depth > MAX_RECURSION_DEPTH) {
-    return "<recursive>";
-  }
-  visited.add(node);
-  try {
-    const rendered = renderNodeInner(node, visited, depth + 1);
-    return withCarriedAnnotation(node, rendered);
-  } finally {
-    visited.delete(node);
-  }
-}
-function renderNodeInner(node, visited, depth) {
-  const def = defOf(node);
-  switch (def.type) {
-    case "object": {
-      const shape = objectShape(def);
-      const entries = Object.entries(shape).map(([key, child]) => `"${escapeJsonInner(key)}": ${renderNode(child, visited, depth)}`);
-      return `{ ${entries.join(", ")} }`;
-    }
-    case "array": {
-      const inner = renderNode(def.element, visited, depth);
-      return `[${inner}]`;
-    }
-    case "optional":
-    case "nullable":
-    case "default":
-    case "readonly":
-    case "catch":
-    case "nonoptional":
-    case "success":
-      return renderNode(def.innerType, visited, depth);
-    case "pipe":
-      return renderNode(def.in ?? def.out, visited, depth);
-    case "transform":
-      return "<transform>";
-    case "literal": {
-      const [value] = literalValues(def);
-      return typeof value === "string" ? JSON.stringify(value) : JSON.stringify(value);
-    }
-    case "enum": {
-      const values = enumValues(def);
-      return `"<${renderEnumValues(values)}>"`;
-    }
-    case "string":
-      return leafDescriptionOr(node, '"<string>"');
-    case "number":
-      return leafDescriptionOr(node, "<number>");
-    case "bigint":
-      return leafDescriptionOr(node, "<bigint>");
-    case "boolean":
-      return leafDescriptionOr(node, "<true|false>");
-    case "date":
-      return leafDescriptionOr(node, '"<iso-date>"');
-    case "null":
-      return "null";
-    case "undefined":
-      return "<undefined>";
-    case "any":
-      return leafDescriptionOr(node, "<any>");
-    case "unknown":
-      return leafDescriptionOr(node, "<unknown>");
-    case "never":
-      return "<never>";
-    case "record":
-    case "map":
-      return `{ "<key>": ${renderNode(def.valueType, visited, depth)} }`;
-    case "tuple": {
-      const items = def.items.map((item) => renderNode(item, visited, depth));
-      const rest = def.rest;
-      if (rest !== void 0 && rest !== null) {
-        items.push(`...${renderNode(rest, visited, depth)}`);
-      }
-      return `[${items.join(", ")}]`;
-    }
-    case "union": {
-      const options = def.options;
-      const discriminator = def.discriminator;
-      if (typeof discriminator === "string") {
-        const collapsed = collapseDiscriminatedUnion(discriminator, options, visited, depth);
-        if (collapsed !== void 0)
-          return collapsed;
-      }
-      return options.map((opt) => renderNode(opt, visited, depth)).join(" | ");
-    }
-    case "lazy": {
-      const getter = def.getter;
-      return renderNode(getter(), visited, depth);
-    }
-    case "intersection": {
-      const left = renderNode(def.left, visited, depth);
-      const right = renderNode(def.right, visited, depth);
-      return `${left} & ${right}`;
-    }
-    default:
-      return `<${def.type}>`;
-  }
-}
-function collapseDiscriminatedUnion(discriminator, options, visited, depth) {
-  if (options.length === 0)
-    return void 0;
-  const objectShapes = [];
-  const discriminatorValues = [];
-  for (const option of options) {
-    const optDef = defOf(option);
-    if (optDef.type !== "object")
-      return void 0;
-    const shape = objectShape(optDef);
-    objectShapes.push(shape);
-    const discriminatorNode = shape[discriminator];
-    if (discriminatorNode === void 0)
-      return void 0;
-    const discriminatorDef = defOf(discriminatorNode);
-    if (discriminatorDef.type !== "literal")
-      return void 0;
-    const [value] = literalValues(discriminatorDef);
-    discriminatorValues.push(value);
-  }
-  const firstShape = objectShapes[0];
-  if (firstShape === void 0)
-    return void 0;
-  const keyList = Object.keys(firstShape);
-  const keyListSorted = keyList.slice().sort();
-  for (const shape of objectShapes) {
-    const shapeKeys = Object.keys(shape).slice().sort();
-    if (shapeKeys.length !== keyListSorted.length)
-      return void 0;
-    for (let idx = 0; idx < shapeKeys.length; idx += 1) {
-      if (shapeKeys[idx] !== keyListSorted[idx])
-        return void 0;
-    }
-  }
-  const entries = keyList.map((key) => {
-    if (key === discriminator) {
-      const rendered = discriminatorValues.map((value) => typeof value === "string" ? escapeJsonInner(value) : String(value));
-      return `"${escapeJsonInner(key)}": "<${rendered.join("|")}>"`;
-    }
-    const child = firstShape[key];
-    if (child === void 0)
-      return `"${escapeJsonInner(key)}": <missing>`;
-    return `"${escapeJsonInner(key)}": ${renderNode(child, visited, depth)}`;
-  });
-  return `{ ${entries.join(", ")} }`;
-}
-var NON_LEAF_BASE_TYPES, MAX_RECURSION_DEPTH;
-var init_from_zod = __esm({
-  "dist/flows/registries/shape-hints/from-zod.js"() {
-    "use strict";
-    NON_LEAF_BASE_TYPES = /* @__PURE__ */ new Set(["object", "array", "tuple", "record", "map"]);
-    MAX_RECURSION_DEPTH = 32;
-  }
-});
-
-// dist/flows/registries/shape-hints/instruction-helpers.js
-function shapeInstruction(skeleton) {
-  return `Respond with a single raw JSON object whose top-level shape is exactly: ${skeleton}`;
-}
-function mechanicalTail(schema, reportPath) {
-  const validation = reportPath === void 0 ? `The runtime parses your response with JSON.parse, rejects verdicts the schema does not allow, and validates the full report body against ${schema}.` : `The runtime parses your response with JSON.parse, rejects verdicts the schema does not allow, and validates the full report body against ${schema} before writing ${reportPath}.`;
-  return [
-    "Do not include extra top-level keys.",
-    "Do not wrap the JSON in Markdown code fences.",
-    "Do not include any prose before or after the JSON object.",
-    validation
-  ].join(" ");
-}
-var init_instruction_helpers = __esm({
-  "dist/flows/registries/shape-hints/instruction-helpers.js"() {
-    "use strict";
-  }
-});
-
-// dist/schemas/context-request.js
-var ContextQuery, ContextRequest;
-var init_context_request = __esm({
-  "dist/schemas/context-request.js"() {
-    "use strict";
-    init_zod();
-    ContextQuery = external_exports.object({
-      from_step: external_exports.string().min(1).max(120).describe("the parent step whose typed report this query reads"),
-      field_path: external_exports.string().min(1).max(200).describe('a dotted path naming exactly one field of the parent report; never "everything"')
-    }).strict();
-    ContextRequest = external_exports.object({
-      queries: external_exports.array(ContextQuery).min(1).max(8).describe("the named parent slices this step is asking for, one field each")
-    }).strict();
-  }
-});
-
-// dist/schemas/equipment-discovery.js
-var EquipmentDiscovery;
-var init_equipment_discovery = __esm({
-  "dist/schemas/equipment-discovery.js"() {
-    "use strict";
-    init_zod();
-    EquipmentDiscovery = external_exports.object({
-      confirmed: external_exports.boolean().describe("true ONLY on unambiguous runtime evidence; a hunch or a maybe must be false"),
-      // Bounded on both axes: the value is model-controlled and is copied verbatim
-      // into the durable run.equipment-reshape trace entry. Only a handful of tags
-      // map to a domain skill (the closed DOMAIN_SKILL table), so a long list is
-      // never useful — the caps just keep a pathological report from bloating the
-      // trace. Mirrors the evidence cap above.
-      domain_tags: external_exports.array(external_exports.string().min(1).max(40)).max(16).describe('technology signals confirmed at runtime, e.g. ["react"], that map to domain skills'),
-      evidence: external_exports.string().min(1).max(280).describe("one short sentence grounding the discovery in what was read")
-    }).strict();
-  }
-});
-
-// dist/flows/report-schema-kit.js
-function resultReportPointer(reportId, schemaByReportId, pathByReportId) {
-  return external_exports.object({
-    report_id: reportId,
-    path: external_exports.string().min(1),
-    schema: external_exports.string().min(1)
-  }).strict().superRefine((pointer, ctx) => {
-    const id = pointer.report_id;
-    const expectedSchema = schemaByReportId[id];
-    if (pointer.schema !== expectedSchema) {
-      ctx.addIssue({
-        code: "custom",
-        path: ["schema"],
-        message: `schema must be '${expectedSchema}' for report_id '${pointer.report_id}'`
-      });
-    }
-    if (pathByReportId !== void 0) {
-      const expectedPath = pathByReportId[id];
-      if (pointer.path !== expectedPath) {
-        ctx.addIssue({
-          code: "custom",
-          path: ["path"],
-          message: `path must be '${expectedPath}' for report_id '${pointer.report_id}'`
-        });
-      }
-    }
-  });
-}
-var init_report_schema_kit = __esm({
-  "dist/flows/report-schema-kit.js"() {
-    "use strict";
-    init_zod();
-  }
-});
-
-// dist/flows/build/reports.js
-var BUILD_RESULT_SCHEMA_BY_ARTIFACT_ID, NonEmptyStringArray, BuildGuardrails, AllowedTouchArea, BuildSlice, BuildCheckpointPacketChoice, BuildCheckpointPacket, BuildCheckpointPointer, BuildBrief, BuildContextSource, BuildContext, BuildPlan, BuildImplementation, BuildVerification, BuildReviewVerdict, BuildReviewFinding, BuildAlignmentNonGoal, BuildAlignmentInvariant, BuildReviewAlignment, BuildReview, BuildBaselineSnapshotEntry, BuildHiddenIndexFlag, BuildBaselineCaptured, BuildBaselineInert, BuildBaselineSnapshot, BuildTouchAreaEnforcement, BuildTouchAreaContainment, BuildTouchArea, BuildResultReportId, BUILD_RESULT_REQUIRED_REPORT_IDS, BuildResultReviewVerdict, BuildResultReportPointer, BuildScope, BuildResultTouchAreaEnforcement, BuildResultTouchAreaContainment, BuildTouchAreaSummary, BuildResult;
-var init_reports = __esm({
-  "dist/flows/build/reports.js"() {
-    "use strict";
-    init_zod();
-    init_context_request();
-    init_equipment_discovery();
-    init_power();
-    init_runtime_evidence();
-    init_verification();
-    init_report_schema_kit();
-    BUILD_RESULT_SCHEMA_BY_ARTIFACT_ID = {
-      "build.brief": "build.brief@v1",
-      "build.plan": "build.plan@v1",
-      "build.implementation": "build.implementation@v1",
-      "build.verification": "build.verification@v1",
-      "build.review": "build.review@v1"
-    };
-    NonEmptyStringArray = external_exports.array(external_exports.string().min(1)).min(1);
-    BuildGuardrails = external_exports.object({
-      non_goals: external_exports.array(external_exports.string().min(1)).default([]).describe("things the change must not do, drawn from operator-stated boundaries"),
-      invariants: external_exports.array(external_exports.string().min(1)).default([]).describe("properties the change must preserve, grounded in the codebase read")
-    }).strict();
-    AllowedTouchArea = external_exports.array(external_exports.string().min(1).describe('a directory subtree ending in "/" (segment-aware, e.g. "src/flows/build/") or an exact repo-relative file path')).default([]).describe("paths the change is allowed to touch, proposed by the researcher from the codebase read; empty leaves the touch-area gate inert (opt-in)");
-    BuildSlice = external_exports.object({
-      id: external_exports.string().min(1).describe('stable slice id, e.g. "slice-1"'),
-      intent: external_exports.string().min(1).describe("one concrete, independently-verifiable unit of implementation work"),
-      anticipated_file_extensions: external_exports.array(external_exports.string().min(1)).default([]).describe('file extensions this slice is predicted to touch, e.g. ".ts"; empty when no confident prediction')
-    }).strict();
-    BuildCheckpointPacketChoice = external_exports.object({
-      id: external_exports.string().min(1),
-      label: external_exports.string().min(1),
-      description: external_exports.string().min(1),
-      route: external_exports.object({
-        key: external_exports.string().min(1),
-        target: external_exports.string().min(1)
-      }).strict()
-    }).strict();
-    BuildCheckpointPacket = external_exports.object({
-      kind: external_exports.literal("build.checkpoint_packet@v1"),
-      salience: external_exports.object({
-        summary: external_exports.string().min(1),
-        why_now: NonEmptyStringArray,
-        hidden_routine_work: NonEmptyStringArray
-      }).strict(),
-      decision: external_exports.object({
-        question: external_exports.string().min(1),
-        operator_judgment: external_exports.string().min(1)
-      }).strict(),
-      recommendation: external_exports.object({
-        choice_id: external_exports.string().min(1),
-        label: external_exports.string().min(1),
-        rationale: external_exports.string().min(1)
-      }).strict(),
-      artifact: external_exports.object({
-        title: external_exports.string().min(1),
-        preview: external_exports.string().min(1),
-        scope: external_exports.string().min(1),
-        success_criteria: NonEmptyStringArray
-      }).strict(),
-      proof: external_exports.object({
-        status: external_exports.enum(["planned", "collected", "missing"]),
-        summary: external_exports.string().min(1),
-        commands: external_exports.array(VerificationCommand).min(1),
-        evidence: NonEmptyStringArray
-      }).strict(),
-      risk: external_exports.object({
-        summary: external_exports.string().min(1),
-        tradeoffs: NonEmptyStringArray
-      }).strict(),
-      choices: external_exports.array(BuildCheckpointPacketChoice).min(1),
-      internal: external_exports.object({
-        request_path: external_exports.string().min(1),
-        response_path: external_exports.string().min(1),
-        report_path: external_exports.string().min(1),
-        raw_evidence: NonEmptyStringArray
-      }).strict()
-    }).strict().superRefine((packet, ctx) => {
-      const choiceIds = new Set(packet.choices.map((choice) => choice.id));
-      if (!choiceIds.has(packet.recommendation.choice_id)) {
-        ctx.addIssue({
-          code: "custom",
-          path: ["recommendation", "choice_id"],
-          message: "recommendation.choice_id must reference a declared checkpoint choice"
-        });
-      }
-    });
-    BuildCheckpointPointer = external_exports.object({
-      request_path: external_exports.string().min(1),
-      response_path: external_exports.string().min(1).optional(),
-      allowed_choices: NonEmptyStringArray
-    }).strict();
-    BuildBrief = external_exports.object({
-      objective: external_exports.string().min(1),
-      scope: external_exports.string().min(1),
-      success_criteria: NonEmptyStringArray,
-      verification_command_candidates: external_exports.array(VerificationCommand).min(1),
-      checkpoint: BuildCheckpointPointer,
-      checkpoint_packet: BuildCheckpointPacket.optional()
-    }).strict();
-    BuildContextSource = external_exports.object({
-      kind: external_exports.enum(["file", "command", "log", "operator-note", "reference"]),
-      ref: external_exports.string().min(1).describe("project-relative path, command id, log line, note id, or external reference"),
-      summary: external_exports.string().min(1).describe("one-line summary of what this source contributed")
-    }).strict();
-    BuildContext = external_exports.object({
-      verdict: external_exports.literal("accept"),
-      sources: external_exports.array(BuildContextSource).min(1),
-      observations: external_exports.array(external_exports.string().min(1).describe("observation grounded in the sources")).min(1),
-      open_questions: external_exports.array(external_exports.string().min(1).describe("question still unresolved after gathering context")),
-      anticipated_file_extensions: external_exports.array(external_exports.string().min(1).describe('file extension the implementation is expected to touch, e.g. ".ts" or ".test.ts"')).default([]).describe("file extensions the implementation is predicted to touch, inferred from the codebase read; empty when no confident prediction"),
-      slices: external_exports.array(BuildSlice).default([]).describe("ordered units of implementation work the change decomposes into, inferred from the codebase read; empty when the change is a single indivisible unit (the plan then runs one pass)"),
-      guardrails: BuildGuardrails.default({ non_goals: [], invariants: [] }).describe("negative space: operator-stated non_goals extracted from the goal and code-grounded invariants the change must preserve; empty when none apply"),
-      allowed_touch_area: AllowedTouchArea,
-      recommended_power: PowerRecommendation.optional().describe("ONLY when the relay context states the power dial is auto: the tier the downstream work needs, judged from the codebase read. Omit this key entirely otherwise"),
-      equipment_discovery: EquipmentDiscovery.optional().describe("ONLY when the codebase read confirms a technology the downstream steps should be equipped for (e.g. React): the engine re-equips the remaining work steps for it. Set confirmed:true ONLY on unambiguous evidence; omit this key entirely when nothing is confirmed")
-    }).strict();
-    BuildPlan = external_exports.object({
-      objective: external_exports.string().min(1),
-      approach: external_exports.string().min(1),
-      slices: external_exports.array(BuildSlice).min(1).describe("ordered units of implementation work, carried from build.context@v1; always at least one (a single-slice plan runs one implement+verify pass). At high depth the engine implements and verifies these one at a time"),
-      anticipated_file_extensions: external_exports.array(external_exports.string().min(1)).default([]).describe("file extensions the implementation is predicted to touch, surfaced from build.context@v1; empty when grounding made no confident prediction"),
-      guardrails: BuildGuardrails.default({ non_goals: [], invariants: [] }).describe("negative space carried from build.context@v1: non_goals the change must not do and invariants it must preserve; empty when none apply"),
-      allowed_touch_area: AllowedTouchArea.describe("paths the change is allowed to touch, carried from build.context@v1; empty leaves the touch-area gate inert (opt-in)"),
-      verification: external_exports.object({
-        commands: external_exports.array(VerificationCommand).min(1)
-      }).strict()
-    }).strict();
-    BuildImplementation = external_exports.object({
-      verdict: external_exports.literal("accept"),
-      summary: external_exports.string().min(1).describe("what changed"),
-      changed_files: external_exports.array(external_exports.string().min(1).describe("project-relative path")),
-      evidence: external_exports.array(external_exports.string().min(1).describe("verification or implementation evidence")).min(1),
-      context_request: ContextRequest.optional().describe(`ONLY when the thin envelope this step was handed is missing a specific named slice of an upstream report you need to do the work: a typed lookup for it (name the parent step and the one dotted field). The engine resolves each named slice from that parent's typed report and records it; an "everything"/untyped ask is refused. Omit this key entirely when the envelope is sufficient`)
-    }).strict();
-    BuildVerification = VerificationResult;
-    BuildReviewVerdict = external_exports.enum(["accept", "accept-with-fixes", "reject"]);
-    BuildReviewFinding = external_exports.object({
-      severity: external_exports.enum(["critical", "high", "medium", "low"]),
-      text: external_exports.string().min(1),
-      file_refs: external_exports.array(external_exports.string().min(1))
-    }).strict();
-    BuildAlignmentNonGoal = external_exports.object({
-      statement: external_exports.string().min(1).describe("the declared non-goal, echoed from the plan"),
-      status: external_exports.enum(["respected", "violated", "not_applicable"]),
-      evidence: external_exports.string().min(1).describe("what in the change supports this judgment")
-    }).strict();
-    BuildAlignmentInvariant = external_exports.object({
-      statement: external_exports.string().min(1).describe("the declared invariant, echoed from the plan"),
-      status: external_exports.enum(["preserved", "violated", "not_applicable"]),
-      evidence: external_exports.string().min(1).describe("what in the change supports this judgment")
-    }).strict();
-    BuildReviewAlignment = external_exports.object({
-      scope_adherence: external_exports.enum(["within_scope", "exceeds_scope"]),
-      non_goals: external_exports.array(BuildAlignmentNonGoal).default([]),
-      invariants: external_exports.array(BuildAlignmentInvariant).default([])
-    }).strict();
-    BuildReview = external_exports.object({
-      verdict: BuildReviewVerdict,
-      summary: external_exports.string().min(1),
-      findings: external_exports.array(BuildReviewFinding),
-      alignment: BuildReviewAlignment
-    }).strict().superRefine((review, ctx) => {
-      if (review.verdict !== "accept" && review.findings.length === 0) {
-        ctx.addIssue({
-          code: "custom",
-          path: ["findings"],
-          message: `findings must be non-empty when verdict is '${review.verdict}'`
-        });
-      }
-      if (review.alignment.scope_adherence === "exceeds_scope" && review.findings.length === 0) {
-        ctx.addIssue({
-          code: "custom",
-          path: ["findings"],
-          message: "findings must be non-empty when scope_adherence is 'exceeds_scope'"
-        });
-      }
-      const hasViolation = review.alignment.non_goals.some((entry) => entry.status === "violated") || review.alignment.invariants.some((entry) => entry.status === "violated");
-      if (hasViolation) {
-        if (review.verdict === "accept") {
-          ctx.addIssue({
-            code: "custom",
-            path: ["verdict"],
-            message: "verdict may not be 'accept' when a declared guardrail is violated"
-          });
-        }
-        if (review.findings.length === 0) {
-          ctx.addIssue({
-            code: "custom",
-            path: ["findings"],
-            message: "findings must be non-empty when a declared guardrail is violated"
-          });
-        }
-      }
-    });
-    BuildBaselineSnapshotEntry = RuntimeGitStateEntry;
-    BuildHiddenIndexFlag = RuntimeHiddenIndexFlag;
-    BuildBaselineCaptured = external_exports.object({
-      overall_status: external_exports.literal("passed"),
-      captured: external_exports.literal(true),
-      head_sha: external_exports.string().min(1),
-      entries: external_exports.array(BuildBaselineSnapshotEntry),
-      hidden_index_flags: external_exports.array(BuildHiddenIndexFlag)
-    }).strict();
-    BuildBaselineInert = external_exports.object({
-      overall_status: external_exports.literal("passed"),
-      captured: external_exports.literal(false)
-    }).strict();
-    BuildBaselineSnapshot = external_exports.discriminatedUnion("captured", [
-      BuildBaselineCaptured,
-      BuildBaselineInert
-    ]);
-    BuildTouchAreaEnforcement = external_exports.enum(["enforced", "not_enforced"]);
-    BuildTouchAreaContainment = external_exports.enum(["within", "out_of_bounds", "undetermined"]);
-    BuildTouchArea = external_exports.object({
-      overall_status: external_exports.literal("passed"),
-      enforcement: BuildTouchAreaEnforcement,
-      containment: BuildTouchAreaContainment,
-      allowed_area: external_exports.array(external_exports.string().min(1)),
-      observed_paths: external_exports.array(external_exports.string().min(1)),
-      out_of_bounds_paths: external_exports.array(external_exports.string().min(1)),
-      // The two git SHAs are present only when git actually ran (an area was
-      // declared). When the gate is not enforced the step skips git, so they are
-      // absent; the superRefine below requires them exactly when enforced.
-      baseline_head_sha: external_exports.string().min(1).optional(),
-      head_sha: external_exports.string().min(1).optional(),
-      head_diverged: external_exports.boolean(),
-      hidden_index_flags: external_exports.array(BuildHiddenIndexFlag),
-      reason: external_exports.string().min(1).optional()
-    }).strict().superRefine((touchArea, ctx) => {
-      const enforced = touchArea.enforcement === "enforced";
-      if (enforced && (touchArea.baseline_head_sha === void 0 || touchArea.head_sha === void 0)) {
-        ctx.addIssue({
-          code: "custom",
-          path: ["baseline_head_sha"],
-          message: 'baseline_head_sha and head_sha are required when enforcement is "enforced"'
-        });
-      }
-      if (enforced === (touchArea.allowed_area.length === 0)) {
-        ctx.addIssue({
-          code: "custom",
-          path: ["enforcement"],
-          message: "enforcement must be 'enforced' exactly when allowed_area is non-empty (and 'not_enforced' when empty)"
-        });
-      }
-      if (!enforced && touchArea.containment !== "within") {
-        ctx.addIssue({
-          code: "custom",
-          path: ["containment"],
-          message: "containment must be 'within' when enforcement is 'not_enforced'"
-        });
-      }
-      if (!enforced && touchArea.out_of_bounds_paths.length > 0) {
-        ctx.addIssue({
-          code: "custom",
-          path: ["out_of_bounds_paths"],
-          message: 'out_of_bounds_paths must be empty when enforcement is "not_enforced"'
-        });
-      }
-      if (touchArea.containment === "out_of_bounds" && touchArea.out_of_bounds_paths.length === 0) {
-        ctx.addIssue({
-          code: "custom",
-          path: ["out_of_bounds_paths"],
-          message: "out_of_bounds_paths must be non-empty when containment is 'out_of_bounds'"
-        });
-      }
-      if (touchArea.containment !== "out_of_bounds" && touchArea.out_of_bounds_paths.length > 0) {
-        ctx.addIssue({
-          code: "custom",
-          path: ["containment"],
-          message: "containment must be 'out_of_bounds' when out_of_bounds_paths is non-empty"
-        });
-      }
-      const cannotProve = touchArea.head_diverged || touchArea.hidden_index_flags.length > 0;
-      if (enforced && cannotProve && touchArea.containment !== "undetermined") {
-        ctx.addIssue({
-          code: "custom",
-          path: ["containment"],
-          message: "containment must be 'undetermined' when HEAD moved or a hidden index flag is present (enforced)"
-        });
-      }
-      if (touchArea.containment === "undetermined" && !cannotProve) {
-        ctx.addIssue({
-          code: "custom",
-          path: ["containment"],
-          message: "containment may be 'undetermined' only when HEAD moved or a hidden index flag is present"
-        });
-      }
-    });
-    BuildResultReportId = external_exports.enum([
-      "build.brief",
-      "build.plan",
-      "build.implementation",
-      "build.verification",
-      "build.review"
-    ]);
-    BUILD_RESULT_REQUIRED_REPORT_IDS = [
-      "build.brief",
-      "build.plan",
-      "build.implementation",
-      "build.verification"
-    ];
-    BuildResultReviewVerdict = external_exports.enum([...BuildReviewVerdict.options, "not_assessed"]);
-    BuildResultReportPointer = resultReportPointer(BuildResultReportId, BUILD_RESULT_SCHEMA_BY_ARTIFACT_ID);
-    BuildScope = external_exports.object({
-      adherence: external_exports.enum(["within_scope", "exceeds_scope"]),
-      violated_guardrails: external_exports.array(external_exports.string().min(1)).default([]).describe("declared guardrails the reviewer marked violated"),
-      unassessed_guardrails: external_exports.array(external_exports.string().min(1)).default([]).describe("plan-declared guardrails the reviewer did not assess in alignment")
-    }).strict();
-    BuildResultTouchAreaEnforcement = external_exports.enum([
-      ...BuildTouchAreaEnforcement.options,
-      "not_assessed"
-    ]);
-    BuildResultTouchAreaContainment = external_exports.enum([
-      ...BuildTouchAreaContainment.options,
-      "not_assessed"
-    ]);
-    BuildTouchAreaSummary = external_exports.object({
-      enforcement: BuildResultTouchAreaEnforcement,
-      containment: BuildResultTouchAreaContainment,
-      out_of_bounds_paths: external_exports.array(external_exports.string().min(1)).default([]).describe("git-proven changed paths outside the allowed area")
-    }).strict();
-    BuildResult = external_exports.object({
-      summary: external_exports.string().min(1),
-      outcome: external_exports.enum(["complete", "needs_attention", "failed"]),
-      verification_status: external_exports.enum(["passed", "failed"]),
-      review_verdict: BuildResultReviewVerdict,
-      scope: BuildScope.default({
-        adherence: "within_scope",
-        violated_guardrails: [],
-        unassessed_guardrails: []
-      }),
-      touch_area: BuildTouchAreaSummary.default({
-        enforcement: "not_enforced",
-        containment: "within",
-        out_of_bounds_paths: []
-      }),
-      // The full build flow points at all five reports. A folded flow with no
-      // review step points at the four always-present reports only; the missing
-      // 'build.review' link is dropped, never faked with an empty path. The
-      // superRefine below requires the four always-present ids and allows the
-      // review link to be absent exactly when the verdict says it was not
-      // assessed.
-      evidence_links: external_exports.array(BuildResultReportPointer).min(4).max(5)
-    }).strict().superRefine((result, ctx) => {
-      const seen = /* @__PURE__ */ new Set();
-      for (const [index, pointer] of result.evidence_links.entries()) {
-        if (seen.has(pointer.report_id)) {
-          ctx.addIssue({
-            code: "custom",
-            path: ["evidence_links", index, "report_id"],
-            message: `duplicate report_id '${pointer.report_id}'`
-          });
-        }
-        seen.add(pointer.report_id);
-      }
-      for (const reportId of BUILD_RESULT_REQUIRED_REPORT_IDS) {
-        if (!seen.has(reportId)) {
-          ctx.addIssue({
-            code: "custom",
-            path: ["evidence_links"],
-            message: `missing report_id '${reportId}'`
-          });
-        }
-      }
-      const reviewLinked = seen.has("build.review");
-      if (reviewLinked && result.review_verdict === "not_assessed") {
-        ctx.addIssue({
-          code: "custom",
-          path: ["review_verdict"],
-          message: "review_verdict may not be 'not_assessed' when the build.review report is linked"
-        });
-      }
-      if (!reviewLinked && result.review_verdict !== "not_assessed") {
-        ctx.addIssue({
-          code: "custom",
-          path: ["evidence_links"],
-          message: "evidence_links must include 'build.review' unless review_verdict is 'not_assessed'"
-        });
-      }
-      if (result.outcome === "complete") {
-        if (result.verification_status !== "passed") {
-          ctx.addIssue({
-            code: "custom",
-            path: ["verification_status"],
-            message: "verification_status must be 'passed' when outcome is 'complete'"
-          });
-        }
-        if (result.review_verdict !== "accept") {
-          ctx.addIssue({
-            code: "custom",
-            path: ["review_verdict"],
-            message: "review_verdict must be 'accept' when outcome is 'complete'"
-          });
-        }
-        if (result.scope.adherence !== "within_scope") {
-          ctx.addIssue({
-            code: "custom",
-            path: ["scope", "adherence"],
-            message: "scope.adherence must be 'within_scope' when outcome is 'complete'"
-          });
-        }
-        if (result.scope.violated_guardrails.length > 0) {
-          ctx.addIssue({
-            code: "custom",
-            path: ["scope", "violated_guardrails"],
-            message: "scope.violated_guardrails must be empty when outcome is 'complete'"
-          });
-        }
-        if (result.scope.unassessed_guardrails.length > 0) {
-          ctx.addIssue({
-            code: "custom",
-            path: ["scope", "unassessed_guardrails"],
-            message: "scope.unassessed_guardrails must be empty when outcome is 'complete'"
-          });
-        }
-        if (result.touch_area.containment !== "within") {
-          ctx.addIssue({
-            code: "custom",
-            path: ["touch_area", "containment"],
-            message: "touch_area.containment must be 'within' when outcome is 'complete'"
-          });
-        }
-        if (result.touch_area.out_of_bounds_paths.length > 0) {
-          ctx.addIssue({
-            code: "custom",
-            path: ["touch_area", "out_of_bounds_paths"],
-            message: "touch_area.out_of_bounds_paths must be empty when outcome is 'complete'"
-          });
-        }
-      }
-      if (result.outcome === "needs_attention") {
-        if (result.verification_status !== "passed") {
-          ctx.addIssue({
-            code: "custom",
-            path: ["verification_status"],
-            message: "verification_status must be 'passed' when outcome is 'needs_attention'"
-          });
-        }
-        if (result.review_verdict === "reject") {
-          ctx.addIssue({
-            code: "custom",
-            path: ["review_verdict"],
-            message: "review_verdict may not be 'reject' when outcome is 'needs_attention'"
-          });
-        }
-      }
-    });
-  }
-});
-
-// dist/flows/build/relay-hints.js
-var buildContextShapeHint, buildImplementationShapeHint, buildReviewShapeHint;
-var init_relay_hints = __esm({
-  "dist/flows/build/relay-hints.js"() {
-    "use strict";
-    init_from_zod();
-    init_instruction_helpers();
-    init_reports();
-    buildContextShapeHint = {
-      kind: "schema",
-      schema: "build.context@v1",
-      instruction: [
-        shapeInstruction(renderShapeSkeleton(BuildContext)),
-        "Read the relevant source and tests before planning. This step is read-only by intent: do not edit files, write files, or run commands that modify the checkout. Scale the breadth of your reading to the run's stated depth (provided to you): at low depth read just the directly implicated files; at high depth map the surrounding modules, callers, and local conventions. sources must contain at least one entry; observations must contain at least one entry. Use an empty open_questions array only when nothing remains unresolved. Every observation must be grounded in the cited sources - do not invent details the sources do not support.",
-        "In anticipated_file_extensions, predict the file extensions the implementer will likely touch based on what you read (for example .ts and .test.ts for a typed code change with tests). Use the implementation file types, not every file you read. Use an empty array only when the read gives no confident prediction. This list is advisory: it scopes and warns, it does not bind the implementer.",
-        'In slices, decompose the change into an ordered list of independently-verifiable units of implementation work - each a concrete step a worker implements and verification can confirm before the next begins - ordered so each builds on the last. Do NOT include global gates such as "verification passes" or "review completes"; those are not units of work. Give each slice a stable id (slice-1, slice-2, ...) and its own anticipated_file_extensions. Keep the list short: prefer the fewest slices that make the work safely incremental, and use a single slice (or an empty array) when the change is one indivisible unit. At high depth the engine implements and verifies these one at a time; at lower depths the change runs in a single pass regardless.',
-        'In guardrails, capture the negative space of the change. Put in non_goals the things the operator said the change must NOT do - boundaries drawn from the goal and brief, not invented. Put in invariants the properties the change must preserve, grounded in what you read (a contract, a data shape, an ordering, a safety property). Both default to empty arrays: declare a guardrail only when it is real and specific, never a generic "do not break anything". These carry forward to the plan and the reviewer checks the change against them.',
-        'In allowed_touch_area, name the paths this change is allowed to touch, proposed from what you read - either a directory subtree ending in "/" (for example "src/flows/build/", which covers everything beneath it) or an exact repo-relative file path. Include every place a correct change legitimately needs to reach: the source it edits, the tests that cover it, and any generated output it regenerates. State the allowed area positively; do not list off-limits files. After the build the engine compares the files actually changed - proven from git, not self-reported - against this area, and a change that reaches outside it cannot finish clean. Because the implementer is held to this without trimming the work to fit, leave the array empty whenever you cannot scope the change with confidence: an empty area turns the check off rather than guessing a box.',
-        'Include recommended_power ONLY when the relay context states the power dial is auto; omit the key entirely otherwise. When you do include it, judge from the codebase read how strong a model the downstream implementation and review need: "low" for a small localized change with good test coverage, "high" for a wide, subtle, or weakly-tested change, "medium" between. One short rationale sentence.',
-        mechanicalTail("build.context@v1", "reports/build/context.json")
-      ].join(" ")
-    };
-    buildImplementationShapeHint = {
-      kind: "schema",
-      schema: "build.implementation@v1",
-      instruction: [
-        shapeInstruction(renderShapeSkeleton(BuildImplementation)),
-        "Make the smallest behaviorally scoped change that satisfies the requested goal. Do not broaden semantics, normalize data, or add extra behavior just because tests still pass.",
-        "The plan may carry guardrails: non_goals (things this change must NOT do) and invariants (properties it must preserve). Stay inside the non_goals and preserve every invariant. These are advisory to you here, but the reviewer checks the finished change against them, so a violation will surface as a finding.",
-        "When the request names a current slice (its id and intent), implement ONLY that slice's unit of work - the smallest change that satisfies that slice's intent - and leave later slices for their own turn. When no current slice is named, implement the whole plan in one pass. Report changed_files cumulatively: every file changed so far across all slices, not only this slice's files.",
-        "The plan's anticipated_file_extensions (and the current slice's, when named) list the file types the grounding read expects to touch. Treat them as an advisory starting scope, not a hard limit: if the real change needs other file types, make the change and report the files you actually touched.",
-        "The plan may also carry allowed_touch_area: the paths the grounding read predicted this change should reach. It is advisory to you, not a cage - implement what the slice and goal actually require and report every file you really changed. After you finish, the engine compares your git-proven changes against that area; reaching outside it does not fail the build but surfaces for a human to confirm, so do not pad the change with edits it does not need, and do not trim a necessary change just to stay inside the predicted box.",
-        "Use an empty changed_files array only when no file changed. Evidence must contain at least one item.",
-        "When the thin envelope you were handed is missing a specific named slice of an upstream report you genuinely need to do the work, you may ask for it through context_request: name one parent step and one dotted field, and request only the slice you are truly missing - never reflexively, and never an everything ask. If the slice you need is not available to pull, say so honestly in your evidence and proceed on the context you have; do not invent what you could not read.",
-        mechanicalTail("build.implementation@v1", "reports/build/implementation.json")
-      ].join(" ")
-    };
-    buildReviewShapeHint = {
-      kind: "schema",
-      schema: "build.review@v1",
-      instruction: [
-        shapeInstruction(renderShapeSkeleton(BuildReview)),
-        "Review the change against the requested scope, not just against passing tests. Flag behavior that broadens semantics beyond the goal even when verification passes.",
-        `alignment is required. Set scope_adherence by judging the finished change against the brief: within_scope when it does only what the goal asked, exceeds_scope when it reaches beyond. Add one non_goals entry per non_goal the plan declared and one invariants entry per invariant, each restating the plan's text with a status and concrete evidence; use empty arrays only when the plan declared none. If you set scope_adherence to exceeds_scope, or mark any non_goal violated or any invariant violated, the verdict cannot be "accept" and you must include at least one finding that explains the breach.`,
-        "You are also given a git-proven touch_area report: the files the change actually modified and whether they stayed inside the plan's allowed_touch_area. Treat it as ground truth about what was physically touched - more reliable than the implementer's self-reported file list - and let it inform your scope_adherence judgment and your evidence. The engine enforces that boundary separately at close, so your job here is the semantic call, not to re-run the boundary check.",
-        'Use an empty findings array only with verdict "accept". Verdicts "accept-with-fixes" and "reject" must include at least one finding. Use an empty file_refs array when a finding has no file-specific reference.',
-        mechanicalTail("build.review@v1", "reports/build/review.json")
-      ].join(" ")
-    };
-  }
-});
-
-// dist/shared/git-state-command.js
-import { existsSync as existsSync12 } from "node:fs";
-import { fileURLToPath } from "node:url";
-function resolveGitStateHelperPath(moduleUrl = import.meta.url) {
-  const compiled = fileURLToPath(new URL("./git-state.js", moduleUrl));
-  if (existsSync12(compiled))
-    return compiled;
-  const source = fileURLToPath(new URL("./git-state.ts", moduleUrl));
-  if (existsSync12(source))
-    return source;
-  throw new Error(`git-state helper is missing next to ${fileURLToPath(moduleUrl)}: expected ${compiled} (compiled layouts) or ${source} (source tree)`);
-}
-function gitStateCommand(id) {
-  return {
-    id,
-    cwd: ".",
-    argv: [process.execPath, resolveGitStateHelperPath()],
-    timeout_ms: GIT_TIMEOUT_MS,
-    max_output_bytes: GIT_MAX_OUTPUT_BYTES,
-    env: {}
-  };
-}
-function parseGitStateObservation(observation, schemaName) {
-  if (observation.status !== "passed") {
-    throw new Error(`${schemaName}: git-state helper failed (exit ${observation.exit_code}): ${observation.stderr_summary}`);
-  }
-  let parsed;
-  try {
-    parsed = JSON.parse(observation.stdout_summary);
-  } catch (err) {
-    const reason = err instanceof Error ? err.message : String(err);
-    throw new Error(`${schemaName}: git-state helper stdout was not valid JSON: ${reason}`);
-  }
-  return GitStateHelperOutput.parse(parsed);
-}
-var GIT_TIMEOUT_MS, GIT_MAX_OUTPUT_BYTES, GitStateHelperOutput;
-var init_git_state_command = __esm({
-  "dist/shared/git-state-command.js"() {
-    "use strict";
-    init_runtime_evidence();
-    GIT_TIMEOUT_MS = 6e4;
-    GIT_MAX_OUTPUT_BYTES = 5e6;
-    GitStateHelperOutput = RuntimeGitStateSnapshot;
-  }
-});
-
-// dist/shared/run-relative-path.js
-import { existsSync as existsSync13, lstatSync as lstatSync3, realpathSync as realpathSync3 } from "node:fs";
-import { isAbsolute as isAbsolute3, relative as relative3, resolve as resolve11 } from "node:path";
-function isInside(root, target) {
-  const fromRoot = relative3(root, target);
-  return fromRoot !== "" && !fromRoot.startsWith("..") && !isAbsolute3(fromRoot);
-}
-function resolveRunRelative(runFolder, relPath) {
-  const parsed = RunRelativePath.safeParse(relPath);
-  if (!parsed.success) {
-    const detail = parsed.error.issues.map((issue2) => issue2.message).join("; ");
-    throw new Error(`run-relative path rejected: ${JSON.stringify(relPath)} (${detail})`);
-  }
-  const rootAbs = resolve11(runFolder);
-  const targetAbs = resolve11(rootAbs, parsed.data);
-  if (!isInside(rootAbs, targetAbs)) {
-    throw new Error(`run-relative path rejected: ${JSON.stringify(relPath)} escapes run folder`);
-  }
-  if (!existsSync13(rootAbs))
-    return targetAbs;
-  const rootReal = realpathSync3.native(rootAbs);
-  let cursor = rootAbs;
-  for (const segment of parsed.data.split("/")) {
-    cursor = resolve11(cursor, segment);
-    if (!existsSync13(cursor))
-      break;
-    const stat2 = lstatSync3(cursor);
-    if (stat2.isSymbolicLink()) {
-      throw new Error(`run-relative path rejected: ${JSON.stringify(relPath)} crosses symlink ${JSON.stringify(cursor)}`);
-    }
-    const cursorReal = realpathSync3.native(cursor);
-    if (!isInside(rootReal, cursorReal)) {
-      throw new Error(`run-relative path rejected: ${JSON.stringify(relPath)} escapes real run folder through ${JSON.stringify(cursor)}`);
-    }
-  }
-  return targetAbs;
-}
-var init_run_relative_path = __esm({
-  "dist/shared/run-relative-path.js"() {
-    "use strict";
-    init_scalars();
-  }
-});
-
-// dist/flows/registries/runtime-index.js
-function requireRuntimeIndexedStep(index, stepId, kind) {
-  const indexedStep2 = index.stepsById.get(stepId);
-  if (indexedStep2 === void 0) {
-    throw new Error(`runtime package index has no step '${stepId}'`);
-  }
-  if (indexedStep2.kind !== kind) {
-    throw new Error(`runtime package index step '${stepId}' has kind '${indexedStep2.kind}', expected '${kind}'`);
-  }
-  return indexedStep2;
-}
-function reportPathForSchemaInRuntimeFlow(flow, schemaName) {
-  const matches = flow.steps.flatMap((step) => Object.values(step.writes).flatMap((write) => typeof write === "object" && write !== null && write.schema === schemaName ? [{ step, write }] : []));
-  if (matches.length !== 1) {
-    throw new Error(`expected exactly one report writer for schema '${schemaName}', found ${matches.length}`);
-  }
-  const report = matches[0]?.write;
-  if (typeof report !== "object" || report === null) {
-    throw new Error(`report writer for schema '${schemaName}' is missing a report path`);
-  }
-  return report.path;
-}
-function flowHasReportSchemaInRuntimeFlow(flow, schemaName) {
-  return flow.steps.some((step) => Object.values(step.writes).some((write) => typeof write === "object" && write !== null && write.schema === schemaName));
-}
-var init_runtime_index = __esm({
-  "dist/flows/registries/runtime-index.js"() {
-    "use strict";
-  }
-});
-
-// dist/flows/build/writers/baseline-snapshot.js
-import { readFileSync as readFileSync11 } from "node:fs";
-function planDeclaresTouchArea(context) {
-  const planPath = reportPathForSchemaInRuntimeFlow(context.flow, "build.plan@v1");
-  if (!context.step.reads.includes(planPath)) {
-    throw new Error(`build touch-area gate requires step '${context.step.id}' to read ${planPath}`);
-  }
-  const plan = BuildPlan.parse(JSON.parse(readFileSync11(resolveRunRelative(context.runFolder, planPath), "utf8")));
-  return plan.allowed_touch_area.length > 0;
-}
-var buildBaselineSnapshotWriter;
-var init_baseline_snapshot = __esm({
-  "dist/flows/build/writers/baseline-snapshot.js"() {
-    "use strict";
-    init_git_state_command();
-    init_run_relative_path();
-    init_runtime_index();
-    init_reports();
-    buildBaselineSnapshotWriter = {
-      resultSchemaName: "build.baseline-snapshot@v1",
-      // Reads the plan to decide whether the touch-area gate is on (planDeclaresTouchArea).
-      // Declared so a composer wires the read and the offline floor resolves it;
-      // loadCommands below is the enforcing source of truth.
-      reads: [{ name: "plan", schema: "build.plan@v1", required: true }],
-      loadCommands(context) {
-        if (!planDeclaresTouchArea(context))
-          return [];
-        return [gitStateCommand("build-baseline-snapshot-git-state")];
-      },
-      buildResult(observations) {
-        if (observations.length === 0) {
-          return BuildBaselineSnapshot.parse({ overall_status: "passed", captured: false });
-        }
-        if (observations.length !== 1) {
-          throw new Error(`build.baseline-snapshot@v1: expected 1 git-state observation, got ${observations.length}`);
-        }
-        const observation = observations[0];
-        if (observation === void 0) {
-          throw new Error("build.baseline-snapshot@v1: git-state observation missing");
-        }
-        const state = parseGitStateObservation(observation, "build.baseline-snapshot@v1");
-        return BuildBaselineSnapshot.parse({
-          overall_status: "passed",
-          captured: true,
-          head_sha: state.head_sha,
-          entries: state.entries,
-          hidden_index_flags: state.hidden_index_flags
-        });
-      }
-    };
-  }
-});
-
-// dist/shared/verification-resolver.js
-import { existsSync as existsSync14, readFileSync as readFileSync12 } from "node:fs";
-import { join as join13 } from "node:path";
-function readPackageInfo(projectRoot) {
-  const packageJsonPath = join13(projectRoot, "package.json");
-  if (!existsSync14(packageJsonPath)) {
-    return `Cannot choose verification commands because ${packageJsonPath} does not exist.`;
-  }
-  let parsed;
-  try {
-    parsed = JSON.parse(readFileSync12(packageJsonPath, "utf8"));
-  } catch (error52) {
-    const message = error52 instanceof Error ? error52.message : String(error52);
-    return `Cannot choose verification commands because package.json could not be parsed: ${message}.`;
-  }
-  if (parsed === null || typeof parsed !== "object" || Array.isArray(parsed)) {
-    return "Cannot choose verification commands because package.json is not a JSON object.";
-  }
-  const scriptsRaw = parsed.scripts;
-  if (scriptsRaw === null || typeof scriptsRaw !== "object" || Array.isArray(scriptsRaw)) {
-    return "Cannot choose verification commands because package.json scripts must be an object.";
-  }
-  const scripts = {};
-  for (const [name, value] of Object.entries(scriptsRaw ?? {})) {
-    if (typeof value === "string")
-      scripts[name] = value;
-  }
-  if (Object.keys(scripts).length === 0) {
-    return "Cannot choose verification commands because package.json does not define any scripts.";
-  }
-  const packageManagerRaw = parsed.packageManager;
-  return {
-    scripts,
-    ...typeof packageManagerRaw === "string" ? { packageManager: packageManagerRaw } : {}
-  };
-}
-function packageManagerFromPackageJson(value) {
-  if (value === "npm" || value.startsWith("npm@"))
-    return "npm";
-  if (value === "pnpm" || value.startsWith("pnpm@"))
-    return "pnpm";
-  if (value === "yarn" || value.startsWith("yarn@"))
-    return "yarn";
-  return `Cannot choose verification commands because packageManager ${JSON.stringify(value)} is not supported by the Node-script resolver.`;
-}
-function resolvePackageManager(projectRoot, info) {
-  if (info.packageManager !== void 0)
-    return packageManagerFromPackageJson(info.packageManager);
-  if (existsSync14(join13(projectRoot, "pnpm-lock.yaml")))
-    return "pnpm";
-  if (existsSync14(join13(projectRoot, "yarn.lock")))
-    return "yarn";
-  if (existsSync14(join13(projectRoot, "package-lock.json")))
-    return "npm";
-  return "npm";
-}
-function uniqueNeeds(needs) {
-  const source = needs === void 0 || needs.length === 0 ? ["general"] : needs;
-  return [...new Set(source)];
-}
-function firstGeneralScript(scripts) {
-  for (const name of ["verify", "test", "check"]) {
-    if (typeof scripts[name] === "string")
-      return name;
-  }
-  return void 0;
-}
-function commandForScript(input) {
-  return {
-    id: `${input.commandIdPrefix}-${input.script}`,
-    cwd: ".",
-    argv: [input.manager, "run", input.script],
-    timeout_ms: input.timeoutMs,
-    max_output_bytes: input.maxOutputBytes,
-    env: { ...input.env }
-  };
-}
-function resolveVerificationCommands(input) {
-  if (input.projectRoot === void 0) {
-    return {
-      status: "blocked",
-      reason: "Cannot choose verification commands because projectRoot was not provided."
-    };
-  }
-  const packageInfo2 = readPackageInfo(input.projectRoot);
-  if (typeof packageInfo2 === "string")
-    return { status: "blocked", reason: packageInfo2 };
-  const manager = resolvePackageManager(input.projectRoot, packageInfo2);
-  if (typeof manager === "string" && !["npm", "pnpm", "yarn"].includes(manager)) {
-    return { status: "blocked", reason: manager };
-  }
-  const needs = uniqueNeeds(input.requestedNeeds);
-  const missing = [];
-  const selectedScripts = [];
-  for (const need of needs) {
-    if (need === "general") {
-      const generalScript = firstGeneralScript(packageInfo2.scripts);
-      if (generalScript === void 0) {
-        missing.push("one of verify, test, or check");
-      } else {
-        selectedScripts.push(generalScript);
-      }
-      continue;
-    }
-    if (typeof packageInfo2.scripts[need] === "string") {
-      selectedScripts.push(need);
-    } else {
-      missing.push(need);
-    }
-  }
-  if (missing.length > 0) {
-    return {
-      status: "blocked",
-      reason: `Cannot choose verification commands because package.json is missing required script ${missing.join(", ")}.`
-    };
-  }
-  const commands = [...new Set(selectedScripts)].map((script) => commandForScript({
-    manager,
-    script,
-    commandIdPrefix: input.commandIdPrefix,
-    timeoutMs: input.timeoutMs ?? DEFAULT_VERIFICATION_TIMEOUT_MS,
-    maxOutputBytes: input.maxOutputBytes ?? 2e5,
-    env: input.env ?? {}
-  }));
-  if (commands.length === 0) {
-    return {
-      status: "blocked",
-      reason: "Cannot choose verification commands because no verification scripts were selected."
-    };
-  }
-  return { status: "ready", commands };
-}
-function requireResolvedVerificationCommands(input) {
-  const result = resolveVerificationCommands(input);
-  if (result.status === "blocked")
-    throw new ProofPlanBlockedError(result.reason);
-  return result.commands;
-}
-function goalAsksForNeed(goal, need) {
-  const escaped = need.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
-  const proofWords = String.raw`(?:run|runs|pass|passes|passing|green|clean|keep|stays?|must|should|ensure|verify|verification|proof)`;
-  return new RegExp(String.raw`\b${escaped}\b\s*(?:\+|&|and|,)\s*\b(?:build|lint)\b`, "i").test(goal) || new RegExp(String.raw`\b(?:build|lint)\b\s*(?:\+|&|and|,)\s*\b${escaped}\b`, "i").test(goal) || new RegExp(String.raw`\b${proofWords}\b[\s\S]{0,40}\b${escaped}\b`, "i").test(goal) || new RegExp(String.raw`\b${escaped}\b[\s\S]{0,40}\b${proofWords}\b`, "i").test(goal);
-}
-function inferBuildVerificationNeeds(goal) {
-  const needs = [];
-  if (goalAsksForNeed(goal, "build"))
-    needs.push("build");
-  if (goalAsksForNeed(goal, "lint"))
-    needs.push("lint");
-  return needs.length > 0 ? needs : ["general"];
-}
-var DEFAULT_VERIFICATION_TIMEOUT_MS;
-var init_verification_resolver = __esm({
-  "dist/shared/verification-resolver.js"() {
-    "use strict";
-    init_proof_plan();
-    DEFAULT_VERIFICATION_TIMEOUT_MS = 6e5;
-  }
-});
-
-// dist/flows/registries/checkpoint-writers/types.js
-function checkpointChoiceIds(step) {
-  return step.policy.choices?.map((choice) => choice.id) ?? [];
-}
-var init_types = __esm({
-  "dist/flows/registries/checkpoint-writers/types.js"() {
-    "use strict";
-  }
-});
-
-// dist/flows/build/writers/checkpoint-brief-projection.js
-function titleCaseChoice(id) {
-  return id.split(/[-_\s]+/).filter((part) => part.length > 0).map((part) => `${part[0]?.toUpperCase() ?? ""}${part.slice(1)}`).join(" ");
-}
-function routeForChoice(step, choiceId) {
-  const direct = step.routes[choiceId];
-  if (direct !== void 0)
-    return { key: choiceId, target: direct };
-  const fallback = step.routes.pass;
-  if (fallback !== void 0)
-    return { key: "pass", target: fallback };
-  return void 0;
-}
-function recommendedChoiceId(step) {
-  const allowed = new Set(checkpointChoiceIds(step));
-  const safeDefault = step.policy.safe_default_choice;
-  if (safeDefault !== void 0 && allowed.has(safeDefault))
-    return safeDefault;
-  return checkpointChoiceIds(step)[0] ?? "continue";
-}
-function buildCheckpointPacket(input) {
-  const allowedChoices = checkpointChoiceIds(input.context.step);
-  const recommendationId = recommendedChoiceId(input.context.step);
-  const choices = (input.context.step.policy.choices ?? []).filter((choice) => allowedChoices.includes(choice.id)).flatMap((choice) => {
-    const route = routeForChoice(input.context.step, choice.id);
-    if (route === void 0)
-      return [];
-    return [
-      {
-        id: choice.id,
-        label: choice.label ?? titleCaseChoice(choice.id),
-        description: choice.description ?? (choice.id === recommendationId ? "Proceed on the recommended executable route." : `Resume the Build flow with checkpoint choice '${choice.id}'.`),
-        route
-      }
-    ];
-  });
-  const recommendedChoice = choices.find((choice) => choice.id === recommendationId) ?? choices[0];
-  if (recommendedChoice === void 0) {
-    throw new Error(`checkpoint step '${input.context.step.id}' has no executable checkpoint choices`);
-  }
-  const verificationCommandText = input.verificationCommands.map((command) => command.argv.join(" ")).join("; ");
-  return {
-    kind: "build.checkpoint_packet@v1",
-    salience: {
-      summary: "Confirm the Build brief before Circuit starts write-capable implementation work.",
-      why_now: [
-        "The next route can edit the checkout.",
-        `The requested objective is: ${input.context.goal}`,
-        "This is the last low-cost point to correct scope before implementation begins."
-      ],
-      hidden_routine_work: [
-        "Formatting, test execution, and ordinary implementation chores stay inside the Build flow after approval.",
-        "Raw traces and request files are linked as evidence instead of dominating the decision surface."
-      ]
-    },
-    decision: {
-      question: input.context.step.policy.prompt,
-      operator_judgment: "Decide whether this scope, success bar, and proof plan are good enough for Circuit to proceed."
-    },
-    recommendation: {
-      choice_id: recommendedChoice.id,
-      label: recommendedChoice.label,
-      rationale: `${recommendedChoice.label} is recommended because the packet has a bounded scope, explicit success criteria, and a concrete verification plan.`
-    },
-    artifact: {
-      title: "Build brief",
-      preview: `Objective: ${input.context.goal}`,
-      scope: input.template.scope,
-      success_criteria: input.template.success_criteria
-    },
-    proof: {
-      status: "planned",
-      summary: `Circuit will verify the implementation with: ${verificationCommandText}.`,
-      commands: [...input.verificationCommands],
-      evidence: [
-        "Verification is planned before implementation begins; no implementation proof has been collected yet.",
-        "The final Build close report must carry the actual verification and review evidence after resume."
-      ]
-    },
-    risk: {
-      summary: "The meaningful risk is scope mismatch: continuing spends implementation effort on this exact brief.",
-      tradeoffs: [
-        "If the brief is too narrow, the implementation may satisfy tests while missing the operator intent.",
-        "If the brief is too broad, the worker may touch more surface area than this request warrants."
-      ]
-    },
-    choices,
-    internal: {
-      request_path: input.context.step.writes.request,
-      response_path: input.context.responsePath,
-      report_path: input.context.step.writes.report?.path ?? "reports/build/brief.json",
-      raw_evidence: [
-        input.context.step.writes.request,
-        input.context.responsePath,
-        input.context.step.writes.report?.path ?? "reports/build/brief.json"
-      ]
-    }
-  };
-}
-function projectBuildBrief(inputs) {
-  return BuildBrief.parse({
-    objective: inputs.context.goal,
-    scope: inputs.template.scope,
-    success_criteria: inputs.template.success_criteria,
-    verification_command_candidates: inputs.verificationCommands,
-    checkpoint: {
-      request_path: inputs.context.step.writes.request,
-      response_path: inputs.context.responsePath,
-      allowed_choices: checkpointChoiceIds(inputs.context.step)
-    },
-    checkpoint_packet: buildCheckpointPacket(inputs)
-  });
-}
-function validateBuildBriefCheckpointOwnership(input) {
-  const expectedChoices = checkpointChoiceIds(input.step);
-  if (input.brief.checkpoint.request_path !== input.step.writes.request || input.brief.checkpoint.response_path !== input.step.writes.response || input.brief.checkpoint.allowed_choices.length !== expectedChoices.length || input.brief.checkpoint.allowed_choices.some((choice, index) => choice !== expectedChoices[index])) {
-    throw new Error(`checkpoint resume rejected: waiting Build brief does not belong to checkpoint '${input.step.id}'`);
-  }
-  return input.brief;
-}
-var BuildBriefReportTemplate;
-var init_checkpoint_brief_projection = __esm({
-  "dist/flows/build/writers/checkpoint-brief-projection.js"() {
-    "use strict";
-    init_zod();
-    init_verification();
-    init_types();
-    init_reports();
-    BuildBriefReportTemplate = external_exports.object({
-      scope: external_exports.string().min(1),
-      success_criteria: external_exports.array(external_exports.string().min(1)).min(1),
-      verification_command_candidates: external_exports.array(VerificationCommand).min(1).optional()
-    }).strict();
-  }
-});
-
-// dist/flows/build/writers/checkpoint-brief.js
-import { readFileSync as readFileSync13 } from "node:fs";
-var buildBriefCheckpointBuilder;
-var init_checkpoint_brief = __esm({
-  "dist/flows/build/writers/checkpoint-brief.js"() {
-    "use strict";
-    init_connector_relay();
-    init_run_relative_path();
-    init_verification_resolver();
-    init_reports();
-    init_checkpoint_brief_projection();
-    buildBriefCheckpointBuilder = {
-      resultSchemaName: "build.brief@v1",
-      build(context) {
-        const rawTemplate = context.step.policy.report_template;
-        if (rawTemplate === void 0) {
-          throw new Error(`checkpoint step '${context.step.id}' writing build.brief@v1 requires policy.report_template`);
-        }
-        const template = BuildBriefReportTemplate.parse(rawTemplate);
-        const verificationCommands = requireResolvedVerificationCommands({
-          ...context.projectRoot === void 0 ? {} : { projectRoot: context.projectRoot },
-          goal: context.goal,
-          requestedNeeds: inferBuildVerificationNeeds(context.goal),
-          commandIdPrefix: "build",
-          maxOutputBytes: 2e5
-        });
-        return projectBuildBrief({
-          context,
-          template,
-          verificationCommands
-        });
-      },
-      validateResumeContext(context) {
-        const reportAbs = resolveRunRelative(context.runFolder, context.reportPath);
-        const raw = readFileSync13(reportAbs, "utf8");
-        if (context.reportSha256 === void 0) {
-          throw new Error("checkpoint resume rejected: checkpoint request is missing checkpoint_report_sha256");
-        }
-        const observedHash = sha256OfString(raw);
-        if (observedHash !== context.reportSha256) {
-          throw new Error("checkpoint resume rejected: waiting Build brief hash differs from request");
-        }
-        const brief = BuildBrief.parse(JSON.parse(raw));
-        return validateBuildBriefCheckpointOwnership({ brief, step: context.step });
-      }
-    };
-  }
-});
-
-// dist/flows/build/writers/result-projection.js
-function summarizeTouchArea(touchArea) {
-  return {
-    enforcement: touchArea.enforcement,
-    containment: touchArea.containment,
-    out_of_bounds_paths: touchArea.out_of_bounds_paths
-  };
-}
-function normalizeStatement(statement) {
-  return statement.trim().replace(/\s+/g, " ").toLowerCase();
-}
-function unassessedScope(plan) {
-  return BuildScope.parse({
-    adherence: "within_scope",
-    violated_guardrails: [],
-    unassessed_guardrails: [...plan.guardrails.non_goals, ...plan.guardrails.invariants]
-  });
-}
-function computeScope(plan, review) {
-  const { alignment } = review;
-  const violated = [
-    ...alignment.non_goals.filter((entry) => entry.status === "violated"),
-    ...alignment.invariants.filter((entry) => entry.status === "violated")
-  ].map((entry) => entry.statement);
-  const assessedNonGoals = new Set(alignment.non_goals.map((entry) => normalizeStatement(entry.statement)));
-  const assessedInvariants = new Set(alignment.invariants.map((entry) => normalizeStatement(entry.statement)));
-  const unassessed = [
-    ...plan.guardrails.non_goals.filter((statement) => !assessedNonGoals.has(normalizeStatement(statement))),
-    ...plan.guardrails.invariants.filter((statement) => !assessedInvariants.has(normalizeStatement(statement)))
-  ];
-  return BuildScope.parse({
-    adherence: alignment.scope_adherence,
-    violated_guardrails: violated,
-    unassessed_guardrails: unassessed
-  });
-}
-function projectBuildResult(inputs) {
-  const { review, touchArea: touchAreaReport } = inputs;
-  const scope = review === void 0 ? unassessedScope(inputs.plan) : computeScope(inputs.plan, review);
-  const scopeClean = scope.adherence === "within_scope" && scope.violated_guardrails.length === 0 && scope.unassessed_guardrails.length === 0;
-  const touchArea = touchAreaReport === void 0 ? { enforcement: "not_assessed", containment: "not_assessed", out_of_bounds_paths: [] } : summarizeTouchArea(touchAreaReport);
-  const touchAreaClean = touchArea.containment === "within";
-  const reviewVerdict = review === void 0 ? "not_assessed" : review.verdict;
-  const outcome = inputs.verification.overall_status !== "passed" ? "failed" : reviewVerdict === "reject" ? "failed" : reviewVerdict === "accept" && scopeClean && touchAreaClean ? "complete" : "needs_attention";
-  return BuildResult.parse({
-    summary: `Build result for ${inputs.brief.objective}: ${inputs.implementation.summary}`,
-    outcome,
-    verification_status: inputs.verification.overall_status,
-    review_verdict: reviewVerdict,
-    scope,
-    touch_area: touchArea,
-    evidence_links: inputs.evidenceLinks
-  });
-}
-var init_result_projection = __esm({
-  "dist/flows/build/writers/result-projection.js"() {
-    "use strict";
-    init_reports();
-  }
-});
-
-// dist/flows/build/writers/close.js
-var ALWAYS_PRESENT_POINTERS, REVIEW_POINTER, buildCloseBuilder;
-var init_close = __esm({
-  "dist/flows/build/writers/close.js"() {
-    "use strict";
-    init_runtime_index();
-    init_reports();
-    init_result_projection();
-    ALWAYS_PRESENT_POINTERS = [
-      { report_id: "build.brief", schema: "build.brief@v1" },
-      { report_id: "build.plan", schema: "build.plan@v1" },
-      { report_id: "build.implementation", schema: "build.implementation@v1" },
-      { report_id: "build.verification", schema: "build.verification@v1" }
-    ];
-    REVIEW_POINTER = { report_id: "build.review", schema: "build.review@v1" };
-    buildCloseBuilder = {
-      resultSchemaName: "build.result@v1",
-      reads: [
-        { name: "brief", schema: "build.brief@v1", required: true },
-        { name: "plan", schema: "build.plan@v1", required: true },
-        { name: "implementation", schema: "build.implementation@v1", required: true },
-        { name: "verification", schema: "build.verification@v1", required: true },
-        // Optional so a folded flow with no review/touch-area step still closes.
-        // resolveCloseReadPaths resolves these normally when the flow declares the
-        // writer (build's full flow), so build's inputs are byte-identical; it
-        // returns undefined only when no step writes the schema at all.
-        { name: "review", schema: "build.review@v1", required: false },
-        { name: "touch_area", schema: "build.touch-area@v1", required: false }
-      ],
-      build(context) {
-        const brief = BuildBrief.parse(context.inputs.brief);
-        const plan = BuildPlan.parse(context.inputs.plan);
-        const implementation = BuildImplementation.parse(context.inputs.implementation);
-        const verification = BuildVerification.parse(context.inputs.verification);
-        const review = context.inputs.review === void 0 ? void 0 : BuildReview.parse(context.inputs.review);
-        const touchArea = context.inputs.touch_area === void 0 ? void 0 : BuildTouchArea.parse(context.inputs.touch_area);
-        const pointers = review === void 0 ? ALWAYS_PRESENT_POINTERS : [...ALWAYS_PRESENT_POINTERS, REVIEW_POINTER];
-        return projectBuildResult({
-          brief,
-          plan,
-          implementation,
-          verification,
-          ...review === void 0 ? {} : { review },
-          ...touchArea === void 0 ? {} : { touchArea },
-          evidenceLinks: pointers.map((p) => ({
-            ...p,
-            path: reportPathForSchemaInRuntimeFlow(context.flow, p.schema)
-          }))
-        });
-      }
-    };
-  }
-});
-
-// dist/flows/build/writers/plan.js
-var buildPlanComposeBuilder;
-var init_plan = __esm({
-  "dist/flows/build/writers/plan.js"() {
-    "use strict";
-    init_reports();
-    buildPlanComposeBuilder = {
-      resultSchemaName: "build.plan@v1",
-      reads: [
-        { name: "brief", schema: "build.brief@v1", required: true },
-        { name: "context", schema: "build.context@v1", required: false }
-      ],
-      build(context) {
-        const brief = BuildBrief.parse(context.inputs.brief);
-        const grounding = context.inputs.context === void 0 ? void 0 : BuildContext.parse(context.inputs.context);
-        const baseApproach = `Make the smallest safe change inside scope: ${brief.scope}`;
-        const approach = grounding === void 0 ? baseApproach : context.contextDeliveryActive === true ? `Grounded in a codebase read (${grounding.sources.length} sources); the detailed observations are recorded in the analyze-step report and available to pull on demand if this step needs them (context_request from_step "analyze-step", field_path "observations"). Then ${baseApproach}` : `Grounded in a codebase read (${grounding.sources.length} sources): ${grounding.observations.join(" ")} Then ${baseApproach}`;
-        const slices = grounding !== void 0 && grounding.slices.length > 0 ? grounding.slices : [
-          {
-            id: "slice-1",
-            intent: brief.objective,
-            anticipated_file_extensions: grounding?.anticipated_file_extensions ?? []
-          }
-        ];
-        return BuildPlan.parse({
-          objective: brief.objective,
-          approach,
-          slices,
-          anticipated_file_extensions: grounding?.anticipated_file_extensions ?? [],
-          // Carry the researcher's negative space forward so the implementer hint
-          // and the reviewer's alignment check read from the plan. A context-less
-          // plan (reduced fixtures) carries no guardrails.
-          guardrails: grounding?.guardrails ?? { non_goals: [], invariants: [] },
-          // Carry the researcher's allowed touch area forward so the touch-area gate
-          // can check the git-proven change set against it. A context-less plan
-          // carries no area, leaving the gate inert (opt-in).
-          allowed_touch_area: grounding?.allowed_touch_area ?? [],
-          verification: {
-            commands: brief.verification_command_candidates
-          }
-        });
-      }
-    };
-  }
-});
-
-// dist/shared/runtime-touched-files.js
-function isPathInPrefix(path, prefixes) {
-  return prefixes.some((prefix) => path === prefix || path.startsWith(`${prefix}/`));
-}
-function filterEntries(entries, prefixes) {
-  if (prefixes.length === 0)
-    return [...entries];
-  return entries.filter((entry) => !isPathInPrefix(entry.path, prefixes));
-}
-function filterHiddenFlags(flags, prefixes) {
-  if (prefixes.length === 0)
-    return [...flags];
-  return flags.filter((flag) => !isPathInPrefix(flag.path, prefixes));
-}
-function entriesByPath(entries) {
-  const map2 = /* @__PURE__ */ new Map();
-  for (const entry of entries) {
-    map2.set(entry.path, entry);
-  }
-  return map2;
-}
-function hiddenPaths(flags) {
-  return new Set(flags.map((flag) => flag.path));
-}
-function uniqueSorted(paths) {
-  return [...new Set(paths)].sort((a, b) => a.localeCompare(b));
-}
-function statusFromEntry(baseline, post) {
-  if (post?.from !== void 0 || post?.status_code.includes("R")) {
-    return "renamed";
-  }
-  if (post?.status_code.includes("D")) {
-    return "deleted";
-  }
-  if (baseline === void 0 && post !== void 0 && (post.status_code.includes("?") || post.status_code.includes("A"))) {
-    return "added";
-  }
-  return "modified";
-}
-function uniqueFlags(flags) {
-  const seen = /* @__PURE__ */ new Set();
-  const out = [];
-  for (const flag of flags) {
-    const key = `${flag.tag}\0${flag.path}`;
-    if (seen.has(key))
-      continue;
-    seen.add(key);
-    out.push(flag);
-  }
-  return out.sort((a, b) => a.path.localeCompare(b.path) || a.tag.localeCompare(b.tag));
-}
-function projectRuntimeTouchedFiles(options) {
-  const ignoredPathPrefixes = options.ignoredPathPrefixes ?? [];
-  const baselineEntries = filterEntries(options.baseline.entries, ignoredPathPrefixes);
-  const postEntries = filterEntries(options.post.entries, ignoredPathPrefixes);
-  const baselineHiddenFlags = filterHiddenFlags(options.baseline.hidden_index_flags, ignoredPathPrefixes);
-  const postHiddenFlags = filterHiddenFlags(options.post.hidden_index_flags, ignoredPathPrefixes);
-  const baselineByPath = entriesByPath(baselineEntries);
-  const postByPath = entriesByPath(postEntries);
-  const baselinePaths = new Set(baselineByPath.keys());
-  const postPaths = new Set(postByPath.keys());
-  const hiddenBaselinePaths = hiddenPaths(baselineHiddenFlags);
-  const newDirt = [...postPaths].filter((path) => !baselinePaths.has(path));
-  const baselineDirtyMutated = [...baselinePaths].filter((path) => {
-    if (hiddenBaselinePaths.has(path))
-      return false;
-    const before = baselineByPath.get(path);
-    const after = postByPath.get(path);
-    return before?.fingerprint !== after?.fingerprint;
-  });
-  const observed = uniqueSorted([...newDirt, ...baselineDirtyMutated]);
-  const workerDeclared = uniqueSorted((options.workerDeclaredPaths ?? []).filter((path) => !isPathInPrefix(path, ignoredPathPrefixes)));
-  const observedSet = new Set(observed);
-  const workerDeclaredSet = new Set(workerDeclared);
-  const undeclaredWorkerExtras = observed.filter((path) => !workerDeclaredSet.has(path));
-  const missingWorkerDeclared = workerDeclared.filter((path) => !observedSet.has(path));
-  return RuntimeTouchedFilesProjection.parse({
-    baseline_head_sha: options.baseline.head_sha,
-    head_sha: options.post.head_sha,
-    head_diverged: options.baseline.head_sha !== options.post.head_sha,
-    files: observed.map((path) => {
-      const baseline = baselineByPath.get(path);
-      const post = postByPath.get(path);
-      return {
-        path,
-        status: statusFromEntry(baseline, post),
-        source: "runtime_diff",
-        generated_surface: isPathInPrefix(path, options.generatedSurfacePathPrefixes ?? []),
-        protected: isPathInPrefix(path, options.protectedPathPrefixes ?? []),
-        // Carry the rename/copy source so a path-containment consumer can check
-        // both endpoints. This does NOT enter `observed` or the worker-claim
-        // comparison above, so the change-set verdict (Fix) is unchanged.
-        ...post?.from === void 0 ? {} : { from: post.from }
-      };
-    }),
-    worker_declared: workerDeclared,
-    worker_claim_matches_runtime: undeclaredWorkerExtras.length === 0 && missingWorkerDeclared.length === 0,
-    undeclared_worker_extras: undeclaredWorkerExtras,
-    missing_worker_declared: missingWorkerDeclared,
-    baseline_dirty_mutated: uniqueSorted(baselineDirtyMutated),
-    hidden_index_flags: uniqueFlags([...baselineHiddenFlags, ...postHiddenFlags])
-  });
-}
-var init_runtime_touched_files = __esm({
-  "dist/shared/runtime-touched-files.js"() {
-    "use strict";
-    init_runtime_evidence();
-  }
-});
-
-// dist/flows/build/writers/touch-area-projection.js
-function normalizeAreaEntry(entry) {
-  return entry.trim().replace(/^\.\//, "").replace(/\/+$/, "");
-}
-function isInArea(path, normalizedPrefixes) {
-  return normalizedPrefixes.some((prefix) => prefix.length > 0 && (path === prefix || path.startsWith(`${prefix}/`)));
-}
-function inertBuildTouchArea() {
-  return BuildTouchArea.parse({
-    overall_status: "passed",
-    enforcement: "not_enforced",
-    containment: "within",
-    allowed_area: [],
-    observed_paths: [],
-    out_of_bounds_paths: [],
-    head_diverged: false,
-    hidden_index_flags: []
-  });
-}
-function projectBuildTouchArea(inputs) {
-  const { allowedArea, touched } = inputs;
-  const enforced = allowedArea.length > 0;
-  const observedPaths = [
-    ...new Set(touched.files.flatMap((file2) => file2.from === void 0 ? [file2.path] : [file2.path, file2.from]))
-  ];
-  const hiddenFlags = touched.hidden_index_flags.map((flag) => ({
-    tag: flag.tag,
-    path: flag.path
-  }));
-  const base = {
-    overall_status: "passed",
-    allowed_area: [...allowedArea],
-    observed_paths: observedPaths,
-    baseline_head_sha: touched.baseline_head_sha,
-    head_sha: touched.head_sha,
-    head_diverged: touched.head_diverged,
-    hidden_index_flags: hiddenFlags
-  };
-  if (!enforced) {
-    return BuildTouchArea.parse({
-      ...base,
-      enforcement: "not_enforced",
-      containment: "within",
-      out_of_bounds_paths: []
-    });
-  }
-  if (touched.head_diverged || hiddenFlags.length > 0) {
-    const parts = [];
-    if (touched.head_diverged) {
-      parts.push(`HEAD moved during the build (baseline ${touched.baseline_head_sha}, post ${touched.head_sha}); the implementer committed mid-run, so changed paths cannot be attributed for a containment check.`);
-    }
-    if (hiddenFlags.length > 0) {
-      const labelled = hiddenFlags.map((flag) => `${flag.path} (${flag.tag})`).join(", ");
-      parts.push(`hidden index flags present (assume-unchanged or skip-worktree paths can hide tracked edits from git status): ${labelled}`);
-    }
-    return BuildTouchArea.parse({
-      ...base,
-      enforcement: "enforced",
-      containment: "undetermined",
-      out_of_bounds_paths: [],
-      reason: parts.join("; ")
-    });
-  }
-  const normalizedPrefixes = allowedArea.map(normalizeAreaEntry);
-  const outOfBounds = observedPaths.filter((path) => !isInArea(path, normalizedPrefixes));
-  if (outOfBounds.length > 0) {
-    return BuildTouchArea.parse({
-      ...base,
-      enforcement: "enforced",
-      containment: "out_of_bounds",
-      out_of_bounds_paths: outOfBounds,
-      reason: `the change touched ${outOfBounds.length} path(s) outside the allowed area: ${outOfBounds.join(", ")}`
-    });
-  }
-  return BuildTouchArea.parse({
-    ...base,
-    enforcement: "enforced",
-    containment: "within",
-    out_of_bounds_paths: []
-  });
-}
-var init_touch_area_projection = __esm({
-  "dist/flows/build/writers/touch-area-projection.js"() {
-    "use strict";
-    init_reports();
-  }
-});
-
-// dist/flows/build/writers/touch-area.js
-import { readFileSync as readFileSync14 } from "node:fs";
-import { isAbsolute as isAbsolute4, relative as relative4 } from "node:path";
-function runFolderPrefix(input) {
-  if (input.projectRoot === void 0)
-    return void 0;
-  const rel = relative4(input.projectRoot, input.runFolder).split("\\").join("/");
-  if (rel.length === 0 || rel.startsWith("../") || rel === ".." || isAbsolute4(rel)) {
-    return void 0;
-  }
-  return rel;
-}
-var SCHEMA_NAME, buildTouchAreaWriter;
-var init_touch_area = __esm({
-  "dist/flows/build/writers/touch-area.js"() {
-    "use strict";
-    init_git_state_command();
-    init_run_relative_path();
-    init_runtime_touched_files();
-    init_runtime_index();
-    init_reports();
-    init_baseline_snapshot();
-    init_touch_area_projection();
-    SCHEMA_NAME = "build.touch-area@v1";
-    buildTouchAreaWriter = {
-      resultSchemaName: SCHEMA_NAME,
-      // Hard-requires the pre-act baseline snapshot (to diff against) and the plan
-      // (for the declared allowed area). The build.implementation@v1 read in
-      // buildResult is best-effort corroboration, not required, so it is not declared
-      // here. Declared so a composer wires the reads and the offline floor resolves
-      // them; loadCommands below is the enforcing source of truth.
-      reads: [
-        { name: "baseline", schema: "build.baseline-snapshot@v1", required: true },
-        { name: "plan", schema: "build.plan@v1", required: true }
-      ],
-      loadCommands(context) {
-        const baselinePath = reportPathForSchemaInRuntimeFlow(context.flow, "build.baseline-snapshot@v1");
-        const planPath = reportPathForSchemaInRuntimeFlow(context.flow, "build.plan@v1");
-        if (!context.step.reads.includes(baselinePath)) {
-          throw new Error(`${SCHEMA_NAME} requires step '${context.step.id}' to read ${baselinePath}`);
-        }
-        if (!context.step.reads.includes(planPath)) {
-          throw new Error(`${SCHEMA_NAME} requires step '${context.step.id}' to read ${planPath}`);
-        }
-        if (!planDeclaresTouchArea(context))
-          return [];
-        return [gitStateCommand("build-touch-area-git-state")];
-      },
-      buildResult(observations, context) {
-        if (observations.length === 0) {
-          return inertBuildTouchArea();
-        }
-        if (observations.length !== 1) {
-          throw new Error(`${SCHEMA_NAME}: expected 1 git-state observation, got ${observations.length}`);
-        }
-        const observation = observations[0];
-        if (observation === void 0) {
-          throw new Error(`${SCHEMA_NAME}: git-state observation missing`);
-        }
-        const post = parseGitStateObservation(observation, SCHEMA_NAME);
-        const baselinePath = reportPathForSchemaInRuntimeFlow(context.flow, "build.baseline-snapshot@v1");
-        const planPath = reportPathForSchemaInRuntimeFlow(context.flow, "build.plan@v1");
-        const baseline = BuildBaselineSnapshot.parse(JSON.parse(readFileSync14(resolveRunRelative(context.runFolder, baselinePath), "utf8")));
-        if (baseline.captured === false) {
-          throw new Error(`${SCHEMA_NAME}: baseline snapshot is inert (captured: false) but an area was declared; baseline and touch-area steps disagree on enforcement`);
-        }
-        const plan = BuildPlan.parse(JSON.parse(readFileSync14(resolveRunRelative(context.runFolder, planPath), "utf8")));
-        let workerDeclaredPaths = [];
-        try {
-          const implementationPath = reportPathForSchemaInRuntimeFlow(context.flow, "build.implementation@v1");
-          if (context.step.reads.includes(implementationPath)) {
-            const implementation = BuildImplementation.parse(JSON.parse(readFileSync14(resolveRunRelative(context.runFolder, implementationPath), "utf8")));
-            workerDeclaredPaths = implementation.changed_files;
-          }
-        } catch {
-          workerDeclaredPaths = [];
-        }
-        const ignoredRunFolderPrefix = runFolderPrefix({
-          runFolder: context.runFolder,
-          ...context.projectRoot === void 0 ? {} : { projectRoot: context.projectRoot }
-        });
-        const touched = projectRuntimeTouchedFiles({
-          baseline: {
-            head_sha: baseline.head_sha,
-            entries: baseline.entries,
-            hidden_index_flags: baseline.hidden_index_flags
-          },
-          post: {
-            head_sha: post.head_sha,
-            entries: post.entries,
-            hidden_index_flags: post.hidden_index_flags
-          },
-          workerDeclaredPaths,
-          ...ignoredRunFolderPrefix === void 0 ? {} : { ignoredPathPrefixes: [ignoredRunFolderPrefix] }
-        });
-        return projectBuildTouchArea({ allowedArea: plan.allowed_touch_area, touched });
-      }
-    };
-  }
-});
-
-// dist/flows/build/writers/verification-projection.js
-function projectBuildVerification(observations) {
-  const overallStatus = observations.some((observation) => observation.status === "failed") ? "failed" : "passed";
-  return BuildVerification.parse({
-    overall_status: overallStatus,
-    commands: observations.map((observation) => ({
-      command_id: observation.command.id,
-      argv: observation.command.argv,
-      cwd: observation.command.cwd,
-      exit_code: observation.exit_code,
-      status: observation.status,
-      duration_ms: observation.duration_ms,
-      stdout_summary: observation.stdout_summary,
-      stderr_summary: observation.stderr_summary,
-      timed_out: observation.timed_out
-    }))
-  });
-}
-var init_verification_projection = __esm({
-  "dist/flows/build/writers/verification-projection.js"() {
-    "use strict";
-    init_reports();
-  }
-});
-
-// dist/flows/build/writers/verification.js
-import { readFileSync as readFileSync15 } from "node:fs";
-var buildVerificationWriter;
-var init_verification2 = __esm({
-  "dist/flows/build/writers/verification.js"() {
-    "use strict";
-    init_run_relative_path();
-    init_runtime_index();
-    init_reports();
-    init_verification_projection();
-    buildVerificationWriter = {
-      resultSchemaName: "build.verification@v1",
-      // Commands come from the plan's verification command list. Declared so a
-      // composer wires the read and the offline floor resolves it; loadCommands below
-      // is the enforcing source of truth.
-      reads: [{ name: "plan", schema: "build.plan@v1", required: true }],
-      loadCommands(context) {
-        const planPath = reportPathForSchemaInRuntimeFlow(context.flow, "build.plan@v1");
-        if (!context.step.reads.includes(planPath)) {
-          throw new Error(`build.verification@v1 requires step '${context.step.id}' to read ${planPath}`);
-        }
-        const plan = BuildPlan.parse(JSON.parse(readFileSync15(resolveRunRelative(context.runFolder, planPath), "utf8")));
-        return plan.verification.commands;
-      },
-      buildResult(observations) {
-        return projectBuildVerification(observations);
-      }
-    };
-  }
-});
-
-// dist/flows/build/data.js
-var buildFlowData;
-var init_data = __esm({
-  "dist/flows/build/data.js"() {
-    "use strict";
-    init_assemble_flow_schematic();
-    init_assembly_spec();
-    init_relay_hints();
-    init_reports();
-    init_baseline_snapshot();
-    init_checkpoint_brief();
-    init_close();
-    init_plan();
-    init_touch_area();
-    init_verification2();
-    buildFlowData = {
-      id: "build",
-      visibility: "public",
-      paths: {
-        schematic: "src/flows/build/schematic.json",
-        contract: "src/flows/build/contract.md"
-      },
-      // First-class composition (M9): build is the assembler's first production
-      // customer. Its block sequence and flow-level scaffolding live in
-      // ./assembly-spec.ts; `assembleFlowSchematic` derives the three sequence-level
-      // fields (starts_at, stages, stage_path_policy) and returns the validated
-      // FlowSchematic that used to be hand-authored as a literal here. The M9 truth
-      // test proves the assembled schematic is byte-identical to the former literal
-      // (schematic + compiled), and that the assembled-then-compiled build runs to
-      // @complete on the shared graph runner. The assembler is now a live producer,
-      // not a test-only artifact.
-      schematic: assembleFlowSchematic(buildAssemblySpec),
-      canonicalStagePolicy: {
-        kind: "enforce",
-        canonicals: ["frame", "analyze", "plan", "act", "verify", "review", "close"],
-        omits: [],
-        optional_canonicals: [],
-        variants: [],
-        title: "Frame \u2192 Analyze \u2192 Plan \u2192 Act \u2192 Verify \u2192 Review \u2192 Close",
-        authority: "src/flows/build/contract.md \xA7Build Flow Contract"
-      },
-      reports: [
-        {
-          schemaName: "build.implementation@v1",
-          channel: "relay",
-          schema: BuildImplementation,
-          relayHint: buildImplementationShapeHint.instruction
-        },
-        {
-          schemaName: "build.review@v1",
-          channel: "relay",
-          schema: BuildReview,
-          relayHint: buildReviewShapeHint.instruction
-        },
-        {
-          schemaName: "build.context@v1",
-          channel: "relay",
-          schema: BuildContext,
-          relayHint: buildContextShapeHint.instruction
-        },
-        {
-          schemaName: "build.brief@v1",
-          channel: "report",
-          schema: BuildBrief,
-          writers: { checkpoint: [buildBriefCheckpointBuilder] }
-        },
-        {
-          schemaName: "build.plan@v1",
-          channel: "report",
-          schema: BuildPlan,
-          fileSurface: {
-            timing: "before",
-            extractor: { kind: "build-plan-and-slices-anticipated-file-extensions" }
-          },
-          writers: { compose: [buildPlanComposeBuilder] }
-        },
-        {
-          schemaName: "build.verification@v1",
-          channel: "report",
-          schema: BuildVerification,
-          writers: { verification: [buildVerificationWriter] }
-        },
-        {
-          schemaName: "build.baseline-snapshot@v1",
-          channel: "report",
-          schema: BuildBaselineSnapshot,
-          writers: { verification: [buildBaselineSnapshotWriter] }
-        },
-        {
-          schemaName: "build.touch-area@v1",
-          channel: "report",
-          schema: BuildTouchArea,
-          writers: { verification: [buildTouchAreaWriter] }
-        },
-        {
-          schemaName: "build.result@v1",
-          channel: "report",
-          schema: BuildResult,
-          writers: { close: [buildCloseBuilder] }
-        }
-      ],
-      runtimeSurface: {
-        primaryResult: {
-          schemaName: "build.result@v1",
-          path: "reports/build-result.json",
-          label: "Build result"
-        },
-        progress: {
-          steps: [
-            {
-              stepId: "frame-step",
-              taskTitle: "Frame the work",
-              activeText: "Framing the work"
-            },
-            {
-              stepId: "analyze-step",
-              taskTitle: "Read the code",
-              activeText: "Reading the code",
-              relayRole: "researcher",
-              relayStartedText: "Asking the specialist to read the code...",
-              relayCompletedText: "Finished reading the code."
-            },
-            {
-              stepId: "plan-step",
-              taskTitle: "Plan the work",
-              activeText: "Planning the work"
-            },
-            {
-              stepId: "build-baseline",
-              taskTitle: "Note the starting point",
-              activeText: "Noting the starting point"
-            },
-            {
-              stepId: "act-step",
-              taskTitle: "Make the change",
-              activeText: "Making the change",
-              relayRole: "implementer",
-              relayStartedText: "Asking the specialist to make the change...",
-              relayCompletedText: "Finished the specialist pass."
-            },
-            {
-              stepId: "verify-step",
-              taskTitle: "Check the work",
-              activeText: "Checking the work"
-            },
-            {
-              stepId: "build-touch-area",
-              taskTitle: "Check what changed",
-              activeText: "Checking what changed"
-            },
-            {
-              stepId: "review-step",
-              taskTitle: "Check the result",
-              activeText: "Checking the result",
-              relayRole: "reviewer",
-              relayStartedText: "Asking the reviewer to check the result...",
-              relayCompletedText: "Finished checking the result."
-            },
-            {
-              stepId: "close-step",
-              taskTitle: "Wrap up",
-              activeText: "Wrapping up"
-            }
-          ]
-        }
-      }
-    };
-  }
-});
-
-// dist/flows/build/flow.js
-var buildFlowDefinition;
-var init_flow = __esm({
-  "dist/flows/build/flow.js"() {
-    "use strict";
-    init_flow_definition();
-    init_data();
-    buildFlowDefinition = defineFlowData(buildFlowData);
+    init_utils();
   }
 });
 
@@ -71515,7 +71436,8 @@ var init_checkpoint_html = __esm({
         extra: (0, import_jsx_runtime8.jsx)(RouteExtra, { choice })
       }));
       const defaultChoice = options.find((option) => option.id === safeDefaultId);
-      const resumeCommandTemplate = `circuit resume --run-folder ${shellSingleQuote(ctx.runFolder)} --checkpoint-choice '<choice>'`;
+      const commandPrefix = ctx.resumeCommandPrefix ?? "circuit resume";
+      const resumeCommandTemplate = `${commandPrefix} --run-folder ${shellSingleQuote(ctx.runFolder)} --checkpoint-choice '<choice>'`;
       const rawEvidence = [
         BUILD_BRIEF_PATH,
         packet.internal.request_path,
@@ -71540,7 +71462,12 @@ var init_checkpoint_html = __esm({
         ...defaultChoice === void 0 ? {} : { defaultChoice: { id: defaultChoice.id, label: defaultChoice.label } },
         context: (0, import_jsx_runtime8.jsxs)("div", { className: "grid gap-4 md:grid-cols-2", children: [(0, import_jsx_runtime8.jsx)(ArtifactCard, { brief, packet }), (0, import_jsx_runtime8.jsx)(SalienceCard, { packet }), (0, import_jsx_runtime8.jsx)(RiskCard, { packet }), (0, import_jsx_runtime8.jsx)(ProofCard, { packet })] }),
         appendix: (0, import_jsx_runtime8.jsx)(Appendix, { packet, rawEvidence, resumeCommandTemplate }),
-        resume: { runFolder: ctx.runFolder },
+        resume: {
+          runFolder: ctx.runFolder,
+          commandPrefix,
+          attempt: ctx.checkpoint.attempt,
+          requestSha256: ctx.checkpoint.request_sha256
+        },
         footerLeft: `circuit \xB7 build \xB7 ${ctx.runId}`,
         footerRight: BUILD_BRIEF_PATH
       });
@@ -72110,7 +72037,7 @@ var init_plan2 = __esm({
 });
 
 // dist/flows/cross-tool-build/writers/verification.js
-import { readFileSync as readFileSync16 } from "node:fs";
+import { readFileSync as readFileSync17 } from "node:fs";
 var crossToolBuildVerificationWriter;
 var init_verification3 = __esm({
   "dist/flows/cross-tool-build/writers/verification.js"() {
@@ -72129,7 +72056,7 @@ var init_verification3 = __esm({
         if (!context.step.reads.includes(planPath)) {
           throw new Error(`cross-tool-build.verification@v1 requires step '${context.step.id}' to read ${planPath}`);
         }
-        const plan = CrossToolBuildPlan.parse(JSON.parse(readFileSync16(resolveRunRelative(context.runFolder, planPath), "utf8")));
+        const plan = CrossToolBuildPlan.parse(JSON.parse(readFileSync17(resolveRunRelative(context.runFolder, planPath), "utf8")));
         return plan.verification.commands;
       },
       buildResult(observations) {
@@ -72308,12 +72235,67 @@ var init_relay_hints3 = __esm({
   }
 });
 
+// dist/schemas/checkpoint-review-constraints.js
+var MAX_CHECKPOINT_REVIEW_COMMENT_CHARS, MAX_CHECKPOINT_REVIEW_COMMENTS, MAX_CHECKPOINT_REVIEW_JSON_BYTES;
+var init_checkpoint_review_constraints = __esm({
+  "dist/schemas/checkpoint-review-constraints.js"() {
+    "use strict";
+    MAX_CHECKPOINT_REVIEW_COMMENT_CHARS = 2e3;
+    MAX_CHECKPOINT_REVIEW_COMMENTS = 24;
+    MAX_CHECKPOINT_REVIEW_JSON_BYTES = 6e4;
+  }
+});
+
+// dist/schemas/checkpoint-review-response.js
+var CommentBody, CheckpointReviewComment, CheckpointReviewResponse;
+var init_checkpoint_review_response = __esm({
+  "dist/schemas/checkpoint-review-response.js"() {
+    "use strict";
+    init_zod();
+    init_checkpoint_review_constraints();
+    init_ids();
+    init_ref();
+    init_checkpoint_review_constraints();
+    CommentBody = external_exports.string().trim().min(1).max(MAX_CHECKPOINT_REVIEW_COMMENT_CHARS);
+    CheckpointReviewComment = external_exports.discriminatedUnion("scope", [
+      external_exports.object({
+        scope: external_exports.literal("choice"),
+        choice_id: external_exports.string().min(1),
+        body: CommentBody
+      }).strict(),
+      external_exports.object({
+        scope: external_exports.literal("overall"),
+        body: CommentBody
+      }).strict()
+    ]);
+    CheckpointReviewResponse = external_exports.object({
+      schema: external_exports.literal("checkpoint.review-response@v1"),
+      run_id: RunId,
+      step_id: StepId,
+      attempt: external_exports.number().int().positive(),
+      request_sha256: Sha256,
+      selection: external_exports.string().min(1),
+      comments: external_exports.array(CheckpointReviewComment).max(MAX_CHECKPOINT_REVIEW_COMMENTS)
+    }).strict().superRefine((response, ctx) => {
+      const bytes = new TextEncoder().encode(JSON.stringify(response)).byteLength;
+      if (bytes > MAX_CHECKPOINT_REVIEW_JSON_BYTES) {
+        ctx.addIssue({
+          code: "custom",
+          path: ["comments"],
+          message: `checkpoint review response exceeds ${MAX_CHECKPOINT_REVIEW_JSON_BYTES} UTF-8 bytes`
+        });
+      }
+    });
+  }
+});
+
 // dist/flows/explainer/reports.js
 var EXPLAINER_RUBRIC_DIMS, CONCEPT_ID, ExplainerIntake, ExplainerNotationRow, ExplainerOutlineSection, ExplainerDigest, ExplainerConcept, ExplainerIdeas, ExplainerRubricModelJudgments, ExplainerTournamentProposal, ExplainerTournamentAggregateBranch, ExplainerTournamentAggregate, ExplainerBannedPhraseFinding, ExplainerHardening, ExplainerSpec, ExplainerVerificationCommand, ExplainerVerification, ExplainerResult, ExplainerCheckpointResponse;
 var init_reports3 = __esm({
   "dist/flows/explainer/reports.js"() {
     "use strict";
     init_zod();
+    init_checkpoint_review_response();
     init_rubric();
     EXPLAINER_RUBRIC_DIMS = [
       "fidelity",
@@ -72483,15 +72465,16 @@ var init_reports3 = __esm({
       selection: external_exports.string().min(1),
       route_id: external_exports.string().min(1),
       resolution_source: external_exports.string().min(1),
+      comments: external_exports.array(CheckpointReviewComment).max(24).optional(),
       auto_resolution: external_exports.unknown().optional()
     }).strict();
   }
 });
 
 // dist/flows/explainer/writers/close.js
-import { readFileSync as readFileSync17 } from "node:fs";
+import { readFileSync as readFileSync18 } from "node:fs";
 function readJson(runFolder, path) {
-  return JSON.parse(readFileSync17(resolveRunRelative(runFolder, path), "utf8"));
+  return JSON.parse(readFileSync18(resolveRunRelative(runFolder, path), "utf8"));
 }
 function signoffSelection(context) {
   const checkpoint = context.flow.steps.find((step) => step.kind === "checkpoint" && step.id === SIGNOFF_CHECKPOINT_STEP_ID);
@@ -72688,9 +72671,9 @@ var init_intake = __esm({
 });
 
 // dist/flows/explainer/writers/spec.js
-import { readFileSync as readFileSync18 } from "node:fs";
+import { readFileSync as readFileSync19 } from "node:fs";
 function readJson2(runFolder, path) {
-  return JSON.parse(readFileSync18(resolveRunRelative(runFolder, path), "utf8"));
+  return JSON.parse(readFileSync19(resolveRunRelative(runFolder, path), "utf8"));
 }
 function pickResponsePath(context) {
   const checkpoint = context.flow.steps.find((step) => step.kind === "checkpoint" && step.id === PICK_CHECKPOINT_STEP_ID);
@@ -74464,7 +74447,7 @@ var init_result_projection2 = __esm({
 });
 
 // dist/flows/explore/writers/close.js
-import { readFileSync as readFileSync19 } from "node:fs";
+import { readFileSync as readFileSync20 } from "node:fs";
 function requiredTournamentAggregatePath(context) {
   const path = context.closeStep.reads.find((entry) => entry.endsWith("tournament-aggregate.json"));
   if (path === void 0) {
@@ -74518,7 +74501,7 @@ var init_close4 = __esm({
           const review2 = ExploreTournamentReview.parse(context.inputs.tournamentReview);
           const decision2 = ExploreDecision.parse(context.inputs.decision);
           const aggregatePath = requiredTournamentAggregatePath(context);
-          ExploreTournamentAggregate.parse(JSON.parse(readFileSync19(resolveRunRelative(context.runFolder, aggregatePath), "utf8")));
+          ExploreTournamentAggregate.parse(JSON.parse(readFileSync20(resolveRunRelative(context.runFolder, aggregatePath), "utf8")));
           return projectExploreResult({
             kind: "tournament",
             brief,
@@ -74682,9 +74665,9 @@ var init_decision_options = __esm({
 });
 
 // dist/flows/explore/writers/decision.js
-import { readFileSync as readFileSync20 } from "node:fs";
+import { readFileSync as readFileSync21 } from "node:fs";
 function readJson3(runFolder, path) {
-  return JSON.parse(readFileSync20(resolveRunRelative(runFolder, path), "utf8"));
+  return JSON.parse(readFileSync21(resolveRunRelative(runFolder, path), "utf8"));
 }
 function requiredRead(stepReads, suffix) {
   const path = stepReads.find((entry) => entry.endsWith(suffix));
@@ -74951,6 +74934,430 @@ var init_flow5 = __esm({
   }
 });
 
+// node_modules/@floating-ui/utils/dist/floating-ui.utils.dom.mjs
+function hasWindow() {
+  return typeof window !== "undefined";
+}
+function getWindow(node) {
+  var _node$ownerDocument;
+  return (node == null || (_node$ownerDocument = node.ownerDocument) == null ? void 0 : _node$ownerDocument.defaultView) || window;
+}
+function isHTMLElement(value) {
+  if (!hasWindow()) {
+    return false;
+  }
+  return value instanceof HTMLElement || value instanceof getWindow(value).HTMLElement;
+}
+var init_floating_ui_utils_dom = __esm({
+  "node_modules/@floating-ui/utils/dist/floating-ui.utils.dom.mjs"() {
+  }
+});
+
+// node_modules/@base-ui/utils/safeReact.mjs
+var React5, SafeReact;
+var init_safeReact = __esm({
+  "node_modules/@base-ui/utils/safeReact.mjs"() {
+    React5 = __toESM(require_react(), 1);
+    SafeReact = {
+      ...React5
+    };
+  }
+});
+
+// node_modules/@base-ui/utils/useStableCallback.mjs
+function useStableCallback(callback) {
+  const stable = useRefWithInit(createStableCallback).current;
+  stable.next = callback;
+  useSafeInsertionEffect(stable.effect);
+  return stable.trampoline;
+}
+function createStableCallback() {
+  const stable = {
+    next: void 0,
+    callback: assertNotCalled,
+    trampoline: (...args) => stable.callback?.(...args),
+    effect: () => {
+      stable.callback = stable.next;
+    }
+  };
+  return stable;
+}
+function assertNotCalled() {
+  if (process.env.NODE_ENV !== "production") {
+    throw (
+      /* minify-error-disabled */
+      new Error("Base UI: Cannot call an event handler while rendering.")
+    );
+  }
+}
+var useInsertionEffect, useSafeInsertionEffect;
+var init_useStableCallback = __esm({
+  "node_modules/@base-ui/utils/useStableCallback.mjs"() {
+    "use client";
+    init_safeReact();
+    init_useRefWithInit();
+    useInsertionEffect = SafeReact.useInsertionEffect;
+    useSafeInsertionEffect = // React 17 doesn't have useInsertionEffect.
+    useInsertionEffect && // Preact replaces useInsertionEffect with useLayoutEffect and fires too late.
+    useInsertionEffect !== SafeReact.useLayoutEffect ? useInsertionEffect : (fn) => fn();
+  }
+});
+
+// node_modules/@base-ui/utils/error.mjs
+function error51(...messages) {
+  if (process.env.NODE_ENV !== "production") {
+    const messageKey = messages.join(" ");
+    if (!set3.has(messageKey)) {
+      set3.add(messageKey);
+      console.error(`Base UI: ${messageKey}`);
+    }
+  }
+}
+var set3;
+var init_error = __esm({
+  "node_modules/@base-ui/utils/error.mjs"() {
+    if (process.env.NODE_ENV !== "production") {
+      set3 = /* @__PURE__ */ new Set();
+    }
+  }
+});
+
+// node_modules/@base-ui/utils/useIsoLayoutEffect.mjs
+var React6, noop, useIsoLayoutEffect;
+var init_useIsoLayoutEffect = __esm({
+  "node_modules/@base-ui/utils/useIsoLayoutEffect.mjs"() {
+    "use client";
+    React6 = __toESM(require_react(), 1);
+    noop = () => {
+    };
+    useIsoLayoutEffect = typeof document !== "undefined" ? React6.useLayoutEffect : noop;
+  }
+});
+
+// node_modules/@base-ui/react/internals/composite/root/CompositeRootContext.mjs
+function useCompositeRootContext(optional2 = false) {
+  const context = React7.useContext(CompositeRootContext);
+  if (context === void 0 && !optional2) {
+    throw new Error(process.env.NODE_ENV !== "production" ? "Base UI: CompositeRootContext is missing. Composite parts must be placed within <Composite.Root>." : formatErrorMessage_default(16));
+  }
+  return context;
+}
+var React7, CompositeRootContext;
+var init_CompositeRootContext = __esm({
+  "node_modules/@base-ui/react/internals/composite/root/CompositeRootContext.mjs"() {
+    "use client";
+    init_formatErrorMessage();
+    React7 = __toESM(require_react(), 1);
+    CompositeRootContext = /* @__PURE__ */ React7.createContext(void 0);
+    if (process.env.NODE_ENV !== "production") CompositeRootContext.displayName = "CompositeRootContext";
+  }
+});
+
+// node_modules/@base-ui/react/utils/useFocusableWhenDisabled.mjs
+function useFocusableWhenDisabled(parameters) {
+  const {
+    focusableWhenDisabled,
+    disabled,
+    composite = false,
+    tabIndex: tabIndexProp = 0,
+    isNativeButton
+  } = parameters;
+  const isFocusableComposite = composite && focusableWhenDisabled !== false;
+  const isNonFocusableComposite = composite && focusableWhenDisabled === false;
+  const props = React8.useMemo(() => {
+    const additionalProps = {
+      // allow Tabbing away from focusableWhenDisabled elements
+      onKeyDown(event) {
+        if (disabled && focusableWhenDisabled && event.key !== "Tab") {
+          event.preventDefault();
+        }
+      }
+    };
+    if (!composite) {
+      additionalProps.tabIndex = tabIndexProp;
+      if (!isNativeButton && disabled) {
+        additionalProps.tabIndex = focusableWhenDisabled ? tabIndexProp : -1;
+      }
+    }
+    if (isNativeButton && (focusableWhenDisabled || isFocusableComposite) || !isNativeButton && disabled) {
+      additionalProps["aria-disabled"] = disabled;
+    }
+    if (isNativeButton && (!focusableWhenDisabled || isNonFocusableComposite)) {
+      additionalProps.disabled = disabled;
+    }
+    return additionalProps;
+  }, [composite, disabled, focusableWhenDisabled, isFocusableComposite, isNonFocusableComposite, isNativeButton, tabIndexProp]);
+  return {
+    props
+  };
+}
+var React8;
+var init_useFocusableWhenDisabled = __esm({
+  "node_modules/@base-ui/react/utils/useFocusableWhenDisabled.mjs"() {
+    "use client";
+    React8 = __toESM(require_react(), 1);
+  }
+});
+
+// node_modules/@base-ui/react/internals/use-button/useButton.mjs
+function useButton(parameters = {}) {
+  const {
+    disabled = false,
+    focusableWhenDisabled,
+    tabIndex = 0,
+    native: isNativeButton = true,
+    composite: compositeProp
+  } = parameters;
+  const elementRef = React9.useRef(null);
+  const compositeRootContext = useCompositeRootContext(true);
+  const isCompositeItem = compositeProp ?? compositeRootContext !== void 0;
+  const {
+    props: focusableWhenDisabledProps
+  } = useFocusableWhenDisabled({
+    focusableWhenDisabled,
+    disabled,
+    composite: isCompositeItem,
+    tabIndex,
+    isNativeButton
+  });
+  if (process.env.NODE_ENV !== "production") {
+    React9.useEffect(() => {
+      if (!elementRef.current) {
+        return;
+      }
+      const isButtonTag = isButtonElement(elementRef.current);
+      if (isNativeButton) {
+        if (!isButtonTag) {
+          const ownerStackMessage = SafeReact.captureOwnerStack?.() || "";
+          const message = "A component that acts as a button expected a native <button> because the `nativeButton` prop is true. Rendering a non-<button> removes native button semantics, which can impact forms and accessibility. Use a real <button> in the `render` prop, or set `nativeButton` to `false`.";
+          error51(`${message}${ownerStackMessage}`);
+        }
+      } else if (isButtonTag) {
+        const ownerStackMessage = SafeReact.captureOwnerStack?.() || "";
+        const message = "A component that acts as a button expected a non-<button> because the `nativeButton` prop is false. Rendering a <button> keeps native behavior while Base UI applies non-native attributes and handlers, which can add unintended extra attributes (such as `role` or `aria-disabled`). Use a non-<button> in the `render` prop, or set `nativeButton` to `true`.";
+        error51(`${message}${ownerStackMessage}`);
+      }
+    }, [isNativeButton]);
+  }
+  const updateDisabled = React9.useCallback(() => {
+    const element = elementRef.current;
+    if (!isButtonElement(element)) {
+      return;
+    }
+    if (isCompositeItem && disabled && focusableWhenDisabledProps.disabled === void 0 && element.disabled) {
+      element.disabled = false;
+    }
+  }, [disabled, focusableWhenDisabledProps.disabled, isCompositeItem]);
+  useIsoLayoutEffect(updateDisabled, [updateDisabled]);
+  const getButtonProps = React9.useCallback((externalProps = {}) => {
+    const {
+      onClick: externalOnClick,
+      onMouseDown: externalOnMouseDown,
+      onKeyUp: externalOnKeyUp,
+      onKeyDown: externalOnKeyDown,
+      onPointerDown: externalOnPointerDown,
+      ...otherExternalProps
+    } = externalProps;
+    return mergeProps({
+      onClick(event) {
+        if (disabled) {
+          event.preventDefault();
+          return;
+        }
+        externalOnClick?.(event);
+      },
+      onMouseDown(event) {
+        if (!disabled) {
+          externalOnMouseDown?.(event);
+        }
+      },
+      onKeyDown(event) {
+        if (disabled) {
+          return;
+        }
+        makeEventPreventable(event);
+        externalOnKeyDown?.(event);
+        if (event.baseUIHandlerPrevented) {
+          return;
+        }
+        const isCurrentTarget = event.target === event.currentTarget;
+        const currentTarget = event.currentTarget;
+        const isButton = isButtonElement(currentTarget);
+        const isLink = !isNativeButton && isValidLinkElement(currentTarget);
+        const shouldClick = isCurrentTarget && (isNativeButton ? isButton : !isLink);
+        const isEnterKey = event.key === "Enter";
+        const isSpaceKey = event.key === " ";
+        const role = currentTarget.getAttribute("role");
+        const isTextNavigationRole = role?.startsWith("menuitem") || role === "option" || role === "gridcell";
+        if (isCurrentTarget && isCompositeItem && isSpaceKey) {
+          if (event.defaultPrevented && isTextNavigationRole) {
+            return;
+          }
+          event.preventDefault();
+          if (isLink || isNativeButton && isButton) {
+            currentTarget.click();
+            event.preventBaseUIHandler();
+          } else if (shouldClick) {
+            externalOnClick?.(event);
+            event.preventBaseUIHandler();
+          }
+          return;
+        }
+        if (shouldClick) {
+          if (!isNativeButton && (isSpaceKey || isEnterKey)) {
+            event.preventDefault();
+          }
+          if (!isNativeButton && isEnterKey) {
+            externalOnClick?.(event);
+          }
+        }
+      },
+      onKeyUp(event) {
+        if (disabled) {
+          return;
+        }
+        makeEventPreventable(event);
+        externalOnKeyUp?.(event);
+        if (event.target === event.currentTarget && isNativeButton && isCompositeItem && isButtonElement(event.currentTarget) && event.key === " ") {
+          event.preventDefault();
+          return;
+        }
+        if (event.baseUIHandlerPrevented) {
+          return;
+        }
+        if (event.target === event.currentTarget && !isNativeButton && !isCompositeItem && event.key === " ") {
+          externalOnClick?.(event);
+        }
+      },
+      onPointerDown(event) {
+        if (disabled) {
+          event.preventDefault();
+          return;
+        }
+        externalOnPointerDown?.(event);
+      }
+    }, isNativeButton ? {
+      type: "button"
+    } : {
+      role: "button"
+    }, focusableWhenDisabledProps, otherExternalProps);
+  }, [disabled, focusableWhenDisabledProps, isCompositeItem, isNativeButton]);
+  const buttonRef = useStableCallback((element) => {
+    elementRef.current = element;
+    updateDisabled();
+  });
+  return {
+    getButtonProps,
+    buttonRef
+  };
+}
+function isButtonElement(elem) {
+  return isHTMLElement(elem) && elem.tagName === "BUTTON";
+}
+function isValidLinkElement(elem) {
+  return Boolean(elem?.tagName === "A" && elem?.href);
+}
+var React9;
+var init_useButton = __esm({
+  "node_modules/@base-ui/react/internals/use-button/useButton.mjs"() {
+    "use client";
+    React9 = __toESM(require_react(), 1);
+    init_floating_ui_utils_dom();
+    init_useStableCallback();
+    init_error();
+    init_safeReact();
+    init_useIsoLayoutEffect();
+    init_merge_props();
+    init_CompositeRootContext();
+    init_useFocusableWhenDisabled();
+  }
+});
+
+// node_modules/@base-ui/react/button/Button.mjs
+var React10, Button;
+var init_Button = __esm({
+  "node_modules/@base-ui/react/button/Button.mjs"() {
+    "use client";
+    React10 = __toESM(require_react(), 1);
+    init_useButton();
+    init_useRenderElement();
+    Button = /* @__PURE__ */ React10.forwardRef(function Button2(componentProps, forwardedRef) {
+      const {
+        render: render2,
+        className,
+        disabled = false,
+        focusableWhenDisabled = false,
+        nativeButton = true,
+        style,
+        ...elementProps
+      } = componentProps;
+      const {
+        getButtonProps,
+        buttonRef
+      } = useButton({
+        disabled,
+        focusableWhenDisabled,
+        native: nativeButton
+      });
+      const state = {
+        disabled
+      };
+      return useRenderElement("button", componentProps, {
+        state,
+        ref: [forwardedRef, buttonRef],
+        props: [elementProps, getButtonProps]
+      });
+    });
+    if (process.env.NODE_ENV !== "production") Button.displayName = "Button";
+  }
+});
+
+// node_modules/@base-ui/react/button/index.mjs
+var init_button = __esm({
+  "node_modules/@base-ui/react/button/index.mjs"() {
+    init_Button();
+  }
+});
+
+// dist/shared/html/ui/button.js
+function Button3({ className, variant, size, ...props }) {
+  return (0, import_jsx_runtime9.jsx)(Button, { "data-slot": "button", className: cn(buttonVariants({ variant, size, className })), ...props });
+}
+var import_jsx_runtime9, buttonVariants;
+var init_button2 = __esm({
+  "dist/shared/html/ui/button.js"() {
+    "use strict";
+    import_jsx_runtime9 = __toESM(require_jsx_runtime(), 1);
+    init_button();
+    init_dist();
+    init_utils();
+    buttonVariants = cva("inline-flex items-center justify-center gap-2 whitespace-nowrap rounded-md text-sm font-medium transition-all disabled:pointer-events-none disabled:opacity-50 [&_svg]:pointer-events-none [&_svg:not([class*='size-'])]:size-4 shrink-0 [&_svg]:shrink-0 outline-none focus-visible:border-ring focus-visible:ring-ring/50 focus-visible:ring-[3px] aria-invalid:ring-destructive/20 dark:aria-invalid:ring-destructive/40 aria-invalid:border-destructive", {
+      variants: {
+        variant: {
+          default: "bg-primary text-primary-foreground shadow-xs hover:bg-primary/90",
+          destructive: "bg-destructive text-white shadow-xs hover:bg-destructive/90 focus-visible:ring-destructive/20 dark:focus-visible:ring-destructive/40 dark:bg-destructive/60",
+          outline: "border bg-background shadow-xs hover:bg-accent hover:text-accent-foreground dark:bg-input/30 dark:border-input dark:hover:bg-input/50",
+          secondary: "bg-secondary text-secondary-foreground shadow-xs hover:bg-secondary/80",
+          ghost: "hover:bg-accent hover:text-accent-foreground dark:hover:bg-accent/50",
+          link: "text-primary underline-offset-4 hover:underline"
+        },
+        size: {
+          default: "h-9 px-4 py-2 has-[>svg]:px-3",
+          sm: "h-8 rounded-md gap-1.5 px-3 has-[>svg]:px-2.5",
+          lg: "h-10 rounded-md px-6 has-[>svg]:px-4",
+          icon: "size-9",
+          "icon-sm": "size-8",
+          "icon-lg": "size-10"
+        }
+      },
+      defaultVariants: {
+        variant: "default",
+        size: "default"
+      }
+    });
+  }
+});
+
 // dist/flows/explore/writers/tournament-html.js
 function stringField(report, key) {
   const value = report?.[key];
@@ -74969,18 +75376,18 @@ function verdictIntent(verdict) {
 function confidenceText(confidence) {
   return `${confidence} confidence`;
 }
-function OptionCard2({ option, isRecommended, isSelected }) {
+function OptionCard({ option, isRecommended, isSelected }) {
   const intent = isSelected ? "positive" : isRecommended ? "info" : "neutral";
   const badge = isSelected ? { text: "Selected", intent: "positive" } : isRecommended ? { text: "Recommended", intent: "info" } : void 0;
-  return (0, import_jsx_runtime9.jsxs)(ReportCard, { intent, eyebrow: option.id, title: option.label, ...badge === void 0 ? {} : { badge }, children: [(0, import_jsx_runtime9.jsx)(Summary, { text: option.summary }), (0, import_jsx_runtime9.jsxs)("div", { children: [(0, import_jsx_runtime9.jsx)(SectionLabel, { children: "Tradeoffs" }), (0, import_jsx_runtime9.jsx)(BulletList, { items: option.tradeoffs })] }), (0, import_jsx_runtime9.jsxs)("div", { children: [(0, import_jsx_runtime9.jsx)(SectionLabel, { children: "Evidence" }), (0, import_jsx_runtime9.jsx)(ChipRow, { items: option.evidence_refs })] }), (0, import_jsx_runtime9.jsx)("div", { className: "pt-0.5", children: (0, import_jsx_runtime9.jsx)(Button3, { size: "sm", "data-prompt": t(option.best_case_prompt, MAX_PROMPT_LEN), children: "Copy as prompt" }) })] });
+  return (0, import_jsx_runtime10.jsxs)(ReportCard, { intent, eyebrow: option.id, title: option.label, ...badge === void 0 ? {} : { badge }, children: [(0, import_jsx_runtime10.jsx)(Summary, { text: option.summary }), (0, import_jsx_runtime10.jsxs)("div", { children: [(0, import_jsx_runtime10.jsx)(SectionLabel, { children: "Tradeoffs" }), (0, import_jsx_runtime10.jsx)(BulletList, { items: option.tradeoffs })] }), (0, import_jsx_runtime10.jsxs)("div", { children: [(0, import_jsx_runtime10.jsx)(SectionLabel, { children: "Evidence" }), (0, import_jsx_runtime10.jsx)(ChipRow, { items: option.evidence_refs })] }), (0, import_jsx_runtime10.jsx)("div", { className: "pt-0.5", children: (0, import_jsx_runtime10.jsx)(Button3, { size: "sm", "data-prompt": t(option.best_case_prompt, MAX_PROMPT_LEN), children: "Copy as prompt" }) })] });
 }
 function TournamentVerdictBanner({ review, decisionOptions, decision: decision2 }) {
   const selectedOption = decisionOptions.options.find((option) => option.id === decision2.selected_option_id);
   const selectedLabel = selectedOption?.label ?? decision2.selected_option_label;
-  return (0, import_jsx_runtime9.jsx)(VerdictBanner, { intent: verdictIntent(review.verdict), badgeText: "Selected", main: (0, import_jsx_runtime9.jsxs)(import_jsx_runtime9.Fragment, { children: [(0, import_jsx_runtime9.jsx)("strong", { children: t(selectedLabel, MAX_PROMPT_LEN) }), " \xB7", " ", t(decision2.decision, MAX_PROMPT_LEN)] }), aside: confidenceText(review.confidence) });
+  return (0, import_jsx_runtime10.jsx)(VerdictBanner, { intent: verdictIntent(review.verdict), badgeText: "Selected", main: (0, import_jsx_runtime10.jsxs)(import_jsx_runtime10.Fragment, { children: [(0, import_jsx_runtime10.jsx)("strong", { children: t(selectedLabel, MAX_PROMPT_LEN) }), " \xB7", " ", t(decision2.decision, MAX_PROMPT_LEN)] }), aside: confidenceText(review.confidence) });
 }
 function TournamentDetails({ review, decision: decision2 }) {
-  return (0, import_jsx_runtime9.jsxs)(import_jsx_runtime9.Fragment, { children: [(0, import_jsx_runtime9.jsxs)("p", { children: [(0, import_jsx_runtime9.jsx)("strong", { children: "Comparison." }), " ", t(review.comparison, MAX_PROMPT_LEN)] }), review.objections.length === 0 ? null : (0, import_jsx_runtime9.jsxs)(import_jsx_runtime9.Fragment, { children: [(0, import_jsx_runtime9.jsx)("p", { children: (0, import_jsx_runtime9.jsx)("strong", { children: "Objections." }) }), (0, import_jsx_runtime9.jsx)(BulletList, { items: review.objections })] }), review.missing_evidence.length === 0 ? null : (0, import_jsx_runtime9.jsxs)(import_jsx_runtime9.Fragment, { children: [(0, import_jsx_runtime9.jsx)("p", { children: (0, import_jsx_runtime9.jsx)("strong", { children: "Missing evidence." }) }), (0, import_jsx_runtime9.jsx)(BulletList, { items: review.missing_evidence })] }), review.tradeoff_question.length === 0 ? null : (0, import_jsx_runtime9.jsxs)("p", { children: [(0, import_jsx_runtime9.jsx)("strong", { children: "Tradeoff question." }), " ", t(review.tradeoff_question, MAX_PROMPT_LEN)] }), (0, import_jsx_runtime9.jsxs)("p", { children: [(0, import_jsx_runtime9.jsx)("strong", { children: "Rationale." }), " ", t(decision2.rationale, MAX_PROMPT_LEN)] }), decision2.residual_risks.length === 0 ? null : (0, import_jsx_runtime9.jsxs)(import_jsx_runtime9.Fragment, { children: [(0, import_jsx_runtime9.jsx)("p", { children: (0, import_jsx_runtime9.jsx)("strong", { children: "Residual risks." }) }), (0, import_jsx_runtime9.jsx)(BulletList, { items: decision2.residual_risks })] }), (0, import_jsx_runtime9.jsxs)("p", { children: [(0, import_jsx_runtime9.jsx)("strong", { children: "Next action." }), " ", t(decision2.next_action, MAX_PROMPT_LEN)] })] });
+  return (0, import_jsx_runtime10.jsxs)(import_jsx_runtime10.Fragment, { children: [(0, import_jsx_runtime10.jsxs)("p", { children: [(0, import_jsx_runtime10.jsx)("strong", { children: "Comparison." }), " ", t(review.comparison, MAX_PROMPT_LEN)] }), review.objections.length === 0 ? null : (0, import_jsx_runtime10.jsxs)(import_jsx_runtime10.Fragment, { children: [(0, import_jsx_runtime10.jsx)("p", { children: (0, import_jsx_runtime10.jsx)("strong", { children: "Objections." }) }), (0, import_jsx_runtime10.jsx)(BulletList, { items: review.objections })] }), review.missing_evidence.length === 0 ? null : (0, import_jsx_runtime10.jsxs)(import_jsx_runtime10.Fragment, { children: [(0, import_jsx_runtime10.jsx)("p", { children: (0, import_jsx_runtime10.jsx)("strong", { children: "Missing evidence." }) }), (0, import_jsx_runtime10.jsx)(BulletList, { items: review.missing_evidence })] }), review.tradeoff_question.length === 0 ? null : (0, import_jsx_runtime10.jsxs)("p", { children: [(0, import_jsx_runtime10.jsx)("strong", { children: "Tradeoff question." }), " ", t(review.tradeoff_question, MAX_PROMPT_LEN)] }), (0, import_jsx_runtime10.jsxs)("p", { children: [(0, import_jsx_runtime10.jsx)("strong", { children: "Rationale." }), " ", t(decision2.rationale, MAX_PROMPT_LEN)] }), decision2.residual_risks.length === 0 ? null : (0, import_jsx_runtime10.jsxs)(import_jsx_runtime10.Fragment, { children: [(0, import_jsx_runtime10.jsx)("p", { children: (0, import_jsx_runtime10.jsx)("strong", { children: "Residual risks." }) }), (0, import_jsx_runtime10.jsx)(BulletList, { items: decision2.residual_risks })] }), (0, import_jsx_runtime10.jsxs)("p", { children: [(0, import_jsx_runtime10.jsx)("strong", { children: "Next action." }), " ", t(decision2.next_action, MAX_PROMPT_LEN)] })] });
 }
 function formatScore(value) {
   if (value === null || value === void 0)
@@ -74999,7 +75406,7 @@ function autoResolutionLine(record2) {
   return `${label}: ${record2.resolved_value} selected by policy highest-score (aggregate score ${formatScore(record2.winning_score)}; margin ${formatSignedScore(record2.margin)} over runner-up; ${vetoText}).`;
 }
 function AutoResolutions({ records }) {
-  return (0, import_jsx_runtime9.jsxs)("section", { className: "mt-8", children: [(0, import_jsx_runtime9.jsx)("h2", { className: "mb-2.5 text-lg font-semibold tracking-tight", children: "Auto-resolutions" }), (0, import_jsx_runtime9.jsx)(BulletList, { items: records.map(autoResolutionLine) })] });
+  return (0, import_jsx_runtime10.jsxs)("section", { className: "mt-8", children: [(0, import_jsx_runtime10.jsx)("h2", { className: "mb-2.5 text-lg font-semibold tracking-tight", children: "Auto-resolutions" }), (0, import_jsx_runtime10.jsx)(BulletList, { items: records.map(autoResolutionLine) })] });
 }
 function loadHtmlPayload(flowReport, readEvidenceReportById) {
   const snapshot = isObject2(flowReport?.verdict_snapshot) ? flowReport.verdict_snapshot : void 0;
@@ -75022,11 +75429,11 @@ function loadHtmlPayload(flowReport, readEvidenceReportById) {
     decision: decisionParsed.data
   };
 }
-var import_jsx_runtime9, exploreTournamentProjector;
+var import_jsx_runtime10, exploreTournamentProjector;
 var init_tournament_html = __esm({
   "dist/flows/explore/writers/tournament-html.js"() {
     "use strict";
-    import_jsx_runtime9 = __toESM(require_jsx_runtime(), 1);
+    import_jsx_runtime10 = __toESM(require_jsx_runtime(), 1);
     init_page();
     init_react_page();
     init_report_components();
@@ -75048,7 +75455,7 @@ var init_tournament_html = __esm({
         subtitle,
         footerLeft: `circuit \xB7 explore \xB7 ${ctx.runId}`,
         footerRight: decisionOptions.recommendation_basis,
-        children: (0, import_jsx_runtime9.jsxs)(import_jsx_runtime9.Fragment, { children: [(0, import_jsx_runtime9.jsx)(TournamentVerdictBanner, { review: tournamentReview, decisionOptions, decision: decision2 }), (0, import_jsx_runtime9.jsx)(CardGrid, { children: decisionOptions.options.map((option) => (0, import_jsx_runtime9.jsx)(OptionCard2, { option, isRecommended: option.id === recommendedId, isSelected: option.id === selectedId }, option.id)) }), ctx.autoResolutions === void 0 || ctx.autoResolutions.length === 0 ? null : (0, import_jsx_runtime9.jsx)(AutoResolutions, { records: ctx.autoResolutions }), (0, import_jsx_runtime9.jsxs)(Collapsible, { className: "mt-8 rounded-lg border bg-card px-5 py-4", children: [(0, import_jsx_runtime9.jsx)(CollapsibleTrigger, { className: "text-sm font-medium text-muted-foreground hover:text-foreground", children: "Tournament reasoning \xB7 why this recommendation?" }), (0, import_jsx_runtime9.jsx)(CollapsibleContent, { className: "flex flex-col gap-2.5 pt-4 text-sm leading-relaxed", children: (0, import_jsx_runtime9.jsx)(TournamentDetails, { review: tournamentReview, decision: decision2 }) })] })] })
+        children: (0, import_jsx_runtime10.jsxs)(import_jsx_runtime10.Fragment, { children: [(0, import_jsx_runtime10.jsx)(TournamentVerdictBanner, { review: tournamentReview, decisionOptions, decision: decision2 }), (0, import_jsx_runtime10.jsx)(CardGrid, { children: decisionOptions.options.map((option) => (0, import_jsx_runtime10.jsx)(OptionCard, { option, isRecommended: option.id === recommendedId, isSelected: option.id === selectedId }, option.id)) }), ctx.autoResolutions === void 0 || ctx.autoResolutions.length === 0 ? null : (0, import_jsx_runtime10.jsx)(AutoResolutions, { records: ctx.autoResolutions }), (0, import_jsx_runtime10.jsxs)(Collapsible, { className: "mt-8 rounded-lg border bg-card px-5 py-4", children: [(0, import_jsx_runtime10.jsx)(CollapsibleTrigger, { className: "text-sm font-medium text-muted-foreground hover:text-foreground", children: "Tournament reasoning \xB7 why this recommendation?" }), (0, import_jsx_runtime10.jsx)(CollapsibleContent, { className: "flex flex-col gap-2.5 pt-4 text-sm leading-relaxed", children: (0, import_jsx_runtime10.jsx)(TournamentDetails, { review: tournamentReview, decision: decision2 }) })] })] })
       });
     };
   }
@@ -75336,7 +75743,7 @@ var init_plan3 = __esm({
 });
 
 // dist/flows/fix-until-green/writers/verification.js
-import { readFileSync as readFileSync21 } from "node:fs";
+import { readFileSync as readFileSync22 } from "node:fs";
 var fixUntilGreenVerificationWriter;
 var init_verification5 = __esm({
   "dist/flows/fix-until-green/writers/verification.js"() {
@@ -75355,7 +75762,7 @@ var init_verification5 = __esm({
         if (!context.step.reads.includes(planPath)) {
           throw new Error(`fix-until-green.verification@v1 requires step '${context.step.id}' to read ${planPath}`);
         }
-        const plan = FixUntilGreenPlan.parse(JSON.parse(readFileSync21(resolveRunRelative(context.runFolder, planPath), "utf8")));
+        const plan = FixUntilGreenPlan.parse(JSON.parse(readFileSync22(resolveRunRelative(context.runFolder, planPath), "utf8")));
         return plan.verification.commands;
       },
       buildResult(observations) {
@@ -76847,13 +77254,13 @@ var init_change_set_projection = __esm({
 });
 
 // dist/flows/fix/writers/change-set.js
-import { existsSync as existsSync15, readFileSync as readFileSync22 } from "node:fs";
-import { isAbsolute as isAbsolute5, relative as relative5 } from "node:path";
+import { existsSync as existsSync15, readFileSync as readFileSync23 } from "node:fs";
+import { isAbsolute as isAbsolute6, relative as relative6 } from "node:path";
 function runFolderPrefix2(input) {
   if (input.projectRoot === void 0)
     return void 0;
-  const rel = relative5(input.projectRoot, input.runFolder).split("\\").join("/");
-  if (rel.length === 0 || rel.startsWith("../") || rel === ".." || isAbsolute5(rel)) {
+  const rel = relative6(input.projectRoot, input.runFolder).split("\\").join("/");
+  if (rel.length === 0 || rel.startsWith("../") || rel === ".." || isAbsolute6(rel)) {
     return void 0;
   }
   return rel;
@@ -76900,10 +77307,10 @@ var init_change_set = __esm({
         const baselinePath = reportPathForSchemaInRuntimeFlow(context.flow, "fix.baseline-snapshot@v1");
         const changePath = reportPathForSchemaInRuntimeFlow(context.flow, "fix.change@v1");
         const changeSetPath = reportPathForSchemaInRuntimeFlow(context.flow, "fix.change-set@v1");
-        const baseline = FixBaselineSnapshot.parse(JSON.parse(readFileSync22(resolveRunRelative(context.runFolder, baselinePath), "utf8")));
-        const change = FixChange.parse(JSON.parse(readFileSync22(resolveRunRelative(context.runFolder, changePath), "utf8")));
+        const baseline = FixBaselineSnapshot.parse(JSON.parse(readFileSync23(resolveRunRelative(context.runFolder, baselinePath), "utf8")));
+        const change = FixChange.parse(JSON.parse(readFileSync23(resolveRunRelative(context.runFolder, changePath), "utf8")));
         const priorChangeSetFile = resolveRunRelative(context.runFolder, changeSetPath);
-        const priorChangeSet = existsSync15(priorChangeSetFile) ? FixChangeSet.parse(JSON.parse(readFileSync22(priorChangeSetFile, "utf8"))) : void 0;
+        const priorChangeSet = existsSync15(priorChangeSetFile) ? FixChangeSet.parse(JSON.parse(readFileSync23(priorChangeSetFile, "utf8"))) : void 0;
         if (priorChangeSet !== void 0 && priorChangeSet.baseline_head_sha !== baseline.head_sha) {
           throw new Error(`fix.change-set@v1: prior change-set baseline ${priorChangeSet.baseline_head_sha} does not match current baseline ${baseline.head_sha}`);
         }
@@ -77117,7 +77524,7 @@ var init_regression_projection = __esm({
 });
 
 // dist/flows/fix/writers/regression-baseline.js
-import { readFileSync as readFileSync23 } from "node:fs";
+import { readFileSync as readFileSync24 } from "node:fs";
 var fixRegressionBaselineWriter;
 var init_regression_baseline = __esm({
   "dist/flows/fix/writers/regression-baseline.js"() {
@@ -77137,7 +77544,7 @@ var init_regression_baseline = __esm({
         if (!context.step.reads.includes(briefPath)) {
           throw new Error(`fix.regression-proof@v1 requires step '${context.step.id}' to read ${briefPath}`);
         }
-        const brief = FixBrief.parse(JSON.parse(readFileSync23(resolveRunRelative(context.runFolder, briefPath), "utf8")));
+        const brief = FixBrief.parse(JSON.parse(readFileSync24(resolveRunRelative(context.runFolder, briefPath), "utf8")));
         if (brief.regression_contract.regression_test.status !== "failing-before-fix") {
           return [];
         }
@@ -77151,7 +77558,7 @@ var init_regression_baseline = __esm({
 });
 
 // dist/flows/fix/writers/regression-rerun.js
-import { readFileSync as readFileSync24 } from "node:fs";
+import { readFileSync as readFileSync25 } from "node:fs";
 var fixRegressionRerunWriter;
 var init_regression_rerun = __esm({
   "dist/flows/fix/writers/regression-rerun.js"() {
@@ -77172,7 +77579,7 @@ var init_regression_rerun = __esm({
         if (!context.step.reads.includes(briefPath)) {
           throw new Error(`fix.regression-rerun@v1 requires step '${context.step.id}' to read ${briefPath}`);
         }
-        const brief = FixBrief.parse(JSON.parse(readFileSync24(resolveRunRelative(context.runFolder, briefPath), "utf8")));
+        const brief = FixBrief.parse(JSON.parse(readFileSync25(resolveRunRelative(context.runFolder, briefPath), "utf8")));
         if (brief.regression_contract.regression_test.status !== "failing-before-fix") {
           return [];
         }
@@ -77214,7 +77621,7 @@ var init_verification_projection2 = __esm({
 });
 
 // dist/flows/fix/writers/verification.js
-import { readFileSync as readFileSync25 } from "node:fs";
+import { readFileSync as readFileSync26 } from "node:fs";
 var fixVerificationWriter;
 var init_verification6 = __esm({
   "dist/flows/fix/writers/verification.js"() {
@@ -77234,7 +77641,7 @@ var init_verification6 = __esm({
         if (!context.step.reads.includes(briefPath)) {
           throw new Error(`fix.verification@v1 requires step '${context.step.id}' to read ${briefPath}`);
         }
-        const brief = FixBrief.parse(JSON.parse(readFileSync25(resolveRunRelative(context.runFolder, briefPath), "utf8")));
+        const brief = FixBrief.parse(JSON.parse(readFileSync26(resolveRunRelative(context.runFolder, briefPath), "utf8")));
         return brief.verification_command_candidates;
       },
       buildResult(observations) {
@@ -78330,13 +78737,13 @@ var init_relay_hints7 = __esm({
 });
 
 // dist/flows/goal/writers/attempt.js
-import { existsSync as existsSync16, readFileSync as readFileSync26 } from "node:fs";
+import { existsSync as existsSync16, readFileSync as readFileSync27 } from "node:fs";
 function readChildResult(runFolder, target) {
   const relPath = CHILD_RESULT_PATHS[target];
   const absPath = resolveRunRelative(runFolder, relPath);
   if (!existsSync16(absPath))
     return void 0;
-  return JSON.parse(readFileSync26(absPath, "utf8"));
+  return JSON.parse(readFileSync27(absPath, "utf8"));
 }
 function mapChildOutcome(outcome) {
   if (outcome === "complete")
@@ -78600,12 +79007,12 @@ var init_contract = __esm({
 });
 
 // dist/flows/goal/writers/evidence-evaluation.js
-import { existsSync as existsSync17, readFileSync as readFileSync27 } from "node:fs";
+import { existsSync as existsSync17, readFileSync as readFileSync28 } from "node:fs";
 function readChildRunResult(runFolder, path) {
   const absPath = resolveRunRelative(runFolder, path);
   if (!existsSync17(absPath))
     return void 0;
-  return RunResult.parse(JSON.parse(readFileSync27(absPath, "utf8")));
+  return RunResult.parse(JSON.parse(readFileSync28(absPath, "utf8")));
 }
 function childResultIsProofEligible(input) {
   const allowedVerdicts = PROOF_ELIGIBLE_VERDICTS[input.target];
@@ -78694,7 +79101,7 @@ var init_evidence_evaluation = __esm({
 });
 
 // dist/flows/goal/writers/recovery.js
-import { existsSync as existsSync18, readFileSync as readFileSync28 } from "node:fs";
+import { existsSync as existsSync18, readFileSync as readFileSync29 } from "node:fs";
 function routeFromEvaluation(evaluation) {
   if (evaluation.verdict === "missing-evidence") {
     return {
@@ -78731,7 +79138,7 @@ function readLatestGate(runFolder) {
     const absolutePath = resolveRunRelative(runFolder, path);
     if (!existsSync18(absolutePath))
       continue;
-    return GoalGate.parse(JSON.parse(readFileSync28(absolutePath, "utf8")));
+    return GoalGate.parse(JSON.parse(readFileSync29(absolutePath, "utf8")));
   }
   return void 0;
 }
@@ -79444,6 +79851,9 @@ function stripForgivablePrefixes(value) {
 function isUnderRoot(path, root) {
   return path.startsWith(`${root}/`);
 }
+function qualifyVariantRelativePaths(root, values) {
+  return values.map((value) => isUnderRoot(value, root) ? value : `${root}/${value}`);
+}
 function validatePathsUnderRoot(input) {
   input.values.forEach((value, index) => {
     if (!isUnderRoot(value, input.root)) {
@@ -79490,6 +79900,7 @@ var init_reports8 = __esm({
     "use strict";
     init_zod();
     init_rubric2();
+    init_checkpoint_review_response();
     init_config();
     init_connector();
     init_rubric();
@@ -79691,7 +80102,11 @@ var init_reports8 = __esm({
       evidence: NonEmptyStringArray4,
       rubric_model_judgments: PrototypeRubricModelJudgments,
       claim_limits: NonEmptyStringArray4
-    }).strict().superRefine((artifact, ctx) => {
+    }).strict().transform((artifact) => ({
+      ...artifact,
+      created_files: qualifyVariantRelativePaths(artifact.variant_root, artifact.created_files),
+      entry_points: qualifyVariantRelativePaths(artifact.variant_root, artifact.entry_points)
+    })).superRefine((artifact, ctx) => {
       const expectedRoot = `${artifact.prototype_root}/variants/${artifact.variant_id}`;
       if (artifact.variant_root !== expectedRoot) {
         addPathIssue(ctx, ["variant_root"], `variant_root must be '${expectedRoot}' for variant_id '${artifact.variant_id}'`);
@@ -79920,6 +80335,7 @@ var init_reports8 = __esm({
       artifact_status: external_exports.enum(["accepted", "blocked"]),
       verification_status: external_exports.enum(["passed", "failed", "blocked"]),
       checkpoint_status: external_exports.enum(["not_reached", "auto_resolved", "operator_selected"]),
+      checkpoint_comments: external_exports.array(CheckpointReviewComment).min(1).max(24).optional(),
       prototype_root: PrototypeRootPath,
       entry_points: external_exports.array(PrototypeProjectRelativePath),
       preview_instructions: external_exports.string().min(1),
@@ -79953,6 +80369,9 @@ var init_reports8 = __esm({
         }
       } else if (result.checkpoint_selection === "not_reached") {
         addPathIssue(ctx, ["checkpoint_selection"], "checkpoint_selection must name the checkpoint choice when checkpoint_status is reached");
+      }
+      if (result.checkpoint_comments !== void 0 && result.checkpoint_status !== "operator_selected") {
+        addPathIssue(ctx, ["checkpoint_comments"], "checkpoint_comments require an operator-selected checkpoint");
       }
       if (result.outcome === "build_input_saved" && result.build_followup_prompt === void 0) {
         addPathIssue(ctx, ["build_followup_prompt"], "build_followup_prompt is required when outcome is 'build_input_saved'");
@@ -80013,6 +80432,9 @@ var init_reports8 = __esm({
           addPathIssue(ctx, ["selected_variant_id"], "selected_variant_id must match checkpoint_selection");
         }
       }
+      if (result.checkpoint_comments !== void 0 && result.checkpoint_status !== "operator_selected") {
+        addPathIssue(ctx, ["checkpoint_comments"], "checkpoint_comments require an operator-selected checkpoint");
+      }
       if (result.outcome === "kept") {
         if (result.artifact_status !== "accepted") {
           addPathIssue(ctx, ["artifact_status"], "artifact_status must be 'accepted' when kept");
@@ -80048,20 +80470,20 @@ var init_reports8 = __esm({
 });
 
 // dist/flows/prototype/writers/brief.js
-import { createHash as createHash4 } from "node:crypto";
-import { isAbsolute as isAbsolute6, relative as relative6 } from "node:path";
+import { createHash as createHash5 } from "node:crypto";
+import { isAbsolute as isAbsolute7, relative as relative7 } from "node:path";
 function normalizeSlashes(value) {
   return value.replace(/\\/g, "/");
 }
 function isInsideOrSame3(relativePath) {
-  return relativePath === "" || !relativePath.startsWith("..") && !isAbsolute6(relativePath);
+  return relativePath === "" || !relativePath.startsWith("..") && !isAbsolute7(relativePath);
 }
 function hashRunFolder(runFolder) {
-  return createHash4("sha256").update(runFolder).digest("hex").slice(0, 12);
+  return createHash5("sha256").update(runFolder).digest("hex").slice(0, 12);
 }
 function prototypeRoot(context) {
   if (context.projectRoot !== void 0) {
-    const relativeRunFolder = relative6(context.projectRoot, context.runFolder);
+    const relativeRunFolder = relative7(context.projectRoot, context.runFolder);
     if (isInsideOrSame3(relativeRunFolder) && relativeRunFolder.length > 0) {
       return `${normalizeSlashes(relativeRunFolder)}/prototype-files`;
     }
@@ -80106,7 +80528,7 @@ var init_brief3 = __esm({
 });
 
 // dist/flows/prototype/writers/close.js
-import { existsSync as existsSync19, readFileSync as readFileSync29 } from "node:fs";
+import { existsSync as existsSync19, readFileSync as readFileSync30 } from "node:fs";
 function checkpointStep(context, stepId) {
   const step = context.flow.steps.find((candidate) => candidate.id === stepId && candidate.kind === "checkpoint");
   return step;
@@ -80119,7 +80541,7 @@ function readCheckpointResponse(context) {
   const abs = resolveRunRelative(context.runFolder, responsePath);
   if (!existsSync19(abs))
     return void 0;
-  const raw = JSON.parse(readFileSync29(abs, "utf8"));
+  const raw = JSON.parse(readFileSync30(abs, "utf8"));
   return { path: responsePath, response: CheckpointResponse.parse(raw) };
 }
 function readVariantCheckpointResponse(context) {
@@ -80130,7 +80552,7 @@ function readVariantCheckpointResponse(context) {
   const abs = resolveRunRelative(context.runFolder, responsePath);
   if (!existsSync19(abs))
     return void 0;
-  const raw = JSON.parse(readFileSync29(abs, "utf8"));
+  const raw = JSON.parse(readFileSync30(abs, "utf8"));
   return { path: responsePath, response: VariantCheckpointResponse.parse(raw) };
 }
 function existingCheckpointRequestPath(context) {
@@ -80185,7 +80607,7 @@ function readOptionalReport(context, schemaName, parse3) {
   const abs = resolveRunRelative(context.runFolder, path);
   if (!existsSync19(abs))
     return void 0;
-  return parse3(JSON.parse(readFileSync29(abs, "utf8")));
+  return parse3(JSON.parse(readFileSync30(abs, "utf8")));
 }
 function variantEvidenceLinks(context, checkpointResponse) {
   const links = BASE_VARIANT_POINTERS.map((pointer) => ({
@@ -80303,6 +80725,7 @@ function buildVariantResult(input) {
     verification_status: verification === void 0 ? "blocked" : verification.overall_status === "passed" ? "passed" : "failed",
     checkpoint_status: checkpointStatus(checkpoint?.response),
     checkpoint_selection: selectedVariantId ?? "not_reached",
+    ...checkpoint?.response.comments === void 0 || checkpoint.response.comments.length === 0 ? {} : { checkpoint_comments: checkpoint.response.comments },
     prototype_root: plan.prototype_root,
     entry_points: selectedArtifact?.entry_points ?? [],
     preview_instructions: selectedArtifact?.preview_instructions ?? `Inspect variant reports under ${plan.prototype_root}/variants before rerunning Prototype.`,
@@ -80333,6 +80756,7 @@ var init_close7 = __esm({
   "dist/flows/prototype/writers/close.js"() {
     "use strict";
     init_zod();
+    init_checkpoint_review_response();
     init_run_relative_path();
     init_runtime_index();
     init_reports8();
@@ -80341,14 +80765,16 @@ var init_close7 = __esm({
       step_id: external_exports.literal("prototype-checkpoint-step"),
       selection: PrototypeCheckpointSelection,
       route_id: external_exports.string().min(1).optional(),
-      resolution_source: external_exports.enum(["operator", "declared-default", "policy"])
+      resolution_source: external_exports.enum(["operator", "declared-default", "policy"]),
+      comments: external_exports.array(CheckpointReviewComment).max(24).optional()
     });
     VariantCheckpointResponse = external_exports.looseObject({
       schema_version: external_exports.literal(1),
       step_id: external_exports.literal("prototype-variant-checkpoint-step"),
       selection: PrototypeVariantId,
       route_id: external_exports.string().min(1).optional(),
-      resolution_source: external_exports.enum(["operator", "declared-default", "policy"])
+      resolution_source: external_exports.enum(["operator", "declared-default", "policy"]),
+      comments: external_exports.array(CheckpointReviewComment).max(24).optional()
     });
     BASE_SINGLE_POINTERS = [
       { report_id: "prototype.brief", schema: "prototype.brief@v1" },
@@ -80412,6 +80838,7 @@ var init_close7 = __esm({
           verification_status: verification === void 0 ? "blocked" : verification.overall_status === "passed" ? "passed" : "failed",
           checkpoint_status: checkpointStatus(checkpoint?.response),
           checkpoint_selection: checkpoint?.response.selection ?? "not_reached",
+          ...checkpoint?.response.comments === void 0 || checkpoint.response.comments.length === 0 ? {} : { checkpoint_comments: checkpoint.response.comments },
           prototype_root: artifact.prototype_root,
           entry_points: artifact.entry_points,
           preview_instructions: artifact.preview_instructions,
@@ -80624,6 +81051,7 @@ var init_variant_options = __esm({
               goal: [
                 `Create Prototype variant '${variant.label}' (${variant.id}) for: ${brief.objective}.`,
                 `Write only disposable files under ${artifactRoot}.`,
+                `Report created_files and entry_points as complete project-relative paths beginning with ${artifactRoot}/, for example ${artifactRoot}/index.html; do not report index.html by itself.`,
                 `The shared Prototype root is ${plan.prototype_root}.`,
                 "Do not claim deployment, production readiness, branch previews, screenshots, provider behavior, or model behavior."
               ].join(" ")
@@ -80636,13 +81064,13 @@ var init_variant_options = __esm({
 });
 
 // dist/flows/prototype/writers/variant-provider-evidence.js
-import { existsSync as existsSync20, readFileSync as readFileSync30 } from "node:fs";
+import { existsSync as existsSync20, readFileSync as readFileSync31 } from "node:fs";
 import { join as join14 } from "node:path";
 function readTraceEntries(runFolder) {
   const tracePath = join14(runFolder, "trace.ndjson");
   if (!existsSync20(tracePath))
     return [];
-  return readFileSync30(tracePath, "utf8").split("\n").filter((line) => line.trim().length > 0).map((line) => JSON.parse(line));
+  return readFileSync31(tracePath, "utf8").split("\n").filter((line) => line.trim().length > 0).map((line) => JSON.parse(line));
 }
 function isRelayStarted(value) {
   return value !== null && typeof value === "object" && !Array.isArray(value) && value.kind === "relay.started";
@@ -80714,13 +81142,13 @@ var init_variant_provider_evidence = __esm({
 });
 
 // dist/flows/prototype/writers/variant-verification.js
-import { readFileSync as readFileSync31 } from "node:fs";
+import { readFileSync as readFileSync32 } from "node:fs";
 function readReport(context, schemaName, parse3) {
   const reportPath = reportPathForSchemaInRuntimeFlow(context.flow, schemaName);
   if (!context.step.reads.includes(reportPath)) {
     throw new Error(`prototype.variant-verification@v1 requires step '${context.step.id}' to read ${reportPath}`);
   }
-  return parse3(JSON.parse(readFileSync31(resolveRunRelative(context.runFolder, reportPath), "utf8")));
+  return parse3(JSON.parse(readFileSync32(resolveRunRelative(context.runFolder, reportPath), "utf8")));
 }
 function aggregate(context) {
   return readReport(context, "prototype.variant-aggregate@v1", (raw) => PrototypeVariantAggregate.parse(raw));
@@ -80855,13 +81283,13 @@ var init_variant_verification = __esm({
 });
 
 // dist/flows/prototype/writers/verification.js
-import { readFileSync as readFileSync32 } from "node:fs";
+import { readFileSync as readFileSync33 } from "node:fs";
 function readReport2(context, schemaName, parse3) {
   const reportPath = reportPathForSchemaInRuntimeFlow(context.flow, schemaName);
   if (!context.step.reads.includes(reportPath)) {
     throw new Error(`prototype.verification@v1 requires step '${context.step.id}' to read ${reportPath}`);
   }
-  return parse3(JSON.parse(readFileSync32(resolveRunRelative(context.runFolder, reportPath), "utf8")));
+  return parse3(JSON.parse(readFileSync33(resolveRunRelative(context.runFolder, reportPath), "utf8")));
 }
 function artifactIntegrityCommand(input) {
   const payload = {
@@ -81187,93 +81615,35 @@ var init_flow9 = __esm({
 });
 
 // dist/shared/html/multi-variant.js
-import { isAbsolute as isAbsolute7, relative as relative7, resolve as resolve12 } from "node:path";
-import { pathToFileURL } from "node:url";
-function withoutQueryOrHash(value) {
-  const queryIndex = value.search(/[?#]/);
-  return queryIndex === -1 ? value : value.slice(0, queryIndex);
-}
-function extensionForPath(value) {
-  const cleaned = withoutQueryOrHash(value).toLowerCase();
-  const dotIndex = cleaned.lastIndexOf(".");
-  if (dotIndex === -1)
-    return "";
-  const slashIndex = cleaned.lastIndexOf("/");
-  return dotIndex > slashIndex ? cleaned.slice(dotIndex) : "";
-}
-function isPreviewableArtifactPath(value) {
-  return PREVIEWABLE_EXTENSIONS.has(extensionForPath(value));
-}
-function toBrowserPath(value) {
-  return value.replace(/\\/g, "/");
-}
-function encodeUrlPath(value) {
-  return value.split("/").map((part) => part === ".." || part === "." ? part : encodeURIComponent(part)).join("/");
-}
-function isInside2(root, target) {
-  const fromRoot = relative7(root, target);
-  return fromRoot !== "" && !fromRoot.startsWith("..") && !isAbsolute7(fromRoot);
-}
-function runIdFromFolder(runFolder) {
-  const parts = toBrowserPath(resolve12(runFolder)).split("/").filter((part) => part.length > 0);
-  return parts.at(-1);
-}
-function runArtifactPreviewHref(input) {
-  if (!isPreviewableArtifactPath(input.entryPath))
-    return void 0;
-  const reportsDir = resolve12(input.runFolder, "reports");
-  const runRoot = resolve12(input.runFolder);
-  if (isAbsolute7(input.entryPath)) {
-    const absoluteEntry = resolve12(input.entryPath);
-    if (!isInside2(runRoot, absoluteEntry))
-      return void 0;
-    return encodeUrlPath(toBrowserPath(relative7(reportsDir, absoluteEntry)));
-  }
-  const normalized = toBrowserPath(input.entryPath).replace(/^\.\//, "");
-  if (normalized.split("/").some((part) => part === ".."))
-    return void 0;
-  if (normalized.startsWith("prototype-files/"))
-    return encodeUrlPath(`../${normalized}`);
-  const runId = runIdFromFolder(input.runFolder);
-  const currentRunPrefix = runId === void 0 ? void 0 : `${CONTROL_PLANE_RUNS_DIR}/${runId}/`;
-  if (currentRunPrefix !== void 0 && normalized.startsWith(currentRunPrefix)) {
-    return encodeUrlPath(`../${normalized.slice(currentRunPrefix.length)}`);
-  }
-  if (input.projectRoot !== void 0) {
-    const projectRoot = resolve12(input.projectRoot);
-    const absoluteEntry = resolve12(projectRoot, normalized);
-    if (!isInside2(projectRoot, absoluteEntry))
-      return void 0;
-    return pathToFileURL(absoluteEntry).href;
-  }
-  return void 0;
-}
-function previewForEntryPoints(input) {
-  for (const entryPoint of input.entryPoints) {
-    const href = runArtifactPreviewHref({
-      entryPath: entryPoint,
-      runFolder: input.runFolder,
-      projectRoot: input.projectRoot
-    });
-    if (href !== void 0)
-      return { href, sourcePath: entryPoint };
-  }
-  return void 0;
-}
 function VariantFacts({ facts }) {
   if (facts.length === 0)
     return null;
-  return (0, import_jsx_runtime10.jsx)("div", { className: "grid grid-cols-1 gap-2.5 text-[13px] text-muted-foreground sm:grid-cols-2", children: facts.map((fact) => (0, import_jsx_runtime10.jsxs)("span", { children: [(0, import_jsx_runtime10.jsx)("b", { className: "mb-0.5 block text-[11px] font-semibold uppercase text-muted-foreground/80", children: t(fact.label, 120) }), t(fact.value, MAX_BULLET_LEN)] }, fact.label)) });
+  return (0, import_jsx_runtime11.jsx)("div", { className: "grid grid-cols-1 gap-2.5 text-[13px] text-muted-foreground sm:grid-cols-2", children: facts.map((fact) => (0, import_jsx_runtime11.jsxs)("span", { children: [(0, import_jsx_runtime11.jsx)("b", { className: "mb-0.5 block text-[11px] font-semibold uppercase text-muted-foreground/80", children: t(fact.label, 120) }), t(fact.value, MAX_BULLET_LEN)] }, fact.label)) });
 }
-function VariantRow({ variant, visual, selected }) {
-  return (0, import_jsx_runtime10.jsxs)("article", { className: "mv-row", "data-mv-row": "", "data-mv-variant-id": t(variant.id, 120), "data-selected": selected ? "true" : "false", children: [(0, import_jsx_runtime10.jsxs)("div", { className: "mv-name", children: [(0, import_jsx_runtime10.jsx)("strong", { children: t(variant.label, 160) }), variant.recommended ? (0, import_jsx_runtime10.jsx)(IntentBadge, { text: "Recommended", intent: "positive" }) : (0, import_jsx_runtime10.jsx)(Badge, { variant: "outline", className: "text-muted-foreground", children: t(variant.id, 120) })] }), (0, import_jsx_runtime10.jsxs)("div", { className: "mv-copy text-sm", children: [(0, import_jsx_runtime10.jsx)("p", { children: t(variant.description, MAX_BULLET_LEN) }), (0, import_jsx_runtime10.jsx)(VariantFacts, { facts: variant.facts }), variant.risks === void 0 || variant.risks.length === 0 ? null : (0, import_jsx_runtime10.jsxs)("div", { className: "mt-2.5", children: [(0, import_jsx_runtime10.jsx)(SectionLabel, { children: "Risks" }), (0, import_jsx_runtime10.jsx)(BulletList, { items: variant.risks })] })] }), (0, import_jsx_runtime10.jsxs)("div", { className: "mv-evidence-cell", children: [variant.evidence.length === 0 ? null : (0, import_jsx_runtime10.jsx)(ChipRow, { items: variant.evidence }), (0, import_jsx_runtime10.jsxs)("div", { className: "flex flex-wrap gap-2", children: [visual && variant.preview !== void 0 ? (0, import_jsx_runtime10.jsx)(Button3, { variant: "outline", size: "sm", type: "button", "data-mv-preview-trigger": "", "data-mv-variant-id": t(variant.id, 120), "data-mv-preview-src": variant.preview.href, "data-mv-preview-title": t(variant.label, 160), "data-mv-preview-source": t(variant.preview.sourcePath, MAX_PROMPT_LEN), children: "Preview" }) : null, variant.action === void 0 ? null : (0, import_jsx_runtime10.jsx)(Button3, { variant: variant.action.primary === false ? "outline" : "default", size: "sm", "data-prompt": t(variant.action.prompt, MAX_PROMPT_LEN), children: t(variant.action.label, 120) })] })] })] });
+function EvidenceRow({ variant }) {
+  const evidence2 = Array.from(new Set(variant.evidence));
+  return (0, import_jsx_runtime11.jsxs)("article", { className: "mv-evidence-row", children: [(0, import_jsx_runtime11.jsxs)("div", { className: "mv-name", children: [(0, import_jsx_runtime11.jsx)("strong", { children: t(variant.label, 160) }), variant.recommended ? (0, import_jsx_runtime11.jsx)(IntentBadge, { text: "Recommended", intent: "positive" }) : (0, import_jsx_runtime11.jsx)(Badge, { variant: "outline", className: "text-muted-foreground", children: t(variant.id, 120) })] }), (0, import_jsx_runtime11.jsxs)("div", { className: "mv-copy text-sm", children: [(0, import_jsx_runtime11.jsx)("p", { children: t(variant.description, 360) }), (0, import_jsx_runtime11.jsx)(VariantFacts, { facts: variant.facts }), variant.risks === void 0 || variant.risks.length === 0 ? null : (0, import_jsx_runtime11.jsxs)("div", { className: "mt-2.5", children: [(0, import_jsx_runtime11.jsx)(SectionLabel, { children: "Risks" }), (0, import_jsx_runtime11.jsx)(BulletList, { items: variant.risks })] })] }), (0, import_jsx_runtime11.jsxs)("div", { className: "mv-evidence-cell mt-3", children: [evidence2.length === 0 ? null : (0, import_jsx_runtime11.jsx)(ChipRow, { items: evidence2 }), (0, import_jsx_runtime11.jsx)("div", { className: "mt-3 flex flex-wrap gap-2", children: variant.action === void 0 ? null : (0, import_jsx_runtime11.jsx)(Button3, { variant: variant.action.primary === false ? "outline" : "default", size: "sm", "data-prompt": t(variant.action.prompt, MAX_PROMPT_LEN), children: t(variant.action.label, 120) }) })] })] });
 }
-function VisualDetail({ variant }) {
-  const preview = variant.preview;
-  return (0, import_jsx_runtime10.jsxs)("aside", { className: "mv-detail", "aria-label": "Selected variant preview", children: [(0, import_jsx_runtime10.jsx)("h2", { "data-mv-title": "", children: t(variant.label, 160) }), (0, import_jsx_runtime10.jsx)("div", { className: "mv-frame", children: preview === void 0 ? (0, import_jsx_runtime10.jsxs)(import_jsx_runtime10.Fragment, { children: [(0, import_jsx_runtime10.jsx)("iframe", { "data-mv-frame": "", hidden: true, title: "Variant preview" }), (0, import_jsx_runtime10.jsx)("p", { className: "mv-empty-preview", "data-mv-empty": "", children: "No visual preview is available for this variant." })] }) : (0, import_jsx_runtime10.jsxs)(import_jsx_runtime10.Fragment, { children: [(0, import_jsx_runtime10.jsx)("iframe", { "data-mv-frame": "", src: preview.href, title: `${t(variant.label, 160)} preview`, sandbox: "allow-scripts allow-forms allow-pointer-lock", loading: "lazy" }), (0, import_jsx_runtime10.jsx)("p", { className: "mv-empty-preview", "data-mv-empty": "", hidden: true, children: "No visual preview is available for this variant." })] }) }), (0, import_jsx_runtime10.jsxs)("div", { className: "mv-detail-meta", children: [preview === void 0 ? (
-    // biome-ignore lint/a11y/useValidAnchor: placeholder link; the preview switcher script sets href before unhiding it.
-    (0, import_jsx_runtime10.jsx)("a", { className: "mv-open-link", "data-mv-open": "", hidden: true, children: "Open artifact" })
-  ) : (0, import_jsx_runtime10.jsx)("a", { className: "mv-open-link", "data-mv-open": "", href: preview.href, target: "_blank", rel: "noreferrer", children: "Open artifact" }), (0, import_jsx_runtime10.jsx)("div", { className: "mv-detail-source", "data-mv-source": "", children: t(preview?.sourcePath ?? "No visual artifact path", MAX_PROMPT_LEN) })] })] });
+function VisualPanel({ variant, selected, index }) {
+  const preview = variant.preview ?? { status: "unavailable" };
+  return (0, import_jsx_runtime11.jsx)("div", { className: "mv-panel", id: `mv-panel-${index}`, "data-mv-panel": "", "data-artifact-preview-panel": "", "data-mv-variant-id": variant.id, role: "tabpanel", "aria-labelledby": `mv-option-${index}`, hidden: !selected, children: (0, import_jsx_runtime11.jsx)(ArtifactPreviewFrame, { preview, title: `${t(variant.label, 160)} artifact preview`, eager: selected }) });
+}
+function VisualInspector({ variant, selected }) {
+  const preview = variant.preview ?? { status: "unavailable" };
+  const evidence2 = Array.from(/* @__PURE__ */ new Set([...variant.evidence, ..."sourcePath" in preview ? [preview.sourcePath] : []]));
+  return (0, import_jsx_runtime11.jsxs)("section", { "data-mv-inspector": "", "data-mv-variant-id": variant.id, hidden: !selected, children: [(0, import_jsx_runtime11.jsx)("div", { className: "mv-inspector-head", children: variant.recommended ? (0, import_jsx_runtime11.jsx)("span", { className: "mv-suggested", children: "Suggested" }) : null }), (0, import_jsx_runtime11.jsx)("h2", { children: t(variant.label, 160) }), (0, import_jsx_runtime11.jsx)("p", { className: "mv-description", children: t(variant.description, 420) }), (0, import_jsx_runtime11.jsxs)("details", { className: "mv-disclosure", children: [(0, import_jsx_runtime11.jsx)("summary", { children: "Option details" }), (0, import_jsx_runtime11.jsxs)("div", { className: "mv-disclosure-body", children: [(0, import_jsx_runtime11.jsx)(VariantFacts, { facts: variant.facts }), variant.risks === void 0 || variant.risks.length === 0 ? null : (0, import_jsx_runtime11.jsxs)(import_jsx_runtime11.Fragment, { children: [(0, import_jsx_runtime11.jsx)(SectionLabel, { children: "Risks" }), (0, import_jsx_runtime11.jsx)(BulletList, { items: variant.risks })] })] })] }), (0, import_jsx_runtime11.jsxs)("details", { className: "mv-disclosure", children: [(0, import_jsx_runtime11.jsx)("summary", { children: "Evidence" }), (0, import_jsx_runtime11.jsxs)("div", { className: "mv-disclosure-body mv-technical-list", children: [evidence2.length === 0 ? (0, import_jsx_runtime11.jsx)("span", { children: "No evidence links were reported." }) : null, evidence2.map((item) => (0, import_jsx_runtime11.jsx)("code", { children: t(item, MAX_PROMPT_LEN) }, item))] })] })] });
+}
+function VisualReviewWorkspace({ input, defaultVariant }) {
+  const defaultIndex = input.variants.findIndex((variant) => variant.id === defaultVariant.id);
+  const openHref = defaultVariant.preview?.status === "ready" ? defaultVariant.preview.href : void 0;
+  return (0, import_jsx_runtime11.jsxs)("div", { className: "mv-wrap mv-visual", "data-mv-workspace": "", "data-run-folder": input.resume?.runFolder ?? "", "data-resume-prefix": input.resume?.commandPrefix ?? "circuit resume", "data-run-id": input.resume?.runId ?? "", "data-step-id": input.resume?.stepId ?? "", "data-attempt": input.resume?.attempt ?? 0, "data-request-sha256": input.resume?.requestSha256 ?? "", children: [(0, import_jsx_runtime11.jsxs)("div", { className: "mv-review-ui", "data-mv-interactive": "", children: [(0, import_jsx_runtime11.jsx)("a", { className: "mv-skip", href: "#mv-artifact", children: "Skip to artifact" }), (0, import_jsx_runtime11.jsx)("a", { className: "mv-skip", href: "#mv-comment", children: "Skip to comments" }), (0, import_jsx_runtime11.jsxs)("header", { className: "mv-topbar", children: [(0, import_jsx_runtime11.jsxs)("div", { className: "mv-heading", children: [(0, import_jsx_runtime11.jsx)("h1", { children: t(input.headline, 180) }), (0, import_jsx_runtime11.jsx)("p", { children: t(input.subtitle, 280) })] }), (0, import_jsx_runtime11.jsxs)("div", { className: "mv-progress", children: [(0, import_jsx_runtime11.jsxs)("span", { "data-mv-position": "", children: [defaultIndex + 1, " of ", input.variants.length] }), " \xB7 ", "Review draft"] })] }), (0, import_jsx_runtime11.jsx)("nav", { className: "mv-tabs", role: "tablist", "aria-label": "Review options", children: input.variants.map((variant, index) => {
+    const selected = variant.id === defaultVariant.id;
+    const previewHref = variant.preview?.status === "ready" ? variant.preview.href : "";
+    return (0, import_jsx_runtime11.jsxs)("button", { type: "button", className: "mv-tab", id: `mv-option-${index}`, role: "tab", "aria-selected": selected, "aria-controls": `mv-panel-${index}`, tabIndex: selected ? 0 : -1, "data-mv-option": "", "data-mv-variant-id": variant.id, "data-mv-label": t(variant.label, 160), "data-mv-preview-src": previewHref, children: [(0, import_jsx_runtime11.jsx)("span", { className: "mv-tab-index", children: String(index + 1).padStart(2, "0") }), (0, import_jsx_runtime11.jsx)("span", { className: "mv-tab-title", children: t(variant.label, 160) }), variant.recommended ? (0, import_jsx_runtime11.jsx)("span", { className: "mv-suggested", children: "Suggested" }) : null, (0, import_jsx_runtime11.jsx)("span", { className: "mv-tab-note", "data-mv-note-count": "", hidden: true, children: "0" })] }, variant.id);
+  }) }), (0, import_jsx_runtime11.jsxs)("main", { className: "mv-main", children: [(0, import_jsx_runtime11.jsxs)("section", { className: "mv-stage", id: "mv-artifact", "aria-label": "Artifact preview", tabIndex: -1, children: [(0, import_jsx_runtime11.jsxs)("div", { className: "mv-stagebar", children: [(0, import_jsx_runtime11.jsx)("div", { className: "mv-stage-title", "data-mv-stage-title": "", children: t(defaultVariant.label, 160) }), (0, import_jsx_runtime11.jsxs)("div", { className: "mv-stage-actions", children: [(0, import_jsx_runtime11.jsx)("button", { className: "mv-icon-button", type: "button", "data-mv-previous": "", "aria-label": "Previous option", children: "\u2190" }), (0, import_jsx_runtime11.jsx)("button", { className: "mv-icon-button", type: "button", "data-mv-next": "", "aria-label": "Next option", children: "\u2192" }), openHref === void 0 ? (
+    // biome-ignore lint/a11y/useValidAnchor: the review script supplies href for previewable options.
+    (0, import_jsx_runtime11.jsx)("a", { className: "mv-open-link", "data-mv-open": "", hidden: true, children: "Open full size \u2197" })
+  ) : (0, import_jsx_runtime11.jsx)("a", { className: "mv-open-link", "data-mv-open": "", href: openHref, target: "_blank", rel: "noreferrer", children: "Open full size \u2197" })] })] }), (0, import_jsx_runtime11.jsx)("div", { className: "mv-canvas", children: input.variants.map((variant, index) => (0, import_jsx_runtime11.jsx)(VisualPanel, { variant, selected: variant.id === defaultVariant.id, index }, variant.id)) })] }), (0, import_jsx_runtime11.jsxs)("aside", { className: "mv-inspector", id: "mv-comments", "aria-label": "Review notes", children: [input.variants.map((variant) => (0, import_jsx_runtime11.jsx)(VisualInspector, { variant, selected: variant.id === defaultVariant.id }, variant.id)), (0, import_jsx_runtime11.jsxs)("div", { className: "mt-4", children: [(0, import_jsx_runtime11.jsx)("label", { className: "mv-field-label", htmlFor: "mv-comment", children: "Comment on this option" }), (0, import_jsx_runtime11.jsx)("textarea", { className: "mv-comment", id: "mv-comment", "data-mv-comment": "", maxLength: 2e3, placeholder: "Record what you noticed or why you prefer this option." }), (0, import_jsx_runtime11.jsx)("div", { className: "mv-save-state", "data-mv-save-state": "", children: "Saved in this browser" })] }), (0, import_jsx_runtime11.jsxs)("details", { className: "mv-disclosure", children: [(0, import_jsx_runtime11.jsxs)("summary", { children: ["Why Circuit suggested ", t(input.recommendation.label, MAX_PROMPT_LEN)] }), (0, import_jsx_runtime11.jsx)("div", { className: "mv-disclosure-body", children: t(input.recommendation.rationale, MAX_PROMPT_LEN) })] }), input.details === void 0 ? null : (0, import_jsx_runtime11.jsxs)("details", { className: "mv-disclosure", children: [(0, import_jsx_runtime11.jsx)("summary", { children: "Full comparison report" }), (0, import_jsx_runtime11.jsx)("div", { className: "mv-disclosure-body", children: input.details })] })] })] }), (0, import_jsx_runtime11.jsxs)("footer", { className: "mv-footer", children: [(0, import_jsx_runtime11.jsxs)("div", { className: "mv-footer-group", children: [(0, import_jsx_runtime11.jsx)("button", { className: "mv-secondary", type: "button", "data-mv-previous": "", children: "\u2190 Previous" }), (0, import_jsx_runtime11.jsx)("button", { className: "mv-secondary", type: "button", "data-mv-next": "", children: "Next \u2192" })] }), (0, import_jsx_runtime11.jsx)("div", { className: "mv-footer-group", children: (0, import_jsx_runtime11.jsx)("button", { className: "mv-primary", type: "button", "data-mv-finish": "", children: "Choose this option" }) })] }), (0, import_jsx_runtime11.jsx)("dialog", { className: "mv-dialog", "data-mv-dialog": "", "aria-labelledby": "mv-dialog-title", "aria-describedby": "mv-dialog-description", children: (0, import_jsx_runtime11.jsxs)("div", { className: "mv-dialog-body", children: [(0, import_jsx_runtime11.jsx)("div", { className: "mv-suggested", children: "Finish review" }), (0, import_jsx_runtime11.jsxs)("h2", { id: "mv-dialog-title", children: ["Choose ", (0, import_jsx_runtime11.jsx)("span", { "data-mv-confirm-title": "", children: t(defaultVariant.label, 160) }), "?"] }), (0, import_jsx_runtime11.jsx)("p", { className: "mv-dialog-copy", id: "mv-dialog-description", "data-mv-confirm-summary": "", children: "0 option comments" }), (0, import_jsx_runtime11.jsx)("label", { className: "mv-field-label", htmlFor: "mv-overall-comment", children: "Note for the run record (optional)" }), (0, import_jsx_runtime11.jsx)("textarea", { className: "mv-comment", id: "mv-overall-comment", "data-mv-overall-comment": "", maxLength: 2e3, placeholder: "Add any context you want saved with this review." }), (0, import_jsx_runtime11.jsx)("code", { className: "mv-command", "data-mv-command": "", hidden: true }), (0, import_jsx_runtime11.jsx)("div", { className: "mv-command-state", "data-mv-command-state": "", role: "status", "aria-live": "polite" }), (0, import_jsx_runtime11.jsxs)("div", { className: "mv-dialog-actions", children: [(0, import_jsx_runtime11.jsx)("button", { className: "mv-secondary", type: "button", "data-mv-close-dialog": "", children: "Keep reviewing" }), (0, import_jsx_runtime11.jsx)("button", { className: "mv-secondary", type: "button", "data-mv-export": "", children: "Export review JSON" }), (0, import_jsx_runtime11.jsx)("button", { className: "mv-primary", type: "button", "data-mv-copy-decision": "", children: "Copy decision command" })] })] }) }), (0, import_jsx_runtime11.jsx)("div", { className: "mv-live", "aria-live": "polite", "data-mv-live": "" })] }), (0, import_jsx_runtime11.jsxs)("noscript", { children: [(0, import_jsx_runtime11.jsx)("style", { children: "[data-mv-interactive]{display:none!important}" }), (0, import_jsx_runtime11.jsxs)("div", { className: "mv-noscript", children: [(0, import_jsx_runtime11.jsx)("h1", { children: t(input.headline, 180) }), (0, import_jsx_runtime11.jsx)("p", { children: "JavaScript is off. Review each option, then run one legacy resume command." }), (0, import_jsx_runtime11.jsx)("div", { className: "mv-noscript-list", children: input.variants.map((variant) => (0, import_jsx_runtime11.jsxs)("section", { className: "mv-noscript-option", children: [(0, import_jsx_runtime11.jsxs)("strong", { children: [t(variant.label, 160), variant.recommended ? " \xB7 Suggested" : ""] }), (0, import_jsx_runtime11.jsx)("span", { children: t(variant.description, 420) }), variant.facts.map((fact) => (0, import_jsx_runtime11.jsxs)("span", { children: [t(fact.label, 120), ": ", t(fact.value, MAX_BULLET_LEN)] }, fact.label)), variant.preview?.status === "ready" ? (0, import_jsx_runtime11.jsx)("a", { href: variant.preview.href, children: "Open artifact" }) : (0, import_jsx_runtime11.jsx)("span", { children: variant.preview?.status === "missing" ? "Preview file missing" : variant.preview?.status === "unsupported" ? "Preview format unsupported" : "Preview unavailable" }), variant.action === void 0 ? null : (0, import_jsx_runtime11.jsx)("code", { children: t(variant.action.prompt, MAX_PROMPT_LEN) })] }, variant.id)) })] })] })] });
 }
 function renderMultiVariantComparisonPage(input) {
   if (input.variants.length === 0) {
@@ -81283,8 +81653,20 @@ function renderMultiVariantComparisonPage(input) {
   if (recommended === void 0) {
     throw new Error("multi-variant comparison could not choose a default variant");
   }
-  const visual = input.variants.some((variant) => variant.preview !== void 0);
-  const defaultVariant = visual ? input.variants.find((variant) => variant.recommended && variant.preview !== void 0) ?? input.variants.find((variant) => variant.preview !== void 0) ?? recommended : recommended;
+  const hasPreview = input.variants.some((variant) => variant.preview?.status === "ready");
+  const reviewWorkspace = input.resume !== void 0;
+  if (hasPreview && input.resume === void 0) {
+    throw new Error("visual multi-variant review requires resume metadata");
+  }
+  const defaultVariant = reviewWorkspace ? input.variants.find((variant) => variant.recommended && variant.preview?.status === "ready") ?? input.variants.find((variant) => variant.preview?.status === "ready") ?? recommended : recommended;
+  if (reviewWorkspace) {
+    return renderHtmlDocument({
+      title: input.title,
+      body: (0, import_jsx_runtime11.jsx)(VisualReviewWorkspace, { input, defaultVariant }),
+      extraStyle: MULTI_VARIANT_STYLE,
+      extraScript: MULTI_VARIANT_REVIEW_SCRIPT
+    });
+  }
   return renderReportPage({
     title: input.title,
     metaLine: input.metaLine,
@@ -81292,64 +81674,105 @@ function renderMultiVariantComparisonPage(input) {
     subtitle: input.subtitle,
     ...input.footerLeft === void 0 ? {} : { footerLeft: input.footerLeft },
     ...input.footerRight === void 0 ? {} : { footerRight: input.footerRight },
-    wrapClassName: visual ? "mv-wrap mv-visual" : "mv-wrap mv-evidence",
+    wrapClassName: "mv-wrap mv-evidence",
     extraStyle: MULTI_VARIANT_STYLE,
-    ...visual ? { extraScript: MULTI_VARIANT_SCRIPT } : {},
-    children: (0, import_jsx_runtime10.jsxs)(import_jsx_runtime10.Fragment, { children: [(0, import_jsx_runtime10.jsx)(VerdictBanner, { intent: input.recommendation.intent, badgeText: input.recommendation.badgeText, main: (0, import_jsx_runtime10.jsxs)(import_jsx_runtime10.Fragment, { children: [(0, import_jsx_runtime10.jsx)("strong", { children: t(input.recommendation.label, 160) }), " \xB7", " ", t(input.recommendation.rationale, MAX_PROMPT_LEN)] }), ...input.recommendation.aside === void 0 ? {} : { aside: input.recommendation.aside } }), (0, import_jsx_runtime10.jsxs)("section", { className: "mv-decision", "aria-label": "Checkpoint decision", children: [(0, import_jsx_runtime10.jsxs)("div", { children: [(0, import_jsx_runtime10.jsxs)("strong", { children: ["Recommended: ", t(recommended.label, 160)] }), (0, import_jsx_runtime10.jsx)("span", { children: t(input.recommendation.rationale, MAX_PROMPT_LEN) })] }), (0, import_jsx_runtime10.jsxs)("div", { className: "mv-count", children: [input.variants.length, " variants compared"] })] }), (0, import_jsx_runtime10.jsxs)("div", { className: "mv-compare", children: [(0, import_jsx_runtime10.jsxs)("section", { "aria-label": "Variant comparison", children: [(0, import_jsx_runtime10.jsxs)("div", { className: "mv-list-head", children: [(0, import_jsx_runtime10.jsx)("div", { children: "Variant" }), (0, import_jsx_runtime10.jsx)("div", { children: "What changes" }), (0, import_jsx_runtime10.jsx)("div", { children: visual ? "Evidence and preview" : "Evidence" })] }), input.variants.map((variant) => (0, import_jsx_runtime10.jsx)(VariantRow, { variant, visual, selected: variant.id === defaultVariant.id }, variant.id))] }), visual ? (0, import_jsx_runtime10.jsx)(VisualDetail, { variant: defaultVariant }) : null] }), input.details ?? null] })
+    children: (0, import_jsx_runtime11.jsxs)(import_jsx_runtime11.Fragment, { children: [(0, import_jsx_runtime11.jsx)(VerdictBanner, { intent: input.recommendation.intent, badgeText: input.recommendation.badgeText, main: (0, import_jsx_runtime11.jsxs)(import_jsx_runtime11.Fragment, { children: [(0, import_jsx_runtime11.jsx)("strong", { children: t(input.recommendation.label, 160) }), " \xB7", " ", t(input.recommendation.rationale, MAX_PROMPT_LEN)] }), ...input.recommendation.aside === void 0 ? {} : { aside: input.recommendation.aside } }), (0, import_jsx_runtime11.jsx)("section", { "aria-label": "Variant comparison", children: input.variants.map((variant) => (0, import_jsx_runtime11.jsx)(EvidenceRow, { variant }, variant.id)) }), input.details ?? null] })
   });
 }
-var import_jsx_runtime10, PREVIEWABLE_EXTENSIONS, MULTI_VARIANT_STYLE, MULTI_VARIANT_SCRIPT;
+var import_jsx_runtime11, MULTI_VARIANT_STYLE, MULTI_VARIANT_REVIEW_SCRIPT;
 var init_multi_variant = __esm({
   "dist/shared/html/multi-variant.js"() {
     "use strict";
-    import_jsx_runtime10 = __toESM(require_jsx_runtime(), 1);
-    init_control_plane_paths();
+    import_jsx_runtime11 = __toESM(require_jsx_runtime(), 1);
+    init_artifact_preview();
+    init_checkpoint_review_runtime_generated();
     init_page();
     init_react_page();
     init_report_components();
     init_badge();
     init_button2();
-    PREVIEWABLE_EXTENSIONS = /* @__PURE__ */ new Set([
-      ".gif",
-      ".htm",
-      ".html",
-      ".jpeg",
-      ".jpg",
-      ".pdf",
-      ".png",
-      ".svg",
-      ".webp"
-    ]);
     MULTI_VARIANT_STYLE = [
-      ".mv-wrap{--mv-pad:clamp(18px,2.4vw,44px);--mv-top:clamp(30px,3vw,50px);--mv-rail-width:clamp(420px,32vw,640px);--mv-rail-gap:clamp(34px,4vw,72px);max-width:1280px}",
-      ".mv-wrap.mv-visual{max-width:none;width:100%;padding:var(--mv-top) calc(var(--mv-rail-width) + var(--mv-pad) + var(--mv-rail-gap)) 96px var(--mv-pad)}",
-      ".mv-decision{display:grid;grid-template-columns:minmax(0,1fr) auto;gap:18px;align-items:center;margin:24px 0 28px;padding:16px 0;border-top:1px solid var(--border);border-bottom:1px solid var(--border)}",
-      ".mv-decision strong{display:block;font-size:15px;line-height:1.35;margin-bottom:3px;font-weight:560}",
-      ".mv-decision span{color:var(--muted-foreground)}",
-      ".mv-count{font-size:12px;color:var(--muted-foreground);white-space:nowrap}",
-      ".mv-list-head,.mv-row{display:grid;grid-template-columns:minmax(150px,190px) minmax(30ch,1fr) minmax(240px,.9fr);gap:clamp(18px,2vw,34px);align-items:start}",
-      ".mv-list-head{padding:0 0 10px;color:var(--muted-foreground);font-size:11px;font-weight:600;text-transform:uppercase}",
-      ".mv-row{position:relative;width:100%;padding:18px 0;border-top:1px solid var(--border)}",
-      ".mv-row:last-child{border-bottom:1px solid var(--border)}",
-      '.mv-row[data-selected="true"]::before{content:"";position:absolute;left:-14px;top:18px;bottom:18px;width:2px;border-radius:999px;background:var(--positive)}',
-      ".mv-name{display:flex;flex-direction:column;gap:6px;align-items:flex-start}",
-      ".mv-name strong{font-size:15.5px;line-height:1.3;font-weight:560}",
-      ".mv-copy p{margin:0 0 9px}",
-      ".mv-evidence-cell{display:flex;flex-direction:column;gap:10px;min-width:0}",
-      ".mv-detail{position:fixed;top:var(--mv-top);right:var(--mv-pad);bottom:28px;width:var(--mv-rail-width);border-left:1px solid var(--border);padding-left:clamp(24px,2.4vw,40px);overflow:auto;overscroll-behavior:contain;scrollbar-gutter:stable}",
-      ".mv-detail h2{font-size:18px;line-height:1.3;margin:0 0 12px;font-weight:560}",
-      ".mv-frame{border:1px solid var(--input);border-radius:10px;background:var(--card);min-height:clamp(280px,42vh,470px);box-shadow:0 16px 42px rgba(22,28,24,.07);overflow:hidden}",
-      ".mv-frame iframe{display:block;width:100%;height:clamp(280px,42vh,470px);border:0;background:white}",
-      ".mv-empty-preview{padding:18px;color:var(--muted-foreground);font-size:13px}",
-      ".mv-detail-meta{display:flex;flex-direction:column;gap:10px;margin-top:14px}",
-      ".mv-open-link{font-size:13px;color:var(--info);text-decoration:none}",
-      ".mv-open-link:hover{text-decoration:underline}",
-      '.mv-detail-source{font:500 11px/1.4 ui-monospace,"SF Mono",Menlo,monospace;color:var(--muted-foreground);overflow-wrap:anywhere}',
-      ".mv-wrap.mv-evidence .mv-row{grid-template-columns:minmax(150px,210px) minmax(32ch,1fr) minmax(260px,.8fr)}",
-      "@media (max-width:1320px){.mv-wrap.mv-visual{max-width:1280px;margin:0 auto;padding:var(--mv-top) var(--mv-pad) 96px}.mv-detail{position:static;width:auto;overflow:visible;border-left:0;border-top:1px solid var(--border);padding-left:0;padding-top:22px;margin-top:24px}.mv-frame iframe{height:420px}}",
-      "@media (max-width:760px){.mv-decision{grid-template-columns:1fr}.mv-count{white-space:normal}.mv-list-head{display:none}.mv-row,.mv-wrap.mv-evidence .mv-row{grid-template-columns:1fr;gap:12px}.mv-frame iframe{height:340px}}"
+      ARTIFACT_PREVIEW_STYLE,
+      ".mv-wrap.mv-visual{min-width:0;min-height:100dvh;max-width:none;width:100%;padding:0;background:var(--background)}",
+      ".mv-review-ui{height:100dvh;min-width:0;display:grid;grid-template-rows:auto auto minmax(0,1fr) auto}",
+      ".mv-skip{position:fixed;left:12px;top:10px;z-index:50;transform:translateY(-150%);border-radius:8px;background:var(--foreground);color:var(--background);padding:9px 12px;font-size:13px}",
+      ".mv-skip:focus{transform:translateY(0)}",
+      ".mv-topbar{min-width:0;display:flex;align-items:center;justify-content:space-between;gap:24px;padding:16px 20px 14px;border-bottom:1px solid var(--border);background:color-mix(in oklab,var(--background) 94%,transparent)}",
+      ".mv-heading{min-width:0;flex:1;display:flex;align-items:baseline;gap:12px}",
+      ".mv-heading h1{min-width:0;overflow-wrap:anywhere;word-break:break-word;font-size:19px;line-height:1.2;font-weight:620;letter-spacing:-.02em}",
+      ".mv-heading p{min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-size:13px;color:var(--muted-foreground)}",
+      ".mv-progress{flex:none;font-size:12px;color:var(--muted-foreground);white-space:nowrap}",
+      ".mv-tabs{min-width:0;max-width:100%;display:flex;gap:8px;overflow-x:auto;padding:9px 14px;border-bottom:1px solid var(--border);scrollbar-width:none;background:var(--background)}",
+      ".mv-tabs::-webkit-scrollbar{display:none}",
+      ".mv-tab{position:relative;min-width:0;flex:none;display:flex;align-items:center;gap:8px;min-height:44px;max-width:300px;padding:8px 12px;border:1px solid transparent;border-radius:10px;color:var(--muted-foreground);text-align:left;white-space:nowrap;cursor:pointer;touch-action:manipulation}",
+      '.mv-tab[aria-selected="true"]{border-color:var(--border);background:var(--card);color:var(--foreground);box-shadow:0 1px 2px rgba(0,0,0,.05)}',
+      ".mv-tab:focus-visible{outline:3px solid color-mix(in oklab,var(--ring) 45%,transparent);outline-offset:1px}",
+      ".mv-tab-title{min-width:0;overflow:hidden;text-overflow:ellipsis;font-size:13px;font-weight:560}",
+      '.mv-tab-index{font:600 10px/1 ui-monospace,"SF Mono",Menlo,monospace;color:var(--muted-foreground)}',
+      ".mv-tab-note{min-width:18px;height:18px;border-radius:999px;background:var(--secondary);padding:0 5px;font-size:10px;line-height:18px;text-align:center}",
+      ".mv-suggested{font-size:10px;font-weight:650;color:var(--positive);text-transform:uppercase;letter-spacing:.045em}",
+      ".mv-main{min-width:0;min-height:0;display:grid;grid-template-columns:minmax(0,1fr) minmax(300px,350px)}",
+      ".mv-main>*{min-width:0}",
+      ".mv-stage{min-width:0;min-height:0;display:grid;grid-template-rows:auto minmax(0,1fr);background:var(--muted)}",
+      ".mv-stagebar{min-width:0;display:flex;align-items:center;justify-content:space-between;gap:16px;min-height:48px;padding:8px 14px;border-bottom:1px solid var(--border);background:var(--background)}",
+      ".mv-stage-title{min-width:0;font-size:13px;font-weight:560;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}",
+      ".mv-stage-actions{min-width:0;flex:none;display:flex;align-items:center;gap:6px}",
+      ".mv-icon-button,.mv-open-link{display:inline-flex;align-items:center;justify-content:center;min-width:44px;min-height:36px;border:1px solid var(--border);border-radius:8px;background:var(--background);color:var(--foreground);font-size:12px;text-decoration:none}",
+      ".mv-open-link{gap:6px;padding:0 10px;white-space:nowrap}",
+      ".mv-icon-button:active,.mv-open-link:active,.mv-primary:active{transform:scale(.97)}",
+      ".mv-canvas{position:relative;min-width:0;min-height:0;margin:12px;border:1px solid var(--border);border-radius:12px;background:white;overflow:hidden;box-shadow:0 14px 36px rgba(24,24,27,.08)}",
+      ".mv-panel{position:absolute;inset:0;min-width:0}",
+      ".mv-inspector{min-width:0;min-height:0;overflow:auto;overscroll-behavior:contain;scrollbar-gutter:stable;border-left:1px solid var(--border);background:var(--background);padding:20px}",
+      ".mv-inspector-head{display:flex;align-items:center;gap:8px;margin-bottom:9px}",
+      ".mv-inspector h2{min-width:0;overflow-wrap:anywhere;word-break:break-word;font-size:20px;line-height:1.25;font-weight:620;letter-spacing:-.025em}",
+      ".mv-description{overflow-wrap:anywhere;margin:8px 0 20px;color:var(--muted-foreground);font-size:13px;line-height:1.5}",
+      ".mv-field-label{display:block;margin-bottom:7px;font-size:12px;font-weight:600}",
+      ".mv-comment{display:block;width:100%;min-height:112px;resize:vertical;border:1px solid var(--input);border-radius:10px;background:var(--background);padding:11px 12px;font-size:13px;line-height:1.45;outline:none}",
+      ".mv-comment:focus{border-color:var(--ring);box-shadow:0 0 0 3px color-mix(in oklab,var(--ring) 20%,transparent)}",
+      ".mv-save-state{min-height:18px;margin:7px 0 18px;color:var(--muted-foreground);font-size:11px}",
+      ".mv-disclosure{border-top:1px solid var(--border)}",
+      ".mv-disclosure:last-of-type{border-bottom:1px solid var(--border)}",
+      ".mv-disclosure summary{cursor:pointer;display:flex;align-items:center;justify-content:space-between;min-height:44px;font-size:13px;font-weight:560;list-style:none}",
+      ".mv-disclosure summary::-webkit-details-marker{display:none}",
+      '.mv-disclosure summary::after{content:"+";color:var(--muted-foreground);font-size:17px;font-weight:400}',
+      '.mv-disclosure[open] summary::after{content:"\u2212"}',
+      ".mv-disclosure-body{min-width:0;padding:0 0 16px;overflow-wrap:anywhere;color:var(--muted-foreground);font-size:12.5px;line-height:1.5}",
+      ".mv-facts{display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:14px}",
+      ".mv-fact b{display:block;margin-bottom:2px;color:var(--muted-foreground);font-size:9px;text-transform:uppercase;letter-spacing:.06em}",
+      ".mv-fact span{overflow-wrap:anywhere;word-break:break-word;color:var(--foreground);font-size:11.5px}",
+      ".mv-technical-list{display:flex;flex-direction:column;gap:6px;margin-top:9px}",
+      '.mv-technical-list code{overflow-wrap:anywhere;font:500 10px/1.4 ui-monospace,"SF Mono",Menlo,monospace}',
+      ".mv-footer{min-width:0;display:flex;align-items:center;justify-content:space-between;gap:12px;min-height:64px;padding:10px 14px;border-top:1px solid var(--border);background:var(--background)}",
+      ".mv-footer-group{min-width:0;display:flex;align-items:center;gap:8px}",
+      ".mv-secondary,.mv-primary{min-width:0;min-height:42px;border-radius:9px;padding:0 15px;font-size:13px;font-weight:580;cursor:pointer;touch-action:manipulation}",
+      ".mv-secondary{border:1px solid var(--border);background:var(--background)}",
+      ".mv-primary{border:1px solid var(--primary);background:var(--primary);color:var(--primary-foreground)}",
+      ".mv-dialog{position:fixed;inset:0;width:min(520px,calc(100vw - 32px));max-height:calc(100dvh - 32px);margin:auto;overflow:auto;border:1px solid var(--border);border-radius:16px;background:var(--background);color:var(--foreground);padding:0;box-shadow:0 28px 90px rgba(0,0,0,.22)}",
+      ".mv-dialog::backdrop{background:rgba(0,0,0,.32);backdrop-filter:blur(3px)}",
+      ".mv-dialog-body{padding:24px}",
+      ".mv-dialog h2{overflow-wrap:anywhere;word-break:break-word;font-size:22px;font-weight:620;letter-spacing:-.025em}",
+      ".mv-dialog-copy{margin:7px 0 18px;overflow-wrap:anywhere;color:var(--muted-foreground);font-size:13px}",
+      ".mv-dialog-actions{display:flex;flex-wrap:wrap;justify-content:flex-end;gap:8px;margin-top:18px}",
+      '.mv-command{display:block;max-height:110px;overflow:auto;margin-top:14px;border:1px solid var(--border);border-radius:9px;background:var(--muted);padding:10px;font:500 10px/1.45 ui-monospace,"SF Mono",Menlo,monospace;overflow-wrap:anywhere;user-select:all}',
+      ".mv-command-state{min-height:18px;margin-top:8px;color:var(--muted-foreground);font-size:11px}",
+      ".mv-live{position:absolute;width:1px;height:1px;padding:0;margin:-1px;overflow:hidden;clip:rect(0,0,0,0);white-space:nowrap;border:0}",
+      ".mv-noscript{width:min(760px,calc(100% - 32px));margin:24px auto;border:1px solid var(--border);border-radius:16px;background:var(--background);padding:24px}",
+      ".mv-noscript h1{overflow-wrap:anywhere;font-size:24px;line-height:1.2;font-weight:650;letter-spacing:-.025em}",
+      ".mv-noscript>p{margin-top:8px;color:var(--muted-foreground)}",
+      ".mv-noscript-list{display:grid;gap:12px;margin-top:20px}",
+      ".mv-noscript-option{min-width:0;border:1px solid var(--border);border-radius:12px;background:var(--muted);padding:15px}",
+      ".mv-noscript-option strong{display:block;overflow-wrap:anywhere;font-size:14px}",
+      ".mv-noscript-option span,.mv-noscript-option a{display:block;margin-top:4px;overflow-wrap:anywhere;color:var(--muted-foreground);font-size:12px}",
+      '.mv-noscript code{display:block;margin-top:10px;overflow-wrap:anywhere;white-space:pre-wrap;user-select:all;font:500 13px/1.55 ui-monospace,"SF Mono",Menlo,monospace}',
+      ".mv-wrap.mv-evidence{max-width:980px}",
+      ".mv-evidence-row{display:grid;grid-template-columns:minmax(150px,200px) minmax(0,1fr);gap:10px 24px;padding:20px 0;border-top:1px solid var(--border)}",
+      ".mv-evidence-cell{grid-column:2}",
+      "@media (max-width:900px){.mv-review-ui{height:auto;min-height:100dvh;grid-template-rows:auto auto auto auto}.mv-topbar{align-items:flex-start}.mv-heading{display:block}.mv-heading p{margin-top:4px}.mv-main{grid-template-columns:1fr}.mv-stage{height:68dvh;min-height:520px}.mv-inspector{border-left:0;border-top:1px solid var(--border);overflow:visible}.mv-footer{position:sticky;bottom:0;z-index:20}.mv-progress{display:none}}",
+      "@media (max-width:600px){.mv-topbar{padding:13px 14px}.mv-heading h1{font-size:17px}.mv-heading p{display:none}.mv-tabs{padding-inline:8px}.mv-tab{max-width:230px}.mv-stage{height:62dvh;min-height:430px}.mv-stagebar{padding-inline:10px}.mv-canvas{margin:8px}.mv-inspector{padding:18px 16px}.mv-footer{display:grid;grid-template-columns:minmax(0,1fr) auto;padding:8px}.mv-footer-group:first-child{display:grid;grid-template-columns:repeat(2,minmax(0,1fr))}.mv-footer .mv-open-link{display:none}.mv-secondary,.mv-primary{width:100%;padding-inline:10px}.mv-dialog{inset:auto 8px 8px;width:auto;max-height:calc(100dvh - 16px);margin:auto 0 0;border-radius:18px}.mv-dialog-body{padding:20px}.mv-dialog-actions{display:grid;grid-template-columns:1fr}.mv-noscript{width:calc(100% - 20px);margin:10px auto;padding:18px}.mv-noscript code{font-size:12px}.mv-evidence-row{grid-template-columns:1fr;gap:9px}.mv-evidence-cell{grid-column:1}}",
+      "@media (prefers-reduced-motion:reduce){.mv-icon-button,.mv-open-link,.mv-primary{transition:none}}"
     ].join("");
-    MULTI_VARIANT_SCRIPT = `(()=>{const frame=document.querySelector('[data-mv-frame]');const title=document.querySelector('[data-mv-title]');const source=document.querySelector('[data-mv-source]');const link=document.querySelector('[data-mv-open]');const empty=document.querySelector('[data-mv-empty]');const rows=[...document.querySelectorAll('[data-mv-row]')];const triggers=[...document.querySelectorAll('[data-mv-preview-trigger]')];if(!frame||!title||!source||!link||!empty)return;function select(trigger){const id=trigger.dataset.mvVariantId||'';const src=trigger.dataset.mvPreviewSrc||'';title.textContent=trigger.dataset.mvPreviewTitle||'';source.textContent=trigger.dataset.mvPreviewSource||'';rows.forEach(row=>{row.dataset.selected=String(row.dataset.mvVariantId===id);});if(src.length>0){frame.hidden=false;empty.hidden=true;frame.setAttribute('src',src);link.hidden=false;link.setAttribute('href',src);}else{frame.hidden=true;empty.hidden=false;link.hidden=true;link.removeAttribute('href');}}triggers.forEach(trigger=>{trigger.addEventListener('click',()=>select(trigger));});})();`;
+    MULTI_VARIANT_REVIEW_SCRIPT = `${CHECKPOINT_REVIEW_RUNTIME}
+${ARTIFACT_PREVIEW_SCRIPT}`;
   }
 });
 
@@ -81362,21 +81785,21 @@ function load(readJsonRunRelative, relPath, parse3) {
   return parsed.success ? parsed.data : void 0;
 }
 function ArtifactCard2({ artifact }) {
-  return (0, import_jsx_runtime11.jsxs)(ReportCard, { intent: "positive", eyebrow: "artifact", title: "Prototype files", children: [(0, import_jsx_runtime11.jsx)(Summary, { text: artifact.summary }), (0, import_jsx_runtime11.jsxs)("div", { children: [(0, import_jsx_runtime11.jsx)(SectionLabel, { children: "Prototype root" }), (0, import_jsx_runtime11.jsx)(ChipRow, { items: [artifact.prototype_root] })] }), (0, import_jsx_runtime11.jsxs)("div", { children: [(0, import_jsx_runtime11.jsx)(SectionLabel, { children: "Entry points" }), (0, import_jsx_runtime11.jsx)(ChipRow, { items: artifact.entry_points })] }), (0, import_jsx_runtime11.jsxs)("div", { children: [(0, import_jsx_runtime11.jsx)(SectionLabel, { children: "Preview" }), (0, import_jsx_runtime11.jsx)(Summary, { text: artifact.preview_instructions })] })] });
+  return (0, import_jsx_runtime12.jsxs)(ReportCard, { intent: "positive", eyebrow: "artifact", title: "Prototype files", children: [(0, import_jsx_runtime12.jsx)(Summary, { text: artifact.summary }), (0, import_jsx_runtime12.jsxs)("div", { children: [(0, import_jsx_runtime12.jsx)(SectionLabel, { children: "Prototype root" }), (0, import_jsx_runtime12.jsx)(ChipRow, { items: [artifact.prototype_root] })] }), (0, import_jsx_runtime12.jsxs)("div", { children: [(0, import_jsx_runtime12.jsx)(SectionLabel, { children: "Entry points" }), (0, import_jsx_runtime12.jsx)(ChipRow, { items: artifact.entry_points })] }), (0, import_jsx_runtime12.jsxs)("div", { children: [(0, import_jsx_runtime12.jsx)(SectionLabel, { children: "Preview" }), (0, import_jsx_runtime12.jsx)(Summary, { text: artifact.preview_instructions })] })] });
 }
 function VerificationCard({ verification }) {
   const status = verification.overall_status;
-  return (0, import_jsx_runtime11.jsxs)(ReportCard, { intent: status === "passed" ? "positive" : "negative", eyebrow: status, title: "Verification", children: [(0, import_jsx_runtime11.jsx)(Summary, { text: status === "passed" ? "Artifact integrity and target checks passed." : "One or more checks failed." }), (0, import_jsx_runtime11.jsxs)("div", { children: [(0, import_jsx_runtime11.jsx)(SectionLabel, { children: "Checks" }), (0, import_jsx_runtime11.jsx)(ChipRow, { items: verification.commands.map(commandText2) })] })] });
+  return (0, import_jsx_runtime12.jsxs)(ReportCard, { intent: status === "passed" ? "positive" : "negative", eyebrow: status, title: "Verification", children: [(0, import_jsx_runtime12.jsx)(Summary, { text: status === "passed" ? "Artifact integrity and target checks passed." : "One or more checks failed." }), (0, import_jsx_runtime12.jsxs)("div", { children: [(0, import_jsx_runtime12.jsx)(SectionLabel, { children: "Checks" }), (0, import_jsx_runtime12.jsx)(ChipRow, { items: verification.commands.map(commandText2) })] })] });
 }
 function RiskCard2({ artifact, brief }) {
   const limits = Array.from(/* @__PURE__ */ new Set([...brief.claim_limits, ...artifact.claim_limits]));
-  return (0, import_jsx_runtime11.jsxs)(ReportCard, { intent: "attention", eyebrow: "limits", title: "Read Before Reuse", children: [(0, import_jsx_runtime11.jsx)(Summary, { text: "Prototype is local evidence, not a production or deployed result." }), (0, import_jsx_runtime11.jsxs)("div", { children: [(0, import_jsx_runtime11.jsx)(SectionLabel, { children: "Known limitations" }), artifact.known_limitations.length === 0 ? (0, import_jsx_runtime11.jsx)(Summary, { text: "No limitations were reported." }) : (0, import_jsx_runtime11.jsx)(BulletList, { items: artifact.known_limitations })] }), (0, import_jsx_runtime11.jsxs)("div", { children: [(0, import_jsx_runtime11.jsx)(SectionLabel, { children: "Claim limits" }), (0, import_jsx_runtime11.jsx)(ChipRow, { items: limits })] })] });
+  return (0, import_jsx_runtime12.jsxs)(ReportCard, { intent: "attention", eyebrow: "limits", title: "Read Before Reuse", children: [(0, import_jsx_runtime12.jsx)(Summary, { text: "Prototype is local evidence, not a production or deployed result." }), (0, import_jsx_runtime12.jsxs)("div", { children: [(0, import_jsx_runtime12.jsx)(SectionLabel, { children: "Known limitations" }), artifact.known_limitations.length === 0 ? (0, import_jsx_runtime12.jsx)(Summary, { text: "No limitations were reported." }) : (0, import_jsx_runtime12.jsx)(BulletList, { items: artifact.known_limitations })] }), (0, import_jsx_runtime12.jsxs)("div", { children: [(0, import_jsx_runtime12.jsx)(SectionLabel, { children: "Claim limits" }), (0, import_jsx_runtime12.jsx)(ChipRow, { items: limits })] })] });
 }
 function PlanCard({ plan }) {
-  return (0, import_jsx_runtime11.jsxs)(ReportCard, { eyebrow: "plan", title: "Artifact Plan", children: [(0, import_jsx_runtime11.jsx)(Summary, { text: plan.preview_instructions }), (0, import_jsx_runtime11.jsxs)("div", { children: [(0, import_jsx_runtime11.jsx)(SectionLabel, { children: "Planned files" }), (0, import_jsx_runtime11.jsx)(ChipRow, { items: plan.files_to_create })] })] });
+  return (0, import_jsx_runtime12.jsxs)(ReportCard, { eyebrow: "plan", title: "Artifact Plan", children: [(0, import_jsx_runtime12.jsx)(Summary, { text: plan.preview_instructions }), (0, import_jsx_runtime12.jsxs)("div", { children: [(0, import_jsx_runtime12.jsx)(SectionLabel, { children: "Planned files" }), (0, import_jsx_runtime12.jsx)(ChipRow, { items: plan.files_to_create })] })] });
 }
 function Appendix2({ rawEvidence, resumeCommandTemplate }) {
-  return (0, import_jsx_runtime11.jsxs)(Collapsible, { className: "mt-8 rounded-lg border bg-card px-4 py-3", children: [(0, import_jsx_runtime11.jsx)(CollapsibleTrigger, { className: "text-[13px] font-medium text-muted-foreground", children: "Raw evidence and resume command" }), (0, import_jsx_runtime11.jsxs)(CollapsibleContent, { className: "mt-3 flex flex-col gap-2.5 text-[13px] text-muted-foreground", children: [(0, import_jsx_runtime11.jsxs)("p", { className: "flex flex-wrap items-baseline gap-1.5", children: [(0, import_jsx_runtime11.jsx)("strong", { className: "font-semibold text-foreground", children: "Resume command." }), (0, import_jsx_runtime11.jsx)(Chip, { text: resumeCommandTemplate })] }), (0, import_jsx_runtime11.jsx)("p", { children: (0, import_jsx_runtime11.jsx)("strong", { className: "font-semibold text-foreground", children: "Reports." }) }), (0, import_jsx_runtime11.jsx)(ChipRow, { items: rawEvidence })] })] });
+  return (0, import_jsx_runtime12.jsxs)(Collapsible, { className: "mt-8 rounded-lg border bg-card px-4 py-3", children: [(0, import_jsx_runtime12.jsx)(CollapsibleTrigger, { className: "text-[13px] font-medium text-muted-foreground", children: "Raw evidence and resume command" }), (0, import_jsx_runtime12.jsxs)(CollapsibleContent, { className: "mt-3 flex flex-col gap-2.5 text-[13px] text-muted-foreground", children: [(0, import_jsx_runtime12.jsxs)("p", { className: "flex flex-wrap items-baseline gap-1.5", children: [(0, import_jsx_runtime12.jsx)("strong", { className: "font-semibold text-foreground", children: "Resume command." }), (0, import_jsx_runtime12.jsx)(Chip, { text: resumeCommandTemplate })] }), (0, import_jsx_runtime12.jsx)("p", { children: (0, import_jsx_runtime12.jsx)("strong", { className: "font-semibold text-foreground", children: "Reports." }) }), (0, import_jsx_runtime12.jsx)(ChipRow, { items: rawEvidence })] })] });
 }
 function filteredChoices2(allowedChoices) {
   const allowed = new Set(allowedChoices);
@@ -81401,7 +81824,7 @@ function VariantDetails({ review, verification, providerEvidence: providerEviden
     PROTOTYPE_VARIANT_CHOICES_PATH,
     checkpointRequestPath2 ?? ""
   ].filter((item) => item.length > 0);
-  return (0, import_jsx_runtime11.jsxs)(Collapsible, { className: "mt-8 rounded-lg border bg-card px-5 py-4", children: [(0, import_jsx_runtime11.jsx)(CollapsibleTrigger, { className: "text-sm font-medium text-muted-foreground hover:text-foreground", children: "Comparison evidence and resume command" }), (0, import_jsx_runtime11.jsxs)(CollapsibleContent, { className: "flex flex-col gap-2.5 pt-4 text-sm leading-relaxed", children: [(0, import_jsx_runtime11.jsxs)("p", { children: [(0, import_jsx_runtime11.jsx)("strong", { children: "Comparison." }), " ", t(review.comparison_summary, MAX_PROMPT_LEN)] }), review.strengths.length === 0 ? null : (0, import_jsx_runtime11.jsxs)(import_jsx_runtime11.Fragment, { children: [(0, import_jsx_runtime11.jsx)("p", { children: (0, import_jsx_runtime11.jsx)("strong", { children: "Strengths." }) }), (0, import_jsx_runtime11.jsx)(BulletList, { items: review.strengths.map((item) => `${item.variant_id}: ${item.note}`) })] }), review.risks.length === 0 ? null : (0, import_jsx_runtime11.jsxs)(import_jsx_runtime11.Fragment, { children: [(0, import_jsx_runtime11.jsx)("p", { children: (0, import_jsx_runtime11.jsx)("strong", { children: "Risks." }) }), (0, import_jsx_runtime11.jsx)(BulletList, { items: review.risks })] }), (0, import_jsx_runtime11.jsxs)("p", { children: [(0, import_jsx_runtime11.jsx)("strong", { children: "Verification." }), " ", t(verification.overall_status, 120)] }), missingEvidence.length === 0 ? null : (0, import_jsx_runtime11.jsxs)("p", { children: [(0, import_jsx_runtime11.jsx)("strong", { children: "Missing evidence." }), " ", t(missingEvidence.join("; "), MAX_PROMPT_LEN)] }), (0, import_jsx_runtime11.jsxs)("p", { className: "flex flex-wrap items-baseline gap-1.5", children: [(0, import_jsx_runtime11.jsx)("strong", { children: "Resume command." }), (0, import_jsx_runtime11.jsx)(Chip, { text: resumeCommand })] }), (0, import_jsx_runtime11.jsx)("p", { children: (0, import_jsx_runtime11.jsx)("strong", { children: "Reports." }) }), (0, import_jsx_runtime11.jsx)(ChipRow, { items: reports })] })] });
+  return (0, import_jsx_runtime12.jsxs)(Collapsible, { className: "mt-8 rounded-lg border bg-card px-5 py-4", children: [(0, import_jsx_runtime12.jsx)(CollapsibleTrigger, { className: "text-sm font-medium text-muted-foreground hover:text-foreground", children: "Comparison evidence and resume command" }), (0, import_jsx_runtime12.jsxs)(CollapsibleContent, { className: "flex flex-col gap-2.5 pt-4 text-sm leading-relaxed", children: [(0, import_jsx_runtime12.jsxs)("p", { children: [(0, import_jsx_runtime12.jsx)("strong", { children: "Comparison." }), " ", t(review.comparison_summary, MAX_PROMPT_LEN)] }), review.strengths.length === 0 ? null : (0, import_jsx_runtime12.jsxs)(import_jsx_runtime12.Fragment, { children: [(0, import_jsx_runtime12.jsx)("p", { children: (0, import_jsx_runtime12.jsx)("strong", { children: "Strengths." }) }), (0, import_jsx_runtime12.jsx)(BulletList, { items: review.strengths.map((item) => `${item.variant_id}: ${item.note}`) })] }), review.risks.length === 0 ? null : (0, import_jsx_runtime12.jsxs)(import_jsx_runtime12.Fragment, { children: [(0, import_jsx_runtime12.jsx)("p", { children: (0, import_jsx_runtime12.jsx)("strong", { children: "Risks." }) }), (0, import_jsx_runtime12.jsx)(BulletList, { items: review.risks })] }), (0, import_jsx_runtime12.jsxs)("p", { children: [(0, import_jsx_runtime12.jsx)("strong", { children: "Verification." }), " ", t(verification.overall_status, 120)] }), missingEvidence.length === 0 ? null : (0, import_jsx_runtime12.jsxs)("p", { children: [(0, import_jsx_runtime12.jsx)("strong", { children: "Missing evidence." }), " ", t(missingEvidence.join("; "), MAX_PROMPT_LEN)] }), (0, import_jsx_runtime12.jsxs)("p", { className: "flex flex-wrap items-baseline gap-1.5", children: [(0, import_jsx_runtime12.jsx)("strong", { children: "Resume command." }), (0, import_jsx_runtime12.jsx)(Chip, { text: resumeCommand })] }), (0, import_jsx_runtime12.jsx)("p", { children: (0, import_jsx_runtime12.jsx)("strong", { children: "Reports." }) }), (0, import_jsx_runtime12.jsx)(ChipRow, { items: reports })] })] });
 }
 function variantComparisonItems(input) {
   return input.choices.map((choice) => {
@@ -81429,18 +81852,20 @@ function variantComparisonItems(input) {
         { label: "Verdict", value: branch?.verdict ?? "not reported" },
         { label: "Review", value: choice.review_recommendation ? "recommended" : "compared" }
       ],
-      evidence: [...entryPoints, ...createdFiles, ...artifactEvidence],
+      evidence: Array.from(/* @__PURE__ */ new Set([...entryPoints, ...createdFiles, ...artifactEvidence])),
       risks,
-      ...preview === void 0 ? {} : { preview },
+      preview,
       action: {
-        label: "Copy resume command",
-        prompt: resumeCommandForChoice(input.runFolder, choice.id),
+        label: "Choose this option",
+        prompt: resumeCommandForChoice(input.runFolder, choice.id, input.commandPrefix),
         primary: true
       }
     };
   });
 }
 function renderVariantCheckpoint(ctx) {
+  if (ctx.checkpoint === void 0)
+    return void 0;
   const aggregate2 = load(ctx.readJsonRunRelative, PROTOTYPE_VARIANT_AGGREGATE_PATH, (raw) => PrototypeVariantAggregate.safeParse(raw));
   const providerEvidence2 = load(ctx.readJsonRunRelative, PROTOTYPE_VARIANT_PROVIDER_EVIDENCE_PATH, (raw) => PrototypeVariantProviderEvidence.safeParse(raw));
   const verification = load(ctx.readJsonRunRelative, PROTOTYPE_VARIANT_VERIFICATION_PATH, (raw) => PrototypeVariantVerification.safeParse(raw));
@@ -81449,19 +81874,20 @@ function renderVariantCheckpoint(ctx) {
   if (aggregate2 === void 0 || providerEvidence2 === void 0 || verification === void 0 || review === void 0 || choices === void 0) {
     return void 0;
   }
-  const allowed = new Set(ctx.checkpoint?.allowed_choices ?? []);
+  const allowed = new Set(ctx.checkpoint.allowed_choices);
   const visibleChoices = choices.choices.filter((choice) => allowed.has(choice.id));
   if (visibleChoices.length === 0)
     return void 0;
   const recommended = visibleChoices.find((choice) => choice.id === choices.recommended_variant_id) ?? visibleChoices.find((choice) => choice.recommended) ?? visibleChoices[0];
   if (recommended === void 0)
     return void 0;
-  const resumeCommand = `circuit resume --run-folder ${shellSingleQuote(ctx.runFolder)} --checkpoint-choice '<variant-id>'`;
+  const commandPrefix = ctx.resumeCommandPrefix ?? "circuit resume";
+  const resumeCommand = `${commandPrefix} --run-folder ${shellSingleQuote(ctx.runFolder)} --checkpoint-choice '<variant-id>'`;
   return renderMultiVariantComparisonPage({
-    title: "Prototype model comparison checkpoint",
-    metaLine: `Prototype model comparison \xB7 ${ctx.runId}`,
-    headline: "Choose a prototype variant",
-    subtitle: "Compare local prototype artifacts using captured relay selection evidence, then keep one variant.",
+    title: "Prototype review",
+    metaLine: `Prototype review \xB7 ${ctx.runId}`,
+    headline: "Choose a prototype direction",
+    subtitle: "Experience each local prototype, record your review notes, then choose a direction.",
     recommendation: {
       label: recommended.label,
       rationale: review.comparison_summary,
@@ -81475,18 +81901,27 @@ function renderVariantCheckpoint(ctx) {
       choices: visibleChoices,
       recommendedChoiceId: recommended.id,
       runFolder: ctx.runFolder,
+      commandPrefix,
       projectRoot: ctx.projectRoot
     }),
-    details: (0, import_jsx_runtime11.jsx)(VariantDetails, { review, verification, providerEvidence: providerEvidence2, checkpointRequestPath: ctx.checkpoint?.request_path, resumeCommand }),
+    resume: {
+      runFolder: ctx.runFolder,
+      runId: ctx.runId,
+      stepId: ctx.checkpoint.step_id,
+      commandPrefix,
+      attempt: ctx.checkpoint.attempt,
+      requestSha256: ctx.checkpoint.request_sha256
+    },
+    details: (0, import_jsx_runtime12.jsx)(VariantDetails, { review, verification, providerEvidence: providerEvidence2, checkpointRequestPath: ctx.checkpoint?.request_path, resumeCommand }),
     footerLeft: `circuit \xB7 prototype \xB7 ${ctx.runId}`,
     footerRight: PROTOTYPE_VARIANT_AGGREGATE_PATH
   });
 }
-var import_jsx_runtime11, PROTOTYPE_BRIEF_PATH, PROTOTYPE_PLAN_PATH, PROTOTYPE_ARTIFACT_PATH, PROTOTYPE_VERIFICATION_PATH, PROTOTYPE_VARIANT_AGGREGATE_PATH, PROTOTYPE_VARIANT_PROVIDER_EVIDENCE_PATH, PROTOTYPE_VARIANT_VERIFICATION_PATH, PROTOTYPE_VARIANT_REVIEW_PATH, PROTOTYPE_VARIANT_CHOICES_PATH, CHOICES, prototypeCheckpointProjector;
+var import_jsx_runtime12, PROTOTYPE_BRIEF_PATH, PROTOTYPE_PLAN_PATH, PROTOTYPE_ARTIFACT_PATH, PROTOTYPE_VERIFICATION_PATH, PROTOTYPE_VARIANT_AGGREGATE_PATH, PROTOTYPE_VARIANT_PROVIDER_EVIDENCE_PATH, PROTOTYPE_VARIANT_VERIFICATION_PATH, PROTOTYPE_VARIANT_REVIEW_PATH, PROTOTYPE_VARIANT_CHOICES_PATH, CHOICES, prototypeCheckpointProjector;
 var init_checkpoint_html2 = __esm({
   "dist/flows/prototype/writers/checkpoint-html.js"() {
     "use strict";
-    import_jsx_runtime11 = __toESM(require_jsx_runtime(), 1);
+    import_jsx_runtime12 = __toESM(require_jsx_runtime(), 1);
     init_checkpoint_page();
     init_multi_variant();
     init_page();
@@ -81550,7 +81985,8 @@ var init_checkpoint_html2 = __esm({
         ...choice.id === safeDefaultId ? { isDefault: true } : {}
       }));
       const defaultChoice = options.find((option) => option.id === safeDefaultId);
-      const resumeCommandTemplate = `circuit resume --run-folder ${shellSingleQuote(ctx.runFolder)} --checkpoint-choice '<choice>'`;
+      const commandPrefix = ctx.resumeCommandPrefix ?? "circuit resume";
+      const resumeCommandTemplate = `${commandPrefix} --run-folder ${shellSingleQuote(ctx.runFolder)} --checkpoint-choice '<choice>'`;
       const rawEvidence = [
         PROTOTYPE_BRIEF_PATH,
         PROTOTYPE_PLAN_PATH,
@@ -81558,6 +81994,11 @@ var init_checkpoint_html2 = __esm({
         PROTOTYPE_VERIFICATION_PATH,
         ctx.checkpoint.request_path
       ];
+      const artifactPreview = previewForEntryPoints({
+        entryPoints: artifact.entry_points,
+        runFolder: ctx.runFolder,
+        projectRoot: ctx.projectRoot
+      });
       return renderCheckpointPage({
         meta: { flowLabel: "Prototype", runId: ctx.runId, stepId: ctx.checkpoint.step_id },
         question: brief.objective,
@@ -81571,10 +82012,20 @@ var init_checkpoint_html2 = __esm({
           rationale: "Safe default: keep the prototype evidence and decide on Build separately."
         },
         options,
+        artifact: {
+          title: "Prototype preview",
+          description: artifact.summary,
+          preview: artifactPreview
+        },
         ...defaultChoice === void 0 ? {} : { defaultChoice: { id: defaultChoice.id, label: defaultChoice.label } },
-        context: (0, import_jsx_runtime11.jsxs)("div", { className: "grid gap-4 md:grid-cols-2", children: [(0, import_jsx_runtime11.jsx)(ArtifactCard2, { artifact }), (0, import_jsx_runtime11.jsx)(VerificationCard, { verification }), (0, import_jsx_runtime11.jsx)(RiskCard2, { artifact, brief }), (0, import_jsx_runtime11.jsx)(PlanCard, { plan })] }),
-        appendix: (0, import_jsx_runtime11.jsx)(Appendix2, { rawEvidence, resumeCommandTemplate }),
-        resume: { runFolder: ctx.runFolder },
+        context: (0, import_jsx_runtime12.jsxs)("div", { className: "grid gap-4 md:grid-cols-2", children: [(0, import_jsx_runtime12.jsx)(ArtifactCard2, { artifact }), (0, import_jsx_runtime12.jsx)(VerificationCard, { verification }), (0, import_jsx_runtime12.jsx)(RiskCard2, { artifact, brief }), (0, import_jsx_runtime12.jsx)(PlanCard, { plan })] }),
+        appendix: (0, import_jsx_runtime12.jsx)(Appendix2, { rawEvidence, resumeCommandTemplate }),
+        resume: {
+          runFolder: ctx.runFolder,
+          commandPrefix,
+          attempt: ctx.checkpoint.attempt,
+          requestSha256: ctx.checkpoint.request_sha256
+        },
         footerLeft: `circuit \xB7 prototype \xB7 ${ctx.runId}`,
         footerRight: PROTOTYPE_ARTIFACT_PATH
       });
@@ -82552,7 +83003,7 @@ var init_verification_projection3 = __esm({
 });
 
 // dist/flows/pursue/writers/verification.js
-import { readFileSync as readFileSync33 } from "node:fs";
+import { readFileSync as readFileSync34 } from "node:fs";
 var pursuitVerificationWriter;
 var init_verification8 = __esm({
   "dist/flows/pursue/writers/verification.js"() {
@@ -82572,7 +83023,7 @@ var init_verification8 = __esm({
         if (!context.step.reads.includes(contractPath)) {
           throw new Error(`pursuit.verification@v1 requires step '${context.step.id}' to read ${contractPath}`);
         }
-        const contract = PursuitContract.parse(JSON.parse(readFileSync33(resolveRunRelative(context.runFolder, contractPath), "utf8")));
+        const contract = PursuitContract.parse(JSON.parse(readFileSync34(resolveRunRelative(context.runFolder, contractPath), "utf8")));
         return contract.verification_command_candidates;
       },
       buildResult(observations) {
@@ -83139,7 +83590,7 @@ var init_intake_projection = __esm({
 
 // dist/flows/review/writers/intake.js
 import { spawnSync as spawnSync3 } from "node:child_process";
-import { closeSync as closeSync2, lstatSync as lstatSync4, openSync as openSync2, readSync as readSync2 } from "node:fs";
+import { closeSync as closeSync2, lstatSync as lstatSync5, openSync as openSync2, readSync as readSync2 } from "node:fs";
 import { isAbsolute as isAbsolute8, relative as relative8, resolve as resolve13 } from "node:path";
 function truncateText(text, maxChars) {
   if (text.length <= maxChars)
@@ -83208,7 +83659,7 @@ function readUntrackedFile(projectRoot, path, contentPolicy) {
   }
   let stat2;
   try {
-    stat2 = lstatSync4(abs);
+    stat2 = lstatSync5(abs);
   } catch (err) {
     return { path, byte_length: 0, skipped_reason: `failed to inspect file: ${errorMessage3(err)}` };
   }
@@ -83352,7 +83803,7 @@ var init_result_projection5 = __esm({
 });
 
 // dist/flows/review/writers/result.js
-import { readFileSync as readFileSync34 } from "node:fs";
+import { readFileSync as readFileSync35 } from "node:fs";
 function reviewerRelayResultPath(flow, closeStep) {
   const closeStepId = closeStep.id;
   const reviewerRelayes = flow.steps.filter((candidate) => candidate.kind === "relay" && candidate.role === "reviewer" && candidate.routes.pass === closeStepId);
@@ -83388,8 +83839,8 @@ var init_result2 = __esm({
       // its own resolution.
       build(context) {
         const path = reviewerRelayResultPath(context.flow, context.step);
-        const intake = ReviewIntake.parse(JSON.parse(readFileSync34(resolveRunRelative(context.runFolder, reviewIntakePath(context.flow, context.step)), "utf8")));
-        const relayResult = ReviewRelayResult.parse(JSON.parse(readFileSync34(resolveRunRelative(context.runFolder, path), "utf8")));
+        const intake = ReviewIntake.parse(JSON.parse(readFileSync35(resolveRunRelative(context.runFolder, reviewIntakePath(context.flow, context.step)), "utf8")));
+        const relayResult = ReviewRelayResult.parse(JSON.parse(readFileSync35(resolveRunRelative(context.runFolder, path), "utf8")));
         return projectReviewResult({ intake, relayResult });
       }
     };
@@ -83499,28 +83950,28 @@ function severityIntent(severity) {
 }
 function FindingList({ findings }) {
   if (findings.length === 0)
-    return (0, import_jsx_runtime12.jsx)(Summary, { text: "No actionable findings." });
-  return (0, import_jsx_runtime12.jsx)("ul", { className: "m-0 list-disc space-y-1.5 pl-4 text-[13px] leading-normal marker:text-muted-foreground/60", children: findings.map((finding3) => (0, import_jsx_runtime12.jsxs)("li", { children: [(0, import_jsx_runtime12.jsx)("strong", { children: t(finding3.severity.toUpperCase(), 40) }), ":", " ", t(finding3.text, MAX_BULLET_LEN), finding3.file_refs.length === 0 ? null : (0, import_jsx_runtime12.jsxs)(import_jsx_runtime12.Fragment, { children: [" ", (0, import_jsx_runtime12.jsx)(Chip, { text: finding3.file_refs.join(", ") })] })] }, `${finding3.severity}:${finding3.text}`)) });
+    return (0, import_jsx_runtime13.jsx)(Summary, { text: "No actionable findings." });
+  return (0, import_jsx_runtime13.jsx)("ul", { className: "m-0 list-disc space-y-1.5 pl-4 text-[13px] leading-normal marker:text-muted-foreground/60", children: findings.map((finding3) => (0, import_jsx_runtime13.jsxs)("li", { children: [(0, import_jsx_runtime13.jsx)("strong", { children: t(finding3.severity.toUpperCase(), 40) }), ":", " ", t(finding3.text, MAX_BULLET_LEN), finding3.file_refs.length === 0 ? null : (0, import_jsx_runtime13.jsxs)(import_jsx_runtime13.Fragment, { children: [" ", (0, import_jsx_runtime13.jsx)(Chip, { text: finding3.file_refs.join(", ") })] })] }, `${finding3.severity}:${finding3.text}`)) });
 }
 function StringList({ items }) {
   if (items.length === 0)
-    return (0, import_jsx_runtime12.jsx)(Summary, { text: "None." });
-  return (0, import_jsx_runtime12.jsx)(BulletList, { items });
+    return (0, import_jsx_runtime13.jsx)(Summary, { text: "None." });
+  return (0, import_jsx_runtime13.jsx)(BulletList, { items });
 }
 function WarningList({ warnings }) {
   if (warnings.length === 0)
-    return (0, import_jsx_runtime12.jsx)(Summary, { text: "No evidence warnings." });
-  return (0, import_jsx_runtime12.jsx)("ul", { className: "m-0 list-disc space-y-1.5 pl-4 text-[13px] leading-normal marker:text-muted-foreground/60", children: warnings.map((warning) => (0, import_jsx_runtime12.jsxs)("li", { children: [(0, import_jsx_runtime12.jsx)("strong", { children: t(warning.kind, 120) }), warning.path === void 0 ? null : (0, import_jsx_runtime12.jsxs)(import_jsx_runtime12.Fragment, { children: [" (", t(warning.path, MAX_BULLET_LEN), ")"] }), ":", " ", t(warning.message, MAX_BULLET_LEN)] }, `${warning.kind}:${warning.message}`)) });
+    return (0, import_jsx_runtime13.jsx)(Summary, { text: "No evidence warnings." });
+  return (0, import_jsx_runtime13.jsx)("ul", { className: "m-0 list-disc space-y-1.5 pl-4 text-[13px] leading-normal marker:text-muted-foreground/60", children: warnings.map((warning) => (0, import_jsx_runtime13.jsxs)("li", { children: [(0, import_jsx_runtime13.jsx)("strong", { children: t(warning.kind, 120) }), warning.path === void 0 ? null : (0, import_jsx_runtime13.jsxs)(import_jsx_runtime13.Fragment, { children: [" (", t(warning.path, MAX_BULLET_LEN), ")"] }), ":", " ", t(warning.message, MAX_BULLET_LEN)] }, `${warning.kind}:${warning.message}`)) });
 }
 function EvidenceSummary({ report }) {
   const evidence2 = report.evidence_summary;
   if (evidence2 === void 0)
-    return (0, import_jsx_runtime12.jsx)(Summary, { text: "No evidence summary was recorded." });
+    return (0, import_jsx_runtime13.jsx)(Summary, { text: "No evidence summary was recorded." });
   if (evidence2.kind === "unavailable")
-    return (0, import_jsx_runtime12.jsx)(Summary, { text: evidence2.message });
+    return (0, import_jsx_runtime13.jsx)(Summary, { text: evidence2.message });
   const sampled = `${evidence2.untracked_files_sampled}/${evidence2.untracked_file_count}`;
   const truncated = evidence2.untracked_files_truncated ? "yes" : "no";
-  return (0, import_jsx_runtime12.jsx)(BulletList, { items: [
+  return (0, import_jsx_runtime13.jsx)(BulletList, { items: [
     `Untracked content policy: ${evidence2.untracked_content_policy}`,
     `Untracked files sampled: ${sampled}`,
     `Untracked file list truncated: ${truncated}`
@@ -83529,11 +83980,11 @@ function EvidenceSummary({ report }) {
 function shouldRenderHtml(report) {
   return report.findings.length > 0 || report.evidence_warnings.length > 0 || report.confidence_limitations.length > 0;
 }
-var import_jsx_runtime12, reviewResultProjector;
+var import_jsx_runtime13, reviewResultProjector;
 var init_result_html = __esm({
   "dist/flows/review/writers/result-html.js"() {
     "use strict";
-    import_jsx_runtime12 = __toESM(require_jsx_runtime(), 1);
+    import_jsx_runtime13 = __toESM(require_jsx_runtime(), 1);
     init_page();
     init_react_page();
     init_report_components();
@@ -83560,7 +84011,7 @@ var init_result_html = __esm({
         subtitle: report.assessment,
         footerLeft: `Run ${ctx.runId}`,
         footerRight: "reports/review-result.json",
-        children: (0, import_jsx_runtime12.jsxs)(import_jsx_runtime12.Fragment, { children: [(0, import_jsx_runtime12.jsx)(VerdictBanner, { intent: worstIntent, badgeText: report.verdict, main: (0, import_jsx_runtime12.jsx)("strong", { children: t(report.scope, MAX_PROMPT_LEN) }), aside: `${report.findings.length} finding${report.findings.length === 1 ? "" : "s"}` }), (0, import_jsx_runtime12.jsxs)("div", { className: "flex flex-col gap-4", children: [(0, import_jsx_runtime12.jsx)(ReportCard, { intent: worstIntent, eyebrow: "Findings", title: "Reviewer findings", children: (0, import_jsx_runtime12.jsx)(FindingList, { findings: report.findings }) }), (0, import_jsx_runtime12.jsxs)(ReportCard, { eyebrow: "Evidence", title: "What was checked", children: [(0, import_jsx_runtime12.jsx)(Summary, { text: report.assessment }), (0, import_jsx_runtime12.jsxs)("div", { children: [(0, import_jsx_runtime12.jsx)(SectionLabel, { children: "Verification" }), (0, import_jsx_runtime12.jsx)(StringList, { items: report.verification })] }), (0, import_jsx_runtime12.jsxs)("div", { children: [(0, import_jsx_runtime12.jsx)(SectionLabel, { children: "Confidence limits" }), (0, import_jsx_runtime12.jsx)(StringList, { items: report.confidence_limitations })] })] }), (0, import_jsx_runtime12.jsxs)(ReportCard, { eyebrow: "Caveats", title: "Evidence caveats", ...report.evidence_warnings.length > 0 ? { badge: { text: "Scope limited", intent: "attention" } } : {}, children: [(0, import_jsx_runtime12.jsx)(WarningList, { warnings: report.evidence_warnings }), (0, import_jsx_runtime12.jsx)(EvidenceSummary, { report })] })] })] })
+        children: (0, import_jsx_runtime13.jsxs)(import_jsx_runtime13.Fragment, { children: [(0, import_jsx_runtime13.jsx)(VerdictBanner, { intent: worstIntent, badgeText: report.verdict, main: (0, import_jsx_runtime13.jsx)("strong", { children: t(report.scope, MAX_PROMPT_LEN) }), aside: `${report.findings.length} finding${report.findings.length === 1 ? "" : "s"}` }), (0, import_jsx_runtime13.jsxs)("div", { className: "flex flex-col gap-4", children: [(0, import_jsx_runtime13.jsx)(ReportCard, { intent: worstIntent, eyebrow: "Findings", title: "Reviewer findings", children: (0, import_jsx_runtime13.jsx)(FindingList, { findings: report.findings }) }), (0, import_jsx_runtime13.jsxs)(ReportCard, { eyebrow: "Evidence", title: "What was checked", children: [(0, import_jsx_runtime13.jsx)(Summary, { text: report.assessment }), (0, import_jsx_runtime13.jsxs)("div", { children: [(0, import_jsx_runtime13.jsx)(SectionLabel, { children: "Verification" }), (0, import_jsx_runtime13.jsx)(StringList, { items: report.verification })] }), (0, import_jsx_runtime13.jsxs)("div", { children: [(0, import_jsx_runtime13.jsx)(SectionLabel, { children: "Confidence limits" }), (0, import_jsx_runtime13.jsx)(StringList, { items: report.confidence_limitations })] })] }), (0, import_jsx_runtime13.jsxs)(ReportCard, { eyebrow: "Caveats", title: "Evidence caveats", ...report.evidence_warnings.length > 0 ? { badge: { text: "Scope limited", intent: "attention" } } : {}, children: [(0, import_jsx_runtime13.jsx)(WarningList, { warnings: report.evidence_warnings }), (0, import_jsx_runtime13.jsx)(EvidenceSummary, { report })] })] })] })
       });
     };
   }
@@ -84154,7 +84605,7 @@ var init_census = __esm({
 });
 
 // dist/flows/sweep/writers/partition.js
-import { existsSync as existsSync21, readFileSync as readFileSync35 } from "node:fs";
+import { existsSync as existsSync21, readFileSync as readFileSync36 } from "node:fs";
 function sanitizeForBranchId(value) {
   const cleaned = value.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-+|-+$/g, "");
   return cleaned.length === 0 ? "unit" : cleaned;
@@ -84165,7 +84616,7 @@ function latestLesson(runFolder) {
     return void 0;
   let parsed;
   try {
-    parsed = JSON.parse(readFileSync35(notesPath, "utf8"));
+    parsed = JSON.parse(readFileSync36(notesPath, "utf8"));
   } catch {
     return void 0;
   }
@@ -84254,7 +84705,7 @@ var init_partition = __esm({
 });
 
 // dist/flows/sweep/writers/verification.js
-import { readFileSync as readFileSync36 } from "node:fs";
+import { readFileSync as readFileSync37 } from "node:fs";
 var sweepRescanVerificationWriter;
 var init_verification9 = __esm({
   "dist/flows/sweep/writers/verification.js"() {
@@ -84273,7 +84724,7 @@ var init_verification9 = __esm({
         if (!context.step.reads.includes(censusPath)) {
           throw new Error(`sweep.verification@v1 requires step '${context.step.id}' to read ${censusPath}`);
         }
-        const census = SweepCensus.parse(JSON.parse(readFileSync36(resolveRunRelative(context.runFolder, censusPath), "utf8")));
+        const census = SweepCensus.parse(JSON.parse(readFileSync37(resolveRunRelative(context.runFolder, censusPath), "utf8")));
         return [census.scanner, census.suppression_audit];
       },
       buildResult(observations) {
@@ -86190,9 +86641,9 @@ var init_custom_flow_descriptor = __esm({
 
 // dist/cli/custom-flow-package.js
 import { randomUUID as randomUUID3 } from "node:crypto";
-import { existsSync as existsSync22, mkdirSync as mkdirSync4, readFileSync as readFileSync37, rmSync as rmSync4, writeFileSync as writeFileSync5 } from "node:fs";
+import { existsSync as existsSync22, mkdirSync as mkdirSync4, readFileSync as readFileSync38, rmSync as rmSync4, writeFileSync as writeFileSync5 } from "node:fs";
 import { homedir as homedir2 } from "node:os";
-import { dirname as dirname6, join as join15, resolve as resolve14 } from "node:path";
+import { dirname as dirname7, join as join15, resolve as resolve14 } from "node:path";
 function slugify2(value) {
   const slug = value.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-+|-+$/g, "").slice(0, 48).replace(/-+$/g, "");
   return slug.length > 0 ? slug : `custom-${randomUUID3().slice(0, 8)}`;
@@ -86236,7 +86687,7 @@ function summaryPath(home, slug) {
   return join15(reportsRoot(home), `${slug}-operator-summary.md`);
 }
 function writeText(path, text) {
-  mkdirSync4(dirname6(path), { recursive: true });
+  mkdirSync4(dirname7(path), { recursive: true });
   writeFileSync5(path, text.endsWith("\n") ? text : `${text}
 `);
 }
@@ -86329,7 +86780,7 @@ function publishManifest(input) {
     custom_flows: []
   };
   if (existsSync22(manifestPath(input.home))) {
-    existing = JSON.parse(readFileSync37(manifestPath(input.home), "utf8"));
+    existing = JSON.parse(readFileSync38(manifestPath(input.home), "utf8"));
   }
   const withoutSlug = existing.custom_flows.filter((flow) => !(typeof flow === "object" && flow !== null && "id" in flow && flow.id === input.slug));
   writeJson2(manifestPath(input.home), {
@@ -86363,7 +86814,7 @@ function writeValidationResult(input) {
   });
 }
 function readDraftMetadata(home, slug) {
-  const raw = JSON.parse(readFileSync37(join15(draftRoot(home, slug), "validation-result.json"), "utf8"));
+  const raw = JSON.parse(readFileSync38(join15(draftRoot(home, slug), "validation-result.json"), "utf8"));
   const filenames = Array.isArray(raw.flow_files) && raw.flow_files.every((f) => typeof f === "string") ? raw.flow_files : ["circuit.json"];
   return {
     filenames,
@@ -86400,7 +86851,7 @@ function loadDraftFlow(home, slug) {
   const { filenames } = readDraftMetadata(home, slug);
   const files = filenames.map((filename) => {
     const path = join15(draftRoot(home, slug), filename);
-    const flow = CompiledFlow.parse(JSON.parse(readFileSync37(path, "utf8")));
+    const flow = CompiledFlow.parse(JSON.parse(readFileSync38(path, "utf8")));
     validateCustomFlow(slug, flow, `custom flow draft (${filename})`);
     return { filename, flow };
   });
@@ -86411,7 +86862,7 @@ function publishDraft(input) {
   if (!existsSync22(join15(draft, "SKILL.md"))) {
     throw new Error(`draft missing for ${input.slug}: ${draft}`);
   }
-  const descriptor = readFileSync37(join15(draft, "circuit.yaml"), "utf8");
+  const descriptor = readFileSync38(join15(draft, "circuit.yaml"), "utf8");
   validateCircuitYamlDescriptor(descriptor, join15(draft, "circuit.yaml"), input.slug);
   const { filenames } = readDraftMetadata(input.home, input.slug);
   const skillRoot = publishedRoot(input.home, input.slug);
@@ -86419,12 +86870,12 @@ function publishDraft(input) {
   rmSync4(customFlowRoot, { recursive: true, force: true });
   mkdirSync4(skillRoot, { recursive: true });
   mkdirSync4(customFlowRoot, { recursive: true });
-  writeText(join15(skillRoot, "SKILL.md"), readFileSync37(join15(draft, "SKILL.md"), "utf8"));
+  writeText(join15(skillRoot, "SKILL.md"), readFileSync38(join15(draft, "SKILL.md"), "utf8"));
   writeText(join15(skillRoot, "circuit.yaml"), descriptor);
   for (const filename of filenames) {
-    writeText(join15(customFlowRoot, filename), readFileSync37(join15(draft, filename), "utf8"));
+    writeText(join15(customFlowRoot, filename), readFileSync38(join15(draft, filename), "utf8"));
   }
-  writeText(join15(commandRoot(input.home), `${input.slug}.md`), readFileSync37(join15(draft, "command.md"), "utf8"));
+  writeText(join15(commandRoot(input.home), `${input.slug}.md`), readFileSync38(join15(draft, "command.md"), "utf8"));
   publishManifest({ ...input, filenames });
 }
 var import_yaml3, RESERVED_FLOW_IDS;
@@ -86442,8 +86893,8 @@ var init_custom_flow_package = __esm({
 });
 
 // dist/cli/runtime-routing-policy.js
-import { readFileSync as readFileSync38 } from "node:fs";
-import { basename as basename4, dirname as dirname7, relative as relative9, resolve as resolve15 } from "node:path";
+import { readFileSync as readFileSync39 } from "node:fs";
+import { basename as basename4, dirname as dirname8, relative as relative9, resolve as resolve15 } from "node:path";
 function pathIsInside(parent, child) {
   const rel = relative9(parent, child);
   return rel.length === 0 || !rel.startsWith("..") && !rel.startsWith("/");
@@ -86467,7 +86918,7 @@ function fixtureEligibleForRuntime(input) {
 }
 function readCustomFlowEntries(flowRoot2) {
   try {
-    const manifest = JSON.parse(readFileSync38(resolve15(dirname7(resolve15(flowRoot2)), "manifest.json"), "utf8"));
+    const manifest = JSON.parse(readFileSync39(resolve15(dirname8(resolve15(flowRoot2)), "manifest.json"), "utf8"));
     if (manifest === null || typeof manifest !== "object" || Array.isArray(manifest))
       return [];
     const customFlows = manifest.custom_flows;
@@ -86500,12 +86951,12 @@ function unrecordedPublishedSiblingReason(input) {
   if (flowRoot2 === void 0)
     return void 0;
   const fixturePath = resolve15(input.fixturePath);
-  const fixtureDir = dirname7(fixturePath);
+  const fixtureDir = dirname8(fixturePath);
   for (const candidate of readCustomFlowEntries(flowRoot2)) {
     const recorded = recordedFlowPaths(candidate);
     if (recorded.length === 0)
       continue;
-    if (dirname7(recorded[0]) !== fixtureDir)
+    if (dirname8(recorded[0]) !== fixtureDir)
       continue;
     if (recorded.includes(fixturePath))
       continue;
@@ -86850,7 +87301,7 @@ function parseNdjsonObjects(stdout, label) {
 }
 async function runConnectorSubprocess(input) {
   const start = performance2.now();
-  return await new Promise((resolve32, reject) => {
+  return await new Promise((resolve33, reject) => {
     let child;
     try {
       child = spawn(input.executable, [...input.args], {
@@ -86932,7 +87383,7 @@ async function runConnectorSubprocess(input) {
     });
     child.on("close", (code, signal) => {
       clearAllTimers();
-      resolve32({
+      resolve33({
         stdout,
         stderr,
         stdoutCapped,
@@ -87258,7 +87709,7 @@ var init_claude_code = __esm({
 });
 
 // dist/connectors/codex-default-model.js
-import { readFileSync as readFileSync39 } from "node:fs";
+import { readFileSync as readFileSync40 } from "node:fs";
 import { homedir as homedir3 } from "node:os";
 import { join as join17 } from "node:path";
 function codexHomeDir() {
@@ -87315,7 +87766,7 @@ function resolveCodexDefaultModelUncached() {
   const cachePath = codexModelsCachePath();
   let raw;
   try {
-    raw = readFileSync39(cachePath, "utf8");
+    raw = readFileSync40(cachePath, "utf8");
   } catch (err) {
     throw new CodexDefaultModelUnavailableError(unavailableMessage(cachePath, `cache not readable: ${err.message}`));
   }
@@ -87353,7 +87804,7 @@ var init_codex_default_model = __esm({
 
 // dist/connectors/codex.js
 import { execFileSync as execFileSync3 } from "node:child_process";
-import { readFileSync as readFileSync40 } from "node:fs";
+import { readFileSync as readFileSync41 } from "node:fs";
 import { mkdtemp, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join as joinPath } from "node:path";
@@ -87517,7 +87968,7 @@ function codexModelCacheHint(model, streamError) {
     return "";
   let slugs;
   try {
-    const parsed = JSON.parse(readFileSync40(codexModelsCachePath(), "utf8"));
+    const parsed = JSON.parse(readFileSync41(codexModelsCachePath(), "utf8"));
     const models = parsed?.models;
     if (!Array.isArray(models))
       return "";
@@ -90434,7 +90885,7 @@ var init_fanout_branch_template = __esm({
 });
 
 // dist/shared/user-skill-registry.js
-import { existsSync as existsSync24, readFileSync as readFileSync41, readdirSync as readdirSync3 } from "node:fs";
+import { existsSync as existsSync24, readFileSync as readFileSync42, readdirSync as readdirSync3 } from "node:fs";
 import { homedir as homedir4 } from "node:os";
 import { join as join18, resolve as resolve16 } from "node:path";
 function defaultUserSkillRoots(homeDir = homedir4()) {
@@ -90496,7 +90947,7 @@ function discoverCandidates(roots) {
 function loadCandidate(candidate) {
   let text;
   try {
-    text = readFileSync41(candidate.path, "utf8");
+    text = readFileSync42(candidate.path, "utf8");
   } catch (err) {
     throw new Error(`selected skill '${candidate.id}' could not be read at ${candidate.path}: ${err.message}`);
   }
@@ -91245,6 +91696,13 @@ var init_result3 = __esm({
 });
 
 // dist/runtime/executors/checkpoint.js
+function checkpointAttemptResponsePath(responsePath, attempt) {
+  const jsonSuffix = ".json";
+  if (responsePath.endsWith(jsonSuffix)) {
+    return `${responsePath.slice(0, -jsonSuffix.length)}.attempt-${attempt}${jsonSuffix}`;
+  }
+  return `${responsePath}.attempt-${attempt}.json`;
+}
 function policy(step) {
   if (step.policy === void 0 || step.policy === null || typeof step.policy !== "object") {
     throw new Error(`checkpoint step '${step.id}' is missing checkpoint policy`);
@@ -91462,6 +91920,7 @@ async function executeCheckpointResult(step, context) {
     let checkpointRequestSha256;
     const report = step.writes?.report;
     const resumedSelection = context.resumeCheckpoint?.stepId === step.id ? context.resumeCheckpoint.selection : void 0;
+    const resumedComments = context.resumeCheckpoint?.stepId === step.id ? context.resumeCheckpoint.comments : void 0;
     const resolution = await resolveCheckpoint(step, context, context.depth, stepPolicy);
     if (resumedSelection === void 0) {
       if (report !== void 0) {
@@ -91517,12 +91976,16 @@ async function executeCheckpointResult(step, context) {
       autoResolved: false
     };
     if (effectiveResolution.kind === "waiting") {
+      if (checkpointRequestSha256 === void 0) {
+        return stepExecutionFailed(`checkpoint step '${step.id}' cannot wait without a saved request hash`);
+      }
       return stepExecutionOutcome({
         kind: "waiting_checkpoint",
         checkpoint: {
           stepId: step.id,
           attempt,
           requestPath: context.files.resolve(request),
+          requestSha256: checkpointRequestSha256,
           allowedChoices: stepPolicy.choices.map((choice) => choice.id)
         }
       });
@@ -91581,14 +92044,19 @@ async function executeCheckpointResult(step, context) {
       });
       return stepExecutionFailed(reason);
     }
-    await context.files.writeJson(response, {
+    const responseBody = {
       schema_version: 1,
       step_id: step.id,
       selection: effectiveResolution.selection,
       route_id: routeId,
       resolution_source: effectiveResolution.resolutionSource,
+      ...resumedComments === void 0 || resumedComments.length === 0 ? {} : { comments: resumedComments },
       ...effectiveResolution.autoResolution === void 0 ? {} : { auto_resolution: effectiveResolution.autoResolution }
-    });
+    };
+    await context.files.writeJson(response, responseBody);
+    const responseAttemptPath = checkpointAttemptResponsePath(response.path, attempt);
+    await context.files.writeJson(responseAttemptPath, responseBody);
+    const responseReportHash = sha256OfString(await context.files.readText(responseAttemptPath));
     await context.trace.append({
       run_id: context.runId,
       kind: "checkpoint.resolved",
@@ -91598,7 +92066,9 @@ async function executeCheckpointResult(step, context) {
       route_id: routeId,
       auto_resolved: effectiveResolution.autoResolved,
       resolution_source: effectiveResolution.resolutionSource,
-      response_path: response.path
+      response_path: response.path,
+      response_attempt_path: responseAttemptPath,
+      response_report_hash: responseReportHash
     });
     await context.trace.append({
       run_id: context.runId,
@@ -92974,6 +93444,7 @@ var init_operator_summary = __esm({
     init_power();
     init_process();
     init_progress_event();
+    init_ref();
     init_rubric();
     init_selection_policy();
     init_step();
@@ -93095,7 +93566,9 @@ var init_operator_summary = __esm({
       receipt: OperatorRunReceipt.optional(),
       checkpoint: external_exports.object({
         step_id: external_exports.string().min(1),
+        attempt: external_exports.number().int().positive().optional(),
         request_path: external_exports.string().min(1),
+        request_sha256: Sha256.optional(),
         allowed_choices: external_exports.array(external_exports.string().min(1)).min(1)
       }).strict().optional()
     }).strict();
@@ -94820,6 +95293,8 @@ var init_schemas3 = __esm({
     init_config();
     init_custom_flow_descriptor();
     init_checkpoint_boundary();
+    init_checkpoint_review_constraints();
+    init_checkpoint_review_response();
     init_change_packet();
     init_policy_envelope();
     init_host();
@@ -94877,7 +95352,7 @@ var init_schemas3 = __esm({
 });
 
 // dist/runtime/run/relay-support.js
-import { existsSync as existsSync25, readFileSync as readFileSync42 } from "node:fs";
+import { existsSync as existsSync25, readFileSync as readFileSync43 } from "node:fs";
 function evaluateRelayCheck(step, resultBody) {
   let parsed;
   try {
@@ -95115,7 +95590,7 @@ function composeRelayPrompt(step, runFolder, loadedSkills = [], acceptanceRetryF
     const abs = resolveRunRelative(runFolder, path);
     if (!existsSync25(abs))
       return `[reads unavailable: ${path}]`;
-    return fencedBlock("read", ` path="${path}"`, readFileSync42(abs, "utf8"));
+    return fencedBlock("read", ` path="${path}"`, readFileSync43(abs, "utf8"));
   }).join("\n\n");
   const skillsSection = selectedSkillsSection(loadedSkills);
   const houseStyle = houseStyleSection(step, loadedSkills);
@@ -95908,7 +96383,7 @@ var init_relay = __esm({
 
 // dist/runtime/executors/sub-run.js
 import { randomUUID as randomUUID5 } from "node:crypto";
-import { dirname as dirname8, join as join20 } from "node:path";
+import { dirname as dirname9, join as join20 } from "node:path";
 function checkPassVerdicts(step) {
   const pass = step.check.pass;
   return Array.isArray(pass) ? pass.filter((entry) => typeof entry === "string") : [];
@@ -96012,7 +96487,7 @@ async function executeSubRunInternal(step, context) {
     return await recordSubRunCheckFailure(step, context, `sub-run step '${step.id}': resolver returned flow id '${childFlow.id}' but flow_ref names '${step.flowRef}'`);
   }
   const childRunId = randomUUID5();
-  const childRunDir = join20(dirname8(context.runDir), childRunId);
+  const childRunDir = join20(dirname9(context.runDir), childRunId);
   await context.trace.append({
     run_id: context.runId,
     kind: "sub_run.started",
@@ -96150,7 +96625,7 @@ var init_sub_run = __esm({
 });
 
 // dist/runtime/run/reuse-children.js
-import { existsSync as existsSync26, readFileSync as readFileSync43 } from "node:fs";
+import { existsSync as existsSync26, readFileSync as readFileSync44 } from "node:fs";
 import { isAbsolute as isAbsolute9, join as join21 } from "node:path";
 function isCompletedSubRunBranch(entry, stepId, branchId) {
   return entry.kind === "fanout.branch_completed" && entry.step_id === stepId && entry.branch_id === branchId && entry.branch_kind === "sub-run" && entry.child_outcome === "complete";
@@ -96183,7 +96658,7 @@ async function lookupReusableSubRunBranch(input) {
   const resultAbs = isAbsolute9(completed.result_path) ? completed.result_path : join21(input.priorRunFolder, completed.result_path);
   let resultBody;
   try {
-    resultBody = RunResult.parse(JSON.parse(readFileSync43(resultAbs, "utf8")));
+    resultBody = RunResult.parse(JSON.parse(readFileSync44(resultAbs, "utf8")));
   } catch {
     return void 0;
   }
@@ -96211,7 +96686,7 @@ var init_types2 = __esm({
 
 // dist/runtime/fanout/branch-execution.js
 import { randomUUID as randomUUID6 } from "node:crypto";
-import { dirname as dirname9, join as join22 } from "node:path";
+import { dirname as dirname10, join as join22 } from "node:path";
 async function appendFanoutBranchStarted(context, fields) {
   await context.trace.append({
     run_id: context.runId,
@@ -96637,7 +97112,7 @@ async function executeSubRunFanoutBranch(step, context, branch, worktreeRunner, 
     if (childFlow.id !== branch.flowRef) {
       throw new Error(`resolver returned flow id '${childFlow.id}' but branch flow_ref names '${branch.flowRef}'`);
     }
-    const childRunDir = join22(dirname9(context.runDir), childRunId);
+    const childRunDir = join22(dirname10(context.runDir), childRunId);
     const child = await context.childRunner({
       flowBytes: resolved.flowBytes,
       runDir: childRunDir,
@@ -96809,7 +97284,7 @@ var init_branch_expansion = __esm({
 });
 
 // dist/runtime/fanout/run-owner-lock.js
-import { mkdirSync as mkdirSync5, readFileSync as readFileSync44, rmSync as rmSync5, writeFileSync as writeFileSync6 } from "node:fs";
+import { mkdirSync as mkdirSync5, readFileSync as readFileSync45, rmSync as rmSync5, writeFileSync as writeFileSync6 } from "node:fs";
 import { join as join23 } from "node:path";
 function ownerLockPath(worktreesRoot, runId) {
   return join23(worktreesRoot, runId, OWNER_LOCK_FILENAME);
@@ -96831,7 +97306,7 @@ function removeOwnerLock(worktreesRoot, runId) {
 function isRunLiveByOwnerLock(worktreesRoot, runId, processAlive = defaultProcessAlive) {
   let raw;
   try {
-    raw = readFileSync44(ownerLockPath(worktreesRoot, runId), "utf8");
+    raw = readFileSync45(ownerLockPath(worktreesRoot, runId), "utf8");
   } catch {
     return false;
   }
@@ -97177,7 +97652,7 @@ var init_fanout = __esm({
 });
 
 // dist/runtime/run/oracle-command-pin.js
-import { existsSync as existsSync27, readFileSync as readFileSync45 } from "node:fs";
+import { existsSync as existsSync27, readFileSync as readFileSync46 } from "node:fs";
 import { join as join24 } from "node:path";
 function createOracleCommandPinChannel() {
   return { pins: /* @__PURE__ */ new Map() };
@@ -97193,7 +97668,7 @@ function readReferencedScriptBody(command, projectRoot) {
   }
   let parsed;
   try {
-    parsed = JSON.parse(readFileSync45(packageJsonPath, "utf8"));
+    parsed = JSON.parse(readFileSync46(packageJsonPath, "utf8"));
   } catch (error52) {
     const message = error52 instanceof Error ? error52.message : String(error52);
     throw new OracleCommandDriftError(`oracle script "${script}" for command '${command.id}' unreadable: ${message}`);
@@ -97696,8 +98171,8 @@ var init_carried_notes = __esm({
 });
 
 // dist/runtime/run/frozen-eval.js
-import { createHash as createHash5 } from "node:crypto";
-import { readFileSync as readFileSync46 } from "node:fs";
+import { createHash as createHash6 } from "node:crypto";
+import { readFileSync as readFileSync47 } from "node:fs";
 import { resolve as resolve17 } from "node:path";
 var ABSENT, FrozenEvalGuard;
 var init_frozen_eval = __esm({
@@ -97717,8 +98192,8 @@ var init_frozen_eval = __esm({
       // or unreadable. Resolved against the injected project root; never cwd.
       fingerprint(declaredPath) {
         try {
-          const bytes = readFileSync46(resolve17(this.projectRoot, declaredPath));
-          return createHash5("sha256").update(bytes).digest("hex");
+          const bytes = readFileSync47(resolve17(this.projectRoot, declaredPath));
+          return createHash6("sha256").update(bytes).digest("hex");
         } catch {
           return ABSENT;
         }
@@ -97741,7 +98216,7 @@ var init_frozen_eval = __esm({
 
 // dist/runtime/run/manifest-snapshot.js
 import { mkdir as mkdir2, readFile as readFile4, writeFile as writeFile3 } from "node:fs/promises";
-import { dirname as dirname10, join as join25 } from "node:path";
+import { dirname as dirname11, join as join25 } from "node:path";
 function runtimeManifestSnapshotPath(runDir) {
   return join25(runDir, MANIFEST_SNAPSHOT_RUN_FILE);
 }
@@ -97757,7 +98232,7 @@ async function writeRuntimeManifestSnapshot(input) {
     bytes_base64: bytes.toString("base64")
   });
   const path = runtimeManifestSnapshotPath(input.runDir);
-  await mkdir2(dirname10(path), { recursive: true });
+  await mkdir2(dirname11(path), { recursive: true });
   await writeFile3(path, `${JSON.stringify(snapshot, null, 2)}
 `, { encoding: "utf8", flag: "wx" });
   return snapshot;
@@ -98773,7 +99248,7 @@ var init_external_files = __esm({
 });
 
 // dist/runtime/run/run-boundary.js
-import { readFileSync as readFileSync47 } from "node:fs";
+import { readFileSync as readFileSync48 } from "node:fs";
 import { lstat, mkdir as mkdir3, readdir } from "node:fs/promises";
 async function assertFreshRunDir(runDir) {
   let stat2;
@@ -98831,7 +99306,7 @@ async function openRunBoundary(options) {
     files: {
       readText(path) {
         try {
-          return readFileSync47(path, "utf8");
+          return readFileSync48(path, "utf8");
         } catch {
           return void 0;
         }
@@ -100448,7 +100923,7 @@ var init_compiled_flow_runner = __esm({
 });
 
 // dist/runtime/run/resume-lock.js
-import { mkdirSync as mkdirSync6, readFileSync as readFileSync48, rmSync as rmSync6, writeFileSync as writeFileSync7 } from "node:fs";
+import { mkdirSync as mkdirSync6, readFileSync as readFileSync49, rmSync as rmSync6, writeFileSync as writeFileSync7 } from "node:fs";
 import { join as join28 } from "node:path";
 function resumeLockPath(runDir) {
   return join28(runDir, RESUME_LOCK_FILENAME);
@@ -100469,7 +100944,7 @@ function createExclusive(path, payload) {
 function recordedPid(path) {
   let raw;
   try {
-    raw = readFileSync48(path, "utf8");
+    raw = readFileSync49(path, "utf8");
   } catch {
     return void 0;
   }
@@ -100548,7 +101023,7 @@ var init_resume_lock = __esm({
 });
 
 // dist/runtime/run/checkpoint-resume.js
-import { readFileSync as readFileSync49 } from "node:fs";
+import { readFileSync as readFileSync50 } from "node:fs";
 function errorFromUnknown3(error52) {
   return error52 instanceof Error ? error52 : new Error(String(error52));
 }
@@ -100627,7 +101102,7 @@ function readCheckpointRequestContextResult(input) {
   const requestAbs = resolveRunFilePath(input.runDir, input.requestPath);
   let requestText;
   try {
-    requestText = readFileSync49(requestAbs, "utf8");
+    requestText = readFileSync50(requestAbs, "utf8");
   } catch (error52) {
     return checkpointResumeRejectedFrom(error52);
   }
@@ -100884,6 +101359,16 @@ async function resumeCompiledFlowResultLocked(options) {
   if (!savedChoices.includes(options.selection)) {
     return checkpointResumeRejected(`runtime checkpoint resume rejected: selection '${options.selection}' is not allowed for checkpoint '${stepId}'`);
   }
+  if (options.checkpointResponse !== void 0) {
+    const response = options.checkpointResponse;
+    if (response.run_id !== bootstrapRunId || response.step_id !== stepId || response.attempt !== attempt || response.request_sha256 !== requestHash || response.selection !== options.selection) {
+      return checkpointResumeRejected("runtime checkpoint resume rejected: checkpoint response does not match this run and checkpoint");
+    }
+    const staleComment = response.comments.find((comment) => comment.scope === "choice" && !savedChoices.includes(comment.choice_id));
+    if (staleComment !== void 0 && staleComment.scope === "choice") {
+      return checkpointResumeRejected(`runtime checkpoint resume rejected: comment choice '${staleComment.choice_id}' is not available at checkpoint '${stepId}'`);
+    }
+  }
   const compiledStep = flow.steps.find((candidate) => candidate.id === stepId);
   if (compiledStep === void 0 || compiledStep.kind !== "checkpoint") {
     return checkpointResumeRejected(`runtime checkpoint resume rejected: saved flow step '${stepId}' is invalid`);
@@ -100978,7 +101463,12 @@ async function resumeCompiledFlowResultLocked(options) {
     ...requestContext.policyLayers.length === 0 ? {} : { policyLayers: requestContext.policyLayers },
     ...options.progress === void 0 ? {} : { progress: options.progress },
     ...progressSurface === void 0 ? {} : { progressSurface },
-    resumeCheckpoint: { stepId, attempt, selection: options.selection }
+    resumeCheckpoint: {
+      stepId,
+      attempt,
+      selection: options.selection,
+      ...options.checkpointResponse === void 0 ? {} : { comments: options.checkpointResponse.comments }
+    }
   });
   if (isGraphRejectedOutcome(result)) {
     return checkpointResumeRejected(result.reason, result.error);
@@ -101023,7 +101513,7 @@ var init_checkpoint_resume = __esm({
 });
 
 // dist/memory/project-store.js
-import { existsSync as existsSync28, readFileSync as readFileSync50 } from "node:fs";
+import { existsSync as existsSync28, readFileSync as readFileSync51 } from "node:fs";
 import { join as join29, resolve as resolve18 } from "node:path";
 function resolveProjectStorePaths(options = {}) {
   const repoRoot = resolve18(options.repoRoot ?? process.cwd());
@@ -101042,7 +101532,7 @@ function readProjectFacts(options = {}) {
   }
   let raw = "";
   try {
-    raw = readFileSync50(paths.factsPath, "utf8");
+    raw = readFileSync51(paths.factsPath, "utf8");
   } catch (error52) {
     return {
       facts: [],
@@ -101137,7 +101627,7 @@ var init_project_store = __esm({
 });
 
 // dist/memory/project-injection.js
-import { existsSync as existsSync29, readFileSync as readFileSync51 } from "node:fs";
+import { existsSync as existsSync29, readFileSync as readFileSync52 } from "node:fs";
 import { join as join30, resolve as resolve19 } from "node:path";
 function reverifyStaleness(fact, runsBase, checkedAt) {
   const sourceSha = fact.source.sha256 ?? fact.source.ref.sha256;
@@ -101151,7 +101641,7 @@ function reverifyStaleness(fact, runsBase, checkedAt) {
     if (!existsSync29(abs)) {
       return { status: "stale", checked_at: checkedAt, reason_codes: ["memory_stale"] };
     }
-    const currentHash = sha256OfString(readFileSync51(abs, "utf8"));
+    const currentHash = sha256OfString(readFileSync52(abs, "utf8"));
     return currentHash === sourceSha ? { status: "fresh", checked_at: checkedAt, reason_codes: ["source_hash_verified"] } : { status: "stale", checked_at: checkedAt, reason_codes: ["memory_stale"] };
   } catch {
     return { status: "unknown", checked_at: checkedAt, reason_codes: ["memory_unverified"] };
@@ -101189,7 +101679,7 @@ var init_project_injection = __esm({
 });
 
 // dist/history/run-corpus.js
-import { existsSync as existsSync30, readdirSync as readdirSync4, statSync as statSync3 } from "node:fs";
+import { existsSync as existsSync30, readdirSync as readdirSync4, statSync as statSync4 } from "node:fs";
 import { basename as basename5, join as join31 } from "node:path";
 function isCandidateRunFolder(runFolder) {
   return existsSync30(join31(runFolder, "manifest.snapshot.json")) || existsSync30(join31(runFolder, "trace.ndjson")) || existsSync30(join31(runFolder, "reports/result.json"));
@@ -101202,7 +101692,7 @@ function listCandidateRunFolders(runsBase) {
   }
   let stat2;
   try {
-    stat2 = statSync3(runsBase);
+    stat2 = statSync4(runsBase);
   } catch (error52) {
     throw new HistoryCommandError("runs_base_unreadable", `runs base unreadable: ${error52 instanceof Error ? error52.message : String(error52)}`, { runsBase });
   }
@@ -101239,13 +101729,13 @@ var init_run_corpus = __esm({
 });
 
 // dist/shared/run-artifact-io.js
-import { statSync as statSync4 } from "node:fs";
+import { statSync as statSync5 } from "node:fs";
 import { isAbsolute as isAbsolute10, relative as relative10 } from "node:path";
 function runRelativePath(runFolder, path) {
   return isAbsolute10(path) ? relative10(runFolder, path) : path;
 }
 function mtimeMs(path) {
-  return Math.trunc(statSync4(path).mtimeMs);
+  return Math.trunc(statSync5(path).mtimeMs);
 }
 var init_run_artifact_io = __esm({
   "dist/shared/run-artifact-io.js"() {
@@ -101254,7 +101744,7 @@ var init_run_artifact_io = __esm({
 });
 
 // dist/app/history/run-source-files.js
-import { existsSync as existsSync31, lstatSync as lstatSync5, readdirSync as readdirSync5, realpathSync as realpathSync4 } from "node:fs";
+import { existsSync as existsSync31, lstatSync as lstatSync6, readdirSync as readdirSync5, realpathSync as realpathSync5 } from "node:fs";
 import { isAbsolute as isAbsolute11, relative as relative11, resolve as resolve20 } from "node:path";
 function collectRunSourceFiles(runFolder) {
   const runFolderAbs = resolve20(runFolder);
@@ -101274,7 +101764,7 @@ function collectRunSourceFiles(runFolder) {
 }
 function isSymlink(absPath) {
   try {
-    return lstatSync5(absPath).isSymbolicLink();
+    return lstatSync6(absPath).isSymbolicLink();
   } catch {
     return false;
   }
@@ -101286,7 +101776,7 @@ function isInside3(root, target) {
 function walkReportJsonFiles(reportsRoot2) {
   if (!existsSync31(reportsRoot2))
     return [];
-  const rootReal = realpathSync4.native(reportsRoot2);
+  const rootReal = realpathSync5.native(reportsRoot2);
   const out = [];
   const stack = [reportsRoot2];
   while (stack.length > 0) {
@@ -101295,9 +101785,9 @@ function walkReportJsonFiles(reportsRoot2) {
       continue;
     for (const entry of readdirSync5(current, { withFileTypes: true })) {
       const absPath = resolve20(current, entry.name);
-      if (entry.isSymbolicLink() || lstatSync5(absPath).isSymbolicLink())
+      if (entry.isSymbolicLink() || lstatSync6(absPath).isSymbolicLink())
         continue;
-      const real = realpathSync4.native(absPath);
+      const real = realpathSync5.native(absPath);
       if (!isInside3(rootReal, real))
         continue;
       if (entry.isDirectory()) {
@@ -101316,7 +101806,7 @@ var init_run_source_files = __esm({
 });
 
 // dist/app/history/extract.js
-import { existsSync as existsSync32, lstatSync as lstatSync6, readFileSync as readFileSync52, readdirSync as readdirSync6, realpathSync as realpathSync5 } from "node:fs";
+import { existsSync as existsSync32, lstatSync as lstatSync7, readFileSync as readFileSync53, readdirSync as readdirSync6, realpathSync as realpathSync6 } from "node:fs";
 import { basename as basename6, isAbsolute as isAbsolute12, relative as relative12, resolve as resolve21 } from "node:path";
 function isObject3(value) {
   return value !== null && typeof value === "object" && !Array.isArray(value);
@@ -101334,7 +101824,7 @@ function safeDateString(value) {
   return Number.isNaN(Date.parse(raw)) ? void 0 : new Date(raw).toISOString();
 }
 function readJson4(path) {
-  return JSON.parse(readFileSync52(path, "utf8"));
+  return JSON.parse(readFileSync53(path, "utf8"));
 }
 function readJsonRecord(path) {
   try {
@@ -101345,7 +101835,7 @@ function readJsonRecord(path) {
   }
 }
 function sha256File(path) {
-  return sha256OfString(readFileSync52(path, "utf8"));
+  return sha256OfString(readFileSync53(path, "utf8"));
 }
 function isInside4(root, target) {
   const fromRoot = relative12(root, target);
@@ -101355,14 +101845,14 @@ function listFiles(root, prefix = "") {
   const absRoot = resolve21(root);
   if (!existsSync32(absRoot))
     return [];
-  const rootReal = realpathSync5.native(absRoot);
+  const rootReal = realpathSync6.native(absRoot);
   const out = [];
   function walk(absDir, relDir) {
     for (const entry of readdirSync6(absDir, { withFileTypes: true })) {
       const absPath = resolve21(absDir, entry.name);
-      if (lstatSync6(absPath).isSymbolicLink())
+      if (lstatSync7(absPath).isSymbolicLink())
         continue;
-      const real = realpathSync5.native(absPath);
+      const real = realpathSync6.native(absPath);
       if (!isInside4(rootReal, real))
         continue;
       const relPath = relDir.length === 0 ? entry.name : `${relDir}/${entry.name}`;
@@ -101403,7 +101893,7 @@ function parseTrace(runFolder, runFolderName) {
   }
   let entries = [];
   try {
-    entries = readFileSync52(tracePath, "utf8").split("\n").filter((line) => line.trim().length > 0).map((line) => JSON.parse(line)).filter(isObject3);
+    entries = readFileSync53(tracePath, "utf8").split("\n").filter((line) => line.trim().length > 0).map((line) => JSON.parse(line)).filter(isObject3);
   } catch (error52) {
     return {
       entries: [],
@@ -101981,7 +102471,7 @@ var init_extract = __esm({
 });
 
 // dist/app/history/indexer.js
-import { existsSync as existsSync33, mkdirSync as mkdirSync7, readFileSync as readFileSync53, renameSync as renameSync2, writeFileSync as writeFileSync8 } from "node:fs";
+import { existsSync as existsSync33, mkdirSync as mkdirSync7, readFileSync as readFileSync54, renameSync as renameSync2, writeFileSync as writeFileSync8 } from "node:fs";
 import { join as join32, resolve as resolve22 } from "node:path";
 function resolveHistoryPaths(options = {}) {
   const repoRoot = resolve22(options.repoRoot ?? process.cwd());
@@ -102076,8 +102566,8 @@ function rebuildHistoryIndex(options = {}) {
   const manifestTmp = `${paths.manifestPath}.tmp-${process.pid}`;
   writeFileSync8(documentsTmp, documentsJsonl, "utf8");
   writeFileSync8(manifestTmp, manifestJson, "utf8");
-  HistoryManifestV1.parse(JSON.parse(readFileSync53(manifestTmp, "utf8")));
-  for (const line of readFileSync53(documentsTmp, "utf8").split("\n")) {
+  HistoryManifestV1.parse(JSON.parse(readFileSync54(manifestTmp, "utf8")));
+  for (const line of readFileSync54(documentsTmp, "utf8").split("\n")) {
     if (line.trim().length === 0)
       continue;
     HistoryDocumentV1.parse(JSON.parse(line));
@@ -102098,7 +102588,7 @@ function readHistoryManifest(paths) {
   }
   let raw;
   try {
-    raw = JSON.parse(readFileSync53(paths.manifestPath, "utf8"));
+    raw = JSON.parse(readFileSync54(paths.manifestPath, "utf8"));
   } catch (error52) {
     throw new HistoryCommandError("index_corrupt", `history manifest corrupt: ${error52 instanceof Error ? error52.message : String(error52)}`, { runsBase: paths.runsBase, indexDir: paths.indexDir });
   }
@@ -102122,7 +102612,7 @@ function readHistoryIndex(options = {}) {
   const manifest = readHistoryManifest(paths);
   let documentsRaw = "";
   try {
-    documentsRaw = readFileSync53(paths.documentsPath, "utf8");
+    documentsRaw = readFileSync54(paths.documentsPath, "utf8");
   } catch (error52) {
     throw new HistoryCommandError("index_corrupt", `history documents unreadable: ${error52 instanceof Error ? error52.message : String(error52)}`, { runsBase: paths.runsBase, indexDir: paths.indexDir });
   }
@@ -102209,7 +102699,7 @@ var init_indexer = __esm({
 });
 
 // dist/app/history/memory-effect-read.js
-import { existsSync as existsSync34, readFileSync as readFileSync54 } from "node:fs";
+import { existsSync as existsSync34, readFileSync as readFileSync55 } from "node:fs";
 import { join as join33 } from "node:path";
 function loadMemoryEffectReport(paths) {
   const effectPath = join33(paths.indexDir, HISTORY_MEMORY_EFFECT_FILE);
@@ -102225,7 +102715,7 @@ function loadMemoryEffectReport(paths) {
     };
   }
   try {
-    const report = HistoryMemoryEffectV1.parse(JSON.parse(readFileSync54(effectPath, "utf8")));
+    const report = HistoryMemoryEffectV1.parse(JSON.parse(readFileSync55(effectPath, "utf8")));
     return { report, warnings: [] };
   } catch (error52) {
     return {
@@ -102338,7 +102828,7 @@ var init_memory_preview = __esm({
 });
 
 // dist/app/history/query.js
-import { existsSync as existsSync35, readFileSync as readFileSync55 } from "node:fs";
+import { existsSync as existsSync35, readFileSync as readFileSync56 } from "node:fs";
 function tokenize(text) {
   return text.toLowerCase().split(/[^a-z0-9]+/).filter((term) => term.length >= 2 && !STOPWORDS.has(term));
 }
@@ -102505,7 +102995,7 @@ function sourceStaleness(doc, checkedAt) {
         checked_at: checkedAt
       };
     }
-    const currentHash = sha256OfString(readFileSync55(sourcePath, "utf8"));
+    const currentHash = sha256OfString(readFileSync56(sourcePath, "utf8"));
     return currentHash === doc.source_sha256 ? {
       status: "fresh",
       reason_codes: ["source_hash_verified"],
@@ -102910,6 +103400,30 @@ var init_run_start_recall = __esm({
   }
 });
 
+// dist/app/operator-summary/resume-command.js
+import { isAbsolute as isAbsolute13, join as join34, resolve as resolve23 } from "node:path";
+function shellSingleQuote2(value) {
+  return `'${value.replace(/'/g, "'\\''")}'`;
+}
+function operatorSummaryResumeCommandPrefix(input) {
+  const execPath = input.execPath;
+  if (execPath !== void 0 && isAbsolute13(execPath) && input.pluginRoot !== void 0 && isAbsolute13(input.pluginRoot) && input.hostKind !== void 0 && input.hostKind !== "generic-shell") {
+    const wrapper = join34(input.pluginRoot, "scripts", "circuit.js");
+    const presentation = input.hostKind === "claude-code" ? " present" : "";
+    return `${shellSingleQuote2(execPath)} ${shellSingleQuote2(wrapper)}${presentation} resume`;
+  }
+  if (execPath !== void 0 && isAbsolute13(execPath) && input.cliEntryPath !== void 0) {
+    const entry = isAbsolute13(input.cliEntryPath) ? input.cliEntryPath : resolve23(input.cliEntryPath);
+    return `${shellSingleQuote2(execPath)} ${shellSingleQuote2(entry)} resume`;
+  }
+  return "circuit resume";
+}
+var init_resume_command = __esm({
+  "dist/app/operator-summary/resume-command.js"() {
+    "use strict";
+  }
+});
+
 // dist/runtime/run/iteration-ledger.js
 function emptyUsage() {
   return { tokens: 0, costUsd: void 0 };
@@ -102979,7 +103493,7 @@ var init_iteration_ledger = __esm({
 });
 
 // dist/shared/operator-summary/json.js
-import { existsSync as existsSync36, readFileSync as readFileSync56 } from "node:fs";
+import { existsSync as existsSync36, readFileSync as readFileSync57 } from "node:fs";
 function isObject4(value) {
   return value !== null && typeof value === "object" && !Array.isArray(value);
 }
@@ -102987,7 +103501,7 @@ function readJsonIfPresent(runFolder, relPath) {
   const path = resolveRunRelative(runFolder, relPath);
   if (!existsSync36(path))
     return void 0;
-  const parsed = JSON.parse(readFileSync56(path, "utf8"));
+  const parsed = JSON.parse(readFileSync57(path, "utf8"));
   return isObject4(parsed) ? parsed : void 0;
 }
 function stringField2(report, key) {
@@ -103429,6 +103943,9 @@ function prototypeDetails(flowReport) {
   if (verification !== void 0) {
     details.push(`Verification: ${friendlyVerificationStatus(verification)}.`);
   }
+  const reviewNotes = arrayField(flowReport, "checkpoint_comments").length;
+  if (reviewNotes > 0)
+    details.push(`Review notes: ${reviewNotes} captured.`);
   const root = stringField2(flowReport, "prototype_root");
   if (root !== void 0)
     details.push(`Prototype root: ${root}.`);
@@ -103636,14 +104153,14 @@ var init_operator_summary2 = __esm({
 });
 
 // dist/app/operator-summary/writer.js
-import { existsSync as existsSync37, mkdirSync as mkdirSync8, readFileSync as readFileSync57, rmSync as rmSync7, writeFileSync as writeFileSync9 } from "node:fs";
-import { dirname as dirname11, isAbsolute as isAbsolute13, join as join34, relative as relative13, resolve as resolve23 } from "node:path";
+import { existsSync as existsSync37, mkdirSync as mkdirSync8, readFileSync as readFileSync58, rmSync as rmSync7, writeFileSync as writeFileSync9 } from "node:fs";
+import { dirname as dirname12, isAbsolute as isAbsolute14, join as join35, relative as relative13, resolve as resolve24 } from "node:path";
 function readPriorRoute(runFolder) {
-  const path = join34(runFolder, "reports", "operator-summary.json");
+  const path = join35(runFolder, "reports", "operator-summary.json");
   if (!existsSync37(path))
     return {};
   try {
-    const raw = JSON.parse(readFileSync57(path, "utf8"));
+    const raw = JSON.parse(readFileSync58(path, "utf8"));
     if (!isObject4(raw))
       return {};
     const routedBy = raw.routed_by;
@@ -103709,31 +104226,31 @@ function salvageKeyPoints(input) {
   return points;
 }
 function jsonPath(runFolder) {
-  return join34(runFolder, "reports", "operator-summary.json");
+  return join35(runFolder, "reports", "operator-summary.json");
 }
 function markdownPath(runFolder) {
-  return join34(runFolder, "reports", "operator-summary.md");
+  return join35(runFolder, "reports", "operator-summary.md");
 }
 function htmlPath(runFolder) {
-  return join34(runFolder, "reports", "operator-summary.html");
+  return join35(runFolder, "reports", "operator-summary.html");
 }
 function isInsideOrSame4(root, target) {
   const fromRoot = relative13(root, target);
-  return fromRoot === "" || !fromRoot.startsWith("..") && !isAbsolute13(fromRoot);
+  return fromRoot === "" || !fromRoot.startsWith("..") && !isAbsolute14(fromRoot);
 }
 function readCheckpointRequest(runFolder, checkpoint) {
   let requestPath;
   try {
-    requestPath = isAbsolute13(checkpoint.request_path) ? resolve23(checkpoint.request_path) : resolveRunRelative(runFolder, checkpoint.request_path);
+    requestPath = isAbsolute14(checkpoint.request_path) ? resolve24(checkpoint.request_path) : resolveRunRelative(runFolder, checkpoint.request_path);
   } catch {
     return void 0;
   }
-  if (!isInsideOrSame4(resolve23(runFolder), requestPath))
+  if (!isInsideOrSame4(resolve24(runFolder), requestPath))
     return void 0;
   if (!existsSync37(requestPath))
     return void 0;
   try {
-    const parsed = JSON.parse(readFileSync57(requestPath, "utf8"));
+    const parsed = JSON.parse(readFileSync58(requestPath, "utf8"));
     return isObject4(parsed) ? parsed : void 0;
   } catch {
     return void 0;
@@ -103744,7 +104261,7 @@ function checkpointProjectRoot(request) {
   if (!isObject4(executionContext))
     return void 0;
   const projectRoot = stringField2(executionContext, "project_root");
-  return projectRoot !== void 0 && isAbsolute13(projectRoot) ? projectRoot : void 0;
+  return projectRoot !== void 0 && isAbsolute14(projectRoot) ? projectRoot : void 0;
 }
 function checkpointDepth(request) {
   const executionContext = request?.execution_context;
@@ -103777,7 +104294,9 @@ function widenedProjectorCheckpoint(checkpoint, request) {
   });
   return {
     step_id: checkpoint.step_id,
+    attempt: checkpoint.attempt,
     request_path: checkpoint.request_path,
+    request_sha256: checkpoint.request_sha256,
     allowed_choices: checkpoint.allowed_choices,
     ...prompt === void 0 ? {} : { prompt },
     ...safeDefault === void 0 ? {} : { safe_default_choice: safeDefault },
@@ -104150,11 +104669,11 @@ function evidenceLinks2(runFolder, report) {
   return { links, warnings };
 }
 function readAutoResolutions(runFolder) {
-  const tracePath = join34(runFolder, "trace.ndjson");
+  const tracePath = join35(runFolder, "trace.ndjson");
   if (!existsSync37(tracePath))
     return [];
   const records = [];
-  for (const line of readFileSync57(tracePath, "utf8").split(/\r?\n/)) {
+  for (const line of readFileSync58(tracePath, "utf8").split(/\r?\n/)) {
     if (line.trim().length === 0)
       continue;
     let entry;
@@ -104190,7 +104709,7 @@ function emptySpendTotals() {
   };
 }
 function readRunReceipt(runFolder) {
-  const tracePath = join34(runFolder, "trace.ndjson");
+  const tracePath = join35(runFolder, "trace.ndjson");
   if (!existsSync37(tracePath))
     return void 0;
   let depth;
@@ -104209,7 +104728,7 @@ function readRunReceipt(runFolder) {
   let spendRelaysMissingUsage = 0;
   let anyUsage = false;
   let anyCostMissing = false;
-  for (const line of readFileSync57(tracePath, "utf8").split(/\r?\n/)) {
+  for (const line of readFileSync58(tracePath, "utf8").split(/\r?\n/)) {
     if (line.trim().length === 0)
       continue;
     let entry;
@@ -104418,13 +104937,13 @@ function skillHookSourceLabel(source) {
   }
 }
 function readSkillHookSummary(runFolder) {
-  const tracePath = join34(runFolder, "trace.ndjson");
+  const tracePath = join35(runFolder, "trace.ndjson");
   if (!existsSync37(tracePath))
     return { activations: [], warnings: [] };
   const seen = /* @__PURE__ */ new Set();
   const activations = [];
   const warnings = [];
-  for (const line of readFileSync57(tracePath, "utf8").split(/\r?\n/)) {
+  for (const line of readFileSync58(tracePath, "utf8").split(/\r?\n/)) {
     if (line.trim().length === 0)
       continue;
     let entry;
@@ -104473,11 +104992,11 @@ function readSkillHookSummary(runFolder) {
   return { activations, warnings };
 }
 function readDegradationWarnings(runFolder) {
-  const tracePath = join34(runFolder, "trace.ndjson");
+  const tracePath = join35(runFolder, "trace.ndjson");
   if (!existsSync37(tracePath))
     return [];
   const warnings = [];
-  for (const line of readFileSync57(tracePath, "utf8").split(/\r?\n/)) {
+  for (const line of readFileSync58(tracePath, "utf8").split(/\r?\n/)) {
     if (line.trim().length === 0)
       continue;
     let entry;
@@ -104528,11 +105047,11 @@ function friendlyAbortReason(reason) {
   return void 0;
 }
 function readAutoConnectorPicks(runFolder) {
-  const tracePath = join34(runFolder, "trace.ndjson");
+  const tracePath = join35(runFolder, "trace.ndjson");
   const picks = /* @__PURE__ */ new Map();
   if (!existsSync37(tracePath))
     return picks;
-  for (const line of readFileSync57(tracePath, "utf8").split(/\r?\n/)) {
+  for (const line of readFileSync58(tracePath, "utf8").split(/\r?\n/)) {
     if (line.trim().length === 0)
       continue;
     let entry;
@@ -104576,13 +105095,13 @@ function skillHookActivationLine(activation) {
   return `\`${activation.hook}\` ${parts.join("; ")} \u2014 ${provenance}`;
 }
 function readEquipmentReshapeSummary(runFolder) {
-  const tracePath = join34(runFolder, "trace.ndjson");
+  const tracePath = join35(runFolder, "trace.ndjson");
   if (!existsSync37(tracePath))
     return { reshapes: [], warnings: [] };
   const seen = /* @__PURE__ */ new Set();
   const reshapes = [];
   const warnings = [];
-  for (const line of readFileSync57(tracePath, "utf8").split(/\r?\n/)) {
+  for (const line of readFileSync58(tracePath, "utf8").split(/\r?\n/)) {
     if (line.trim().length === 0)
       continue;
     let entry;
@@ -104632,11 +105151,11 @@ function equipmentReshapeLine(reshape) {
   return `\`${reshape.step_id}\` confirmed ${domains}; equipped ${equipped}`;
 }
 function readIterationLedger(runFolder) {
-  const tracePath = join34(runFolder, "trace.ndjson");
+  const tracePath = join35(runFolder, "trace.ndjson");
   if (!existsSync37(tracePath))
     return [];
   const entries = [];
-  for (const line of readFileSync57(tracePath, "utf8").split(/\r?\n/)) {
+  for (const line of readFileSync58(tracePath, "utf8").split(/\r?\n/)) {
     if (line.trim().length === 0)
       continue;
     let raw;
@@ -104798,7 +105317,7 @@ function writeOperatorSummary(input) {
   const ledgerRows = readIterationLedger(input.runFolder);
   const outJsonPath = jsonPath(input.runFolder);
   const outMarkdownPath = markdownPath(input.runFolder);
-  mkdirSync8(dirname11(outJsonPath), { recursive: true });
+  mkdirSync8(dirname12(outJsonPath), { recursive: true });
   const projector = getHtmlProjector(flowId);
   const candidateHtmlPath = htmlPath(input.runFolder);
   let outHtmlPath;
@@ -104813,6 +105332,7 @@ function writeOperatorSummary(input) {
     runId: input.runResult.run_id,
     flowId,
     runOutcome: input.runResult.outcome,
+    ...input.resumeCommandPrefix === void 0 ? {} : { resumeCommandPrefix: input.resumeCommandPrefix },
     ...projectorCheckpoint === void 0 ? {} : { checkpoint: projectorCheckpoint },
     flowReport,
     readJsonRunRelative: (relPath) => readJsonIfPresent(input.runFolder, relPath),
@@ -105007,7 +105527,7 @@ var init_writer = __esm({
 
 // dist/app/process-evidence/projection.js
 import { existsSync as existsSync38, mkdirSync as mkdirSync9, writeFileSync as writeFileSync10 } from "node:fs";
-import { dirname as dirname12, join as join35 } from "node:path";
+import { dirname as dirname13, join as join36 } from "node:path";
 function traceRef2(runId) {
   return {
     kind: "trace",
@@ -105064,15 +105584,15 @@ function projectClosedProcessEvidence(input) {
     runId: input.runResult.run_id,
     flowId
   });
-  const declaredReportRefs = declaredPaths.filter((path) => existsSync38(join35(input.runFolder, path))).map((path) => reportRef({
+  const declaredReportRefs = declaredPaths.filter((path) => existsSync38(join36(input.runFolder, path))).map((path) => reportRef({
     runFolder: input.runFolder,
-    path: join35(input.runFolder, path),
+    path: join36(input.runFolder, path),
     runId: input.runResult.run_id,
     flowId
   }));
   const additionalRefs = (input.additionalEvidencePaths ?? []).map((path) => reportRef({
     runFolder: input.runFolder,
-    path: join35(input.runFolder, path),
+    path: join36(input.runFolder, path),
     runId: input.runResult.run_id,
     flowId
   }));
@@ -105128,8 +105648,8 @@ function projectCheckpointWaitingProcessEvidence(input) {
 }
 function writeProcessEvidenceProjection(input) {
   const projection = ProcessEvidenceProjection.parse(input.projection);
-  const outPath = join35(input.runFolder, PROCESS_EVIDENCE_RELATIVE_PATH);
-  mkdirSync9(dirname12(outPath), { recursive: true });
+  const outPath = join36(input.runFolder, PROCESS_EVIDENCE_RELATIVE_PATH);
+  mkdirSync9(dirname13(outPath), { recursive: true });
   writeFileSync10(outPath, `${JSON.stringify(projection, null, 2)}
 `);
   return { path: outPath, projection };
@@ -105230,7 +105750,7 @@ var init_no_progress = __esm({
 
 // dist/app/run-envelope/source-record.js
 import { mkdirSync as mkdirSync10, writeFileSync as writeFileSync11 } from "node:fs";
-import { dirname as dirname13, join as join36 } from "node:path";
+import { dirname as dirname14, join as join37 } from "node:path";
 function childRunIdFromProjection(projection) {
   return RunId.parse(projection.child_run_ref.run_id);
 }
@@ -105271,7 +105791,7 @@ function renderSurfaceMarkdown(input) {
     ...input.record.surface_output.artifact_links
   ];
   const uniqueArtifactRefs = artifactRefs.filter((ref, index, refs) => refs.findIndex((candidate) => candidate.ref === ref.ref) === index);
-  const artifactLine = uniqueArtifactRefs.map((ref) => markdownLink(artifactLabel(ref), join36(input.runFolder, ref.ref))).join(" \xB7 ");
+  const artifactLine = uniqueArtifactRefs.map((ref) => markdownLink(artifactLabel(ref), join37(input.runFolder, ref.ref))).join(" \xB7 ");
   return ["CIRCUIT", `\u23BF ${input.record.surface_output.status_text}`, "", artifactLine, ""].join("\n");
 }
 function processAttemptOutcome(outcome) {
@@ -105771,17 +106291,17 @@ function writeRunEnvelopeRecord(input) {
     }),
     outcome
   });
-  const outPath = join36(input.runFolder, RUN_ENVELOPE_RELATIVE_PATH);
-  mkdirSync10(dirname13(outPath), { recursive: true });
+  const outPath = join37(input.runFolder, RUN_ENVELOPE_RELATIVE_PATH);
+  mkdirSync10(dirname14(outPath), { recursive: true });
   const decisionPacketPaths = decisionArtifacts.map((artifact) => {
-    const path = join36(input.runFolder, artifact.ref.ref);
-    mkdirSync10(dirname13(path), { recursive: true });
+    const path = join37(input.runFolder, artifact.ref.ref);
+    mkdirSync10(dirname14(path), { recursive: true });
     writeFileSync11(path, artifact.body);
     return path;
   });
   writeFileSync11(outPath, `${JSON.stringify(record2, null, 2)}
 `);
-  const surfacePath = join36(input.runFolder, RUN_SURFACE_RELATIVE_PATH);
+  const surfacePath = join37(input.runFolder, RUN_SURFACE_RELATIVE_PATH);
   writeFileSync11(surfacePath, renderSurfaceMarkdown({ runFolder: input.runFolder, record: record2 }));
   return {
     path: outPath,
@@ -105940,12 +106460,38 @@ var init_autonomous_run = __esm({
   }
 });
 
+// dist/shared/checkpoint-review-token.js
+function decodeCheckpointReviewResponse(token) {
+  if (!token.startsWith(TOKEN_PREFIX) || token.length > MAX_TOKEN_CHARS) {
+    throw new Error("checkpoint response token has an invalid envelope");
+  }
+  const payload = token.slice(TOKEN_PREFIX.length);
+  if (payload.length === 0)
+    throw new Error("checkpoint response token has no payload");
+  let raw;
+  try {
+    raw = JSON.parse(Buffer.from(payload, "base64url").toString("utf8"));
+  } catch {
+    throw new Error("checkpoint response token payload is not valid JSON");
+  }
+  return CheckpointReviewResponse.parse(raw);
+}
+var TOKEN_PREFIX, MAX_TOKEN_CHARS;
+var init_checkpoint_review_token = __esm({
+  "dist/shared/checkpoint-review-token.js"() {
+    "use strict";
+    init_checkpoint_review_response();
+    TOKEN_PREFIX = "ckr1.";
+    MAX_TOKEN_CHARS = TOKEN_PREFIX.length + Math.ceil(MAX_CHECKPOINT_REVIEW_JSON_BYTES * 4 / 3);
+  }
+});
+
 // dist/cli/compiled-flow-loading.js
-import { existsSync as existsSync39, readFileSync as readFileSync58 } from "node:fs";
-import { dirname as dirname14, resolve as resolve24 } from "node:path";
+import { existsSync as existsSync39, readFileSync as readFileSync59 } from "node:fs";
+import { dirname as dirname15, resolve as resolve25 } from "node:path";
 import { fileURLToPath as fileURLToPath2 } from "node:url";
 function defaultFlowRoot() {
-  const cwdRoot = resolve24("generated/flows");
+  const cwdRoot = resolve25("generated/flows");
   if (existsSync39(cwdRoot))
     return cwdRoot;
   if (existsSync39(packageFlowRoot))
@@ -105954,14 +106500,14 @@ function defaultFlowRoot() {
 }
 function resolveCompiledFlowPath(flowName, modeName, override, flowRoot2) {
   if (override !== void 0)
-    return resolve24(override);
-  const root = flowRoot2 !== void 0 ? resolve24(flowRoot2) : defaultFlowRoot();
+    return resolve25(override);
+  const root = flowRoot2 !== void 0 ? resolve25(flowRoot2) : defaultFlowRoot();
   if (modeName !== void 0) {
-    const perMode = resolve24(root, flowName, `${modeName}.json`);
+    const perMode = resolve25(root, flowName, `${modeName}.json`);
     if (existsSync39(perMode))
       return perMode;
   }
-  return resolve24(root, flowName, "circuit.json");
+  return resolve25(root, flowName, "circuit.json");
 }
 function compiledFlowSelectionNameForAxes(axes) {
   if (axes.tournament)
@@ -105986,7 +106532,7 @@ function loadCompiledFlow(compiledFlowPath) {
   if (!existsSync39(compiledFlowPath)) {
     throw new Error(`compiled flow not found: ${compiledFlowPath}`);
   }
-  const bytes = readFileSync58(compiledFlowPath);
+  const bytes = readFileSync59(compiledFlowPath);
   const raw = JSON.parse(bytes.toString("utf8"));
   const flow = CompiledFlow.parse(raw);
   const policy2 = validateCompiledFlowKindPolicy(flow);
@@ -106009,25 +106555,25 @@ var init_compiled_flow_loading = __esm({
     "use strict";
     init_canonical_stage_policy();
     init_compiled_flow();
-    packageFlowRoot = resolve24(dirname14(fileURLToPath2(import.meta.url)), "../..", "generated/flows");
+    packageFlowRoot = resolve25(dirname15(fileURLToPath2(import.meta.url)), "../..", "generated/flows");
   }
 });
 
 // dist/cli/handoff-codex-hooks.js
-import { createHash as createHash6 } from "node:crypto";
-import { accessSync as accessSync2, copyFileSync, existsSync as existsSync40, constants as fsConstants, mkdirSync as mkdirSync11, readFileSync as readFileSync59, writeFileSync as writeFileSync12 } from "node:fs";
+import { createHash as createHash7 } from "node:crypto";
+import { accessSync as accessSync3, copyFileSync, existsSync as existsSync40, constants as fsConstants, mkdirSync as mkdirSync11, readFileSync as readFileSync60, writeFileSync as writeFileSync12 } from "node:fs";
 import { homedir as homedir5 } from "node:os";
-import { dirname as dirname15, join as join37, resolve as resolve25 } from "node:path";
+import { dirname as dirname16, join as join38, resolve as resolve26 } from "node:path";
 import { fileURLToPath as fileURLToPath3 } from "node:url";
 function defaultCodexHooksFile() {
-  const codexHome = process.env.CODEX_HOME ?? resolve25(homedir5(), ".codex");
-  return resolve25(codexHome, "hooks.json");
+  const codexHome = process.env.CODEX_HOME ?? resolve26(homedir5(), ".codex");
+  return resolve26(codexHome, "hooks.json");
 }
 function resolveDefaultLauncher(pluginRoot, moduleDir) {
   if (pluginRoot !== void 0 && pluginRoot.length > 0) {
-    return resolve25(pluginRoot, "scripts/circuit.js");
+    return resolve26(pluginRoot, "scripts/circuit.js");
   }
-  return resolve25(moduleDir, "../..", "bin/circuit");
+  return resolve26(moduleDir, "../..", "bin/circuit");
 }
 function missingDefaultLauncherMessage(launcher) {
   return [
@@ -106037,7 +106583,7 @@ function missingDefaultLauncherMessage(launcher) {
   ].join(" ");
 }
 function defaultLauncherPath() {
-  return resolveDefaultLauncher(process.env.CIRCUIT_PLUGIN_ROOT, dirname15(fileURLToPath3(import.meta.url)));
+  return resolveDefaultLauncher(process.env.CIRCUIT_PLUGIN_ROOT, dirname16(fileURLToPath3(import.meta.url)));
 }
 function parseCodexHooksHost(args) {
   if (args.host === "codex")
@@ -106045,10 +106591,10 @@ function parseCodexHooksHost(args) {
   throw new Error("handoff hooks requires --host codex");
 }
 function resolveHooksFileArg(args) {
-  return resolve25(args.hooksFile ?? defaultCodexHooksFile());
+  return resolve26(args.hooksFile ?? defaultCodexHooksFile());
 }
 function resolveLauncherArg(args) {
-  const launcher = resolve25(args.launcher ?? defaultLauncherPath());
+  const launcher = resolve26(args.launcher ?? defaultLauncherPath());
   if (!existsSync40(launcher)) {
     if (args.launcher === void 0 && (process.env.CIRCUIT_PLUGIN_ROOT ?? "").length === 0) {
       throw new Error(missingDefaultLauncherMessage(launcher));
@@ -106077,7 +106623,7 @@ function defaultHooksConfig() {
 function readHooksConfig(path) {
   if (!existsSync40(path))
     return defaultHooksConfig();
-  const parsed = JSON.parse(readFileSync59(path, "utf8"));
+  const parsed = JSON.parse(readFileSync60(path, "utf8"));
   if (typeof parsed !== "object" || parsed === null || Array.isArray(parsed)) {
     throw new Error("hooks file must contain a JSON object");
   }
@@ -106196,14 +106742,14 @@ function nodePathFromCircuitHookCommand(command) {
 }
 function isExecutableFile(path) {
   try {
-    accessSync2(path, fsConstants.X_OK);
+    accessSync3(path, fsConstants.X_OK);
     return true;
   } catch {
     return false;
   }
 }
 function writeHooksConfig(path, config2) {
-  mkdirSync11(dirname15(path), { recursive: true });
+  mkdirSync11(dirname16(path), { recursive: true });
   let backupPath;
   if (existsSync40(path)) {
     const candidate = `${path}.circuit-backup`;
@@ -106384,11 +106930,11 @@ function runHandoffHooksCommand(args) {
   throw new Error("handoff hooks requires install, uninstall, or doctor");
 }
 function codexInstallNudgeMarkerPath(controlPlane) {
-  return join37(continuityRoot(controlPlane), CODEX_INSTALL_NUDGE_MARKER);
+  return join38(continuityRoot(controlPlane), CODEX_INSTALL_NUDGE_MARKER);
 }
 function codexReinstallNudgeMarkerPath(controlPlane, staleLauncher) {
-  const digest = createHash6("sha256").update(staleLauncher).digest("hex").slice(0, 12);
-  return join37(continuityRoot(controlPlane), `${CODEX_REINSTALL_NUDGE_MARKER}-${digest}`);
+  const digest = createHash7("sha256").update(staleLauncher).digest("hex").slice(0, 12);
+  return join38(continuityRoot(controlPlane), `${CODEX_REINSTALL_NUDGE_MARKER}-${digest}`);
 }
 function codexHookInstallState(hooksPath) {
   if (!existsSync40(hooksPath))
@@ -106427,7 +106973,7 @@ function codexHookInstallState(hooksPath) {
 function writeNudgeMarker(markerPath, now) {
   const stampedAt = (now ?? (() => /* @__PURE__ */ new Date()))().toISOString();
   try {
-    mkdirSync11(dirname15(markerPath), { recursive: true });
+    mkdirSync11(dirname16(markerPath), { recursive: true });
     writeFileSync12(markerPath, `nudged at ${stampedAt}
 `);
   } catch {
@@ -106477,7 +107023,7 @@ var init_handoff_codex_hooks = __esm({
 
 // dist/app/run-envelope/shadow-record.js
 import { mkdirSync as mkdirSync12, writeFileSync as writeFileSync13 } from "node:fs";
-import { dirname as dirname16, join as join38 } from "node:path";
+import { dirname as dirname17, join as join39 } from "node:path";
 function reportRef2(input) {
   return {
     kind: "report",
@@ -106565,8 +107111,8 @@ function writeRunEnvelopeShadowRecord(input) {
     child_run: childRun,
     artifact_links: artifactLinks
   });
-  const outPath = join38(input.runFolder, RUN_ENVELOPE_SHADOW_RELATIVE_PATH);
-  mkdirSync12(dirname16(outPath), { recursive: true });
+  const outPath = join39(input.runFolder, RUN_ENVELOPE_SHADOW_RELATIVE_PATH);
+  mkdirSync12(dirname17(outPath), { recursive: true });
   writeFileSync13(outPath, `${JSON.stringify(record2, null, 2)}
 `);
   return { path: outPath, record: record2 };
@@ -106584,8 +107130,8 @@ var init_shadow_record = __esm({
 });
 
 // dist/cli/post-run-artifacts.js
-import { readFileSync as readFileSync60 } from "node:fs";
-import { join as join39 } from "node:path";
+import { readFileSync as readFileSync61 } from "node:fs";
+import { join as join40 } from "node:path";
 function tryPostRunArtifact(label, context, write) {
   try {
     return write();
@@ -106615,7 +107161,7 @@ function resolveFlowPrimaryResult(input) {
     return {};
   let primaryResult;
   try {
-    primaryResult = JSON.parse(readFileSync60(join39(input.runFolder, primaryResultPath), "utf8"));
+    primaryResult = JSON.parse(readFileSync61(join40(input.runFolder, primaryResultPath), "utf8"));
   } catch {
     return {};
   }
@@ -106672,8 +107218,8 @@ var init_post_run_artifacts = __esm({
 
 // dist/cli/recovery-attempt-runner.js
 import { randomUUID as randomUUID8 } from "node:crypto";
-import { readFileSync as readFileSync61 } from "node:fs";
-import { join as join40 } from "node:path";
+import { readFileSync as readFileSync62 } from "node:fs";
+import { join as join41 } from "node:path";
 function createRecoveryAttemptRunner(deps) {
   const { primaryProjection, fixtureSelectionName, flowRoot: flowRoot2, parentAxes, runFolder, operatorGoal, now, projectRoot, relayer, runtimeExecutors, hostKind, selectionConfigLayers, policyLayers } = deps;
   const recoveryFlowCache = /* @__PURE__ */ new Map();
@@ -106702,7 +107248,7 @@ function createRecoveryAttemptRunner(deps) {
       tournament: false,
       autonomous: parentAxes.autonomous && support.supportsAutonomous
     });
-    const attemptFolder = join40(runFolder, "attempts", `attempt-${attemptNumber}-${processId}`);
+    const attemptFolder = join41(runFolder, "attempts", `attempt-${attemptNumber}-${processId}`);
     const recoveryResult = await runCompiledFlowWithWaiting({
       flowBytes: recoveryFlow.bytes,
       compiledFlowPath: recoveryFlow.path,
@@ -106735,7 +107281,7 @@ function createRecoveryAttemptRunner(deps) {
         })
       };
     }
-    const recoveryRunResult = RunResult.parse(JSON.parse(readFileSync61(recoveryResult.resultPath, "utf8")));
+    const recoveryRunResult = RunResult.parse(JSON.parse(readFileSync62(recoveryResult.resultPath, "utf8")));
     return {
       projection: projectClosedProcessEvidence({
         runFolder: attemptFolder,
@@ -106760,7 +107306,7 @@ var init_recovery_attempt_runner = __esm({
 });
 
 // dist/cli/resume-input.js
-import { join as join41, resolve as resolve26 } from "node:path";
+import { join as join42, resolve as resolve27 } from "node:path";
 function matchCheckpointChoice(raw, choices) {
   for (const choice of choices) {
     if (choice.id === raw)
@@ -106793,11 +107339,11 @@ function invalidCheckpointChoiceMessage(input) {
   return lines.join("\n");
 }
 function runFolderCandidates(argument, cwd2) {
-  const direct = resolve26(cwd2, argument);
+  const direct = resolve27(cwd2, argument);
   const isBareName = !argument.includes("/") && !argument.includes("\\") && argument !== "." && argument !== "..";
   if (!isBareName)
     return [direct];
-  return [direct, join41(runsRoot(cwd2), argument)];
+  return [direct, join42(runsRoot(cwd2), argument)];
 }
 function missingRunFolderMessage(input) {
   const lead = input.exists ? `error: ${input.resolved} is not a resumable Circuit run folder (it has no readable run trace).` : `error: no Circuit run folder found at ${input.resolved}.`;
@@ -106832,6 +107378,7 @@ var init_run_flag_vocabulary = __esm({
       { flag: "--fixture", valueHint: "<path>", docValid: true },
       { flag: "--flow-root", valueHint: "<path>", docValid: true },
       { flag: "--checkpoint-choice", valueHint: "<choice>", docValid: true },
+      { flag: "--checkpoint-response", valueHint: "<response>", docValid: true },
       { flag: "--progress", valueHint: "<format>", docValid: true },
       // Declared so the parser owns the rejection message; never teachable.
       { flag: "--dry-run", docValid: false },
@@ -106887,7 +107434,7 @@ var init_run_output = __esm({
 });
 
 // dist/cli/run-stdout-envelope.js
-import { join as join42 } from "node:path";
+import { join as join43 } from "node:path";
 function leadingNumber(message) {
   const match = message.match(/\d+/);
   return match === null ? 0 : Number(match[0]);
@@ -106918,7 +107465,7 @@ function historyRecallOutputFields(input) {
     history_recall: {
       status: input.report.status,
       memory_input_count: input.report.memory_input_count,
-      report_path: join42(input.runFolder, HISTORY_RECALL_REPORT_PATH),
+      report_path: join43(input.runFolder, HISTORY_RECALL_REPORT_PATH),
       rebuilt: input.report.rebuilt,
       ...input.report.index_state === void 0 ? {} : { index_state: input.report.index_state },
       warnings: collapseIdenticalCodeWarnings(input.report.warnings.map((warning) => ({ code: warning.code, message: warning.message })))
@@ -106975,7 +107522,7 @@ var init_run_stdout_envelope = __esm({
 });
 
 // dist/cli/tty-notice.js
-import { join as join43 } from "node:path";
+import { join as join44 } from "node:path";
 function ttyNoticesEnabled(input) {
   return input.stream.isTTY === true && !input.progressJsonl;
 }
@@ -106983,7 +107530,7 @@ function runStartedNotice(input) {
   const mode = input.entryModeName === void 0 ? "" : ` (${input.entryModeName})`;
   return [
     `Running ${input.flowName}${mode}. This can take a while.`,
-    `Reports land in ${join43(input.runFolder, "reports")} while the run works.`,
+    `Reports land in ${join44(input.runFolder, "reports")} while the run works.`,
     ""
   ].join("\n");
 }
@@ -107002,7 +107549,7 @@ function checkpointWaitingNotice(input) {
 }
 function runFinishedNotice(input) {
   return `
-Run finished: ${input.outcome}. Reports: ${join43(input.runFolder, "reports")}
+Run finished: ${input.outcome}. Reports: ${join44(input.runFolder, "reports")}
 `;
 }
 var init_tty_notice = __esm({
@@ -107013,8 +107560,16 @@ var init_tty_notice = __esm({
 
 // dist/cli/run.js
 import { randomUUID as randomUUID9 } from "node:crypto";
-import { existsSync as existsSync41, mkdirSync as mkdirSync13, readFileSync as readFileSync62, readdirSync as readdirSync7, writeFileSync as writeFileSync14 } from "node:fs";
-import { dirname as dirname17, join as join44, resolve as resolve27 } from "node:path";
+import { existsSync as existsSync41, mkdirSync as mkdirSync13, readFileSync as readFileSync63, readdirSync as readdirSync7, writeFileSync as writeFileSync14 } from "node:fs";
+import { dirname as dirname18, join as join45, resolve as resolve28 } from "node:path";
+function resumeCommandPrefix(hostKind) {
+  return operatorSummaryResumeCommandPrefix({
+    ...hostKind === void 0 ? {} : { hostKind },
+    pluginRoot: process.env.CIRCUIT_PLUGIN_ROOT,
+    execPath: process.execPath,
+    cliEntryPath: process.argv[1]
+  });
+}
 function publicFlowNameOffer() {
   return catalogFlowIds.filter((id) => !INTERNAL_FLOW_IDS.has(id)).sort().join("|");
 }
@@ -107085,21 +107640,37 @@ function parseExecutionArgs(command, argv) {
   const fixturePath = opts.fixture;
   const flowRoot2 = opts.flowRoot;
   const checkpointChoice = opts.checkpointChoice;
+  const checkpointResponseToken = opts.checkpointResponse;
+  if (checkpointChoice !== void 0 && checkpointResponseToken !== void 0) {
+    throw new Error("use either --checkpoint-choice or --checkpoint-response, not both");
+  }
+  let checkpointResponse;
+  if (checkpointResponseToken !== void 0) {
+    if (checkpointResponseToken.length === 0) {
+      throw new Error("--checkpoint-response requires a non-empty value");
+    }
+    try {
+      checkpointResponse = decodeCheckpointReviewResponse(checkpointResponseToken);
+    } catch (error52) {
+      const detail = error52 instanceof Error ? `: ${error52.message}` : "";
+      throw new Error(`--checkpoint-response is invalid${detail}`);
+    }
+  }
   const progress = opts.progress === "jsonl" ? "jsonl" : void 0;
   const includeUntrackedContent = opts.includeUntrackedContent === true;
   const reuseChildrenFrom = opts.reuseChildrenFrom;
   if (reuseChildrenFrom !== void 0 && reuseChildrenFrom.length === 0) {
     throw new Error("--reuse-children-from requires a non-empty path");
   }
-  if (command === "resume" || checkpointChoice !== void 0) {
+  if (command === "resume" || checkpointChoice !== void 0 || checkpointResponse !== void 0) {
     if (command !== "resume") {
       throw new Error("checkpoint resume must use the `resume` subcommand");
     }
     const missingResumeFlags = [];
     if (runFolder === void 0)
       missingResumeFlags.push("--run-folder");
-    if (checkpointChoice === void 0 || checkpointChoice.length === 0) {
-      missingResumeFlags.push("--checkpoint-choice");
+    if ((checkpointChoice === void 0 || checkpointChoice.length === 0) && checkpointResponse === void 0) {
+      missingResumeFlags.push("--checkpoint-choice or --checkpoint-response");
     }
     if (missingResumeFlags.length > 0) {
       throw new Error(`checkpoint resume requires ${missingResumeFlags.join(" and ")}. Run \`circuit checkpoints\` to see the run folder and its checkpoint choices.`);
@@ -107177,6 +107748,8 @@ function parseExecutionArgs(command, argv) {
     result.flowRoot = flowRoot2;
   if (checkpointChoice !== void 0)
     result.checkpointChoice = checkpointChoice;
+  if (checkpointResponse !== void 0)
+    result.checkpointResponse = checkpointResponse;
   if (progress !== void 0)
     result.progress = progress;
   if (reuseChildrenFrom !== void 0)
@@ -107386,9 +107959,9 @@ function waitingCheckpointStatus(runFolder) {
   }
 }
 async function runResumeCommand(args, options) {
-  if (args.command === "resume" && args.runFolder !== void 0 && args.checkpointChoice !== void 0) {
+  if (args.command === "resume" && args.runFolder !== void 0 && (args.checkpointChoice !== void 0 || args.checkpointResponse !== void 0)) {
     const candidates = runFolderCandidates(args.runFolder, process.cwd());
-    let runFolder = candidates[0] ?? resolve27(args.runFolder);
+    let runFolder = candidates[0] ?? resolve28(args.runFolder);
     for (const candidate of candidates) {
       if (await isRuntimeRunFolder(candidate)) {
         runFolder = candidate;
@@ -107398,11 +107971,14 @@ async function runResumeCommand(args, options) {
     const progress = progressReporter(args.progress === "jsonl");
     const hostKind = runtimeHostKind(options);
     if (await isRuntimeRunFolder(runFolder)) {
-      let selection = args.checkpointChoice;
+      let selection = args.checkpointResponse?.selection ?? args.checkpointChoice;
+      if (selection === void 0)
+        return 2;
       const waiting = waitingCheckpointStatus(runFolder);
       if (waiting !== void 0) {
         const match = matchCheckpointChoice(selection, waiting.choices);
-        if (match.kind === "no_match") {
+        const typedResponseIsNotExact = args.checkpointResponse !== void 0 && match.kind !== "exact";
+        if (match.kind === "no_match" || typedResponseIsNotExact) {
           process.stderr.write(`${invalidCheckpointChoiceMessage({
             attempted: selection,
             runFolder,
@@ -107411,13 +107987,15 @@ async function runResumeCommand(args, options) {
 `);
           return 2;
         }
-        selection = match.id;
+        if (args.checkpointResponse === void 0)
+          selection = match.id;
       }
       let runtimeResult;
       try {
         runtimeResult = await resumeCompiledFlow({
           runDir: runFolder,
           selection,
+          ...args.checkpointResponse === void 0 ? {} : { checkpointResponse: args.checkpointResponse },
           now: options.now ?? (() => /* @__PURE__ */ new Date()),
           childCompiledFlowResolver: defaultChildCompiledFlowResolver(void 0),
           ...hostKind === void 0 ? {} : { hostKind },
@@ -107431,7 +108009,7 @@ async function runResumeCommand(args, options) {
 `);
         return 2;
       }
-      const runResult = RunResult.parse(JSON.parse(readFileSync62(runtimeResult.resultPath, "utf8")));
+      const runResult = RunResult.parse(JSON.parse(readFileSync63(runtimeResult.resultPath, "utf8")));
       const priorRoute = readPriorRoute(runFolder);
       const postRunArtifactWarnings = [];
       const postRunArtifactContext = {
@@ -107458,6 +108036,7 @@ async function runResumeCommand(args, options) {
         writeOperatorSummary: () => writeOperatorSummary({
           runFolder,
           runResult,
+          resumeCommandPrefix: resumeCommandPrefix(hostKind),
           route: {
             selectedFlow: runResult.flow_id,
             ...priorRoute.routedBy === void 0 ? {} : { routedBy: priorRoute.routedBy },
@@ -107533,10 +108112,10 @@ function exitCodeForRun(input) {
   return 0;
 }
 function unknownFlowMessage(flowName, flowRoot2) {
-  const root = flowRoot2 !== void 0 ? resolve27(flowRoot2) : defaultFlowRoot();
+  const root = flowRoot2 !== void 0 ? resolve28(flowRoot2) : defaultFlowRoot();
   let available = [];
   try {
-    available = readdirSync7(root, { withFileTypes: true }).filter((entry) => entry.isDirectory() && existsSync41(join44(root, entry.name, "circuit.json"))).map((entry) => entry.name).filter((name) => !INTERNAL_FLOW_IDS.has(name)).sort();
+    available = readdirSync7(root, { withFileTypes: true }).filter((entry) => entry.isDirectory() && existsSync41(join45(root, entry.name, "circuit.json"))).map((entry) => entry.name).filter((name) => !INTERNAL_FLOW_IDS.has(name)).sort();
   } catch {
     available = [];
   }
@@ -107640,7 +108219,7 @@ async function runExecutionCommand(args, options) {
     ...entryModeSelection.entryModeName === void 0 ? {} : { entry_mode: entryModeSelection.entryModeName },
     ...entryModeSelection.source === void 0 ? {} : { entry_mode_source: entryModeSelection.source }
   });
-  const runFolder = runArgs.runFolder === void 0 ? join44(runsRoot(process.cwd()), runId) : resolve27(runArgs.runFolder);
+  const runFolder = runArgs.runFolder === void 0 ? join45(runsRoot(process.cwd()), runId) : resolve28(runArgs.runFolder);
   try {
     validateFlowConfigRequirements({ flow, axes: runArgs.axes, selectionConfigLayers });
   } catch (err) {
@@ -107649,7 +108228,7 @@ async function runExecutionCommand(args, options) {
     return 2;
   }
   const hostKind = runtimeHostKind(options);
-  const projectRoot = resolve27(options.configCwd ?? process.cwd());
+  const projectRoot = resolve28(options.configCwd ?? process.cwd());
   if (hostKind === "codex") {
     try {
       const assurance = codexInstallAssurance({ projectRoot, now });
@@ -107718,7 +108297,7 @@ async function runExecutionCommand(args, options) {
       ...historyRecall === void 0 ? {} : { historyRecallReport: historyRecall.report },
       ...historyRecall === void 0 ? {} : { historyRecallPrecision: historyRecall.precision },
       ...runArgs.includeUntrackedContent ? { evidencePolicy: { includeUntrackedFileContent: true } } : {},
-      ...runArgs.reuseChildrenFrom === void 0 ? {} : { reuseChildrenFrom: resolve27(runArgs.reuseChildrenFrom) }
+      ...runArgs.reuseChildrenFrom === void 0 ? {} : { reuseChildrenFrom: resolve28(runArgs.reuseChildrenFrom) }
     });
     if (isGraphCheckpointWaitingResult(runtimeResult)) {
       const waitingResult = {
@@ -107732,7 +108311,9 @@ async function runExecutionCommand(args, options) {
         manifest_hash: computeManifestHash(bytes),
         checkpoint: {
           step_id: runtimeResult.checkpoint.stepId,
+          attempt: runtimeResult.checkpoint.attempt,
           request_path: runtimeResult.checkpoint.requestPath,
+          request_sha256: runtimeResult.checkpoint.requestSha256,
           allowed_choices: runtimeResult.checkpoint.allowedChoices
         }
       };
@@ -107769,6 +108350,7 @@ async function runExecutionCommand(args, options) {
         writeOperatorSummary: () => writeOperatorSummary({
           runFolder,
           runResult: waitingResult,
+          resumeCommandPrefix: resumeCommandPrefix(hostKind),
           route: {
             selectedFlow: route.flowName,
             routedBy: route.source,
@@ -107824,7 +108406,7 @@ async function runExecutionCommand(args, options) {
       }
       return 0;
     }
-    const runResult = RunResult.parse(JSON.parse(readFileSync62(runtimeResult.resultPath, "utf8")));
+    const runResult = RunResult.parse(JSON.parse(readFileSync63(runtimeResult.resultPath, "utf8")));
     const selectedProcess = selectedProcessFields({
       processId: flow.id,
       routedBy: route.source,
@@ -107851,6 +108433,7 @@ async function runExecutionCommand(args, options) {
       writeOperatorSummary: () => writeOperatorSummary({
         runFolder,
         runResult,
+        resumeCommandPrefix: resumeCommandPrefix(hostKind),
         route: {
           selectedFlow: route.flowName,
           routedBy: route.source,
@@ -107890,8 +108473,8 @@ async function runExecutionCommand(args, options) {
             policyLayers
           })
         });
-        const autonomousLoopPath = join44(runFolder, AUTONOMOUS_LOOP_RELATIVE_PATH);
-        mkdirSync13(dirname17(autonomousLoopPath), { recursive: true });
+        const autonomousLoopPath = join45(runFolder, AUTONOMOUS_LOOP_RELATIVE_PATH);
+        mkdirSync13(dirname18(autonomousLoopPath), { recursive: true });
         writeFileSync14(autonomousLoopPath, `${JSON.stringify(autonomousLoop, null, 2)}
 `);
       } catch (err) {
@@ -107929,7 +108512,7 @@ async function runExecutionCommand(args, options) {
       postRunArtifactWarnings,
       operatorSummary,
       runEnvelope,
-      autonomousLoop: autonomousLoop === void 0 ? void 0 : { ...autonomousLoop, path: join44(runFolder, AUTONOMOUS_LOOP_RELATIVE_PATH) }
+      autonomousLoop: autonomousLoop === void 0 ? void 0 : { ...autonomousLoop, path: join45(runFolder, AUTONOMOUS_LOOP_RELATIVE_PATH) }
     }), null, 2)}
 `);
     if (ttyNotices) {
@@ -107964,11 +108547,13 @@ var init_run2 = __esm({
     init_result();
     init_power_tiers();
     init_run_start_recall();
+    init_resume_command();
     init_writer();
     init_projection();
     init_autonomous_run();
     init_run_folder_projector();
     init_catalog();
+    init_checkpoint_review_token();
     init_config_loader();
     init_control_plane_paths();
     init_progress_output();
@@ -108213,9 +108798,9 @@ function renderStyledTable(palette, rows) {
   }).join("\n");
 }
 function diamondHeaderLine(palette, command, parts = []) {
-  const sep2 = palette.dim("\xB7");
+  const sep3 = palette.dim("\xB7");
   const segments = [palette.bold(command), ...parts];
-  return `${palette.accent("\u25C6")} ${segments.join(` ${sep2} `)}`;
+  return `${palette.accent("\u25C6")} ${segments.join(` ${sep3} `)}`;
 }
 function columnHeader(palette, labels) {
   return labels.map((label) => cell2(label, palette.dim));
@@ -108480,19 +109065,19 @@ var init_preview = __esm({
 });
 
 // dist/cli/version-info.js
-import { readFileSync as readFileSync63 } from "node:fs";
-import { dirname as dirname18, resolve as resolve28 } from "node:path";
+import { readFileSync as readFileSync64 } from "node:fs";
+import { dirname as dirname19, resolve as resolve29 } from "node:path";
 import { fileURLToPath as fileURLToPath4 } from "node:url";
 function readSourceVersion() {
   if (true)
     return "0.1.1";
   const candidates = [
-    resolve28(dirname18(fileURLToPath4(import.meta.url)), "../../plugins/version.json"),
-    resolve28(process.cwd(), "plugins/version.json")
+    resolve29(dirname19(fileURLToPath4(import.meta.url)), "../../plugins/version.json"),
+    resolve29(process.cwd(), "plugins/version.json")
   ];
   for (const candidate of candidates) {
     try {
-      const raw = JSON.parse(readFileSync63(candidate, "utf8"));
+      const raw = JSON.parse(readFileSync64(candidate, "utf8"));
       if (typeof raw.version === "string" && raw.version.length > 0)
         return raw.version;
     } catch {
@@ -109908,7 +110493,7 @@ __export(generate_exports, {
   runGenerateCommand: () => runGenerateCommand
 });
 import { existsSync as existsSync42 } from "node:fs";
-import { join as join45 } from "node:path";
+import { join as join46 } from "node:path";
 function parseArgs2(argv) {
   const program2 = new Command("circuit generate").option("--description <task>").option("--name <slug>").option("--home <path>").option("--created-at <iso>").option("--publish").option("--yes").option("--max-repair <n>").option("--timeout-ms <ms>").option("--progress <format>");
   parseCommanderOrThrow(program2, argv);
@@ -110059,7 +110644,7 @@ async function runGenerateCommand(argv, options = {}) {
     if (args.name !== void 0) {
       const namedSlug = slugify2(args.name);
       assertValidSlug(namedSlug);
-      if (args.publish && existsSync42(join45(flowRoot(home), namedSlug, "circuit.json"))) {
+      if (args.publish && existsSync42(join46(flowRoot(home), namedSlug, "circuit.json"))) {
         throw new Error(`custom flow already published: ${namedSlug}`);
       }
     }
@@ -110102,7 +110687,7 @@ async function runGenerateCommand(argv, options = {}) {
       return 1;
     }
     const slug = composed.slug;
-    if (args.publish && existsSync42(join45(flowRoot(home), slug, "circuit.json"))) {
+    if (args.publish && existsSync42(join46(flowRoot(home), slug, "circuit.json"))) {
       throw new Error(`custom flow already published: ${slug}`);
     }
     const createdAt = args.createdAt ?? now().toISOString();
@@ -110137,11 +110722,11 @@ async function runGenerateCommand(argv, options = {}) {
       converged_round: composed.convergedRound,
       repair_rounds: composed.repairRounds,
       draft_path: draftRoot(home, slug),
-      validation_path: join45(draftRoot(home, slug), "validation-result.json"),
+      validation_path: join46(draftRoot(home, slug), "validation-result.json"),
       ...args.publish ? {
         published_path: publishedRoot(home, slug),
-        flow_path: join45(flowRoot(home), slug, "circuit.json"),
-        command_path: join45(commandRoot(home), `${slug}.md`),
+        flow_path: join46(flowRoot(home), slug, "circuit.json"),
+        command_path: join46(commandRoot(home), `${slug}.md`),
         manifest_path: manifestPath(home)
       } : {},
       operator_summary_markdown_path: summaryPath(home, slug)
@@ -112113,7 +112698,7 @@ var init_yoga_wasm_base64_esm = __esm({
 });
 
 // node_modules/yoga-layout/dist/src/generated/YGEnums.js
-var Align, BoxSizing, Dimension, Direction, Display, Edge, Errata, ExperimentalFeature, FlexDirection, Gutter, Justify, LogLevel, MeasureMode, NodeType, Overflow, PositionType, Unit, Wrap, constants2, YGEnums_default;
+var Align, BoxSizing, Dimension, Direction, Display, Edge, Errata, ExperimentalFeature, FlexDirection, Gutter, Justify, LogLevel, MeasureMode, NodeType, Overflow, PositionType, Unit, Wrap, constants3, YGEnums_default;
 var init_YGEnums = __esm({
   "node_modules/yoga-layout/dist/src/generated/YGEnums.js"() {
     Align = /* @__PURE__ */ (function(Align2) {
@@ -112242,7 +112827,7 @@ var init_YGEnums = __esm({
       Wrap2[Wrap2["WrapReverse"] = 2] = "WrapReverse";
       return Wrap2;
     })({});
-    constants2 = {
+    constants3 = {
       ALIGN_AUTO: Align.Auto,
       ALIGN_FLEX_START: Align.FlexStart,
       ALIGN_CENTER: Align.Center,
@@ -112316,7 +112901,7 @@ var init_YGEnums = __esm({
       WRAP_WRAP: Wrap.Wrap,
       WRAP_WRAP_REVERSE: Wrap.WrapReverse
     };
-    YGEnums_default = constants2;
+    YGEnums_default = constants3;
   }
 });
 
@@ -114930,8 +115515,8 @@ var require_react_reconciler_production = __commonJS({
           currentEntangledActionThenable = {
             status: "pending",
             value: void 0,
-            then: function(resolve32) {
-              entangledListeners.push(resolve32);
+            then: function(resolve33) {
+              entangledListeners.push(resolve33);
             }
           };
         }
@@ -114954,8 +115539,8 @@ var require_react_reconciler_production = __commonJS({
           status: "pending",
           value: null,
           reason: null,
-          then: function(resolve32) {
-            listeners.push(resolve32);
+          then: function(resolve33) {
+            listeners.push(resolve33);
           }
         };
         thenable.then(
@@ -124554,8 +125139,8 @@ var require_react_reconciler_development = __commonJS({
           currentEntangledActionThenable = {
             status: "pending",
             value: void 0,
-            then: function(resolve32) {
-              entangledListeners.push(resolve32);
+            then: function(resolve33) {
+              entangledListeners.push(resolve33);
             }
           };
         }
@@ -124578,8 +125163,8 @@ var require_react_reconciler_development = __commonJS({
           status: "pending",
           value: null,
           reason: null,
-          then: function(resolve32) {
-            listeners.push(resolve32);
+          then: function(resolve33) {
+            listeners.push(resolve33);
           }
         };
         thenable.then(
@@ -140294,7 +140879,7 @@ var require_websocket = __commonJS({
     var http = __require("http");
     var net = __require("net");
     var tls = __require("tls");
-    var { randomBytes, createHash: createHash8 } = __require("crypto");
+    var { randomBytes, createHash: createHash9 } = __require("crypto");
     var { Duplex, Readable } = __require("stream");
     var { URL: URL2 } = __require("url");
     var PerMessageDeflate2 = require_permessage_deflate();
@@ -140962,7 +141547,7 @@ var require_websocket = __commonJS({
           abortHandshake(websocket, socket, "Invalid Upgrade header");
           return;
         }
-        const digest = createHash8("sha1").update(key + GUID).digest("base64");
+        const digest = createHash9("sha1").update(key + GUID).digest("base64");
         if (res.headers["sec-websocket-accept"] !== digest) {
           abortHandshake(websocket, socket, "Invalid Sec-WebSocket-Accept header");
           return;
@@ -141331,7 +141916,7 @@ var require_websocket_server = __commonJS({
     var EventEmitter3 = __require("events");
     var http = __require("http");
     var { Duplex } = __require("stream");
-    var { createHash: createHash8 } = __require("crypto");
+    var { createHash: createHash9 } = __require("crypto");
     var extension2 = require_extension();
     var PerMessageDeflate2 = require_permessage_deflate();
     var subprotocol2 = require_subprotocol();
@@ -141638,7 +142223,7 @@ var require_websocket_server = __commonJS({
           );
         }
         if (this._state > RUNNING) return abortHandshake(socket, 503);
-        const digest = createHash8("sha1").update(key + GUID).digest("base64");
+        const digest = createHash9("sha1").update(key + GUID).digest("base64");
         const headers = [
           "HTTP/1.1 101 Switching Protocols",
           "Upgrade: websocket",
@@ -141821,22 +142406,22 @@ var init_devtools = __esm({
     init_devtools_window_polyfill();
     init_wrapper();
     init_react_devtools_stub();
-    isDevToolsReachable = async () => new Promise((resolve32) => {
+    isDevToolsReachable = async () => new Promise((resolve33) => {
       const socket = new wrapper_default("ws://localhost:8097");
       const timeout = setTimeout(() => {
         socket.terminate();
-        resolve32(false);
+        resolve33(false);
       }, 2e3);
       timeout.unref();
       socket.on("open", () => {
         clearTimeout(timeout);
         socket.terminate();
-        resolve32(true);
+        resolve33(true);
       });
       socket.on("error", () => {
         clearTimeout(timeout);
         socket.terminate();
-        resolve32(false);
+        resolve33(false);
       });
     });
     if (await isDevToolsReachable()) {
@@ -145813,8 +146398,8 @@ var init_ink = __esm({
     noop2 = () => {
     };
     textEncoder = new TextEncoder();
-    yieldImmediate = async () => new Promise((resolve32) => {
-      setImmediate(resolve32);
+    yieldImmediate = async () => new Promise((resolve33) => {
+      setImmediate(resolve33);
     });
     kittyQueryEscapeByte = 27;
     kittyQueryOpenBracketByte = 91;
@@ -146031,8 +146616,8 @@ var init_ink = __esm({
           };
         }
         this.initKittyKeyboard();
-        this.exitPromise = new Promise((resolve32, reject) => {
-          this.resolveExitPromise = resolve32;
+        this.exitPromise = new Promise((resolve33, reject) => {
+          this.resolveExitPromise = resolve33;
           this.rejectExitPromise = reject;
         });
         void this.exitPromise.catch(noop2);
@@ -146343,9 +146928,9 @@ var init_ink = __esm({
         settleThrottle(this.throttledOnRender, canWriteToStdout);
         settleThrottle(this.throttledLog, canWriteToStdout);
         if (canWriteToStdout && hasWritableState) {
-          await new Promise((resolve32) => {
+          await new Promise((resolve33) => {
             this.options.stdout.write("", () => {
-              resolve32();
+              resolve33();
             });
           });
           return;
@@ -146431,8 +147016,8 @@ var init_ink = __esm({
       async awaitNextRender() {
         if (!this.nextRenderCommit) {
           let resolveRender;
-          const promise2 = new Promise((resolve32) => {
-            resolveRender = resolve32;
+          const promise2 = new Promise((resolve33) => {
+            resolveRender = resolve33;
           });
           this.nextRenderCommit = { promise: promise2, resolve: resolveRender };
         }
@@ -147835,16 +148420,16 @@ function executeEffect(effect, options) {
   };
 }
 function StatusRegion({ status }) {
-  return (0, import_jsx_runtime13.jsxs)(Box_default, { flexDirection: "column", children: [(0, import_jsx_runtime13.jsxs)(Text, { children: [(0, import_jsx_runtime13.jsx)(Text, { color: status.ok ? "green" : "red", children: status.ok ? "\u2713" : "\u2717" }), " ", status.text] }), status.command === void 0 ? null : (0, import_jsx_runtime13.jsx)(Text, { dimColor: true, children: `  \u21B3 ${status.command}` })] });
+  return (0, import_jsx_runtime14.jsxs)(Box_default, { flexDirection: "column", children: [(0, import_jsx_runtime14.jsxs)(Text, { children: [(0, import_jsx_runtime14.jsx)(Text, { color: status.ok ? "green" : "red", children: status.ok ? "\u2713" : "\u2717" }), " ", status.text] }), status.command === void 0 ? null : (0, import_jsx_runtime14.jsx)(Text, { dimColor: true, children: `  \u21B3 ${status.command}` })] });
 }
 function HomeView({ cursor }) {
-  return (0, import_jsx_runtime13.jsx)(Box_default, { flexDirection: "column", marginTop: 1, children: HOME_ITEMS.map((item, index) => (0, import_jsx_runtime13.jsxs)(Text, { ...index === cursor ? { color: "cyan" } : {}, children: [index === cursor ? "\u276F " : "  ", item] }, item)) });
+  return (0, import_jsx_runtime14.jsx)(Box_default, { flexDirection: "column", marginTop: 1, children: HOME_ITEMS.map((item, index) => (0, import_jsx_runtime14.jsxs)(Text, { ...index === cursor ? { color: "cyan" } : {}, children: [index === cursor ? "\u276F " : "  ", item] }, item)) });
 }
 function BrowseView({ state, screen }) {
   const flows = visibleFlows(state, screen);
   const idWidth = Math.max(...state.flows.map((flow) => flow.id.length), 4);
   const selected = flows[screen.cursor];
-  return (0, import_jsx_runtime13.jsxs)(Box_default, { flexDirection: "column", marginTop: 1, children: [(screen.filtering || screen.filter !== "") && (0, import_jsx_runtime13.jsxs)(Text, { children: [(0, import_jsx_runtime13.jsx)(Text, { dimColor: true, children: "/" }), screen.filter, screen.filtering ? (0, import_jsx_runtime13.jsx)(Text, { inverse: true, children: " " }) : null] }), flows.length === 0 ? (0, import_jsx_runtime13.jsx)(Text, { dimColor: true, children: "no flows match" }) : flows.map((flow, index) => (0, import_jsx_runtime13.jsxs)(Text, { ...index === screen.cursor ? { color: "cyan" } : {}, children: [index === screen.cursor ? "\u276F " : "  ", flow.id.padEnd(idWidth + 2), (0, import_jsx_runtime13.jsx)(Text, { dimColor: index !== screen.cursor, children: flow.title })] }, flow.id)), selected === void 0 ? null : (0, import_jsx_runtime13.jsx)(Box_default, { marginTop: 1, children: (0, import_jsx_runtime13.jsx)(Text, { dimColor: true, children: selected.purpose }) })] });
+  return (0, import_jsx_runtime14.jsxs)(Box_default, { flexDirection: "column", marginTop: 1, children: [(screen.filtering || screen.filter !== "") && (0, import_jsx_runtime14.jsxs)(Text, { children: [(0, import_jsx_runtime14.jsx)(Text, { dimColor: true, children: "/" }), screen.filter, screen.filtering ? (0, import_jsx_runtime14.jsx)(Text, { inverse: true, children: " " }) : null] }), flows.length === 0 ? (0, import_jsx_runtime14.jsx)(Text, { dimColor: true, children: "no flows match" }) : flows.map((flow, index) => (0, import_jsx_runtime14.jsxs)(Text, { ...index === screen.cursor ? { color: "cyan" } : {}, children: [index === screen.cursor ? "\u276F " : "  ", flow.id.padEnd(idWidth + 2), (0, import_jsx_runtime14.jsx)(Text, { dimColor: index !== screen.cursor, children: flow.title })] }, flow.id)), selected === void 0 ? null : (0, import_jsx_runtime14.jsx)(Box_default, { marginTop: 1, children: (0, import_jsx_runtime14.jsx)(Text, { dimColor: true, children: selected.purpose }) })] });
 }
 function FlowView({ screen, configVersion, configOptions }) {
   const body = (0, import_react35.useMemo)(() => {
@@ -147867,29 +148452,29 @@ function FlowView({ screen, configVersion, configOptions }) {
       return palette.warn(`preview unavailable: ${err instanceof Error ? err.message : String(err)}`);
     }
   }, [screen.flowId, screen.dial, screen.matrix, configVersion, configOptions]);
-  return (0, import_jsx_runtime13.jsx)(Box_default, { flexDirection: "column", marginTop: 1, children: (0, import_jsx_runtime13.jsx)(Text, { children: body }) });
+  return (0, import_jsx_runtime14.jsx)(Box_default, { flexDirection: "column", marginTop: 1, children: (0, import_jsx_runtime14.jsx)(Text, { children: body }) });
 }
 function ConfigureField({ field, active, editing, current }) {
   const marker = active ? "\u276F " : "  ";
   if (active && editing !== void 0) {
-    return (0, import_jsx_runtime13.jsxs)(Box_default, { flexDirection: "column", children: [(0, import_jsx_runtime13.jsxs)(Text, { color: "cyan", children: [marker, field.label.padEnd(22)] }), (0, import_jsx_runtime13.jsxs)(Text, { children: ["    ", field.options.map((option, index) => (0, import_jsx_runtime13.jsx)(Text, { inverse: index === editing.optionIndex, children: ` ${option} ` }, option))] })] });
+    return (0, import_jsx_runtime14.jsxs)(Box_default, { flexDirection: "column", children: [(0, import_jsx_runtime14.jsxs)(Text, { color: "cyan", children: [marker, field.label.padEnd(22)] }), (0, import_jsx_runtime14.jsxs)(Text, { children: ["    ", field.options.map((option, index) => (0, import_jsx_runtime14.jsx)(Text, { inverse: index === editing.optionIndex, children: ` ${option} ` }, option))] })] });
   }
-  const valueText = current.value === void 0 ? (0, import_jsx_runtime13.jsx)(Text, { dimColor: true, children: "(unset)" }) : (0, import_jsx_runtime13.jsxs)(Text, { bold: true, children: [current.value, " ", (0, import_jsx_runtime13.jsxs)(Text, { dimColor: true, children: ["(", current.source, ")"] })] });
-  return (0, import_jsx_runtime13.jsxs)(Text, { ...active ? { color: "cyan" } : {}, children: [marker, field.label.padEnd(22), valueText, (0, import_jsx_runtime13.jsx)(Text, { dimColor: true, children: `  ${field.key}` })] });
+  const valueText = current.value === void 0 ? (0, import_jsx_runtime14.jsx)(Text, { dimColor: true, children: "(unset)" }) : (0, import_jsx_runtime14.jsxs)(Text, { bold: true, children: [current.value, " ", (0, import_jsx_runtime14.jsxs)(Text, { dimColor: true, children: ["(", current.source, ")"] })] });
+  return (0, import_jsx_runtime14.jsxs)(Text, { ...active ? { color: "cyan" } : {}, children: [marker, field.label.padEnd(22), valueText, (0, import_jsx_runtime14.jsx)(Text, { dimColor: true, children: `  ${field.key}` })] });
 }
 function ConfigureView({ screen, configVersion, configOptions }) {
   const fields = configFields(screen.flowId);
   const layers = (0, import_react35.useMemo)(() => discoverRuntimeConfigLayers(configOptions ?? {}).selectionConfigLayers, [configVersion, configOptions]);
-  return (0, import_jsx_runtime13.jsxs)(Box_default, { flexDirection: "column", marginTop: 1, children: [(0, import_jsx_runtime13.jsxs)(Text, { children: ["scope: ", (0, import_jsx_runtime13.jsx)(Text, { bold: true, children: screen.scope }), " ", (0, import_jsx_runtime13.jsxs)(Text, { dimColor: true, children: ["(", screen.scope === "project" ? "./.circuit/config.yaml" : "~/.config/circuit/config.yaml", ")"] })] }), (0, import_jsx_runtime13.jsx)(Box_default, { flexDirection: "column", marginTop: 1, children: fields.map((field, index) => (0, import_jsx_runtime13.jsx)(ConfigureField, { field, active: index === screen.cursor, editing: index === screen.cursor ? screen.editing : void 0, current: effectiveValue(layers, field.key) }, field.key)) })] });
+  return (0, import_jsx_runtime14.jsxs)(Box_default, { flexDirection: "column", marginTop: 1, children: [(0, import_jsx_runtime14.jsxs)(Text, { children: ["scope: ", (0, import_jsx_runtime14.jsx)(Text, { bold: true, children: screen.scope }), " ", (0, import_jsx_runtime14.jsxs)(Text, { dimColor: true, children: ["(", screen.scope === "project" ? "./.circuit/config.yaml" : "~/.config/circuit/config.yaml", ")"] })] }), (0, import_jsx_runtime14.jsx)(Box_default, { flexDirection: "column", marginTop: 1, children: fields.map((field, index) => (0, import_jsx_runtime14.jsx)(ConfigureField, { field, active: index === screen.cursor, editing: index === screen.cursor ? screen.editing : void 0, current: effectiveValue(layers, field.key) }, field.key)) })] });
 }
 function CreateView({ screen }) {
   if (screen.stage === "describe") {
-    return (0, import_jsx_runtime13.jsxs)(Box_default, { flexDirection: "column", marginTop: 1, children: [(0, import_jsx_runtime13.jsx)(Text, { children: "Describe the task this flow should encode:" }), (0, import_jsx_runtime13.jsx)(Box_default, { marginTop: 1, children: (0, import_jsx_runtime13.jsxs)(Text, { children: [(0, import_jsx_runtime13.jsx)(Text, { dimColor: true, children: "\u203A " }), screen.description, (0, import_jsx_runtime13.jsx)(Text, { inverse: true, children: " " })] }) })] });
+    return (0, import_jsx_runtime14.jsxs)(Box_default, { flexDirection: "column", marginTop: 1, children: [(0, import_jsx_runtime14.jsx)(Text, { children: "Describe the task this flow should encode:" }), (0, import_jsx_runtime14.jsx)(Box_default, { marginTop: 1, children: (0, import_jsx_runtime14.jsxs)(Text, { children: [(0, import_jsx_runtime14.jsx)(Text, { dimColor: true, children: "\u203A " }), screen.description, (0, import_jsx_runtime14.jsx)(Text, { inverse: true, children: " " })] }) })] });
   }
-  return (0, import_jsx_runtime13.jsxs)(Box_default, { flexDirection: "column", marginTop: 1, children: [(0, import_jsx_runtime13.jsx)(Text, { children: "Ready to compose this flow:" }), (0, import_jsx_runtime13.jsx)(Box_default, { marginTop: 1, children: (0, import_jsx_runtime13.jsx)(Text, { color: "cyan", children: generateCommand(screen.description, screen.publish) }) }), (0, import_jsx_runtime13.jsx)(Box_default, { marginTop: 1, children: (0, import_jsx_runtime13.jsxs)(Text, { children: ["publish after composing: ", (0, import_jsx_runtime13.jsx)(Text, { bold: true, children: screen.publish ? "yes" : "no (draft)" })] }) })] });
+  return (0, import_jsx_runtime14.jsxs)(Box_default, { flexDirection: "column", marginTop: 1, children: [(0, import_jsx_runtime14.jsx)(Text, { children: "Ready to compose this flow:" }), (0, import_jsx_runtime14.jsx)(Box_default, { marginTop: 1, children: (0, import_jsx_runtime14.jsx)(Text, { color: "cyan", children: generateCommand(screen.description, screen.publish) }) }), (0, import_jsx_runtime14.jsx)(Box_default, { marginTop: 1, children: (0, import_jsx_runtime14.jsxs)(Text, { children: ["publish after composing: ", (0, import_jsx_runtime14.jsx)(Text, { bold: true, children: screen.publish ? "yes" : "no (draft)" })] }) })] });
 }
 function HelpView({ screen }) {
-  return (0, import_jsx_runtime13.jsxs)(Box_default, { flexDirection: "column", marginTop: 1, children: [(0, import_jsx_runtime13.jsxs)(Text, { bold: true, children: ["keys \u2014 ", screen.kind] }), HELP_LINES[screen.kind].map((line) => (0, import_jsx_runtime13.jsx)(Text, { children: line }, line)), (0, import_jsx_runtime13.jsx)(Box_default, { marginTop: 1, children: (0, import_jsx_runtime13.jsx)(Text, { dimColor: true, children: "press any key to close" }) })] });
+  return (0, import_jsx_runtime14.jsxs)(Box_default, { flexDirection: "column", marginTop: 1, children: [(0, import_jsx_runtime14.jsxs)(Text, { bold: true, children: ["keys \u2014 ", screen.kind] }), HELP_LINES[screen.kind].map((line) => (0, import_jsx_runtime14.jsx)(Text, { children: line }, line)), (0, import_jsx_runtime14.jsx)(Box_default, { marginTop: 1, children: (0, import_jsx_runtime14.jsx)(Text, { dimColor: true, children: "press any key to close" }) })] });
 }
 function footerText(screen) {
   if (screen.kind === "home")
@@ -147938,13 +148523,13 @@ function App2({ flows, onExit, configOptions }) {
     });
   });
   const screen = currentScreen(state);
-  return (0, import_jsx_runtime13.jsxs)(Box_default, { flexDirection: "column", children: [(0, import_jsx_runtime13.jsxs)(Text, { children: [(0, import_jsx_runtime13.jsx)(Text, { color: "cyan", children: "\u25C6" }), " ", (0, import_jsx_runtime13.jsx)(Text, { bold: true, children: "circuit" }), " ", (0, import_jsx_runtime13.jsxs)(Text, { dimColor: true, children: ["\xB7 v", readSourceVersion(), " \xB7"] }), " ", breadcrumb(state)] }), state.help ? (0, import_jsx_runtime13.jsx)(HelpView, { screen }) : screen.kind === "home" ? (0, import_jsx_runtime13.jsx)(HomeView, { cursor: screen.cursor }) : screen.kind === "browse" ? (0, import_jsx_runtime13.jsx)(BrowseView, { state, screen }) : screen.kind === "flow" ? (0, import_jsx_runtime13.jsx)(FlowView, { screen, configVersion: state.configVersion, configOptions }) : screen.kind === "configure" ? (0, import_jsx_runtime13.jsx)(ConfigureView, { screen, configVersion: state.configVersion, configOptions }) : (0, import_jsx_runtime13.jsx)(CreateView, { screen }), (0, import_jsx_runtime13.jsxs)(Box_default, { marginTop: 1, flexDirection: "column", children: [state.status !== null ? (0, import_jsx_runtime13.jsx)(StatusRegion, { status: state.status }) : null, screen.kind === "flow" ? (0, import_jsx_runtime13.jsx)(Text, { dimColor: true, children: `\u21B3 ${previewCommand(screen)}` }) : null, (0, import_jsx_runtime13.jsx)(Text, { dimColor: true, children: footerText(screen) })] })] });
+  return (0, import_jsx_runtime14.jsxs)(Box_default, { flexDirection: "column", children: [(0, import_jsx_runtime14.jsxs)(Text, { children: [(0, import_jsx_runtime14.jsx)(Text, { color: "cyan", children: "\u25C6" }), " ", (0, import_jsx_runtime14.jsx)(Text, { bold: true, children: "circuit" }), " ", (0, import_jsx_runtime14.jsxs)(Text, { dimColor: true, children: ["\xB7 v", readSourceVersion(), " \xB7"] }), " ", breadcrumb(state)] }), state.help ? (0, import_jsx_runtime14.jsx)(HelpView, { screen }) : screen.kind === "home" ? (0, import_jsx_runtime14.jsx)(HomeView, { cursor: screen.cursor }) : screen.kind === "browse" ? (0, import_jsx_runtime14.jsx)(BrowseView, { state, screen }) : screen.kind === "flow" ? (0, import_jsx_runtime14.jsx)(FlowView, { screen, configVersion: state.configVersion, configOptions }) : screen.kind === "configure" ? (0, import_jsx_runtime14.jsx)(ConfigureView, { screen, configVersion: state.configVersion, configOptions }) : (0, import_jsx_runtime14.jsx)(CreateView, { screen }), (0, import_jsx_runtime14.jsxs)(Box_default, { marginTop: 1, flexDirection: "column", children: [state.status !== null ? (0, import_jsx_runtime14.jsx)(StatusRegion, { status: state.status }) : null, screen.kind === "flow" ? (0, import_jsx_runtime14.jsx)(Text, { dimColor: true, children: `\u21B3 ${previewCommand(screen)}` }) : null, (0, import_jsx_runtime14.jsx)(Text, { dimColor: true, children: footerText(screen) })] })] });
 }
-var import_jsx_runtime13, import_react35, HELP_LINES;
+var import_jsx_runtime14, import_react35, HELP_LINES;
 var init_app = __esm({
   async "dist/cli/interactive/app.js"() {
     "use strict";
-    import_jsx_runtime13 = __toESM(require_jsx_runtime(), 1);
+    import_jsx_runtime14 = __toESM(require_jsx_runtime(), 1);
     await init_build2();
     import_react35 = __toESM(require_react(), 1);
     init_config_loader();
@@ -148900,6 +149485,17 @@ function realBriefGitProbe(input) {
       return err.status === 1 ? false : void 0;
     }
   };
+  const gitRefExists = (ref) => {
+    try {
+      execFileSync2("git", ["-C", projectRoot, "rev-parse", "--verify", "--quiet", ref], {
+        stdio: ["ignore", "ignore", "ignore"],
+        timeout: 2e3
+      });
+      return true;
+    } catch (err) {
+      return err.status === 1 ? false : void 0;
+    }
+  };
   try {
     if (git(["rev-parse", "--is-inside-work-tree"]) !== "true")
       return {};
@@ -148927,8 +149523,8 @@ function realBriefGitProbe(input) {
       }
     }
     if (capturedBranch !== void 0 && capturedBranch.length > 0 && capturedBranch !== "HEAD") {
-      const branchSha = git(["rev-parse", "--verify", "--quiet", `refs/heads/${capturedBranch}`]);
-      if (branchSha === void 0) {
+      const branchExists = gitRefExists(`refs/heads/${capturedBranch}`);
+      if (branchExists === false) {
         facts.branch_gone = true;
       }
     }
@@ -150036,10 +150632,10 @@ init_terminal_style();
 init_version_info();
 function renderFrontDoor() {
   const palette = terminalPalette(colorEnabled());
-  const sep2 = palette.dim("\xB7");
+  const sep3 = palette.dim("\xB7");
   const line = (command, blurb) => `  ${command.padEnd(46)} ${palette.dim(blurb)}`;
   return [
-    `${palette.accent("\u25C6")} ${palette.bold("circuit")} ${sep2} v${readSourceVersion()} ${sep2} configurable developer flows`,
+    `${palette.accent("\u25C6")} ${palette.bold("circuit")} ${sep3} v${readSourceVersion()} ${sep3} configurable developer flows`,
     "",
     `${palette.bold("run flows")}`,
     line('circuit run <flow> --goal "<goal>"', "execute a flow with evidence and a report"),
@@ -150074,8 +150670,8 @@ init_generate();
 
 // dist/cli/handoff.js
 init_esm();
-import { existsSync as existsSync43, readFileSync as readFileSync64 } from "node:fs";
-import { resolve as resolve29 } from "node:path";
+import { existsSync as existsSync43, readFileSync as readFileSync65 } from "node:fs";
+import { resolve as resolve30 } from "node:path";
 init_records();
 init_continuity();
 init_control_plane_paths();
@@ -150158,7 +150754,7 @@ function debugHook(message) {
 function readHookInput() {
   if (process.stdin.isTTY)
     return {};
-  const raw = readFileSync64(0, "utf8");
+  const raw = readFileSync65(0, "utf8");
   if (raw.trim().length === 0)
     return {};
   return JSON.parse(raw);
@@ -150453,7 +151049,7 @@ function runHandoffHarvest(args, now) {
   }
   const resolvedProjectRoot = projectRoot ?? process.cwd();
   const source = ambientSourceFrom(args.source, hookEventName);
-  const controlPlane = args.controlPlane === void 0 ? void 0 : resolve29(args.controlPlane);
+  const controlPlane = args.controlPlane === void 0 ? void 0 : resolve30(args.controlPlane);
   const fallbackIndexPath = indexPath(controlPlane ?? controlPlaneRoot(resolvedProjectRoot));
   if (transcriptPath === void 0) {
     const result = {
@@ -150661,6 +151257,7 @@ var RUN_FLAG_BLURBS = {
   "--fixture": "compiled flow file to load; trusted paths only",
   "--flow-root": "load flows from this root instead of the packaged flows",
   "--checkpoint-choice": "used by resume; answers the pending checkpoint",
+  "--checkpoint-response": "used by resume; carries a reviewed choice and comments",
   "--progress": "stream progress events; use jsonl",
   "--include-untracked-content": "let Review send untracked file contents to the configured worker",
   "--reuse-children-from": "reuse finished child branches from a prior crashed run's folder (fresh runs only)"
@@ -150690,10 +151287,19 @@ var COMMAND_HELP = {
   },
   resume: {
     summary: "continue a paused run by answering its checkpoint",
-    usage: ["circuit resume --run-folder <path> --checkpoint-choice <choice> [--progress jsonl]"],
+    usage: [
+      "circuit resume --run-folder <path> (--checkpoint-choice <choice> | --checkpoint-response <response>) [--progress jsonl]"
+    ],
     flags: [
       { flag: "--run-folder <path>", blurb: "the paused run folder (required)" },
-      { flag: "--checkpoint-choice <choice>", blurb: "the checkpoint answer (required)" },
+      {
+        flag: "--checkpoint-choice <choice>",
+        blurb: "a bare checkpoint answer; use this or --checkpoint-response"
+      },
+      {
+        flag: "--checkpoint-response <response>",
+        blurb: "a typed choice and comments prepared by the HTML review page"
+      },
       { flag: "--progress <format>", blurb: "stream progress events; use jsonl" }
     ],
     notes: [EXIT_CODE_NOTE],
@@ -150908,7 +151514,7 @@ init_schemas3();
 init_atomic_io();
 init_outcome();
 init_indexer();
-import { join as join47 } from "node:path";
+import { join as join48 } from "node:path";
 
 // dist/app/history/memory-merge.js
 init_schemas3();
@@ -150916,8 +151522,8 @@ init_atomic_io();
 init_outcome();
 init_indexer();
 init_memory_identity();
-import { existsSync as existsSync44, readFileSync as readFileSync65 } from "node:fs";
-import { join as join46 } from "node:path";
+import { existsSync as existsSync44, readFileSync as readFileSync66 } from "node:fs";
+import { join as join47 } from "node:path";
 var RUN_ENVELOPE_RELATIVE_PATH2 = "reports/run-envelope.json";
 var RECALL_REPORT_RELATIVE_PATH = "reports/history/recall.json";
 var EFFECT_NOTE = "Report-only linkage (Slice 1). Effect requires cross-run aggregation over comparable runs (Slice 2).";
@@ -150928,7 +151534,7 @@ function deriveAbortReason(envelope) {
   return attempt.blocked_reason ?? attempt.summary;
 }
 function readRecallInputs(runFolder, warnings) {
-  const recallPath = join46(runFolder, RECALL_REPORT_RELATIVE_PATH);
+  const recallPath = join47(runFolder, RECALL_REPORT_RELATIVE_PATH);
   if (!existsSync44(recallPath)) {
     warnings.push({
       code: "recall_report_missing",
@@ -150939,7 +151545,7 @@ function readRecallInputs(runFolder, warnings) {
     return void 0;
   }
   try {
-    const recall = HistoryRecallReportV1.parse(JSON.parse(readFileSync65(recallPath, "utf8")));
+    const recall = HistoryRecallReportV1.parse(JSON.parse(readFileSync66(recallPath, "utf8")));
     return new Map(recall.memory_inputs.map((memory) => [memory.memory_id, memory]));
   } catch (error52) {
     warnings.push({
@@ -150984,7 +151590,7 @@ function resolveInput(memoryInputId, recallInputs, runFolder, warnings) {
 }
 function extractRunMemoryLinkage(runFolder) {
   const warnings = [];
-  const envelopePath = join46(runFolder, RUN_ENVELOPE_RELATIVE_PATH2);
+  const envelopePath = join47(runFolder, RUN_ENVELOPE_RELATIVE_PATH2);
   if (!existsSync44(envelopePath)) {
     warnings.push({
       code: "envelope_missing",
@@ -150996,7 +151602,7 @@ function extractRunMemoryLinkage(runFolder) {
   }
   let envelope;
   try {
-    envelope = RunEnvelopeRecord.parse(JSON.parse(readFileSync65(envelopePath, "utf8")));
+    envelope = RunEnvelopeRecord.parse(JSON.parse(readFileSync66(envelopePath, "utf8")));
   } catch (error52) {
     warnings.push({
       code: "source_invalid",
@@ -151094,7 +151700,7 @@ function buildMemoryMergeReport(options = {}) {
   });
 }
 function writeMemoryMergeReport(report, paths) {
-  const outPath = join46(paths.indexDir, HISTORY_MEMORY_MERGE_FILE);
+  const outPath = join47(paths.indexDir, HISTORY_MEMORY_MERGE_FILE);
   writeJsonAtomic(outPath, report, {
     validate: (raw) => HistoryMemoryMergeV1.parse(JSON.parse(raw))
   });
@@ -151291,7 +151897,7 @@ function buildMemoryEffectReport(options = {}) {
   });
 }
 function writeMemoryEffectReport(report, paths) {
-  const outPath = join47(paths.indexDir, HISTORY_MEMORY_EFFECT_FILE);
+  const outPath = join48(paths.indexDir, HISTORY_MEMORY_EFFECT_FILE);
   writeJsonAtomic(outPath, report, {
     validate: (raw) => HistoryMemoryEffectV1.parse(JSON.parse(raw))
   });
@@ -151305,8 +151911,8 @@ init_memory_preview();
 // dist/app/history/pull-log.js
 init_schemas3();
 init_atomic_io();
-import { existsSync as existsSync45, readFileSync as readFileSync66 } from "node:fs";
-import { join as join48 } from "node:path";
+import { existsSync as existsSync45, readFileSync as readFileSync67 } from "node:fs";
+import { join as join49 } from "node:path";
 var HISTORY_PULL_LOG_RELATIVE_PATH = "reports/history/pull-log.json";
 function pullLogUnavailable(runFolder, error52) {
   return {
@@ -151317,22 +151923,22 @@ function pullLogUnavailable(runFolder, error52) {
   };
 }
 function readPullLog(runFolder) {
-  const path = join48(runFolder, HISTORY_PULL_LOG_RELATIVE_PATH);
+  const path = join49(runFolder, HISTORY_PULL_LOG_RELATIVE_PATH);
   if (!existsSync45(path))
     return void 0;
   try {
-    return HistoryPullLogV1.parse(JSON.parse(readFileSync66(path, "utf8")));
+    return HistoryPullLogV1.parse(JSON.parse(readFileSync67(path, "utf8")));
   } catch {
     return void 0;
   }
 }
 function appendPullLogEntry(runFolder, input) {
-  const outPath = join48(runFolder, HISTORY_PULL_LOG_RELATIVE_PATH);
+  const outPath = join49(runFolder, HISTORY_PULL_LOG_RELATIVE_PATH);
   const warnings = [];
   let existing;
   try {
     if (existsSync45(outPath)) {
-      existing = HistoryPullLogV1.parse(JSON.parse(readFileSync66(outPath, "utf8")));
+      existing = HistoryPullLogV1.parse(JSON.parse(readFileSync67(outPath, "utf8")));
     }
   } catch (error52) {
     warnings.push(pullLogUnavailable(runFolder, error52));
@@ -151688,9 +152294,9 @@ async function runHistoryCommand(argv) {
 init_esm();
 init_indexer();
 init_catalog();
-import { createHash as createHash7 } from "node:crypto";
-import { existsSync as existsSync47, readFileSync as readFileSync68 } from "node:fs";
-import { basename as basename8, join as join49 } from "node:path";
+import { createHash as createHash8 } from "node:crypto";
+import { existsSync as existsSync47, readFileSync as readFileSync69 } from "node:fs";
+import { basename as basename8, join as join50 } from "node:path";
 
 // dist/memory/project-identity.js
 var import_yaml5 = __toESM(require_dist(), 1);
@@ -151700,7 +152306,7 @@ init_connector_relay();
 init_control_plane_paths();
 init_project_store();
 import { execFileSync as execFileSync5 } from "node:child_process";
-import { existsSync as existsSync46, readFileSync as readFileSync67 } from "node:fs";
+import { existsSync as existsSync46, readFileSync as readFileSync68 } from "node:fs";
 function hashedId(prefix, basis) {
   return `proj-${prefix}-${sha256OfString(basis).slice(0, 16)}`;
 }
@@ -151721,7 +152327,7 @@ function readConfigProjectId(repoRoot) {
     return void 0;
   let raw;
   try {
-    raw = (0, import_yaml5.parse)(readFileSync67(configPath, "utf8"));
+    raw = (0, import_yaml5.parse)(readFileSync68(configPath, "utf8"));
   } catch {
     return void 0;
   }
@@ -151794,7 +152400,7 @@ function commanderErrorMessage2(err) {
   return err instanceof Error ? err.message : String(err);
 }
 function sha256Text(text) {
-  return createHash7("sha256").update(text, "utf8").digest("hex");
+  return createHash8("sha256").update(text, "utf8").digest("hex");
 }
 function parseMemoryArgs(argv) {
   let parsed;
@@ -151865,10 +152471,10 @@ function resolveNoteSource(input) {
     { rel: "reports/result.json", kind: "report" }
   ];
   for (const candidate of candidates) {
-    const abs = join49(input.runFolder, candidate.rel);
+    const abs = join50(input.runFolder, candidate.rel);
     if (!existsSync47(abs))
       continue;
-    const sha2564 = sha256Text(readFileSync68(abs, "utf8"));
+    const sha2564 = sha256Text(readFileSync69(abs, "utf8"));
     const ref = Ref.parse({
       kind: candidate.kind,
       ref: candidate.rel,
@@ -151877,10 +152483,10 @@ function resolveNoteSource(input) {
     });
     return { ref, sha256: sha2564 };
   }
-  const tracePath = join49(input.runFolder, "trace.ndjson");
+  const tracePath = join50(input.runFolder, "trace.ndjson");
   if (existsSync47(tracePath)) {
     const runId = basename8(input.runFolder);
-    const sha2564 = sha256Text(readFileSync68(tracePath, "utf8"));
+    const sha2564 = sha256Text(readFileSync69(tracePath, "utf8"));
     const trace = Ref.safeParse({
       kind: "trace",
       ref: "trace.ndjson#sequence=0",
@@ -152052,23 +152658,23 @@ init_preview();
 
 // dist/cli/reclaim.js
 init_esm();
-import { join as join51, resolve as resolve30 } from "node:path";
+import { join as join52, resolve as resolve31 } from "node:path";
 
 // dist/runtime/fanout/worktree-reaper.js
 init_trace_store();
 init_run_owner_lock();
 init_worktree();
 import { readdir as readdir2 } from "node:fs/promises";
-import { join as join50 } from "node:path";
+import { join as join51 } from "node:path";
 var listWorktreesFromDisk = async (worktreesRoot) => {
   const entries = [];
   const runDirs = await listSubdirectories(worktreesRoot);
   for (const runId of runDirs) {
-    const stepDirs = await listSubdirectories(join50(worktreesRoot, runId));
+    const stepDirs = await listSubdirectories(join51(worktreesRoot, runId));
     for (const stepId of stepDirs) {
-      const branchDirs = await listSubdirectories(join50(worktreesRoot, runId, stepId));
+      const branchDirs = await listSubdirectories(join51(worktreesRoot, runId, stepId));
       for (const branchId of branchDirs) {
-        entries.push({ path: join50(worktreesRoot, runId, stepId, branchId), runId });
+        entries.push({ path: join51(worktreesRoot, runId, stepId, branchId), runId });
       }
     }
   }
@@ -152088,7 +152694,7 @@ function makeTraceRunStatusResolver(runsRoot2) {
   return async (runId) => {
     let entries;
     try {
-      const trace = new TraceStore(join50(runsRoot2, runId));
+      const trace = new TraceStore(join51(runsRoot2, runId));
       entries = await trace.load();
     } catch {
       return "unknown";
@@ -152200,7 +152806,7 @@ function parseReclaimArgs(argv) {
   }
   return {
     json: options?.json === true,
-    projectRoot: resolve30(options?.projectRoot ?? process.cwd())
+    projectRoot: resolve31(options?.projectRoot ?? process.cwd())
   };
 }
 async function runReclaimCommand(argv) {
@@ -152211,7 +152817,7 @@ async function runReclaimCommand(argv) {
     return 2;
   }
   const projectRoot = parsed.projectRoot;
-  const worktreesRoot = join51(controlPlaneRoot(projectRoot), "worktrees");
+  const worktreesRoot = join52(controlPlaneRoot(projectRoot), "worktrees");
   const summary = await reapWorktrees({
     worktreesRoot,
     // Anchor `git worktree remove` at the resolved project root so reclaim works
@@ -152314,8 +152920,8 @@ init_host();
 init_atomic_io();
 init_commander_support();
 init_run2();
-import { existsSync as existsSync48, readFileSync as readFileSync69 } from "node:fs";
-import { join as join52, resolve as resolve31 } from "node:path";
+import { existsSync as existsSync48, readFileSync as readFileSync70 } from "node:fs";
+import { join as join53, resolve as resolve32 } from "node:path";
 var START_LINE = /^\s*<!--\s*circuit:start\s*-->\s*$/;
 var END_LINE = /^\s*<!--\s*circuit:end\s*-->\s*$/;
 var UNINSTALL_TARGET_FILES = ["AGENTS.md", "CLAUDE.md"];
@@ -152379,7 +152985,7 @@ function parseArgs4(argv, cwd2) {
     throw new Error(`unexpected argument: ${program2.args[0]}`);
   const opts = program2.opts();
   return {
-    dir: resolve31(opts.dir ?? cwd2),
+    dir: resolve32(opts.dir ?? cwd2),
     json: opts.json === true
   };
 }
@@ -152466,14 +153072,14 @@ async function runUninstallCommand(argv, options = {}) {
   let malformedAny = false;
   let strippedAny = false;
   for (const file2 of UNINSTALL_TARGET_FILES) {
-    const path = join52(args.dir, file2);
+    const path = join53(args.dir, file2);
     if (!existsSync48(path)) {
       files.push({ file: file2, path, status: "absent" });
       continue;
     }
     let content;
     try {
-      content = readFileSync69(path, "utf8");
+      content = readFileSync70(path, "utf8");
     } catch (err) {
       process.stderr.write(`error: could not read ${path}: ${err.message}
 `);

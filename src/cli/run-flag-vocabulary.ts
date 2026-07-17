@@ -40,6 +40,7 @@ export const RUN_EXECUTION_FLAGS: readonly RunExecutionFlag[] = [
   { flag: '--fixture', valueHint: '<path>', docValid: true },
   { flag: '--flow-root', valueHint: '<path>', docValid: true },
   { flag: '--checkpoint-choice', valueHint: '<choice>', docValid: true },
+  { flag: '--checkpoint-response', valueHint: '<response>', docValid: true },
   { flag: '--progress', valueHint: '<format>', docValid: true },
   // Declared so the parser owns the rejection message; never teachable.
   { flag: '--dry-run', docValid: false },

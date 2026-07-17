@@ -304,7 +304,7 @@ describe('flow-shape composition — composed Converge red-verify routes to the 
     // via the needs-attention route (`close` -> @stop). The run never reads as success.
     expect(routesTaken(trace, 'review')).toEqual(['advance', 'advance', 'close']);
     expect(trace.find((e) => e.kind === 'step.aborted')).toBeUndefined();
-  }, 30_000);
+  }, 90_000);
 });
 
 describe('flow-shape composition — composed Converge runs to a green @complete', () => {

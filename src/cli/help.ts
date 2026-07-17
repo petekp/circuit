@@ -93,6 +93,7 @@ const RUN_FLAG_BLURBS: Readonly<Record<string, string>> = {
   '--fixture': 'compiled flow file to load; trusted paths only',
   '--flow-root': 'load flows from this root instead of the packaged flows',
   '--checkpoint-choice': 'used by resume; answers the pending checkpoint',
+  '--checkpoint-response': 'used by resume; carries a reviewed choice and comments',
   '--progress': 'stream progress events; use jsonl',
   '--include-untracked-content': 'let Review send untracked file contents to the configured worker',
   '--reuse-children-from':
@@ -127,10 +128,19 @@ const COMMAND_HELP: Readonly<Record<CliCommandName, CommandHelp>> = {
   },
   resume: {
     summary: 'continue a paused run by answering its checkpoint',
-    usage: ['circuit resume --run-folder <path> --checkpoint-choice <choice> [--progress jsonl]'],
+    usage: [
+      'circuit resume --run-folder <path> (--checkpoint-choice <choice> | --checkpoint-response <response>) [--progress jsonl]',
+    ],
     flags: [
       { flag: '--run-folder <path>', blurb: 'the paused run folder (required)' },
-      { flag: '--checkpoint-choice <choice>', blurb: 'the checkpoint answer (required)' },
+      {
+        flag: '--checkpoint-choice <choice>',
+        blurb: 'a bare checkpoint answer; use this or --checkpoint-response',
+      },
+      {
+        flag: '--checkpoint-response <response>',
+        blurb: 'a typed choice and comments prepared by the HTML review page',
+      },
       { flag: '--progress <format>', blurb: 'stream progress events; use jsonl' },
     ],
     notes: [EXIT_CODE_NOTE],

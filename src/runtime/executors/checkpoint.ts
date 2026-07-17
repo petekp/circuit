@@ -56,6 +56,14 @@ type CheckpointRouteResolution =
 
 type CheckpointBoundaryProjection = ReturnType<typeof projectCheckpointBoundaryV0>;
 
+function checkpointAttemptResponsePath(responsePath: string, attempt: number): string {
+  const jsonSuffix = '.json';
+  if (responsePath.endsWith(jsonSuffix)) {
+    return `${responsePath.slice(0, -jsonSuffix.length)}.attempt-${attempt}${jsonSuffix}`;
+  }
+  return `${responsePath}.attempt-${attempt}.json`;
+}
+
 // Unified materialized-choice shape. Static choices come from the strict
 // CheckpointPolicy schema (`label?`/`description?` carry Zod's `| undefined`);
 // dynamic choices come from resolveCheckpointChoicesSource as CheckpointChoice.
@@ -421,6 +429,8 @@ export async function executeCheckpointResult(
     const report = step.writes?.report;
     const resumedSelection =
       context.resumeCheckpoint?.stepId === step.id ? context.resumeCheckpoint.selection : undefined;
+    const resumedComments =
+      context.resumeCheckpoint?.stepId === step.id ? context.resumeCheckpoint.comments : undefined;
     const resolution = await resolveCheckpoint(step, context, context.depth, stepPolicy);
     if (resumedSelection === undefined) {
       if (report !== undefined) {
@@ -482,12 +492,18 @@ export async function executeCheckpointResult(
             autoResolved: false,
           };
     if (effectiveResolution.kind === 'waiting') {
+      if (checkpointRequestSha256 === undefined) {
+        return stepExecutionFailed(
+          `checkpoint step '${step.id}' cannot wait without a saved request hash`,
+        );
+      }
       return stepExecutionOutcome({
         kind: 'waiting_checkpoint',
         checkpoint: {
           stepId: step.id,
           attempt,
           requestPath: context.files.resolve(request),
+          requestSha256: checkpointRequestSha256,
           allowedChoices: stepPolicy.choices.map((choice) => choice.id),
         },
       });
@@ -555,16 +571,23 @@ export async function executeCheckpointResult(
       });
       return stepExecutionFailed(reason);
     }
-    await context.files.writeJson(response, {
+    const responseBody = {
       schema_version: 1,
       step_id: step.id,
       selection: effectiveResolution.selection,
       route_id: routeId,
       resolution_source: effectiveResolution.resolutionSource,
+      ...(resumedComments === undefined || resumedComments.length === 0
+        ? {}
+        : { comments: resumedComments }),
       ...(effectiveResolution.autoResolution === undefined
         ? {}
         : { auto_resolution: effectiveResolution.autoResolution }),
-    });
+    };
+    await context.files.writeJson(response, responseBody);
+    const responseAttemptPath = checkpointAttemptResponsePath(response.path, attempt);
+    await context.files.writeJson(responseAttemptPath, responseBody);
+    const responseReportHash = sha256Hex(await context.files.readText(responseAttemptPath));
     await context.trace.append({
       run_id: context.runId,
       kind: 'checkpoint.resolved',
@@ -575,6 +598,8 @@ export async function executeCheckpointResult(
       auto_resolved: effectiveResolution.autoResolved,
       resolution_source: effectiveResolution.resolutionSource,
       response_path: response.path,
+      response_attempt_path: responseAttemptPath,
+      response_report_hash: responseReportHash,
     });
     await context.trace.append({
       run_id: context.runId,

@@ -286,6 +286,8 @@ function prototypeDetails(flowReport: JsonObject | undefined): string[] {
   if (verification !== undefined) {
     details.push(`Verification: ${friendlyVerificationStatus(verification)}.`);
   }
+  const reviewNotes = arrayField(flowReport, 'checkpoint_comments').length;
+  if (reviewNotes > 0) details.push(`Review notes: ${reviewNotes} captured.`);
   const root = stringField(flowReport, 'prototype_root');
   if (root !== undefined) details.push(`Prototype root: ${root}.`);
   const entryPoints = stringArrayField(flowReport, 'entry_points');

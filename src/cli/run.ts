@@ -8,6 +8,7 @@ import { isRuntimeRunFolder, resumeCompiledFlow } from '../runtime/run/checkpoin
 import { runCompiledFlowWithWaiting } from '../runtime/run/compiled-flow-runner.js';
 import { isGraphCheckpointWaitingResult } from '../runtime/run/graph-runner.js';
 import { Axes, type Axes as AxesValue, TournamentN } from '../schemas/axes.js';
+import type { CheckpointReviewResponse } from '../schemas/checkpoint-review-response.js';
 import type { CompiledFlow } from '../schemas/compiled-flow.js';
 import { Config, type LayeredConfig } from '../schemas/config.js';
 import { HostKind, type HostKind as HostKindValue } from '../schemas/host.js';
@@ -26,6 +27,7 @@ import type { RunClosedOutcome } from '../schemas/trace-entry.js';
 import { type PowerDialResolution, resolvePowerDialSetting } from '../selection/power-tiers.js';
 
 import { prepareRunStartHistoryRecall } from '../app/history/run-start-recall.js';
+import { operatorSummaryResumeCommandPrefix } from '../app/operator-summary/resume-command.js';
 import { readPriorRoute, writeOperatorSummary } from '../app/operator-summary/writer.js';
 import {
   projectCheckpointWaitingProcessEvidence,
@@ -37,6 +39,7 @@ import {
   projectRunStatusFromRunFolder,
 } from '../app/run-status/run-folder-projector.js';
 import { INTERNAL_FLOW_IDS, catalogFlowIds, findFlowRuntimeSurfaceById } from '../flows/catalog.js';
+import { decodeCheckpointReviewResponse } from '../shared/checkpoint-review-token.js';
 import { discoverRuntimeConfigLayers } from '../shared/config-loader.js';
 import { runsRoot } from '../shared/control-plane-paths.js';
 import { progressDisplay, progressPresentation } from '../shared/progress-output.js';
@@ -105,6 +108,7 @@ export interface ParsedArgs {
   fixturePath?: string;
   flowRoot?: string;
   checkpointChoice?: string;
+  checkpointResponse?: CheckpointReviewResponse;
   progress?: 'jsonl';
   includeUntrackedContent: boolean;
   // A prior crashed run's folder to reuse finished sub-run children from
@@ -138,6 +142,15 @@ export interface RunCommandOptions {
 }
 
 export const CIRCUIT_HOST_KIND_ENV = 'CIRCUIT_HOST_KIND';
+
+function resumeCommandPrefix(hostKind: HostKindValue | undefined): string {
+  return operatorSummaryResumeCommandPrefix({
+    ...(hostKind === undefined ? {} : { hostKind }),
+    pluginRoot: process.env.CIRCUIT_PLUGIN_ROOT,
+    execPath: process.execPath,
+    cliEntryPath: process.argv[1],
+  });
+}
 
 // The flow names a misuse error may offer, derived from the catalog's
 // visibility (the same source of truth as INTERNAL_FLOW_IDS) so an internal
@@ -182,6 +195,7 @@ export function parseExecutionArgs(command: 'run' | 'resume', argv: readonly str
     fixture?: string;
     flowRoot?: string;
     checkpointChoice?: string;
+    checkpointResponse?: string;
     progress?: string;
     dryRun?: boolean;
     includeUntrackedContent?: boolean;
@@ -253,6 +267,22 @@ export function parseExecutionArgs(command: 'run' | 'resume', argv: readonly str
   const fixturePath = opts.fixture;
   const flowRoot = opts.flowRoot;
   const checkpointChoice = opts.checkpointChoice;
+  const checkpointResponseToken = opts.checkpointResponse;
+  if (checkpointChoice !== undefined && checkpointResponseToken !== undefined) {
+    throw new Error('use either --checkpoint-choice or --checkpoint-response, not both');
+  }
+  let checkpointResponse: CheckpointReviewResponse | undefined;
+  if (checkpointResponseToken !== undefined) {
+    if (checkpointResponseToken.length === 0) {
+      throw new Error('--checkpoint-response requires a non-empty value');
+    }
+    try {
+      checkpointResponse = decodeCheckpointReviewResponse(checkpointResponseToken);
+    } catch (error) {
+      const detail = error instanceof Error ? `: ${error.message}` : '';
+      throw new Error(`--checkpoint-response is invalid${detail}`);
+    }
+  }
   const progress = opts.progress === 'jsonl' ? 'jsonl' : undefined;
   const includeUntrackedContent = opts.includeUntrackedContent === true;
   const reuseChildrenFrom = opts.reuseChildrenFrom;
@@ -260,7 +290,7 @@ export function parseExecutionArgs(command: 'run' | 'resume', argv: readonly str
     throw new Error('--reuse-children-from requires a non-empty path');
   }
 
-  if (command === 'resume' || checkpointChoice !== undefined) {
+  if (command === 'resume' || checkpointChoice !== undefined || checkpointResponse !== undefined) {
     if (command !== 'resume') {
       throw new Error('checkpoint resume must use the `resume` subcommand');
     }
@@ -270,8 +300,11 @@ export function parseExecutionArgs(command: 'run' | 'resume', argv: readonly str
     // checkpoints entry, so name both together here too.
     const missingResumeFlags: string[] = [];
     if (runFolder === undefined) missingResumeFlags.push('--run-folder');
-    if (checkpointChoice === undefined || checkpointChoice.length === 0) {
-      missingResumeFlags.push('--checkpoint-choice');
+    if (
+      (checkpointChoice === undefined || checkpointChoice.length === 0) &&
+      checkpointResponse === undefined
+    ) {
+      missingResumeFlags.push('--checkpoint-choice or --checkpoint-response');
     }
     if (missingResumeFlags.length > 0) {
       throw new Error(
@@ -361,6 +394,7 @@ export function parseExecutionArgs(command: 'run' | 'resume', argv: readonly str
   if (fixturePath !== undefined) result.fixturePath = fixturePath;
   if (flowRoot !== undefined) result.flowRoot = flowRoot;
   if (checkpointChoice !== undefined) result.checkpointChoice = checkpointChoice;
+  if (checkpointResponse !== undefined) result.checkpointResponse = checkpointResponse;
   if (progress !== undefined) result.progress = progress;
   if (reuseChildrenFrom !== undefined) result.reuseChildrenFrom = reuseChildrenFrom;
   return result;
@@ -672,7 +706,7 @@ export async function runResumeCommand(
   if (
     args.command === 'resume' &&
     args.runFolder !== undefined &&
-    args.checkpointChoice !== undefined
+    (args.checkpointChoice !== undefined || args.checkpointResponse !== undefined)
   ) {
     const candidates = runFolderCandidates(args.runFolder, process.cwd());
     let runFolder = candidates[0] ?? resolve(args.runFolder);
@@ -689,11 +723,14 @@ export async function runResumeCommand(
       // label, a different case, or stray whitespace onto the canonical choice
       // id, and answer a real miss with the actual choices. The engine's
       // allow-list stays strict and unchanged.
-      let selection = args.checkpointChoice;
+      let selection = args.checkpointResponse?.selection ?? args.checkpointChoice;
+      if (selection === undefined) return 2;
       const waiting = waitingCheckpointStatus(runFolder);
       if (waiting !== undefined) {
         const match = matchCheckpointChoice(selection, waiting.choices);
-        if (match.kind === 'no_match') {
+        const typedResponseIsNotExact =
+          args.checkpointResponse !== undefined && match.kind !== 'exact';
+        if (match.kind === 'no_match' || typedResponseIsNotExact) {
           process.stderr.write(
             `${invalidCheckpointChoiceMessage({
               attempted: selection,
@@ -703,13 +740,16 @@ export async function runResumeCommand(
           );
           return 2;
         }
-        selection = match.id;
+        if (args.checkpointResponse === undefined) selection = match.id;
       }
       let runtimeResult: Awaited<ReturnType<typeof resumeCompiledFlow>>;
       try {
         runtimeResult = await resumeCompiledFlow({
           runDir: runFolder,
           selection,
+          ...(args.checkpointResponse === undefined
+            ? {}
+            : { checkpointResponse: args.checkpointResponse }),
           now: options.now ?? (() => new Date()),
           childCompiledFlowResolver: defaultChildCompiledFlowResolver(undefined),
           ...(hostKind === undefined ? {} : { hostKind }),
@@ -757,6 +797,7 @@ export async function runResumeCommand(
           writeOperatorSummary({
             runFolder,
             runResult,
+            resumeCommandPrefix: resumeCommandPrefix(hostKind),
             route: {
               selectedFlow: runResult.flow_id as unknown as string,
               ...(priorRoute.routedBy === undefined ? {} : { routedBy: priorRoute.routedBy }),
@@ -1161,7 +1202,9 @@ export async function runExecutionCommand(
         manifest_hash: computeManifestHash(bytes),
         checkpoint: {
           step_id: runtimeResult.checkpoint.stepId,
+          attempt: runtimeResult.checkpoint.attempt,
           request_path: runtimeResult.checkpoint.requestPath,
+          request_sha256: runtimeResult.checkpoint.requestSha256,
           allowed_choices: runtimeResult.checkpoint.allowedChoices,
         },
       };
@@ -1201,6 +1244,7 @@ export async function runExecutionCommand(
           writeOperatorSummary({
             runFolder,
             runResult: waitingResult,
+            resumeCommandPrefix: resumeCommandPrefix(hostKind),
             route: {
               selectedFlow: route.flowName,
               routedBy: route.source,
@@ -1304,6 +1348,7 @@ export async function runExecutionCommand(
         writeOperatorSummary({
           runFolder,
           runResult,
+          resumeCommandPrefix: resumeCommandPrefix(hostKind),
           route: {
             selectedFlow: route.flowName,
             routedBy: route.source,

@@ -115,7 +115,9 @@ export interface CheckpointWaitingOperatorSummaryResult {
   readonly manifest_hash: string;
   readonly checkpoint: {
     readonly step_id: string;
+    readonly attempt: number;
     readonly request_path: string;
+    readonly request_sha256: string;
     readonly allowed_choices: readonly string[];
   };
   readonly reason?: string;
@@ -315,7 +317,9 @@ function widenedProjectorCheckpoint(
   });
   return {
     step_id: checkpoint.step_id,
+    attempt: checkpoint.attempt,
     request_path: checkpoint.request_path,
+    request_sha256: checkpoint.request_sha256,
     allowed_choices: checkpoint.allowed_choices,
     ...(prompt === undefined ? {} : { prompt }),
     ...(safeDefault === undefined ? {} : { safe_default_choice: safeDefault }),
@@ -1572,6 +1576,7 @@ export function writeOperatorSummary(input: {
   readonly runFolder: string;
   readonly runResult: OperatorSummaryRunResult;
   readonly route: RouteSummary;
+  readonly resumeCommandPrefix?: string | undefined;
 }): OperatorSummaryWriteResult {
   const flowId = input.runResult.flow_id as unknown as string;
   const flowResultRelPath = findFlowRuntimeSurfaceById(flowId)?.primaryResult?.path;
@@ -1620,6 +1625,9 @@ export function writeOperatorSummary(input: {
     runId: input.runResult.run_id as unknown as string,
     flowId,
     runOutcome: input.runResult.outcome,
+    ...(input.resumeCommandPrefix === undefined
+      ? {}
+      : { resumeCommandPrefix: input.resumeCommandPrefix }),
     ...(projectorCheckpoint === undefined ? {} : { checkpoint: projectorCheckpoint }),
     flowReport,
     readJsonRunRelative: (relPath) => readJsonIfPresent(input.runFolder, relPath),

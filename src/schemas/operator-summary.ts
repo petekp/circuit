@@ -3,6 +3,7 @@ import { CompiledFlowId, RunId } from './ids.js';
 import { Power } from './power.js';
 import { CompiledDepth } from './process.js';
 import { MAX_STATUS_TEXT_CHARS } from './progress-event.js';
+import { Sha256 } from './ref.js';
 import { RubricResult } from './rubric.js';
 import { ProviderScopedModel } from './selection-policy.js';
 import { RelayRole } from './step.js';
@@ -221,7 +222,9 @@ export const OperatorSummary = z
     checkpoint: z
       .object({
         step_id: z.string().min(1),
+        attempt: z.number().int().positive().optional(),
         request_path: z.string().min(1),
+        request_sha256: Sha256.optional(),
         allowed_choices: z.array(z.string().min(1)).min(1),
       })
       .strict()

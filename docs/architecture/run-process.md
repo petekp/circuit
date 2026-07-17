@@ -90,8 +90,11 @@ Safety gates at parse time:
 - `--power` only accepts `auto`, `low`, `medium`, or `high`.
 - `--flow-root` must be non-empty.
 - `--tournament`, when given an inline value, must be 2, 3, or 4.
-- Checkpoint resume must use `resume`, must pass `--run-folder`, and must pass a
-  non-empty `--checkpoint-choice`.
+- Checkpoint resume must use `resume`, must pass `--run-folder`, and must pass
+  either a non-empty `--checkpoint-choice` or a valid typed
+  `--checkpoint-response`. The two response forms are mutually exclusive.
+  Typed responses bind to the run, checkpoint step, attempt, and exact request
+  hash so an older review page cannot approve a newer request.
 
 ### 3. Flow Selection
 

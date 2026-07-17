@@ -1,5 +1,6 @@
 import type { RuntimePackageIndex } from '../../flows/registries/runtime-index.js';
 import type { Axes } from '../../schemas/axes.js';
+import type { CheckpointReviewComment } from '../../schemas/checkpoint-review-response.js';
 import type { RecoveryRouteBindingV0 } from '../../schemas/recovery-route-kind.js';
 import type { Ref } from '../../schemas/ref.js';
 import type { PowerInferenceChannel } from '../../selection/power-inference.js';
@@ -110,6 +111,7 @@ export interface RunContext
     readonly stepId: string;
     readonly attempt: number;
     readonly selection: string;
+    readonly comments?: readonly CheckpointReviewComment[];
   };
   // The until-loop honesty ledger: open overclaim/exhaustion latches the body
   // loop accrued this run. Seeded by the graph-runner only when an until flag

@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest';
 
+import { PrototypeVariantOptions } from '../../src/flows/prototype/reports.js';
 import { findComposeBuilder } from '../../src/flows/registries/compose-writers/registry.js';
 import type {
   ComposeBuildContext,
@@ -134,7 +135,9 @@ describe('Prototype variant-options writer connector routing', () => {
       },
     ]);
 
-    const report = prototypeVariantOptionsComposeBuilder.build(buildContext(variantModels));
+    const report = PrototypeVariantOptions.parse(
+      prototypeVariantOptionsComposeBuilder.build(buildContext(variantModels)),
+    );
 
     expect(report).toMatchObject({
       variant_count: 3,
@@ -166,6 +169,10 @@ describe('Prototype variant-options writer connector routing', () => {
         },
       ],
     });
+    for (const variant of report.variants) {
+      expect(variant.goal).toContain(`${variant.variant_root}/index.html`);
+      expect(variant.goal).toContain('do not report index.html by itself');
+    }
   });
 
   it('rejects read-only custom connectors for a tournament implementer variant', () => {

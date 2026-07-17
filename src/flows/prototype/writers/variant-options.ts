@@ -81,6 +81,7 @@ export const prototypeVariantOptionsComposeBuilder: ComposeBuilder = {
           goal: [
             `Create Prototype variant '${variant.label}' (${variant.id}) for: ${brief.objective}.`,
             `Write only disposable files under ${artifactRoot}.`,
+            `Report created_files and entry_points as complete project-relative paths beginning with ${artifactRoot}/, for example ${artifactRoot}/index.html; do not report index.html by itself.`,
             `The shared Prototype root is ${plan.prototype_root}.`,
             'Do not claim deployment, production readiness, branch previews, screenshots, provider behavior, or model behavior.',
           ].join(' '),

@@ -15,6 +15,7 @@ export interface WaitingCheckpointStepOutcome {
     readonly stepId: string;
     readonly attempt: number;
     readonly requestPath: string;
+    readonly requestSha256: string;
     readonly allowedChoices: readonly string[];
   };
 }

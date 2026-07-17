@@ -30,6 +30,7 @@ import {
 } from '../../src/runtime/run/compiled-flow-runner.js';
 import { isGraphCheckpointWaitingResult } from '../../src/runtime/run/graph-runner.js';
 import { TraceStore } from '../../src/runtime/trace/trace-store.js';
+import { CheckpointReviewResponse } from '../../src/schemas/checkpoint-review-response.js';
 import { CompiledFlow } from '../../src/schemas/compiled-flow.js';
 import { LayeredConfig } from '../../src/schemas/config.js';
 import type { RelayStartedTraceEntry } from '../../src/schemas/trace-entry.js';
@@ -177,6 +178,7 @@ function variantLayer() {
 function prototypeVariantRelayer(input: {
   readonly runFolder: string;
   readonly projectRoot: string;
+  readonly reportVariantRelativePaths?: boolean;
 }): RelayFn {
   return {
     connectorName: 'claude-code',
@@ -203,25 +205,26 @@ function prototypeVariantRelayer(input: {
           indexFile,
           `<!doctype html><title>${variant.label}</title><main>${variant.variant_id}</main>`,
         );
+        const report = {
+          verdict: 'accept' as const,
+          variant_id: variant.variant_id,
+          variant_label: variant.label,
+          summary: `${variant.label} created a local comparison prototype.`,
+          prototype_root: '.circuit/runs/model-comparison/prototype-files',
+          variant_root: variant.variant_root,
+          created_files: input.reportVariantRelativePaths ? ['index.html'] : [indexFile],
+          entry_points: input.reportVariantRelativePaths ? ['index.html'] : [indexFile],
+          preview_instructions: `Open ${indexFile} locally.`,
+          known_limitations: ['Fixture prototype does not claim provider execution.'],
+          evidence: [`${indexFile} exists`],
+          rubric_model_judgments: PASSING_RUBRIC_MODEL_JUDGMENTS,
+          claim_limits: ['not production', 'not deployed'],
+        };
         return {
           request_payload: relayInput.prompt,
           receipt_id: `prototype-${variant.variant_id}-stub`,
           result_body: JSON.stringify(
-            PrototypeVariantArtifact.parse({
-              verdict: 'accept',
-              variant_id: variant.variant_id,
-              variant_label: variant.label,
-              summary: `${variant.label} created a local comparison prototype.`,
-              prototype_root: '.circuit/runs/model-comparison/prototype-files',
-              variant_root: variant.variant_root,
-              created_files: [indexFile],
-              entry_points: [indexFile],
-              preview_instructions: `Open ${indexFile} locally.`,
-              known_limitations: ['Fixture prototype does not claim provider execution.'],
-              evidence: [`${indexFile} exists`],
-              rubric_model_judgments: PASSING_RUBRIC_MODEL_JUDGMENTS,
-              claim_limits: ['not production', 'not deployed'],
-            }),
+            input.reportVariantRelativePaths ? report : PrototypeVariantArtifact.parse(report),
           ),
           duration_ms: 1,
           cli_version: '0.0.0-fixture',
@@ -476,6 +479,21 @@ describe('Prototype runtime wiring', () => {
     const resumed = await resumeCompiledFlow({
       runDir: runFolder,
       selection: 'save-build-input',
+      checkpointResponse: CheckpointReviewResponse.parse({
+        schema: 'checkpoint.review-response@v1',
+        run_id: '94000000-0000-0000-0000-000000000002',
+        step_id: 'prototype-checkpoint-step',
+        attempt: waiting.checkpoint.attempt,
+        request_sha256: waiting.checkpoint.requestSha256,
+        selection: 'save-build-input',
+        comments: [
+          {
+            scope: 'choice',
+            choice_id: 'save-build-input',
+            body: 'Preserve the compact navigation in the Build brief.',
+          },
+        ],
+      }),
       now: deterministicNow(Date.UTC(2026, 4, 20, 8, 20, 0)),
     });
 
@@ -486,6 +504,18 @@ describe('Prototype runtime wiring', () => {
     if (result.mode !== 'single-artifact') throw new Error('expected single-artifact result');
     expect(result.checkpoint_status).toBe('operator_selected');
     expect(result.checkpoint_selection).toBe('save-build-input');
+    expect(result.checkpoint_comments).toEqual([
+      {
+        scope: 'choice',
+        choice_id: 'save-build-input',
+        body: 'Preserve the compact navigation in the Build brief.',
+      },
+    ]);
+    expect(readJson(runFolder, 'reports/checkpoints/prototype-review-response.json')).toMatchObject(
+      {
+        comments: [{ choice_id: 'save-build-input' }],
+      },
+    );
     expect(result.build_followup_prompt).toMatch(/Build from the Prototype artifact/);
   });
 
@@ -575,6 +605,30 @@ describe('Prototype runtime wiring', () => {
     const resumed = await resumeCompiledFlow({
       runDir: runFolder,
       selection: 'variant-b',
+      checkpointResponse: CheckpointReviewResponse.parse({
+        schema: 'checkpoint.review-response@v1',
+        run_id: '94000000-0000-0000-0000-000000000007',
+        step_id: 'prototype-variant-checkpoint-step',
+        attempt: waiting.checkpoint.attempt,
+        request_sha256: waiting.checkpoint.requestSha256,
+        selection: 'variant-b',
+        comments: [
+          {
+            scope: 'choice',
+            choice_id: 'variant-a',
+            body: 'The opening is calm, but the comparison is too shallow.',
+          },
+          {
+            scope: 'choice',
+            choice_id: 'variant-b',
+            body: 'Keep the clearer navigation and shorten the intro.',
+          },
+          {
+            scope: 'overall',
+            body: 'Carry the restrained visual language into Build.',
+          },
+        ],
+      }),
       now: deterministicNow(Date.UTC(2026, 4, 20, 9, 20, 0)),
     });
 
@@ -591,7 +645,46 @@ describe('Prototype runtime wiring', () => {
       verification_status: 'passed',
       captured_provider_evidence_count: 2,
       model_evidence_status: 'captured',
+      checkpoint_comments: [
+        { scope: 'choice', choice_id: 'variant-a' },
+        { scope: 'choice', choice_id: 'variant-b' },
+        { scope: 'overall' },
+      ],
     });
+  });
+
+  it('normalizes variant-relative worker paths before tournament verification', async () => {
+    const bytes = readFileSync(TOURNAMENT_FIXTURE_PATH);
+    const runFolder = join(projectRoot, '.circuit/runs/model-comparison');
+
+    const waiting = await runCompiledFlowWithWaiting({
+      runDir: runFolder,
+      flowBytes: bytes,
+      runId: '94000000-0000-0000-0000-000000000009',
+      goal: 'prototype: compare two custom flow builder UI variants',
+      entryModeName: 'tournament',
+      axes: { depth: 'medium', tournament: true, tournament_n: 2, autonomous: false },
+      now: deterministicNow(Date.UTC(2026, 4, 20, 9, 30, 0)),
+      projectRoot,
+      selectionConfigLayers: [variantLayer()],
+      relayer: prototypeVariantRelayer({
+        runFolder,
+        projectRoot,
+        reportVariantRelativePaths: true,
+      }),
+    });
+
+    expect(waiting.outcome).toBe('checkpoint_waiting');
+    const aggregate = PrototypeVariantAggregate.parse(
+      readJson(runFolder, 'reports/prototype/variant-aggregate.json'),
+    );
+    for (const branch of aggregate.branches) {
+      const artifact = branch.result_body;
+      expect(artifact).toBeDefined();
+      if (artifact === undefined) continue;
+      expect(artifact.created_files).toEqual([`${artifact.variant_root}/index.html`]);
+      expect(artifact.entry_points).toEqual([`${artifact.variant_root}/index.html`]);
+    }
   });
 
   it('closes needs_attention when artifact integrity verification fails before checkpoint', async () => {

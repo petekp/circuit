@@ -10,6 +10,7 @@ import type { ExecutorRegistry } from '../../src/runtime/executors/index.js';
 import { runCompiledFlowWithWaiting } from '../../src/runtime/run/compiled-flow-runner.js';
 import { isGraphCheckpointWaitingResult } from '../../src/runtime/run/graph-runner.js';
 import { LayeredConfig } from '../../src/schemas/config.js';
+import { encodeCheckpointReviewResponse } from '../../src/shared/checkpoint-review-token.js';
 import type { RelayFn } from '../../src/shared/relay-runtime-types.js';
 import { captureStreams, deterministicNow, makeStubRelayer } from '../helpers/runtime-fixtures.js';
 
@@ -284,6 +285,31 @@ describe('resume forgives operator-shaped checkpoint input', () => {
     expect(stderr).toContain(`circuit resume --run-folder ${runDir} --checkpoint-choice`);
     // The old generic answer must not swallow the specific one.
     expect(stderr).not.toContain('could not be resumed even though it is waiting');
+  });
+
+  it('keeps a typed response exact instead of normalizing its selection behind the token', async () => {
+    const runDir = join(tempDir, 'typed-label-resume');
+    await createWaitingRun(runDir);
+    const response = encodeCheckpointReviewResponse({
+      schema: 'checkpoint.review-response@v1',
+      run_id: RUN_ID,
+      step_id: 'checkpoint-step',
+      attempt: 1,
+      request_sha256: 'a'.repeat(64),
+      selection: 'Keep the prototype',
+      comments: [],
+    });
+    const args = parseExecutionArgs('resume', [
+      '--run-folder',
+      runDir,
+      '--checkpoint-response',
+      response,
+    ]);
+    const { result, stderr } = await captureStreams(() => runResumeCommand(args, {}));
+
+    expect(result).toBe(2);
+    expect(stderr).toContain("'Keep the prototype'");
+    expect(stderr).toContain('keep-prototype (Keep the prototype)');
   });
 
   it('points a missing folder at the run-id convention and the checkpoints list', async () => {

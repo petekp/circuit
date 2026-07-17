@@ -11,6 +11,7 @@ import type { SliceLoopEngineFlag, UntilLoopEngineFlag } from '../../flows/types
 import { composePolicyHardConstraints } from '../../policy/policy-envelope.js';
 import type { Axes } from '../../schemas/axes.js';
 import type { ChangeKindDeclaration, StandardChangeKind } from '../../schemas/change-kind.js';
+import type { CheckpointReviewComment } from '../../schemas/checkpoint-review-response.js';
 import { computeManifestHash } from '../../schemas/manifest.js';
 import type { RecoveryRouteBindingV0 } from '../../schemas/recovery-route-kind.js';
 import type { Ref } from '../../schemas/ref.js';
@@ -151,6 +152,7 @@ export interface GraphRunnerOptions extends RuntimeExecutionCapabilities {
     readonly stepId: string;
     readonly attempt: number;
     readonly selection: string;
+    readonly comments?: readonly CheckpointReviewComment[];
   };
 }
 
@@ -165,6 +167,7 @@ export interface GraphCheckpointWaitingResult {
     readonly stepId: string;
     readonly attempt: number;
     readonly requestPath: string;
+    readonly requestSha256: string;
     readonly allowedChoices: readonly string[];
   };
 }

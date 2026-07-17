@@ -15,6 +15,7 @@
 // sign-off, and a close. See docs/ideas/paper-to-site-flow-brief.md.
 
 import { z } from 'zod';
+import { CheckpointReviewComment } from '../../schemas/checkpoint-review-response.js';
 import { RubricJudgment, RubricResult } from '../../schemas/rubric.js';
 
 // The operator's six selection criteria. These ARE the rubric dims the
@@ -328,6 +329,7 @@ export const ExplainerCheckpointResponse = z
     selection: z.string().min(1),
     route_id: z.string().min(1),
     resolution_source: z.string().min(1),
+    comments: z.array(CheckpointReviewComment).max(24).optional(),
     auto_resolution: z.unknown().optional(),
   })
   .strict();

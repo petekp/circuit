@@ -25,6 +25,10 @@ describe('operator-summary Prototype projection', () => {
         admitted_variant_count: 2,
         captured_provider_evidence_count: 2,
         model_evidence_status: 'captured',
+        checkpoint_comments: [
+          { scope: 'choice', choice_id: 'variant-b', body: 'Shorten the opening.' },
+          { scope: 'overall', body: 'Keep the restrained visual language.' },
+        ],
         next_step: 'Inspect the chosen local prototype.',
       },
     });
@@ -35,6 +39,7 @@ describe('operator-summary Prototype projection', () => {
     expect(projection.details).toContain('Selected variant: Variant B (variant-b).');
     expect(projection.details).toContain('Admitted variants: 2.');
     expect(projection.details).toContain('Captured relay selection evidence: 2.');
+    expect(projection.details).toContain('Review notes: 2 captured.');
   });
 });
 

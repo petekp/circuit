@@ -11,6 +11,7 @@ import { OperatorSummary } from '../../src/schemas/operator-summary.js';
 import { RunResult } from '../../src/schemas/result.js';
 
 let runFolder: string;
+const CHECKPOINT_IDENTITY = { attempt: 1, request_sha256: 'a'.repeat(64) } as const;
 
 beforeEach(() => {
   runFolder = mkdtempSync(join(tmpdir(), 'circuit-operator-summary-'));
@@ -415,6 +416,14 @@ function writePrototypeVariantReports(root = PROTOTYPE_VARIANT_ROOT): void {
       },
     ],
   });
+}
+
+function writePrototypeVariantArtifacts(base: string, root = PROTOTYPE_VARIANT_ROOT): void {
+  for (const id of ['variant-a', 'variant-b']) {
+    const artifactPath = join(base, root, 'variants', id, 'index.html');
+    mkdirSync(join(artifactPath, '..'), { recursive: true });
+    writeFileSync(artifactPath, `<!doctype html><title>${id}</title>\n`);
+  }
 }
 
 describe('operator summary writer', () => {
@@ -1678,6 +1687,7 @@ describe('operator summary writer', () => {
         manifest_hash: 'abc123',
         checkpoint: {
           step_id: 'frame-step',
+          ...CHECKPOINT_IDENTITY,
           request_path: requestPath,
           allowed_choices: ['continue'],
         },
@@ -1694,6 +1704,7 @@ describe('operator summary writer', () => {
     ]);
     expect(written.summary.checkpoint).toEqual({
       step_id: 'frame-step',
+      ...CHECKPOINT_IDENTITY,
       request_path: requestPath,
       allowed_choices: ['continue'],
     });
@@ -1702,7 +1713,7 @@ describe('operator summary writer', () => {
     expect(html).toContain('Add checkpoint HTML');
     expect(html).toContain('The scope is bounded and the proof plan is explicit.');
     expect(html).toContain('Touch Build checkpoint presentation only');
-    expect(html).toContain('Copy resume command');
+    expect(html).toContain('Copy decision command');
     // The do-nothing outcome is stated on every waiting checkpoint page.
     expect(html).toMatch(/If you do nothing/);
 
@@ -1731,6 +1742,7 @@ describe('operator summary writer', () => {
         manifest_hash: 'abc123',
         checkpoint: {
           step_id: 'frame-step',
+          ...CHECKPOINT_IDENTITY,
           request_path: requestPath,
           allowed_choices: ['continue'],
         },
@@ -1776,6 +1788,7 @@ describe('operator summary writer', () => {
         manifest_hash: 'abc123',
         checkpoint: {
           step_id: 'fix-no-repro-decision',
+          ...CHECKPOINT_IDENTITY,
           request_path: requestPath,
           allowed_choices: ['continue'],
         },
@@ -1827,6 +1840,7 @@ describe('operator summary writer', () => {
         manifest_hash: 'abc123',
         checkpoint: {
           step_id: 'explainer-publish-gate',
+          ...CHECKPOINT_IDENTITY,
           request_path: requestPath,
           allowed_choices: ['publish', 'stop'],
         },
@@ -1871,6 +1885,7 @@ describe('operator summary writer', () => {
         manifest_hash: 'abc123',
         checkpoint: {
           step_id: 'tradeoff-checkpoint-step',
+          ...CHECKPOINT_IDENTITY,
           request_path: requestPath,
           allowed_choices: ['option-1', 'option-2'],
         },
@@ -1915,6 +1930,7 @@ describe('operator summary writer', () => {
         manifest_hash: 'abc123',
         checkpoint: {
           step_id: 'prototype-checkpoint-step',
+          ...CHECKPOINT_IDENTITY,
           request_path: requestPath,
           allowed_choices: ['keep-prototype', 'save-build-input', 'discard-prototype'],
         },
@@ -1947,6 +1963,7 @@ describe('operator summary writer', () => {
 
   it('emits pinned-preview HTML for Prototype visual variant checkpoints through operator summary', () => {
     writePrototypeVariantReports();
+    writePrototypeVariantArtifacts(runFolder);
     const requestPath = join(
       runFolder,
       'reports/checkpoints/prototype-variant-choice-request.json',
@@ -1972,6 +1989,7 @@ describe('operator summary writer', () => {
         manifest_hash: 'abc123',
         checkpoint: {
           step_id: 'prototype-variant-checkpoint-step',
+          ...CHECKPOINT_IDENTITY,
           request_path: requestPath,
           allowed_choices: ['variant-a', 'variant-b'],
         },
@@ -1988,8 +2006,10 @@ describe('operator summary writer', () => {
 
     const html = readFileSync(written.htmlPath as string, 'utf8');
     expect(html).toContain('mv-wrap mv-visual');
-    expect(html).toContain('Selected variant preview');
-    expect(html).toContain('src="../prototype-files/variants/variant-a/index.html"');
+    expect(html).toContain('aria-label="Artifact preview"');
+    expect(html).toContain(
+      'data-mv-preview-src="../prototype-files/variants/variant-a/index.html"',
+    );
     expect(html).toContain(
       'data-mv-preview-src="../prototype-files/variants/variant-b/index.html"',
     );
@@ -2001,9 +2021,10 @@ describe('operator summary writer', () => {
   });
 
   it('uses the checkpoint execution context to preview project-root Prototype variant artifacts', () => {
-    const projectRoot = join(runFolder, '..', 'project-root');
+    const projectRoot = join(runFolder, 'project-root');
     const prototypeRoot = '.circuit/prototypes/operator-summary-external';
     writePrototypeVariantReports(prototypeRoot);
+    writePrototypeVariantArtifacts(projectRoot, prototypeRoot);
     const requestPath = join(
       runFolder,
       'reports/checkpoints/prototype-variant-choice-request.json',
@@ -2030,6 +2051,7 @@ describe('operator summary writer', () => {
         manifest_hash: 'abc123',
         checkpoint: {
           step_id: 'prototype-variant-checkpoint-step',
+          ...CHECKPOINT_IDENTITY,
           request_path: requestPath,
           allowed_choices: ['variant-a', 'variant-b'],
         },
@@ -2042,7 +2064,7 @@ describe('operator summary writer', () => {
       join(projectRoot, prototypeRoot, 'variants', 'variant-a', 'index.html'),
     ).href;
     expect(html).toContain('mv-wrap mv-visual');
-    expect(html).toContain(`src="${expectedHref}"`);
+    expect(html).toContain(`data-mv-preview-src="${expectedHref}"`);
   });
 
   it('replaces stale Prototype checkpoint HTML with the generic page when typed reports are malformed', () => {
@@ -2070,6 +2092,7 @@ describe('operator summary writer', () => {
         manifest_hash: 'abc123',
         checkpoint: {
           step_id: 'prototype-checkpoint-step',
+          ...CHECKPOINT_IDENTITY,
           request_path: requestPath,
           allowed_choices: ['keep-prototype'],
         },

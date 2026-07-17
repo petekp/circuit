@@ -36,6 +36,7 @@ import { deterministicNow, stubRelayResult } from '../helpers/runtime-fixtures.j
 
 const FIXTURE_ROOT = resolve('tests/fixtures/sweep-fixture');
 const SWEEP_FIXTURE = readFileSync(resolve('generated/flows/sweep/circuit.json'));
+const SWEEP_E2E_TIMEOUT_MS = 180_000;
 
 interface TraceRow {
   readonly kind: string;
@@ -197,204 +198,222 @@ afterEach(() => {
 });
 
 describe('sweep: fan-out-over-a-set clears a backlog with a pinned oracle floor', () => {
-  it('A: clears a three-finding backlog over two waves and stops clean; the judge lesson carries forward', async () => {
-    const projectRoot = scaffoldProject(base);
-    const runFolder = join(base, 'happy');
+  it(
+    'A: clears a three-finding backlog over two waves and stops clean; the judge lesson carries forward',
+    async () => {
+      const projectRoot = scaffoldProject(base);
+      const runFolder = join(base, 'happy');
 
-    // Wave 0 fixes alpha and beta but leaves gamma blocked, so the scan stays
-    // red and the loop re-enters. Wave 1 fixes gamma; the scan and audit both go
-    // green and the loop stops clean. Exactly the shape a real sweep has: a wave
-    // that clears most of the backlog, then a wave that finishes the survivors.
-    const result = await runCompiledFlow({
-      runDir: runFolder,
-      flowBytes: SWEEP_FIXTURE,
-      projectRoot,
-      runId: '80000000-0000-0000-0000-0000000000a1',
-      goal: 'clear every NEEDS_FIX finding until the scanner exits clean',
-      depth: 'autonomous',
-      now: deterministicNow(Date.UTC(2026, 6, 7, 9, 0, 0)),
-      relayer: sweepRelayer({
+      // Wave 0 fixes alpha and beta but leaves gamma blocked, so the scan stays
+      // red and the loop re-enters. Wave 1 fixes gamma; the scan and audit both go
+      // green and the loop stops clean. Exactly the shape a real sweep has: a wave
+      // that clears most of the backlog, then a wave that finishes the survivors.
+      const result = await runCompiledFlow({
+        runDir: runFolder,
+        flowBytes: SWEEP_FIXTURE,
         projectRoot,
-        lesson: 'keep clearing the survivors, one file per unit',
-        behavior: (file, encounter) =>
-          file.endsWith('gamma.ts') && encounter === 1 ? 'blocked' : 'fix',
-      }),
-    });
-    const trace = (await new TraceStore(runFolder).load()) as readonly TraceRow[];
+        runId: '80000000-0000-0000-0000-0000000000a1',
+        goal: 'clear every NEEDS_FIX finding until the scanner exits clean',
+        depth: 'autonomous',
+        now: deterministicNow(Date.UTC(2026, 6, 7, 9, 0, 0)),
+        relayer: sweepRelayer({
+          projectRoot,
+          lesson: 'keep clearing the survivors, one file per unit',
+          behavior: (file, encounter) =>
+            file.endsWith('gamma.ts') && encounter === 1 ? 'blocked' : 'fix',
+        }),
+      });
+      const trace = (await new TraceStore(runFolder).load()) as readonly TraceRow[];
 
-    expect(result.outcome).toBe('complete');
-    expect(result.flow_id).toBe('sweep');
+      expect(result.outcome).toBe('complete');
+      expect(result.flow_id).toBe('sweep');
 
-    // The census is the preamble: it runs once, before the loop. The body's four
-    // steps run twice — one blocked wave that re-enters, one clean wave.
-    expect(enteredCount(trace, 'census-step')).toBe(1);
-    expect(enteredCount(trace, 'partition-step')).toBe(2);
-    expect(enteredCount(trace, 'fanout-step')).toBe(2);
-    expect(enteredCount(trace, 'rescan-step')).toBe(2);
-    expect(enteredCount(trace, 'judge-step')).toBe(2);
-    expect(trace.find((e) => e.kind === 'step.aborted')).toBeUndefined();
+      // The census is the preamble: it runs once, before the loop. The body's four
+      // steps run twice — one blocked wave that re-enters, one clean wave.
+      expect(enteredCount(trace, 'census-step')).toBe(1);
+      expect(enteredCount(trace, 'partition-step')).toBe(2);
+      expect(enteredCount(trace, 'fanout-step')).toBe(2);
+      expect(enteredCount(trace, 'rescan-step')).toBe(2);
+      expect(enteredCount(trace, 'judge-step')).toBe(2);
+      expect(trace.find((e) => e.kind === 'step.aborted')).toBeUndefined();
 
-    // Wave 0's judge re-entered the head via `advance` (the floor blocked the
-    // premature goal_met on the still-red scan); wave 1's judge took the clean
-    // forward route.
-    expect(judgeRoutesTaken(trace)).toEqual(['advance', 'pass']);
-    expect(untilJudgment(trace)?.disposition).toBe('stop-clean');
+      // Wave 0's judge re-entered the head via `advance` (the floor blocked the
+      // premature goal_met on the still-red scan); wave 1's judge took the clean
+      // forward route.
+      expect(judgeRoutesTaken(trace)).toEqual(['advance', 'pass']);
+      expect(untilJudgment(trace)?.disposition).toBe('stop-clean');
 
-    // The final rescan passed: scanner clean AND audit clean.
-    const rescan = JSON.parse(
-      readFileSync(join(runFolder, 'reports/sweep/rescan.json'), 'utf8'),
-    ) as { overall_status: string };
-    expect(rescan.overall_status).toBe('passed');
+      // The final rescan passed: scanner clean AND audit clean.
+      const rescan = JSON.parse(
+        readFileSync(join(runFolder, 'reports/sweep/rescan.json'), 'utf8'),
+      ) as { overall_status: string };
+      expect(rescan.overall_status).toBe('passed');
 
-    // Compounding: the lesson the judge wrote on the blocked wave reaches the
-    // next wave. The engine appends it to carried-notes on re-enter, and the
-    // partition writer reads that file itself (a compose head has no relay prompt
-    // to re-inline it), folding it into every unit's fix prompt. So wave 1's
-    // partition carries wave 0's lesson verbatim.
-    const carriedNotesPath = join(runFolder, 'reports/sweep/carried-notes.json');
-    expect(existsSync(carriedNotesPath)).toBe(true);
-    const carried = JSON.parse(readFileSync(carriedNotesPath, 'utf8')) as Array<{ lesson: string }>;
-    expect(carried).toHaveLength(1);
-    expect(carried[0]?.lesson).toBe('keep clearing the survivors, one file per unit');
+      // Compounding: the lesson the judge wrote on the blocked wave reaches the
+      // next wave. The engine appends it to carried-notes on re-enter, and the
+      // partition writer reads that file itself (a compose head has no relay prompt
+      // to re-inline it), folding it into every unit's fix prompt. So wave 1's
+      // partition carries wave 0's lesson verbatim.
+      const carriedNotesPath = join(runFolder, 'reports/sweep/carried-notes.json');
+      expect(existsSync(carriedNotesPath)).toBe(true);
+      const carried = JSON.parse(readFileSync(carriedNotesPath, 'utf8')) as Array<{
+        lesson: string;
+      }>;
+      expect(carried).toHaveLength(1);
+      expect(carried[0]?.lesson).toBe('keep clearing the survivors, one file per unit');
 
-    const partition = JSON.parse(
-      readFileSync(join(runFolder, 'reports/sweep/partition.json'), 'utf8'),
-    ) as { units: Array<{ files: string[]; fix_prompt: string }> };
-    expect(partition.units).toHaveLength(1);
-    expect(partition.units[0]?.files).toEqual(['src/gamma.ts']);
-    expect(partition.units[0]?.fix_prompt).toContain(
-      'Lesson carried from an earlier attempt: keep clearing the survivors, one file per unit',
-    );
-  }, 60_000);
+      const partition = JSON.parse(
+        readFileSync(join(runFolder, 'reports/sweep/partition.json'), 'utf8'),
+      ) as { units: Array<{ files: string[]; fix_prompt: string }> };
+      expect(partition.units).toHaveLength(1);
+      expect(partition.units[0]?.files).toEqual(['src/gamma.ts']);
+      expect(partition.units[0]?.fix_prompt).toContain(
+        'Lesson carried from an earlier attempt: keep clearing the survivors, one file per unit',
+      );
+    },
+    SWEEP_E2E_TIMEOUT_MS,
+  );
 
-  it('B: a suppressed finding clears the scan but the audit floor keeps the run out of complete', async () => {
-    const projectRoot = scaffoldProject(base);
-    const runFolder = join(base, 'suppress');
+  it(
+    'B: a suppressed finding clears the scan but the audit floor keeps the run out of complete',
+    async () => {
+      const projectRoot = scaffoldProject(base);
+      const runFolder = join(base, 'suppress');
 
-    // Below the autonomous floor the body runs once and the tail disposes
-    // honestly. Every worker suppresses instead of fixing: the scan goes green
-    // (all findings silenced) but the audit exits red (three suppressions
-    // against a baseline of zero), so overall_status is failed and the goal_met
-    // claim cannot stand. A one-pass run can never launder a suppression into
-    // complete.
-    const result = await runCompiledFlow({
-      runDir: runFolder,
-      flowBytes: SWEEP_FIXTURE,
-      projectRoot,
-      runId: '80000000-0000-0000-0000-0000000000b2',
-      goal: 'a suppression must not launder a clean close',
-      depth: 'medium',
-      now: deterministicNow(Date.UTC(2026, 6, 7, 9, 30, 0)),
-      relayer: sweepRelayer({ projectRoot, behavior: () => 'suppress' }),
-    });
-    const trace = (await new TraceStore(runFolder).load()) as readonly TraceRow[];
-
-    expect(result.outcome).toBe('stopped');
-    expect(enteredCount(trace, 'partition-step')).toBe(1);
-    expect(enteredCount(trace, 'fanout-step')).toBe(1);
-    expect(enteredCount(trace, 'rescan-step')).toBe(1);
-    expect(enteredCount(trace, 'judge-step')).toBe(1);
-    expect(judgeRoutesTaken(trace)).toEqual(['close']);
-
-    const judgment = untilJudgment(trace);
-    expect(judgment?.disposition).toBe('needs-attention');
-    expect(judgment?.goal_proposed).toBe(true);
-    expect(judgment?.evidence_confirmed).toBe(false);
-
-    // The audit is what failed the rescan: the scan itself found nothing (the
-    // findings were silenced), but the suppression audit exited red.
-    const rescan = JSON.parse(
-      readFileSync(join(runFolder, 'reports/sweep/rescan.json'), 'utf8'),
-    ) as { overall_status: string; commands: Array<{ command_id: string; status: string }> };
-    expect(rescan.overall_status).toBe('failed');
-    const audit = rescan.commands.find((c) => c.command_id === 'sweep-audit');
-    expect(audit?.status).toBe('failed');
-  }, 60_000);
-
-  it('C: fixing the code but editing the frozen config latches the eval floor, so the run cannot complete', async () => {
-    const projectRoot = scaffoldProject(base);
-    const runFolder = join(base, 'frozen');
-
-    // One worker fixes its finding AND relaxes the declared frozen tsconfig; the
-    // others fix cleanly. The scan and audit both go green, so the rescan passes
-    // and the goal_met claim would otherwise stand — but the frozen-eval guard
-    // sees the config drift and opens a latch the evidence floor refuses to
-    // honor. A green scan bought by relaxing the rules is not a clean close.
-    const result = await runCompiledFlow({
-      runDir: runFolder,
-      flowBytes: SWEEP_FIXTURE,
-      projectRoot,
-      runId: '80000000-0000-0000-0000-0000000000c3',
-      goal: 'editing the frozen config must not buy a clean close',
-      depth: 'medium',
-      now: deterministicNow(Date.UTC(2026, 6, 7, 10, 0, 0)),
-      relayer: sweepRelayer({
+      // Below the autonomous floor the body runs once and the tail disposes
+      // honestly. Every worker suppresses instead of fixing: the scan goes green
+      // (all findings silenced) but the audit exits red (three suppressions
+      // against a baseline of zero), so overall_status is failed and the goal_met
+      // claim cannot stand. A one-pass run can never launder a suppression into
+      // complete.
+      const result = await runCompiledFlow({
+        runDir: runFolder,
+        flowBytes: SWEEP_FIXTURE,
         projectRoot,
-        behavior: (file) => (file.endsWith('alpha.ts') ? 'freeze-config' : 'fix'),
-      }),
-    });
-    const trace = (await new TraceStore(runFolder).load()) as readonly TraceRow[];
+        runId: '80000000-0000-0000-0000-0000000000b2',
+        goal: 'a suppression must not launder a clean close',
+        depth: 'medium',
+        now: deterministicNow(Date.UTC(2026, 6, 7, 9, 30, 0)),
+        relayer: sweepRelayer({ projectRoot, behavior: () => 'suppress' }),
+      });
+      const trace = (await new TraceStore(runFolder).load()) as readonly TraceRow[];
 
-    expect(result.outcome).toBe('stopped');
-    expect(judgeRoutesTaken(trace)).toEqual(['close']);
+      expect(result.outcome).toBe('stopped');
+      expect(enteredCount(trace, 'partition-step')).toBe(1);
+      expect(enteredCount(trace, 'fanout-step')).toBe(1);
+      expect(enteredCount(trace, 'rescan-step')).toBe(1);
+      expect(enteredCount(trace, 'judge-step')).toBe(1);
+      expect(judgeRoutesTaken(trace)).toEqual(['close']);
 
-    // The rescan itself PASSED (scan clean, audit clean) — the block came from
-    // the frozen latch, not the scanner. That is the distinguishing signal from
-    // case B: an open latch with a green rescan.
-    const rescan = JSON.parse(
-      readFileSync(join(runFolder, 'reports/sweep/rescan.json'), 'utf8'),
-    ) as { overall_status: string };
-    expect(rescan.overall_status).toBe('passed');
+      const judgment = untilJudgment(trace);
+      expect(judgment?.disposition).toBe('needs-attention');
+      expect(judgment?.goal_proposed).toBe(true);
+      expect(judgment?.evidence_confirmed).toBe(false);
 
-    const judgment = untilJudgment(trace);
-    expect(judgment?.disposition).toBe('needs-attention');
-    expect(judgment?.evidence_confirmed).toBe(false);
-    expect(judgment?.open_latch_count ?? 0).toBeGreaterThanOrEqual(1);
-  }, 60_000);
+      // The audit is what failed the rescan: the scan itself found nothing (the
+      // findings were silenced), but the suppression audit exited red.
+      const rescan = JSON.parse(
+        readFileSync(join(runFolder, 'reports/sweep/rescan.json'), 'utf8'),
+      ) as { overall_status: string; commands: Array<{ command_id: string; status: string }> };
+      expect(rescan.overall_status).toBe('failed');
+      const audit = rescan.commands.find((c) => c.command_id === 'sweep-audit');
+      expect(audit?.status).toBe('failed');
+    },
+    SWEEP_E2E_TIMEOUT_MS,
+  );
 
-  it('D2: rewriting the pinned scan script between waves trips the oracle-command pin and the run cannot complete', async () => {
-    const projectRoot = scaffoldProject(base);
-    const runFolder = join(base, 'script-swap');
+  it(
+    'C: fixing the code but editing the frozen config latches the eval floor, so the run cannot complete',
+    async () => {
+      const projectRoot = scaffoldProject(base);
+      const runFolder = join(base, 'frozen');
 
-    // Wave 0 fixes alpha and beta but leaves gamma blocked, so the scan stays red
-    // and the loop re-enters — and the first rescan pins the `scan` script body.
-    // Wave 1's gamma worker rewrites `scripts.scan` to an always-green no-op; the
-    // pinned rescan re-checks the fingerprint, sees the drift, and refuses to run
-    // the rewritten oracle. The run cannot complete on a laundered scan.
-    const result = await runCompiledFlow({
-      runDir: runFolder,
-      flowBytes: SWEEP_FIXTURE,
-      projectRoot,
-      runId: '80000000-0000-0000-0000-0000000000d2',
-      goal: 'a rewritten scan script must not launder a clean close',
-      depth: 'autonomous',
-      now: deterministicNow(Date.UTC(2026, 6, 7, 10, 30, 0)),
-      relayer: sweepRelayer({
+      // One worker fixes its finding AND relaxes the declared frozen tsconfig; the
+      // others fix cleanly. The scan and audit both go green, so the rescan passes
+      // and the goal_met claim would otherwise stand — but the frozen-eval guard
+      // sees the config drift and opens a latch the evidence floor refuses to
+      // honor. A green scan bought by relaxing the rules is not a clean close.
+      const result = await runCompiledFlow({
+        runDir: runFolder,
+        flowBytes: SWEEP_FIXTURE,
         projectRoot,
-        behavior: (file, encounter) => {
-          if (file.endsWith('gamma.ts')) return encounter === 1 ? 'blocked' : 'swap-scanner';
-          return 'fix';
-        },
-      }),
-    });
+        runId: '80000000-0000-0000-0000-0000000000c3',
+        goal: 'editing the frozen config must not buy a clean close',
+        depth: 'medium',
+        now: deterministicNow(Date.UTC(2026, 6, 7, 10, 0, 0)),
+        relayer: sweepRelayer({
+          projectRoot,
+          behavior: (file) => (file.endsWith('alpha.ts') ? 'freeze-config' : 'fix'),
+        }),
+      });
+      const trace = (await new TraceStore(runFolder).load()) as readonly TraceRow[];
 
-    expect(result.outcome).not.toBe('complete');
+      expect(result.outcome).toBe('stopped');
+      expect(judgeRoutesTaken(trace)).toEqual(['close']);
 
-    // The abort is specifically the oracle-command pin firing: the rescan's
-    // report writer refuses to run once it sees the pinned scan body drifted.
-    // Asserting the reason (not just "not complete") keeps this from passing on
-    // an incidental failure.
-    const trace = (await new TraceStore(runFolder).load()) as readonly TraceRow[];
-    const driftReason = trace
-      .map((e) => e.reason ?? e.failure_reason ?? '')
-      .find((reason) => reason.includes('oracle script "scan" changed since the loop entered'));
-    expect(driftReason).toBeDefined();
+      // The rescan itself PASSED (scan clean, audit clean) — the block came from
+      // the frozen latch, not the scanner. That is the distinguishing signal from
+      // case B: an open latch with a green rescan.
+      const rescan = JSON.parse(
+        readFileSync(join(runFolder, 'reports/sweep/rescan.json'), 'utf8'),
+      ) as { overall_status: string };
+      expect(rescan.overall_status).toBe('passed');
 
-    // The worker did rewrite the script — the pin, not a missing edit, is what
-    // stopped the laundered close.
-    const pkg = JSON.parse(readFileSync(join(projectRoot, 'package.json'), 'utf8')) as {
-      scripts: Record<string, string>;
-    };
-    expect(pkg.scripts.scan).not.toBe('node scan.mjs');
-  }, 60_000);
+      const judgment = untilJudgment(trace);
+      expect(judgment?.disposition).toBe('needs-attention');
+      expect(judgment?.evidence_confirmed).toBe(false);
+      expect(judgment?.open_latch_count ?? 0).toBeGreaterThanOrEqual(1);
+    },
+    SWEEP_E2E_TIMEOUT_MS,
+  );
+
+  it(
+    'D2: rewriting the pinned scan script between waves trips the oracle-command pin and the run cannot complete',
+    async () => {
+      const projectRoot = scaffoldProject(base);
+      const runFolder = join(base, 'script-swap');
+
+      // Wave 0 fixes alpha and beta but leaves gamma blocked, so the scan stays red
+      // and the loop re-enters — and the first rescan pins the `scan` script body.
+      // Wave 1's gamma worker rewrites `scripts.scan` to an always-green no-op; the
+      // pinned rescan re-checks the fingerprint, sees the drift, and refuses to run
+      // the rewritten oracle. The run cannot complete on a laundered scan.
+      const result = await runCompiledFlow({
+        runDir: runFolder,
+        flowBytes: SWEEP_FIXTURE,
+        projectRoot,
+        runId: '80000000-0000-0000-0000-0000000000d2',
+        goal: 'a rewritten scan script must not launder a clean close',
+        depth: 'autonomous',
+        now: deterministicNow(Date.UTC(2026, 6, 7, 10, 30, 0)),
+        relayer: sweepRelayer({
+          projectRoot,
+          behavior: (file, encounter) => {
+            if (file.endsWith('gamma.ts')) return encounter === 1 ? 'blocked' : 'swap-scanner';
+            return 'fix';
+          },
+        }),
+      });
+
+      expect(result.outcome).not.toBe('complete');
+
+      // The abort is specifically the oracle-command pin firing: the rescan's
+      // report writer refuses to run once it sees the pinned scan body drifted.
+      // Asserting the reason (not just "not complete") keeps this from passing on
+      // an incidental failure.
+      const trace = (await new TraceStore(runFolder).load()) as readonly TraceRow[];
+      const driftReason = trace
+        .map((e) => e.reason ?? e.failure_reason ?? '')
+        .find((reason) => reason.includes('oracle script "scan" changed since the loop entered'));
+      expect(driftReason).toBeDefined();
+
+      // The worker did rewrite the script — the pin, not a missing edit, is what
+      // stopped the laundered close.
+      const pkg = JSON.parse(readFileSync(join(projectRoot, 'package.json'), 'utf8')) as {
+        scripts: Record<string, string>;
+      };
+      expect(pkg.scripts.scan).not.toBe('node scan.mjs');
+    },
+    SWEEP_E2E_TIMEOUT_MS,
+  );
 });

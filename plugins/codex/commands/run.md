@@ -170,8 +170,10 @@ metacharacters:
    `routed_by`, `router_reason`), then surface
    the waiting checkpoint details from `checkpoint.waiting` and
    `user_input.requested`: `checkpoint.step_id`, `checkpoint.request_path`,
-   `checkpoint.allowed_choices`, the question/options, and the exact resume
-   command:
+   `checkpoint.allowed_choices`, and the question/options. When
+   `operator_summary_html_path` is present, present it as the local review page
+   for inspecting options and preparing a response with comments. Also provide
+   the exact bare-choice resume command as a fallback:
 
    ```bash
    node '<plugin root>/scripts/circuit.js' resume --run-folder '<run_folder>' --checkpoint-choice '<choice>' --progress jsonl

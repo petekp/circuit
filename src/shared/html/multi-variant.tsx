@@ -1,21 +1,28 @@
 // Shared multi-variant checkpoint HTML renderer.
 //
 // Keeps the comparison structure reusable while letting each flow decide what
-// evidence, labels, and resume commands mean. Visual artifacts get a pinned
-// preview rail. Non-visual variants stay evidence-first and avoid preview
-// chrome entirely.
+// evidence, labels, and resume commands mean. Visual artifacts get a focused
+// review workspace. Non-visual variants stay evidence-first and avoid preview
+// chrome.
 //
-// The comparison rows and the pinned rail are a bespoke layout, so they keep
-// a small page-specific stylesheet (mv-*) on top of the design system; the
+// The review workspace and evidence rows are bespoke layouts, so they keep a
+// small page-specific stylesheet (mv-*) on top of the design system; the
 // content inside the cells is composed from the shared report components.
 
-import { isAbsolute, relative, resolve } from 'node:path';
-import { pathToFileURL } from 'node:url';
 import type { ReactNode } from 'react';
 
-import { CONTROL_PLANE_RUNS_DIR } from '../control-plane-paths.js';
+import {
+  ARTIFACT_PREVIEW_SCRIPT,
+  ARTIFACT_PREVIEW_STYLE,
+  type ArtifactPreview,
+  ArtifactPreviewFrame,
+  isPreviewableArtifactPath,
+  previewForEntryPoints,
+  runArtifactPreviewHref,
+} from './artifact-preview.js';
+import { CHECKPOINT_REVIEW_RUNTIME } from './checkpoint-review-runtime.generated.js';
 import { MAX_BULLET_LEN, MAX_PROMPT_LEN } from './page.js';
-import { t } from './react-page.js';
+import { renderHtmlDocument, t } from './react-page.js';
 import {
   BulletList,
   ChipRow,
@@ -28,10 +35,9 @@ import {
 import { Badge } from './ui/badge.js';
 import { Button } from './ui/button.js';
 
-export type MultiVariantPreview = {
-  readonly href: string;
-  readonly sourcePath: string;
-};
+export type MultiVariantPreview = ArtifactPreview;
+
+export { isPreviewableArtifactPath, previewForEntryPoints, runArtifactPreviewHref };
 
 export type MultiVariantFact = {
   readonly label: string;
@@ -69,149 +75,106 @@ export type MultiVariantComparisonInput = {
     readonly aside?: string;
   };
   readonly variants: readonly MultiVariantItem[];
+  readonly resume?:
+    | {
+        readonly runFolder: string;
+        readonly runId: string;
+        readonly stepId: string;
+        readonly commandPrefix: string;
+        readonly attempt: number;
+        readonly requestSha256: string;
+      }
+    | undefined;
   // Trailing section (e.g. a raw-evidence disclosure block).
   readonly details?: ReactNode;
   readonly footerLeft?: string;
   readonly footerRight?: string;
 };
 
-const PREVIEWABLE_EXTENSIONS = new Set([
-  '.gif',
-  '.htm',
-  '.html',
-  '.jpeg',
-  '.jpg',
-  '.pdf',
-  '.png',
-  '.svg',
-  '.webp',
-]);
-
-function withoutQueryOrHash(value: string): string {
-  const queryIndex = value.search(/[?#]/);
-  return queryIndex === -1 ? value : value.slice(0, queryIndex);
-}
-
-function extensionForPath(value: string): string {
-  const cleaned = withoutQueryOrHash(value).toLowerCase();
-  const dotIndex = cleaned.lastIndexOf('.');
-  if (dotIndex === -1) return '';
-  const slashIndex = cleaned.lastIndexOf('/');
-  return dotIndex > slashIndex ? cleaned.slice(dotIndex) : '';
-}
-
-export function isPreviewableArtifactPath(value: string): boolean {
-  return PREVIEWABLE_EXTENSIONS.has(extensionForPath(value));
-}
-
-function toBrowserPath(value: string): string {
-  return value.replace(/\\/g, '/');
-}
-
-function encodeUrlPath(value: string): string {
-  return value
-    .split('/')
-    .map((part) => (part === '..' || part === '.' ? part : encodeURIComponent(part)))
-    .join('/');
-}
-
-function isInside(root: string, target: string): boolean {
-  const fromRoot = relative(root, target);
-  return fromRoot !== '' && !fromRoot.startsWith('..') && !isAbsolute(fromRoot);
-}
-
-function runIdFromFolder(runFolder: string): string | undefined {
-  const parts = toBrowserPath(resolve(runFolder))
-    .split('/')
-    .filter((part) => part.length > 0);
-  return parts.at(-1);
-}
-
-export function runArtifactPreviewHref(input: {
-  readonly entryPath: string;
-  readonly runFolder: string;
-  readonly projectRoot?: string | undefined;
-}): string | undefined {
-  if (!isPreviewableArtifactPath(input.entryPath)) return undefined;
-  const reportsDir = resolve(input.runFolder, 'reports');
-  const runRoot = resolve(input.runFolder);
-
-  if (isAbsolute(input.entryPath)) {
-    const absoluteEntry = resolve(input.entryPath);
-    if (!isInside(runRoot, absoluteEntry)) return undefined;
-    return encodeUrlPath(toBrowserPath(relative(reportsDir, absoluteEntry)));
-  }
-
-  const normalized = toBrowserPath(input.entryPath).replace(/^\.\//, '');
-  if (normalized.split('/').some((part) => part === '..')) return undefined;
-  if (normalized.startsWith('prototype-files/')) return encodeUrlPath(`../${normalized}`);
-
-  const runId = runIdFromFolder(input.runFolder);
-  const currentRunPrefix = runId === undefined ? undefined : `${CONTROL_PLANE_RUNS_DIR}/${runId}/`;
-  if (currentRunPrefix !== undefined && normalized.startsWith(currentRunPrefix)) {
-    return encodeUrlPath(`../${normalized.slice(currentRunPrefix.length)}`);
-  }
-
-  if (input.projectRoot !== undefined) {
-    const projectRoot = resolve(input.projectRoot);
-    const absoluteEntry = resolve(projectRoot, normalized);
-    if (!isInside(projectRoot, absoluteEntry)) return undefined;
-    return pathToFileURL(absoluteEntry).href;
-  }
-
-  return undefined;
-}
-
-export function previewForEntryPoints(input: {
-  readonly entryPoints: readonly string[];
-  readonly runFolder: string;
-  readonly projectRoot?: string | undefined;
-}): MultiVariantPreview | undefined {
-  for (const entryPoint of input.entryPoints) {
-    const href = runArtifactPreviewHref({
-      entryPath: entryPoint,
-      runFolder: input.runFolder,
-      projectRoot: input.projectRoot,
-    });
-    if (href !== undefined) return { href, sourcePath: entryPoint };
-  }
-  return undefined;
-}
-
-// Bespoke layout the utility classes do not cover: the comparison grid, the
-// selected-row marker, and the pinned preview rail with its breakpoints.
-// Colors come from the design-system tokens in theme.css.
+// The visual comparison is a full-height review workspace. The artifact owns
+// the room; prose and evidence live in a compact inspector and disclosures.
 const MULTI_VARIANT_STYLE = [
-  '.mv-wrap{--mv-pad:clamp(18px,2.4vw,44px);--mv-top:clamp(30px,3vw,50px);--mv-rail-width:clamp(420px,32vw,640px);--mv-rail-gap:clamp(34px,4vw,72px);max-width:1280px}',
-  '.mv-wrap.mv-visual{max-width:none;width:100%;padding:var(--mv-top) calc(var(--mv-rail-width) + var(--mv-pad) + var(--mv-rail-gap)) 96px var(--mv-pad)}',
-  '.mv-decision{display:grid;grid-template-columns:minmax(0,1fr) auto;gap:18px;align-items:center;margin:24px 0 28px;padding:16px 0;border-top:1px solid var(--border);border-bottom:1px solid var(--border)}',
-  '.mv-decision strong{display:block;font-size:15px;line-height:1.35;margin-bottom:3px;font-weight:560}',
-  '.mv-decision span{color:var(--muted-foreground)}',
-  '.mv-count{font-size:12px;color:var(--muted-foreground);white-space:nowrap}',
-  '.mv-list-head,.mv-row{display:grid;grid-template-columns:minmax(150px,190px) minmax(30ch,1fr) minmax(240px,.9fr);gap:clamp(18px,2vw,34px);align-items:start}',
-  '.mv-list-head{padding:0 0 10px;color:var(--muted-foreground);font-size:11px;font-weight:600;text-transform:uppercase}',
-  '.mv-row{position:relative;width:100%;padding:18px 0;border-top:1px solid var(--border)}',
-  '.mv-row:last-child{border-bottom:1px solid var(--border)}',
-  '.mv-row[data-selected="true"]::before{content:"";position:absolute;left:-14px;top:18px;bottom:18px;width:2px;border-radius:999px;background:var(--positive)}',
-  '.mv-name{display:flex;flex-direction:column;gap:6px;align-items:flex-start}',
-  '.mv-name strong{font-size:15.5px;line-height:1.3;font-weight:560}',
-  '.mv-copy p{margin:0 0 9px}',
-  '.mv-evidence-cell{display:flex;flex-direction:column;gap:10px;min-width:0}',
-  '.mv-detail{position:fixed;top:var(--mv-top);right:var(--mv-pad);bottom:28px;width:var(--mv-rail-width);border-left:1px solid var(--border);padding-left:clamp(24px,2.4vw,40px);overflow:auto;overscroll-behavior:contain;scrollbar-gutter:stable}',
-  '.mv-detail h2{font-size:18px;line-height:1.3;margin:0 0 12px;font-weight:560}',
-  '.mv-frame{border:1px solid var(--input);border-radius:10px;background:var(--card);min-height:clamp(280px,42vh,470px);box-shadow:0 16px 42px rgba(22,28,24,.07);overflow:hidden}',
-  '.mv-frame iframe{display:block;width:100%;height:clamp(280px,42vh,470px);border:0;background:white}',
-  '.mv-empty-preview{padding:18px;color:var(--muted-foreground);font-size:13px}',
-  '.mv-detail-meta{display:flex;flex-direction:column;gap:10px;margin-top:14px}',
-  '.mv-open-link{font-size:13px;color:var(--info);text-decoration:none}',
-  '.mv-open-link:hover{text-decoration:underline}',
-  '.mv-detail-source{font:500 11px/1.4 ui-monospace,"SF Mono",Menlo,monospace;color:var(--muted-foreground);overflow-wrap:anywhere}',
-  '.mv-wrap.mv-evidence .mv-row{grid-template-columns:minmax(150px,210px) minmax(32ch,1fr) minmax(260px,.8fr)}',
-  '@media (max-width:1320px){.mv-wrap.mv-visual{max-width:1280px;margin:0 auto;padding:var(--mv-top) var(--mv-pad) 96px}.mv-detail{position:static;width:auto;overflow:visible;border-left:0;border-top:1px solid var(--border);padding-left:0;padding-top:22px;margin-top:24px}.mv-frame iframe{height:420px}}',
-  '@media (max-width:760px){.mv-decision{grid-template-columns:1fr}.mv-count{white-space:normal}.mv-list-head{display:none}.mv-row,.mv-wrap.mv-evidence .mv-row{grid-template-columns:1fr;gap:12px}.mv-frame iframe{height:340px}}',
+  ARTIFACT_PREVIEW_STYLE,
+  '.mv-wrap.mv-visual{min-width:0;min-height:100dvh;max-width:none;width:100%;padding:0;background:var(--background)}',
+  '.mv-review-ui{height:100dvh;min-width:0;display:grid;grid-template-rows:auto auto minmax(0,1fr) auto}',
+  '.mv-skip{position:fixed;left:12px;top:10px;z-index:50;transform:translateY(-150%);border-radius:8px;background:var(--foreground);color:var(--background);padding:9px 12px;font-size:13px}',
+  '.mv-skip:focus{transform:translateY(0)}',
+  '.mv-topbar{min-width:0;display:flex;align-items:center;justify-content:space-between;gap:24px;padding:16px 20px 14px;border-bottom:1px solid var(--border);background:color-mix(in oklab,var(--background) 94%,transparent)}',
+  '.mv-heading{min-width:0;flex:1;display:flex;align-items:baseline;gap:12px}',
+  '.mv-heading h1{min-width:0;overflow-wrap:anywhere;word-break:break-word;font-size:19px;line-height:1.2;font-weight:620;letter-spacing:-.02em}',
+  '.mv-heading p{min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-size:13px;color:var(--muted-foreground)}',
+  '.mv-progress{flex:none;font-size:12px;color:var(--muted-foreground);white-space:nowrap}',
+  '.mv-tabs{min-width:0;max-width:100%;display:flex;gap:8px;overflow-x:auto;padding:9px 14px;border-bottom:1px solid var(--border);scrollbar-width:none;background:var(--background)}',
+  '.mv-tabs::-webkit-scrollbar{display:none}',
+  '.mv-tab{position:relative;min-width:0;flex:none;display:flex;align-items:center;gap:8px;min-height:44px;max-width:300px;padding:8px 12px;border:1px solid transparent;border-radius:10px;color:var(--muted-foreground);text-align:left;white-space:nowrap;cursor:pointer;touch-action:manipulation}',
+  '.mv-tab[aria-selected="true"]{border-color:var(--border);background:var(--card);color:var(--foreground);box-shadow:0 1px 2px rgba(0,0,0,.05)}',
+  '.mv-tab:focus-visible{outline:3px solid color-mix(in oklab,var(--ring) 45%,transparent);outline-offset:1px}',
+  '.mv-tab-title{min-width:0;overflow:hidden;text-overflow:ellipsis;font-size:13px;font-weight:560}',
+  '.mv-tab-index{font:600 10px/1 ui-monospace,"SF Mono",Menlo,monospace;color:var(--muted-foreground)}',
+  '.mv-tab-note{min-width:18px;height:18px;border-radius:999px;background:var(--secondary);padding:0 5px;font-size:10px;line-height:18px;text-align:center}',
+  '.mv-suggested{font-size:10px;font-weight:650;color:var(--positive);text-transform:uppercase;letter-spacing:.045em}',
+  '.mv-main{min-width:0;min-height:0;display:grid;grid-template-columns:minmax(0,1fr) minmax(300px,350px)}',
+  '.mv-main>*{min-width:0}',
+  '.mv-stage{min-width:0;min-height:0;display:grid;grid-template-rows:auto minmax(0,1fr);background:var(--muted)}',
+  '.mv-stagebar{min-width:0;display:flex;align-items:center;justify-content:space-between;gap:16px;min-height:48px;padding:8px 14px;border-bottom:1px solid var(--border);background:var(--background)}',
+  '.mv-stage-title{min-width:0;font-size:13px;font-weight:560;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}',
+  '.mv-stage-actions{min-width:0;flex:none;display:flex;align-items:center;gap:6px}',
+  '.mv-icon-button,.mv-open-link{display:inline-flex;align-items:center;justify-content:center;min-width:44px;min-height:36px;border:1px solid var(--border);border-radius:8px;background:var(--background);color:var(--foreground);font-size:12px;text-decoration:none}',
+  '.mv-open-link{gap:6px;padding:0 10px;white-space:nowrap}',
+  '.mv-icon-button:active,.mv-open-link:active,.mv-primary:active{transform:scale(.97)}',
+  '.mv-canvas{position:relative;min-width:0;min-height:0;margin:12px;border:1px solid var(--border);border-radius:12px;background:white;overflow:hidden;box-shadow:0 14px 36px rgba(24,24,27,.08)}',
+  '.mv-panel{position:absolute;inset:0;min-width:0}',
+  '.mv-inspector{min-width:0;min-height:0;overflow:auto;overscroll-behavior:contain;scrollbar-gutter:stable;border-left:1px solid var(--border);background:var(--background);padding:20px}',
+  '.mv-inspector-head{display:flex;align-items:center;gap:8px;margin-bottom:9px}',
+  '.mv-inspector h2{min-width:0;overflow-wrap:anywhere;word-break:break-word;font-size:20px;line-height:1.25;font-weight:620;letter-spacing:-.025em}',
+  '.mv-description{overflow-wrap:anywhere;margin:8px 0 20px;color:var(--muted-foreground);font-size:13px;line-height:1.5}',
+  '.mv-field-label{display:block;margin-bottom:7px;font-size:12px;font-weight:600}',
+  '.mv-comment{display:block;width:100%;min-height:112px;resize:vertical;border:1px solid var(--input);border-radius:10px;background:var(--background);padding:11px 12px;font-size:13px;line-height:1.45;outline:none}',
+  '.mv-comment:focus{border-color:var(--ring);box-shadow:0 0 0 3px color-mix(in oklab,var(--ring) 20%,transparent)}',
+  '.mv-save-state{min-height:18px;margin:7px 0 18px;color:var(--muted-foreground);font-size:11px}',
+  '.mv-disclosure{border-top:1px solid var(--border)}',
+  '.mv-disclosure:last-of-type{border-bottom:1px solid var(--border)}',
+  '.mv-disclosure summary{cursor:pointer;display:flex;align-items:center;justify-content:space-between;min-height:44px;font-size:13px;font-weight:560;list-style:none}',
+  '.mv-disclosure summary::-webkit-details-marker{display:none}',
+  '.mv-disclosure summary::after{content:"+";color:var(--muted-foreground);font-size:17px;font-weight:400}',
+  '.mv-disclosure[open] summary::after{content:"−"}',
+  '.mv-disclosure-body{min-width:0;padding:0 0 16px;overflow-wrap:anywhere;color:var(--muted-foreground);font-size:12.5px;line-height:1.5}',
+  '.mv-facts{display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:14px}',
+  '.mv-fact b{display:block;margin-bottom:2px;color:var(--muted-foreground);font-size:9px;text-transform:uppercase;letter-spacing:.06em}',
+  '.mv-fact span{overflow-wrap:anywhere;word-break:break-word;color:var(--foreground);font-size:11.5px}',
+  '.mv-technical-list{display:flex;flex-direction:column;gap:6px;margin-top:9px}',
+  '.mv-technical-list code{overflow-wrap:anywhere;font:500 10px/1.4 ui-monospace,"SF Mono",Menlo,monospace}',
+  '.mv-footer{min-width:0;display:flex;align-items:center;justify-content:space-between;gap:12px;min-height:64px;padding:10px 14px;border-top:1px solid var(--border);background:var(--background)}',
+  '.mv-footer-group{min-width:0;display:flex;align-items:center;gap:8px}',
+  '.mv-secondary,.mv-primary{min-width:0;min-height:42px;border-radius:9px;padding:0 15px;font-size:13px;font-weight:580;cursor:pointer;touch-action:manipulation}',
+  '.mv-secondary{border:1px solid var(--border);background:var(--background)}',
+  '.mv-primary{border:1px solid var(--primary);background:var(--primary);color:var(--primary-foreground)}',
+  '.mv-dialog{position:fixed;inset:0;width:min(520px,calc(100vw - 32px));max-height:calc(100dvh - 32px);margin:auto;overflow:auto;border:1px solid var(--border);border-radius:16px;background:var(--background);color:var(--foreground);padding:0;box-shadow:0 28px 90px rgba(0,0,0,.22)}',
+  '.mv-dialog::backdrop{background:rgba(0,0,0,.32);backdrop-filter:blur(3px)}',
+  '.mv-dialog-body{padding:24px}',
+  '.mv-dialog h2{overflow-wrap:anywhere;word-break:break-word;font-size:22px;font-weight:620;letter-spacing:-.025em}',
+  '.mv-dialog-copy{margin:7px 0 18px;overflow-wrap:anywhere;color:var(--muted-foreground);font-size:13px}',
+  '.mv-dialog-actions{display:flex;flex-wrap:wrap;justify-content:flex-end;gap:8px;margin-top:18px}',
+  '.mv-command{display:block;max-height:110px;overflow:auto;margin-top:14px;border:1px solid var(--border);border-radius:9px;background:var(--muted);padding:10px;font:500 10px/1.45 ui-monospace,"SF Mono",Menlo,monospace;overflow-wrap:anywhere;user-select:all}',
+  '.mv-command-state{min-height:18px;margin-top:8px;color:var(--muted-foreground);font-size:11px}',
+  '.mv-live{position:absolute;width:1px;height:1px;padding:0;margin:-1px;overflow:hidden;clip:rect(0,0,0,0);white-space:nowrap;border:0}',
+  '.mv-noscript{width:min(760px,calc(100% - 32px));margin:24px auto;border:1px solid var(--border);border-radius:16px;background:var(--background);padding:24px}',
+  '.mv-noscript h1{overflow-wrap:anywhere;font-size:24px;line-height:1.2;font-weight:650;letter-spacing:-.025em}',
+  '.mv-noscript>p{margin-top:8px;color:var(--muted-foreground)}',
+  '.mv-noscript-list{display:grid;gap:12px;margin-top:20px}',
+  '.mv-noscript-option{min-width:0;border:1px solid var(--border);border-radius:12px;background:var(--muted);padding:15px}',
+  '.mv-noscript-option strong{display:block;overflow-wrap:anywhere;font-size:14px}',
+  '.mv-noscript-option span,.mv-noscript-option a{display:block;margin-top:4px;overflow-wrap:anywhere;color:var(--muted-foreground);font-size:12px}',
+  '.mv-noscript code{display:block;margin-top:10px;overflow-wrap:anywhere;white-space:pre-wrap;user-select:all;font:500 13px/1.55 ui-monospace,"SF Mono",Menlo,monospace}',
+  '.mv-wrap.mv-evidence{max-width:980px}',
+  '.mv-evidence-row{display:grid;grid-template-columns:minmax(150px,200px) minmax(0,1fr);gap:10px 24px;padding:20px 0;border-top:1px solid var(--border)}',
+  '.mv-evidence-cell{grid-column:2}',
+  '@media (max-width:900px){.mv-review-ui{height:auto;min-height:100dvh;grid-template-rows:auto auto auto auto}.mv-topbar{align-items:flex-start}.mv-heading{display:block}.mv-heading p{margin-top:4px}.mv-main{grid-template-columns:1fr}.mv-stage{height:68dvh;min-height:520px}.mv-inspector{border-left:0;border-top:1px solid var(--border);overflow:visible}.mv-footer{position:sticky;bottom:0;z-index:20}.mv-progress{display:none}}',
+  '@media (max-width:600px){.mv-topbar{padding:13px 14px}.mv-heading h1{font-size:17px}.mv-heading p{display:none}.mv-tabs{padding-inline:8px}.mv-tab{max-width:230px}.mv-stage{height:62dvh;min-height:430px}.mv-stagebar{padding-inline:10px}.mv-canvas{margin:8px}.mv-inspector{padding:18px 16px}.mv-footer{display:grid;grid-template-columns:minmax(0,1fr) auto;padding:8px}.mv-footer-group:first-child{display:grid;grid-template-columns:repeat(2,minmax(0,1fr))}.mv-footer .mv-open-link{display:none}.mv-secondary,.mv-primary{width:100%;padding-inline:10px}.mv-dialog{inset:auto 8px 8px;width:auto;max-height:calc(100dvh - 16px);margin:auto 0 0;border-radius:18px}.mv-dialog-body{padding:20px}.mv-dialog-actions{display:grid;grid-template-columns:1fr}.mv-noscript{width:calc(100% - 20px);margin:10px auto;padding:18px}.mv-noscript code{font-size:12px}.mv-evidence-row{grid-template-columns:1fr;gap:9px}.mv-evidence-cell{grid-column:1}}',
+  '@media (prefers-reduced-motion:reduce){.mv-icon-button,.mv-open-link,.mv-primary{transition:none}}',
 ].join('');
 
-const MULTI_VARIANT_SCRIPT = `(()=>{const frame=document.querySelector('[data-mv-frame]');const title=document.querySelector('[data-mv-title]');const source=document.querySelector('[data-mv-source]');const link=document.querySelector('[data-mv-open]');const empty=document.querySelector('[data-mv-empty]');const rows=[...document.querySelectorAll('[data-mv-row]')];const triggers=[...document.querySelectorAll('[data-mv-preview-trigger]')];if(!frame||!title||!source||!link||!empty)return;function select(trigger){const id=trigger.dataset.mvVariantId||'';const src=trigger.dataset.mvPreviewSrc||'';title.textContent=trigger.dataset.mvPreviewTitle||'';source.textContent=trigger.dataset.mvPreviewSource||'';rows.forEach(row=>{row.dataset.selected=String(row.dataset.mvVariantId===id);});if(src.length>0){frame.hidden=false;empty.hidden=true;frame.setAttribute('src',src);link.hidden=false;link.setAttribute('href',src);}else{frame.hidden=true;empty.hidden=false;link.hidden=true;link.removeAttribute('href');}}triggers.forEach(trigger=>{trigger.addEventListener('click',()=>select(trigger));});})();`;
+const MULTI_VARIANT_REVIEW_SCRIPT = `${CHECKPOINT_REVIEW_RUNTIME}\n${ARTIFACT_PREVIEW_SCRIPT}`;
 
 function VariantFacts({ facts }: { readonly facts: readonly MultiVariantFact[] }) {
   if (facts.length === 0) return null;
@@ -229,22 +192,10 @@ function VariantFacts({ facts }: { readonly facts: readonly MultiVariantFact[] }
   );
 }
 
-function VariantRow({
-  variant,
-  visual,
-  selected,
-}: {
-  readonly variant: MultiVariantItem;
-  readonly visual: boolean;
-  readonly selected: boolean;
-}) {
+function EvidenceRow({ variant }: { readonly variant: MultiVariantItem }) {
+  const evidence = Array.from(new Set(variant.evidence));
   return (
-    <article
-      className="mv-row"
-      data-mv-row=""
-      data-mv-variant-id={t(variant.id, 120)}
-      data-selected={selected ? 'true' : 'false'}
-    >
+    <article className="mv-evidence-row">
       <div className="mv-name">
         <strong>{t(variant.label, 160)}</strong>
         {variant.recommended ? (
@@ -256,7 +207,7 @@ function VariantRow({
         )}
       </div>
       <div className="mv-copy text-sm">
-        <p>{t(variant.description, MAX_BULLET_LEN)}</p>
+        <p>{t(variant.description, 360)}</p>
         <VariantFacts facts={variant.facts} />
         {variant.risks === undefined || variant.risks.length === 0 ? null : (
           <div className="mt-2.5">
@@ -265,23 +216,9 @@ function VariantRow({
           </div>
         )}
       </div>
-      <div className="mv-evidence-cell">
-        {variant.evidence.length === 0 ? null : <ChipRow items={variant.evidence} />}
-        <div className="flex flex-wrap gap-2">
-          {visual && variant.preview !== undefined ? (
-            <Button
-              variant="outline"
-              size="sm"
-              type="button"
-              data-mv-preview-trigger=""
-              data-mv-variant-id={t(variant.id, 120)}
-              data-mv-preview-src={variant.preview.href}
-              data-mv-preview-title={t(variant.label, 160)}
-              data-mv-preview-source={t(variant.preview.sourcePath, MAX_PROMPT_LEN)}
-            >
-              Preview
-            </Button>
-          ) : null}
+      <div className="mv-evidence-cell mt-3">
+        {evidence.length === 0 ? null : <ChipRow items={evidence} />}
+        <div className="mt-3 flex flex-wrap gap-2">
           {variant.action === undefined ? null : (
             <Button
               variant={variant.action.primary === false ? 'outline' : 'default'}
@@ -297,56 +234,340 @@ function VariantRow({
   );
 }
 
-function VisualDetail({ variant }: { readonly variant: MultiVariantItem }) {
-  const preview = variant.preview;
+function VisualPanel({
+  variant,
+  selected,
+  index,
+}: {
+  readonly variant: MultiVariantItem;
+  readonly selected: boolean;
+  readonly index: number;
+}) {
+  const preview = variant.preview ?? { status: 'unavailable' as const };
   return (
-    <aside className="mv-detail" aria-label="Selected variant preview">
-      <h2 data-mv-title="">{t(variant.label, 160)}</h2>
-      <div className="mv-frame">
-        {preview === undefined ? (
-          <>
-            <iframe data-mv-frame="" hidden title="Variant preview" />
-            <p className="mv-empty-preview" data-mv-empty="">
-              No visual preview is available for this variant.
-            </p>
-          </>
-        ) : (
-          <>
-            <iframe
-              data-mv-frame=""
-              src={preview.href}
-              title={`${t(variant.label, 160)} preview`}
-              sandbox="allow-scripts allow-forms allow-pointer-lock"
-              loading="lazy"
-            />
-            <p className="mv-empty-preview" data-mv-empty="" hidden>
-              No visual preview is available for this variant.
-            </p>
-          </>
-        )}
+    <div
+      className="mv-panel"
+      id={`mv-panel-${index}`}
+      data-mv-panel=""
+      data-artifact-preview-panel=""
+      data-mv-variant-id={variant.id}
+      role="tabpanel"
+      aria-labelledby={`mv-option-${index}`}
+      hidden={!selected}
+    >
+      <ArtifactPreviewFrame
+        preview={preview}
+        title={`${t(variant.label, 160)} artifact preview`}
+        eager={selected}
+      />
+    </div>
+  );
+}
+
+function VisualInspector({
+  variant,
+  selected,
+}: { readonly variant: MultiVariantItem; readonly selected: boolean }) {
+  const preview = variant.preview ?? { status: 'unavailable' as const };
+  const evidence = Array.from(
+    new Set([...variant.evidence, ...('sourcePath' in preview ? [preview.sourcePath] : [])]),
+  );
+  return (
+    <section data-mv-inspector="" data-mv-variant-id={variant.id} hidden={!selected}>
+      <div className="mv-inspector-head">
+        {variant.recommended ? <span className="mv-suggested">Suggested</span> : null}
       </div>
-      <div className="mv-detail-meta">
-        {preview === undefined ? (
-          // biome-ignore lint/a11y/useValidAnchor: placeholder link; the preview switcher script sets href before unhiding it.
-          <a className="mv-open-link" data-mv-open="" hidden>
-            Open artifact
-          </a>
-        ) : (
-          <a
-            className="mv-open-link"
-            data-mv-open=""
-            href={preview.href}
-            target="_blank"
-            rel="noreferrer"
-          >
-            Open artifact
-          </a>
-        )}
-        <div className="mv-detail-source" data-mv-source="">
-          {t(preview?.sourcePath ?? 'No visual artifact path', MAX_PROMPT_LEN)}
+      <h2>{t(variant.label, 160)}</h2>
+      <p className="mv-description">{t(variant.description, 420)}</p>
+      <details className="mv-disclosure">
+        <summary>Option details</summary>
+        <div className="mv-disclosure-body">
+          <VariantFacts facts={variant.facts} />
+          {variant.risks === undefined || variant.risks.length === 0 ? null : (
+            <>
+              <SectionLabel>Risks</SectionLabel>
+              <BulletList items={variant.risks} />
+            </>
+          )}
         </div>
+      </details>
+      <details className="mv-disclosure">
+        <summary>Evidence</summary>
+        <div className="mv-disclosure-body mv-technical-list">
+          {evidence.length === 0 ? <span>No evidence links were reported.</span> : null}
+          {evidence.map((item) => (
+            <code key={item}>{t(item, MAX_PROMPT_LEN)}</code>
+          ))}
+        </div>
+      </details>
+    </section>
+  );
+}
+
+function VisualReviewWorkspace({
+  input,
+  defaultVariant,
+}: {
+  readonly input: MultiVariantComparisonInput;
+  readonly defaultVariant: MultiVariantItem;
+}) {
+  const defaultIndex = input.variants.findIndex((variant) => variant.id === defaultVariant.id);
+  const openHref =
+    defaultVariant.preview?.status === 'ready' ? defaultVariant.preview.href : undefined;
+  return (
+    <div
+      className="mv-wrap mv-visual"
+      data-mv-workspace=""
+      data-run-folder={input.resume?.runFolder ?? ''}
+      data-resume-prefix={input.resume?.commandPrefix ?? 'circuit resume'}
+      data-run-id={input.resume?.runId ?? ''}
+      data-step-id={input.resume?.stepId ?? ''}
+      data-attempt={input.resume?.attempt ?? 0}
+      data-request-sha256={input.resume?.requestSha256 ?? ''}
+    >
+      <div className="mv-review-ui" data-mv-interactive="">
+        <a className="mv-skip" href="#mv-artifact">
+          Skip to artifact
+        </a>
+        <a className="mv-skip" href="#mv-comment">
+          Skip to comments
+        </a>
+        <header className="mv-topbar">
+          <div className="mv-heading">
+            <h1>{t(input.headline, 180)}</h1>
+            <p>{t(input.subtitle, 280)}</p>
+          </div>
+          <div className="mv-progress">
+            <span data-mv-position="">
+              {defaultIndex + 1} of {input.variants.length}
+            </span>
+            {' · '}Review draft
+          </div>
+        </header>
+        <nav className="mv-tabs" role="tablist" aria-label="Review options">
+          {input.variants.map((variant, index) => {
+            const selected = variant.id === defaultVariant.id;
+            const previewHref = variant.preview?.status === 'ready' ? variant.preview.href : '';
+            return (
+              <button
+                key={variant.id}
+                type="button"
+                className="mv-tab"
+                id={`mv-option-${index}`}
+                role="tab"
+                aria-selected={selected}
+                aria-controls={`mv-panel-${index}`}
+                tabIndex={selected ? 0 : -1}
+                data-mv-option=""
+                data-mv-variant-id={variant.id}
+                data-mv-label={t(variant.label, 160)}
+                data-mv-preview-src={previewHref}
+              >
+                <span className="mv-tab-index">{String(index + 1).padStart(2, '0')}</span>
+                <span className="mv-tab-title">{t(variant.label, 160)}</span>
+                {variant.recommended ? <span className="mv-suggested">Suggested</span> : null}
+                <span className="mv-tab-note" data-mv-note-count="" hidden>
+                  0
+                </span>
+              </button>
+            );
+          })}
+        </nav>
+        <main className="mv-main">
+          <section
+            className="mv-stage"
+            id="mv-artifact"
+            aria-label="Artifact preview"
+            tabIndex={-1}
+          >
+            <div className="mv-stagebar">
+              <div className="mv-stage-title" data-mv-stage-title="">
+                {t(defaultVariant.label, 160)}
+              </div>
+              <div className="mv-stage-actions">
+                <button
+                  className="mv-icon-button"
+                  type="button"
+                  data-mv-previous=""
+                  aria-label="Previous option"
+                >
+                  ←
+                </button>
+                <button
+                  className="mv-icon-button"
+                  type="button"
+                  data-mv-next=""
+                  aria-label="Next option"
+                >
+                  →
+                </button>
+                {openHref === undefined ? (
+                  // biome-ignore lint/a11y/useValidAnchor: the review script supplies href for previewable options.
+                  <a className="mv-open-link" data-mv-open="" hidden>
+                    Open full size ↗
+                  </a>
+                ) : (
+                  <a
+                    className="mv-open-link"
+                    data-mv-open=""
+                    href={openHref}
+                    target="_blank"
+                    rel="noreferrer"
+                  >
+                    Open full size ↗
+                  </a>
+                )}
+              </div>
+            </div>
+            <div className="mv-canvas">
+              {input.variants.map((variant, index) => (
+                <VisualPanel
+                  key={variant.id}
+                  variant={variant}
+                  selected={variant.id === defaultVariant.id}
+                  index={index}
+                />
+              ))}
+            </div>
+          </section>
+          <aside className="mv-inspector" id="mv-comments" aria-label="Review notes">
+            {input.variants.map((variant) => (
+              <VisualInspector
+                key={variant.id}
+                variant={variant}
+                selected={variant.id === defaultVariant.id}
+              />
+            ))}
+            <div className="mt-4">
+              <label className="mv-field-label" htmlFor="mv-comment">
+                Comment on this option
+              </label>
+              <textarea
+                className="mv-comment"
+                id="mv-comment"
+                data-mv-comment=""
+                maxLength={2000}
+                placeholder="Record what you noticed or why you prefer this option."
+              />
+              <div className="mv-save-state" data-mv-save-state="">
+                Saved in this browser
+              </div>
+            </div>
+            <details className="mv-disclosure">
+              <summary>
+                Why Circuit suggested {t(input.recommendation.label, MAX_PROMPT_LEN)}
+              </summary>
+              <div className="mv-disclosure-body">
+                {t(input.recommendation.rationale, MAX_PROMPT_LEN)}
+              </div>
+            </details>
+            {input.details === undefined ? null : (
+              <details className="mv-disclosure">
+                <summary>Full comparison report</summary>
+                <div className="mv-disclosure-body">{input.details}</div>
+              </details>
+            )}
+          </aside>
+        </main>
+        <footer className="mv-footer">
+          <div className="mv-footer-group">
+            <button className="mv-secondary" type="button" data-mv-previous="">
+              ← Previous
+            </button>
+            <button className="mv-secondary" type="button" data-mv-next="">
+              Next →
+            </button>
+          </div>
+          <div className="mv-footer-group">
+            <button className="mv-primary" type="button" data-mv-finish="">
+              Choose this option
+            </button>
+          </div>
+        </footer>
+        <dialog
+          className="mv-dialog"
+          data-mv-dialog=""
+          aria-labelledby="mv-dialog-title"
+          aria-describedby="mv-dialog-description"
+        >
+          <div className="mv-dialog-body">
+            <div className="mv-suggested">Finish review</div>
+            <h2 id="mv-dialog-title">
+              Choose <span data-mv-confirm-title="">{t(defaultVariant.label, 160)}</span>?
+            </h2>
+            <p className="mv-dialog-copy" id="mv-dialog-description" data-mv-confirm-summary="">
+              0 option comments
+            </p>
+            <label className="mv-field-label" htmlFor="mv-overall-comment">
+              Note for the run record (optional)
+            </label>
+            <textarea
+              className="mv-comment"
+              id="mv-overall-comment"
+              data-mv-overall-comment=""
+              maxLength={2000}
+              placeholder="Add any context you want saved with this review."
+            />
+            <code className="mv-command" data-mv-command="" hidden />
+            <div
+              className="mv-command-state"
+              data-mv-command-state=""
+              role="status"
+              aria-live="polite"
+            />
+            <div className="mv-dialog-actions">
+              <button className="mv-secondary" type="button" data-mv-close-dialog="">
+                Keep reviewing
+              </button>
+              <button className="mv-secondary" type="button" data-mv-export="">
+                Export review JSON
+              </button>
+              <button className="mv-primary" type="button" data-mv-copy-decision="">
+                Copy decision command
+              </button>
+            </div>
+          </div>
+        </dialog>
+        <div className="mv-live" aria-live="polite" data-mv-live="" />
       </div>
-    </aside>
+      <noscript>
+        <style>{'[data-mv-interactive]{display:none!important}'}</style>
+        <div className="mv-noscript">
+          <h1>{t(input.headline, 180)}</h1>
+          <p>JavaScript is off. Review each option, then run one legacy resume command.</p>
+          <div className="mv-noscript-list">
+            {input.variants.map((variant) => (
+              <section key={variant.id} className="mv-noscript-option">
+                <strong>
+                  {t(variant.label, 160)}
+                  {variant.recommended ? ' · Suggested' : ''}
+                </strong>
+                <span>{t(variant.description, 420)}</span>
+                {variant.facts.map((fact) => (
+                  <span key={fact.label}>
+                    {t(fact.label, 120)}: {t(fact.value, MAX_BULLET_LEN)}
+                  </span>
+                ))}
+                {variant.preview?.status === 'ready' ? (
+                  <a href={variant.preview.href}>Open artifact</a>
+                ) : (
+                  <span>
+                    {variant.preview?.status === 'missing'
+                      ? 'Preview file missing'
+                      : variant.preview?.status === 'unsupported'
+                        ? 'Preview format unsupported'
+                        : 'Preview unavailable'}
+                  </span>
+                )}
+                {variant.action === undefined ? null : (
+                  <code>{t(variant.action.prompt, MAX_PROMPT_LEN)}</code>
+                )}
+              </section>
+            ))}
+          </div>
+        </div>
+      </noscript>
+    </div>
   );
 }
 
@@ -358,12 +579,27 @@ export function renderMultiVariantComparisonPage(input: MultiVariantComparisonIn
   if (recommended === undefined) {
     throw new Error('multi-variant comparison could not choose a default variant');
   }
-  const visual = input.variants.some((variant) => variant.preview !== undefined);
-  const defaultVariant = visual
-    ? (input.variants.find((variant) => variant.recommended && variant.preview !== undefined) ??
-      input.variants.find((variant) => variant.preview !== undefined) ??
+  const hasPreview = input.variants.some((variant) => variant.preview?.status === 'ready');
+  const reviewWorkspace = input.resume !== undefined;
+  if (hasPreview && input.resume === undefined) {
+    throw new Error('visual multi-variant review requires resume metadata');
+  }
+  const defaultVariant = reviewWorkspace
+    ? (input.variants.find(
+        (variant) => variant.recommended && variant.preview?.status === 'ready',
+      ) ??
+      input.variants.find((variant) => variant.preview?.status === 'ready') ??
       recommended)
     : recommended;
+
+  if (reviewWorkspace) {
+    return renderHtmlDocument({
+      title: input.title,
+      body: <VisualReviewWorkspace input={input} defaultVariant={defaultVariant} />,
+      extraStyle: MULTI_VARIANT_STYLE,
+      extraScript: MULTI_VARIANT_REVIEW_SCRIPT,
+    });
+  }
 
   return renderReportPage({
     title: input.title,
@@ -372,9 +608,8 @@ export function renderMultiVariantComparisonPage(input: MultiVariantComparisonIn
     subtitle: input.subtitle,
     ...(input.footerLeft === undefined ? {} : { footerLeft: input.footerLeft }),
     ...(input.footerRight === undefined ? {} : { footerRight: input.footerRight }),
-    wrapClassName: visual ? 'mv-wrap mv-visual' : 'mv-wrap mv-evidence',
+    wrapClassName: 'mv-wrap mv-evidence',
     extraStyle: MULTI_VARIANT_STYLE,
-    ...(visual ? { extraScript: MULTI_VARIANT_SCRIPT } : {}),
     children: (
       <>
         <VerdictBanner
@@ -390,31 +625,11 @@ export function renderMultiVariantComparisonPage(input: MultiVariantComparisonIn
             ? {}
             : { aside: input.recommendation.aside })}
         />
-        <section className="mv-decision" aria-label="Checkpoint decision">
-          <div>
-            <strong>Recommended: {t(recommended.label, 160)}</strong>
-            <span>{t(input.recommendation.rationale, MAX_PROMPT_LEN)}</span>
-          </div>
-          <div className="mv-count">{input.variants.length} variants compared</div>
+        <section aria-label="Variant comparison">
+          {input.variants.map((variant) => (
+            <EvidenceRow key={variant.id} variant={variant} />
+          ))}
         </section>
-        <div className="mv-compare">
-          <section aria-label="Variant comparison">
-            <div className="mv-list-head">
-              <div>Variant</div>
-              <div>What changes</div>
-              <div>{visual ? 'Evidence and preview' : 'Evidence'}</div>
-            </div>
-            {input.variants.map((variant) => (
-              <VariantRow
-                key={variant.id}
-                variant={variant}
-                visual={visual}
-                selected={variant.id === defaultVariant.id}
-              />
-            ))}
-          </section>
-          {visual ? <VisualDetail variant={defaultVariant} /> : null}
-        </div>
         {input.details ?? null}
       </>
     ),

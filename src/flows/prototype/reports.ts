@@ -1,5 +1,6 @@
 import { z } from 'zod';
 import { THREE_AXIS_RUBRIC_TIE_BREAK_ORDER } from '../../policy/rubric.js';
+import { CheckpointReviewComment } from '../../schemas/checkpoint-review-response.js';
 import { ConnectorReference } from '../../schemas/config.js';
 import { RelayResolutionSource } from '../../schemas/connector.js';
 import { RubricJudgment, RubricResult } from '../../schemas/rubric.js';
@@ -120,6 +121,10 @@ export type PrototypeRootPath = z.infer<typeof PrototypeRootPath>;
 
 function isUnderRoot(path: string, root: string): boolean {
   return path.startsWith(`${root}/`);
+}
+
+function qualifyVariantRelativePaths(root: string, values: readonly string[]): string[] {
+  return values.map((value) => (isUnderRoot(value, root) ? value : `${root}/${value}`));
 }
 
 function validatePathsUnderRoot(input: {
@@ -404,6 +409,16 @@ export const PrototypeVariantArtifact = z
     claim_limits: NonEmptyStringArray,
   })
   .strict()
+  // A worker can reasonably interpret "path under variant_root" as relative
+  // to that directory and return `index.html`. Keep the stored contract
+  // project-relative by safely qualifying those paths before containment and
+  // on-disk checks. The path field schemas have already rejected traversal,
+  // home, drive, backslash, and network-path forms at this point.
+  .transform((artifact) => ({
+    ...artifact,
+    created_files: qualifyVariantRelativePaths(artifact.variant_root, artifact.created_files),
+    entry_points: qualifyVariantRelativePaths(artifact.variant_root, artifact.entry_points),
+  }))
   .superRefine((artifact, ctx) => {
     const expectedRoot = `${artifact.prototype_root}/variants/${artifact.variant_id}`;
     if (artifact.variant_root !== expectedRoot) {
@@ -763,6 +778,7 @@ const PrototypeResultBase = z.object({
   artifact_status: z.enum(['accepted', 'blocked']),
   verification_status: z.enum(['passed', 'failed', 'blocked']),
   checkpoint_status: z.enum(['not_reached', 'auto_resolved', 'operator_selected']),
+  checkpoint_comments: z.array(CheckpointReviewComment).min(1).max(24).optional(),
   prototype_root: PrototypeRootPath,
   entry_points: z.array(PrototypeProjectRelativePath),
   preview_instructions: z.string().min(1),
@@ -810,6 +826,16 @@ export const PrototypeSingleArtifactResult = PrototypeResultBase.extend({
         ctx,
         ['checkpoint_selection'],
         'checkpoint_selection must name the checkpoint choice when checkpoint_status is reached',
+      );
+    }
+    if (
+      result.checkpoint_comments !== undefined &&
+      result.checkpoint_status !== 'operator_selected'
+    ) {
+      addPathIssue(
+        ctx,
+        ['checkpoint_comments'],
+        'checkpoint_comments require an operator-selected checkpoint',
       );
     }
     if (result.outcome === 'build_input_saved' && result.build_followup_prompt === undefined) {
@@ -914,6 +940,16 @@ export const PrototypeModelComparisonResult = PrototypeResultBase.extend({
           'selected_variant_id must match checkpoint_selection',
         );
       }
+    }
+    if (
+      result.checkpoint_comments !== undefined &&
+      result.checkpoint_status !== 'operator_selected'
+    ) {
+      addPathIssue(
+        ctx,
+        ['checkpoint_comments'],
+        'checkpoint_comments require an operator-selected checkpoint',
+      );
     }
     if (result.outcome === 'kept') {
       if (result.artifact_status !== 'accepted') {

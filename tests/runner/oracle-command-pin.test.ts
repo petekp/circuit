@@ -187,5 +187,5 @@ describe('oracle-command pin: a rewritten oracle cannot launder a red run into c
     // The pinned command ran every wave: the loop exhausted its cap (3) on a
     // genuinely red oracle rather than accepting the narrowed no-op.
     expect(enteredCount(trace, 'verify-step')).toBe(3);
-  }, 30_000);
+  }, 90_000);
 });

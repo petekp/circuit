@@ -27,7 +27,9 @@ describe('connector subprocess lifecycle boundary', () => {
           'setInterval(() => {}, 1000);',
         ].join(' '),
       ],
-      timeoutMs: 3_000,
+      // Full-suite fork load can delay child startup. This test is checking
+      // buffered output on timeout, not a precise three-second wall clock.
+      timeoutMs: 10_000,
       stdoutMaxBytes: 1_000,
       stderrMaxBytes: 1_000,
       sigtermToSigkillGraceMs: 50,
@@ -65,18 +67,21 @@ describe('connector subprocess lifecycle boundary', () => {
     async () => {
       const result = await runConnectorSubprocess({
         executable: process.execPath,
-        // Writes immediately, then keeps streaming every 200ms. Each write must
+        // Writes immediately, then keeps streaming every 100ms. Each write must
         // reset the inactivity bound, so the process survives past a single idle
         // window and is only stopped by the absolute ceiling.
         args: [
           '-e',
           [
             "process.stdout.write('start ');",
-            "setInterval(() => process.stdout.write('. '), 200);",
+            "setInterval(() => process.stdout.write('. '), 100);",
           ].join(' '),
         ],
-        timeoutMs: 3_000,
-        idleTimeoutMs: 1_500,
+        // Full-suite fork load can briefly starve the child process. Keep the
+        // idle window below the absolute ceiling, but wide enough that this test
+        // fails only when streaming truly stops resetting the inactivity bound.
+        timeoutMs: 6_000,
+        idleTimeoutMs: 4_000,
         stdoutMaxBytes: 64 * 1024,
         stderrMaxBytes: 1_000,
         sigtermToSigkillGraceMs: 50,
@@ -84,10 +89,10 @@ describe('connector subprocess lifecycle boundary', () => {
       });
 
       expect(result.timedOut).toBe(true);
-      // Would be 'idle' at ~1.5s if streaming did not reset the bound; getting
-      // 'absolute' proves each chunk reset it and the 3s ceiling is what fired.
+      // Would be 'idle' at ~4s if streaming did not reset the bound; getting
+      // 'absolute' proves the stream kept the process alive until the ceiling.
       expect(result.timeoutKind).toBe('absolute');
-      expect(result.durationMs).toBeGreaterThan(1_500);
+      expect(result.durationMs).toBeGreaterThan(4_000);
     },
   );
 

@@ -1,5 +1,6 @@
 import { existsSync, readFileSync } from 'node:fs';
 import { z } from 'zod';
+import { CheckpointReviewComment } from '../../../schemas/checkpoint-review-response.js';
 import { resolveRunRelative } from '../../../shared/run-relative-path.js';
 import type { CloseBuildContext, CloseBuilder } from '../../registries/close-writers/types.js';
 import { reportPathForSchemaInRuntimeFlow } from '../../registries/runtime-index.js';
@@ -27,6 +28,7 @@ const CheckpointResponse = z.looseObject({
   selection: PrototypeCheckpointSelection,
   route_id: z.string().min(1).optional(),
   resolution_source: z.enum(['operator', 'declared-default', 'policy']),
+  comments: z.array(CheckpointReviewComment).max(24).optional(),
 });
 
 type CheckpointResponse = z.infer<typeof CheckpointResponse>;
@@ -37,6 +39,7 @@ const VariantCheckpointResponse = z.looseObject({
   selection: PrototypeVariantId,
   route_id: z.string().min(1).optional(),
   resolution_source: z.enum(['operator', 'declared-default', 'policy']),
+  comments: z.array(CheckpointReviewComment).max(24).optional(),
 });
 
 type VariantCheckpointResponse = z.infer<typeof VariantCheckpointResponse>;
@@ -318,6 +321,9 @@ export const prototypeCloseBuilder: CloseBuilder = {
             : 'failed',
       checkpoint_status: checkpointStatus(checkpoint?.response),
       checkpoint_selection: checkpoint?.response.selection ?? 'not_reached',
+      ...(checkpoint?.response.comments === undefined || checkpoint.response.comments.length === 0
+        ? {}
+        : { checkpoint_comments: checkpoint.response.comments }),
       prototype_root: artifact.prototype_root,
       entry_points: artifact.entry_points,
       preview_instructions: artifact.preview_instructions,
@@ -405,6 +411,9 @@ function buildVariantResult(input: {
           : 'failed',
     checkpoint_status: checkpointStatus(checkpoint?.response),
     checkpoint_selection: selectedVariantId ?? 'not_reached',
+    ...(checkpoint?.response.comments === undefined || checkpoint.response.comments.length === 0
+      ? {}
+      : { checkpoint_comments: checkpoint.response.comments }),
     prototype_root: plan.prototype_root,
     entry_points: selectedArtifact?.entry_points ?? [],
     preview_instructions:

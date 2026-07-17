@@ -24,7 +24,9 @@ export type HtmlCheckpointChoice = {
 
 export type HtmlProjectorCheckpoint = {
   readonly step_id: string;
+  readonly attempt: number;
   readonly request_path: string;
+  readonly request_sha256: string;
   readonly allowed_choices: readonly string[];
   // Widened context parsed from the checkpoint request file by the writer.
   // The page can only adapt to what it can see. These are best-effort:
@@ -42,6 +44,9 @@ export type HtmlProjectorContext = {
   readonly runId: string;
   readonly flowId: string;
   readonly runOutcome: string;
+  // Exact launcher for the environment that produced the report. Plugin
+  // installs do not put a global `circuit` binary on PATH.
+  readonly resumeCommandPrefix?: string | undefined;
   readonly checkpoint?: HtmlProjectorCheckpoint | undefined;
   readonly flowReport: JsonObject | undefined;
   readonly readJsonRunRelative: (relPath: string) => JsonObject | undefined;

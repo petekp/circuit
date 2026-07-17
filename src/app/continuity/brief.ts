@@ -698,6 +698,17 @@ export function realBriefGitProbe(input: {
       return (err as { status?: number }).status === 1 ? false : undefined;
     }
   };
+  const gitRefExists = (ref: string): boolean | undefined => {
+    try {
+      execFileSync('git', ['-C', projectRoot, 'rev-parse', '--verify', '--quiet', ref], {
+        stdio: ['ignore', 'ignore', 'ignore'],
+        timeout: 2000,
+      });
+      return true;
+    } catch (err) {
+      return (err as { status?: number }).status === 1 ? false : undefined;
+    }
+  };
   try {
     if (git(['rev-parse', '--is-inside-work-tree']) !== 'true') return {};
 
@@ -752,8 +763,8 @@ export function realBriefGitProbe(input: {
     // separately by capture_head_reachable, which the render reads to choose
     // "merged and no longer present" vs just "no longer present".
     if (capturedBranch !== undefined && capturedBranch.length > 0 && capturedBranch !== 'HEAD') {
-      const branchSha = git(['rev-parse', '--verify', '--quiet', `refs/heads/${capturedBranch}`]);
-      if (branchSha === undefined) {
+      const branchExists = gitRefExists(`refs/heads/${capturedBranch}`);
+      if (branchExists === false) {
         facts.branch_gone = true;
       }
     }

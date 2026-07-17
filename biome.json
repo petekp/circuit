@@ -10,6 +10,7 @@
       "plugins/claude/runtime",
       "plugins/codex/runtime",
       "src/shared/html/ui/css.generated.ts",
+      "src/shared/html/checkpoint-review-runtime.generated.ts",
       "src/shared/html/ui/theme.css",
       ".circuit",
       ".claude",
