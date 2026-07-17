@@ -301,6 +301,29 @@
       "last_checked": "2026-07-10"
     },
     {
+      "path": "docs/ideas/parallel-prototype-workspaces.md",
+      "title": "Parallel Prototype variants with isolated branch workspaces",
+      "status": "current-proposal",
+      "category": "hosts-connectors-and-hitl",
+      "impact": 4,
+      "tags": [
+        "prototype",
+        "fanout",
+        "parallelism",
+        "workspace-isolation",
+        "artifact-collection",
+        "worker-connectors"
+      ],
+      "current_reading": "Post-v1 proposal to let Prototype's existing bounded fanout run two write-capable variants at once. Circuit captures one project snapshot, gives each branch an enforced workspace, audits every changed path, promotes each verified artifact into the stable parent run folder, and then reuses the current aggregate and checkpoint. The design covers clean Git, dirty Git, and non-Git projects through a replaceable workspace provider. Unsupported connector and platform pairs keep the current sequential fallback. Nothing built; the v1 launch freeze applies.",
+      "related": [
+        "docs/specs/prototype-model-comparison-v1.md",
+        "docs/ideas/cli-first-principles.md",
+        "docs/ideas/deprioritized-ledger.md",
+        "docs/contracts/host-capabilities.md"
+      ],
+      "last_checked": "2026-07-16"
+    },
+    {
       "path": "docs/ideas/multi-channel-hitl-proposal.md",
       "title": "Multi-Channel HITL Proposal",
       "status": "current-proposal",
@@ -661,6 +684,31 @@
         "docs/ideas/flow-composition-run-report.md"
       ],
       "last_checked": "2026-07-08"
+    },
+    {
+      "path": "docs/ideas/expertise-to-flow-experience.md",
+      "title": "Encoding expertise into Circuit flows",
+      "status": "design-evaluation",
+      "category": "flows-and-blocks",
+      "impact": 5,
+      "tags": [
+        "expertise-encoding",
+        "flow-authoring",
+        "promote",
+        "design-thinking",
+        "provenance",
+        "versioning",
+        "flow-lifecycle"
+      ],
+      "current_reading": "Full-lifecycle design exploration for helping practitioners encode explicit and tacit expertise into Circuit flows. Gives seven distinct candidate experiences equal treatment: Process Interview, Demonstrate/Debrief/Promote, Guided Remix, Flow Workshop, Cases First, Flow Pack SDK, and Apprentice Mode. Evaluates them across capture fidelity, author effort, control, real-world proof, adoption, team ownership, product fit, delivery risk, and privacy. Demonstrate/Debrief/Promote is the strongest full-lifecycle hypothesis: start from a real Circuit run, redact it, distinguish observed/confirmed/inferred/unknown knowledge, run a short contrastive debrief, approve a plain-language expertise card, compile an immutable draft, check its source-path coverage, pilot held-out work, publish an exact version, then use cited later runs to propose—not apply—revisions. It has not earned build priority: Phase 0 compares it directly with Generate and Guided Remix and must prove one expert rule changes runtime behavior. Guided Remix plus Cases First is the provisional first build. Also identifies current custom-flow integrity gaps, durable artifacts and authority rules, a pre-mortem, validation gates, and a phased post-v1 delivery sequence. Design only; the v1 launch freeze applies.",
+      "related": [
+        "docs/ideas/alternative-to-chat.md",
+        "docs/ideas/flow-ideas.md",
+        "docs/ideas/improve-flow.md",
+        "docs/ideas/run-close-learning-capture.md",
+        "docs/ideas/bespoke-flow-generation-design.md"
+      ],
+      "last_checked": "2026-07-16"
     },
     {
       "path": "docs/ideas/non-linear-composition-frontier.md",

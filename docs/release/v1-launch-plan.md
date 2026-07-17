@@ -203,7 +203,9 @@ Real directions, deliberately parked. Pointers only.
 
 - **Promote a run into a flow** (`circuit promote`): the spike passed; not in
   the repo. The strongest post-v1 candidate because it closes the encode
-  loop.
+  loop. The full authoring-lifecycle exploration, leading Promote hypothesis,
+  and provisional Guided Remix path are in
+  [docs/ideas/expertise-to-flow-experience.md](../ideas/expertise-to-flow-experience.md).
 - **A calibrated run-quality judge:** plumbing moved behavior in rehearsal,
   but behavior is not quality; a judge is the lever. Ships before any
   feed-forward loop does.
@@ -216,6 +218,10 @@ Real directions, deliberately parked. Pointers only.
   [docs/ideas/run-close-learning-capture.md](../ideas/run-close-learning-capture.md).
 - **Breadth-first flow generation and live efficacy:** gated on operator
   spend. See [docs/ideas/bespoke-flow-generation-design.md](../ideas/bespoke-flow-generation-design.md).
+- **Parallel Prototype variants:** run independent model-comparison branches
+  two at a time when Circuit can enforce separate branch workspaces, then
+  promote verified artifacts into the existing human checkpoint. See
+  [docs/ideas/parallel-prototype-workspaces.md](../ideas/parallel-prototype-workspaces.md).
 - **The recursion and recompile frontier:** mapped in
   [docs/ideas/north-star-status.md](../ideas/north-star-status.md). Parked as
   a body of work; nothing there blocks v1.
