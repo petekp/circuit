@@ -74,6 +74,31 @@ export function checkpointReviewStorageKey(identity: CheckpointReviewIdentity): 
   return `circuit:checkpoint-review:${identity.runId}:${identity.stepId}:${identity.attempt}:${identity.requestSha256}`;
 }
 
+export const CHECKPOINT_REVIEW_SAVED_SCHEMA = 'checkpoint.review-saved@v1' as const;
+
+export type CheckpointReviewSavedRecord = {
+  readonly schema: typeof CHECKPOINT_REVIEW_SAVED_SCHEMA;
+  readonly selection: string;
+};
+
+// The saved record is the cross-window broadcast that a review for this exact
+// checkpoint identity reached the run record. It lives next to the draft so
+// other open copies of the same page can stop offering a second submission.
+export function checkpointReviewSavedKey(identity: CheckpointReviewIdentity): string {
+  return `${checkpointReviewStorageKey(identity)}:saved`;
+}
+
+export function restoreCheckpointReviewSavedRecord(
+  saved: unknown,
+  choiceIds: readonly string[],
+): CheckpointReviewSavedRecord | undefined {
+  if (!isRecord(saved)) return undefined;
+  if (saved.schema !== CHECKPOINT_REVIEW_SAVED_SCHEMA) return undefined;
+  if (typeof saved.selection !== 'string') return undefined;
+  if (!uniqueChoiceIds(choiceIds).includes(saved.selection)) return undefined;
+  return { schema: CHECKPOINT_REVIEW_SAVED_SCHEMA, selection: saved.selection };
+}
+
 export function createCheckpointReviewDraft(
   input: RestoreCheckpointReviewDraftInput,
 ): CheckpointReviewDraft {

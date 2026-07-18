@@ -101,6 +101,8 @@ const MULTI_VARIANT_STYLE = [
   '.mv-skip{position:fixed;left:12px;top:10px;z-index:50;transform:translateY(-150%);border-radius:8px;background:var(--foreground);color:var(--background);padding:9px 12px;font-size:13px}',
   '.mv-skip:focus{transform:translateY(0)}',
   '.mv-topbar{min-width:0;display:flex;align-items:center;justify-content:space-between;gap:24px;padding:16px 20px 14px;border-bottom:1px solid var(--border);background:color-mix(in oklab,var(--background) 94%,transparent)}',
+  '.mv-session-notice{display:block;position:fixed;left:50%;bottom:84px;transform:translateX(-50%);z-index:60;max-width:min(640px,calc(100vw - 32px));border:1px solid var(--border);border-radius:14px;background:var(--background);padding:12px 16px;font-size:13px;box-shadow:0 10px 30px rgb(0 0 0/.18)}',
+  '.mv-session-notice code{display:block;margin-top:8px;overflow-wrap:anywhere;font:500 12px/1.5 ui-monospace,"SF Mono",Menlo,monospace;user-select:all}',
   '.mv-heading{min-width:0;flex:1;display:flex;align-items:baseline;gap:12px}',
   '.mv-heading h1{min-width:0;overflow-wrap:anywhere;word-break:break-word;font-size:19px;line-height:1.2;font-weight:620;letter-spacing:-.02em}',
   '.mv-heading p{min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-size:13px;color:var(--muted-foreground)}',
@@ -345,6 +347,10 @@ function VisualReviewWorkspace({
             {' · '}Review draft
           </div>
         </header>
+        <output className="mv-session-notice" data-mv-session-notice="" hidden>
+          <span data-mv-session-notice-text="" />
+          <code data-mv-session-notice-command="" hidden />
+        </output>
         <nav className="mv-tabs" role="tablist" aria-label="Review options">
           {input.variants.map((variant, index) => {
             const selected = variant.id === defaultVariant.id;

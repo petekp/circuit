@@ -2,13 +2,17 @@
 
 import { checkpointReviewPayloadError } from '../../schemas/checkpoint-review-constraints.js';
 import {
+  CHECKPOINT_REVIEW_SAVED_SCHEMA,
   type CheckpointReviewDraft,
   type CheckpointReviewIdentity,
+  type CheckpointReviewSavedRecord,
   buildCheckpointReviewResponse,
   checkpointReviewDraftRestoreNotice,
   checkpointReviewDraftSummary,
+  checkpointReviewSavedKey,
   checkpointReviewStorageKey,
   restoreCheckpointReviewDraft,
+  restoreCheckpointReviewSavedRecord,
   selectCheckpointReviewChoice,
   setCheckpointReviewChoiceNote,
   setCheckpointReviewOverallNote,
@@ -57,6 +61,9 @@ type WorkspaceAdapter = {
   readonly command: HTMLElement | null;
   readonly commandState: HTMLElement | null;
   readonly dialogDescription: HTMLElement | null;
+  readonly sessionNotice: HTMLElement | null;
+  readonly sessionNoticeText: HTMLElement | null;
+  readonly sessionNoticeCommand: HTMLElement | null;
   readonly finishButtons: readonly HTMLElement[];
   readonly closeButtons: readonly HTMLElement[];
   readonly copyButtons: readonly HTMLElement[];
@@ -128,6 +135,9 @@ function checkpointAdapter(root: HTMLElement): WorkspaceAdapter | undefined {
     command: query<HTMLElement>(root, '[data-cp-command]'),
     commandState: query<HTMLElement>(root, '[data-cp-command-state]'),
     dialogDescription: query<HTMLElement>(root, '#cp-dialog-description'),
+    sessionNotice: query<HTMLElement>(root, '[data-cp-session-notice]'),
+    sessionNoticeText: query<HTMLElement>(root, '[data-cp-session-notice-text]'),
+    sessionNoticeCommand: query<HTMLElement>(root, '[data-cp-session-notice-command]'),
     finishButtons: queryAll<HTMLElement>(root, '[data-cp-finish]'),
     closeButtons: queryAll<HTMLElement>(root, '[data-cp-close-dialog]'),
     copyButtons: queryAll<HTMLElement>(root, '[data-cp-copy-decision]'),
@@ -202,6 +212,9 @@ function multiVariantAdapter(root: HTMLElement): WorkspaceAdapter | undefined {
     command: query<HTMLElement>(root, '[data-mv-command]'),
     commandState: query<HTMLElement>(root, '[data-mv-command-state]'),
     dialogDescription: query<HTMLElement>(root, '#mv-dialog-description'),
+    sessionNotice: query<HTMLElement>(root, '[data-mv-session-notice]'),
+    sessionNoticeText: query<HTMLElement>(root, '[data-mv-session-notice-text]'),
+    sessionNoticeCommand: query<HTMLElement>(root, '[data-mv-session-notice-command]'),
     finishButtons: queryAll<HTMLElement>(root, '[data-mv-finish]'),
     closeButtons: queryAll<HTMLElement>(root, '[data-mv-close-dialog]'),
     copyButtons: queryAll<HTMLElement>(root, '[data-mv-copy-decision]'),
@@ -510,6 +523,128 @@ function mountWorkspace(adapter: WorkspaceAdapter): void {
     else adapter.dialog?.removeAttribute('aria-busy');
   }
 
+  const savedKey = checkpointReviewSavedKey(identity);
+  let sessionEnded = false;
+  const manualDialogDescription = adapter.dialogDescription?.textContent ?? '';
+
+  function readSavedRecord(): CheckpointReviewSavedRecord | undefined {
+    let raw: string | null;
+    try {
+      raw = window.localStorage.getItem(savedKey);
+    } catch {
+      return undefined;
+    }
+    if (raw === null) return undefined;
+    try {
+      return restoreCheckpointReviewSavedRecord(JSON.parse(raw) as unknown, choiceIds);
+    } catch {
+      return undefined;
+    }
+  }
+
+  function announceReviewSaved(): void {
+    const record: CheckpointReviewSavedRecord = {
+      schema: CHECKPOINT_REVIEW_SAVED_SCHEMA,
+      selection: draft.selection,
+    };
+    try {
+      window.localStorage.setItem(savedKey, JSON.stringify(record));
+    } catch {
+      // Other windows fall back to the liveness probe.
+    }
+  }
+
+  function showSessionNotice(text: string, restartCommand: boolean): void {
+    if (adapter.sessionNotice === null) return;
+    if (adapter.sessionNoticeText !== null) adapter.sessionNoticeText.textContent = text;
+    if (adapter.sessionNoticeCommand !== null) {
+      if (restartCommand) {
+        const resumePrefix = adapter.root.dataset.resumePrefix ?? 'circuit resume';
+        const runFolder = adapter.root.dataset.runFolder ?? '';
+        adapter.sessionNoticeCommand.textContent = `${resumePrefix} --run-folder ${shellQuote(
+          runFolder,
+        )} --checkpoint-review`;
+      }
+      adapter.sessionNoticeCommand.hidden = !restartCommand;
+    }
+    adapter.sessionNotice.hidden = false;
+  }
+
+  // The one-shot session server shuts down once a review is saved (in this
+  // window or another one) or the operator stops it. A page that outlives it
+  // must say so instead of decaying into browser connection errors.
+  function endSession(reason: 'saved-elsewhere' | 'unreachable'): void {
+    if (reviewSession === undefined || sessionEnded) return;
+    if (
+      submissionState === 'saving' ||
+      submissionState === 'saved' ||
+      submissionState === 'terminal'
+    ) {
+      return;
+    }
+    sessionEnded = true;
+    adapter.root.dataset.reviewSession = 'ended';
+    for (const link of queryAll<HTMLAnchorElement>(adapter.root, '[data-artifact-full-size-src]')) {
+      link.hidden = true;
+      link.removeAttribute('href');
+    }
+    adapter.renderSelection(draft, { focus: false, announce: false });
+    document.dispatchEvent(new Event('circuit:checkpoint-review-session-ended'));
+    if (reason === 'saved-elsewhere') {
+      renderSubmissionState('saved');
+      showSessionNotice('Review saved in another window. This copy is read-only now.', false);
+      if (adapter.commandState !== null) {
+        adapter.commandState.textContent = 'Review saved in another window.';
+      }
+      return;
+    }
+    for (const button of adapter.submitButtons) button.hidden = true;
+    for (const button of adapter.copyButtons) {
+      button.classList.remove(adapter.secondaryClass);
+      button.classList.add(adapter.primaryClass);
+    }
+    if (adapter.dialogDescription !== null) {
+      adapter.dialogDescription.textContent = manualDialogDescription;
+    }
+    renderSubmissionState('idle');
+    showSessionNotice(
+      'This review session is no longer running. Your notes are still here. Restart it from your terminal to finish:',
+      true,
+    );
+    if (adapter.commandState !== null) {
+      adapter.commandState.textContent =
+        'This review session is no longer running. Restart it from your terminal, or copy the decision command instead.';
+    }
+  }
+
+  let probing = false;
+  async function probeSession(): Promise<void> {
+    if (reviewSession === undefined || sessionEnded || probing) return;
+    if (
+      submissionState === 'saving' ||
+      submissionState === 'saved' ||
+      submissionState === 'terminal'
+    ) {
+      return;
+    }
+    if (window.location.protocol !== 'http:') return;
+    probing = true;
+    try {
+      await window.fetch(window.location.href, {
+        method: 'HEAD',
+        cache: 'no-store',
+        credentials: 'same-origin',
+        redirect: 'error',
+        referrerPolicy: 'no-referrer',
+      });
+      // Any HTTP reply means the session server is alive.
+    } catch {
+      endSession(readSavedRecord() === undefined ? 'unreachable' : 'saved-elsewhere');
+    } finally {
+      probing = false;
+    }
+  }
+
   if (reviewSession !== undefined) {
     adapter.root.dataset.reviewSession = 'active';
     if (adapter.dialogDescription !== null) {
@@ -583,6 +718,7 @@ function mountWorkspace(adapter: WorkspaceAdapter): void {
     refreshSummary();
     persist();
     invalidatePreparedDecision();
+    void probeSession();
   }
 
   function selectOffset(offset: number, focus: boolean): void {
@@ -687,6 +823,7 @@ function mountWorkspace(adapter: WorkspaceAdapter): void {
       // open if that first reply was lost.
       if (!retried) void request().catch(() => undefined);
       renderSubmissionState('saved');
+      announceReviewSaved();
       if (adapter.commandState !== null) {
         adapter.commandState.textContent =
           reply.code === 'resume_failed_after_save'
@@ -701,6 +838,10 @@ function mountWorkspace(adapter: WorkspaceAdapter): void {
           failureCode,
         );
       }
+      // A failure without an HTTP status means the request never reached the
+      // server. Check whether the session itself is gone before leaving a
+      // generic retry message on screen.
+      if (failureStatus === undefined) void probeSession();
     }
   }
 
@@ -818,6 +959,30 @@ function mountWorkspace(adapter: WorkspaceAdapter): void {
     button.addEventListener('click', () => {
       void submitDecision();
     });
+  }
+
+  if (reviewSession !== undefined) {
+    window.addEventListener('storage', (event) => {
+      if (event.key !== savedKey || event.newValue === null) return;
+      try {
+        const record = restoreCheckpointReviewSavedRecord(
+          JSON.parse(event.newValue) as unknown,
+          choiceIds,
+        );
+        if (record !== undefined) endSession('saved-elsewhere');
+      } catch {
+        // A malformed broadcast is ignored; the liveness probe still covers us.
+      }
+    });
+    document.addEventListener('visibilitychange', () => {
+      if (!document.hidden) void probeSession();
+    });
+    window.addEventListener('focus', () => {
+      void probeSession();
+    });
+    // A page served inside the short replay window after a save opens against
+    // an already-recorded review. Say so immediately.
+    if (readSavedRecord() !== undefined) endSession('saved-elsewhere');
   }
 }
 

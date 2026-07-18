@@ -116,6 +116,8 @@ const CHECKPOINT_STYLE = [
   '.cp-artifact-title strong{display:block;overflow-wrap:anywhere;font-size:13px;font-weight:620}',
   '.cp-artifact-title span{display:block;max-width:650px;margin-top:2px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;color:var(--muted-foreground);font-size:11px}',
   '.cp-open-link{display:inline-flex;flex:none;align-items:center;justify-content:center;min-height:38px;border:1px solid var(--border);border-radius:9px;background:var(--background);padding:0 11px;color:var(--foreground);font-size:12px;font-weight:580;text-decoration:none}',
+  '.cp-session-notice{display:block;position:fixed;left:50%;bottom:84px;transform:translateX(-50%);z-index:60;max-width:min(640px,calc(100vw - 32px));border:1px solid var(--border);border-radius:14px;background:var(--background);padding:12px 16px;font-size:13px;box-shadow:0 10px 30px rgb(0 0 0/.18)}',
+  '.cp-session-notice code{display:block;margin-top:8px;overflow-wrap:anywhere;font:500 12px/1.5 ui-monospace,"SF Mono",Menlo,monospace;user-select:all}',
   '.cp-artifact-canvas{position:relative;height:clamp(420px,56dvh,620px);min-width:0;background:#fff}',
   '.cp-artifact-note{padding:9px 14px;border-top:1px solid var(--border);color:var(--muted-foreground);font-size:10.5px}',
   '.cp-list-head{display:flex;align-items:center;justify-content:space-between;gap:16px;padding:17px 18px 10px}',
@@ -229,6 +231,10 @@ function CheckpointPage({ input }: { readonly input: CheckpointPageInput }) {
             <div className="cp-brand">Circuit · {t(input.meta.flowLabel, 120)}</div>
             <div className="cp-state">Waiting for your review</div>
           </header>
+          <output className="cp-session-notice" data-cp-session-notice="" hidden>
+            <span data-cp-session-notice-text="" />
+            <code data-cp-session-notice-command="" hidden />
+          </output>
           <section className="cp-hero">
             {input.ribbon.length === 0 ? null : (
               <div className="cp-ribbon">

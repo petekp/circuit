@@ -9,14 +9,17 @@ import {
 import { CheckpointReviewResponse } from '../../../src/schemas/checkpoint-review-response.js';
 import {
   CHECKPOINT_REVIEW_DRAFT_SCHEMA,
+  CHECKPOINT_REVIEW_SAVED_SCHEMA,
   SAVED_CHECKPOINT_REVIEW_SELECTION_UNAVAILABLE,
   SAVED_CHECKPOINT_REVIEW_VERSION_UNAVAILABLE,
   buildCheckpointReviewResponse,
   checkpointReviewDraftRestoreNotice,
   checkpointReviewDraftSummary,
+  checkpointReviewSavedKey,
   checkpointReviewStorageKey,
   createCheckpointReviewDraft,
   restoreCheckpointReviewDraft,
+  restoreCheckpointReviewSavedRecord,
   selectCheckpointReviewChoice,
   setCheckpointReviewChoiceNote,
   setCheckpointReviewOverallNote,
@@ -233,5 +236,39 @@ describe('checkpoint review response construction', () => {
     expect(checkpointReviewPayloadError({ comments: [{ body: 'a'.repeat(2_001) }] })).toBe(
       CHECKPOINT_REVIEW_COMMENT_TOO_LONG,
     );
+  });
+});
+
+describe('saved-review broadcast record', () => {
+  it('derives the saved key from the draft storage key', () => {
+    expect(checkpointReviewSavedKey(IDENTITY)).toBe(
+      `${checkpointReviewStorageKey(IDENTITY)}:saved`,
+    );
+  });
+
+  it('restores a valid saved record', () => {
+    expect(
+      restoreCheckpointReviewSavedRecord(
+        { schema: CHECKPOINT_REVIEW_SAVED_SCHEMA, selection: 'variant-b' },
+        CHOICES,
+      ),
+    ).toEqual({ schema: CHECKPOINT_REVIEW_SAVED_SCHEMA, selection: 'variant-b' });
+  });
+
+  it('rejects wrong schemas, unknown selections, and malformed values', () => {
+    expect(
+      restoreCheckpointReviewSavedRecord({ schema: 'other@v1', selection: 'variant-a' }, CHOICES),
+    ).toBeUndefined();
+    expect(
+      restoreCheckpointReviewSavedRecord(
+        { schema: CHECKPOINT_REVIEW_SAVED_SCHEMA, selection: 'removed' },
+        CHOICES,
+      ),
+    ).toBeUndefined();
+    expect(restoreCheckpointReviewSavedRecord('saved', CHOICES)).toBeUndefined();
+    expect(restoreCheckpointReviewSavedRecord(null, CHOICES)).toBeUndefined();
+    expect(
+      restoreCheckpointReviewSavedRecord({ schema: CHECKPOINT_REVIEW_SAVED_SCHEMA }, CHOICES),
+    ).toBeUndefined();
   });
 });
