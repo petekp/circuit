@@ -22,6 +22,7 @@ export const SnapshotStatus = z.enum([
   'in_progress',
   'complete',
   'aborted',
+  'evidence_invalid',
   'handoff',
   'stopped',
   'escalated',

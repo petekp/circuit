@@ -359,7 +359,9 @@ describe('default explore report writer', () => {
       relayer: incompleteComposeRelayer(),
     });
 
-    expect(outcome.result.outcome).toBe('aborted');
+    // Relay completed but its report failed schema validation → the run
+    // closes evidence_invalid, not aborted (pdk-poc bug 3).
+    expect(outcome.result.outcome).toBe('evidence_invalid');
     expect(
       outcome.trace_entries.find((trace_entry) => trace_entry.kind === 'step.aborted')?.step_id,
     ).toBe('synthesize-step');
@@ -387,7 +389,7 @@ describe('default explore report writer', () => {
       relayer: extraKeyComposeRelayer(),
     });
 
-    expect(outcome.result.outcome).toBe('aborted');
+    expect(outcome.result.outcome).toBe('evidence_invalid');
     const check = outcome.trace_entries.find(
       (trace_entry) =>
         trace_entry.kind === 'check.evaluated' && trace_entry.step_id === 'synthesize-step',
@@ -412,7 +414,7 @@ describe('default explore report writer', () => {
       relayer: incompleteReviewRelayer(),
     });
 
-    expect(outcome.result.outcome).toBe('aborted');
+    expect(outcome.result.outcome).toBe('evidence_invalid');
     const check = outcome.trace_entries.find(
       (trace_entry) =>
         trace_entry.kind === 'check.evaluated' && trace_entry.step_id === 'review-step',
@@ -437,7 +439,7 @@ describe('default explore report writer', () => {
       relayer: extraKeyReviewRelayer(),
     });
 
-    expect(outcome.result.outcome).toBe('aborted');
+    expect(outcome.result.outcome).toBe('evidence_invalid');
     const check = outcome.trace_entries.find(
       (trace_entry) =>
         trace_entry.kind === 'check.evaluated' && trace_entry.step_id === 'review-step',

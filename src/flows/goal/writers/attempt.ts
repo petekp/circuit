@@ -24,6 +24,7 @@ function mapChildOutcome(outcome: string | undefined): GoalAttempt['outcome'] {
   if (outcome === 'handoff') return 'handoff';
   if (outcome === 'stopped') return 'needs_attention';
   if (outcome === 'aborted') return 'failed';
+  if (outcome === 'evidence_invalid') return 'failed';
   return 'blocked';
 }
 

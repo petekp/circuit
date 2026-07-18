@@ -12,13 +12,17 @@ import type {
 import { PrototypeArtifact, PrototypePlan, PrototypeVerification } from '../reports.js';
 
 // Integrity judges the implementer's FINAL DECLARED work: every created file and
-// entry point must be a real, non-symlink path inside prototype_root. The plan's
-// anticipated file list is ADVISORY ONLY — the plan writer guesses a deliverable
-// shape before the implementer runs, and a goal whose right artifact is a
-// different shape (a CLI script instead of an HTML sketch, the F11 finding from
-// the live surface test) must not fail integrity on that guess. An unrealized
-// planned file is surfaced on stdout so the mismatch stays legible in the
-// verification report without failing the run.
+// entry point must be a real, non-symlink path inside prototype_root, or be
+// declared as an integration touchpoint. Touchpoints are the schema's channel
+// for integration spikes whose goal requires touching files outside the
+// disposable root; each declared touchpoint must itself be a real, non-symlink
+// path inside the project but outside prototype_root. The plan's anticipated
+// file list is ADVISORY ONLY — the plan writer guesses a deliverable shape
+// before the implementer runs, and a goal whose right artifact is a different
+// shape (a CLI script instead of an HTML sketch, the F11 finding from the live
+// surface test) must not fail integrity on that guess. An unrealized planned
+// file is surfaced on stdout so the mismatch stays legible in the verification
+// report without failing the run.
 const ARTIFACT_INTEGRITY_SCRIPT = [
   "const fs = require('node:fs')",
   "const path = require('node:path')",
@@ -28,6 +32,7 @@ const ARTIFACT_INTEGRITY_SCRIPT = [
   'const planned = Array.isArray(payload.planned_files) ? payload.planned_files : []',
   'const created = Array.isArray(payload.created_files) ? payload.created_files : []',
   'const entry = Array.isArray(payload.entry_points) ? payload.entry_points : []',
+  'const touchpoints = Array.isArray(payload.integration_touchpoints) ? payload.integration_touchpoints : []',
   'const errors = []',
   'function inside(base, target) { const rel = path.relative(base, target); return rel === "" || (!rel.startsWith("..") && !path.isAbsolute(rel)); }',
   'const rootAbs = path.resolve(projectRoot, root)',
@@ -36,12 +41,27 @@ const ARTIFACT_INTEGRITY_SCRIPT = [
   'else if (!fs.lstatSync(rootAbs).isDirectory()) errors.push(`prototype_root is not a directory: ${root}`)',
   'else if (fs.lstatSync(rootAbs).isSymbolicLink()) errors.push(`prototype_root is a symlink: ${root}`)',
   'const rootReal = fs.existsSync(rootAbs) ? fs.realpathSync.native(rootAbs) : rootAbs',
+  'const declared = new Set(touchpoints.map((tp) => tp && typeof tp.path === "string" ? tp.path : ""))',
+  'for (const tp of touchpoints) {',
+  '  const rel = tp && typeof tp.path === "string" ? tp.path : ""',
+  '  if (rel.length === 0) { errors.push("integration touchpoint path must be a non-empty string"); continue; }',
+  '  if (rel.startsWith(`${root}/`)) errors.push(`integration touchpoint is inside prototype_root: ${rel}`)',
+  '  const abs = path.resolve(projectRoot, rel)',
+  '  if (!inside(projectRoot, abs)) { errors.push(`integration touchpoint escapes project root: ${rel}`); continue; }',
+  '  if (!fs.existsSync(abs)) { errors.push(`integration touchpoint does not exist: ${rel}`); continue; }',
+  '  if (fs.lstatSync(abs).isSymbolicLink()) errors.push(`integration touchpoint is a symlink: ${rel}`)',
+  '  else if (!inside(projectRoot, fs.realpathSync.native(abs))) errors.push(`integration touchpoint escapes real project root: ${rel}`)',
+  '}',
   'const createdSet = new Set(created)',
   'const unrealizedPlan = planned.filter((rel) => !createdSet.has(rel))',
   'for (const rel of Array.from(new Set([...created, ...entry]))) {',
   '  if (typeof rel !== "string" || rel.length === 0) { errors.push("reported path must be a non-empty string"); continue; }',
-  '  if (!rel.startsWith(`${root}/`)) errors.push(`prototype path is outside prototype_root: ${rel}`)',
   '  const abs = path.resolve(projectRoot, rel)',
+  '  if (declared.has(rel)) {',
+  '    if (!fs.existsSync(abs)) errors.push(`prototype path does not exist: ${rel}`)',
+  '    continue;',
+  '  }',
+  '  if (!rel.startsWith(`${root}/`)) errors.push(`prototype path is outside prototype_root and not a declared integration touchpoint: ${rel}`)',
   '  if (!inside(rootAbs, abs)) errors.push(`prototype path escapes prototype_root: ${rel}`)',
   '  if (!fs.existsSync(abs)) { errors.push(`prototype path does not exist: ${rel}`); continue; }',
   '  if (fs.lstatSync(abs).isSymbolicLink()) errors.push(`prototype path is a symlink: ${rel}`)',
@@ -50,6 +70,7 @@ const ARTIFACT_INTEGRITY_SCRIPT = [
   '}',
   'if (errors.length > 0) { console.error(errors.join("\\n")); process.exit(1); }',
   'if (unrealizedPlan.length > 0) console.log(`note (advisory): the plan anticipated files the artifact did not declare: ${unrealizedPlan.join(", ")}`)',
+  'if (touchpoints.length > 0) console.log(`note: ${touchpoints.length} integration touchpoint(s) outside prototype_root: ${touchpoints.map((tp) => tp.path).join(", ")}`)',
   'console.log(`Prototype artifact integrity passed for ${root}`)',
 ].join('; ');
 
@@ -76,6 +97,10 @@ function artifactIntegrityCommand(input: {
     planned_files: input.plan.files_to_create,
     created_files: input.artifact.created_files,
     entry_points: input.artifact.entry_points,
+    integration_touchpoints: input.artifact.integration_touchpoints.map((touchpoint) => ({
+      path: touchpoint.path,
+      change: touchpoint.change,
+    })),
   };
   return {
     id: 'prototype-artifact-integrity',
@@ -102,9 +127,15 @@ function projectPrototypeVerification(
     if (context.projectRoot === undefined) {
       throw new Error('prototype review asset snapshot requires projectRoot');
     }
+    // The snapshot scans prototype_root only, so entry points that live at
+    // declared integration touchpoints outside the root are not snapshot
+    // candidates; passing them would fail the missing-entry-point check.
+    const inRootEntryPoints = artifact.entry_points.filter((entryPoint) =>
+      entryPoint.startsWith(`${artifact.prototype_root}/`),
+    );
     reviewAssets = snapshotCheckpointReviewAssetGroups({
       projectRoot: context.projectRoot,
-      groups: [{ root: artifact.prototype_root, entryPoints: artifact.entry_points }],
+      groups: [{ root: artifact.prototype_root, entryPoints: inRootEntryPoints }],
     });
   }
   return PrototypeVerification.parse({

@@ -15,6 +15,7 @@ export type RuntimeRunStatus =
   | 'running'
   | 'complete'
   | 'aborted'
+  | 'evidence_invalid'
   | 'handoff'
   | 'stopped'
   | 'escalated';

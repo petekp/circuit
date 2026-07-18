@@ -579,8 +579,11 @@ Final stdout for a closed fresh run includes:
 - run envelope / run surface paths
 - optional autonomous loop summary
 
-The host command should prefer `run_surface_markdown_path`, then
-`operator_summary_markdown_path`, then flow-specific fallback reports.
+The host command should prefer `operator_summary_markdown_path`, then
+`run_surface_markdown_path`, then flow-specific fallback reports. This matches
+the canonical precedence in
+[`host-rendering.md`](../contracts/host-rendering.md): the readable operator
+summary is the terminal receipt, while the run surface is a terse fallback.
 
 ### 15. Autonomous Continuation
 

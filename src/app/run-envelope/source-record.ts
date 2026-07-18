@@ -16,6 +16,7 @@ import {
   type RunRequiredEvidence,
   type RunRequiredEvidenceKind,
 } from '../../schemas/run-envelope.js';
+import { harvestGoalCommandCandidates } from '../../shared/goal-commands.js';
 import { isDegradedCompletionOutcome } from '../../shared/outcome.js';
 import { runRelativePath } from '../../shared/run-artifact-io.js';
 
@@ -231,12 +232,28 @@ function describeRequiredEvidence(kind: RunRequiredEvidenceKind, objective: stri
 // replacing the generic "projection exists" placeholder. Run has no Clarify step,
 // so the proof requirement is derived from the selected process and the operator
 // objective. Always returns at least one required entry to satisfy RunDoneClaim.
+//
+// When the goal itself states runnable command evidence ("pnpm typecheck exits
+// 0", "`npm test` passes"), each stated command becomes its own required
+// 'command' entry. A goal that names its proof must get a contract that
+// requires that proof — dropping it authors a contract the contract-quality
+// gate then rightly rejects, which dead-ends autonomous runs on flows whose
+// process-derived kind is weaker than the objective (the pdk-poc Prototype
+// + --autonomous failure).
 export function deriveRequiredEvidence(
   processId: string,
   objective: string,
 ): RunRequiredEvidence[] {
   const kind = requiredEvidenceKindForProcess(processId);
-  return [{ kind, description: describeRequiredEvidence(kind, objective), required: true }];
+  const goalCommandEntries = harvestGoalCommandCandidates(objective).map((candidate) => ({
+    kind: 'command' as const,
+    description: `Goal-stated command evidence passes: \`${candidate.argv.join(' ')}\` exits 0`,
+    required: true,
+  }));
+  return [
+    { kind, description: describeRequiredEvidence(kind, objective), required: true },
+    ...goalCommandEntries,
+  ];
 }
 
 // S5: route a recovery attempt by the kind of evidence that is still unmet,

@@ -982,6 +982,165 @@ describe('Prototype runtime wiring', () => {
     expect(verification.commands[0]?.stdout_summary).toContain('index.html');
   });
 
+  it('accepts an integration spike: declared touchpoints outside prototype_root pass integrity and reach the result', async () => {
+    // Modeled on the pdk-poc leads-pipeline spike: the goal requires splicing
+    // into existing production files and writing a keeper learnings doc outside
+    // prototype_root. Declared integration touchpoints make that expressible;
+    // the flow must not fail for doing exactly what the goal asked.
+    const { bytes } = loadFixture();
+    const runFolder = join(projectRoot, '.circuit/runs/integration-spike');
+
+    const featureFile = 'src/features/home/home.feature.tsx';
+    const learningsFile = 'docs/migration/SPIKE_LEARNINGS.md';
+    writeProjectFile(projectRoot, featureFile, 'export const Home = () => null;\n');
+
+    const relayer: RelayFn = {
+      connectorName: 'claude-code',
+      relay: async (relayInput: RelayInput): Promise<RelayResult> => {
+        expect(relayInput.prompt).toContain('integration_touchpoints');
+        const plan = PrototypePlan.parse(readJson(runFolder, 'reports/prototype/plan.json'));
+        const spikeFile = `${plan.prototype_root}/build-index.spike.ts`;
+        writeProjectFile(projectRoot, spikeFile, 'export const buildIndex = () => [];\n');
+        writeProjectFile(
+          projectRoot,
+          featureFile,
+          'export const Home = () => null; // spike splice\n',
+        );
+        writeProjectFile(projectRoot, learningsFile, '# Spike learnings\n\nS1: works.\n');
+        return {
+          request_payload: relayInput.prompt,
+          receipt_id: 'prototype-integration-spike-stub',
+          result_body: JSON.stringify(
+            PrototypeArtifact.parse({
+              verdict: 'accept',
+              summary: 'Spliced the spike into the Home feature and wrote the learnings doc.',
+              prototype_root: plan.prototype_root,
+              created_files: [spikeFile, learningsFile],
+              entry_points: [spikeFile, featureFile],
+              integration_touchpoints: [
+                {
+                  path: learningsFile,
+                  change: 'created',
+                  reason: 'The goal names this learnings doc as the keeper deliverable.',
+                },
+                {
+                  path: featureFile,
+                  change: 'modified',
+                  reason: 'The goal requires rendering the spike on the Home screen.',
+                },
+              ],
+              preview_instructions: 'Open the Home screen; the spike replaces the funnel module.',
+              known_limitations: ['Spike code is disposable and must not be merged.'],
+              evidence: ['Spike file, feature splice, and learnings doc exist.'],
+              claim_limits: ['not production', 'not deployed'],
+            }),
+          ),
+          duration_ms: 1,
+          cli_version: '0.0.0-stub',
+        };
+      },
+    };
+
+    const outcome = await runCompiledFlow({
+      runDir: runFolder,
+      flowBytes: bytes,
+      runId: '94000000-0000-0000-0000-000000000008',
+      goal: 'prototype: integration spike that splices a leads index into the Home screen',
+      depth: 'medium',
+      now: deterministicNow(Date.UTC(2026, 4, 20, 9, 30, 0)),
+      projectRoot,
+      relayer,
+    });
+
+    expect(outcome.outcome).toBe('complete');
+    const result = PrototypeResult.parse(readJson(runFolder, 'reports/prototype-result.json'));
+    expect(result).toMatchObject({
+      outcome: 'kept',
+      artifact_status: 'accepted',
+      verification_status: 'passed',
+    });
+    // The touchpoints survive into the final result so the operator sees which
+    // files outside the disposable root were touched and why.
+    expect(result.integration_touchpoints.map((touchpoint) => touchpoint.path)).toEqual([
+      learningsFile,
+      featureFile,
+    ]);
+    const verification = PrototypeVerification.parse(
+      readJson(runFolder, 'reports/prototype/verification.json'),
+    );
+    expect(verification.overall_status).toBe('passed');
+    expect(verification.commands[0]?.stdout_summary).toContain('integration touchpoint');
+  });
+
+  it('closes evidence_invalid with the root-cause reason when the artifact report fails validation (pdk-poc bug 3)', async () => {
+    // Modeled on pdk-poc run f7fe10d0: the worker finished real work, but its
+    // report failed schema validation. The run must close with a distinct
+    // outcome naming the ROOT CAUSE (the schema failure), not the downstream
+    // close-step symptom, and the summary must list what the worker reported
+    // creating so the operator can salvage instead of deleting real work.
+    const { bytes } = loadFixture();
+    const runFolder = join(projectRoot, '.circuit/runs/undeclared-touchpoint');
+
+    const strayFile = 'docs/migration/UNDECLARED.md';
+    const relayer: RelayFn = {
+      connectorName: 'claude-code',
+      relay: async (relayInput: RelayInput): Promise<RelayResult> => {
+        const plan = PrototypePlan.parse(readJson(runFolder, 'reports/prototype/plan.json'));
+        const spikeFile = `${plan.prototype_root}/index.html`;
+        writeProjectFile(projectRoot, spikeFile, '<!doctype html>\n');
+        writeProjectFile(projectRoot, strayFile, 'stray\n');
+        // Bypass PrototypeArtifact.parse: this simulates a worker whose report
+        // slips an undeclared out-of-root path past its own honesty. Schema
+        // validation catches it first; this test pins the message operators see.
+        return {
+          request_payload: relayInput.prompt,
+          receipt_id: 'prototype-undeclared-stub',
+          result_body: JSON.stringify({
+            verdict: 'accept',
+            summary: 'Created files including an undeclared out-of-root path.',
+            prototype_root: plan.prototype_root,
+            created_files: [spikeFile, strayFile],
+            entry_points: [spikeFile],
+            preview_instructions: 'Open index.html locally.',
+            known_limitations: [],
+            evidence: ['Files were created.'],
+            claim_limits: ['not production', 'not deployed'],
+          }),
+          duration_ms: 1,
+          cli_version: '0.0.0-stub',
+        };
+      },
+    };
+
+    const outcome = await runCompiledFlow({
+      runDir: runFolder,
+      flowBytes: bytes,
+      runId: '94000000-0000-0000-0000-000000000009',
+      goal: 'prototype: sketch a custom flow builder UI',
+      depth: 'medium',
+      now: deterministicNow(Date.UTC(2026, 4, 20, 9, 45, 0)),
+      projectRoot,
+      relayer,
+    });
+
+    // The run closes with the distinct completed-but-unproven outcome, not a
+    // bare abort that reads as "nothing happened".
+    expect(outcome.outcome).toBe('evidence_invalid');
+    const resultJson = readJson(runFolder, 'reports/result.json') as {
+      readonly outcome: string;
+      readonly reason?: string;
+      readonly summary: string;
+    };
+    expect(resultJson.outcome).toBe('evidence_invalid');
+    // reason carries the root-cause check failure, not the close-step throw.
+    expect(resultJson.reason).toContain('did not validate against schema');
+    expect(resultJson.reason).not.toContain('close requires');
+    // The salvage summary lists what the worker reported so the operator does
+    // not delete real work.
+    expect(resultJson.summary).toContain(strayFile);
+    expect(resultJson.summary).toContain('index.html');
+  });
+
   it("treats the plan's file list as advisory: an artifact that declares fewer files than planned still passes integrity", async () => {
     const { bytes } = loadFixture();
     const runFolder = join(projectRoot, '.circuit/runs/under-reported-artifact');

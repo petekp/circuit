@@ -509,7 +509,9 @@ describe('runtime fanout executor', () => {
       },
     });
 
-    expect(badSchema.result.outcome).toBe('aborted');
+    // Relay completed but its report failed schema validation → the run
+    // closes evidence_invalid with the root-cause reason (pdk-poc bug 3).
+    expect(badSchema.result.outcome).toBe('evidence_invalid');
     expect(badSchema.result.reason).toContain('runtime-proof-strict@v1');
     expect(
       existsSync(join(badSchema.runDir, 'reports', 'branches', 'option-1', 'report.json')),
@@ -529,6 +531,8 @@ describe('runtime fanout executor', () => {
       },
     });
 
+    // Provenance failure stays 'aborted': the reason is not a schema-parse
+    // failure, so the evidence_invalid reclassification must not fire.
     expect(provenance.result.outcome).toBe('aborted');
     expect(provenance.result.reason).toContain(
       "report field 'option_id' must equal branch_id 'option-1'",

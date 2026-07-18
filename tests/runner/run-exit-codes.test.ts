@@ -85,6 +85,7 @@ describe('run exit codes mirror the closed outcome', () => {
     const expected: Record<RunClosedOutcome, number> = {
       complete: 0,
       aborted: 1,
+      evidence_invalid: 1,
       stopped: 1,
       escalated: 1,
       handoff: 1,

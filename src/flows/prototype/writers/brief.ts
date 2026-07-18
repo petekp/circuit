@@ -1,6 +1,8 @@
 import { createHash } from 'node:crypto';
 import { isAbsolute, relative } from 'node:path';
+import { VerificationCommand } from '../../../schemas/verification.js';
 import { CONTROL_PLANE_PROTOTYPES_DIR } from '../../../shared/control-plane-paths.js';
+import { harvestGoalCommandCandidates } from '../../../shared/goal-commands.js';
 import type {
   ComposeBuildContext,
   ComposeBuilder,
@@ -33,6 +35,27 @@ function cleanGoal(goal: string): string {
   return goal.replace(/^\s*prototype\s*:\s*/i, '').trim() || goal.trim();
 }
 
+// Goal-stated commands become verification candidates so a spike goal that
+// names its own proof ("pnpm typecheck exits 0") is verified against exactly
+// that proof. Each candidate must still satisfy VerificationCommand (no shell
+// binaries, project-relative cwd); candidates that do not are dropped rather
+// than failing the brief.
+function goalVerificationCandidates(goal: string): VerificationCommand[] {
+  const candidates: VerificationCommand[] = [];
+  for (const [index, candidate] of harvestGoalCommandCandidates(goal).entries()) {
+    const parsed = VerificationCommand.safeParse({
+      id: `goal-command-${index + 1}`,
+      cwd: '.',
+      argv: [...candidate.argv],
+      timeout_ms: 600_000,
+      max_output_bytes: 200_000,
+      env: {},
+    });
+    if (parsed.success) candidates.push(parsed.data);
+  }
+  return candidates;
+}
+
 export const prototypeBriefComposeBuilder: ComposeBuilder = {
   resultSchemaName: 'prototype.brief@v1',
   build(context: ComposeBuildContext): unknown {
@@ -53,7 +76,7 @@ export const prototypeBriefComposeBuilder: ComposeBuilder = {
         'The result names evidence and limitations honestly',
       ],
       prototype_root: root,
-      verification_command_candidates: [],
+      verification_command_candidates: goalVerificationCandidates(context.goal),
       claim_limits: ['not production', 'not deployed', 'not production-ready'],
     });
   },

@@ -57,15 +57,37 @@ function hasRequiredEvidenceOfKind(
   );
 }
 
+// A blocked verdict must name what the framer actually produced and why each
+// entry fails the floor, not just that the floor is unmet — the operator's only
+// lever is the goal text, so the finding tells them exactly which lever to pull.
+function rejectedEvidenceSummary(
+  contract: RunGoalContract,
+  minKind: RunRequiredEvidenceKind,
+): string {
+  const rejections = contract.done_when.flatMap((claim) =>
+    claim.required_evidence.map((entry) => {
+      const reason =
+        entry.kind !== minKind ? `kind '${entry.kind}' is not '${minKind}'` : 'not marked required';
+      return `[${entry.kind}${entry.required ? '' : ', optional'}] "${entry.description}" (rejected: ${reason})`;
+    }),
+  );
+  if (rejections.length === 0) return 'The contract lists no evidence entries at all.';
+  return `The contract's evidence entries: ${rejections.join('; ')}.`;
+}
+
 export function contractQualityReview(contract: RunGoalContract): ContractQualityReview {
   const findings: ContractQualityFinding[] = [];
   const kind = objectiveKind(contract.objective);
   const minKind = MIN_REQUIRED_KIND_BY_OBJECTIVE[kind];
 
   if (minKind !== undefined && !hasRequiredEvidenceOfKind(contract, minKind)) {
+    const remediation =
+      minKind === 'command'
+        ? ' To make the objective provable, state runnable verification commands in the goal (for example: "pnpm test exits 0" or "`npm run typecheck` passes") so the contract can require them, or run again without --autonomous.'
+        : '';
     findings.push({
       severity: 'high',
-      text: `A ${kind} objective needs at least one required '${minKind}' evidence entry, but the contract has none. Satisfying this contract would not prove the objective.`,
+      text: `An ${kind} objective needs at least one required '${minKind}' evidence entry, but the contract has none. Satisfying this contract would not prove the objective. ${rejectedEvidenceSummary(contract, minKind)}${remediation}`,
     });
   }
 

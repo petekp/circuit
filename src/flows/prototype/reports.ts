@@ -129,16 +129,57 @@ function validatePathsUnderRoot(input: {
   readonly root: string;
   readonly values: readonly string[];
   readonly path: readonly (string | number)[];
+  // Paths declared as integration touchpoints. A declared path may live
+  // outside prototype_root; every other path must stay inside it.
+  readonly declaredTouchpoints?: ReadonlySet<string>;
 }): void {
   input.values.forEach((value, index) => {
-    if (!isUnderRoot(value, input.root)) {
+    if (isUnderRoot(value, input.root)) return;
+    if (input.declaredTouchpoints?.has(value)) return;
+    const message =
+      input.declaredTouchpoints === undefined
+        ? `path must be inside prototype_root '${input.root}'`
+        : `path must be inside prototype_root '${input.root}' or declared in integration_touchpoints`;
+    addPathIssue(input.ctx, [...input.path, index], message);
+  });
+}
+
+// An integration spike legitimately reaches outside prototype_root: the goal
+// can require splicing into existing files or writing a keeper doc elsewhere.
+// Each such path must be declared here, with the change kind and the reason,
+// so the reach stays legible: the operator sees exactly which files outside
+// the disposable root were touched and why, and everything undeclared still
+// fails validation.
+export const PrototypeIntegrationTouchpoint = z
+  .object({
+    path: PrototypeProjectRelativePath,
+    change: z.enum(['created', 'modified']),
+    reason: z.string().min(1),
+  })
+  .strict();
+export type PrototypeIntegrationTouchpoint = z.infer<typeof PrototypeIntegrationTouchpoint>;
+
+function validateTouchpointsOutsideRoot(input: {
+  readonly ctx: z.RefinementCtx;
+  readonly root: string;
+  readonly touchpoints: readonly PrototypeIntegrationTouchpoint[];
+  readonly path: readonly (string | number)[];
+}): void {
+  input.touchpoints.forEach((touchpoint, index) => {
+    if (isUnderRoot(touchpoint.path, input.root)) {
       addPathIssue(
         input.ctx,
-        [...input.path, index],
-        `path must be inside prototype_root '${input.root}'`,
+        [...input.path, index, 'path'],
+        `integration touchpoints must be outside prototype_root '${input.root}'; files inside the root belong in created_files`,
       );
     }
   });
+}
+
+function touchpointPathSet(
+  touchpoints: readonly PrototypeIntegrationTouchpoint[],
+): ReadonlySet<string> {
+  return new Set(touchpoints.map((touchpoint) => touchpoint.path));
 }
 
 function hasClaimLimit(claimLimits: readonly string[], required: string): boolean {
@@ -224,6 +265,7 @@ export const PrototypeArtifact = z
     prototype_root: PrototypeRootPath,
     created_files: z.array(PrototypeProjectRelativePath),
     entry_points: z.array(PrototypeProjectRelativePath),
+    integration_touchpoints: z.array(PrototypeIntegrationTouchpoint).default([]),
     preview_instructions: z.string().min(1),
     known_limitations: StringArray,
     evidence: NonEmptyStringArray,
@@ -231,17 +273,26 @@ export const PrototypeArtifact = z
   })
   .strict()
   .superRefine((artifact, ctx) => {
+    validateTouchpointsOutsideRoot({
+      ctx,
+      root: artifact.prototype_root,
+      touchpoints: artifact.integration_touchpoints,
+      path: ['integration_touchpoints'],
+    });
+    const declaredTouchpoints = touchpointPathSet(artifact.integration_touchpoints);
     validatePathsUnderRoot({
       ctx,
       root: artifact.prototype_root,
       values: artifact.created_files,
       path: ['created_files'],
+      declaredTouchpoints,
     });
     validatePathsUnderRoot({
       ctx,
       root: artifact.prototype_root,
       values: artifact.entry_points,
       path: ['entry_points'],
+      declaredTouchpoints,
     });
     validatePrototypeClaimLimits(artifact.claim_limits, ctx, ['claim_limits']);
     if (artifact.verdict === 'accept') {
@@ -797,6 +848,7 @@ const PrototypeResultBase = z.object({
   checkpoint_comments: z.array(CheckpointReviewComment).min(1).max(24).optional(),
   prototype_root: PrototypeRootPath,
   entry_points: z.array(PrototypeProjectRelativePath),
+  integration_touchpoints: z.array(PrototypeIntegrationTouchpoint).default([]),
   preview_instructions: z.string().min(1),
   residual_risks: StringArray,
   next_step: z.string().min(1),
@@ -811,11 +863,18 @@ export const PrototypeSingleArtifactResult = PrototypeResultBase.extend({
 })
   .strict()
   .superRefine((result, ctx) => {
+    validateTouchpointsOutsideRoot({
+      ctx,
+      root: result.prototype_root,
+      touchpoints: result.integration_touchpoints,
+      path: ['integration_touchpoints'],
+    });
     validatePathsUnderRoot({
       ctx,
       root: result.prototype_root,
       values: result.entry_points,
       path: ['entry_points'],
+      declaredTouchpoints: touchpointPathSet(result.integration_touchpoints),
     });
     validatePrototypeClaimLimits(result.claim_limits, ctx, ['claim_limits']);
     const seen = new Set<PrototypeResultReportId>();
@@ -902,11 +961,18 @@ export const PrototypeModelComparisonResult = PrototypeResultBase.extend({
 })
   .strict()
   .superRefine((result, ctx) => {
+    validateTouchpointsOutsideRoot({
+      ctx,
+      root: result.prototype_root,
+      touchpoints: result.integration_touchpoints,
+      path: ['integration_touchpoints'],
+    });
     validatePathsUnderRoot({
       ctx,
       root: result.prototype_root,
       values: result.entry_points,
       path: ['entry_points'],
+      declaredTouchpoints: touchpointPathSet(result.integration_touchpoints),
     });
     validatePrototypeClaimLimits(result.claim_limits, ctx, ['claim_limits']);
     const seen = new Set<PrototypeResultReportId>();

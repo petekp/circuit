@@ -293,6 +293,15 @@ binaries by default. Use `CIRCUIT_CLI=/absolute/path/to/bin/circuit` for an
 explicit development override, or set `CIRCUIT_DEV=1` to allow repo-local and
 `PATH` fallbacks during development only.
 
+**Your repo's format hook chokes on `.circuit/` files.** Circuit seeds
+`.circuit/.gitignore` so run records never get committed, but repo-wide
+format checks (`prettier --check .` in a pre-commit hook or CI) do not read
+nested `.gitignore` files and will sweep Circuit's machine-written JSON. Add
+a `.circuit/` line to your `.prettierignore` (or the repo-root `.gitignore`,
+which Prettier 3 honors). Other formatters follow the same pattern: add
+`.circuit/` to whatever ignore file the tool reads. `circuit doctor` detects
+the Prettier case and prints this fix.
+
 **Node is too old.** Upgrade to Node.js `22.18.0` or newer.
 
 **Codex is missing.** The Codex worker connector is optional. The `claude-code`

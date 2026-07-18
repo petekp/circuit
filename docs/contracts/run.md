@@ -70,7 +70,11 @@ Names use `<subject>.<event>`. Grouped by subject:
 - `run.until-judgment` — one until-loop iteration's stop-judge disposition:
   `stop-clean`, `reenter`, or `needs-attention`.
 - `run.closed` — the terminal entry. Carries the run outcome (`complete`,
-  `aborted`, `handoff`, `stopped`, or `escalated`).
+  `aborted`, `evidence_invalid`, `handoff`, `stopped`, or `escalated`).
+  `evidence_invalid` is the completed-but-unproven close: a relay finished and
+  produced work, but its report failed validation. The reason carries the
+  root-cause check failure and the result summary lists the files the worker
+  reported, so the operator can salvage instead of discarding real work.
 
 **step**
 
@@ -287,8 +291,9 @@ and `RunProjection.superRefine`) and tested in
   `Snapshot.status` reflects the log's closure state: if no `run.closed`
   trace_entry is present, `status === 'in_progress'`; if a `run.closed` trace_entry
   with `outcome: X` is present, `status === X` under the fixed mapping
-  (complete→complete, aborted→aborted, handoff→handoff, stopped→stopped,
-  escalated→escalated). **Total by construction (compile-time).** The
+  (complete→complete, aborted→aborted, evidence_invalid→evidence_invalid,
+  handoff→handoff, stopped→stopped, escalated→escalated). **Total by
+  construction (compile-time).** The
   mapping `SNAPSHOT_STATUS_FOR_OUTCOME` is typed as `Record<RunClosedOutcome,
   Exclude<SnapshotStatus, 'in_progress'>>`, and a bidirectional
   compile-time equality guard `OutcomeStatusEquality` rejects any future

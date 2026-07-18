@@ -25,6 +25,7 @@ import { commanderErrorMessage, configureCommanderProgram } from './commander-su
 import { hostKindFromEnv } from './preview.js';
 import { cell, columnHeader, diamondHeaderLine, renderStyledTable } from './styled-table.js';
 import { type TerminalPalette, colorEnabled, terminalPalette } from './terminal-style.js';
+import { type WorkspaceHygieneFinding, workspaceHygieneFindings } from './workspace-hygiene.js';
 
 interface ParsedDoctorArgs {
   readonly json: boolean;
@@ -105,9 +106,28 @@ function verdictLine(palette: TerminalPalette, entries: readonly DoctorConnector
   return palette.bold(palette.warn(`Not ready: ${broken.join(', ')} ${noun} attention.`));
 }
 
+// Workspace findings are advisory: they name repo-level friction (a format
+// hook that would sweep `.circuit/`) with a paste-able fix, and never affect
+// the readiness verdict or exit code.
+function workspaceLines(
+  palette: TerminalPalette,
+  findings: readonly WorkspaceHygieneFinding[],
+): readonly string[] {
+  if (findings.length === 0) return [];
+  return [
+    '',
+    palette.bold(palette.warn('Workspace')),
+    ...findings.flatMap((finding) => [
+      palette.warn(`  ${finding.detail}`),
+      palette.dim(`  fix: ${finding.remediation}`),
+    ]),
+  ];
+}
+
 export function renderDoctorReport(
   palette: TerminalPalette,
   entries: readonly DoctorConnectorEntry[],
+  workspace: readonly WorkspaceHygieneFinding[] = [],
 ): string {
   // One table, chosen connectors first (Array.prototype.sort is stable, so
   // the probe order survives within each group). The CHOSEN BY column is
@@ -126,6 +146,7 @@ export function renderDoctorReport(
       'rule',
       ...connectorRows(palette, ordered),
     ]),
+    ...workspaceLines(palette, workspace),
     '',
     palette.dim(
       'connectors marked - are optional (no flow step chooses them) and never fail this check. to change:',
@@ -175,6 +196,7 @@ export async function runDoctorCommand(argv: readonly string[]): Promise<number>
   ];
 
   const ready = brokenChosenNames(entries).length === 0;
+  const workspace = workspaceHygieneFindings(process.cwd());
 
   if (parsed.json) {
     process.stdout.write(
@@ -184,6 +206,7 @@ export async function runDoctorCommand(argv: readonly string[]): Promise<number>
           ready,
           chosen_connectors: [...chosen.names].sort(),
           connectors: entries,
+          workspace,
         },
         null,
         2,
@@ -191,7 +214,7 @@ export async function runDoctorCommand(argv: readonly string[]): Promise<number>
     );
   } else {
     const palette = terminalPalette(colorEnabled());
-    process.stdout.write(`${renderDoctorReport(palette, entries)}\n`);
+    process.stdout.write(`${renderDoctorReport(palette, entries, workspace)}\n`);
   }
   return ready ? 0 : 1;
 }

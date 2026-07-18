@@ -132,6 +132,119 @@ export async function terminalOutcomeBoundToPrimaryResult(
   };
 }
 
+// The marker the relay executor puts in a check.evaluated fail reason when a
+// completed relay's report body fails schema validation.
+const REPORT_VALIDATION_MARKER = 'did not validate against schema';
+
+export interface ReportValidationRootCause {
+  readonly stepId: string;
+  readonly attempt: number;
+  readonly reason: string;
+  readonly relayResultPath: string | undefined;
+}
+
+// Root-cause scan for the completed-but-unproven close. An abort whose
+// underlying cause is "the relay finished and produced work, but its report
+// failed validation" must not surface the downstream symptom (typically a
+// close-step throw over the missing report) as the run's reason: the operator
+// reads "aborted" as "nothing happened" and deletes real work. Exported so
+// result-recovery rebuilds the identical classification from a loaded trace.
+export function reportValidationRootCause(
+  entries: readonly TraceEntry[],
+): ReportValidationRootCause | undefined {
+  for (let index = entries.length - 1; index >= 0; index -= 1) {
+    const entry = entries[index];
+    if (entry?.kind !== 'check.evaluated' || entry.outcome !== 'fail') continue;
+    if (typeof entry.reason !== 'string' || !entry.reason.includes(REPORT_VALIDATION_MARKER)) {
+      continue;
+    }
+    if (entry.step_id === undefined || entry.attempt === undefined) continue;
+    // Only an UNRESOLVED validation failure explains this close: a later
+    // passing check on the same step means the run moved past it and the
+    // abort came from something else.
+    const resolvedLater = entries.some(
+      (candidate, candidateIndex) =>
+        candidateIndex > index &&
+        candidate.kind === 'check.evaluated' &&
+        candidate.outcome === 'pass' &&
+        candidate.step_id === entry.step_id,
+    );
+    if (resolvedLater) continue;
+    // The relay must have COMPLETED for this to be salvageable work; a
+    // validation failure without a completed relay is a plain abort.
+    const relay = entries.find(
+      (candidate) =>
+        candidate.kind === 'relay.completed' &&
+        candidate.step_id === entry.step_id &&
+        candidate.attempt === entry.attempt,
+    );
+    if (relay === undefined) continue;
+    const relayResultPath = (relay as { readonly result_path?: unknown }).result_path;
+    return {
+      stepId: entry.step_id,
+      attempt: entry.attempt,
+      reason: entry.reason,
+      relayResultPath: typeof relayResultPath === 'string' ? relayResultPath : undefined,
+    };
+  }
+  return undefined;
+}
+
+const REPORTED_WORK_KEYS = ['created_files', 'changed_files', 'entry_points', 'files'] as const;
+const MAX_REPORTED_WORK_PATHS = 12;
+
+// Best-effort extraction of the file paths a rejected report claimed, so the
+// salvage summary can list them. The body failed validation, so this reads it
+// as loose JSON: find string arrays under the well-known work keys anywhere in
+// the structure. Anything unparseable just yields an empty list.
+export function reportedWorkPaths(raw: unknown): readonly string[] {
+  const found: string[] = [];
+  const seen = new Set<string>();
+  const visit = (value: unknown): void => {
+    if (found.length >= MAX_REPORTED_WORK_PATHS) return;
+    if (Array.isArray(value)) {
+      for (const item of value) visit(item);
+      return;
+    }
+    if (typeof value !== 'object' || value === null) return;
+    const record = value as Record<string, unknown>;
+    for (const key of REPORTED_WORK_KEYS) {
+      const paths = record[key];
+      if (!Array.isArray(paths)) continue;
+      for (const path of paths) {
+        if (typeof path !== 'string' || path.length === 0) continue;
+        if (seen.has(path)) continue;
+        seen.add(path);
+        found.push(path);
+        if (found.length >= MAX_REPORTED_WORK_PATHS) return;
+      }
+    }
+    for (const child of Object.values(record)) visit(child);
+  };
+  visit(raw);
+  return found;
+}
+
+// The salvage summary for an evidence_invalid close. It must tell the operator
+// what the worker reported creating, so real work is inspected instead of
+// deleted on the strength of a bare "aborted".
+export function evidenceInvalidSummary(input: {
+  readonly stepId: string;
+  readonly reportedPaths: readonly string[];
+  readonly relayResultPath: string | undefined;
+}): string {
+  const lead = `The '${input.stepId}' worker finished and reported real work, but its report failed validation, so the run could not prove the work.`;
+  const files =
+    input.reportedPaths.length > 0
+      ? ` Files the worker reported: ${input.reportedPaths.join(', ')}.`
+      : '';
+  const pointer =
+    input.relayResultPath === undefined
+      ? ''
+      : ` The full unvalidated report is at ${input.relayResultPath}.`;
+  return `${lead}${files}${pointer} Nothing was deleted; inspect the files before discarding anything.`;
+}
+
 // Exported and entries-based (not context-based) so the result-recovery
 // projection computes the identical admitted verdict from a loaded trace.
 export function latestAdmittedVerdict(entries: readonly TraceEntry[]): string | undefined {
@@ -218,10 +331,45 @@ export async function closeRun(
   const primaryResultOutcome = honestyGapClear
     ? await terminalOutcomeBoundToPrimaryResult(context, proofOutcome)
     : undefined;
-  const finalOutcome: RunClosedOutcome = primaryResultOutcome?.outcome ?? proofOutcome;
-  const finalReason = proofGap ?? latchGap ?? primaryResultOutcome?.reason ?? reason;
+  // Completed-but-unproven reclassification: an abort whose root cause is a
+  // completed relay's report failing validation closes as evidence_invalid,
+  // with the check failure as the reason instead of the terminal symptom. A
+  // proof-gap-forced abort is a contract violation and is never reclassified.
+  const validationRootCause =
+    outcome === 'aborted' && proofGap === undefined
+      ? reportValidationRootCause(context.trace.getAll())
+      : undefined;
+  const finalOutcome: RunClosedOutcome =
+    validationRootCause !== undefined
+      ? 'evidence_invalid'
+      : (primaryResultOutcome?.outcome ?? proofOutcome);
+  const finalReason =
+    validationRootCause?.reason ?? proofGap ?? latchGap ?? primaryResultOutcome?.reason ?? reason;
   const finalTerminalTarget =
-    honestyGapClear && primaryResultOutcome === undefined ? terminalTarget : undefined;
+    honestyGapClear && primaryResultOutcome === undefined && validationRootCause === undefined
+      ? terminalTarget
+      : undefined;
+  let summary = resultSummary(finalOutcome, finalTerminalTarget);
+  if (validationRootCause !== undefined) {
+    // Best-effort read of the rejected report so the summary lists what the
+    // worker claimed to create. A missing or unreadable file just drops the
+    // list; the close itself must never fail over salvage detail.
+    let reportedPaths: readonly string[] = [];
+    if (validationRootCause.relayResultPath !== undefined) {
+      try {
+        reportedPaths = reportedWorkPaths(
+          await context.files.readJson(validationRootCause.relayResultPath),
+        );
+      } catch {
+        reportedPaths = [];
+      }
+    }
+    summary = evidenceInvalidSummary({
+      stepId: validationRootCause.stepId,
+      reportedPaths,
+      relayResultPath: validationRootCause.relayResultPath,
+    });
+  }
   await context.trace.append({
     run_id: context.runId,
     kind: 'run.closed',
@@ -237,7 +385,7 @@ export async function closeRun(
     goal: context.goal,
     ...(context.why === undefined ? {} : { why: context.why }),
     outcome: finalOutcome,
-    summary: resultSummary(finalOutcome, finalTerminalTarget),
+    summary,
     closed_at: context.now().toISOString(),
     trace_entries_observed: context.trace.getAll().length,
     manifest_hash: context.manifestHash,

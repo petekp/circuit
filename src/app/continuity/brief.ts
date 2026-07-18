@@ -65,11 +65,11 @@ type HandoffBriefRenderResult =
  * Step 2a: a run-backed record carries the run's `runtime_status`, a real
  * recorded field (not an inferred one), so a finished run is not surfaced at
  * resume as if it were still live. `in_progress` is live and renders as before.
- * The five terminal/attention states each get a one-line note and suppress the
+ * The terminal/attention states each get a one-line note and suppress the
  * resume nudge: a closed run is context, and an escalated run needs review
  * before anyone touches it. The active-run file already shows the status; this
- * brings the resume brief in line with it. SnapshotStatus is a closed set of
- * six, so the switch is exhaustive.
+ * brings the resume brief in line with it. SnapshotStatus is a closed set, so
+ * the switch is exhaustive.
  */
 interface RunStatusNote {
   readonly headline: string;
@@ -91,6 +91,12 @@ function runBackedStatusNote(record: ContinuityRecordValue): RunStatusNote | und
       return {
         headline:
           'This run was aborted (status: aborted). The goal below is context, not work to resume.',
+        closed: true,
+      };
+    case 'evidence_invalid':
+      return {
+        headline:
+          'This run finished its work but the report failed validation (status: evidence_invalid). Inspect the run folder before discarding anything; the goal below is context, not work to resume.',
         closed: true,
       };
     case 'stopped':

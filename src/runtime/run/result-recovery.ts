@@ -19,7 +19,13 @@ import { RunFileStore } from '../run-files/run-file-store.js';
 import { traceString } from '../trace/trace-fields.js';
 import { TraceStore } from '../trace/trace-store.js';
 import { type RuntimeRunResult, writeRuntimeRunResult } from './result-writer.js';
-import { latestAdmittedVerdict, resultSummary } from './run-close.js';
+import {
+  evidenceInvalidSummary,
+  latestAdmittedVerdict,
+  reportValidationRootCause,
+  reportedWorkPaths,
+  resultSummary,
+} from './run-close.js';
 
 export type RegenerateRunResultOutcome =
   | { readonly regenerated: true; readonly resultPath: string; readonly result: RuntimeRunResult }
@@ -71,6 +77,31 @@ export async function regenerateMissingRunResult(
   const outcome = closed.outcome;
   const verdict = outcome === 'complete' ? latestAdmittedVerdict(entries) : undefined;
 
+  // Rebuild the same salvage summary closeRun writes for a completed-but-
+  // unproven close, so a crash in the close window does not lose the list of
+  // files the worker reported. Best-effort: an unreadable relay result just
+  // drops the file list.
+  const files = new RunFileStore(runDir);
+  let summary = resultSummary(outcome);
+  if (outcome === 'evidence_invalid') {
+    const rootCause = reportValidationRootCause(entries);
+    if (rootCause !== undefined) {
+      let reportedPaths: readonly string[] = [];
+      if (rootCause.relayResultPath !== undefined) {
+        try {
+          reportedPaths = reportedWorkPaths(await files.readJson(rootCause.relayResultPath));
+        } catch {
+          reportedPaths = [];
+        }
+      }
+      summary = evidenceInvalidSummary({
+        stepId: rootCause.stepId,
+        reportedPaths,
+        relayResultPath: rootCause.relayResultPath,
+      });
+    }
+  }
+
   const result: RuntimeRunResult = {
     schema_version: 1,
     run_id: RunId.parse(runId),
@@ -80,7 +111,7 @@ export async function regenerateMissingRunResult(
     // The terminal route target is not durably recorded in the trace, so a
     // regenerated summary uses the outcome-only form (closeRun adds the
     // "via @target" suffix only when it still holds the live target).
-    summary: resultSummary(outcome),
+    summary,
     closed_at: closed.recorded_at,
     trace_entries_observed: entries.length,
     manifest_hash: manifestHash,
@@ -88,6 +119,6 @@ export async function regenerateMissingRunResult(
     ...(verdict === undefined ? {} : { verdict }),
   };
 
-  const resultPath = await writeRuntimeRunResult(new RunFileStore(runDir), result);
+  const resultPath = await writeRuntimeRunResult(files, result);
   return { regenerated: true, resultPath, result };
 }

@@ -534,7 +534,18 @@ export const StepAbortedTraceEntry = TraceEntryBase.extend({
 }).strict();
 export type StepAbortedTraceEntry = z.infer<typeof StepAbortedTraceEntry>;
 
-export const RunClosedOutcome = z.enum(['complete', 'aborted', 'handoff', 'stopped', 'escalated']);
+// 'evidence_invalid' is the completed-but-unproven close: a relay finished and
+// produced work, but its typed report failed validation, so the run cannot
+// prove the work. Distinct from 'aborted' so the operator knows there is real
+// work worth inspecting before discarding anything.
+export const RunClosedOutcome = z.enum([
+  'complete',
+  'aborted',
+  'evidence_invalid',
+  'handoff',
+  'stopped',
+  'escalated',
+]);
 export type RunClosedOutcome = z.infer<typeof RunClosedOutcome>;
 
 // Sub-run / fanout linkage trace entries. Every run (parent and child)

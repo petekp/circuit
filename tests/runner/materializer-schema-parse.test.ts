@@ -163,7 +163,7 @@ describe('materializer schema-parse', () => {
     expect(outcome.trace_entries.find((e) => e.kind === 'step.aborted')).toBeUndefined();
   });
 
-  it('(b) invalid payload: check passes but schema rejects → canonical report NOT written; outcome=aborted; check.evaluated outcome=fail names the schema parse error; run.closed/result.json wrap the step reason', async () => {
+  it('(b) invalid payload: check passes but schema rejects → canonical report NOT written; outcome=evidence_invalid; check.evaluated outcome=fail names the schema parse error; run.closed/result.json carry that root-cause reason', async () => {
     const { bytes } = loadMutatedFixture((raw) => {
       addCanonicalReport(raw, 'runtime-proof-strict@v1');
     });
@@ -178,7 +178,7 @@ describe('materializer schema-parse', () => {
       resultBody: '{"verdict":"ok"}',
     });
 
-    expect(outcome.result.outcome).toBe('aborted');
+    expect(outcome.result.outcome).toBe('evidence_invalid');
 
     const reportAbs = join(runFolder, 'reports', 'relay-canonical.json');
     expect(existsSync(reportAbs)).toBe(false);
@@ -210,12 +210,13 @@ describe('materializer schema-parse', () => {
 
     const closed = outcome.trace_entries.find((e) => e.kind === 'run.closed');
     if (closed?.kind !== 'run.closed') throw new Error('expected run.closed');
-    expect(closed.outcome).toBe('aborted');
+    expect(closed.outcome).toBe('evidence_invalid');
 
-    // Runtime keeps the check reason byte-identical through step.aborted,
-    // then wraps it at run.closed/result.json with the step handler context.
+    // Runtime keeps the check reason byte-identical through step.aborted, and
+    // run.closed/result.json carry that ROOT-CAUSE reason directly — not the
+    // downstream step-handler wrapper (pdk-poc bug 3).
     expect(ge.reason).toBe(aborted.reason);
-    expect(closed.reason).toContain(aborted.reason);
+    expect(closed.reason).toBe(aborted.reason);
     expect(outcome.result.reason).toBe(closed.reason);
 
     // relay.completed.verdict carries the OBSERVED verdict ("ok"),
@@ -228,10 +229,11 @@ describe('materializer schema-parse', () => {
     }
     expect(relayCompleted.verdict).toBe('ok');
 
-    // result.json on disk mirrors the aborted outcome + reason (RESULT-I4).
+    // result.json on disk mirrors the evidence_invalid outcome + root-cause
+    // reason (RESULT-I4).
     const resultBody = readFileSync(join(runFolder, 'reports', 'result.json'), 'utf8');
     const resultParsed: { outcome: string; reason?: string } = JSON.parse(resultBody);
-    expect(resultParsed.outcome).toBe('aborted');
+    expect(resultParsed.outcome).toBe('evidence_invalid');
     expect(resultParsed.reason).toBe(closed.reason);
   });
 
@@ -250,6 +252,10 @@ describe('materializer schema-parse', () => {
       resultBody: '{"verdict":"ok"}',
     });
 
+    // Stays 'aborted', NOT 'evidence_invalid': an unregistered schema is a
+    // flow-configuration error, not a worker report failing its shape check.
+    // evidence_invalid is reserved for the "worker finished, report did not
+    // validate" class so its salvage summary stays truthful.
     expect(outcome.result.outcome).toBe('aborted');
 
     const reportAbs = join(runFolder, 'reports', 'relay-canonical.json');

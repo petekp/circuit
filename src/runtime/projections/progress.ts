@@ -74,6 +74,7 @@ const RUN_CLOSE_VERB: Readonly<Partial<Record<string, string>>> = {
   stopped: 'Stopped',
   handoff: 'Handed off',
   escalated: 'Escalated',
+  evidence_invalid: 'Could not prove',
 };
 
 function fallbackRelayStartedStatusText(role: ProgressRelayRole): string {

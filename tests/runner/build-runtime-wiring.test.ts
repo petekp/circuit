@@ -479,7 +479,7 @@ describe('Build runtime wiring', () => {
   );
 
   it(
-    'aborts when implementation relay passes the verdict check but fails build.implementation@v1 parsing',
+    'closes evidence_invalid when implementation relay passes the verdict check but fails build.implementation@v1 parsing',
     async () => {
       const { bytes } = loadFixture();
       const runFolder = join(runFolderBase, 'bad-implementation');
@@ -501,7 +501,7 @@ describe('Build runtime wiring', () => {
         projectRoot: makeVerificationProjectRoot(),
       });
 
-      expect(outcome.outcome).toBe('aborted');
+      expect(outcome.outcome).toBe('evidence_invalid');
       expect(outcome.reason).toMatch(/build\.implementation@v1/);
       expect(outcome.reason).toMatch(/evidence/);
       expect(existsSync(join(runFolder, 'reports/build/implementation.json'))).toBe(false);
@@ -642,7 +642,7 @@ describe('Build runtime wiring', () => {
   );
 
   it(
-    'aborts accept-with-fixes without findings before writing the canonical Build review report',
+    'closes evidence_invalid on accept-with-fixes without findings, before writing the canonical Build review report',
     async () => {
       const { bytes } = loadFixture();
       const runFolder = join(runFolderBase, 'review-empty-fixes');
@@ -666,10 +666,11 @@ describe('Build runtime wiring', () => {
       });
 
       // A malformed review (accept-with-fixes with no findings) is an invalid
-      // relay OUTPUT, a genuine contract violation, and still aborts with a
-      // schema-tied reason. This is distinct from an honest 'reject' verdict,
-      // which flows forward to an operator-visible 'stopped'.
-      expect(outcome.outcome).toBe('aborted');
+      // relay OUTPUT, a genuine contract violation: the relay completed but
+      // its report failed validation, so the run closes evidence_invalid with
+      // the schema-tied reason. This is distinct from an honest 'reject'
+      // verdict, which flows forward to an operator-visible 'stopped'.
+      expect(outcome.outcome).toBe('evidence_invalid');
       expect(outcome.reason).toMatch(/build\.review@v1/);
       expect(outcome.reason).toMatch(/findings/);
       expect(existsSync(join(runFolder, 'reports/build/review.json'))).toBe(false);

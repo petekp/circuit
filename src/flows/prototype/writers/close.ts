@@ -326,6 +326,7 @@ export const prototypeCloseBuilder: CloseBuilder = {
         : { checkpoint_comments: checkpoint.response.comments }),
       prototype_root: artifact.prototype_root,
       entry_points: artifact.entry_points,
+      integration_touchpoints: artifact.integration_touchpoints,
       preview_instructions: artifact.preview_instructions,
       ...(outcome === 'build_input_saved'
         ? { build_followup_prompt: plan.build_followup_prompt }

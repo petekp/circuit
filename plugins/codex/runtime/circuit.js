@@ -18700,6 +18700,7 @@ var init_snapshot = __esm({
       "in_progress",
       "complete",
       "aborted",
+      "evidence_invalid",
       "handoff",
       "stopped",
       "escalated"
@@ -22819,7 +22820,14 @@ var init_trace_entry = __esm({
       attempt: external_exports.number().int().positive(),
       reason: external_exports.string().min(1)
     }).strict();
-    RunClosedOutcome = external_exports.enum(["complete", "aborted", "handoff", "stopped", "escalated"]);
+    RunClosedOutcome = external_exports.enum([
+      "complete",
+      "aborted",
+      "evidence_invalid",
+      "handoff",
+      "stopped",
+      "escalated"
+    ]);
     SubRunStartedTraceEntry = TraceEntryBase.extend({
       kind: external_exports.literal("sub_run.started"),
       step_id: StepId,
@@ -23453,6 +23461,7 @@ var init_outcome = __esm({
     "use strict";
     FAILURE_OUTCOMES = /* @__PURE__ */ new Set([
       "aborted",
+      "evidence_invalid",
       "escalated",
       "failed",
       "blocked"
@@ -24270,6 +24279,73 @@ async function terminalOutcomeBoundToPrimaryResult(context, outcome) {
     reason: causes.length === 0 ? baseReason : `${baseReason} (${causes.join("; ")})`
   };
 }
+function reportValidationRootCause(entries) {
+  for (let index = entries.length - 1; index >= 0; index -= 1) {
+    const entry = entries[index];
+    if (entry?.kind !== "check.evaluated" || entry.outcome !== "fail")
+      continue;
+    if (typeof entry.reason !== "string" || !entry.reason.includes(REPORT_VALIDATION_MARKER)) {
+      continue;
+    }
+    if (entry.step_id === void 0 || entry.attempt === void 0)
+      continue;
+    const resolvedLater = entries.some((candidate, candidateIndex) => candidateIndex > index && candidate.kind === "check.evaluated" && candidate.outcome === "pass" && candidate.step_id === entry.step_id);
+    if (resolvedLater)
+      continue;
+    const relay = entries.find((candidate) => candidate.kind === "relay.completed" && candidate.step_id === entry.step_id && candidate.attempt === entry.attempt);
+    if (relay === void 0)
+      continue;
+    const relayResultPath = relay.result_path;
+    return {
+      stepId: entry.step_id,
+      attempt: entry.attempt,
+      reason: entry.reason,
+      relayResultPath: typeof relayResultPath === "string" ? relayResultPath : void 0
+    };
+  }
+  return void 0;
+}
+function reportedWorkPaths(raw) {
+  const found = [];
+  const seen = /* @__PURE__ */ new Set();
+  const visit = (value) => {
+    if (found.length >= MAX_REPORTED_WORK_PATHS)
+      return;
+    if (Array.isArray(value)) {
+      for (const item of value)
+        visit(item);
+      return;
+    }
+    if (typeof value !== "object" || value === null)
+      return;
+    const record2 = value;
+    for (const key of REPORTED_WORK_KEYS) {
+      const paths = record2[key];
+      if (!Array.isArray(paths))
+        continue;
+      for (const path of paths) {
+        if (typeof path !== "string" || path.length === 0)
+          continue;
+        if (seen.has(path))
+          continue;
+        seen.add(path);
+        found.push(path);
+        if (found.length >= MAX_REPORTED_WORK_PATHS)
+          return;
+      }
+    }
+    for (const child of Object.values(record2))
+      visit(child);
+  };
+  visit(raw);
+  return found;
+}
+function evidenceInvalidSummary(input) {
+  const lead = `The '${input.stepId}' worker finished and reported real work, but its report failed validation, so the run could not prove the work.`;
+  const files = input.reportedPaths.length > 0 ? ` Files the worker reported: ${input.reportedPaths.join(", ")}.` : "";
+  const pointer = input.relayResultPath === void 0 ? "" : ` The full unvalidated report is at ${input.relayResultPath}.`;
+  return `${lead}${files}${pointer} Nothing was deleted; inspect the files before discarding anything.`;
+}
 function latestAdmittedVerdict(entries) {
   const admitted = /* @__PURE__ */ new Set();
   for (const entry of entries) {
@@ -24323,9 +24399,26 @@ async function closeRun(context, outcome, terminalTarget, reason) {
   const proofOutcome = proofGap !== void 0 ? "aborted" : latchGap !== void 0 ? "stopped" : outcome;
   const honestyGapClear = proofGap === void 0 && latchGap === void 0;
   const primaryResultOutcome = honestyGapClear ? await terminalOutcomeBoundToPrimaryResult(context, proofOutcome) : void 0;
-  const finalOutcome = primaryResultOutcome?.outcome ?? proofOutcome;
-  const finalReason = proofGap ?? latchGap ?? primaryResultOutcome?.reason ?? reason;
-  const finalTerminalTarget = honestyGapClear && primaryResultOutcome === void 0 ? terminalTarget : void 0;
+  const validationRootCause = outcome === "aborted" && proofGap === void 0 ? reportValidationRootCause(context.trace.getAll()) : void 0;
+  const finalOutcome = validationRootCause !== void 0 ? "evidence_invalid" : primaryResultOutcome?.outcome ?? proofOutcome;
+  const finalReason = validationRootCause?.reason ?? proofGap ?? latchGap ?? primaryResultOutcome?.reason ?? reason;
+  const finalTerminalTarget = honestyGapClear && primaryResultOutcome === void 0 && validationRootCause === void 0 ? terminalTarget : void 0;
+  let summary = resultSummary(finalOutcome, finalTerminalTarget);
+  if (validationRootCause !== void 0) {
+    let reportedPaths = [];
+    if (validationRootCause.relayResultPath !== void 0) {
+      try {
+        reportedPaths = reportedWorkPaths(await context.files.readJson(validationRootCause.relayResultPath));
+      } catch {
+        reportedPaths = [];
+      }
+    }
+    summary = evidenceInvalidSummary({
+      stepId: validationRootCause.stepId,
+      reportedPaths,
+      relayResultPath: validationRootCause.relayResultPath
+    });
+  }
   await context.trace.append({
     run_id: context.runId,
     kind: "run.closed",
@@ -24340,7 +24433,7 @@ async function closeRun(context, outcome, terminalTarget, reason) {
     goal: context.goal,
     ...context.why === void 0 ? {} : { why: context.why },
     outcome: finalOutcome,
-    summary: resultSummary(finalOutcome, finalTerminalTarget),
+    summary,
     closed_at: context.now().toISOString(),
     trace_entries_observed: context.trace.getAll().length,
     manifest_hash: context.manifestHash,
@@ -24350,6 +24443,7 @@ async function closeRun(context, outcome, terminalTarget, reason) {
   const resultPath2 = await writeRuntimeRunResult(context.files, result);
   return { kind: "closed", result: { ...result, resultPath: resultPath2 } };
 }
+var REPORT_VALIDATION_MARKER, REPORTED_WORK_KEYS, MAX_REPORTED_WORK_PATHS;
 var init_run_close = __esm({
   "dist/runtime/run/run-close.js"() {
     "use strict";
@@ -24358,6 +24452,9 @@ var init_run_close = __esm({
     init_honesty_ledger();
     init_result_writer();
     init_trace_evidence();
+    REPORT_VALIDATION_MARKER = "did not validate against schema";
+    REPORTED_WORK_KEYS = ["created_files", "changed_files", "entry_points", "files"];
+    MAX_REPORTED_WORK_PATHS = 12;
   }
 });
 
@@ -24382,6 +24479,26 @@ async function regenerateMissingRunResult(runDir) {
   }
   const outcome = closed.outcome;
   const verdict = outcome === "complete" ? latestAdmittedVerdict(entries) : void 0;
+  const files = new RunFileStore(runDir);
+  let summary = resultSummary(outcome);
+  if (outcome === "evidence_invalid") {
+    const rootCause = reportValidationRootCause(entries);
+    if (rootCause !== void 0) {
+      let reportedPaths = [];
+      if (rootCause.relayResultPath !== void 0) {
+        try {
+          reportedPaths = reportedWorkPaths(await files.readJson(rootCause.relayResultPath));
+        } catch {
+          reportedPaths = [];
+        }
+      }
+      summary = evidenceInvalidSummary({
+        stepId: rootCause.stepId,
+        reportedPaths,
+        relayResultPath: rootCause.relayResultPath
+      });
+    }
+  }
   const result = {
     schema_version: 1,
     run_id: RunId.parse(runId),
@@ -24391,14 +24508,14 @@ async function regenerateMissingRunResult(runDir) {
     // The terminal route target is not durably recorded in the trace, so a
     // regenerated summary uses the outcome-only form (closeRun adds the
     // "via @target" suffix only when it still holds the live target).
-    summary: resultSummary(outcome),
+    summary,
     closed_at: closed.recorded_at,
     trace_entries_observed: entries.length,
     manifest_hash: manifestHash,
     ...closed.reason === void 0 ? {} : { reason: closed.reason },
     ...verdict === void 0 ? {} : { verdict }
   };
-  const resultPath2 = await writeRuntimeRunResult(new RunFileStore(runDir), result);
+  const resultPath2 = await writeRuntimeRunResult(files, result);
   return { regenerated: true, resultPath: resultPath2, result };
 }
 var init_result_recovery = __esm({
@@ -79257,6 +79374,8 @@ function mapChildOutcome(outcome) {
     return "needs_attention";
   if (outcome === "aborted")
     return "failed";
+  if (outcome === "evidence_invalid")
+    return "failed";
   return "blocked";
 }
 var CHILD_RESULT_PATHS, goalAttemptBuilder;
@@ -80285,9 +80404,9 @@ var init_relay_hints8 = __esm({
       schema: "prototype.artifact@v1",
       instruction: [
         "Respond with a single raw JSON object whose top-level shape is exactly:",
-        '{ "verdict": "<accept|blocked>", "summary": "<what prototype files were created or why blocked>", "prototype_root": "<project-relative prototype directory>", "created_files": ["<project-relative path under prototype_root>"], "entry_points": ["<project-relative path under prototype_root>"], "preview_instructions": "<how to inspect locally>", "known_limitations": ["<honest limitation>"], "evidence": ["<file or check evidence>"], "claim_limits": ["not production", "not deployed"] }',
-        "Create only disposable prototype files under the prototype_root from the plan. Do not edit production application code, generated host packages, or release metadata.",
-        'Use verdict "accept" only when the entry points and created files exist under prototype_root. Use verdict "blocked" when you cannot create the artifact, and still report any evidence you gathered.',
+        '{ "verdict": "<accept|blocked>", "summary": "<what prototype files were created or why blocked>", "prototype_root": "<project-relative prototype directory>", "created_files": ["<project-relative path under prototype_root>"], "entry_points": ["<project-relative path under prototype_root>"], "integration_touchpoints": [{ "path": "<project-relative path outside prototype_root>", "change": "<created|modified>", "reason": "<why the goal required touching this file>" }], "preview_instructions": "<how to inspect locally>", "known_limitations": ["<honest limitation>"], "evidence": ["<file or check evidence>"], "claim_limits": ["not production", "not deployed"] }',
+        "Create only disposable prototype files under the prototype_root from the plan, and do not edit production application code, generated host packages, or release metadata. The one exception: when the operator goal explicitly requires touching files outside prototype_root (an integration spike), declare every such file in integration_touchpoints with its change kind and the goal requirement it satisfies; undeclared out-of-root paths fail validation. Leave integration_touchpoints as an empty array when everything stays under prototype_root.",
+        'Use verdict "accept" only when the entry points and created files exist under prototype_root or at declared integration touchpoints. Use verdict "blocked" when you cannot create the artifact, and still report any evidence you gathered.',
         "Do not claim deployment, production readiness, provider behavior, model behavior, branch previews, screenshots, or hosted URLs. Do not include extra top-level keys. Do not wrap the JSON in Markdown code fences. Do not include any prose before or after the JSON object.",
         "The runtime parses your response with JSON.parse, rejects verdicts the schema does not allow, validates the full report body against prototype.artifact@v1, and verifies reported artifact paths before writing the final Prototype result."
       ].join(" ")
@@ -80456,10 +80575,23 @@ function qualifyVariantRelativePaths(root, values) {
 }
 function validatePathsUnderRoot(input) {
   input.values.forEach((value, index) => {
-    if (!isUnderRoot(value, input.root)) {
-      addPathIssue(input.ctx, [...input.path, index], `path must be inside prototype_root '${input.root}'`);
+    if (isUnderRoot(value, input.root))
+      return;
+    if (input.declaredTouchpoints?.has(value))
+      return;
+    const message = input.declaredTouchpoints === void 0 ? `path must be inside prototype_root '${input.root}'` : `path must be inside prototype_root '${input.root}' or declared in integration_touchpoints`;
+    addPathIssue(input.ctx, [...input.path, index], message);
+  });
+}
+function validateTouchpointsOutsideRoot(input) {
+  input.touchpoints.forEach((touchpoint, index) => {
+    if (isUnderRoot(touchpoint.path, input.root)) {
+      addPathIssue(input.ctx, [...input.path, index, "path"], `integration touchpoints must be outside prototype_root '${input.root}'; files inside the root belong in created_files`);
     }
   });
+}
+function touchpointPathSet(touchpoints) {
+  return new Set(touchpoints.map((touchpoint) => touchpoint.path));
 }
 function hasClaimLimit(claimLimits, required2) {
   const needle = required2.toLowerCase();
@@ -80494,7 +80626,7 @@ function refineExactPrototypeRubricDims(value, ctx) {
     }
   }
 }
-var NonEmptyStringArray4, StringArray, PROTOTYPE_RESULT_SCHEMA_BY_REPORT_ID, PrototypeCheckpointSelection, PrototypeCheckpointSelectionOrMissing, PrototypeProjectRelativePath, PrototypeRootPath, PrototypeBrief, PrototypePlan, PrototypeArtifact, PrototypeVariantId, PrototypeRubricDimId, PrototypeRubricModelJudgments, PrototypeVariantSelection, PrototypeVariantOption, PrototypeVariantOptions, PrototypeVariantArtifact, PrototypeVariantAggregateBranch, PrototypeVariantAggregate, PrototypeVariantProviderEvidenceItem, PrototypeVariantMissingEvidence, PrototypeVariantProviderEvidence, PrototypeVariantVerificationItem, PrototypeVariantVerification, PrototypeVariantReviewVerdict, PrototypeVariantReview, PrototypeVariantChoiceOption, PrototypeVariantChoiceOptions, PrototypeVerification, PrototypeResultReportId, PrototypeResultReportPointer, PrototypeResultBase, PrototypeSingleArtifactResult, PrototypeModelComparisonResult, PrototypeResult;
+var NonEmptyStringArray4, StringArray, PROTOTYPE_RESULT_SCHEMA_BY_REPORT_ID, PrototypeCheckpointSelection, PrototypeCheckpointSelectionOrMissing, PrototypeProjectRelativePath, PrototypeRootPath, PrototypeIntegrationTouchpoint, PrototypeBrief, PrototypePlan, PrototypeArtifact, PrototypeVariantId, PrototypeRubricDimId, PrototypeRubricModelJudgments, PrototypeVariantSelection, PrototypeVariantOption, PrototypeVariantOptions, PrototypeVariantArtifact, PrototypeVariantAggregateBranch, PrototypeVariantAggregate, PrototypeVariantProviderEvidenceItem, PrototypeVariantMissingEvidence, PrototypeVariantProviderEvidence, PrototypeVariantVerificationItem, PrototypeVariantVerification, PrototypeVariantReviewVerdict, PrototypeVariantReview, PrototypeVariantChoiceOption, PrototypeVariantChoiceOptions, PrototypeVerification, PrototypeResultReportId, PrototypeResultReportPointer, PrototypeResultBase, PrototypeSingleArtifactResult, PrototypeModelComparisonResult, PrototypeResult;
 var init_reports8 = __esm({
   "dist/flows/prototype/reports.js"() {
     "use strict";
@@ -80542,6 +80674,11 @@ var init_reports8 = __esm({
         addPathIssue(ctx, [], `prototype_root must not live under generated or host package output (${firstSegment})`);
       }
     });
+    PrototypeIntegrationTouchpoint = external_exports.object({
+      path: PrototypeProjectRelativePath,
+      change: external_exports.enum(["created", "modified"]),
+      reason: external_exports.string().min(1)
+    }).strict();
     PrototypeBrief = external_exports.object({
       objective: external_exports.string().min(1),
       prototype_scope: external_exports.string().min(1),
@@ -80594,22 +80731,32 @@ var init_reports8 = __esm({
       prototype_root: PrototypeRootPath,
       created_files: external_exports.array(PrototypeProjectRelativePath),
       entry_points: external_exports.array(PrototypeProjectRelativePath),
+      integration_touchpoints: external_exports.array(PrototypeIntegrationTouchpoint).default([]),
       preview_instructions: external_exports.string().min(1),
       known_limitations: StringArray,
       evidence: NonEmptyStringArray4,
       claim_limits: NonEmptyStringArray4
     }).strict().superRefine((artifact, ctx) => {
+      validateTouchpointsOutsideRoot({
+        ctx,
+        root: artifact.prototype_root,
+        touchpoints: artifact.integration_touchpoints,
+        path: ["integration_touchpoints"]
+      });
+      const declaredTouchpoints = touchpointPathSet(artifact.integration_touchpoints);
       validatePathsUnderRoot({
         ctx,
         root: artifact.prototype_root,
         values: artifact.created_files,
-        path: ["created_files"]
+        path: ["created_files"],
+        declaredTouchpoints
       });
       validatePathsUnderRoot({
         ctx,
         root: artifact.prototype_root,
         values: artifact.entry_points,
-        path: ["entry_points"]
+        path: ["entry_points"],
+        declaredTouchpoints
       });
       validatePrototypeClaimLimits(artifact.claim_limits, ctx, ["claim_limits"]);
       if (artifact.verdict === "accept") {
@@ -80949,6 +81096,7 @@ var init_reports8 = __esm({
       checkpoint_comments: external_exports.array(CheckpointReviewComment).min(1).max(24).optional(),
       prototype_root: PrototypeRootPath,
       entry_points: external_exports.array(PrototypeProjectRelativePath),
+      integration_touchpoints: external_exports.array(PrototypeIntegrationTouchpoint).default([]),
       preview_instructions: external_exports.string().min(1),
       residual_risks: StringArray,
       next_step: external_exports.string().min(1),
@@ -80960,11 +81108,18 @@ var init_reports8 = __esm({
       checkpoint_selection: PrototypeCheckpointSelectionOrMissing,
       build_followup_prompt: external_exports.string().min(1).optional()
     }).strict().superRefine((result, ctx) => {
+      validateTouchpointsOutsideRoot({
+        ctx,
+        root: result.prototype_root,
+        touchpoints: result.integration_touchpoints,
+        path: ["integration_touchpoints"]
+      });
       validatePathsUnderRoot({
         ctx,
         root: result.prototype_root,
         values: result.entry_points,
-        path: ["entry_points"]
+        path: ["entry_points"],
+        declaredTouchpoints: touchpointPathSet(result.integration_touchpoints)
       });
       validatePrototypeClaimLimits(result.claim_limits, ctx, ["claim_limits"]);
       const seen = /* @__PURE__ */ new Set();
@@ -81012,11 +81167,18 @@ var init_reports8 = __esm({
       selected_variant_root: PrototypeRootPath.optional(),
       comparison_summary: external_exports.string().min(1).optional()
     }).strict().superRefine((result, ctx) => {
+      validateTouchpointsOutsideRoot({
+        ctx,
+        root: result.prototype_root,
+        touchpoints: result.integration_touchpoints,
+        path: ["integration_touchpoints"]
+      });
       validatePathsUnderRoot({
         ctx,
         root: result.prototype_root,
         values: result.entry_points,
-        path: ["entry_points"]
+        path: ["entry_points"],
+        declaredTouchpoints: touchpointPathSet(result.integration_touchpoints)
       });
       validatePrototypeClaimLimits(result.claim_limits, ctx, ["claim_limits"]);
       const seen = /* @__PURE__ */ new Set();
@@ -81080,6 +81242,187 @@ var init_reports8 = __esm({
   }
 });
 
+// dist/shared/goal-commands.js
+function parseSimpleArgv2(command) {
+  const argv = [];
+  let current = "";
+  let quote;
+  let tokenStarted = false;
+  for (let index = 0; index < command.length; index += 1) {
+    const char = command[index];
+    if (char === void 0)
+      continue;
+    if (quote !== void 0) {
+      if (char === quote) {
+        quote = void 0;
+        tokenStarted = true;
+        continue;
+      }
+      if (quote === '"' && char === "\\") {
+        const next = command[index + 1];
+        if (next === '"' || next === "\\") {
+          current += next;
+          index += 1;
+          tokenStarted = true;
+          continue;
+        }
+      }
+      current += char;
+      tokenStarted = true;
+      continue;
+    }
+    if (/\s/.test(char)) {
+      if (tokenStarted) {
+        argv.push(current);
+        current = "";
+        tokenStarted = false;
+      }
+      continue;
+    }
+    if (char === "'" || char === '"') {
+      quote = char;
+      tokenStarted = true;
+      continue;
+    }
+    if (/[|&;<>()`$]/.test(char))
+      return void 0;
+    current += char;
+    tokenStarted = true;
+  }
+  if (quote !== void 0)
+    return void 0;
+  if (tokenStarted)
+    argv.push(current);
+  if (argv.length === 0)
+    return void 0;
+  if (argv.some((part) => part.length === 0))
+    return void 0;
+  return argv;
+}
+function lastBoundaryIndex(text) {
+  let last = -1;
+  SEGMENT_BOUNDARY.lastIndex = 0;
+  for (let match = SEGMENT_BOUNDARY.exec(text); match !== null; match = SEGMENT_BOUNDARY.exec(text)) {
+    last = match.index;
+  }
+  return last;
+}
+function stripLeadingEnumerators(span) {
+  let result = span.trim();
+  for (; ; ) {
+    const stripped = result.replace(/^\(\d+\)\s*/, "").replace(/^\d+[.)]\s+/, "").replace(/^(?:and|then|also)\s+/i, "");
+    if (stripped === result)
+      return result;
+    result = stripped;
+  }
+}
+function candidateFromSpan(span) {
+  const text = stripLeadingEnumerators(span);
+  if (text.length === 0)
+    return void 0;
+  const argv = parseSimpleArgv2(text);
+  if (argv === void 0)
+    return void 0;
+  if (argv.length > MAX_CANDIDATE_TOKENS)
+    return void 0;
+  if (argv.some((token) => PROSE_TOKENS.has(token.toLowerCase())))
+    return void 0;
+  const binary = argv[0];
+  if (binary === void 0 || !/^[A-Za-z0-9@._/-]+$/.test(binary))
+    return void 0;
+  return { argv, source: text };
+}
+function harvestGoalCommandCandidates(goal) {
+  const candidates = [];
+  const seen = /* @__PURE__ */ new Set();
+  const push2 = (candidate) => {
+    if (candidate === void 0)
+      return;
+    if (candidates.length >= MAX_CANDIDATES)
+      return;
+    const key = candidate.argv.join("\0");
+    if (seen.has(key))
+      return;
+    seen.add(key);
+    candidates.push(candidate);
+  };
+  BACKTICKED.lastIndex = 0;
+  for (let match = BACKTICKED.exec(goal); match !== null; match = BACKTICKED.exec(goal)) {
+    const command = match[1];
+    if (command === void 0)
+      continue;
+    const following = goal.slice(match.index + match[0].length);
+    if (!SUCCESS_CLAIM.test(following))
+      continue;
+    push2(candidateFromSpan(command));
+  }
+  EXITS_ZERO.lastIndex = 0;
+  for (let match = EXITS_ZERO.exec(goal); match !== null; match = EXITS_ZERO.exec(goal)) {
+    const before = goal.slice(0, match.index);
+    if (/`\s*$/.test(before))
+      continue;
+    const span = before.slice(lastBoundaryIndex(before) + 1);
+    push2(candidateFromSpan(span));
+  }
+  return candidates;
+}
+var PROSE_TOKENS, MAX_CANDIDATE_TOKENS, MAX_CANDIDATES, EXITS_ZERO, SEGMENT_BOUNDARY, BACKTICKED, SUCCESS_CLAIM;
+var init_goal_commands = __esm({
+  "dist/shared/goal-commands.js"() {
+    "use strict";
+    PROSE_TOKENS = /* @__PURE__ */ new Set([
+      "a",
+      "all",
+      "an",
+      "and",
+      "app",
+      "are",
+      "at",
+      "be",
+      "by",
+      "code",
+      "each",
+      "ensure",
+      "final",
+      "for",
+      "from",
+      "in",
+      "is",
+      "it",
+      "its",
+      "make",
+      "must",
+      "of",
+      "on",
+      "or",
+      "should",
+      "so",
+      "still",
+      "sure",
+      "that",
+      "the",
+      "then",
+      "these",
+      "this",
+      "those",
+      "to",
+      "was",
+      "we",
+      "were",
+      "when",
+      "which",
+      "with",
+      "you"
+    ]);
+    MAX_CANDIDATE_TOKENS = 10;
+    MAX_CANDIDATES = 8;
+    EXITS_ZERO = /\bexits?\s+(?:with\s+)?(?:code\s+)?0\b/gi;
+    SEGMENT_BOUNDARY = /[;:\n—]/g;
+    BACKTICKED = /`([^`\n]{1,200})`/g;
+    SUCCESS_CLAIM = /^[^;.\n]{0,60}?\b(?:exits?\s+(?:with\s+)?(?:code\s+)?0|pass(?:es)?|succeeds?|green)\b/i;
+  }
+});
+
 // dist/flows/prototype/writers/brief.js
 import { createHash as createHash5 } from "node:crypto";
 import { isAbsolute as isAbsolute7, relative as relative7 } from "node:path";
@@ -81104,11 +81447,29 @@ function prototypeRoot(context) {
 function cleanGoal(goal) {
   return goal.replace(/^\s*prototype\s*:\s*/i, "").trim() || goal.trim();
 }
+function goalVerificationCandidates(goal) {
+  const candidates = [];
+  for (const [index, candidate] of harvestGoalCommandCandidates(goal).entries()) {
+    const parsed = VerificationCommand.safeParse({
+      id: `goal-command-${index + 1}`,
+      cwd: ".",
+      argv: [...candidate.argv],
+      timeout_ms: 6e5,
+      max_output_bytes: 2e5,
+      env: {}
+    });
+    if (parsed.success)
+      candidates.push(parsed.data);
+  }
+  return candidates;
+}
 var prototypeBriefComposeBuilder;
 var init_brief3 = __esm({
   "dist/flows/prototype/writers/brief.js"() {
     "use strict";
+    init_verification();
     init_control_plane_paths();
+    init_goal_commands();
     init_reports8();
     prototypeBriefComposeBuilder = {
       resultSchemaName: "prototype.brief@v1",
@@ -81130,7 +81491,7 @@ var init_brief3 = __esm({
             "The result names evidence and limitations honestly"
           ],
           prototype_root: root,
-          verification_command_candidates: [],
+          verification_command_candidates: goalVerificationCandidates(context.goal),
           claim_limits: ["not production", "not deployed", "not production-ready"]
         });
       }
@@ -81452,6 +81813,7 @@ var init_close7 = __esm({
           ...checkpoint?.response.comments === void 0 || checkpoint.response.comments.length === 0 ? {} : { checkpoint_comments: checkpoint.response.comments },
           prototype_root: artifact.prototype_root,
           entry_points: artifact.entry_points,
+          integration_touchpoints: artifact.integration_touchpoints,
           preview_instructions: artifact.preview_instructions,
           ...outcome === "build_input_saved" ? { build_followup_prompt: plan.build_followup_prompt } : {},
           residual_risks: artifact.known_limitations,
@@ -82153,7 +82515,11 @@ function artifactIntegrityCommand(input) {
     prototype_root: input.artifact.prototype_root,
     planned_files: input.plan.files_to_create,
     created_files: input.artifact.created_files,
-    entry_points: input.artifact.entry_points
+    entry_points: input.artifact.entry_points,
+    integration_touchpoints: input.artifact.integration_touchpoints.map((touchpoint) => ({
+      path: touchpoint.path,
+      change: touchpoint.change
+    }))
   };
   return {
     id: "prototype-artifact-integrity",
@@ -82172,9 +82538,10 @@ function projectPrototypeVerification(observations, context) {
     if (context.projectRoot === void 0) {
       throw new Error("prototype review asset snapshot requires projectRoot");
     }
+    const inRootEntryPoints = artifact.entry_points.filter((entryPoint) => entryPoint.startsWith(`${artifact.prototype_root}/`));
     reviewAssets = snapshotCheckpointReviewAssetGroups({
       projectRoot: context.projectRoot,
-      groups: [{ root: artifact.prototype_root, entryPoints: artifact.entry_points }]
+      groups: [{ root: artifact.prototype_root, entryPoints: inRootEntryPoints }]
     });
   }
   return PrototypeVerification.parse({
@@ -82209,6 +82576,7 @@ var init_verification7 = __esm({
       "const planned = Array.isArray(payload.planned_files) ? payload.planned_files : []",
       "const created = Array.isArray(payload.created_files) ? payload.created_files : []",
       "const entry = Array.isArray(payload.entry_points) ? payload.entry_points : []",
+      "const touchpoints = Array.isArray(payload.integration_touchpoints) ? payload.integration_touchpoints : []",
       "const errors = []",
       'function inside(base, target) { const rel = path.relative(base, target); return rel === "" || (!rel.startsWith("..") && !path.isAbsolute(rel)); }',
       "const rootAbs = path.resolve(projectRoot, root)",
@@ -82217,12 +82585,27 @@ var init_verification7 = __esm({
       "else if (!fs.lstatSync(rootAbs).isDirectory()) errors.push(`prototype_root is not a directory: ${root}`)",
       "else if (fs.lstatSync(rootAbs).isSymbolicLink()) errors.push(`prototype_root is a symlink: ${root}`)",
       "const rootReal = fs.existsSync(rootAbs) ? fs.realpathSync.native(rootAbs) : rootAbs",
+      'const declared = new Set(touchpoints.map((tp) => tp && typeof tp.path === "string" ? tp.path : ""))',
+      "for (const tp of touchpoints) {",
+      '  const rel = tp && typeof tp.path === "string" ? tp.path : ""',
+      '  if (rel.length === 0) { errors.push("integration touchpoint path must be a non-empty string"); continue; }',
+      "  if (rel.startsWith(`${root}/`)) errors.push(`integration touchpoint is inside prototype_root: ${rel}`)",
+      "  const abs = path.resolve(projectRoot, rel)",
+      "  if (!inside(projectRoot, abs)) { errors.push(`integration touchpoint escapes project root: ${rel}`); continue; }",
+      "  if (!fs.existsSync(abs)) { errors.push(`integration touchpoint does not exist: ${rel}`); continue; }",
+      "  if (fs.lstatSync(abs).isSymbolicLink()) errors.push(`integration touchpoint is a symlink: ${rel}`)",
+      "  else if (!inside(projectRoot, fs.realpathSync.native(abs))) errors.push(`integration touchpoint escapes real project root: ${rel}`)",
+      "}",
       "const createdSet = new Set(created)",
       "const unrealizedPlan = planned.filter((rel) => !createdSet.has(rel))",
       "for (const rel of Array.from(new Set([...created, ...entry]))) {",
       '  if (typeof rel !== "string" || rel.length === 0) { errors.push("reported path must be a non-empty string"); continue; }',
-      "  if (!rel.startsWith(`${root}/`)) errors.push(`prototype path is outside prototype_root: ${rel}`)",
       "  const abs = path.resolve(projectRoot, rel)",
+      "  if (declared.has(rel)) {",
+      "    if (!fs.existsSync(abs)) errors.push(`prototype path does not exist: ${rel}`)",
+      "    continue;",
+      "  }",
+      "  if (!rel.startsWith(`${root}/`)) errors.push(`prototype path is outside prototype_root and not a declared integration touchpoint: ${rel}`)",
       "  if (!inside(rootAbs, abs)) errors.push(`prototype path escapes prototype_root: ${rel}`)",
       "  if (!fs.existsSync(abs)) { errors.push(`prototype path does not exist: ${rel}`); continue; }",
       "  if (fs.lstatSync(abs).isSymbolicLink()) errors.push(`prototype path is a symlink: ${rel}`)",
@@ -82231,6 +82614,7 @@ var init_verification7 = __esm({
       "}",
       'if (errors.length > 0) { console.error(errors.join("\\n")); process.exit(1); }',
       'if (unrealizedPlan.length > 0) console.log(`note (advisory): the plan anticipated files the artifact did not declare: ${unrealizedPlan.join(", ")}`)',
+      'if (touchpoints.length > 0) console.log(`note: ${touchpoints.length} integration touchpoint(s) outside prototype_root: ${touchpoints.map((tp) => tp.path).join(", ")}`)',
       "console.log(`Prototype artifact integrity passed for ${root}`)"
     ].join("; ");
     prototypeVerificationWriter = {
@@ -95218,6 +95602,7 @@ var init_run = __esm({
     SNAPSHOT_STATUS_FOR_OUTCOME = {
       complete: "complete",
       aborted: "aborted",
+      evidence_invalid: "evidence_invalid",
       handoff: "handoff",
       stopped: "stopped",
       escalated: "escalated"
@@ -100206,7 +100591,8 @@ var init_progress = __esm({
     RUN_CLOSE_VERB = {
       stopped: "Stopped",
       handoff: "Handed off",
-      escalated: "Escalated"
+      escalated: "Escalated",
+      evidence_invalid: "Could not prove"
     };
   }
 });
@@ -107570,6 +107956,18 @@ function runOutcomeOverrideBrief(input) {
       next_action: SALVAGE_NEXT_ACTION
     };
   }
+  if (input.runResult.outcome === "evidence_invalid") {
+    return {
+      headline: digestHeadline(input.flowName),
+      assessment: "The worker finished and produced work, but its report failed validation, so the run could not prove the work. The files it created were not deleted.",
+      key_points: briefKeyPoints([
+        ...input.runResult.reason === void 0 ? [] : [`Validation failure: ${input.runResult.reason}`],
+        ...salvageKeyPoints({ runFolder: input.runFolder, flowId: input.flowId })
+      ], keyPoints),
+      caveats: [],
+      next_action: SALVAGE_NEXT_ACTION
+    };
+  }
   if (input.runResult.outcome === "escalated") {
     return {
       headline: digestHeadline(input.flowName),
@@ -108599,6 +108997,8 @@ function requestRef(input) {
 function normalizeClosedOutcome(outcome) {
   if (outcome === "complete" || outcome === "handoff" || outcome === "aborted")
     return outcome;
+  if (outcome === "evidence_invalid")
+    return "failed";
   return "blocked";
 }
 function declaredReportPaths(flowId) {
@@ -108651,7 +109051,9 @@ function projectClosedProcessEvidence(input) {
     missing_evidence: missingEvidenceFor(input.runResult),
     trace_entries_observed: input.runResult.trace_entries_observed,
     manifest_hash: input.runResult.manifest_hash,
-    ...outcome === "blocked" ? { blocked_reason: input.runResult.reason ?? input.runResult.summary } : {}
+    // The schema requires a reason for both blocked and failed projections;
+    // 'failed' is reached here when the run closed evidence_invalid.
+    ...outcome === "blocked" || outcome === "failed" ? { blocked_reason: input.runResult.reason ?? input.runResult.summary } : {}
   });
 }
 function projectCheckpointWaitingProcessEvidence(input) {
@@ -108720,14 +109122,24 @@ function objectiveKind(objective) {
 function hasRequiredEvidenceOfKind(contract, kind) {
   return contract.done_when.some((claim) => claim.required_evidence.some((entry) => entry.required && entry.kind === kind));
 }
+function rejectedEvidenceSummary(contract, minKind) {
+  const rejections = contract.done_when.flatMap((claim) => claim.required_evidence.map((entry) => {
+    const reason = entry.kind !== minKind ? `kind '${entry.kind}' is not '${minKind}'` : "not marked required";
+    return `[${entry.kind}${entry.required ? "" : ", optional"}] "${entry.description}" (rejected: ${reason})`;
+  }));
+  if (rejections.length === 0)
+    return "The contract lists no evidence entries at all.";
+  return `The contract's evidence entries: ${rejections.join("; ")}.`;
+}
 function contractQualityReview(contract) {
   const findings = [];
   const kind = objectiveKind(contract.objective);
   const minKind = MIN_REQUIRED_KIND_BY_OBJECTIVE[kind];
   if (minKind !== void 0 && !hasRequiredEvidenceOfKind(contract, minKind)) {
+    const remediation = minKind === "command" ? ' To make the objective provable, state runnable verification commands in the goal (for example: "pnpm test exits 0" or "`npm run typecheck` passes") so the contract can require them, or run again without --autonomous.' : "";
     findings.push({
       severity: "high",
-      text: `A ${kind} objective needs at least one required '${minKind}' evidence entry, but the contract has none. Satisfying this contract would not prove the objective.`
+      text: `An ${kind} objective needs at least one required '${minKind}' evidence entry, but the contract has none. Satisfying this contract would not prove the objective. ${rejectedEvidenceSummary(contract, minKind)}${remediation}`
     });
   }
   const blocking = findings.some((finding3) => finding3.severity === "critical" || finding3.severity === "high" || finding3.severity === "medium");
@@ -108898,7 +109310,15 @@ function describeRequiredEvidence(kind, objective) {
 }
 function deriveRequiredEvidence(processId, objective) {
   const kind = requiredEvidenceKindForProcess(processId);
-  return [{ kind, description: describeRequiredEvidence(kind, objective), required: true }];
+  const goalCommandEntries = harvestGoalCommandCandidates(objective).map((candidate) => ({
+    kind: "command",
+    description: `Goal-stated command evidence passes: \`${candidate.argv.join(" ")}\` exits 0`,
+    required: true
+  }));
+  return [
+    { kind, description: describeRequiredEvidence(kind, objective), required: true },
+    ...goalCommandEntries
+  ];
 }
 function recoveryRouteForUnmetKinds(unmetKinds) {
   for (const kind of RECOVERY_KIND_PRIORITY) {
@@ -109361,6 +109781,7 @@ var init_source_record = __esm({
     init_process_evidence();
     init_ref();
     init_run_envelope();
+    init_goal_commands();
     init_outcome();
     init_run_artifact_io();
     RUN_ENVELOPE_RELATIVE_PATH = "reports/run-envelope.json";
@@ -111853,6 +112274,7 @@ function exitCodeForClosedOutcome(outcome) {
     case "complete":
       return 0;
     case "aborted":
+    case "evidence_invalid":
     case "stopped":
     case "escalated":
     case "handoff":
@@ -112834,7 +113256,7 @@ var init_preview = __esm({
 });
 
 // dist/cli/version-info.js
-import { readFileSync as readFileSync63 } from "node:fs";
+import { readFileSync as readFileSync64 } from "node:fs";
 import { dirname as dirname18, resolve as resolve32 } from "node:path";
 import { fileURLToPath as fileURLToPath5 } from "node:url";
 function readSourceVersion() {
@@ -112846,7 +113268,7 @@ function readSourceVersion() {
   ];
   for (const candidate of candidates) {
     try {
-      const raw = JSON.parse(readFileSync63(candidate, "utf8"));
+      const raw = JSON.parse(readFileSync64(candidate, "utf8"));
       if (typeof raw.version === "string" && raw.version.length > 0)
         return raw.version;
     } catch {
@@ -114261,8 +114683,8 @@ var generate_exports = {};
 __export(generate_exports, {
   runGenerateCommand: () => runGenerateCommand
 });
-import { existsSync as existsSync42 } from "node:fs";
-import { join as join47 } from "node:path";
+import { existsSync as existsSync43 } from "node:fs";
+import { join as join48 } from "node:path";
 function parseArgs2(argv) {
   const program2 = new Command("circuit generate").option("--description <task>").option("--name <slug>").option("--home <path>").option("--created-at <iso>").option("--publish").option("--yes").option("--max-repair <n>").option("--timeout-ms <ms>").option("--progress <format>");
   parseCommanderOrThrow(program2, argv);
@@ -114413,7 +114835,7 @@ async function runGenerateCommand(argv, options = {}) {
     if (args.name !== void 0) {
       const namedSlug = slugify2(args.name);
       assertValidSlug(namedSlug);
-      if (args.publish && existsSync42(join47(flowRoot(home), namedSlug, "circuit.json"))) {
+      if (args.publish && existsSync43(join48(flowRoot(home), namedSlug, "circuit.json"))) {
         throw new Error(`custom flow already published: ${namedSlug}`);
       }
     }
@@ -114456,7 +114878,7 @@ async function runGenerateCommand(argv, options = {}) {
       return 1;
     }
     const slug = composed.slug;
-    if (args.publish && existsSync42(join47(flowRoot(home), slug, "circuit.json"))) {
+    if (args.publish && existsSync43(join48(flowRoot(home), slug, "circuit.json"))) {
       throw new Error(`custom flow already published: ${slug}`);
     }
     const createdAt = args.createdAt ?? now().toISOString();
@@ -114491,11 +114913,11 @@ async function runGenerateCommand(argv, options = {}) {
       converged_round: composed.convergedRound,
       repair_rounds: composed.repairRounds,
       draft_path: draftRoot(home, slug),
-      validation_path: join47(draftRoot(home, slug), "validation-result.json"),
+      validation_path: join48(draftRoot(home, slug), "validation-result.json"),
       ...args.publish ? {
         published_path: publishedRoot(home, slug),
-        flow_path: join47(flowRoot(home), slug, "circuit.json"),
-        command_path: join47(commandRoot(home), `${slug}.md`),
+        flow_path: join48(flowRoot(home), slug, "circuit.json"),
+        command_path: join48(commandRoot(home), `${slug}.md`),
         manifest_path: manifestPath(home)
       } : {},
       operator_summary_markdown_path: summaryPath(home, slug)
@@ -152924,6 +153346,11 @@ function runBackedStatusNote(record2) {
         headline: "This run was aborted (status: aborted). The goal below is context, not work to resume.",
         closed: true
       };
+    case "evidence_invalid":
+      return {
+        headline: "This run finished its work but the report failed validation (status: evidence_invalid). Inspect the run folder before discarding anything; the goal below is context, not work to resume.",
+        closed: true
+      };
     case "stopped":
       return {
         headline: "This run was stopped (status: stopped). The goal below is context, not work to resume.",
@@ -154280,6 +154707,73 @@ init_commander_support();
 init_preview();
 init_styled_table();
 init_terminal_style();
+
+// dist/cli/workspace-hygiene.js
+import { existsSync as existsSync42, readFileSync as readFileSync63 } from "node:fs";
+import { join as join47 } from "node:path";
+var PRETTIER_CONFIG_FILES = [
+  ".prettierrc",
+  ".prettierrc.json",
+  ".prettierrc.yml",
+  ".prettierrc.yaml",
+  ".prettierrc.json5",
+  ".prettierrc.js",
+  ".prettierrc.cjs",
+  ".prettierrc.mjs",
+  ".prettierrc.toml",
+  "prettier.config.js",
+  "prettier.config.cjs",
+  "prettier.config.mjs"
+];
+var CIRCUIT_IGNORE_LINE = /^(\*\*\/)?\/?\.circuit(\/(\*\*)?)?$/;
+function fileHasCircuitLine(path) {
+  if (!existsSync42(path))
+    return false;
+  try {
+    return readFileSync63(path, "utf8").split("\n").some((line) => CIRCUIT_IGNORE_LINE.test(line.trim()));
+  } catch {
+    return false;
+  }
+}
+function hasPrettierSetup(projectRoot) {
+  if (PRETTIER_CONFIG_FILES.some((name) => existsSync42(join47(projectRoot, name))))
+    return true;
+  if (existsSync42(join47(projectRoot, ".prettierignore")))
+    return true;
+  const packageJsonPath = join47(projectRoot, "package.json");
+  if (!existsSync42(packageJsonPath))
+    return false;
+  try {
+    const parsed = JSON.parse(readFileSync63(packageJsonPath, "utf8"));
+    if (parsed.prettier !== void 0)
+      return true;
+    return Object.hasOwn(parsed.devDependencies ?? {}, "prettier") || Object.hasOwn(parsed.dependencies ?? {}, "prettier");
+  } catch {
+    return false;
+  }
+}
+function workspaceHygieneFindings(projectRoot) {
+  if (!existsSync42(join47(projectRoot, ".circuit")))
+    return [];
+  if (!hasPrettierSetup(projectRoot))
+    return [];
+  const covered = fileHasCircuitLine(join47(projectRoot, ".prettierignore")) || // Prettier 3 honors the repo-root .gitignore by default, so a `.circuit`
+  // line there also covers it. Circuit's own seeded ignore lives NESTED at
+  // `.circuit/.gitignore`, which Prettier never reads; that blind spot is
+  // exactly what this probe exists to catch.
+  fileHasCircuitLine(join47(projectRoot, ".gitignore"));
+  if (covered)
+    return [];
+  return [
+    {
+      id: "prettier-sweeps-circuit",
+      detail: "this repo runs Prettier, and '.circuit/' is not listed in .prettierignore or the root .gitignore, so repo-wide format hooks will choke on Circuit's machine-written run records.",
+      remediation: "add a '.circuit/' line to .prettierignore (or the root .gitignore)."
+    }
+  ];
+}
+
+// dist/cli/doctor.js
 function parseDoctorArgs(argv) {
   let options;
   const program2 = configureCommanderProgram(new Command("circuit doctor")).option("--json").allowExcessArguments(false).action(() => {
@@ -154331,7 +154825,19 @@ function verdictLine(palette, entries) {
   const noun = broken.length === 1 ? "connector needs" : "connectors need";
   return palette.bold(palette.warn(`Not ready: ${broken.join(", ")} ${noun} attention.`));
 }
-function renderDoctorReport(palette, entries) {
+function workspaceLines(palette, findings) {
+  if (findings.length === 0)
+    return [];
+  return [
+    "",
+    palette.bold(palette.warn("Workspace")),
+    ...findings.flatMap((finding3) => [
+      palette.warn(`  ${finding3.detail}`),
+      palette.dim(`  fix: ${finding3.remediation}`)
+    ])
+  ];
+}
+function renderDoctorReport(palette, entries, workspace = []) {
   const ordered = [...entries].sort((a, b) => Number(b.chosen) - Number(a.chosen));
   return [
     diamondHeaderLine(palette, "circuit doctor"),
@@ -154343,6 +154849,7 @@ function renderDoctorReport(palette, entries) {
       "rule",
       ...connectorRows(palette, ordered)
     ]),
+    ...workspaceLines(palette, workspace),
     "",
     palette.dim("connectors marked - are optional (no flow step chooses them) and never fail this check. to change:"),
     // Remedies must work when pasted: relay.roles.* and relay.flows.* take
@@ -154380,17 +154887,19 @@ async function runDoctorCommand(argv) {
     }))
   ];
   const ready = brokenChosenNames(entries).length === 0;
+  const workspace = workspaceHygieneFindings(process.cwd());
   if (parsed.json) {
     process.stdout.write(`${JSON.stringify({
       schema_version: 2,
       ready,
       chosen_connectors: [...chosen.names].sort(),
-      connectors: entries
+      connectors: entries,
+      workspace
     }, null, 2)}
 `);
   } else {
     const palette = terminalPalette(colorEnabled());
-    process.stdout.write(`${renderDoctorReport(palette, entries)}
+    process.stdout.write(`${renderDoctorReport(palette, entries, workspace)}
 `);
   }
   return ready ? 0 : 1;
@@ -154439,7 +154948,7 @@ init_generate();
 
 // dist/cli/handoff.js
 init_esm();
-import { existsSync as existsSync43, readFileSync as readFileSync64 } from "node:fs";
+import { existsSync as existsSync44, readFileSync as readFileSync65 } from "node:fs";
 import { resolve as resolve33 } from "node:path";
 init_records();
 init_continuity();
@@ -154523,7 +155032,7 @@ function debugHook(message) {
 function readHookInput() {
   if (process.stdin.isTTY)
     return {};
-  const raw = readFileSync64(0, "utf8");
+  const raw = readFileSync65(0, "utf8");
   if (raw.trim().length === 0)
     return {};
   return JSON.parse(raw);
@@ -154685,7 +155194,7 @@ Saved continuity record could not be resumed: ${message}`);
 function resumeContinuity(args) {
   const controlPlane = resolveControlPlaneArg(args);
   const indexAbs = indexPath(controlPlane);
-  if (!existsSync43(indexAbs)) {
+  if (!existsSync44(indexAbs)) {
     const summaryPath3 = operatorSummaryPath(controlPlane);
     writeMarkdown(summaryPath3, "# Circuit Handoff\n\nNo saved continuity found.");
     const result2 = {
@@ -154723,7 +155232,7 @@ function resumeContinuity(args) {
     return { ...result2, result_path: resultPath3 };
   }
   const recordAbs = recordPath(controlPlane, index.pending_record.record_id);
-  if (!existsSync43(recordAbs)) {
+  if (!existsSync44(recordAbs)) {
     return invalidResumeResult(controlPlane, "record_missing", "Continuity index points at a missing record.", index.pending_record.record_id);
   }
   const recordRaw = readJsonSafely(recordAbs);
@@ -155296,7 +155805,7 @@ init_schemas3();
 init_atomic_io();
 init_outcome();
 init_indexer();
-import { join as join49 } from "node:path";
+import { join as join50 } from "node:path";
 
 // dist/app/history/memory-merge.js
 init_schemas3();
@@ -155304,8 +155813,8 @@ init_atomic_io();
 init_outcome();
 init_indexer();
 init_memory_identity();
-import { existsSync as existsSync44, readFileSync as readFileSync65 } from "node:fs";
-import { join as join48 } from "node:path";
+import { existsSync as existsSync45, readFileSync as readFileSync66 } from "node:fs";
+import { join as join49 } from "node:path";
 var RUN_ENVELOPE_RELATIVE_PATH2 = "reports/run-envelope.json";
 var RECALL_REPORT_RELATIVE_PATH = "reports/history/recall.json";
 var EFFECT_NOTE = "Report-only linkage (Slice 1). Effect requires cross-run aggregation over comparable runs (Slice 2).";
@@ -155316,8 +155825,8 @@ function deriveAbortReason(envelope) {
   return attempt.blocked_reason ?? attempt.summary;
 }
 function readRecallInputs(runFolder, warnings) {
-  const recallPath = join48(runFolder, RECALL_REPORT_RELATIVE_PATH);
-  if (!existsSync44(recallPath)) {
+  const recallPath = join49(runFolder, RECALL_REPORT_RELATIVE_PATH);
+  if (!existsSync45(recallPath)) {
     warnings.push({
       code: "recall_report_missing",
       message: "memory was used but no recall report was found; content identity is unavailable",
@@ -155327,7 +155836,7 @@ function readRecallInputs(runFolder, warnings) {
     return void 0;
   }
   try {
-    const recall = HistoryRecallReportV1.parse(JSON.parse(readFileSync65(recallPath, "utf8")));
+    const recall = HistoryRecallReportV1.parse(JSON.parse(readFileSync66(recallPath, "utf8")));
     return new Map(recall.memory_inputs.map((memory) => [memory.memory_id, memory]));
   } catch (error52) {
     warnings.push({
@@ -155372,8 +155881,8 @@ function resolveInput(memoryInputId, recallInputs, runFolder, warnings) {
 }
 function extractRunMemoryLinkage(runFolder) {
   const warnings = [];
-  const envelopePath = join48(runFolder, RUN_ENVELOPE_RELATIVE_PATH2);
-  if (!existsSync44(envelopePath)) {
+  const envelopePath = join49(runFolder, RUN_ENVELOPE_RELATIVE_PATH2);
+  if (!existsSync45(envelopePath)) {
     warnings.push({
       code: "envelope_missing",
       message: "no run.envelope@v0 record (resume or non-source run); skipped from linkage",
@@ -155384,7 +155893,7 @@ function extractRunMemoryLinkage(runFolder) {
   }
   let envelope;
   try {
-    envelope = RunEnvelopeRecord.parse(JSON.parse(readFileSync65(envelopePath, "utf8")));
+    envelope = RunEnvelopeRecord.parse(JSON.parse(readFileSync66(envelopePath, "utf8")));
   } catch (error52) {
     warnings.push({
       code: "source_invalid",
@@ -155482,7 +155991,7 @@ function buildMemoryMergeReport(options = {}) {
   });
 }
 function writeMemoryMergeReport(report, paths) {
-  const outPath = join48(paths.indexDir, HISTORY_MEMORY_MERGE_FILE);
+  const outPath = join49(paths.indexDir, HISTORY_MEMORY_MERGE_FILE);
   writeJsonAtomic(outPath, report, {
     validate: (raw) => HistoryMemoryMergeV1.parse(JSON.parse(raw))
   });
@@ -155679,7 +156188,7 @@ function buildMemoryEffectReport(options = {}) {
   });
 }
 function writeMemoryEffectReport(report, paths) {
-  const outPath = join49(paths.indexDir, HISTORY_MEMORY_EFFECT_FILE);
+  const outPath = join50(paths.indexDir, HISTORY_MEMORY_EFFECT_FILE);
   writeJsonAtomic(outPath, report, {
     validate: (raw) => HistoryMemoryEffectV1.parse(JSON.parse(raw))
   });
@@ -155693,8 +156202,8 @@ init_memory_preview();
 // dist/app/history/pull-log.js
 init_schemas3();
 init_atomic_io();
-import { existsSync as existsSync45, readFileSync as readFileSync66 } from "node:fs";
-import { join as join50 } from "node:path";
+import { existsSync as existsSync46, readFileSync as readFileSync67 } from "node:fs";
+import { join as join51 } from "node:path";
 var HISTORY_PULL_LOG_RELATIVE_PATH = "reports/history/pull-log.json";
 function pullLogUnavailable(runFolder, error52) {
   return {
@@ -155705,22 +156214,22 @@ function pullLogUnavailable(runFolder, error52) {
   };
 }
 function readPullLog(runFolder) {
-  const path = join50(runFolder, HISTORY_PULL_LOG_RELATIVE_PATH);
-  if (!existsSync45(path))
+  const path = join51(runFolder, HISTORY_PULL_LOG_RELATIVE_PATH);
+  if (!existsSync46(path))
     return void 0;
   try {
-    return HistoryPullLogV1.parse(JSON.parse(readFileSync66(path, "utf8")));
+    return HistoryPullLogV1.parse(JSON.parse(readFileSync67(path, "utf8")));
   } catch {
     return void 0;
   }
 }
 function appendPullLogEntry(runFolder, input) {
-  const outPath = join50(runFolder, HISTORY_PULL_LOG_RELATIVE_PATH);
+  const outPath = join51(runFolder, HISTORY_PULL_LOG_RELATIVE_PATH);
   const warnings = [];
   let existing;
   try {
-    if (existsSync45(outPath)) {
-      existing = HistoryPullLogV1.parse(JSON.parse(readFileSync66(outPath, "utf8")));
+    if (existsSync46(outPath)) {
+      existing = HistoryPullLogV1.parse(JSON.parse(readFileSync67(outPath, "utf8")));
     }
   } catch (error52) {
     warnings.push(pullLogUnavailable(runFolder, error52));
@@ -156077,8 +156586,8 @@ init_esm();
 init_indexer();
 init_catalog();
 import { createHash as createHash13 } from "node:crypto";
-import { existsSync as existsSync47, readFileSync as readFileSync68 } from "node:fs";
-import { basename as basename8, join as join51 } from "node:path";
+import { existsSync as existsSync48, readFileSync as readFileSync69 } from "node:fs";
+import { basename as basename8, join as join52 } from "node:path";
 
 // dist/memory/project-identity.js
 var import_yaml5 = __toESM(require_dist(), 1);
@@ -156088,7 +156597,7 @@ init_connector_relay();
 init_control_plane_paths();
 init_project_store();
 import { execFileSync as execFileSync5 } from "node:child_process";
-import { existsSync as existsSync46, readFileSync as readFileSync67 } from "node:fs";
+import { existsSync as existsSync47, readFileSync as readFileSync68 } from "node:fs";
 function hashedId(prefix, basis) {
   return `proj-${prefix}-${sha256OfString(basis).slice(0, 16)}`;
 }
@@ -156105,11 +156614,11 @@ function normalizeGitRemoteUrl(url2) {
 }
 function readConfigProjectId(repoRoot) {
   const configPath = projectConfigPath(repoRoot);
-  if (!existsSync46(configPath))
+  if (!existsSync47(configPath))
     return void 0;
   let raw;
   try {
-    raw = (0, import_yaml5.parse)(readFileSync67(configPath, "utf8"));
+    raw = (0, import_yaml5.parse)(readFileSync68(configPath, "utf8"));
   } catch {
     return void 0;
   }
@@ -156253,10 +156762,10 @@ function resolveNoteSource(input) {
     { rel: "reports/result.json", kind: "report" }
   ];
   for (const candidate of candidates) {
-    const abs = join51(input.runFolder, candidate.rel);
-    if (!existsSync47(abs))
+    const abs = join52(input.runFolder, candidate.rel);
+    if (!existsSync48(abs))
       continue;
-    const sha2564 = sha256Text(readFileSync68(abs, "utf8"));
+    const sha2564 = sha256Text(readFileSync69(abs, "utf8"));
     const ref = Ref.parse({
       kind: candidate.kind,
       ref: candidate.rel,
@@ -156265,10 +156774,10 @@ function resolveNoteSource(input) {
     });
     return { ref, sha256: sha2564 };
   }
-  const tracePath = join51(input.runFolder, "trace.ndjson");
-  if (existsSync47(tracePath)) {
+  const tracePath = join52(input.runFolder, "trace.ndjson");
+  if (existsSync48(tracePath)) {
     const runId = basename8(input.runFolder);
-    const sha2564 = sha256Text(readFileSync68(tracePath, "utf8"));
+    const sha2564 = sha256Text(readFileSync69(tracePath, "utf8"));
     const trace = Ref.safeParse({
       kind: "trace",
       ref: "trace.ndjson#sequence=0",
@@ -156440,23 +156949,23 @@ init_preview();
 
 // dist/cli/reclaim.js
 init_esm();
-import { join as join53, resolve as resolve34 } from "node:path";
+import { join as join54, resolve as resolve34 } from "node:path";
 
 // dist/runtime/fanout/worktree-reaper.js
 init_trace_store();
 init_run_owner_lock();
 init_worktree();
 import { readdir as readdir2 } from "node:fs/promises";
-import { join as join52 } from "node:path";
+import { join as join53 } from "node:path";
 var listWorktreesFromDisk = async (worktreesRoot) => {
   const entries = [];
   const runDirs = await listSubdirectories(worktreesRoot);
   for (const runId of runDirs) {
-    const stepDirs = await listSubdirectories(join52(worktreesRoot, runId));
+    const stepDirs = await listSubdirectories(join53(worktreesRoot, runId));
     for (const stepId of stepDirs) {
-      const branchDirs = await listSubdirectories(join52(worktreesRoot, runId, stepId));
+      const branchDirs = await listSubdirectories(join53(worktreesRoot, runId, stepId));
       for (const branchId of branchDirs) {
-        entries.push({ path: join52(worktreesRoot, runId, stepId, branchId), runId });
+        entries.push({ path: join53(worktreesRoot, runId, stepId, branchId), runId });
       }
     }
   }
@@ -156476,7 +156985,7 @@ function makeTraceRunStatusResolver(runsRoot2) {
   return async (runId) => {
     let entries;
     try {
-      const trace = new TraceStore(join52(runsRoot2, runId));
+      const trace = new TraceStore(join53(runsRoot2, runId));
       entries = await trace.load();
     } catch {
       return "unknown";
@@ -156599,7 +157108,7 @@ async function runReclaimCommand(argv) {
     return 2;
   }
   const projectRoot = parsed.projectRoot;
-  const worktreesRoot = join53(controlPlaneRoot(projectRoot), "worktrees");
+  const worktreesRoot = join54(controlPlaneRoot(projectRoot), "worktrees");
   const summary = await reapWorktrees({
     worktreesRoot,
     // Anchor `git worktree remove` at the resolved project root so reclaim works
@@ -156702,8 +157211,8 @@ init_host();
 init_atomic_io();
 init_commander_support();
 init_run2();
-import { existsSync as existsSync48, readFileSync as readFileSync69 } from "node:fs";
-import { join as join54, resolve as resolve35 } from "node:path";
+import { existsSync as existsSync49, readFileSync as readFileSync70 } from "node:fs";
+import { join as join55, resolve as resolve35 } from "node:path";
 var START_LINE = /^\s*<!--\s*circuit:start\s*-->\s*$/;
 var END_LINE = /^\s*<!--\s*circuit:end\s*-->\s*$/;
 var UNINSTALL_TARGET_FILES = ["AGENTS.md", "CLAUDE.md"];
@@ -156854,14 +157363,14 @@ async function runUninstallCommand(argv, options = {}) {
   let malformedAny = false;
   let strippedAny = false;
   for (const file2 of UNINSTALL_TARGET_FILES) {
-    const path = join54(args.dir, file2);
-    if (!existsSync48(path)) {
+    const path = join55(args.dir, file2);
+    if (!existsSync49(path)) {
       files.push({ file: file2, path, status: "absent" });
       continue;
     }
     let content;
     try {
-      content = readFileSync69(path, "utf8");
+      content = readFileSync70(path, "utf8");
     } catch (err) {
       process.stderr.write(`error: could not read ${path}: ${err.message}
 `);

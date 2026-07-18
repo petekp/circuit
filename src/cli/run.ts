@@ -1597,6 +1597,7 @@ export function exitCodeForClosedOutcome(outcome: RunClosedOutcome): number {
     case 'complete':
       return 0;
     case 'aborted':
+    case 'evidence_invalid':
     case 'stopped':
     case 'escalated':
     case 'handoff':

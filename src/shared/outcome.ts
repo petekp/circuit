@@ -1,8 +1,8 @@
 // Failure-outcome reconciliation across Circuit's two outcome vocabularies.
 //
 // Circuit carries two outcome enums that mean overlapping things:
-//   - RunClosedOutcome  (schemas/trace-entry.ts): complete | aborted | handoff
-//                        | stopped | escalated
+//   - RunClosedOutcome  (schemas/trace-entry.ts): complete | aborted
+//                        | evidence_invalid | handoff | stopped | escalated
 //   - RunEnvelopeOutcome (schemas/run-envelope.ts): complete | needs_attention
 //                        | blocked | failed | handoff
 //
@@ -12,11 +12,12 @@
 // canonical RunClosedOutcome -> RunEnvelopeOutcome mapping the codebase already
 // uses (mapChildOutcome, attemptOutcomeFromProjection) is:
 //
-//   complete  -> complete          (success)
-//   handoff   -> handoff           (neutral)
-//   stopped   -> needs_attention   (neutral: a deliberate pause)
-//   aborted   -> failed            (FAILURE)
-//   escalated -> blocked           (FAILURE)
+//   complete          -> complete          (success)
+//   handoff           -> handoff           (neutral)
+//   stopped           -> needs_attention   (neutral: a deliberate pause)
+//   aborted           -> failed            (FAILURE)
+//   evidence_invalid  -> failed            (FAILURE: work exists but unproven)
+//   escalated         -> blocked           (FAILURE)
 //
 // So the faithful failure set, expressed across both vocabularies, is the
 // union below. `escalated` is included deliberately: it maps to `blocked` and
@@ -25,6 +26,7 @@
 // docs/ideas/memory-phase0-failure-legibility-spec.md.
 const FAILURE_OUTCOMES: ReadonlySet<string> = new Set([
   'aborted',
+  'evidence_invalid',
   'escalated',
   'failed',
   'blocked',

@@ -88,6 +88,9 @@ function requestRef(input: {
 
 function normalizeClosedOutcome(outcome: RunResult['outcome']): ProcessEvidenceOutcome {
   if (outcome === 'complete' || outcome === 'handoff' || outcome === 'aborted') return outcome;
+  // A run whose work exists but whose typed report failed validation is a
+  // failed attempt (retryable), not a blocked one.
+  if (outcome === 'evidence_invalid') return 'failed';
   return 'blocked';
 }
 
@@ -153,7 +156,9 @@ export function projectClosedProcessEvidence(
     missing_evidence: missingEvidenceFor(input.runResult),
     trace_entries_observed: input.runResult.trace_entries_observed,
     manifest_hash: input.runResult.manifest_hash,
-    ...(outcome === 'blocked'
+    // The schema requires a reason for both blocked and failed projections;
+    // 'failed' is reached here when the run closed evidence_invalid.
+    ...(outcome === 'blocked' || outcome === 'failed'
       ? { blocked_reason: input.runResult.reason ?? input.runResult.summary }
       : {}),
   });

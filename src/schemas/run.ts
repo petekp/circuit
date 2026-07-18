@@ -882,6 +882,7 @@ type ClosedSnapshotStatus = Exclude<SnapshotStatus, 'in_progress'>;
 const SNAPSHOT_STATUS_FOR_OUTCOME: Record<RunClosedOutcome, ClosedSnapshotStatus> = {
   complete: 'complete',
   aborted: 'aborted',
+  evidence_invalid: 'evidence_invalid',
   handoff: 'handoff',
   stopped: 'stopped',
   escalated: 'escalated',

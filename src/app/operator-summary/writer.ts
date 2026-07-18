@@ -797,6 +797,24 @@ function runOutcomeOverrideBrief(input: {
       next_action: SALVAGE_NEXT_ACTION,
     };
   }
+  if (input.runResult.outcome === 'evidence_invalid') {
+    return {
+      headline: digestHeadline(input.flowName),
+      assessment:
+        'The worker finished and produced work, but its report failed validation, so the run could not prove the work. The files it created were not deleted.',
+      key_points: briefKeyPoints(
+        [
+          ...(input.runResult.reason === undefined
+            ? []
+            : [`Validation failure: ${input.runResult.reason}`]),
+          ...salvageKeyPoints({ runFolder: input.runFolder, flowId: input.flowId }),
+        ],
+        keyPoints,
+      ),
+      caveats: [],
+      next_action: SALVAGE_NEXT_ACTION,
+    };
+  }
   if (input.runResult.outcome === 'escalated') {
     return {
       headline: digestHeadline(input.flowName),

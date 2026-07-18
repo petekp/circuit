@@ -519,6 +519,111 @@ describe('Prototype report schemas', () => {
     ).toThrow(/escape the project root|inside prototype_root/);
   });
 
+  // Modeled verbatim on pdk-poc run f7fe10d0: an integration spike whose goal
+  // requires splicing into existing feature files and writing a learnings doc
+  // outside prototype_root. The artifact must be able to declare those paths
+  // as integration touchpoints instead of failing validation for doing exactly
+  // what the goal asked.
+  describe('integration touchpoints (pdk-poc integration spike)', () => {
+    const SPIKE_ROOT = 'src/features/home/leads-pipeline-spike';
+
+    function spikeArtifact(overrides: Record<string, unknown> = {}) {
+      return artifact({
+        prototype_root: SPIKE_ROOT,
+        created_files: [
+          `${SPIKE_ROOT}/build-home-leads-pipeline-index.ts`,
+          `${SPIKE_ROOT}/build-home-leads-pipeline-index.test.ts`,
+          '.claude/migration/leads-pipeline/SPIKE_LEARNINGS.md',
+        ],
+        entry_points: [
+          'src/features/home/home.feature.tsx',
+          '.claude/migration/leads-pipeline/SPIKE_LEARNINGS.md',
+        ],
+        preview_instructions: 'Open the Home screen; the ring scorecard replaces the leads funnel.',
+        evidence: ['pnpm typecheck exits 0', '10/10 spike tests pass'],
+        integration_touchpoints: [
+          {
+            path: '.claude/migration/leads-pipeline/SPIKE_LEARNINGS.md',
+            change: 'created',
+            reason: 'The goal names this learnings doc as the only keeper deliverable.',
+          },
+          {
+            path: 'src/features/home/home.feature.tsx',
+            change: 'modified',
+            reason: 'The goal requires rendering the ring scorecard on the Home screen.',
+          },
+          {
+            path: 'src/features/home/leads-list.feature.tsx',
+            change: 'modified',
+            reason: 'The goal requires a drill-down link that narrows the leads list.',
+          },
+        ],
+        ...overrides,
+      });
+    }
+
+    it('accepts out-of-root files that are declared as integration touchpoints', () => {
+      const parsed = PrototypeArtifact.parse(spikeArtifact());
+      expect(parsed.integration_touchpoints).toHaveLength(3);
+      expect(parsed.created_files).toContain('.claude/migration/leads-pipeline/SPIKE_LEARNINGS.md');
+    });
+
+    it('still rejects out-of-root paths that no touchpoint declares', () => {
+      expect(() => PrototypeArtifact.parse(spikeArtifact({ integration_touchpoints: [] }))).toThrow(
+        /integration_touchpoints/,
+      );
+    });
+
+    it('rejects touchpoints that point inside prototype_root', () => {
+      expect(() =>
+        PrototypeArtifact.parse(
+          spikeArtifact({
+            integration_touchpoints: [
+              {
+                path: `${SPIKE_ROOT}/build-home-leads-pipeline-index.ts`,
+                change: 'created',
+                reason: 'In-root files belong in created_files.',
+              },
+            ],
+          }),
+        ),
+      ).toThrow(/outside prototype_root/);
+    });
+
+    it('artifacts without touchpoints keep the strict root-only behavior', () => {
+      const parsed = PrototypeArtifact.parse(artifact());
+      expect(parsed.integration_touchpoints).toEqual([]);
+    });
+
+    it('single-artifact result accepts entry points declared as integration touchpoints', () => {
+      const parsed = PrototypeResult.parse(
+        result({
+          prototype_root: SPIKE_ROOT,
+          entry_points: ['src/features/home/home.feature.tsx'],
+          integration_touchpoints: [
+            {
+              path: 'src/features/home/home.feature.tsx',
+              change: 'modified',
+              reason: 'The goal requires rendering the ring scorecard on the Home screen.',
+            },
+          ],
+        }),
+      );
+      expect(parsed.integration_touchpoints).toHaveLength(1);
+    });
+
+    it('single-artifact result still rejects undeclared out-of-root entry points', () => {
+      expect(() =>
+        PrototypeResult.parse(
+          result({
+            prototype_root: SPIKE_ROOT,
+            entry_points: ['src/features/home/home.feature.tsx'],
+          }),
+        ),
+      ).toThrow(/integration_touchpoints/);
+    });
+  });
+
   it('requires accepted artifacts to report concrete files and entry points', () => {
     expect(() => PrototypeArtifact.parse(artifact({ created_files: [] }))).toThrow(/created_files/);
     expect(() => PrototypeArtifact.parse(artifact({ entry_points: [] }))).toThrow(/entry_points/);
