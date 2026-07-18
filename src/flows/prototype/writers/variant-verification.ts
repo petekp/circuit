@@ -1,4 +1,6 @@
 import { readFileSync } from 'node:fs';
+import type { CheckpointReviewAssetGroups } from '../../../schemas/checkpoint-review-assets.js';
+import { snapshotCheckpointReviewAssetGroups } from '../../../shared/checkpoint-review-assets.js';
 import { resolveRunRelative } from '../../../shared/run-relative-path.js';
 import { reportPathForSchemaInRuntimeFlow } from '../../registries/runtime-index.js';
 import type {
@@ -121,11 +123,31 @@ function projectVariantVerification(
   ).length;
   const overallStatus =
     commandFailed || admitted.length < 2 || capturedProviderEvidenceCount < 2 ? 'failed' : 'passed';
+  let reviewAssets: CheckpointReviewAssetGroups = [];
+  if (overallStatus === 'passed') {
+    if (context.projectRoot === undefined) {
+      throw new Error('prototype variant review asset snapshot requires projectRoot');
+    }
+    reviewAssets = snapshotCheckpointReviewAssetGroups({
+      projectRoot: context.projectRoot,
+      groups: admitted.flatMap((branch) =>
+        branch.result_body?.verdict === 'accept'
+          ? [
+              {
+                root: branch.result_body.variant_root,
+                entryPoints: branch.result_body.entry_points,
+              },
+            ]
+          : [],
+      ),
+    });
+  }
   return PrototypeVariantVerification.parse({
     overall_status: overallStatus,
     required_captured_provider_evidence_count: 2,
     captured_provider_evidence_count: capturedProviderEvidenceCount,
     admitted_variant_count: admitted.length,
+    review_assets: reviewAssets,
     variant_results: aggregateReport.branches.map((branch) => {
       const providerEvidenceStatus =
         evidence.variants.find((variant) => variant.variant_id === branch.branch_id)?.status ??

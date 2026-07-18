@@ -2,6 +2,7 @@
 // projection, emit HTML, add cross-flow details, then write JSON, markdown, and
 // HTML siblings. Per-flow projection logic lives in src/shared/operator-summary/.
 
+import { createHash } from 'node:crypto';
 import { existsSync, mkdirSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { dirname, isAbsolute, join, relative, resolve } from 'node:path';
 import { findFlowRuntimeSurfaceById } from '../../flows/catalog.js';
@@ -10,6 +11,10 @@ import {
   iterationLedgerFromTrace,
   renderIterationLedgerMarkdown,
 } from '../../runtime/run/iteration-ledger.js';
+import {
+  type CheckpointReviewAssetGroups,
+  CheckpointReviewAssetGroups as CheckpointReviewAssetGroupsSchema,
+} from '../../schemas/checkpoint-review-assets.js';
 import {
   OperatorAutoResolution,
   type OperatorAutoResolution as OperatorAutoResolutionValue,
@@ -37,6 +42,12 @@ import {
   RunEquipmentReshapeTraceEntry,
   TraceEntry,
 } from '../../schemas/trace-entry.js';
+import {
+  type CheckpointReviewInputIdentity,
+  checkpointReviewInputJsonObject,
+  checkpointReviewInputSha256,
+  normalizeCheckpointReviewInputIdentities,
+} from '../../shared/checkpoint-review-inputs.js';
 import {
   type HtmlProjectorCheckpoint,
   type HtmlProjectorContext,
@@ -74,6 +85,19 @@ export type OperatorSummaryWriteResult = {
   readonly jsonPath: string;
   readonly markdownPath: string;
   readonly htmlPath?: string;
+  /** Exact trusted bytes produced by Circuit's renderer, before any later disk read. */
+  readonly htmlContent?: string;
+  /** Project boundary already carried by the validated checkpoint request. */
+  readonly reviewProjectRoot?: string;
+};
+
+export type CheckpointReviewHtmlRenderResult = {
+  /** Exact trusted bytes produced by Circuit's renderer. */
+  readonly html: string;
+  /** Project boundary already carried by the validated checkpoint request. */
+  readonly projectRoot?: string;
+  /** Project-relative preview bytes already bound into the checkpoint request. */
+  readonly reviewAssets: CheckpointReviewAssetGroups;
 };
 
 // On resume, the CLI has the flow id but no longer has the original
@@ -271,6 +295,110 @@ function readCheckpointRequest(
   } catch {
     return undefined;
   }
+}
+
+type VerifiedCheckpointReviewInputs = {
+  readonly request: JsonObject;
+  readonly reports: ReadonlyMap<string, JsonObject>;
+  readonly reviewAssets: CheckpointReviewAssetGroups;
+};
+
+function verifiedCheckpointReviewInputs(
+  runFolder: string,
+  checkpoint: CheckpointWaitingOperatorSummaryResult['checkpoint'],
+): VerifiedCheckpointReviewInputs {
+  let requestPath: string;
+  try {
+    requestPath = isAbsolute(checkpoint.request_path)
+      ? resolve(checkpoint.request_path)
+      : resolveRunRelative(runFolder, checkpoint.request_path);
+  } catch {
+    throw new Error('checkpoint review request path is invalid');
+  }
+  if (!isInsideOrSame(resolve(runFolder), requestPath)) {
+    throw new Error('checkpoint review request path leaves the run folder');
+  }
+
+  let requestBytes: Buffer;
+  try {
+    requestBytes = readFileSync(requestPath);
+  } catch {
+    throw new Error('checkpoint review request could not be read');
+  }
+  if (createHash('sha256').update(requestBytes).digest('hex') !== checkpoint.request_sha256) {
+    throw new Error('checkpoint review request hash does not match the waiting checkpoint');
+  }
+
+  let parsed: unknown;
+  try {
+    parsed = JSON.parse(requestBytes.toString('utf8')) as unknown;
+  } catch {
+    throw new Error('checkpoint review request is not valid JSON');
+  }
+  if (!isObject(parsed)) throw new Error('checkpoint review request is invalid');
+  const executionContext = parsed.execution_context;
+  if (!isObject(executionContext) || !Array.isArray(executionContext.review_inputs)) {
+    throw new Error('checkpoint review request has no verified review inputs');
+  }
+
+  const rawIdentities: CheckpointReviewInputIdentity[] = [];
+  for (const raw of executionContext.review_inputs) {
+    if (!isObject(raw)) throw new Error('checkpoint review input identity is invalid');
+    const path = stringField(raw, 'path');
+    const sha256 = stringField(raw, 'sha256');
+    if (path === undefined || sha256 === undefined || !/^[a-f0-9]{64}$/.test(sha256)) {
+      throw new Error('checkpoint review input identity is invalid');
+    }
+    try {
+      resolveRunRelative(runFolder, path);
+    } catch {
+      throw new Error(`checkpoint review input '${path}' is invalid`);
+    }
+    rawIdentities.push({ path, sha256 });
+  }
+  let identities: CheckpointReviewInputIdentity[];
+  try {
+    identities = normalizeCheckpointReviewInputIdentities(rawIdentities);
+  } catch {
+    throw new Error('checkpoint review input identity is invalid');
+  }
+
+  const reports = new Map<string, JsonObject>();
+  const reportedAssets: unknown[] = [];
+  for (const identity of identities) {
+    const absolutePath = resolveRunRelative(runFolder, identity.path);
+    let bytes: Buffer;
+    try {
+      bytes = readFileSync(absolutePath);
+    } catch {
+      throw new Error(`checkpoint review input '${identity.path}' could not be read`);
+    }
+    if (checkpointReviewInputSha256(bytes) !== identity.sha256) {
+      throw new Error(`checkpoint review input '${identity.path}' hash does not match`);
+    }
+    const report = checkpointReviewInputJsonObject(bytes);
+    if (report === undefined) continue;
+    reports.set(identity.path, report);
+    if (!Object.hasOwn(report, 'review_assets')) continue;
+    let groups: CheckpointReviewAssetGroups;
+    try {
+      groups = CheckpointReviewAssetGroupsSchema.parse(report.review_assets);
+    } catch {
+      throw new Error(`checkpoint review input '${identity.path}' has invalid review_assets`);
+    }
+    reportedAssets.push(...groups);
+  }
+  let reviewAssets: CheckpointReviewAssetGroups;
+  try {
+    reviewAssets = CheckpointReviewAssetGroupsSchema.parse(executionContext.review_assets ?? []);
+  } catch {
+    throw new Error('checkpoint review asset identities are invalid');
+  }
+  const reportAssets = CheckpointReviewAssetGroupsSchema.parse(reportedAssets);
+  if (JSON.stringify(reviewAssets) !== JSON.stringify(reportAssets)) {
+    throw new Error('checkpoint review asset identities do not match the bound review inputs');
+  }
+  return { request: parsed, reports, reviewAssets };
 }
 
 function checkpointProjectRoot(request: JsonObject | undefined): string | undefined {
@@ -1572,6 +1700,142 @@ function renderMarkdown(
   return `${lines.join('\n')}\n`;
 }
 
+type OperatorSummaryHtmlRenderAttempt = {
+  readonly renderedHtml?: string;
+  readonly projectRoot?: string;
+  readonly projectorCheckpoint?: HtmlProjectorCheckpoint;
+  readonly htmlEmitWarning?: OperatorSummaryWarning;
+};
+
+/**
+ * Run the shared HTML projection without writing or removing report files.
+ *
+ * The operator-summary writer and the local checkpoint-review session both
+ * use this function so the trusted browser page is byte-for-byte the same
+ * page the normal report path would emit.
+ */
+function renderOperatorSummaryHtml(input: {
+  readonly runFolder: string;
+  readonly runResult: OperatorSummaryRunResult;
+  readonly resumeCommandPrefix?: string | undefined;
+  readonly flowReport: JsonObject | undefined;
+  readonly autoResolutions: readonly OperatorAutoResolutionValue[];
+  readonly checkpointRequest?: JsonObject | undefined;
+  readonly readJsonRunRelative?: ((relPath: string) => JsonObject | undefined) | undefined;
+  readonly strictCheckpointReview?: boolean | undefined;
+}): OperatorSummaryHtmlRenderAttempt {
+  const flowId = input.runResult.flow_id as unknown as string;
+  const projector = getHtmlProjector(flowId);
+  const candidateHtmlPath = htmlPath(input.runFolder);
+  let renderedHtml: string | undefined;
+  let htmlEmitWarning: OperatorSummaryWarning | undefined;
+
+  // Parse the checkpoint request once; the projector context and the generic
+  // checkpoint page both adapt to what it carries.
+  const checkpointRequest =
+    input.checkpointRequest ??
+    (input.runResult.outcome === 'checkpoint_waiting'
+      ? readCheckpointRequest(input.runFolder, input.runResult.checkpoint)
+      : undefined);
+  const projectorCheckpoint =
+    input.runResult.outcome === 'checkpoint_waiting'
+      ? widenedProjectorCheckpoint(input.runResult.checkpoint, checkpointRequest)
+      : undefined;
+  const projectRoot = checkpointProjectRoot(checkpointRequest);
+  const ctx: HtmlProjectorContext = {
+    runFolder: input.runFolder,
+    ...(projectRoot === undefined ? {} : { projectRoot }),
+    runId: input.runResult.run_id as unknown as string,
+    flowId,
+    runOutcome: input.runResult.outcome,
+    ...(input.resumeCommandPrefix === undefined
+      ? {}
+      : { resumeCommandPrefix: input.resumeCommandPrefix }),
+    ...(projectorCheckpoint === undefined ? {} : { checkpoint: projectorCheckpoint }),
+    flowReport: input.flowReport,
+    readJsonRunRelative:
+      input.readJsonRunRelative ?? ((relPath) => readJsonIfPresent(input.runFolder, relPath)),
+    readEvidenceReportById: (reportId) => {
+      if (input.strictCheckpointReview === true) {
+        throw new Error(`checkpoint review evidence '${reportId}' was not bound to the request`);
+      }
+      return evidenceReportById(input.runFolder, input.flowReport, reportId);
+    },
+    autoResolutions: input.autoResolutions,
+  };
+  if (projector !== undefined) {
+    try {
+      renderedHtml = projector(ctx);
+    } catch (err) {
+      if (input.strictCheckpointReview === true) throw err;
+      htmlEmitWarning = {
+        kind: 'html_render_failed',
+        message: err instanceof Error ? err.message : String(err),
+        path: candidateHtmlPath,
+      };
+    }
+  }
+  // Structural floor: a waiting checkpoint always gets a page. Flows with
+  // no projector (or whose projector produced nothing, or threw) fall back
+  // to the generic checkpoint page rendered from the widened context alone.
+  if (input.runResult.outcome === 'checkpoint_waiting' && renderedHtml === undefined) {
+    try {
+      renderedHtml = genericCheckpointHtml(ctx);
+    } catch (err) {
+      htmlEmitWarning ??= {
+        kind: 'html_render_failed',
+        message: err instanceof Error ? err.message : String(err),
+        path: candidateHtmlPath,
+      };
+    }
+  }
+
+  return {
+    ...(renderedHtml === undefined ? {} : { renderedHtml }),
+    ...(projectRoot === undefined ? {} : { projectRoot }),
+    ...(projectorCheckpoint === undefined ? {} : { projectorCheckpoint }),
+    ...(htmlEmitWarning === undefined ? {} : { htmlEmitWarning }),
+  };
+}
+
+/**
+ * Render the trusted local review page for a waiting checkpoint without
+ * changing anything on disk.
+ */
+export function renderCheckpointReviewHtml(input: {
+  readonly runFolder: string;
+  readonly runResult: CheckpointWaitingOperatorSummaryResult;
+  readonly resumeCommandPrefix?: string | undefined;
+}): CheckpointReviewHtmlRenderResult {
+  const flowId = input.runResult.flow_id as unknown as string;
+  const verified = verifiedCheckpointReviewInputs(input.runFolder, input.runResult.checkpoint);
+  const flowResultRelPath = findFlowRuntimeSurfaceById(flowId)?.primaryResult?.path;
+  const flowReport =
+    flowResultRelPath === undefined ? undefined : verified.reports.get(flowResultRelPath);
+  const rendered = renderOperatorSummaryHtml({
+    ...input,
+    flowReport,
+    autoResolutions: [],
+    checkpointRequest: verified.request,
+    readJsonRunRelative: (relPath) => {
+      const report = verified.reports.get(relPath);
+      if (report === undefined) {
+        throw new Error(`checkpoint review input '${relPath}' was not bound to the request`);
+      }
+      return report;
+    },
+    strictCheckpointReview: true,
+  });
+  if (rendered.renderedHtml === undefined) {
+    throw new Error('checkpoint review renderer did not produce HTML');
+  }
+  return {
+    html: rendered.renderedHtml,
+    reviewAssets: verified.reviewAssets,
+    ...(rendered.projectRoot === undefined ? {} : { projectRoot: rendered.projectRoot }),
+  };
+}
+
 export function writeOperatorSummary(input: {
   readonly runFolder: string;
   readonly runResult: OperatorSummaryRunResult;
@@ -1602,65 +1866,19 @@ export function writeOperatorSummary(input: {
   // Write HTML first so JSON+markdown only promise a path that actually
   // exists on disk. Failure here degrades to a markdown-only summary; it
   // must not abort the run or break the JSON/MD siblings.
-  const projector = getHtmlProjector(flowId);
   const candidateHtmlPath = htmlPath(input.runFolder);
   let outHtmlPath: string | undefined;
-  let htmlEmitWarning: OperatorSummaryWarning | undefined;
-  let renderedHtml: string | undefined;
-
-  // Parse the checkpoint request once; the projector context, the generic
-  // checkpoint page, and the markdown brief all adapt to what it carries.
-  const checkpointRequest =
-    input.runResult.outcome === 'checkpoint_waiting'
-      ? readCheckpointRequest(input.runFolder, input.runResult.checkpoint)
-      : undefined;
-  const projectorCheckpoint =
-    input.runResult.outcome === 'checkpoint_waiting'
-      ? widenedProjectorCheckpoint(input.runResult.checkpoint, checkpointRequest)
-      : undefined;
-  const projectRoot = checkpointProjectRoot(checkpointRequest);
-  const ctx: HtmlProjectorContext = {
+  const htmlRender = renderOperatorSummaryHtml({
     runFolder: input.runFolder,
-    ...(projectRoot === undefined ? {} : { projectRoot }),
-    runId: input.runResult.run_id as unknown as string,
-    flowId,
-    runOutcome: input.runResult.outcome,
+    runResult: input.runResult,
     ...(input.resumeCommandPrefix === undefined
       ? {}
       : { resumeCommandPrefix: input.resumeCommandPrefix }),
-    ...(projectorCheckpoint === undefined ? {} : { checkpoint: projectorCheckpoint }),
     flowReport,
-    readJsonRunRelative: (relPath) => readJsonIfPresent(input.runFolder, relPath),
-    readEvidenceReportById: (reportId) => evidenceReportById(input.runFolder, flowReport, reportId),
     autoResolutions,
-  };
-  if (projector !== undefined) {
-    try {
-      renderedHtml = projector(ctx);
-    } catch (err) {
-      htmlEmitWarning = {
-        kind: 'html_render_failed',
-        message: err instanceof Error ? err.message : String(err),
-        path: candidateHtmlPath,
-      };
-    }
-  }
-  // Structural floor: a waiting checkpoint always gets a page. Flows with
-  // no projector (or whose projector produced nothing, or threw) fall back
-  // to the generic checkpoint page rendered from the widened context alone,
-  // so the operator always sees the question, the options, and an honest
-  // resume path. Non-checkpoint outcomes keep skipping HTML cleanly.
-  if (input.runResult.outcome === 'checkpoint_waiting' && renderedHtml === undefined) {
-    try {
-      renderedHtml = genericCheckpointHtml(ctx);
-    } catch (err) {
-      htmlEmitWarning ??= {
-        kind: 'html_render_failed',
-        message: err instanceof Error ? err.message : String(err),
-        path: candidateHtmlPath,
-      };
-    }
-  }
+  });
+  const { renderedHtml, projectorCheckpoint, projectRoot } = htmlRender;
+  let { htmlEmitWarning } = htmlRender;
   if (renderedHtml === undefined) {
     // Stale-cleanup: a resume whose projector returned undefined (or that
     // has no projector at all) must not leave the previous run's HTML
@@ -1821,12 +2039,12 @@ export function writeOperatorSummary(input: {
   writeFileSync(outJsonPath, `${JSON.stringify(candidate, null, 2)}\n`);
   writeFileSync(outMarkdownPath, renderMarkdown(candidate, ledgerRows));
 
-  return outHtmlPath === undefined
-    ? { summary: candidate, jsonPath: outJsonPath, markdownPath: outMarkdownPath }
-    : {
-        summary: candidate,
-        jsonPath: outJsonPath,
-        markdownPath: outMarkdownPath,
-        htmlPath: outHtmlPath,
-      };
+  return {
+    summary: candidate,
+    jsonPath: outJsonPath,
+    markdownPath: outMarkdownPath,
+    ...(outHtmlPath === undefined ? {} : { htmlPath: outHtmlPath }),
+    ...(renderedHtml === undefined ? {} : { htmlContent: renderedHtml }),
+    ...(projectRoot === undefined ? {} : { reviewProjectRoot: projectRoot }),
+  };
 }

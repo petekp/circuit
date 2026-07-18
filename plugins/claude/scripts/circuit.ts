@@ -114,6 +114,27 @@ function readCheckpointPrompt(requestPath: string): string {
   }
 }
 
+function renderCheckpointResumeCommands(runFolder: string, htmlPath: string | undefined): void {
+  renderLine('');
+  if (htmlPath !== undefined) {
+    renderLine('Review with:');
+    renderLine(
+      `node "\${CLAUDE_PLUGIN_ROOT}/scripts/circuit.js" present resume --run-folder ${shellSingleQuote(
+        runFolder,
+      )} --checkpoint-review`,
+    );
+    renderLine('');
+    renderLine('Manual fallback:');
+  } else {
+    renderLine('Resume with:');
+  }
+  renderLine(
+    `node "\${CLAUDE_PLUGIN_ROOT}/scripts/circuit.js" present resume --run-folder ${shellSingleQuote(
+      runFolder,
+    )} --checkpoint-choice '<choice>'`,
+  );
+}
+
 function hasProgressFlag(args: readonly string[]): boolean {
   return args.some((arg) => arg === '--progress' || arg.startsWith('--progress='));
 }
@@ -191,6 +212,26 @@ function renderUserInputEvent(event: JsonRecord): void {
   }
 }
 
+function ensureCheckpointReviewUrlIsVisible(
+  event: JsonRecord,
+  presentation: PresentationResult,
+): boolean {
+  if (event.type !== 'checkpoint_review.ready') return false;
+  const reviewUrl = stringField(event, 'review_url');
+  if (reviewUrl === undefined) return presentation.handled;
+
+  const presentationRecord = isRecord(event.presentation) ? event.presentation : undefined;
+  const statusText = stringField(presentationRecord, 'status_text');
+  const displayText = stringField(event.display, 'text');
+  if (presentation.rendered && statusText?.includes(reviewUrl) === true) return true;
+  if (!presentation.rendered && displayText?.includes(reviewUrl) === true) {
+    renderLine(displayText);
+    return true;
+  }
+  renderLine(`Checkpoint review: ${reviewUrl}`);
+  return true;
+}
+
 function renderCheckpointFromResult(result: JsonRecord): void {
   const checkpoint = isRecord(result.checkpoint) ? result.checkpoint : undefined;
   if (checkpoint === undefined) {
@@ -213,13 +254,7 @@ function renderCheckpointFromResult(result: JsonRecord): void {
   }
   const runFolder = stringField(result, 'run_folder');
   if (runFolder !== undefined) {
-    renderLine('');
-    renderLine('Resume with:');
-    renderLine(
-      `node "\${CLAUDE_PLUGIN_ROOT}/scripts/circuit.js" present resume --run-folder ${shellSingleQuote(
-        runFolder,
-      )} --checkpoint-choice '<choice>'`,
-    );
+    renderCheckpointResumeCommands(runFolder, htmlPath);
   }
 }
 
@@ -333,20 +368,13 @@ function renderFinalResult(
   if (outcome === 'checkpoint_waiting') {
     if (!checkpointWasRendered) renderCheckpointFromResult(result);
     const htmlPath = stringField(result, 'operator_summary_html_path');
-    if (htmlPath !== undefined && existsSync(htmlPath)) tryOpenInBrowser(htmlPath);
     if (checkpointWasRendered && htmlPath !== undefined) {
       renderLine('');
       renderLine(`Rich summary: ${htmlPath}`);
     }
     const runFolder = stringField(result, 'run_folder');
     if (checkpointWasRendered && runFolder !== undefined) {
-      renderLine('');
-      renderLine('Resume with:');
-      renderLine(
-        `node "\${CLAUDE_PLUGIN_ROOT}/scripts/circuit.js" present resume --run-folder ${shellSingleQuote(
-          runFolder,
-        )} --checkpoint-choice '<choice>'`,
-      );
+      renderCheckpointResumeCommands(runFolder, htmlPath);
     }
     return 0;
   }
@@ -728,6 +756,7 @@ if (rawArgs[0] === 'present') {
       checkpointWasRendered = true;
       return;
     }
+    if (ensureCheckpointReviewUrlIsVisible(parsed, presentation)) return;
     if (presentation.handled) return;
     if (!shouldRenderDisplay(parsed)) return;
     const text = stringField(parsed.display, 'text');

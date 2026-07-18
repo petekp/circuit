@@ -122,9 +122,12 @@ metacharacters:
    Never write your own words inside a Circuit-labeled status block; a
    Circuit-labeled line is an engine statement, so put your own
    commentary outside the block, in your own voice.
-   If the run stops at a checkpoint, the wrapper prints the checkpoint
-   question and the exact resume command. Re-ask that question with
-   your user-question surface, then run the resume command with the
-   operator's choice. Do not leave a parked run waiting silently.
+   If the run stops at a rich checkpoint, immediately run the blocking
+   `resume --checkpoint-review` command printed by the wrapper and leave
+   it running. Circuit regenerates and opens the trusted review page;
+   the operator uses Done to save their comments and continue. Do not
+   ask them to repeat the choice in chat or copy a command. Use the
+   native question surface only when the local review session cannot
+   start.
    Use non-`present` wrapper mode only for debug, tests, or explicit raw
    machine-readable output.

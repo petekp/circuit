@@ -11,6 +11,13 @@ function isInsideOrSame(root: string, target: string): boolean {
   return fromRoot === '' || (!fromRoot.startsWith('..') && !isAbsolute(fromRoot));
 }
 
+export function checkpointAttemptResponsePath(responsePath: string, attempt: number): string {
+  const jsonSuffix = '.json';
+  return responsePath.endsWith(jsonSuffix)
+    ? `${responsePath.slice(0, -jsonSuffix.length)}.attempt-${attempt}${jsonSuffix}`
+    : `${responsePath}.attempt-${attempt}.json`;
+}
+
 export function validateRunFilePath(runRelativePath: string): readonly string[] {
   const issues: string[] = [];
   if (runRelativePath.trim().length === 0) {

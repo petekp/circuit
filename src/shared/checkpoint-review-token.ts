@@ -24,5 +24,13 @@ export function decodeCheckpointReviewResponse(token: string): CheckpointReviewR
   } catch {
     throw new Error('checkpoint response token payload is not valid JSON');
   }
-  return CheckpointReviewResponse.parse(raw);
+  const parsed = CheckpointReviewResponse.safeParse(raw);
+  if (!parsed.success) {
+    // A token can carry private review notes. Never let schema diagnostics echo
+    // values from that payload into terminal output.
+    throw new Error(
+      'checkpoint response token payload does not match checkpoint.review-response@v1',
+    );
+  }
+  return parsed.data;
 }

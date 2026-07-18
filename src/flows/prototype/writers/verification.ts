@@ -1,4 +1,6 @@
 import { readFileSync } from 'node:fs';
+import type { CheckpointReviewAssetGroups } from '../../../schemas/checkpoint-review-assets.js';
+import { snapshotCheckpointReviewAssetGroups } from '../../../shared/checkpoint-review-assets.js';
 import { resolveRunRelative } from '../../../shared/run-relative-path.js';
 import { reportPathForSchemaInRuntimeFlow } from '../../registries/runtime-index.js';
 import type {
@@ -87,12 +89,27 @@ function artifactIntegrityCommand(input: {
 
 function projectPrototypeVerification(
   observations: readonly VerificationCommandObservation[],
+  context: VerificationBuildContext,
 ): PrototypeVerification {
   const overallStatus = observations.some((observation) => observation.status === 'failed')
     ? 'failed'
     : 'passed';
+  const artifact = readReport(context, 'prototype.artifact@v1', (raw) =>
+    PrototypeArtifact.parse(raw),
+  );
+  let reviewAssets: CheckpointReviewAssetGroups = [];
+  if (overallStatus === 'passed' && artifact.verdict === 'accept') {
+    if (context.projectRoot === undefined) {
+      throw new Error('prototype review asset snapshot requires projectRoot');
+    }
+    reviewAssets = snapshotCheckpointReviewAssetGroups({
+      projectRoot: context.projectRoot,
+      groups: [{ root: artifact.prototype_root, entryPoints: artifact.entry_points }],
+    });
+  }
   return PrototypeVerification.parse({
     overall_status: overallStatus,
+    review_assets: reviewAssets,
     commands: observations.map((observation) => ({
       command_id: observation.command.id,
       argv: observation.command.argv,
@@ -122,7 +139,10 @@ export const prototypeVerificationWriter: VerificationBuilder = {
     );
     return [artifactIntegrityCommand({ plan, artifact }), ...plan.verification.commands];
   },
-  buildResult(observations: readonly VerificationCommandObservation[]): unknown {
-    return projectPrototypeVerification(observations);
+  buildResult(
+    observations: readonly VerificationCommandObservation[],
+    context: VerificationBuildContext,
+  ): unknown {
+    return projectPrototypeVerification(observations, context);
   },
 };

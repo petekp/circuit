@@ -100,6 +100,11 @@ describe('Claude Code host plugin package', () => {
       expect(commandMarkdown).not.toContain('repo-local launcher');
       expect(commandMarkdown).not.toContain('invokes `circuit`');
     }
+
+    const runCommand = readFileSync(resolve(PLUGIN_ROOT, 'commands/run.md'), 'utf8');
+    expect(runCommand).toContain('`resume --checkpoint-review` command printed by the wrapper');
+    expect(runCommand).toContain('regenerates and opens the trusted review page');
+    expect(runCommand).toMatch(/Do not\s+ask them to repeat the choice in chat or copy a command/);
   });
 
   it('does not publish routed-only flows as Claude Code command files', () => {
@@ -374,6 +379,128 @@ describe('Claude Code host plugin package', () => {
       ]);
       expect(capture.marker).toBe(resolve(PLUGIN_ROOT, 'skills'));
       expect(capture.host).toBe('claude-code');
+      expect(realpathSync(capture.cwd)).toBe(realpathSync(tempDir));
+    } finally {
+      rmSync(tempDir, { recursive: true, force: true });
+    }
+  });
+
+  it('present resume forwards a response file exactly from the project working directory', () => {
+    const tempDir = mkdtempSync(join(tmpdir(), 'circuit-claude-host-response-file-'));
+    try {
+      const binDir = join(tempDir, 'bin');
+      const argvPath = join(tempDir, 'argv.json');
+      const responsePath = join(tempDir, "Circuit checkpoint Pete's review.json");
+      const fakeBin = join(binDir, 'circuit');
+      mkdirSync(binDir, { recursive: true });
+      writeFileSync(
+        fakeBin,
+        `#!/usr/bin/env node
+const { writeFileSync } = require('node:fs');
+writeFileSync(${JSON.stringify(
+          argvPath,
+        )}, JSON.stringify({ argv: process.argv.slice(2), marker: process.env.${GENERATED_FLOW_MIRROR_ROOT_ENV} ?? null, cwd: process.cwd() }));
+process.stdout.write(JSON.stringify({ schema_version: 1, outcome: 'complete' }) + '\\n');
+`,
+      );
+      chmodSync(fakeBin, 0o755);
+
+      const result = spawnSync(
+        process.execPath,
+        [
+          resolve(PLUGIN_ROOT, 'scripts/circuit.ts'),
+          'present',
+          'resume',
+          '--run-folder',
+          join(tempDir, 'run'),
+          '--checkpoint-response-file',
+          responsePath,
+        ],
+        {
+          cwd: tempDir,
+          encoding: 'utf8',
+          env: envWithOverride(fakeBin, {
+            [GENERATED_FLOW_MIRROR_ROOT_ENV]: 'stale-parent-marker',
+          }),
+        },
+      );
+
+      expect(result.status, result.stderr).toBe(0);
+      const capture = JSON.parse(readFileSync(argvPath, 'utf8')) as {
+        argv: string[];
+        marker: string | null;
+        cwd: string;
+      };
+      expect(capture.argv).toEqual([
+        'resume',
+        '--run-folder',
+        join(tempDir, 'run'),
+        '--checkpoint-response-file',
+        responsePath,
+        '--progress',
+        'jsonl',
+      ]);
+      expect(capture.marker).toBeNull();
+      expect(realpathSync(capture.cwd)).toBe(realpathSync(tempDir));
+    } finally {
+      rmSync(tempDir, { recursive: true, force: true });
+    }
+  });
+
+  it('present resume forwards the blocking review flag from the project working directory', () => {
+    const tempDir = mkdtempSync(join(tmpdir(), 'circuit-claude-host-review-session-'));
+    try {
+      const binDir = join(tempDir, 'bin');
+      const argvPath = join(tempDir, 'argv.json');
+      const fakeBin = join(binDir, 'circuit');
+      mkdirSync(binDir, { recursive: true });
+      writeFileSync(
+        fakeBin,
+        `#!/usr/bin/env node
+const { writeFileSync } = require('node:fs');
+writeFileSync(${JSON.stringify(
+          argvPath,
+        )}, JSON.stringify({ argv: process.argv.slice(2), marker: process.env.${GENERATED_FLOW_MIRROR_ROOT_ENV} ?? null, cwd: process.cwd() }));
+process.stdout.write(JSON.stringify({ schema_version: 1, outcome: 'complete' }) + '\\n');
+`,
+      );
+      chmodSync(fakeBin, 0o755);
+
+      const runFolder = join(tempDir, "Circuit run Pete's test");
+      const result = spawnSync(
+        process.execPath,
+        [
+          resolve(PLUGIN_ROOT, 'scripts/circuit.ts'),
+          'present',
+          'resume',
+          '--run-folder',
+          runFolder,
+          '--checkpoint-review',
+        ],
+        {
+          cwd: tempDir,
+          encoding: 'utf8',
+          env: envWithOverride(fakeBin, {
+            [GENERATED_FLOW_MIRROR_ROOT_ENV]: 'stale-parent-marker',
+          }),
+        },
+      );
+
+      expect(result.status, result.stderr).toBe(0);
+      const capture = JSON.parse(readFileSync(argvPath, 'utf8')) as {
+        argv: string[];
+        marker: string | null;
+        cwd: string;
+      };
+      expect(capture.argv).toEqual([
+        'resume',
+        '--run-folder',
+        runFolder,
+        '--checkpoint-review',
+        '--progress',
+        'jsonl',
+      ]);
+      expect(capture.marker).toBeNull();
       expect(realpathSync(capture.cwd)).toBe(realpathSync(tempDir));
     } finally {
       rmSync(tempDir, { recursive: true, force: true });
@@ -1022,10 +1149,69 @@ describe('Claude Code host plugin package', () => {
       expect(result.stdout).toContain('Confirm the Build brief.');
       expect(result.stdout).toContain(`Rich summary: ${htmlPath}`);
       expect(result.stdout).toContain(
+        `node "\${CLAUDE_PLUGIN_ROOT}/scripts/circuit.js" present resume --run-folder '${runFolder}' --checkpoint-review`,
+      );
+      expect(result.stdout).toContain(
         `node "\${CLAUDE_PLUGIN_ROOT}/scripts/circuit.js" present resume --run-folder '${runFolder}' --checkpoint-choice '<choice>'`,
       );
       expect(result.stdout).not.toContain('checkpoint_waiting');
       expect(result.stdout).not.toContain('{"');
+    } finally {
+      rmSync(tempDir, { recursive: true, force: true });
+    }
+  });
+
+  it('present mode always surfaces checkpoint_review.ready.review_url', () => {
+    const tempDir = mkdtempSync(join(tmpdir(), 'circuit-claude-host-review-ready-'));
+    try {
+      const binDir = join(tempDir, 'bin');
+      const fakeBin = join(binDir, 'circuit');
+      const reviewUrl = 'http://127.0.0.1:43123/session/reports/operator-summary.html';
+      mkdirSync(binDir, { recursive: true });
+      writeFileSync(
+        fakeBin,
+        [
+          '#!/usr/bin/env node',
+          `const ready = ${JSON.stringify({
+            type: 'checkpoint_review.ready',
+            review_url: reviewUrl,
+            display: { text: 'Circuit: The checkpoint review is ready.' },
+            presentation: {
+              block_id: 'run-1',
+              line_mode: 'suppress',
+              status_text: 'Checkpoint review ready.',
+            },
+          })};`,
+          'process.stderr.write(`${JSON.stringify(ready)}\\n`);',
+          `process.stdout.write(${JSON.stringify(
+            `${JSON.stringify({ schema_version: 1, outcome: 'complete' })}\n`,
+          )});`,
+          '',
+        ].join('\n'),
+      );
+      chmodSync(fakeBin, 0o755);
+
+      const result = spawnSync(
+        process.execPath,
+        [
+          resolve(PLUGIN_ROOT, 'scripts/circuit.ts'),
+          'present',
+          'resume',
+          '--run-folder',
+          join(tempDir, 'run'),
+          '--checkpoint-review',
+        ],
+        {
+          cwd: tempDir,
+          encoding: 'utf8',
+          env: envWithOverride(fakeBin),
+        },
+      );
+
+      expect(result.status, result.stderr).toBe(0);
+      expect(result.stdout).toContain(`Checkpoint review: ${reviewUrl}`);
+      expect(result.stdout).not.toContain('checkpoint_review.ready');
+      expect(result.stdout).not.toContain('{"type"');
     } finally {
       rmSync(tempDir, { recursive: true, force: true });
     }

@@ -65,6 +65,9 @@ describe('emit-flows host renderers (real command sources)', () => {
     expect(rendered).toMatch(/present run [a-z]+ --goal/);
     // The presentation instruction block replaces the raw progress step.
     expect(rendered).toContain('Let the presentation wrapper render output');
+    expect(rendered).toContain('`resume --checkpoint-review` command printed by the wrapper');
+    expect(rendered).toContain('regenerates and opens the trusted review page');
+    expect(rendered).toMatch(/operator uses Done to\s+save their comments and continue/);
     // HTML comments are stripped from generated output.
     expect(rendered).not.toContain('<!--');
     // The source-authority footer cites repo paths that do not exist in an
@@ -80,6 +83,11 @@ describe('emit-flows host renderers (real command sources)', () => {
     expect(rendered).toContain("node '<plugin root>/scripts/circuit.js'");
     // Codex keeps raw JSONL progress (no presentation wrapper).
     expect(rendered).toContain('--progress jsonl');
+    expect(rendered).toContain(
+      "resume --run-folder '<run_folder>' --checkpoint-review --progress jsonl",
+    );
+    expect(rendered).toContain('surface `review_url` immediately');
+    expect(rendered).toMatch(/operator's \*\*Done\*\*\s+action saves the exact review/);
     expect(rendered).not.toContain('<!--');
     // The source-authority footer is stripped from the Codex command mirror too.
     expect(rendered).not.toContain('## Authority');
@@ -98,6 +106,10 @@ describe('emit-flows host renderers (real command sources)', () => {
     expect(rendered).not.toContain('$ARGUMENTS');
     expect(rendered).not.toContain('/circuit:');
     expect(rendered).not.toContain('## Authority');
+    expect(rendered).toContain(
+      "resume --run-folder '<run_folder>' --checkpoint-review --progress jsonl",
+    );
+    expect(rendered).toMatch(/do not ask them to copy\s+or paste anything/i);
   });
 
   it('renders the real handoff source into a Codex skill', () => {

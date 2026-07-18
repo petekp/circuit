@@ -2,7 +2,7 @@
 contract: host-adapter-acceptance
 status: draft-v0.1
 version: 0.1
-last_updated: 2026-04-30
+last_updated: 2026-07-17
 depends_on: [host-adapter, host-rendering, host-capabilities]
 ---
 
@@ -28,6 +28,7 @@ evidence.
 | packaged command invocation | supported | supported |
 | packaged flow lookup | supported | supported |
 | progress JSONL rendering contract | supported | supported |
+| no-copy checkpoint review | supported | supported |
 | handoff brief command | supported | supported |
 | SessionStart hook script | supported | supported |
 | bundled SessionStart registration | supported | unsupported |
@@ -48,6 +49,8 @@ scripts may add confidence, but they do not upgrade a capability to
 | packaged flow lookup | Codex | `tests/contracts/codex-host-plugin.test.ts` |
 | progress JSONL rendering contract | Claude Code | `tests/contracts/host-experience-docs.test.ts` and `tests/contracts/codex-host-plugin.test.ts` |
 | progress JSONL rendering contract | Codex | `tests/contracts/codex-host-plugin.test.ts` |
+| no-copy checkpoint review | Claude Code | `tests/contracts/claude-host-plugin.test.ts` |
+| no-copy checkpoint review | Codex | `tests/contracts/codex-host-plugin.test.ts` |
 | handoff brief command | Claude Code | `tests/runner/utility-cli.test.ts` |
 | handoff brief command | Codex | `tests/runner/utility-cli.test.ts` |
 | SessionStart hook script | Claude Code | `tests/runner/handoff-hook-adapters.test.ts` |

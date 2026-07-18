@@ -1,15 +1,12 @@
 import { z } from 'zod';
 import { THREE_AXIS_RUBRIC_TIE_BREAK_ORDER } from '../../policy/rubric.js';
+import { CheckpointReviewAssetGroups } from '../../schemas/checkpoint-review-assets.js';
 import { CheckpointReviewComment } from '../../schemas/checkpoint-review-response.js';
 import { ConnectorReference } from '../../schemas/config.js';
 import { RelayResolutionSource } from '../../schemas/connector.js';
 import { RubricJudgment, RubricResult } from '../../schemas/rubric.js';
 import { Effort, ProviderScopedModel } from '../../schemas/selection-policy.js';
-import {
-  VerificationCommand,
-  VerificationCommandResult,
-  VerificationResult,
-} from '../../schemas/verification.js';
+import { VerificationCommand, VerificationCommandResult } from '../../schemas/verification.js';
 import { resultReportPointer } from '../report-schema-kit.js';
 
 const NonEmptyStringArray = z.array(z.string().min(1)).min(1);
@@ -634,6 +631,7 @@ export const PrototypeVariantVerification = z
     admitted_variant_count: z.number().int().nonnegative(),
     variant_results: z.array(PrototypeVariantVerificationItem).min(1),
     commands: z.array(VerificationCommandResult),
+    review_assets: CheckpointReviewAssetGroups.default([]),
   })
   .strict()
   .superRefine((verification, ctx) => {
@@ -747,7 +745,25 @@ export type PrototypeVerificationCommand = z.infer<typeof PrototypeVerificationC
 export const PrototypeVerificationCommandResult = VerificationCommandResult;
 export type PrototypeVerificationCommandResult = z.infer<typeof PrototypeVerificationCommandResult>;
 
-export const PrototypeVerification = VerificationResult;
+export const PrototypeVerification = z
+  .object({
+    overall_status: z.enum(['passed', 'failed']),
+    commands: z.array(VerificationCommandResult).min(1),
+    review_assets: CheckpointReviewAssetGroups.default([]),
+  })
+  .strict()
+  .superRefine((verification, ctx) => {
+    const expected = verification.commands.some((command) => command.status === 'failed')
+      ? 'failed'
+      : 'passed';
+    if (verification.overall_status !== expected) {
+      addPathIssue(
+        ctx,
+        ['overall_status'],
+        `overall_status must be '${expected}' for command results`,
+      );
+    }
+  });
 export type PrototypeVerification = z.infer<typeof PrototypeVerification>;
 
 export const PrototypeResultReportId = z.enum([

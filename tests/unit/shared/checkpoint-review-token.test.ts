@@ -43,6 +43,22 @@ describe('checkpoint review response tokens', () => {
     expect(() => decodeCheckpointReviewResponse(wrongVersion)).toThrow();
   });
 
+  it('does not echo private review text from an invalid token payload', () => {
+    const privateText = 'PRIVATE REVIEW TEXT MUST STAY PRIVATE';
+    const token = `ckr1.${Buffer.from(
+      JSON.stringify({ ...RESPONSE, attempt: 0, privateText }),
+    ).toString('base64url')}`;
+
+    let message = '';
+    try {
+      decodeCheckpointReviewResponse(token);
+    } catch (error) {
+      message = error instanceof Error ? error.message : String(error);
+    }
+    expect(message).toContain('does not match checkpoint.review-response@v1');
+    expect(message).not.toContain(privateText);
+  });
+
   it('enforces comment length before encoding', () => {
     expect(() =>
       encodeCheckpointReviewResponse({

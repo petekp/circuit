@@ -6,6 +6,15 @@ import { EnabledConnector } from '../../src/schemas/connector.js';
 const REPO_ROOT = resolve(__dirname, '..', '..');
 
 describe('host experience docs', () => {
+  it('documents the checkpoint recovery path Circuit actually provides', () => {
+    const doc = readFileSync(resolve(REPO_ROOT, 'docs/contracts/host-adapter.md'), 'utf8');
+
+    expect(doc).not.toContain('printed recovery-file path');
+    expect(doc).toContain('printed run-inspection guidance');
+    expect(doc).toContain("page's manual export controls");
+    expect(doc).toMatch(/does not\s+treat a downloaded file as approval/);
+  });
+
   it('defines shared host capability slots for Codex and Claude Code', () => {
     const doc = readFileSync(resolve(REPO_ROOT, 'docs/contracts/host-capabilities.md'), 'utf8');
 

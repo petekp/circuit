@@ -72,18 +72,70 @@ describe('checkpoint resume required-flag validation', () => {
     });
   });
 
-  it('rejects supplying both checkpoint response forms', () => {
-    const message = messageFrom(() =>
-      parseExecutionArgs('resume', [
-        '--run-folder',
-        '.circuit/runs/run-x',
+  it('accepts a checkpoint response file path instead of a bare choice', () => {
+    const parsed = parseExecutionArgs('resume', [
+      '--run-folder',
+      '.circuit/runs/run-x',
+      '--checkpoint-response-file',
+      'exports/checkpoint-review.json',
+    ]);
+
+    expect(parsed.checkpointChoice).toBeUndefined();
+    expect(parsed.checkpointResponse).toBeUndefined();
+    expect(parsed.checkpointResponseFile).toBe('exports/checkpoint-review.json');
+  });
+
+  const encodedResponse = encodeCheckpointReviewResponse({
+    schema: 'checkpoint.review-response@v1',
+    run_id: '11111111-1111-4111-8111-111111111111',
+    step_id: 'prototype-variant-checkpoint-step',
+    attempt: 1,
+    request_sha256: 'a'.repeat(64),
+    selection: 'option-2',
+    comments: [],
+  });
+
+  it.each([
+    {
+      label: 'choice and encoded response',
+      responseArgs: ['--checkpoint-choice', 'option-1', '--checkpoint-response', encodedResponse],
+    },
+    {
+      label: 'choice and response file',
+      responseArgs: [
+        '--checkpoint-choice',
+        'option-1',
+        '--checkpoint-response-file',
+        'review.json',
+      ],
+    },
+    {
+      label: 'encoded response and response file',
+      responseArgs: [
+        '--checkpoint-response',
+        encodedResponse,
+        '--checkpoint-response-file',
+        'review.json',
+      ],
+    },
+    {
+      label: 'all three response forms',
+      responseArgs: [
         '--checkpoint-choice',
         'option-1',
         '--checkpoint-response',
-        'ckr1.invalid',
-      ]),
+        encodedResponse,
+        '--checkpoint-response-file',
+        'review.json',
+      ],
+    },
+  ])('rejects supplying $label together', ({ responseArgs }) => {
+    const message = messageFrom(() =>
+      parseExecutionArgs('resume', ['--run-folder', '.circuit/runs/run-x', ...responseArgs]),
     );
-    expect(message).toContain('use either --checkpoint-choice or --checkpoint-response');
+    expect(message).toContain(
+      'use only one of --checkpoint-review, --checkpoint-choice, --checkpoint-response, or --checkpoint-response-file',
+    );
   });
 });
 

@@ -69,6 +69,19 @@ describe('per-command help (B1)', () => {
     expect(result.stdout).toContain('circuit run fix --goal');
   });
 
+  it('teaches Done-first review and the bounded, explicit file fallback in resume help', async () => {
+    const result = await captureMain(['resume', '--help']);
+    expect(result.stdout).toContain('--checkpoint-review');
+    expect(result.stdout).toContain('regenerate the local review page');
+    expect(result.stdout).toContain('Done saves comments and continues the run');
+    expect(result.stdout).toContain('relative to current directory');
+    expect(result.stdout).toContain('at most 64 KiB');
+    expect(result.stdout).toContain(
+      'opening or saving a file never approves a checkpoint by itself',
+    );
+    expect(result.stdout).toContain('manual fallback without review comments');
+  });
+
   it('answers -h the same as --help', async () => {
     const result = await captureMain(['preview', '-h']);
     expect(result.code).toBe(0);

@@ -27,6 +27,23 @@ type RenderSelectionOptions = {
   readonly announce: boolean;
 };
 
+export type CheckpointReviewSessionConfig = {
+  readonly endpoint: string;
+  readonly authorization: string;
+  readonly identity: CheckpointReviewIdentity;
+};
+
+declare global {
+  interface Window {
+    readonly __CIRCUIT_REVIEW_SESSION__?: CheckpointReviewSessionConfig;
+  }
+}
+
+type ActiveReviewSession = {
+  readonly endpoint: string;
+  readonly authorization: string;
+};
+
 type WorkspaceAdapter = {
   readonly root: HTMLElement;
   readonly choices: readonly ChoiceBinding[];
@@ -39,12 +56,16 @@ type WorkspaceAdapter = {
   readonly confirmSummary: HTMLElement | null;
   readonly command: HTMLElement | null;
   readonly commandState: HTMLElement | null;
+  readonly dialogDescription: HTMLElement | null;
   readonly finishButtons: readonly HTMLElement[];
   readonly closeButtons: readonly HTMLElement[];
   readonly copyButtons: readonly HTMLElement[];
   readonly exportButtons: readonly HTMLElement[];
+  readonly submitButtons: readonly HTMLButtonElement[];
   readonly previousButtons: readonly HTMLElement[];
   readonly nextButtons: readonly HTMLElement[];
+  readonly primaryClass: string;
+  readonly secondaryClass: string;
   renderSelection(draft: CheckpointReviewDraft, options: RenderSelectionOptions): void;
   refreshNoteBadges(draft: CheckpointReviewDraft): void;
 };
@@ -106,12 +127,16 @@ function checkpointAdapter(root: HTMLElement): WorkspaceAdapter | undefined {
     confirmSummary: query<HTMLElement>(root, '[data-cp-confirm-summary]'),
     command: query<HTMLElement>(root, '[data-cp-command]'),
     commandState: query<HTMLElement>(root, '[data-cp-command-state]'),
+    dialogDescription: query<HTMLElement>(root, '#cp-dialog-description'),
     finishButtons: queryAll<HTMLElement>(root, '[data-cp-finish]'),
     closeButtons: queryAll<HTMLElement>(root, '[data-cp-close-dialog]'),
     copyButtons: queryAll<HTMLElement>(root, '[data-cp-copy-decision]'),
     exportButtons: queryAll<HTMLElement>(root, '[data-cp-export]'),
+    submitButtons: queryAll<HTMLButtonElement>(root, '[data-cp-submit-decision]'),
     previousButtons: queryAll<HTMLElement>(root, '[data-cp-previous]'),
     nextButtons: queryAll<HTMLElement>(root, '[data-cp-next]'),
+    primaryClass: 'cp-primary',
+    secondaryClass: 'cp-secondary',
     renderSelection(draft, options) {
       const current = choices.find((choice) => choice.id === draft.selection) ?? first;
       for (const choice of choices) {
@@ -176,12 +201,16 @@ function multiVariantAdapter(root: HTMLElement): WorkspaceAdapter | undefined {
     confirmSummary: query<HTMLElement>(root, '[data-mv-confirm-summary]'),
     command: query<HTMLElement>(root, '[data-mv-command]'),
     commandState: query<HTMLElement>(root, '[data-mv-command-state]'),
+    dialogDescription: query<HTMLElement>(root, '#mv-dialog-description'),
     finishButtons: queryAll<HTMLElement>(root, '[data-mv-finish]'),
     closeButtons: queryAll<HTMLElement>(root, '[data-mv-close-dialog]'),
     copyButtons: queryAll<HTMLElement>(root, '[data-mv-copy-decision]'),
     exportButtons: queryAll<HTMLElement>(root, '[data-mv-export]'),
+    submitButtons: queryAll<HTMLButtonElement>(root, '[data-mv-submit-decision]'),
     previousButtons: queryAll<HTMLElement>(root, '[data-mv-previous]'),
     nextButtons: queryAll<HTMLElement>(root, '[data-mv-next]'),
+    primaryClass: 'mv-primary',
+    secondaryClass: 'mv-secondary',
     renderSelection(draft, options) {
       const currentIndex = choiceIndex(choices, draft.selection);
       const current = choices[currentIndex] ?? first;
@@ -198,8 +227,9 @@ function multiVariantAdapter(root: HTMLElement): WorkspaceAdapter | undefined {
       if (title !== null) title.textContent = current.label;
       if (position !== null) position.textContent = `${currentIndex + 1} of ${choices.length}`;
       if (open !== null) {
-        open.hidden = current.previewHref.length === 0;
-        if (current.previewHref.length > 0) open.href = current.previewHref;
+        const safeLivePreview = root.dataset.reviewSession === 'active';
+        open.hidden = !safeLivePreview || current.previewHref.length === 0;
+        if (safeLivePreview && current.previewHref.length > 0) open.href = current.previewHref;
         else open.removeAttribute('href');
       }
       if (options.announce && live !== null) live.textContent = `${current.label} selected`;
@@ -225,6 +255,149 @@ function identityFor(root: HTMLElement): CheckpointReviewIdentity {
     attempt: Number(root.dataset.attempt ?? '0'),
     requestSha256: root.dataset.requestSha256 ?? '',
   };
+}
+
+function sameIdentity(left: CheckpointReviewIdentity, right: unknown): boolean {
+  if (typeof right !== 'object' || right === null || Array.isArray(right)) return false;
+  const candidate = right as Record<string, unknown>;
+  return (
+    candidate.runId === left.runId &&
+    candidate.stepId === left.stepId &&
+    candidate.attempt === left.attempt &&
+    candidate.requestSha256 === left.requestSha256
+  );
+}
+
+function activeReviewSession(identity: CheckpointReviewIdentity): ActiveReviewSession | undefined {
+  const value: unknown = window.__CIRCUIT_REVIEW_SESSION__;
+  if (typeof value !== 'object' || value === null || Array.isArray(value)) return undefined;
+  const candidate = value as Record<string, unknown>;
+  if (
+    typeof candidate.endpoint !== 'string' ||
+    candidate.endpoint.length === 0 ||
+    candidate.endpoint.length > 2048 ||
+    typeof candidate.authorization !== 'string' ||
+    candidate.authorization.length === 0 ||
+    candidate.authorization.length > 512 ||
+    !sameIdentity(identity, candidate.identity)
+  ) {
+    return undefined;
+  }
+  try {
+    const endpoint = new URL(candidate.endpoint, window.location.href);
+    if (endpoint.origin !== window.location.origin) return undefined;
+    const loopback = endpoint.protocol === 'http:' && endpoint.hostname === '127.0.0.1';
+    const fileFixture = endpoint.protocol === 'file:' && window.location.protocol === 'file:';
+    if (!loopback && !fileFixture) return undefined;
+    return { endpoint: endpoint.href, authorization: candidate.authorization };
+  } catch {
+    return undefined;
+  }
+}
+
+function reviewSubmissionFailureMessage(
+  status: number | undefined,
+  code: string | undefined,
+): string {
+  if (code === 'checkpoint_review_not_persisted') {
+    return 'Circuit couldn’t prove the review reached the run record. Inspect the run, then use the manual fallback below.';
+  }
+  if (code === 'resume_failed') {
+    return 'Circuit couldn’t continue the run. Try again, or use the manual fallback below.';
+  }
+  if (code === 'resume_in_progress') {
+    return 'Another resume is already in progress. Wait for it to finish, then try again.';
+  }
+  if (
+    code === 'stale_review' ||
+    code === 'checkpoint_response_wrong_run' ||
+    code === 'checkpoint_response_wrong_step' ||
+    code === 'checkpoint_response_stale_attempt' ||
+    code === 'checkpoint_response_stale_request'
+  ) {
+    return 'This review is stale. Reload the current checkpoint and try again.';
+  }
+  if (code === 'choice_unavailable' || code === 'checkpoint_response_comment_choice_unavailable') {
+    return 'A reviewed choice is no longer available. Reload the current checkpoint and try again.';
+  }
+  if (status === 401 || status === 403) {
+    return 'This review session expired. Reopen the checkpoint or use the manual fallback below.';
+  }
+  if (status === 409) {
+    return 'This review is no longer waiting. Refresh the page or use the manual fallback below.';
+  }
+  if (status === 413) {
+    return 'Review notes are too large. Shorten them and try again.';
+  }
+  return 'Circuit couldn’t save the review. Try again, or use the manual fallback below.';
+}
+
+type ReviewSubmissionReply = {
+  readonly code?: string;
+  readonly terminal?: boolean;
+};
+
+async function reviewSubmissionReply(response: Response): Promise<ReviewSubmissionReply> {
+  if (!response.headers.get('content-type')?.toLowerCase().startsWith('application/json')) {
+    return {};
+  }
+  const body = await response.text();
+  if (body.length > 1_024) return {};
+  try {
+    const value: unknown = JSON.parse(body);
+    if (typeof value !== 'object' || value === null || Array.isArray(value)) return {};
+    const record = value as Record<string, unknown>;
+    const code = record.code;
+    const terminal = record.terminal;
+    return {
+      ...(typeof code === 'string' && /^[a-z][a-z0-9._-]{0,63}$/.test(code) ? { code } : {}),
+      ...(typeof terminal === 'boolean' ? { terminal } : {}),
+    };
+  } catch {
+    return {};
+  }
+}
+
+async function submitReviewWithOneAmbiguousRetry(request: () => Promise<Response>): Promise<{
+  readonly response: Response;
+  readonly reply: ReviewSubmissionReply;
+  readonly retried: boolean;
+}> {
+  for (let attempt = 0; attempt < 2; attempt += 1) {
+    let response: Response;
+    try {
+      response = await request();
+    } catch (error) {
+      if (attempt === 0) continue;
+      throw error;
+    }
+
+    if (!response.ok) {
+      try {
+        return {
+          response,
+          reply: await reviewSubmissionReply(response),
+          retried: attempt > 0,
+        };
+      } catch {
+        // The HTTP status is authoritative. Do not retry an explicit rejection
+        // merely because its optional error body could not be read.
+        return { response, reply: {}, retried: attempt > 0 };
+      }
+    }
+
+    try {
+      return {
+        response,
+        reply: await reviewSubmissionReply(response),
+        retried: attempt > 0,
+      };
+    } catch (error) {
+      if (attempt === 0) continue;
+      throw error;
+    }
+  }
+  throw new Error('checkpoint review submission retry was exhausted');
 }
 
 function readSavedDraft(
@@ -273,6 +446,7 @@ function summaryText(draft: CheckpointReviewDraft, choiceIds: readonly string[])
 
 function mountWorkspace(adapter: WorkspaceAdapter): void {
   const identity = identityFor(adapter.root);
+  const reviewSession = activeReviewSession(identity);
   const choiceIds = adapter.choices.map((choice) => choice.id);
   const storageKey = checkpointReviewStorageKey(identity);
   const loaded = readSavedDraft(storageKey, adapter.saveState);
@@ -289,6 +463,66 @@ function mountWorkspace(adapter: WorkspaceAdapter): void {
     adapter.saveState.textContent = restoreNotice;
   }
   let dialogTrigger: HTMLElement | null = null;
+  let submissionState: 'idle' | 'saving' | 'saved' | 'failed' | 'terminal' = 'idle';
+
+  function setDisabled(elements: readonly HTMLElement[], disabled: boolean): void {
+    for (const element of elements) {
+      if (
+        element instanceof HTMLButtonElement ||
+        element instanceof HTMLInputElement ||
+        element instanceof HTMLTextAreaElement
+      ) {
+        element.disabled = disabled;
+      }
+    }
+  }
+
+  function renderSubmissionState(next: typeof submissionState): void {
+    submissionState = next;
+    const locked = next === 'saving' || next === 'saved';
+    const label =
+      next === 'saving'
+        ? 'Saving…'
+        : next === 'saved'
+          ? 'Review saved'
+          : next === 'failed'
+            ? 'Try again'
+            : 'Done';
+    for (const button of adapter.submitButtons) {
+      button.textContent = next === 'terminal' ? 'Review not saved' : label;
+      button.disabled = locked || next === 'terminal';
+    }
+    setDisabled(adapter.copyButtons, locked);
+    setDisabled(adapter.exportButtons, locked);
+    setDisabled(adapter.previousButtons, locked);
+    setDisabled(adapter.nextButtons, locked);
+    setDisabled(
+      [
+        ...adapter.choices.map((choice) => choice.control),
+        ...(adapter.comment === null ? [] : [adapter.comment]),
+      ],
+      locked,
+    );
+    setDisabled(adapter.closeButtons, next === 'saving');
+    setDisabled(adapter.finishButtons, next === 'saved');
+    if (adapter.overall !== null) adapter.overall.disabled = locked;
+    if (next === 'saving') adapter.dialog?.setAttribute('aria-busy', 'true');
+    else adapter.dialog?.removeAttribute('aria-busy');
+  }
+
+  if (reviewSession !== undefined) {
+    adapter.root.dataset.reviewSession = 'active';
+    if (adapter.dialogDescription !== null) {
+      adapter.dialogDescription.textContent =
+        'Done saves this selection and these notes with the checkpoint record, then Circuit continues the run.';
+    }
+    for (const button of adapter.submitButtons) button.hidden = false;
+    for (const button of adapter.copyButtons) {
+      button.classList.remove(adapter.primaryClass);
+      button.classList.add(adapter.secondaryClass);
+    }
+    renderSubmissionState('idle');
+  }
 
   function restoreDialogFocus(): void {
     const trigger = dialogTrigger;
@@ -402,6 +636,74 @@ function mountWorkspace(adapter: WorkspaceAdapter): void {
     }
   }
 
+  async function submitDecision(): Promise<void> {
+    if (
+      reviewSession === undefined ||
+      submissionState === 'saving' ||
+      submissionState === 'saved'
+    ) {
+      return;
+    }
+    const value = response();
+    persist();
+    refreshSummary();
+    const validation = checkpointReviewPayloadError(value);
+    if (validation !== undefined) {
+      renderSubmissionState('idle');
+      showValidationError(validation);
+      return;
+    }
+
+    invalidatePreparedDecision();
+    renderSubmissionState('saving');
+    if (adapter.commandState !== null) adapter.commandState.textContent = 'Saving your review…';
+    let failureStatus: number | undefined;
+    let failureCode: string | undefined;
+    let failureTerminal: boolean | undefined;
+    try {
+      const serializedValue = JSON.stringify(value);
+      const request = () =>
+        window.fetch(reviewSession.endpoint, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'X-Circuit-Review-Session': reviewSession.authorization,
+          },
+          body: serializedValue,
+          cache: 'no-store',
+          credentials: 'same-origin',
+          redirect: 'error',
+          referrerPolicy: 'no-referrer',
+        });
+      const { response: result, reply, retried } = await submitReviewWithOneAmbiguousRetry(request);
+      if (!result.ok) {
+        failureStatus = result.status;
+        failureCode = reply.code;
+        failureTerminal = reply.terminal;
+        throw new Error('checkpoint review submission rejected');
+      }
+      // Replaying the exact accepted payload is a delivery acknowledgement.
+      // The server caches the original reply and keeps a short recovery window
+      // open if that first reply was lost.
+      if (!retried) void request().catch(() => undefined);
+      renderSubmissionState('saved');
+      if (adapter.commandState !== null) {
+        adapter.commandState.textContent =
+          reply.code === 'resume_failed_after_save'
+            ? 'Review saved, but Circuit could not finish continuing the run. Inspect the run status.'
+            : 'Review saved. Circuit is continuing.';
+      }
+    } catch {
+      renderSubmissionState(failureTerminal === true ? 'terminal' : 'failed');
+      if (adapter.commandState !== null) {
+        adapter.commandState.textContent = reviewSubmissionFailureMessage(
+          failureStatus,
+          failureCode,
+        );
+      }
+    }
+  }
+
   function exportDecision(): void {
     const value = response();
     persist();
@@ -478,6 +780,9 @@ function mountWorkspace(adapter: WorkspaceAdapter): void {
     });
   }
   adapter.dialog?.addEventListener('close', restoreDialogFocus);
+  adapter.dialog?.addEventListener('cancel', (event) => {
+    if (submissionState === 'saving') event.preventDefault();
+  });
   for (const button of adapter.finishButtons) {
     button.addEventListener('click', () => {
       dialogTrigger = button;
@@ -508,6 +813,11 @@ function mountWorkspace(adapter: WorkspaceAdapter): void {
   }
   for (const button of adapter.exportButtons) {
     button.addEventListener('click', exportDecision);
+  }
+  for (const button of adapter.submitButtons) {
+    button.addEventListener('click', () => {
+      void submitDecision();
+    });
   }
 }
 

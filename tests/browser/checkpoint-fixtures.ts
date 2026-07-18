@@ -65,14 +65,10 @@ export function createCheckpointBrowserFixtures(): CheckpointBrowserFixtures {
   <body>
     <main>
       <h1>Working artifact</h1>
-      <button type="button" id="reveal">Reveal details</button>
-      <p id="details" hidden>The artifact interaction works.</p>
+      <details><summary>Reveal details</summary>
+        <p>The artifact native interaction works.</p>
+      </details>
     </main>
-    <script>
-      document.querySelector('#reveal').addEventListener('click', () => {
-        document.querySelector('#details').hidden = false;
-      });
-    </script>
   </body>
 </html>`,
     'utf8',
@@ -93,14 +89,10 @@ export function createCheckpointBrowserFixtures(): CheckpointBrowserFixtures {
   <body>
     <main>
       <h1>Single artifact</h1>
-      <button type="button" id="single-toggle">Show single details</button>
-      <p id="single-details" hidden>The single artifact interaction works.</p>
+      <details><summary>Show single details</summary>
+        <p>The single artifact native interaction works.</p>
+      </details>
     </main>
-    <script>
-      document.querySelector('#single-toggle').addEventListener('click', () => {
-        document.querySelector('#single-details').hidden = false;
-      });
-    </script>
   </body>
 </html>`,
     'utf8',

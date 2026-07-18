@@ -12,6 +12,10 @@ import type { CheckpointStep as IndexedCheckpointStep } from '../../flows/regist
 import type { CompiledFlowProgressSurface } from '../../flows/types.js';
 import { policyRefsForRuntimeInputs } from '../../policy/policy-envelope.js';
 import { Axes, type Axes as AxesValue } from '../../schemas/axes.js';
+import {
+  type CheckpointReviewAssetGroups,
+  CheckpointReviewAssetGroups as CheckpointReviewAssetGroupsSchema,
+} from '../../schemas/checkpoint-review-assets.js';
 import type { CheckpointReviewResponse } from '../../schemas/checkpoint-review-response.js';
 import type { CompiledFlow } from '../../schemas/compiled-flow.js';
 import type { LayeredConfig as LayeredConfigValue } from '../../schemas/config.js';
@@ -26,6 +30,14 @@ import { Ref, type Ref as RefValue, Sha256 } from '../../schemas/ref.js';
 import { CheckpointStep as SchemaCheckpointStep } from '../../schemas/step.js';
 import type { CheckpointRequestedTraceEntry } from '../../schemas/trace-entry.js';
 import { projectCheckpointBoundaryV0 } from '../../shared/checkpoint-boundary.js';
+import { verifyCheckpointReviewAssetGroups } from '../../shared/checkpoint-review-assets.js';
+import {
+  type CheckpointReviewInputIdentity,
+  checkpointReviewInputJsonObject,
+  checkpointReviewInputSha256,
+  normalizeCheckpointReviewInputIdentities,
+  normalizeCheckpointReviewInputPaths,
+} from '../../shared/checkpoint-review-inputs.js';
 import { sha256Hex } from '../../shared/connector-relay.js';
 import type { ProgressReporter, RelayFn } from '../../shared/relay-runtime-types.js';
 import { resolveRunFilePath } from '../../shared/run-file-paths.js';
@@ -51,6 +63,7 @@ import { createContextPuller } from './context-pull.js';
 import { seedEquipmentReshapeFromTrace } from './equipment-reshape.js';
 import type { ExternalFileReader } from './external-files.js';
 import {
+  type GraphExecutionResult,
   executeExecutableFlowOutcome,
   isGraphCheckpointWaitingResult,
   isGraphRejectedOutcome,
@@ -84,13 +97,23 @@ export interface ResumeCompiledFlowOptions {
 
 export interface CheckpointResumeSuccessResult {
   readonly kind: 'resumed';
-  readonly result: GraphRunResult;
+  readonly result: GraphExecutionResult;
 }
+
+export type CheckpointResumeRejectionCode =
+  | 'resume_in_progress'
+  | 'checkpoint_response_wrong_run'
+  | 'checkpoint_response_wrong_step'
+  | 'checkpoint_response_stale_attempt'
+  | 'checkpoint_response_stale_request'
+  | 'checkpoint_response_selection_mismatch'
+  | 'checkpoint_response_comment_choice_unavailable';
 
 export interface CheckpointResumeRejectedResult {
   readonly kind: 'rejected';
   readonly reason: string;
   readonly error: Error;
+  readonly code?: CheckpointResumeRejectionCode;
 }
 
 export type CheckpointResumeResult = CheckpointResumeSuccessResult | CheckpointResumeRejectedResult;
@@ -104,6 +127,11 @@ interface CheckpointRequestContext {
   readonly selectionConfigLayers: readonly LayeredConfigValue[];
   readonly policyLayers: readonly PolicyLayerValue[];
   readonly checkpointReportSha256?: string;
+  readonly reviewInputs?: readonly {
+    readonly path: string;
+    readonly sha256: string;
+  }[];
+  readonly reviewAssets: CheckpointReviewAssetGroups;
 }
 
 type CompiledCheckpointStep = CompiledFlow['steps'][number] & {
@@ -121,8 +149,24 @@ function errorFromUnknown(error: unknown): Error {
   return error instanceof Error ? error : new Error(String(error));
 }
 
-function checkpointResumeRejected(reason: string, error?: Error): CheckpointResumeRejectedResult {
-  return { kind: 'rejected', reason, error: error ?? new Error(reason) };
+function checkpointResumeRejected(
+  reason: string,
+  error?: Error,
+  code?: CheckpointResumeRejectionCode,
+): CheckpointResumeRejectedResult {
+  return {
+    kind: 'rejected',
+    reason,
+    error: error ?? new Error(reason),
+    ...(code === undefined ? {} : { code }),
+  };
+}
+
+function checkpointResponseRejected(
+  code: CheckpointResumeRejectionCode,
+  reason: string,
+): CheckpointResumeRejectedResult {
+  return checkpointResumeRejected(reason, undefined, code);
 }
 
 function checkpointResumeRejectedFrom(error: unknown): CheckpointResumeRejectedResult {
@@ -349,6 +393,41 @@ function readCheckpointRequestContextResult(input: {
       'runtime checkpoint resume rejected: checkpoint_report_sha256 is invalid',
     );
   }
+  let reviewInputs: Array<{ readonly path: string; readonly sha256: string }> | undefined;
+  if (context.review_inputs !== undefined) {
+    if (!Array.isArray(context.review_inputs)) {
+      return checkpointResumeRejected(
+        'runtime checkpoint resume rejected: review_inputs is invalid',
+      );
+    }
+    const parsedReviewInputs: CheckpointReviewInputIdentity[] = [];
+    for (const value of context.review_inputs) {
+      if (!isRecord(value) || typeof value.path !== 'string') {
+        return checkpointResumeRejected(
+          'runtime checkpoint resume rejected: review_inputs is invalid',
+        );
+      }
+      let sha256: string;
+      try {
+        sha256 = Sha256.parse(value.sha256);
+        resolveRunFilePath(input.runDir, value.path);
+      } catch (error) {
+        return checkpointResumeRejectedFrom(error);
+      }
+      parsedReviewInputs.push({ path: value.path, sha256 });
+    }
+    try {
+      reviewInputs = normalizeCheckpointReviewInputIdentities(parsedReviewInputs);
+    } catch (error) {
+      return checkpointResumeRejectedFrom(error);
+    }
+  }
+  let reviewAssets: CheckpointReviewAssetGroups;
+  try {
+    reviewAssets = CheckpointReviewAssetGroupsSchema.parse(context.review_assets ?? []);
+  } catch (error) {
+    return checkpointResumeRejectedFrom(error);
+  }
   return checkpointResumeValid({
     ...(axes === undefined ? {} : { axes }),
     ...(projectRoot === undefined ? {} : { projectRoot }),
@@ -358,6 +437,8 @@ function readCheckpointRequestContextResult(input: {
     selectionConfigLayers,
     policyLayers,
     ...(checkpointReportSha256 === undefined ? {} : { checkpointReportSha256 }),
+    ...(reviewInputs === undefined ? {} : { reviewInputs }),
+    reviewAssets,
   });
 }
 
@@ -491,6 +572,117 @@ function validateCheckpointReportResult(input: {
   return checkpointResumeValid(undefined);
 }
 
+function validateCheckpointReviewInputsResult(input: {
+  readonly runDir: string;
+  readonly compiledStep: CompiledCheckpointStep;
+  readonly requestContext: CheckpointRequestContext;
+}): CheckpointResumeValidation<void> {
+  const identities = input.requestContext.reviewInputs;
+  // Requests created before review-input binding remain resumable through the
+  // legacy flags. The trusted local review renderer requires this field.
+  if (identities === undefined) return checkpointResumeValid(undefined);
+
+  const expectedPaths = normalizeCheckpointReviewInputPaths(input.compiledStep.reads);
+  const report = input.compiledStep.writes.report;
+  const reportPath =
+    report === undefined ? undefined : typeof report === 'string' ? report : report.path;
+  if (reportPath !== undefined && !expectedPaths.includes(reportPath))
+    expectedPaths.push(reportPath);
+  if (
+    identities.length !== expectedPaths.length ||
+    identities.some((identity, index) => identity.path !== expectedPaths[index])
+  ) {
+    return checkpointResumeRejected(
+      `runtime checkpoint resume rejected: review inputs for '${input.compiledStep.id}' do not match the saved flow`,
+    );
+  }
+
+  try {
+    for (const identity of identities) {
+      const bytes = readFileSync(resolveRunFilePath(input.runDir, identity.path));
+      if (checkpointReviewInputSha256(bytes) !== identity.sha256) {
+        return checkpointResumeRejected(
+          `runtime checkpoint resume rejected: review input '${identity.path}' changed after the checkpoint was created`,
+        );
+      }
+    }
+  } catch (error) {
+    return checkpointResumeRejectedFrom(error);
+  }
+  if (
+    reportPath !== undefined &&
+    input.requestContext.checkpointReportSha256 !== undefined &&
+    identities.find((identity) => identity.path === reportPath)?.sha256 !==
+      input.requestContext.checkpointReportSha256
+  ) {
+    return checkpointResumeRejected(
+      `runtime checkpoint resume rejected: checkpoint report identity for '${input.compiledStep.id}' is inconsistent`,
+    );
+  }
+  return checkpointResumeValid(undefined);
+}
+
+function validateCheckpointReviewAssetsResult(input: {
+  readonly runDir: string;
+  readonly compiledStep: CompiledCheckpointStep;
+  readonly requestContext: CheckpointRequestContext;
+}): CheckpointResumeValidation<void> {
+  const expected = input.requestContext.reviewAssets;
+  const identities = input.requestContext.reviewInputs;
+  const identitiesByPath = new Map(identities?.map((identity) => [identity.path, identity]));
+  const reported: unknown[] = [];
+  if (identities !== undefined) {
+    try {
+      for (const path of normalizeCheckpointReviewInputPaths(input.compiledStep.reads)) {
+        const identity = identitiesByPath.get(path);
+        if (identity === undefined) {
+          return checkpointResumeRejected(
+            `runtime checkpoint resume rejected: review asset input '${path}' is missing`,
+          );
+        }
+        const bytes = readFileSync(resolveRunFilePath(input.runDir, identity.path));
+        if (checkpointReviewInputSha256(bytes) !== identity.sha256) {
+          return checkpointResumeRejected(
+            `runtime checkpoint resume rejected: review input '${identity.path}' changed after the checkpoint was created`,
+          );
+        }
+        const raw = checkpointReviewInputJsonObject(bytes);
+        if (raw === undefined || !Object.hasOwn(raw, 'review_assets')) continue;
+        const groups = CheckpointReviewAssetGroupsSchema.parse(raw.review_assets);
+        reported.push(...groups);
+      }
+    } catch (error) {
+      return checkpointResumeRejectedFrom(error);
+    }
+  }
+  let declared: CheckpointReviewAssetGroups;
+  try {
+    declared = CheckpointReviewAssetGroupsSchema.parse(reported);
+  } catch (error) {
+    return checkpointResumeRejectedFrom(error);
+  }
+  if (JSON.stringify(declared) !== JSON.stringify(expected)) {
+    return checkpointResumeRejected(
+      'runtime checkpoint resume rejected: review asset identities do not match the saved review inputs',
+    );
+  }
+  if (expected.length === 0) return checkpointResumeValid(undefined);
+  if (input.requestContext.projectRoot === undefined) {
+    return checkpointResumeRejected(
+      'runtime checkpoint resume rejected: review assets require the saved project root',
+    );
+  }
+  try {
+    verifyCheckpointReviewAssetGroups({
+      projectRoot: input.requestContext.projectRoot,
+      groups: expected,
+    });
+  } catch (error) {
+    return checkpointResumeRejectedFrom(error);
+  }
+  return checkpointResumeValid(undefined);
+}
+
 function executableFlowForResume(input: {
   readonly flow: CompiledFlow;
   readonly bootstrap: TraceEntry;
@@ -517,7 +709,7 @@ export async function resumeCompiledFlowResult(
   // resume's lock via pid-liveness, so a crash never wedges future resumes.
   const lock = acquireResumeLock(options.runDir);
   if (!lock.ok) {
-    return checkpointResumeRejected(lock.message);
+    return checkpointResumeRejected(lock.message, undefined, 'resume_in_progress');
   }
   try {
     return await resumeCompiledFlowResultLocked(options);
@@ -621,14 +813,33 @@ async function resumeCompiledFlowResultLocked(
   }
   if (options.checkpointResponse !== undefined) {
     const response = options.checkpointResponse;
-    if (
-      (response.run_id as unknown as string) !== bootstrapRunId ||
-      (response.step_id as unknown as string) !== stepId ||
-      response.attempt !== attempt ||
-      response.request_sha256 !== requestHash ||
-      response.selection !== options.selection
-    ) {
-      return checkpointResumeRejected(
+    if ((response.run_id as unknown as string) !== bootstrapRunId) {
+      return checkpointResponseRejected(
+        'checkpoint_response_wrong_run',
+        'runtime checkpoint resume rejected: checkpoint response does not match this run and checkpoint',
+      );
+    }
+    if ((response.step_id as unknown as string) !== stepId) {
+      return checkpointResponseRejected(
+        'checkpoint_response_wrong_step',
+        'runtime checkpoint resume rejected: checkpoint response does not match this run and checkpoint',
+      );
+    }
+    if (response.attempt !== attempt) {
+      return checkpointResponseRejected(
+        'checkpoint_response_stale_attempt',
+        'runtime checkpoint resume rejected: checkpoint response does not match this run and checkpoint',
+      );
+    }
+    if (response.request_sha256 !== requestHash) {
+      return checkpointResponseRejected(
+        'checkpoint_response_stale_request',
+        'runtime checkpoint resume rejected: checkpoint response does not match this run and checkpoint',
+      );
+    }
+    if (response.selection !== options.selection) {
+      return checkpointResponseRejected(
+        'checkpoint_response_selection_mismatch',
         'runtime checkpoint resume rejected: checkpoint response does not match this run and checkpoint',
       );
     }
@@ -636,7 +847,8 @@ async function resumeCompiledFlowResultLocked(
       (comment) => comment.scope === 'choice' && !savedChoices.includes(comment.choice_id),
     );
     if (staleComment !== undefined && staleComment.scope === 'choice') {
-      return checkpointResumeRejected(
+      return checkpointResponseRejected(
+        'checkpoint_response_comment_choice_unavailable',
         `runtime checkpoint resume rejected: comment choice '${staleComment.choice_id}' is not available at checkpoint '${stepId}'`,
       );
     }
@@ -701,6 +913,18 @@ async function resumeCompiledFlowResultLocked(
     requestContext,
   });
   if (isCheckpointResumeRejectedResult(reportValidation)) return reportValidation;
+  const reviewInputValidation = validateCheckpointReviewInputsResult({
+    runDir: options.runDir,
+    compiledStep,
+    requestContext,
+  });
+  if (isCheckpointResumeRejectedResult(reviewInputValidation)) return reviewInputValidation;
+  const reviewAssetValidation = validateCheckpointReviewAssetsResult({
+    runDir: options.runDir,
+    compiledStep,
+    requestContext,
+  });
+  if (isCheckpointResumeRejectedResult(reviewAssetValidation)) return reviewAssetValidation;
   const depth = traceString(bootstrap, 'depth');
   const progressSurface = options.progressSurfaceForFlowId?.(flow.id);
 
@@ -769,9 +993,12 @@ async function resumeCompiledFlowResultLocked(
     return checkpointResumeRejected(result.reason, result.error);
   }
   if (isGraphCheckpointWaitingResult(result)) {
-    return checkpointResumeRejected(
-      'runtime checkpoint resume rejected: resume did not resolve checkpoint',
-    );
+    if (result.checkpoint.stepId === stepId && result.checkpoint.attempt === attempt) {
+      return checkpointResumeRejected(
+        'runtime checkpoint resume rejected: resume did not resolve checkpoint',
+      );
+    }
+    return { kind: 'resumed', result };
   }
   return { kind: 'resumed', result: result.result };
 }
@@ -781,5 +1008,10 @@ export async function resumeCompiledFlow(
 ): Promise<GraphRunResult> {
   const result = await resumeCompiledFlowResult(options);
   if (isCheckpointResumeRejectedResult(result)) throw result.error;
+  if (isGraphCheckpointWaitingResult(result.result)) {
+    throw new Error(
+      `runtime run '${result.result.runId}' paused at checkpoint '${result.result.checkpoint.stepId}', which requires checkpoint-aware resume routing`,
+    );
+  }
   return result.result;
 }

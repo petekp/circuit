@@ -184,7 +184,15 @@ export function parseProgressEvents(stderr: string): JsonRecord[] {
 export function shouldInjectPackagedFlowRoot(args: readonly string[]): boolean {
   if (args.includes('--fixture') || args.includes('--flow-root')) return false;
   if (args.includes('--help') || args.includes('-h')) return false;
-  if (args[0] === 'resume' || args.includes('--checkpoint-choice')) return false;
+  if (
+    args[0] === 'resume' ||
+    args.includes('--checkpoint-review') ||
+    args.includes('--checkpoint-choice') ||
+    args.includes('--checkpoint-response') ||
+    args.includes('--checkpoint-response-file')
+  ) {
+    return false;
+  }
   return args[0] === 'run';
 }
 

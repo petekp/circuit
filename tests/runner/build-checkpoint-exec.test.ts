@@ -570,6 +570,12 @@ describe('Build checkpoint execution substrate', () => {
     };
     expect(requestBody.execution_context?.checkpoint_boundary_ref).toEqual(requested.boundary_ref);
     expect(requestBody.execution_context?.checkpoint_boundary_hash).toBe(requested.boundary_hash);
+    expect(requestBody.execution_context?.review_inputs).toEqual([
+      {
+        path: 'reports/build/brief.json',
+        sha256: sha256Hex(readFileSync(join(runFolder, 'reports/build/brief.json'), 'utf8')),
+      },
+    ]);
     const resolved = outcome.trace_entries.find(
       (trace_entry) => trace_entry.kind === 'checkpoint.resolved',
     );

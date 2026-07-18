@@ -5,21 +5,22 @@ import { describe, expect, it } from 'vitest';
 
 import { REPO_ROOT, classify, globToRegExp } from '../../scripts/docs/doc-classes.ts';
 import {
+  committedGeneratedCodeOutputs,
   committedGeneratedOutputs,
   committedRuntimeBundleOutputs,
   generatedMarkdownOutputs,
 } from '../../scripts/generated/committed-generated-outputs.ts';
 
-// The generated-surface guard. Its set is the runtime-bundle code artifacts
+// The generated-surface guard. Its set is the generated runtime code artifacts
 // plus the generated markdown (see committed-generated-outputs.ts for why
 // generated JSON is out of scope — check-flow-drift re-emits and compares that).
 // Every member of this set must be protected from a hand-edit that the next
 // emit would silently overwrite — either by the Edit-deny list in
 // .claude/settings.json (the only option for non-markdown artifacts) or by a
 // `generated` class in docs/doc-classes.json (which routes the doc-rot gates at
-// the generator). The set is derived from the generators, so adding a new
-// runtime-bundle artifact or generated-markdown destination without protecting
-// it fails here instead of shipping editable.
+// the generator). The set is derived from the generators, so adding a registered
+// runtime artifact or generated-markdown destination without protecting it fails
+// here instead of shipping editable.
 
 function denyGlobs(): string[] {
   const raw = JSON.parse(readFileSync(resolve(REPO_ROOT, '.claude/settings.json'), 'utf8')) as {
@@ -49,8 +50,10 @@ describe('generated-surface guard', () => {
   it('derives a non-empty set of committed generated outputs (loud on empty)', () => {
     // 2 runtime bundles + 2 git-state + 2 launcher-core sidecars.
     expect(committedRuntimeBundleOutputs().length).toBe(6);
-    // The runtime artifacts plus the generated markdown (generated-surfaces.md,
-    // the two release docs, and the host command/skill mirrors).
+    // The runtime bundle artifacts plus the checkpoint browser runtime.
+    expect(committedGeneratedCodeOutputs().length).toBe(7);
+    // The generated code plus generated markdown (generated-surfaces.md, the
+    // two release docs, and the host command/skill mirrors).
     expect(committedGeneratedOutputs().length).toBeGreaterThanOrEqual(8);
     expect(generatedMarkdownOutputs().length).toBeGreaterThanOrEqual(2);
   });
@@ -72,12 +75,12 @@ describe('generated-surface guard', () => {
     ).toEqual([]);
   });
 
-  it('protects every non-markdown runtime artifact with the Edit-deny list', () => {
+  it('protects every non-markdown generated artifact with the Edit-deny list', () => {
     // doc-classes only governs markdown, so the .js/.ts runtime artifacts have
     // no fallback: the deny list is the only thing standing between them and a
     // hand-edit the next emit would clobber.
     const globs = denyGlobs();
-    const undenied = committedRuntimeBundleOutputs().filter((path) => !isDenied(path, globs));
-    expect(undenied, 'runtime artifacts missing from the Edit-deny list').toEqual([]);
+    const undenied = committedGeneratedCodeOutputs().filter((path) => !isDenied(path, globs));
+    expect(undenied, 'generated code artifacts missing from the Edit-deny list').toEqual([]);
   });
 });

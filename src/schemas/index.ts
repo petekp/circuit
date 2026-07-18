@@ -5,6 +5,7 @@ export * from './config.js';
 export * from './custom-flow-descriptor.js';
 export * from './checkpoint-boundary.js';
 export * from './checkpoint-review-constraints.js';
+export * from './checkpoint-review-assets.js';
 export * from './checkpoint-review-response.js';
 export * from './change-packet.js';
 export * from './policy-envelope.js';

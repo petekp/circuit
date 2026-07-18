@@ -16,6 +16,7 @@ import {
   ARTIFACT_PREVIEW_STYLE,
   type ArtifactPreview,
   ArtifactPreviewFrame,
+  artifactPreviewFallbackCopy,
   isPreviewableArtifactPath,
   previewForEntryPoints,
   runArtifactPreviewHref,
@@ -410,7 +411,8 @@ function VisualReviewWorkspace({
                   <a
                     className="mv-open-link"
                     data-mv-open=""
-                    href={openHref}
+                    data-artifact-full-size-src={openHref}
+                    href="#mv-artifact"
                     target="_blank"
                     rel="noreferrer"
                   >
@@ -488,15 +490,19 @@ function VisualReviewWorkspace({
           className="mv-dialog"
           data-mv-dialog=""
           aria-labelledby="mv-dialog-title"
-          aria-describedby="mv-dialog-description"
+          aria-describedby="mv-dialog-summary mv-dialog-description"
         >
           <div className="mv-dialog-body">
             <div className="mv-suggested">Finish review</div>
             <h2 id="mv-dialog-title">
               Choose <span data-mv-confirm-title="">{t(defaultVariant.label, 160)}</span>?
             </h2>
-            <p className="mv-dialog-copy" id="mv-dialog-description" data-mv-confirm-summary="">
+            <p className="mv-dialog-copy" id="mv-dialog-summary" data-mv-confirm-summary="">
               0 option comments
+            </p>
+            <p className="mv-dialog-copy" id="mv-dialog-description">
+              Copy the command or export JSON to carry this selection and these notes back to
+              Circuit.
             </p>
             <label className="mv-field-label" htmlFor="mv-overall-comment">
               Note for the run record (optional)
@@ -525,6 +531,9 @@ function VisualReviewWorkspace({
               <button className="mv-primary" type="button" data-mv-copy-decision="">
                 Copy decision command
               </button>
+              <button className="mv-primary" type="button" data-mv-submit-decision="" hidden>
+                Done
+              </button>
             </div>
           </div>
         </dialog>
@@ -549,14 +558,12 @@ function VisualReviewWorkspace({
                   </span>
                 ))}
                 {variant.preview?.status === 'ready' ? (
-                  <a href={variant.preview.href}>Open artifact</a>
+                  <span>Artifact preview available in the live review</span>
                 ) : (
                   <span>
-                    {variant.preview?.status === 'missing'
-                      ? 'Preview file missing'
-                      : variant.preview?.status === 'unsupported'
-                        ? 'Preview format unsupported'
-                        : 'Preview unavailable'}
+                    {variant.preview === undefined
+                      ? 'Preview unavailable'
+                      : artifactPreviewFallbackCopy(variant.preview).title}
                   </span>
                 )}
                 {variant.action === undefined ? null : (

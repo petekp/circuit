@@ -18,6 +18,7 @@ import {
   ARTIFACT_PREVIEW_STYLE,
   type ArtifactPreview,
   ArtifactPreviewFrame,
+  artifactPreviewFallbackCopy,
 } from './artifact-preview.js';
 import { CHECKPOINT_REVIEW_RUNTIME } from './checkpoint-review-runtime.generated.js';
 import { MAX_PROMPT_LEN, truncate } from './page.js';
@@ -256,9 +257,11 @@ function CheckpointPage({ input }: { readonly input: CheckpointPageInput }) {
                     )}
                   </div>
                   {input.artifact.preview.status === 'ready' ? (
+                    // biome-ignore lint/a11y/useValidAnchor: the trusted local review session supplies href when it can serve the captured artifact safely.
                     <a
                       className="cp-open-link"
-                      href={input.artifact.preview.href}
+                      data-artifact-full-size-src={input.artifact.preview.href}
+                      hidden
                       target="_blank"
                       rel="noreferrer"
                     >
@@ -273,9 +276,9 @@ function CheckpointPage({ input }: { readonly input: CheckpointPageInput }) {
                     eager
                   />
                 </div>
-                <p className="cp-artifact-note">
-                  The embedded preview is isolated for safety. Open it full size if a browser
-                  feature is unavailable here.
+                <p className="cp-artifact-note" id="safe-preview-note">
+                  Safe preview: scripts and navigation are off. Full size uses the same safety
+                  limits.
                 </p>
               </section>
             )}
@@ -434,8 +437,8 @@ function CheckpointPage({ input }: { readonly input: CheckpointPageInput }) {
               {input.options.length > 1 ? ` · ${input.options.length - 1} unvisited` : ''}
             </p>
             <p className="cp-dialog-copy" id="cp-dialog-description">
-              Circuit will save your selection and notes with the checkpoint record. Later steps do
-              not read these notes automatically.
+              Copy the command or export JSON to carry this selection and these notes back to
+              Circuit.
             </p>
             <label className="cp-field-label" htmlFor="cp-overall-comment">
               Note for the run record (optional)
@@ -458,8 +461,14 @@ function CheckpointPage({ input }: { readonly input: CheckpointPageInput }) {
               <button className="cp-secondary" type="button" data-cp-close-dialog="">
                 Keep reviewing
               </button>
+              <button className="cp-secondary" type="button" data-cp-export="">
+                Export review JSON
+              </button>
               <button className="cp-primary" type="button" data-cp-copy-decision="">
                 Copy decision command
+              </button>
+              <button className="cp-primary" type="button" data-cp-submit-decision="" hidden>
+                Done
               </button>
             </div>
           </div>
@@ -481,15 +490,9 @@ function CheckpointPage({ input }: { readonly input: CheckpointPageInput }) {
                 <span>{t(input.artifact.description, MAX_PROMPT_LEN)}</span>
               )}
               {input.artifact.preview.status === 'ready' ? (
-                <a href={input.artifact.preview.href}>Open artifact</a>
+                <span>Artifact preview available in the live review</span>
               ) : (
-                <span>
-                  {input.artifact.preview.status === 'missing'
-                    ? 'Preview file missing'
-                    : input.artifact.preview.status === 'unsupported'
-                      ? 'Preview format unsupported'
-                      : 'Preview unavailable'}
-                </span>
+                <span>{artifactPreviewFallbackCopy(input.artifact.preview).title}</span>
               )}
             </section>
           )}

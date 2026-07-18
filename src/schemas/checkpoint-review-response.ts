@@ -29,9 +29,10 @@ export const CheckpointReviewComment = z.discriminatedUnion('scope', [
 ]);
 export type CheckpointReviewComment = z.infer<typeof CheckpointReviewComment>;
 
-// Typed operator feedback prepared by a checkpoint review page. The token
-// carrying this value is only transport; resume still validates the saved run,
-// unresolved checkpoint, and allowed choice before the response is written.
+// Typed operator feedback prepared by a checkpoint review page. The token,
+// explicit response file, and local HTTP request are transport only; resume
+// still validates the saved run, unresolved checkpoint, and allowed choice
+// before the response becomes the canonical checkpoint record.
 export const CheckpointReviewResponse = z
   .object({
     schema: z.literal('checkpoint.review-response@v1'),

@@ -1,5 +1,6 @@
 import { z } from 'zod';
 import { CompiledFlowId, RunId, StageId, StepId } from './ids.js';
+import { Sha256 } from './ref.js';
 import { RunClosedOutcome } from './trace-entry.js';
 
 export const RunStatusEngineState = z.enum([
@@ -57,6 +58,7 @@ const WaitingCheckpointStatus = z
     prompt: z.string().min(1).optional(),
     choices: z.array(CheckpointChoiceStatus).min(1),
     request_path: z.string().min(1).optional(),
+    request_sha256: Sha256.optional(),
   })
   .strict();
 export type WaitingCheckpointStatus = z.infer<typeof WaitingCheckpointStatus>;

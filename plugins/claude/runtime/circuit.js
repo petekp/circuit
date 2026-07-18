@@ -21049,6 +21049,10 @@ function isInsideOrSame(root, target) {
   const fromRoot = relative(root, target);
   return fromRoot === "" || !fromRoot.startsWith("..") && !isAbsolute(fromRoot);
 }
+function checkpointAttemptResponsePath(responsePath, attempt) {
+  const jsonSuffix = ".json";
+  return responsePath.endsWith(jsonSuffix) ? `${responsePath.slice(0, -jsonSuffix.length)}.attempt-${attempt}${jsonSuffix}` : `${responsePath}.attempt-${attempt}.json`;
+}
 function validateRunFilePath(runRelativePath2) {
   const issues = [];
   if (runRelativePath2.trim().length === 0) {
@@ -24417,6 +24421,7 @@ var init_run_status = __esm({
     "use strict";
     init_zod();
     init_ids();
+    init_ref();
     init_trace_entry();
     RunStatusEngineState = external_exports.enum([
       "open",
@@ -24455,7 +24460,8 @@ var init_run_status = __esm({
       attempt: external_exports.number().int().positive(),
       prompt: external_exports.string().min(1).optional(),
       choices: external_exports.array(CheckpointChoiceStatus).min(1),
-      request_path: external_exports.string().min(1).optional()
+      request_path: external_exports.string().min(1).optional(),
+      request_sha256: Sha256.optional()
     }).strict();
     LastRunStatusEvent = external_exports.object({
       sequence: external_exports.number().int().nonnegative(),
@@ -25030,7 +25036,8 @@ function runtimeWaitingCheckpointProjection(input) {
       attempt,
       prompt: presentation.prompt,
       choices,
-      request_path: requestAbs
+      request_path: requestAbs,
+      request_sha256: expectedHash
     },
     last_event: input.event,
     ...input.reportPaths
@@ -29477,10 +29484,10 @@ var require_resolve_block_map = __commonJS({
       let offset = bm.offset;
       let commentEnd = null;
       for (const collItem of bm.items) {
-        const { start, key, sep: sep3, value } = collItem;
+        const { start, key, sep: sep5, value } = collItem;
         const keyProps = resolveProps.resolveProps(start, {
           indicator: "explicit-key-ind",
-          next: key ?? sep3?.[0],
+          next: key ?? sep5?.[0],
           offset,
           onError,
           parentIndent: bm.indent,
@@ -29494,7 +29501,7 @@ var require_resolve_block_map = __commonJS({
             else if ("indent" in key && key.indent !== bm.indent)
               onError(offset, "BAD_INDENT", startColMsg);
           }
-          if (!keyProps.anchor && !keyProps.tag && !sep3) {
+          if (!keyProps.anchor && !keyProps.tag && !sep5) {
             commentEnd = keyProps.end;
             if (keyProps.comment) {
               if (map2.comment)
@@ -29518,7 +29525,7 @@ var require_resolve_block_map = __commonJS({
         ctx.atKey = false;
         if (utilMapIncludes.mapIncludes(ctx, map2.items, keyNode))
           onError(keyStart, "DUPLICATE_KEY", "Map keys must be unique");
-        const valueProps = resolveProps.resolveProps(sep3 ?? [], {
+        const valueProps = resolveProps.resolveProps(sep5 ?? [], {
           indicator: "map-value-ind",
           next: value,
           offset: keyNode.range[2],
@@ -29534,7 +29541,7 @@ var require_resolve_block_map = __commonJS({
             if (ctx.options.strict && keyProps.start < valueProps.found.offset - 1024)
               onError(keyNode.range, "KEY_OVER_1024_CHARS", "The : indicator must be at most 1024 chars after the start of an implicit block mapping key");
           }
-          const valueNode = value ? composeNode(ctx, value, valueProps, onError) : composeEmptyNode(ctx, offset, sep3, null, valueProps, onError);
+          const valueNode = value ? composeNode(ctx, value, valueProps, onError) : composeEmptyNode(ctx, offset, sep5, null, valueProps, onError);
           if (ctx.schema.compat)
             utilFlowIndentCheck.flowIndentCheck(bm.indent, value, onError);
           offset = valueNode.range[2];
@@ -29625,7 +29632,7 @@ var require_resolve_end = __commonJS({
       let comment = "";
       if (end) {
         let hasSpace = false;
-        let sep3 = "";
+        let sep5 = "";
         for (const token of end) {
           const { source, type } = token;
           switch (type) {
@@ -29639,13 +29646,13 @@ var require_resolve_end = __commonJS({
               if (!comment)
                 comment = cb;
               else
-                comment += sep3 + cb;
-              sep3 = "";
+                comment += sep5 + cb;
+              sep5 = "";
               break;
             }
             case "newline":
               if (comment)
-                sep3 += source;
+                sep5 += source;
               hasSpace = true;
               break;
             default:
@@ -29688,18 +29695,18 @@ var require_resolve_flow_collection = __commonJS({
       let offset = fc.offset + fc.start.source.length;
       for (let i = 0; i < fc.items.length; ++i) {
         const collItem = fc.items[i];
-        const { start, key, sep: sep3, value } = collItem;
+        const { start, key, sep: sep5, value } = collItem;
         const props = resolveProps.resolveProps(start, {
           flow: fcName,
           indicator: "explicit-key-ind",
-          next: key ?? sep3?.[0],
+          next: key ?? sep5?.[0],
           offset,
           onError,
           parentIndent: fc.indent,
           startOnNewline: false
         });
         if (!props.found) {
-          if (!props.anchor && !props.tag && !sep3 && !value) {
+          if (!props.anchor && !props.tag && !sep5 && !value) {
             if (i === 0 && props.comma)
               onError(props.comma, "UNEXPECTED_TOKEN", `Unexpected , in ${fcName}`);
             else if (i < fc.items.length - 1)
@@ -29753,8 +29760,8 @@ var require_resolve_flow_collection = __commonJS({
             }
           }
         }
-        if (!isMap && !sep3 && !props.found) {
-          const valueNode = value ? composeNode(ctx, value, props, onError) : composeEmptyNode(ctx, props.end, sep3, null, props, onError);
+        if (!isMap && !sep5 && !props.found) {
+          const valueNode = value ? composeNode(ctx, value, props, onError) : composeEmptyNode(ctx, props.end, sep5, null, props, onError);
           coll.items.push(valueNode);
           offset = valueNode.range[2];
           if (isBlock(value))
@@ -29766,7 +29773,7 @@ var require_resolve_flow_collection = __commonJS({
           if (isBlock(key))
             onError(keyNode.range, "BLOCK_IN_FLOW", blockMsg);
           ctx.atKey = false;
-          const valueProps = resolveProps.resolveProps(sep3 ?? [], {
+          const valueProps = resolveProps.resolveProps(sep5 ?? [], {
             flow: fcName,
             indicator: "map-value-ind",
             next: value,
@@ -29777,8 +29784,8 @@ var require_resolve_flow_collection = __commonJS({
           });
           if (valueProps.found) {
             if (!isMap && !props.found && ctx.options.strict) {
-              if (sep3)
-                for (const st of sep3) {
+              if (sep5)
+                for (const st of sep5) {
                   if (st === valueProps.found)
                     break;
                   if (st.type === "newline") {
@@ -29795,7 +29802,7 @@ var require_resolve_flow_collection = __commonJS({
             else
               onError(valueProps.start, "MISSING_CHAR", `Missing , or : between ${fcName} items`);
           }
-          const valueNode = value ? composeNode(ctx, value, valueProps, onError) : valueProps.found ? composeEmptyNode(ctx, valueProps.end, sep3, null, valueProps, onError) : null;
+          const valueNode = value ? composeNode(ctx, value, valueProps, onError) : valueProps.found ? composeEmptyNode(ctx, valueProps.end, sep5, null, valueProps, onError) : null;
           if (valueNode) {
             if (isBlock(value))
               onError(valueNode.range, "BLOCK_IN_FLOW", blockMsg);
@@ -29975,7 +29982,7 @@ var require_resolve_block_scalar = __commonJS({
           chompStart = i + 1;
       }
       let value = "";
-      let sep3 = "";
+      let sep5 = "";
       let prevMoreIndented = false;
       for (let i = 0; i < contentStart; ++i)
         value += lines[i][0].slice(trimIndent) + "\n";
@@ -29992,24 +29999,24 @@ var require_resolve_block_scalar = __commonJS({
           indent = "";
         }
         if (type === Scalar.Scalar.BLOCK_LITERAL) {
-          value += sep3 + indent.slice(trimIndent) + content;
-          sep3 = "\n";
+          value += sep5 + indent.slice(trimIndent) + content;
+          sep5 = "\n";
         } else if (indent.length > trimIndent || content[0] === "	") {
-          if (sep3 === " ")
-            sep3 = "\n";
-          else if (!prevMoreIndented && sep3 === "\n")
-            sep3 = "\n\n";
-          value += sep3 + indent.slice(trimIndent) + content;
-          sep3 = "\n";
+          if (sep5 === " ")
+            sep5 = "\n";
+          else if (!prevMoreIndented && sep5 === "\n")
+            sep5 = "\n\n";
+          value += sep5 + indent.slice(trimIndent) + content;
+          sep5 = "\n";
           prevMoreIndented = true;
         } else if (content === "") {
-          if (sep3 === "\n")
+          if (sep5 === "\n")
             value += "\n";
           else
-            sep3 = "\n";
+            sep5 = "\n";
         } else {
-          value += sep3 + content;
-          sep3 = " ";
+          value += sep5 + content;
+          sep5 = " ";
           prevMoreIndented = false;
         }
       }
@@ -30191,25 +30198,25 @@ var require_resolve_flow_scalar = __commonJS({
       if (!match)
         return source;
       let res = match[1];
-      let sep3 = " ";
+      let sep5 = " ";
       let pos = first.lastIndex;
       line.lastIndex = pos;
       while (match = line.exec(source)) {
         if (match[1] === "") {
-          if (sep3 === "\n")
-            res += sep3;
+          if (sep5 === "\n")
+            res += sep5;
           else
-            sep3 = "\n";
+            sep5 = "\n";
         } else {
-          res += sep3 + match[1];
-          sep3 = " ";
+          res += sep5 + match[1];
+          sep5 = " ";
         }
         pos = line.lastIndex;
       }
       const last = /[ \t]*(.*)/sy;
       last.lastIndex = pos;
       match = last.exec(source);
-      return res + sep3 + (match?.[1] ?? "");
+      return res + sep5 + (match?.[1] ?? "");
     }
     function doubleQuotedValue(source, onError) {
       let res = "";
@@ -31016,14 +31023,14 @@ var require_cst_stringify = __commonJS({
         }
       }
     }
-    function stringifyItem({ start, key, sep: sep3, value }) {
+    function stringifyItem({ start, key, sep: sep5, value }) {
       let res = "";
       for (const st of start)
         res += st.source;
       if (key)
         res += stringifyToken(key);
-      if (sep3)
-        for (const st of sep3)
+      if (sep5)
+        for (const st of sep5)
           res += st.source;
       if (value)
         res += stringifyToken(value);
@@ -32173,18 +32180,18 @@ var require_parser = __commonJS({
         if (this.type === "map-value-ind") {
           const prev = getPrevProps(this.peek(2));
           const start = getFirstKeyStartProps(prev);
-          let sep3;
+          let sep5;
           if (scalar.end) {
-            sep3 = scalar.end;
-            sep3.push(this.sourceToken);
+            sep5 = scalar.end;
+            sep5.push(this.sourceToken);
             delete scalar.end;
           } else
-            sep3 = [this.sourceToken];
+            sep5 = [this.sourceToken];
           const map2 = {
             type: "block-map",
             offset: scalar.offset,
             indent: scalar.indent,
-            items: [{ start, key: scalar, sep: sep3 }]
+            items: [{ start, key: scalar, sep: sep5 }]
           };
           this.onKeyLine = true;
           this.stack[this.stack.length - 1] = map2;
@@ -32337,15 +32344,15 @@ var require_parser = __commonJS({
                 } else if (isFlowToken(it.key) && !includesToken(it.sep, "newline")) {
                   const start2 = getFirstKeyStartProps(it.start);
                   const key = it.key;
-                  const sep3 = it.sep;
-                  sep3.push(this.sourceToken);
+                  const sep5 = it.sep;
+                  sep5.push(this.sourceToken);
                   delete it.key;
                   delete it.sep;
                   this.stack.push({
                     type: "block-map",
                     offset: this.offset,
                     indent: this.indent,
-                    items: [{ start: start2, key, sep: sep3 }]
+                    items: [{ start: start2, key, sep: sep5 }]
                   });
                 } else if (start.length > 0) {
                   it.sep = it.sep.concat(start, this.sourceToken);
@@ -32539,13 +32546,13 @@ var require_parser = __commonJS({
             const prev = getPrevProps(parent);
             const start = getFirstKeyStartProps(prev);
             fixFlowSeqItems(fc);
-            const sep3 = fc.end.splice(1, fc.end.length);
-            sep3.push(this.sourceToken);
+            const sep5 = fc.end.splice(1, fc.end.length);
+            sep5.push(this.sourceToken);
             const map2 = {
               type: "block-map",
               offset: fc.offset,
               indent: fc.indent,
-              items: [{ start, key: fc, sep: sep3 }]
+              items: [{ start, key: fc, sep: sep5 }]
             };
             this.onKeyLine = true;
             this.stack[this.stack.length - 1] = map2;
@@ -33693,9 +33700,9 @@ function runShow(argv, options) {
     return 0;
   }
   const palette = terminalPalette(colorEnabled());
-  const sep3 = palette.dim("\xB7");
+  const sep5 = palette.dim("\xB7");
   const lines = [
-    `${palette.accent("\u25C6")} ${palette.bold("circuit config")} ${sep3} layered selection config`,
+    `${palette.accent("\u25C6")} ${palette.bold("circuit config")} ${sep5} layered selection config`,
     ""
   ];
   for (const [layerName, filePath] of [
@@ -34854,21 +34861,21 @@ var require_react_development = __commonJS({
         );
         actScopeDepth = prevActScopeDepth;
       }
-      function recursivelyFlushAsyncActWork(returnValue, resolve33, reject) {
+      function recursivelyFlushAsyncActWork(returnValue, resolve36, reject) {
         var queue = ReactSharedInternals.actQueue;
         if (null !== queue)
           if (0 !== queue.length)
             try {
               flushActQueue(queue);
               enqueueTask(function() {
-                return recursivelyFlushAsyncActWork(returnValue, resolve33, reject);
+                return recursivelyFlushAsyncActWork(returnValue, resolve36, reject);
               });
               return;
             } catch (error52) {
               ReactSharedInternals.thrownErrors.push(error52);
             }
           else ReactSharedInternals.actQueue = null;
-        0 < ReactSharedInternals.thrownErrors.length ? (queue = aggregateErrors(ReactSharedInternals.thrownErrors), ReactSharedInternals.thrownErrors.length = 0, reject(queue)) : resolve33(returnValue);
+        0 < ReactSharedInternals.thrownErrors.length ? (queue = aggregateErrors(ReactSharedInternals.thrownErrors), ReactSharedInternals.thrownErrors.length = 0, reject(queue)) : resolve36(returnValue);
       }
       function flushActQueue(queue) {
         if (!isFlushing) {
@@ -35055,7 +35062,7 @@ var require_react_development = __commonJS({
             ));
           });
           return {
-            then: function(resolve33, reject) {
+            then: function(resolve36, reject) {
               didAwaitActCall = true;
               thenable.then(
                 function(returnValue) {
@@ -35065,7 +35072,7 @@ var require_react_development = __commonJS({
                       flushActQueue(queue), enqueueTask(function() {
                         return recursivelyFlushAsyncActWork(
                           returnValue,
-                          resolve33,
+                          resolve36,
                           reject
                         );
                       });
@@ -35079,7 +35086,7 @@ var require_react_development = __commonJS({
                       ReactSharedInternals.thrownErrors.length = 0;
                       reject(_thrownError);
                     }
-                  } else resolve33(returnValue);
+                  } else resolve36(returnValue);
                 },
                 function(error52) {
                   popActScope(prevActQueue, prevActScopeDepth);
@@ -35101,15 +35108,15 @@ var require_react_development = __commonJS({
         if (0 < ReactSharedInternals.thrownErrors.length)
           throw callback = aggregateErrors(ReactSharedInternals.thrownErrors), ReactSharedInternals.thrownErrors.length = 0, callback;
         return {
-          then: function(resolve33, reject) {
+          then: function(resolve36, reject) {
             didAwaitActCall = true;
             0 === prevActScopeDepth ? (ReactSharedInternals.actQueue = queue, enqueueTask(function() {
               return recursivelyFlushAsyncActWork(
                 returnValue$jscomp$0,
-                resolve33,
+                resolve36,
                 reject
               );
-            })) : resolve33(returnValue$jscomp$0);
+            })) : resolve36(returnValue$jscomp$0);
           }
         };
       };
@@ -35680,6 +35687,283 @@ var require_jsx_runtime = __commonJS({
     } else {
       module.exports = require_react_jsx_runtime_development();
     }
+  }
+});
+
+// dist/shared/html/artifact-sanitizer.js
+function localName(name) {
+  return name.slice(name.lastIndexOf(":") + 1);
+}
+function declarationEnd(source, start) {
+  let quote;
+  for (let cursor = start + 2; cursor < source.length; cursor += 1) {
+    const character = source[cursor];
+    if (quote !== void 0) {
+      if (character === quote)
+        quote = void 0;
+    } else if (character === '"' || character === "'") {
+      quote = character;
+    } else if (character === ">") {
+      return cursor + 1;
+    }
+  }
+  return source.length;
+}
+function tagAt(source, start) {
+  if (source[start] !== "<")
+    return void 0;
+  let cursor = start + 1;
+  let closing = false;
+  if (source[cursor] === "/") {
+    closing = true;
+    cursor += 1;
+  }
+  while (/\s/u.test(source[cursor] ?? ""))
+    cursor += 1;
+  const nameStart = cursor;
+  while (/[A-Za-z0-9:-]/u.test(source[cursor] ?? ""))
+    cursor += 1;
+  if (cursor === nameStart)
+    return void 0;
+  const name = source.slice(nameStart, cursor).toLowerCase();
+  const attributes = [];
+  while (cursor < source.length) {
+    const whitespaceStart = cursor;
+    while (/\s/u.test(source[cursor] ?? ""))
+      cursor += 1;
+    const character = source[cursor];
+    if (character === ">") {
+      cursor += 1;
+      break;
+    }
+    if (character === "/" && source[cursor + 1] === ">") {
+      cursor += 2;
+      break;
+    }
+    if (character === void 0)
+      break;
+    const attributeStart = whitespaceStart;
+    const attributeNameStart = cursor;
+    while (!/[\s=/>]/u.test(source[cursor] ?? ">"))
+      cursor += 1;
+    if (cursor === attributeNameStart) {
+      cursor += 1;
+      continue;
+    }
+    const attributeName = source.slice(attributeNameStart, cursor).toLowerCase();
+    while (/\s/u.test(source[cursor] ?? ""))
+      cursor += 1;
+    let value;
+    if (source[cursor] === "=") {
+      cursor += 1;
+      while (/\s/u.test(source[cursor] ?? ""))
+        cursor += 1;
+      const quote = source[cursor] === '"' || source[cursor] === "'" ? source[cursor] : void 0;
+      if (quote !== void 0) {
+        cursor += 1;
+        const valueStart = cursor;
+        while (cursor < source.length && source[cursor] !== quote)
+          cursor += 1;
+        value = source.slice(valueStart, cursor);
+        if (source[cursor] === quote)
+          cursor += 1;
+      } else {
+        const valueStart = cursor;
+        while (!/[\s>]/u.test(source[cursor] ?? ">"))
+          cursor += 1;
+        value = source.slice(valueStart, cursor);
+      }
+    }
+    attributes.push({
+      name: attributeName,
+      value,
+      start: attributeStart - start,
+      end: cursor - start
+    });
+  }
+  return { name, closing, raw: source.slice(start, cursor), end: cursor, attributes };
+}
+function attributeValue(tag, name) {
+  return tag.attributes.find((attribute2) => attribute2.name === name)?.value;
+}
+function decodeAttributeValue(value) {
+  return value.replace(/&(amp|quot|apos|#x27|#39|lt|gt);/giu, (entity) => {
+    switch (entity.toLowerCase()) {
+      case "&amp;":
+        return "&";
+      case "&quot;":
+        return '"';
+      case "&apos;":
+      case "&#x27;":
+      case "&#39;":
+        return "'";
+      case "&lt;":
+        return "<";
+      case "&gt;":
+        return ">";
+      default:
+        return entity;
+    }
+  });
+}
+function safeSvgResourceHref(tag, attribute2, options) {
+  const elementName = localName(tag.name);
+  if (!SVG_RESOURCE_ELEMENTS.has(elementName))
+    return false;
+  if (attribute2.name !== "href" && attribute2.name !== "xlink:href")
+    return false;
+  if (attribute2.value === void 0)
+    return false;
+  const value = decodeAttributeValue(attribute2.value).trim();
+  return value.startsWith("#") || options.allowedResourceUrls?.has(value) === true;
+}
+function sanitizeTag(tag, options) {
+  const elementName = localName(tag.name);
+  if (REMOVED_ELEMENTS.has(elementName) || UNWRAPPED_ELEMENTS.has(elementName))
+    return "";
+  if (tag.closing)
+    return tag.raw;
+  if (elementName === "meta" && attributeValue(tag, "http-equiv")?.trim().toLowerCase() === "refresh") {
+    return "";
+  }
+  if (elementName === "link") {
+    const rel = attributeValue(tag, "rel")?.toLowerCase().split(/\s+/u) ?? [];
+    if (!rel.includes("stylesheet"))
+      return "";
+  }
+  const removed = tag.attributes.filter((attribute2) => {
+    const attributeName = localName(attribute2.name);
+    if (attributeName.startsWith("on"))
+      return true;
+    if (attributeName === "href") {
+      if (safeSvgResourceHref(tag, attribute2, options))
+        return false;
+      if (attribute2.name !== "href")
+        return true;
+      if (tag.name === "link")
+        return false;
+      const fragmentResource = !NAVIGATIONAL_ELEMENTS.has(elementName) && attribute2.value?.startsWith("#") === true;
+      return !fragmentResource;
+    }
+    return REMOVED_ATTRIBUTES.has(attributeName);
+  });
+  if (removed.length === 0)
+    return tag.raw;
+  let output = tag.raw;
+  for (const attribute2 of [...removed].sort((left, right) => right.start - left.start)) {
+    output = `${output.slice(0, attribute2.start)}${output.slice(attribute2.end)}`;
+  }
+  return output;
+}
+function sanitizeArtifactMarkup(source, options = {}) {
+  const normalized = source.replaceAll("\0", "");
+  const openElements = [];
+  let output = "";
+  let cursor = 0;
+  while (cursor < normalized.length) {
+    const start = normalized.indexOf("<", cursor);
+    if (start === -1) {
+      output += normalized.slice(cursor);
+      break;
+    }
+    output += normalized.slice(cursor, start);
+    if (normalized.startsWith("<!--", start)) {
+      const end = normalized.indexOf("-->", start + 4);
+      cursor = end === -1 ? normalized.length : end + 3;
+      continue;
+    }
+    if (normalized.startsWith("<!", start) || normalized.startsWith("<?", start)) {
+      cursor = declarationEnd(normalized, start);
+      continue;
+    }
+    const tag = tagAt(normalized, start);
+    if (tag === void 0) {
+      output += "&lt;";
+      cursor = start + 1;
+      continue;
+    }
+    const elementName = localName(tag.name);
+    const parentNamespace = openElements.at(-1)?.childNamespace ?? "html";
+    const elementNamespace = options.format === "svg" || parentNamespace === "svg" || tag.name === "svg" ? "svg" : "html";
+    const selfClosing = tag.raw.endsWith("/>");
+    output += sanitizeTag(tag, options);
+    cursor = tag.end;
+    if (tag.closing) {
+      let matchingIndex = -1;
+      for (let index = openElements.length - 1; index >= 0; index -= 1) {
+        if (openElements[index]?.name === tag.name) {
+          matchingIndex = index;
+          break;
+        }
+      }
+      if (matchingIndex !== -1)
+        openElements.splice(matchingIndex);
+    } else if (!selfClosing) {
+      openElements.push({
+        name: tag.name,
+        childNamespace: options.format !== "svg" && elementNamespace === "svg" && SVG_HTML_INTEGRATION_POINTS.has(tag.name) ? "html" : elementNamespace
+      });
+    }
+    const svgStyle = elementNamespace === "svg" && elementName === "style" && (options.format === "svg" || tag.name === "style");
+    if (!tag.closing && !selfClosing && svgStyle) {
+      const leading = /^[\t\n\r ]*<!\[CDATA\[/u.exec(normalized.slice(cursor));
+      if (leading !== null) {
+        const contentStart = cursor + leading[0].length;
+        const cdataEnd = normalized.indexOf("]]>", contentStart);
+        if (cdataEnd !== -1) {
+          const closeStart = normalized.toLowerCase().indexOf(`</${tag.name}`, cdataEnd + 3);
+          const between = closeStart === -1 ? void 0 : normalized.slice(cdataEnd + 3, closeStart);
+          const content = normalized.slice(contentStart, cdataEnd);
+          if (closeStart !== -1 && between !== void 0 && /^\s*$/u.test(between) && !/<\/style(?:\s|\/|>)/iu.test(content)) {
+            output += content;
+            cursor = closeStart;
+            continue;
+          }
+        }
+      }
+    }
+    if (!tag.closing && localName(tag.name) === "script") {
+      const closeStart = normalized.toLowerCase().indexOf(`</${tag.name}`, cursor);
+      if (closeStart === -1) {
+        cursor = normalized.length;
+      } else {
+        const close = tagAt(normalized, closeStart);
+        cursor = close?.end ?? normalized.length;
+      }
+    }
+  }
+  return options.format === "svg" ? output : `<!doctype html>${output}`;
+}
+var REMOVED_ELEMENTS, UNWRAPPED_ELEMENTS, NAVIGATIONAL_ELEMENTS, SVG_RESOURCE_ELEMENTS, SVG_HTML_INTEGRATION_POINTS, REMOVED_ATTRIBUTES;
+var init_artifact_sanitizer = __esm({
+  "dist/shared/html/artifact-sanitizer.js"() {
+    "use strict";
+    REMOVED_ELEMENTS = /* @__PURE__ */ new Set([
+      "animate",
+      "animatemotion",
+      "animatetransform",
+      "base",
+      "discard",
+      "embed",
+      "frame",
+      "iframe",
+      "object",
+      "script",
+      "set"
+    ]);
+    UNWRAPPED_ELEMENTS = /* @__PURE__ */ new Set(["form"]);
+    NAVIGATIONAL_ELEMENTS = /* @__PURE__ */ new Set(["a", "area"]);
+    SVG_RESOURCE_ELEMENTS = /* @__PURE__ */ new Set(["image", "use"]);
+    SVG_HTML_INTEGRATION_POINTS = /* @__PURE__ */ new Set(["desc", "foreignobject", "title"]);
+    REMOVED_ATTRIBUTES = /* @__PURE__ */ new Set([
+      "action",
+      "data",
+      "formaction",
+      "ping",
+      "srcdoc",
+      "target",
+      "xlink:href"
+    ]);
   }
 });
 
@@ -46499,7 +46783,7 @@ var require_react_dom_server_node_production = __commonJS({
       };
     }
     exports.prerender = function(children, options) {
-      return new Promise(function(resolve33, reject) {
+      return new Promise(function(resolve36, reject) {
         var onHeaders = options ? options.onHeaders : void 0, onHeadersImpl;
         onHeaders && (onHeadersImpl = function(headersDescriptor) {
           onHeaders(new Headers(headersDescriptor));
@@ -46542,7 +46826,7 @@ var require_react_dom_server_node_production = __commonJS({
               { highWaterMark: 0 }
             );
             stream2 = { postponed: getPostponedState(request), prelude: stream2 };
-            resolve33(stream2);
+            resolve36(stream2);
           },
           void 0,
           void 0,
@@ -46564,7 +46848,7 @@ var require_react_dom_server_node_production = __commonJS({
       });
     };
     exports.prerenderToNodeStream = function(children, options) {
-      return new Promise(function(resolve33, reject) {
+      return new Promise(function(resolve36, reject) {
         var resumableState = createResumableState(
           options ? options.identifierPrefix : void 0,
           options ? options.unstable_externalRuntimeSrc : void 0,
@@ -46595,7 +46879,7 @@ var require_react_dom_server_node_production = __commonJS({
               postponed: getPostponedState(request),
               prelude: readable
             };
-            resolve33(readable);
+            resolve36(readable);
           },
           void 0,
           void 0,
@@ -46651,7 +46935,7 @@ var require_react_dom_server_node_production = __commonJS({
       };
     };
     exports.renderToReadableStream = function(children, options) {
-      return new Promise(function(resolve33, reject) {
+      return new Promise(function(resolve36, reject) {
         var onFatalError, onAllReady, allReady = new Promise(function(res, rej) {
           onAllReady = res;
           onFatalError = rej;
@@ -46700,7 +46984,7 @@ var require_react_dom_server_node_production = __commonJS({
               { highWaterMark: 0 }
             );
             stream2.allReady = allReady;
-            resolve33(stream2);
+            resolve36(stream2);
           },
           function(error52) {
             allReady.catch(function() {
@@ -46726,7 +47010,7 @@ var require_react_dom_server_node_production = __commonJS({
       });
     };
     exports.resume = function(children, postponedState, options) {
-      return new Promise(function(resolve33, reject) {
+      return new Promise(function(resolve36, reject) {
         var onFatalError, onAllReady, allReady = new Promise(function(res, rej) {
           onAllReady = res;
           onFatalError = rej;
@@ -46763,7 +47047,7 @@ var require_react_dom_server_node_production = __commonJS({
               { highWaterMark: 0 }
             );
             stream2.allReady = allReady;
-            resolve33(stream2);
+            resolve36(stream2);
           },
           function(error52) {
             allReady.catch(function() {
@@ -46788,7 +47072,7 @@ var require_react_dom_server_node_production = __commonJS({
       });
     };
     exports.resumeAndPrerender = function(children, postponedState, options) {
-      return new Promise(function(resolve33, reject) {
+      return new Promise(function(resolve36, reject) {
         var request = resumeAndPrerenderRequest(
           children,
           postponedState,
@@ -46819,7 +47103,7 @@ var require_react_dom_server_node_production = __commonJS({
               { highWaterMark: 0 }
             );
             stream2 = { postponed: getPostponedState(request), prelude: stream2 };
-            resolve33(stream2);
+            resolve36(stream2);
           },
           void 0,
           void 0,
@@ -46841,7 +47125,7 @@ var require_react_dom_server_node_production = __commonJS({
       });
     };
     exports.resumeAndPrerenderToNodeStream = function(children, postponedState, options) {
-      return new Promise(function(resolve33, reject) {
+      return new Promise(function(resolve36, reject) {
         var request = resumeAndPrerenderRequest(
           children,
           postponedState,
@@ -46861,7 +47145,7 @@ var require_react_dom_server_node_production = __commonJS({
               }
             }), writable = createFakeWritableFromReadable(readable);
             readable = { postponed: getPostponedState(request), prelude: readable };
-            resolve33(readable);
+            resolve36(readable);
           },
           void 0,
           void 0,
@@ -61488,7 +61772,7 @@ var require_react_dom_server_node_development = __commonJS({
       ensureCorrectIsomorphicReactVersion();
       ensureCorrectIsomorphicReactVersion();
       exports.prerender = function(children, options) {
-        return new Promise(function(resolve33, reject) {
+        return new Promise(function(resolve36, reject) {
           var onHeaders = options ? options.onHeaders : void 0, onHeadersImpl;
           onHeaders && (onHeadersImpl = function(headersDescriptor) {
             onHeaders(new Headers(headersDescriptor));
@@ -61536,7 +61820,7 @@ var require_react_dom_server_node_development = __commonJS({
                 postponed: getPostponedState(request),
                 prelude: stream2
               };
-              resolve33(stream2);
+              resolve36(stream2);
             },
             void 0,
             void 0,
@@ -61558,7 +61842,7 @@ var require_react_dom_server_node_development = __commonJS({
         });
       };
       exports.prerenderToNodeStream = function(children, options) {
-        return new Promise(function(resolve33, reject) {
+        return new Promise(function(resolve36, reject) {
           var resumableState = createResumableState(
             options ? options.identifierPrefix : void 0,
             options ? options.unstable_externalRuntimeSrc : void 0,
@@ -61589,7 +61873,7 @@ var require_react_dom_server_node_development = __commonJS({
                 postponed: getPostponedState(request),
                 prelude: readable
               };
-              resolve33(readable);
+              resolve36(readable);
             },
             void 0,
             void 0,
@@ -61645,7 +61929,7 @@ var require_react_dom_server_node_development = __commonJS({
         };
       };
       exports.renderToReadableStream = function(children, options) {
-        return new Promise(function(resolve33, reject) {
+        return new Promise(function(resolve36, reject) {
           var onFatalError, onAllReady, allReady = new Promise(function(res, rej) {
             onAllReady = res;
             onFatalError = rej;
@@ -61694,7 +61978,7 @@ var require_react_dom_server_node_development = __commonJS({
                 { highWaterMark: 0 }
               );
               stream2.allReady = allReady;
-              resolve33(stream2);
+              resolve36(stream2);
             },
             function(error52) {
               allReady.catch(function() {
@@ -61720,7 +62004,7 @@ var require_react_dom_server_node_development = __commonJS({
         });
       };
       exports.resume = function(children, postponedState, options) {
-        return new Promise(function(resolve33, reject) {
+        return new Promise(function(resolve36, reject) {
           var onFatalError, onAllReady, allReady = new Promise(function(res, rej) {
             onAllReady = res;
             onFatalError = rej;
@@ -61757,7 +62041,7 @@ var require_react_dom_server_node_development = __commonJS({
                 { highWaterMark: 0 }
               );
               stream2.allReady = allReady;
-              resolve33(stream2);
+              resolve36(stream2);
             },
             function(error52) {
               allReady.catch(function() {
@@ -61782,7 +62066,7 @@ var require_react_dom_server_node_development = __commonJS({
         });
       };
       exports.resumeAndPrerender = function(children, postponedState, options) {
-        return new Promise(function(resolve33, reject) {
+        return new Promise(function(resolve36, reject) {
           var request = resumeAndPrerenderRequest(
             children,
             postponedState,
@@ -61815,7 +62099,7 @@ var require_react_dom_server_node_development = __commonJS({
                 { highWaterMark: 0 }
               );
               stream2 = { postponed: getPostponedState(request), prelude: stream2 };
-              resolve33(stream2);
+              resolve36(stream2);
             },
             void 0,
             void 0,
@@ -61837,7 +62121,7 @@ var require_react_dom_server_node_development = __commonJS({
         });
       };
       exports.resumeAndPrerenderToNodeStream = function(children, postponedState, options) {
-        return new Promise(function(resolve33, reject) {
+        return new Promise(function(resolve36, reject) {
           var request = resumeAndPrerenderRequest(
             children,
             postponedState,
@@ -61860,7 +62144,7 @@ var require_react_dom_server_node_development = __commonJS({
                 postponed: getPostponedState(request),
                 prelude: readable
               };
-              resolve33(readable);
+              resolve36(readable);
             },
             void 0,
             void 0,
@@ -61989,9 +62273,18 @@ var init_react_page = __esm({
 
 // dist/shared/html/artifact-preview.js
 import { createHash as createHash4 } from "node:crypto";
-import { constants as constants2, accessSync as accessSync2, lstatSync as lstatSync3, readFileSync as readFileSync11, realpathSync as realpathSync3, statSync as statSync3 } from "node:fs";
-import { dirname as dirname6, isAbsolute as isAbsolute3, relative as relative3, resolve as resolve11, sep as sep2 } from "node:path";
+import { constants as constants2, accessSync as accessSync2, closeSync as closeSync2, fstatSync, lstatSync as lstatSync3, openSync as openSync2, readSync as readSync2, realpathSync as realpathSync3 } from "node:fs";
+import { isAbsolute as isAbsolute3, relative as relative3, resolve as resolve11, sep as sep2 } from "node:path";
 import { pathToFileURL } from "node:url";
+function failPreviewRead(reason) {
+  throw new ArtifactPreviewReadError(reason);
+}
+function unavailablePreview(error52) {
+  return {
+    status: "unavailable",
+    reason: error52 instanceof ArtifactPreviewReadError ? error52.reason : "unreadable"
+  };
+}
 function withoutQueryOrHash(value) {
   const queryIndex = value.search(/[?#]/);
   return queryIndex === -1 ? value : value.slice(0, queryIndex);
@@ -62093,12 +62386,85 @@ function safeReadablePath(location) {
         return void 0;
     }
     const realTarget = realpathSync3.native(target);
-    if (!isInside(realRoot, realTarget) || !statSync3(realTarget).isFile())
+    const identity2 = pathIdentity(realTarget);
+    if (!isInside(realRoot, realTarget) || !identity2.regular)
       return void 0;
     accessSync2(realTarget, constants2.R_OK);
-    return realTarget;
+    return { path: realTarget, identity: identity2 };
   } catch {
     return void 0;
+  }
+}
+function previewFileIdentity(info) {
+  return {
+    device: info.dev,
+    inode: info.ino,
+    size: info.size,
+    modified: info.mtimeNs,
+    changed: info.ctimeNs,
+    regular: info.isFile()
+  };
+}
+function descriptorIdentity(descriptor) {
+  return previewFileIdentity(fstatSync(descriptor, { bigint: true }));
+}
+function pathIdentity(path) {
+  return previewFileIdentity(lstatSync3(path, { bigint: true }));
+}
+function samePreviewFile(left, right) {
+  return left.device === right.device && left.inode === right.inode && left.size === right.size && left.modified === right.modified && left.changed === right.changed && left.regular && right.regular;
+}
+function readBoundedPreviewBytes(descriptor, expectedSize, limit) {
+  if (expectedSize > BigInt(limit))
+    failPreviewRead("too-large");
+  const expectedLength = Number(expectedSize);
+  const bytes = Buffer.allocUnsafe(expectedLength);
+  let total = 0;
+  while (total < expectedLength) {
+    const read = readSync2(descriptor, bytes, total, Math.min(PREVIEW_READ_CHUNK_BYTES, expectedLength - total), null);
+    if (read === 0)
+      failPreviewRead("changed");
+    total += read;
+  }
+  const growthProbe = Buffer.allocUnsafe(1);
+  if (readSync2(descriptor, growthProbe, 0, growthProbe.byteLength, null) !== 0) {
+    failPreviewRead("changed");
+  }
+  return bytes;
+}
+function stablePreviewBytes(input) {
+  let descriptor;
+  try {
+    descriptor = openSync2(input.path, constants2.O_RDONLY | constants2.O_NONBLOCK | constants2.O_NOFOLLOW);
+    const before = descriptorIdentity(descriptor);
+    if (!before.regular)
+      failPreviewRead("unreadable");
+    if (before.size > BigInt(input.byteLimit)) {
+      failPreviewRead("too-large");
+    }
+    if (!samePreviewFile(input.validatedIdentity, before) || !samePreviewFile(before, pathIdentity(input.path))) {
+      failPreviewRead("changed");
+    }
+    const bytes = readBoundedPreviewBytes(descriptor, before.size, input.byteLimit);
+    const after = descriptorIdentity(descriptor);
+    if (!samePreviewFile(before, after) || !samePreviewFile(after, pathIdentity(input.path)) || BigInt(bytes.byteLength) !== before.size) {
+      failPreviewRead("changed");
+    }
+    const sha2564 = createHash4("sha256").update(bytes).digest("hex");
+    if (input.expectedSha256 !== void 0 && sha2564 !== input.expectedSha256) {
+      failPreviewRead("changed");
+    }
+    return bytes;
+  } finally {
+    if (descriptor !== void 0)
+      closeSync2(descriptor);
+  }
+}
+function decodePreviewText(bytes) {
+  try {
+    return new TextDecoder("utf-8", { fatal: true }).decode(bytes);
+  } catch {
+    return failPreviewRead("invalid-text");
   }
 }
 function injectHtmlPreviewBootstrap(source, bootstrap) {
@@ -62116,12 +62482,38 @@ function injectHtmlPreviewBootstrap(source, bootstrap) {
   }
   return `${doctype}<head>${bootstrap}</head>${body}`;
 }
-function embeddedHtmlSnapshot(location) {
-  const source = readFileSync11(location.absolutePath, "utf8");
-  const proof = createHash4("sha256").update(location.absolutePath).update("\0").update(source).digest("hex");
-  const baseHref = pathToFileURL(`${dirname6(location.absolutePath)}${sep2}`).href;
-  const bootstrap = `<base href=${JSON.stringify(baseHref)}><script>(()=>{const announce=()=>parent.postMessage({type:${JSON.stringify(ARTIFACT_PREVIEW_HANDSHAKE)},proof:${JSON.stringify(proof)}},'*');const announceAfterReady=()=>setTimeout(announce,0);if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',announceAfterReady,{once:true});else announceAfterReady();})()</script>`;
-  const html = injectHtmlPreviewBootstrap(source, bootstrap);
+function embeddedHtmlSnapshot(location, validatedIdentity, expectedSha256) {
+  const bytes = stablePreviewBytes({
+    path: location.absolutePath,
+    byteLimit: MAX_EMBEDDED_HTML_BYTES,
+    validatedIdentity,
+    expectedSha256
+  });
+  const source = decodePreviewText(bytes);
+  const proof = createHash4("sha256").update(location.absolutePath).update("\0").update(bytes).digest("hex");
+  const bootstrap = `<meta http-equiv="Content-Security-Policy" content=${JSON.stringify(EMBEDDED_ARTIFACT_PREVIEW_POLICY)}>`;
+  const html = injectHtmlPreviewBootstrap(sanitizeArtifactMarkup(source), bootstrap);
+  return {
+    status: "ready",
+    href: location.href,
+    sourcePath: "",
+    embedded: { base64: Buffer.from(html, "utf8").toString("base64"), proof }
+  };
+}
+function embeddedVisualSnapshot(location, extension2, validatedIdentity, expectedSha256) {
+  const contentType = VISUAL_MIME_BY_EXTENSION.get(extension2);
+  if (contentType === void 0)
+    throw new Error("artifact preview format is unsupported");
+  const original = stablePreviewBytes({
+    path: location.absolutePath,
+    byteLimit: MAX_EMBEDDED_VISUAL_BYTES,
+    validatedIdentity,
+    expectedSha256
+  });
+  const safeBytes = contentType === "image/svg+xml" ? Buffer.from(sanitizeArtifactMarkup(decodePreviewText(original), { format: "svg" }), "utf8") : original;
+  const proof = createHash4("sha256").update(location.absolutePath).update("\0").update(original).digest("hex");
+  const source = `data:${contentType};base64,${safeBytes.toString("base64")}`;
+  const html = `<!doctype html><html><head><meta http-equiv="Content-Security-Policy" content=${JSON.stringify(EMBEDDED_ARTIFACT_PREVIEW_POLICY)}><style>html,body{height:100%;margin:0;background:#fff}body{display:grid;place-items:center}img{display:block;max-width:100%;max-height:100%;object-fit:contain}</style></head><body><img alt="Artifact preview" src=${JSON.stringify(source)}></body></html>`;
   return {
     status: "ready",
     href: location.href,
@@ -62133,7 +62525,13 @@ function previewForEntryPoints(input) {
   if (input.entryPoints.length === 0)
     return { status: "unavailable" };
   let firstMissing;
+  let firstUnavailable;
   for (const entryPoint of input.entryPoints) {
+    const expected = input.expectedFiles?.find((file2) => file2.path === entryPoint);
+    if (input.expectedFiles !== void 0 && expected === void 0) {
+      firstMissing ??= { status: "missing", sourcePath: entryPoint };
+      continue;
+    }
     const location = artifactPreviewLocation({
       entryPath: entryPoint,
       runFolder: input.runFolder,
@@ -62141,64 +62539,154 @@ function previewForEntryPoints(input) {
     });
     if (location === void 0)
       continue;
-    const readablePath = safeReadablePath(location);
-    if (readablePath === void 0) {
+    const readable = safeReadablePath(location);
+    if (readable === void 0) {
       firstMissing ??= { status: "missing", sourcePath: entryPoint };
       continue;
     }
-    const safeLocation = { ...location, absolutePath: readablePath };
+    const safeLocation = { ...location, absolutePath: readable.path };
     const extension2 = extensionForPath(location.absolutePath);
     if (extension2 === ".html" || extension2 === ".htm") {
       try {
-        return { ...embeddedHtmlSnapshot(safeLocation), sourcePath: entryPoint };
-      } catch {
-        firstMissing ??= { status: "missing", sourcePath: entryPoint };
+        return {
+          ...embeddedHtmlSnapshot(safeLocation, readable.identity, expected?.sha256),
+          sourcePath: entryPoint
+        };
+      } catch (error52) {
+        firstUnavailable ??= unavailablePreview(error52);
         continue;
       }
     }
-    return { status: "ready", href: location.href, sourcePath: entryPoint };
+    try {
+      return {
+        ...embeddedVisualSnapshot(safeLocation, extension2, readable.identity, expected?.sha256),
+        sourcePath: entryPoint
+      };
+    } catch (error52) {
+      firstUnavailable ??= unavailablePreview(error52);
+    }
   }
-  return firstMissing ?? { status: "unsupported", sourcePath: input.entryPoints[0] ?? "" };
+  return firstUnavailable ?? firstMissing ?? { status: "unsupported", sourcePath: input.entryPoints[0] ?? "" };
+}
+function artifactPreviewFallbackCopy(preview) {
+  if (preview.status === "missing") {
+    return {
+      title: "Preview file missing",
+      detail: "Circuit could not find or read this reported file. Review the evidence instead.",
+      showSourcePath: true
+    };
+  }
+  if (preview.status === "unsupported") {
+    return {
+      title: "Preview format unsupported",
+      detail: "This entry point cannot be shown in a browser. Review the evidence instead.",
+      showSourcePath: true
+    };
+  }
+  if (preview.status === "unavailable") {
+    if (preview.reason === "too-large") {
+      return {
+        title: "Preview is too large",
+        detail: "This file exceeds the safe preview limit. Review the evidence instead.",
+        showSourcePath: false
+      };
+    }
+    if (preview.reason === "changed") {
+      return {
+        title: "Preview changed",
+        detail: "The reported file changed while Circuit prepared this review. Regenerate the checkpoint before relying on it.",
+        showSourcePath: false
+      };
+    }
+    if (preview.reason === "invalid-text") {
+      return {
+        title: "Preview text could not be read",
+        detail: "This HTML or SVG file is not valid UTF-8. Review the evidence instead.",
+        showSourcePath: false
+      };
+    }
+    if (preview.reason === "unreadable") {
+      return {
+        title: "Preview could not be read",
+        detail: "Circuit could not safely prepare this preview. Review the evidence instead.",
+        showSourcePath: false
+      };
+    }
+    return {
+      title: "Preview unavailable",
+      detail: "This option did not report a browser-viewable entry point.",
+      showSourcePath: false
+    };
+  }
+  return {
+    title: "Preview available",
+    detail: "The artifact is ready to review.",
+    showSourcePath: false
+  };
 }
 function ArtifactPreviewFrame({ preview, title, eager = false }) {
   if (preview.status !== "ready") {
-    const copy = preview.status === "missing" ? {
-      title: "Preview file missing",
-      detail: "Circuit could not find or read this reported file. Review the evidence instead."
-    } : preview.status === "unsupported" ? {
-      title: "Preview format unsupported",
-      detail: "This entry point cannot be shown in a browser. Review the evidence instead."
-    } : {
-      title: "Preview unavailable",
-      detail: "This option did not report a browser-viewable entry point."
-    };
-    return (0, import_jsx_runtime2.jsxs)("div", { className: "ap-empty", "data-artifact-preview-state": preview.status, children: [(0, import_jsx_runtime2.jsx)("strong", { children: copy.title }), (0, import_jsx_runtime2.jsx)("span", { children: copy.detail }), "sourcePath" in preview ? (0, import_jsx_runtime2.jsx)("code", { children: t(preview.sourcePath, MAX_PROMPT_LEN) }) : null] });
+    const copy = artifactPreviewFallbackCopy(preview);
+    return (0, import_jsx_runtime2.jsxs)("div", { className: "ap-empty", "data-artifact-preview-state": preview.status, children: [(0, import_jsx_runtime2.jsx)("strong", { children: copy.title }), (0, import_jsx_runtime2.jsx)("span", { children: copy.detail }), copy.showSourcePath && "sourcePath" in preview ? (0, import_jsx_runtime2.jsx)("code", { children: t(preview.sourcePath, MAX_PROMPT_LEN) }) : null] });
   }
   return (0, import_jsx_runtime2.jsxs)("div", { className: "ap-shell", "data-artifact-preview-shell": "", "data-artifact-preview-state": "loading", "data-mv-preview-shell": "", "data-mv-preview-state": "loading", "aria-busy": "true", children: [(0, import_jsx_runtime2.jsxs)("output", { className: "ap-status", "aria-live": "polite", children: [(0, import_jsx_runtime2.jsx)("strong", { "data-artifact-preview-message": "", children: "Loading preview\u2026" }), (0, import_jsx_runtime2.jsx)("span", { "data-artifact-preview-detail": "", children: "Preparing the local artifact." }), (0, import_jsx_runtime2.jsx)("button", { className: "ap-retry", type: "button", "data-artifact-preview-retry": "", "data-mv-preview-retry": "", hidden: true, children: "Retry preview" })] }), (0, import_jsx_runtime2.jsx)("iframe", { "data-mv-frame": "", "data-mv-preview-src": preview.href, "data-artifact-preview-frame": "", "data-artifact-preview-src": preview.href, ...preview.embedded === void 0 ? {} : {
     "data-artifact-preview-embedded": preview.embedded.base64,
     "data-artifact-preview-proof": preview.embedded.proof
-  }, title: t(title, 220), sandbox: "allow-scripts allow-forms allow-pointer-lock", loading: eager ? "eager" : "lazy" })] });
+  }, title: t(title, 220), sandbox: "", loading: eager ? "eager" : "lazy" }), (0, import_jsx_runtime2.jsx)("p", { className: "ap-safety", children: "Safe preview \xB7 Scripts and links are off" })] });
 }
-var import_jsx_runtime2, ARTIFACT_PREVIEW_HANDSHAKE, PREVIEWABLE_EXTENSIONS, ARTIFACT_PREVIEW_STYLE, ARTIFACT_PREVIEW_SCRIPT;
+var import_jsx_runtime2, EMBEDDED_ARTIFACT_PREVIEW_POLICY, PREVIEWABLE_EXTENSIONS, VISUAL_MIME_BY_EXTENSION, MAX_EMBEDDED_HTML_BYTES, MAX_EMBEDDED_VISUAL_BYTES, PREVIEW_READ_CHUNK_BYTES, ArtifactPreviewReadError, ARTIFACT_PREVIEW_STYLE, ARTIFACT_PREVIEW_SCRIPT;
 var init_artifact_preview = __esm({
   "dist/shared/html/artifact-preview.js"() {
     "use strict";
     import_jsx_runtime2 = __toESM(require_jsx_runtime(), 1);
     init_control_plane_paths();
+    init_artifact_sanitizer();
     init_page();
     init_react_page();
-    ARTIFACT_PREVIEW_HANDSHAKE = "circuit.artifact-preview-ready@v1";
+    EMBEDDED_ARTIFACT_PREVIEW_POLICY = [
+      "default-src 'none'",
+      "script-src 'none'",
+      "style-src 'unsafe-inline'",
+      "img-src data: blob:",
+      "font-src data:",
+      "media-src data: blob:",
+      "connect-src 'none'",
+      "form-action 'none'",
+      "base-uri 'none'",
+      "object-src 'none'",
+      "frame-src 'none'",
+      "child-src 'none'",
+      "worker-src 'none'"
+    ].join("; ");
     PREVIEWABLE_EXTENSIONS = /* @__PURE__ */ new Set([
       ".gif",
       ".htm",
       ".html",
       ".jpeg",
       ".jpg",
-      ".pdf",
       ".png",
       ".svg",
       ".webp"
     ]);
+    VISUAL_MIME_BY_EXTENSION = /* @__PURE__ */ new Map([
+      [".gif", "image/gif"],
+      [".jpeg", "image/jpeg"],
+      [".jpg", "image/jpeg"],
+      [".png", "image/png"],
+      [".svg", "image/svg+xml"],
+      [".webp", "image/webp"]
+    ]);
+    MAX_EMBEDDED_HTML_BYTES = 8 * 1024 * 1024;
+    MAX_EMBEDDED_VISUAL_BYTES = 8 * 1024 * 1024;
+    PREVIEW_READ_CHUNK_BYTES = 64 * 1024;
+    ArtifactPreviewReadError = class extends Error {
+      reason;
+      constructor(reason) {
+        super(reason);
+        this.reason = reason;
+        this.name = "ArtifactPreviewReadError";
+      }
+    };
     ARTIFACT_PREVIEW_STYLE = [
       ".ap-shell{position:absolute;inset:0;min-width:0;background:#fff}",
       ".ap-shell iframe{display:block;width:100%;height:100%;border:0;background:#fff}",
@@ -62207,12 +62695,13 @@ var init_artifact_preview = __esm({
       '.ap-status code{max-width:min(560px,80vw);overflow-wrap:anywhere;color:#52525b;font:500 10px/1.45 ui-monospace,"SF Mono",Menlo,monospace}',
       '.ap-shell[data-artifact-preview-state="ready"] .ap-status{display:none}',
       '.ap-shell[data-artifact-preview-state="failed"] iframe{visibility:hidden}',
+      ".ap-safety{position:absolute;right:10px;bottom:10px;z-index:2;margin:0;border:1px solid #e4e4e7;border-radius:999px;background:rgb(255 255 255/.92);padding:5px 9px;color:#71717a;font:600 10px/1.2 ui-sans-serif,system-ui,sans-serif;box-shadow:0 1px 3px rgb(0 0 0/.08);pointer-events:none}",
       ".ap-retry{min-height:38px;margin-top:4px;border:1px solid #d4d4d8;border-radius:8px;background:#fff;padding:0 13px;color:#18181b;font-size:12px;font-weight:580}",
       ".ap-empty{height:100%;display:grid;place-content:center;gap:10px;padding:28px;background:#fff;color:#71717a;text-align:center}",
       ".ap-empty strong{color:#18181b;font-size:16px}",
       '.ap-empty code{max-width:min(560px,80vw);overflow-wrap:anywhere;color:#52525b;font:500 10px/1.45 ui-monospace,"SF Mono",Menlo,monospace}'
     ].join("");
-    ARTIFACT_PREVIEW_SCRIPT = `(()=>{const type=${JSON.stringify(ARTIFACT_PREVIEW_HANDSHAKE)};const shells=[...document.querySelectorAll('[data-artifact-preview-shell]')];const timeoutMs=8000;const decode=value=>{const binary=atob(value);const bytes=Uint8Array.from(binary,char=>char.charCodeAt(0));return new TextDecoder().decode(bytes);};const state=(shell,value)=>{shell.dataset.artifactPreviewState=value;if(shell.hasAttribute('data-mv-preview-state'))shell.dataset.mvPreviewState=value;};function start(shell){if(shell.dataset.artifactPreviewStarted==='true'&&shell.dataset.artifactPreviewState!=='failed')return;const frame=shell.querySelector('[data-artifact-preview-frame]');const message=shell.querySelector('[data-artifact-preview-message]');const detail=shell.querySelector('[data-artifact-preview-detail]');const retry=shell.querySelector('[data-artifact-preview-retry]');if(!frame||!message||!detail||!retry)return;const generation=String(Number(shell.dataset.artifactPreviewGeneration||'0')+1);shell.dataset.artifactPreviewGeneration=generation;shell.dataset.artifactPreviewStarted='true';state(shell,'loading');shell.setAttribute('aria-busy','true');message.textContent='Loading preview\u2026';detail.textContent='Preparing the local artifact.';retry.hidden=true;let settled=false;const proof=frame.dataset.artifactPreviewProof||'';const embedded=frame.dataset.artifactPreviewEmbedded||'';const source=frame.dataset.artifactPreviewSrc||'';const htmlLike=/\\.html?(?:[?#]|$)/i.test(source);const cleanup=()=>window.removeEventListener('message',onMessage);const timer=setTimeout(()=>fail('Preview took too long to load','You can retry it or open the artifact full size.'),timeoutMs);function finish(){if(settled||shell.dataset.artifactPreviewGeneration!==generation)return;settled=true;clearTimeout(timer);cleanup();state(shell,'ready');shell.setAttribute('aria-busy','false');}function fail(title,copy){if(settled||shell.dataset.artifactPreviewGeneration!==generation)return;settled=true;clearTimeout(timer);cleanup();state(shell,'failed');shell.setAttribute('aria-busy','false');message.textContent=title;detail.textContent=copy;retry.hidden=false;}function onMessage(event){const value=event.data;if(event.source===frame.contentWindow&&proof.length>0&&value&&value.type===type&&value.proof===proof)finish();}window.addEventListener('message',onMessage);frame.addEventListener('error',()=>fail('Preview could not be loaded','You can retry it or open the artifact full size.'),{once:true});if(embedded.length>0){try{frame.srcdoc=decode(embedded);}catch{fail('Preview could not be loaded','The embedded artifact snapshot could not be read. Open it full size instead.');}}else{if(!htmlLike)frame.addEventListener('load',finish,{once:true});frame.src=source;}}shells.forEach(shell=>{const panel=shell.closest('[data-artifact-preview-panel]');const begin=()=>{if(!panel||!panel.hidden)start(shell);};begin();if(panel)new MutationObserver(begin).observe(panel,{attributes:true,attributeFilter:['hidden']});const retry=shell.querySelector('[data-artifact-preview-retry]');if(retry)retry.addEventListener('click',()=>{const frame=shell.querySelector('[data-artifact-preview-frame]');if(!frame)return;const replacement=frame.cloneNode();replacement.removeAttribute('src');replacement.removeAttribute('srcdoc');frame.replaceWith(replacement);shell.dataset.artifactPreviewStarted='false';start(shell);});});})();`;
+    ARTIFACT_PREVIEW_SCRIPT = `(()=>{const shells=[...document.querySelectorAll('[data-artifact-preview-shell]')];const timeoutMs=8000;const retryCopy='You can retry the preview or continue reviewing without it.';const decode=value=>{const binary=atob(value);const bytes=Uint8Array.from(binary,char=>char.charCodeAt(0));return new TextDecoder().decode(bytes);};const state=(shell,value)=>{shell.dataset.artifactPreviewState=value;if(shell.hasAttribute('data-mv-preview-state'))shell.dataset.mvPreviewState=value;};function start(shell){if(shell.dataset.artifactPreviewStarted==='true'&&shell.dataset.artifactPreviewState!=='failed')return;const frame=shell.querySelector('[data-artifact-preview-frame]');const message=shell.querySelector('[data-artifact-preview-message]');const detail=shell.querySelector('[data-artifact-preview-detail]');const retry=shell.querySelector('[data-artifact-preview-retry]');if(!frame||!message||!detail||!retry)return;const generation=String(Number(shell.dataset.artifactPreviewGeneration||'0')+1);shell.dataset.artifactPreviewGeneration=generation;shell.dataset.artifactPreviewStarted='true';state(shell,'loading');shell.setAttribute('aria-busy','true');message.textContent='Loading preview\u2026';detail.textContent='Preparing the local artifact.';retry.hidden=true;let settled=false;const embedded=frame.dataset.artifactPreviewEmbedded||'';const source=frame.dataset.artifactPreviewSrc||'';const timer=setTimeout(()=>fail('Preview took too long to load',retryCopy),timeoutMs);function finish(){if(settled||shell.dataset.artifactPreviewGeneration!==generation)return;settled=true;clearTimeout(timer);state(shell,'ready');shell.setAttribute('aria-busy','false');}function fail(title,copy){if(settled||shell.dataset.artifactPreviewGeneration!==generation)return;settled=true;clearTimeout(timer);state(shell,'failed');shell.setAttribute('aria-busy','false');message.textContent=title;detail.textContent=copy;retry.hidden=false;}frame.addEventListener('load',finish,{once:true});frame.addEventListener('error',()=>fail('Preview could not be loaded',retryCopy),{once:true});if(embedded.length>0){try{frame.srcdoc=decode(embedded);}catch{fail('Preview could not be loaded','The embedded artifact snapshot could not be read. '+retryCopy);}}else{frame.src=source;}}shells.forEach(shell=>{const panel=shell.closest('[data-artifact-preview-panel]');const begin=()=>{if(!panel||!panel.hidden)start(shell);};begin();if(panel)new MutationObserver(begin).observe(panel,{attributes:true,attributeFilter:['hidden']});const retry=shell.querySelector('[data-artifact-preview-retry]');if(retry)retry.addEventListener('click',()=>{const frame=shell.querySelector('[data-artifact-preview-frame]');if(!frame)return;const replacement=frame.cloneNode();replacement.removeAttribute('src');replacement.removeAttribute('srcdoc');frame.replaceWith(replacement);shell.dataset.artifactPreviewStarted='false';start(shell);});});})();`;
   }
 });
 
@@ -62221,7 +62710,7 @@ var CHECKPOINT_REVIEW_RUNTIME;
 var init_checkpoint_review_runtime_generated = __esm({
   "dist/shared/html/checkpoint-review-runtime.generated.js"() {
     "use strict";
-    CHECKPOINT_REVIEW_RUNTIME = '"use strict";(()=>{var U="Too many comments. Keep notes on at most 24 choices, including the overall note.",X="Review notes are too large. Shorten them before preparing the decision.",Y="Each comment can be at most 2,000 characters. Shorten the longer notes before preparing the decision.";function S(e){if(e.comments.length>24)return U;if(new TextEncoder().encode(JSON.stringify(e)).byteLength>6e4)return X;if(e.comments.some(n=>n.body.length>2e3))return Y}var L="checkpoint.review-draft@v1",G="The saved choice is no longer available. Review started from the current default.",Q="This saved draft uses a different version. Review started fresh.";function H(e){return typeof e=="object"&&e!==null&&!Array.isArray(e)}function M(e){return Array.from(new Set(e.filter(t=>t.length>0)))}function x(e){let t=M(e.choiceIds);if(t.length===0)throw new Error("checkpoint review requires at least one choice");return t}function z(e,t){return e.includes(t)?t:e[0]??""}function A(e){return`circuit:checkpoint-review:${e.runId}:${e.stepId}:${e.attempt}:${e.requestSha256}`}function Z(e){let t=x(e),n=z(t,e.defaultSelection);return{schema:L,selection:n,notes:{},overall:"",visited:[n]}}function _(e,t){let n=x(t);if(H(e)){if("schema"in e&&e.schema!==L)return Q;if(typeof e.selection=="string"&&!n.includes(e.selection))return G}}function D(e,t){let n=x(t),r=Z(t);if(!H(e)||"schema"in e&&e.schema!==L)return r;let m=typeof e.selection=="string"&&n.includes(e.selection)?e.selection:r.selection,C=H(e.notes)?Object.fromEntries(Object.entries(e.notes).filter(v=>n.includes(v[0])&&typeof v[1]=="string")):{},E=typeof e.overall=="string"?e.overall:"",o=Array.isArray(e.visited)?Array.from(new Set(e.visited.filter(v=>typeof v=="string"&&n.includes(v)))):[];return o.includes(m)||o.push(m),{schema:L,selection:m,notes:C,overall:E,visited:o}}function O(e,t,n){if(!n.includes(t))return e;let r=e.visited.includes(t)?e.visited:[...e.visited,t];return e.selection===t&&r===e.visited?e:{...e,selection:t,visited:r}}function b(e,t,n,r){return!r.includes(t)||e.notes[t]===n?e:{...e,notes:{...e.notes,[t]:n}}}function I(e,t){return e.overall===t?e:{...e,overall:t}}function N(e,t){let n=M(t);return{choiceCommentCount:n.filter(r=>(e.notes[r]??"").trim().length>0).length,hasOverallComment:e.overall.trim().length>0,unvisitedCount:n.filter(r=>!e.visited.includes(r)).length}}function B(e,t,n){let r=M(n);if(!r.includes(e.selection))throw new Error(`checkpoint review selection \'${e.selection}\' is unavailable`);let m=[];for(let E of r){let o=(e.notes[E]??"").trim();o.length>0&&m.push({scope:"choice",choice_id:E,body:o})}let C=e.overall.trim();return C.length>0&&m.push({scope:"overall",body:C}),{schema:"checkpoint.review-response@v1",run_id:t.runId,step_id:t.stepId,attempt:t.attempt,request_sha256:t.requestSha256,selection:e.selection,comments:m}}function l(e,t){return e.querySelector(t)}function f(e,t){return Array.from(e.querySelectorAll(t))}function W(e,t){let n=e.findIndex(r=>r.id===t);return n<0?0:n}function ee(e,t){return(e%t+t)%t}function K(e,t){return(e.notes[t]??"").trim().length>0?1:0}function q(e,t){e!==null&&(e.textContent=String(t),e.hidden=t===0)}function te(e){let t=f(e,"[data-cp-option]"),n=t.map(s=>({id:s.dataset.cpChoiceId??"",label:s.dataset.cpLabel??s.dataset.cpChoiceId??"",description:s.dataset.cpDescription??"",previewHref:"",control:s})),r=n[0];if(r===void 0)return;let m=t.find(s=>s.checked),C=f(e,"[data-cp-option-detail]"),E=l(e,"[data-cp-selected-label]"),o=l(e,"[data-cp-selected-description]"),v=l(e,"[data-cp-footer-label]"),w=l(e,"[data-cp-live]"),y={root:e,choices:n,defaultSelection:m?.dataset.cpChoiceId??r.id,comment:l(e,"[data-cp-comment]"),overall:l(e,"[data-cp-overall-comment]"),saveState:l(e,"[data-cp-save-state]"),dialog:l(e,"[data-cp-dialog]"),confirmTitle:l(e,"[data-cp-confirm-title]"),confirmSummary:l(e,"[data-cp-confirm-summary]"),command:l(e,"[data-cp-command]"),commandState:l(e,"[data-cp-command-state]"),finishButtons:f(e,"[data-cp-finish]"),closeButtons:f(e,"[data-cp-close-dialog]"),copyButtons:f(e,"[data-cp-copy-decision]"),exportButtons:f(e,"[data-cp-export]"),previousButtons:f(e,"[data-cp-previous]"),nextButtons:f(e,"[data-cp-next]"),renderSelection(s,c){let d=n.find(p=>p.id===s.selection)??r;for(let p of n){let u=p.id===d.id,h=p.control;h.checked=u,h.tabIndex=u?0:-1}for(let p of C)p.hidden=p.dataset.cpChoiceId!==d.id;y.comment!==null&&(y.comment.value=s.notes[d.id]??""),E!==null&&(E.textContent=d.label),o!==null&&(o.textContent=d.description,o.hidden=d.description.length===0),v!==null&&(v.textContent=d.label),c.announce&&w!==null&&(w.textContent=`${d.label} selected`),y.refreshNoteBadges(s),c.focus&&d.control.focus()},refreshNoteBadges(s){for(let c of n){let d=c.control.closest(".cp-option");q(l(d??c.control,"[data-cp-note-count]"),K(s,c.id))}}};return y}function ne(e){let t=f(e,"[data-mv-option]"),n=t.map(c=>({id:c.dataset.mvVariantId??"",label:c.dataset.mvLabel??c.dataset.mvVariantId??"",description:"",previewHref:c.dataset.mvPreviewSrc??"",control:c})),r=n[0];if(r===void 0)return;let m=t.find(c=>c.getAttribute("aria-selected")==="true"),C=f(e,"[data-mv-panel]"),E=f(e,"[data-mv-inspector]"),o=l(e,"[data-mv-stage-title]"),v=l(e,"[data-mv-position]"),w=l(e,"[data-mv-open]"),y=l(e,"[data-mv-live]"),s={root:e,choices:n,defaultSelection:m?.dataset.mvVariantId??r.id,comment:l(e,"[data-mv-comment]"),overall:l(e,"[data-mv-overall-comment]"),saveState:l(e,"[data-mv-save-state]"),dialog:l(e,"[data-mv-dialog]"),confirmTitle:l(e,"[data-mv-confirm-title]"),confirmSummary:l(e,"[data-mv-confirm-summary]"),command:l(e,"[data-mv-command]"),commandState:l(e,"[data-mv-command-state]"),finishButtons:f(e,"[data-mv-finish]"),closeButtons:f(e,"[data-mv-close-dialog]"),copyButtons:f(e,"[data-mv-copy-decision]"),exportButtons:f(e,"[data-mv-export]"),previousButtons:f(e,"[data-mv-previous]"),nextButtons:f(e,"[data-mv-next]"),renderSelection(c,d){let p=W(n,c.selection),u=n[p]??r;for(let h of n){let R=h.id===u.id;h.control.setAttribute("aria-selected",String(R)),h.control.tabIndex=R?0:-1}for(let h of C)h.hidden=h.dataset.mvVariantId!==u.id;for(let h of E)h.hidden=h.dataset.mvVariantId!==u.id;s.comment!==null&&(s.comment.value=c.notes[u.id]??""),o!==null&&(o.textContent=u.label),v!==null&&(v.textContent=`${p+1} of ${n.length}`),w!==null&&(w.hidden=u.previewHref.length===0,u.previewHref.length>0?w.href=u.previewHref:w.removeAttribute("href")),d.announce&&y!==null&&(y.textContent=`${u.label} selected`),s.refreshNoteBadges(c),d.focus&&u.control.focus()},refreshNoteBadges(c){for(let d of n)q(l(d.control,"[data-mv-note-count]"),K(c,d.id))}};return s}function oe(e){return{runId:e.dataset.runId??"",stepId:e.dataset.stepId??"",attempt:Number(e.dataset.attempt??"0"),requestSha256:e.dataset.requestSha256??""}}function ie(e,t){let n;try{n=window.localStorage.getItem(e)}catch{return t!==null&&(t.textContent="Draft won\\u2019t survive reload"),{saved:void 0,storageAvailable:!1}}if(n===null)return{saved:void 0,storageAvailable:!0};try{return{saved:JSON.parse(n),storageAvailable:!0}}catch{return t!==null&&(t.textContent="Saved draft couldn\\u2019t be read. Starting fresh."),{saved:void 0,storageAvailable:!0}}}function re(e){let t=new TextEncoder().encode(JSON.stringify(e)),n="";for(let r of t)n+=String.fromCharCode(r);return`ckr1.${btoa(n).replace(/\\+/g,"-").replace(/\\//g,"_").replace(/=+$/g,"")}`}function V(e){return`\'${e.replace(/\'/g,"\'\\\\\'\'")}\'`}function ce(e,t){let n=N(e,t),r=`${n.choiceCommentCount} option ${n.choiceCommentCount===1?"comment":"comments"}`,m=n.hasOverallComment?"Overall note added":"No overall note",C=n.unvisitedCount===0?"All options visited":`${n.unvisitedCount} ${n.unvisitedCount===1?"option":"options"} unvisited`;return`${r} \\xB7 ${m} \\xB7 ${C}`}function j(e){let t=oe(e.root),n=e.choices.map(i=>i.id),r=A(t),m=ie(r,e.saveState),C=m.storageAvailable,E=_(m.saved,{choiceIds:n,defaultSelection:e.defaultSelection}),o=D(m.saved,{choiceIds:n,defaultSelection:e.defaultSelection});E!==void 0&&e.saveState!==null&&(e.saveState.textContent=E);let v=null;function w(){let i=v;v=null,i?.focus()}function y(){if(!C){e.saveState!==null&&(e.saveState.textContent="Draft won\\u2019t survive reload");return}try{window.localStorage.setItem(r,JSON.stringify(o)),e.saveState!==null&&(e.saveState.textContent="Saved in this browser")}catch{C=!1,e.saveState!==null&&(e.saveState.textContent="Draft won\\u2019t survive reload")}}function s(){e.command!==null&&(e.command.hidden=!0,e.command.textContent=""),e.commandState!==null&&(e.commandState.textContent="")}function c(){let i=e.choices.find(a=>a.id===o.selection);e.confirmTitle!==null&&(e.confirmTitle.textContent=i?.label??o.selection),e.confirmSummary!==null&&(e.confirmSummary.textContent=ce(o,n))}function d(){e.comment!==null&&(o=b(o,o.selection,e.comment.value,n)),e.overall!==null&&(o=I(o,e.overall.value))}function p(i,a){d(),o=O(o,i,n),e.renderSelection(o,{focus:a,announce:!0}),c(),y(),s()}function u(i,a){let g=W(e.choices,o.selection),k=e.choices[ee(g+i,e.choices.length)];k!==void 0&&p(k.id,a)}function h(){return d(),B(o,t,n)}function R(i){e.command!==null&&(e.command.hidden=!0,e.command.textContent=""),e.commandState!==null&&(e.commandState.textContent=i)}async function F(){let i=h();y(),c();let a=S(i);if(a!==void 0){R(a);return}let g=e.root.dataset.resumePrefix??"circuit resume",k=e.root.dataset.runFolder??"",T=`${g} --run-folder ${V(k)} --checkpoint-response ${V(re(i))}`;e.command!==null&&(e.command.textContent=T,e.command.hidden=!1);try{if(navigator.clipboard===void 0)throw new Error("clipboard unavailable");await navigator.clipboard.writeText(T),e.commandState!==null&&(e.commandState.textContent="Decision prepared \\u2014 paste the command in your terminal.")}catch{e.commandState!==null&&(e.commandState.textContent="Decision prepared \\u2014 copy the command shown above.")}}function J(){let i=h();y(),c();let a=S(i);if(a!==void 0){R(a);return}let g=new Blob([`${JSON.stringify(i,null,2)}\n`],{type:"application/json"}),k=URL.createObjectURL(g),T=document.createElement("a");T.href=k,T.download="checkpoint-review.json",document.body.append(T),T.click(),T.remove(),window.setTimeout(()=>URL.revokeObjectURL(k),0)}e.overall!==null&&(e.overall.value=o.overall),e.renderSelection(o,{focus:!1,announce:!1}),c();for(let i of e.choices)i.control.addEventListener("click",()=>p(i.id,!1)),i.control.addEventListener("keydown",a=>{if(a.key==="ArrowRight"||a.key==="ArrowDown")a.preventDefault(),u(1,!0);else if(a.key==="ArrowLeft"||a.key==="ArrowUp")a.preventDefault(),u(-1,!0);else if(a.key==="Home"){a.preventDefault();let g=e.choices[0];g!==void 0&&p(g.id,!0)}else if(a.key==="End"){a.preventDefault();let g=e.choices[e.choices.length-1];g!==void 0&&p(g.id,!0)}});for(let i of e.previousButtons)i.addEventListener("click",()=>u(-1,!1));for(let i of e.nextButtons)i.addEventListener("click",()=>u(1,!1));e.comment!==null&&e.comment.addEventListener("input",()=>{o=b(o,o.selection,e.comment?.value??"",n),e.refreshNoteBadges(o),c(),y(),s()}),e.overall!==null&&e.overall.addEventListener("input",()=>{o=I(o,e.overall?.value??""),c(),y(),s()}),e.dialog?.addEventListener("close",w);for(let i of e.finishButtons)i.addEventListener("click",()=>{v=i,d(),y(),c(),e.dialog!==null&&typeof e.dialog.showModal=="function"?e.dialog.showModal():e.dialog?.setAttribute("open","")});for(let i of e.closeButtons)i.addEventListener("click",()=>{e.dialog!==null&&typeof e.dialog.close=="function"?e.dialog.close():(e.dialog?.removeAttribute("open"),w())});for(let i of e.copyButtons)i.addEventListener("click",()=>{F()});for(let i of e.exportButtons)i.addEventListener("click",J)}var P=document.querySelector("[data-cp-workspace]");if(P!==null){let e=te(P);e!==void 0&&j(e)}var $=document.querySelector("[data-mv-workspace]");if($!==null){let e=ne($);e!==void 0&&j(e)}})();';
+    CHECKPOINT_REVIEW_RUNTIME = '"use strict";(()=>{var ie="Too many comments. Keep notes on at most 24 choices, including the overall note.",re="Review notes are too large. Shorten them before preparing the decision.",se="Each comment can be at most 2,000 characters. Shorten the longer notes before preparing the decision.";function L(e){if(e.comments.length>24)return ie;if(new TextEncoder().encode(JSON.stringify(e)).byteLength>6e4)return re;if(e.comments.some(t=>t.body.length>2e3))return se}var H="checkpoint.review-draft@v1",le="The saved choice is no longer available. Review started from the current default.",ce="This saved draft uses a different version. Review started fresh.";function x(e){return typeof e=="object"&&e!==null&&!Array.isArray(e)}function A(e){return Array.from(new Set(e.filter(n=>n.length>0)))}function D(e){let n=A(e.choiceIds);if(n.length===0)throw new Error("checkpoint review requires at least one choice");return n}function ae(e,n){return e.includes(n)?n:e[0]??""}function V(e){return`circuit:checkpoint-review:${e.runId}:${e.stepId}:${e.attempt}:${e.requestSha256}`}function de(e){let n=D(e),t=ae(n,e.defaultSelection);return{schema:H,selection:t,notes:{},overall:"",visited:[t]}}function W(e,n){let t=D(n);if(x(e)){if("schema"in e&&e.schema!==H)return ce;if(typeof e.selection=="string"&&!t.includes(e.selection))return le}}function $(e,n){let t=D(n),i=de(n);if(!x(e)||"schema"in e&&e.schema!==H)return i;let u=typeof e.selection=="string"&&t.includes(e.selection)?e.selection:i.selection,v=x(e.notes)?Object.fromEntries(Object.entries(e.notes).filter(s=>t.includes(s[0])&&typeof s[1]=="string")):{},C=typeof e.overall=="string"?e.overall:"",g=Array.isArray(e.visited)?Array.from(new Set(e.visited.filter(s=>typeof s=="string"&&t.includes(s)))):[];return g.includes(u)||g.push(u),{schema:H,selection:u,notes:v,overall:C,visited:g}}function q(e,n,t){if(!t.includes(n))return e;let i=e.visited.includes(n)?e.visited:[...e.visited,n];return e.selection===n&&i===e.visited?e:{...e,selection:n,visited:i}}function B(e,n,t,i){return!i.includes(n)||e.notes[n]===t?e:{...e,notes:{...e.notes,[n]:t}}}function O(e,n){return e.overall===n?e:{...e,overall:n}}function K(e,n){let t=A(n);return{choiceCommentCount:t.filter(i=>(e.notes[i]??"").trim().length>0).length,hasOverallComment:e.overall.trim().length>0,unvisitedCount:t.filter(i=>!e.visited.includes(i)).length}}function j(e,n,t){let i=A(t);if(!i.includes(e.selection))throw new Error(`checkpoint review selection \'${e.selection}\' is unavailable`);let u=[];for(let C of i){let g=(e.notes[C]??"").trim();g.length>0&&u.push({scope:"choice",choice_id:C,body:g})}let v=e.overall.trim();return v.length>0&&u.push({scope:"overall",body:v}),{schema:"checkpoint.review-response@v1",run_id:n.runId,step_id:n.stepId,attempt:n.attempt,request_sha256:n.requestSha256,selection:e.selection,comments:u}}function l(e,n){return e.querySelector(n)}function p(e,n){return Array.from(e.querySelectorAll(n))}function X(e,n){let t=e.findIndex(i=>i.id===n);return t<0?0:t}function ue(e,n){return(e%n+n)%n}function Y(e,n){return(e.notes[n]??"").trim().length>0?1:0}function G(e,n){e!==null&&(e.textContent=String(n),e.hidden=n===0)}function me(e){let n=p(e,"[data-cp-option]"),t=n.map(c=>({id:c.dataset.cpChoiceId??"",label:c.dataset.cpLabel??c.dataset.cpChoiceId??"",description:c.dataset.cpDescription??"",previewHref:"",control:c})),i=t[0];if(i===void 0)return;let u=n.find(c=>c.checked),v=p(e,"[data-cp-option-detail]"),C=l(e,"[data-cp-selected-label]"),g=l(e,"[data-cp-selected-description]"),s=l(e,"[data-cp-footer-label]"),b=l(e,"[data-cp-live]"),E={root:e,choices:t,defaultSelection:u?.dataset.cpChoiceId??i.id,comment:l(e,"[data-cp-comment]"),overall:l(e,"[data-cp-overall-comment]"),saveState:l(e,"[data-cp-save-state]"),dialog:l(e,"[data-cp-dialog]"),confirmTitle:l(e,"[data-cp-confirm-title]"),confirmSummary:l(e,"[data-cp-confirm-summary]"),command:l(e,"[data-cp-command]"),commandState:l(e,"[data-cp-command-state]"),dialogDescription:l(e,"#cp-dialog-description"),finishButtons:p(e,"[data-cp-finish]"),closeButtons:p(e,"[data-cp-close-dialog]"),copyButtons:p(e,"[data-cp-copy-decision]"),exportButtons:p(e,"[data-cp-export]"),submitButtons:p(e,"[data-cp-submit-decision]"),previousButtons:p(e,"[data-cp-previous]"),nextButtons:p(e,"[data-cp-next]"),primaryClass:"cp-primary",secondaryClass:"cp-secondary",renderSelection(c,a){let f=t.find(h=>h.id===c.selection)??i;for(let h of t){let y=h.id===f.id,d=h.control;d.checked=y,d.tabIndex=y?0:-1}for(let h of v)h.hidden=h.dataset.cpChoiceId!==f.id;E.comment!==null&&(E.comment.value=c.notes[f.id]??""),C!==null&&(C.textContent=f.label),g!==null&&(g.textContent=f.description,g.hidden=f.description.length===0),s!==null&&(s.textContent=f.label),a.announce&&b!==null&&(b.textContent=`${f.label} selected`),E.refreshNoteBadges(c),a.focus&&f.control.focus()},refreshNoteBadges(c){for(let a of t){let f=a.control.closest(".cp-option");G(l(f??a.control,"[data-cp-note-count]"),Y(c,a.id))}}};return E}function fe(e){let n=p(e,"[data-mv-option]"),t=n.map(a=>({id:a.dataset.mvVariantId??"",label:a.dataset.mvLabel??a.dataset.mvVariantId??"",description:"",previewHref:a.dataset.mvPreviewSrc??"",control:a})),i=t[0];if(i===void 0)return;let u=n.find(a=>a.getAttribute("aria-selected")==="true"),v=p(e,"[data-mv-panel]"),C=p(e,"[data-mv-inspector]"),g=l(e,"[data-mv-stage-title]"),s=l(e,"[data-mv-position]"),b=l(e,"[data-mv-open]"),E=l(e,"[data-mv-live]"),c={root:e,choices:t,defaultSelection:u?.dataset.mvVariantId??i.id,comment:l(e,"[data-mv-comment]"),overall:l(e,"[data-mv-overall-comment]"),saveState:l(e,"[data-mv-save-state]"),dialog:l(e,"[data-mv-dialog]"),confirmTitle:l(e,"[data-mv-confirm-title]"),confirmSummary:l(e,"[data-mv-confirm-summary]"),command:l(e,"[data-mv-command]"),commandState:l(e,"[data-mv-command-state]"),dialogDescription:l(e,"#mv-dialog-description"),finishButtons:p(e,"[data-mv-finish]"),closeButtons:p(e,"[data-mv-close-dialog]"),copyButtons:p(e,"[data-mv-copy-decision]"),exportButtons:p(e,"[data-mv-export]"),submitButtons:p(e,"[data-mv-submit-decision]"),previousButtons:p(e,"[data-mv-previous]"),nextButtons:p(e,"[data-mv-next]"),primaryClass:"mv-primary",secondaryClass:"mv-secondary",renderSelection(a,f){let h=X(t,a.selection),y=t[h]??i;for(let d of t){let T=d.id===y.id;d.control.setAttribute("aria-selected",String(T)),d.control.tabIndex=T?0:-1}for(let d of v)d.hidden=d.dataset.mvVariantId!==y.id;for(let d of C)d.hidden=d.dataset.mvVariantId!==y.id;if(c.comment!==null&&(c.comment.value=a.notes[y.id]??""),g!==null&&(g.textContent=y.label),s!==null&&(s.textContent=`${h+1} of ${t.length}`),b!==null){let d=e.dataset.reviewSession==="active";b.hidden=!d||y.previewHref.length===0,d&&y.previewHref.length>0?b.href=y.previewHref:b.removeAttribute("href")}f.announce&&E!==null&&(E.textContent=`${y.label} selected`),c.refreshNoteBadges(a),f.focus&&y.control.focus()},refreshNoteBadges(a){for(let f of t)G(l(f.control,"[data-mv-note-count]"),Y(a,f.id))}};return c}function ve(e){return{runId:e.dataset.runId??"",stepId:e.dataset.stepId??"",attempt:Number(e.dataset.attempt??"0"),requestSha256:e.dataset.requestSha256??""}}function pe(e,n){if(typeof n!="object"||n===null||Array.isArray(n))return!1;let t=n;return t.runId===e.runId&&t.stepId===e.stepId&&t.attempt===e.attempt&&t.requestSha256===e.requestSha256}function he(e){let n=window.__CIRCUIT_REVIEW_SESSION__;if(typeof n!="object"||n===null||Array.isArray(n))return;let t=n;if(!(typeof t.endpoint!="string"||t.endpoint.length===0||t.endpoint.length>2048||typeof t.authorization!="string"||t.authorization.length===0||t.authorization.length>512||!pe(e,t.identity)))try{let i=new URL(t.endpoint,window.location.href);if(i.origin!==window.location.origin)return;let u=i.protocol==="http:"&&i.hostname==="127.0.0.1",v=i.protocol==="file:"&&window.location.protocol==="file:";return!u&&!v?void 0:{endpoint:i.href,authorization:t.authorization}}catch{return}}function ye(e,n){return n==="checkpoint_review_not_persisted"?"Circuit couldn\\u2019t prove the review reached the run record. Inspect the run, then use the manual fallback below.":n==="resume_failed"?"Circuit couldn\\u2019t continue the run. Try again, or use the manual fallback below.":n==="resume_in_progress"?"Another resume is already in progress. Wait for it to finish, then try again.":n==="stale_review"||n==="checkpoint_response_wrong_run"||n==="checkpoint_response_wrong_step"||n==="checkpoint_response_stale_attempt"||n==="checkpoint_response_stale_request"?"This review is stale. Reload the current checkpoint and try again.":n==="choice_unavailable"||n==="checkpoint_response_comment_choice_unavailable"?"A reviewed choice is no longer available. Reload the current checkpoint and try again.":e===401||e===403?"This review session expired. Reopen the checkpoint or use the manual fallback below.":e===409?"This review is no longer waiting. Refresh the page or use the manual fallback below.":e===413?"Review notes are too large. Shorten them and try again.":"Circuit couldn\\u2019t save the review. Try again, or use the manual fallback below."}async function z(e){if(!e.headers.get("content-type")?.toLowerCase().startsWith("application/json"))return{};let n=await e.text();if(n.length>1024)return{};try{let t=JSON.parse(n);if(typeof t!="object"||t===null||Array.isArray(t))return{};let i=t,u=i.code,v=i.terminal;return{...typeof u=="string"&&/^[a-z][a-z0-9._-]{0,63}$/.test(u)?{code:u}:{},...typeof v=="boolean"?{terminal:v}:{}}}catch{return{}}}async function ge(e){for(let n=0;n<2;n+=1){let t;try{t=await e()}catch(i){if(n===0)continue;throw i}if(!t.ok)try{return{response:t,reply:await z(t),retried:n>0}}catch{return{response:t,reply:{},retried:n>0}}try{return{response:t,reply:await z(t),retried:n>0}}catch(i){if(n===0)continue;throw i}}throw new Error("checkpoint review submission retry was exhausted")}function we(e,n){let t;try{t=window.localStorage.getItem(e)}catch{return n!==null&&(n.textContent="Draft won\\u2019t survive reload"),{saved:void 0,storageAvailable:!1}}if(t===null)return{saved:void 0,storageAvailable:!0};try{return{saved:JSON.parse(t),storageAvailable:!0}}catch{return n!==null&&(n.textContent="Saved draft couldn\\u2019t be read. Starting fresh."),{saved:void 0,storageAvailable:!0}}}function Ce(e){let n=new TextEncoder().encode(JSON.stringify(e)),t="";for(let i of n)t+=String.fromCharCode(i);return`ckr1.${btoa(t).replace(/\\+/g,"-").replace(/\\//g,"_").replace(/=+$/g,"")}`}function U(e){return`\'${e.replace(/\'/g,"\'\\\\\'\'")}\'`}function Ee(e,n){let t=K(e,n),i=`${t.choiceCommentCount} option ${t.choiceCommentCount===1?"comment":"comments"}`,u=t.hasOverallComment?"Overall note added":"No overall note",v=t.unvisitedCount===0?"All options visited":`${t.unvisitedCount} ${t.unvisitedCount===1?"option":"options"} unvisited`;return`${i} \\xB7 ${u} \\xB7 ${v}`}function Q(e){let n=ve(e.root),t=he(n),i=e.choices.map(o=>o.id),u=V(n),v=we(u,e.saveState),C=v.storageAvailable,g=W(v.saved,{choiceIds:i,defaultSelection:e.defaultSelection}),s=$(v.saved,{choiceIds:i,defaultSelection:e.defaultSelection});g!==void 0&&e.saveState!==null&&(e.saveState.textContent=g);let b=null,E="idle";function c(o,r){for(let m of o)(m instanceof HTMLButtonElement||m instanceof HTMLInputElement||m instanceof HTMLTextAreaElement)&&(m.disabled=r)}function a(o){E=o;let r=o==="saving"||o==="saved",m=o==="saving"?"Saving\\u2026":o==="saved"?"Review saved":o==="failed"?"Try again":"Done";for(let w of e.submitButtons)w.textContent=o==="terminal"?"Review not saved":m,w.disabled=r||o==="terminal";c(e.copyButtons,r),c(e.exportButtons,r),c(e.previousButtons,r),c(e.nextButtons,r),c([...e.choices.map(w=>w.control),...e.comment===null?[]:[e.comment]],r),c(e.closeButtons,o==="saving"),c(e.finishButtons,o==="saved"),e.overall!==null&&(e.overall.disabled=r),o==="saving"?e.dialog?.setAttribute("aria-busy","true"):e.dialog?.removeAttribute("aria-busy")}if(t!==void 0){e.root.dataset.reviewSession="active",e.dialogDescription!==null&&(e.dialogDescription.textContent="Done saves this selection and these notes with the checkpoint record, then Circuit continues the run.");for(let o of e.submitButtons)o.hidden=!1;for(let o of e.copyButtons)o.classList.remove(e.primaryClass),o.classList.add(e.secondaryClass);a("idle")}function f(){let o=b;b=null,o?.focus()}function h(){if(!C){e.saveState!==null&&(e.saveState.textContent="Draft won\\u2019t survive reload");return}try{window.localStorage.setItem(u,JSON.stringify(s)),e.saveState!==null&&(e.saveState.textContent="Saved in this browser")}catch{C=!1,e.saveState!==null&&(e.saveState.textContent="Draft won\\u2019t survive reload")}}function y(){e.command!==null&&(e.command.hidden=!0,e.command.textContent=""),e.commandState!==null&&(e.commandState.textContent="")}function d(){let o=e.choices.find(r=>r.id===s.selection);e.confirmTitle!==null&&(e.confirmTitle.textContent=o?.label??s.selection),e.confirmSummary!==null&&(e.confirmSummary.textContent=Ee(s,i))}function T(){e.comment!==null&&(s=B(s,s.selection,e.comment.value,i)),e.overall!==null&&(s=O(s,e.overall.value))}function k(o,r){T(),s=q(s,o,i),e.renderSelection(s,{focus:r,announce:!0}),d(),h(),y()}function S(o,r){let m=X(e.choices,s.selection),w=e.choices[ue(m+o,e.choices.length)];w!==void 0&&k(w.id,r)}function M(){return T(),j(s,n,i)}function _(o){e.command!==null&&(e.command.hidden=!0,e.command.textContent=""),e.commandState!==null&&(e.commandState.textContent=o)}async function Z(){let o=M();h(),d();let r=L(o);if(r!==void 0){_(r);return}let m=e.root.dataset.resumePrefix??"circuit resume",w=e.root.dataset.runFolder??"",R=`${m} --run-folder ${U(w)} --checkpoint-response ${U(Ce(o))}`;e.command!==null&&(e.command.textContent=R,e.command.hidden=!1);try{if(navigator.clipboard===void 0)throw new Error("clipboard unavailable");await navigator.clipboard.writeText(R),e.commandState!==null&&(e.commandState.textContent="Decision prepared \\u2014 paste the command in your terminal.")}catch{e.commandState!==null&&(e.commandState.textContent="Decision prepared \\u2014 copy the command shown above.")}}async function ee(){if(t===void 0||E==="saving"||E==="saved")return;let o=M();h(),d();let r=L(o);if(r!==void 0){a("idle"),_(r);return}y(),a("saving"),e.commandState!==null&&(e.commandState.textContent="Saving your review\\u2026");let m,w,R;try{let te=JSON.stringify(o),N=()=>window.fetch(t.endpoint,{method:"POST",headers:{"Content-Type":"application/json","X-Circuit-Review-Session":t.authorization},body:te,cache:"no-store",credentials:"same-origin",redirect:"error",referrerPolicy:"no-referrer"}),{response:P,reply:I,retried:oe}=await ge(N);if(!P.ok)throw m=P.status,w=I.code,R=I.terminal,new Error("checkpoint review submission rejected");oe||N().catch(()=>{}),a("saved"),e.commandState!==null&&(e.commandState.textContent=I.code==="resume_failed_after_save"?"Review saved, but Circuit could not finish continuing the run. Inspect the run status.":"Review saved. Circuit is continuing.")}catch{a(R===!0?"terminal":"failed"),e.commandState!==null&&(e.commandState.textContent=ye(m,w))}}function ne(){let o=M();h(),d();let r=L(o);if(r!==void 0){_(r);return}let m=new Blob([`${JSON.stringify(o,null,2)}\n`],{type:"application/json"}),w=URL.createObjectURL(m),R=document.createElement("a");R.href=w,R.download="checkpoint-review.json",document.body.append(R),R.click(),R.remove(),window.setTimeout(()=>URL.revokeObjectURL(w),0)}e.overall!==null&&(e.overall.value=s.overall),e.renderSelection(s,{focus:!1,announce:!1}),d();for(let o of e.choices)o.control.addEventListener("click",()=>k(o.id,!1)),o.control.addEventListener("keydown",r=>{if(r.key==="ArrowRight"||r.key==="ArrowDown")r.preventDefault(),S(1,!0);else if(r.key==="ArrowLeft"||r.key==="ArrowUp")r.preventDefault(),S(-1,!0);else if(r.key==="Home"){r.preventDefault();let m=e.choices[0];m!==void 0&&k(m.id,!0)}else if(r.key==="End"){r.preventDefault();let m=e.choices[e.choices.length-1];m!==void 0&&k(m.id,!0)}});for(let o of e.previousButtons)o.addEventListener("click",()=>S(-1,!1));for(let o of e.nextButtons)o.addEventListener("click",()=>S(1,!1));e.comment!==null&&e.comment.addEventListener("input",()=>{s=B(s,s.selection,e.comment?.value??"",i),e.refreshNoteBadges(s),d(),h(),y()}),e.overall!==null&&e.overall.addEventListener("input",()=>{s=O(s,e.overall?.value??""),d(),h(),y()}),e.dialog?.addEventListener("close",f),e.dialog?.addEventListener("cancel",o=>{E==="saving"&&o.preventDefault()});for(let o of e.finishButtons)o.addEventListener("click",()=>{b=o,T(),h(),d(),e.dialog!==null&&typeof e.dialog.showModal=="function"?e.dialog.showModal():e.dialog?.setAttribute("open","")});for(let o of e.closeButtons)o.addEventListener("click",()=>{e.dialog!==null&&typeof e.dialog.close=="function"?e.dialog.close():(e.dialog?.removeAttribute("open"),f())});for(let o of e.copyButtons)o.addEventListener("click",()=>{Z()});for(let o of e.exportButtons)o.addEventListener("click",ne);for(let o of e.submitButtons)o.addEventListener("click",()=>{ee()})}var F=document.querySelector("[data-cp-workspace]");if(F!==null){let e=me(F);e!==void 0&&Q(e)}var J=document.querySelector("[data-mv-workspace]");if(J!==null){let e=fe(J);e!==void 0&&Q(e)}})();';
   }
 });
 
@@ -62241,10 +62730,13 @@ function CheckpointPage({ input }) {
   if (selected === void 0)
     return null;
   const subtitle = input.subtitle ?? "Review the choices, add context if useful, then prepare your decision.";
-  return (0, import_jsx_runtime3.jsxs)("div", { className: "cp-wrap", "data-cp-workspace": "", "data-run-folder": input.resume.runFolder, "data-resume-prefix": input.resume.commandPrefix, "data-run-id": input.meta.runId, "data-step-id": input.meta.stepId, "data-attempt": input.resume.attempt, "data-request-sha256": input.resume.requestSha256, children: [(0, import_jsx_runtime3.jsxs)("div", { "data-cp-interactive": "", children: [(0, import_jsx_runtime3.jsx)("a", { className: "cp-skip", href: "#cp-options", children: "Skip to choices" }), (0, import_jsx_runtime3.jsx)("a", { className: "cp-skip", href: "#cp-comment", children: "Skip to review note" }), (0, import_jsx_runtime3.jsxs)("div", { className: `cp-shell${input.artifact === void 0 ? "" : " cp-shell-artifact"}`, children: [(0, import_jsx_runtime3.jsxs)("header", { className: "cp-topbar", children: [(0, import_jsx_runtime3.jsxs)("div", { className: "cp-brand", children: ["Circuit \xB7 ", t(input.meta.flowLabel, 120)] }), (0, import_jsx_runtime3.jsx)("div", { className: "cp-state", children: "Waiting for your review" })] }), (0, import_jsx_runtime3.jsxs)("section", { className: "cp-hero", children: [input.ribbon.length === 0 ? null : (0, import_jsx_runtime3.jsx)("div", { className: "cp-ribbon", children: input.ribbon.map((tag) => (0, import_jsx_runtime3.jsx)("span", { className: "cp-pill", children: t(tag, 120) }, tag)) }), (0, import_jsx_runtime3.jsx)("h1", { children: t(input.question, MAX_PROMPT_LEN) }), (0, import_jsx_runtime3.jsx)("p", { className: "cp-subtitle", children: t(subtitle, MAX_PROMPT_LEN) })] }), (0, import_jsx_runtime3.jsxs)("main", { className: `cp-layout${input.artifact === void 0 ? "" : " cp-layout-artifact"}`, children: [input.artifact === void 0 ? null : (0, import_jsx_runtime3.jsxs)("section", { className: "cp-card cp-artifact", "aria-label": "Artifact preview", "data-artifact-preview-panel": "", children: [(0, import_jsx_runtime3.jsxs)("div", { className: "cp-artifact-bar", children: [(0, import_jsx_runtime3.jsxs)("div", { className: "cp-artifact-title", children: [(0, import_jsx_runtime3.jsx)("strong", { children: t(input.artifact.title, MAX_PROMPT_LEN) }), input.artifact.description === void 0 ? null : (0, import_jsx_runtime3.jsx)("span", { children: t(input.artifact.description, MAX_PROMPT_LEN) })] }), input.artifact.preview.status === "ready" ? (0, import_jsx_runtime3.jsx)("a", { className: "cp-open-link", href: input.artifact.preview.href, target: "_blank", rel: "noreferrer", children: "Open full size \u2197" }) : null] }), (0, import_jsx_runtime3.jsx)("div", { className: "cp-artifact-canvas", children: (0, import_jsx_runtime3.jsx)(ArtifactPreviewFrame, { preview: input.artifact.preview, title: `${t(input.artifact.title, MAX_PROMPT_LEN)} artifact preview`, eager: true }) }), (0, import_jsx_runtime3.jsx)("p", { className: "cp-artifact-note", children: "The embedded preview is isolated for safety. Open it full size if a browser feature is unavailable here." })] }), (0, import_jsx_runtime3.jsxs)("section", { className: "cp-card", id: "cp-options", "aria-labelledby": "cp-options-heading", tabIndex: -1, children: [(0, import_jsx_runtime3.jsxs)("div", { className: "cp-list-head", children: [(0, import_jsx_runtime3.jsx)("span", { className: "cp-eyebrow", id: "cp-options-heading", children: "Choose one" }), (0, import_jsx_runtime3.jsxs)("span", { className: "cp-eyebrow", children: [input.options.length, " ", input.options.length === 1 ? "option" : "options"] })] }), (0, import_jsx_runtime3.jsx)("div", { className: "cp-list", role: "radiogroup", "aria-label": "Checkpoint choices", children: input.options.map((option, index) => {
+  return (0, import_jsx_runtime3.jsxs)("div", { className: "cp-wrap", "data-cp-workspace": "", "data-run-folder": input.resume.runFolder, "data-resume-prefix": input.resume.commandPrefix, "data-run-id": input.meta.runId, "data-step-id": input.meta.stepId, "data-attempt": input.resume.attempt, "data-request-sha256": input.resume.requestSha256, children: [(0, import_jsx_runtime3.jsxs)("div", { "data-cp-interactive": "", children: [(0, import_jsx_runtime3.jsx)("a", { className: "cp-skip", href: "#cp-options", children: "Skip to choices" }), (0, import_jsx_runtime3.jsx)("a", { className: "cp-skip", href: "#cp-comment", children: "Skip to review note" }), (0, import_jsx_runtime3.jsxs)("div", { className: `cp-shell${input.artifact === void 0 ? "" : " cp-shell-artifact"}`, children: [(0, import_jsx_runtime3.jsxs)("header", { className: "cp-topbar", children: [(0, import_jsx_runtime3.jsxs)("div", { className: "cp-brand", children: ["Circuit \xB7 ", t(input.meta.flowLabel, 120)] }), (0, import_jsx_runtime3.jsx)("div", { className: "cp-state", children: "Waiting for your review" })] }), (0, import_jsx_runtime3.jsxs)("section", { className: "cp-hero", children: [input.ribbon.length === 0 ? null : (0, import_jsx_runtime3.jsx)("div", { className: "cp-ribbon", children: input.ribbon.map((tag) => (0, import_jsx_runtime3.jsx)("span", { className: "cp-pill", children: t(tag, 120) }, tag)) }), (0, import_jsx_runtime3.jsx)("h1", { children: t(input.question, MAX_PROMPT_LEN) }), (0, import_jsx_runtime3.jsx)("p", { className: "cp-subtitle", children: t(subtitle, MAX_PROMPT_LEN) })] }), (0, import_jsx_runtime3.jsxs)("main", { className: `cp-layout${input.artifact === void 0 ? "" : " cp-layout-artifact"}`, children: [input.artifact === void 0 ? null : (0, import_jsx_runtime3.jsxs)("section", { className: "cp-card cp-artifact", "aria-label": "Artifact preview", "data-artifact-preview-panel": "", children: [(0, import_jsx_runtime3.jsxs)("div", { className: "cp-artifact-bar", children: [(0, import_jsx_runtime3.jsxs)("div", { className: "cp-artifact-title", children: [(0, import_jsx_runtime3.jsx)("strong", { children: t(input.artifact.title, MAX_PROMPT_LEN) }), input.artifact.description === void 0 ? null : (0, import_jsx_runtime3.jsx)("span", { children: t(input.artifact.description, MAX_PROMPT_LEN) })] }), input.artifact.preview.status === "ready" ? (
+    // biome-ignore lint/a11y/useValidAnchor: the trusted local review session supplies href when it can serve the captured artifact safely.
+    (0, import_jsx_runtime3.jsx)("a", { className: "cp-open-link", "data-artifact-full-size-src": input.artifact.preview.href, hidden: true, target: "_blank", rel: "noreferrer", children: "Open full size \u2197" })
+  ) : null] }), (0, import_jsx_runtime3.jsx)("div", { className: "cp-artifact-canvas", children: (0, import_jsx_runtime3.jsx)(ArtifactPreviewFrame, { preview: input.artifact.preview, title: `${t(input.artifact.title, MAX_PROMPT_LEN)} artifact preview`, eager: true }) }), (0, import_jsx_runtime3.jsx)("p", { className: "cp-artifact-note", id: "safe-preview-note", children: "Safe preview: scripts and navigation are off. Full size uses the same safety limits." })] }), (0, import_jsx_runtime3.jsxs)("section", { className: "cp-card", id: "cp-options", "aria-labelledby": "cp-options-heading", tabIndex: -1, children: [(0, import_jsx_runtime3.jsxs)("div", { className: "cp-list-head", children: [(0, import_jsx_runtime3.jsx)("span", { className: "cp-eyebrow", id: "cp-options-heading", children: "Choose one" }), (0, import_jsx_runtime3.jsxs)("span", { className: "cp-eyebrow", children: [input.options.length, " ", input.options.length === 1 ? "option" : "options"] })] }), (0, import_jsx_runtime3.jsx)("div", { className: "cp-list", role: "radiogroup", "aria-label": "Checkpoint choices", children: input.options.map((option, index) => {
     const isSelected = index === selectedIndex;
     return (0, import_jsx_runtime3.jsxs)("label", { className: "cp-option", children: [(0, import_jsx_runtime3.jsx)("input", { className: "cp-native-radio", type: "radio", name: "checkpoint-choice", value: option.id, defaultChecked: isSelected, tabIndex: isSelected ? 0 : -1, "data-cp-option": "", "data-cp-choice-id": option.id, "data-cp-label": t(option.label, MAX_PROMPT_LEN), "data-cp-description": t(option.description ?? "", MAX_PROMPT_LEN) }), (0, import_jsx_runtime3.jsx)("span", { className: "cp-radio", "aria-hidden": "true" }), (0, import_jsx_runtime3.jsxs)("span", { className: "cp-option-copy", children: [(0, import_jsx_runtime3.jsx)("span", { className: "cp-option-title", children: t(option.label, MAX_PROMPT_LEN) }), option.description === void 0 ? null : (0, import_jsx_runtime3.jsx)("span", { className: "cp-option-description", children: t(option.description, MAX_PROMPT_LEN) })] }), (0, import_jsx_runtime3.jsxs)("span", { className: "cp-badges", children: [option.isRecommended === true ? (0, import_jsx_runtime3.jsx)("span", { className: "cp-badge cp-recommended", children: "Suggested" }) : null, option.isDefault === true ? (0, import_jsx_runtime3.jsx)("span", { className: "cp-badge", children: "Default" }) : null, (0, import_jsx_runtime3.jsx)("span", { className: "cp-badge", "data-cp-note-count": "", hidden: true, children: "0 notes" })] })] }, option.id);
-  }) }), (0, import_jsx_runtime3.jsxs)("div", { className: "cp-default", children: [(0, import_jsx_runtime3.jsx)("strong", { children: "If you do nothing: " }), input.defaultChoice === void 0 ? (0, import_jsx_runtime3.jsx)(import_jsx_runtime3.Fragment, { children: "the run stays parked here until you choose." }) : (0, import_jsx_runtime3.jsxs)(import_jsx_runtime3.Fragment, { children: ["the run stays parked here. The declared default is", " ", t(input.defaultChoice.label, MAX_PROMPT_LEN), "."] })] })] }), (0, import_jsx_runtime3.jsxs)("aside", { className: "cp-card cp-inspector", "aria-label": "Decision notes", children: [(0, import_jsx_runtime3.jsxs)("div", { className: "cp-inspector-main", children: [(0, import_jsx_runtime3.jsx)("div", { className: "cp-eyebrow", children: "Your current choice" }), (0, import_jsx_runtime3.jsx)("h2", { "data-cp-selected-label": "", children: t(selected.label, MAX_PROMPT_LEN) }), (0, import_jsx_runtime3.jsx)("p", { className: "cp-selection-description", "data-cp-selected-description": "", hidden: selected.description === void 0, children: t(selected.description ?? "", MAX_PROMPT_LEN) }), (0, import_jsx_runtime3.jsx)("label", { className: "cp-field-label", htmlFor: "cp-comment", children: "Review note for this choice (optional)" }), (0, import_jsx_runtime3.jsx)("textarea", { className: "cp-comment", id: "cp-comment", "data-cp-comment": "", maxLength: 2e3, placeholder: "Record why you made this choice." }), (0, import_jsx_runtime3.jsx)("div", { className: "cp-save-state", "data-cp-save-state": "", children: "Saved in this browser" }), input.options.map((option, index) => (0, import_jsx_runtime3.jsx)(OptionDetail, { option, selected: index === selectedIndex }, option.id))] }), input.recommendation?.rationale === void 0 ? null : (0, import_jsx_runtime3.jsxs)("details", { className: "cp-disclosure", children: [(0, import_jsx_runtime3.jsxs)("summary", { children: ["Why Circuit suggested ", t(input.recommendation.label, MAX_PROMPT_LEN)] }), (0, import_jsx_runtime3.jsx)("div", { className: "cp-disclosure-body", children: t(input.recommendation.rationale, MAX_PROMPT_LEN) })] }), input.context === void 0 ? null : (0, import_jsx_runtime3.jsxs)("details", { className: "cp-disclosure", children: [(0, import_jsx_runtime3.jsx)("summary", { children: "Review context" }), (0, import_jsx_runtime3.jsx)("div", { className: "cp-disclosure-body", children: input.context })] }), input.appendix === void 0 ? null : (0, import_jsx_runtime3.jsxs)("details", { className: "cp-disclosure", children: [(0, import_jsx_runtime3.jsx)("summary", { children: "Full evidence" }), (0, import_jsx_runtime3.jsx)("div", { className: "cp-disclosure-body", children: input.appendix })] })] })] }), (0, import_jsx_runtime3.jsxs)("div", { className: "cp-meta", children: [t(input.footerLeft ?? `circuit \xB7 ${input.meta.stepId} \xB7 ${input.meta.runId}`, 300), input.footerRight === void 0 ? null : (0, import_jsx_runtime3.jsxs)(import_jsx_runtime3.Fragment, { children: [" \xB7 ", t(input.footerRight, 300)] })] })] }), (0, import_jsx_runtime3.jsx)("footer", { className: "cp-footer", children: (0, import_jsx_runtime3.jsxs)("div", { className: "cp-footer-inner", children: [(0, import_jsx_runtime3.jsxs)("div", { className: "cp-footer-choice", children: [(0, import_jsx_runtime3.jsx)("small", { children: "Selected" }), (0, import_jsx_runtime3.jsx)("strong", { "data-cp-footer-label": "", children: t(selected.label, MAX_PROMPT_LEN) })] }), (0, import_jsx_runtime3.jsx)("button", { className: "cp-primary", type: "button", "data-cp-finish": "", children: "Review decision" })] }) }), (0, import_jsx_runtime3.jsx)("dialog", { className: "cp-dialog", "data-cp-dialog": "", "aria-labelledby": "cp-dialog-title", "aria-describedby": "cp-dialog-summary cp-dialog-description", children: (0, import_jsx_runtime3.jsxs)("div", { className: "cp-dialog-body", children: [(0, import_jsx_runtime3.jsx)("div", { className: "cp-eyebrow", children: "Finish review" }), (0, import_jsx_runtime3.jsxs)("h2", { id: "cp-dialog-title", children: ["Choose ", (0, import_jsx_runtime3.jsx)("span", { "data-cp-confirm-title": "", children: t(selected.label, MAX_PROMPT_LEN) }), "?"] }), (0, import_jsx_runtime3.jsxs)("p", { className: "cp-dialog-summary", id: "cp-dialog-summary", "data-cp-confirm-summary": "", children: ["0 option comments", input.options.length > 1 ? ` \xB7 ${input.options.length - 1} unvisited` : ""] }), (0, import_jsx_runtime3.jsx)("p", { className: "cp-dialog-copy", id: "cp-dialog-description", children: "Circuit will save your selection and notes with the checkpoint record. Later steps do not read these notes automatically." }), (0, import_jsx_runtime3.jsx)("label", { className: "cp-field-label", htmlFor: "cp-overall-comment", children: "Note for the run record (optional)" }), (0, import_jsx_runtime3.jsx)("textarea", { className: "cp-comment", id: "cp-overall-comment", "data-cp-overall-comment": "", maxLength: 2e3, placeholder: "Add any context you want saved with this review." }), (0, import_jsx_runtime3.jsx)("code", { className: "cp-command", "data-cp-command": "", hidden: true }), (0, import_jsx_runtime3.jsx)("div", { className: "cp-command-state", "data-cp-command-state": "", role: "status", "aria-live": "polite" }), (0, import_jsx_runtime3.jsxs)("div", { className: "cp-dialog-actions", children: [(0, import_jsx_runtime3.jsx)("button", { className: "cp-secondary", type: "button", "data-cp-close-dialog": "", children: "Keep reviewing" }), (0, import_jsx_runtime3.jsx)("button", { className: "cp-primary", type: "button", "data-cp-copy-decision": "", children: "Copy decision command" })] })] }) }), (0, import_jsx_runtime3.jsx)("div", { className: "cp-live", "aria-live": "polite", "data-cp-live": "" })] }), (0, import_jsx_runtime3.jsxs)("noscript", { children: [(0, import_jsx_runtime3.jsx)("style", { children: "[data-cp-interactive]{display:none!important}" }), (0, import_jsx_runtime3.jsxs)("div", { className: "cp-noscript", children: [(0, import_jsx_runtime3.jsx)("h1", { children: t(input.question, MAX_PROMPT_LEN) }), (0, import_jsx_runtime3.jsx)("p", { children: "JavaScript is off. These commands record the choice only; comments require the full review page." }), input.artifact === void 0 ? null : (0, import_jsx_runtime3.jsxs)("section", { className: "cp-noscript-option cp-noscript-artifact", children: [(0, import_jsx_runtime3.jsx)("strong", { children: t(input.artifact.title, MAX_PROMPT_LEN) }), input.artifact.description === void 0 ? null : (0, import_jsx_runtime3.jsx)("span", { children: t(input.artifact.description, MAX_PROMPT_LEN) }), input.artifact.preview.status === "ready" ? (0, import_jsx_runtime3.jsx)("a", { href: input.artifact.preview.href, children: "Open artifact" }) : (0, import_jsx_runtime3.jsx)("span", { children: input.artifact.preview.status === "missing" ? "Preview file missing" : input.artifact.preview.status === "unsupported" ? "Preview format unsupported" : "Preview unavailable" })] }), (0, import_jsx_runtime3.jsx)("div", { className: "cp-noscript-list", children: input.options.map((option) => (0, import_jsx_runtime3.jsxs)("section", { className: "cp-noscript-option", children: [(0, import_jsx_runtime3.jsx)("strong", { children: t(option.label, MAX_PROMPT_LEN) }), option.description === void 0 ? null : (0, import_jsx_runtime3.jsx)("span", { children: t(option.description, MAX_PROMPT_LEN) }), option.isRecommended === true ? (0, import_jsx_runtime3.jsx)("span", { children: "Suggested" }) : null, option.isDefault === true ? (0, import_jsx_runtime3.jsx)("span", { children: "Declared default" }) : null, (0, import_jsx_runtime3.jsx)("code", { children: truncate2(resumeCommandForChoice(t(input.resume.runFolder), option.id, input.resume.commandPrefix), MAX_PROMPT_LEN) })] }, option.id)) })] })] })] });
+  }) }), (0, import_jsx_runtime3.jsxs)("div", { className: "cp-default", children: [(0, import_jsx_runtime3.jsx)("strong", { children: "If you do nothing: " }), input.defaultChoice === void 0 ? (0, import_jsx_runtime3.jsx)(import_jsx_runtime3.Fragment, { children: "the run stays parked here until you choose." }) : (0, import_jsx_runtime3.jsxs)(import_jsx_runtime3.Fragment, { children: ["the run stays parked here. The declared default is", " ", t(input.defaultChoice.label, MAX_PROMPT_LEN), "."] })] })] }), (0, import_jsx_runtime3.jsxs)("aside", { className: "cp-card cp-inspector", "aria-label": "Decision notes", children: [(0, import_jsx_runtime3.jsxs)("div", { className: "cp-inspector-main", children: [(0, import_jsx_runtime3.jsx)("div", { className: "cp-eyebrow", children: "Your current choice" }), (0, import_jsx_runtime3.jsx)("h2", { "data-cp-selected-label": "", children: t(selected.label, MAX_PROMPT_LEN) }), (0, import_jsx_runtime3.jsx)("p", { className: "cp-selection-description", "data-cp-selected-description": "", hidden: selected.description === void 0, children: t(selected.description ?? "", MAX_PROMPT_LEN) }), (0, import_jsx_runtime3.jsx)("label", { className: "cp-field-label", htmlFor: "cp-comment", children: "Review note for this choice (optional)" }), (0, import_jsx_runtime3.jsx)("textarea", { className: "cp-comment", id: "cp-comment", "data-cp-comment": "", maxLength: 2e3, placeholder: "Record why you made this choice." }), (0, import_jsx_runtime3.jsx)("div", { className: "cp-save-state", "data-cp-save-state": "", children: "Saved in this browser" }), input.options.map((option, index) => (0, import_jsx_runtime3.jsx)(OptionDetail, { option, selected: index === selectedIndex }, option.id))] }), input.recommendation?.rationale === void 0 ? null : (0, import_jsx_runtime3.jsxs)("details", { className: "cp-disclosure", children: [(0, import_jsx_runtime3.jsxs)("summary", { children: ["Why Circuit suggested ", t(input.recommendation.label, MAX_PROMPT_LEN)] }), (0, import_jsx_runtime3.jsx)("div", { className: "cp-disclosure-body", children: t(input.recommendation.rationale, MAX_PROMPT_LEN) })] }), input.context === void 0 ? null : (0, import_jsx_runtime3.jsxs)("details", { className: "cp-disclosure", children: [(0, import_jsx_runtime3.jsx)("summary", { children: "Review context" }), (0, import_jsx_runtime3.jsx)("div", { className: "cp-disclosure-body", children: input.context })] }), input.appendix === void 0 ? null : (0, import_jsx_runtime3.jsxs)("details", { className: "cp-disclosure", children: [(0, import_jsx_runtime3.jsx)("summary", { children: "Full evidence" }), (0, import_jsx_runtime3.jsx)("div", { className: "cp-disclosure-body", children: input.appendix })] })] })] }), (0, import_jsx_runtime3.jsxs)("div", { className: "cp-meta", children: [t(input.footerLeft ?? `circuit \xB7 ${input.meta.stepId} \xB7 ${input.meta.runId}`, 300), input.footerRight === void 0 ? null : (0, import_jsx_runtime3.jsxs)(import_jsx_runtime3.Fragment, { children: [" \xB7 ", t(input.footerRight, 300)] })] })] }), (0, import_jsx_runtime3.jsx)("footer", { className: "cp-footer", children: (0, import_jsx_runtime3.jsxs)("div", { className: "cp-footer-inner", children: [(0, import_jsx_runtime3.jsxs)("div", { className: "cp-footer-choice", children: [(0, import_jsx_runtime3.jsx)("small", { children: "Selected" }), (0, import_jsx_runtime3.jsx)("strong", { "data-cp-footer-label": "", children: t(selected.label, MAX_PROMPT_LEN) })] }), (0, import_jsx_runtime3.jsx)("button", { className: "cp-primary", type: "button", "data-cp-finish": "", children: "Review decision" })] }) }), (0, import_jsx_runtime3.jsx)("dialog", { className: "cp-dialog", "data-cp-dialog": "", "aria-labelledby": "cp-dialog-title", "aria-describedby": "cp-dialog-summary cp-dialog-description", children: (0, import_jsx_runtime3.jsxs)("div", { className: "cp-dialog-body", children: [(0, import_jsx_runtime3.jsx)("div", { className: "cp-eyebrow", children: "Finish review" }), (0, import_jsx_runtime3.jsxs)("h2", { id: "cp-dialog-title", children: ["Choose ", (0, import_jsx_runtime3.jsx)("span", { "data-cp-confirm-title": "", children: t(selected.label, MAX_PROMPT_LEN) }), "?"] }), (0, import_jsx_runtime3.jsxs)("p", { className: "cp-dialog-summary", id: "cp-dialog-summary", "data-cp-confirm-summary": "", children: ["0 option comments", input.options.length > 1 ? ` \xB7 ${input.options.length - 1} unvisited` : ""] }), (0, import_jsx_runtime3.jsx)("p", { className: "cp-dialog-copy", id: "cp-dialog-description", children: "Copy the command or export JSON to carry this selection and these notes back to Circuit." }), (0, import_jsx_runtime3.jsx)("label", { className: "cp-field-label", htmlFor: "cp-overall-comment", children: "Note for the run record (optional)" }), (0, import_jsx_runtime3.jsx)("textarea", { className: "cp-comment", id: "cp-overall-comment", "data-cp-overall-comment": "", maxLength: 2e3, placeholder: "Add any context you want saved with this review." }), (0, import_jsx_runtime3.jsx)("code", { className: "cp-command", "data-cp-command": "", hidden: true }), (0, import_jsx_runtime3.jsx)("div", { className: "cp-command-state", "data-cp-command-state": "", role: "status", "aria-live": "polite" }), (0, import_jsx_runtime3.jsxs)("div", { className: "cp-dialog-actions", children: [(0, import_jsx_runtime3.jsx)("button", { className: "cp-secondary", type: "button", "data-cp-close-dialog": "", children: "Keep reviewing" }), (0, import_jsx_runtime3.jsx)("button", { className: "cp-secondary", type: "button", "data-cp-export": "", children: "Export review JSON" }), (0, import_jsx_runtime3.jsx)("button", { className: "cp-primary", type: "button", "data-cp-copy-decision": "", children: "Copy decision command" }), (0, import_jsx_runtime3.jsx)("button", { className: "cp-primary", type: "button", "data-cp-submit-decision": "", hidden: true, children: "Done" })] })] }) }), (0, import_jsx_runtime3.jsx)("div", { className: "cp-live", "aria-live": "polite", "data-cp-live": "" })] }), (0, import_jsx_runtime3.jsxs)("noscript", { children: [(0, import_jsx_runtime3.jsx)("style", { children: "[data-cp-interactive]{display:none!important}" }), (0, import_jsx_runtime3.jsxs)("div", { className: "cp-noscript", children: [(0, import_jsx_runtime3.jsx)("h1", { children: t(input.question, MAX_PROMPT_LEN) }), (0, import_jsx_runtime3.jsx)("p", { children: "JavaScript is off. These commands record the choice only; comments require the full review page." }), input.artifact === void 0 ? null : (0, import_jsx_runtime3.jsxs)("section", { className: "cp-noscript-option cp-noscript-artifact", children: [(0, import_jsx_runtime3.jsx)("strong", { children: t(input.artifact.title, MAX_PROMPT_LEN) }), input.artifact.description === void 0 ? null : (0, import_jsx_runtime3.jsx)("span", { children: t(input.artifact.description, MAX_PROMPT_LEN) }), input.artifact.preview.status === "ready" ? (0, import_jsx_runtime3.jsx)("span", { children: "Artifact preview available in the live review" }) : (0, import_jsx_runtime3.jsx)("span", { children: artifactPreviewFallbackCopy(input.artifact.preview).title })] }), (0, import_jsx_runtime3.jsx)("div", { className: "cp-noscript-list", children: input.options.map((option) => (0, import_jsx_runtime3.jsxs)("section", { className: "cp-noscript-option", children: [(0, import_jsx_runtime3.jsx)("strong", { children: t(option.label, MAX_PROMPT_LEN) }), option.description === void 0 ? null : (0, import_jsx_runtime3.jsx)("span", { children: t(option.description, MAX_PROMPT_LEN) }), option.isRecommended === true ? (0, import_jsx_runtime3.jsx)("span", { children: "Suggested" }) : null, option.isDefault === true ? (0, import_jsx_runtime3.jsx)("span", { children: "Declared default" }) : null, (0, import_jsx_runtime3.jsx)("code", { children: truncate2(resumeCommandForChoice(t(input.resume.runFolder), option.id, input.resume.commandPrefix), MAX_PROMPT_LEN) })] }, option.id)) })] })] })] });
 }
 function renderCheckpointPage(input) {
   if (input.options.length === 0)
@@ -66215,13 +66707,13 @@ var init_runtime_index = __esm({
 });
 
 // dist/flows/build/writers/baseline-snapshot.js
-import { readFileSync as readFileSync12 } from "node:fs";
+import { readFileSync as readFileSync11 } from "node:fs";
 function planDeclaresTouchArea(context) {
   const planPath = reportPathForSchemaInRuntimeFlow(context.flow, "build.plan@v1");
   if (!context.step.reads.includes(planPath)) {
     throw new Error(`build touch-area gate requires step '${context.step.id}' to read ${planPath}`);
   }
-  const plan = BuildPlan.parse(JSON.parse(readFileSync12(resolveRunRelative(context.runFolder, planPath), "utf8")));
+  const plan = BuildPlan.parse(JSON.parse(readFileSync11(resolveRunRelative(context.runFolder, planPath), "utf8")));
   return plan.allowed_touch_area.length > 0;
 }
 var buildBaselineSnapshotWriter;
@@ -66268,7 +66760,7 @@ var init_baseline_snapshot = __esm({
 });
 
 // dist/shared/verification-resolver.js
-import { existsSync as existsSync14, readFileSync as readFileSync13 } from "node:fs";
+import { existsSync as existsSync14, readFileSync as readFileSync12 } from "node:fs";
 import { join as join13 } from "node:path";
 function readPackageInfo(projectRoot) {
   const packageJsonPath = join13(projectRoot, "package.json");
@@ -66277,7 +66769,7 @@ function readPackageInfo(projectRoot) {
   }
   let parsed;
   try {
-    parsed = JSON.parse(readFileSync13(packageJsonPath, "utf8"));
+    parsed = JSON.parse(readFileSync12(packageJsonPath, "utf8"));
   } catch (error52) {
     const message = error52 instanceof Error ? error52.message : String(error52);
     return `Cannot choose verification commands because package.json could not be parsed: ${message}.`;
@@ -66574,7 +67066,7 @@ var init_checkpoint_brief_projection = __esm({
 });
 
 // dist/flows/build/writers/checkpoint-brief.js
-import { readFileSync as readFileSync14 } from "node:fs";
+import { readFileSync as readFileSync13 } from "node:fs";
 var buildBriefCheckpointBuilder;
 var init_checkpoint_brief = __esm({
   "dist/flows/build/writers/checkpoint-brief.js"() {
@@ -66607,7 +67099,7 @@ var init_checkpoint_brief = __esm({
       },
       validateResumeContext(context) {
         const reportAbs = resolveRunRelative(context.runFolder, context.reportPath);
-        const raw = readFileSync14(reportAbs, "utf8");
+        const raw = readFileSync13(reportAbs, "utf8");
         if (context.reportSha256 === void 0) {
           throw new Error("checkpoint resume rejected: checkpoint request is missing checkpoint_report_sha256");
         }
@@ -66982,7 +67474,7 @@ var init_touch_area_projection = __esm({
 });
 
 // dist/flows/build/writers/touch-area.js
-import { readFileSync as readFileSync15 } from "node:fs";
+import { readFileSync as readFileSync14 } from "node:fs";
 import { isAbsolute as isAbsolute5, relative as relative5 } from "node:path";
 function runFolderPrefix(input) {
   if (input.projectRoot === void 0)
@@ -67043,16 +67535,16 @@ var init_touch_area = __esm({
         const post = parseGitStateObservation(observation, SCHEMA_NAME);
         const baselinePath = reportPathForSchemaInRuntimeFlow(context.flow, "build.baseline-snapshot@v1");
         const planPath = reportPathForSchemaInRuntimeFlow(context.flow, "build.plan@v1");
-        const baseline = BuildBaselineSnapshot.parse(JSON.parse(readFileSync15(resolveRunRelative(context.runFolder, baselinePath), "utf8")));
+        const baseline = BuildBaselineSnapshot.parse(JSON.parse(readFileSync14(resolveRunRelative(context.runFolder, baselinePath), "utf8")));
         if (baseline.captured === false) {
           throw new Error(`${SCHEMA_NAME}: baseline snapshot is inert (captured: false) but an area was declared; baseline and touch-area steps disagree on enforcement`);
         }
-        const plan = BuildPlan.parse(JSON.parse(readFileSync15(resolveRunRelative(context.runFolder, planPath), "utf8")));
+        const plan = BuildPlan.parse(JSON.parse(readFileSync14(resolveRunRelative(context.runFolder, planPath), "utf8")));
         let workerDeclaredPaths = [];
         try {
           const implementationPath = reportPathForSchemaInRuntimeFlow(context.flow, "build.implementation@v1");
           if (context.step.reads.includes(implementationPath)) {
-            const implementation = BuildImplementation.parse(JSON.parse(readFileSync15(resolveRunRelative(context.runFolder, implementationPath), "utf8")));
+            const implementation = BuildImplementation.parse(JSON.parse(readFileSync14(resolveRunRelative(context.runFolder, implementationPath), "utf8")));
             workerDeclaredPaths = implementation.changed_files;
           }
         } catch {
@@ -67108,7 +67600,7 @@ var init_verification_projection = __esm({
 });
 
 // dist/flows/build/writers/verification.js
-import { readFileSync as readFileSync16 } from "node:fs";
+import { readFileSync as readFileSync15 } from "node:fs";
 var buildVerificationWriter;
 var init_verification2 = __esm({
   "dist/flows/build/writers/verification.js"() {
@@ -67128,7 +67620,7 @@ var init_verification2 = __esm({
         if (!context.step.reads.includes(planPath)) {
           throw new Error(`build.verification@v1 requires step '${context.step.id}' to read ${planPath}`);
         }
-        const plan = BuildPlan.parse(JSON.parse(readFileSync16(resolveRunRelative(context.runFolder, planPath), "utf8")));
+        const plan = BuildPlan.parse(JSON.parse(readFileSync15(resolveRunRelative(context.runFolder, planPath), "utf8")));
         return plan.verification.commands;
       },
       buildResult(observations) {
@@ -72046,7 +72538,7 @@ var init_plan2 = __esm({
 });
 
 // dist/flows/cross-tool-build/writers/verification.js
-import { readFileSync as readFileSync17 } from "node:fs";
+import { readFileSync as readFileSync16 } from "node:fs";
 var crossToolBuildVerificationWriter;
 var init_verification3 = __esm({
   "dist/flows/cross-tool-build/writers/verification.js"() {
@@ -72065,7 +72557,7 @@ var init_verification3 = __esm({
         if (!context.step.reads.includes(planPath)) {
           throw new Error(`cross-tool-build.verification@v1 requires step '${context.step.id}' to read ${planPath}`);
         }
-        const plan = CrossToolBuildPlan.parse(JSON.parse(readFileSync17(resolveRunRelative(context.runFolder, planPath), "utf8")));
+        const plan = CrossToolBuildPlan.parse(JSON.parse(readFileSync16(resolveRunRelative(context.runFolder, planPath), "utf8")));
         return plan.verification.commands;
       },
       buildResult(observations) {
@@ -72481,9 +72973,9 @@ var init_reports3 = __esm({
 });
 
 // dist/flows/explainer/writers/close.js
-import { readFileSync as readFileSync18 } from "node:fs";
+import { readFileSync as readFileSync17 } from "node:fs";
 function readJson(runFolder, path) {
-  return JSON.parse(readFileSync18(resolveRunRelative(runFolder, path), "utf8"));
+  return JSON.parse(readFileSync17(resolveRunRelative(runFolder, path), "utf8"));
 }
 function signoffSelection(context) {
   const checkpoint = context.flow.steps.find((step) => step.kind === "checkpoint" && step.id === SIGNOFF_CHECKPOINT_STEP_ID);
@@ -72680,9 +73172,9 @@ var init_intake = __esm({
 });
 
 // dist/flows/explainer/writers/spec.js
-import { readFileSync as readFileSync19 } from "node:fs";
+import { readFileSync as readFileSync18 } from "node:fs";
 function readJson2(runFolder, path) {
-  return JSON.parse(readFileSync19(resolveRunRelative(runFolder, path), "utf8"));
+  return JSON.parse(readFileSync18(resolveRunRelative(runFolder, path), "utf8"));
 }
 function pickResponsePath(context) {
   const checkpoint = context.flow.steps.find((step) => step.kind === "checkpoint" && step.id === PICK_CHECKPOINT_STEP_ID);
@@ -74456,7 +74948,7 @@ var init_result_projection2 = __esm({
 });
 
 // dist/flows/explore/writers/close.js
-import { readFileSync as readFileSync20 } from "node:fs";
+import { readFileSync as readFileSync19 } from "node:fs";
 function requiredTournamentAggregatePath(context) {
   const path = context.closeStep.reads.find((entry) => entry.endsWith("tournament-aggregate.json"));
   if (path === void 0) {
@@ -74510,7 +75002,7 @@ var init_close4 = __esm({
           const review2 = ExploreTournamentReview.parse(context.inputs.tournamentReview);
           const decision2 = ExploreDecision.parse(context.inputs.decision);
           const aggregatePath = requiredTournamentAggregatePath(context);
-          ExploreTournamentAggregate.parse(JSON.parse(readFileSync20(resolveRunRelative(context.runFolder, aggregatePath), "utf8")));
+          ExploreTournamentAggregate.parse(JSON.parse(readFileSync19(resolveRunRelative(context.runFolder, aggregatePath), "utf8")));
           return projectExploreResult({
             kind: "tournament",
             brief,
@@ -74674,9 +75166,9 @@ var init_decision_options = __esm({
 });
 
 // dist/flows/explore/writers/decision.js
-import { readFileSync as readFileSync21 } from "node:fs";
+import { readFileSync as readFileSync20 } from "node:fs";
 function readJson3(runFolder, path) {
-  return JSON.parse(readFileSync21(resolveRunRelative(runFolder, path), "utf8"));
+  return JSON.parse(readFileSync20(resolveRunRelative(runFolder, path), "utf8"));
 }
 function requiredRead(stepReads, suffix) {
   const path = stepReads.find((entry) => entry.endsWith(suffix));
@@ -75752,7 +76244,7 @@ var init_plan3 = __esm({
 });
 
 // dist/flows/fix-until-green/writers/verification.js
-import { readFileSync as readFileSync22 } from "node:fs";
+import { readFileSync as readFileSync21 } from "node:fs";
 var fixUntilGreenVerificationWriter;
 var init_verification5 = __esm({
   "dist/flows/fix-until-green/writers/verification.js"() {
@@ -75771,7 +76263,7 @@ var init_verification5 = __esm({
         if (!context.step.reads.includes(planPath)) {
           throw new Error(`fix-until-green.verification@v1 requires step '${context.step.id}' to read ${planPath}`);
         }
-        const plan = FixUntilGreenPlan.parse(JSON.parse(readFileSync22(resolveRunRelative(context.runFolder, planPath), "utf8")));
+        const plan = FixUntilGreenPlan.parse(JSON.parse(readFileSync21(resolveRunRelative(context.runFolder, planPath), "utf8")));
         return plan.verification.commands;
       },
       buildResult(observations) {
@@ -77263,7 +77755,7 @@ var init_change_set_projection = __esm({
 });
 
 // dist/flows/fix/writers/change-set.js
-import { existsSync as existsSync15, readFileSync as readFileSync23 } from "node:fs";
+import { existsSync as existsSync15, readFileSync as readFileSync22 } from "node:fs";
 import { isAbsolute as isAbsolute6, relative as relative6 } from "node:path";
 function runFolderPrefix2(input) {
   if (input.projectRoot === void 0)
@@ -77316,10 +77808,10 @@ var init_change_set = __esm({
         const baselinePath = reportPathForSchemaInRuntimeFlow(context.flow, "fix.baseline-snapshot@v1");
         const changePath = reportPathForSchemaInRuntimeFlow(context.flow, "fix.change@v1");
         const changeSetPath = reportPathForSchemaInRuntimeFlow(context.flow, "fix.change-set@v1");
-        const baseline = FixBaselineSnapshot.parse(JSON.parse(readFileSync23(resolveRunRelative(context.runFolder, baselinePath), "utf8")));
-        const change = FixChange.parse(JSON.parse(readFileSync23(resolveRunRelative(context.runFolder, changePath), "utf8")));
+        const baseline = FixBaselineSnapshot.parse(JSON.parse(readFileSync22(resolveRunRelative(context.runFolder, baselinePath), "utf8")));
+        const change = FixChange.parse(JSON.parse(readFileSync22(resolveRunRelative(context.runFolder, changePath), "utf8")));
         const priorChangeSetFile = resolveRunRelative(context.runFolder, changeSetPath);
-        const priorChangeSet = existsSync15(priorChangeSetFile) ? FixChangeSet.parse(JSON.parse(readFileSync23(priorChangeSetFile, "utf8"))) : void 0;
+        const priorChangeSet = existsSync15(priorChangeSetFile) ? FixChangeSet.parse(JSON.parse(readFileSync22(priorChangeSetFile, "utf8"))) : void 0;
         if (priorChangeSet !== void 0 && priorChangeSet.baseline_head_sha !== baseline.head_sha) {
           throw new Error(`fix.change-set@v1: prior change-set baseline ${priorChangeSet.baseline_head_sha} does not match current baseline ${baseline.head_sha}`);
         }
@@ -77533,7 +78025,7 @@ var init_regression_projection = __esm({
 });
 
 // dist/flows/fix/writers/regression-baseline.js
-import { readFileSync as readFileSync24 } from "node:fs";
+import { readFileSync as readFileSync23 } from "node:fs";
 var fixRegressionBaselineWriter;
 var init_regression_baseline = __esm({
   "dist/flows/fix/writers/regression-baseline.js"() {
@@ -77553,7 +78045,7 @@ var init_regression_baseline = __esm({
         if (!context.step.reads.includes(briefPath)) {
           throw new Error(`fix.regression-proof@v1 requires step '${context.step.id}' to read ${briefPath}`);
         }
-        const brief = FixBrief.parse(JSON.parse(readFileSync24(resolveRunRelative(context.runFolder, briefPath), "utf8")));
+        const brief = FixBrief.parse(JSON.parse(readFileSync23(resolveRunRelative(context.runFolder, briefPath), "utf8")));
         if (brief.regression_contract.regression_test.status !== "failing-before-fix") {
           return [];
         }
@@ -77567,7 +78059,7 @@ var init_regression_baseline = __esm({
 });
 
 // dist/flows/fix/writers/regression-rerun.js
-import { readFileSync as readFileSync25 } from "node:fs";
+import { readFileSync as readFileSync24 } from "node:fs";
 var fixRegressionRerunWriter;
 var init_regression_rerun = __esm({
   "dist/flows/fix/writers/regression-rerun.js"() {
@@ -77588,7 +78080,7 @@ var init_regression_rerun = __esm({
         if (!context.step.reads.includes(briefPath)) {
           throw new Error(`fix.regression-rerun@v1 requires step '${context.step.id}' to read ${briefPath}`);
         }
-        const brief = FixBrief.parse(JSON.parse(readFileSync25(resolveRunRelative(context.runFolder, briefPath), "utf8")));
+        const brief = FixBrief.parse(JSON.parse(readFileSync24(resolveRunRelative(context.runFolder, briefPath), "utf8")));
         if (brief.regression_contract.regression_test.status !== "failing-before-fix") {
           return [];
         }
@@ -77630,7 +78122,7 @@ var init_verification_projection2 = __esm({
 });
 
 // dist/flows/fix/writers/verification.js
-import { readFileSync as readFileSync26 } from "node:fs";
+import { readFileSync as readFileSync25 } from "node:fs";
 var fixVerificationWriter;
 var init_verification6 = __esm({
   "dist/flows/fix/writers/verification.js"() {
@@ -77650,7 +78142,7 @@ var init_verification6 = __esm({
         if (!context.step.reads.includes(briefPath)) {
           throw new Error(`fix.verification@v1 requires step '${context.step.id}' to read ${briefPath}`);
         }
-        const brief = FixBrief.parse(JSON.parse(readFileSync26(resolveRunRelative(context.runFolder, briefPath), "utf8")));
+        const brief = FixBrief.parse(JSON.parse(readFileSync25(resolveRunRelative(context.runFolder, briefPath), "utf8")));
         return brief.verification_command_candidates;
       },
       buildResult(observations) {
@@ -78746,13 +79238,13 @@ var init_relay_hints7 = __esm({
 });
 
 // dist/flows/goal/writers/attempt.js
-import { existsSync as existsSync16, readFileSync as readFileSync27 } from "node:fs";
+import { existsSync as existsSync16, readFileSync as readFileSync26 } from "node:fs";
 function readChildResult(runFolder, target) {
   const relPath = CHILD_RESULT_PATHS[target];
   const absPath = resolveRunRelative(runFolder, relPath);
   if (!existsSync16(absPath))
     return void 0;
-  return JSON.parse(readFileSync27(absPath, "utf8"));
+  return JSON.parse(readFileSync26(absPath, "utf8"));
 }
 function mapChildOutcome(outcome) {
   if (outcome === "complete")
@@ -79016,12 +79508,12 @@ var init_contract = __esm({
 });
 
 // dist/flows/goal/writers/evidence-evaluation.js
-import { existsSync as existsSync17, readFileSync as readFileSync28 } from "node:fs";
+import { existsSync as existsSync17, readFileSync as readFileSync27 } from "node:fs";
 function readChildRunResult(runFolder, path) {
   const absPath = resolveRunRelative(runFolder, path);
   if (!existsSync17(absPath))
     return void 0;
-  return RunResult.parse(JSON.parse(readFileSync28(absPath, "utf8")));
+  return RunResult.parse(JSON.parse(readFileSync27(absPath, "utf8")));
 }
 function childResultIsProofEligible(input) {
   const allowedVerdicts = PROOF_ELIGIBLE_VERDICTS[input.target];
@@ -79110,7 +79602,7 @@ var init_evidence_evaluation = __esm({
 });
 
 // dist/flows/goal/writers/recovery.js
-import { existsSync as existsSync18, readFileSync as readFileSync29 } from "node:fs";
+import { existsSync as existsSync18, readFileSync as readFileSync28 } from "node:fs";
 function routeFromEvaluation(evaluation) {
   if (evaluation.verdict === "missing-evidence") {
     return {
@@ -79147,7 +79639,7 @@ function readLatestGate(runFolder) {
     const absolutePath = resolveRunRelative(runFolder, path);
     if (!existsSync18(absolutePath))
       continue;
-    return GoalGate.parse(JSON.parse(readFileSync29(absolutePath, "utf8")));
+    return GoalGate.parse(JSON.parse(readFileSync28(absolutePath, "utf8")));
   }
   return void 0;
 }
@@ -79600,7 +80092,10 @@ var init_assembly_spec8 = __esm({
         block: "human-decision",
         input: {
           choices: "prototype.variant-choice-options@v1",
-          aggregate: "prototype.variant-aggregate@v1"
+          aggregate: "prototype.variant-aggregate@v1",
+          provider_evidence: "prototype.variant-provider-evidence@v1",
+          verification: "prototype.variant-verification@v1",
+          review: "prototype.variant-review@v1"
         },
         protocol: "prototype-variant-checkpoint@v1",
         writes: {
@@ -79665,7 +80160,12 @@ var init_assembly_spec8 = __esm({
         title: "Review - decide Prototype disposition",
         stage: "review",
         block: "prototype-checkpoint",
-        input: { artifact: "prototype.artifact@v1", verification: "prototype.verification@v1" },
+        input: {
+          brief: "prototype.brief@v1",
+          plan: "prototype.plan@v1",
+          artifact: "prototype.artifact@v1",
+          verification: "prototype.verification@v1"
+        },
         protocol: "prototype-checkpoint@v1",
         writes: {
           checkpoint_request_path: "reports/checkpoints/prototype-review-request.json",
@@ -79817,6 +80317,95 @@ var init_relay_hints8 = __esm({
   }
 });
 
+// dist/schemas/checkpoint-review-assets.js
+function addIssue(ctx, path, message) {
+  ctx.addIssue({ code: "custom", path: [...path], message });
+}
+function compareText(left, right) {
+  return left < right ? -1 : left > right ? 1 : 0;
+}
+function validateProjectRelativePath(value, ctx) {
+  if (value.startsWith("/") || value.startsWith("~") || /^[A-Za-z]:/u.test(value)) {
+    addIssue(ctx, [], "path must be project-relative and cannot use absolute or home paths");
+  }
+  if (value.startsWith("\\\\") || value.startsWith("//")) {
+    addIssue(ctx, [], "path must not use UNC or network absolute paths");
+  }
+  if (value.includes("\\"))
+    addIssue(ctx, [], "path must use forward slashes");
+  if (Array.from(value).some((character) => {
+    const codePoint = character.codePointAt(0);
+    return codePoint !== void 0 && (codePoint <= 31 || codePoint === 127);
+  })) {
+    addIssue(ctx, [], "path must not contain control characters");
+  }
+  if (value.endsWith("/"))
+    addIssue(ctx, [], "path must not end with a slash");
+  const parts = value.split("/");
+  if (parts.some((part) => part.length === 0 || part === ".")) {
+    addIssue(ctx, [], "path must be normalized");
+  }
+  if (parts.some((part) => part === "..")) {
+    addIssue(ctx, [], "path must not escape the project root");
+  }
+}
+var CheckpointReviewAssetPath, CheckpointReviewAssetFile, CheckpointReviewAssetGroup, CheckpointReviewAssetGroups;
+var init_checkpoint_review_assets = __esm({
+  "dist/schemas/checkpoint-review-assets.js"() {
+    "use strict";
+    init_zod();
+    init_ref();
+    CheckpointReviewAssetPath = external_exports.string().min(1).superRefine(validateProjectRelativePath);
+    CheckpointReviewAssetFile = external_exports.object({
+      path: CheckpointReviewAssetPath,
+      sha256: Sha256
+    }).strict();
+    CheckpointReviewAssetGroup = external_exports.object({
+      root: CheckpointReviewAssetPath,
+      entry_points: external_exports.array(CheckpointReviewAssetPath).min(1).max(32),
+      files: external_exports.array(CheckpointReviewAssetFile).min(1).max(32)
+    }).strict().superRefine((group, ctx) => {
+      const prefix = `${group.root}/`;
+      const filePaths = /* @__PURE__ */ new Set();
+      for (const [index, file2] of group.files.entries()) {
+        if (!file2.path.startsWith(prefix)) {
+          addIssue(ctx, ["files", index, "path"], "file path must be inside review asset root");
+        }
+        if (filePaths.has(file2.path)) {
+          addIssue(ctx, ["files", index, "path"], `duplicate file path '${file2.path}'`);
+        }
+        filePaths.add(file2.path);
+      }
+      const entryPoints = /* @__PURE__ */ new Set();
+      for (const [index, entryPoint] of group.entry_points.entries()) {
+        if (!entryPoint.startsWith(prefix)) {
+          addIssue(ctx, ["entry_points", index], "entry point must be inside review asset root");
+        }
+        if (entryPoints.has(entryPoint)) {
+          addIssue(ctx, ["entry_points", index], `duplicate entry point '${entryPoint}'`);
+        }
+        if (!filePaths.has(entryPoint)) {
+          addIssue(ctx, ["entry_points", index], "entry point must name a bound file");
+        }
+        entryPoints.add(entryPoint);
+      }
+    }).transform((group) => ({
+      root: group.root,
+      entry_points: [...group.entry_points].sort(compareText),
+      files: [...group.files].sort((left, right) => compareText(left.path, right.path))
+    }));
+    CheckpointReviewAssetGroups = external_exports.array(CheckpointReviewAssetGroup).max(32).superRefine((groups, ctx) => {
+      const roots = /* @__PURE__ */ new Set();
+      for (const [index, group] of groups.entries()) {
+        if (roots.has(group.root)) {
+          addIssue(ctx, [index, "root"], `duplicate root '${group.root}'`);
+        }
+        roots.add(group.root);
+      }
+    }).transform((groups) => [...groups].sort((left, right) => compareText(left.root, right.root)));
+  }
+});
+
 // dist/flows/prototype/reports.js
 function addPathIssue(ctx, path, message) {
   ctx.addIssue({
@@ -79825,7 +80414,7 @@ function addPathIssue(ctx, path, message) {
     message
   });
 }
-function validateProjectRelativePath(value, ctx) {
+function validateProjectRelativePath2(value, ctx) {
   if (value.startsWith("/") || value.startsWith("~") || /^[A-Za-z]:[\\/]/.test(value)) {
     addPathIssue(ctx, [], "path must be project-relative and cannot use absolute or home paths");
   }
@@ -79909,6 +80498,7 @@ var init_reports8 = __esm({
     "use strict";
     init_zod();
     init_rubric2();
+    init_checkpoint_review_assets();
     init_checkpoint_review_response();
     init_config();
     init_connector();
@@ -79941,7 +80531,7 @@ var init_reports8 = __esm({
       PrototypeCheckpointSelection,
       external_exports.literal("not_reached")
     ]);
-    PrototypeProjectRelativePath = external_exports.string().min(1).transform(stripForgivablePrefixes).superRefine(validateProjectRelativePath);
+    PrototypeProjectRelativePath = external_exports.string().min(1).transform(stripForgivablePrefixes).superRefine(validateProjectRelativePath2);
     PrototypeRootPath = PrototypeProjectRelativePath.superRefine((root, ctx) => {
       const [firstSegment] = root.split("/");
       if (firstSegment === void 0)
@@ -80257,7 +80847,8 @@ var init_reports8 = __esm({
       captured_provider_evidence_count: external_exports.number().int().nonnegative(),
       admitted_variant_count: external_exports.number().int().nonnegative(),
       variant_results: external_exports.array(PrototypeVariantVerificationItem).min(1),
-      commands: external_exports.array(VerificationCommandResult)
+      commands: external_exports.array(VerificationCommandResult),
+      review_assets: CheckpointReviewAssetGroups.default([])
     }).strict().superRefine((verification, ctx) => {
       if (verification.overall_status === "passed" && verification.captured_provider_evidence_count < verification.required_captured_provider_evidence_count) {
         addPathIssue(ctx, ["captured_provider_evidence_count"], "passed variant verification requires at least two captured provider evidence records");
@@ -80322,7 +80913,16 @@ var init_reports8 = __esm({
         addPathIssue(ctx, ["choices"], "exactly one variant choice must be recommended");
       }
     });
-    PrototypeVerification = VerificationResult;
+    PrototypeVerification = external_exports.object({
+      overall_status: external_exports.enum(["passed", "failed"]),
+      commands: external_exports.array(VerificationCommandResult).min(1),
+      review_assets: CheckpointReviewAssetGroups.default([])
+    }).strict().superRefine((verification, ctx) => {
+      const expected = verification.commands.some((command) => command.status === "failed") ? "failed" : "passed";
+      if (verification.overall_status !== expected) {
+        addPathIssue(ctx, ["overall_status"], `overall_status must be '${expected}' for command results`);
+      }
+    });
     PrototypeResultReportId = external_exports.enum([
       "prototype.brief",
       "prototype.plan",
@@ -80537,7 +81137,7 @@ var init_brief3 = __esm({
 });
 
 // dist/flows/prototype/writers/close.js
-import { existsSync as existsSync19, readFileSync as readFileSync30 } from "node:fs";
+import { existsSync as existsSync19, readFileSync as readFileSync29 } from "node:fs";
 function checkpointStep(context, stepId) {
   const step = context.flow.steps.find((candidate) => candidate.id === stepId && candidate.kind === "checkpoint");
   return step;
@@ -80550,7 +81150,7 @@ function readCheckpointResponse(context) {
   const abs = resolveRunRelative(context.runFolder, responsePath);
   if (!existsSync19(abs))
     return void 0;
-  const raw = JSON.parse(readFileSync30(abs, "utf8"));
+  const raw = JSON.parse(readFileSync29(abs, "utf8"));
   return { path: responsePath, response: CheckpointResponse.parse(raw) };
 }
 function readVariantCheckpointResponse(context) {
@@ -80561,7 +81161,7 @@ function readVariantCheckpointResponse(context) {
   const abs = resolveRunRelative(context.runFolder, responsePath);
   if (!existsSync19(abs))
     return void 0;
-  const raw = JSON.parse(readFileSync30(abs, "utf8"));
+  const raw = JSON.parse(readFileSync29(abs, "utf8"));
   return { path: responsePath, response: VariantCheckpointResponse.parse(raw) };
 }
 function existingCheckpointRequestPath(context) {
@@ -80616,7 +81216,7 @@ function readOptionalReport(context, schemaName, parse3) {
   const abs = resolveRunRelative(context.runFolder, path);
   if (!existsSync19(abs))
     return void 0;
-  return parse3(JSON.parse(readFileSync30(abs, "utf8")));
+  return parse3(JSON.parse(readFileSync29(abs, "utf8")));
 }
 function variantEvidenceLinks(context, checkpointResponse) {
   const links = BASE_VARIANT_POINTERS.map((pointer) => ({
@@ -81073,13 +81673,13 @@ var init_variant_options = __esm({
 });
 
 // dist/flows/prototype/writers/variant-provider-evidence.js
-import { existsSync as existsSync20, readFileSync as readFileSync31 } from "node:fs";
+import { existsSync as existsSync20, readFileSync as readFileSync30 } from "node:fs";
 import { join as join14 } from "node:path";
 function readTraceEntries(runFolder) {
   const tracePath = join14(runFolder, "trace.ndjson");
   if (!existsSync20(tracePath))
     return [];
-  return readFileSync31(tracePath, "utf8").split("\n").filter((line) => line.trim().length > 0).map((line) => JSON.parse(line));
+  return readFileSync30(tracePath, "utf8").split("\n").filter((line) => line.trim().length > 0).map((line) => JSON.parse(line));
 }
 function isRelayStarted(value) {
   return value !== null && typeof value === "object" && !Array.isArray(value) && value.kind === "relay.started";
@@ -81150,14 +81750,243 @@ var init_variant_provider_evidence = __esm({
   }
 });
 
+// dist/shared/checkpoint-review-assets.js
+import { createHash as createHash6 } from "node:crypto";
+import { constants as constants3, closeSync as closeSync3, fstatSync as fstatSync2, lstatSync as lstatSync5, openSync as openSync3, readSync as readSync3, readdirSync as readdirSync3, realpathSync as realpathSync5 } from "node:fs";
+import { extname, isAbsolute as isAbsolute8, join as join15, relative as relative8, resolve as resolve13, sep as sep3 } from "node:path";
+function compareText2(left, right) {
+  return left < right ? -1 : left > right ? 1 : 0;
+}
+function isInside3(root, target) {
+  const fromRoot = relative8(root, target);
+  return fromRoot !== "" && fromRoot !== ".." && !fromRoot.startsWith(`..${sep3}`) && !isAbsolute8(fromRoot);
+}
+function fileIdentity(descriptor) {
+  const info = fstatSync2(descriptor, { bigint: true });
+  return {
+    device: info.dev,
+    inode: info.ino,
+    size: info.size,
+    modified: info.mtimeNs,
+    changed: info.ctimeNs,
+    regular: info.isFile()
+  };
+}
+function directoryIdentity(path) {
+  const info = lstatSync5(path, { bigint: true });
+  return {
+    device: info.dev,
+    inode: info.ino,
+    modified: info.mtimeNs,
+    changed: info.ctimeNs,
+    directory: info.isDirectory()
+  };
+}
+function sameFile(left, right) {
+  return left.device === right.device && left.inode === right.inode && left.size === right.size && left.modified === right.modified && left.changed === right.changed && left.regular && right.regular;
+}
+function sameDirectory(left, right) {
+  return left.device === right.device && left.inode === right.inode && left.modified === right.modified && left.changed === right.changed && left.directory && right.directory;
+}
+function readBounded(descriptor, limit) {
+  const chunks = [];
+  let total = 0;
+  while (total <= limit) {
+    const remaining = limit + 1 - total;
+    const chunk = Buffer.allocUnsafe(Math.min(READ_CHUNK_BYTES, remaining));
+    const read = readSync3(descriptor, chunk, 0, chunk.byteLength, null);
+    if (read === 0)
+      break;
+    chunks.push(chunk.subarray(0, read));
+    total += read;
+  }
+  if (total > limit) {
+    throw new Error(`checkpoint review asset exceeds the ${String(limit)} byte file limit`);
+  }
+  return Buffer.concat(chunks, total);
+}
+function stableFileBytes(path, remainingBytes) {
+  let descriptor;
+  try {
+    descriptor = openSync3(path, constants3.O_RDONLY | constants3.O_NONBLOCK | constants3.O_NOFOLLOW);
+    const before = fileIdentity(descriptor);
+    if (!before.regular)
+      throw new Error(`checkpoint review asset is not a regular file: ${path}`);
+    const limit = Math.min(MAX_CHECKPOINT_REVIEW_ASSET_BYTES, remainingBytes);
+    if (before.size > BigInt(limit)) {
+      throw new Error(`checkpoint review asset exceeds the ${String(limit)} byte file limit: ${path}`);
+    }
+    const bytes = readBounded(descriptor, limit);
+    const after = fileIdentity(descriptor);
+    if (!sameFile(before, after) || BigInt(bytes.byteLength) !== before.size) {
+      throw new Error(`checkpoint review asset changed while it was read: ${path}`);
+    }
+    return bytes;
+  } finally {
+    if (descriptor !== void 0)
+      closeSync3(descriptor);
+  }
+}
+function supportedPath(path) {
+  return CHECKPOINT_REVIEW_ASSET_EXTENSIONS.has(extname(path).toLowerCase());
+}
+function safeRoot(input) {
+  const projectRoot = resolve13(input.projectRoot);
+  const root = resolve13(projectRoot, input.root);
+  const projectInfo = lstatSync5(projectRoot);
+  if (!projectInfo.isDirectory() || projectInfo.isSymbolicLink()) {
+    throw new Error("checkpoint review asset project root must be a real directory");
+  }
+  if (!isInside3(projectRoot, root)) {
+    throw new Error(`checkpoint review asset root escapes the project root: ${input.root}`);
+  }
+  const realProjectRoot = realpathSync5.native(projectRoot);
+  let cursor = projectRoot;
+  for (const segment of relative8(projectRoot, root).split(sep3)) {
+    cursor = join15(cursor, segment);
+    const info = lstatSync5(cursor);
+    if (info.isSymbolicLink()) {
+      throw new Error(`checkpoint review asset root contains a symlink: ${input.root}`);
+    }
+    const realCursor = realpathSync5.native(cursor);
+    if (realCursor !== realProjectRoot && !isInside3(realProjectRoot, realCursor)) {
+      throw new Error(`checkpoint review asset root escapes the project root: ${input.root}`);
+    }
+  }
+  const rootInfo = lstatSync5(root);
+  if (!rootInfo.isDirectory() || rootInfo.isSymbolicLink()) {
+    throw new Error(`checkpoint review asset root is not a real directory: ${input.root}`);
+  }
+  return root;
+}
+function scanDirectory(input) {
+  if (input.depth > MAX_CHECKPOINT_REVIEW_ASSET_TREE_DEPTH) {
+    throw new Error(`checkpoint review asset tree exceeds ${String(MAX_CHECKPOINT_REVIEW_ASSET_TREE_DEPTH)} levels`);
+  }
+  const before = directoryIdentity(input.absoluteDirectory);
+  if (!before.directory) {
+    throw new Error("checkpoint review asset directory changed while it was scanned");
+  }
+  const entries = readdirSync3(input.absoluteDirectory, { withFileTypes: true }).sort((left, right) => compareText2(left.name, right.name));
+  const names = entries.map((entry) => entry.name);
+  for (const entry of entries) {
+    input.budget.treeEntries += 1;
+    if (input.budget.treeEntries > MAX_CHECKPOINT_REVIEW_ASSET_TREE_ENTRIES) {
+      throw new Error(`checkpoint review asset tree contains more than ${String(MAX_CHECKPOINT_REVIEW_ASSET_TREE_ENTRIES)} entries`);
+    }
+    const absolutePath = join15(input.absoluteDirectory, entry.name);
+    const projectRelativePath = `${input.projectRelativeDirectory}/${entry.name}`;
+    const info = lstatSync5(absolutePath);
+    if (info.isSymbolicLink()) {
+      throw new Error(`checkpoint review asset tree contains a symlink: ${projectRelativePath}`);
+    }
+    if (info.isDirectory()) {
+      scanDirectory({
+        absoluteDirectory: absolutePath,
+        projectRelativeDirectory: projectRelativePath,
+        depth: input.depth + 1,
+        budget: input.budget,
+        files: input.files
+      });
+      continue;
+    }
+    if (!info.isFile() || !supportedPath(projectRelativePath))
+      continue;
+    input.budget.files += 1;
+    if (input.budget.files > MAX_CHECKPOINT_REVIEW_ASSET_FILES) {
+      throw new Error(`checkpoint review assets contain more than ${String(MAX_CHECKPOINT_REVIEW_ASSET_FILES)} supported files`);
+    }
+    const remainingBytes = MAX_CHECKPOINT_REVIEW_ASSET_TOTAL_BYTES - input.budget.bytes;
+    if (remainingBytes <= 0) {
+      throw new Error(`checkpoint review assets exceed the ${String(MAX_CHECKPOINT_REVIEW_ASSET_TOTAL_BYTES)} byte total limit`);
+    }
+    const bytes = stableFileBytes(absolutePath, remainingBytes);
+    input.budget.bytes += bytes.byteLength;
+    input.files.push({
+      path: projectRelativePath,
+      sha256: createHash6("sha256").update(bytes).digest("hex")
+    });
+  }
+  const afterNames = readdirSync3(input.absoluteDirectory).sort(compareText2);
+  const after = directoryIdentity(input.absoluteDirectory);
+  if (!sameDirectory(before, after) || names.join("\0") !== afterNames.join("\0")) {
+    throw new Error("checkpoint review asset tree changed while it was scanned");
+  }
+}
+function snapshotCheckpointReviewAssetGroups(input) {
+  const budget = { files: 0, bytes: 0, treeEntries: 0 };
+  const snapshots = [];
+  const groups = [...input.groups].sort((left, right) => compareText2(left.root, right.root));
+  for (const group of groups) {
+    const root = CheckpointReviewAssetPath.parse(group.root);
+    const entryPoints = Array.from(new Set(group.entryPoints.map((entryPoint) => CheckpointReviewAssetPath.parse(entryPoint)))).filter(supportedPath).sort(compareText2);
+    if (entryPoints.length === 0)
+      continue;
+    const absoluteRoot = safeRoot({ projectRoot: input.projectRoot, root });
+    const files = [];
+    scanDirectory({
+      absoluteDirectory: absoluteRoot,
+      projectRelativeDirectory: root,
+      depth: 0,
+      budget,
+      files
+    });
+    const filePaths = new Set(files.map((file2) => file2.path));
+    for (const entryPoint of entryPoints) {
+      if (!filePaths.has(entryPoint)) {
+        throw new Error(`checkpoint review asset entry point is missing: ${entryPoint}`);
+      }
+    }
+    snapshots.push({ root, entry_points: entryPoints, files });
+  }
+  return CheckpointReviewAssetGroups.parse(snapshots);
+}
+function verifyCheckpointReviewAssetGroups(input) {
+  const expected = CheckpointReviewAssetGroups.parse(input.groups);
+  const actual = snapshotCheckpointReviewAssetGroups({
+    projectRoot: input.projectRoot,
+    groups: expected.map((group) => ({ root: group.root, entryPoints: group.entry_points }))
+  });
+  if (JSON.stringify(actual) !== JSON.stringify(expected)) {
+    throw new Error("checkpoint review asset files changed after their identity was recorded");
+  }
+  return expected;
+}
+var MAX_CHECKPOINT_REVIEW_ASSET_FILES, MAX_CHECKPOINT_REVIEW_ASSET_BYTES, MAX_CHECKPOINT_REVIEW_ASSET_TOTAL_BYTES, MAX_CHECKPOINT_REVIEW_ASSET_TREE_ENTRIES, MAX_CHECKPOINT_REVIEW_ASSET_TREE_DEPTH, READ_CHUNK_BYTES, CHECKPOINT_REVIEW_ASSET_EXTENSIONS;
+var init_checkpoint_review_assets2 = __esm({
+  "dist/shared/checkpoint-review-assets.js"() {
+    "use strict";
+    init_checkpoint_review_assets();
+    MAX_CHECKPOINT_REVIEW_ASSET_FILES = 32;
+    MAX_CHECKPOINT_REVIEW_ASSET_BYTES = 32 * 1024 * 1024;
+    MAX_CHECKPOINT_REVIEW_ASSET_TOTAL_BYTES = 64 * 1024 * 1024;
+    MAX_CHECKPOINT_REVIEW_ASSET_TREE_ENTRIES = 4096;
+    MAX_CHECKPOINT_REVIEW_ASSET_TREE_DEPTH = 32;
+    READ_CHUNK_BYTES = 64 * 1024;
+    CHECKPOINT_REVIEW_ASSET_EXTENSIONS = /* @__PURE__ */ new Set([
+      ".css",
+      ".gif",
+      ".htm",
+      ".html",
+      ".jpeg",
+      ".jpg",
+      ".png",
+      ".svg",
+      ".webp",
+      ".woff",
+      ".woff2"
+    ]);
+  }
+});
+
 // dist/flows/prototype/writers/variant-verification.js
-import { readFileSync as readFileSync32 } from "node:fs";
+import { readFileSync as readFileSync31 } from "node:fs";
 function readReport(context, schemaName, parse3) {
   const reportPath = reportPathForSchemaInRuntimeFlow(context.flow, schemaName);
   if (!context.step.reads.includes(reportPath)) {
     throw new Error(`prototype.variant-verification@v1 requires step '${context.step.id}' to read ${reportPath}`);
   }
-  return parse3(JSON.parse(readFileSync32(resolveRunRelative(context.runFolder, reportPath), "utf8")));
+  return parse3(JSON.parse(readFileSync31(resolveRunRelative(context.runFolder, reportPath), "utf8")));
 }
 function aggregate(context) {
   return readReport(context, "prototype.variant-aggregate@v1", (raw) => PrototypeVariantAggregate.parse(raw));
@@ -81193,11 +82022,27 @@ function projectVariantVerification(observations, context) {
   const admittedIds = new Set(admitted.map((branch) => branch.branch_id));
   const capturedProviderEvidenceCount = evidence2.variants.filter((variant) => admittedIds.has(variant.variant_id) && variant.status === "captured").length;
   const overallStatus = commandFailed || admitted.length < 2 || capturedProviderEvidenceCount < 2 ? "failed" : "passed";
+  let reviewAssets = [];
+  if (overallStatus === "passed") {
+    if (context.projectRoot === void 0) {
+      throw new Error("prototype variant review asset snapshot requires projectRoot");
+    }
+    reviewAssets = snapshotCheckpointReviewAssetGroups({
+      projectRoot: context.projectRoot,
+      groups: admitted.flatMap((branch) => branch.result_body?.verdict === "accept" ? [
+        {
+          root: branch.result_body.variant_root,
+          entryPoints: branch.result_body.entry_points
+        }
+      ] : [])
+    });
+  }
   return PrototypeVariantVerification.parse({
     overall_status: overallStatus,
     required_captured_provider_evidence_count: 2,
     captured_provider_evidence_count: capturedProviderEvidenceCount,
     admitted_variant_count: admitted.length,
+    review_assets: reviewAssets,
     variant_results: aggregateReport.branches.map((branch) => {
       const providerEvidenceStatus = evidence2.variants.find((variant) => variant.variant_id === branch.branch_id)?.status ?? "missing";
       const accepted = branch.child_outcome === "complete" && branch.admitted && branch.result_body !== void 0;
@@ -81233,6 +82078,7 @@ var VARIANT_INTEGRITY_SCRIPT, prototypeVariantVerificationWriter;
 var init_variant_verification = __esm({
   "dist/flows/prototype/writers/variant-verification.js"() {
     "use strict";
+    init_checkpoint_review_assets2();
     init_run_relative_path();
     init_runtime_index();
     init_reports8();
@@ -81292,13 +82138,13 @@ var init_variant_verification = __esm({
 });
 
 // dist/flows/prototype/writers/verification.js
-import { readFileSync as readFileSync33 } from "node:fs";
+import { readFileSync as readFileSync32 } from "node:fs";
 function readReport2(context, schemaName, parse3) {
   const reportPath = reportPathForSchemaInRuntimeFlow(context.flow, schemaName);
   if (!context.step.reads.includes(reportPath)) {
     throw new Error(`prototype.verification@v1 requires step '${context.step.id}' to read ${reportPath}`);
   }
-  return parse3(JSON.parse(readFileSync33(resolveRunRelative(context.runFolder, reportPath), "utf8")));
+  return parse3(JSON.parse(readFileSync32(resolveRunRelative(context.runFolder, reportPath), "utf8")));
 }
 function artifactIntegrityCommand(input) {
   const payload = {
@@ -81316,10 +82162,22 @@ function artifactIntegrityCommand(input) {
     env: {}
   };
 }
-function projectPrototypeVerification(observations) {
+function projectPrototypeVerification(observations, context) {
   const overallStatus = observations.some((observation) => observation.status === "failed") ? "failed" : "passed";
+  const artifact = readReport2(context, "prototype.artifact@v1", (raw) => PrototypeArtifact.parse(raw));
+  let reviewAssets = [];
+  if (overallStatus === "passed" && artifact.verdict === "accept") {
+    if (context.projectRoot === void 0) {
+      throw new Error("prototype review asset snapshot requires projectRoot");
+    }
+    reviewAssets = snapshotCheckpointReviewAssetGroups({
+      projectRoot: context.projectRoot,
+      groups: [{ root: artifact.prototype_root, entryPoints: artifact.entry_points }]
+    });
+  }
   return PrototypeVerification.parse({
     overall_status: overallStatus,
+    review_assets: reviewAssets,
     commands: observations.map((observation) => ({
       command_id: observation.command.id,
       argv: observation.command.argv,
@@ -81336,6 +82194,7 @@ var ARTIFACT_INTEGRITY_SCRIPT, prototypeVerificationWriter;
 var init_verification7 = __esm({
   "dist/flows/prototype/writers/verification.js"() {
     "use strict";
+    init_checkpoint_review_assets2();
     init_run_relative_path();
     init_runtime_index();
     init_reports8();
@@ -81386,8 +82245,8 @@ var init_verification7 = __esm({
         const artifact = readReport2(context, "prototype.artifact@v1", (raw) => PrototypeArtifact.parse(raw));
         return [artifactIntegrityCommand({ plan, artifact }), ...plan.verification.commands];
       },
-      buildResult(observations) {
-        return projectPrototypeVerification(observations);
+      buildResult(observations, context) {
+        return projectPrototypeVerification(observations, context);
       }
     };
   }
@@ -81652,7 +82511,7 @@ function VisualReviewWorkspace({ input, defaultVariant }) {
   }) }), (0, import_jsx_runtime11.jsxs)("main", { className: "mv-main", children: [(0, import_jsx_runtime11.jsxs)("section", { className: "mv-stage", id: "mv-artifact", "aria-label": "Artifact preview", tabIndex: -1, children: [(0, import_jsx_runtime11.jsxs)("div", { className: "mv-stagebar", children: [(0, import_jsx_runtime11.jsx)("div", { className: "mv-stage-title", "data-mv-stage-title": "", children: t(defaultVariant.label, 160) }), (0, import_jsx_runtime11.jsxs)("div", { className: "mv-stage-actions", children: [(0, import_jsx_runtime11.jsx)("button", { className: "mv-icon-button", type: "button", "data-mv-previous": "", "aria-label": "Previous option", children: "\u2190" }), (0, import_jsx_runtime11.jsx)("button", { className: "mv-icon-button", type: "button", "data-mv-next": "", "aria-label": "Next option", children: "\u2192" }), openHref === void 0 ? (
     // biome-ignore lint/a11y/useValidAnchor: the review script supplies href for previewable options.
     (0, import_jsx_runtime11.jsx)("a", { className: "mv-open-link", "data-mv-open": "", hidden: true, children: "Open full size \u2197" })
-  ) : (0, import_jsx_runtime11.jsx)("a", { className: "mv-open-link", "data-mv-open": "", href: openHref, target: "_blank", rel: "noreferrer", children: "Open full size \u2197" })] })] }), (0, import_jsx_runtime11.jsx)("div", { className: "mv-canvas", children: input.variants.map((variant, index) => (0, import_jsx_runtime11.jsx)(VisualPanel, { variant, selected: variant.id === defaultVariant.id, index }, variant.id)) })] }), (0, import_jsx_runtime11.jsxs)("aside", { className: "mv-inspector", id: "mv-comments", "aria-label": "Review notes", children: [input.variants.map((variant) => (0, import_jsx_runtime11.jsx)(VisualInspector, { variant, selected: variant.id === defaultVariant.id }, variant.id)), (0, import_jsx_runtime11.jsxs)("div", { className: "mt-4", children: [(0, import_jsx_runtime11.jsx)("label", { className: "mv-field-label", htmlFor: "mv-comment", children: "Comment on this option" }), (0, import_jsx_runtime11.jsx)("textarea", { className: "mv-comment", id: "mv-comment", "data-mv-comment": "", maxLength: 2e3, placeholder: "Record what you noticed or why you prefer this option." }), (0, import_jsx_runtime11.jsx)("div", { className: "mv-save-state", "data-mv-save-state": "", children: "Saved in this browser" })] }), (0, import_jsx_runtime11.jsxs)("details", { className: "mv-disclosure", children: [(0, import_jsx_runtime11.jsxs)("summary", { children: ["Why Circuit suggested ", t(input.recommendation.label, MAX_PROMPT_LEN)] }), (0, import_jsx_runtime11.jsx)("div", { className: "mv-disclosure-body", children: t(input.recommendation.rationale, MAX_PROMPT_LEN) })] }), input.details === void 0 ? null : (0, import_jsx_runtime11.jsxs)("details", { className: "mv-disclosure", children: [(0, import_jsx_runtime11.jsx)("summary", { children: "Full comparison report" }), (0, import_jsx_runtime11.jsx)("div", { className: "mv-disclosure-body", children: input.details })] })] })] }), (0, import_jsx_runtime11.jsxs)("footer", { className: "mv-footer", children: [(0, import_jsx_runtime11.jsxs)("div", { className: "mv-footer-group", children: [(0, import_jsx_runtime11.jsx)("button", { className: "mv-secondary", type: "button", "data-mv-previous": "", children: "\u2190 Previous" }), (0, import_jsx_runtime11.jsx)("button", { className: "mv-secondary", type: "button", "data-mv-next": "", children: "Next \u2192" })] }), (0, import_jsx_runtime11.jsx)("div", { className: "mv-footer-group", children: (0, import_jsx_runtime11.jsx)("button", { className: "mv-primary", type: "button", "data-mv-finish": "", children: "Choose this option" }) })] }), (0, import_jsx_runtime11.jsx)("dialog", { className: "mv-dialog", "data-mv-dialog": "", "aria-labelledby": "mv-dialog-title", "aria-describedby": "mv-dialog-description", children: (0, import_jsx_runtime11.jsxs)("div", { className: "mv-dialog-body", children: [(0, import_jsx_runtime11.jsx)("div", { className: "mv-suggested", children: "Finish review" }), (0, import_jsx_runtime11.jsxs)("h2", { id: "mv-dialog-title", children: ["Choose ", (0, import_jsx_runtime11.jsx)("span", { "data-mv-confirm-title": "", children: t(defaultVariant.label, 160) }), "?"] }), (0, import_jsx_runtime11.jsx)("p", { className: "mv-dialog-copy", id: "mv-dialog-description", "data-mv-confirm-summary": "", children: "0 option comments" }), (0, import_jsx_runtime11.jsx)("label", { className: "mv-field-label", htmlFor: "mv-overall-comment", children: "Note for the run record (optional)" }), (0, import_jsx_runtime11.jsx)("textarea", { className: "mv-comment", id: "mv-overall-comment", "data-mv-overall-comment": "", maxLength: 2e3, placeholder: "Add any context you want saved with this review." }), (0, import_jsx_runtime11.jsx)("code", { className: "mv-command", "data-mv-command": "", hidden: true }), (0, import_jsx_runtime11.jsx)("div", { className: "mv-command-state", "data-mv-command-state": "", role: "status", "aria-live": "polite" }), (0, import_jsx_runtime11.jsxs)("div", { className: "mv-dialog-actions", children: [(0, import_jsx_runtime11.jsx)("button", { className: "mv-secondary", type: "button", "data-mv-close-dialog": "", children: "Keep reviewing" }), (0, import_jsx_runtime11.jsx)("button", { className: "mv-secondary", type: "button", "data-mv-export": "", children: "Export review JSON" }), (0, import_jsx_runtime11.jsx)("button", { className: "mv-primary", type: "button", "data-mv-copy-decision": "", children: "Copy decision command" })] })] }) }), (0, import_jsx_runtime11.jsx)("div", { className: "mv-live", "aria-live": "polite", "data-mv-live": "" })] }), (0, import_jsx_runtime11.jsxs)("noscript", { children: [(0, import_jsx_runtime11.jsx)("style", { children: "[data-mv-interactive]{display:none!important}" }), (0, import_jsx_runtime11.jsxs)("div", { className: "mv-noscript", children: [(0, import_jsx_runtime11.jsx)("h1", { children: t(input.headline, 180) }), (0, import_jsx_runtime11.jsx)("p", { children: "JavaScript is off. Review each option, then run one legacy resume command." }), (0, import_jsx_runtime11.jsx)("div", { className: "mv-noscript-list", children: input.variants.map((variant) => (0, import_jsx_runtime11.jsxs)("section", { className: "mv-noscript-option", children: [(0, import_jsx_runtime11.jsxs)("strong", { children: [t(variant.label, 160), variant.recommended ? " \xB7 Suggested" : ""] }), (0, import_jsx_runtime11.jsx)("span", { children: t(variant.description, 420) }), variant.facts.map((fact) => (0, import_jsx_runtime11.jsxs)("span", { children: [t(fact.label, 120), ": ", t(fact.value, MAX_BULLET_LEN)] }, fact.label)), variant.preview?.status === "ready" ? (0, import_jsx_runtime11.jsx)("a", { href: variant.preview.href, children: "Open artifact" }) : (0, import_jsx_runtime11.jsx)("span", { children: variant.preview?.status === "missing" ? "Preview file missing" : variant.preview?.status === "unsupported" ? "Preview format unsupported" : "Preview unavailable" }), variant.action === void 0 ? null : (0, import_jsx_runtime11.jsx)("code", { children: t(variant.action.prompt, MAX_PROMPT_LEN) })] }, variant.id)) })] })] })] });
+  ) : (0, import_jsx_runtime11.jsx)("a", { className: "mv-open-link", "data-mv-open": "", "data-artifact-full-size-src": openHref, href: "#mv-artifact", target: "_blank", rel: "noreferrer", children: "Open full size \u2197" })] })] }), (0, import_jsx_runtime11.jsx)("div", { className: "mv-canvas", children: input.variants.map((variant, index) => (0, import_jsx_runtime11.jsx)(VisualPanel, { variant, selected: variant.id === defaultVariant.id, index }, variant.id)) })] }), (0, import_jsx_runtime11.jsxs)("aside", { className: "mv-inspector", id: "mv-comments", "aria-label": "Review notes", children: [input.variants.map((variant) => (0, import_jsx_runtime11.jsx)(VisualInspector, { variant, selected: variant.id === defaultVariant.id }, variant.id)), (0, import_jsx_runtime11.jsxs)("div", { className: "mt-4", children: [(0, import_jsx_runtime11.jsx)("label", { className: "mv-field-label", htmlFor: "mv-comment", children: "Comment on this option" }), (0, import_jsx_runtime11.jsx)("textarea", { className: "mv-comment", id: "mv-comment", "data-mv-comment": "", maxLength: 2e3, placeholder: "Record what you noticed or why you prefer this option." }), (0, import_jsx_runtime11.jsx)("div", { className: "mv-save-state", "data-mv-save-state": "", children: "Saved in this browser" })] }), (0, import_jsx_runtime11.jsxs)("details", { className: "mv-disclosure", children: [(0, import_jsx_runtime11.jsxs)("summary", { children: ["Why Circuit suggested ", t(input.recommendation.label, MAX_PROMPT_LEN)] }), (0, import_jsx_runtime11.jsx)("div", { className: "mv-disclosure-body", children: t(input.recommendation.rationale, MAX_PROMPT_LEN) })] }), input.details === void 0 ? null : (0, import_jsx_runtime11.jsxs)("details", { className: "mv-disclosure", children: [(0, import_jsx_runtime11.jsx)("summary", { children: "Full comparison report" }), (0, import_jsx_runtime11.jsx)("div", { className: "mv-disclosure-body", children: input.details })] })] })] }), (0, import_jsx_runtime11.jsxs)("footer", { className: "mv-footer", children: [(0, import_jsx_runtime11.jsxs)("div", { className: "mv-footer-group", children: [(0, import_jsx_runtime11.jsx)("button", { className: "mv-secondary", type: "button", "data-mv-previous": "", children: "\u2190 Previous" }), (0, import_jsx_runtime11.jsx)("button", { className: "mv-secondary", type: "button", "data-mv-next": "", children: "Next \u2192" })] }), (0, import_jsx_runtime11.jsx)("div", { className: "mv-footer-group", children: (0, import_jsx_runtime11.jsx)("button", { className: "mv-primary", type: "button", "data-mv-finish": "", children: "Choose this option" }) })] }), (0, import_jsx_runtime11.jsx)("dialog", { className: "mv-dialog", "data-mv-dialog": "", "aria-labelledby": "mv-dialog-title", "aria-describedby": "mv-dialog-summary mv-dialog-description", children: (0, import_jsx_runtime11.jsxs)("div", { className: "mv-dialog-body", children: [(0, import_jsx_runtime11.jsx)("div", { className: "mv-suggested", children: "Finish review" }), (0, import_jsx_runtime11.jsxs)("h2", { id: "mv-dialog-title", children: ["Choose ", (0, import_jsx_runtime11.jsx)("span", { "data-mv-confirm-title": "", children: t(defaultVariant.label, 160) }), "?"] }), (0, import_jsx_runtime11.jsx)("p", { className: "mv-dialog-copy", id: "mv-dialog-summary", "data-mv-confirm-summary": "", children: "0 option comments" }), (0, import_jsx_runtime11.jsx)("p", { className: "mv-dialog-copy", id: "mv-dialog-description", children: "Copy the command or export JSON to carry this selection and these notes back to Circuit." }), (0, import_jsx_runtime11.jsx)("label", { className: "mv-field-label", htmlFor: "mv-overall-comment", children: "Note for the run record (optional)" }), (0, import_jsx_runtime11.jsx)("textarea", { className: "mv-comment", id: "mv-overall-comment", "data-mv-overall-comment": "", maxLength: 2e3, placeholder: "Add any context you want saved with this review." }), (0, import_jsx_runtime11.jsx)("code", { className: "mv-command", "data-mv-command": "", hidden: true }), (0, import_jsx_runtime11.jsx)("div", { className: "mv-command-state", "data-mv-command-state": "", role: "status", "aria-live": "polite" }), (0, import_jsx_runtime11.jsxs)("div", { className: "mv-dialog-actions", children: [(0, import_jsx_runtime11.jsx)("button", { className: "mv-secondary", type: "button", "data-mv-close-dialog": "", children: "Keep reviewing" }), (0, import_jsx_runtime11.jsx)("button", { className: "mv-secondary", type: "button", "data-mv-export": "", children: "Export review JSON" }), (0, import_jsx_runtime11.jsx)("button", { className: "mv-primary", type: "button", "data-mv-copy-decision": "", children: "Copy decision command" }), (0, import_jsx_runtime11.jsx)("button", { className: "mv-primary", type: "button", "data-mv-submit-decision": "", hidden: true, children: "Done" })] })] }) }), (0, import_jsx_runtime11.jsx)("div", { className: "mv-live", "aria-live": "polite", "data-mv-live": "" })] }), (0, import_jsx_runtime11.jsxs)("noscript", { children: [(0, import_jsx_runtime11.jsx)("style", { children: "[data-mv-interactive]{display:none!important}" }), (0, import_jsx_runtime11.jsxs)("div", { className: "mv-noscript", children: [(0, import_jsx_runtime11.jsx)("h1", { children: t(input.headline, 180) }), (0, import_jsx_runtime11.jsx)("p", { children: "JavaScript is off. Review each option, then run one legacy resume command." }), (0, import_jsx_runtime11.jsx)("div", { className: "mv-noscript-list", children: input.variants.map((variant) => (0, import_jsx_runtime11.jsxs)("section", { className: "mv-noscript-option", children: [(0, import_jsx_runtime11.jsxs)("strong", { children: [t(variant.label, 160), variant.recommended ? " \xB7 Suggested" : ""] }), (0, import_jsx_runtime11.jsx)("span", { children: t(variant.description, 420) }), variant.facts.map((fact) => (0, import_jsx_runtime11.jsxs)("span", { children: [t(fact.label, 120), ": ", t(fact.value, MAX_BULLET_LEN)] }, fact.label)), variant.preview?.status === "ready" ? (0, import_jsx_runtime11.jsx)("span", { children: "Artifact preview available in the live review" }) : (0, import_jsx_runtime11.jsx)("span", { children: variant.preview === void 0 ? "Preview unavailable" : artifactPreviewFallbackCopy(variant.preview).title }), variant.action === void 0 ? null : (0, import_jsx_runtime11.jsx)("code", { children: t(variant.action.prompt, MAX_PROMPT_LEN) })] }, variant.id)) })] })] })] });
 }
 function renderMultiVariantComparisonPage(input) {
   if (input.variants.length === 0) {
@@ -81845,10 +82704,12 @@ function variantComparisonItems(input) {
     const artifactEvidence = artifact?.evidence ?? [];
     const risks = artifact?.known_limitations ?? [];
     const providerLine = evidence2?.status === "captured" ? relaySelectionLine(evidence2) : "No captured relay selection evidence";
-    const preview = previewForEntryPoints({
+    const reviewAsset = input.reviewAssets.find((group) => group.root === choice.variant_root);
+    const preview = reviewAsset === void 0 ? { status: "unavailable" } : previewForEntryPoints({
       entryPoints,
       runFolder: input.runFolder,
-      projectRoot: input.projectRoot
+      projectRoot: input.projectRoot,
+      expectedFiles: reviewAsset.files
     });
     return {
       id: choice.id,
@@ -81911,7 +82772,8 @@ function renderVariantCheckpoint(ctx) {
       recommendedChoiceId: recommended.id,
       runFolder: ctx.runFolder,
       commandPrefix,
-      projectRoot: ctx.projectRoot
+      projectRoot: ctx.projectRoot,
+      reviewAssets: verification.review_assets
     }),
     resume: {
       runFolder: ctx.runFolder,
@@ -82003,10 +82865,12 @@ var init_checkpoint_html2 = __esm({
         PROTOTYPE_VERIFICATION_PATH,
         ctx.checkpoint.request_path
       ];
-      const artifactPreview = previewForEntryPoints({
+      const reviewAsset = verification.review_assets.find((group) => group.root === artifact.prototype_root);
+      const artifactPreview = reviewAsset === void 0 ? { status: "unavailable" } : previewForEntryPoints({
         entryPoints: artifact.entry_points,
         runFolder: ctx.runFolder,
-        projectRoot: ctx.projectRoot
+        projectRoot: ctx.projectRoot,
+        expectedFiles: reviewAsset.files
       });
       return renderCheckpointPage({
         meta: { flowLabel: "Prototype", runId: ctx.runId, stepId: ctx.checkpoint.step_id },
@@ -83012,7 +83876,7 @@ var init_verification_projection3 = __esm({
 });
 
 // dist/flows/pursue/writers/verification.js
-import { readFileSync as readFileSync34 } from "node:fs";
+import { readFileSync as readFileSync33 } from "node:fs";
 var pursuitVerificationWriter;
 var init_verification8 = __esm({
   "dist/flows/pursue/writers/verification.js"() {
@@ -83032,7 +83896,7 @@ var init_verification8 = __esm({
         if (!context.step.reads.includes(contractPath)) {
           throw new Error(`pursuit.verification@v1 requires step '${context.step.id}' to read ${contractPath}`);
         }
-        const contract = PursuitContract.parse(JSON.parse(readFileSync34(resolveRunRelative(context.runFolder, contractPath), "utf8")));
+        const contract = PursuitContract.parse(JSON.parse(readFileSync33(resolveRunRelative(context.runFolder, contractPath), "utf8")));
         return contract.verification_command_candidates;
       },
       buildResult(observations) {
@@ -83599,8 +84463,8 @@ var init_intake_projection = __esm({
 
 // dist/flows/review/writers/intake.js
 import { spawnSync as spawnSync3 } from "node:child_process";
-import { closeSync as closeSync2, lstatSync as lstatSync5, openSync as openSync2, readSync as readSync2 } from "node:fs";
-import { isAbsolute as isAbsolute8, relative as relative8, resolve as resolve13 } from "node:path";
+import { closeSync as closeSync4, lstatSync as lstatSync6, openSync as openSync4, readSync as readSync4 } from "node:fs";
+import { isAbsolute as isAbsolute9, relative as relative9, resolve as resolve14 } from "node:path";
 function truncateText(text, maxChars) {
   if (text.length <= maxChars)
     return { text, truncated: false };
@@ -83658,17 +84522,17 @@ function runGitDiff(projectRoot, args) {
   };
 }
 function insideProject(projectRoot, path) {
-  const rel = relative8(projectRoot, path);
-  return rel === "" || !rel.startsWith("..") && !isAbsolute8(rel);
+  const rel = relative9(projectRoot, path);
+  return rel === "" || !rel.startsWith("..") && !isAbsolute9(rel);
 }
 function readUntrackedFile(projectRoot, path, contentPolicy) {
-  const abs = resolve13(projectRoot, path);
+  const abs = resolve14(projectRoot, path);
   if (!insideProject(projectRoot, abs)) {
     return { path, byte_length: 0, skipped_reason: "path resolves outside project root" };
   }
   let stat2;
   try {
-    stat2 = lstatSync5(abs);
+    stat2 = lstatSync6(abs);
   } catch (err) {
     return { path, byte_length: 0, skipped_reason: `failed to inspect file: ${errorMessage3(err)}` };
   }
@@ -83684,9 +84548,9 @@ function readUntrackedFile(projectRoot, path, contentPolicy) {
   let fd;
   try {
     const byteLimit = Math.min(stat2.size, MAX_UNTRACKED_FILE_BYTES);
-    fd = openSync2(abs, "r");
+    fd = openSync4(abs, "r");
     const bytes = Buffer.alloc(byteLimit);
-    const bytesRead = readSync2(fd, bytes, 0, byteLimit, 0);
+    const bytesRead = readSync4(fd, bytes, 0, byteLimit, 0);
     const sample = bytes.subarray(0, bytesRead);
     if (sample.includes(0)) {
       return { path, byte_length: stat2.size, skipped_reason: "binary file skipped" };
@@ -83706,7 +84570,7 @@ function readUntrackedFile(projectRoot, path, contentPolicy) {
   } finally {
     if (fd !== void 0) {
       try {
-        closeSync2(fd);
+        closeSync4(fd);
       } catch {
       }
     }
@@ -83812,7 +84676,7 @@ var init_result_projection5 = __esm({
 });
 
 // dist/flows/review/writers/result.js
-import { readFileSync as readFileSync35 } from "node:fs";
+import { readFileSync as readFileSync34 } from "node:fs";
 function reviewerRelayResultPath(flow, closeStep) {
   const closeStepId = closeStep.id;
   const reviewerRelayes = flow.steps.filter((candidate) => candidate.kind === "relay" && candidate.role === "reviewer" && candidate.routes.pass === closeStepId);
@@ -83848,8 +84712,8 @@ var init_result2 = __esm({
       // its own resolution.
       build(context) {
         const path = reviewerRelayResultPath(context.flow, context.step);
-        const intake = ReviewIntake.parse(JSON.parse(readFileSync35(resolveRunRelative(context.runFolder, reviewIntakePath(context.flow, context.step)), "utf8")));
-        const relayResult = ReviewRelayResult.parse(JSON.parse(readFileSync35(resolveRunRelative(context.runFolder, path), "utf8")));
+        const intake = ReviewIntake.parse(JSON.parse(readFileSync34(resolveRunRelative(context.runFolder, reviewIntakePath(context.flow, context.step)), "utf8")));
+        const relayResult = ReviewRelayResult.parse(JSON.parse(readFileSync34(resolveRunRelative(context.runFolder, path), "utf8")));
         return projectReviewResult({ intake, relayResult });
       }
     };
@@ -84614,7 +85478,7 @@ var init_census = __esm({
 });
 
 // dist/flows/sweep/writers/partition.js
-import { existsSync as existsSync21, readFileSync as readFileSync36 } from "node:fs";
+import { existsSync as existsSync21, readFileSync as readFileSync35 } from "node:fs";
 function sanitizeForBranchId(value) {
   const cleaned = value.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-+|-+$/g, "");
   return cleaned.length === 0 ? "unit" : cleaned;
@@ -84625,7 +85489,7 @@ function latestLesson(runFolder) {
     return void 0;
   let parsed;
   try {
-    parsed = JSON.parse(readFileSync36(notesPath, "utf8"));
+    parsed = JSON.parse(readFileSync35(notesPath, "utf8"));
   } catch {
     return void 0;
   }
@@ -84714,7 +85578,7 @@ var init_partition = __esm({
 });
 
 // dist/flows/sweep/writers/verification.js
-import { readFileSync as readFileSync37 } from "node:fs";
+import { readFileSync as readFileSync36 } from "node:fs";
 var sweepRescanVerificationWriter;
 var init_verification9 = __esm({
   "dist/flows/sweep/writers/verification.js"() {
@@ -84733,7 +85597,7 @@ var init_verification9 = __esm({
         if (!context.step.reads.includes(censusPath)) {
           throw new Error(`sweep.verification@v1 requires step '${context.step.id}' to read ${censusPath}`);
         }
-        const census = SweepCensus.parse(JSON.parse(readFileSync37(resolveRunRelative(context.runFolder, censusPath), "utf8")));
+        const census = SweepCensus.parse(JSON.parse(readFileSync36(resolveRunRelative(context.runFolder, censusPath), "utf8")));
         return [census.scanner, census.suppression_audit];
       },
       buildResult(observations) {
@@ -86064,7 +86928,7 @@ var init_compiled_flow_file_plan = __esm({
 });
 
 // dist/schemas/progress-event.js
-var MAX_STATUS_TEXT_CHARS, MAX_DISPLAY_TEXT_CHARS, ProgressDisplay, ProgressPresentationLineMode, ProgressPresentation, ProgressTaskStatus, ProgressTask, ProgressEventBase, RunStartedProgressEvent, RouteSelectedProgressEvent, StepStartedProgressEvent, StepCompletedProgressEvent, StepAbortedProgressEvent, EvidenceCollectedProgressEvent, EvidenceWarningProgressEvent, RelayStartedProgressEvent, RelayCompletedProgressEvent, FanoutStartedProgressEvent, FanoutBranchStartedProgressEvent, FanoutBranchCompletedProgressEvent, FanoutJoinedProgressEvent, CheckpointWaitingProgressEvent, TaskListUpdatedProgressEvent, UserInputOption, UserInputQuestion, UserInputRequestedProgressEvent, RunCompletedProgressEvent, RunAbortedProgressEvent, ProgressEvent;
+var MAX_STATUS_TEXT_CHARS, MAX_DISPLAY_TEXT_CHARS, ProgressDisplay, ProgressPresentationLineMode, ProgressPresentation, ProgressTaskStatus, ProgressTask, ProgressEventBase, RunStartedProgressEvent, RouteSelectedProgressEvent, StepStartedProgressEvent, StepCompletedProgressEvent, StepAbortedProgressEvent, EvidenceCollectedProgressEvent, EvidenceWarningProgressEvent, RelayStartedProgressEvent, RelayCompletedProgressEvent, FanoutStartedProgressEvent, FanoutBranchStartedProgressEvent, FanoutBranchCompletedProgressEvent, FanoutJoinedProgressEvent, CheckpointWaitingProgressEvent, LoopbackReviewUrl, CheckpointReviewReadyProgressEvent, TaskListUpdatedProgressEvent, UserInputOption, UserInputQuestion, UserInputRequestedProgressEvent, RunCompletedProgressEvent, RunAbortedProgressEvent, ProgressEvent;
 var init_progress_event = __esm({
   "dist/schemas/progress-event.js"() {
     "use strict";
@@ -86233,6 +87097,20 @@ var init_progress_event = __esm({
       request_path: external_exports.string().min(1),
       allowed_choices: external_exports.array(external_exports.string().min(1)).min(1)
     }).strict();
+    LoopbackReviewUrl = external_exports.url().refine((value) => {
+      try {
+        const url2 = new URL(value);
+        return url2.protocol === "http:" && url2.hostname === "127.0.0.1" && url2.port.length > 0;
+      } catch {
+        return false;
+      }
+    }, "review_url must be an HTTP URL on 127.0.0.1");
+    CheckpointReviewReadyProgressEvent = ProgressEventBase.extend({
+      type: external_exports.literal("checkpoint_review.ready"),
+      step_id: StepId,
+      attempt: external_exports.number().int().positive(),
+      review_url: LoopbackReviewUrl
+    }).strict();
     TaskListUpdatedProgressEvent = ProgressEventBase.extend({
       type: external_exports.literal("task_list.updated"),
       tasks: external_exports.array(ProgressTask).min(1)
@@ -86292,6 +87170,7 @@ var init_progress_event = __esm({
       FanoutBranchCompletedProgressEvent,
       FanoutJoinedProgressEvent,
       CheckpointWaitingProgressEvent,
+      CheckpointReviewReadyProgressEvent,
       TaskListUpdatedProgressEvent,
       UserInputRequestedProgressEvent,
       RunCompletedProgressEvent,
@@ -86650,9 +87529,9 @@ var init_custom_flow_descriptor = __esm({
 
 // dist/cli/custom-flow-package.js
 import { randomUUID as randomUUID3 } from "node:crypto";
-import { existsSync as existsSync22, mkdirSync as mkdirSync4, readFileSync as readFileSync38, rmSync as rmSync4, writeFileSync as writeFileSync5 } from "node:fs";
+import { existsSync as existsSync22, mkdirSync as mkdirSync4, readFileSync as readFileSync37, rmSync as rmSync4, writeFileSync as writeFileSync5 } from "node:fs";
 import { homedir as homedir2 } from "node:os";
-import { dirname as dirname7, join as join15, resolve as resolve14 } from "node:path";
+import { dirname as dirname6, join as join16, resolve as resolve15 } from "node:path";
 function slugify2(value) {
   const slug = value.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-+|-+$/g, "").slice(0, 48).replace(/-+$/g, "");
   return slug.length > 0 ? slug : `custom-${randomUUID3().slice(0, 8)}`;
@@ -86666,37 +87545,37 @@ function assertValidSlug(slug) {
   }
 }
 function customHome(home) {
-  return resolve14(home ?? join15(homedir2(), ".config", "circuit", "custom"));
+  return resolve15(home ?? join16(homedir2(), ".config", "circuit", "custom"));
 }
 function draftRoot(home, slug) {
-  return join15(home, "drafts", slug);
+  return join16(home, "drafts", slug);
 }
 function publishedRoot(home, slug) {
-  return join15(home, "skills", slug);
+  return join16(home, "skills", slug);
 }
 function flowRoot(home) {
-  return join15(home, "flows");
+  return join16(home, "flows");
 }
 function customFlowInvocation(slug, home) {
   return `circuit run ${slug} --flow-root '${flowRoot(home)}' --goal '<task>' --progress jsonl`;
 }
 function commandRoot(home) {
-  return join15(home, "commands");
+  return join16(home, "commands");
 }
 function reportsRoot(home) {
-  return join15(home, "reports");
+  return join16(home, "reports");
 }
 function manifestPath(home) {
-  return join15(home, "manifest.json");
+  return join16(home, "manifest.json");
 }
 function resultPath(home, slug, action) {
-  return join15(reportsRoot(home), `${slug}-${action}-result.json`);
+  return join16(reportsRoot(home), `${slug}-${action}-result.json`);
 }
 function summaryPath(home, slug) {
-  return join15(reportsRoot(home), `${slug}-operator-summary.md`);
+  return join16(reportsRoot(home), `${slug}-operator-summary.md`);
 }
 function writeText(path, text) {
-  mkdirSync4(dirname7(path), { recursive: true });
+  mkdirSync4(dirname6(path), { recursive: true });
   writeFileSync5(path, text.endsWith("\n") ? text : `${text}
 `);
 }
@@ -86789,7 +87668,7 @@ function publishManifest(input) {
     custom_flows: []
   };
   if (existsSync22(manifestPath(input.home))) {
-    existing = JSON.parse(readFileSync38(manifestPath(input.home), "utf8"));
+    existing = JSON.parse(readFileSync37(manifestPath(input.home), "utf8"));
   }
   const withoutSlug = existing.custom_flows.filter((flow) => !(typeof flow === "object" && flow !== null && "id" in flow && flow.id === input.slug));
   writeJson2(manifestPath(input.home), {
@@ -86799,17 +87678,17 @@ function publishManifest(input) {
       {
         id: input.slug,
         description: input.description,
-        flow_path: join15(flowRoot(input.home), input.slug, "circuit.json"),
-        flow_paths: input.filenames.map((filename) => join15(flowRoot(input.home), input.slug, filename)),
-        skill_path: join15(publishedRoot(input.home, input.slug), "SKILL.md"),
-        command_path: join15(commandRoot(input.home), `${input.slug}.md`),
+        flow_path: join16(flowRoot(input.home), input.slug, "circuit.json"),
+        flow_paths: input.filenames.map((filename) => join16(flowRoot(input.home), input.slug, filename)),
+        skill_path: join16(publishedRoot(input.home, input.slug), "SKILL.md"),
+        command_path: join16(commandRoot(input.home), `${input.slug}.md`),
         published_at: input.createdAt
       }
     ]
   });
 }
 function writeValidationResult(input) {
-  writeJson2(join15(draftRoot(input.home, input.slug), "validation-result.json"), {
+  writeJson2(join16(draftRoot(input.home, input.slug), "validation-result.json"), {
     schema_version: 1,
     status: "valid",
     validated_flow_id: input.flow.id,
@@ -86823,7 +87702,7 @@ function writeValidationResult(input) {
   });
 }
 function readDraftMetadata(home, slug) {
-  const raw = JSON.parse(readFileSync38(join15(draftRoot(home, slug), "validation-result.json"), "utf8"));
+  const raw = JSON.parse(readFileSync37(join16(draftRoot(home, slug), "validation-result.json"), "utf8"));
   const filenames = Array.isArray(raw.flow_files) && raw.flow_files.every((f) => typeof f === "string") ? raw.flow_files : ["circuit.json"];
   return {
     filenames,
@@ -86840,13 +87719,13 @@ function writeDraft(input) {
   rmSync4(root, { recursive: true, force: true });
   mkdirSync4(root, { recursive: true });
   const descriptor = circuitYaml(input.slug, input.description);
-  validateCircuitYamlDescriptor(descriptor, join15(root, "circuit.yaml"), input.slug);
-  writeText(join15(root, "SKILL.md"), skillMarkdown(input.slug, input.description, input.home));
-  writeText(join15(root, "circuit.yaml"), descriptor);
+  validateCircuitYamlDescriptor(descriptor, join16(root, "circuit.yaml"), input.slug);
+  writeText(join16(root, "SKILL.md"), skillMarkdown(input.slug, input.description, input.home));
+  writeText(join16(root, "circuit.yaml"), descriptor);
   for (const { filename, flow } of input.files) {
-    writeJson2(join15(root, filename), flow);
+    writeJson2(join16(root, filename), flow);
   }
-  writeText(join15(root, "command.md"), commandMarkdown(input.slug, input.description, input.home));
+  writeText(join16(root, "command.md"), commandMarkdown(input.slug, input.description, input.home));
   writeValidationResult({
     home: input.home,
     slug: input.slug,
@@ -86859,8 +87738,8 @@ function writeDraft(input) {
 function loadDraftFlow(home, slug) {
   const { filenames } = readDraftMetadata(home, slug);
   const files = filenames.map((filename) => {
-    const path = join15(draftRoot(home, slug), filename);
-    const flow = CompiledFlow.parse(JSON.parse(readFileSync38(path, "utf8")));
+    const path = join16(draftRoot(home, slug), filename);
+    const flow = CompiledFlow.parse(JSON.parse(readFileSync37(path, "utf8")));
     validateCustomFlow(slug, flow, `custom flow draft (${filename})`);
     return { filename, flow };
   });
@@ -86868,23 +87747,23 @@ function loadDraftFlow(home, slug) {
 }
 function publishDraft(input) {
   const draft = draftRoot(input.home, input.slug);
-  if (!existsSync22(join15(draft, "SKILL.md"))) {
+  if (!existsSync22(join16(draft, "SKILL.md"))) {
     throw new Error(`draft missing for ${input.slug}: ${draft}`);
   }
-  const descriptor = readFileSync38(join15(draft, "circuit.yaml"), "utf8");
-  validateCircuitYamlDescriptor(descriptor, join15(draft, "circuit.yaml"), input.slug);
+  const descriptor = readFileSync37(join16(draft, "circuit.yaml"), "utf8");
+  validateCircuitYamlDescriptor(descriptor, join16(draft, "circuit.yaml"), input.slug);
   const { filenames } = readDraftMetadata(input.home, input.slug);
   const skillRoot = publishedRoot(input.home, input.slug);
-  const customFlowRoot = join15(flowRoot(input.home), input.slug);
+  const customFlowRoot = join16(flowRoot(input.home), input.slug);
   rmSync4(customFlowRoot, { recursive: true, force: true });
   mkdirSync4(skillRoot, { recursive: true });
   mkdirSync4(customFlowRoot, { recursive: true });
-  writeText(join15(skillRoot, "SKILL.md"), readFileSync38(join15(draft, "SKILL.md"), "utf8"));
-  writeText(join15(skillRoot, "circuit.yaml"), descriptor);
+  writeText(join16(skillRoot, "SKILL.md"), readFileSync37(join16(draft, "SKILL.md"), "utf8"));
+  writeText(join16(skillRoot, "circuit.yaml"), descriptor);
   for (const filename of filenames) {
-    writeText(join15(customFlowRoot, filename), readFileSync38(join15(draft, filename), "utf8"));
+    writeText(join16(customFlowRoot, filename), readFileSync37(join16(draft, filename), "utf8"));
   }
-  writeText(join15(commandRoot(input.home), `${input.slug}.md`), readFileSync38(join15(draft, "command.md"), "utf8"));
+  writeText(join16(commandRoot(input.home), `${input.slug}.md`), readFileSync37(join16(draft, "command.md"), "utf8"));
   publishManifest({ ...input, filenames });
 }
 var import_yaml3, RESERVED_FLOW_IDS;
@@ -86902,17 +87781,17 @@ var init_custom_flow_package = __esm({
 });
 
 // dist/cli/runtime-routing-policy.js
-import { readFileSync as readFileSync39 } from "node:fs";
-import { basename as basename4, dirname as dirname8, relative as relative9, resolve as resolve15 } from "node:path";
+import { readFileSync as readFileSync38 } from "node:fs";
+import { basename as basename4, dirname as dirname7, relative as relative10, resolve as resolve16 } from "node:path";
 function pathIsInside(parent, child) {
-  const rel = relative9(parent, child);
+  const rel = relative10(parent, child);
   return rel.length === 0 || !rel.startsWith("..") && !rel.startsWith("/");
 }
 function fixtureEligibleForRuntime(input) {
   if (input.args.fixturePath === void 0 && input.args.flowRoot === void 0)
     return true;
-  const fixturePath = resolve15(input.fixturePath);
-  if (pathIsInside(resolve15(input.generatedFlowsRoot ?? "generated/flows"), fixturePath)) {
+  const fixturePath = resolve16(input.fixturePath);
+  if (pathIsInside(resolve16(input.generatedFlowsRoot ?? "generated/flows"), fixturePath)) {
     return true;
   }
   if (input.args.flowRoot !== void 0 && publishedCustomFlowMatches(input.args.flowRoot, fixturePath)) {
@@ -86922,12 +87801,12 @@ function fixtureEligibleForRuntime(input) {
   if (mirrorRoot === void 0 || mirrorRoot.length === 0 || input.args.flowRoot === void 0) {
     return false;
   }
-  const trustedMirrorRoot = resolve15(mirrorRoot);
-  return resolve15(input.args.flowRoot) === trustedMirrorRoot && pathIsInside(trustedMirrorRoot, fixturePath);
+  const trustedMirrorRoot = resolve16(mirrorRoot);
+  return resolve16(input.args.flowRoot) === trustedMirrorRoot && pathIsInside(trustedMirrorRoot, fixturePath);
 }
 function readCustomFlowEntries(flowRoot2) {
   try {
-    const manifest = JSON.parse(readFileSync39(resolve15(dirname8(resolve15(flowRoot2)), "manifest.json"), "utf8"));
+    const manifest = JSON.parse(readFileSync38(resolve16(dirname7(resolve16(flowRoot2)), "manifest.json"), "utf8"));
     if (manifest === null || typeof manifest !== "object" || Array.isArray(manifest))
       return [];
     const customFlows = manifest.custom_flows;
@@ -86942,12 +87821,12 @@ function recordedFlowPaths(candidate) {
   const paths = [];
   const flowPath = candidate.flow_path;
   if (typeof flowPath === "string")
-    paths.push(resolve15(flowPath));
+    paths.push(resolve16(flowPath));
   const flowPaths = candidate.flow_paths;
   if (Array.isArray(flowPaths)) {
     for (const entry of flowPaths) {
       if (typeof entry === "string")
-        paths.push(resolve15(entry));
+        paths.push(resolve16(entry));
     }
   }
   return paths;
@@ -86959,13 +87838,13 @@ function unrecordedPublishedSiblingReason(input) {
   const flowRoot2 = input.args.flowRoot;
   if (flowRoot2 === void 0)
     return void 0;
-  const fixturePath = resolve15(input.fixturePath);
-  const fixtureDir = dirname8(fixturePath);
+  const fixturePath = resolve16(input.fixturePath);
+  const fixtureDir = dirname7(fixturePath);
   for (const candidate of readCustomFlowEntries(flowRoot2)) {
     const recorded = recordedFlowPaths(candidate);
     if (recorded.length === 0)
       continue;
-    if (dirname8(recorded[0]) !== fixtureDir)
+    if (dirname7(recorded[0]) !== fixtureDir)
       continue;
     if (recorded.includes(fixturePath))
       continue;
@@ -87310,7 +88189,7 @@ function parseNdjsonObjects(stdout, label) {
 }
 async function runConnectorSubprocess(input) {
   const start = performance2.now();
-  return await new Promise((resolve33, reject) => {
+  return await new Promise((resolve36, reject) => {
     let child;
     try {
       child = spawn(input.executable, [...input.args], {
@@ -87392,7 +88271,7 @@ async function runConnectorSubprocess(input) {
     });
     child.on("close", (code, signal) => {
       clearAllTimers();
-      resolve33({
+      resolve36({
         stdout,
         stderr,
         stdoutCapped,
@@ -87718,17 +88597,17 @@ var init_claude_code = __esm({
 });
 
 // dist/connectors/codex-default-model.js
-import { readFileSync as readFileSync40 } from "node:fs";
+import { readFileSync as readFileSync39 } from "node:fs";
 import { homedir as homedir3 } from "node:os";
-import { join as join17 } from "node:path";
+import { join as join18 } from "node:path";
 function codexHomeDir() {
   const fromEnv = process.env.CODEX_HOME;
   if (fromEnv !== void 0 && fromEnv.trim().length > 0)
     return fromEnv;
-  return join17(homedir3(), ".codex");
+  return join18(homedir3(), ".codex");
 }
 function codexModelsCachePath() {
-  return join17(codexHomeDir(), CODEX_MODELS_CACHE_FILENAME);
+  return join18(codexHomeDir(), CODEX_MODELS_CACHE_FILENAME);
 }
 function candidateFrom(value) {
   if (typeof value !== "object" || value === null)
@@ -87775,7 +88654,7 @@ function resolveCodexDefaultModelUncached() {
   const cachePath = codexModelsCachePath();
   let raw;
   try {
-    raw = readFileSync40(cachePath, "utf8");
+    raw = readFileSync39(cachePath, "utf8");
   } catch (err) {
     throw new CodexDefaultModelUnavailableError(unavailableMessage(cachePath, `cache not readable: ${err.message}`));
   }
@@ -87813,7 +88692,7 @@ var init_codex_default_model = __esm({
 
 // dist/connectors/codex.js
 import { execFileSync as execFileSync3 } from "node:child_process";
-import { readFileSync as readFileSync41 } from "node:fs";
+import { readFileSync as readFileSync40 } from "node:fs";
 import { mkdtemp, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join as joinPath } from "node:path";
@@ -87977,7 +88856,7 @@ function codexModelCacheHint(model, streamError) {
     return "";
   let slugs;
   try {
-    const parsed = JSON.parse(readFileSync41(codexModelsCachePath(), "utf8"));
+    const parsed = JSON.parse(readFileSync40(codexModelsCachePath(), "utf8"));
     const models = parsed?.models;
     if (!Array.isArray(models))
       return "";
@@ -89892,6 +90771,59 @@ var init_checkpoint_boundary2 = __esm({
   }
 });
 
+// dist/shared/checkpoint-review-inputs.js
+import { createHash as createHash7 } from "node:crypto";
+function normalizeCheckpointReviewInputPaths(paths) {
+  const seen = /* @__PURE__ */ new Set();
+  const normalized = [];
+  for (const path of paths) {
+    if (seen.has(path))
+      continue;
+    seen.add(path);
+    normalized.push(path);
+  }
+  return normalized;
+}
+function normalizeCheckpointReviewInputIdentities(identities) {
+  const byPath = /* @__PURE__ */ new Map();
+  const normalized = [];
+  for (const identity2 of identities) {
+    const existing = byPath.get(identity2.path);
+    if (existing !== void 0) {
+      if (existing !== identity2.sha256) {
+        throw new Error(`checkpoint review input '${identity2.path}' has conflicting identities`);
+      }
+      continue;
+    }
+    byPath.set(identity2.path, identity2.sha256);
+    normalized.push(identity2);
+  }
+  return normalized;
+}
+function checkpointReviewInputSha256(bytes) {
+  return createHash7("sha256").update(bytes).digest("hex");
+}
+function checkpointReviewInputJsonObject(bytes) {
+  let text;
+  try {
+    text = new TextDecoder("utf-8", { fatal: true }).decode(bytes);
+  } catch {
+    return void 0;
+  }
+  let value;
+  try {
+    value = JSON.parse(text);
+  } catch {
+    return void 0;
+  }
+  return value !== null && typeof value === "object" && !Array.isArray(value) ? value : void 0;
+}
+var init_checkpoint_review_inputs = __esm({
+  "dist/shared/checkpoint-review-inputs.js"() {
+    "use strict";
+  }
+});
+
 // dist/schemas/work-contract-projection.js
 var ReportSlot, ContractRoute, ContractBlock, ContractSkillSlot, ContractEquipmentScope, ContractRelay, ContractCheckpointChoices, ContractCheckpoint, ContractSubRun, ContractFanout, AcceptanceCriteriaInput, CheckInput, BudgetLimit, ProjectionViolation, WorkContractProjectionV0;
 var init_work_contract_projection = __esm({
@@ -90894,11 +91826,11 @@ var init_fanout_branch_template = __esm({
 });
 
 // dist/shared/user-skill-registry.js
-import { existsSync as existsSync24, readFileSync as readFileSync42, readdirSync as readdirSync3 } from "node:fs";
+import { existsSync as existsSync24, readFileSync as readFileSync41, readdirSync as readdirSync4 } from "node:fs";
 import { homedir as homedir4 } from "node:os";
-import { join as join18, resolve as resolve16 } from "node:path";
+import { join as join19, resolve as resolve17 } from "node:path";
 function defaultUserSkillRoots(homeDir = homedir4()) {
-  return [join18(homeDir, ".agents", "skills"), join18(homeDir, ".claude", "skills")];
+  return [join19(homeDir, ".agents", "skills"), join19(homeDir, ".claude", "skills")];
 }
 function parseSkillMarkdown(text, skillPath) {
   if (!text.startsWith("---"))
@@ -90929,10 +91861,10 @@ function parseSkillMarkdown(text, skillPath) {
 function discoverCandidates(roots) {
   const candidates = /* @__PURE__ */ new Map();
   for (const root of roots) {
-    const rootAbs = resolve16(root);
+    const rootAbs = resolve17(root);
     if (!existsSync24(rootAbs))
       continue;
-    for (const entry of readdirSync3(rootAbs, { withFileTypes: true })) {
+    for (const entry of readdirSync4(rootAbs, { withFileTypes: true })) {
       if (!entry.isDirectory())
         continue;
       const id = SkillId.safeParse(entry.name);
@@ -90941,7 +91873,7 @@ function discoverCandidates(roots) {
       const key = id.data;
       if (candidates.has(key))
         continue;
-      const skillPath = join18(rootAbs, entry.name, "SKILL.md");
+      const skillPath = join19(rootAbs, entry.name, "SKILL.md");
       if (!existsSync24(skillPath))
         continue;
       candidates.set(key, {
@@ -90956,7 +91888,7 @@ function discoverCandidates(roots) {
 function loadCandidate(candidate) {
   let text;
   try {
-    text = readFileSync42(candidate.path, "utf8");
+    text = readFileSync41(candidate.path, "utf8");
   } catch (err) {
     throw new Error(`selected skill '${candidate.id}' could not be read at ${candidate.path}: ${err.message}`);
   }
@@ -90974,7 +91906,7 @@ function loadCandidate(candidate) {
 function createUserSkillRegistry(options = {}) {
   const roots = options.roots ?? defaultUserSkillRoots(options.homeDir);
   const candidates = discoverCandidates(roots);
-  const searchedRoots = roots.map((root) => resolve16(root));
+  const searchedRoots = roots.map((root) => resolve17(root));
   const cache3 = /* @__PURE__ */ new Map();
   const loadCached = (key, candidate) => {
     const cached2 = cache3.get(key);
@@ -90996,7 +91928,7 @@ function createUserSkillRegistry(options = {}) {
         throw new Error([
           `Circuit could not find skill '${key}'.`,
           "Searched:",
-          ...searchedRoots.map((root) => `- ${join18(root, key, "SKILL.md")}`)
+          ...searchedRoots.map((root) => `- ${join19(root, key, "SKILL.md")}`)
         ].join("\n"));
       }
       return loadCached(key, candidate);
@@ -91705,13 +92637,7 @@ var init_result3 = __esm({
 });
 
 // dist/runtime/executors/checkpoint.js
-function checkpointAttemptResponsePath(responsePath, attempt) {
-  const jsonSuffix = ".json";
-  if (responsePath.endsWith(jsonSuffix)) {
-    return `${responsePath.slice(0, -jsonSuffix.length)}.attempt-${attempt}${jsonSuffix}`;
-  }
-  return `${responsePath}.attempt-${attempt}.json`;
-}
+import { readFile as readFile3 } from "node:fs/promises";
 function policy(step) {
   if (step.policy === void 0 || step.policy === null || typeof step.policy !== "object") {
     throw new Error(`checkpoint step '${step.id}' is missing checkpoint policy`);
@@ -91910,9 +92836,63 @@ function checkpointRequestBody(input) {
       checkpoint_boundary_hash: input.boundary.request_trace.boundary_hash,
       selection_config_layers: input.context.selectionConfigLayers ?? [],
       policy_layers: input.context.policyLayers ?? [],
+      review_inputs: input.reviewInputs,
+      review_assets: input.reviewAssets,
       ...input.checkpointReportSha256 === void 0 ? {} : { checkpoint_report_sha256: input.checkpointReportSha256 }
     }
   };
+}
+function checkpointReviewAssets(step, context, reviewInputs) {
+  const collected = [];
+  const inputsByPath = new Map(reviewInputs.map((input) => [input.path, input]));
+  for (const path of normalizeCheckpointReviewInputPaths((step.reads ?? []).map((ref) => ref.path))) {
+    const input = inputsByPath.get(path);
+    if (input === void 0) {
+      throw new Error(`checkpoint step '${step.id}' is missing review input '${path}'`);
+    }
+    const raw = checkpointReviewInputJsonObject(input.bytes);
+    if (raw === void 0 || !Object.hasOwn(raw, "review_assets"))
+      continue;
+    let groups2;
+    try {
+      groups2 = CheckpointReviewAssetGroups.parse(raw.review_assets);
+    } catch (error52) {
+      throw new Error(`checkpoint step '${step.id}' found invalid review_assets in '${path}': ${error52 instanceof Error ? error52.message : String(error52)}`);
+    }
+    collected.push(...groups2);
+  }
+  const groups = CheckpointReviewAssetGroups.parse(collected);
+  if (groups.length === 0)
+    return groups;
+  if (context.projectRoot === void 0) {
+    throw new Error(`checkpoint step '${step.id}' cannot verify review assets without projectRoot`);
+  }
+  return verifyCheckpointReviewAssetGroups({ projectRoot: context.projectRoot, groups });
+}
+async function checkpointReviewInputs(step, context, checkpointReportSha256, includeCheckpointReport = true) {
+  const identities = [];
+  const refsByPath = new Map((step.reads ?? []).map((ref) => [ref.path, ref]));
+  const readPaths = normalizeCheckpointReviewInputPaths((step.reads ?? []).map((ref) => ref.path));
+  for (const path of readPaths) {
+    const ref = refsByPath.get(path);
+    if (ref === void 0)
+      continue;
+    const bytes = await readFile3(context.files.resolve(ref));
+    identities.push({ path, sha256: checkpointReviewInputSha256(bytes), bytes });
+  }
+  const report = step.writes?.report;
+  if (includeCheckpointReport && report !== void 0 && !readPaths.includes(report.path)) {
+    const bytes = await readFile3(context.files.resolve(report));
+    identities.push({
+      path: report.path,
+      sha256: checkpointReportSha256 ?? checkpointReviewInputSha256(bytes),
+      bytes
+    });
+  }
+  return identities;
+}
+function sameReviewInputs(left, right) {
+  return left.length === right.length && left.every((identity2, index) => identity2.path === right[index]?.path && identity2.sha256 === right[index]?.sha256);
 }
 async function executeCheckpointResult(step, context) {
   const attempt = context.activeStepAttempt ?? 1;
@@ -91923,6 +92903,7 @@ async function executeCheckpointResult(step, context) {
       return stepExecutionFailed(`checkpoint step '${step.id}' requires writes.request and writes.response`);
     }
     const indexedStep2 = requireRuntimeIndexedStep(context.packageIndex, step.id, "checkpoint");
+    const reviewInputsBefore = await checkpointReviewInputs(step, context, void 0, false);
     const stepPolicy = await materializePolicy(step, context);
     const boundary = projectRuntimeCheckpointBoundary({ step, stepPolicy, context });
     let checkpointReportSha256;
@@ -91945,7 +92926,7 @@ async function executeCheckpointResult(step, context) {
           responsePath: response.path
         });
         await context.files.writeJson(report, body);
-        checkpointReportSha256 = sha256OfString(await context.files.readText(report));
+        checkpointReportSha256 = checkpointReviewInputSha256(await readFile3(context.files.resolve(report)));
         await context.trace.append({
           run_id: context.runId,
           kind: "step.report_written",
@@ -91955,11 +92936,19 @@ async function executeCheckpointResult(step, context) {
           report_schema: report.schema
         });
       }
+      const reviewInputs = await checkpointReviewInputs(step, context, checkpointReportSha256);
+      const readsAfter = reviewInputs.filter((identity2) => (step.reads ?? []).some((ref) => ref.path === identity2.path));
+      if (!sameReviewInputs(reviewInputsBefore, readsAfter)) {
+        return stepExecutionFailed(`checkpoint step '${step.id}' review inputs changed while the request was created`);
+      }
+      const reviewAssets = checkpointReviewAssets(step, context, readsAfter);
       const requestBody = checkpointRequestBody({
         step,
         context,
         stepPolicy,
         boundary,
+        reviewInputs: reviewInputs.map(({ path, sha256: sha2564 }) => ({ path, sha256: sha2564 })),
+        reviewAssets,
         ...checkpointReportSha256 === void 0 ? {} : { checkpointReportSha256 }
       });
       await context.files.writeJson(request, requestBody);
@@ -92105,12 +93094,16 @@ var init_checkpoint = __esm({
     init_registry();
     init_runtime_index();
     init_policy_envelope2();
+    init_checkpoint_review_assets();
     init_ids();
     init_step();
     init_checkpoint_auto_resolution();
     init_checkpoint_boundary2();
+    init_checkpoint_review_assets2();
+    init_checkpoint_review_inputs();
     init_connector_relay();
     init_fanout_branch_template();
+    init_run_file_paths();
     init_runtime_source2();
     init_guidance();
     init_result3();
@@ -92717,15 +93710,15 @@ var init_report_schemas = __esm({
 });
 
 // dist/connectors/custom.js
-import { mkdtemp as mkdtemp2, readFile as readFile3, rm as rm2, stat, writeFile as writeFile2 } from "node:fs/promises";
+import { mkdtemp as mkdtemp2, readFile as readFile4, rm as rm2, stat, writeFile as writeFile2 } from "node:fs/promises";
 import { tmpdir as tmpdir2 } from "node:os";
-import { join as join19 } from "node:path";
+import { join as join20 } from "node:path";
 async function extractConfiguredOutput(descriptor, outputFile) {
   const outputStats = await stat(outputFile);
   if (outputStats.size > OUTPUT_MAX_BYTES) {
     throw new Error(`custom connector '${descriptor.name}' output file exceeded ${OUTPUT_MAX_BYTES} bytes`);
   }
-  const raw = await readFile3(outputFile, "utf8");
+  const raw = await readFile4(outputFile, "utf8");
   if (raw.trim().length === 0) {
     throw new Error(`custom connector '${descriptor.name}' output file was empty`);
   }
@@ -92756,9 +93749,9 @@ async function relayCustom(input) {
   if (executable === void 0) {
     throw new Error(`custom connector '${descriptor.name}' command is empty`);
   }
-  const tempDir = await mkdtemp2(join19(tmpdir2(), "circuit-custom-connector-"));
-  const promptFile = join19(tempDir, "prompt.txt");
-  const outputFile = join19(tempDir, "output.txt");
+  const tempDir = await mkdtemp2(join20(tmpdir2(), "circuit-custom-connector-"));
+  const promptFile = join20(tempDir, "prompt.txt");
+  const outputFile = join20(tempDir, "output.txt");
   await writeFile2(promptFile, input.prompt, "utf8");
   const args = [...baseArgs, promptFile, outputFile];
   const timeoutMs2 = input.timeoutMs ?? DEFAULT_TIMEOUT_MS;
@@ -92826,14 +93819,14 @@ var init_custom = __esm({
 });
 
 // dist/shared/equipment-enforcement.js
-function resolveEquipmentEnforcement(scope, capability) {
+function resolveEquipmentEnforcement(scope, capability2) {
   if (scope === void 0 || scope.tools === "full") {
     return { declared: "trusted", effective: "trusted", downgraded: false };
   }
   if (scope.enforcement === "trusted") {
     return { declared: "trusted", effective: "trusted", downgraded: false };
   }
-  if (capability === "allow-list") {
+  if (capability2 === "allow-list") {
     return {
       declared: "enforced",
       effective: "enforced",
@@ -95303,6 +96296,7 @@ var init_schemas3 = __esm({
     init_custom_flow_descriptor();
     init_checkpoint_boundary();
     init_checkpoint_review_constraints();
+    init_checkpoint_review_assets();
     init_checkpoint_review_response();
     init_change_packet();
     init_policy_envelope();
@@ -95361,7 +96355,7 @@ var init_schemas3 = __esm({
 });
 
 // dist/runtime/run/relay-support.js
-import { existsSync as existsSync25, readFileSync as readFileSync43 } from "node:fs";
+import { existsSync as existsSync25, readFileSync as readFileSync42 } from "node:fs";
 function evaluateRelayCheck(step, resultBody) {
   let parsed;
   try {
@@ -95599,7 +96593,7 @@ function composeRelayPrompt(step, runFolder, loadedSkills = [], acceptanceRetryF
     const abs = resolveRunRelative(runFolder, path);
     if (!existsSync25(abs))
       return `[reads unavailable: ${path}]`;
-    return fencedBlock("read", ` path="${path}"`, readFileSync43(abs, "utf8"));
+    return fencedBlock("read", ` path="${path}"`, readFileSync42(abs, "utf8"));
   }).join("\n\n");
   const skillsSection = selectedSkillsSection(loadedSkills);
   const houseStyle = houseStyleSection(step, loadedSkills);
@@ -96392,7 +97386,7 @@ var init_relay = __esm({
 
 // dist/runtime/executors/sub-run.js
 import { randomUUID as randomUUID5 } from "node:crypto";
-import { dirname as dirname9, join as join20 } from "node:path";
+import { dirname as dirname8, join as join21 } from "node:path";
 function checkPassVerdicts(step) {
   const pass = step.check.pass;
   return Array.isArray(pass) ? pass.filter((entry) => typeof entry === "string") : [];
@@ -96496,7 +97490,7 @@ async function executeSubRunInternal(step, context) {
     return await recordSubRunCheckFailure(step, context, `sub-run step '${step.id}': resolver returned flow id '${childFlow.id}' but flow_ref names '${step.flowRef}'`);
   }
   const childRunId = randomUUID5();
-  const childRunDir = join20(dirname9(context.runDir), childRunId);
+  const childRunDir = join21(dirname8(context.runDir), childRunId);
   await context.trace.append({
     run_id: context.runId,
     kind: "sub_run.started",
@@ -96634,8 +97628,8 @@ var init_sub_run = __esm({
 });
 
 // dist/runtime/run/reuse-children.js
-import { existsSync as existsSync26, readFileSync as readFileSync44 } from "node:fs";
-import { isAbsolute as isAbsolute9, join as join21 } from "node:path";
+import { existsSync as existsSync26, readFileSync as readFileSync43 } from "node:fs";
+import { isAbsolute as isAbsolute10, join as join22 } from "node:path";
 function isCompletedSubRunBranch(entry, stepId, branchId) {
   return entry.kind === "fanout.branch_completed" && entry.step_id === stepId && entry.branch_id === branchId && entry.branch_kind === "sub-run" && entry.child_outcome === "complete";
 }
@@ -96662,12 +97656,12 @@ async function lookupReusableSubRunBranch(input) {
   }
   if (worktreePath === void 0)
     return void 0;
-  if (!existsSync26(join21(worktreePath, ".git")))
+  if (!existsSync26(join22(worktreePath, ".git")))
     return void 0;
-  const resultAbs = isAbsolute9(completed.result_path) ? completed.result_path : join21(input.priorRunFolder, completed.result_path);
+  const resultAbs = isAbsolute10(completed.result_path) ? completed.result_path : join22(input.priorRunFolder, completed.result_path);
   let resultBody;
   try {
-    resultBody = RunResult.parse(JSON.parse(readFileSync44(resultAbs, "utf8")));
+    resultBody = RunResult.parse(JSON.parse(readFileSync43(resultAbs, "utf8")));
   } catch {
     return void 0;
   }
@@ -96695,7 +97689,7 @@ var init_types2 = __esm({
 
 // dist/runtime/fanout/branch-execution.js
 import { randomUUID as randomUUID6 } from "node:crypto";
-import { dirname as dirname10, join as join22 } from "node:path";
+import { dirname as dirname9, join as join23 } from "node:path";
 async function appendFanoutBranchStarted(context, fields) {
   await context.trace.append({
     run_id: context.runId,
@@ -97121,7 +98115,7 @@ async function executeSubRunFanoutBranch(step, context, branch, worktreeRunner, 
     if (childFlow.id !== branch.flowRef) {
       throw new Error(`resolver returned flow id '${childFlow.id}' but branch flow_ref names '${branch.flowRef}'`);
     }
-    const childRunDir = join22(dirname10(context.runDir), childRunId);
+    const childRunDir = join23(dirname9(context.runDir), childRunId);
     const child = await context.childRunner({
       flowBytes: resolved.flowBytes,
       runDir: childRunDir,
@@ -97293,15 +98287,15 @@ var init_branch_expansion = __esm({
 });
 
 // dist/runtime/fanout/run-owner-lock.js
-import { mkdirSync as mkdirSync5, readFileSync as readFileSync45, rmSync as rmSync5, writeFileSync as writeFileSync6 } from "node:fs";
-import { join as join23 } from "node:path";
+import { mkdirSync as mkdirSync5, readFileSync as readFileSync44, rmSync as rmSync5, writeFileSync as writeFileSync6 } from "node:fs";
+import { join as join24 } from "node:path";
 function ownerLockPath(worktreesRoot, runId) {
-  return join23(worktreesRoot, runId, OWNER_LOCK_FILENAME);
+  return join24(worktreesRoot, runId, OWNER_LOCK_FILENAME);
 }
 function writeOwnerLock(worktreesRoot, runId, startedAt) {
   const lock = { schema_version: 1, pid: process.pid, started_at: startedAt };
   try {
-    mkdirSync5(join23(worktreesRoot, runId), { recursive: true });
+    mkdirSync5(join24(worktreesRoot, runId), { recursive: true });
     writeFileSync6(ownerLockPath(worktreesRoot, runId), JSON.stringify(lock), "utf8");
   } catch {
   }
@@ -97315,7 +98309,7 @@ function removeOwnerLock(worktreesRoot, runId) {
 function isRunLiveByOwnerLock(worktreesRoot, runId, processAlive = defaultProcessAlive) {
   let raw;
   try {
-    raw = readFileSync45(ownerLockPath(worktreesRoot, runId), "utf8");
+    raw = readFileSync44(ownerLockPath(worktreesRoot, runId), "utf8");
   } catch {
     return false;
   }
@@ -97661,8 +98655,8 @@ var init_fanout = __esm({
 });
 
 // dist/runtime/run/oracle-command-pin.js
-import { existsSync as existsSync27, readFileSync as readFileSync46 } from "node:fs";
-import { join as join24 } from "node:path";
+import { existsSync as existsSync27, readFileSync as readFileSync45 } from "node:fs";
+import { join as join25 } from "node:path";
 function createOracleCommandPinChannel() {
   return { pins: /* @__PURE__ */ new Map() };
 }
@@ -97671,13 +98665,13 @@ function readReferencedScriptBody(command, projectRoot) {
   if (script === void 0)
     return void 0;
   const cwdAbs = resolveProjectRelativeProofCwd(projectRoot, command.cwd);
-  const packageJsonPath = join24(cwdAbs, "package.json");
+  const packageJsonPath = join25(cwdAbs, "package.json");
   if (!existsSync27(packageJsonPath)) {
     throw new OracleCommandDriftError(`oracle script "${script}" for command '${command.id}' vanished: package.json missing at its cwd`);
   }
   let parsed;
   try {
-    parsed = JSON.parse(readFileSync46(packageJsonPath, "utf8"));
+    parsed = JSON.parse(readFileSync45(packageJsonPath, "utf8"));
   } catch (error52) {
     const message = error52 instanceof Error ? error52.message : String(error52);
     throw new OracleCommandDriftError(`oracle script "${script}" for command '${command.id}' unreadable: ${message}`);
@@ -98180,9 +99174,9 @@ var init_carried_notes = __esm({
 });
 
 // dist/runtime/run/frozen-eval.js
-import { createHash as createHash6 } from "node:crypto";
-import { readFileSync as readFileSync47 } from "node:fs";
-import { resolve as resolve17 } from "node:path";
+import { createHash as createHash8 } from "node:crypto";
+import { readFileSync as readFileSync46 } from "node:fs";
+import { resolve as resolve18 } from "node:path";
 var ABSENT, FrozenEvalGuard;
 var init_frozen_eval = __esm({
   "dist/runtime/run/frozen-eval.js"() {
@@ -98201,8 +99195,8 @@ var init_frozen_eval = __esm({
       // or unreadable. Resolved against the injected project root; never cwd.
       fingerprint(declaredPath) {
         try {
-          const bytes = readFileSync47(resolve17(this.projectRoot, declaredPath));
-          return createHash6("sha256").update(bytes).digest("hex");
+          const bytes = readFileSync46(resolve18(this.projectRoot, declaredPath));
+          return createHash8("sha256").update(bytes).digest("hex");
         } catch {
           return ABSENT;
         }
@@ -98224,10 +99218,10 @@ var init_frozen_eval = __esm({
 });
 
 // dist/runtime/run/manifest-snapshot.js
-import { mkdir as mkdir2, readFile as readFile4, writeFile as writeFile3 } from "node:fs/promises";
-import { dirname as dirname11, join as join25 } from "node:path";
+import { mkdir as mkdir2, readFile as readFile5, writeFile as writeFile3 } from "node:fs/promises";
+import { dirname as dirname10, join as join26 } from "node:path";
 function runtimeManifestSnapshotPath(runDir) {
-  return join25(runDir, MANIFEST_SNAPSHOT_RUN_FILE);
+  return join26(runDir, MANIFEST_SNAPSHOT_RUN_FILE);
 }
 async function writeRuntimeManifestSnapshot(input) {
   const bytes = Buffer.from(input.bytes);
@@ -98241,13 +99235,13 @@ async function writeRuntimeManifestSnapshot(input) {
     bytes_base64: bytes.toString("base64")
   });
   const path = runtimeManifestSnapshotPath(input.runDir);
-  await mkdir2(dirname11(path), { recursive: true });
+  await mkdir2(dirname10(path), { recursive: true });
   await writeFile3(path, `${JSON.stringify(snapshot, null, 2)}
 `, { encoding: "utf8", flag: "wx" });
   return snapshot;
 }
 async function readRuntimeManifestSnapshot(runDir) {
-  const raw = JSON.parse(await readFile4(runtimeManifestSnapshotPath(runDir), "utf8"));
+  const raw = JSON.parse(await readFile5(runtimeManifestSnapshotPath(runDir), "utf8"));
   return ManifestSnapshot.parse(raw);
 }
 async function readRuntimeCompiledFlowManifestSnapshot(input) {
@@ -98513,7 +99507,7 @@ var init_write_capable_worker_disclosure = __esm({
 });
 
 // dist/runtime/projections/progress.js
-import { join as join26 } from "node:path";
+import { join as join27 } from "node:path";
 function stepTitle(input) {
   if (input.stepId === void 0)
     return "<unknown step>";
@@ -98584,7 +99578,7 @@ function reportTaskListProgress(input) {
   });
 }
 function readJsonReport2(files, runDir, reportPath) {
-  const text = files.readText(join26(runDir, reportPath));
+  const text = files.readText(join27(runDir, reportPath));
   if (text === void 0)
     throw new Error(`progress projection could not read ${reportPath}`);
   return JSON.parse(text);
@@ -98675,7 +99669,7 @@ function checkpointChoiceLabel(choice) {
   return choice.split(/[-_]/).filter((part) => part.length > 0).map((part) => `${part.slice(0, 1).toUpperCase()}${part.slice(1)}`).join(" ");
 }
 function checkpointRequestPath(runDir, requestPath) {
-  return requestPath.startsWith("/") ? requestPath : join26(runDir, requestPath);
+  return requestPath.startsWith("/") ? requestPath : join27(runDir, requestPath);
 }
 function shouldWarnAboutWriteCapableWorker(flow) {
   return flowMayInvokeWriteCapableWorker(flow.id) || flow.steps.some((step) => step.kind === "relay" && step.role === "implementer");
@@ -98780,7 +99774,7 @@ function createProgressProjector(input) {
         if (connector === void 0 || role === void 0)
           break;
         const display = stepDisplay({ flow: input.flow, stepDisplayById, stepId });
-        const capability = connectorFilesystemCapability(connector);
+        const capability2 = connectorFilesystemCapability(connector);
         const statusText = relayStartedTextFor({ role, display });
         reportProgress(input.progress, {
           schema_version: 1,
@@ -98797,7 +99791,7 @@ function createProgressProjector(input) {
           role,
           connector_name: connector.name,
           connector_kind: connector.kind,
-          filesystem_capability: capability
+          filesystem_capability: capability2
         });
         break;
       }
@@ -98955,7 +99949,7 @@ function createProgressProjector(input) {
         const presentation = tournamentCheckpointPresentation({
           readJson: (path) => {
             try {
-              const text = projectionFiles.readText(join26(input.runDir, path));
+              const text = projectionFiles.readText(join27(input.runDir, path));
               return text === void 0 ? void 0 : JSON.parse(text);
             } catch {
               return void 0;
@@ -99243,21 +100237,21 @@ var init_report_validator = __esm({
 });
 
 // dist/runtime/run/external-files.js
-import { readFile as readFile5 } from "node:fs/promises";
+import { readFile as readFile6 } from "node:fs/promises";
 var nodeExternalFileReader;
 var init_external_files = __esm({
   "dist/runtime/run/external-files.js"() {
     "use strict";
     nodeExternalFileReader = {
       async readText(path) {
-        return await readFile5(path, "utf8");
+        return await readFile6(path, "utf8");
       }
     };
   }
 });
 
 // dist/runtime/run/run-boundary.js
-import { readFileSync as readFileSync48 } from "node:fs";
+import { readFileSync as readFileSync47 } from "node:fs";
 import { lstat, mkdir as mkdir3, readdir } from "node:fs/promises";
 async function assertFreshRunDir(runDir) {
   let stat2;
@@ -99315,7 +100309,7 @@ async function openRunBoundary(options) {
     files: {
       readText(path) {
         try {
-          return readFileSync48(path, "utf8");
+          return readFileSync47(path, "utf8");
         } catch {
           return void 0;
         }
@@ -99715,7 +100709,7 @@ var init_until_corridor = __esm({
 
 // dist/runtime/run/graph-runner.js
 import { randomUUID as randomUUID7 } from "node:crypto";
-import { join as join27 } from "node:path";
+import { join as join28 } from "node:path";
 function isGraphCheckpointWaitingResult(result) {
   return "kind" in result && result.kind === "checkpoint_waiting";
 }
@@ -99905,7 +100899,7 @@ async function executeExecutableFlowOutcomeUnsafe(flow, options) {
   const bindingLegibility = resolveBindingLegibility(flow);
   const engineFlags = resolveEngineFlags(flow);
   const editFileSurfaceSources = surfaceSourcesFromDeclarations(flow.reportFileSurfaces ?? {});
-  const honestyLedger = engineFlags?.iteratesUntilCondition?.stopJudge !== void 0 ? new HonestyLedger({ path: join27(runDir, "honesty-ledger.json") }) : void 0;
+  const honestyLedger = engineFlags?.iteratesUntilCondition?.stopJudge !== void 0 ? new HonestyLedger({ path: join28(runDir, "honesty-ledger.json") }) : void 0;
   const oracleCommandPins = honestyLedger === void 0 ? void 0 : createOracleCommandPinChannel();
   const context = {
     flow,
@@ -100932,13 +101926,13 @@ var init_compiled_flow_runner = __esm({
 });
 
 // dist/runtime/run/resume-lock.js
-import { mkdirSync as mkdirSync6, readFileSync as readFileSync49, rmSync as rmSync6, writeFileSync as writeFileSync7 } from "node:fs";
-import { join as join28 } from "node:path";
+import { mkdirSync as mkdirSync6, readFileSync as readFileSync48, rmSync as rmSync6, writeFileSync as writeFileSync7 } from "node:fs";
+import { join as join29 } from "node:path";
 function resumeLockPath(runDir) {
-  return join28(runDir, RESUME_LOCK_FILENAME);
+  return join29(runDir, RESUME_LOCK_FILENAME);
 }
 function reclaimIntentPath(runDir) {
-  return join28(runDir, RESUME_RECLAIM_FILENAME);
+  return join29(runDir, RESUME_RECLAIM_FILENAME);
 }
 function createExclusive(path, payload) {
   try {
@@ -100953,7 +101947,7 @@ function createExclusive(path, payload) {
 function recordedPid(path) {
   let raw;
   try {
-    raw = readFileSync49(path, "utf8");
+    raw = readFileSync48(path, "utf8");
   } catch {
     return void 0;
   }
@@ -101032,12 +102026,20 @@ var init_resume_lock = __esm({
 });
 
 // dist/runtime/run/checkpoint-resume.js
-import { readFileSync as readFileSync50 } from "node:fs";
+import { readFileSync as readFileSync49 } from "node:fs";
 function errorFromUnknown3(error52) {
   return error52 instanceof Error ? error52 : new Error(String(error52));
 }
-function checkpointResumeRejected(reason, error52) {
-  return { kind: "rejected", reason, error: error52 ?? new Error(reason) };
+function checkpointResumeRejected(reason, error52, code) {
+  return {
+    kind: "rejected",
+    reason,
+    error: error52 ?? new Error(reason),
+    ...code === void 0 ? {} : { code }
+  };
+}
+function checkpointResponseRejected(code, reason) {
+  return checkpointResumeRejected(reason, void 0, code);
 }
 function checkpointResumeRejectedFrom(error52) {
   const normalized = errorFromUnknown3(error52);
@@ -101111,7 +102113,7 @@ function readCheckpointRequestContextResult(input) {
   const requestAbs = resolveRunFilePath(input.runDir, input.requestPath);
   let requestText;
   try {
-    requestText = readFileSync50(requestAbs, "utf8");
+    requestText = readFileSync49(requestAbs, "utf8");
   } catch (error52) {
     return checkpointResumeRejectedFrom(error52);
   }
@@ -101193,6 +102195,37 @@ function readCheckpointRequestContextResult(input) {
   if (checkpointReportSha256 !== void 0 && typeof checkpointReportSha256 !== "string") {
     return checkpointResumeRejected("runtime checkpoint resume rejected: checkpoint_report_sha256 is invalid");
   }
+  let reviewInputs;
+  if (context.review_inputs !== void 0) {
+    if (!Array.isArray(context.review_inputs)) {
+      return checkpointResumeRejected("runtime checkpoint resume rejected: review_inputs is invalid");
+    }
+    const parsedReviewInputs = [];
+    for (const value of context.review_inputs) {
+      if (!isRecord7(value) || typeof value.path !== "string") {
+        return checkpointResumeRejected("runtime checkpoint resume rejected: review_inputs is invalid");
+      }
+      let sha2564;
+      try {
+        sha2564 = Sha256.parse(value.sha256);
+        resolveRunFilePath(input.runDir, value.path);
+      } catch (error52) {
+        return checkpointResumeRejectedFrom(error52);
+      }
+      parsedReviewInputs.push({ path: value.path, sha256: sha2564 });
+    }
+    try {
+      reviewInputs = normalizeCheckpointReviewInputIdentities(parsedReviewInputs);
+    } catch (error52) {
+      return checkpointResumeRejectedFrom(error52);
+    }
+  }
+  let reviewAssets;
+  try {
+    reviewAssets = CheckpointReviewAssetGroups.parse(context.review_assets ?? []);
+  } catch (error52) {
+    return checkpointResumeRejectedFrom(error52);
+  }
   return checkpointResumeValid({
     ...axes === void 0 ? {} : { axes },
     ...projectRoot === void 0 ? {} : { projectRoot },
@@ -101201,7 +102234,9 @@ function readCheckpointRequestContextResult(input) {
     checkpointBoundaryHash,
     selectionConfigLayers,
     policyLayers,
-    ...checkpointReportSha256 === void 0 ? {} : { checkpointReportSha256 }
+    ...checkpointReportSha256 === void 0 ? {} : { checkpointReportSha256 },
+    ...reviewInputs === void 0 ? {} : { reviewInputs },
+    reviewAssets
   });
 }
 function checkpointRequestTraceBoundaryResult(input) {
@@ -101286,6 +102321,83 @@ function validateCheckpointReportResult(input) {
   }
   return checkpointResumeValid(void 0);
 }
+function validateCheckpointReviewInputsResult(input) {
+  const identities = input.requestContext.reviewInputs;
+  if (identities === void 0)
+    return checkpointResumeValid(void 0);
+  const expectedPaths = normalizeCheckpointReviewInputPaths(input.compiledStep.reads);
+  const report = input.compiledStep.writes.report;
+  const reportPath = report === void 0 ? void 0 : typeof report === "string" ? report : report.path;
+  if (reportPath !== void 0 && !expectedPaths.includes(reportPath))
+    expectedPaths.push(reportPath);
+  if (identities.length !== expectedPaths.length || identities.some((identity2, index) => identity2.path !== expectedPaths[index])) {
+    return checkpointResumeRejected(`runtime checkpoint resume rejected: review inputs for '${input.compiledStep.id}' do not match the saved flow`);
+  }
+  try {
+    for (const identity2 of identities) {
+      const bytes = readFileSync49(resolveRunFilePath(input.runDir, identity2.path));
+      if (checkpointReviewInputSha256(bytes) !== identity2.sha256) {
+        return checkpointResumeRejected(`runtime checkpoint resume rejected: review input '${identity2.path}' changed after the checkpoint was created`);
+      }
+    }
+  } catch (error52) {
+    return checkpointResumeRejectedFrom(error52);
+  }
+  if (reportPath !== void 0 && input.requestContext.checkpointReportSha256 !== void 0 && identities.find((identity2) => identity2.path === reportPath)?.sha256 !== input.requestContext.checkpointReportSha256) {
+    return checkpointResumeRejected(`runtime checkpoint resume rejected: checkpoint report identity for '${input.compiledStep.id}' is inconsistent`);
+  }
+  return checkpointResumeValid(void 0);
+}
+function validateCheckpointReviewAssetsResult(input) {
+  const expected = input.requestContext.reviewAssets;
+  const identities = input.requestContext.reviewInputs;
+  const identitiesByPath = new Map(identities?.map((identity2) => [identity2.path, identity2]));
+  const reported = [];
+  if (identities !== void 0) {
+    try {
+      for (const path of normalizeCheckpointReviewInputPaths(input.compiledStep.reads)) {
+        const identity2 = identitiesByPath.get(path);
+        if (identity2 === void 0) {
+          return checkpointResumeRejected(`runtime checkpoint resume rejected: review asset input '${path}' is missing`);
+        }
+        const bytes = readFileSync49(resolveRunFilePath(input.runDir, identity2.path));
+        if (checkpointReviewInputSha256(bytes) !== identity2.sha256) {
+          return checkpointResumeRejected(`runtime checkpoint resume rejected: review input '${identity2.path}' changed after the checkpoint was created`);
+        }
+        const raw = checkpointReviewInputJsonObject(bytes);
+        if (raw === void 0 || !Object.hasOwn(raw, "review_assets"))
+          continue;
+        const groups = CheckpointReviewAssetGroups.parse(raw.review_assets);
+        reported.push(...groups);
+      }
+    } catch (error52) {
+      return checkpointResumeRejectedFrom(error52);
+    }
+  }
+  let declared;
+  try {
+    declared = CheckpointReviewAssetGroups.parse(reported);
+  } catch (error52) {
+    return checkpointResumeRejectedFrom(error52);
+  }
+  if (JSON.stringify(declared) !== JSON.stringify(expected)) {
+    return checkpointResumeRejected("runtime checkpoint resume rejected: review asset identities do not match the saved review inputs");
+  }
+  if (expected.length === 0)
+    return checkpointResumeValid(void 0);
+  if (input.requestContext.projectRoot === void 0) {
+    return checkpointResumeRejected("runtime checkpoint resume rejected: review assets require the saved project root");
+  }
+  try {
+    verifyCheckpointReviewAssetGroups({
+      projectRoot: input.requestContext.projectRoot,
+      groups: expected
+    });
+  } catch (error52) {
+    return checkpointResumeRejectedFrom(error52);
+  }
+  return checkpointResumeValid(void 0);
+}
 function executableFlowForResume(input) {
   const executable = fromCompiledFlow(input.flow);
   return {
@@ -101299,7 +102411,7 @@ function executableFlowForResume(input) {
 async function resumeCompiledFlowResult(options) {
   const lock = acquireResumeLock(options.runDir);
   if (!lock.ok) {
-    return checkpointResumeRejected(lock.message);
+    return checkpointResumeRejected(lock.message, void 0, "resume_in_progress");
   }
   try {
     return await resumeCompiledFlowResultLocked(options);
@@ -101370,12 +102482,24 @@ async function resumeCompiledFlowResultLocked(options) {
   }
   if (options.checkpointResponse !== void 0) {
     const response = options.checkpointResponse;
-    if (response.run_id !== bootstrapRunId || response.step_id !== stepId || response.attempt !== attempt || response.request_sha256 !== requestHash || response.selection !== options.selection) {
-      return checkpointResumeRejected("runtime checkpoint resume rejected: checkpoint response does not match this run and checkpoint");
+    if (response.run_id !== bootstrapRunId) {
+      return checkpointResponseRejected("checkpoint_response_wrong_run", "runtime checkpoint resume rejected: checkpoint response does not match this run and checkpoint");
+    }
+    if (response.step_id !== stepId) {
+      return checkpointResponseRejected("checkpoint_response_wrong_step", "runtime checkpoint resume rejected: checkpoint response does not match this run and checkpoint");
+    }
+    if (response.attempt !== attempt) {
+      return checkpointResponseRejected("checkpoint_response_stale_attempt", "runtime checkpoint resume rejected: checkpoint response does not match this run and checkpoint");
+    }
+    if (response.request_sha256 !== requestHash) {
+      return checkpointResponseRejected("checkpoint_response_stale_request", "runtime checkpoint resume rejected: checkpoint response does not match this run and checkpoint");
+    }
+    if (response.selection !== options.selection) {
+      return checkpointResponseRejected("checkpoint_response_selection_mismatch", "runtime checkpoint resume rejected: checkpoint response does not match this run and checkpoint");
     }
     const staleComment = response.comments.find((comment) => comment.scope === "choice" && !savedChoices.includes(comment.choice_id));
     if (staleComment !== void 0 && staleComment.scope === "choice") {
-      return checkpointResumeRejected(`runtime checkpoint resume rejected: comment choice '${staleComment.choice_id}' is not available at checkpoint '${stepId}'`);
+      return checkpointResponseRejected("checkpoint_response_comment_choice_unavailable", `runtime checkpoint resume rejected: comment choice '${staleComment.choice_id}' is not available at checkpoint '${stepId}'`);
     }
   }
   const compiledStep = flow.steps.find((candidate) => candidate.id === stepId);
@@ -101428,6 +102552,20 @@ async function resumeCompiledFlowResultLocked(options) {
   });
   if (isCheckpointResumeRejectedResult(reportValidation))
     return reportValidation;
+  const reviewInputValidation = validateCheckpointReviewInputsResult({
+    runDir: options.runDir,
+    compiledStep,
+    requestContext
+  });
+  if (isCheckpointResumeRejectedResult(reviewInputValidation))
+    return reviewInputValidation;
+  const reviewAssetValidation = validateCheckpointReviewAssetsResult({
+    runDir: options.runDir,
+    compiledStep,
+    requestContext
+  });
+  if (isCheckpointResumeRejectedResult(reviewAssetValidation))
+    return reviewAssetValidation;
   const depth = traceString(bootstrap, "depth");
   const progressSurface = options.progressSurfaceForFlowId?.(flow.id);
   const result = await executeExecutableFlowOutcome(executable, {
@@ -101483,15 +102621,12 @@ async function resumeCompiledFlowResultLocked(options) {
     return checkpointResumeRejected(result.reason, result.error);
   }
   if (isGraphCheckpointWaitingResult(result)) {
-    return checkpointResumeRejected("runtime checkpoint resume rejected: resume did not resolve checkpoint");
+    if (result.checkpoint.stepId === stepId && result.checkpoint.attempt === attempt) {
+      return checkpointResumeRejected("runtime checkpoint resume rejected: resume did not resolve checkpoint");
+    }
+    return { kind: "resumed", result };
   }
   return { kind: "resumed", result: result.result };
-}
-async function resumeCompiledFlow(options) {
-  const result = await resumeCompiledFlowResult(options);
-  if (isCheckpointResumeRejectedResult(result))
-    throw result.error;
-  return result.result;
 }
 var init_checkpoint_resume = __esm({
   "dist/runtime/run/checkpoint-resume.js"() {
@@ -101499,12 +102634,15 @@ var init_checkpoint_resume = __esm({
     init_registry();
     init_policy_envelope2();
     init_axes();
+    init_checkpoint_review_assets();
     init_config();
     init_ids();
     init_policy_envelope();
     init_ref();
     init_step();
     init_checkpoint_boundary2();
+    init_checkpoint_review_assets2();
+    init_checkpoint_review_inputs();
     init_connector_relay();
     init_run_file_paths();
     init_work_contract_projection2();
@@ -101521,17 +102659,1756 @@ var init_checkpoint_resume = __esm({
   }
 });
 
+// dist/app/checkpoints/local-review-references.js
+function decodeMarkupAttribute(value) {
+  return value.replace(/&(amp|quot|apos|#x27|#39|lt|gt);/giu, (entity) => {
+    switch (entity.toLowerCase()) {
+      case "&amp;":
+        return "&";
+      case "&quot;":
+        return '"';
+      case "&apos;":
+      case "&#x27;":
+      case "&#39;":
+        return "'";
+      case "&lt;":
+        return "<";
+      case "&gt;":
+        return ">";
+      default:
+        return entity;
+    }
+  });
+}
+function declarationEnd2(source, start) {
+  let quote;
+  for (let cursor = start + 2; cursor < source.length; cursor += 1) {
+    const character = source[cursor];
+    if (quote !== void 0) {
+      if (character === quote)
+        quote = void 0;
+    } else if (character === '"' || character === "'") {
+      quote = character;
+    } else if (character === ">") {
+      return cursor + 1;
+    }
+  }
+  return source.length;
+}
+function tagAt2(source, start) {
+  if (source[start] !== "<")
+    return void 0;
+  let cursor = start + 1;
+  let closing = false;
+  if (source[cursor] === "/") {
+    closing = true;
+    cursor += 1;
+  }
+  while (/\s/u.test(source[cursor] ?? ""))
+    cursor += 1;
+  const nameStart = cursor;
+  while (/[A-Za-z0-9:-]/u.test(source[cursor] ?? ""))
+    cursor += 1;
+  if (cursor === nameStart)
+    return void 0;
+  const name = source.slice(nameStart, cursor).toLowerCase();
+  const attributes = [];
+  while (cursor < source.length) {
+    while (/\s/u.test(source[cursor] ?? ""))
+      cursor += 1;
+    const character = source[cursor];
+    if (character === ">") {
+      cursor += 1;
+      break;
+    }
+    if (character === "/" && source[cursor + 1] === ">") {
+      cursor += 2;
+      break;
+    }
+    if (character === void 0)
+      break;
+    const attributeNameStart = cursor;
+    while (!/[\s=/>]/u.test(source[cursor] ?? ">"))
+      cursor += 1;
+    if (cursor === attributeNameStart) {
+      cursor += 1;
+      continue;
+    }
+    const name2 = source.slice(attributeNameStart, cursor).toLowerCase();
+    while (/\s/u.test(source[cursor] ?? ""))
+      cursor += 1;
+    if (source[cursor] !== "=") {
+      attributes.push({ name: name2 });
+      continue;
+    }
+    cursor += 1;
+    while (/\s/u.test(source[cursor] ?? ""))
+      cursor += 1;
+    const quote = source[cursor] === '"' || source[cursor] === "'" ? source[cursor] : void 0;
+    if (quote !== void 0)
+      cursor += 1;
+    const valueStart = cursor;
+    if (quote !== void 0) {
+      while (cursor < source.length && source[cursor] !== quote)
+        cursor += 1;
+    } else {
+      while (!/[\s>]/u.test(source[cursor] ?? ">"))
+        cursor += 1;
+    }
+    const valueEnd = cursor;
+    if (quote !== void 0 && source[cursor] === quote)
+      cursor += 1;
+    attributes.push({
+      name: name2,
+      value: source.slice(valueStart, valueEnd),
+      valueStart,
+      valueEnd,
+      ...quote === void 0 ? {} : { quote }
+    });
+  }
+  return { name, closing, start, end: cursor, attributes };
+}
+function rawTextClose(source, lower, tagName, start) {
+  const needle = `</${tagName}`;
+  let cursor = start;
+  while (cursor < source.length) {
+    const closeStart = lower.indexOf(needle, cursor);
+    if (closeStart === -1)
+      return void 0;
+    const boundary = source[closeStart + needle.length];
+    if (boundary === void 0 || boundary === ">" || boundary === "/" || /\s/u.test(boundary)) {
+      const close = tagAt2(source, closeStart);
+      if (close?.closing === true && close.name === tagName)
+        return close;
+    }
+    cursor = closeStart + needle.length;
+  }
+  return void 0;
+}
+function visitMarkup(source, visitor, format = "html") {
+  let cursor = 0;
+  const lower = source.toLowerCase();
+  while (cursor < source.length) {
+    const start = source.indexOf("<", cursor);
+    if (start === -1)
+      break;
+    if (source.startsWith("<!--", start)) {
+      const end = source.indexOf("-->", start + 4);
+      cursor = end === -1 ? source.length : end + 3;
+      continue;
+    }
+    if (source.startsWith("<!", start) || source.startsWith("<?", start)) {
+      cursor = declarationEnd2(source, start);
+      continue;
+    }
+    const tag = tagAt2(source, start);
+    if (tag === void 0) {
+      cursor = start + 1;
+      continue;
+    }
+    cursor = tag.end;
+    if (tag.closing)
+      continue;
+    visitor.tag(tag);
+    const localName2 = tag.name.slice(tag.name.lastIndexOf(":") + 1);
+    if (format === "html" && localName2 === "plaintext")
+      break;
+    const rawText = localName2 === "script" || localName2 === "style" || format === "html" && (HTML_RAW_TEXT_ELEMENTS.has(localName2) || HTML_ESCAPABLE_RAW_TEXT_ELEMENTS.has(localName2));
+    if (!rawText)
+      continue;
+    const close = rawTextClose(source, lower, tag.name, cursor);
+    if (close === void 0) {
+      if (localName2 === "style")
+        visitor.style(source.slice(cursor), cursor, source.length);
+      break;
+    }
+    if (localName2 === "style") {
+      visitor.style(source.slice(cursor, close.start), cursor, close.start);
+    }
+    cursor = close.end;
+  }
+}
+function attribute(tag, name) {
+  return tag.attributes.find((candidate) => candidate.name === name);
+}
+function isStylesheetLink(tag) {
+  if (tag.name !== "link")
+    return false;
+  const rel = attribute(tag, "rel")?.value;
+  return rel !== void 0 && decodeMarkupAttribute(rel).toLowerCase().split(/\s+/u).includes("stylesheet");
+}
+function isSvgResourceAttribute(tag, name) {
+  return SVG_RESOURCE_ELEMENTS2.has(tag.name.slice(tag.name.lastIndexOf(":") + 1)) && (name === "href" || name === "xlink:href");
+}
+function isResourceAttribute(tag, name) {
+  if (name === "src")
+    return RESOURCE_SRC_ELEMENTS.has(tag.name);
+  if (name === "poster")
+    return tag.name === "video";
+  if (isSvgResourceAttribute(tag, name))
+    return true;
+  return name === "href" && isStylesheetLink(tag);
+}
+function isCssNameCharacter(character) {
+  return character !== void 0 && /[A-Za-z0-9_-]/u.test(character);
+}
+function quotedCssValue(css, quoteIndex) {
+  const quote = css[quoteIndex];
+  let cursor = quoteIndex + 1;
+  let escaped = false;
+  while (cursor < css.length && css[cursor] !== quote) {
+    if (css[cursor] === "\\") {
+      escaped = true;
+      cursor += 2;
+    } else {
+      cursor += 1;
+    }
+  }
+  const valueEnd = cursor;
+  if (css[cursor] === quote)
+    cursor += 1;
+  return { end: cursor, valueEnd, escaped };
+}
+function urlTokenAt(css, start) {
+  if (css.slice(start, start + 3).toLowerCase() !== "url" || isCssNameCharacter(css[start - 1]) || isCssNameCharacter(css[start + 3])) {
+    return { end: start + 1 };
+  }
+  let cursor = start + 3;
+  while (/\s/u.test(css[cursor] ?? ""))
+    cursor += 1;
+  if (css[cursor] !== "(")
+    return { end: start + 1 };
+  cursor += 1;
+  while (/\s/u.test(css[cursor] ?? ""))
+    cursor += 1;
+  const quote = css[cursor] === '"' || css[cursor] === "'" ? css[cursor] : void 0;
+  if (quote !== void 0) {
+    const valueStart2 = cursor + 1;
+    const quoted = quotedCssValue(css, cursor);
+    cursor = quoted.end;
+    while (/\s/u.test(css[cursor] ?? ""))
+      cursor += 1;
+    if (css[cursor] === ")")
+      cursor += 1;
+    const sourceValue2 = css.slice(valueStart2, quoted.valueEnd);
+    return {
+      end: cursor,
+      ...sourceValue2.length === 0 || quoted.escaped ? {} : { token: { sourceValue: sourceValue2, start: valueStart2, end: quoted.valueEnd, quote } }
+    };
+  }
+  const rawStart = cursor;
+  while (cursor < css.length && css[cursor] !== ")")
+    cursor += 1;
+  let valueStart = rawStart;
+  let valueEnd = cursor;
+  while (/\s/u.test(css[valueStart] ?? ""))
+    valueStart += 1;
+  while (valueEnd > valueStart && /\s/u.test(css[valueEnd - 1] ?? ""))
+    valueEnd -= 1;
+  if (css[cursor] === ")")
+    cursor += 1;
+  const sourceValue = css.slice(valueStart, valueEnd);
+  return {
+    end: cursor,
+    ...sourceValue.length === 0 || sourceValue.includes("\\") ? {} : { token: { sourceValue, start: valueStart, end: valueEnd } }
+  };
+}
+function cssReferenceTokens(css) {
+  const tokens = [];
+  let cursor = 0;
+  while (cursor < css.length) {
+    if (css.startsWith("/*", cursor)) {
+      const end = css.indexOf("*/", cursor + 2);
+      cursor = end === -1 ? css.length : end + 2;
+      continue;
+    }
+    const character = css[cursor];
+    if (character === '"' || character === "'") {
+      cursor = quotedCssValue(css, cursor).end;
+      continue;
+    }
+    if (character === "@" && css.slice(cursor + 1, cursor + 7).toLowerCase() === "import" && !isCssNameCharacter(css[cursor + 7])) {
+      let valueStart = cursor + 7;
+      while (/\s/u.test(css[valueStart] ?? ""))
+        valueStart += 1;
+      const quote = css[valueStart] === '"' || css[valueStart] === "'" ? css[valueStart] : void 0;
+      if (quote !== void 0) {
+        const quoted = quotedCssValue(css, valueStart);
+        const sourceValue = css.slice(valueStart + 1, quoted.valueEnd);
+        if (sourceValue.length > 0 && !quoted.escaped) {
+          tokens.push({
+            sourceValue,
+            start: valueStart + 1,
+            end: quoted.valueEnd,
+            quote
+          });
+        }
+        cursor = quoted.end;
+        continue;
+      }
+      cursor = valueStart;
+      continue;
+    }
+    const url2 = urlTokenAt(css, cursor);
+    if (url2.token !== void 0)
+      tokens.push(url2.token);
+    cursor = url2.end;
+  }
+  return tokens;
+}
+function srcsetTokens(value) {
+  const tokens = [];
+  let cursor = 0;
+  while (cursor < value.length) {
+    while (/[\s,]/u.test(value[cursor] ?? ""))
+      cursor += 1;
+    if (cursor >= value.length)
+      break;
+    const start = cursor;
+    const dataUrl = value.slice(start, start + 5).toLowerCase() === "data:";
+    while (cursor < value.length && !/\s/u.test(value[cursor] ?? ""))
+      cursor += 1;
+    let end = cursor;
+    let trailingCommas = 0;
+    while (end > start && value[end - 1] === ",") {
+      trailingCommas += 1;
+      end -= 1;
+    }
+    const sourceValue = value.slice(start, end);
+    if (sourceValue.length > 0 && !dataUrl && !sourceValue.includes("\\")) {
+      tokens.push({ sourceValue, start, end });
+    }
+    if (trailingCommas > 0)
+      continue;
+    let parentheses = 0;
+    while (cursor < value.length) {
+      const character = value[cursor];
+      if (character === "(")
+        parentheses += 1;
+      else if (character === ")" && parentheses > 0)
+        parentheses -= 1;
+      else if (character === "," && parentheses === 0) {
+        cursor += 1;
+        break;
+      }
+      cursor += 1;
+    }
+  }
+  return tokens;
+}
+function uniqueReferences(references) {
+  const seen = /* @__PURE__ */ new Set();
+  return references.filter((reference) => {
+    const key = `${reference.kind}\0${reference.sourceValue}`;
+    if (seen.has(key))
+      return false;
+    seen.add(key);
+    return true;
+  });
+}
+function extractCssAssetReferences(css) {
+  return uniqueReferences(cssReferenceTokens(css).map((token) => ({
+    kind: "css-url",
+    sourceValue: token.sourceValue
+  })));
+}
+function extractMarkupAssetReferences(source, format) {
+  const references = [];
+  visitMarkup(source, {
+    tag(tag) {
+      for (const candidate of tag.attributes) {
+        if (candidate.value === void 0)
+          continue;
+        if (isResourceAttribute(tag, candidate.name) && !(isSvgResourceAttribute(tag, candidate.name) && decodeMarkupAttribute(candidate.value).trim().startsWith("#"))) {
+          references.push({ kind: "html-attribute", sourceValue: candidate.value });
+        }
+        if ((tag.name === "img" || tag.name === "source") && candidate.name === "srcset") {
+          for (const token of srcsetTokens(candidate.value)) {
+            references.push({ kind: "html-srcset", sourceValue: token.sourceValue });
+          }
+        }
+        if (candidate.name === "style") {
+          references.push(...extractCssAssetReferences(decodeMarkupAttribute(candidate.value)));
+        }
+      }
+    },
+    style(css) {
+      references.push(...extractCssAssetReferences(css));
+    }
+  }, format);
+  return uniqueReferences(references);
+}
+function extractHtmlAssetReferences(html) {
+  return extractMarkupAssetReferences(html, "html");
+}
+function extractSvgAssetReferences(svg) {
+  return extractMarkupAssetReferences(svg, "svg");
+}
+function rewriteMarkupAssetReferences(source, format, replacements) {
+  const replaced = /* @__PURE__ */ new Set();
+  const operations = [];
+  visitMarkup(source, {
+    tag(tag) {
+      for (const candidate of tag.attributes) {
+        if (candidate.value === void 0 || candidate.valueStart === void 0 || candidate.valueEnd === void 0) {
+          continue;
+        }
+        let value;
+        if (isResourceAttribute(tag, candidate.name)) {
+          const replacement = replacements.htmlAttribute.get(candidate.value);
+          if (replacement !== void 0) {
+            value = replacement;
+            replaced.add(candidate.value);
+          }
+        } else if ((tag.name === "img" || tag.name === "source") && candidate.name === "srcset") {
+          const rewritten = rewriteSrcsetValue(candidate.value, replacements.htmlSrcset);
+          if (rewritten.replaced.size > 0) {
+            value = rewritten.value;
+            for (const sourceValue of rewritten.replaced)
+              replaced.add(sourceValue);
+          }
+        } else if (candidate.name === "style") {
+          const rewritten = rewriteCssAssetReferences(decodeMarkupAttribute(candidate.value), replacements.cssUrl);
+          if (rewritten.replaced.size > 0) {
+            value = rewritten.css;
+            for (const sourceValue of rewritten.replaced)
+              replaced.add(sourceValue);
+          }
+        }
+        if (value === void 0)
+          continue;
+        operations.push({
+          start: candidate.valueStart,
+          end: candidate.valueEnd,
+          value: serializedAttributeValue(candidate, value)
+        });
+      }
+    },
+    style(css, start, end) {
+      const rewritten = rewriteCssAssetReferences(css, replacements.cssUrl);
+      if (rewritten.replaced.size === 0)
+        return;
+      for (const sourceValue of rewritten.replaced)
+        replaced.add(sourceValue);
+      operations.push({ start, end, value: rewritten.css });
+    }
+  }, format);
+  return { source: applyReplacements(source, operations), replaced };
+}
+function rewriteHtmlAssetReferences(html, replacements) {
+  const rewritten = rewriteMarkupAssetReferences(html, "html", replacements);
+  return { html: rewritten.source, replaced: rewritten.replaced };
+}
+function rewriteSvgAssetReferences(svg, replacements) {
+  const rewritten = rewriteMarkupAssetReferences(svg, "svg", replacements);
+  return { svg: rewritten.source, replaced: rewritten.replaced };
+}
+function escapedAttributeValue(value, quote) {
+  const ampersands = value.replaceAll("&", "&amp;");
+  return quote === '"' ? ampersands.replaceAll('"', "&quot;") : ampersands.replaceAll("'", "&#39;");
+}
+function serializedAttributeValue(attribute2, value) {
+  if (attribute2.quote !== void 0)
+    return escapedAttributeValue(value, attribute2.quote);
+  return `"${escapedAttributeValue(value, '"')}"`;
+}
+function applyReplacements(source, replacements) {
+  let output = source;
+  for (const replacement of [...replacements].sort((left, right) => right.start - left.start)) {
+    output = `${output.slice(0, replacement.start)}${replacement.value}${output.slice(replacement.end)}`;
+  }
+  return output;
+}
+function rewriteCssAssetReferences(css, replacements) {
+  const replaced = /* @__PURE__ */ new Set();
+  const operations = [];
+  for (const token of cssReferenceTokens(css)) {
+    const replacement = replacements.get(token.sourceValue);
+    if (replacement === void 0)
+      continue;
+    replaced.add(token.sourceValue);
+    operations.push({
+      start: token.start,
+      end: token.end,
+      value: token.quote === void 0 ? `"${replacement}"` : replacement
+    });
+  }
+  return { css: applyReplacements(css, operations), replaced };
+}
+function rewriteSrcsetValue(value, replacements) {
+  const replaced = /* @__PURE__ */ new Set();
+  const operations = [];
+  for (const token of srcsetTokens(value)) {
+    const replacement = replacements.get(token.sourceValue);
+    if (replacement === void 0)
+      continue;
+    replaced.add(token.sourceValue);
+    operations.push({ start: token.start, end: token.end, value: replacement });
+  }
+  return { value: applyReplacements(value, operations), replaced };
+}
+function rewriteMarkupAttributeReferences(html, attributeNames, replacements) {
+  const replaced = /* @__PURE__ */ new Set();
+  const operations = [];
+  visitMarkup(html, {
+    tag(tag) {
+      for (const candidate of tag.attributes) {
+        if (candidate.value === void 0 || candidate.valueStart === void 0 || candidate.valueEnd === void 0 || !attributeNames.has(candidate.name)) {
+          continue;
+        }
+        const replacement = replacements.get(candidate.value);
+        if (replacement === void 0)
+          continue;
+        replaced.add(candidate.value);
+        operations.push({
+          start: candidate.valueStart,
+          end: candidate.valueEnd,
+          value: serializedAttributeValue(candidate, replacement)
+        });
+      }
+    },
+    style() {
+    }
+  });
+  return { html: applyReplacements(html, operations), replaced };
+}
+function localReferenceSuffix(sourceValue, options = {}) {
+  try {
+    const parsed = new URL((options.decodeAttributeEntities === false ? sourceValue : decodeMarkupAttribute(sourceValue)).trim(), "file:///circuit-review/reference");
+    return `${parsed.search}${parsed.hash}`;
+  } catch {
+    return "";
+  }
+}
+var RESOURCE_SRC_ELEMENTS, SVG_RESOURCE_ELEMENTS2, HTML_RAW_TEXT_ELEMENTS, HTML_ESCAPABLE_RAW_TEXT_ELEMENTS;
+var init_local_review_references = __esm({
+  "dist/app/checkpoints/local-review-references.js"() {
+    "use strict";
+    RESOURCE_SRC_ELEMENTS = /* @__PURE__ */ new Set(["audio", "img", "input", "source", "track", "video"]);
+    SVG_RESOURCE_ELEMENTS2 = /* @__PURE__ */ new Set(["image", "use"]);
+    HTML_RAW_TEXT_ELEMENTS = /* @__PURE__ */ new Set(["iframe", "noembed", "noframes", "script", "style", "xmp"]);
+    HTML_ESCAPABLE_RAW_TEXT_ELEMENTS = /* @__PURE__ */ new Set(["textarea", "title"]);
+  }
+});
+
+// dist/app/checkpoints/local-review-assets.js
+import { createHash as createHash9 } from "node:crypto";
+import { constants as constants4, closeSync as closeSync5, fstatSync as fstatSync3, lstatSync as lstatSync7, openSync as openSync5, readSync as readSync5, realpathSync as realpathSync6, statSync as statSync3 } from "node:fs";
+import { extname as extname2, isAbsolute as isAbsolute11, relative as relative11, resolve as resolve19, sep as sep4 } from "node:path";
+import { fileURLToPath as fileURLToPath2, pathToFileURL as pathToFileURL2 } from "node:url";
+function isInside4(root, target) {
+  const fromRoot = relative11(root, target);
+  return fromRoot !== "" && !fromRoot.startsWith(`..${sep4}`) && fromRoot !== ".." && !isAbsolute11(fromRoot);
+}
+function safeRealFile(rootPath, targetPath) {
+  try {
+    const root = resolve19(rootPath);
+    const target = resolve19(targetPath);
+    const rootInfo = lstatSync7(root);
+    if (!rootInfo.isDirectory() || rootInfo.isSymbolicLink() || !isInside4(root, target)) {
+      return void 0;
+    }
+    const realRoot = realpathSync6.native(root);
+    let cursor = root;
+    for (const segment of relative11(root, target).split(sep4)) {
+      cursor = resolve19(cursor, segment);
+      if (lstatSync7(cursor).isSymbolicLink())
+        return void 0;
+      const realCursor = realpathSync6.native(cursor);
+      if (realCursor !== realRoot && !isInside4(realRoot, realCursor))
+        return void 0;
+    }
+    const realTarget = realpathSync6.native(target);
+    if (!isInside4(realRoot, realTarget) || !statSync3(realTarget).isFile())
+      return void 0;
+    return realTarget;
+  } catch {
+    return void 0;
+  }
+}
+function safeRealDirectory(rootPath, targetPath) {
+  try {
+    const root = resolve19(rootPath);
+    const target = resolve19(targetPath);
+    const rootInfo = lstatSync7(root);
+    if (!rootInfo.isDirectory() || rootInfo.isSymbolicLink() || !isInside4(root, target)) {
+      return void 0;
+    }
+    const realRoot = realpathSync6.native(root);
+    let cursor = root;
+    for (const segment of relative11(root, target).split(sep4)) {
+      cursor = resolve19(cursor, segment);
+      const info = lstatSync7(cursor);
+      if (info.isSymbolicLink())
+        return void 0;
+      const realCursor = realpathSync6.native(cursor);
+      if (!isInside4(realRoot, realCursor))
+        return void 0;
+    }
+    const realTarget = realpathSync6.native(target);
+    if (!isInside4(realRoot, realTarget) || !statSync3(realTarget).isDirectory())
+      return void 0;
+    return realTarget;
+  } catch {
+    return void 0;
+  }
+}
+function identityFromDescriptor(descriptor) {
+  const info = fstatSync3(descriptor, { bigint: true });
+  return {
+    device: info.dev,
+    inode: info.ino,
+    size: info.size,
+    modified: info.mtimeNs,
+    changed: info.ctimeNs,
+    regular: info.isFile()
+  };
+}
+function identityFromPath(path) {
+  const info = statSync3(path, { bigint: true });
+  return {
+    device: info.dev,
+    inode: info.ino,
+    size: info.size,
+    modified: info.mtimeNs,
+    changed: info.ctimeNs,
+    regular: info.isFile()
+  };
+}
+function sameFile2(left, right) {
+  return left.device === right.device && left.inode === right.inode && left.regular && right.regular;
+}
+function sameSnapshot(left, right) {
+  return sameFile2(left, right) && left.size === right.size && left.modified === right.modified && left.changed === right.changed;
+}
+function readBounded2(descriptor, limit) {
+  const chunks = [];
+  let total = 0;
+  while (total <= limit) {
+    const remaining = limit + 1 - total;
+    const chunk = Buffer.allocUnsafe(Math.min(READ_CHUNK_BYTES2, remaining));
+    const read = readSync5(descriptor, chunk, 0, chunk.byteLength, null);
+    if (read === 0)
+      break;
+    chunks.push(chunk.subarray(0, read));
+    total += read;
+  }
+  return total > limit ? void 0 : Buffer.concat(chunks, total);
+}
+function captureStableBytes(input) {
+  const beforePath = safeRealFile(input.root, input.targetPath);
+  if (beforePath === void 0)
+    return void 0;
+  let descriptor;
+  try {
+    descriptor = openSync5(beforePath, constants4.O_RDONLY | constants4.O_NONBLOCK | constants4.O_NOFOLLOW);
+    const before = identityFromDescriptor(descriptor);
+    if (!before.regular || before.size > BigInt(input.byteLimit))
+      return void 0;
+    const afterPath = safeRealFile(input.root, input.targetPath);
+    if (afterPath !== beforePath || !sameFile2(before, identityFromPath(afterPath))) {
+      return void 0;
+    }
+    const bytes = readBounded2(descriptor, input.byteLimit);
+    if (bytes === void 0)
+      return void 0;
+    const after = identityFromDescriptor(descriptor);
+    if (!sameSnapshot(before, after) || BigInt(bytes.byteLength) !== before.size)
+      return void 0;
+    return { realPath: beforePath, bytes };
+  } catch {
+    return void 0;
+  } finally {
+    if (descriptor !== void 0) {
+      try {
+        closeSync5(descriptor);
+      } catch {
+      }
+    }
+  }
+}
+function tagAt3(html, start) {
+  if (html[start] !== "<")
+    return void 0;
+  if (html.startsWith("<!--", start)) {
+    const commentEnd = html.indexOf("-->", start + 4);
+    return {
+      name: "!--",
+      raw: html.slice(start, commentEnd === -1 ? html.length : commentEnd + 3),
+      end: commentEnd === -1 ? html.length : commentEnd + 3,
+      attributes: /* @__PURE__ */ new Map()
+    };
+  }
+  let cursor = start + 1;
+  if (html[cursor] === "/")
+    cursor += 1;
+  while (/\s/u.test(html[cursor] ?? ""))
+    cursor += 1;
+  const nameStart = cursor;
+  while (/[A-Za-z0-9:-]/u.test(html[cursor] ?? ""))
+    cursor += 1;
+  if (cursor === nameStart)
+    return void 0;
+  const name = html.slice(nameStart, cursor).toLowerCase();
+  let quote;
+  while (cursor < html.length) {
+    const character = html[cursor];
+    if (quote !== void 0) {
+      if (character === quote)
+        quote = void 0;
+    } else if (character === '"' || character === "'") {
+      quote = character;
+    } else if (character === ">") {
+      cursor += 1;
+      break;
+    }
+    cursor += 1;
+  }
+  const raw = html.slice(start, cursor);
+  const attributes = /* @__PURE__ */ new Map();
+  for (const attribute2 of raw.matchAll(/\b([A-Za-z][A-Za-z0-9:-]*)(?:\s*=\s*(?:"([^"]*)"|'([^']*)'|([^\s>]+)))/gu)) {
+    const attributeName = attribute2[1]?.toLowerCase();
+    const value = attribute2[2] ?? attribute2[3] ?? attribute2[4];
+    if (attributeName !== void 0 && value !== void 0 && !attributes.has(attributeName)) {
+      attributes.set(attributeName, value);
+    }
+  }
+  return { name, raw, end: cursor, attributes };
+}
+function htmlTags(html) {
+  const tags = [];
+  let cursor = 0;
+  while (cursor < html.length) {
+    const start = html.indexOf("<", cursor);
+    if (start === -1)
+      break;
+    const tag = tagAt3(html, start);
+    if (tag === void 0) {
+      cursor = start + 1;
+      continue;
+    }
+    tags.push(tag);
+    cursor = tag.end;
+    if (tag.name === "script" && !tag.raw.startsWith("</")) {
+      const close = html.toLowerCase().indexOf("</script", cursor);
+      if (close !== -1)
+        cursor = close;
+    }
+  }
+  return tags;
+}
+function previewEntries(html) {
+  const entries = [];
+  const seen = /* @__PURE__ */ new Set();
+  for (const tag of htmlTags(html)) {
+    if (tag.name !== "iframe" || tag.raw.startsWith("</"))
+      continue;
+    const sourceUrl = tag.attributes.get("data-artifact-preview-src");
+    if (sourceUrl === void 0 || sourceUrl.length === 0 || seen.has(sourceUrl))
+      continue;
+    const proof = tag.attributes.get("data-artifact-preview-proof");
+    entries.push({
+      sourceUrl,
+      ...proof === void 0 ? {} : { previewProof: proof }
+    });
+    seen.add(sourceUrl);
+  }
+  return entries;
+}
+function decodeUtf8(bytes) {
+  try {
+    return new TextDecoder("utf-8", { fatal: true }).decode(bytes);
+  } catch {
+    return void 0;
+  }
+}
+function resolvedFilePath(sourceUrl, baseUrl, decodeAttributeEntities = true) {
+  try {
+    const decoded = (decodeAttributeEntities ? decodeMarkupAttribute(sourceUrl) : sourceUrl).trim();
+    if (decoded.startsWith("#"))
+      return void 0;
+    if (decoded.startsWith("//"))
+      return void 0;
+    const resolved = new URL(decoded, baseUrl);
+    if (resolved.protocol !== "file:")
+      return void 0;
+    resolved.search = "";
+    resolved.hash = "";
+    return fileURLToPath2(resolved);
+  } catch {
+    return void 0;
+  }
+}
+function referencesForAsset(asset) {
+  const source = decodeUtf8(asset.bytes);
+  if (source === void 0)
+    return [];
+  if (asset.contentType === "text/html")
+    return extractHtmlAssetReferences(source);
+  if (asset.contentType === "text/css")
+    return extractCssAssetReferences(source);
+  if (asset.contentType === "image/svg+xml")
+    return extractSvgAssetReferences(source);
+  return [];
+}
+function captureLocalCheckpointReviewAssets(options) {
+  const reportUrl = pathToFileURL2(resolve19(options.runFolder, REPORT_RELATIVE_PATH));
+  const strictGroups = (() => {
+    if (options.reviewAssets.length === 0)
+      return [];
+    if (options.projectRoot === void 0) {
+      throw new Error("checkpoint review assets require the bound project root");
+    }
+    const projectRoot = options.projectRoot;
+    const verified = CheckpointReviewAssetGroups.parse(options.reviewAssets);
+    const realProjectRoot = realpathSync6.native(resolve19(projectRoot));
+    return verified.map((group) => {
+      const root = safeRealDirectory(projectRoot, resolve19(projectRoot, group.root));
+      if (root === void 0) {
+        throw new Error("checkpoint review preview root could not be captured safely");
+      }
+      const entryPoints = new Set(group.entry_points.map((entryPoint) => {
+        const entry = safeRealFile(root, resolve19(realProjectRoot, entryPoint));
+        if (entry === void 0) {
+          throw new Error("checkpoint review preview entry is not bound to the checkpoint");
+        }
+        return entry;
+      }));
+      const files = new Map(group.files.map((file2) => [resolve19(realProjectRoot, file2.path), file2.sha256]));
+      return { root, entryPoints, files };
+    });
+  })();
+  const pending = [];
+  const pathIndexes = /* @__PURE__ */ new Map();
+  let totalBytes = 0;
+  function addAsset(input) {
+    const contentType = MIME_BY_EXTENSION.get(extname2(input.targetPath).toLowerCase());
+    if (contentType === void 0)
+      return void 0;
+    const remaining = MAX_CHECKPOINT_REVIEW_ASSET_TOTAL_BYTES - totalBytes;
+    if (remaining <= 0) {
+      throw new Error("checkpoint review preview assets exceed the safe total byte limit");
+    }
+    const captured = captureStableBytes({
+      targetPath: input.targetPath,
+      root: input.root,
+      byteLimit: Math.min(MAX_CHECKPOINT_REVIEW_ASSET_BYTES, remaining)
+    });
+    if (captured === void 0) {
+      if (input.required === true) {
+        throw new Error("checkpoint review preview file could not be captured safely");
+      }
+      return void 0;
+    }
+    const expectedSha256 = input.expectedFiles.get(captured.realPath);
+    if (expectedSha256 === void 0) {
+      if (input.required === true) {
+        throw new Error("checkpoint review preview references a file not bound to the checkpoint");
+      }
+      return void 0;
+    }
+    if (createHash9("sha256").update(captured.bytes).digest("hex") !== expectedSha256) {
+      throw new Error("checkpoint review asset files changed after their identity was recorded");
+    }
+    if (input.pageReference?.previewProof !== void 0 && createHash9("sha256").update(captured.realPath).update("\0").update(captured.bytes).digest("hex") !== input.pageReference.previewProof) {
+      return void 0;
+    }
+    const existing = pathIndexes.get(captured.realPath);
+    if (existing !== void 0) {
+      const pageReferences = pending[existing]?.pageReferences;
+      if (input.pageReference !== void 0 && pageReferences !== void 0 && !pageReferences.some((reference) => reference.sourceUrl === input.pageReference?.sourceUrl)) {
+        pageReferences.push(input.pageReference);
+      }
+      return existing;
+    }
+    if (pending.length >= MAX_CHECKPOINT_REVIEW_ASSET_FILES) {
+      throw new Error("checkpoint review has too many preview assets to capture safely");
+    }
+    totalBytes += captured.bytes.byteLength;
+    const index = pending.length;
+    pathIndexes.set(captured.realPath, index);
+    pending.push({
+      realPath: captured.realPath,
+      root: realpathSync6.native(resolve19(input.root)),
+      contentType,
+      bytes: captured.bytes,
+      pageReferences: input.pageReference === void 0 ? [] : [input.pageReference],
+      unresolvedReferences: [],
+      expectedFiles: input.expectedFiles
+    });
+    return index;
+  }
+  for (const pageReference of previewEntries(options.html)) {
+    const targetPath = resolvedFilePath(pageReference.sourceUrl, reportUrl);
+    if (targetPath === void 0)
+      continue;
+    const realTarget = (() => {
+      try {
+        return realpathSync6.native(resolve19(targetPath));
+      } catch {
+        return void 0;
+      }
+    })();
+    if (realTarget === void 0) {
+      throw new Error("checkpoint review preview entry is not bound to the checkpoint");
+    }
+    const group = strictGroups.find((candidate) => candidate.entryPoints.has(realTarget));
+    if (group === void 0) {
+      throw new Error("checkpoint review preview entry is not bound to the checkpoint");
+    }
+    addAsset({
+      targetPath: realTarget,
+      root: group.root,
+      pageReference,
+      expectedFiles: group.files,
+      required: true
+    });
+  }
+  for (let index = 0; index < pending.length; index += 1) {
+    const asset = pending[index];
+    if (asset === void 0)
+      continue;
+    const baseUrl = pathToFileURL2(asset.realPath);
+    for (const reference of referencesForAsset(asset)) {
+      const targetPath = resolvedFilePath(reference.sourceValue, baseUrl, reference.kind !== "css-url");
+      if (targetPath === void 0)
+        continue;
+      const targetIndex = addAsset({
+        targetPath,
+        root: asset.root,
+        expectedFiles: asset.expectedFiles
+      });
+      if (targetIndex === void 0)
+        continue;
+      const target = pending[targetIndex];
+      if (target === void 0)
+        continue;
+      asset.unresolvedReferences.push({
+        kind: reference.kind,
+        sourceValue: reference.sourceValue,
+        targetPath: target.realPath
+      });
+    }
+  }
+  return pending.map((asset, index) => ({
+    id: `asset-${index}`,
+    pageReferences: asset.pageReferences,
+    contentType: asset.contentType,
+    bytes: asset.bytes,
+    references: asset.unresolvedReferences.flatMap((reference) => {
+      const targetIndex = pathIndexes.get(reference.targetPath);
+      return targetIndex === void 0 ? [] : [
+        {
+          kind: reference.kind,
+          sourceValue: reference.sourceValue,
+          targetId: `asset-${targetIndex}`
+        }
+      ];
+    })
+  }));
+}
+var REPORT_RELATIVE_PATH, READ_CHUNK_BYTES2, MIME_BY_EXTENSION;
+var init_local_review_assets = __esm({
+  "dist/app/checkpoints/local-review-assets.js"() {
+    "use strict";
+    init_checkpoint_review_assets();
+    init_checkpoint_review_assets2();
+    init_local_review_references();
+    REPORT_RELATIVE_PATH = "reports/operator-summary.html";
+    READ_CHUNK_BYTES2 = 64 * 1024;
+    MIME_BY_EXTENSION = /* @__PURE__ */ new Map([
+      [".css", "text/css"],
+      [".gif", "image/gif"],
+      [".htm", "text/html"],
+      [".html", "text/html"],
+      [".jpeg", "image/jpeg"],
+      [".jpg", "image/jpeg"],
+      [".png", "image/png"],
+      [".svg", "image/svg+xml"],
+      [".webp", "image/webp"],
+      [".woff", "font/woff"],
+      [".woff2", "font/woff2"]
+    ]);
+  }
+});
+
+// dist/app/checkpoints/local-review-session.js
+import { randomBytes, timingSafeEqual } from "node:crypto";
+import { createServer } from "node:http";
+function capability() {
+  return randomBytes(32).toString("base64url");
+}
+function commonHeaders() {
+  return {
+    "cache-control": "no-store, max-age=0",
+    connection: "close",
+    "content-security-policy": "frame-ancestors 'none'",
+    "cross-origin-opener-policy": "same-origin",
+    "referrer-policy": "no-referrer",
+    "x-content-type-options": "nosniff",
+    "x-frame-options": "DENY"
+  };
+}
+function replyJson(response, status, reply) {
+  response.writeHead(status, {
+    ...commonHeaders(),
+    "content-type": JSON_CONTENT_TYPE
+  });
+  response.end(JSON.stringify(reply));
+}
+function replyError(response, status, code, message, terminal = false) {
+  replyJson(response, status, { ok: false, code, message, terminal });
+}
+function singleHeader(request, name) {
+  const value = request.headers[name];
+  return typeof value === "string" ? value : void 0;
+}
+function secureCapabilityMatch(actual, expected) {
+  if (actual === void 0)
+    return false;
+  const actualBytes = Buffer.from(actual, "utf8");
+  const expectedBytes = Buffer.from(expected, "utf8");
+  return actualBytes.byteLength === expectedBytes.byteLength && timingSafeEqual(actualBytes, expectedBytes);
+}
+function hasJsonMediaType(request) {
+  const contentType = singleHeader(request, "content-type");
+  if (contentType === void 0)
+    return false;
+  return contentType.split(";", 1)[0]?.trim().toLowerCase() === "application/json";
+}
+function declaredBodyTooLarge(request) {
+  const rawLength = singleHeader(request, "content-length");
+  if (rawLength === void 0)
+    return false;
+  if (!/^\d+$/.test(rawLength))
+    return "invalid";
+  const length = Number(rawLength);
+  if (!Number.isSafeInteger(length))
+    return "invalid";
+  return length > MAX_CHECKPOINT_REVIEW_JSON_BYTES;
+}
+function readRequestBody(request) {
+  return new Promise((resolve36, reject) => {
+    const chunks = [];
+    let bytes = 0;
+    let tooLarge = false;
+    request.on("data", (chunk) => {
+      const buffer = Buffer.isBuffer(chunk) ? chunk : Buffer.from(chunk);
+      bytes += buffer.byteLength;
+      if (bytes > MAX_CHECKPOINT_REVIEW_JSON_BYTES) {
+        tooLarge = true;
+        chunks.length = 0;
+        return;
+      }
+      if (!tooLarge)
+        chunks.push(buffer);
+    });
+    request.on("end", () => {
+      resolve36(tooLarge ? { status: "too-large" } : { status: "ok", body: Buffer.concat(chunks) });
+    });
+    request.on("aborted", () => reject(new Error("checkpoint review request was aborted")));
+    request.on("error", reject);
+  });
+}
+function decodeUtf82(body) {
+  try {
+    return new TextDecoder("utf-8", { fatal: true }).decode(body);
+  } catch {
+    return void 0;
+  }
+}
+function responseMatchesIdentity(response, identity2) {
+  return response.run_id === identity2.runId && response.step_id === identity2.stepId && response.attempt === identity2.attempt && response.request_sha256 === identity2.requestSha256;
+}
+function responseUsesAllowedChoices(response, allowedChoices) {
+  if (!allowedChoices.has(response.selection))
+    return false;
+  return response.comments.every((comment) => comment.scope !== "choice" || allowedChoices.has(comment.choice_id));
+}
+function sameCheckpointReviewResponse(left, right) {
+  if (left.schema !== right.schema || left.run_id !== right.run_id || left.step_id !== right.step_id || left.attempt !== right.attempt || left.request_sha256 !== right.request_sha256 || left.selection !== right.selection || left.comments.length !== right.comments.length) {
+    return false;
+  }
+  return left.comments.every((comment, index) => {
+    const other = right.comments[index];
+    if (other === void 0 || comment.scope !== other.scope || comment.body !== other.body) {
+      return false;
+    }
+    return comment.scope === "overall" || other.scope === "choice" && comment.choice_id === other.choice_id;
+  });
+}
+function sanitizedCode(code) {
+  return /^[a-z][a-z0-9._-]{0,63}$/.test(code) ? code : "review_rejected";
+}
+function sanitizedPublicMessage(message) {
+  const withoutControls = Array.from(message, (character) => {
+    const codePoint = character.codePointAt(0);
+    return codePoint !== void 0 && (codePoint <= 31 || codePoint === 127) ? " " : character;
+  }).join("");
+  const clean = withoutControls.replace(/\s+/g, " ").trim().slice(0, PUBLIC_MESSAGE_LIMIT).trim();
+  return clean.length > 0 ? clean : DEFAULT_REJECTION_MESSAGE;
+}
+function isSubmissionDecision(value) {
+  if (typeof value !== "object" || value === null || Array.isArray(value))
+    return false;
+  const decision2 = value;
+  if (decision2.status === "accepted") {
+    return decision2.continuation === void 0 || decision2.continuation === "failed";
+  }
+  return decision2.status === "rejected" && typeof decision2.terminal === "boolean" && typeof decision2.code === "string" && typeof decision2.publicMessage === "string";
+}
+function scriptSafeJson(value) {
+  return JSON.stringify(value).replace(/[<>&\u2028\u2029]/g, (character) => {
+    const codePoint = character.codePointAt(0);
+    return codePoint === void 0 ? "" : `\\u${codePoint.toString(16).padStart(4, "0")}`;
+  });
+}
+function injectBootstrap(html, bootstrap) {
+  const script = `<script>window.__CIRCUIT_REVIEW_SESSION__ = ${scriptSafeJson(bootstrap)};</script>`;
+  const head = /<head(?:\s[^>]*)?>/i.exec(html);
+  if (head?.index !== void 0) {
+    const insertionPoint = head.index + head[0].length;
+    return `${html.slice(0, insertionPoint)}${script}${html.slice(insertionPoint)}`;
+  }
+  const firstScript = html.search(/<script\b/i);
+  if (firstScript >= 0) {
+    return `${html.slice(0, firstScript)}${script}${html.slice(firstScript)}`;
+  }
+  return `${script}${html}`;
+}
+function isLocalPreviewUrl(value) {
+  if (value.length === 0 || value.length > 8192)
+    return false;
+  for (const character of value) {
+    const codePoint = character.codePointAt(0);
+    if (codePoint === void 0 || codePoint < 33 || codePoint > 126 || '"<>`\\'.includes(character)) {
+      return false;
+    }
+  }
+  try {
+    const parsed = new URL(value, "http://circuit.invalid/reports/operator-summary.html");
+    return parsed.protocol === "file:" || parsed.protocol === "http:" && parsed.origin === "http://circuit.invalid";
+  } catch {
+    return false;
+  }
+}
+function rewriteAssetReferences(html, replacements) {
+  return rewriteMarkupAttributeReferences(html, REVIEW_ASSET_URL_ATTRIBUTES, replacements);
+}
+function tagAttributeValue(tag, name) {
+  const match = tag.match(new RegExp(`(?:\\s)${name}\\s*=\\s*(?:"([^"]*)"|'([^']*)'|([^\\s>]+))`, "iu"));
+  return match?.[1] ?? match?.[2] ?? match?.[3];
+}
+function removeTagAttribute(tag, name) {
+  return tag.replace(new RegExp(`\\s+${name}(?=\\s|=|/?>)(?:\\s*=\\s*(?:"[^"]*"|'[^']*'|[^\\s>]+))?`, "giu"), "");
+}
+function escapedDoubleQuotedAttribute(value) {
+  return value.replaceAll("&", "&amp;").replaceAll('"', "&quot;");
+}
+function setTagAttribute(tag, name, value) {
+  const serialized = `${name}="${escapedDoubleQuotedAttribute(value)}"`;
+  const existing = new RegExp(`(\\s+)${name}\\s*=\\s*(?:"[^"]*"|'[^']*'|[^\\s>]+)`, "iu");
+  if (existing.test(tag))
+    return tag.replace(existing, `$1${serialized}`);
+  return tag.replace(/>$/u, ` ${serialized}>`);
+}
+function removeCapturedEmbeddedSnapshots(html, capturedSources) {
+  return html.replace(/<iframe\b[^<>]*>/giu, (tag) => {
+    const source = tagAttributeValue(tag, "data-artifact-preview-src");
+    if (source === void 0 || !capturedSources.has(source))
+      return tag;
+    return removeTagAttribute(tag, "data-artifact-preview-embedded");
+  });
+}
+function activateCapturedFullSizeLinks(html, routes) {
+  return html.replace(/<a\b[^<>]*>/giu, (tag) => {
+    const encodedRoute = tagAttributeValue(tag, "data-artifact-full-size-src");
+    if (encodedRoute === void 0)
+      return tag;
+    const route = decodeMarkupAttribute(encodedRoute);
+    if (!routes.has(route))
+      return tag;
+    return removeTagAttribute(setTagAttribute(tag, "href", route), "hidden");
+  });
+}
+function safeReferenceValue(value) {
+  if (value.length === 0 || value.length > 8192)
+    return false;
+  return Array.from(value).every((character) => {
+    const codePoint = character.codePointAt(0);
+    return codePoint !== void 0 && codePoint >= 32 && codePoint !== 127;
+  });
+}
+function textAsset(asset) {
+  if (!asset.contentType.startsWith("text/") && asset.contentType !== "image/svg+xml") {
+    return void 0;
+  }
+  try {
+    return new TextDecoder("utf-8", { fatal: true }).decode(asset.bytes);
+  } catch {
+    return void 0;
+  }
+}
+function capturedAssets(assets) {
+  if (assets === void 0)
+    return [];
+  if (assets.length > MAX_CHECKPOINT_REVIEW_ASSET_FILES) {
+    throw new Error("checkpoint review session has too many preview assets");
+  }
+  const seenIds = /* @__PURE__ */ new Set();
+  const seenPageReferences = /* @__PURE__ */ new Set();
+  let totalBytes = 0;
+  const captured = assets.map((asset) => {
+    const contentType = asset.contentType.toLowerCase();
+    if (!/^[A-Za-z0-9_-]{1,80}$/.test(asset.id) || seenIds.has(asset.id) || !Array.isArray(asset.pageReferences) || !Array.isArray(asset.references) || !REVIEW_ASSET_CONTENT_TYPES.has(contentType)) {
+      throw new Error("checkpoint review session preview asset is invalid");
+    }
+    seenIds.add(asset.id);
+    for (const reference of asset.pageReferences) {
+      if (!isLocalPreviewUrl(reference.sourceUrl) || seenPageReferences.has(reference.sourceUrl) || reference.previewProof !== void 0 && !/^[a-f0-9]{64}$/.test(reference.previewProof)) {
+        throw new Error("checkpoint review session preview asset is invalid");
+      }
+      seenPageReferences.add(reference.sourceUrl);
+    }
+    for (const reference of asset.references) {
+      if (reference.kind !== "html-attribute" && reference.kind !== "html-srcset" && reference.kind !== "css-url" || !safeReferenceValue(reference.sourceValue) || !/^[A-Za-z0-9_-]{1,80}$/.test(reference.targetId) || reference.kind === "html-attribute" && contentType !== "text/html" && contentType !== "image/svg+xml" || reference.kind === "html-srcset" && contentType !== "text/html" && contentType !== "image/svg+xml" || reference.kind === "css-url" && contentType !== "text/html" && contentType !== "text/css" && contentType !== "image/svg+xml") {
+        throw new Error("checkpoint review session preview asset is invalid");
+      }
+    }
+    const bytes = Buffer.from(asset.bytes);
+    if (bytes.byteLength > MAX_CHECKPOINT_REVIEW_ASSET_BYTES) {
+      throw new Error("checkpoint review session preview asset is too large");
+    }
+    totalBytes += bytes.byteLength;
+    if (totalBytes > MAX_CHECKPOINT_REVIEW_ASSET_TOTAL_BYTES) {
+      throw new Error("checkpoint review session preview assets are too large");
+    }
+    return {
+      ...asset,
+      pageReferences: asset.pageReferences.map((reference) => ({ ...reference })),
+      references: asset.references.map((reference) => ({ ...reference })),
+      contentType,
+      bytes
+    };
+  });
+  const byId = new Map(captured.map((asset) => [asset.id, asset]));
+  for (const asset of captured) {
+    const source = textAsset(asset);
+    if ((asset.contentType.startsWith("text/") || asset.contentType === "image/svg+xml") && source === void 0) {
+      throw new Error("checkpoint review session preview asset is invalid");
+    }
+    for (const reference of asset.references) {
+      if (!byId.has(reference.targetId) || source === void 0) {
+        throw new Error("checkpoint review session preview asset is invalid");
+      }
+      const replacements = /* @__PURE__ */ new Map([[reference.sourceValue, reference.sourceValue]]);
+      const markupReplacements = {
+        htmlAttribute: reference.kind === "html-attribute" ? replacements : /* @__PURE__ */ new Map(),
+        htmlSrcset: reference.kind === "html-srcset" ? replacements : /* @__PURE__ */ new Map(),
+        cssUrl: reference.kind === "css-url" ? replacements : /* @__PURE__ */ new Map()
+      };
+      const probe = asset.contentType === "text/css" ? rewriteCssAssetReferences(source, replacements).replaced : asset.contentType === "image/svg+xml" ? rewriteSvgAssetReferences(source, markupReplacements).replaced : rewriteHtmlAssetReferences(source, markupReplacements).replaced;
+      if (!probe.has(reference.sourceValue)) {
+        throw new Error("checkpoint review session preview asset reference was not found");
+      }
+    }
+  }
+  const reachable = /* @__PURE__ */ new Set();
+  const queue = captured.filter((asset) => asset.pageReferences.length > 0).map((asset) => asset.id);
+  while (queue.length > 0) {
+    const id = queue.shift();
+    if (id === void 0 || reachable.has(id))
+      continue;
+    reachable.add(id);
+    const asset = byId.get(id);
+    if (asset === void 0)
+      continue;
+    queue.push(...asset.references.map((reference) => reference.targetId));
+  }
+  if (reachable.size !== captured.length) {
+    throw new Error("checkpoint review session preview asset is not referenced by the HTML");
+  }
+  return captured;
+}
+function servedAssetBytes(asset, routeById) {
+  const source = textAsset(asset);
+  if (source === void 0)
+    return asset.bytes;
+  const htmlReplacements = /* @__PURE__ */ new Map();
+  const srcsetReplacements = /* @__PURE__ */ new Map();
+  const cssReplacements = /* @__PURE__ */ new Map();
+  for (const reference of asset.references) {
+    const route = routeById.get(reference.targetId);
+    if (route === void 0)
+      continue;
+    const replacements = reference.kind === "html-attribute" ? htmlReplacements : reference.kind === "html-srcset" ? srcsetReplacements : cssReplacements;
+    replacements.set(reference.sourceValue, `${route}${localReferenceSuffix(reference.sourceValue, {
+      decodeAttributeEntities: reference.kind !== "css-url"
+    })}`);
+  }
+  let rewritten = source;
+  if (asset.contentType === "text/html") {
+    rewritten = rewriteHtmlAssetReferences(rewritten, {
+      htmlAttribute: htmlReplacements,
+      htmlSrcset: srcsetReplacements,
+      cssUrl: cssReplacements
+    }).html;
+    rewritten = sanitizeArtifactMarkup(rewritten, {
+      allowedResourceUrls: new Set(htmlReplacements.values())
+    });
+  } else if (asset.contentType === "text/css") {
+    rewritten = rewriteCssAssetReferences(rewritten, cssReplacements).css;
+  } else if (asset.contentType === "image/svg+xml") {
+    rewritten = rewriteSvgAssetReferences(rewritten, {
+      htmlAttribute: htmlReplacements,
+      htmlSrcset: srcsetReplacements,
+      cssUrl: cssReplacements
+    }).svg;
+    rewritten = sanitizeArtifactMarkup(rewritten, {
+      format: "svg",
+      allowedResourceUrls: new Set(htmlReplacements.values())
+    });
+  }
+  return Buffer.from(rewritten, "utf8");
+}
+function servedContentType(contentType) {
+  return contentType.startsWith("text/") || contentType === "image/svg+xml" ? `${contentType}; charset=utf-8` : contentType;
+}
+function artifactContentSecurityPolicy(origin) {
+  return [
+    "default-src 'none'",
+    "script-src 'none'",
+    `style-src 'unsafe-inline' ${origin}`,
+    `img-src ${origin} data: blob:`,
+    `font-src ${origin} data:`,
+    `media-src ${origin} data: blob:`,
+    "connect-src 'none'",
+    "form-action 'none'",
+    "base-uri 'none'",
+    "object-src 'none'",
+    "frame-src 'none'",
+    "child-src 'none'",
+    "worker-src 'none'",
+    "sandbox",
+    "frame-ancestors 'self'"
+  ].join("; ");
+}
+function reviewPageContentSecurityPolicy(origin) {
+  return [
+    "default-src 'none'",
+    "script-src 'unsafe-inline'",
+    "style-src 'unsafe-inline'",
+    "img-src data: blob:",
+    "font-src data:",
+    `connect-src ${origin}`,
+    `frame-src ${origin}`,
+    "form-action 'none'",
+    "base-uri 'none'",
+    "object-src 'none'",
+    "worker-src 'none'",
+    "frame-ancestors 'none'"
+  ].join("; ");
+}
+function assertValidOptions(options) {
+  const identityProbe = CheckpointReviewResponse.safeParse({
+    schema: "checkpoint.review-response@v1",
+    run_id: options.identity.runId,
+    step_id: options.identity.stepId,
+    attempt: options.identity.attempt,
+    request_sha256: options.identity.requestSha256,
+    selection: "choice",
+    comments: []
+  });
+  if (!identityProbe.success) {
+    throw new Error("checkpoint review session identity is invalid");
+  }
+  if (options.allowedChoices.length === 0) {
+    throw new Error("checkpoint review session requires at least one choice");
+  }
+  const allowedChoices = new Set(options.allowedChoices);
+  if (allowedChoices.size !== options.allowedChoices.length || options.allowedChoices.some((choice) => choice.length === 0)) {
+    throw new Error("checkpoint review session choices must be non-empty and unique");
+  }
+  return allowedChoices;
+}
+async function startLocalCheckpointReviewSession(options) {
+  const allowedChoices = assertValidOptions(options);
+  const assets = capturedAssets(options.assets);
+  const html = options.html;
+  const pageReferences = assets.flatMap((asset) => asset.pageReferences);
+  const referenceProbe = rewriteAssetReferences(html, new Map(pageReferences.map((reference) => [reference.sourceUrl, reference.sourceUrl])));
+  if (referenceProbe.replaced.size !== pageReferences.length) {
+    throw new Error("checkpoint review session preview asset is not referenced by the HTML");
+  }
+  const identity2 = { ...options.identity };
+  const routeCapability = capability();
+  const authorization = capability();
+  const pagePath = `/${routeCapability}/review`;
+  const endpointPath = `/${routeCapability}/complete`;
+  const assetPaths = /* @__PURE__ */ new Map();
+  for (const asset of assets) {
+    let assetPath;
+    do {
+      assetPath = `/${routeCapability}/asset/${capability()}`;
+    } while (assetPaths.has(assetPath));
+    assetPaths.set(assetPath, asset);
+  }
+  let origin = "";
+  let expectedHost = "";
+  let state = "idle";
+  let acceptedResponse;
+  let acceptedReply;
+  let inFlightSubmission;
+  let acceptedReplayObserved = false;
+  let resolveAcceptedReplay;
+  const acceptedReplay = new Promise((resolve36) => {
+    resolveAcceptedReplay = resolve36;
+  });
+  let closed = false;
+  let closePromise;
+  let resolveSettled;
+  const settled = new Promise((resolve36) => {
+    resolveSettled = resolve36;
+  });
+  async function decideSubmission(submitted) {
+    let decision2;
+    try {
+      decision2 = await options.onSubmit(submitted);
+    } catch {
+      state = "idle";
+      return {
+        status: 500,
+        reply: {
+          ok: false,
+          code: "save_failed",
+          message: DEFAULT_REJECTION_MESSAGE,
+          terminal: false
+        }
+      };
+    }
+    if (!isSubmissionDecision(decision2)) {
+      state = "idle";
+      return {
+        status: 500,
+        reply: {
+          ok: false,
+          code: "save_failed",
+          message: DEFAULT_REJECTION_MESSAGE,
+          terminal: false
+        }
+      };
+    }
+    if (decision2.status === "rejected") {
+      state = decision2.terminal ? "terminal-rejected" : "idle";
+      return {
+        status: 409,
+        reply: {
+          ok: false,
+          code: sanitizedCode(decision2.code),
+          message: sanitizedPublicMessage(decision2.publicMessage),
+          terminal: decision2.terminal
+        },
+        ...decision2.terminal ? { settlement: "rejected" } : {}
+      };
+    }
+    state = "accepted";
+    acceptedResponse = submitted;
+    acceptedReply = decision2.continuation === "failed" ? {
+      ok: true,
+      code: "resume_failed_after_save",
+      message: "Review saved, but Circuit could not finish continuing the run.",
+      terminal: true
+    } : { ok: true, message: "Review saved.", terminal: true };
+    return { status: 200, reply: acceptedReply, settlement: "accepted" };
+  }
+  async function handleSubmission(request, response) {
+    const requestOrigin = singleHeader(request, "origin");
+    const requestAuthorization = singleHeader(request, CHECKPOINT_REVIEW_SESSION_HEADER.toLowerCase());
+    if (request.headers.host !== expectedHost || requestOrigin !== origin || !secureCapabilityMatch(requestAuthorization, authorization)) {
+      request.resume();
+      replyError(response, 403, "forbidden", "This review session could not be authorized.");
+      return;
+    }
+    if (!hasJsonMediaType(request)) {
+      request.resume();
+      replyError(response, 415, "unsupported_media_type", "Send the review as JSON.");
+      return;
+    }
+    const declaredSize = declaredBodyTooLarge(request);
+    if (declaredSize === "invalid") {
+      request.resume();
+      replyError(response, 400, "invalid_request", "Invalid checkpoint review request.");
+      return;
+    }
+    if (declaredSize) {
+      request.resume();
+      replyError(response, 413, "review_too_large", "The checkpoint review is too large.");
+      return;
+    }
+    const bodyResult = await readRequestBody(request);
+    if (bodyResult.status === "too-large") {
+      replyError(response, 413, "review_too_large", "The checkpoint review is too large.");
+      return;
+    }
+    const text = decodeUtf82(bodyResult.body);
+    if (text === void 0) {
+      replyError(response, 400, "invalid_review", "Invalid checkpoint review.");
+      return;
+    }
+    let input;
+    try {
+      input = JSON.parse(text);
+    } catch {
+      replyError(response, 400, "invalid_review", "Invalid checkpoint review.");
+      return;
+    }
+    const parsed = CheckpointReviewResponse.safeParse(input);
+    if (!parsed.success) {
+      replyError(response, 400, "invalid_review", "Invalid checkpoint review.");
+      return;
+    }
+    if (!responseMatchesIdentity(parsed.data, identity2)) {
+      replyError(response, 409, "stale_review", "This review is stale. Reload the page and try again.");
+      return;
+    }
+    if (!responseUsesAllowedChoices(parsed.data, allowedChoices)) {
+      replyError(response, 409, "choice_unavailable", "A reviewed choice is no longer available. Reload the page and try again.");
+      return;
+    }
+    if (state === "submitting") {
+      const active = inFlightSubmission;
+      if (active !== void 0 && sameCheckpointReviewResponse(parsed.data, active.response)) {
+        const outcome2 = await active.outcome;
+        replyJson(response, outcome2.status, outcome2.reply);
+        if (outcome2.settlement === "accepted") {
+          acceptedReplayObserved = true;
+          resolveAcceptedReplay?.();
+        }
+        return;
+      }
+      replyError(response, 409, "submission_in_progress", "This review is already being saved.");
+      return;
+    }
+    if (state === "accepted") {
+      if (acceptedResponse !== void 0 && acceptedReply !== void 0 && sameCheckpointReviewResponse(parsed.data, acceptedResponse)) {
+        replyJson(response, 200, acceptedReply);
+        acceptedReplayObserved = true;
+        resolveAcceptedReplay?.();
+        return;
+      }
+      replyError(response, 409, "already_submitted", "This review was already saved.", true);
+      return;
+    }
+    if (state === "terminal-rejected") {
+      replyError(response, 409, "session_finished", "This run can no longer accept this review. Open its current checkpoint status.", true);
+      return;
+    }
+    state = "submitting";
+    const outcome = decideSubmission(parsed.data);
+    inFlightSubmission = { response: parsed.data, outcome };
+    const decided = await outcome;
+    if (decided.settlement === "accepted") {
+      resolveSettled?.({ status: "accepted", response: parsed.data });
+    } else if (decided.settlement === "rejected") {
+      resolveSettled?.({ status: "rejected", response: parsed.data });
+    }
+    replyJson(response, decided.status, decided.reply);
+  }
+  const server = createServer((request, response) => {
+    void (async () => {
+      if (closed) {
+        request.resume();
+        replyError(response, 503, "session_closed", "This review session is closed.");
+        return;
+      }
+      if (request.url === pagePath) {
+        if (request.method !== "GET") {
+          request.resume();
+          replyError(response, 405, "method_not_allowed", "Method not allowed.");
+          return;
+        }
+        if (request.headers.host !== expectedHost) {
+          request.resume();
+          replyError(response, 403, "forbidden", "This review session could not be authorized.");
+          return;
+        }
+        const endpoint = `${origin}${endpointPath}`;
+        const replacements = /* @__PURE__ */ new Map();
+        for (const [assetPath, asset2] of assetPaths) {
+          for (const reference of asset2.pageReferences) {
+            replacements.set(reference.sourceUrl, `${origin}${assetPath}${localReferenceSuffix(reference.sourceUrl)}`);
+          }
+        }
+        const withoutSnapshots = removeCapturedEmbeddedSnapshots(html, new Set(pageReferences.map((reference) => reference.sourceUrl)));
+        const rewritten = rewriteAssetReferences(withoutSnapshots, replacements);
+        const withFullSizeLinks = activateCapturedFullSizeLinks(rewritten.html, new Set(replacements.values()));
+        const servedHtml = injectBootstrap(withFullSizeLinks, {
+          endpoint,
+          authorization,
+          identity: identity2
+        });
+        response.writeHead(200, {
+          ...commonHeaders(),
+          "content-security-policy": reviewPageContentSecurityPolicy(origin),
+          "content-type": "text/html; charset=utf-8",
+          "cross-origin-resource-policy": "same-origin"
+        });
+        response.end(servedHtml);
+        return;
+      }
+      const assetRequestPath = request.url?.split("?", 1)[0];
+      const asset = assetRequestPath === void 0 ? void 0 : assetPaths.get(assetRequestPath);
+      if (asset !== void 0) {
+        if (request.method !== "GET" && request.method !== "HEAD") {
+          request.resume();
+          replyError(response, 405, "method_not_allowed", "Method not allowed.");
+          return;
+        }
+        if (request.headers.host !== expectedHost) {
+          request.resume();
+          replyError(response, 403, "forbidden", "This review session could not be authorized.");
+          return;
+        }
+        const routeById = new Map(Array.from(assetPaths, ([assetPath, captured]) => [captured.id, `${origin}${assetPath}`]));
+        const bytes = servedAssetBytes(asset, routeById);
+        response.writeHead(200, {
+          "cache-control": "no-store, max-age=0",
+          connection: "close",
+          "content-type": servedContentType(asset.contentType),
+          "content-length": String(bytes.byteLength),
+          "content-security-policy": artifactContentSecurityPolicy(origin),
+          "cross-origin-opener-policy": "same-origin",
+          "referrer-policy": "no-referrer",
+          "x-content-type-options": "nosniff",
+          "x-dns-prefetch-control": "off",
+          "x-frame-options": "SAMEORIGIN"
+        });
+        response.end(request.method === "HEAD" ? void 0 : bytes);
+        return;
+      }
+      if (request.url === endpointPath) {
+        if (request.method !== "POST") {
+          request.resume();
+          replyError(response, 405, "method_not_allowed", "Method not allowed.");
+          return;
+        }
+        await handleSubmission(request, response);
+        return;
+      }
+      request.resume();
+      replyError(response, 404, "not_found", "Not found.");
+    })().catch(() => {
+      if (!response.headersSent) {
+        replyError(response, 500, "server_error", "The review session hit an unexpected error.");
+      } else if (!response.writableEnded) {
+        response.end();
+      }
+    });
+  });
+  server.headersTimeout = 5e3;
+  server.requestTimeout = 1e4;
+  server.keepAliveTimeout = 1;
+  server.maxHeadersCount = 32;
+  server.maxRequestsPerSocket = 8;
+  await new Promise((resolve36, reject) => {
+    const onError = (error52) => {
+      server.off("listening", onListening);
+      reject(error52);
+    };
+    const onListening = () => {
+      server.off("error", onError);
+      resolve36();
+    };
+    server.once("error", onError);
+    server.once("listening", onListening);
+    server.listen(0, LOOPBACK_HOST);
+  });
+  const address = server.address();
+  if (address === null || typeof address === "string") {
+    await new Promise((resolve36) => server.close(() => resolve36()));
+    throw new Error("checkpoint review session did not bind to loopback");
+  }
+  expectedHost = `${LOOPBACK_HOST}:${address.port}`;
+  origin = `http://${expectedHost}`;
+  return {
+    url: `${origin}${pagePath}`,
+    endpoint: `${origin}${endpointPath}`,
+    authorization,
+    settled,
+    async waitForAcceptedReplay() {
+      if (state !== "accepted" || acceptedReplayObserved || closed)
+        return;
+      await new Promise((resolve36) => {
+        const timeout = setTimeout(resolve36, LOCAL_CHECKPOINT_REVIEW_REPLAY_WINDOW_MS);
+        void acceptedReplay.then(() => {
+          clearTimeout(timeout);
+          resolve36();
+        });
+      });
+    },
+    close() {
+      if (closePromise !== void 0)
+        return closePromise;
+      closed = true;
+      closePromise = new Promise((resolve36, reject) => {
+        server.close((error52) => {
+          if (error52 !== void 0)
+            reject(error52);
+          else
+            resolve36();
+        });
+      });
+      return closePromise;
+    }
+  };
+}
+var LOOPBACK_HOST, JSON_CONTENT_TYPE, PUBLIC_MESSAGE_LIMIT, DEFAULT_REJECTION_MESSAGE, LOCAL_CHECKPOINT_REVIEW_REPLAY_WINDOW_MS, REVIEW_ASSET_CONTENT_TYPES, REVIEW_ASSET_URL_ATTRIBUTES, CHECKPOINT_REVIEW_SESSION_HEADER;
+var init_local_review_session = __esm({
+  "dist/app/checkpoints/local-review-session.js"() {
+    "use strict";
+    init_checkpoint_review_response();
+    init_checkpoint_review_assets2();
+    init_artifact_sanitizer();
+    init_local_review_references();
+    LOOPBACK_HOST = "127.0.0.1";
+    JSON_CONTENT_TYPE = "application/json; charset=utf-8";
+    PUBLIC_MESSAGE_LIMIT = 240;
+    DEFAULT_REJECTION_MESSAGE = "The review could not be saved. Try again.";
+    LOCAL_CHECKPOINT_REVIEW_REPLAY_WINDOW_MS = 5e3;
+    REVIEW_ASSET_CONTENT_TYPES = /* @__PURE__ */ new Set([
+      "font/woff",
+      "font/woff2",
+      "image/gif",
+      "image/jpeg",
+      "image/png",
+      "image/svg+xml",
+      "image/webp",
+      "text/css",
+      "text/html"
+    ]);
+    REVIEW_ASSET_URL_ATTRIBUTES = /* @__PURE__ */ new Set([
+      "data-artifact-preview-src",
+      "data-artifact-full-size-src",
+      "data-mv-preview-src",
+      "href",
+      "poster",
+      "src"
+    ]);
+    CHECKPOINT_REVIEW_SESSION_HEADER = "X-Circuit-Review-Session";
+  }
+});
+
 // dist/memory/project-store.js
-import { existsSync as existsSync28, readFileSync as readFileSync51 } from "node:fs";
-import { join as join29, resolve as resolve18 } from "node:path";
+import { existsSync as existsSync28, readFileSync as readFileSync50 } from "node:fs";
+import { join as join30, resolve as resolve20 } from "node:path";
 function resolveProjectStorePaths(options = {}) {
-  const repoRoot = resolve18(options.repoRoot ?? process.cwd());
-  const memoryDir = options.memoryDir === void 0 ? memoryRoot(repoRoot) : resolve18(repoRoot, options.memoryDir);
+  const repoRoot = resolve20(options.repoRoot ?? process.cwd());
+  const memoryDir = options.memoryDir === void 0 ? memoryRoot(repoRoot) : resolve20(repoRoot, options.memoryDir);
   return {
     repoRoot,
     memoryDir,
-    factsPath: join29(memoryDir, PROJECT_FACTS_FILE),
-    manifestPath: join29(memoryDir, MEMORY_MANIFEST_FILE)
+    factsPath: join30(memoryDir, PROJECT_FACTS_FILE),
+    manifestPath: join30(memoryDir, MEMORY_MANIFEST_FILE)
   };
 }
 function readProjectFacts(options = {}) {
@@ -101541,7 +104418,7 @@ function readProjectFacts(options = {}) {
   }
   let raw = "";
   try {
-    raw = readFileSync51(paths.factsPath, "utf8");
+    raw = readFileSync50(paths.factsPath, "utf8");
   } catch (error52) {
     return {
       facts: [],
@@ -101636,8 +104513,8 @@ var init_project_store = __esm({
 });
 
 // dist/memory/project-injection.js
-import { existsSync as existsSync29, readFileSync as readFileSync52 } from "node:fs";
-import { join as join30, resolve as resolve19 } from "node:path";
+import { existsSync as existsSync29, readFileSync as readFileSync51 } from "node:fs";
+import { join as join31, resolve as resolve21 } from "node:path";
 function reverifyStaleness(fact, runsBase, checkedAt) {
   const sourceSha = fact.source.sha256 ?? fact.source.ref.sha256;
   const runId = fact.source.ref.run_id;
@@ -101646,11 +104523,11 @@ function reverifyStaleness(fact, runsBase, checkedAt) {
   }
   try {
     const relPath = fact.source.ref.ref.split("#")[0] ?? fact.source.ref.ref;
-    const abs = join30(runsBase, runId, relPath);
+    const abs = join31(runsBase, runId, relPath);
     if (!existsSync29(abs)) {
       return { status: "stale", checked_at: checkedAt, reason_codes: ["memory_stale"] };
     }
-    const currentHash = sha256OfString(readFileSync52(abs, "utf8"));
+    const currentHash = sha256OfString(readFileSync51(abs, "utf8"));
     return currentHash === sourceSha ? { status: "fresh", checked_at: checkedAt, reason_codes: ["source_hash_verified"] } : { status: "stale", checked_at: checkedAt, reason_codes: ["memory_stale"] };
   } catch {
     return { status: "unknown", checked_at: checkedAt, reason_codes: ["memory_unverified"] };
@@ -101660,7 +104537,7 @@ function loadProjectFactCandidates(options) {
   if (options.flowId === void 0) {
     return { candidates: [] };
   }
-  const runsBase = options.runsBase === void 0 ? runsRoot(options.repoRoot) : resolve19(options.runsBase);
+  const runsBase = options.runsBase === void 0 ? runsRoot(options.repoRoot) : resolve21(options.runsBase);
   const now = options.now ?? (() => /* @__PURE__ */ new Date());
   const checkedAt = now().toISOString();
   const { facts } = readProjectFacts({
@@ -101688,10 +104565,10 @@ var init_project_injection = __esm({
 });
 
 // dist/history/run-corpus.js
-import { existsSync as existsSync30, readdirSync as readdirSync4, statSync as statSync4 } from "node:fs";
-import { basename as basename5, join as join31 } from "node:path";
+import { existsSync as existsSync30, readdirSync as readdirSync5, statSync as statSync4 } from "node:fs";
+import { basename as basename5, join as join32 } from "node:path";
 function isCandidateRunFolder(runFolder) {
-  return existsSync30(join31(runFolder, "manifest.snapshot.json")) || existsSync30(join31(runFolder, "trace.ndjson")) || existsSync30(join31(runFolder, "reports/result.json"));
+  return existsSync30(join32(runFolder, "manifest.snapshot.json")) || existsSync30(join32(runFolder, "trace.ndjson")) || existsSync30(join32(runFolder, "reports/result.json"));
 }
 function listCandidateRunFolders(runsBase) {
   if (!existsSync30(runsBase)) {
@@ -101711,7 +104588,7 @@ function listCandidateRunFolders(runsBase) {
     });
   }
   try {
-    return readdirSync4(runsBase, { withFileTypes: true }).filter((entry) => entry.isDirectory()).map((entry) => join31(runsBase, entry.name)).filter(isCandidateRunFolder).sort((left, right) => basename5(left).localeCompare(basename5(right)));
+    return readdirSync5(runsBase, { withFileTypes: true }).filter((entry) => entry.isDirectory()).map((entry) => join32(runsBase, entry.name)).filter(isCandidateRunFolder).sort((left, right) => basename5(left).localeCompare(basename5(right)));
   } catch (error52) {
     throw new HistoryCommandError("runs_base_unreadable", `runs base unreadable: ${error52 instanceof Error ? error52.message : String(error52)}`, { runsBase });
   }
@@ -101739,9 +104616,9 @@ var init_run_corpus = __esm({
 
 // dist/shared/run-artifact-io.js
 import { statSync as statSync5 } from "node:fs";
-import { isAbsolute as isAbsolute10, relative as relative10 } from "node:path";
+import { isAbsolute as isAbsolute12, relative as relative12 } from "node:path";
 function runRelativePath(runFolder, path) {
-  return isAbsolute10(path) ? relative10(runFolder, path) : path;
+  return isAbsolute12(path) ? relative12(runFolder, path) : path;
 }
 function mtimeMs(path) {
   return Math.trunc(statSync5(path).mtimeMs);
@@ -101753,19 +104630,19 @@ var init_run_artifact_io = __esm({
 });
 
 // dist/app/history/run-source-files.js
-import { existsSync as existsSync31, lstatSync as lstatSync6, readdirSync as readdirSync5, realpathSync as realpathSync5 } from "node:fs";
-import { isAbsolute as isAbsolute11, relative as relative11, resolve as resolve20 } from "node:path";
+import { existsSync as existsSync31, lstatSync as lstatSync8, readdirSync as readdirSync6, realpathSync as realpathSync7 } from "node:fs";
+import { isAbsolute as isAbsolute13, relative as relative13, resolve as resolve22 } from "node:path";
 function collectRunSourceFiles(runFolder) {
-  const runFolderAbs = resolve20(runFolder);
+  const runFolderAbs = resolve22(runFolder);
   const files = /* @__PURE__ */ new Set();
   for (const candidate of [
-    resolve20(runFolderAbs, "manifest.snapshot.json"),
-    resolve20(runFolderAbs, "trace.ndjson")
+    resolve22(runFolderAbs, "manifest.snapshot.json"),
+    resolve22(runFolderAbs, "trace.ndjson")
   ]) {
     if (existsSync31(candidate) && !isSymlink(candidate))
       files.add(candidate);
   }
-  const reportsRoot2 = resolve20(runFolderAbs, "reports");
+  const reportsRoot2 = resolve22(runFolderAbs, "reports");
   for (const absPath of walkReportJsonFiles(reportsRoot2)) {
     files.add(absPath);
   }
@@ -101773,31 +104650,31 @@ function collectRunSourceFiles(runFolder) {
 }
 function isSymlink(absPath) {
   try {
-    return lstatSync6(absPath).isSymbolicLink();
+    return lstatSync8(absPath).isSymbolicLink();
   } catch {
     return false;
   }
 }
-function isInside3(root, target) {
-  const fromRoot = relative11(root, target);
-  return fromRoot === "" || !fromRoot.startsWith("..") && !isAbsolute11(fromRoot);
+function isInside5(root, target) {
+  const fromRoot = relative13(root, target);
+  return fromRoot === "" || !fromRoot.startsWith("..") && !isAbsolute13(fromRoot);
 }
 function walkReportJsonFiles(reportsRoot2) {
   if (!existsSync31(reportsRoot2))
     return [];
-  const rootReal = realpathSync5.native(reportsRoot2);
+  const rootReal = realpathSync7.native(reportsRoot2);
   const out = [];
   const stack = [reportsRoot2];
   while (stack.length > 0) {
     const current = stack.pop();
     if (current === void 0)
       continue;
-    for (const entry of readdirSync5(current, { withFileTypes: true })) {
-      const absPath = resolve20(current, entry.name);
-      if (entry.isSymbolicLink() || lstatSync6(absPath).isSymbolicLink())
+    for (const entry of readdirSync6(current, { withFileTypes: true })) {
+      const absPath = resolve22(current, entry.name);
+      if (entry.isSymbolicLink() || lstatSync8(absPath).isSymbolicLink())
         continue;
-      const real = realpathSync5.native(absPath);
-      if (!isInside3(rootReal, real))
+      const real = realpathSync7.native(absPath);
+      if (!isInside5(rootReal, real))
         continue;
       if (entry.isDirectory()) {
         stack.push(absPath);
@@ -101815,8 +104692,8 @@ var init_run_source_files = __esm({
 });
 
 // dist/app/history/extract.js
-import { existsSync as existsSync32, lstatSync as lstatSync7, readFileSync as readFileSync53, readdirSync as readdirSync6, realpathSync as realpathSync6 } from "node:fs";
-import { basename as basename6, isAbsolute as isAbsolute12, relative as relative12, resolve as resolve21 } from "node:path";
+import { existsSync as existsSync32, lstatSync as lstatSync9, readFileSync as readFileSync52, readdirSync as readdirSync7, realpathSync as realpathSync8 } from "node:fs";
+import { basename as basename6, isAbsolute as isAbsolute14, relative as relative14, resolve as resolve23 } from "node:path";
 function isObject3(value) {
   return value !== null && typeof value === "object" && !Array.isArray(value);
 }
@@ -101833,7 +104710,7 @@ function safeDateString(value) {
   return Number.isNaN(Date.parse(raw)) ? void 0 : new Date(raw).toISOString();
 }
 function readJson4(path) {
-  return JSON.parse(readFileSync53(path, "utf8"));
+  return JSON.parse(readFileSync52(path, "utf8"));
 }
 function readJsonRecord(path) {
   try {
@@ -101844,25 +104721,25 @@ function readJsonRecord(path) {
   }
 }
 function sha256File(path) {
-  return sha256OfString(readFileSync53(path, "utf8"));
+  return sha256OfString(readFileSync52(path, "utf8"));
 }
-function isInside4(root, target) {
-  const fromRoot = relative12(root, target);
-  return fromRoot === "" || !fromRoot.startsWith("..") && !isAbsolute12(fromRoot);
+function isInside6(root, target) {
+  const fromRoot = relative14(root, target);
+  return fromRoot === "" || !fromRoot.startsWith("..") && !isAbsolute14(fromRoot);
 }
 function listFiles(root, prefix = "") {
-  const absRoot = resolve21(root);
+  const absRoot = resolve23(root);
   if (!existsSync32(absRoot))
     return [];
-  const rootReal = realpathSync6.native(absRoot);
+  const rootReal = realpathSync8.native(absRoot);
   const out = [];
   function walk(absDir, relDir) {
-    for (const entry of readdirSync6(absDir, { withFileTypes: true })) {
-      const absPath = resolve21(absDir, entry.name);
-      if (lstatSync7(absPath).isSymbolicLink())
+    for (const entry of readdirSync7(absDir, { withFileTypes: true })) {
+      const absPath = resolve23(absDir, entry.name);
+      if (lstatSync9(absPath).isSymbolicLink())
         continue;
-      const real = realpathSync6.native(absPath);
-      if (!isInside4(rootReal, real))
+      const real = realpathSync8.native(absPath);
+      if (!isInside6(rootReal, real))
         continue;
       const relPath = relDir.length === 0 ? entry.name : `${relDir}/${entry.name}`;
       if (entry.isDirectory()) {
@@ -101896,13 +104773,13 @@ function validStepId(value) {
   return StepId.safeParse(value).success ? value : void 0;
 }
 function parseTrace(runFolder, runFolderName) {
-  const tracePath = resolve21(runFolder, "trace.ndjson");
+  const tracePath = resolve23(runFolder, "trace.ndjson");
   if (!existsSync32(tracePath)) {
     return { entries: [], reportWrites: /* @__PURE__ */ new Map(), traceValidForDocs: false };
   }
   let entries = [];
   try {
-    entries = readFileSync53(tracePath, "utf8").split("\n").filter((line) => line.trim().length > 0).map((line) => JSON.parse(line)).filter(isObject3);
+    entries = readFileSync52(tracePath, "utf8").split("\n").filter((line) => line.trim().length > 0).map((line) => JSON.parse(line)).filter(isObject3);
   } catch (error52) {
     return {
       entries: [],
@@ -102121,7 +104998,7 @@ function resolveRunIdentity(input) {
 }
 function makeRunDocument(input) {
   const sourcePath = input.resultPath ?? "trace.ndjson";
-  const sourceAbs = resolve21(input.runFolder, sourcePath);
+  const sourceAbs = resolve23(input.runFolder, sourcePath);
   if (!existsSync32(sourceAbs))
     return void 0;
   const sourceSha = input.resultPath === void 0 ? input.traceSha : sha256File(sourceAbs);
@@ -102338,18 +105215,18 @@ function makeTraceDocument(input) {
   });
 }
 function extractRunHistoryDocuments(runFolder) {
-  const runFolderAbs = resolve21(runFolder);
+  const runFolderAbs = resolve23(runFolder);
   const runFolderName = basename6(runFolderAbs);
   const warnings = [];
   const documents = [];
-  const manifestPath2 = resolve21(runFolderAbs, "manifest.snapshot.json");
-  const resultPath2 = resolve21(runFolderAbs, "reports/result.json");
+  const manifestPath2 = resolve23(runFolderAbs, "manifest.snapshot.json");
+  const resultPath2 = resolve23(runFolderAbs, "reports/result.json");
   const manifest = existsSync32(manifestPath2) ? readJsonRecord(manifestPath2) : void 0;
   const result = existsSync32(resultPath2) ? readJsonRecord(resultPath2) : void 0;
   const trace = parseTrace(runFolderAbs, runFolderName);
   if (trace.warning !== void 0)
     warnings.push(trace.warning);
-  const tracePath = resolve21(runFolderAbs, "trace.ndjson");
+  const tracePath = resolve23(runFolderAbs, "trace.ndjson");
   const traceExists = existsSync32(tracePath);
   const traceSha = traceExists ? sha256File(tracePath) : void 0;
   const traceMtime = traceExists ? mtimeMs(tracePath) : void 0;
@@ -102370,9 +105247,9 @@ function extractRunHistoryDocuments(runFolder) {
   });
   if (runDocument !== void 0)
     documents.push(runDocument);
-  const reportRoot = resolve21(runFolderAbs, "reports");
+  const reportRoot = resolve23(runFolderAbs, "reports");
   for (const relPath of listFiles(reportRoot, "reports")) {
-    const absPath = resolve21(runFolderAbs, relPath);
+    const absPath = resolve23(runFolderAbs, relPath);
     if (absPath !== resolveRunFilePath(runFolderAbs, relPath))
       continue;
     if (skipReport(relPath))
@@ -102480,18 +105357,18 @@ var init_extract = __esm({
 });
 
 // dist/app/history/indexer.js
-import { existsSync as existsSync33, mkdirSync as mkdirSync7, readFileSync as readFileSync54, renameSync as renameSync2, writeFileSync as writeFileSync8 } from "node:fs";
-import { join as join32, resolve as resolve22 } from "node:path";
+import { existsSync as existsSync33, mkdirSync as mkdirSync7, readFileSync as readFileSync53, renameSync as renameSync2, writeFileSync as writeFileSync8 } from "node:fs";
+import { join as join33, resolve as resolve24 } from "node:path";
 function resolveHistoryPaths(options = {}) {
-  const repoRoot = resolve22(options.repoRoot ?? process.cwd());
-  const runsBase = options.runsBase === void 0 ? runsRoot(repoRoot) : resolve22(repoRoot, options.runsBase);
-  const indexDir = options.indexDir === void 0 ? historyRoot(repoRoot) : resolve22(repoRoot, options.indexDir);
+  const repoRoot = resolve24(options.repoRoot ?? process.cwd());
+  const runsBase = options.runsBase === void 0 ? runsRoot(repoRoot) : resolve24(repoRoot, options.runsBase);
+  const indexDir = options.indexDir === void 0 ? historyRoot(repoRoot) : resolve24(repoRoot, options.indexDir);
   return {
     repoRoot,
     runsBase,
     indexDir,
-    manifestPath: join32(indexDir, HISTORY_MANIFEST_FILE),
-    documentsPath: join32(indexDir, HISTORY_DOCUMENTS_FILE)
+    manifestPath: join33(indexDir, HISTORY_MANIFEST_FILE),
+    documentsPath: join33(indexDir, HISTORY_DOCUMENTS_FILE)
   };
 }
 function computeLatestSourceMtime(sourceFiles) {
@@ -102575,8 +105452,8 @@ function rebuildHistoryIndex(options = {}) {
   const manifestTmp = `${paths.manifestPath}.tmp-${process.pid}`;
   writeFileSync8(documentsTmp, documentsJsonl, "utf8");
   writeFileSync8(manifestTmp, manifestJson, "utf8");
-  HistoryManifestV1.parse(JSON.parse(readFileSync54(manifestTmp, "utf8")));
-  for (const line of readFileSync54(documentsTmp, "utf8").split("\n")) {
+  HistoryManifestV1.parse(JSON.parse(readFileSync53(manifestTmp, "utf8")));
+  for (const line of readFileSync53(documentsTmp, "utf8").split("\n")) {
     if (line.trim().length === 0)
       continue;
     HistoryDocumentV1.parse(JSON.parse(line));
@@ -102597,7 +105474,7 @@ function readHistoryManifest(paths) {
   }
   let raw;
   try {
-    raw = JSON.parse(readFileSync54(paths.manifestPath, "utf8"));
+    raw = JSON.parse(readFileSync53(paths.manifestPath, "utf8"));
   } catch (error52) {
     throw new HistoryCommandError("index_corrupt", `history manifest corrupt: ${error52 instanceof Error ? error52.message : String(error52)}`, { runsBase: paths.runsBase, indexDir: paths.indexDir });
   }
@@ -102621,7 +105498,7 @@ function readHistoryIndex(options = {}) {
   const manifest = readHistoryManifest(paths);
   let documentsRaw = "";
   try {
-    documentsRaw = readFileSync54(paths.documentsPath, "utf8");
+    documentsRaw = readFileSync53(paths.documentsPath, "utf8");
   } catch (error52) {
     throw new HistoryCommandError("index_corrupt", `history documents unreadable: ${error52 instanceof Error ? error52.message : String(error52)}`, { runsBase: paths.runsBase, indexDir: paths.indexDir });
   }
@@ -102708,10 +105585,10 @@ var init_indexer = __esm({
 });
 
 // dist/app/history/memory-effect-read.js
-import { existsSync as existsSync34, readFileSync as readFileSync55 } from "node:fs";
-import { join as join33 } from "node:path";
+import { existsSync as existsSync34, readFileSync as readFileSync54 } from "node:fs";
+import { join as join34 } from "node:path";
 function loadMemoryEffectReport(paths) {
-  const effectPath = join33(paths.indexDir, HISTORY_MEMORY_EFFECT_FILE);
+  const effectPath = join34(paths.indexDir, HISTORY_MEMORY_EFFECT_FILE);
   if (!existsSync34(effectPath)) {
     return {
       warnings: [
@@ -102724,7 +105601,7 @@ function loadMemoryEffectReport(paths) {
     };
   }
   try {
-    const report = HistoryMemoryEffectV1.parse(JSON.parse(readFileSync55(effectPath, "utf8")));
+    const report = HistoryMemoryEffectV1.parse(JSON.parse(readFileSync54(effectPath, "utf8")));
     return { report, warnings: [] };
   } catch (error52) {
     return {
@@ -102837,7 +105714,7 @@ var init_memory_preview = __esm({
 });
 
 // dist/app/history/query.js
-import { existsSync as existsSync35, readFileSync as readFileSync56 } from "node:fs";
+import { existsSync as existsSync35, readFileSync as readFileSync55 } from "node:fs";
 function tokenize(text) {
   return text.toLowerCase().split(/[^a-z0-9]+/).filter((term) => term.length >= 2 && !STOPWORDS.has(term));
 }
@@ -103004,7 +105881,7 @@ function sourceStaleness(doc, checkedAt) {
         checked_at: checkedAt
       };
     }
-    const currentHash = sha256OfString(readFileSync56(sourcePath, "utf8"));
+    const currentHash = sha256OfString(readFileSync55(sourcePath, "utf8"));
     return currentHash === doc.source_sha256 ? {
       status: "fresh",
       reason_codes: ["source_hash_verified"],
@@ -103410,19 +106287,19 @@ var init_run_start_recall = __esm({
 });
 
 // dist/app/operator-summary/resume-command.js
-import { isAbsolute as isAbsolute13, join as join34, resolve as resolve23 } from "node:path";
+import { isAbsolute as isAbsolute15, join as join35, resolve as resolve25 } from "node:path";
 function shellSingleQuote2(value) {
   return `'${value.replace(/'/g, "'\\''")}'`;
 }
 function operatorSummaryResumeCommandPrefix(input) {
   const execPath = input.execPath;
-  if (execPath !== void 0 && isAbsolute13(execPath) && input.pluginRoot !== void 0 && isAbsolute13(input.pluginRoot) && input.hostKind !== void 0 && input.hostKind !== "generic-shell") {
-    const wrapper = join34(input.pluginRoot, "scripts", "circuit.js");
+  if (execPath !== void 0 && isAbsolute15(execPath) && input.pluginRoot !== void 0 && isAbsolute15(input.pluginRoot) && input.hostKind !== void 0 && input.hostKind !== "generic-shell") {
+    const wrapper = join35(input.pluginRoot, "scripts", "circuit.js");
     const presentation = input.hostKind === "claude-code" ? " present" : "";
     return `${shellSingleQuote2(execPath)} ${shellSingleQuote2(wrapper)}${presentation} resume`;
   }
-  if (execPath !== void 0 && isAbsolute13(execPath) && input.cliEntryPath !== void 0) {
-    const entry = isAbsolute13(input.cliEntryPath) ? input.cliEntryPath : resolve23(input.cliEntryPath);
+  if (execPath !== void 0 && isAbsolute15(execPath) && input.cliEntryPath !== void 0) {
+    const entry = isAbsolute15(input.cliEntryPath) ? input.cliEntryPath : resolve25(input.cliEntryPath);
     return `${shellSingleQuote2(execPath)} ${shellSingleQuote2(entry)} resume`;
   }
   return "circuit resume";
@@ -103502,7 +106379,7 @@ var init_iteration_ledger = __esm({
 });
 
 // dist/shared/operator-summary/json.js
-import { existsSync as existsSync36, readFileSync as readFileSync57 } from "node:fs";
+import { existsSync as existsSync36, readFileSync as readFileSync56 } from "node:fs";
 function isObject4(value) {
   return value !== null && typeof value === "object" && !Array.isArray(value);
 }
@@ -103510,7 +106387,7 @@ function readJsonIfPresent(runFolder, relPath) {
   const path = resolveRunRelative(runFolder, relPath);
   if (!existsSync36(path))
     return void 0;
-  const parsed = JSON.parse(readFileSync57(path, "utf8"));
+  const parsed = JSON.parse(readFileSync56(path, "utf8"));
   return isObject4(parsed) ? parsed : void 0;
 }
 function stringField2(report, key) {
@@ -104162,14 +107039,15 @@ var init_operator_summary2 = __esm({
 });
 
 // dist/app/operator-summary/writer.js
-import { existsSync as existsSync37, mkdirSync as mkdirSync8, readFileSync as readFileSync58, rmSync as rmSync7, writeFileSync as writeFileSync9 } from "node:fs";
-import { dirname as dirname12, isAbsolute as isAbsolute14, join as join35, relative as relative13, resolve as resolve24 } from "node:path";
+import { createHash as createHash10 } from "node:crypto";
+import { existsSync as existsSync37, mkdirSync as mkdirSync8, readFileSync as readFileSync57, rmSync as rmSync7, writeFileSync as writeFileSync9 } from "node:fs";
+import { dirname as dirname11, isAbsolute as isAbsolute16, join as join36, relative as relative15, resolve as resolve26 } from "node:path";
 function readPriorRoute(runFolder) {
-  const path = join35(runFolder, "reports", "operator-summary.json");
+  const path = join36(runFolder, "reports", "operator-summary.json");
   if (!existsSync37(path))
     return {};
   try {
-    const raw = JSON.parse(readFileSync58(path, "utf8"));
+    const raw = JSON.parse(readFileSync57(path, "utf8"));
     if (!isObject4(raw))
       return {};
     const routedBy = raw.routed_by;
@@ -104235,42 +107113,134 @@ function salvageKeyPoints(input) {
   return points;
 }
 function jsonPath(runFolder) {
-  return join35(runFolder, "reports", "operator-summary.json");
+  return join36(runFolder, "reports", "operator-summary.json");
 }
 function markdownPath(runFolder) {
-  return join35(runFolder, "reports", "operator-summary.md");
+  return join36(runFolder, "reports", "operator-summary.md");
 }
 function htmlPath(runFolder) {
-  return join35(runFolder, "reports", "operator-summary.html");
+  return join36(runFolder, "reports", "operator-summary.html");
 }
 function isInsideOrSame4(root, target) {
-  const fromRoot = relative13(root, target);
-  return fromRoot === "" || !fromRoot.startsWith("..") && !isAbsolute14(fromRoot);
+  const fromRoot = relative15(root, target);
+  return fromRoot === "" || !fromRoot.startsWith("..") && !isAbsolute16(fromRoot);
 }
 function readCheckpointRequest(runFolder, checkpoint) {
   let requestPath;
   try {
-    requestPath = isAbsolute14(checkpoint.request_path) ? resolve24(checkpoint.request_path) : resolveRunRelative(runFolder, checkpoint.request_path);
+    requestPath = isAbsolute16(checkpoint.request_path) ? resolve26(checkpoint.request_path) : resolveRunRelative(runFolder, checkpoint.request_path);
   } catch {
     return void 0;
   }
-  if (!isInsideOrSame4(resolve24(runFolder), requestPath))
+  if (!isInsideOrSame4(resolve26(runFolder), requestPath))
     return void 0;
   if (!existsSync37(requestPath))
     return void 0;
   try {
-    const parsed = JSON.parse(readFileSync58(requestPath, "utf8"));
+    const parsed = JSON.parse(readFileSync57(requestPath, "utf8"));
     return isObject4(parsed) ? parsed : void 0;
   } catch {
     return void 0;
   }
+}
+function verifiedCheckpointReviewInputs(runFolder, checkpoint) {
+  let requestPath;
+  try {
+    requestPath = isAbsolute16(checkpoint.request_path) ? resolve26(checkpoint.request_path) : resolveRunRelative(runFolder, checkpoint.request_path);
+  } catch {
+    throw new Error("checkpoint review request path is invalid");
+  }
+  if (!isInsideOrSame4(resolve26(runFolder), requestPath)) {
+    throw new Error("checkpoint review request path leaves the run folder");
+  }
+  let requestBytes;
+  try {
+    requestBytes = readFileSync57(requestPath);
+  } catch {
+    throw new Error("checkpoint review request could not be read");
+  }
+  if (createHash10("sha256").update(requestBytes).digest("hex") !== checkpoint.request_sha256) {
+    throw new Error("checkpoint review request hash does not match the waiting checkpoint");
+  }
+  let parsed;
+  try {
+    parsed = JSON.parse(requestBytes.toString("utf8"));
+  } catch {
+    throw new Error("checkpoint review request is not valid JSON");
+  }
+  if (!isObject4(parsed))
+    throw new Error("checkpoint review request is invalid");
+  const executionContext = parsed.execution_context;
+  if (!isObject4(executionContext) || !Array.isArray(executionContext.review_inputs)) {
+    throw new Error("checkpoint review request has no verified review inputs");
+  }
+  const rawIdentities = [];
+  for (const raw of executionContext.review_inputs) {
+    if (!isObject4(raw))
+      throw new Error("checkpoint review input identity is invalid");
+    const path = stringField2(raw, "path");
+    const sha2564 = stringField2(raw, "sha256");
+    if (path === void 0 || sha2564 === void 0 || !/^[a-f0-9]{64}$/.test(sha2564)) {
+      throw new Error("checkpoint review input identity is invalid");
+    }
+    try {
+      resolveRunRelative(runFolder, path);
+    } catch {
+      throw new Error(`checkpoint review input '${path}' is invalid`);
+    }
+    rawIdentities.push({ path, sha256: sha2564 });
+  }
+  let identities;
+  try {
+    identities = normalizeCheckpointReviewInputIdentities(rawIdentities);
+  } catch {
+    throw new Error("checkpoint review input identity is invalid");
+  }
+  const reports = /* @__PURE__ */ new Map();
+  const reportedAssets = [];
+  for (const identity2 of identities) {
+    const absolutePath = resolveRunRelative(runFolder, identity2.path);
+    let bytes;
+    try {
+      bytes = readFileSync57(absolutePath);
+    } catch {
+      throw new Error(`checkpoint review input '${identity2.path}' could not be read`);
+    }
+    if (checkpointReviewInputSha256(bytes) !== identity2.sha256) {
+      throw new Error(`checkpoint review input '${identity2.path}' hash does not match`);
+    }
+    const report = checkpointReviewInputJsonObject(bytes);
+    if (report === void 0)
+      continue;
+    reports.set(identity2.path, report);
+    if (!Object.hasOwn(report, "review_assets"))
+      continue;
+    let groups;
+    try {
+      groups = CheckpointReviewAssetGroups.parse(report.review_assets);
+    } catch {
+      throw new Error(`checkpoint review input '${identity2.path}' has invalid review_assets`);
+    }
+    reportedAssets.push(...groups);
+  }
+  let reviewAssets;
+  try {
+    reviewAssets = CheckpointReviewAssetGroups.parse(executionContext.review_assets ?? []);
+  } catch {
+    throw new Error("checkpoint review asset identities are invalid");
+  }
+  const reportAssets = CheckpointReviewAssetGroups.parse(reportedAssets);
+  if (JSON.stringify(reviewAssets) !== JSON.stringify(reportAssets)) {
+    throw new Error("checkpoint review asset identities do not match the bound review inputs");
+  }
+  return { request: parsed, reports, reviewAssets };
 }
 function checkpointProjectRoot(request) {
   const executionContext = request?.execution_context;
   if (!isObject4(executionContext))
     return void 0;
   const projectRoot = stringField2(executionContext, "project_root");
-  return projectRoot !== void 0 && isAbsolute14(projectRoot) ? projectRoot : void 0;
+  return projectRoot !== void 0 && isAbsolute16(projectRoot) ? projectRoot : void 0;
 }
 function checkpointDepth(request) {
   const executionContext = request?.execution_context;
@@ -104678,11 +107648,11 @@ function evidenceLinks2(runFolder, report) {
   return { links, warnings };
 }
 function readAutoResolutions(runFolder) {
-  const tracePath = join35(runFolder, "trace.ndjson");
+  const tracePath = join36(runFolder, "trace.ndjson");
   if (!existsSync37(tracePath))
     return [];
   const records = [];
-  for (const line of readFileSync58(tracePath, "utf8").split(/\r?\n/)) {
+  for (const line of readFileSync57(tracePath, "utf8").split(/\r?\n/)) {
     if (line.trim().length === 0)
       continue;
     let entry;
@@ -104718,7 +107688,7 @@ function emptySpendTotals() {
   };
 }
 function readRunReceipt(runFolder) {
-  const tracePath = join35(runFolder, "trace.ndjson");
+  const tracePath = join36(runFolder, "trace.ndjson");
   if (!existsSync37(tracePath))
     return void 0;
   let depth;
@@ -104737,7 +107707,7 @@ function readRunReceipt(runFolder) {
   let spendRelaysMissingUsage = 0;
   let anyUsage = false;
   let anyCostMissing = false;
-  for (const line of readFileSync58(tracePath, "utf8").split(/\r?\n/)) {
+  for (const line of readFileSync57(tracePath, "utf8").split(/\r?\n/)) {
     if (line.trim().length === 0)
       continue;
     let entry;
@@ -104946,13 +107916,13 @@ function skillHookSourceLabel(source) {
   }
 }
 function readSkillHookSummary(runFolder) {
-  const tracePath = join35(runFolder, "trace.ndjson");
+  const tracePath = join36(runFolder, "trace.ndjson");
   if (!existsSync37(tracePath))
     return { activations: [], warnings: [] };
   const seen = /* @__PURE__ */ new Set();
   const activations = [];
   const warnings = [];
-  for (const line of readFileSync58(tracePath, "utf8").split(/\r?\n/)) {
+  for (const line of readFileSync57(tracePath, "utf8").split(/\r?\n/)) {
     if (line.trim().length === 0)
       continue;
     let entry;
@@ -105001,11 +107971,11 @@ function readSkillHookSummary(runFolder) {
   return { activations, warnings };
 }
 function readDegradationWarnings(runFolder) {
-  const tracePath = join35(runFolder, "trace.ndjson");
+  const tracePath = join36(runFolder, "trace.ndjson");
   if (!existsSync37(tracePath))
     return [];
   const warnings = [];
-  for (const line of readFileSync58(tracePath, "utf8").split(/\r?\n/)) {
+  for (const line of readFileSync57(tracePath, "utf8").split(/\r?\n/)) {
     if (line.trim().length === 0)
       continue;
     let entry;
@@ -105056,11 +108026,11 @@ function friendlyAbortReason(reason) {
   return void 0;
 }
 function readAutoConnectorPicks(runFolder) {
-  const tracePath = join35(runFolder, "trace.ndjson");
+  const tracePath = join36(runFolder, "trace.ndjson");
   const picks = /* @__PURE__ */ new Map();
   if (!existsSync37(tracePath))
     return picks;
-  for (const line of readFileSync58(tracePath, "utf8").split(/\r?\n/)) {
+  for (const line of readFileSync57(tracePath, "utf8").split(/\r?\n/)) {
     if (line.trim().length === 0)
       continue;
     let entry;
@@ -105104,13 +108074,13 @@ function skillHookActivationLine(activation) {
   return `\`${activation.hook}\` ${parts.join("; ")} \u2014 ${provenance}`;
 }
 function readEquipmentReshapeSummary(runFolder) {
-  const tracePath = join35(runFolder, "trace.ndjson");
+  const tracePath = join36(runFolder, "trace.ndjson");
   if (!existsSync37(tracePath))
     return { reshapes: [], warnings: [] };
   const seen = /* @__PURE__ */ new Set();
   const reshapes = [];
   const warnings = [];
-  for (const line of readFileSync58(tracePath, "utf8").split(/\r?\n/)) {
+  for (const line of readFileSync57(tracePath, "utf8").split(/\r?\n/)) {
     if (line.trim().length === 0)
       continue;
     let entry;
@@ -105160,11 +108130,11 @@ function equipmentReshapeLine(reshape) {
   return `\`${reshape.step_id}\` confirmed ${domains}; equipped ${equipped}`;
 }
 function readIterationLedger(runFolder) {
-  const tracePath = join35(runFolder, "trace.ndjson");
+  const tracePath = join36(runFolder, "trace.ndjson");
   if (!existsSync37(tracePath))
     return [];
   const entries = [];
-  for (const line of readFileSync58(tracePath, "utf8").split(/\r?\n/)) {
+  for (const line of readFileSync57(tracePath, "utf8").split(/\r?\n/)) {
     if (line.trim().length === 0)
       continue;
     let raw;
@@ -105313,26 +108283,13 @@ function renderMarkdown(summary, ledgerRows) {
   return `${lines.join("\n")}
 `;
 }
-function writeOperatorSummary(input) {
+function renderOperatorSummaryHtml(input) {
   const flowId = input.runResult.flow_id;
-  const flowResultRelPath = findFlowRuntimeSurfaceById(flowId)?.primaryResult?.path;
-  const flowReport = flowResultRelPath === void 0 ? void 0 : readJsonIfPresent(input.runFolder, flowResultRelPath);
-  const resultRelPath = RUN_RESULT_RELATIVE_PATH;
-  const resultPath2 = input.runResult.outcome === "checkpoint_waiting" ? void 0 : resolveRunRelative(input.runFolder, resultRelPath);
-  const autoResolutions = readAutoResolutions(input.runFolder);
-  const skillHookSummary = readSkillHookSummary(input.runFolder);
-  const equipmentReshapeSummary = readEquipmentReshapeSummary(input.runFolder);
-  const receipt = readRunReceipt(input.runFolder);
-  const ledgerRows = readIterationLedger(input.runFolder);
-  const outJsonPath = jsonPath(input.runFolder);
-  const outMarkdownPath = markdownPath(input.runFolder);
-  mkdirSync8(dirname12(outJsonPath), { recursive: true });
   const projector = getHtmlProjector(flowId);
   const candidateHtmlPath = htmlPath(input.runFolder);
-  let outHtmlPath;
-  let htmlEmitWarning;
   let renderedHtml;
-  const checkpointRequest = input.runResult.outcome === "checkpoint_waiting" ? readCheckpointRequest(input.runFolder, input.runResult.checkpoint) : void 0;
+  let htmlEmitWarning;
+  const checkpointRequest = input.checkpointRequest ?? (input.runResult.outcome === "checkpoint_waiting" ? readCheckpointRequest(input.runFolder, input.runResult.checkpoint) : void 0);
   const projectorCheckpoint = input.runResult.outcome === "checkpoint_waiting" ? widenedProjectorCheckpoint(input.runResult.checkpoint, checkpointRequest) : void 0;
   const projectRoot = checkpointProjectRoot(checkpointRequest);
   const ctx = {
@@ -105343,15 +108300,22 @@ function writeOperatorSummary(input) {
     runOutcome: input.runResult.outcome,
     ...input.resumeCommandPrefix === void 0 ? {} : { resumeCommandPrefix: input.resumeCommandPrefix },
     ...projectorCheckpoint === void 0 ? {} : { checkpoint: projectorCheckpoint },
-    flowReport,
-    readJsonRunRelative: (relPath) => readJsonIfPresent(input.runFolder, relPath),
-    readEvidenceReportById: (reportId) => evidenceReportById(input.runFolder, flowReport, reportId),
-    autoResolutions
+    flowReport: input.flowReport,
+    readJsonRunRelative: input.readJsonRunRelative ?? ((relPath) => readJsonIfPresent(input.runFolder, relPath)),
+    readEvidenceReportById: (reportId) => {
+      if (input.strictCheckpointReview === true) {
+        throw new Error(`checkpoint review evidence '${reportId}' was not bound to the request`);
+      }
+      return evidenceReportById(input.runFolder, input.flowReport, reportId);
+    },
+    autoResolutions: input.autoResolutions
   };
   if (projector !== void 0) {
     try {
       renderedHtml = projector(ctx);
     } catch (err) {
+      if (input.strictCheckpointReview === true)
+        throw err;
       htmlEmitWarning = {
         kind: "html_render_failed",
         message: err instanceof Error ? err.message : String(err),
@@ -105370,6 +108334,66 @@ function writeOperatorSummary(input) {
       };
     }
   }
+  return {
+    ...renderedHtml === void 0 ? {} : { renderedHtml },
+    ...projectRoot === void 0 ? {} : { projectRoot },
+    ...projectorCheckpoint === void 0 ? {} : { projectorCheckpoint },
+    ...htmlEmitWarning === void 0 ? {} : { htmlEmitWarning }
+  };
+}
+function renderCheckpointReviewHtml(input) {
+  const flowId = input.runResult.flow_id;
+  const verified = verifiedCheckpointReviewInputs(input.runFolder, input.runResult.checkpoint);
+  const flowResultRelPath = findFlowRuntimeSurfaceById(flowId)?.primaryResult?.path;
+  const flowReport = flowResultRelPath === void 0 ? void 0 : verified.reports.get(flowResultRelPath);
+  const rendered = renderOperatorSummaryHtml({
+    ...input,
+    flowReport,
+    autoResolutions: [],
+    checkpointRequest: verified.request,
+    readJsonRunRelative: (relPath) => {
+      const report = verified.reports.get(relPath);
+      if (report === void 0) {
+        throw new Error(`checkpoint review input '${relPath}' was not bound to the request`);
+      }
+      return report;
+    },
+    strictCheckpointReview: true
+  });
+  if (rendered.renderedHtml === void 0) {
+    throw new Error("checkpoint review renderer did not produce HTML");
+  }
+  return {
+    html: rendered.renderedHtml,
+    reviewAssets: verified.reviewAssets,
+    ...rendered.projectRoot === void 0 ? {} : { projectRoot: rendered.projectRoot }
+  };
+}
+function writeOperatorSummary(input) {
+  const flowId = input.runResult.flow_id;
+  const flowResultRelPath = findFlowRuntimeSurfaceById(flowId)?.primaryResult?.path;
+  const flowReport = flowResultRelPath === void 0 ? void 0 : readJsonIfPresent(input.runFolder, flowResultRelPath);
+  const resultRelPath = RUN_RESULT_RELATIVE_PATH;
+  const resultPath2 = input.runResult.outcome === "checkpoint_waiting" ? void 0 : resolveRunRelative(input.runFolder, resultRelPath);
+  const autoResolutions = readAutoResolutions(input.runFolder);
+  const skillHookSummary = readSkillHookSummary(input.runFolder);
+  const equipmentReshapeSummary = readEquipmentReshapeSummary(input.runFolder);
+  const receipt = readRunReceipt(input.runFolder);
+  const ledgerRows = readIterationLedger(input.runFolder);
+  const outJsonPath = jsonPath(input.runFolder);
+  const outMarkdownPath = markdownPath(input.runFolder);
+  mkdirSync8(dirname11(outJsonPath), { recursive: true });
+  const candidateHtmlPath = htmlPath(input.runFolder);
+  let outHtmlPath;
+  const htmlRender = renderOperatorSummaryHtml({
+    runFolder: input.runFolder,
+    runResult: input.runResult,
+    ...input.resumeCommandPrefix === void 0 ? {} : { resumeCommandPrefix: input.resumeCommandPrefix },
+    flowReport,
+    autoResolutions
+  });
+  const { renderedHtml, projectorCheckpoint, projectRoot } = htmlRender;
+  let { htmlEmitWarning } = htmlRender;
   if (renderedHtml === void 0) {
     if (existsSync37(candidateHtmlPath))
       rmSync7(candidateHtmlPath, { force: true, recursive: true });
@@ -105483,11 +108507,13 @@ function writeOperatorSummary(input) {
   writeFileSync9(outJsonPath, `${JSON.stringify(candidate, null, 2)}
 `);
   writeFileSync9(outMarkdownPath, renderMarkdown(candidate, ledgerRows));
-  return outHtmlPath === void 0 ? { summary: candidate, jsonPath: outJsonPath, markdownPath: outMarkdownPath } : {
+  return {
     summary: candidate,
     jsonPath: outJsonPath,
     markdownPath: outMarkdownPath,
-    htmlPath: outHtmlPath
+    ...outHtmlPath === void 0 ? {} : { htmlPath: outHtmlPath },
+    ...renderedHtml === void 0 ? {} : { htmlContent: renderedHtml },
+    ...projectRoot === void 0 ? {} : { reviewProjectRoot: projectRoot }
   };
 }
 var HTML_REPORT_LABEL, MAX_KEY_POINTS, MAX_CAVEATS, SALVAGE_NEXT_ACTION, VERIFICATION_REPORT_PATH_BY_FLOW, REVIEW_REPORT_PATH_BY_FLOW, SPEND_ROLE_ORDER, REDUCED_BINDING_LABELS, RECOVERY_BINDING_ABORT_PATTERN, RECOVERY_NO_EVIDENCE_ABORT_PATTERN;
@@ -105496,6 +108522,7 @@ var init_writer = __esm({
     "use strict";
     init_catalog();
     init_iteration_ledger();
+    init_checkpoint_review_assets();
     init_operator_summary();
     init_power();
     init_process();
@@ -105503,6 +108530,7 @@ var init_writer = __esm({
     init_skill_hook();
     init_step();
     init_trace_entry();
+    init_checkpoint_review_inputs();
     init_html();
     init_operator_summary2();
     init_text();
@@ -105536,7 +108564,7 @@ var init_writer = __esm({
 
 // dist/app/process-evidence/projection.js
 import { existsSync as existsSync38, mkdirSync as mkdirSync9, writeFileSync as writeFileSync10 } from "node:fs";
-import { dirname as dirname13, join as join36 } from "node:path";
+import { dirname as dirname12, join as join37 } from "node:path";
 function traceRef2(runId) {
   return {
     kind: "trace",
@@ -105593,15 +108621,15 @@ function projectClosedProcessEvidence(input) {
     runId: input.runResult.run_id,
     flowId
   });
-  const declaredReportRefs = declaredPaths.filter((path) => existsSync38(join36(input.runFolder, path))).map((path) => reportRef({
+  const declaredReportRefs = declaredPaths.filter((path) => existsSync38(join37(input.runFolder, path))).map((path) => reportRef({
     runFolder: input.runFolder,
-    path: join36(input.runFolder, path),
+    path: join37(input.runFolder, path),
     runId: input.runResult.run_id,
     flowId
   }));
   const additionalRefs = (input.additionalEvidencePaths ?? []).map((path) => reportRef({
     runFolder: input.runFolder,
-    path: join36(input.runFolder, path),
+    path: join37(input.runFolder, path),
     runId: input.runResult.run_id,
     flowId
   }));
@@ -105657,8 +108685,8 @@ function projectCheckpointWaitingProcessEvidence(input) {
 }
 function writeProcessEvidenceProjection(input) {
   const projection = ProcessEvidenceProjection.parse(input.projection);
-  const outPath = join36(input.runFolder, PROCESS_EVIDENCE_RELATIVE_PATH);
-  mkdirSync9(dirname13(outPath), { recursive: true });
+  const outPath = join37(input.runFolder, PROCESS_EVIDENCE_RELATIVE_PATH);
+  mkdirSync9(dirname12(outPath), { recursive: true });
   writeFileSync10(outPath, `${JSON.stringify(projection, null, 2)}
 `);
   return { path: outPath, projection };
@@ -105759,7 +108787,7 @@ var init_no_progress = __esm({
 
 // dist/app/run-envelope/source-record.js
 import { mkdirSync as mkdirSync10, writeFileSync as writeFileSync11 } from "node:fs";
-import { dirname as dirname14, join as join37 } from "node:path";
+import { dirname as dirname13, join as join38 } from "node:path";
 function childRunIdFromProjection(projection) {
   return RunId.parse(projection.child_run_ref.run_id);
 }
@@ -105800,7 +108828,7 @@ function renderSurfaceMarkdown(input) {
     ...input.record.surface_output.artifact_links
   ];
   const uniqueArtifactRefs = artifactRefs.filter((ref, index, refs) => refs.findIndex((candidate) => candidate.ref === ref.ref) === index);
-  const artifactLine = uniqueArtifactRefs.map((ref) => markdownLink(artifactLabel(ref), join37(input.runFolder, ref.ref))).join(" \xB7 ");
+  const artifactLine = uniqueArtifactRefs.map((ref) => markdownLink(artifactLabel(ref), join38(input.runFolder, ref.ref))).join(" \xB7 ");
   return ["CIRCUIT", `\u23BF ${input.record.surface_output.status_text}`, "", artifactLine, ""].join("\n");
 }
 function processAttemptOutcome(outcome) {
@@ -106300,17 +109328,17 @@ function writeRunEnvelopeRecord(input) {
     }),
     outcome
   });
-  const outPath = join37(input.runFolder, RUN_ENVELOPE_RELATIVE_PATH);
-  mkdirSync10(dirname14(outPath), { recursive: true });
+  const outPath = join38(input.runFolder, RUN_ENVELOPE_RELATIVE_PATH);
+  mkdirSync10(dirname13(outPath), { recursive: true });
   const decisionPacketPaths = decisionArtifacts.map((artifact) => {
-    const path = join37(input.runFolder, artifact.ref.ref);
-    mkdirSync10(dirname14(path), { recursive: true });
+    const path = join38(input.runFolder, artifact.ref.ref);
+    mkdirSync10(dirname13(path), { recursive: true });
     writeFileSync11(path, artifact.body);
     return path;
   });
   writeFileSync11(outPath, `${JSON.stringify(record2, null, 2)}
 `);
-  const surfacePath = join37(input.runFolder, RUN_SURFACE_RELATIVE_PATH);
+  const surfacePath = join38(input.runFolder, RUN_SURFACE_RELATIVE_PATH);
   writeFileSync11(surfacePath, renderSurfaceMarkdown({ runFolder: input.runFolder, record: record2 }));
   return {
     path: outPath,
@@ -106483,7 +109511,11 @@ function decodeCheckpointReviewResponse(token) {
   } catch {
     throw new Error("checkpoint response token payload is not valid JSON");
   }
-  return CheckpointReviewResponse.parse(raw);
+  const parsed = CheckpointReviewResponse.safeParse(raw);
+  if (!parsed.success) {
+    throw new Error("checkpoint response token payload does not match checkpoint.review-response@v1");
+  }
+  return parsed.data;
 }
 var TOKEN_PREFIX, MAX_TOKEN_CHARS;
 var init_checkpoint_review_token = __esm({
@@ -106495,12 +109527,223 @@ var init_checkpoint_review_token = __esm({
   }
 });
 
+// dist/cli/checkpoint-response-file.js
+import { constants as constants5, closeSync as closeSync6, fstatSync as fstatSync4, openSync as openSync6, readSync as readSync6 } from "node:fs";
+import { isAbsolute as isAbsolute17, resolve as resolve27 } from "node:path";
+import { TextDecoder as TextDecoder2 } from "node:util";
+function resolveCheckpointResponseFilePath(argument, cwd2) {
+  return isAbsolute17(argument) ? argument : resolve27(cwd2, argument);
+}
+function openResponseFile(path) {
+  try {
+    return openSync6(path, constants5.O_RDONLY | constants5.O_NONBLOCK);
+  } catch (error52) {
+    const code = error52.code;
+    if (code === "ENOENT" || code === "ENOTDIR") {
+      throw new CheckpointResponseFileError("not_found", path, `No checkpoint response file was found at ${path}.`);
+    }
+    if (code === "EACCES" || code === "EPERM") {
+      throw new CheckpointResponseFileError("unreadable", path, `The checkpoint response file at ${path} could not be read because permission was denied.`);
+    }
+    throw new CheckpointResponseFileError("unreadable", path, `The checkpoint response file at ${path} could not be opened.`);
+  }
+}
+function readBoundedRegularFile(path) {
+  const fd = openResponseFile(path);
+  try {
+    let stat2;
+    try {
+      stat2 = fstatSync4(fd);
+    } catch {
+      throw new CheckpointResponseFileError("unreadable", path, `The checkpoint response file at ${path} could not be inspected.`);
+    }
+    if (!stat2.isFile()) {
+      throw new CheckpointResponseFileError("not_regular_file", path, `The checkpoint response path at ${path} must be a regular file; folders, pipes, sockets, and devices are not supported.`);
+    }
+    if (stat2.size > MAX_CHECKPOINT_RESPONSE_FILE_BYTES) {
+      throw new CheckpointResponseFileError("too_large", path, `The checkpoint response file at ${path} is too large (limit 64 KiB). Shorten the review notes and export it again.`);
+    }
+    const buffer = Buffer.allocUnsafe(MAX_CHECKPOINT_RESPONSE_FILE_BYTES + 1);
+    let offset = 0;
+    try {
+      while (offset < buffer.length) {
+        const bytesRead = readSync6(fd, buffer, offset, buffer.length - offset, null);
+        if (bytesRead === 0)
+          break;
+        offset += bytesRead;
+      }
+    } catch {
+      throw new CheckpointResponseFileError("unreadable", path, `The checkpoint response file at ${path} could not be read.`);
+    }
+    if (offset > MAX_CHECKPOINT_RESPONSE_FILE_BYTES) {
+      throw new CheckpointResponseFileError("too_large", path, `The checkpoint response file at ${path} is too large (limit 64 KiB). Shorten the review notes and export it again.`);
+    }
+    return buffer.subarray(0, offset);
+  } finally {
+    try {
+      closeSync6(fd);
+    } catch {
+    }
+  }
+}
+function decodeUtf83(bytes, path) {
+  try {
+    return new TextDecoder2("utf-8", { fatal: true }).decode(bytes);
+  } catch {
+    throw new CheckpointResponseFileError("invalid_utf8", path, `The checkpoint response file at ${path} is not valid UTF-8. Export it again from the current review page.`);
+  }
+}
+function safeJsonLocation(error52, text) {
+  if (!(error52 instanceof Error))
+    return "";
+  const direct = /\bline\s+(\d+)\s+column\s+(\d+)\b/i.exec(error52.message);
+  if (direct !== null)
+    return ` at line ${direct[1]}, column ${direct[2]}`;
+  const positioned = /\bposition\s+(\d+)\b/i.exec(error52.message);
+  if (positioned === null)
+    return "";
+  const position = Number.parseInt(positioned[1] ?? "", 10);
+  if (!Number.isSafeInteger(position) || position < 0 || position > text.length)
+    return "";
+  const before = text.slice(0, position);
+  const line = before.split("\n").length;
+  const lastNewline = before.lastIndexOf("\n");
+  const column = position - lastNewline;
+  return ` at line ${line}, column ${column}`;
+}
+function safeIssuePath(path) {
+  const first = path[0];
+  if (typeof first !== "string" || !SAFE_RESPONSE_FIELDS.has(first))
+    return void 0;
+  if (first !== "comments")
+    return first;
+  const index = path[1];
+  if (typeof index !== "number" || !Number.isSafeInteger(index) || index < 0)
+    return "comments";
+  const member = path[2];
+  if (member === "scope" || member === "choice_id" || member === "body") {
+    return `comments[${index}].${member}`;
+  }
+  return `comments[${index}]`;
+}
+function safeInvalidFields(issues) {
+  const fields = /* @__PURE__ */ new Set();
+  for (const issue2 of issues) {
+    const field = safeIssuePath(issue2.path);
+    if (field !== void 0)
+      fields.add(field);
+  }
+  return [...fields].sort();
+}
+function readCheckpointResponseFile(input) {
+  const path = resolveCheckpointResponseFilePath(input.argument, input.cwd);
+  const text = decodeUtf83(readBoundedRegularFile(path), path);
+  let raw;
+  try {
+    raw = JSON.parse(text);
+  } catch (error52) {
+    throw new CheckpointResponseFileError("invalid_json", path, `The checkpoint response file at ${path} is not valid JSON${safeJsonLocation(error52, text)}. Export it again from the current review page.`);
+  }
+  const parsed = CheckpointReviewResponse.safeParse(raw);
+  if (!parsed.success) {
+    const fields = safeInvalidFields(parsed.error.issues);
+    const fieldDetail = fields.length === 0 ? "" : ` Check these fields: ${fields.join(", ")}.`;
+    throw new CheckpointResponseFileError("invalid_response", path, `The checkpoint response file at ${path} does not match checkpoint.review-response@v1.${fieldDetail} Export a fresh review from the current page.`);
+  }
+  return parsed.data;
+}
+var MAX_CHECKPOINT_RESPONSE_FILE_BYTES, CheckpointResponseFileError, SAFE_RESPONSE_FIELDS;
+var init_checkpoint_response_file = __esm({
+  "dist/cli/checkpoint-response-file.js"() {
+    "use strict";
+    init_checkpoint_review_response();
+    MAX_CHECKPOINT_RESPONSE_FILE_BYTES = 64 * 1024;
+    CheckpointResponseFileError = class extends Error {
+      code;
+      path;
+      constructor(code, path, message) {
+        super(message);
+        this.name = "CheckpointResponseFileError";
+        this.code = code;
+        this.path = path;
+      }
+    };
+    SAFE_RESPONSE_FIELDS = /* @__PURE__ */ new Set([
+      "schema",
+      "run_id",
+      "step_id",
+      "attempt",
+      "request_sha256",
+      "selection",
+      "comments"
+    ]);
+  }
+});
+
+// dist/cli/checkpoint-review-open.js
+import { spawn as nodeSpawn } from "node:child_process";
+function envFlagEnabled(value) {
+  return value !== void 0 && value !== "" && value !== "0" && value !== "false";
+}
+function isLocalCheckpointReviewUrl(value) {
+  if (typeof value !== "string" || value.length === 0)
+    return false;
+  try {
+    const url2 = new URL(value);
+    return url2.protocol === "http:" && url2.hostname === "127.0.0.1" && url2.port.length > 0 && url2.username.length === 0 && url2.password.length === 0 && url2.hash.length === 0;
+  } catch {
+    return false;
+  }
+}
+function openLocalCheckpointReview(url2, options = {}) {
+  if (!isLocalCheckpointReviewUrl(url2))
+    return false;
+  const platform2 = options.platform ?? process.platform;
+  const env3 = options.env ?? process.env;
+  if (envFlagEnabled(env3.CIRCUIT_NO_AUTO_OPEN) || envFlagEnabled(env3.CI))
+    return false;
+  if (platform2 === "linux" && (env3.DISPLAY === void 0 || env3.DISPLAY === "") && (env3.WAYLAND_DISPLAY === void 0 || env3.WAYLAND_DISPLAY === "")) {
+    return false;
+  }
+  let command;
+  let args;
+  if (platform2 === "darwin") {
+    command = "open";
+    args = [url2];
+  } else if (platform2 === "linux") {
+    command = "xdg-open";
+    args = [url2];
+  } else if (platform2 === "win32") {
+    if (/[&|<>^"%]/.test(url2))
+      return false;
+    command = "cmd";
+    args = ["/c", "start", '""', url2];
+  } else {
+    return false;
+  }
+  const spawn2 = options.spawn ?? nodeSpawn;
+  try {
+    const child = spawn2(command, args, { detached: true, stdio: "ignore" });
+    child.on("error", () => {
+    });
+    child.unref();
+    return true;
+  } catch {
+    return false;
+  }
+}
+var init_checkpoint_review_open = __esm({
+  "dist/cli/checkpoint-review-open.js"() {
+    "use strict";
+  }
+});
+
 // dist/cli/compiled-flow-loading.js
-import { existsSync as existsSync39, readFileSync as readFileSync59 } from "node:fs";
-import { dirname as dirname15, resolve as resolve25 } from "node:path";
-import { fileURLToPath as fileURLToPath2 } from "node:url";
+import { existsSync as existsSync39, readFileSync as readFileSync58 } from "node:fs";
+import { dirname as dirname14, resolve as resolve28 } from "node:path";
+import { fileURLToPath as fileURLToPath3 } from "node:url";
 function defaultFlowRoot() {
-  const cwdRoot = resolve25("generated/flows");
+  const cwdRoot = resolve28("generated/flows");
   if (existsSync39(cwdRoot))
     return cwdRoot;
   if (existsSync39(packageFlowRoot))
@@ -106509,14 +109752,14 @@ function defaultFlowRoot() {
 }
 function resolveCompiledFlowPath(flowName, modeName, override, flowRoot2) {
   if (override !== void 0)
-    return resolve25(override);
-  const root = flowRoot2 !== void 0 ? resolve25(flowRoot2) : defaultFlowRoot();
+    return resolve28(override);
+  const root = flowRoot2 !== void 0 ? resolve28(flowRoot2) : defaultFlowRoot();
   if (modeName !== void 0) {
-    const perMode = resolve25(root, flowName, `${modeName}.json`);
+    const perMode = resolve28(root, flowName, `${modeName}.json`);
     if (existsSync39(perMode))
       return perMode;
   }
-  return resolve25(root, flowName, "circuit.json");
+  return resolve28(root, flowName, "circuit.json");
 }
 function compiledFlowSelectionNameForAxes(axes) {
   if (axes.tournament)
@@ -106541,7 +109784,7 @@ function loadCompiledFlow(compiledFlowPath) {
   if (!existsSync39(compiledFlowPath)) {
     throw new Error(`compiled flow not found: ${compiledFlowPath}`);
   }
-  const bytes = readFileSync59(compiledFlowPath);
+  const bytes = readFileSync58(compiledFlowPath);
   const raw = JSON.parse(bytes.toString("utf8"));
   const flow = CompiledFlow.parse(raw);
   const policy2 = validateCompiledFlowKindPolicy(flow);
@@ -106564,25 +109807,25 @@ var init_compiled_flow_loading = __esm({
     "use strict";
     init_canonical_stage_policy();
     init_compiled_flow();
-    packageFlowRoot = resolve25(dirname15(fileURLToPath2(import.meta.url)), "../..", "generated/flows");
+    packageFlowRoot = resolve28(dirname14(fileURLToPath3(import.meta.url)), "../..", "generated/flows");
   }
 });
 
 // dist/cli/handoff-codex-hooks.js
-import { createHash as createHash7 } from "node:crypto";
-import { accessSync as accessSync3, copyFileSync, existsSync as existsSync40, constants as fsConstants, mkdirSync as mkdirSync11, readFileSync as readFileSync60, writeFileSync as writeFileSync12 } from "node:fs";
+import { createHash as createHash11 } from "node:crypto";
+import { accessSync as accessSync3, copyFileSync, existsSync as existsSync40, constants as fsConstants, mkdirSync as mkdirSync11, readFileSync as readFileSync59, writeFileSync as writeFileSync12 } from "node:fs";
 import { homedir as homedir5 } from "node:os";
-import { dirname as dirname16, join as join38, resolve as resolve26 } from "node:path";
-import { fileURLToPath as fileURLToPath3 } from "node:url";
+import { dirname as dirname15, join as join39, resolve as resolve29 } from "node:path";
+import { fileURLToPath as fileURLToPath4 } from "node:url";
 function defaultCodexHooksFile() {
-  const codexHome = process.env.CODEX_HOME ?? resolve26(homedir5(), ".codex");
-  return resolve26(codexHome, "hooks.json");
+  const codexHome = process.env.CODEX_HOME ?? resolve29(homedir5(), ".codex");
+  return resolve29(codexHome, "hooks.json");
 }
 function resolveDefaultLauncher(pluginRoot, moduleDir) {
   if (pluginRoot !== void 0 && pluginRoot.length > 0) {
-    return resolve26(pluginRoot, "scripts/circuit.js");
+    return resolve29(pluginRoot, "scripts/circuit.js");
   }
-  return resolve26(moduleDir, "../..", "bin/circuit");
+  return resolve29(moduleDir, "../..", "bin/circuit");
 }
 function missingDefaultLauncherMessage(launcher) {
   return [
@@ -106592,7 +109835,7 @@ function missingDefaultLauncherMessage(launcher) {
   ].join(" ");
 }
 function defaultLauncherPath() {
-  return resolveDefaultLauncher(process.env.CIRCUIT_PLUGIN_ROOT, dirname16(fileURLToPath3(import.meta.url)));
+  return resolveDefaultLauncher(process.env.CIRCUIT_PLUGIN_ROOT, dirname15(fileURLToPath4(import.meta.url)));
 }
 function parseCodexHooksHost(args) {
   if (args.host === "codex")
@@ -106600,10 +109843,10 @@ function parseCodexHooksHost(args) {
   throw new Error("handoff hooks requires --host codex");
 }
 function resolveHooksFileArg(args) {
-  return resolve26(args.hooksFile ?? defaultCodexHooksFile());
+  return resolve29(args.hooksFile ?? defaultCodexHooksFile());
 }
 function resolveLauncherArg(args) {
-  const launcher = resolve26(args.launcher ?? defaultLauncherPath());
+  const launcher = resolve29(args.launcher ?? defaultLauncherPath());
   if (!existsSync40(launcher)) {
     if (args.launcher === void 0 && (process.env.CIRCUIT_PLUGIN_ROOT ?? "").length === 0) {
       throw new Error(missingDefaultLauncherMessage(launcher));
@@ -106632,7 +109875,7 @@ function defaultHooksConfig() {
 function readHooksConfig(path) {
   if (!existsSync40(path))
     return defaultHooksConfig();
-  const parsed = JSON.parse(readFileSync60(path, "utf8"));
+  const parsed = JSON.parse(readFileSync59(path, "utf8"));
   if (typeof parsed !== "object" || parsed === null || Array.isArray(parsed)) {
     throw new Error("hooks file must contain a JSON object");
   }
@@ -106758,7 +110001,7 @@ function isExecutableFile(path) {
   }
 }
 function writeHooksConfig(path, config2) {
-  mkdirSync11(dirname16(path), { recursive: true });
+  mkdirSync11(dirname15(path), { recursive: true });
   let backupPath;
   if (existsSync40(path)) {
     const candidate = `${path}.circuit-backup`;
@@ -106939,11 +110182,11 @@ function runHandoffHooksCommand(args) {
   throw new Error("handoff hooks requires install, uninstall, or doctor");
 }
 function codexInstallNudgeMarkerPath(controlPlane) {
-  return join38(continuityRoot(controlPlane), CODEX_INSTALL_NUDGE_MARKER);
+  return join39(continuityRoot(controlPlane), CODEX_INSTALL_NUDGE_MARKER);
 }
 function codexReinstallNudgeMarkerPath(controlPlane, staleLauncher) {
-  const digest = createHash7("sha256").update(staleLauncher).digest("hex").slice(0, 12);
-  return join38(continuityRoot(controlPlane), `${CODEX_REINSTALL_NUDGE_MARKER}-${digest}`);
+  const digest = createHash11("sha256").update(staleLauncher).digest("hex").slice(0, 12);
+  return join39(continuityRoot(controlPlane), `${CODEX_REINSTALL_NUDGE_MARKER}-${digest}`);
 }
 function codexHookInstallState(hooksPath) {
   if (!existsSync40(hooksPath))
@@ -106982,7 +110225,7 @@ function codexHookInstallState(hooksPath) {
 function writeNudgeMarker(markerPath, now) {
   const stampedAt = (now ?? (() => /* @__PURE__ */ new Date()))().toISOString();
   try {
-    mkdirSync11(dirname16(markerPath), { recursive: true });
+    mkdirSync11(dirname15(markerPath), { recursive: true });
     writeFileSync12(markerPath, `nudged at ${stampedAt}
 `);
   } catch {
@@ -107032,7 +110275,7 @@ var init_handoff_codex_hooks = __esm({
 
 // dist/app/run-envelope/shadow-record.js
 import { mkdirSync as mkdirSync12, writeFileSync as writeFileSync13 } from "node:fs";
-import { dirname as dirname17, join as join39 } from "node:path";
+import { dirname as dirname16, join as join40 } from "node:path";
 function reportRef2(input) {
   return {
     kind: "report",
@@ -107120,8 +110363,8 @@ function writeRunEnvelopeShadowRecord(input) {
     child_run: childRun,
     artifact_links: artifactLinks
   });
-  const outPath = join39(input.runFolder, RUN_ENVELOPE_SHADOW_RELATIVE_PATH);
-  mkdirSync12(dirname17(outPath), { recursive: true });
+  const outPath = join40(input.runFolder, RUN_ENVELOPE_SHADOW_RELATIVE_PATH);
+  mkdirSync12(dirname16(outPath), { recursive: true });
   writeFileSync13(outPath, `${JSON.stringify(record2, null, 2)}
 `);
   return { path: outPath, record: record2 };
@@ -107139,8 +110382,8 @@ var init_shadow_record = __esm({
 });
 
 // dist/cli/post-run-artifacts.js
-import { readFileSync as readFileSync61 } from "node:fs";
-import { join as join40 } from "node:path";
+import { readFileSync as readFileSync60 } from "node:fs";
+import { join as join41 } from "node:path";
 function tryPostRunArtifact(label, context, write) {
   try {
     return write();
@@ -107170,7 +110413,7 @@ function resolveFlowPrimaryResult(input) {
     return {};
   let primaryResult;
   try {
-    primaryResult = JSON.parse(readFileSync61(join40(input.runFolder, primaryResultPath), "utf8"));
+    primaryResult = JSON.parse(readFileSync60(join41(input.runFolder, primaryResultPath), "utf8"));
   } catch {
     return {};
   }
@@ -107227,8 +110470,8 @@ var init_post_run_artifacts = __esm({
 
 // dist/cli/recovery-attempt-runner.js
 import { randomUUID as randomUUID8 } from "node:crypto";
-import { readFileSync as readFileSync62 } from "node:fs";
-import { join as join41 } from "node:path";
+import { readFileSync as readFileSync61 } from "node:fs";
+import { join as join42 } from "node:path";
 function createRecoveryAttemptRunner(deps) {
   const { primaryProjection, fixtureSelectionName, flowRoot: flowRoot2, parentAxes, runFolder, operatorGoal, now, projectRoot, relayer, runtimeExecutors, hostKind, selectionConfigLayers, policyLayers } = deps;
   const recoveryFlowCache = /* @__PURE__ */ new Map();
@@ -107257,7 +110500,7 @@ function createRecoveryAttemptRunner(deps) {
       tournament: false,
       autonomous: parentAxes.autonomous && support.supportsAutonomous
     });
-    const attemptFolder = join41(runFolder, "attempts", `attempt-${attemptNumber}-${processId}`);
+    const attemptFolder = join42(runFolder, "attempts", `attempt-${attemptNumber}-${processId}`);
     const recoveryResult = await runCompiledFlowWithWaiting({
       flowBytes: recoveryFlow.bytes,
       compiledFlowPath: recoveryFlow.path,
@@ -107290,7 +110533,7 @@ function createRecoveryAttemptRunner(deps) {
         })
       };
     }
-    const recoveryRunResult = RunResult.parse(JSON.parse(readFileSync62(recoveryResult.resultPath, "utf8")));
+    const recoveryRunResult = RunResult.parse(JSON.parse(readFileSync61(recoveryResult.resultPath, "utf8")));
     return {
       projection: projectClosedProcessEvidence({
         runFolder: attemptFolder,
@@ -107315,7 +110558,7 @@ var init_recovery_attempt_runner = __esm({
 });
 
 // dist/cli/resume-input.js
-import { join as join42, resolve as resolve27 } from "node:path";
+import { join as join43, resolve as resolve30 } from "node:path";
 function matchCheckpointChoice(raw, choices) {
   for (const choice of choices) {
     if (choice.id === raw)
@@ -107348,11 +110591,11 @@ function invalidCheckpointChoiceMessage(input) {
   return lines.join("\n");
 }
 function runFolderCandidates(argument, cwd2) {
-  const direct = resolve27(cwd2, argument);
+  const direct = resolve30(cwd2, argument);
   const isBareName = !argument.includes("/") && !argument.includes("\\") && argument !== "." && argument !== "..";
   if (!isBareName)
     return [direct];
-  return [direct, join42(runsRoot(cwd2), argument)];
+  return [direct, join43(runsRoot(cwd2), argument)];
 }
 function missingRunFolderMessage(input) {
   const lead = input.exists ? `error: ${input.resolved} is not a resumable Circuit run folder (it has no readable run trace).` : `error: no Circuit run folder found at ${input.resolved}.`;
@@ -107388,6 +110631,8 @@ var init_run_flag_vocabulary = __esm({
       { flag: "--flow-root", valueHint: "<path>", docValid: true },
       { flag: "--checkpoint-choice", valueHint: "<choice>", docValid: true },
       { flag: "--checkpoint-response", valueHint: "<response>", docValid: true },
+      { flag: "--checkpoint-response-file", valueHint: "<path>", docValid: true },
+      { flag: "--checkpoint-review", docValid: true },
       { flag: "--progress", valueHint: "<format>", docValid: true },
       // Declared so the parser owns the rejection message; never teachable.
       { flag: "--dry-run", docValid: false },
@@ -107443,7 +110688,7 @@ var init_run_output = __esm({
 });
 
 // dist/cli/run-stdout-envelope.js
-import { join as join43 } from "node:path";
+import { join as join44 } from "node:path";
 function leadingNumber(message) {
   const match = message.match(/\d+/);
   return match === null ? 0 : Number(match[0]);
@@ -107474,7 +110719,7 @@ function historyRecallOutputFields(input) {
     history_recall: {
       status: input.report.status,
       memory_input_count: input.report.memory_input_count,
-      report_path: join43(input.runFolder, HISTORY_RECALL_REPORT_PATH),
+      report_path: join44(input.runFolder, HISTORY_RECALL_REPORT_PATH),
       rebuilt: input.report.rebuilt,
       ...input.report.index_state === void 0 ? {} : { index_state: input.report.index_state },
       warnings: collapseIdenticalCodeWarnings(input.report.warnings.map((warning) => ({ code: warning.code, message: warning.message })))
@@ -107531,7 +110776,7 @@ var init_run_stdout_envelope = __esm({
 });
 
 // dist/cli/tty-notice.js
-import { join as join44 } from "node:path";
+import { join as join45 } from "node:path";
 function ttyNoticesEnabled(input) {
   return input.stream.isTTY === true && !input.progressJsonl;
 }
@@ -107539,7 +110784,7 @@ function runStartedNotice(input) {
   const mode = input.entryModeName === void 0 ? "" : ` (${input.entryModeName})`;
   return [
     `Running ${input.flowName}${mode}. This can take a while.`,
-    `Reports land in ${join44(input.runFolder, "reports")} while the run works.`,
+    `Reports land in ${join45(input.runFolder, "reports")} while the run works.`,
     ""
   ].join("\n");
 }
@@ -107558,7 +110803,7 @@ function checkpointWaitingNotice(input) {
 }
 function runFinishedNotice(input) {
   return `
-Run finished: ${input.outcome}. Reports: ${join44(input.runFolder, "reports")}
+Run finished: ${input.outcome}. Reports: ${join45(input.runFolder, "reports")}
 `;
 }
 var init_tty_notice = __esm({
@@ -107568,9 +110813,9 @@ var init_tty_notice = __esm({
 });
 
 // dist/cli/run.js
-import { randomUUID as randomUUID9 } from "node:crypto";
-import { existsSync as existsSync41, mkdirSync as mkdirSync13, readFileSync as readFileSync63, readdirSync as readdirSync7, writeFileSync as writeFileSync14 } from "node:fs";
-import { dirname as dirname18, join as join45, resolve as resolve28 } from "node:path";
+import { createHash as createHash12, randomUUID as randomUUID9 } from "node:crypto";
+import { existsSync as existsSync41, mkdirSync as mkdirSync13, readFileSync as readFileSync62, readdirSync as readdirSync8, writeFileSync as writeFileSync14 } from "node:fs";
+import { dirname as dirname17, join as join46, resolve as resolve31 } from "node:path";
 function resumeCommandPrefix(hostKind) {
   return operatorSummaryResumeCommandPrefix({
     ...hostKind === void 0 ? {} : { hostKind },
@@ -107650,8 +110895,16 @@ function parseExecutionArgs(command, argv) {
   const flowRoot2 = opts.flowRoot;
   const checkpointChoice = opts.checkpointChoice;
   const checkpointResponseToken = opts.checkpointResponse;
-  if (checkpointChoice !== void 0 && checkpointResponseToken !== void 0) {
-    throw new Error("use either --checkpoint-choice or --checkpoint-response, not both");
+  const checkpointResponseFile = opts.checkpointResponseFile;
+  const checkpointReview = opts.checkpointReview === true;
+  const checkpointResponseInputs = [
+    checkpointChoice !== void 0,
+    checkpointResponseToken !== void 0,
+    checkpointResponseFile !== void 0,
+    checkpointReview
+  ].filter(Boolean).length;
+  if (checkpointResponseInputs > 1) {
+    throw new Error("use only one of --checkpoint-review, --checkpoint-choice, --checkpoint-response, or --checkpoint-response-file");
   }
   let checkpointResponse;
   if (checkpointResponseToken !== void 0) {
@@ -107665,21 +110918,24 @@ function parseExecutionArgs(command, argv) {
       throw new Error(`--checkpoint-response is invalid${detail}`);
     }
   }
+  if (checkpointResponseFile !== void 0 && checkpointResponseFile.length === 0) {
+    throw new Error("--checkpoint-response-file requires a non-empty path");
+  }
   const progress = opts.progress === "jsonl" ? "jsonl" : void 0;
   const includeUntrackedContent = opts.includeUntrackedContent === true;
   const reuseChildrenFrom = opts.reuseChildrenFrom;
   if (reuseChildrenFrom !== void 0 && reuseChildrenFrom.length === 0) {
     throw new Error("--reuse-children-from requires a non-empty path");
   }
-  if (command === "resume" || checkpointChoice !== void 0 || checkpointResponse !== void 0) {
+  if (command === "resume" || checkpointChoice !== void 0 || checkpointResponse !== void 0 || checkpointResponseFile !== void 0 || checkpointReview) {
     if (command !== "resume") {
       throw new Error("checkpoint resume must use the `resume` subcommand");
     }
     const missingResumeFlags = [];
     if (runFolder === void 0)
       missingResumeFlags.push("--run-folder");
-    if ((checkpointChoice === void 0 || checkpointChoice.length === 0) && checkpointResponse === void 0) {
-      missingResumeFlags.push("--checkpoint-choice or --checkpoint-response");
+    if ((checkpointChoice === void 0 || checkpointChoice.length === 0) && checkpointResponse === void 0 && checkpointResponseFile === void 0 && !checkpointReview) {
+      missingResumeFlags.push("--checkpoint-review, --checkpoint-choice, --checkpoint-response, or --checkpoint-response-file");
     }
     if (missingResumeFlags.length > 0) {
       throw new Error(`checkpoint resume requires ${missingResumeFlags.join(" and ")}. Run \`circuit checkpoints\` to see the run folder and its checkpoint choices.`);
@@ -107759,6 +111015,10 @@ function parseExecutionArgs(command, argv) {
     result.checkpointChoice = checkpointChoice;
   if (checkpointResponse !== void 0)
     result.checkpointResponse = checkpointResponse;
+  if (checkpointResponseFile !== void 0)
+    result.checkpointResponseFile = checkpointResponseFile;
+  if (checkpointReview)
+    result.checkpointReview = true;
   if (progress !== void 0)
     result.progress = progress;
   if (reuseChildrenFrom !== void 0)
@@ -107959,18 +111219,459 @@ function nonResumableRunMessage(runFolder) {
   return `error: ${lead}
 ${inspect}`;
 }
-function waitingCheckpointStatus(runFolder) {
+function waitingCheckpointRunStatus(runFolder) {
   try {
     const status = projectRunStatusFromRunFolder(runFolder);
-    return status.engine_state === "waiting_checkpoint" ? status.checkpoint : void 0;
+    return status.engine_state === "waiting_checkpoint" ? status : void 0;
   } catch {
     return void 0;
   }
 }
+function checkpointResponseRejectionMessage(runFolder, rejection) {
+  const retry = `Open the current checkpoint review page for ${runFolder} and export the review again.`;
+  switch (rejection.code) {
+    case "checkpoint_response_wrong_run":
+      return `error: This review belongs to a different run. ${retry}`;
+    case "checkpoint_response_wrong_step":
+      return `error: This review belongs to a different checkpoint step in this run. ${retry}`;
+    case "checkpoint_response_stale_attempt":
+      return `error: This review belongs to a stale checkpoint attempt. ${retry}`;
+    case "checkpoint_response_stale_request":
+      return `error: This checkpoint request has changed since the review was exported. ${retry}`;
+    case "checkpoint_response_selection_mismatch":
+      return `error: The selected choice in this review does not match the resume request. ${retry}`;
+    case "checkpoint_response_comment_choice_unavailable":
+      return `error: A review comment refers to a choice that is no longer available. ${retry}`;
+    default:
+      return void 0;
+  }
+}
+function resumeRuntimeCheckpoint(input) {
+  return resumeCompiledFlowResult({
+    runDir: input.runFolder,
+    selection: input.selection,
+    ...input.checkpointResponse === void 0 ? {} : { checkpointResponse: input.checkpointResponse },
+    now: input.options.now ?? (() => /* @__PURE__ */ new Date()),
+    childCompiledFlowResolver: defaultChildCompiledFlowResolver(void 0),
+    ...input.hostKind === void 0 ? {} : { hostKind: input.hostKind },
+    ...input.options.runtimeExecutors === void 0 ? {} : { executors: input.options.runtimeExecutors },
+    ...input.options.relayer === void 0 ? {} : { relayer: input.options.relayer },
+    ...input.progress === void 0 ? {} : { progress: input.progress },
+    progressSurfaceForFlowId
+  });
+}
+function publicReviewRejection(runFolder, rejection) {
+  if (rejection.code === "resume_in_progress") {
+    return {
+      status: "rejected",
+      terminal: false,
+      code: "resume_in_progress",
+      publicMessage: "Another resume is already in progress. Wait for it to finish, then try again."
+    };
+  }
+  const detailed = checkpointResponseRejectionMessage(runFolder, rejection)?.replace(/^error:\s*/, "");
+  return {
+    status: "rejected",
+    terminal: true,
+    code: rejection.code ?? "resume_rejected",
+    publicMessage: detailed ?? "Circuit could not continue this run. Inspect the current checkpoint, then try again."
+  };
+}
+function sameReviewComments(actual, expected) {
+  if (!Array.isArray(actual) || actual.length !== expected.length)
+    return false;
+  return actual.every((value, index) => {
+    const wanted = expected[index];
+    if (wanted === void 0 || typeof value !== "object" || value === null || Array.isArray(value)) {
+      return false;
+    }
+    const comment = value;
+    const expectedKeys = wanted.scope === "overall" ? ["body", "scope"] : ["body", "choice_id", "scope"];
+    return Object.keys(comment).sort().join("\0") === expectedKeys.join("\0") && comment.scope === wanted.scope && comment.body === wanted.body && (wanted.scope === "overall" || comment.choice_id === wanted.choice_id);
+  });
+}
+function declaredCheckpointResponse(input) {
+  const snapshot = verifyManifestSnapshotBytes(input.runFolder);
+  if (snapshot.hash !== input.manifestHash)
+    return void 0;
+  const bytes = Buffer.from(snapshot.bytes_base64, "base64").toString("utf8");
+  const flow = CompiledFlow.parse(JSON.parse(bytes));
+  const step = flow.steps.find((candidate) => candidate.id === input.response.step_id && candidate.kind === "checkpoint");
+  if (step === void 0 || step.kind !== "checkpoint")
+    return void 0;
+  const responseRef = step.writes.response;
+  if (responseRef === void 0)
+    return void 0;
+  const canonicalPath = responseRef;
+  const policy2 = step.policy;
+  const dynamicChoices = typeof policy2 === "object" && policy2 !== null && "choices_from" in policy2;
+  const routes = step.routes;
+  const routeId = Object.hasOwn(routes, input.response.selection) ? input.response.selection : dynamicChoices && Object.hasOwn(routes, "select") ? "select" : dynamicChoices && Object.hasOwn(routes, "pass") ? "pass" : void 0;
+  if (routeId === void 0)
+    return void 0;
+  return {
+    canonicalPath,
+    attemptPath: checkpointAttemptResponsePath(canonicalPath, input.response.attempt),
+    routeId
+  };
+}
+function exactCheckpointResponseRecord(input) {
+  if (typeof input.actual !== "object" || input.actual === null || Array.isArray(input.actual)) {
+    return false;
+  }
+  const record2 = input.actual;
+  const expectedKeys = [
+    "resolution_source",
+    "route_id",
+    "schema_version",
+    "selection",
+    "step_id",
+    ...input.response.comments.length === 0 ? [] : ["comments"]
+  ].sort();
+  return Object.keys(record2).sort().join("\0") === expectedKeys.join("\0") && record2.schema_version === 1 && record2.step_id === input.response.step_id && record2.selection === input.response.selection && record2.route_id === input.routeId && record2.resolution_source === "operator" && (input.response.comments.length === 0 ? record2.comments === void 0 : sameReviewComments(record2.comments, input.response.comments));
+}
+async function durableCheckpointReviewWasRecorded(runFolder, response) {
+  try {
+    const entries = await new TraceStore(runFolder).load();
+    const bootstrap = entries[0];
+    if (bootstrap?.kind !== "run.bootstrapped" || bootstrap.run_id !== response.run_id || bootstrap.manifest_hash === void 0) {
+      return false;
+    }
+    const declared = declaredCheckpointResponse({
+      runFolder,
+      response,
+      manifestHash: bootstrap.manifest_hash
+    });
+    if (declared === void 0)
+      return false;
+    const resolved = entries.filter((entry2) => entry2.kind === "checkpoint.resolved" && entry2.run_id === response.run_id && entry2.step_id === response.step_id && entry2.attempt === response.attempt);
+    if (resolved.length !== 1)
+      return false;
+    const [entry] = resolved;
+    if (entry === void 0 || entry.selection !== response.selection || entry.route_id !== declared.routeId || entry.auto_resolved !== false || entry.resolution_source !== "operator" || entry.response_path !== declared.canonicalPath || entry.response_attempt_path !== declared.attemptPath || entry.response_report_hash === void 0) {
+      return false;
+    }
+    const canonical = readFileSync62(resolveRunRelative(runFolder, entry.response_path));
+    const attempt = readFileSync62(resolveRunRelative(runFolder, entry.response_attempt_path));
+    if (!canonical.equals(attempt))
+      return false;
+    const hash2 = createHash12("sha256").update(attempt).digest("hex");
+    if (hash2 !== entry.response_report_hash)
+      return false;
+    const canonicalBody = JSON.parse(canonical.toString("utf8"));
+    const attemptBody = JSON.parse(attempt.toString("utf8"));
+    return exactCheckpointResponseRecord({
+      actual: canonicalBody,
+      response,
+      routeId: declared.routeId
+    }) && exactCheckpointResponseRecord({
+      actual: attemptBody,
+      response,
+      routeId: declared.routeId
+    });
+  } catch {
+    return false;
+  }
+}
+async function checkpointReviewPersistenceDecision(runFolder, response) {
+  return await durableCheckpointReviewWasRecorded(runFolder, response) ? { status: "accepted" } : {
+    status: "rejected",
+    terminal: true,
+    code: "checkpoint_review_not_persisted",
+    publicMessage: "Circuit could not prove that this review reached the run record. Inspect the run before trying again."
+  };
+}
+function renderTrustedCheckpointReviewHtml(input) {
+  const checkpoint = input.status.checkpoint;
+  if (checkpoint.request_path === void 0 || checkpoint.request_sha256 === void 0) {
+    throw new Error("waiting checkpoint identity is incomplete");
+  }
+  const manifest = verifyManifestSnapshotBytes(input.runFolder);
+  return renderCheckpointReviewHtml({
+    runFolder: input.runFolder,
+    runResult: {
+      schema_version: 1,
+      run_id: input.status.run_id,
+      flow_id: input.status.flow_id,
+      goal: input.status.goal,
+      outcome: "checkpoint_waiting",
+      summary: `checkpoint '${checkpoint.step_id}' is waiting for an operator choice.`,
+      trace_entries_observed: (input.status.last_event?.sequence ?? -1) + 1,
+      manifest_hash: manifest.hash,
+      checkpoint: {
+        step_id: checkpoint.step_id,
+        attempt: checkpoint.attempt,
+        request_path: checkpoint.request_path,
+        request_sha256: checkpoint.request_sha256,
+        allowed_choices: checkpoint.choices.map((choice) => choice.id)
+      }
+    },
+    resumeCommandPrefix: resumeCommandPrefix(input.hostKind)
+  });
+}
+async function resumeThroughLocalReview(input) {
+  const requestSha256 = input.status.checkpoint.request_sha256;
+  if (requestSha256 === void 0) {
+    process.stderr.write("error: The waiting checkpoint is missing its request identity. Use `circuit checkpoints` to inspect the run.\n");
+    return void 0;
+  }
+  let rendered;
+  try {
+    rendered = renderTrustedCheckpointReviewHtml({
+      runFolder: input.runFolder,
+      status: input.status,
+      hostKind: input.hostKind
+    });
+  } catch {
+    process.stderr.write("error: Circuit could not regenerate the trusted checkpoint review page. Use an explicit --checkpoint-choice or --checkpoint-response-file fallback.\n");
+    return void 0;
+  }
+  let activeResume;
+  const checkpoint = input.status.checkpoint;
+  let session;
+  try {
+    const assets = captureLocalCheckpointReviewAssets({
+      html: rendered.html,
+      runFolder: input.runFolder,
+      reviewAssets: rendered.reviewAssets,
+      ...rendered.projectRoot === void 0 ? {} : { projectRoot: rendered.projectRoot }
+    });
+    session = await startLocalCheckpointReviewSession({
+      html: rendered.html,
+      assets,
+      identity: {
+        runId: input.status.run_id,
+        stepId: checkpoint.step_id,
+        attempt: checkpoint.attempt,
+        requestSha256
+      },
+      allowedChoices: checkpoint.choices.map((choice) => choice.id),
+      onSubmit: async (response) => {
+        const expectedRoute = declaredCheckpointResponse({
+          runFolder: input.runFolder,
+          response,
+          manifestHash: verifyManifestSnapshotBytes(input.runFolder).hash
+        })?.routeId;
+        let markDurable;
+        const durable = new Promise((resolveDurable) => {
+          markDurable = resolveDurable;
+        });
+        const resumeProgress = (event) => {
+          if (event.type === "step.completed" && event.step_id === checkpoint.step_id && event.attempt === checkpoint.attempt && event.route_taken === expectedRoute && event.failure_reason === void 0) {
+            markDurable?.();
+          }
+          input.progress?.(event);
+        };
+        const resumePromise = resumeRuntimeCheckpoint({
+          runFolder: input.runFolder,
+          selection: response.selection,
+          checkpointResponse: response,
+          options: input.options,
+          hostKind: input.hostKind,
+          progress: resumeProgress
+        });
+        activeResume = resumePromise;
+        try {
+          return await Promise.race([
+            durable.then(() => checkpointReviewPersistenceDecision(input.runFolder, response)),
+            resumePromise.then(async (result) => {
+              if (!isCheckpointResumeRejectedResult(result)) {
+                return checkpointReviewPersistenceDecision(input.runFolder, response);
+              }
+              if (await durableCheckpointReviewWasRecorded(input.runFolder, response)) {
+                return { status: "accepted", continuation: "failed" };
+              }
+              return publicReviewRejection(input.runFolder, result);
+            })
+          ]);
+        } catch {
+          if (await durableCheckpointReviewWasRecorded(input.runFolder, response)) {
+            return { status: "accepted", continuation: "failed" };
+          }
+          return {
+            status: "rejected",
+            terminal: false,
+            code: "resume_failed",
+            publicMessage: "Circuit could not continue this run. The review remains saved in this browser for manual recovery."
+          };
+        }
+      }
+    });
+  } catch {
+    process.stderr.write("error: Circuit could not start the local checkpoint review session. Use an explicit checkpoint response fallback.\n");
+    return void 0;
+  }
+  const reviewUrl = session.url;
+  const now = input.options.now ?? (() => /* @__PURE__ */ new Date());
+  if (input.progress === void 0) {
+    process.stderr.write(`Checkpoint review: ${reviewUrl}
+`);
+  } else {
+    input.progress(ProgressEvent.parse({
+      schema_version: 1,
+      type: "checkpoint_review.ready",
+      run_id: input.status.run_id,
+      flow_id: input.status.flow_id,
+      recorded_at: now().toISOString(),
+      label: "Checkpoint review is ready",
+      display: {
+        text: `Circuit: Review the checkpoint at ${reviewUrl}`,
+        importance: "major",
+        tone: "checkpoint"
+      },
+      presentation: {
+        block_id: input.status.run_id,
+        line_mode: "append",
+        status_text: `Review the checkpoint at ${reviewUrl}`
+      },
+      step_id: checkpoint.step_id,
+      attempt: checkpoint.attempt,
+      review_url: reviewUrl
+    }));
+  }
+  try {
+    if (input.options.openCheckpointReview === void 0) {
+      openLocalCheckpointReview(reviewUrl);
+    } else {
+      input.options.openCheckpointReview(reviewUrl);
+    }
+  } catch {
+  }
+  try {
+    const settlement = await session.settled;
+    const resumePromise = activeResume;
+    if (resumePromise === void 0) {
+      process.stderr.write("error: The review session finished without starting the saved run.\n");
+      return void 0;
+    }
+    try {
+      const result = await resumePromise;
+      if (settlement.status === "rejected") {
+        process.stderr.write("error: Circuit did not record this checkpoint review. Inspect the current run before trying again.\n");
+        return void 0;
+      }
+      if (isCheckpointResumeRejectedResult(result)) {
+        process.stderr.write("error: The checkpoint review was saved, but Circuit could not finish continuing the run. Inspect the run status before taking another action.\n");
+        return void 0;
+      }
+      return result;
+    } catch {
+      process.stderr.write("error: The checkpoint review was saved, but Circuit could not finish continuing the run. Inspect the run status; the browser draft remains available for manual recovery.\n");
+      return void 0;
+    }
+  } finally {
+    try {
+      await session.waitForAcceptedReplay();
+    } catch {
+    }
+    try {
+      await session.close();
+    } catch {
+    }
+  }
+}
+function emitResumedCheckpointWaiting(input) {
+  const currentStatus = waitingCheckpointRunStatus(input.runFolder);
+  const status = currentStatus ?? input.priorStatus;
+  const manifestHash = verifyManifestSnapshotBytes(input.runFolder).hash;
+  const waitingResult = {
+    schema_version: 1,
+    run_id: RunId.parse(input.runtimeResult.runId),
+    flow_id: CompiledFlowId.parse(input.runtimeResult.flowId),
+    goal: status?.goal ?? "Continue the saved run.",
+    outcome: "checkpoint_waiting",
+    summary: `checkpoint '${input.runtimeResult.checkpoint.stepId}' is waiting for an operator choice.`,
+    trace_entries_observed: input.runtimeResult.traceEntriesObserved,
+    manifest_hash: manifestHash,
+    checkpoint: {
+      step_id: input.runtimeResult.checkpoint.stepId,
+      attempt: input.runtimeResult.checkpoint.attempt,
+      request_path: input.runtimeResult.checkpoint.requestPath,
+      request_sha256: input.runtimeResult.checkpoint.requestSha256,
+      allowed_choices: input.runtimeResult.checkpoint.allowedChoices
+    }
+  };
+  const priorRoute = readPriorRoute(input.runFolder);
+  const selectedProcess = selectedProcessFields({
+    processId: waitingResult.flow_id,
+    ...priorRoute.routedBy === void 0 ? {} : { routedBy: priorRoute.routedBy },
+    routerReason: priorRoute.routerReason ?? "checkpoint resume"
+  });
+  const postRunArtifactWarnings = [];
+  const postRunArtifactContext = {
+    progressJsonl: input.progressJsonl,
+    warnings: postRunArtifactWarnings
+  };
+  const { operatorSummary, runEnvelope } = emitPostRunArtifacts({
+    context: postRunArtifactContext,
+    runFolder: input.runFolder,
+    operatorIntent: waitingResult.goal,
+    recordedAt: input.now().toISOString(),
+    selectedProcess,
+    child: {
+      kind: "checkpoint_waiting",
+      run_id: waitingResult.run_id,
+      flow_id: waitingResult.flow_id,
+      trace_entries_observed: waitingResult.trace_entries_observed,
+      manifest_hash: waitingResult.manifest_hash,
+      checkpoint: {
+        step_id: waitingResult.checkpoint.step_id,
+        request_path: waitingResult.checkpoint.request_path,
+        allowed_choices: waitingResult.checkpoint.allowed_choices
+      }
+    },
+    writeOperatorSummary: () => writeOperatorSummary({
+      runFolder: input.runFolder,
+      runResult: waitingResult,
+      resumeCommandPrefix: resumeCommandPrefix(input.hostKind),
+      route: {
+        selectedFlow: waitingResult.flow_id,
+        ...priorRoute.routedBy === void 0 ? {} : { routedBy: priorRoute.routedBy },
+        ...priorRoute.routerReason === void 0 ? {} : { routerReason: priorRoute.routerReason }
+      }
+    }),
+    buildProcessEvidenceProjection: () => projectCheckpointWaitingProcessEvidence({
+      runFolder: input.runFolder,
+      runId: waitingResult.run_id,
+      flowId: waitingResult.flow_id,
+      traceEntriesObserved: waitingResult.trace_entries_observed,
+      manifestHash: waitingResult.manifest_hash,
+      checkpoint: {
+        stepId: waitingResult.checkpoint.step_id,
+        requestPath: waitingResult.checkpoint.request_path,
+        allowedChoices: waitingResult.checkpoint.allowed_choices
+      }
+    }),
+    memoryContext: void 0
+  });
+  const resumeRuntimeFields = showRuntimeDecision() ? { runtime_reason: RUNTIME_POLICY_REASONS.checkpointResume } : {};
+  process.stdout.write(`${JSON.stringify({
+    schema_version: 1,
+    run_id: waitingResult.run_id,
+    flow_id: waitingResult.flow_id,
+    run_folder: input.runFolder,
+    outcome: waitingResult.outcome,
+    trace_entries_observed: waitingResult.trace_entries_observed,
+    ...resumeRuntimeFields,
+    ...postRunArtifactWarningOutputFields(postRunArtifactWarnings),
+    ...operatorSummary === void 0 ? {} : operatorSummaryOutputFields({ operatorSummary }),
+    ...runEnvelope === void 0 ? {} : runEnvelopeOutputFields({ runEnvelope }),
+    checkpoint: waitingResult.checkpoint
+  }, null, 2)}
+`);
+  if (ttyNoticesEnabled({ stream: process.stderr, progressJsonl: input.progressJsonl })) {
+    process.stderr.write(checkpointWaitingNotice({
+      runFolder: input.runFolder,
+      choices: waitingResult.checkpoint.allowed_choices,
+      ...operatorSummary?.htmlPath === void 0 ? {} : { summaryHtmlPath: operatorSummary.htmlPath }
+    }));
+  }
+  return 0;
+}
 async function runResumeCommand(args, options) {
-  if (args.command === "resume" && args.runFolder !== void 0 && (args.checkpointChoice !== void 0 || args.checkpointResponse !== void 0)) {
+  if (args.command === "resume" && args.runFolder !== void 0 && (args.checkpointChoice !== void 0 || args.checkpointResponse !== void 0 || args.checkpointResponseFile !== void 0 || args.checkpointReview === true)) {
     const candidates = runFolderCandidates(args.runFolder, process.cwd());
-    let runFolder = candidates[0] ?? resolve28(args.runFolder);
+    let runFolder = candidates[0] ?? resolve31(args.runFolder);
     for (const candidate of candidates) {
       if (await isRuntimeRunFolder(candidate)) {
         runFolder = candidate;
@@ -107980,45 +111681,91 @@ async function runResumeCommand(args, options) {
     const progress = progressReporter(args.progress === "jsonl");
     const hostKind = runtimeHostKind(options);
     if (await isRuntimeRunFolder(runFolder)) {
-      let selection = args.checkpointResponse?.selection ?? args.checkpointChoice;
-      if (selection === void 0)
-        return 2;
-      const waiting = waitingCheckpointStatus(runFolder);
-      if (waiting !== void 0) {
-        const match = matchCheckpointChoice(selection, waiting.choices);
-        const typedResponseIsNotExact = args.checkpointResponse !== void 0 && match.kind !== "exact";
-        if (match.kind === "no_match" || typedResponseIsNotExact) {
-          process.stderr.write(`${invalidCheckpointChoiceMessage({
-            attempted: selection,
-            runFolder,
-            checkpoint: waiting
-          })}
+      let checkpointResponse = args.checkpointResponse;
+      if (checkpointResponse === void 0 && args.checkpointResponseFile !== void 0) {
+        try {
+          checkpointResponse = readCheckpointResponseFile({
+            argument: args.checkpointResponseFile,
+            cwd: process.cwd()
+          });
+        } catch (error52) {
+          const message = error52 instanceof CheckpointResponseFileError ? error52.message : "The checkpoint response file could not be read safely.";
+          process.stderr.write(`error: ${message}
 `);
           return 2;
         }
-        if (args.checkpointResponse === void 0)
-          selection = match.id;
       }
-      let runtimeResult;
-      try {
-        runtimeResult = await resumeCompiledFlow({
-          runDir: runFolder,
-          selection,
-          ...args.checkpointResponse === void 0 ? {} : { checkpointResponse: args.checkpointResponse },
-          now: options.now ?? (() => /* @__PURE__ */ new Date()),
-          childCompiledFlowResolver: defaultChildCompiledFlowResolver(void 0),
-          ...hostKind === void 0 ? {} : { hostKind },
-          ...options.runtimeExecutors === void 0 ? {} : { executors: options.runtimeExecutors },
-          ...options.relayer === void 0 ? {} : { relayer: options.relayer },
-          ...progress === void 0 ? {} : { progress },
-          progressSurfaceForFlowId
+      const waitingRun = waitingCheckpointRunStatus(runFolder);
+      let resumeResult;
+      if (args.checkpointReview === true) {
+        if (waitingRun === void 0) {
+          process.stderr.write(`${nonResumableRunMessage(runFolder)}
+`);
+          return 2;
+        }
+        const reviewed = await resumeThroughLocalReview({
+          runFolder,
+          status: waitingRun,
+          options,
+          hostKind,
+          progress
         });
-      } catch {
-        process.stderr.write(`${nonResumableRunMessage(runFolder)}
+        if (reviewed === void 0)
+          return 2;
+        resumeResult = reviewed;
+      } else {
+        let selection = checkpointResponse?.selection ?? args.checkpointChoice;
+        if (selection === void 0)
+          return 2;
+        const waiting = waitingRun?.checkpoint;
+        if (waiting !== void 0) {
+          const match = matchCheckpointChoice(selection, waiting.choices);
+          const typedResponseIsNotExact = checkpointResponse !== void 0 && match.kind !== "exact";
+          if (match.kind === "no_match" || typedResponseIsNotExact) {
+            process.stderr.write(`${invalidCheckpointChoiceMessage({
+              attempted: selection,
+              runFolder,
+              checkpoint: waiting
+            })}
+`);
+            return 2;
+          }
+          if (checkpointResponse === void 0)
+            selection = match.id;
+        }
+        try {
+          resumeResult = await resumeRuntimeCheckpoint({
+            runFolder,
+            selection,
+            ...checkpointResponse === void 0 ? {} : { checkpointResponse },
+            options,
+            hostKind,
+            progress
+          });
+        } catch {
+          process.stderr.write(`${nonResumableRunMessage(runFolder)}
+`);
+          return 2;
+        }
+      }
+      if (isCheckpointResumeRejectedResult(resumeResult)) {
+        const responseMessage = checkpointResponseRejectionMessage(runFolder, resumeResult);
+        process.stderr.write(`${responseMessage ?? nonResumableRunMessage(runFolder)}
 `);
         return 2;
       }
-      const runResult = RunResult.parse(JSON.parse(readFileSync63(runtimeResult.resultPath, "utf8")));
+      const runtimeResult = resumeResult.result;
+      if (isGraphCheckpointWaitingResult(runtimeResult)) {
+        return emitResumedCheckpointWaiting({
+          runFolder,
+          priorStatus: waitingRun,
+          runtimeResult,
+          hostKind,
+          progressJsonl: args.progress === "jsonl",
+          now: options.now ?? (() => /* @__PURE__ */ new Date())
+        });
+      }
+      const runResult = RunResult.parse(JSON.parse(readFileSync62(runtimeResult.resultPath, "utf8")));
       const priorRoute = readPriorRoute(runFolder);
       const postRunArtifactWarnings = [];
       const postRunArtifactContext = {
@@ -108121,10 +111868,10 @@ function exitCodeForRun(input) {
   return 0;
 }
 function unknownFlowMessage(flowName, flowRoot2) {
-  const root = flowRoot2 !== void 0 ? resolve28(flowRoot2) : defaultFlowRoot();
+  const root = flowRoot2 !== void 0 ? resolve31(flowRoot2) : defaultFlowRoot();
   let available = [];
   try {
-    available = readdirSync7(root, { withFileTypes: true }).filter((entry) => entry.isDirectory() && existsSync41(join45(root, entry.name, "circuit.json"))).map((entry) => entry.name).filter((name) => !INTERNAL_FLOW_IDS.has(name)).sort();
+    available = readdirSync8(root, { withFileTypes: true }).filter((entry) => entry.isDirectory() && existsSync41(join46(root, entry.name, "circuit.json"))).map((entry) => entry.name).filter((name) => !INTERNAL_FLOW_IDS.has(name)).sort();
   } catch {
     available = [];
   }
@@ -108228,7 +111975,7 @@ async function runExecutionCommand(args, options) {
     ...entryModeSelection.entryModeName === void 0 ? {} : { entry_mode: entryModeSelection.entryModeName },
     ...entryModeSelection.source === void 0 ? {} : { entry_mode_source: entryModeSelection.source }
   });
-  const runFolder = runArgs.runFolder === void 0 ? join45(runsRoot(process.cwd()), runId) : resolve28(runArgs.runFolder);
+  const runFolder = runArgs.runFolder === void 0 ? join46(runsRoot(process.cwd()), runId) : resolve31(runArgs.runFolder);
   try {
     validateFlowConfigRequirements({ flow, axes: runArgs.axes, selectionConfigLayers });
   } catch (err) {
@@ -108237,7 +111984,7 @@ async function runExecutionCommand(args, options) {
     return 2;
   }
   const hostKind = runtimeHostKind(options);
-  const projectRoot = resolve28(options.configCwd ?? process.cwd());
+  const projectRoot = resolve31(options.configCwd ?? process.cwd());
   if (hostKind === "codex") {
     try {
       const assurance = codexInstallAssurance({ projectRoot, now });
@@ -108306,7 +112053,7 @@ async function runExecutionCommand(args, options) {
       ...historyRecall === void 0 ? {} : { historyRecallReport: historyRecall.report },
       ...historyRecall === void 0 ? {} : { historyRecallPrecision: historyRecall.precision },
       ...runArgs.includeUntrackedContent ? { evidencePolicy: { includeUntrackedFileContent: true } } : {},
-      ...runArgs.reuseChildrenFrom === void 0 ? {} : { reuseChildrenFrom: resolve28(runArgs.reuseChildrenFrom) }
+      ...runArgs.reuseChildrenFrom === void 0 ? {} : { reuseChildrenFrom: resolve31(runArgs.reuseChildrenFrom) }
     });
     if (isGraphCheckpointWaitingResult(runtimeResult)) {
       const waitingResult = {
@@ -108415,7 +112162,7 @@ async function runExecutionCommand(args, options) {
       }
       return 0;
     }
-    const runResult = RunResult.parse(JSON.parse(readFileSync63(runtimeResult.resultPath, "utf8")));
+    const runResult = RunResult.parse(JSON.parse(readFileSync62(runtimeResult.resultPath, "utf8")));
     const selectedProcess = selectedProcessFields({
       processId: flow.id,
       routedBy: route.source,
@@ -108482,8 +112229,8 @@ async function runExecutionCommand(args, options) {
             policyLayers
           })
         });
-        const autonomousLoopPath = join45(runFolder, AUTONOMOUS_LOOP_RELATIVE_PATH);
-        mkdirSync13(dirname18(autonomousLoopPath), { recursive: true });
+        const autonomousLoopPath = join46(runFolder, AUTONOMOUS_LOOP_RELATIVE_PATH);
+        mkdirSync13(dirname17(autonomousLoopPath), { recursive: true });
         writeFileSync14(autonomousLoopPath, `${JSON.stringify(autonomousLoop, null, 2)}
 `);
       } catch (err) {
@@ -108521,7 +112268,7 @@ async function runExecutionCommand(args, options) {
       postRunArtifactWarnings,
       operatorSummary,
       runEnvelope,
-      autonomousLoop: autonomousLoop === void 0 ? void 0 : { ...autonomousLoop, path: join45(runFolder, AUTONOMOUS_LOOP_RELATIVE_PATH) }
+      autonomousLoop: autonomousLoop === void 0 ? void 0 : { ...autonomousLoop, path: join46(runFolder, AUTONOMOUS_LOOP_RELATIVE_PATH) }
     }), null, 2)}
 `);
     if (ttyNotices) {
@@ -108545,7 +112292,9 @@ var init_run2 = __esm({
     init_checkpoint_resume();
     init_compiled_flow_runner();
     init_graph_runner();
+    init_trace_store();
     init_axes();
+    init_compiled_flow();
     init_config();
     init_host();
     init_ids();
@@ -108555,6 +112304,8 @@ var init_run2 = __esm({
     init_progress_event();
     init_result();
     init_power_tiers();
+    init_local_review_assets();
+    init_local_review_session();
     init_run_start_recall();
     init_resume_command();
     init_writer();
@@ -108565,7 +112316,12 @@ var init_run2 = __esm({
     init_checkpoint_review_token();
     init_config_loader();
     init_control_plane_paths();
+    init_manifest_snapshot();
     init_progress_output();
+    init_run_file_paths();
+    init_run_relative_path();
+    init_checkpoint_response_file();
+    init_checkpoint_review_open();
     init_commander_support();
     init_compiled_flow_loading();
     init_handoff_codex_hooks();
@@ -108807,9 +112563,9 @@ function renderStyledTable(palette, rows) {
   }).join("\n");
 }
 function diamondHeaderLine(palette, command, parts = []) {
-  const sep3 = palette.dim("\xB7");
+  const sep5 = palette.dim("\xB7");
   const segments = [palette.bold(command), ...parts];
-  return `${palette.accent("\u25C6")} ${segments.join(` ${sep3} `)}`;
+  return `${palette.accent("\u25C6")} ${segments.join(` ${sep5} `)}`;
 }
 function columnHeader(palette, labels) {
   return labels.map((label) => cell2(label, palette.dim));
@@ -109074,19 +112830,19 @@ var init_preview = __esm({
 });
 
 // dist/cli/version-info.js
-import { readFileSync as readFileSync64 } from "node:fs";
-import { dirname as dirname19, resolve as resolve29 } from "node:path";
-import { fileURLToPath as fileURLToPath4 } from "node:url";
+import { readFileSync as readFileSync63 } from "node:fs";
+import { dirname as dirname18, resolve as resolve32 } from "node:path";
+import { fileURLToPath as fileURLToPath5 } from "node:url";
 function readSourceVersion() {
   if (true)
     return "0.1.1";
   const candidates = [
-    resolve29(dirname19(fileURLToPath4(import.meta.url)), "../../plugins/version.json"),
-    resolve29(process.cwd(), "plugins/version.json")
+    resolve32(dirname18(fileURLToPath5(import.meta.url)), "../../plugins/version.json"),
+    resolve32(process.cwd(), "plugins/version.json")
   ];
   for (const candidate of candidates) {
     try {
-      const raw = JSON.parse(readFileSync64(candidate, "utf8"));
+      const raw = JSON.parse(readFileSync63(candidate, "utf8"));
       if (typeof raw.version === "string" && raw.version.length > 0)
         return raw.version;
     } catch {
@@ -110502,7 +114258,7 @@ __export(generate_exports, {
   runGenerateCommand: () => runGenerateCommand
 });
 import { existsSync as existsSync42 } from "node:fs";
-import { join as join46 } from "node:path";
+import { join as join47 } from "node:path";
 function parseArgs2(argv) {
   const program2 = new Command("circuit generate").option("--description <task>").option("--name <slug>").option("--home <path>").option("--created-at <iso>").option("--publish").option("--yes").option("--max-repair <n>").option("--timeout-ms <ms>").option("--progress <format>");
   parseCommanderOrThrow(program2, argv);
@@ -110653,7 +114409,7 @@ async function runGenerateCommand(argv, options = {}) {
     if (args.name !== void 0) {
       const namedSlug = slugify2(args.name);
       assertValidSlug(namedSlug);
-      if (args.publish && existsSync42(join46(flowRoot(home), namedSlug, "circuit.json"))) {
+      if (args.publish && existsSync42(join47(flowRoot(home), namedSlug, "circuit.json"))) {
         throw new Error(`custom flow already published: ${namedSlug}`);
       }
     }
@@ -110696,7 +114452,7 @@ async function runGenerateCommand(argv, options = {}) {
       return 1;
     }
     const slug = composed.slug;
-    if (args.publish && existsSync42(join46(flowRoot(home), slug, "circuit.json"))) {
+    if (args.publish && existsSync42(join47(flowRoot(home), slug, "circuit.json"))) {
       throw new Error(`custom flow already published: ${slug}`);
     }
     const createdAt = args.createdAt ?? now().toISOString();
@@ -110731,11 +114487,11 @@ async function runGenerateCommand(argv, options = {}) {
       converged_round: composed.convergedRound,
       repair_rounds: composed.repairRounds,
       draft_path: draftRoot(home, slug),
-      validation_path: join46(draftRoot(home, slug), "validation-result.json"),
+      validation_path: join47(draftRoot(home, slug), "validation-result.json"),
       ...args.publish ? {
         published_path: publishedRoot(home, slug),
-        flow_path: join46(flowRoot(home), slug, "circuit.json"),
-        command_path: join46(commandRoot(home), `${slug}.md`),
+        flow_path: join47(flowRoot(home), slug, "circuit.json"),
+        command_path: join47(commandRoot(home), `${slug}.md`),
         manifest_path: manifestPath(home)
       } : {},
       operator_summary_markdown_path: summaryPath(home, slug)
@@ -112707,7 +116463,7 @@ var init_yoga_wasm_base64_esm = __esm({
 });
 
 // node_modules/yoga-layout/dist/src/generated/YGEnums.js
-var Align, BoxSizing, Dimension, Direction, Display, Edge, Errata, ExperimentalFeature, FlexDirection, Gutter, Justify, LogLevel, MeasureMode, NodeType, Overflow, PositionType, Unit, Wrap, constants3, YGEnums_default;
+var Align, BoxSizing, Dimension, Direction, Display, Edge, Errata, ExperimentalFeature, FlexDirection, Gutter, Justify, LogLevel, MeasureMode, NodeType, Overflow, PositionType, Unit, Wrap, constants6, YGEnums_default;
 var init_YGEnums = __esm({
   "node_modules/yoga-layout/dist/src/generated/YGEnums.js"() {
     Align = /* @__PURE__ */ (function(Align2) {
@@ -112836,7 +116592,7 @@ var init_YGEnums = __esm({
       Wrap2[Wrap2["WrapReverse"] = 2] = "WrapReverse";
       return Wrap2;
     })({});
-    constants3 = {
+    constants6 = {
       ALIGN_AUTO: Align.Auto,
       ALIGN_FLEX_START: Align.FlexStart,
       ALIGN_CENTER: Align.Center,
@@ -112910,7 +116666,7 @@ var init_YGEnums = __esm({
       WRAP_WRAP: Wrap.Wrap,
       WRAP_WRAP_REVERSE: Wrap.WrapReverse
     };
-    YGEnums_default = constants3;
+    YGEnums_default = constants6;
   }
 });
 
@@ -115524,8 +119280,8 @@ var require_react_reconciler_production = __commonJS({
           currentEntangledActionThenable = {
             status: "pending",
             value: void 0,
-            then: function(resolve33) {
-              entangledListeners.push(resolve33);
+            then: function(resolve36) {
+              entangledListeners.push(resolve36);
             }
           };
         }
@@ -115548,8 +119304,8 @@ var require_react_reconciler_production = __commonJS({
           status: "pending",
           value: null,
           reason: null,
-          then: function(resolve33) {
-            listeners.push(resolve33);
+          then: function(resolve36) {
+            listeners.push(resolve36);
           }
         };
         thenable.then(
@@ -125148,8 +128904,8 @@ var require_react_reconciler_development = __commonJS({
           currentEntangledActionThenable = {
             status: "pending",
             value: void 0,
-            then: function(resolve33) {
-              entangledListeners.push(resolve33);
+            then: function(resolve36) {
+              entangledListeners.push(resolve36);
             }
           };
         }
@@ -125172,8 +128928,8 @@ var require_react_reconciler_development = __commonJS({
           status: "pending",
           value: null,
           reason: null,
-          then: function(resolve33) {
-            listeners.push(resolve33);
+          then: function(resolve36) {
+            listeners.push(resolve36);
           }
         };
         thenable.then(
@@ -140888,7 +144644,7 @@ var require_websocket = __commonJS({
     var http = __require("http");
     var net = __require("net");
     var tls = __require("tls");
-    var { randomBytes, createHash: createHash9 } = __require("crypto");
+    var { randomBytes: randomBytes2, createHash: createHash14 } = __require("crypto");
     var { Duplex, Readable } = __require("stream");
     var { URL: URL2 } = __require("url");
     var PerMessageDeflate2 = require_permessage_deflate();
@@ -141426,7 +145182,7 @@ var require_websocket = __commonJS({
         }
       }
       const defaultPort = isSecure ? 443 : 80;
-      const key = randomBytes(16).toString("base64");
+      const key = randomBytes2(16).toString("base64");
       const request = isSecure ? https.request : http.request;
       const protocolSet = /* @__PURE__ */ new Set();
       let perMessageDeflate;
@@ -141556,7 +145312,7 @@ var require_websocket = __commonJS({
           abortHandshake(websocket, socket, "Invalid Upgrade header");
           return;
         }
-        const digest = createHash9("sha1").update(key + GUID).digest("base64");
+        const digest = createHash14("sha1").update(key + GUID).digest("base64");
         if (res.headers["sec-websocket-accept"] !== digest) {
           abortHandshake(websocket, socket, "Invalid Sec-WebSocket-Accept header");
           return;
@@ -141925,7 +145681,7 @@ var require_websocket_server = __commonJS({
     var EventEmitter3 = __require("events");
     var http = __require("http");
     var { Duplex } = __require("stream");
-    var { createHash: createHash9 } = __require("crypto");
+    var { createHash: createHash14 } = __require("crypto");
     var extension2 = require_extension();
     var PerMessageDeflate2 = require_permessage_deflate();
     var subprotocol2 = require_subprotocol();
@@ -142232,7 +145988,7 @@ var require_websocket_server = __commonJS({
           );
         }
         if (this._state > RUNNING) return abortHandshake(socket, 503);
-        const digest = createHash9("sha1").update(key + GUID).digest("base64");
+        const digest = createHash14("sha1").update(key + GUID).digest("base64");
         const headers = [
           "HTTP/1.1 101 Switching Protocols",
           "Upgrade: websocket",
@@ -142415,22 +146171,22 @@ var init_devtools = __esm({
     init_devtools_window_polyfill();
     init_wrapper();
     init_react_devtools_stub();
-    isDevToolsReachable = async () => new Promise((resolve33) => {
+    isDevToolsReachable = async () => new Promise((resolve36) => {
       const socket = new wrapper_default("ws://localhost:8097");
       const timeout = setTimeout(() => {
         socket.terminate();
-        resolve33(false);
+        resolve36(false);
       }, 2e3);
       timeout.unref();
       socket.on("open", () => {
         clearTimeout(timeout);
         socket.terminate();
-        resolve33(true);
+        resolve36(true);
       });
       socket.on("error", () => {
         clearTimeout(timeout);
         socket.terminate();
-        resolve33(false);
+        resolve36(false);
       });
     });
     if (await isDevToolsReachable()) {
@@ -146407,8 +150163,8 @@ var init_ink = __esm({
     noop2 = () => {
     };
     textEncoder = new TextEncoder();
-    yieldImmediate = async () => new Promise((resolve33) => {
-      setImmediate(resolve33);
+    yieldImmediate = async () => new Promise((resolve36) => {
+      setImmediate(resolve36);
     });
     kittyQueryEscapeByte = 27;
     kittyQueryOpenBracketByte = 91;
@@ -146625,8 +150381,8 @@ var init_ink = __esm({
           };
         }
         this.initKittyKeyboard();
-        this.exitPromise = new Promise((resolve33, reject) => {
-          this.resolveExitPromise = resolve33;
+        this.exitPromise = new Promise((resolve36, reject) => {
+          this.resolveExitPromise = resolve36;
           this.rejectExitPromise = reject;
         });
         void this.exitPromise.catch(noop2);
@@ -146937,9 +150693,9 @@ var init_ink = __esm({
         settleThrottle(this.throttledOnRender, canWriteToStdout);
         settleThrottle(this.throttledLog, canWriteToStdout);
         if (canWriteToStdout && hasWritableState) {
-          await new Promise((resolve33) => {
+          await new Promise((resolve36) => {
             this.options.stdout.write("", () => {
-              resolve33();
+              resolve36();
             });
           });
           return;
@@ -147025,8 +150781,8 @@ var init_ink = __esm({
       async awaitNextRender() {
         if (!this.nextRenderCommit) {
           let resolveRender;
-          const promise2 = new Promise((resolve33) => {
-            resolveRender = resolve33;
+          const promise2 = new Promise((resolve36) => {
+            resolveRender = resolve36;
           });
           this.nextRenderCommit = { promise: promise2, resolve: resolveRender };
         }
@@ -149707,7 +153463,7 @@ init_esm();
 init_compile_schematic_to_flow();
 init_compiled_flow_file_plan();
 import { existsSync as existsSync23 } from "node:fs";
-import { join as join16 } from "node:path";
+import { join as join17 } from "node:path";
 
 // dist/flows/resolvers/archetype.js
 init_flow_schematic();
@@ -150193,11 +153949,11 @@ async function runCreateCommand(argv, options = {}) {
     const slug = slugify2(args.name ?? args.description);
     assertValidSlug(slug);
     const home = customHome(args.home);
-    if (args.publish && existsSync23(join16(flowRoot(home), slug, "circuit.json"))) {
+    if (args.publish && existsSync23(join17(flowRoot(home), slug, "circuit.json"))) {
       throw new Error(`custom flow already published: ${slug}`);
     }
     const createdAt = args.createdAt ?? now().toISOString();
-    const draftExists = existsSync23(join16(draftRoot(home, slug), "circuit.json"));
+    const draftExists = existsSync23(join17(draftRoot(home, slug), "circuit.json"));
     let files;
     let mainFlow;
     let archetype;
@@ -150244,11 +154000,11 @@ async function runCreateCommand(argv, options = {}) {
       status,
       slug,
       draft_path: draftRoot(home, slug),
-      validation_path: join16(draftRoot(home, slug), "validation-result.json"),
+      validation_path: join17(draftRoot(home, slug), "validation-result.json"),
       ...args.publish ? {
         published_path: publishedRoot(home, slug),
-        flow_path: join16(flowRoot(home), slug, "circuit.json"),
-        command_path: join16(commandRoot(home), `${slug}.md`),
+        flow_path: join17(flowRoot(home), slug, "circuit.json"),
+        command_path: join17(commandRoot(home), `${slug}.md`),
         manifest_path: manifestPath(home)
       } : {},
       operator_summary_markdown_path: summaryPath(home, slug)
@@ -150641,10 +154397,10 @@ init_terminal_style();
 init_version_info();
 function renderFrontDoor() {
   const palette = terminalPalette(colorEnabled());
-  const sep3 = palette.dim("\xB7");
+  const sep5 = palette.dim("\xB7");
   const line = (command, blurb) => `  ${command.padEnd(46)} ${palette.dim(blurb)}`;
   return [
-    `${palette.accent("\u25C6")} ${palette.bold("circuit")} ${sep3} v${readSourceVersion()} ${sep3} configurable developer flows`,
+    `${palette.accent("\u25C6")} ${palette.bold("circuit")} ${sep5} v${readSourceVersion()} ${sep5} configurable developer flows`,
     "",
     `${palette.bold("run flows")}`,
     line('circuit run <flow> --goal "<goal>"', "execute a flow with evidence and a report"),
@@ -150679,8 +154435,8 @@ init_generate();
 
 // dist/cli/handoff.js
 init_esm();
-import { existsSync as existsSync43, readFileSync as readFileSync65 } from "node:fs";
-import { resolve as resolve30 } from "node:path";
+import { existsSync as existsSync43, readFileSync as readFileSync64 } from "node:fs";
+import { resolve as resolve33 } from "node:path";
 init_records();
 init_continuity();
 init_control_plane_paths();
@@ -150763,7 +154519,7 @@ function debugHook(message) {
 function readHookInput() {
   if (process.stdin.isTTY)
     return {};
-  const raw = readFileSync65(0, "utf8");
+  const raw = readFileSync64(0, "utf8");
   if (raw.trim().length === 0)
     return {};
   return JSON.parse(raw);
@@ -151058,7 +154814,7 @@ function runHandoffHarvest(args, now) {
   }
   const resolvedProjectRoot = projectRoot ?? process.cwd();
   const source = ambientSourceFrom(args.source, hookEventName);
-  const controlPlane = args.controlPlane === void 0 ? void 0 : resolve30(args.controlPlane);
+  const controlPlane = args.controlPlane === void 0 ? void 0 : resolve33(args.controlPlane);
   const fallbackIndexPath = indexPath(controlPlane ?? controlPlaneRoot(resolvedProjectRoot));
   if (transcriptPath === void 0) {
     const result = {
@@ -151267,6 +155023,8 @@ var RUN_FLAG_BLURBS = {
   "--flow-root": "load flows from this root instead of the packaged flows",
   "--checkpoint-choice": "used by resume; answers the pending checkpoint",
   "--checkpoint-response": "used by resume; carries a reviewed choice and comments",
+  "--checkpoint-response-file": "used by resume; reads a regular JSON file (relative paths use the current directory)",
+  "--checkpoint-review": "used by resume; regenerate the local review page and continue when Done is pressed",
   "--progress": "stream progress events; use jsonl",
   "--include-untracked-content": "let Review send untracked file contents to the configured worker",
   "--reuse-children-from": "reuse finished child branches from a prior crashed run's folder (fresh runs only)"
@@ -151297,22 +155055,33 @@ var COMMAND_HELP = {
   resume: {
     summary: "continue a paused run by answering its checkpoint",
     usage: [
-      "circuit resume --run-folder <path> (--checkpoint-choice <choice> | --checkpoint-response <response>) [--progress jsonl]"
+      "circuit resume --run-folder <path> (--checkpoint-review | --checkpoint-choice <choice> | --checkpoint-response <response> | --checkpoint-response-file <path>) [--progress jsonl]"
     ],
     flags: [
       { flag: "--run-folder <path>", blurb: "the paused run folder (required)" },
       {
+        flag: "--checkpoint-review",
+        blurb: "regenerate the local review page; Done saves comments and continues the run"
+      },
+      {
         flag: "--checkpoint-choice <choice>",
-        blurb: "a bare checkpoint answer; use this or --checkpoint-response"
+        blurb: "a bare checkpoint answer; manual fallback without review comments"
       },
       {
         flag: "--checkpoint-response <response>",
         blurb: "a typed choice and comments prepared by the HTML review page"
       },
+      {
+        flag: "--checkpoint-response-file <path>",
+        blurb: "an explicit regular JSON export, at most 64 KiB; relative to current directory"
+      },
       { flag: "--progress <format>", blurb: "stream progress events; use jsonl" }
     ],
-    notes: [EXIT_CODE_NOTE],
-    example: "circuit resume --run-folder .circuit/runs/<run_id> --checkpoint-choice continue",
+    notes: [
+      "Choose exactly one review, choice, token, or file response form. Static HTML keeps manual copy and export available; opening or saving a file never approves a checkpoint by itself.",
+      EXIT_CODE_NOTE
+    ],
+    example: "circuit resume --run-folder .circuit/runs/<run_id> --checkpoint-review",
     next: "circuit checkpoints shows every paused run and the choices it is waiting on."
   },
   handoff: {
@@ -151523,7 +155292,7 @@ init_schemas3();
 init_atomic_io();
 init_outcome();
 init_indexer();
-import { join as join48 } from "node:path";
+import { join as join49 } from "node:path";
 
 // dist/app/history/memory-merge.js
 init_schemas3();
@@ -151531,8 +155300,8 @@ init_atomic_io();
 init_outcome();
 init_indexer();
 init_memory_identity();
-import { existsSync as existsSync44, readFileSync as readFileSync66 } from "node:fs";
-import { join as join47 } from "node:path";
+import { existsSync as existsSync44, readFileSync as readFileSync65 } from "node:fs";
+import { join as join48 } from "node:path";
 var RUN_ENVELOPE_RELATIVE_PATH2 = "reports/run-envelope.json";
 var RECALL_REPORT_RELATIVE_PATH = "reports/history/recall.json";
 var EFFECT_NOTE = "Report-only linkage (Slice 1). Effect requires cross-run aggregation over comparable runs (Slice 2).";
@@ -151543,7 +155312,7 @@ function deriveAbortReason(envelope) {
   return attempt.blocked_reason ?? attempt.summary;
 }
 function readRecallInputs(runFolder, warnings) {
-  const recallPath = join47(runFolder, RECALL_REPORT_RELATIVE_PATH);
+  const recallPath = join48(runFolder, RECALL_REPORT_RELATIVE_PATH);
   if (!existsSync44(recallPath)) {
     warnings.push({
       code: "recall_report_missing",
@@ -151554,7 +155323,7 @@ function readRecallInputs(runFolder, warnings) {
     return void 0;
   }
   try {
-    const recall = HistoryRecallReportV1.parse(JSON.parse(readFileSync66(recallPath, "utf8")));
+    const recall = HistoryRecallReportV1.parse(JSON.parse(readFileSync65(recallPath, "utf8")));
     return new Map(recall.memory_inputs.map((memory) => [memory.memory_id, memory]));
   } catch (error52) {
     warnings.push({
@@ -151599,7 +155368,7 @@ function resolveInput(memoryInputId, recallInputs, runFolder, warnings) {
 }
 function extractRunMemoryLinkage(runFolder) {
   const warnings = [];
-  const envelopePath = join47(runFolder, RUN_ENVELOPE_RELATIVE_PATH2);
+  const envelopePath = join48(runFolder, RUN_ENVELOPE_RELATIVE_PATH2);
   if (!existsSync44(envelopePath)) {
     warnings.push({
       code: "envelope_missing",
@@ -151611,7 +155380,7 @@ function extractRunMemoryLinkage(runFolder) {
   }
   let envelope;
   try {
-    envelope = RunEnvelopeRecord.parse(JSON.parse(readFileSync66(envelopePath, "utf8")));
+    envelope = RunEnvelopeRecord.parse(JSON.parse(readFileSync65(envelopePath, "utf8")));
   } catch (error52) {
     warnings.push({
       code: "source_invalid",
@@ -151709,7 +155478,7 @@ function buildMemoryMergeReport(options = {}) {
   });
 }
 function writeMemoryMergeReport(report, paths) {
-  const outPath = join47(paths.indexDir, HISTORY_MEMORY_MERGE_FILE);
+  const outPath = join48(paths.indexDir, HISTORY_MEMORY_MERGE_FILE);
   writeJsonAtomic(outPath, report, {
     validate: (raw) => HistoryMemoryMergeV1.parse(JSON.parse(raw))
   });
@@ -151906,7 +155675,7 @@ function buildMemoryEffectReport(options = {}) {
   });
 }
 function writeMemoryEffectReport(report, paths) {
-  const outPath = join48(paths.indexDir, HISTORY_MEMORY_EFFECT_FILE);
+  const outPath = join49(paths.indexDir, HISTORY_MEMORY_EFFECT_FILE);
   writeJsonAtomic(outPath, report, {
     validate: (raw) => HistoryMemoryEffectV1.parse(JSON.parse(raw))
   });
@@ -151920,8 +155689,8 @@ init_memory_preview();
 // dist/app/history/pull-log.js
 init_schemas3();
 init_atomic_io();
-import { existsSync as existsSync45, readFileSync as readFileSync67 } from "node:fs";
-import { join as join49 } from "node:path";
+import { existsSync as existsSync45, readFileSync as readFileSync66 } from "node:fs";
+import { join as join50 } from "node:path";
 var HISTORY_PULL_LOG_RELATIVE_PATH = "reports/history/pull-log.json";
 function pullLogUnavailable(runFolder, error52) {
   return {
@@ -151932,22 +155701,22 @@ function pullLogUnavailable(runFolder, error52) {
   };
 }
 function readPullLog(runFolder) {
-  const path = join49(runFolder, HISTORY_PULL_LOG_RELATIVE_PATH);
+  const path = join50(runFolder, HISTORY_PULL_LOG_RELATIVE_PATH);
   if (!existsSync45(path))
     return void 0;
   try {
-    return HistoryPullLogV1.parse(JSON.parse(readFileSync67(path, "utf8")));
+    return HistoryPullLogV1.parse(JSON.parse(readFileSync66(path, "utf8")));
   } catch {
     return void 0;
   }
 }
 function appendPullLogEntry(runFolder, input) {
-  const outPath = join49(runFolder, HISTORY_PULL_LOG_RELATIVE_PATH);
+  const outPath = join50(runFolder, HISTORY_PULL_LOG_RELATIVE_PATH);
   const warnings = [];
   let existing;
   try {
     if (existsSync45(outPath)) {
-      existing = HistoryPullLogV1.parse(JSON.parse(readFileSync67(outPath, "utf8")));
+      existing = HistoryPullLogV1.parse(JSON.parse(readFileSync66(outPath, "utf8")));
     }
   } catch (error52) {
     warnings.push(pullLogUnavailable(runFolder, error52));
@@ -152303,9 +156072,9 @@ async function runHistoryCommand(argv) {
 init_esm();
 init_indexer();
 init_catalog();
-import { createHash as createHash8 } from "node:crypto";
-import { existsSync as existsSync47, readFileSync as readFileSync69 } from "node:fs";
-import { basename as basename8, join as join50 } from "node:path";
+import { createHash as createHash13 } from "node:crypto";
+import { existsSync as existsSync47, readFileSync as readFileSync68 } from "node:fs";
+import { basename as basename8, join as join51 } from "node:path";
 
 // dist/memory/project-identity.js
 var import_yaml5 = __toESM(require_dist(), 1);
@@ -152315,7 +156084,7 @@ init_connector_relay();
 init_control_plane_paths();
 init_project_store();
 import { execFileSync as execFileSync5 } from "node:child_process";
-import { existsSync as existsSync46, readFileSync as readFileSync68 } from "node:fs";
+import { existsSync as existsSync46, readFileSync as readFileSync67 } from "node:fs";
 function hashedId(prefix, basis) {
   return `proj-${prefix}-${sha256OfString(basis).slice(0, 16)}`;
 }
@@ -152336,7 +156105,7 @@ function readConfigProjectId(repoRoot) {
     return void 0;
   let raw;
   try {
-    raw = (0, import_yaml5.parse)(readFileSync68(configPath, "utf8"));
+    raw = (0, import_yaml5.parse)(readFileSync67(configPath, "utf8"));
   } catch {
     return void 0;
   }
@@ -152409,7 +156178,7 @@ function commanderErrorMessage2(err) {
   return err instanceof Error ? err.message : String(err);
 }
 function sha256Text(text) {
-  return createHash8("sha256").update(text, "utf8").digest("hex");
+  return createHash13("sha256").update(text, "utf8").digest("hex");
 }
 function parseMemoryArgs(argv) {
   let parsed;
@@ -152480,10 +156249,10 @@ function resolveNoteSource(input) {
     { rel: "reports/result.json", kind: "report" }
   ];
   for (const candidate of candidates) {
-    const abs = join50(input.runFolder, candidate.rel);
+    const abs = join51(input.runFolder, candidate.rel);
     if (!existsSync47(abs))
       continue;
-    const sha2564 = sha256Text(readFileSync69(abs, "utf8"));
+    const sha2564 = sha256Text(readFileSync68(abs, "utf8"));
     const ref = Ref.parse({
       kind: candidate.kind,
       ref: candidate.rel,
@@ -152492,10 +156261,10 @@ function resolveNoteSource(input) {
     });
     return { ref, sha256: sha2564 };
   }
-  const tracePath = join50(input.runFolder, "trace.ndjson");
+  const tracePath = join51(input.runFolder, "trace.ndjson");
   if (existsSync47(tracePath)) {
     const runId = basename8(input.runFolder);
-    const sha2564 = sha256Text(readFileSync69(tracePath, "utf8"));
+    const sha2564 = sha256Text(readFileSync68(tracePath, "utf8"));
     const trace = Ref.safeParse({
       kind: "trace",
       ref: "trace.ndjson#sequence=0",
@@ -152667,23 +156436,23 @@ init_preview();
 
 // dist/cli/reclaim.js
 init_esm();
-import { join as join52, resolve as resolve31 } from "node:path";
+import { join as join53, resolve as resolve34 } from "node:path";
 
 // dist/runtime/fanout/worktree-reaper.js
 init_trace_store();
 init_run_owner_lock();
 init_worktree();
 import { readdir as readdir2 } from "node:fs/promises";
-import { join as join51 } from "node:path";
+import { join as join52 } from "node:path";
 var listWorktreesFromDisk = async (worktreesRoot) => {
   const entries = [];
   const runDirs = await listSubdirectories(worktreesRoot);
   for (const runId of runDirs) {
-    const stepDirs = await listSubdirectories(join51(worktreesRoot, runId));
+    const stepDirs = await listSubdirectories(join52(worktreesRoot, runId));
     for (const stepId of stepDirs) {
-      const branchDirs = await listSubdirectories(join51(worktreesRoot, runId, stepId));
+      const branchDirs = await listSubdirectories(join52(worktreesRoot, runId, stepId));
       for (const branchId of branchDirs) {
-        entries.push({ path: join51(worktreesRoot, runId, stepId, branchId), runId });
+        entries.push({ path: join52(worktreesRoot, runId, stepId, branchId), runId });
       }
     }
   }
@@ -152703,7 +156472,7 @@ function makeTraceRunStatusResolver(runsRoot2) {
   return async (runId) => {
     let entries;
     try {
-      const trace = new TraceStore(join51(runsRoot2, runId));
+      const trace = new TraceStore(join52(runsRoot2, runId));
       entries = await trace.load();
     } catch {
       return "unknown";
@@ -152815,7 +156584,7 @@ function parseReclaimArgs(argv) {
   }
   return {
     json: options?.json === true,
-    projectRoot: resolve31(options?.projectRoot ?? process.cwd())
+    projectRoot: resolve34(options?.projectRoot ?? process.cwd())
   };
 }
 async function runReclaimCommand(argv) {
@@ -152826,7 +156595,7 @@ async function runReclaimCommand(argv) {
     return 2;
   }
   const projectRoot = parsed.projectRoot;
-  const worktreesRoot = join52(controlPlaneRoot(projectRoot), "worktrees");
+  const worktreesRoot = join53(controlPlaneRoot(projectRoot), "worktrees");
   const summary = await reapWorktrees({
     worktreesRoot,
     // Anchor `git worktree remove` at the resolved project root so reclaim works
@@ -152929,8 +156698,8 @@ init_host();
 init_atomic_io();
 init_commander_support();
 init_run2();
-import { existsSync as existsSync48, readFileSync as readFileSync70 } from "node:fs";
-import { join as join53, resolve as resolve32 } from "node:path";
+import { existsSync as existsSync48, readFileSync as readFileSync69 } from "node:fs";
+import { join as join54, resolve as resolve35 } from "node:path";
 var START_LINE = /^\s*<!--\s*circuit:start\s*-->\s*$/;
 var END_LINE = /^\s*<!--\s*circuit:end\s*-->\s*$/;
 var UNINSTALL_TARGET_FILES = ["AGENTS.md", "CLAUDE.md"];
@@ -152994,7 +156763,7 @@ function parseArgs4(argv, cwd2) {
     throw new Error(`unexpected argument: ${program2.args[0]}`);
   const opts = program2.opts();
   return {
-    dir: resolve32(opts.dir ?? cwd2),
+    dir: resolve35(opts.dir ?? cwd2),
     json: opts.json === true
   };
 }
@@ -153081,14 +156850,14 @@ async function runUninstallCommand(argv, options = {}) {
   let malformedAny = false;
   let strippedAny = false;
   for (const file2 of UNINSTALL_TARGET_FILES) {
-    const path = join53(args.dir, file2);
+    const path = join54(args.dir, file2);
     if (!existsSync48(path)) {
       files.push({ file: file2, path, status: "absent" });
       continue;
     }
     let content;
     try {
-      content = readFileSync70(path, "utf8");
+      content = readFileSync69(path, "utf8");
     } catch (err) {
       process.stderr.write(`error: could not read ${path}: ${err.message}
 `);

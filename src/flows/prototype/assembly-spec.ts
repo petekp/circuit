@@ -243,6 +243,9 @@ export const prototypeBlockItems: readonly BlockStepUse[] = [
     input: {
       choices: 'prototype.variant-choice-options@v1',
       aggregate: 'prototype.variant-aggregate@v1',
+      provider_evidence: 'prototype.variant-provider-evidence@v1',
+      verification: 'prototype.variant-verification@v1',
+      review: 'prototype.variant-review@v1',
     },
     protocol: 'prototype-variant-checkpoint@v1',
     writes: {
@@ -308,7 +311,12 @@ export const prototypeBlockItems: readonly BlockStepUse[] = [
     title: 'Review - decide Prototype disposition',
     stage: 'review',
     block: 'prototype-checkpoint',
-    input: { artifact: 'prototype.artifact@v1', verification: 'prototype.verification@v1' },
+    input: {
+      brief: 'prototype.brief@v1',
+      plan: 'prototype.plan@v1',
+      artifact: 'prototype.artifact@v1',
+      verification: 'prototype.verification@v1',
+    },
     protocol: 'prototype-checkpoint@v1',
     writes: {
       checkpoint_request_path: 'reports/checkpoints/prototype-review-request.json',

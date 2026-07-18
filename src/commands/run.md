@@ -149,8 +149,11 @@ metacharacters:
    update the host task or plan surface when available. When
    `user_input.requested` arrives, ask with a native user-question surface
    when available, otherwise in-thread, and resume with the selected option's
-   `checkpoint_choice`. When `checkpoint.waiting` arrives, say the run is
-   waiting and quote the exact resume command.
+   `checkpoint_choice` only when the rich review page is unavailable. When
+   `checkpoint.waiting` arrives, say the run is waiting. When
+   `checkpoint_review.ready` arrives, surface `review_url` immediately and
+   leave that resume command running while the operator reviews. Do not ask
+   the operator to copy a command or repeat their choice in chat.
 5. **Parse the CLI's final JSON output and surface:** `selected_flow`,
    `routed_by`, `router_reason`, `outcome`, `run_folder`, `trace_entries_observed`,
    `run_surface_markdown_path`, `run_envelope_path`,
@@ -179,9 +182,21 @@ metacharacters:
    the waiting checkpoint details from `checkpoint.waiting` and
    `user_input.requested`: `checkpoint.step_id`, `checkpoint.request_path`,
    `checkpoint.allowed_choices`, and the question/options. When
-   `operator_summary_html_path` is present, present it as the local review page
-   for inspecting options and preparing a response with comments. Also provide
-   the exact bare-choice resume command as a fallback:
+   `operator_summary_html_path` is present, immediately start the blocking
+   review command below. It regenerates a trusted review page from the saved
+   run, serves those renderer bytes over loopback, and waits while the operator
+   inspects options and comments. Leave it running. The operator's **Done**
+   action saves the exact review through the normal resume authority, which
+   records it under the resume lock before the page reports success. If it
+   cannot continue, keep the manual export fallback available. During the
+   normal journey, do not ask them to copy or paste anything.
+
+   ```bash
+   ./bin/circuit resume --run-folder '<run_folder>' --checkpoint-review --progress jsonl
+   ```
+
+   If the local review session cannot start, present the static HTML path and
+   provide this bare-choice command as a manual fallback:
 
    ```bash
    ./bin/circuit resume --run-folder '<run_folder>' --checkpoint-choice '<choice>' --progress jsonl

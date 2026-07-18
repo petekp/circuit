@@ -409,7 +409,10 @@
       "protocol": "prototype-variant-checkpoint@v1",
       "reads": [
         "reports/prototype/variant-choice-options.json",
-        "reports/prototype/variant-aggregate.json"
+        "reports/prototype/variant-aggregate.json",
+        "reports/prototype/variant-provider-evidence.json",
+        "reports/prototype/variant-verification.json",
+        "reports/prototype/variant-review.json"
       ],
       "routes": {
         "continue": "close-model-comparison-step",

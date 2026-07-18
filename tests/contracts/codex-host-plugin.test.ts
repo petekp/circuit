@@ -6,6 +6,7 @@ import {
   mkdtempSync,
   readFileSync,
   readdirSync,
+  realpathSync,
   rmSync,
   writeFileSync,
 } from 'node:fs';
@@ -214,6 +215,9 @@ describe('Codex host plugin package', () => {
     expect(contract).toContain('contract: host-adapter');
     expect(contract).toContain('Explicit runs');
     expect(contract).toContain('--progress jsonl');
+    expect(contract).toContain('--checkpoint-review');
+    expect(contract).toContain('checkpoint_review.ready.review_url');
+    expect(contract).toContain('opening or saving it is never approval');
     expect(contract).toContain("node '<plugin root>/scripts/circuit.js' doctor");
     expect(contract).toContain('final user-facing answer');
     expect(contract).toContain('run_surface_markdown_path');
@@ -259,7 +263,14 @@ describe('Codex host plugin package', () => {
     expect(skill).not.toContain('slash-command');
     expect(skill).not.toContain('node plugins/codex/scripts/circuit.js');
     expect(skill).toContain(
-      "node '<plugin root>/scripts/circuit.js' resume --run-folder '<run_folder>' --checkpoint-choice '<choice>'",
+      "node '<plugin root>/scripts/circuit.js' resume --run-folder '<run_folder>' --checkpoint-review --progress jsonl",
+    );
+    expect(skill).toContain('immediately start the blocking');
+    expect(skill).toContain('Leave it running.');
+    expect(skill).toContain('surface `review_url` immediately');
+    expect(skill).toMatch(/do not ask them to copy\s+or paste anything/i);
+    expect(skill).toContain(
+      "node '<plugin root>/scripts/circuit.js' resume --run-folder '<run_folder>' --checkpoint-choice '<choice>' --progress jsonl",
     );
   });
 
@@ -516,7 +527,7 @@ describe('Codex host plugin package', () => {
     }
   });
 
-  it('wrapper does not inject a flow root for checkpoint resume', () => {
+  it('wrapper forwards the blocking checkpoint review from the project working directory', () => {
     const tempDir = mkdtempSync(join(tmpdir(), 'circuit-codex-host-resume-'));
     try {
       const binDir = join(tempDir, 'bin');
@@ -527,7 +538,7 @@ describe('Codex host plugin package', () => {
         fakeBin,
         `#!/usr/bin/env node\nconst { writeFileSync } = require('node:fs');\nwriteFileSync(${JSON.stringify(
           argvPath,
-        )}, JSON.stringify({ argv: process.argv.slice(2), marker: process.env.${GENERATED_FLOW_MIRROR_ROOT_ENV} ?? null }));\n`,
+        )}, JSON.stringify({ argv: process.argv.slice(2), marker: process.env.${GENERATED_FLOW_MIRROR_ROOT_ENV} ?? null, cwd: process.cwd() }));\nprocess.stderr.write(JSON.stringify({ type: 'checkpoint_review.ready', review_url: 'http://127.0.0.1:43123/review' }) + '\\n');\n`,
       );
       chmodSync(fakeBin, 0o755);
 
@@ -537,9 +548,8 @@ describe('Codex host plugin package', () => {
           resolve(PLUGIN_ROOT, 'scripts/circuit.ts'),
           'resume',
           '--run-folder',
-          '/tmp/run',
-          '--checkpoint-choice',
-          'continue',
+          join(tempDir, "Circuit run Pete's test"),
+          '--checkpoint-review',
         ],
         {
           cwd: tempDir,
@@ -554,15 +564,73 @@ describe('Codex host plugin package', () => {
       const capture = JSON.parse(readFileSync(argvPath, 'utf8')) as {
         argv: string[];
         marker: string | null;
+        cwd: string;
       };
       expect(capture.argv).toEqual([
         'resume',
         '--run-folder',
-        '/tmp/run',
-        '--checkpoint-choice',
-        'continue',
+        join(tempDir, "Circuit run Pete's test"),
+        '--checkpoint-review',
       ]);
       expect(capture.marker).toBeNull();
+      expect(realpathSync(capture.cwd)).toBe(realpathSync(tempDir));
+      expect(result.stderr).toContain('checkpoint_review.ready');
+      expect(result.stderr).toContain('http://127.0.0.1:43123/review');
+    } finally {
+      rmSync(tempDir, { recursive: true, force: true });
+    }
+  });
+
+  it('wrapper forwards a checkpoint response file with spaces and an apostrophe exactly', () => {
+    const tempDir = mkdtempSync(join(tmpdir(), 'circuit-codex-host-response-file-'));
+    try {
+      const binDir = join(tempDir, 'bin');
+      mkdirSync(binDir, { recursive: true });
+      const argvPath = join(tempDir, 'argv.json');
+      const responsePath = join(tempDir, "Circuit checkpoint Pete's review.json");
+      const fakeBin = join(binDir, 'circuit');
+      writeFileSync(
+        fakeBin,
+        `#!/usr/bin/env node\nconst { writeFileSync } = require('node:fs');\nwriteFileSync(${JSON.stringify(
+          argvPath,
+        )}, JSON.stringify({ argv: process.argv.slice(2), marker: process.env.${GENERATED_FLOW_MIRROR_ROOT_ENV} ?? null, cwd: process.cwd() }));\n`,
+      );
+      chmodSync(fakeBin, 0o755);
+
+      const result = spawnSync(
+        process.execPath,
+        [
+          resolve(PLUGIN_ROOT, 'scripts/circuit.ts'),
+          'resume',
+          '--run-folder',
+          join(tempDir, 'run'),
+          '--checkpoint-response-file',
+          responsePath,
+        ],
+        {
+          cwd: tempDir,
+          encoding: 'utf8',
+          env: envWithOverride(fakeBin, {
+            [GENERATED_FLOW_MIRROR_ROOT_ENV]: 'stale-parent-marker',
+          }),
+        },
+      );
+
+      expect(result.status, result.stderr).toBe(0);
+      const capture = JSON.parse(readFileSync(argvPath, 'utf8')) as {
+        argv: string[];
+        marker: string | null;
+        cwd: string;
+      };
+      expect(capture.argv).toEqual([
+        'resume',
+        '--run-folder',
+        join(tempDir, 'run'),
+        '--checkpoint-response-file',
+        responsePath,
+      ]);
+      expect(capture.marker).toBeNull();
+      expect(realpathSync(capture.cwd)).toBe(realpathSync(tempDir));
     } finally {
       rmSync(tempDir, { recursive: true, force: true });
     }

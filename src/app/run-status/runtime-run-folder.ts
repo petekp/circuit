@@ -362,6 +362,7 @@ function runtimeWaitingCheckpointProjection(input: {
       prompt: presentation.prompt,
       choices,
       request_path: requestAbs,
+      request_sha256: expectedHash,
     },
     last_event: input.event,
     ...input.reportPaths,

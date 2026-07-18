@@ -78,6 +78,8 @@ describe('renderCheckpointPage', () => {
     expect(html).toContain('data-cp-option');
     expect(html).toContain('data-cp-comment');
     expect(html).toContain('data-cp-finish');
+    expect(html).toContain('data-cp-submit-decision');
+    expect(html).toContain('data-cp-export');
     expect(html).toContain('aria-labelledby="cp-dialog-title"');
     expect(html).toContain('Saved in this browser');
     expect(html).toContain('--checkpoint-response');

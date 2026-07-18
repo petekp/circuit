@@ -205,6 +205,25 @@ export const CheckpointWaitingProgressEvent = ProgressEventBase.extend({
   allowed_choices: z.array(z.string().min(1)).min(1),
 }).strict();
 
+const LoopbackReviewUrl = z.url().refine((value) => {
+  try {
+    const url = new URL(value);
+    return url.protocol === 'http:' && url.hostname === '127.0.0.1' && url.port.length > 0;
+  } catch {
+    return false;
+  }
+}, 'review_url must be an HTTP URL on 127.0.0.1');
+
+// Emitted by the explicit local review transport after its one-shot listener
+// is ready. The URL is safe to surface; the separate completion capability is
+// injected only into the served page and must never appear in progress output.
+export const CheckpointReviewReadyProgressEvent = ProgressEventBase.extend({
+  type: z.literal('checkpoint_review.ready'),
+  step_id: StepId,
+  attempt: z.number().int().positive(),
+  review_url: LoopbackReviewUrl,
+}).strict();
+
 export const TaskListUpdatedProgressEvent = ProgressEventBase.extend({
   type: z.literal('task_list.updated'),
   tasks: z.array(ProgressTask).min(1),
@@ -278,6 +297,7 @@ export const ProgressEvent = z.discriminatedUnion('type', [
   FanoutBranchCompletedProgressEvent,
   FanoutJoinedProgressEvent,
   CheckpointWaitingProgressEvent,
+  CheckpointReviewReadyProgressEvent,
   TaskListUpdatedProgressEvent,
   UserInputRequestedProgressEvent,
   RunCompletedProgressEvent,

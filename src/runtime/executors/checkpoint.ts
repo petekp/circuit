@@ -1,10 +1,15 @@
 // Runtime side of checkpoint requests: write the request, emit trace evidence,
 // decide whether depth waits or auto-resolves, and apply an operator resume
 // selection. Resume validation lives in the run resume path.
+import { readFile } from 'node:fs/promises';
 import { ZodError } from 'zod';
 import { findCheckpointBriefBuilder } from '../../flows/registries/checkpoint-writers/registry.js';
 import { requireRuntimeIndexedStep } from '../../flows/registries/runtime-index.js';
 import { policyRefsForRuntimeInputs } from '../../policy/policy-envelope.js';
+import {
+  type CheckpointReviewAssetGroups,
+  CheckpointReviewAssetGroups as CheckpointReviewAssetGroupsSchema,
+} from '../../schemas/checkpoint-review-assets.js';
 import type { GuidanceDecisionTraceEntryBody } from '../../schemas/guidance-decision.js';
 import { CompiledFlowId, RunId } from '../../schemas/ids.js';
 import type { OperatorAutoResolution } from '../../schemas/operator-summary.js';
@@ -19,8 +24,16 @@ import {
   CheckpointBoundaryProjectionError,
   projectCheckpointBoundaryV0,
 } from '../../shared/checkpoint-boundary.js';
+import { verifyCheckpointReviewAssetGroups } from '../../shared/checkpoint-review-assets.js';
+import {
+  type CheckpointReviewInputIdentity,
+  checkpointReviewInputJsonObject,
+  checkpointReviewInputSha256,
+  normalizeCheckpointReviewInputPaths,
+} from '../../shared/checkpoint-review-inputs.js';
 import { sha256Hex } from '../../shared/connector-relay.js';
 import { resolveDottedPath } from '../../shared/fanout-branch-template.js';
+import { checkpointAttemptResponsePath } from '../../shared/run-file-paths.js';
 import {
   type CheckpointChoice,
   resolveCheckpointChoicesSource,
@@ -55,14 +68,6 @@ type CheckpointRouteResolution =
   | { readonly kind: 'failed'; readonly reason: string };
 
 type CheckpointBoundaryProjection = ReturnType<typeof projectCheckpointBoundaryV0>;
-
-function checkpointAttemptResponsePath(responsePath: string, attempt: number): string {
-  const jsonSuffix = '.json';
-  if (responsePath.endsWith(jsonSuffix)) {
-    return `${responsePath.slice(0, -jsonSuffix.length)}.attempt-${attempt}${jsonSuffix}`;
-  }
-  return `${responsePath}.attempt-${attempt}.json`;
-}
 
 // Unified materialized-choice shape. Static choices come from the strict
 // CheckpointPolicy schema (`label?`/`description?` carry Zod's `| undefined`);
@@ -368,6 +373,8 @@ function checkpointRequestBody(input: {
   readonly stepPolicy: Awaited<ReturnType<typeof materializePolicy>>;
   readonly boundary: CheckpointBoundaryProjection;
   readonly checkpointReportSha256?: string;
+  readonly reviewInputs: readonly { readonly path: string; readonly sha256: string }[];
+  readonly reviewAssets: CheckpointReviewAssetGroups;
 }) {
   const stepPolicy = input.stepPolicy;
   return {
@@ -400,11 +407,93 @@ function checkpointRequestBody(input: {
       checkpoint_boundary_hash: input.boundary.request_trace.boundary_hash,
       selection_config_layers: input.context.selectionConfigLayers ?? [],
       policy_layers: input.context.policyLayers ?? [],
+      review_inputs: input.reviewInputs,
+      review_assets: input.reviewAssets,
       ...(input.checkpointReportSha256 === undefined
         ? {}
         : { checkpoint_report_sha256: input.checkpointReportSha256 }),
     },
   };
+}
+
+type BoundCheckpointReviewInput = CheckpointReviewInputIdentity & {
+  readonly bytes: Uint8Array;
+};
+
+function checkpointReviewAssets(
+  step: CheckpointStep,
+  context: RunContext,
+  reviewInputs: readonly BoundCheckpointReviewInput[],
+): CheckpointReviewAssetGroups {
+  const collected: unknown[] = [];
+  const inputsByPath = new Map(reviewInputs.map((input) => [input.path, input]));
+  for (const path of normalizeCheckpointReviewInputPaths(
+    (step.reads ?? []).map((ref) => ref.path),
+  )) {
+    const input = inputsByPath.get(path);
+    if (input === undefined) {
+      throw new Error(`checkpoint step '${step.id}' is missing review input '${path}'`);
+    }
+    const raw = checkpointReviewInputJsonObject(input.bytes);
+    if (raw === undefined || !Object.hasOwn(raw, 'review_assets')) continue;
+    let groups: CheckpointReviewAssetGroups;
+    try {
+      groups = CheckpointReviewAssetGroupsSchema.parse(raw.review_assets);
+    } catch (error) {
+      throw new Error(
+        `checkpoint step '${step.id}' found invalid review_assets in '${path}': ${
+          error instanceof Error ? error.message : String(error)
+        }`,
+      );
+    }
+    collected.push(...groups);
+  }
+  const groups = CheckpointReviewAssetGroupsSchema.parse(collected);
+  if (groups.length === 0) return groups;
+  if (context.projectRoot === undefined) {
+    throw new Error(`checkpoint step '${step.id}' cannot verify review assets without projectRoot`);
+  }
+  return verifyCheckpointReviewAssetGroups({ projectRoot: context.projectRoot, groups });
+}
+
+async function checkpointReviewInputs(
+  step: CheckpointStep,
+  context: RunContext,
+  checkpointReportSha256?: string,
+  includeCheckpointReport = true,
+): Promise<readonly BoundCheckpointReviewInput[]> {
+  const identities: BoundCheckpointReviewInput[] = [];
+  const refsByPath = new Map((step.reads ?? []).map((ref) => [ref.path, ref]));
+  const readPaths = normalizeCheckpointReviewInputPaths((step.reads ?? []).map((ref) => ref.path));
+  for (const path of readPaths) {
+    const ref = refsByPath.get(path);
+    if (ref === undefined) continue;
+    const bytes = await readFile(context.files.resolve(ref));
+    identities.push({ path, sha256: checkpointReviewInputSha256(bytes), bytes });
+  }
+  const report = step.writes?.report;
+  if (includeCheckpointReport && report !== undefined && !readPaths.includes(report.path)) {
+    const bytes = await readFile(context.files.resolve(report));
+    identities.push({
+      path: report.path,
+      sha256: checkpointReportSha256 ?? checkpointReviewInputSha256(bytes),
+      bytes,
+    });
+  }
+  return identities;
+}
+
+function sameReviewInputs(
+  left: readonly { readonly path: string; readonly sha256: string }[],
+  right: readonly { readonly path: string; readonly sha256: string }[],
+): boolean {
+  return (
+    left.length === right.length &&
+    left.every(
+      (identity, index) =>
+        identity.path === right[index]?.path && identity.sha256 === right[index]?.sha256,
+    )
+  );
 }
 
 export async function executeCheckpointResult(
@@ -421,6 +510,7 @@ export async function executeCheckpointResult(
       );
     }
     const indexedStep = requireRuntimeIndexedStep(context.packageIndex, step.id, 'checkpoint');
+    const reviewInputsBefore = await checkpointReviewInputs(step, context, undefined, false);
     const stepPolicy = await materializePolicy(step, context);
     const boundary = projectRuntimeCheckpointBoundary({ step, stepPolicy, context });
 
@@ -447,7 +537,9 @@ export async function executeCheckpointResult(
           responsePath: response.path,
         });
         await context.files.writeJson(report, body);
-        checkpointReportSha256 = sha256Hex(await context.files.readText(report));
+        checkpointReportSha256 = checkpointReviewInputSha256(
+          await readFile(context.files.resolve(report)),
+        );
         await context.trace.append({
           run_id: context.runId,
           kind: 'step.report_written',
@@ -458,11 +550,23 @@ export async function executeCheckpointResult(
         });
       }
 
+      const reviewInputs = await checkpointReviewInputs(step, context, checkpointReportSha256);
+      const readsAfter = reviewInputs.filter((identity) =>
+        (step.reads ?? []).some((ref) => ref.path === identity.path),
+      );
+      if (!sameReviewInputs(reviewInputsBefore, readsAfter)) {
+        return stepExecutionFailed(
+          `checkpoint step '${step.id}' review inputs changed while the request was created`,
+        );
+      }
+      const reviewAssets = checkpointReviewAssets(step, context, readsAfter);
       const requestBody = checkpointRequestBody({
         step,
         context,
         stepPolicy,
         boundary,
+        reviewInputs: reviewInputs.map(({ path, sha256 }) => ({ path, sha256 })),
+        reviewAssets,
         ...(checkpointReportSha256 === undefined ? {} : { checkpointReportSha256 }),
       });
       await context.files.writeJson(request, requestBody);

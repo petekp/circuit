@@ -276,6 +276,15 @@ function renderSurfaceInventory(): string {
       'Skill metadata is generated from script-owned metadata plus command source body. The renderer removes slash-command placeholders and source-authority footers for Codex-native invocation.',
     ],
     [
+      'Checkpoint review browser runtime',
+      '`src/shared/checkpoint-review/browser-runtime.ts`',
+      '`npm run build-checkpoint-review-runtime` (`npm run emit-flows` also runs it)',
+      'no',
+      '`src/shared/html/checkpoint-review-runtime.generated.ts`',
+      '`npm run check-checkpoint-review-runtime` (runs under `npm run check-flow-drift`)',
+      'esbuild bundle of the dependency-free browser controller inlined by checkpoint review page renderers. Editing the browser runtime restales this generated module; `npm run emit-flows` rebuilds it before compiling the plugin runtime.',
+    ],
+    [
       'Plugin runtime bundle',
       '`src/**` engine (bundled via `dist/cli/circuit.js`)',
       '`npm run build-plugin-runtime` (`node scripts/plugins/runtime-bundle.ts`)',
@@ -464,7 +473,7 @@ async function renderGeneratedSurfaceMap(): Promise<string> {
     '',
     '## Drift Check',
     '',
-    '`npm run check-flow-drift` is the canonical gate for every generated surface in this map. It runs `node scripts/flows/emit.ts --check` (this file, the generated block catalog, generated schematics, generated manifests, command mirrors, host flow mirrors, stale per-mode siblings, stale internal host mirrors, stale host command files, and stale Codex skill directories) and then `npm run check-plugin-runtime` (the plugin runtime bundle and its sidecars). Running `node scripts/flows/emit.ts --check` on its own reports clean while the runtime bundle is stale, so any edit to engine source under `src/` must clear the full `check-flow-drift` gate.',
+    '`npm run check-flow-drift` is the canonical gate for every generated surface in this map. It runs `node scripts/flows/emit.ts --check` (this file, the generated block catalog, generated schematics, generated manifests, command mirrors, host flow mirrors, stale per-mode siblings, stale internal host mirrors, stale host command files, and stale Codex skill directories), `npm run check-checkpoint-review-runtime` (the inline checkpoint browser controller), and `npm run check-plugin-runtime` (the plugin runtime bundle and its sidecars). Running `node scripts/flows/emit.ts --check` on its own reports clean while either runtime bundle is stale, so any edit to engine source under `src/` must clear the full `check-flow-drift` gate.',
     '',
   ].join('\n')}\n`;
 }

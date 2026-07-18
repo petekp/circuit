@@ -2,7 +2,7 @@
 contract: host-adapter
 status: draft-v0.1
 version: 0.1
-last_updated: 2026-04-30
+last_updated: 2026-07-17
 depends_on: [compiled-flow, run, connector]
 ---
 
@@ -28,16 +28,32 @@ Support claims for each host adapter are governed by
 Every host adapter MUST support:
 
 - Explicit runs: `circuit run <flow> --goal "<task>"`.
-- Checkpoint resume with either a bare choice or the typed response prepared by
-  the HTML review page: `circuit resume --run-folder <path>
-  (--checkpoint-choice <choice> | --checkpoint-response <response>)`.
+- A no-copy checkpoint journey: after a rich checkpoint parks, start
+  `circuit resume --run-folder <path> --checkpoint-review` and leave it running
+  while the operator reviews. Circuit regenerates the trusted page from the
+  saved run state. The page's **Done** action saves the typed review and
+  continues the run. If automatic continuation fails, surface Circuit's
+  printed run-inspection guidance and keep the page's manual export controls
+  available. Export remains an operator-controlled fallback; Circuit does not
+  treat a downloaded file as approval.
+- Manual checkpoint resume with a bare choice, typed token, or explicitly
+  supplied JSON file: `circuit resume --run-folder <path>
+  (--checkpoint-choice <choice> | --checkpoint-response <response> |
+  --checkpoint-response-file <path>)`.
 - Stable final JSON parsing from stdout.
 - Progress JSONL parsing from stderr when invoked with `--progress jsonl`.
 - Task-list rendering from `task_list.updated` progress events.
 - User-input rendering from `user_input.requested` progress events.
 - Report reading from the returned `run_folder` and `result_path`.
-- Checkpoint review-page presentation from `operator_summary_html_path` when it
-  is present.
+- Static checkpoint review-page presentation from `operator_summary_html_path`
+  when it is present. This file keeps manual copy and export available, but
+  opening or saving it is never approval.
+- Immediate presentation of `checkpoint_review.ready.review_url`. Adapters must
+  keep the blocking resume process alive while the operator reviews. Adapters
+  must not watch workspace or run-folder files and treat their presence as
+  approval. A relative `--checkpoint-response-file` argument is forwarded
+  unchanged and therefore resolves from the adapter's declared project working
+  directory.
 - Verbatim host rendering from `display.text` and
   `operator_summary_markdown_path` per
   [docs/contracts/host-rendering.md](host-rendering.md).

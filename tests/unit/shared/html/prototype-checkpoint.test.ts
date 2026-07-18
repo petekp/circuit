@@ -6,6 +6,7 @@ import { pathToFileURL } from 'node:url';
 import { describe, expect, it } from 'vitest';
 
 import { prototypeCheckpointProjector } from '../../../../src/flows/prototype/index.js';
+import { snapshotCheckpointReviewAssetGroups } from '../../../../src/shared/checkpoint-review-assets.js';
 import type { HtmlProjectorContext, JsonObject } from '../../../../src/shared/html/projector.js';
 
 const ROOT = '.circuit/prototypes/html-test';
@@ -110,7 +111,10 @@ function rubricResult(): JsonObject {
   };
 }
 
-function variantReports(root = ROOT): Record<string, JsonObject> {
+function variantReports(
+  root = ROOT,
+  reviewAssets: JsonObject['review_assets'] = [],
+): Record<string, JsonObject> {
   const artifact = (id: string, label: string) => ({
     verdict: 'accept',
     variant_id: id,
@@ -193,6 +197,7 @@ function variantReports(root = ROOT): Record<string, JsonObject> {
     },
     'reports/prototype/variant-verification.json': {
       overall_status: 'passed',
+      review_assets: reviewAssets,
       required_captured_provider_evidence_count: 2,
       captured_provider_evidence_count: 2,
       admitted_variant_count: 2,
@@ -266,6 +271,13 @@ function variantReports(root = ROOT): Record<string, JsonObject> {
       ],
     },
   };
+}
+
+function snapshottedReviewAssets(
+  projectRoot: string,
+  groups: readonly { readonly root: string; readonly entryPoints: readonly string[] }[],
+) {
+  return snapshotCheckpointReviewAssetGroups({ projectRoot, groups });
 }
 
 function context(
@@ -383,13 +395,27 @@ describe('prototypeCheckpointProjector', () => {
     );
 
     try {
-      const html = prototypeCheckpointProjector(context({ projectRoot, runFolder })) as string;
+      const html = prototypeCheckpointProjector(
+        context({
+          projectRoot,
+          runFolder,
+          reports: {
+            'reports/prototype/verification.json': verification({
+              review_assets: snapshottedReviewAssets(projectRoot, [
+                { root: ROOT, entryPoints: [`${ROOT}/index.html`] },
+              ]),
+            }),
+          },
+        }),
+      ) as string;
       const href = pathToFileURL(entryPoint).href;
 
       expect(html).toContain('<iframe');
       expect(html).toContain(`data-mv-preview-src="${href}"`);
-      expect(html).toContain('sandbox="allow-scripts allow-forms allow-pointer-lock"');
-      expect(html).toContain(`href="${href}"`);
+      expect(html).toContain('sandbox=""');
+      expect(html).not.toContain('sandbox="allow-');
+      expect(html).toContain(`data-artifact-full-size-src="${href}"`);
+      expect(html).not.toContain(`href="${href}"`);
       expect(html).toContain('Open full size');
     } finally {
       rmSync(projectRoot, { recursive: true, force: true });
@@ -403,8 +429,7 @@ describe('prototypeCheckpointProjector', () => {
     try {
       const html = prototypeCheckpointProjector(context({ projectRoot, runFolder })) as string;
 
-      expect(html).toContain('Preview file missing');
-      expect(html).toContain(`${ROOT}/index.html`);
+      expect(html).toContain('Preview unavailable');
       expect(html).not.toContain('<iframe');
     } finally {
       rmSync(projectRoot, { recursive: true, force: true });
@@ -430,7 +455,7 @@ describe('prototypeCheckpointProjector', () => {
     expect(html).toContain('anthropic/local-fixture-b');
     expect(html).toContain('--checkpoint-choice &#x27;variant-a&#x27;');
     expect(html).toContain('mv-wrap mv-visual');
-    expect(html).toContain('Preview format unsupported');
+    expect(html).toContain('Preview unavailable');
     expect(html).toContain('data-mv-comment');
     expect(html).not.toContain('<iframe data-mv-frame');
   });
@@ -444,6 +469,13 @@ describe('prototypeCheckpointProjector', () => {
       writeFileSync(artifact, `<!doctype html><title>${variant}</title>`);
     }
     try {
+      const reviewAssets = snapshottedReviewAssets(
+        projectRoot,
+        ['variant-a', 'variant-b'].map((variant) => ({
+          root: `${RUN_ARTIFACT_ROOT}/variants/${variant}`,
+          entryPoints: [`${RUN_ARTIFACT_ROOT}/variants/${variant}/index.html`],
+        })),
+      );
       const html = prototypeCheckpointProjector(
         context({
           runFolder,
@@ -453,7 +485,7 @@ describe('prototypeCheckpointProjector', () => {
             request_path: '/tmp/request.json',
             allowed_choices: ['variant-a', 'variant-b'],
           },
-          reports: variantReports(RUN_ARTIFACT_ROOT),
+          reports: variantReports(RUN_ARTIFACT_ROOT, reviewAssets),
         }),
       ) as string;
       expect(html).toContain('Choose a prototype direction');
@@ -484,6 +516,13 @@ describe('prototypeCheckpointProjector', () => {
       writeFileSync(artifact, `<!doctype html><title>${variant}</title>`);
     }
     try {
+      const reviewAssets = snapshottedReviewAssets(
+        projectRoot,
+        ['variant-a', 'variant-b'].map((variant) => ({
+          root: `${ROOT}/variants/${variant}`,
+          entryPoints: [`${ROOT}/variants/${variant}/index.html`],
+        })),
+      );
       const html = prototypeCheckpointProjector(
         context({
           runFolder: '/tmp/external-run',
@@ -494,7 +533,7 @@ describe('prototypeCheckpointProjector', () => {
             request_path: '/tmp/request.json',
             allowed_choices: ['variant-a', 'variant-b'],
           },
-          reports: variantReports(ROOT),
+          reports: variantReports(ROOT, reviewAssets),
         }),
       ) as string;
       expect(html).toContain('mv-wrap mv-visual');

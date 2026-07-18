@@ -28,7 +28,13 @@ function collectBrowserErrors(page: Page): BrowserErrors {
   const messages: string[] = [];
   page.on('pageerror', (error) => messages.push(`page: ${error.message}`));
   page.on('console', (message) => {
-    if (message.type() === 'error') messages.push(`console: ${message.text()}`);
+    const text = message.text();
+    const expectedSafePreviewBlock =
+      text.startsWith("Blocked script execution in 'about:blank'") ||
+      text.startsWith("Blocked script execution in 'about:srcdoc'");
+    if (message.type() === 'error' && !expectedSafePreviewBlock) {
+      messages.push(`console: ${text}`);
+    }
   });
   return { messages };
 }
@@ -214,18 +220,24 @@ test.describe('single-artifact checkpoint review', () => {
       await page.goto(checkpointFixtures().singleArtifactUrl);
 
       await expectNoHorizontalOverflow(page);
-      const openFullSize = page.getByRole('link', { name: /Open full size/ });
-      await expect(openFullSize).toBeVisible();
-      await expect(openFullSize).toHaveAttribute('href', /single-artifact\.html$/);
+      const openFullSize = page.locator('.cp-open-link');
+      await expect(openFullSize).toBeHidden();
+      await expect(openFullSize).not.toHaveAttribute('href', /.+/);
+      await expect(openFullSize).toHaveAttribute(
+        'data-artifact-full-size-src',
+        /single-artifact\.html$/,
+      );
 
       const previewShell = page.locator('[data-artifact-preview-shell]');
       await expect(previewShell).toHaveAttribute('data-artifact-preview-state', 'ready');
       const activeFrame = page.frameLocator('[data-artifact-preview-panel] iframe');
-      const showDetails = activeFrame.getByRole('button', { name: 'Show single details' });
+      const showDetails = activeFrame.getByText('Show single details');
       await expect(showDetails).toBeVisible();
       await showDetails.scrollIntoViewIfNeeded();
       await showDetails.click();
-      await expect(activeFrame.getByText('The single artifact interaction works.')).toBeVisible();
+      await expect(
+        activeFrame.getByText('The single artifact native interaction works.'),
+      ).toBeVisible();
 
       await page.locator('.cp-option').nth(1).click();
       await expect(page.locator('[data-cp-option]').nth(1)).toBeChecked();
@@ -244,6 +256,32 @@ test.describe('single-artifact checkpoint review', () => {
 });
 
 test.describe('multi-variant checkpoint review', () => {
+  test('preview timeout guidance remains true when full-size viewing is unavailable', async ({
+    page,
+  }) => {
+    await page.addInitScript(() => {
+      const nativeSetTimeout = window.setTimeout.bind(window);
+      window.setTimeout = ((handler: TimerHandler, timeout?: number, ...arguments_: unknown[]) =>
+        nativeSetTimeout(
+          handler,
+          timeout === 8_000 ? 0 : timeout,
+          ...arguments_,
+        )) as typeof setTimeout;
+    });
+    await page.goto(checkpointFixtures().multiUrl);
+
+    const previewShell = page.locator('[data-mv-panel]:not([hidden]) [data-mv-preview-shell]');
+    await expect(previewShell).toHaveAttribute('data-mv-preview-state', 'failed');
+    await expect(previewShell.locator('[data-artifact-preview-message]')).toHaveText(
+      'Preview took too long to load',
+    );
+    await expect(previewShell.locator('[data-artifact-preview-detail]')).toHaveText(
+      'You can retry the preview or continue reviewing without it.',
+    );
+    await expect(previewShell.locator('[data-artifact-preview-retry]')).toBeVisible();
+    await expect(page.locator('[data-mv-open]')).toBeHidden();
+  });
+
   test('restores every note and the active non-recommended variant after reload', async ({
     page,
   }) => {
@@ -277,11 +315,11 @@ test.describe('multi-variant checkpoint review', () => {
     const previewShell = page.locator('[data-mv-panel]:not([hidden]) [data-mv-preview-shell]');
     await expect(previewShell).toHaveAttribute('data-mv-preview-state', 'ready');
     const activeFrame = page.frameLocator('[data-mv-panel]:not([hidden]) iframe');
-    const revealDetails = activeFrame.getByRole('button', { name: 'Reveal details' });
+    const revealDetails = activeFrame.getByText('Reveal details');
     await expect(revealDetails).toBeVisible();
     await revealDetails.scrollIntoViewIfNeeded();
     await revealDetails.click();
-    await expect(activeFrame.getByText('The artifact interaction works.')).toBeVisible();
+    await expect(activeFrame.getByText('The artifact native interaction works.')).toBeVisible();
     await expect(previewShell).toHaveAttribute('data-mv-preview-state', 'ready');
 
     await page.getByRole('tab', { name: /Missing artifact/ }).click();
@@ -359,7 +397,9 @@ test.describe('multi-variant checkpoint review', () => {
       ).toBeVisible();
       await expect(page.getByText(/JavaScript is off/)).toBeVisible();
       await expect(page.getByRole('button', { name: 'Choose this option' })).toBeHidden();
-      await expect(page.getByRole('link', { name: /Open artifact/ })).toBeVisible();
+      await expect(page.locator('.mv-noscript')).toContainText(
+        'Artifact preview available in the live review',
+      );
       await expect(page.locator('.mv-noscript code').first()).toContainText(
         '--checkpoint-choice working',
       );

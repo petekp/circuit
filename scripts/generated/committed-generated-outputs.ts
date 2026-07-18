@@ -1,11 +1,11 @@
 #!/usr/bin/env node
-// The committed generated outputs this guard protects: the runtime-bundle code
-// artifacts (the esbuild bundle plus the git-state and launcher-core sidecars
-// each host commits) and the tracked markdown that doc-classes marks
-// `generated`. This is NOT the whole generated tree — generated JSON (compiled
-// flows, host skill/flow mirrors, schematics, the block catalog) is covered by
-// check-flow-drift, which re-emits and byte-compares it on every run. This set
-// is the remainder, each member protected one of two ways:
+// The committed generated outputs this guard protects: runtime code artifacts
+// (the host bundles and sidecars plus the inline checkpoint browser runtime)
+// and the tracked markdown that doc-classes marks `generated`. This is NOT the
+// whole generated tree — generated JSON (compiled flows, host skill/flow
+// mirrors, schematics, the block catalog) is covered by check-flow-drift, which
+// re-emits and byte-compares it on every run. This set is the remainder, each
+// member protected one of two ways:
 //
 //   - the Edit-deny list in .claude/settings.json refuses the Edit tool on it
 //     (the only option for non-markdown artifacts), or
@@ -14,9 +14,10 @@
 //
 // tests/contracts/generated-surface-guard.test.ts proves every member of this
 // set is covered by one or the other. The set is derived from the generators
-// themselves — the runtime-bundle output constants and the doc-classes manifest
-// — so it cannot silently lag the way a hand-kept list would.
+// themselves — the code-generator output constants and the doc-classes
+// manifest — so it cannot silently lag the way a hand-kept list would.
 import { classifyAll } from '../docs/doc-classes.ts';
+import { CHECKPOINT_REVIEW_RUNTIME_OUTPUT_PATH } from '../html/build-checkpoint-review-runtime.ts';
 import {
   RUNTIME_BUNDLE_ASSET_SIDECARS,
   RUNTIME_BUNDLE_COMPILED_SIDECARS,
@@ -37,6 +38,11 @@ export function committedRuntimeBundleOutputs(): string[] {
     .sort();
 }
 
+// Generated TypeScript/JavaScript artifacts committed for runtime use.
+export function committedGeneratedCodeOutputs(): string[] {
+  return [...committedRuntimeBundleOutputs(), CHECKPOINT_REVIEW_RUNTIME_OUTPUT_PATH].sort();
+}
+
 // Tracked markdown classified `generated` by docs/doc-classes.json.
 export function generatedMarkdownOutputs(): string[] {
   return classifyAll()
@@ -47,5 +53,5 @@ export function generatedMarkdownOutputs(): string[] {
 
 // The full set the guard test must find covered.
 export function committedGeneratedOutputs(): string[] {
-  return [...committedRuntimeBundleOutputs(), ...generatedMarkdownOutputs()].sort();
+  return [...committedGeneratedCodeOutputs(), ...generatedMarkdownOutputs()].sort();
 }

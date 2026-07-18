@@ -91,10 +91,39 @@ Safety gates at parse time:
 - `--flow-root` must be non-empty.
 - `--tournament`, when given an inline value, must be 2, 3, or 4.
 - Checkpoint resume must use `resume`, must pass `--run-folder`, and must pass
-  either a non-empty `--checkpoint-choice` or a valid typed
-  `--checkpoint-response`. The two response forms are mutually exclusive.
-  Typed responses bind to the run, checkpoint step, attempt, and exact request
-  hash so an older review page cannot approve a newer request.
+  exactly one response form: `--checkpoint-review`, a non-empty
+  `--checkpoint-choice`, a valid typed `--checkpoint-response`, or a non-empty
+  `--checkpoint-response-file` path. Parsing checks the file path text only; it
+  does not read or approve the file.
+
+At execution time, `--checkpoint-review` starts a one-shot HTTP listener on
+`127.0.0.1`. Circuit regenerates the checkpoint page from the saved run state
+and serves the exact renderer bytes held in memory; it does not reread the
+mutable HTML report as review authority. The checkpoint request binds every
+report used by that page to its SHA-256 hash. Regeneration and resume both fail
+closed if the request or any bound review input has changed. The listener then waits for the
+page's authenticated **Done** request. The completion capability exists only
+in that process and served HTML. It is never written into the durable report
+or progress stream. Circuit sends the already-parsed response directly through
+normal resume validation. The resume authority writes the canonical and attempt-specific
+response files, appends the matching trace entry, and completes the checkpoint
+step under the normal resume lock. Circuit rereads those files and trace and
+requires an exact match before the page says the review was saved. The browser
+then replays that exact accepted payload once as a delivery acknowledgement.
+Circuit returns the cached reply and, if that acknowledgement is lost, keeps a
+five-second reconciliation window open after the run finishes. A changed
+replay remains rejected. If continuation or persistence fails, the browser
+keeps the draft and manual export remains available. A terminal stale-run
+rejection closes the local session instead of leaving its CLI command waiting
+forever.
+
+For the manual file transport, an absolute path is used as written and a
+relative path is resolved only from Circuit's current working directory.
+Circuit opens one regular file, rejects more than 64 KiB before parsing, checks
+UTF-8 and JSON, and then validates `checkpoint.review-response@v1`. Typed
+responses bind to the run, checkpoint step, attempt, and exact request hash so
+an older review page cannot approve a newer request. A response or draft file
+merely existing on disk never resumes or approves a run.
 
 ### 3. Flow Selection
 

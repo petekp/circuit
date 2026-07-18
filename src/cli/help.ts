@@ -94,6 +94,10 @@ const RUN_FLAG_BLURBS: Readonly<Record<string, string>> = {
   '--flow-root': 'load flows from this root instead of the packaged flows',
   '--checkpoint-choice': 'used by resume; answers the pending checkpoint',
   '--checkpoint-response': 'used by resume; carries a reviewed choice and comments',
+  '--checkpoint-response-file':
+    'used by resume; reads a regular JSON file (relative paths use the current directory)',
+  '--checkpoint-review':
+    'used by resume; regenerate the local review page and continue when Done is pressed',
   '--progress': 'stream progress events; use jsonl',
   '--include-untracked-content': 'let Review send untracked file contents to the configured worker',
   '--reuse-children-from':
@@ -129,22 +133,33 @@ const COMMAND_HELP: Readonly<Record<CliCommandName, CommandHelp>> = {
   resume: {
     summary: 'continue a paused run by answering its checkpoint',
     usage: [
-      'circuit resume --run-folder <path> (--checkpoint-choice <choice> | --checkpoint-response <response>) [--progress jsonl]',
+      'circuit resume --run-folder <path> (--checkpoint-review | --checkpoint-choice <choice> | --checkpoint-response <response> | --checkpoint-response-file <path>) [--progress jsonl]',
     ],
     flags: [
       { flag: '--run-folder <path>', blurb: 'the paused run folder (required)' },
       {
+        flag: '--checkpoint-review',
+        blurb: 'regenerate the local review page; Done saves comments and continues the run',
+      },
+      {
         flag: '--checkpoint-choice <choice>',
-        blurb: 'a bare checkpoint answer; use this or --checkpoint-response',
+        blurb: 'a bare checkpoint answer; manual fallback without review comments',
       },
       {
         flag: '--checkpoint-response <response>',
         blurb: 'a typed choice and comments prepared by the HTML review page',
       },
+      {
+        flag: '--checkpoint-response-file <path>',
+        blurb: 'an explicit regular JSON export, at most 64 KiB; relative to current directory',
+      },
       { flag: '--progress <format>', blurb: 'stream progress events; use jsonl' },
     ],
-    notes: [EXIT_CODE_NOTE],
-    example: 'circuit resume --run-folder .circuit/runs/<run_id> --checkpoint-choice continue',
+    notes: [
+      'Choose exactly one review, choice, token, or file response form. Static HTML keeps manual copy and export available; opening or saving a file never approves a checkpoint by itself.',
+      EXIT_CODE_NOTE,
+    ],
+    example: 'circuit resume --run-folder .circuit/runs/<run_id> --checkpoint-review',
     next: 'circuit checkpoints shows every paused run and the choices it is waiting on.',
   },
   handoff: {

@@ -1,14 +1,20 @@
+import { createHash } from 'node:crypto';
 import { existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { pathToFileURL } from 'node:url';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 
-import { readPriorRoute, writeOperatorSummary } from '../../src/app/operator-summary/writer.js';
+import {
+  readPriorRoute,
+  renderCheckpointReviewHtml,
+  writeOperatorSummary,
+} from '../../src/app/operator-summary/writer.js';
 import { THREE_AXIS_RUBRIC_TIE_BREAK_ORDER, combineRubricResult } from '../../src/policy/rubric.js';
 import { CompiledFlowId, RunId } from '../../src/schemas/ids.js';
 import { OperatorSummary } from '../../src/schemas/operator-summary.js';
 import { RunResult } from '../../src/schemas/result.js';
+import { snapshotCheckpointReviewAssetGroups } from '../../src/shared/checkpoint-review-assets.js';
 
 let runFolder: string;
 const CHECKPOINT_IDENTITY = { attempt: 1, request_sha256: 'a'.repeat(64) } as const;
@@ -26,6 +32,10 @@ function writeReport(relPath: string, body: unknown): void {
   const path = join(runFolder, relPath);
   mkdirSync(join(path, '..'), { recursive: true });
   writeFileSync(path, `${JSON.stringify(body, null, 2)}\n`);
+}
+
+function sha256Hex(value: string | Buffer): string {
+  return createHash('sha256').update(value).digest('hex');
 }
 
 function writeTrace(entries: readonly unknown[]): void {
@@ -277,7 +287,10 @@ function prototypeVariantArtifact(id: string, label: string, root = PROTOTYPE_VA
   };
 }
 
-function writePrototypeVariantReports(root = PROTOTYPE_VARIANT_ROOT): void {
+function writePrototypeVariantReports(
+  root = PROTOTYPE_VARIANT_ROOT,
+  reviewAssets: unknown = [],
+): void {
   writeReport('reports/prototype/variant-aggregate.json', {
     schema_version: 1,
     join_policy: 'aggregate-survivors',
@@ -344,6 +357,7 @@ function writePrototypeVariantReports(root = PROTOTYPE_VARIANT_ROOT): void {
   });
   writeReport('reports/prototype/variant-verification.json', {
     overall_status: 'passed',
+    review_assets: reviewAssets,
     required_captured_provider_evidence_count: 2,
     captured_provider_evidence_count: 2,
     admitted_variant_count: 2,
@@ -1661,6 +1675,88 @@ describe('operator summary writer', () => {
     );
   });
 
+  it('renders trusted checkpoint HTML without changing report files', () => {
+    const briefRelativePath = 'reports/build/brief.json';
+    const briefPath = join(runFolder, briefRelativePath);
+    writeReport(briefRelativePath, buildBrief());
+    const briefBytes = readFileSync(briefPath);
+    const requestPath = join(runFolder, 'reports/checkpoints/frame-step-request.json');
+    writeReport('reports/checkpoints/frame-step-request.json', {
+      schema_version: 1,
+      step_id: 'frame-step',
+      prompt: 'Confirm the Build brief before implementation starts.',
+      allowed_choices: ['continue'],
+      safe_default_choice: 'continue',
+      choices: [{ id: 'continue', label: 'Confirm and start Build' }],
+      execution_context: {
+        project_root: runFolder,
+        axes: { depth: 'high', power: 'balanced' },
+        review_inputs: [{ path: briefRelativePath, sha256: sha256Hex(briefBytes) }],
+      },
+    });
+    const requestBytes = readFileSync(requestPath);
+    const runResult = {
+      schema_version: 1 as const,
+      run_id: RunId.parse('87000000-0000-0000-0000-000000000008'),
+      flow_id: CompiledFlowId.parse('build'),
+      goal: 'Add checkpoint HTML',
+      outcome: 'checkpoint_waiting' as const,
+      summary: "checkpoint 'frame-step' is waiting for an operator choice.",
+      trace_entries_observed: 3,
+      manifest_hash: 'abc123',
+      checkpoint: {
+        step_id: 'frame-step',
+        attempt: 1,
+        request_sha256: sha256Hex(requestBytes),
+        request_path: requestPath,
+        allowed_choices: ['continue'],
+      },
+    };
+    const sentinels = new Map([
+      [
+        join(runFolder, 'reports', 'operator-summary.json'),
+        Buffer.from('{"sentinel":"json \u2603"}\n'),
+      ],
+      [join(runFolder, 'reports', 'operator-summary.md'), Buffer.from('# sentinel markdown\n')],
+      [
+        join(runFolder, 'reports', 'operator-summary.html'),
+        Buffer.from('<!doctype html><title>sentinel HTML</title>\n'),
+      ],
+    ]);
+    for (const [path, bytes] of sentinels) writeFileSync(path, bytes);
+
+    const rendered = renderCheckpointReviewHtml({
+      runFolder,
+      runResult,
+      resumeCommandPrefix: 'circuit resume --run-folder /trusted',
+    });
+
+    expect(rendered.projectRoot).toBe(runFolder);
+    expect(rendered.html).toContain('Add checkpoint HTML');
+    expect(rendered.html).not.toContain('sentinel HTML');
+    for (const [path, bytes] of sentinels) {
+      expect(readFileSync(path)).toEqual(bytes);
+    }
+
+    writeFileSync(briefPath, `${briefBytes.toString('utf8').trim()}\n `);
+    expect(() => renderCheckpointReviewHtml({ runFolder, runResult })).toThrow(/review input/i);
+    writeFileSync(briefPath, briefBytes);
+
+    writeFileSync(requestPath, `${requestBytes.toString('utf8').trim()}\n `);
+    expect(() => renderCheckpointReviewHtml({ runFolder, runResult })).toThrow(/request hash/i);
+    writeFileSync(requestPath, requestBytes);
+
+    // The normal writer reuses the same projection instead of maintaining a
+    // second review-page implementation.
+    const written = writeOperatorSummary({
+      runFolder,
+      runResult,
+      route: { selectedFlow: 'build' },
+      resumeCommandPrefix: 'circuit resume --run-folder /trusted',
+    });
+    expect(written.htmlContent).toBe(rendered.html);
+  });
+
   it('emits operator-summary.html for Build waiting checkpoints and links it from JSON and Markdown', () => {
     writeReport('reports/build/brief.json', buildBrief());
     const requestPath = join(runFolder, 'reports/checkpoints/frame-step-request.json');
@@ -1710,6 +1806,7 @@ describe('operator summary writer', () => {
     });
 
     const html = readFileSync(written.htmlPath as string, 'utf8');
+    expect(written.htmlContent).toBe(html);
     expect(html).toContain('Add checkpoint HTML');
     expect(html).toContain('The scope is bounded and the proof plan is explicit.');
     expect(html).toContain('Touch Build checkpoint presentation only');
@@ -1962,8 +2059,15 @@ describe('operator summary writer', () => {
   });
 
   it('emits pinned-preview HTML for Prototype visual variant checkpoints through operator summary', () => {
-    writePrototypeVariantReports();
     writePrototypeVariantArtifacts(runFolder);
+    const reviewAssets = snapshotCheckpointReviewAssetGroups({
+      projectRoot: runFolder,
+      groups: ['variant-a', 'variant-b'].map((id) => ({
+        root: `${PROTOTYPE_VARIANT_ROOT}/variants/${id}`,
+        entryPoints: [`${PROTOTYPE_VARIANT_ROOT}/variants/${id}/index.html`],
+      })),
+    });
+    writePrototypeVariantReports(PROTOTYPE_VARIANT_ROOT, reviewAssets);
     const requestPath = join(
       runFolder,
       'reports/checkpoints/prototype-variant-choice-request.json',
@@ -1973,6 +2077,7 @@ describe('operator summary writer', () => {
       step_id: 'prototype-variant-checkpoint-step',
       prompt: 'Choose a prototype variant.',
       allowed_choices: ['variant-a', 'variant-b'],
+      execution_context: { project_root: runFolder, review_assets: reviewAssets },
     });
 
     const written = writeOperatorSummary({
@@ -2023,8 +2128,15 @@ describe('operator summary writer', () => {
   it('uses the checkpoint execution context to preview project-root Prototype variant artifacts', () => {
     const projectRoot = join(runFolder, 'project-root');
     const prototypeRoot = '.circuit/prototypes/operator-summary-external';
-    writePrototypeVariantReports(prototypeRoot);
     writePrototypeVariantArtifacts(projectRoot, prototypeRoot);
+    const reviewAssets = snapshotCheckpointReviewAssetGroups({
+      projectRoot,
+      groups: ['variant-a', 'variant-b'].map((id) => ({
+        root: `${prototypeRoot}/variants/${id}`,
+        entryPoints: [`${prototypeRoot}/variants/${id}/index.html`],
+      })),
+    });
+    writePrototypeVariantReports(prototypeRoot, reviewAssets);
     const requestPath = join(
       runFolder,
       'reports/checkpoints/prototype-variant-choice-request.json',
@@ -2034,7 +2146,7 @@ describe('operator summary writer', () => {
       step_id: 'prototype-variant-checkpoint-step',
       prompt: 'Choose a prototype variant.',
       allowed_choices: ['variant-a', 'variant-b'],
-      execution_context: { project_root: projectRoot },
+      execution_context: { project_root: projectRoot, review_assets: reviewAssets },
     });
 
     const written = writeOperatorSummary({

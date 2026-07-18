@@ -3,7 +3,7 @@
   "contract_ref": {
     "kind": "work_contract",
     "ref": "generated/flows/prototype/tournament.work-contract.v0.json",
-    "sha256": "2dd48c4fa0243db77939ed1ea1ec34f5849f1499cdfefc848d76856b1d0fdf37",
+    "sha256": "8b98e834b2c89f618156cbe62e060dcfcc833f46065eda1e3605a33ee9491cd9",
     "flow_id": "prototype"
   },
   "work_contract": {
@@ -484,7 +484,10 @@
         "protocol": "prototype-variant-checkpoint@v1",
         "reads": [
           "reports/prototype/variant-choice-options.json",
-          "reports/prototype/variant-aggregate.json"
+          "reports/prototype/variant-aggregate.json",
+          "reports/prototype/variant-provider-evidence.json",
+          "reports/prototype/variant-verification.json",
+          "reports/prototype/variant-review.json"
         ],
         "writes": {
           "request": "reports/checkpoints/prototype-variant-choice-request.json",
@@ -797,7 +800,7 @@
         "source_ref": {
           "kind": "work_contract",
           "ref": "compiled-flow/steps/frame-step/routes/stop",
-          "sha256": "7e41428b4109d0f23b2f9729304ddd627c0d27d93386cfdc07ecce3136885d07",
+          "sha256": "5ebfc6286319f22b62d238ba0bd9669d919986a27314afc8afbcfdf29ab243d1",
           "flow_id": "prototype"
         }
       },
@@ -828,7 +831,7 @@
         "source_ref": {
           "kind": "work_contract",
           "ref": "compiled-flow/steps/plan-step/routes/stop",
-          "sha256": "7e41428b4109d0f23b2f9729304ddd627c0d27d93386cfdc07ecce3136885d07",
+          "sha256": "5ebfc6286319f22b62d238ba0bd9669d919986a27314afc8afbcfdf29ab243d1",
           "flow_id": "prototype"
         }
       },
@@ -859,7 +862,7 @@
         "source_ref": {
           "kind": "work_contract",
           "ref": "compiled-flow/steps/variant-options-step/routes/stop",
-          "sha256": "7e41428b4109d0f23b2f9729304ddd627c0d27d93386cfdc07ecce3136885d07",
+          "sha256": "5ebfc6286319f22b62d238ba0bd9669d919986a27314afc8afbcfdf29ab243d1",
           "flow_id": "prototype"
         }
       },
@@ -890,7 +893,7 @@
         "source_ref": {
           "kind": "work_contract",
           "ref": "compiled-flow/steps/variant-fanout-step/routes/stop",
-          "sha256": "7e41428b4109d0f23b2f9729304ddd627c0d27d93386cfdc07ecce3136885d07",
+          "sha256": "5ebfc6286319f22b62d238ba0bd9669d919986a27314afc8afbcfdf29ab243d1",
           "flow_id": "prototype"
         }
       },
@@ -921,7 +924,7 @@
         "source_ref": {
           "kind": "work_contract",
           "ref": "compiled-flow/steps/variant-provider-evidence-step/routes/stop",
-          "sha256": "7e41428b4109d0f23b2f9729304ddd627c0d27d93386cfdc07ecce3136885d07",
+          "sha256": "5ebfc6286319f22b62d238ba0bd9669d919986a27314afc8afbcfdf29ab243d1",
           "flow_id": "prototype"
         }
       },
@@ -952,7 +955,7 @@
         "source_ref": {
           "kind": "work_contract",
           "ref": "compiled-flow/steps/variant-verification-step/routes/stop",
-          "sha256": "7e41428b4109d0f23b2f9729304ddd627c0d27d93386cfdc07ecce3136885d07",
+          "sha256": "5ebfc6286319f22b62d238ba0bd9669d919986a27314afc8afbcfdf29ab243d1",
           "flow_id": "prototype"
         }
       },
@@ -983,7 +986,7 @@
         "source_ref": {
           "kind": "work_contract",
           "ref": "compiled-flow/steps/variant-review-step/routes/stop",
-          "sha256": "7e41428b4109d0f23b2f9729304ddd627c0d27d93386cfdc07ecce3136885d07",
+          "sha256": "5ebfc6286319f22b62d238ba0bd9669d919986a27314afc8afbcfdf29ab243d1",
           "flow_id": "prototype"
         }
       },
@@ -1014,7 +1017,7 @@
         "source_ref": {
           "kind": "work_contract",
           "ref": "compiled-flow/steps/variant-choice-options-step/routes/stop",
-          "sha256": "7e41428b4109d0f23b2f9729304ddd627c0d27d93386cfdc07ecce3136885d07",
+          "sha256": "5ebfc6286319f22b62d238ba0bd9669d919986a27314afc8afbcfdf29ab243d1",
           "flow_id": "prototype"
         }
       },
@@ -1045,7 +1048,7 @@
         "source_ref": {
           "kind": "work_contract",
           "ref": "compiled-flow/steps/prototype-variant-checkpoint-step/routes/stop",
-          "sha256": "7e41428b4109d0f23b2f9729304ddd627c0d27d93386cfdc07ecce3136885d07",
+          "sha256": "5ebfc6286319f22b62d238ba0bd9669d919986a27314afc8afbcfdf29ab243d1",
           "flow_id": "prototype"
         }
       },
@@ -1076,7 +1079,7 @@
         "source_ref": {
           "kind": "work_contract",
           "ref": "compiled-flow/steps/close-model-comparison-step/routes/stop",
-          "sha256": "7e41428b4109d0f23b2f9729304ddd627c0d27d93386cfdc07ecce3136885d07",
+          "sha256": "5ebfc6286319f22b62d238ba0bd9669d919986a27314afc8afbcfdf29ab243d1",
           "flow_id": "prototype"
         }
       }
@@ -1090,7 +1093,7 @@
       {
         "kind": "work_contract",
         "ref": "compiled-flow/steps/variant-fanout-step/branches/template/selection",
-        "sha256": "7e41428b4109d0f23b2f9729304ddd627c0d27d93386cfdc07ecce3136885d07",
+        "sha256": "5ebfc6286319f22b62d238ba0bd9669d919986a27314afc8afbcfdf29ab243d1",
         "flow_id": "prototype"
       }
     ],
@@ -1098,7 +1101,7 @@
       {
         "kind": "work_contract",
         "ref": "compiled-flow/steps/variant-fanout-step/branches/template/connector",
-        "sha256": "7e41428b4109d0f23b2f9729304ddd627c0d27d93386cfdc07ecce3136885d07",
+        "sha256": "5ebfc6286319f22b62d238ba0bd9669d919986a27314afc8afbcfdf29ab243d1",
         "flow_id": "prototype"
       }
     ],
@@ -1114,7 +1117,7 @@
       "source_ref": {
         "kind": "work_contract",
         "ref": "compiled-flow/steps/prototype-variant-checkpoint-step/policy/auto_resolution",
-        "sha256": "7e41428b4109d0f23b2f9729304ddd627c0d27d93386cfdc07ecce3136885d07",
+        "sha256": "5ebfc6286319f22b62d238ba0bd9669d919986a27314afc8afbcfdf29ab243d1",
         "flow_id": "prototype"
       }
     }

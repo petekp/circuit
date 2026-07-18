@@ -7,19 +7,15 @@
 
 import { existsSync, readFileSync, writeFileSync } from 'node:fs';
 import path from 'node:path';
-import { fileURLToPath } from 'node:url';
+import { fileURLToPath, pathToFileURL } from 'node:url';
 
 import { build } from 'esbuild';
 
 const repoRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..', '..');
 const entryPath = path.join(repoRoot, 'src', 'shared', 'checkpoint-review', 'browser-runtime.ts');
-const outputPath = path.join(
-  repoRoot,
-  'src',
-  'shared',
-  'html',
-  'checkpoint-review-runtime.generated.ts',
-);
+export const CHECKPOINT_REVIEW_RUNTIME_OUTPUT_PATH =
+  'src/shared/html/checkpoint-review-runtime.generated.ts';
+const outputPath = path.join(repoRoot, CHECKPOINT_REVIEW_RUNTIME_OUTPUT_PATH);
 
 async function compileRuntime(): Promise<string> {
   const result = await build({
@@ -78,4 +74,7 @@ async function main(): Promise<void> {
   console.log(`Wrote ${path.relative(repoRoot, outputPath)} (${rendered.length} bytes).`);
 }
 
-await main();
+const invokedPath = process.argv[1] ? pathToFileURL(path.resolve(process.argv[1])).href : undefined;
+if (invokedPath === import.meta.url) {
+  await main();
+}

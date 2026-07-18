@@ -163,12 +163,51 @@ that work, `trace` as the ordered record, `report` as typed output, and
    run folder under `.circuit/runs/`.
 6. If a checkpoint needs your choice, Circuit pauses. Resume it with:
 
-   Open the `operator_summary_html_path` returned by the CLI when it is
-   available. It is a local review workspace. You can move between options,
-   inspect visual artifacts, and leave notes. The page saves the draft in that
-   browser and prepares one typed resume command containing the choice and
-   comments. Those notes are saved with the checkpoint record and any flow
-   report that explicitly carries review comments.
+   When `operator_summary_html_path` is available, start the local review
+   session and leave the command running:
+
+   ```bash
+   ./bin/circuit resume \
+     --run-folder '<run_folder>' \
+     --checkpoint-review
+   ```
+
+   Circuit starts a trusted local review session from the saved run. It tries
+   to open the page, but automatic opening is best effort. Circuit always
+   emits the local URL in `checkpoint_review.ready`, and the host surfaces it
+   immediately even if the browser does not open. Move between options, inspect
+   visual artifacts, and leave notes. **Done** saves that exact selection and
+   those notes to the checkpoint record, then continues the run automatically.
+   No command needs to be copied back from the page.
+
+   Artifact previews are deliberately safe and static. Circuit serves captured
+   HTML, CSS, images, and fonts, and native controls such as `details` still
+   work. Model-authored scripts, links, forms, nested frames, redirects, and PDF
+   previews are disabled so an artifact cannot contact another server while it
+   is being reviewed. The full-size view has the same restrictions.
+
+   The normal resume path validates the review and records it under the resume
+   lock. The page reports success only after Circuit rereads the canonical and
+   attempt-specific response files and trace and proves they exactly match the
+   review. The page immediately acknowledges that result with one exact replay,
+   so a dropped success response can still recover during a short, bounded
+   window. A stale or already-closed checkpoint ends the local command with an
+   error instead of waiting forever.
+
+   Exporting review JSON is a manual fallback only. If the local review session
+   cannot finish, use **Export review JSON** in the static report and resume
+   from that file:
+
+   ```bash
+   ./bin/circuit resume \
+     --run-folder '<run_folder>' \
+     --checkpoint-response-file '/absolute/path/to/exported-review.json'
+   ```
+
+   Relative response-file paths resolve from Circuit's current working
+   directory, not from the run folder. The file must be regular JSON no larger
+   than 64 KiB. Exporting or saving a review file alone never approves a
+   checkpoint; the explicit resume command is still required.
 
    The plain choice command remains available as a fallback:
 
@@ -260,12 +299,20 @@ explicit development override, or set `CIRCUIT_DEV=1` to allow repo-local and
 connector works without Codex. Install Codex only if you want Circuit to route
 worker relays through the Codex CLI.
 
-**A run is waiting at a checkpoint.** Resume it with the run folder and one of
-the allowed checkpoint choices. If the CLI returned an
-`operator_summary_html_path`, open that page first to review the options and
-prepare a response with comments. The page tells you when the draft is only
-saved in the browser; Circuit does not receive it until you run the copied
-command.
+**A run is waiting at a checkpoint.** If the CLI returned an
+`operator_summary_html_path`, start the blocking local review session:
+
+```bash
+./bin/circuit resume \
+  --run-folder '<run_folder>' \
+  --checkpoint-review
+```
+
+Circuit regenerates the trusted page and surfaces its loopback URL. Leave the
+command running, review the options, add comments, and press **Done**. Circuit
+saves that exact review and continues the run. The static HTML path still
+supports manual copy and export when the local session cannot start; opening
+the page or saving a draft never approves the checkpoint.
 
 The plain choice form remains supported:
 

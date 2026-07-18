@@ -1,9 +1,10 @@
-import { randomUUID } from 'node:crypto';
+import { createHash, randomUUID } from 'node:crypto';
 import { existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs';
 import { mkdir, mkdtemp, readFile, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { dirname, join, resolve } from 'node:path';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
+import { renderCheckpointReviewHtml } from '../../src/app/operator-summary/writer.js';
 import { projectRunStatusFromRunFolder } from '../../src/app/run-status/run-folder-projector.js';
 import { main } from '../../src/cli/circuit.js';
 import type { StepOutcome } from '../../src/runtime/domain/step.js';
@@ -23,9 +24,11 @@ import { isGraphCheckpointWaitingResult } from '../../src/runtime/run/graph-runn
 import type { GraphRunResult } from '../../src/runtime/run/run-close.js';
 import { CheckpointReviewResponse } from '../../src/schemas/checkpoint-review-response.js';
 import { LayeredConfig } from '../../src/schemas/config.js';
+import { CompiledFlowId, RunId } from '../../src/schemas/ids.js';
 import { PolicyLayer } from '../../src/schemas/policy-envelope.js';
 import { ProgressEvent } from '../../src/schemas/progress-event.js';
 import { RunResult } from '../../src/schemas/result.js';
+import { snapshotCheckpointReviewAssetGroups } from '../../src/shared/checkpoint-review-assets.js';
 import { sha256Hex } from '../../src/shared/connector-relay.js';
 import type { RelayFn, RelayInput } from '../../src/shared/relay-runtime-types.js';
 import { runResultPath } from '../../src/shared/result-path.js';
@@ -182,6 +185,100 @@ function checkpointFixtureFlow(
           required: ['summary'],
         },
       },
+    ],
+  };
+}
+
+function checkpointReviewAssetsFixtureFlow(): unknown {
+  const base = checkpointFixtureFlow() as {
+    readonly stages: readonly Record<string, unknown>[];
+    readonly steps: readonly Record<string, unknown>[];
+    readonly [key: string]: unknown;
+  };
+  return {
+    ...base,
+    starts_at: 'review-source-step',
+    stages: base.stages.map((stage) =>
+      stage.id === 'frame-stage'
+        ? { ...stage, steps: ['review-source-step', 'checkpoint-step'] }
+        : stage,
+    ),
+    steps: [
+      {
+        id: 'review-source-step',
+        title: 'Review source - bind artifact identity',
+        protocol: 'checkpoint-fixture-review-source@v1',
+        reads: [],
+        routes: { pass: 'checkpoint-step' },
+        executor: 'orchestrator',
+        kind: 'compose',
+        writes: {
+          report: {
+            path: 'reports/review-assets.json',
+            schema: 'checkpoint.fixture.review-assets@v1',
+          },
+        },
+        check: {
+          kind: 'schema_sections',
+          source: { kind: 'report', ref: 'report' },
+          required: ['summary'],
+        },
+      },
+      ...base.steps.map((step) =>
+        step.id === 'checkpoint-step' ? { ...step, reads: ['reports/review-assets.json'] } : step,
+      ),
+    ],
+  };
+}
+
+function checkpointOpaqueReadsFixtureFlow(): unknown {
+  const base = checkpointFixtureFlow() as {
+    readonly stages: readonly Record<string, unknown>[];
+    readonly steps: readonly Record<string, unknown>[];
+    readonly [key: string]: unknown;
+  };
+  return {
+    ...base,
+    id: 'checkpoint-opaque-reads-fixture',
+    starts_at: 'review-input-source-step',
+    stages: base.stages.map((stage) =>
+      stage.id === 'frame-stage'
+        ? { ...stage, steps: ['review-input-source-step', 'checkpoint-step'] }
+        : stage,
+    ),
+    steps: [
+      {
+        id: 'review-input-source-step',
+        title: 'Review input source - create opaque fixture files',
+        protocol: 'checkpoint-fixture-review-input-source@v1',
+        reads: [],
+        routes: { pass: 'checkpoint-step' },
+        executor: 'orchestrator',
+        kind: 'compose',
+        writes: {
+          report: {
+            path: 'reports/review-input-source.json',
+            schema: 'checkpoint.fixture.review-input-source@v1',
+          },
+        },
+        check: {
+          kind: 'schema_sections',
+          source: { kind: 'report', ref: 'report' },
+          required: ['summary'],
+        },
+      },
+      ...base.steps.map((step) =>
+        step.id === 'checkpoint-step'
+          ? {
+              ...step,
+              reads: [
+                'reports/operator-notes.bin',
+                'reports/primitive.json',
+                'reports/operator-notes.bin',
+              ],
+            }
+          : step,
+      ),
     ],
   };
 }
@@ -540,6 +637,8 @@ function fixtureExecutors(
       readonly policyLayerCount: number;
     }>;
     composeCalls?: string[];
+    composeReports?: Readonly<Record<string, Readonly<Record<string, unknown>>>>;
+    onCompose?: (stepId: string, runDir: string) => Promise<void>;
   } = {},
 ): Partial<ExecutorRegistry> {
   return {
@@ -548,10 +647,12 @@ function fixtureExecutors(
       observed.composeCalls?.push(step.id);
       const report = step.writes?.report;
       if (report === undefined) throw new Error(`compose step '${step.id}' has no report write`);
+      await observed.onCompose?.(step.id, context.runDir);
       await context.files.writeJson(
         { path: report.path },
         {
           summary: `compose ${step.id} completed`,
+          ...observed.composeReports?.[step.id],
         },
       );
       return { route: 'pass', details: { writer: step.writer } };
@@ -659,10 +760,13 @@ async function rewriteCheckpointRequestTrace(
 
 async function createWaitingFixture(input: {
   readonly runDir: string;
+  readonly projectRoot?: string;
   readonly now?: () => Date;
   readonly progress?: (event: unknown) => void;
   readonly flowBytes?: Buffer;
   readonly policyLayers?: readonly ReturnType<typeof policyLayer>[];
+  readonly composeReports?: Readonly<Record<string, Readonly<Record<string, unknown>>>>;
+  readonly onCompose?: (stepId: string, runDir: string) => Promise<void>;
 }) {
   const result = await runCompiledFlowWithWaiting({
     flowBytes: input.flowBytes ?? fixtureBytes(),
@@ -670,14 +774,17 @@ async function createWaitingFixture(input: {
     runId: RUN_ID,
     goal: GOAL,
     entryModeName: 'high',
-    projectRoot: input.runDir,
+    projectRoot: input.projectRoot ?? input.runDir,
     selectionConfigLayers: [selectionLayer()],
     ...(input.policyLayers === undefined ? {} : { policyLayers: input.policyLayers }),
     ...(input.now === undefined ? {} : { now: input.now }),
     ...(input.progress === undefined ? {} : { progress: input.progress }),
-    executors: fixtureExecutors(),
+    executors: fixtureExecutors({
+      ...(input.composeReports === undefined ? {} : { composeReports: input.composeReports }),
+      ...(input.onCompose === undefined ? {} : { onCompose: input.onCompose }),
+    }),
   });
-  expect(isGraphCheckpointWaitingResult(result)).toBe(true);
+  expect(isGraphCheckpointWaitingResult(result), JSON.stringify(result)).toBe(true);
   if (!isGraphCheckpointWaitingResult(result)) throw new Error('expected waiting checkpoint');
   return result;
 }
@@ -743,6 +850,138 @@ describe('runtime checkpoint pause/resume fixture', () => {
     const progressTypes = progressEvents.map((event) => (event as { readonly type: string }).type);
     expect(progressTypes).toContain('checkpoint.waiting');
     expect(progressTypes).toContain('user_input.requested');
+  });
+
+  it('still rejects a resume that leaves the same checkpoint request unresolved', async () => {
+    const runDir = join(tempDir, 'same-checkpoint-unresolved');
+    const waiting = await createWaitingFixture({ runDir });
+
+    const resumed = await resumeCompiledFlowResult({
+      runDir,
+      selection: 'continue',
+      executors: {
+        checkpoint: async (): Promise<StepOutcome> => ({
+          kind: 'waiting_checkpoint',
+          checkpoint: waiting.checkpoint,
+        }),
+      },
+    });
+
+    expect(isCheckpointResumeRejectedResult(resumed)).toBe(true);
+    if (!isCheckpointResumeRejectedResult(resumed)) {
+      throw new Error('expected the unresolved checkpoint resume to be rejected');
+    }
+    expect(resumed.reason).toMatch(/did not resolve checkpoint/i);
+  });
+
+  it('parks, renders, and resumes when checkpoint reads include opaque bytes, primitive JSON, and duplicate paths', async () => {
+    const runDir = join(tempDir, 'opaque-review-inputs');
+    const opaqueBytes = Buffer.from([0xff, 0x00, 0x80, 0x41, 0x0a]);
+    const primitiveBytes = Buffer.from('42\n');
+
+    const waiting = await createWaitingFixture({
+      runDir,
+      flowBytes: fixtureBytes(checkpointOpaqueReadsFixtureFlow()),
+      onCompose: async (stepId, activeRunDir) => {
+        if (stepId !== 'review-input-source-step') return;
+        await mkdir(join(activeRunDir, 'reports'), { recursive: true });
+        await writeFile(join(activeRunDir, 'reports/operator-notes.bin'), opaqueBytes);
+        await writeFile(join(activeRunDir, 'reports/primitive.json'), primitiveBytes);
+      },
+    });
+    const request = JSON.parse(await readFile(waiting.checkpoint.requestPath, 'utf8')) as {
+      readonly execution_context: { readonly review_inputs: unknown };
+    };
+    expect(request.execution_context.review_inputs).toEqual([
+      {
+        path: 'reports/operator-notes.bin',
+        sha256: createHash('sha256').update(opaqueBytes).digest('hex'),
+      },
+      {
+        path: 'reports/primitive.json',
+        sha256: createHash('sha256').update(primitiveBytes).digest('hex'),
+      },
+    ]);
+
+    const rendered = renderCheckpointReviewHtml({
+      runFolder: runDir,
+      runResult: {
+        schema_version: 1,
+        run_id: RunId.parse(waiting.runId),
+        flow_id: CompiledFlowId.parse(waiting.flowId),
+        goal: GOAL,
+        outcome: 'checkpoint_waiting',
+        summary: "checkpoint 'checkpoint-step' is waiting for an operator choice.",
+        trace_entries_observed: waiting.traceEntriesObserved,
+        manifest_hash: 'fixture-manifest',
+        checkpoint: {
+          step_id: waiting.checkpoint.stepId,
+          attempt: waiting.checkpoint.attempt,
+          request_path: waiting.checkpoint.requestPath,
+          request_sha256: waiting.checkpoint.requestSha256,
+          allowed_choices: waiting.checkpoint.allowedChoices,
+        },
+      },
+    });
+    expect(rendered.html).toContain('Choose whether the runtime fixture should continue.');
+
+    const resumed = await resumeCompiledFlowResult({
+      runDir,
+      selection: 'continue',
+      relayer: fixtureRelayer(),
+      executors: fixtureExecutors(),
+    });
+    expect(isCheckpointResumeRejectedResult(resumed)).toBe(false);
+    if (isCheckpointResumeRejectedResult(resumed)) throw resumed.error;
+    expect(resumed.result.outcome).toBe('complete');
+  });
+
+  it('rejects rendering and resume when an opaque checkpoint read changes after parking', async () => {
+    const runDir = join(tempDir, 'changed-opaque-review-input');
+    const waiting = await createWaitingFixture({
+      runDir,
+      flowBytes: fixtureBytes(checkpointOpaqueReadsFixtureFlow()),
+      onCompose: async (stepId, activeRunDir) => {
+        if (stepId !== 'review-input-source-step') return;
+        await mkdir(join(activeRunDir, 'reports'), { recursive: true });
+        await writeFile(
+          join(activeRunDir, 'reports/operator-notes.bin'),
+          Buffer.from([0xff, 0x00, 0x41]),
+        );
+        await writeFile(join(activeRunDir, 'reports/primitive.json'), 'false\n');
+      },
+    });
+    const traceBefore = await readFile(join(runDir, 'trace.ndjson'), 'utf8');
+    await writeFile(join(runDir, 'reports/operator-notes.bin'), Buffer.from([0xfe, 0x00, 0x41]));
+
+    expect(() =>
+      renderCheckpointReviewHtml({
+        runFolder: runDir,
+        runResult: {
+          schema_version: 1,
+          run_id: RunId.parse(waiting.runId),
+          flow_id: CompiledFlowId.parse(waiting.flowId),
+          goal: GOAL,
+          outcome: 'checkpoint_waiting',
+          summary: "checkpoint 'checkpoint-step' is waiting for an operator choice.",
+          trace_entries_observed: waiting.traceEntriesObserved,
+          manifest_hash: 'fixture-manifest',
+          checkpoint: {
+            step_id: waiting.checkpoint.stepId,
+            attempt: waiting.checkpoint.attempt,
+            request_path: waiting.checkpoint.requestPath,
+            request_sha256: waiting.checkpoint.requestSha256,
+            allowed_choices: waiting.checkpoint.allowedChoices,
+          },
+        },
+      }),
+    ).toThrow(/review input.*hash/i);
+
+    const resumed = await resumeCompiledFlowResult({ runDir, selection: 'continue' });
+    expect(isCheckpointResumeRejectedResult(resumed)).toBe(true);
+    if (!isCheckpointResumeRejectedResult(resumed)) throw new Error('expected resume rejection');
+    expect(resumed.reason).toMatch(/review input.*changed/i);
+    expect(await readFile(join(runDir, 'trace.ndjson'), 'utf8')).toBe(traceBefore);
   });
 
   it('resumes into a sub-run whose child fails and degrades onto stop -> @stop instead of hard-aborting', async () => {
@@ -883,13 +1122,20 @@ describe('runtime checkpoint pause/resume fixture', () => {
 
     // First resume: cross the build-gate, the build fails, and the run parks at
     // the retry-gate instead of closing.
-    await resumeCompiledFlowResult({
+    const resumed = await resumeCompiledFlowResult({
       runDir,
       selection: 'continue',
       now: deterministicNow(Date.UTC(2026, 0, 3)),
       childCompiledFlowResolver: () => ({ flowBytes: fixtureBytes(checkpointSubRunChildFlow()) }),
       childRunner: makeAbortingChildRunner(),
     });
+    expect(isCheckpointResumeRejectedResult(resumed)).toBe(false);
+    if (isCheckpointResumeRejectedResult(resumed)) throw resumed.error;
+    expect(isGraphCheckpointWaitingResult(resumed.result)).toBe(true);
+    if (!isGraphCheckpointWaitingResult(resumed.result)) {
+      throw new Error('expected resume to park at the fresh retry gate');
+    }
+    expect(resumed.result.checkpoint.stepId).toBe('retry-gate');
     const status = projectRunStatusFromRunFolder(runDir);
     expect(status.engine_state).toBe('waiting_checkpoint');
     expect(status.legal_next_actions).toContain('resume');
@@ -1070,10 +1316,9 @@ describe('runtime checkpoint pause/resume fixture', () => {
     expect(projectRunStatusFromRunFolder(runDir).engine_state).toBe('waiting_checkpoint');
 
     // Resume 2 — cross the build-gate (`continue`): the child build runs and fails,
-    // and the run parks resumably at the FRESH retry-gate instead of closing. (A
-    // continuation that re-parks at a new checkpoint surfaces as a rejected resume
-    // result — the durable proof is the run-folder state, exactly as the retry-gate
-    // fixture test above relies on.)
+    // and the run parks resumably at the FRESH retry-gate instead of closing. A
+    // continuation that reaches a different checkpoint is a successful resume;
+    // the caller must surface the new checkpoint rather than report a false failure.
     const afterBuild = await resumeCompiledFlowResult({
       runDir,
       selection: 'continue',
@@ -1082,7 +1327,13 @@ describe('runtime checkpoint pause/resume fixture', () => {
       childCompiledFlowResolver: buildChildResolver,
       childRunner: failingBuildChildRunner,
     });
-    expect(isCheckpointResumeRejectedResult(afterBuild)).toBe(true);
+    expect(isCheckpointResumeRejectedResult(afterBuild)).toBe(false);
+    if (isCheckpointResumeRejectedResult(afterBuild)) throw afterBuild.error;
+    expect(isGraphCheckpointWaitingResult(afterBuild.result)).toBe(true);
+    if (!isGraphCheckpointWaitingResult(afterBuild.result)) {
+      throw new Error('expected the real explainer to park at its retry gate');
+    }
+    expect(afterBuild.result.checkpoint.stepId).toBe('retry-gate-step');
     const parkedAtRetry = projectRunStatusFromRunFolder(runDir);
     expect(parkedAtRetry.engine_state).toBe('waiting_checkpoint'); // resumable, editorial preserved
     expect(parkedAtRetry.legal_next_actions).toContain('resume');
@@ -1237,9 +1488,107 @@ describe('runtime checkpoint pause/resume fixture', () => {
     });
   });
 
+  it('rejects a response when a bound review artifact changes after parking without mutating the run', async () => {
+    const runDir = join(tempDir, 'changed-review-asset');
+    const projectRoot = join(tempDir, 'changed-review-asset-project');
+    const artifactPath = join(projectRoot, 'review/index.html');
+    await mkdir(dirname(artifactPath), { recursive: true });
+    await writeFile(artifactPath, '<!doctype html><main>Original review</main>');
+    const reviewAsset = snapshotCheckpointReviewAssetGroups({
+      projectRoot,
+      groups: [{ root: 'review', entryPoints: ['review/index.html'] }],
+    })[0];
+    expect(reviewAsset).toBeDefined();
+    if (reviewAsset === undefined) throw new Error('expected a review asset snapshot');
+
+    const waiting = await createWaitingFixture({
+      runDir,
+      projectRoot,
+      flowBytes: fixtureBytes(checkpointReviewAssetsFixtureFlow()),
+      composeReports: {
+        'review-source-step': {
+          review_assets: [reviewAsset],
+        },
+      },
+    });
+    const request = JSON.parse(await readFile(waiting.checkpoint.requestPath, 'utf8')) as {
+      readonly execution_context: {
+        readonly review_inputs: unknown;
+        readonly review_assets: unknown;
+      };
+    };
+    expect(request.execution_context.review_inputs).toEqual([
+      {
+        path: 'reports/review-assets.json',
+        sha256: sha256Hex(await readFile(join(runDir, 'reports/review-assets.json'), 'utf8')),
+      },
+    ]);
+    expect(request.execution_context.review_assets).toEqual([reviewAsset]);
+    const tracePath = join(runDir, 'trace.ndjson');
+    const traceBefore = await readFile(tracePath, 'utf8');
+    const canonicalResponsePath = join(runDir, 'reports/checkpoints/checkpoint-step-response.json');
+    const attemptResponsePath = join(
+      runDir,
+      'reports/checkpoints/checkpoint-step-response.attempt-1.json',
+    );
+    const resumeLockPath = join(runDir, 'resume.lock');
+    const reclaimLockPath = join(runDir, 'resume.lock.reclaiming');
+    expect(existsSync(canonicalResponsePath)).toBe(false);
+    expect(existsSync(attemptResponsePath)).toBe(false);
+    expect(existsSync(resumeLockPath)).toBe(false);
+    expect(existsSync(reclaimLockPath)).toBe(false);
+
+    await writeFile(artifactPath, '<!doctype html><main>Changed after parking</main>');
+    const result = await resumeCompiledFlowResult({
+      runDir,
+      selection: 'continue',
+      checkpointResponse: CheckpointReviewResponse.parse({
+        schema: 'checkpoint.review-response@v1',
+        run_id: RUN_ID,
+        step_id: 'checkpoint-step',
+        attempt: waiting.checkpoint.attempt,
+        request_sha256: waiting.checkpoint.requestSha256,
+        selection: 'continue',
+        comments: [{ scope: 'overall', body: 'Approve only the artifact I reviewed.' }],
+      }),
+      relayer: fixtureRelayer(),
+      executors: fixtureExecutors(),
+    });
+
+    expect(isCheckpointResumeRejectedResult(result)).toBe(true);
+    if (!isCheckpointResumeRejectedResult(result)) {
+      throw new Error('expected the changed review asset to reject resume');
+    }
+    expect(result.reason).toMatch(/review asset.*changed/i);
+    expect(await readFile(tracePath, 'utf8')).toBe(traceBefore);
+    expect(existsSync(canonicalResponsePath)).toBe(false);
+    expect(existsSync(attemptResponsePath)).toBe(false);
+    expect(existsSync(resumeLockPath)).toBe(false);
+    expect(existsSync(reclaimLockPath)).toBe(false);
+  });
+
   it.each([
     {
+      label: 'a different run',
+      expectedCode: 'checkpoint_response_wrong_run',
+      responseIdentity: (attempt: number, requestSha256: string) => ({
+        run_id: '92000000-0000-4000-8000-000000000002',
+        attempt,
+        request_sha256: requestSha256,
+      }),
+    },
+    {
+      label: 'a different checkpoint step',
+      expectedCode: 'checkpoint_response_wrong_step',
+      responseIdentity: (attempt: number, requestSha256: string) => ({
+        step_id: 'other-checkpoint-step',
+        attempt,
+        request_sha256: requestSha256,
+      }),
+    },
+    {
       label: 'a different attempt',
+      expectedCode: 'checkpoint_response_stale_attempt',
       responseIdentity: (attempt: number, requestSha256: string) => ({
         attempt: attempt + 1,
         request_sha256: requestSha256,
@@ -1247,6 +1596,7 @@ describe('runtime checkpoint pause/resume fixture', () => {
     },
     {
       label: 'a different request hash',
+      expectedCode: 'checkpoint_response_stale_request',
       responseIdentity: (attempt: number) => ({
         attempt,
         request_sha256: 'f'.repeat(64),
@@ -1254,7 +1604,7 @@ describe('runtime checkpoint pause/resume fixture', () => {
     },
   ])(
     'rejects a typed response for $label without changing the trace',
-    async ({ responseIdentity }) => {
+    async ({ responseIdentity, expectedCode }) => {
       const runDir = join(tempDir, `stale-response-${randomUUID()}`);
       const waiting = await createWaitingFixture({
         runDir,
@@ -1283,9 +1633,58 @@ describe('runtime checkpoint pause/resume fixture', () => {
       expect(isCheckpointResumeRejectedResult(result)).toBe(true);
       if (!isCheckpointResumeRejectedResult(result)) throw new Error('expected stale response');
       expect(result.reason).toContain('checkpoint response does not match');
+      expect(result.code).toBe(expectedCode);
       expect(await readTrace(runDir)).toEqual(traceBefore);
     },
   );
+
+  it.each([
+    {
+      label: 'a selection that differs from the resume selection',
+      expectedCode: 'checkpoint_response_selection_mismatch',
+      responsePatch: { selection: 'different-selection', comments: [] },
+    },
+    {
+      label: 'a comment for a choice that is no longer available',
+      expectedCode: 'checkpoint_response_comment_choice_unavailable',
+      responsePatch: {
+        selection: 'continue',
+        comments: [
+          {
+            scope: 'choice' as const,
+            choice_id: 'removed-choice',
+            body: 'This comment must not be written.',
+          },
+        ],
+      },
+    },
+  ])('returns a structured rejection for $label', async ({ expectedCode, responsePatch }) => {
+    const runDir = join(tempDir, `response-rejection-${randomUUID()}`);
+    const waiting = await createWaitingFixture({
+      runDir,
+      now: deterministicNow(Date.UTC(2026, 0, 2)),
+    });
+    const traceBefore = await readTrace(runDir);
+
+    const result = await resumeCompiledFlowResult({
+      runDir,
+      selection: 'continue',
+      checkpointResponse: CheckpointReviewResponse.parse({
+        schema: 'checkpoint.review-response@v1',
+        run_id: RUN_ID,
+        step_id: 'checkpoint-step',
+        attempt: waiting.checkpoint.attempt,
+        request_sha256: waiting.checkpoint.requestSha256,
+        ...responsePatch,
+      }),
+      now: deterministicNow(Date.UTC(2026, 0, 3)),
+    });
+
+    expect(isCheckpointResumeRejectedResult(result)).toBe(true);
+    if (!isCheckpointResumeRejectedResult(result)) throw new Error('expected rejected response');
+    expect(result.code).toBe(expectedCode);
+    expect(await readTrace(runDir)).toEqual(traceBefore);
+  });
 
   it('re-threads the typed-lookup context channel on resume so a resumed step that asks for context is recorded', async () => {
     // BUILD 3 — the resume re-thread. A run parks at a checkpoint, then resumes

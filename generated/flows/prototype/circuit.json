@@ -182,7 +182,12 @@
       "id": "prototype-checkpoint-step",
       "title": "Review - decide Prototype disposition",
       "protocol": "prototype-checkpoint@v1",
-      "reads": ["reports/prototype/artifact.json", "reports/prototype/verification.json"],
+      "reads": [
+        "reports/prototype/brief.json",
+        "reports/prototype/plan.json",
+        "reports/prototype/artifact.json",
+        "reports/prototype/verification.json"
+      ],
       "routes": {
         "continue": "close-step",
         "pass": "close-step",

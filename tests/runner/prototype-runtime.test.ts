@@ -10,8 +10,10 @@ import {
 import { tmpdir } from 'node:os';
 import { dirname, join, resolve } from 'node:path';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
-import { deterministicNow } from '../helpers/runtime-fixtures.js';
+import { captureStreams, deterministicNow } from '../helpers/runtime-fixtures.js';
 
+import { projectRunStatusFromRunFolder } from '../../src/app/run-status/run-folder-projector.js';
+import { parseExecutionArgs, runResumeCommand } from '../../src/cli/run.js';
 import {
   PrototypeArtifact,
   PrototypePlan,
@@ -602,37 +604,105 @@ describe('Prototype runtime wiring', () => {
       'local-fixture-b',
     ]);
 
-    const resumed = await resumeCompiledFlow({
-      runDir: runFolder,
-      selection: 'variant-b',
-      checkpointResponse: CheckpointReviewResponse.parse({
-        schema: 'checkpoint.review-response@v1',
-        run_id: '94000000-0000-0000-0000-000000000007',
-        step_id: 'prototype-variant-checkpoint-step',
-        attempt: waiting.checkpoint.attempt,
-        request_sha256: waiting.checkpoint.requestSha256,
+    const reviewReportPath = join(runFolder, 'reports/prototype/variant-review.json');
+    const originalReviewReport = readFileSync(reviewReportPath);
+    const changedReviewReport = JSON.parse(originalReviewReport.toString('utf8')) as Record<
+      string,
+      unknown
+    >;
+    changedReviewReport.comparison_summary =
+      'A changed recommendation must not appear under the old checkpoint identity.';
+    writeFileSync(reviewReportPath, `${JSON.stringify(changedReviewReport, null, 2)}\n`);
+    await expect(
+      resumeCompiledFlow({
+        runDir: runFolder,
         selection: 'variant-b',
-        comments: [
-          {
-            scope: 'choice',
-            choice_id: 'variant-a',
-            body: 'The opening is calm, but the comparison is too shallow.',
-          },
-          {
-            scope: 'choice',
-            choice_id: 'variant-b',
-            body: 'Keep the clearer navigation and shorten the intro.',
-          },
-          {
-            scope: 'overall',
-            body: 'Carry the restrained visual language into Build.',
-          },
-        ],
+        now: deterministicNow(Date.UTC(2026, 4, 20, 9, 18, 0)),
       }),
-      now: deterministicNow(Date.UTC(2026, 4, 20, 9, 20, 0)),
-    });
+    ).rejects.toThrow(/review input .* changed/i);
+    let openedChangedReview = false;
+    const blocked = await captureStreams(() =>
+      runResumeCommand(
+        parseExecutionArgs('resume', ['--run-folder', runFolder, '--checkpoint-review']),
+        {
+          now: deterministicNow(Date.UTC(2026, 4, 20, 9, 19, 0)),
+          openCheckpointReview: () => {
+            openedChangedReview = true;
+          },
+        },
+      ),
+    );
+    expect(blocked.result).toBe(2);
+    expect(blocked.stderr).toContain('could not regenerate the trusted checkpoint review page');
+    expect(openedChangedReview).toBe(false);
+    writeFileSync(reviewReportPath, originalReviewReport);
 
-    expect(resumed.outcome).toBe('complete');
+    const reviewResponse = CheckpointReviewResponse.parse({
+      schema: 'checkpoint.review-response@v1',
+      run_id: '94000000-0000-0000-0000-000000000007',
+      step_id: 'prototype-variant-checkpoint-step',
+      attempt: waiting.checkpoint.attempt,
+      request_sha256: waiting.checkpoint.requestSha256,
+      selection: 'variant-b',
+      comments: [
+        {
+          scope: 'choice',
+          choice_id: 'variant-a',
+          body: 'The opening is calm, but the comparison is too shallow.',
+        },
+        {
+          scope: 'choice',
+          choice_id: 'variant-b',
+          body: 'Keep the clearer navigation and shorten the intro.',
+        },
+        {
+          scope: 'overall',
+          body: 'Carry the restrained visual language into Build.',
+        },
+      ],
+    });
+    const args = parseExecutionArgs('resume', ['--run-folder', runFolder, '--checkpoint-review']);
+    let browserSubmission: Promise<Response> | undefined;
+
+    const command = captureStreams(() =>
+      runResumeCommand(args, {
+        now: deterministicNow(Date.UTC(2026, 4, 20, 9, 20, 0)),
+        openCheckpointReview: (url) => {
+          browserSubmission = (async () => {
+            const page = await fetch(url);
+            const html = await page.text();
+            const match = html.match(/window\.__CIRCUIT_REVIEW_SESSION__ = (.*?);<\/script>/);
+            if (match?.[1] === undefined) throw new Error('missing review bootstrap');
+            const session = JSON.parse(match[1]) as {
+              readonly endpoint: string;
+              readonly authorization: string;
+            };
+            const submit = () =>
+              fetch(session.endpoint, {
+                method: 'POST',
+                headers: {
+                  Origin: new URL(url).origin,
+                  'Content-Type': 'application/json',
+                  'X-Circuit-Review-Session': session.authorization,
+                },
+                body: JSON.stringify(reviewResponse),
+              });
+            const accepted = await submit();
+            if (accepted.ok) await submit();
+            return accepted;
+          })();
+        },
+      }),
+    );
+
+    const { result: exitCode, stderr } = await command;
+    const submitted = browserSubmission;
+    if (submitted === undefined) throw new Error(`review browser was not opened: ${stderr}`);
+    const submissionResponse = await submitted;
+
+    expect(submissionResponse.status).toBe(200);
+    expect(exitCode).toBe(0);
+    expect(stderr).not.toContain('error:');
     const result = PrototypeResult.parse(readJson(runFolder, 'reports/prototype-result.json'));
     expect(result).toMatchObject({
       mode: 'model-comparison',
@@ -645,11 +715,132 @@ describe('Prototype runtime wiring', () => {
       verification_status: 'passed',
       captured_provider_evidence_count: 2,
       model_evidence_status: 'captured',
-      checkpoint_comments: [
-        { scope: 'choice', choice_id: 'variant-a' },
-        { scope: 'choice', choice_id: 'variant-b' },
-        { scope: 'overall' },
+      checkpoint_comments: reviewResponse.comments,
+    });
+    expect(result.checkpoint_comments).toEqual(reviewResponse.comments);
+  });
+
+  it('rejects a trusted browser review when a bound artifact changes after the page opens', async () => {
+    const bytes = readFileSync(TOURNAMENT_FIXTURE_PATH);
+    const runFolder = join(projectRoot, '.circuit/runs/model-comparison');
+    const runId = '94000000-0000-0000-0000-000000000017';
+
+    const waiting = await runCompiledFlowWithWaiting({
+      runDir: runFolder,
+      flowBytes: bytes,
+      runId,
+      goal: 'prototype: reject a changed review artifact after opening the trusted page',
+      entryModeName: 'tournament',
+      axes: { depth: 'medium', tournament: true, tournament_n: 2, autonomous: false },
+      now: deterministicNow(Date.UTC(2026, 4, 20, 9, 30, 0)),
+      projectRoot,
+      selectionConfigLayers: [variantLayer()],
+      relayer: prototypeVariantRelayer({ runFolder, projectRoot }),
+    });
+
+    expect(waiting.outcome).toBe('checkpoint_waiting');
+    if (!isGraphCheckpointWaitingResult(waiting)) throw new Error('expected checkpoint_waiting');
+
+    const changedEntryPoint =
+      '.circuit/runs/model-comparison/prototype-files/variants/variant-b/index.html';
+    const verification = PrototypeVariantVerification.parse(
+      readJson(runFolder, 'reports/prototype/variant-verification.json'),
+    );
+    expect(
+      verification.review_assets.some(
+        (group) =>
+          group.entry_points.includes(changedEntryPoint) &&
+          group.files.some((file) => file.path === changedEntryPoint),
+      ),
+    ).toBe(true);
+
+    const response = CheckpointReviewResponse.parse({
+      schema: 'checkpoint.review-response@v1',
+      run_id: runId,
+      step_id: 'prototype-variant-checkpoint-step',
+      attempt: waiting.checkpoint.attempt,
+      request_sha256: waiting.checkpoint.requestSha256,
+      selection: 'variant-b',
+      comments: [
+        {
+          scope: 'choice',
+          choice_id: 'variant-b',
+          body: 'Use the quieter second option.',
+        },
       ],
+    });
+    const tracePath = join(runFolder, 'trace.ndjson');
+    const traceBefore = readFileSync(tracePath);
+    const canonicalResponsePath = join(
+      runFolder,
+      'reports/checkpoints/prototype-variant-choice-response.json',
+    );
+    const attemptResponsePath = join(
+      runFolder,
+      `reports/checkpoints/prototype-variant-choice-response.attempt-${waiting.checkpoint.attempt}.json`,
+    );
+    let browserSubmission: Promise<{ readonly status: number; readonly body: unknown }> | undefined;
+
+    const command = captureStreams(() =>
+      runResumeCommand(
+        parseExecutionArgs('resume', ['--run-folder', runFolder, '--checkpoint-review']),
+        {
+          now: deterministicNow(Date.UTC(2026, 4, 20, 9, 31, 0)),
+          openCheckpointReview: (url) => {
+            browserSubmission = (async () => {
+              const page = await fetch(url);
+              expect(page.status).toBe(200);
+              const html = await page.text();
+              const match = html.match(/window\.__CIRCUIT_REVIEW_SESSION__ = (.*?);<\/script>/);
+              if (match?.[1] === undefined) throw new Error('missing review bootstrap');
+              const session = JSON.parse(match[1]) as {
+                readonly endpoint: string;
+                readonly authorization: string;
+              };
+
+              writeProjectFile(
+                projectRoot,
+                changedEntryPoint,
+                '<!doctype html><title>Changed after open</title><main>Unreviewed bytes</main>',
+              );
+
+              const submitted = await fetch(session.endpoint, {
+                method: 'POST',
+                headers: {
+                  Origin: new URL(url).origin,
+                  'Content-Type': 'application/json',
+                  'X-Circuit-Review-Session': session.authorization,
+                },
+                body: JSON.stringify(response),
+              });
+              return { status: submitted.status, body: (await submitted.json()) as unknown };
+            })();
+          },
+        },
+      ),
+    );
+
+    const { result: exitCode, stderr } = await command;
+    const submitted = browserSubmission;
+    if (submitted === undefined) throw new Error(`review browser was not opened: ${stderr}`);
+    const submission = await submitted;
+
+    expect(submission.status).toBe(409);
+    expect(submission.body).toMatchObject({ ok: false, terminal: true });
+    expect(exitCode).toBe(2);
+    expect(stderr).toContain('did not record this checkpoint review');
+    expect(readFileSync(tracePath)).toEqual(traceBefore);
+    expect(existsSync(canonicalResponsePath)).toBe(false);
+    expect(existsSync(attemptResponsePath)).toBe(false);
+    expect(existsSync(join(runFolder, 'resume.lock'))).toBe(false);
+    expect(existsSync(join(runFolder, 'resume.lock.reclaiming'))).toBe(false);
+    expect(projectRunStatusFromRunFolder(runFolder)).toMatchObject({
+      engine_state: 'waiting_checkpoint',
+      checkpoint: {
+        step_id: 'prototype-variant-checkpoint-step',
+        attempt: waiting.checkpoint.attempt,
+        request_sha256: waiting.checkpoint.requestSha256,
+      },
     });
   });
 

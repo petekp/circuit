@@ -10,6 +10,7 @@
       "Edit(/src/flows/**/schematic.json)",
       "Edit(/docs/flows/block-catalog.json)",
       "Edit(/docs/generated-surfaces.md)",
+      "Edit(/src/shared/html/checkpoint-review-runtime.generated.ts)",
       "Edit(/plugins/claude/runtime/**)",
       "Edit(/plugins/codex/runtime/**)",
       "Edit(/plugins/claude/scripts/launcher-core.ts)",

@@ -303,6 +303,7 @@ function variantComparisonItems(input: {
   readonly runFolder: string;
   readonly commandPrefix: string;
   readonly projectRoot?: string | undefined;
+  readonly reviewAssets: PrototypeVariantVerification['review_assets'];
 }): MultiVariantItem[] {
   return input.choices.map((choice) => {
     const branch = input.aggregate.branches.find((candidate) => candidate.branch_id === choice.id);
@@ -318,11 +319,16 @@ function variantComparisonItems(input: {
       evidence?.status === 'captured'
         ? relaySelectionLine(evidence)
         : 'No captured relay selection evidence';
-    const preview = previewForEntryPoints({
-      entryPoints,
-      runFolder: input.runFolder,
-      projectRoot: input.projectRoot,
-    });
+    const reviewAsset = input.reviewAssets.find((group) => group.root === choice.variant_root);
+    const preview =
+      reviewAsset === undefined
+        ? { status: 'unavailable' as const }
+        : previewForEntryPoints({
+            entryPoints,
+            runFolder: input.runFolder,
+            projectRoot: input.projectRoot,
+            expectedFiles: reviewAsset.files,
+          });
     return {
       id: choice.id,
       label: choice.label,
@@ -407,6 +413,7 @@ function renderVariantCheckpoint(ctx: Parameters<HtmlProjector>[0]): string | un
       runFolder: ctx.runFolder,
       commandPrefix,
       projectRoot: ctx.projectRoot,
+      reviewAssets: verification.review_assets,
     }),
     resume: {
       runFolder: ctx.runFolder,
@@ -482,11 +489,18 @@ export const prototypeCheckpointProjector: HtmlProjector = (ctx) => {
     PROTOTYPE_VERIFICATION_PATH,
     ctx.checkpoint.request_path,
   ];
-  const artifactPreview = previewForEntryPoints({
-    entryPoints: artifact.entry_points,
-    runFolder: ctx.runFolder,
-    projectRoot: ctx.projectRoot,
-  });
+  const reviewAsset = verification.review_assets.find(
+    (group) => group.root === artifact.prototype_root,
+  );
+  const artifactPreview =
+    reviewAsset === undefined
+      ? { status: 'unavailable' as const }
+      : previewForEntryPoints({
+          entryPoints: artifact.entry_points,
+          runFolder: ctx.runFolder,
+          projectRoot: ctx.projectRoot,
+          expectedFiles: reviewAsset.files,
+        });
 
   return renderCheckpointPage({
     meta: { flowLabel: 'Prototype', runId: ctx.runId, stepId: ctx.checkpoint.step_id },

@@ -448,7 +448,10 @@
       "stage": "review",
       "input": {
         "choices": "prototype.variant-choice-options@v1",
-        "aggregate": "prototype.variant-aggregate@v1"
+        "aggregate": "prototype.variant-aggregate@v1",
+        "provider_evidence": "prototype.variant-provider-evidence@v1",
+        "verification": "prototype.variant-verification@v1",
+        "review": "prototype.variant-review@v1"
       },
       "optional_inputs": [],
       "output": "decision.answer@v1",
@@ -564,6 +567,8 @@
       "title": "Review - decide Prototype disposition",
       "stage": "review",
       "input": {
+        "brief": "prototype.brief@v1",
+        "plan": "prototype.plan@v1",
         "artifact": "prototype.artifact@v1",
         "verification": "prototype.verification@v1"
       },
