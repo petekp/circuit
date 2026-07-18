@@ -1,11 +1,12 @@
 # Output Model: Flow Status Indicator and Final Digest
 
-Status: scoped proposal, 2026-06-02, revised 2026-07-11. The final-digest
-content and host display research remain useful. The
-[CLI rebuild plan](cli-first-principles.md) supersedes this document's
-transport, routing-checkpoint, direct terminal, and progress-stream mechanics.
-Its host constraints describe host plugins, not the new direct CLI TUI.
-Companion to
+Status: retained proposal, 2026-06-02, reconciled 2026-07-17. This document now
+owns only the final-digest content model and the useful display-budget research.
+[run-milestone-stream.md](run-milestone-stream.md) owns during-Run legibility
+and control. The [CLI rebuild plan](cli-first-principles.md) owns transport,
+watching, liveness, direct terminal UI, and cancellation. Older routing and
+host-buffering proposals below are marked as historical rather than current
+contracts. Companion to
 [docs/contracts/host-rendering.md](../contracts/host-rendering.md) and
 [docs/specs/narration-display-profiles.md](../specs/narration-display-profiles.md).
 
@@ -16,95 +17,44 @@ Sharpen two operator-facing surfaces without adding noise:
 1. The flow status indicator (what the operator sees before and during a run).
 2. The final digest (the readable result, instead of a one-line status or raw JSON).
 
-## The constraint that shapes everything
+## The current display boundary
 
-Circuit never paints the terminal. The host owns the screen. Verified across
-both hosts on 2026-06-02:
+The 2026-06-02 research correctly established a small display budget, but its
+universal buffering diagnosis is now historical. Claude's `present` wrapper can
+render attached progress incrementally. Codex delivery remains model-mediated.
+The target direct CLI can own a real Run viewer after the CLI rebuild.
 
-- No host renders plugin-drawn rich or interactive UI inline. Richness can only
-  live in an openable artifact (an HTML file the host opens in a browser or
-  preview pane). True inline custom UI exists only in ChatGPT and the MCP Apps
-  client list, neither of which is the Claude Code or Codex coding surface.
-- No animation is possible from the plugin. Hosts capture the wrapper's stdout
-  as a string and repaint their own view. Carriage returns and cursor-motion
-  escapes are not honored, so a self-animating indicator cannot animate.
-- The whole run is a single subprocess call. On the desktop apps, the VS Code
-  panel, and Codex, that subprocess output is buffered until the run exits, so
-  the operator sees nothing from the stream until the run finishes, then the
-  whole block at once. Only the bare terminal shows it grow live.
-- The host already animates its own working spinner during the run. That motion
-  is free and uncontrollable.
-- The display budget stands: no raw JSON, no paths by default, at most four to
-  six final bullets, at most three reviewer cautions
-  ([narration-display-profiles.md](../specs/narration-display-profiles.md)).
-- On Claude's default streamed run, the present wrapper appends a single summary
-  status line at completion and returns; it never prints any digest markdown. A
-  quiet or piped run does print markdown, but precedence makes it the terse run
-  surface (a status line plus artifact links), not the readable operator summary;
-  the readable summary renders only when the run surface is absent. So today the
-  readable result does not reach the operator on either path by default
-  (`plugins/claude/scripts/circuit.ts` `renderFinalResult`, the
-  `statusBlocks.renderedAnyBlock` early return;
-  `plugins/claude/scripts/present-rendering.ts` `finalAnswerMarkdownPath`
-  precedence).
+The current channel split is:
 
-## The lever: three output channels
+| Channel | Job | Truth boundary |
+| --- | --- | --- |
+| Circuit progress | Curated attached milestones plus some invocation-local presentation or action events | A mixed, transient feed; not every event is a replayable Trace projection |
+| Host-native status and tasks | Layout, replacement, motion, and host controls | Must not invent Circuit facts or legal actions |
+| Host commentary | The host's own plan or interpretation | Clearly outside Circuit-labelled status surfaces |
+| Operator summary | One readable terminal receipt | Authoritative content rendered verbatim |
+| Trace and supporting reports | Durable detail and debugging | Ground truth, normally behind disclosure |
 
-Assign each job to the channel that can actually carry it.
+The display budget still stands: no raw JSON or internal paths by default, a
+short outcome-shaped summary, at most four key points, and at most three
+caveats. Live cadence, quiet-state health, and controls are defined in
+[run-milestone-stream.md](run-milestone-stream.md).
 
-| Channel | What it is | Liveness | Richness |
-| --- | --- | --- | --- |
-| A. Model narration | The assistant's own words around the call | Live on every surface | Full markdown |
-| B. Circuit status stream | The wrapper's subprocess stdout | Live on the terminal only; batched on apps and Codex | Append-only text |
-| C. Host spinner | The host's own working indicator | Live everywhere, free | None, uncontrollable |
-
-Caveat on A: on Codex there is no present wrapper. The Codex model renders both
-progress and the final answer by following its run skill, so A on Codex is
-best-effort, not guaranteed. Treat the deterministic record (B) and the digest
-that hosts render verbatim as the surfaces that must carry anything load-bearing.
-
-Principle: liveness and the why ride A, the durable record rides B, motion is
-already handled by C. Today Circuit leans almost everything on B, the most
-constrained channel. That is the root of both problems.
-
-## Concern 1: Flow status indicator
+## Flow choice and live status
 
 ### Surface the chosen flow and its reason before the body runs
 
-The flow is decided at the very start of a run, before the flow body does real
-work. Make that choice visible, and correctable, before the body runs. This
-matters more as flows multiply and start to overlap.
+The host selects an explicit Flow under the current contract. The decider owns
+the reason: if the host recommends Review, the host may briefly say why before
+it invokes Circuit. Circuit's Run header confirms the Flow that actually ran.
 
-The rule is: the decider owns the why. Never narrate a reason you do not own.
-
-- Assistant-picks path (the common `/circuit:run` case). The host model
-  recommends a flow from the rubric and invokes Circuit with an explicit flow
-  name (`src/commands/run.md`). It states the flow and its own one-line reason
-  before the call, so the operator can redirect in-thread before anything runs.
-- Circuit-routes path (no explicit flow, or autonomous). The deterministic
-  router decides, and it decides inside the run, after any pre-run prose. So the
-  reason cannot be narrated up front. Add a routing checkpoint: Circuit chooses,
-  then pauses before the flow body and shows "Chose Review because X. Continue,
-  or pick another?" Checkpoints are already a first-class pause, so this works on
-  every host, including the buffered ones.
-- Gate the checkpoint on confidence. When the router can express ambiguity
-  (close candidates or low confidence) it pauses; when it is confident it
-  proceeds. Confident routes stay fast, ambiguous ones get a confirm. This is
-  what scales as overlapping flows grow.
-
-Correction to the prior draft: `router_reason` is not "computed and discarded."
-It is emitted on the `route.selected` event and the stdout JSON, and the Codex
-run skill is already told to surface it. But on the dominant explicit path it is
-the literal string `explicit flow positional argument`, not a reason. So it is
-the source of the why only on the classifier path, and only after the route
-resolves, never as pre-run prose (`src/cli/circuit.ts`, the explicit-branch
-reason and `classifyCompiledFlowTask`).
+The earlier proposal for a classifier-owned, confidence-gated routing
+Checkpoint is superseded. It conflicts with the current explicit-Flow contract
+and is not part of the recommended Run UX.
 
 ### During-run record
 
-The record rides B and is built only from what the run emits live. Result-derived
-facts (the verdict, counts, the final outcome) are not in the stream today
-(`step.completed` is suppressed); they belong to the digest.
+The live record uses only facts the Run emits. Result-derived facts belong to
+the final digest unless the canonical progress projection emits them.
 
 - Step then outcome. Each step shows an in-progress line, then its outcome where
   the run actually emits one (an evidence warning, a relay verdict). Keep the
@@ -123,10 +73,9 @@ facts (the verdict, counts, the final outcome) are not in the stream today
   example `Circuit · Review · deep`. Note that tests and the create and handoff
   emitters reference the old line, so changing it touches them.
 - No faux ticking checklist in the text stream. A native task surface is a
-  separate, legitimate channel where the host has one: the engine already emits
-  `task_list.updated`, which Claude can map to TodoWrite. That is fine; the rule
-  is only against a fake checklist in the streamed text.
-- No animation. The host spinner (C) covers motion.
+  separate, legitimate channel where the host has one. Cross-host task-list
+  parity is not yet proved, so do not claim it from the event alone.
+- No animation frames in the event text. Use host-native motion where it helps.
 
 Today (terminal):
 
@@ -138,13 +87,12 @@ Circuit
 ⎿ Finished Review.
 ```
 
-Proposed. Channel A, before the call (assistant-picks path), or the routing
-checkpoint (router path):
+Proposed host commentary before the call:
 
 > Running **Review** because you asked to check the last change. It will frame
 > the work, gather evidence, check the result, and return a verdict.
 
-Channel B, the record, step then outcome:
+Circuit's live record, step then outcome:
 
 ```
 Circuit · Review
@@ -161,26 +109,16 @@ A resume run continues a checkpoint and has no flow-routing moment, so "why this
 flow was chosen" does not apply. Resume framing states what is being continued,
 not why a flow was picked.
 
-## Concern 2: Final digest
+## Final digest
 
-### Make the digest actually reach the operator
+### Make each close outcome-shaped
 
-There are two problems, not one. On the normal streamed run the completion
-render emits a one-line status and returns, so no digest markdown is printed at
-all. On the quiet path markdown is printed, but precedence makes it the terse run
-surface, not the readable summary. So the fix has two parts: make the completion
-render emit the digest on the streamed path, and make the readable digest win
-precedence over the terse run surface (or converge the two).
-
-This is a two-host change, and it touches the contract:
-
-- Claude: the present wrapper prints the digest at completion regardless of
-  whether the stream rendered.
-- Codex: there is no wrapper. The model renders the final answer from JSON per
-  [host-rendering.md](../contracts/host-rendering.md), so the digest reaches the
-  operator only if the contract requires it and the model complies.
-- The host-rendering contract changes too. It currently lets the terse run
-  surface win and lets the streamed path skip the digest.
+The current [host-rendering contract](../contracts/host-rendering.md) makes the
+operator summary the preferred readable close. Claude renders it through its
+wrapper; Codex is instructed to prefer it. Progress never replaces the digest.
+Every invocation should produce one outcome-shaped close. A waiting Checkpoint
+gets a parked receipt that makes continuation clear; failed, aborted, canceled,
+and complete terminal outcomes get an honest final digest.
 
 ### One content, host-aware delivery
 
@@ -192,15 +130,15 @@ adapts per surface:
 
 | Surface | Inline digest | The richer report |
 | --- | --- | --- |
-| Claude CLI | same markdown | auto-opens in the OS browser (already ships) |
-| Claude desktop | same markdown | click the path, opens in the preview pane |
-| Codex CLI | same markdown | path surfaced, the operator opens it |
-| Codex desktop | same markdown | opens in its in-app browser |
+| Claude CLI | same markdown | labelled open action; current wrapper may open the OS browser |
+| Claude desktop | same markdown | labelled link or preview action |
+| Codex CLI | same markdown | labelled report link; reveal the path only on request |
+| Codex desktop | same markdown | labelled in-app open action |
 
-We do not build an app-native rich UI today, because neither coding surface
-renders plugin-drawn UI (Codex MCP app panels are flag-gated off). Surfacing the
-artifact path is the permitted exception to "no paths by default": an
-offer-to-open path, not a dump of every report path.
+We do not build an app-native rich UI today. The default surface offers a
+labelled report action or link, not a raw path. A plain host may reveal the path
+after the operator asks for details, but it does not dump every report path into
+the close.
 
 ### Outcome-shaped skeleton, not verdict-shaped
 
@@ -220,11 +158,13 @@ projectors; it standardizes the frame, it does not replace them.
 
 Preserve honest failure. The operator summary already overrides the headline for
 escalated, aborted, and checkpoint outcomes so a failure cannot read as
-"complete" (`src/shared/operator-summary-writer.ts`). The skeleton must keep
+"complete" (`src/app/operator-summary/writer.ts`). The skeleton must keep
 those overrides. The non-complete outcomes also need a defined digest shape.
 Today the present wrapper falls back to a generic line for several of them.
 
-Today (the default streamed run): a single status line, no readable result.
+Historical 2026-06-02 failure case: the default streamed Run closed on a single
+status line instead of the readable result. The current host contract now makes
+the operator summary the preferred close.
 
 ```
 Circuit
@@ -246,7 +186,12 @@ nothing actionable in scope.
 Next: nothing required.
 ```
 
-## What changes versus today
+## Historical implementation sketch
+
+The table below records the 2026-06-02 proposal. It is not a current build plan.
+In particular, its routing Checkpoint and progress transport rows are
+superseded by the explicit-Flow host contract, the shipped delivery slice, and
+the CLI rebuild.
 
 | Change | Where |
 | --- | --- |
@@ -259,7 +204,7 @@ Next: nothing required.
 | One digest content; host-aware artifact open (already ships on Claude); generalize HTML where it earns its place | wrapper, summary writers |
 | Converge or flip the two writers while preserving the run-envelope `surface_output.status_text`, decision-packet links, and `memory_indicator` | `src/app/run-envelope/source-record.ts`, summary writers |
 
-## Open decisions for review
+## Historical open decisions
 
 1. Digest writer: enrich or flip precedence first (less coupling risk), or
    converge into one writer. Either way it must keep emitting the run-envelope
@@ -278,7 +223,7 @@ Next: nothing required.
 6. During-run record on buffered surfaces: keep it, or let the digest carry the
    whole story there, since the record and digest arrive together at the end.
 
-## Build sequence
+## Historical build sequence
 
 1. Lock this spec.
 2. Make the completion emit the readable digest: unblock the streamed early

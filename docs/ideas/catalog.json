@@ -251,8 +251,9 @@
       "category": "run-inspection-and-output",
       "impact": 4,
       "tags": ["long-horizon", "supervision", "heartbeat", "status-view"],
-      "current_reading": "Future model-in-the-loop trajectory review and overview idea. Its model heartbeat is not process liveness, and its trajectory supervisor is separate from the deterministic local supervisor in the CLI rebuild plan.",
-      "last_checked": "2026-07-11"
+      "current_reading": "Future model-in-the-loop trajectory review and overview idea. Its model heartbeat is not process liveness, and its trajectory supervisor is separate from the deterministic local supervisor in the CLI rebuild plan. A future overview should consume the shared Run projection; active-run.md is a handoff artifact, not a live dashboard.",
+      "related": ["docs/ideas/run-milestone-stream.md", "docs/ideas/cli-first-principles.md"],
+      "last_checked": "2026-07-17"
     },
     {
       "path": "docs/ideas/paper-to-site-flow-brief.md",
@@ -341,8 +342,13 @@
       "category": "run-inspection-and-output",
       "impact": 4,
       "tags": ["output", "host-rendering", "status", "digest"],
-      "current_reading": "Current only for final-digest content and host display research. The CLI rebuild plan supersedes its transport, routing-checkpoint, direct-terminal, and progress-stream mechanics.",
-      "last_checked": "2026-07-11"
+      "current_reading": "Retained for the bounded final-digest content model and useful display-budget research. Run-milestone-stream.md now owns during-Run legibility and control; the CLI rebuild supersedes the older transport, routing-checkpoint, direct-terminal, and progress-stream mechanics.",
+      "related": [
+        "docs/ideas/run-milestone-stream.md",
+        "docs/ideas/cli-first-principles.md",
+        "docs/contracts/host-rendering.md"
+      ],
+      "last_checked": "2026-07-17"
     },
     {
       "path": "docs/ideas/portable-run-captures.md",
@@ -356,26 +362,35 @@
     },
     {
       "path": "docs/ideas/run-milestone-stream.md",
-      "title": "Run milestone stream: live legibility for backgrounded runs",
+      "title": "Run legibility and control: observable, interruptible Runs",
       "status": "current-proposal",
       "category": "run-inspection-and-output",
       "impact": 4,
       "tags": [
         "run-status",
-        "narration",
+        "observability",
+        "interruptibility",
         "host-experience",
         "checkpoints",
         "trace-projection",
-        "first-run"
+        "first-run",
+        "run-handle",
+        "liveness",
+        "watch"
       ],
-      "current_reading": "Reactivated 2026-07-14 as the live run feedback design for the first-run experience, green-lit by the operator. Corrected diagnosis: the engine already emits the milestone stream (ProgressEvent v1 on stderr under --progress jsonl, with operator-language display.text, importance, and tone); the gap is delivery, because the host model cannot run while a blocking shell call holds the run. Design = a delivery pattern with no engine changes in the first slice: background the run (Claude backgrounds and monitors the task, Codex redirects stderr to a file and polls; both spike-proven), relay major-importance text near-verbatim with no added summary, push checkpoint and error tones plus user_input.requested immediately, close on the unchanged receipt, and never put host-authored words inside a Circuit-voiced surface (field-confirmed 2026-07-14: a live Codex session mixed its own first-person lines into Circuit-labeled blocks, indistinguishable to the operator). Degradation is today's silent run with an intact receipt. The durable status.ndjson stays dead per the CLI rebuild ledger (no second persisted feed); the rebuild's ProgressEventV2 and watch subsume this later and the relay rules carry over. Corrected same day: the Claude surface deliberately hides the flag behind the plugin's present wrapper, which already streams live status blocks to the operator's terminal; the Claude gap is model-in-the-loop narration, not the feed. Launch-scope slice: tighten the Codex progress instruction (verbatim, voice, push-immediately, background-and-poll) and the Claude checkpoint handling; the foreground-vs-background Claude fork is an open operator decision. Shipped 2026-07-15 (launch-scope, ahead of the full stream build): the delivery slice landed as 1d29796f (both hosts' run-command duties: verbatim engine voice, immediate checkpoint/error surfacing, background-and-poll, resume-command quoting), and the stream's honesty floor landed as 95fafd7a + 968cdb48 (failed checks and non-complete closes emit visible warnings with reasons; every fix step has a distinct label). The full milestone-stream design remains unbuilt.",
+      "current_reading": "Expanded 2026-07-17 into the canonical end-to-end Run UX proposal for CLI, Claude Code, and Codex. The current v1 bridge is grounded separately from the post-v1 target: ProgressEvent v1 already supplies curated milestones and the 2026-07-15 delivery/honesty slice shipped, but progress is transient, open means active-or-unknown, worker output is not public liveness, host parity is incomplete, and there is no durable reconnect or safe cancel. The proposal separates Trace-backed milestones, transient health, known progress, attention, legal actions, and the final digest; defines progressive disclosure, bounded quiet updates, control semantics, cross-host parity, user-facing transcripts, risks, validation spikes, and testable acceptance. Recommendation: keep the stream bridge for v1, then add a public durable Run handle over a Circuit-owned local control plane while keeping worker handles private. The CLI rebuild owns supervisor, cursor, lease, and cancellation mechanics. No runtime implementation is authorized before v1.",
       "related": [
         "docs/ideas/output-model.md",
         "docs/ideas/long-horizon-supervision.md",
+        "docs/ideas/turnkey-first-run.md",
+        "docs/ideas/cli-first-principles.md",
         "docs/ideas/multi-channel-hitl-proposal.md",
-        "docs/release/agent-friction-remediation.md"
+        "docs/release/agent-friction-remediation.md",
+        "docs/architecture/run-process.md",
+        "docs/contracts/host-rendering.md",
+        "docs/contracts/host-capabilities.md"
       ],
-      "last_checked": "2026-07-11"
+      "last_checked": "2026-07-17"
     },
     {
       "path": "docs/ideas/popular-workflow-market-scan.md",
@@ -842,12 +857,14 @@
         "model-selection",
         "cli-ux"
       ],
-      "current_reading": "Design exploration from the 2026-07-13 smart-defaults ruling and its agentic-setup addendum; owns WHEN configuration happens, WHO performs it, and HOW it is communicated (model-roster-and-intensity.md owns WHAT gets configured). Grounded survey: no first-run detection exists today; doctor probes are a reusable library (src/connectors/health.ts); the config writer preserves comments and validates before writing; circuit generate already proves a bounded out-of-run agent relay. Recommendation: one substrate, three moments. Substrate = casting needs no config ever (probe chosen connectors at run start, cast from temperament table x healthy set x dial). Moment 1 = deterministic first-contact readout keyed to a new per-user first-run marker. Moment 2 = the agentic part folded INTO the first real run: early relay steps persist decision-shaped, evidence-cited project facts (including the verification-command detection that fixes the npm-family gate) narrated in the run report. Moment 3 = explicit circuit setup producing a Renovate-shaped reviewable proposal, never auto-run. Host narration relays Circuit's readout verbatim. External evidence in docs/learnings/first-run-setup-precedents.md: nobody ships install-time agentic config-writing; generated config restating the discoverable is net-negative. Staged plan + forks recorded; nothing built; the v1 freeze applies. A 2026-07-14 operator review of the demonstrated journey (final section, overrides the body on conflict) corrects the hook channel (additionalContext reaches the model, not the screen: the host speaks first contact and asks consent for auto-invoking Circuit, with stop/uninstall named up front), rules that the agent is the interface for plugin users (no CLI commands in receipts; adjustments are conversational; recap stays succinct), flags live run feedback as an open problem (only run start and run end are guaranteed surfaces), and rejects cast/readout as user-facing vocabulary. A second pass adds: automatic-vs-manual invocation is a persisted setting; the handoff line is minimal (Running Circuit: Build); the expanded who-does-what shows before each flow's first run and preference changes always state their scope; every Circuit-voiced surface uses structured labeled rows; open work = defaults derivation per environment and live testing of first-contact delivery. An adversarial pass then hardened the demo into binding constraints: nothing speaks first in a fresh session (the note rides the assistant's first reply); mid-run narration is physically impossible without a Circuit-emitted milestone stream (honest in-run surface = silence); spend on both subscriptions is named before it happens; conversational config validates model availability; learned facts name their file (.circuit/config.yaml); uninstall/mode-switching must become host-drivable. Open fork awaiting the operator: the confirm-before mode question vs default-automatic with inline disclosure. Feasibility spikes (2026-07-14, docs/learnings/first-run-feasibility-spikes.md) then grounded every host-behavior assumption on both hosts: first-contact injection, verbatim relay, milestone-file narration, and conversational config all pass today; the only build dependency left for live narration is the Circuit-emitted milestone stream, and the spikes surfaced two cheap fixes (a no-summary sentence in relay hints; the effort follow-up must be explicitly requested or replaced by default-and-state). Same-day rulings closed the forks: mode is default-automatic with the disclosure inline (the confirm-before moment is gone; communicate-after now holds everywhere), effort adjustments default-and-state, the npm-family verification gate is fixed by Moment 2 (detect the real verify command in-run, persist to config.yaml, resolver reads that key first), and announcement timing is subordinate to nailing this experience. A follow-up ruling closed the preferences fork: they persist project-local in .circuit/config.yaml (a user-global layer waits for demonstrated demand), and the run milestone stream was green-lit for design (run-milestone-stream.md). Remaining fork: the defaults-derivation procedure, discussed when timely. Constraint 26 (same day, field-confirmed): nothing host-authored appears inside a Circuit-voiced surface; host commentary lives outside the block in the host's voice.",
+      "current_reading": "Current proposal for when first-time setup happens, who performs it, and how it is explained; model-roster-and-intensity.md owns what gets configured. Setup, automatic-first-use, and preference UX remain unbuilt under the v1 freeze. Settled rulings include smart defaults, default-automatic with inline disclosure, project-local preferences, explicit spend, availability validation, and a strict boundary between Circuit-authored blocks and host commentary. The 2026-07-14 feasibility spikes proved first-contact injection, verbatim relay, conversational configuration, and host narration mechanics given a stub milestone file; they did not test the real engine, interactive sessions, or end-to-end progress reliability. The 2026-07-15 bridge later shipped real progress-stream instructions and wiring, but reliable real-session Codex polling remains unproven and Claude remains attached. Durable liveness, reconnect, and interruption remain post-v1 work owned by run-milestone-stream.md.",
       "related": [
         "docs/ideas/model-roster-and-intensity.md",
-        "docs/learnings/first-run-setup-precedents.md"
+        "docs/learnings/first-run-setup-precedents.md",
+        "docs/learnings/first-run-feasibility-spikes.md",
+        "docs/ideas/run-milestone-stream.md"
       ],
-      "last_checked": "2026-07-14"
+      "last_checked": "2026-07-17"
     }
   ]
 }

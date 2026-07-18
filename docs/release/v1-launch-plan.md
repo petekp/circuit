@@ -222,6 +222,13 @@ Real directions, deliberately parked. Pointers only.
   two at a time when Circuit can enforce separate branch workspaces, then
   promote verified artifacts into the existing human checkpoint. See
   [docs/ideas/parallel-prototype-workspaces.md](../ideas/parallel-prototype-workspaces.md).
+- **Durable Run watching and control:** the v1 host-delivery bridge may relay
+  curated milestones, but a public Run handle, reconnectable watch cursor,
+  honest worker liveness, and safe cancellation require the post-v1 local
+  process that owns the run lifecycle. The user experience is in
+  [docs/ideas/run-milestone-stream.md](../ideas/run-milestone-stream.md); the
+  mechanics are in
+  [docs/ideas/cli-first-principles.md](../ideas/cli-first-principles.md).
 - **The recursion and recompile frontier:** mapped in
   [docs/ideas/north-star-status.md](../ideas/north-star-status.md). Parked as
   a body of work; nothing there blocks v1.

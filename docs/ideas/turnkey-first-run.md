@@ -4,11 +4,14 @@ Status: `current-proposal`. Design exploration from the 2026-07-13 operator
 ruling (smart defaults, "Circuit needs to just work") and its same-night
 addendum: consider an agentic setup process automatically kicked off on the
 user's first Circuit invocation as the lead candidate, without overindexing
-on it. Nothing here is built; the v1 launch freeze applies. Code citations
-grounded against `src/` and `plugins/` on 2026-07-13; verify before
-building. A 2026-07-14 operator review of the demonstrated journey (final
-section) corrects one mechanism and adds rulings; it overrides the body
-where they conflict.
+on it. The setup and automatic-first-use design remains unbuilt; the v1 launch
+freeze applies. The related Run progress-delivery slice shipped separately on
+2026-07-15 and is now specified by
+[`run-milestone-stream.md`](run-milestone-stream.md). Code citations grounded
+against `src/` and `plugins/` on 2026-07-13; verify before building. A
+2026-07-14 operator review of the demonstrated journey (final section) corrects
+one mechanism and adds rulings; later dated corrections override the body where
+they conflict.
 
 This note owns the setup and first-run experience: when configuration
 happens, who performs it, and how it is communicated.
@@ -296,12 +299,12 @@ conflict with the body, this section wins.
    front-loading decisions. A pre-run learning pass remains an open
    variant if the in-run shape proves confusing in practice.
 
-4. **Open problem: live run feedback.** Neither host gives Circuit a
-   reliable way to show run internals while a run executes. The host can
-   be asked to narrate progress, but compliance is hit or miss. The
-   guaranteed surfaces are run start and run end; design copy may claim
-   only those. A real live-feedback channel needs its own design note
-   before the Stage 2 copy is finalized.
+4. **Historical finding: live Run feedback needed its own contract.** At the
+   time of this ruling, neither host had a proved delivery pattern. The existing
+   progress stream and the 2026-07-15 host delivery slice now provide curated
+   attached or background-watched milestones. Reliable liveness, reconnect,
+   and cancellation remain unsolved and are owned by
+   [`run-milestone-stream.md`](run-milestone-stream.md).
 
 5. **Vocabulary: "cast" is rejected** (reads like theater roles), and
    "readout", "first run on this machine", and "nothing was written to
@@ -367,15 +370,15 @@ bind as design constraints.
     alternative: hold the mode question until the first Circuit-fit
     task, where it has context.
 
-14. **Mid-run narration is impossible today, not merely unreliable.**
-    The host launches a run as a blocking call and learns nothing until
-    it returns, so it cannot narrate progress no matter how it is
-    instructed. Any live progress surface depends on a Circuit-emitted
-    milestone stream the host or a watch page can read
-    ([`run-milestone-stream.md`](run-milestone-stream.md) is the natural
-    home). Until then the honest in-run surface is silence, and design
-    copy shows exactly that, with the structured progress view labeled
-    as gated on that channel.
+14. **Corrected 2026-07-17: mid-Run milestones can be delivered, but health and
+    control are not yet durable.** A fresh execution still uses a blocking CLI
+    call. Claude's attached wrapper can render the existing progress stream,
+    and Codex can background and poll under host instructions. This makes
+    curated milestone feedback possible. It does not prove worker activity,
+    reconnect, survival after host exit, or safe cancellation. During silence,
+    design copy must say no new milestone was observed and must not claim the
+    worker is active. The full contract lives in
+    [`run-milestone-stream.md`](run-milestone-stream.md).
 
 15. **Spend is named before it happens.** The first who-does-what table
     carries one plain line ("This run spends on both your claude and
@@ -415,16 +418,20 @@ bind as design constraints.
 
 ### Feasibility spikes, same day
 
-Every host-behavior assumption above was then tested live on both
-hosts. All passed: first-contact injection, verbatim relay of the
-who-does-what block, milestone-file narration, and conversational
-config with honest scope. The evidence, the per-host mechanics, and
-the two cheap fixes the spikes surfaced (a no-summary sentence in the
-relay hints; the effort follow-up must be asked for explicitly or
-dropped in favor of default-and-state) live in
+The host mechanics were then tested live on both hosts. First-contact injection,
+verbatim relay of the who-does-what block, and conversational config passed.
+For live narration, a stub script wrote a `milestones.log`; this proved Claude
+could monitor a supplied milestone file and Codex could poll one. It did **not**
+test the real Circuit engine, an interactive session, or end-to-end reliability.
+The evidence, limits, per-host mechanics, and two cheap fixes the spikes
+surfaced (a no-summary sentence in the relay hints; the effort follow-up must be
+asked for explicitly or dropped in favor of default-and-state) live in
 [`docs/learnings/first-run-feasibility-spikes.md`](../learnings/first-run-feasibility-spikes.md).
-The remaining build dependency for scene 4 is confirmed to be only the
-milestone stream ([`run-milestone-stream.md`](run-milestone-stream.md)).
+The real progress-delivery bridge's instructions and wiring later shipped on
+2026-07-15. Reliable real-session Codex polling remains unproven, and Claude's
+shipped path remains attached. A durable Run handle, health, reconnect, and
+control remain post-v1 work in
+[`run-milestone-stream.md`](run-milestone-stream.md).
 
 ### Rulings, same day, after the spikes
 

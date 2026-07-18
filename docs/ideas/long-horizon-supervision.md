@@ -51,14 +51,19 @@ executor lives in minutes (next change, next test). The supervisor
 lives in tens of minutes (is the trajectory still right?). The crow's
 nest lives in seconds, but only when the operator looks at it.
 
-Circuit today collapses all three into one agent doing one flow
-in one session. That's right for short bounded work and wrong for
-long-horizon work.
+Circuit today runs bounded Flow work without a concurrent trajectory reviewer
+or a general live viewer. That is appropriate for short work. It does not prove
+that the three-role long-horizon shape belongs inside the engine. The local
+process supervisor proposed by the CLI rebuild is infrastructure this idea may
+consume, not the model supervisor described here.
 
 ## The shape that fits Circuit
 
-Circuit's adapter / worker / stage model already has most of the
-pieces. The missing pieces are the heartbeat and the visual surface.
+Circuit's adapter, worker, and stage model supplies useful vocabulary, but the
+concurrent clocks, correction channel, and human view are all unproved. The
+durable Run handle and watch projection in
+[`run-milestone-stream.md`](run-milestone-stream.md) should land before this
+idea invents another live status mechanism.
 
 **Executor = a long-running worker relay.** Circuit's `workers`
 adapter already runs implement-review-converge loops. Extend it from
@@ -82,13 +87,12 @@ picks up at the next natural boundary (between batches in the
 worker's loop). That keeps the executor's per-batch context clean
 and avoids the supervisor and executor stomping on each other.
 
-**Crow's nest = a separate read-only surface.** Circuit has
-`active-run.md` as a passive runtime dashboard. The crow's nest is
-the same idea, scaled up: instead of a text dashboard, a richer view
-the operator can open. The tweet describes generated diagrams of the
-codebase, but the cheaper v0 is structured prose: what's done, what's
-in progress, what's blocked, with links into the run record. Diagrams
-come later if the prose isn't dense enough.
+**Crow's nest = a separate read-only surface.** `active-run.md` is a handoff
+continuity artifact, not a live runtime dashboard. A future crow's nest should
+instead consume the same Run projection as the CLI and host viewers, then add a
+slower trajectory summary: what's done, what's in progress, and what is blocked.
+The tweet describes generated diagrams, but the cheaper v0 is structured prose.
+Diagrams come later if the prose is not enough.
 
 The crow's nest is *not* in the decision loop. It does not influence
 the executor or the supervisor. It only produces output the operator
@@ -200,10 +204,10 @@ Two reasons it might still be worth thinking about:
    the morning" is a clean external value prop. Other flow
    runners don't have this; the tweet suggests there's real demand
    and people are duct-taping it together by hand.
-2. **It's a generalization of patterns Circuit already has.** The
-   supervisor is a stage that runs on a different clock. The crow's
-   nest is `active-run.md` with a richer renderer. Neither is a
-   foreign concept; they're extensions of the existing model.
+2. **It can build on proposed Run infrastructure.** The trajectory reviewer can
+   consume durable milestones, and the crow's nest can consume the same
+   read-only Run projection. Neither should redefine worker liveness, Run
+   control, or Trace truth.
 
 The honest counter-argument: **building this before any operator
 asks for it is exactly the trap to avoid.** Circuit's recent
