@@ -179,6 +179,21 @@ async function runProbe(
   }
 }
 
+export function builtinConnectorExecutable(connector: BuiltinConnectorName): string {
+  return HEALTH_PROBE_SPECS[connector].executable;
+}
+
+// Presence only: does the binary answer `--version`? Run-intake preflight uses
+// this alone — no sign-in probe — because intake must stay fast and offline,
+// and a signed-out CLI already fails mid-run with a legible summary.
+export async function probeBuiltinConnectorPresence(
+  connector: BuiltinConnectorName,
+  options?: { readonly env?: NodeJS.ProcessEnv },
+): Promise<ProbeOutcome> {
+  const spec = HEALTH_PROBE_SPECS[connector];
+  return await runProbe(spec.executable, spec.presenceArgs, options?.env ?? process.env);
+}
+
 export async function probeBuiltinConnector(
   connector: BuiltinConnectorName,
   options?: { readonly env?: NodeJS.ProcessEnv },

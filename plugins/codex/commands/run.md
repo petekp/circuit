@@ -110,6 +110,16 @@ metacharacters:
    Use the Bash tool to execute the constructed command. The wrapper
    lives in the installed Circuit plugin directory and injects the plugin's
    packaged flow root before it launches Circuit's bundled runtime.
+
+   Run the invocation in a normal, unsandboxed shell. Circuit launches
+   worker CLIs (such as codex) that must write outside the project, for
+   example their own state directories under the home folder. A sandboxed
+   shell that only allows project writes kills those workers seconds after
+   they start. If the host sandboxes shell commands by default, request an
+   unsandboxed invocation for this command. If that is refused, do not run
+   Circuit anyway: tell the operator plainly that the run cannot proceed
+   because this session's sandbox blocks the worker CLIs from writing
+   their own state, and that rerunning outside the sandbox will work.
 3. **Handle untracked Review contents deliberately.** If the task explicitly
    asks Circuit to include untracked file contents for review, add
    `--include-untracked-content` only when those files are safe to relay to the

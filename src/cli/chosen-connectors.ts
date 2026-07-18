@@ -14,6 +14,7 @@ import { compileSchematicToCompiledFlow } from '../flows/compile-schematic-to-fl
 import type { RuntimeIndexedStep } from '../flows/registries/runtime-index.js';
 import { fromCompiledFlow } from '../runtime/manifest/from-compiled-flow.js';
 import { buildRuntimePackageIndex } from '../runtime/manifest/runtime-package-index.js';
+import type { CompiledFlow } from '../schemas/compiled-flow.js';
 import type { LayeredConfig as LayeredConfigValue } from '../schemas/config.js';
 import type { CustomConnectorDescriptor, RelayResolutionSource } from '../schemas/connector.js';
 import type { HostKind } from '../schemas/host.js';
@@ -58,25 +59,25 @@ function describeResolutionSource(source: RelayResolutionSource): string {
   }
 }
 
-function chosenConnectorsForFlow(
-  flowId: string,
-  layers: readonly LayeredConfigValue[],
-  hostKind: HostKind | undefined,
-): readonly {
+export interface ChosenStepConnector {
   readonly connectorName: string;
   readonly source: string;
   readonly descriptor: CustomConnectorDescriptor | undefined;
-}[] {
-  const definition = flowDefinitions.find((candidate) => candidate.id === flowId);
-  if (definition === undefined) throw new Error(`unknown flow '${flowId}'`);
-  const compiled = firstCompiledFlow(compileSchematicToCompiledFlow(definition.schematic));
-  const index = buildRuntimePackageIndex(fromCompiledFlow(compiled));
+}
 
-  const resolved: {
-    connectorName: string;
-    source: string;
-    descriptor: CustomConnectorDescriptor | undefined;
-  }[] = [];
+// The per-flow resolution walk, on an already-compiled flow. Run-intake
+// preflight calls this directly with the loaded compiled flow so the probe
+// set matches exactly what THIS run would dispatch through; the doctor path
+// below compiles each catalog definition first.
+export function connectorsForCompiledFlow(
+  compiled: CompiledFlow,
+  layers: readonly LayeredConfigValue[],
+  hostKind: HostKind | undefined,
+): readonly ChosenStepConnector[] {
+  const index = buildRuntimePackageIndex(fromCompiledFlow(compiled));
+  const flowId = index.flow.id as unknown as string;
+
+  const resolved: ChosenStepConnector[] = [];
   for (const step of index.flow.steps as readonly RuntimeIndexedStep[]) {
     if (step.kind !== 'relay') continue;
     const role = RelayRoleSchema.parse(step.role);
@@ -95,6 +96,17 @@ function chosenConnectorsForFlow(
     });
   }
   return resolved;
+}
+
+function chosenConnectorsForFlow(
+  flowId: string,
+  layers: readonly LayeredConfigValue[],
+  hostKind: HostKind | undefined,
+): readonly ChosenStepConnector[] {
+  const definition = flowDefinitions.find((candidate) => candidate.id === flowId);
+  if (definition === undefined) throw new Error(`unknown flow '${flowId}'`);
+  const compiled = firstCompiledFlow(compileSchematicToCompiledFlow(definition.schematic));
+  return connectorsForCompiledFlow(compiled, layers, hostKind);
 }
 
 export function resolveChosenConnectors(input: ChosenConnectorsInput = {}): ChosenConnectors {

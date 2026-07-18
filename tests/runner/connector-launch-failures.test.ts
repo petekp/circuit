@@ -85,6 +85,60 @@ describe('connectorFailureSummary (captured-output interpreter)', () => {
     expect(summary).toContain('circuit doctor');
   });
 
+  // Verbatim stderr from a real failed run (e9a0f62a, 2026-07-16): Circuit was
+  // launched inside a sandboxed host session, codex could not write
+  // ~/.codex/state_5.sqlite, and died ~2s in. Only 2 "Operation not permitted"
+  // lines appear, below the denial-storm threshold, so this class needs its
+  // own signature.
+  const READONLY_STATE_DB_STDERR = [
+    'WARNING: proceeding, even though we could not create PATH aliases: Operation not permitted (os error 1)',
+    '2026-07-16T17:31:59.179476Z  WARN codex_state::runtime: failed to open state db at /Users/petepetrash/.codex/state_5.sqlite: failed to open state DB at /Users/petepetrash/.codex/state_5.sqlite: error returned from database: (code: 8) attempt to write a readonly database',
+    '2026-07-16T17:31:59.179520Z  WARN codex_rollout::state_db: failed to initialize state runtime: failed to initialize state runtime at /Users/petepetrash/.codex: failed to open state DB at /Users/petepetrash/.codex/state_5.sqlite: error returned from database: (code: 8) attempt to write a readonly database: error returned from database: (code: 8) attempt to write a readonly database: (code: 8) attempt to write a readonly database',
+    'Reading additional input from stdin...',
+    'Error: failed to initialize in-process app-server client: Operation not permitted (os error 1)',
+    '',
+  ].join('\n');
+
+  it('names an unwritable codex state directory from the readonly-database signature', () => {
+    const summary = connectorFailureSummary({
+      cli: 'codex',
+      signInHint: 'Run `codex login` to sign in',
+      stderr: READONLY_STATE_DB_STDERR,
+      stdout: '',
+      streamError: undefined,
+    });
+    expect(summary).toContain(
+      'The codex CLI could not write its state directory (/Users/petepetrash/.codex).',
+    );
+    expect(summary).toContain('setup problem, not a task failure');
+    expect(summary).toContain('sandbox');
+    expect(summary).toContain('circuit doctor');
+  });
+
+  it('prefers the state-directory diagnosis over the denial-storm one when both appear', () => {
+    const storm = Array(5).fill('WARN codex_core: Operation not permitted (os error 1)').join('\n');
+    const summary = connectorFailureSummary({
+      cli: 'codex',
+      signInHint: 'Run `codex login` to sign in',
+      stderr: `${storm}\n${READONLY_STATE_DB_STDERR}`,
+      stdout: '',
+      streamError: undefined,
+    });
+    expect(summary).toContain('could not write its state directory');
+    expect(summary).not.toContain('was blocked by this machine');
+  });
+
+  it('ignores readonly-database wording on stdout, which is conversation content', () => {
+    const summary = connectorFailureSummary({
+      cli: 'codex',
+      signInHint: 'Run `codex login` to sign in',
+      stderr: '',
+      stdout: 'the bug: sqlite says attempt to write a readonly database',
+      streamError: undefined,
+    });
+    expect(summary).toBeUndefined();
+  });
+
   it('falls back to the reported stream error when no known class matches', () => {
     const summary = connectorFailureSummary({
       cli: 'codex',

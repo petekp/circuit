@@ -101,6 +101,7 @@ import {
   runEnvelopeOutputFields,
   selectedProcessFields,
 } from './run-output.js';
+import { type RunConnectorPreflight, preflightRunConnectors } from './run-preflight.js';
 import { composeRunStdoutEnvelope, historyRecallOutputFields } from './run-stdout-envelope.js';
 import {
   RUNTIME_POLICY_REASONS,
@@ -169,6 +170,12 @@ export interface RunCommandOptions {
   historyRecall?: 'auto' | 'enabled' | 'disabled';
   /** Test or host seam; the default opens the explicit loopback review URL. */
   openCheckpointReview?: (url: string) => void;
+  /**
+   * Test seam for the intake connector preflight. The default preflight runs
+   * only when the run would spawn real connectors (no injected relayer or
+   * executors); passing this always runs the given preflight instead.
+   */
+  connectorPreflight?: RunConnectorPreflight;
 }
 
 export const CIRCUIT_HOST_KIND_ENV = 'CIRCUIT_HOST_KIND';
@@ -1847,6 +1854,35 @@ export async function runExecutionCommand(
   });
 
   if (routeToRuntime) {
+    // Connector preflight, in the run's own process environment, before the
+    // run folder exists: a run that cannot possibly relay (codex's state
+    // directory unwritable because this session is sandboxed) is refused here
+    // with the cause and the next step, instead of aborting seconds into the
+    // run with raw stderr. A missing worker CLI only warns — the run may
+    // legitimately reach its first checkpoint before any worker spawns.
+    // Doctor cannot stand in for this check — it runs in the operator's
+    // terminal environment, not necessarily the one that spawns the workers.
+    const connectorPreflight =
+      options.connectorPreflight ??
+      (options.relayer === undefined && options.runtimeExecutors === undefined
+        ? preflightRunConnectors
+        : undefined);
+    if (connectorPreflight !== undefined) {
+      const verdict = await connectorPreflight({
+        flow,
+        configLayers: selectionConfigLayers,
+        ...(hostKind === undefined ? {} : { hostKind }),
+      });
+      if (!verdict.ok) {
+        process.stderr.write(`error: ${verdict.refusal}\n`);
+        return 2;
+      }
+      if (ttyNotices) {
+        for (const warning of verdict.warnings) {
+          process.stderr.write(`note: ${warning}\n`);
+        }
+      }
+    }
     if (ttyNotices) {
       process.stderr.write(
         runStartedNotice({

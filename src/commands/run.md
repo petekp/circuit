@@ -118,6 +118,16 @@ metacharacters:
    is the repo-local launcher for the compiled Circuit runtime; when the
    compiled CLI is absent in a fresh checkout, it builds `dist/` with the
    local TypeScript compiler before invoking `dist/cli/circuit.js`.
+
+   Run the invocation in a normal, unsandboxed shell. Circuit launches
+   worker CLIs (such as codex) that must write outside the project, for
+   example their own state directories under the home folder. A sandboxed
+   shell that only allows project writes kills those workers seconds after
+   they start. If the host sandboxes shell commands by default, request an
+   unsandboxed invocation for this command. If that is refused, do not run
+   Circuit anyway: tell the operator plainly that the run cannot proceed
+   because this session's sandbox blocks the worker CLIs from writing
+   their own state, and that rerunning outside the sandbox will work.
 3. **Handle untracked Review contents deliberately.** If the task explicitly
    asks Circuit to include untracked file contents for review, add
    `--include-untracked-content` only when those files are safe to relay to the

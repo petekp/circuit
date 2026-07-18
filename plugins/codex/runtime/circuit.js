@@ -88393,8 +88393,46 @@ var init_remediation = __esm({
   }
 });
 
+// dist/connectors/state-dir.js
+import { existsSync as existsSync24, mkdirSync as mkdirSync5, rmdirSync, unlinkSync, writeFileSync as writeFileSync6 } from "node:fs";
+import { homedir as homedir3 } from "node:os";
+import { join as join18 } from "node:path";
+function codexStateDir(env3 = process.env) {
+  const fromEnv = env3.CODEX_HOME;
+  if (fromEnv !== void 0 && fromEnv.trim() !== "")
+    return fromEnv;
+  return join18(homedir3(), ".codex");
+}
+function probeStateDirWritable(dir) {
+  const probeFile = join18(dir, `.circuit-write-probe-${process.pid}`);
+  let createdDir = false;
+  try {
+    if (!existsSync24(dir)) {
+      mkdirSync5(dir, { recursive: true });
+      createdDir = true;
+    }
+    writeFileSync6(probeFile, "circuit write probe");
+    unlinkSync(probeFile);
+    if (createdDir)
+      rmdirSync(dir);
+    return { writable: true, dir };
+  } catch (error52) {
+    return { writable: false, dir, detail: error52.message };
+  }
+}
+function stateDirUnwritableSummary(cli, dir) {
+  const where = dir === void 0 ? "its state directory" : `its state directory (${dir})`;
+  return `The ${cli} CLI could not write ${where}. This is a setup problem, not a task failure: Circuit is likely running inside a sandboxed session that blocks writes outside the project. Rerun Circuit outside the sandbox, then retry.`;
+}
+var init_state_dir = __esm({
+  "dist/connectors/state-dir.js"() {
+    "use strict";
+  }
+});
+
 // dist/connectors/subprocess.js
 import { spawn } from "node:child_process";
+import { dirname as dirname8 } from "node:path";
 import { performance as performance2 } from "node:perf_hooks";
 function isConnectorSubprocessSpawnError(error52) {
   return error52 instanceof ConnectorSubprocessSpawnError || error52 instanceof Error && error52.name === "ConnectorSubprocessSpawnError";
@@ -88470,6 +88508,10 @@ ${input.streamError ?? ""}`;
   if (SIGNED_OUT_OUTPUT_PATTERN.test(scanned)) {
     return `The ${input.cli} CLI is not logged in. ${input.signInHint}, or run \`circuit doctor\` to check connector health.`;
   }
+  if (STATE_DB_READONLY_PATTERN.test(input.stderr)) {
+    const stateDir = input.stderr.match(STATE_RUNTIME_DIR_PATTERN)?.[1]?.trim() ?? parentOfPath(input.stderr.match(STATE_DB_FILE_PATTERN)?.[1]);
+    return `${stateDirUnwritableSummary(input.cli, stateDir)} Run \`circuit doctor\` to check connector health.`;
+  }
   const denialCount = (scanned.match(SANDBOX_DENIAL_PATTERN) ?? []).length;
   if (denialCount >= SANDBOX_DENIAL_MIN_COUNT) {
     const realFailure = lastLineWithout(input.stderr, /operation not permitted/i);
@@ -88481,6 +88523,9 @@ ${input.streamError ?? ""}`;
     return `The ${input.cli} CLI reported an error: ${trimmed}${trimmed.endsWith(".") ? "" : "."}`;
   }
   return void 0;
+}
+function parentOfPath(path) {
+  return path === void 0 ? void 0 : dirname8(path);
 }
 function lastLineWithout(text, exclude) {
   const lines = text.split("\n");
@@ -88674,10 +88719,11 @@ async function runConnectorSubprocess(input) {
     });
   });
 }
-var ConnectorSubprocessSpawnError, SIGNED_OUT_OUTPUT_PATTERN, SANDBOX_DENIAL_PATTERN, SANDBOX_DENIAL_MIN_COUNT, STREAM_ERROR_MESSAGE_MAX_CHARS;
+var ConnectorSubprocessSpawnError, SIGNED_OUT_OUTPUT_PATTERN, SANDBOX_DENIAL_PATTERN, SANDBOX_DENIAL_MIN_COUNT, STATE_DB_READONLY_PATTERN, STATE_RUNTIME_DIR_PATTERN, STATE_DB_FILE_PATTERN, STREAM_ERROR_MESSAGE_MAX_CHARS;
 var init_subprocess = __esm({
   "dist/connectors/subprocess.js"() {
     "use strict";
+    init_state_dir();
     ConnectorSubprocessSpawnError = class extends Error {
       phase;
       constructor(phase, message) {
@@ -88689,6 +88735,9 @@ var init_subprocess = __esm({
     SIGNED_OUT_OUTPUT_PATTERN = /not logged in|logged out|unauthenticated|login required|not signed in|sign in required|please run \/login|invalid api key/i;
     SANDBOX_DENIAL_PATTERN = /operation not permitted/gi;
     SANDBOX_DENIAL_MIN_COUNT = 3;
+    STATE_DB_READONLY_PATTERN = /failed to open state db|attempt to write a read-?only database/i;
+    STATE_RUNTIME_DIR_PATTERN = /failed to initialize state runtime at ([^:\n]+):/i;
+    STATE_DB_FILE_PATTERN = /state db at (\S+?):/i;
     STREAM_ERROR_MESSAGE_MAX_CHARS = 400;
   }
 });
@@ -88986,16 +89035,12 @@ var init_claude_code = __esm({
 
 // dist/connectors/codex-default-model.js
 import { readFileSync as readFileSync39 } from "node:fs";
-import { homedir as homedir3 } from "node:os";
-import { join as join18 } from "node:path";
+import { join as join19 } from "node:path";
 function codexHomeDir() {
-  const fromEnv = process.env.CODEX_HOME;
-  if (fromEnv !== void 0 && fromEnv.trim().length > 0)
-    return fromEnv;
-  return join18(homedir3(), ".codex");
+  return codexStateDir(process.env);
 }
 function codexModelsCachePath() {
-  return join18(codexHomeDir(), CODEX_MODELS_CACHE_FILENAME);
+  return join19(codexHomeDir(), CODEX_MODELS_CACHE_FILENAME);
 }
 function candidateFrom(value) {
   if (typeof value !== "object" || value === null)
@@ -89068,6 +89113,7 @@ var CODEX_MODELS_CACHE_FILENAME, CodexDefaultModelUnavailableError, cachedDefaul
 var init_codex_default_model = __esm({
   "dist/connectors/codex-default-model.js"() {
     "use strict";
+    init_state_dir();
     CODEX_MODELS_CACHE_FILENAME = "models_cache.json";
     CodexDefaultModelUnavailableError = class extends Error {
       constructor(message) {
@@ -89664,6 +89710,171 @@ var init_cursor_agent = __esm({
     STDOUT_MAX_BYTES3 = 16 * 1024 * 1024;
     STDERR_MAX_BYTES3 = 1024 * 1024;
     VERSION_CAPTURE_TIMEOUT_MS2 = 5e3;
+  }
+});
+
+// dist/connectors/health.js
+function firstLine(outcome) {
+  const text = outcome.stdout.trim().length > 0 ? outcome.stdout : outcome.stderr;
+  return text.trim().split("\n")[0]?.trim() ?? "";
+}
+function classifyConnectorHealth(input) {
+  const remediation = connectorRemediation(input.connector);
+  const base = { connector: input.connector, executable: input.executable };
+  if (input.presence.kind === "spawn_error") {
+    return {
+      ...base,
+      state: "needs_attention",
+      detail: `the '${input.executable}' command was not found or could not start (${input.presence.message})`,
+      remediation
+    };
+  }
+  if (input.presence.timedOut) {
+    return {
+      ...base,
+      state: "unknown",
+      detail: `could not check: ${input.executable} --version timed out`
+    };
+  }
+  if (input.presence.code !== 0) {
+    const line = firstLine(input.presence);
+    return {
+      ...base,
+      state: "needs_attention",
+      detail: `${input.executable} --version exited with code ${input.presence.code}${line === "" ? "" : `: ${line}`}`,
+      remediation
+    };
+  }
+  const version3 = firstLine(input.presence);
+  if (input.auth === void 0) {
+    return { ...base, state: "ok", detail: version3 };
+  }
+  if (input.auth.kind === "spawn_error") {
+    return {
+      ...base,
+      state: "needs_attention",
+      detail: `${version3}; sign-in check could not start (${input.auth.message})`,
+      remediation
+    };
+  }
+  if (input.auth.timedOut) {
+    return {
+      ...base,
+      state: "unknown",
+      detail: `${version3}; could not check sign-in state (timed out)`
+    };
+  }
+  const authLine = firstLine(input.auth);
+  if (input.auth.code !== 0 || SIGNED_OUT_PATTERN.test(`${input.auth.stdout}
+${input.auth.stderr}`)) {
+    return {
+      ...base,
+      state: "needs_attention",
+      detail: `${version3}; installed but may need sign-in${authLine === "" ? "" : ` (${authLine})`}`,
+      remediation
+    };
+  }
+  return {
+    ...base,
+    state: "ok",
+    detail: authLine === "" ? version3 : `${version3}; ${authLine}`
+  };
+}
+async function runProbe(executable, args, env3) {
+  try {
+    const result = await runConnectorSubprocess({
+      executable,
+      args,
+      timeoutMs: PROBE_TIMEOUT_MS,
+      stdoutMaxBytes: PROBE_OUTPUT_MAX_BYTES,
+      stderrMaxBytes: PROBE_OUTPUT_MAX_BYTES,
+      sigtermToSigkillGraceMs: 2e3,
+      env: env3
+    });
+    return {
+      kind: "ran",
+      code: result.code,
+      stdout: result.stdout,
+      stderr: result.stderr,
+      timedOut: result.timedOut
+    };
+  } catch (error52) {
+    if (isConnectorSubprocessSpawnError(error52)) {
+      return { kind: "spawn_error", message: error52.message };
+    }
+    throw error52;
+  }
+}
+function builtinConnectorExecutable(connector) {
+  return HEALTH_PROBE_SPECS[connector].executable;
+}
+async function probeBuiltinConnectorPresence(connector, options) {
+  const spec = HEALTH_PROBE_SPECS[connector];
+  return await runProbe(spec.executable, spec.presenceArgs, options?.env ?? process.env);
+}
+async function probeBuiltinConnector(connector, options) {
+  const spec = HEALTH_PROBE_SPECS[connector];
+  const env3 = options?.env ?? process.env;
+  const presence = await runProbe(spec.executable, spec.presenceArgs, env3);
+  const auth = spec.authArgs !== void 0 && presence.kind === "ran" && presence.code === 0 ? await runProbe(spec.executable, spec.authArgs, env3) : void 0;
+  return classifyConnectorHealth({
+    connector,
+    executable: spec.executable,
+    presence,
+    ...auth === void 0 ? {} : { auth }
+  });
+}
+async function probeBuiltinConnectors(options) {
+  return await Promise.all(BUILTIN_CONNECTOR_NAMES.map((name) => probeBuiltinConnector(name, options)));
+}
+async function probeCustomConnectorPresence(connector, executable, options) {
+  const presence = await runProbe(executable, [], options?.env ?? process.env);
+  if (presence.kind === "spawn_error") {
+    return {
+      connector,
+      executable,
+      state: "needs_attention",
+      detail: `the '${executable}' command was not found or could not start (${presence.message})`,
+      remediation: `Fix: check that '${executable}' is installed and on PATH.`
+    };
+  }
+  return {
+    connector,
+    executable,
+    state: "unknown",
+    detail: "could not check: custom connectors have no scripted sign-in probe"
+  };
+}
+var HEALTH_PROBE_SPECS, BUILTIN_CONNECTOR_NAMES, SIGNED_OUT_PATTERN, PROBE_TIMEOUT_MS, PROBE_OUTPUT_MAX_BYTES;
+var init_health = __esm({
+  "dist/connectors/health.js"() {
+    "use strict";
+    init_claude_code();
+    init_codex();
+    init_cursor_agent();
+    init_remediation();
+    init_subprocess();
+    HEALTH_PROBE_SPECS = {
+      "claude-code": { executable: CLAUDE_CODE_EXECUTABLE, presenceArgs: ["--version"] },
+      codex: {
+        executable: CODEX_EXECUTABLE,
+        presenceArgs: ["--version"],
+        authArgs: ["login", "status"]
+      },
+      "cursor-agent": {
+        executable: CURSOR_AGENT_EXECUTABLE,
+        presenceArgs: ["--version"],
+        authArgs: ["status"]
+      }
+    };
+    BUILTIN_CONNECTOR_NAMES = [
+      "claude-code",
+      "codex",
+      "cursor-agent"
+    ];
+    SIGNED_OUT_PATTERN = /not logged in|logged out|unauthenticated|login required|not signed in|sign in required/i;
+    PROBE_TIMEOUT_MS = 1e4;
+    PROBE_OUTPUT_MAX_BYTES = 16384;
   }
 });
 
@@ -92214,11 +92425,11 @@ var init_fanout_branch_template = __esm({
 });
 
 // dist/shared/user-skill-registry.js
-import { existsSync as existsSync24, readFileSync as readFileSync41, readdirSync as readdirSync4 } from "node:fs";
+import { existsSync as existsSync25, readFileSync as readFileSync41, readdirSync as readdirSync4 } from "node:fs";
 import { homedir as homedir4 } from "node:os";
-import { join as join19, resolve as resolve17 } from "node:path";
+import { join as join20, resolve as resolve17 } from "node:path";
 function defaultUserSkillRoots(homeDir = homedir4()) {
-  return [join19(homeDir, ".agents", "skills"), join19(homeDir, ".claude", "skills")];
+  return [join20(homeDir, ".agents", "skills"), join20(homeDir, ".claude", "skills")];
 }
 function parseSkillMarkdown(text, skillPath) {
   if (!text.startsWith("---"))
@@ -92250,7 +92461,7 @@ function discoverCandidates(roots) {
   const candidates = /* @__PURE__ */ new Map();
   for (const root of roots) {
     const rootAbs = resolve17(root);
-    if (!existsSync24(rootAbs))
+    if (!existsSync25(rootAbs))
       continue;
     for (const entry of readdirSync4(rootAbs, { withFileTypes: true })) {
       if (!entry.isDirectory())
@@ -92261,8 +92472,8 @@ function discoverCandidates(roots) {
       const key = id.data;
       if (candidates.has(key))
         continue;
-      const skillPath = join19(rootAbs, entry.name, "SKILL.md");
-      if (!existsSync24(skillPath))
+      const skillPath = join20(rootAbs, entry.name, "SKILL.md");
+      if (!existsSync25(skillPath))
         continue;
       candidates.set(key, {
         id: id.data,
@@ -92316,7 +92527,7 @@ function createUserSkillRegistry(options = {}) {
         throw new Error([
           `Circuit could not find skill '${key}'.`,
           "Searched:",
-          ...searchedRoots.map((root) => `- ${join19(root, key, "SKILL.md")}`)
+          ...searchedRoots.map((root) => `- ${join20(root, key, "SKILL.md")}`)
         ].join("\n"));
       }
       return loadCached(key, candidate);
@@ -94100,7 +94311,7 @@ var init_report_schemas = __esm({
 // dist/connectors/custom.js
 import { mkdtemp as mkdtemp2, readFile as readFile4, rm as rm2, stat, writeFile as writeFile2 } from "node:fs/promises";
 import { tmpdir as tmpdir2 } from "node:os";
-import { join as join20 } from "node:path";
+import { join as join21 } from "node:path";
 async function extractConfiguredOutput(descriptor, outputFile) {
   const outputStats = await stat(outputFile);
   if (outputStats.size > OUTPUT_MAX_BYTES) {
@@ -94137,9 +94348,9 @@ async function relayCustom(input) {
   if (executable === void 0) {
     throw new Error(`custom connector '${descriptor.name}' command is empty`);
   }
-  const tempDir = await mkdtemp2(join20(tmpdir2(), "circuit-custom-connector-"));
-  const promptFile = join20(tempDir, "prompt.txt");
-  const outputFile = join20(tempDir, "output.txt");
+  const tempDir = await mkdtemp2(join21(tmpdir2(), "circuit-custom-connector-"));
+  const promptFile = join21(tempDir, "prompt.txt");
+  const outputFile = join21(tempDir, "output.txt");
   await writeFile2(promptFile, input.prompt, "utf8");
   const args = [...baseArgs, promptFile, outputFile];
   const timeoutMs2 = input.timeoutMs ?? DEFAULT_TIMEOUT_MS;
@@ -96744,7 +96955,7 @@ var init_schemas3 = __esm({
 });
 
 // dist/runtime/run/relay-support.js
-import { existsSync as existsSync25, readFileSync as readFileSync42 } from "node:fs";
+import { existsSync as existsSync26, readFileSync as readFileSync42 } from "node:fs";
 function evaluateRelayCheck(step, resultBody) {
   let parsed;
   try {
@@ -96980,7 +97191,7 @@ function deliveredContextSection(slices) {
 function composeRelayPrompt(step, runFolder, loadedSkills = [], acceptanceRetryFeedback, operatorGoal, memoryInputs = [], flowId, depth, activeSlice, operatorWhy, powerDialAuto, branchGoal, deliveredContextSlices) {
   const readsBody = step.reads.length === 0 ? "(no reads)" : step.reads.map((path) => {
     const abs = resolveRunRelative(runFolder, path);
-    if (!existsSync25(abs))
+    if (!existsSync26(abs))
       return `[reads unavailable: ${path}]`;
     return fencedBlock("read", ` path="${path}"`, readFileSync42(abs, "utf8"));
   }).join("\n\n");
@@ -97775,7 +97986,7 @@ var init_relay = __esm({
 
 // dist/runtime/executors/sub-run.js
 import { randomUUID as randomUUID5 } from "node:crypto";
-import { dirname as dirname8, join as join21 } from "node:path";
+import { dirname as dirname9, join as join22 } from "node:path";
 function checkPassVerdicts(step) {
   const pass = step.check.pass;
   return Array.isArray(pass) ? pass.filter((entry) => typeof entry === "string") : [];
@@ -97879,7 +98090,7 @@ async function executeSubRunInternal(step, context) {
     return await recordSubRunCheckFailure(step, context, `sub-run step '${step.id}': resolver returned flow id '${childFlow.id}' but flow_ref names '${step.flowRef}'`);
   }
   const childRunId = randomUUID5();
-  const childRunDir = join21(dirname8(context.runDir), childRunId);
+  const childRunDir = join22(dirname9(context.runDir), childRunId);
   await context.trace.append({
     run_id: context.runId,
     kind: "sub_run.started",
@@ -98017,8 +98228,8 @@ var init_sub_run = __esm({
 });
 
 // dist/runtime/run/reuse-children.js
-import { existsSync as existsSync26, readFileSync as readFileSync43 } from "node:fs";
-import { isAbsolute as isAbsolute10, join as join22 } from "node:path";
+import { existsSync as existsSync27, readFileSync as readFileSync43 } from "node:fs";
+import { isAbsolute as isAbsolute10, join as join23 } from "node:path";
 function isCompletedSubRunBranch(entry, stepId, branchId) {
   return entry.kind === "fanout.branch_completed" && entry.step_id === stepId && entry.branch_id === branchId && entry.branch_kind === "sub-run" && entry.child_outcome === "complete";
 }
@@ -98045,9 +98256,9 @@ async function lookupReusableSubRunBranch(input) {
   }
   if (worktreePath === void 0)
     return void 0;
-  if (!existsSync26(join22(worktreePath, ".git")))
+  if (!existsSync27(join23(worktreePath, ".git")))
     return void 0;
-  const resultAbs = isAbsolute10(completed.result_path) ? completed.result_path : join22(input.priorRunFolder, completed.result_path);
+  const resultAbs = isAbsolute10(completed.result_path) ? completed.result_path : join23(input.priorRunFolder, completed.result_path);
   let resultBody;
   try {
     resultBody = RunResult.parse(JSON.parse(readFileSync43(resultAbs, "utf8")));
@@ -98078,7 +98289,7 @@ var init_types2 = __esm({
 
 // dist/runtime/fanout/branch-execution.js
 import { randomUUID as randomUUID6 } from "node:crypto";
-import { dirname as dirname9, join as join23 } from "node:path";
+import { dirname as dirname10, join as join24 } from "node:path";
 async function appendFanoutBranchStarted(context, fields) {
   await context.trace.append({
     run_id: context.runId,
@@ -98504,7 +98715,7 @@ async function executeSubRunFanoutBranch(step, context, branch, worktreeRunner, 
     if (childFlow.id !== branch.flowRef) {
       throw new Error(`resolver returned flow id '${childFlow.id}' but branch flow_ref names '${branch.flowRef}'`);
     }
-    const childRunDir = join23(dirname9(context.runDir), childRunId);
+    const childRunDir = join24(dirname10(context.runDir), childRunId);
     const child = await context.childRunner({
       flowBytes: resolved.flowBytes,
       runDir: childRunDir,
@@ -98676,16 +98887,16 @@ var init_branch_expansion = __esm({
 });
 
 // dist/runtime/fanout/run-owner-lock.js
-import { mkdirSync as mkdirSync5, readFileSync as readFileSync44, rmSync as rmSync5, writeFileSync as writeFileSync6 } from "node:fs";
-import { join as join24 } from "node:path";
+import { mkdirSync as mkdirSync6, readFileSync as readFileSync44, rmSync as rmSync5, writeFileSync as writeFileSync7 } from "node:fs";
+import { join as join25 } from "node:path";
 function ownerLockPath(worktreesRoot, runId) {
-  return join24(worktreesRoot, runId, OWNER_LOCK_FILENAME);
+  return join25(worktreesRoot, runId, OWNER_LOCK_FILENAME);
 }
 function writeOwnerLock(worktreesRoot, runId, startedAt) {
   const lock = { schema_version: 1, pid: process.pid, started_at: startedAt };
   try {
-    mkdirSync5(join24(worktreesRoot, runId), { recursive: true });
-    writeFileSync6(ownerLockPath(worktreesRoot, runId), JSON.stringify(lock), "utf8");
+    mkdirSync6(join25(worktreesRoot, runId), { recursive: true });
+    writeFileSync7(ownerLockPath(worktreesRoot, runId), JSON.stringify(lock), "utf8");
   } catch {
   }
 }
@@ -99044,8 +99255,8 @@ var init_fanout = __esm({
 });
 
 // dist/runtime/run/oracle-command-pin.js
-import { existsSync as existsSync27, readFileSync as readFileSync45 } from "node:fs";
-import { join as join25 } from "node:path";
+import { existsSync as existsSync28, readFileSync as readFileSync45 } from "node:fs";
+import { join as join26 } from "node:path";
 function createOracleCommandPinChannel() {
   return { pins: /* @__PURE__ */ new Map() };
 }
@@ -99054,8 +99265,8 @@ function readReferencedScriptBody(command, projectRoot) {
   if (script === void 0)
     return void 0;
   const cwdAbs = resolveProjectRelativeProofCwd(projectRoot, command.cwd);
-  const packageJsonPath = join25(cwdAbs, "package.json");
-  if (!existsSync27(packageJsonPath)) {
+  const packageJsonPath = join26(cwdAbs, "package.json");
+  if (!existsSync28(packageJsonPath)) {
     throw new OracleCommandDriftError(`oracle script "${script}" for command '${command.id}' vanished: package.json missing at its cwd`);
   }
   let parsed;
@@ -99608,9 +99819,9 @@ var init_frozen_eval = __esm({
 
 // dist/runtime/run/manifest-snapshot.js
 import { mkdir as mkdir2, readFile as readFile5, writeFile as writeFile3 } from "node:fs/promises";
-import { dirname as dirname10, join as join26 } from "node:path";
+import { dirname as dirname11, join as join27 } from "node:path";
 function runtimeManifestSnapshotPath(runDir) {
-  return join26(runDir, MANIFEST_SNAPSHOT_RUN_FILE);
+  return join27(runDir, MANIFEST_SNAPSHOT_RUN_FILE);
 }
 async function writeRuntimeManifestSnapshot(input) {
   const bytes = Buffer.from(input.bytes);
@@ -99624,7 +99835,7 @@ async function writeRuntimeManifestSnapshot(input) {
     bytes_base64: bytes.toString("base64")
   });
   const path = runtimeManifestSnapshotPath(input.runDir);
-  await mkdir2(dirname10(path), { recursive: true });
+  await mkdir2(dirname11(path), { recursive: true });
   await writeFile3(path, `${JSON.stringify(snapshot, null, 2)}
 `, { encoding: "utf8", flag: "wx" });
   return snapshot;
@@ -99896,7 +100107,7 @@ var init_write_capable_worker_disclosure = __esm({
 });
 
 // dist/runtime/projections/progress.js
-import { join as join27 } from "node:path";
+import { join as join28 } from "node:path";
 function stepTitle(input) {
   if (input.stepId === void 0)
     return "<unknown step>";
@@ -99967,7 +100178,7 @@ function reportTaskListProgress(input) {
   });
 }
 function readJsonReport2(files, runDir, reportPath) {
-  const text = files.readText(join27(runDir, reportPath));
+  const text = files.readText(join28(runDir, reportPath));
   if (text === void 0)
     throw new Error(`progress projection could not read ${reportPath}`);
   return JSON.parse(text);
@@ -100058,7 +100269,7 @@ function checkpointChoiceLabel(choice) {
   return choice.split(/[-_]/).filter((part) => part.length > 0).map((part) => `${part.slice(0, 1).toUpperCase()}${part.slice(1)}`).join(" ");
 }
 function checkpointRequestPath(runDir, requestPath) {
-  return requestPath.startsWith("/") ? requestPath : join27(runDir, requestPath);
+  return requestPath.startsWith("/") ? requestPath : join28(runDir, requestPath);
 }
 function shouldWarnAboutWriteCapableWorker(flow) {
   return flowMayInvokeWriteCapableWorker(flow.id) || flow.steps.some((step) => step.kind === "relay" && step.role === "implementer");
@@ -100338,7 +100549,7 @@ function createProgressProjector(input) {
         const presentation = tournamentCheckpointPresentation({
           readJson: (path) => {
             try {
-              const text = projectionFiles.readText(join27(input.runDir, path));
+              const text = projectionFiles.readText(join28(input.runDir, path));
               return text === void 0 ? void 0 : JSON.parse(text);
             } catch {
               return void 0;
@@ -101099,7 +101310,7 @@ var init_until_corridor = __esm({
 
 // dist/runtime/run/graph-runner.js
 import { randomUUID as randomUUID7 } from "node:crypto";
-import { join as join28 } from "node:path";
+import { join as join29 } from "node:path";
 function isGraphCheckpointWaitingResult(result) {
   return "kind" in result && result.kind === "checkpoint_waiting";
 }
@@ -101289,7 +101500,7 @@ async function executeExecutableFlowOutcomeUnsafe(flow, options) {
   const bindingLegibility = resolveBindingLegibility(flow);
   const engineFlags = resolveEngineFlags(flow);
   const editFileSurfaceSources = surfaceSourcesFromDeclarations(flow.reportFileSurfaces ?? {});
-  const honestyLedger = engineFlags?.iteratesUntilCondition?.stopJudge !== void 0 ? new HonestyLedger({ path: join28(runDir, "honesty-ledger.json") }) : void 0;
+  const honestyLedger = engineFlags?.iteratesUntilCondition?.stopJudge !== void 0 ? new HonestyLedger({ path: join29(runDir, "honesty-ledger.json") }) : void 0;
   const oracleCommandPins = honestyLedger === void 0 ? void 0 : createOracleCommandPinChannel();
   const context = {
     flow,
@@ -102316,17 +102527,17 @@ var init_compiled_flow_runner = __esm({
 });
 
 // dist/runtime/run/resume-lock.js
-import { mkdirSync as mkdirSync6, readFileSync as readFileSync48, rmSync as rmSync6, writeFileSync as writeFileSync7 } from "node:fs";
-import { join as join29 } from "node:path";
+import { mkdirSync as mkdirSync7, readFileSync as readFileSync48, rmSync as rmSync6, writeFileSync as writeFileSync8 } from "node:fs";
+import { join as join30 } from "node:path";
 function resumeLockPath(runDir) {
-  return join29(runDir, RESUME_LOCK_FILENAME);
+  return join30(runDir, RESUME_LOCK_FILENAME);
 }
 function reclaimIntentPath(runDir) {
-  return join29(runDir, RESUME_RECLAIM_FILENAME);
+  return join30(runDir, RESUME_RECLAIM_FILENAME);
 }
 function createExclusive(path, payload) {
   try {
-    writeFileSync7(path, payload, { encoding: "utf8", flag: "wx" });
+    writeFileSync8(path, payload, { encoding: "utf8", flag: "wx" });
     return true;
   } catch (error52) {
     if (error52.code === "EEXIST")
@@ -102374,7 +102585,7 @@ function acquireResumeLock(runDir, options = {}) {
       }
     }
   };
-  mkdirSync6(runDir, { recursive: true });
+  mkdirSync7(runDir, { recursive: true });
   for (let attempt = 0; attempt < MAX_ACQUIRE_ATTEMPTS; attempt += 1) {
     if (createExclusive(primary, payload())) {
       return { ok: true, handle };
@@ -104789,21 +105000,21 @@ var init_local_review_session = __esm({
 });
 
 // dist/memory/project-store.js
-import { existsSync as existsSync28, readFileSync as readFileSync50 } from "node:fs";
-import { join as join30, resolve as resolve20 } from "node:path";
+import { existsSync as existsSync29, readFileSync as readFileSync50 } from "node:fs";
+import { join as join31, resolve as resolve20 } from "node:path";
 function resolveProjectStorePaths(options = {}) {
   const repoRoot = resolve20(options.repoRoot ?? process.cwd());
   const memoryDir = options.memoryDir === void 0 ? memoryRoot(repoRoot) : resolve20(repoRoot, options.memoryDir);
   return {
     repoRoot,
     memoryDir,
-    factsPath: join30(memoryDir, PROJECT_FACTS_FILE),
-    manifestPath: join30(memoryDir, MEMORY_MANIFEST_FILE)
+    factsPath: join31(memoryDir, PROJECT_FACTS_FILE),
+    manifestPath: join31(memoryDir, MEMORY_MANIFEST_FILE)
   };
 }
 function readProjectFacts(options = {}) {
   const paths = resolveProjectStorePaths(options);
-  if (!existsSync28(paths.factsPath)) {
+  if (!existsSync29(paths.factsPath)) {
     return { facts: [], warnings: [] };
   }
   let raw = "";
@@ -104903,8 +105114,8 @@ var init_project_store = __esm({
 });
 
 // dist/memory/project-injection.js
-import { existsSync as existsSync29, readFileSync as readFileSync51 } from "node:fs";
-import { join as join31, resolve as resolve21 } from "node:path";
+import { existsSync as existsSync30, readFileSync as readFileSync51 } from "node:fs";
+import { join as join32, resolve as resolve21 } from "node:path";
 function reverifyStaleness(fact, runsBase, checkedAt) {
   const sourceSha = fact.source.sha256 ?? fact.source.ref.sha256;
   const runId = fact.source.ref.run_id;
@@ -104913,8 +105124,8 @@ function reverifyStaleness(fact, runsBase, checkedAt) {
   }
   try {
     const relPath = fact.source.ref.ref.split("#")[0] ?? fact.source.ref.ref;
-    const abs = join31(runsBase, runId, relPath);
-    if (!existsSync29(abs)) {
+    const abs = join32(runsBase, runId, relPath);
+    if (!existsSync30(abs)) {
       return { status: "stale", checked_at: checkedAt, reason_codes: ["memory_stale"] };
     }
     const currentHash = sha256OfString(readFileSync51(abs, "utf8"));
@@ -104955,13 +105166,13 @@ var init_project_injection = __esm({
 });
 
 // dist/history/run-corpus.js
-import { existsSync as existsSync30, readdirSync as readdirSync5, statSync as statSync4 } from "node:fs";
-import { basename as basename5, join as join32 } from "node:path";
+import { existsSync as existsSync31, readdirSync as readdirSync5, statSync as statSync4 } from "node:fs";
+import { basename as basename5, join as join33 } from "node:path";
 function isCandidateRunFolder(runFolder) {
-  return existsSync30(join32(runFolder, "manifest.snapshot.json")) || existsSync30(join32(runFolder, "trace.ndjson")) || existsSync30(join32(runFolder, "reports/result.json"));
+  return existsSync31(join33(runFolder, "manifest.snapshot.json")) || existsSync31(join33(runFolder, "trace.ndjson")) || existsSync31(join33(runFolder, "reports/result.json"));
 }
 function listCandidateRunFolders(runsBase) {
-  if (!existsSync30(runsBase)) {
+  if (!existsSync31(runsBase)) {
     throw new HistoryCommandError("runs_base_not_found", `runs base not found: ${runsBase}`, {
       runsBase
     });
@@ -104978,7 +105189,7 @@ function listCandidateRunFolders(runsBase) {
     });
   }
   try {
-    return readdirSync5(runsBase, { withFileTypes: true }).filter((entry) => entry.isDirectory()).map((entry) => join32(runsBase, entry.name)).filter(isCandidateRunFolder).sort((left, right) => basename5(left).localeCompare(basename5(right)));
+    return readdirSync5(runsBase, { withFileTypes: true }).filter((entry) => entry.isDirectory()).map((entry) => join33(runsBase, entry.name)).filter(isCandidateRunFolder).sort((left, right) => basename5(left).localeCompare(basename5(right)));
   } catch (error52) {
     throw new HistoryCommandError("runs_base_unreadable", `runs base unreadable: ${error52 instanceof Error ? error52.message : String(error52)}`, { runsBase });
   }
@@ -105020,7 +105231,7 @@ var init_run_artifact_io = __esm({
 });
 
 // dist/app/history/run-source-files.js
-import { existsSync as existsSync31, lstatSync as lstatSync8, readdirSync as readdirSync6, realpathSync as realpathSync7 } from "node:fs";
+import { existsSync as existsSync32, lstatSync as lstatSync8, readdirSync as readdirSync6, realpathSync as realpathSync7 } from "node:fs";
 import { isAbsolute as isAbsolute13, relative as relative13, resolve as resolve22 } from "node:path";
 function collectRunSourceFiles(runFolder) {
   const runFolderAbs = resolve22(runFolder);
@@ -105029,7 +105240,7 @@ function collectRunSourceFiles(runFolder) {
     resolve22(runFolderAbs, "manifest.snapshot.json"),
     resolve22(runFolderAbs, "trace.ndjson")
   ]) {
-    if (existsSync31(candidate) && !isSymlink(candidate))
+    if (existsSync32(candidate) && !isSymlink(candidate))
       files.add(candidate);
   }
   const reportsRoot2 = resolve22(runFolderAbs, "reports");
@@ -105050,7 +105261,7 @@ function isInside5(root, target) {
   return fromRoot === "" || !fromRoot.startsWith("..") && !isAbsolute13(fromRoot);
 }
 function walkReportJsonFiles(reportsRoot2) {
-  if (!existsSync31(reportsRoot2))
+  if (!existsSync32(reportsRoot2))
     return [];
   const rootReal = realpathSync7.native(reportsRoot2);
   const out = [];
@@ -105082,7 +105293,7 @@ var init_run_source_files = __esm({
 });
 
 // dist/app/history/extract.js
-import { existsSync as existsSync32, lstatSync as lstatSync9, readFileSync as readFileSync52, readdirSync as readdirSync7, realpathSync as realpathSync8 } from "node:fs";
+import { existsSync as existsSync33, lstatSync as lstatSync9, readFileSync as readFileSync52, readdirSync as readdirSync7, realpathSync as realpathSync8 } from "node:fs";
 import { basename as basename6, isAbsolute as isAbsolute14, relative as relative14, resolve as resolve23 } from "node:path";
 function isObject3(value) {
   return value !== null && typeof value === "object" && !Array.isArray(value);
@@ -105119,7 +105330,7 @@ function isInside6(root, target) {
 }
 function listFiles(root, prefix = "") {
   const absRoot = resolve23(root);
-  if (!existsSync32(absRoot))
+  if (!existsSync33(absRoot))
     return [];
   const rootReal = realpathSync8.native(absRoot);
   const out = [];
@@ -105164,7 +105375,7 @@ function validStepId(value) {
 }
 function parseTrace(runFolder, runFolderName) {
   const tracePath = resolve23(runFolder, "trace.ndjson");
-  if (!existsSync32(tracePath)) {
+  if (!existsSync33(tracePath)) {
     return { entries: [], reportWrites: /* @__PURE__ */ new Map(), traceValidForDocs: false };
   }
   let entries = [];
@@ -105389,7 +105600,7 @@ function resolveRunIdentity(input) {
 function makeRunDocument(input) {
   const sourcePath = input.resultPath ?? "trace.ndjson";
   const sourceAbs = resolve23(input.runFolder, sourcePath);
-  if (!existsSync32(sourceAbs))
+  if (!existsSync33(sourceAbs))
     return void 0;
   const sourceSha = input.resultPath === void 0 ? input.traceSha : sha256File(sourceAbs);
   if (sourceSha === void 0)
@@ -105611,13 +105822,13 @@ function extractRunHistoryDocuments(runFolder) {
   const documents = [];
   const manifestPath2 = resolve23(runFolderAbs, "manifest.snapshot.json");
   const resultPath2 = resolve23(runFolderAbs, "reports/result.json");
-  const manifest = existsSync32(manifestPath2) ? readJsonRecord(manifestPath2) : void 0;
-  const result = existsSync32(resultPath2) ? readJsonRecord(resultPath2) : void 0;
+  const manifest = existsSync33(manifestPath2) ? readJsonRecord(manifestPath2) : void 0;
+  const result = existsSync33(resultPath2) ? readJsonRecord(resultPath2) : void 0;
   const trace = parseTrace(runFolderAbs, runFolderName);
   if (trace.warning !== void 0)
     warnings.push(trace.warning);
   const tracePath = resolve23(runFolderAbs, "trace.ndjson");
-  const traceExists = existsSync32(tracePath);
+  const traceExists = existsSync33(tracePath);
   const traceSha = traceExists ? sha256File(tracePath) : void 0;
   const traceMtime = traceExists ? mtimeMs(tracePath) : void 0;
   const identity2 = resolveRunIdentity({
@@ -105629,7 +105840,7 @@ function extractRunHistoryDocuments(runFolder) {
   const runDocument = makeRunDocument({
     runFolder: runFolderAbs,
     identity: identity2,
-    ...existsSync32(resultPath2) ? { resultPath: "reports/result.json" } : {},
+    ...existsSync33(resultPath2) ? { resultPath: "reports/result.json" } : {},
     result,
     traceEntries: trace.entries,
     traceSha,
@@ -105747,8 +105958,8 @@ var init_extract = __esm({
 });
 
 // dist/app/history/indexer.js
-import { existsSync as existsSync33, mkdirSync as mkdirSync7, readFileSync as readFileSync53, renameSync as renameSync2, writeFileSync as writeFileSync8 } from "node:fs";
-import { join as join33, resolve as resolve24 } from "node:path";
+import { existsSync as existsSync34, mkdirSync as mkdirSync8, readFileSync as readFileSync53, renameSync as renameSync2, writeFileSync as writeFileSync9 } from "node:fs";
+import { join as join34, resolve as resolve24 } from "node:path";
 function resolveHistoryPaths(options = {}) {
   const repoRoot = resolve24(options.repoRoot ?? process.cwd());
   const runsBase = options.runsBase === void 0 ? runsRoot(repoRoot) : resolve24(repoRoot, options.runsBase);
@@ -105757,8 +105968,8 @@ function resolveHistoryPaths(options = {}) {
     repoRoot,
     runsBase,
     indexDir,
-    manifestPath: join33(indexDir, HISTORY_MANIFEST_FILE),
-    documentsPath: join33(indexDir, HISTORY_DOCUMENTS_FILE)
+    manifestPath: join34(indexDir, HISTORY_MANIFEST_FILE),
+    documentsPath: join34(indexDir, HISTORY_DOCUMENTS_FILE)
   };
 }
 function computeLatestSourceMtime(sourceFiles) {
@@ -105833,15 +106044,15 @@ function rebuildHistoryIndex(options = {}) {
     },
     warnings
   });
-  mkdirSync7(paths.indexDir, { recursive: true });
+  mkdirSync8(paths.indexDir, { recursive: true });
   const documentsJsonl = `${documents.map((doc) => JSON.stringify(HistoryDocumentV1.parse(doc))).join("\n")}
 `;
   const manifestJson = `${JSON.stringify(manifest, null, 2)}
 `;
   const documentsTmp = `${paths.documentsPath}.tmp-${process.pid}`;
   const manifestTmp = `${paths.manifestPath}.tmp-${process.pid}`;
-  writeFileSync8(documentsTmp, documentsJsonl, "utf8");
-  writeFileSync8(manifestTmp, manifestJson, "utf8");
+  writeFileSync9(documentsTmp, documentsJsonl, "utf8");
+  writeFileSync9(manifestTmp, manifestJson, "utf8");
   HistoryManifestV1.parse(JSON.parse(readFileSync53(manifestTmp, "utf8")));
   for (const line of readFileSync53(documentsTmp, "utf8").split("\n")) {
     if (line.trim().length === 0)
@@ -105856,7 +106067,7 @@ function rebuildHistoryIndex(options = {}) {
   };
 }
 function readHistoryManifest(paths) {
-  if (!existsSync33(paths.manifestPath) || !existsSync33(paths.documentsPath)) {
+  if (!existsSync34(paths.manifestPath) || !existsSync34(paths.documentsPath)) {
     throw new HistoryCommandError("index_missing", `history index missing: ${paths.indexDir}`, {
       runsBase: paths.runsBase,
       indexDir: paths.indexDir
@@ -105975,11 +106186,11 @@ var init_indexer = __esm({
 });
 
 // dist/app/history/memory-effect-read.js
-import { existsSync as existsSync34, readFileSync as readFileSync54 } from "node:fs";
-import { join as join34 } from "node:path";
+import { existsSync as existsSync35, readFileSync as readFileSync54 } from "node:fs";
+import { join as join35 } from "node:path";
 function loadMemoryEffectReport(paths) {
-  const effectPath = join34(paths.indexDir, HISTORY_MEMORY_EFFECT_FILE);
-  if (!existsSync34(effectPath)) {
+  const effectPath = join35(paths.indexDir, HISTORY_MEMORY_EFFECT_FILE);
+  if (!existsSync35(effectPath)) {
     return {
       warnings: [
         {
@@ -106104,7 +106315,7 @@ var init_memory_preview = __esm({
 });
 
 // dist/app/history/query.js
-import { existsSync as existsSync35, readFileSync as readFileSync55 } from "node:fs";
+import { existsSync as existsSync36, readFileSync as readFileSync55 } from "node:fs";
 function tokenize(text) {
   return text.toLowerCase().split(/[^a-z0-9]+/).filter((term) => term.length >= 2 && !STOPWORDS.has(term));
 }
@@ -106264,7 +106475,7 @@ function sourceStaleness(doc, checkedAt) {
   }
   try {
     const sourcePath = resolveRunFilePath(doc.run_folder, doc.source_path);
-    if (!existsSync35(sourcePath)) {
+    if (!existsSync36(sourcePath)) {
       return {
         status: "stale",
         reason_codes: ["memory_stale"],
@@ -106677,14 +106888,14 @@ var init_run_start_recall = __esm({
 });
 
 // dist/app/operator-summary/resume-command.js
-import { isAbsolute as isAbsolute15, join as join35, resolve as resolve25 } from "node:path";
+import { isAbsolute as isAbsolute15, join as join36, resolve as resolve25 } from "node:path";
 function shellSingleQuote2(value) {
   return `'${value.replace(/'/g, "'\\''")}'`;
 }
 function operatorSummaryResumeCommandPrefix(input) {
   const execPath = input.execPath;
   if (execPath !== void 0 && isAbsolute15(execPath) && input.pluginRoot !== void 0 && isAbsolute15(input.pluginRoot) && input.hostKind !== void 0 && input.hostKind !== "generic-shell") {
-    const wrapper = join35(input.pluginRoot, "scripts", "circuit.js");
+    const wrapper = join36(input.pluginRoot, "scripts", "circuit.js");
     const presentation = input.hostKind === "claude-code" ? " present" : "";
     return `${shellSingleQuote2(execPath)} ${shellSingleQuote2(wrapper)}${presentation} resume`;
   }
@@ -106769,13 +106980,13 @@ var init_iteration_ledger = __esm({
 });
 
 // dist/shared/operator-summary/json.js
-import { existsSync as existsSync36, readFileSync as readFileSync56 } from "node:fs";
+import { existsSync as existsSync37, readFileSync as readFileSync56 } from "node:fs";
 function isObject4(value) {
   return value !== null && typeof value === "object" && !Array.isArray(value);
 }
 function readJsonIfPresent(runFolder, relPath) {
   const path = resolveRunRelative(runFolder, relPath);
-  if (!existsSync36(path))
+  if (!existsSync37(path))
     return void 0;
   const parsed = JSON.parse(readFileSync56(path, "utf8"));
   return isObject4(parsed) ? parsed : void 0;
@@ -107430,11 +107641,11 @@ var init_operator_summary2 = __esm({
 
 // dist/app/operator-summary/writer.js
 import { createHash as createHash10 } from "node:crypto";
-import { existsSync as existsSync37, mkdirSync as mkdirSync8, readFileSync as readFileSync57, rmSync as rmSync7, writeFileSync as writeFileSync9 } from "node:fs";
-import { dirname as dirname11, isAbsolute as isAbsolute16, join as join36, relative as relative15, resolve as resolve26 } from "node:path";
+import { existsSync as existsSync38, mkdirSync as mkdirSync9, readFileSync as readFileSync57, rmSync as rmSync7, writeFileSync as writeFileSync10 } from "node:fs";
+import { dirname as dirname12, isAbsolute as isAbsolute16, join as join37, relative as relative15, resolve as resolve26 } from "node:path";
 function readPriorRoute(runFolder) {
-  const path = join36(runFolder, "reports", "operator-summary.json");
-  if (!existsSync37(path))
+  const path = join37(runFolder, "reports", "operator-summary.json");
+  if (!existsSync38(path))
     return {};
   try {
     const raw = JSON.parse(readFileSync57(path, "utf8"));
@@ -107503,13 +107714,13 @@ function salvageKeyPoints(input) {
   return points;
 }
 function jsonPath(runFolder) {
-  return join36(runFolder, "reports", "operator-summary.json");
+  return join37(runFolder, "reports", "operator-summary.json");
 }
 function markdownPath(runFolder) {
-  return join36(runFolder, "reports", "operator-summary.md");
+  return join37(runFolder, "reports", "operator-summary.md");
 }
 function htmlPath(runFolder) {
-  return join36(runFolder, "reports", "operator-summary.html");
+  return join37(runFolder, "reports", "operator-summary.html");
 }
 function isInsideOrSame4(root, target) {
   const fromRoot = relative15(root, target);
@@ -107524,7 +107735,7 @@ function readCheckpointRequest(runFolder, checkpoint) {
   }
   if (!isInsideOrSame4(resolve26(runFolder), requestPath))
     return void 0;
-  if (!existsSync37(requestPath))
+  if (!existsSync38(requestPath))
     return void 0;
   try {
     const parsed = JSON.parse(readFileSync57(requestPath, "utf8"));
@@ -108050,8 +108261,8 @@ function evidenceLinks2(runFolder, report) {
   return { links, warnings };
 }
 function readAutoResolutions(runFolder) {
-  const tracePath = join36(runFolder, "trace.ndjson");
-  if (!existsSync37(tracePath))
+  const tracePath = join37(runFolder, "trace.ndjson");
+  if (!existsSync38(tracePath))
     return [];
   const records = [];
   for (const line of readFileSync57(tracePath, "utf8").split(/\r?\n/)) {
@@ -108090,8 +108301,8 @@ function emptySpendTotals() {
   };
 }
 function readRunReceipt(runFolder) {
-  const tracePath = join36(runFolder, "trace.ndjson");
-  if (!existsSync37(tracePath))
+  const tracePath = join37(runFolder, "trace.ndjson");
+  if (!existsSync38(tracePath))
     return void 0;
   let depth;
   let reducedBindings;
@@ -108318,8 +108529,8 @@ function skillHookSourceLabel(source) {
   }
 }
 function readSkillHookSummary(runFolder) {
-  const tracePath = join36(runFolder, "trace.ndjson");
-  if (!existsSync37(tracePath))
+  const tracePath = join37(runFolder, "trace.ndjson");
+  if (!existsSync38(tracePath))
     return { activations: [], warnings: [] };
   const seen = /* @__PURE__ */ new Set();
   const activations = [];
@@ -108373,8 +108584,8 @@ function readSkillHookSummary(runFolder) {
   return { activations, warnings };
 }
 function readDegradationWarnings(runFolder) {
-  const tracePath = join36(runFolder, "trace.ndjson");
-  if (!existsSync37(tracePath))
+  const tracePath = join37(runFolder, "trace.ndjson");
+  if (!existsSync38(tracePath))
     return [];
   const warnings = [];
   for (const line of readFileSync57(tracePath, "utf8").split(/\r?\n/)) {
@@ -108428,9 +108639,9 @@ function friendlyAbortReason(reason) {
   return void 0;
 }
 function readAutoConnectorPicks(runFolder) {
-  const tracePath = join36(runFolder, "trace.ndjson");
+  const tracePath = join37(runFolder, "trace.ndjson");
   const picks = /* @__PURE__ */ new Map();
-  if (!existsSync37(tracePath))
+  if (!existsSync38(tracePath))
     return picks;
   for (const line of readFileSync57(tracePath, "utf8").split(/\r?\n/)) {
     if (line.trim().length === 0)
@@ -108476,8 +108687,8 @@ function skillHookActivationLine(activation) {
   return `\`${activation.hook}\` ${parts.join("; ")} \u2014 ${provenance}`;
 }
 function readEquipmentReshapeSummary(runFolder) {
-  const tracePath = join36(runFolder, "trace.ndjson");
-  if (!existsSync37(tracePath))
+  const tracePath = join37(runFolder, "trace.ndjson");
+  if (!existsSync38(tracePath))
     return { reshapes: [], warnings: [] };
   const seen = /* @__PURE__ */ new Set();
   const reshapes = [];
@@ -108532,8 +108743,8 @@ function equipmentReshapeLine(reshape) {
   return `\`${reshape.step_id}\` confirmed ${domains}; equipped ${equipped}`;
 }
 function readIterationLedger(runFolder) {
-  const tracePath = join36(runFolder, "trace.ndjson");
-  if (!existsSync37(tracePath))
+  const tracePath = join37(runFolder, "trace.ndjson");
+  if (!existsSync38(tracePath))
     return [];
   const entries = [];
   for (const line of readFileSync57(tracePath, "utf8").split(/\r?\n/)) {
@@ -108784,7 +108995,7 @@ function writeOperatorSummary(input) {
   const ledgerRows = readIterationLedger(input.runFolder);
   const outJsonPath = jsonPath(input.runFolder);
   const outMarkdownPath = markdownPath(input.runFolder);
-  mkdirSync8(dirname11(outJsonPath), { recursive: true });
+  mkdirSync9(dirname12(outJsonPath), { recursive: true });
   const candidateHtmlPath = htmlPath(input.runFolder);
   let outHtmlPath;
   const htmlRender = renderOperatorSummaryHtml({
@@ -108797,14 +109008,14 @@ function writeOperatorSummary(input) {
   const { renderedHtml, projectorCheckpoint, projectRoot } = htmlRender;
   let { htmlEmitWarning } = htmlRender;
   if (renderedHtml === void 0) {
-    if (existsSync37(candidateHtmlPath))
+    if (existsSync38(candidateHtmlPath))
       rmSync7(candidateHtmlPath, { force: true, recursive: true });
   } else {
     try {
-      writeFileSync9(candidateHtmlPath, renderedHtml);
+      writeFileSync10(candidateHtmlPath, renderedHtml);
       outHtmlPath = candidateHtmlPath;
     } catch (err) {
-      if (existsSync37(candidateHtmlPath))
+      if (existsSync38(candidateHtmlPath))
         rmSync7(candidateHtmlPath, { force: true, recursive: true });
       htmlEmitWarning = {
         kind: "html_write_failed",
@@ -108906,9 +109117,9 @@ function writeOperatorSummary(input) {
     ...receipt === void 0 ? {} : { receipt },
     ...input.runResult.outcome === "checkpoint_waiting" ? { checkpoint: input.runResult.checkpoint } : {}
   });
-  writeFileSync9(outJsonPath, `${JSON.stringify(candidate, null, 2)}
+  writeFileSync10(outJsonPath, `${JSON.stringify(candidate, null, 2)}
 `);
-  writeFileSync9(outMarkdownPath, renderMarkdown(candidate, ledgerRows));
+  writeFileSync10(outMarkdownPath, renderMarkdown(candidate, ledgerRows));
   return {
     summary: candidate,
     jsonPath: outJsonPath,
@@ -108965,8 +109176,8 @@ var init_writer = __esm({
 });
 
 // dist/app/process-evidence/projection.js
-import { existsSync as existsSync38, mkdirSync as mkdirSync9, writeFileSync as writeFileSync10 } from "node:fs";
-import { dirname as dirname12, join as join37 } from "node:path";
+import { existsSync as existsSync39, mkdirSync as mkdirSync10, writeFileSync as writeFileSync11 } from "node:fs";
+import { dirname as dirname13, join as join38 } from "node:path";
 function traceRef2(runId) {
   return {
     kind: "trace",
@@ -109025,15 +109236,15 @@ function projectClosedProcessEvidence(input) {
     runId: input.runResult.run_id,
     flowId
   });
-  const declaredReportRefs = declaredPaths.filter((path) => existsSync38(join37(input.runFolder, path))).map((path) => reportRef({
+  const declaredReportRefs = declaredPaths.filter((path) => existsSync39(join38(input.runFolder, path))).map((path) => reportRef({
     runFolder: input.runFolder,
-    path: join37(input.runFolder, path),
+    path: join38(input.runFolder, path),
     runId: input.runResult.run_id,
     flowId
   }));
   const additionalRefs = (input.additionalEvidencePaths ?? []).map((path) => reportRef({
     runFolder: input.runFolder,
-    path: join37(input.runFolder, path),
+    path: join38(input.runFolder, path),
     runId: input.runResult.run_id,
     flowId
   }));
@@ -109091,9 +109302,9 @@ function projectCheckpointWaitingProcessEvidence(input) {
 }
 function writeProcessEvidenceProjection(input) {
   const projection = ProcessEvidenceProjection.parse(input.projection);
-  const outPath = join37(input.runFolder, PROCESS_EVIDENCE_RELATIVE_PATH);
-  mkdirSync9(dirname12(outPath), { recursive: true });
-  writeFileSync10(outPath, `${JSON.stringify(projection, null, 2)}
+  const outPath = join38(input.runFolder, PROCESS_EVIDENCE_RELATIVE_PATH);
+  mkdirSync10(dirname13(outPath), { recursive: true });
+  writeFileSync11(outPath, `${JSON.stringify(projection, null, 2)}
 `);
   return { path: outPath, projection };
 }
@@ -109202,8 +109413,8 @@ var init_no_progress = __esm({
 });
 
 // dist/app/run-envelope/source-record.js
-import { mkdirSync as mkdirSync10, writeFileSync as writeFileSync11 } from "node:fs";
-import { dirname as dirname13, join as join38 } from "node:path";
+import { mkdirSync as mkdirSync11, writeFileSync as writeFileSync12 } from "node:fs";
+import { dirname as dirname14, join as join39 } from "node:path";
 function childRunIdFromProjection(projection) {
   return RunId.parse(projection.child_run_ref.run_id);
 }
@@ -109244,7 +109455,7 @@ function renderSurfaceMarkdown(input) {
     ...input.record.surface_output.artifact_links
   ];
   const uniqueArtifactRefs = artifactRefs.filter((ref, index, refs) => refs.findIndex((candidate) => candidate.ref === ref.ref) === index);
-  const artifactLine = uniqueArtifactRefs.map((ref) => markdownLink(artifactLabel(ref), join38(input.runFolder, ref.ref))).join(" \xB7 ");
+  const artifactLine = uniqueArtifactRefs.map((ref) => markdownLink(artifactLabel(ref), join39(input.runFolder, ref.ref))).join(" \xB7 ");
   return ["CIRCUIT", `\u23BF ${input.record.surface_output.status_text}`, "", artifactLine, ""].join("\n");
 }
 function processAttemptOutcome(outcome) {
@@ -109752,18 +109963,18 @@ function writeRunEnvelopeRecord(input) {
     }),
     outcome
   });
-  const outPath = join38(input.runFolder, RUN_ENVELOPE_RELATIVE_PATH);
-  mkdirSync10(dirname13(outPath), { recursive: true });
+  const outPath = join39(input.runFolder, RUN_ENVELOPE_RELATIVE_PATH);
+  mkdirSync11(dirname14(outPath), { recursive: true });
   const decisionPacketPaths = decisionArtifacts.map((artifact) => {
-    const path = join38(input.runFolder, artifact.ref.ref);
-    mkdirSync10(dirname13(path), { recursive: true });
-    writeFileSync11(path, artifact.body);
+    const path = join39(input.runFolder, artifact.ref.ref);
+    mkdirSync11(dirname14(path), { recursive: true });
+    writeFileSync12(path, artifact.body);
     return path;
   });
-  writeFileSync11(outPath, `${JSON.stringify(record2, null, 2)}
+  writeFileSync12(outPath, `${JSON.stringify(record2, null, 2)}
 `);
-  const surfacePath = join38(input.runFolder, RUN_SURFACE_RELATIVE_PATH);
-  writeFileSync11(surfacePath, renderSurfaceMarkdown({ runFolder: input.runFolder, record: record2 }));
+  const surfacePath = join39(input.runFolder, RUN_SURFACE_RELATIVE_PATH);
+  writeFileSync12(surfacePath, renderSurfaceMarkdown({ runFolder: input.runFolder, record: record2 }));
   return {
     path: outPath,
     processEvidencePath,
@@ -110164,14 +110375,14 @@ var init_checkpoint_review_open = __esm({
 });
 
 // dist/cli/compiled-flow-loading.js
-import { existsSync as existsSync39, readFileSync as readFileSync58 } from "node:fs";
-import { dirname as dirname14, resolve as resolve28 } from "node:path";
+import { existsSync as existsSync40, readFileSync as readFileSync58 } from "node:fs";
+import { dirname as dirname15, resolve as resolve28 } from "node:path";
 import { fileURLToPath as fileURLToPath3 } from "node:url";
 function defaultFlowRoot() {
   const cwdRoot = resolve28("generated/flows");
-  if (existsSync39(cwdRoot))
+  if (existsSync40(cwdRoot))
     return cwdRoot;
-  if (existsSync39(packageFlowRoot))
+  if (existsSync40(packageFlowRoot))
     return packageFlowRoot;
   return cwdRoot;
 }
@@ -110181,7 +110392,7 @@ function resolveCompiledFlowPath(flowName, modeName, override, flowRoot2) {
   const root = flowRoot2 !== void 0 ? resolve28(flowRoot2) : defaultFlowRoot();
   if (modeName !== void 0) {
     const perMode = resolve28(root, flowName, `${modeName}.json`);
-    if (existsSync39(perMode))
+    if (existsSync40(perMode))
       return perMode;
   }
   return resolve28(root, flowName, "circuit.json");
@@ -110206,7 +110417,7 @@ function axisSupportFromFlow(input) {
   return axisSupportFromAxes(input.flow.axes);
 }
 function loadCompiledFlow(compiledFlowPath) {
-  if (!existsSync39(compiledFlowPath)) {
+  if (!existsSync40(compiledFlowPath)) {
     throw new Error(`compiled flow not found: ${compiledFlowPath}`);
   }
   const bytes = readFileSync58(compiledFlowPath);
@@ -110232,15 +110443,15 @@ var init_compiled_flow_loading = __esm({
     "use strict";
     init_canonical_stage_policy();
     init_compiled_flow();
-    packageFlowRoot = resolve28(dirname14(fileURLToPath3(import.meta.url)), "../..", "generated/flows");
+    packageFlowRoot = resolve28(dirname15(fileURLToPath3(import.meta.url)), "../..", "generated/flows");
   }
 });
 
 // dist/cli/handoff-codex-hooks.js
 import { createHash as createHash11 } from "node:crypto";
-import { accessSync as accessSync3, copyFileSync, existsSync as existsSync40, constants as fsConstants, mkdirSync as mkdirSync11, readFileSync as readFileSync59, writeFileSync as writeFileSync12 } from "node:fs";
+import { accessSync as accessSync3, copyFileSync, existsSync as existsSync41, constants as fsConstants, mkdirSync as mkdirSync12, readFileSync as readFileSync59, writeFileSync as writeFileSync13 } from "node:fs";
 import { homedir as homedir5 } from "node:os";
-import { dirname as dirname15, join as join39, resolve as resolve29 } from "node:path";
+import { dirname as dirname16, join as join40, resolve as resolve29 } from "node:path";
 import { fileURLToPath as fileURLToPath4 } from "node:url";
 function defaultCodexHooksFile() {
   const codexHome = process.env.CODEX_HOME ?? resolve29(homedir5(), ".codex");
@@ -110260,7 +110471,7 @@ function missingDefaultLauncherMessage(launcher) {
   ].join(" ");
 }
 function defaultLauncherPath() {
-  return resolveDefaultLauncher(process.env.CIRCUIT_PLUGIN_ROOT, dirname15(fileURLToPath4(import.meta.url)));
+  return resolveDefaultLauncher(process.env.CIRCUIT_PLUGIN_ROOT, dirname16(fileURLToPath4(import.meta.url)));
 }
 function parseCodexHooksHost(args) {
   if (args.host === "codex")
@@ -110272,7 +110483,7 @@ function resolveHooksFileArg(args) {
 }
 function resolveLauncherArg(args) {
   const launcher = resolve29(args.launcher ?? defaultLauncherPath());
-  if (!existsSync40(launcher)) {
+  if (!existsSync41(launcher)) {
     if (args.launcher === void 0 && (process.env.CIRCUIT_PLUGIN_ROOT ?? "").length === 0) {
       throw new Error(missingDefaultLauncherMessage(launcher));
     }
@@ -110298,7 +110509,7 @@ function defaultHooksConfig() {
   return { hooks: {} };
 }
 function readHooksConfig(path) {
-  if (!existsSync40(path))
+  if (!existsSync41(path))
     return defaultHooksConfig();
   const parsed = JSON.parse(readFileSync59(path, "utf8"));
   if (typeof parsed !== "object" || parsed === null || Array.isArray(parsed)) {
@@ -110426,16 +110637,16 @@ function isExecutableFile(path) {
   }
 }
 function writeHooksConfig(path, config2) {
-  mkdirSync11(dirname15(path), { recursive: true });
+  mkdirSync12(dirname16(path), { recursive: true });
   let backupPath;
-  if (existsSync40(path)) {
+  if (existsSync41(path)) {
     const candidate = `${path}.circuit-backup`;
-    if (!existsSync40(candidate)) {
+    if (!existsSync41(candidate)) {
       copyFileSync(path, candidate);
       backupPath = candidate;
     }
   }
-  writeFileSync12(path, `${JSON.stringify(config2, null, 2)}
+  writeFileSync13(path, `${JSON.stringify(config2, null, 2)}
 `);
   return backupPath === void 0 ? {} : { backupPath };
 }
@@ -110481,7 +110692,7 @@ function installCodexHandoffHook(args) {
 function uninstallCodexHandoffHook(args) {
   parseCodexHooksHost(args);
   const hooksPath = resolveHooksFileArg(args);
-  if (!existsSync40(hooksPath)) {
+  if (!existsSync41(hooksPath)) {
     return {
       api_version: HANDOFF_HOOKS_API_VERSION,
       schema_version: HANDOFF_HOOKS_SCHEMA_VERSION,
@@ -110520,7 +110731,7 @@ function doctorCodexHandoffHook(args) {
   parseCodexHooksHost(args);
   const hooksPath = resolveHooksFileArg(args);
   const checks = [];
-  checks.push({ name: "hooks_file_exists", ok: existsSync40(hooksPath), detail: hooksPath });
+  checks.push({ name: "hooks_file_exists", ok: existsSync41(hooksPath), detail: hooksPath });
   let config2;
   try {
     config2 = readHooksConfig(hooksPath);
@@ -110552,7 +110763,7 @@ function doctorCodexHandoffHook(args) {
       });
       checks.push({
         name: "circuit_handoff_hook_launcher_exists",
-        ok: launchers.length > 0 && launchers.every((launcher) => existsSync40(launcher)),
+        ok: launchers.length > 0 && launchers.every((launcher) => existsSync41(launcher)),
         detail: launchers.length > 0 ? launchers.join(", ") : "launcher not found in hook command"
       });
       checks.push({
@@ -110586,7 +110797,7 @@ function doctorCodexHandoffHook(args) {
   const failed = checks.filter((item) => !item.ok && item.severity !== "warning");
   const installedCheck = checks.find((item) => item.name === "circuit_handoff_hook_installed");
   const structuralFailure = failed.some((item) => item.name === "hooks_file_parseable" || item.name === "session_start_array");
-  const status = !existsSync40(hooksPath) ? "missing" : structuralFailure ? "invalid" : installedCheck?.ok === false ? "missing" : failed.length === 0 ? "ok" : "invalid";
+  const status = !existsSync41(hooksPath) ? "missing" : structuralFailure ? "invalid" : installedCheck?.ok === false ? "missing" : failed.length === 0 ? "ok" : "invalid";
   return {
     api_version: HANDOFF_HOOKS_API_VERSION,
     schema_version: HANDOFF_HOOKS_SCHEMA_VERSION,
@@ -110607,14 +110818,14 @@ function runHandoffHooksCommand(args) {
   throw new Error("handoff hooks requires install, uninstall, or doctor");
 }
 function codexInstallNudgeMarkerPath(controlPlane) {
-  return join39(continuityRoot(controlPlane), CODEX_INSTALL_NUDGE_MARKER);
+  return join40(continuityRoot(controlPlane), CODEX_INSTALL_NUDGE_MARKER);
 }
 function codexReinstallNudgeMarkerPath(controlPlane, staleLauncher) {
   const digest = createHash11("sha256").update(staleLauncher).digest("hex").slice(0, 12);
-  return join39(continuityRoot(controlPlane), `${CODEX_REINSTALL_NUDGE_MARKER}-${digest}`);
+  return join40(continuityRoot(controlPlane), `${CODEX_REINSTALL_NUDGE_MARKER}-${digest}`);
 }
 function codexHookInstallState(hooksPath) {
-  if (!existsSync40(hooksPath))
+  if (!existsSync41(hooksPath))
     return { kind: "absent" };
   let config2;
   try {
@@ -110632,7 +110843,7 @@ function codexHookInstallState(hooksPath) {
   if (commands.length === 0)
     return { kind: "absent" };
   const launchers = commands.map(launcherPathFromCircuitHookCommand).filter((launcher) => launcher !== void 0);
-  const missingLauncher = launchers.find((launcher) => !existsSync40(launcher));
+  const missingLauncher = launchers.find((launcher) => !existsSync41(launcher));
   if (launchers.length === 0 || missingLauncher !== void 0) {
     return {
       kind: "stale",
@@ -110650,8 +110861,8 @@ function codexHookInstallState(hooksPath) {
 function writeNudgeMarker(markerPath, now) {
   const stampedAt = (now ?? (() => /* @__PURE__ */ new Date()))().toISOString();
   try {
-    mkdirSync11(dirname15(markerPath), { recursive: true });
-    writeFileSync12(markerPath, `nudged at ${stampedAt}
+    mkdirSync12(dirname16(markerPath), { recursive: true });
+    writeFileSync13(markerPath, `nudged at ${stampedAt}
 `);
   } catch {
   }
@@ -110665,7 +110876,7 @@ function codexInstallAssurance(input) {
   }
   if (state.kind === "stale") {
     const markerPath2 = codexReinstallNudgeMarkerPath(controlPlane, state.stalePath);
-    if (existsSync40(markerPath2)) {
+    if (existsSync41(markerPath2)) {
       return { status: "already_reinstall_nudged", marker_path: markerPath2 };
     }
     writeNudgeMarker(markerPath2, input.now);
@@ -110676,7 +110887,7 @@ function codexInstallAssurance(input) {
     };
   }
   const markerPath = codexInstallNudgeMarkerPath(controlPlane);
-  if (existsSync40(markerPath))
+  if (existsSync41(markerPath))
     return { status: "already_nudged", marker_path: markerPath };
   writeNudgeMarker(markerPath, input.now);
   return { status: "nudge", notice: CODEX_INSTALL_NUDGE_NOTICE, marker_path: markerPath };
@@ -110699,8 +110910,8 @@ var init_handoff_codex_hooks = __esm({
 });
 
 // dist/app/run-envelope/shadow-record.js
-import { mkdirSync as mkdirSync12, writeFileSync as writeFileSync13 } from "node:fs";
-import { dirname as dirname16, join as join40 } from "node:path";
+import { mkdirSync as mkdirSync13, writeFileSync as writeFileSync14 } from "node:fs";
+import { dirname as dirname17, join as join41 } from "node:path";
 function reportRef2(input) {
   return {
     kind: "report",
@@ -110788,9 +110999,9 @@ function writeRunEnvelopeShadowRecord(input) {
     child_run: childRun,
     artifact_links: artifactLinks
   });
-  const outPath = join40(input.runFolder, RUN_ENVELOPE_SHADOW_RELATIVE_PATH);
-  mkdirSync12(dirname16(outPath), { recursive: true });
-  writeFileSync13(outPath, `${JSON.stringify(record2, null, 2)}
+  const outPath = join41(input.runFolder, RUN_ENVELOPE_SHADOW_RELATIVE_PATH);
+  mkdirSync13(dirname17(outPath), { recursive: true });
+  writeFileSync14(outPath, `${JSON.stringify(record2, null, 2)}
 `);
   return { path: outPath, record: record2 };
 }
@@ -110808,7 +111019,7 @@ var init_shadow_record = __esm({
 
 // dist/cli/post-run-artifacts.js
 import { readFileSync as readFileSync60 } from "node:fs";
-import { join as join41 } from "node:path";
+import { join as join42 } from "node:path";
 function tryPostRunArtifact(label, context, write) {
   try {
     return write();
@@ -110838,7 +111049,7 @@ function resolveFlowPrimaryResult(input) {
     return {};
   let primaryResult;
   try {
-    primaryResult = JSON.parse(readFileSync60(join41(input.runFolder, primaryResultPath), "utf8"));
+    primaryResult = JSON.parse(readFileSync60(join42(input.runFolder, primaryResultPath), "utf8"));
   } catch {
     return {};
   }
@@ -110896,7 +111107,7 @@ var init_post_run_artifacts = __esm({
 // dist/cli/recovery-attempt-runner.js
 import { randomUUID as randomUUID8 } from "node:crypto";
 import { readFileSync as readFileSync61 } from "node:fs";
-import { join as join42 } from "node:path";
+import { join as join43 } from "node:path";
 function createRecoveryAttemptRunner(deps) {
   const { primaryProjection, fixtureSelectionName, flowRoot: flowRoot2, parentAxes, runFolder, operatorGoal, now, projectRoot, relayer, runtimeExecutors, hostKind, selectionConfigLayers, policyLayers } = deps;
   const recoveryFlowCache = /* @__PURE__ */ new Map();
@@ -110925,7 +111136,7 @@ function createRecoveryAttemptRunner(deps) {
       tournament: false,
       autonomous: parentAxes.autonomous && support.supportsAutonomous
     });
-    const attemptFolder = join42(runFolder, "attempts", `attempt-${attemptNumber}-${processId}`);
+    const attemptFolder = join43(runFolder, "attempts", `attempt-${attemptNumber}-${processId}`);
     const recoveryResult = await runCompiledFlowWithWaiting({
       flowBytes: recoveryFlow.bytes,
       compiledFlowPath: recoveryFlow.path,
@@ -110983,7 +111194,7 @@ var init_recovery_attempt_runner = __esm({
 });
 
 // dist/cli/resume-input.js
-import { join as join43, resolve as resolve30 } from "node:path";
+import { join as join44, resolve as resolve30 } from "node:path";
 function matchCheckpointChoice(raw, choices) {
   for (const choice of choices) {
     if (choice.id === raw)
@@ -111020,7 +111231,7 @@ function runFolderCandidates(argument, cwd2) {
   const isBareName = !argument.includes("/") && !argument.includes("\\") && argument !== "." && argument !== "..";
   if (!isBareName)
     return [direct];
-  return [direct, join43(runsRoot(cwd2), argument)];
+  return [direct, join44(runsRoot(cwd2), argument)];
 }
 function missingRunFolderMessage(input) {
   const lead = input.exists ? `error: ${input.resolved} is not a resumable Circuit run folder (it has no readable run trace).` : `error: no Circuit run folder found at ${input.resolved}.`;
@@ -111112,8 +111323,50 @@ var init_run_output = __esm({
   }
 });
 
+// dist/cli/run-preflight.js
+function isBuiltinConnectorName(name) {
+  return BUILTIN_CONNECTOR_NAMES.includes(name);
+}
+async function preflightRunConnectors(input) {
+  const env3 = input.env ?? process.env;
+  const chosen = connectorsForCompiledFlow(input.flow, input.configLayers, input.hostKind);
+  const builtinNames = [
+    ...new Set(chosen.map((step) => step.connectorName).filter(isBuiltinConnectorName))
+  ];
+  if (builtinNames.length === 0)
+    return { ok: true, warnings: [] };
+  if (builtinNames.includes("codex")) {
+    const stateDirProbe = input.probes?.stateDir ?? probeStateDirWritable;
+    const probe = stateDirProbe(codexStateDir(env3));
+    if (!probe.writable) {
+      return {
+        ok: false,
+        refusal: `${stateDirUnwritableSummary("codex", probe.dir)} (write failed: ${probe.detail})`
+      };
+    }
+  }
+  const presenceProbe = input.probes?.presence ?? probeBuiltinConnectorPresence;
+  const presenceChecks = await Promise.all(builtinNames.map(async (name) => ({ name, outcome: await presenceProbe(name, { env: env3 }) })));
+  const warnings = [];
+  for (const check3 of presenceChecks) {
+    if (check3.outcome.kind === "spawn_error") {
+      const executable = builtinConnectorExecutable(check3.name);
+      warnings.push(`this run's steps relay through the ${executable} CLI, which was not found (${check3.outcome.message}); the run will stop when it first needs it. \`circuit doctor\` checks connector health.`);
+    }
+  }
+  return { ok: true, warnings };
+}
+var init_run_preflight = __esm({
+  "dist/cli/run-preflight.js"() {
+    "use strict";
+    init_health();
+    init_state_dir();
+    init_chosen_connectors();
+  }
+});
+
 // dist/cli/run-stdout-envelope.js
-import { join as join44 } from "node:path";
+import { join as join45 } from "node:path";
 function leadingNumber(message) {
   const match = message.match(/\d+/);
   return match === null ? 0 : Number(match[0]);
@@ -111144,7 +111397,7 @@ function historyRecallOutputFields(input) {
     history_recall: {
       status: input.report.status,
       memory_input_count: input.report.memory_input_count,
-      report_path: join44(input.runFolder, HISTORY_RECALL_REPORT_PATH),
+      report_path: join45(input.runFolder, HISTORY_RECALL_REPORT_PATH),
       rebuilt: input.report.rebuilt,
       ...input.report.index_state === void 0 ? {} : { index_state: input.report.index_state },
       warnings: collapseIdenticalCodeWarnings(input.report.warnings.map((warning) => ({ code: warning.code, message: warning.message })))
@@ -111201,7 +111454,7 @@ var init_run_stdout_envelope = __esm({
 });
 
 // dist/cli/tty-notice.js
-import { join as join45 } from "node:path";
+import { join as join46 } from "node:path";
 function ttyNoticesEnabled(input) {
   return input.stream.isTTY === true && !input.progressJsonl;
 }
@@ -111209,7 +111462,7 @@ function runStartedNotice(input) {
   const mode = input.entryModeName === void 0 ? "" : ` (${input.entryModeName})`;
   return [
     `Running ${input.flowName}${mode}. This can take a while.`,
-    `Reports land in ${join45(input.runFolder, "reports")} while the run works.`,
+    `Reports land in ${join46(input.runFolder, "reports")} while the run works.`,
     ""
   ].join("\n");
 }
@@ -111228,7 +111481,7 @@ function checkpointWaitingNotice(input) {
 }
 function runFinishedNotice(input) {
   return `
-Run finished: ${input.outcome}. Reports: ${join45(input.runFolder, "reports")}
+Run finished: ${input.outcome}. Reports: ${join46(input.runFolder, "reports")}
 `;
 }
 var init_tty_notice = __esm({
@@ -111239,8 +111492,8 @@ var init_tty_notice = __esm({
 
 // dist/cli/run.js
 import { createHash as createHash12, randomUUID as randomUUID9 } from "node:crypto";
-import { existsSync as existsSync41, mkdirSync as mkdirSync13, readFileSync as readFileSync62, readdirSync as readdirSync8, writeFileSync as writeFileSync14 } from "node:fs";
-import { dirname as dirname17, join as join46, resolve as resolve31 } from "node:path";
+import { existsSync as existsSync42, mkdirSync as mkdirSync14, readFileSync as readFileSync62, readdirSync as readdirSync8, writeFileSync as writeFileSync15 } from "node:fs";
+import { dirname as dirname18, join as join47, resolve as resolve31 } from "node:path";
 function resumeCommandPrefix(hostKind) {
   return operatorSummaryResumeCommandPrefix({
     ...hostKind === void 0 ? {} : { hostKind },
@@ -112263,7 +112516,7 @@ async function runResumeCommand(args, options) {
         envelopeOutcome: runEnvelope?.record.outcome
       });
     }
-    process.stderr.write(`${missingRunFolderMessage({ resolved: runFolder, exists: existsSync41(runFolder) })}
+    process.stderr.write(`${missingRunFolderMessage({ resolved: runFolder, exists: existsSync42(runFolder) })}
 `);
     return 2;
   }
@@ -112297,7 +112550,7 @@ function unknownFlowMessage(flowName, flowRoot2) {
   const root = flowRoot2 !== void 0 ? resolve31(flowRoot2) : defaultFlowRoot();
   let available = [];
   try {
-    available = readdirSync8(root, { withFileTypes: true }).filter((entry) => entry.isDirectory() && existsSync41(join46(root, entry.name, "circuit.json"))).map((entry) => entry.name).filter((name) => !INTERNAL_FLOW_IDS.has(name)).sort();
+    available = readdirSync8(root, { withFileTypes: true }).filter((entry) => entry.isDirectory() && existsSync42(join47(root, entry.name, "circuit.json"))).map((entry) => entry.name).filter((name) => !INTERNAL_FLOW_IDS.has(name)).sort();
   } catch {
     available = [];
   }
@@ -112347,7 +112600,7 @@ async function runExecutionCommand(args, options) {
   }
   const fixtureSelectionName = compiledFlowSelectionNameForAxes(axes);
   const fixturePath = resolveCompiledFlowPath(route.flowName, fixtureSelectionName, args.fixturePath, args.flowRoot);
-  if (!existsSync41(fixturePath)) {
+  if (!existsSync42(fixturePath)) {
     if (INTERNAL_FLOW_IDS.has(route.flowName)) {
       process.stderr.write(`error: ${route.flowName} is an internal flow and is not available through the host run surface.
 `);
@@ -112401,7 +112654,7 @@ async function runExecutionCommand(args, options) {
     ...entryModeSelection.entryModeName === void 0 ? {} : { entry_mode: entryModeSelection.entryModeName },
     ...entryModeSelection.source === void 0 ? {} : { entry_mode_source: entryModeSelection.source }
   });
-  const runFolder = runArgs.runFolder === void 0 ? join46(runsRoot(process.cwd()), runId) : resolve31(runArgs.runFolder);
+  const runFolder = runArgs.runFolder === void 0 ? join47(runsRoot(process.cwd()), runId) : resolve31(runArgs.runFolder);
   try {
     validateFlowConfigRequirements({ flow, axes: runArgs.axes, selectionConfigLayers });
   } catch (err) {
@@ -112438,6 +112691,25 @@ async function runExecutionCommand(args, options) {
     progressJsonl: runArgs.progress === "jsonl"
   });
   if (routeToRuntime) {
+    const connectorPreflight = options.connectorPreflight ?? (options.relayer === void 0 && options.runtimeExecutors === void 0 ? preflightRunConnectors : void 0);
+    if (connectorPreflight !== void 0) {
+      const verdict = await connectorPreflight({
+        flow,
+        configLayers: selectionConfigLayers,
+        ...hostKind === void 0 ? {} : { hostKind }
+      });
+      if (!verdict.ok) {
+        process.stderr.write(`error: ${verdict.refusal}
+`);
+        return 2;
+      }
+      if (ttyNotices) {
+        for (const warning of verdict.warnings) {
+          process.stderr.write(`note: ${warning}
+`);
+        }
+      }
+    }
     if (ttyNotices) {
       process.stderr.write(runStartedNotice({
         flowName: route.flowName,
@@ -112655,9 +112927,9 @@ async function runExecutionCommand(args, options) {
             policyLayers
           })
         });
-        const autonomousLoopPath = join46(runFolder, AUTONOMOUS_LOOP_RELATIVE_PATH);
-        mkdirSync13(dirname17(autonomousLoopPath), { recursive: true });
-        writeFileSync14(autonomousLoopPath, `${JSON.stringify(autonomousLoop, null, 2)}
+        const autonomousLoopPath = join47(runFolder, AUTONOMOUS_LOOP_RELATIVE_PATH);
+        mkdirSync14(dirname18(autonomousLoopPath), { recursive: true });
+        writeFileSync15(autonomousLoopPath, `${JSON.stringify(autonomousLoop, null, 2)}
 `);
       } catch (err) {
         const message = err instanceof Error ? err.message : String(err);
@@ -112694,7 +112966,7 @@ async function runExecutionCommand(args, options) {
       postRunArtifactWarnings,
       operatorSummary,
       runEnvelope,
-      autonomousLoop: autonomousLoop === void 0 ? void 0 : { ...autonomousLoop, path: join46(runFolder, AUTONOMOUS_LOOP_RELATIVE_PATH) }
+      autonomousLoop: autonomousLoop === void 0 ? void 0 : { ...autonomousLoop, path: join47(runFolder, AUTONOMOUS_LOOP_RELATIVE_PATH) }
     }), null, 2)}
 `);
     if (ttyNotices) {
@@ -112756,6 +113028,7 @@ var init_run2 = __esm({
     init_resume_input();
     init_run_flag_vocabulary();
     init_run_output();
+    init_run_preflight();
     init_run_stdout_envelope();
     init_runtime_routing_policy();
     init_tty_notice();
@@ -112960,6 +113233,88 @@ var init_flow_selection_preview = __esm({
     init_power_tiers();
     init_relay_selection();
     init_run2();
+  }
+});
+
+// dist/cli/chosen-connectors.js
+function describeResolutionSource(source) {
+  switch (source.source) {
+    case "explicit":
+      return "step pin";
+    case "role":
+      return `role: ${source.role}`;
+    case "flow":
+      return `flow: ${source.flow_id}`;
+    case "default":
+      return "default";
+    case "auto":
+      return "auto";
+  }
+}
+function connectorsForCompiledFlow(compiled, layers, hostKind) {
+  const index = buildRuntimePackageIndex(fromCompiledFlow(compiled));
+  const flowId = index.flow.id;
+  const resolved = [];
+  for (const step of index.flow.steps) {
+    if (step.kind !== "relay")
+      continue;
+    const role = RelayRole.parse(step.role);
+    const explicitConnector = explicitConnectorForStep(step, layers);
+    const decision2 = resolveConnectorForGuidanceInput({
+      flowId,
+      role,
+      configLayers: layers,
+      ...explicitConnector === void 0 ? {} : { explicitConnector },
+      ...hostKind === void 0 ? {} : { hostKind }
+    });
+    resolved.push({
+      connectorName: decision2.connectorName,
+      source: describeResolutionSource(decision2.resolvedFrom),
+      descriptor: decision2.connector.kind === "custom" ? decision2.connector : void 0
+    });
+  }
+  return resolved;
+}
+function chosenConnectorsForFlow(flowId, layers, hostKind) {
+  const definition = flowDefinitions.find((candidate) => candidate.id === flowId);
+  if (definition === void 0)
+    throw new Error(`unknown flow '${flowId}'`);
+  const compiled = firstCompiledFlow(compileSchematicToCompiledFlow(definition.schematic));
+  return connectorsForCompiledFlow(compiled, layers, hostKind);
+}
+function resolveChosenConnectors(input = {}) {
+  const layers = input.configLayers ?? [];
+  const names = /* @__PURE__ */ new Set();
+  const sourceSets = /* @__PURE__ */ new Map();
+  const custom2 = /* @__PURE__ */ new Map();
+  for (const definition of flowDefinitions) {
+    if (definition.visibility !== "public")
+      continue;
+    for (const step of chosenConnectorsForFlow(definition.id, layers, input.hostKind)) {
+      names.add(step.connectorName);
+      const sourceSet = sourceSets.get(step.connectorName) ?? /* @__PURE__ */ new Set();
+      sourceSet.add(step.source);
+      sourceSets.set(step.connectorName, sourceSet);
+      if (step.descriptor !== void 0)
+        custom2.set(step.connectorName, step.descriptor);
+    }
+  }
+  const sources = /* @__PURE__ */ new Map();
+  for (const [name, sourceSet] of sourceSets) {
+    sources.set(name, [...sourceSet].sort());
+  }
+  return { names, sources, custom: custom2 };
+}
+var init_chosen_connectors = __esm({
+  "dist/cli/chosen-connectors.js"() {
+    "use strict";
+    init_resolver();
+    init_catalog();
+    init_compile_schematic_to_flow();
+    init_from_compiled_flow();
+    init_runtime_package_index();
+    init_step();
+    init_flow_selection_preview();
   }
 });
 
@@ -113257,13 +113612,13 @@ var init_preview = __esm({
 
 // dist/cli/version-info.js
 import { readFileSync as readFileSync64 } from "node:fs";
-import { dirname as dirname18, resolve as resolve32 } from "node:path";
+import { dirname as dirname19, resolve as resolve32 } from "node:path";
 import { fileURLToPath as fileURLToPath5 } from "node:url";
 function readSourceVersion() {
   if (true)
     return "0.1.1";
   const candidates = [
-    resolve32(dirname18(fileURLToPath5(import.meta.url)), "../../plugins/version.json"),
+    resolve32(dirname19(fileURLToPath5(import.meta.url)), "../../plugins/version.json"),
     resolve32(process.cwd(), "plugins/version.json")
   ];
   for (const candidate of candidates) {
@@ -114683,8 +115038,8 @@ var generate_exports = {};
 __export(generate_exports, {
   runGenerateCommand: () => runGenerateCommand
 });
-import { existsSync as existsSync43 } from "node:fs";
-import { join as join48 } from "node:path";
+import { existsSync as existsSync44 } from "node:fs";
+import { join as join49 } from "node:path";
 function parseArgs2(argv) {
   const program2 = new Command("circuit generate").option("--description <task>").option("--name <slug>").option("--home <path>").option("--created-at <iso>").option("--publish").option("--yes").option("--max-repair <n>").option("--timeout-ms <ms>").option("--progress <format>");
   parseCommanderOrThrow(program2, argv);
@@ -114835,7 +115190,7 @@ async function runGenerateCommand(argv, options = {}) {
     if (args.name !== void 0) {
       const namedSlug = slugify2(args.name);
       assertValidSlug(namedSlug);
-      if (args.publish && existsSync43(join48(flowRoot(home), namedSlug, "circuit.json"))) {
+      if (args.publish && existsSync44(join49(flowRoot(home), namedSlug, "circuit.json"))) {
         throw new Error(`custom flow already published: ${namedSlug}`);
       }
     }
@@ -114878,7 +115233,7 @@ async function runGenerateCommand(argv, options = {}) {
       return 1;
     }
     const slug = composed.slug;
-    if (args.publish && existsSync43(join48(flowRoot(home), slug, "circuit.json"))) {
+    if (args.publish && existsSync44(join49(flowRoot(home), slug, "circuit.json"))) {
       throw new Error(`custom flow already published: ${slug}`);
     }
     const createdAt = args.createdAt ?? now().toISOString();
@@ -114913,11 +115268,11 @@ async function runGenerateCommand(argv, options = {}) {
       converged_round: composed.convergedRound,
       repair_rounds: composed.repairRounds,
       draft_path: draftRoot(home, slug),
-      validation_path: join48(draftRoot(home, slug), "validation-result.json"),
+      validation_path: join49(draftRoot(home, slug), "validation-result.json"),
       ...args.publish ? {
         published_path: publishedRoot(home, slug),
-        flow_path: join48(flowRoot(home), slug, "circuit.json"),
-        command_path: join48(commandRoot(home), `${slug}.md`),
+        flow_path: join49(flowRoot(home), slug, "circuit.json"),
+        command_path: join49(commandRoot(home), `${slug}.md`),
         manifest_path: manifestPath(home)
       } : {},
       operator_summary_markdown_path: summaryPath(home, slug)
@@ -154473,244 +154828,18 @@ async function runCreateCommand(argv, options = {}) {
 
 // dist/cli/doctor.js
 init_esm();
-
-// dist/connectors/health.js
-init_claude_code();
-init_codex();
-init_cursor_agent();
-init_remediation();
-init_subprocess();
-var HEALTH_PROBE_SPECS = {
-  "claude-code": { executable: CLAUDE_CODE_EXECUTABLE, presenceArgs: ["--version"] },
-  codex: {
-    executable: CODEX_EXECUTABLE,
-    presenceArgs: ["--version"],
-    authArgs: ["login", "status"]
-  },
-  "cursor-agent": {
-    executable: CURSOR_AGENT_EXECUTABLE,
-    presenceArgs: ["--version"],
-    authArgs: ["status"]
-  }
-};
-var BUILTIN_CONNECTOR_NAMES = [
-  "claude-code",
-  "codex",
-  "cursor-agent"
-];
-var SIGNED_OUT_PATTERN = /not logged in|logged out|unauthenticated|login required|not signed in|sign in required/i;
-function firstLine(outcome) {
-  const text = outcome.stdout.trim().length > 0 ? outcome.stdout : outcome.stderr;
-  return text.trim().split("\n")[0]?.trim() ?? "";
-}
-function classifyConnectorHealth(input) {
-  const remediation = connectorRemediation(input.connector);
-  const base = { connector: input.connector, executable: input.executable };
-  if (input.presence.kind === "spawn_error") {
-    return {
-      ...base,
-      state: "needs_attention",
-      detail: `the '${input.executable}' command was not found or could not start (${input.presence.message})`,
-      remediation
-    };
-  }
-  if (input.presence.timedOut) {
-    return {
-      ...base,
-      state: "unknown",
-      detail: `could not check: ${input.executable} --version timed out`
-    };
-  }
-  if (input.presence.code !== 0) {
-    const line = firstLine(input.presence);
-    return {
-      ...base,
-      state: "needs_attention",
-      detail: `${input.executable} --version exited with code ${input.presence.code}${line === "" ? "" : `: ${line}`}`,
-      remediation
-    };
-  }
-  const version3 = firstLine(input.presence);
-  if (input.auth === void 0) {
-    return { ...base, state: "ok", detail: version3 };
-  }
-  if (input.auth.kind === "spawn_error") {
-    return {
-      ...base,
-      state: "needs_attention",
-      detail: `${version3}; sign-in check could not start (${input.auth.message})`,
-      remediation
-    };
-  }
-  if (input.auth.timedOut) {
-    return {
-      ...base,
-      state: "unknown",
-      detail: `${version3}; could not check sign-in state (timed out)`
-    };
-  }
-  const authLine = firstLine(input.auth);
-  if (input.auth.code !== 0 || SIGNED_OUT_PATTERN.test(`${input.auth.stdout}
-${input.auth.stderr}`)) {
-    return {
-      ...base,
-      state: "needs_attention",
-      detail: `${version3}; installed but may need sign-in${authLine === "" ? "" : ` (${authLine})`}`,
-      remediation
-    };
-  }
-  return {
-    ...base,
-    state: "ok",
-    detail: authLine === "" ? version3 : `${version3}; ${authLine}`
-  };
-}
-var PROBE_TIMEOUT_MS = 1e4;
-var PROBE_OUTPUT_MAX_BYTES = 16384;
-async function runProbe(executable, args, env3) {
-  try {
-    const result = await runConnectorSubprocess({
-      executable,
-      args,
-      timeoutMs: PROBE_TIMEOUT_MS,
-      stdoutMaxBytes: PROBE_OUTPUT_MAX_BYTES,
-      stderrMaxBytes: PROBE_OUTPUT_MAX_BYTES,
-      sigtermToSigkillGraceMs: 2e3,
-      env: env3
-    });
-    return {
-      kind: "ran",
-      code: result.code,
-      stdout: result.stdout,
-      stderr: result.stderr,
-      timedOut: result.timedOut
-    };
-  } catch (error52) {
-    if (isConnectorSubprocessSpawnError(error52)) {
-      return { kind: "spawn_error", message: error52.message };
-    }
-    throw error52;
-  }
-}
-async function probeBuiltinConnector(connector, options) {
-  const spec = HEALTH_PROBE_SPECS[connector];
-  const env3 = options?.env ?? process.env;
-  const presence = await runProbe(spec.executable, spec.presenceArgs, env3);
-  const auth = spec.authArgs !== void 0 && presence.kind === "ran" && presence.code === 0 ? await runProbe(spec.executable, spec.authArgs, env3) : void 0;
-  return classifyConnectorHealth({
-    connector,
-    executable: spec.executable,
-    presence,
-    ...auth === void 0 ? {} : { auth }
-  });
-}
-async function probeBuiltinConnectors(options) {
-  return await Promise.all(BUILTIN_CONNECTOR_NAMES.map((name) => probeBuiltinConnector(name, options)));
-}
-async function probeCustomConnectorPresence(connector, executable, options) {
-  const presence = await runProbe(executable, [], options?.env ?? process.env);
-  if (presence.kind === "spawn_error") {
-    return {
-      connector,
-      executable,
-      state: "needs_attention",
-      detail: `the '${executable}' command was not found or could not start (${presence.message})`,
-      remediation: `Fix: check that '${executable}' is installed and on PATH.`
-    };
-  }
-  return {
-    connector,
-    executable,
-    state: "unknown",
-    detail: "could not check: custom connectors have no scripted sign-in probe"
-  };
-}
-
-// dist/cli/doctor.js
+init_health();
+init_state_dir();
 init_config_loader();
-
-// dist/cli/chosen-connectors.js
-init_resolver();
-init_catalog();
-init_compile_schematic_to_flow();
-init_from_compiled_flow();
-init_runtime_package_index();
-init_step();
-init_flow_selection_preview();
-function describeResolutionSource(source) {
-  switch (source.source) {
-    case "explicit":
-      return "step pin";
-    case "role":
-      return `role: ${source.role}`;
-    case "flow":
-      return `flow: ${source.flow_id}`;
-    case "default":
-      return "default";
-    case "auto":
-      return "auto";
-  }
-}
-function chosenConnectorsForFlow(flowId, layers, hostKind) {
-  const definition = flowDefinitions.find((candidate) => candidate.id === flowId);
-  if (definition === void 0)
-    throw new Error(`unknown flow '${flowId}'`);
-  const compiled = firstCompiledFlow(compileSchematicToCompiledFlow(definition.schematic));
-  const index = buildRuntimePackageIndex(fromCompiledFlow(compiled));
-  const resolved = [];
-  for (const step of index.flow.steps) {
-    if (step.kind !== "relay")
-      continue;
-    const role = RelayRole.parse(step.role);
-    const explicitConnector = explicitConnectorForStep(step, layers);
-    const decision2 = resolveConnectorForGuidanceInput({
-      flowId,
-      role,
-      configLayers: layers,
-      ...explicitConnector === void 0 ? {} : { explicitConnector },
-      ...hostKind === void 0 ? {} : { hostKind }
-    });
-    resolved.push({
-      connectorName: decision2.connectorName,
-      source: describeResolutionSource(decision2.resolvedFrom),
-      descriptor: decision2.connector.kind === "custom" ? decision2.connector : void 0
-    });
-  }
-  return resolved;
-}
-function resolveChosenConnectors(input = {}) {
-  const layers = input.configLayers ?? [];
-  const names = /* @__PURE__ */ new Set();
-  const sourceSets = /* @__PURE__ */ new Map();
-  const custom2 = /* @__PURE__ */ new Map();
-  for (const definition of flowDefinitions) {
-    if (definition.visibility !== "public")
-      continue;
-    for (const step of chosenConnectorsForFlow(definition.id, layers, input.hostKind)) {
-      names.add(step.connectorName);
-      const sourceSet = sourceSets.get(step.connectorName) ?? /* @__PURE__ */ new Set();
-      sourceSet.add(step.source);
-      sourceSets.set(step.connectorName, sourceSet);
-      if (step.descriptor !== void 0)
-        custom2.set(step.connectorName, step.descriptor);
-    }
-  }
-  const sources = /* @__PURE__ */ new Map();
-  for (const [name, sourceSet] of sourceSets) {
-    sources.set(name, [...sourceSet].sort());
-  }
-  return { names, sources, custom: custom2 };
-}
-
-// dist/cli/doctor.js
+init_chosen_connectors();
 init_commander_support();
 init_preview();
 init_styled_table();
 init_terminal_style();
 
 // dist/cli/workspace-hygiene.js
-import { existsSync as existsSync42, readFileSync as readFileSync63 } from "node:fs";
-import { join as join47 } from "node:path";
+import { existsSync as existsSync43, readFileSync as readFileSync63 } from "node:fs";
+import { join as join48 } from "node:path";
 var PRETTIER_CONFIG_FILES = [
   ".prettierrc",
   ".prettierrc.json",
@@ -154727,7 +154856,7 @@ var PRETTIER_CONFIG_FILES = [
 ];
 var CIRCUIT_IGNORE_LINE = /^(\*\*\/)?\/?\.circuit(\/(\*\*)?)?$/;
 function fileHasCircuitLine(path) {
-  if (!existsSync42(path))
+  if (!existsSync43(path))
     return false;
   try {
     return readFileSync63(path, "utf8").split("\n").some((line) => CIRCUIT_IGNORE_LINE.test(line.trim()));
@@ -154736,12 +154865,12 @@ function fileHasCircuitLine(path) {
   }
 }
 function hasPrettierSetup(projectRoot) {
-  if (PRETTIER_CONFIG_FILES.some((name) => existsSync42(join47(projectRoot, name))))
+  if (PRETTIER_CONFIG_FILES.some((name) => existsSync43(join48(projectRoot, name))))
     return true;
-  if (existsSync42(join47(projectRoot, ".prettierignore")))
+  if (existsSync43(join48(projectRoot, ".prettierignore")))
     return true;
-  const packageJsonPath = join47(projectRoot, "package.json");
-  if (!existsSync42(packageJsonPath))
+  const packageJsonPath = join48(projectRoot, "package.json");
+  if (!existsSync43(packageJsonPath))
     return false;
   try {
     const parsed = JSON.parse(readFileSync63(packageJsonPath, "utf8"));
@@ -154753,15 +154882,15 @@ function hasPrettierSetup(projectRoot) {
   }
 }
 function workspaceHygieneFindings(projectRoot) {
-  if (!existsSync42(join47(projectRoot, ".circuit")))
+  if (!existsSync43(join48(projectRoot, ".circuit")))
     return [];
   if (!hasPrettierSetup(projectRoot))
     return [];
-  const covered = fileHasCircuitLine(join47(projectRoot, ".prettierignore")) || // Prettier 3 honors the repo-root .gitignore by default, so a `.circuit`
+  const covered = fileHasCircuitLine(join48(projectRoot, ".prettierignore")) || // Prettier 3 honors the repo-root .gitignore by default, so a `.circuit`
   // line there also covers it. Circuit's own seeded ignore lives NESTED at
   // `.circuit/.gitignore`, which Prettier never reads; that blind spot is
   // exactly what this probe exists to catch.
-  fileHasCircuitLine(join47(projectRoot, ".gitignore"));
+  fileHasCircuitLine(join48(projectRoot, ".gitignore"));
   if (covered)
     return [];
   return [
@@ -154851,6 +154980,10 @@ function renderDoctorReport(palette, entries, workspace = []) {
     ]),
     ...workspaceLines(palette, workspace),
     "",
+    // Doctor cannot see other environments: a sandboxed agent session spawns
+    // workers under restrictions this terminal may not have. Run intake runs
+    // its own preflight in the run's environment for exactly that reason.
+    palette.dim("these checks reflect the environment doctor ran in; a sandboxed agent session can fail where this terminal passes."),
     palette.dim("connectors marked - are optional (no flow step chooses them) and never fail this check. to change:"),
     // Remedies must work when pasted: relay.roles.* and relay.flows.* take
     // connector reference objects, so the role/flow lever shows the
@@ -154858,6 +154991,19 @@ function renderDoctorReport(palette, entries, workspace = []) {
     palette.dim("  circuit config set relay.default codex"),
     palette.dim("  circuit config set relay.roles.reviewer '{kind: builtin, name: codex}'   (also: relay.flows.<flow>; check with: circuit preview)")
   ].join("\n");
+}
+function annotateCodexStateDir(check3, probe) {
+  if (check3.connector !== "codex" || check3.state !== "ok")
+    return check3;
+  if (probe.writable) {
+    return { ...check3, detail: `${check3.detail}; state directory is writable (${probe.dir})` };
+  }
+  return {
+    ...check3,
+    state: "needs_attention",
+    detail: `${check3.detail}; could not write state directory (${probe.dir})`,
+    remediation: stateDirUnwritableSummary("codex", probe.dir)
+  };
 }
 async function runDoctorCommand(argv) {
   const parsed = parseDoctorArgs(argv);
@@ -154872,7 +155018,7 @@ async function runDoctorCommand(argv) {
     configLayers,
     ...hostKind === void 0 ? {} : { hostKind }
   });
-  const builtinChecks = await probeBuiltinConnectors();
+  const builtinChecks = (await probeBuiltinConnectors()).map((check3) => check3.connector === "codex" && check3.state === "ok" ? annotateCodexStateDir(check3, probeStateDirWritable(codexStateDir())) : check3);
   const customChecks = await Promise.all([...chosen.custom.values()].map((descriptor) => probeCustomConnectorPresence(descriptor.name, descriptor.command[0])));
   const entries = [
     ...builtinChecks.map((check3) => ({
@@ -154948,7 +155094,7 @@ init_generate();
 
 // dist/cli/handoff.js
 init_esm();
-import { existsSync as existsSync44, readFileSync as readFileSync65 } from "node:fs";
+import { existsSync as existsSync45, readFileSync as readFileSync65 } from "node:fs";
 import { resolve as resolve33 } from "node:path";
 init_records();
 init_continuity();
@@ -155194,7 +155340,7 @@ Saved continuity record could not be resumed: ${message}`);
 function resumeContinuity(args) {
   const controlPlane = resolveControlPlaneArg(args);
   const indexAbs = indexPath(controlPlane);
-  if (!existsSync44(indexAbs)) {
+  if (!existsSync45(indexAbs)) {
     const summaryPath3 = operatorSummaryPath(controlPlane);
     writeMarkdown(summaryPath3, "# Circuit Handoff\n\nNo saved continuity found.");
     const result2 = {
@@ -155232,7 +155378,7 @@ function resumeContinuity(args) {
     return { ...result2, result_path: resultPath3 };
   }
   const recordAbs = recordPath(controlPlane, index.pending_record.record_id);
-  if (!existsSync44(recordAbs)) {
+  if (!existsSync45(recordAbs)) {
     return invalidResumeResult(controlPlane, "record_missing", "Continuity index points at a missing record.", index.pending_record.record_id);
   }
   const recordRaw = readJsonSafely(recordAbs);
@@ -155805,7 +155951,7 @@ init_schemas3();
 init_atomic_io();
 init_outcome();
 init_indexer();
-import { join as join50 } from "node:path";
+import { join as join51 } from "node:path";
 
 // dist/app/history/memory-merge.js
 init_schemas3();
@@ -155813,8 +155959,8 @@ init_atomic_io();
 init_outcome();
 init_indexer();
 init_memory_identity();
-import { existsSync as existsSync45, readFileSync as readFileSync66 } from "node:fs";
-import { join as join49 } from "node:path";
+import { existsSync as existsSync46, readFileSync as readFileSync66 } from "node:fs";
+import { join as join50 } from "node:path";
 var RUN_ENVELOPE_RELATIVE_PATH2 = "reports/run-envelope.json";
 var RECALL_REPORT_RELATIVE_PATH = "reports/history/recall.json";
 var EFFECT_NOTE = "Report-only linkage (Slice 1). Effect requires cross-run aggregation over comparable runs (Slice 2).";
@@ -155825,8 +155971,8 @@ function deriveAbortReason(envelope) {
   return attempt.blocked_reason ?? attempt.summary;
 }
 function readRecallInputs(runFolder, warnings) {
-  const recallPath = join49(runFolder, RECALL_REPORT_RELATIVE_PATH);
-  if (!existsSync45(recallPath)) {
+  const recallPath = join50(runFolder, RECALL_REPORT_RELATIVE_PATH);
+  if (!existsSync46(recallPath)) {
     warnings.push({
       code: "recall_report_missing",
       message: "memory was used but no recall report was found; content identity is unavailable",
@@ -155881,8 +156027,8 @@ function resolveInput(memoryInputId, recallInputs, runFolder, warnings) {
 }
 function extractRunMemoryLinkage(runFolder) {
   const warnings = [];
-  const envelopePath = join49(runFolder, RUN_ENVELOPE_RELATIVE_PATH2);
-  if (!existsSync45(envelopePath)) {
+  const envelopePath = join50(runFolder, RUN_ENVELOPE_RELATIVE_PATH2);
+  if (!existsSync46(envelopePath)) {
     warnings.push({
       code: "envelope_missing",
       message: "no run.envelope@v0 record (resume or non-source run); skipped from linkage",
@@ -155991,7 +156137,7 @@ function buildMemoryMergeReport(options = {}) {
   });
 }
 function writeMemoryMergeReport(report, paths) {
-  const outPath = join49(paths.indexDir, HISTORY_MEMORY_MERGE_FILE);
+  const outPath = join50(paths.indexDir, HISTORY_MEMORY_MERGE_FILE);
   writeJsonAtomic(outPath, report, {
     validate: (raw) => HistoryMemoryMergeV1.parse(JSON.parse(raw))
   });
@@ -156188,7 +156334,7 @@ function buildMemoryEffectReport(options = {}) {
   });
 }
 function writeMemoryEffectReport(report, paths) {
-  const outPath = join50(paths.indexDir, HISTORY_MEMORY_EFFECT_FILE);
+  const outPath = join51(paths.indexDir, HISTORY_MEMORY_EFFECT_FILE);
   writeJsonAtomic(outPath, report, {
     validate: (raw) => HistoryMemoryEffectV1.parse(JSON.parse(raw))
   });
@@ -156202,8 +156348,8 @@ init_memory_preview();
 // dist/app/history/pull-log.js
 init_schemas3();
 init_atomic_io();
-import { existsSync as existsSync46, readFileSync as readFileSync67 } from "node:fs";
-import { join as join51 } from "node:path";
+import { existsSync as existsSync47, readFileSync as readFileSync67 } from "node:fs";
+import { join as join52 } from "node:path";
 var HISTORY_PULL_LOG_RELATIVE_PATH = "reports/history/pull-log.json";
 function pullLogUnavailable(runFolder, error52) {
   return {
@@ -156214,8 +156360,8 @@ function pullLogUnavailable(runFolder, error52) {
   };
 }
 function readPullLog(runFolder) {
-  const path = join51(runFolder, HISTORY_PULL_LOG_RELATIVE_PATH);
-  if (!existsSync46(path))
+  const path = join52(runFolder, HISTORY_PULL_LOG_RELATIVE_PATH);
+  if (!existsSync47(path))
     return void 0;
   try {
     return HistoryPullLogV1.parse(JSON.parse(readFileSync67(path, "utf8")));
@@ -156224,11 +156370,11 @@ function readPullLog(runFolder) {
   }
 }
 function appendPullLogEntry(runFolder, input) {
-  const outPath = join51(runFolder, HISTORY_PULL_LOG_RELATIVE_PATH);
+  const outPath = join52(runFolder, HISTORY_PULL_LOG_RELATIVE_PATH);
   const warnings = [];
   let existing;
   try {
-    if (existsSync46(outPath)) {
+    if (existsSync47(outPath)) {
       existing = HistoryPullLogV1.parse(JSON.parse(readFileSync67(outPath, "utf8")));
     }
   } catch (error52) {
@@ -156586,8 +156732,8 @@ init_esm();
 init_indexer();
 init_catalog();
 import { createHash as createHash13 } from "node:crypto";
-import { existsSync as existsSync48, readFileSync as readFileSync69 } from "node:fs";
-import { basename as basename8, join as join52 } from "node:path";
+import { existsSync as existsSync49, readFileSync as readFileSync69 } from "node:fs";
+import { basename as basename8, join as join53 } from "node:path";
 
 // dist/memory/project-identity.js
 var import_yaml5 = __toESM(require_dist(), 1);
@@ -156597,7 +156743,7 @@ init_connector_relay();
 init_control_plane_paths();
 init_project_store();
 import { execFileSync as execFileSync5 } from "node:child_process";
-import { existsSync as existsSync47, readFileSync as readFileSync68 } from "node:fs";
+import { existsSync as existsSync48, readFileSync as readFileSync68 } from "node:fs";
 function hashedId(prefix, basis) {
   return `proj-${prefix}-${sha256OfString(basis).slice(0, 16)}`;
 }
@@ -156614,7 +156760,7 @@ function normalizeGitRemoteUrl(url2) {
 }
 function readConfigProjectId(repoRoot) {
   const configPath = projectConfigPath(repoRoot);
-  if (!existsSync47(configPath))
+  if (!existsSync48(configPath))
     return void 0;
   let raw;
   try {
@@ -156762,8 +156908,8 @@ function resolveNoteSource(input) {
     { rel: "reports/result.json", kind: "report" }
   ];
   for (const candidate of candidates) {
-    const abs = join52(input.runFolder, candidate.rel);
-    if (!existsSync48(abs))
+    const abs = join53(input.runFolder, candidate.rel);
+    if (!existsSync49(abs))
       continue;
     const sha2564 = sha256Text(readFileSync69(abs, "utf8"));
     const ref = Ref.parse({
@@ -156774,8 +156920,8 @@ function resolveNoteSource(input) {
     });
     return { ref, sha256: sha2564 };
   }
-  const tracePath = join52(input.runFolder, "trace.ndjson");
-  if (existsSync48(tracePath)) {
+  const tracePath = join53(input.runFolder, "trace.ndjson");
+  if (existsSync49(tracePath)) {
     const runId = basename8(input.runFolder);
     const sha2564 = sha256Text(readFileSync69(tracePath, "utf8"));
     const trace = Ref.safeParse({
@@ -156949,23 +157095,23 @@ init_preview();
 
 // dist/cli/reclaim.js
 init_esm();
-import { join as join54, resolve as resolve34 } from "node:path";
+import { join as join55, resolve as resolve34 } from "node:path";
 
 // dist/runtime/fanout/worktree-reaper.js
 init_trace_store();
 init_run_owner_lock();
 init_worktree();
 import { readdir as readdir2 } from "node:fs/promises";
-import { join as join53 } from "node:path";
+import { join as join54 } from "node:path";
 var listWorktreesFromDisk = async (worktreesRoot) => {
   const entries = [];
   const runDirs = await listSubdirectories(worktreesRoot);
   for (const runId of runDirs) {
-    const stepDirs = await listSubdirectories(join53(worktreesRoot, runId));
+    const stepDirs = await listSubdirectories(join54(worktreesRoot, runId));
     for (const stepId of stepDirs) {
-      const branchDirs = await listSubdirectories(join53(worktreesRoot, runId, stepId));
+      const branchDirs = await listSubdirectories(join54(worktreesRoot, runId, stepId));
       for (const branchId of branchDirs) {
-        entries.push({ path: join53(worktreesRoot, runId, stepId, branchId), runId });
+        entries.push({ path: join54(worktreesRoot, runId, stepId, branchId), runId });
       }
     }
   }
@@ -156985,7 +157131,7 @@ function makeTraceRunStatusResolver(runsRoot2) {
   return async (runId) => {
     let entries;
     try {
-      const trace = new TraceStore(join53(runsRoot2, runId));
+      const trace = new TraceStore(join54(runsRoot2, runId));
       entries = await trace.load();
     } catch {
       return "unknown";
@@ -157108,7 +157254,7 @@ async function runReclaimCommand(argv) {
     return 2;
   }
   const projectRoot = parsed.projectRoot;
-  const worktreesRoot = join54(controlPlaneRoot(projectRoot), "worktrees");
+  const worktreesRoot = join55(controlPlaneRoot(projectRoot), "worktrees");
   const summary = await reapWorktrees({
     worktreesRoot,
     // Anchor `git worktree remove` at the resolved project root so reclaim works
@@ -157211,8 +157357,8 @@ init_host();
 init_atomic_io();
 init_commander_support();
 init_run2();
-import { existsSync as existsSync49, readFileSync as readFileSync70 } from "node:fs";
-import { join as join55, resolve as resolve35 } from "node:path";
+import { existsSync as existsSync50, readFileSync as readFileSync70 } from "node:fs";
+import { join as join56, resolve as resolve35 } from "node:path";
 var START_LINE = /^\s*<!--\s*circuit:start\s*-->\s*$/;
 var END_LINE = /^\s*<!--\s*circuit:end\s*-->\s*$/;
 var UNINSTALL_TARGET_FILES = ["AGENTS.md", "CLAUDE.md"];
@@ -157363,8 +157509,8 @@ async function runUninstallCommand(argv, options = {}) {
   let malformedAny = false;
   let strippedAny = false;
   for (const file2 of UNINSTALL_TARGET_FILES) {
-    const path = join55(args.dir, file2);
-    if (!existsSync49(path)) {
+    const path = join56(args.dir, file2);
+    if (!existsSync50(path)) {
       files.push({ file: file2, path, status: "absent" });
       continue;
     }

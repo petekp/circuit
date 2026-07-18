@@ -1,6 +1,7 @@
 import { readFileSync } from 'node:fs';
-import { homedir } from 'node:os';
 import { join } from 'node:path';
+
+import { codexStateDir } from './state-dir.js';
 
 // Codex default-model resolver.
 //
@@ -30,11 +31,10 @@ import { join } from 'node:path';
 export const CODEX_MODELS_CACHE_FILENAME = 'models_cache.json';
 
 // CODEX_HOME overrides the default `~/.codex`. Mirrors codex's own resolution
-// so Circuit reads the same cache the CLI writes.
+// so Circuit reads the same cache the CLI writes. The canonical resolver
+// lives in state-dir.ts, shared with the writability probe.
 export function codexHomeDir(): string {
-  const fromEnv = process.env.CODEX_HOME;
-  if (fromEnv !== undefined && fromEnv.trim().length > 0) return fromEnv;
-  return join(homedir(), '.codex');
+  return codexStateDir(process.env);
 }
 
 export function codexModelsCachePath(): string {

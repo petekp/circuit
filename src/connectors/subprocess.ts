@@ -1,5 +1,8 @@
 import { type ChildProcess, spawn } from 'node:child_process';
+import { dirname } from 'node:path';
 import { performance } from 'node:perf_hooks';
+
+import { stateDirUnwritableSummary } from './state-dir.js';
 
 export class ConnectorSubprocessSpawnError extends Error {
   constructor(
@@ -184,8 +187,23 @@ const SIGNED_OUT_OUTPUT_PATTERN =
 const SANDBOX_DENIAL_PATTERN = /operation not permitted/gi;
 // A single "Operation not permitted" can be an app-level detail; a repeated
 // storm of them is the signature of a sandboxed launch (observed 10x in one
-// codex run, drowning the actual failure).
+// codex run, drowning the actual failure). The threshold stays at 3: the
+// scanned text includes stdout and stream errors, which carry agent-written
+// conversation content, so a lower bar risks misdiagnosing a task that merely
+// talks about permission errors. Runs sandboxed too tightly to reach 3 are
+// covered by the state-db signature below instead.
 const SANDBOX_DENIAL_MIN_COUNT = 3;
+
+// The signature of a worker CLI that launched but could not write its
+// out-of-project state directory (codex: `~/.codex/state_5.sqlite`), the
+// canonical failure of running Circuit inside a sandboxed host session that
+// only allows project writes. Matched against STDERR ONLY: stdout is
+// conversation content, and a task about sqlite could echo these words.
+const STATE_DB_READONLY_PATTERN = /failed to open state db|attempt to write a read-?only database/i;
+// Where the state directory is, parsed from the CLI's own report. The runtime
+// line names the directory; the db line names the sqlite file inside it.
+const STATE_RUNTIME_DIR_PATTERN = /failed to initialize state runtime at ([^:\n]+):/i;
+const STATE_DB_FILE_PATTERN = /state db at (\S+?):/i;
 
 const STREAM_ERROR_MESSAGE_MAX_CHARS = 400;
 
@@ -226,6 +244,15 @@ export function connectorFailureSummary(input: ConnectorFailureSummaryInput): st
   if (SIGNED_OUT_OUTPUT_PATTERN.test(scanned)) {
     return `The ${input.cli} CLI is not logged in. ${input.signInHint}, or run \`circuit doctor\` to check connector health.`;
   }
+  if (STATE_DB_READONLY_PATTERN.test(input.stderr)) {
+    // Checked before the denial-storm branch: this diagnosis is more specific
+    // (it names the directory and the setup fix), and the observed failure
+    // produces too few denial lines to trip the storm threshold anyway.
+    const stateDir =
+      input.stderr.match(STATE_RUNTIME_DIR_PATTERN)?.[1]?.trim() ??
+      parentOfPath(input.stderr.match(STATE_DB_FILE_PATTERN)?.[1]);
+    return `${stateDirUnwritableSummary(input.cli, stateDir)} Run \`circuit doctor\` to check connector health.`;
+  }
   const denialCount = (scanned.match(SANDBOX_DENIAL_PATTERN) ?? []).length;
   if (denialCount >= SANDBOX_DENIAL_MIN_COUNT) {
     // The storm itself is noise; the real failure is usually the last stderr
@@ -240,6 +267,10 @@ export function connectorFailureSummary(input: ConnectorFailureSummaryInput): st
     return `The ${input.cli} CLI reported an error: ${trimmed}${trimmed.endsWith('.') ? '' : '.'}`;
   }
   return undefined;
+}
+
+function parentOfPath(path: string | undefined): string | undefined {
+  return path === undefined ? undefined : dirname(path);
 }
 
 function lastLineWithout(text: string, exclude: RegExp): string | undefined {

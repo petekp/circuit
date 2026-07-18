@@ -19,6 +19,12 @@ import {
   probeBuiltinConnectors,
   probeCustomConnectorPresence,
 } from '../connectors/health.js';
+import {
+  type StateDirProbe,
+  codexStateDir,
+  probeStateDirWritable,
+  stateDirUnwritableSummary,
+} from '../connectors/state-dir.js';
 import { discoverRuntimeConfigLayers } from '../shared/config-loader.js';
 import { resolveChosenConnectors } from './chosen-connectors.js';
 import { commanderErrorMessage, configureCommanderProgram } from './commander-support.js';
@@ -148,6 +154,12 @@ export function renderDoctorReport(
     ]),
     ...workspaceLines(palette, workspace),
     '',
+    // Doctor cannot see other environments: a sandboxed agent session spawns
+    // workers under restrictions this terminal may not have. Run intake runs
+    // its own preflight in the run's environment for exactly that reason.
+    palette.dim(
+      'these checks reflect the environment doctor ran in; a sandboxed agent session can fail where this terminal passes.',
+    ),
     palette.dim(
       'connectors marked - are optional (no flow step chooses them) and never fail this check. to change:',
     ),
@@ -159,6 +171,28 @@ export function renderDoctorReport(
       "  circuit config set relay.roles.reviewer '{kind: builtin, name: codex}'   (also: relay.flows.<flow>; check with: circuit preview)",
     ),
   ].join('\n');
+}
+
+// The sandboxed-session failure class: codex can be installed and signed in,
+// yet unable to write its state directory (~/.codex) from THIS environment,
+// which kills every codex relay seconds after spawn. Annotated only when the
+// base probes passed — a missing or signed-out binary is already the headline
+// — and the failing line reuses the shared diagnosis sentence, so doctor, run
+// intake, and the mid-run failure interpreter describe this identically.
+export function annotateCodexStateDir(
+  check: ConnectorHealthCheck,
+  probe: StateDirProbe,
+): ConnectorHealthCheck {
+  if (check.connector !== 'codex' || check.state !== 'ok') return check;
+  if (probe.writable) {
+    return { ...check, detail: `${check.detail}; state directory is writable (${probe.dir})` };
+  }
+  return {
+    ...check,
+    state: 'needs_attention',
+    detail: `${check.detail}; could not write state directory (${probe.dir})`,
+    remediation: stateDirUnwritableSummary('codex', probe.dir),
+  };
 }
 
 export async function runDoctorCommand(argv: readonly string[]): Promise<number> {
@@ -175,7 +209,11 @@ export async function runDoctorCommand(argv: readonly string[]): Promise<number>
     ...(hostKind === undefined ? {} : { hostKind }),
   });
 
-  const builtinChecks = await probeBuiltinConnectors();
+  const builtinChecks = (await probeBuiltinConnectors()).map((check) =>
+    check.connector === 'codex' && check.state === 'ok'
+      ? annotateCodexStateDir(check, probeStateDirWritable(codexStateDir()))
+      : check,
+  );
   const customChecks = await Promise.all(
     [...chosen.custom.values()].map((descriptor) =>
       probeCustomConnectorPresence(descriptor.name, descriptor.command[0] as string),
