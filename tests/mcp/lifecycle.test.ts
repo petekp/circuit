@@ -304,6 +304,9 @@ function fixture(
       input: Parameters<NonNullable<CreateCircuitMcpLifecycleOptions['validateStart']>>[0],
     ) => Promise<void>;
     readonly preflightLaunch?: NonNullable<CreateCircuitMcpLifecycleOptions['preflightLaunch']>;
+    readonly loadRuntimeAssets?: CreateCircuitMcpLifecycleOptions['loadRuntimeAssets'];
+    readonly workerFactory?: LifecycleWorkerFactory;
+    readonly workerPreparationMs?: number;
     readonly cleanup?: LifecycleCleanupController;
     readonly checkpoints?: LifecycleCheckpointReader;
   } = {},
@@ -335,7 +338,7 @@ function fixture(
         };
       },
     } satisfies SupervisorLauncher);
-  const workerFactory: LifecycleWorkerFactory = {
+  const workerFactory: LifecycleWorkerFactory = overrides.workerFactory ?? {
     createStart: async ({ authorization_token, runtime_assets }) => {
       order.push('build-start-worker');
       return {
@@ -397,10 +400,12 @@ function fixture(
   const lifecycle = new CircuitMcpLifecycle({
     platform: overrides.platform ?? 'darwin',
     publicFlows: new Set(['review', 'fix', 'build', 'explore', 'prototype']),
-    loadRuntimeAssets: async () => {
-      await verify();
-      return RUNTIME_ASSETS;
-    },
+    loadRuntimeAssets:
+      overrides.loadRuntimeAssets ??
+      (async () => {
+        await verify();
+        return RUNTIME_ASSETS;
+      }),
     ...(overrides.validateStart === undefined ? {} : { validateStart: overrides.validateStart }),
     ...(overrides.preflightLaunch === undefined
       ? {}
@@ -416,6 +421,9 @@ function fixture(
     checkpoints,
     reports,
     cleanup,
+    ...(overrides.workerPreparationMs === undefined
+      ? {}
+      : { workerPreparationMs: overrides.workerPreparationMs }),
     now: () => new Date(NOW),
     randomRunId: () => RUN_ID,
   });
@@ -453,6 +461,90 @@ describe('Circuit MCP lifecycle', () => {
       'transition:running',
       'release',
     ]);
+  });
+
+  it('binds concurrent starts to the exact assets loaded for each call', async () => {
+    const secondAssets = { ...RUNTIME_ASSETS, digest_sha256: '9'.repeat(64) };
+    const observed: string[] = [];
+    const launcher: SupervisorLauncher = {
+      begin: async (input) => {
+        observed.push(input.runtime_assets.digest_sha256);
+        return {
+          supervisor: SUPERVISOR,
+          authorization_token: '2'.repeat(64),
+          authorization_sha256: '3'.repeat(64),
+          authorize: async () => RUNTIME,
+          closeBeforeAuthorization: async () => true,
+        };
+      },
+    };
+    const first = fixture({
+      launcher,
+      loadRuntimeAssets: async () => RUNTIME_ASSETS,
+    }).lifecycle;
+    const second = fixture({
+      launcher,
+      loadRuntimeAssets: async () => secondAssets,
+    }).lifecycle;
+    await Promise.all([
+      first.handle(call('circuit_start', { flow: 'review', goal: 'First review' })),
+      second.handle(call('circuit_start', { flow: 'review', goal: 'Second review' })),
+    ]);
+    expect(observed.sort()).toEqual(
+      [RUNTIME_ASSETS.digest_sha256, secondAssets.digest_sha256].sort(),
+    );
+  });
+
+  it('bounds worker preparation and releases the operation claim', async () => {
+    const workerFactory: LifecycleWorkerFactory = {
+      createStart: async () => await new Promise<never>(() => undefined),
+      createResume: async () => await new Promise<never>(() => undefined),
+    };
+    const { lifecycle, store } = fixture({ workerFactory, workerPreparationMs: 100 });
+    const start = lifecycle.handle(
+      call('circuit_start', { flow: 'review', goal: 'Never finish preparation' }),
+    );
+    await vi.waitFor(() =>
+      expect(store.records.get(RUN_ID)?.launch.phase).toBe('supervisor_recorded'),
+    );
+    await expect(
+      lifecycle.handle(call('circuit_cancel', { run_id: RUN_ID })),
+    ).resolves.toMatchObject({ ok: false, error: { code: 'operation_in_progress' } });
+    await expect(start).resolves.toMatchObject({ ok: false, error: { code: 'launch_failed' } });
+    expect(store.records.get(RUN_ID)?.state).toBe('interrupted');
+    expect(store.calls.at(-1)).toBe('release');
+  });
+
+  it('can cancel a recovery run that recorded only a pre-authorization supervisor', async () => {
+    const launcher: SupervisorLauncher = {
+      begin: async () => ({
+        supervisor: SUPERVISOR,
+        authorization_token: '2'.repeat(64),
+        authorization_sha256: '3'.repeat(64),
+        authorize: async () => RUNTIME,
+        closeBeforeAuthorization: async () => false,
+      }),
+    };
+    const workerFactory: LifecycleWorkerFactory = {
+      createStart: async () => {
+        throw new Error('worker construction failed');
+      },
+      createResume: async () => {
+        throw new Error('worker construction failed');
+      },
+    };
+    const { lifecycle, store } = fixture({ launcher, workerFactory });
+    await expect(
+      lifecycle.handle(call('circuit_start', { flow: 'review', goal: 'Review this' })),
+    ).resolves.toMatchObject({ ok: false, error: { code: 'recovery_required' } });
+    expect(store.records.get(RUN_ID)).toMatchObject({
+      state: 'recovery_required',
+      launch: { phase: 'supervisor_recorded' },
+    });
+    expect(store.records.get(RUN_ID)?.launch.runtime).toBeUndefined();
+    await expect(
+      lifecycle.handle(call('circuit_cancel', { run_id: RUN_ID })),
+    ).resolves.toMatchObject({ ok: true, state: 'cancelled', cleanup_confirmed: true });
   });
 
   it('blocks asset drift before start creates a run', async () => {

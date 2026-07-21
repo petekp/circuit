@@ -397,6 +397,26 @@ export interface RunSupervisorOptions {
     expectedProcessGroup: number,
     expectedBirthToken: string,
   ) => Promise<SupervisorProcessObservation>;
+  readonly verifyRuntimeAssets?: typeof verifyMcpRuntimeAssets;
+}
+
+async function verifyAssetsBeforeSpawn(
+  authorization: SupervisorAuthorization,
+  verify: typeof verifyMcpRuntimeAssets,
+): Promise<void> {
+  const controller = new AbortController();
+  try {
+    await Promise.race([
+      verify(authorization.runtime_assets),
+      delay(authorization.limits.worker_start_ms, undefined, { signal: controller.signal }).then(
+        () => {
+          throw new Error('runtime asset verification timed out before worker spawn');
+        },
+      ),
+    ]);
+  } finally {
+    controller.abort();
+  }
 }
 
 function processBirthToken(): string {
@@ -412,6 +432,7 @@ export async function runSupervisor(options: RunSupervisorOptions = {}): Promise
   const authorizationFd = options.authorizationFd ?? 3;
   const responseFd = options.responseFd ?? 4;
   const processObserver = options.observeProcess ?? observeProcess;
+  const assetVerifier = options.verifyRuntimeAssets ?? verifyMcpRuntimeAssets;
   const authorizationStream: ReadStream = createReadStream('/dev/null', {
     fd: authorizationFd,
     autoClose: false,
@@ -420,6 +441,9 @@ export async function runSupervisor(options: RunSupervisorOptions = {}): Promise
     fd: responseFd,
     autoClose: false,
   });
+  // The parent may disappear after authorization. A closed response pipe must
+  // not crash the supervisor before it journals worker cleanup.
+  responseStream.on('error', () => undefined);
   const reader = new BoundedLineReader(authorizationStream);
   const supervisor = await processObserver(process.pid, process.pid, processBirthToken());
   await writeMessage(
@@ -435,7 +459,7 @@ export async function runSupervisor(options: RunSupervisorOptions = {}): Promise
   try {
     authorization = decodeSupervisorMessage(await reader.read(), SupervisorAuthorizationV1);
     assertPrivateDirectory(authorization.control_directory);
-    await verifyMcpRuntimeAssets(authorization.runtime_assets);
+    await verifyAssetsBeforeSpawn(authorization, assetVerifier);
     assertLaunchAssetBindings(authorization);
     assertPinnedWorkerPath(authorization.worker.node_executable, true);
     assertPinnedWorkerPath(authorization.worker.entrypoint, false);

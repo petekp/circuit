@@ -107,6 +107,7 @@ writeFileSync(new URL('./worker-observed.json', import.meta.url), JSON.stringify
   apiKey: process.env.OPENAI_API_KEY,
   httpsProxy: process.env.HTTPS_PROXY,
   certificate: process.env.SSL_CERT_FILE,
+  path: process.env.PATH,
 }));
 process.stderr.write(JSON.stringify({
   schema_version: 1,
@@ -178,7 +179,6 @@ if (launch.mode === 'overflow') {
           .digest('hex');
         if (observed !== supervisorSha256) throw new Error('supervisor asset changed');
       },
-      runtimeAssets: pins,
       environment: {
         ...process.env,
         CIRCUIT_SECRET: 'must-not-reach-worker',
@@ -187,6 +187,7 @@ if (launch.mode === 'overflow') {
         OPENAI_API_KEY: 'test-api-key',
         HTTPS_PROXY: 'https://proxy.invalid',
         SSL_CERT_FILE: '/tmp/test-ca.pem',
+        PATH: '/tmp/test-bin:/usr/bin:/bin',
       },
       helloTimeoutMs: 5_000,
       workerStartMs: 5_000,
@@ -260,6 +261,7 @@ describe('Codex MCP supervisor protocol', () => {
       run_id: RUN_ID,
       generation: 1,
       control_directory: fixture.control,
+      runtime_assets: fixture.pins,
     });
     const runtime = await session.authorize({
       worker: {
@@ -306,6 +308,7 @@ describe('Codex MCP supervisor protocol', () => {
       apiKey: 'test-api-key',
       httpsProxy: 'https://proxy.invalid',
       certificate: '/tmp/test-ca.pem',
+      path: '/tmp/test-bin:/usr/bin:/bin',
     });
     expect((observed.launch as Record<string, unknown>).authorization).toBe(
       session.authorization_token,
@@ -320,6 +323,7 @@ describe('Codex MCP supervisor protocol', () => {
       run_id: RUN_ID,
       generation: 1,
       control_directory: fixture.control,
+      runtime_assets: fixture.pins,
     });
     writeFileSync(fixture.flow, '{"changed":true}\n', { flag: 'w' });
     await expect(
@@ -349,6 +353,7 @@ describe('Codex MCP supervisor protocol', () => {
         run_id: RUN_ID,
         generation: 1,
         control_directory: fixture.control,
+        runtime_assets: fixture.pins,
       }),
     ).rejects.toMatchObject({
       message: expect.stringMatching(/supervisor asset changed/i),
@@ -362,6 +367,7 @@ describe('Codex MCP supervisor protocol', () => {
       run_id: RUN_ID,
       generation: 1,
       control_directory: fixture.control,
+      runtime_assets: fixture.pins,
     });
     await expect(
       session.authorize({
@@ -385,6 +391,7 @@ describe('Codex MCP supervisor protocol', () => {
       run_id: RUN_ID,
       generation: 1,
       control_directory: fixture.control,
+      runtime_assets: fixture.pins,
     });
     await session.authorize({
       worker: {
@@ -412,6 +419,7 @@ describe('Codex MCP supervisor protocol', () => {
       run_id: RUN_ID,
       generation: 1,
       control_directory: fixture.control,
+      runtime_assets: fixture.pins,
     });
     await session.authorize({
       worker: {

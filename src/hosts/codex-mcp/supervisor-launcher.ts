@@ -99,6 +99,7 @@ export interface BeginSupervisorLaunchInput {
   readonly run_id: string;
   readonly generation: number;
   readonly control_directory: string;
+  readonly runtime_assets: SupervisorRuntimeAssets;
 }
 
 export interface AuthorizeSupervisorInput {
@@ -122,7 +123,6 @@ export interface ProcessSupervisorLauncherOptions {
   readonly nodeIdentity: LifecycleExecutableIdentity;
   readonly supervisorEntrypoint: string;
   readonly verifySupervisorEntrypoint: () => Promise<void>;
-  readonly runtimeAssets: SupervisorRuntimeAssets;
   readonly environment?: NodeJS.ProcessEnv;
   readonly helloTimeoutMs?: number;
   readonly workerStartMs?: number;
@@ -263,7 +263,7 @@ export class ProcessSupervisorLauncher implements SupervisorLauncher {
             run_id: input.run_id,
             generation: input.generation,
             control_directory: input.control_directory,
-            runtime_assets: this.#options.runtimeAssets,
+            runtime_assets: input.runtime_assets,
             worker: {
               node_executable: this.#options.nodeExecutable,
               entrypoint: worker.worker_entrypoint,
@@ -277,10 +277,7 @@ export class ProcessSupervisorLauncher implements SupervisorLauncher {
               stderr_bytes: this.#options.stderrBytes,
             },
           });
-          const message = decodeSupervisorMessage(
-            await reader.read(this.#options.workerStartMs),
-            SupervisorMessageV1,
-          );
+          const message = decodeSupervisorMessage(await reader.read(), SupervisorMessageV1);
           if (message.kind === 'launch_failed') {
             const supervisorCleanupConfirmed = await stopAndConfirmSupervisor(
               childPid,

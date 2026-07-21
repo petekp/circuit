@@ -1577,6 +1577,62 @@ describe('MCP list and recovery', () => {
     expect(lstatSync(state.pathsForRun(workspaceA, RUN_A).lease_file).isFile()).toBe(true);
   });
 
+  it('never releases an authorized launch whose runtime identity is missing', async () => {
+    const { stateRoot, workspaceA } = await fixture();
+    const state = store(stateRoot, () => 'absent');
+    reserve(state, workspaceA);
+    const claim = state.acquireOperation({
+      workspace: workspaceA,
+      run_id: RUN_A,
+      operation: 'reconcile',
+      owner: owner('x'),
+    });
+    if (!claim.ok) throw new Error('expected claim');
+    const supervisor = processIdentity('s');
+    state.advanceLaunch({
+      handle: claim.handle,
+      launch: {
+        generation: 1,
+        phase: 'supervisor_recorded',
+        allocation_owner: owner('a'),
+        supervisor,
+      },
+    });
+    state.advanceLaunch({
+      handle: claim.handle,
+      launch: {
+        generation: 1,
+        phase: 'launch_authorized',
+        allocation_owner: owner('a'),
+        supervisor,
+        authorization_sha256: SHA_A,
+        authorized_at: NOW,
+      },
+    });
+    state.transitionRun({
+      handle: claim.handle,
+      to: 'recovery_required',
+      summary: 'Process inspection was temporarily unknown.',
+      recovery: {
+        reason: 'launch_process_unknown',
+        detected_at: NOW,
+        last_checked_at: NOW,
+        supervisor_status: 'unknown',
+        runtime_status: 'unknown',
+        process_group_status: 'unknown',
+        cancellation_requested: false,
+      },
+    });
+    state.releaseOperation(claim.handle);
+
+    expectStoreError(
+      () => state.recoverRun({ workspace: workspaceA, run_id: RUN_A, owner: owner('r') }),
+      'recovery_process_unknown',
+    );
+    expect(state.readRun(workspaceA, RUN_A).state).toBe('recovery_required');
+    expect(lstatSync(state.pathsForRun(workspaceA, RUN_A).lease_file).isFile()).toBe(true);
+  });
+
   it('checks a distinct runtime process group before recovery releases the lease', async () => {
     const { stateRoot, workspaceA } = await fixture();
     const runtimeGroup = processIdentity('r').process_group_id;

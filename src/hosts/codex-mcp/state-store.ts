@@ -2444,10 +2444,7 @@ export class McpStateStore {
       this.#inspectProcess(record.launch.supervisor),
       this.#inspectProcessGroup(record.launch.supervisor),
     ];
-    if (
-      record.recovery?.reason === 'runtime_identity_missing' &&
-      record.launch.runtime === undefined
-    ) {
+    if (record.launch.authorization_sha256 !== undefined && record.launch.runtime === undefined) {
       statuses.push('unknown');
     }
     if (record.launch.runtime !== undefined) {

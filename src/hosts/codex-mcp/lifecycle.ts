@@ -127,6 +127,30 @@ function acquireOrThrow(
   );
 }
 
+async function boundedWorkerPreparation<T>(
+  work: Promise<T>,
+  timeoutMs: number,
+  signal: AbortSignal,
+): Promise<T> {
+  if (signal.aborted) throw new Error('worker preparation was cancelled');
+  let timer: NodeJS.Timeout | undefined;
+  let abort: (() => void) | undefined;
+  const timeout = new Promise<never>((_resolve, reject) => {
+    timer = setTimeout(() => reject(new Error('worker preparation timed out')), timeoutMs);
+    timer.unref();
+  });
+  const cancelled = new Promise<never>((_resolve, reject) => {
+    abort = () => reject(new Error('worker preparation was cancelled'));
+    signal.addEventListener('abort', abort, { once: true });
+  });
+  try {
+    return await Promise.race([work, timeout, cancelled]);
+  } finally {
+    if (timer !== undefined) clearTimeout(timer);
+    if (abort !== undefined) signal.removeEventListener('abort', abort);
+  }
+}
+
 export interface CreateCircuitMcpLifecycleOptions {
   readonly platform?: NodeJS.Platform;
   readonly publicFlows: ReadonlySet<CircuitStartInputV1['flow']>;
@@ -145,6 +169,7 @@ export interface CreateCircuitMcpLifecycleOptions {
   readonly checkpoints: LifecycleCheckpointReader;
   readonly reports: LifecycleReportReader;
   readonly cleanup: LifecycleCleanupController;
+  readonly workerPreparationMs?: number;
   readonly now?: () => Date;
   readonly randomRunId?: () => string;
 }
@@ -153,11 +178,16 @@ export class CircuitMcpLifecycle {
   readonly #options: CreateCircuitMcpLifecycleOptions;
   readonly #now: () => Date;
   readonly #randomRunId: () => string;
+  readonly #workerPreparationMs: number;
 
   constructor(options: CreateCircuitMcpLifecycleOptions) {
     this.#options = options;
     this.#now = options.now ?? (() => new Date());
     this.#randomRunId = options.randomRunId ?? randomUUID;
+    this.#workerPreparationMs = options.workerPreparationMs ?? 10_000;
+    if (this.#workerPreparationMs < 100 || this.#workerPreparationMs > 30_000) {
+      throw new Error('workerPreparationMs must be between 100 and 30000 milliseconds');
+    }
   }
 
   readonly handle: CircuitMcpToolHandler = async (call) => {
@@ -238,6 +268,8 @@ export class CircuitMcpLifecycle {
         workspace,
         run: reserved,
         handle,
+        runtime_assets: runtimeAssets,
+        signal: call.signal,
         makeWorker: async (session, run) =>
           await this.#options.workerFactory.createStart({
             workspace,
@@ -263,6 +295,8 @@ export class CircuitMcpLifecycle {
     readonly workspace: LifecycleWorkspaceIdentity;
     readonly run: LifecycleRunRecord;
     readonly handle: LifecycleOperationHandle;
+    readonly runtime_assets: McpRuntimeAssetPins;
+    readonly signal: AbortSignal;
     readonly makeWorker: (
       session: SupervisorLaunchSession,
       run: LifecycleRunRecord,
@@ -280,6 +314,7 @@ export class CircuitMcpLifecycle {
         run_id: current.run_id,
         generation: current.launch.generation,
         control_directory: controlDirectory,
+        runtime_assets: input.runtime_assets,
       });
       current = await this.#options.store.advanceLaunch({
         handle: input.handle,
@@ -290,7 +325,11 @@ export class CircuitMcpLifecycle {
         },
         summary: 'Circuit recorded the worker supervisor.',
       });
-      const worker = await input.makeWorker(session, current);
+      const worker = await boundedWorkerPreparation(
+        input.makeWorker(session, current),
+        this.#workerPreparationMs,
+        input.signal,
+      );
       current = await this.#options.store.advanceLaunch({
         handle: input.handle,
         launch: {
@@ -496,6 +535,8 @@ export class CircuitMcpLifecycle {
         workspace,
         run: resuming,
         handle,
+        runtime_assets: runtimeAssets,
+        signal: call.signal,
         makeWorker: async (session, run) =>
           await this.#options.workerFactory.createResume({
             workspace,
@@ -541,7 +582,11 @@ export class CircuitMcpLifecycle {
       current = await this.#options.store.readRun(workspace, input.run_id);
     }
     const recoveryCancellation = current.state === 'recovery_required';
-    if (recoveryCancellation && current.launch.runtime === undefined) {
+    if (
+      recoveryCancellation &&
+      current.launch.runtime === undefined &&
+      current.launch.phase !== 'supervisor_recorded'
+    ) {
       throw new McpLifecycleError(
         'recovery_required',
         'Circuit does not have an exact worker identity to cancel safely.',
