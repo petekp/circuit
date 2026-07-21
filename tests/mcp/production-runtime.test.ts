@@ -279,6 +279,29 @@ describe('production Codex MCP composition', () => {
       handler({
         name: 'circuit_list',
         input: {},
+        metadata: undefined,
+        listRoots: async () => [{ uri: workspacePath, name: 'workspace' }],
+        signal,
+      }),
+    ).resolves.toMatchObject({
+      ok: true,
+      runs: [expect.objectContaining({ run_id: SENTINEL_RUN_ID })],
+    });
+    await expect(
+      handler({
+        name: 'circuit_list',
+        input: {},
+        metadata: undefined,
+        signal,
+      }),
+    ).resolves.toMatchObject({
+      ok: false,
+      error: { code: 'workspace_metadata_missing' },
+    });
+    await expect(
+      handler({
+        name: 'circuit_list',
+        input: {},
         metadata: {
           'codex/sandbox-state-meta': { sandboxCwd: workspacePath },
         },

@@ -5,6 +5,7 @@ import type {
   ServerNotification,
   ServerRequest,
 } from '@modelcontextprotocol/sdk/types.js';
+import { ListRootsResultSchema } from '@modelcontextprotocol/sdk/types.js';
 import {
   MCP_TOOL_INPUT_SCHEMAS,
   MCP_TOOL_NAMES,
@@ -12,6 +13,7 @@ import {
   MCP_TOOL_WIRE_OUTPUT_SCHEMAS,
   type McpToolName,
 } from './contracts.js';
+import { CODEX_SANDBOX_METADATA_KEY } from './resources.js';
 
 const TOOL_DESCRIPTIONS: Record<McpToolName, string> = {
   circuit_start:
@@ -35,6 +37,7 @@ export interface CircuitMcpToolCall {
   readonly name: McpToolName;
   readonly input: unknown;
   readonly metadata: RequestMeta | undefined;
+  readonly listRoots?: () => Promise<unknown>;
   readonly signal: AbortSignal;
 }
 
@@ -57,7 +60,16 @@ function renderResponse(response: Record<string, unknown>): string {
 }
 
 export function createCircuitMcpServer(options: CreateCircuitMcpServerOptions): McpServer {
-  const server = new McpServer({ name: 'circuit', version: '1.0.0' });
+  const server = new McpServer(
+    { name: 'circuit', version: '1.0.0' },
+    {
+      capabilities: {
+        experimental: {
+          [CODEX_SANDBOX_METADATA_KEY]: {},
+        },
+      },
+    },
+  );
   const handle = options.handle;
 
   function registerTool(name: McpToolName): void {
@@ -78,7 +90,14 @@ export function createCircuitMcpServer(options: CreateCircuitMcpServerOptions): 
       },
       async (input: unknown, extra: RequestHandlerExtra<ServerRequest, ServerNotification>) => {
         const response = MCP_TOOL_RESPONSE_SCHEMAS[name].parse(
-          await handle({ name, input, metadata: extra._meta, signal: extra.signal }),
+          await handle({
+            name,
+            input,
+            metadata: extra._meta,
+            listRoots: async () =>
+              (await extra.sendRequest({ method: 'roots/list' }, ListRootsResultSchema)).roots,
+            signal: extra.signal,
+          }),
         ) as Record<string, unknown>;
         return {
           content: [{ type: 'text' as const, text: renderResponse(response) }],

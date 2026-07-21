@@ -8,6 +8,7 @@ import {
   CODEX_SANDBOX_METADATA_KEY,
   CodexWorkspaceMetadataError,
   resolveTrustedCodexWorkspace,
+  resolveTrustedCodexWorkspaceFromSources,
 } from '../../src/hosts/codex-mcp/resources.js';
 
 const roots: string[] = [];
@@ -28,9 +29,13 @@ function requestWithWorkspace(sandboxCwd: unknown): unknown {
   };
 }
 
-async function expectMetadataError(input: unknown, code: string): Promise<void> {
+async function expectMetadataError(input: unknown | Promise<unknown>, code: string): Promise<void> {
   try {
-    await resolveTrustedCodexWorkspace(input);
+    if (input instanceof Promise) {
+      await input;
+    } else {
+      await resolveTrustedCodexWorkspace(input);
+    }
   } catch (error) {
     expect(error).toBeInstanceOf(CodexWorkspaceMetadataError);
     expect((error as CodexWorkspaceMetadataError).code).toBe(code);
@@ -73,6 +78,79 @@ describe('Codex workspace metadata', () => {
       metadata_key: CODEX_SANDBOX_METADATA_KEY,
       workspace: await realpath(workspace),
     });
+  });
+
+  it('falls back to a single MCP root when Codex omits sandbox-state metadata', async () => {
+    const workspace = await temporaryRoot();
+
+    await expect(
+      resolveTrustedCodexWorkspaceFromSources({
+        metadata: undefined,
+        listRoots: async () => [{ uri: pathToFileURL(workspace).href, name: 'workspace' }],
+      }),
+    ).resolves.toEqual({
+      metadata_key: CODEX_SANDBOX_METADATA_KEY,
+      workspace,
+    });
+  });
+
+  it('does not fall back to MCP roots when Codex sends malformed sandbox-state metadata', async () => {
+    const workspace = await temporaryRoot();
+    let rootsRequested = false;
+
+    await expectMetadataError(
+      resolveTrustedCodexWorkspaceFromSources({
+        metadata: { [CODEX_SANDBOX_METADATA_KEY]: { sandboxCwd: 'https://example.com/repo' } },
+        listRoots: async () => {
+          rootsRequested = true;
+          return [{ uri: pathToFileURL(workspace).href }];
+        },
+      }),
+      'workspace_metadata_invalid',
+    );
+    expect(rootsRequested).toBe(false);
+  });
+
+  it('rejects missing, ambiguous, malformed, and unsafe MCP roots', async () => {
+    const root = await temporaryRoot();
+    const workspace = join(root, 'workspace');
+    const otherWorkspace = join(root, 'other-workspace');
+    const alias = join(root, 'workspace-alias');
+    await mkdir(workspace);
+    await mkdir(otherWorkspace);
+    await symlink(workspace, alias, 'dir');
+
+    await expectMetadataError(
+      resolveTrustedCodexWorkspaceFromSources({
+        metadata: undefined,
+        listRoots: async () => [],
+      }),
+      'workspace_metadata_missing',
+    );
+    await expectMetadataError(
+      resolveTrustedCodexWorkspaceFromSources({
+        metadata: undefined,
+        listRoots: async () => [
+          { uri: pathToFileURL(workspace).href },
+          { uri: pathToFileURL(otherWorkspace).href },
+        ],
+      }),
+      'workspace_metadata_invalid',
+    );
+    await expectMetadataError(
+      resolveTrustedCodexWorkspaceFromSources({
+        metadata: undefined,
+        listRoots: async () => [{ uri: 'https://example.com/repo' }],
+      }),
+      'workspace_metadata_invalid',
+    );
+    await expectMetadataError(
+      resolveTrustedCodexWorkspaceFromSources({
+        metadata: undefined,
+        listRoots: async () => [{ uri: pathToFileURL(alias).href }],
+      }),
+      'workspace_metadata_unsafe',
+    );
   });
 
   it.each([

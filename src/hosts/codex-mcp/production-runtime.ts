@@ -39,7 +39,7 @@ import {
   resolveCodexExecutableOnPath,
 } from './production-paths.js';
 import { loadPublicFlowCatalog } from './public-flow-catalog.js';
-import { resolveTrustedCodexWorkspace } from './resources.js';
+import { resolveTrustedCodexWorkspaceFromSources } from './resources.js';
 import { CanonicalRuntimeArtifactReconciler } from './runtime-artifacts.js';
 import type { CircuitMcpToolHandler } from './server.js';
 import { McpCheckpointAdapter, McpLifecycleStateAdapter } from './state-adapter.js';
@@ -556,8 +556,11 @@ export async function createProductionCircuitMcpHandler(
     ...(options.platform === undefined ? {} : { platform: options.platform }),
     loadRuntimeAssets,
     preflightLaunch: preflight.validate,
-    resolveWorkspace: async (metadata) => {
-      const trusted = await resolveTrustedCodexWorkspace({ _meta: metadata });
+    resolveWorkspace: async (call) => {
+      const trusted = await resolveTrustedCodexWorkspaceFromSources({
+        metadata: call.metadata,
+        listRoots: call.listRoots,
+      });
       return trustedWorkspaceIdentity(trusted.workspace);
     },
     owner: async () => resolveOwner(),

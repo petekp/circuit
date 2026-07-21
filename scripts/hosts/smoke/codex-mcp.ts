@@ -3,10 +3,12 @@
 import { type ChildProcess, spawn, spawnSync } from 'node:child_process';
 import { createHash } from 'node:crypto';
 import {
+  existsSync,
   lstatSync,
   mkdirSync,
   mkdtempSync,
   readFileSync,
+  readdirSync,
   realpathSync,
   rmSync,
   statSync,
@@ -27,6 +29,13 @@ const TIMEOUT_MS = 60_000;
 const MAX_OUTPUT_BYTES = 1024 * 1024;
 const MARKETPLACE = 'circuit-fresh-host-probe';
 export const SENTINEL_RUN_ID = '019f64f5-1f4d-7d91-8cda-a309cc72c301';
+const DIAGNOSTIC_SENTINELS = [
+  ['scratch-root', '019f64f5-1f4d-7d91-8cda-a309cc72c310'],
+  ['isolated-home', '019f64f5-1f4d-7d91-8cda-a309cc72c311'],
+  ['isolated-codex-home', '019f64f5-1f4d-7d91-8cda-a309cc72c312'],
+  ['marketplace-root', '019f64f5-1f4d-7d91-8cda-a309cc72c313'],
+  ['marketplace-plugin-source', '019f64f5-1f4d-7d91-8cda-a309cc72c314'],
+] as const;
 
 type SmokeStatus = 'pass' | 'fail' | 'skip';
 
@@ -377,7 +386,41 @@ function privateDirectory(path: string): boolean {
   return info.isDirectory() && !info.isSymbolicLink() && (info.mode & 0o777) === 0o700;
 }
 
-export function seedWorkspaceSentinel(codexHome: string, workspace: string): void {
+function pluginCacheDirectories(codexHome: string): readonly string[] {
+  const pluginsRoot = join(codexHome, 'plugins');
+  if (!existsSync(pluginsRoot)) return [];
+  const directories: string[] = [];
+  const visit = (directory: string, depth: number): void => {
+    if (depth > 5) return;
+    let entries: readonly string[];
+    try {
+      entries = readdirSync(directory);
+    } catch {
+      return;
+    }
+    for (const entry of entries) {
+      const child = join(directory, entry);
+      let info: ReturnType<typeof lstatSync>;
+      try {
+        info = lstatSync(child);
+      } catch {
+        continue;
+      }
+      if (!info.isDirectory() || info.isSymbolicLink()) continue;
+      if (existsSync(join(child, '.codex-plugin', 'plugin.json'))) directories.push(child);
+      visit(child, depth + 1);
+    }
+  };
+  visit(pluginsRoot, 0);
+  return directories;
+}
+
+export function seedWorkspaceSentinel(
+  codexHome: string,
+  workspace: string,
+  runId = SENTINEL_RUN_ID,
+  summary = 'Fresh-host workspace identity sentinel.',
+): void {
   const canonicalWorkspace = realpathSync.native(workspace);
   const workspaceInfo = statSync(canonicalWorkspace);
   const workspaceKey = createHash('sha256').update(canonicalWorkspace, 'utf8').digest('hex');
@@ -399,7 +442,7 @@ export function seedWorkspaceSentinel(codexHome: string, workspace: string): voi
   } as const;
   const stateRoot = join(codexHome, 'circuit', 'mcp', 'v1');
   const runsRoot = join(stateRoot, 'runs');
-  const runDirectory = join(runsRoot, workspaceKey, SENTINEL_RUN_ID);
+  const runDirectory = join(runsRoot, workspaceKey, runId);
   for (const directory of [stateRoot, runsRoot, join(stateRoot, 'leases'), runDirectory]) {
     mkdirSync(directory, { recursive: true, mode: 0o700 });
   }
@@ -407,7 +450,7 @@ export function seedWorkspaceSentinel(codexHome: string, workspace: string): voi
     schema_version: 1,
     record_kind: 'circuit.mcp.run-state',
     revision: 2,
-    run_id: SENTINEL_RUN_ID,
+    run_id: runId,
     lease_id: '019f64f5-1f4d-7d91-8cda-a309cc72c303',
     workspace: {
       key: workspaceKey,
@@ -421,9 +464,9 @@ export function seedWorkspaceSentinel(codexHome: string, workspace: string): voi
       web_search: 'off',
     },
     state: 'interrupted',
-    summary: 'Fresh-host workspace identity sentinel.',
+    summary,
     runtime_assets_sha256: 'a'.repeat(64),
-    run_relative_path: `.circuit/runs/${SENTINEL_RUN_ID}`,
+    run_relative_path: `.circuit/runs/${runId}`,
     created_at: now,
     updated_at: now,
     finished_at: now,
@@ -504,7 +547,42 @@ async function runLiveProbe(): Promise<SmokeOutcome> {
     runSync(codex, ['plugin', 'marketplace', 'add', marketplace, '--json'], environment);
     runSync(codex, ['plugin', 'add', `circuit@${MARKETPLACE}`, '--json'], environment);
     evidence.push({ name: 'packed_plugin_installed', ok: true });
+    const diagnosticSentinels = new Map<string, string>();
     seedWorkspaceSentinel(codexHome, workspace);
+    for (const [label, runId] of DIAGNOSTIC_SENTINELS) {
+      const candidate =
+        label === 'scratch-root'
+          ? root
+          : label === 'isolated-home'
+            ? home
+            : label === 'isolated-codex-home'
+              ? codexHome
+              : label === 'marketplace-root'
+                ? marketplace
+                : marketplacePlugin;
+      seedWorkspaceSentinel(
+        codexHome,
+        candidate,
+        runId,
+        `Fresh-host diagnostic sentinel: ${label}.`,
+      );
+      diagnosticSentinels.set(runId, label);
+    }
+    let pluginCacheIndex = 0;
+    for (const directory of pluginCacheDirectories(codexHome)) {
+      pluginCacheIndex += 1;
+      const runId = `019f64f5-1f4d-7d91-8cda-a309cc72c4${String(pluginCacheIndex).padStart(
+        2,
+        '0',
+      )}`;
+      seedWorkspaceSentinel(
+        codexHome,
+        directory,
+        runId,
+        `Fresh-host diagnostic sentinel: installed-plugin-${pluginCacheIndex}.`,
+      );
+      diagnosticSentinels.set(runId, `installed-plugin-${pluginCacheIndex}`);
+    }
 
     server = await startProbeServer();
     const provider = `model_providers.circuit_probe={name="Circuit Probe",base_url="http://127.0.0.1:${server.port}/v1",env_key="CIRCUIT_PROBE_API_KEY",wire_api="responses",requires_openai_auth=false,request_max_retries=0,stream_max_retries=0,supports_websockets=false}`;
@@ -601,6 +679,10 @@ async function runLiveProbe(): Promise<SmokeOutcome> {
       detail: listedRuns
         .map((run) => run.run_id)
         .filter((runId): runId is string => typeof runId === 'string')
+        .map(
+          (runId) =>
+            `${runId}${diagnosticSentinels.has(runId) ? ` (${diagnosticSentinels.get(runId)})` : ''}`,
+        )
         .join(', '),
     });
     if (!exactWorkspacePassed) {

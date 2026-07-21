@@ -162,7 +162,7 @@ export interface CreateCircuitMcpLifecycleOptions<TPrepared = unknown> {
     readonly request: CircuitStartInputV1;
     readonly runtime_assets: McpRuntimeAssetPins;
   }) => Promise<TPrepared>;
-  readonly resolveWorkspace: (metadata: unknown) => Promise<LifecycleWorkspaceIdentity>;
+  readonly resolveWorkspace: (call: CircuitMcpToolCall) => Promise<LifecycleWorkspaceIdentity>;
   readonly owner: () => Promise<LifecycleProcessOwnerIdentity>;
   readonly store: LifecycleStore;
   readonly launcher: SupervisorLauncher;
@@ -213,7 +213,7 @@ export class CircuitMcpLifecycle<TPrepared = unknown> {
   };
 
   async #workspace(call: CircuitMcpToolCall): Promise<LifecycleWorkspaceIdentity> {
-    return await this.#options.resolveWorkspace(call.metadata);
+    return await this.#options.resolveWorkspace(call);
   }
 
   #requireMacOs(): void {

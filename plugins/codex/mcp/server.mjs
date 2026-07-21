@@ -27022,7 +27022,7 @@ var CircuitMcpLifecycle = class {
     }
   };
   async #workspace(call) {
-    return await this.#options.resolveWorkspace(call.metadata);
+    return await this.#options.resolveWorkspace(call);
   }
   #requireMacOs() {
     if ((this.#options.platform ?? process.platform) !== "darwin") {
@@ -28118,6 +28118,7 @@ import { realpath as realpath4, stat as stat2 } from "node:fs/promises";
 import { isAbsolute as isAbsolute10, resolve as resolve5 } from "node:path";
 import { fileURLToPath } from "node:url";
 var CODEX_SANDBOX_METADATA_KEY = "codex/sandbox-state-meta";
+var CODEX_MCP_ROOTS_SOURCE = "mcp/roots";
 var CodexWorkspaceMetadataError = class extends Error {
   code;
   nextAction;
@@ -28164,7 +28165,7 @@ function sandboxCwdFromRequest(request) {
   }
   return sandboxCwd;
 }
-function pathFromTrustedFileUrl(value) {
+function pathFromTrustedFileUrl(value, label = "sandboxCwd") {
   if (isAbsolute10(value)) return value;
   let url2;
   try {
@@ -28172,13 +28173,13 @@ function pathFromTrustedFileUrl(value) {
   } catch {
     throw new CodexWorkspaceMetadataError(
       "workspace_metadata_invalid",
-      "Codex sandboxCwd must be an absolute path or file URL."
+      `Codex ${label} must be an absolute path or file URL.`
     );
   }
   if (url2.protocol !== "file:" || url2.username.length > 0 || url2.password.length > 0 || url2.hostname.length > 0 || url2.port.length > 0 || url2.search.length > 0 || url2.hash.length > 0) {
     throw new CodexWorkspaceMetadataError(
       "workspace_metadata_invalid",
-      "Codex sandboxCwd must be a local file URL without credentials, a host, a query, or a fragment."
+      `Codex ${label} must be a local file URL without credentials, a host, a query, or a fragment.`
     );
   }
   try {
@@ -28190,25 +28191,25 @@ function pathFromTrustedFileUrl(value) {
   } catch {
     throw new CodexWorkspaceMetadataError(
       "workspace_metadata_invalid",
-      "Codex sandboxCwd is not a valid local file URL."
+      `Codex ${label} is not a valid local file URL.`
     );
   }
 }
-async function resolveTrustedCodexWorkspace(request) {
-  const requestedPath = pathFromTrustedFileUrl(sandboxCwdFromRequest(request));
+async function trustedWorkspaceFromPath(requestedPath, identitySource) {
+  const resolvedPath = pathFromTrustedFileUrl(requestedPath, identitySource);
   let workspace;
   try {
-    workspace = await realpath4(requestedPath);
+    workspace = await realpath4(resolvedPath);
   } catch {
     throw new CodexWorkspaceMetadataError(
       "workspace_unavailable",
-      "The workspace from Codex metadata does not exist or cannot be resolved."
+      "The workspace from Codex does not exist or cannot be resolved."
     );
   }
-  if (workspace !== resolve5(requestedPath)) {
+  if (workspace !== resolve5(resolvedPath)) {
     throw new CodexWorkspaceMetadataError(
       "workspace_metadata_unsafe",
-      "The workspace from Codex metadata reaches the directory through a symbolic link.",
+      "The workspace from Codex reaches the directory through a symbolic link.",
       "Open the real workspace directory in Codex and retry."
     );
   }
@@ -28218,19 +28219,75 @@ async function resolveTrustedCodexWorkspace(request) {
   } catch {
     throw new CodexWorkspaceMetadataError(
       "workspace_unavailable",
-      "The workspace from Codex metadata became unavailable while Circuit checked it."
+      "The workspace from Codex became unavailable while Circuit checked it."
     );
   }
   if (!workspaceStat.isDirectory()) {
     throw new CodexWorkspaceMetadataError(
       "workspace_not_directory",
-      "The workspace from Codex metadata is not a directory."
+      "The workspace from Codex is not a directory."
     );
   }
   return {
     metadata_key: CODEX_SANDBOX_METADATA_KEY,
     workspace
   };
+}
+async function resolveTrustedCodexWorkspace(request) {
+  return await trustedWorkspaceFromPath(sandboxCwdFromRequest(request), CODEX_SANDBOX_METADATA_KEY);
+}
+function rootUriFromResult(result) {
+  if (!isRecord2(result) || !hasOwn(result, "roots") || !Array.isArray(result.roots)) {
+    throw new CodexWorkspaceMetadataError(
+      "workspace_metadata_invalid",
+      "Codex MCP roots/list returned an unsupported shape."
+    );
+  }
+  if (result.roots.length === 0) {
+    return void 0;
+  }
+  if (result.roots.length !== 1) {
+    throw new CodexWorkspaceMetadataError(
+      "workspace_metadata_invalid",
+      "Codex must provide exactly one trusted workspace root for Circuit MCP."
+    );
+  }
+  const [root] = result.roots;
+  if (!isRecord2(root) || !hasOwn(root, "uri") || typeof root.uri !== "string") {
+    throw new CodexWorkspaceMetadataError(
+      "workspace_metadata_invalid",
+      "Codex MCP roots/list must return one workspace root with a local uri."
+    );
+  }
+  return root.uri;
+}
+async function resolveWorkspaceFromRoots(listRoots) {
+  if (listRoots === void 0) {
+    return void 0;
+  }
+  let roots;
+  try {
+    roots = await listRoots();
+  } catch {
+    return void 0;
+  }
+  const rootUri = rootUriFromResult({ roots });
+  return rootUri === void 0 ? void 0 : await trustedWorkspaceFromPath(rootUri, CODEX_MCP_ROOTS_SOURCE);
+}
+async function resolveTrustedCodexWorkspaceFromSources(input) {
+  try {
+    return await resolveTrustedCodexWorkspace({ _meta: input.metadata });
+  } catch (error51) {
+    if (error51 instanceof CodexWorkspaceMetadataError && error51.code === "workspace_metadata_missing") {
+      const rootsWorkspace = await resolveWorkspaceFromRoots(input.listRoots);
+      if (rootsWorkspace !== void 0) return rootsWorkspace;
+      throw new CodexWorkspaceMetadataError(
+        "workspace_metadata_missing",
+        "Codex did not provide trusted workspace metadata or MCP roots."
+      );
+    }
+    throw error51;
+  }
 }
 
 // src/hosts/codex-mcp/runtime-artifacts.ts
@@ -35731,8 +35788,11 @@ async function createProductionCircuitMcpHandler(options) {
     ...options.platform === void 0 ? {} : { platform: options.platform },
     loadRuntimeAssets,
     preflightLaunch: preflight.validate,
-    resolveWorkspace: async (metadata) => {
-      const trusted = await resolveTrustedCodexWorkspace({ _meta: metadata });
+    resolveWorkspace: async (call) => {
+      const trusted = await resolveTrustedCodexWorkspaceFromSources({
+        metadata: call.metadata,
+        listRoots: call.listRoots
+      });
       return trustedWorkspaceIdentity(trusted.workspace);
     },
     owner: async () => resolveOwner(),
@@ -43698,7 +43758,16 @@ function renderResponse(response) {
   return typeof summary === "string" ? summary : "Circuit returned a structured result.";
 }
 function createCircuitMcpServer(options) {
-  const server = new McpServer({ name: "circuit", version: "1.0.0" });
+  const server = new McpServer(
+    { name: "circuit", version: "1.0.0" },
+    {
+      capabilities: {
+        experimental: {
+          [CODEX_SANDBOX_METADATA_KEY]: {}
+        }
+      }
+    }
+  );
   const handle = options.handle;
   function registerTool(name) {
     const readOnly = READ_ONLY_TOOLS.has(name);
@@ -43718,7 +43787,13 @@ function createCircuitMcpServer(options) {
       },
       async (input, extra) => {
         const response = MCP_TOOL_RESPONSE_SCHEMAS[name].parse(
-          await handle({ name, input, metadata: extra._meta, signal: extra.signal })
+          await handle({
+            name,
+            input,
+            metadata: extra._meta,
+            listRoots: async () => (await extra.sendRequest({ method: "roots/list" }, ListRootsResultSchema)).roots,
+            signal: extra.signal
+          })
         );
         return {
           content: [{ type: "text", text: renderResponse(response) }],

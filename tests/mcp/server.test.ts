@@ -1,8 +1,10 @@
 import { Client } from '@modelcontextprotocol/sdk/client/index.js';
 import { InMemoryTransport } from '@modelcontextprotocol/sdk/inMemory.js';
+import { ListRootsRequestSchema } from '@modelcontextprotocol/sdk/types.js';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { MCP_TOOL_NAMES } from '../../src/hosts/codex-mcp/contracts.js';
+import { CODEX_SANDBOX_METADATA_KEY } from '../../src/hosts/codex-mcp/resources.js';
 import { createCircuitMcpServer } from '../../src/hosts/codex-mcp/server.js';
 
 describe('Codex MCP server contract', () => {
@@ -39,6 +41,10 @@ describe('Codex MCP server contract', () => {
         /workspace_path|executable|command|arguments|environment|config_path|flow_root|output_path/i,
       );
     }
+  });
+
+  it('advertises the Codex sandbox-state metadata capability', () => {
+    expect(client.getServerCapabilities()?.experimental).toHaveProperty(CODEX_SANDBOX_METADATA_KEY);
   });
 
   it('describes cached search as leaving the machine and keeps live search absent', async () => {
@@ -114,5 +120,37 @@ describe('Codex MCP server contract', () => {
 
     const result = await client.callTool({ name: 'circuit_list', arguments: {} });
     expect(result.structuredContent).toMatchObject({ ok: true, runs: [] });
+  });
+
+  it('lets the lifecycle handler ask the Codex client for MCP roots', async () => {
+    await client.close();
+    await closeServer();
+    const [clientTransport, serverTransport] = InMemoryTransport.createLinkedPair();
+    let observedRoots: unknown;
+    const server = createCircuitMcpServer({
+      handle: async (call) => {
+        observedRoots = await call.listRoots?.();
+        return {
+          schema_version: 1,
+          ok: true,
+          runs: [],
+          truncated: false,
+          summary: 'Listed test roots.',
+        };
+      },
+    });
+    client = new Client(
+      { name: 'circuit-test', version: '1.0.0' },
+      { capabilities: { roots: {} } },
+    );
+    client.setRequestHandler(ListRootsRequestSchema, async () => ({
+      roots: [{ uri: 'file:///tmp/circuit-workspace', name: 'workspace' }],
+    }));
+    await Promise.all([server.connect(serverTransport), client.connect(clientTransport)]);
+    closeServer = () => server.close();
+
+    const result = await client.callTool({ name: 'circuit_list', arguments: {} });
+    expect(result.structuredContent).toMatchObject({ ok: true, runs: [] });
+    expect(observedRoots).toEqual([{ uri: 'file:///tmp/circuit-workspace', name: 'workspace' }]);
   });
 });

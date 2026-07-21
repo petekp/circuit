@@ -3,6 +3,7 @@ import { isAbsolute, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
 export const CODEX_SANDBOX_METADATA_KEY = 'codex/sandbox-state-meta' as const;
+export const CODEX_MCP_ROOTS_SOURCE = 'mcp/roots' as const;
 
 export type CodexWorkspaceMetadataErrorCode =
   | 'workspace_metadata_missing'
@@ -74,7 +75,7 @@ function sandboxCwdFromRequest(request: unknown): string {
   return sandboxCwd;
 }
 
-function pathFromTrustedFileUrl(value: string): string {
+function pathFromTrustedFileUrl(value: string, label = 'sandboxCwd'): string {
   if (isAbsolute(value)) return value;
 
   let url: URL;
@@ -83,7 +84,7 @@ function pathFromTrustedFileUrl(value: string): string {
   } catch {
     throw new CodexWorkspaceMetadataError(
       'workspace_metadata_invalid',
-      'Codex sandboxCwd must be an absolute path or file URL.',
+      `Codex ${label} must be an absolute path or file URL.`,
     );
   }
 
@@ -98,7 +99,7 @@ function pathFromTrustedFileUrl(value: string): string {
   ) {
     throw new CodexWorkspaceMetadataError(
       'workspace_metadata_invalid',
-      'Codex sandboxCwd must be a local file URL without credentials, a host, a query, or a fragment.',
+      `Codex ${label} must be a local file URL without credentials, a host, a query, or a fragment.`,
     );
   }
 
@@ -113,29 +114,30 @@ function pathFromTrustedFileUrl(value: string): string {
   } catch {
     throw new CodexWorkspaceMetadataError(
       'workspace_metadata_invalid',
-      'Codex sandboxCwd is not a valid local file URL.',
+      `Codex ${label} is not a valid local file URL.`,
     );
   }
 }
 
-export async function resolveTrustedCodexWorkspace(
-  request: unknown,
+async function trustedWorkspaceFromPath(
+  requestedPath: string,
+  identitySource: typeof CODEX_SANDBOX_METADATA_KEY | typeof CODEX_MCP_ROOTS_SOURCE,
 ): Promise<TrustedCodexWorkspace> {
-  const requestedPath = pathFromTrustedFileUrl(sandboxCwdFromRequest(request));
+  const resolvedPath = pathFromTrustedFileUrl(requestedPath, identitySource);
 
   let workspace: string;
   try {
-    workspace = await realpath(requestedPath);
+    workspace = await realpath(resolvedPath);
   } catch {
     throw new CodexWorkspaceMetadataError(
       'workspace_unavailable',
-      'The workspace from Codex metadata does not exist or cannot be resolved.',
+      'The workspace from Codex does not exist or cannot be resolved.',
     );
   }
-  if (workspace !== resolve(requestedPath)) {
+  if (workspace !== resolve(resolvedPath)) {
     throw new CodexWorkspaceMetadataError(
       'workspace_metadata_unsafe',
-      'The workspace from Codex metadata reaches the directory through a symbolic link.',
+      'The workspace from Codex reaches the directory through a symbolic link.',
       'Open the real workspace directory in Codex and retry.',
     );
   }
@@ -146,13 +148,13 @@ export async function resolveTrustedCodexWorkspace(
   } catch {
     throw new CodexWorkspaceMetadataError(
       'workspace_unavailable',
-      'The workspace from Codex metadata became unavailable while Circuit checked it.',
+      'The workspace from Codex became unavailable while Circuit checked it.',
     );
   }
   if (!workspaceStat.isDirectory()) {
     throw new CodexWorkspaceMetadataError(
       'workspace_not_directory',
-      'The workspace from Codex metadata is not a directory.',
+      'The workspace from Codex is not a directory.',
     );
   }
 
@@ -160,4 +162,80 @@ export async function resolveTrustedCodexWorkspace(
     metadata_key: CODEX_SANDBOX_METADATA_KEY,
     workspace,
   };
+}
+
+export async function resolveTrustedCodexWorkspace(
+  request: unknown,
+): Promise<TrustedCodexWorkspace> {
+  return await trustedWorkspaceFromPath(sandboxCwdFromRequest(request), CODEX_SANDBOX_METADATA_KEY);
+}
+
+export interface TrustedCodexWorkspaceSources {
+  readonly metadata: unknown;
+  readonly listRoots?: (() => Promise<unknown>) | undefined;
+}
+
+function rootUriFromResult(result: unknown): string | undefined {
+  if (!isRecord(result) || !hasOwn(result, 'roots') || !Array.isArray(result.roots)) {
+    throw new CodexWorkspaceMetadataError(
+      'workspace_metadata_invalid',
+      'Codex MCP roots/list returned an unsupported shape.',
+    );
+  }
+  if (result.roots.length === 0) {
+    return undefined;
+  }
+  if (result.roots.length !== 1) {
+    throw new CodexWorkspaceMetadataError(
+      'workspace_metadata_invalid',
+      'Codex must provide exactly one trusted workspace root for Circuit MCP.',
+    );
+  }
+  const [root] = result.roots;
+  if (!isRecord(root) || !hasOwn(root, 'uri') || typeof root.uri !== 'string') {
+    throw new CodexWorkspaceMetadataError(
+      'workspace_metadata_invalid',
+      'Codex MCP roots/list must return one workspace root with a local uri.',
+    );
+  }
+  return root.uri;
+}
+
+async function resolveWorkspaceFromRoots(
+  listRoots: (() => Promise<unknown>) | undefined,
+): Promise<TrustedCodexWorkspace | undefined> {
+  if (listRoots === undefined) {
+    return undefined;
+  }
+  let roots: unknown;
+  try {
+    roots = await listRoots();
+  } catch {
+    return undefined;
+  }
+  const rootUri = rootUriFromResult({ roots });
+  return rootUri === undefined
+    ? undefined
+    : await trustedWorkspaceFromPath(rootUri, CODEX_MCP_ROOTS_SOURCE);
+}
+
+export async function resolveTrustedCodexWorkspaceFromSources(
+  input: TrustedCodexWorkspaceSources,
+): Promise<TrustedCodexWorkspace> {
+  try {
+    return await resolveTrustedCodexWorkspace({ _meta: input.metadata });
+  } catch (error) {
+    if (
+      error instanceof CodexWorkspaceMetadataError &&
+      error.code === 'workspace_metadata_missing'
+    ) {
+      const rootsWorkspace = await resolveWorkspaceFromRoots(input.listRoots);
+      if (rootsWorkspace !== undefined) return rootsWorkspace;
+      throw new CodexWorkspaceMetadataError(
+        'workspace_metadata_missing',
+        'Codex did not provide trusted workspace metadata or MCP roots.',
+      );
+    }
+    throw error;
+  }
 }
