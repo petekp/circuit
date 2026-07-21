@@ -47,6 +47,13 @@ describe('audit-marketplace-safe-paths', () => {
     expect(findings).toEqual([]);
   });
 
+  it('accepts the trusted host-metadata claim', () => {
+    const findings = auditText(
+      annotated('Marketplace-safe by host metadata: Codex supplies an absolute workspace URL.'),
+    );
+    expect(findings).toEqual([]);
+  });
+
   it('flags an unannotated fileURLToPath call', () => {
     const text = [
       `import { fileURLToPath } from 'node:url';`,
@@ -97,11 +104,12 @@ describe('audit-marketplace-safe-paths', () => {
     expect(auditText(text)).toHaveLength(1);
   });
 
-  it('exports a SAFETY_PATTERN that matches all four accepted phrases', () => {
+  it('exports a SAFETY_PATTERN that matches every accepted phrase', () => {
     expect(SAFETY_PATTERN.test('Marketplace-safe by build-time replacement: x')).toBe(true);
     expect(SAFETY_PATTERN.test('Marketplace-safe by build-pipeline emission: x')).toBe(true);
     expect(SAFETY_PATTERN.test('Marketplace-safe by env var: x')).toBe(true);
     expect(SAFETY_PATTERN.test('Marketplace-safe by source-tree fallback: x')).toBe(true);
+    expect(SAFETY_PATTERN.test('Marketplace-safe by host metadata: x')).toBe(true);
     expect(SAFETY_PATTERN.test('Marketplace-safe by something else: x')).toBe(false);
   });
 });
