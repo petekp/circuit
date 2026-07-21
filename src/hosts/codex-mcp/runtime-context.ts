@@ -1,18 +1,16 @@
 import { isAbsolute } from 'node:path';
+import type { RuntimeExecutionCapabilities } from '../../runtime/run/capabilities.js';
+import type { RuntimeGitReader } from '../../shared/runtime-git-reader.js';
 import type { McpRuntimeAssetPins } from './asset-pins.js';
 import type { CodexHostCapabilities } from './capabilities.js';
 import type { TrustedCodexWorkspace } from './resources.js';
 
-export interface McpProofExecutor {
-  readonly run: (request: unknown) => Promise<unknown>;
-}
+export type McpProofExecutor = NonNullable<RuntimeExecutionCapabilities['proofCommandRunner']>;
 
-export interface McpGitReader {
-  readonly read: (request: unknown) => Promise<unknown>;
-}
-
-export interface McpCancellationController {
-  readonly cancel: (request: unknown) => Promise<unknown>;
+export interface McpCancellationBoundary {
+  readonly owner: 'supervisor';
+  readonly process_group_cleanup: 'observed';
+  readonly run_id: string;
 }
 
 export interface McpRuntimeContext {
@@ -26,6 +24,7 @@ export interface McpRuntimeContext {
   readonly assets: McpRuntimeAssetPins;
   readonly codex: {
     readonly executable: string;
+    readonly pinned_real_path: string;
     readonly version: string;
   };
   readonly search: {
@@ -39,8 +38,8 @@ export interface McpRuntimeContext {
   readonly shell_network: 'disabled';
   readonly extra_write_roots: readonly [];
   readonly proofExecutor: McpProofExecutor;
-  readonly gitReader: McpGitReader;
-  readonly cancellation: McpCancellationController;
+  readonly gitReader: RuntimeGitReader;
+  readonly cancellation: McpCancellationBoundary;
 }
 
 export interface CreateMcpRuntimeContextInput {
@@ -50,8 +49,8 @@ export interface CreateMcpRuntimeContextInput {
   readonly assets: McpRuntimeAssetPins;
   readonly search: { readonly mode: 'off' | 'cached'; readonly consented: boolean };
   readonly proofExecutor: McpProofExecutor;
-  readonly gitReader: McpGitReader;
-  readonly cancellation: McpCancellationController;
+  readonly gitReader: RuntimeGitReader;
+  readonly cancellation: McpCancellationBoundary;
 }
 
 export function createMcpRuntimeContext(input: CreateMcpRuntimeContextInput): McpRuntimeContext {
@@ -72,7 +71,8 @@ export function createMcpRuntimeContext(input: CreateMcpRuntimeContextInput): Mc
   if (
     !input.capabilities.plugin_mcp ||
     !input.capabilities.strict_config ||
-    !input.capabilities.workspace_metadata
+    !input.capabilities.workspace_metadata ||
+    !input.capabilities.nested_sandbox
   ) {
     throw new Error('Codex host capabilities are incomplete');
   }
@@ -90,8 +90,10 @@ export function createMcpRuntimeContext(input: CreateMcpRuntimeContextInput): Mc
   const search = Object.freeze({ ...input.search });
   const codexRuntime = Object.freeze({
     executable: codex.real_path,
+    pinned_real_path: codex.real_path,
     version: input.capabilities.codex_version,
   });
+  const cancellation = Object.freeze({ ...input.cancellation });
 
   return Object.freeze({
     schema_version: 1,
@@ -107,6 +109,6 @@ export function createMcpRuntimeContext(input: CreateMcpRuntimeContextInput): Mc
     extra_write_roots: Object.freeze([]) as readonly [],
     proofExecutor: input.proofExecutor,
     gitReader: input.gitReader,
-    cancellation: input.cancellation,
+    cancellation,
   });
 }

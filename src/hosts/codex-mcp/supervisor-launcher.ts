@@ -9,6 +9,8 @@ import type {
   LifecycleProcessIdentity,
   LifecycleWorkerLaunch,
 } from './lifecycle-types.js';
+import type { LifecycleProcessProbe } from './process-cleanup.js';
+import { createMacOsProcessProbe } from './process-probe.js';
 import {
   SupervisorHelloV1,
   SupervisorMessageV1,
@@ -21,38 +23,26 @@ import { BoundedLineReader } from './supervisor-runtime.js';
 import { MCP_PROCESS_TOKEN_ARGUMENT } from './supervisor-runtime.js';
 import { mcpTransientEnvironment } from './transient-environment.js';
 
-function errorCode(error: unknown): string | undefined {
-  return (error as NodeJS.ErrnoException).code;
-}
-
-function processGroupStatus(processGroupId: number): 'alive' | 'absent' | 'unknown' {
-  try {
-    process.kill(-processGroupId, 0);
-    return 'alive';
-  } catch (error) {
-    if (errorCode(error) === 'ESRCH') return 'absent';
-    return 'unknown';
-  }
-}
-
 async function stopAndConfirmSupervisor(
-  processGroupId: number,
+  identity: LifecycleProcessIdentity,
+  probe: LifecycleProcessProbe,
   timeoutMs: number,
 ): Promise<boolean> {
-  const initial = processGroupStatus(processGroupId);
+  const initial = await probe.inspectProcessGroup(identity);
   if (initial === 'absent') return true;
   if (initial === 'unknown') return false;
-  try {
-    process.kill(-processGroupId, 'SIGKILL');
-  } catch (error) {
-    if (errorCode(error) !== 'ESRCH') return false;
-  }
+  const signal = await probe.signalOwnedProcessGroup(identity, 'SIGKILL');
+  if (signal === 'unknown') return false;
   const deadline = Date.now() + timeoutMs;
   while (Date.now() < deadline) {
-    if (processGroupStatus(processGroupId) === 'absent') return true;
+    const status = await probe.inspectProcessGroup(identity);
+    if (status === 'absent') return true;
+    // A just-signalled leader can briefly be a zombie or lose its command
+    // evidence before its process group disappears. Keep observing for the
+    // bounded window, but never signal again from an unknown identity.
     await delay(20);
   }
-  return processGroupStatus(processGroupId) === 'absent';
+  return (await probe.inspectProcessGroup(identity)) === 'absent';
 }
 
 export class SupervisorLaunchError extends Error {
@@ -73,6 +63,19 @@ function writeAuthorization(channel: Writable, value: unknown): Promise<void> {
       else reject(error);
     });
   });
+}
+
+async function withTimeout<T>(work: Promise<T>, timeoutMs: number, message: string): Promise<T> {
+  let timer: NodeJS.Timeout | undefined;
+  const timeout = new Promise<never>((_resolve, reject) => {
+    timer = setTimeout(() => reject(new Error(message)), timeoutMs);
+    timer.unref();
+  });
+  try {
+    return await Promise.race([work, timeout]);
+  } finally {
+    if (timer !== undefined) clearTimeout(timer);
+  }
 }
 
 function processIdentity(
@@ -125,11 +128,13 @@ export interface ProcessSupervisorLauncherOptions {
   readonly verifySupervisorEntrypoint: () => Promise<void>;
   readonly environment?: NodeJS.ProcessEnv;
   readonly helloTimeoutMs?: number;
+  readonly authorizationTimeoutMs?: number;
   readonly workerStartMs?: number;
   readonly terminateMs?: number;
   readonly killMs?: number;
   readonly stdoutBytes?: number;
   readonly stderrBytes?: number;
+  readonly processProbe?: LifecycleProcessProbe;
   readonly spawnProcess?: (
     executable: string,
     args: readonly string[],
@@ -139,22 +144,32 @@ export interface ProcessSupervisorLauncherOptions {
 
 export class ProcessSupervisorLauncher implements SupervisorLauncher {
   readonly #options: Required<
-    Omit<ProcessSupervisorLauncherOptions, 'environment' | 'spawnProcess'>
+    Omit<ProcessSupervisorLauncherOptions, 'environment' | 'processProbe' | 'spawnProcess'>
   > & {
     readonly environment: NodeJS.ProcessEnv;
+    readonly processProbe: LifecycleProcessProbe;
     readonly spawnProcess: NonNullable<ProcessSupervisorLauncherOptions['spawnProcess']>;
   };
 
   constructor(options: ProcessSupervisorLauncherOptions) {
+    const workerStartMs = options.workerStartMs ?? 5_000;
+    const terminateMs = options.terminateMs ?? 3_000;
+    const killMs = options.killMs ?? 3_000;
     this.#options = {
       ...options,
       environment: mcpTransientEnvironment(options.environment ?? process.env),
       helloTimeoutMs: options.helloTimeoutMs ?? 5_000,
-      workerStartMs: options.workerStartMs ?? 5_000,
-      terminateMs: options.terminateMs ?? 3_000,
-      killMs: options.killMs ?? 3_000,
+      // The supervisor can spend each of these windows starting and cleaning
+      // a worker before it reports failure. Keep the parent bound larger, but
+      // finite, so a supervisor that goes silent cannot pin the operation.
+      authorizationTimeoutMs:
+        options.authorizationTimeoutMs ?? workerStartMs * 2 + terminateMs + killMs + 10_000,
+      workerStartMs,
+      terminateMs,
+      killMs,
       stdoutBytes: options.stdoutBytes ?? 16 * 1_048_576,
       stderrBytes: options.stderrBytes ?? 1_048_576,
+      processProbe: options.processProbe ?? createMacOsProcessProbe(),
       spawnProcess:
         options.spawnProcess ??
         ((executable, args, spawnOptions) => spawn(executable, [...args], spawnOptions)),
@@ -199,6 +214,13 @@ export class ProcessSupervisorLauncher implements SupervisorLauncher {
       throw new SupervisorLaunchError(error.message, true);
     }
     const childPid = child.pid;
+    const expectedSupervisorIdentity: LifecycleProcessIdentity = {
+      pid: childPid,
+      process_group_id: childPid,
+      birth_token: supervisorBirthToken,
+      started_at: new Date().toISOString(),
+      executable: this.#options.nodeIdentity,
+    };
     const supervisorStderr = child.stderr;
     let stderrText = '';
     supervisorStderr?.on('data', (chunk: Buffer | string) => {
@@ -234,7 +256,11 @@ export class ProcessSupervisorLauncher implements SupervisorLauncher {
         throw new Error('supervisor identity token does not match its spawned process');
       }
     } catch (error) {
-      const confirmed = await stopAndConfirmSupervisor(childPid, this.#options.killMs);
+      const confirmed = await stopAndConfirmSupervisor(
+        expectedSupervisorIdentity,
+        this.#options.processProbe,
+        this.#options.killMs,
+      );
       const baseMessage = error instanceof Error ? error.message : String(error);
       const message =
         stderrText.trim().length === 0 ? baseMessage : `${baseMessage}: ${stderrText.trim()}`;
@@ -247,40 +273,48 @@ export class ProcessSupervisorLauncher implements SupervisorLauncher {
       .digest('hex');
     let used = false;
     let closed = false;
+    const supervisorIdentity = processIdentity(hello.supervisor, this.#options.nodeIdentity);
 
     return {
-      supervisor: processIdentity(hello.supervisor, this.#options.nodeIdentity),
+      supervisor: supervisorIdentity,
       authorization_token: authorizationToken,
       authorization_sha256: authorizationSha256,
       authorize: async ({ worker }) => {
         if (used || closed) throw new Error('supervisor launch session is already closed');
         used = true;
         try {
-          await writeAuthorization(authorization, {
-            schema_version: 1,
-            kind: 'launch_authorization',
-            authorization_token: authorizationToken,
-            run_id: input.run_id,
-            generation: input.generation,
-            control_directory: input.control_directory,
-            runtime_assets: input.runtime_assets,
-            worker: {
-              node_executable: this.#options.nodeExecutable,
-              entrypoint: worker.worker_entrypoint,
-              launch_payload: worker.launch_payload,
-            },
-            limits: {
-              worker_start_ms: this.#options.workerStartMs,
-              terminate_ms: this.#options.terminateMs,
-              kill_ms: this.#options.killMs,
-              stdout_bytes: this.#options.stdoutBytes,
-              stderr_bytes: this.#options.stderrBytes,
-            },
-          });
-          const message = decodeSupervisorMessage(await reader.read(), SupervisorMessageV1);
+          const message = await withTimeout(
+            (async () => {
+              await writeAuthorization(authorization, {
+                schema_version: 1,
+                kind: 'launch_authorization',
+                authorization_token: authorizationToken,
+                run_id: input.run_id,
+                generation: input.generation,
+                control_directory: input.control_directory,
+                runtime_assets: input.runtime_assets,
+                worker: {
+                  node_executable: this.#options.nodeExecutable,
+                  entrypoint: worker.worker_entrypoint,
+                  launch_payload: worker.launch_payload,
+                },
+                limits: {
+                  worker_start_ms: this.#options.workerStartMs,
+                  terminate_ms: this.#options.terminateMs,
+                  kill_ms: this.#options.killMs,
+                  stdout_bytes: this.#options.stdoutBytes,
+                  stderr_bytes: this.#options.stderrBytes,
+                },
+              });
+              return decodeSupervisorMessage(await reader.read(), SupervisorMessageV1);
+            })(),
+            this.#options.authorizationTimeoutMs,
+            'supervisor authorization timed out',
+          );
           if (message.kind === 'launch_failed') {
             const supervisorCleanupConfirmed = await stopAndConfirmSupervisor(
-              childPid,
+              supervisorIdentity,
+              this.#options.processProbe,
               this.#options.killMs,
             );
             throw new SupervisorLaunchError(
@@ -292,6 +326,9 @@ export class ProcessSupervisorLauncher implements SupervisorLauncher {
           if (started.authorization_sha256 !== authorizationSha256) {
             throw new Error('supervisor returned the wrong launch authorization');
           }
+          if (started.runtime.birth_token !== authorizationSha256) {
+            throw new Error('supervisor returned a worker identity with the wrong launch token');
+          }
           if (
             started.runtime.pid !== started.runtime.process_group_id ||
             started.runtime.pid === hello.supervisor.pid
@@ -302,7 +339,11 @@ export class ProcessSupervisorLauncher implements SupervisorLauncher {
           return processIdentity(started.runtime, this.#options.nodeIdentity);
         } catch (error) {
           if (error instanceof SupervisorLaunchError) throw error;
-          await stopAndConfirmSupervisor(childPid, this.#options.killMs);
+          await stopAndConfirmSupervisor(
+            supervisorIdentity,
+            this.#options.processProbe,
+            this.#options.killMs,
+          );
           const message = error instanceof Error ? error.message : String(error);
           // A broken response does not prove whether a worker was launched.
           throw new SupervisorLaunchError(message, false);
@@ -318,7 +359,11 @@ export class ProcessSupervisorLauncher implements SupervisorLauncher {
         authorization.destroy();
         responses.destroy();
         supervisorStderr?.destroy();
-        return await stopAndConfirmSupervisor(childPid, this.#options.killMs);
+        return await stopAndConfirmSupervisor(
+          supervisorIdentity,
+          this.#options.processProbe,
+          this.#options.killMs,
+        );
       },
     };
   }

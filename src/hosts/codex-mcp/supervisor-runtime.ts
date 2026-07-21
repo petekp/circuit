@@ -19,11 +19,14 @@ import {
 } from 'node:fs';
 import type { ReadStream, WriteStream } from 'node:fs';
 import { basename, dirname, join } from 'node:path';
-import type { Readable } from 'node:stream';
+import type { Readable, Writable } from 'node:stream';
 import { setTimeout as delay } from 'node:timers/promises';
 
 import { sha256OfJson } from '../../schemas/hashing.js';
 import { verifyMcpRuntimeAssets } from './asset-pins.js';
+import type { LifecycleProcessIdentity } from './lifecycle-types.js';
+import type { LifecycleProcessProbe, LifecycleProcessStatus } from './process-cleanup.js';
+import { createMacOsProcessProbe, isMcpProcessToken } from './process-probe.js';
 import { SupervisorProgressWriter } from './supervisor-progress.js';
 import {
   ExitJournalV1,
@@ -43,10 +46,6 @@ import { mcpTransientEnvironment } from './transient-environment.js';
 const PROCESS_OBSERVATION_ATTEMPTS = 40;
 const PROCESS_OBSERVATION_DELAY_MS = 10;
 export const MCP_PROCESS_TOKEN_ARGUMENT = '--circuit-mcp-process-token=';
-
-function errorCode(error: unknown): string | undefined {
-  return (error as NodeJS.ErrnoException).code;
-}
 
 function describeError(error: unknown): string {
   return error instanceof Error ? error.message : String(error);
@@ -277,57 +276,71 @@ function runtimeExecutable(authorization: SupervisorAuthorization) {
   };
 }
 
-function processGroupStatus(processGroupId: number): 'alive' | 'absent' | 'unknown' {
-  try {
-    process.kill(-processGroupId, 0);
-    return 'alive';
-  } catch (error) {
-    if (errorCode(error) === 'ESRCH') return 'absent';
-    return 'unknown';
-  }
-}
-
-async function waitForGroupAbsence(processGroupId: number, timeoutMs: number): Promise<boolean> {
+async function waitForGroupAbsence(
+  identity: LifecycleProcessIdentity,
+  probe: LifecycleProcessProbe,
+  timeoutMs: number,
+): Promise<LifecycleProcessStatus> {
   const deadline = Date.now() + timeoutMs;
   while (Date.now() < deadline) {
-    if (processGroupStatus(processGroupId) === 'absent') return true;
+    const status = await probe.inspectProcessGroup(identity);
+    if (status === 'absent') return status;
+    // A terminated leader may briefly lose its command identity before the
+    // group disappears. Observe through the bounded window. Unknown identity
+    // never authorizes another signal.
     await delay(25);
   }
-  return processGroupStatus(processGroupId) === 'absent';
+  return await probe.inspectProcessGroup(identity);
 }
 
-async function cleanupProcessGroup(
-  processGroupId: number,
+export async function cleanupSupervisorOwnedProcessGroup(
+  identity: LifecycleProcessIdentity,
+  probe: LifecycleProcessProbe,
   terminateMs: number,
   killMs: number,
 ): Promise<'confirmed' | 'unconfirmed'> {
-  const initial = processGroupStatus(processGroupId);
+  const initial = await probe.inspectProcessGroup(identity);
   if (initial === 'absent') return 'confirmed';
   if (initial === 'unknown') return 'unconfirmed';
-  try {
-    process.kill(-processGroupId, 'SIGTERM');
-  } catch (error) {
-    if (errorCode(error) !== 'ESRCH') return 'unconfirmed';
-  }
-  if (await waitForGroupAbsence(processGroupId, terminateMs)) return 'confirmed';
-  try {
-    process.kill(-processGroupId, 'SIGKILL');
-  } catch (error) {
-    if (errorCode(error) !== 'ESRCH') return 'unconfirmed';
-  }
-  return (await waitForGroupAbsence(processGroupId, killMs)) ? 'confirmed' : 'unconfirmed';
+  const term = await probe.signalOwnedProcessGroup(identity, 'SIGTERM');
+  if (term === 'unknown') return 'unconfirmed';
+  const afterTerm = await waitForGroupAbsence(identity, probe, terminateMs);
+  if (afterTerm === 'absent') return 'confirmed';
+  if (afterTerm === 'unknown') return 'unconfirmed';
+  const kill = await probe.signalOwnedProcessGroup(identity, 'SIGKILL');
+  if (kill === 'unknown') return 'unconfirmed';
+  return (await waitForGroupAbsence(identity, probe, killMs)) === 'absent'
+    ? 'confirmed'
+    : 'unconfirmed';
 }
 
-function sendWorkerPayload(worker: ChildProcess, payload: unknown): Promise<void> {
-  const channel = worker.stdio[3];
-  if (channel === null || channel === undefined || !('write' in channel)) {
-    throw new Error('worker authorization channel is unavailable');
-  }
+export function sendWorkerPayload(
+  channel: Writable,
+  payload: unknown,
+  timeoutMs: number,
+): Promise<void> {
+  // A closed inherited pipe emits an error in addition to invoking the write
+  // callback. Keep the listener for the lifetime of this one-shot channel.
+  channel.on('error', () => undefined);
   return new Promise((resolve, reject) => {
-    channel.end(encodeSupervisorMessage(payload), (error?: Error | null) => {
+    let settled = false;
+    const finish = (error?: Error | null): void => {
+      if (settled) return;
+      settled = true;
+      clearTimeout(timer);
       if (error === null || error === undefined) resolve();
       else reject(error);
-    });
+    };
+    const timer = setTimeout(() => {
+      channel.destroy();
+      finish(new Error('worker authorization delivery timed out'));
+    }, timeoutMs);
+    timer.unref();
+    try {
+      channel.end(encodeSupervisorMessage(payload), finish);
+    } catch (error) {
+      finish(error instanceof Error ? error : new Error(String(error)));
+    }
   });
 }
 
@@ -398,6 +411,7 @@ export interface RunSupervisorOptions {
     expectedBirthToken: string,
   ) => Promise<SupervisorProcessObservation>;
   readonly verifyRuntimeAssets?: typeof verifyMcpRuntimeAssets;
+  readonly processProbe?: LifecycleProcessProbe;
 }
 
 async function verifyAssetsBeforeSpawn(
@@ -422,7 +436,7 @@ async function verifyAssetsBeforeSpawn(
 function processBirthToken(): string {
   const argument = process.argv.find((value) => value.startsWith(MCP_PROCESS_TOKEN_ARGUMENT));
   const token = argument?.slice(MCP_PROCESS_TOKEN_ARGUMENT.length);
-  if (token === undefined || !/^[0-9a-f]{8}-[0-9a-f-]{27}$/u.test(token)) {
+  if (token === undefined || !isMcpProcessToken(token)) {
     throw new Error('supervisor process identity token is missing or invalid');
   }
   return token;
@@ -433,6 +447,7 @@ export async function runSupervisor(options: RunSupervisorOptions = {}): Promise
   const responseFd = options.responseFd ?? 4;
   const processObserver = options.observeProcess ?? observeProcess;
   const assetVerifier = options.verifyRuntimeAssets ?? verifyMcpRuntimeAssets;
+  const processProbe = options.processProbe ?? createMacOsProcessProbe();
   const authorizationStream: ReadStream = createReadStream('/dev/null', {
     fd: authorizationFd,
     autoClose: false,
@@ -481,7 +496,7 @@ export async function runSupervisor(options: RunSupervisorOptions = {}): Promise
     .update(authorization.authorization_token, 'utf8')
     .digest('hex');
   let worker: ChildProcess;
-  const workerBirthToken = randomUUID();
+  const workerBirthToken = authorizationSha256;
   try {
     worker = spawn(
       authorization.worker.node_executable,
@@ -524,10 +539,18 @@ export async function runSupervisor(options: RunSupervisorOptions = {}): Promise
     throw error;
   }
 
-  let runtime: SupervisorProcessObservation;
+  let runtime: SupervisorProcessObservation | undefined;
+  let runtimeIdentity: LifecycleProcessIdentity = {
+    pid: worker.pid,
+    process_group_id: worker.pid,
+    birth_token: workerBirthToken,
+    started_at: new Date().toISOString(),
+    executable: runtimeExecutable(authorization),
+  };
   let progressWriter: SupervisorProgressWriter | undefined;
   try {
     runtime = await processObserver(worker.pid, worker.pid, workerBirthToken);
+    runtimeIdentity = { ...runtime, executable: runtimeExecutable(authorization) };
     const runtimeJournal = RuntimeJournalV1.parse({
       schema_version: 1,
       record_kind: 'circuit.mcp.runtime-observation',
@@ -544,14 +567,42 @@ export async function runSupervisor(options: RunSupervisorOptions = {}): Promise
       run_id: authorization.run_id,
       generation: authorization.generation,
     });
-    await sendWorkerPayload(worker, authorization.worker.launch_payload);
+    const workerChannel = worker.stdio[3];
+    if (workerChannel === null || workerChannel === undefined || !('write' in workerChannel)) {
+      throw new Error('worker authorization channel is unavailable');
+    }
+    await sendWorkerPayload(
+      workerChannel as Writable,
+      authorization.worker.launch_payload,
+      authorization.limits.worker_start_ms,
+    );
   } catch (error) {
-    const cleanup = await cleanupProcessGroup(
-      worker.pid,
+    const cleanup = await cleanupSupervisorOwnedProcessGroup(
+      runtimeIdentity,
+      processProbe,
       authorization.limits.terminate_ms,
       authorization.limits.kill_ms,
     );
     closeProgressWriter(progressWriter);
+    try {
+      if (runtime === undefined) throw new Error('worker runtime identity was not recorded');
+      writeJournalExclusive(
+        journalPath(authorization, 'exit'),
+        ExitJournalV1.parse({
+          schema_version: 1,
+          record_kind: 'circuit.mcp.exit-observation',
+          run_id: authorization.run_id,
+          generation: authorization.generation,
+          authorization_sha256: authorizationSha256,
+          runtime,
+          observed_at: new Date().toISOString(),
+          process_group_cleanup: cleanup,
+        }),
+      );
+    } catch {
+      // The launch response still reports observed cleanup honestly. A journal
+      // write failure must not keep the supervisor or worker alive.
+    }
     await writeMessage(
       responseStream,
       SupervisorLaunchFailureV1.parse({
@@ -564,6 +615,8 @@ export async function runSupervisor(options: RunSupervisorOptions = {}): Promise
     ).catch(() => undefined);
     throw error;
   }
+
+  if (runtime === undefined) throw new Error('worker runtime identity was not recorded');
 
   await writeMessage(
     responseStream,
@@ -585,8 +638,9 @@ export async function runSupervisor(options: RunSupervisorOptions = {}): Promise
   const stopForOutputLimit = (kind: 'stdout' | 'stderr'): void => {
     if (outputLimitExceeded !== undefined) return;
     outputLimitExceeded = kind;
-    void cleanupProcessGroup(
-      runtime.process_group_id,
+    void cleanupSupervisorOwnedProcessGroup(
+      runtimeIdentity,
+      processProbe,
       authorization.limits.terminate_ms,
       authorization.limits.kill_ms,
     ).then((cleanup) => resolveForcedCompletion?.(cleanup));
@@ -607,8 +661,9 @@ export async function runSupervisor(options: RunSupervisorOptions = {}): Promise
   const cleanup =
     outcome.kind === 'forced'
       ? outcome.cleanup
-      : await cleanupProcessGroup(
-          runtime.process_group_id,
+      : await cleanupSupervisorOwnedProcessGroup(
+          runtimeIdentity,
+          processProbe,
           authorization.limits.terminate_ms,
           authorization.limits.kill_ms,
         );

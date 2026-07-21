@@ -26,6 +26,7 @@ import {
   type ProcessStatus,
   type StoredCheckpoint,
   type StoredLaunch,
+  StoredLaunchV1,
   trustedWorkspaceIdentity,
 } from '../../src/hosts/codex-mcp/state-store.js';
 
@@ -73,6 +74,10 @@ function processIdentity(id: string): ProcessIdentity {
   };
 }
 
+function runtimeIdentity(): ProcessIdentity {
+  return { ...processIdentity('r'), birth_token: SHA_A };
+}
+
 function owner(id: string): ProcessOwnerIdentity {
   return { ...processIdentity(id), instance_id: `instance-${id}` };
 }
@@ -111,7 +116,7 @@ function confirmedLaunch(generation = 1): StoredLaunch {
     phase: 'exited',
     allocation_owner: owner('a'),
     supervisor: processIdentity('s'),
-    runtime: processIdentity('r'),
+    runtime: runtimeIdentity(),
     authorization_sha256: SHA_A,
     authorized_at: NOW,
     exit: {
@@ -121,6 +126,15 @@ function confirmedLaunch(generation = 1): StoredLaunch {
     },
   };
 }
+
+it('rejects stored worker identity that differs from the committed launch token', () => {
+  expect(
+    StoredLaunchV1.safeParse({
+      ...confirmedLaunch(),
+      runtime: { ...runtimeIdentity(), birth_token: 'wrong-worker-token' },
+    }).success,
+  ).toBe(false);
+});
 
 function advanceToExited(
   state: McpStateStore,
@@ -156,7 +170,7 @@ function advanceToExited(
       phase: 'runtime_recorded',
       allocation_owner: allocationOwner,
       supervisor: processIdentity('s'),
-      runtime: processIdentity('r'),
+      runtime: runtimeIdentity(),
       authorization_sha256: SHA_A,
       authorized_at: NOW,
     },
@@ -389,6 +403,40 @@ describe('MCP private state storage', () => {
 });
 
 describe('MCP state transitions and operation claims', () => {
+  it('publishes the initial start claim atomically with the new run', async () => {
+    const { stateRoot, workspaceA } = await fixture();
+    const first = store(stateRoot, () => 'alive');
+    const second = store(stateRoot, () => 'alive');
+    const reserved = first.reserveRunClaimed({
+      run_id: RUN_A,
+      workspace: workspaceA,
+      request: { flow: 'review', goal: 'Review this change' },
+      runtime_assets_sha256: SHA_A,
+      owner: owner('a'),
+      summary: 'Circuit is preparing Review.',
+    });
+
+    expect(second.readRun(workspaceA, RUN_A)).toMatchObject({ state: 'starting' });
+    expect(
+      second.acquireOperation({
+        workspace: workspaceA,
+        run_id: RUN_A,
+        operation: 'cancel',
+        owner: owner('b'),
+      }),
+    ).toMatchObject({ ok: false, code: 'operation_in_progress' });
+
+    first.releaseOperation(reserved.handle);
+    expect(
+      second.acquireOperation({
+        workspace: workspaceA,
+        run_id: RUN_A,
+        operation: 'cancel',
+        owner: owner('b'),
+      }),
+    ).toMatchObject({ ok: true });
+  });
+
   it('persists each launch handshake phase before a run becomes active', async () => {
     const { stateRoot, workspaceA } = await fixture();
     const state = store(stateRoot);
@@ -437,7 +485,7 @@ describe('MCP state transitions and operation claims', () => {
         phase: 'runtime_recorded',
         allocation_owner: owner('a'),
         supervisor: processIdentity('s'),
-        runtime: processIdentity('r'),
+        runtime: runtimeIdentity(),
         authorization_sha256: SHA_A,
         authorized_at: NOW,
       },
@@ -1635,7 +1683,7 @@ describe('MCP list and recovery', () => {
 
   it('checks a distinct runtime process group before recovery releases the lease', async () => {
     const { stateRoot, workspaceA } = await fixture();
-    const runtimeGroup = processIdentity('r').process_group_id;
+    const runtimeGroup = runtimeIdentity().process_group_id;
     const state = new McpStateStore({
       stateRoot,
       now: () => new Date(NOW),
@@ -1675,7 +1723,7 @@ describe('MCP list and recovery', () => {
   it('checks a shared supervisor and runtime process group only once during recovery', async () => {
     const { stateRoot, workspaceA } = await fixture();
     const supervisor = processIdentity('s');
-    const runtime = { ...processIdentity('r'), process_group_id: supervisor.process_group_id };
+    const runtime = { ...runtimeIdentity(), process_group_id: supervisor.process_group_id };
     const inspectedGroups: number[] = [];
     const state = new McpStateStore({
       stateRoot,

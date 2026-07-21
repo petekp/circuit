@@ -1,6 +1,7 @@
 import { spawn } from 'node:child_process';
-import { writeFile } from 'node:fs/promises';
+import { readFile, writeFile } from 'node:fs/promises';
 import net from 'node:net';
+import { setTimeout as delay } from 'node:timers/promises';
 
 const [, , mode, ...args] = process.argv;
 
@@ -38,6 +39,20 @@ if (mode === 'environment') {
     result.temp = false;
   }
   process.stdout.write(JSON.stringify(result));
+} else if (mode === 'reads') {
+  const result = {};
+  for (const [index, candidate] of args.entries()) {
+    try {
+      await readFile(candidate, 'utf8');
+      result[index] = true;
+    } catch {
+      result[index] = false;
+    }
+  }
+  process.stdout.write(JSON.stringify(result));
+} else if (mode === 'identity') {
+  await writeFile(args[0], `${process.pid}\n`);
+  setInterval(() => undefined, 1_000);
 } else if (mode === 'output') {
   process.stdout.write('x'.repeat(Number(args[0] ?? '0')));
 } else if (mode === 'sleep') {
@@ -49,6 +64,20 @@ if (mode === 'environment') {
     stdio: 'ignore',
   });
   await writeFile(pidFile, JSON.stringify({ parent: process.pid, child: child.pid }));
+  // Give the process observer a deterministic window under full-suite load.
+  await delay(5_000);
+  child.unref();
+} else if (mode === 'detached-background') {
+  const [pidFile] = args;
+  const child = spawn(process.execPath, [new URL(import.meta.url).pathname, 'sleep'], {
+    detached: true,
+    stdio: 'ignore',
+  });
+  await writeFile(pidFile, JSON.stringify({ parent: process.pid, child: child.pid }));
+  // Keep the detached child observable even when the full test suite heavily
+  // loads the host. A descendant that detaches and disappears between
+  // observations remains a documented limit.
+  await delay(5_000);
   child.unref();
 } else if (mode === 'foreground-child') {
   const child = spawn(process.execPath, ['-e', 'process.stdout.write("child")'], {

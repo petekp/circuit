@@ -149,6 +149,17 @@ export const StoredLaunchV1 = z
     if (launch.phase === 'runtime_recorded' && launch.runtime === undefined) {
       ctx.addIssue({ code: 'custom', path: ['runtime'], message: 'runtime identity is required' });
     }
+    if (
+      launch.runtime !== undefined &&
+      launch.authorization_sha256 !== undefined &&
+      launch.runtime.birth_token !== launch.authorization_sha256
+    ) {
+      ctx.addIssue({
+        code: 'custom',
+        path: ['runtime', 'birth_token'],
+        message: 'worker identity must use the committed launch token',
+      });
+    }
     if (launch.phase === 'exited' && launch.exit === undefined) {
       ctx.addIssue({
         code: 'custom',
@@ -999,6 +1010,7 @@ export interface McpStateStoreOptions {
   readonly randomId?: () => string;
   readonly inspectProcess?: (identity: ProcessIdentity) => ProcessStatus;
   readonly inspectProcessGroup?: (identity: ProcessIdentity) => ProcessStatus;
+  readonly inspectProcessToken?: (token: string) => ProcessStatus;
   readonly beforeTerminalLeaseRelease?: (record: McpRunRecord) => void;
   readonly beforeRunStateRead?: (runId: string) => void;
   readonly afterOperationClaimReclaimed?: (claim: OperationClaimRecord) => void;
@@ -1056,6 +1068,7 @@ export class McpStateStore {
   readonly #randomId: () => string;
   readonly #inspectProcess: (identity: ProcessIdentity) => ProcessStatus;
   readonly #inspectProcessGroup: (identity: ProcessIdentity) => ProcessStatus;
+  readonly #inspectProcessToken: (token: string) => ProcessStatus;
   readonly #beforeTerminalLeaseRelease: (record: McpRunRecord) => void;
   readonly #beforeRunStateRead: (runId: string) => void;
   readonly #afterOperationClaimReclaimed: (claim: OperationClaimRecord) => void;
@@ -1079,6 +1092,7 @@ export class McpStateStore {
     this.#randomId = options.randomId ?? randomUUID;
     this.#inspectProcess = options.inspectProcess ?? (() => 'unknown');
     this.#inspectProcessGroup = options.inspectProcessGroup ?? (() => 'unknown');
+    this.#inspectProcessToken = options.inspectProcessToken ?? (() => 'unknown');
     this.#beforeTerminalLeaseRelease = options.beforeTerminalLeaseRelease ?? (() => undefined);
     this.#beforeRunStateRead = options.beforeRunStateRead ?? (() => undefined);
     this.#afterOperationClaimReclaimed = options.afterOperationClaimReclaimed ?? (() => undefined);
@@ -1098,6 +1112,27 @@ export class McpStateStore {
   }
 
   reserveRun(input: ReserveRunInput): McpRunRecord {
+    return this.#reserveRun(input, false).record;
+  }
+
+  reserveRunClaimed(input: ReserveRunInput): {
+    readonly record: McpRunRecord;
+    readonly handle: OperationHandle;
+  } {
+    const reserved = this.#reserveRun(input, true);
+    if (reserved.handle === undefined) {
+      throw new McpStateStoreError(
+        'operation_claim_invalid',
+        'Circuit did not publish the initial run operation claim.',
+      );
+    }
+    return { record: reserved.record, handle: reserved.handle };
+  }
+
+  #reserveRun(
+    input: ReserveRunInput,
+    claimed: boolean,
+  ): { readonly record: McpRunRecord; readonly handle?: OperationHandle } {
     assertCurrentWorkspace(input.workspace);
     const runId = RUN_ID.parse(input.run_id);
     const workspace = McpWorkspaceIdentityV1.parse(input.workspace);
@@ -1145,6 +1180,19 @@ export class McpStateStore {
       allocation_owner: owner,
       acquired_at: now,
     });
+    const claim = claimed
+      ? OperationClaimRecordV1.parse({
+          schema_version: 1,
+          record_kind: 'circuit.mcp.operation-claim',
+          claim_id: RUN_ID.parse(this.#randomId()),
+          run_id: runId,
+          workspace_key: workspace.key,
+          operation: 'reconcile',
+          expected_revision: record.revision,
+          owner,
+          acquired_at: now,
+        })
+      : undefined;
 
     let leaseCreated = false;
     let guard: WorkspaceGuardHandle | undefined;
@@ -1161,6 +1209,12 @@ export class McpStateStore {
       if (!createJsonExclusive(join(stagingDir, 'state.json'), record)) {
         throw new McpStateStoreError('run_exists', 'The staged Circuit run already exists.');
       }
+      if (claim !== undefined && !createJsonExclusive(join(stagingDir, 'operation.json'), claim)) {
+        throw new McpStateStoreError(
+          'operation_in_progress',
+          'The staged Circuit run already has an operation claim.',
+        );
+      }
       this.#reconcileLeaseUnderGuard(workspace, leasePath, guard);
       if (!createJsonExclusive(leasePath, lease)) {
         throw new McpStateStoreError(
@@ -1172,7 +1226,14 @@ export class McpStateStore {
       leaseCreated = true;
       renameSync(stagingDir, finalRunDir);
       fsyncDirectory(workspaceRunsRoot);
-      return this.readRun(workspace, runId);
+      if (claim !== undefined) {
+        const registered = this.#registerHandle(workspace, runId, record.revision, claim);
+        if (!registered.ok) {
+          throw new McpStateStoreError(registered.code, registered.message);
+        }
+        return { record, handle: registered.handle };
+      }
+      return { record: this.readRun(workspace, runId) };
     } catch (error) {
       if (existsSync(stagingDir)) rmSync(stagingDir, { force: true, recursive: true });
       if (leaseCreated && !existsSync(finalRunDir)) {
@@ -1857,8 +1918,8 @@ export class McpStateStore {
         handle: acquired.handle,
         to: current.recovery.cancellation_requested ? 'cancelled' : 'interrupted',
         summary: current.recovery.cancellation_requested
-          ? 'Circuit confirmed cleanup and closed the cancelled run.'
-          : 'Circuit confirmed cleanup and marked the run interrupted.',
+          ? 'Circuit observed that its recorded owned process group is absent and closed the cancelled run.'
+          : 'Circuit observed that its recorded owned process group is absent and marked the run interrupted.',
         launch,
         checkpoint: null,
         recovery: {
@@ -2440,12 +2501,14 @@ export class McpStateStore {
         ? [this.#inspectProcess(record.launch.allocation_owner)]
         : ['unknown'];
     }
-    const statuses: ProcessStatus[] = [
-      this.#inspectProcess(record.launch.supervisor),
-      this.#inspectProcessGroup(record.launch.supervisor),
-    ];
+    const supervisorStatus = this.#inspectProcess(record.launch.supervisor);
+    const supervisorGroupStatus = this.#inspectProcessGroup(record.launch.supervisor);
+    const statuses: ProcessStatus[] = [supervisorStatus, supervisorGroupStatus];
     if (record.launch.authorization_sha256 !== undefined && record.launch.runtime === undefined) {
-      statuses.push('unknown');
+      if (supervisorStatus !== 'absent' || supervisorGroupStatus !== 'absent') {
+        return statuses;
+      }
+      return [...statuses, this.#inspectProcessToken(record.launch.authorization_sha256)];
     }
     if (record.launch.runtime !== undefined) {
       statuses.push(this.#inspectProcess(record.launch.runtime));

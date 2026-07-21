@@ -1,5 +1,5 @@
-import { access } from 'node:fs/promises';
-import { delimiter, dirname, isAbsolute, join, relative, resolve } from 'node:path';
+import { access, realpath } from 'node:fs/promises';
+import { basename, delimiter, dirname, isAbsolute, join, relative, resolve } from 'node:path';
 
 import type { RuntimeExecutionCapabilities } from '../../runtime/run/capabilities.js';
 import {
@@ -39,28 +39,74 @@ function isInside(root: string, candidate: string): boolean {
 }
 
 function proofPathEntries(environment: NodeJS.ProcessEnv): readonly string[] {
-  const entries = (environment.PATH ?? '')
+  const configured = (environment.PATH ?? '')
     .split(delimiter)
     .filter((entry) => isAbsolute(entry) && !entry.includes('\0'));
-  entries.push(dirname(process.execPath), '/usr/bin', '/bin', '/usr/sbin', '/sbin');
-  return Object.freeze([...new Set(entries)]);
+  return Object.freeze([
+    ...new Set([
+      dirname(process.execPath),
+      '/usr/bin',
+      '/bin',
+      '/usr/sbin',
+      '/sbin',
+      ...configured,
+    ]),
+  ]);
+}
+
+function vitePlusInstallationRoot(candidate: string): string | undefined {
+  return /^(.*\/\.vite-plus)\/[^/]+\/bin\/vp$/u.exec(candidate)?.[1];
+}
+
+function vitePlusNodeInstallationRoot(candidate: string): string | undefined {
+  return /^(.*\/\.vite-plus)\/js_runtime\/node\/[^/]+\/bin\/node$/u.exec(candidate)?.[1];
+}
+
+async function reviewedVitePlusShimTarget(
+  requestedName: string,
+  candidate: string,
+): Promise<string | undefined> {
+  const canonicalCandidate = await realpath(candidate);
+  const viteRoot = vitePlusInstallationRoot(canonicalCandidate);
+  if (viteRoot === undefined) return candidate;
+  const hostNode = await realpath(process.execPath);
+  if (vitePlusNodeInstallationRoot(hostNode) !== viteRoot) return undefined;
+  if (requestedName === 'node') return hostNode;
+  const script =
+    requestedName === 'npm' ? 'npm-cli.js' : requestedName === 'npx' ? 'npx-cli.js' : undefined;
+  if (script === undefined) return undefined;
+  const target = join(dirname(dirname(hostNode)), 'lib', 'node_modules', 'npm', 'bin', script);
+  try {
+    await access(target, 1);
+    return await realpath(target);
+  } catch {
+    return undefined;
+  }
 }
 
 async function resolveProofExecutable(
   argv0: string,
   pathEntries: readonly string[],
 ): Promise<string> {
-  const candidates = isAbsolute(argv0) ? [argv0] : pathEntries.map((entry) => join(entry, argv0));
+  const normalizedPathEntries = pathEntries.map((entry) => resolve(entry));
+  const candidates = isAbsolute(argv0)
+    ? normalizedPathEntries.includes(dirname(resolve(argv0)))
+      ? [resolve(argv0)]
+      : []
+    : basename(argv0) === argv0
+      ? normalizedPathEntries.map((entry) => join(entry, argv0))
+      : [];
   for (const candidate of candidates) {
     try {
       await access(candidate, 1);
-      return candidate;
+      const reviewed = await reviewedVitePlusShimTarget(basename(argv0), candidate);
+      if (reviewed !== undefined) return reviewed;
     } catch {
       // Keep looking through the fixed PATH roster.
     }
   }
   throw new ProofPlanBlockedError(
-    `Proof plan blocked: verification executable ${JSON.stringify(argv0)} is unavailable.`,
+    `Proof plan blocked: verification executable ${JSON.stringify(argv0)} is outside the fixed proof toolchain or unavailable.`,
   );
 }
 
@@ -74,6 +120,9 @@ export function createMcpWorkerSecurity(
     workspace,
     privateRoot: input.privateRoot,
     pathEntries,
+    // The supervisor launches each worker as the leader of its own process
+    // group. Proof and Git children stay in that durable cleanup boundary.
+    ownerProcessGroupId: process.pid,
   });
   const safeGit = (dependencies.createGitReader ?? createSafeGitReader)({
     workspace,

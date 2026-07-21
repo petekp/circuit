@@ -4,7 +4,7 @@ import { mkdir, mkdtemp, realpath, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 
-import { afterEach, describe, expect, it } from 'vitest';
+import { afterEach, describe, expect, it, vi } from 'vitest';
 
 import type {
   LifecycleExecutableIdentity,
@@ -57,7 +57,11 @@ function supervisor(): ProcessIdentity {
   };
 }
 
-async function fixture(statuses: Map<string, ProcessStatus> = new Map()) {
+async function fixture(
+  statuses: Map<string, ProcessStatus> = new Map(),
+  retainedTerminalRuns?: number,
+  tokenStatus: ProcessStatus = 'unknown',
+) {
   const root = await realpath(await mkdtemp(join(tmpdir(), 'circuit-mcp-adapter-')));
   roots.push(root);
   const workspacePath = join(root, 'workspace');
@@ -65,10 +69,12 @@ async function fixture(statuses: Map<string, ProcessStatus> = new Map()) {
   await mkdir(workspacePath, { mode: 0o700 });
   const inspect = (identity: ProcessIdentity): ProcessStatus =>
     statuses.get(identity.birth_token) ?? 'absent';
+  const inspectToken = vi.fn(() => tokenStatus);
   const store = new McpStateStore({
     stateRoot,
     inspectProcess: inspect,
     inspectProcessGroup: inspect,
+    inspectProcessToken: inspectToken,
     now: () => new Date(NOW),
   });
   const workspace = trustedWorkspaceIdentity(workspacePath);
@@ -92,9 +98,20 @@ async function fixture(statuses: Map<string, ProcessStatus> = new Map()) {
     artifacts,
     inspectProcess: inspect,
     inspectProcessGroup: inspect,
+    ...(retainedTerminalRuns === undefined ? {} : { retainedTerminalRuns }),
     now: () => new Date(NOW),
   });
-  return { root, workspacePath, store, workspace, oldOwner, newOwner, adapter, artifacts };
+  return {
+    root,
+    workspacePath,
+    store,
+    workspace,
+    oldOwner,
+    newOwner,
+    adapter,
+    artifacts,
+    inspectToken,
+  };
 }
 
 async function writePrivate(path: string, value: unknown): Promise<void> {
@@ -105,7 +122,7 @@ function runtimeObservation() {
   return {
     pid: 300,
     process_group_id: 300,
-    birth_token: 'runtime-birth',
+    birth_token: AUTHORIZATION,
     started_at: NOW,
   };
 }
@@ -148,6 +165,26 @@ afterEach(async () => {
 });
 
 describe('MCP lifecycle state adapter', () => {
+  it('runs bounded terminal-run retention immediately before reserving a new run', async () => {
+    const context = await fixture(new Map(), 100);
+    const prune = vi.spyOn(context.store, 'pruneTerminalRuns');
+
+    context.adapter.reserveRun({
+      run_id: RUN_ID,
+      workspace: context.workspace,
+      request: { flow: 'review', goal: 'Review this change', web_search: 'off' },
+      runtime_assets_sha256: DIGEST,
+      owner: context.oldOwner,
+      summary: 'Starting Review.',
+    });
+
+    expect(prune).toHaveBeenCalledWith({
+      workspace: context.workspace,
+      owner: context.oldOwner,
+      retain: 100,
+    });
+  });
+
   it('closes the server-crash window from supervisor journals', async () => {
     const context = await fixture();
     await reserveAndAuthorize(context);
@@ -214,7 +251,7 @@ describe('MCP lifecycle state adapter', () => {
   });
 
   it('keeps the lease and requires recovery when cleanup is unconfirmed', async () => {
-    const context = await fixture(new Map([['runtime-birth', 'unknown']]));
+    const context = await fixture(new Map([[AUTHORIZATION, 'unknown']]));
     await reserveAndAuthorize(context);
     const control = context.adapter.controlDirectory(context.workspace, RUN_ID);
     await writePrivate(join(control, 'launch-1-runtime.json'), {
@@ -517,6 +554,128 @@ describe('MCP lifecycle state adapter', () => {
       }),
     ).toThrow(/could not prove/i);
     expect(existsSync(context.store.pathsForRun(context.workspace, RUN_ID).lease_file)).toBe(true);
+  });
+
+  it('recovers a crash before authorization send only after the precommitted worker token is absent', async () => {
+    const context = await fixture(new Map(), undefined, 'absent');
+    await reserveAndAuthorize(context);
+
+    await expect(
+      context.adapter.reconcileRun({
+        workspace: context.workspace,
+        run_id: RUN_ID,
+        owner: context.newOwner,
+      }),
+    ).resolves.toMatchObject({ state: 'recovery_required' });
+
+    await expect(
+      context.adapter.recoverRun({
+        workspace: context.workspace,
+        run_id: RUN_ID,
+        owner: context.newOwner,
+      }),
+    ).resolves.toMatchObject({
+      record: { state: 'interrupted', launch: { phase: 'exited' } },
+      cleanup_confirmed: true,
+      lease_released: true,
+    });
+    expect(context.inspectToken).toHaveBeenCalledWith(AUTHORIZATION);
+    expect(existsSync(context.store.pathsForRun(context.workspace, RUN_ID).lease_file)).toBe(false);
+  });
+
+  it('keeps the crash-after-send window leased while the precommitted worker token is alive', async () => {
+    const context = await fixture(new Map(), undefined, 'alive');
+    await reserveAndAuthorize(context);
+    await context.adapter.reconcileRun({
+      workspace: context.workspace,
+      run_id: RUN_ID,
+      owner: context.newOwner,
+    });
+
+    await expect(
+      context.adapter.recoverRun({
+        workspace: context.workspace,
+        run_id: RUN_ID,
+        owner: context.newOwner,
+      }),
+    ).rejects.toThrow(/process.*still belong|alive/i);
+    expect(existsSync(context.store.pathsForRun(context.workspace, RUN_ID).lease_file)).toBe(true);
+  });
+
+  it('keeps the crash-after-send window leased when the global token probe is unknown', async () => {
+    const context = await fixture(new Map(), undefined, 'unknown');
+    await reserveAndAuthorize(context);
+    await context.adapter.reconcileRun({
+      workspace: context.workspace,
+      run_id: RUN_ID,
+      owner: context.newOwner,
+    });
+
+    await expect(
+      context.adapter.recoverRun({
+        workspace: context.workspace,
+        run_id: RUN_ID,
+        owner: context.newOwner,
+      }),
+    ).rejects.toThrow(/could not prove|unknown/i);
+    expect(existsSync(context.store.pathsForRun(context.workspace, RUN_ID).lease_file)).toBe(true);
+  });
+
+  it('does not scan by token while the recorded supervisor identity is uncertain', async () => {
+    const context = await fixture(new Map([['supervisor-birth', 'unknown']]), undefined, 'absent');
+    await reserveAndAuthorize(context);
+    await context.adapter.reconcileRun({
+      workspace: context.workspace,
+      run_id: RUN_ID,
+      owner: context.newOwner,
+    });
+
+    await expect(
+      context.adapter.recoverRun({
+        workspace: context.workspace,
+        run_id: RUN_ID,
+        owner: context.newOwner,
+      }),
+    ).rejects.toThrow(/could not prove|unknown/i);
+    expect(context.inspectToken).not.toHaveBeenCalled();
+    expect(existsSync(context.store.pathsForRun(context.workspace, RUN_ID).lease_file)).toBe(true);
+  });
+
+  it('releases an authorized missing-runtime launch after restart when the worker token is absent', async () => {
+    const context = await fixture();
+    await reserveAndAuthorize(context);
+    await context.adapter.reconcileRun({
+      workspace: context.workspace,
+      run_id: RUN_ID,
+      owner: context.newOwner,
+    });
+
+    const inspect = () => 'absent' as const;
+    const restartedStore = new McpStateStore({
+      stateRoot: join(context.root, 'state'),
+      inspectProcess: inspect,
+      inspectProcessGroup: inspect,
+      inspectProcessToken: inspect,
+      now: () => new Date(NOW),
+    });
+    const restarted = new McpLifecycleStateAdapter({
+      store: restartedStore,
+      artifacts: context.artifacts,
+      inspectProcess: inspect,
+      inspectProcessGroup: inspect,
+      now: () => new Date(NOW),
+    });
+
+    await expect(
+      restarted.recoverRun({
+        workspace: context.workspace,
+        run_id: RUN_ID,
+        owner: context.newOwner,
+      }),
+    ).resolves.toMatchObject({
+      record: { state: 'interrupted', launch: { phase: 'exited' } },
+      lease_released: true,
+    });
   });
 
   it('hydrates missing worker and exit evidence while recovery remains explicit', async () => {

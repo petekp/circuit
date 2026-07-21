@@ -229,21 +229,37 @@ export async function verifyMcpRuntimeAssets(pins: McpRuntimeAssetPins): Promise
   }
 
   for (const expected of pins.assets) {
-    let observed: McpRuntimeAssetPin;
-    try {
-      observed = await pinOne({
-        id: expected.id,
-        role: expected.role,
-        path: expected.source_path,
-        executable:
-          expected.role === 'node' || expected.role === 'codex' || expected.role === 'git_helper',
-      });
-    } catch (error) {
-      if (error instanceof AssetDriftError) throw error;
-      throw new AssetDriftError(`${expected.id} asset changed: ${describeError(error)}`);
-    }
-    if (!samePin(expected, observed)) {
-      throw new AssetDriftError(`${expected.id} asset changed after Circuit pinned it`);
-    }
+    await verifyMcpRuntimeAsset(expected);
+  }
+}
+
+/**
+ * Revalidates one sealed asset at the last responsible moment before use.
+ *
+ * This closes accidental drift between the worker's initial full verification
+ * and a later subprocess launch. It is not a defense against a malicious
+ * same-user process racing replacement after this check.
+ */
+export async function verifyMcpRuntimeAsset(expected: McpRuntimeAssetPin): Promise<void> {
+  const parsed = McpRuntimeAssetPinV1.safeParse(expected);
+  if (!parsed.success) {
+    throw new AssetDriftError('Circuit runtime asset pin is invalid or changed');
+  }
+
+  let observed: McpRuntimeAssetPin;
+  try {
+    observed = await pinOne({
+      id: expected.id,
+      role: expected.role,
+      path: expected.source_path,
+      executable:
+        expected.role === 'node' || expected.role === 'codex' || expected.role === 'git_helper',
+    });
+  } catch (error) {
+    if (error instanceof AssetDriftError) throw error;
+    throw new AssetDriftError(`${expected.id} asset changed: ${describeError(error)}`);
+  }
+  if (!samePin(expected, observed)) {
+    throw new AssetDriftError(`${expected.id} asset changed after Circuit pinned it`);
   }
 }

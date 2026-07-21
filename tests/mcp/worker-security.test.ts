@@ -1,6 +1,6 @@
 import { mkdirSync, mkdtempSync, realpathSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
-import { join } from 'node:path';
+import { dirname, join } from 'node:path';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
 import type { MacosProofSandbox } from '../../src/hosts/codex-mcp/proof-sandbox.js';
@@ -24,6 +24,36 @@ function fixture(): { workspace: string; privateRoot: string } {
 }
 
 describe('MCP worker security adapters', () => {
+  it('does not turn ambient package-manager PATH entries into sandbox read roots', () => {
+    const { workspace, privateRoot } = fixture();
+    const createSandbox = vi.fn(
+      (_options: unknown) => ({ execute: vi.fn() }) as unknown as MacosProofSandbox,
+    );
+
+    createMcpWorkerSecurity(
+      {
+        workspace,
+        privateRoot,
+        gitExecutable: '/usr/bin/git',
+        environment: {
+          PATH: [
+            '/Users/operator/.vite-plus/bin',
+            '/Users/operator/Library/pnpm',
+            '/Users/operator/.cargo/bin',
+            '/usr/bin',
+          ].join(':'),
+        },
+      },
+      {
+        createSandbox,
+        createGitReader: () => ({ read: vi.fn() }) as unknown as SafeGitReader,
+      },
+    );
+
+    expect(createSandbox).toHaveBeenCalledOnce();
+    expect(createSandbox.mock.calls[0]?.[0]).not.toHaveProperty('toolchainReadRoots');
+  });
+
   it('routes proof commands through the injected sandbox and preserves bounded results', async () => {
     const { workspace, privateRoot } = fixture();
     const execute = vi.fn(async () => ({
@@ -51,7 +81,7 @@ describe('MCP worker security adapters', () => {
         workspace,
         privateRoot,
         gitExecutable: '/usr/bin/git',
-        environment: { PATH: '/usr/bin:/bin' },
+        environment: { PATH: `${dirname(process.execPath)}:/usr/bin:/bin` },
       },
       {
         createSandbox: () => sandbox,
@@ -80,6 +110,41 @@ describe('MCP worker security adapters', () => {
     );
   });
 
+  it.each([
+    ['/tmp/operator-tool', 'absolute executable outside PATH'],
+    ['../operator-tool', 'relative traversal'],
+  ])('rejects an unsealed proof executable (%s: %s)', async (argv0) => {
+    const { workspace, privateRoot } = fixture();
+    const execute = vi.fn();
+    const security = createMcpWorkerSecurity(
+      {
+        workspace,
+        privateRoot,
+        gitExecutable: '/usr/bin/git',
+        environment: { PATH: '/usr/bin:/bin' },
+      },
+      {
+        createSandbox: () => ({ execute }) as unknown as MacosProofSandbox,
+        createGitReader: () => ({ read: vi.fn() }) as unknown as SafeGitReader,
+      },
+    );
+
+    await expect(
+      security.proofCommandRunner(
+        {
+          id: 'unsealed-tool',
+          cwd: '.',
+          argv: [argv0],
+          env: {},
+          timeout_ms: 5_000,
+          max_output_bytes: 1_000,
+        },
+        workspace,
+      ),
+    ).rejects.toThrow(/outside the fixed proof toolchain/);
+    expect(execute).not.toHaveBeenCalled();
+  });
+
   it('forwards an allowed Git operation through the reader sealed to the workspace', async () => {
     const { workspace, privateRoot } = fixture();
     const result = {
@@ -102,7 +167,7 @@ describe('MCP worker security adapters', () => {
         workspace,
         privateRoot,
         gitExecutable: '/usr/bin/git',
-        environment: { PATH: '/usr/bin:/bin' },
+        environment: { PATH: `${dirname(process.execPath)}:/usr/bin:/bin` },
       },
       {
         createSandbox: () => ({}) as MacosProofSandbox,
@@ -208,7 +273,7 @@ describe('MCP worker security adapters', () => {
           workspace,
           privateRoot,
           gitExecutable: '/usr/bin/git',
-          environment: { PATH: '/usr/bin:/bin' },
+          environment: { PATH: `${dirname(process.execPath)}:/usr/bin:/bin` },
         },
         {
           createSandbox: () => sandbox,

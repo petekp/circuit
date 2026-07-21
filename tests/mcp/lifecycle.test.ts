@@ -141,6 +141,7 @@ class FakeStore implements LifecycleStore {
   readonly calls: string[] = [];
   readonly records = new Map<string, LifecycleRunRecord>();
   #active: { handle: LifecycleOperationHandle; runId: string } | undefined;
+  afterReserve: ((record: LifecycleRunRecord) => void) | undefined;
   waitForChangeImpl:
     | ((input: Parameters<NonNullable<LifecycleStore['waitForChange']>>[0]) => Promise<void>)
     | undefined;
@@ -151,6 +152,23 @@ class FakeStore implements LifecycleStore {
 
   reserveRun(input: Parameters<LifecycleStore['reserveRun']>[0]): LifecycleRunRecord {
     this.calls.push('reserve');
+    const record = this.#reserveRecord(input);
+    this.afterReserve?.(clone(record));
+    return clone(record);
+  }
+
+  reserveRunClaimed(
+    input: Parameters<LifecycleStore['reserveRunClaimed']>[0],
+  ): ReturnType<LifecycleStore['reserveRunClaimed']> {
+    this.calls.push('reserve-claimed:reconcile');
+    const record = this.#reserveRecord(input);
+    const handle: LifecycleOperationHandle = { claim: {} };
+    this.#active = { handle, runId: input.run_id };
+    this.afterReserve?.(clone(record));
+    return { record: clone(record), handle };
+  }
+
+  #reserveRecord(input: Parameters<LifecycleStore['reserveRun']>[0]): LifecycleRunRecord {
     const record = makeRun('starting', {
       run_id: input.run_id,
       workspace: input.workspace,
@@ -161,7 +179,7 @@ class FakeStore implements LifecycleStore {
       launch: { generation: 1, allocation_owner: input.owner, phase: 'reserved' },
     });
     this.seed(record);
-    return clone(record);
+    return record;
   }
 
   readRun(_workspace: LifecycleWorkspaceIdentity, runId: string): LifecycleRunRecord {
@@ -399,7 +417,6 @@ function fixture(
   };
   const lifecycle = new CircuitMcpLifecycle({
     platform: overrides.platform ?? 'darwin',
-    publicFlows: new Set(['review', 'fix', 'build', 'explore', 'prototype']),
     loadRuntimeAssets:
       overrides.loadRuntimeAssets ??
       (async () => {
@@ -407,9 +424,7 @@ function fixture(
         return RUNTIME_ASSETS;
       }),
     ...(overrides.validateStart === undefined ? {} : { validateStart: overrides.validateStart }),
-    ...(overrides.preflightLaunch === undefined
-      ? {}
-      : { preflightLaunch: overrides.preflightLaunch }),
+    preflightLaunch: overrides.preflightLaunch ?? (async () => undefined),
     resolveWorkspace: async () => {
       order.push('resolve-workspace');
       return WORKSPACE;
@@ -440,6 +455,20 @@ describe('Circuit MCP lifecycle', () => {
     expect(order).toEqual([]);
   });
 
+  it('lets sealed launch preflight enforce packaged flow availability without a static roster', async () => {
+    const preflightLaunch = vi.fn(async () => {});
+    const { lifecycle } = fixture({ preflightLaunch });
+
+    const result = await lifecycle.handle(
+      call('circuit_start', { flow: 'review', goal: 'Review this change' }),
+    );
+
+    expect(result).toMatchObject({ ok: true, run_id: RUN_ID, state: 'running' });
+    expect(preflightLaunch).toHaveBeenCalledWith(
+      expect.objectContaining({ request: expect.objectContaining({ flow: 'review' }) }),
+    );
+  });
+
   it('records supervisor identity and authorization before launching a worker', async () => {
     const { lifecycle, order } = fixture();
     const result = await lifecycle.handle(
@@ -449,8 +478,7 @@ describe('Circuit MCP lifecycle', () => {
     expect(order).toEqual([
       'verify',
       'resolve-workspace',
-      'reserve',
-      'acquire:reconcile',
+      'reserve-claimed:reconcile',
       'control-directory',
       'begin-supervisor',
       'advance:supervisor_recorded',
@@ -461,6 +489,28 @@ describe('Circuit MCP lifecycle', () => {
       'transition:running',
       'release',
     ]);
+  });
+
+  it('publishes a new run only after start owns its operation claim', async () => {
+    const store = new FakeStore();
+    let competingClaim: ReturnType<FakeStore['acquireOperation']> | undefined;
+    store.afterReserve = (record) => {
+      competingClaim = store.acquireOperation({
+        workspace: record.workspace,
+        run_id: record.run_id,
+        operation: 'cancel',
+        owner: { ...OWNER, instance_id: 'server-two' },
+      });
+    };
+    const { lifecycle } = fixture({ store });
+
+    const result = await lifecycle.handle(
+      call('circuit_start', { flow: 'review', goal: 'Review this change' }),
+    );
+
+    expect(competingClaim).toMatchObject({ ok: false, code: 'operation_in_progress' });
+    expect(result).toMatchObject({ ok: true, run_id: RUN_ID, state: 'running' });
+    expect(store.records.get(RUN_ID)).toMatchObject({ state: 'running' });
   });
 
   it('binds concurrent starts to the exact assets loaded for each call', async () => {
@@ -577,15 +627,32 @@ describe('Circuit MCP lifecycle', () => {
   });
 
   it('runs launch capability preflight before reserving start state', async () => {
-    const preflightLaunch = vi.fn(async () => undefined);
-    const { lifecycle, order } = fixture({ preflightLaunch });
+    const preparedLaunch = Object.freeze({ id: 'prepared-start' });
+    const preflightLaunch = vi.fn(async () => preparedLaunch);
+    const createStart = vi.fn(async (input) => ({
+      worker_entrypoint: '/tmp/worker.mjs',
+      launch_payload: { prepared_launch: input.prepared_launch },
+    }));
+    const workerFactory: LifecycleWorkerFactory = {
+      createStart,
+      createResume: async () => ({
+        worker_entrypoint: '/tmp/worker.mjs',
+        launch_payload: {},
+      }),
+    };
+    const { lifecycle, order } = fixture({ preflightLaunch, workerFactory });
     await lifecycle.handle(call('circuit_start', { flow: 'review', goal: 'Review this change' }));
     expect(preflightLaunch).toHaveBeenCalledWith({
       workspace: WORKSPACE,
       request: expect.objectContaining({ flow: 'review' }),
       runtime_assets: RUNTIME_ASSETS,
     });
-    expect(order.indexOf('resolve-workspace')).toBeLessThan(order.indexOf('reserve'));
+    expect(createStart).toHaveBeenCalledWith(
+      expect.objectContaining({ prepared_launch: preparedLaunch }),
+    );
+    expect(order.indexOf('resolve-workspace')).toBeLessThan(
+      order.indexOf('reserve-claimed:reconcile'),
+    );
   });
 
   it.each([
@@ -746,8 +813,17 @@ describe('Circuit MCP lifecycle', () => {
         },
       }),
     );
-    const preflightLaunch = vi.fn(async () => undefined);
-    const { lifecycle } = fixture({ store, preflightLaunch });
+    const preparedLaunch = Object.freeze({ id: 'prepared-resume' });
+    const preflightLaunch = vi.fn(async () => preparedLaunch);
+    const createResume = vi.fn(async () => ({
+      worker_entrypoint: '/tmp/worker.mjs',
+      launch_payload: {},
+    }));
+    const workerFactory: LifecycleWorkerFactory = {
+      createStart: async () => ({ worker_entrypoint: '/tmp/worker.mjs', launch_payload: {} }),
+      createResume,
+    };
+    const { lifecycle } = fixture({ store, preflightLaunch, workerFactory });
     const result = await lifecycle.handle(
       call('circuit_resume', {
         run_id: RUN_ID,
@@ -761,6 +837,9 @@ describe('Circuit MCP lifecycle', () => {
       request: expect.objectContaining({ flow: 'review' }),
       runtime_assets: RUNTIME_ASSETS,
     });
+    expect(createResume).toHaveBeenCalledWith(
+      expect.objectContaining({ prepared_launch: preparedLaunch }),
+    );
   });
 
   it('blocks asset drift before resume claims or changes a checkpoint', async () => {
@@ -796,6 +875,81 @@ describe('Circuit MCP lifecycle', () => {
       cleanup_confirmed: true,
     });
     expect(cleanup.cancel).not.toHaveBeenCalled();
+  });
+
+  it('reports a closed run plainly when it becomes terminal before cancellation wins', async () => {
+    const store = new FakeStore();
+    store.seed(makeRun('running'));
+    const acquire = store.acquireOperation.bind(store);
+    store.acquireOperation = (input) => {
+      store.seed(makeRun('complete'));
+      return acquire(input);
+    };
+    store.transitionRun = () => {
+      throw Object.assign(new Error('Circuit cannot change a run from complete to cancelling.'), {
+        code: 'invalid_transition',
+      });
+    };
+    const { lifecycle } = fixture({ store });
+
+    const result = await lifecycle.handle(call('circuit_cancel', { run_id: RUN_ID }));
+
+    expect(result).toMatchObject({
+      ok: false,
+      error: { code: 'run_not_cancellable', message: 'This Circuit run is already closed.' },
+    });
+    expect(JSON.stringify(result)).not.toContain('complete to cancelling');
+    expect(store.calls.at(-1)).toBe('release');
+  });
+
+  it('retries with a recovery claim when cancellation races with recovery state', async () => {
+    const store = new FakeStore();
+    store.seed(makeRun('running'));
+    const acquire = store.acquireOperation.bind(store);
+    let raced = false;
+    store.acquireOperation = (input) => {
+      if (!raced) {
+        raced = true;
+        store.seed(
+          makeRun('recovery_required', {
+            launch: {
+              generation: 1,
+              allocation_owner: OWNER,
+              phase: 'runtime_recorded',
+              supervisor: SUPERVISOR,
+              runtime: RUNTIME,
+              authorization_sha256: 'd'.repeat(64),
+              authorized_at: NOW,
+            },
+          }),
+        );
+      }
+      return acquire(input);
+    };
+    const transition = store.transitionRun.bind(store);
+    store.transitionRun = (input) => {
+      const latestAcquire = [...store.calls]
+        .reverse()
+        .find((entry) => entry.startsWith('acquire:'));
+      if (
+        store.records.get(RUN_ID)?.state === 'recovery_required' &&
+        latestAcquire !== 'acquire:recover'
+      ) {
+        throw Object.assign(new Error('Only Circuit recovery may repair this run.'), {
+          code: 'recovery_required',
+        });
+      }
+      return transition(input);
+    };
+    const { lifecycle } = fixture({ store });
+
+    const result = await lifecycle.handle(call('circuit_cancel', { run_id: RUN_ID }));
+
+    expect(result).toMatchObject({ ok: true, state: 'cancelled', cleanup_confirmed: true });
+    expect(store.calls.filter((entry) => entry.startsWith('acquire:'))).toEqual([
+      'acquire:cancel',
+      'acquire:recover',
+    ]);
   });
 
   it('reports recovery_required when cancellation cleanup is uncertain', async () => {
@@ -921,9 +1075,55 @@ describe('Circuit MCP lifecycle', () => {
     });
   });
 
-  it('lists and recovers without checking changed runtime assets', async () => {
-    const store = new FakeStore();
-    store.seed(
+  it('keeps status, cancel, list, and recover available after runtime assets drift', async () => {
+    const verify = vi.fn(async () => {
+      throw Object.assign(new Error('Circuit runtime assets changed.'), {
+        code: 'runtime_asset_changed',
+      });
+    });
+
+    const start = fixture({ verify });
+    await expect(
+      start.lifecycle.handle(call('circuit_start', { flow: 'review', goal: 'Do not start' })),
+    ).resolves.toMatchObject({ ok: false, error: { code: 'runtime_asset_changed' } });
+
+    const resumeStore = new FakeStore();
+    resumeStore.seed(makeRun('waiting_for_input'));
+    const resume = fixture({ store: resumeStore, verify });
+    await expect(
+      resume.lifecycle.handle(
+        call('circuit_resume', {
+          run_id: RUN_ID,
+          checkpoint_token: `cpt1.${'4'.repeat(64)}`,
+          choice_id: 'continue',
+        }),
+      ),
+    ).resolves.toMatchObject({ ok: false, error: { code: 'runtime_asset_changed' } });
+
+    const statusStore = new FakeStore();
+    statusStore.seed(makeRun('running'));
+    const status = fixture({ store: statusStore, verify });
+    await expect(
+      status.lifecycle.handle(call('circuit_status', { run_id: RUN_ID })),
+    ).resolves.toMatchObject({ ok: true, state: 'running' });
+
+    const cancelStore = new FakeStore();
+    cancelStore.seed(makeRun('running'));
+    const cancel = fixture({ store: cancelStore, verify });
+    await expect(
+      cancel.lifecycle.handle(call('circuit_cancel', { run_id: RUN_ID })),
+    ).resolves.toMatchObject({ ok: true, state: 'cancelled', cleanup_confirmed: true });
+
+    const listStore = new FakeStore();
+    listStore.seed(makeRun('running'));
+    const list = fixture({ store: listStore, verify });
+    await expect(list.lifecycle.handle(call('circuit_list', {}))).resolves.toMatchObject({
+      ok: true,
+      runs: [expect.objectContaining({ run_id: RUN_ID })],
+    });
+
+    const recoverStore = new FakeStore();
+    recoverStore.seed(
       makeRun('recovery_required', {
         recovery: {
           reason: 'cleanup_uncertain',
@@ -935,20 +1135,16 @@ describe('Circuit MCP lifecycle', () => {
         },
       }),
     );
-    const verify = vi.fn(async () => {
-      throw new Error('must not run');
-    });
-    const { lifecycle } = fixture({ store, verify });
-    await expect(lifecycle.handle(call('circuit_list', {}))).resolves.toMatchObject({ ok: true });
+    const recover = fixture({ store: recoverStore, verify });
     await expect(
-      lifecycle.handle(call('circuit_recover', { run_id: RUN_ID })),
+      recover.lifecycle.handle(call('circuit_recover', { run_id: RUN_ID })),
     ).resolves.toMatchObject({
       ok: true,
       state: 'interrupted',
       cleanup_confirmed: true,
       lease_released: true,
     });
-    expect(verify).not.toHaveBeenCalled();
+    expect(verify).toHaveBeenCalledTimes(2);
   });
 
   it('does not expose unexpected internal error text', async () => {

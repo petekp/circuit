@@ -175,7 +175,10 @@ If the user wants to stop instead of choosing, call `circuit_cancel`.
 
 Call `circuit_cancel` when the user cancels the run or replaces the task. Do
 not describe cancellation as complete until the response says `state` is
-`cancelled` and `cleanup_confirmed` is true.
+`cancelled` and `cleanup_confirmed` is true. Here, `cleanup_confirmed` means
+Circuit observed that its recorded owned process group is absent. It does not
+promise containment of a descendant that deliberately detached before Circuit
+could observe it.
 
 Call `circuit_recover` only for a run in `recovery_required`. Recovery proves
 that Circuit's recorded processes are absent before releasing the workspace.

@@ -75,18 +75,30 @@ Circuit does not trust:
 The workspace comes only from `codex/sandbox-state-meta`. Circuit resolves it
 to a canonical directory and records its device and inode. Missing, renamed,
 malformed, remote, symlink-swapped, or non-directory values fail closed before
-a run is created.
+a run is created. Before the MCP worker starts the ordinary engine, it creates
+and binds `.circuit`, `.circuit/runs`, and the exact run directory one segment
+at a time. A symbolic link, non-directory, canonical escape, or changed
+filesystem identity stops the launch before run files are written.
 
 Circuit requires Codex 0.144.3 or newer and successful capability probes for
-plugin MCP loading, strict configuration, and workspace metadata. A version
-number alone is not enough.
+plugin MCP loading, strict configuration, workspace metadata, and the nested
+shell sandbox. A version number alone is not enough. The sandbox probe performs
+local filesystem, environment, executable, and loopback-network checks before
+a run is reserved. A failed or uncertain check blocks start and resume.
+
+Codex 0.144.3 does not currently pass that complete sandbox probe. Its narrowest
+usable built-in macOS profile still allows a nested shell to read and write
+shared temporary directories. Circuit therefore keeps this MCP implementation
+in draft and refuses to create a run on that host version. This is a deliberate
+fail-closed result, not partial sandbox support.
 
 ## Installed asset identity
 
 Before launch, Circuit records the real paths and hashes of Node, Codex, the
 plugin runtime, the Git helper, and packaged flows. A changed asset blocks
 start and resume. Status, list, cancel, and recover remain available so an
-operator can inspect or safely close existing work.
+operator can inspect or safely close existing work. A long-lived worker also
+rechecks the exact Codex asset immediately before each relay spawn.
 
 This protects against accidental replacement after launch. It does not claim
 to defeat a malicious process running as the same user.
@@ -135,10 +147,19 @@ process group is absent. An alive or unknown result leaves the run unchanged.
 The MCP bridge supports sandboxed execution only on macOS. Other platforms
 return `unsupported_platform` before run creation. There is no weaker fallback.
 
-Nested Codex runs with fixed workspace-write, no approvals, no plugins, no
-extra write roots, no shell network access, and strict configuration. Circuit
-runs proof commands through an injected Seatbelt provider that:
+Nested Codex uses a fixed named permission profile, no approvals, no plugins or
+Apps, no extra write roots, no shell network access, and strict configuration.
+The model-generated shell receives a private HOME and temporary directory plus
+a fixed PATH. It does not receive the parent Codex process's credentials,
+proxy settings, TLS settings, CODEX_HOME, or host HOME. The named profile and
+its live probe must both pass; Circuit never falls back to ordinary
+`workspace-write` permissions.
 
+Circuit runs proof commands through an injected Seatbelt provider that:
+
+- allows reads only from the workspace, the current private run directory,
+  the selected executable files, their reviewed runtime directories, and a
+  small fixed set of macOS runtime directories;
 - allows writes only inside the canonical workspace and a private per-run
   temporary/cache directory;
 - denies direct sockets, DNS, command-line network clients, native URLSession,

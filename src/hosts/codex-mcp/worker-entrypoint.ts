@@ -5,7 +5,12 @@ import { fileURLToPath } from 'node:url';
 
 import type { CliMainOptions } from '../../cli/circuit.js';
 import { createMcpCodexRelayer } from './nested-codex.js';
-import { readMcpWorkerLaunchFromFd, runMcpWorkerLaunch } from './worker-runtime.js';
+import {
+  type McpWorkerLaunch,
+  type McpWorkerRuntimeDependencies,
+  readMcpWorkerLaunchFromFd,
+  runMcpWorkerLaunch,
+} from './worker-runtime.js';
 
 type CircuitMain = (argv: readonly string[], options: CliMainOptions) => Promise<number>;
 
@@ -24,11 +29,17 @@ export async function loadPackagedCircuitMain(
   return (module as { readonly main: CircuitMain }).main;
 }
 
+export async function runPackagedMcpWorkerLaunch(
+  launch: McpWorkerLaunch,
+  dependencies: Omit<McpWorkerRuntimeDependencies, 'main'>,
+): Promise<number> {
+  const main = await loadPackagedCircuitMain();
+  return await runMcpWorkerLaunch(launch, { ...dependencies, main });
+}
+
 export async function runPackagedMcpWorker(fd = 3): Promise<number> {
   const launch = readMcpWorkerLaunchFromFd(fd);
-  const main = await loadPackagedCircuitMain();
-  return await runMcpWorkerLaunch(launch, {
-    main,
+  return await runPackagedMcpWorkerLaunch(launch, {
     createRelayer: createMcpCodexRelayer,
     environment: process.env,
   });

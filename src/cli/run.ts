@@ -170,6 +170,8 @@ export interface RunCommandOptions {
   projectRoot?: string;
   /** Sealed host configuration injected without reading operator config files. */
   invocationConfig?: ConfigValue;
+  /** Installed host packages explicitly bind their emitted generated-flow mirror. */
+  generatedFlowMirrorRoot?: string;
   /** MCP uses its own lifecycle and must not install ordinary Codex hooks. */
   codexInstallAssurance?: 'enabled' | 'disabled';
   hostKind?: HostKindValue;
@@ -1859,6 +1861,9 @@ export async function runExecutionCommand(
     applyFixturePolicy(runtimeSupport, {
       args: runArgs,
       fixturePath,
+      ...(options.generatedFlowMirrorRoot === undefined
+        ? {}
+        : { generatedFlowMirrorRoot: options.generatedFlowMirrorRoot }),
     }),
     { hasComposeWriter: options.composeWriter !== undefined },
   );

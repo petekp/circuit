@@ -22,6 +22,7 @@ export interface CodexHostCapabilityProbeInput {
   readonly execHelpOutput: string;
   readonly pluginMcpTransport: 'stdio' | undefined;
   readonly workspaceMetadataValidated: boolean;
+  readonly nestedSandboxValidated: boolean;
 }
 
 export interface CodexHostCapabilities {
@@ -30,6 +31,7 @@ export interface CodexHostCapabilities {
   readonly plugin_mcp: true;
   readonly strict_config: true;
   readonly workspace_metadata: true;
+  readonly nested_sandbox: true;
 }
 
 interface ParsedVersion {
@@ -105,6 +107,13 @@ export function assertCodexHostCapabilities(
       'Update Codex and retry from a real workspace directory.',
     );
   }
+  if (!input.nestedSandboxValidated) {
+    throw new CodexHostCapabilityError(
+      'codex_capability_missing',
+      "The installed Codex did not pass Circuit's nested sandbox capability canary.",
+      'Update Codex to a version that denies shared temporary files, then retry.',
+    );
+  }
 
   for (const [name, pattern] of REQUIRED_EXEC_HELP_CAPABILITIES) {
     if (!pattern.test(input.execHelpOutput)) {
@@ -122,5 +131,6 @@ export function assertCodexHostCapabilities(
     plugin_mcp: true,
     strict_config: true,
     workspace_metadata: true,
+    nested_sandbox: true,
   });
 }

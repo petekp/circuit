@@ -64,6 +64,8 @@ describe('generated-surface guard', () => {
         'plugins/codex/.mcp.json',
         'plugins/codex/mcp/server.cjs',
         'plugins/codex/mcp/server.mjs',
+        'plugins/codex/mcp/supervisor.mjs',
+        'plugins/codex/mcp/worker.mjs',
         'src/shared/html/checkpoint-review-runtime.generated.ts',
       ]),
     );

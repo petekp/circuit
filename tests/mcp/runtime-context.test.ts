@@ -38,9 +38,13 @@ describe('sealed Codex MCP runtime context', () => {
       packaged_flows: [{ id: 'review', path: flow }],
     });
     const workspaceStat = await stat(root);
-    const proofExecutor = { run: vi.fn() };
+    const proofExecutor = vi.fn();
     const gitReader = { read: vi.fn() };
-    const cancellation = { cancel: vi.fn() };
+    const cancellation = {
+      owner: 'supervisor' as const,
+      process_group_cleanup: 'observed' as const,
+      run_id: '019f64f5-1f4d-7d91-8cda-a309cc72c300',
+    };
 
     const context = createMcpRuntimeContext({
       workspace: {
@@ -57,6 +61,7 @@ describe('sealed Codex MCP runtime context', () => {
         plugin_mcp: true,
         strict_config: true,
         workspace_metadata: true,
+        nested_sandbox: true,
       },
       assets,
       search: { mode: 'off', consented: false },
@@ -67,6 +72,9 @@ describe('sealed Codex MCP runtime context', () => {
 
     expect(context.workspace.canonical_path).toBe(root);
     expect(context.codex.executable).toBe(
+      assets.assets.find((asset) => asset.id === 'codex')?.real_path,
+    );
+    expect(context.codex.pinned_real_path).toBe(
       assets.assets.find((asset) => asset.id === 'codex')?.real_path,
     );
     expect(context.user_hooks).toBe('disabled');
@@ -91,6 +99,7 @@ describe('sealed Codex MCP runtime context', () => {
           plugin_mcp: true,
           strict_config: true,
           workspace_metadata: true,
+          nested_sandbox: true,
         },
         assets: {
           schema_version: 1,
@@ -98,9 +107,13 @@ describe('sealed Codex MCP runtime context', () => {
           assets: [],
         },
         search: { mode: 'cached', consented: false },
-        proofExecutor: { run: vi.fn() },
+        proofExecutor: vi.fn(),
         gitReader: { read: vi.fn() },
-        cancellation: { cancel: vi.fn() },
+        cancellation: {
+          owner: 'supervisor',
+          process_group_cleanup: 'observed',
+          run_id: '019f64f5-1f4d-7d91-8cda-a309cc72c300',
+        },
       }),
     ).toThrow(/consent/);
   });

@@ -203,7 +203,7 @@ export const MCP_TOOL_INPUT_SCHEMAS = {
   circuit_recover: CircuitRecoverInputV1,
 } as const satisfies Record<McpToolName, z.ZodType>;
 
-const McpErrorV1 = z
+export const McpErrorV1 = z
   .object({
     code: z
       .string()
@@ -431,3 +431,31 @@ export const MCP_TOOL_RESPONSE_SCHEMAS = {
   circuit_list: CircuitListResponseV1,
   circuit_recover: CircuitRecoverResponseV1,
 } as const satisfies Record<McpToolName, z.ZodType>;
+
+function wireOutputSchema(success: z.ZodObject): z.ZodObject {
+  const optionalShape: Record<string, z.ZodType> = {};
+  for (const [name, schema] of Object.entries(success.shape)) {
+    optionalShape[name] = schema.optional();
+  }
+  return z
+    .object(optionalShape)
+    .extend({
+      schema_version: z.literal(MCP_SCHEMA_VERSION),
+      ok: z.boolean(),
+      error: McpErrorV1.optional(),
+    })
+    .strict();
+}
+
+// The MCP SDK's output validator currently normalizes only object schemas.
+// The exact success/error unions above remain the source of truth and are
+// parsed before a response is returned. These object envelopes let the SDK
+// advertise and validate structured output without weakening that exact parse.
+export const MCP_TOOL_WIRE_OUTPUT_SCHEMAS = {
+  circuit_start: wireOutputSchema(CircuitStartSuccessV1),
+  circuit_status: wireOutputSchema(CircuitStatusSuccessV1),
+  circuit_resume: wireOutputSchema(CircuitResumeSuccessV1),
+  circuit_cancel: wireOutputSchema(CircuitCancelSuccessV1),
+  circuit_list: wireOutputSchema(CircuitListSuccessV1),
+  circuit_recover: wireOutputSchema(CircuitRecoverSuccessV1),
+} as const satisfies Record<McpToolName, z.ZodObject>;

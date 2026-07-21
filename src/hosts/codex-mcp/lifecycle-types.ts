@@ -136,6 +136,21 @@ export interface LifecycleStore {
     readonly owner: LifecycleProcessOwnerIdentity;
     readonly summary: string;
   }) => Awaitable<LifecycleRunRecord>;
+  /**
+   * Publishes a new run and its initial reconcile claim as one durable unit.
+   * No other server may observe a claimable starting run between these writes.
+   */
+  readonly reserveRunClaimed: (input: {
+    readonly run_id: string;
+    readonly workspace: LifecycleWorkspaceIdentity;
+    readonly request: CircuitStartInputV1;
+    readonly runtime_assets_sha256: string;
+    readonly owner: LifecycleProcessOwnerIdentity;
+    readonly summary: string;
+  }) => Awaitable<{
+    readonly record: LifecycleRunRecord;
+    readonly handle: LifecycleOperationHandle;
+  }>;
   readonly readRun: (
     workspace: LifecycleWorkspaceIdentity,
     runId: string,
@@ -260,12 +275,13 @@ export interface LifecycleWorkerLaunch {
   readonly launch_payload: unknown;
 }
 
-export interface LifecycleWorkerFactory {
+export interface LifecycleWorkerFactory<TPrepared = unknown> {
   readonly createStart: (input: {
     readonly workspace: LifecycleWorkspaceIdentity;
     readonly run: LifecycleRunRecord;
     readonly authorization_token: string;
     readonly runtime_assets: McpRuntimeAssetPins;
+    readonly prepared_launch: TPrepared;
   }) => Promise<LifecycleWorkerLaunch>;
   readonly createResume: (input: {
     readonly workspace: LifecycleWorkspaceIdentity;
@@ -274,5 +290,6 @@ export interface LifecycleWorkerFactory {
     readonly choice_id: string;
     readonly authorization_token: string;
     readonly runtime_assets: McpRuntimeAssetPins;
+    readonly prepared_launch: TPrepared;
   }) => Promise<LifecycleWorkerLaunch>;
 }

@@ -409,11 +409,11 @@ var require_codegen = __commonJS({
         const rhs = this.rhs === void 0 ? "" : ` = ${this.rhs}`;
         return `${varKind} ${this.name}${rhs};` + _n;
       }
-      optimizeNames(names, constants) {
+      optimizeNames(names, constants10) {
         if (!names[this.name.str])
           return;
         if (this.rhs)
-          this.rhs = optimizeExpr(this.rhs, names, constants);
+          this.rhs = optimizeExpr(this.rhs, names, constants10);
         return this;
       }
       get names() {
@@ -430,10 +430,10 @@ var require_codegen = __commonJS({
       render({ _n }) {
         return `${this.lhs} = ${this.rhs};` + _n;
       }
-      optimizeNames(names, constants) {
+      optimizeNames(names, constants10) {
         if (this.lhs instanceof code_1.Name && !names[this.lhs.str] && !this.sideEffects)
           return;
-        this.rhs = optimizeExpr(this.rhs, names, constants);
+        this.rhs = optimizeExpr(this.rhs, names, constants10);
         return this;
       }
       get names() {
@@ -494,8 +494,8 @@ var require_codegen = __commonJS({
       optimizeNodes() {
         return `${this.code}` ? this : void 0;
       }
-      optimizeNames(names, constants) {
-        this.code = optimizeExpr(this.code, names, constants);
+      optimizeNames(names, constants10) {
+        this.code = optimizeExpr(this.code, names, constants10);
         return this;
       }
       get names() {
@@ -524,12 +524,12 @@ var require_codegen = __commonJS({
         }
         return nodes.length > 0 ? this : void 0;
       }
-      optimizeNames(names, constants) {
+      optimizeNames(names, constants10) {
         const { nodes } = this;
         let i = nodes.length;
         while (i--) {
           const n = nodes[i];
-          if (n.optimizeNames(names, constants))
+          if (n.optimizeNames(names, constants10))
             continue;
           subtractNames(names, n.names);
           nodes.splice(i, 1);
@@ -582,12 +582,12 @@ var require_codegen = __commonJS({
           return void 0;
         return this;
       }
-      optimizeNames(names, constants) {
+      optimizeNames(names, constants10) {
         var _a3;
-        this.else = (_a3 = this.else) === null || _a3 === void 0 ? void 0 : _a3.optimizeNames(names, constants);
-        if (!(super.optimizeNames(names, constants) || this.else))
+        this.else = (_a3 = this.else) === null || _a3 === void 0 ? void 0 : _a3.optimizeNames(names, constants10);
+        if (!(super.optimizeNames(names, constants10) || this.else))
           return;
-        this.condition = optimizeExpr(this.condition, names, constants);
+        this.condition = optimizeExpr(this.condition, names, constants10);
         return this;
       }
       get names() {
@@ -610,10 +610,10 @@ var require_codegen = __commonJS({
       render(opts) {
         return `for(${this.iteration})` + super.render(opts);
       }
-      optimizeNames(names, constants) {
-        if (!super.optimizeNames(names, constants))
+      optimizeNames(names, constants10) {
+        if (!super.optimizeNames(names, constants10))
           return;
-        this.iteration = optimizeExpr(this.iteration, names, constants);
+        this.iteration = optimizeExpr(this.iteration, names, constants10);
         return this;
       }
       get names() {
@@ -649,10 +649,10 @@ var require_codegen = __commonJS({
       render(opts) {
         return `for(${this.varKind} ${this.name} ${this.loop} ${this.iterable})` + super.render(opts);
       }
-      optimizeNames(names, constants) {
-        if (!super.optimizeNames(names, constants))
+      optimizeNames(names, constants10) {
+        if (!super.optimizeNames(names, constants10))
           return;
-        this.iterable = optimizeExpr(this.iterable, names, constants);
+        this.iterable = optimizeExpr(this.iterable, names, constants10);
         return this;
       }
       get names() {
@@ -694,11 +694,11 @@ var require_codegen = __commonJS({
         (_b = this.finally) === null || _b === void 0 ? void 0 : _b.optimizeNodes();
         return this;
       }
-      optimizeNames(names, constants) {
+      optimizeNames(names, constants10) {
         var _a3, _b;
-        super.optimizeNames(names, constants);
-        (_a3 = this.catch) === null || _a3 === void 0 ? void 0 : _a3.optimizeNames(names, constants);
-        (_b = this.finally) === null || _b === void 0 ? void 0 : _b.optimizeNames(names, constants);
+        super.optimizeNames(names, constants10);
+        (_a3 = this.catch) === null || _a3 === void 0 ? void 0 : _a3.optimizeNames(names, constants10);
+        (_b = this.finally) === null || _b === void 0 ? void 0 : _b.optimizeNames(names, constants10);
         return this;
       }
       get names() {
@@ -999,7 +999,7 @@ var require_codegen = __commonJS({
     function addExprNames(names, from) {
       return from instanceof code_1._CodeOrName ? addNames(names, from.names) : names;
     }
-    function optimizeExpr(expr, names, constants) {
+    function optimizeExpr(expr, names, constants10) {
       if (expr instanceof code_1.Name)
         return replaceName(expr);
       if (!canOptimize(expr))
@@ -1014,14 +1014,14 @@ var require_codegen = __commonJS({
         return items;
       }, []));
       function replaceName(n) {
-        const c = constants[n.str];
+        const c = constants10[n.str];
         if (c === void 0 || names[n.str] !== 1)
           return n;
         delete names[n.str];
         return c;
       }
       function canOptimize(e) {
-        return e instanceof code_1._Code && e._items.some((c) => c instanceof code_1.Name && names[c.str] === 1 && constants[c.str] !== void 0);
+        return e instanceof code_1._Code && e._items.some((c) => c instanceof code_1.Name && names[c.str] === 1 && constants10[c.str] !== void 0);
       }
     }
     function subtractNames(names, from) {
@@ -2234,8 +2234,8 @@ var require_resolve = __commonJS({
       }
       return count;
     }
-    function getFullPath(resolver, id = "", normalize) {
-      if (normalize !== false)
+    function getFullPath(resolver, id = "", normalize2) {
+      if (normalize2 !== false)
         id = normalizeId(id);
       const p = resolver.parse(id);
       return _getFullPath(resolver, p);
@@ -2983,7 +2983,7 @@ var require_compile = __commonJS({
       const schOrFunc = root.refs[ref];
       if (schOrFunc)
         return schOrFunc;
-      let _sch = resolve.call(this, root, ref);
+      let _sch = resolve12.call(this, root, ref);
       if (_sch === void 0) {
         const schema = (_a3 = root.localRefs) === null || _a3 === void 0 ? void 0 : _a3[ref];
         const { schemaId } = this.opts;
@@ -3010,7 +3010,7 @@ var require_compile = __commonJS({
     function sameSchemaEnv(s1, s2) {
       return s1.schema === s2.schema && s1.root === s2.root && s1.baseId === s2.baseId;
     }
-    function resolve(root, ref) {
+    function resolve12(root, ref) {
       let sch;
       while (typeof (sch = this.refs[ref]) == "string")
         ref = sch;
@@ -3631,7 +3631,7 @@ var require_fast_uri = __commonJS({
     "use strict";
     var { normalizeIPv6, removeDotSegments, recomposeAuthority, normalizePercentEncoding, normalizePathEncoding, escapePreservingEscapes, reescapeHostDelimiters, isIPv4, nonSimpleDomain } = require_utils();
     var { SCHEMES, getSchemeHandler } = require_schemes();
-    function normalize(uri, options) {
+    function normalize2(uri, options) {
       if (typeof uri === "string") {
         uri = /** @type {T} */
         normalizeString(uri, options);
@@ -3641,55 +3641,55 @@ var require_fast_uri = __commonJS({
       }
       return uri;
     }
-    function resolve(baseURI, relativeURI, options) {
+    function resolve12(baseURI, relativeURI, options) {
       const schemelessOptions = options ? Object.assign({ scheme: "null" }, options) : { scheme: "null" };
       const resolved = resolveComponent(parse3(baseURI, schemelessOptions), parse3(relativeURI, schemelessOptions), schemelessOptions, true);
       schemelessOptions.skipEscape = true;
       return serialize(resolved, schemelessOptions);
     }
-    function resolveComponent(base, relative, options, skipNormalization) {
+    function resolveComponent(base, relative7, options, skipNormalization) {
       const target = {};
       if (!skipNormalization) {
         base = parse3(serialize(base, options), options);
-        relative = parse3(serialize(relative, options), options);
+        relative7 = parse3(serialize(relative7, options), options);
       }
       options = options || {};
-      if (!options.tolerant && relative.scheme) {
-        target.scheme = relative.scheme;
-        target.userinfo = relative.userinfo;
-        target.host = relative.host;
-        target.port = relative.port;
-        target.path = removeDotSegments(relative.path || "");
-        target.query = relative.query;
+      if (!options.tolerant && relative7.scheme) {
+        target.scheme = relative7.scheme;
+        target.userinfo = relative7.userinfo;
+        target.host = relative7.host;
+        target.port = relative7.port;
+        target.path = removeDotSegments(relative7.path || "");
+        target.query = relative7.query;
       } else {
-        if (relative.userinfo !== void 0 || relative.host !== void 0 || relative.port !== void 0) {
-          target.userinfo = relative.userinfo;
-          target.host = relative.host;
-          target.port = relative.port;
-          target.path = removeDotSegments(relative.path || "");
-          target.query = relative.query;
+        if (relative7.userinfo !== void 0 || relative7.host !== void 0 || relative7.port !== void 0) {
+          target.userinfo = relative7.userinfo;
+          target.host = relative7.host;
+          target.port = relative7.port;
+          target.path = removeDotSegments(relative7.path || "");
+          target.query = relative7.query;
         } else {
-          if (!relative.path) {
+          if (!relative7.path) {
             target.path = base.path;
-            if (relative.query !== void 0) {
-              target.query = relative.query;
+            if (relative7.query !== void 0) {
+              target.query = relative7.query;
             } else {
               target.query = base.query;
             }
           } else {
-            if (relative.path[0] === "/") {
-              target.path = removeDotSegments(relative.path);
+            if (relative7.path[0] === "/") {
+              target.path = removeDotSegments(relative7.path);
             } else {
               if ((base.userinfo !== void 0 || base.host !== void 0 || base.port !== void 0) && !base.path) {
-                target.path = "/" + relative.path;
+                target.path = "/" + relative7.path;
               } else if (!base.path) {
-                target.path = relative.path;
+                target.path = relative7.path;
               } else {
-                target.path = base.path.slice(0, base.path.lastIndexOf("/") + 1) + relative.path;
+                target.path = base.path.slice(0, base.path.lastIndexOf("/") + 1) + relative7.path;
               }
               target.path = removeDotSegments(target.path);
             }
-            target.query = relative.query;
+            target.query = relative7.query;
           }
           target.userinfo = base.userinfo;
           target.host = base.host;
@@ -3697,7 +3697,7 @@ var require_fast_uri = __commonJS({
         }
         target.scheme = base.scheme;
       }
-      target.fragment = relative.fragment;
+      target.fragment = relative7.fragment;
       return target;
     }
     function equal(uriA, uriB, options) {
@@ -3904,8 +3904,8 @@ var require_fast_uri = __commonJS({
     }
     var fastUri = {
       SCHEMES,
-      normalize,
-      resolve,
+      normalize: normalize2,
+      resolve: resolve12,
       resolveComponent,
       equal,
       serialize,
@@ -6894,6 +6894,10 @@ var require_dist = __commonJS({
   }
 });
 
+// src/hosts/codex-mcp/entrypoint.ts
+import { dirname as dirname7, resolve as resolve11 } from "node:path";
+import { fileURLToPath as fileURLToPath2 } from "node:url";
+
 // node_modules/@modelcontextprotocol/sdk/dist/esm/server/stdio.js
 import process3 from "node:process";
 
@@ -8511,8 +8515,8 @@ function emoji() {
 }
 var ipv4 = /^(?:(?:25[0-5]|2[0-4][0-9]|1[0-9][0-9]|[1-9][0-9]|[0-9])\.){3}(?:25[0-5]|2[0-4][0-9]|1[0-9][0-9]|[1-9][0-9]|[0-9])$/;
 var ipv6 = /^(([0-9a-fA-F]{1,4}:){7}[0-9a-fA-F]{1,4}|([0-9a-fA-F]{1,4}:){1,7}:|([0-9a-fA-F]{1,4}:){1,6}:[0-9a-fA-F]{1,4}|([0-9a-fA-F]{1,4}:){1,5}(:[0-9a-fA-F]{1,4}){1,2}|([0-9a-fA-F]{1,4}:){1,4}(:[0-9a-fA-F]{1,4}){1,3}|([0-9a-fA-F]{1,4}:){1,3}(:[0-9a-fA-F]{1,4}){1,4}|([0-9a-fA-F]{1,4}:){1,2}(:[0-9a-fA-F]{1,4}){1,5}|[0-9a-fA-F]{1,4}:((:[0-9a-fA-F]{1,4}){1,6})|:((:[0-9a-fA-F]{1,4}){1,7}|:))$/;
-var mac = (delimiter) => {
-  const escapedDelim = escapeRegex(delimiter ?? ":");
+var mac = (delimiter3) => {
+  const escapedDelim = escapeRegex(delimiter3 ?? ":");
   return new RegExp(`^(?:[0-9A-F]{2}${escapedDelim}){5}[0-9A-F]{2}$|^(?:[0-9a-f]{2}${escapedDelim}){5}[0-9a-f]{2}$`);
 };
 var cidrv4 = /^((25[0-5]|2[0-4][0-9]|1[0-9][0-9]|[1-9][0-9]|[0-9])\.){3}(25[0-5]|2[0-4][0-9]|1[0-9][0-9]|[1-9][0-9]|[0-9])\/([0-9]|[1-2][0-9]|3[0-2])$/;
@@ -23020,16 +23024,12605 @@ var StdioServerTransport = class {
     this.onclose?.();
   }
   send(message) {
-    return new Promise((resolve) => {
+    return new Promise((resolve12) => {
       const json2 = serializeMessage(message);
       if (this._stdout.write(json2)) {
-        resolve();
+        resolve12();
       } else {
-        this._stdout.once("drain", resolve);
+        this._stdout.once("drain", resolve12);
       }
     });
   }
 };
+
+// src/hosts/codex-mcp/production-runtime.ts
+import { randomUUID as randomUUID5 } from "node:crypto";
+import { mkdir as mkdir2, realpath as realpath7, rm as rm2 } from "node:fs/promises";
+import { isAbsolute as isAbsolute14, join as join15, relative as relative6, resolve as resolve10 } from "node:path";
+
+// src/hosts/codex-mcp/asset-pins.ts
+import { createHash } from "node:crypto";
+import { createReadStream } from "node:fs";
+import { realpath, stat } from "node:fs/promises";
+import { isAbsolute } from "node:path";
+var MAX_ASSET_BYTES = 512 * 1024 * 1024;
+var SHA256_PATTERN = /^[a-f0-9]{64}$/;
+var FLOW_ID_PATTERN = /^[a-z0-9][a-z0-9-]{0,63}$/;
+var RUNTIME_ID_PATTERN = /^[a-z][a-z0-9_-]{0,63}$/;
+var AbsolutePath = external_exports.string().min(1).max(8192).refine(isAbsolute, "must be an absolute path");
+var Sha256 = external_exports.string().regex(SHA256_PATTERN);
+var McpRuntimeAssetPinV1 = external_exports.object({
+  id: external_exports.string().min(1).max(128),
+  role: external_exports.enum(["node", "codex", "plugin_runtime", "git_helper", "packaged_flow"]),
+  source_path: AbsolutePath,
+  real_path: AbsolutePath,
+  device: external_exports.string().min(1).max(64),
+  inode: external_exports.string().min(1).max(64),
+  mode: external_exports.number().int().nonnegative().max(4294967295),
+  byte_length: external_exports.number().int().nonnegative().max(MAX_ASSET_BYTES),
+  sha256: Sha256
+}).strict();
+var McpRuntimeAssetPinsV1 = external_exports.object({
+  schema_version: external_exports.literal(1),
+  digest_sha256: Sha256,
+  assets: external_exports.array(McpRuntimeAssetPinV1).min(1).max(512)
+}).strict();
+var AssetDriftError = class extends Error {
+  code = "runtime_asset_changed";
+  nextAction = "Reinstall the Circuit plugin, then start a new run.";
+  constructor(message) {
+    super(message);
+    this.name = "AssetDriftError";
+  }
+};
+function describeError(error51) {
+  return error51 instanceof Error ? error51.message : String(error51);
+}
+async function sha256File(path) {
+  const hash2 = createHash("sha256");
+  for await (const chunk of createReadStream(path)) hash2.update(chunk);
+  return hash2.digest("hex");
+}
+function pinDigest(assets) {
+  const projection = assets.map((asset) => ({
+    id: asset.id,
+    role: asset.role,
+    source_path: asset.source_path,
+    real_path: asset.real_path,
+    device: asset.device,
+    inode: asset.inode,
+    mode: asset.mode,
+    byte_length: asset.byte_length,
+    sha256: asset.sha256
+  }));
+  return createHash("sha256").update(JSON.stringify(projection)).digest("hex");
+}
+async function pinOne(input) {
+  if (!isAbsolute(input.path)) throw new Error(`${input.id} asset path must be absolute`);
+  let resolved;
+  try {
+    resolved = await realpath(input.path);
+  } catch (error51) {
+    throw new Error(`${input.id} asset could not be resolved: ${describeError(error51)}`);
+  }
+  const before = await stat(resolved);
+  if (!before.isFile()) throw new Error(`${input.id} asset must be a regular file`);
+  if (before.size > MAX_ASSET_BYTES) {
+    throw new Error(`${input.id} asset exceeds the ${MAX_ASSET_BYTES}-byte limit`);
+  }
+  if (input.executable && (before.mode & 73) === 0) {
+    throw new Error(`${input.id} asset must be executable`);
+  }
+  const sha256 = await sha256File(resolved);
+  const after = await stat(resolved);
+  if (before.dev !== after.dev || before.ino !== after.ino || before.size !== after.size || before.mode !== after.mode || before.mtimeMs !== after.mtimeMs || before.ctimeMs !== after.ctimeMs) {
+    throw new AssetDriftError(`${input.id} asset changed while Circuit was hashing it`);
+  }
+  return Object.freeze({
+    id: input.id,
+    role: input.role,
+    source_path: input.path,
+    real_path: resolved,
+    device: String(after.dev),
+    inode: String(after.ino),
+    mode: after.mode,
+    byte_length: after.size,
+    sha256
+  });
+}
+async function pinMcpRuntimeAssets(paths) {
+  if (paths.packaged_flows.length === 0) throw new Error("at least one packaged flow is required");
+  if (paths.plugin_runtimes.length === 0) {
+    throw new Error("at least one plugin runtime is required");
+  }
+  const runtimeIds = /* @__PURE__ */ new Set();
+  for (const runtime of paths.plugin_runtimes) {
+    if (!RUNTIME_ID_PATTERN.test(runtime.id)) {
+      throw new Error(`invalid plugin runtime id '${runtime.id}'`);
+    }
+    if (runtimeIds.has(runtime.id)) {
+      throw new Error(`duplicate plugin runtime id '${runtime.id}'`);
+    }
+    runtimeIds.add(runtime.id);
+  }
+  const flowIds = /* @__PURE__ */ new Set();
+  for (const flow of paths.packaged_flows) {
+    if (!FLOW_ID_PATTERN.test(flow.id)) throw new Error(`invalid packaged flow id '${flow.id}'`);
+    if (flowIds.has(flow.id)) throw new Error(`duplicate packaged flow id '${flow.id}'`);
+    flowIds.add(flow.id);
+  }
+  const specifications = [
+    { id: "node", role: "node", path: paths.node, executable: true },
+    { id: "codex", role: "codex", path: paths.codex, executable: true },
+    ...[...paths.plugin_runtimes].sort((left, right) => left.id.localeCompare(right.id)).map((runtime) => ({
+      id: `plugin_runtime:${runtime.id}`,
+      role: "plugin_runtime",
+      path: runtime.path,
+      executable: false
+    })),
+    {
+      id: "git_helper",
+      role: "git_helper",
+      path: paths.git_helper,
+      executable: true
+    },
+    ...[...paths.packaged_flows].sort((left, right) => left.id.localeCompare(right.id)).map((flow) => ({
+      id: `flow:${flow.id}`,
+      role: "packaged_flow",
+      path: flow.path,
+      executable: false
+    }))
+  ];
+  const assets = await Promise.all(specifications.map(pinOne));
+  const realPaths = /* @__PURE__ */ new Set();
+  for (const asset of assets) {
+    if (realPaths.has(asset.real_path)) {
+      throw new Error(`runtime assets must resolve to distinct files: ${asset.real_path}`);
+    }
+    realPaths.add(asset.real_path);
+  }
+  const frozenAssets = Object.freeze(assets);
+  return Object.freeze({
+    schema_version: 1,
+    digest_sha256: pinDigest(frozenAssets),
+    assets: frozenAssets
+  });
+}
+function samePin(left, right) {
+  return left.id === right.id && left.role === right.role && left.source_path === right.source_path && left.real_path === right.real_path && left.device === right.device && left.inode === right.inode && left.mode === right.mode && left.byte_length === right.byte_length && left.sha256 === right.sha256;
+}
+async function verifyMcpRuntimeAssets(pins) {
+  const parsed = McpRuntimeAssetPinsV1.safeParse(pins);
+  if (!parsed.success || pinDigest(pins.assets) !== pins.digest_sha256) {
+    throw new AssetDriftError("Circuit runtime asset pins are invalid or changed");
+  }
+  for (const expected of pins.assets) {
+    await verifyMcpRuntimeAsset(expected);
+  }
+}
+async function verifyMcpRuntimeAsset(expected) {
+  const parsed = McpRuntimeAssetPinV1.safeParse(expected);
+  if (!parsed.success) {
+    throw new AssetDriftError("Circuit runtime asset pin is invalid or changed");
+  }
+  let observed;
+  try {
+    observed = await pinOne({
+      id: expected.id,
+      role: expected.role,
+      path: expected.source_path,
+      executable: expected.role === "node" || expected.role === "codex" || expected.role === "git_helper"
+    });
+  } catch (error51) {
+    if (error51 instanceof AssetDriftError) throw error51;
+    throw new AssetDriftError(`${expected.id} asset changed: ${describeError(error51)}`);
+  }
+  if (!samePin(expected, observed)) {
+    throw new AssetDriftError(`${expected.id} asset changed after Circuit pinned it`);
+  }
+}
+
+// src/hosts/codex-mcp/codex-model-roster.ts
+import { constants, closeSync, fstatSync, openSync, readFileSync } from "node:fs";
+var MAX_MODELS_CACHE_BYTES = 4 * 1024 * 1024;
+var MODEL_NAME = /^[A-Za-z0-9][A-Za-z0-9._@/-]{0,127}$/;
+var PUBLIC_EFFORTS = ["low", "medium", "high", "xhigh"];
+var CodexModelRosterError = class extends Error {
+  code;
+  nextAction;
+  constructor(message, code = "codex_model_roster_unavailable", nextAction = "Run Codex once to refresh its model list, then retry.") {
+    super(message);
+    this.name = "CodexModelRosterError";
+    this.code = code;
+    this.nextAction = nextAction;
+  }
+};
+function isRecord(value) {
+  return value !== null && typeof value === "object" && !Array.isArray(value);
+}
+function candidate(value, index) {
+  if (!isRecord(value) || value.visibility !== "list" || value.supported_in_api !== true) {
+    return void 0;
+  }
+  const slug = typeof value.slug === "string" ? value.slug.trim() : "";
+  if (!MODEL_NAME.test(slug)) return void 0;
+  if (typeof value.priority !== "number" || !Number.isSafeInteger(value.priority)) return void 0;
+  if (!Array.isArray(value.supported_reasoning_levels)) return void 0;
+  const efforts = /* @__PURE__ */ new Set();
+  for (const level of value.supported_reasoning_levels) {
+    if (!isRecord(level) || typeof level.effort !== "string") continue;
+    if (PUBLIC_EFFORTS.includes(level.effort)) {
+      efforts.add(level.effort);
+    }
+  }
+  if (efforts.size === 0) return void 0;
+  return {
+    slug,
+    priority: value.priority,
+    index,
+    efforts,
+    supportsCachedSearch: value.supports_search_tool === true
+  };
+}
+function parseCodexModelRoster(value) {
+  if (!isRecord(value) || !Array.isArray(value.models)) {
+    throw new CodexModelRosterError("The Codex model list has an unsupported shape.");
+  }
+  const candidates = value.models.map(candidate).filter((entry) => entry !== void 0).sort(
+    (left, right) => left.priority - right.priority || left.index - right.index || left.slug.localeCompare(right.slug)
+  );
+  if (candidates.length === 0) {
+    throw new CodexModelRosterError("The Codex model list has no usable API models.");
+  }
+  const defaultModel = candidates.find(
+    (entry) => PUBLIC_EFFORTS.every((effort) => entry.efforts.has(effort))
+  );
+  if (defaultModel === void 0) {
+    throw new CodexModelRosterError(
+      "The Codex model list has no model that supports every Circuit effort level."
+    );
+  }
+  const effortsByModel = /* @__PURE__ */ new Map();
+  const cachedSearchModels = /* @__PURE__ */ new Set();
+  for (const entry of candidates) {
+    if (effortsByModel.has(entry.slug)) {
+      throw new CodexModelRosterError(`The Codex model list repeats '${entry.slug}'.`);
+    }
+    effortsByModel.set(entry.slug, entry.efforts);
+    if (entry.supportsCachedSearch) cachedSearchModels.add(entry.slug);
+  }
+  return Object.freeze({
+    default_model: defaultModel.slug,
+    allowed_models: Object.freeze([...effortsByModel.keys()]),
+    efforts_by_model: effortsByModel,
+    cached_search_models: cachedSearchModels
+  });
+}
+function validateCachedSearchModels(input, roster) {
+  if (input.web_search !== "cached") return;
+  const models = input.variants?.map((variant) => variant.model) ?? [roster.default_model];
+  const unsupported = models.find((model) => !roster.cached_search_models.has(model));
+  if (unsupported !== void 0) {
+    throw new CodexModelRosterError(
+      `The selected Codex model '${unsupported}' does not advertise cached search.`,
+      "cached_search_unsupported",
+      "Choose a search-capable model or set web_search to off."
+    );
+  }
+}
+function loadCodexModelRoster(cachePath) {
+  let fd;
+  try {
+    fd = openSync(cachePath, constants.O_RDONLY | constants.O_NOFOLLOW);
+    const before = fstatSync(fd);
+    if (!before.isFile()) throw new Error("model cache is not a regular file");
+    if (before.size === 0 || before.size > MAX_MODELS_CACHE_BYTES) {
+      throw new Error("model cache is empty or too large");
+    }
+    const raw = readFileSync(fd, "utf8");
+    const after = fstatSync(fd);
+    if (before.dev !== after.dev || before.ino !== after.ino || before.size !== after.size || before.mtimeMs !== after.mtimeMs || before.ctimeMs !== after.ctimeMs) {
+      throw new Error("model cache changed while Circuit read it");
+    }
+    return parseCodexModelRoster(JSON.parse(raw));
+  } catch (error51) {
+    if (error51 instanceof CodexModelRosterError) throw error51;
+    const message = error51 instanceof Error ? error51.message : String(error51);
+    throw new CodexModelRosterError(`Circuit could not read the Codex model list: ${message}`);
+  } finally {
+    if (fd !== void 0) closeSync(fd);
+  }
+}
+function validatePrototypeVariantModels(variants, roster) {
+  for (const variant of variants) {
+    const efforts = roster.efforts_by_model.get(variant.model);
+    if (efforts === void 0) {
+      throw new CodexModelRosterError(
+        `The selected Codex model '${variant.model}' is not in the current model list.`,
+        "model_unsupported",
+        "Choose a model advertised by the current Codex host, then retry."
+      );
+    }
+    if (!efforts.has(variant.effort)) {
+      throw new CodexModelRosterError(
+        `The selected Codex model '${variant.model}' does not support effort '${variant.effort}'.`,
+        "effort_unsupported",
+        "Choose an effort advertised for that model, then retry."
+      );
+    }
+  }
+}
+
+// src/hosts/codex-mcp/final-report-reader.ts
+import { createHash as createHash2 } from "node:crypto";
+import { constants as constants2 } from "node:fs";
+import { lstat, open, realpath as realpath2 } from "node:fs/promises";
+import { isAbsolute as isAbsolute2, join, resolve } from "node:path";
+var MAX_REPORT_BYTES = 262144;
+var FinalReportReaderError = class extends Error {
+  code;
+  next_action;
+  constructor(code, message, nextAction) {
+    super(message);
+    this.name = "FinalReportReaderError";
+    this.code = code;
+    this.next_action = nextAction;
+  }
+};
+function identity(info) {
+  return {
+    device: info.dev,
+    inode: info.ino,
+    size: info.size,
+    modified: info.mtimeNs,
+    changed: info.ctimeNs,
+    links: info.nlink
+  };
+}
+function sameIdentity(left, right) {
+  return left.device === right.device && left.inode === right.inode && left.size === right.size && left.modified === right.modified && left.changed === right.changed && left.links === right.links;
+}
+function pathSegments(path) {
+  if (path.length === 0 || path.length > 4096 || path.includes("\\") || path.includes("\0") || isAbsolute2(path)) {
+    throw new FinalReportReaderError(
+      "final_report_unsafe",
+      "The saved final report path is unsafe."
+    );
+  }
+  const segments = path.split("/");
+  if (segments.some((segment) => segment.length === 0 || segment === "." || segment === "..")) {
+    throw new FinalReportReaderError(
+      "final_report_unsafe",
+      "The saved final report path is unsafe."
+    );
+  }
+  return segments;
+}
+var McpFinalReportReader = class {
+  async read(input) {
+    const locator = input.run.final_report;
+    if (locator === void 0 || input.run.state !== "complete") {
+      throw new FinalReportReaderError(
+        "final_report_unavailable",
+        "This Circuit run does not have a final report."
+      );
+    }
+    let workspace;
+    try {
+      workspace = await realpath2(input.workspace.canonical_path);
+    } catch {
+      throw new FinalReportReaderError(
+        "workspace_unavailable",
+        "The trusted Codex workspace is unavailable."
+      );
+    }
+    if (workspace !== resolve(input.workspace.canonical_path)) {
+      throw new FinalReportReaderError(
+        "workspace_changed",
+        "The trusted Codex workspace changed before Circuit read the report."
+      );
+    }
+    let workspaceInfo;
+    try {
+      workspaceInfo = await lstat(workspace, { bigint: true });
+    } catch {
+      throw new FinalReportReaderError(
+        "workspace_unavailable",
+        "The trusted Codex workspace is unavailable."
+      );
+    }
+    if (workspaceInfo.isSymbolicLink() || !workspaceInfo.isDirectory() || String(workspaceInfo.dev) !== input.workspace.device || String(workspaceInfo.ino) !== input.workspace.inode) {
+      throw new FinalReportReaderError(
+        "workspace_changed",
+        "The trusted Codex workspace changed before Circuit read the report."
+      );
+    }
+    const segments = [".circuit", "runs", input.run.run_id, ...pathSegments(locator.path)];
+    const directoryIdentities = [];
+    let cursor = workspace;
+    for (const segment of segments.slice(0, -1)) {
+      cursor = join(cursor, segment);
+      let info;
+      try {
+        info = await lstat(cursor, { bigint: true });
+      } catch {
+        throw new FinalReportReaderError(
+          "final_report_unavailable",
+          "The saved final report is unavailable."
+        );
+      }
+      if (info.isSymbolicLink() || !info.isDirectory()) {
+        throw new FinalReportReaderError(
+          "final_report_unsafe",
+          "Circuit refused a final report path that crosses a link or non-directory."
+        );
+      }
+      directoryIdentities.push(identity(info));
+    }
+    const reportPath = join(cursor, segments.at(-1) ?? "");
+    let pathInfo;
+    try {
+      pathInfo = await lstat(reportPath, { bigint: true });
+    } catch {
+      throw new FinalReportReaderError(
+        "final_report_unavailable",
+        "The saved final report is unavailable."
+      );
+    }
+    if (pathInfo.isSymbolicLink() || !pathInfo.isFile() || pathInfo.nlink !== 1n) {
+      throw new FinalReportReaderError(
+        "final_report_unsafe",
+        "Circuit refused a final report that is not one ordinary file."
+      );
+    }
+    if (pathInfo.size > BigInt(MAX_REPORT_BYTES) || pathInfo.size !== BigInt(locator.byte_length)) {
+      throw new FinalReportReaderError(
+        "final_report_stale",
+        "The saved final report size no longer matches the completed run."
+      );
+    }
+    const handle = await open(reportPath, constants2.O_RDONLY | constants2.O_NOFOLLOW);
+    let bytes;
+    let descriptorBefore;
+    let descriptorAfter;
+    try {
+      descriptorBefore = await handle.stat({ bigint: true });
+      bytes = await handle.readFile();
+      descriptorAfter = await handle.stat({ bigint: true });
+    } finally {
+      await handle.close();
+    }
+    if (!sameIdentity(identity(pathInfo), identity(descriptorBefore)) || !sameIdentity(identity(descriptorBefore), identity(descriptorAfter))) {
+      throw new FinalReportReaderError(
+        "final_report_stale",
+        "The saved final report changed while Circuit read it."
+      );
+    }
+    for (const [index, expected] of directoryIdentities.entries()) {
+      const path = join(workspace, ...segments.slice(0, index + 1));
+      const observed = await lstat(path, { bigint: true });
+      if (observed.isSymbolicLink() || !observed.isDirectory() || !sameIdentity(expected, identity(observed))) {
+        throw new FinalReportReaderError(
+          "final_report_stale",
+          "The final report path changed while Circuit read it."
+        );
+      }
+    }
+    const finalPathInfo = await lstat(reportPath, { bigint: true });
+    if (finalPathInfo.isSymbolicLink() || !sameIdentity(identity(pathInfo), identity(finalPathInfo))) {
+      throw new FinalReportReaderError(
+        "final_report_stale",
+        "The saved final report changed while Circuit read it."
+      );
+    }
+    if (createHash2("sha256").update(bytes).digest("hex") !== locator.sha256) {
+      throw new FinalReportReaderError(
+        "final_report_stale",
+        "The saved final report contents no longer match the completed run."
+      );
+    }
+    let data;
+    try {
+      data = JSON.parse(bytes.toString("utf8"));
+    } catch {
+      throw new FinalReportReaderError(
+        "final_report_invalid",
+        "The saved final report is not valid JSON."
+      );
+    }
+    return { schema: locator.schema, summary: locator.summary, data };
+  }
+};
+
+// src/hosts/codex-mcp/host-preflight.ts
+import { spawnSync } from "node:child_process";
+import { mkdtempSync, rmSync } from "node:fs";
+import { tmpdir } from "node:os";
+import { isAbsolute as isAbsolute6, join as join4 } from "node:path";
+
+// src/hosts/codex-mcp/capabilities.ts
+var MINIMUM_CODEX_VERSION = "0.144.3";
+var CodexHostCapabilityError = class extends Error {
+  code;
+  nextAction;
+  constructor(code, message, nextAction) {
+    super(message);
+    this.name = "CodexHostCapabilityError";
+    this.code = code;
+    this.nextAction = nextAction;
+  }
+};
+function parseCodexCliVersion(output) {
+  const match = /\bcodex(?:-cli)?\s+v?(\d+)\.(\d+)\.(\d+)(?:[-+][0-9A-Za-z.-]+)?\b/i.exec(output);
+  if (match === null) {
+    throw new CodexHostCapabilityError(
+      "codex_version_invalid",
+      "Circuit could not understand the Codex version output.",
+      "Run codex --version, then install Codex 0.144.3 or newer."
+    );
+  }
+  const [, majorText, minorText, patchText] = match;
+  const major = Number(majorText);
+  const minor = Number(minorText);
+  const patch = Number(patchText);
+  if (![major, minor, patch].every(Number.isSafeInteger)) {
+    throw new CodexHostCapabilityError(
+      "codex_version_invalid",
+      "Circuit could not understand the Codex version output.",
+      "Run codex --version, then install Codex 0.144.3 or newer."
+    );
+  }
+  return { major, minor, patch, text: `${major}.${minor}.${patch}` };
+}
+function compareVersion(left, right) {
+  if (left.major !== right.major) return left.major - right.major;
+  if (left.minor !== right.minor) return left.minor - right.minor;
+  return left.patch - right.patch;
+}
+var MINIMUM_PARSED_VERSION = { major: 0, minor: 144, patch: 3, text: "0.144.3" };
+var REQUIRED_EXEC_HELP_CAPABILITIES = [
+  ["strict configuration", /(^|\s)--strict-config(?:\s|$)/m],
+  ["ignored user config", /(^|\s)--ignore-user-config(?:\s|$)/m],
+  ["ignored project rules", /(^|\s)--ignore-rules(?:\s|$)/m],
+  ["JSONL events", /(^|\s)--json(?:\s|$)/m],
+  ["workspace sandbox", /--sandbox(?:\s|=|\s*<)/m],
+  ["ephemeral sessions", /(^|\s)--ephemeral(?:\s|$)/m]
+];
+function assertCodexHostCapabilities(input) {
+  const version2 = parseCodexCliVersion(input.versionOutput);
+  if (compareVersion(version2, MINIMUM_PARSED_VERSION) < 0) {
+    throw new CodexHostCapabilityError(
+      "codex_version_unsupported",
+      `Circuit MCP requires Codex ${MINIMUM_CODEX_VERSION} or newer; this host reports ${version2.text}.`,
+      `Update Codex to ${MINIMUM_CODEX_VERSION} or newer, then retry.`
+    );
+  }
+  if (input.pluginMcpTransport !== "stdio") {
+    throw new CodexHostCapabilityError(
+      "codex_capability_missing",
+      "The Codex plugin MCP capability could not be proven.",
+      "Start Circuit through the installed Codex plugin, not by running its MCP file directly."
+    );
+  }
+  if (!input.workspaceMetadataValidated) {
+    throw new CodexHostCapabilityError(
+      "codex_capability_missing",
+      "The Codex workspace metadata capability could not be proven.",
+      "Update Codex and retry from a real workspace directory."
+    );
+  }
+  if (!input.nestedSandboxValidated) {
+    throw new CodexHostCapabilityError(
+      "codex_capability_missing",
+      "The installed Codex did not pass Circuit's nested sandbox capability canary.",
+      "Update Codex to a version that denies shared temporary files, then retry."
+    );
+  }
+  for (const [name, pattern] of REQUIRED_EXEC_HELP_CAPABILITIES) {
+    if (!pattern.test(input.execHelpOutput)) {
+      throw new CodexHostCapabilityError(
+        "codex_capability_missing",
+        `The installed Codex does not advertise the required ${name} capability.`,
+        `Update Codex to ${MINIMUM_CODEX_VERSION} or newer, then retry.`
+      );
+    }
+  }
+  return Object.freeze({
+    codex_version: version2.text,
+    minimum_version: MINIMUM_CODEX_VERSION,
+    plugin_mcp: true,
+    strict_config: true,
+    workspace_metadata: true,
+    nested_sandbox: true
+  });
+}
+
+// src/hosts/codex-mcp/host-sandbox-canary.ts
+import { randomUUID } from "node:crypto";
+import { lstat as lstat2, mkdir, realpath as realpath3, rm, symlink, writeFile } from "node:fs/promises";
+import { createServer as createHttpServer } from "node:http";
+import { createServer as createTcpServer } from "node:net";
+import { dirname as dirname2, isAbsolute as isAbsolute5, join as join3, resolve as resolve3 } from "node:path";
+
+// src/hosts/codex-mcp/nested-codex-subprocess.ts
+import { spawn } from "node:child_process";
+import { isAbsolute as isAbsolute3 } from "node:path";
+import { performance } from "node:perf_hooks";
+
+// src/connectors/subprocess.ts
+var ConnectorSubprocessSpawnError = class extends Error {
+  constructor(phase, message) {
+    super(message);
+    this.phase = phase;
+    this.name = "ConnectorSubprocessSpawnError";
+  }
+  phase;
+};
+function createTimeoutController(input) {
+  let fired = false;
+  let disposed = false;
+  let idleTimer;
+  const fire = (kind) => {
+    if (fired || disposed) return;
+    fired = true;
+    input.onFire(kind);
+  };
+  const absoluteTimer = setTimeout(() => fire("absolute"), input.absoluteMs);
+  const onActivity = () => {
+    if (fired || disposed || input.idleMs === void 0) return;
+    if (idleTimer !== void 0) clearTimeout(idleTimer);
+    idleTimer = setTimeout(() => fire("idle"), input.idleMs);
+  };
+  const clear = () => {
+    disposed = true;
+    clearTimeout(absoluteTimer);
+    if (idleTimer !== void 0) {
+      clearTimeout(idleTimer);
+      idleTimer = void 0;
+    }
+  };
+  return { onActivity, clear };
+}
+
+// src/hosts/codex-mcp/nested-codex-subprocess.ts
+function appendCapped(current, currentBytes, chunk, maxBytes) {
+  const chunkBytes = Buffer.byteLength(chunk, "utf8");
+  if (currentBytes + chunkBytes <= maxBytes) {
+    return { text: current + chunk, bytes: currentBytes + chunkBytes, capped: false };
+  }
+  const remaining = maxBytes - currentBytes;
+  if (remaining <= 0) return { text: current, bytes: currentBytes, capped: true };
+  return {
+    text: current + Buffer.from(chunk, "utf8").subarray(0, remaining).toString("utf8"),
+    bytes: maxBytes,
+    capped: true
+  };
+}
+async function runMcpCodexSubprocess(input) {
+  if (!isAbsolute3(input.executable) || !isAbsolute3(input.cwd)) {
+    throw new ConnectorSubprocessSpawnError(
+      "spawn-failed",
+      "The sealed Codex executable and workspace must use absolute paths."
+    );
+  }
+  const start = performance.now();
+  return await new Promise((resolve12, reject) => {
+    let child;
+    try {
+      child = spawn(input.executable, [...input.args], {
+        stdio: ["ignore", "pipe", "pipe"],
+        env: input.env,
+        detached: false,
+        cwd: input.cwd
+      });
+    } catch (error51) {
+      reject(
+        new ConnectorSubprocessSpawnError(
+          "spawn-failed",
+          error51 instanceof Error ? error51.message : String(error51)
+        )
+      );
+      return;
+    }
+    let stdout = "";
+    let stdoutBytes = 0;
+    let stderr = "";
+    let stderrBytes = 0;
+    let stdoutCapped = false;
+    let stderrCapped = false;
+    let timedOut = false;
+    let timeoutKind;
+    let killGroupSucceeded = false;
+    let killGraceTimer;
+    let settled = false;
+    const signalDirectChild = (signal) => {
+      if (typeof child.pid !== "number") return false;
+      try {
+        return child.kill(signal);
+      } catch {
+        return false;
+      }
+    };
+    const controller = createTimeoutController({
+      absoluteMs: input.timeoutMs,
+      ...input.idleTimeoutMs === void 0 ? {} : { idleMs: input.idleTimeoutMs },
+      onFire: (kind) => {
+        timedOut = true;
+        timeoutKind = kind;
+        killGroupSucceeded = signalDirectChild("SIGTERM");
+        killGraceTimer = setTimeout(() => {
+          signalDirectChild("SIGKILL");
+          killGraceTimer = void 0;
+        }, input.sigtermToSigkillGraceMs);
+        if (child.exitCode !== null || child.signalCode !== null) {
+          child.stdout?.destroy();
+          child.stderr?.destroy();
+          settle(child.exitCode, child.signalCode);
+        }
+      }
+    });
+    const clearAllTimers = () => {
+      controller.clear();
+      if (killGraceTimer !== void 0) {
+        clearTimeout(killGraceTimer);
+        killGraceTimer = void 0;
+      }
+    };
+    const settle = (code, signal) => {
+      if (settled) return;
+      settled = true;
+      clearAllTimers();
+      resolve12({
+        stdout,
+        stderr,
+        stdoutCapped,
+        stderrCapped,
+        timedOut,
+        ...timeoutKind === void 0 ? {} : { timeoutKind },
+        killGroupSucceeded,
+        code,
+        signal,
+        durationMs: performance.now() - start
+      });
+    };
+    controller.onActivity();
+    child.stdout?.setEncoding("utf8");
+    child.stderr?.setEncoding("utf8");
+    child.stdout?.on("data", (chunk) => {
+      controller.onActivity();
+      const next = appendCapped(stdout, stdoutBytes, chunk, input.stdoutMaxBytes);
+      stdout = next.text;
+      stdoutBytes = next.bytes;
+      stdoutCapped = stdoutCapped || next.capped;
+    });
+    child.stderr?.on("data", (chunk) => {
+      controller.onActivity();
+      const next = appendCapped(stderr, stderrBytes, chunk, input.stderrMaxBytes);
+      stderr = next.text;
+      stderrBytes = next.bytes;
+      stderrCapped = stderrCapped || next.capped;
+    });
+    child.on("error", (error51) => {
+      if (settled) return;
+      settled = true;
+      clearAllTimers();
+      reject(new ConnectorSubprocessSpawnError("spawn-error", error51.message));
+    });
+    child.on("exit", (code, signal) => {
+      if (!timedOut) return;
+      child.stdout?.destroy();
+      child.stderr?.destroy();
+      settle(code, signal);
+    });
+    child.on("close", (code, signal) => settle(code, signal));
+  });
+}
+
+// src/hosts/codex-mcp/nested-codex.ts
+import { delimiter, dirname, isAbsolute as isAbsolute4, join as join2, relative, resolve as resolve2 } from "node:path";
+
+// src/schemas/ids.ts
+var slugPattern = /^[a-z][a-z0-9-]*$/;
+var CompiledFlowId = external_exports.string().regex(slugPattern).brand();
+var StageId = external_exports.string().regex(slugPattern).brand();
+var StepId = external_exports.string().regex(slugPattern).brand();
+var RunId = external_exports.guid({ error: "Invalid UUID" }).brand();
+var InvocationId = external_exports.string().regex(/^inv_[a-f0-9-]+$/).brand();
+var SkillId = external_exports.string().regex(slugPattern).brand();
+var SkillSlotId = external_exports.string().regex(slugPattern).brand();
+var ProtocolId = external_exports.string().regex(/^[a-z][a-z0-9-]*@v\d+$/).brand();
+
+// src/schemas/verification.ts
+var SHELL_BINARIES = /* @__PURE__ */ new Set([
+  "sh",
+  "bash",
+  "zsh",
+  "fish",
+  "dash",
+  "cmd",
+  "cmd.exe",
+  "powershell",
+  "powershell.exe",
+  "pwsh",
+  "pwsh.exe"
+]);
+function commandBinaryName(argv0) {
+  const normalized = argv0.replaceAll("\\", "/");
+  return normalized.slice(normalized.lastIndexOf("/") + 1).toLowerCase();
+}
+var ProjectRelativeCwd = external_exports.string().min(1).superRefine((cwd, ctx) => {
+  if (cwd.startsWith("/") || cwd.startsWith("~") || /^[A-Za-z]:[\\/]/.test(cwd)) {
+    ctx.addIssue({
+      code: "custom",
+      message: "cwd must be project-relative and cannot use absolute or home paths"
+    });
+  }
+  if (cwd.startsWith("\\\\") || cwd.startsWith("//")) {
+    ctx.addIssue({
+      code: "custom",
+      message: "cwd must not use UNC or network absolute paths"
+    });
+  }
+  const parts = cwd.split("/");
+  if (parts.some((part) => part === "..")) {
+    ctx.addIssue({
+      code: "custom",
+      message: "cwd must not escape the project root"
+    });
+  }
+  if (cwd !== "." && parts.some((part) => part.length === 0 || part === ".")) {
+    ctx.addIssue({
+      code: "custom",
+      message: 'cwd must be "." or a normalized project-relative path'
+    });
+  }
+});
+var VerificationCommand = external_exports.object({
+  id: external_exports.string().min(1),
+  cwd: ProjectRelativeCwd,
+  argv: external_exports.array(external_exports.string().min(1)).min(1),
+  timeout_ms: external_exports.number().int().positive(),
+  max_output_bytes: external_exports.number().int().positive(),
+  env: external_exports.record(external_exports.string(), external_exports.string())
+}).strict().superRefine((command, ctx) => {
+  const firstArg = command.argv[0];
+  if (firstArg === void 0) return;
+  const binary = commandBinaryName(firstArg);
+  if (SHELL_BINARIES.has(binary)) {
+    ctx.addIssue({
+      code: "custom",
+      path: ["argv"],
+      message: "verification commands must use direct argv execution, not a shell executable"
+    });
+  }
+});
+var VerificationCommandResult = external_exports.object({
+  command_id: external_exports.string().min(1),
+  argv: external_exports.array(external_exports.string().min(1)).min(1),
+  cwd: ProjectRelativeCwd,
+  exit_code: external_exports.number().int().nonnegative(),
+  status: external_exports.enum(["passed", "failed"]),
+  duration_ms: external_exports.number().int().nonnegative(),
+  stdout_summary: external_exports.string(),
+  stderr_summary: external_exports.string(),
+  // Whether this command was killed for hitting its verification budget
+  // rather than exiting on its own. Defaults false so every fixture and
+  // report written before this field existed still parses.
+  timed_out: external_exports.boolean().default(false)
+}).strict().superRefine((result, ctx) => {
+  const expected = result.exit_code === 0 ? "passed" : "failed";
+  if (result.status !== expected) {
+    ctx.addIssue({
+      code: "custom",
+      path: ["status"],
+      message: `status must be '${expected}' when exit_code is ${result.exit_code}`
+    });
+  }
+});
+var VerificationResult = external_exports.object({
+  overall_status: external_exports.enum(["passed", "failed"]),
+  commands: external_exports.array(VerificationCommandResult).min(1)
+}).strict().superRefine((verification, ctx) => {
+  const expected = verification.commands.some((command) => command.status === "failed") ? "failed" : "passed";
+  if (verification.overall_status !== expected) {
+    ctx.addIssue({
+      code: "custom",
+      path: ["overall_status"],
+      message: `overall_status must be '${expected}' for command results`
+    });
+  }
+});
+
+// src/schemas/acceptance-criteria.ts
+var AcceptanceCriterionId = external_exports.string().min(1);
+var AcceptanceCriteriaReportFieldPredicate = external_exports.enum([
+  "present",
+  "non_empty",
+  // Cross-checks a worker's self-reported path list against the real working
+  // tree: every claimed path must actually differ on disk. Catches an
+  // overclaiming worker that lists a file it never touched.
+  "changed_on_disk"
+]);
+var AcceptanceCriteriaCommandCriterion = external_exports.object({
+  kind: external_exports.literal("command"),
+  id: AcceptanceCriterionId,
+  command: VerificationCommand,
+  expected_status: external_exports.literal("passed")
+}).strict();
+var AcceptanceCriteriaReportFieldCriterion = external_exports.object({
+  kind: external_exports.literal("report_field"),
+  id: AcceptanceCriterionId,
+  path: external_exports.array(external_exports.string().min(1)).min(1),
+  predicate: AcceptanceCriteriaReportFieldPredicate
+}).strict();
+var AcceptanceCriterion = external_exports.discriminatedUnion("kind", [
+  AcceptanceCriteriaCommandCriterion,
+  AcceptanceCriteriaReportFieldCriterion
+]);
+var AcceptanceCriteriaFailurePolicy = external_exports.discriminatedUnion("mode", [
+  external_exports.object({ mode: external_exports.literal("hard-fail") }).strict(),
+  external_exports.object({ mode: external_exports.literal("retry-with-feedback") }).strict()
+]);
+var AcceptanceCriteria = external_exports.object({
+  checks: external_exports.array(AcceptanceCriterion).min(1),
+  on_failure: AcceptanceCriteriaFailurePolicy.default({ mode: "hard-fail" })
+}).strict();
+
+// src/schemas/check.ts
+var ReportSource = external_exports.object({
+  kind: external_exports.literal("report"),
+  ref: external_exports.literal("report")
+}).strict();
+var CheckpointResponseSource = external_exports.object({
+  kind: external_exports.literal("checkpoint_response"),
+  ref: external_exports.literal("response")
+}).strict();
+var RelayResultSource = external_exports.object({
+  kind: external_exports.literal("relay_result"),
+  ref: external_exports.literal("result")
+}).strict();
+var SubRunResultSource = external_exports.object({
+  kind: external_exports.literal("sub_run_result"),
+  ref: external_exports.literal("result")
+}).strict();
+var FanoutResultsSource = external_exports.object({
+  kind: external_exports.literal("fanout_results"),
+  ref: external_exports.literal("aggregate")
+}).strict();
+var CheckSource = external_exports.discriminatedUnion("kind", [
+  ReportSource,
+  CheckpointResponseSource,
+  RelayResultSource,
+  SubRunResultSource,
+  FanoutResultsSource
+]);
+var SchemaSectionsCheck = external_exports.object({
+  kind: external_exports.literal("schema_sections"),
+  source: ReportSource,
+  required: external_exports.array(external_exports.string().min(1)).min(1)
+}).strict();
+var CheckpointAllowFrom = external_exports.object({
+  kind: external_exports.literal("policy_choices")
+}).strict();
+var CheckpointSelectionCheck = external_exports.object({
+  kind: external_exports.literal("checkpoint_selection"),
+  source: CheckpointResponseSource,
+  allow: external_exports.array(external_exports.string().min(1)).min(1).optional(),
+  allow_from: CheckpointAllowFrom.optional()
+}).strict();
+var ResultVerdictCheck = external_exports.object({
+  kind: external_exports.literal("result_verdict"),
+  source: external_exports.discriminatedUnion("kind", [RelayResultSource, SubRunResultSource]),
+  pass: external_exports.array(external_exports.string().min(1)).min(1)
+}).strict();
+var PickWinnerJoin = external_exports.object({
+  policy: external_exports.literal("pick-winner")
+}).strict();
+var DisjointMergeJoin = external_exports.object({
+  policy: external_exports.literal("disjoint-merge")
+}).strict();
+var AggregateOnlyJoin = external_exports.object({
+  policy: external_exports.literal("aggregate-only")
+}).strict();
+var AggregateSurvivorsJoin = external_exports.object({
+  policy: external_exports.literal("aggregate-survivors")
+}).strict();
+var FanoutJoinPolicy = external_exports.discriminatedUnion("policy", [
+  PickWinnerJoin,
+  DisjointMergeJoin,
+  AggregateOnlyJoin,
+  AggregateSurvivorsJoin
+]);
+var FanoutAggregateCheck = external_exports.object({
+  kind: external_exports.literal("fanout_aggregate"),
+  source: FanoutResultsSource,
+  join: FanoutJoinPolicy,
+  // verdicts.admit is the per-child verdict allowlist consulted by
+  // pick-winner (preference-ordered) and disjoint-merge (membership-only).
+  // aggregate-only ignores the field but still requires it for surface
+  // uniformity — schematic authors who later switch policies don't have to
+  // reauthor the verdict surface.
+  verdicts: external_exports.object({
+    admit: external_exports.array(external_exports.string().min(1)).min(1)
+  }).strict()
+}).strict();
+var Check = external_exports.discriminatedUnion("kind", [
+  SchemaSectionsCheck,
+  CheckpointSelectionCheck,
+  ResultVerdictCheck,
+  FanoutAggregateCheck
+]);
+
+// src/schemas/equipment-scope.ts
+var EquipmentToolName = external_exports.string().min(1);
+var EquipmentToolAllowList = external_exports.object({
+  allow: external_exports.array(EquipmentToolName).min(1)
+}).strict().superRefine((scope, ctx) => {
+  const seen = /* @__PURE__ */ new Set();
+  for (const [index, tool] of scope.allow.entries()) {
+    if (seen.has(tool)) {
+      ctx.addIssue({
+        code: "custom",
+        path: ["allow", index],
+        message: `duplicate tool '${tool}'`
+      });
+    }
+    seen.add(tool);
+  }
+});
+var EquipmentToolScope = external_exports.union([external_exports.literal("full"), EquipmentToolAllowList]);
+var EquipmentEnforcement = external_exports.enum(["trusted", "enforced"]);
+var EquipmentScope = external_exports.object({
+  tools: EquipmentToolScope.default("full"),
+  enforcement: EquipmentEnforcement.default("trusted")
+}).strict().superRefine((scope, ctx) => {
+  if (scope.enforcement === "enforced" && scope.tools === "full") {
+    ctx.addIssue({
+      code: "custom",
+      path: ["enforcement"],
+      message: 'enforced equipment scope requires an explicit tools allow-list (there is nothing to restrict when tools is "full")'
+    });
+  }
+});
+var DEFAULT_EQUIPMENT_SCOPE = Object.freeze({
+  tools: "full",
+  enforcement: "trusted"
+});
+
+// src/schemas/json.ts
+var JsonPrimitive = external_exports.union([
+  external_exports.string(),
+  external_exports.number().refine((n) => Number.isFinite(n), {
+    message: "JSON numbers must be finite"
+  }),
+  external_exports.boolean(),
+  external_exports.null()
+]);
+var JsonValue = external_exports.lazy(
+  () => external_exports.union([JsonPrimitive, external_exports.array(JsonValue), JsonObject])
+);
+var JsonObject = external_exports.record(external_exports.string(), JsonValue);
+
+// src/schemas/process.ts
+var Process = external_exports.enum(["low", "medium", "high"]);
+var CompiledDepth = external_exports.enum(["low", "medium", "high", "tournament", "autonomous"]);
+
+// src/schemas/rubric.ts
+var RubricRuntimeSignal = external_exports.enum(["met", "missing", "n/a"]);
+var RubricJudgment = external_exports.enum(["pass", "concern", "fail"]);
+var RubricDimScore = external_exports.union([external_exports.literal(1), external_exports.literal(0.5), external_exports.literal(0)]);
+var RUBRIC_DIM_SCORE_BY_JUDGMENT = {
+  pass: 1,
+  concern: 0.5,
+  fail: 0
+};
+function roundRubricScore(value) {
+  return Number(value.toFixed(3));
+}
+function aggregateRubricScore(scores) {
+  const total = scores.reduce((sum, score) => sum + score, 0);
+  return roundRubricScore(total / scores.length);
+}
+var RubricDimResult = external_exports.object({
+  runtime_signal: RubricRuntimeSignal,
+  model_judgment: RubricJudgment,
+  final_score: RubricJudgment,
+  dim_score: RubricDimScore,
+  runtime_vetoed: external_exports.boolean()
+}).strict().superRefine((dim, ctx) => {
+  const expectedFinalScore = dim.runtime_signal === "missing" ? "fail" : dim.model_judgment;
+  const expectedDimScore = RUBRIC_DIM_SCORE_BY_JUDGMENT[expectedFinalScore];
+  const expectedRuntimeVetoed = dim.runtime_signal === "missing";
+  if (dim.final_score !== expectedFinalScore) {
+    ctx.addIssue({
+      code: "custom",
+      path: ["final_score"],
+      message: dim.runtime_signal === "missing" ? "missing runtime evidence must force final_score to fail" : "final_score must match model_judgment when runtime_signal is met or n/a"
+    });
+  }
+  if (dim.dim_score !== expectedDimScore) {
+    ctx.addIssue({
+      code: "custom",
+      path: ["dim_score"],
+      message: `dim_score must be ${expectedDimScore} for final_score '${expectedFinalScore}'`
+    });
+  }
+  if (dim.runtime_vetoed !== expectedRuntimeVetoed) {
+    ctx.addIssue({
+      code: "custom",
+      path: ["runtime_vetoed"],
+      message: `runtime_vetoed must be ${String(expectedRuntimeVetoed)} when runtime_signal is '${dim.runtime_signal}'`
+    });
+  }
+});
+var RubricTieBreak = external_exports.object({
+  ordered_dims: external_exports.array(external_exports.string().min(1)).min(1),
+  final_reason: external_exports.string().min(1)
+}).strict().superRefine((tieBreak, ctx) => {
+  const seen = /* @__PURE__ */ new Set();
+  for (const [index, dimId] of tieBreak.ordered_dims.entries()) {
+    if (seen.has(dimId)) {
+      ctx.addIssue({
+        code: "custom",
+        path: ["ordered_dims", index],
+        message: `duplicate tie-break dim '${dimId}'`
+      });
+    }
+    seen.add(dimId);
+  }
+});
+var RubricResult = external_exports.object({
+  dims: external_exports.record(external_exports.string().min(1), RubricDimResult),
+  aggregate_score: external_exports.number().min(0).max(1),
+  runtime_veto_count: external_exports.number().int().nonnegative(),
+  tie_break: RubricTieBreak
+}).strict().superRefine((result, ctx) => {
+  const dims = Object.entries(result.dims);
+  if (dims.length === 0) {
+    ctx.addIssue({
+      code: "custom",
+      path: ["dims"],
+      message: "rubric result must include at least one dim"
+    });
+    return;
+  }
+  const expectedAggregate = aggregateRubricScore(dims.map(([, dim]) => dim.dim_score));
+  if (result.aggregate_score !== expectedAggregate) {
+    ctx.addIssue({
+      code: "custom",
+      path: ["aggregate_score"],
+      message: `aggregate_score must be the equal-weight rounded mean (${expectedAggregate})`
+    });
+  }
+  const expectedRuntimeVetoCount = dims.filter(([, dim]) => dim.runtime_vetoed).length;
+  if (result.runtime_veto_count !== expectedRuntimeVetoCount) {
+    ctx.addIssue({
+      code: "custom",
+      path: ["runtime_veto_count"],
+      message: `runtime_veto_count must be ${expectedRuntimeVetoCount}`
+    });
+  }
+  for (const [index, dimId] of result.tie_break.ordered_dims.entries()) {
+    if (result.dims[dimId] === void 0) {
+      ctx.addIssue({
+        code: "custom",
+        path: ["tie_break", "ordered_dims", index],
+        message: `tie-break dim '${dimId}' must exist in dims`
+      });
+    }
+  }
+});
+
+// src/schemas/scalars.ts
+var ControlPlaneFileStem = external_exports.string().min(1).max(128).regex(/^[a-z0-9][a-z0-9._-]*$/, {
+  message: "must match /^[a-z0-9][a-z0-9._-]*$/ (lowercase alnum start; alnum, dot, underscore, hyphen thereafter)"
+}).refine((value) => value !== "." && value !== "..", {
+  message: "must not be a current or parent directory segment"
+}).refine((value) => !value.includes(".."), {
+  message: "must not contain parent-directory traversal"
+}).refine((value) => !value.includes("/") && !value.includes("\\"), {
+  message: "must not contain path separators"
+});
+var RunRelativePath = external_exports.string().min(1, { message: "run-relative path must be non-empty" }).refine((value) => !value.startsWith("/"), {
+  message: "run-relative path must not be absolute"
+}).refine((value) => !value.includes("\\"), {
+  message: 'run-relative path must use POSIX "/" separators, not backslashes'
+}).refine((value) => !value.includes(":"), {
+  message: "run-relative path must not contain drive-letter or colon forms"
+}).refine(
+  (value) => value.split("/").every((segment) => segment.length > 0 && segment !== "." && segment !== ".."),
+  {
+    message: "run-relative path must not contain empty, current-directory, or parent-directory segments"
+  }
+).brand();
+
+// src/schemas/runtime-source.ts
+var RuntimeNumberSource = external_exports.discriminatedUnion("kind", [
+  external_exports.object({
+    kind: external_exports.literal("constant"),
+    value: external_exports.number().int().nonnegative().max(256)
+  }).strict(),
+  external_exports.object({
+    kind: external_exports.literal("axis"),
+    axis: external_exports.literal("tournament_n")
+  }).strict()
+]);
+var ReportItemsFilter = external_exports.discriminatedUnion("kind", [
+  external_exports.object({
+    kind: external_exports.literal("path_equals"),
+    path: external_exports.string().min(1),
+    value: external_exports.union([external_exports.string(), external_exports.number(), external_exports.boolean(), external_exports.null()])
+  }).strict()
+]);
+var ReportItemsSource = external_exports.object({
+  kind: external_exports.literal("report_items"),
+  source_report: RunRelativePath,
+  items_path: external_exports.string().min(1),
+  filter: ReportItemsFilter.optional(),
+  required_count: RuntimeNumberSource.optional()
+}).strict();
+var CheckpointChoiceSource = ReportItemsSource.extend({
+  id_path: external_exports.string().min(1),
+  label_path: external_exports.string().min(1).optional(),
+  description_path: external_exports.string().min(1).optional()
+}).strict();
+
+// src/schemas/power.ts
+var Power = external_exports.enum(["low", "medium", "high"]);
+var PowerDialSetting = external_exports.enum(["auto", "low", "medium", "high"]);
+var PowerRecommendation = external_exports.object({
+  value: Power.describe("the power tier this job needs: low, medium, or high"),
+  rationale: external_exports.string().min(1).max(280).describe("one short sentence grounding the tier in what you read")
+}).strict();
+
+// src/schemas/selection-policy.ts
+var ProviderScopedModel = external_exports.object({
+  provider: external_exports.enum(["openai", "anthropic", "gemini", "custom"]),
+  model: external_exports.string().min(1)
+}).strict();
+var Effort = external_exports.enum(["none", "minimal", "low", "medium", "high", "xhigh", "max"]);
+var UniqueSkillArray = external_exports.array(SkillId).superRefine((arr, ctx) => {
+  const duplicates = [...new Set(arr.filter((skill, index) => arr.indexOf(skill) !== index))];
+  if (duplicates.length === 0) return;
+  ctx.addIssue({
+    code: "custom",
+    message: `skills array contains duplicates: ${duplicates.join(", ")}`
+  });
+});
+var SkillOverride = external_exports.discriminatedUnion("mode", [
+  external_exports.object({ mode: external_exports.literal("inherit") }).strict(),
+  external_exports.object({ mode: external_exports.literal("replace"), skills: UniqueSkillArray }).strict(),
+  external_exports.object({ mode: external_exports.literal("append"), skills: UniqueSkillArray }).strict(),
+  external_exports.object({ mode: external_exports.literal("remove"), skills: UniqueSkillArray }).strict()
+]);
+var SelectionOverride = external_exports.object({
+  model: ProviderScopedModel.optional(),
+  effort: Effort.optional(),
+  skills: SkillOverride.default({ mode: "inherit" }),
+  depth: CompiledDepth.optional(),
+  invocation_options: JsonObject.default({})
+}).strict();
+var ResolvedSelection = external_exports.object({
+  model: ProviderScopedModel.optional(),
+  effort: Effort.optional(),
+  skills: UniqueSkillArray,
+  depth: CompiledDepth.optional(),
+  invocation_options: JsonObject.default({}),
+  // Present only when the Power dial materialized this selection's model or
+  // effort from a tier table. Absent when explicit model config won, when
+  // the connector has no tier table, or on pre-dial artifacts. Carried here
+  // so RelayStartedTraceEntry.resolved_selection self-reports dial
+  // application and the run receipt never has to guess.
+  power: Power.optional(),
+  // True only when a retry (attempt > 1) actually bumped the allocated tier
+  // up. A retry whose role was already at the top tier records no
+  // escalation — the receipt counts real bumps, not retries.
+  power_escalated: external_exports.boolean().optional(),
+  // Present only when the dial setting was `auto`: the dial value above came
+  // from the run's clamped researcher inference (or the medium fallback when
+  // no inference had resolved yet), not from a fixed operator setting.
+  power_source: external_exports.literal("auto").optional()
+}).strict();
+var SelectionSource = external_exports.enum([
+  "default",
+  "user-global",
+  "project",
+  "flow",
+  "stage",
+  "step",
+  "invocation"
+]);
+var SELECTION_PRECEDENCE = [
+  "default",
+  "user-global",
+  "project",
+  "flow",
+  "stage",
+  "step",
+  "invocation"
+];
+var PRECEDENCE_INDEX = Object.fromEntries(
+  SELECTION_PRECEDENCE.map((s, i) => [s, i])
+);
+var AppliedEntry = external_exports.discriminatedUnion("source", [
+  external_exports.object({ source: external_exports.literal("default"), override: SelectionOverride }).strict(),
+  external_exports.object({ source: external_exports.literal("user-global"), override: SelectionOverride }).strict(),
+  external_exports.object({ source: external_exports.literal("project"), override: SelectionOverride }).strict(),
+  external_exports.object({ source: external_exports.literal("flow"), override: SelectionOverride }).strict(),
+  external_exports.object({
+    source: external_exports.literal("stage"),
+    stage_id: StageId,
+    override: SelectionOverride
+  }).strict(),
+  external_exports.object({ source: external_exports.literal("step"), step_id: StepId, override: SelectionOverride }).strict(),
+  external_exports.object({ source: external_exports.literal("invocation"), override: SelectionOverride }).strict()
+]);
+function overrideContributes(o) {
+  if (o.model !== void 0) return true;
+  if (o.effort !== void 0) return true;
+  if (o.depth !== void 0) return true;
+  if (o.skills.mode !== "inherit") return true;
+  if (Object.keys(o.invocation_options).length > 0) return true;
+  return false;
+}
+var SelectionResolutionBody = external_exports.object({
+  resolved: ResolvedSelection,
+  applied: external_exports.array(AppliedEntry)
+}).strict();
+var issueAt = (ctx, path, message) => {
+  ctx.addIssue({ code: "custom", path, message });
+};
+function identityKey(entry) {
+  switch (entry.source) {
+    case "stage":
+      return `stage:${entry.stage_id}`;
+    case "step":
+      return `step:${entry.step_id}`;
+    default:
+      return entry.source;
+  }
+}
+var SelectionResolution = SelectionResolutionBody.superRefine((res, ctx) => {
+  const seen = /* @__PURE__ */ new Set();
+  let lastIndex = -1;
+  for (let i = 0; i < res.applied.length; i++) {
+    const entry = res.applied[i];
+    if (entry === void 0) continue;
+    const key = identityKey(entry);
+    if (seen.has(key)) {
+      issueAt(
+        ctx,
+        ["applied", i, "source"],
+        `duplicate applied identity '${key}' at index ${i}; each identity may contribute at most once (stage/step are disambiguated by their id)`
+      );
+      continue;
+    }
+    seen.add(key);
+    const idx = PRECEDENCE_INDEX[entry.source];
+    if (idx < lastIndex) {
+      issueAt(
+        ctx,
+        ["applied", i, "source"],
+        `applied entry '${entry.source}' at index ${i} is out of precedence order; entries must appear in SELECTION_PRECEDENCE order (default < user-global < project < flow < stage < step < invocation). Two entries with equal precedence (two stages, two steps) are legal and must appear contiguously; a later category cannot precede an earlier one.`
+      );
+    } else {
+      lastIndex = idx;
+    }
+    if (!overrideContributes(entry.override)) {
+      issueAt(
+        ctx,
+        ["applied", i, "override"],
+        `applied entry at index ${i} has an empty override (no model, effort, depth, skills operation, or invocation_options); a layer that contributes nothing must NOT appear in the applied chain (ghost provenance)`
+      );
+    }
+  }
+});
+
+// src/schemas/skill-hook.ts
+var SKILL_HOOK_VOCABULARY = [
+  {
+    hook: "before:high-impact-alignment",
+    detected_from: ["goal-contract:impact=high", "operator-flag:high-impact"],
+    cardinality: "per-run",
+    // High-impact alignment defaults to observe-only (record, do not inject) so a
+    // high-impact step is never auto-augmented without the operator opting in.
+    default_mode: "mute"
+  },
+  {
+    hook: "before:architecture-analysis",
+    detected_from: ["selected-process:explore-architecture", "step-metadata:architecture-analysis"],
+    cardinality: "per-step",
+    default_mode: "auto"
+  },
+  {
+    hook: "before:plan-implementation",
+    detected_from: ["stage-transition:Plan", "step-metadata:plan"],
+    cardinality: "per-stage",
+    default_mode: "auto"
+  },
+  {
+    hook: "before:implementation",
+    detected_from: ["stage-transition:Plan->Act", "stage-transition:Act"],
+    cardinality: "per-stage",
+    default_mode: "auto"
+  },
+  {
+    hook: "before:verification",
+    detected_from: ["stage-transition:Verify", "step-metadata:verify"],
+    cardinality: "per-stage",
+    default_mode: "auto"
+  },
+  // Parameterized file-edit anchors. One pair replaces the five named
+  // file-surface hooks (after:react-ui-change/test-change/schema-change/
+  // api-surface-change/dependency-change) and the four *_surfaces config
+  // buckets. The operator writes the predicate as a key suffix
+  // (`after:edit-files:.tsx`); the engine matches a literal extension suffix and
+  // never interprets the meaning. See docs/ideas/skill-hooks-first-principles.md
+  // (the reframe) and docs/ideas/skill-hooks-dispatch-spec.md (D1).
+  {
+    hook: "before:edit-files",
+    detected_from: ["plan-report:anticipated-file-extensions", "plan-report:likely-touched"],
+    cardinality: "per-step",
+    default_mode: "auto"
+  },
+  {
+    hook: "after:edit-files",
+    detected_from: ["change-report:touched-files", "change-set:observed"],
+    cardinality: "per-step",
+    default_mode: "auto"
+  },
+  {
+    hook: "after:verification-failed",
+    detected_from: ["evidence-map:required-check-failed"],
+    cardinality: "per-step",
+    default_mode: "auto"
+  },
+  {
+    hook: "after:evidence-gap",
+    detected_from: ["evidence-map:required-claim-missing-after-verify"],
+    cardinality: "per-stage",
+    default_mode: "auto"
+  },
+  {
+    hook: "before:close-run",
+    detected_from: ["run-envelope:close-decision", "stage-transition:Close"],
+    cardinality: "per-run",
+    default_mode: "auto"
+  },
+  {
+    hook: "before:handoff",
+    detected_from: ["command:handoff", "run-envelope:handoff-decision"],
+    cardinality: "per-run",
+    default_mode: "auto"
+  }
+];
+var SkillHookCardinality = external_exports.enum(["per-run", "per-stage", "per-step"]);
+var SkillHookPolicyMode = external_exports.enum(["auto", "mute"]);
+var SHIPPED_HOOKS = new Set(SKILL_HOOK_VOCABULARY.map((entry) => entry.hook));
+var CUSTOM_HOOK_RE = /^[a-z][a-z0-9-]*\/(before|after):[a-z][a-z0-9-]*$/;
+var SHIPPED_SHAPE_RE = /^(before|after):[a-z][a-z0-9-]*$/;
+var PARAMETERIZED_EDIT_FILE_RE = /^(before|after):edit-files:(\.[A-Za-z0-9]+)+$/;
+function hookBody(value) {
+  const slash = value.indexOf("/");
+  return slash === -1 ? value : value.slice(slash + 1);
+}
+var SkillHookName = external_exports.string().superRefine((value, ctx) => {
+  if (SHIPPED_HOOKS.has(value)) return;
+  if (PARAMETERIZED_EDIT_FILE_RE.test(value)) return;
+  if (SHIPPED_SHAPE_RE.test(value)) {
+    ctx.addIssue({
+      code: "custom",
+      message: `unknown shipped Skill Hook '${value}'`
+    });
+    return;
+  }
+  if (!CUSTOM_HOOK_RE.test(value)) {
+    ctx.addIssue({
+      code: "custom",
+      message: "custom Skill Hooks must be namespaced as <namespace>/<before|after>:<name>"
+    });
+    return;
+  }
+  if (SHIPPED_HOOKS.has(hookBody(value))) {
+    ctx.addIssue({
+      code: "custom",
+      message: "custom Skill Hooks must not reuse shipped hook names"
+    });
+  }
+});
+var SkillHookNameArray = external_exports.array(SkillHookName).superRefine((hooks, ctx) => {
+  const seen = /* @__PURE__ */ new Set();
+  for (const [index, hook] of hooks.entries()) {
+    if (seen.has(hook)) {
+      ctx.addIssue({
+        code: "custom",
+        path: [index],
+        message: `duplicate Skill Hook '${hook}'`
+      });
+    }
+    seen.add(hook);
+  }
+});
+var SkillHookPolicyRule = external_exports.object({
+  // Omitting mode means auto: listing skills under a hook is enough to load them.
+  mode: SkillHookPolicyMode.default("auto"),
+  skills: external_exports.array(SkillId).optional(),
+  strict: external_exports.boolean().default(false)
+}).strict().superRefine((rule, ctx) => {
+  if (rule.mode === "mute") {
+    if (rule.skills !== void 0) {
+      ctx.addIssue({
+        code: "custom",
+        path: ["skills"],
+        message: "mute Skill Hook policy must not declare skills"
+      });
+    }
+    return;
+  }
+  if (rule.skills === void 0 || rule.skills.length === 0) {
+    ctx.addIssue({
+      code: "custom",
+      path: ["skills"],
+      message: `${rule.mode} Skill Hook policy requires at least one skill`
+    });
+    return;
+  }
+  const seen = /* @__PURE__ */ new Set();
+  for (const [index, skill] of rule.skills.entries()) {
+    const key = skill;
+    if (seen.has(key)) {
+      ctx.addIssue({
+        code: "custom",
+        path: ["skills", index],
+        message: `duplicate Skill Hook skill '${key}'`
+      });
+    }
+    seen.add(key);
+  }
+});
+var SkillHookDetectionConfig = external_exports.object({
+  disabled_patterns: external_exports.record(SkillHookName, external_exports.array(external_exports.string().min(1))).default({})
+}).strict();
+var SkillHookConfig = external_exports.object({
+  policy: external_exports.record(SkillHookName, SkillHookPolicyRule).default({}),
+  detection: SkillHookDetectionConfig.default({ disabled_patterns: {} })
+}).strict();
+var SkillHookSkillState = external_exports.enum([
+  "planned",
+  "staged",
+  "requested",
+  "observed",
+  "unplanned",
+  "unavailable"
+]);
+var SkillHookPolicyResolution = external_exports.discriminatedUnion("source", [
+  external_exports.object({
+    mode: external_exports.literal("none"),
+    source: external_exports.literal("none")
+  }).strict(),
+  external_exports.object({
+    mode: SkillHookPolicyMode,
+    source: external_exports.enum(["project-policy", "user-global-policy", "default-mapping"]),
+    strict: external_exports.boolean(),
+    policy_ref: external_exports.string().min(1).optional()
+  }).strict()
+]);
+var SkillHookSkillRef = external_exports.object({
+  id: SkillId,
+  state: SkillHookSkillState,
+  source: external_exports.enum(["project-policy", "user-global-policy", "default-mapping", "host-observed"]),
+  reason: external_exports.string().min(1).optional()
+}).strict().superRefine((skill, ctx) => {
+  if (["observed", "unplanned"].includes(skill.state) && skill.source !== "host-observed") {
+    ctx.addIssue({
+      code: "custom",
+      path: ["source"],
+      message: `${skill.state} Skill Hook activity requires host-observed source`
+    });
+  }
+});
+var RunSkillHookEvent = external_exports.object({
+  schema: external_exports.literal("run.skill-hook@v0"),
+  event_id: external_exports.string().min(1),
+  hook: SkillHookName,
+  detected_from: external_exports.array(external_exports.string().min(1)).min(1),
+  cardinality: SkillHookCardinality,
+  policy: SkillHookPolicyResolution,
+  flow_id: CompiledFlowId.optional(),
+  stage_id: StageId.optional(),
+  step_id: StepId.optional(),
+  attempt_id: external_exports.string().min(1).optional(),
+  decision_packet_id: external_exports.string().min(1).optional(),
+  triggered_skills: external_exports.array(SkillHookSkillRef),
+  unavailable_skills: external_exports.array(SkillHookSkillRef).optional()
+}).strict().superRefine((event, ctx) => {
+  if ((event.policy.mode === "none" || event.policy.mode === "mute") && event.triggered_skills.length > 0) {
+    ctx.addIssue({
+      code: "custom",
+      path: ["triggered_skills"],
+      message: `${event.policy.mode} Skill Hook policy must not trigger skills`
+    });
+  }
+  for (const [index, skill] of event.unavailable_skills?.entries() ?? []) {
+    if (skill.state !== "unavailable") {
+      ctx.addIssue({
+        code: "custom",
+        path: ["unavailable_skills", index, "state"],
+        message: "unavailable_skills entries must use unavailable state"
+      });
+    }
+  }
+  for (const [index, skill] of event.triggered_skills.entries()) {
+    if (skill.state === "unavailable") {
+      ctx.addIssue({
+        code: "custom",
+        path: ["triggered_skills", index, "state"],
+        message: "unavailable skills belong in unavailable_skills, not triggered_skills"
+      });
+    }
+  }
+});
+
+// src/schemas/ref.ts
+var Sha2562 = external_exports.string().regex(/^[0-9a-f]{64}$/, {
+  message: "must be a 64-character lowercase hex SHA-256 digest"
+});
+var RefKind = external_exports.enum([
+  "work_contract",
+  "policy",
+  "trace",
+  "report",
+  "evidence",
+  "request",
+  "context_packet",
+  "diff",
+  "patch",
+  "command",
+  "change_packet",
+  "safe_apply",
+  "worktree",
+  "generated_surface",
+  "memory",
+  "operator_input"
+]);
+var ContentRefKinds = /* @__PURE__ */ new Set([
+  "work_contract",
+  "report",
+  "evidence",
+  "request",
+  "context_packet",
+  "diff",
+  "patch",
+  "command",
+  "change_packet",
+  "safe_apply",
+  "worktree",
+  "generated_surface",
+  "memory"
+]);
+var Ref = external_exports.object({
+  kind: RefKind,
+  ref: external_exports.string().min(1),
+  sha256: Sha2562.optional(),
+  run_id: RunId.optional(),
+  flow_id: CompiledFlowId.optional(),
+  step_id: StepId.optional(),
+  attempt: external_exports.number().int().positive().optional(),
+  sequence: external_exports.number().int().nonnegative().optional()
+}).strict().superRefine((ref, ctx) => {
+  if (ContentRefKinds.has(ref.kind) && ref.sha256 === void 0) {
+    ctx.addIssue({
+      code: "custom",
+      path: ["sha256"],
+      message: `${ref.kind} refs require sha256`
+    });
+  }
+  if (ref.kind === "work_contract" && ref.flow_id === void 0) {
+    ctx.addIssue({
+      code: "custom",
+      path: ["flow_id"],
+      message: "work_contract refs require flow_id"
+    });
+  }
+  if (ref.kind !== "trace") return;
+  if (ref.run_id === void 0) {
+    ctx.addIssue({
+      code: "custom",
+      path: ["run_id"],
+      message: "trace refs require run_id"
+    });
+  }
+  if (ref.sequence === void 0) {
+    ctx.addIssue({
+      code: "custom",
+      path: ["sequence"],
+      message: "trace refs require sequence"
+    });
+    return;
+  }
+  const expected = `trace.ndjson#sequence=${ref.sequence}`;
+  if (ref.ref !== expected) {
+    ctx.addIssue({
+      code: "custom",
+      path: ["ref"],
+      message: `trace refs must use ${expected}`
+    });
+  }
+});
+
+// src/schemas/skill.ts
+var SkillDomain = external_exports.enum(["coding", "design", "research", "ops", "domain-general"]);
+var descriptorOwnPropertyGuard = external_exports.custom((raw) => {
+  if (raw === null || typeof raw !== "object") return true;
+  const guarded = ["id", "title", "description", "trigger"];
+  for (const f of guarded) if (!Object.hasOwn(raw, f)) return false;
+  return true;
+}, "skill descriptor has inherited (not own) required field; prototype-chain smuggle rejected");
+var SkillDescriptorBody = external_exports.object({
+  id: SkillId,
+  title: external_exports.string().min(1),
+  description: external_exports.string().min(1),
+  trigger: external_exports.string().min(1),
+  /**
+   * `capabilities`, when present, is a non-empty array of non-empty
+   * strings. A catalog entry that has not declared any capabilities
+   * should omit the field; an empty list `[]` is an ambiguity bug
+   * and rejected.
+   */
+  capabilities: external_exports.array(external_exports.string().min(1)).min(1).optional(),
+  domain: SkillDomain.default("domain-general")
+}).strict();
+var SkillDescriptor = descriptorOwnPropertyGuard.pipe(SkillDescriptorBody);
+var UserSkillEntry = external_exports.object({
+  id: SkillId,
+  name: external_exports.string().min(1).optional(),
+  description: external_exports.string().min(1).optional(),
+  trigger: external_exports.string().min(1).optional(),
+  root: external_exports.string().min(1),
+  path: external_exports.string().min(1),
+  sha256: Sha2562,
+  bytes: external_exports.number().int().nonnegative()
+}).strict();
+var SkillSlot = external_exports.object({
+  id: SkillSlotId,
+  description: external_exports.string().min(1)
+}).strict();
+var SkillSlotArray = external_exports.array(SkillSlot).superRefine((slots, ctx) => {
+  const seen = /* @__PURE__ */ new Set();
+  for (const [index, slot] of slots.entries()) {
+    const key = slot.id;
+    if (seen.has(key)) {
+      ctx.addIssue({
+        code: "custom",
+        path: [index, "id"],
+        message: `duplicate skill slot '${key}'`
+      });
+    }
+    seen.add(key);
+  }
+});
+
+// src/schemas/step.ts
+var RelayRole = external_exports.enum(["researcher", "implementer", "reviewer"]);
+var RelayConnectorName = external_exports.string().regex(/^[a-z][a-z0-9-]*$/, {
+  message: "connector must be a kebab-case connector name"
+});
+var ReportRef = external_exports.object({
+  path: RunRelativePath,
+  schema: external_exports.string().min(1)
+});
+var RouteFromReport = external_exports.object({
+  path: external_exports.array(external_exports.string().min(1)).min(1)
+}).strict();
+var StepBase = external_exports.object({
+  id: StepId,
+  title: external_exports.string().min(1),
+  protocol: ProtocolId,
+  reads: external_exports.array(RunRelativePath).default([]),
+  routes: external_exports.record(external_exports.string(), external_exports.string()).refine((m) => Object.keys(m).length > 0, {
+    message: "Step must declare at least one route (including `@complete`)."
+  }),
+  selection: SelectionOverride.optional(),
+  skill_hooks: SkillHookNameArray.optional(),
+  skill_slots: SkillSlotArray.optional(),
+  // The tools sub-axis of equipment scope, compiled from the schematic step.
+  // Optional and omitted at the default (full, trusted) so flows that declare
+  // nothing keep byte-stable compiled output. The schematic gate restricts an
+  // enforced scope to relay steps (any role); the compiler copies it verbatim.
+  equipment_scope: EquipmentScope.optional(),
+  route_from_report: RouteFromReport.optional(),
+  budgets: external_exports.object({
+    max_attempts: external_exports.number().int().positive().max(10),
+    wall_clock_ms: external_exports.number().int().positive().optional(),
+    // Per-step inactivity ceiling forwarded to the connector watchdog; for
+    // steps whose relay legitimately goes silent longer than the connector
+    // default.
+    inactivity_ms: external_exports.number().int().positive().optional()
+  }).optional()
+});
+var ComposeStep = StepBase.extend({
+  executor: external_exports.literal("orchestrator"),
+  kind: external_exports.literal("compose"),
+  writes: external_exports.object({
+    report: ReportRef
+  }).strict(),
+  check: SchemaSectionsCheck
+}).strict();
+var VerificationStep = StepBase.extend({
+  executor: external_exports.literal("orchestrator"),
+  kind: external_exports.literal("verification"),
+  writes: external_exports.object({
+    report: ReportRef
+  }).strict(),
+  check: SchemaSectionsCheck
+}).strict();
+var AutoResolutionPolicy = external_exports.discriminatedUnion("policy", [
+  external_exports.object({
+    policy: external_exports.literal("highest-score"),
+    source_report: RunRelativePath,
+    branches_path: external_exports.string().min(1).default("branches"),
+    id_path: external_exports.string().min(1).default("branch_id"),
+    rubric_result_path: external_exports.string().min(1).default("rubric_result")
+  }).strict()
+]);
+var CheckpointPolicy = external_exports.object({
+  prompt: external_exports.string().min(1),
+  choices: external_exports.array(
+    external_exports.object({
+      id: external_exports.string().min(1),
+      label: external_exports.string().min(1).optional(),
+      description: external_exports.string().min(1).optional()
+    }).strict()
+  ).min(1).optional(),
+  choices_from: CheckpointChoiceSource.optional(),
+  safe_default_choice: external_exports.string().min(1).optional(),
+  auto_resolution: AutoResolutionPolicy.optional(),
+  // Opt-in: when this checkpoint is reached in an unattended run (a
+  // composed/nested child or a headless host, where there is no operator to
+  // answer the gate and no resume driver to clear it), may the engine
+  // auto-continue it through its fail-safe path (auto-resolution rubric, then
+  // declared safe default) instead of failing closed? Defaults to absent =
+  // false: an unattended run hitting a human gate that is NOT declared
+  // auto-continuable reaches a loud terminal failure rather than silently
+  // auto-skipping the gate. Top-level attended and autonomous runs ignore this
+  // field — it governs only the unattended path. See resolveCheckpoint in
+  // src/runtime/executors/checkpoint.ts.
+  auto_continuable_when_nested: external_exports.boolean().optional(),
+  report_template: JsonObject.optional()
+}).strict().superRefine((policy, ctx) => {
+  const hasStaticChoices = policy.choices !== void 0;
+  const hasDynamicChoices = policy.choices_from !== void 0;
+  if (hasStaticChoices === hasDynamicChoices) {
+    ctx.addIssue({
+      code: "custom",
+      path: ["choices"],
+      message: "checkpoint policy must declare exactly one of choices or choices_from"
+    });
+  }
+  const choiceIds = /* @__PURE__ */ new Set();
+  if (policy.choices !== void 0) {
+    for (const [index, choice] of policy.choices.entries()) {
+      if (choiceIds.has(choice.id)) {
+        ctx.addIssue({
+          code: "custom",
+          path: ["choices", index, "id"],
+          message: `duplicate checkpoint choice '${choice.id}'`
+        });
+      }
+      choiceIds.add(choice.id);
+    }
+  }
+  for (const [field, value] of [["safe_default_choice", policy.safe_default_choice]]) {
+    if (value !== void 0 && policy.choices !== void 0 && !choiceIds.has(value)) {
+      ctx.addIssue({
+        code: "custom",
+        path: [field],
+        message: `${field} must reference a declared checkpoint choice`
+      });
+    }
+  }
+});
+var CheckpointStep = StepBase.extend({
+  executor: external_exports.literal("orchestrator"),
+  kind: external_exports.literal("checkpoint"),
+  policy: CheckpointPolicy,
+  writes: external_exports.object({
+    request: RunRelativePath,
+    response: RunRelativePath,
+    report: ReportRef.optional()
+  }).strict(),
+  check: CheckpointSelectionCheck
+}).strict();
+var RelayStep = StepBase.extend({
+  executor: external_exports.literal("worker"),
+  kind: external_exports.literal("relay"),
+  role: RelayRole,
+  connector: RelayConnectorName.optional(),
+  acceptance_criteria: AcceptanceCriteria.optional(),
+  writes: external_exports.object({
+    report: ReportRef.optional(),
+    request: RunRelativePath,
+    receipt: RunRelativePath,
+    result: RunRelativePath
+  }).strict(),
+  check: ResultVerdictCheck
+}).strict();
+var CompiledFlowRef = external_exports.object({
+  flow_id: CompiledFlowId,
+  entry_mode: external_exports.string().regex(/^[a-z][a-z0-9-]*$/, { message: "entry_mode must be a kebab-case slug" }),
+  // Optional pin to a specific schematic version. Default is the version
+  // resolved by the schematic loader at child-bootstrap time.
+  version: external_exports.string().min(1).optional()
+}).strict();
+var SubRunStep = StepBase.extend({
+  executor: external_exports.literal("orchestrator"),
+  kind: external_exports.literal("sub-run"),
+  flow_ref: CompiledFlowRef,
+  // Goal string handed to the child flow at bootstrap. Templating is
+  // a runtime concern (e.g., `$upstream_report.field` substitution) that
+  // resolves before child bootstrap; the schema accepts a plain string.
+  goal: external_exports.string().min(1),
+  depth: CompiledDepth,
+  writes: external_exports.object({
+    // The child run's terminal result.json copied into the parent's
+    // run-folder after the child closes. The parent check reads this slot.
+    result: RunRelativePath,
+    // Optional materialized child report (e.g., child build-result.json
+    // republished verbatim into a parent slot for downstream readers).
+    report: ReportRef.optional()
+  }).strict(),
+  check: ResultVerdictCheck
+}).strict();
+var FANOUT_BRANCH_ID_REGEX = /^[a-z0-9][a-z0-9-]*$/;
+var FanoutSubRunBranch = external_exports.object({
+  // Branch identifier; unique across the fanout's branches. Used to
+  // derive the per-branch worktree name and the per-branch result
+  // directory under `writes.branches_dir/<branch_id>/`.
+  branch_id: external_exports.string().min(1).max(64).regex(FANOUT_BRANCH_ID_REGEX, { message: "branch_id must be a kebab-case slug" }),
+  flow_ref: CompiledFlowRef,
+  goal: external_exports.string().min(1),
+  depth: CompiledDepth,
+  // Per-branch selection override — useful for tournament-style fanouts
+  // where the variation is in connector / model selection, not flow.
+  selection: SelectionOverride.optional()
+}).strict();
+var FanoutRelayBranchExecution = external_exports.object({
+  kind: external_exports.literal("relay"),
+  role: RelayRole,
+  goal: external_exports.string().min(1),
+  report_schema: external_exports.string().min(1),
+  provenance_field: external_exports.string().regex(/^[a-z_][a-z0-9_]*$/i, {
+    message: "provenance_field must be a top-level JSON field name"
+  }).optional()
+}).strict();
+var FanoutRelayBranch = external_exports.object({
+  branch_id: external_exports.string().min(1).max(64).regex(FANOUT_BRANCH_ID_REGEX, { message: "branch_id must be a kebab-case slug" }),
+  execution: FanoutRelayBranchExecution,
+  connector: RelayConnectorName.optional(),
+  selection: SelectionOverride.optional()
+}).strict();
+var FanoutBranch = external_exports.union([FanoutSubRunBranch, FanoutRelayBranch]);
+var FanoutSubRunBranchTemplate = external_exports.object({
+  branch_id: external_exports.string().min(1).max(64),
+  flow_ref: CompiledFlowRef,
+  goal: external_exports.string().min(1),
+  depth: CompiledDepth,
+  // Dynamic fanout selection may contain `$item.*` placeholders. The
+  // expanded branch is parsed through FanoutBranch before execution, so
+  // runtime still enforces the real SelectionOverride shape.
+  selection: external_exports.unknown().optional()
+}).strict();
+var FanoutRelayBranchTemplate = external_exports.object({
+  branch_id: external_exports.string().min(1).max(64),
+  execution: FanoutRelayBranchExecution,
+  connector: external_exports.string().min(1).optional(),
+  selection: external_exports.unknown().optional()
+}).strict();
+var FanoutBranchTemplate = external_exports.union([
+  FanoutSubRunBranchTemplate,
+  FanoutRelayBranchTemplate
+]);
+var FanoutBranchesStatic = external_exports.object({
+  kind: external_exports.literal("static"),
+  // Author lists every branch upfront. Used by tournaments (N attempts at
+  // one flow, varying selection / depth) and small fixed crucibles.
+  branches: external_exports.array(FanoutBranch).min(1).max(64)
+}).strict();
+var FanoutBranchesDynamic = external_exports.object({
+  kind: external_exports.literal("dynamic"),
+  // Branches computed at runtime from an upstream report. Authors
+  // declare the source report + a JSONPath-like dotted path to the
+  // iterable + a template branch with `$item.<field>` placeholders.
+  // Runtime expands the template per item at fanout.start time and
+  // re-parses each expansion through FanoutBranch (strict regex).
+  //
+  // Used when batch count is determined by an upstream inventory report.
+  source_report: RunRelativePath,
+  items_path: external_exports.string().min(1),
+  template: FanoutBranchTemplate,
+  // Hard cap to prevent runaway fanouts when the source report is
+  // unexpectedly large.
+  max_branches: external_exports.union([external_exports.number().int().positive().max(256), RuntimeNumberSource]).default(16),
+  // Optional exact count. Tournament fanouts use this to fail before any
+  // child relay launches when option generation drifts from the resolved N.
+  required_count: RuntimeNumberSource.optional()
+}).strict();
+var FanoutBranches = external_exports.discriminatedUnion("kind", [
+  FanoutBranchesStatic,
+  FanoutBranchesDynamic
+]);
+var FanoutConcurrency = external_exports.discriminatedUnion("kind", [
+  external_exports.object({ kind: external_exports.literal("unbounded") }).strict(),
+  external_exports.object({
+    kind: external_exports.literal("bounded"),
+    max: external_exports.number().int().positive().max(64)
+  }).strict()
+]);
+var FanoutFailurePolicy = external_exports.enum(["abort-all", "continue-others"]);
+var FanoutRubricRuntimeSignalSource = external_exports.discriminatedUnion("kind", [
+  external_exports.object({
+    kind: external_exports.literal("constant"),
+    signal: RubricRuntimeSignal
+  }).strict(),
+  external_exports.object({
+    kind: external_exports.literal("non_empty_array"),
+    path: external_exports.string().min(1)
+  }).strict(),
+  external_exports.object({
+    kind: external_exports.literal("non_empty_string"),
+    path: external_exports.string().min(1)
+  }).strict()
+]);
+var FanoutRubric = external_exports.object({
+  model_judgments_path: external_exports.string().min(1),
+  ordered_dims: external_exports.array(external_exports.string().min(1)).min(1),
+  runtime_signals: external_exports.record(external_exports.string().min(1), FanoutRubricRuntimeSignalSource)
+}).strict().superRefine((rubric, ctx) => {
+  const orderedDims = /* @__PURE__ */ new Set();
+  for (const [index, dimId] of rubric.ordered_dims.entries()) {
+    if (orderedDims.has(dimId)) {
+      ctx.addIssue({
+        code: "custom",
+        path: ["ordered_dims", index],
+        message: `duplicate rubric dim '${dimId}'`
+      });
+    }
+    orderedDims.add(dimId);
+  }
+  for (const [dimId] of Object.entries(rubric.runtime_signals)) {
+    if (!orderedDims.has(dimId)) {
+      ctx.addIssue({
+        code: "custom",
+        path: ["runtime_signals", dimId],
+        message: `runtime signal dim '${dimId}' must appear in ordered_dims`
+      });
+    }
+  }
+  for (const [index, dimId] of rubric.ordered_dims.entries()) {
+    if (rubric.runtime_signals[dimId] === void 0) {
+      ctx.addIssue({
+        code: "custom",
+        path: ["ordered_dims", index],
+        message: `ordered dim '${dimId}' must declare a runtime signal source`
+      });
+    }
+  }
+});
+var FanoutStep = StepBase.extend({
+  executor: external_exports.literal("orchestrator"),
+  kind: external_exports.literal("fanout"),
+  branches: FanoutBranches,
+  // Default bounded(4) keeps disk and rate-limit pressure sane on
+  // unattended runs. Authors who know their parallelism budget can opt
+  // into unbounded explicitly.
+  concurrency: FanoutConcurrency.default({ kind: "bounded", max: 4 }),
+  on_child_failure: FanoutFailurePolicy.default("abort-all"),
+  rubric: FanoutRubric.optional(),
+  writes: external_exports.object({
+    // Parent directory under which the runtime materialises each
+    // branch's result.json at `<branches_dir>/<branch_id>/result.json`.
+    // The directory is runtime-owned; schematic authors declare its location.
+    branches_dir: RunRelativePath,
+    // Aggregate report summarising all child results, built by the
+    // runtime after join. This is the slot the check reads.
+    aggregate: ReportRef
+  }).strict(),
+  check: FanoutAggregateCheck
+}).strict();
+var Step = external_exports.discriminatedUnion("kind", [
+  ComposeStep,
+  VerificationStep,
+  CheckpointStep,
+  RelayStep,
+  SubRunStep,
+  FanoutStep
+]).superRefine((step, ctx) => {
+  const slot = step.check.source.ref;
+  const writes = step.writes;
+  if (!Object.hasOwn(writes, slot) || writes[slot] === void 0) {
+    ctx.addIssue({
+      code: "custom",
+      path: ["check", "source", "ref"],
+      message: `check.source.ref "${slot}" does not resolve to a usable slot in step.writes (available: ${Object.keys(writes).join(", ")})`
+    });
+  }
+  if (step.kind === "checkpoint") {
+    const hasStaticAllow = step.check.allow !== void 0;
+    const hasDynamicAllow = step.check.allow_from !== void 0;
+    if (hasStaticAllow === hasDynamicAllow) {
+      ctx.addIssue({
+        code: "custom",
+        path: ["check", "allow"],
+        message: "checkpoint check must declare exactly one of allow or allow_from"
+      });
+    }
+    if (hasStaticAllow && step.policy.choices === void 0) {
+      ctx.addIssue({
+        code: "custom",
+        path: ["check", "allow"],
+        message: "checkpoint check.allow requires static policy.choices"
+      });
+    }
+    if (hasDynamicAllow && step.check.allow_from?.kind !== "policy_choices") {
+      ctx.addIssue({
+        code: "custom",
+        path: ["check", "allow_from"],
+        message: "checkpoint check.allow_from must reference policy_choices"
+      });
+    }
+    if (step.check.allow !== void 0 && step.policy.choices !== void 0) {
+      const policyChoiceIds = step.policy.choices.map((choice) => choice.id).sort();
+      const checkChoiceIds = [...step.check.allow].sort();
+      if (policyChoiceIds.join("\0") !== checkChoiceIds.join("\0")) {
+        ctx.addIssue({
+          code: "custom",
+          path: ["check", "allow"],
+          message: "checkpoint check.allow must exactly match policy.choices ids"
+        });
+      }
+    }
+    if (hasDynamicAllow && step.policy.choices === void 0 && step.policy.choices_from === void 0) {
+      ctx.addIssue({
+        code: "custom",
+        path: ["policy", "choices_from"],
+        message: "checkpoint check.allow_from requires policy.choices or policy.choices_from"
+      });
+    }
+    if (step.writes.report !== void 0) {
+      if (step.policy.report_template === void 0) {
+        ctx.addIssue({
+          code: "custom",
+          path: ["policy", "report_template"],
+          message: "checkpoint report writing requires policy.report_template"
+        });
+      }
+    }
+  }
+  if (step.kind === "fanout") {
+    if (step.branches.kind === "static") {
+      const seen = /* @__PURE__ */ new Set();
+      for (let i = 0; i < step.branches.branches.length; i++) {
+        const branch = step.branches.branches[i];
+        if (branch === void 0) continue;
+        if (seen.has(branch.branch_id)) {
+          ctx.addIssue({
+            code: "custom",
+            path: ["branches", "branches", i, "branch_id"],
+            message: `duplicate branch_id '${branch.branch_id}'`
+          });
+        } else {
+          seen.add(branch.branch_id);
+        }
+      }
+    }
+    if (step.branches.kind === "dynamic") {
+      if (!step.branches.template.branch_id.includes("$item")) {
+        ctx.addIssue({
+          code: "custom",
+          path: ["branches", "template", "branch_id"],
+          message: "dynamic fanout template.branch_id must contain `$item` placeholder so per-item expansion produces unique branch ids"
+        });
+      }
+    }
+  }
+});
+var RouteMap = StepBase.shape.routes;
+
+// src/schemas/connector.ts
+var EnabledConnector = external_exports.enum(["claude-code", "codex", "cursor-agent"]);
+var FilesystemCapability = external_exports.enum(["read-only", "trusted-write", "isolated-write"]);
+var StructuredOutputCapability = external_exports.enum(["json"]);
+var ToolScopeCapability = external_exports.enum(["none", "allow-list"]);
+var ConnectorCapabilities = external_exports.object({
+  filesystem: FilesystemCapability,
+  structured_output: StructuredOutputCapability,
+  // Defaulted so a capability set serialized before this field existed (and a
+  // custom descriptor that omits it) parses as the safe "cannot restrict"
+  // value rather than failing.
+  tool_scope: ToolScopeCapability.default("none")
+}).strict();
+var PromptTransport = external_exports.enum(["prompt-file"]);
+var ConnectorOutputExtraction = external_exports.object({
+  kind: external_exports.literal("output-file")
+}).strict();
+var CLAUDE_CODE_SUPPORTED_EFFORTS = ["low", "medium", "high", "xhigh", "max"];
+var CODEX_SUPPORTED_EFFORTS = ["low", "medium", "high", "xhigh"];
+var CURSOR_AGENT_SUPPORTED_EFFORTS = ["none"];
+var BUILTIN_CONNECTOR_SPECS = {
+  "claude-code": {
+    provider: "anthropic",
+    supportedEfforts: CLAUDE_CODE_SUPPORTED_EFFORTS,
+    // The CLI's `--tools` flag restricts the worker's tool surface, so an
+    // enforced equipment scope becomes a real boundary on this connector.
+    capabilities: {
+      filesystem: "trusted-write",
+      structured_output: "json",
+      tool_scope: "allow-list"
+    }
+  },
+  codex: {
+    provider: "openai",
+    supportedEfforts: CODEX_SUPPORTED_EFFORTS,
+    capabilities: { filesystem: "trusted-write", structured_output: "json", tool_scope: "none" }
+  },
+  "cursor-agent": {
+    provider: "gemini",
+    supportedEfforts: CURSOR_AGENT_SUPPORTED_EFFORTS,
+    capabilities: { filesystem: "trusted-write", structured_output: "json", tool_scope: "none" }
+  }
+};
+var BUILTIN_CONNECTOR_CAPABILITIES = Object.fromEntries(
+  EnabledConnector.options.map((name) => [name, BUILTIN_CONNECTOR_SPECS[name].capabilities])
+);
+var RESERVED_CONNECTOR_NAMES = [
+  ...EnabledConnector.options,
+  "auto"
+];
+var ConnectorName = external_exports.string().regex(/^[a-z][a-z0-9-]*$/);
+var CustomConnectorDescriptor = external_exports.object({
+  kind: external_exports.literal("custom"),
+  name: ConnectorName,
+  command: external_exports.array(external_exports.string().min(1)).min(1),
+  prompt_transport: PromptTransport,
+  output: ConnectorOutputExtraction,
+  capabilities: ConnectorCapabilities
+}).strict().superRefine((descriptor, ctx) => {
+  if (descriptor.capabilities.filesystem !== "read-only") {
+    ctx.addIssue({
+      code: "custom",
+      path: ["capabilities", "filesystem"],
+      message: "custom connectors are read-only in V1; writable custom workers require a later isolated mode"
+    });
+  }
+  if (descriptor.capabilities.tool_scope !== "none") {
+    ctx.addIssue({
+      code: "custom",
+      path: ["capabilities", "tool_scope"],
+      message: 'custom connectors cannot enforce a tool allow-list in V1; declare tool_scope "none" (an enforced equipment scope is honored only by a built-in connector that can restrict tools)'
+    });
+  }
+});
+var BuiltInConnectorRef = external_exports.object({
+  kind: external_exports.literal("builtin"),
+  name: EnabledConnector
+}).strict();
+var NamedConnectorRef = external_exports.object({
+  kind: external_exports.literal("named"),
+  name: ConnectorName
+}).strict();
+var ConnectorRef = external_exports.union([
+  BuiltInConnectorRef,
+  NamedConnectorRef,
+  CustomConnectorDescriptor
+]);
+var ResolvedConnector = external_exports.union([BuiltInConnectorRef, CustomConnectorDescriptor]);
+var ExplicitResolutionSource = external_exports.object({ source: external_exports.literal("explicit") }).strict();
+var RoleResolutionSource = external_exports.object({ source: external_exports.literal("role"), role: RelayRole }).strict();
+var FlowResolutionSource = external_exports.object({ source: external_exports.literal("flow"), flow_id: CompiledFlowId }).strict();
+var DefaultResolutionSource = external_exports.object({ source: external_exports.literal("default") }).strict();
+var AutoResolutionSource = external_exports.object({ source: external_exports.literal("auto") }).strict();
+var RelayResolutionSource = external_exports.discriminatedUnion("source", [
+  ExplicitResolutionSource,
+  RoleResolutionSource,
+  FlowResolutionSource,
+  DefaultResolutionSource,
+  AutoResolutionSource
+]);
+
+// src/connectors/codex.ts
+var CODEX_WRITE_FLAGS = Object.freeze([
+  "exec",
+  "--json",
+  "-s",
+  "workspace-write",
+  "--ephemeral",
+  "--skip-git-repo-check",
+  "--ignore-user-config",
+  "--ignore-rules"
+]);
+var CODEX_FORBIDDEN_ARGV_TOKENS = Object.freeze([
+  "--dangerously-bypass-approvals-and-sandbox",
+  "--full-auto",
+  "--add-dir",
+  "-o",
+  "--output-last-message",
+  "-c",
+  "--config",
+  "-p",
+  "--profile",
+  "--sandbox"
+]);
+if (!CODEX_WRITE_FLAGS.includes("-s") || !CODEX_WRITE_FLAGS.includes("workspace-write") || !CODEX_WRITE_FLAGS.includes("--ignore-user-config") || !CODEX_WRITE_FLAGS.includes("--ignore-rules")) {
+  throw new Error(
+    'CODEX_WRITE_FLAGS boundary invariant broken: must include "-s workspace-write", "--ignore-user-config", and "--ignore-rules"'
+  );
+}
+var flagsAsStringArray = CODEX_WRITE_FLAGS;
+for (const forbidden of CODEX_FORBIDDEN_ARGV_TOKENS) {
+  if (flagsAsStringArray.includes(forbidden)) {
+    throw new Error(
+      `CODEX_WRITE_FLAGS boundary invariant broken: must NOT include "${forbidden}" (forbidden-token set)`
+    );
+  }
+}
+var STDOUT_MAX_BYTES = 16 * 1024 * 1024;
+var STDERR_MAX_BYTES = 1024 * 1024;
+var CODEX_WEB_SEARCH_MAX_STRING_LENGTH = 16 * 1024;
+
+// src/hosts/codex-mcp/transient-environment.ts
+var MCP_TRANSIENT_ENVIRONMENT_NAMES = [
+  "HOME",
+  "LANG",
+  "LC_ALL",
+  "LC_CTYPE",
+  "LOGNAME",
+  "PATH",
+  "SHELL",
+  "TERM",
+  "TMPDIR",
+  "TZ",
+  "USER",
+  "CODEX_HOME",
+  "OPENAI_API_KEY",
+  "OPENAI_BASE_URL",
+  "OPENAI_ORGANIZATION",
+  "OPENAI_PROJECT",
+  "HTTP_PROXY",
+  "HTTPS_PROXY",
+  "ALL_PROXY",
+  "NO_PROXY",
+  "http_proxy",
+  "https_proxy",
+  "all_proxy",
+  "no_proxy",
+  "SSL_CERT_FILE",
+  "SSL_CERT_DIR",
+  "NODE_EXTRA_CA_CERTS"
+];
+function mcpTransientEnvironment(source) {
+  const environment = {};
+  for (const name of MCP_TRANSIENT_ENVIRONMENT_NAMES) {
+    const value = source[name];
+    if (value !== void 0) environment[name] = value;
+  }
+  return environment;
+}
+
+// src/hosts/codex-mcp/nested-codex.ts
+var MCP_CODEX_STDOUT_LIMIT_BYTES = 16 * 1024 * 1024;
+var MCP_CODEX_STDERR_LIMIT_BYTES = 1024 * 1024;
+var MCP_CODEX_STRICT_FLAGS = [
+  "--ignore-user-config",
+  "--ignore-rules",
+  "--strict-config"
+];
+var MCP_CODEX_HARDENING_CONFIG_ARGS = [
+  "-c",
+  'approval_policy="never"',
+  "-c",
+  'history.persistence="none"',
+  "-c",
+  "allow_login_shell=false",
+  "-c",
+  "project_doc_max_bytes=0",
+  ...[
+    "apps",
+    "auth_elicitation",
+    "browser_use",
+    "browser_use_external",
+    "browser_use_full_cdp_access",
+    "computer_use",
+    "hooks",
+    "image_generation",
+    "in_app_browser",
+    "memories",
+    "multi_agent",
+    "plugin_sharing",
+    "plugins",
+    "remote_plugin",
+    "shell_snapshot",
+    "skill_mcp_dependency_install",
+    "tool_call_mcp_elicitation",
+    "workspace_dependencies"
+  ].flatMap((feature) => ["-c", `features.${feature}=false`]),
+  "-c",
+  "features.shell_tool=true",
+  "-c",
+  "mcp_servers={}"
+];
+var SUPPORTED_EFFORTS = /* @__PURE__ */ new Set(["low", "medium", "high", "xhigh"]);
+function selectedModel(selection, policy) {
+  const selected = selection?.model;
+  if (selected !== void 0 && selected.provider !== "openai") {
+    throw new Error(
+      `The selected model provider '${selected.provider}' is not supported by the Codex worker. Choose an OpenAI model.`
+    );
+  }
+  const model = selected?.model ?? policy.defaultModel;
+  if (!policy.allowedModels.has(model)) {
+    throw new Error(
+      `The selected model '${model}' is not in the current Codex model roster. Choose a listed model and retry.`
+    );
+  }
+  return model;
+}
+function selectedEffort(selection) {
+  const effort = selection?.effort;
+  if (effort === void 0) return void 0;
+  if (!SUPPORTED_EFFORTS.has(effort)) {
+    throw new Error(
+      `The Codex worker cannot use effort '${effort}'. Remove the override or choose a supported effort: low, medium, high, or xhigh.`
+    );
+  }
+  return effort;
+}
+function assertPolicy(policy) {
+  if (!isAbsolute4(policy.executable) || !isAbsolute4(policy.workspace) || !isAbsolute4(policy.tempRoot) || !isAbsolute4(policy.nodeExecutable) || !isAbsolute4(policy.nodeInstallationRoot) || !isAbsolute4(policy.gitExecutable)) {
+    throw new Error("The sealed Codex worker paths must be absolute.");
+  }
+  for (const path of [
+    policy.executable,
+    policy.workspace,
+    policy.tempRoot,
+    policy.nodeExecutable,
+    policy.nodeInstallationRoot,
+    policy.gitExecutable
+  ]) {
+    if (path.includes("\0")) throw new Error("The sealed Codex worker paths are invalid.");
+  }
+  if (!pathInside(policy.nodeInstallationRoot, policy.nodeExecutable)) {
+    throw new Error("The pinned Node executable escaped its installation root.");
+  }
+  if (policy.cliVersion.trim().length === 0 || policy.defaultModel.trim().length === 0) {
+    throw new Error("The sealed Codex worker version and default model are required.");
+  }
+}
+function tomlString(value) {
+  if (value.includes("\0")) throw new Error("Circuit refused a NUL byte in a Codex setting.");
+  return JSON.stringify(value).replaceAll("\u2028", "\\u2028").replaceAll("\u2029", "\\u2029");
+}
+function mcpCodexPrivateDirectories(tempRoot) {
+  if (!isAbsolute4(tempRoot) || tempRoot.includes("\0")) {
+    throw new Error("The private Codex run directory must be absolute.");
+  }
+  return Object.freeze({
+    home: join2(tempRoot, "nested-home"),
+    temp: join2(tempRoot, "nested-tmp")
+  });
+}
+function buildMcpCodexSandboxConfigArgs(policy) {
+  assertPolicy(policy);
+  const privateDirectories = mcpCodexPrivateDirectories(policy.tempRoot);
+  const nodeBin = dirname(policy.nodeExecutable);
+  if (resolve2(dirname(nodeBin)) !== resolve2(policy.nodeInstallationRoot)) {
+    throw new Error("The pinned Node executable has an unreviewed installation layout.");
+  }
+  const shellPath = [nodeBin, "/usr/bin", "/bin"].join(delimiter);
+  const filesystem = [
+    [":minimal", "read"],
+    [":workspace_roots", "write"],
+    [":slash_tmp", "deny"],
+    [policy.tempRoot, "write"],
+    [policy.nodeInstallationRoot, "read"],
+    ["/System/Library/OpenSSL", "read"],
+    [policy.gitExecutable, "read"]
+  ];
+  const entries = [
+    'default_permissions="circuit_mcp"',
+    `permissions.circuit_mcp.filesystem={${filesystem.map(([path, access]) => `${tomlString(path)}=${tomlString(access)}`).join(",")}}`,
+    "permissions.circuit_mcp.network.enabled=false",
+    'shell_environment_policy.inherit="none"',
+    `shell_environment_policy.set.PATH=${tomlString(shellPath)}`,
+    `shell_environment_policy.set.HOME=${tomlString(privateDirectories.home)}`,
+    `shell_environment_policy.set.TMPDIR=${tomlString(privateDirectories.temp)}`,
+    `shell_environment_policy.set.TMP=${tomlString(privateDirectories.temp)}`,
+    `shell_environment_policy.set.TEMP=${tomlString(privateDirectories.temp)}`,
+    'shell_environment_policy.set.LANG="C"',
+    'shell_environment_policy.set.LC_ALL="C"',
+    'shell_environment_policy.set.TERM="dumb"'
+  ];
+  return entries.flatMap((entry) => ["-c", entry]);
+}
+function buildMcpCodexArgs(input, policy, schemaPath) {
+  assertPolicy(policy);
+  const model = selectedModel(input.resolvedSelection, policy);
+  const effort = selectedEffort(input.resolvedSelection);
+  const args = [
+    "exec",
+    "--json",
+    "--ephemeral",
+    "--skip-git-repo-check",
+    ...MCP_CODEX_STRICT_FLAGS,
+    "--cd",
+    policy.workspace,
+    ...MCP_CODEX_HARDENING_CONFIG_ARGS,
+    ...buildMcpCodexSandboxConfigArgs(policy),
+    "-c",
+    `web_search=${JSON.stringify(policy.searchMode === "cached" ? "cached" : "disabled")}`,
+    "-m",
+    model
+  ];
+  if (effort !== void 0) args.push("-c", `model_reasoning_effort=${JSON.stringify(effort)}`);
+  if (schemaPath !== void 0) {
+    if (!isAbsolute4(schemaPath))
+      throw new Error("The Codex response schema path must be absolute.");
+    args.push("--output-schema", schemaPath);
+  }
+  args.push(input.prompt);
+  return args;
+}
+function pathInside(parent, candidate2) {
+  const child = relative(parent, candidate2);
+  return child === "" || !child.startsWith("..") && !isAbsolute4(child);
+}
+
+// src/hosts/codex-mcp/host-sandbox-canary.ts
+var CANARY_TIMEOUT_MS = 1e4;
+var CANARY_OUTPUT_LIMIT_BYTES = 1024 * 1024;
+var EXPECTED_TOOL_NAMES = Object.freeze([
+  "apply_patch",
+  "exec_command",
+  "request_user_input",
+  "update_plan",
+  "view_image",
+  "write_stdin"
+]);
+var SHARED_TEMP_ROOT_CANDIDATES = Object.freeze([
+  "/tmp",
+  "/private/tmp",
+  "/var/tmp",
+  "/private/var/tmp"
+]);
+var SENSITIVE_SHELL_ENVIRONMENT_NAMES = Object.freeze([
+  "CODEX_HOME",
+  "CIRCUIT_CANARY_SECRET",
+  "OPENAI_API_KEY",
+  "OPENAI_BASE_URL",
+  "OPENAI_ORGANIZATION",
+  "OPENAI_PROJECT",
+  "HTTP_PROXY",
+  "HTTPS_PROXY",
+  "ALL_PROXY",
+  "NO_PROXY",
+  "http_proxy",
+  "https_proxy",
+  "all_proxy",
+  "no_proxy",
+  "SSL_CERT_FILE",
+  "SSL_CERT_DIR",
+  "NODE_EXTRA_CA_CERTS"
+]);
+var MARKERS = Object.freeze([
+  "AUTH_READ_DENIED",
+  "ENV_CLEAN",
+  "GIT_EXEC",
+  "NETWORK_DENIED",
+  "NODE_EXEC",
+  "PRIVATE_WRITE",
+  "SHARED_TEMP_READ_DENIED",
+  "SHARED_TEMP_WRITE_DENIED",
+  "SIBLING_READ_DENIED",
+  "SYMLINK_READ_DENIED",
+  "WORKSPACE_WRITE"
+]);
+function operatorCodexHomeCandidates(input) {
+  const candidates = [];
+  if (input.environment.CODEX_HOME !== void 0) {
+    candidates.push(resolve3(input.environment.CODEX_HOME));
+  }
+  if (input.environment.HOME !== void 0) {
+    candidates.push(resolve3(input.environment.HOME, ".codex"));
+  }
+  return candidates;
+}
+function assertIsolatedProbeCodexHome(input) {
+  const expected = resolve3(dirname2(input.policy.tempRoot), "codex-home");
+  const actual = resolve3(input.codexHome);
+  if (!isAbsolute5(input.policy.tempRoot) || !isAbsolute5(input.codexHome) || input.codexHome.includes("\0") || actual !== expected || actual === resolve3(input.policy.tempRoot) || operatorCodexHomeCandidates(input).includes(actual)) {
+    throw new Error(
+      "Circuit refused a capability probe that could write to the operator's Codex home."
+    );
+  }
+}
+async function assertProbeCodexHomeIsNotAnAlias(input) {
+  let info;
+  try {
+    info = await lstat2(input.codexHome);
+  } catch (error51) {
+    if (error51 instanceof Error && "code" in error51 && error51.code === "ENOENT") return;
+    throw error51;
+  }
+  if (info.isSymbolicLink() || !info.isDirectory()) {
+    throw new Error("Circuit refused a linked or invalid capability-probe Codex home.");
+  }
+  const canonicalProbeHome = await realpath3(input.codexHome);
+  for (const candidate2 of operatorCodexHomeCandidates(input)) {
+    try {
+      if (await realpath3(candidate2) === canonicalProbeHome) {
+        throw new Error(
+          "Circuit refused a capability probe that aliases the operator's Codex home."
+        );
+      }
+    } catch (error51) {
+      if (error51 instanceof Error && "code" in error51 && error51.code === "ENOENT") continue;
+      throw error51;
+    }
+  }
+}
+async function distinctExistingSharedTempRoots(candidates) {
+  if (candidates.length === 0 || candidates.length > SHARED_TEMP_ROOT_CANDIDATES.length) {
+    throw new Error("Circuit received an invalid shared-temp sandbox probe set.");
+  }
+  const roots = /* @__PURE__ */ new Set();
+  for (const candidate2 of candidates) {
+    if (!isAbsolute5(candidate2) || candidate2.includes("\0")) {
+      throw new Error("Circuit received an invalid shared-temp sandbox probe path.");
+    }
+    try {
+      const canonical = await realpath3(candidate2);
+      if ((await lstat2(canonical)).isDirectory()) roots.add(canonical);
+    } catch (error51) {
+      if (error51 instanceof Error && "code" in error51 && error51.code === "ENOENT") continue;
+      throw error51;
+    }
+  }
+  if (roots.size === 0) {
+    throw new Error("Circuit could not find a shared temporary directory to probe.");
+  }
+  return [...roots].sort();
+}
+function shellQuote(value) {
+  if (value.includes("\0")) throw new Error("Circuit refused an invalid sandbox canary path.");
+  return `'${value.replaceAll("'", `'"'"'`)}'`;
+}
+function checkedResult(result, name) {
+  if (result.timedOut || result.stdoutCapped || result.stderrCapped || result.code !== 0) {
+    const detail = result.stderr.trim().slice(0, 500);
+    throw new Error(
+      `Circuit could not prove the Codex ${name}${detail.length === 0 ? "." : `: ${detail}`}`
+    );
+  }
+}
+async function listen(server) {
+  await new Promise((resolve12, reject) => {
+    server.once("error", reject);
+    server.listen(0, "127.0.0.1", () => resolve12());
+  });
+  const address = server.address();
+  if (address === null || typeof address === "string") {
+    throw new Error("Circuit could not bind its local sandbox canary listener.");
+  }
+  return address.port;
+}
+async function closeServer(server) {
+  if (!server.listening) return;
+  if ("closeAllConnections" in server) server.closeAllConnections();
+  await new Promise((resolve12, reject) => {
+    server.close((error51) => error51 === void 0 ? resolve12() : reject(error51));
+  });
+}
+function probeEnvironment(input) {
+  return {
+    HOME: input.codexHome,
+    CODEX_HOME: input.codexHome,
+    TMPDIR: input.policy.tempRoot,
+    PATH: "/usr/bin:/bin",
+    LANG: "C",
+    LC_ALL: "C",
+    SHELL: process.platform === "darwin" ? "/bin/zsh" : "/bin/bash",
+    TERM: "dumb"
+  };
+}
+async function pathExists(path) {
+  try {
+    await lstat2(path);
+    return true;
+  } catch (error51) {
+    if (error51 instanceof Error && "code" in error51 && error51.code === "ENOENT") return false;
+    throw error51;
+  }
+}
+function sandboxProbeScript(input) {
+  const mark = (name, expression) => `if ${expression}; then printf 'CIRCUIT_CANARY_${name}=pass\\n'; else printf 'CIRCUIT_CANARY_${name}=fail\\n'; fi`;
+  const sharedReadsDenied = input.sharedSecrets.map((path) => `! ( IFS= read -r _ < ${shellQuote(path)} ) 2>/dev/null`).join(" && ");
+  const sharedWritesDenied = input.sharedWrites.map((path) => `! ( : > ${shellQuote(path)} ) 2>/dev/null`).join(" && ");
+  const sensitiveEnvironmentAbsent = SENSITIVE_SHELL_ENVIRONMENT_NAMES.map(
+    (name) => `[ -z "\${${name}+x}" ]`
+  ).join(" && ");
+  return `#!/bin/sh
+${mark("WORKSPACE_WRITE", `: > ${shellQuote(input.workspaceWrite)}`)}
+${mark("PRIVATE_WRITE", `: > ${shellQuote(input.privateWrite)}`)}
+${mark("NODE_EXEC", `${shellQuote(input.nodeExecutable)} -e 'process.exit(0)'`)}
+${mark("GIT_EXEC", `${shellQuote(input.gitExecutable)} --version >/dev/null 2>&1`)}
+${mark("SIBLING_READ_DENIED", `! ( IFS= read -r _ < ${shellQuote(input.siblingSecret)} ) 2>/dev/null`)}
+${mark("AUTH_READ_DENIED", `! ( IFS= read -r _ < ${shellQuote(input.authSecret)} ) 2>/dev/null`)}
+${mark("SYMLINK_READ_DENIED", `! ( IFS= read -r _ < ${shellQuote(input.symlinkSecret)} ) 2>/dev/null`)}
+${mark("SHARED_TEMP_READ_DENIED", sharedReadsDenied)}
+${mark("SHARED_TEMP_WRITE_DENIED", sharedWritesDenied)}
+${mark("ENV_CLEAN", `${sensitiveEnvironmentAbsent} && [ "$HOME" = ${shellQuote(input.shellHome)} ] && [ "$TMPDIR" = ${shellQuote(input.shellTemp)} ] && [ "$TMP" = ${shellQuote(input.shellTemp)} ] && [ "$TEMP" = ${shellQuote(input.shellTemp)} ]`)}
+IFS= read -r CIRCUIT_CANARY_PORT < ${shellQuote(input.portFile)}
+${mark("NETWORK_DENIED", `${shellQuote(input.nodeExecutable)} -e 'const net=require("node:net");const port=Number(process.argv[1]);const socket=net.connect(port,"127.0.0.1");let done=false;const finish=(code)=>{if(done)return;done=true;socket.destroy();process.exit(code)};socket.once("connect",()=>finish(1));socket.once("error",()=>finish(0));setTimeout(()=>finish(2),1000)' "$CIRCUIT_CANARY_PORT"`)}
+`;
+}
+function markerResults(output) {
+  const found = /* @__PURE__ */ new Map();
+  for (const line of output.split(/\r?\n/)) {
+    const match = /^CIRCUIT_CANARY_([A-Z_]+)=(pass|fail)$/.exec(line.trim());
+    if (match !== null) {
+      const name = match[1] ?? "";
+      if (found.has(name)) throw new Error(`The Codex sandbox repeated canary marker ${name}.`);
+      found.set(name, match[2] ?? "");
+    }
+  }
+  return found;
+}
+async function runCodexNestedSandboxCanary(input, dependencies = {}) {
+  assertIsolatedProbeCodexHome(input);
+  await assertProbeCodexHomeIsNotAnAlias(input);
+  const run = dependencies.run ?? runMcpCodexSubprocess;
+  const privateDirectories = mcpCodexPrivateDirectories(input.policy.tempRoot);
+  const unique = randomUUID();
+  const fixtureRoot = dirname2(input.policy.tempRoot);
+  const outside = join3(fixtureRoot, "outside");
+  const workspaceWrite = join3(input.policy.workspace, `.circuit-mcp-sandbox-canary-${unique}`);
+  const privateWrite = join3(input.policy.tempRoot, `private-write-${unique}`);
+  const siblingSecret = join3(outside, `sibling-secret-${unique}`);
+  const authSecret = join3(input.codexHome, "auth.json");
+  const symlinkSecret = join3(input.policy.tempRoot, `linked-secret-${unique}`);
+  const sharedTempRoots = await distinctExistingSharedTempRoots(
+    dependencies.sharedTempRootCandidates ?? SHARED_TEMP_ROOT_CANDIDATES
+  );
+  const sharedSecrets = sharedTempRoots.map(
+    (root) => join3(root, `.circuit-mcp-shared-read-${unique}`)
+  );
+  const sharedWrites = sharedTempRoots.map(
+    (root) => join3(root, `.circuit-mcp-shared-write-${unique}`)
+  );
+  const portFile = join3(input.policy.tempRoot, `listener-port-${unique}`);
+  const script = join3(input.policy.tempRoot, `sandbox-canary-${unique}.sh`);
+  let networkHit = false;
+  const createdFixtures = /* @__PURE__ */ new Set();
+  const writeFixture = async (path, data, mode) => {
+    await writeFile(path, data, { mode, flag: "wx" });
+    createdFixtures.add(path);
+  };
+  const listener = createTcpServer((socket) => {
+    networkHit = true;
+    socket.destroy();
+  });
+  try {
+    await Promise.all([
+      mkdir(input.policy.tempRoot, { recursive: true, mode: 448 }),
+      mkdir(input.codexHome, { recursive: true, mode: 448 }),
+      mkdir(outside, { recursive: true, mode: 448 }),
+      mkdir(privateDirectories.home, { recursive: true, mode: 448 }),
+      mkdir(privateDirectories.temp, { recursive: true, mode: 448 })
+    ]);
+    await Promise.all([
+      writeFixture(siblingSecret, "sibling-secret\n", 384),
+      ...sharedSecrets.map(async (path) => await writeFixture(path, "shared-secret\n", 384))
+    ]);
+    await assertProbeCodexHomeIsNotAnAlias(input);
+    await writeFixture(authSecret, '{"token":"canary-not-a-secret"}\n', 384);
+    await symlink(siblingSecret, symlinkSecret);
+    createdFixtures.add(symlinkSecret);
+    const port = await listen(listener);
+    await writeFixture(portFile, `${port}
+`, 384);
+    await writeFixture(
+      script,
+      sandboxProbeScript({
+        workspaceWrite,
+        privateWrite,
+        siblingSecret,
+        authSecret,
+        symlinkSecret,
+        sharedSecrets,
+        sharedWrites,
+        portFile,
+        nodeExecutable: input.policy.nodeExecutable,
+        gitExecutable: input.policy.gitExecutable,
+        shellHome: privateDirectories.home,
+        shellTemp: privateDirectories.temp
+      }),
+      448
+    );
+    const result = await run({
+      executable: input.policy.executable,
+      args: [
+        "sandbox",
+        "-P",
+        "circuit_mcp",
+        "-C",
+        input.policy.workspace,
+        ...MCP_CODEX_HARDENING_CONFIG_ARGS,
+        ...buildMcpCodexSandboxConfigArgs(input.policy),
+        "/bin/sh",
+        script
+      ],
+      timeoutMs: CANARY_TIMEOUT_MS,
+      idleTimeoutMs: CANARY_TIMEOUT_MS,
+      stdoutMaxBytes: CANARY_OUTPUT_LIMIT_BYTES,
+      stderrMaxBytes: MCP_CODEX_STDERR_LIMIT_BYTES,
+      sigtermToSigkillGraceMs: 500,
+      env: {
+        ...probeEnvironment(input),
+        CIRCUIT_CANARY_SECRET: "canary-not-a-secret",
+        OPENAI_API_KEY: "canary-not-a-secret",
+        OPENAI_BASE_URL: "https://canary.invalid/v1",
+        OPENAI_ORGANIZATION: "canary-organization",
+        OPENAI_PROJECT: "canary-project",
+        HTTP_PROXY: "http://127.0.0.1:9",
+        HTTPS_PROXY: "http://127.0.0.1:9",
+        ALL_PROXY: "http://127.0.0.1:9",
+        NO_PROXY: "127.0.0.1,localhost",
+        http_proxy: "http://127.0.0.1:9",
+        https_proxy: "http://127.0.0.1:9",
+        all_proxy: "http://127.0.0.1:9",
+        no_proxy: "127.0.0.1,localhost",
+        SSL_CERT_FILE: "/outside/canary-cert",
+        SSL_CERT_DIR: "/outside/canary-certs",
+        NODE_EXTRA_CA_CERTS: "/outside/canary-node-cert"
+      },
+      cwd: input.policy.workspace
+    });
+    checkedResult(result, "nested sandbox canary");
+    const markers = markerResults(result.stdout);
+    if (networkHit || markers.size !== MARKERS.length || MARKERS.some((name) => markers.get(name) !== "pass")) {
+      throw new Error(
+        "The installed Codex sandbox did not confine files, environment, and direct network access."
+      );
+    }
+  } finally {
+    await closeServer(listener);
+    await Promise.all(
+      [workspaceWrite, privateWrite, ...sharedWrites, ...createdFixtures].map(
+        async (path) => await rm(path, { force: true })
+      )
+    );
+  }
+}
+function sse(events) {
+  return events.map((event) => `event: ${String(event.type)}
+data: ${JSON.stringify(event)}
+
+`).join("");
+}
+function isReviewedCachedSearchTool(tool) {
+  if (tool.type !== "web_search" || tool.external_web_access !== false) return false;
+  const keys = Object.keys(tool).sort();
+  if (JSON.stringify(keys) === JSON.stringify(["external_web_access", "type"])) return true;
+  return JSON.stringify(keys) === JSON.stringify(["external_web_access", "search_content_types", "type"]) && JSON.stringify(tool.search_content_types) === JSON.stringify(["text", "image"]);
+}
+async function runCodexToolSurfaceCanary(input, dependencies = {}) {
+  assertIsolatedProbeCodexHome(input);
+  await assertProbeCodexHomeIsNotAnAlias(input);
+  const run = dependencies.run ?? runMcpCodexSubprocess;
+  const unique = randomUUID();
+  const canaryWorkspace = join3(input.policy.workspace, `.circuit-mcp-host-input-${unique}`);
+  const projectDocSecret = `CIRCUIT_OUTSIDE_PROJECT_DOC_${unique}`;
+  const projectDocSecretPath = join3(
+    dirname2(input.policy.tempRoot),
+    `outside-project-doc-${unique}`
+  );
+  const shellSnapshotSentinel = join3(canaryWorkspace, `.circuit-mcp-shell-snapshot-${unique}`);
+  const shellSnapshotDirectory = join3(input.codexHome, "shell_snapshots");
+  const shellStartupFiles = [join3(input.codexHome, ".zshrc"), join3(input.codexHome, ".bashrc")];
+  const createdStartupFiles = /* @__PURE__ */ new Set();
+  let canaryWorkspaceCreated = false;
+  let projectDocSecretCreated = false;
+  let projectDocLeaked = false;
+  let capturedTools;
+  let responsesRequests = 0;
+  const unexpectedRequests = [];
+  const server = createHttpServer((request, response) => {
+    let body = "";
+    request.setEncoding("utf8");
+    request.on("data", (chunk) => {
+      body += chunk;
+      if (Buffer.byteLength(body, "utf8") > CANARY_OUTPUT_LIMIT_BYTES) request.destroy();
+    });
+    request.on("end", () => {
+      if (body.includes(projectDocSecret)) projectDocLeaked = true;
+      const url2 = request.url ?? "";
+      if (url2.startsWith("/v1/models")) {
+        response.writeHead(200, { "content-type": "application/json" });
+        response.end(JSON.stringify({ models: [] }));
+        return;
+      }
+      if (!url2.startsWith("/v1/responses")) {
+        unexpectedRequests.push(url2);
+        response.writeHead(404).end();
+        return;
+      }
+      responsesRequests += 1;
+      let value;
+      try {
+        value = JSON.parse(body || "{}");
+      } catch {
+        response.writeHead(400).end();
+        return;
+      }
+      const tools = typeof value === "object" && value !== null && Array.isArray(value.tools) ? value.tools : [];
+      capturedTools = tools.every(
+        (tool) => typeof tool === "object" && tool !== null && !Array.isArray(tool)
+      ) ? tools : void 0;
+      const events = [
+        { type: "response.created", response: { id: "resp_circuit_probe" } },
+        {
+          type: "response.output_item.done",
+          item: {
+            type: "message",
+            role: "assistant",
+            id: "msg_circuit_probe",
+            content: [{ type: "output_text", text: "ok" }]
+          }
+        },
+        {
+          type: "response.completed",
+          response: {
+            id: "resp_circuit_probe",
+            usage: {
+              input_tokens: 0,
+              input_tokens_details: null,
+              output_tokens: 0,
+              output_tokens_details: null,
+              total_tokens: 0
+            }
+          }
+        }
+      ];
+      response.writeHead(200, { "content-type": "text/event-stream" });
+      response.end(sse(events));
+    });
+  });
+  try {
+    await mkdir(canaryWorkspace, { mode: 448 });
+    canaryWorkspaceCreated = true;
+    await mkdir(join3(canaryWorkspace, ".git"), { mode: 448 });
+    await writeFile(projectDocSecretPath, `${projectDocSecret}
+`, { mode: 384, flag: "wx" });
+    projectDocSecretCreated = true;
+    await symlink(projectDocSecretPath, join3(canaryWorkspace, "AGENTS.md"));
+    await mkdir(input.codexHome, { recursive: true, mode: 448 });
+    await assertProbeCodexHomeIsNotAnAlias(input);
+    const startupBody = `printf 'shell snapshot ran\\n' > ${shellQuote(shellSnapshotSentinel)}
+`;
+    for (const path of shellStartupFiles) {
+      await writeFile(path, startupBody, { mode: 384, flag: "wx" });
+      createdStartupFiles.add(path);
+    }
+    const port = await listen(server);
+    const baseArgs = buildMcpCodexArgs(
+      { prompt: "Reply with ok. Do not call tools." },
+      {
+        ...input.policy,
+        workspace: canaryWorkspace,
+        defaultModel: "gpt-5.4",
+        allowedModels: /* @__PURE__ */ new Set(["gpt-5.4"])
+      }
+    );
+    const prompt = baseArgs.pop();
+    if (prompt === void 0) throw new Error("Circuit could not construct the Codex tool canary.");
+    const provider = `model_providers.circuit_probe={name="Circuit Probe",base_url=${tomlString(
+      `http://127.0.0.1:${port}/v1`
+    )},env_key="CIRCUIT_PROBE_API_KEY",wire_api="responses",requires_openai_auth=false,request_max_retries=0,stream_max_retries=0,supports_websockets=false}`;
+    const result = await run({
+      executable: input.policy.executable,
+      args: [
+        ...baseArgs,
+        "-c",
+        'model_provider="circuit_probe"',
+        "-c",
+        provider,
+        "-c",
+        "analytics.enabled=false",
+        "-c",
+        "check_for_update_on_startup=false",
+        prompt
+      ],
+      timeoutMs: CANARY_TIMEOUT_MS,
+      idleTimeoutMs: CANARY_TIMEOUT_MS,
+      stdoutMaxBytes: CANARY_OUTPUT_LIMIT_BYTES,
+      stderrMaxBytes: MCP_CODEX_STDERR_LIMIT_BYTES,
+      sigtermToSigkillGraceMs: 500,
+      env: {
+        ...probeEnvironment(input),
+        CIRCUIT_PROBE_API_KEY: "canary-not-a-secret",
+        NO_PROXY: "127.0.0.1,localhost",
+        no_proxy: "127.0.0.1,localhost"
+      },
+      cwd: canaryWorkspace
+    });
+    checkedResult(result, "strict startup and tool-surface canary");
+    if (projectDocLeaked) {
+      throw new Error("Codex read project instructions outside the trusted workspace.");
+    }
+    if (await pathExists(shellSnapshotSentinel) || await pathExists(shellSnapshotDirectory)) {
+      throw new Error("Codex activated its shell-snapshot feature during the hardened probe.");
+    }
+    const diagnostics = `${result.stdout}
+${result.stderr}`;
+    if (/chatgpt\.com\/backend-api\/ps\/mcp|codex_apps|apps mcp|mcp startup failed/i.test(diagnostics)) {
+      throw new Error("Codex attempted to initialize an Apps or remote MCP surface.");
+    }
+    const expectedToolNames = input.policy.searchMode === "cached" ? [...EXPECTED_TOOL_NAMES, "web_search"].sort() : EXPECTED_TOOL_NAMES;
+    const actualToolNames = capturedTools?.map(
+      (tool) => typeof tool.name === "string" ? tool.name : typeof tool.type === "string" ? tool.type : "?"
+    ).sort();
+    const webSearchTools = capturedTools?.filter((tool) => tool.type === "web_search") ?? [];
+    const cachedSearchIsConstrained = input.policy.searchMode === "cached" ? webSearchTools.length === 1 && isReviewedCachedSearchTool(webSearchTools[0] ?? {}) : webSearchTools.length === 0;
+    if (responsesRequests !== 1 || unexpectedRequests.length !== 0 || !cachedSearchIsConstrained || JSON.stringify(actualToolNames) !== JSON.stringify(expectedToolNames)) {
+      throw new Error("The Codex tool surface changed from Circuit's reviewed allowlist.");
+    }
+  } finally {
+    await closeServer(server);
+    await Promise.all([
+      ...[...createdStartupFiles].map(async (path) => await rm(path, { force: true })),
+      rm(shellSnapshotSentinel, { force: true }),
+      rm(shellSnapshotDirectory, { recursive: true, force: true }),
+      ...projectDocSecretCreated ? [rm(projectDocSecretPath, { force: true })] : [],
+      ...canaryWorkspaceCreated ? [rm(canaryWorkspace, { recursive: true, force: true })] : []
+    ]);
+  }
+}
+
+// src/hosts/codex-mcp/host-preflight.ts
+var MAX_PROBE_OUTPUT_BYTES = 1024 * 1024;
+var McpHostPreflightError = class extends Error {
+  code = "codex_capability_missing";
+  nextAction = "Update Codex to a version whose named sandbox denies shared temporary files, then retry.";
+  constructor(message) {
+    super(message);
+    this.name = "McpHostPreflightError";
+  }
+};
+function safeProbeEnvironment(environment, isolatedCodexHome) {
+  const safe = {};
+  for (const name of ["HOME", "LANG", "LC_ALL", "LC_CTYPE", "PATH", "TMPDIR"]) {
+    const value = environment[name];
+    if (value !== void 0) safe[name] = value;
+  }
+  safe.CODEX_HOME = isolatedCodexHome;
+  safe.TMPDIR = isolatedCodexHome;
+  return safe;
+}
+function productionRunner(environment) {
+  const isolatedCodexHome = mkdtempSync(join4(tmpdir(), "circuit-codex-capability-"));
+  return {
+    run: (executable, args) => {
+      const result = spawnSync(executable, [...args], {
+        encoding: "utf8",
+        timeout: 5e3,
+        maxBuffer: MAX_PROBE_OUTPUT_BYTES,
+        env: safeProbeEnvironment(environment, isolatedCodexHome)
+      });
+      return {
+        status: result.status,
+        stdout: result.stdout,
+        stderr: result.stderr,
+        ...result.error === void 0 ? {} : { error: result.error }
+      };
+    },
+    dispose: () => rmSync(isolatedCodexHome, { recursive: true, force: true })
+  };
+}
+function requireSuccessfulProbe(result, name) {
+  if (result.error !== void 0 || result.status !== 0) {
+    throw new McpHostPreflightError(`Circuit could not prove the required Codex ${name}.`);
+  }
+  const output = `${result.stdout}
+${result.stderr}`;
+  if (Buffer.byteLength(output, "utf8") > MAX_PROBE_OUTPUT_BYTES) {
+    throw new McpHostPreflightError(`The Codex ${name} probe returned too much output.`);
+  }
+  return output;
+}
+function requireStrictConfigProbe(result) {
+  if (result.error !== void 0) {
+    throw new McpHostPreflightError(
+      "Circuit could not prove that Codex accepts the fixed hardening configuration."
+    );
+  }
+  const output = `${result.stdout}
+${result.stderr}`;
+  if (Buffer.byteLength(output, "utf8") > MAX_PROBE_OUTPUT_BYTES) {
+    throw new McpHostPreflightError(
+      "The Codex strict configuration probe returned too much output."
+    );
+  }
+  if (result.status === 0 || result.status === 1 && /no transport configured/i.test(output))
+    return;
+  throw new McpHostPreflightError(
+    "The installed Codex did not strictly accept Circuit's fixed hardening configuration."
+  );
+}
+async function probeCodexHostCapabilities(codexExecutable, options) {
+  if (!isAbsolute6(codexExecutable)) {
+    throw new McpHostPreflightError("The pinned Codex executable path is not absolute.");
+  }
+  if (options.nested.policy.executable !== codexExecutable) {
+    throw new McpHostPreflightError(
+      "The nested Codex canary is not bound to the pinned executable."
+    );
+  }
+  const production = options.run === void 0 ? productionRunner(options.environment ?? process.env) : void 0;
+  const run = options.run ?? production?.run;
+  if (run === void 0)
+    throw new McpHostPreflightError("The Codex capability probe is unavailable.");
+  try {
+    const versionOutput = requireSuccessfulProbe(run(codexExecutable, ["--version"]), "version");
+    const execHelpOutput = requireSuccessfulProbe(
+      run(codexExecutable, ["exec", ...MCP_CODEX_STRICT_FLAGS, "--help"]),
+      "required execution flags"
+    );
+    requireStrictConfigProbe(
+      run(codexExecutable, [
+        "app-server",
+        "--strict-config",
+        "--listen",
+        "off",
+        "-c",
+        "analytics.enabled=false",
+        ...MCP_CODEX_HARDENING_CONFIG_ARGS,
+        ...buildMcpCodexSandboxConfigArgs(options.nested.policy),
+        "-c",
+        'web_search="disabled"'
+      ])
+    );
+    try {
+      await (options.runSandboxCanary ?? runCodexNestedSandboxCanary)(options.nested);
+      await (options.runToolSurfaceCanary ?? runCodexToolSurfaceCanary)(options.nested);
+    } catch (error51) {
+      const detail = error51 instanceof Error ? error51.message : String(error51);
+      throw new McpHostPreflightError(
+        `Circuit could not prove the required nested Codex sandbox: ${detail}`
+      );
+    }
+    return assertCodexHostCapabilities({
+      versionOutput,
+      execHelpOutput,
+      pluginMcpTransport: "stdio",
+      workspaceMetadataValidated: options.workspaceMetadataValidated,
+      nestedSandboxValidated: true
+    });
+  } finally {
+    production?.dispose();
+  }
+}
+
+// src/hosts/codex-mcp/lifecycle.ts
+import { randomUUID as randomUUID2 } from "node:crypto";
+import { setTimeout as delay } from "node:timers/promises";
+
+// src/hosts/codex-mcp/contracts.ts
+var MCP_SCHEMA_VERSION = 1;
+var MCP_TOOL_NAMES = [
+  "circuit_start",
+  "circuit_status",
+  "circuit_resume",
+  "circuit_cancel",
+  "circuit_list",
+  "circuit_recover"
+];
+var McpPublicFlowV1 = external_exports.enum(["review", "fix", "build", "explore", "prototype"]);
+var McpRunStateV1 = external_exports.enum([
+  "starting",
+  "running",
+  "waiting_for_input",
+  "resuming",
+  "cancelling",
+  "complete",
+  "needs_attention",
+  "cancelled",
+  "interrupted",
+  "recovery_required"
+]);
+var RunIdV1 = external_exports.guid({ error: "run_id must be a UUID" });
+var CursorV1 = external_exports.number().int().nonnegative().max(Number.MAX_SAFE_INTEGER);
+var SummaryV1 = external_exports.string().trim().min(1).max(1e3);
+var GoalV1 = external_exports.string().trim().min(1).max(8e3);
+var WhyV1 = external_exports.string().trim().min(1).max(2e3);
+var ChoiceIdV1 = external_exports.string().min(1).max(64).regex(/^[a-z0-9][a-z0-9._-]*$/, "choice_id must be a safe lowercase identifier");
+var CheckpointTokenV1 = external_exports.string().min(16).max(1024);
+var SafeNameV1 = external_exports.string().min(1).max(128).regex(/^[A-Za-z0-9][A-Za-z0-9._@/-]*$/, "must be a bounded name, not a command");
+function addIssue(ctx, path, message) {
+  ctx.addIssue({ code: "custom", path, message });
+}
+var McpStartConsentV1 = external_exports.object({
+  cached_web_search: external_exports.literal(true).optional(),
+  untracked_review_content: external_exports.literal(true).optional()
+}).strict();
+var McpPrototypeVariantV1 = external_exports.object({
+  id: external_exports.string().min(1).max(64).regex(/^[a-z0-9][a-z0-9-]*$/, "variant id must be a safe kebab-case slug"),
+  label: external_exports.string().trim().min(1).max(80),
+  // The server must also check this name against the live Codex model roster.
+  model: SafeNameV1,
+  effort: external_exports.enum(["low", "medium", "high", "xhigh"])
+}).strict();
+var McpPrototypeVariantsV1 = external_exports.array(McpPrototypeVariantV1).min(2).max(4).superRefine((variants, ctx) => {
+  const ids = /* @__PURE__ */ new Set();
+  for (const [index, variant] of variants.entries()) {
+    if (ids.has(variant.id)) {
+      addIssue(ctx, [index, "id"], `duplicate variant id '${variant.id}'`);
+    }
+    ids.add(variant.id);
+  }
+});
+var CircuitStartInputV1 = external_exports.object({
+  flow: McpPublicFlowV1,
+  goal: GoalV1,
+  why: WhyV1.optional(),
+  power: external_exports.enum(["auto", "low", "medium", "high"]).optional(),
+  process: external_exports.enum(["low", "medium", "high"]).optional(),
+  tournament: external_exports.number().int().min(2).max(4).optional(),
+  autonomous: external_exports.boolean().optional(),
+  include_untracked_content: external_exports.boolean().optional(),
+  variants: McpPrototypeVariantsV1.optional(),
+  consent: McpStartConsentV1.optional(),
+  web_search: external_exports.enum(["off", "cached"]).default("off")
+}).strict().superRefine((input, ctx) => {
+  if (input.web_search === "cached" && input.consent?.cached_web_search !== true) {
+    addIssue(
+      ctx,
+      ["consent", "cached_web_search"],
+      "cached web search requires explicit consent because the query leaves the machine"
+    );
+  }
+  if (input.consent?.cached_web_search === true && input.web_search !== "cached") {
+    addIssue(ctx, ["consent", "cached_web_search"], "cached web search consent is unused");
+  }
+  if (input.include_untracked_content === true) {
+    if (input.flow !== "review") {
+      addIssue(
+        ctx,
+        ["include_untracked_content"],
+        "untracked content can be included only in Review"
+      );
+    }
+    if (input.consent?.untracked_review_content !== true) {
+      addIssue(
+        ctx,
+        ["consent", "untracked_review_content"],
+        "including untracked Review contents requires explicit consent"
+      );
+    }
+  }
+  if (input.consent?.untracked_review_content === true && input.include_untracked_content !== true) {
+    addIssue(
+      ctx,
+      ["consent", "untracked_review_content"],
+      "untracked Review content consent is unused"
+    );
+  }
+  if (input.tournament !== void 0 && input.flow !== "explore" && input.flow !== "prototype") {
+    addIssue(ctx, ["tournament"], "tournament is supported only by Explore and Prototype");
+  }
+  if (input.tournament !== void 0 && input.autonomous === true) {
+    addIssue(ctx, ["autonomous"], "tournament and autonomous cannot be combined");
+  }
+  if (input.flow === "prototype" && input.tournament !== void 0) {
+    if (input.variants === void 0) {
+      addIssue(ctx, ["variants"], "Prototype tournament requires one variant per branch");
+    } else if (input.variants.length !== input.tournament) {
+      addIssue(
+        ctx,
+        ["variants"],
+        `Prototype tournament requires exactly ${input.tournament} variants`
+      );
+    }
+  } else if (input.variants !== void 0) {
+    addIssue(ctx, ["variants"], "variants are allowed only for a Prototype tournament");
+  }
+});
+var CircuitStatusInputV1 = external_exports.object({
+  run_id: RunIdV1,
+  after_cursor: CursorV1.optional(),
+  max_events: external_exports.number().int().min(1).max(100).optional(),
+  wait_ms: external_exports.number().int().min(0).max(1e4).optional()
+}).strict();
+var CircuitResumeInputV1 = external_exports.object({
+  run_id: RunIdV1,
+  checkpoint_token: CheckpointTokenV1,
+  choice_id: ChoiceIdV1
+}).strict();
+var CircuitCancelInputV1 = external_exports.object({ run_id: RunIdV1 }).strict();
+var CircuitListInputV1 = external_exports.object({
+  limit: external_exports.number().int().min(1).max(50).optional()
+}).strict();
+var CircuitRecoverInputV1 = external_exports.object({ run_id: RunIdV1 }).strict();
+var MCP_TOOL_INPUT_SCHEMAS = {
+  circuit_start: CircuitStartInputV1,
+  circuit_status: CircuitStatusInputV1,
+  circuit_resume: CircuitResumeInputV1,
+  circuit_cancel: CircuitCancelInputV1,
+  circuit_list: CircuitListInputV1,
+  circuit_recover: CircuitRecoverInputV1
+};
+var McpErrorV1 = external_exports.object({
+  code: external_exports.string().min(1).max(64).regex(/^[a-z][a-z0-9_]*$/, "error code must be stable lowercase snake case"),
+  message: external_exports.string().trim().min(1).max(1e3),
+  next_action: external_exports.string().trim().min(1).max(1e3).optional()
+}).strict();
+var McpErrorResponseV1 = external_exports.object({
+  schema_version: external_exports.literal(MCP_SCHEMA_VERSION),
+  ok: external_exports.literal(false),
+  error: McpErrorV1
+}).strict();
+var McpProgressEventV1 = external_exports.object({
+  cursor: CursorV1,
+  kind: external_exports.string().min(1).max(80).regex(/^[a-z][a-z0-9._-]*$/, "event kind must be a stable lowercase identifier"),
+  recorded_at: external_exports.iso.datetime(),
+  summary: SummaryV1
+}).strict();
+var McpCheckpointChoiceV1 = external_exports.object({
+  id: ChoiceIdV1,
+  label: external_exports.string().trim().min(1).max(120),
+  description: external_exports.string().trim().min(1).max(500).optional()
+}).strict();
+var McpCheckpointV1 = external_exports.object({
+  token: CheckpointTokenV1,
+  prompt: external_exports.string().trim().min(1).max(4e3),
+  choices: external_exports.array(McpCheckpointChoiceV1).min(1).max(20)
+}).strict();
+function isJsonValue(value, seen, depth) {
+  if (depth > 32) return false;
+  if (value === null || typeof value === "string" || typeof value === "boolean") return true;
+  if (typeof value === "number") return Number.isFinite(value);
+  if (typeof value !== "object") return false;
+  if (seen.has(value)) return false;
+  seen.add(value);
+  try {
+    if (Array.isArray(value)) {
+      return value.every((item) => isJsonValue(item, seen, depth + 1));
+    }
+    const prototype = Object.getPrototypeOf(value);
+    if (prototype !== Object.prototype && prototype !== null) return false;
+    return Object.values(value).every((item) => isJsonValue(item, seen, depth + 1));
+  } finally {
+    seen.delete(value);
+  }
+}
+var BoundedReportDataV1 = external_exports.unknown().superRefine((value, ctx) => {
+  if (!isJsonValue(value, /* @__PURE__ */ new Set(), 0)) {
+    addIssue(ctx, [], "final report data must be plain JSON");
+    return;
+  }
+  const bytes = Buffer.byteLength(JSON.stringify(value), "utf8");
+  if (bytes > 262144) {
+    addIssue(ctx, [], "final report data must not exceed 262144 UTF-8 bytes");
+  }
+});
+var McpFinalReportV1 = external_exports.object({
+  schema: SafeNameV1,
+  summary: SummaryV1,
+  data: BoundedReportDataV1
+}).strict();
+var CircuitStartSuccessV1 = external_exports.object({
+  schema_version: external_exports.literal(MCP_SCHEMA_VERSION),
+  ok: external_exports.literal(true),
+  run_id: RunIdV1,
+  state: external_exports.enum(["starting", "running"]),
+  next_cursor: CursorV1,
+  summary: SummaryV1
+}).strict();
+var CircuitStartResponseV1 = external_exports.discriminatedUnion("ok", [
+  CircuitStartSuccessV1,
+  McpErrorResponseV1
+]);
+var CircuitStatusSuccessV1 = external_exports.object({
+  schema_version: external_exports.literal(MCP_SCHEMA_VERSION),
+  ok: external_exports.literal(true),
+  run_id: RunIdV1,
+  state: McpRunStateV1,
+  events: external_exports.array(McpProgressEventV1).max(100),
+  next_cursor: CursorV1,
+  truncated: external_exports.boolean(),
+  checkpoint: McpCheckpointV1.optional(),
+  final_report: McpFinalReportV1.optional(),
+  summary: SummaryV1
+}).strict().superRefine((result, ctx) => {
+  if (result.state === "waiting_for_input" && result.checkpoint === void 0) {
+    addIssue(ctx, ["checkpoint"], "waiting_for_input requires checkpoint data");
+  }
+  if (result.state !== "waiting_for_input" && result.checkpoint !== void 0) {
+    addIssue(ctx, ["checkpoint"], "checkpoint data is allowed only while waiting for input");
+  }
+  if (result.state === "complete" && result.final_report === void 0) {
+    addIssue(ctx, ["final_report"], "a complete run requires final report data");
+  }
+});
+var CircuitStatusResponseV1 = external_exports.union([CircuitStatusSuccessV1, McpErrorResponseV1]);
+var CircuitResumeSuccessV1 = external_exports.object({
+  schema_version: external_exports.literal(MCP_SCHEMA_VERSION),
+  ok: external_exports.literal(true),
+  run_id: RunIdV1,
+  state: external_exports.enum(["resuming", "running"]),
+  next_cursor: CursorV1,
+  summary: SummaryV1
+}).strict();
+var CircuitResumeResponseV1 = external_exports.discriminatedUnion("ok", [
+  CircuitResumeSuccessV1,
+  McpErrorResponseV1
+]);
+var CircuitCancelSuccessV1 = external_exports.object({
+  schema_version: external_exports.literal(MCP_SCHEMA_VERSION),
+  ok: external_exports.literal(true),
+  run_id: RunIdV1,
+  state: external_exports.enum(["cancelled", "recovery_required"]),
+  cleanup_confirmed: external_exports.boolean(),
+  summary: SummaryV1
+}).strict().superRefine((result, ctx) => {
+  if (result.state === "cancelled" && !result.cleanup_confirmed) {
+    addIssue(ctx, ["cleanup_confirmed"], "cancelled requires confirmed cleanup");
+  }
+  if (result.state === "recovery_required" && result.cleanup_confirmed) {
+    addIssue(ctx, ["cleanup_confirmed"], "recovery_required means cleanup is not confirmed");
+  }
+});
+var CircuitCancelResponseV1 = external_exports.union([CircuitCancelSuccessV1, McpErrorResponseV1]);
+var McpRunListItemV1 = external_exports.object({
+  run_id: RunIdV1,
+  flow: McpPublicFlowV1,
+  state: McpRunStateV1,
+  updated_at: external_exports.iso.datetime(),
+  checkpoint_available: external_exports.boolean(),
+  summary: SummaryV1
+}).strict();
+var CircuitListSuccessV1 = external_exports.object({
+  schema_version: external_exports.literal(MCP_SCHEMA_VERSION),
+  ok: external_exports.literal(true),
+  runs: external_exports.array(McpRunListItemV1).max(50),
+  truncated: external_exports.boolean(),
+  summary: SummaryV1
+}).strict();
+var CircuitListResponseV1 = external_exports.discriminatedUnion("ok", [
+  CircuitListSuccessV1,
+  McpErrorResponseV1
+]);
+var CircuitRecoverSuccessV1 = external_exports.object({
+  schema_version: external_exports.literal(MCP_SCHEMA_VERSION),
+  ok: external_exports.literal(true),
+  run_id: RunIdV1,
+  state: external_exports.enum(["interrupted", "cancelled"]),
+  recovered: external_exports.literal(true),
+  cleanup_confirmed: external_exports.literal(true),
+  lease_released: external_exports.literal(true),
+  summary: SummaryV1
+}).strict();
+var CircuitRecoverResponseV1 = external_exports.discriminatedUnion("ok", [
+  CircuitRecoverSuccessV1,
+  McpErrorResponseV1
+]);
+var MCP_TOOL_RESPONSE_SCHEMAS = {
+  circuit_start: CircuitStartResponseV1,
+  circuit_status: CircuitStatusResponseV1,
+  circuit_resume: CircuitResumeResponseV1,
+  circuit_cancel: CircuitCancelResponseV1,
+  circuit_list: CircuitListResponseV1,
+  circuit_recover: CircuitRecoverResponseV1
+};
+function wireOutputSchema(success2) {
+  const optionalShape = {};
+  for (const [name, schema] of Object.entries(success2.shape)) {
+    optionalShape[name] = schema.optional();
+  }
+  return external_exports.object(optionalShape).extend({
+    schema_version: external_exports.literal(MCP_SCHEMA_VERSION),
+    ok: external_exports.boolean(),
+    error: McpErrorV1.optional()
+  }).strict();
+}
+var MCP_TOOL_WIRE_OUTPUT_SCHEMAS = {
+  circuit_start: wireOutputSchema(CircuitStartSuccessV1),
+  circuit_status: wireOutputSchema(CircuitStatusSuccessV1),
+  circuit_resume: wireOutputSchema(CircuitResumeSuccessV1),
+  circuit_cancel: wireOutputSchema(CircuitCancelSuccessV1),
+  circuit_list: wireOutputSchema(CircuitListSuccessV1),
+  circuit_recover: wireOutputSchema(CircuitRecoverSuccessV1)
+};
+
+// src/hosts/codex-mcp/supervisor-journal.ts
+import {
+  constants as constants3,
+  closeSync as closeSync2,
+  fstatSync as fstatSync2,
+  fsyncSync,
+  lstatSync,
+  openSync as openSync2,
+  readFileSync as readFileSync2,
+  readdirSync,
+  realpathSync,
+  unlinkSync
+} from "node:fs";
+import { basename, dirname as dirname3, join as join5 } from "node:path";
+
+// src/hosts/codex-mcp/supervisor-protocol.ts
+import { Buffer as Buffer2 } from "node:buffer";
+import { isAbsolute as isAbsolute7 } from "node:path";
+var SUPERVISOR_PROTOCOL_VERSION = 1;
+var MAX_SUPERVISOR_MESSAGE_BYTES = 1048576;
+var AbsolutePath2 = external_exports.string().min(1).max(4096).refine(isAbsolute7, "must be an absolute path");
+var Timestamp = external_exports.iso.datetime();
+var Pid = external_exports.number().int().positive().max(2147483647);
+var Sha2563 = external_exports.string().regex(/^[a-f0-9]{64}$/);
+var RunId2 = external_exports.guid();
+var SupervisorRuntimeAssetPinV1 = external_exports.object({
+  id: external_exports.string().min(1).max(128),
+  role: external_exports.enum(["node", "codex", "plugin_runtime", "git_helper", "packaged_flow"]),
+  source_path: AbsolutePath2,
+  real_path: AbsolutePath2,
+  device: external_exports.string().min(1).max(64),
+  inode: external_exports.string().min(1).max(64),
+  mode: external_exports.number().int().nonnegative().max(4294967295),
+  byte_length: external_exports.number().int().nonnegative().max(512 * 1048576),
+  sha256: Sha2563
+}).strict();
+var SupervisorRuntimeAssetsV1 = external_exports.object({
+  schema_version: external_exports.literal(1),
+  digest_sha256: Sha2563,
+  assets: external_exports.array(SupervisorRuntimeAssetPinV1).min(1).max(512)
+}).strict();
+function isPlainJson(value, seen, depth) {
+  if (depth > 32) return false;
+  if (value === null || typeof value === "string" || typeof value === "boolean") return true;
+  if (typeof value === "number") return Number.isFinite(value);
+  if (typeof value !== "object" || seen.has(value)) return false;
+  seen.add(value);
+  try {
+    if (Array.isArray(value)) return value.every((item) => isPlainJson(item, seen, depth + 1));
+    const prototype = Object.getPrototypeOf(value);
+    if (prototype !== Object.prototype && prototype !== null) return false;
+    return Object.values(value).every((item) => isPlainJson(item, seen, depth + 1));
+  } finally {
+    seen.delete(value);
+  }
+}
+var BoundedJson = external_exports.unknown().superRefine((value, ctx) => {
+  if (!isPlainJson(value, /* @__PURE__ */ new Set(), 0)) {
+    ctx.addIssue({ code: "custom", message: "launch payload must be plain JSON" });
+    return;
+  }
+  if (Buffer2.byteLength(JSON.stringify(value), "utf8") > MAX_SUPERVISOR_MESSAGE_BYTES / 2) {
+    ctx.addIssue({ code: "custom", message: "launch payload is too large" });
+  }
+});
+var SupervisorProcessObservationV1 = external_exports.object({
+  pid: Pid,
+  process_group_id: Pid,
+  birth_token: external_exports.string().trim().min(1).max(256),
+  started_at: Timestamp
+}).strict();
+var SupervisorExecutableIdentityV1 = external_exports.object({
+  real_path: AbsolutePath2,
+  device: external_exports.string().min(1).max(64),
+  inode: external_exports.string().min(1).max(64),
+  sha256: Sha2563
+}).strict();
+var SupervisorHelloV1 = external_exports.object({
+  schema_version: external_exports.literal(SUPERVISOR_PROTOCOL_VERSION),
+  kind: external_exports.literal("supervisor_ready"),
+  supervisor: SupervisorProcessObservationV1
+}).strict();
+var SupervisorAuthorizationV1 = external_exports.object({
+  schema_version: external_exports.literal(SUPERVISOR_PROTOCOL_VERSION),
+  kind: external_exports.literal("launch_authorization"),
+  authorization_token: Sha2563,
+  run_id: RunId2,
+  generation: external_exports.number().int().positive().max(Number.MAX_SAFE_INTEGER),
+  control_directory: AbsolutePath2,
+  runtime_assets: SupervisorRuntimeAssetsV1,
+  worker: external_exports.object({
+    node_executable: AbsolutePath2,
+    entrypoint: AbsolutePath2,
+    launch_payload: BoundedJson
+  }).strict(),
+  limits: external_exports.object({
+    worker_start_ms: external_exports.number().int().min(100).max(3e4),
+    terminate_ms: external_exports.number().int().min(100).max(3e4),
+    kill_ms: external_exports.number().int().min(100).max(3e4),
+    stdout_bytes: external_exports.number().int().min(1024).max(16 * 1048576),
+    stderr_bytes: external_exports.number().int().min(1024).max(16 * 1048576)
+  }).strict()
+}).strict();
+var SupervisorRuntimeStartedV1 = external_exports.object({
+  schema_version: external_exports.literal(SUPERVISOR_PROTOCOL_VERSION),
+  kind: external_exports.literal("runtime_started"),
+  authorization_sha256: Sha2563,
+  runtime: SupervisorProcessObservationV1
+}).strict();
+var SupervisorLaunchFailureV1 = external_exports.object({
+  schema_version: external_exports.literal(SUPERVISOR_PROTOCOL_VERSION),
+  kind: external_exports.literal("launch_failed"),
+  stage: external_exports.enum(["authorization", "journal", "worker_spawn", "worker_identity"]),
+  message: external_exports.string().trim().min(1).max(1e3),
+  cleanup_confirmed: external_exports.boolean()
+}).strict();
+var SupervisorMessageV1 = external_exports.discriminatedUnion("kind", [
+  SupervisorHelloV1,
+  SupervisorRuntimeStartedV1,
+  SupervisorLaunchFailureV1
+]);
+var RuntimeJournalV1 = external_exports.object({
+  schema_version: external_exports.literal(SUPERVISOR_PROTOCOL_VERSION),
+  record_kind: external_exports.literal("circuit.mcp.runtime-observation"),
+  run_id: RunId2,
+  generation: external_exports.number().int().positive().max(Number.MAX_SAFE_INTEGER),
+  authorization_sha256: Sha2563,
+  runtime: SupervisorProcessObservationV1,
+  runtime_executable: SupervisorExecutableIdentityV1,
+  recorded_at: Timestamp
+}).strict();
+var ExitJournalV1 = external_exports.object({
+  schema_version: external_exports.literal(SUPERVISOR_PROTOCOL_VERSION),
+  record_kind: external_exports.literal("circuit.mcp.exit-observation"),
+  run_id: RunId2,
+  generation: external_exports.number().int().positive().max(Number.MAX_SAFE_INTEGER),
+  authorization_sha256: Sha2563,
+  runtime: SupervisorProcessObservationV1,
+  observed_at: Timestamp,
+  exit_code: external_exports.number().int().min(-1).max(255).optional(),
+  signal: external_exports.string().min(1).max(64).optional(),
+  process_group_cleanup: external_exports.enum(["confirmed", "unconfirmed"]),
+  output_limit_exceeded: external_exports.enum(["stdout", "stderr"]).optional()
+}).strict();
+function encodeSupervisorMessage(value) {
+  const encoded = Buffer2.from(`${JSON.stringify(value)}
+`, "utf8");
+  if (encoded.byteLength > MAX_SUPERVISOR_MESSAGE_BYTES) {
+    throw new Error("supervisor message exceeds the protocol limit");
+  }
+  return encoded;
+}
+function decodeSupervisorMessage(bytes, schema) {
+  if (bytes.byteLength === 0 || bytes.byteLength > MAX_SUPERVISOR_MESSAGE_BYTES) {
+    throw new Error("supervisor message has an invalid size");
+  }
+  let value;
+  try {
+    value = JSON.parse(bytes.toString("utf8"));
+  } catch {
+    throw new Error("supervisor message is not valid JSON");
+  }
+  return schema.parse(value);
+}
+
+// src/hosts/codex-mcp/supervisor-journal.ts
+var SupervisorJournalError = class extends Error {
+  code = "supervisor_journal_corrupt";
+  constructor(message) {
+    super(message);
+    this.name = "SupervisorJournalError";
+  }
+};
+function errorCode(error51) {
+  return error51.code;
+}
+function assertPrivateCanonicalDirectory(path) {
+  let direct;
+  try {
+    direct = lstatSync(path);
+  } catch {
+    throw new SupervisorJournalError("The supervisor control directory is unavailable.");
+  }
+  if (direct.isSymbolicLink() || !direct.isDirectory() || realpathSync.native(path) !== path) {
+    throw new SupervisorJournalError("The supervisor control directory is unsafe.");
+  }
+  if ((direct.mode & 511) !== 448) {
+    throw new SupervisorJournalError("The supervisor control directory is not private.");
+  }
+  if (typeof process.getuid === "function" && direct.uid !== process.getuid()) {
+    throw new SupervisorJournalError("The supervisor control directory has the wrong owner.");
+  }
+}
+function fsyncDirectory(path) {
+  const descriptor = openSync2(path, constants3.O_RDONLY);
+  try {
+    fsyncSync(descriptor);
+  } finally {
+    closeSync2(descriptor);
+  }
+}
+function repairStalePublishLink(path, published) {
+  const directory = dirname3(path);
+  const prefix = `.${basename(path)}.`;
+  const candidates = readdirSync(directory, { withFileTypes: true }).filter(
+    (entry) => entry.isFile() && entry.name.startsWith(prefix) && entry.name.endsWith(".tmp")
+  );
+  const matching = candidates.filter((entry) => {
+    try {
+      const info = lstatSync(join5(directory, entry.name));
+      return !info.isSymbolicLink() && info.dev === published.dev && info.ino === published.ino && info.nlink === 2 && (info.mode & 511) === 384 && (typeof process.getuid !== "function" || info.uid === process.getuid());
+    } catch (error51) {
+      if (errorCode(error51) === "ENOENT") return false;
+      throw error51;
+    }
+  });
+  if (matching.length !== 1) return false;
+  const stage = join5(directory, matching[0]?.name ?? "");
+  const stageInfo = lstatSync(stage);
+  if (Date.now() - stageInfo.mtimeMs < 1e3) return false;
+  unlinkSync(stage);
+  fsyncDirectory(directory);
+  return true;
+}
+function readJournal(path, parse3) {
+  for (let attempt = 0; attempt < 4; attempt += 1) {
+    let descriptor;
+    try {
+      descriptor = openSync2(path, constants3.O_RDONLY | constants3.O_NONBLOCK | constants3.O_NOFOLLOW);
+    } catch (error51) {
+      if (errorCode(error51) === "ENOENT") return void 0;
+      if (errorCode(error51) === "ELOOP") {
+        throw new SupervisorJournalError("A supervisor journal path is a symbolic link.");
+      }
+      throw error51;
+    }
+    try {
+      const before = fstatSync2(descriptor);
+      if (!before.isFile() || before.nlink !== 1 || (before.mode & 511) !== 384 || typeof process.getuid === "function" && before.uid !== process.getuid()) {
+        if (before.isFile() && before.nlink === 2) {
+          if (repairStalePublishLink(path, before) || attempt < 3) continue;
+        }
+        throw new SupervisorJournalError("A supervisor journal is not one private file.");
+      }
+      if (before.size === 0 || before.size > MAX_SUPERVISOR_MESSAGE_BYTES) {
+        throw new SupervisorJournalError("A supervisor journal has an invalid size.");
+      }
+      const bytes = readFileSync2(descriptor);
+      const after = fstatSync2(descriptor);
+      const atPath = lstatSync(path);
+      if (before.dev !== after.dev || before.ino !== after.ino || before.size !== after.size || before.mtimeMs !== after.mtimeMs || after.dev !== atPath.dev || after.ino !== atPath.ino || atPath.isSymbolicLink()) {
+        if (attempt < 3) continue;
+        throw new SupervisorJournalError("A supervisor journal changed while Circuit read it.");
+      }
+      let value;
+      try {
+        value = JSON.parse(bytes.toString("utf8"));
+      } catch {
+        throw new SupervisorJournalError("A supervisor journal does not contain valid JSON.");
+      }
+      try {
+        return parse3(value);
+      } catch {
+        throw new SupervisorJournalError("A supervisor journal contains an invalid record.");
+      }
+    } finally {
+      closeSync2(descriptor);
+    }
+  }
+  throw new SupervisorJournalError("A supervisor journal remained busy.");
+}
+function sameRuntime(left, right) {
+  return left.pid === right.pid && left.process_group_id === right.process_group_id && left.birth_token === right.birth_token && left.started_at === right.started_at;
+}
+function readSupervisorJournals(input) {
+  assertPrivateCanonicalDirectory(input.control_directory);
+  const runtimeName = `launch-${input.generation}-runtime.json`;
+  const exitName = `launch-${input.generation}-exit.json`;
+  if (basename(runtimeName) !== runtimeName || basename(exitName) !== exitName) {
+    throw new SupervisorJournalError("The supervisor journal name is invalid.");
+  }
+  const runtime = readJournal(
+    join5(input.control_directory, runtimeName),
+    (value) => RuntimeJournalV1.parse(value)
+  );
+  const exit = readJournal(
+    join5(input.control_directory, exitName),
+    (value) => ExitJournalV1.parse(value)
+  );
+  for (const observed of [runtime, exit]) {
+    if (observed === void 0) continue;
+    if (observed.run_id !== input.run_id || observed.generation !== input.generation || observed.authorization_sha256 !== input.authorization_sha256) {
+      throw new SupervisorJournalError("A supervisor journal belongs to another launch.");
+    }
+    if (observed.runtime.birth_token !== input.authorization_sha256) {
+      throw new SupervisorJournalError(
+        "A supervisor journal worker identity has the wrong launch token."
+      );
+    }
+  }
+  if (exit !== void 0 && runtime === void 0) {
+    throw new SupervisorJournalError("Supervisor exit evidence is missing its runtime record.");
+  }
+  if (runtime !== void 0 && exit !== void 0 && !sameRuntime(runtime.runtime, exit.runtime)) {
+    throw new SupervisorJournalError("Supervisor runtime and exit evidence do not match.");
+  }
+  return {
+    ...runtime === void 0 ? {} : { runtime },
+    ...exit === void 0 ? {} : { exit }
+  };
+}
+
+// src/hosts/codex-mcp/lifecycle.ts
+var ACTIVE_STATES = /* @__PURE__ */ new Set(["starting", "running", "resuming", "cancelling"]);
+var CLOSED_STATES = /* @__PURE__ */ new Set(["complete", "needs_attention", "cancelled", "interrupted"]);
+var CANCEL_CLAIM_ATTEMPTS = 3;
+var McpLifecycleError = class extends Error {
+  code;
+  next_action;
+  constructor(code, message, nextAction) {
+    super(message);
+    this.name = "McpLifecycleError";
+    this.code = code;
+    this.next_action = nextAction;
+  }
+};
+function errorResponse(error51) {
+  const value = typeof error51 === "object" && error51 !== null ? error51 : void 0;
+  const code = typeof value?.code === "string" && /^[a-z][a-z0-9_]{0,63}$/.test(value.code) ? value.code : "internal_error";
+  const knownMessage = typeof value?.message === "string" ? value.message.trim() : "";
+  const message = code === "internal_error" || knownMessage.length === 0 || knownMessage.length > 1e3 ? "Circuit could not complete this request safely." : knownMessage;
+  const candidateNextAction = value?.next_action ?? value?.nextAction;
+  const nextAction = typeof candidateNextAction === "string" && candidateNextAction.trim().length > 0 && candidateNextAction.trim().length <= 1e3 ? candidateNextAction.trim() : void 0;
+  return {
+    schema_version: MCP_SCHEMA_VERSION,
+    ok: false,
+    error: {
+      code,
+      message,
+      ...nextAction === void 0 ? {} : { next_action: nextAction }
+    }
+  };
+}
+function nowIso(now) {
+  return now().toISOString();
+}
+function exitedLaunch(launch, now, cleanup) {
+  return {
+    ...launch,
+    phase: "exited",
+    exit: launch.exit === void 0 ? { observed_at: nowIso(now), process_group_cleanup: cleanup } : { ...launch.exit, process_group_cleanup: cleanup }
+  };
+}
+function recoveryEvidence(now, reason, cancellationRequested, statuses = {}) {
+  const timestamp = nowIso(now);
+  return {
+    reason,
+    detected_at: timestamp,
+    last_checked_at: timestamp,
+    cancellation_requested: cancellationRequested,
+    ...statuses
+  };
+}
+function acquireOrThrow(result) {
+  if (result.ok) return result.handle;
+  throw new McpLifecycleError(
+    result.code,
+    result.message,
+    "Wait for the current Circuit operation to finish, then retry."
+  );
+}
+async function boundedWorkerPreparation(work, timeoutMs, signal) {
+  if (signal.aborted) throw new Error("worker preparation was cancelled");
+  let timer;
+  let abort;
+  const timeout = new Promise((_resolve, reject) => {
+    timer = setTimeout(() => reject(new Error("worker preparation timed out")), timeoutMs);
+    timer.unref();
+  });
+  const cancelled = new Promise((_resolve, reject) => {
+    abort = () => reject(new Error("worker preparation was cancelled"));
+    signal.addEventListener("abort", abort, { once: true });
+  });
+  try {
+    return await Promise.race([work, timeout, cancelled]);
+  } finally {
+    if (timer !== void 0) clearTimeout(timer);
+    if (abort !== void 0) signal.removeEventListener("abort", abort);
+  }
+}
+var CircuitMcpLifecycle = class {
+  #options;
+  #now;
+  #randomRunId;
+  #workerPreparationMs;
+  constructor(options) {
+    this.#options = options;
+    this.#now = options.now ?? (() => /* @__PURE__ */ new Date());
+    this.#randomRunId = options.randomRunId ?? randomUUID2;
+    this.#workerPreparationMs = options.workerPreparationMs ?? 1e4;
+    if (this.#workerPreparationMs < 100 || this.#workerPreparationMs > 3e4) {
+      throw new Error("workerPreparationMs must be between 100 and 30000 milliseconds");
+    }
+  }
+  handle = async (call) => {
+    try {
+      switch (call.name) {
+        case "circuit_start":
+          return await this.#start(call);
+        case "circuit_status":
+          return await this.#status(call);
+        case "circuit_resume":
+          return await this.#resume(call);
+        case "circuit_cancel":
+          return await this.#cancel(call);
+        case "circuit_list":
+          return await this.#list(call);
+        case "circuit_recover":
+          return await this.#recover(call);
+      }
+    } catch (error51) {
+      return errorResponse(error51);
+    }
+  };
+  async #workspace(call) {
+    return await this.#options.resolveWorkspace(call.metadata);
+  }
+  #requireMacOs() {
+    if ((this.#options.platform ?? process.platform) !== "darwin") {
+      throw new McpLifecycleError(
+        "unsupported_platform",
+        "Circuit MCP currently supports macOS only.",
+        "Run Circuit from the ordinary CLI on this platform."
+      );
+    }
+  }
+  async #start(call) {
+    const input = MCP_TOOL_INPUT_SCHEMAS.circuit_start.parse(call.input);
+    this.#requireMacOs();
+    await this.#options.validateStart?.(input);
+    const runtimeAssets = await this.#options.loadRuntimeAssets();
+    const workspace = await this.#workspace(call);
+    const preparedLaunch = await this.#options.preflightLaunch({
+      workspace,
+      request: input,
+      runtime_assets: runtimeAssets
+    });
+    const owner = await this.#options.owner();
+    const runId = this.#randomRunId();
+    const reserved = await this.#options.store.reserveRunClaimed({
+      run_id: runId,
+      workspace,
+      request: input,
+      runtime_assets_sha256: runtimeAssets.digest_sha256,
+      owner,
+      summary: `Circuit is starting the ${input.flow} flow.`
+    });
+    const handle = reserved.handle;
+    try {
+      const running = await this.#launch({
+        workspace,
+        run: reserved.record,
+        handle,
+        runtime_assets: runtimeAssets,
+        signal: call.signal,
+        makeWorker: async (session, run) => await this.#options.workerFactory.createStart({
+          workspace,
+          run,
+          authorization_token: session.authorization_token,
+          runtime_assets: runtimeAssets,
+          prepared_launch: preparedLaunch
+        })
+      });
+      return {
+        schema_version: MCP_SCHEMA_VERSION,
+        ok: true,
+        run_id: running.run_id,
+        state: "running",
+        next_cursor: running.progress.next_cursor,
+        summary: `Circuit started the ${input.flow} flow.`
+      };
+    } finally {
+      await this.#options.store.releaseOperation(handle);
+    }
+  }
+  async #launch(input) {
+    let current = input.run;
+    let session;
+    let authorizationPersisted = false;
+    try {
+      const controlDirectory = await this.#options.store.controlDirectory(
+        input.workspace,
+        current.run_id
+      );
+      session = await this.#options.launcher.begin({
+        run_id: current.run_id,
+        generation: current.launch.generation,
+        control_directory: controlDirectory,
+        runtime_assets: input.runtime_assets
+      });
+      current = await this.#options.store.advanceLaunch({
+        handle: input.handle,
+        launch: {
+          ...current.launch,
+          phase: "supervisor_recorded",
+          supervisor: session.supervisor
+        },
+        summary: "Circuit recorded the worker supervisor."
+      });
+      const worker = await boundedWorkerPreparation(
+        input.makeWorker(session, current),
+        this.#workerPreparationMs,
+        input.signal
+      );
+      current = await this.#options.store.advanceLaunch({
+        handle: input.handle,
+        launch: {
+          ...current.launch,
+          phase: "launch_authorized",
+          authorization_sha256: session.authorization_sha256,
+          authorized_at: nowIso(this.#now)
+        },
+        summary: "Circuit authorized the sealed worker launch."
+      });
+      authorizationPersisted = true;
+      const runtime = await session.authorize({ worker });
+      current = await this.#options.store.advanceLaunch({
+        handle: input.handle,
+        launch: {
+          ...current.launch,
+          phase: "runtime_recorded",
+          runtime
+        },
+        summary: "Circuit recorded the worker process."
+      });
+      return await this.#options.store.transitionRun({
+        handle: input.handle,
+        to: "running",
+        summary: `Circuit is running the ${current.request.flow} flow.`
+      });
+    } catch (_error) {
+      const reportedCleanupConfirmed = typeof _error === "object" && _error !== null && "cleanup_confirmed" in _error && _error.cleanup_confirmed === true;
+      const cleanupConfirmed = reportedCleanupConfirmed || (session !== void 0 && !authorizationPersisted ? await session.closeBeforeAuthorization().catch(() => false) : false);
+      if (cleanupConfirmed) {
+        await this.#options.store.transitionRun({
+          handle: input.handle,
+          to: "interrupted",
+          summary: "Circuit could not launch the worker and observed that its recorded owned process group is absent.",
+          launch: exitedLaunch(current.launch, this.#now, "confirmed"),
+          failure: { code: "launch_failed", message: "The Circuit worker did not start." }
+        });
+      } else {
+        await this.#options.store.transitionRun({
+          handle: input.handle,
+          to: "recovery_required",
+          summary: "Circuit could not confirm worker cleanup after launch failed.",
+          recovery: recoveryEvidence(
+            this.#now,
+            authorizationPersisted ? "runtime_identity_missing" : "launch_cleanup_uncertain",
+            false,
+            {
+              supervisor_status: session === void 0 ? "absent" : "unknown",
+              ...authorizationPersisted ? { runtime_status: "unknown" } : {},
+              process_group_status: session === void 0 ? "absent" : "unknown"
+            }
+          ),
+          failure: { code: "launch_failed", message: "The Circuit worker did not start." }
+        });
+      }
+      throw new McpLifecycleError(
+        cleanupConfirmed ? "launch_failed" : "recovery_required",
+        cleanupConfirmed ? "Circuit could not start the worker and observed that its recorded owned process group is absent." : "Circuit could not confirm cleanup after the worker launch failed.",
+        cleanupConfirmed ? "Retry the flow." : "Use circuit_list to find the run, then use circuit_recover after its processes stop."
+      );
+    }
+  }
+  async #status(call) {
+    const input = MCP_TOOL_INPUT_SCHEMAS.circuit_status.parse(call.input);
+    const workspace = await this.#workspace(call);
+    const owner = await this.#options.owner();
+    let record2 = await this.#options.store.reconcileRun({
+      workspace,
+      run_id: input.run_id,
+      owner
+    });
+    const waitMs = input.wait_ms ?? 0;
+    const deadline = Date.now() + waitMs;
+    while (waitMs > 0 && input.after_cursor !== void 0 && record2.progress.next_cursor <= input.after_cursor && ACTIVE_STATES.has(record2.state) && Date.now() < deadline && !call.signal.aborted) {
+      const remaining = Math.min(100, deadline - Date.now());
+      if (remaining <= 0) break;
+      if (this.#options.store.waitForChange !== void 0) {
+        await this.#options.store.waitForChange({
+          workspace,
+          run_id: input.run_id,
+          after_revision: record2.revision,
+          wait_ms: Math.min(remaining, 1e4),
+          signal: call.signal
+        });
+      } else {
+        await delay(remaining, void 0, { signal: call.signal }).catch((error51) => {
+          if (!call.signal.aborted) throw error51;
+        });
+      }
+      if (call.signal.aborted) break;
+      record2 = await this.#options.store.reconcileRun({
+        workspace,
+        run_id: input.run_id,
+        owner
+      });
+    }
+    const startCursor = input.after_cursor ?? record2.progress.retained_from_cursor;
+    const eligible = record2.progress.events.filter((event) => event.cursor >= startCursor);
+    const maximum = input.max_events ?? 100;
+    const events = eligible.slice(0, maximum);
+    const cursorTruncated = startCursor < record2.progress.retained_from_cursor;
+    const countTruncated = eligible.length > events.length;
+    const nextCursor = events.length === 0 ? record2.progress.next_cursor : (events.at(-1)?.cursor ?? record2.progress.next_cursor - 1) + 1;
+    const checkpoint = record2.state === "waiting_for_input" ? await this.#options.checkpoints.read({ workspace, run: record2 }) : void 0;
+    const finalReport = record2.state === "complete" ? await this.#options.reports.read({ workspace, run: record2 }) : void 0;
+    return {
+      schema_version: MCP_SCHEMA_VERSION,
+      ok: true,
+      run_id: record2.run_id,
+      state: record2.state,
+      events,
+      next_cursor: nextCursor,
+      truncated: cursorTruncated || countTruncated,
+      ...checkpoint === void 0 ? {} : { checkpoint },
+      ...finalReport === void 0 ? {} : { final_report: finalReport },
+      summary: record2.summary
+    };
+  }
+  async #resume(call) {
+    const input = MCP_TOOL_INPUT_SCHEMAS.circuit_resume.parse(call.input);
+    this.#requireMacOs();
+    const runtimeAssets = await this.#options.loadRuntimeAssets();
+    const workspace = await this.#workspace(call);
+    const owner = await this.#options.owner();
+    let waiting = await this.#options.store.reconcileRun({
+      workspace,
+      run_id: input.run_id,
+      owner,
+      include_progress: false
+    });
+    const preparedLaunch = await this.#options.preflightLaunch({
+      workspace,
+      request: waiting.request,
+      runtime_assets: runtimeAssets
+    });
+    if (waiting.runtime_assets_sha256 !== runtimeAssets.digest_sha256) {
+      throw new McpLifecycleError(
+        "runtime_asset_changed",
+        "Circuit runtime assets changed after this run started.",
+        "Reinstall the Circuit plugin, then start a new run."
+      );
+    }
+    const assertion = await this.#options.checkpoints.assertResume({
+      workspace,
+      run: waiting,
+      checkpoint_token: input.checkpoint_token,
+      choice_id: input.choice_id
+    });
+    const handle = acquireOrThrow(
+      await this.#options.store.acquireOperation({
+        workspace,
+        run_id: input.run_id,
+        operation: "resume",
+        owner,
+        checkpoint_binding_sha256: assertion.checkpoint_binding_sha256
+      })
+    );
+    try {
+      waiting = await this.#options.store.readRun(workspace, input.run_id);
+      const resuming = await this.#options.store.transitionRun({
+        handle,
+        to: "resuming",
+        summary: "Circuit accepted the checkpoint choice and is resuming.",
+        launch: {
+          generation: waiting.launch.generation + 1,
+          allocation_owner: owner,
+          phase: "reserved"
+        },
+        checkpoint: null
+      });
+      const running = await this.#launch({
+        workspace,
+        run: resuming,
+        handle,
+        runtime_assets: runtimeAssets,
+        signal: call.signal,
+        makeWorker: async (session, run) => await this.#options.workerFactory.createResume({
+          workspace,
+          run,
+          checkpoint_token: input.checkpoint_token,
+          choice_id: input.choice_id,
+          authorization_token: session.authorization_token,
+          runtime_assets: runtimeAssets,
+          prepared_launch: preparedLaunch
+        })
+      });
+      const projected = await this.#options.store.reconcileRun({
+        workspace,
+        run_id: running.run_id,
+        owner
+      });
+      return {
+        schema_version: MCP_SCHEMA_VERSION,
+        ok: true,
+        run_id: running.run_id,
+        state: "running",
+        next_cursor: projected.progress.next_cursor,
+        summary: "Circuit resumed the run."
+      };
+    } finally {
+      await this.#options.store.releaseOperation(handle);
+    }
+  }
+  async #cancel(call) {
+    const input = MCP_TOOL_INPUT_SCHEMAS.circuit_cancel.parse(call.input);
+    const workspace = await this.#workspace(call);
+    const owner = await this.#options.owner();
+    let current;
+    try {
+      current = await this.#options.store.reconcileRun({
+        workspace,
+        run_id: input.run_id,
+        owner,
+        include_progress: false
+      });
+    } catch (error51) {
+      if (!(error51 instanceof SupervisorJournalError)) throw error51;
+      current = await this.#options.store.readRun(workspace, input.run_id);
+    }
+    if (CLOSED_STATES.has(current.state)) {
+      throw new McpLifecycleError("run_not_cancellable", "This Circuit run is already closed.");
+    }
+    let operation = current.state === "recovery_required" ? "recover" : "cancel";
+    let handle;
+    for (let attempt = 0; attempt < CANCEL_CLAIM_ATTEMPTS; attempt += 1) {
+      const claimed = acquireOrThrow(
+        await this.#options.store.acquireOperation({
+          workspace,
+          run_id: input.run_id,
+          operation,
+          owner
+        })
+      );
+      try {
+        current = await this.#options.store.readRun(workspace, input.run_id);
+      } catch (error51) {
+        await this.#options.store.releaseOperation(claimed);
+        throw error51;
+      }
+      const claimedOperation = current.state === "recovery_required" ? "recover" : "cancel";
+      if (CLOSED_STATES.has(current.state) || claimedOperation === operation) {
+        handle = claimed;
+        break;
+      }
+      await this.#options.store.releaseOperation(claimed);
+      operation = claimedOperation;
+    }
+    if (handle === void 0) {
+      throw new McpLifecycleError(
+        "operation_in_progress",
+        "This Circuit run changed while cancellation was starting.",
+        "Retry cancellation."
+      );
+    }
+    try {
+      if (CLOSED_STATES.has(current.state)) {
+        throw new McpLifecycleError("run_not_cancellable", "This Circuit run is already closed.");
+      }
+      const recoveryCancellation = current.state === "recovery_required";
+      if (recoveryCancellation && current.launch.runtime === void 0 && current.launch.phase !== "supervisor_recorded") {
+        throw new McpLifecycleError(
+          "recovery_required",
+          "Circuit does not have an exact worker identity to cancel safely.",
+          "Keep the run for inspection; do not force-unlock its workspace lease."
+        );
+      }
+      if (current.launch.phase === "launch_authorized" && current.launch.runtime === void 0) {
+        throw new McpLifecycleError(
+          "recovery_required",
+          "Circuit cannot safely identify the authorized worker process.",
+          "Keep the run for inspection; do not force-unlock its workspace lease."
+        );
+      }
+      if (current.state === "waiting_for_input") {
+        const cancelled = await this.#options.store.transitionRun({
+          handle,
+          to: "cancelled",
+          summary: "Circuit closed the waiting checkpoint.",
+          checkpoint: null
+        });
+        return {
+          schema_version: MCP_SCHEMA_VERSION,
+          ok: true,
+          run_id: cancelled.run_id,
+          state: "cancelled",
+          cleanup_confirmed: true,
+          summary: "Circuit closed the waiting checkpoint; no worker process group was active."
+        };
+      }
+      if (current.state !== "cancelling" && current.state !== "recovery_required") {
+        current = await this.#options.store.transitionRun({
+          handle,
+          to: "cancelling",
+          summary: "Circuit is stopping its recorded owned process group."
+        });
+      }
+      let cleanup;
+      try {
+        cleanup = await this.#options.cleanup.cancel({ workspace, run: current });
+      } catch {
+        cleanup = {
+          cleanup_confirmed: false,
+          supervisor_status: "unknown",
+          runtime_status: "unknown",
+          process_group_status: "unknown"
+        };
+      }
+      if (cleanup.cleanup_confirmed) {
+        const cancelled = await this.#options.store.transitionRun({
+          handle,
+          to: "cancelled",
+          summary: "Circuit observed that its recorded owned process group is absent.",
+          launch: exitedLaunch(current.launch, this.#now, "confirmed"),
+          checkpoint: null
+        });
+        return {
+          schema_version: MCP_SCHEMA_VERSION,
+          ok: true,
+          run_id: cancelled.run_id,
+          state: "cancelled",
+          cleanup_confirmed: true,
+          summary: "Circuit observed that its recorded owned process group is absent."
+        };
+      }
+      const recovery2 = await this.#options.store.transitionRun({
+        handle,
+        to: "recovery_required",
+        summary: "Circuit could not prove that its recorded owned process group is absent.",
+        recovery: recoveryEvidence(this.#now, "cancellation_cleanup_uncertain", true, cleanup),
+        checkpoint: null
+      });
+      return {
+        schema_version: MCP_SCHEMA_VERSION,
+        ok: true,
+        run_id: recovery2.run_id,
+        state: "recovery_required",
+        cleanup_confirmed: false,
+        summary: "Circuit requested cancellation but could not confirm cleanup."
+      };
+    } finally {
+      await this.#options.store.releaseOperation(handle);
+    }
+  }
+  async #list(call) {
+    const input = MCP_TOOL_INPUT_SCHEMAS.circuit_list.parse(call.input);
+    const workspace = await this.#workspace(call);
+    const listed = await this.#options.store.listRuns(workspace, { limit: input.limit ?? 20 });
+    return {
+      schema_version: MCP_SCHEMA_VERSION,
+      ok: true,
+      runs: listed.runs,
+      truncated: listed.truncated,
+      summary: listed.runs.length === 0 ? "No recent Circuit runs were found for this workspace." : `Found ${listed.runs.length} recent Circuit ${listed.runs.length === 1 ? "run" : "runs"}.`
+    };
+  }
+  async #recover(call) {
+    const input = MCP_TOOL_INPUT_SCHEMAS.circuit_recover.parse(call.input);
+    const workspace = await this.#workspace(call);
+    const owner = await this.#options.owner();
+    const recovered = await this.#options.store.recoverRun({
+      workspace,
+      run_id: input.run_id,
+      owner
+    });
+    return {
+      schema_version: MCP_SCHEMA_VERSION,
+      ok: true,
+      run_id: recovered.record.run_id,
+      state: recovered.record.state,
+      recovered: true,
+      cleanup_confirmed: recovered.cleanup_confirmed,
+      lease_released: recovered.lease_released,
+      summary: recovered.record.summary
+    };
+  }
+};
+function createCircuitMcpLifecycleHandler(options) {
+  return new CircuitMcpLifecycle(options).handle;
+}
+
+// src/hosts/codex-mcp/process-cleanup.ts
+import { setTimeout as delay2 } from "node:timers/promises";
+async function waitForAbsence(probe, identity2, timeoutMs, pollMs, wait) {
+  const deadline = Date.now() + timeoutMs;
+  while (Date.now() < deadline) {
+    const status = await probe.inspectProcessGroup(identity2);
+    if (status !== "alive") return status;
+    await wait(Math.min(pollMs, Math.max(1, deadline - Date.now())));
+  }
+  return await probe.inspectProcessGroup(identity2);
+}
+async function stopOneGroup(probe, identity2, terminateMs, killMs, pollMs, wait) {
+  const process4 = await probe.inspectProcess(identity2);
+  const group = await probe.inspectProcessGroup(identity2);
+  if (process4 === "unknown" || group === "unknown") return "unknown";
+  if (group === "absent") return process4 === "absent" ? "absent" : "unknown";
+  if (process4 !== "alive") return "unknown";
+  const term = await probe.signalOwnedProcessGroup(identity2, "SIGTERM");
+  if (term === "unknown") return "unknown";
+  let after = await waitForAbsence(probe, identity2, terminateMs, pollMs, wait);
+  if (after !== "alive") return after;
+  const kill = await probe.signalOwnedProcessGroup(identity2, "SIGKILL");
+  if (kill === "unknown") return "unknown";
+  after = await waitForAbsence(probe, identity2, killMs, pollMs, wait);
+  return after;
+}
+var ObservedCleanupController = class {
+  #probe;
+  #terminateMs;
+  #killMs;
+  #pollMs;
+  #wait;
+  constructor(options) {
+    this.#probe = options.probe;
+    this.#terminateMs = options.terminateMs ?? 3e3;
+    this.#killMs = options.killMs ?? 3e3;
+    this.#pollMs = options.pollMs ?? 25;
+    this.#wait = options.wait ?? (async (milliseconds) => await delay2(milliseconds));
+  }
+  async cancel(input) {
+    const runtime = input.run.launch.runtime;
+    const supervisor = input.run.launch.supervisor;
+    const runtimeStatus = runtime === void 0 ? void 0 : await stopOneGroup(
+      this.#probe,
+      runtime,
+      this.#terminateMs,
+      this.#killMs,
+      this.#pollMs,
+      this.#wait
+    );
+    const supervisorStatus = supervisor === void 0 ? "absent" : runtimeStatus === "unknown" ? await this.#probe.inspectProcessGroup(supervisor) : await stopOneGroup(
+      this.#probe,
+      supervisor,
+      this.#terminateMs,
+      this.#killMs,
+      this.#pollMs,
+      this.#wait
+    );
+    const processGroupStatus = runtimeStatus === "unknown" || supervisorStatus === "unknown" ? "unknown" : runtimeStatus === "alive" || supervisorStatus === "alive" ? "alive" : "absent";
+    return {
+      cleanup_confirmed: processGroupStatus === "absent",
+      supervisor_status: supervisorStatus,
+      ...runtimeStatus === void 0 ? {} : { runtime_status: runtimeStatus },
+      process_group_status: processGroupStatus
+    };
+  }
+};
+
+// src/hosts/codex-mcp/process-probe.ts
+import { spawnSync as spawnSync2 } from "node:child_process";
+import { createHash as createHash3 } from "node:crypto";
+import { readFileSync as readFileSync3, realpathSync as realpathSync2, statSync } from "node:fs";
+import { isAbsolute as isAbsolute8 } from "node:path";
+var UUID_PROCESS_TOKEN = "[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}";
+var SHA256_PROCESS_TOKEN = "[0-9a-f]{64}";
+var PROCESS_TOKEN = new RegExp(`^(?:${UUID_PROCESS_TOKEN}|${SHA256_PROCESS_TOKEN})$`, "u");
+function isMcpProcessToken(value) {
+  return PROCESS_TOKEN.test(value);
+}
+function readExecutableIdentity(path) {
+  if (!isAbsolute8(path)) throw new Error("The host executable path must be absolute.");
+  const realPath = realpathSync2.native(path);
+  const before = statSync(realPath);
+  if (!before.isFile() || (before.mode & 73) === 0) {
+    throw new Error("The host executable must be an executable regular file.");
+  }
+  const sha256 = createHash3("sha256").update(readFileSync3(realPath)).digest("hex");
+  const after = statSync(realPath);
+  if (before.dev !== after.dev || before.ino !== after.ino || before.size !== after.size || before.mode !== after.mode || before.mtimeMs !== after.mtimeMs || before.ctimeMs !== after.ctimeMs) {
+    throw new Error("The host executable changed while Circuit inspected it.");
+  }
+  return {
+    real_path: realPath,
+    device: String(after.dev),
+    inode: String(after.ino),
+    sha256
+  };
+}
+var ObservedProcessProbe = class {
+  #dependencies;
+  constructor(dependencies) {
+    this.#dependencies = dependencies;
+  }
+  observeOwner(input) {
+    const pid = input.pid ?? process.pid;
+    const observed = this.#dependencies.readProcess(pid);
+    if (observed.status !== "alive" || !this.#dependencies.executableMatches(input.executable)) {
+      throw new Error("Circuit could not prove the MCP server process identity.");
+    }
+    return {
+      instance_id: input.instance_id,
+      pid,
+      process_group_id: observed.process_group_id,
+      birth_token: observed.birth_token,
+      started_at: (input.now ?? (() => /* @__PURE__ */ new Date()))().toISOString(),
+      executable: input.executable
+    };
+  }
+  inspectProcessSync(identity2) {
+    const observed = this.#dependencies.readProcess(identity2.pid);
+    if (observed.status !== "alive") return observed.status;
+    if (observed.process_group_id !== identity2.process_group_id || observed.birth_token !== identity2.birth_token && observed.process_token !== identity2.birth_token || !this.#dependencies.executableMatches(identity2.executable)) {
+      return "unknown";
+    }
+    return "alive";
+  }
+  inspectProcessGroupSync(identity2) {
+    const leader = this.inspectProcessSync(identity2);
+    if (leader === "unknown") return "unknown";
+    const group = this.#dependencies.readProcessGroup(identity2.process_group_id);
+    if (leader === "absent") {
+      return group === "absent" ? "absent" : "unknown";
+    }
+    return group;
+  }
+  inspectProcessTokenSync(token) {
+    if (!isMcpProcessToken(token)) return "unknown";
+    return this.#dependencies.readProcessToken?.(token) ?? "unknown";
+  }
+  async inspectProcess(identity2) {
+    return this.inspectProcessSync(identity2);
+  }
+  async inspectProcessGroup(identity2) {
+    return this.inspectProcessGroupSync(identity2);
+  }
+  async signalOwnedProcessGroup(identity2, signal) {
+    const leader = this.inspectProcessSync(identity2);
+    if (leader !== "alive") {
+      return leader === "absent" && this.#dependencies.readProcessGroup(identity2.process_group_id) === "absent" ? "absent" : "unknown";
+    }
+    const group = this.#dependencies.readProcessGroup(identity2.process_group_id);
+    if (group !== "alive") return group;
+    return this.#dependencies.signalProcessGroup(identity2.process_group_id, signal);
+  }
+};
+function errorCode2(error51) {
+  return error51.code;
+}
+function processExists(pid) {
+  try {
+    process.kill(pid, 0);
+    return "alive";
+  } catch (error51) {
+    if (errorCode2(error51) === "ESRCH") return "absent";
+    return "unknown";
+  }
+}
+function psValue(pid, field) {
+  const result = spawnSync2("/bin/ps", ["-ww", "-o", `${field}=`, "-p", String(pid)], {
+    encoding: "utf8",
+    timeout: 2e3,
+    maxBuffer: 16384,
+    env: { PATH: "/usr/bin:/bin", LANG: "C", LC_ALL: "C" }
+  });
+  if (result.error !== void 0 || result.status !== 0) return void 0;
+  const value = result.stdout.trim();
+  const maximum = field === "command" ? 8192 : 256;
+  return value.length > 0 && value.length <= maximum ? value : void 0;
+}
+function readMacProcess(pid) {
+  const exists = processExists(pid);
+  if (exists !== "alive") return { status: exists };
+  const groupText = psValue(pid, "pgid");
+  const birthToken = psValue(pid, "lstart");
+  if (groupText === void 0 || birthToken === void 0) return { status: "unknown" };
+  const processGroupId = Number.parseInt(groupText, 10);
+  if (!Number.isSafeInteger(processGroupId) || processGroupId <= 0) return { status: "unknown" };
+  const command = psValue(pid, "command");
+  const processToken = new RegExp(
+    `(?:^|\\s)--circuit-mcp-process-token=(${UUID_PROCESS_TOKEN}|${SHA256_PROCESS_TOKEN})(?:\\s|$)`,
+    "u"
+  ).exec(command ?? "")?.[1];
+  return {
+    status: "alive",
+    process_group_id: processGroupId,
+    birth_token: birthToken,
+    ...processToken === void 0 ? {} : { process_token: processToken }
+  };
+}
+function processTokenStatusFromPsOutput(token, output) {
+  if (!isMcpProcessToken(token)) return "unknown";
+  const exactArgument = new RegExp(`(?:^|\\s)--circuit-mcp-process-token=${token}(?:\\s|$)`, "u");
+  return output.split("\n").some((command) => exactArgument.test(command)) ? "alive" : "absent";
+}
+function readProcessToken(token) {
+  if (!isMcpProcessToken(token)) return "unknown";
+  const result = spawnSync2("/bin/ps", ["-ww", "-axo", "command="], {
+    encoding: "utf8",
+    timeout: 2e3,
+    maxBuffer: 4 * 1048576,
+    env: { PATH: "/usr/bin:/bin", LANG: "C", LC_ALL: "C" }
+  });
+  if (result.error !== void 0 || result.status !== 0 || typeof result.stdout !== "string") {
+    return "unknown";
+  }
+  return processTokenStatusFromPsOutput(token, result.stdout);
+}
+function readProcessGroup(processGroupId) {
+  try {
+    process.kill(-processGroupId, 0);
+    return "alive";
+  } catch (error51) {
+    if (errorCode2(error51) === "ESRCH") return "absent";
+    return "unknown";
+  }
+}
+function signalProcessGroup(processGroupId, signal) {
+  try {
+    process.kill(-processGroupId, signal);
+    return "sent";
+  } catch (error51) {
+    if (errorCode2(error51) === "ESRCH") return "absent";
+    return "unknown";
+  }
+}
+function createExecutableMatcher() {
+  const cached2 = /* @__PURE__ */ new Map();
+  return (identity2) => {
+    try {
+      if (realpathSync2.native(identity2.real_path) !== identity2.real_path) return false;
+      const info = statSync(identity2.real_path);
+      if (!info.isFile() || String(info.dev) !== identity2.device || String(info.ino) !== identity2.inode) {
+        return false;
+      }
+      const key = `${identity2.real_path}\0${identity2.device}\0${identity2.inode}\0${identity2.sha256}`;
+      const prior = cached2.get(key);
+      if (prior?.mtimeMs === info.mtimeMs && prior.ctimeMs === info.ctimeMs) return true;
+      const sha256 = createHash3("sha256").update(readFileSync3(identity2.real_path)).digest("hex");
+      if (sha256 !== identity2.sha256) return false;
+      cached2.set(key, { mtimeMs: info.mtimeMs, ctimeMs: info.ctimeMs });
+      return true;
+    } catch {
+      return false;
+    }
+  };
+}
+function createMacOsProcessProbe() {
+  return new ObservedProcessProbe({
+    readProcess: readMacProcess,
+    readProcessGroup,
+    readProcessToken,
+    executableMatches: createExecutableMatcher(),
+    signalProcessGroup
+  });
+}
+
+// src/hosts/codex-mcp/production-paths.ts
+import {
+  closeSync as closeSync3,
+  lstatSync as lstatSync2,
+  openSync as openSync3,
+  readFileSync as readFileSync4,
+  readSync,
+  readdirSync as readdirSync2,
+  realpathSync as realpathSync3,
+  statSync as statSync2
+} from "node:fs";
+import { createRequire } from "node:module";
+import { basename as basename2, delimiter as delimiter2, dirname as dirname4, isAbsolute as isAbsolute9, join as join6, relative as relative2, resolve as resolve4, sep } from "node:path";
+var EXECUTABLE_NAME = /^[A-Za-z0-9][A-Za-z0-9._-]{0,127}$/;
+var MAX_FLOW_ASSETS = 64;
+var MAX_PACKAGE_JSON_BYTES = 64 * 1024;
+var CODEX_NPM_TARGETS = Object.freeze({
+  "darwin:arm64": {
+    packageName: "@openai/codex-darwin-arm64",
+    triple: "aarch64-apple-darwin",
+    executableName: "codex"
+  },
+  "darwin:x64": {
+    packageName: "@openai/codex-darwin-x64",
+    triple: "x86_64-apple-darwin",
+    executableName: "codex"
+  },
+  "linux:arm64": {
+    packageName: "@openai/codex-linux-arm64",
+    triple: "aarch64-unknown-linux-musl",
+    executableName: "codex"
+  },
+  "linux:x64": {
+    packageName: "@openai/codex-linux-x64",
+    triple: "x86_64-unknown-linux-musl",
+    executableName: "codex"
+  },
+  "win32:arm64": {
+    packageName: "@openai/codex-win32-arm64",
+    triple: "aarch64-pc-windows-msvc",
+    executableName: "codex.exe"
+  },
+  "win32:x64": {
+    packageName: "@openai/codex-win32-x64",
+    triple: "x86_64-pc-windows-msvc",
+    executableName: "codex.exe"
+  }
+});
+var McpProductionPathError = class extends Error {
+  code = "mcp_runtime_unavailable";
+  nextAction = "Reinstall Circuit and Codex, then retry.";
+  constructor(message) {
+    super(message);
+    this.name = "McpProductionPathError";
+  }
+};
+function findExecutableOnPath(name, pathValue) {
+  if (!EXECUTABLE_NAME.test(name)) {
+    throw new McpProductionPathError("Circuit was given an invalid executable name.");
+  }
+  if (pathValue === void 0 || pathValue.trim().length === 0) {
+    throw new McpProductionPathError(`Circuit could not find ${name} because PATH is empty.`);
+  }
+  const directories = pathValue.split(delimiter2);
+  if (directories.some((directory) => !isAbsolute9(directory))) {
+    throw new McpProductionPathError("Circuit refused a PATH containing relative directories.");
+  }
+  for (const directory of directories) {
+    const candidate2 = join6(directory, name);
+    try {
+      const info = statSync2(candidate2);
+      if (info.isFile() && (info.mode & 73) !== 0) return candidate2;
+    } catch {
+    }
+  }
+  throw new McpProductionPathError(`Circuit could not find an executable ${name} on PATH.`);
+}
+function pathInside2(parent, candidate2) {
+  const child = relative2(parent, candidate2);
+  return child === "" || !child.startsWith("..") && !isAbsolute9(child);
+}
+function isNativeExecutable(path) {
+  const descriptor = openSync3(path, "r");
+  const bytes = Buffer.alloc(4);
+  try {
+    if (readSync(descriptor, bytes, 0, bytes.length, 0) !== bytes.length) return false;
+  } finally {
+    closeSync3(descriptor);
+  }
+  const hex3 = bytes.toString("hex");
+  return hex3 === "7f454c46" || hex3.startsWith("4d5a") || (/* @__PURE__ */ new Set([
+    "feedface",
+    "cefaedfe",
+    "feedfacf",
+    "cffaedfe",
+    "cafebabe",
+    "bebafeca",
+    "cafebabf",
+    "bfbafeca"
+  ])).has(hex3);
+}
+function readPackageJson(path) {
+  const info = statSync2(path);
+  if (!info.isFile() || info.size <= 0 || info.size > MAX_PACKAGE_JSON_BYTES) {
+    throw new McpProductionPathError("Circuit refused an invalid Codex package manifest.");
+  }
+  let value;
+  try {
+    value = JSON.parse(readFileSync4(path, "utf8"));
+  } catch {
+    throw new McpProductionPathError("Circuit could not parse the Codex package manifest.");
+  }
+  if (typeof value !== "object" || value === null || Array.isArray(value)) {
+    throw new McpProductionPathError("Circuit refused an invalid Codex package manifest.");
+  }
+  return value;
+}
+function optionalDependencyNames(manifest) {
+  const value = manifest.optionalDependencies;
+  if (typeof value !== "object" || value === null || Array.isArray(value)) return /* @__PURE__ */ new Set();
+  return new Set(Object.keys(value));
+}
+function officialCodexPackageRoot(launcher) {
+  let directory = dirname4(launcher);
+  for (let depth = 0; depth < 4; depth += 1) {
+    const manifestPath = join6(directory, "package.json");
+    try {
+      const manifest = readPackageJson(manifestPath);
+      const bin = manifest.bin;
+      const binPath = typeof bin === "object" && bin !== null && !Array.isArray(bin) ? bin.codex : void 0;
+      if (manifest.name === "@openai/codex" && binPath === "bin/codex.js" && realpathSync3.native(join6(directory, binPath)) === launcher) {
+        return directory;
+      }
+    } catch (error51) {
+      if (error51 instanceof McpProductionPathError) throw error51;
+    }
+    const parent = dirname4(directory);
+    if (parent === directory) break;
+    directory = parent;
+  }
+  throw new McpProductionPathError(
+    "Circuit refused an opaque Codex launcher because its native executable could not be sealed."
+  );
+}
+function nativeCodexFromNpmLauncher(launcher, platform, arch) {
+  const target = CODEX_NPM_TARGETS[`${platform}:${arch}`];
+  if (target === void 0) {
+    throw new McpProductionPathError(
+      `Circuit cannot seal the Codex npm launcher on ${platform}/${arch}.`
+    );
+  }
+  const packageRoot = officialCodexPackageRoot(launcher);
+  const packageManifest = readPackageJson(join6(packageRoot, "package.json"));
+  if (!optionalDependencyNames(packageManifest).has(target.packageName)) {
+    throw new McpProductionPathError(
+      "Circuit refused a Codex npm launcher without its declared native package."
+    );
+  }
+  let platformPackageRoot;
+  try {
+    const require2 = createRequire(join6(packageRoot, "package.json"));
+    const manifestPath = realpathSync3.native(require2.resolve(`${target.packageName}/package.json`));
+    platformPackageRoot = dirname4(manifestPath);
+  } catch {
+  }
+  const candidate2 = platformPackageRoot === void 0 ? join6(packageRoot, "vendor", target.triple, "bin", target.executableName) : join6(platformPackageRoot, "vendor", target.triple, "bin", target.executableName);
+  let native;
+  try {
+    native = realpathSync3.native(candidate2);
+    const root = realpathSync3.native(platformPackageRoot ?? packageRoot);
+    const info = statSync2(native);
+    if (!pathInside2(root, native) || !info.isFile() || (info.mode & 73) === 0) {
+      throw new Error("invalid native executable");
+    }
+  } catch {
+    throw new McpProductionPathError(
+      "Circuit could not seal the native executable behind the Codex npm launcher."
+    );
+  }
+  if (!isNativeExecutable(native)) {
+    throw new McpProductionPathError(
+      "Circuit refused a Codex npm payload that is not a native executable."
+    );
+  }
+  return native;
+}
+function nativeCodexFromVitePlusLauncher(discovered, wrapper, platform, arch) {
+  const binRoot = dirname4(discovered);
+  const vitePlusRoot = dirname4(binRoot);
+  let canonicalRoot;
+  try {
+    canonicalRoot = realpathSync3.native(vitePlusRoot);
+  } catch {
+    throw new McpProductionPathError("Circuit could not seal the Vite+ Codex package root.");
+  }
+  if (basename2(binRoot) !== "bin" || basename2(wrapper) !== "vp" || !pathInside2(canonicalRoot, wrapper)) {
+    throw new McpProductionPathError(
+      "Circuit refused an opaque native Codex launcher because its downstream executable could not be sealed."
+    );
+  }
+  const npmLauncher = join6(
+    canonicalRoot,
+    "packages",
+    "@openai",
+    "codex",
+    "lib",
+    "node_modules",
+    "@openai",
+    "codex",
+    "bin",
+    "codex.js"
+  );
+  let canonicalLauncher;
+  try {
+    canonicalLauncher = realpathSync3.native(npmLauncher);
+    if (!pathInside2(canonicalRoot, canonicalLauncher)) throw new Error("launcher escaped root");
+  } catch {
+    throw new McpProductionPathError(
+      "Circuit could not seal the native executable selected by the Vite+ Codex launcher."
+    );
+  }
+  return nativeCodexFromNpmLauncher(canonicalLauncher, platform, arch);
+}
+function resolveCodexExecutableOnPath(pathValue, platform = process.platform, arch = process.arch) {
+  const discovered = findExecutableOnPath("codex", pathValue);
+  let resolved;
+  try {
+    resolved = realpathSync3.native(discovered);
+    const info = statSync2(resolved);
+    if (!info.isFile() || (info.mode & 73) === 0) throw new Error("not executable");
+  } catch {
+    throw new McpProductionPathError("Circuit could not resolve the Codex executable.");
+  }
+  if (isNativeExecutable(resolved)) {
+    const nativeName = basename2(resolved).toLowerCase();
+    if (nativeName === "codex" || nativeName === "codex.exe") return discovered;
+    return nativeCodexFromVitePlusLauncher(discovered, resolved, platform, arch);
+  }
+  return nativeCodexFromNpmLauncher(resolved, platform, arch);
+}
+function derivePinnedNodeInstallation(executable) {
+  if (!isAbsolute9(executable) || executable.includes("\0") || resolve4(executable) !== executable) {
+    throw new McpProductionPathError("The pinned Node executable path is invalid.");
+  }
+  const bin = dirname4(executable);
+  const root = dirname4(bin);
+  if (basename2(bin) !== "bin" || root === dirname4(root)) {
+    throw new McpProductionPathError(
+      "Circuit refused an unreviewed Node installation layout for the Codex sandbox."
+    );
+  }
+  return Object.freeze({ executable, bin, root });
+}
+function codexMcpStateRoot(codexHome) {
+  if (!isAbsolute9(codexHome) || codexHome.includes("\0")) {
+    throw new McpProductionPathError("CODEX_HOME must be an absolute local directory.");
+  }
+  return resolve4(codexHome, "circuit", "mcp", "v1");
+}
+function flowAssetId(flowsRoot, path) {
+  const rel = relative2(flowsRoot, path).split(sep).join("/").replace(/\.json$/, "");
+  const id = rel.replaceAll("/", "-");
+  if (!/^[a-z0-9][a-z0-9-]{0,63}$/.test(id)) {
+    throw new McpProductionPathError(`Circuit found an invalid packaged flow path: ${rel}`);
+  }
+  return id;
+}
+function collectPackagedFlowAssets(flowsRoot) {
+  if (!isAbsolute9(flowsRoot)) {
+    throw new McpProductionPathError("The packaged flow root must be absolute.");
+  }
+  const rootInfo = lstatSync2(flowsRoot);
+  if (rootInfo.isSymbolicLink() || !rootInfo.isDirectory()) {
+    throw new McpProductionPathError("The packaged flow root is not a real directory.");
+  }
+  const found = [];
+  const pending = [flowsRoot];
+  while (pending.length > 0) {
+    const directory = pending.pop();
+    if (directory === void 0) break;
+    for (const entry of readdirSync2(directory, { withFileTypes: true })) {
+      const path = join6(directory, entry.name);
+      if (entry.isSymbolicLink()) {
+        throw new McpProductionPathError("Circuit refused a linked packaged flow asset.");
+      }
+      if (entry.isDirectory()) {
+        pending.push(path);
+        continue;
+      }
+      if (!entry.isFile() || !entry.name.endsWith(".json")) {
+        throw new McpProductionPathError("Circuit found an unexpected packaged flow asset.");
+      }
+      found.push({ id: flowAssetId(flowsRoot, path), path });
+      if (found.length > MAX_FLOW_ASSETS) {
+        throw new McpProductionPathError("Circuit found too many packaged flow assets.");
+      }
+    }
+  }
+  found.sort((left, right) => left.id.localeCompare(right.id));
+  if (!found.some((asset) => asset.id === "catalog")) {
+    throw new McpProductionPathError("The packaged public flow catalog is missing.");
+  }
+  if (new Set(found.map((entry) => entry.id)).size !== found.length) {
+    throw new McpProductionPathError("Packaged flow asset IDs are not unique.");
+  }
+  return Object.freeze(found);
+}
+
+// src/hosts/codex-mcp/public-flow-catalog.ts
+import { constants as constants4, closeSync as closeSync4, fstatSync as fstatSync3, openSync as openSync4, readFileSync as readFileSync5 } from "node:fs";
+var MAX_CATALOG_BYTES = 1024 * 1024;
+var REQUIRED_PUBLIC_FLOWS = new Set(McpPublicFlowV1.options);
+var PublicCatalogV1 = external_exports.object({
+  flows: external_exports.array(
+    external_exports.object({
+      id: McpPublicFlowV1,
+      title: external_exports.string().trim().min(1).max(200),
+      purpose: external_exports.string().trim().min(1).max(8e3)
+    }).strict()
+  ).min(1).max(20)
+}).strict();
+var PublicFlowCatalogError = class extends Error {
+  code = "flow_catalog_invalid";
+  nextAction = "Reinstall the Circuit plugin, then retry.";
+  constructor(message) {
+    super(message);
+    this.name = "PublicFlowCatalogError";
+  }
+};
+function loadPublicFlowCatalog(path) {
+  let fd;
+  try {
+    fd = openSync4(path, constants4.O_RDONLY | constants4.O_NOFOLLOW);
+    const before = fstatSync3(fd);
+    if (!before.isFile() || before.size === 0 || before.size > MAX_CATALOG_BYTES) {
+      throw new Error("catalog is not a bounded regular file");
+    }
+    const decoded = PublicCatalogV1.parse(JSON.parse(readFileSync5(fd, "utf8")));
+    const after = fstatSync3(fd);
+    if (before.dev !== after.dev || before.ino !== after.ino || before.size !== after.size || before.mtimeMs !== after.mtimeMs || before.ctimeMs !== after.ctimeMs) {
+      throw new Error("catalog changed while Circuit read it");
+    }
+    const roster = new Set(decoded.flows.map((flow) => flow.id));
+    if (roster.size !== decoded.flows.length || roster.size !== REQUIRED_PUBLIC_FLOWS.size || [...REQUIRED_PUBLIC_FLOWS].some((flow) => !roster.has(flow))) {
+      throw new Error("catalog does not contain the exact public MCP flow roster");
+    }
+    return roster;
+  } catch (error51) {
+    if (error51 instanceof PublicFlowCatalogError) throw error51;
+    const message = error51 instanceof Error ? error51.message : String(error51);
+    throw new PublicFlowCatalogError(`Circuit could not trust its public flow catalog: ${message}`);
+  } finally {
+    if (fd !== void 0) closeSync4(fd);
+  }
+}
+
+// src/hosts/codex-mcp/resources.ts
+import { realpath as realpath4, stat as stat2 } from "node:fs/promises";
+import { isAbsolute as isAbsolute10, resolve as resolve5 } from "node:path";
+import { fileURLToPath } from "node:url";
+var CODEX_SANDBOX_METADATA_KEY = "codex/sandbox-state-meta";
+var CodexWorkspaceMetadataError = class extends Error {
+  code;
+  nextAction;
+  constructor(code, message, nextAction = "Update Codex and retry from a real workspace directory.") {
+    super(message);
+    this.name = "CodexWorkspaceMetadataError";
+    this.code = code;
+    this.nextAction = nextAction;
+  }
+};
+function isRecord2(value) {
+  return value !== null && typeof value === "object" && !Array.isArray(value);
+}
+function hasOwn(record2, key) {
+  return Object.prototype.hasOwnProperty.call(record2, key);
+}
+function sandboxCwdFromRequest(request) {
+  if (!isRecord2(request) || !hasOwn(request, "_meta") || !isRecord2(request._meta)) {
+    throw new CodexWorkspaceMetadataError(
+      "workspace_metadata_missing",
+      `Codex did not provide ${CODEX_SANDBOX_METADATA_KEY} workspace metadata.`
+    );
+  }
+  const meta3 = request._meta;
+  if (!hasOwn(meta3, CODEX_SANDBOX_METADATA_KEY)) {
+    throw new CodexWorkspaceMetadataError(
+      "workspace_metadata_missing",
+      `Codex did not provide ${CODEX_SANDBOX_METADATA_KEY} workspace metadata.`
+    );
+  }
+  const sandboxState = meta3[CODEX_SANDBOX_METADATA_KEY];
+  if (!isRecord2(sandboxState) || !hasOwn(sandboxState, "sandboxCwd")) {
+    throw new CodexWorkspaceMetadataError(
+      "workspace_metadata_invalid",
+      `Codex provided ${CODEX_SANDBOX_METADATA_KEY} in an unsupported shape.`
+    );
+  }
+  const sandboxCwd = sandboxState.sandboxCwd;
+  if (typeof sandboxCwd !== "string" || sandboxCwd.length === 0) {
+    throw new CodexWorkspaceMetadataError(
+      "workspace_metadata_invalid",
+      "Codex workspace metadata must contain a non-empty sandboxCwd file URL."
+    );
+  }
+  return sandboxCwd;
+}
+function pathFromTrustedFileUrl(value) {
+  if (isAbsolute10(value)) return value;
+  let url2;
+  try {
+    url2 = new URL(value);
+  } catch {
+    throw new CodexWorkspaceMetadataError(
+      "workspace_metadata_invalid",
+      "Codex sandboxCwd must be an absolute path or file URL."
+    );
+  }
+  if (url2.protocol !== "file:" || url2.username.length > 0 || url2.password.length > 0 || url2.hostname.length > 0 || url2.port.length > 0 || url2.search.length > 0 || url2.hash.length > 0) {
+    throw new CodexWorkspaceMetadataError(
+      "workspace_metadata_invalid",
+      "Codex sandboxCwd must be a local file URL without credentials, a host, a query, or a fragment."
+    );
+  }
+  try {
+    const path = fileURLToPath(url2);
+    if (path.length === 0 || !path.startsWith("/")) {
+      throw new Error("not an absolute path");
+    }
+    return path;
+  } catch {
+    throw new CodexWorkspaceMetadataError(
+      "workspace_metadata_invalid",
+      "Codex sandboxCwd is not a valid local file URL."
+    );
+  }
+}
+async function resolveTrustedCodexWorkspace(request) {
+  const requestedPath = pathFromTrustedFileUrl(sandboxCwdFromRequest(request));
+  let workspace;
+  try {
+    workspace = await realpath4(requestedPath);
+  } catch {
+    throw new CodexWorkspaceMetadataError(
+      "workspace_unavailable",
+      "The workspace from Codex metadata does not exist or cannot be resolved."
+    );
+  }
+  if (workspace !== resolve5(requestedPath)) {
+    throw new CodexWorkspaceMetadataError(
+      "workspace_metadata_unsafe",
+      "The workspace from Codex metadata reaches the directory through a symbolic link.",
+      "Open the real workspace directory in Codex and retry."
+    );
+  }
+  let workspaceStat;
+  try {
+    workspaceStat = await stat2(workspace);
+  } catch {
+    throw new CodexWorkspaceMetadataError(
+      "workspace_unavailable",
+      "The workspace from Codex metadata became unavailable while Circuit checked it."
+    );
+  }
+  if (!workspaceStat.isDirectory()) {
+    throw new CodexWorkspaceMetadataError(
+      "workspace_not_directory",
+      "The workspace from Codex metadata is not a directory."
+    );
+  }
+  return {
+    metadata_key: CODEX_SANDBOX_METADATA_KEY,
+    workspace
+  };
+}
+
+// src/hosts/codex-mcp/runtime-artifacts.ts
+import { createHash as createHash6 } from "node:crypto";
+import { constants as constants6 } from "node:fs";
+import { lstat as lstat3, open as open2, realpath as realpath5 } from "node:fs/promises";
+import { isAbsolute as isAbsolute12, join as join11, relative as relative4, resolve as resolve8, sep as sep3 } from "node:path";
+
+// src/app/run-status/run-folder-projector.ts
+import { constants as constants5, accessSync, statSync as statSync3 } from "node:fs";
+import { resolve as resolve7 } from "node:path";
+
+// src/shared/manifest-snapshot.ts
+import { readFileSync as readFileSync6, writeFileSync } from "node:fs";
+import { join as join7 } from "node:path";
+
+// src/schemas/manifest.ts
+import { createHash as createHash4 } from "node:crypto";
+var ManifestHash = Sha2562;
+var BASE64 = /^[A-Za-z0-9+/=\r\n]*$/;
+var ManifestSnapshot = external_exports.object({
+  schema_version: external_exports.literal(1),
+  run_id: RunId,
+  flow_id: CompiledFlowId,
+  captured_at: external_exports.iso.datetime(),
+  algorithm: external_exports.literal("sha256-raw"),
+  hash: ManifestHash,
+  bytes_base64: external_exports.string().regex(BASE64, {
+    message: "bytes_base64 must be base64-encoded (RFC 4648 alphabet)"
+  })
+}).strict().superRefine((snap, ctx) => {
+  let decoded;
+  try {
+    decoded = Buffer.from(snap.bytes_base64, "base64");
+  } catch {
+    ctx.addIssue({
+      code: "custom",
+      path: ["bytes_base64"],
+      message: "bytes_base64 failed to decode as base64"
+    });
+    return;
+  }
+  const computed = createHash4("sha256").update(decoded).digest("hex");
+  if (computed !== snap.hash) {
+    ctx.addIssue({
+      code: "custom",
+      path: ["hash"],
+      message: `manifest hash mismatch: declared=${snap.hash} computed=${computed} (sha256 over decoded bytes_base64)`
+    });
+  }
+});
+
+// src/shared/manifest-snapshot.ts
+function manifestSnapshotPath(runFolder) {
+  return join7(runFolder, "manifest.snapshot.json");
+}
+function readManifestSnapshot(runFolder) {
+  const text = readFileSync6(manifestSnapshotPath(runFolder), "utf8");
+  const raw = JSON.parse(text);
+  return ManifestSnapshot.parse(raw);
+}
+function verifyManifestSnapshotBytes(runFolder) {
+  return readManifestSnapshot(runFolder);
+}
+
+// src/app/run-status/projection-common.ts
+import { existsSync as existsSync2 } from "node:fs";
+import { join as join9 } from "node:path";
+
+// src/shared/result-path.ts
+import { join as join8 } from "node:path";
+var RUN_RESULT_RELATIVE_PATH = "reports/result.json";
+function runResultPath(runFolder) {
+  return join8(runFolder, RUN_RESULT_RELATIVE_PATH);
+}
+
+// src/shared/run-file-paths.ts
+import { existsSync, lstatSync as lstatSync3, realpathSync as realpathSync4 } from "node:fs";
+import { isAbsolute as isAbsolute11, relative as relative3, resolve as resolve6, sep as sep2 } from "node:path";
+function isInsideOrSame(root, target) {
+  const fromRoot = relative3(root, target);
+  return fromRoot === "" || !fromRoot.startsWith("..") && !isAbsolute11(fromRoot);
+}
+function validateRunFilePath(runRelativePath) {
+  const issues = [];
+  if (runRelativePath.trim().length === 0) {
+    issues.push("must be non-empty");
+  }
+  if (isAbsolute11(runRelativePath)) {
+    issues.push("must be relative");
+  }
+  if (runRelativePath.includes("\\")) {
+    issues.push('must use POSIX "/" separators');
+  }
+  if (runRelativePath.includes(":")) {
+    issues.push("must not contain drive-letter or colon forms");
+  }
+  if (runRelativePath.split("/").some((segment) => segment.length === 0 || segment === "." || segment === "..")) {
+    issues.push("must not contain empty, current-directory, or parent-directory segments");
+  }
+  return issues;
+}
+function resolveRunFilePath(runDir, runRelativePath) {
+  if (runRelativePath.trim().length === 0) {
+    throw new Error("run file path must be non-empty");
+  }
+  if (isAbsolute11(runRelativePath)) {
+    throw new Error(`run file path must be relative: ${runRelativePath}`);
+  }
+  const root = resolve6(runDir);
+  const fullPath = resolve6(root, runRelativePath);
+  if (fullPath !== root && !fullPath.startsWith(`${root}${sep2}`)) {
+    throw new Error(`run file path escapes run directory: ${runRelativePath}`);
+  }
+  if (fullPath === root) {
+    throw new Error(`run file path must name a file: ${runRelativePath}`);
+  }
+  const validation = validateRunFilePath(runRelativePath);
+  if (validation.length > 0) {
+    throw new Error(`run file path ${validation[0]}: ${runRelativePath}`);
+  }
+  if (existsSync(root)) {
+    if (lstatSync3(root).isSymbolicLink()) {
+      throw new Error(`run file path crosses symlink: ${runRelativePath}`);
+    }
+    const rootReal = realpathSync4.native(root);
+    let cursor = root;
+    for (const segment of runRelativePath.split("/")) {
+      cursor = resolve6(cursor, segment);
+      if (!existsSync(cursor)) break;
+      if (lstatSync3(cursor).isSymbolicLink()) {
+        throw new Error(`run file path crosses symlink: ${runRelativePath}`);
+      }
+      if (!isInsideOrSame(rootReal, realpathSync4.native(cursor))) {
+        throw new Error(`run file path escapes run directory through symlink: ${runRelativePath}`);
+      }
+    }
+  }
+  return fullPath;
+}
+
+// src/schemas/change-kind.ts
+var ChangeKind = external_exports.enum([
+  "ratchet-advance",
+  "equivalence-refactor",
+  "migration-escrow",
+  "discovery",
+  "disposable",
+  "break-glass"
+]);
+var ChangeKindBase = external_exports.object({
+  failure_mode: external_exports.string().min(1),
+  acceptance_evidence: external_exports.string().min(1),
+  alternate_framing: external_exports.string().min(1)
+});
+var MigrationEscrowChangeKind = ChangeKindBase.extend({
+  change_kind: external_exports.literal("migration-escrow"),
+  expires_at: external_exports.iso.datetime(),
+  restoration_plan: external_exports.string().min(1)
+}).strict();
+var BreakGlassChangeKind = ChangeKindBase.extend({
+  change_kind: external_exports.literal("break-glass"),
+  post_hoc_adr_deadline_at: external_exports.iso.datetime()
+}).strict();
+var StandardChangeKind = ChangeKindBase.extend({
+  change_kind: external_exports.enum(["ratchet-advance", "equivalence-refactor", "discovery", "disposable"])
+});
+var ChangeKindDeclaration = external_exports.discriminatedUnion("change_kind", [
+  StandardChangeKind.extend({ change_kind: external_exports.literal("ratchet-advance") }).strict(),
+  StandardChangeKind.extend({ change_kind: external_exports.literal("equivalence-refactor") }).strict(),
+  StandardChangeKind.extend({ change_kind: external_exports.literal("discovery") }).strict(),
+  StandardChangeKind.extend({ change_kind: external_exports.literal("disposable") }).strict(),
+  MigrationEscrowChangeKind,
+  BreakGlassChangeKind
+]);
+
+// src/schemas/change-packet.ts
+var WorkRootKind = external_exports.enum([
+  "isolated_worktree",
+  "parent_checkout_diff_capture",
+  "pre_safe_apply_trusted_write"
+]);
+var ProtectedFileDecision = external_exports.enum(["allowed", "rejected", "checkpointed"]);
+var SafeApplyAction = external_exports.enum(["rejected", "accepted_for_review", "applied"]);
+var SafeApplyOutcome = external_exports.enum(["pass", "fail"]);
+var SafeApplyReasonCode = external_exports.enum([
+  "guidance_missing",
+  "packet_invalid",
+  "base_mismatch",
+  "dirty_parent",
+  "patch_hash_mismatch",
+  "apply_conflict",
+  "touched_files_mismatch",
+  "protected_file_touched",
+  "generated_surface_drift",
+  "weak_proof",
+  "final_verification_failed",
+  "applied",
+  "review_required",
+  "rejected"
+]);
+
+// src/schemas/recovery-route-kind.ts
+var RecoveryRouteKind = external_exports.enum([
+  "retry_same_step_with_feedback",
+  "narrow_scope",
+  "run_verification",
+  "run_independent_review",
+  "checkpoint_authority",
+  "safe_apply_reject",
+  "stop_unsafe",
+  "escalate",
+  "handoff"
+]);
+var RecoveryFailureCause = external_exports.enum([
+  "failed_check",
+  "failed_acceptance_criteria",
+  "weak_proof",
+  "unproved_claim",
+  "contradicted_evidence",
+  "scope_drift",
+  "checkpoint_boundary",
+  "relay_connector_failed",
+  "relay_result_invalid",
+  "base_mismatch",
+  "apply_conflict",
+  "budget_exceeded",
+  "protected_file_touched",
+  "generated_surface_drift",
+  "unknown_failure"
+]);
+var RecoveryRequiredRefKind = external_exports.enum([
+  "failed_check",
+  "acceptance_feedback",
+  "proof_assessment",
+  "runtime_diff",
+  "relay_result",
+  "checkpoint_request",
+  "safe_apply_result",
+  "budget_state",
+  "change_packet",
+  "generated_surface_evidence",
+  "trace",
+  "report"
+]);
+var RECOVERY_KIND_CONTRACT_RULES = {
+  retry_same_step_with_feedback: {
+    allowedFailureCauses: ["failed_check", "failed_acceptance_criteria", "relay_result_invalid"],
+    defaultRequiredRefs: ["failed_check", "acceptance_feedback", "budget_state"],
+    rejectsUnknownFailure: true
+  },
+  narrow_scope: {
+    allowedFailureCauses: ["failed_check", "scope_drift", "weak_proof", "unproved_claim"],
+    defaultRequiredRefs: ["proof_assessment", "runtime_diff"]
+  },
+  run_verification: {
+    allowedFailureCauses: [
+      "failed_check",
+      "weak_proof",
+      "unproved_claim",
+      "generated_surface_drift"
+    ],
+    defaultRequiredRefs: ["proof_assessment", "generated_surface_evidence"],
+    rejectsUnknownFailure: true
+  },
+  run_independent_review: {
+    allowedFailureCauses: ["weak_proof", "contradicted_evidence", "scope_drift"],
+    defaultRequiredRefs: ["proof_assessment", "report"],
+    rejectsUnknownFailure: true
+  },
+  checkpoint_authority: {
+    allowedFailureCauses: [
+      "checkpoint_boundary",
+      "protected_file_touched",
+      "budget_exceeded",
+      "unknown_failure"
+    ],
+    defaultRequiredRefs: ["checkpoint_request", "runtime_diff", "budget_state"],
+    causeRequiredRefs: {
+      protected_file_touched: {
+        anyOf: ["runtime_diff", "change_packet"],
+        message: "protected_file_touched requires runtime_diff or change_packet refs"
+      }
+    }
+  },
+  safe_apply_reject: {
+    allowedFailureCauses: [
+      "base_mismatch",
+      "apply_conflict",
+      "protected_file_touched",
+      "generated_surface_drift"
+    ],
+    defaultRequiredRefs: ["safe_apply_result", "runtime_diff", "generated_surface_evidence"],
+    requiredRefs: {
+      anyOf: ["safe_apply_result", "runtime_diff", "change_packet"],
+      message: "safe_apply_reject requires safe_apply_result, runtime_diff, or change_packet refs"
+    },
+    causeRequiredRefs: {
+      protected_file_touched: {
+        anyOf: ["runtime_diff", "change_packet"],
+        message: "protected_file_touched requires runtime_diff or change_packet refs"
+      }
+    }
+  },
+  stop_unsafe: {
+    allowedFailureCauses: [
+      "failed_check",
+      "contradicted_evidence",
+      "scope_drift",
+      "budget_exceeded",
+      "unknown_failure"
+    ],
+    defaultRequiredRefs: ["failed_check", "trace"]
+  },
+  escalate: {
+    allowedFailureCauses: ["relay_connector_failed", "budget_exceeded", "unknown_failure"],
+    defaultRequiredRefs: ["relay_result", "trace"]
+  },
+  handoff: {
+    allowedFailureCauses: ["checkpoint_boundary", "budget_exceeded", "unknown_failure"],
+    defaultRequiredRefs: ["trace", "report"]
+  }
+};
+var RecoveryOperatorAuthority = external_exports.enum([
+  "not_required",
+  "required_before_route",
+  "required_to_continue_after_route"
+]);
+var RecoveryAttemptBudget = external_exports.object({
+  consumes_step_attempt: external_exports.boolean(),
+  must_respect_max_attempts: external_exports.boolean(),
+  retry_target: external_exports.enum(["same_step", "declared_step"]).optional()
+}).strict();
+var RecoveryGuidanceRule = external_exports.object({
+  subject: external_exports.literal("recovery_route"),
+  must_match_step_completed: external_exports.literal(true)
+}).strict();
+var RecoveryRouteBindingV0 = external_exports.object({
+  schema_version: external_exports.literal(0),
+  step_id: StepId,
+  route_id: external_exports.string().min(1),
+  route_target: external_exports.string().min(1),
+  kind: RecoveryRouteKind,
+  allowed_failure_causes: external_exports.array(RecoveryFailureCause).min(1),
+  required_refs: external_exports.array(RecoveryRequiredRefKind).min(1),
+  operator_authority: RecoveryOperatorAuthority,
+  attempt_budget: RecoveryAttemptBudget,
+  guidance: RecoveryGuidanceRule,
+  source_ref: Ref
+}).strict().superRefine((binding, ctx) => {
+  const requiredRefs = new Set(binding.required_refs);
+  const causes = new Set(binding.allowed_failure_causes);
+  const rule = RECOVERY_KIND_CONTRACT_RULES[binding.kind];
+  const hasAnyRequiredRef = (requirement) => requirement.anyOf.some((ref) => requiredRefs.has(ref));
+  if (binding.kind === "retry_same_step_with_feedback") {
+    if (binding.route_target !== binding.step_id) {
+      ctx.addIssue({
+        code: "custom",
+        path: ["route_target"],
+        message: "retry_same_step_with_feedback must target the same step"
+      });
+    }
+    if (!requiredRefs.has("acceptance_feedback")) {
+      ctx.addIssue({
+        code: "custom",
+        path: ["required_refs"],
+        message: "retry_same_step_with_feedback requires acceptance_feedback refs"
+      });
+    }
+    if (!binding.attempt_budget.consumes_step_attempt) {
+      ctx.addIssue({
+        code: "custom",
+        path: ["attempt_budget", "consumes_step_attempt"],
+        message: "retry_same_step_with_feedback consumes the step attempt budget"
+      });
+    }
+    if (!binding.attempt_budget.must_respect_max_attempts) {
+      ctx.addIssue({
+        code: "custom",
+        path: ["attempt_budget", "must_respect_max_attempts"],
+        message: "retry_same_step_with_feedback must respect max_attempts"
+      });
+    }
+    if (binding.attempt_budget.retry_target !== "same_step") {
+      ctx.addIssue({
+        code: "custom",
+        path: ["attempt_budget", "retry_target"],
+        message: "retry_same_step_with_feedback requires retry_target same_step"
+      });
+    }
+  }
+  if (causes.has("unknown_failure") && rule.rejectsUnknownFailure === true) {
+    ctx.addIssue({
+      code: "custom",
+      path: ["allowed_failure_causes"],
+      message: "unknown_failure cannot route to retry, verification, or independent review"
+    });
+  }
+  if (rule.requiredRefs !== void 0 && !hasAnyRequiredRef(rule.requiredRefs)) {
+    ctx.addIssue({
+      code: "custom",
+      path: ["required_refs"],
+      message: rule.requiredRefs.message
+    });
+  }
+  const causeRequiredRefs = {
+    ...rule.causeRequiredRefs ?? {},
+    ...causes.has("generated_surface_drift") ? {
+      generated_surface_drift: {
+        anyOf: ["generated_surface_evidence"],
+        message: "generated_surface_drift requires generated_surface_evidence refs"
+      }
+    } : {}
+  };
+  for (const cause of binding.allowed_failure_causes) {
+    const requirement = causeRequiredRefs[cause];
+    if (requirement === void 0 || hasAnyRequiredRef(requirement)) continue;
+    ctx.addIssue({
+      code: "custom",
+      path: ["required_refs"],
+      message: requirement.message
+    });
+  }
+  if (binding.source_ref.kind !== "work_contract") {
+    ctx.addIssue({
+      code: "custom",
+      path: ["source_ref", "kind"],
+      message: "recovery route bindings must point back to WorkContract refs"
+    });
+  }
+});
+
+// src/schemas/runtime-evidence.ts
+var RuntimeGitStateEntry = external_exports.object({
+  status_code: external_exports.string().length(2),
+  path: external_exports.string().min(1),
+  fingerprint: external_exports.string().min(1),
+  from: external_exports.string().min(1).optional()
+}).strict();
+var RuntimeHiddenIndexFlag = external_exports.object({
+  tag: external_exports.string().length(1),
+  path: external_exports.string().min(1)
+}).strict();
+var RuntimeGitStateSnapshot = external_exports.object({
+  head_sha: external_exports.string().min(1),
+  entries: external_exports.array(RuntimeGitStateEntry),
+  hidden_index_flags: external_exports.array(RuntimeHiddenIndexFlag)
+}).strict();
+var RuntimeGitStateSnapshotReport = RuntimeGitStateSnapshot.extend({
+  overall_status: external_exports.literal("passed")
+}).strict();
+var RuntimeTouchedFileStatus = external_exports.enum(["added", "modified", "deleted", "renamed"]);
+var RuntimeTouchedFile = external_exports.object({
+  path: external_exports.string().min(1),
+  status: RuntimeTouchedFileStatus,
+  source: external_exports.literal("runtime_diff"),
+  generated_surface: external_exports.boolean(),
+  protected: external_exports.boolean(),
+  // Rename/copy source. git folds a rename's source deletion into the
+  // destination entry, so the source path never appears as its own touched
+  // file. Carrying it here lets a path-containment consumer (Build's
+  // touch-area gate) see both endpoints of a move; without it, a
+  // `git mv out-of-area in-area` would hide the out-of-area source. Absent
+  // for non-rename entries. Deliberately NOT folded into the worker-claim
+  // comparison (which stays destination-only), so Fix's change-set verdict is
+  // unchanged: declaring a rename's destination remains a faithful claim.
+  from: external_exports.string().min(1).optional()
+}).strict();
+var RuntimeTouchedFilesCore = external_exports.object({
+  baseline_head_sha: external_exports.string().min(1),
+  head_sha: external_exports.string().min(1),
+  head_diverged: external_exports.boolean(),
+  files: external_exports.array(RuntimeTouchedFile),
+  worker_declared: external_exports.array(external_exports.string().min(1)),
+  worker_claim_matches_runtime: external_exports.boolean(),
+  undeclared_worker_extras: external_exports.array(external_exports.string().min(1)),
+  missing_worker_declared: external_exports.array(external_exports.string().min(1)),
+  baseline_dirty_mutated: external_exports.array(external_exports.string().min(1)),
+  hidden_index_flags: external_exports.array(RuntimeHiddenIndexFlag)
+}).strict();
+function addRuntimeTouchedFilesIssues(touched, ctx) {
+  const observed = touched.files.map((file2) => file2.path);
+  const observedSet = new Set(observed);
+  const declaredSet = new Set(touched.worker_declared);
+  const expectedExtras = observed.filter((path) => !declaredSet.has(path));
+  const expectedMissing = touched.worker_declared.filter((path) => !observedSet.has(path));
+  const expectedMatches = expectedExtras.length === 0 && expectedMissing.length === 0;
+  if (touched.head_diverged !== (touched.baseline_head_sha !== touched.head_sha)) {
+    ctx.addIssue({
+      code: "custom",
+      path: ["head_diverged"],
+      message: "head_diverged must equal baseline_head_sha !== head_sha"
+    });
+  }
+  if (touched.worker_claim_matches_runtime !== expectedMatches) {
+    ctx.addIssue({
+      code: "custom",
+      path: ["worker_claim_matches_runtime"],
+      message: "worker_claim_matches_runtime must reflect undeclared_worker_extras and missing_worker_declared"
+    });
+  }
+  if (expectedExtras.length !== touched.undeclared_worker_extras.length || expectedExtras.some((path, index) => path !== touched.undeclared_worker_extras[index])) {
+    ctx.addIssue({
+      code: "custom",
+      path: ["undeclared_worker_extras"],
+      message: "undeclared_worker_extras must equal runtime-observed paths minus worker_declared"
+    });
+  }
+  if (expectedMissing.length !== touched.missing_worker_declared.length || expectedMissing.some((path, index) => path !== touched.missing_worker_declared[index])) {
+    ctx.addIssue({
+      code: "custom",
+      path: ["missing_worker_declared"],
+      message: "missing_worker_declared must equal worker_declared minus runtime-observed paths"
+    });
+  }
+  for (const [index, path] of touched.baseline_dirty_mutated.entries()) {
+    if (!observedSet.has(path)) {
+      ctx.addIssue({
+        code: "custom",
+        path: ["baseline_dirty_mutated", index],
+        message: `baseline_dirty_mutated path '${path}' must also appear in files`
+      });
+    }
+  }
+}
+var RuntimeTouchedFilesProjection = RuntimeTouchedFilesCore.superRefine(
+  addRuntimeTouchedFilesIssues
+);
+var RuntimeTouchedFilesReport = RuntimeTouchedFilesCore.extend({
+  overall_status: external_exports.enum(["passed", "failed"])
+}).superRefine((report, ctx) => {
+  addRuntimeTouchedFilesIssues(report, ctx);
+  const hasFailure = report.head_diverged || !report.worker_claim_matches_runtime || report.hidden_index_flags.length > 0;
+  const expected = hasFailure ? "failed" : "passed";
+  if (report.overall_status !== expected) {
+    ctx.addIssue({
+      code: "custom",
+      path: ["overall_status"],
+      message: `overall_status must be '${expected}' for the runtime touched-file evidence`
+    });
+  }
+});
+var RuntimeTouchedFilesEvidenceRef = Ref.refine((ref) => ref.kind === "evidence", {
+  message: "runtime touched-file evidence refs must use kind evidence"
+});
+
+// src/schemas/guidance-decision.ts
+var GuidanceDecisionId = external_exports.string().regex(/^gd-[a-z0-9][a-z0-9._-]*$/);
+var GuidanceDecisionSubject = external_exports.enum([
+  "flow_selection",
+  "relay_execution",
+  "checkpoint_resolution",
+  "proof_policy",
+  "recovery_route",
+  "safe_apply"
+]);
+var GuidanceDecisionSource = external_exports.enum([
+  "deterministic",
+  "heuristic",
+  "model_recommended",
+  "host_recommended",
+  "operator_override"
+]);
+var ReasonCode = external_exports.string().regex(/^[a-z][a-z0-9_]*$/);
+var GuidanceScope = external_exports.object({
+  run_id: RunId,
+  flow_id: CompiledFlowId.optional(),
+  step_id: StepId.optional(),
+  attempt: external_exports.number().int().positive().optional(),
+  branch_id: external_exports.string().min(1).optional()
+}).strict();
+var GuidanceSkillSelection = external_exports.object({
+  id: SkillId,
+  slot: SkillSlotId.optional()
+}).strict();
+var RelayExecutionSelected = external_exports.object({
+  role: RelayRole,
+  connector: ResolvedConnector,
+  model: ProviderScopedModel.optional(),
+  effort: Effort.optional(),
+  skills: external_exports.array(GuidanceSkillSelection),
+  context_packet_ref: Ref,
+  request_payload_hash: Sha2562
+}).strict();
+var WorkContractRef = Ref.refine((ref) => ref.kind === "work_contract", {
+  message: "must be a work_contract ref"
+});
+var FlowSelectionSelected = external_exports.object({
+  flow_id: CompiledFlowId,
+  work_contract_ref: WorkContractRef,
+  host_recommendation: external_exports.object({
+    flow_id: CompiledFlowId,
+    accepted: external_exports.boolean()
+  }).strict().optional()
+}).strict();
+var ProofPolicySelected = external_exports.object({
+  proof_profile: external_exports.string().min(1),
+  required_claim_kinds: external_exports.array(external_exports.string().min(1)),
+  required_evidence_kinds: external_exports.array(external_exports.string().min(1)),
+  close_requires_proven: external_exports.boolean()
+}).strict();
+var ChangePacketRef = Ref.refine((ref) => ref.kind === "change_packet", {
+  message: "change packet refs must use kind change_packet"
+});
+var BaseRef = Ref.refine((ref) => ref.kind === "command", {
+  message: "safe_apply base refs must use command refs"
+});
+var FinalVerificationRef = Ref.refine((ref) => ref.kind === "command", {
+  message: "safe_apply final verification refs must use command refs"
+});
+var SafeApplySelected = external_exports.object({
+  action: external_exports.enum(["accept", "reject", "apply"]),
+  change_packet_ref: ChangePacketRef,
+  base_ref: BaseRef,
+  protected_file_decision: external_exports.enum(["allowed", "rejected", "checkpointed"]).optional(),
+  final_verification_ref: FinalVerificationRef.optional(),
+  touched_files_ref: RuntimeTouchedFilesEvidenceRef.optional()
+}).strict().superRefine((selected, ctx) => {
+  if (selected.action === "apply" && selected.final_verification_ref === void 0) {
+    ctx.addIssue({
+      code: "custom",
+      path: ["final_verification_ref"],
+      message: "safe_apply apply decisions require final verification refs"
+    });
+  }
+});
+var RecoveryRouteSelected = external_exports.object({
+  route_id: external_exports.string().min(1),
+  recovery_kind: RecoveryRouteKind,
+  failure_cause: RecoveryFailureCause,
+  failure_ref: Ref,
+  binding_ref: WorkContractRef,
+  touched_files_ref: RuntimeTouchedFilesEvidenceRef.optional()
+}).strict().superRefine((selected, ctx) => {
+  if (["work_contract", "policy", "memory"].includes(selected.failure_ref.kind)) {
+    ctx.addIssue({
+      code: "custom",
+      path: ["failure_ref", "kind"],
+      message: "recovery failure refs must point at failure evidence, not authority or memory refs"
+    });
+  }
+  if (selected.failure_cause === "unknown_failure" && ["retry_same_step_with_feedback", "run_verification", "run_independent_review"].includes(
+    selected.recovery_kind
+  )) {
+    ctx.addIssue({
+      code: "custom",
+      path: ["recovery_kind"],
+      message: "unknown_failure cannot route to retry, verification, or independent review"
+    });
+  }
+});
+var RejectedGuidanceOption = external_exports.object({
+  option: JsonObject,
+  reason_code: ReasonCode,
+  blocked_by: Ref.optional()
+}).strict();
+var NonEmptyRefs = external_exports.array(Ref).min(1);
+function sameRef(a, b) {
+  return a.kind === b.kind && a.ref === b.ref && a.sha256 === b.sha256 && a.run_id === b.run_id && a.flow_id === b.flow_id && a.step_id === b.step_id && a.attempt === b.attempt && a.sequence === b.sequence;
+}
+function isMemoryReasonCode(reasonCode) {
+  return reasonCode.startsWith("memory_");
+}
+function addScopedRefIssues(ctx, path, label, ref, entry) {
+  if (ref.run_id !== entry.run_id) {
+    ctx.addIssue({
+      code: "custom",
+      path: [...path, "run_id"],
+      message: `${label} run_id must match guidance run_id`
+    });
+  }
+  if (ref.flow_id !== entry.scope.flow_id) {
+    ctx.addIssue({
+      code: "custom",
+      path: [...path, "flow_id"],
+      message: `${label} flow_id must match guidance scope.flow_id`
+    });
+  }
+  if (ref.step_id !== entry.scope.step_id) {
+    ctx.addIssue({
+      code: "custom",
+      path: [...path, "step_id"],
+      message: `${label} step_id must match guidance scope.step_id`
+    });
+  }
+  if (ref.attempt !== entry.scope.attempt) {
+    ctx.addIssue({
+      code: "custom",
+      path: [...path, "attempt"],
+      message: `${label} attempt must match guidance scope.attempt`
+    });
+  }
+}
+var GuidanceDecisionTraceEntryBody = external_exports.object({
+  schema_version: external_exports.literal(1),
+  sequence: external_exports.number().int().nonnegative(),
+  recorded_at: external_exports.iso.datetime(),
+  run_id: RunId,
+  kind: external_exports.literal("guidance.decision"),
+  decision_id: GuidanceDecisionId,
+  subject: GuidanceDecisionSubject,
+  scope: GuidanceScope,
+  source: GuidanceDecisionSource,
+  selected: external_exports.union([FlowSelectionSelected, RelayExecutionSelected, JsonObject]),
+  input_refs: NonEmptyRefs,
+  constraint_refs: NonEmptyRefs,
+  contract_refs: NonEmptyRefs,
+  policy_refs: NonEmptyRefs,
+  evidence_refs: NonEmptyRefs.optional(),
+  memory_refs: NonEmptyRefs.optional(),
+  reason_codes: external_exports.array(ReasonCode).min(1),
+  rejected_options: external_exports.array(RejectedGuidanceOption).max(3).optional()
+}).strict();
+function refineGuidanceDecisionTraceEntry(entry, ctx) {
+  if (entry.scope.run_id !== entry.run_id) {
+    ctx.addIssue({
+      code: "custom",
+      path: ["scope", "run_id"],
+      message: "scope.run_id must match run_id"
+    });
+  }
+  for (const [index, ref] of entry.constraint_refs.entries()) {
+    if (ref.kind !== "work_contract" && ref.kind !== "policy") {
+      ctx.addIssue({
+        code: "custom",
+        path: ["constraint_refs", index, "kind"],
+        message: "constraint_refs must use work_contract or policy refs in V0"
+      });
+    }
+  }
+  for (const [index, ref] of entry.contract_refs.entries()) {
+    if (ref.kind !== "work_contract") {
+      ctx.addIssue({
+        code: "custom",
+        path: ["contract_refs", index, "kind"],
+        message: "contract_refs must use work_contract refs"
+      });
+    }
+  }
+  for (const [index, ref] of entry.policy_refs.entries()) {
+    if (ref.kind !== "policy") {
+      ctx.addIssue({
+        code: "custom",
+        path: ["policy_refs", index, "kind"],
+        message: "policy_refs must use policy refs"
+      });
+    }
+  }
+  for (const [index, ref] of entry.memory_refs?.entries() ?? []) {
+    if (ref.kind !== "memory") {
+      ctx.addIssue({
+        code: "custom",
+        path: ["memory_refs", index, "kind"],
+        message: "memory_refs must use memory refs"
+      });
+    }
+  }
+  for (const [index, ref] of entry.evidence_refs?.entries() ?? []) {
+    if (ref.kind === "memory") {
+      ctx.addIssue({
+        code: "custom",
+        path: ["evidence_refs", index, "kind"],
+        message: "memory refs cannot be evidence refs"
+      });
+    }
+  }
+  const rejectedOptionMemoryReasonCodes = entry.rejected_options?.filter((option) => isMemoryReasonCode(option.reason_code)) ?? [];
+  const hasMemoryReasonCode = entry.reason_codes.some(isMemoryReasonCode) || rejectedOptionMemoryReasonCodes.length > 0;
+  const hasMemoryRefs = (entry.memory_refs?.length ?? 0) > 0;
+  if (hasMemoryReasonCode && !hasMemoryRefs) {
+    ctx.addIssue({
+      code: "custom",
+      path: ["memory_refs"],
+      message: "memory reason codes require memory_refs"
+    });
+  }
+  if (hasMemoryRefs && !hasMemoryReasonCode) {
+    ctx.addIssue({
+      code: "custom",
+      path: ["reason_codes"],
+      message: "memory_refs require a memory reason code"
+    });
+  }
+  for (const [index, option] of entry.rejected_options?.entries() ?? []) {
+    if (option.blocked_by?.kind === "memory") {
+      ctx.addIssue({
+        code: "custom",
+        path: ["rejected_options", index, "blocked_by", "kind"],
+        message: "memory refs cannot block guidance options"
+      });
+    }
+    if (option.reason_code === "memory_conflicts_with_policy" && option.blocked_by?.kind !== "policy") {
+      ctx.addIssue({
+        code: "custom",
+        path: ["rejected_options", index, "blocked_by", "kind"],
+        message: "memory policy conflicts must be blocked by policy refs"
+      });
+    }
+    if (option.reason_code === "memory_conflicts_with_contract" && option.blocked_by?.kind !== "work_contract") {
+      ctx.addIssue({
+        code: "custom",
+        path: ["rejected_options", index, "blocked_by", "kind"],
+        message: "memory contract conflicts must be blocked by work_contract refs"
+      });
+    }
+  }
+  if (entry.subject === "flow_selection") {
+    if (!FlowSelectionSelected.safeParse(entry.selected).success) {
+      ctx.addIssue({
+        code: "custom",
+        path: ["selected"],
+        message: "flow_selection selected payload must name flow_id and work_contract_ref"
+      });
+    }
+    return;
+  }
+  if (entry.scope.flow_id === void 0) {
+    ctx.addIssue({
+      code: "custom",
+      path: ["scope", "flow_id"],
+      message: `${entry.subject} decisions require scope.flow_id`
+    });
+  }
+  if (entry.subject === "proof_policy") {
+    if (entry.scope.step_id === void 0 !== (entry.scope.attempt === void 0)) {
+      ctx.addIssue({
+        code: "custom",
+        path: ["scope", "attempt"],
+        message: "proof_policy decisions must include step_id and attempt together"
+      });
+    }
+  } else {
+    if (entry.scope.step_id === void 0) {
+      ctx.addIssue({
+        code: "custom",
+        path: ["scope", "step_id"],
+        message: `${entry.subject} decisions require scope.step_id`
+      });
+    }
+    if (entry.scope.attempt === void 0) {
+      ctx.addIssue({
+        code: "custom",
+        path: ["scope", "attempt"],
+        message: `${entry.subject} decisions require scope.attempt`
+      });
+    }
+  }
+  if (entry.subject === "relay_execution" && !RelayExecutionSelected.safeParse(entry.selected).success) {
+    ctx.addIssue({
+      code: "custom",
+      path: ["selected"],
+      message: "relay_execution selected payload must name role, connector, skills, context ref, and request hash"
+    });
+  }
+  if (entry.subject === "proof_policy" && !ProofPolicySelected.safeParse(entry.selected).success) {
+    ctx.addIssue({
+      code: "custom",
+      path: ["selected"],
+      message: "proof_policy selected payload must name proof_profile, required claim kinds, required evidence kinds, and whether close requires proven claims"
+    });
+  }
+  if (entry.subject === "safe_apply" && !SafeApplySelected.safeParse(entry.selected).success) {
+    ctx.addIssue({
+      code: "custom",
+      path: ["selected"],
+      message: "safe_apply selected payload must name action, change_packet_ref, base_ref, and final verification refs when applying"
+    });
+  }
+  if (entry.subject === "safe_apply") {
+    const safeApplySelected = SafeApplySelected.safeParse(entry.selected);
+    if (safeApplySelected.success) {
+      const { base_ref, change_packet_ref, final_verification_ref, touched_files_ref } = safeApplySelected.data;
+      addScopedRefIssues(
+        ctx,
+        ["selected", "change_packet_ref"],
+        "safe_apply change_packet_ref",
+        change_packet_ref,
+        entry
+      );
+      addScopedRefIssues(ctx, ["selected", "base_ref"], "safe_apply base_ref", base_ref, entry);
+      if (!entry.input_refs.some((ref) => sameRef(ref, change_packet_ref))) {
+        ctx.addIssue({
+          code: "custom",
+          path: ["input_refs"],
+          message: "safe_apply input_refs must include selected.change_packet_ref"
+        });
+      }
+      if (!entry.input_refs.some((ref) => sameRef(ref, base_ref))) {
+        ctx.addIssue({
+          code: "custom",
+          path: ["input_refs"],
+          message: "safe_apply input_refs must include selected.base_ref"
+        });
+      }
+      if (final_verification_ref !== void 0) {
+        addScopedRefIssues(
+          ctx,
+          ["selected", "final_verification_ref"],
+          "safe_apply final_verification_ref",
+          final_verification_ref,
+          entry
+        );
+        if (!entry.evidence_refs?.some((ref) => sameRef(ref, final_verification_ref))) {
+          ctx.addIssue({
+            code: "custom",
+            path: ["evidence_refs"],
+            message: "safe_apply evidence_refs must include selected.final_verification_ref"
+          });
+        }
+      }
+      if (touched_files_ref !== void 0) {
+        addScopedRefIssues(
+          ctx,
+          ["selected", "touched_files_ref"],
+          "safe_apply touched_files_ref",
+          touched_files_ref,
+          entry
+        );
+        if (!entry.evidence_refs?.some((ref) => sameRef(ref, touched_files_ref))) {
+          ctx.addIssue({
+            code: "custom",
+            path: ["evidence_refs"],
+            message: "safe_apply evidence_refs must include selected.touched_files_ref"
+          });
+        }
+      }
+    }
+  }
+  if (entry.subject === "recovery_route" && !RecoveryRouteSelected.safeParse(entry.selected).success) {
+    ctx.addIssue({
+      code: "custom",
+      path: ["selected"],
+      message: "recovery_route selected payload must name route_id, recovery_kind, failure_cause, failure_ref, and binding_ref"
+    });
+  }
+  if (entry.subject === "recovery_route") {
+    const recoverySelected = RecoveryRouteSelected.safeParse(entry.selected);
+    if (recoverySelected.success) {
+      const { binding_ref, failure_ref, touched_files_ref } = recoverySelected.data;
+      if (!entry.input_refs.some((ref) => sameRef(ref, failure_ref))) {
+        ctx.addIssue({
+          code: "custom",
+          path: ["input_refs"],
+          message: "recovery_route input_refs must include selected.failure_ref"
+        });
+      }
+      if (!entry.evidence_refs?.some((ref) => sameRef(ref, failure_ref))) {
+        ctx.addIssue({
+          code: "custom",
+          path: ["evidence_refs"],
+          message: "recovery_route evidence_refs must include selected.failure_ref"
+        });
+      }
+      if (touched_files_ref !== void 0) {
+        if (!entry.evidence_refs?.some((ref) => sameRef(ref, touched_files_ref))) {
+          ctx.addIssue({
+            code: "custom",
+            path: ["evidence_refs"],
+            message: "recovery_route evidence_refs must include selected.touched_files_ref"
+          });
+        }
+        if (touched_files_ref.run_id !== void 0 && touched_files_ref.run_id !== entry.run_id) {
+          ctx.addIssue({
+            code: "custom",
+            path: ["selected", "touched_files_ref", "run_id"],
+            message: "recovery touched_files_ref run_id must match guidance run_id"
+          });
+        }
+        if (touched_files_ref.flow_id !== void 0 && touched_files_ref.flow_id !== entry.scope.flow_id) {
+          ctx.addIssue({
+            code: "custom",
+            path: ["selected", "touched_files_ref", "flow_id"],
+            message: "recovery touched_files_ref flow_id must match guidance scope.flow_id"
+          });
+        }
+        if (touched_files_ref.step_id !== void 0 && touched_files_ref.step_id !== entry.scope.step_id) {
+          ctx.addIssue({
+            code: "custom",
+            path: ["selected", "touched_files_ref", "step_id"],
+            message: "recovery touched_files_ref step_id must match guidance scope.step_id"
+          });
+        }
+        if (touched_files_ref.attempt !== void 0 && touched_files_ref.attempt !== entry.scope.attempt) {
+          ctx.addIssue({
+            code: "custom",
+            path: ["selected", "touched_files_ref", "attempt"],
+            message: "recovery touched_files_ref attempt must match guidance scope.attempt"
+          });
+        }
+      }
+      if (failure_ref.kind === "trace" && failure_ref.sequence !== void 0 && failure_ref.sequence >= entry.sequence) {
+        ctx.addIssue({
+          code: "custom",
+          path: ["selected", "failure_ref", "sequence"],
+          message: "recovery trace failure_ref must point to an earlier trace entry"
+        });
+      }
+      if (binding_ref.flow_id !== entry.scope.flow_id) {
+        ctx.addIssue({
+          code: "custom",
+          path: ["selected", "binding_ref", "flow_id"],
+          message: "recovery binding_ref flow_id must match guidance scope.flow_id"
+        });
+      }
+      if (failure_ref.run_id !== void 0 && failure_ref.run_id !== entry.run_id) {
+        ctx.addIssue({
+          code: "custom",
+          path: ["selected", "failure_ref", "run_id"],
+          message: "recovery failure_ref run_id must match guidance run_id"
+        });
+      }
+      if (failure_ref.flow_id !== void 0 && failure_ref.flow_id !== entry.scope.flow_id) {
+        ctx.addIssue({
+          code: "custom",
+          path: ["selected", "failure_ref", "flow_id"],
+          message: "recovery failure_ref flow_id must match guidance scope.flow_id"
+        });
+      }
+      if (failure_ref.step_id === void 0 !== (failure_ref.attempt === void 0)) {
+        ctx.addIssue({
+          code: "custom",
+          path: ["selected", "failure_ref", "attempt"],
+          message: "recovery failure_ref must include step_id and attempt together"
+        });
+      }
+      if (failure_ref.step_id !== void 0 && failure_ref.step_id !== entry.scope.step_id) {
+        ctx.addIssue({
+          code: "custom",
+          path: ["selected", "failure_ref", "step_id"],
+          message: "recovery failure_ref step_id must match guidance scope.step_id"
+        });
+      }
+      if (failure_ref.attempt !== void 0 && failure_ref.attempt !== entry.scope.attempt) {
+        ctx.addIssue({
+          code: "custom",
+          path: ["selected", "failure_ref", "attempt"],
+          message: "recovery failure_ref attempt must match guidance scope.attempt"
+        });
+      }
+    }
+  }
+}
+var GuidanceDecisionTraceEntry = GuidanceDecisionTraceEntryBody.superRefine(
+  refineGuidanceDecisionTraceEntry
+);
+
+// src/schemas/proof-assessment.ts
+var ProofId = external_exports.string().min(1).max(160).regex(/^[a-z0-9][a-z0-9._:-]*$/, {
+  message: "id must be a lowercase proof id"
+});
+var ClaimId = ProofId;
+var EvidenceId = ProofId;
+var ProofAssessmentId = ProofId;
+var ClaimKind = external_exports.enum([
+  "bug_fixed",
+  "behavior_changed",
+  "test_added",
+  "docs_changed",
+  "refactor_only",
+  "generated_surface_synced",
+  "absence_of_change",
+  "scope_respected",
+  "verification_passed",
+  "review_clean"
+]);
+var ClaimRisk = external_exports.enum(["low", "medium", "high"]);
+var ClaimSource = external_exports.enum(["work_contract", "runtime", "operator"]);
+var Claim = external_exports.object({
+  schema_version: external_exports.literal(1),
+  id: ClaimId,
+  kind: ClaimKind,
+  statement: external_exports.string().min(1),
+  scope_refs: external_exports.array(Ref).min(1),
+  risk: ClaimRisk,
+  required: external_exports.boolean(),
+  source: ClaimSource
+}).strict();
+var EvidenceKind = external_exports.enum([
+  "command",
+  "report_field",
+  "diff",
+  "generated_surface",
+  "review",
+  "report",
+  "trace",
+  "source_citation",
+  "absence_of_change"
+]);
+var EvidenceProducer = external_exports.enum(["runtime", "worker", "independent_worker", "operator"]);
+var EvidenceIndependence = external_exports.enum(["self", "runtime", "independent", "external"]);
+var EvidenceResult = external_exports.enum(["pass", "fail", "unknown"]);
+var RuntimeOwnedEvidenceKinds = /* @__PURE__ */ new Set([
+  "command",
+  "diff",
+  "generated_surface",
+  "trace",
+  "absence_of_change"
+]);
+var EvidenceRefKinds = {
+  command: ["command"],
+  report_field: ["report", "trace"],
+  diff: ["diff", "trace"],
+  generated_surface: ["command", "report", "trace"],
+  review: ["report", "trace"],
+  report: ["report"],
+  trace: ["trace"],
+  source_citation: ["report", "trace", "evidence"],
+  absence_of_change: ["diff", "trace"]
+};
+var Evidence = external_exports.object({
+  schema_version: external_exports.literal(1),
+  id: EvidenceId,
+  kind: EvidenceKind,
+  producer: EvidenceProducer,
+  independence: EvidenceIndependence,
+  ref: Ref,
+  input_refs: external_exports.array(Ref).min(1),
+  covers_claims: external_exports.array(ClaimId).min(1),
+  result: EvidenceResult,
+  summary: external_exports.string().min(1).optional()
+}).strict().superRefine((evidence, ctx) => {
+  if (!EvidenceRefKinds[evidence.kind].includes(evidence.ref.kind)) {
+    ctx.addIssue({
+      code: "custom",
+      path: ["ref", "kind"],
+      message: `${evidence.kind} evidence cannot use ${evidence.ref.kind} refs`
+    });
+  }
+  if (RuntimeOwnedEvidenceKinds.has(evidence.kind) && evidence.producer !== "runtime") {
+    ctx.addIssue({
+      code: "custom",
+      path: ["producer"],
+      message: `${evidence.kind} evidence must be produced by the runtime`
+    });
+  }
+  if (evidence.producer === "worker" && evidence.result === "pass") {
+    ctx.addIssue({
+      code: "custom",
+      path: ["result"],
+      message: "worker-produced evidence cannot be marked pass by itself"
+    });
+  }
+  if (evidence.independence === "self" && evidence.result === "pass") {
+    ctx.addIssue({
+      code: "custom",
+      path: ["independence"],
+      message: "self evidence cannot prove a claim"
+    });
+  }
+  if (evidence.kind === "review" && evidence.independence === "self") {
+    ctx.addIssue({
+      code: "custom",
+      path: ["independence"],
+      message: "review evidence must be independent or runtime-owned"
+    });
+  }
+});
+var ClaimCoverageRule = external_exports.object({
+  claim_id: ClaimId,
+  required_evidence: external_exports.array(
+    external_exports.object({
+      kind: EvidenceKind,
+      min_result: external_exports.literal("pass"),
+      min_independence: external_exports.enum(["runtime", "independent", "external"]),
+      refs: external_exports.array(Ref).optional(),
+      accepted_sources: external_exports.array(external_exports.string().min(1)).optional()
+    }).strict()
+  ).min(1),
+  optional_evidence: external_exports.array(
+    external_exports.object({
+      kind: EvidenceKind,
+      refs: external_exports.array(Ref).optional()
+    }).strict()
+  ).default([])
+}).strict();
+var ProofStatus = external_exports.enum(["proven", "weak", "contradicted", "unproved"]);
+var ProofRecovery = external_exports.object({
+  route_id: external_exports.string().min(1),
+  kind: RecoveryRouteKind,
+  reason_code: external_exports.string().regex(/^[a-z][a-z0-9_]*$/)
+}).strict();
+var ProofAssessmentResult = external_exports.object({
+  claim_id: ClaimId,
+  status: ProofStatus,
+  evidence_refs: external_exports.array(EvidenceId),
+  missing: external_exports.array(external_exports.string().min(1)),
+  contradictions: external_exports.array(external_exports.string().min(1)),
+  recovery: ProofRecovery.optional()
+}).strict().superRefine((result, ctx) => {
+  if (result.status === "proven" && result.recovery !== void 0) {
+    ctx.addIssue({
+      code: "custom",
+      path: ["recovery"],
+      message: "proven claims must not declare a recovery route"
+    });
+  }
+  if (result.status !== "proven" && result.recovery === void 0 && result.missing.length === 0 && result.contradictions.length === 0) {
+    ctx.addIssue({
+      code: "custom",
+      path: ["recovery"],
+      message: "non-proven claims without recovery must explain the missing or contradicted proof"
+    });
+  }
+});
+var ProofScope = external_exports.object({
+  run_id: RunId,
+  flow_id: CompiledFlowId,
+  step_id: StepId.optional(),
+  attempt: external_exports.number().int().positive().optional()
+}).strict();
+var STATUS_RANK = {
+  proven: 0,
+  weak: 1,
+  unproved: 2,
+  contradicted: 3
+};
+function worstStatus(statuses) {
+  return statuses.reduce(
+    (worst, status) => STATUS_RANK[status] > STATUS_RANK[worst] ? status : worst,
+    "proven"
+  );
+}
+function canProveClaim(evidence, claimId) {
+  return evidence.result === "pass" && evidence.covers_claims.includes(claimId) && evidence.producer !== "worker" && evidence.independence !== "self" && evidence.ref.kind !== "trace" && evidence.kind !== "trace" && evidence.kind !== "report" && evidence.kind !== "report_field";
+}
+var ProofAssessment = external_exports.object({
+  schema_version: external_exports.literal(1),
+  assessment_id: ProofAssessmentId,
+  scope: ProofScope,
+  proof_policy_decision_id: GuidanceDecisionId,
+  claims: external_exports.array(Claim).min(1),
+  evidence: external_exports.array(Evidence).default([]),
+  results: external_exports.array(ProofAssessmentResult).min(1),
+  overall_status: ProofStatus,
+  close_allowed: external_exports.boolean()
+}).strict().superRefine((assessment, ctx) => {
+  const claimIds = /* @__PURE__ */ new Set();
+  const requiredClaimIds = /* @__PURE__ */ new Set();
+  for (const [index, claim] of assessment.claims.entries()) {
+    if (claimIds.has(claim.id)) {
+      ctx.addIssue({
+        code: "custom",
+        path: ["claims", index, "id"],
+        message: `duplicate claim '${claim.id}'`
+      });
+    }
+    claimIds.add(claim.id);
+    if (claim.required) requiredClaimIds.add(claim.id);
+  }
+  const evidenceById = /* @__PURE__ */ new Map();
+  for (const [index, evidence] of assessment.evidence.entries()) {
+    if (evidenceById.has(evidence.id)) {
+      ctx.addIssue({
+        code: "custom",
+        path: ["evidence", index, "id"],
+        message: `duplicate evidence '${evidence.id}'`
+      });
+    }
+    evidenceById.set(evidence.id, evidence);
+    for (const [claimIndex, claimId] of evidence.covers_claims.entries()) {
+      if (!claimIds.has(claimId)) {
+        ctx.addIssue({
+          code: "custom",
+          path: ["evidence", index, "covers_claims", claimIndex],
+          message: `evidence covers undeclared claim '${claimId}'`
+        });
+      }
+    }
+  }
+  const resultsByClaim = /* @__PURE__ */ new Map();
+  for (const [index, result] of assessment.results.entries()) {
+    if (!claimIds.has(result.claim_id)) {
+      ctx.addIssue({
+        code: "custom",
+        path: ["results", index, "claim_id"],
+        message: `result references undeclared claim '${result.claim_id}'`
+      });
+    }
+    if (resultsByClaim.has(result.claim_id)) {
+      ctx.addIssue({
+        code: "custom",
+        path: ["results", index, "claim_id"],
+        message: `duplicate proof result for claim '${result.claim_id}'`
+      });
+    }
+    resultsByClaim.set(result.claim_id, result);
+    const referencedEvidence = result.evidence_refs.map((id, evidenceIndex) => {
+      const evidence = evidenceById.get(id);
+      if (evidence === void 0) {
+        ctx.addIssue({
+          code: "custom",
+          path: ["results", index, "evidence_refs", evidenceIndex],
+          message: `result references undeclared evidence '${id}'`
+        });
+      }
+      return evidence;
+    });
+    if (result.status === "proven") {
+      if (result.missing.length > 0 || result.contradictions.length > 0) {
+        ctx.addIssue({
+          code: "custom",
+          path: ["results", index, "status"],
+          message: "proven claims cannot list missing evidence or contradictions"
+        });
+      }
+      if (!referencedEvidence.some(
+        (evidence) => evidence !== void 0 && canProveClaim(evidence, result.claim_id)
+      )) {
+        ctx.addIssue({
+          code: "custom",
+          path: ["results", index, "evidence_refs"],
+          message: "proven claims require passing runtime or independent evidence beyond report shape"
+        });
+      }
+    }
+  }
+  for (const requiredClaimId of requiredClaimIds) {
+    if (!resultsByClaim.has(requiredClaimId)) {
+      ctx.addIssue({
+        code: "custom",
+        path: ["results"],
+        message: `missing proof result for required claim '${requiredClaimId}'`
+      });
+    }
+  }
+  const requiredResults = [...requiredClaimIds].flatMap((id) => {
+    const result = resultsByClaim.get(id);
+    return result === void 0 ? [] : [result];
+  });
+  const relevantResults = requiredResults.length > 0 ? requiredResults : [...resultsByClaim.values()];
+  const expectedOverall = worstStatus(relevantResults.map((result) => result.status));
+  if (assessment.overall_status !== expectedOverall) {
+    ctx.addIssue({
+      code: "custom",
+      path: ["overall_status"],
+      message: `overall_status must be '${expectedOverall}' for the required claim results`
+    });
+  }
+  if (assessment.close_allowed && relevantResults.some((result) => result.status !== "proven")) {
+    ctx.addIssue({
+      code: "custom",
+      path: ["close_allowed"],
+      message: "close_allowed requires every required claim to be proven"
+    });
+  }
+});
+
+// src/schemas/trace-entry.ts
+var TraceEntryBase = external_exports.object({
+  schema_version: external_exports.literal(1),
+  sequence: external_exports.number().int().nonnegative(),
+  recorded_at: external_exports.iso.datetime(),
+  run_id: RunId
+});
+var ContentHash = Sha2562;
+var CatalogSourcedBinding = external_exports.enum([
+  "edit_file_surfaces",
+  "depth_binding",
+  "slice_loop",
+  "terminal_outcome_binding",
+  "primary_result_surface"
+]);
+var RunBootstrappedTraceEntry = TraceEntryBase.extend({
+  kind: external_exports.literal("run.bootstrapped"),
+  flow_id: CompiledFlowId,
+  invocation_id: InvocationId.optional(),
+  depth: CompiledDepth,
+  goal: external_exports.string().min(1),
+  change_kind: ChangeKindDeclaration,
+  manifest_hash: external_exports.string().min(1),
+  // First-class composition: make any capability reduction legible.
+  // `reduced_bindings` names the catalog-sourced bindings a flow cannot resolve.
+  // It is empty for every built-in (the manifest is the sole authority post-M4)
+  // and omitted entirely when nothing was reduced; a composed flow with a needs
+  // model (M9) can populate it. Optional so prior fixtures and resumed runs
+  // (which never re-bootstrap) stay valid — an omitted field makes no claim.
+  reduced_bindings: external_exports.array(CatalogSourcedBinding).optional()
+}).strict();
+var SliceIndex = external_exports.number().int().nonnegative();
+var StepEnteredTraceEntry = TraceEntryBase.extend({
+  kind: external_exports.literal("step.entered"),
+  step_id: StepId,
+  attempt: external_exports.number().int().positive(),
+  slice_index: SliceIndex.optional()
+}).strict();
+var StepReportWrittenTraceEntry = TraceEntryBase.extend({
+  kind: external_exports.literal("step.report_written"),
+  step_id: StepId,
+  attempt: external_exports.number().int().positive(),
+  report_path: external_exports.string().min(1),
+  report_schema: external_exports.string().min(1)
+}).strict();
+var StepReportSkippedTraceEntry = TraceEntryBase.extend({
+  kind: external_exports.literal("step.report_skipped"),
+  step_id: StepId,
+  attempt: external_exports.number().int().positive(),
+  report_path: external_exports.string().min(1),
+  reason: external_exports.string().min(1)
+}).strict();
+var CheckEvaluatedTraceEntry = TraceEntryBase.extend({
+  kind: external_exports.literal("check.evaluated"),
+  step_id: StepId,
+  attempt: external_exports.number().int().positive(),
+  check_kind: external_exports.enum([
+    "schema_sections",
+    "checkpoint_selection",
+    "result_verdict",
+    "fanout_aggregate",
+    "acceptance_criteria"
+  ]),
+  outcome: external_exports.enum(["pass", "fail"]),
+  criterion_id: external_exports.string().min(1).optional(),
+  criterion_kind: external_exports.enum(["command", "report_field"]).optional(),
+  exit_code: external_exports.number().int().nonnegative().optional(),
+  status: external_exports.enum(["passed", "failed"]).optional(),
+  stdout_summary: external_exports.string().optional(),
+  stderr_summary: external_exports.string().optional(),
+  missing_sections: external_exports.array(external_exports.string()).optional(),
+  reason: external_exports.string().optional(),
+  slice_index: SliceIndex.optional()
+}).strict();
+var VerificationCommandEvaluatedTraceEntry = TraceEntryBase.extend({
+  kind: external_exports.literal("verification.command_evaluated"),
+  step_id: StepId,
+  attempt: external_exports.number().int().positive(),
+  command_id: external_exports.string().min(1),
+  cwd: external_exports.string().min(1),
+  argv: external_exports.array(external_exports.string().min(1)).min(1),
+  exit_code: external_exports.number().int().nonnegative(),
+  status: external_exports.enum(["passed", "failed"]),
+  duration_ms: external_exports.number().int().nonnegative(),
+  stdout_summary: external_exports.string(),
+  stderr_summary: external_exports.string(),
+  // Whether the command was killed for hitting its verification budget
+  // rather than exiting on its own. Defaults false so every trace entry
+  // recorded before this field existed still parses.
+  timed_out: external_exports.boolean().default(false),
+  slice_index: SliceIndex.optional()
+}).strict();
+var ProofAssessmentRef = Ref.refine((ref) => ref.kind === "evidence" || ref.kind === "report", {
+  message: "proof assessment refs must use evidence or report refs"
+});
+var ChangePacketRef2 = Ref.refine((ref) => ref.kind === "change_packet", {
+  message: "change packet refs must use kind change_packet"
+});
+var SafeApplyBaseRef = Ref.refine((ref) => ref.kind === "command", {
+  message: "safe apply base refs must use command refs"
+});
+var SafeApplyResultRef = Ref.refine((ref) => ref.kind === "safe_apply", {
+  message: "safe apply result refs must use kind safe_apply"
+});
+var SafeApplyFinalVerificationRef = Ref.refine((ref) => ref.kind === "command", {
+  message: "safe apply final verification refs must use command refs"
+});
+var CheckpointBoundaryRef = Ref.refine((ref) => ref.kind === "work_contract", {
+  message: "checkpoint boundary refs must use kind work_contract"
+});
+var ProofScope2 = external_exports.object({
+  run_id: RunId,
+  flow_id: CompiledFlowId,
+  step_id: StepId.optional(),
+  attempt: external_exports.number().int().positive().optional()
+}).strict().superRefine((scope, ctx) => {
+  if (scope.step_id === void 0 !== (scope.attempt === void 0)) {
+    ctx.addIssue({
+      code: "custom",
+      path: ["attempt"],
+      message: "proof assessment scope must include step_id and attempt together"
+    });
+  }
+});
+var ProofAssessedTraceEntry = TraceEntryBase.extend({
+  kind: external_exports.literal("proof.assessed"),
+  assessment_id: ProofAssessmentId,
+  scope: ProofScope2,
+  proof_policy_decision_id: GuidanceDecisionId,
+  assessment_ref: ProofAssessmentRef,
+  overall_status: ProofStatus,
+  close_allowed: external_exports.boolean()
+}).strict();
+var SafeApplyScope = external_exports.object({
+  run_id: RunId,
+  flow_id: CompiledFlowId,
+  step_id: StepId.optional(),
+  attempt: external_exports.number().int().positive().optional()
+}).strict().superRefine((scope, ctx) => {
+  if (scope.step_id === void 0 !== (scope.attempt === void 0)) {
+    ctx.addIssue({
+      code: "custom",
+      path: ["attempt"],
+      message: "safe apply scope must include step_id and attempt together"
+    });
+  }
+});
+var SafeApplyResultTraceEntry = TraceEntryBase.extend({
+  kind: external_exports.literal("safe_apply.result"),
+  decision_id: GuidanceDecisionId,
+  scope: SafeApplyScope,
+  change_packet_ref: ChangePacketRef2,
+  base_ref: SafeApplyBaseRef,
+  action: SafeApplyAction,
+  outcome: SafeApplyOutcome,
+  reason_codes: external_exports.array(SafeApplyReasonCode).min(1),
+  protected_file_decision: ProtectedFileDecision.optional(),
+  final_verification_ref: SafeApplyFinalVerificationRef.optional(),
+  touched_files_ref: RuntimeTouchedFilesEvidenceRef.optional(),
+  result_ref: SafeApplyResultRef
+}).strict();
+var CheckpointRequestedTraceEntry = TraceEntryBase.extend({
+  kind: external_exports.literal("checkpoint.requested"),
+  step_id: StepId,
+  attempt: external_exports.number().int().positive(),
+  options: external_exports.array(external_exports.string()).min(1),
+  request_path: external_exports.string().min(1),
+  request_report_hash: ContentHash,
+  boundary_ref: CheckpointBoundaryRef,
+  boundary_hash: ContentHash,
+  auto_resolved: external_exports.literal(false).optional()
+}).strict().superRefine((entry, ctx) => {
+  if (entry.boundary_ref.sha256 !== entry.boundary_hash) {
+    ctx.addIssue({
+      code: "custom",
+      path: ["boundary_hash"],
+      message: "checkpoint boundary_hash must match boundary_ref.sha256"
+    });
+  }
+  if (entry.boundary_ref.step_id === void 0) {
+    ctx.addIssue({
+      code: "custom",
+      path: ["boundary_ref", "step_id"],
+      message: "checkpoint boundary_ref.step_id is required"
+    });
+  } else if (entry.boundary_ref.step_id !== entry.step_id) {
+    ctx.addIssue({
+      code: "custom",
+      path: ["boundary_ref", "step_id"],
+      message: "checkpoint boundary_ref.step_id must match step_id"
+    });
+  }
+});
+var CheckpointResolvedTraceEntry = TraceEntryBase.extend({
+  kind: external_exports.literal("checkpoint.resolved"),
+  step_id: StepId,
+  attempt: external_exports.number().int().positive(),
+  selection: external_exports.string().min(1),
+  route_id: external_exports.string().min(1),
+  auto_resolved: external_exports.boolean(),
+  resolution_source: external_exports.enum(["declared-default", "operator", "policy"]),
+  response_path: external_exports.string().min(1),
+  // `response_path` remains the stable latest-response location for existing
+  // readers. New runs also point at the immutable response for this attempt so
+  // later visits to the same checkpoint cannot erase earlier review notes.
+  response_attempt_path: external_exports.string().min(1).optional(),
+  response_report_hash: ContentHash.optional()
+}).strict();
+var EquipmentEnforcementEvidence = external_exports.object({
+  declared: EquipmentEnforcement,
+  effective: EquipmentEnforcement,
+  downgraded: external_exports.boolean(),
+  enforced_tools: external_exports.array(external_exports.string().min(1)).min(1).optional()
+}).strict();
+var RelayStartedTraceEntry = TraceEntryBase.extend({
+  kind: external_exports.literal("relay.started"),
+  step_id: StepId,
+  attempt: external_exports.number().int().positive(),
+  connector: ResolvedConnector,
+  role: RelayRole,
+  resolved_selection: ResolvedSelection,
+  resolved_from: RelayResolutionSource,
+  equipment: EquipmentEnforcementEvidence.optional()
+}).strict();
+var LoadedSkillCause = external_exports.enum(["selection", "binding", "skill-hook"]);
+var LoadedSkillEvidence = external_exports.object({
+  id: SkillId,
+  cause: LoadedSkillCause,
+  slot: SkillSlotId.optional(),
+  path: external_exports.string().min(1),
+  sha256: ContentHash,
+  bytes: external_exports.number().int().nonnegative()
+}).strict().superRefine((skill, ctx) => {
+  const hasSlot = skill.slot !== void 0;
+  const isBinding = skill.cause === "binding";
+  if (hasSlot && !isBinding) {
+    ctx.addIssue({
+      code: "custom",
+      path: ["slot"],
+      message: `a loaded skill carries a slot only when its cause is 'binding' (cause was '${skill.cause}')`
+    });
+  }
+  if (isBinding && !hasSlot) {
+    ctx.addIssue({
+      code: "custom",
+      path: ["slot"],
+      message: "a loaded skill with cause 'binding' must name the slot it was bound to"
+    });
+  }
+});
+var SkillsLoadedTraceEntry = TraceEntryBase.extend({
+  kind: external_exports.literal("skills.loaded"),
+  step_id: StepId,
+  attempt: external_exports.number().int().positive(),
+  skills: external_exports.array(LoadedSkillEvidence).min(1)
+}).strict();
+var RelayUsageEvidence = external_exports.object({
+  input_tokens: external_exports.number().nonnegative(),
+  output_tokens: external_exports.number().nonnegative(),
+  cache_read_tokens: external_exports.number().nonnegative(),
+  cache_creation_tokens: external_exports.number().nonnegative(),
+  cache_creation_5m_tokens: external_exports.number().nonnegative(),
+  cache_creation_1h_tokens: external_exports.number().nonnegative(),
+  total_cost_usd_reported: external_exports.number().nonnegative().optional(),
+  models: external_exports.array(
+    external_exports.object({
+      model: external_exports.string().min(1),
+      input_tokens: external_exports.number().nonnegative(),
+      output_tokens: external_exports.number().nonnegative(),
+      cache_read_tokens: external_exports.number().nonnegative(),
+      cache_creation_tokens: external_exports.number().nonnegative(),
+      cost_usd_reported: external_exports.number().nonnegative().optional()
+    }).strict()
+  ).optional()
+}).strict();
+var RelayCompletedTraceEntry = TraceEntryBase.extend({
+  kind: external_exports.literal("relay.completed"),
+  step_id: StepId,
+  attempt: external_exports.number().int().positive(),
+  verdict: external_exports.string().min(1),
+  duration_ms: external_exports.number().int().nonnegative(),
+  result_path: external_exports.string().min(1),
+  receipt_path: external_exports.string().min(1),
+  usage: RelayUsageEvidence.optional()
+}).strict();
+var RelayRequestTraceEntry = TraceEntryBase.extend({
+  kind: external_exports.literal("relay.request"),
+  step_id: StepId,
+  attempt: external_exports.number().int().positive(),
+  request_payload_hash: ContentHash
+}).strict();
+var RelayFailedTraceEntry = TraceEntryBase.extend({
+  kind: external_exports.literal("relay.failed"),
+  step_id: StepId,
+  attempt: external_exports.number().int().positive(),
+  connector: ResolvedConnector,
+  role: RelayRole,
+  resolved_selection: ResolvedSelection,
+  resolved_from: RelayResolutionSource,
+  request_payload_hash: ContentHash,
+  reason: external_exports.string().min(1)
+}).strict();
+var RelayReceiptTraceEntry = TraceEntryBase.extend({
+  kind: external_exports.literal("relay.receipt"),
+  step_id: StepId,
+  attempt: external_exports.number().int().positive(),
+  cli_version: external_exports.string().min(1),
+  receipt_id: external_exports.string().min(1).refine((s) => s.trim().length > 0, {
+    message: "receipt_id must contain at least one non-whitespace character"
+  }),
+  // The model the connector actually spawned with, when it resolves one at
+  // dispatch (codex records its cache-resolved default here). Optional and a
+  // connector-dispatch fact, parallel to `cli_version`: a connector whose model
+  // is already fixed by `resolved_selection` leaves it absent. Recording it
+  // makes the receipt authoritative about the model even when the selection
+  // layer pinned none.
+  model: external_exports.string().min(1).optional()
+}).strict();
+var RelayResultTraceEntry = TraceEntryBase.extend({
+  kind: external_exports.literal("relay.result"),
+  step_id: StepId,
+  attempt: external_exports.number().int().positive(),
+  result_report_hash: ContentHash
+}).strict();
+var StepCompletedTraceEntry = TraceEntryBase.extend({
+  kind: external_exports.literal("step.completed"),
+  step_id: StepId,
+  attempt: external_exports.number().int().positive(),
+  route_taken: external_exports.string().min(1),
+  slice_index: SliceIndex.optional()
+}).strict();
+var StepAbortedTraceEntry = TraceEntryBase.extend({
+  kind: external_exports.literal("step.aborted"),
+  step_id: StepId,
+  attempt: external_exports.number().int().positive(),
+  reason: external_exports.string().min(1)
+}).strict();
+var RunClosedOutcome = external_exports.enum([
+  "complete",
+  "aborted",
+  "evidence_invalid",
+  "handoff",
+  "stopped",
+  "escalated"
+]);
+var SubRunStartedTraceEntry = TraceEntryBase.extend({
+  kind: external_exports.literal("sub_run.started"),
+  step_id: StepId,
+  attempt: external_exports.number().int().positive(),
+  child_run_id: RunId,
+  child_flow_id: CompiledFlowId,
+  child_entry_mode: external_exports.string().regex(/^[a-z][a-z0-9-]*$/),
+  child_depth: CompiledDepth
+}).strict();
+var SubRunCompletedTraceEntry = TraceEntryBase.extend({
+  kind: external_exports.literal("sub_run.completed"),
+  step_id: StepId,
+  attempt: external_exports.number().int().positive(),
+  child_run_id: RunId,
+  child_outcome: RunClosedOutcome,
+  // Verdict admitted from the child's terminal result body. NO_VERDICT_SENTINEL
+  // when the child closed without a parseable result body — mirrors the
+  // existing relay.completed sentinel pattern.
+  verdict: external_exports.string().min(1),
+  duration_ms: external_exports.number().int().nonnegative(),
+  // Where the child's result.json was copied into the parent run-folder.
+  result_path: external_exports.string().min(1)
+}).strict();
+var FanoutConcurrencyLimit = external_exports.union([external_exports.number().int().positive(), external_exports.literal("unbounded")]);
+var FanoutExecutionPolicy = external_exports.object({
+  configured_concurrency: FanoutConcurrencyLimit,
+  effective_concurrency: FanoutConcurrencyLimit,
+  writable_relay_branches_serialized: external_exports.boolean(),
+  reason: external_exports.string().min(1).optional()
+}).strict().superRefine((policy, ctx) => {
+  if (policy.writable_relay_branches_serialized && policy.reason === void 0) {
+    ctx.addIssue({
+      code: "custom",
+      path: ["reason"],
+      message: "serialized writable relay fanouts require a reason"
+    });
+  }
+});
+var FanoutStartedTraceEntry = TraceEntryBase.extend({
+  kind: external_exports.literal("fanout.started"),
+  step_id: StepId,
+  attempt: external_exports.number().int().positive(),
+  // Resolved branch list AT EXPANSION TIME. For static branches this
+  // mirrors the schematic's authored list. For dynamic branches this is the
+  // result of template expansion against the source report, so an
+  // auditor can see exactly which N branches were spawned without
+  // reconstructing the expansion themselves.
+  branch_ids: external_exports.array(external_exports.string().min(1)).min(1),
+  on_child_failure: FanoutFailurePolicy,
+  execution_policy: FanoutExecutionPolicy.optional()
+}).strict();
+var FanoutBranchStartedTraceEntry = TraceEntryBase.extend({
+  kind: external_exports.literal("fanout.branch_started"),
+  step_id: StepId,
+  attempt: external_exports.number().int().positive(),
+  branch_id: external_exports.string().min(1),
+  branch_kind: external_exports.enum(["relay", "sub-run"]),
+  child_run_id: RunId,
+  // Worktree path provisioned for this branch (relative to project root).
+  // Records where the per-branch isolation lived for postmortem auditing.
+  worktree_path: external_exports.string().min(1)
+}).strict();
+var FanoutBranchCompletedTraceEntry = TraceEntryBase.extend({
+  kind: external_exports.literal("fanout.branch_completed"),
+  step_id: StepId,
+  attempt: external_exports.number().int().positive(),
+  branch_id: external_exports.string().min(1),
+  branch_kind: external_exports.enum(["relay", "sub-run"]),
+  child_run_id: RunId,
+  child_outcome: RunClosedOutcome,
+  verdict: external_exports.string().min(1),
+  duration_ms: external_exports.number().int().nonnegative(),
+  result_path: external_exports.string().min(1),
+  // Set only when this branch was admitted from a prior crashed run's finished
+  // child instead of being re-run (a `--reuse-children-from` restart). Carries
+  // the prior child's run id so the trace stays honest that the work was reused,
+  // not freshly executed. Absent on a normally-run branch.
+  reused_from: RunId.optional()
+}).strict();
+var FanoutJoinedTraceEntry = TraceEntryBase.extend({
+  kind: external_exports.literal("fanout.joined"),
+  step_id: StepId,
+  attempt: external_exports.number().int().positive(),
+  // The join policy that ran; mirrors the FanoutAggregateCheck.join.policy
+  // field but echoed into the trace_entry so the audit log is self-contained
+  // (no need to cross-reference the schematic to interpret outcomes).
+  policy: external_exports.enum(["pick-winner", "disjoint-merge", "aggregate-only", "aggregate-survivors"]),
+  // For pick-winner: the selected branch_id. Absent for the other policies.
+  selected_branch_id: external_exports.string().min(1).optional(),
+  // Path to the runtime-built aggregate report.
+  aggregate_path: external_exports.string().min(1),
+  // Count of branches that closed 'complete' vs other outcomes — quick
+  // health summary readable without reconstructing per-branch trace_entries.
+  branches_completed: external_exports.number().int().nonnegative(),
+  branches_failed: external_exports.number().int().nonnegative()
+}).strict();
+var RunClosedTraceEntry = TraceEntryBase.extend({
+  kind: external_exports.literal("run.closed"),
+  outcome: RunClosedOutcome,
+  reason: external_exports.string().optional()
+}).strict();
+var RunSkillHookTraceEntry = TraceEntryBase.extend({
+  kind: external_exports.literal("run.skill-hook"),
+  event: RunSkillHookEvent
+}).strict();
+var RunSkillHookErrorTraceEntry = TraceEntryBase.extend({
+  kind: external_exports.literal("run.skill-hook-error"),
+  step_id: StepId.optional(),
+  message: external_exports.string().min(1)
+}).strict();
+var PowerInferenceResolvedTraceEntry = TraceEntryBase.extend({
+  kind: external_exports.literal("run.power-inference"),
+  step_id: StepId,
+  // What the researcher recommended, verbatim.
+  recommended: Power,
+  rationale: external_exports.string().min(1).max(280),
+  // The operator bounds in force when the recommendation resolved.
+  floor: Power,
+  ceiling: Power,
+  // The post-clamp tier the rest of the run materializes against.
+  resolved: Power,
+  clamped: external_exports.boolean()
+}).strict();
+var PowerInferenceErrorTraceEntry = TraceEntryBase.extend({
+  kind: external_exports.literal("run.power-inference-error"),
+  step_id: StepId.optional(),
+  message: external_exports.string().min(1)
+}).strict();
+var ContextDeliveryErrorTraceEntry = TraceEntryBase.extend({
+  kind: external_exports.literal("run.context-delivery-error"),
+  step_id: StepId,
+  message: external_exports.string().min(1)
+}).strict();
+var RunEquipmentReshapeTraceEntry = TraceEntryBase.extend({
+  kind: external_exports.literal("run.equipment-reshape"),
+  step_id: StepId,
+  confirmed: external_exports.boolean(),
+  reshaped: external_exports.boolean(),
+  domain_tags: external_exports.array(external_exports.string()),
+  equipped_steps: external_exports.array(StepId).optional(),
+  reason: external_exports.string().min(1)
+}).strict();
+var RunContextPullTraceEntry = TraceEntryBase.extend({
+  kind: external_exports.literal("run.context-pull"),
+  step_id: StepId,
+  from_step: external_exports.string(),
+  field_path: external_exports.string(),
+  answered: external_exports.boolean(),
+  bytes: external_exports.number().int().nonnegative().optional(),
+  reason: external_exports.string().min(1)
+}).strict();
+var RunContextDeliveryTraceEntry = TraceEntryBase.extend({
+  kind: external_exports.literal("run.context-delivery"),
+  step_id: StepId,
+  delivered_slices: external_exports.number().int().nonnegative(),
+  delivered_bytes: external_exports.number().int().nonnegative(),
+  retried: external_exports.boolean(),
+  kept: external_exports.enum(["retry", "original"]),
+  reason: external_exports.string().min(1)
+}).strict();
+var RunUntilJudgmentTraceEntry = TraceEntryBase.extend({
+  kind: external_exports.literal("run.until-judgment"),
+  step_id: StepId,
+  iteration: external_exports.number().int().nonnegative(),
+  goal_proposed: external_exports.boolean(),
+  evidence_confirmed: external_exports.boolean(),
+  disposition: external_exports.enum(["stop-clean", "reenter", "needs-attention"]),
+  no_progress_count: external_exports.number().int().nonnegative(),
+  open_latch_count: external_exports.number().int().nonnegative(),
+  lesson: external_exports.string().min(1).optional()
+}).strict();
+var TraceEntry = external_exports.discriminatedUnion("kind", [
+  RunBootstrappedTraceEntry,
+  StepEnteredTraceEntry,
+  StepReportWrittenTraceEntry,
+  StepReportSkippedTraceEntry,
+  CheckEvaluatedTraceEntry,
+  VerificationCommandEvaluatedTraceEntry,
+  ProofAssessedTraceEntry,
+  SafeApplyResultTraceEntry,
+  CheckpointRequestedTraceEntry,
+  CheckpointResolvedTraceEntry,
+  RelayStartedTraceEntry,
+  SkillsLoadedTraceEntry,
+  RelayRequestTraceEntry,
+  RelayFailedTraceEntry,
+  RelayReceiptTraceEntry,
+  RelayResultTraceEntry,
+  RelayCompletedTraceEntry,
+  SubRunStartedTraceEntry,
+  SubRunCompletedTraceEntry,
+  FanoutStartedTraceEntry,
+  FanoutBranchStartedTraceEntry,
+  FanoutBranchCompletedTraceEntry,
+  FanoutJoinedTraceEntry,
+  StepCompletedTraceEntry,
+  StepAbortedTraceEntry,
+  RunClosedTraceEntry,
+  RunSkillHookTraceEntry,
+  RunSkillHookErrorTraceEntry,
+  PowerInferenceResolvedTraceEntry,
+  PowerInferenceErrorTraceEntry,
+  RunEquipmentReshapeTraceEntry,
+  RunContextPullTraceEntry,
+  RunContextDeliveryTraceEntry,
+  ContextDeliveryErrorTraceEntry,
+  RunUntilJudgmentTraceEntry,
+  GuidanceDecisionTraceEntryBody
+]).superRefine((ev, ctx) => {
+  if (ev.kind === "guidance.decision") {
+    refineGuidanceDecisionTraceEntry(ev, ctx);
+    return;
+  }
+  if (ev.kind === "run.until-judgment") {
+    if (ev.disposition === "stop-clean") {
+      if (!ev.goal_proposed) {
+        ctx.addIssue({
+          code: "custom",
+          path: ["goal_proposed"],
+          message: "a 'stop-clean' until judgment requires goal_proposed true"
+        });
+      }
+      if (!ev.evidence_confirmed) {
+        ctx.addIssue({
+          code: "custom",
+          path: ["evidence_confirmed"],
+          message: "a 'stop-clean' until judgment requires evidence_confirmed true"
+        });
+      }
+    }
+    return;
+  }
+  if (ev.kind === "check.evaluated") {
+    if (ev.exit_code !== void 0 && ev.status !== void 0) {
+      const expected = ev.exit_code === 0 ? "passed" : "failed";
+      if (ev.status !== expected) {
+        ctx.addIssue({
+          code: "custom",
+          path: ["status"],
+          message: `status must be '${expected}' when exit_code is ${ev.exit_code}`
+        });
+      }
+    }
+    return;
+  }
+  if (ev.kind === "verification.command_evaluated") {
+    const expected = ev.exit_code === 0 ? "passed" : "failed";
+    if (ev.status !== expected) {
+      ctx.addIssue({
+        code: "custom",
+        path: ["status"],
+        message: `status must be '${expected}' when exit_code is ${ev.exit_code}`
+      });
+    }
+    return;
+  }
+  if (ev.kind === "proof.assessed") {
+    if (ev.scope.run_id !== ev.run_id) {
+      ctx.addIssue({
+        code: "custom",
+        path: ["scope", "run_id"],
+        message: "proof assessment scope.run_id must match run_id"
+      });
+    }
+    if (ev.close_allowed && ev.overall_status !== "proven") {
+      ctx.addIssue({
+        code: "custom",
+        path: ["close_allowed"],
+        message: "proof assessment close_allowed requires overall_status proven"
+      });
+    }
+    return;
+  }
+  if (ev.kind === "safe_apply.result") {
+    if (ev.scope.run_id !== ev.run_id) {
+      ctx.addIssue({
+        code: "custom",
+        path: ["scope", "run_id"],
+        message: "safe apply scope.run_id must match run_id"
+      });
+    }
+    for (const { label, path, ref } of [
+      {
+        label: "safe apply change_packet_ref",
+        path: ["change_packet_ref"],
+        ref: ev.change_packet_ref
+      },
+      { label: "safe apply base_ref", path: ["base_ref"], ref: ev.base_ref },
+      { label: "safe apply result_ref", path: ["result_ref"], ref: ev.result_ref },
+      ...ev.final_verification_ref === void 0 ? [] : [
+        {
+          label: "safe apply final_verification_ref",
+          path: ["final_verification_ref"],
+          ref: ev.final_verification_ref
+        }
+      ],
+      ...ev.touched_files_ref === void 0 ? [] : [
+        {
+          label: "safe apply touched_files_ref",
+          path: ["touched_files_ref"],
+          ref: ev.touched_files_ref
+        }
+      ]
+    ]) {
+      if (ref.run_id !== ev.run_id) {
+        ctx.addIssue({
+          code: "custom",
+          path: [...path, "run_id"],
+          message: `${label} run_id must match run_id`
+        });
+      }
+      if (ref.flow_id !== ev.scope.flow_id) {
+        ctx.addIssue({
+          code: "custom",
+          path: [...path, "flow_id"],
+          message: `${label} flow_id must match scope.flow_id`
+        });
+      }
+      if (ref.step_id !== ev.scope.step_id) {
+        ctx.addIssue({
+          code: "custom",
+          path: [...path, "step_id"],
+          message: `${label} step_id must match scope.step_id`
+        });
+      }
+      if (ref.attempt !== ev.scope.attempt) {
+        ctx.addIssue({
+          code: "custom",
+          path: [...path, "attempt"],
+          message: `${label} attempt must match scope.attempt`
+        });
+      }
+    }
+    if (ev.action === "rejected" && ev.outcome !== "fail") {
+      ctx.addIssue({
+        code: "custom",
+        path: ["outcome"],
+        message: "rejected safe apply trace results require fail outcome"
+      });
+    }
+    if (ev.action === "applied") {
+      if (ev.outcome !== "pass") {
+        ctx.addIssue({
+          code: "custom",
+          path: ["outcome"],
+          message: "applied safe apply trace results require pass outcome"
+        });
+      }
+      if (ev.final_verification_ref === void 0) {
+        ctx.addIssue({
+          code: "custom",
+          path: ["final_verification_ref"],
+          message: "applied safe apply trace results require final verification refs"
+        });
+      }
+    }
+    return;
+  }
+  if (ev.kind !== "relay.started" && ev.kind !== "relay.failed") return;
+  if (ev.resolved_from.source === "role" && ev.resolved_from.role !== ev.role) {
+    ctx.addIssue({
+      code: "custom",
+      path: ["resolved_from", "role"],
+      message: `resolved_from.role '${ev.resolved_from.role}' does not agree with trace_entry role '${ev.role}'`
+    });
+  }
+  if (ev.kind === "relay.started" && ev.equipment !== void 0) {
+    const eq = ev.equipment;
+    if (eq.effective === "enforced" && eq.enforced_tools === void 0) {
+      ctx.addIssue({
+        code: "custom",
+        path: ["equipment", "enforced_tools"],
+        message: "an effectively-enforced equipment scope must record its enforced_tools"
+      });
+    }
+    if (eq.effective === "trusted" && eq.enforced_tools !== void 0) {
+      ctx.addIssue({
+        code: "custom",
+        path: ["equipment", "enforced_tools"],
+        message: "a trusted equipment scope must not record enforced_tools \u2014 trusted is guidance, not a restriction"
+      });
+    }
+    if (eq.downgraded && !(eq.declared === "enforced" && eq.effective === "trusted")) {
+      ctx.addIssue({
+        code: "custom",
+        path: ["equipment", "downgraded"],
+        message: "a downgraded equipment scope must be declared enforced and effective trusted"
+      });
+    }
+    if (eq.effective === "enforced" && eq.declared !== "enforced") {
+      ctx.addIssue({
+        code: "custom",
+        path: ["equipment", "effective"],
+        message: "an effectively-enforced equipment scope must be declared enforced"
+      });
+    }
+  }
+});
+
+// src/runtime/trace/trace-fields.ts
+var RUN_CLOSED_OUTCOMES = RunClosedOutcome.options;
+function isRunClosedOutcome(value) {
+  return RUN_CLOSED_OUTCOMES.includes(value);
+}
+function optionalRunClosedOutcome(value) {
+  return isRunClosedOutcome(value) ? value : void 0;
+}
+
+// src/schemas/axes.ts
+var TournamentN = external_exports.number().int().min(2).max(4);
+var Axes = external_exports.object({
+  depth: Process.default("medium"),
+  tournament: external_exports.boolean().default(false),
+  tournament_n: TournamentN.default(3),
+  autonomous: external_exports.boolean().default(false)
+}).strict();
+var DEFAULT_AXES = Axes.parse({});
+var FlowAxes = external_exports.object({
+  allowed_depths: external_exports.array(Process).min(1),
+  supports_tournament: external_exports.boolean().default(false),
+  supports_autonomous: external_exports.boolean().default(false),
+  default: Axes.default(DEFAULT_AXES),
+  tournament_fan_out_stage: StageId.optional()
+}).strict().superRefine((axes, ctx) => {
+  const seenDepths = /* @__PURE__ */ new Set();
+  for (const [index, depth] of axes.allowed_depths.entries()) {
+    if (seenDepths.has(depth)) {
+      ctx.addIssue({
+        code: "custom",
+        path: ["allowed_depths", index],
+        message: `duplicate allowed depth: ${depth}`
+      });
+    }
+    seenDepths.add(depth);
+  }
+  if (!seenDepths.has(axes.default.depth)) {
+    ctx.addIssue({
+      code: "custom",
+      path: ["default", "depth"],
+      message: `default depth '${axes.default.depth}' is not in allowed_depths`
+    });
+  }
+  if (axes.default.tournament && !axes.supports_tournament) {
+    ctx.addIssue({
+      code: "custom",
+      path: ["default", "tournament"],
+      message: "default tournament cannot be true when supports_tournament is false"
+    });
+  }
+  if (axes.default.autonomous && !axes.supports_autonomous) {
+    ctx.addIssue({
+      code: "custom",
+      path: ["default", "autonomous"],
+      message: "default autonomous cannot be true when supports_autonomous is false"
+    });
+  }
+  if (axes.supports_tournament && axes.tournament_fan_out_stage === void 0) {
+    ctx.addIssue({
+      code: "custom",
+      path: ["tournament_fan_out_stage"],
+      message: "tournament_fan_out_stage is required when supports_tournament is true"
+    });
+  }
+  if (!axes.supports_tournament && axes.tournament_fan_out_stage !== void 0) {
+    ctx.addIssue({
+      code: "custom",
+      path: ["tournament_fan_out_stage"],
+      message: "tournament_fan_out_stage is only allowed when supports_tournament is true"
+    });
+  }
+});
+
+// src/schemas/axis-config-requirement.ts
+var AxisConfigRequirement = external_exports.object({
+  // The boolean axis whose selection makes the config mandatory.
+  axis: external_exports.enum(["tournament", "autonomous"]),
+  // Dot path into the layered selection config, e.g.
+  // 'flows.prototype.variant_models'. The last layer that defines it wins.
+  path: external_exports.string().min(1),
+  // Operator-facing reason printed on rejection.
+  message: external_exports.string().min(1)
+}).strict();
+var AxisConfigRequirementList = external_exports.array(AxisConfigRequirement).min(1);
+
+// src/schemas/engine-flags.ts
+var EngineFlagsManifest = external_exports.object({
+  binds_execution_depth_to_relay_selection: external_exports.boolean().optional(),
+  binds_terminal_outcome_to_primary_result: external_exports.boolean().optional(),
+  iterates_slice_loop: external_exports.object({
+    head_step: external_exports.string().min(1),
+    tail_step: external_exports.string().min(1),
+    advance_route: external_exports.string().min(1),
+    slices_from: external_exports.object({
+      report: external_exports.string().min(1),
+      items_path: external_exports.string().min(1)
+    }).strict(),
+    max_slices: external_exports.number().int().positive(),
+    activate_when_depth_at_least: external_exports.literal("high")
+  }).strict().optional(),
+  // The until loop (a while loop for flows): re-enter [head..tail] once per
+  // iteration until max_iterations. Mutually exclusive with iterates_slice_loop
+  // (both drive one re-entry counter); the graph runner rejects a flow that
+  // sets both. body_steps is the full span head and tail included, because
+  // every body step must be iteration-scoped, not just the adjacent head/tail
+  // the slice loop scopes. See docs/ideas/until-loop.md.
+  iterates_until_condition: external_exports.object({
+    head_step: external_exports.string().min(1),
+    tail_step: external_exports.string().min(1),
+    body_steps: external_exports.array(external_exports.string().min(1)).min(1),
+    reenter_route: external_exports.string().min(1),
+    max_iterations: external_exports.number().int().positive(),
+    // Slice 2 (the stop-judge): the tail proposes a goal-met boolean the
+    // engine disposes against an evidence floor. report + goal_met_path say
+    // where to read the proposal; needs_attention_route is where an exhausted
+    // judge-gated loop exits (a non-@complete terminal). Both absent = the
+    // slice-1 count-driven form. lesson_path (slice 4) and progress_path
+    // (slice 6) are optional dotted paths to a carried lesson and an opaque
+    // progress marker the engine disposes; absent = those features off.
+    stop_judge: external_exports.object({
+      report: external_exports.string().min(1),
+      goal_met_path: external_exports.string().min(1),
+      lesson_path: external_exports.string().min(1).optional(),
+      progress_path: external_exports.string().min(1).optional()
+    }).strict().optional(),
+    needs_attention_route: external_exports.string().min(1).optional(),
+    // Slice 4 (carried notes): the run-file the engine appends one note to per
+    // iteration; the head re-reads it next pass. max_entries caps retained
+    // notes (default 20). Absent = no notes carried.
+    carried_notes: external_exports.object({
+      report: external_exports.string().min(1),
+      max_entries: external_exports.number().int().positive().optional()
+    }).strict().optional(),
+    // Slice 5 (cumulative budget cap, fail-closed): hard spend ceilings summed
+    // across iterations from per-relay usage. At or above the cap the loop exits
+    // to needs_attention rather than spending more. Absent = no cap.
+    cumulative_usd_cap: external_exports.number().positive().optional(),
+    cumulative_token_cap: external_exports.number().int().positive().optional(),
+    // Slice 6 (no-progress ceiling): consecutive no-progress iterations
+    // tolerated before exiting to needs_attention. Requires
+    // stop_judge.progress_path. Absent = only the iteration cap bounds the loop.
+    no_progress_ceiling: external_exports.number().int().positive().optional(),
+    // Slice 7 (per-iteration commit containment, opt-in, default off). When
+    // set AND the host injects a commit-containment runner, each iteration
+    // is committed to a throwaway branch named `${branch_prefix}-${run_id}`;
+    // the operator owns the merge. Absent => the engine makes zero git calls.
+    iteration_commit_containment: external_exports.object({
+      branch_prefix: external_exports.string().min(1)
+    }).strict().optional(),
+    // The loop's read-only eval surface (the test files, the verify command's
+    // own definition, a spec or expected file). The engine fingerprints these
+    // at loop entry and, at each tail seam, opens an honesty-ledger latch if a
+    // body iteration changed one — so the floor cannot honor that iteration's
+    // goal-met claim. Generic engine mechanism only; no shipped flow sets it
+    // (freezing real repo paths is a deliberate NEXT slice). Absent = off.
+    frozen_paths: external_exports.array(external_exports.string().min(1)).min(1).optional(),
+    activate_when_depth_at_least: external_exports.literal("autonomous")
+  }).strict().optional()
+}).strict();
+
+// src/schemas/report-file-surface.ts
+var ReportFileSurfaceExtractor = external_exports.discriminatedUnion("kind", [
+  external_exports.object({ kind: external_exports.literal("string-array-field"), field: external_exports.string().min(1) }).strict(),
+  external_exports.object({ kind: external_exports.literal("build-plan-and-slices-anticipated-file-extensions") }).strict()
+]);
+var ReportFileSurface = external_exports.object({
+  timing: external_exports.enum(["before", "after"]),
+  extractor: ReportFileSurfaceExtractor
+}).strict();
+var ReportFileSurfaceMap = external_exports.record(external_exports.string().min(1), ReportFileSurface);
+
+// src/schemas/route-policy.ts
+var RUNTIME_SUCCESS_ROUTE = "pass";
+var SCHEMATIC_SUCCESS_ROUTE_ALIASES = ["continue", "complete"];
+var SUCCESS_ROUTE_ALIAS_SET = new Set(SCHEMATIC_SUCCESS_ROUTE_ALIASES);
+
+// src/schemas/stage.ts
+var CanonicalStage = external_exports.enum([
+  "frame",
+  "analyze",
+  "plan",
+  "act",
+  "verify",
+  "review",
+  "close"
+]);
+var Stage = external_exports.object({
+  id: StageId,
+  title: external_exports.string().min(1),
+  canonical: CanonicalStage.optional(),
+  steps: external_exports.array(StepId).min(1),
+  selection: SelectionOverride.optional()
+}).strict();
+var CANONICAL_STAGES = [
+  "frame",
+  "analyze",
+  "plan",
+  "act",
+  "verify",
+  "review",
+  "close"
+];
+var PARTIAL_SPINE_RATIONALE_MIN_LENGTH = 20;
+var SpinePolicy = external_exports.discriminatedUnion("mode", [
+  external_exports.object({
+    mode: external_exports.literal("strict")
+  }).strict(),
+  external_exports.object({
+    mode: external_exports.literal("partial"),
+    omits: external_exports.array(CanonicalStage).min(1),
+    rationale: external_exports.string().min(PARTIAL_SPINE_RATIONALE_MIN_LENGTH)
+  }).strict()
+]);
+
+// src/schemas/compiled-flow.ts
+var TERMINAL_ROUTE_TARGETS = /* @__PURE__ */ new Set(["@complete", "@stop", "@escalate", "@handoff"]);
+var CompiledFlowManifestEngineFlags = EngineFlagsManifest;
+var CompiledFlowManifestRuntimeSurface = external_exports.object({
+  primary_result: external_exports.object({
+    schema_name: external_exports.string().min(1),
+    path: RunRelativePath
+  }).strict().optional()
+}).strict();
+var CompiledFlowBody = external_exports.object({
+  schema_version: external_exports.literal("3"),
+  id: CompiledFlowId,
+  version: external_exports.string().min(1),
+  purpose: external_exports.string().min(1),
+  axes: FlowAxes,
+  starts_at: StepId,
+  stages: external_exports.array(Stage).min(1),
+  stage_path_policy: SpinePolicy,
+  steps: external_exports.array(Step).min(1),
+  // Seed skill set is expressed through
+  // `default_selection.skills = {mode: 'replace', skills: [...]}` so every
+  // skill contribution flows through the typed SkillOverride operations,
+  // closing the untyped-bypass path.
+  default_selection: SelectionOverride.optional(),
+  // Optional engine-visible behavior flags carried on the manifest. Absent =
+  // resolve from the catalog package alone (the pre-migration path).
+  engine_flags: CompiledFlowManifestEngineFlags.optional(),
+  // Stage 3b (first-class composition): execution-bearing declarations the
+  // engine reads off the manifest, so a composed flow carries them without a
+  // by-id catalog package. `report_file_surfaces` feeds the skill-hook
+  // edit-file surface table; `runtime_surface.primary_result` binds the
+  // terminal outcome to the result report; `required_config` is the CLI's
+  // up-front config gate. Each absent = the flow declares none.
+  report_file_surfaces: ReportFileSurfaceMap.optional(),
+  runtime_surface: CompiledFlowManifestRuntimeSurface.optional(),
+  required_config: AxisConfigRequirementList.optional()
+}).strict();
+var issueAt2 = (ctx, path, message) => {
+  ctx.addIssue({ code: "custom", path, message });
+};
+var TOURNAMENT_FANOUT_CONTRACT_MESSAGE = "tournament fanout requires on_child_failure: continue-others and join.policy: aggregate-survivors";
+var CompiledFlowStrict = CompiledFlowBody.superRefine((wf, ctx) => {
+  const stepIds = /* @__PURE__ */ new Set();
+  const stepById = /* @__PURE__ */ new Map();
+  for (let i = 0; i < wf.steps.length; i++) {
+    const step = wf.steps[i];
+    if (step === void 0) continue;
+    if (stepIds.has(step.id)) {
+      issueAt2(ctx, ["steps", i, "id"], `duplicate step id: ${step.id}`);
+    } else {
+      stepIds.add(step.id);
+      stepById.set(step.id, { step, index: i });
+    }
+  }
+  const stageIds = /* @__PURE__ */ new Set();
+  for (let i = 0; i < wf.stages.length; i++) {
+    const stage = wf.stages[i];
+    if (stage === void 0) continue;
+    if (stageIds.has(stage.id)) {
+      issueAt2(ctx, ["stages", i, "id"], `duplicate stage id: ${stage.id}`);
+    } else {
+      stageIds.add(stage.id);
+    }
+    for (let j = 0; j < stage.steps.length; j++) {
+      const sid = stage.steps[j];
+      if (sid === void 0) continue;
+      if (!stepIds.has(sid)) {
+        issueAt2(ctx, ["stages", i, "steps", j], `stage references unknown step: ${sid}`);
+      }
+    }
+  }
+  if (!stepIds.has(wf.starts_at)) {
+    issueAt2(ctx, ["starts_at"], `starts_at references unknown step: ${wf.starts_at}`);
+  }
+  if (wf.axes.supports_tournament && wf.axes.tournament_fan_out_stage !== void 0) {
+    const fanOutStageId = wf.axes.tournament_fan_out_stage;
+    const fanOutStage = wf.stages.find(
+      (stage) => stage.id === fanOutStageId
+    );
+    if (fanOutStage === void 0) {
+      issueAt2(
+        ctx,
+        ["axes", "tournament_fan_out_stage"],
+        `tournament_fan_out_stage references unknown stage id: ${fanOutStageId}`
+      );
+    } else {
+      for (const stepId of fanOutStage.steps) {
+        const entry = stepById.get(stepId);
+        if (entry === void 0 || entry.step.kind !== "fanout") continue;
+        if (entry.step.on_child_failure !== "continue-others" || entry.step.check.join.policy !== "aggregate-survivors") {
+          issueAt2(ctx, ["steps", entry.index, "check", "join"], TOURNAMENT_FANOUT_CONTRACT_MESSAGE);
+        }
+      }
+    }
+  }
+  for (let i = 0; i < wf.steps.length; i++) {
+    const step = wf.steps[i];
+    if (step === void 0) continue;
+    for (const [label, target] of Object.entries(step.routes)) {
+      if (TERMINAL_ROUTE_TARGETS.has(target)) continue;
+      if (!stepIds.has(target)) {
+        issueAt2(
+          ctx,
+          ["steps", i, "routes", label],
+          `route target is not @complete/@stop/@escalate/@handoff and not a known step: ${target}`
+        );
+      }
+    }
+    if (!Object.hasOwn(step.routes, RUNTIME_SUCCESS_ROUTE)) {
+      issueAt2(
+        ctx,
+        ["steps", i, "routes"],
+        `WF-I10: step '${step.id}' is missing a '${RUNTIME_SUCCESS_ROUTE}' route key \u2014 check.evaluated emits outcome \u2208 {pass, fail} uniformly, so routes must contain '${RUNTIME_SUCCESS_ROUTE}' to route on a successful check outcome`
+      );
+    }
+  }
+  const canonicalSeenAt = /* @__PURE__ */ new Map();
+  for (let i = 0; i < wf.stages.length; i++) {
+    const stage = wf.stages[i];
+    if (stage === void 0) continue;
+    if (stage.canonical === void 0) continue;
+    const prior = canonicalSeenAt.get(stage.canonical);
+    if (prior !== void 0) {
+      issueAt2(
+        ctx,
+        ["stages", i, "canonical"],
+        `duplicate canonical '${stage.canonical}' \u2014 also declared by stage at index ${prior}`
+      );
+    } else {
+      canonicalSeenAt.set(stage.canonical, i);
+    }
+  }
+  const declaredCanonicals = new Set(canonicalSeenAt.keys());
+  const omits = /* @__PURE__ */ new Set();
+  if (wf.stage_path_policy.mode === "partial") {
+    const seenOmits = /* @__PURE__ */ new Set();
+    for (let i = 0; i < wf.stage_path_policy.omits.length; i++) {
+      const o = wf.stage_path_policy.omits[i];
+      if (o === void 0) continue;
+      if (seenOmits.has(o)) {
+        issueAt2(
+          ctx,
+          ["stage_path_policy", "omits", i],
+          `duplicate omit: '${o}' is listed more than once`
+        );
+      } else {
+        seenOmits.add(o);
+      }
+      omits.add(o);
+    }
+  }
+  for (const o of omits) {
+    if (declaredCanonicals.has(o)) {
+      issueAt2(
+        ctx,
+        ["stage_path_policy", "omits"],
+        `canonical '${o}' is both declared as a Stage.canonical AND listed in stage_path_policy.omits \u2014 omits must be disjoint from declared canonicals`
+      );
+    }
+  }
+  for (const canonical of CANONICAL_STAGES) {
+    if (omits.has(canonical)) continue;
+    if (!declaredCanonicals.has(canonical)) {
+      issueAt2(
+        ctx,
+        ["stages"],
+        `stage_path_policy requires canonical stage '${canonical}' \u2014 declare a Stage with canonical: '${canonical}', or move it into stage_path_policy.omits with a rationale`
+      );
+    }
+  }
+  const noDuplicateIds = stepIds.size === wf.steps.length;
+  const adjacency = /* @__PURE__ */ new Map();
+  let allRouteTargetsKnown = true;
+  for (const step of wf.steps) {
+    if (step === void 0) continue;
+    const targets = Object.values(step.routes);
+    adjacency.set(step.id, targets);
+    for (const t of targets) {
+      if (TERMINAL_ROUTE_TARGETS.has(t)) continue;
+      if (!stepIds.has(t)) {
+        allRouteTargetsKnown = false;
+      }
+    }
+  }
+  const allEntryStartsKnown = stepIds.has(wf.starts_at);
+  if (noDuplicateIds && allRouteTargetsKnown && allEntryStartsKnown) {
+    const terminalReaching = /* @__PURE__ */ new Set();
+    for (const [sid, targets] of adjacency) {
+      for (const t of targets) {
+        if (TERMINAL_ROUTE_TARGETS.has(t)) {
+          terminalReaching.add(sid);
+          break;
+        }
+      }
+    }
+    let changed = true;
+    while (changed) {
+      changed = false;
+      for (const [sid, targets] of adjacency) {
+        if (terminalReaching.has(sid)) continue;
+        for (const t of targets) {
+          if (terminalReaching.has(t)) {
+            terminalReaching.add(sid);
+            changed = true;
+            break;
+          }
+        }
+      }
+    }
+    for (let i = 0; i < wf.steps.length; i++) {
+      const step = wf.steps[i];
+      if (step === void 0) continue;
+      if (!terminalReaching.has(step.id)) {
+        issueAt2(
+          ctx,
+          ["steps", i],
+          `WF-I8: step '${step.id}' cannot reach any terminal route target (@complete/@stop/@escalate/@handoff) through its routes graph \u2014 run bootstrapped from this step (or routed here) could never emit run.closed`
+        );
+      }
+    }
+    const stepsById = new Map(wf.steps.map((step) => [step.id, step]));
+    for (let i = 0; i < wf.steps.length; i++) {
+      const step = wf.steps[i];
+      if (step === void 0) continue;
+      const startId = step.id;
+      const seen = /* @__PURE__ */ new Set();
+      let cur = startId;
+      while (cur !== void 0) {
+        if (seen.has(cur)) {
+          issueAt2(
+            ctx,
+            ["steps", i, "routes", RUNTIME_SUCCESS_ROUTE],
+            `WF-I11: step '${startId}' cannot reach a terminal by following only routes.${RUNTIME_SUCCESS_ROUTE} \u2014 ${RUNTIME_SUCCESS_ROUTE} chain cycles at '${cur}'`
+          );
+          break;
+        }
+        seen.add(cur);
+        const curStep = stepsById.get(cur);
+        if (curStep === void 0) break;
+        const passTarget = curStep.routes[RUNTIME_SUCCESS_ROUTE];
+        if (passTarget === void 0) break;
+        if (TERMINAL_ROUTE_TARGETS.has(passTarget)) break;
+        cur = passTarget;
+      }
+    }
+    const reachableFromEntry = /* @__PURE__ */ new Set();
+    const queue = [wf.starts_at];
+    while (queue.length > 0) {
+      const cur = queue.shift();
+      if (cur === void 0) continue;
+      if (reachableFromEntry.has(cur)) continue;
+      reachableFromEntry.add(cur);
+      const targets = adjacency.get(cur) ?? [];
+      for (const t of targets) {
+        if (TERMINAL_ROUTE_TARGETS.has(t)) continue;
+        if (stepIds.has(t)) queue.push(t);
+      }
+    }
+    for (let i = 0; i < wf.steps.length; i++) {
+      const step = wf.steps[i];
+      if (step === void 0) continue;
+      if (!reachableFromEntry.has(step.id)) {
+        issueAt2(
+          ctx,
+          ["steps", i],
+          `WF-I9: step '${step.id}' is not reachable from starts_at via the routes graph \u2014 declared but dead`
+        );
+      }
+    }
+  }
+});
+var CompiledFlow = CompiledFlowStrict;
+
+// src/schemas/run-status.ts
+var RunStatusEngineState = external_exports.enum([
+  "open",
+  "waiting_checkpoint",
+  "completed",
+  "aborted",
+  "invalid"
+]);
+var RunStatusValidReason = external_exports.enum([
+  "active_or_unknown",
+  "checkpoint_waiting",
+  "run_closed"
+]);
+var RunStatusInvalidReason = external_exports.enum([
+  "manifest_invalid",
+  "trace_invalid",
+  "identity_mismatch",
+  "checkpoint_invalid",
+  "unknown"
+]);
+var RunStatusAction = external_exports.enum(["inspect", "resume", "none"]);
+var CurrentStepStatus = external_exports.object({
+  step_id: StepId,
+  attempt: external_exports.number().int().positive().optional(),
+  stage_id: StageId.optional(),
+  label: external_exports.string().min(1).optional()
+}).strict();
+var CheckpointChoiceStatus = external_exports.object({
+  id: external_exports.string().min(1),
+  label: external_exports.string().min(1),
+  value: external_exports.string().min(1)
+}).strict();
+var WaitingCheckpointStatus = external_exports.object({
+  checkpoint_id: external_exports.string().min(1),
+  step_id: StepId,
+  attempt: external_exports.number().int().positive(),
+  prompt: external_exports.string().min(1).optional(),
+  choices: external_exports.array(CheckpointChoiceStatus).min(1),
+  request_path: external_exports.string().min(1).optional(),
+  request_sha256: Sha2562.optional()
+}).strict();
+var LastRunStatusEvent = external_exports.object({
+  sequence: external_exports.number().int().nonnegative(),
+  type: external_exports.string().min(1),
+  timestamp: external_exports.iso.datetime()
+}).strict();
+var RunStatusError = external_exports.object({
+  code: external_exports.string().min(1),
+  message: external_exports.string().min(1)
+}).strict();
+var ValidRunStatusBase = external_exports.object({
+  api_version: external_exports.literal("run-status-v1"),
+  schema_version: external_exports.literal(1),
+  run_folder: external_exports.string().min(1),
+  run_id: RunId,
+  flow_id: CompiledFlowId,
+  goal: external_exports.string().min(1),
+  last_event: LastRunStatusEvent.optional(),
+  operator_summary_path: external_exports.string().min(1).optional(),
+  operator_summary_markdown_path: external_exports.string().min(1).optional(),
+  result_path: external_exports.string().min(1).optional()
+}).strict();
+var OpenRunStatusProjectionV1 = ValidRunStatusBase.extend({
+  engine_state: external_exports.literal("open"),
+  reason: external_exports.literal("active_or_unknown"),
+  // 'open' is genuinely ambiguous: from the run folder alone a live run and
+  // one whose process died before recording an outcome look identical. The
+  // notice states that ambiguity in plain language so consumers never present
+  // 'open' as "definitely still running".
+  status_notice: external_exports.string().min(1),
+  legal_next_actions: external_exports.tuple([external_exports.literal("inspect")]),
+  current_step: CurrentStepStatus.optional()
+}).strict();
+var WaitingCheckpointRunStatusProjectionV1 = ValidRunStatusBase.extend({
+  engine_state: external_exports.literal("waiting_checkpoint"),
+  reason: external_exports.literal("checkpoint_waiting"),
+  legal_next_actions: external_exports.tuple([external_exports.literal("inspect"), external_exports.literal("resume")]),
+  current_step: CurrentStepStatus.optional(),
+  checkpoint: WaitingCheckpointStatus
+}).strict();
+var CompletedRunStatusProjectionV1 = ValidRunStatusBase.extend({
+  engine_state: external_exports.literal("completed"),
+  reason: external_exports.literal("run_closed"),
+  legal_next_actions: external_exports.tuple([external_exports.literal("inspect")]),
+  terminal_outcome: RunClosedOutcome.exclude(["aborted"])
+}).strict();
+var AbortedRunStatusProjectionV1 = ValidRunStatusBase.extend({
+  engine_state: external_exports.literal("aborted"),
+  reason: external_exports.literal("run_closed"),
+  legal_next_actions: external_exports.tuple([external_exports.literal("inspect")]),
+  terminal_outcome: external_exports.literal("aborted")
+}).strict();
+var InvalidRunStatusProjectionV1 = external_exports.object({
+  api_version: external_exports.literal("run-status-v1"),
+  schema_version: external_exports.literal(1),
+  run_folder: external_exports.string().min(1),
+  engine_state: external_exports.literal("invalid"),
+  reason: RunStatusInvalidReason,
+  legal_next_actions: external_exports.tuple([external_exports.literal("none")]),
+  error: RunStatusError,
+  run_id: RunId.optional(),
+  flow_id: CompiledFlowId.optional(),
+  goal: external_exports.string().min(1).optional()
+}).strict();
+var RunStatusProjectionV1 = external_exports.discriminatedUnion("engine_state", [
+  OpenRunStatusProjectionV1,
+  WaitingCheckpointRunStatusProjectionV1,
+  CompletedRunStatusProjectionV1,
+  AbortedRunStatusProjectionV1,
+  InvalidRunStatusProjectionV1
+]);
+var EngineErrorCodeV1 = external_exports.enum([
+  "invalid_invocation",
+  "folder_not_found",
+  "folder_unreadable",
+  "internal_error"
+]);
+var EngineErrorV1 = external_exports.object({
+  api_version: external_exports.literal("engine-error-v1"),
+  schema_version: external_exports.literal(1),
+  error: external_exports.object({
+    code: EngineErrorCodeV1,
+    message: external_exports.string().min(1)
+  }).strict(),
+  run_folder: external_exports.string().min(1).optional()
+}).strict();
+
+// src/app/run-status/projection-common.ts
+function errorMessage(err) {
+  return err instanceof Error ? err.message : String(err);
+}
+function invalidProjection(input) {
+  return RunStatusProjectionV1.parse({
+    api_version: "run-status-v1",
+    schema_version: 1,
+    run_folder: input.runFolder,
+    engine_state: "invalid",
+    reason: input.reason,
+    legal_next_actions: ["none"],
+    error: {
+      code: input.code,
+      message: input.message
+    },
+    ...input.bootstrap === void 0 ? {} : { goal: input.bootstrap.goal },
+    ...input.manifestIdentity === void 0 ? input.bootstrap === void 0 ? {} : { run_id: input.bootstrap.run_id, flow_id: input.bootstrap.flow_id } : { run_id: input.manifestIdentity.run_id, flow_id: input.manifestIdentity.flow_id }
+  });
+}
+function readSavedFlowForProjection(manifestBytesBase64, manifestFlowId) {
+  try {
+    const text = Buffer.from(manifestBytesBase64, "base64").toString("utf8");
+    const flow = CompiledFlow.parse(JSON.parse(text));
+    const parsedFlowId = flow.id;
+    if (parsedFlowId !== manifestFlowId) {
+      return { kind: "identity_mismatch", parsedFlowId };
+    }
+    return { kind: "available", flow };
+  } catch {
+    return { kind: "unavailable" };
+  }
+}
+function optionalReportPaths(runFolder) {
+  const result = runResultPath(runFolder);
+  const operatorSummary = join9(runFolder, "reports", "operator-summary.json");
+  const operatorSummaryMarkdown = join9(runFolder, "reports", "operator-summary.md");
+  return {
+    ...existsSync2(result) ? { result_path: result } : {},
+    ...existsSync2(operatorSummary) ? { operator_summary_path: operatorSummary } : {},
+    ...existsSync2(operatorSummaryMarkdown) ? { operator_summary_markdown_path: operatorSummaryMarkdown } : {}
+  };
+}
+function stepMetadata(flow, stepId) {
+  if (flow === void 0) return {};
+  const step = flow.steps.find((candidate2) => candidate2.id === stepId);
+  const stage = flow.stages.find(
+    (candidate2) => candidate2.steps.some((candidateStepId) => candidateStepId === stepId)
+  );
+  return {
+    ...stage === void 0 ? {} : { stage_id: stage.id },
+    ...step === void 0 ? {} : { label: step.title }
+  };
+}
+
+// src/app/run-status/runtime-run-folder.ts
+import { readFileSync as readFileSync7 } from "node:fs";
+import { join as join10 } from "node:path";
+
+// src/runtime/projections/tournament-checkpoint-context.ts
+function isRecord3(value) {
+  return value !== null && typeof value === "object" && !Array.isArray(value);
+}
+function boundedText(value, max) {
+  if (value.length <= max) return value;
+  return `${value.slice(0, Math.max(0, max - 1)).trimEnd()}\u2026`;
+}
+function optionPresentationById(readJson) {
+  const raw = readJson("reports/decision-options.json");
+  if (!isRecord3(raw) || !Array.isArray(raw.options)) return /* @__PURE__ */ new Map();
+  const entries = [];
+  for (const option of raw.options) {
+    if (!isRecord3(option)) continue;
+    const id = option.id;
+    const label = option.label;
+    if (typeof id !== "string" || typeof label !== "string") continue;
+    const description = typeof option.summary === "string" ? option.summary : typeof option.best_case_prompt === "string" ? option.best_case_prompt : `Resume with '${id}'.`;
+    entries.push([
+      id,
+      {
+        id,
+        label: boundedText(label, 80),
+        description: boundedText(description, 160)
+      }
+    ]);
+  }
+  return new Map(entries);
+}
+function tournamentAggregatePresentationById(readJson) {
+  const raw = readJson("reports/tournament-aggregate.json");
+  if (!isRecord3(raw) || !Array.isArray(raw.branches)) return /* @__PURE__ */ new Map();
+  const entries = [];
+  for (const branch of raw.branches) {
+    if (!isRecord3(branch)) continue;
+    const id = branch.branch_id;
+    const body = branch.result_body;
+    if (typeof id !== "string" || !isRecord3(body)) continue;
+    const label = body.option_label;
+    if (typeof label !== "string") continue;
+    const description = typeof body.case_summary === "string" && body.case_summary.trim().length > 0 ? body.case_summary : `Resume with '${id}'.`;
+    entries.push([
+      id,
+      {
+        id,
+        label: boundedText(label, 80),
+        description: boundedText(description, 160)
+      }
+    ]);
+  }
+  return new Map(entries);
+}
+function tournamentQuestion(readJson) {
+  const raw = readJson("reports/tournament-review.json");
+  if (!isRecord3(raw)) return void 0;
+  const question = raw.tradeoff_question;
+  return typeof question === "string" && question.trim().length > 0 ? boundedText(question.trim(), 240) : void 0;
+}
+function tournamentCheckpointPresentation(input) {
+  const aggregateById = tournamentAggregatePresentationById(input.readJson);
+  const optionById = optionPresentationById(input.readJson);
+  return {
+    prompt: tournamentQuestion(input.readJson) ?? boundedText(input.fallbackPrompt, 240),
+    choices: input.allowedChoices.map((choice) => {
+      const fromAggregate = aggregateById.get(choice);
+      if (fromAggregate !== void 0) return fromAggregate;
+      const fromOptions = optionById.get(choice);
+      if (fromOptions !== void 0) return fromOptions;
+      return {
+        id: choice,
+        label: boundedText(input.fallbackLabel(choice), 80),
+        description: boundedText(input.fallbackDescription(choice), 160)
+      };
+    })
+  };
+}
+
+// src/schemas/hashing.ts
+import { createHash as createHash5 } from "node:crypto";
+function canonicalJson(value) {
+  return JSON.stringify(value, (_key, item) => {
+    if (item === null || typeof item !== "object" || Array.isArray(item)) return item;
+    return Object.fromEntries(
+      Object.entries(item).sort(([a], [b]) => a.localeCompare(b))
+    );
+  });
+}
+function sha256OfString(payload) {
+  return createHash5("sha256").update(payload, "utf8").digest("hex");
+}
+function sha256OfJson(value) {
+  return createHash5("sha256").update(canonicalJson(value)).digest("hex");
+}
+
+// src/app/run-status/runtime-run-folder.ts
+function isRecord4(value) {
+  return value !== null && typeof value === "object" && !Array.isArray(value);
+}
+function readRawTraceEntries(runFolder) {
+  const tracePath = join10(runFolder, "trace.ndjson");
+  const text = readFileSync7(tracePath, "utf8");
+  const trimmed = text.trim();
+  if (trimmed.length === 0) return [];
+  const entries = trimmed.split("\n").map((line, index) => {
+    const parsed = JSON.parse(line);
+    if (!isRecord4(parsed)) {
+      throw new Error("trace entry is not a JSON object");
+    }
+    const entry = TraceEntry.parse(parsed);
+    if (entry.sequence !== index) {
+      throw new Error(`trace sequence mismatch at entry ${index}`);
+    }
+    return entry;
+  });
+  const closedIndex = entries.findIndex((entry) => entry.kind === "run.closed");
+  if (closedIndex !== -1 && closedIndex !== entries.length - 1) {
+    throw new Error(`trace entry after run.closed at sequence ${closedIndex}`);
+  }
+  return entries;
+}
+function traceString2(entry, key) {
+  const value = entry[key];
+  return typeof value === "string" && value.length > 0 ? value : void 0;
+}
+function traceNumber(entry, key) {
+  const value = entry[key];
+  return typeof value === "number" && Number.isFinite(value) ? value : void 0;
+}
+function traceStringArray(entry, key) {
+  const value = entry[key];
+  if (!Array.isArray(value)) return void 0;
+  const entries = value.filter((item) => typeof item === "string");
+  return entries.length === value.length && entries.length > 0 ? entries : void 0;
+}
+function stringArray(value) {
+  if (!Array.isArray(value)) return void 0;
+  const entries = value.filter((item) => typeof item === "string");
+  return entries.length === value.length && entries.length > 0 ? entries : void 0;
+}
+function sameStringArray(left, right) {
+  return left.length === right.length && left.every((value, index) => value === right[index]);
+}
+function isRuntimeTrace(log) {
+  const bootstrap = log[0];
+  return bootstrap !== void 0 && bootstrap.kind === "run.bootstrapped" && bootstrap.schema_version === 1 && isRecord4(bootstrap.change_kind) && traceString2(bootstrap, "manifest_hash") !== void 0;
+}
+function runtimeLastEvent(log) {
+  const entry = log[log.length - 1];
+  if (entry === void 0) {
+    throw new Error("runtime trace unexpectedly had no final trace entry");
+  }
+  const sequence = traceNumber(entry, "sequence");
+  const kind = traceString2(entry, "kind");
+  const recordedAt = traceString2(entry, "recorded_at");
+  if (sequence === void 0 || kind === void 0 || recordedAt === void 0) {
+    throw new Error("runtime trace final event is missing sequence, kind, or recorded_at");
+  }
+  return {
+    sequence,
+    type: kind,
+    timestamp: recordedAt
+  };
+}
+function runtimeRunOutcome(entry) {
+  return optionalRunClosedOutcome(entry.outcome);
+}
+function runtimeCurrentStepProjection(log, flow) {
+  const completed = /* @__PURE__ */ new Set();
+  for (const entry of log) {
+    if (entry.kind !== "step.completed" && entry.kind !== "step.aborted") continue;
+    const stepId = traceString2(entry, "step_id");
+    const attempt = traceNumber(entry, "attempt");
+    if (stepId !== void 0 && attempt !== void 0) completed.add(`${stepId}:${attempt}`);
+  }
+  for (let i = log.length - 1; i >= 0; i--) {
+    const entry = log[i];
+    if (entry === void 0 || entry.kind !== "step.entered") continue;
+    const stepId = traceString2(entry, "step_id");
+    const attempt = traceNumber(entry, "attempt");
+    if (stepId === void 0 || attempt === void 0 || completed.has(`${stepId}:${attempt}`)) {
+      continue;
+    }
+    return {
+      step_id: stepId,
+      attempt,
+      ...stepMetadata(flow, stepId)
+    };
+  }
+  return void 0;
+}
+function latestUnresolvedRuntimeCheckpoint(log) {
+  const resolved = /* @__PURE__ */ new Set();
+  for (const entry of log) {
+    if (entry.kind !== "checkpoint.resolved") continue;
+    const stepId = traceString2(entry, "step_id");
+    const attempt = traceNumber(entry, "attempt");
+    if (stepId !== void 0 && attempt !== void 0) resolved.add(`${stepId}:${attempt}`);
+  }
+  for (let i = log.length - 1; i >= 0; i--) {
+    const entry = log[i];
+    if (entry === void 0 || entry.kind !== "checkpoint.requested") continue;
+    const stepId = traceString2(entry, "step_id");
+    const attempt = traceNumber(entry, "attempt");
+    if (stepId === void 0 || attempt === void 0) continue;
+    if (!resolved.has(`${stepId}:${attempt}`)) return entry;
+  }
+  return void 0;
+}
+function runtimeWaitingCheckpointProjection(input) {
+  const requested = latestUnresolvedRuntimeCheckpoint(input.log);
+  if (requested === void 0) return void 0;
+  const stepId = traceString2(requested, "step_id");
+  const attempt = traceNumber(requested, "attempt");
+  const requestPath = traceString2(requested, "request_path");
+  const expectedHash = traceString2(requested, "request_report_hash");
+  const allowedChoices = traceStringArray(requested, "options");
+  if (stepId === void 0 || attempt === void 0 || requestPath === void 0 || expectedHash === void 0 || allowedChoices === void 0) {
+    return invalidProjection({
+      runFolder: input.runFolder,
+      reason: "checkpoint_invalid",
+      code: "checkpoint_trace_incomplete",
+      message: "runtime checkpoint.requested trace entry is missing resume fields",
+      manifestIdentity: input.manifestIdentity
+    });
+  }
+  const flow = input.flow;
+  if (flow === void 0) {
+    return invalidProjection({
+      runFolder: input.runFolder,
+      reason: "checkpoint_invalid",
+      code: "checkpoint_flow_unavailable",
+      message: "saved flow bytes are unavailable for runtime checkpoint projection",
+      manifestIdentity: input.manifestIdentity
+    });
+  }
+  const step = flow.steps.find((candidate2) => candidate2.id === stepId);
+  if (step === void 0 || step.kind !== "checkpoint") {
+    return invalidProjection({
+      runFolder: input.runFolder,
+      reason: "checkpoint_invalid",
+      code: "checkpoint_step_missing",
+      message: `saved flow does not contain checkpoint step '${stepId}'`,
+      manifestIdentity: input.manifestIdentity
+    });
+  }
+  const declaredRequestPath = step.writes.request;
+  if (requestPath !== declaredRequestPath) {
+    return invalidProjection({
+      runFolder: input.runFolder,
+      reason: "checkpoint_invalid",
+      code: "checkpoint_request_path_mismatch",
+      message: `runtime checkpoint request path '${requestPath}' does not match saved flow path '${declaredRequestPath}'`,
+      manifestIdentity: input.manifestIdentity
+    });
+  }
+  const savedChoices = step.policy.choices?.map((choice) => choice.id) ?? allowedChoices;
+  if (!sameStringArray(allowedChoices, savedChoices)) {
+    return invalidProjection({
+      runFolder: input.runFolder,
+      reason: "checkpoint_invalid",
+      code: "checkpoint_choice_mismatch",
+      message: `runtime checkpoint trace choices for '${stepId}' do not match saved flow choices`,
+      manifestIdentity: input.manifestIdentity
+    });
+  }
+  let requestText;
+  let requestAbs;
+  try {
+    requestAbs = resolveRunFilePath(input.runFolder, requestPath);
+    requestText = readFileSync7(requestAbs, "utf8");
+  } catch (err) {
+    return invalidProjection({
+      runFolder: input.runFolder,
+      reason: "checkpoint_invalid",
+      code: "checkpoint_request_unreadable",
+      message: `runtime checkpoint request is missing or unreadable (${errorMessage(err)})`,
+      manifestIdentity: input.manifestIdentity
+    });
+  }
+  if (sha256OfString(requestText) !== expectedHash) {
+    return invalidProjection({
+      runFolder: input.runFolder,
+      reason: "checkpoint_invalid",
+      code: "checkpoint_request_hash_mismatch",
+      message: "runtime checkpoint request hash differs from trace",
+      manifestIdentity: input.manifestIdentity
+    });
+  }
+  let requestRecord;
+  try {
+    const parsed = JSON.parse(requestText);
+    if (!isRecord4(parsed)) throw new Error("request is not a JSON object");
+    requestRecord = parsed;
+  } catch (err) {
+    return invalidProjection({
+      runFolder: input.runFolder,
+      reason: "checkpoint_invalid",
+      code: "checkpoint_request_invalid_json",
+      message: `runtime checkpoint request is invalid (${errorMessage(err)})`,
+      manifestIdentity: input.manifestIdentity
+    });
+  }
+  if (requestRecord.schema_version !== 1 || requestRecord.step_id !== stepId) {
+    return invalidProjection({
+      runFolder: input.runFolder,
+      reason: "checkpoint_invalid",
+      code: "checkpoint_request_stale",
+      message: `runtime checkpoint request for '${stepId}' is stale`,
+      manifestIdentity: input.manifestIdentity
+    });
+  }
+  const requestChoices = stringArray(requestRecord.allowed_choices);
+  if (requestChoices === void 0 || !sameStringArray(requestChoices, savedChoices)) {
+    return invalidProjection({
+      runFolder: input.runFolder,
+      reason: "checkpoint_invalid",
+      code: "checkpoint_choice_mismatch",
+      message: `runtime checkpoint request choices for '${stepId}' do not match saved flow choices`,
+      manifestIdentity: input.manifestIdentity
+    });
+  }
+  const prompt = typeof requestRecord.prompt === "string" ? requestRecord.prompt : void 0;
+  const policyChoiceLabels = new Map(
+    (step.policy.choices ?? []).map((choice) => [
+      choice.id,
+      choice.label ?? choice.id
+    ])
+  );
+  const presentation = tournamentCheckpointPresentation({
+    readJson: (path) => {
+      try {
+        return JSON.parse(readFileSync7(join10(input.runFolder, path), "utf8"));
+      } catch {
+        return void 0;
+      }
+    },
+    allowedChoices: requestChoices,
+    fallbackPrompt: prompt ?? "Choose how to continue this checkpoint.",
+    fallbackLabel: (choice) => policyChoiceLabels.get(choice) ?? choice,
+    fallbackDescription: (choice) => `Resume with '${choice}'.`
+  });
+  const choices = presentation.choices.map((choice) => ({
+    id: choice.id,
+    label: choice.label,
+    value: choice.id
+  }));
+  return RunStatusProjectionV1.parse({
+    api_version: "run-status-v1",
+    schema_version: 1,
+    run_folder: input.runFolder,
+    engine_state: "waiting_checkpoint",
+    reason: "checkpoint_waiting",
+    legal_next_actions: ["inspect", "resume"],
+    run_id: input.bootstrapRunId,
+    flow_id: input.bootstrapFlowId,
+    goal: input.bootstrapGoal,
+    current_step: {
+      step_id: stepId,
+      attempt,
+      ...stepMetadata(flow, stepId)
+    },
+    checkpoint: {
+      checkpoint_id: `${stepId}:${attempt}`,
+      step_id: stepId,
+      attempt,
+      prompt: presentation.prompt,
+      choices,
+      request_path: requestAbs,
+      request_sha256: expectedHash
+    },
+    last_event: input.event,
+    ...input.reportPaths
+  });
+}
+function projectRuntimeRunStatusFromRunFolder(runFolder, manifest) {
+  let log;
+  try {
+    log = readRawTraceEntries(runFolder);
+  } catch {
+    return void 0;
+  }
+  if (!isRuntimeTrace(log)) return void 0;
+  const bootstrap = log[0];
+  if (bootstrap === void 0) {
+    return invalidProjection({
+      runFolder,
+      reason: "trace_invalid",
+      code: "trace_bootstrap_missing",
+      message: "runtime trace is missing its run.bootstrapped entry",
+      manifestIdentity: {
+        run_id: manifest.run_id,
+        flow_id: manifest.flow_id
+      }
+    });
+  }
+  const bootstrapRunId = traceString2(bootstrap, "run_id");
+  const bootstrapFlowId = traceString2(bootstrap, "flow_id");
+  const bootstrapManifestHash = traceString2(bootstrap, "manifest_hash");
+  const bootstrapGoal = traceString2(bootstrap, "goal");
+  if (bootstrapRunId === void 0 || bootstrapFlowId === void 0 || bootstrapManifestHash === void 0 || bootstrapGoal === void 0) {
+    return invalidProjection({
+      runFolder,
+      reason: "trace_invalid",
+      code: "trace_bootstrap_incomplete",
+      message: "runtime trace run.bootstrapped entry is missing identity or goal fields",
+      manifestIdentity: {
+        run_id: manifest.run_id,
+        flow_id: manifest.flow_id
+      }
+    });
+  }
+  if (bootstrapRunId !== manifest.run_id || bootstrapFlowId !== manifest.flow_id || bootstrapManifestHash !== manifest.hash) {
+    return invalidProjection({
+      runFolder,
+      reason: "identity_mismatch",
+      code: "identity_mismatch",
+      message: "manifest snapshot does not match the runtime bootstrapped trace identity",
+      manifestIdentity: {
+        run_id: manifest.run_id,
+        flow_id: manifest.flow_id
+      }
+    });
+  }
+  const savedFlow = readSavedFlowForProjection(
+    manifest.bytes_base64,
+    manifest.flow_id
+  );
+  const flow = savedFlow.kind === "available" ? savedFlow.flow : void 0;
+  const reportPaths = optionalReportPaths(runFolder);
+  let event;
+  try {
+    event = runtimeLastEvent(log);
+  } catch (err) {
+    return invalidProjection({
+      runFolder,
+      reason: "trace_invalid",
+      code: "trace_last_event_invalid",
+      message: `runtime trace final event is invalid (${errorMessage(err)})`,
+      manifestIdentity: {
+        run_id: manifest.run_id,
+        flow_id: manifest.flow_id
+      }
+    });
+  }
+  const terminal = log[log.length - 1];
+  if (terminal?.kind === "run.closed") {
+    const outcome = runtimeRunOutcome(terminal);
+    if (outcome === void 0) {
+      return invalidProjection({
+        runFolder,
+        reason: "trace_invalid",
+        code: "trace_terminal_outcome_invalid",
+        message: "runtime run.closed trace entry is missing a valid outcome",
+        manifestIdentity: {
+          run_id: manifest.run_id,
+          flow_id: manifest.flow_id
+        }
+      });
+    }
+    const base = {
+      api_version: "run-status-v1",
+      schema_version: 1,
+      run_folder: runFolder,
+      run_id: bootstrapRunId,
+      flow_id: bootstrapFlowId,
+      goal: bootstrapGoal,
+      reason: "run_closed",
+      legal_next_actions: ["inspect"],
+      terminal_outcome: outcome,
+      last_event: event,
+      ...reportPaths
+    };
+    return RunStatusProjectionV1.parse(
+      outcome === "aborted" ? { ...base, engine_state: "aborted" } : { ...base, engine_state: "completed" }
+    );
+  }
+  const waiting = runtimeWaitingCheckpointProjection({
+    runFolder,
+    log,
+    flow,
+    bootstrapRunId,
+    bootstrapFlowId,
+    bootstrapGoal,
+    event,
+    reportPaths,
+    manifestIdentity: {
+      run_id: manifest.run_id,
+      flow_id: manifest.flow_id
+    }
+  });
+  if (waiting !== void 0) return waiting;
+  return RunStatusProjectionV1.parse({
+    api_version: "run-status-v1",
+    schema_version: 1,
+    run_folder: runFolder,
+    engine_state: "open",
+    reason: "active_or_unknown",
+    status_notice: "no outcome recorded: this run is either still in progress or was interrupted before it could record one. If nothing is working on this run right now, treat it as interrupted; last_event shows the last thing it recorded.",
+    legal_next_actions: ["inspect"],
+    run_id: bootstrapRunId,
+    flow_id: bootstrapFlowId,
+    goal: bootstrapGoal,
+    current_step: runtimeCurrentStepProjection(log, flow),
+    last_event: event,
+    ...reportPaths
+  });
+}
+
+// src/app/run-status/run-folder-projector.ts
+var RunStatusFolderError = class extends Error {
+  code;
+  runFolder;
+  constructor(code, runFolder, message) {
+    super(message);
+    this.name = "RunStatusFolderError";
+    this.code = code;
+    this.runFolder = runFolder;
+  }
+};
+function assertReadableRunFolder(runFolder) {
+  let stat3;
+  try {
+    stat3 = statSync3(runFolder);
+  } catch (err) {
+    const nodeCode = err.code;
+    if (nodeCode === "ENOENT" || nodeCode === "ENOTDIR") {
+      throw new RunStatusFolderError(
+        "folder_not_found",
+        runFolder,
+        `run folder does not exist: ${runFolder}`
+      );
+    }
+    throw new RunStatusFolderError(
+      "folder_unreadable",
+      runFolder,
+      `run folder is unreadable: ${runFolder} (${errorMessage(err)})`
+    );
+  }
+  if (!stat3.isDirectory()) {
+    throw new RunStatusFolderError(
+      "folder_unreadable",
+      runFolder,
+      `run folder is not a directory: ${runFolder}`
+    );
+  }
+  try {
+    accessSync(runFolder, constants5.R_OK | constants5.X_OK);
+  } catch (err) {
+    throw new RunStatusFolderError(
+      "folder_unreadable",
+      runFolder,
+      `run folder is unreadable: ${runFolder} (${errorMessage(err)})`
+    );
+  }
+}
+function projectRunStatusFromRunFolder(runFolder) {
+  const resolvedRunFolder = resolve7(runFolder);
+  assertReadableRunFolder(resolvedRunFolder);
+  let manifest;
+  try {
+    manifest = verifyManifestSnapshotBytes(resolvedRunFolder);
+  } catch (err) {
+    return invalidProjection({
+      runFolder: resolvedRunFolder,
+      reason: "manifest_invalid",
+      code: "manifest_invalid",
+      message: `manifest snapshot is missing or invalid (${errorMessage(err)})`
+    });
+  }
+  const runtimeProjection = projectRuntimeRunStatusFromRunFolder(resolvedRunFolder, manifest);
+  if (runtimeProjection !== void 0) return runtimeProjection;
+  return invalidProjection({
+    runFolder: resolvedRunFolder,
+    reason: "trace_invalid",
+    code: "trace_bootstrap_invalid",
+    message: "trace is missing or invalid for this run folder",
+    manifestIdentity: {
+      run_id: manifest.run_id,
+      flow_id: manifest.flow_id
+    }
+  });
+}
+
+// src/schemas/result.ts
+var RunResult = external_exports.object({
+  schema_version: external_exports.literal(1),
+  run_id: RunId,
+  flow_id: CompiledFlowId,
+  goal: external_exports.string().min(1),
+  why: external_exports.string().min(1).optional(),
+  outcome: RunClosedOutcome,
+  summary: external_exports.string().min(1),
+  closed_at: external_exports.iso.datetime(),
+  trace_entries_observed: external_exports.number().int().nonnegative(),
+  manifest_hash: external_exports.string().min(1),
+  reason: external_exports.string().min(1).optional(),
+  verdict: external_exports.string().min(1).optional()
+}).strict();
+
+// src/hosts/codex-mcp/runtime-artifacts.ts
+var RESULT_PATH = "reports/result.json";
+var MAX_RESULT_BYTES = 262144;
+var MAX_MANIFEST_BYTES = 16 * 1048576;
+var MAX_TRACE_BYTES = 64 * 1048576;
+function plainSummary(value, fallback) {
+  const trimmed = value.trim();
+  if (trimmed.length === 0) return fallback;
+  return trimmed.length <= 1e3 ? trimmed : `${trimmed.slice(0, 997)}...`;
+}
+function failure(state, code, message) {
+  return { state, summary: message, failure: { code, message } };
+}
+function sameFile(left, right) {
+  return left.dev === right.dev && left.ino === right.ino && left.size === right.size && left.mtimeNs === right.mtimeNs && left.ctimeNs === right.ctimeNs && left.nlink === right.nlink;
+}
+async function assertOrdinaryFile(path, maximumBytes) {
+  const info = await lstat3(path, { bigint: true });
+  if (info.isSymbolicLink() || !info.isFile() || info.nlink !== 1n) {
+    throw new Error("A canonical run artifact is not one ordinary file.");
+  }
+  if (info.size === 0n || info.size > BigInt(maximumBytes)) {
+    throw new Error("A canonical run artifact has an invalid size.");
+  }
+}
+async function safeRunFilePath(runRoot, relativePath, maximumBytes) {
+  if (isAbsolute12(relativePath) || relativePath.includes("\\") || relativePath.includes("\0")) {
+    throw new Error("A canonical run artifact path is unsafe.");
+  }
+  const segments = relativePath.split("/");
+  if (segments.some((segment) => segment.length === 0 || segment === "." || segment === "..")) {
+    throw new Error("A canonical run artifact path is unsafe.");
+  }
+  let cursor = runRoot;
+  for (const segment of segments.slice(0, -1)) {
+    cursor = join11(cursor, segment);
+    const info = await lstat3(cursor, { bigint: true });
+    if (info.isSymbolicLink() || !info.isDirectory()) {
+      throw new Error("A canonical run artifact path crosses a link or non-directory.");
+    }
+  }
+  const path = join11(cursor, segments.at(-1) ?? "");
+  await assertOrdinaryFile(path, maximumBytes);
+  return path;
+}
+async function canonicalRunRoot(record2) {
+  const workspace = await realpath5(record2.workspace.canonical_path);
+  if (workspace !== resolve8(record2.workspace.canonical_path)) {
+    throw new Error("The trusted workspace changed before Circuit read run artifacts.");
+  }
+  const workspaceInfo = await lstat3(workspace, { bigint: true });
+  if (!workspaceInfo.isDirectory() || workspaceInfo.isSymbolicLink() || String(workspaceInfo.dev) !== record2.workspace.device || String(workspaceInfo.ino) !== record2.workspace.inode) {
+    throw new Error("The trusted workspace identity changed before Circuit read run artifacts.");
+  }
+  let cursor = workspace;
+  for (const segment of [".circuit", "runs", record2.run_id]) {
+    cursor = join11(cursor, segment);
+    const info = await lstat3(cursor, { bigint: true });
+    if (info.isSymbolicLink() || !info.isDirectory()) {
+      throw new Error("The canonical run folder crosses a link or non-directory.");
+    }
+  }
+  if (await realpath5(cursor) !== cursor) {
+    throw new Error("The canonical run folder changed before Circuit read it.");
+  }
+  return cursor;
+}
+async function readBoundJson(runRoot, relativePath, maximumBytes) {
+  const path = await safeRunFilePath(runRoot, relativePath, maximumBytes);
+  const pathInfo = await lstat3(path, { bigint: true });
+  if (pathInfo.isSymbolicLink() || !pathInfo.isFile() || pathInfo.nlink !== 1n || pathInfo.size === 0n || pathInfo.size > BigInt(maximumBytes)) {
+    throw new Error("A canonical run report is unsafe or too large.");
+  }
+  const handle = await open2(path, constants6.O_RDONLY | constants6.O_NOFOLLOW);
+  let bytes;
+  try {
+    const before = await handle.stat({ bigint: true });
+    bytes = await handle.readFile();
+    const after = await handle.stat({ bigint: true });
+    if (!sameFile(pathInfo, before) || !sameFile(before, after)) {
+      throw new Error("A canonical run report changed while Circuit read it.");
+    }
+  } finally {
+    await handle.close();
+  }
+  const afterPath = await lstat3(path, { bigint: true });
+  if (afterPath.isSymbolicLink() || !sameFile(pathInfo, afterPath)) {
+    throw new Error("A canonical run report changed while Circuit read it.");
+  }
+  let value;
+  try {
+    value = JSON.parse(bytes.toString("utf8"));
+  } catch {
+    throw new Error("A canonical run report is not valid JSON.");
+  }
+  return { bytes, value };
+}
+function relativeRunPath(runRoot, path) {
+  const candidate2 = relative4(runRoot, path).split(sep3).join("/");
+  if (candidate2.length === 0 || candidate2.includes("\\") || candidate2.includes("\0") || isAbsolute12(candidate2) || candidate2.split("/").some((segment) => segment.length === 0 || segment === "." || segment === "..")) {
+    throw new Error("A canonical run artifact points outside the run folder.");
+  }
+  return candidate2;
+}
+var CanonicalRuntimeArtifactReconciler = class {
+  async classifyExit(input) {
+    if (input.exit.output_limit_exceeded !== void 0) {
+      return failure(
+        "needs_attention",
+        "worker_output_limit",
+        `Circuit stopped the worker after its ${input.exit.output_limit_exceeded} output exceeded the safe limit.`
+      );
+    }
+    if (input.exit.signal !== void 0) {
+      return failure(
+        "interrupted",
+        "worker_signalled",
+        "The Circuit worker stopped before it recorded a normal outcome."
+      );
+    }
+    if (input.exit.exit_code !== void 0 && input.exit.exit_code !== 0) {
+      return failure(
+        "needs_attention",
+        "worker_exit_nonzero",
+        "The Circuit worker exited with an error before it completed or parked safely."
+      );
+    }
+    let runRoot;
+    let status;
+    try {
+      runRoot = await canonicalRunRoot(input.record);
+      await assertOrdinaryFile(join11(runRoot, "manifest.snapshot.json"), MAX_MANIFEST_BYTES);
+      await assertOrdinaryFile(join11(runRoot, "trace.ndjson"), MAX_TRACE_BYTES);
+      status = projectRunStatusFromRunFolder(runRoot);
+    } catch {
+      return failure(
+        "needs_attention",
+        "run_artifact_unavailable",
+        "Circuit could not safely read the worker run artifacts."
+      );
+    }
+    if ("run_id" in status && status.run_id !== void 0 && (status.run_id !== input.record.run_id || status.flow_id !== input.record.request.flow)) {
+      return failure(
+        "needs_attention",
+        "run_artifact_mismatch",
+        "The worker run artifacts do not match this Circuit run."
+      );
+    }
+    if (status.engine_state === "waiting_checkpoint") {
+      const checkpoint = status.checkpoint;
+      if (checkpoint.request_path === void 0 || checkpoint.request_sha256 === void 0) {
+        return failure(
+          "needs_attention",
+          "checkpoint_invalid",
+          "The worker stopped at a checkpoint without a complete saved request."
+        );
+      }
+      let requestPath;
+      try {
+        requestPath = relativeRunPath(runRoot, checkpoint.request_path);
+        await safeRunFilePath(runRoot, requestPath, 262144);
+      } catch {
+        return failure(
+          "needs_attention",
+          "checkpoint_unsafe",
+          "Circuit refused an unsafe saved checkpoint request."
+        );
+      }
+      const choices = checkpoint.choices.map((choice) => choice.id);
+      return {
+        state: "waiting_for_input",
+        summary: `Circuit is waiting at the ${checkpoint.step_id} checkpoint.`,
+        checkpoint: {
+          generation: input.record.launch.generation,
+          step_id: checkpoint.step_id,
+          attempt: checkpoint.attempt,
+          request_path: requestPath,
+          request_sha256: checkpoint.request_sha256,
+          allowed_choices: choices,
+          choices_sha256: sha256OfJson(choices)
+        }
+      };
+    }
+    if (status.engine_state === "open") {
+      return failure(
+        "interrupted",
+        "worker_interrupted",
+        "The Circuit worker exited before it recorded a final outcome."
+      );
+    }
+    if (status.engine_state === "invalid") {
+      return failure(
+        "needs_attention",
+        "run_artifact_invalid",
+        "The Circuit worker left invalid run artifacts."
+      );
+    }
+    let resultBytes;
+    let result;
+    try {
+      const saved = await readBoundJson(runRoot, RESULT_PATH, MAX_RESULT_BYTES);
+      resultBytes = saved.bytes;
+      result = RunResult.parse(saved.value);
+    } catch {
+      return failure(
+        "needs_attention",
+        "final_report_invalid",
+        "Circuit could not safely read the worker final report."
+      );
+    }
+    if (result.run_id !== input.record.run_id || result.flow_id !== input.record.request.flow) {
+      return failure(
+        "needs_attention",
+        "final_report_mismatch",
+        "The worker final report does not match this Circuit run."
+      );
+    }
+    if (status.engine_state !== "completed" || result.outcome !== "complete") {
+      return failure(
+        "needs_attention",
+        "run_needs_attention",
+        plainSummary(result.reason ?? result.summary, "The Circuit run needs attention.")
+      );
+    }
+    return {
+      state: "complete",
+      summary: plainSummary(result.summary, "Circuit completed the run."),
+      final_report: {
+        schema: `circuit.${result.flow_id}.result`,
+        path: RESULT_PATH,
+        sha256: createHash6("sha256").update(resultBytes).digest("hex"),
+        byte_length: resultBytes.byteLength,
+        summary: plainSummary(result.summary, "Circuit completed the run.")
+      }
+    };
+  }
+};
+
+// src/hosts/codex-mcp/state-adapter.ts
+import { realpathSync as realpathSync6 } from "node:fs";
+import { setTimeout as delay3 } from "node:timers/promises";
+
+// src/hosts/codex-mcp/checkpoint-view.ts
+import { createHash as createHash7, timingSafeEqual } from "node:crypto";
+import { constants as constants7 } from "node:fs";
+import { lstat as lstat4, open as open3, realpath as realpath6 } from "node:fs/promises";
+import { join as join12 } from "node:path";
+import { TextDecoder } from "node:util";
+var MAX_CHECKPOINT_REQUEST_BYTES = 256 * 1024;
+var READ_CHUNK_BYTES = 64 * 1024;
+var CHECKPOINT_TOKEN_PATTERN = /^cpt1\.[a-f0-9]{64}$/;
+var ChoiceIdV12 = external_exports.string().min(1).max(64).regex(/^[a-z0-9][a-z0-9._-]*$/);
+var StoredCheckpointLocatorSchemaV1 = external_exports.object({
+  generation: external_exports.number().int().positive().max(Number.MAX_SAFE_INTEGER),
+  step_id: external_exports.string().min(1).max(128).regex(/^[a-z0-9][a-z0-9._-]*$/),
+  attempt: external_exports.number().int().positive().max(Number.MAX_SAFE_INTEGER),
+  request_path: external_exports.string().min(1).max(2048).superRefine((value, ctx) => {
+    if (value.includes("\0")) {
+      ctx.addIssue({ code: "custom", message: "request_path must not contain NUL bytes" });
+      return;
+    }
+    const parsed = RunRelativePath.safeParse(value);
+    if (!parsed.success) {
+      ctx.addIssue({ code: "custom", message: "request_path must be run-relative" });
+    }
+  }),
+  request_sha256: external_exports.string().regex(/^[a-f0-9]{64}$/),
+  allowed_choices: external_exports.array(ChoiceIdV12).min(1).max(20),
+  choices_sha256: external_exports.string().regex(/^[a-f0-9]{64}$/)
+}).strict().superRefine((locator, ctx) => {
+  const seen = /* @__PURE__ */ new Set();
+  for (const [index, choice] of locator.allowed_choices.entries()) {
+    if (seen.has(choice)) {
+      ctx.addIssue({
+        code: "custom",
+        path: ["allowed_choices", index],
+        message: `duplicate allowed choice '${choice}'`
+      });
+    }
+    seen.add(choice);
+  }
+  if (locator.choices_sha256 !== sha256OfJson(locator.allowed_choices)) {
+    ctx.addIssue({
+      code: "custom",
+      path: ["choices_sha256"],
+      message: "choices_sha256 must bind the ordered allowed choices"
+    });
+  }
+});
+var CheckpointRequestChoiceV1 = external_exports.object({
+  id: ChoiceIdV12,
+  label: external_exports.string().trim().min(1).max(120).optional(),
+  description: external_exports.string().trim().min(1).max(500).optional()
+}).strict();
+var CheckpointRequestV1 = external_exports.object({
+  schema_version: external_exports.literal(1),
+  step_id: external_exports.string().min(1).max(128).regex(/^[a-z0-9][a-z0-9._-]*$/),
+  prompt: external_exports.string().trim().min(1).max(4e3),
+  allowed_choices: external_exports.array(ChoiceIdV12).min(1).max(20),
+  choices: external_exports.array(CheckpointRequestChoiceV1).min(1).max(20),
+  safe_default_choice: ChoiceIdV12.optional(),
+  // Runtime resume owns the flow-specific contents. MCP proves that this is
+  // an object and deliberately does not project or return it.
+  execution_context: external_exports.record(external_exports.string(), external_exports.unknown())
+}).strict().superRefine((request, ctx) => {
+  const allowed = /* @__PURE__ */ new Set();
+  for (const [index, choice] of request.allowed_choices.entries()) {
+    if (allowed.has(choice)) {
+      ctx.addIssue({
+        code: "custom",
+        path: ["allowed_choices", index],
+        message: `duplicate allowed choice '${choice}'`
+      });
+    }
+    allowed.add(choice);
+  }
+  const choices = /* @__PURE__ */ new Set();
+  for (const [index, choice] of request.choices.entries()) {
+    if (choices.has(choice.id)) {
+      ctx.addIssue({
+        code: "custom",
+        path: ["choices", index, "id"],
+        message: `duplicate choice '${choice.id}'`
+      });
+    }
+    choices.add(choice.id);
+    if (choice.id !== request.allowed_choices[index]) {
+      ctx.addIssue({
+        code: "custom",
+        path: ["choices", index, "id"],
+        message: "choices must match allowed_choices in order"
+      });
+    }
+  }
+  if (request.choices.length !== request.allowed_choices.length) {
+    ctx.addIssue({
+      code: "custom",
+      path: ["choices"],
+      message: "choices must match allowed_choices exactly"
+    });
+  }
+  if (request.safe_default_choice !== void 0 && !allowed.has(request.safe_default_choice)) {
+    ctx.addIssue({
+      code: "custom",
+      path: ["safe_default_choice"],
+      message: "safe_default_choice must be an allowed choice"
+    });
+  }
+});
+var CheckpointViewError = class extends Error {
+  code;
+  constructor(code, message) {
+    super(message);
+    this.name = "CheckpointViewError";
+    this.code = code;
+  }
+};
+function pathError(error51) {
+  if (error51 instanceof CheckpointViewError) return error51;
+  return new CheckpointViewError(
+    "checkpoint_request_unavailable",
+    "The saved checkpoint request is unavailable."
+  );
+}
+function regularFileIdentity(info) {
+  return {
+    device: info.dev,
+    inode: info.ino,
+    size: info.size,
+    modified: info.mtimeNs,
+    changed: info.ctimeNs,
+    links: info.nlink
+  };
+}
+function descriptorFileIdentity(info) {
+  return {
+    device: info.dev,
+    inode: info.ino,
+    size: info.size,
+    modified: info.mtimeNs,
+    changed: info.ctimeNs,
+    links: info.nlink
+  };
+}
+function directoryIdentity(info) {
+  return { device: info.dev, inode: info.ino };
+}
+function sameDirectory(left, right) {
+  return left.device === right.device && left.inode === right.inode;
+}
+function sameFile2(left, right) {
+  return left.device === right.device && left.inode === right.inode && left.size === right.size && left.modified === right.modified && left.changed === right.changed && left.links === right.links;
+}
+function samePathSnapshot(left, right) {
+  return left.directories.length === right.directories.length && left.directories.every((entry, index) => {
+    const other = right.directories[index];
+    return other !== void 0 && sameDirectory(entry, other);
+  }) && sameFile2(left.file, right.file);
+}
+async function inspectRequestPath(input) {
+  const segments = [".circuit", "runs", input.runId, ...input.checkpoint.request_path.split("/")];
+  const directories = [];
+  let cursor = input.workspace;
+  try {
+    const workspaceInfo = await lstat4(cursor, { bigint: true });
+    if (!workspaceInfo.isDirectory() || workspaceInfo.isSymbolicLink()) {
+      throw new CheckpointViewError(
+        "workspace_unavailable",
+        "The trusted Codex workspace is no longer a real directory."
+      );
+    }
+    directories.push(directoryIdentity(workspaceInfo));
+    for (const segment of segments.slice(0, -1)) {
+      cursor = join12(cursor, segment);
+      const info = await lstat4(cursor, { bigint: true });
+      if (info.isSymbolicLink() || !info.isDirectory()) {
+        throw new CheckpointViewError(
+          "checkpoint_request_unsafe",
+          "Circuit refused a checkpoint request path that crosses a link or non-directory."
+        );
+      }
+      directories.push(directoryIdentity(info));
+    }
+    cursor = join12(cursor, segments.at(-1) ?? "");
+    const fileInfo = await lstat4(cursor, { bigint: true });
+    if (fileInfo.isSymbolicLink() || !fileInfo.isFile() || fileInfo.nlink !== 1n) {
+      throw new CheckpointViewError(
+        "checkpoint_request_unsafe",
+        "Circuit refused a checkpoint request that is not one ordinary file."
+      );
+    }
+    return { directories, file: regularFileIdentity(fileInfo) };
+  } catch (error51) {
+    throw pathError(error51);
+  }
+}
+async function requireValidatedInput(input) {
+  const runId = RunId.safeParse(input.run_id);
+  const checkpoint = StoredCheckpointLocatorSchemaV1.safeParse(input.checkpoint);
+  if (!runId.success || !checkpoint.success) {
+    throw new CheckpointViewError(
+      "checkpoint_locator_invalid",
+      "Circuit cannot read this checkpoint because its saved location is invalid."
+    );
+  }
+  if (input.workspace.metadata_key !== CODEX_SANDBOX_METADATA_KEY) {
+    throw new CheckpointViewError(
+      "workspace_unavailable",
+      "Circuit did not receive the trusted Codex workspace identity."
+    );
+  }
+  let canonicalWorkspace;
+  try {
+    canonicalWorkspace = await realpath6(input.workspace.workspace);
+  } catch {
+    throw new CheckpointViewError(
+      "workspace_unavailable",
+      "The trusted Codex workspace is unavailable."
+    );
+  }
+  if (canonicalWorkspace !== input.workspace.workspace) {
+    throw new CheckpointViewError(
+      "workspace_unavailable",
+      "The trusted Codex workspace must already be canonical."
+    );
+  }
+  return {
+    workspace: canonicalWorkspace,
+    workspaceKey: sha256OfString(canonicalWorkspace),
+    runId: runId.data,
+    checkpoint: checkpoint.data
+  };
+}
+async function readBounded(handle) {
+  const chunks = [];
+  let total = 0;
+  while (total <= MAX_CHECKPOINT_REQUEST_BYTES) {
+    const remaining = MAX_CHECKPOINT_REQUEST_BYTES + 1 - total;
+    const chunk = Buffer.allocUnsafe(Math.min(READ_CHUNK_BYTES, remaining));
+    const { bytesRead } = await handle.read(chunk, 0, chunk.byteLength, total);
+    if (bytesRead === 0) break;
+    chunks.push(chunk.subarray(0, bytesRead));
+    total += bytesRead;
+  }
+  if (total > MAX_CHECKPOINT_REQUEST_BYTES) {
+    throw new CheckpointViewError(
+      "checkpoint_request_too_large",
+      "The checkpoint request is larger than 256 KiB."
+    );
+  }
+  return Buffer.concat(chunks, total);
+}
+async function readStableRequestBytes(input) {
+  const requestFile = join12(
+    input.workspace,
+    ".circuit",
+    "runs",
+    input.runId,
+    ...input.checkpoint.request_path.split("/")
+  );
+  const pathBefore = await inspectRequestPath(input);
+  if (pathBefore.file.size > BigInt(MAX_CHECKPOINT_REQUEST_BYTES)) {
+    throw new CheckpointViewError(
+      "checkpoint_request_too_large",
+      "The checkpoint request is larger than 256 KiB."
+    );
+  }
+  let handle;
+  try {
+    handle = await open3(
+      requestFile,
+      constants7.O_RDONLY | constants7.O_NONBLOCK | constants7.O_NOFOLLOW
+    );
+    const descriptorBeforeInfo = await handle.stat({ bigint: true });
+    if (!descriptorBeforeInfo.isFile() || descriptorBeforeInfo.nlink !== 1n || descriptorBeforeInfo.size > BigInt(MAX_CHECKPOINT_REQUEST_BYTES)) {
+      throw new CheckpointViewError(
+        descriptorBeforeInfo.size > BigInt(MAX_CHECKPOINT_REQUEST_BYTES) ? "checkpoint_request_too_large" : "checkpoint_request_unsafe",
+        descriptorBeforeInfo.size > BigInt(MAX_CHECKPOINT_REQUEST_BYTES) ? "The checkpoint request is larger than 256 KiB." : "Circuit refused a checkpoint request that is not one ordinary file."
+      );
+    }
+    const descriptorBefore = descriptorFileIdentity(descriptorBeforeInfo);
+    const pathAfterOpen = await inspectRequestPath(input);
+    if (!samePathSnapshot(pathBefore, pathAfterOpen) || !sameFile2(pathBefore.file, descriptorBefore)) {
+      throw new CheckpointViewError(
+        "checkpoint_request_unsafe",
+        "The checkpoint request changed while Circuit opened it."
+      );
+    }
+    const bytes = await readBounded(handle);
+    const descriptorAfter = descriptorFileIdentity(await handle.stat({ bigint: true }));
+    const pathAfterRead = await inspectRequestPath(input);
+    if (!sameFile2(descriptorBefore, descriptorAfter) || !samePathSnapshot(pathAfterOpen, pathAfterRead) || BigInt(bytes.byteLength) !== descriptorAfter.size) {
+      throw new CheckpointViewError(
+        "checkpoint_request_unsafe",
+        "The checkpoint request changed while Circuit read it."
+      );
+    }
+    return bytes;
+  } catch (error51) {
+    throw pathError(error51);
+  } finally {
+    if (handle !== void 0) {
+      await handle.close().catch(() => void 0);
+    }
+  }
+}
+function requestBody(bytes) {
+  let text;
+  try {
+    text = new TextDecoder("utf-8", { fatal: true }).decode(bytes);
+  } catch {
+    throw new CheckpointViewError(
+      "checkpoint_request_invalid",
+      "The checkpoint request is not valid UTF-8."
+    );
+  }
+  let raw;
+  try {
+    raw = JSON.parse(text);
+  } catch {
+    throw new CheckpointViewError(
+      "checkpoint_request_invalid",
+      "The checkpoint request is not valid JSON."
+    );
+  }
+  const parsed = CheckpointRequestV1.safeParse(raw);
+  if (!parsed.success) {
+    throw new CheckpointViewError(
+      "checkpoint_request_invalid",
+      "The checkpoint request does not match the supported format."
+    );
+  }
+  return parsed.data;
+}
+function sameStrings(left, right) {
+  return left.length === right.length && left.every((value, index) => value === right[index]);
+}
+function checkpointBindingSha256(input) {
+  return sha256OfJson({
+    schema: "circuit.mcp.checkpoint-binding@v1",
+    workspace_key: input.workspace_key,
+    run_id: input.run_id,
+    generation: input.checkpoint.generation,
+    step_id: input.checkpoint.step_id,
+    attempt: input.checkpoint.attempt,
+    request_path: input.checkpoint.request_path,
+    request_sha256: input.checkpoint.request_sha256,
+    allowed_choices: input.checkpoint.allowed_choices
+  });
+}
+function checkpointToken(input) {
+  return `cpt1.${checkpointBindingSha256({
+    workspace_key: input.workspaceKey,
+    run_id: input.runId,
+    checkpoint: input.checkpoint
+  })}`;
+}
+function sha256OfBytes(bytes) {
+  return createHash7("sha256").update(bytes).digest("hex");
+}
+async function readCheckpointView(input) {
+  const validated = await requireValidatedInput(input);
+  const bytes = await readStableRequestBytes(validated);
+  if (sha256OfBytes(bytes) !== validated.checkpoint.request_sha256) {
+    throw new CheckpointViewError(
+      "checkpoint_stale",
+      "This checkpoint request has changed. Reload the current checkpoint and try again."
+    );
+  }
+  const request = requestBody(bytes);
+  if (request.step_id !== validated.checkpoint.step_id || !sameStrings(request.allowed_choices, validated.checkpoint.allowed_choices)) {
+    throw new CheckpointViewError(
+      "checkpoint_stale",
+      "This checkpoint request no longer matches the saved run. Reload it and try again."
+    );
+  }
+  return {
+    token: checkpointToken(validated),
+    prompt: request.prompt,
+    choices: request.choices.map((choice) => ({
+      id: choice.id,
+      label: choice.label ?? choice.id,
+      ...choice.description === void 0 ? {} : { description: choice.description }
+    }))
+  };
+}
+function validCheckpointToken(token) {
+  return CHECKPOINT_TOKEN_PATTERN.test(token);
+}
+function tokenMatches(actual, expected) {
+  if (!validCheckpointToken(actual) || !validCheckpointToken(expected)) return false;
+  return timingSafeEqual(Buffer.from(actual, "ascii"), Buffer.from(expected, "ascii"));
+}
+async function assertCheckpointResume(input) {
+  if (!validCheckpointToken(input.checkpoint_token)) {
+    throw new CheckpointViewError(
+      "checkpoint_token_invalid",
+      "The checkpoint token is invalid. Reload the current checkpoint and try again."
+    );
+  }
+  const view = await readCheckpointView(input);
+  if (!tokenMatches(input.checkpoint_token, view.token)) {
+    throw new CheckpointViewError(
+      "checkpoint_stale",
+      "This checkpoint is stale. Reload the current checkpoint and try again."
+    );
+  }
+  if (!view.choices.some((choice) => choice.id === input.choice_id)) {
+    throw new CheckpointViewError(
+      "choice_unavailable",
+      "That choice is not available. Reload the current checkpoint and try again."
+    );
+  }
+  return view;
+}
+
+// src/hosts/codex-mcp/supervisor-progress.ts
+import {
+  constants as constants8,
+  closeSync as closeSync5,
+  fstatSync as fstatSync4,
+  fsyncSync as fsyncSync2,
+  lstatSync as lstatSync4,
+  openSync as openSync5,
+  readSync as readSync2,
+  realpathSync as realpathSync5,
+  writeSync
+} from "node:fs";
+import { basename as basename3, dirname as dirname5, join as join13 } from "node:path";
+
+// src/schemas/progress-event.ts
+var MAX_STATUS_TEXT_CHARS = 180;
+var MAX_DISPLAY_TEXT_CHARS = 240;
+var ProgressDisplay = external_exports.object({
+  text: external_exports.string().min(1).max(MAX_DISPLAY_TEXT_CHARS),
+  importance: external_exports.enum(["major", "detail"]),
+  tone: external_exports.enum(["info", "success", "warning", "error", "checkpoint"])
+}).strict();
+var ProgressPresentationLineMode = external_exports.enum(["append", "replace_slot", "suppress"]);
+var ProgressPresentation = external_exports.object({
+  block_id: external_exports.string().min(1).max(120),
+  line_mode: ProgressPresentationLineMode,
+  slot_id: external_exports.string().min(1).max(120).optional(),
+  status_text: external_exports.string().min(1).max(MAX_STATUS_TEXT_CHARS).optional(),
+  depth: external_exports.number().int().min(0).max(8).optional()
+}).strict().superRefine((presentation, ctx) => {
+  if (presentation.line_mode === "replace_slot" && presentation.slot_id === void 0) {
+    ctx.addIssue({
+      code: "custom",
+      path: ["slot_id"],
+      message: "slot_id is required when line_mode is replace_slot"
+    });
+  }
+  if (presentation.line_mode !== "suppress" && presentation.status_text === void 0) {
+    ctx.addIssue({
+      code: "custom",
+      path: ["status_text"],
+      message: "status_text is required unless line_mode is suppress"
+    });
+  }
+});
+var ProgressTaskStatus = external_exports.enum(["pending", "in_progress", "completed", "failed"]);
+var ProgressTask = external_exports.object({
+  id: external_exports.string().min(1).max(96),
+  title: external_exports.string().min(1).max(120),
+  status: ProgressTaskStatus
+}).strict();
+var ProgressEventBase = external_exports.object({
+  schema_version: external_exports.literal(1),
+  type: external_exports.string().min(1),
+  run_id: RunId,
+  flow_id: CompiledFlowId,
+  recorded_at: external_exports.iso.datetime(),
+  label: external_exports.string().min(1),
+  display: ProgressDisplay,
+  presentation: ProgressPresentation.optional()
+}).strict();
+var RunStartedProgressEvent = ProgressEventBase.extend({
+  type: external_exports.literal("run.started"),
+  run_folder: external_exports.string().min(1)
+}).strict();
+var RouteSelectedProgressEvent = ProgressEventBase.extend({
+  type: external_exports.literal("route.selected"),
+  selected_flow: CompiledFlowId,
+  // Routing is model-only: the host or operator names the flow, so the route
+  // source is always the explicit positional flow argument.
+  routed_by: external_exports.literal("explicit"),
+  router_reason: external_exports.string().min(1),
+  entry_mode: external_exports.string().min(1).optional(),
+  // 'explicit' = axis flags named the tier; 'derived' = the power dial did
+  // (Path A) and the tier landed off the flow default.
+  entry_mode_source: external_exports.enum(["explicit", "derived"]).optional()
+}).strict();
+var StepStartedProgressEvent = ProgressEventBase.extend({
+  type: external_exports.literal("step.started"),
+  step_id: StepId,
+  step_title: external_exports.string().min(1),
+  attempt: external_exports.number().int().positive()
+}).strict();
+var StepCompletedProgressEvent = ProgressEventBase.extend({
+  type: external_exports.literal("step.completed"),
+  step_id: StepId,
+  step_title: external_exports.string().min(1),
+  attempt: external_exports.number().int().positive(),
+  route_taken: external_exports.string().min(1),
+  // Present only when the attempt's check failed and a failure reason was
+  // recorded; the display copy stays short and this carries the detail.
+  failure_reason: external_exports.string().min(1).optional()
+}).strict();
+var StepAbortedProgressEvent = ProgressEventBase.extend({
+  type: external_exports.literal("step.aborted"),
+  step_id: StepId,
+  step_title: external_exports.string().min(1),
+  attempt: external_exports.number().int().positive(),
+  reason: external_exports.string().min(1)
+}).strict();
+var EvidenceCollectedProgressEvent = ProgressEventBase.extend({
+  type: external_exports.literal("evidence.collected"),
+  step_id: StepId,
+  report_path: external_exports.string().min(1),
+  report_schema: external_exports.string().min(1),
+  warning_count: external_exports.number().int().nonnegative()
+}).strict();
+var EvidenceWarningProgressEvent = ProgressEventBase.extend({
+  type: external_exports.literal("evidence.warning"),
+  step_id: StepId,
+  report_path: external_exports.string().min(1),
+  warning_kind: external_exports.string().min(1),
+  message: external_exports.string().min(1),
+  path: external_exports.string().min(1).optional()
+}).strict();
+var RelayStartedProgressEvent = ProgressEventBase.extend({
+  type: external_exports.literal("relay.started"),
+  step_id: StepId,
+  step_title: external_exports.string().min(1),
+  attempt: external_exports.number().int().positive(),
+  role: RelayRole,
+  connector_name: external_exports.string().min(1),
+  connector_kind: external_exports.enum(["builtin", "custom"]),
+  filesystem_capability: external_exports.enum(["read-only", "trusted-write", "isolated-write"])
+}).strict();
+var RelayCompletedProgressEvent = ProgressEventBase.extend({
+  type: external_exports.literal("relay.completed"),
+  step_id: StepId,
+  step_title: external_exports.string().min(1),
+  attempt: external_exports.number().int().positive(),
+  verdict: external_exports.string().min(1),
+  duration_ms: external_exports.number().int().nonnegative()
+}).strict();
+var FanoutStartedProgressEvent = ProgressEventBase.extend({
+  type: external_exports.literal("fanout.started"),
+  step_id: StepId,
+  step_title: external_exports.string().min(1),
+  branch_count: external_exports.number().int().positive(),
+  branch_ids: external_exports.array(external_exports.string().min(1)).min(1)
+}).strict();
+var FanoutBranchStartedProgressEvent = ProgressEventBase.extend({
+  type: external_exports.literal("fanout.branch_started"),
+  step_id: StepId,
+  step_title: external_exports.string().min(1),
+  branch_id: external_exports.string().min(1),
+  branch_kind: external_exports.enum(["relay", "sub-run"]),
+  child_run_id: RunId.optional(),
+  worktree_path: external_exports.string().min(1).optional()
+}).strict();
+var FanoutBranchCompletedProgressEvent = ProgressEventBase.extend({
+  type: external_exports.literal("fanout.branch_completed"),
+  step_id: StepId,
+  step_title: external_exports.string().min(1),
+  branch_id: external_exports.string().min(1),
+  branch_kind: external_exports.enum(["relay", "sub-run"]),
+  child_run_id: RunId.optional(),
+  child_outcome: RunClosedOutcome,
+  verdict: external_exports.string().min(1),
+  duration_ms: external_exports.number().int().nonnegative()
+}).strict();
+var FanoutJoinedProgressEvent = ProgressEventBase.extend({
+  type: external_exports.literal("fanout.joined"),
+  step_id: StepId,
+  step_title: external_exports.string().min(1),
+  policy: external_exports.enum(["pick-winner", "disjoint-merge", "aggregate-only", "aggregate-survivors"]),
+  aggregate_path: external_exports.string().min(1),
+  branches_completed: external_exports.number().int().nonnegative(),
+  branches_failed: external_exports.number().int().nonnegative(),
+  selected_branch_id: external_exports.string().min(1).optional()
+}).strict();
+var CheckpointWaitingProgressEvent = ProgressEventBase.extend({
+  type: external_exports.literal("checkpoint.waiting"),
+  step_id: StepId,
+  request_path: external_exports.string().min(1),
+  allowed_choices: external_exports.array(external_exports.string().min(1)).min(1)
+}).strict();
+var LoopbackReviewUrl = external_exports.url().refine((value) => {
+  try {
+    const url2 = new URL(value);
+    return url2.protocol === "http:" && url2.hostname === "127.0.0.1" && url2.port.length > 0;
+  } catch {
+    return false;
+  }
+}, "review_url must be an HTTP URL on 127.0.0.1");
+var CheckpointReviewReadyProgressEvent = ProgressEventBase.extend({
+  type: external_exports.literal("checkpoint_review.ready"),
+  step_id: StepId,
+  attempt: external_exports.number().int().positive(),
+  review_url: LoopbackReviewUrl
+}).strict();
+var TaskListUpdatedProgressEvent = ProgressEventBase.extend({
+  type: external_exports.literal("task_list.updated"),
+  tasks: external_exports.array(ProgressTask).min(1)
+}).strict();
+var UserInputOption = external_exports.object({
+  label: external_exports.string().min(1).max(80),
+  description: external_exports.string().min(1).max(160),
+  checkpoint_choice: external_exports.string().min(1).max(80)
+}).strict();
+var UserInputQuestion = external_exports.object({
+  id: external_exports.string().min(1).max(80),
+  header: external_exports.string().min(1).max(12),
+  question: external_exports.string().min(1).max(240),
+  options: external_exports.array(UserInputOption).min(1).max(4),
+  allow_free_text: external_exports.literal(false)
+}).strict();
+var UserInputRequestedProgressEvent = ProgressEventBase.extend({
+  type: external_exports.literal("user_input.requested"),
+  checkpoint: external_exports.object({
+    step_id: StepId,
+    request_path: external_exports.string().min(1),
+    allowed_choices: external_exports.array(external_exports.string().min(1)).min(1)
+  }).strict(),
+  questions: external_exports.array(UserInputQuestion).min(1).max(3),
+  resume: external_exports.object({
+    run_folder: external_exports.string().min(1),
+    checkpoint_choice_arg: external_exports.string().min(1),
+    command: external_exports.string().min(1)
+  }).strict()
+}).strict();
+var RunCompletedProgressEvent = ProgressEventBase.extend({
+  type: external_exports.literal("run.completed"),
+  outcome: RunClosedOutcome,
+  result_path: external_exports.string().min(1),
+  // Present for non-complete outcomes (stopped, handoff, escalated) when the
+  // run.closed trace entry recorded why.
+  reason: external_exports.string().min(1).optional()
+}).strict();
+var RunAbortedProgressEvent = ProgressEventBase.extend({
+  type: external_exports.literal("run.aborted"),
+  outcome: external_exports.literal("aborted"),
+  result_path: external_exports.string().min(1),
+  reason: external_exports.string().min(1).optional()
+}).strict();
+var ProgressEvent = external_exports.discriminatedUnion("type", [
+  RunStartedProgressEvent,
+  RouteSelectedProgressEvent,
+  StepStartedProgressEvent,
+  StepCompletedProgressEvent,
+  StepAbortedProgressEvent,
+  EvidenceCollectedProgressEvent,
+  EvidenceWarningProgressEvent,
+  RelayStartedProgressEvent,
+  RelayCompletedProgressEvent,
+  FanoutStartedProgressEvent,
+  FanoutBranchStartedProgressEvent,
+  FanoutBranchCompletedProgressEvent,
+  FanoutJoinedProgressEvent,
+  CheckpointWaitingProgressEvent,
+  CheckpointReviewReadyProgressEvent,
+  TaskListUpdatedProgressEvent,
+  UserInputRequestedProgressEvent,
+  RunCompletedProgressEvent,
+  RunAbortedProgressEvent
+]);
+
+// src/hosts/codex-mcp/supervisor-progress.ts
+var MAX_PROGRESS_FILE_BYTES = 16 * 1048576;
+var SupervisorProgressRecordV1 = external_exports.object({
+  schema_version: external_exports.literal(1),
+  record_kind: external_exports.literal("circuit.mcp.progress"),
+  run_id: external_exports.guid(),
+  generation: external_exports.number().int().positive().max(Number.MAX_SAFE_INTEGER),
+  sequence: external_exports.number().int().nonnegative().max(Number.MAX_SAFE_INTEGER),
+  event: ProgressEvent
+}).strict();
+var SupervisorProgressError = class extends Error {
+  code = "supervisor_progress_corrupt";
+  constructor(message) {
+    super(message);
+    this.name = "SupervisorProgressError";
+  }
+};
+function progressPath(controlDirectory, generation) {
+  const name = `launch-${generation}-progress.jsonl`;
+  if (basename3(name) !== name) throw new Error("invalid supervisor progress name");
+  return join13(controlDirectory, name);
+}
+function assertPrivateDirectory(path) {
+  const info = lstatSync4(path);
+  if (info.isSymbolicLink() || !info.isDirectory() || (info.mode & 511) !== 448 || typeof process.getuid === "function" && info.uid !== process.getuid() || realpathSync5.native(path) !== path) {
+    throw new SupervisorProgressError("The supervisor progress directory is unsafe.");
+  }
+}
+function readBoundedPrefix(path) {
+  let descriptor;
+  try {
+    descriptor = openSync5(path, constants8.O_RDONLY | constants8.O_NOFOLLOW);
+  } catch (error51) {
+    if (error51.code === "ENOENT") return void 0;
+    throw error51;
+  }
+  try {
+    const before = fstatSync4(descriptor);
+    if (!before.isFile() || before.nlink !== 1 || (before.mode & 511) !== 384 || typeof process.getuid === "function" && before.uid !== process.getuid() || before.size > MAX_PROGRESS_FILE_BYTES) {
+      throw new SupervisorProgressError("A supervisor progress file is unsafe or too large.");
+    }
+    const bytes = Buffer.alloc(before.size);
+    let offset = 0;
+    while (offset < bytes.byteLength) {
+      const count = readSync2(descriptor, bytes, offset, bytes.byteLength - offset, offset);
+      if (count === 0) break;
+      offset += count;
+    }
+    if (offset !== bytes.byteLength) {
+      throw new SupervisorProgressError(
+        "A supervisor progress file changed while Circuit read it."
+      );
+    }
+    const after = fstatSync4(descriptor);
+    const atPath = lstatSync4(path);
+    if (before.dev !== after.dev || before.ino !== after.ino || after.size < before.size || after.dev !== atPath.dev || after.ino !== atPath.ino || atPath.isSymbolicLink()) {
+      throw new SupervisorProgressError(
+        "A supervisor progress file changed while Circuit read it."
+      );
+    }
+    return bytes;
+  } finally {
+    closeSync5(descriptor);
+  }
+}
+function readSupervisorProgress(input) {
+  assertPrivateDirectory(input.control_directory);
+  const records = [];
+  for (let generation = 1; generation <= input.generations; generation += 1) {
+    const bytes = readBoundedPrefix(progressPath(input.control_directory, generation));
+    if (bytes === void 0 || bytes.byteLength === 0) continue;
+    const completeLength = bytes.lastIndexOf(10);
+    if (completeLength < 0) continue;
+    const lines = bytes.subarray(0, completeLength).toString("utf8").split("\n");
+    for (const [sequence, line] of lines.entries()) {
+      let record2;
+      try {
+        record2 = SupervisorProgressRecordV1.parse(JSON.parse(line));
+      } catch {
+        throw new SupervisorProgressError("A supervisor progress record is invalid.");
+      }
+      if (record2.run_id !== input.run_id || record2.generation !== generation || record2.sequence !== sequence) {
+        throw new SupervisorProgressError("A supervisor progress record has the wrong binding.");
+      }
+      records.push(record2);
+    }
+  }
+  return records;
+}
+
+// src/hosts/codex-mcp/state-adapter.ts
+function stateWorkspace(workspace) {
+  return workspace;
+}
+function stateOwner(owner) {
+  return owner;
+}
+function stateHandle(handle) {
+  return handle;
+}
+function lifecycleRecord(record2) {
+  return record2;
+}
+function withExecutable(observation, executable) {
+  return { ...observation, executable };
+}
+function recovery(now, reason, statuses, cancellationRequested = false) {
+  const timestamp = now().toISOString();
+  return {
+    reason,
+    detected_at: timestamp,
+    last_checked_at: timestamp,
+    cancellation_requested: cancellationRequested,
+    ...statuses
+  };
+}
+function exited(launch, now, cleanup, evidence = {}) {
+  return {
+    ...launch,
+    phase: "exited",
+    exit: {
+      observed_at: evidence.observed_at ?? now().toISOString(),
+      process_group_cleanup: cleanup,
+      ...evidence.exit_code === void 0 ? {} : { exit_code: evidence.exit_code },
+      ...evidence.signal === void 0 ? {} : { signal: evidence.signal }
+    }
+  };
+}
+function allAbsent(statuses) {
+  return statuses.length > 0 && statuses.every((status) => status === "absent");
+}
+function anyUnknown(statuses) {
+  return statuses.includes("unknown");
+}
+var McpLifecycleStateAdapter = class {
+  #store;
+  #artifacts;
+  #inspectProcess;
+  #inspectProcessGroup;
+  #retainedTerminalRuns;
+  #now;
+  constructor(options) {
+    this.#store = options.store;
+    this.#artifacts = options.artifacts;
+    this.#inspectProcess = options.inspectProcess;
+    this.#inspectProcessGroup = options.inspectProcessGroup;
+    this.#retainedTerminalRuns = options.retainedTerminalRuns;
+    this.#now = options.now ?? (() => /* @__PURE__ */ new Date());
+  }
+  reserveRun(input) {
+    if (this.#retainedTerminalRuns !== void 0) {
+      this.#store.pruneTerminalRuns({
+        workspace: stateWorkspace(input.workspace),
+        owner: stateOwner(input.owner),
+        retain: this.#retainedTerminalRuns
+      });
+    }
+    return lifecycleRecord(
+      this.#store.reserveRun({
+        ...input,
+        workspace: stateWorkspace(input.workspace),
+        owner: stateOwner(input.owner)
+      })
+    );
+  }
+  reserveRunClaimed(input) {
+    if (this.#retainedTerminalRuns !== void 0) {
+      this.#store.pruneTerminalRuns({
+        workspace: stateWorkspace(input.workspace),
+        owner: stateOwner(input.owner),
+        retain: this.#retainedTerminalRuns
+      });
+    }
+    const reserved = this.#store.reserveRunClaimed({
+      ...input,
+      workspace: stateWorkspace(input.workspace),
+      owner: stateOwner(input.owner)
+    });
+    return {
+      record: lifecycleRecord(reserved.record),
+      handle: reserved.handle
+    };
+  }
+  readRun(workspace, runId) {
+    return lifecycleRecord(this.#store.readRun(stateWorkspace(workspace), runId));
+  }
+  acquireOperation(input) {
+    const acquired = this.#store.acquireOperation({
+      workspace: stateWorkspace(input.workspace),
+      run_id: input.run_id,
+      operation: input.operation,
+      owner: stateOwner(input.owner),
+      ...input.checkpoint_binding_sha256 === void 0 ? {} : { checkpoint_binding_sha256: input.checkpoint_binding_sha256 }
+    });
+    return acquired.ok ? { ok: true, handle: acquired.handle } : acquired;
+  }
+  advanceLaunch(input) {
+    return lifecycleRecord(
+      this.#store.advanceLaunch({
+        handle: stateHandle(input.handle),
+        launch: input.launch,
+        ...input.summary === void 0 ? {} : { summary: input.summary }
+      })
+    );
+  }
+  transitionRun(input) {
+    return lifecycleRecord(
+      this.#store.transitionRun({
+        handle: stateHandle(input.handle),
+        to: input.to,
+        summary: input.summary,
+        ...input.launch === void 0 ? {} : { launch: input.launch },
+        ...input.checkpoint === void 0 ? {} : { checkpoint: input.checkpoint },
+        ...input.final_report === void 0 ? {} : {
+          final_report: input.final_report
+        },
+        ...input.failure === void 0 ? {} : { failure: input.failure },
+        ...input.recovery === void 0 ? {} : { recovery: input.recovery }
+      })
+    );
+  }
+  releaseOperation(handle) {
+    this.#store.releaseOperation(stateHandle(handle));
+  }
+  listRuns(workspace, options = {}) {
+    return this.#store.listRuns(stateWorkspace(workspace), {
+      ...options.limit === void 0 ? {} : { limit: options.limit },
+      checkpointAvailable: (record2) => record2.state === "waiting_for_input" && record2.checkpoint !== void 0
+    });
+  }
+  async recoverRun(input) {
+    const workspace = stateWorkspace(input.workspace);
+    const current = this.#store.readRun(workspace, input.run_id);
+    if (current.state === "recovery_required") {
+      await this.#reconcileRecoveryRequired(current, input.owner);
+    }
+    const recovered = this.#store.recoverRun({
+      workspace,
+      run_id: input.run_id,
+      owner: stateOwner(input.owner)
+    });
+    return { ...recovered, record: lifecycleRecord(recovered.record) };
+  }
+  controlDirectory(workspace, runId) {
+    const path = this.#store.pathsForRun(stateWorkspace(workspace), runId).run_dir;
+    return realpathSync6.native(path);
+  }
+  async waitForChange(input) {
+    const deadline = Date.now() + Math.min(input.wait_ms, 1e4);
+    while (!input.signal.aborted && Date.now() < deadline) {
+      const current = this.#store.readRun(stateWorkspace(input.workspace), input.run_id);
+      if (current.revision !== input.after_revision) return;
+      await delay3(Math.min(25, Math.max(1, deadline - Date.now())));
+    }
+  }
+  async reconcileRun(input) {
+    const workspace = stateWorkspace(input.workspace);
+    let current = this.#store.readRun(workspace, input.run_id);
+    if (current.state === "recovery_required") {
+      current = await this.#reconcileRecoveryRequired(current, input.owner);
+      return input.include_progress === false ? lifecycleRecord(current) : await this.#project(current);
+    }
+    if (current.state === "complete" || current.state === "needs_attention" || current.state === "cancelled" || current.state === "interrupted" || current.state === "waiting_for_input") {
+      return input.include_progress === false ? lifecycleRecord(current) : await this.#project(current);
+    }
+    const acquired = this.#store.acquireOperation({
+      workspace,
+      run_id: input.run_id,
+      operation: "reconcile",
+      owner: stateOwner(input.owner)
+    });
+    if (!acquired.ok) {
+      return input.include_progress === false ? lifecycleRecord(current) : await this.#project(current);
+    }
+    try {
+      current = this.#store.readRun(workspace, input.run_id);
+      current = await this.#reconcileClaimed(current, acquired.handle);
+      return input.include_progress === false ? lifecycleRecord(current) : await this.#project(current);
+    } finally {
+      this.#store.releaseOperation(acquired.handle);
+    }
+  }
+  async #project(record2) {
+    let captured;
+    try {
+      captured = readSupervisorProgress({
+        control_directory: this.controlDirectory(record2.workspace, record2.run_id),
+        run_id: record2.run_id,
+        generations: record2.launch.generation
+      });
+    } catch (error51) {
+      if (error51 instanceof SupervisorProgressError) return lifecycleRecord(record2);
+      throw error51;
+    }
+    for (const progress of captured) {
+      if (progress.event.flow_id !== record2.request.flow) {
+        return lifecycleRecord(record2);
+      }
+    }
+    const retained = captured.slice(-512);
+    const retainedFromCursor = captured.length - retained.length;
+    return lifecycleRecord({
+      ...record2,
+      progress: {
+        next_cursor: captured.length,
+        retained_from_cursor: retainedFromCursor,
+        dropped_count: retainedFromCursor,
+        events: retained.map((progress, index) => ({
+          cursor: retainedFromCursor + index,
+          kind: progress.event.type,
+          recorded_at: progress.event.recorded_at,
+          summary: progress.event.display.text
+        }))
+      }
+    });
+  }
+  async #reconcileRecoveryRequired(current, owner) {
+    if (current.launch.authorization_sha256 === void 0 || current.launch.phase === "reserved" || current.launch.phase === "supervisor_recorded") {
+      return current;
+    }
+    const acquired = this.#store.acquireOperation({
+      workspace: current.workspace,
+      run_id: current.run_id,
+      operation: "recover",
+      owner: stateOwner(owner)
+    });
+    if (!acquired.ok) return current;
+    try {
+      let record2 = this.#store.readRun(current.workspace, current.run_id);
+      const observations = readSupervisorJournals({
+        control_directory: this.controlDirectory(record2.workspace, record2.run_id),
+        run_id: record2.run_id,
+        generation: record2.launch.generation,
+        authorization_sha256: record2.launch.authorization_sha256 ?? ""
+      });
+      if (observations.runtime !== void 0 && record2.launch.phase === "launch_authorized") {
+        record2 = this.#store.advanceLaunch({
+          handle: acquired.handle,
+          launch: {
+            ...record2.launch,
+            phase: "runtime_recorded",
+            runtime: withExecutable(
+              observations.runtime.runtime,
+              observations.runtime.runtime_executable
+            )
+          },
+          summary: "Circuit recovered the worker identity from durable supervisor evidence."
+        });
+      }
+      if (observations.exit !== void 0 && record2.launch.phase === "runtime_recorded") {
+        record2 = this.#store.advanceLaunch({
+          handle: acquired.handle,
+          launch: exited(
+            record2.launch,
+            this.#now,
+            observations.exit.process_group_cleanup,
+            observations.exit
+          ),
+          summary: "Circuit recovered the worker exit from durable supervisor evidence."
+        });
+      }
+      return record2;
+    } finally {
+      this.#store.releaseOperation(acquired.handle);
+    }
+  }
+  async #reconcileClaimed(current, handle) {
+    let record2 = current;
+    if (record2.launch.phase === "reserved") {
+      const owner = this.#inspectProcess(record2.launch.allocation_owner);
+      if (owner === "alive") return record2;
+      if (owner === "unknown") {
+        return this.#store.transitionRun({
+          handle,
+          to: "recovery_required",
+          summary: "Circuit cannot confirm whether the interrupted launch owner is absent.",
+          recovery: recovery(this.#now, "launch_owner_unknown", { owner_status: owner })
+        });
+      }
+      return this.#store.transitionRun({
+        handle,
+        to: "interrupted",
+        summary: "Circuit confirmed that the interrupted launch did not start a worker.",
+        launch: exited(record2.launch, this.#now, "confirmed")
+      });
+    }
+    const observations = record2.launch.authorization_sha256 === void 0 ? {} : readSupervisorJournals({
+      control_directory: this.controlDirectory(record2.workspace, record2.run_id),
+      run_id: record2.run_id,
+      generation: record2.launch.generation,
+      authorization_sha256: record2.launch.authorization_sha256
+    });
+    if (observations.runtime !== void 0 && record2.launch.phase === "launch_authorized") {
+      record2 = this.#store.advanceLaunch({
+        handle,
+        launch: {
+          ...record2.launch,
+          phase: "runtime_recorded",
+          runtime: withExecutable(
+            observations.runtime.runtime,
+            observations.runtime.runtime_executable
+          )
+        },
+        summary: "Circuit recovered the worker identity from durable supervisor evidence."
+      });
+    }
+    if (record2.launch.phase === "runtime_recorded" && (record2.state === "starting" || record2.state === "resuming")) {
+      record2 = this.#store.transitionRun({
+        handle,
+        to: "running",
+        summary: `Circuit is running the ${record2.request.flow} flow.`
+      });
+    }
+    if (observations.exit !== void 0) {
+      if (record2.launch.supervisor !== void 0) {
+        const supervisorStatuses = [
+          this.#inspectProcess(record2.launch.supervisor),
+          this.#inspectProcessGroup(record2.launch.supervisor)
+        ];
+        if (supervisorStatuses.includes("alive")) return record2;
+        if (supervisorStatuses.includes("unknown")) {
+          return this.#store.transitionRun({
+            handle,
+            to: "recovery_required",
+            summary: "Circuit cannot confirm that the worker supervisor exited.",
+            recovery: recovery(this.#now, "supervisor_exit_unknown", {
+              supervisor_status: supervisorStatuses[0],
+              process_group_status: supervisorStatuses[1]
+            })
+          });
+        }
+      }
+      return await this.#applyExit(record2, handle, observations.exit);
+    }
+    const identities = [
+      ...record2.launch.supervisor === void 0 ? [] : [record2.launch.supervisor],
+      ...record2.launch.runtime === void 0 ? [] : [record2.launch.runtime]
+    ];
+    const processStatuses = identities.map(this.#inspectProcess);
+    const groupStatuses = identities.map(this.#inspectProcessGroup);
+    const statuses = [...processStatuses, ...groupStatuses];
+    if (statuses.includes("alive")) return record2;
+    if (anyUnknown(statuses)) {
+      return this.#store.transitionRun({
+        handle,
+        to: "recovery_required",
+        summary: "Circuit cannot confirm cleanup after the worker connection ended.",
+        recovery: recovery(
+          this.#now,
+          "launch_process_unknown",
+          {
+            ...processStatuses[0] === void 0 ? {} : { supervisor_status: processStatuses[0] },
+            ...processStatuses[1] === void 0 ? {} : { runtime_status: processStatuses[1] },
+            process_group_status: groupStatuses.includes("unknown") ? "unknown" : "absent"
+          },
+          record2.state === "cancelling"
+        )
+      });
+    }
+    if (!allAbsent(statuses)) return record2;
+    if (record2.launch.phase === "supervisor_recorded") {
+      return this.#store.transitionRun({
+        handle,
+        to: "interrupted",
+        summary: "Circuit confirmed that the interrupted supervisor did not leave a worker.",
+        launch: exited(record2.launch, this.#now, "confirmed")
+      });
+    }
+    if (record2.launch.runtime === void 0) {
+      return this.#store.transitionRun({
+        handle,
+        to: "recovery_required",
+        summary: "Circuit cannot prove that the gated worker process has exited.",
+        recovery: recovery(this.#now, "runtime_identity_missing", {
+          supervisor_status: "absent",
+          runtime_status: "unknown",
+          process_group_status: "unknown"
+        })
+      });
+    }
+    const syntheticExit = {
+      schema_version: 1,
+      record_kind: "circuit.mcp.exit-observation",
+      run_id: record2.run_id,
+      generation: record2.launch.generation,
+      authorization_sha256: record2.launch.authorization_sha256 ?? "",
+      runtime: {
+        pid: record2.launch.runtime.pid,
+        process_group_id: record2.launch.runtime.process_group_id,
+        birth_token: record2.launch.runtime.birth_token,
+        started_at: record2.launch.runtime.started_at
+      },
+      observed_at: this.#now().toISOString(),
+      process_group_cleanup: "confirmed"
+    };
+    return await this.#applyExit(record2, handle, syntheticExit);
+  }
+  async #applyExit(current, handle, observation) {
+    let record2 = current;
+    if (record2.launch.runtime === void 0) {
+      throw new Error("Supervisor exit evidence is missing the recorded runtime identity.");
+    }
+    if (record2.launch.phase !== "exited") {
+      record2 = this.#store.advanceLaunch({
+        handle,
+        launch: exited(record2.launch, this.#now, observation.process_group_cleanup, observation),
+        summary: "Circuit observed the worker exit."
+      });
+    }
+    if (observation.process_group_cleanup !== "confirmed") {
+      return this.#store.transitionRun({
+        handle,
+        to: "recovery_required",
+        summary: "Circuit observed the worker exit but could not prove that its recorded owned process group is absent.",
+        recovery: recovery(
+          this.#now,
+          "worker_cleanup_unconfirmed",
+          {
+            supervisor_status: "unknown",
+            runtime_status: "unknown",
+            process_group_status: "unknown"
+          },
+          record2.state === "cancelling"
+        )
+      });
+    }
+    if (record2.state === "cancelling") {
+      return this.#store.transitionRun({
+        handle,
+        to: "cancelled",
+        summary: "Circuit observed that its recorded owned process group is absent after the cancellation request.",
+        checkpoint: null
+      });
+    }
+    const classification = await this.#artifacts.classifyExit({
+      record: record2,
+      exit: observation
+    });
+    switch (classification.state) {
+      case "complete":
+        return this.#store.transitionRun({
+          handle,
+          to: "complete",
+          summary: classification.summary,
+          final_report: classification.final_report
+        });
+      case "waiting_for_input":
+        return this.#store.transitionRun({
+          handle,
+          to: "waiting_for_input",
+          summary: classification.summary,
+          checkpoint: classification.checkpoint
+        });
+      case "needs_attention":
+      case "interrupted":
+        return this.#store.transitionRun({
+          handle,
+          to: classification.state,
+          summary: classification.summary,
+          ...classification.failure === void 0 ? {} : { failure: classification.failure }
+        });
+    }
+  }
+};
+var McpCheckpointAdapter = class {
+  async read(input) {
+    if (input.run.checkpoint === void 0) {
+      throw new Error("The waiting Circuit run has no checkpoint locator.");
+    }
+    return await readCheckpointView({
+      workspace: {
+        metadata_key: CODEX_SANDBOX_METADATA_KEY,
+        workspace: input.workspace.canonical_path
+      },
+      run_id: input.run.run_id,
+      checkpoint: input.run.checkpoint
+    });
+  }
+  async assertResume(input) {
+    if (input.run.checkpoint === void 0) {
+      throw new Error("The Circuit run is not waiting for checkpoint input.");
+    }
+    await assertCheckpointResume({
+      workspace: {
+        metadata_key: CODEX_SANDBOX_METADATA_KEY,
+        workspace: input.workspace.canonical_path
+      },
+      run_id: input.run.run_id,
+      checkpoint: input.run.checkpoint,
+      checkpoint_token: input.checkpoint_token,
+      choice_id: input.choice_id
+    });
+    return {
+      checkpoint_binding_sha256: checkpointBindingSha256({
+        workspace_key: input.workspace.key,
+        run_id: input.run.run_id,
+        checkpoint: input.run.checkpoint
+      })
+    };
+  }
+};
+
+// src/hosts/codex-mcp/state-store.ts
+import { createHash as createHash8, randomUUID as randomUUID3 } from "node:crypto";
+import {
+  constants as constants9,
+  closeSync as closeSync6,
+  existsSync as existsSync3,
+  fstatSync as fstatSync5,
+  fsyncSync as fsyncSync3,
+  linkSync,
+  lstatSync as lstatSync5,
+  mkdirSync,
+  openSync as openSync6,
+  opendirSync,
+  readFileSync as readFileSync8,
+  realpathSync as realpathSync7,
+  renameSync,
+  rmSync as rmSync2,
+  statSync as statSync4,
+  unlinkSync as unlinkSync2,
+  writeFileSync as writeFileSync2
+} from "node:fs";
+import { basename as basename4, dirname as dirname6, isAbsolute as isAbsolute13, join as join14, normalize, relative as relative5, resolve as resolve9, sep as sep4 } from "node:path";
+var SHA256 = /^[a-f0-9]{64}$/;
+var RUN_ID = external_exports.guid({ error: "run_id must be a UUID" });
+var MAX_STATE_BYTES = 1048576;
+var MAX_CONTROL_BYTES = 65536;
+var MAX_WORKSPACE_RUN_ENTRIES = 1e3;
+var MAX_RETENTION_SCAN_ENTRIES = 1e4;
+var TERMINAL_STATES = /* @__PURE__ */ new Set(["complete", "needs_attention", "cancelled", "interrupted"]);
+var RETENTION_TOMBSTONE = /^\.retention\.([0-9a-f-]{36})\.([0-9a-f-]{36})\.tmp$/;
+var START_STAGING_DIRECTORY = /^\.([0-9a-f-]{36})\.([0-9a-f-]{36})\.tmp$/;
+var IsoTimestamp = external_exports.iso.datetime();
+var Sha2564 = external_exports.string().regex(SHA256);
+var Summary = external_exports.string().trim().min(1).max(1e3);
+var SafeIdentifier = external_exports.string().min(1).max(128).regex(/^[A-Za-z0-9][A-Za-z0-9._@/-]*$/);
+var CheckpointIdentifier = external_exports.string().min(1).max(128).regex(/^[a-z0-9][a-z0-9._-]*$/);
+function isSafeRelativePath(value) {
+  if (value.length === 0 || value.length > 4096) return false;
+  if (value.includes("\\") || value.includes("\0") || isAbsolute13(value)) return false;
+  const parts = value.split("/");
+  if (parts.some((part) => part.length === 0 || part === "." || part === "..")) return false;
+  return normalize(value).split(sep4).join("/") === value;
+}
+var SafeRelativePath = external_exports.string().refine(isSafeRelativePath, "must be a normalized relative path");
+var AbsolutePath3 = external_exports.string().min(1).max(4096).refine(isAbsolute13, "must be an absolute path");
+var McpWorkspaceIdentityV1 = external_exports.object({
+  key: Sha2564,
+  canonical_path: AbsolutePath3,
+  device: external_exports.string().min(1).max(64),
+  inode: external_exports.string().min(1).max(64)
+}).strict();
+var ExecutableIdentityV1 = external_exports.object({
+  real_path: AbsolutePath3,
+  device: external_exports.string().min(1).max(64),
+  inode: external_exports.string().min(1).max(64),
+  sha256: Sha2564
+}).strict();
+var ProcessIdentityV1 = external_exports.object({
+  pid: external_exports.number().int().positive().max(2147483647),
+  process_group_id: external_exports.number().int().positive().max(2147483647),
+  started_at: IsoTimestamp,
+  birth_token: external_exports.string().min(1).max(256),
+  executable: ExecutableIdentityV1
+}).strict();
+var ProcessOwnerIdentityV1 = ProcessIdentityV1.extend({
+  instance_id: external_exports.string().min(1).max(128)
+}).strict();
+var StoredExitV1 = external_exports.object({
+  observed_at: IsoTimestamp,
+  exit_code: external_exports.number().int().min(-1).max(255).optional(),
+  signal: external_exports.string().min(1).max(64).optional(),
+  process_group_cleanup: external_exports.enum(["confirmed", "unconfirmed"])
+}).strict();
+var StoredLaunchV1 = external_exports.object({
+  generation: external_exports.number().int().positive().max(Number.MAX_SAFE_INTEGER),
+  allocation_owner: ProcessOwnerIdentityV1,
+  phase: external_exports.enum([
+    "reserved",
+    "supervisor_recorded",
+    "launch_authorized",
+    "runtime_recorded",
+    "exited"
+  ]),
+  supervisor: ProcessIdentityV1.optional(),
+  runtime: ProcessIdentityV1.optional(),
+  authorization_sha256: Sha2564.optional(),
+  authorized_at: IsoTimestamp.optional(),
+  exit: StoredExitV1.optional()
+}).strict().superRefine((launch, ctx) => {
+  if (launch.phase === "supervisor_recorded" && launch.supervisor === void 0) {
+    ctx.addIssue({
+      code: "custom",
+      path: ["supervisor"],
+      message: "supervisor identity is required"
+    });
+  }
+  if ((launch.phase === "launch_authorized" || launch.phase === "runtime_recorded") && (launch.supervisor === void 0 || launch.authorization_sha256 === void 0 || launch.authorized_at === void 0)) {
+    ctx.addIssue({
+      code: "custom",
+      path: ["phase"],
+      message: "authorized launch requires supervisor identity and authorization evidence"
+    });
+  }
+  if (launch.phase === "runtime_recorded" && launch.runtime === void 0) {
+    ctx.addIssue({ code: "custom", path: ["runtime"], message: "runtime identity is required" });
+  }
+  if (launch.runtime !== void 0 && launch.authorization_sha256 !== void 0 && launch.runtime.birth_token !== launch.authorization_sha256) {
+    ctx.addIssue({
+      code: "custom",
+      path: ["runtime", "birth_token"],
+      message: "worker identity must use the committed launch token"
+    });
+  }
+  if (launch.phase === "exited" && launch.exit === void 0) {
+    ctx.addIssue({
+      code: "custom",
+      path: ["exit"],
+      message: "exited launch requires exit evidence"
+    });
+  }
+  if (launch.phase !== "exited" && launch.exit !== void 0) {
+    ctx.addIssue({
+      code: "custom",
+      path: ["exit"],
+      message: "exit evidence is allowed only after launch exit"
+    });
+  }
+  if (launch.phase === "reserved" && (launch.supervisor !== void 0 || launch.runtime !== void 0 || launch.authorization_sha256 !== void 0 || launch.authorized_at !== void 0)) {
+    ctx.addIssue({
+      code: "custom",
+      path: ["phase"],
+      message: "reserved launch must not carry process or authorization evidence"
+    });
+  }
+  if (launch.phase === "supervisor_recorded" && (launch.runtime !== void 0 || launch.authorization_sha256 !== void 0 || launch.authorized_at !== void 0)) {
+    ctx.addIssue({
+      code: "custom",
+      path: ["phase"],
+      message: "supervisor_recorded must not carry later launch evidence"
+    });
+  }
+  if (launch.phase === "launch_authorized" && launch.runtime !== void 0) {
+    ctx.addIssue({
+      code: "custom",
+      path: ["runtime"],
+      message: "runtime identity is allowed only after it is recorded"
+    });
+  }
+});
+var StoredCheckpointV1 = external_exports.object({
+  generation: external_exports.number().int().positive().max(Number.MAX_SAFE_INTEGER),
+  step_id: CheckpointIdentifier,
+  attempt: external_exports.number().int().positive().max(Number.MAX_SAFE_INTEGER),
+  request_path: SafeRelativePath.refine((value) => value.length <= 2048),
+  request_sha256: Sha2564,
+  allowed_choices: external_exports.array(CheckpointIdentifier.max(64)).min(1).max(20),
+  choices_sha256: Sha2564
+}).strict().superRefine((checkpoint, ctx) => {
+  if (new Set(checkpoint.allowed_choices).size !== checkpoint.allowed_choices.length) {
+    ctx.addIssue({
+      code: "custom",
+      path: ["allowed_choices"],
+      message: "checkpoint choices must be unique"
+    });
+  }
+  if (checkpoint.choices_sha256 !== sha256OfJson(checkpoint.allowed_choices)) {
+    ctx.addIssue({
+      code: "custom",
+      path: ["choices_sha256"],
+      message: "choices_sha256 must bind the ordered allowed choices"
+    });
+  }
+});
+var StoredFinalReportV1 = external_exports.object({
+  schema: SafeIdentifier,
+  path: SafeRelativePath,
+  sha256: Sha2564,
+  byte_length: external_exports.number().int().nonnegative().max(262144),
+  summary: Summary
+}).strict();
+var StoredProgressEventV1 = external_exports.object({
+  cursor: external_exports.number().int().nonnegative().max(Number.MAX_SAFE_INTEGER),
+  kind: external_exports.string().min(1).max(80).regex(/^[a-z][a-z0-9._-]*$/),
+  recorded_at: IsoTimestamp,
+  summary: Summary
+}).strict();
+var StoredProgressV1 = external_exports.object({
+  next_cursor: external_exports.number().int().nonnegative().max(Number.MAX_SAFE_INTEGER),
+  retained_from_cursor: external_exports.number().int().nonnegative().max(Number.MAX_SAFE_INTEGER),
+  dropped_count: external_exports.number().int().nonnegative().max(Number.MAX_SAFE_INTEGER),
+  events: external_exports.array(StoredProgressEventV1).max(512)
+}).strict().superRefine((progress, ctx) => {
+  let previous = progress.retained_from_cursor - 1;
+  for (const [index, event] of progress.events.entries()) {
+    if (event.cursor <= previous || event.cursor >= progress.next_cursor) {
+      ctx.addIssue({
+        code: "custom",
+        path: ["events", index, "cursor"],
+        message: "progress cursors must be strictly increasing and below next_cursor"
+      });
+    }
+    previous = event.cursor;
+  }
+});
+var StoredFailureV1 = external_exports.object({
+  code: external_exports.string().min(1).max(64).regex(/^[a-z][a-z0-9_]*$/),
+  message: external_exports.string().trim().min(1).max(1e3)
+}).strict();
+var RecoveryStatus = external_exports.enum(["alive", "absent", "unknown"]);
+var StoredRecoveryV1 = external_exports.object({
+  reason: external_exports.string().min(1).max(80).regex(/^[a-z][a-z0-9_]*$/),
+  detected_at: IsoTimestamp,
+  last_checked_at: IsoTimestamp,
+  owner_status: RecoveryStatus.optional(),
+  supervisor_status: RecoveryStatus.optional(),
+  runtime_status: RecoveryStatus.optional(),
+  process_group_status: RecoveryStatus.optional(),
+  cancellation_requested: external_exports.boolean()
+}).strict();
+var StoredStartInputV1 = external_exports.intersection(
+  CircuitStartInputV1,
+  external_exports.object({ web_search: external_exports.enum(["off", "cached"]) })
+);
+var McpRunRecordV1 = external_exports.object({
+  schema_version: external_exports.literal(1),
+  record_kind: external_exports.literal("circuit.mcp.run-state"),
+  revision: external_exports.number().int().nonnegative().max(Number.MAX_SAFE_INTEGER),
+  run_id: RUN_ID,
+  lease_id: external_exports.guid(),
+  workspace: McpWorkspaceIdentityV1,
+  request: StoredStartInputV1,
+  state: McpRunStateV1,
+  summary: Summary,
+  runtime_assets_sha256: Sha2564,
+  run_relative_path: SafeRelativePath,
+  created_at: IsoTimestamp,
+  updated_at: IsoTimestamp,
+  finished_at: IsoTimestamp.optional(),
+  allocation: external_exports.object({ owner: ProcessOwnerIdentityV1, created_at: IsoTimestamp }).strict(),
+  launch: StoredLaunchV1,
+  progress: StoredProgressV1,
+  checkpoint: StoredCheckpointV1.optional(),
+  final_report: StoredFinalReportV1.optional(),
+  failure: StoredFailureV1.optional(),
+  recovery: StoredRecoveryV1.optional()
+}).strict().superRefine((record2, ctx) => {
+  if (record2.workspace.key !== workspaceKey(record2.workspace.canonical_path)) {
+    ctx.addIssue({
+      code: "custom",
+      path: ["workspace", "key"],
+      message: "workspace key mismatch"
+    });
+  }
+  if (record2.run_relative_path !== `.circuit/runs/${record2.run_id}`) {
+    ctx.addIssue({
+      code: "custom",
+      path: ["run_relative_path"],
+      message: "run path must be derived from run_id"
+    });
+  }
+  if (record2.launch.generation === 1 && !sameProcessOwner(record2.launch.allocation_owner, record2.allocation.owner)) {
+    ctx.addIssue({
+      code: "custom",
+      path: ["launch", "allocation_owner"],
+      message: "first launch generation must retain its allocation owner"
+    });
+  }
+  if (record2.state === "waiting_for_input" && record2.checkpoint === void 0) {
+    ctx.addIssue({
+      code: "custom",
+      path: ["checkpoint"],
+      message: "waiting state requires checkpoint"
+    });
+  }
+  if (record2.state !== "waiting_for_input" && record2.checkpoint !== void 0) {
+    ctx.addIssue({
+      code: "custom",
+      path: ["checkpoint"],
+      message: "checkpoint is allowed only while waiting"
+    });
+  }
+  if (record2.checkpoint !== void 0 && record2.checkpoint.generation !== record2.launch.generation) {
+    ctx.addIssue({
+      code: "custom",
+      path: ["checkpoint", "generation"],
+      message: "checkpoint generation must match the current launch generation"
+    });
+  }
+  if (record2.state === "complete" && record2.final_report === void 0) {
+    ctx.addIssue({
+      code: "custom",
+      path: ["final_report"],
+      message: "complete state requires final report"
+    });
+  }
+  if (record2.state !== "complete" && record2.final_report !== void 0) {
+    ctx.addIssue({
+      code: "custom",
+      path: ["final_report"],
+      message: "final report is allowed only for complete state"
+    });
+  }
+  if (record2.state === "recovery_required" && record2.recovery === void 0) {
+    ctx.addIssue({
+      code: "custom",
+      path: ["recovery"],
+      message: "recovery_required state requires recovery evidence"
+    });
+  }
+  const terminal = TERMINAL_STATES.has(record2.state);
+  if (terminal !== (record2.finished_at !== void 0)) {
+    ctx.addIssue({
+      code: "custom",
+      path: ["finished_at"],
+      message: "finished_at must exist exactly for terminal states"
+    });
+  }
+  if (terminal && record2.launch.exit?.process_group_cleanup !== "confirmed") {
+    ctx.addIssue({
+      code: "custom",
+      path: ["launch", "exit", "process_group_cleanup"],
+      message: "terminal state requires confirmed process-group cleanup"
+    });
+  }
+  if (record2.state === "waiting_for_input" && record2.launch.exit?.process_group_cleanup !== "confirmed") {
+    ctx.addIssue({
+      code: "custom",
+      path: ["launch", "exit", "process_group_cleanup"],
+      message: "waiting state requires confirmed process-group cleanup"
+    });
+  }
+  if (record2.state === "running" && record2.launch.phase !== "runtime_recorded" && record2.launch.phase !== "exited") {
+    ctx.addIssue({
+      code: "custom",
+      path: ["launch", "phase"],
+      message: "running state requires a recorded runtime identity"
+    });
+  }
+  if ((record2.state === "running" || record2.state === "waiting_for_input" || record2.state === "complete") && record2.launch.runtime === void 0) {
+    ctx.addIssue({
+      code: "custom",
+      path: ["launch", "runtime"],
+      message: `${record2.state} state requires a recorded runtime identity`
+    });
+  }
+  if (record2.state === "waiting_for_input" && record2.launch.phase !== "exited") {
+    ctx.addIssue({
+      code: "custom",
+      path: ["launch", "phase"],
+      message: "waiting state requires an exited launch"
+    });
+  }
+  if (record2.state === "resuming" && record2.launch.generation < 2) {
+    ctx.addIssue({
+      code: "custom",
+      path: ["launch", "generation"],
+      message: "resuming state requires a new launch generation"
+    });
+  }
+});
+var WorkspaceLeaseRecordV1 = external_exports.object({
+  schema_version: external_exports.literal(1),
+  record_kind: external_exports.literal("circuit.mcp.workspace-lease"),
+  lease_id: external_exports.guid(),
+  workspace: McpWorkspaceIdentityV1,
+  run_id: RUN_ID,
+  staging_name: external_exports.string().min(1).max(200).regex(/^\.[0-9a-f-]+\.[0-9a-f-]+\.tmp$/),
+  allocation_owner: ProcessOwnerIdentityV1,
+  acquired_at: IsoTimestamp
+}).strict();
+var WorkspaceGuardRecordV1 = external_exports.object({
+  schema_version: external_exports.literal(1),
+  record_kind: external_exports.enum(["circuit.mcp.workspace-guard", "circuit.mcp.workspace-guard-reclaim"]),
+  guard_id: external_exports.guid(),
+  workspace_key: Sha2564,
+  owner: ProcessOwnerIdentityV1,
+  acquired_at: IsoTimestamp
+}).strict();
+var OperationNameV1 = external_exports.enum([
+  "resume",
+  "cancel",
+  "reconcile",
+  "recover",
+  "retention",
+  "reclaim"
+]);
+var OperationClaimRecordV1 = external_exports.object({
+  schema_version: external_exports.literal(1),
+  record_kind: external_exports.literal("circuit.mcp.operation-claim"),
+  claim_id: external_exports.guid(),
+  run_id: RUN_ID,
+  workspace_key: Sha2564,
+  operation: OperationNameV1,
+  expected_revision: external_exports.number().int().nonnegative().max(Number.MAX_SAFE_INTEGER),
+  checkpoint_binding_sha256: Sha2564.optional(),
+  owner: ProcessOwnerIdentityV1,
+  acquired_at: IsoTimestamp
+}).strict();
+var McpStateStoreError = class extends Error {
+  code;
+  next_action;
+  constructor(code, message, nextAction) {
+    super(message);
+    this.name = "McpStateStoreError";
+    this.code = code;
+    this.next_action = nextAction;
+  }
+};
+function workspaceKey(canonicalPath) {
+  return createHash8("sha256").update(canonicalPath, "utf8").digest("hex");
+}
+function trustedWorkspaceIdentity(path) {
+  let direct;
+  try {
+    direct = lstatSync5(path);
+  } catch {
+    throw new McpStateStoreError("workspace_invalid", "The trusted workspace does not exist.");
+  }
+  if (direct.isSymbolicLink() || !direct.isDirectory()) {
+    throw new McpStateStoreError(
+      "workspace_invalid",
+      "The trusted workspace must be a real directory, not a symbolic link."
+    );
+  }
+  const canonicalPath = realpathSync7.native(path);
+  const stat3 = statSync4(canonicalPath);
+  return McpWorkspaceIdentityV1.parse({
+    key: workspaceKey(canonicalPath),
+    canonical_path: canonicalPath,
+    device: String(stat3.dev),
+    inode: String(stat3.ino)
+  });
+}
+function errorCode3(error51) {
+  return error51.code;
+}
+function sameWorkspace(left, right) {
+  return left.key === right.key && left.canonical_path === right.canonical_path && left.device === right.device && left.inode === right.inode;
+}
+function sameProcessOwner(left, right) {
+  return left.instance_id === right.instance_id && left.pid === right.pid && left.process_group_id === right.process_group_id && left.started_at === right.started_at && left.birth_token === right.birth_token && left.executable.real_path === right.executable.real_path && left.executable.device === right.executable.device && left.executable.inode === right.executable.inode && left.executable.sha256 === right.executable.sha256;
+}
+function sameOperationClaim(left, right) {
+  return left.claim_id === right.claim_id && left.run_id === right.run_id && left.workspace_key === right.workspace_key && left.operation === right.operation && left.expected_revision === right.expected_revision && left.checkpoint_binding_sha256 === right.checkpoint_binding_sha256 && left.acquired_at === right.acquired_at && sameProcessOwner(left.owner, right.owner);
+}
+function sameProcessIdentity(left, right) {
+  return left.pid === right.pid && left.process_group_id === right.process_group_id && left.started_at === right.started_at && left.birth_token === right.birth_token && left.executable.real_path === right.executable.real_path && left.executable.device === right.executable.device && left.executable.inode === right.executable.inode && left.executable.sha256 === right.executable.sha256;
+}
+function storedCheckpointBinding(record2) {
+  if (record2.checkpoint === void 0) return void 0;
+  return checkpointBindingSha256({
+    workspace_key: record2.workspace.key,
+    run_id: record2.run_id,
+    checkpoint: record2.checkpoint
+  });
+}
+function assertCurrentWorkspace(workspace) {
+  const parsed = McpWorkspaceIdentityV1.parse(workspace);
+  if (parsed.key !== workspaceKey(parsed.canonical_path)) {
+    throw new McpStateStoreError(
+      "workspace_changed",
+      "The trusted workspace identity has changed."
+    );
+  }
+  let current;
+  try {
+    current = trustedWorkspaceIdentity(parsed.canonical_path);
+  } catch {
+    throw new McpStateStoreError(
+      "workspace_changed",
+      "The trusted workspace is no longer available."
+    );
+  }
+  if (!sameWorkspace(parsed, current)) {
+    throw new McpStateStoreError(
+      "workspace_changed",
+      "The trusted workspace identity has changed."
+    );
+  }
+}
+function assertPrivateDirectory2(path) {
+  const stat3 = lstatSync5(path);
+  if (stat3.isSymbolicLink() || !stat3.isDirectory()) {
+    throw new McpStateStoreError(
+      "state_unsafe_directory",
+      `Circuit state path is not a real directory: ${path}`
+    );
+  }
+  if ((stat3.mode & 511) !== 448) {
+    throw new McpStateStoreError(
+      "state_permissions",
+      `Circuit state directory is not private: ${path}`
+    );
+  }
+  if (typeof process.getuid === "function" && stat3.uid !== process.getuid()) {
+    throw new McpStateStoreError(
+      "state_owner",
+      `Circuit state directory has the wrong owner: ${path}`
+    );
+  }
+}
+function ensurePrivateDirectory(path, recursive = false) {
+  try {
+    mkdirSync(path, { mode: 448, recursive });
+  } catch (error51) {
+    if (errorCode3(error51) !== "EEXIST") throw error51;
+  }
+  assertPrivateDirectory2(path);
+}
+function fsyncDirectory2(path) {
+  const fd = openSync6(path, constants9.O_RDONLY);
+  try {
+    fsyncSync3(fd);
+  } finally {
+    closeSync6(fd);
+  }
+}
+function readDirectoryBounded(path, maximumEntries, code, message, nextAction) {
+  const directory = opendirSync(path);
+  const entries = [];
+  try {
+    while (true) {
+      const entry = directory.readSync();
+      if (entry === null) return entries;
+      if (entries.length === maximumEntries) {
+        throw new McpStateStoreError(code, message, nextAction);
+      }
+      entries.push(entry);
+    }
+  } finally {
+    directory.closeSync();
+  }
+}
+function jsonBytes(value) {
+  return `${JSON.stringify(value, null, 2)}
+`;
+}
+function stageCompleteFile(target, contents) {
+  const stage = join14(dirname6(target), `.${basename4(target)}.${randomUUID3()}.tmp`);
+  const fd = openSync6(
+    stage,
+    constants9.O_WRONLY | constants9.O_CREAT | constants9.O_EXCL | constants9.O_NOFOLLOW,
+    384
+  );
+  try {
+    writeFileSync2(fd, contents, "utf8");
+    fsyncSync3(fd);
+  } catch (error51) {
+    rmSync2(stage, { force: true });
+    throw error51;
+  } finally {
+    closeSync6(fd);
+  }
+  return stage;
+}
+function createJsonExclusive(target, value) {
+  const stage = stageCompleteFile(target, jsonBytes(value));
+  let created = false;
+  try {
+    try {
+      linkSync(stage, target);
+      created = true;
+      fsyncDirectory2(dirname6(target));
+    } catch (error51) {
+      if (errorCode3(error51) !== "EEXIST") throw error51;
+    }
+    return created;
+  } finally {
+    rmSync2(stage, { force: true });
+    fsyncDirectory2(dirname6(target));
+  }
+}
+function replaceJsonAtomic(target, value) {
+  const stage = stageCompleteFile(target, jsonBytes(value));
+  try {
+    renameSync(stage, target);
+    fsyncDirectory2(dirname6(target));
+  } catch (error51) {
+    rmSync2(stage, { force: true });
+    throw error51;
+  }
+}
+function assertPrivateRegularFile(path, stat3) {
+  if (!stat3.isFile()) {
+    throw new McpStateStoreError(
+      "state_unsafe_file",
+      `Circuit state is not a regular file: ${path}`
+    );
+  }
+  if ((stat3.mode & 511) !== 384) {
+    throw new McpStateStoreError("state_permissions", `Circuit state file is not private: ${path}`);
+  }
+  if (typeof process.getuid === "function" && stat3.uid !== process.getuid()) {
+    throw new McpStateStoreError("state_owner", `Circuit state file has the wrong owner: ${path}`);
+  }
+}
+var TransientStateRead = class extends Error {
+};
+function readStrictJsonOnce(path, schema, maxBytes, corruptCode) {
+  let fd;
+  try {
+    fd = openSync6(path, constants9.O_RDONLY | constants9.O_NONBLOCK | constants9.O_NOFOLLOW);
+  } catch (error51) {
+    if (errorCode3(error51) === "ELOOP") {
+      throw new McpStateStoreError(
+        "state_unsafe_file",
+        `Circuit state path is a symbolic link: ${path}`
+      );
+    }
+    throw error51;
+  }
+  try {
+    const before = fstatSync5(fd);
+    assertPrivateRegularFile(path, before);
+    if (before.size > maxBytes) {
+      throw new McpStateStoreError(corruptCode, `Circuit state file is too large: ${path}`);
+    }
+    const raw = readFileSync8(fd, "utf8");
+    const after = fstatSync5(fd);
+    let atPath;
+    try {
+      atPath = lstatSync5(path);
+    } catch (error51) {
+      if (errorCode3(error51) === "ENOENT") throw new TransientStateRead();
+      throw error51;
+    }
+    if (before.dev !== after.dev || before.ino !== after.ino || before.size !== after.size || before.mtimeMs !== after.mtimeMs) {
+      throw new McpStateStoreError(
+        corruptCode,
+        `Circuit state bytes changed while they were being read: ${path}`
+      );
+    }
+    if (atPath.isSymbolicLink()) {
+      throw new McpStateStoreError("state_unsafe_file", `Circuit state became a link: ${path}`);
+    }
+    if (after.dev !== atPath.dev || after.ino !== atPath.ino) throw new TransientStateRead();
+    let decoded;
+    try {
+      decoded = JSON.parse(raw);
+    } catch {
+      throw new McpStateStoreError(corruptCode, `Circuit state contains invalid JSON: ${path}`);
+    }
+    const parsed = schema.safeParse(decoded);
+    if (!parsed.success) {
+      throw new McpStateStoreError(corruptCode, `Circuit state has an invalid record: ${path}`);
+    }
+    return parsed.data;
+  } finally {
+    closeSync6(fd);
+  }
+}
+function readStrictJson(path, schema, maxBytes, corruptCode) {
+  let lastError;
+  for (let attempt = 0; attempt < 4; attempt += 1) {
+    try {
+      return readStrictJsonOnce(path, schema, maxBytes, corruptCode);
+    } catch (error51) {
+      if (error51 instanceof TransientStateRead || errorCode3(error51) === "ENOENT") {
+        lastError = error51;
+        continue;
+      }
+      throw error51;
+    }
+  }
+  if (errorCode3(lastError) === "ENOENT") throw lastError;
+  throw new McpStateStoreError(
+    "state_read_busy",
+    `Circuit state kept changing while it was read: ${path}`
+  );
+}
+function unlinkExactClaim(path, expected) {
+  const current = readStrictJson(
+    path,
+    OperationClaimRecordV1,
+    MAX_CONTROL_BYTES,
+    "operation_claim_corrupt"
+  );
+  if (current.claim_id !== expected.claim_id || !sameProcessOwner(current.owner, expected.owner)) {
+    throw new McpStateStoreError(
+      "operation_claim_changed",
+      "The operation claim was replaced before it could be released."
+    );
+  }
+  unlinkSync2(path);
+  fsyncDirectory2(dirname6(path));
+}
+function unlinkExactLease(path, expected) {
+  const current = readStrictJson(path, WorkspaceLeaseRecordV1, MAX_CONTROL_BYTES, "lease_corrupt");
+  if (current.lease_id !== expected.lease_id || current.run_id !== expected.run_id) {
+    throw new McpStateStoreError("lease_changed", "The workspace lease changed before release.");
+  }
+  unlinkSync2(path);
+  fsyncDirectory2(dirname6(path));
+}
+function unlinkExactWorkspaceGuard(path, expected) {
+  const current = readStrictJson(
+    path,
+    WorkspaceGuardRecordV1,
+    MAX_CONTROL_BYTES,
+    "workspace_guard_corrupt"
+  );
+  if (current.guard_id !== expected.guard_id || current.record_kind !== expected.record_kind || !sameProcessOwner(current.owner, expected.owner)) {
+    throw new McpStateStoreError(
+      "workspace_guard_changed",
+      "The workspace guard changed before release."
+    );
+  }
+  unlinkSync2(path);
+  fsyncDirectory2(dirname6(path));
+}
+var ALLOWED_TRANSITIONS = {
+  starting: /* @__PURE__ */ new Set([
+    "running",
+    "waiting_for_input",
+    "cancelling",
+    "complete",
+    "needs_attention",
+    "interrupted",
+    "recovery_required"
+  ]),
+  running: /* @__PURE__ */ new Set([
+    "waiting_for_input",
+    "cancelling",
+    "complete",
+    "needs_attention",
+    "interrupted",
+    "recovery_required"
+  ]),
+  waiting_for_input: /* @__PURE__ */ new Set(["resuming", "cancelling", "cancelled", "recovery_required"]),
+  resuming: /* @__PURE__ */ new Set([
+    "running",
+    "waiting_for_input",
+    "cancelling",
+    "complete",
+    "needs_attention",
+    "interrupted",
+    "recovery_required"
+  ]),
+  cancelling: /* @__PURE__ */ new Set(["cancelled", "recovery_required"]),
+  recovery_required: /* @__PURE__ */ new Set(["recovery_required", "interrupted", "cancelled"]),
+  complete: /* @__PURE__ */ new Set(),
+  needs_attention: /* @__PURE__ */ new Set(),
+  cancelled: /* @__PURE__ */ new Set(),
+  interrupted: /* @__PURE__ */ new Set()
+};
+var ALLOWED_LAUNCH_TRANSITIONS = {
+  reserved: /* @__PURE__ */ new Set(["supervisor_recorded", "exited"]),
+  supervisor_recorded: /* @__PURE__ */ new Set(["launch_authorized", "exited"]),
+  launch_authorized: /* @__PURE__ */ new Set(["runtime_recorded", "exited"]),
+  runtime_recorded: /* @__PURE__ */ new Set(["exited"]),
+  exited: /* @__PURE__ */ new Set()
+};
+var McpStateStore = class {
+  stateRoot;
+  runsRoot;
+  leasesRoot;
+  #now;
+  #randomId;
+  #inspectProcess;
+  #inspectProcessGroup;
+  #inspectProcessToken;
+  #beforeTerminalLeaseRelease;
+  #beforeRunStateRead;
+  #afterOperationClaimReclaimed;
+  #handles = /* @__PURE__ */ new WeakMap();
+  constructor(options) {
+    if (!isAbsolute13(options.stateRoot)) {
+      throw new McpStateStoreError(
+        "state_root_invalid",
+        "Circuit MCP state root must be absolute."
+      );
+    }
+    ensurePrivateDirectory(options.stateRoot, true);
+    this.stateRoot = realpathSync7.native(options.stateRoot);
+    assertPrivateDirectory2(this.stateRoot);
+    this.runsRoot = join14(this.stateRoot, "runs");
+    this.leasesRoot = join14(this.stateRoot, "leases");
+    ensurePrivateDirectory(this.runsRoot);
+    ensurePrivateDirectory(this.leasesRoot);
+    this.#now = options.now ?? (() => /* @__PURE__ */ new Date());
+    this.#randomId = options.randomId ?? randomUUID3;
+    this.#inspectProcess = options.inspectProcess ?? (() => "unknown");
+    this.#inspectProcessGroup = options.inspectProcessGroup ?? (() => "unknown");
+    this.#inspectProcessToken = options.inspectProcessToken ?? (() => "unknown");
+    this.#beforeTerminalLeaseRelease = options.beforeTerminalLeaseRelease ?? (() => void 0);
+    this.#beforeRunStateRead = options.beforeRunStateRead ?? (() => void 0);
+    this.#afterOperationClaimReclaimed = options.afterOperationClaimReclaimed ?? (() => void 0);
+  }
+  pathsForRun(workspace, runId) {
+    const parsedRunId = RUN_ID.parse(runId);
+    const parsedWorkspace = McpWorkspaceIdentityV1.parse(workspace);
+    const runDir = join14(this.runsRoot, parsedWorkspace.key, parsedRunId);
+    return {
+      run_dir: runDir,
+      state_file: join14(runDir, "state.json"),
+      operation_file: join14(runDir, "operation.json"),
+      operation_release_file: join14(runDir, "operation.release.json"),
+      lease_file: join14(this.leasesRoot, `${parsedWorkspace.key}.json`)
+    };
+  }
+  reserveRun(input) {
+    return this.#reserveRun(input, false).record;
+  }
+  reserveRunClaimed(input) {
+    const reserved = this.#reserveRun(input, true);
+    if (reserved.handle === void 0) {
+      throw new McpStateStoreError(
+        "operation_claim_invalid",
+        "Circuit did not publish the initial run operation claim."
+      );
+    }
+    return { record: reserved.record, handle: reserved.handle };
+  }
+  #reserveRun(input, claimed) {
+    assertCurrentWorkspace(input.workspace);
+    const runId = RUN_ID.parse(input.run_id);
+    const workspace = McpWorkspaceIdentityV1.parse(input.workspace);
+    const request = CircuitStartInputV1.parse(input.request);
+    const owner = ProcessOwnerIdentityV1.parse(input.owner);
+    const runtimeAssetsSha256 = Sha2564.parse(input.runtime_assets_sha256);
+    const summary = Summary.parse(input.summary);
+    const leaseId = RUN_ID.parse(this.#randomId());
+    const now = this.#now().toISOString();
+    const stagingName = `.${runId}.${leaseId}.tmp`;
+    const workspaceRunsRoot = this.#workspaceRunsRoot(workspace, true);
+    const stagingDir = join14(workspaceRunsRoot, stagingName);
+    const finalRunDir = join14(workspaceRunsRoot, runId);
+    const leasePath = join14(this.leasesRoot, `${workspace.key}.json`);
+    if (existsSync3(finalRunDir)) {
+      throw new McpStateStoreError("run_exists", "A Circuit MCP run with this ID already exists.");
+    }
+    const record2 = this.#parseRecord({
+      schema_version: 1,
+      record_kind: "circuit.mcp.run-state",
+      revision: 0,
+      run_id: runId,
+      lease_id: leaseId,
+      workspace,
+      request,
+      state: "starting",
+      summary,
+      runtime_assets_sha256: runtimeAssetsSha256,
+      run_relative_path: `.circuit/runs/${runId}`,
+      created_at: now,
+      updated_at: now,
+      allocation: { owner, created_at: now },
+      launch: { generation: 1, phase: "reserved", allocation_owner: owner },
+      progress: { next_cursor: 0, retained_from_cursor: 0, dropped_count: 0, events: [] }
+    });
+    const lease = WorkspaceLeaseRecordV1.parse({
+      schema_version: 1,
+      record_kind: "circuit.mcp.workspace-lease",
+      lease_id: leaseId,
+      workspace,
+      run_id: runId,
+      staging_name: stagingName,
+      allocation_owner: owner,
+      acquired_at: now
+    });
+    const claim = claimed ? OperationClaimRecordV1.parse({
+      schema_version: 1,
+      record_kind: "circuit.mcp.operation-claim",
+      claim_id: RUN_ID.parse(this.#randomId()),
+      run_id: runId,
+      workspace_key: workspace.key,
+      operation: "reconcile",
+      expected_revision: record2.revision,
+      owner,
+      acquired_at: now
+    }) : void 0;
+    let leaseCreated = false;
+    let guard;
+    try {
+      guard = this.#acquireWorkspaceGuard(workspace, owner);
+      this.#reconcileOrphanStagingUnderGuard(workspace, guard, stagingName);
+      if (existsSync3(finalRunDir)) {
+        throw new McpStateStoreError(
+          "run_exists",
+          "A Circuit MCP run with this ID already exists."
+        );
+      }
+      ensurePrivateDirectory(stagingDir);
+      if (!createJsonExclusive(join14(stagingDir, "state.json"), record2)) {
+        throw new McpStateStoreError("run_exists", "The staged Circuit run already exists.");
+      }
+      if (claim !== void 0 && !createJsonExclusive(join14(stagingDir, "operation.json"), claim)) {
+        throw new McpStateStoreError(
+          "operation_in_progress",
+          "The staged Circuit run already has an operation claim."
+        );
+      }
+      this.#reconcileLeaseUnderGuard(workspace, leasePath, guard);
+      if (!createJsonExclusive(leasePath, lease)) {
+        throw new McpStateStoreError(
+          "workspace_busy",
+          "Another Circuit run already owns this workspace.",
+          "Wait for that run to finish, cancel it, or recover it if cleanup is uncertain."
+        );
+      }
+      leaseCreated = true;
+      renameSync(stagingDir, finalRunDir);
+      fsyncDirectory2(workspaceRunsRoot);
+      if (claim !== void 0) {
+        const registered = this.#registerHandle(workspace, runId, record2.revision, claim);
+        if (!registered.ok) {
+          throw new McpStateStoreError(registered.code, registered.message);
+        }
+        return { record: record2, handle: registered.handle };
+      }
+      return { record: this.readRun(workspace, runId) };
+    } catch (error51) {
+      if (existsSync3(stagingDir)) rmSync2(stagingDir, { force: true, recursive: true });
+      if (leaseCreated && !existsSync3(finalRunDir)) {
+        try {
+          unlinkExactLease(leasePath, lease);
+        } catch {
+        }
+      }
+      throw error51;
+    } finally {
+      if (guard !== void 0) this.#releaseWorkspaceGuard(guard);
+    }
+  }
+  readRun(workspace, runId) {
+    assertCurrentWorkspace(workspace);
+    const workspaceRunsRoot = this.#workspaceRunsRoot(workspace, false);
+    if (!existsSync3(workspaceRunsRoot)) {
+      throw new McpStateStoreError("run_not_found", "Circuit could not find this run.");
+    }
+    assertPrivateDirectory2(workspaceRunsRoot);
+    const paths = this.pathsForRun(workspace, runId);
+    for (let attempt = 0; attempt < 4; attempt += 1) {
+      try {
+        assertPrivateDirectory2(paths.run_dir);
+        this.#beforeRunStateRead(runId);
+        const record2 = readStrictJson(
+          paths.state_file,
+          McpRunRecordV1,
+          MAX_STATE_BYTES,
+          "state_corrupt"
+        );
+        if (record2.run_id !== runId || !sameWorkspace(record2.workspace, workspace)) {
+          throw new McpStateStoreError(
+            "run_not_owned",
+            "This run does not belong to the trusted workspace."
+          );
+        }
+        return record2;
+      } catch (error51) {
+        if (errorCode3(error51) === "ENOENT") continue;
+        throw error51;
+      }
+    }
+    throw new McpStateStoreError("run_not_found", "Circuit could not find this run.");
+  }
+  acquireOperation(input) {
+    const workspace = McpWorkspaceIdentityV1.parse(input.workspace);
+    const owner = ProcessOwnerIdentityV1.parse(input.owner);
+    const operation = OperationNameV1.exclude(["reclaim"]).parse(input.operation);
+    const paths = this.pathsForRun(workspace, input.run_id);
+    const record2 = this.readRun(workspace, input.run_id);
+    if (operation === "resume") {
+      if (record2.state !== "waiting_for_input" || record2.checkpoint === void 0) {
+        throw new McpStateStoreError(
+          "run_not_waiting",
+          "Only a run waiting for input can be resumed."
+        );
+      }
+      if (input.checkpoint_binding_sha256 === void 0) {
+        throw new McpStateStoreError(
+          "checkpoint_binding_required",
+          "Resume requires the validated checkpoint binding."
+        );
+      }
+      if (input.checkpoint_binding_sha256 !== storedCheckpointBinding(record2)) {
+        throw new McpStateStoreError(
+          "checkpoint_stale",
+          "This checkpoint changed before Circuit could claim resume."
+        );
+      }
+    }
+    const claim = OperationClaimRecordV1.parse({
+      schema_version: 1,
+      record_kind: "circuit.mcp.operation-claim",
+      claim_id: RUN_ID.parse(this.#randomId()),
+      run_id: record2.run_id,
+      workspace_key: workspace.key,
+      operation,
+      expected_revision: record2.revision,
+      ...input.checkpoint_binding_sha256 === void 0 ? {} : { checkpoint_binding_sha256: input.checkpoint_binding_sha256 },
+      owner,
+      acquired_at: this.#now().toISOString()
+    });
+    let guard;
+    try {
+      guard = this.#acquireWorkspaceGuard(workspace, owner);
+    } catch (error51) {
+      if (error51 instanceof McpStateStoreError && error51.code === "workspace_guard_busy") {
+        return {
+          ok: false,
+          code: "operation_in_progress",
+          message: "Another Circuit operation is already changing this workspace."
+        };
+      }
+      if (error51 instanceof McpStateStoreError && error51.code === "workspace_guard_owner_unknown") {
+        return {
+          ok: false,
+          code: "operation_owner_unknown",
+          message: "Circuit cannot prove whether another operation owns this workspace."
+        };
+      }
+      throw error51;
+    }
+    try {
+      this.#clearReleasedOperation(paths);
+      let reclaimed;
+      for (let attempt = 0; attempt < 8; attempt += 1) {
+        if (createJsonExclusive(paths.operation_file, claim)) {
+          if (reclaimed !== void 0) this.#clearReleaseMarkerForClaim(paths, reclaimed);
+          return this.#completeClaimAcquisition(workspace, record2.run_id, claim);
+        }
+        let existing;
+        try {
+          existing = readStrictJson(
+            paths.operation_file,
+            OperationClaimRecordV1,
+            MAX_CONTROL_BYTES,
+            "operation_claim_corrupt"
+          );
+        } catch (error51) {
+          if (errorCode3(error51) === "ENOENT") continue;
+          throw error51;
+        }
+        const status = this.#inspectOwnerTree(existing.owner);
+        if (status === "alive") {
+          return {
+            ok: false,
+            code: "operation_in_progress",
+            message: "Another Circuit operation is already changing this run."
+          };
+        }
+        if (status === "unknown") {
+          return {
+            ok: false,
+            code: "operation_owner_unknown",
+            message: "Circuit cannot prove whether another operation still owns this run."
+          };
+        }
+        unlinkExactClaim(paths.operation_file, existing);
+        reclaimed = existing;
+        this.#afterOperationClaimReclaimed(existing);
+        this.#clearReleaseMarkerForClaim(paths, existing);
+      }
+      return {
+        ok: false,
+        code: "operation_in_progress",
+        message: "Another Circuit operation is already changing this run."
+      };
+    } finally {
+      this.#releaseWorkspaceGuard(guard);
+    }
+  }
+  advanceLaunch(input) {
+    const metadata = this.#activeHandle(input.handle);
+    this.#assertHandleOwnsClaim(input.handle, metadata);
+    const current = this.readRun(metadata.workspace, metadata.runId);
+    if (current.revision !== metadata.revision) {
+      throw new McpStateStoreError(
+        "state_revision_changed",
+        "The run changed during this operation."
+      );
+    }
+    if (current.state !== "starting" && current.state !== "running" && current.state !== "resuming" && current.state !== "cancelling" && !(current.state === "recovery_required" && input.handle.claim.operation === "recover")) {
+      throw new McpStateStoreError(
+        "launch_not_active",
+        "Circuit cannot advance launch evidence for this run state."
+      );
+    }
+    const launch = StoredLaunchV1.parse(input.launch);
+    this.#assertLaunchAdvance(current.launch, launch);
+    const next = this.#parseRecord({
+      ...current,
+      revision: current.revision + 1,
+      updated_at: this.#now().toISOString(),
+      summary: input.summary ?? current.summary,
+      launch
+    });
+    const paths = this.pathsForRun(metadata.workspace, metadata.runId);
+    this.#assertHandleOwnsClaim(input.handle, metadata);
+    replaceJsonAtomic(paths.state_file, next);
+    metadata.revision = next.revision;
+    return next;
+  }
+  transitionRun(input) {
+    const metadata = this.#activeHandle(input.handle);
+    this.#assertHandleOwnsClaim(input.handle, metadata);
+    const current = this.readRun(metadata.workspace, metadata.runId);
+    if (current.revision !== metadata.revision) {
+      throw new McpStateStoreError(
+        "state_revision_changed",
+        "The run changed during this operation."
+      );
+    }
+    if (!ALLOWED_TRANSITIONS[current.state].has(input.to)) {
+      throw new McpStateStoreError(
+        "invalid_transition",
+        `Circuit cannot change a run from ${current.state} to ${input.to}.`
+      );
+    }
+    if (current.state === "recovery_required" && input.handle.claim.operation !== "recover") {
+      throw new McpStateStoreError(
+        "recovery_required",
+        "Only Circuit recovery may repair a recovery_required run."
+      );
+    }
+    if (input.to === "resuming") {
+      if (input.handle.claim.operation !== "resume" || input.handle.claim.checkpoint_binding_sha256 === void 0) {
+        throw new McpStateStoreError(
+          "resume_not_authorized",
+          "Resume requires the token-bound checkpoint operation claim."
+        );
+      }
+      if (input.handle.claim.checkpoint_binding_sha256 !== storedCheckpointBinding(current)) {
+        throw new McpStateStoreError(
+          "checkpoint_stale",
+          "This checkpoint changed before Circuit could resume it."
+        );
+      }
+      if (input.launch === void 0 || input.launch.phase !== "reserved" || input.launch.generation !== current.launch.generation + 1 || !sameProcessOwner(input.launch.allocation_owner, input.handle.claim.owner)) {
+        throw new McpStateStoreError(
+          "invalid_resume_generation",
+          "Resume must start a new reserved launch generation owned by its operation claimant."
+        );
+      }
+    } else if (input.launch !== void 0 && sha256OfJson(input.launch) !== sha256OfJson(current.launch)) {
+      if (current.state === "recovery_required" && input.handle.claim.operation === "recover" && current.launch.phase === "exited" && input.launch.phase === "exited") {
+        this.#assertRecoveryExitConfirmation(current.launch, input.launch);
+      } else {
+        this.#assertLaunchAdvance(current.launch, input.launch);
+      }
+    }
+    const {
+      checkpoint: _oldCheckpoint,
+      final_report: _oldFinal,
+      finished_at: _oldFinished,
+      ...base
+    } = current;
+    const terminal = TERMINAL_STATES.has(input.to);
+    const candidate2 = {
+      ...base,
+      revision: current.revision + 1,
+      state: input.to,
+      summary: input.summary,
+      updated_at: this.#now().toISOString(),
+      ...terminal ? { finished_at: this.#now().toISOString() } : {},
+      launch: input.launch ?? current.launch,
+      ...input.checkpoint === void 0 ? input.to === "waiting_for_input" && current.checkpoint !== void 0 ? { checkpoint: current.checkpoint } : {} : input.checkpoint === null ? {} : { checkpoint: input.checkpoint },
+      ...input.final_report === void 0 ? input.to === "complete" && current.final_report !== void 0 ? { final_report: current.final_report } : {} : input.final_report === null ? {} : { final_report: input.final_report },
+      ...input.failure === void 0 ? current.failure === void 0 ? {} : { failure: current.failure } : input.failure === null ? {} : { failure: input.failure },
+      ...input.recovery === void 0 ? current.recovery === void 0 ? {} : { recovery: current.recovery } : input.recovery === null ? {} : { recovery: input.recovery }
+    };
+    const next = this.#parseRecord(candidate2);
+    const paths = this.pathsForRun(metadata.workspace, metadata.runId);
+    const guard = terminal ? this.#acquireWorkspaceGuard(next.workspace, input.handle.claim.owner) : void 0;
+    try {
+      if (guard !== void 0) this.#beforeTerminalLeaseRelease(next);
+      this.#assertHandleOwnsClaim(input.handle, metadata);
+      replaceJsonAtomic(paths.state_file, next);
+      metadata.revision = next.revision;
+      if (guard !== void 0) {
+        this.#releaseLeaseForRecord(next, guard);
+      }
+      return next;
+    } finally {
+      if (guard !== void 0) this.#releaseWorkspaceGuard(guard);
+    }
+  }
+  releaseOperation(handle) {
+    const metadata = this.#activeHandle(handle);
+    const paths = this.pathsForRun(metadata.workspace, metadata.runId);
+    this.#assertHandleOwnsClaim(handle, metadata);
+    if (!createJsonExclusive(paths.operation_release_file, handle.claim)) {
+      const existing = readStrictJson(
+        paths.operation_release_file,
+        OperationClaimRecordV1,
+        MAX_CONTROL_BYTES,
+        "operation_claim_corrupt"
+      );
+      if (!sameOperationClaim(existing, handle.claim)) {
+        const repairGuard = this.#acquireWorkspaceGuard(metadata.workspace, handle.claim.owner);
+        try {
+          this.#assertHandleOwnsClaim(handle, metadata);
+          const currentRelease = readStrictJson(
+            paths.operation_release_file,
+            OperationClaimRecordV1,
+            MAX_CONTROL_BYTES,
+            "operation_claim_corrupt"
+          );
+          if (!sameOperationClaim(currentRelease, handle.claim)) {
+            replaceJsonAtomic(paths.operation_release_file, handle.claim);
+          }
+          metadata.released = true;
+          this.#clearReleasedOperation(paths);
+        } finally {
+          this.#releaseWorkspaceGuard(repairGuard);
+        }
+        return;
+      }
+    }
+    metadata.released = true;
+    let guard;
+    try {
+      guard = this.#acquireWorkspaceGuard(metadata.workspace, handle.claim.owner);
+    } catch (error51) {
+      if (error51 instanceof McpStateStoreError && (error51.code === "workspace_guard_busy" || error51.code === "workspace_guard_owner_unknown")) {
+        return;
+      }
+      throw error51;
+    }
+    try {
+      this.#clearReleasedOperation(paths);
+    } finally {
+      this.#releaseWorkspaceGuard(guard);
+    }
+  }
+  listRuns(workspace, options = {}) {
+    assertCurrentWorkspace(workspace);
+    const limit = options.limit ?? 20;
+    if (!Number.isInteger(limit) || limit < 1 || limit > 50) {
+      throw new McpStateStoreError(
+        "list_limit_invalid",
+        "Circuit list limit must be between 1 and 50."
+      );
+    }
+    for (let attempt = 0; attempt < 4; attempt += 1) {
+      try {
+        return this.#listRunsOnce(workspace, limit, options.checkpointAvailable);
+      } catch (error51) {
+        if (error51 instanceof McpStateStoreError && error51.code === "run_not_found") continue;
+        if (errorCode3(error51) === "ENOENT") continue;
+        throw error51;
+      }
+    }
+    throw new McpStateStoreError(
+      "state_read_busy",
+      "Circuit run history kept changing while it was listed."
+    );
+  }
+  #listRunsOnce(workspace, limit, checkpointAvailable) {
+    const workspaceRunsRoot = this.#workspaceRunsRoot(workspace, false);
+    if (!existsSync3(workspaceRunsRoot)) return { runs: [], truncated: false };
+    const matching = [];
+    const entries = readDirectoryBounded(
+      workspaceRunsRoot,
+      MAX_WORKSPACE_RUN_ENTRIES,
+      "state_limit_exceeded",
+      "Circuit MCP has too many retained runs for this workspace.",
+      "Run the Circuit MCP doctor before listing again."
+    ).filter((entry) => !entry.name.startsWith("."));
+    for (const entry of entries) {
+      if (!RUN_ID.safeParse(entry.name).success || !entry.isDirectory() || entry.isSymbolicLink()) {
+        throw new McpStateStoreError(
+          "state_corrupt",
+          "Circuit MCP contains an unexpected run entry."
+        );
+      }
+      const record2 = this.readRun(workspace, entry.name);
+      if (record2.run_id !== entry.name) {
+        throw new McpStateStoreError(
+          "state_corrupt",
+          "A Circuit run record does not match its private directory."
+        );
+      }
+      if (!sameWorkspace(record2.workspace, workspace)) {
+        throw new McpStateStoreError(
+          "state_corrupt",
+          "A Circuit run is stored under the wrong workspace."
+        );
+      }
+      matching.push(record2);
+    }
+    matching.sort(
+      (left, right) => right.updated_at.localeCompare(left.updated_at) || left.run_id.localeCompare(right.run_id)
+    );
+    const runs = matching.slice(0, limit).map(
+      (record2) => ({
+        run_id: record2.run_id,
+        flow: record2.request.flow,
+        state: record2.state,
+        updated_at: record2.updated_at,
+        checkpoint_available: record2.state === "waiting_for_input" && record2.checkpoint !== void 0 && (checkpointAvailable?.(record2) ?? false),
+        summary: record2.summary
+      })
+    );
+    return { runs, truncated: matching.length > limit };
+  }
+  pruneTerminalRuns(input) {
+    assertCurrentWorkspace(input.workspace);
+    const workspace = McpWorkspaceIdentityV1.parse(input.workspace);
+    const owner = ProcessOwnerIdentityV1.parse(input.owner);
+    if (!Number.isInteger(input.retain) || input.retain < 0 || input.retain > 500) {
+      throw new McpStateStoreError(
+        "retention_limit_invalid",
+        "Circuit retention must keep between 0 and 500 terminal runs."
+      );
+    }
+    const workspaceRunsRoot = this.#workspaceRunsRoot(workspace, false);
+    if (!existsSync3(workspaceRunsRoot)) {
+      return {
+        removed_run_ids: [],
+        retained_terminal_count: 0,
+        skipped_active_count: 0,
+        cleaned_interrupted_count: 0
+      };
+    }
+    const guard = this.#acquireWorkspaceGuard(workspace, owner);
+    try {
+      const entries = readDirectoryBounded(
+        workspaceRunsRoot,
+        MAX_RETENTION_SCAN_ENTRIES,
+        "retention_scan_limit_exceeded",
+        "Circuit MCP has too many retained entries to prune safely in one operation.",
+        "Run the Circuit MCP doctor before retrying retention."
+      );
+      let cleanedInterruptedCount = 0;
+      for (const entry of entries) {
+        const match = RETENTION_TOMBSTONE.exec(entry.name);
+        if (match === null) continue;
+        if (!RUN_ID.safeParse(match[1]).success || !RUN_ID.safeParse(match[2]).success || !entry.isDirectory() || entry.isSymbolicLink()) {
+          throw new McpStateStoreError(
+            "retention_state_corrupt",
+            "Circuit MCP contains an unsafe interrupted-retention entry."
+          );
+        }
+        const tombstone = join14(workspaceRunsRoot, entry.name);
+        assertPrivateDirectory2(tombstone);
+        this.#assertWorkspaceGuard(guard, workspace.key);
+        rmSync2(tombstone, { force: true, recursive: true });
+        fsyncDirectory2(workspaceRunsRoot);
+        cleanedInterruptedCount += 1;
+      }
+      const records = [];
+      for (const entry of entries) {
+        if (entry.name.startsWith(".")) continue;
+        if (!RUN_ID.safeParse(entry.name).success || !entry.isDirectory() || entry.isSymbolicLink()) {
+          throw new McpStateStoreError(
+            "retention_state_corrupt",
+            "Circuit MCP contains an unexpected run entry."
+          );
+        }
+        const record2 = this.readRun(workspace, entry.name);
+        if (record2.run_id !== entry.name) {
+          throw new McpStateStoreError(
+            "retention_state_corrupt",
+            "A Circuit run record does not match its private directory."
+          );
+        }
+        records.push(record2);
+      }
+      const terminal = records.filter((record2) => TERMINAL_STATES.has(record2.state)).sort(
+        (left, right) => right.updated_at.localeCompare(left.updated_at) || right.run_id.localeCompare(left.run_id)
+      );
+      let skippedActiveCount = records.length - terminal.length;
+      const removedRunIds = [];
+      for (const record2 of terminal.slice(input.retain)) {
+        const paths = this.pathsForRun(workspace, record2.run_id);
+        this.#clearReleasedOperation(paths);
+        if (existsSync3(paths.operation_file)) {
+          const claim = readStrictJson(
+            paths.operation_file,
+            OperationClaimRecordV1,
+            MAX_CONTROL_BYTES,
+            "operation_claim_corrupt"
+          );
+          const status = this.#inspectOwnerTree(claim.owner);
+          if (status !== "absent") {
+            skippedActiveCount += 1;
+            continue;
+          }
+          unlinkExactClaim(paths.operation_file, claim);
+        }
+        if (existsSync3(paths.lease_file)) {
+          const lease = readStrictJson(
+            paths.lease_file,
+            WorkspaceLeaseRecordV1,
+            MAX_CONTROL_BYTES,
+            "lease_corrupt"
+          );
+          if (lease.run_id === record2.run_id && lease.lease_id === record2.lease_id) {
+            this.#assertWorkspaceGuard(guard, workspace.key);
+            unlinkExactLease(paths.lease_file, lease);
+          }
+        }
+        const tombstone = join14(
+          workspaceRunsRoot,
+          `.retention.${record2.run_id}.${RUN_ID.parse(this.#randomId())}.tmp`
+        );
+        this.#assertWorkspaceGuard(guard, workspace.key);
+        renameSync(paths.run_dir, tombstone);
+        fsyncDirectory2(workspaceRunsRoot);
+        rmSync2(tombstone, { force: true, recursive: true });
+        fsyncDirectory2(workspaceRunsRoot);
+        removedRunIds.push(record2.run_id);
+      }
+      removedRunIds.sort();
+      return {
+        removed_run_ids: removedRunIds,
+        retained_terminal_count: terminal.length - removedRunIds.length,
+        skipped_active_count: skippedActiveCount,
+        cleaned_interrupted_count: cleanedInterruptedCount
+      };
+    } finally {
+      this.#releaseWorkspaceGuard(guard);
+    }
+  }
+  recoverRun(input) {
+    const before = this.readRun(input.workspace, input.run_id);
+    if (before.state !== "recovery_required") {
+      throw new McpStateStoreError(
+        "run_not_recoverable",
+        "Only a recovery_required run can be recovered."
+      );
+    }
+    const acquired = this.acquireOperation({
+      workspace: input.workspace,
+      run_id: input.run_id,
+      operation: "recover",
+      owner: input.owner
+    });
+    if (!acquired.ok) throw new McpStateStoreError(acquired.code, acquired.message);
+    try {
+      const current = this.readRun(input.workspace, input.run_id);
+      if (current.state !== "recovery_required" || current.recovery === void 0) {
+        throw new McpStateStoreError("run_not_recoverable", "The run no longer needs recovery.");
+      }
+      const proof = this.#recoveryProof(current);
+      if (proof.includes("alive")) {
+        throw new McpStateStoreError(
+          "recovery_process_alive",
+          "Circuit found a process that may still belong to this run."
+        );
+      }
+      if (proof.includes("unknown")) {
+        throw new McpStateStoreError(
+          "recovery_process_unknown",
+          "Circuit could not prove that every process from this run is absent."
+        );
+      }
+      const now = this.#now().toISOString();
+      const launch = {
+        ...current.launch,
+        phase: "exited",
+        exit: {
+          ...current.launch.exit?.exit_code === void 0 ? {} : { exit_code: current.launch.exit.exit_code },
+          ...current.launch.exit?.signal === void 0 ? {} : { signal: current.launch.exit.signal },
+          observed_at: current.launch.exit?.observed_at ?? now,
+          process_group_cleanup: "confirmed"
+        }
+      };
+      const record2 = this.transitionRun({
+        handle: acquired.handle,
+        to: current.recovery.cancellation_requested ? "cancelled" : "interrupted",
+        summary: current.recovery.cancellation_requested ? "Circuit observed that its recorded owned process group is absent and closed the cancelled run." : "Circuit observed that its recorded owned process group is absent and marked the run interrupted.",
+        launch,
+        checkpoint: null,
+        recovery: {
+          ...current.recovery,
+          last_checked_at: now,
+          ...current.launch.phase === "reserved" ? { owner_status: "absent" } : {
+            supervisor_status: "absent",
+            ...current.launch.runtime === void 0 ? {} : { runtime_status: "absent" },
+            process_group_status: "absent"
+          }
+        }
+      });
+      return { record: record2, cleanup_confirmed: true, lease_released: true };
+    } finally {
+      this.releaseOperation(acquired.handle);
+    }
+  }
+  reconcileTerminalLease(workspace, runId, owner) {
+    const guard = this.#acquireWorkspaceGuard(workspace, owner);
+    try {
+      const record2 = this.readRun(workspace, runId);
+      if (!TERMINAL_STATES.has(record2.state)) return false;
+      const leasePath = this.pathsForRun(workspace, runId).lease_file;
+      if (!existsSync3(leasePath)) return false;
+      const lease = readStrictJson(
+        leasePath,
+        WorkspaceLeaseRecordV1,
+        MAX_CONTROL_BYTES,
+        "lease_corrupt"
+      );
+      if (lease.run_id !== record2.run_id || lease.lease_id !== record2.lease_id) return false;
+      this.#releaseLeaseForRecord(record2, guard);
+      return true;
+    } finally {
+      this.#releaseWorkspaceGuard(guard);
+    }
+  }
+  #workspaceRunsRoot(workspace, create) {
+    const path = join14(this.runsRoot, workspace.key);
+    if (create) ensurePrivateDirectory(path);
+    else if (existsSync3(path)) assertPrivateDirectory2(path);
+    return path;
+  }
+  #parseRecord(value) {
+    const parsed = McpRunRecordV1.safeParse(value);
+    if (!parsed.success) {
+      throw new McpStateStoreError("invalid_state_record", "Circuit refused an invalid run state.");
+    }
+    return parsed.data;
+  }
+  #registerHandle(workspace, runId, revision, claim) {
+    const handle = { claim };
+    this.#handles.set(handle, { workspace, runId, revision, released: false });
+    return { ok: true, handle };
+  }
+  #completeClaimAcquisition(workspace, runId, claim) {
+    const paths = this.pathsForRun(workspace, runId);
+    let effectiveClaim = claim;
+    try {
+      const current = this.readRun(workspace, runId);
+      if (effectiveClaim.operation === "resume" && (current.state !== "waiting_for_input" || effectiveClaim.checkpoint_binding_sha256 === void 0 || effectiveClaim.checkpoint_binding_sha256 !== storedCheckpointBinding(current))) {
+        throw new McpStateStoreError(
+          "checkpoint_stale",
+          "This checkpoint changed before Circuit won the resume claim."
+        );
+      }
+      if (current.revision !== claim.expected_revision) {
+        effectiveClaim = OperationClaimRecordV1.parse({
+          ...claim,
+          expected_revision: current.revision
+        });
+        replaceJsonAtomic(paths.operation_file, effectiveClaim);
+      }
+      return this.#registerHandle(workspace, runId, current.revision, effectiveClaim);
+    } catch (error51) {
+      try {
+        unlinkExactClaim(paths.operation_file, effectiveClaim);
+      } catch {
+      }
+      throw error51;
+    }
+  }
+  #activeHandle(handle) {
+    const metadata = this.#handles.get(handle);
+    if (metadata === void 0 || metadata.released) {
+      throw new McpStateStoreError(
+        "operation_claim_invalid",
+        "This operation claim is not active."
+      );
+    }
+    return metadata;
+  }
+  #assertHandleOwnsClaim(handle, metadata) {
+    const path = this.pathsForRun(metadata.workspace, metadata.runId).operation_file;
+    const current = readStrictJson(
+      path,
+      OperationClaimRecordV1,
+      MAX_CONTROL_BYTES,
+      "operation_claim_corrupt"
+    );
+    if (current.claim_id !== handle.claim.claim_id || current.run_id !== handle.claim.run_id || current.workspace_key !== handle.claim.workspace_key || current.operation !== handle.claim.operation || !sameProcessOwner(current.owner, handle.claim.owner)) {
+      throw new McpStateStoreError(
+        "operation_claim_changed",
+        "This operation no longer owns the run claim."
+      );
+    }
+  }
+  #clearReleasedOperation(paths) {
+    if (!existsSync3(paths.operation_release_file)) return;
+    const release = readStrictJson(
+      paths.operation_release_file,
+      OperationClaimRecordV1,
+      MAX_CONTROL_BYTES,
+      "operation_claim_corrupt"
+    );
+    try {
+      const current = readStrictJson(
+        paths.operation_file,
+        OperationClaimRecordV1,
+        MAX_CONTROL_BYTES,
+        "operation_claim_corrupt"
+      );
+      if (sameOperationClaim(current, release)) unlinkExactClaim(paths.operation_file, current);
+    } catch (error51) {
+      if (errorCode3(error51) !== "ENOENT") throw error51;
+    }
+    unlinkExactClaim(paths.operation_release_file, release);
+  }
+  #clearReleaseMarkerForClaim(paths, expected) {
+    if (!existsSync3(paths.operation_release_file)) return;
+    const release = readStrictJson(
+      paths.operation_release_file,
+      OperationClaimRecordV1,
+      MAX_CONTROL_BYTES,
+      "operation_claim_corrupt"
+    );
+    if (sameOperationClaim(release, expected)) {
+      unlinkExactClaim(paths.operation_release_file, release);
+    }
+  }
+  #inspectOwnerTree(owner) {
+    return this.#inspectProcess(owner);
+  }
+  #acquireWorkspaceGuard(workspace, owner) {
+    const guardPath = join14(this.leasesRoot, `${workspace.key}.guard.json`);
+    const reclaimPath = join14(this.leasesRoot, `${workspace.key}.guard.reclaim.json`);
+    const desired = WorkspaceGuardRecordV1.parse({
+      schema_version: 1,
+      record_kind: "circuit.mcp.workspace-guard",
+      guard_id: RUN_ID.parse(this.#randomId()),
+      workspace_key: workspace.key,
+      owner,
+      acquired_at: this.#now().toISOString()
+    });
+    for (let attempt = 0; attempt < 8; attempt += 1) {
+      if (createJsonExclusive(guardPath, desired)) {
+        return { path: guardPath, record: desired, released: false };
+      }
+      let existing;
+      try {
+        existing = readStrictJson(
+          guardPath,
+          WorkspaceGuardRecordV1,
+          MAX_CONTROL_BYTES,
+          "workspace_guard_corrupt"
+        );
+      } catch (error51) {
+        if (errorCode3(error51) === "ENOENT") continue;
+        throw error51;
+      }
+      const status = this.#inspectOwnerTree(existing.owner);
+      if (status !== "absent") {
+        throw new McpStateStoreError(
+          status === "alive" ? "workspace_guard_busy" : "workspace_guard_owner_unknown",
+          status === "alive" ? "Another Circuit process is changing this workspace lease." : "Circuit cannot prove whether another process still owns the workspace guard."
+        );
+      }
+      const reclaim = WorkspaceGuardRecordV1.parse({
+        ...desired,
+        record_kind: "circuit.mcp.workspace-guard-reclaim",
+        guard_id: RUN_ID.parse(this.#randomId())
+      });
+      if (!createJsonExclusive(reclaimPath, reclaim)) {
+        let existingReclaim;
+        try {
+          existingReclaim = readStrictJson(
+            reclaimPath,
+            WorkspaceGuardRecordV1,
+            MAX_CONTROL_BYTES,
+            "workspace_guard_corrupt"
+          );
+        } catch (error51) {
+          if (errorCode3(error51) === "ENOENT") continue;
+          throw error51;
+        }
+        const reclaimStatus = this.#inspectOwnerTree(existingReclaim.owner);
+        if (reclaimStatus !== "absent") {
+          throw new McpStateStoreError(
+            reclaimStatus === "alive" ? "workspace_guard_busy" : "workspace_guard_owner_unknown",
+            "Another Circuit process may be reclaiming this workspace guard."
+          );
+        }
+        unlinkExactWorkspaceGuard(reclaimPath, existingReclaim);
+        continue;
+      }
+      try {
+        let current;
+        try {
+          current = readStrictJson(
+            guardPath,
+            WorkspaceGuardRecordV1,
+            MAX_CONTROL_BYTES,
+            "workspace_guard_corrupt"
+          );
+        } catch (error51) {
+          if (errorCode3(error51) !== "ENOENT") throw error51;
+          if (!createJsonExclusive(guardPath, desired)) continue;
+          return { path: guardPath, record: desired, released: false };
+        }
+        if (current.guard_id !== existing.guard_id) continue;
+        const currentStatus = this.#inspectOwnerTree(current.owner);
+        if (currentStatus !== "absent") {
+          throw new McpStateStoreError(
+            currentStatus === "alive" ? "workspace_guard_busy" : "workspace_guard_owner_unknown",
+            "Another Circuit process may still own this workspace guard."
+          );
+        }
+        unlinkExactWorkspaceGuard(guardPath, current);
+        if (!createJsonExclusive(guardPath, desired)) continue;
+        return { path: guardPath, record: desired, released: false };
+      } finally {
+        unlinkExactWorkspaceGuard(reclaimPath, reclaim);
+      }
+    }
+    throw new McpStateStoreError(
+      "workspace_guard_busy",
+      "Circuit could not acquire the workspace lease guard."
+    );
+  }
+  #assertWorkspaceGuard(handle, workspaceKeyValue) {
+    if (handle.released || handle.record.workspace_key !== workspaceKeyValue) {
+      throw new McpStateStoreError(
+        "workspace_guard_changed",
+        "This operation no longer owns the workspace guard."
+      );
+    }
+    const current = readStrictJson(
+      handle.path,
+      WorkspaceGuardRecordV1,
+      MAX_CONTROL_BYTES,
+      "workspace_guard_corrupt"
+    );
+    if (current.guard_id !== handle.record.guard_id || !sameProcessOwner(current.owner, handle.record.owner)) {
+      throw new McpStateStoreError(
+        "workspace_guard_changed",
+        "This operation no longer owns the workspace guard."
+      );
+    }
+  }
+  #releaseWorkspaceGuard(handle) {
+    if (handle.released) {
+      throw new McpStateStoreError(
+        "workspace_guard_changed",
+        "This workspace guard was already released."
+      );
+    }
+    unlinkExactWorkspaceGuard(handle.path, handle.record);
+    handle.released = true;
+  }
+  #releaseLeaseForRecord(record2, guard) {
+    this.#assertWorkspaceGuard(guard, record2.workspace.key);
+    const leasePath = join14(this.leasesRoot, `${record2.workspace.key}.json`);
+    if (!existsSync3(leasePath)) return;
+    const lease = readStrictJson(
+      leasePath,
+      WorkspaceLeaseRecordV1,
+      MAX_CONTROL_BYTES,
+      "lease_corrupt"
+    );
+    if (!sameWorkspace(lease.workspace, record2.workspace)) {
+      throw new McpStateStoreError(
+        "lease_changed",
+        "The workspace lease identity does not match this run."
+      );
+    }
+    if (lease.run_id !== record2.run_id || lease.lease_id !== record2.lease_id) return;
+    this.#assertWorkspaceGuard(guard, record2.workspace.key);
+    unlinkExactLease(leasePath, lease);
+  }
+  #reconcileLeaseUnderGuard(workspace, leasePath, guard) {
+    this.#assertWorkspaceGuard(guard, workspace.key);
+    if (!existsSync3(leasePath)) return;
+    const lease = readStrictJson(
+      leasePath,
+      WorkspaceLeaseRecordV1,
+      MAX_CONTROL_BYTES,
+      "lease_corrupt"
+    );
+    if (!sameWorkspace(lease.workspace, workspace)) {
+      throw new McpStateStoreError("lease_changed", "The workspace lease identity does not match.");
+    }
+    const workspaceRunsRoot = this.#workspaceRunsRoot(workspace, true);
+    const published = join14(workspaceRunsRoot, lease.run_id);
+    if (existsSync3(published)) {
+      const record2 = this.readRun(workspace, lease.run_id);
+      if (record2.lease_id !== lease.lease_id) {
+        throw new McpStateStoreError(
+          "lease_changed",
+          "The published run does not match its lease."
+        );
+      }
+      if (TERMINAL_STATES.has(record2.state) && record2.launch.exit?.process_group_cleanup === "confirmed") {
+        this.#assertWorkspaceGuard(guard, workspace.key);
+        unlinkExactLease(leasePath, lease);
+        return;
+      }
+      throw new McpStateStoreError(
+        "workspace_busy",
+        "Another Circuit run already owns this workspace."
+      );
+    }
+    const status = this.#inspectOwnerTree(lease.allocation_owner);
+    if (status !== "absent") {
+      throw new McpStateStoreError(
+        "workspace_busy",
+        status === "alive" ? "Another Circuit start still owns this workspace." : "Circuit cannot prove that an interrupted start released this workspace."
+      );
+    }
+    const staging = join14(workspaceRunsRoot, lease.staging_name);
+    if (existsSync3(staging)) rmSync2(staging, { force: true, recursive: true });
+    this.#assertWorkspaceGuard(guard, workspace.key);
+    unlinkExactLease(leasePath, lease);
+  }
+  #reconcileOrphanStagingUnderGuard(workspace, guard, preserveName) {
+    this.#assertWorkspaceGuard(guard, workspace.key);
+    const workspaceRunsRoot = this.#workspaceRunsRoot(workspace, true);
+    const leasePath = join14(this.leasesRoot, `${workspace.key}.json`);
+    const lease = existsSync3(leasePath) ? readStrictJson(leasePath, WorkspaceLeaseRecordV1, MAX_CONTROL_BYTES, "lease_corrupt") : void 0;
+    if (lease !== void 0 && !sameWorkspace(lease.workspace, workspace)) {
+      throw new McpStateStoreError("lease_changed", "The workspace lease identity does not match.");
+    }
+    const entries = readDirectoryBounded(
+      workspaceRunsRoot,
+      MAX_RETENTION_SCAN_ENTRIES,
+      "state_limit_exceeded",
+      "Circuit MCP has too many private run entries to reconcile safely.",
+      "Run the Circuit MCP doctor before starting another run."
+    );
+    for (const entry of entries) {
+      if (entry.name === preserveName || !entry.name.startsWith(".") || RETENTION_TOMBSTONE.test(entry.name)) {
+        continue;
+      }
+      const match = START_STAGING_DIRECTORY.exec(entry.name);
+      if (match === null || !RUN_ID.safeParse(match[1]).success || !RUN_ID.safeParse(match[2]).success || !entry.isDirectory() || entry.isSymbolicLink()) {
+        throw new McpStateStoreError(
+          "state_corrupt",
+          "Circuit MCP contains an unsafe start-staging entry."
+        );
+      }
+      if (lease?.staging_name === entry.name) continue;
+      const stagingPath = join14(workspaceRunsRoot, entry.name);
+      assertPrivateDirectory2(stagingPath);
+      const statePath = join14(stagingPath, "state.json");
+      if (!existsSync3(statePath)) {
+        this.#assertWorkspaceGuard(guard, workspace.key);
+        rmSync2(stagingPath, { force: true, recursive: true });
+        fsyncDirectory2(workspaceRunsRoot);
+        continue;
+      }
+      const record2 = readStrictJson(statePath, McpRunRecordV1, MAX_STATE_BYTES, "state_corrupt");
+      if (record2.run_id !== match[1] || record2.lease_id !== match[2] || !sameWorkspace(record2.workspace, workspace) || record2.revision !== 0 || record2.state !== "starting" || record2.launch.phase !== "reserved") {
+        throw new McpStateStoreError(
+          "state_corrupt",
+          "Circuit MCP found an invalid unleased start-staging record."
+        );
+      }
+      const status = this.#inspectOwnerTree(record2.launch.allocation_owner);
+      if (status === "alive") {
+        throw new McpStateStoreError(
+          "workspace_busy",
+          "Another Circuit start may still be preparing this workspace."
+        );
+      }
+      if (status === "unknown") {
+        throw new McpStateStoreError(
+          "workspace_owner_unknown",
+          "Circuit cannot prove whether an interrupted start still owns this workspace."
+        );
+      }
+      this.#assertWorkspaceGuard(guard, workspace.key);
+      rmSync2(stagingPath, { force: true, recursive: true });
+      fsyncDirectory2(workspaceRunsRoot);
+    }
+  }
+  #assertLaunchAdvance(current, next) {
+    if (current.generation !== next.generation || !ALLOWED_LAUNCH_TRANSITIONS[current.phase].has(next.phase)) {
+      throw new McpStateStoreError(
+        "invalid_launch_transition",
+        `Circuit cannot advance launch phase from ${current.phase} to ${next.phase}.`
+      );
+    }
+    if (!sameProcessOwner(current.allocation_owner, next.allocation_owner)) {
+      throw new McpStateStoreError(
+        "launch_identity_changed",
+        "The saved launch owner changed during launch."
+      );
+    }
+    if (current.supervisor !== void 0 && (next.supervisor === void 0 || !sameProcessIdentity(current.supervisor, next.supervisor))) {
+      throw new McpStateStoreError(
+        "launch_identity_changed",
+        "The saved supervisor identity changed during launch."
+      );
+    }
+    if (current.runtime !== void 0 && (next.runtime === void 0 || !sameProcessIdentity(current.runtime, next.runtime))) {
+      throw new McpStateStoreError(
+        "launch_identity_changed",
+        "The saved runtime identity changed during launch."
+      );
+    }
+    if (current.authorization_sha256 !== void 0 && (next.authorization_sha256 !== current.authorization_sha256 || next.authorized_at !== current.authorized_at)) {
+      throw new McpStateStoreError(
+        "launch_authorization_changed",
+        "The saved launch authorization changed."
+      );
+    }
+    if (next.phase === "exited" && (current.supervisor === void 0 && next.supervisor !== void 0 || current.runtime === void 0 && next.runtime !== void 0 || current.authorization_sha256 === void 0 && next.authorization_sha256 !== void 0)) {
+      throw new McpStateStoreError(
+        "launch_evidence_skipped",
+        "Process and authorization evidence must be durable before launch exit."
+      );
+    }
+  }
+  #assertRecoveryExitConfirmation(current, next) {
+    if (current.exit === void 0 || next.exit === void 0 || current.exit.process_group_cleanup !== "unconfirmed" || next.exit.process_group_cleanup !== "confirmed") {
+      throw new McpStateStoreError(
+        "invalid_recovery_evidence",
+        "Recovery may only change cleanup evidence from unconfirmed to confirmed."
+      );
+    }
+    const { exit: currentExit, ...currentLaunch } = current;
+    const { exit: nextExit, ...nextLaunch } = next;
+    const { process_group_cleanup: _currentCleanup, ...currentExitEvidence } = currentExit;
+    const { process_group_cleanup: _nextCleanup, ...nextExitEvidence } = nextExit;
+    if (sha256OfJson(currentLaunch) !== sha256OfJson(nextLaunch) || sha256OfJson(currentExitEvidence) !== sha256OfJson(nextExitEvidence)) {
+      throw new McpStateStoreError(
+        "invalid_recovery_evidence",
+        "Recovery cannot replace saved launch or exit evidence."
+      );
+    }
+  }
+  #recoveryProof(record2) {
+    if (record2.launch.phase === "reserved") {
+      return [this.#inspectProcess(record2.launch.allocation_owner)];
+    }
+    if (record2.launch.supervisor === void 0) {
+      return record2.launch.runtime === void 0 ? [this.#inspectProcess(record2.launch.allocation_owner)] : ["unknown"];
+    }
+    const supervisorStatus = this.#inspectProcess(record2.launch.supervisor);
+    const supervisorGroupStatus = this.#inspectProcessGroup(record2.launch.supervisor);
+    const statuses = [supervisorStatus, supervisorGroupStatus];
+    if (record2.launch.authorization_sha256 !== void 0 && record2.launch.runtime === void 0) {
+      if (supervisorStatus !== "absent" || supervisorGroupStatus !== "absent") {
+        return statuses;
+      }
+      return [...statuses, this.#inspectProcessToken(record2.launch.authorization_sha256)];
+    }
+    if (record2.launch.runtime !== void 0) {
+      statuses.push(this.#inspectProcess(record2.launch.runtime));
+      if (record2.launch.runtime.process_group_id !== record2.launch.supervisor.process_group_id) {
+        statuses.push(this.#inspectProcessGroup(record2.launch.runtime));
+      }
+    }
+    return statuses;
+  }
+};
+
+// src/hosts/codex-mcp/supervisor-launcher.ts
+import { spawn as spawn2 } from "node:child_process";
+import { createHash as createHash9, randomBytes, randomUUID as randomUUID4 } from "node:crypto";
+import { Readable, Writable } from "node:stream";
+import { setTimeout as delay4 } from "node:timers/promises";
+
+// src/hosts/codex-mcp/supervisor-runtime.ts
+var MCP_PROCESS_TOKEN_ARGUMENT = "--circuit-mcp-process-token=";
+var BoundedLineReader = class {
+  #stream;
+  #buffer = Buffer.alloc(0);
+  #ended = false;
+  #waiters = [];
+  #error;
+  constructor(stream) {
+    this.#stream = stream;
+    stream.on("data", (chunk) => {
+      const bytes = typeof chunk === "string" ? Buffer.from(chunk) : chunk;
+      this.#buffer = Buffer.concat([this.#buffer, bytes]);
+      if (this.#buffer.byteLength > MAX_SUPERVISOR_MESSAGE_BYTES) {
+        this.#error = new Error("supervisor message exceeds the protocol limit");
+        stream.destroy(this.#error);
+      }
+      this.#wake();
+    });
+    stream.once("end", () => {
+      this.#ended = true;
+      this.#wake();
+    });
+    stream.once("error", (error51) => {
+      this.#error = error51;
+      this.#wake();
+    });
+  }
+  async read(timeoutMs) {
+    const deadline = timeoutMs === void 0 ? void 0 : Date.now() + timeoutMs;
+    while (true) {
+      if (this.#error !== void 0) throw this.#error;
+      const newline = this.#buffer.indexOf(10);
+      if (newline >= 0) {
+        const line = this.#buffer.subarray(0, newline);
+        this.#buffer = this.#buffer.subarray(newline + 1);
+        return line;
+      }
+      if (this.#ended) throw new Error("supervisor channel closed before a complete message");
+      const remaining = deadline === void 0 ? void 0 : deadline - Date.now();
+      if (remaining !== void 0 && remaining <= 0) {
+        throw new Error("supervisor channel timed out");
+      }
+      await new Promise((resolve12, reject) => {
+        let timer;
+        const wake = () => {
+          if (timer !== void 0) clearTimeout(timer);
+          resolve12();
+        };
+        this.#waiters.push(wake);
+        if (remaining !== void 0) {
+          timer = setTimeout(() => {
+            const index = this.#waiters.indexOf(wake);
+            if (index >= 0) this.#waiters.splice(index, 1);
+            reject(new Error("supervisor channel timed out"));
+          }, remaining);
+          timer.unref();
+        }
+      });
+    }
+  }
+  #wake() {
+    for (const waiter of this.#waiters.splice(0)) waiter();
+  }
+};
+
+// src/hosts/codex-mcp/supervisor-launcher.ts
+async function stopAndConfirmSupervisor(identity2, probe, timeoutMs) {
+  const initial = await probe.inspectProcessGroup(identity2);
+  if (initial === "absent") return true;
+  if (initial === "unknown") return false;
+  const signal = await probe.signalOwnedProcessGroup(identity2, "SIGKILL");
+  if (signal === "unknown") return false;
+  const deadline = Date.now() + timeoutMs;
+  while (Date.now() < deadline) {
+    const status = await probe.inspectProcessGroup(identity2);
+    if (status === "absent") return true;
+    await delay4(20);
+  }
+  return await probe.inspectProcessGroup(identity2) === "absent";
+}
+var SupervisorLaunchError = class extends Error {
+  cleanup_confirmed;
+  constructor(message, cleanupConfirmed) {
+    super(message);
+    this.name = "SupervisorLaunchError";
+    this.cleanup_confirmed = cleanupConfirmed;
+  }
+};
+function writeAuthorization(channel, value) {
+  const bytes = encodeSupervisorMessage(value);
+  return new Promise((resolve12, reject) => {
+    channel.end(bytes, (error51) => {
+      if (error51 === null || error51 === void 0) resolve12();
+      else reject(error51);
+    });
+  });
+}
+async function withTimeout(work, timeoutMs, message) {
+  let timer;
+  const timeout = new Promise((_resolve, reject) => {
+    timer = setTimeout(() => reject(new Error(message)), timeoutMs);
+    timer.unref();
+  });
+  try {
+    return await Promise.race([work, timeout]);
+  } finally {
+    if (timer !== void 0) clearTimeout(timer);
+  }
+}
+function processIdentity(observation, executable) {
+  return { ...observation, executable };
+}
+function childChannel(child, index) {
+  const channel = child.stdio[index];
+  if (channel === null || channel === void 0) {
+    throw new Error(`supervisor channel ${index} is unavailable`);
+  }
+  return channel;
+}
+var ProcessSupervisorLauncher = class {
+  #options;
+  constructor(options) {
+    const workerStartMs = options.workerStartMs ?? 5e3;
+    const terminateMs = options.terminateMs ?? 3e3;
+    const killMs = options.killMs ?? 3e3;
+    this.#options = {
+      ...options,
+      environment: mcpTransientEnvironment(options.environment ?? process.env),
+      helloTimeoutMs: options.helloTimeoutMs ?? 5e3,
+      // The supervisor can spend each of these windows starting and cleaning
+      // a worker before it reports failure. Keep the parent bound larger, but
+      // finite, so a supervisor that goes silent cannot pin the operation.
+      authorizationTimeoutMs: options.authorizationTimeoutMs ?? workerStartMs * 2 + terminateMs + killMs + 1e4,
+      workerStartMs,
+      terminateMs,
+      killMs,
+      stdoutBytes: options.stdoutBytes ?? 16 * 1048576,
+      stderrBytes: options.stderrBytes ?? 1048576,
+      processProbe: options.processProbe ?? createMacOsProcessProbe(),
+      spawnProcess: options.spawnProcess ?? ((executable, args, spawnOptions) => spawn2(executable, [...args], spawnOptions))
+    };
+  }
+  async begin(input) {
+    try {
+      await this.#options.verifySupervisorEntrypoint();
+    } catch (error51) {
+      const message = error51 instanceof Error ? error51.message : String(error51);
+      throw new SupervisorLaunchError(message, true);
+    }
+    const supervisorBirthToken = randomUUID4();
+    let child;
+    try {
+      child = this.#options.spawnProcess(
+        this.#options.nodeExecutable,
+        [
+          this.#options.supervisorEntrypoint,
+          `${MCP_PROCESS_TOKEN_ARGUMENT}${supervisorBirthToken}`
+        ],
+        {
+          cwd: input.control_directory,
+          detached: true,
+          env: this.#options.environment,
+          stdio: ["ignore", "ignore", "pipe", "pipe", "pipe"]
+        }
+      );
+    } catch (error51) {
+      const message = error51 instanceof Error ? error51.message : String(error51);
+      throw new SupervisorLaunchError(message, true);
+    }
+    const childError = new Promise((resolve12) => {
+      child.once("error", (error51) => resolve12(error51));
+    });
+    if (child.pid === void 0) {
+      const error51 = await Promise.race([
+        childError,
+        delay4(100).then(() => new Error("supervisor did not provide a process ID"))
+      ]);
+      throw new SupervisorLaunchError(error51.message, true);
+    }
+    const childPid = child.pid;
+    const expectedSupervisorIdentity = {
+      pid: childPid,
+      process_group_id: childPid,
+      birth_token: supervisorBirthToken,
+      started_at: (/* @__PURE__ */ new Date()).toISOString(),
+      executable: this.#options.nodeIdentity
+    };
+    const supervisorStderr = child.stderr;
+    let stderrText = "";
+    supervisorStderr?.on("data", (chunk) => {
+      if (stderrText.length >= 8192) return;
+      stderrText += Buffer.from(chunk).toString("utf8").slice(0, 8192 - stderrText.length);
+    });
+    let authorization;
+    let responses;
+    let reader;
+    let hello;
+    try {
+      const authorizationChannel = childChannel(child, 3);
+      if (!(authorizationChannel instanceof Writable)) {
+        throw new Error("supervisor authorization pipe is invalid");
+      }
+      authorization = authorizationChannel;
+      const responseChannel = childChannel(child, 4);
+      if (!(responseChannel instanceof Readable)) {
+        throw new Error("supervisor response pipe is invalid");
+      }
+      responses = responseChannel;
+      reader = new BoundedLineReader(responses);
+      hello = decodeSupervisorMessage(
+        await reader.read(this.#options.helloTimeoutMs),
+        SupervisorHelloV1
+      );
+      if (hello.supervisor.pid !== childPid || hello.supervisor.process_group_id !== childPid) {
+        throw new Error("supervisor identity does not match its spawned process group");
+      }
+      if (hello.supervisor.birth_token !== supervisorBirthToken) {
+        throw new Error("supervisor identity token does not match its spawned process");
+      }
+    } catch (error51) {
+      const confirmed = await stopAndConfirmSupervisor(
+        expectedSupervisorIdentity,
+        this.#options.processProbe,
+        this.#options.killMs
+      );
+      const baseMessage = error51 instanceof Error ? error51.message : String(error51);
+      const message = stderrText.trim().length === 0 ? baseMessage : `${baseMessage}: ${stderrText.trim()}`;
+      throw new SupervisorLaunchError(message, confirmed);
+    }
+    const authorizationToken = randomBytes(32).toString("hex");
+    const authorizationSha256 = createHash9("sha256").update(authorizationToken, "utf8").digest("hex");
+    let used = false;
+    let closed = false;
+    const supervisorIdentity = processIdentity(hello.supervisor, this.#options.nodeIdentity);
+    return {
+      supervisor: supervisorIdentity,
+      authorization_token: authorizationToken,
+      authorization_sha256: authorizationSha256,
+      authorize: async ({ worker }) => {
+        if (used || closed) throw new Error("supervisor launch session is already closed");
+        used = true;
+        try {
+          const message = await withTimeout(
+            (async () => {
+              await writeAuthorization(authorization, {
+                schema_version: 1,
+                kind: "launch_authorization",
+                authorization_token: authorizationToken,
+                run_id: input.run_id,
+                generation: input.generation,
+                control_directory: input.control_directory,
+                runtime_assets: input.runtime_assets,
+                worker: {
+                  node_executable: this.#options.nodeExecutable,
+                  entrypoint: worker.worker_entrypoint,
+                  launch_payload: worker.launch_payload
+                },
+                limits: {
+                  worker_start_ms: this.#options.workerStartMs,
+                  terminate_ms: this.#options.terminateMs,
+                  kill_ms: this.#options.killMs,
+                  stdout_bytes: this.#options.stdoutBytes,
+                  stderr_bytes: this.#options.stderrBytes
+                }
+              });
+              return decodeSupervisorMessage(await reader.read(), SupervisorMessageV1);
+            })(),
+            this.#options.authorizationTimeoutMs,
+            "supervisor authorization timed out"
+          );
+          if (message.kind === "launch_failed") {
+            const supervisorCleanupConfirmed = await stopAndConfirmSupervisor(
+              supervisorIdentity,
+              this.#options.processProbe,
+              this.#options.killMs
+            );
+            throw new SupervisorLaunchError(
+              message.message,
+              message.cleanup_confirmed && supervisorCleanupConfirmed
+            );
+          }
+          const started = SupervisorRuntimeStartedV1.parse(message);
+          if (started.authorization_sha256 !== authorizationSha256) {
+            throw new Error("supervisor returned the wrong launch authorization");
+          }
+          if (started.runtime.birth_token !== authorizationSha256) {
+            throw new Error("supervisor returned a worker identity with the wrong launch token");
+          }
+          if (started.runtime.pid !== started.runtime.process_group_id || started.runtime.pid === hello.supervisor.pid) {
+            throw new Error("worker identity does not name its own process group");
+          }
+          closed = true;
+          return processIdentity(started.runtime, this.#options.nodeIdentity);
+        } catch (error51) {
+          if (error51 instanceof SupervisorLaunchError) throw error51;
+          await stopAndConfirmSupervisor(
+            supervisorIdentity,
+            this.#options.processProbe,
+            this.#options.killMs
+          );
+          const message = error51 instanceof Error ? error51.message : String(error51);
+          throw new SupervisorLaunchError(message, false);
+        } finally {
+          responses.destroy();
+          supervisorStderr?.destroy();
+          child.unref();
+        }
+      },
+      closeBeforeAuthorization: async () => {
+        if (used || closed) return false;
+        closed = true;
+        authorization.destroy();
+        responses.destroy();
+        supervisorStderr?.destroy();
+        return await stopAndConfirmSupervisor(
+          supervisorIdentity,
+          this.#options.processProbe,
+          this.#options.killMs
+        );
+      }
+    };
+  }
+};
+
+// src/hosts/codex-mcp/production-runtime.ts
+var PLUGIN_RUNTIME_FILES = [
+  ["manifest", ".codex-plugin/plugin.json"],
+  ["config", ".mcp.json"],
+  ["server_shim", "mcp/server.cjs"],
+  ["server", "mcp/server.mjs"],
+  ["supervisor", "mcp/supervisor.mjs"],
+  ["worker", "mcp/worker.mjs"],
+  ["circuit", "runtime/circuit.js"],
+  ["git_state", "runtime/git-state.js"]
+];
+function resolveProductionCodexHome(environment) {
+  const candidate2 = environment.CODEX_HOME ?? (environment.HOME === void 0 ? void 0 : join15(environment.HOME, ".codex"));
+  if (candidate2 === void 0) {
+    throw new Error("Circuit MCP requires CODEX_HOME or an absolute HOME directory.");
+  }
+  if (!isAbsolute14(candidate2) || candidate2.includes("\0")) {
+    throw new Error("Circuit MCP requires an absolute CODEX_HOME directory.");
+  }
+  return resolve10(candidate2);
+}
+function productionMcpLayout(input) {
+  if (!isAbsolute14(input.pluginRoot)) throw new Error("The installed plugin root must be absolute.");
+  if (!isAbsolute14(input.nodeExecutable)) {
+    throw new Error("The host Node executable must be absolute.");
+  }
+  const pluginRoot = resolve10(input.pluginRoot);
+  const flowsRoot = join15(pluginRoot, "flows");
+  const gitExecutable = input.gitExecutable ?? "/usr/bin/git";
+  if (!isAbsolute14(gitExecutable)) throw new Error("The Git helper must be absolute.");
+  return Object.freeze({
+    pluginRoot,
+    flowsRoot,
+    stateRoot: codexMcpStateRoot(input.codexHome),
+    modelCache: join15(input.codexHome, "models_cache.json"),
+    nodeExecutable: input.nodeExecutable,
+    codexExecutable: resolveCodexExecutableOnPath(input.pathValue),
+    gitExecutable,
+    pluginRuntimes: Object.freeze(
+      PLUGIN_RUNTIME_FILES.map(([id, relativePath]) => ({
+        id,
+        path: join15(pluginRoot, relativePath)
+      }))
+    ),
+    packagedFlows: collectPackagedFlowAssets(flowsRoot)
+  });
+}
+function createProductionAssetLoader(layout) {
+  return async () => await pinMcpRuntimeAssets({
+    node: layout.nodeExecutable,
+    codex: layout.codexExecutable,
+    plugin_runtimes: layout.pluginRuntimes,
+    git_helper: layout.gitExecutable,
+    packaged_flows: layout.packagedFlows
+  });
+}
+function requiredAsset(assets, id, role) {
+  const found = assets.assets.find((asset) => asset.id === id && asset.role === role);
+  if (found === void 0) throw new Error(`The sealed Circuit asset '${id}' is missing.`);
+  return found;
+}
+function pathInside3(parent, candidate2) {
+  const child = relative6(parent, candidate2);
+  return child === "" || !child.startsWith("..") && !isAbsolute14(child);
+}
+function preparedProductionLaunch(data) {
+  let pending = Object.freeze(data);
+  const capsule = /* @__PURE__ */ Object.create(null);
+  Object.defineProperty(capsule, "consume", {
+    configurable: false,
+    enumerable: false,
+    writable: false,
+    value: () => {
+      const prepared = pending;
+      if (prepared === void 0) {
+        throw new Error("The sealed Circuit launch preparation was already consumed.");
+      }
+      pending = void 0;
+      return prepared;
+    }
+  });
+  return Object.freeze(capsule);
+}
+function createProductionLaunchPreflight(dependencies) {
+  if (!isAbsolute14(dependencies.stateRoot)) {
+    throw new Error("The canonical Circuit MCP state root must be absolute.");
+  }
+  const verifyAssets = dependencies.verifyAssets ?? verifyMcpRuntimeAssets;
+  const probeHost = dependencies.probeHost ?? probeCodexHostCapabilities;
+  const loadRoster = dependencies.loadRoster ?? loadCodexModelRoster;
+  const loadCatalog = dependencies.loadCatalog ?? loadPublicFlowCatalog;
+  const deriveNodeInstallation = dependencies.deriveNodeInstallation ?? derivePinnedNodeInstallation;
+  const result = {
+    validate: async (input) => {
+      await verifyAssets(input.runtime_assets);
+      const codex = requiredAsset(input.runtime_assets, "codex", "codex");
+      const node = requiredAsset(input.runtime_assets, "node", "node");
+      const git = requiredAsset(input.runtime_assets, "git_helper", "git_helper");
+      const catalog = requiredAsset(input.runtime_assets, "flow:catalog", "packaged_flow");
+      const nodeInstallation = deriveNodeInstallation(node.real_path);
+      const probeRoot = join15(dependencies.stateRoot, "preflight", randomUUID5());
+      if (pathInside3(input.workspace.canonical_path, probeRoot)) {
+        throw new Error("The private Codex capability probe must stay outside the workspace.");
+      }
+      let capabilities;
+      try {
+        capabilities = await probeHost(codex.real_path, {
+          workspaceMetadataValidated: true,
+          environment: dependencies.environment,
+          nested: {
+            policy: {
+              executable: codex.real_path,
+              cliVersion: "capability-probe",
+              workspace: input.workspace.canonical_path,
+              tempRoot: join15(probeRoot, "private"),
+              nodeExecutable: nodeInstallation.executable,
+              nodeInstallationRoot: nodeInstallation.root,
+              gitExecutable: git.real_path,
+              searchMode: input.request.web_search,
+              defaultModel: "gpt-5.4",
+              allowedModels: /* @__PURE__ */ new Set(["gpt-5.4"])
+            },
+            codexHome: join15(probeRoot, "codex-home"),
+            environment: dependencies.environment
+          }
+        });
+      } finally {
+        await rm2(probeRoot, { recursive: true, force: true });
+      }
+      const roster = loadRoster(join15(dependencies.codexHome, "models_cache.json"));
+      const publicFlows = loadCatalog(catalog.real_path);
+      if (!publicFlows.has(input.request.flow)) {
+        throw new Error("The selected flow is not present in the sealed public flow catalog.");
+      }
+      if (input.request.variants !== void 0) {
+        validatePrototypeVariantModels(input.request.variants, roster);
+      }
+      validateCachedSearchModels(
+        {
+          web_search: input.request.web_search,
+          ...input.request.variants === void 0 ? {} : { variants: input.request.variants }
+        },
+        roster
+      );
+      return preparedProductionLaunch({ capabilities, roster });
+    }
+  };
+  return Object.freeze(result);
+}
+async function privateGenerationDirectory(controlDirectory, generation) {
+  const canonicalControl = await realpath7(controlDirectory);
+  if (canonicalControl !== resolve10(controlDirectory)) {
+    throw new Error("The Circuit control directory changed before worker launch.");
+  }
+  const privateRoot = join15(canonicalControl, "private");
+  await mkdir2(privateRoot, { recursive: true, mode: 448 });
+  const generationRoot = join15(privateRoot, `generation-${generation}`);
+  await mkdir2(generationRoot, { recursive: false, mode: 448 });
+  return await realpath7(generationRoot);
+}
+function createProductionWorkerFactory(options) {
+  const pluginRoot = resolve10(options.pluginRoot);
+  const create = async (input) => {
+    const preparation = input.prepared_launch.consume();
+    const worker = requiredAsset(input.runtime_assets, "plugin_runtime:worker", "plugin_runtime");
+    const codex = requiredAsset(input.runtime_assets, "codex", "codex");
+    const git = requiredAsset(input.runtime_assets, "git_helper", "git_helper");
+    const controlDirectory = await options.controlDirectory(input.workspace, input.run.run_id);
+    const privateTempRoot = await privateGenerationDirectory(
+      controlDirectory,
+      input.run.launch.generation
+    );
+    return {
+      worker_entrypoint: worker.real_path,
+      launch_payload: {
+        schema_version: 1,
+        authorization: input.authorization_token,
+        run_id: input.run.run_id,
+        operation: input.operation,
+        workspace: {
+          canonical_path: input.workspace.canonical_path,
+          device: input.workspace.device,
+          inode: input.workspace.inode
+        },
+        flow_root: join15(pluginRoot, "flows"),
+        private_temp_root: privateTempRoot,
+        asset_digest_sha256: input.runtime_assets.digest_sha256,
+        runtime_assets: input.runtime_assets,
+        capabilities: preparation.capabilities,
+        codex: {
+          executable: codex.real_path,
+          version: preparation.capabilities.codex_version,
+          default_model: preparation.roster.default_model,
+          allowed_models: preparation.roster.allowed_models
+        },
+        git: { executable: git.real_path },
+        request: input.run.request
+      }
+    };
+  };
+  const factory = {
+    createStart: async (input) => await create({ ...input, operation: { kind: "start" } }),
+    createResume: async (input) => await create({ ...input, operation: { kind: "resume", choice_id: input.choice_id } })
+  };
+  return Object.freeze(factory);
+}
+function createProductionSupervisorLauncher(options) {
+  const verifyAssets = options.verifyAssets ?? verifyMcpRuntimeAssets;
+  const createLauncher = options.createLauncher ?? ((input) => new ProcessSupervisorLauncher(input));
+  return Object.freeze({
+    begin: async (input) => {
+      const node = requiredAsset(input.runtime_assets, "node", "node");
+      const supervisor = requiredAsset(
+        input.runtime_assets,
+        "plugin_runtime:supervisor",
+        "plugin_runtime"
+      );
+      const launcher = createLauncher({
+        nodeExecutable: node.real_path,
+        nodeIdentity: {
+          real_path: node.real_path,
+          device: node.device,
+          inode: node.inode,
+          sha256: node.sha256
+        },
+        supervisorEntrypoint: supervisor.real_path,
+        verifySupervisorEntrypoint: async () => await verifyAssets(input.runtime_assets),
+        environment: options.environment
+      });
+      return await launcher.begin(input);
+    }
+  });
+}
+async function createProductionCircuitMcpHandler(options) {
+  const environment = options.environment ?? process.env;
+  const pluginRoot = resolve10(options.pluginRoot);
+  const hostProbe = options.processProbe === void 0 ? createMacOsProcessProbe() : void 0;
+  const probe = options.processProbe ?? hostProbe;
+  if (probe === void 0) throw new Error("Circuit MCP process inspection is unavailable.");
+  let owner = options.owner;
+  const resolveOwner = () => {
+    if (owner !== void 0) return owner;
+    if (hostProbe === void 0) {
+      throw new Error("An injected Circuit process probe also requires an owner identity.");
+    }
+    owner = hostProbe.observeOwner({
+      executable: readExecutableIdentity(process.execPath),
+      instance_id: randomUUID5()
+    });
+    return owner;
+  };
+  const stateStore = new McpStateStore({
+    stateRoot: codexMcpStateRoot(options.codexHome),
+    inspectProcess: (identity2) => probe.inspectProcessSync(identity2),
+    inspectProcessGroup: (identity2) => probe.inspectProcessGroupSync(identity2),
+    inspectProcessToken: (token) => probe.inspectProcessTokenSync(token)
+  });
+  const state = new McpLifecycleStateAdapter({
+    store: stateStore,
+    artifacts: new CanonicalRuntimeArtifactReconciler(),
+    inspectProcess: (identity2) => probe.inspectProcessSync(identity2),
+    inspectProcessGroup: (identity2) => probe.inspectProcessGroupSync(identity2),
+    retainedTerminalRuns: 100
+  });
+  const preflight = options.dependencies?.preflight ?? createProductionLaunchPreflight({
+    codexHome: options.codexHome,
+    stateRoot: stateStore.stateRoot,
+    environment
+  });
+  const loadRuntimeAssets = options.dependencies?.loadRuntimeAssets ?? (async () => {
+    const layout = productionMcpLayout({
+      pluginRoot,
+      codexHome: options.codexHome,
+      nodeExecutable: process.execPath,
+      pathValue: environment.PATH
+    });
+    return await createProductionAssetLoader(layout)();
+  });
+  return createCircuitMcpLifecycleHandler({
+    ...options.platform === void 0 ? {} : { platform: options.platform },
+    loadRuntimeAssets,
+    preflightLaunch: preflight.validate,
+    resolveWorkspace: async (metadata) => {
+      const trusted = await resolveTrustedCodexWorkspace({ _meta: metadata });
+      return trustedWorkspaceIdentity(trusted.workspace);
+    },
+    owner: async () => resolveOwner(),
+    store: state,
+    launcher: options.dependencies?.launcher ?? createProductionSupervisorLauncher({ environment }),
+    workerFactory: createProductionWorkerFactory({
+      pluginRoot,
+      controlDirectory: (workspace, runId) => state.controlDirectory(workspace, runId)
+    }),
+    checkpoints: new McpCheckpointAdapter(),
+    reports: new McpFinalReportReader(),
+    cleanup: new ObservedCleanupController({ probe }),
+    ...options.dependencies?.now === void 0 ? {} : { now: options.dependencies.now },
+    ...options.dependencies?.randomRunId === void 0 ? {} : { randomRunId: options.dependencies.randomRunId }
+  });
+}
 
 // node_modules/zod/v3/helpers/util.js
 var util;
@@ -23403,15 +35996,15 @@ var makeIssue = (params) => {
       message: issueData.message
     };
   }
-  let errorMessage = "";
+  let errorMessage2 = "";
   const maps = errorMaps.filter((m) => !!m).slice().reverse();
   for (const map2 of maps) {
-    errorMessage = map2(fullIssue, { data, defaultError: errorMessage }).message;
+    errorMessage2 = map2(fullIssue, { data, defaultError: errorMessage2 }).message;
   }
   return {
     ...issueData,
     path: fullPath,
-    message: errorMessage
+    message: errorMessage2
   };
 };
 function addIssueToContext(ctx, issueData) {
@@ -27158,19 +39751,19 @@ var getRefs = (options) => {
 };
 
 // node_modules/zod-to-json-schema/dist/esm/errorMessages.js
-function addErrorMessage(res, key, errorMessage, refs) {
+function addErrorMessage(res, key, errorMessage2, refs) {
   if (!refs?.errorMessages)
     return;
-  if (errorMessage) {
+  if (errorMessage2) {
     res.errorMessage = {
       ...res.errorMessage,
-      [key]: errorMessage
+      [key]: errorMessage2
     };
   }
 }
-function setResponseValueAndErrors(res, key, value, errorMessage, refs) {
+function setResponseValueAndErrors(res, key, value, errorMessage2, refs) {
   res[key] = value;
-  addErrorMessage(res, key, errorMessage, refs);
+  addErrorMessage(res, key, errorMessage2, refs);
 }
 
 // node_modules/zod-to-json-schema/dist/esm/getRelativePath.js
@@ -28335,13 +40928,13 @@ var zodToJsonSchema = (schema, options) => {
     }, true) ?? parseAnyDef(refs)
   }), {}) : void 0;
   const name = typeof options === "string" ? options : options?.nameStrategy === "title" ? void 0 : options?.name;
-  const main2 = parseDef(schema._def, name === void 0 ? refs : {
+  const main = parseDef(schema._def, name === void 0 ? refs : {
     ...refs,
     currentPath: [...refs.basePath, refs.definitionPath, name]
   }, false) ?? parseAnyDef(refs);
   const title = typeof options === "object" && options.name !== void 0 && options.nameStrategy === "title" ? options.name : void 0;
   if (title !== void 0) {
-    main2.title = title;
+    main.title = title;
   }
   if (refs.flags.hasReferencedOpenAiAnyType) {
     if (!definitions) {
@@ -28362,9 +40955,9 @@ var zodToJsonSchema = (schema, options) => {
     }
   }
   const combined = name === void 0 ? definitions ? {
-    ...main2,
+    ...main,
     [refs.definitionPath]: definitions
-  } : main2 : {
+  } : main : {
     $ref: [
       ...refs.$refStrategy === "relative" ? [] : refs.basePath,
       refs.definitionPath,
@@ -28372,7 +40965,7 @@ var zodToJsonSchema = (schema, options) => {
     ].join("/"),
     [refs.definitionPath]: {
       ...definitions,
-      [name]: main2
+      [name]: main
     }
   };
   if (refs.target === "jsonSchema7") {
@@ -28481,8 +41074,8 @@ var Protocol = class {
                   if (queuedMessage.type === "response") {
                     resolver(message);
                   } else {
-                    const errorMessage = message;
-                    const error51 = new McpError(errorMessage.error.code, errorMessage.error.message, errorMessage.error.data);
+                    const errorMessage2 = message;
+                    const error51 = new McpError(errorMessage2.error.code, errorMessage2.error.message, errorMessage2.error.data);
                     resolver(error51);
                   }
                 } else {
@@ -28670,7 +41263,7 @@ var Protocol = class {
     const capturedTransport = this._transport;
     const relatedTaskId = request.params?._meta?.[RELATED_TASK_META_KEY]?.taskId;
     if (handler === void 0) {
-      const errorResponse = {
+      const errorResponse2 = {
         jsonrpc: "2.0",
         id: request.id,
         error: {
@@ -28681,11 +41274,11 @@ var Protocol = class {
       if (relatedTaskId && this._taskMessageQueue) {
         this._enqueueTaskMessage(relatedTaskId, {
           type: "error",
-          message: errorResponse,
+          message: errorResponse2,
           timestamp: Date.now()
         }, capturedTransport?.sessionId).catch((error51) => this._onerror(new Error(`Failed to enqueue error response: ${error51}`)));
       } else {
-        capturedTransport?.send(errorResponse).catch((error51) => this._onerror(new Error(`Failed to send an error response: ${error51}`)));
+        capturedTransport?.send(errorResponse2).catch((error51) => this._onerror(new Error(`Failed to send an error response: ${error51}`)));
       }
       return;
     }
@@ -28755,7 +41348,7 @@ var Protocol = class {
       if (abortController.signal.aborted) {
         return;
       }
-      const errorResponse = {
+      const errorResponse2 = {
         jsonrpc: "2.0",
         id: request.id,
         error: {
@@ -28767,11 +41360,11 @@ var Protocol = class {
       if (relatedTaskId && this._taskMessageQueue) {
         await this._enqueueTaskMessage(relatedTaskId, {
           type: "error",
-          message: errorResponse,
+          message: errorResponse2,
           timestamp: Date.now()
         }, capturedTransport?.sessionId);
       } else {
-        await capturedTransport?.send(errorResponse);
+        await capturedTransport?.send(errorResponse2);
       }
     }).catch((error51) => this._onerror(new Error(`Failed to send response: ${error51}`))).finally(() => {
       if (this._requestHandlerAbortControllers.get(request.id) === abortController) {
@@ -28928,7 +41521,7 @@ var Protocol = class {
           return;
         }
         const pollInterval = task2.pollInterval ?? this._options?.defaultTaskPollInterval ?? 1e3;
-        await new Promise((resolve) => setTimeout(resolve, pollInterval));
+        await new Promise((resolve12) => setTimeout(resolve12, pollInterval));
         options?.signal?.throwIfAborted();
       }
     } catch (error51) {
@@ -28945,7 +41538,7 @@ var Protocol = class {
    */
   request(request, resultSchema, options) {
     const { relatedRequestId, resumptionToken, onresumptiontoken, task, relatedTask } = options ?? {};
-    return new Promise((resolve, reject) => {
+    return new Promise((resolve12, reject) => {
       const earlyReject = (error51) => {
         reject(error51);
       };
@@ -29023,7 +41616,7 @@ var Protocol = class {
           if (!parseResult.success) {
             reject(parseResult.error);
           } else {
-            resolve(parseResult.data);
+            resolve12(parseResult.data);
           }
         } catch (error51) {
           reject(error51);
@@ -29284,12 +41877,12 @@ var Protocol = class {
       }
     } catch {
     }
-    return new Promise((resolve, reject) => {
+    return new Promise((resolve12, reject) => {
       if (signal.aborted) {
         reject(new McpError(ErrorCode.InvalidRequest, "Request cancelled"));
         return;
       }
-      const timeoutId = setTimeout(resolve, interval);
+      const timeoutId = setTimeout(resolve12, interval);
       signal.addEventListener("abort", () => {
         clearTimeout(timeoutId);
         reject(new McpError(ErrorCode.InvalidRequest, "Request cancelled"));
@@ -29782,23 +42375,23 @@ var Server = class extends Protocol {
       const wrappedHandler = async (request, extra) => {
         const validatedRequest = safeParse3(CallToolRequestSchema, request);
         if (!validatedRequest.success) {
-          const errorMessage = validatedRequest.error instanceof Error ? validatedRequest.error.message : String(validatedRequest.error);
-          throw new McpError(ErrorCode.InvalidParams, `Invalid tools/call request: ${errorMessage}`);
+          const errorMessage2 = validatedRequest.error instanceof Error ? validatedRequest.error.message : String(validatedRequest.error);
+          throw new McpError(ErrorCode.InvalidParams, `Invalid tools/call request: ${errorMessage2}`);
         }
         const { params } = validatedRequest.data;
         const result = await Promise.resolve(handler(request, extra));
         if (params.task) {
           const taskValidationResult = safeParse3(CreateTaskResultSchema, result);
           if (!taskValidationResult.success) {
-            const errorMessage = taskValidationResult.error instanceof Error ? taskValidationResult.error.message : String(taskValidationResult.error);
-            throw new McpError(ErrorCode.InvalidParams, `Invalid task creation result: ${errorMessage}`);
+            const errorMessage2 = taskValidationResult.error instanceof Error ? taskValidationResult.error.message : String(taskValidationResult.error);
+            throw new McpError(ErrorCode.InvalidParams, `Invalid task creation result: ${errorMessage2}`);
           }
           return taskValidationResult.data;
         }
         const validationResult = safeParse3(CallToolResultSchema, result);
         if (!validationResult.success) {
-          const errorMessage = validationResult.error instanceof Error ? validationResult.error.message : String(validationResult.error);
-          throw new McpError(ErrorCode.InvalidParams, `Invalid tools/call result: ${errorMessage}`);
+          const errorMessage2 = validationResult.error instanceof Error ? validationResult.error.message : String(validationResult.error);
+          throw new McpError(ErrorCode.InvalidParams, `Invalid tools/call result: ${errorMessage2}`);
         }
         return validationResult.data;
       };
@@ -30292,12 +42885,12 @@ var McpServer = class {
    * @param errorMessage - The error message.
    * @returns The tool error result.
    */
-  createToolError(errorMessage) {
+  createToolError(errorMessage2) {
     return {
       content: [
         {
           type: "text",
-          text: errorMessage
+          text: errorMessage2
         }
       ],
       isError: true
@@ -30315,8 +42908,8 @@ var McpServer = class {
     const parseResult = await safeParseAsync3(schemaToParse, args);
     if (!parseResult.success) {
       const error51 = "error" in parseResult ? parseResult.error : "Unknown error";
-      const errorMessage = getParseErrorMessage(error51);
-      throw new McpError(ErrorCode.InvalidParams, `Input validation error: Invalid arguments for tool ${toolName}: ${errorMessage}`);
+      const errorMessage2 = getParseErrorMessage(error51);
+      throw new McpError(ErrorCode.InvalidParams, `Input validation error: Invalid arguments for tool ${toolName}: ${errorMessage2}`);
     }
     return parseResult.data;
   }
@@ -30340,8 +42933,8 @@ var McpServer = class {
     const parseResult = await safeParseAsync3(outputObj, result.structuredContent);
     if (!parseResult.success) {
       const error51 = "error" in parseResult ? parseResult.error : "Unknown error";
-      const errorMessage = getParseErrorMessage(error51);
-      throw new McpError(ErrorCode.InvalidParams, `Output validation error: Invalid structured content for tool ${toolName}: ${errorMessage}`);
+      const errorMessage2 = getParseErrorMessage(error51);
+      throw new McpError(ErrorCode.InvalidParams, `Output validation error: Invalid structured content for tool ${toolName}: ${errorMessage2}`);
     }
   }
   /**
@@ -30389,7 +42982,7 @@ var McpServer = class {
     let task = createTaskResult.task;
     const pollInterval = task.pollInterval ?? 5e3;
     while (task.status !== "completed" && task.status !== "failed" && task.status !== "cancelled") {
-      await new Promise((resolve) => setTimeout(resolve, pollInterval));
+      await new Promise((resolve12) => setTimeout(resolve12, pollInterval));
       const updatedTask = await extra.taskStore.getTask(taskId);
       if (!updatedTask) {
         throw new McpError(ErrorCode.InternalError, `Task ${taskId} not found during polling`);
@@ -30553,8 +43146,8 @@ var McpServer = class {
         const parseResult = await safeParseAsync3(argsObj, request.params.arguments);
         if (!parseResult.success) {
           const error51 = "error" in parseResult ? parseResult.error : "Unknown error";
-          const errorMessage = getParseErrorMessage(error51);
-          throw new McpError(ErrorCode.InvalidParams, `Invalid arguments for prompt ${request.params.name}: ${errorMessage}`);
+          const errorMessage2 = getParseErrorMessage(error51);
+          throw new McpError(ErrorCode.InvalidParams, `Invalid arguments for prompt ${request.params.name}: ${errorMessage2}`);
         }
         const args = parseResult.data;
         const cb = prompt.callback;
@@ -30957,314 +43550,6 @@ var EMPTY_COMPLETION_RESULT = {
   }
 };
 
-// src/hosts/codex-mcp/contracts.ts
-var MCP_SCHEMA_VERSION = 1;
-var MCP_TOOL_NAMES = [
-  "circuit_start",
-  "circuit_status",
-  "circuit_resume",
-  "circuit_cancel",
-  "circuit_list",
-  "circuit_recover"
-];
-var McpPublicFlowV1 = external_exports.enum(["review", "fix", "build", "explore", "prototype"]);
-var McpRunStateV1 = external_exports.enum([
-  "starting",
-  "running",
-  "waiting_for_input",
-  "resuming",
-  "cancelling",
-  "complete",
-  "needs_attention",
-  "cancelled",
-  "interrupted",
-  "recovery_required"
-]);
-var RunIdV1 = external_exports.guid({ error: "run_id must be a UUID" });
-var CursorV1 = external_exports.number().int().nonnegative().max(Number.MAX_SAFE_INTEGER);
-var SummaryV1 = external_exports.string().trim().min(1).max(1e3);
-var GoalV1 = external_exports.string().trim().min(1).max(8e3);
-var WhyV1 = external_exports.string().trim().min(1).max(2e3);
-var ChoiceIdV1 = external_exports.string().min(1).max(64).regex(/^[a-z0-9][a-z0-9._-]*$/, "choice_id must be a safe lowercase identifier");
-var CheckpointTokenV1 = external_exports.string().min(16).max(1024);
-var SafeNameV1 = external_exports.string().min(1).max(128).regex(/^[A-Za-z0-9][A-Za-z0-9._@/-]*$/, "must be a bounded name, not a command");
-function addIssue(ctx, path, message) {
-  ctx.addIssue({ code: "custom", path, message });
-}
-var McpStartConsentV1 = external_exports.object({
-  cached_web_search: external_exports.literal(true).optional(),
-  untracked_review_content: external_exports.literal(true).optional()
-}).strict();
-var McpPrototypeVariantV1 = external_exports.object({
-  id: external_exports.string().min(1).max(64).regex(/^[a-z0-9][a-z0-9-]*$/, "variant id must be a safe kebab-case slug"),
-  label: external_exports.string().trim().min(1).max(80),
-  // The server must also check this name against the live Codex model roster.
-  model: SafeNameV1,
-  effort: external_exports.enum(["low", "medium", "high", "xhigh"])
-}).strict();
-var McpPrototypeVariantsV1 = external_exports.array(McpPrototypeVariantV1).min(2).max(4).superRefine((variants, ctx) => {
-  const ids = /* @__PURE__ */ new Set();
-  for (const [index, variant] of variants.entries()) {
-    if (ids.has(variant.id)) {
-      addIssue(ctx, [index, "id"], `duplicate variant id '${variant.id}'`);
-    }
-    ids.add(variant.id);
-  }
-});
-var CircuitStartInputV1 = external_exports.object({
-  flow: McpPublicFlowV1,
-  goal: GoalV1,
-  why: WhyV1.optional(),
-  power: external_exports.enum(["auto", "low", "medium", "high"]).optional(),
-  process: external_exports.enum(["low", "medium", "high"]).optional(),
-  tournament: external_exports.number().int().min(2).max(4).optional(),
-  autonomous: external_exports.boolean().optional(),
-  include_untracked_content: external_exports.boolean().optional(),
-  variants: McpPrototypeVariantsV1.optional(),
-  consent: McpStartConsentV1.optional(),
-  web_search: external_exports.enum(["off", "cached"]).default("off")
-}).strict().superRefine((input, ctx) => {
-  if (input.web_search === "cached" && input.consent?.cached_web_search !== true) {
-    addIssue(
-      ctx,
-      ["consent", "cached_web_search"],
-      "cached web search requires explicit consent because the query leaves the machine"
-    );
-  }
-  if (input.consent?.cached_web_search === true && input.web_search !== "cached") {
-    addIssue(ctx, ["consent", "cached_web_search"], "cached web search consent is unused");
-  }
-  if (input.include_untracked_content === true) {
-    if (input.flow !== "review") {
-      addIssue(
-        ctx,
-        ["include_untracked_content"],
-        "untracked content can be included only in Review"
-      );
-    }
-    if (input.consent?.untracked_review_content !== true) {
-      addIssue(
-        ctx,
-        ["consent", "untracked_review_content"],
-        "including untracked Review contents requires explicit consent"
-      );
-    }
-  }
-  if (input.consent?.untracked_review_content === true && input.include_untracked_content !== true) {
-    addIssue(
-      ctx,
-      ["consent", "untracked_review_content"],
-      "untracked Review content consent is unused"
-    );
-  }
-  if (input.tournament !== void 0 && input.flow !== "explore" && input.flow !== "prototype") {
-    addIssue(ctx, ["tournament"], "tournament is supported only by Explore and Prototype");
-  }
-  if (input.tournament !== void 0 && input.autonomous === true) {
-    addIssue(ctx, ["autonomous"], "tournament and autonomous cannot be combined");
-  }
-  if (input.flow === "prototype" && input.tournament !== void 0) {
-    if (input.variants === void 0) {
-      addIssue(ctx, ["variants"], "Prototype tournament requires one variant per branch");
-    } else if (input.variants.length !== input.tournament) {
-      addIssue(
-        ctx,
-        ["variants"],
-        `Prototype tournament requires exactly ${input.tournament} variants`
-      );
-    }
-  } else if (input.variants !== void 0) {
-    addIssue(ctx, ["variants"], "variants are allowed only for a Prototype tournament");
-  }
-});
-var CircuitStatusInputV1 = external_exports.object({
-  run_id: RunIdV1,
-  after_cursor: CursorV1.optional(),
-  max_events: external_exports.number().int().min(1).max(100).optional(),
-  wait_ms: external_exports.number().int().min(0).max(1e4).optional()
-}).strict();
-var CircuitResumeInputV1 = external_exports.object({
-  run_id: RunIdV1,
-  checkpoint_token: CheckpointTokenV1,
-  choice_id: ChoiceIdV1
-}).strict();
-var CircuitCancelInputV1 = external_exports.object({ run_id: RunIdV1 }).strict();
-var CircuitListInputV1 = external_exports.object({
-  limit: external_exports.number().int().min(1).max(50).optional()
-}).strict();
-var CircuitRecoverInputV1 = external_exports.object({ run_id: RunIdV1 }).strict();
-var MCP_TOOL_INPUT_SCHEMAS = {
-  circuit_start: CircuitStartInputV1,
-  circuit_status: CircuitStatusInputV1,
-  circuit_resume: CircuitResumeInputV1,
-  circuit_cancel: CircuitCancelInputV1,
-  circuit_list: CircuitListInputV1,
-  circuit_recover: CircuitRecoverInputV1
-};
-var McpErrorV1 = external_exports.object({
-  code: external_exports.string().min(1).max(64).regex(/^[a-z][a-z0-9_]*$/, "error code must be stable lowercase snake case"),
-  message: external_exports.string().trim().min(1).max(1e3),
-  next_action: external_exports.string().trim().min(1).max(1e3).optional()
-}).strict();
-var McpErrorResponseV1 = external_exports.object({
-  schema_version: external_exports.literal(MCP_SCHEMA_VERSION),
-  ok: external_exports.literal(false),
-  error: McpErrorV1
-}).strict();
-var McpProgressEventV1 = external_exports.object({
-  cursor: CursorV1,
-  kind: external_exports.string().min(1).max(80).regex(/^[a-z][a-z0-9._-]*$/, "event kind must be a stable lowercase identifier"),
-  recorded_at: external_exports.iso.datetime(),
-  summary: SummaryV1
-}).strict();
-var McpCheckpointChoiceV1 = external_exports.object({
-  id: ChoiceIdV1,
-  label: external_exports.string().trim().min(1).max(120),
-  description: external_exports.string().trim().min(1).max(500).optional()
-}).strict();
-var McpCheckpointV1 = external_exports.object({
-  token: CheckpointTokenV1,
-  prompt: external_exports.string().trim().min(1).max(4e3),
-  choices: external_exports.array(McpCheckpointChoiceV1).min(1).max(20)
-}).strict();
-function isJsonValue(value, seen, depth) {
-  if (depth > 32) return false;
-  if (value === null || typeof value === "string" || typeof value === "boolean") return true;
-  if (typeof value === "number") return Number.isFinite(value);
-  if (typeof value !== "object") return false;
-  if (seen.has(value)) return false;
-  seen.add(value);
-  try {
-    if (Array.isArray(value)) {
-      return value.every((item) => isJsonValue(item, seen, depth + 1));
-    }
-    const prototype = Object.getPrototypeOf(value);
-    if (prototype !== Object.prototype && prototype !== null) return false;
-    return Object.values(value).every((item) => isJsonValue(item, seen, depth + 1));
-  } finally {
-    seen.delete(value);
-  }
-}
-var BoundedReportDataV1 = external_exports.unknown().superRefine((value, ctx) => {
-  if (!isJsonValue(value, /* @__PURE__ */ new Set(), 0)) {
-    addIssue(ctx, [], "final report data must be plain JSON");
-    return;
-  }
-  const bytes = Buffer.byteLength(JSON.stringify(value), "utf8");
-  if (bytes > 262144) {
-    addIssue(ctx, [], "final report data must not exceed 262144 UTF-8 bytes");
-  }
-});
-var McpFinalReportV1 = external_exports.object({
-  schema: SafeNameV1,
-  summary: SummaryV1,
-  data: BoundedReportDataV1
-}).strict();
-var CircuitStartSuccessV1 = external_exports.object({
-  schema_version: external_exports.literal(MCP_SCHEMA_VERSION),
-  ok: external_exports.literal(true),
-  run_id: RunIdV1,
-  state: external_exports.enum(["starting", "running"]),
-  next_cursor: CursorV1,
-  summary: SummaryV1
-}).strict();
-var CircuitStartResponseV1 = external_exports.discriminatedUnion("ok", [
-  CircuitStartSuccessV1,
-  McpErrorResponseV1
-]);
-var CircuitStatusSuccessV1 = external_exports.object({
-  schema_version: external_exports.literal(MCP_SCHEMA_VERSION),
-  ok: external_exports.literal(true),
-  run_id: RunIdV1,
-  state: McpRunStateV1,
-  events: external_exports.array(McpProgressEventV1).max(100),
-  next_cursor: CursorV1,
-  truncated: external_exports.boolean(),
-  checkpoint: McpCheckpointV1.optional(),
-  final_report: McpFinalReportV1.optional(),
-  summary: SummaryV1
-}).strict().superRefine((result, ctx) => {
-  if (result.state === "waiting_for_input" && result.checkpoint === void 0) {
-    addIssue(ctx, ["checkpoint"], "waiting_for_input requires checkpoint data");
-  }
-  if (result.state !== "waiting_for_input" && result.checkpoint !== void 0) {
-    addIssue(ctx, ["checkpoint"], "checkpoint data is allowed only while waiting for input");
-  }
-  if (result.state === "complete" && result.final_report === void 0) {
-    addIssue(ctx, ["final_report"], "a complete run requires final report data");
-  }
-});
-var CircuitStatusResponseV1 = external_exports.union([CircuitStatusSuccessV1, McpErrorResponseV1]);
-var CircuitResumeSuccessV1 = external_exports.object({
-  schema_version: external_exports.literal(MCP_SCHEMA_VERSION),
-  ok: external_exports.literal(true),
-  run_id: RunIdV1,
-  state: external_exports.enum(["resuming", "running"]),
-  next_cursor: CursorV1,
-  summary: SummaryV1
-}).strict();
-var CircuitResumeResponseV1 = external_exports.discriminatedUnion("ok", [
-  CircuitResumeSuccessV1,
-  McpErrorResponseV1
-]);
-var CircuitCancelSuccessV1 = external_exports.object({
-  schema_version: external_exports.literal(MCP_SCHEMA_VERSION),
-  ok: external_exports.literal(true),
-  run_id: RunIdV1,
-  state: external_exports.enum(["cancelled", "recovery_required"]),
-  cleanup_confirmed: external_exports.boolean(),
-  summary: SummaryV1
-}).strict().superRefine((result, ctx) => {
-  if (result.state === "cancelled" && !result.cleanup_confirmed) {
-    addIssue(ctx, ["cleanup_confirmed"], "cancelled requires confirmed cleanup");
-  }
-  if (result.state === "recovery_required" && result.cleanup_confirmed) {
-    addIssue(ctx, ["cleanup_confirmed"], "recovery_required means cleanup is not confirmed");
-  }
-});
-var CircuitCancelResponseV1 = external_exports.union([CircuitCancelSuccessV1, McpErrorResponseV1]);
-var McpRunListItemV1 = external_exports.object({
-  run_id: RunIdV1,
-  flow: McpPublicFlowV1,
-  state: McpRunStateV1,
-  updated_at: external_exports.iso.datetime(),
-  checkpoint_available: external_exports.boolean(),
-  summary: SummaryV1
-}).strict();
-var CircuitListSuccessV1 = external_exports.object({
-  schema_version: external_exports.literal(MCP_SCHEMA_VERSION),
-  ok: external_exports.literal(true),
-  runs: external_exports.array(McpRunListItemV1).max(50),
-  truncated: external_exports.boolean(),
-  summary: SummaryV1
-}).strict();
-var CircuitListResponseV1 = external_exports.discriminatedUnion("ok", [
-  CircuitListSuccessV1,
-  McpErrorResponseV1
-]);
-var CircuitRecoverSuccessV1 = external_exports.object({
-  schema_version: external_exports.literal(MCP_SCHEMA_VERSION),
-  ok: external_exports.literal(true),
-  run_id: RunIdV1,
-  state: external_exports.enum(["interrupted", "cancelled"]),
-  recovered: external_exports.literal(true),
-  cleanup_confirmed: external_exports.literal(true),
-  lease_released: external_exports.literal(true),
-  summary: SummaryV1
-}).strict();
-var CircuitRecoverResponseV1 = external_exports.discriminatedUnion("ok", [
-  CircuitRecoverSuccessV1,
-  McpErrorResponseV1
-]);
-var MCP_TOOL_RESPONSE_SCHEMAS = {
-  circuit_start: CircuitStartResponseV1,
-  circuit_status: CircuitStatusResponseV1,
-  circuit_resume: CircuitResumeResponseV1,
-  circuit_cancel: CircuitCancelResponseV1,
-  circuit_list: CircuitListResponseV1,
-  circuit_recover: CircuitRecoverResponseV1
-};
-
 // src/hosts/codex-mcp/server.ts
 var TOOL_DESCRIPTIONS = {
   circuit_start: "Start one public Circuit flow and return immediately with a run ID. Search is off by default. Cached search requires explicit consent because the query leaves the machine.",
@@ -31274,18 +43559,7 @@ var TOOL_DESCRIPTIONS = {
   circuit_list: "List bounded recent Circuit runs for the current trusted Codex workspace.",
   circuit_recover: "Repair a recovery_required Circuit run only after Circuit proves that its recorded processes are absent."
 };
-var READ_ONLY_TOOLS = /* @__PURE__ */ new Set(["circuit_status", "circuit_list"]);
-function dormantResponse() {
-  return {
-    schema_version: MCP_SCHEMA_VERSION,
-    ok: false,
-    error: {
-      code: "mcp_not_activated",
-      message: "Circuit MCP is installed but not activated yet.",
-      next_action: "Use the ordinary Circuit Run skill while this experimental bridge is evaluated."
-    }
-  };
-}
+var READ_ONLY_TOOLS = /* @__PURE__ */ new Set(["circuit_list"]);
 function renderResponse(response) {
   if (response.ok === false) {
     const error51 = response.error;
@@ -31297,9 +43571,9 @@ function renderResponse(response) {
   const summary = response.summary;
   return typeof summary === "string" ? summary : "Circuit returned a structured result.";
 }
-function createCircuitMcpServer(options = {}) {
+function createCircuitMcpServer(options) {
   const server = new McpServer({ name: "circuit", version: "1.0.0" });
-  const handle = options.handle ?? (async () => dormantResponse());
+  const handle = options.handle;
   function registerTool(name) {
     const readOnly = READ_ONLY_TOOLS.has(name);
     server.registerTool(
@@ -31308,7 +43582,7 @@ function createCircuitMcpServer(options = {}) {
         title: name,
         description: TOOL_DESCRIPTIONS[name],
         inputSchema: MCP_TOOL_INPUT_SCHEMAS[name],
-        outputSchema: MCP_TOOL_RESPONSE_SCHEMAS[name],
+        outputSchema: MCP_TOOL_WIRE_OUTPUT_SCHEMAS[name],
         annotations: {
           readOnlyHint: readOnly,
           destructiveHint: !readOnly,
@@ -31333,13 +43607,22 @@ function createCircuitMcpServer(options = {}) {
 }
 
 // src/hosts/codex-mcp/entrypoint.ts
-async function main() {
-  const server = createCircuitMcpServer();
+async function createPackagedCircuitMcpServer(options = {}) {
+  const environment = options.environment ?? process.env;
+  const pluginRoot = options.pluginRoot ?? resolve11(dirname7(fileURLToPath2(import.meta.url)), "..");
+  const handle = await createProductionCircuitMcpHandler({
+    ...options,
+    pluginRoot,
+    codexHome: options.codexHome ?? resolveProductionCodexHome(environment),
+    environment
+  });
+  return createCircuitMcpServer({ handle });
+}
+async function runPackagedCircuitMcpServer() {
+  const server = await createPackagedCircuitMcpServer();
   await server.connect(new StdioServerTransport());
 }
-void main().catch((error51) => {
-  const message = error51 instanceof Error ? error51.message : String(error51);
-  process.stderr.write(`Circuit MCP could not start: ${message}
-`);
-  process.exitCode = 1;
-});
+export {
+  createPackagedCircuitMcpServer,
+  runPackagedCircuitMcpServer
+};

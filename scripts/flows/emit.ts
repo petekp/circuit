@@ -309,9 +309,9 @@ function renderSurfaceInventory(): string {
       '`src/hosts/codex-mcp/**`',
       '`npm run build-plugin-runtime` (`node scripts/plugins/codex-mcp-bundle.ts`)',
       'no',
-      '`plugins/codex/.mcp.json`<br>`plugins/codex/mcp/server.cjs`<br>`plugins/codex/mcp/server.mjs`',
+      '`plugins/codex/.mcp.json`<br>`plugins/codex/mcp/server.cjs`<br>`plugins/codex/mcp/server.mjs`<br>`plugins/codex/mcp/supervisor.mjs`<br>`plugins/codex/mcp/worker.mjs`',
       '`npm run check-plugin-runtime` plus `npm run check-codex-mcp-package`',
-      'Codex-only, self-contained MCP bundle and Node version launcher. The config remains dormant until the Codex manifest explicitly links it. Claude and the ordinary Circuit CLI do not use this bundle.',
+      'Codex-only, self-contained MCP server, supervisor, worker, and Node version launcher. The Codex manifest activates this package. Claude and the ordinary Circuit CLI do not use it.',
     ],
     [
       'Command ownership note',

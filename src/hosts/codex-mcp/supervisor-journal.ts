@@ -202,6 +202,11 @@ export function readSupervisorJournals(
     ) {
       throw new SupervisorJournalError('A supervisor journal belongs to another launch.');
     }
+    if (observed.runtime.birth_token !== input.authorization_sha256) {
+      throw new SupervisorJournalError(
+        'A supervisor journal worker identity has the wrong launch token.',
+      );
+    }
   }
   if (exit !== undefined && runtime === undefined) {
     throw new SupervisorJournalError('Supervisor exit evidence is missing its runtime record.');

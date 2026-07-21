@@ -1,4 +1,4 @@
-import { mkdir, mkdtemp, rm } from 'node:fs/promises';
+import { mkdir, mkdtemp, rm, stat } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { afterEach, describe, expect, it, vi } from 'vitest';
@@ -27,6 +27,9 @@ function policy(overrides: Record<string, unknown> = {}) {
     cliVersion: 'codex-cli 0.144.3',
     workspace: '/repo',
     tempRoot: '/private/tmp/circuit-run',
+    nodeExecutable: '/opt/node/bin/node',
+    nodeInstallationRoot: '/opt/node',
+    gitExecutable: '/usr/bin/git',
     searchMode: 'off' as const,
     defaultModel: 'gpt-5.1-codex-mini',
     allowedModels: new Set(['gpt-5.1-codex-mini', 'gpt-5.2-codex']),
@@ -54,7 +57,7 @@ afterEach(async () => {
 });
 
 describe('MCP nested Codex policy', () => {
-  it('pins the sandbox, approvals, configuration, history, plugins, and disabled search', () => {
+  it('pins a named minimal sandbox, sealed shell environment, external tools, and disabled search', () => {
     const args = buildMcpCodexArgs(
       {
         prompt: 'repair the test',
@@ -68,50 +71,79 @@ describe('MCP nested Codex policy', () => {
       policy(),
     );
 
-    expect(args).toEqual([
+    expect(args.slice(0, 8)).toEqual([
       'exec',
       '--json',
-      '-s',
-      'workspace-write',
       '--ephemeral',
       '--skip-git-repo-check',
       '--ignore-user-config',
       '--ignore-rules',
       '--strict-config',
       '--cd',
-      '/repo',
-      '-c',
-      'approval_policy="never"',
-      '-c',
-      'history.persistence="none"',
-      '-c',
-      'features.plugins=false',
-      '-c',
-      'features.hooks=false',
-      '-c',
-      'features.codex_hooks=false',
-      '-c',
-      'features.plugin_hooks=false',
-      '-c',
-      'mcp_servers={}',
-      '-c',
-      'sandbox_workspace_write.network_access=false',
-      '-c',
-      'sandbox_workspace_write.writable_roots=[]',
-      '-c',
-      'sandbox_workspace_write.exclude_slash_tmp=true',
-      '-c',
-      'sandbox_workspace_write.exclude_tmpdir_env_var=false',
-      '-c',
-      'web_search="disabled"',
-      '-m',
-      'gpt-5.2-codex',
-      '-c',
-      'model_reasoning_effort="low"',
-      'repair the test',
     ]);
+    expect(args).toEqual(
+      expect.arrayContaining([
+        'default_permissions="circuit_mcp"',
+        'permissions.circuit_mcp.filesystem={":minimal"="read",":workspace_roots"="write",":slash_tmp"="deny","/private/tmp/circuit-run"="write","/opt/node"="read","/System/Library/OpenSSL"="read","/usr/bin/git"="read"}',
+        'permissions.circuit_mcp.network.enabled=false',
+        'allow_login_shell=false',
+        'project_doc_max_bytes=0',
+        'shell_environment_policy.inherit="none"',
+        'shell_environment_policy.set.PATH="/opt/node/bin:/usr/bin:/bin"',
+        'shell_environment_policy.set.HOME="/private/tmp/circuit-run/nested-home"',
+        'shell_environment_policy.set.TMPDIR="/private/tmp/circuit-run/nested-tmp"',
+        'shell_environment_policy.set.TMP="/private/tmp/circuit-run/nested-tmp"',
+        'shell_environment_policy.set.TEMP="/private/tmp/circuit-run/nested-tmp"',
+        'shell_environment_policy.set.LANG="C"',
+        'shell_environment_policy.set.LC_ALL="C"',
+        'shell_environment_policy.set.TERM="dumb"',
+        'features.apps=false',
+        'features.auth_elicitation=false',
+        'features.browser_use=false',
+        'features.browser_use_external=false',
+        'features.browser_use_full_cdp_access=false',
+        'features.computer_use=false',
+        'features.hooks=false',
+        'features.image_generation=false',
+        'features.in_app_browser=false',
+        'features.memories=false',
+        'features.multi_agent=false',
+        'features.plugin_sharing=false',
+        'features.plugins=false',
+        'features.remote_plugin=false',
+        'features.shell_snapshot=false',
+        'features.shell_tool=true',
+        'features.skill_mcp_dependency_install=false',
+        'features.tool_call_mcp_elicitation=false',
+        'features.workspace_dependencies=false',
+        'mcp_servers={}',
+        'web_search="disabled"',
+      ]),
+    );
+    expect(args).not.toContain('-s');
+    expect(args.some((arg) => arg.startsWith('sandbox_workspace_write.'))).toBe(false);
+    expect(
+      args.some((arg) => /codex_hooks|plugin_hooks|memory_tool|external_agent_memory/.test(arg)),
+    ).toBe(false);
     expect(args).not.toContain('--add-dir');
     expect(args).not.toContain('--dangerously-bypass-approvals-and-sandbox');
+  });
+
+  it('quotes adversarial dynamic TOML paths without creating another assignment', () => {
+    const args = buildMcpCodexArgs(
+      { prompt: 'test' },
+      policy({
+        workspace: '/repo/quote"\nnext = true',
+        tempRoot: '/private/run\\line\n[features]\napps = true',
+        nodeExecutable: '/node root/quote"\nfeatures.apps=true/bin/node',
+        nodeInstallationRoot: '/node root/quote"\nfeatures.apps=true',
+      }),
+    );
+    const config = args.filter((_arg, index) => args[index - 1] === '-c');
+    expect(config).toContain(
+      'permissions.circuit_mcp.filesystem={":minimal"="read",":workspace_roots"="write",":slash_tmp"="deny","/private/run\\\\line\\n[features]\\napps = true"="write","/node root/quote\\"\\nfeatures.apps=true"="read","/System/Library/OpenSSL"="read","/usr/bin/git"="read"}',
+    );
+    expect(config.filter((arg) => arg === 'features.apps=false')).toHaveLength(1);
   });
 
   it('enables only cached search when the start contract already recorded consent', () => {
@@ -206,9 +238,13 @@ describe('MCP nested Codex policy', () => {
         cwd: tempRoot,
         stdoutMaxBytes: MCP_CODEX_STDOUT_LIMIT_BYTES,
         stderrMaxBytes: MCP_CODEX_STDERR_LIMIT_BYTES,
-        detached: false,
         env: { PATH: '/bin', CODEX_HOME: '/home/.codex', TMPDIR: tempRoot },
       }),
+    );
+    await expect(
+      Promise.all([stat(join(tempRoot, 'nested-home')), stat(join(tempRoot, 'nested-tmp'))]),
+    ).resolves.toEqual(
+      expect.arrayContaining([expect.objectContaining({ mode: expect.any(Number) })]),
     );
   });
 

@@ -1,9 +1,21 @@
-import { mkdir, mkdtemp, realpath, rm, stat, writeFile } from 'node:fs/promises';
+import {
+  mkdir,
+  mkdtemp,
+  readdir,
+  realpath,
+  rename,
+  rm,
+  stat,
+  symlink,
+  writeFile,
+} from 'node:fs/promises';
 import { tmpdir } from 'node:os';
-import { join } from 'node:path';
+import { dirname, join } from 'node:path';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
 import { pinMcpRuntimeAssets } from '../../src/hosts/codex-mcp/asset-pins.js';
+import { createMcpCodexRelayer } from '../../src/hosts/codex-mcp/nested-codex.js';
+import { createMcpRuntimeContext } from '../../src/hosts/codex-mcp/runtime-context.js';
 import {
   buildMcpWorkerArgv,
   buildMcpWorkerInvocationConfig,
@@ -57,9 +69,17 @@ function startLaunch(overrides: Record<string, unknown> = {}) {
         asset('flow:prototype', 'packaged_flow', '/plugin/flows/prototype/circuit.json'),
       ],
     },
+    capabilities: {
+      codex_version: '0.144.3',
+      minimum_version: '0.144.3' as const,
+      plugin_mcp: true as const,
+      strict_config: true as const,
+      workspace_metadata: true as const,
+      nested_sandbox: true as const,
+    },
     codex: {
       executable: '/opt/codex/bin/codex',
-      version: 'codex-cli 0.144.3',
+      version: '0.144.3',
       default_model: 'gpt-5.1-codex-mini',
       allowed_models: ['gpt-5.1-codex-mini', 'gpt-5.2-codex'],
     },
@@ -98,6 +118,12 @@ describe('MCP dedicated worker runtime', () => {
         git: { executable: 'git' },
       }),
     ).toThrow();
+    expect(() =>
+      parseMcpWorkerLaunch({
+        ...startLaunch(),
+        capabilities: { ...startLaunch().capabilities, codex_version: '0.145.0' },
+      }),
+    ).toThrow(/match the sealed Codex capability/i);
   });
 
   it('derives every path and argument from sealed data', () => {
@@ -115,6 +141,40 @@ describe('MCP dedicated worker runtime', () => {
       '--progress',
       'jsonl',
     ]);
+  });
+
+  it.each(['review', 'fix', 'build', 'explore', 'prototype'] as const)(
+    'routes the public %s flow through the sealed worker',
+    (flow) => {
+      const base = startLaunch();
+      const launch = parseMcpWorkerLaunch({
+        ...base,
+        request: { flow, goal: `Run ${flow}`, web_search: 'off' },
+      });
+      expect(buildMcpWorkerArgv(launch).slice(0, 4)).toEqual([
+        'run',
+        flow,
+        '--goal',
+        `Run ${flow}`,
+      ]);
+    },
+  );
+
+  it('routes Explore tournament mode without accepting arbitrary variants', () => {
+    const base = startLaunch();
+    const launch = parseMcpWorkerLaunch({
+      ...base,
+      request: {
+        flow: 'explore',
+        goal: 'Compare approaches',
+        tournament: 2,
+        web_search: 'off',
+      },
+    });
+    expect(buildMcpWorkerArgv(launch)).toEqual(
+      expect.arrayContaining(['run', 'explore', '--tournament', '2']),
+    );
+    expect(launch.request.variants).toBeUndefined();
   });
 
   it('builds a Codex-only config with bounded Prototype variants and no hooks', () => {
@@ -167,6 +227,7 @@ describe('MCP dedicated worker runtime', () => {
 
   it('calls the normal engine through explicit injection, never an ambient activation variable', async () => {
     const main = vi.fn(async () => 0);
+    const createRuntimeContextSpy = vi.fn(createMcpRuntimeContext);
     const createRelayer = vi.fn(() => ({
       connectorName: 'codex',
       relay: vi.fn(),
@@ -175,10 +236,16 @@ describe('MCP dedicated worker runtime', () => {
       runMcpWorkerLaunch(parseMcpWorkerLaunch(startLaunch()), {
         main,
         createRelayer,
+        createRuntimeContext: createRuntimeContextSpy,
         verifyLaunch: async () => {},
         prepareDirectories: async () => ({
           configHome: '/private/state/run/config-home',
           configCwd: '/private/state/run/config-workspace',
+        }),
+        prepareRunDirectory: async () => ({
+          runFolder: '/repo/.circuit/runs/019f64f5-1f4d-7d91-8cda-a309cc72c300',
+          validate: async () => {},
+          close: async () => {},
         }),
         environment: {
           CIRCUIT_MCP_PROOF_RUNNER: '/tmp/ignored',
@@ -191,6 +258,8 @@ describe('MCP dedicated worker runtime', () => {
       expect.any(Array),
       expect.objectContaining({
         projectRoot: '/repo',
+        runId: '019f64f5-1f4d-7d91-8cda-a309cc72c300',
+        generatedFlowMirrorRoot: '/plugin/flows',
         hostKind: 'codex',
         historyRecall: 'disabled',
         codexInstallAssurance: 'disabled',
@@ -201,7 +270,9 @@ describe('MCP dedicated worker runtime', () => {
       }),
     );
     expect(createRelayer).toHaveBeenCalledWith(
-      expect.objectContaining({ executable: '/opt/codex/bin/codex' }),
+      expect.objectContaining({
+        executable: '/opt/codex/bin/codex',
+      }),
       expect.objectContaining({
         environment: {
           CIRCUIT_MCP_PROOF_RUNNER: '/tmp/ignored',
@@ -210,6 +281,187 @@ describe('MCP dedicated worker runtime', () => {
         },
       }),
     );
+    expect(createRuntimeContextSpy).toHaveBeenCalledWith(
+      expect.objectContaining({
+        workspace: {
+          metadata_key: 'codex/sandbox-state-meta',
+          workspace: '/repo',
+        },
+        capabilities: expect.objectContaining({
+          plugin_mcp: true,
+          strict_config: true,
+          workspace_metadata: true,
+          nested_sandbox: true,
+        }),
+        search: { mode: 'cached', consented: true },
+        proofExecutor: expect.any(Function),
+        gitReader: expect.objectContaining({ read: expect.any(Function) }),
+        cancellation: {
+          owner: 'supervisor',
+          process_group_cleanup: 'observed',
+          run_id: '019f64f5-1f4d-7d91-8cda-a309cc72c300',
+        },
+      }),
+    );
+  });
+
+  it('rejects a linked .circuit directory before the normal engine can write outside the workspace', async () => {
+    const root = await realpath(await mkdtemp(join(tmpdir(), 'circuit-worker-run-path-')));
+    roots.push(root);
+    const workspace = join(root, 'workspace');
+    const outside = join(root, 'outside');
+    const privateRoot = join(root, 'private');
+    await Promise.all([mkdir(workspace), mkdir(outside), mkdir(privateRoot, { mode: 0o700 })]);
+    await symlink(outside, join(workspace, '.circuit'), 'dir');
+    const workspaceInfo = await stat(workspace);
+    const launch = parseMcpWorkerLaunch(
+      startLaunch({
+        workspace: {
+          canonical_path: workspace,
+          device: String(workspaceInfo.dev),
+          inode: String(workspaceInfo.ino),
+        },
+        private_temp_root: privateRoot,
+      }),
+    );
+    const main = vi.fn(async (argv: readonly string[]) => {
+      const runFolderFlag = argv.indexOf('--run-folder');
+      const escapedRunFolder = argv[runFolderFlag + 1];
+      if (escapedRunFolder === undefined) throw new Error('missing run folder');
+      await mkdir(escapedRunFolder, { recursive: true });
+      await writeFile(join(escapedRunFolder, 'escaped.txt'), 'escaped\n');
+      return 0;
+    });
+
+    await expect(
+      runMcpWorkerLaunch(launch, {
+        main,
+        createRelayer: () => ({ connectorName: 'codex', relay: vi.fn() }),
+        verifyLaunch: async () => {},
+        environment: {},
+      }),
+    ).rejects.toThrow(/\.circuit|symbolic link/i);
+    expect(main).not.toHaveBeenCalled();
+    await expect(readdir(outside)).resolves.toEqual([]);
+  });
+
+  it.each(['runs', 'run'] as const)(
+    'rejects a linked %s directory before the normal engine can write outside the workspace',
+    async (linkedDirectory) => {
+      const root = await realpath(await mkdtemp(join(tmpdir(), 'circuit-worker-linked-run-')));
+      roots.push(root);
+      const workspace = join(root, 'workspace');
+      const outside = join(root, 'outside');
+      const privateRoot = join(root, 'private');
+      const runsRoot = join(workspace, '.circuit', 'runs');
+      await Promise.all([
+        mkdir(workspace),
+        mkdir(outside),
+        mkdir(privateRoot, { mode: 0o700 }),
+        mkdir(linkedDirectory === 'runs' ? join(workspace, '.circuit') : runsRoot, {
+          recursive: true,
+        }),
+      ]);
+      const linkedPath =
+        linkedDirectory === 'runs'
+          ? runsRoot
+          : join(runsRoot, '019f64f5-1f4d-7d91-8cda-a309cc72c300');
+      await symlink(outside, linkedPath, 'dir');
+      const workspaceInfo = await stat(workspace);
+      const launch = parseMcpWorkerLaunch(
+        startLaunch({
+          workspace: {
+            canonical_path: workspace,
+            device: String(workspaceInfo.dev),
+            inode: String(workspaceInfo.ino),
+          },
+          private_temp_root: privateRoot,
+        }),
+      );
+      const main = vi.fn(async () => 0);
+
+      await expect(
+        runMcpWorkerLaunch(launch, {
+          main,
+          createRelayer: () => ({ connectorName: 'codex', relay: vi.fn() }),
+          verifyLaunch: async () => {},
+          environment: {},
+        }),
+      ).rejects.toThrow(/symbolic link/i);
+      expect(main).not.toHaveBeenCalled();
+      await expect(readdir(outside)).resolves.toEqual([]);
+    },
+  );
+
+  it('rejects a non-directory .circuit entry before calling the normal engine', async () => {
+    const root = await realpath(await mkdtemp(join(tmpdir(), 'circuit-worker-file-run-')));
+    roots.push(root);
+    const workspace = join(root, 'workspace');
+    const privateRoot = join(root, 'private');
+    await Promise.all([mkdir(workspace), mkdir(privateRoot, { mode: 0o700 })]);
+    await writeFile(join(workspace, '.circuit'), 'not a directory\n');
+    const workspaceInfo = await stat(workspace);
+    const launch = parseMcpWorkerLaunch(
+      startLaunch({
+        workspace: {
+          canonical_path: workspace,
+          device: String(workspaceInfo.dev),
+          inode: String(workspaceInfo.ino),
+        },
+        private_temp_root: privateRoot,
+      }),
+    );
+    const main = vi.fn(async () => 0);
+
+    await expect(
+      runMcpWorkerLaunch(launch, {
+        main,
+        createRelayer: () => ({ connectorName: 'codex', relay: vi.fn() }),
+        verifyLaunch: async () => {},
+        environment: {},
+      }),
+    ).rejects.toThrow(/real directory/i);
+    expect(main).not.toHaveBeenCalled();
+  });
+
+  it('detects an ancestor swap after binding and before calling the normal engine', async () => {
+    const root = await realpath(await mkdtemp(join(tmpdir(), 'circuit-worker-run-swap-')));
+    roots.push(root);
+    const workspace = join(root, 'workspace');
+    const outside = join(root, 'outside');
+    const privateRoot = join(root, 'private');
+    await Promise.all([mkdir(workspace), mkdir(outside), mkdir(privateRoot, { mode: 0o700 })]);
+    const workspaceInfo = await stat(workspace);
+    const launch = parseMcpWorkerLaunch(
+      startLaunch({
+        workspace: {
+          canonical_path: workspace,
+          device: String(workspaceInfo.dev),
+          inode: String(workspaceInfo.ino),
+        },
+        private_temp_root: privateRoot,
+      }),
+    );
+    const main = vi.fn(async () => 0);
+
+    await expect(
+      runMcpWorkerLaunch(launch, {
+        main,
+        createRelayer: () => ({ connectorName: 'codex', relay: vi.fn() }),
+        verifyLaunch: async () => {},
+        prepareDirectories: async () => {
+          await rename(join(workspace, '.circuit'), join(workspace, '.circuit-bound'));
+          await symlink(outside, join(workspace, '.circuit'), 'dir');
+          return {
+            configHome: join(privateRoot, 'config-home'),
+            configCwd: join(privateRoot, 'config-workspace'),
+          };
+        },
+        environment: {},
+      }),
+    ).rejects.toThrow(/changed after Circuit bound it/i);
+    expect(main).not.toHaveBeenCalled();
+    await expect(readdir(outside)).resolves.toEqual([]);
   });
 
   it('revalidates workspace identity and every sealed asset inside the worker', async () => {
@@ -223,11 +475,12 @@ describe('MCP dedicated worker runtime', () => {
       mkdir(join(flowRoot, 'prototype'), { recursive: true }),
       mkdir(privateRoot, { recursive: true, mode: 0o700 }),
     ]);
-    const node = join(root, 'node');
+    const node = join(root, 'node-install', 'bin', 'node');
     const codex = join(root, 'codex');
     const worker = join(root, 'worker.mjs');
     const git = join(root, 'git');
     const flow = join(flowRoot, 'prototype', 'circuit.json');
+    await mkdir(dirname(node), { recursive: true });
     await Promise.all([
       writeFile(node, '#!/bin/sh\n', { mode: 0o700 }),
       writeFile(codex, '#!/bin/sh\n', { mode: 0o700 }),
@@ -271,5 +524,74 @@ describe('MCP dedicated worker runtime', () => {
     ).rejects.toThrow(/identity changed/);
     await writeFile(codex, '#!/bin/sh\n# replaced\n', { mode: 0o700 });
     await expect(verifyMcpWorkerLaunch(launch)).rejects.toThrow(/changed/);
+  });
+
+  it('blocks a nested relay when Codex changes after worker initialization', async () => {
+    const root = await realpath(await mkdtemp(join(tmpdir(), 'circuit-worker-relay-pin-')));
+    roots.push(root);
+    const workspace = join(root, 'workspace');
+    const flowRoot = join(root, 'plugin', 'flows');
+    const privateRoot = join(root, 'private');
+    await Promise.all([
+      mkdir(workspace, { recursive: true }),
+      mkdir(join(flowRoot, 'prototype'), { recursive: true }),
+      mkdir(privateRoot, { recursive: true, mode: 0o700 }),
+    ]);
+    const node = join(root, 'node-install', 'bin', 'node');
+    const codex = join(root, 'codex');
+    const worker = join(root, 'worker.mjs');
+    const git = join(root, 'git');
+    const flow = join(flowRoot, 'prototype', 'circuit.json');
+    await mkdir(dirname(node), { recursive: true });
+    await Promise.all([
+      writeFile(node, '#!/bin/sh\n', { mode: 0o700 }),
+      writeFile(codex, '#!/bin/sh\n', { mode: 0o700 }),
+      writeFile(worker, 'worker\n', { mode: 0o600 }),
+      writeFile(git, '#!/bin/sh\n', { mode: 0o700 }),
+      writeFile(flow, '{}\n', { mode: 0o600 }),
+    ]);
+    const runtimeAssets = await pinMcpRuntimeAssets({
+      node,
+      codex,
+      plugin_runtimes: [{ id: 'worker', path: worker }],
+      git_helper: git,
+      packaged_flows: [{ id: 'prototype', path: flow }],
+    });
+    const workspaceInfo = await stat(workspace);
+    const launch = parseMcpWorkerLaunch(
+      startLaunch({
+        workspace: {
+          canonical_path: workspace,
+          device: String(workspaceInfo.dev),
+          inode: String(workspaceInfo.ino),
+        },
+        flow_root: flowRoot,
+        private_temp_root: privateRoot,
+        asset_digest_sha256: runtimeAssets.digest_sha256,
+        runtime_assets: runtimeAssets,
+        codex: { ...startLaunch().codex, executable: codex },
+        git: { executable: git },
+      }),
+    );
+    const spawn = vi.fn();
+
+    await expect(
+      runMcpWorkerLaunch(launch, {
+        main: async (_argv, options) => {
+          const relayer = options.relayer;
+          if (relayer === undefined) throw new Error('missing relayer');
+          // Same inode, mode, and byte length. Only the sealed bytes differ.
+          await writeFile(codex, '#!/bin/zs\n', { mode: 0o700 });
+          await expect(relayer.relay({ prompt: 'do not spawn' })).rejects.toMatchObject({
+            code: 'runtime_asset_changed',
+          });
+          return 0;
+        },
+        createRelayer: (policy, dependencies) =>
+          createMcpCodexRelayer(policy, { ...dependencies, run: spawn }),
+        environment: {},
+      }),
+    ).resolves.toBe(0);
+    expect(spawn).not.toHaveBeenCalled();
   });
 });

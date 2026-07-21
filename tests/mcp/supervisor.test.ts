@@ -3,13 +3,14 @@ import { existsSync, readFileSync, writeFileSync } from 'node:fs';
 import { chmod, mkdir, mkdtemp, readFile, realpath, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join, resolve } from 'node:path';
-import { PassThrough } from 'node:stream';
+import { PassThrough, Writable } from 'node:stream';
 
 import { build } from 'esbuild';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
 import { pinMcpRuntimeAssets } from '../../src/hosts/codex-mcp/asset-pins.js';
 import type { LifecycleExecutableIdentity } from '../../src/hosts/codex-mcp/lifecycle-types.js';
+import { ObservedProcessProbe } from '../../src/hosts/codex-mcp/process-probe.js';
 import { ProcessSupervisorLauncher } from '../../src/hosts/codex-mcp/supervisor-launcher.js';
 import { readSupervisorProgress } from '../../src/hosts/codex-mcp/supervisor-progress.js';
 import {
@@ -19,9 +20,14 @@ import {
   decodeSupervisorMessage,
   encodeSupervisorMessage,
 } from '../../src/hosts/codex-mcp/supervisor-protocol.js';
-import { BoundedLineReader } from '../../src/hosts/codex-mcp/supervisor-runtime.js';
+import {
+  BoundedLineReader,
+  cleanupSupervisorOwnedProcessGroup,
+  sendWorkerPayload,
+} from '../../src/hosts/codex-mcp/supervisor-runtime.js';
 
 const RUN_ID = '11111111-1111-4111-8111-111111111111';
+const NOW = '2026-07-21T08:00:00.000Z';
 const roots: string[] = [];
 
 async function waitFor<T>(read: () => T | undefined, timeoutMs = 8_000): Promise<T> {
@@ -52,7 +58,11 @@ function processGroupAbsent(processGroupId: number): boolean {
   }
 }
 
-async function makeFixture(): Promise<{
+async function makeFixture(
+  workerMode: 'normal' | 'close-fd3' = 'normal',
+  supervisorMode: 'normal' | 'accept-auth-no-reply' = 'normal',
+  authorizationTimeoutMs = 8_000,
+): Promise<{
   readonly root: string;
   readonly control: string;
   readonly supervisor: string;
@@ -68,9 +78,10 @@ async function makeFixture(): Promise<{
   await mkdir(control, { mode: 0o700 });
   await chmod(control, 0o700);
   const supervisor = join(root, 'supervisor.mjs');
-  await build({
-    stdin: {
-      contents: `import { runSupervisor } from ${JSON.stringify(resolve('src/hosts/codex-mcp/supervisor-runtime.ts'))};
+  if (supervisorMode === 'normal') {
+    await build({
+      stdin: {
+        contents: `import { runSupervisor } from ${JSON.stringify(resolve('src/hosts/codex-mcp/supervisor-runtime.ts'))};
 void runSupervisor({
   observeProcess: async (pid, processGroupId, birthToken) => ({
     pid,
@@ -82,22 +93,48 @@ void runSupervisor({
   process.stderr.write(\`Circuit MCP supervisor stopped: \${error instanceof Error ? error.message : String(error)}\\n\`);
   process.exitCode = 1;
 });`,
-      resolveDir: process.cwd(),
-      sourcefile: 'test-supervisor-entrypoint.ts',
-      loader: 'ts',
-    },
-    outfile: supervisor,
-    bundle: true,
-    platform: 'node',
-    format: 'esm',
-    target: 'node22.18',
-    sourcemap: false,
-  });
+        resolveDir: process.cwd(),
+        sourcefile: 'test-supervisor-entrypoint.ts',
+        loader: 'ts',
+      },
+      outfile: supervisor,
+      bundle: true,
+      platform: 'node',
+      format: 'esm',
+      target: 'node22.18',
+      sourcemap: false,
+    });
+  } else {
+    await writeFile(
+      supervisor,
+      `import { readFileSync, writeFileSync, writeSync } from 'node:fs';
+const token = process.argv.find((value) => value.startsWith('--circuit-mcp-process-token='))?.split('=')[1];
+writeSync(4, JSON.stringify({
+  schema_version: 1,
+  kind: 'supervisor_ready',
+  supervisor: {
+    pid: process.pid,
+    process_group_id: process.pid,
+    birth_token: token,
+    started_at: new Date().toISOString(),
+  },
+}) + '\\n');
+readFileSync(3, 'utf8');
+writeFileSync(new URL('./authorization-accepted', import.meta.url), 'yes');
+setInterval(() => {}, 1_000);
+`,
+      { mode: 0o600 },
+    );
+  }
   const worker = join(root, 'worker.mjs');
   await writeFile(
     worker,
-    `import { readFileSync, writeFileSync } from 'node:fs';
+    `import { closeSync, readFileSync, writeFileSync } from 'node:fs';
 import { spawn } from 'node:child_process';
+if (${JSON.stringify(workerMode)} === 'close-fd3') {
+  closeSync(3);
+  setInterval(() => {}, 1_000);
+} else {
 const launch = JSON.parse(readFileSync(3, 'utf8'));
 writeFileSync(new URL('./worker-observed.json', import.meta.url), JSON.stringify({
   launch,
@@ -124,7 +161,7 @@ if (launch.mode === 'overflow') {
   process.stdout.write('x'.repeat(16_384));
   setInterval(() => {}, 1_000);
 } else if (launch.mode === 'background') {
-  const child = spawn(process.execPath, ['-e', 'setInterval(() => {}, 1000)'], {
+  const child = spawn(process.execPath, ['-e', 'setTimeout(() => {}, 1500)'], {
     detached: false,
     stdio: 'ignore',
   });
@@ -132,6 +169,7 @@ if (launch.mode === 'overflow') {
   child.unref();
 } else {
   process.exitCode = launch.exit_code ?? 0;
+}
 }
 `,
     { mode: 0o600 },
@@ -141,12 +179,15 @@ if (launch.mode === 'overflow') {
   await chmod(codex, 0o700);
   const gitHelper = join(root, 'git-helper.mjs');
   const flow = join(root, 'review-flow.json');
-  await writeFile(gitHelper, 'export {};\n', { mode: 0o600 });
+  await writeFile(gitHelper, '#!/bin/sh\nexit 0\n', { mode: 0o700 });
   await writeFile(flow, '{}\n', { mode: 0o600 });
   const pins = await pinMcpRuntimeAssets({
     node: process.execPath,
     codex,
-    plugin_runtime: worker,
+    plugin_runtimes: [
+      { id: 'supervisor', path: supervisor },
+      { id: 'worker', path: worker },
+    ],
     git_helper: gitHelper,
     packaged_flows: [{ id: 'review', path: flow }],
   });
@@ -190,6 +231,7 @@ if (launch.mode === 'overflow') {
         PATH: '/tmp/test-bin:/usr/bin:/bin',
       },
       helloTimeoutMs: 5_000,
+      authorizationTimeoutMs,
       workerStartMs: 5_000,
       terminateMs: 1_000,
       killMs: 1_000,
@@ -209,6 +251,190 @@ afterEach(async () => {
 });
 
 describe('Codex MCP supervisor protocol', () => {
+  it('rejects a worker identity that does not use the committed launch token', async () => {
+    const authorization = new PassThrough();
+    const responses = new PassThrough();
+    const stderr = new PassThrough();
+    let supervisorToken = '';
+    const executable: LifecycleExecutableIdentity = {
+      real_path: '/trusted/node',
+      device: '1',
+      inode: '2',
+      sha256: 'a'.repeat(64),
+    };
+    const launcher = new ProcessSupervisorLauncher({
+      nodeExecutable: executable.real_path,
+      nodeIdentity: executable,
+      supervisorEntrypoint: '/trusted/supervisor.mjs',
+      verifySupervisorEntrypoint: async () => undefined,
+      processProbe: {
+        inspectProcess: async () => 'absent',
+        inspectProcessGroup: async () => 'absent',
+        signalOwnedProcessGroup: async () => 'absent',
+      },
+      spawnProcess: (_executable, args) => {
+        supervisorToken = args[1]?.split('=')[1] ?? '';
+        responses.write(
+          encodeSupervisorMessage({
+            schema_version: 1,
+            kind: 'supervisor_ready',
+            supervisor: {
+              pid: 4_242,
+              process_group_id: 4_242,
+              birth_token: supervisorToken,
+              started_at: NOW,
+            },
+          }),
+        );
+        return {
+          pid: 4_242,
+          stderr,
+          stdio: [null, null, stderr, authorization, responses],
+          once: vi.fn(),
+          unref: vi.fn(),
+        } as never;
+      },
+    });
+    const session = await launcher.begin({
+      run_id: RUN_ID,
+      generation: 1,
+      control_directory: '/tmp',
+      runtime_assets: {
+        schema_version: 1,
+        digest_sha256: 'b'.repeat(64),
+        assets: [],
+      },
+    });
+    responses.end(
+      encodeSupervisorMessage({
+        schema_version: 1,
+        kind: 'runtime_started',
+        authorization_sha256: session.authorization_sha256,
+        runtime: {
+          pid: 4_343,
+          process_group_id: 4_343,
+          birth_token: 'wrong-worker-token',
+          started_at: NOW,
+        },
+      }),
+    );
+
+    await expect(
+      session.authorize({
+        worker: { worker_entrypoint: '/trusted/worker.mjs', launch_payload: {} },
+      }),
+    ).rejects.toThrow(/worker.*token|launch token/i);
+  });
+
+  it('does not signal a replaced supervisor between inspection and cleanup', async () => {
+    const authorization = new PassThrough();
+    const responses = new PassThrough();
+    const stderr = new PassThrough();
+    const lowLevelSignal = vi.fn(() => 'sent' as const);
+    let reads = 0;
+    let expectedToken = '';
+    const executable: LifecycleExecutableIdentity = {
+      real_path: '/trusted/node',
+      device: '1',
+      inode: '2',
+      sha256: 'a'.repeat(64),
+    };
+    const processProbe = new ObservedProcessProbe({
+      readProcess: () => {
+        reads += 1;
+        return {
+          status: 'alive',
+          process_group_id: 4_242,
+          birth_token: reads === 1 ? expectedToken : 'replacement-supervisor',
+        };
+      },
+      readProcessGroup: () => 'alive',
+      executableMatches: () => true,
+      signalProcessGroup: lowLevelSignal,
+    });
+    const launcher = new ProcessSupervisorLauncher({
+      nodeExecutable: executable.real_path,
+      nodeIdentity: executable,
+      supervisorEntrypoint: '/trusted/supervisor.mjs',
+      verifySupervisorEntrypoint: async () => undefined,
+      processProbe,
+      helloTimeoutMs: 1_000,
+      killMs: 100,
+      spawnProcess: (_executable, args) => {
+        expectedToken = args[1]?.split('=')[1] ?? '';
+        responses.end(
+          encodeSupervisorMessage({
+            schema_version: 1,
+            kind: 'supervisor_ready',
+            supervisor: {
+              pid: 4_242,
+              process_group_id: 4_242,
+              birth_token: expectedToken,
+              started_at: NOW,
+            },
+          }),
+        );
+        return {
+          pid: 4_242,
+          stderr,
+          stdio: [null, null, stderr, authorization, responses],
+          once: vi.fn(),
+          unref: vi.fn(),
+        } as never;
+      },
+    });
+    const session = await launcher.begin({
+      run_id: RUN_ID,
+      generation: 1,
+      control_directory: '/tmp',
+      runtime_assets: {
+        schema_version: 1,
+        digest_sha256: 'b'.repeat(64),
+        assets: [],
+      },
+    });
+
+    await expect(session.closeBeforeAuthorization()).resolves.toBe(false);
+    expect(reads).toBe(2);
+    expect(lowLevelSignal).not.toHaveBeenCalled();
+  });
+
+  it('does not signal a replaced worker between inspection and supervisor cleanup', async () => {
+    const identity = {
+      pid: 4_343,
+      process_group_id: 4_343,
+      birth_token: 'worker-token',
+      started_at: NOW,
+      executable: {
+        real_path: '/trusted/node',
+        device: '1',
+        inode: '2',
+        sha256: 'a'.repeat(64),
+      },
+    };
+    const lowLevelSignal = vi.fn(() => 'sent' as const);
+    let reads = 0;
+    const processProbe = new ObservedProcessProbe({
+      readProcess: () => {
+        reads += 1;
+        return {
+          status: 'alive',
+          process_group_id: identity.process_group_id,
+          birth_token: reads === 1 ? identity.birth_token : 'replacement-worker',
+        };
+      },
+      readProcessGroup: () => 'alive',
+      executableMatches: () => true,
+      signalProcessGroup: lowLevelSignal,
+    });
+
+    await expect(
+      cleanupSupervisorOwnedProcessGroup(identity, processProbe, 100, 100),
+    ).resolves.toBe('unconfirmed');
+    expect(reads).toBe(2);
+    expect(lowLevelSignal).not.toHaveBeenCalled();
+  });
+
   it('can wait for parent-owned authorization without an autonomous timeout', async () => {
     vi.useFakeTimers();
     try {
@@ -219,6 +445,109 @@ describe('Codex MCP supervisor protocol', () => {
       await expect(pending).resolves.toEqual(Buffer.from('authorized'));
     } finally {
       vi.useRealTimers();
+    }
+  });
+
+  it('contains a worker authorization pipe error', async () => {
+    const channel = new Writable({
+      write(_chunk, _encoding, callback) {
+        callback(Object.assign(new Error('pipe closed'), { code: 'EPIPE' }));
+      },
+    });
+    await expect(sendWorkerPayload(channel, { safe: true }, 1_000)).rejects.toThrow(/pipe closed/i);
+  });
+
+  it('bounds a worker that holds its authorization pipe unread', async () => {
+    const channel = new Writable({
+      write() {
+        // Deliberately never acknowledge the buffered write.
+      },
+    });
+    await expect(sendWorkerPayload(channel, { value: 'x'.repeat(500_000) }, 100)).rejects.toThrow(
+      /delivery timed out/i,
+    );
+  });
+
+  it('cleans up a real worker that closes fd3 and journals the failed launch', async () => {
+    const fixture = await makeFixture('close-fd3');
+    const session = await fixture.launcher.begin({
+      run_id: RUN_ID,
+      generation: 1,
+      control_directory: fixture.control,
+      runtime_assets: fixture.pins,
+    });
+
+    await expect(
+      session.authorize({
+        worker: {
+          worker_entrypoint: fixture.worker,
+          launch_payload: {
+            authorization: session.authorization_token,
+            asset_digest_sha256: fixture.digest,
+            runtime_assets: fixture.pins,
+            padding: 'x'.repeat(500_000),
+          },
+        },
+      }),
+    ).rejects.toThrow();
+
+    const runtimeJournal = await waitFor(() =>
+      readJournal(join(fixture.control, 'launch-1-runtime.json'), (value) =>
+        RuntimeJournalV1.parse(value),
+      ),
+    );
+    const exitJournal = await waitFor(() =>
+      readJournal(join(fixture.control, 'launch-1-exit.json'), (value) =>
+        ExitJournalV1.parse(value),
+      ),
+    );
+    expect(exitJournal.process_group_cleanup).toBe('confirmed');
+    await waitFor(() =>
+      processGroupAbsent(runtimeJournal.runtime.process_group_id) ? true : undefined,
+    );
+  });
+
+  it('bounds authorization when a supervisor accepts it but never replies', async () => {
+    const fixture = await makeFixture('normal', 'accept-auth-no-reply', 100);
+    const session = await fixture.launcher.begin({
+      run_id: RUN_ID,
+      generation: 1,
+      control_directory: fixture.control,
+      runtime_assets: fixture.pins,
+    });
+
+    try {
+      await expect(
+        Promise.race([
+          session.authorize({
+            worker: {
+              worker_entrypoint: fixture.worker,
+              launch_payload: {
+                authorization: session.authorization_token,
+                asset_digest_sha256: fixture.digest,
+                runtime_assets: fixture.pins,
+              },
+            },
+          }),
+          new Promise<never>((_resolve, reject) =>
+            setTimeout(
+              () => reject(new Error('parent authorization timeout was not enforced')),
+              3_000,
+            ),
+          ),
+        ]),
+      ).rejects.toMatchObject({
+        message: expect.stringMatching(/authorization timed out/i),
+        cleanup_confirmed: false,
+      });
+      expect(existsSync(join(fixture.root, 'authorization-accepted'))).toBe(true);
+      await waitFor(() =>
+        processGroupAbsent(session.supervisor.process_group_id) ? true : undefined,
+      );
+    } finally {
+      if (!processGroupAbsent(session.supervisor.process_group_id)) {
+        process.kill(-session.supervisor.process_group_id, 'SIGKILL');
+      }
     }
   });
 
@@ -275,6 +604,7 @@ describe('Codex MCP supervisor protocol', () => {
       },
     });
     expect(runtime.pid).toBe(runtime.process_group_id);
+    expect(runtime.birth_token).toBe(session.authorization_sha256);
     expect(runtime.started_at).toBeTruthy();
     expect(runtime.executable.sha256).toMatch(/^[a-f0-9]{64}$/);
 
@@ -287,6 +617,7 @@ describe('Codex MCP supervisor protocol', () => {
       readJournal(exitPath, (value) => ExitJournalV1.parse(value)),
     );
     expect(runtimeJournal.runtime.pid).toBe(runtime.pid);
+    expect(runtimeJournal.runtime.birth_token).toBe(session.authorization_sha256);
     expect(exitJournal).toMatchObject({ exit_code: 0, process_group_cleanup: 'confirmed' });
     expect(
       readSupervisorProgress({
@@ -413,7 +744,7 @@ describe('Codex MCP supervisor protocol', () => {
     expect(exitJournal.process_group_cleanup).toBe('confirmed');
   });
 
-  it('observes cleanup of background children in the worker process group', async () => {
+  it('does not signal a worker group after its recorded leader has exited', async () => {
     const fixture = await makeFixture();
     const session = await fixture.launcher.begin({
       run_id: RUN_ID,
@@ -441,7 +772,7 @@ describe('Codex MCP supervisor protocol', () => {
         ExitJournalV1.parse(value),
       ),
     );
-    expect(exitJournal.process_group_cleanup).toBe('confirmed');
+    expect(exitJournal.process_group_cleanup).toBe('unconfirmed');
     await waitFor(() => (processAbsent(childPid) ? true : undefined));
   });
 });

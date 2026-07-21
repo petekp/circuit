@@ -70,8 +70,9 @@ function probeWith(statuses: Map<number, LifecycleProcessStatus>): {
   readonly probe: LifecycleProcessProbe;
   readonly signals: ReturnType<typeof vi.fn>;
 } {
-  const signals = vi.fn(async (processGroupId: number) => {
-    statuses.set(processGroupId, 'absent');
+  const signals = vi.fn(async (identity: typeof RUNTIME) => {
+    statuses.set(identity.process_group_id, 'absent');
+    statuses.set(identity.pid, 'absent');
     return 'sent' as const;
   });
   return {
@@ -79,7 +80,7 @@ function probeWith(statuses: Map<number, LifecycleProcessStatus>): {
     probe: {
       inspectProcess: async (identity) => statuses.get(identity.pid) ?? 'unknown',
       inspectProcessGroup: async (identity) => statuses.get(identity.process_group_id) ?? 'unknown',
-      signalProcessGroup: signals,
+      signalOwnedProcessGroup: signals,
     },
   };
 }
@@ -117,7 +118,7 @@ describe('observed MCP process cleanup', () => {
     });
     const result = await cleanup.cancel({ workspace: run().workspace, run: run() });
     expect(result.cleanup_confirmed).toBe(true);
-    expect(signals.mock.calls.map((entry) => entry[0])).toEqual([
+    expect(signals.mock.calls.map((entry) => entry[0].process_group_id)).toEqual([
       RUNTIME.process_group_id,
       SUPERVISOR.process_group_id,
     ]);
@@ -140,16 +141,13 @@ describe('observed MCP process cleanup', () => {
     expect(signals).not.toHaveBeenCalled();
   });
 
-  it('cleans descendants when the exact worker leader is already absent', async () => {
+  it('does not signal descendants after the exact worker leader is already absent', async () => {
     let runtimeProcessChecks = 0;
     const group = new Map<number, LifecycleProcessStatus>([
       [SUPERVISOR.pid, 'absent'],
       [RUNTIME.pid, 'alive'],
     ]);
-    const signals = vi.fn(async (processGroupId: number) => {
-      group.set(processGroupId, 'absent');
-      return 'sent' as const;
-    });
+    const signals = vi.fn(async () => 'sent' as const);
     const probe: LifecycleProcessProbe = {
       inspectProcess: async (identity) => {
         if (identity.pid === RUNTIME.pid) {
@@ -159,12 +157,34 @@ describe('observed MCP process cleanup', () => {
         return 'absent';
       },
       inspectProcessGroup: async (identity) => group.get(identity.process_group_id) ?? 'unknown',
-      signalProcessGroup: signals,
+      signalOwnedProcessGroup: signals,
     };
     const cleanup = new ObservedCleanupController({ probe, wait: async () => undefined });
     const result = await cleanup.cancel({ workspace: run().workspace, run: run() });
-    expect(result.cleanup_confirmed).toBe(true);
+    expect(result).toMatchObject({
+      cleanup_confirmed: false,
+      runtime_status: 'unknown',
+      process_group_status: 'unknown',
+    });
     expect(runtimeProcessChecks).toBeGreaterThan(0);
-    expect(signals).toHaveBeenCalledWith(RUNTIME.process_group_id, 'SIGTERM');
+    expect(signals).not.toHaveBeenCalled();
+  });
+
+  it('leaves the supervisor alive when worker cleanup is uncertain', async () => {
+    const signals = vi.fn(async () => 'sent' as const);
+    const probe: LifecycleProcessProbe = {
+      inspectProcess: async (identity) => (identity.pid === RUNTIME.pid ? 'absent' : 'alive'),
+      inspectProcessGroup: async () => 'alive',
+      signalOwnedProcessGroup: signals,
+    };
+    const cleanup = new ObservedCleanupController({ probe, wait: async () => undefined });
+
+    await expect(cleanup.cancel({ workspace: run().workspace, run: run() })).resolves.toEqual({
+      cleanup_confirmed: false,
+      supervisor_status: 'alive',
+      runtime_status: 'unknown',
+      process_group_status: 'unknown',
+    });
+    expect(signals).not.toHaveBeenCalled();
   });
 });

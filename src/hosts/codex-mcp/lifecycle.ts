@@ -25,6 +25,8 @@ import { SupervisorJournalError } from './supervisor-journal.js';
 import type { SupervisorLaunchSession, SupervisorLauncher } from './supervisor-launcher.js';
 
 const ACTIVE_STATES = new Set(['starting', 'running', 'resuming', 'cancelling']);
+const CLOSED_STATES = new Set(['complete', 'needs_attention', 'cancelled', 'interrupted']);
+const CANCEL_CLAIM_ATTEMPTS = 3;
 
 export class McpLifecycleError extends Error {
   readonly code: string;
@@ -151,21 +153,20 @@ async function boundedWorkerPreparation<T>(
   }
 }
 
-export interface CreateCircuitMcpLifecycleOptions {
+export interface CreateCircuitMcpLifecycleOptions<TPrepared = unknown> {
   readonly platform?: NodeJS.Platform;
-  readonly publicFlows: ReadonlySet<CircuitStartInputV1['flow']>;
   readonly loadRuntimeAssets: () => Promise<McpRuntimeAssetPins>;
   readonly validateStart?: (input: CircuitStartInputV1) => Promise<void>;
-  readonly preflightLaunch?: (input: {
+  readonly preflightLaunch: (input: {
     readonly workspace: LifecycleWorkspaceIdentity;
     readonly request: CircuitStartInputV1;
     readonly runtime_assets: McpRuntimeAssetPins;
-  }) => Promise<void>;
+  }) => Promise<TPrepared>;
   readonly resolveWorkspace: (metadata: unknown) => Promise<LifecycleWorkspaceIdentity>;
   readonly owner: () => Promise<LifecycleProcessOwnerIdentity>;
   readonly store: LifecycleStore;
   readonly launcher: SupervisorLauncher;
-  readonly workerFactory: LifecycleWorkerFactory;
+  readonly workerFactory: LifecycleWorkerFactory<TPrepared>;
   readonly checkpoints: LifecycleCheckpointReader;
   readonly reports: LifecycleReportReader;
   readonly cleanup: LifecycleCleanupController;
@@ -174,13 +175,13 @@ export interface CreateCircuitMcpLifecycleOptions {
   readonly randomRunId?: () => string;
 }
 
-export class CircuitMcpLifecycle {
-  readonly #options: CreateCircuitMcpLifecycleOptions;
+export class CircuitMcpLifecycle<TPrepared = unknown> {
+  readonly #options: CreateCircuitMcpLifecycleOptions<TPrepared>;
   readonly #now: () => Date;
   readonly #randomRunId: () => string;
   readonly #workerPreparationMs: number;
 
-  constructor(options: CreateCircuitMcpLifecycleOptions) {
+  constructor(options: CreateCircuitMcpLifecycleOptions<TPrepared>) {
     this.#options = options;
     this.#now = options.now ?? (() => new Date());
     this.#randomRunId = options.randomRunId ?? randomUUID;
@@ -230,24 +231,17 @@ export class CircuitMcpLifecycle {
     // This check intentionally precedes workspace resolution, state-root
     // creation, run allocation, and every other durable action.
     this.#requireMacOs();
-    if (!this.#options.publicFlows.has(input.flow)) {
-      throw new McpLifecycleError(
-        'flow_unavailable',
-        `The packaged Circuit plugin does not contain the ${input.flow} flow.`,
-        'Reinstall the Circuit plugin and retry.',
-      );
-    }
     await this.#options.validateStart?.(input);
     const runtimeAssets = await this.#options.loadRuntimeAssets();
     const workspace = await this.#workspace(call);
-    await this.#options.preflightLaunch?.({
+    const preparedLaunch = await this.#options.preflightLaunch({
       workspace,
       request: input,
       runtime_assets: runtimeAssets,
     });
     const owner = await this.#options.owner();
     const runId = this.#randomRunId();
-    const reserved = await this.#options.store.reserveRun({
+    const reserved = await this.#options.store.reserveRunClaimed({
       run_id: runId,
       workspace,
       request: input,
@@ -255,18 +249,11 @@ export class CircuitMcpLifecycle {
       owner,
       summary: `Circuit is starting the ${input.flow} flow.`,
     });
-    const handle = acquireOrThrow(
-      await this.#options.store.acquireOperation({
-        workspace,
-        run_id: runId,
-        operation: 'reconcile',
-        owner,
-      }),
-    );
+    const handle = reserved.handle;
     try {
       const running = await this.#launch({
         workspace,
-        run: reserved,
+        run: reserved.record,
         handle,
         runtime_assets: runtimeAssets,
         signal: call.signal,
@@ -276,6 +263,7 @@ export class CircuitMcpLifecycle {
             run,
             authorization_token: session.authorization_token,
             runtime_assets: runtimeAssets,
+            prepared_launch: preparedLaunch,
           }),
       });
       return {
@@ -300,7 +288,7 @@ export class CircuitMcpLifecycle {
     readonly makeWorker: (
       session: SupervisorLaunchSession,
       run: LifecycleRunRecord,
-    ) => ReturnType<LifecycleWorkerFactory['createStart']>;
+    ) => ReturnType<LifecycleWorkerFactory<TPrepared>['createStart']>;
   }): Promise<LifecycleRunRecord> {
     let current = input.run;
     let session: SupervisorLaunchSession | undefined;
@@ -371,7 +359,8 @@ export class CircuitMcpLifecycle {
         await this.#options.store.transitionRun({
           handle: input.handle,
           to: 'interrupted',
-          summary: 'Circuit could not launch the worker and confirmed cleanup.',
+          summary:
+            'Circuit could not launch the worker and observed that its recorded owned process group is absent.',
           launch: exitedLaunch(current.launch, this.#now, 'confirmed'),
           failure: { code: 'launch_failed', message: 'The Circuit worker did not start.' },
         });
@@ -396,7 +385,7 @@ export class CircuitMcpLifecycle {
       throw new McpLifecycleError(
         cleanupConfirmed ? 'launch_failed' : 'recovery_required',
         cleanupConfirmed
-          ? 'Circuit could not start the worker and confirmed cleanup.'
+          ? 'Circuit could not start the worker and observed that its recorded owned process group is absent.'
           : 'Circuit could not confirm cleanup after the worker launch failed.',
         cleanupConfirmed
           ? 'Retry the flow.'
@@ -491,7 +480,7 @@ export class CircuitMcpLifecycle {
       owner,
       include_progress: false,
     });
-    await this.#options.preflightLaunch?.({
+    const preparedLaunch = await this.#options.preflightLaunch({
       workspace,
       request: waiting.request,
       runtime_assets: runtimeAssets,
@@ -545,6 +534,7 @@ export class CircuitMcpLifecycle {
             choice_id: input.choice_id,
             authorization_token: session.authorization_token,
             runtime_assets: runtimeAssets,
+            prepared_launch: preparedLaunch,
           }),
       });
       const projected = await this.#options.store.reconcileRun({
@@ -581,38 +571,66 @@ export class CircuitMcpLifecycle {
       if (!(error instanceof SupervisorJournalError)) throw error;
       current = await this.#options.store.readRun(workspace, input.run_id);
     }
-    const recoveryCancellation = current.state === 'recovery_required';
-    if (
-      recoveryCancellation &&
-      current.launch.runtime === undefined &&
-      current.launch.phase !== 'supervisor_recorded'
-    ) {
-      throw new McpLifecycleError(
-        'recovery_required',
-        'Circuit does not have an exact worker identity to cancel safely.',
-        'Keep the run for inspection; do not force-unlock its workspace lease.',
-      );
-    }
-    if (['complete', 'needs_attention', 'cancelled', 'interrupted'].includes(current.state)) {
+    if (CLOSED_STATES.has(current.state)) {
       throw new McpLifecycleError('run_not_cancellable', 'This Circuit run is already closed.');
     }
-    if (current.launch.phase === 'launch_authorized' && current.launch.runtime === undefined) {
+    let operation: 'cancel' | 'recover' =
+      current.state === 'recovery_required' ? 'recover' : 'cancel';
+    let handle: LifecycleOperationHandle | undefined;
+    for (let attempt = 0; attempt < CANCEL_CLAIM_ATTEMPTS; attempt += 1) {
+      const claimed = acquireOrThrow(
+        await this.#options.store.acquireOperation({
+          workspace,
+          run_id: input.run_id,
+          operation,
+          owner,
+        }),
+      );
+      try {
+        current = await this.#options.store.readRun(workspace, input.run_id);
+      } catch (error) {
+        await this.#options.store.releaseOperation(claimed);
+        throw error;
+      }
+      const claimedOperation: 'cancel' | 'recover' =
+        current.state === 'recovery_required' ? 'recover' : 'cancel';
+      if (CLOSED_STATES.has(current.state) || claimedOperation === operation) {
+        handle = claimed;
+        break;
+      }
+      await this.#options.store.releaseOperation(claimed);
+      operation = claimedOperation;
+    }
+    if (handle === undefined) {
       throw new McpLifecycleError(
-        'recovery_required',
-        'Circuit cannot safely identify the authorized worker process.',
-        'Keep the run for inspection; do not force-unlock its workspace lease.',
+        'operation_in_progress',
+        'This Circuit run changed while cancellation was starting.',
+        'Retry cancellation.',
       );
     }
-    const handle = acquireOrThrow(
-      await this.#options.store.acquireOperation({
-        workspace,
-        run_id: input.run_id,
-        operation: recoveryCancellation ? 'recover' : 'cancel',
-        owner,
-      }),
-    );
     try {
-      current = await this.#options.store.readRun(workspace, input.run_id);
+      if (CLOSED_STATES.has(current.state)) {
+        throw new McpLifecycleError('run_not_cancellable', 'This Circuit run is already closed.');
+      }
+      const recoveryCancellation = current.state === 'recovery_required';
+      if (
+        recoveryCancellation &&
+        current.launch.runtime === undefined &&
+        current.launch.phase !== 'supervisor_recorded'
+      ) {
+        throw new McpLifecycleError(
+          'recovery_required',
+          'Circuit does not have an exact worker identity to cancel safely.',
+          'Keep the run for inspection; do not force-unlock its workspace lease.',
+        );
+      }
+      if (current.launch.phase === 'launch_authorized' && current.launch.runtime === undefined) {
+        throw new McpLifecycleError(
+          'recovery_required',
+          'Circuit cannot safely identify the authorized worker process.',
+          'Keep the run for inspection; do not force-unlock its workspace lease.',
+        );
+      }
       if (current.state === 'waiting_for_input') {
         const cancelled = await this.#options.store.transitionRun({
           handle,
@@ -626,14 +644,14 @@ export class CircuitMcpLifecycle {
           run_id: cancelled.run_id,
           state: 'cancelled',
           cleanup_confirmed: true,
-          summary: 'Circuit closed the waiting checkpoint and confirmed cleanup.',
+          summary: 'Circuit closed the waiting checkpoint; no worker process group was active.',
         };
       }
       if (current.state !== 'cancelling' && current.state !== 'recovery_required') {
         current = await this.#options.store.transitionRun({
           handle,
           to: 'cancelling',
-          summary: 'Circuit is stopping the worker process tree.',
+          summary: 'Circuit is stopping its recorded owned process group.',
         });
       }
       let cleanup: Awaited<ReturnType<LifecycleCleanupController['cancel']>>;
@@ -651,7 +669,7 @@ export class CircuitMcpLifecycle {
         const cancelled = await this.#options.store.transitionRun({
           handle,
           to: 'cancelled',
-          summary: 'Circuit stopped the worker and confirmed process-tree cleanup.',
+          summary: 'Circuit observed that its recorded owned process group is absent.',
           launch: exitedLaunch(current.launch, this.#now, 'confirmed'),
           checkpoint: null,
         });
@@ -661,13 +679,13 @@ export class CircuitMcpLifecycle {
           run_id: cancelled.run_id,
           state: 'cancelled',
           cleanup_confirmed: true,
-          summary: 'Circuit stopped the run and confirmed cleanup.',
+          summary: 'Circuit observed that its recorded owned process group is absent.',
         };
       }
       const recovery = await this.#options.store.transitionRun({
         handle,
         to: 'recovery_required',
-        summary: 'Circuit could not confirm process-tree cleanup.',
+        summary: 'Circuit could not prove that its recorded owned process group is absent.',
         recovery: recoveryEvidence(this.#now, 'cancellation_cleanup_uncertain', true, cleanup),
         checkpoint: null,
       });
@@ -722,8 +740,8 @@ export class CircuitMcpLifecycle {
   }
 }
 
-export function createCircuitMcpLifecycleHandler(
-  options: CreateCircuitMcpLifecycleOptions,
+export function createCircuitMcpLifecycleHandler<TPrepared>(
+  options: CreateCircuitMcpLifecycleOptions<TPrepared>,
 ): CircuitMcpToolHandler {
   return new CircuitMcpLifecycle(options).handle;
 }

@@ -1,4 +1,4 @@
-const TRANSIENT_ENVIRONMENT_NAMES = [
+export const MCP_TRANSIENT_ENVIRONMENT_NAMES = [
   'HOME',
   'LANG',
   'LC_ALL',
@@ -34,7 +34,7 @@ const TRANSIENT_ENVIRONMENT_NAMES = [
  */
 export function mcpTransientEnvironment(source: NodeJS.ProcessEnv): NodeJS.ProcessEnv {
   const environment: NodeJS.ProcessEnv = {};
-  for (const name of TRANSIENT_ENVIRONMENT_NAMES) {
+  for (const name of MCP_TRANSIENT_ENVIRONMENT_NAMES) {
     const value = source[name];
     if (value !== undefined) environment[name] = value;
   }

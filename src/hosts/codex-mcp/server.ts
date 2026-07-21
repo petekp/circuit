@@ -6,10 +6,10 @@ import type {
   ServerRequest,
 } from '@modelcontextprotocol/sdk/types.js';
 import {
-  MCP_SCHEMA_VERSION,
   MCP_TOOL_INPUT_SCHEMAS,
   MCP_TOOL_NAMES,
   MCP_TOOL_RESPONSE_SCHEMAS,
+  MCP_TOOL_WIRE_OUTPUT_SCHEMAS,
   type McpToolName,
 } from './contracts.js';
 
@@ -41,20 +41,7 @@ export interface CircuitMcpToolCall {
 export type CircuitMcpToolHandler = (call: CircuitMcpToolCall) => Promise<unknown>;
 
 export interface CreateCircuitMcpServerOptions {
-  readonly handle?: CircuitMcpToolHandler;
-}
-
-function dormantResponse(): Record<string, unknown> {
-  return {
-    schema_version: MCP_SCHEMA_VERSION,
-    ok: false,
-    error: {
-      code: 'mcp_not_activated',
-      message: 'Circuit MCP is installed but not activated yet.',
-      next_action:
-        'Use the ordinary Circuit Run skill while this experimental bridge is evaluated.',
-    },
-  };
+  readonly handle: CircuitMcpToolHandler;
 }
 
 function renderResponse(response: Record<string, unknown>): string {
@@ -69,9 +56,9 @@ function renderResponse(response: Record<string, unknown>): string {
   return typeof summary === 'string' ? summary : 'Circuit returned a structured result.';
 }
 
-export function createCircuitMcpServer(options: CreateCircuitMcpServerOptions = {}): McpServer {
+export function createCircuitMcpServer(options: CreateCircuitMcpServerOptions): McpServer {
   const server = new McpServer({ name: 'circuit', version: '1.0.0' });
-  const handle = options.handle ?? (async () => dormantResponse());
+  const handle = options.handle;
 
   function registerTool(name: McpToolName): void {
     const readOnly = READ_ONLY_TOOLS.has(name);
@@ -81,7 +68,7 @@ export function createCircuitMcpServer(options: CreateCircuitMcpServerOptions = 
         title: name,
         description: TOOL_DESCRIPTIONS[name],
         inputSchema: MCP_TOOL_INPUT_SCHEMAS[name],
-        outputSchema: MCP_TOOL_RESPONSE_SCHEMAS[name],
+        outputSchema: MCP_TOOL_WIRE_OUTPUT_SCHEMAS[name],
         annotations: {
           readOnlyHint: readOnly,
           destructiveHint: !readOnly,

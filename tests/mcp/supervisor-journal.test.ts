@@ -28,7 +28,7 @@ function runtime() {
     runtime: {
       pid: 100,
       process_group_id: 100,
-      birth_token: 'runtime-birth',
+      birth_token: AUTHORIZATION,
       started_at: NOW,
     },
     runtime_executable: {
@@ -131,7 +131,7 @@ describe('supervisor journal reader', () => {
         generation: 1,
         authorization_sha256: AUTHORIZATION,
       }),
-    ).toThrow(/do not match/i);
+    ).toThrow(/wrong launch token/i);
 
     expect(() =>
       readSupervisorJournals({
@@ -141,6 +141,28 @@ describe('supervisor journal reader', () => {
         authorization_sha256: 'b'.repeat(64),
       }),
     ).toThrow(/another launch/i);
+  });
+
+  it('rejects matching journals whose worker token differs from the committed launch token', async () => {
+    const directory = await root();
+    const wrongRuntime = {
+      ...runtime(),
+      runtime: { ...runtime().runtime, birth_token: 'wrong-worker-token' },
+    };
+    await writePrivate(join(directory, 'launch-1-runtime.json'), wrongRuntime);
+    await writePrivate(join(directory, 'launch-1-exit.json'), {
+      ...exit(),
+      runtime: wrongRuntime.runtime,
+    });
+
+    expect(() =>
+      readSupervisorJournals({
+        control_directory: directory,
+        run_id: RUN_ID,
+        generation: 1,
+        authorization_sha256: AUTHORIZATION,
+      }),
+    ).toThrow(/worker.*token|launch token/i);
   });
 
   it('rejects linked, empty, and non-private journal files', async () => {

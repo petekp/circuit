@@ -5,7 +5,6 @@ import type {
   MacosProofSandbox,
   ProofSandboxResult,
 } from './proof-sandbox.js';
-import type { McpGitReader } from './runtime-context.js';
 
 const MAX_GIT_POINTER_BYTES = 8 * 1024;
 const GIT_OUTPUT_LIMIT_BYTES = 2 * 1024 * 1024;
@@ -52,7 +51,7 @@ export interface SafeGitSandbox {
   readonly executeGitRead: MacosProofSandbox['executeGitRead'];
 }
 
-export interface SafeGitReader extends McpGitReader {
+export interface SafeGitReader {
   readonly read: (request: unknown) => Promise<SafeGitReadResult>;
 }
 

@@ -23,6 +23,7 @@ describe('Codex MCP capability preflight', () => {
         execHelpOutput: COMPLETE_HELP,
         pluginMcpTransport: 'stdio',
         workspaceMetadataValidated: true,
+        nestedSandboxValidated: true,
       }),
     ).toEqual({
       codex_version: '0.144.3',
@@ -30,6 +31,7 @@ describe('Codex MCP capability preflight', () => {
       plugin_mcp: true,
       strict_config: true,
       workspace_metadata: true,
+      nested_sandbox: true,
     });
   });
 
@@ -42,6 +44,7 @@ describe('Codex MCP capability preflight', () => {
           execHelpOutput: COMPLETE_HELP,
           pluginMcpTransport: 'stdio',
           workspaceMetadataValidated: true,
+          nestedSandboxValidated: true,
         }),
       ).toThrow(/0\.144\.3 or newer/);
     },
@@ -54,6 +57,7 @@ describe('Codex MCP capability preflight', () => {
   it.each([
     ['plugin MCP transport', { pluginMcpTransport: undefined }],
     ['workspace metadata', { workspaceMetadataValidated: false }],
+    ['nested sandbox', { nestedSandboxValidated: false }],
     ['strict configuration', { execHelpOutput: COMPLETE_HELP.replace('--strict-config', '') }],
     ['ignored user config', { execHelpOutput: COMPLETE_HELP.replace('--ignore-user-config', '') }],
     ['ignored project rules', { execHelpOutput: COMPLETE_HELP.replace('--ignore-rules', '') }],
@@ -66,6 +70,7 @@ describe('Codex MCP capability preflight', () => {
         execHelpOutput: COMPLETE_HELP,
         pluginMcpTransport: 'stdio',
         workspaceMetadataValidated: true,
+        nestedSandboxValidated: true,
         ...replacement,
       }),
     ).toThrow(/capability/i);

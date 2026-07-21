@@ -11,7 +11,13 @@ describe('Codex MCP server contract', () => {
 
   beforeEach(async () => {
     const [clientTransport, serverTransport] = InMemoryTransport.createLinkedPair();
-    const server = createCircuitMcpServer();
+    const server = createCircuitMcpServer({
+      handle: async () => ({
+        schema_version: 1,
+        ok: false,
+        error: { code: 'test_handler_unavailable', message: 'The test handler is unavailable.' },
+      }),
+    });
     client = new Client({ name: 'circuit-test', version: '1.0.0' });
     await Promise.all([server.connect(serverTransport), client.connect(clientTransport)]);
     closeServer = () => server.close();
@@ -53,7 +59,7 @@ describe('Codex MCP server contract', () => {
     expect(list?.annotations?.idempotentHint).toBe(true);
   });
 
-  it('fails safely while the dormant package has no lifecycle handler', async () => {
+  it('renders a stable error returned by its lifecycle handler', async () => {
     const result = await client.callTool({
       name: 'circuit_status',
       arguments: { run_id: '11111111-1111-4111-8111-111111111111' },
@@ -61,11 +67,9 @@ describe('Codex MCP server contract', () => {
     expect(result.structuredContent).toMatchObject({
       schema_version: 1,
       ok: false,
-      error: { code: 'mcp_not_activated' },
+      error: { code: 'test_handler_unavailable' },
     });
-    expect(result.content).toEqual([
-      { type: 'text', text: 'Circuit MCP is installed but not activated yet.' },
-    ]);
+    expect(result.content).toEqual([{ type: 'text', text: 'The test handler is unavailable.' }]);
   });
 
   it('rejects unknown input fields before calling an injected handler', async () => {
@@ -89,5 +93,26 @@ describe('Codex MCP server contract', () => {
     });
     expect(result.isError).toBe(true);
     expect(handler).not.toHaveBeenCalled();
+  });
+
+  it('returns a structured successful list from the production handler', async () => {
+    await client.close();
+    await closeServer();
+    const [clientTransport, serverTransport] = InMemoryTransport.createLinkedPair();
+    const server = createCircuitMcpServer({
+      handle: async () => ({
+        schema_version: 1,
+        ok: true,
+        runs: [],
+        truncated: false,
+        summary: 'No recent Circuit runs were found for this workspace.',
+      }),
+    });
+    client = new Client({ name: 'circuit-test', version: '1.0.0' });
+    await Promise.all([server.connect(serverTransport), client.connect(clientTransport)]);
+    closeServer = () => server.close();
+
+    const result = await client.callTool({ name: 'circuit_list', arguments: {} });
+    expect(result.structuredContent).toMatchObject({ ok: true, runs: [] });
   });
 });

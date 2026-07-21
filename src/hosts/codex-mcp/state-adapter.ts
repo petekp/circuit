@@ -65,6 +65,7 @@ export interface McpLifecycleStateAdapterOptions {
   readonly artifacts: RuntimeArtifactReconciler;
   readonly inspectProcess: (identity: ProcessIdentity) => ProcessStatus;
   readonly inspectProcessGroup: (identity: ProcessIdentity) => ProcessStatus;
+  readonly retainedTerminalRuns?: number;
   readonly now?: () => Date;
 }
 
@@ -148,6 +149,7 @@ export class McpLifecycleStateAdapter implements LifecycleStore {
   readonly #artifacts: RuntimeArtifactReconciler;
   readonly #inspectProcess: (identity: ProcessIdentity) => ProcessStatus;
   readonly #inspectProcessGroup: (identity: ProcessIdentity) => ProcessStatus;
+  readonly #retainedTerminalRuns: number | undefined;
   readonly #now: () => Date;
 
   constructor(options: McpLifecycleStateAdapterOptions) {
@@ -155,10 +157,18 @@ export class McpLifecycleStateAdapter implements LifecycleStore {
     this.#artifacts = options.artifacts;
     this.#inspectProcess = options.inspectProcess;
     this.#inspectProcessGroup = options.inspectProcessGroup;
+    this.#retainedTerminalRuns = options.retainedTerminalRuns;
     this.#now = options.now ?? (() => new Date());
   }
 
   reserveRun(input: Parameters<LifecycleStore['reserveRun']>[0]): LifecycleRunRecord {
+    if (this.#retainedTerminalRuns !== undefined) {
+      this.#store.pruneTerminalRuns({
+        workspace: stateWorkspace(input.workspace),
+        owner: stateOwner(input.owner),
+        retain: this.#retainedTerminalRuns,
+      });
+    }
     return lifecycleRecord(
       this.#store.reserveRun({
         ...input,
@@ -166,6 +176,27 @@ export class McpLifecycleStateAdapter implements LifecycleStore {
         owner: stateOwner(input.owner),
       }),
     );
+  }
+
+  reserveRunClaimed(
+    input: Parameters<LifecycleStore['reserveRunClaimed']>[0],
+  ): ReturnType<LifecycleStore['reserveRunClaimed']> {
+    if (this.#retainedTerminalRuns !== undefined) {
+      this.#store.pruneTerminalRuns({
+        workspace: stateWorkspace(input.workspace),
+        owner: stateOwner(input.owner),
+        retain: this.#retainedTerminalRuns,
+      });
+    }
+    const reserved = this.#store.reserveRunClaimed({
+      ...input,
+      workspace: stateWorkspace(input.workspace),
+      owner: stateOwner(input.owner),
+    });
+    return {
+      record: lifecycleRecord(reserved.record),
+      handle: reserved.handle as unknown as LifecycleOperationHandle,
+    };
   }
 
   readRun(workspace: LifecycleWorkspaceIdentity, runId: string): LifecycleRunRecord {
@@ -557,7 +588,8 @@ export class McpLifecycleStateAdapter implements LifecycleStore {
       return this.#store.transitionRun({
         handle,
         to: 'recovery_required',
-        summary: 'Circuit observed the worker exit but could not confirm process-tree cleanup.',
+        summary:
+          'Circuit observed the worker exit but could not prove that its recorded owned process group is absent.',
         recovery: recovery(
           this.#now,
           'worker_cleanup_unconfirmed',
@@ -574,7 +606,8 @@ export class McpLifecycleStateAdapter implements LifecycleStore {
       return this.#store.transitionRun({
         handle,
         to: 'cancelled',
-        summary: 'Circuit confirmed process-tree cleanup after the cancellation request.',
+        summary:
+          'Circuit observed that its recorded owned process group is absent after the cancellation request.',
         checkpoint: null,
       });
     }

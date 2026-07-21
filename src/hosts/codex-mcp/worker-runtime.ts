@@ -4,13 +4,25 @@ import { isAbsolute, join, relative, resolve } from 'node:path';
 import { z } from 'zod';
 
 import type { CliMainOptions } from '../../cli/circuit.js';
-import { runConnectorSubprocess } from '../../connectors/subprocess.js';
 import { Config, type Config as ConfigValue } from '../../schemas/config.js';
 import type { RelayFn } from '../../shared/relay-runtime-types.js';
-import { McpRuntimeAssetPinsV1, verifyMcpRuntimeAssets } from './asset-pins.js';
+import {
+  type McpRuntimeAssetPin,
+  McpRuntimeAssetPinsV1,
+  verifyMcpRuntimeAsset,
+  verifyMcpRuntimeAssets,
+} from './asset-pins.js';
+import { MINIMUM_CODEX_VERSION } from './capabilities.js';
 import { CircuitStartInputV1 } from './contracts.js';
+import { runMcpCodexSubprocess } from './nested-codex-subprocess.js';
 import type { CreateMcpCodexRelayerDependencies, McpNestedCodexPolicy } from './nested-codex.js';
-import { createMcpWorkerSecurity } from './worker-security.js';
+import { derivePinnedNodeInstallation } from './production-paths.js';
+import { createMcpRuntimeContext } from './runtime-context.js';
+import { type McpWorkerSecurity, createMcpWorkerSecurity } from './worker-security.js';
+import {
+  type McpRunDirectoryBinding,
+  prepareMcpWorkspaceRunDirectory,
+} from './workspace-run-directory.js';
 
 const MAX_LAUNCH_BYTES = 1024 * 1024;
 const SHA256 = z.string().regex(/^[a-f0-9]{64}$/);
@@ -48,6 +60,16 @@ export const McpWorkerLaunchV1 = z
     private_temp_root: AbsolutePath,
     asset_digest_sha256: SHA256,
     runtime_assets: McpRuntimeAssetPinsV1,
+    capabilities: z
+      .object({
+        codex_version: z.string().trim().min(1).max(128),
+        minimum_version: z.literal(MINIMUM_CODEX_VERSION),
+        plugin_mcp: z.literal(true),
+        strict_config: z.literal(true),
+        workspace_metadata: z.literal(true),
+        nested_sandbox: z.literal(true),
+      })
+      .strict(),
     codex: z
       .object({
         executable: AbsolutePath,
@@ -79,7 +101,16 @@ export const McpWorkerLaunchV1 = z
       .strict(),
     request: CircuitStartInputV1,
   })
-  .strict();
+  .strict()
+  .superRefine((launch, ctx) => {
+    if (launch.codex.version !== launch.capabilities.codex_version) {
+      ctx.addIssue({
+        code: 'custom',
+        path: ['codex', 'version'],
+        message: 'must match the sealed Codex capability result',
+      });
+    }
+  });
 export type McpWorkerLaunch = z.infer<typeof McpWorkerLaunchV1>;
 
 export function parseMcpWorkerLaunch(value: unknown): McpWorkerLaunch {
@@ -165,7 +196,12 @@ export interface McpWorkerRuntimeDependencies {
     dependencies: CreateMcpCodexRelayerDependencies,
   ) => RelayFn;
   readonly environment: NodeJS.ProcessEnv;
+  readonly createRuntimeContext?: typeof createMcpRuntimeContext;
+  readonly createSecurity?: (
+    input: Parameters<typeof createMcpWorkerSecurity>[0],
+  ) => McpWorkerSecurity;
   readonly verifyLaunch?: (launch: McpWorkerLaunch) => Promise<void>;
+  readonly prepareRunDirectory?: (launch: McpWorkerLaunch) => Promise<McpRunDirectoryBinding>;
   readonly prepareDirectories?: (launch: McpWorkerLaunch) => Promise<{
     readonly configHome: string;
     readonly configCwd: string;
@@ -181,13 +217,14 @@ function requireBoundAsset(
   launch: McpWorkerLaunch,
   role: 'codex' | 'git_helper',
   path: string,
-): void {
+): McpRuntimeAssetPin {
   const asset = launch.runtime_assets.assets.find(
     (candidate) => candidate.role === role && candidate.real_path === path,
   );
   if (asset === undefined) {
     throw new Error(`The sealed ${role === 'codex' ? 'Codex' : 'Git'} asset binding changed.`);
   }
+  return asset;
 }
 
 export async function verifyMcpWorkerLaunch(launch: McpWorkerLaunch): Promise<void> {
@@ -251,35 +288,86 @@ export async function runMcpWorkerLaunch(
   dependencies: McpWorkerRuntimeDependencies,
 ): Promise<number> {
   await (dependencies.verifyLaunch ?? verifyMcpWorkerLaunch)(launch);
-  const directories = await (dependencies.prepareDirectories ?? preparePrivateDirectories)(launch);
-  const security = createMcpWorkerSecurity({
-    workspace: launch.workspace.canonical_path,
-    privateRoot: launch.private_temp_root,
-    gitExecutable: launch.git.executable,
-    environment: dependencies.environment,
-  });
-  const relayer = dependencies.createRelayer(
-    {
-      executable: launch.codex.executable,
-      cliVersion: launch.codex.version,
-      workspace: launch.workspace.canonical_path,
-      tempRoot: launch.private_temp_root,
-      searchMode: launch.request.web_search,
-      defaultModel: launch.codex.default_model,
-      allowedModels: new Set(launch.codex.allowed_models),
-    },
-    { run: runConnectorSubprocess, environment: dependencies.environment },
+  const codexAsset = requireBoundAsset(launch, 'codex', launch.codex.executable);
+  const nodeAsset = launch.runtime_assets.assets.find(
+    (asset) => asset.id === 'node' && asset.role === 'node',
   );
-  return await dependencies.main(buildMcpWorkerArgv(launch), {
-    relayer,
-    configHomeDir: directories.configHome,
-    configCwd: directories.configCwd,
-    projectRoot: launch.workspace.canonical_path,
-    hostKind: 'codex',
-    historyRecall: 'disabled',
-    codexInstallAssurance: 'disabled',
-    invocationConfig: buildMcpWorkerInvocationConfig(launch),
-    proofCommandRunner: security.proofCommandRunner,
-    gitReader: security.gitReader,
-  });
+  if (nodeAsset === undefined) throw new Error('The sealed Node asset binding changed.');
+  const nodeInstallation = derivePinnedNodeInstallation(nodeAsset.real_path);
+  const runDirectory = await (dependencies.prepareRunDirectory ?? prepareMcpWorkspaceRunDirectory)(
+    launch,
+  );
+  try {
+    if (runDirectory.runFolder !== runFolder(launch)) {
+      throw new Error('The bound MCP run directory does not match the sealed launch.');
+    }
+    const directories = await (dependencies.prepareDirectories ?? preparePrivateDirectories)(
+      launch,
+    );
+    const security = (dependencies.createSecurity ?? createMcpWorkerSecurity)({
+      workspace: launch.workspace.canonical_path,
+      privateRoot: launch.private_temp_root,
+      gitExecutable: launch.git.executable,
+      environment: dependencies.environment,
+    });
+    const context = (dependencies.createRuntimeContext ?? createMcpRuntimeContext)({
+      workspace: {
+        metadata_key: 'codex/sandbox-state-meta',
+        workspace: launch.workspace.canonical_path,
+      },
+      workspaceIdentity: {
+        device: launch.workspace.device,
+        inode: launch.workspace.inode,
+      },
+      capabilities: launch.capabilities,
+      assets: launch.runtime_assets,
+      search: {
+        mode: launch.request.web_search,
+        consented: launch.request.consent?.cached_web_search === true,
+      },
+      proofExecutor: security.proofCommandRunner,
+      gitReader: security.gitReader,
+      cancellation: {
+        owner: 'supervisor',
+        process_group_cleanup: 'observed',
+        run_id: launch.run_id,
+      },
+    });
+    const relayer = dependencies.createRelayer(
+      {
+        executable: context.codex.executable,
+        cliVersion: context.codex.version,
+        workspace: context.workspace.canonical_path,
+        tempRoot: launch.private_temp_root,
+        nodeExecutable: nodeInstallation.executable,
+        nodeInstallationRoot: nodeInstallation.root,
+        gitExecutable: launch.git.executable,
+        searchMode: context.search.mode,
+        defaultModel: launch.codex.default_model,
+        allowedModels: new Set(launch.codex.allowed_models),
+      },
+      {
+        run: runMcpCodexSubprocess,
+        environment: dependencies.environment,
+        verifyBeforeSpawn: async () => await verifyMcpRuntimeAsset(codexAsset),
+      },
+    );
+    await runDirectory.validate();
+    return await dependencies.main(buildMcpWorkerArgv(launch), {
+      relayer,
+      configHomeDir: directories.configHome,
+      configCwd: directories.configCwd,
+      projectRoot: context.workspace.canonical_path,
+      runId: launch.run_id,
+      hostKind: 'codex',
+      historyRecall: context.history,
+      codexInstallAssurance: 'disabled',
+      invocationConfig: buildMcpWorkerInvocationConfig(launch),
+      generatedFlowMirrorRoot: launch.flow_root,
+      proofCommandRunner: context.proofExecutor,
+      gitReader: context.gitReader,
+    });
+  } finally {
+    await runDirectory.close();
+  }
 }

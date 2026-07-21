@@ -88291,8 +88291,12 @@ function unrecordedPublishedSiblingReason(input) {
 function applyFixturePolicy(decision2, input) {
   if (decision2.kind !== "supported")
     return decision2;
-  if (fixtureEligibleForRuntime(input))
+  if (fixtureEligibleForRuntime({
+    ...input,
+    ...input.generatedFlowMirrorRoot === void 0 ? {} : { generatedFlowMirrorRoot: input.generatedFlowMirrorRoot }
+  })) {
     return decision2;
+  }
   return {
     ...decision2,
     kind: "unsupported",
@@ -112957,7 +112961,8 @@ async function runExecutionCommand(args, options) {
   const runtimeDecisionDiagnostics = showRuntimeDecision();
   const defaultRuntimeSupport = applyComposeWriterPolicy(applyFixturePolicy(runtimeSupport, {
     args: runArgs,
-    fixturePath
+    fixturePath,
+    ...options.generatedFlowMirrorRoot === void 0 ? {} : { generatedFlowMirrorRoot: options.generatedFlowMirrorRoot }
   }), { hasComposeWriter: options.composeWriter !== void 0 });
   const routeToRuntime = defaultRuntimeSupport.kind === "supported";
   const ttyNotices = ttyNoticesEnabled({

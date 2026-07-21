@@ -12,8 +12,17 @@ entry point.
 - `flows/<id>/*.json`: generated compiled flow files.
 - `hooks/`: hand-authored SessionStart hook support.
 - `runtime/circuit.js`: generated bundled runtime.
-- `.mcp.json` and `mcp/`: generated, dormant Codex MCP config and bundled server.
+- `.mcp.json` and `mcp/`: generated Codex MCP config and its self-contained runtime files.
 - `scripts/circuit.ts`: hand-authored wrapper that launches the bundled runtime.
+
+## MCP Status
+
+The packaged MCP bridge is experimental. Start and resume require live host,
+metadata, asset, and nested-sandbox checks. The bridge fails closed when any
+check is missing or uncertain; it does not fall back to the ordinary CLI or a
+weaker sandbox. Codex 0.144.3 currently fails the shared-temporary-directory
+part of that sandbox check, so this package must remain a draft until a newer
+host passes the complete fresh-install proof.
 
 ## Editing Rule
 

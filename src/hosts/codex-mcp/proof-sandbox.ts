@@ -2,7 +2,6 @@ import { execFile, spawn } from 'node:child_process';
 import { lstatSync } from 'node:fs';
 import { lstat, mkdir, mkdtemp, realpath, rm, stat } from 'node:fs/promises';
 import { delimiter, dirname, isAbsolute, join, relative, resolve } from 'node:path';
-import type { McpProofExecutor } from './runtime-context.js';
 
 const MAX_TIMEOUT_MS = 30 * 60 * 1_000;
 const MAX_OUTPUT_BYTES = 5_000_000;
@@ -15,19 +14,28 @@ const PROCESS_POLL_MS = 25;
 
 const REQUEST_FIELDS = new Set(['id', 'cwd', 'argv', 'env', 'timeout_ms', 'max_output_bytes']);
 const COMMAND_ENV_KEYS = new Set(['CI', 'FORCE_COLOR', 'NODE_ENV', 'NO_COLOR', 'TZ']);
-const PRIVATE_READ_ROOTS = [
-  '/Users',
-  '/Volumes',
-  '/Network',
-  '/home',
-  '/private/tmp',
-  '/private/var/folders',
-  '/tmp',
-  '/var/folders',
-  '/System/Volumes/Data/Users',
-  '/System/Volumes/Data/home',
-  '/System/Volumes/Data/private/tmp',
-  '/System/Volumes/Data/private/var/folders',
+const MACOS_RUNTIME_READ_ROOTS = [
+  '/System/Library',
+  '/System/Volumes/Preboot/Cryptexes/OS/System/Library/dyld',
+  '/Library/Apple',
+  '/usr/bin',
+  '/usr/sbin',
+  '/usr/lib',
+  '/usr/libexec',
+  '/usr/share',
+  '/bin',
+  '/sbin',
+  '/private/var/db/timezone',
+  '/private/var/select',
+  '/var/select',
+] as const;
+const MACOS_RUNTIME_READ_FILES = [
+  '/',
+  '/dev/autofs_nowait',
+  '/dev/null',
+  '/dev/random',
+  '/dev/urandom',
+  '/dev/zero',
 ] as const;
 
 export type ProofSandboxStatus =
@@ -81,7 +89,7 @@ export interface ProofSandboxLaunch {
   readonly network: 'denied' | 'not_enforced_test_only';
 }
 
-interface ProcessTableEntry {
+export interface ProcessTableEntry {
   readonly pid: number;
   readonly parentPid: number;
   readonly processGroupId: number;
@@ -92,11 +100,14 @@ interface MacosProofSandboxOptions {
   readonly workspace: string;
   readonly privateRoot: string;
   readonly pathEntries: readonly string[];
+  /** The private worker group that owns every production proof process. */
+  readonly ownerProcessGroupId?: number;
   readonly platform?: NodeJS.Platform;
   readonly sandboxExecutable?: string;
   readonly interruptGraceMs?: number;
   readonly cleanupWaitMs?: number;
   readonly inspectProcesses?: () => Promise<readonly ProcessTableEntry[]>;
+  readonly signalProcess?: (pid: number, signal: NodeJS.Signals) => void;
   readonly allowUnsafeTestLaunch?: boolean;
   readonly testOnlyLaunch?: (input: {
     readonly cwd: string;
@@ -112,7 +123,7 @@ export interface GitReadSandboxRequest extends ProofSandboxCommand {
   readonly git_environment: Readonly<Record<string, string>>;
 }
 
-export interface MacosProofSandbox extends McpProofExecutor {
+export interface MacosProofSandbox {
   readonly run: (request: unknown) => Promise<ProofSandboxResult>;
   readonly execute: (
     request: ProofSandboxCommand,
@@ -329,6 +340,44 @@ async function resolveExecutable(candidate: string): Promise<string> {
   return canonical;
 }
 
+interface ProofRuntimeAccess {
+  readonly readFiles: readonly string[];
+  readonly readRoots: readonly string[];
+}
+
+function selectedDeveloperToolchainRoots(executable: string): readonly string[] {
+  const xcode = /^\/Applications\/[^/]*Xcode[^/]*\.app\/Contents\/Developer(?:\/|$)/u.exec(
+    executable,
+  );
+  if (xcode !== null) return Object.freeze([xcode[0].replace(/\/$/u, '')]);
+  if (isInside('/Library/Developer/CommandLineTools', executable)) {
+    return Object.freeze(['/Library/Developer/CommandLineTools']);
+  }
+  return Object.freeze([]);
+}
+
+function npmPackageRoot(executable: string): string | undefined {
+  const marker = '/lib/node_modules/npm/';
+  const markerIndex = executable.indexOf(marker);
+  if (markerIndex < 0) return undefined;
+  return executable.slice(0, markerIndex + marker.length - 1);
+}
+
+async function selectedExecutableRuntimeAccess(executable: string): Promise<ProofRuntimeAccess> {
+  const readFiles = new Set([executable]);
+  const readRoots = new Set(selectedDeveloperToolchainRoots(executable));
+  const npmRoot = npmPackageRoot(executable);
+  if (npmRoot !== undefined) {
+    const hostNode = await resolveExecutable(process.execPath);
+    readFiles.add(hostNode);
+    readRoots.add(npmRoot);
+  }
+  return Object.freeze({
+    readFiles: Object.freeze([...readFiles]),
+    readRoots: Object.freeze([...readRoots]),
+  });
+}
+
 function seatbeltString(value: string): string {
   return `"${value
     .replaceAll('\\', '\\\\')
@@ -353,9 +402,15 @@ export function buildMacosSeatbeltProfile(input: {
   readonly privateDirectory: string;
   readonly access: 'workspace-write' | 'git-read-only';
   readonly readRoots: readonly string[];
+  readonly readFiles?: readonly string[];
 }): string {
-  const readRoots = [...new Set([...input.readRoots, input.privateDirectory])];
-  const metadataPaths = [...new Set(readRoots.flatMap(pathAndAncestors))];
+  const readRoots = [
+    ...new Set([...MACOS_RUNTIME_READ_ROOTS, ...input.readRoots, input.privateDirectory]),
+  ];
+  const readFiles = [...new Set(input.readFiles ?? [])];
+  const metadataPaths = [
+    ...new Set([...readRoots.flatMap(pathAndAncestors), ...readFiles.flatMap(pathAndAncestors)]),
+  ];
   const writableRoots =
     input.access === 'workspace-write'
       ? [input.workspace, input.privateDirectory]
@@ -363,29 +418,39 @@ export function buildMacosSeatbeltProfile(input: {
   const profile = [
     '(version 1)',
     '(deny default)',
-    '(allow process*)',
+    '(allow process-exec)',
+    '(allow process-fork)',
+    '(allow signal (target same-sandbox))',
+    '(allow process-info* (target same-sandbox))',
     '(allow sysctl-read)',
-    '(allow ipc-posix*)',
+    '(allow ipc-posix-sem)',
+    '(allow ipc-posix-shm-read-data ipc-posix-shm-write-create ipc-posix-shm-write-unlink',
+    '  (ipc-posix-name-regex #"^/__KMP_REGISTERED_LIB_[0-9]+$")',
+    ')',
+    '(allow system-mac-syscall (mac-policy-name "vnguard"))',
+    '(allow system-mac-syscall',
+    '  (require-all',
+    '    (mac-policy-name "Sandbox")',
+    '    (mac-syscall-number 67)',
+    '  )',
+    ')',
     '(deny mach-lookup)',
   ];
 
-  if (input.access === 'workspace-write') {
-    profile.push('(allow file-read*)');
-  } else {
-    profile.push(
-      '(allow file-read*',
-      '  (require-all',
-      ...PRIVATE_READ_ROOTS.map((root) => `    (require-not (subpath ${seatbeltString(root)}))`),
-      '  )',
-      ')',
-      '(allow file-read*',
-      ...readRoots.map((root) => `  (subpath ${seatbeltString(root)})`),
-      ')',
-      '(allow file-read-metadata',
-      ...metadataPaths.map((candidate) => `  (literal ${seatbeltString(candidate)})`),
-      ')',
-    );
-  }
+  profile.push(
+    '(allow file-read* file-test-existence',
+    ...readRoots.map((root) => `  (subpath ${seatbeltString(root)})`),
+    ...readFiles.map((file) => `  (literal ${seatbeltString(file)})`),
+    ...MACOS_RUNTIME_READ_FILES.map((file) => `  (literal ${seatbeltString(file)})`),
+    ')',
+    '(allow file-map-executable',
+    ...readRoots.map((root) => `  (subpath ${seatbeltString(root)})`),
+    ...readFiles.map((file) => `  (literal ${seatbeltString(file)})`),
+    ')',
+    '(allow file-read-metadata file-test-existence',
+    ...metadataPaths.map((candidate) => `  (literal ${seatbeltString(candidate)})`),
+    ')',
+  );
 
   profile.push(
     '(allow file-write*',
@@ -426,9 +491,15 @@ function defaultInspectProcesses(): Promise<readonly ProcessTableEntry[]> {
   });
 }
 
-function relatedProcesses(
+interface OwnedProcessGroup {
+  readonly id: number;
+  readonly baseline: ReadonlyMap<number, string>;
+}
+
+export function relatedProcesses(
   table: readonly ProcessTableEntry[],
   rootPid: number,
+  ownedGroup?: OwnedProcessGroup,
 ): readonly ProcessTableEntry[] {
   const children = new Map<number, ProcessTableEntry[]>();
   for (const entry of table) {
@@ -447,13 +518,20 @@ function relatedProcesses(
   visit(rootPid);
   for (const entry of table) {
     if (entry.pid === rootPid || entry.processGroupId === rootPid) found.set(entry.pid, entry);
+    if (
+      ownedGroup !== undefined &&
+      entry.processGroupId === ownedGroup.id &&
+      ownedGroup.baseline.get(entry.pid) !== entry.startToken
+    ) {
+      found.set(entry.pid, entry);
+    }
   }
   return [...found.values()];
 }
 
 interface ProcessObserver {
   readonly stop: () => Promise<{
-    readonly identities: ReadonlyMap<number, string>;
+    readonly identities: ReadonlyMap<number, ProcessTableEntry>;
     readonly inspectionError?: string;
     readonly lastTable: readonly ProcessTableEntry[];
   }>;
@@ -462,8 +540,9 @@ interface ProcessObserver {
 function observeProcesses(
   rootPid: number,
   inspect: () => Promise<readonly ProcessTableEntry[]>,
+  ownedGroup?: OwnedProcessGroup,
 ): ProcessObserver {
-  const identities = new Map<number, string>();
+  const identities = new Map<number, ProcessTableEntry>();
   let inspectionError: string | undefined;
   let lastTable: readonly ProcessTableEntry[] = [];
   let stopped = false;
@@ -474,8 +553,10 @@ function observeProcesses(
     try {
       const table = await inspect();
       lastTable = table;
-      for (const processEntry of relatedProcesses(table, rootPid)) {
-        identities.set(processEntry.pid, processEntry.startToken);
+      for (const processEntry of relatedProcesses(table, rootPid, ownedGroup)) {
+        if (!identities.has(processEntry.pid)) {
+          identities.set(processEntry.pid, processEntry);
+        }
       }
     } catch (error) {
       inspectionError ??= errorMessage(error);
@@ -516,12 +597,22 @@ function sendSignal(pid: number, signal: NodeJS.Signals): void {
   }
 }
 
-function sendGroupSignal(processGroupId: number, signal: NodeJS.Signals): void {
-  try {
-    process.kill(-processGroupId, signal);
-  } catch (error) {
-    if ((error as NodeJS.ErrnoException).code !== 'ESRCH') throw error;
+export async function signalExpectedProofProcess(input: {
+  readonly expected: ProcessTableEntry;
+  readonly signal: NodeJS.Signals;
+  readonly inspect: () => Promise<readonly ProcessTableEntry[]>;
+  readonly send?: (pid: number, signal: NodeJS.Signals) => void;
+}): Promise<'signaled' | 'absent' | 'replaced'> {
+  const current = (await input.inspect()).find((entry) => entry.pid === input.expected.pid);
+  if (current === undefined) return 'absent';
+  if (
+    current.startToken !== input.expected.startToken ||
+    current.processGroupId !== input.expected.processGroupId
+  ) {
+    return 'replaced';
   }
+  (input.send ?? sendSignal)(input.expected.pid, input.signal);
+  return 'signaled';
 }
 
 async function delay(milliseconds: number): Promise<void> {
@@ -535,42 +626,86 @@ async function cleanupProcesses(input: {
   readonly terminate: boolean;
   readonly interruptGraceMs: number;
   readonly cleanupWaitMs: number;
+  readonly ownedGroup?: OwnedProcessGroup;
+  readonly signalProcess: (pid: number, signal: NodeJS.Signals) => void;
 }): Promise<ProofSandboxCleanup> {
   const observation = await input.observer.stop();
   const identities = new Map(observation.identities);
-  for (const entry of relatedProcesses(observation.lastTable, input.rootPid)) {
-    identities.set(entry.pid, entry.startToken);
+  for (const entry of relatedProcesses(observation.lastTable, input.rootPid, input.ownedGroup)) {
+    if (!identities.has(entry.pid)) identities.set(entry.pid, entry);
   }
   let inspectionError = observation.inspectionError;
 
-  const aliveKnown = (table: readonly ProcessTableEntry[]): readonly ProcessTableEntry[] =>
-    table.filter(
-      (entry) =>
-        entry.processGroupId === input.rootPid || identities.get(entry.pid) === entry.startToken,
-    );
+  const rememberRelated = (candidateTable: readonly ProcessTableEntry[]): void => {
+    for (const entry of relatedProcesses(candidateTable, input.rootPid, input.ownedGroup)) {
+      if (!identities.has(entry.pid)) identities.set(entry.pid, entry);
+    }
+  };
+  const replacementIn = (
+    candidateTable: readonly ProcessTableEntry[],
+  ): ProcessTableEntry | undefined =>
+    candidateTable.find((entry) => {
+      const expected = identities.get(entry.pid);
+      return (
+        expected !== undefined &&
+        (expected.startToken !== entry.startToken ||
+          expected.processGroupId !== entry.processGroupId)
+      );
+    });
+  const aliveKnown = (candidateTable: readonly ProcessTableEntry[]): readonly ProcessTableEntry[] =>
+    candidateTable.filter((entry) => {
+      const expected = identities.get(entry.pid);
+      return (
+        expected?.startToken === entry.startToken &&
+        expected.processGroupId === entry.processGroupId
+      );
+    });
+  const signalAlive = async (
+    entries: readonly ProcessTableEntry[],
+    signal: NodeJS.Signals,
+  ): Promise<string | undefined> => {
+    for (const expected of entries) {
+      let outcome: 'signaled' | 'absent' | 'replaced';
+      try {
+        outcome = await signalExpectedProofProcess({
+          expected,
+          signal,
+          inspect: input.inspect,
+          send: input.signalProcess,
+        });
+      } catch (error) {
+        return `Process inspection failed before ${signal}: ${errorMessage(error)}`;
+      }
+      if (outcome === 'replaced') {
+        return `Process identity changed before ${signal}; no signal was sent to pid ${expected.pid}.`;
+      }
+    }
+    return undefined;
+  };
   let table = observation.lastTable;
+  const observedReplacement = replacementIn(table);
+  if (inspectionError === undefined && observedReplacement !== undefined) {
+    inspectionError = `Process identity changed before cleanup; no signal was sent to pid ${observedReplacement.pid}.`;
+  }
   let alive = aliveKnown(table);
   const required = input.terminate || alive.some((entry) => entry.pid !== input.rootPid);
-  if (required) {
-    try {
-      sendGroupSignal(input.rootPid, 'SIGSTOP');
-      for (const entry of alive) sendSignal(entry.pid, 'SIGSTOP');
+  if (required && inspectionError === undefined) {
+    inspectionError = await signalAlive(alive, 'SIGSTOP');
+    if (inspectionError === undefined) {
       try {
         table = await input.inspect();
-        for (const entry of relatedProcesses(table, input.rootPid)) {
-          identities.set(entry.pid, entry.startToken);
-        }
+        rememberRelated(table);
         alive = aliveKnown(table);
       } catch (error) {
         inspectionError ??= errorMessage(error);
       }
-      for (const entry of alive) sendSignal(entry.pid, 'SIGTERM');
-      sendGroupSignal(input.rootPid, 'SIGTERM');
+    }
+    if (inspectionError === undefined) {
+      inspectionError = await signalAlive(alive, 'SIGTERM');
+    }
+    if (inspectionError === undefined) {
       await delay(input.interruptGraceMs);
-      for (const entry of alive) sendSignal(entry.pid, 'SIGKILL');
-      sendGroupSignal(input.rootPid, 'SIGKILL');
-    } catch (error) {
-      inspectionError ??= errorMessage(error);
+      inspectionError = await signalAlive(alive, 'SIGKILL');
     }
   }
 
@@ -655,11 +790,51 @@ function appendBounded(
 }
 
 async function validateReadRoots(readRoots: readonly string[]): Promise<readonly string[]> {
-  if (readRoots.length === 0 || readRoots.length > 8) {
-    throw new ProofSandboxError('invalid_sandbox_path', 'Git read roots are invalid.');
+  const unique = [...new Set(readRoots)];
+  if (unique.length === 0 || unique.length > 32) {
+    throw new ProofSandboxError('invalid_sandbox_path', 'Sandbox read roots are invalid.');
   }
   return Object.freeze(
-    await Promise.all(readRoots.map((root) => canonicalDirectory(root, 'Git read root'))),
+    await Promise.all(unique.map((root) => canonicalDirectory(root, 'Sandbox read root'))),
+  );
+}
+
+async function validateReadFiles(readFiles: readonly string[]): Promise<readonly string[]> {
+  const unique = [...new Set(readFiles)];
+  if (unique.length === 0 || unique.length > 16) {
+    throw new ProofSandboxError('invalid_sandbox_path', 'Sandbox read files are invalid.');
+  }
+  return Object.freeze(
+    await Promise.all(
+      unique.map(async (candidate) => {
+        if (!isAbsolute(candidate)) {
+          throw new ProofSandboxError(
+            'invalid_sandbox_path',
+            'Sandbox read file must be absolute.',
+          );
+        }
+        const canonical = await realpath(candidate).catch((error: unknown) => {
+          throw new ProofSandboxError(
+            'invalid_sandbox_path',
+            `Sandbox read file could not be inspected: ${errorMessage(error)}`,
+          );
+        });
+        if (canonical !== resolve(candidate)) {
+          throw new ProofSandboxError(
+            'invalid_sandbox_path',
+            'Sandbox read file must already be canonical.',
+          );
+        }
+        const metadata = await stat(canonical);
+        if (!metadata.isFile()) {
+          throw new ProofSandboxError(
+            'invalid_sandbox_path',
+            'Sandbox read file must be a regular file.',
+          );
+        }
+        return canonical;
+      }),
+    ),
   );
 }
 
@@ -709,6 +884,7 @@ export function createMacosProofSandbox(options: MacosProofSandboxOptions): Maco
   const platform = options.platform ?? process.platform;
   const path = safePath(options.pathEntries);
   const inspect = options.inspectProcesses ?? defaultInspectProcesses;
+  const signalProcess = options.signalProcess ?? sendSignal;
   const interruptGraceMs = options.interruptGraceMs ?? DEFAULT_INTERRUPT_GRACE_MS;
   const cleanupWaitMs = options.cleanupWaitMs ?? DEFAULT_CLEANUP_WAIT_MS;
 
@@ -726,10 +902,12 @@ export function createMacosProofSandbox(options: MacosProofSandboxOptions): Maco
     const cwd = await resolveProofCwd(workspace, command.cwd);
     const executable = await resolveExecutable(command.argv[0] ?? '');
     const argv = Object.freeze([executable, ...command.argv.slice(1)]);
-    const readRoots =
-      input.access === 'git-read-only'
-        ? await validateReadRoots(input.readRoots ?? [])
-        : Object.freeze([workspace]);
+    const executableAccess = await selectedExecutableRuntimeAccess(executable);
+    const readRoots = await validateReadRoots([
+      ...(input.access === 'git-read-only' ? (input.readRoots ?? []) : [workspace]),
+      ...executableAccess.readRoots,
+    ]);
+    const readFiles = await validateReadFiles(executableAccess.readFiles);
     const gitEnvironment =
       input.access === 'git-read-only'
         ? validateGitEnvironment(input.gitEnvironment ?? {})
@@ -784,6 +962,7 @@ export function createMacosProofSandbox(options: MacosProofSandboxOptions): Maco
               privateDirectory,
               access: input.access,
               readRoots,
+              readFiles,
             }),
             ...argv,
           ],
@@ -797,10 +976,47 @@ export function createMacosProofSandbox(options: MacosProofSandboxOptions): Maco
     }
 
     const startedAt = performance.now();
+    let ownedGroup: OwnedProcessGroup | undefined;
+    if (options.ownerProcessGroupId !== undefined) {
+      const ownerProcessGroupId = options.ownerProcessGroupId;
+      if (!Number.isSafeInteger(ownerProcessGroupId) || ownerProcessGroupId <= 0) {
+        await rm(privateDirectory, { recursive: true, force: true });
+        throw new ProofSandboxError(
+          'invalid_sandbox_process_group',
+          'The proof owner process group is invalid.',
+        );
+      }
+      const before = await inspect().catch(async (error: unknown) => {
+        await rm(privateDirectory, { recursive: true, force: true });
+        throw new ProofSandboxError(
+          'sandbox_process_inspection_failed',
+          `Circuit could not inspect the proof owner process group: ${errorMessage(error)}`,
+        );
+      });
+      const owner = before.find((entry) => entry.pid === process.pid);
+      if (owner?.processGroupId !== ownerProcessGroupId) {
+        await rm(privateDirectory, { recursive: true, force: true });
+        throw new ProofSandboxError(
+          'invalid_sandbox_process_group',
+          'The proof owner is not the recorded worker process-group leader.',
+        );
+      }
+      ownedGroup = {
+        id: ownerProcessGroupId,
+        baseline: new Map(
+          before
+            .filter((entry) => entry.processGroupId === ownerProcessGroupId)
+            .map((entry) => [entry.pid, entry.startToken]),
+        ),
+      };
+    }
     const child = spawn(launch.executable, launch.args, {
       cwd,
       env: environment,
-      detached: true,
+      // The worker already has a private, supervisor-owned process group.
+      // Keeping proof and Git commands inside it means run cancellation and
+      // recovery can observe and clean the whole tree even if the worker dies.
+      detached: false,
       shell: false,
       stdio: ['ignore', 'pipe', 'pipe'],
     });
@@ -809,7 +1025,7 @@ export function createMacosProofSandbox(options: MacosProofSandboxOptions): Maco
       await rm(privateDirectory, { recursive: true, force: true });
       throw new ProofSandboxError('proof_launch_failed', 'Proof command started without a pid.');
     }
-    const observer = observeProcesses(rootPid, inspect);
+    const observer = observeProcesses(rootPid, inspect, ownedGroup);
     const stdoutChunks: Buffer[] = [];
     const stderrChunks: Buffer[] = [];
     let capturedBytes = 0;
@@ -862,6 +1078,8 @@ export function createMacosProofSandbox(options: MacosProofSandboxOptions): Maco
       terminate: first.type === 'stop',
       interruptGraceMs,
       cleanupWaitMs,
+      ...(ownedGroup === undefined ? {} : { ownedGroup }),
+      signalProcess,
     });
     const completionResult =
       first.type === 'completion'
