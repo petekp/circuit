@@ -595,12 +595,12 @@ export async function relayCodex(input: CodexRelayInput): Promise<RelayResult> {
   }
 }
 
-// Known `item.completed` `item.type` values. The connector accepts model
+// Known contained `item.type` values. The connector accepts model
 // narration, planning/progress items, command execution, reasoning, write
-// receipts, and the `error` item envelope observed in Codex 0.142.5. The error
-// envelope is admitted here only so its message can be checked against the
-// narrower diagnostic allowlist below. It is not treated as successful by
-// default.
+// receipts, web-search lifecycle receipts, and the `error` item envelope
+// observed in Codex 0.142.5. The error envelope is admitted here only so its
+// message can be checked against the narrower diagnostic allowlist below. It
+// is not treated as successful by default.
 //
 // A future CLI bump that introduces another reviewed protocol item type can
 // extend this list; a bump that introduces a new capability surface must be
@@ -611,8 +611,90 @@ const KNOWN_CODEX_ITEM_TYPES = new Set<string>([
   'reasoning',
   'file_change',
   'todo_list',
+  'web_search',
   'error',
 ]);
+
+const CODEX_WEB_SEARCH_MAX_STRING_LENGTH = 16 * 1024;
+const CODEX_WEB_SEARCH_COMPLETED_ACTION_TYPES = new Set<string>([
+  'search',
+  'open_page',
+  'find_in_page',
+]);
+
+function validateCodexWebSearchString(
+  value: unknown,
+  label: string,
+  options: { allowEmpty?: boolean } = {},
+): string {
+  if (typeof value !== 'string') {
+    throw new Error(`${label} is not a string`);
+  }
+  if (value.length === 0 && options.allowEmpty !== true) {
+    throw new Error(`${label} missing or empty`);
+  }
+  if (value.length > CODEX_WEB_SEARCH_MAX_STRING_LENGTH) {
+    throw new Error(`${label} exceeds ${CODEX_WEB_SEARCH_MAX_STRING_LENGTH} characters`);
+  }
+  return value;
+}
+
+function validateCodexWebSearchItem(
+  item: Record<string, unknown>,
+  lifecycle: 'item.started' | 'item.completed',
+  index: number,
+): string {
+  const label = `${lifecycle}[${index}].item`;
+  const id = item.id;
+  if (typeof id !== 'string' || id.length === 0) {
+    throw new Error(`${label}.id missing or empty`);
+  }
+  if (id.length > CODEX_WEB_SEARCH_MAX_STRING_LENGTH) {
+    throw new Error(`${label}.id exceeds ${CODEX_WEB_SEARCH_MAX_STRING_LENGTH} characters`);
+  }
+
+  validateCodexWebSearchString(item.query, `${label}.query`, {
+    allowEmpty: lifecycle === 'item.started',
+  });
+
+  const action = item.action;
+  if (lifecycle === 'item.started') {
+    // The documented item shape allows action to be absent until completion.
+    // Codex 0.144.3 may instead emit `other` as an incomplete start marker.
+    if (action === undefined) return id;
+    if (!isRecord(action)) {
+      throw new Error(`${label}.action is not an object`);
+    }
+    if (action.type !== 'other') {
+      throw new Error(`${label}.action.type is not the reviewed start marker`);
+    }
+    return id;
+  }
+
+  if (!isRecord(action)) {
+    throw new Error(`${label}.action is not an object`);
+  }
+  const actionType = action.type;
+  if (typeof actionType !== 'string') {
+    throw new Error(`${label}.action.type is not a string`);
+  }
+  if (!CODEX_WEB_SEARCH_COMPLETED_ACTION_TYPES.has(actionType)) {
+    // Do not include the untrusted value in this error. A malformed event may
+    // contain query or credential material that must not be echoed upstream.
+    throw new Error(`${label}.action.type is not a reviewed completion action`);
+  }
+
+  if (actionType === 'search') {
+    validateCodexWebSearchString(action.query, `${label}.action.query`);
+  } else {
+    validateCodexWebSearchString(action.url, `${label}.action.url`);
+    if (actionType === 'find_in_page') {
+      validateCodexWebSearchString(action.pattern, `${label}.action.pattern`);
+    }
+  }
+
+  return id;
+}
 
 // Codex uses nested error items for both fatal failures and nonfatal
 // diagnostics. Do not infer safety from `turn.completed` alone: an arbitrary
@@ -623,12 +705,13 @@ const CODEX_NONFATAL_ERROR_ITEM_MESSAGES = new Set<string>([
   'Skill descriptions were shortened to fit the 2% skills context budget. Codex can still see every skill, but some descriptions are shorter. Disable unused skills or plugins to leave more room for the rest.',
 ]);
 
-// Top-level trace_entry types the parser expects at Codex CLI 0.118-0.128 —
+// Top-level trace_entry types observed in Codex CLI 0.118-0.144.3 captures —
 // grounded in the `tests/fixtures/codex-smoke/protocol/happy-path-
 // ok.jsonl` real capture, a 0.125 manual smoke that emitted
 // `item.started` before a `command_execution`, and a 0.128
 // observation of `item.updated` carrying incremental progress on a
-// `command_execution`. An trace_entry whose `type` is outside this set
+// `command_execution`, and the captured 0.144.3 web-search lifecycle. A
+// trace_entry whose `type` is outside this set
 // is rejected: the connector refuses to admit unfamiliar protocol
 // surfaces into the relay transcript. `item.updated` carries no new
 // capability — it is a progress beacon for a command already opened
@@ -655,8 +738,8 @@ const CODEX_FAILURE_EVENT_TYPES = new Set<string>(['turn.failed', 'error']);
 // tested against. When an unknown type shows up, the most common cause is a
 // Codex CLI newer than that range, so the rejection messages cite this range
 // and point the operator at the fix rather than leaving them with a bare
-// "unknown type" that takes down every relay. Keep in sync with the allowlist
-// comments above (item types observed through 0.130).
+// "unknown type" that takes down every relay. This range records full
+// connector smoke coverage; an isolated parser fixture does not widen it.
 const CODEX_TESTED_CLI_RANGE = '0.118 to 0.130';
 
 // Shared remediation appended to every unknown-type rejection. Fail-closed
@@ -726,18 +809,53 @@ export function parseCodexStdout(
     throw new Error('turn.completed trace_entry missing from codex --json stdout');
   }
 
+  // Validate starts before completions. Older parsing checked only the outer
+  // event type, which let an unknown capability begin through item.started.
+  // Web searches also carry an id-bound lifecycle: every accepted completion
+  // must follow one matching start.
+  const webSearchStarts = new Map<string, number>();
+  const itemStarted = trace_entries.filter((e) => e.type === 'item.started');
+  for (const [idx, e] of itemStarted.entries()) {
+    const item = e.item;
+    if (!isRecord(item)) {
+      throw new Error(`item.started[${idx}].item is not an object`);
+    }
+    const itemType = item.type;
+    if (typeof itemType !== 'string') {
+      throw new Error(`item.started[${idx}].item.type is not a string`);
+    }
+    if (itemType === 'error') {
+      throw new Error(
+        "capability-boundary violation: item.started item.type='error' is not a reviewed start item type",
+      );
+    }
+    if (!KNOWN_CODEX_ITEM_TYPES.has(itemType)) {
+      throw new Error(
+        `capability-boundary violation: item.started[${idx}].item.type='${itemType}' is not in the known-types allowlist (${Array.from(KNOWN_CODEX_ITEM_TYPES).join(', ')}). A new Codex item type must be reviewed before the connector admits it. ${codexUnknownTypeRemediation(cli_version)}`,
+      );
+    }
+    if (itemType === 'web_search') {
+      const id = validateCodexWebSearchItem(item, 'item.started', idx);
+      if (webSearchStarts.has(id)) {
+        throw new Error(`item.started[${idx}].item duplicates a web_search id`);
+      }
+      webSearchStarts.set(id, trace_entries.indexOf(e));
+    }
+  }
+
   // Collect `item.completed` trace_entries. Each carries an `item` object
   // with an `id`, `type`, and type-specific fields. Reject any item whose
   // type is not in KNOWN_CODEX_ITEM_TYPES: a silent pass-through of a
   // novel item type would bypass the reviewed protocol surface.
   // New Codex item types must be reviewed before extending the allowlist.
   const itemCompleted = trace_entries.filter((e) => e.type === 'item.completed');
+  const webSearchCompletions = new Set<string>();
   for (const [idx, e] of itemCompleted.entries()) {
     const item = e.item;
-    if (typeof item !== 'object' || item === null) {
+    if (!isRecord(item)) {
       throw new Error(`item.completed[${idx}].item is not an object`);
     }
-    const itemType = (item as Record<string, unknown>).type;
+    const itemType = item.type;
     if (typeof itemType !== 'string') {
       throw new Error(`item.completed[${idx}].item.type is not a string`);
     }
@@ -747,13 +865,32 @@ export function parseCodexStdout(
       );
     }
     if (itemType === 'error') {
-      const message = (item as Record<string, unknown>).message;
+      const message = item.message;
       if (typeof message !== 'string' || !CODEX_NONFATAL_ERROR_ITEM_MESSAGES.has(message)) {
         const detail = typeof message === 'string' ? message : JSON.stringify(item).slice(0, 200);
         throw new Error(
           `codex reported nested error item: ${detail}. Only reviewed nonfatal diagnostics may precede a successful terminal response.`,
         );
       }
+    }
+    if (itemType === 'web_search') {
+      const id = validateCodexWebSearchItem(item, 'item.completed', idx);
+      const startIndex = webSearchStarts.get(id);
+      if (startIndex === undefined) {
+        throw new Error(`item.completed[${idx}] web_search has no matching item.started event`);
+      }
+      if (startIndex >= trace_entries.indexOf(e)) {
+        throw new Error(`item.completed[${idx}] web_search does not follow its item.started event`);
+      }
+      if (webSearchCompletions.has(id)) {
+        throw new Error(`item.completed[${idx}] duplicates a web_search completion`);
+      }
+      webSearchCompletions.add(id);
+    }
+  }
+  for (const id of webSearchStarts.keys()) {
+    if (!webSearchCompletions.has(id)) {
+      throw new Error('item.started web_search has no matching item.completed event');
     }
   }
 
@@ -764,10 +901,10 @@ export function parseCodexStdout(
   const itemUpdated = trace_entries.filter((e) => e.type === 'item.updated');
   for (const [idx, e] of itemUpdated.entries()) {
     const item = e.item;
-    if (typeof item !== 'object' || item === null) {
+    if (!isRecord(item)) {
       throw new Error(`item.updated[${idx}].item is not an object`);
     }
-    const itemType = (item as Record<string, unknown>).type;
+    const itemType = item.type;
     if (typeof itemType !== 'string') {
       throw new Error(`item.updated[${idx}].item.type is not a string`);
     }
@@ -776,6 +913,11 @@ export function parseCodexStdout(
     if (itemType === 'error') {
       throw new Error(
         "capability-boundary violation: item.updated item.type='error' is not a reviewed progress item type",
+      );
+    }
+    if (itemType === 'web_search') {
+      throw new Error(
+        "capability-boundary violation: item.updated item.type='web_search' is not a reviewed progress item type",
       );
     }
     if (!KNOWN_CODEX_ITEM_TYPES.has(itemType)) {

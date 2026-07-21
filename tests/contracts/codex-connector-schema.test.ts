@@ -18,6 +18,9 @@ const HAPPY_PATH_FIXTURE = resolve('tests/fixtures/codex-smoke/protocol/happy-pa
 const SKILL_DESCRIPTION_DIAGNOSTIC_FIXTURE = resolve(
   'tests/fixtures/codex-smoke/protocol/skill-description-diagnostic-0.142.5.jsonl',
 );
+const WEB_SEARCH_CACHED_FIXTURE = resolve(
+  'tests/fixtures/codex-smoke/protocol/web-search-cached-0.144.3.jsonl',
+);
 const TURN_FAILED_FIXTURE = resolve('tests/fixtures/codex-smoke/protocol/turn-failed.jsonl');
 
 // Codex connector contract tests. Mirrors the claude-code connector
@@ -354,6 +357,20 @@ describe('Codex connector — parseCodexStdout NDJSON parser branches', () => {
     return `${parts.join('\n')}\n`;
   };
 
+  const stdoutWithEvents = (...events: Array<Record<string, unknown>>) =>
+    `${[
+      { type: 'thread.started', thread_id: 'thread-web-search' },
+      { type: 'turn.started' },
+      ...events,
+      {
+        type: 'item.completed',
+        item: { id: 'item-terminal', type: 'agent_message', text: 'OK' },
+      },
+      { type: 'turn.completed' },
+    ]
+      .map((entry) => JSON.stringify(entry))
+      .join('\n')}\n`;
+
   it('extracts receipt_id from thread.started, result_body from terminal agent_message, plumbs cli_version', () => {
     const stdout = ndjson();
     const parsed: CodexRelayResult = parseCodexStdout(
@@ -486,6 +503,238 @@ describe('Codex connector — parseCodexStdout NDJSON parser branches', () => {
       `${JSON.stringify({ type: 'turn.completed' })}\n`;
     expect(() => parseCodexStdout(stdout, 'p', 0, 'codex-cli 0.128.0')).toThrow(
       /capability-boundary violation.*item\.updated.*apply_patch.*not in the known-types allowlist/,
+    );
+  });
+
+  it('rejects an item.started trace_entry whose item.type is not in the allowlist', () => {
+    const stdout = stdoutWithEvents({
+      type: 'item.started',
+      item: { id: 'item_0', type: 'future_network_tool' },
+    });
+
+    expect(() => parseCodexStdout(stdout, 'p', 0, 'codex-cli 0.144.3')).toThrow(
+      /capability-boundary violation.*item\.started.*future_network_tool.*not in the known-types allowlist/,
+    );
+  });
+
+  it('rejects a malformed item.started item envelope', () => {
+    const stdout = stdoutWithEvents({ type: 'item.started', item: [] });
+
+    expect(() => parseCodexStdout(stdout, 'p', 0, 'codex-cli 0.144.3')).toThrow(
+      /item\.started\[0\]\.item is not an object/,
+    );
+  });
+
+  it('accepts a web_search start without an action when completion has a reviewed action', () => {
+    const stdout = stdoutWithEvents(
+      {
+        type: 'item.started',
+        item: { id: 'search-1', type: 'web_search', query: '' },
+      },
+      {
+        type: 'item.completed',
+        item: {
+          id: 'search-1',
+          type: 'web_search',
+          query: 'Circuit',
+          action: { type: 'search', query: 'Circuit' },
+        },
+      },
+    );
+
+    expect(parseCodexStdout(stdout, 'p', 0, 'codex-cli 0.144.3').result_body).toBe('OK');
+  });
+
+  it.each([
+    ['open_page', { type: 'open_page', url: 'https://example.com' }],
+    ['find_in_page', { type: 'find_in_page', url: 'https://example.com', pattern: 'Circuit' }],
+  ])('accepts the reviewed web_search completion action %s', (_label, action) => {
+    const stdout = stdoutWithEvents(
+      {
+        type: 'item.started',
+        item: { id: 'search-1', type: 'web_search', query: '' },
+      },
+      {
+        type: 'item.completed',
+        item: { id: 'search-1', type: 'web_search', query: 'Circuit', action },
+      },
+    );
+
+    expect(parseCodexStdout(stdout, 'p', 0, 'codex-cli 0.144.3').result_body).toBe('OK');
+  });
+
+  it('rejects web_search item.updated events until that lifecycle shape is reviewed', () => {
+    const stdout = stdoutWithEvents(
+      {
+        type: 'item.started',
+        item: { id: 'search-1', type: 'web_search', query: '', action: { type: 'other' } },
+      },
+      {
+        type: 'item.updated',
+        item: { id: 'search-1', type: 'web_search', query: 'partial' },
+      },
+      {
+        type: 'item.completed',
+        item: {
+          id: 'search-1',
+          type: 'web_search',
+          query: 'Circuit',
+          action: { type: 'search', query: 'Circuit' },
+        },
+      },
+    );
+
+    expect(() => parseCodexStdout(stdout, 'p', 0, 'codex-cli 0.144.3')).toThrow(
+      /item\.updated item\.type='web_search' is not a reviewed progress item type/,
+    );
+  });
+
+  it('rejects a web_search completion without its matching start event', () => {
+    const stdout = stdoutWithEvents({
+      type: 'item.completed',
+      item: {
+        id: 'search-1',
+        type: 'web_search',
+        query: 'Circuit',
+        action: { type: 'search', query: 'Circuit' },
+      },
+    });
+
+    expect(() => parseCodexStdout(stdout, 'p', 0, 'codex-cli 0.144.3')).toThrow(
+      /item\.completed\[0\].*has no matching item\.started event/,
+    );
+  });
+
+  it('rejects a web_search completion whose id does not match its start event', () => {
+    const stdout = stdoutWithEvents(
+      {
+        type: 'item.started',
+        item: { id: 'search-1', type: 'web_search', query: '', action: { type: 'other' } },
+      },
+      {
+        type: 'item.completed',
+        item: {
+          id: 'search-2',
+          type: 'web_search',
+          query: 'Circuit',
+          action: { type: 'search', query: 'Circuit' },
+        },
+      },
+    );
+
+    expect(() => parseCodexStdout(stdout, 'p', 0, 'codex-cli 0.144.3')).toThrow(
+      /item\.completed\[0\].*has no matching item\.started event/,
+    );
+  });
+
+  it('rejects the incomplete web_search action marker on completion', () => {
+    const stdout = stdoutWithEvents(
+      {
+        type: 'item.started',
+        item: { id: 'search-1', type: 'web_search', query: '', action: { type: 'other' } },
+      },
+      {
+        type: 'item.completed',
+        item: {
+          id: 'search-1',
+          type: 'web_search',
+          query: 'Circuit',
+          action: { type: 'other' },
+        },
+      },
+    );
+
+    expect(() => parseCodexStdout(stdout, 'p', 0, 'codex-cli 0.144.3')).toThrow(
+      /item\.completed\[0\]\.item\.action\.type is not a reviewed completion action/,
+    );
+  });
+
+  it('rejects a web_search item with an empty id', () => {
+    const stdout = stdoutWithEvents(
+      {
+        type: 'item.started',
+        item: { id: '', type: 'web_search', query: '' },
+      },
+      {
+        type: 'item.completed',
+        item: {
+          id: '',
+          type: 'web_search',
+          query: 'Circuit',
+          action: { type: 'search', query: 'Circuit' },
+        },
+      },
+    );
+
+    expect(() => parseCodexStdout(stdout, 'p', 0, 'codex-cli 0.144.3')).toThrow(
+      /item\.started\[0\]\.item\.id missing or empty/,
+    );
+  });
+
+  it('rejects a web_search completion without an action', () => {
+    const stdout = stdoutWithEvents(
+      {
+        type: 'item.started',
+        item: { id: 'search-1', type: 'web_search', query: '' },
+      },
+      {
+        type: 'item.completed',
+        item: { id: 'search-1', type: 'web_search', query: 'Circuit' },
+      },
+    );
+
+    expect(() => parseCodexStdout(stdout, 'p', 0, 'codex-cli 0.144.3')).toThrow(
+      /item\.completed\[0\]\.item\.action is not an object/,
+    );
+  });
+
+  it('rejects malformed web_search fields without echoing their contents', () => {
+    const secret = 'do-not-echo-this-secret';
+    const stdout = stdoutWithEvents(
+      {
+        type: 'item.started',
+        item: { id: 'search-1', type: 'web_search', query: { secret } },
+      },
+      {
+        type: 'item.completed',
+        item: {
+          id: 'search-1',
+          type: 'web_search',
+          query: 'Circuit',
+          action: { type: 'search', query: 'Circuit' },
+        },
+      },
+    );
+
+    try {
+      parseCodexStdout(stdout, 'p', 0, 'codex-cli 0.144.3');
+      throw new Error('expected parseCodexStdout to throw');
+    } catch (error) {
+      const message = (error as Error).message;
+      expect(message).toMatch(/item\.started\[0\]\.item\.query is not a string/);
+      expect(message).not.toContain(secret);
+    }
+  });
+
+  it('rejects oversized web_search strings', () => {
+    const stdout = stdoutWithEvents(
+      {
+        type: 'item.started',
+        item: { id: 'search-1', type: 'web_search', query: 'x'.repeat(16 * 1024 + 1) },
+      },
+      {
+        type: 'item.completed',
+        item: {
+          id: 'search-1',
+          type: 'web_search',
+          query: 'Circuit',
+          action: { type: 'search', query: 'Circuit' },
+        },
+      },
+    );
+
+    expect(() => parseCodexStdout(stdout, 'p', 0, 'codex-cli 0.144.3')).toThrow(
+      /item\.started\[0\]\.item\.query exceeds 16384 characters/,
     );
   });
 
@@ -632,6 +881,18 @@ describe('Codex connector — parseCodexStdout against captured Codex JSONL fixt
 
     expect(JSON.parse(parsed.result_body)).toEqual({ verdict: 'ok' });
     expect(parsed.cli_version).toBe('codex-cli 0.142.5');
+  });
+
+  it('accepts the captured Codex 0.144.3 cached web_search lifecycle', () => {
+    // Exact stdout captured from Codex 0.144.3. Parsing this receipt does not
+    // enable search; the connector invocation remains responsible for that
+    // policy decision.
+    const stdout = readFileSync(WEB_SEARCH_CACHED_FIXTURE, 'utf-8');
+    const parsed = parseCodexStdout(stdout, 'any prompt', 1234, 'codex-cli 0.144.3');
+
+    expect(parsed.receipt_id).toBe('019f7841-3698-7f33-9701-b8b46a712d7c');
+    expect(parsed.result_body).toMatch(/^SEARCH_OK:/);
+    expect(parsed.cli_version).toBe('codex-cli 0.144.3');
   });
 
   it('keeps an unrecognized nested error item fatal even when the turn later completes', () => {

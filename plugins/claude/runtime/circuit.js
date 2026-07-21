@@ -89373,6 +89373,62 @@ async function relayCodex(input) {
     await cleanupSchemaTempDir(tempDir);
   }
 }
+function validateCodexWebSearchString(value, label, options = {}) {
+  if (typeof value !== "string") {
+    throw new Error(`${label} is not a string`);
+  }
+  if (value.length === 0 && options.allowEmpty !== true) {
+    throw new Error(`${label} missing or empty`);
+  }
+  if (value.length > CODEX_WEB_SEARCH_MAX_STRING_LENGTH) {
+    throw new Error(`${label} exceeds ${CODEX_WEB_SEARCH_MAX_STRING_LENGTH} characters`);
+  }
+  return value;
+}
+function validateCodexWebSearchItem(item, lifecycle, index) {
+  const label = `${lifecycle}[${index}].item`;
+  const id = item.id;
+  if (typeof id !== "string" || id.length === 0) {
+    throw new Error(`${label}.id missing or empty`);
+  }
+  if (id.length > CODEX_WEB_SEARCH_MAX_STRING_LENGTH) {
+    throw new Error(`${label}.id exceeds ${CODEX_WEB_SEARCH_MAX_STRING_LENGTH} characters`);
+  }
+  validateCodexWebSearchString(item.query, `${label}.query`, {
+    allowEmpty: lifecycle === "item.started"
+  });
+  const action = item.action;
+  if (lifecycle === "item.started") {
+    if (action === void 0)
+      return id;
+    if (!isRecord5(action)) {
+      throw new Error(`${label}.action is not an object`);
+    }
+    if (action.type !== "other") {
+      throw new Error(`${label}.action.type is not the reviewed start marker`);
+    }
+    return id;
+  }
+  if (!isRecord5(action)) {
+    throw new Error(`${label}.action is not an object`);
+  }
+  const actionType = action.type;
+  if (typeof actionType !== "string") {
+    throw new Error(`${label}.action.type is not a string`);
+  }
+  if (!CODEX_WEB_SEARCH_COMPLETED_ACTION_TYPES.has(actionType)) {
+    throw new Error(`${label}.action.type is not a reviewed completion action`);
+  }
+  if (actionType === "search") {
+    validateCodexWebSearchString(action.query, `${label}.action.query`);
+  } else {
+    validateCodexWebSearchString(action.url, `${label}.action.url`);
+    if (actionType === "find_in_page") {
+      validateCodexWebSearchString(action.pattern, `${label}.action.pattern`);
+    }
+  }
+  return id;
+}
 function codexUnknownTypeRemediation(detectedVersion) {
   return `Circuit was tested against Codex CLI ${CODEX_TESTED_CLI_RANGE}, and your Codex CLI reports "${detectedVersion}". The likely cause is a Codex CLI newer than Circuit has been tested against, which added a type Circuit has not reviewed yet. Check your Codex CLI version with: codex --version, and pin it to a version in the tested range if it is newer.`;
 }
@@ -89406,10 +89462,36 @@ function parseCodexStdout(stdout, prompt, duration_ms, cli_version) {
   if (turnCompleted === void 0) {
     throw new Error("turn.completed trace_entry missing from codex --json stdout");
   }
+  const webSearchStarts = /* @__PURE__ */ new Map();
+  const itemStarted = trace_entries.filter((e) => e.type === "item.started");
+  for (const [idx, e] of itemStarted.entries()) {
+    const item2 = e.item;
+    if (!isRecord5(item2)) {
+      throw new Error(`item.started[${idx}].item is not an object`);
+    }
+    const itemType = item2.type;
+    if (typeof itemType !== "string") {
+      throw new Error(`item.started[${idx}].item.type is not a string`);
+    }
+    if (itemType === "error") {
+      throw new Error("capability-boundary violation: item.started item.type='error' is not a reviewed start item type");
+    }
+    if (!KNOWN_CODEX_ITEM_TYPES.has(itemType)) {
+      throw new Error(`capability-boundary violation: item.started[${idx}].item.type='${itemType}' is not in the known-types allowlist (${Array.from(KNOWN_CODEX_ITEM_TYPES).join(", ")}). A new Codex item type must be reviewed before the connector admits it. ${codexUnknownTypeRemediation(cli_version)}`);
+    }
+    if (itemType === "web_search") {
+      const id = validateCodexWebSearchItem(item2, "item.started", idx);
+      if (webSearchStarts.has(id)) {
+        throw new Error(`item.started[${idx}].item duplicates a web_search id`);
+      }
+      webSearchStarts.set(id, trace_entries.indexOf(e));
+    }
+  }
   const itemCompleted = trace_entries.filter((e) => e.type === "item.completed");
+  const webSearchCompletions = /* @__PURE__ */ new Set();
   for (const [idx, e] of itemCompleted.entries()) {
     const item2 = e.item;
-    if (typeof item2 !== "object" || item2 === null) {
+    if (!isRecord5(item2)) {
       throw new Error(`item.completed[${idx}].item is not an object`);
     }
     const itemType = item2.type;
@@ -89426,11 +89508,30 @@ function parseCodexStdout(stdout, prompt, duration_ms, cli_version) {
         throw new Error(`codex reported nested error item: ${detail}. Only reviewed nonfatal diagnostics may precede a successful terminal response.`);
       }
     }
+    if (itemType === "web_search") {
+      const id = validateCodexWebSearchItem(item2, "item.completed", idx);
+      const startIndex = webSearchStarts.get(id);
+      if (startIndex === void 0) {
+        throw new Error(`item.completed[${idx}] web_search has no matching item.started event`);
+      }
+      if (startIndex >= trace_entries.indexOf(e)) {
+        throw new Error(`item.completed[${idx}] web_search does not follow its item.started event`);
+      }
+      if (webSearchCompletions.has(id)) {
+        throw new Error(`item.completed[${idx}] duplicates a web_search completion`);
+      }
+      webSearchCompletions.add(id);
+    }
+  }
+  for (const id of webSearchStarts.keys()) {
+    if (!webSearchCompletions.has(id)) {
+      throw new Error("item.started web_search has no matching item.completed event");
+    }
   }
   const itemUpdated = trace_entries.filter((e) => e.type === "item.updated");
   for (const [idx, e] of itemUpdated.entries()) {
     const item2 = e.item;
-    if (typeof item2 !== "object" || item2 === null) {
+    if (!isRecord5(item2)) {
       throw new Error(`item.updated[${idx}].item is not an object`);
     }
     const itemType = item2.type;
@@ -89439,6 +89540,9 @@ function parseCodexStdout(stdout, prompt, duration_ms, cli_version) {
     }
     if (itemType === "error") {
       throw new Error("capability-boundary violation: item.updated item.type='error' is not a reviewed progress item type");
+    }
+    if (itemType === "web_search") {
+      throw new Error("capability-boundary violation: item.updated item.type='web_search' is not a reviewed progress item type");
     }
     if (!KNOWN_CODEX_ITEM_TYPES.has(itemType)) {
       throw new Error(`capability-boundary violation: item.updated[${idx}].item.type='${itemType}' is not in the known-types allowlist (${Array.from(KNOWN_CODEX_ITEM_TYPES).join(", ")}). A new Codex item type must be reviewed before the connector admits it. ${codexUnknownTypeRemediation(cli_version)}`);
@@ -89466,7 +89570,7 @@ function parseCodexStdout(stdout, prompt, duration_ms, cli_version) {
     cli_version
   };
 }
-var CODEX_WRITE_FLAGS, CODEX_EXECUTABLE, CODEX_FORBIDDEN_ARGV_TOKENS, CODEX_REASONING_EFFORT_CONFIG_KEY, flagsAsStringArray, DEFAULT_IDLE_TIMEOUT_MS2, DEFAULT_ABSOLUTE_TIMEOUT_MS2, SIGTERM_TO_SIGKILL_GRACE_MS2, STDOUT_MAX_BYTES2, STDERR_MAX_BYTES2, VERSION_CAPTURE_TIMEOUT_MS, cachedCodexVersion, CODEX_OUTPUT_SCHEMA_UNSUPPORTED_KEYWORDS, KNOWN_CODEX_ITEM_TYPES, CODEX_NONFATAL_ERROR_ITEM_MESSAGES, KNOWN_CODEX_EVENT_TYPES, CODEX_FAILURE_EVENT_TYPES, CODEX_TESTED_CLI_RANGE;
+var CODEX_WRITE_FLAGS, CODEX_EXECUTABLE, CODEX_FORBIDDEN_ARGV_TOKENS, CODEX_REASONING_EFFORT_CONFIG_KEY, flagsAsStringArray, DEFAULT_IDLE_TIMEOUT_MS2, DEFAULT_ABSOLUTE_TIMEOUT_MS2, SIGTERM_TO_SIGKILL_GRACE_MS2, STDOUT_MAX_BYTES2, STDERR_MAX_BYTES2, VERSION_CAPTURE_TIMEOUT_MS, cachedCodexVersion, CODEX_OUTPUT_SCHEMA_UNSUPPORTED_KEYWORDS, KNOWN_CODEX_ITEM_TYPES, CODEX_WEB_SEARCH_MAX_STRING_LENGTH, CODEX_WEB_SEARCH_COMPLETED_ACTION_TYPES, CODEX_NONFATAL_ERROR_ITEM_MESSAGES, KNOWN_CODEX_EVENT_TYPES, CODEX_FAILURE_EVENT_TYPES, CODEX_TESTED_CLI_RANGE;
 var init_codex = __esm({
   "dist/connectors/codex.js"() {
     "use strict";
@@ -89555,7 +89659,14 @@ var init_codex = __esm({
       "reasoning",
       "file_change",
       "todo_list",
+      "web_search",
       "error"
+    ]);
+    CODEX_WEB_SEARCH_MAX_STRING_LENGTH = 16 * 1024;
+    CODEX_WEB_SEARCH_COMPLETED_ACTION_TYPES = /* @__PURE__ */ new Set([
+      "search",
+      "open_page",
+      "find_in_page"
     ]);
     CODEX_NONFATAL_ERROR_ITEM_MESSAGES = /* @__PURE__ */ new Set([
       "Skill descriptions were shortened to fit the 2% skills context budget. Codex can still see every skill, but some descriptions are shorter. Disable unused skills or plugins to leave more room for the rest."
