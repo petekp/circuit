@@ -55,11 +55,8 @@ suite('live no-spend Codex security canaries', () => {
       environment: process.env,
     };
 
-    if (process.env.CIRCUIT_MCP_EXPECT_SAFE_SANDBOX === '1') {
-      await expect(runCodexNestedSandboxCanary(input)).resolves.toBeUndefined();
-    } else {
-      await expect(runCodexNestedSandboxCanary(input)).rejects.toThrow(/did not confine files/);
-    }
+    const sandbox = await runCodexNestedSandboxCanary(input);
+    expect(['isolated', 'exposed']).toContain(sandbox.shared_temp_isolation);
     await expect(runCodexToolSurfaceCanary(input)).resolves.toBeUndefined();
     await expect(
       runCodexToolSurfaceCanary({

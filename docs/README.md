@@ -55,7 +55,7 @@ starting release, messaging, docs, or first-run work.
 - [docs/contracts/](contracts/) - contract details when code, tests, or
   generated surfaces depend on an invariant.
 - [docs/contracts/codex-mcp.md](contracts/codex-mcp.md) - Codex MCP tools,
-  trust boundaries, durable lifecycle, and macOS sandbox claims.
+  trust boundaries, durable lifecycle, security boundaries, and limitations.
 - [docs/yaml-validation.md](yaml-validation.md) - where YAML is allowed to
   live and how each surface is validated; the table is test-pinned.
 - [docs/reference/script-inventory.md](reference/script-inventory.md) - current

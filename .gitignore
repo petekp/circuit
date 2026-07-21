@@ -30,6 +30,10 @@ coverage/
 # directories of the checkout.
 /.worktrees/
 
+# Private scratch homes for Codex MCP package and fresh-host checks. These
+# must stay outside macOS shared temporary directories.
+/.mcp-host-tests/
+
 # CodeGraph local index (SQLite knowledge graph + cache). Per-machine and
 # rebuildable from source; nothing here is a deliverable.
 /.codegraph/

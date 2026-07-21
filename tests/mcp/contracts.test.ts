@@ -138,6 +138,21 @@ describe('MCP v1 tool inputs', () => {
     ).toBe(false);
   });
 
+  it('keeps the host shared-temp posture out of the public start contract', () => {
+    expect(
+      CircuitStartInputV1.safeParse({
+        ...validInputs.circuit_start,
+        shared_temp_isolation: 'exposed',
+      }).success,
+    ).toBe(false);
+    expect(
+      CircuitStartResponseV1.safeParse({
+        ...validSuccessResponses.circuit_start,
+        shared_temp_isolation: 'exposed',
+      }).success,
+    ).toBe(false);
+  });
+
   it.each([
     ['workspace', '/tmp/project'],
     ['executable', '/bin/sh'],

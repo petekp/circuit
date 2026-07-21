@@ -1,7 +1,6 @@
 import { spawnSync } from 'node:child_process';
 import { createHash } from 'node:crypto';
 import { cp, mkdir, mkdtemp, realpath, rm, writeFile } from 'node:fs/promises';
-import { tmpdir } from 'node:os';
 import { join, resolve } from 'node:path';
 import { pathToFileURL } from 'node:url';
 import { Client } from '@modelcontextprotocol/sdk/client/index.js';
@@ -39,6 +38,7 @@ import { createPackagedFlowRelayer } from './helpers/packaged-flow-relayer.js';
 
 const REPO_ROOT = resolve(import.meta.dirname, '../..');
 const PACKAGED_PLUGIN = join(REPO_ROOT, 'plugins/codex');
+const PRIVATE_TEST_ROOT = join(REPO_ROOT, '.mcp-host-tests');
 const AUTHORIZATION_TOKEN = 'd'.repeat(64);
 const STARTED_AT = '2026-07-21T00:00:00.000Z';
 
@@ -108,6 +108,7 @@ function preparedLaunch() {
       strict_config: true as const,
       workspace_metadata: true as const,
       nested_sandbox: true as const,
+      shared_temp_isolation: 'exposed' as const,
     },
     roster: {
       default_model: 'fixture-default',
@@ -382,7 +383,8 @@ describe('relocated Codex MCP package lifecycle acceptance', () => {
   let client: Client;
 
   beforeAll(async () => {
-    tempRoot = await realpath(await mkdtemp(join(tmpdir(), 'circuit-mcp-package-acceptance-')));
+    await mkdir(PRIVATE_TEST_ROOT, { recursive: true, mode: 0o700 });
+    tempRoot = await realpath(await mkdtemp(join(PRIVATE_TEST_ROOT, 'package-acceptance-')));
     relocatedPlugin = join(tempRoot, 'installed-plugin');
     codexHome = join(tempRoot, 'codex-home');
     const fakeCodex = join(tempRoot, 'fixture-codex');

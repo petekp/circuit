@@ -36,7 +36,8 @@ export interface McpRuntimeContext {
   readonly history: 'disabled';
   readonly plugins: 'disabled';
   readonly shell_network: 'disabled';
-  readonly extra_write_roots: readonly [];
+  readonly shared_temp_isolation: CodexHostCapabilities['shared_temp_isolation'];
+  readonly configured_extra_write_roots: readonly [];
   readonly proofExecutor: McpProofExecutor;
   readonly gitReader: RuntimeGitReader;
   readonly cancellation: McpCancellationBoundary;
@@ -106,7 +107,8 @@ export function createMcpRuntimeContext(input: CreateMcpRuntimeContextInput): Mc
     history: 'disabled',
     plugins: 'disabled',
     shell_network: 'disabled',
-    extra_write_roots: Object.freeze([]) as readonly [],
+    shared_temp_isolation: input.capabilities.shared_temp_isolation,
+    configured_extra_write_roots: Object.freeze([]) as readonly [],
     proofExecutor: input.proofExecutor,
     gitReader: input.gitReader,
     cancellation,

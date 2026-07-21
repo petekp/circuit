@@ -5,6 +5,7 @@ import { createServer as createTcpServer } from 'node:net';
 import { dirname, isAbsolute, join, resolve } from 'node:path';
 
 import type { ConnectorSubprocessResult } from '../../connectors/subprocess.js';
+import type { CodexSharedTempIsolation } from './capabilities.js';
 import {
   type RunMcpCodexSubprocessInput,
   runMcpCodexSubprocess,
@@ -57,19 +58,21 @@ const SENSITIVE_SHELL_ENVIRONMENT_NAMES = Object.freeze([
   'NODE_EXTRA_CA_CERTS',
 ]);
 
-const MARKERS = Object.freeze([
+const REQUIRED_MARKERS = Object.freeze([
   'AUTH_READ_DENIED',
   'ENV_CLEAN',
   'GIT_EXEC',
   'NETWORK_DENIED',
   'NODE_EXEC',
   'PRIVATE_WRITE',
-  'SHARED_TEMP_READ_DENIED',
-  'SHARED_TEMP_WRITE_DENIED',
   'SIBLING_READ_DENIED',
   'SYMLINK_READ_DENIED',
   'WORKSPACE_WRITE',
 ]);
+
+const SHARED_TEMP_MARKERS = Object.freeze(['SHARED_TEMP_READ_DENIED', 'SHARED_TEMP_WRITE_DENIED']);
+
+const MARKERS = Object.freeze([...REQUIRED_MARKERS, ...SHARED_TEMP_MARKERS]);
 
 export interface CodexNestedHostProbeInput {
   readonly policy: McpNestedCodexPolicy;
@@ -80,6 +83,10 @@ export interface CodexNestedHostProbeInput {
 export interface CodexNestedHostProbeDependencies {
   readonly run?: (input: RunMcpCodexSubprocessInput) => Promise<ConnectorSubprocessResult>;
   readonly sharedTempRootCandidates?: readonly string[];
+}
+
+export interface CodexNestedSandboxCanaryResult {
+  readonly shared_temp_isolation: CodexSharedTempIsolation;
 }
 
 function operatorCodexHomeCandidates(input: CodexNestedHostProbeInput): readonly string[] {
@@ -262,11 +269,14 @@ ${mark('NETWORK_DENIED', `${shellQuote(input.nodeExecutable)} -e 'const net=requ
 function markerResults(output: string): ReadonlyMap<string, string> {
   const found = new Map<string, string>();
   for (const line of output.split(/\r?\n/)) {
-    const match = /^CIRCUIT_CANARY_([A-Z_]+)=(pass|fail)$/.exec(line.trim());
+    const trimmed = line.trim();
+    const match = /^CIRCUIT_CANARY_([A-Z_]+)=(pass|fail)$/.exec(trimmed);
     if (match !== null) {
       const name = match[1] ?? '';
       if (found.has(name)) throw new Error(`The Codex sandbox repeated canary marker ${name}.`);
       found.set(name, match[2] ?? '');
+    } else if (trimmed.startsWith('CIRCUIT_CANARY_')) {
+      throw new Error('The Codex sandbox returned a malformed canary marker.');
     }
   }
   return found;
@@ -274,12 +284,13 @@ function markerResults(output: string): ReadonlyMap<string, string> {
 
 /**
  * Runs a fixed shell probe through Codex's real named permissions profile.
- * Current Codex 0.144.3 fails this because `:minimal` still grants shared temp.
+ * Shared host temporary directories are measured but do not strengthen the
+ * practical boundary beyond what Codex provides for its own workspace tasks.
  */
 export async function runCodexNestedSandboxCanary(
   input: CodexNestedHostProbeInput,
   dependencies: CodexNestedHostProbeDependencies = {},
-): Promise<void> {
+): Promise<CodexNestedSandboxCanaryResult> {
   assertIsolatedProbeCodexHome(input);
   await assertProbeCodexHomeIsNotAnAlias(input);
   const run = dependencies.run ?? runMcpCodexSubprocess;
@@ -393,12 +404,18 @@ export async function runCodexNestedSandboxCanary(
     if (
       networkHit ||
       markers.size !== MARKERS.length ||
-      MARKERS.some((name) => markers.get(name) !== 'pass')
+      MARKERS.some((name) => !markers.has(name)) ||
+      REQUIRED_MARKERS.some((name) => markers.get(name) !== 'pass')
     ) {
       throw new Error(
         'The installed Codex sandbox did not confine files, environment, and direct network access.',
       );
     }
+    return Object.freeze({
+      shared_temp_isolation: SHARED_TEMP_MARKERS.every((name) => markers.get(name) === 'pass')
+        ? 'isolated'
+        : 'exposed',
+    });
   } finally {
     await closeServer(listener);
     await Promise.all(

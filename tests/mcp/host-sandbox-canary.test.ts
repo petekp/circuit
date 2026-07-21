@@ -108,21 +108,27 @@ const BASE_TOOL_SURFACE = [
   'write_stdin',
 ].map((name) => ({ type: 'function', name }));
 
-const PASS_MARKERS = [
+const REQUIRED_MARKERS = [
   'AUTH_READ_DENIED',
   'ENV_CLEAN',
   'GIT_EXEC',
   'NETWORK_DENIED',
   'NODE_EXEC',
   'PRIVATE_WRITE',
-  'SHARED_TEMP_READ_DENIED',
-  'SHARED_TEMP_WRITE_DENIED',
   'SIBLING_READ_DENIED',
   'SYMLINK_READ_DENIED',
   'WORKSPACE_WRITE',
-]
-  .map((name) => `CIRCUIT_CANARY_${name}=pass`)
-  .join('\n');
+] as const;
+
+const SHARED_TEMP_MARKERS = ['SHARED_TEMP_READ_DENIED', 'SHARED_TEMP_WRITE_DENIED'] as const;
+
+function canaryMarkers(overrides: Readonly<Record<string, 'pass' | 'fail'>> = {}): string {
+  return [...REQUIRED_MARKERS, ...SHARED_TEMP_MARKERS]
+    .map((name) => `CIRCUIT_CANARY_${name}=${overrides[name] ?? 'pass'}`)
+    .join('\n');
+}
+
+const PASS_MARKERS = canaryMarkers();
 
 describe('Codex named sandbox canary', () => {
   it('uses the exact named profile with bounded output and a clean shell environment', async () => {
@@ -140,7 +146,7 @@ describe('Codex named sandbox canary', () => {
         run,
         sharedTempRootCandidates: input.sharedTempRoots,
       }),
-    ).resolves.toBeUndefined();
+    ).resolves.toEqual({ shared_temp_isolation: 'isolated' });
     expect(run).toHaveBeenCalledWith(
       expect.objectContaining({
         executable: '/trusted/codex',
@@ -198,18 +204,45 @@ describe('Codex named sandbox canary', () => {
     }
   });
 
-  it('fails closed when shared temporary files remain exposed', async () => {
+  it.each([
+    ['read', { SHARED_TEMP_READ_DENIED: 'fail' }],
+    ['write', { SHARED_TEMP_WRITE_DENIED: 'fail' }],
+    ['read and write', { SHARED_TEMP_READ_DENIED: 'fail', SHARED_TEMP_WRITE_DENIED: 'fail' }],
+  ] as const)(
+    'records shared temporary %s exposure without blocking the host',
+    async (_label, overrides) => {
+      const input = await fixture();
+      await expect(
+        runCodexNestedSandboxCanary(input, {
+          run: async () => result(canaryMarkers(overrides)),
+          sharedTempRootCandidates: input.sharedTempRoots,
+        }),
+      ).resolves.toEqual({ shared_temp_isolation: 'exposed' });
+    },
+  );
+
+  it.each(REQUIRED_MARKERS)(
+    'still fails closed when the required %s check fails',
+    async (marker) => {
+      const input = await fixture();
+      await expect(
+        runCodexNestedSandboxCanary(input, {
+          run: async () => result(canaryMarkers({ [marker]: 'fail' })),
+          sharedTempRootCandidates: input.sharedTempRoots,
+        }),
+      ).rejects.toThrow(/did not confine files/);
+    },
+  );
+
+  it('fails closed when output omits a required marker', async () => {
     const input = await fixture();
-    const unsafe = PASS_MARKERS.replace(
-      'CIRCUIT_CANARY_SHARED_TEMP_WRITE_DENIED=pass',
-      'CIRCUIT_CANARY_SHARED_TEMP_WRITE_DENIED=fail',
-    );
+    const missing = PASS_MARKERS.replace('CIRCUIT_CANARY_NODE_EXEC=pass\n', '');
     await expect(
       runCodexNestedSandboxCanary(input, {
-        run: async () => result(unsafe),
+        run: async () => result(missing),
         sharedTempRootCandidates: input.sharedTempRoots,
       }),
-    ).rejects.toThrow(/did not confine files/);
+    ).rejects.toThrow(/canary|confine/i);
   });
 
   it('fails closed when output repeats a marker', async () => {
@@ -220,6 +253,26 @@ describe('Codex named sandbox canary', () => {
         sharedTempRootCandidates: input.sharedTempRoots,
       }),
     ).rejects.toThrow(/repeated canary marker/);
+  });
+
+  it('fails closed when output adds an unknown marker', async () => {
+    const input = await fixture();
+    await expect(
+      runCodexNestedSandboxCanary(input, {
+        run: async () => result(`${PASS_MARKERS}\nCIRCUIT_CANARY_UNREVIEWED=pass`),
+        sharedTempRootCandidates: input.sharedTempRoots,
+      }),
+    ).rejects.toThrow(/canary|confine/i);
+  });
+
+  it('fails closed instead of ignoring a malformed canary marker', async () => {
+    const input = await fixture();
+    await expect(
+      runCodexNestedSandboxCanary(input, {
+        run: async () => result(`${PASS_MARKERS}\nCIRCUIT_CANARY_UNREVIEWED=maybe`),
+        sharedTempRootCandidates: input.sharedTempRoots,
+      }),
+    ).rejects.toThrow(/canary/i);
   });
 
   it('fails closed on timeout or uncertain process cleanup', async () => {

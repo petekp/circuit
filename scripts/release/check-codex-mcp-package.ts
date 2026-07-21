@@ -14,7 +14,6 @@ import {
   rmSync,
   utimesSync,
 } from 'node:fs';
-import { tmpdir } from 'node:os';
 import { dirname, isAbsolute, posix, resolve } from 'node:path';
 import { fileURLToPath, pathToFileURL } from 'node:url';
 import { Client } from '@modelcontextprotocol/sdk/client/index.js';
@@ -27,6 +26,7 @@ import { packageTreeStatus } from '../plugins/package-tree.ts';
 // the repository and packs the generated plugin before testing its installed paths.
 const scriptDir = dirname(fileURLToPath(import.meta.url));
 const repoRoot = resolve(scriptDir, '../..');
+const privateTestRoot = resolve(repoRoot, '.mcp-host-tests');
 const ARCHIVE_ROOT = 'circuit-codex-plugin';
 const ARCHIVE_TIME = new Date(0);
 
@@ -175,7 +175,8 @@ function readConfig(root: string): {
 }
 
 export async function checkCodexMcpPackage(): Promise<CodexMcpPackageCheckResult> {
-  const temp = mkdtempSync(resolve(tmpdir(), 'circuit MCP packed proof '));
+  mkdirSync(privateTestRoot, { recursive: true, mode: 0o700 });
+  const temp = mkdtempSync(resolve(privateTestRoot, 'packed proof '));
   const source = resolve(repoRoot, 'plugins/codex');
   const installRoot = resolve(temp, 'unrelated host', 'installed plugin with spaces');
   const relocated = resolve(installRoot, ARCHIVE_ROOT);

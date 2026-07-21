@@ -84,13 +84,16 @@ Circuit requires Codex 0.144.3 or newer and successful capability probes for
 plugin MCP loading, strict configuration, workspace metadata, and the nested
 shell sandbox. A version number alone is not enough. The sandbox probe performs
 local filesystem, environment, executable, and loopback-network checks before
-a run is reserved. A failed or uncertain check blocks start and resume.
+a run is reserved. A failed or uncertain required check blocks start and
+resume.
 
-Codex 0.144.3 does not currently pass that complete sandbox probe. Its narrowest
-usable built-in macOS profile still allows a nested shell to read and write
-shared temporary directories. Circuit therefore keeps this MCP implementation
-in draft and refuses to create a run on that host version. This is a deliberate
-fail-closed result, not partial sandbox support.
+Nested Codex uses the same practical workspace-write boundary Codex provides
+for ordinary tasks, with additional restrictions where the host supports them.
+On macOS, Codex may still let that shell read and write host-managed shared
+temporary directories such as `/private/tmp`. Circuit records whether those
+directories are exposed and treats them as untrusted. It never uses shared temp
+for credentials or MCP control state. Shared-temp exposure alone does not block
+a run.
 
 ## Installed asset identity
 
@@ -107,8 +110,12 @@ to defeat a malicious process running as the same user.
 
 MCP control data lives under `${CODEX_HOME}/circuit/mcp/v1/` in private
 directories and files. Credentials, proxy values, and TLS values are never
-stored there. Normal Circuit reports stay in the workspace's `.circuit/runs`
-directory and are never removed by MCP retention.
+stored there. Circuit canonicalizes `CODEX_HOME` and refuses to start its MCP
+runtime when that directory is inside a host shared-temp root. It also rejects
+symlinks in the `circuit/mcp/v1` state-directory chain and verifies the final
+directory remains inside `CODEX_HOME` and outside shared temp. Normal Circuit
+reports stay in the workspace's `.circuit/runs` directory and are never removed
+by MCP retention.
 
 One atomic lease covers each canonical workspace. The lease stays held while a
 run is starting, active, waiting at a checkpoint, resuming, cancelling, or
@@ -148,12 +155,13 @@ The MCP bridge supports sandboxed execution only on macOS. Other platforms
 return `unsupported_platform` before run creation. There is no weaker fallback.
 
 Nested Codex uses a fixed named permission profile, no approvals, no plugins or
-Apps, no extra write roots, no shell network access, and strict configuration.
-The model-generated shell receives a private HOME and temporary directory plus
-a fixed PATH. It does not receive the parent Codex process's credentials,
-proxy settings, TLS settings, CODEX_HOME, or host HOME. The named profile and
-its live probe must both pass; Circuit never falls back to ordinary
-`workspace-write` permissions.
+Apps, no operator-configurable extra write roots, no shell network access, and
+strict configuration. The model-generated shell receives a private HOME and
+temporary directory plus a fixed PATH. It does not receive the parent Codex
+process's credentials, proxy settings, TLS settings, CODEX_HOME, or host HOME.
+The named profile and its required live checks must pass; Circuit never falls
+back to a broader configuration. Host-managed shared temp remains the accepted
+Codex limitation described above.
 
 Circuit runs proof commands through an injected Seatbelt provider that:
 
@@ -181,6 +189,8 @@ This bridge does not claim that:
 
 - MCP is itself a security sandbox;
 - Circuit can safely accept arbitrary commands or paths from a model;
+- nested Codex cannot access host-managed shared temporary directories;
+- Circuit protects against another process running as the same macOS user;
 - the bridge protects against malicious same-user replacement of trusted
   executables or plugin files;
 - macOS Seatbelt contains every possible future OS service without continuing

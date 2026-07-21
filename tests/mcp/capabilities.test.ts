@@ -24,6 +24,7 @@ describe('Codex MCP capability preflight', () => {
         pluginMcpTransport: 'stdio',
         workspaceMetadataValidated: true,
         nestedSandboxValidated: true,
+        sharedTempIsolation: 'isolated',
       }),
     ).toEqual({
       codex_version: '0.144.3',
@@ -32,6 +33,23 @@ describe('Codex MCP capability preflight', () => {
       strict_config: true,
       workspace_metadata: true,
       nested_sandbox: true,
+      shared_temp_isolation: 'isolated',
+    });
+  });
+
+  it('accepts and records Codex-equivalent shared temporary exposure', () => {
+    expect(
+      assertCodexHostCapabilities({
+        versionOutput: 'codex-cli 0.144.3\n',
+        execHelpOutput: COMPLETE_HELP,
+        pluginMcpTransport: 'stdio',
+        workspaceMetadataValidated: true,
+        nestedSandboxValidated: true,
+        sharedTempIsolation: 'exposed',
+      }),
+    ).toMatchObject({
+      nested_sandbox: true,
+      shared_temp_isolation: 'exposed',
     });
   });
 
@@ -45,6 +63,7 @@ describe('Codex MCP capability preflight', () => {
           pluginMcpTransport: 'stdio',
           workspaceMetadataValidated: true,
           nestedSandboxValidated: true,
+          sharedTempIsolation: 'isolated',
         }),
       ).toThrow(/0\.144\.3 or newer/);
     },
@@ -71,8 +90,25 @@ describe('Codex MCP capability preflight', () => {
         pluginMcpTransport: 'stdio',
         workspaceMetadataValidated: true,
         nestedSandboxValidated: true,
+        sharedTempIsolation: 'isolated',
         ...replacement,
       }),
     ).toThrow(/capability/i);
+  });
+
+  it.each([
+    ['missing', undefined],
+    ['unknown', 'unknown'],
+  ] as const)('rejects a %s private shared-temp posture', (_label, sharedTempIsolation) => {
+    expect(() =>
+      assertCodexHostCapabilities({
+        versionOutput: 'codex-cli 0.144.3',
+        execHelpOutput: COMPLETE_HELP,
+        pluginMcpTransport: 'stdio',
+        workspaceMetadataValidated: true,
+        nestedSandboxValidated: true,
+        sharedTempIsolation: sharedTempIsolation as never,
+      }),
+    ).toThrow(/shared.temp|capability/i);
   });
 });

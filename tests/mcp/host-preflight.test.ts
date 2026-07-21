@@ -1,4 +1,4 @@
-import { describe, expect, it, vi } from 'vitest';
+import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 import {
   McpHostPreflightError,
@@ -33,10 +33,38 @@ const nested = {
 
 const passingCanaries = {
   runToolSurfaceCanary: vi.fn(async () => {}),
-  runSandboxCanary: vi.fn(async () => {}),
+  runSandboxCanary: vi.fn(async () => ({ shared_temp_isolation: 'isolated' as const })),
 };
 
+beforeEach(() => {
+  vi.clearAllMocks();
+});
+
 describe('Codex MCP host preflight', () => {
+  it.each([
+    [
+      'a relative pinned executable',
+      'codex',
+      { ...nested, policy: { ...nested.policy, executable: 'codex' } },
+      /reinstall the Circuit plugin.*absolute Codex executable/i,
+    ],
+    [
+      'a mismatched nested executable',
+      '/trusted/codex',
+      { ...nested, policy: { ...nested.policy, executable: '/other/codex' } },
+      /reinstall the Circuit plugin.*pinned Codex executable/i,
+    ],
+  ] as const)('gives a specific remedy for %s', async (_label, executable, probe, nextAction) => {
+    await expect(
+      probeCodexHostCapabilities(executable, {
+        run: vi.fn(),
+        workspaceMetadataValidated: true,
+        nested: probe,
+        ...passingCanaries,
+      }),
+    ).rejects.toMatchObject({ nextAction: expect.stringMatching(nextAction) });
+  });
+
   it('proves version and the exact strict nested-Codex configuration without a paid model run', async () => {
     const run = vi
       .fn()
@@ -59,6 +87,7 @@ describe('Codex MCP host preflight', () => {
       codex_version: '0.144.3',
       strict_config: true,
       nested_sandbox: true,
+      shared_temp_isolation: 'isolated',
     });
     expect(run).toHaveBeenNthCalledWith(
       2,
@@ -130,10 +159,38 @@ describe('Codex MCP host preflight', () => {
         nested,
         ...passingCanaries,
       }),
-    ).rejects.toThrow(McpHostPreflightError);
+    ).rejects.toMatchObject({
+      message: expect.stringMatching(/strictly accept/i),
+      nextAction: expect.stringMatching(/strict configuration/i),
+    });
   });
 
-  it('fails closed when the real named sandbox canary finds an unsafe host', async () => {
+  it('accepts Codex-equivalent shared temporary exposure and records it privately', async () => {
+    const run = vi
+      .fn()
+      .mockReturnValueOnce({ status: 0, stdout: 'codex-cli 0.144.3\n', stderr: '' })
+      .mockReturnValueOnce({ status: 0, stdout: HELP, stderr: '' })
+      .mockReturnValueOnce({
+        status: 1,
+        stdout: '',
+        stderr: 'Error: no transport configured; use --listen or enable remote control',
+      });
+
+    await expect(
+      probeCodexHostCapabilities('/trusted/codex', {
+        run,
+        workspaceMetadataValidated: true,
+        nested,
+        runToolSurfaceCanary: async () => {},
+        runSandboxCanary: async () => ({ shared_temp_isolation: 'exposed' }),
+      }),
+    ).resolves.toMatchObject({
+      nested_sandbox: true,
+      shared_temp_isolation: 'exposed',
+    });
+  });
+
+  it('fails closed when the real named sandbox canary finds an unsafe required boundary', async () => {
     const run = vi
       .fn()
       .mockReturnValueOnce({ status: 0, stdout: 'codex-cli 0.144.3\n', stderr: '' })
@@ -151,9 +208,39 @@ describe('Codex MCP host preflight', () => {
         nested,
         runToolSurfaceCanary: async () => {},
         runSandboxCanary: async () => {
-          throw new Error('shared temporary files remained writable');
+          throw new Error('a sibling file remained readable');
         },
       }),
-    ).rejects.toThrow(/shared temporary files/);
+    ).rejects.toMatchObject({
+      message: expect.stringMatching(/nested Codex sandbox.*sibling file/i),
+      nextAction: expect.stringMatching(/sandbox capability/i),
+    });
+  });
+
+  it('names a tool-surface canary failure and gives its own remedy', async () => {
+    const run = vi
+      .fn()
+      .mockReturnValueOnce({ status: 0, stdout: 'codex-cli 0.144.3\n', stderr: '' })
+      .mockReturnValueOnce({ status: 0, stdout: HELP, stderr: '' })
+      .mockReturnValueOnce({
+        status: 1,
+        stdout: '',
+        stderr: 'Error: no transport configured; use --listen or enable remote control',
+      });
+
+    await expect(
+      probeCodexHostCapabilities('/trusted/codex', {
+        run,
+        workspaceMetadataValidated: true,
+        nested,
+        runSandboxCanary: async () => ({ shared_temp_isolation: 'isolated' }),
+        runToolSurfaceCanary: async () => {
+          throw new Error('an unexpected tool was enabled');
+        },
+      }),
+    ).rejects.toMatchObject({
+      message: expect.stringMatching(/tool surface.*unexpected tool/i),
+      nextAction: expect.stringMatching(/tool-surface capability/i),
+    });
   });
 });

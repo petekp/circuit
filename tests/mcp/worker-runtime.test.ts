@@ -76,6 +76,7 @@ function startLaunch(overrides: Record<string, unknown> = {}) {
       strict_config: true as const,
       workspace_metadata: true as const,
       nested_sandbox: true as const,
+      shared_temp_isolation: 'exposed' as const,
     },
     codex: {
       executable: '/opt/codex/bin/codex',
@@ -124,6 +125,17 @@ describe('MCP dedicated worker runtime', () => {
         capabilities: { ...startLaunch().capabilities, codex_version: '0.145.0' },
       }),
     ).toThrow(/match the sealed Codex capability/i);
+
+    const { shared_temp_isolation: _isolation, ...missingIsolation } = startLaunch().capabilities;
+    expect(() =>
+      parseMcpWorkerLaunch({ ...startLaunch(), capabilities: missingIsolation }),
+    ).toThrow();
+    expect(() =>
+      parseMcpWorkerLaunch({
+        ...startLaunch(),
+        capabilities: { ...startLaunch().capabilities, shared_temp_isolation: 'unknown' },
+      }),
+    ).toThrow();
   });
 
   it('derives every path and argument from sealed data', () => {
@@ -292,6 +304,7 @@ describe('MCP dedicated worker runtime', () => {
           strict_config: true,
           workspace_metadata: true,
           nested_sandbox: true,
+          shared_temp_isolation: 'exposed',
         }),
         search: { mode: 'cached', consented: true },
         proofExecutor: expect.any(Function),

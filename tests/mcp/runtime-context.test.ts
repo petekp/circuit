@@ -62,6 +62,7 @@ describe('sealed Codex MCP runtime context', () => {
         strict_config: true,
         workspace_metadata: true,
         nested_sandbox: true,
+        shared_temp_isolation: 'exposed',
       },
       assets,
       search: { mode: 'off', consented: false },
@@ -79,7 +80,9 @@ describe('sealed Codex MCP runtime context', () => {
     );
     expect(context.user_hooks).toBe('disabled');
     expect(context.history).toBe('disabled');
-    expect(context.extra_write_roots).toEqual([]);
+    expect(context.shared_temp_isolation).toBe('exposed');
+    expect(context.configured_extra_write_roots).toEqual([]);
+    expect(context).not.toHaveProperty('extra_write_roots');
     expect(context.proofExecutor).toBe(proofExecutor);
     expect(Object.isFrozen(context)).toBe(true);
     expect(Object.isFrozen(context.workspace)).toBe(true);
@@ -100,6 +103,7 @@ describe('sealed Codex MCP runtime context', () => {
           strict_config: true,
           workspace_metadata: true,
           nested_sandbox: true,
+          shared_temp_isolation: 'isolated',
         },
         assets: {
           schema_version: 1,

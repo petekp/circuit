@@ -23037,7 +23037,8 @@ var StdioServerTransport = class {
 
 // src/hosts/codex-mcp/production-runtime.ts
 import { randomUUID as randomUUID5 } from "node:crypto";
-import { mkdir as mkdir2, realpath as realpath7, rm as rm2 } from "node:fs/promises";
+import { lstat as lstat5, mkdir as mkdir2, realpath as realpath7, rm as rm2, stat as stat3 } from "node:fs/promises";
+import { tmpdir as tmpdir2 } from "node:os";
 import { isAbsolute as isAbsolute14, join as join15, relative as relative6, resolve as resolve10 } from "node:path";
 
 // src/hosts/codex-mcp/asset-pins.ts
@@ -23615,7 +23616,14 @@ function assertCodexHostCapabilities(input) {
     throw new CodexHostCapabilityError(
       "codex_capability_missing",
       "The installed Codex did not pass Circuit's nested sandbox capability canary.",
-      "Update Codex to a version that denies shared temporary files, then retry."
+      "Update Codex and retry after correcting the reported sandbox capability failure."
+    );
+  }
+  if (input.sharedTempIsolation !== "isolated" && input.sharedTempIsolation !== "exposed") {
+    throw new CodexHostCapabilityError(
+      "codex_capability_missing",
+      "The Codex shared temporary directory posture could not be proven.",
+      "Update Codex and retry after the host capability probe completes successfully."
     );
   }
   for (const [name, pattern] of REQUIRED_EXEC_HELP_CAPABILITIES) {
@@ -23633,7 +23641,8 @@ function assertCodexHostCapabilities(input) {
     plugin_mcp: true,
     strict_config: true,
     workspace_metadata: true,
-    nested_sandbox: true
+    nested_sandbox: true,
+    shared_temp_isolation: input.sharedTempIsolation
   });
 }
 
@@ -25612,19 +25621,19 @@ var SENSITIVE_SHELL_ENVIRONMENT_NAMES = Object.freeze([
   "SSL_CERT_DIR",
   "NODE_EXTRA_CA_CERTS"
 ]);
-var MARKERS = Object.freeze([
+var REQUIRED_MARKERS = Object.freeze([
   "AUTH_READ_DENIED",
   "ENV_CLEAN",
   "GIT_EXEC",
   "NETWORK_DENIED",
   "NODE_EXEC",
   "PRIVATE_WRITE",
-  "SHARED_TEMP_READ_DENIED",
-  "SHARED_TEMP_WRITE_DENIED",
   "SIBLING_READ_DENIED",
   "SYMLINK_READ_DENIED",
   "WORKSPACE_WRITE"
 ]);
+var SHARED_TEMP_MARKERS = Object.freeze(["SHARED_TEMP_READ_DENIED", "SHARED_TEMP_WRITE_DENIED"]);
+var MARKERS = Object.freeze([...REQUIRED_MARKERS, ...SHARED_TEMP_MARKERS]);
 function operatorCodexHomeCandidates(input) {
   const candidates = [];
   if (input.environment.CODEX_HOME !== void 0) {
@@ -25767,11 +25776,14 @@ ${mark("NETWORK_DENIED", `${shellQuote(input.nodeExecutable)} -e 'const net=requ
 function markerResults(output) {
   const found = /* @__PURE__ */ new Map();
   for (const line of output.split(/\r?\n/)) {
-    const match = /^CIRCUIT_CANARY_([A-Z_]+)=(pass|fail)$/.exec(line.trim());
+    const trimmed = line.trim();
+    const match = /^CIRCUIT_CANARY_([A-Z_]+)=(pass|fail)$/.exec(trimmed);
     if (match !== null) {
       const name = match[1] ?? "";
       if (found.has(name)) throw new Error(`The Codex sandbox repeated canary marker ${name}.`);
       found.set(name, match[2] ?? "");
+    } else if (trimmed.startsWith("CIRCUIT_CANARY_")) {
+      throw new Error("The Codex sandbox returned a malformed canary marker.");
     }
   }
   return found;
@@ -25888,11 +25900,14 @@ async function runCodexNestedSandboxCanary(input, dependencies = {}) {
     });
     checkedResult(result, "nested sandbox canary");
     const markers = markerResults(result.stdout);
-    if (networkHit || markers.size !== MARKERS.length || MARKERS.some((name) => markers.get(name) !== "pass")) {
+    if (networkHit || markers.size !== MARKERS.length || MARKERS.some((name) => !markers.has(name)) || REQUIRED_MARKERS.some((name) => markers.get(name) !== "pass")) {
       throw new Error(
         "The installed Codex sandbox did not confine files, environment, and direct network access."
       );
     }
+    return Object.freeze({
+      shared_temp_isolation: SHARED_TEMP_MARKERS.every((name) => markers.get(name) === "pass") ? "isolated" : "exposed"
+    });
   } finally {
     await closeServer(listener);
     await Promise.all(
@@ -26089,12 +26104,20 @@ ${result.stderr}`;
 
 // src/hosts/codex-mcp/host-preflight.ts
 var MAX_PROBE_OUTPUT_BYTES = 1024 * 1024;
+var REINSTALL_ABSOLUTE_CODEX_ACTION = "Reinstall the Circuit plugin so it can pin an absolute Codex executable, then retry.";
+var REINSTALL_PINNED_CODEX_ACTION = "Reinstall the Circuit plugin so the nested worker uses the pinned Codex executable, then retry.";
+var CODEX_INSTALL_ACTION = "Confirm Codex is installed and runnable, then retry.";
+var CODEX_FLAGS_ACTION = "Update Codex to a version that supports Circuit's required execution flags, then retry.";
+var STRICT_CONFIG_ACTION = "Update Codex to a version that accepts Circuit's required strict configuration, then retry.";
+var SANDBOX_ACTION = "Update Codex so its required sandbox capability passes, then retry.";
+var TOOL_SURFACE_ACTION = "Update Codex so its required tool-surface capability passes, then retry.";
 var McpHostPreflightError = class extends Error {
   code = "codex_capability_missing";
-  nextAction = "Update Codex to a version whose named sandbox denies shared temporary files, then retry.";
-  constructor(message) {
+  nextAction;
+  constructor(message, nextAction = "Update Codex and retry after correcting the reported host capability failure.") {
     super(message);
     this.name = "McpHostPreflightError";
+    this.nextAction = nextAction;
   }
 };
 function safeProbeEnvironment(environment, isolatedCodexHome) {
@@ -26127,54 +26150,75 @@ function productionRunner(environment) {
     dispose: () => rmSync(isolatedCodexHome, { recursive: true, force: true })
   };
 }
-function requireSuccessfulProbe(result, name) {
+function requireSuccessfulProbe(result, name, nextAction) {
   if (result.error !== void 0 || result.status !== 0) {
-    throw new McpHostPreflightError(`Circuit could not prove the required Codex ${name}.`);
+    throw new McpHostPreflightError(
+      `Circuit could not prove the required Codex ${name}.`,
+      nextAction
+    );
   }
   const output = `${result.stdout}
 ${result.stderr}`;
   if (Buffer.byteLength(output, "utf8") > MAX_PROBE_OUTPUT_BYTES) {
-    throw new McpHostPreflightError(`The Codex ${name} probe returned too much output.`);
+    throw new McpHostPreflightError(
+      `The Codex ${name} probe returned too much output.`,
+      nextAction
+    );
   }
   return output;
 }
 function requireStrictConfigProbe(result) {
   if (result.error !== void 0) {
     throw new McpHostPreflightError(
-      "Circuit could not prove that Codex accepts the fixed hardening configuration."
+      "Circuit could not prove that Codex accepts the fixed hardening configuration.",
+      STRICT_CONFIG_ACTION
     );
   }
   const output = `${result.stdout}
 ${result.stderr}`;
   if (Buffer.byteLength(output, "utf8") > MAX_PROBE_OUTPUT_BYTES) {
     throw new McpHostPreflightError(
-      "The Codex strict configuration probe returned too much output."
+      "The Codex strict configuration probe returned too much output.",
+      STRICT_CONFIG_ACTION
     );
   }
   if (result.status === 0 || result.status === 1 && /no transport configured/i.test(output))
     return;
   throw new McpHostPreflightError(
-    "The installed Codex did not strictly accept Circuit's fixed hardening configuration."
+    "The installed Codex did not strictly accept Circuit's fixed hardening configuration.",
+    STRICT_CONFIG_ACTION
   );
 }
 async function probeCodexHostCapabilities(codexExecutable, options) {
   if (!isAbsolute6(codexExecutable)) {
-    throw new McpHostPreflightError("The pinned Codex executable path is not absolute.");
+    throw new McpHostPreflightError(
+      "The pinned Codex executable path is not absolute.",
+      REINSTALL_ABSOLUTE_CODEX_ACTION
+    );
   }
   if (options.nested.policy.executable !== codexExecutable) {
     throw new McpHostPreflightError(
-      "The nested Codex canary is not bound to the pinned executable."
+      "The nested Codex canary is not bound to the pinned executable.",
+      REINSTALL_PINNED_CODEX_ACTION
     );
   }
   const production = options.run === void 0 ? productionRunner(options.environment ?? process.env) : void 0;
   const run = options.run ?? production?.run;
   if (run === void 0)
-    throw new McpHostPreflightError("The Codex capability probe is unavailable.");
+    throw new McpHostPreflightError(
+      "The Codex capability probe is unavailable.",
+      "Restart Codex and retry. If the probe remains unavailable, reinstall the Circuit plugin."
+    );
   try {
-    const versionOutput = requireSuccessfulProbe(run(codexExecutable, ["--version"]), "version");
+    const versionOutput = requireSuccessfulProbe(
+      run(codexExecutable, ["--version"]),
+      "version",
+      CODEX_INSTALL_ACTION
+    );
     const execHelpOutput = requireSuccessfulProbe(
       run(codexExecutable, ["exec", ...MCP_CODEX_STRICT_FLAGS, "--help"]),
-      "required execution flags"
+      "required execution flags",
+      CODEX_FLAGS_ACTION
     );
     requireStrictConfigProbe(
       run(codexExecutable, [
@@ -26190,13 +26234,23 @@ async function probeCodexHostCapabilities(codexExecutable, options) {
         'web_search="disabled"'
       ])
     );
+    let sandbox;
     try {
-      await (options.runSandboxCanary ?? runCodexNestedSandboxCanary)(options.nested);
+      sandbox = await (options.runSandboxCanary ?? runCodexNestedSandboxCanary)(options.nested);
+    } catch (error51) {
+      const detail = error51 instanceof Error ? error51.message : String(error51);
+      throw new McpHostPreflightError(
+        `Circuit could not prove the required nested Codex sandbox: ${detail}`,
+        SANDBOX_ACTION
+      );
+    }
+    try {
       await (options.runToolSurfaceCanary ?? runCodexToolSurfaceCanary)(options.nested);
     } catch (error51) {
       const detail = error51 instanceof Error ? error51.message : String(error51);
       throw new McpHostPreflightError(
-        `Circuit could not prove the required nested Codex sandbox: ${detail}`
+        `Circuit could not prove the required nested Codex tool surface: ${detail}`,
+        TOOL_SURFACE_ACTION
       );
     }
     return assertCodexHostCapabilities({
@@ -26204,7 +26258,8 @@ async function probeCodexHostCapabilities(codexExecutable, options) {
       execHelpOutput,
       pluginMcpTransport: "stdio",
       workspaceMetadataValidated: options.workspaceMetadataValidated,
-      nestedSandboxValidated: true
+      nestedSandboxValidated: true,
+      sharedTempIsolation: sandbox.shared_temp_isolation
     });
   } finally {
     production?.dispose();
@@ -31460,9 +31515,9 @@ var RunStatusFolderError = class extends Error {
   }
 };
 function assertReadableRunFolder(runFolder) {
-  let stat3;
+  let stat4;
   try {
-    stat3 = statSync3(runFolder);
+    stat4 = statSync3(runFolder);
   } catch (err) {
     const nodeCode = err.code;
     if (nodeCode === "ENOENT" || nodeCode === "ENOTDIR") {
@@ -31478,7 +31533,7 @@ function assertReadableRunFolder(runFolder) {
       `run folder is unreadable: ${runFolder} (${errorMessage(err)})`
     );
   }
-  if (!stat3.isDirectory()) {
+  if (!stat4.isDirectory()) {
     throw new RunStatusFolderError(
       "folder_unreadable",
       runFolder,
@@ -33478,12 +33533,12 @@ function trustedWorkspaceIdentity(path) {
     );
   }
   const canonicalPath = realpathSync7.native(path);
-  const stat3 = statSync4(canonicalPath);
+  const stat4 = statSync4(canonicalPath);
   return McpWorkspaceIdentityV1.parse({
     key: workspaceKey(canonicalPath),
     canonical_path: canonicalPath,
-    device: String(stat3.dev),
-    inode: String(stat3.ino)
+    device: String(stat4.dev),
+    inode: String(stat4.ino)
   });
 }
 function errorCode3(error51) {
@@ -33534,20 +33589,20 @@ function assertCurrentWorkspace(workspace) {
   }
 }
 function assertPrivateDirectory2(path) {
-  const stat3 = lstatSync5(path);
-  if (stat3.isSymbolicLink() || !stat3.isDirectory()) {
+  const stat4 = lstatSync5(path);
+  if (stat4.isSymbolicLink() || !stat4.isDirectory()) {
     throw new McpStateStoreError(
       "state_unsafe_directory",
       `Circuit state path is not a real directory: ${path}`
     );
   }
-  if ((stat3.mode & 511) !== 448) {
+  if ((stat4.mode & 511) !== 448) {
     throw new McpStateStoreError(
       "state_permissions",
       `Circuit state directory is not private: ${path}`
     );
   }
-  if (typeof process.getuid === "function" && stat3.uid !== process.getuid()) {
+  if (typeof process.getuid === "function" && stat4.uid !== process.getuid()) {
     throw new McpStateStoreError(
       "state_owner",
       `Circuit state directory has the wrong owner: ${path}`
@@ -33635,17 +33690,17 @@ function replaceJsonAtomic(target, value) {
     throw error51;
   }
 }
-function assertPrivateRegularFile(path, stat3) {
-  if (!stat3.isFile()) {
+function assertPrivateRegularFile(path, stat4) {
+  if (!stat4.isFile()) {
     throw new McpStateStoreError(
       "state_unsafe_file",
       `Circuit state is not a regular file: ${path}`
     );
   }
-  if ((stat3.mode & 511) !== 384) {
+  if ((stat4.mode & 511) !== 384) {
     throw new McpStateStoreError("state_permissions", `Circuit state file is not private: ${path}`);
   }
-  if (typeof process.getuid === "function" && stat3.uid !== process.getuid()) {
+  if (typeof process.getuid === "function" && stat4.uid !== process.getuid()) {
     throw new McpStateStoreError("state_owner", `Circuit state file has the wrong owner: ${path}`);
   }
 }
@@ -35344,6 +35399,75 @@ function resolveProductionCodexHome(environment) {
   }
   return resolve10(candidate2);
 }
+var SHARED_TEMP_ROOT_CANDIDATES2 = [
+  "/tmp",
+  "/private/tmp",
+  "/var/tmp",
+  "/private/var/tmp"
+];
+async function canonicalSharedTempRoots() {
+  const sharedRoots = /* @__PURE__ */ new Set();
+  for (const root of [...SHARED_TEMP_ROOT_CANDIDATES2, tmpdir2()]) {
+    if (!isAbsolute14(root)) continue;
+    try {
+      const canonicalRoot = await realpath7(resolve10(root));
+      if ((await stat3(canonicalRoot)).isDirectory()) sharedRoots.add(canonicalRoot);
+    } catch (error51) {
+      if (error51.code === "ENOENT") continue;
+      throw new Error("Circuit MCP could not validate the host temporary-directory boundary.");
+    }
+  }
+  return sharedRoots;
+}
+async function resolvePrivateProductionCodexHome(candidate2) {
+  if (!isAbsolute14(candidate2) || candidate2.includes("\0")) {
+    throw new Error("Circuit MCP requires an absolute CODEX_HOME directory.");
+  }
+  let canonicalHome;
+  try {
+    canonicalHome = await realpath7(resolve10(candidate2));
+    if (!(await stat3(canonicalHome)).isDirectory()) throw new Error("not a directory");
+  } catch {
+    throw new Error("Circuit MCP requires CODEX_HOME to name an existing directory.");
+  }
+  const sharedRoots = await canonicalSharedTempRoots();
+  if ([...sharedRoots].some((root) => pathInside3(root, canonicalHome))) {
+    throw new Error(
+      "Circuit MCP refuses CODEX_HOME inside a shared temporary directory. Move CODEX_HOME to your private home directory and retry."
+    );
+  }
+  return canonicalHome;
+}
+async function resolvePrivateProductionStateRoot(canonicalCodexHome) {
+  let current = canonicalCodexHome;
+  for (const segment of ["circuit", "mcp", "v1"]) {
+    const next = join15(current, segment);
+    let info;
+    try {
+      info = await lstat5(next);
+    } catch (error51) {
+      if (error51.code !== "ENOENT") throw error51;
+      await mkdir2(next, { mode: 448 });
+      info = await lstat5(next);
+    }
+    if (info.isSymbolicLink()) {
+      throw new Error("Circuit MCP state directory chain cannot contain a symbolic link.");
+    }
+    if (!info.isDirectory()) {
+      throw new Error("Circuit MCP state directory chain must contain only real directories.");
+    }
+    const canonicalNext = await realpath7(next);
+    if (!pathInside3(canonicalCodexHome, canonicalNext)) {
+      throw new Error("Circuit MCP state directory escaped the canonical CODEX_HOME.");
+    }
+    current = canonicalNext;
+  }
+  const sharedRoots = await canonicalSharedTempRoots();
+  if ([...sharedRoots].some((root) => pathInside3(root, current))) {
+    throw new Error("Circuit MCP state directory cannot live inside shared temporary storage.");
+  }
+  return current;
+}
 function productionMcpLayout(input) {
   if (!isAbsolute14(input.pluginRoot)) throw new Error("The installed plugin root must be absolute.");
   if (!isAbsolute14(input.nodeExecutable)) {
@@ -35559,6 +35683,8 @@ function createProductionSupervisorLauncher(options) {
 async function createProductionCircuitMcpHandler(options) {
   const environment = options.environment ?? process.env;
   const pluginRoot = resolve10(options.pluginRoot);
+  const codexHome = await resolvePrivateProductionCodexHome(options.codexHome);
+  const stateRoot = await resolvePrivateProductionStateRoot(codexHome);
   const hostProbe = options.processProbe === void 0 ? createMacOsProcessProbe() : void 0;
   const probe = options.processProbe ?? hostProbe;
   if (probe === void 0) throw new Error("Circuit MCP process inspection is unavailable.");
@@ -35575,7 +35701,7 @@ async function createProductionCircuitMcpHandler(options) {
     return owner;
   };
   const stateStore = new McpStateStore({
-    stateRoot: codexMcpStateRoot(options.codexHome),
+    stateRoot,
     inspectProcess: (identity2) => probe.inspectProcessSync(identity2),
     inspectProcessGroup: (identity2) => probe.inspectProcessGroupSync(identity2),
     inspectProcessToken: (token) => probe.inspectProcessTokenSync(token)
@@ -35588,14 +35714,14 @@ async function createProductionCircuitMcpHandler(options) {
     retainedTerminalRuns: 100
   });
   const preflight = options.dependencies?.preflight ?? createProductionLaunchPreflight({
-    codexHome: options.codexHome,
+    codexHome,
     stateRoot: stateStore.stateRoot,
     environment
   });
   const loadRuntimeAssets = options.dependencies?.loadRuntimeAssets ?? (async () => {
     const layout = productionMcpLayout({
       pluginRoot,
-      codexHome: options.codexHome,
+      codexHome,
       nodeExecutable: process.execPath,
       pathValue: environment.PATH
     });

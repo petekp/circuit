@@ -10,9 +10,19 @@ for normal first-run setup; use [docs/first-run.md](first-run.md) instead.
 - Refresh installed host plugin caches with `npm run plugins:refresh-local`.
 - Run Codex doctor from a normal temp repo.
 - Confirm `circuit` on PATH is the expected checkout.
+- Run `npm run smoke:host:codex:mcp -- --live` for the isolated, no-spend
+  packed-plugin loader and trusted-workspace check.
 
 ## Codex Scenarios
 
+- Fresh loader: install the packed plugin into an isolated `CODEX_HOME` and
+  confirm the real Codex plugin loader starts Circuit's MCP server.
+- Trusted workspace: invoke `circuit_list` through the loaded MCP tool and
+  confirm it returns the smoke harness's exact workspace sentinel through
+  `codex/sandbox-state-meta`. Then confirm the first Review writes its report
+  only to the intended test workspace.
+- No shell fallback: confirm Codex calls the MCP tools and never runs Circuit
+  through `exec_command` or requests approval.
 - Natural Fix: run
   `/circuit:run the checkout total is wrong when discounts and tax both apply` and
   confirm Codex invokes Circuit with the Fix flow.
@@ -26,7 +36,13 @@ for normal first-run setup; use [docs/first-run.md](first-run.md) instead.
 - Run-selected Build: use `/circuit:run` for a build-like task and confirm
   Codex invokes Circuit with the Build flow.
 - Checkpoint: exercise a checkpointing run and confirm the question/choice is
-  understandable.
+  understandable, restart Codex, recover it through `circuit_list`, and resume
+  one advertised choice.
+- Tournaments: complete two-way Explore and Prototype runs.
+- Cached search: confirm it remains off without consent and works only after
+  the operator accepts that the query leaves the machine.
+- Proof network: run a proof that attempts loopback access and confirm the
+  listener receives no connection.
 - Failure: force a verification failure and confirm the final summary explains
   what failed and where to look.
 
@@ -54,3 +70,5 @@ for normal first-run setup; use [docs/first-run.md](first-run.md) instead.
 - Did verification and review actually run?
 - Could the operator understand the outcome from the final summary alone?
 - Were deeper report paths available without dominating the thread?
+- Did the Codex run complete through MCP without shell escalation, cache edits,
+  or manual recovery?

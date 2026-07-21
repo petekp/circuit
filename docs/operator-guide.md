@@ -35,8 +35,10 @@ Use `/circuit:run` for bounded objectives and completion discipline. From the
 operator's seat, Goal is not a kind of work; it is the completion standard Run
 uses by default.
 
-The host commands wrap the same CLI. Each run accepts `--goal`. Direct CLI runs
-can also pass these controls when the selected flow supports them:
+Claude Code and direct terminal runs use the CLI path. Codex Run uses the
+packaged MCP bridge so Circuit can start outside the restricted task shell.
+Each run accepts a goal. Direct CLI runs can also pass these controls when the
+selected flow supports them:
 
 | Control | CLI flag | Supported by |
 | --- | --- | --- |

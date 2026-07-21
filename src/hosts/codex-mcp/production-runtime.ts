@@ -1,5 +1,6 @@
 import { randomUUID } from 'node:crypto';
-import { mkdir, realpath, rm } from 'node:fs/promises';
+import { lstat, mkdir, realpath, rm, stat } from 'node:fs/promises';
+import { tmpdir } from 'node:os';
 import { isAbsolute, join, relative, resolve } from 'node:path';
 
 import {
@@ -91,6 +92,85 @@ export function resolveProductionCodexHome(environment: NodeJS.ProcessEnv): stri
     throw new Error('Circuit MCP requires an absolute CODEX_HOME directory.');
   }
   return resolve(candidate);
+}
+
+const SHARED_TEMP_ROOT_CANDIDATES = [
+  '/tmp',
+  '/private/tmp',
+  '/var/tmp',
+  '/private/var/tmp',
+] as const;
+
+async function canonicalSharedTempRoots(): Promise<ReadonlySet<string>> {
+  const sharedRoots = new Set<string>();
+  for (const root of [...SHARED_TEMP_ROOT_CANDIDATES, tmpdir()]) {
+    if (!isAbsolute(root)) continue;
+    try {
+      const canonicalRoot = await realpath(resolve(root));
+      if ((await stat(canonicalRoot)).isDirectory()) sharedRoots.add(canonicalRoot);
+    } catch (error) {
+      if ((error as NodeJS.ErrnoException).code === 'ENOENT') continue;
+      throw new Error('Circuit MCP could not validate the host temporary-directory boundary.');
+    }
+  }
+  return sharedRoots;
+}
+
+/**
+ * Pins CODEX_HOME before any durable MCP state is opened. Nested Codex may
+ * retain access to host-managed temporary directories, so Circuit never puts
+ * its own leases or launch records beneath one of those shared roots.
+ */
+export async function resolvePrivateProductionCodexHome(candidate: string): Promise<string> {
+  if (!isAbsolute(candidate) || candidate.includes('\0')) {
+    throw new Error('Circuit MCP requires an absolute CODEX_HOME directory.');
+  }
+  let canonicalHome: string;
+  try {
+    canonicalHome = await realpath(resolve(candidate));
+    if (!(await stat(canonicalHome)).isDirectory()) throw new Error('not a directory');
+  } catch {
+    throw new Error('Circuit MCP requires CODEX_HOME to name an existing directory.');
+  }
+
+  const sharedRoots = await canonicalSharedTempRoots();
+  if ([...sharedRoots].some((root) => pathInside(root, canonicalHome))) {
+    throw new Error(
+      'Circuit MCP refuses CODEX_HOME inside a shared temporary directory. Move CODEX_HOME to your private home directory and retry.',
+    );
+  }
+  return canonicalHome;
+}
+
+async function resolvePrivateProductionStateRoot(canonicalCodexHome: string): Promise<string> {
+  let current = canonicalCodexHome;
+  for (const segment of ['circuit', 'mcp', 'v1']) {
+    const next = join(current, segment);
+    let info: Awaited<ReturnType<typeof lstat>>;
+    try {
+      info = await lstat(next);
+    } catch (error) {
+      if ((error as NodeJS.ErrnoException).code !== 'ENOENT') throw error;
+      await mkdir(next, { mode: 0o700 });
+      info = await lstat(next);
+    }
+    if (info.isSymbolicLink()) {
+      throw new Error('Circuit MCP state directory chain cannot contain a symbolic link.');
+    }
+    if (!info.isDirectory()) {
+      throw new Error('Circuit MCP state directory chain must contain only real directories.');
+    }
+    const canonicalNext = await realpath(next);
+    if (!pathInside(canonicalCodexHome, canonicalNext)) {
+      throw new Error('Circuit MCP state directory escaped the canonical CODEX_HOME.');
+    }
+    current = canonicalNext;
+  }
+  const sharedRoots = await canonicalSharedTempRoots();
+  if ([...sharedRoots].some((root) => pathInside(root, current))) {
+    throw new Error('Circuit MCP state directory cannot live inside shared temporary storage.');
+  }
+  return current;
 }
 
 export function productionMcpLayout(input: ProductionMcpLayoutInput): ProductionMcpLayout {
@@ -423,6 +503,8 @@ export async function createProductionCircuitMcpHandler(
 ): Promise<CircuitMcpToolHandler> {
   const environment = options.environment ?? process.env;
   const pluginRoot = resolve(options.pluginRoot);
+  const codexHome = await resolvePrivateProductionCodexHome(options.codexHome);
+  const stateRoot = await resolvePrivateProductionStateRoot(codexHome);
   const hostProbe = options.processProbe === undefined ? createMacOsProcessProbe() : undefined;
   const probe = options.processProbe ?? hostProbe;
   if (probe === undefined) throw new Error('Circuit MCP process inspection is unavailable.');
@@ -439,7 +521,7 @@ export async function createProductionCircuitMcpHandler(
     return owner;
   };
   const stateStore = new McpStateStore({
-    stateRoot: codexMcpStateRoot(options.codexHome),
+    stateRoot,
     inspectProcess: (identity) => probe.inspectProcessSync(identity),
     inspectProcessGroup: (identity) => probe.inspectProcessGroupSync(identity),
     inspectProcessToken: (token) => probe.inspectProcessTokenSync(token),
@@ -454,7 +536,7 @@ export async function createProductionCircuitMcpHandler(
   const preflight =
     options.dependencies?.preflight ??
     createProductionLaunchPreflight({
-      codexHome: options.codexHome,
+      codexHome,
       stateRoot: stateStore.stateRoot,
       environment,
     });
@@ -463,7 +545,7 @@ export async function createProductionCircuitMcpHandler(
     (async (): Promise<McpRuntimeAssetPins> => {
       const layout = productionMcpLayout({
         pluginRoot,
-        codexHome: options.codexHome,
+        codexHome,
         nodeExecutable: process.execPath,
         pathValue: environment.PATH,
       });

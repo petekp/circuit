@@ -68,6 +68,7 @@ export const McpWorkerLaunchV1 = z
         strict_config: z.literal(true),
         workspace_metadata: z.literal(true),
         nested_sandbox: z.literal(true),
+        shared_temp_isolation: z.enum(['isolated', 'exposed']),
       })
       .strict(),
     codex: z

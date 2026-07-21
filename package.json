@@ -59,6 +59,7 @@
     "check-release-infra:nobuild": "node scripts/release/emit-current-capabilities.ts --check && node scripts/release/check-parity.ts && node scripts/release/check-public-claims.ts && node scripts/release/check-proof-coverage.ts && npm run check-proof-stubs:nobuild && node scripts/release/render-parity-matrix.ts --check && node scripts/release/render-readiness-report.ts --check && node scripts/release/audit-public-docs.ts && node scripts/release/audit-marketplace-safe-paths.ts && node scripts/release/check-npm-package-install.ts && npm run check-codex-mcp-package",
     "check-release-ready": "npm run check-release-infra && node scripts/release/check-release-ready.ts",
     "smoke:host:codex": "node scripts/hosts/smoke/codex-handoff.ts",
+    "smoke:host:codex:mcp": "node scripts/hosts/smoke/codex-mcp.ts",
     "smoke:host:claude": "node scripts/hosts/smoke/claude-handoff.ts",
     "sync:codex-plugin-cache": "node scripts/plugins/sync-codex-cache.ts",
     "check:codex-plugin-cache": "node scripts/plugins/sync-codex-cache.ts --check",

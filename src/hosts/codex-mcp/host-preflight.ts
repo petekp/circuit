@@ -16,15 +16,30 @@ import {
 } from './nested-codex.js';
 
 const MAX_PROBE_OUTPUT_BYTES = 1024 * 1024;
+const REINSTALL_ABSOLUTE_CODEX_ACTION =
+  'Reinstall the Circuit plugin so it can pin an absolute Codex executable, then retry.';
+const REINSTALL_PINNED_CODEX_ACTION =
+  'Reinstall the Circuit plugin so the nested worker uses the pinned Codex executable, then retry.';
+const CODEX_INSTALL_ACTION = 'Confirm Codex is installed and runnable, then retry.';
+const CODEX_FLAGS_ACTION =
+  "Update Codex to a version that supports Circuit's required execution flags, then retry.";
+const STRICT_CONFIG_ACTION =
+  "Update Codex to a version that accepts Circuit's required strict configuration, then retry.";
+const SANDBOX_ACTION = 'Update Codex so its required sandbox capability passes, then retry.';
+const TOOL_SURFACE_ACTION =
+  'Update Codex so its required tool-surface capability passes, then retry.';
 
 export class McpHostPreflightError extends Error {
   readonly code = 'codex_capability_missing' as const;
-  readonly nextAction =
-    'Update Codex to a version whose named sandbox denies shared temporary files, then retry.';
+  readonly nextAction: string;
 
-  constructor(message: string) {
+  constructor(
+    message: string,
+    nextAction = 'Update Codex and retry after correcting the reported host capability failure.',
+  ) {
     super(message);
     this.name = 'McpHostPreflightError';
+    this.nextAction = nextAction;
   }
 }
 
@@ -75,13 +90,19 @@ function productionRunner(environment: NodeJS.ProcessEnv): {
   };
 }
 
-function requireSuccessfulProbe(result: ProbeResult, name: string): string {
+function requireSuccessfulProbe(result: ProbeResult, name: string, nextAction: string): string {
   if (result.error !== undefined || result.status !== 0) {
-    throw new McpHostPreflightError(`Circuit could not prove the required Codex ${name}.`);
+    throw new McpHostPreflightError(
+      `Circuit could not prove the required Codex ${name}.`,
+      nextAction,
+    );
   }
   const output = `${result.stdout}\n${result.stderr}`;
   if (Buffer.byteLength(output, 'utf8') > MAX_PROBE_OUTPUT_BYTES) {
-    throw new McpHostPreflightError(`The Codex ${name} probe returned too much output.`);
+    throw new McpHostPreflightError(
+      `The Codex ${name} probe returned too much output.`,
+      nextAction,
+    );
   }
   return output;
 }
@@ -90,12 +111,14 @@ function requireStrictConfigProbe(result: ProbeResult): void {
   if (result.error !== undefined) {
     throw new McpHostPreflightError(
       'Circuit could not prove that Codex accepts the fixed hardening configuration.',
+      STRICT_CONFIG_ACTION,
     );
   }
   const output = `${result.stdout}\n${result.stderr}`;
   if (Buffer.byteLength(output, 'utf8') > MAX_PROBE_OUTPUT_BYTES) {
     throw new McpHostPreflightError(
       'The Codex strict configuration probe returned too much output.',
+      STRICT_CONFIG_ACTION,
     );
   }
   // `--listen off` deliberately asks app-server to parse the complete strict
@@ -105,6 +128,7 @@ function requireStrictConfigProbe(result: ProbeResult): void {
     return;
   throw new McpHostPreflightError(
     "The installed Codex did not strictly accept Circuit's fixed hardening configuration.",
+    STRICT_CONFIG_ACTION,
   );
 }
 
@@ -120,23 +144,35 @@ export async function probeCodexHostCapabilities(
   },
 ): Promise<CodexHostCapabilities> {
   if (!isAbsolute(codexExecutable)) {
-    throw new McpHostPreflightError('The pinned Codex executable path is not absolute.');
+    throw new McpHostPreflightError(
+      'The pinned Codex executable path is not absolute.',
+      REINSTALL_ABSOLUTE_CODEX_ACTION,
+    );
   }
   if (options.nested.policy.executable !== codexExecutable) {
     throw new McpHostPreflightError(
       'The nested Codex canary is not bound to the pinned executable.',
+      REINSTALL_PINNED_CODEX_ACTION,
     );
   }
   const production =
     options.run === undefined ? productionRunner(options.environment ?? process.env) : undefined;
   const run = options.run ?? production?.run;
   if (run === undefined)
-    throw new McpHostPreflightError('The Codex capability probe is unavailable.');
+    throw new McpHostPreflightError(
+      'The Codex capability probe is unavailable.',
+      'Restart Codex and retry. If the probe remains unavailable, reinstall the Circuit plugin.',
+    );
   try {
-    const versionOutput = requireSuccessfulProbe(run(codexExecutable, ['--version']), 'version');
+    const versionOutput = requireSuccessfulProbe(
+      run(codexExecutable, ['--version']),
+      'version',
+      CODEX_INSTALL_ACTION,
+    );
     const execHelpOutput = requireSuccessfulProbe(
       run(codexExecutable, ['exec', ...MCP_CODEX_STRICT_FLAGS, '--help']),
       'required execution flags',
+      CODEX_FLAGS_ACTION,
     );
     requireStrictConfigProbe(
       run(codexExecutable, [
@@ -152,13 +188,23 @@ export async function probeCodexHostCapabilities(
         'web_search="disabled"',
       ]),
     );
+    let sandbox: Awaited<ReturnType<typeof runCodexNestedSandboxCanary>>;
     try {
-      await (options.runSandboxCanary ?? runCodexNestedSandboxCanary)(options.nested);
-      await (options.runToolSurfaceCanary ?? runCodexToolSurfaceCanary)(options.nested);
+      sandbox = await (options.runSandboxCanary ?? runCodexNestedSandboxCanary)(options.nested);
     } catch (error) {
       const detail = error instanceof Error ? error.message : String(error);
       throw new McpHostPreflightError(
         `Circuit could not prove the required nested Codex sandbox: ${detail}`,
+        SANDBOX_ACTION,
+      );
+    }
+    try {
+      await (options.runToolSurfaceCanary ?? runCodexToolSurfaceCanary)(options.nested);
+    } catch (error) {
+      const detail = error instanceof Error ? error.message : String(error);
+      throw new McpHostPreflightError(
+        `Circuit could not prove the required nested Codex tool surface: ${detail}`,
+        TOOL_SURFACE_ACTION,
       );
     }
     return assertCodexHostCapabilities({
@@ -167,6 +213,7 @@ export async function probeCodexHostCapabilities(
       pluginMcpTransport: 'stdio',
       workspaceMetadataValidated: options.workspaceMetadataValidated,
       nestedSandboxValidated: true,
+      sharedTempIsolation: sandbox.shared_temp_isolation,
     });
   } finally {
     production?.dispose();

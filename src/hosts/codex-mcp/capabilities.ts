@@ -1,5 +1,7 @@
 export const MINIMUM_CODEX_VERSION = '0.144.3' as const;
 
+export type CodexSharedTempIsolation = 'isolated' | 'exposed';
+
 export type CodexHostCapabilityErrorCode =
   | 'codex_version_invalid'
   | 'codex_version_unsupported'
@@ -23,6 +25,7 @@ export interface CodexHostCapabilityProbeInput {
   readonly pluginMcpTransport: 'stdio' | undefined;
   readonly workspaceMetadataValidated: boolean;
   readonly nestedSandboxValidated: boolean;
+  readonly sharedTempIsolation: CodexSharedTempIsolation;
 }
 
 export interface CodexHostCapabilities {
@@ -32,6 +35,7 @@ export interface CodexHostCapabilities {
   readonly strict_config: true;
   readonly workspace_metadata: true;
   readonly nested_sandbox: true;
+  readonly shared_temp_isolation: CodexSharedTempIsolation;
 }
 
 interface ParsedVersion {
@@ -111,7 +115,14 @@ export function assertCodexHostCapabilities(
     throw new CodexHostCapabilityError(
       'codex_capability_missing',
       "The installed Codex did not pass Circuit's nested sandbox capability canary.",
-      'Update Codex to a version that denies shared temporary files, then retry.',
+      'Update Codex and retry after correcting the reported sandbox capability failure.',
+    );
+  }
+  if (input.sharedTempIsolation !== 'isolated' && input.sharedTempIsolation !== 'exposed') {
+    throw new CodexHostCapabilityError(
+      'codex_capability_missing',
+      'The Codex shared temporary directory posture could not be proven.',
+      'Update Codex and retry after the host capability probe completes successfully.',
     );
   }
 
@@ -132,5 +143,6 @@ export function assertCodexHostCapabilities(
     strict_config: true,
     workspace_metadata: true,
     nested_sandbox: true,
+    shared_temp_isolation: input.sharedTempIsolation,
   });
 }

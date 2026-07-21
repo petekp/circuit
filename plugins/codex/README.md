@@ -20,9 +20,13 @@ entry point.
 The packaged MCP bridge is experimental. Start and resume require live host,
 metadata, asset, and nested-sandbox checks. The bridge fails closed when any
 check is missing or uncertain; it does not fall back to the ordinary CLI or a
-weaker sandbox. Codex 0.144.3 currently fails the shared-temporary-directory
-part of that sandbox check, so this package must remain a draft until a newer
-host passes the complete fresh-install proof.
+weaker configuration. Nested workers use a practical Codex-equivalent boundary.
+Codex may expose host-managed shared temporary directories; Circuit treats them
+as untrusted, never uses them for credentials or MCP control state, and does not
+block a run for that host limitation. Proof commands remain under a stricter
+Seatbelt boundary. The package remains experimental until the real plugin
+loader, trusted workspace metadata, and the public flow lifecycle pass the
+fresh-host proof.
 
 ## Editing Rule
 

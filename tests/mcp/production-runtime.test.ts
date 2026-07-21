@@ -1,8 +1,9 @@
-import { chmod, mkdir, mkdtemp, realpath, rm, symlink, writeFile } from 'node:fs/promises';
+import { chmod, lstat, mkdir, mkdtemp, realpath, rm, symlink, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
+import { SENTINEL_RUN_ID, seedWorkspaceSentinel } from '../../scripts/hosts/smoke/codex-mcp.js';
 import {
   type McpRuntimeAssetPins,
   verifyMcpRuntimeAssets,
@@ -20,15 +21,24 @@ import {
   createProductionLaunchPreflight,
   createProductionWorkerFactory,
   productionMcpLayout,
+  resolvePrivateProductionCodexHome,
   resolveProductionCodexHome,
 } from '../../src/hosts/codex-mcp/production-runtime.js';
 import { parseMcpWorkerLaunch } from '../../src/hosts/codex-mcp/worker-runtime.js';
 
 const roots: string[] = [];
+const PRIVATE_TEST_ROOT = join(process.cwd(), '.mcp-host-tests');
 
 afterEach(async () => {
   await Promise.all(roots.splice(0).map((root) => rm(root, { recursive: true, force: true })));
 });
+
+async function privateTestDirectory(prefix: string): Promise<string> {
+  await mkdir(PRIVATE_TEST_ROOT, { recursive: true, mode: 0o700 });
+  const root = await realpath(await mkdtemp(join(PRIVATE_TEST_ROOT, prefix)));
+  roots.push(root);
+  return root;
+}
 
 async function pluginTree(): Promise<{
   readonly root: string;
@@ -168,17 +178,85 @@ describe('production Codex MCP composition', () => {
     expect(() => resolveProductionCodexHome({})).toThrow(/CODEX_HOME/i);
   });
 
+  it('keeps durable MCP control state outside canonical shared temporary roots', async () => {
+    const safeParent = await privateTestDirectory('production-home-');
+    const safeHome = join(safeParent, 'codex-home');
+    await mkdir(safeHome, { recursive: true });
+
+    await expect(resolvePrivateProductionCodexHome(safeHome)).resolves.toBe(
+      await realpath(safeHome),
+    );
+
+    const sharedHome = await realpath(await mkdtemp(join(tmpdir(), 'circuit-mcp-shared-home-')));
+    roots.push(sharedHome);
+    await expect(resolvePrivateProductionCodexHome(sharedHome)).rejects.toThrow(
+      /shared temporary directory/i,
+    );
+
+    const symlinkParent = join(safeParent, 'links');
+    const symlinkHome = join(symlinkParent, 'codex-home');
+    await mkdir(symlinkParent, { recursive: true });
+    await symlink(sharedHome, symlinkHome, 'dir');
+    await expect(resolvePrivateProductionCodexHome(symlinkHome)).rejects.toThrow(
+      /shared temporary directory/i,
+    );
+  });
+
+  it.skipIf(process.platform !== 'darwin')(
+    'recognizes the canonical macOS aliases for both shared temp roots',
+    async () => {
+      for (const sharedRoot of ['/tmp', '/private/tmp', '/var/tmp', '/private/var/tmp']) {
+        await expect(resolvePrivateProductionCodexHome(sharedRoot)).rejects.toThrow(
+          /shared temporary directory/i,
+        );
+      }
+    },
+  );
+
+  it('rejects an intermediate state-directory symlink before opening control state', async () => {
+    const safeParent = await privateTestDirectory('state-symlink-');
+    const safeHome = join(safeParent, 'codex-home');
+    const sharedTarget = await realpath(
+      await mkdtemp(join(tmpdir(), 'circuit-mcp-shared-state-target-')),
+    );
+    roots.push(sharedTarget);
+    await mkdir(safeHome, { recursive: true });
+    await symlink(sharedTarget, join(safeHome, 'circuit'), 'dir');
+
+    const processProbe = {
+      inspectProcessSync: () => 'alive' as const,
+      inspectProcessGroupSync: () => 'alive' as const,
+      inspectProcessTokenSync: () => 'unknown' as const,
+      inspectProcess: async () => 'alive' as const,
+      inspectProcessGroup: async () => 'alive' as const,
+      signalOwnedProcessGroup: async () => 'unknown' as const,
+    };
+    await expect(
+      createProductionCircuitMcpHandler({
+        pluginRoot: join(safeParent, 'plugin'),
+        codexHome: safeHome,
+        environment: { PATH: '' },
+        platform: 'linux',
+        owner,
+        processProbe,
+      }),
+    ).rejects.toThrow(/state directory.*symbolic link/i);
+    await expect(lstat(join(sharedTarget, 'mcp'))).rejects.toMatchObject({ code: 'ENOENT' });
+  });
+
   it('keeps recovery tools available without loading drifted runtime assets', async () => {
-    const root = await realpath(await mkdtemp(join(tmpdir(), 'circuit-mcp-lazy-server-')));
-    roots.push(root);
+    const root = await privateTestDirectory('lazy-server-');
     const pluginRoot = join(root, 'missing-plugin-assets');
     const codexHome = join(root, 'codex-home');
     const workspacePath = join(root, 'workspace');
+    const otherWorkspacePath = join(root, 'other-workspace');
     await Promise.all([
       mkdir(pluginRoot, { recursive: true }),
       mkdir(codexHome, { recursive: true }),
       mkdir(workspacePath, { recursive: true }),
+      mkdir(otherWorkspacePath, { recursive: true }),
     ]);
+    seedWorkspaceSentinel(codexHome, workspacePath);
     const processProbe = {
       inspectProcessSync: () => 'alive' as const,
       inspectProcessGroupSync: () => 'alive' as const,
@@ -203,6 +281,19 @@ describe('production Codex MCP composition', () => {
         input: {},
         metadata: {
           'codex/sandbox-state-meta': { sandboxCwd: workspacePath },
+        },
+        signal,
+      }),
+    ).resolves.toMatchObject({
+      ok: true,
+      runs: [expect.objectContaining({ run_id: SENTINEL_RUN_ID })],
+    });
+    await expect(
+      handler({
+        name: 'circuit_list',
+        input: {},
+        metadata: {
+          'codex/sandbox-state-meta': { sandboxCwd: otherWorkspacePath },
         },
         signal,
       }),
@@ -331,6 +422,7 @@ describe('production Codex MCP composition', () => {
       strict_config: true as const,
       workspace_metadata: true as const,
       nested_sandbox: true as const,
+      shared_temp_isolation: 'exposed' as const,
     }));
     let rosterNumber = 0;
     const loadRoster = vi.fn((): CodexModelRoster => {
@@ -417,6 +509,7 @@ describe('production Codex MCP composition', () => {
         strict_config: true,
         workspace_metadata: true,
         nested_sandbox: true,
+        shared_temp_isolation: 'exposed',
       }),
       loadRoster: (): CodexModelRoster => ({
         default_model: 'gpt-5.2-codex',
@@ -464,6 +557,7 @@ describe('production Codex MCP composition', () => {
         strict_config: true,
         workspace_metadata: true,
         nested_sandbox: true,
+        shared_temp_isolation: 'isolated',
       }),
       loadRoster: (): CodexModelRoster => ({
         default_model: 'gpt-5.2-codex',

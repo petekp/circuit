@@ -17625,7 +17625,8 @@ function createMcpRuntimeContext(input) {
     history: "disabled",
     plugins: "disabled",
     shell_network: "disabled",
-    extra_write_roots: Object.freeze([]),
+    shared_temp_isolation: input.capabilities.shared_temp_isolation,
+    configured_extra_write_roots: Object.freeze([]),
     proofExecutor: input.proofExecutor,
     gitReader: input.gitReader,
     cancellation
@@ -19376,7 +19377,8 @@ var McpWorkerLaunchV1 = external_exports.object({
     plugin_mcp: external_exports.literal(true),
     strict_config: external_exports.literal(true),
     workspace_metadata: external_exports.literal(true),
-    nested_sandbox: external_exports.literal(true)
+    nested_sandbox: external_exports.literal(true),
+    shared_temp_isolation: external_exports.enum(["isolated", "exposed"])
   }).strict(),
   codex: external_exports.object({
     executable: AbsolutePath2,
