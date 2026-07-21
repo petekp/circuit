@@ -109,7 +109,8 @@ current code and docs can:
 Do not promote it by moving these files unchanged. Use what the review teaches
 us and build the smaller permanent contract:
 
-- `docs/product-capabilities/catalog.json` as the authored source;
+- `docs/product-capabilities/catalog.json` as the authored source; <!-- path-ok -->
+  (proposed future home, does not exist yet)
 - a generated human map and purpose-specific agent views;
 - a contract test that reads the live command, flow, and block catalogs;
 - a short rule in `AGENTS.md` that product changes update the catalog;
