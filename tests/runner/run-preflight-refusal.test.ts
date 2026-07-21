@@ -5,6 +5,8 @@ import { describe, expect, it } from 'vitest';
 
 import { preflightRunConnectors } from '../../src/cli/run-preflight.js';
 import { parseExecutionArgs, runExecutionCommand } from '../../src/cli/run.js';
+import { LayeredConfig } from '../../src/schemas/config.js';
+import { PolicyLayer } from '../../src/schemas/policy-envelope.js';
 import { captureStreams, makeStubRelayer } from '../helpers/runtime-fixtures.js';
 
 const VALID_REVIEW_BODY = JSON.stringify({
@@ -41,7 +43,84 @@ function tempProjectPinningCodex(): { projectDir: string; homeDir: string } {
   return { projectDir, homeDir };
 }
 
+function tempBuildProjectPinningUnsupportedCodexEffort(): {
+  projectDir: string;
+  homeDir: string;
+} {
+  const root = mkdtempSync(join(tmpdir(), 'circuit-effort-preflight-refusal-'));
+  const projectDir = join(root, 'project');
+  const homeDir = join(root, 'home');
+  mkdirSync(join(projectDir, '.circuit'), { recursive: true });
+  mkdirSync(homeDir, { recursive: true });
+  writeFileSync(
+    join(projectDir, '.circuit', 'config.yaml'),
+    [
+      'schema_version: 1',
+      'relay:',
+      '  default: codex',
+      'flows:',
+      '  build:',
+      '    selection:',
+      '      effort: none',
+      '      depth: low',
+      'defaults:',
+      '  power: auto',
+      '',
+    ].join('\n'),
+  );
+  return { projectDir, homeDir };
+}
+
 describe('run intake preflight: refuse the sandbox class, warn on missing CLIs', () => {
+  it('refuses an unsupported codex effort before creating the run folder', async () => {
+    const { projectDir, homeDir } = tempBuildProjectPinningUnsupportedCodexEffort();
+    const runFolder = join(projectDir, '.circuit', 'runs', 'unsupported-effort-run');
+    const args = parseExecutionArgs('run', [
+      'build',
+      '--goal',
+      'reject an incompatible connector selection before starting',
+      '--run-folder',
+      runFolder,
+    ]);
+    let relayCalls = 0;
+
+    const { result, stderr } = await captureStreams(() =>
+      runExecutionCommand(args, {
+        configCwd: projectDir,
+        configHomeDir: homeDir,
+        relayer: makeStubRelayer(
+          () => {
+            relayCalls += 1;
+            return '{"verdict":"accept"}';
+          },
+          { connectorName: 'codex' },
+        ),
+        connectorPreflight: (input) =>
+          preflightRunConnectors({
+            ...input,
+            probes: {
+              presence: () =>
+                Promise.resolve({
+                  kind: 'ran',
+                  code: 0,
+                  stdout: 'codex-cli 0.144.3',
+                  stderr: '',
+                  timedOut: false,
+                }),
+              stateDir: (dir) => ({ writable: true, dir }),
+            },
+          }),
+      }),
+    );
+
+    expect(result).toBe(2);
+    expect(stderr).toContain("codex connector cannot honor effort 'none'");
+    expect(stderr).toContain('supported efforts: low, medium, high, xhigh');
+    expect(stderr).toContain('Remove the effort override');
+    expect(relayCalls).toBe(0);
+    expect(existsSync(runFolder)).toBe(false);
+  });
+
   it('refuses before creating the run folder when codex state dir is unwritable', async () => {
     const { projectDir, homeDir } = tempProjectPinningCodex();
     const runFolder = join(projectDir, '.circuit', 'runs', 'refused-run');
@@ -154,6 +233,7 @@ describe('run intake preflight: refuse the sandbox class, warn on missing CLIs',
     const healthy = await preflightRunConnectors({
       flow,
       configLayers: [],
+      depth: 'medium',
       hostKind: 'codex',
       probes: {
         presence: () =>
@@ -168,6 +248,7 @@ describe('run intake preflight: refuse the sandbox class, warn on missing CLIs',
     const unknown = await preflightRunConnectors({
       flow,
       configLayers: [],
+      depth: 'medium',
       hostKind: 'codex',
       probes: {
         presence: () =>
@@ -176,5 +257,57 @@ describe('run intake preflight: refuse the sandbox class, warn on missing CLIs',
       },
     });
     expect(unknown).toEqual({ ok: true, warnings: [] });
+  });
+
+  it('keeps effort none valid when policy selects cursor-agent', async () => {
+    const { loadCompiledFlow, resolveCompiledFlowPath } = await import(
+      '../../src/cli/compiled-flow-loading.js'
+    );
+    const { flow } = loadCompiledFlow(
+      resolveCompiledFlowPath('review', undefined, undefined, undefined),
+    );
+    const configLayer = LayeredConfig.parse({
+      layer: 'project',
+      config: {
+        schema_version: 1,
+        relay: { default: 'codex' },
+        defaults: { selection: { effort: 'none' } },
+      },
+    });
+    const policyLayer = PolicyLayer.parse({
+      source: 'project',
+      envelope: {
+        schema_version: 2,
+        policy: {
+          defaults: { connector: { kind: 'builtin', name: 'cursor-agent' } },
+        },
+      },
+    });
+    const probed: string[] = [];
+
+    const verdict = await preflightRunConnectors({
+      flow,
+      configLayers: [configLayer],
+      policyLayers: [policyLayer],
+      depth: 'medium',
+      probes: {
+        presence: (connector) => {
+          probed.push(connector);
+          return Promise.resolve({
+            kind: 'ran',
+            code: 0,
+            stdout: 'cursor-agent 1.0.0',
+            stderr: '',
+            timedOut: false,
+          });
+        },
+        stateDir: () => {
+          throw new Error('codex state should not be probed when policy selects cursor-agent');
+        },
+      },
+    });
+
+    expect(verdict).toEqual({ ok: true, warnings: [] });
+    expect(probed).toEqual(['cursor-agent']);
   });
 });

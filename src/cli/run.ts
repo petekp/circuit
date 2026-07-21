@@ -24,7 +24,7 @@ import { HostKind, type HostKind as HostKindValue } from '../schemas/host.js';
 import { CompiledFlowId, RunId } from '../schemas/ids.js';
 import { computeManifestHash } from '../schemas/manifest.js';
 import { PowerDialSetting, type PowerDialSetting as PowerDialValue } from '../schemas/power.js';
-import { Process, type Process as ProcessValue } from '../schemas/process.js';
+import { CompiledDepth, Process, type Process as ProcessValue } from '../schemas/process.js';
 import {
   ProgressEvent,
   type ProgressEvent as ProgressEventValue,
@@ -1871,6 +1871,8 @@ export async function runExecutionCommand(
       const verdict = await connectorPreflight({
         flow,
         configLayers: selectionConfigLayers,
+        depth: CompiledDepth.parse(selectedDepth(flow, runArgs, entryModeSelection)),
+        ...(policyLayers.length === 0 ? {} : { policyLayers }),
         ...(hostKind === undefined ? {} : { hostKind }),
       });
       if (!verdict.ok) {
