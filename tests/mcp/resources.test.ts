@@ -15,7 +15,7 @@ const roots: string[] = [];
 async function temporaryRoot(): Promise<string> {
   const root = await mkdtemp(join(tmpdir(), 'circuit-mcp-resources-'));
   roots.push(root);
-  return root;
+  return await realpath(root);
 }
 
 function requestWithWorkspace(sandboxCwd: unknown): unknown {
@@ -113,19 +113,31 @@ describe('Codex workspace metadata', () => {
     await expectMetadataError(requestWithWorkspace(sandboxCwd), 'workspace_metadata_invalid');
   });
 
-  it('returns the canonical target for a workspace symlink', async () => {
+  it('rejects a metadata workspace path that reaches the directory through a symlink', async () => {
     const root = await temporaryRoot();
     const target = join(root, 'real-workspace');
     const alias = join(root, 'workspace-alias');
     await mkdir(target);
     await symlink(target, alias, 'dir');
 
-    await expect(
-      resolveTrustedCodexWorkspace(requestWithWorkspace(pathToFileURL(alias).href)),
-    ).resolves.toEqual({
-      metadata_key: CODEX_SANDBOX_METADATA_KEY,
-      workspace: await realpath(target),
-    });
+    await expectMetadataError(
+      requestWithWorkspace(pathToFileURL(alias).href),
+      'workspace_metadata_unsafe',
+    );
+  });
+
+  it('rejects a workspace path whose parent component is a symlink', async () => {
+    const root = await temporaryRoot();
+    const realParent = join(root, 'real-parent');
+    const aliasParent = join(root, 'alias-parent');
+    const workspace = join(realParent, 'workspace');
+    await mkdir(workspace, { recursive: true });
+    await symlink(realParent, aliasParent, 'dir');
+
+    await expectMetadataError(
+      requestWithWorkspace(pathToFileURL(join(aliasParent, 'workspace')).href),
+      'workspace_metadata_unsafe',
+    );
   });
 
   it('rejects missing paths, broken symlinks, and ordinary files', async () => {

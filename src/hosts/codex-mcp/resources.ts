@@ -1,5 +1,5 @@
 import { realpath, stat } from 'node:fs/promises';
-import { isAbsolute } from 'node:path';
+import { isAbsolute, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
 export const CODEX_SANDBOX_METADATA_KEY = 'codex/sandbox-state-meta' as const;
@@ -7,6 +7,7 @@ export const CODEX_SANDBOX_METADATA_KEY = 'codex/sandbox-state-meta' as const;
 export type CodexWorkspaceMetadataErrorCode =
   | 'workspace_metadata_missing'
   | 'workspace_metadata_invalid'
+  | 'workspace_metadata_unsafe'
   | 'workspace_unavailable'
   | 'workspace_not_directory';
 
@@ -129,6 +130,13 @@ export async function resolveTrustedCodexWorkspace(
     throw new CodexWorkspaceMetadataError(
       'workspace_unavailable',
       'The workspace from Codex metadata does not exist or cannot be resolved.',
+    );
+  }
+  if (workspace !== resolve(requestedPath)) {
+    throw new CodexWorkspaceMetadataError(
+      'workspace_metadata_unsafe',
+      'The workspace from Codex metadata reaches the directory through a symbolic link.',
+      'Open the real workspace directory in Codex and retry.',
     );
   }
 
