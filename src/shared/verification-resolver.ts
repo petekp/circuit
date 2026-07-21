@@ -1,7 +1,8 @@
-import { existsSync, readFileSync } from 'node:fs';
+import { existsSync } from 'node:fs';
 import { join } from 'node:path';
 import type { VerificationCommand } from '../schemas/verification.js';
 import { ProofPlanBlockedError } from './proof-plan.js';
+import { readWorkspaceRegularFile } from './safe-workspace-file.js';
 
 export type VerificationNeed = 'build' | 'lint' | 'general';
 
@@ -33,13 +34,13 @@ interface PackageInfo {
 
 function readPackageInfo(projectRoot: string): PackageInfo | string {
   const packageJsonPath = join(projectRoot, 'package.json');
-  if (!existsSync(packageJsonPath)) {
-    return `Cannot choose verification commands because ${packageJsonPath} does not exist.`;
-  }
-
   let parsed: unknown;
   try {
-    parsed = JSON.parse(readFileSync(packageJsonPath, 'utf8'));
+    const source = readWorkspaceRegularFile(projectRoot, 'package.json', 1024 * 1024);
+    if (source === undefined) {
+      return `Cannot choose verification commands because ${packageJsonPath} does not exist.`;
+    }
+    parsed = JSON.parse(source);
   } catch (error) {
     const message = error instanceof Error ? error.message : String(error);
     return `Cannot choose verification commands because package.json could not be parsed: ${message}.`;

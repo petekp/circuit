@@ -3,15 +3,35 @@
 // src/shared/git-state.ts
 import { execFileSync } from "node:child_process";
 import process from "node:process";
+var SYSTEM_GIT = "/usr/bin/git";
+var GIT_EXECUTABLE = process.env.CIRCUIT_MCP_PROOF_SANDBOX === "1" && process.platform === "darwin" ? SYSTEM_GIT : "git";
+var GIT_GLOBAL_ARGS = [
+  "--no-pager",
+  "--no-optional-locks",
+  "-c",
+  "core.hooksPath=/dev/null",
+  "-c",
+  "core.fsmonitor=false",
+  "-c",
+  "core.untrackedCache=false",
+  "-c",
+  "core.attributesFile=/dev/null",
+  "-c",
+  "diff.external=",
+  "-c",
+  "interactive.diffFilter=",
+  "-c",
+  "submodule.recurse=false"
+];
 function git(args) {
-  return execFileSync("git", args, {
+  return execFileSync(GIT_EXECUTABLE, [...GIT_GLOBAL_ARGS, ...args], {
     cwd: process.cwd(),
     encoding: "utf8",
     maxBuffer: 5e7
   });
 }
 function gitBytes(args) {
-  return execFileSync("git", args, {
+  return execFileSync(GIT_EXECUTABLE, [...GIT_GLOBAL_ARGS, ...args], {
     cwd: process.cwd(),
     maxBuffer: 5e7
   });
@@ -29,7 +49,13 @@ try {
 }
 var statusBuf;
 try {
-  statusBuf = gitBytes(["status", "--porcelain=v1", "-z", "--untracked-files=all"]);
+  statusBuf = gitBytes([
+    "status",
+    "--porcelain=v1",
+    "-z",
+    "--untracked-files=all",
+    "--ignore-submodules=all"
+  ]);
 } catch (err) {
   fail(`git status failed: ${err instanceof Error ? err.message : String(err)}`);
 }
@@ -66,7 +92,7 @@ var entries = [];
       fingerprint = "<deleted>";
     } else {
       try {
-        fingerprint = git(["hash-object", "--", path]).trim();
+        fingerprint = git(["hash-object", "--no-filters", "--", path]).trim();
       } catch (err) {
         const reason = err instanceof Error ? err.message.split("\n")[0] : String(err);
         fingerprint = `<unhashable:${reason}>`;

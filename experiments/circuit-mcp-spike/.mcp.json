@@ -1,0 +1,38 @@
+{
+  "mcpServers": {
+    "circuit-spike": {
+      "command": "node",
+      "args": ["./mcp/server.mjs"],
+      "cwd": ".",
+      "env_vars": [
+        "ALL_PROXY",
+        "CIRCUIT_MCP_CODEX_EXECUTABLE",
+        "CODEX_CLI_PATH",
+        "CODEX_HOME",
+        "HTTP_PROXY",
+        "HTTPS_PROXY",
+        "NO_PROXY",
+        "OPENAI_API_KEY",
+        "OPENAI_BASE_URL",
+        "SSL_CERT_DIR",
+        "SSL_CERT_FILE"
+      ],
+      "required": true,
+      "startup_timeout_sec": 10,
+      "tool_timeout_sec": 240,
+      "enabled_tools": [
+        "circuit_sandbox_probe",
+        "circuit_start",
+        "circuit_status",
+        "circuit_resume",
+        "circuit_cancel"
+      ],
+      "tools": {
+        "circuit_status": {
+          "approval_mode": "approve"
+        }
+      },
+      "default_tools_approval_mode": "prompt"
+    }
+  }
+}

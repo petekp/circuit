@@ -63,6 +63,8 @@ async function captureMain(
     readonly composeWriter?: ComposeWriterFn;
     readonly configCwd?: string;
     readonly runId?: string;
+    readonly historyRecall?: 'auto' | 'enabled' | 'disabled';
+    readonly sealedMcp?: { readonly projectRoot: string };
   } = {},
 ): Promise<{ readonly code: number; readonly stdout: string; readonly stderr: string }> {
   const { result, stdout, stderr } = await captureStreams(() =>
@@ -76,6 +78,8 @@ async function captureMain(
       // developer's real <cwd>/.circuit/config.yaml (C1). Fresh-repo default;
       // tests that need a real project root still pass configCwd explicitly.
       configCwd: options.configCwd ?? join(runFolderBase, 'empty-cwd'),
+      ...(options.historyRecall === undefined ? {} : { historyRecall: options.historyRecall }),
+      ...(options.sealedMcp === undefined ? {} : { sealedMcp: options.sealedMcp }),
     }),
   );
   return { code: result, stdout, stderr };
@@ -352,6 +356,54 @@ describe('CLI runtime', () => {
       else process.env.CIRCUIT_HOST_KIND = prevHost;
       if (prevCodexHome === undefined) Reflect.deleteProperty(process.env, 'CODEX_HOME');
       else process.env.CODEX_HOME = prevCodexHome;
+    }
+  });
+
+  it('seals an MCP run from persisted config, history recall, and hook assurance', async () => {
+    const projectRoot = join(runFolderBase, 'sealed-mcp-project');
+    writeProjectRoot(projectRoot);
+    mkdirSync(join(projectRoot, '.circuit'), { recursive: true });
+    writeFileSync(
+      join(projectRoot, '.circuit', 'config.yaml'),
+      'schema_version: 1\nunsafe_project_key: true\n',
+    );
+    const codexHome = join(runFolderBase, 'sealed-codex-home');
+    mkdirSync(codexHome, { recursive: true });
+
+    const previousHost = process.env.CIRCUIT_HOST_KIND;
+    const previousCodexHome = process.env.CODEX_HOME;
+    process.env.CIRCUIT_HOST_KIND = 'codex';
+    process.env.CODEX_HOME = codexHome;
+    try {
+      const runFolder = join(runFolderBase, 'sealed-mcp-run');
+      const relayCwds: string[] = [];
+      const result = await captureMain(
+        ['run', 'review', '--goal', 'review this patch', '--run-folder', runFolder],
+        {
+          relayer: makeStubRelayer(
+            (input) => {
+              if (input.cwd !== undefined) relayCwds.push(input.cwd);
+              return REVIEW_RELAY_BODY;
+            },
+            { receipt_id: 'stub-receipt-sealed-mcp' },
+          ),
+          configCwd: projectRoot,
+          historyRecall: 'enabled',
+          sealedMcp: { projectRoot },
+        },
+      );
+
+      expect(result.code, result.stderr).toBe(0);
+      expect(JSON.parse(result.stdout)).not.toHaveProperty('history_recall');
+      expect(existsSync(join(projectRoot, '.circuit', 'continuity', '.codex-install-nudged'))).toBe(
+        false,
+      );
+      expect(relayCwds).toEqual([projectRoot]);
+    } finally {
+      if (previousHost === undefined) Reflect.deleteProperty(process.env, 'CIRCUIT_HOST_KIND');
+      else process.env.CIRCUIT_HOST_KIND = previousHost;
+      if (previousCodexHome === undefined) Reflect.deleteProperty(process.env, 'CODEX_HOME');
+      else process.env.CODEX_HOME = previousCodexHome;
     }
   });
 

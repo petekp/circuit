@@ -12,7 +12,11 @@ import { join } from 'node:path';
 import { pathToFileURL } from 'node:url';
 import { afterEach, describe, expect, it } from 'vitest';
 
-import { gitStateCommand, resolveGitStateHelperPath } from '../../src/shared/git-state-command.js';
+import {
+  gitStateCommand,
+  isGitStateCommandId,
+  resolveGitStateHelperPath,
+} from '../../src/shared/git-state-command.js';
 
 const tempDirs: string[] = [];
 
@@ -62,5 +66,14 @@ describe('resolveGitStateHelperPath', () => {
     const helperPath = command.argv[1];
     expect(helperPath).toMatch(/git-state\.(js|ts)$/);
     expect(helperPath !== undefined && existsSync(helperPath)).toBe(true);
+  });
+
+  it('recognizes only the four fixed Build and Fix git-state commands', () => {
+    expect(isGitStateCommandId('build-baseline-snapshot-git-state')).toBe(true);
+    expect(isGitStateCommandId('build-touch-area-git-state')).toBe(true);
+    expect(isGitStateCommandId('fix-baseline-snapshot-git-state')).toBe(true);
+    expect(isGitStateCommandId('fix-change-set-git-state')).toBe(true);
+    expect(isGitStateCommandId('helper-path-probe')).toBe(false);
+    expect(isGitStateCommandId('review-status')).toBe(false);
   });
 });

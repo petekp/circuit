@@ -1,6 +1,13 @@
-import { describe, expect, it } from 'vitest';
+import { chmodSync, mkdtempSync, rmSync, writeFileSync } from 'node:fs';
+import { tmpdir } from 'node:os';
+import { join } from 'node:path';
+import { afterEach, describe, expect, it } from 'vitest';
 
-import { classifyConnectorHealth } from '../../src/connectors/health.js';
+import {
+  classifyConnectorHealth,
+  probeBuiltinConnector,
+  probeBuiltinConnectorPresence,
+} from '../../src/connectors/health.js';
 import { connectorRemediation } from '../../src/connectors/remediation.js';
 
 // Connector health classification (proactive remediation surfacing). A run
@@ -20,6 +27,12 @@ const ran = (input: {
   stdout: input.stdout ?? '',
   stderr: input.stderr ?? '',
   timedOut: input.timedOut ?? false,
+});
+
+const tempDirs: string[] = [];
+
+afterEach(() => {
+  for (const dir of tempDirs.splice(0)) rmSync(dir, { force: true, recursive: true });
 });
 
 describe('classifyConnectorHealth', () => {
@@ -99,6 +112,48 @@ describe('classifyConnectorHealth', () => {
     });
     expect(check.state).toBe('unknown');
     expect(check.detail.toLowerCase()).toContain('timed out');
+  });
+});
+
+describe('Codex health executable selection', () => {
+  it('probes the host-pinned absolute executable in sealed MCP runs', async () => {
+    const root = mkdtempSync(join(tmpdir(), 'circuit-codex-health-'));
+    tempDirs.push(root);
+    const executable = join(root, 'trusted-codex');
+    writeFileSync(
+      executable,
+      [
+        '#!/bin/sh',
+        'if [ "$1" = "--version" ]; then',
+        '  echo "trusted-codex 1.0.0"',
+        'elif [ "$1" = "login" ] && [ "$2" = "status" ]; then',
+        '  echo "Logged in through trusted codex"',
+        'else',
+        '  exit 2',
+        'fi',
+      ].join('\n'),
+    );
+    chmodSync(executable, 0o755);
+    const env = {
+      ...process.env,
+      CIRCUIT_RUNTIME_SOURCE: 'mcp-spike',
+      CIRCUIT_MCP_CODEX_EXECUTABLE: executable,
+    };
+
+    const presence = await probeBuiltinConnectorPresence('codex', { env });
+    expect(presence).toMatchObject({
+      kind: 'ran',
+      code: 0,
+      stdout: 'trusted-codex 1.0.0\n',
+    });
+
+    const health = await probeBuiltinConnector('codex', { env });
+    expect(health).toMatchObject({
+      connector: 'codex',
+      executable,
+      state: 'ok',
+    });
+    expect(health.detail).toContain('Logged in through trusted codex');
   });
 });
 

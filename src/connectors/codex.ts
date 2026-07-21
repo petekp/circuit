@@ -2,7 +2,7 @@ import { execFileSync } from 'node:child_process';
 import { readFileSync } from 'node:fs';
 import { mkdtemp, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
-import { join as joinPath } from 'node:path';
+import { isAbsolute, join as joinPath } from 'node:path';
 import { CODEX_SUPPORTED_EFFORTS } from '../schemas/connector.js';
 import type { Effort } from '../schemas/selection-policy.js';
 import type { ResolvedSelection } from '../schemas/selection-policy.js';
@@ -27,8 +27,9 @@ import {
 // Codex CLI connector. Invokes Codex as a Node subprocess (no external SDK
 // dependency; Node stdlib only). Codex is a first-class write-capable worker,
 // but Circuit still owns the subprocess boundary: user config/rules are
-// ignored, dangerous bypass flags are denied, and the only permitted config
-// override is model_reasoning_effort.
+// ignored, dangerous bypass flags are denied, web search is pinned off unless
+// a sealed MCP caller explicitly consents to cached search,
+// and the only optional config override is model_reasoning_effort.
 export const CODEX_WRITE_FLAGS = Object.freeze([
   'exec',
   '--json',
@@ -38,6 +39,7 @@ export const CODEX_WRITE_FLAGS = Object.freeze([
   '--skip-git-repo-check',
   '--ignore-user-config',
   '--ignore-rules',
+  '--strict-config',
 ] as const);
 
 export const CODEX_EXECUTABLE = 'codex';
@@ -61,10 +63,10 @@ export const CODEX_EXECUTABLE = 'codex';
 //     `shell_environment_policy` / `approval_policy` and therefore
 //     disable the boundary from inside config rather than argv. There is
 //     one controlled exception outside CODEX_WRITE_FLAGS:
-//     buildCodexArgs may emit `-c model_reasoning_effort="<effort>"`
-//     from the connector-owned effort allowlist. assertCodexSpawnArgvBoundary()
-//     validates the final spawn argv so no caller-authored config key is
-//     ever accepted.
+//     buildCodexArgs always emits one connector-owned `-c web_search=...` and may emit
+//     `-c model_reasoning_effort="<effort>"` from the connector-owned
+//     allowlists. assertCodexSpawnArgvBoundary() validates the final spawn
+//     argv so no caller-authored config key is ever accepted.
 //   -p / --profile <NAME>
 //     Loads a named profile from `~/.codex/config.toml`; profiles can
 //     carry sandbox / approval / MCP-server / shell-env overrides
@@ -94,8 +96,17 @@ export const CODEX_FORBIDDEN_ARGV_TOKENS = Object.freeze([
   '-p',
   '--profile',
   '--sandbox',
+  '--search',
+  '--enable',
+  '--disable',
 ] as const);
 export const CODEX_REASONING_EFFORT_CONFIG_KEY = 'model_reasoning_effort';
+export const CODEX_WEB_SEARCH_CONFIG_KEY = 'web_search';
+export const CODEX_WEB_SEARCH_MODE = 'disabled';
+export type CodexWebSearchMode = 'cached' | 'disabled';
+const MCP_RUNTIME_SOURCE = 'mcp-spike';
+const MCP_WEB_SEARCH_MODE_ENV = 'CIRCUIT_MCP_WEB_SEARCH_MODE';
+const MCP_CODEX_EXECUTABLE_ENV = 'CIRCUIT_MCP_CODEX_EXECUTABLE';
 // Re-exported from the built-in connector registry (the single source of
 // truth); kept under this name for the connector's own effort guard, the
 // allowlisted -c override builder, and call sites bound to the codex connector.
@@ -113,10 +124,11 @@ if (
   !CODEX_WRITE_FLAGS.includes('-s') ||
   !CODEX_WRITE_FLAGS.includes('workspace-write') ||
   !CODEX_WRITE_FLAGS.includes('--ignore-user-config') ||
-  !CODEX_WRITE_FLAGS.includes('--ignore-rules')
+  !CODEX_WRITE_FLAGS.includes('--ignore-rules') ||
+  !CODEX_WRITE_FLAGS.includes('--strict-config')
 ) {
   throw new Error(
-    'CODEX_WRITE_FLAGS boundary invariant broken: must include "-s workspace-write", "--ignore-user-config", and "--ignore-rules"',
+    'CODEX_WRITE_FLAGS boundary invariant broken: must include "-s workspace-write", "--ignore-user-config", "--ignore-rules", and "--strict-config"',
   );
 }
 const flagsAsStringArray: readonly string[] = CODEX_WRITE_FLAGS;
@@ -178,12 +190,25 @@ export type CodexRelayResult = RelayResult;
 // relayCodex fresh each smoke run (so fingerprint evidence remains
 // version-accurate as long as the smoke run process restarts after a
 // CLI upgrade, which it does since vitest spawns fresh workers).
-let cachedCodexVersion: string | undefined;
-function captureCodexVersion(): string {
-  if (cachedCodexVersion !== undefined) return cachedCodexVersion;
+const cachedCodexVersions = new Map<string, string>();
+
+export function resolveCodexExecutable(
+  env: Readonly<Record<string, string | undefined>> = process.env,
+): string {
+  if (env.CIRCUIT_RUNTIME_SOURCE !== MCP_RUNTIME_SOURCE) return CODEX_EXECUTABLE;
+  const executable = env[MCP_CODEX_EXECUTABLE_ENV];
+  if (typeof executable !== 'string' || !isAbsolute(executable)) {
+    throw new Error(`${MCP_CODEX_EXECUTABLE_ENV} must be an absolute path for sealed MCP runs.`);
+  }
+  return executable;
+}
+
+function captureCodexVersion(executable: string = resolveCodexExecutable()): string {
+  const cached = cachedCodexVersions.get(executable);
+  if (cached !== undefined) return cached;
   let stdout: string;
   try {
-    stdout = execFileSync(CODEX_EXECUTABLE, ['--version'], {
+    stdout = execFileSync(executable, ['--version'], {
       encoding: 'utf8',
       timeout: VERSION_CAPTURE_TIMEOUT_MS,
       stdio: ['ignore', 'pipe', 'pipe'],
@@ -204,7 +229,7 @@ function captureCodexVersion(): string {
   if (version.length === 0) {
     throw new Error('codex --version produced empty output');
   }
-  cachedCodexVersion = version;
+  cachedCodexVersions.set(executable, version);
   return version;
 }
 
@@ -235,6 +260,42 @@ export function codexReasoningEffortConfigValue(
   return `${CODEX_REASONING_EFFORT_CONFIG_KEY}=${JSON.stringify(effort)}`;
 }
 
+export function resolveCodexWebSearchMode(
+  env: Readonly<Record<string, string | undefined>> = process.env,
+): CodexWebSearchMode {
+  if (env.CIRCUIT_RUNTIME_SOURCE !== MCP_RUNTIME_SOURCE) return CODEX_WEB_SEARCH_MODE;
+  const configured = env[MCP_WEB_SEARCH_MODE_ENV] ?? 'disabled';
+  if (configured !== 'cached' && configured !== 'disabled') {
+    throw new Error(`${MCP_WEB_SEARCH_MODE_ENV} must be disabled or cached.`);
+  }
+  return configured;
+}
+
+export function codexWebSearchConfigValue(
+  mode: CodexWebSearchMode = resolveCodexWebSearchMode(),
+): string {
+  return `${CODEX_WEB_SEARCH_CONFIG_KEY}=${JSON.stringify(mode)}`;
+}
+
+export function codexSealedMcpConfigValues(projectRoot: string): readonly string[] {
+  if (!isAbsolute(projectRoot)) {
+    throw new Error('A sealed MCP Codex relay requires an absolute project root.');
+  }
+  return [
+    'approval_policy="never"',
+    'sandbox_workspace_write.network_access=false',
+    'sandbox_workspace_write.writable_roots=[]',
+    'shell_environment_policy.inherit="core"',
+    'shell_environment_policy.ignore_default_excludes=false',
+    'features.plugins=false',
+    'features.remote_plugin=false',
+    'features.plugin_sharing=false',
+    'features.skill_mcp_dependency_install=false',
+    'features.multi_agent=false',
+    `projects.${JSON.stringify(projectRoot)}.trust_level="untrusted"`,
+  ] as const;
+}
+
 function isForbiddenCodexArg(arg: string): boolean {
   return CODEX_FORBIDDEN_ARGV_TOKENS.some((token) => {
     if (token === '-c') return false;
@@ -243,14 +304,30 @@ function isForbiddenCodexArg(arg: string): boolean {
   });
 }
 
-function isAllowedCodexConfigOverride(value: string | undefined): boolean {
-  return (
+function codexConfigOverrideKind(
+  value: string | undefined,
+  sealedConfigValues: ReadonlySet<string>,
+): 'web-search' | 'reasoning-effort' | 'sealed-policy' | undefined {
+  if (
+    value === codexWebSearchConfigValue('cached') ||
+    value === codexWebSearchConfigValue('disabled')
+  ) {
+    return 'web-search';
+  }
+  if (
     value !== undefined &&
     CODEX_SUPPORTED_EFFORTS.some((effort) => value === codexReasoningEffortConfigValue(effort))
-  );
+  ) {
+    return 'reasoning-effort';
+  }
+  if (value !== undefined && sealedConfigValues.has(value)) return 'sealed-policy';
+  return undefined;
 }
 
-export function assertCodexSpawnArgvBoundary(args: readonly string[]): void {
+export function assertCodexSpawnArgvBoundary(
+  args: readonly string[],
+  options: { readonly sealedProjectRoot?: string } = {},
+): void {
   const sandboxFlagIndexes = args
     .map((arg, idx) => (arg === '-s' ? idx : -1))
     .filter((idx) => idx >= 0);
@@ -265,22 +342,44 @@ export function assertCodexSpawnArgvBoundary(args: readonly string[]): void {
     );
   }
 
-  let configOverrideCount = 0;
+  let webSearchOverrideCount = 0;
+  let reasoningEffortOverrideCount = 0;
+  const expectedSealedConfigValues =
+    options.sealedProjectRoot === undefined
+      ? []
+      : codexSealedMcpConfigValues(options.sealedProjectRoot);
+  const sealedConfigValues = new Set(expectedSealedConfigValues);
+  const seenSealedConfigValues = new Set<string>();
   for (let idx = 0; idx < args.length; idx += 1) {
     const arg = args[idx];
     if (arg === undefined) continue;
     if (arg === '-c') {
-      configOverrideCount += 1;
-      if (configOverrideCount > 1) {
+      const value = args[idx + 1];
+      const kind = codexConfigOverrideKind(value, sealedConfigValues);
+      if (kind === undefined) {
         throw new Error(
-          'codex spawn argv boundary broken: at most one allowlisted -c override is allowed',
+          'codex spawn argv boundary broken: only connector-owned search, reasoning, and sealed MCP policy values are allowed after -c',
         );
       }
-      const value = args[idx + 1];
-      if (!isAllowedCodexConfigOverride(value)) {
-        throw new Error(
-          `codex spawn argv boundary broken: only ${CODEX_REASONING_EFFORT_CONFIG_KEY}=<supported effort> is allowed after -c`,
-        );
+      if (kind === 'web-search') {
+        webSearchOverrideCount += 1;
+        if (webSearchOverrideCount > 1) {
+          throw new Error(
+            `codex spawn argv boundary broken: exactly one connector-owned ${CODEX_WEB_SEARCH_CONFIG_KEY} override is required`,
+          );
+        }
+      } else if (kind === 'reasoning-effort') {
+        reasoningEffortOverrideCount += 1;
+        if (reasoningEffortOverrideCount > 1) {
+          throw new Error(
+            `codex spawn argv boundary broken: at most one ${CODEX_REASONING_EFFORT_CONFIG_KEY} override is allowed`,
+          );
+        }
+      } else if (value !== undefined) {
+        if (seenSealedConfigValues.has(value)) {
+          throw new Error('codex spawn argv boundary broken: duplicate sealed MCP policy value');
+        }
+        seenSealedConfigValues.add(value);
       }
       idx += 1;
       continue;
@@ -288,6 +387,14 @@ export function assertCodexSpawnArgvBoundary(args: readonly string[]): void {
     if (isForbiddenCodexArg(arg)) {
       throw new Error(`codex spawn argv boundary broken: forbidden argv token "${arg}"`);
     }
+  }
+  if (webSearchOverrideCount !== 1) {
+    throw new Error(
+      `codex spawn argv boundary broken: exactly one connector-owned ${CODEX_WEB_SEARCH_CONFIG_KEY} override is required`,
+    );
+  }
+  if (seenSealedConfigValues.size !== expectedSealedConfigValues.length) {
+    throw new Error('codex spawn argv boundary broken: the complete sealed MCP policy is required');
   }
 }
 
@@ -303,8 +410,17 @@ export function buildCodexArgs(
   input: CodexRelayInput,
   schemaPath?: string,
   defaultModel?: string,
+  webSearchMode: CodexWebSearchMode = resolveCodexWebSearchMode(),
+  sealedMcp: boolean = process.env.CIRCUIT_RUNTIME_SOURCE === MCP_RUNTIME_SOURCE,
 ): string[] {
   const args: string[] = [...CODEX_WRITE_FLAGS];
+  args.push('-c', codexWebSearchConfigValue(webSearchMode));
+  if (sealedMcp) {
+    if (input.cwd === undefined) {
+      throw new Error('A sealed MCP Codex relay requires a project cwd.');
+    }
+    for (const value of codexSealedMcpConfigValues(input.cwd)) args.push('-c', value);
+  }
   if (input.cwd !== undefined) {
     args.push('--cd', input.cwd);
   }
@@ -321,7 +437,10 @@ export function buildCodexArgs(
     args.push('--output-schema', schemaPath);
   }
   args.push(input.prompt);
-  assertCodexSpawnArgvBoundary(args);
+  assertCodexSpawnArgvBoundary(
+    args,
+    sealedMcp && input.cwd !== undefined ? { sealedProjectRoot: input.cwd } : {},
+  );
   return args;
 }
 
@@ -480,7 +599,8 @@ export async function relayCodex(input: CodexRelayInput): Promise<RelayResult> {
   // Each falls back to the connector default when absent.
   const absoluteTimeoutMs = input.timeoutMs ?? DEFAULT_ABSOLUTE_TIMEOUT_MS;
   const idleTimeoutMs = input.idleTimeoutMs ?? DEFAULT_IDLE_TIMEOUT_MS;
-  const cli_version = captureCodexVersion();
+  const executable = resolveCodexExecutable();
+  const cli_version = captureCodexVersion(executable);
   // Acquire the schema temp file FIRST and put every subsequent operation
   // inside the try block. If `buildCodexArgs` throws (boundary assertion)
   // or if `spawn` throws, the `finally` still runs and the mkdtemp
@@ -508,14 +628,15 @@ export async function relayCodex(input: CodexRelayInput): Promise<RelayResult> {
       tempDir = allocated.dir;
       schemaPath = allocated.path;
     }
-    const args = buildCodexArgs(input, schemaPath, effectiveModel);
+    const webSearchMode = resolveCodexWebSearchMode();
+    const args = buildCodexArgs(input, schemaPath, effectiveModel, webSearchMode);
     let result: ConnectorSubprocessResult;
     try {
       // The shared subprocess helper owns stdin-ignore, detached process
       // groups, timeout kill, and bounded output capture. Codex-specific
       // sandbox flags and JSONL parsing remain in this module.
       result = await runConnectorSubprocess({
-        executable: CODEX_EXECUTABLE,
+        executable,
         args,
         timeoutMs: absoluteTimeoutMs,
         idleTimeoutMs,
@@ -523,6 +644,13 @@ export async function relayCodex(input: CodexRelayInput): Promise<RelayResult> {
         stderrMaxBytes: STDERR_MAX_BYTES,
         sigtermToSigkillGraceMs: SIGTERM_TO_SIGKILL_GRACE_MS,
         env: process.env,
+        ...(process.env.CIRCUIT_RUNTIME_SOURCE === MCP_RUNTIME_SOURCE
+          ? { requireEmptyProcessGroupOnExit: true }
+          : {}),
+        ...(process.env.CIRCUIT_RUNTIME_SOURCE === MCP_RUNTIME_SOURCE &&
+        process.env.CIRCUIT_MCP_CANCEL_FILE !== undefined
+          ? { cancelFile: process.env.CIRCUIT_MCP_CANCEL_FILE }
+          : {}),
         ...(input.cwd === undefined ? {} : { cwd: input.cwd }),
       });
     } catch (error) {
@@ -536,6 +664,11 @@ export async function relayCodex(input: CodexRelayInput): Promise<RelayResult> {
       throw error;
     }
 
+    if (result.cancelled === true) {
+      throw new Error(
+        `codex subprocess cancelled by the sealed MCP host; group-kill ${result.killGroupSucceeded ? 'sent' : 'failed'}`,
+      );
+    }
     if (result.timedOut) {
       const stdoutSuffix = cappedSuffix(result.stdoutCapped, 'stdout');
       const stderrSuffix = cappedSuffix(result.stderrCapped, 'stderr');
@@ -576,7 +709,13 @@ export async function relayCodex(input: CodexRelayInput): Promise<RelayResult> {
       );
     }
     try {
-      const parsed = parseCodexStdout(result.stdout, input.prompt, result.durationMs, cli_version);
+      const parsed = parseCodexStdout(
+        result.stdout,
+        input.prompt,
+        result.durationMs,
+        cli_version,
+        webSearchMode,
+      );
       // Record which model the doer actually ran with. When the selection
       // pinned none, effectiveModel is the cache-resolved default — recording it
       // keeps the run receipt authoritative about the model even though the
@@ -595,12 +734,12 @@ export async function relayCodex(input: CodexRelayInput): Promise<RelayResult> {
   }
 }
 
-// Known `item.completed` `item.type` values. The connector accepts model
+// Known contained `item.type` values. The connector accepts model
 // narration, planning/progress items, command execution, reasoning, write
-// receipts, and the `error` item envelope observed in Codex 0.142.5. The error
-// envelope is admitted here only so its message can be checked against the
-// narrower diagnostic allowlist below. It is not treated as successful by
-// default.
+// receipts, cached web-search receipts, and the `error` item envelope observed
+// in Codex 0.142.5. The error envelope is admitted here only so its message can
+// be checked against the narrower diagnostic allowlist below. It is not treated
+// as successful by default.
 //
 // A future CLI bump that introduces another reviewed protocol item type can
 // extend this list; a bump that introduces a new capability surface must be
@@ -611,8 +750,80 @@ const KNOWN_CODEX_ITEM_TYPES = new Set<string>([
   'reasoning',
   'file_change',
   'todo_list',
+  'web_search',
   'error',
 ]);
+
+const CODEX_WEB_SEARCH_MAX_STRING_LENGTH = 16 * 1024;
+const CODEX_WEB_SEARCH_MAX_QUERIES = 32;
+const CODEX_WEB_SEARCH_COMPLETED_ACTION_TYPES = new Set<string>([
+  'search',
+  'open_page',
+  'find_in_page',
+]);
+
+function validateCodexWebSearchString(value: unknown, label: string, optional = false): void {
+  if (value === undefined && optional) return;
+  if (typeof value !== 'string') {
+    throw new Error(`${label} is not a string`);
+  }
+  if (value.length > CODEX_WEB_SEARCH_MAX_STRING_LENGTH) {
+    throw new Error(`${label} exceeds ${CODEX_WEB_SEARCH_MAX_STRING_LENGTH} characters`);
+  }
+}
+
+function validateCodexWebSearchItem(
+  item: Record<string, unknown>,
+  lifecycle: 'item.started' | 'item.completed',
+  index: number,
+): void {
+  const label = `${lifecycle}[${index}].item`;
+  const id = item.id;
+  if (typeof id !== 'string' || id.length === 0) {
+    throw new Error(`${label}.id missing or empty`);
+  }
+  validateCodexWebSearchString(item.query, `${label}.query`);
+
+  const action = item.action;
+  if (typeof action !== 'object' || action === null || Array.isArray(action)) {
+    throw new Error(`${label}.action is not an object`);
+  }
+  const actionRecord = action as Record<string, unknown>;
+  const actionType = actionRecord.type;
+  if (typeof actionType !== 'string') {
+    throw new Error(`${label}.action.type is not a string`);
+  }
+
+  // Codex 0.144.3 opens a search with an empty query and `action.type=other`,
+  // then completes it with the resolved action. `other` is safe only as that
+  // incomplete start marker; accepting it on completion would silently admit
+  // a future action whose semantics Circuit has not reviewed.
+  if (lifecycle === 'item.started' && actionType === 'other') return;
+  if (!CODEX_WEB_SEARCH_COMPLETED_ACTION_TYPES.has(actionType)) {
+    throw new Error(`${label}.action.type '${actionType}' is not reviewed for ${lifecycle}`);
+  }
+
+  if (actionType === 'search') {
+    validateCodexWebSearchString(actionRecord.query, `${label}.action.query`, true);
+    const queries = actionRecord.queries;
+    if (queries !== undefined) {
+      if (!Array.isArray(queries) || queries.length > CODEX_WEB_SEARCH_MAX_QUERIES) {
+        throw new Error(
+          `${label}.action.queries must be an array with at most ${CODEX_WEB_SEARCH_MAX_QUERIES} entries`,
+        );
+      }
+      for (const [queryIndex, query] of queries.entries()) {
+        validateCodexWebSearchString(query, `${label}.action.queries[${queryIndex}]`);
+      }
+    }
+    return;
+  }
+
+  validateCodexWebSearchString(actionRecord.url, `${label}.action.url`, true);
+  if (actionType === 'find_in_page') {
+    validateCodexWebSearchString(actionRecord.pattern, `${label}.action.pattern`, true);
+  }
+}
 
 // Codex uses nested error items for both fatal failures and nonfatal
 // diagnostics. Do not infer safety from `turn.completed` alone: an arbitrary
@@ -623,12 +834,13 @@ const CODEX_NONFATAL_ERROR_ITEM_MESSAGES = new Set<string>([
   'Skill descriptions were shortened to fit the 2% skills context budget. Codex can still see every skill, but some descriptions are shorter. Disable unused skills or plugins to leave more room for the rest.',
 ]);
 
-// Top-level trace_entry types the parser expects at Codex CLI 0.118-0.128 —
+// Top-level trace_entry types the parser expects through Codex CLI 0.144.3 —
 // grounded in the `tests/fixtures/codex-smoke/protocol/happy-path-
 // ok.jsonl` real capture, a 0.125 manual smoke that emitted
 // `item.started` before a `command_execution`, and a 0.128
 // observation of `item.updated` carrying incremental progress on a
-// `command_execution`. An trace_entry whose `type` is outside this set
+// `command_execution`, and the 0.144.3 cached web-search capture. A trace_entry
+// whose `type` is outside this set
 // is rejected: the connector refuses to admit unfamiliar protocol
 // surfaces into the relay transcript. `item.updated` carries no new
 // capability — it is a progress beacon for a command already opened
@@ -656,14 +868,26 @@ const CODEX_FAILURE_EVENT_TYPES = new Set<string>(['turn.failed', 'error']);
 // Codex CLI newer than that range, so the rejection messages cite this range
 // and point the operator at the fix rather than leaving them with a bare
 // "unknown type" that takes down every relay. Keep in sync with the allowlist
-// comments above (item types observed through 0.130).
-const CODEX_TESTED_CLI_RANGE = '0.118 to 0.130';
+// comments above (item types observed through 0.144.3).
+const CODEX_TESTED_CLI_RANGE = '0.118 to 0.144.3';
 
 // Shared remediation appended to every unknown-type rejection. Fail-closed
 // stays fail-closed — this only makes the cause and the fix legible.
 // `detectedVersion` is the `codex --version` string captured for this relay.
 function codexUnknownTypeRemediation(detectedVersion: string): string {
-  return `Circuit was tested against Codex CLI ${CODEX_TESTED_CLI_RANGE}, and your Codex CLI reports "${detectedVersion}". The likely cause is a Codex CLI newer than Circuit has been tested against, which added a type Circuit has not reviewed yet. Check your Codex CLI version with: codex --version, and pin it to a version in the tested range if it is newer.`;
+  return `Circuit was tested against Codex CLI ${CODEX_TESTED_CLI_RANGE}, and your Codex CLI reports "${detectedVersion}". The likely cause is a Codex CLI newer than Circuit has been tested against, which added a type Circuit has not reviewed yet. Check your Codex CLI version with: codex --version, then update Circuit to a release that supports it. Do not install an older standalone Codex binary merely to satisfy Circuit.`;
+}
+
+function assertCodexWebSearchExpected(
+  mode: CodexWebSearchMode,
+  lifecycle: 'item.started' | 'item.completed',
+  index: number,
+): void {
+  if (mode !== 'cached') {
+    throw new Error(
+      `capability-boundary violation: ${lifecycle}[${index}] reported web_search while this relay pinned web_search="disabled"`,
+    );
+  }
 }
 
 export function parseCodexStdout(
@@ -671,6 +895,7 @@ export function parseCodexStdout(
   prompt: string,
   duration_ms: number,
   cli_version: string,
+  webSearchMode: CodexWebSearchMode = 'disabled',
 ): RelayResult {
   const trace_entries = parseNdjsonObjects(stdout, 'codex --json');
   if (trace_entries.length === 0) {
@@ -726,6 +951,37 @@ export function parseCodexStdout(
     throw new Error('turn.completed trace_entry missing from codex --json stdout');
   }
 
+  // Validate `item.started` trace_entries before considering completion. This
+  // closes the old gap where a new item type could begin without passing the
+  // contained-item allowlist. Web search has a reviewed incomplete start shape
+  // in Codex 0.144.3; nested errors are terminal and may not start.
+  const itemStarted = trace_entries.filter((e) => e.type === 'item.started');
+  for (const [idx, e] of itemStarted.entries()) {
+    const item = e.item;
+    if (typeof item !== 'object' || item === null) {
+      throw new Error(`item.started[${idx}].item is not an object`);
+    }
+    const itemRecord = item as Record<string, unknown>;
+    const itemType = itemRecord.type;
+    if (typeof itemType !== 'string') {
+      throw new Error(`item.started[${idx}].item.type is not a string`);
+    }
+    if (itemType === 'error') {
+      throw new Error(
+        "capability-boundary violation: item.started item.type='error' is not a reviewed start item type",
+      );
+    }
+    if (!KNOWN_CODEX_ITEM_TYPES.has(itemType)) {
+      throw new Error(
+        `capability-boundary violation: item.started[${idx}].item.type='${itemType}' is not in the known-types allowlist (${Array.from(KNOWN_CODEX_ITEM_TYPES).join(', ')}). A new Codex item type must be reviewed before the connector admits it. ${codexUnknownTypeRemediation(cli_version)}`,
+      );
+    }
+    if (itemType === 'web_search') {
+      assertCodexWebSearchExpected(webSearchMode, 'item.started', idx);
+      validateCodexWebSearchItem(itemRecord, 'item.started', idx);
+    }
+  }
+
   // Collect `item.completed` trace_entries. Each carries an `item` object
   // with an `id`, `type`, and type-specific fields. Reject any item whose
   // type is not in KNOWN_CODEX_ITEM_TYPES: a silent pass-through of a
@@ -755,6 +1011,10 @@ export function parseCodexStdout(
         );
       }
     }
+    if (itemType === 'web_search') {
+      assertCodexWebSearchExpected(webSearchMode, 'item.completed', idx);
+      validateCodexWebSearchItem(item as Record<string, unknown>, 'item.completed', idx);
+    }
   }
 
   // `item.updated` (Codex 0.128+) carries an incremental progress payload
@@ -776,6 +1036,11 @@ export function parseCodexStdout(
     if (itemType === 'error') {
       throw new Error(
         "capability-boundary violation: item.updated item.type='error' is not a reviewed progress item type",
+      );
+    }
+    if (itemType === 'web_search') {
+      throw new Error(
+        "capability-boundary violation: item.updated item.type='web_search' is not a reviewed progress item type",
       );
     }
     if (!KNOWN_CODEX_ITEM_TYPES.has(itemType)) {

@@ -1,6 +1,6 @@
-import { spawnSync } from 'node:child_process';
 import { existsSync } from 'node:fs';
 import { dirname, join } from 'node:path';
+import { runSealedGitRead } from './sealed-git-read.js';
 
 /**
  * Walk from `start` up to the filesystem root looking for a `.git` entry (a
@@ -49,10 +49,7 @@ export function captureWorkingTreeChangedPaths(projectRoot: string): Set<string>
   // records with verbatim (unquoted) pathnames, so paths with spaces or unusual
   // characters need no unescaping. `--untracked-files=all` surfaces brand-new
   // files a worker may have created.
-  const result = spawnSync('git', ['status', '--porcelain=v1', '-z', '--untracked-files=all'], {
-    cwd: projectRoot,
-    encoding: 'utf8',
-  });
+  const result = runSealedGitRead(projectRoot, 'working-tree-status');
   if (result.error !== undefined) {
     throw new Error(`git status failed to spawn in '${projectRoot}': ${result.error.message}`);
   }

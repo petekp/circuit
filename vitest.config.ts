@@ -47,6 +47,10 @@ export default defineConfig({
       // above missed (an unguarded experiment tree once reded the whole verify).
       'evals/*/**/repo/**',
       'experiments/*/**/repo/**',
+      // The MCP spike has process-tree and short-deadline tests that prove
+      // cleanup behavior. Run them as their own canonical batch so unrelated
+      // repository tests cannot consume those deadlines.
+      'experiments/circuit-mcp-spike/mcp/**',
     ],
     coverage: {
       provider: 'v8',

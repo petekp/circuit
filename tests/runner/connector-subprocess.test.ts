@@ -1,7 +1,7 @@
-import { mkdtempSync, rmSync } from 'node:fs';
+import { existsSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
-import { afterEach, beforeEach, describe, expect, it } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { runConnectorSubprocess } from '../../src/connectors/subprocess.js';
 
@@ -16,6 +16,37 @@ afterEach(() => {
 });
 
 describe('connector subprocess lifecycle boundary', () => {
+  function processAlive(pid: number): boolean {
+    try {
+      process.kill(pid, 0);
+      return true;
+    } catch (error) {
+      return (error as NodeJS.ErrnoException).code !== 'ESRCH';
+    }
+  }
+
+  it('cooperatively stops a connector when the sealed cancellation marker appears', async () => {
+    const cancelFile = join(tempDir, 'cancel.requested');
+    const stopping = runConnectorSubprocess({
+      executable: process.execPath,
+      args: ['-e', 'setInterval(() => {}, 1000);'],
+      timeoutMs: 20_000,
+      stdoutMaxBytes: 1_000,
+      stderrMaxBytes: 1_000,
+      sigtermToSigkillGraceMs: 50,
+      cancelFile,
+      cancelPollMs: 20,
+      cwd: tempDir,
+    });
+    setTimeout(() => writeFileSync(cancelFile, 'cancel\n'), 100);
+
+    const result = await stopping;
+    expect(result.cancelled).toBe(true);
+    expect(result.timedOut).toBe(false);
+    expect(result.killGroupSucceeded).toBe(true);
+    expect(result.durationMs).toBeLessThan(5_000);
+  });
+
   it('returns bounded stdout and stderr when a detached subprocess times out', async () => {
     const result = await runConnectorSubprocess({
       executable: process.execPath,
@@ -39,6 +70,139 @@ describe('connector subprocess lifecycle boundary', () => {
     expect(result.timedOut).toBe(true);
     expect(result.stdout).toContain('stdout before timeout');
     expect(result.stderr).toContain('stderr before timeout');
+  });
+
+  it('kills a connector child that survives after the direct CLI closes during cancellation', async () => {
+    const cancelFile = join(tempDir, 'cancel.requested');
+    const readyFile = join(tempDir, 'leaf.ready');
+    const source = [
+      "const { spawn } = require('node:child_process');",
+      "const { writeFileSync } = require('node:fs');",
+      "const leaf = spawn(process.execPath, ['-e', \"process.on('SIGTERM',()=>{}); console.log(process.pid); setInterval(()=>{},1000)\"], { stdio: ['ignore', 'pipe', 'ignore'] });",
+      `leaf.stdout.once('data', () => { writeFileSync(${JSON.stringify(readyFile)}, String(leaf.pid)); process.on('SIGTERM', () => process.exit(0)); });`,
+      'setInterval(() => {}, 1000);',
+    ].join(' ');
+    const stopping = runConnectorSubprocess({
+      executable: process.execPath,
+      args: ['-e', source],
+      timeoutMs: 20_000,
+      stdoutMaxBytes: 1_000,
+      stderrMaxBytes: 1_000,
+      sigtermToSigkillGraceMs: 2_000,
+      cancelFile,
+      cancelPollMs: 20,
+      cwd: tempDir,
+    });
+    for (let attempt = 0; attempt < 500 && !existsSync(readyFile); attempt += 1) {
+      await new Promise((resolvePromise) => setTimeout(resolvePromise, 20));
+    }
+    expect(existsSync(readyFile)).toBe(true);
+    const leafPid = Number(readFileSync(readyFile, 'utf8'));
+    writeFileSync(cancelFile, 'cancel\n');
+
+    const result = await stopping;
+    expect(result).toMatchObject({ cancelled: true, killGroupSucceeded: true });
+    expect(Number.isInteger(leafPid)).toBe(true);
+    for (let attempt = 0; attempt < 40 && processAlive(leafPid); attempt += 1) {
+      await new Promise((resolvePromise) => setTimeout(resolvePromise, 25));
+    }
+    expect(processAlive(leafPid)).toBe(false);
+  });
+
+  it('cleans a background child before accepting a successful sealed MCP connector', async () => {
+    const pidFile = join(tempDir, 'background-leaf.pid');
+    const source = [
+      "const { spawn } = require('node:child_process');",
+      "const { writeFileSync } = require('node:fs');",
+      "const leaf = spawn(process.execPath, ['-e', \"process.on('SIGTERM', () => {}); setInterval(() => {}, 1000)\"], { stdio: 'ignore' });",
+      'leaf.unref();',
+      `writeFileSync(${JSON.stringify(pidFile)}, String(leaf.pid));`,
+      "process.stdout.write('connector complete');",
+    ].join(' ');
+    let leafPid: number | undefined;
+
+    try {
+      const result = await runConnectorSubprocess({
+        executable: process.execPath,
+        args: ['-e', source],
+        timeoutMs: 10_000,
+        stdoutMaxBytes: 1_000,
+        stderrMaxBytes: 1_000,
+        sigtermToSigkillGraceMs: 50,
+        requireEmptyProcessGroupOnExit: true,
+        env: {
+          ...process.env,
+          CIRCUIT_MCP_SEALED: '1',
+          CIRCUIT_RUNTIME_SOURCE: 'mcp-spike',
+        },
+        cwd: tempDir,
+      });
+      leafPid = Number(readFileSync(pidFile, 'utf8'));
+
+      expect(result).toMatchObject({ code: 0, timedOut: false, cancelled: false });
+      expect(Number.isInteger(leafPid)).toBe(true);
+      expect(processAlive(leafPid)).toBe(false);
+    } finally {
+      if (leafPid !== undefined && processAlive(leafPid)) {
+        try {
+          process.kill(leafPid, 'SIGKILL');
+        } catch {
+          // The child may exit between the liveness check and the cleanup signal.
+        }
+      }
+    }
+  });
+
+  it('rejects a sealed MCP connector result when process-group cleanup cannot be confirmed', async () => {
+    const pidFile = join(tempDir, 'uncleanable-leaf.pid');
+    const source = [
+      "const { spawn } = require('node:child_process');",
+      "const { writeFileSync } = require('node:fs');",
+      "const leaf = spawn(process.execPath, ['-e', 'setInterval(() => {}, 1000)'], { stdio: 'ignore' });",
+      'leaf.unref();',
+      `writeFileSync(${JSON.stringify(pidFile)}, String(leaf.pid));`,
+    ].join(' ');
+    const realKill = process.kill.bind(process);
+    const killSpy = vi.spyOn(process, 'kill').mockImplementation((pid, signal) => {
+      if (pid < 0) {
+        const error = new Error(
+          'simulated process-group permission failure',
+        ) as NodeJS.ErrnoException;
+        error.code = 'EPERM';
+        throw error;
+      }
+      return realKill(pid, signal);
+    });
+    let leafPid: number | undefined;
+
+    try {
+      await expect(
+        runConnectorSubprocess({
+          executable: process.execPath,
+          args: ['-e', source],
+          timeoutMs: 10_000,
+          stdoutMaxBytes: 1_000,
+          stderrMaxBytes: 1_000,
+          sigtermToSigkillGraceMs: 25,
+          requireEmptyProcessGroupOnExit: true,
+          cwd: tempDir,
+        }),
+      ).rejects.toThrow('could not confirm that all of its background processes stopped');
+      leafPid = Number(readFileSync(pidFile, 'utf8'));
+      expect(processAlive(leafPid)).toBe(true);
+    } finally {
+      killSpy.mockRestore();
+      if (leafPid === undefined && existsSync(pidFile)) {
+        leafPid = Number(readFileSync(pidFile, 'utf8'));
+      }
+      if (leafPid !== undefined && processAlive(leafPid)) {
+        try {
+          realKill(leafPid, 'SIGKILL');
+        } catch {
+          // The child may exit between the liveness check and the cleanup signal.
+        }
+      }
+    }
   });
 
   it('kills a silent subprocess on the inactivity bound and reports timeoutKind idle', async () => {

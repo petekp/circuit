@@ -1,3 +1,5 @@
+import { lstatSync, realpathSync } from 'node:fs';
+import { isAbsolute, resolve } from 'node:path';
 import { Command, CommanderError } from 'commander';
 import type { BriefGitProbe } from '../app/continuity/brief.js';
 
@@ -53,6 +55,56 @@ export interface CliMainOptions extends RunCommandOptions {
 }
 
 export { CIRCUIT_HOST_KIND_ENV } from './run.js';
+
+const SEALED_MCP_REQUIRED_ENV = [
+  'CIRCUIT_MCP_PROJECT_ROOT',
+  'CIRCUIT_MCP_CODEX_EXECUTABLE',
+  'CIRCUIT_MCP_PROOF_RUNNER',
+  'CIRCUIT_MCP_GIT_STATE_HELPER',
+  'CIRCUIT_MCP_CANCEL_FILE',
+  'CODEX_HOME',
+] as const;
+
+/**
+ * Internal adapter used only by the experimental MCP-owned plugin runtime.
+ * There is intentionally no public CLI flag for this narrower execution mode.
+ */
+export function sealedMcpOptionsFromEnvironment(
+  argv: readonly string[],
+  env: NodeJS.ProcessEnv = process.env,
+  cwd: string = process.cwd(),
+): Pick<CliMainOptions, 'sealedMcp'> {
+  if (env.CIRCUIT_MCP_SEALED === undefined) return {};
+  if (env.CIRCUIT_MCP_SEALED !== '1' || env.CIRCUIT_RUNTIME_SOURCE !== 'mcp-spike') {
+    throw new Error('The sealed MCP runtime marker is invalid.');
+  }
+  if (argv[0] !== 'run' && argv[0] !== 'resume') {
+    throw new Error('The sealed MCP runtime only permits run and resume.');
+  }
+  for (const key of SEALED_MCP_REQUIRED_ENV) {
+    const value = env[key];
+    if (typeof value !== 'string' || !isAbsolute(value)) {
+      throw new Error(`${key} must be an absolute path in a sealed MCP run.`);
+    }
+  }
+  if (
+    env.CIRCUIT_MCP_WEB_SEARCH_MODE !== 'disabled' &&
+    env.CIRCUIT_MCP_WEB_SEARCH_MODE !== 'cached'
+  ) {
+    throw new Error('CIRCUIT_MCP_WEB_SEARCH_MODE must be disabled or cached.');
+  }
+  const requestedRoot = env.CIRCUIT_MCP_PROJECT_ROOT as string;
+  const rootStat = lstatSync(requestedRoot);
+  if (rootStat.isSymbolicLink() || !rootStat.isDirectory()) {
+    throw new Error('CIRCUIT_MCP_PROJECT_ROOT must be a real directory.');
+  }
+  const projectRoot = realpathSync(requestedRoot);
+  const invocationCwd = realpathSync(resolve(cwd));
+  if (projectRoot !== invocationCwd) {
+    throw new Error('The sealed MCP project root must match the runtime working directory.');
+  }
+  return { sealedMcp: { projectRoot } };
+}
 
 function versionInfo(): Record<string, unknown> {
   return {
@@ -262,11 +314,14 @@ const invokedDirectly =
     import.meta.url.endsWith(process.argv[1].split('/').pop() ?? ''));
 
 if (invokedDirectly) {
-  main(process.argv.slice(2)).then(
-    (code) => process.exit(code),
-    (err: unknown) => {
-      process.stderr.write(`error: ${err instanceof Error ? err.message : String(err)}\n`);
-      process.exit(1);
-    },
-  );
+  const argv = process.argv.slice(2);
+  Promise.resolve()
+    .then(() => main(argv, sealedMcpOptionsFromEnvironment(argv)))
+    .then(
+      (code) => process.exit(code),
+      (err: unknown) => {
+        process.stderr.write(`error: ${err instanceof Error ? err.message : String(err)}\n`);
+        process.exit(1);
+      },
+    );
 }

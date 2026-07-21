@@ -6,6 +6,7 @@ import {
   mkdtempSync,
   readFileSync,
   rmSync,
+  symlinkSync,
   writeFileSync,
 } from 'node:fs';
 import { tmpdir } from 'node:os';
@@ -362,6 +363,58 @@ describe('registered review compose writer', () => {
       untracked_files_sampled: 1,
       untracked_files_truncated: false,
     });
+  });
+
+  it('skips an untracked symlink to a file outside the project after content opt-in', async () => {
+    const { bytes } = loadFixture();
+    const runFolder = join(runFolderBase, 'untracked-outside-symlink');
+    const projectRoot = join(runFolderBase, 'outside-symlink-project');
+    const outsideSecret = 'outside-project secret must never be relayed';
+    const outsidePath = join(runFolderBase, 'outside-secret.txt');
+    mkdirSync(projectRoot, { recursive: true });
+    execFileSync('git', ['init'], { cwd: projectRoot, stdio: 'pipe' });
+    writeFileSync(outsidePath, `${outsideSecret}\n`);
+    symlinkSync(outsidePath, join(projectRoot, 'outside-link.txt'));
+
+    const outcome = await runCompiledFlow({
+      runDir: runFolder,
+      flowBytes: bytes,
+      runId: '79000000-0000-0000-0000-000000000012',
+      goal: 'review the explicitly included untracked symlink',
+      depth: 'medium',
+      evidencePolicy: { includeUntrackedFileContent: true },
+      now: deterministicNow(Date.UTC(2026, 3, 24, 14, 0, 0)),
+      projectRoot,
+      relayer: {
+        connectorName: 'claude-code',
+        relay: async (input: ClaudeCodeRelayInput): Promise<RelayResult> => {
+          expect(input.prompt).toContain('outside-link.txt');
+          expect(input.prompt).not.toContain(outsideSecret);
+          return {
+            request_payload: input.prompt,
+            receipt_id: 'stub-receipt-review-outside-symlink',
+            result_body: JSON.stringify(cleanRelayResult()),
+            duration_ms: 1,
+            cli_version: '0.0.0-stub',
+          };
+        },
+      },
+    });
+
+    expect(outcome.outcome).toBe('complete');
+    const intake = ReviewIntake.parse(
+      JSON.parse(readFileSync(join(runFolder, 'reports', 'review-intake.json'), 'utf8')),
+    );
+    expect(intake.evidence.kind).toBe('git-working-tree');
+    if (intake.evidence.kind !== 'git-working-tree') return;
+    expect(intake.evidence.untracked_files).toContainEqual({
+      path: 'outside-link.txt',
+      byte_length: Buffer.byteLength(outsidePath),
+      skipped_reason: 'symbolic link skipped',
+    });
+    expect(intake.evidence_warnings).toContainEqual(
+      expect.objectContaining({ kind: 'untracked_file_skipped', path: 'outside-link.txt' }),
+    );
   });
 
   it('keeps review evidence from large diffs instead of replacing it with a git buffer error', async () => {

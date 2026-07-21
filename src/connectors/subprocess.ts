@@ -1,5 +1,6 @@
 import { type ChildProcess, spawn } from 'node:child_process';
-import { dirname } from 'node:path';
+import { existsSync } from 'node:fs';
+import { dirname, isAbsolute } from 'node:path';
 import { performance } from 'node:perf_hooks';
 
 import { stateDirUnwritableSummary } from './state-dir.js';
@@ -11,6 +12,13 @@ export class ConnectorSubprocessSpawnError extends Error {
   ) {
     super(message);
     this.name = 'ConnectorSubprocessSpawnError';
+  }
+}
+
+export class ConnectorSubprocessCleanupError extends Error {
+  constructor(message: string) {
+    super(message);
+    this.name = 'ConnectorSubprocessCleanupError';
   }
 }
 
@@ -34,6 +42,7 @@ export interface ConnectorSubprocessResult {
   readonly stdoutCapped: boolean;
   readonly stderrCapped: boolean;
   readonly timedOut: boolean;
+  readonly cancelled?: boolean;
   readonly timeoutKind?: ConnectorTimeoutKind;
   readonly killGroupSucceeded: boolean;
   readonly code: number | null;
@@ -56,6 +65,14 @@ export interface RunConnectorSubprocessInput {
   readonly sigtermToSigkillGraceMs: number;
   readonly env?: NodeJS.ProcessEnv;
   readonly cwd?: string;
+  /** Experiment-only cooperative cancellation marker owned by the MCP host. */
+  readonly cancelFile?: string;
+  readonly cancelPollMs?: number;
+  /**
+   * Experiment-only sealed MCP boundary. A completed worker must not leave
+   * members of its freshly-created process group running between flow steps.
+   */
+  readonly requireEmptyProcessGroupOnExit?: boolean;
 }
 
 export interface CreateTimeoutControllerInput {
@@ -388,6 +405,9 @@ export function parseNdjsonObjects(stdout: string, label: string): Array<Record<
 export async function runConnectorSubprocess(
   input: RunConnectorSubprocessInput,
 ): Promise<ConnectorSubprocessResult> {
+  if (input.cancelFile !== undefined && !isAbsolute(input.cancelFile)) {
+    throw new Error('Connector cancelFile must be absolute.');
+  }
   const start = performance.now();
   return await new Promise<ConnectorSubprocessResult>((resolve, reject) => {
     let child: ChildProcess;
@@ -415,6 +435,7 @@ export async function runConnectorSubprocess(
     let stdoutCapped = false;
     let stderrCapped = false;
     let timedOut = false;
+    let cancelled = false;
     let timeoutKind: ConnectorTimeoutKind | undefined;
     let killGroupSucceeded = false;
 
@@ -442,28 +463,80 @@ export async function runConnectorSubprocess(
       }
     };
 
+    type ProcessGroupState = 'absent' | 'present' | 'unknown';
+    const processGroupState = (): ProcessGroupState => {
+      const pid = child.pid;
+      if (typeof pid !== 'number') return 'unknown';
+      try {
+        process.kill(-pid, 0);
+        return 'present';
+      } catch (error) {
+        return (error as NodeJS.ErrnoException).code === 'ESRCH' ? 'absent' : 'unknown';
+      }
+    };
+
+    const waitForEmptyProcessGroup = async (timeoutMs: number): Promise<ProcessGroupState> => {
+      const deadline = performance.now() + timeoutMs;
+      let state = processGroupState();
+      while (state !== 'absent' && performance.now() < deadline) {
+        await new Promise((resolvePromise) => setTimeout(resolvePromise, 25));
+        state = processGroupState();
+      }
+      return state;
+    };
+
+    const cleanCompletedProcessGroup = async (): Promise<boolean> => {
+      const initialState = processGroupState();
+      if (initialState === 'absent') return true;
+
+      killGroupSucceeded = killProcessGroup('SIGTERM') || killGroupSucceeded;
+      const afterTerm = await waitForEmptyProcessGroup(input.sigtermToSigkillGraceMs);
+      if (afterTerm === 'absent') return true;
+
+      killGroupSucceeded = killProcessGroup('SIGKILL') || killGroupSucceeded;
+      return (await waitForEmptyProcessGroup(1_000)) === 'absent';
+    };
+
     // Escalation timer scheduled after the first SIGTERM; owned here (not by the
     // controller) because it is part of the kill, not the timeout decision.
     let killGraceTimer: NodeJS.Timeout | undefined;
+    const stopChild = (kind: 'timeout' | 'cancel', timeout?: ConnectorTimeoutKind): void => {
+      if (timedOut || cancelled) return;
+      if (kind === 'timeout') {
+        timedOut = true;
+        timeoutKind = timeout;
+      } else {
+        cancelled = true;
+      }
+      killGroupSucceeded = killProcessGroup('SIGTERM');
+      killGraceTimer = setTimeout(() => {
+        killProcessGroup('SIGKILL');
+        killGraceTimer = undefined;
+      }, input.sigtermToSigkillGraceMs);
+    };
     const controller = createTimeoutController({
       absoluteMs: input.timeoutMs,
       ...(input.idleTimeoutMs === undefined ? {} : { idleMs: input.idleTimeoutMs }),
-      onFire: (kind) => {
-        timedOut = true;
-        timeoutKind = kind;
-        killGroupSucceeded = killProcessGroup('SIGTERM');
-        killGraceTimer = setTimeout(() => {
-          killProcessGroup('SIGKILL');
-          killGraceTimer = undefined;
-        }, input.sigtermToSigkillGraceMs);
-      },
+      onFire: (kind) => stopChild('timeout', kind),
     });
     // Arm the inactivity bound at spawn so a child that never emits anything is
     // still caught (a process silent from t0 is the clearest hang there is).
     controller.onActivity();
 
-    const clearAllTimers = () => {
+    const cancelPoll =
+      input.cancelFile === undefined
+        ? undefined
+        : setInterval(() => {
+            if (existsSync(input.cancelFile as string)) stopChild('cancel');
+          }, input.cancelPollMs ?? 100);
+
+    const clearDecisionTimers = () => {
       controller.clear();
+      if (cancelPoll !== undefined) clearInterval(cancelPoll);
+    };
+
+    const clearAllTimers = () => {
+      clearDecisionTimers();
       if (killGraceTimer !== undefined) {
         clearTimeout(killGraceTimer);
         killGraceTimer = undefined;
@@ -491,19 +564,46 @@ export async function runConnectorSubprocess(
       reject(new ConnectorSubprocessSpawnError('spawn-error', error.message));
     });
     child.on('close', (code, signal) => {
-      clearAllTimers();
-      resolve({
-        stdout,
-        stderr,
-        stdoutCapped,
-        stderrCapped,
-        timedOut,
-        ...(timeoutKind === undefined ? {} : { timeoutKind }),
-        killGroupSucceeded,
-        code,
-        signal,
-        durationMs: performance.now() - start,
-      });
+      clearDecisionTimers();
+      // The direct CLI can close before one of its children. Finish the group
+      // kill immediately while this freshly-created process-group id still
+      // belongs to this launch; cancelling the grace timer here used to leave
+      // such children behind.
+      if (timedOut || cancelled) {
+        killGroupSucceeded = killProcessGroup('SIGKILL') || killGroupSucceeded;
+      }
+      if (killGraceTimer !== undefined) {
+        clearTimeout(killGraceTimer);
+        killGraceTimer = undefined;
+      }
+      void (async () => {
+        if (
+          input.requireEmptyProcessGroupOnExit === true &&
+          !timedOut &&
+          !cancelled &&
+          !(await cleanCompletedProcessGroup())
+        ) {
+          reject(
+            new ConnectorSubprocessCleanupError(
+              'Connector subprocess exited, but Circuit could not confirm that all of its background processes stopped.',
+            ),
+          );
+          return;
+        }
+        resolve({
+          stdout,
+          stderr,
+          stdoutCapped,
+          stderrCapped,
+          timedOut,
+          cancelled,
+          ...(timeoutKind === undefined ? {} : { timeoutKind }),
+          killGroupSucceeded,
+          code,
+          signal,
+          durationMs: performance.now() - start,
+        });
+      })().catch(reject);
     });
   });
 }

@@ -176,6 +176,15 @@ export interface RunCommandOptions {
    * executors); passing this always runs the given preflight instead.
    */
   connectorPreflight?: RunConnectorPreflight;
+  /**
+   * Experiment-only host seam for the MCP sandbox spike. Persisted user and
+   * project config, history recall, and Codex hook assurance are all ignored;
+   * the trusted host supplies the canonical project root separately.
+   *
+   * This is deliberately not a public CLI flag. The experiment will be
+   * replaced by a fresh shipping design after its behavior is evaluated.
+   */
+  sealedMcp?: { readonly projectRoot: string };
 }
 
 export const CIRCUIT_HOST_KIND_ENV = 'CIRCUIT_HOST_KIND';
@@ -201,6 +210,7 @@ function publicFlowNameOffer(): string {
 }
 
 function runtimeHostKind(options: RunCommandOptions): HostKindValue | undefined {
+  if (options.sealedMcp !== undefined) return 'codex';
   if (options.hostKind !== undefined) return options.hostKind;
   const raw = process.env[CIRCUIT_HOST_KIND_ENV];
   if (raw === undefined || raw.length === 0) return undefined;
@@ -702,6 +712,7 @@ function runEnvelopeMemoryContext(
 }
 
 function shouldPrepareHistoryRecall(options: RunCommandOptions): boolean {
+  if (options.sealedMcp !== undefined) return false;
   if (options.historyRecall === 'enabled') return true;
   if (options.historyRecall === 'disabled') return false;
   return (
@@ -1694,21 +1705,29 @@ export async function runExecutionCommand(
   // absent --process derives its value from the resolved power dial (config
   // layers + --power), and that derived value must be known before the
   // fixture/mode is selected below.
-  const runtimeConfigLayers = discoverRuntimeConfigLayers({
-    ...(options.configHomeDir !== undefined ? { homeDir: options.configHomeDir } : {}),
-    ...(options.configCwd !== undefined ? { cwd: options.configCwd } : {}),
-    // --power rides the existing invocation config layer, so it composes with
-    // (and outranks) a user-global or project `defaults.power` exactly like
-    // any other layered config opinion.
-    ...(args.power === undefined
-      ? {}
-      : {
-          invocationConfig: Config.parse({
-            schema_version: 1,
-            defaults: { power: args.power },
-          }),
-        }),
-  });
+  const invocationConfig =
+    args.power === undefined
+      ? undefined
+      : Config.parse({
+          schema_version: 1,
+          defaults: { power: args.power },
+        });
+  const runtimeConfigLayers =
+    options.sealedMcp === undefined
+      ? discoverRuntimeConfigLayers({
+          ...(options.configHomeDir !== undefined ? { homeDir: options.configHomeDir } : {}),
+          ...(options.configCwd !== undefined ? { cwd: options.configCwd } : {}),
+          // --power rides the existing invocation config layer, so it composes with
+          // (and outranks) a user-global or project `defaults.power` exactly like
+          // any other layered config opinion.
+          ...(invocationConfig === undefined ? {} : { invocationConfig }),
+        })
+      : discoverRuntimeConfigLayers({
+          // A sealed run admits invocation-owned choices only. In particular,
+          // do not even probe the real HOME or worktree for config files.
+          includePersisted: false,
+          ...(invocationConfig === undefined ? {} : { invocationConfig }),
+        });
   const { policyLayers, selectionConfigLayers } = runtimeConfigLayers;
 
   // An explicit --process always wins. Absent one, the power dial word derives
@@ -1817,12 +1836,12 @@ export async function runExecutionCommand(
   }
   const hostKind = runtimeHostKind(options);
 
-  const projectRoot = resolve(options.configCwd ?? process.cwd());
+  const projectRoot = resolve(options.sealedMcp?.projectRoot ?? options.configCwd ?? process.cwd());
 
   // A3: on Codex, restore needs a one-time hook install (Claude is zero-setup).
   // The front-door run is the only path a not-yet-installed Codex user reliably
   // triggers, so nudge once per repo here. Best-effort: never block a run.
-  if (hostKind === 'codex') {
+  if (hostKind === 'codex' && options.sealedMcp === undefined) {
     try {
       const assurance = codexInstallAssurance({ projectRoot, now });
       if (assurance.notice !== undefined) process.stderr.write(`${assurance.notice}\n`);

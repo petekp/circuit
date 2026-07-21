@@ -100,7 +100,7 @@ export async function preflightRunConnectors(
   const warnings: string[] = [];
   for (const check of presenceChecks) {
     if (check.outcome.kind === 'spawn_error') {
-      const executable = builtinConnectorExecutable(check.name);
+      const executable = builtinConnectorExecutable(check.name, env);
       warnings.push(
         `this run's steps relay through the ${executable} CLI, which was not found (${check.outcome.message}); the run will stop when it first needs it. \`circuit doctor\` checks connector health.`,
       );

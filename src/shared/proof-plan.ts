@@ -1,6 +1,8 @@
 import { spawnSync } from 'node:child_process';
-import { existsSync, lstatSync, readFileSync, realpathSync } from 'node:fs';
-import { isAbsolute, join, relative, resolve } from 'node:path';
+import { existsSync, lstatSync, realpathSync } from 'node:fs';
+import { isAbsolute, relative, resolve } from 'node:path';
+import { isGitStateCommandId } from './git-state-command.js';
+import { readWorkspaceRegularFile } from './safe-workspace-file.js';
 
 const PROOF_PLAN_ENV_INHERIT_ALLOWLIST = [
   'PATH',
@@ -37,6 +39,13 @@ export interface ProofPlanCommandObservation {
   // executor's failure reason, recovery routing) distinguish an honest
   // timeout from a red command instead of folding both into 'failed'.
   readonly timed_out: boolean;
+  readonly mcp_execution?: {
+    readonly access: 'workspace-write' | 'git-read-only';
+    readonly status: 'passed' | 'failed' | 'timed_out' | 'cancelled' | 'output_limit';
+    readonly cleanup_confirmed: boolean;
+    readonly network: 'denied';
+    readonly writable_roots: readonly string[];
+  };
 }
 
 export interface ProofPlanCommand {
@@ -137,17 +146,17 @@ export function preflightProofPlanCommand(command: ProofPlanCommand, cwdAbs: str
   const script = packageScriptInvocation(command);
   if (script === undefined) return;
 
-  const packageJsonPath = join(cwdAbs, 'package.json');
-  if (!existsSync(packageJsonPath)) {
-    throw new ProofPlanBlockedError(
-      `Proof plan blocked: verification command '${command.id}' requires package.json at cwd ${JSON.stringify(command.cwd)}.`,
-    );
-  }
-
   let parsed: unknown;
   try {
-    parsed = JSON.parse(readFileSync(packageJsonPath, 'utf8'));
+    const source = readWorkspaceRegularFile(cwdAbs, 'package.json', 1024 * 1024);
+    if (source === undefined) {
+      throw new ProofPlanBlockedError(
+        `Proof plan blocked: verification command '${command.id}' requires package.json at cwd ${JSON.stringify(command.cwd)}.`,
+      );
+    }
+    parsed = JSON.parse(source);
   } catch (error) {
+    if (error instanceof ProofPlanBlockedError) throw error;
     const message = error instanceof Error ? error.message : String(error);
     throw new ProofPlanBlockedError(
       `Proof plan blocked: verification command '${command.id}' could not parse package.json at cwd ${JSON.stringify(command.cwd)}: ${message}.`,
@@ -185,6 +194,165 @@ function commandTimedOut(input: {
   return input.signal !== null && input.durationMs >= input.timeoutMs;
 }
 
+const MCP_PROOF_REQUEST_SCHEMA = 'circuit.mcp-proof-request@v1';
+const MCP_PROOF_RESPONSE_SCHEMA = 'circuit.mcp-proof-response@v1';
+const MCP_PROOF_RUNNER_ENV = 'CIRCUIT_MCP_PROOF_RUNNER';
+const MCP_CANCEL_FILE_ENV = 'CIRCUIT_MCP_CANCEL_FILE';
+const MCP_GIT_STATE_HELPER_ENV = 'CIRCUIT_MCP_GIT_STATE_HELPER';
+
+export function runExternalMcpSandboxCommand(
+  command: ProofPlanCommand,
+  projectRoot: string,
+  cwd: string,
+  access: 'workspace-write' | 'git-read-only' = 'workspace-write',
+): ProofPlanCommandObservation | undefined {
+  const configuredRunner = process.env[MCP_PROOF_RUNNER_ENV];
+  if (configuredRunner === undefined) return undefined;
+  if (!isAbsolute(configuredRunner)) {
+    throw new ProofPlanBlockedError(`${MCP_PROOF_RUNNER_ENV} must be an absolute path.`);
+  }
+  if (!existsSync(configuredRunner)) {
+    throw new ProofPlanBlockedError(`${MCP_PROOF_RUNNER_ENV} does not exist.`);
+  }
+  const runnerStat = lstatSync(configuredRunner);
+  if (runnerStat.isSymbolicLink() || !runnerStat.isFile()) {
+    throw new ProofPlanBlockedError(`${MCP_PROOF_RUNNER_ENV} must be a regular file.`);
+  }
+  const runner = realpathSync.native(configuredRunner);
+  const cancelFile = process.env[MCP_CANCEL_FILE_ENV];
+  if (cancelFile === undefined || !isAbsolute(cancelFile)) {
+    throw new ProofPlanBlockedError(`${MCP_CANCEL_FILE_ENV} must be an absolute path.`);
+  }
+  const canonicalProjectRoot = realpathSync.native(resolve(projectRoot));
+  const request = {
+    schema: MCP_PROOF_REQUEST_SCHEMA,
+    access,
+    projectRoot: canonicalProjectRoot,
+    cwd,
+    command,
+    cancelFile,
+  };
+  const gitStateHelper = process.env[MCP_GIT_STATE_HELPER_ENV];
+  const result = spawnSync(process.execPath, [runner], {
+    cwd: canonicalProjectRoot,
+    env: proofPlanEnvironment(
+      gitStateHelper === undefined ? {} : { [MCP_GIT_STATE_HELPER_ENV]: gitStateHelper },
+    ),
+    input: JSON.stringify(request),
+    encoding: 'utf8',
+    maxBuffer: Math.max(command.max_output_bytes * 2 + 64 * 1024, 256 * 1024),
+    shell: false,
+    timeout: command.timeout_ms + 10_000,
+  });
+  if (result.error !== undefined) {
+    throw new ProofPlanBlockedError(
+      `Proof sandbox runner failed for '${command.id}': ${result.error.message}`,
+    );
+  }
+  if (result.status !== 0) {
+    const detail = typeof result.stderr === 'string' ? result.stderr.trim().slice(-2_000) : '';
+    throw new ProofPlanBlockedError(
+      `Proof sandbox runner failed for '${command.id}' (exit ${String(result.status)})${detail.length === 0 ? '.' : `: ${detail}`}`,
+    );
+  }
+  let parsed: unknown;
+  try {
+    parsed = JSON.parse(typeof result.stdout === 'string' ? result.stdout : '');
+  } catch (error) {
+    throw new ProofPlanBlockedError(
+      `Proof sandbox runner returned invalid JSON for '${command.id}': ${(error as Error).message}`,
+    );
+  }
+  if (parsed === null || typeof parsed !== 'object' || Array.isArray(parsed)) {
+    throw new ProofPlanBlockedError('Proof sandbox runner returned an invalid response.');
+  }
+  const response = parsed as Record<string, unknown>;
+  const observation = response.observation;
+  const execution = response.execution;
+  if (
+    response.schema !== MCP_PROOF_RESPONSE_SCHEMA ||
+    observation === null ||
+    typeof observation !== 'object' ||
+    Array.isArray(observation) ||
+    execution === null ||
+    typeof execution !== 'object' ||
+    Array.isArray(execution)
+  ) {
+    throw new ProofPlanBlockedError('Proof sandbox runner returned an invalid response.');
+  }
+  const observed = observation as Record<string, unknown>;
+  const executionRecord = execution as Record<string, unknown>;
+  const cleanup = executionRecord.cleanup;
+  const sandbox = executionRecord.sandbox;
+  const executionStatus = executionRecord.status;
+  if (
+    cleanup === null ||
+    typeof cleanup !== 'object' ||
+    Array.isArray(cleanup) ||
+    (cleanup as Record<string, unknown>).confirmed !== true
+  ) {
+    const detail = JSON.stringify(cleanup);
+    throw new ProofPlanBlockedError(
+      `Proof sandbox runner could not confirm cleanup for '${command.id}': ${detail}.`,
+    );
+  }
+  if (
+    sandbox === null ||
+    typeof sandbox !== 'object' ||
+    Array.isArray(sandbox) ||
+    (sandbox as Record<string, unknown>).network !== 'denied' ||
+    (sandbox as Record<string, unknown>).access !== access ||
+    !Array.isArray((sandbox as Record<string, unknown>).writable_roots)
+  ) {
+    throw new ProofPlanBlockedError(
+      `Proof sandbox runner did not prove network denial for '${command.id}'.`,
+    );
+  }
+  const exitCode = observed.exit_code;
+  const status = observed.status;
+  const durationMs = observed.duration_ms;
+  const stdoutSummary = observed.stdout_summary;
+  const stderrSummary = observed.stderr_summary;
+  const timedOut = observed.timed_out;
+  if (
+    executionStatus !== 'passed' &&
+    executionStatus !== 'failed' &&
+    executionStatus !== 'timed_out' &&
+    executionStatus !== 'cancelled' &&
+    executionStatus !== 'output_limit'
+  ) {
+    throw new ProofPlanBlockedError('Proof sandbox runner returned an invalid execution status.');
+  }
+  if (
+    !Number.isInteger(exitCode) ||
+    (status !== 'passed' && status !== 'failed') ||
+    typeof durationMs !== 'number' ||
+    durationMs < 0 ||
+    typeof stdoutSummary !== 'string' ||
+    typeof stderrSummary !== 'string' ||
+    typeof timedOut !== 'boolean' ||
+    (status === 'passed') !== (exitCode === 0)
+  ) {
+    throw new ProofPlanBlockedError('Proof sandbox runner returned an invalid observation.');
+  }
+  return {
+    command,
+    exit_code: exitCode as number,
+    status,
+    duration_ms: durationMs,
+    stdout_summary: summarizeOutput(stdoutSummary, command.max_output_bytes),
+    stderr_summary: summarizeOutput(stderrSummary, command.max_output_bytes),
+    timed_out: timedOut,
+    mcp_execution: {
+      access,
+      status: executionStatus,
+      cleanup_confirmed: true,
+      network: 'denied',
+      writable_roots: (sandbox as Record<string, unknown>).writable_roots as string[],
+    },
+  };
+}
+
 export function runProofPlanCommand(
   command: ProofPlanCommand,
   projectRoot: string,
@@ -192,6 +360,9 @@ export function runProofPlanCommand(
   const started = Date.now();
   const cwd = resolveProjectRelativeProofCwd(projectRoot, command.cwd);
   preflightProofPlanCommand(command, cwd);
+  const access = isGitStateCommandId(command.id) ? 'git-read-only' : 'workspace-write';
+  const externalObservation = runExternalMcpSandboxCommand(command, projectRoot, cwd, access);
+  if (externalObservation !== undefined) return externalObservation;
   const result = spawnSync(command.argv[0] as string, command.argv.slice(1), {
     cwd,
     env: proofPlanEnvironment(command.env),

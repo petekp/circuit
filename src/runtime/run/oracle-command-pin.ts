@@ -1,12 +1,10 @@
-import { existsSync, readFileSync } from 'node:fs';
-import { join } from 'node:path';
-
 import { sha256OfString } from '../../schemas/hashing.js';
 import {
   type ProofPlanCommand,
   packageScriptInvocation,
   resolveProjectRelativeProofCwd,
 } from '../../shared/proof-plan.js';
+import { readWorkspaceRegularFile } from '../../shared/safe-workspace-file.js';
 
 // Oracle-command pin (engine change 2 of the Sweep hardening pair).
 //
@@ -72,16 +70,17 @@ function readReferencedScriptBody(
   if (script === undefined) return undefined;
 
   const cwdAbs = resolveProjectRelativeProofCwd(projectRoot, command.cwd);
-  const packageJsonPath = join(cwdAbs, 'package.json');
-  if (!existsSync(packageJsonPath)) {
-    throw new OracleCommandDriftError(
-      `oracle script "${script}" for command '${command.id}' vanished: package.json missing at its cwd`,
-    );
-  }
   let parsed: unknown;
   try {
-    parsed = JSON.parse(readFileSync(packageJsonPath, 'utf8'));
+    const source = readWorkspaceRegularFile(cwdAbs, 'package.json', 1024 * 1024);
+    if (source === undefined) {
+      throw new OracleCommandDriftError(
+        `oracle script "${script}" for command '${command.id}' vanished: package.json missing at its cwd`,
+      );
+    }
+    parsed = JSON.parse(source);
   } catch (error) {
+    if (error instanceof OracleCommandDriftError) throw error;
     const message = error instanceof Error ? error.message : String(error);
     throw new OracleCommandDriftError(
       `oracle script "${script}" for command '${command.id}' unreadable: ${message}`,
