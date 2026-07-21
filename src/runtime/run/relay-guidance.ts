@@ -292,7 +292,7 @@ function assertPolicyAllowsRelayExecutionInput(input: {
   }
 }
 
-function resolveRelayGuidanceExecution(input: {
+export function resolveRelayGuidanceExecution(input: {
   readonly flowId: string;
   readonly role: string;
   readonly stepConnector?: string;

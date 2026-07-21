@@ -10,14 +10,15 @@
 // intake, before the run folder exists, so a run that cannot possibly relay
 // is refused with a plain sentence instead of aborting mid-flight.
 //
-// Scope is deliberately small and offline: a presence probe per chosen
-// builtin connector and a real-write probe of codex's state directory. No
-// sign-in probe (intake must stay fast, and a signed-out CLI already fails
-// mid-run with a legible summary from connectorFailureSummary). Custom
-// connectors are not probed: their command is arbitrary and config-declared,
-// and probing one means running it. Probe timeouts and nonzero exits do not
-// refuse either — "could not check" is not "broken", and a wedged CLI will
-// surface legibly when the run spawns it for real.
+// Scope is deliberately small and offline: resolve each relay's connector and
+// model/effort selection, run a presence probe per chosen builtin connector,
+// and run a real-write probe of codex's state directory. No sign-in probe
+// (intake must stay fast, and a signed-out CLI already fails mid-run with a
+// legible summary from connectorFailureSummary). Custom connectors are not
+// probed: their command is arbitrary and config-declared, and probing one means
+// running it. Probe timeouts and nonzero exits do not refuse either — "could
+// not check" is not "broken", and a wedged CLI will surface legibly when the
+// run spawns it for real.
 
 import {
   BUILTIN_CONNECTOR_NAMES,
@@ -26,16 +27,25 @@ import {
   probeBuiltinConnectorPresence,
 } from '../connectors/health.js';
 import type { BuiltinConnectorName } from '../connectors/remediation.js';
+import { assertConnectorSelectionCompatible } from '../connectors/resolver.js';
 import {
   type StateDirProbe,
   codexStateDir,
   probeStateDirWritable,
   stateDirUnwritableSummary,
 } from '../connectors/state-dir.js';
+import type { RuntimeIndexedStep } from '../flows/registries/runtime-index.js';
+import { fromCompiledFlow } from '../runtime/manifest/from-compiled-flow.js';
+import { buildRuntimePackageIndex } from '../runtime/manifest/runtime-package-index.js';
+import { resolveRelayGuidanceExecution } from '../runtime/run/relay-guidance.js';
 import type { CompiledFlow } from '../schemas/compiled-flow.js';
 import type { LayeredConfig as LayeredConfigValue } from '../schemas/config.js';
 import type { HostKind } from '../schemas/host.js';
-import { connectorsForCompiledFlow } from './chosen-connectors.js';
+import type { PolicyLayer as PolicyLayerValue } from '../schemas/policy-envelope.js';
+import type { CompiledDepth } from '../schemas/process.js';
+import { RelayRole } from '../schemas/step.js';
+import { materializePowerSelection } from '../selection/power-tiers.js';
+import { deriveResolvedSelection } from '../selection/relay-selection.js';
 
 function isBuiltinConnectorName(name: string): name is BuiltinConnectorName {
   return (BUILTIN_CONNECTOR_NAMES as readonly string[]).includes(name);
@@ -54,6 +64,8 @@ export interface RunPreflightProbes {
 export interface RunPreflightInput {
   readonly flow: CompiledFlow;
   readonly configLayers: readonly LayeredConfigValue[];
+  readonly depth: CompiledDepth;
+  readonly policyLayers?: readonly PolicyLayerValue[];
   readonly hostKind?: HostKind;
   readonly env?: NodeJS.ProcessEnv;
   readonly probes?: Partial<RunPreflightProbes>;
@@ -65,18 +77,75 @@ export type RunPreflightResult =
 
 export type RunConnectorPreflight = (input: RunPreflightInput) => Promise<RunPreflightResult>;
 
-// Refusal is reserved for environments where no relay can ever succeed: an
-// unwritable codex state directory poisons every codex spawn, and only
-// rerunning outside the sandbox fixes it. A MISSING worker CLI only warns: a
-// run legitimately reaches its first checkpoint before any worker spawns
-// (the host plugin's own doctor smoke drives exactly that path in a repo with
-// no CLIs on PATH), the operator can install the CLI before resuming, and the
-// spawn itself already fails with a legible missing-CLI sentence.
+interface PlannedRelay {
+  readonly connectorName: string;
+}
+
+function planRunRelays(input: RunPreflightInput): readonly PlannedRelay[] {
+  const executable = fromCompiledFlow(input.flow);
+  const index = buildRuntimePackageIndex(executable);
+  const plans: PlannedRelay[] = [];
+
+  for (const step of index.flow.steps as readonly RuntimeIndexedStep[]) {
+    if (step.kind !== 'relay') continue;
+    const relay = resolveRelayGuidanceExecution({
+      flowId: index.flow.id,
+      role: step.role,
+      ...(step.connector === undefined ? {} : { stepConnector: step.connector }),
+      configLayers: input.configLayers,
+      ...(input.policyLayers === undefined ? {} : { policyLayers: input.policyLayers }),
+      ...(input.hostKind === undefined ? {} : { hostKind: input.hostKind }),
+    });
+    const stackSelection = deriveResolvedSelection(
+      {
+        selectionConfigLayers: input.configLayers,
+        bindsExecutionDepthToGuidanceSelection:
+          executable.engineFlags?.bindsExecutionDepthToRelaySelection === true,
+      },
+      index.flow,
+      step,
+      input.depth,
+    );
+    const resolvedSelection = materializePowerSelection({
+      resolved: stackSelection,
+      role: RelayRole.parse(relay.role),
+      connectorName: relay.connectorName,
+      attempt: 1,
+      configLayers: input.configLayers,
+    });
+    assertConnectorSelectionCompatible(relay.connectorName, resolvedSelection);
+    plans.push({ connectorName: relay.connectorName });
+  }
+
+  return plans;
+}
+
+function planningRefusal(error: unknown): string {
+  const message = error instanceof Error ? error.message : String(error);
+  if (message.includes(' connector cannot honor effort ')) {
+    return `${message}. Remove the effort override, or choose one of the supported efforts above.`;
+  }
+  return message;
+}
+
+// Refusal is reserved for a relay plan that cannot run or an environment where
+// no relay can ever succeed. An unwritable codex state directory poisons every
+// codex spawn, and only rerunning outside the sandbox fixes it. A MISSING worker
+// CLI only warns: a run legitimately reaches its first checkpoint before any
+// worker spawns (the host plugin's own doctor smoke drives exactly that path in
+// a repo with no CLIs on PATH), the operator can install the CLI before
+// resuming, and the spawn itself already fails with a legible missing-CLI
+// sentence.
 export async function preflightRunConnectors(
   input: RunPreflightInput,
 ): Promise<RunPreflightResult> {
   const env = input.env ?? process.env;
-  const chosen = connectorsForCompiledFlow(input.flow, input.configLayers, input.hostKind);
+  let chosen: readonly PlannedRelay[];
+  try {
+    chosen = planRunRelays(input);
+  } catch (error) {
+    return { ok: false, refusal: planningRefusal(error) };
+  }
   const builtinNames = [
     ...new Set(chosen.map((step) => step.connectorName).filter(isBuiltinConnectorName)),
   ];

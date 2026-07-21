@@ -111327,9 +111327,52 @@ var init_run_output = __esm({
 function isBuiltinConnectorName(name) {
   return BUILTIN_CONNECTOR_NAMES.includes(name);
 }
+function planRunRelays(input) {
+  const executable = fromCompiledFlow(input.flow);
+  const index = buildRuntimePackageIndex(executable);
+  const plans = [];
+  for (const step of index.flow.steps) {
+    if (step.kind !== "relay")
+      continue;
+    const relay = resolveRelayGuidanceExecution({
+      flowId: index.flow.id,
+      role: step.role,
+      ...step.connector === void 0 ? {} : { stepConnector: step.connector },
+      configLayers: input.configLayers,
+      ...input.policyLayers === void 0 ? {} : { policyLayers: input.policyLayers },
+      ...input.hostKind === void 0 ? {} : { hostKind: input.hostKind }
+    });
+    const stackSelection = deriveResolvedSelection({
+      selectionConfigLayers: input.configLayers,
+      bindsExecutionDepthToGuidanceSelection: executable.engineFlags?.bindsExecutionDepthToRelaySelection === true
+    }, index.flow, step, input.depth);
+    const resolvedSelection = materializePowerSelection({
+      resolved: stackSelection,
+      role: RelayRole.parse(relay.role),
+      connectorName: relay.connectorName,
+      attempt: 1,
+      configLayers: input.configLayers
+    });
+    assertConnectorSelectionCompatible(relay.connectorName, resolvedSelection);
+    plans.push({ connectorName: relay.connectorName });
+  }
+  return plans;
+}
+function planningRefusal(error52) {
+  const message = error52 instanceof Error ? error52.message : String(error52);
+  if (message.includes(" connector cannot honor effort ")) {
+    return `${message}. Remove the effort override, or choose one of the supported efforts above.`;
+  }
+  return message;
+}
 async function preflightRunConnectors(input) {
   const env3 = input.env ?? process.env;
-  const chosen = connectorsForCompiledFlow(input.flow, input.configLayers, input.hostKind);
+  let chosen;
+  try {
+    chosen = planRunRelays(input);
+  } catch (error52) {
+    return { ok: false, refusal: planningRefusal(error52) };
+  }
   const builtinNames = [
     ...new Set(chosen.map((step) => step.connectorName).filter(isBuiltinConnectorName))
   ];
@@ -111360,8 +111403,14 @@ var init_run_preflight = __esm({
   "dist/cli/run-preflight.js"() {
     "use strict";
     init_health();
+    init_resolver();
     init_state_dir();
-    init_chosen_connectors();
+    init_from_compiled_flow();
+    init_runtime_package_index();
+    init_relay_guidance();
+    init_step();
+    init_power_tiers();
+    init_relay_selection();
   }
 });
 
@@ -112696,6 +112745,8 @@ async function runExecutionCommand(args, options) {
       const verdict = await connectorPreflight({
         flow,
         configLayers: selectionConfigLayers,
+        depth: CompiledDepth.parse(selectedDepth(flow, runArgs, entryModeSelection)),
+        ...policyLayers.length === 0 ? {} : { policyLayers },
         ...hostKind === void 0 ? {} : { hostKind }
       });
       if (!verdict.ok) {
@@ -113233,88 +113284,6 @@ var init_flow_selection_preview = __esm({
     init_power_tiers();
     init_relay_selection();
     init_run2();
-  }
-});
-
-// dist/cli/chosen-connectors.js
-function describeResolutionSource(source) {
-  switch (source.source) {
-    case "explicit":
-      return "step pin";
-    case "role":
-      return `role: ${source.role}`;
-    case "flow":
-      return `flow: ${source.flow_id}`;
-    case "default":
-      return "default";
-    case "auto":
-      return "auto";
-  }
-}
-function connectorsForCompiledFlow(compiled, layers, hostKind) {
-  const index = buildRuntimePackageIndex(fromCompiledFlow(compiled));
-  const flowId = index.flow.id;
-  const resolved = [];
-  for (const step of index.flow.steps) {
-    if (step.kind !== "relay")
-      continue;
-    const role = RelayRole.parse(step.role);
-    const explicitConnector = explicitConnectorForStep(step, layers);
-    const decision2 = resolveConnectorForGuidanceInput({
-      flowId,
-      role,
-      configLayers: layers,
-      ...explicitConnector === void 0 ? {} : { explicitConnector },
-      ...hostKind === void 0 ? {} : { hostKind }
-    });
-    resolved.push({
-      connectorName: decision2.connectorName,
-      source: describeResolutionSource(decision2.resolvedFrom),
-      descriptor: decision2.connector.kind === "custom" ? decision2.connector : void 0
-    });
-  }
-  return resolved;
-}
-function chosenConnectorsForFlow(flowId, layers, hostKind) {
-  const definition = flowDefinitions.find((candidate) => candidate.id === flowId);
-  if (definition === void 0)
-    throw new Error(`unknown flow '${flowId}'`);
-  const compiled = firstCompiledFlow(compileSchematicToCompiledFlow(definition.schematic));
-  return connectorsForCompiledFlow(compiled, layers, hostKind);
-}
-function resolveChosenConnectors(input = {}) {
-  const layers = input.configLayers ?? [];
-  const names = /* @__PURE__ */ new Set();
-  const sourceSets = /* @__PURE__ */ new Map();
-  const custom2 = /* @__PURE__ */ new Map();
-  for (const definition of flowDefinitions) {
-    if (definition.visibility !== "public")
-      continue;
-    for (const step of chosenConnectorsForFlow(definition.id, layers, input.hostKind)) {
-      names.add(step.connectorName);
-      const sourceSet = sourceSets.get(step.connectorName) ?? /* @__PURE__ */ new Set();
-      sourceSet.add(step.source);
-      sourceSets.set(step.connectorName, sourceSet);
-      if (step.descriptor !== void 0)
-        custom2.set(step.connectorName, step.descriptor);
-    }
-  }
-  const sources = /* @__PURE__ */ new Map();
-  for (const [name, sourceSet] of sourceSets) {
-    sources.set(name, [...sourceSet].sort());
-  }
-  return { names, sources, custom: custom2 };
-}
-var init_chosen_connectors = __esm({
-  "dist/cli/chosen-connectors.js"() {
-    "use strict";
-    init_resolver();
-    init_catalog();
-    init_compile_schematic_to_flow();
-    init_from_compiled_flow();
-    init_runtime_package_index();
-    init_step();
-    init_flow_selection_preview();
   }
 });
 
@@ -154831,7 +154800,85 @@ init_esm();
 init_health();
 init_state_dir();
 init_config_loader();
-init_chosen_connectors();
+
+// dist/cli/chosen-connectors.js
+init_resolver();
+init_catalog();
+init_compile_schematic_to_flow();
+init_from_compiled_flow();
+init_runtime_package_index();
+init_step();
+init_flow_selection_preview();
+function describeResolutionSource(source) {
+  switch (source.source) {
+    case "explicit":
+      return "step pin";
+    case "role":
+      return `role: ${source.role}`;
+    case "flow":
+      return `flow: ${source.flow_id}`;
+    case "default":
+      return "default";
+    case "auto":
+      return "auto";
+  }
+}
+function connectorsForCompiledFlow(compiled, layers, hostKind) {
+  const index = buildRuntimePackageIndex(fromCompiledFlow(compiled));
+  const flowId = index.flow.id;
+  const resolved = [];
+  for (const step of index.flow.steps) {
+    if (step.kind !== "relay")
+      continue;
+    const role = RelayRole.parse(step.role);
+    const explicitConnector = explicitConnectorForStep(step, layers);
+    const decision2 = resolveConnectorForGuidanceInput({
+      flowId,
+      role,
+      configLayers: layers,
+      ...explicitConnector === void 0 ? {} : { explicitConnector },
+      ...hostKind === void 0 ? {} : { hostKind }
+    });
+    resolved.push({
+      connectorName: decision2.connectorName,
+      source: describeResolutionSource(decision2.resolvedFrom),
+      descriptor: decision2.connector.kind === "custom" ? decision2.connector : void 0
+    });
+  }
+  return resolved;
+}
+function chosenConnectorsForFlow(flowId, layers, hostKind) {
+  const definition = flowDefinitions.find((candidate) => candidate.id === flowId);
+  if (definition === void 0)
+    throw new Error(`unknown flow '${flowId}'`);
+  const compiled = firstCompiledFlow(compileSchematicToCompiledFlow(definition.schematic));
+  return connectorsForCompiledFlow(compiled, layers, hostKind);
+}
+function resolveChosenConnectors(input = {}) {
+  const layers = input.configLayers ?? [];
+  const names = /* @__PURE__ */ new Set();
+  const sourceSets = /* @__PURE__ */ new Map();
+  const custom2 = /* @__PURE__ */ new Map();
+  for (const definition of flowDefinitions) {
+    if (definition.visibility !== "public")
+      continue;
+    for (const step of chosenConnectorsForFlow(definition.id, layers, input.hostKind)) {
+      names.add(step.connectorName);
+      const sourceSet = sourceSets.get(step.connectorName) ?? /* @__PURE__ */ new Set();
+      sourceSet.add(step.source);
+      sourceSets.set(step.connectorName, sourceSet);
+      if (step.descriptor !== void 0)
+        custom2.set(step.connectorName, step.descriptor);
+    }
+  }
+  const sources = /* @__PURE__ */ new Map();
+  for (const [name, sourceSet] of sourceSets) {
+    sources.set(name, [...sourceSet].sort());
+  }
+  return { names, sources, custom: custom2 };
+}
+
+// dist/cli/doctor.js
 init_commander_support();
 init_preview();
 init_styled_table();
