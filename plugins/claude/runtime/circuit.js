@@ -84918,6 +84918,9 @@ async function readGit(reader, operation, projectRoot) {
     return { ok: false, reason: `Git ${operation} cleanup could not be confirmed.` };
   }
   if (!result.ok) {
+    if ((operation === "staged_diff" || operation === "unstaged_diff") && result.truncated && result.stdout.length > 0) {
+      return { ok: true, stdout: result.stdout, truncated_by_buffer: true };
+    }
     const reason = result.stderr.trim();
     return {
       ok: false,

@@ -65,6 +65,16 @@ describe('Claude Code host plugin package', () => {
     expect(existsSync(resolve(REPO_ROOT, 'commands'))).toBe(false);
   });
 
+  it('keeps the Codex MCP bridge out of the Claude package', () => {
+    const manifest = JSON.parse(
+      readFileSync(resolve(PLUGIN_ROOT, '.claude-plugin/plugin.json'), 'utf8'),
+    ) as Record<string, unknown>;
+
+    expect(manifest).not.toHaveProperty('mcpServers');
+    expect(existsSync(resolve(PLUGIN_ROOT, '.mcp.json'))).toBe(false);
+    expect(existsSync(resolve(PLUGIN_ROOT, 'mcp'))).toBe(false);
+  });
+
   it('ships a root Claude marketplace entry that matches the plugin version', () => {
     const versionManifest = VersionManifest.parse(
       JSON.parse(readFileSync(resolve(REPO_ROOT, 'plugins/version.json'), 'utf8')),

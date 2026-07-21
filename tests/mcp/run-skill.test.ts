@@ -37,8 +37,10 @@ describe('Codex MCP Run skill', () => {
     expect(readRepoFile(CODEX_RUN_SKILL)).toBe(mcpSource);
     expect(readRepoFile(CODEX_RUN_SKILL)).not.toBe(renderCodexHostSkill('run', cliSource));
 
-    expect(readRepoFile(CLAUDE_RUN_COMMAND)).not.toContain('circuit_start');
-    expect(readRepoFile(CODEX_RUN_COMMAND)).not.toContain('circuit_start');
+    for (const toolName of MCP_TOOL_NAMES) {
+      expect(readRepoFile(CLAUDE_RUN_COMMAND), toolName).not.toContain(toolName);
+      expect(readRepoFile(CODEX_RUN_COMMAND), toolName).not.toContain(toolName);
+    }
   });
 
   it('teaches the complete six-tool lifecycle without a shell fallback', () => {

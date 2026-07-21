@@ -323,6 +323,74 @@ describe('registered review compose writer', () => {
     ]);
   });
 
+  it('keeps bounded partial diff evidence when the injected Git reader reaches its output limit', async () => {
+    const { bytes } = loadFixture();
+    const runFolder = join(runFolderBase, 'bounded-git-partial-diff');
+    const projectRoot = join(runFolderBase, 'bounded-git-partial-project');
+    const marker = 'bounded-partial-diff-marker';
+    mkdirSync(projectRoot, { recursive: true });
+    const gitReader: RuntimeGitReader = {
+      read: async ({ operation }) => {
+        const partial = operation === 'staged_diff';
+        return {
+          schema_version: 1,
+          ok: !partial,
+          operation,
+          stdout:
+            operation === 'status'
+              ? 'A  src/large.ts\0'
+              : partial
+                ? `diff --git a/src/large.ts b/src/large.ts\n+${marker}\n`
+                : '',
+          stderr: partial ? 'Git output reached its bounded limit.' : '',
+          exit_code: partial ? null : 0,
+          truncated: partial,
+          limit_bytes: 2 * 1024 * 1024,
+          cleanup_confirmed: true,
+        };
+      },
+    };
+
+    const outcome = await runCompiledFlow({
+      runDir: runFolder,
+      flowBytes: bytes,
+      runId: '79000000-0000-0000-0000-000000000020',
+      goal: 'review the bounded partial diff',
+      depth: 'medium',
+      now: deterministicNow(Date.UTC(2026, 6, 20, 15, 0, 0)),
+      projectRoot,
+      gitReader,
+      relayer: {
+        connectorName: 'codex',
+        relay: async (input: ClaudeCodeRelayInput): Promise<RelayResult> => {
+          expect(input.prompt).toContain(marker);
+          expect(input.prompt).toContain('[truncated by the bounded Git reader]');
+          return {
+            request_payload: input.prompt,
+            receipt_id: 'stub-receipt-bounded-partial-git',
+            result_body: JSON.stringify(cleanRelayResult()),
+            duration_ms: 1,
+            cli_version: '0.0.0-stub',
+          };
+        },
+      },
+    });
+
+    expect(outcome.outcome).toBe('complete');
+    const intake = ReviewIntake.parse(
+      JSON.parse(readFileSync(join(runFolder, 'reports', 'review-intake.json'), 'utf8')),
+    );
+    expect(intake.evidence.kind).toBe('git-working-tree');
+    if (intake.evidence.kind !== 'git-working-tree') return;
+    expect(intake.evidence.staged_diff).toMatchObject({
+      text: expect.stringContaining(marker),
+      truncated: true,
+    });
+    expect(intake.evidence_warnings).toContainEqual(
+      expect.objectContaining({ kind: 'diff_truncated' }),
+    );
+  });
+
   it('omits untracked file contents by default while keeping path metadata', async () => {
     const { bytes } = loadFixture();
     const runFolder = join(runFolderBase, 'untracked-metadata-only');

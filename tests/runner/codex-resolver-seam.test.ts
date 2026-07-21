@@ -137,6 +137,10 @@ describe('relayCodex resolves + threads + records the cache default (unpinned se
 
     // resolve + thread: the flagship reached the argv.
     expect(modelFlagValue(argsPassedToSubprocess())).toBe('gpt-5.5');
+    expect(runConnectorSubprocessMock.mock.calls[0]?.[0]).toMatchObject({
+      stdoutMaxBytes: 16 * 1024 * 1024,
+      stderrMaxBytes: 1024 * 1024,
+    });
     // record: the receipt-bound RelayResult carries the model actually used.
     expect(result.model).toBe('gpt-5.5');
   });

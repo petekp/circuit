@@ -109,6 +109,16 @@ async function readGit(
     return { ok: false, reason: `Git ${operation} cleanup could not be confirmed.` };
   }
   if (!result.ok) {
+    // A bounded diff remains useful evidence when the trusted reader returns
+    // the prefix it captured. Status and path lists stay fail-closed because a
+    // partial record could be malformed or undercount files.
+    if (
+      (operation === 'staged_diff' || operation === 'unstaged_diff') &&
+      result.truncated &&
+      result.stdout.length > 0
+    ) {
+      return { ok: true, stdout: result.stdout, truncated_by_buffer: true };
+    }
     const reason = result.stderr.trim();
     return {
       ok: false,

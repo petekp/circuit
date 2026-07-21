@@ -2,7 +2,7 @@ import { readFileSync } from 'node:fs';
 
 import { describe, expect, it } from 'vitest';
 
-import { parseClaudeCodeStdout } from '../../src/connectors/claude-code.js';
+import { buildClaudeCodeArgs, parseClaudeCodeStdout } from '../../src/connectors/claude-code.js';
 
 // A REAL claude CLI stdout stream (v2.1.178), captured by running the fix-act
 // argv: `--tools Read,Grep,Glob,Edit,Write,Bash … --json-schema <object schema>`.
@@ -36,6 +36,18 @@ function successResultLine(): string {
     result: '{"ok":true}',
   });
 }
+
+describe('Claude Code MCP closure', () => {
+  it('disables MCP at dispatch and rejects any server that still leaks into the session', () => {
+    expect(buildClaudeCodeArgs({ prompt: 'review this' })).toContain('--strict-mcp-config');
+    const init = buildInitLine({ mcp_servers: [{ name: 'circuit', status: 'connected' }] });
+    const stdout = `${init}\n${successResultLine()}\n`;
+
+    expect(() => parseClaudeCodeStdout(stdout, 'prompt', 1)).toThrow(
+      /init\.mcp_servers must be \[\]/,
+    );
+  });
+});
 
 describe('parseClaudeCodeStdout — structured_output precedence', () => {
   it('uses result.structured_output when the schema-piping path is in effect', () => {

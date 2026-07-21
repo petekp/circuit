@@ -80,6 +80,43 @@ describe('MCP worker security adapters', () => {
     );
   });
 
+  it('forwards an allowed Git operation through the reader sealed to the workspace', async () => {
+    const { workspace, privateRoot } = fixture();
+    const result = {
+      schema_version: 1 as const,
+      ok: true,
+      operation: 'staged_diff' as const,
+      stdout: 'diff --git a/src/app.ts b/src/app.ts\n',
+      stderr: '',
+      exit_code: 0,
+      truncated: false,
+      limit_bytes: 2 * 1024 * 1024,
+      submodules: [],
+      submodule_policy: 'reported_without_recursive_execution' as const,
+      attribute_policy: 'external_commands_disabled' as const,
+      cleanup_confirmed: true,
+    };
+    const read = vi.fn(async () => result);
+    const security = createMcpWorkerSecurity(
+      {
+        workspace,
+        privateRoot,
+        gitExecutable: '/usr/bin/git',
+        environment: { PATH: '/usr/bin:/bin' },
+      },
+      {
+        createSandbox: () => ({}) as MacosProofSandbox,
+        createGitReader: () => ({ read }) as unknown as SafeGitReader,
+      },
+    );
+
+    await expect(
+      security.gitReader.read({ operation: 'staged_diff', projectRoot: workspace }),
+    ).resolves.toBe(result);
+    expect(read).toHaveBeenCalledOnce();
+    expect(read).toHaveBeenCalledWith({ operation: 'staged_diff' });
+  });
+
   it('fails closed when cleanup is uncertain and never rebinds Git to another root', async () => {
     const { workspace, privateRoot } = fixture();
     const sandbox = {
