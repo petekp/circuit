@@ -27,7 +27,9 @@ const TOOL_DESCRIPTIONS: Record<McpToolName, string> = {
     'Repair a recovery_required Circuit run only after Circuit proves that its recorded processes are absent.',
 };
 
-const READ_ONLY_TOOLS = new Set<McpToolName>(['circuit_status', 'circuit_list']);
+// Status may reconcile durable supervisor evidence and release a finished
+// workspace lease. Only list is a strictly read-only operation.
+const READ_ONLY_TOOLS = new Set<McpToolName>(['circuit_list']);
 
 export interface CircuitMcpToolCall {
   readonly name: McpToolName;

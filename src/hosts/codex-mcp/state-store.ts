@@ -951,7 +951,7 @@ const ALLOWED_TRANSITIONS: Readonly<
     'recovery_required',
   ]),
   cancelling: new Set(['cancelled', 'recovery_required']),
-  recovery_required: new Set(['interrupted', 'cancelled']),
+  recovery_required: new Set(['recovery_required', 'interrupted', 'cancelled']),
   complete: new Set(),
   needs_attention: new Set(),
   cancelled: new Set(),
@@ -1357,7 +1357,8 @@ export class McpStateStore {
       current.state !== 'starting' &&
       current.state !== 'running' &&
       current.state !== 'resuming' &&
-      current.state !== 'cancelling'
+      current.state !== 'cancelling' &&
+      !(current.state === 'recovery_required' && input.handle.claim.operation === 'recover')
     ) {
       throw new McpStateStoreError(
         'launch_not_active',
@@ -2443,6 +2444,12 @@ export class McpStateStore {
       this.#inspectProcess(record.launch.supervisor),
       this.#inspectProcessGroup(record.launch.supervisor),
     ];
+    if (
+      record.recovery?.reason === 'runtime_identity_missing' &&
+      record.launch.runtime === undefined
+    ) {
+      statuses.push('unknown');
+    }
     if (record.launch.runtime !== undefined) {
       statuses.push(this.#inspectProcess(record.launch.runtime));
       if (record.launch.runtime.process_group_id !== record.launch.supervisor.process_group_id) {

@@ -43,6 +43,16 @@ describe('Codex MCP server contract', () => {
     expect(JSON.stringify(start?.inputSchema)).not.toContain('live');
   });
 
+  it('does not label status reconciliation as read-only', async () => {
+    const result = await client.listTools();
+    const status = result.tools.find((tool) => tool.name === 'circuit_status');
+    const list = result.tools.find((tool) => tool.name === 'circuit_list');
+    expect(status?.annotations?.readOnlyHint).toBe(false);
+    expect(status?.annotations?.idempotentHint).toBe(false);
+    expect(list?.annotations?.readOnlyHint).toBe(true);
+    expect(list?.annotations?.idempotentHint).toBe(true);
+  });
+
   it('fails safely while the dormant package has no lifecycle handler', async () => {
     const result = await client.callTool({
       name: 'circuit_status',
