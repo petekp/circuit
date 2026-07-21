@@ -17,6 +17,19 @@ import { RuntimeGitStateSnapshot } from '../schemas/runtime-evidence.js';
 const GIT_TIMEOUT_MS = 60_000;
 const GIT_MAX_OUTPUT_BYTES = 5_000_000;
 
+export const GIT_STATE_COMMAND_IDS = [
+  'build-baseline-snapshot-git-state',
+  'build-touch-area-git-state',
+  'fix-baseline-snapshot-git-state',
+  'fix-change-set-git-state',
+] as const;
+
+const GIT_STATE_COMMAND_ID_SET = new Set<string>(GIT_STATE_COMMAND_IDS);
+
+export function isGitStateCommandId(id: string): boolean {
+  return GIT_STATE_COMMAND_ID_SET.has(id);
+}
+
 // The git-state helper runs as a child process, so it has to live as a real
 // file on disk next to this module, and it must be spawned in its compiled
 // .js form: an npm install puts dist/ under node_modules, and Node refuses

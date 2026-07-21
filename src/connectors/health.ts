@@ -1,5 +1,5 @@
 import { CLAUDE_CODE_EXECUTABLE } from './claude-code.js';
-import { CODEX_EXECUTABLE } from './codex.js';
+import { CODEX_EXECUTABLE, resolveCodexExecutable } from './codex.js';
 import { CURSOR_AGENT_EXECUTABLE } from './cursor-agent.js';
 import { type BuiltinConnectorName, connectorRemediation } from './remediation.js';
 import { isConnectorSubprocessSpawnError, runConnectorSubprocess } from './subprocess.js';
@@ -179,8 +179,13 @@ async function runProbe(
   }
 }
 
-export function builtinConnectorExecutable(connector: BuiltinConnectorName): string {
-  return HEALTH_PROBE_SPECS[connector].executable;
+export function builtinConnectorExecutable(
+  connector: BuiltinConnectorName,
+  env: NodeJS.ProcessEnv = process.env,
+): string {
+  return connector === 'codex'
+    ? resolveCodexExecutable(env)
+    : HEALTH_PROBE_SPECS[connector].executable;
 }
 
 // Presence only: does the binary answer `--version`? Run-intake preflight uses
@@ -191,7 +196,8 @@ export async function probeBuiltinConnectorPresence(
   options?: { readonly env?: NodeJS.ProcessEnv },
 ): Promise<ProbeOutcome> {
   const spec = HEALTH_PROBE_SPECS[connector];
-  return await runProbe(spec.executable, spec.presenceArgs, options?.env ?? process.env);
+  const env = options?.env ?? process.env;
+  return await runProbe(builtinConnectorExecutable(connector, env), spec.presenceArgs, env);
 }
 
 export async function probeBuiltinConnector(
@@ -200,15 +206,16 @@ export async function probeBuiltinConnector(
 ): Promise<ConnectorHealthCheck> {
   const spec = HEALTH_PROBE_SPECS[connector];
   const env = options?.env ?? process.env;
-  const presence = await runProbe(spec.executable, spec.presenceArgs, env);
+  const executable = builtinConnectorExecutable(connector, env);
+  const presence = await runProbe(executable, spec.presenceArgs, env);
   // The sign-in probe only makes sense once the binary itself answered.
   const auth =
     spec.authArgs !== undefined && presence.kind === 'ran' && presence.code === 0
-      ? await runProbe(spec.executable, spec.authArgs, env)
+      ? await runProbe(executable, spec.authArgs, env)
       : undefined;
   return classifyConnectorHealth({
     connector,
-    executable: spec.executable,
+    executable,
     presence,
     ...(auth === undefined ? {} : { auth }),
   });

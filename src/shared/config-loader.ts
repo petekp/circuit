@@ -22,6 +22,8 @@ interface DiscoverConfigLayersOptions {
 
 interface DiscoverRuntimeConfigOptions extends DiscoverConfigLayersOptions {
   readonly invocationPolicy?: PolicyLayerValue['envelope'];
+  /** Host-owned seam for a sealed invocation that must not inspect disk config. */
+  readonly includePersisted?: boolean;
 }
 
 export interface RuntimeConfigLayers {
@@ -161,13 +163,15 @@ export function discoverRuntimeConfigLayers(
   const selectionConfigLayers: LayeredConfig[] = [];
   const policyLayers: PolicyLayerValue[] = [];
 
-  for (const [layer, path] of [
-    ['user-global', userGlobalConfigPath(options.homeDir)],
-    ['project', projectConfigPath(options.cwd)],
-  ] as const) {
-    const loaded = loadRuntimeConfigLayerFromPath(layer, path);
-    if (loaded?.selection !== undefined) selectionConfigLayers.push(loaded.selection);
-    if (loaded?.policy !== undefined) policyLayers.push(loaded.policy);
+  if (options.includePersisted !== false) {
+    for (const [layer, path] of [
+      ['user-global', userGlobalConfigPath(options.homeDir)],
+      ['project', projectConfigPath(options.cwd)],
+    ] as const) {
+      const loaded = loadRuntimeConfigLayerFromPath(layer, path);
+      if (loaded?.selection !== undefined) selectionConfigLayers.push(loaded.selection);
+      if (loaded?.policy !== undefined) policyLayers.push(loaded.policy);
+    }
   }
 
   if (options.invocationConfig !== undefined) {

@@ -58,9 +58,33 @@ type HiddenIndexFlag = {
   path: string;
 };
 
+const SYSTEM_GIT = '/usr/bin/git';
+const GIT_EXECUTABLE =
+  process.env.CIRCUIT_MCP_PROOF_SANDBOX === '1' && process.platform === 'darwin'
+    ? SYSTEM_GIT
+    : 'git';
+const GIT_GLOBAL_ARGS = [
+  '--no-pager',
+  '--no-optional-locks',
+  '-c',
+  'core.hooksPath=/dev/null',
+  '-c',
+  'core.fsmonitor=false',
+  '-c',
+  'core.untrackedCache=false',
+  '-c',
+  'core.attributesFile=/dev/null',
+  '-c',
+  'diff.external=',
+  '-c',
+  'interactive.diffFilter=',
+  '-c',
+  'submodule.recurse=false',
+] as const;
+
 function git(args: readonly string[]): string {
   // Buffer cap is generous — repos with thousands of dirty paths still fit.
-  return execFileSync('git', args, {
+  return execFileSync(GIT_EXECUTABLE, [...GIT_GLOBAL_ARGS, ...args], {
     cwd: process.cwd(),
     encoding: 'utf8',
     maxBuffer: 50_000_000,
@@ -68,7 +92,7 @@ function git(args: readonly string[]): string {
 }
 
 function gitBytes(args: readonly string[]): Buffer {
-  return execFileSync('git', args, {
+  return execFileSync(GIT_EXECUTABLE, [...GIT_GLOBAL_ARGS, ...args], {
     cwd: process.cwd(),
     maxBuffer: 50_000_000,
   });
@@ -91,7 +115,13 @@ try {
   // Porcelain v1 with -z null-delimited entries and --untracked-files=all so
   // expanded directories ("?? dir/") become per-file entries we can fingerprint
   // and that adversaries can't hide under a directory bucket.
-  statusBuf = gitBytes(['status', '--porcelain=v1', '-z', '--untracked-files=all']);
+  statusBuf = gitBytes([
+    'status',
+    '--porcelain=v1',
+    '-z',
+    '--untracked-files=all',
+    '--ignore-submodules=all',
+  ]);
 } catch (err) {
   fail(`git status failed: ${err instanceof Error ? err.message : String(err)}`);
 }
@@ -135,7 +165,7 @@ const entries: GitStateEntry[] = [];
       fingerprint = '<deleted>';
     } else {
       try {
-        fingerprint = git(['hash-object', '--', path]).trim();
+        fingerprint = git(['hash-object', '--no-filters', '--', path]).trim();
       } catch (err) {
         const reason = err instanceof Error ? err.message.split('\n')[0] : String(err);
         fingerprint = `<unhashable:${reason}>`;

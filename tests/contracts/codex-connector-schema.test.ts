@@ -7,11 +7,17 @@ import {
   CODEX_FORBIDDEN_ARGV_TOKENS,
   CODEX_REASONING_EFFORT_CONFIG_KEY,
   CODEX_SUPPORTED_EFFORTS,
+  CODEX_WEB_SEARCH_CONFIG_KEY,
+  CODEX_WEB_SEARCH_MODE,
   CODEX_WRITE_FLAGS,
   type CodexRelayResult,
   assertCodexSpawnArgvBoundary,
   buildCodexArgs,
+  codexSealedMcpConfigValues,
+  codexWebSearchConfigValue,
   parseCodexStdout,
+  resolveCodexExecutable,
+  resolveCodexWebSearchMode,
 } from '../../src/connectors/codex.js';
 
 const HAPPY_PATH_FIXTURE = resolve('tests/fixtures/codex-smoke/protocol/happy-path-ok.jsonl');
@@ -19,6 +25,9 @@ const SKILL_DESCRIPTION_DIAGNOSTIC_FIXTURE = resolve(
   'tests/fixtures/codex-smoke/protocol/skill-description-diagnostic-0.142.5.jsonl',
 );
 const TURN_FAILED_FIXTURE = resolve('tests/fixtures/codex-smoke/protocol/turn-failed.jsonl');
+const WEB_SEARCH_FIXTURE = resolve(
+  'tests/fixtures/codex-smoke/protocol/web-search-cached-0.144.3.jsonl',
+);
 
 // Codex connector contract tests. Mirrors the claude-code connector
 // contract test shape. Three concerns:
@@ -45,6 +54,25 @@ describe('Codex connector — src/connectors/codex.ts module shape', () => {
     expect(CODEX_EXECUTABLE).toBe('codex');
   });
 
+  it('uses the host-pinned absolute Codex path only for sealed MCP runs', () => {
+    expect(resolveCodexExecutable({})).toBe('codex');
+    expect(
+      resolveCodexExecutable({
+        CIRCUIT_RUNTIME_SOURCE: 'mcp-spike',
+        CIRCUIT_MCP_CODEX_EXECUTABLE: '/trusted/Codex.app/Contents/MacOS/codex',
+      }),
+    ).toBe('/trusted/Codex.app/Contents/MacOS/codex');
+    expect(() => resolveCodexExecutable({ CIRCUIT_RUNTIME_SOURCE: 'mcp-spike' })).toThrow(
+      'CIRCUIT_MCP_CODEX_EXECUTABLE',
+    );
+    expect(() =>
+      resolveCodexExecutable({
+        CIRCUIT_RUNTIME_SOURCE: 'mcp-spike',
+        CIRCUIT_MCP_CODEX_EXECUTABLE: 'codex',
+      }),
+    ).toThrow('absolute');
+  });
+
   it('CODEX_WRITE_FLAGS places "-s" immediately followed by "workspace-write"', () => {
     // The argv-constant assertion relies on `-s workspace-write` appearing as
     // a contiguous pair so Codex's argv parser receives them as a
@@ -64,16 +92,17 @@ describe('Codex connector — src/connectors/codex.ts module shape', () => {
     expect(CODEX_WRITE_FLAGS).toContain('--skip-git-repo-check');
     expect(CODEX_WRITE_FLAGS).toContain('--ignore-user-config');
     expect(CODEX_WRITE_FLAGS).toContain('--ignore-rules');
+    expect(CODEX_WRITE_FLAGS).toContain('--strict-config');
   });
 
-  it('CODEX_WRITE_FLAGS contains exactly 8 tokens (pinned surface — additions require contract-test update)', () => {
+  it('CODEX_WRITE_FLAGS contains exactly 9 tokens (pinned surface — additions require contract-test update)', () => {
     // Authoring note: an exact-length pin so that
     // adding ANY new token to CODEX_WRITE_FLAGS — even an ostensibly
     // harmless one — forces a contract-test update alongside, which
     // forces reviewer attention on whether the new token widens the
     // capability surface. Without this pin, adding `--full-auto` would
     // pass all named negative checks but miss the length check.
-    expect([...CODEX_WRITE_FLAGS]).toHaveLength(8);
+    expect([...CODEX_WRITE_FLAGS]).toHaveLength(9);
   });
 
   it('CODEX_WRITE_FLAGS does NOT contain --dangerously-bypass-approvals-and-sandbox', () => {
@@ -106,7 +135,8 @@ describe('Codex connector — src/connectors/codex.ts module shape', () => {
     // Authoring note: `-c sandbox_mode="danger-full-access"`
     // or a profile loaded via `-p name` can widen capability at the config
     // layer while `-s workspace-write` still appears in argv. The final argv
-    // assertion permits only the connector-owned effort override.
+    // assertion permits only the connector-owned cached-search and effort
+    // overrides.
     const flags = [...CODEX_WRITE_FLAGS];
     expect(flags).not.toContain('-c');
     expect(flags).not.toContain('--config');
@@ -138,7 +168,10 @@ describe('Codex connector — src/connectors/codex.ts module shape', () => {
     expect(forbidden).toContain('-p');
     expect(forbidden).toContain('--profile');
     expect(forbidden).toContain('--sandbox');
-    expect(forbidden.length).toBeGreaterThanOrEqual(10);
+    expect(forbidden).toContain('--search');
+    expect(forbidden).toContain('--enable');
+    expect(forbidden).toContain('--disable');
+    expect(forbidden.length).toBeGreaterThanOrEqual(13);
   });
 
   it('buildCodexArgs passes openai model and reasoning effort through the allowlisted config key', () => {
@@ -152,6 +185,7 @@ describe('Codex connector — src/connectors/codex.ts module shape', () => {
       },
     });
 
+    expect(args).toContain(codexWebSearchConfigValue());
     expect(args.slice(-5)).toEqual([
       '-m',
       'gpt-5.4',
@@ -175,6 +209,8 @@ describe('Codex connector — src/connectors/codex.ts module shape', () => {
 
     expect(args).toEqual([
       ...CODEX_WRITE_FLAGS,
+      '-c',
+      `${CODEX_WEB_SEARCH_CONFIG_KEY}="${CODEX_WEB_SEARCH_MODE}"`,
       '--cd',
       '/tmp/circuit-workspace',
       '-m',
@@ -198,7 +234,7 @@ describe('Codex connector — src/connectors/codex.ts module shape', () => {
     ).toThrow(/codex connector cannot honor model provider 'anthropic'/);
   });
 
-  it('buildCodexArgs only emits the model_reasoning_effort config override', () => {
+  it('buildCodexArgs emits only the pinned disabled-search and allowlisted effort overrides', () => {
     const args = buildCodexArgs({
       prompt: 'hello',
       resolvedSelection: {
@@ -207,10 +243,66 @@ describe('Codex connector — src/connectors/codex.ts module shape', () => {
         invocation_options: {},
       },
     });
-    const configIndex = args.indexOf('-c');
-    expect(configIndex).toBeGreaterThanOrEqual(0);
-    expect(args[configIndex + 1]).toBe(`${CODEX_REASONING_EFFORT_CONFIG_KEY}="high"`);
-    expect(args[configIndex + 1]).not.toMatch(/sandbox|approval|profile|permissions/);
+    const configValues = args.flatMap((arg, index) => (arg === '-c' ? [args[index + 1]] : []));
+    expect(configValues).toEqual([
+      `${CODEX_WEB_SEARCH_CONFIG_KEY}="${CODEX_WEB_SEARCH_MODE}"`,
+      `${CODEX_REASONING_EFFORT_CONFIG_KEY}="high"`,
+    ]);
+    expect(configValues.join(' ')).not.toMatch(/sandbox|approval|profile|permissions/);
+  });
+
+  it('keeps search off normally and allows sealed MCP cached search only by explicit choice', () => {
+    expect(resolveCodexWebSearchMode({})).toBe('disabled');
+    expect(resolveCodexWebSearchMode({ CIRCUIT_RUNTIME_SOURCE: 'mcp-spike' })).toBe('disabled');
+    expect(
+      resolveCodexWebSearchMode({
+        CIRCUIT_RUNTIME_SOURCE: 'mcp-spike',
+        CIRCUIT_MCP_WEB_SEARCH_MODE: 'cached',
+      }),
+    ).toBe('cached');
+    expect(
+      resolveCodexWebSearchMode({
+        CIRCUIT_RUNTIME_SOURCE: 'mcp-spike',
+        CIRCUIT_MCP_WEB_SEARCH_MODE: 'disabled',
+      }),
+    ).toBe('disabled');
+    expect(() =>
+      resolveCodexWebSearchMode({
+        CIRCUIT_RUNTIME_SOURCE: 'mcp-spike',
+        CIRCUIT_MCP_WEB_SEARCH_MODE: 'live',
+      }),
+    ).toThrow('must be disabled or cached');
+  });
+
+  it('pins the complete nested-Codex boundary for sealed MCP relays', () => {
+    const workspace = '/tmp/circuit-sealed-workspace';
+    const args = buildCodexArgs(
+      {
+        cwd: workspace,
+        prompt: 'sealed relay',
+        resolvedSelection: {
+          effort: 'low',
+          skills: [],
+          invocation_options: {},
+        },
+      },
+      undefined,
+      undefined,
+      'cached',
+      true,
+    );
+    const configValues = args.flatMap((arg, index) => (arg === '-c' ? [args[index + 1]] : []));
+
+    expect(args).toContain('workspace-write');
+    expect(configValues).toEqual([
+      'web_search="cached"',
+      ...codexSealedMcpConfigValues(workspace),
+      'model_reasoning_effort="low"',
+    ]);
+    expect(() =>
+      assertCodexSpawnArgvBoundary(args, { sealedProjectRoot: workspace }),
+    ).not.toThrow();
+    expect(() => assertCodexSpawnArgvBoundary(args)).toThrow(/sealed MCP policy/i);
   });
 
   it('buildCodexArgs rejects effort tiers the Codex CLI cannot honor before spawn', () => {
@@ -263,9 +355,11 @@ describe('Codex connector — src/connectors/codex.ts module shape', () => {
     expect(args).not.toContain('-m');
   });
 
-  it('assertCodexSpawnArgvBoundary allows only one model_reasoning_effort -c override', () => {
+  it('assertCodexSpawnArgvBoundary requires one owned search mode and allows one effort override', () => {
     const safeArgs = [
       ...CODEX_WRITE_FLAGS,
+      '-c',
+      codexWebSearchConfigValue(),
       '-c',
       `${CODEX_REASONING_EFFORT_CONFIG_KEY}="high"`,
       'hello',
@@ -275,39 +369,98 @@ describe('Codex connector — src/connectors/codex.ts module shape', () => {
       assertCodexSpawnArgvBoundary([
         ...CODEX_WRITE_FLAGS,
         '-c',
+        codexWebSearchConfigValue(),
+        '-c',
         `${CODEX_REASONING_EFFORT_CONFIG_KEY}="high"`,
         '-c',
         `${CODEX_REASONING_EFFORT_CONFIG_KEY}="low"`,
         'hello',
       ]),
-    ).toThrow(/at most one allowlisted -c override/);
+    ).toThrow(/at most one model_reasoning_effort override/);
     expect(() =>
       assertCodexSpawnArgvBoundary([
         ...CODEX_WRITE_FLAGS,
         '-c',
+        codexWebSearchConfigValue(),
+        '-c',
         'sandbox_mode="workspace-write"',
         'hello',
       ]),
-    ).toThrow(/only model_reasoning_effort/);
+    ).toThrow(/only connector-owned search, reasoning, and sealed MCP policy values/);
+    expect(() =>
+      assertCodexSpawnArgvBoundary([
+        ...CODEX_WRITE_FLAGS,
+        '-c',
+        `${CODEX_WEB_SEARCH_CONFIG_KEY}="live"`,
+        'hello',
+      ]),
+    ).toThrow(/only connector-owned search, reasoning, and sealed MCP policy values/);
+    expect(() =>
+      assertCodexSpawnArgvBoundary([
+        ...CODEX_WRITE_FLAGS,
+        '-c',
+        codexWebSearchConfigValue(),
+        '-c',
+        codexWebSearchConfigValue(),
+        'hello',
+      ]),
+    ).toThrow(/exactly one connector-owned web_search override/);
+    expect(() => assertCodexSpawnArgvBoundary([...CODEX_WRITE_FLAGS, 'hello'])).toThrow(
+      /exactly one connector-owned web_search override/,
+    );
   });
 
   it('assertCodexSpawnArgvBoundary rejects config/profile/sandbox rewidening tokens in final argv', () => {
     expect(() =>
       assertCodexSpawnArgvBoundary([
         ...CODEX_WRITE_FLAGS,
+        '-c',
+        codexWebSearchConfigValue(),
         '--config=sandbox_mode="workspace-write"',
         'hello',
       ]),
     ).toThrow(/forbidden argv token "--config=sandbox_mode/);
     expect(() =>
-      assertCodexSpawnArgvBoundary([...CODEX_WRITE_FLAGS, '--profile', 'write-enabled', 'hello']),
+      assertCodexSpawnArgvBoundary([
+        ...CODEX_WRITE_FLAGS,
+        '-c',
+        codexWebSearchConfigValue(),
+        '--profile',
+        'write-enabled',
+        'hello',
+      ]),
     ).toThrow(/forbidden argv token "--profile"/);
     expect(() =>
-      assertCodexSpawnArgvBoundary([...CODEX_WRITE_FLAGS, '--sandbox=workspace-write', 'hello']),
+      assertCodexSpawnArgvBoundary([
+        ...CODEX_WRITE_FLAGS,
+        '-c',
+        codexWebSearchConfigValue(),
+        '--sandbox=workspace-write',
+        'hello',
+      ]),
     ).toThrow(/forbidden argv token "--sandbox=workspace-write"/);
     expect(() =>
-      assertCodexSpawnArgvBoundary([...CODEX_WRITE_FLAGS, '-s', 'read-only', 'hello']),
+      assertCodexSpawnArgvBoundary([
+        ...CODEX_WRITE_FLAGS,
+        '-c',
+        codexWebSearchConfigValue(),
+        '-s',
+        'read-only',
+        'hello',
+      ]),
     ).toThrow(/exactly one "-s workspace-write"/);
+    for (const bypass of ['--search', '--enable', '--disable']) {
+      expect(() =>
+        assertCodexSpawnArgvBoundary([
+          ...CODEX_WRITE_FLAGS,
+          '-c',
+          codexWebSearchConfigValue(),
+          bypass,
+          'web_search_request',
+          'hello',
+        ]),
+      ).toThrow(new RegExp(`forbidden argv token "${bypass}"`));
+    }
   });
 });
 
@@ -530,6 +683,101 @@ describe('Codex connector — parseCodexStdout NDJSON parser branches', () => {
     });
   });
 
+  it('rejects an unknown item.started item type before it reaches completion', () => {
+    const stdout =
+      `${JSON.stringify({ type: 'thread.started', thread_id: 'thread-started-unknown' })}\n` +
+      `${JSON.stringify({ type: 'turn.started' })}\n` +
+      `${JSON.stringify({
+        type: 'item.started',
+        item: { id: 'item_0', type: 'future_network_tool' },
+      })}\n` +
+      `${JSON.stringify({
+        type: 'item.completed',
+        item: { id: 'item_1', type: 'agent_message', text: 'OK' },
+      })}\n` +
+      `${JSON.stringify({ type: 'turn.completed' })}\n`;
+
+    expect(() => parseCodexStdout(stdout, 'p', 0, 'codex-cli 0.144.3')).toThrow(
+      /capability-boundary violation.*item\.started.*future_network_tool/,
+    );
+  });
+
+  it('rejects web_search on the unreviewed item.updated lifecycle', () => {
+    const stdout =
+      `${JSON.stringify({ type: 'thread.started', thread_id: 'thread-search-update' })}\n` +
+      `${JSON.stringify({ type: 'turn.started' })}\n` +
+      `${JSON.stringify({
+        type: 'item.updated',
+        item: { id: 'item_0', type: 'web_search', query: 'sentinel' },
+      })}\n` +
+      `${JSON.stringify({
+        type: 'item.completed',
+        item: { id: 'item_1', type: 'agent_message', text: 'OK' },
+      })}\n` +
+      `${JSON.stringify({ type: 'turn.completed' })}\n`;
+
+    expect(() => parseCodexStdout(stdout, 'p', 0, 'codex-cli 0.144.3')).toThrow(
+      /item\.updated item\.type='web_search' is not a reviewed progress item type/,
+    );
+  });
+
+  it('rejects an unresolved or future web_search action on completion', () => {
+    const stdout =
+      `${JSON.stringify({ type: 'thread.started', thread_id: 'thread-search-other' })}\n` +
+      `${JSON.stringify({ type: 'turn.started' })}\n` +
+      `${JSON.stringify({
+        type: 'item.started',
+        item: { id: 'item_0', type: 'web_search', query: '', action: { type: 'other' } },
+      })}\n` +
+      `${JSON.stringify({
+        type: 'item.completed',
+        item: {
+          id: 'item_0',
+          type: 'web_search',
+          query: 'sentinel',
+          action: { type: 'other' },
+        },
+      })}\n` +
+      `${JSON.stringify({
+        type: 'item.completed',
+        item: { id: 'item_1', type: 'agent_message', text: 'OK' },
+      })}\n` +
+      `${JSON.stringify({ type: 'turn.completed' })}\n`;
+
+    expect(() => parseCodexStdout(stdout, 'p', 0, 'codex-cli 0.144.3', 'cached')).toThrow(
+      /item\.completed.*action\.type 'other' is not reviewed/,
+    );
+  });
+
+  it('rejects a malformed web_search query without echoing its payload', () => {
+    const stdout =
+      `${JSON.stringify({ type: 'thread.started', thread_id: 'thread-search-malformed' })}\n` +
+      `${JSON.stringify({ type: 'turn.started' })}\n` +
+      `${JSON.stringify({
+        type: 'item.completed',
+        item: {
+          id: 'item_0',
+          type: 'web_search',
+          query: { secret: 'DO_NOT_ECHO' },
+          action: { type: 'search' },
+        },
+      })}\n` +
+      `${JSON.stringify({
+        type: 'item.completed',
+        item: { id: 'item_1', type: 'agent_message', text: 'OK' },
+      })}\n` +
+      `${JSON.stringify({ type: 'turn.completed' })}\n`;
+
+    expect(() => parseCodexStdout(stdout, 'p', 0, 'codex-cli 0.144.3', 'cached')).toThrow(
+      /item\.completed.*query is not a string/,
+    );
+    try {
+      parseCodexStdout(stdout, 'p', 0, 'codex-cli 0.144.3', 'cached');
+    } catch (error) {
+      expect((error as Error).message).not.toContain('DO_NOT_ECHO');
+    }
+  });
+
   it('throws on empty stdout', () => {
     expect(() => parseCodexStdout('', 'p', 0, 'codex-cli 0.118.0')).toThrow(
       /codex --json stdout is empty/,
@@ -595,7 +843,7 @@ describe('Codex connector — parseCodexStdout NDJSON parser branches', () => {
   });
 });
 
-// ---- (B2) real Codex 0.118 JSONL fixtures (HIGH 5 fold-in) -------------
+// ---- (B2) captured Codex JSONL fixtures ---------------------------------
 
 describe('Codex connector — parseCodexStdout against captured Codex JSONL fixtures', () => {
   it('parses the real happy-path-ok.jsonl fixture from codex CLI 0.118.0', () => {
@@ -609,6 +857,26 @@ describe('Codex connector — parseCodexStdout against captured Codex JSONL fixt
     expect(parsed.receipt_id).toMatch(/^[0-9a-f-]{30,}$/); // uuid-like thread id
     expect(parsed.result_body).toBe('OK');
     expect(parsed.cli_version).toBe('codex-cli 0.118.0');
+  });
+
+  it('parses a real cached web-search lifecycle captured from Codex CLI 0.144.3', () => {
+    // Captured from the installed 0.144.3 CLI with Circuit-equivalent
+    // workspace-write, ephemeral, ignored-config/rules flags and an explicit
+    // `web_search="cached"` override. The fixture contains stdout JSONL only;
+    // local cache warnings written to stderr are intentionally absent.
+    const stdout = readFileSync(WEB_SEARCH_FIXTURE, 'utf-8');
+    const parsed = parseCodexStdout(stdout, 'search prompt', 1234, 'codex-cli 0.144.3', 'cached');
+
+    expect(parsed.receipt_id).toBe('019f7841-3698-7f33-9701-b8b46a712d7c');
+    expect(parsed.result_body).toMatch(/^SEARCH_OK:/);
+    expect(parsed.cli_version).toBe('codex-cli 0.144.3');
+  });
+
+  it('rejects a web-search lifecycle when the relay pinned search off', () => {
+    const stdout = readFileSync(WEB_SEARCH_FIXTURE, 'utf-8');
+    expect(() =>
+      parseCodexStdout(stdout, 'search prompt', 1234, 'codex-cli 0.144.3', 'disabled'),
+    ).toThrow(/reported web_search while this relay pinned web_search="disabled"/);
   });
 
   it('rejects the turn-failed.jsonl fixture with a named "codex reported turn.failed" error', () => {
@@ -711,9 +979,9 @@ describe('Codex connector — parseCodexStdout against captured Codex JSONL fixt
 // the usual cause is a Codex CLI newer than Circuit was tested against, and the
 // first novel event then takes down every codex relay. Each rejection message
 // now names the type, states the supported range, and points at the fix
-// (check/pin the Codex CLI version) without weakening the refusal.
+// (check the Codex CLI version and update Circuit) without weakening the refusal.
 describe('Codex connector — unknown-type errors explain version skew (M7)', () => {
-  const NEWER_VERSION = 'codex-cli 0.140.0';
+  const NEWER_VERSION = 'codex-cli 0.150.0';
 
   it('names the range and the version-skew cause for an unknown top-level trace_entry type', () => {
     const stdout =
@@ -726,9 +994,11 @@ describe('Codex connector — unknown-type errors explain version skew (M7)', ()
     } catch (err) {
       const message = (err as Error).message;
       expect(message).toContain('novel.future.trace_entry'); // (a) names the type
-      expect(message).toMatch(/0\.118 to 0\.130/); // (b) states the supported range
+      expect(message).toMatch(/0\.118 to 0\.144\.3/); // (b) states the supported range
       expect(message).toMatch(/newer/i); // (c) version-skew cause
       expect(message).toContain('codex --version'); // (c) the actionable fix
+      expect(message).toContain('update Circuit');
+      expect(message).toContain('Do not install an older standalone Codex binary');
       expect(message).toContain(NEWER_VERSION); // reflects the detected version
     }
   });
@@ -751,7 +1021,7 @@ describe('Codex connector — unknown-type errors explain version skew (M7)', ()
     } catch (err) {
       const message = (err as Error).message;
       expect(message).toContain('apply_patch');
-      expect(message).toMatch(/0\.118 to 0\.130/);
+      expect(message).toMatch(/0\.118 to 0\.144\.3/);
       expect(message).toMatch(/newer/i);
       expect(message).toContain('codex --version');
     }
@@ -776,7 +1046,7 @@ describe('Codex connector — unknown-type errors explain version skew (M7)', ()
     } catch (err) {
       const message = (err as Error).message;
       expect(message).toContain('apply_patch');
-      expect(message).toMatch(/0\.118 to 0\.130/);
+      expect(message).toMatch(/0\.118 to 0\.144\.3/);
       expect(message).toMatch(/newer/i);
       expect(message).toContain('codex --version');
     }

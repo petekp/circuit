@@ -56,7 +56,11 @@ vi.mock('node:child_process', async (importActual) => {
   return { ...actual, execFileSync: () => 'cli 0.0.0\n' };
 });
 
-function boundsPassedToSubprocess(): { timeoutMs?: number; idleTimeoutMs?: number } {
+function boundsPassedToSubprocess(): {
+  timeoutMs?: number;
+  idleTimeoutMs?: number;
+  requireEmptyProcessGroupOnExit?: boolean;
+} {
   expect(runConnectorSubprocessMock).toHaveBeenCalledTimes(1);
   return runConnectorSubprocessMock.mock.calls[0]?.[0] as {
     timeoutMs?: number;
@@ -110,6 +114,41 @@ describe('CLI-agent connectors default to a 10-minute inactivity bound + 60-minu
     const bounds = boundsPassedToSubprocess();
     expect(bounds.timeoutMs).toBe(EXPECTED_ABSOLUTE_TIMEOUT_MS);
     expect(bounds.idleTimeoutMs).toBe(EXPECTED_IDLE_TIMEOUT_MS);
+    expect(bounds.requireEmptyProcessGroupOnExit).toBeUndefined();
+  });
+
+  it('requires an empty worker process group for sealed MCP Codex relays', async () => {
+    const previous = {
+      runtimeSource: process.env.CIRCUIT_RUNTIME_SOURCE,
+      sealed: process.env.CIRCUIT_MCP_SEALED,
+      executable: process.env.CIRCUIT_MCP_CODEX_EXECUTABLE,
+    };
+    process.env.CIRCUIT_RUNTIME_SOURCE = 'mcp-spike';
+    process.env.CIRCUIT_MCP_SEALED = '1';
+    process.env.CIRCUIT_MCP_CODEX_EXECUTABLE = process.execPath;
+
+    try {
+      const { relayCodex } = await import('../../src/connectors/codex.js');
+      await relayCodex({
+        prompt: 'x',
+        cwd: process.cwd(),
+        resolvedSelection: {
+          model: { provider: 'openai', model: 'gpt-5.4' },
+          skills: [],
+          invocation_options: {},
+        },
+      }).catch(() => {});
+
+      expect(boundsPassedToSubprocess().requireEmptyProcessGroupOnExit).toBe(true);
+    } finally {
+      const restore = (key: string, value: string | undefined) => {
+        if (value === undefined) Reflect.deleteProperty(process.env, key);
+        else process.env[key] = value;
+      };
+      restore('CIRCUIT_RUNTIME_SOURCE', previous.runtimeSource);
+      restore('CIRCUIT_MCP_SEALED', previous.sealed);
+      restore('CIRCUIT_MCP_CODEX_EXECUTABLE', previous.executable);
+    }
   });
 
   it('an explicit per-step wall-clock budget overrides the absolute backstop but not the inactivity bound', async () => {

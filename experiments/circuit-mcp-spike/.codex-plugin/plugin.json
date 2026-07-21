@@ -1,0 +1,22 @@
+{
+  "name": "circuit-mcp-spike",
+  "version": "0.1.0",
+  "description": "Experimental full Circuit lifecycle over a plugin-owned MCP server.",
+  "author": {
+    "name": "Circuit"
+  },
+  "license": "MIT",
+  "keywords": ["circuit", "codex", "mcp", "sandbox"],
+  "mcpServers": "./.mcp.json",
+  "interface": {
+    "displayName": "Circuit MCP Spike",
+    "shortDescription": "Test Circuit flows across the Codex sandbox boundary",
+    "longDescription": "A development-only implementation of all five Circuit flows over a sealed, plugin-owned MCP server.",
+    "developerName": "Circuit",
+    "category": "Coding",
+    "capabilities": ["Interactive", "Write"],
+    "defaultPrompt": [
+      "Use the appropriate Circuit flow through its MCP lifecycle tools. Report progress, handle checkpoints, and explain the final result."
+    ]
+  }
+}

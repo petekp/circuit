@@ -5,9 +5,18 @@
 // its cwd, so Codex/Claude/generic-shell hosts all collect the same evidence
 // before the reviewer relay is called.
 
-import { spawnSync } from 'node:child_process';
-import { closeSync, lstatSync, openSync, readSync } from 'node:fs';
+import {
+  constants,
+  closeSync,
+  fstatSync,
+  lstatSync,
+  openSync,
+  readSync,
+  realpathSync,
+} from 'node:fs';
+import type { BigIntStats } from 'node:fs';
 import { isAbsolute, relative, resolve } from 'node:path';
+import { type SealedGitReadOperation, runSealedGitRead } from '../../../shared/sealed-git-read.js';
 import type {
   ComposeBuildContext,
   ComposeBuilder,
@@ -54,14 +63,11 @@ function outputToString(output: string | Buffer | Uint8Array | null | undefined)
 
 function runGit(
   projectRoot: string,
-  args: readonly string[],
+  operation: SealedGitReadOperation,
   options: { readonly maxBufferBytes?: number; readonly allowPartialStdout?: boolean } = {},
 ): GitResult {
-  const result = spawnSync('git', [...args], {
-    cwd: projectRoot,
-    encoding: 'utf8',
-    maxBuffer: options.maxBufferBytes ?? MAX_GIT_BUFFER_BYTES,
-    stdio: ['ignore', 'pipe', 'pipe'],
+  const result = runSealedGitRead(projectRoot, operation, {
+    maxOutputBytes: options.maxBufferBytes ?? MAX_GIT_BUFFER_BYTES,
   });
   const stdout = outputToString(result.stdout);
   const stderr = outputToString(result.stderr).trim();
@@ -70,19 +76,26 @@ function runGit(
     if (options.allowPartialStdout === true && stdout.length > 0) {
       return { ok: true, stdout, truncated_by_buffer: true };
     }
-    return { ok: false, reason: `git ${args.join(' ')} failed: ${result.error.message}` };
+    return { ok: false, reason: `${operation} failed: ${result.error.message}` };
+  }
+
+  if (result.truncated && options.allowPartialStdout === true && stdout.length > 0) {
+    return { ok: true, stdout, truncated_by_buffer: true };
   }
 
   if (result.status !== 0) {
     const reason = stderr.length > 0 ? stderr : `exited with status ${result.status ?? 'unknown'}`;
-    return { ok: false, reason: `git ${args.join(' ')} failed: ${reason}` };
+    return { ok: false, reason: `${operation} failed: ${reason}` };
   }
 
   return { ok: true, stdout, truncated_by_buffer: false };
 }
 
-function runGitDiff(projectRoot: string, args: readonly string[]): ReviewEvidenceText {
-  const result = runGit(projectRoot, args, {
+function runGitDiff(
+  projectRoot: string,
+  operation: 'review-staged-diff' | 'review-unstaged-diff',
+): ReviewEvidenceText {
+  const result = runGit(projectRoot, operation, {
     maxBufferBytes: MAX_DIFF_BUFFER_BYTES,
     allowPartialStdout: true,
   });
@@ -100,52 +113,137 @@ function insideProject(projectRoot: string, path: string): boolean {
   return rel === '' || (!rel.startsWith('..') && !isAbsolute(rel));
 }
 
+function sameFileIdentity(
+  left: { readonly dev: bigint; readonly ino: bigint },
+  right: { readonly dev: bigint; readonly ino: bigint },
+): boolean {
+  return left.dev === right.dev && left.ino === right.ino;
+}
+
+function sameFileSnapshot(
+  left: {
+    readonly dev: bigint;
+    readonly ino: bigint;
+    readonly size: bigint;
+    readonly mtimeNs: bigint;
+    readonly ctimeNs: bigint;
+  },
+  right: {
+    readonly dev: bigint;
+    readonly ino: bigint;
+    readonly size: bigint;
+    readonly mtimeNs: bigint;
+    readonly ctimeNs: bigint;
+  },
+): boolean {
+  return (
+    sameFileIdentity(left, right) &&
+    left.size === right.size &&
+    left.mtimeNs === right.mtimeNs &&
+    left.ctimeNs === right.ctimeNs
+  );
+}
+
 function readUntrackedFile(
   projectRoot: string,
   path: string,
   contentPolicy: ReviewUntrackedContentPolicy,
 ): ReviewUntrackedFileEvidence {
-  const abs = resolve(projectRoot, path);
-  if (!insideProject(projectRoot, abs)) {
+  const requestedRoot = resolve(projectRoot);
+  const abs = resolve(requestedRoot, path);
+  if (!insideProject(requestedRoot, abs)) {
     return { path, byte_length: 0, skipped_reason: 'path resolves outside project root' };
   }
-  let stat: ReturnType<typeof lstatSync>;
+  let projectRootReal: string;
+  let filePathReal: string;
+  let stat: BigIntStats;
   try {
-    stat = lstatSync(abs);
+    projectRootReal = realpathSync.native(requestedRoot);
+    stat = lstatSync(abs, { bigint: true });
   } catch (err) {
     return { path, byte_length: 0, skipped_reason: `failed to inspect file: ${errorMessage(err)}` };
   }
+  const byteLength = Number(stat.size);
   if (stat.isSymbolicLink()) {
-    return { path, byte_length: stat.size, skipped_reason: 'symbolic link skipped' };
+    return { path, byte_length: byteLength, skipped_reason: 'symbolic link skipped' };
   }
   if (!stat.isFile()) {
-    return { path, byte_length: stat.size, skipped_reason: 'not a regular file' };
+    return { path, byte_length: byteLength, skipped_reason: 'not a regular file' };
+  }
+  try {
+    filePathReal = realpathSync.native(abs);
+  } catch (err) {
+    return {
+      path,
+      byte_length: byteLength,
+      skipped_reason: `failed to resolve file safely: ${errorMessage(err)}`,
+    };
+  }
+  if (!insideProject(projectRootReal, filePathReal)) {
+    return {
+      path,
+      byte_length: byteLength,
+      skipped_reason: 'path resolves outside project root',
+    };
   }
   if (contentPolicy === 'metadata-only') {
-    return { path, byte_length: stat.size };
+    return { path, byte_length: byteLength };
   }
 
   let fd: number | undefined;
   try {
-    const byteLimit = Math.min(stat.size, MAX_UNTRACKED_FILE_BYTES);
-    fd = openSync(abs, 'r');
+    fd = openSync(filePathReal, constants.O_RDONLY | constants.O_NONBLOCK | constants.O_NOFOLLOW);
+    const openedStat = fstatSync(fd, { bigint: true });
+    if (!openedStat.isFile()) {
+      return { path, byte_length: byteLength, skipped_reason: 'not a regular file' };
+    }
+    if (!sameFileIdentity(stat, openedStat)) {
+      return {
+        path,
+        byte_length: byteLength,
+        skipped_reason: 'file changed before it could be read',
+      };
+    }
+    if (!sameFileSnapshot(stat, openedStat)) {
+      return {
+        path,
+        byte_length: byteLength,
+        skipped_reason: 'file contents changed before they could be read',
+      };
+    }
+
+    const byteLimit = Number(
+      openedStat.size < BigInt(MAX_UNTRACKED_FILE_BYTES)
+        ? openedStat.size
+        : BigInt(MAX_UNTRACKED_FILE_BYTES),
+    );
     const bytes = Buffer.alloc(byteLimit);
     const bytesRead = readSync(fd, bytes, 0, byteLimit, 0);
+    const afterReadStat = fstatSync(fd, { bigint: true });
+    if (!sameFileSnapshot(openedStat, afterReadStat)) {
+      return {
+        path,
+        byte_length: byteLength,
+        skipped_reason: 'file contents changed while they were being read',
+      };
+    }
     const sample = bytes.subarray(0, bytesRead);
     if (sample.includes(0)) {
-      return { path, byte_length: stat.size, skipped_reason: 'binary file skipped' };
+      return { path, byte_length: byteLength, skipped_reason: 'binary file skipped' };
     }
     const content = truncateText(sample.toString('utf8'), MAX_UNTRACKED_FILE_CHARS);
     return {
       path,
-      byte_length: stat.size,
+      byte_length: byteLength,
       content:
-        stat.size > bytesRead && !content.truncated ? { ...content, truncated: true } : content,
+        openedStat.size > BigInt(bytesRead) && !content.truncated
+          ? { ...content, truncated: true }
+          : content,
     };
   } catch (err) {
     return {
       path,
-      byte_length: stat.size,
+      byte_length: byteLength,
       skipped_reason: `failed to read file: ${errorMessage(err)}`,
     };
   } finally {
@@ -168,7 +266,7 @@ function collectUntrackedFiles(
   readonly truncated: boolean;
   readonly files: ReviewUntrackedFileEvidence[];
 } {
-  const listed = runGit(projectRoot, ['ls-files', '--others', '--exclude-standard', '-z']);
+  const listed = runGit(projectRoot, 'review-untracked');
   if (!listed.ok) return { count: 0, truncated: false, files: [] };
   const paths = listed.stdout.split('\0').filter((path) => path.length > 0);
   return {
@@ -191,11 +289,11 @@ function collectReviewEvidence(
     };
   }
 
-  const status = runGit(projectRoot, ['status', '--short']);
+  const status = runGit(projectRoot, 'review-status');
   if (!status.ok) return { kind: 'unavailable', reason: status.reason };
-  const staged = runGitDiff(projectRoot, ['diff', '--cached', '--no-ext-diff', '--']);
-  const unstaged = runGitDiff(projectRoot, ['diff', '--no-ext-diff', '--']);
-  const diffStat = runGit(projectRoot, ['diff', '--stat', '--cached', '--no-ext-diff']);
+  const staged = runGitDiff(projectRoot, 'review-staged-diff');
+  const unstaged = runGitDiff(projectRoot, 'review-unstaged-diff');
+  const diffStat = runGit(projectRoot, 'review-staged-stat');
   const untrackedContentPolicy: ReviewUntrackedContentPolicy =
     options.includeUntrackedFileContent === true ? 'include-content' : 'metadata-only';
   const untracked = collectUntrackedFiles(projectRoot, untrackedContentPolicy);

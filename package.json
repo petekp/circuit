@@ -24,7 +24,8 @@
   "scripts": {
     "check": "tsc --noEmit",
     "build": "tsc -p tsconfig.build.json",
-    "test": "vitest run",
+    "test": "vitest run && npm run test:mcp",
+    "test:mcp": "vitest run --config vitest.mcp.config.ts",
     "test:fast": "vitest run --exclude 'tests/runner/cli-router.test.ts' --exclude 'tests/unit/emit-flows-drift.test.ts'",
     "test:browser": "npm run build && playwright test --config tests/browser/playwright.config.ts",
     "test:watch": "vitest",
