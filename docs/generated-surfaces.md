@@ -11,6 +11,7 @@ Circuit command surfaces, compiled flow outputs, host mirrors, and edit rules.
 - Flow schematic JSON files under `src/flows/<id>/schematic.json` are generated outputs.
 - Flow-owned commands are authored in `src/flows/<id>/command.md`.
 - Direct commands are authored in `src/commands/<id>.md`.
+- The Codex-only MCP Run skill is authored in `src/hosts/codex-mcp/run-skill.md`; it does not change the ordinary Run command source.
 - Canonical compiled manifests under `generated/flows/**` are generated outputs.
 - Host mirrors under `plugins/claude/skills/**`, `plugins/claude/commands/**`, `plugins/codex/flows/**`, `plugins/codex/commands/**`, and `plugins/codex/skills/**` are generated outputs.
 - Internal flows emit only under `generated/flows/**`; host mirrors for internal flows are stale and fail the drift check.
@@ -25,7 +26,7 @@ Use [plugins/README.md](../plugins/README.md) before reading host package trees.
 
 The Codex plugin currently ships both `plugins/codex/commands/<id>.md` and `plugins/codex/skills/<id>/SKILL.md` generated outputs. The plugin manifest points Codex at `./skills/`, so skill files must stay runnable host instructions. Command files remain generated mirrors and authority/reference surfaces. Do not delete either surface without changing the Codex plugin contract, the emitter, and the drift checks together.
 
-Codex skill files intentionally translate slash-command wording into skill-safe wording. They must not contain `$ARGUMENTS`, `argument-hint`, `/circuit:`, or source-only `## Authority` footers. If the host gains a smaller native presentation wrapper, change `scripts/flows/host-renderers.ts`, regenerate, and run `npm run check-flow-drift`.
+Most Codex skill files translate host-command wording into skill-safe wording. They must not contain `$ARGUMENTS`, `argument-hint`, `/circuit:`, or source-only `## Authority` footers. The Run skill is different: `src/hosts/codex-mcp/run-skill.md` owns its Codex-only MCP instructions and is mirrored byte for byte.
 
 ## Surface Inventory
 
@@ -34,7 +35,8 @@ Codex skill files intentionally translate slash-command wording into skill-safe 
 | Block catalog | `src/schemas/flow-block-definitions.ts` | `npm run build && node scripts/flows/emit.ts` | no | `docs/flows/block-catalog.json` | `node scripts/flows/emit.ts --check` | The JSON catalog is generated for docs; typed block definitions own current facts. |
 | Flow catalog | `src/flows/catalog.ts` (`deriveFlowCatalog`) | `npm run build && node scripts/flows/emit.ts` | no | `generated/flows/catalog.json`<br>`plugins/codex/flows/catalog.json` | `node scripts/flows/emit.ts --check` | The static `flow.catalog@v1` routing-target set (public flows only). The Codex-only mirror supplies the MCP public roster; Claude does not need a copy. Derived from the flow definitions; the typed definitions own current facts. |
 | Flow-owned commands | `src/flows/<id>/command.md` | `scripts/flows/emit.ts` | source yes; outputs no | `plugins/claude/commands/<id>.md`<br>`plugins/codex/commands/<id>.md`<br>`plugins/codex/skills/<id>/SKILL.md` | `node scripts/flows/emit.ts --check` | Only public flows with `paths.command` emit these surfaces. Generated headers are omitted to preserve host command and skill parsing. |
-| Host direct command sources | `src/commands/<id>.md` | `scripts/flows/emit.ts` mirrors to host plugin surfaces | source yes; outputs no | `plugins/claude/commands/<id>.md`<br>`plugins/codex/commands/<id>.md`<br>`plugins/codex/skills/<id>/SKILL.md` | `node scripts/flows/emit.ts --check` | Covers visible host utilities such as run and handoff. |
+| Host direct command sources | `src/commands/<id>.md` | `scripts/flows/emit.ts` mirrors to host plugin surfaces | source yes; outputs no | `plugins/claude/commands/<id>.md`<br>`plugins/codex/commands/<id>.md`<br>`plugins/codex/skills/<id>/SKILL.md` | `node scripts/flows/emit.ts --check` | Covers visible host utilities such as run and handoff. The Codex Run skill has a dedicated MCP source below; the ordinary command mirrors still use these sources. |
+| Codex MCP Run skill source | `src/hosts/codex-mcp/run-skill.md` | `scripts/flows/emit.ts` mirrors the native skill bytes | source yes; output no | `plugins/codex/skills/run/SKILL.md` | `node scripts/flows/emit.ts --check` | Codex-only MCP tool instructions. Claude and ordinary Circuit command instructions remain sourced from `src/commands/run.md`. |
 | CLI-only utility sources | `src/commands/<id>.md` | none | source yes | none | normal CLI and docs tests | Covers utilities such as create that remain available through `./bin/circuit` but are not published as host command or skill surfaces. |
 | Generated schematic files | `src/flows/<id>/data.ts` + `src/flows/<id>/flow.ts` | `npm run build && node scripts/flows/emit.ts` | no | `src/flows/<id>/schematic.json` | `node scripts/flows/emit.ts --check` | JSON schematics are generated from typed FlowData plus the flow adapter. |
 | Generated compiled flow manifests | `src/flows/<id>/data.ts` + `src/flows/<id>/flow.ts` | `npm run build && node scripts/flows/emit.ts` | no | `generated/flows/<id>/circuit.json`<br>`generated/flows/<id>/<mode>.json` | `node scripts/flows/emit.ts --check` | Canonical compiled-flow outputs. JSON cannot carry generated headers without changing host parsing. |
@@ -68,12 +70,12 @@ Codex skill files intentionally translate slash-command wording into skill-safe 
 
 ## Direct Commands
 
-Direct commands are source files under `src/commands/` that are mirrored into host packages.
+Direct command mirrors use sources under `src/commands/`. The Codex Run skill alone uses `src/hosts/codex-mcp/run-skill.md`.
 
 | Command | Command source | Host mirrors | Edit rule |
 | --- | --- | --- | --- |
 | `handoff` | `src/commands/handoff.md` | `plugins/claude/commands/handoff.md`<br>`plugins/codex/commands/handoff.md`<br>`plugins/codex/skills/handoff/SKILL.md` | Edit the direct command source; run `npm run emit-flows`. |
-| `run` | `src/commands/run.md` | `plugins/claude/commands/run.md`<br>`plugins/codex/commands/run.md`<br>`plugins/codex/skills/run/SKILL.md` | Edit the direct command source; run `npm run emit-flows`. |
+| `run` | `src/commands/run.md`<br>`src/hosts/codex-mcp/run-skill.md` (Codex MCP skill only) | `plugins/claude/commands/run.md`<br>`plugins/codex/commands/run.md`<br>`plugins/codex/skills/run/SKILL.md` | Edit `src/commands/run.md` for ordinary command mirrors or `src/hosts/codex-mcp/run-skill.md` for the Codex MCP skill; run `npm run emit-flows`. |
 
 ## CLI-only Utilities
 

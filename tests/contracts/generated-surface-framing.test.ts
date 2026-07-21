@@ -10,6 +10,7 @@ function readRepoFile(path: string): string {
 
 const runSurfacePaths = [
   'src/commands/run.md',
+  'src/hosts/codex-mcp/run-skill.md',
   'plugins/claude/commands/run.md',
   'plugins/codex/commands/run.md',
   'plugins/codex/skills/run/SKILL.md',

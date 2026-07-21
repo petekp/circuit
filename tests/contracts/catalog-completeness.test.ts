@@ -504,10 +504,18 @@ describe('flow catalog completeness', () => {
 
     for (const command of HOST_DIRECT_COMMANDS) {
       expect(isFile(`src/commands/${command}.md`), `host command ${command} must exist`).toBe(true);
+      const sourceCell =
+        command === 'run'
+          ? `\`src/commands/${command}.md\`<br>\`src/hosts/codex-mcp/run-skill.md\` (Codex MCP skill only)`
+          : `\`src/commands/${command}.md\``;
       expect(generatedSurfaceMap).toContain(
-        `| \`${command}\` | \`src/commands/${command}.md\` | \`plugins/claude/commands/${command}.md\`<br>\`plugins/codex/commands/${command}.md\`<br>\`plugins/codex/skills/${command}/SKILL.md\` |`,
+        `| \`${command}\` | ${sourceCell} | \`plugins/claude/commands/${command}.md\`<br>\`plugins/codex/commands/${command}.md\`<br>\`plugins/codex/skills/${command}/SKILL.md\` |`,
       );
     }
+
+    expect(generatedSurfaceMap).toContain(
+      '| Codex MCP Run skill source | `src/hosts/codex-mcp/run-skill.md` |',
+    );
 
     for (const command of CLI_ONLY_COMMANDS) {
       expect(isFile(`src/commands/${command}.md`), `CLI-only utility ${command} must exist`).toBe(
