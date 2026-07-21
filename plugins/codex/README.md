@@ -12,12 +12,14 @@ entry point.
 - `flows/<id>/*.json`: generated compiled flow files.
 - `hooks/`: hand-authored SessionStart hook support.
 - `runtime/circuit.js`: generated bundled runtime.
+- `.mcp.json` and `mcp/`: generated, dormant Codex MCP config and bundled server.
 - `scripts/circuit.ts`: hand-authored wrapper that launches the bundled runtime.
 
 ## Editing Rule
 
 Codex skills are generated host instructions, not local operator skill sources.
-Do not hand-edit generated skills, commands, flow JSON, or `runtime/circuit.js`.
+Do not hand-edit generated skills, commands, flow JSON, `runtime/circuit.js`, or
+the MCP outputs.
 Edit the source under `src/`, then run `npm run emit-flows` or
 `npm run build-plugin-runtime` as appropriate. `npm run check-flow-drift` proves
 the package is still in sync.

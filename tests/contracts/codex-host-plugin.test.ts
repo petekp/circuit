@@ -817,6 +817,10 @@ describe('Codex host plugin package', () => {
     const canonicalFiles = collectJsonFiles(canonicalRoot).sort();
     const codexFiles = publicHostFlowFiles(collectJsonFiles(codexRoot)).sort();
 
+    expect(readFileSync(resolve(codexRoot, 'catalog.json'))).toEqual(
+      readFileSync(resolve(canonicalRoot, 'catalog.json')),
+    );
+
     expect(codexFiles).toEqual(publicHostFlowFiles(canonicalFiles));
 
     for (const file of codexFiles) {

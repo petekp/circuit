@@ -147,6 +147,7 @@ const SOURCE_COMMAND_ROOT_REL = 'src/commands';
 const GENERATED_SURFACE_MAP_REL = 'docs/generated-surfaces.md';
 const BLOCK_CATALOG_REL = 'docs/flows/block-catalog.json';
 const FLOW_CATALOG_REL = 'generated/flows/catalog.json';
+const CODEX_FLOW_CATALOG_REL = `${CODEX_PLUGIN_ROOT_REL}/flows/catalog.json`;
 const HOST_DIRECT_COMMANDS = ['handoff', 'run'];
 const CLI_ONLY_COMMANDS = ['create', 'generate', 'uninstall'];
 const ROOT_CLAUDE_MARKETPLACE_REL = '.claude-plugin/marketplace.json';
@@ -181,9 +182,9 @@ function renderSurfaceInventory(): string {
       '`src/flows/catalog.ts` (`deriveFlowCatalog`)',
       '`npm run build && node scripts/flows/emit.ts`',
       'no',
-      '`generated/flows/catalog.json`',
+      '`generated/flows/catalog.json`<br>`plugins/codex/flows/catalog.json`',
       '`node scripts/flows/emit.ts --check`',
-      'The static `flow.catalog@v1` routing-target set (public flows only). Derived from the flow definitions; the typed definitions own current facts.',
+      'The static `flow.catalog@v1` routing-target set (public flows only). The Codex-only mirror supplies the MCP public roster; Claude does not need a copy. Derived from the flow definitions; the typed definitions own current facts.',
     ],
     [
       'Flow-owned commands',
@@ -292,6 +293,15 @@ function renderSurfaceInventory(): string {
       '`plugins/claude/runtime/circuit.js`<br>`plugins/codex/runtime/circuit.js`',
       '`npm run check-plugin-runtime` (runs under `npm run check-flow-drift`)',
       'esbuild bundle of the whole CLI engine that each host loads at runtime, plus the compiled `runtime/git-state.js` and copied `scripts/launcher-core.ts` sidecars. Editing any engine source under `src/` restales this bundle even when `node scripts/flows/emit.ts --check` reports clean; `npm run emit-flows` rebuilds it.',
+    ],
+    [
+      'Codex MCP package',
+      '`src/hosts/codex-mcp/**`',
+      '`npm run build-plugin-runtime` (`node scripts/plugins/codex-mcp-bundle.ts`)',
+      'no',
+      '`plugins/codex/.mcp.json`<br>`plugins/codex/mcp/server.cjs`<br>`plugins/codex/mcp/server.mjs`',
+      '`npm run check-plugin-runtime` plus `npm run check-codex-mcp-package`',
+      'Codex-only, self-contained MCP bundle and Node version launcher. The config remains dormant until the Codex manifest explicitly links it. Claude and the ordinary Circuit CLI do not use this bundle.',
     ],
     [
       'Command ownership note',
@@ -852,6 +862,21 @@ function flowCatalogDescriptor(catalog: unknown, scratchDir: string): ArtifactDe
   };
 }
 
+function codexFlowCatalogDescriptor(catalog: unknown, scratchDir: string): ArtifactDescriptor {
+  return {
+    relPath: CODEX_FLOW_CATALOG_REL,
+    computeBytes: () =>
+      biomeFormatToString(CODEX_FLOW_CATALOG_REL, stringifyJson(catalog), scratchDir),
+    emitMessage: `emitted ${CODEX_FLOW_CATALOG_REL} from ${FLOW_CATALOG_REL}`,
+    checkOkMessage: `✓ ${CODEX_FLOW_CATALOG_REL} mirrors ${FLOW_CATALOG_REL}`,
+    checkMissingMessage: `✗ ${CODEX_FLOW_CATALOG_REL} is missing. Run \`npm run emit-flows\` to regenerate, then commit.`,
+    checkDriftMessage: [
+      `✗ ${CODEX_FLOW_CATALOG_REL} drifted from ${FLOW_CATALOG_REL}`,
+      '  Run `npm run emit-flows` to regenerate, then commit the diff.',
+    ],
+  };
+}
+
 function schematicDescriptor(entry: SchematicEntry, scratchDir: string): ArtifactDescriptor {
   return {
     relPath: entry.schematicPath,
@@ -1044,6 +1069,7 @@ async function buildArtifactDescriptors(scratchDir: string): Promise<{
   const descriptors: ArtifactDescriptor[] = [
     blockCatalogDescriptor(FLOW_BLOCK_CATALOG, scratchDir),
     flowCatalogDescriptor(FLOW_CATALOG, scratchDir),
+    codexFlowCatalogDescriptor(FLOW_CATALOG, scratchDir),
   ];
   const flowPlans: { entry: SchematicEntry; plan: SchematicFilePlan[] }[] = [];
   for (const entry of SCHEMATICS) {

@@ -1,0 +1,29 @@
+{
+  "flows": [
+    {
+      "id": "review",
+      "title": "Review Schematic",
+      "purpose": "Review flow: frame the audit scope, relay independent review to a reviewer, and close with a verdict report. The schematic uses a compact Intake, Independent Audit, and Verdict shape because Review is audit-only and does not implement or verify a change."
+    },
+    {
+      "id": "fix",
+      "title": "Fix Schematic",
+      "purpose": "Fix captures the problem boundary, proves the pre-fix regression before a specialist relay edits the checkout, gathers context, diagnoses, applies a focused change, verifies, reviews at medium depth and above, and closes with evidence. If the reviewer connector is unavailable after proof passes, Fix closes with proof evidence and marks review skipped. Low depth skips the review relay after verification. fix-no-repro-decision and fix-handoff remain as future ask/handoff routing intent; they appear in compiled flows with declared ask/handoff recovery bindings, but the engine does not yet emit any failure cause those bindings accept, so no runtime path reaches them."
+    },
+    {
+      "id": "prototype",
+      "title": "Prototype Schematic",
+      "purpose": "Prototype flow. Circuit frames a disposable artifact, plans its local prototype files, either relays one artifact or fans out configured model variants, verifies reported files under prototype_root, asks which local prototype evidence to keep, and closes with evidence. Prototype does not edit production code outside prototype_root or claim deployment, branch previews, screenshots, provider behavior, model behavior, or production readiness."
+    },
+    {
+      "id": "build",
+      "title": "Build Schematic",
+      "purpose": "Build flow. Circuit frames a requested change, plans it, relays implementation to a worker, runs verification, relays review to a separate worker, and closes with a Build result file plus evidence."
+    },
+    {
+      "id": "explore",
+      "title": "Explore Schematic",
+      "purpose": "Explore flow: frame the investigation, analyze the subject, either synthesize and critique findings or run a decision tournament, then close with findings plus evidence. All modes use Frame, Analyze, Plan or Decision, and Close; critique is embedded inside the Plan/Decision stage rather than exposed as a separate canonical Review stage."
+    }
+  ]
+}

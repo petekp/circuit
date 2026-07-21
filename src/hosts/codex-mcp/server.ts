@@ -1,0 +1,105 @@
+import { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
+import type { RequestHandlerExtra } from '@modelcontextprotocol/sdk/shared/protocol.js';
+import type {
+  RequestMeta,
+  ServerNotification,
+  ServerRequest,
+} from '@modelcontextprotocol/sdk/types.js';
+import {
+  MCP_SCHEMA_VERSION,
+  MCP_TOOL_INPUT_SCHEMAS,
+  MCP_TOOL_NAMES,
+  MCP_TOOL_RESPONSE_SCHEMAS,
+  type McpToolName,
+} from './contracts.js';
+
+const TOOL_DESCRIPTIONS: Record<McpToolName, string> = {
+  circuit_start:
+    'Start one public Circuit flow and return immediately with a run ID. Search is off by default. Cached search requires explicit consent because the query leaves the machine.',
+  circuit_status:
+    'Read bounded progress for one Circuit run, optionally after a cursor or with a wait of at most 10 seconds.',
+  circuit_resume:
+    'Resume one waiting Circuit checkpoint using its opaque token and one advertised choice ID.',
+  circuit_cancel:
+    'Cancel one owned Circuit worker or close a waiting checkpoint, and report whether cleanup was observed.',
+  circuit_list: 'List bounded recent Circuit runs for the current trusted Codex workspace.',
+  circuit_recover:
+    'Repair a recovery_required Circuit run only after Circuit proves that its recorded processes are absent.',
+};
+
+const READ_ONLY_TOOLS = new Set<McpToolName>(['circuit_status', 'circuit_list']);
+
+export interface CircuitMcpToolCall {
+  readonly name: McpToolName;
+  readonly input: unknown;
+  readonly metadata: RequestMeta | undefined;
+  readonly signal: AbortSignal;
+}
+
+export type CircuitMcpToolHandler = (call: CircuitMcpToolCall) => Promise<unknown>;
+
+export interface CreateCircuitMcpServerOptions {
+  readonly handle?: CircuitMcpToolHandler;
+}
+
+function dormantResponse(): Record<string, unknown> {
+  return {
+    schema_version: MCP_SCHEMA_VERSION,
+    ok: false,
+    error: {
+      code: 'mcp_not_activated',
+      message: 'Circuit MCP is installed but not activated yet.',
+      next_action:
+        'Use the ordinary Circuit Run skill while this experimental bridge is evaluated.',
+    },
+  };
+}
+
+function renderResponse(response: Record<string, unknown>): string {
+  if (response.ok === false) {
+    const error = response.error;
+    if (typeof error === 'object' && error !== null && !Array.isArray(error)) {
+      const message = (error as { message?: unknown }).message;
+      if (typeof message === 'string') return message;
+    }
+  }
+  const summary = response.summary;
+  return typeof summary === 'string' ? summary : 'Circuit returned a structured result.';
+}
+
+export function createCircuitMcpServer(options: CreateCircuitMcpServerOptions = {}): McpServer {
+  const server = new McpServer({ name: 'circuit', version: '1.0.0' });
+  const handle = options.handle ?? (async () => dormantResponse());
+
+  function registerTool(name: McpToolName): void {
+    const readOnly = READ_ONLY_TOOLS.has(name);
+    server.registerTool(
+      name,
+      {
+        title: name,
+        description: TOOL_DESCRIPTIONS[name],
+        inputSchema: MCP_TOOL_INPUT_SCHEMAS[name],
+        outputSchema: MCP_TOOL_RESPONSE_SCHEMAS[name],
+        annotations: {
+          readOnlyHint: readOnly,
+          destructiveHint: !readOnly,
+          idempotentHint: readOnly,
+          openWorldHint: name === 'circuit_start',
+        },
+      },
+      async (input: unknown, extra: RequestHandlerExtra<ServerRequest, ServerNotification>) => {
+        const response = MCP_TOOL_RESPONSE_SCHEMAS[name].parse(
+          await handle({ name, input, metadata: extra._meta, signal: extra.signal }),
+        ) as Record<string, unknown>;
+        return {
+          content: [{ type: 'text' as const, text: renderResponse(response) }],
+          structuredContent: response,
+          isError: response.ok === false,
+        };
+      },
+    );
+  }
+
+  for (const name of MCP_TOOL_NAMES) registerTool(name);
+  return server;
+}

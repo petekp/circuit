@@ -49,9 +49,25 @@ function trackedFiles(): Set<string> {
 describe('generated-surface guard', () => {
   it('derives a non-empty set of committed generated outputs (loud on empty)', () => {
     // 2 runtime bundles + 2 git-state + 2 launcher-core sidecars.
-    expect(committedRuntimeBundleOutputs().length).toBe(6);
-    // The runtime bundle artifacts plus the checkpoint browser runtime.
-    expect(committedGeneratedCodeOutputs().length).toBe(7);
+    expect(committedRuntimeBundleOutputs()).toEqual(
+      expect.arrayContaining([
+        'plugins/claude/runtime/circuit.js',
+        'plugins/codex/runtime/circuit.js',
+        'plugins/claude/runtime/git-state.js',
+        'plugins/codex/runtime/git-state.js',
+        'plugins/claude/scripts/launcher-core.ts',
+        'plugins/codex/scripts/launcher-core.ts',
+      ]),
+    );
+    expect(committedGeneratedCodeOutputs()).toEqual(
+      expect.arrayContaining([
+        'plugins/codex/.mcp.json',
+        'plugins/codex/mcp/server.cjs',
+        'plugins/codex/mcp/server.mjs',
+        'src/shared/html/checkpoint-review-runtime.generated.ts',
+      ]),
+    );
+    expect(committedGeneratedCodeOutputs().length).toBeGreaterThanOrEqual(10);
     // The generated code plus generated markdown (generated-surfaces.md, the
     // two release docs, and the host command/skill mirrors).
     expect(committedGeneratedOutputs().length).toBeGreaterThanOrEqual(8);

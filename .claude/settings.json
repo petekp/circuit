@@ -13,6 +13,8 @@
       "Edit(/src/shared/html/checkpoint-review-runtime.generated.ts)",
       "Edit(/plugins/claude/runtime/**)",
       "Edit(/plugins/codex/runtime/**)",
+      "Edit(/plugins/codex/.mcp.json)",
+      "Edit(/plugins/codex/mcp/**)",
       "Edit(/plugins/claude/scripts/launcher-core.ts)",
       "Edit(/plugins/codex/scripts/launcher-core.ts)"
     ]

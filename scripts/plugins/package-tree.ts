@@ -8,6 +8,7 @@ const OWNED_ROOTS = new Set([
   'commands',
   'flows',
   'hooks',
+  'mcp',
   'runtime',
   'scripts',
   'skills',
@@ -35,7 +36,7 @@ function normalizeRelativePath(path: string): string {
 
 export function isPackageOwnedFile(path: string): boolean {
   const normalized = normalizeRelativePath(path);
-  if (normalized === 'README.md') return true;
+  if (normalized === 'README.md' || normalized === '.mcp.json') return true;
   const [head] = normalized.split('/');
   return head !== undefined && OWNED_ROOTS.has(head);
 }
