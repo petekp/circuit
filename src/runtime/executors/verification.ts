@@ -354,7 +354,10 @@ export async function executeVerificationResult(
           });
     observations = [];
     for (const command of commands) {
-      const observation = runProofPlanCommand(command, projectRoot);
+      const observation =
+        context.proofCommandRunner === undefined
+          ? runProofPlanCommand(command, projectRoot)
+          : await context.proofCommandRunner(command, projectRoot);
       observations.push(observation);
       await context.trace.append({
         run_id: context.runId,

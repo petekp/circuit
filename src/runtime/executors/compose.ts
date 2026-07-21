@@ -56,7 +56,7 @@ async function writeRegisteredComposeReport(
     for (const [name, path] of Object.entries(readPaths)) {
       inputs[name] = path === undefined ? undefined : await readJsonReport(context, path);
     }
-    const body = composeBuilder.build({
+    const body = await composeBuilder.build({
       runFolder: context.ports.runDirectory.path,
       flow,
       step: indexedStep,
@@ -68,6 +68,9 @@ async function writeRegisteredComposeReport(
       ...(context.ports.worktree.evidencePolicy === undefined
         ? {}
         : { evidencePolicy: context.ports.worktree.evidencePolicy }),
+      ...(context.ports.worktree.gitReader === undefined
+        ? {}
+        : { gitReader: context.ports.worktree.gitReader }),
       ...(context.ports.selection.configLayers === undefined
         ? {}
         : { selectionConfigLayers: context.ports.selection.configLayers }),

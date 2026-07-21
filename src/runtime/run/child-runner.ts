@@ -1,11 +1,13 @@
 import type { LayeredConfig as LayeredConfigValue } from '../../schemas/config.js';
 import type { HostKind } from '../../schemas/host.js';
 import type { PolicyLayer as PolicyLayerValue } from '../../schemas/policy-envelope.js';
+import type { ProofPlanCommand, ProofPlanCommandObservation } from '../../shared/proof-plan.js';
 import type {
   ProgressReporter,
   RelayFn,
   RuntimeEvidencePolicy,
 } from '../../shared/relay-runtime-types.js';
+import type { RuntimeGitReader } from '../../shared/runtime-git-reader.js';
 import type { ExecutorRegistry } from '../executors/index.js';
 import type { RelayConnector } from '../executors/relay.js';
 import type { ExternalFileReader } from './external-files.js';
@@ -84,6 +86,11 @@ export interface CompiledFlowRunOptions {
   readonly selectionConfigLayers?: readonly LayeredConfigValue[];
   readonly policyLayers?: readonly PolicyLayerValue[];
   readonly progress?: ProgressReporter;
+  readonly proofCommandRunner?: (
+    command: ProofPlanCommand,
+    projectRoot: string,
+  ) => Promise<ProofPlanCommandObservation>;
+  readonly gitReader?: RuntimeGitReader;
   readonly maxSteps?: number;
 }
 

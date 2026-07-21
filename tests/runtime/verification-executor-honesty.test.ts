@@ -111,6 +111,35 @@ function contextFor(flow: ExecutableFlow): RunContext {
 }
 
 describe('verification executor honesty', () => {
+  it('uses an injected proof runner instead of spawning the command directly', async () => {
+    const command = failingCommand('sandboxed-tests');
+    writeBuildPlan([command]);
+    const flow = verificationFlow();
+    const step = flow.steps[1];
+    if (step === undefined || step.kind !== 'verification') throw new Error('expected step');
+    const calls: string[] = [];
+    const context: RunContext = {
+      ...contextFor(flow),
+      proofCommandRunner: async (requested, requestedRoot) => {
+        calls.push(`${requestedRoot}:${requested.id}`);
+        return {
+          command: requested,
+          exit_code: 0,
+          status: 'passed',
+          duration_ms: 1,
+          stdout_summary: 'sandboxed proof passed',
+          stderr_summary: '',
+          timed_out: false,
+        };
+      },
+    };
+
+    const result = await executeVerificationResult(step, context);
+
+    expect(result.kind).toBe('outcome');
+    expect(calls).toEqual([`${projectRoot}:sandboxed-tests`]);
+  });
+
   it('names the exit code and the timeout+budget for a mixed failure, and still routes to recovery', async () => {
     writeBuildPlan([failingCommand('unit-tests'), timeoutCommand('full-suite')]);
     const flow = verificationFlow();

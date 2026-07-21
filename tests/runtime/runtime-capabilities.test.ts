@@ -24,6 +24,8 @@ describe('runtime capabilities', () => {
       'memoryInputs',
       'historyRecallReport',
       'historyRecallPrecision',
+      'proofCommandRunner',
+      'gitReader',
     ]);
   });
 });

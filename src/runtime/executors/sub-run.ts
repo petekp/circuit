@@ -238,6 +238,10 @@ async function executeSubRunInternal(step: SubRunStep, context: RunContext): Pro
         : { selectionConfigLayers: context.selectionConfigLayers }),
       ...(context.policyLayers === undefined ? {} : { policyLayers: context.policyLayers }),
       ...(context.progress === undefined ? {} : { progress: context.progress }),
+      ...(context.proofCommandRunner === undefined
+        ? {}
+        : { proofCommandRunner: context.proofCommandRunner }),
+      ...(context.gitReader === undefined ? {} : { gitReader: context.gitReader }),
     });
   } catch (error) {
     return await recordSubRunCheckFailure(

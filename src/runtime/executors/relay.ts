@@ -34,6 +34,7 @@ import {
   resolveEquipmentEnforcement,
 } from '../../shared/equipment-enforcement.js';
 import { evidenceFromAcceptanceCriteriaTrace } from '../../shared/proof-assessment.js';
+import { changedPathsFromRuntimeGitStatus } from '../../shared/runtime-git-reader.js';
 import type { LoadedRelaySkill } from '../../shared/skill-loading.js';
 import { responseJsonSchemaFromZod } from '../../shared/zod-to-response-schema.js';
 import {
@@ -418,9 +419,9 @@ export type ProductionRelayAttemptResult =
       >;
     };
 
-function defaultValidateAcceptedProductionRelay(
+async function defaultValidateAcceptedProductionRelay(
   input: ProductionRelayAttemptValidationInput,
-): ProductionRelayAttemptValidationResult {
+): Promise<ProductionRelayAttemptValidationResult> {
   const { flow, context, step, relayResult, checkEvaluation } = input;
   let parsedBody: unknown;
   if (step.report?.schema !== undefined) {
@@ -458,12 +459,39 @@ function defaultValidateAcceptedProductionRelay(
     }
   }
   if (step.acceptanceCriteria !== undefined) {
-    const acceptance = evaluateAcceptanceCriteria({
+    let capturedChangedPaths: ReadonlySet<string> | undefined;
+    if (context.gitReader !== undefined) {
+      if (context.projectRoot === undefined) {
+        throw new Error('The bounded Git reader requires an explicit project root.');
+      }
+      const status = await context.gitReader.read({
+        operation: 'status',
+        projectRoot: context.projectRoot,
+      });
+      if (
+        status.operation !== 'status' ||
+        !status.ok ||
+        status.truncated ||
+        !status.cleanup_confirmed
+      ) {
+        throw new Error(
+          'The bounded Git reader could not provide complete working-tree evidence for acceptance checks.',
+        );
+      }
+      capturedChangedPaths = changedPathsFromRuntimeGitStatus(status.stdout);
+    }
+    const acceptance = await evaluateAcceptanceCriteria({
       stepId: step.id,
       criteria: step.acceptanceCriteria,
       resultBody: relayResult.result_body,
       ...(parsedBody === undefined ? {} : { parsedBody }),
       ...(context.projectRoot === undefined ? {} : { projectRoot: context.projectRoot }),
+      ...(capturedChangedPaths === undefined
+        ? {}
+        : { captureChangedPaths: () => capturedChangedPaths }),
+      ...(context.proofCommandRunner === undefined
+        ? {}
+        : { runProofCommand: context.proofCommandRunner }),
     });
     if (acceptance.kind === 'fail') {
       return {
@@ -496,7 +524,7 @@ export async function executeProductionRelayAttempt(input: {
   readonly formatConnectorFailureReason?: (stepId: string, error: unknown) => string;
   readonly validateAcceptedResult?: (
     input: ProductionRelayAttemptValidationInput,
-  ) => ProductionRelayAttemptValidationResult;
+  ) => ProductionRelayAttemptValidationResult | Promise<ProductionRelayAttemptValidationResult>;
   // Fanout branches only: the branch's own assignment, rendered as a
   // labeled prompt segment (see composeRelayPrompt).
   readonly branchGoal?: string;
@@ -706,7 +734,9 @@ export async function executeProductionRelayAttempt(input: {
   let failureKind: ProductionRelayAttemptValidationResult['failureKind'];
   let acceptance: AcceptanceCriteriaEvaluationResult | undefined;
   if (checkEvaluation.kind === 'pass') {
-    const validation = (input.validateAcceptedResult ?? defaultValidateAcceptedProductionRelay)({
+    const validation = await (
+      input.validateAcceptedResult ?? defaultValidateAcceptedProductionRelay
+    )({
       flow,
       context,
       step,

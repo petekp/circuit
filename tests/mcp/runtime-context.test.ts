@@ -27,13 +27,13 @@ describe('sealed Codex MCP runtime context', () => {
       writeFile(node, '#!/bin/sh\n', { mode: 0o700 }),
       writeFile(codex, '#!/bin/sh\n', { mode: 0o700 }),
       writeFile(runtime, 'server\n'),
-      writeFile(git, 'git\n'),
+      writeFile(git, '#!/bin/sh\n', { mode: 0o700 }),
       writeFile(flow, '{}\n'),
     ]);
     const assets = await pinMcpRuntimeAssets({
       node,
       codex,
-      plugin_runtime: runtime,
+      plugin_runtimes: [{ id: 'server', path: runtime }],
       git_helper: git,
       packaged_flows: [{ id: 'review', path: flow }],
     });

@@ -52,6 +52,7 @@ import type { CheckpointStep, ExecutableFlow } from '../manifest/executable-flow
 import { fromCompiledFlow } from '../manifest/from-compiled-flow.js';
 import { stringArrayValue, traceString } from '../trace/trace-fields.js';
 import { TraceStore } from '../trace/trace-store.js';
+import type { RuntimeExecutionCapabilities } from './capabilities.js';
 import type {
   ChildCompiledFlowResolver,
   CompiledFlowRunner,
@@ -85,6 +86,8 @@ export interface ResumeCompiledFlowOptions {
   readonly externalFiles?: ExternalFileReader;
   readonly worktreeRunner?: WorktreeRunner;
   readonly executors?: Partial<ExecutorRegistry>;
+  readonly proofCommandRunner?: RuntimeExecutionCapabilities['proofCommandRunner'];
+  readonly gitReader?: RuntimeExecutionCapabilities['gitReader'];
   readonly progress?: ProgressReporter;
   readonly progressSurfaceForFlowId?: (flowId: string) => CompiledFlowProgressSurface | undefined;
   // Opt-in pull-then-retry delivery on the resumed run, mirroring the top-level
@@ -960,6 +963,10 @@ async function resumeCompiledFlowResultLocked(
     ...(requestContext.axes === undefined ? {} : { axes: requestContext.axes }),
     ...(options.now === undefined ? {} : { now: options.now }),
     ...(options.executors === undefined ? {} : { executors: options.executors }),
+    ...(options.proofCommandRunner === undefined
+      ? {}
+      : { proofCommandRunner: options.proofCommandRunner }),
+    ...(options.gitReader === undefined ? {} : { gitReader: options.gitReader }),
     ...(options.childCompiledFlowResolver === undefined
       ? {}
       : { childCompiledFlowResolver: options.childCompiledFlowResolver }),

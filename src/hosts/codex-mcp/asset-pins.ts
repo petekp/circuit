@@ -2,10 +2,12 @@ import { createHash } from 'node:crypto';
 import { createReadStream } from 'node:fs';
 import { realpath, stat } from 'node:fs/promises';
 import { isAbsolute } from 'node:path';
+import { z } from 'zod';
 
 const MAX_ASSET_BYTES = 512 * 1024 * 1024;
 const SHA256_PATTERN = /^[a-f0-9]{64}$/;
 const FLOW_ID_PATTERN = /^[a-z0-9][a-z0-9-]{0,63}$/;
+const RUNTIME_ID_PATTERN = /^[a-z][a-z0-9_-]{0,63}$/;
 
 export type McpRuntimeAssetRole =
   | 'node'
@@ -14,28 +16,41 @@ export type McpRuntimeAssetRole =
   | 'git_helper'
   | 'packaged_flow';
 
-export interface McpRuntimeAssetPin {
-  readonly id: string;
-  readonly role: McpRuntimeAssetRole;
-  readonly source_path: string;
-  readonly real_path: string;
-  readonly device: string;
-  readonly inode: string;
-  readonly mode: number;
-  readonly byte_length: number;
-  readonly sha256: string;
-}
+const AbsolutePath = z.string().min(1).max(8_192).refine(isAbsolute, 'must be an absolute path');
+const Sha256 = z.string().regex(SHA256_PATTERN);
 
-export interface McpRuntimeAssetPins {
-  readonly schema_version: 1;
-  readonly digest_sha256: string;
-  readonly assets: readonly McpRuntimeAssetPin[];
-}
+export const McpRuntimeAssetPinV1 = z
+  .object({
+    id: z.string().min(1).max(128),
+    role: z.enum(['node', 'codex', 'plugin_runtime', 'git_helper', 'packaged_flow']),
+    source_path: AbsolutePath,
+    real_path: AbsolutePath,
+    device: z.string().min(1).max(64),
+    inode: z.string().min(1).max(64),
+    mode: z.number().int().nonnegative().max(0xffff_ffff),
+    byte_length: z.number().int().nonnegative().max(MAX_ASSET_BYTES),
+    sha256: Sha256,
+  })
+  .strict();
+export type McpRuntimeAssetPin = z.infer<typeof McpRuntimeAssetPinV1>;
+
+export const McpRuntimeAssetPinsV1 = z
+  .object({
+    schema_version: z.literal(1),
+    digest_sha256: Sha256,
+    assets: z.array(McpRuntimeAssetPinV1).min(1).max(512),
+  })
+  .strict();
+export type McpRuntimeAssetPins = Readonly<
+  Omit<z.infer<typeof McpRuntimeAssetPinsV1>, 'assets'> & {
+    readonly assets: readonly McpRuntimeAssetPin[];
+  }
+>;
 
 export interface McpRuntimeAssetPaths {
   readonly node: string;
   readonly codex: string;
-  readonly plugin_runtime: string;
+  readonly plugin_runtimes: readonly { readonly id: string; readonly path: string }[];
   readonly git_helper: string;
   readonly packaged_flows: readonly { readonly id: string; readonly path: string }[];
 }
@@ -129,6 +144,19 @@ export async function pinMcpRuntimeAssets(
   paths: McpRuntimeAssetPaths,
 ): Promise<McpRuntimeAssetPins> {
   if (paths.packaged_flows.length === 0) throw new Error('at least one packaged flow is required');
+  if (paths.plugin_runtimes.length === 0) {
+    throw new Error('at least one plugin runtime is required');
+  }
+  const runtimeIds = new Set<string>();
+  for (const runtime of paths.plugin_runtimes) {
+    if (!RUNTIME_ID_PATTERN.test(runtime.id)) {
+      throw new Error(`invalid plugin runtime id '${runtime.id}'`);
+    }
+    if (runtimeIds.has(runtime.id)) {
+      throw new Error(`duplicate plugin runtime id '${runtime.id}'`);
+    }
+    runtimeIds.add(runtime.id);
+  }
   const flowIds = new Set<string>();
   for (const flow of paths.packaged_flows) {
     if (!FLOW_ID_PATTERN.test(flow.id)) throw new Error(`invalid packaged flow id '${flow.id}'`);
@@ -139,17 +167,19 @@ export async function pinMcpRuntimeAssets(
   const specifications = [
     { id: 'node', role: 'node' as const, path: paths.node, executable: true },
     { id: 'codex', role: 'codex' as const, path: paths.codex, executable: true },
-    {
-      id: 'plugin_runtime',
-      role: 'plugin_runtime' as const,
-      path: paths.plugin_runtime,
-      executable: false,
-    },
+    ...[...paths.plugin_runtimes]
+      .sort((left, right) => left.id.localeCompare(right.id))
+      .map((runtime) => ({
+        id: `plugin_runtime:${runtime.id}`,
+        role: 'plugin_runtime' as const,
+        path: runtime.path,
+        executable: false,
+      })),
     {
       id: 'git_helper',
       role: 'git_helper' as const,
       path: paths.git_helper,
-      executable: false,
+      executable: true,
     },
     ...[...paths.packaged_flows]
       .sort((left, right) => left.id.localeCompare(right.id))
@@ -193,11 +223,8 @@ function samePin(left: McpRuntimeAssetPin, right: McpRuntimeAssetPin): boolean {
 }
 
 export async function verifyMcpRuntimeAssets(pins: McpRuntimeAssetPins): Promise<void> {
-  if (
-    pins.schema_version !== 1 ||
-    !SHA256_PATTERN.test(pins.digest_sha256) ||
-    pinDigest(pins.assets) !== pins.digest_sha256
-  ) {
+  const parsed = McpRuntimeAssetPinsV1.safeParse(pins);
+  if (!parsed.success || pinDigest(pins.assets) !== pins.digest_sha256) {
     throw new AssetDriftError('Circuit runtime asset pins are invalid or changed');
   }
 
@@ -208,7 +235,8 @@ export async function verifyMcpRuntimeAssets(pins: McpRuntimeAssetPins): Promise
         id: expected.id,
         role: expected.role,
         path: expected.source_path,
-        executable: expected.role === 'node' || expected.role === 'codex',
+        executable:
+          expected.role === 'node' || expected.role === 'codex' || expected.role === 'git_helper',
       });
     } catch (error) {
       if (error instanceof AssetDriftError) throw error;

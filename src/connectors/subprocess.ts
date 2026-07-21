@@ -56,6 +56,8 @@ export interface RunConnectorSubprocessInput {
   readonly sigtermToSigkillGraceMs: number;
   readonly env?: NodeJS.ProcessEnv;
   readonly cwd?: string;
+  /** MCP keeps nested Codex inside its observed worker process group. */
+  readonly detached?: boolean;
 }
 
 export interface CreateTimeoutControllerInput {
@@ -395,7 +397,7 @@ export async function runConnectorSubprocess(
       child = spawn(input.executable, [...input.args], {
         stdio: ['ignore', 'pipe', 'pipe'],
         env: input.env ?? process.env,
-        detached: true,
+        detached: input.detached ?? true,
         ...(input.cwd === undefined ? {} : { cwd: input.cwd }),
       });
     } catch (error) {

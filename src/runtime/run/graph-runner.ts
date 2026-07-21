@@ -656,6 +656,10 @@ async function executeExecutableFlowOutcomeUnsafe(
     ...(options.historyRecallPrecision === undefined
       ? {}
       : { historyRecallPrecision: options.historyRecallPrecision }),
+    ...(options.proofCommandRunner === undefined
+      ? {}
+      : { proofCommandRunner: options.proofCommandRunner }),
+    ...(options.gitReader === undefined ? {} : { gitReader: options.gitReader }),
     ...(options.resumeCheckpoint === undefined
       ? {}
       : { resumeCheckpoint: options.resumeCheckpoint }),

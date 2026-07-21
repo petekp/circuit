@@ -1,0 +1,201 @@
+import { mkdirSync, mkdtempSync, realpathSync, rmSync } from 'node:fs';
+import { tmpdir } from 'node:os';
+import { join } from 'node:path';
+import { afterEach, describe, expect, it, vi } from 'vitest';
+
+import type { MacosProofSandbox } from '../../src/hosts/codex-mcp/proof-sandbox.js';
+import type { SafeGitReader } from '../../src/hosts/codex-mcp/safe-git-reader.js';
+import { createMcpWorkerSecurity } from '../../src/hosts/codex-mcp/worker-security.js';
+
+const roots: string[] = [];
+
+afterEach(() => {
+  for (const root of roots.splice(0)) rmSync(root, { recursive: true, force: true });
+});
+
+function fixture(): { workspace: string; privateRoot: string } {
+  const root = realpathSync(mkdtempSync(join(tmpdir(), 'circuit-worker-security-')));
+  roots.push(root);
+  const workspace = join(root, 'workspace');
+  const privateRoot = join(root, 'private');
+  mkdirSync(join(workspace, 'packages', 'app'), { recursive: true });
+  mkdirSync(privateRoot, { recursive: true, mode: 0o700 });
+  return { workspace, privateRoot };
+}
+
+describe('MCP worker security adapters', () => {
+  it('routes proof commands through the injected sandbox and preserves bounded results', async () => {
+    const { workspace, privateRoot } = fixture();
+    const execute = vi.fn(async () => ({
+      schema_version: 1 as const,
+      status: 'passed' as const,
+      exit_code: 0,
+      signal: null,
+      stdout: 'ok\n',
+      stderr: '',
+      truncated: false,
+      duration_ms: 4,
+      cleanup: { required: false, confirmed: true, observed_pids: [], remaining_pids: [] },
+      sandbox: {
+        provider: 'macos-seatbelt' as const,
+        network: 'denied' as const,
+        access: 'workspace-write' as const,
+        writable_roots: [workspace, privateRoot],
+        mach_services: [] as const,
+      },
+    }));
+    const sandbox = { execute } as unknown as MacosProofSandbox;
+    const safeGit = { read: vi.fn() } as unknown as SafeGitReader;
+    const security = createMcpWorkerSecurity(
+      {
+        workspace,
+        privateRoot,
+        gitExecutable: '/usr/bin/git',
+        environment: { PATH: '/usr/bin:/bin' },
+      },
+      {
+        createSandbox: () => sandbox,
+        createGitReader: () => safeGit,
+      },
+    );
+
+    await expect(
+      security.proofCommandRunner(
+        {
+          id: 'unit-tests',
+          cwd: 'packages/app',
+          argv: [process.execPath, '-e', 'process.exit(0)'],
+          env: {},
+          timeout_ms: 5_000,
+          max_output_bytes: 1_000,
+        },
+        workspace,
+      ),
+    ).resolves.toMatchObject({ status: 'passed', stdout_summary: 'ok\n', timed_out: false });
+    expect(execute).toHaveBeenCalledWith(
+      expect.objectContaining({
+        cwd: 'packages/app',
+        argv: [process.execPath, '-e', 'process.exit(0)'],
+      }),
+    );
+  });
+
+  it('fails closed when cleanup is uncertain and never rebinds Git to another root', async () => {
+    const { workspace, privateRoot } = fixture();
+    const sandbox = {
+      execute: vi.fn(async () => ({
+        schema_version: 1 as const,
+        status: 'cleanup_unconfirmed' as const,
+        exit_code: null,
+        signal: null,
+        stdout: '',
+        stderr: '',
+        truncated: false,
+        duration_ms: 1,
+        cleanup: {
+          required: true,
+          confirmed: false,
+          observed_pids: [123],
+          remaining_pids: [123],
+        },
+        sandbox: {
+          provider: 'macos-seatbelt' as const,
+          network: 'denied' as const,
+          access: 'workspace-write' as const,
+          writable_roots: [workspace, privateRoot],
+          mach_services: [] as const,
+        },
+      })),
+    } as unknown as MacosProofSandbox;
+    const safeGit = { read: vi.fn() } as unknown as SafeGitReader;
+    const security = createMcpWorkerSecurity(
+      {
+        workspace,
+        privateRoot,
+        gitExecutable: '/usr/bin/git',
+        environment: { PATH: '/usr/bin:/bin' },
+      },
+      { createSandbox: () => sandbox, createGitReader: () => safeGit },
+    );
+
+    await expect(
+      security.proofCommandRunner(
+        {
+          id: 'leaked-child',
+          cwd: '.',
+          argv: [process.execPath, '-e', 'process.exit(0)'],
+          env: {},
+          timeout_ms: 5_000,
+          max_output_bytes: 1_000,
+        },
+        workspace,
+      ),
+    ).rejects.toThrow(/cleanup could not be confirmed/);
+    await expect(
+      security.gitReader.read({ operation: 'status', projectRoot: join(workspace, 'nested') }),
+    ).rejects.toThrow(/sealed to the trusted workspace/);
+    expect(safeGit.read).not.toHaveBeenCalled();
+  });
+
+  it.each(['timed_out', 'cancelled', 'output_limit'] as const)(
+    'never turns %s with exit code zero into passing proof',
+    async (status) => {
+      const { workspace, privateRoot } = fixture();
+      const sandbox = {
+        execute: vi.fn(async () => ({
+          schema_version: 1 as const,
+          status,
+          exit_code: 0,
+          signal: null,
+          stdout: '',
+          stderr: '',
+          truncated: status === 'output_limit',
+          duration_ms: 1,
+          cleanup: {
+            required: true,
+            confirmed: true,
+            observed_pids: [],
+            remaining_pids: [],
+          },
+          sandbox: {
+            provider: 'macos-seatbelt' as const,
+            network: 'denied' as const,
+            access: 'workspace-write' as const,
+            writable_roots: [workspace, privateRoot],
+            mach_services: [] as const,
+          },
+        })),
+      } as unknown as MacosProofSandbox;
+      const security = createMcpWorkerSecurity(
+        {
+          workspace,
+          privateRoot,
+          gitExecutable: '/usr/bin/git',
+          environment: { PATH: '/usr/bin:/bin' },
+        },
+        {
+          createSandbox: () => sandbox,
+          createGitReader: () => ({ read: vi.fn() }) as unknown as SafeGitReader,
+        },
+      );
+
+      await expect(
+        security.proofCommandRunner(
+          {
+            id: 'stopped-proof',
+            cwd: '.',
+            argv: [process.execPath, '-e', 'process.exit(0)'],
+            env: {},
+            timeout_ms: 5_000,
+            max_output_bytes: 1_000,
+          },
+          workspace,
+        ),
+      ).resolves.toMatchObject({
+        exit_code: 1,
+        status: 'failed',
+        timed_out: status === 'timed_out',
+      });
+    },
+  );
+});

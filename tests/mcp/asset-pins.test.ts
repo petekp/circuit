@@ -13,7 +13,8 @@ describe('Codex MCP installed asset pins', () => {
   let root: string;
   let nodePath: string;
   let codexPath: string;
-  let runtimePath: string;
+  let serverRuntimePath: string;
+  let workerRuntimePath: string;
   let gitHelperPath: string;
   let flowPath: string;
 
@@ -21,14 +22,16 @@ describe('Codex MCP installed asset pins', () => {
     root = await mkdtemp(join(tmpdir(), 'circuit-mcp-pins-'));
     nodePath = join(root, 'node');
     codexPath = join(root, 'codex');
-    runtimePath = join(root, 'server.js');
+    serverRuntimePath = join(root, 'server.js');
+    workerRuntimePath = join(root, 'worker.js');
     gitHelperPath = join(root, 'git-state.js');
     flowPath = join(root, 'review.json');
     await Promise.all([
       writeFile(nodePath, '#!/bin/sh\n', { mode: 0o700 }),
       writeFile(codexPath, '#!/bin/sh\n', { mode: 0o700 }),
-      writeFile(runtimePath, 'server\n', { mode: 0o600 }),
-      writeFile(gitHelperPath, 'git\n', { mode: 0o600 }),
+      writeFile(serverRuntimePath, 'server\n', { mode: 0o600 }),
+      writeFile(workerRuntimePath, 'worker\n', { mode: 0o600 }),
+      writeFile(gitHelperPath, '#!/bin/sh\n', { mode: 0o700 }),
       writeFile(flowPath, '{"flow":"review"}\n', { mode: 0o600 }),
     ]);
   });
@@ -41,7 +44,10 @@ describe('Codex MCP installed asset pins', () => {
     return pinMcpRuntimeAssets({
       node: nodePath,
       codex: codexPath,
-      plugin_runtime: runtimePath,
+      plugin_runtimes: [
+        { id: 'server', path: serverRuntimePath },
+        { id: 'worker', path: workerRuntimePath },
+      ],
       git_helper: gitHelperPath,
       packaged_flows: [{ id: 'review', path: flowPath }],
     });
@@ -53,7 +59,8 @@ describe('Codex MCP installed asset pins', () => {
     expect(pins.assets.map((asset) => asset.id)).toEqual([
       'node',
       'codex',
-      'plugin_runtime',
+      'plugin_runtime:server',
+      'plugin_runtime:worker',
       'git_helper',
       'flow:review',
     ]);
@@ -89,7 +96,7 @@ describe('Codex MCP installed asset pins', () => {
       pinMcpRuntimeAssets({
         node: 'node',
         codex: codexPath,
-        plugin_runtime: runtimePath,
+        plugin_runtimes: [{ id: 'server', path: serverRuntimePath }],
         git_helper: gitHelperPath,
         packaged_flows: [{ id: 'review', path: flowPath }],
       }),
@@ -101,7 +108,7 @@ describe('Codex MCP installed asset pins', () => {
       pinMcpRuntimeAssets({
         node: nodePath,
         codex: codexPath,
-        plugin_runtime: directory,
+        plugin_runtimes: [{ id: 'server', path: directory }],
         git_helper: gitHelperPath,
         packaged_flows: [{ id: 'review', path: flowPath }],
       }),
@@ -111,7 +118,7 @@ describe('Codex MCP installed asset pins', () => {
       pinMcpRuntimeAssets({
         node: nodePath,
         codex: codexPath,
-        plugin_runtime: runtimePath,
+        plugin_runtimes: [{ id: 'server', path: serverRuntimePath }],
         git_helper: gitHelperPath,
         packaged_flows: [
           { id: 'review', path: flowPath },
@@ -119,6 +126,19 @@ describe('Codex MCP installed asset pins', () => {
         ],
       }),
     ).rejects.toThrow(/duplicate/);
+
+    await expect(
+      pinMcpRuntimeAssets({
+        node: nodePath,
+        codex: codexPath,
+        plugin_runtimes: [
+          { id: 'server', path: serverRuntimePath },
+          { id: 'server', path: workerRuntimePath },
+        ],
+        git_helper: gitHelperPath,
+        packaged_flows: [{ id: 'review', path: flowPath }],
+      }),
+    ).rejects.toThrow(/duplicate plugin runtime/);
 
     await chmod(codexPath, 0o600);
     await expect(pin()).rejects.toThrow(/executable/);

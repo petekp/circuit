@@ -29,6 +29,7 @@ import { ProgressEvent } from '../../src/schemas/progress-event.js';
 import type { ClaudeCodeRelayInput } from '../../src/connectors/claude-code.js';
 import type { RelayResult } from '../../src/shared/connector-relay.js';
 import type { RelayFn } from '../../src/shared/relay-runtime-types.js';
+import type { RuntimeGitOperation, RuntimeGitReader } from '../../src/shared/runtime-git-reader.js';
 
 const FIXTURE_PATH = resolve('generated/flows/review/circuit.json');
 
@@ -252,6 +253,74 @@ describe('registered review compose writer', () => {
     });
 
     expect(outcome.outcome).toBe('complete');
+  });
+
+  it('uses the injected bounded Git reader instead of ordinary Review Git commands', async () => {
+    const { bytes } = loadFixture();
+    const runFolder = join(runFolderBase, 'bounded-git-reader');
+    const projectRoot = join(runFolderBase, 'bounded-git-project');
+    mkdirSync(projectRoot, { recursive: true });
+    writeFileSync(join(projectRoot, 'notes.txt'), 'bounded untracked note\n');
+    const seen: RuntimeGitOperation[] = [];
+    const outputs: Readonly<Record<RuntimeGitOperation, string>> = {
+      status: ' M src/app.ts\0?? notes.txt\0',
+      staged_diff: 'diff --git a/src/app.ts b/src/app.ts\n',
+      unstaged_diff: '',
+      staged_diff_stat: ' src/app.ts | 1 +\n',
+      untracked_files: 'notes.txt\0',
+      submodules: '',
+    };
+    const gitReader: RuntimeGitReader = {
+      read: async ({ operation, projectRoot: requestedRoot }) => {
+        expect(requestedRoot).toBe(projectRoot);
+        seen.push(operation);
+        return {
+          schema_version: 1,
+          ok: true,
+          operation,
+          stdout: outputs[operation],
+          stderr: '',
+          exit_code: 0,
+          truncated: false,
+          limit_bytes: 2 * 1024 * 1024,
+          cleanup_confirmed: true,
+        };
+      },
+    };
+
+    const outcome = await runCompiledFlow({
+      runDir: runFolder,
+      flowBytes: bytes,
+      runId: '79000000-0000-0000-0000-000000000019',
+      goal: 'review through the bounded Git reader',
+      depth: 'medium',
+      now: deterministicNow(Date.UTC(2026, 6, 20, 14, 0, 0)),
+      projectRoot,
+      gitReader,
+      relayer: {
+        connectorName: 'codex',
+        relay: async (input: ClaudeCodeRelayInput): Promise<RelayResult> => {
+          expect(input.prompt).toContain('src/app.ts');
+          expect(input.prompt).toContain('notes.txt');
+          return {
+            request_payload: input.prompt,
+            receipt_id: 'stub-receipt-bounded-git',
+            result_body: JSON.stringify(cleanRelayResult()),
+            duration_ms: 1,
+            cli_version: '0.0.0-stub',
+          };
+        },
+      },
+    });
+
+    expect(outcome.outcome).toBe('complete');
+    expect(seen).toEqual([
+      'status',
+      'staged_diff',
+      'unstaged_diff',
+      'staged_diff_stat',
+      'untracked_files',
+    ]);
   });
 
   it('omits untracked file contents by default while keeping path metadata', async () => {

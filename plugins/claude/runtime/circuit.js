@@ -23943,7 +23943,7 @@ function commandTrace(criterion, observation) {
     reason: `acceptance criterion '${criterion.id}' failed: command '${criterion.command.id}' exited ${observation.exit_code}`
   };
 }
-function evaluateAcceptanceCriteria(input) {
+async function evaluateAcceptanceCriteria(input) {
   const checks = [];
   let parsedBody = input.parsedBody;
   for (const criterion of input.criteria.checks) {
@@ -24037,7 +24037,7 @@ function evaluateAcceptanceCriteria(input) {
       });
     }
     try {
-      const trace = commandTrace(criterion, runProofPlanCommand(criterion.command, input.projectRoot));
+      const trace = commandTrace(criterion, await (input.runProofCommand ?? runProofPlanCommand)(criterion.command, input.projectRoot));
       checks.push(trace);
       if (trace.outcome === "fail") {
         const failed = {
@@ -84909,6 +84909,46 @@ function runGitDiff(projectRoot, args) {
     truncated: true
   };
 }
+async function readGit(reader, operation, projectRoot) {
+  const result = await reader.read({ operation, projectRoot });
+  if (result.operation !== operation) {
+    return { ok: false, reason: `Git reader returned ${result.operation} for ${operation}.` };
+  }
+  if (!result.cleanup_confirmed) {
+    return { ok: false, reason: `Git ${operation} cleanup could not be confirmed.` };
+  }
+  if (!result.ok) {
+    const reason = result.stderr.trim();
+    return {
+      ok: false,
+      reason: reason.length === 0 ? `Git ${operation} failed.` : reason
+    };
+  }
+  return {
+    ok: true,
+    stdout: result.stdout,
+    truncated_by_buffer: result.truncated
+  };
+}
+function gitDiffEvidence(result) {
+  if (!result.ok)
+    return truncateText(result.reason, MAX_DIFF_CHARS);
+  const truncated = truncateText(result.stdout, MAX_DIFF_CHARS);
+  if (!result.truncated_by_buffer)
+    return truncated;
+  return {
+    text: `${truncated.text}
+[truncated by the bounded Git reader]`,
+    truncated: true
+  };
+}
+function printableStatus(status) {
+  if (!status.includes("\0"))
+    return status;
+  const entries = status.split("\0").filter((entry) => entry.length > 0);
+  return entries.length === 0 ? "" : `${entries.join("\n")}
+`;
+}
 function insideProject(projectRoot, path) {
   const rel = relative9(projectRoot, path);
   return rel === "" || !rel.startsWith("..") && !isAbsolute9(rel);
@@ -84964,36 +85004,36 @@ function readUntrackedFile(projectRoot, path, contentPolicy) {
     }
   }
 }
-function collectUntrackedFiles(projectRoot, contentPolicy) {
-  const listed = runGit(projectRoot, ["ls-files", "--others", "--exclude-standard", "-z"]);
+async function collectUntrackedFiles(projectRoot, contentPolicy, reader) {
+  const listed = reader === void 0 ? runGit(projectRoot, ["ls-files", "--others", "--exclude-standard", "-z"]) : await readGit(reader, "untracked_files", projectRoot);
   if (!listed.ok)
     return { count: 0, truncated: false, files: [] };
   const paths = listed.stdout.split("\0").filter((path) => path.length > 0);
   return {
     count: paths.length,
-    truncated: paths.length > MAX_UNTRACKED_FILES,
+    truncated: listed.truncated_by_buffer || paths.length > MAX_UNTRACKED_FILES,
     files: paths.slice(0, MAX_UNTRACKED_FILES).map((path) => readUntrackedFile(projectRoot, path, contentPolicy))
   };
 }
-function collectReviewEvidence(projectRoot, options = {}) {
+async function collectReviewEvidence(projectRoot, options = {}) {
   if (projectRoot === void 0) {
     return {
       kind: "unavailable",
       reason: "CompiledFlowInvocation.projectRoot was not provided"
     };
   }
-  const status = runGit(projectRoot, ["status", "--short"]);
+  const status = options.gitReader === void 0 ? runGit(projectRoot, ["status", "--short"]) : await readGit(options.gitReader, "status", projectRoot);
   if (!status.ok)
     return { kind: "unavailable", reason: status.reason };
-  const staged = runGitDiff(projectRoot, ["diff", "--cached", "--no-ext-diff", "--"]);
-  const unstaged = runGitDiff(projectRoot, ["diff", "--no-ext-diff", "--"]);
-  const diffStat = runGit(projectRoot, ["diff", "--stat", "--cached", "--no-ext-diff"]);
+  const staged = options.gitReader === void 0 ? runGitDiff(projectRoot, ["diff", "--cached", "--no-ext-diff", "--"]) : gitDiffEvidence(await readGit(options.gitReader, "staged_diff", projectRoot));
+  const unstaged = options.gitReader === void 0 ? runGitDiff(projectRoot, ["diff", "--no-ext-diff", "--"]) : gitDiffEvidence(await readGit(options.gitReader, "unstaged_diff", projectRoot));
+  const diffStat = options.gitReader === void 0 ? runGit(projectRoot, ["diff", "--stat", "--cached", "--no-ext-diff"]) : await readGit(options.gitReader, "staged_diff_stat", projectRoot);
   const untrackedContentPolicy = options.includeUntrackedFileContent === true ? "include-content" : "metadata-only";
-  const untracked = collectUntrackedFiles(projectRoot, untrackedContentPolicy);
+  const untracked = await collectUntrackedFiles(projectRoot, untrackedContentPolicy, options.gitReader);
   return {
     kind: "git-working-tree",
     project_root: projectRoot,
-    status_short: status.stdout,
+    status_short: printableStatus(status.stdout),
     staged_diff: staged,
     unstaged_diff: unstaged,
     diff_stat: diffStat.ok ? diffStat.stdout : diffStat.reason,
@@ -85016,8 +85056,11 @@ var init_intake2 = __esm({
     MAX_UNTRACKED_FILE_BYTES = MAX_UNTRACKED_FILE_CHARS + 1;
     reviewIntakeComposeBuilder = {
       resultSchemaName: "review.intake@v1",
-      build(context) {
-        const evidence2 = collectReviewEvidence(context.projectRoot, context.evidencePolicy?.includeUntrackedFileContent === true ? { includeUntrackedFileContent: true } : {});
+      async build(context) {
+        const evidence2 = await collectReviewEvidence(context.projectRoot, {
+          ...context.evidencePolicy?.includeUntrackedFileContent === true ? { includeUntrackedFileContent: true } : {},
+          ...context.gitReader === void 0 ? {} : { gitReader: context.gitReader }
+        });
         return projectReviewIntake({
           scope: context.goal,
           evidence: evidence2,
@@ -88628,7 +88671,7 @@ async function runConnectorSubprocess(input) {
       child = spawn(input.executable, [...input.args], {
         stdio: ["ignore", "pipe", "pipe"],
         env: input.env ?? process.env,
-        detached: true,
+        detached: input.detached ?? true,
         ...input.cwd === void 0 ? {} : { cwd: input.cwd }
       });
     } catch (error52) {
@@ -94000,6 +94043,7 @@ function runPortsFromContext(context) {
     },
     worktree: {
       ...context.projectRoot === void 0 ? {} : { projectRoot: context.projectRoot },
+      ...context.gitReader === void 0 ? {} : { gitReader: context.gitReader },
       ...context.evidencePolicy === void 0 ? {} : { evidencePolicy: context.evidencePolicy },
       ...context.worktreeRunner === void 0 ? {} : { runner: context.worktreeRunner }
     },
@@ -94093,7 +94137,7 @@ async function writeRegisteredComposeReport(step, context) {
     for (const [name, path] of Object.entries(readPaths)) {
       inputs[name] = path === void 0 ? void 0 : await readJsonReport(context, path);
     }
-    const body = composeBuilder.build({
+    const body = await composeBuilder.build({
       runFolder: context.ports.runDirectory.path,
       flow,
       step: indexedStep2,
@@ -94101,6 +94145,7 @@ async function writeRegisteredComposeReport(step, context) {
       ...context.run.axes === void 0 ? {} : { axes: context.run.axes },
       ...context.ports.worktree.projectRoot === void 0 ? {} : { projectRoot: context.ports.worktree.projectRoot },
       ...context.ports.worktree.evidencePolicy === void 0 ? {} : { evidencePolicy: context.ports.worktree.evidencePolicy },
+      ...context.ports.worktree.gitReader === void 0 ? {} : { gitReader: context.ports.worktree.gitReader },
       ...context.ports.selection.configLayers === void 0 ? {} : { selectionConfigLayers: context.ports.selection.configLayers },
       ...context.run.contextDeliveryActive === void 0 ? {} : { contextDeliveryActive: context.run.contextDeliveryActive },
       connectorPlanner: runtimeConnectorPlanner,
@@ -94627,6 +94672,39 @@ var init_proof_assessment2 = __esm({
     "use strict";
     init_hashing();
     init_proof_assessment();
+  }
+});
+
+// dist/shared/runtime-git-reader.js
+function changedPathsFromRuntimeGitStatus(stdout) {
+  const tokens = stdout.split("\0");
+  const changed = /* @__PURE__ */ new Set();
+  for (let index = 0; index < tokens.length; index += 1) {
+    const entry = tokens[index];
+    if (entry === void 0 || entry.length === 0)
+      continue;
+    if (entry.length < 4 || entry[2] !== " ") {
+      throw new Error("The bounded Git reader returned malformed status output.");
+    }
+    const status = entry.slice(0, 2);
+    const path = entry.slice(3);
+    if (path.length === 0)
+      throw new Error("The bounded Git reader returned an empty path.");
+    changed.add(path);
+    if (status.includes("R") || status.includes("C")) {
+      const previousPath = tokens[index + 1];
+      if (previousPath === void 0 || previousPath.length === 0) {
+        throw new Error("The bounded Git reader returned a malformed rename entry.");
+      }
+      changed.add(previousPath);
+      index += 1;
+    }
+  }
+  return changed;
+}
+var init_runtime_git_reader = __esm({
+  "dist/shared/runtime-git-reader.js"() {
+    "use strict";
   }
 });
 
@@ -97599,7 +97677,7 @@ function assertRelayGuidanceMatchesPlan(input) {
     throw new Error(`relay step '${input.step.id}' guidance request hash does not match relay plan`);
   }
 }
-function defaultValidateAcceptedProductionRelay(input) {
+async function defaultValidateAcceptedProductionRelay(input) {
   const { flow, context, step, relayResult, checkEvaluation } = input;
   let parsedBody;
   if (step.report?.schema !== void 0) {
@@ -97632,12 +97710,28 @@ function defaultValidateAcceptedProductionRelay(input) {
     }
   }
   if (step.acceptanceCriteria !== void 0) {
-    const acceptance = evaluateAcceptanceCriteria({
+    let capturedChangedPaths;
+    if (context.gitReader !== void 0) {
+      if (context.projectRoot === void 0) {
+        throw new Error("The bounded Git reader requires an explicit project root.");
+      }
+      const status = await context.gitReader.read({
+        operation: "status",
+        projectRoot: context.projectRoot
+      });
+      if (status.operation !== "status" || !status.ok || status.truncated || !status.cleanup_confirmed) {
+        throw new Error("The bounded Git reader could not provide complete working-tree evidence for acceptance checks.");
+      }
+      capturedChangedPaths = changedPathsFromRuntimeGitStatus(status.stdout);
+    }
+    const acceptance = await evaluateAcceptanceCriteria({
       stepId: step.id,
       criteria: step.acceptanceCriteria,
       resultBody: relayResult.result_body,
       ...parsedBody === void 0 ? {} : { parsedBody },
-      ...context.projectRoot === void 0 ? {} : { projectRoot: context.projectRoot }
+      ...context.projectRoot === void 0 ? {} : { projectRoot: context.projectRoot },
+      ...capturedChangedPaths === void 0 ? {} : { captureChangedPaths: () => capturedChangedPaths },
+      ...context.proofCommandRunner === void 0 ? {} : { runProofCommand: context.proofCommandRunner }
     });
     if (acceptance.kind === "fail") {
       return {
@@ -97836,7 +97930,7 @@ async function executeProductionRelayAttempt(input) {
   let failureKind;
   let acceptance;
   if (checkEvaluation.kind === "pass") {
-    const validation = (input.validateAcceptedResult ?? defaultValidateAcceptedProductionRelay)({
+    const validation = await (input.validateAcceptedResult ?? defaultValidateAcceptedProductionRelay)({
       flow,
       context,
       step,
@@ -98079,6 +98173,7 @@ var init_relay = __esm({
     init_power_tiers();
     init_equipment_enforcement();
     init_proof_assessment2();
+    init_runtime_git_reader();
     init_zod_to_response_schema();
     init_acceptance_criteria2();
     init_guidance();
@@ -98244,7 +98339,9 @@ async function executeSubRunInternal(step, context) {
       ...context.hostKind === void 0 ? {} : { hostKind: context.hostKind },
       ...context.selectionConfigLayers === void 0 ? {} : { selectionConfigLayers: context.selectionConfigLayers },
       ...context.policyLayers === void 0 ? {} : { policyLayers: context.policyLayers },
-      ...context.progress === void 0 ? {} : { progress: context.progress }
+      ...context.progress === void 0 ? {} : { progress: context.progress },
+      ...context.proofCommandRunner === void 0 ? {} : { proofCommandRunner: context.proofCommandRunner },
+      ...context.gitReader === void 0 ? {} : { gitReader: context.gitReader }
     });
   } catch (error52) {
     return await recordSubRunCheckFailure(step, context, `sub-run step '${step.id}': child flow invocation failed (${error52.message})`);
@@ -98855,7 +98952,9 @@ async function executeSubRunFanoutBranch(step, context, branch, worktreeRunner, 
       ...context.hostKind === void 0 ? {} : { hostKind: context.hostKind },
       ...context.selectionConfigLayers === void 0 ? {} : { selectionConfigLayers: context.selectionConfigLayers },
       ...context.policyLayers === void 0 ? {} : { policyLayers: context.policyLayers },
-      ...context.progress === void 0 ? {} : { progress: context.progress }
+      ...context.progress === void 0 ? {} : { progress: context.progress },
+      ...context.proofCommandRunner === void 0 ? {} : { proofCommandRunner: context.proofCommandRunner },
+      ...context.gitReader === void 0 ? {} : { gitReader: context.gitReader }
     });
     const childResultText = await context.externalFiles.readText(child.resultPath);
     const childResult = RunResult.parse(JSON.parse(childResultText));
@@ -99666,7 +99765,7 @@ async function executeVerificationResult(step, context) {
     });
     observations = [];
     for (const command of commands) {
-      const observation = runProofPlanCommand(command, projectRoot);
+      const observation = context.proofCommandRunner === void 0 ? runProofPlanCommand(command, projectRoot) : await context.proofCommandRunner(command, projectRoot);
       observations.push(observation);
       await context.trace.append({
         run_id: context.runId,
@@ -101677,6 +101776,8 @@ async function executeExecutableFlowOutcomeUnsafe(flow, options) {
     ...options.memoryInputs === void 0 ? {} : { memoryInputs: options.memoryInputs },
     ...options.historyRecallReport === void 0 ? {} : { historyRecallReport: options.historyRecallReport },
     ...options.historyRecallPrecision === void 0 ? {} : { historyRecallPrecision: options.historyRecallPrecision },
+    ...options.proofCommandRunner === void 0 ? {} : { proofCommandRunner: options.proofCommandRunner },
+    ...options.gitReader === void 0 ? {} : { gitReader: options.gitReader },
     ...options.resumeCheckpoint === void 0 ? {} : { resumeCheckpoint: options.resumeCheckpoint },
     ...honestyLedger === void 0 ? {} : { honestyLedger },
     ...oracleCommandPins === void 0 ? {} : { oracleCommandPins }
@@ -102613,6 +102714,8 @@ async function runCompiledFlowWithWaiting(options) {
     ...options.memoryInputs === void 0 ? {} : { memoryInputs: options.memoryInputs },
     ...options.historyRecallReport === void 0 ? {} : { historyRecallReport: options.historyRecallReport },
     ...options.historyRecallPrecision === void 0 ? {} : { historyRecallPrecision: options.historyRecallPrecision },
+    ...options.proofCommandRunner === void 0 ? {} : { proofCommandRunner: options.proofCommandRunner },
+    ...options.gitReader === void 0 ? {} : { gitReader: options.gitReader },
     ...options.maxSteps === void 0 ? {} : { maxSteps: options.maxSteps }
   });
 }
@@ -103310,6 +103413,8 @@ async function resumeCompiledFlowResultLocked(options) {
     ...requestContext.axes === void 0 ? {} : { axes: requestContext.axes },
     ...options.now === void 0 ? {} : { now: options.now },
     ...options.executors === void 0 ? {} : { executors: options.executors },
+    ...options.proofCommandRunner === void 0 ? {} : { proofCommandRunner: options.proofCommandRunner },
+    ...options.gitReader === void 0 ? {} : { gitReader: options.gitReader },
     ...options.childCompiledFlowResolver === void 0 ? {} : { childCompiledFlowResolver: options.childCompiledFlowResolver },
     childRunner: options.childRunner ?? runCompiledFlow,
     ...options.externalFiles === void 0 ? {} : { externalFiles: options.externalFiles },
@@ -111220,7 +111325,7 @@ import { randomUUID as randomUUID8 } from "node:crypto";
 import { readFileSync as readFileSync61 } from "node:fs";
 import { join as join43 } from "node:path";
 function createRecoveryAttemptRunner(deps) {
-  const { primaryProjection, fixtureSelectionName, flowRoot: flowRoot2, parentAxes, runFolder, operatorGoal, now, projectRoot, relayer, runtimeExecutors, hostKind, selectionConfigLayers, policyLayers } = deps;
+  const { primaryProjection, fixtureSelectionName, flowRoot: flowRoot2, parentAxes, runFolder, operatorGoal, now, projectRoot, relayer, runtimeExecutors, proofCommandRunner, gitReader, hostKind, selectionConfigLayers, policyLayers } = deps;
   const recoveryFlowCache = /* @__PURE__ */ new Map();
   return async ({ processId, attemptNumber }) => {
     if (attemptNumber === 1) {
@@ -111260,6 +111365,8 @@ function createRecoveryAttemptRunner(deps) {
       axes: recoveryAxes,
       ...relayer === void 0 ? {} : { relayer },
       ...runtimeExecutors === void 0 ? {} : { executors: runtimeExecutors },
+      ...proofCommandRunner === void 0 ? {} : { proofCommandRunner },
+      ...gitReader === void 0 ? {} : { gitReader },
       ...hostKind === void 0 ? {} : { hostKind },
       ...selectionConfigLayers.length === 0 ? {} : { selectionConfigLayers },
       ...policyLayers.length === 0 ? {} : { policyLayers }
@@ -112093,6 +112200,8 @@ function resumeRuntimeCheckpoint(input) {
     childCompiledFlowResolver: defaultChildCompiledFlowResolver(void 0),
     ...input.hostKind === void 0 ? {} : { hostKind: input.hostKind },
     ...input.options.runtimeExecutors === void 0 ? {} : { executors: input.options.runtimeExecutors },
+    ...input.options.proofCommandRunner === void 0 ? {} : { proofCommandRunner: input.options.proofCommandRunner },
+    ...input.options.gitReader === void 0 ? {} : { gitReader: input.options.gitReader },
     ...input.options.relayer === void 0 ? {} : { relayer: input.options.relayer },
     ...input.progress === void 0 ? {} : { progress: input.progress },
     progressSurfaceForFlowId
@@ -112737,18 +112846,20 @@ async function runExecutionCommand(args, options) {
 `);
     return 2;
   }
+  const invocationConfig = options.invocationConfig === void 0 && args.power === void 0 ? void 0 : Config.parse({
+    ...options.invocationConfig ?? { schema_version: 1 },
+    defaults: {
+      ...options.invocationConfig?.defaults ?? {},
+      ...args.power === void 0 ? {} : { power: args.power }
+    }
+  });
   const runtimeConfigLayers = discoverRuntimeConfigLayers({
     ...options.configHomeDir !== void 0 ? { homeDir: options.configHomeDir } : {},
     ...options.configCwd !== void 0 ? { cwd: options.configCwd } : {},
     // --power rides the existing invocation config layer, so it composes with
     // (and outranks) a user-global or project `defaults.power` exactly like
     // any other layered config opinion.
-    ...args.power === void 0 ? {} : {
-      invocationConfig: Config.parse({
-        schema_version: 1,
-        defaults: { power: args.power }
-      })
-    }
+    ...invocationConfig === void 0 ? {} : { invocationConfig }
   });
   const { policyLayers, selectionConfigLayers } = runtimeConfigLayers;
   let axes = args.axes;
@@ -112823,8 +112934,8 @@ async function runExecutionCommand(args, options) {
     return 2;
   }
   const hostKind = runtimeHostKind(options);
-  const projectRoot = resolve31(options.configCwd ?? process.cwd());
-  if (hostKind === "codex") {
+  const projectRoot = resolve31(options.projectRoot ?? options.configCwd ?? process.cwd());
+  if (hostKind === "codex" && options.codexInstallAssurance !== "disabled") {
     try {
       const assurance = codexInstallAssurance({ projectRoot, now });
       if (assurance.notice !== void 0)
@@ -112904,6 +113015,8 @@ async function runExecutionCommand(args, options) {
       ...entryModeSelection.entryModeName === void 0 ? {} : { entryModeName: entryModeSelection.entryModeName },
       ...options.relayer === void 0 ? {} : { relayer: options.relayer },
       ...options.runtimeExecutors === void 0 ? {} : { executors: options.runtimeExecutors },
+      ...options.proofCommandRunner === void 0 ? {} : { proofCommandRunner: options.proofCommandRunner },
+      ...options.gitReader === void 0 ? {} : { gitReader: options.gitReader },
       ...hostKind === void 0 ? {} : { hostKind },
       ...selectionConfigLayers.length === 0 ? {} : { selectionConfigLayers },
       ...policyLayers.length === 0 ? {} : { policyLayers },
@@ -113084,6 +113197,8 @@ async function runExecutionCommand(args, options) {
             projectRoot,
             relayer: options.relayer,
             runtimeExecutors: options.runtimeExecutors,
+            proofCommandRunner: options.proofCommandRunner,
+            gitReader: options.gitReader,
             hostKind,
             selectionConfigLayers,
             policyLayers
