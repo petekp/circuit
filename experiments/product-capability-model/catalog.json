@@ -925,10 +925,7 @@
       "vision": [{ "id": "learn-from-runs", "fit": "direct" }],
       "proof": {
         "strength": "tested",
-        "refs": [
-          "src/cli/memory.ts",
-          "tests/runner/memory-note-cli.test.ts"
-        ]
+        "refs": ["src/cli/memory.ts", "tests/runner/memory-note-cli.test.ts"]
       },
       "surfaces": {
         "commands": ["memory"],
@@ -1046,7 +1043,11 @@
       "vision": [{ "id": "carry-operator-load", "fit": "enabling" }],
       "proof": {
         "strength": "tested",
-        "refs": ["src/cli/doctor.ts", "tests/runner/doctor.test.ts", "docs/release/v1-launch-plan.md"]
+        "refs": [
+          "src/cli/doctor.ts",
+          "tests/runner/doctor.test.ts",
+          "docs/release/v1-launch-plan.md"
+        ]
       },
       "surfaces": {
         "commands": ["doctor", "version"],
