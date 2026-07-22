@@ -66955,7 +66955,98 @@ function commandForScript(input) {
     env: { ...input.env }
   };
 }
+function parseSimpleArgv(command) {
+  const argv = [];
+  let current = "";
+  let quote;
+  let tokenStarted = false;
+  for (let index = 0; index < command.length; index += 1) {
+    const char = command[index];
+    if (char === void 0)
+      continue;
+    if (quote !== void 0) {
+      if (char === quote) {
+        quote = void 0;
+        tokenStarted = true;
+        continue;
+      }
+      if (quote === '"' && char === "\\") {
+        const next = command[index + 1];
+        if (next === '"' || next === "\\") {
+          current += next;
+          index += 1;
+          tokenStarted = true;
+          continue;
+        }
+      }
+      current += char;
+      tokenStarted = true;
+      continue;
+    }
+    if (/\s/.test(char)) {
+      if (tokenStarted) {
+        argv.push(current);
+        current = "";
+        tokenStarted = false;
+      }
+      continue;
+    }
+    if (char === "'" || char === '"') {
+      quote = char;
+      tokenStarted = true;
+      continue;
+    }
+    if (/[|&;<>()`$]/.test(char))
+      return void 0;
+    current += char;
+    tokenStarted = true;
+  }
+  if (quote !== void 0)
+    return void 0;
+  if (tokenStarted)
+    argv.push(current);
+  if (argv.length === 0)
+    return void 0;
+  if (argv.some((part) => part.length === 0))
+    return void 0;
+  return argv;
+}
+function trimInlineCwd(value) {
+  const unquoted = /^`([^`]+)`$/u.exec(value.trim())?.[1] ?? value;
+  const cwd2 = unquoted.trim().replace(/[.:;,]+$/u, "").trim();
+  if (/^(?:the\s+)?(?:workspace|project|repo|repository)\s+root$/iu.test(cwd2))
+    return ".";
+  if (cwd2.length === 0 || cwd2.includes("\0"))
+    return void 0;
+  if (/\s/.test(cwd2))
+    return void 0;
+  if (cwd2.startsWith("/") || cwd2.split("/").some((segment) => segment === ".."))
+    return void 0;
+  return cwd2;
+}
+function explicitInlineVerifyWithCommand(input) {
+  const match = /\bverify with\s+`([^`]+)`\s+from\s+(?:(`[^`]+`)|((?:the\s+)?(?:workspace|project|repo|repository)\s+root)|([^\s`]+))/iu.exec(input.goal);
+  const rawCommand = match?.[1];
+  const rawCwd = match?.[2] ?? match?.[3] ?? match?.[4];
+  if (rawCommand === void 0 || rawCwd === void 0)
+    return void 0;
+  const argv = parseSimpleArgv(rawCommand);
+  const cwd2 = trimInlineCwd(rawCwd);
+  if (argv === void 0 || cwd2 === void 0)
+    return void 0;
+  return VerificationCommand.parse({
+    id: `${input.commandIdPrefix}-objective-1`,
+    cwd: cwd2,
+    argv,
+    timeout_ms: input.timeoutMs ?? DEFAULT_VERIFICATION_TIMEOUT_MS,
+    max_output_bytes: input.maxOutputBytes ?? 2e5,
+    env: { ...input.env ?? {} }
+  });
+}
 function resolveVerificationCommands(input) {
+  const explicitCommand = explicitInlineVerifyWithCommand(input);
+  if (explicitCommand !== void 0)
+    return { status: "ready", commands: [explicitCommand] };
   if (input.projectRoot === void 0) {
     return {
       status: "blocked",
@@ -67033,6 +67124,7 @@ var DEFAULT_VERIFICATION_TIMEOUT_MS;
 var init_verification_resolver = __esm({
   "dist/shared/verification-resolver.js"() {
     "use strict";
+    init_verification();
     init_proof_plan();
     DEFAULT_VERIFICATION_TIMEOUT_MS = 6e5;
   }
@@ -77613,7 +77705,7 @@ var init_baseline_snapshot2 = __esm({
 });
 
 // dist/flows/fix/writers/brief-projection.js
-function parseSimpleArgv(command) {
+function parseSimpleArgv2(command) {
   const argv = [];
   let current = "";
   let quote;
@@ -77674,7 +77766,7 @@ function explicitRegressionCommand(goal) {
   const rawCommand = match?.[1];
   if (rawCommand === void 0)
     return void 0;
-  const argv = parseSimpleArgv(rawCommand);
+  const argv = parseSimpleArgv2(rawCommand);
   if (argv === void 0)
     return void 0;
   return FixVerificationCommand.parse({
@@ -77696,7 +77788,7 @@ function commandFromArgv(id, argv, cwd2 = ".") {
     env: {}
   });
 }
-function trimInlineCwd(value) {
+function trimInlineCwd2(value) {
   const unquoted = /^`([^`]+)`$/u.exec(value.trim())?.[1] ?? value;
   const cwd2 = unquoted.trim().replace(/[.:;,]+$/u, "").trim();
   if (/^(?:the\s+)?(?:workspace|project|repo|repository)\s+root$/iu.test(cwd2))
@@ -77709,20 +77801,20 @@ function trimInlineCwd(value) {
     return void 0;
   return cwd2;
 }
-function explicitInlineVerifyWithCommand(goal, id) {
+function explicitInlineVerifyWithCommand2(goal, id) {
   const match = /\bverify with\s+`([^`]+)`\s+from\s+(?:(`[^`]+`)|((?:the\s+)?(?:workspace|project|repo|repository)\s+root)|([^\s`]+))/iu.exec(goal);
   const rawCommand = match?.[1];
   const rawCwd = match?.[2] ?? match?.[3] ?? match?.[4];
   if (rawCommand === void 0 || rawCwd === void 0)
     return void 0;
-  const argv = parseSimpleArgv(rawCommand);
-  const cwd2 = trimInlineCwd(rawCwd);
+  const argv = parseSimpleArgv2(rawCommand);
+  const cwd2 = trimInlineCwd2(rawCwd);
   if (argv === void 0 || cwd2 === void 0)
     return void 0;
   return commandFromArgv(id, argv, cwd2);
 }
 function explicitInlineVerifyWithCommands(goal) {
-  const command = explicitInlineVerifyWithCommand(goal, "fix-objective-1");
+  const command = explicitInlineVerifyWithCommand2(goal, "fix-objective-1");
   return command === void 0 ? [] : [command];
 }
 function explicitObjectiveCheckCommands(goal) {
@@ -77736,7 +77828,7 @@ function explicitObjectiveCheckCommands(goal) {
     const rawCommand = /^\s*-\s+(.+?)\s*$/.exec(line)?.[1];
     if (rawCommand === void 0)
       continue;
-    const argv = parseSimpleArgv(rawCommand);
+    const argv = parseSimpleArgv2(rawCommand);
     if (argv === void 0)
       continue;
     const key = argv.join("\0");
@@ -77748,7 +77840,7 @@ function explicitObjectiveCheckCommands(goal) {
   return commands;
 }
 function regressionContractForGoal(goal) {
-  const command = explicitRegressionCommand(goal) ?? explicitInlineVerifyWithCommand(goal, "fix-regression");
+  const command = explicitRegressionCommand(goal) ?? explicitInlineVerifyWithCommand2(goal, "fix-regression");
   if (command === void 0) {
     return {
       expected_behavior: `After fix: ${goal}`,
@@ -81272,7 +81364,7 @@ var init_reports8 = __esm({
 });
 
 // dist/shared/goal-commands.js
-function parseSimpleArgv2(command) {
+function parseSimpleArgv3(command) {
   const argv = [];
   let current = "";
   let quote;
@@ -81349,7 +81441,7 @@ function candidateFromSpan(span) {
   const text = stripLeadingEnumerators(span);
   if (text.length === 0)
     return void 0;
-  const argv = parseSimpleArgv2(text);
+  const argv = parseSimpleArgv3(text);
   if (argv === void 0)
     return void 0;
   if (argv.length > MAX_CANDIDATE_TOKENS)
