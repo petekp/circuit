@@ -1,4 +1,14 @@
-import { cpSync, existsSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
+import { spawnSync } from 'node:child_process';
+import {
+  cpSync,
+  existsSync,
+  mkdirSync,
+  mkdtempSync,
+  readFileSync,
+  rmSync,
+  symlinkSync,
+  writeFileSync,
+} from 'node:fs';
 import { tmpdir } from 'node:os';
 import { resolve } from 'node:path';
 import { pathToFileURL } from 'node:url';
@@ -6,6 +16,7 @@ import { describe, expect, it } from 'vitest';
 
 import {
   isPackageOwnedFile,
+  packageGitTreeSha256,
   packageTreeSha256,
   packageTreeStatus,
 } from '../../scripts/plugins/package-tree.js';
@@ -27,8 +38,7 @@ describe('production Codex MCP package', () => {
   it('ships a relocatable config without ambient environment activation', () => {
     const config = JSON.parse(readFileSync(resolve(CODEX_ROOT, '.mcp.json'), 'utf8'));
     expect(config.mcpServers.circuit).toMatchObject({
-      command: 'node',
-      args: ['./mcp/server.cjs'],
+      command: '/bin/sh',
       cwd: '.',
       required: true,
       enabled_tools: [
@@ -40,6 +50,12 @@ describe('production Codex MCP package', () => {
         'circuit_recover',
       ],
     });
+    expect(config.mcpServers.circuit.args).toHaveLength(2);
+    expect(config.mcpServers.circuit.args[0]).toBe('-c');
+    expect(config.mcpServers.circuit.args[1]).toContain('exec node ./mcp/server.cjs');
+    expect(config.mcpServers.circuit.args[1]).toContain(
+      'Install Node.js 22.18 or newer, ensure node is on PATH, restart Codex, and try again.',
+    );
     expect(config.mcpServers.circuit.env_vars).toEqual(MCP_TRANSIENT_ENVIRONMENT_NAMES);
     expect(JSON.stringify(config)).not.toContain('CIRCUIT_MCP_');
     expect(existsSync(resolve(CODEX_ROOT, 'mcp/server.cjs'))).toBe(true);
@@ -88,6 +104,39 @@ describe('production Codex MCP package', () => {
 
       writeFileSync(resolve(target, 'operator-notes.txt'), 'unexpected bytes\n');
       expect(packageTreeSha256(target)).not.toBe(packageTreeSha256(CODEX_ROOT));
+    } finally {
+      rmSync(temp, { recursive: true, force: true });
+    }
+  });
+
+  it('recomputes the same plugin digest from an immutable Git commit', () => {
+    const temp = mkdtempSync(resolve(tmpdir(), 'circuit-mcp-git-digest-'));
+    const plugin = resolve(temp, 'plugins/codex');
+    const git = (...args: string[]) => {
+      const result = spawnSync('git', args, { cwd: temp, encoding: 'utf8' });
+      expect(result.status, `${result.stderr}\n${result.stdout}`).toBe(0);
+      return result.stdout.trim();
+    };
+    try {
+      mkdirSync(resolve(plugin, 'mcp'), { recursive: true });
+      writeFileSync(resolve(plugin, 'README.md'), 'candidate\n');
+      writeFileSync(resolve(plugin, 'mcp/server.mjs'), 'export {};\n');
+      symlinkSync('server.mjs', resolve(plugin, 'mcp/current.mjs'));
+      git('init', '-q');
+      git('config', 'user.name', 'Circuit Test');
+      git('config', 'user.email', 'circuit@example.invalid');
+      git('add', '.');
+      git('commit', '-qm', 'candidate');
+      const candidate = git('rev-parse', 'HEAD');
+
+      expect(packageGitTreeSha256(temp, candidate, 'plugins/codex')).toBe(
+        packageTreeSha256(plugin),
+      );
+
+      writeFileSync(resolve(plugin, 'mcp/server.mjs'), 'changed after proof\n');
+      expect(packageGitTreeSha256(temp, candidate, 'plugins/codex')).not.toBe(
+        packageTreeSha256(plugin),
+      );
     } finally {
       rmSync(temp, { recursive: true, force: true });
     }

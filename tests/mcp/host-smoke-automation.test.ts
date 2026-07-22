@@ -1,14 +1,28 @@
 import { spawnSync } from 'node:child_process';
-import { mkdtempSync, readFileSync, readdirSync, rmSync, statSync } from 'node:fs';
+import {
+  cpSync,
+  mkdirSync,
+  mkdtempSync,
+  readFileSync,
+  readdirSync,
+  rmSync,
+  statSync,
+  writeFileSync,
+} from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { describe, expect, it } from 'vitest';
 import {
+  assertOldHostRoundSucceeded,
+  assertPluginTreeMatchesSource,
   assertSupportedSmokeVersions,
+  buildMarketplaceInstallPhases,
   buildMarketplaceInstallPlan,
   classifySmokeFailure,
+  isRetryablePublishedSmokeOutcome,
   normalizeGitSource,
   parseSmokeOptions,
+  runDetachedSmokeCommand,
   writeSmokeOutput,
 } from '../../scripts/hosts/smoke/codex-mcp.js';
 
@@ -176,6 +190,99 @@ describe('Codex MCP host smoke automation', () => {
         args: ['plugin', 'add', 'circuit@circuit', '--json'],
       },
     ]);
+
+    expect(buildMarketplaceInstallPhases(options)).toEqual({
+      beforeOldHost: [
+        {
+          id: 'marketplace_add_upgrade_old',
+          args: [
+            'plugin',
+            'marketplace',
+            'add',
+            'petekp/circuit',
+            '--ref',
+            'circuit--v0.1.1',
+            '--json',
+          ],
+        },
+        {
+          id: 'plugin_install_upgrade_old',
+          args: ['plugin', 'add', 'circuit@circuit', '--json'],
+        },
+      ],
+      afterOldHost: [
+        {
+          id: 'marketplace_remove_upgrade_old',
+          args: ['plugin', 'marketplace', 'remove', 'circuit', '--json'],
+        },
+        {
+          id: 'marketplace_add_upgrade_new',
+          args: [
+            'plugin',
+            'marketplace',
+            'add',
+            'petekp/circuit',
+            '--ref',
+            'circuit--v0.1.2',
+            '--json',
+          ],
+        },
+        {
+          id: 'plugin_install_upgrade_new',
+          args: ['plugin', 'add', 'circuit@circuit', '--json'],
+        },
+      ],
+    });
+  });
+
+  it('binds installed plugin bytes to the exact source tree, not only its version', () => {
+    const root = mkdtempSync(join(tmpdir(), 'circuit-smoke-tree-binding-'));
+    const source = join(root, 'source');
+    const installed = join(root, 'installed');
+    try {
+      mkdirSync(join(source, '.codex-plugin'), { recursive: true });
+      writeFileSync(
+        join(source, '.codex-plugin', 'plugin.json'),
+        '{"name":"circuit","version":"0.1.2"}\n',
+      );
+      writeFileSync(join(source, 'README.md'), 'source bytes\n');
+      cpSync(source, installed, { recursive: true });
+
+      expect(assertPluginTreeMatchesSource(source, installed, 'installed plugin')).toMatch(
+        /^[a-f0-9]{64}$/,
+      );
+
+      writeFileSync(join(installed, 'README.md'), 'different bytes, same version\n');
+      expect(() => assertPluginTreeMatchesSource(source, installed, 'installed plugin')).toThrow(
+        'installed plugin tree does not match its verified source',
+      );
+    } finally {
+      rmSync(root, { recursive: true, force: true });
+    }
+  });
+
+  it('accepts an old host round only after a real provider request and natural cleanup', () => {
+    const passing = {
+      status: 0,
+      stdout: '{"text":"OLD_CODEX_HOST_READY"}\n',
+      stderr: '',
+      timed_out: false,
+      cleanup_confirmed: true,
+      cleanup_intervention_required: false,
+      cleanup_after_intervention_confirmed: true,
+    } as const;
+
+    expect(() => assertOldHostRoundSucceeded(passing, 1, undefined)).not.toThrow();
+    expect(() => assertOldHostRoundSucceeded(passing, 0, undefined)).toThrow(
+      'did not reach the loopback provider',
+    );
+    expect(() =>
+      assertOldHostRoundSucceeded(
+        { ...passing, cleanup_confirmed: false, cleanup_intervention_required: true },
+        1,
+        undefined,
+      ),
+    ).toThrow('cleanup could not be confirmed');
   });
 
   it('writes a private atomic report with transient paths and URL credentials redacted', () => {
@@ -264,7 +371,108 @@ describe('Codex MCP host smoke automation', () => {
       class: 'dependency',
       code: 'node_missing',
       retryable: false,
-      next_action: 'Install Node.js 22.18 or newer, ensure node is on PATH, then retry.',
+      next_action:
+        'Install Node.js 22.18 or newer, ensure node is on PATH, restart Codex, and try again.',
     });
+  });
+
+  it('retries only a classified published-mode network failure', () => {
+    const retryable = {
+      schema_version: 1,
+      host: 'codex',
+      surface: 'mcp',
+      mode: 'published',
+      status: 'fail',
+      reason: 'network unavailable',
+      failure: { class: 'network', code: 'network_unavailable', retryable: true },
+      versions: {},
+      evidence: [],
+    };
+
+    expect(isRetryablePublishedSmokeOutcome(retryable)).toBe(true);
+    expect(isRetryablePublishedSmokeOutcome({ ...retryable, status: 'pass' })).toBe(false);
+    expect(isRetryablePublishedSmokeOutcome({ ...retryable, mode: 'packed' })).toBe(false);
+    expect(
+      isRetryablePublishedSmokeOutcome({
+        ...retryable,
+        failure: { class: 'product', code: 'probe_failed', retryable: true },
+      }),
+    ).toBe(false);
+    expect(
+      isRetryablePublishedSmokeOutcome({
+        ...retryable,
+        failure: { class: 'network', code: 'network_unavailable', retryable: false },
+      }),
+    ).toBe(false);
+    expect(isRetryablePublishedSmokeOutcome({ ...retryable, failure: undefined })).toBe(false);
+    expect(isRetryablePublishedSmokeOutcome('not a report')).toBe(false);
+  });
+
+  it('does not count forced harness cleanup as product cleanup', async () => {
+    const result = await runDetachedSmokeCommand(
+      process.execPath,
+      [
+        '-e',
+        "const {spawn}=require('node:child_process');const child=spawn(process.execPath,['-e','setInterval(()=>{},1000)'],{stdio:'ignore'});child.unref();",
+      ],
+      process.env,
+    );
+
+    expect(result.status).toBe(0);
+    expect(result.cleanup_confirmed).toBe(false);
+    expect(result.cleanup_intervention_required).toBe(true);
+    expect(result.cleanup_after_intervention_confirmed).toBe(true);
+  });
+
+  it('does not hang when a timed-out command leaves an escaped process holding its pipes', async () => {
+    const root = mkdtempSync(join(tmpdir(), 'circuit-smoke-pipe-leak-'));
+    const escapedPidPath = join(root, 'escaped.pid');
+    const run = runDetachedSmokeCommand(
+      process.execPath,
+      [
+        '-e',
+        [
+          "const {spawn}=require('node:child_process')",
+          "const {writeFileSync}=require('node:fs')",
+          "const escaped=spawn(process.execPath,['-e','setInterval(()=>{},1000)'],{detached:true,stdio:['ignore','inherit','inherit']})",
+          'writeFileSync(process.argv[1],String(escaped.pid))',
+          'escaped.unref()',
+          'setInterval(()=>{},1000)',
+        ].join(';'),
+        escapedPidPath,
+      ],
+      process.env,
+      { timeout_ms: 300, force_kill_delay_ms: 25, settlement_timeout_ms: 100 },
+    );
+
+    try {
+      const settled = await Promise.race([
+        run.then((result) => ({ kind: 'result' as const, result })),
+        new Promise<{ readonly kind: 'hung' }>((resolveTimeout) =>
+          setTimeout(() => resolveTimeout({ kind: 'hung' }), 1_500),
+        ),
+      ]);
+
+      expect(settled.kind).toBe('result');
+      if (settled.kind === 'result') {
+        expect(settled.result.timed_out).toBe(true);
+        if (settled.result.cleanup_confirmed) {
+          expect(settled.result.cleanup_intervention_required).toBe(false);
+          expect(settled.result.cleanup_after_intervention_confirmed).toBe(true);
+        } else {
+          expect(settled.result.cleanup_intervention_required).toBe(true);
+          expect(settled.result.cleanup_after_intervention_confirmed).toBe(false);
+        }
+      }
+    } finally {
+      if (statSync(escapedPidPath, { throwIfNoEntry: false }) !== undefined) {
+        const escapedPid = Number(readFileSync(escapedPidPath, 'utf8'));
+        try {
+          process.kill(-escapedPid, 'SIGKILL');
+        } catch {}
+      }
+      await run;
+      rmSync(root, { recursive: true, force: true });
+    }
   });
 });

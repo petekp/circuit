@@ -24,7 +24,8 @@ import { REQUIRED_NODE } from '../../../bin/node-version-guard.js';
 import { MINIMUM_CODEX_VERSION } from '../../../src/hosts/codex-mcp/capabilities.ts';
 import { MCP_TOOL_NAMES } from '../../../src/hosts/codex-mcp/contracts.ts';
 import { resolveCodexExecutableOnPath } from '../../../src/hosts/codex-mcp/production-paths.ts';
-import { packageTreeSha256 } from '../../plugins/package-tree.ts';
+import { CODEX_MCP_NODE_REMEDY } from '../../plugins/codex-mcp-launcher.ts';
+import { packageGitTreeSha256, packageTreeSha256 } from '../../plugins/package-tree.ts';
 
 const HERE = dirname(fileURLToPath(import.meta.url));
 const REPO_ROOT = resolve(HERE, '..', '..', '..');
@@ -76,6 +77,11 @@ export interface MarketplaceInstallStep {
   readonly args: readonly string[];
 }
 
+export interface MarketplaceInstallPhases {
+  readonly beforeOldHost: readonly MarketplaceInstallStep[];
+  readonly afterOldHost: readonly MarketplaceInstallStep[];
+}
+
 export interface Evidence {
   readonly name: string;
   readonly ok: boolean;
@@ -112,16 +118,76 @@ export interface SmokeOutcome {
   readonly evidence: readonly Evidence[];
 }
 
+export function isRetryablePublishedSmokeOutcome(value: unknown): boolean {
+  if (typeof value !== 'object' || value === null || Array.isArray(value)) return false;
+  const report = value as Record<string, unknown>;
+  if (report.schema_version !== 1 || report.mode !== 'published' || report.status !== 'fail') {
+    return false;
+  }
+  if (
+    typeof report.failure !== 'object' ||
+    report.failure === null ||
+    Array.isArray(report.failure)
+  ) {
+    return false;
+  }
+  const failure = report.failure as Record<string, unknown>;
+  return failure.class === 'network' && failure.retryable === true;
+}
+
+function classifySmokeFailureMessage(message: string): NonNullable<SmokeOutcome['failure']> {
+  if (
+    /ENOTFOUND|EAI_AGAIN|ECONNRESET|Could not resolve host|network is unreachable|temporary failure in name resolution|connection reset by peer/i.test(
+      message,
+    )
+  ) {
+    return { class: 'network', code: 'network_unavailable', retryable: true };
+  }
+  if (/ETIMEDOUT|timed out|timeout/i.test(message)) {
+    return { class: 'timeout', code: 'probe_timeout', retryable: false };
+  }
+  if (
+    /Circuit MCP requires Node\.js 22\.18 or newer\. Current Node\.js is [0-9.]+\./i.test(message)
+  ) {
+    return {
+      class: 'dependency',
+      code: 'node_too_old',
+      retryable: false,
+      next_action: CODEX_MCP_NODE_REMEDY,
+    };
+  }
+  if (
+    /Circuit MCP (?:requires Node\.js 22\.18 or newer|could not read the Node\.js version)|spawn\s+node\s+ENOENT|node(?:\.exe)?: command not found|executable node.*not found/i.test(
+      message,
+    )
+  ) {
+    return {
+      class: 'dependency',
+      code: 'node_missing',
+      retryable: false,
+      next_action: CODEX_MCP_NODE_REMEDY,
+    };
+  }
+  if (/ENOENT|could not find an executable/i.test(message)) {
+    return {
+      class: 'dependency',
+      code: 'host_dependency_missing',
+      retryable: false,
+      next_action: 'Install the missing host dependency, ensure it is on PATH, then retry.',
+    };
+  }
+  if (/cleanup/i.test(message)) {
+    return { class: 'cleanup', code: 'cleanup_uncertain', retryable: false };
+  }
+  return { class: 'product', code: 'probe_failed', retryable: false };
+}
+
 class SmokeProbeError extends Error {
   readonly failure: NonNullable<SmokeOutcome['failure']>;
 
   constructor(
     message: string,
-    failure: NonNullable<SmokeOutcome['failure']> = {
-      class: 'product',
-      code: 'probe_failed',
-      retryable: false,
-    },
+    failure: NonNullable<SmokeOutcome['failure']> = classifySmokeFailureMessage(message),
   ) {
     super(message);
     this.name = 'SmokeProbeError';
@@ -129,12 +195,21 @@ class SmokeProbeError extends Error {
   }
 }
 
-interface RunResult {
+export interface SmokeCommandResult {
   readonly status: number | null;
   readonly stdout: string;
   readonly stderr: string;
   readonly timed_out: boolean;
+  /** True only when the process group was already gone without help from the harness. */
   readonly cleanup_confirmed: boolean;
+  readonly cleanup_intervention_required: boolean;
+  readonly cleanup_after_intervention_confirmed: boolean;
+}
+
+export interface SmokeCommandTiming {
+  readonly timeout_ms?: number;
+  readonly force_kill_delay_ms?: number;
+  readonly settlement_timeout_ms?: number;
 }
 
 function processGroupAbsent(pid: number): boolean {
@@ -144,6 +219,14 @@ function processGroupAbsent(pid: number): boolean {
   } catch (error) {
     return (error as NodeJS.ErrnoException).code === 'ESRCH';
   }
+}
+
+async function waitForProcessGroupAbsence(pid: number, attempts = 40): Promise<boolean> {
+  for (let attempt = 0; attempt < attempts; attempt += 1) {
+    if (processGroupAbsent(pid)) return true;
+    await new Promise<void>((resolveWait) => setTimeout(resolveWait, 25));
+  }
+  return processGroupAbsent(pid);
 }
 
 async function terminateProcessGroup(pid: number): Promise<boolean> {
@@ -371,89 +454,74 @@ export function parseSmokeOptions(argv: readonly string[]): SmokeOptions {
   return common;
 }
 
-export function buildMarketplaceInstallPlan(
+export function buildMarketplaceInstallPhases(
   options: SmokeOptions,
   packedMarketplaceRoot = '<packed-marketplace>',
-): readonly MarketplaceInstallStep[] {
+): MarketplaceInstallPhases {
   const install = (id: string): MarketplaceInstallStep => ({
     id,
     args: ['plugin', 'add', `circuit@${options.marketplace}`, '--json'],
   });
   if (options.mode === 'packed') {
-    return [
-      {
-        id: 'marketplace_add_packed',
-        args: ['plugin', 'marketplace', 'add', packedMarketplaceRoot, '--json'],
-      },
-      install('plugin_install_packed'),
-    ];
+    return {
+      beforeOldHost: [],
+      afterOldHost: [
+        {
+          id: 'marketplace_add_packed',
+          args: ['plugin', 'marketplace', 'add', packedMarketplaceRoot, '--json'],
+        },
+        install('plugin_install_packed'),
+      ],
+    };
   }
   const source = options.source as string;
   const ref = options.ref as string;
   if (options.mode === 'published') {
-    return [
+    return {
+      beforeOldHost: [],
+      afterOldHost: [
+        {
+          id: 'marketplace_add_published',
+          args: ['plugin', 'marketplace', 'add', source, '--ref', ref, '--json'],
+        },
+        install('plugin_install_published'),
+      ],
+    };
+  }
+  return {
+    beforeOldHost: [
       {
-        id: 'marketplace_add_published',
+        id: 'marketplace_add_upgrade_old',
+        args: ['plugin', 'marketplace', 'add', source, '--ref', options.oldRef as string, '--json'],
+      },
+      install('plugin_install_upgrade_old'),
+    ],
+    afterOldHost: [
+      {
+        id: 'marketplace_remove_upgrade_old',
+        args: ['plugin', 'marketplace', 'remove', options.marketplace, '--json'],
+      },
+      {
+        id: 'marketplace_add_upgrade_new',
         args: ['plugin', 'marketplace', 'add', source, '--ref', ref, '--json'],
       },
-      install('plugin_install_published'),
-    ];
-  }
-  return [
-    {
-      id: 'marketplace_add_upgrade_old',
-      args: ['plugin', 'marketplace', 'add', source, '--ref', options.oldRef as string, '--json'],
-    },
-    install('plugin_install_upgrade_old'),
-    {
-      id: 'marketplace_remove_upgrade_old',
-      args: ['plugin', 'marketplace', 'remove', options.marketplace, '--json'],
-    },
-    {
-      id: 'marketplace_add_upgrade_new',
-      args: ['plugin', 'marketplace', 'add', source, '--ref', ref, '--json'],
-    },
-    install('plugin_install_upgrade_new'),
-  ];
+      install('plugin_install_upgrade_new'),
+    ],
+  };
+}
+
+export function buildMarketplaceInstallPlan(
+  options: SmokeOptions,
+  packedMarketplaceRoot = '<packed-marketplace>',
+): readonly MarketplaceInstallStep[] {
+  const phases = buildMarketplaceInstallPhases(options, packedMarketplaceRoot);
+  return [...phases.beforeOldHost, ...phases.afterOldHost];
 }
 
 export function classifySmokeFailure(error: unknown): NonNullable<SmokeOutcome['failure']> {
   if (error instanceof SmokeProbeError) return error.failure;
   const message = error instanceof Error ? error.message : String(error);
-  if (
-    /ENOTFOUND|EAI_AGAIN|ECONNRESET|Could not resolve host|network is unreachable|temporary failure in name resolution|connection reset by peer/i.test(
-      message,
-    )
-  ) {
-    return { class: 'network', code: 'network_unavailable', retryable: true };
-  }
-  if (/ETIMEDOUT|timed out|timeout/i.test(message)) {
-    return { class: 'timeout', code: 'probe_timeout', retryable: false };
-  }
-  if (
-    /spawn\s+node\s+ENOENT|node(?:\.exe)?: command not found|executable node.*not found/i.test(
-      message,
-    )
-  ) {
-    return {
-      class: 'dependency',
-      code: 'node_missing',
-      retryable: false,
-      next_action: 'Install Node.js 22.18 or newer, ensure node is on PATH, then retry.',
-    };
-  }
-  if (/ENOENT|could not find an executable/i.test(message)) {
-    return {
-      class: 'dependency',
-      code: 'host_dependency_missing',
-      retryable: false,
-      next_action: 'Install the missing host dependency, ensure it is on PATH, then retry.',
-    };
-  }
-  if (/cleanup/i.test(message)) {
-    return { class: 'cleanup', code: 'cleanup_uncertain', retryable: false };
-  }
-  return { class: 'product', code: 'probe_failed', retryable: false };
+  return classifySmokeFailureMessage(message);
 }
 
 function redactText(value: string, paths: readonly string[]): string {
@@ -516,16 +584,19 @@ function runSync(
   return result.stdout;
 }
 
-async function runAsync(
+export async function runDetachedSmokeCommand(
   command: string,
   args: readonly string[],
   environment: NodeJS.ProcessEnv,
-): Promise<RunResult> {
-  return await new Promise<RunResult>((resolveRun, rejectRun) => {
+  timing: SmokeCommandTiming = {},
+): Promise<SmokeCommandResult> {
+  return await new Promise<SmokeCommandResult>((resolveRun, rejectRun) => {
     let child: ChildProcess | undefined;
     let stdout = '';
     let stderr = '';
     let timedOut = false;
+    let settled = false;
+    let exitStatus: number | null = null;
     const append = (current: string, chunk: Buffer | string): string => {
       if (Buffer.byteLength(current, 'utf8') >= MAX_OUTPUT_BYTES) return current;
       const remaining = MAX_OUTPUT_BYTES - Buffer.byteLength(current, 'utf8');
@@ -548,6 +619,55 @@ async function runAsync(
       stderr = append(stderr, chunk);
     });
     let forceTimer: NodeJS.Timeout | undefined;
+    let settlementTimer: NodeJS.Timeout | undefined;
+    const clearTimers = (): void => {
+      clearTimeout(timer);
+      if (forceTimer !== undefined) clearTimeout(forceTimer);
+      if (settlementTimer !== undefined) clearTimeout(settlementTimer);
+    };
+    const settle = async (status: number | null, closeObserved: boolean): Promise<void> => {
+      if (settled) return;
+      settled = true;
+      clearTimers();
+      const pid = child?.pid;
+
+      if (!closeObserved) {
+        child?.stdout?.destroy();
+        child?.stderr?.destroy();
+        child?.unref();
+        if (pid !== undefined) await terminateProcessGroup(pid);
+        resolveRun({
+          status,
+          stdout,
+          stderr,
+          timed_out: timedOut,
+          cleanup_confirmed: false,
+          cleanup_intervention_required: true,
+          cleanup_after_intervention_confirmed: false,
+        });
+        return;
+      }
+
+      const cleanupConfirmed = pid === undefined ? true : await waitForProcessGroupAbsence(pid);
+      const cleanupAfterInterventionConfirmed = cleanupConfirmed
+        ? true
+        : await terminateProcessGroup(pid as number);
+      resolveRun({
+        status,
+        stdout,
+        stderr,
+        timed_out: timedOut,
+        cleanup_confirmed: cleanupConfirmed,
+        cleanup_intervention_required: !cleanupConfirmed,
+        cleanup_after_intervention_confirmed: cleanupAfterInterventionConfirmed,
+      });
+    };
+    const armSettlementWatchdog = (): void => {
+      if (settlementTimer !== undefined || settled) return;
+      settlementTimer = setTimeout(() => {
+        void settle(exitStatus, false);
+      }, timing.settlement_timeout_ms ?? 1_000);
+    };
     const timer = setTimeout(() => {
       timedOut = true;
       if (child?.pid !== undefined) {
@@ -563,26 +683,24 @@ async function runAsync(
           } catch {
             child.kill('SIGKILL');
           }
-        }, 1_000);
+          armSettlementWatchdog();
+        }, timing.force_kill_delay_ms ?? 1_000);
       }
-    }, TIMEOUT_MS);
+    }, timing.timeout_ms ?? TIMEOUT_MS);
     child.once('error', (error) => {
-      clearTimeout(timer);
-      if (forceTimer !== undefined) clearTimeout(forceTimer);
+      if (settled) return;
+      settled = true;
+      clearTimers();
       rejectRun(error);
     });
-    child.once('close', async (status) => {
+    child.once('exit', (status) => {
+      exitStatus = status;
       clearTimeout(timer);
       if (forceTimer !== undefined) clearTimeout(forceTimer);
-      const cleanupConfirmed =
-        child?.pid === undefined ? true : await terminateProcessGroup(child.pid);
-      resolveRun({
-        status,
-        stdout,
-        stderr,
-        timed_out: timedOut,
-        cleanup_confirmed: cleanupConfirmed,
-      });
+      armSettlementWatchdog();
+    });
+    child.once('close', (status) => {
+      void settle(status, true);
     });
   });
 }
@@ -622,7 +740,7 @@ function records(value: unknown): readonly Record<string, unknown>[] {
   );
 }
 
-async function startProbeServer(): Promise<ProbeServer> {
+async function startProbeServer(mode: 'mcp' | 'old-host' = 'mcp'): Promise<ProbeServer> {
   let requestCount = 0;
   let discoveredTools: readonly string[] = [];
   let protocolError: string | undefined;
@@ -658,7 +776,19 @@ async function startProbeServer(): Promise<ProbeServer> {
       }
 
       let events: readonly Record<string, unknown>[];
-      if (requestCount === 1) {
+      if (mode === 'old-host' && requestCount === 1) {
+        const item = {
+          type: 'message',
+          role: 'assistant',
+          id: 'msg_old_host_ready',
+          content: [{ type: 'output_text', text: 'OLD_CODEX_HOST_READY' }],
+        };
+        events = completedResponse('resp_old_host', item);
+      } else if (mode === 'old-host') {
+        protocolError = 'The old Codex host sent an unexpected second provider request.';
+        response.writeHead(500).end();
+        return;
+      } else if (requestCount === 1) {
         const item = {
           type: 'tool_search_call',
           id: 'ts_tool_search',
@@ -739,6 +869,39 @@ async function startProbeServer(): Promise<ProbeServer> {
       });
     },
   };
+}
+
+export function assertOldHostRoundSucceeded(
+  run: SmokeCommandResult,
+  providerRequests: number,
+  protocolError: string | undefined,
+): void {
+  if (protocolError !== undefined) throw new SmokeProbeError(protocolError);
+  if (run.timed_out) {
+    throw new SmokeProbeError('The old Codex host probe timed out.', {
+      class: 'timeout',
+      code: 'probe_timeout',
+      retryable: false,
+    });
+  }
+  if (!run.cleanup_confirmed) {
+    throw new SmokeProbeError('Old Codex host cleanup could not be confirmed.', {
+      class: 'cleanup',
+      code: 'cleanup_uncertain',
+      retryable: false,
+    });
+  }
+  if (run.status !== 0) {
+    throw new SmokeProbeError(
+      run.stderr.trim().slice(0, 2_000) || 'The old Codex host probe failed.',
+    );
+  }
+  if (providerRequests !== 1) {
+    throw new SmokeProbeError('The old Codex host did not reach the loopback provider.');
+  }
+  if (!run.stdout.includes('OLD_CODEX_HOST_READY')) {
+    throw new SmokeProbeError('The old Codex host did not complete the loopback response.');
+  }
 }
 
 function parseMcpResult(stdout: string): Record<string, unknown> | undefined {
@@ -967,6 +1130,37 @@ function parseInstalledPlugin(
   return { version: expectedVersion, installedPath: parsed.installedPath };
 }
 
+function assertPluginTreeDigest(
+  expectedSha256: string,
+  installedRoot: string,
+  label: string,
+): string {
+  const installedSha256 = packageTreeSha256(installedRoot);
+  if (installedSha256 !== expectedSha256) {
+    throw new SmokeProbeError(`${label} tree does not match its verified source.`, {
+      class: 'product',
+      code: 'plugin_tree_mismatch',
+      retryable: false,
+    });
+  }
+  return installedSha256;
+}
+
+export function assertPluginTreeMatchesSource(
+  sourceRoot: string,
+  installedRoot: string,
+  label: string,
+): string {
+  if (!existsSync(sourceRoot) || !statSync(sourceRoot).isDirectory()) {
+    throw new SmokeProbeError(`${label} has no readable source package tree.`, {
+      class: 'product',
+      code: 'plugin_source_missing',
+      retryable: false,
+    });
+  }
+  return assertPluginTreeDigest(packageTreeSha256(sourceRoot), installedRoot, label);
+}
+
 function assertInstalledPluginPath(codexHome: string, installedPath: string): void {
   let canonicalCodexHome: string;
   let canonicalInstalledPath: string;
@@ -1057,13 +1251,18 @@ function pathInside(parent: string, child: string): boolean {
   return relativePath === '' || (!relativePath.startsWith('..') && !isAbsolute(relativePath));
 }
 
+interface VerifiedRemoteCheckout {
+  readonly commit: string;
+  readonly pluginTreeSha256: string;
+}
+
 function verifyRemoteCheckout(
   root: string,
   codexHome: string,
   source: string,
   ref: string,
   environment: NodeJS.ProcessEnv,
-): string {
+): VerifiedRemoteCheckout {
   let canonicalRoot: string;
   let canonicalCodexHome: string;
   try {
@@ -1112,7 +1311,16 @@ function verifyRemoteCheckout(
       retryable: false,
     });
   }
-  return head;
+  let pluginTreeSha256: string;
+  try {
+    pluginTreeSha256 = packageGitTreeSha256(canonicalRoot, head, 'plugins/codex');
+  } catch (error) {
+    throw new SmokeProbeError(
+      `The requested marketplace ref has no readable Codex plugin tree: ${String(error)}`,
+      { class: 'product', code: 'plugin_source_missing', retryable: false },
+    );
+  }
+  return { commit: head, pluginTreeSha256 };
 }
 
 function installedMarketplaceRoot(value: string): string {
@@ -1139,7 +1347,10 @@ function parseCodexVersion(value: string): string {
   return match[1];
 }
 
-async function runLiveProbe(options: SmokeOptions): Promise<SmokeOutcome> {
+export async function runLiveProbe(
+  options: SmokeOptions,
+  dependencies: { readonly runtimePath?: string } = {},
+): Promise<SmokeOutcome> {
   const evidence: Evidence[] = [];
   mkdirSync(PRIVATE_TEST_ROOT, { recursive: true, mode: 0o700 });
   const root = mkdtempSync(join(PRIVATE_TEST_ROOT, `${options.mode}-`));
@@ -1173,7 +1384,7 @@ async function runLiveProbe(options: SmokeOptions): Promise<SmokeOutcome> {
   });
   try {
     const codex = resolveCodexExecutableOnPath(process.env.PATH);
-    const safePath = `${dirname(process.execPath)}:/usr/bin:/bin`;
+    const safePath = dependencies.runtimePath ?? `${dirname(process.execPath)}:/usr/bin:/bin`;
     for (const directory of [home, codexHome, privateTemp, workspace]) {
       mkdirSync(directory, { recursive: true, mode: 0o700 });
     }
@@ -1187,13 +1398,13 @@ async function runLiveProbe(options: SmokeOptions): Promise<SmokeOutcome> {
       LC_ALL: 'C',
     };
     const runLoaderRound = async (): Promise<{
-      readonly run: RunResult;
+      readonly run: SmokeCommandResult;
       readonly probe: ProbeServer;
     }> => {
       const probe = await startProbeServer();
       try {
         const provider = `model_providers.circuit_probe={name="Circuit Probe",base_url="http://127.0.0.1:${probe.port}/v1",env_key="CIRCUIT_PROBE_API_KEY",wire_api="responses",requires_openai_auth=false,request_max_retries=0,stream_max_retries=0,supports_websockets=false}`;
-        const run = await runAsync(
+        const run = await runDetachedSmokeCommand(
           codex,
           [
             'exec',
@@ -1230,6 +1441,50 @@ async function runLiveProbe(options: SmokeOptions): Promise<SmokeOutcome> {
         await probe.close().catch(() => {});
       }
     };
+    const runOldHostRound = async (): Promise<{
+      readonly run: SmokeCommandResult;
+      readonly probe: ProbeServer;
+    }> => {
+      const probe = await startProbeServer('old-host');
+      try {
+        const provider = `model_providers.circuit_probe={name="Circuit Probe",base_url="http://127.0.0.1:${probe.port}/v1",env_key="CIRCUIT_PROBE_API_KEY",wire_api="responses",requires_openai_auth=false,request_max_retries=0,stream_max_retries=0,supports_websockets=false}`;
+        const run = await runDetachedSmokeCommand(
+          codex,
+          [
+            'exec',
+            '--strict-config',
+            '-C',
+            workspace,
+            '--ephemeral',
+            '--sandbox',
+            'read-only',
+            '-c',
+            'approval_policy="never"',
+            '-c',
+            'model="gpt-5.4"',
+            '-c',
+            'model_provider="circuit_probe"',
+            '-c',
+            provider,
+            '-c',
+            'analytics.enabled=false',
+            '-c',
+            'check_for_update_on_startup=false',
+            '--json',
+            'Reply exactly OLD_CODEX_HOST_READY. Do not call any tool.',
+          ],
+          {
+            ...environment,
+            CIRCUIT_PROBE_API_KEY: 'canary-not-a-secret',
+            NO_PROXY: '127.0.0.1,localhost',
+            no_proxy: '127.0.0.1,localhost',
+          },
+        );
+        return { run, probe };
+      } finally {
+        await probe.close().catch(() => {});
+      }
+    };
     codexVersion = parseCodexVersion(runSync(codex, ['--version'], environment));
     assertSupportedSmokeVersions(process.versions.node, codexVersion);
     evidence.push({ name: 'codex_version_recorded', ok: true, detail: codexVersion });
@@ -1250,28 +1505,56 @@ async function runLiveProbe(options: SmokeOptions): Promise<SmokeOutcome> {
     const expectedVersion =
       options.expectedVersion ??
       (options.mode === 'packed' ? pluginManifestVersion(PLUGIN_ROOT) : '');
+    const stateRoot = join(codexHome, 'circuit', 'mcp', 'v1');
     let installedPluginPath: string | undefined;
     let installedMarketplacePath = marketplace;
-    for (const step of buildMarketplaceInstallPlan(options, marketplace)) {
+    let oldExpectedTreeSha256: string | undefined;
+    let currentExpectedTreeSha256 =
+      options.mode === 'packed' ? packageTreeSha256(PLUGIN_ROOT) : undefined;
+    const assertPluginListed = (version: string, label: string): void => {
+      const listing = parseJsonObject(
+        `Codex plugin list (${label})`,
+        runSync(codex, ['plugin', 'list', '--available', '--json'], environment),
+      );
+      const installedEntry = records(listing.installed).find(
+        (entry) =>
+          entry.pluginId === `circuit@${options.marketplace}` &&
+          entry.version === version &&
+          entry.installed === true &&
+          entry.enabled === true,
+      );
+      if (installedEntry === undefined) {
+        throw new SmokeProbeError(
+          `Codex did not list the exact ${label} Circuit installation as enabled.`,
+          { class: 'product', code: 'plugin_installation_mismatch', retryable: false },
+        );
+      }
+    };
+    const executeInstallStep = (step: MarketplaceInstallStep): void => {
       const commandOutput = runSync(codex, step.args, environment);
       if (step.id.startsWith('marketplace_add_')) {
         installedMarketplacePath = installedMarketplaceRoot(commandOutput);
         if (options.mode !== 'packed') {
           const stepRef = step.id === 'marketplace_add_upgrade_old' ? options.oldRef : options.ref;
-          const commit = verifyRemoteCheckout(
+          const verified = verifyRemoteCheckout(
             installedMarketplacePath,
             codexHome,
             options.source as string,
             stepRef as string,
             environment,
           );
+          if (step.id === 'marketplace_add_upgrade_old') {
+            oldExpectedTreeSha256 = verified.pluginTreeSha256;
+          } else {
+            currentExpectedTreeSha256 = verified.pluginTreeSha256;
+          }
           evidence.push({
             name:
               step.id === 'marketplace_add_upgrade_old'
                 ? 'old_source_ref_exact'
                 : 'source_ref_exact',
             ok: true,
-            detail: `${stepRef}@${commit}`,
+            detail: `${stepRef}@${verified.commit}`,
           });
         }
       }
@@ -1280,19 +1563,72 @@ async function runLiveProbe(options: SmokeOptions): Promise<SmokeOutcome> {
         const versionExpected = isOld ? (options.oldVersion as string) : expectedVersion;
         const installed = parseInstalledPlugin(step.id, commandOutput, versionExpected);
         assertInstalledPluginPath(codexHome, installed.installedPath);
+        const expectedTreeSha256 = isOld ? oldExpectedTreeSha256 : currentExpectedTreeSha256;
+        if (expectedTreeSha256 === undefined) {
+          throw new SmokeProbeError(`${step.id} has no verified source package tree.`, {
+            class: 'product',
+            code: 'plugin_source_missing',
+            retryable: false,
+          });
+        }
+        const installedTreeSha256 = assertPluginTreeDigest(
+          expectedTreeSha256,
+          installed.installedPath,
+          isOld ? 'old installed plugin' : 'installed plugin',
+        );
         if (isOld) {
           previousPluginVersion = installed.version;
           evidence.push({ name: 'old_plugin_version_exact', ok: true, detail: installed.version });
+          evidence.push({
+            name: 'old_plugin_tree_exact',
+            ok: true,
+            detail: installedTreeSha256,
+          });
         } else {
           pluginVersion = installed.version;
           installedPluginPath = installed.installedPath;
+          pluginTreeSha256 = installedTreeSha256;
           evidence.push({ name: 'plugin_version_exact', ok: true, detail: installed.version });
+          evidence.push({ name: 'plugin_tree_exact', ok: true, detail: installedTreeSha256 });
         }
       }
       if (step.id === 'marketplace_remove_upgrade_old') {
         evidence.push({ name: 'old_marketplace_removed', ok: true });
       }
+    };
+
+    const installPhases = buildMarketplaceInstallPhases(options, marketplace);
+    for (const step of installPhases.beforeOldHost) executeInstallStep(step);
+    if (options.mode === 'upgrade') {
+      if (previousPluginVersion !== options.oldVersion) {
+        throw new SmokeProbeError('Codex did not install the expected old Circuit version.', {
+          class: 'product',
+          code: 'plugin_version_mismatch',
+          retryable: false,
+        });
+      }
+      assertPluginListed(options.oldVersion as string, 'old');
+      evidence.push({
+        name: 'old_installed_plugin_enabled',
+        ok: true,
+        detail: options.oldVersion as string,
+      });
+      const oldHost = await runOldHostRound();
+      assertOldHostRoundSucceeded(
+        oldHost.run,
+        oldHost.probe.requests(),
+        oldHost.probe.protocolError(),
+      );
+      evidence.push({ name: 'old_real_codex_host_completed', ok: true });
+      evidence.push({ name: 'old_owned_process_cleanup', ok: true });
+      if (existsSync(stateRoot)) {
+        throw new SmokeProbeError(
+          'The pre-MCP Circuit version unexpectedly created current MCP control state.',
+          { class: 'product', code: 'old_plugin_state_mismatch', retryable: false },
+        );
+      }
     }
+    for (const step of installPhases.afterOldHost) executeInstallStep(step);
     if (installedPluginPath === undefined || pluginVersion !== expectedVersion) {
       throw new SmokeProbeError('Codex did not install the expected Circuit plugin version.', {
         class: 'product',
@@ -1300,36 +1636,20 @@ async function runLiveProbe(options: SmokeOptions): Promise<SmokeOutcome> {
         retryable: false,
       });
     }
-    pluginTreeSha256 = packageTreeSha256(installedPluginPath);
+    if (pluginTreeSha256 === undefined) {
+      throw new SmokeProbeError(
+        'Codex did not bind the installed plugin to verified source bytes.',
+        {
+          class: 'product',
+          code: 'plugin_tree_mismatch',
+          retryable: false,
+        },
+      );
+    }
     evidence.push({ name: 'plugin_tree_sha256', ok: true, detail: pluginTreeSha256 });
-    const listing = parseJsonObject(
-      'Codex plugin list',
-      runSync(codex, ['plugin', 'list', '--available', '--json'], environment),
-    );
-    const installedEntry = records(listing.installed).find(
-      (entry) =>
-        entry.pluginId === `circuit@${options.marketplace}` &&
-        entry.version === expectedVersion &&
-        entry.installed === true &&
-        entry.enabled === true,
-    );
-    if (installedEntry === undefined) {
-      throw new SmokeProbeError('Codex did not list the exact Circuit installation as enabled.', {
-        class: 'product',
-        code: 'plugin_installation_mismatch',
-        retryable: false,
-      });
-    }
+    assertPluginListed(expectedVersion, 'current');
     evidence.push({ name: 'installed_plugin_enabled', ok: true, detail: expectedVersion });
-    if (options.mode === 'upgrade') {
-      evidence.push({
-        name: 'codex_restart_boundary',
-        ok: true,
-        detail: 'The loader probe starts after the old marketplace process was replaced.',
-      });
-    }
 
-    const stateRoot = join(codexHome, 'circuit', 'mcp', 'v1');
     if (existsSync(stateRoot)) {
       throw new SmokeProbeError(
         'The isolated profile contained Circuit control state before the real loader started.',
@@ -1355,8 +1675,8 @@ async function runLiveProbe(options: SmokeOptions): Promise<SmokeOutcome> {
       name: 'product_created_private_control_state',
       ok: bootstrapPassed && bootstrapStatePrivate,
       detail: bootstrapStatePrivate
-        ? 'The packaged MCP runtime created private state in a fresh profile.'
-        : 'The packaged MCP runtime did not create private state with 0700 directories.',
+        ? 'The packaged MCP runtime created 0700 control directories. Product-created 0600 files are enforced by tests/mcp/state-store.test.ts (creates one atomic workspace lease and private state files).'
+        : 'The packaged MCP runtime did not create control directories with 0700 permissions.',
     });
     if (!bootstrap.run.cleanup_confirmed) {
       throw new SmokeProbeError('Bootstrap loader cleanup could not be confirmed.', {
@@ -1371,6 +1691,14 @@ async function runLiveProbe(options: SmokeOptions): Promise<SmokeOutcome> {
           bootstrap.run.stderr.trim().slice(0, 2_000) ||
           'The packaged MCP runtime did not initialize private state through the real loader.',
       );
+    }
+    if (options.mode === 'upgrade') {
+      evidence.push({
+        name: 'codex_restart_boundary',
+        ok: true,
+        detail:
+          'One Codex host completed with the old plugin, then a separate host loaded the replacement.',
+      });
     }
 
     const diagnosticSentinels = new Map<string, string>();
@@ -1462,13 +1790,21 @@ async function runLiveProbe(options: SmokeOptions): Promise<SmokeOutcome> {
       privateDirectory(join(stateRoot, 'leases')) &&
       privateDirectory(join(stateRoot, 'runs', workspaceKey, SENTINEL_RUN_ID)) &&
       privateFile(join(stateRoot, 'runs', workspaceKey, SENTINEL_RUN_ID, 'state.json'));
-    evidence.push({ name: 'private_control_state', ok: statePrivate });
+    evidence.push({
+      name: 'diagnostic_sentinel_permissions',
+      ok: statePrivate,
+      detail:
+        'This 0600 file is a harness-seeded fixture; product file creation is covered by tests/mcp/state-store.test.ts (creates one atomic workspace lease and private state files).',
+    });
     if (!statePrivate) {
-      throw new SmokeProbeError('Circuit did not keep its MCP control state private.', {
-        class: 'product',
-        code: 'private_state_permissions',
-        retryable: false,
-      });
+      throw new SmokeProbeError(
+        'The harness could not create a private diagnostic state fixture.',
+        {
+          class: 'product',
+          code: 'private_state_permissions',
+          retryable: false,
+        },
+      );
     }
 
     const structured = parseMcpResult(run.stdout);
@@ -1521,13 +1857,17 @@ async function runLiveProbe(options: SmokeOptions): Promise<SmokeOutcome> {
       { ...(sourceDetails === undefined ? {} : { source: sourceDetails }), versions: versions() },
     );
   } catch (error) {
+    const failure = classifySmokeFailure(error);
+    const rawReason = error instanceof Error ? error.message : String(error);
     return outcome(
       options.mode,
       'fail',
-      error instanceof Error ? error.message : String(error),
+      failure.code === 'node_missing' && failure.next_action !== undefined
+        ? failure.next_action
+        : rawReason,
       evidence,
       {
-        failure: classifySmokeFailure(error),
+        failure,
         ...(sourceDetails === undefined ? {} : { source: sourceDetails }),
         versions: versions(),
       },

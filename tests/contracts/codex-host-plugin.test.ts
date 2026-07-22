@@ -16,6 +16,7 @@ import { delimiter, join, resolve } from 'node:path';
 import { describe, expect, it } from 'vitest';
 import { z } from 'zod';
 import { main } from '../../src/cli/circuit.js';
+import { MCP_TRANSIENT_ENVIRONMENT_NAMES } from '../../src/hosts/codex-mcp/transient-environment.js';
 import type { RelayResult } from '../../src/shared/connector-relay.js';
 import type { RelayInput } from '../../src/shared/relay-runtime-types.js';
 import {
@@ -899,6 +900,42 @@ describe('Codex host plugin package', () => {
       );
       expect(output.checks).toContainEqual(
         expect.objectContaining({ name: 'mcp_runtime_worker_mjs', ok: false }),
+      );
+    } finally {
+      rmSync(tempDir, { recursive: true, force: true });
+    }
+  });
+
+  it.each([
+    ['missing value', MCP_TRANSIENT_ENVIRONMENT_NAMES.slice(1), undefined],
+    ['extra value', [...MCP_TRANSIENT_ENVIRONMENT_NAMES, 'AWS_SECRET_ACCESS_KEY'], undefined],
+    ['reordered values', [...MCP_TRANSIENT_ENVIRONMENT_NAMES].reverse(), undefined],
+    ['static environment', MCP_TRANSIENT_ENVIRONMENT_NAMES, { OPENAI_API_KEY: 'secret' }],
+  ] as const)('doctor rejects MCP environment drift: %s', (_label, envVars, env) => {
+    const tempDir = mkdtempSync(join(tmpdir(), 'circuit-codex-host-mcp-env-'));
+    const pluginRoot = join(tempDir, 'plugin');
+    try {
+      cpSync(PLUGIN_ROOT, pluginRoot, { recursive: true });
+      const configPath = join(pluginRoot, '.mcp.json');
+      const config = JSON.parse(readFileSync(configPath, 'utf8')) as {
+        mcpServers: { circuit: Record<string, unknown> };
+      };
+      config.mcpServers.circuit.env_vars = envVars;
+      if (env !== undefined) config.mcpServers.circuit.env = env;
+      writeFileSync(configPath, `${JSON.stringify(config, null, 2)}\n`);
+
+      const result = spawnSync(
+        process.execPath,
+        [resolve(pluginRoot, 'scripts/circuit.ts'), 'doctor'],
+        { cwd: tempDir, encoding: 'utf8', env: cleanPluginEnv() },
+      );
+
+      expect(result.status, result.stderr).toBe(1);
+      const output = JSON.parse(result.stdout) as {
+        checks: Array<{ name: string; ok: boolean }>;
+      };
+      expect(output.checks).toContainEqual(
+        expect.objectContaining({ name: 'mcp_config_shape', ok: false }),
       );
     } finally {
       rmSync(tempDir, { recursive: true, force: true });

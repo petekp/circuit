@@ -6,9 +6,11 @@ on:
   workflow_dispatch:
 
 permissions:
-  contents: write
-  issues: write
-  pull-requests: write
+  contents: read
+
+concurrency:
+  group: codex-compatibility-${{ github.repository }}-${{ github.ref }}
+  cancel-in-progress: true
 
 jobs:
   resolve:
@@ -19,6 +21,8 @@ jobs:
       public-version: ${{ steps.public.outputs.version }}
     steps:
       - uses: actions/checkout@v5
+        with:
+          persist-credentials: false
       - uses: actions/setup-node@v6
         with:
           node-version: '22.18.0'
@@ -53,7 +57,8 @@ jobs:
           echo "ref=$ref" >> "$GITHUB_OUTPUT"
           echo "version=$version" >> "$GITHUB_OUTPUT"
           printf '%s\n' "$ref" > .codex-compatibility/public-circuit-ref.txt
-      - uses: actions/upload-artifact@v4
+      - if: ${{ always() }}
+        uses: actions/upload-artifact@v4
         with:
           name: codex-compatibility-resolved
           path: .codex-compatibility
@@ -72,11 +77,33 @@ jobs:
     runs-on: ${{ matrix.os }}
     steps:
       - uses: actions/checkout@v5
+        with:
+          persist-credentials: false
       - uses: actions/setup-node@v6
         with:
           node-version: '22.18.0'
           cache: npm
       - run: npm ci
+      - uses: actions/setup-node@v6
+        with:
+          node-version: '22.17.1'
+      - id: old-node-runtime
+        name: Capture the pinned old Node child runtime
+        shell: bash
+        run: |
+          mkdir -p .codex-compatibility
+          test "$(node --version)" = 'v22.17.1'
+          echo "bin=$(dirname "$(command -v node)")" >> "$GITHUB_OUTPUT"
+          node --version > .codex-compatibility/old-node-child-version.txt
+      - name: Restore the supported Node test runtime
+        uses: actions/setup-node@v6
+        with:
+          node-version: '22.18.0'
+      - name: Verify the supported Node test runtime
+        shell: bash
+        run: |
+          test "$(node --version)" = 'v22.18.0'
+          node --version > .codex-compatibility/test-node-version.txt
       - name: Install resolved Codex
         shell: bash
         run: |
@@ -90,21 +117,54 @@ jobs:
             exit 1
           fi
           npm install --global "$package" 2>&1 | tee .codex-compatibility/install-retry.log
+      - name: Verify exact installed Codex version
+        env:
+          EXPECTED_CODEX_VERSION: ${{ needs.resolve.outputs.stable }}
+        shell: bash
+        run: |
+          reported="$(codex --version)"
+          printf '%s\n' "$reported" > .codex-compatibility/codex-version.txt
+          if ! actual_version="$(node -e 'const match=process.argv[1].match(/(?:codex(?:-cli)?\s+)?(\d+\.\d+\.\d+(?:-[0-9A-Za-z.-]+)?)/u);if(!match)process.exit(1);process.stdout.write(match[1])' "$reported")"; then
+            echo "Codex reported an unreadable version: $reported" >&2
+            exit 1
+          fi
+          if [ "$actual_version" != "$EXPECTED_CODEX_VERSION" ]; then
+            echo "Installed Codex $actual_version; expected $EXPECTED_CODEX_VERSION" >&2
+            exit 1
+          fi
       - name: Record host versions
         shell: bash
         run: |
           node --version > .codex-compatibility/node-version.txt
-          codex --version > .codex-compatibility/codex-version.txt
           uname -m > .codex-compatibility/architecture.txt
           sw_vers > .codex-compatibility/macos-version.txt
       - name: Run live sandbox canary
         env:
           CIRCUIT_MCP_LIVE_SECURITY: '1'
         run: npm run test -- tests/mcp/host-sandbox-canary-live.test.ts --reporter=json --outputFile=.codex-compatibility/sandbox-canary.json
+      - name: Prove missing Node has one clear loader remedy
+        env:
+          CIRCUIT_MCP_LIVE_MISSING_NODE: '1'
+        run: npm run test -- tests/mcp/host-missing-node-live.test.ts --reporter=json --outputFile=.codex-compatibility/missing-node.json
+      - name: Prove old Node has one clear loader remedy
+        env:
+          CIRCUIT_MCP_LIVE_OLD_NODE: '1'
+          CIRCUIT_MCP_OLD_NODE_BIN: ${{ steps.old-node-runtime.outputs.bin }}
+        run: npm run test -- tests/mcp/host-old-node-live.test.ts --reporter=json --outputFile=.codex-compatibility/old-node.json
       - name: Test current main as a packed plugin
         run: npm run smoke:host:codex:mcp -- --live --mode packed --output .codex-compatibility/main-packed.json
       - name: Test the exact public Circuit tag
-        run: npm run smoke:host:codex:mcp -- --live --mode published --source petekp/circuit --ref '${{ needs.resolve.outputs.public-ref }}' --expected-version '${{ needs.resolve.outputs.public-version }}' --output .codex-compatibility/public-tag.json
+        shell: bash
+        run: |
+          smoke() {
+            npm run smoke:host:codex:mcp -- --live --mode published --source petekp/circuit --ref '${{ needs.resolve.outputs.public-ref }}' --expected-version '${{ needs.resolve.outputs.public-version }}' --output .codex-compatibility/public-tag.json
+          }
+          if smoke; then
+            exit 0
+          fi
+          mv .codex-compatibility/public-tag.json .codex-compatibility/public-tag-attempt-1.json
+          node -e "import('./scripts/hosts/smoke/codex-mcp.ts').then(({isRetryablePublishedSmokeOutcome})=>{const fs=require('node:fs');const value=JSON.parse(fs.readFileSync('.codex-compatibility/public-tag-attempt-1.json','utf8'));if(!isRetryablePublishedSmokeOutcome(value))process.exit(1)})"
+          smoke
       - name: Upload compatibility evidence
         if: ${{ always() }}
         uses: actions/upload-artifact@v4
@@ -115,35 +175,106 @@ jobs:
           retention-days: 30
 
   compatibility-issue:
-    if: ${{ always() && (needs.resolve.result == 'failure' || needs.compatibility.result == 'failure') }}
+    if: ${{ always() && github.ref == 'refs/heads/main' }}
     needs: [resolve, compatibility]
     runs-on: ubuntu-latest
+    concurrency:
+      group: codex-compatibility-issue-${{ github.repository }}
+      cancel-in-progress: false
+    permissions:
+      actions: read
+      contents: read
+      issues: write
     steps:
       - name: Open or update the compatibility issue
         uses: actions/github-script@v8
+        env:
+          RESOLVE_RESULT: ${{ needs.resolve.result }}
+          COMPATIBILITY_RESULT: ${{ needs.compatibility.result }}
+          STABLE: ${{ needs.resolve.outputs.stable }}
+          CURRENT_RUN_NUMBER: ${{ github.run_number }}
         with:
           script: |
             const title = 'Codex compatibility failure';
+            const passed = process.env.RESOLVE_RESULT === 'success' && process.env.COMPATIBILITY_RESULT === 'success';
+            const failed = process.env.RESOLVE_RESULT === 'failure' || process.env.COMPATIBILITY_RESULT === 'failure';
+            if (!passed && !failed) return;
+            const currentRunNumber = Number.parseInt(process.env.CURRENT_RUN_NUMBER || '', 10);
+            if (!Number.isSafeInteger(currentRunNumber) || currentRunNumber < 1) {
+              throw new Error('The compatibility workflow run number is missing or invalid.');
+            }
+            const { data: { workflow_runs: workflowRuns } } = await github.rest.actions.listWorkflowRuns({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              workflow_id: 'codex-compatibility.yml',
+              branch: 'main',
+              status: 'completed',
+              per_page: 100,
+            });
+            const actionableConclusions = new Set(['success', 'failure']);
+            const newerRun = workflowRuns.find(
+              (run) =>
+                run.run_number > currentRunNumber &&
+                actionableConclusions.has(run.conclusion ?? ''),
+            );
+            if (newerRun) {
+              core.info(`Skipping stale run ${currentRunNumber}; run ${newerRun.run_number} is newer.`);
+              return;
+            }
+            const workflowUrl = `${context.serverUrl}/${context.repo.owner}/${context.repo.repo}/actions/runs/${context.runId}`;
+            const marker = `<!-- circuit-codex-compatibility-run:${currentRunNumber}:${passed ? 'passed' : 'failed'} -->`;
             const body = [
               'The daily no-spend Codex compatibility check failed.',
               '',
-              `Workflow: ${context.serverUrl}/${context.repo.owner}/${context.repo.repo}/actions/runs/${context.runId}`,
-              `Resolved Codex: ${{ needs.resolve.outputs.stable || 'unavailable' }}`,
+              `Workflow: ${workflowUrl}`,
+              `Resolved Codex: ${process.env.STABLE || 'unavailable'}`,
               '',
-              'This issue stays open until both Apple Silicon and Intel checks pass.'
+              'This issue stays open until both Apple Silicon and Intel checks pass.',
+              '',
+              marker,
             ].join('\n');
-            const { data: issues } = await github.rest.issues.listForRepo({
+            const recoveredBody = [
+              `Compatibility recovered for Codex ${process.env.STABLE || 'unknown'}.`,
+              '',
+              `Workflow: ${workflowUrl}`,
+              '',
+              marker,
+            ].join('\n');
+            const issues = await github.paginate(github.rest.issues.listForRepo, {
               owner: context.repo.owner,
               repo: context.repo.repo,
-              state: 'open',
+              state: 'all',
               per_page: 100,
             });
             const existing = issues.find((issue) => issue.title === title && !issue.pull_request);
-            if (existing) {
+            const existingMarker = existing?.body?.match(/<!-- circuit-codex-compatibility-run:(\d+):(passed|failed) -->/);
+            const existingRunNumber = existingMarker ? Number.parseInt(existingMarker[1], 10) : 0;
+            if (existingRunNumber > currentRunNumber) {
+              core.info(`Skipping stale run ${currentRunNumber}; issue records run ${existingRunNumber}.`);
+              return;
+            }
+            if (passed) {
+              if (!existing || existing.state !== 'open') return;
+              await github.rest.issues.createComment({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                issue_number: existing.number,
+                body: `Compatibility recovered for Codex ${process.env.STABLE || 'unknown'}. ${workflowUrl}`,
+              });
               await github.rest.issues.update({
                 owner: context.repo.owner,
                 repo: context.repo.repo,
                 issue_number: existing.number,
+                state: 'closed',
+                state_reason: 'completed',
+                body: recoveredBody,
+              });
+            } else if (existing) {
+              await github.rest.issues.update({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                issue_number: existing.number,
+                state: 'open',
                 body,
               });
             } else {
@@ -156,11 +287,20 @@ jobs:
             }
 
   update-latest-proven:
-    if: ${{ needs.compatibility.result == 'success' }}
+    if: ${{ github.ref == 'refs/heads/main' && needs.compatibility.result == 'success' }}
     needs: [resolve, compatibility]
     runs-on: ubuntu-latest
+    permissions:
+      contents: write
+      pull-requests: write
+    concurrency:
+      group: codex-latest-proven
+      cancel-in-progress: false
     steps:
       - uses: actions/checkout@v5
+        with:
+          ref: main
+          fetch-depth: 0
       - name: Update latest proven version through a PR
         env:
           GH_TOKEN: ${{ github.token }}
@@ -172,6 +312,35 @@ jobs:
             exit 0
           fi
           branch="automation/codex-latest-proven-$STABLE"
+          body="Both daily macOS architecture checks passed for Codex $STABLE. Workflow: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}"
+          existing_pr="$(gh pr list --state open --base main --head "$branch" --json number --jq '.[0].number // empty')"
+          remote_exists=false
+          if git ls-remote --exit-code --heads origin "refs/heads/$branch" >/dev/null; then
+            git fetch origin "$branch:refs/remotes/origin/$branch"
+            changed="$(git diff --name-only origin/main..."origin/$branch")"
+            if [ "$changed" != ".github/codex-compatibility.json" ]; then
+              echo "Existing automation branch contains unexpected changes: $changed" >&2
+              exit 1
+            fi
+            remote_version="$(git show "origin/$branch:.github/codex-compatibility.json" | node -e "let body='';process.stdin.on('data',c=>body+=c);process.stdin.on('end',()=>process.stdout.write(JSON.parse(body).latest_proven||''))")"
+            if [ "$remote_version" != "$STABLE" ]; then
+              echo "Existing automation branch records $remote_version, expected $STABLE" >&2
+              exit 1
+            fi
+            remote_exists=true
+          fi
+          if [ -n "$existing_pr" ]; then
+            if [ "$remote_exists" != true ]; then
+              echo "Open compatibility PR has no matching remote branch" >&2
+              exit 1
+            fi
+            gh pr edit "$existing_pr" --body "$body"
+            exit 0
+          fi
+          if [ "$remote_exists" = true ]; then
+            gh pr create --base main --head "$branch" --title "Prove Codex $STABLE compatibility" --body "$body"
+            exit 0
+          fi
           git config user.name github-actions[bot]
           git config user.email 41898282+github-actions[bot]@users.noreply.github.com
           git checkout -b "$branch"
@@ -179,4 +348,4 @@ jobs:
           git add .github/codex-compatibility.json
           git commit -m "chore: prove Codex $STABLE compatibility"
           git push origin "$branch"
-          gh pr create --base main --head "$branch" --title "Prove Codex $STABLE compatibility" --body "Both daily macOS architecture checks passed for Codex $STABLE."
+          gh pr create --base main --head "$branch" --title "Prove Codex $STABLE compatibility" --body "$body"

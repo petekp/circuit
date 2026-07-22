@@ -29995,7 +29995,10 @@ var RelayReceiptTraceEntry = TraceEntryBase.extend({
   // is already fixed by `resolved_selection` leaves it absent. Recording it
   // makes the receipt authoritative about the model even when the selection
   // layer pinned none.
-  model: external_exports.string().min(1).optional()
+  model: external_exports.string().min(1).optional(),
+  // Additive evidence that the connector observed and validated this many
+  // completed web_search lifecycles. Absent on older and non-search receipts.
+  web_search_count: external_exports.number().int().nonnegative().optional()
 }).strict();
 var RelayResultTraceEntry = TraceEntryBase.extend({
   kind: external_exports.literal("relay.result"),
@@ -34680,10 +34683,11 @@ var McpStateStore = class {
       }
       const proof = this.#recoveryProof(current);
       if (proof.includes("alive")) {
+        const hasCancellableIdentity = current.launch.runtime !== void 0 || current.launch.phase === "supervisor_recorded";
         throw new McpStateStoreError(
           "recovery_process_alive",
           "Circuit found a process that may still belong to this run.",
-          "Call circuit_cancel for this run, then retry circuit_recover."
+          hasCancellableIdentity ? "Call circuit_cancel for this run. If cancellation confirms cleanup, the run is closed. If it returns recovery_required, wait briefly, then retry circuit_recover with this run ID. If cleanup still cannot be confirmed, stop and report the run ID; do not force-unlock the workspace." : "Wait briefly, then retry circuit_recover with this run ID. If Circuit still cannot confirm cleanup, stop and report the run ID; do not force-unlock the workspace."
         );
       }
       if (proof.includes("unknown")) {

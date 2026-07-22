@@ -719,6 +719,9 @@ export async function executeProductionRelayAttempt(input: {
     // cache-resolved default). Keeps the receipt authoritative about the model
     // even when resolved_selection pinned none.
     ...(relayResult.model === undefined ? {} : { model: relayResult.model }),
+    ...(relayResult.web_search_count === undefined
+      ? {}
+      : { web_search_count: relayResult.web_search_count }),
   });
   await context.trace.append({
     run_id: context.runId,

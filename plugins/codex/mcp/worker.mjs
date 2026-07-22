@@ -16328,9 +16328,9 @@ var KNOWN_CODEX_EVENT_TYPES = /* @__PURE__ */ new Set([
   "turn.completed"
 ]);
 var CODEX_FAILURE_EVENT_TYPES = /* @__PURE__ */ new Set(["turn.failed", "error"]);
-var CODEX_TESTED_CLI_RANGE = "0.118 to 0.130";
+var CODEX_TESTED_CLI_RANGE = "0.144.3 through 0.145.0";
 function codexUnknownTypeRemediation(detectedVersion) {
-  return `Circuit was tested against Codex CLI ${CODEX_TESTED_CLI_RANGE}, and your Codex CLI reports "${detectedVersion}". The likely cause is a Codex CLI newer than Circuit has been tested against, which added a type Circuit has not reviewed yet. Check your Codex CLI version with: codex --version, and pin it to a version in the tested range if it is newer.`;
+  return `Circuit has verified Codex CLI ${CODEX_TESTED_CLI_RANGE}, and your Codex CLI reports "${detectedVersion}". The installed Codex version may be outside this tested range, or it may have added a protocol shape Circuit has not reviewed. Check your Codex CLI version with: codex --version. Update or pin Codex CLI to a version in this range, preferably 0.145.0, then retry.`;
 }
 function parseCodexStdout(stdout, prompt, duration_ms, cli_version) {
   const trace_entries = parseNdjsonObjects(stdout, "codex --json");
@@ -16485,7 +16485,8 @@ function parseCodexStdout(stdout, prompt, duration_ms, cli_version) {
     receipt_id: thread_id,
     result_body,
     duration_ms,
-    cli_version
+    cli_version,
+    ...webSearchCompletions.size === 0 ? {} : { web_search_count: webSearchCompletions.size }
   };
 }
 

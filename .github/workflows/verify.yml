@@ -6,6 +6,9 @@ on:
   pull_request:
     branches: [main]
 
+permissions:
+  contents: read
+
 jobs:
   verify:
     name: verify (${{ matrix.os }})
@@ -19,6 +22,9 @@ jobs:
     runs-on: ${{ matrix.os }}
     steps:
       - uses: actions/checkout@v5
+        with:
+          persist-credentials: false
+          fetch-depth: 0
       - uses: actions/setup-node@v6
         with:
           node-version: '22'
@@ -32,6 +38,8 @@ jobs:
       versions: ${{ steps.versions.outputs.value }}
     steps:
       - uses: actions/checkout@v5
+        with:
+          persist-credentials: false
       - uses: actions/setup-node@v6
         with:
           node-version: '22.18.0'
@@ -54,11 +62,33 @@ jobs:
     runs-on: ${{ matrix.os.runner }}
     steps:
       - uses: actions/checkout@v5
+        with:
+          persist-credentials: false
       - uses: actions/setup-node@v6
         with:
           node-version: '22.18.0'
           cache: npm
       - run: npm ci
+      - uses: actions/setup-node@v6
+        with:
+          node-version: '22.17.1'
+      - id: old-node-runtime
+        name: Capture the pinned old Node child runtime
+        shell: bash
+        run: |
+          mkdir -p .codex-ci
+          test "$(node --version)" = 'v22.17.1'
+          echo "bin=$(dirname "$(command -v node)")" >> "$GITHUB_OUTPUT"
+          node --version > .codex-ci/old-node-child-version.txt
+      - name: Restore the supported Node test runtime
+        uses: actions/setup-node@v6
+        with:
+          node-version: '22.18.0'
+      - name: Verify the supported Node test runtime
+        shell: bash
+        run: |
+          test "$(node --version)" = 'v22.18.0'
+          node --version > .codex-ci/test-node-version.txt
       - name: Install exact Codex version
         shell: bash
         run: |
@@ -72,17 +102,40 @@ jobs:
             exit 1
           fi
           npm install --global "$package" 2>&1 | tee .codex-ci/install-retry.log
+      - name: Verify exact installed Codex version
+        env:
+          EXPECTED_CODEX_VERSION: ${{ matrix.codex }}
+        shell: bash
+        run: |
+          reported="$(codex --version)"
+          printf '%s\n' "$reported" > .codex-ci/codex-version.txt
+          if ! actual_version="$(node -e 'const match=process.argv[1].match(/(?:codex(?:-cli)?\s+)?(\d+\.\d+\.\d+(?:-[0-9A-Za-z.-]+)?)/u);if(!match)process.exit(1);process.stdout.write(match[1])' "$reported")"; then
+            echo "Codex reported an unreadable version: $reported" >&2
+            exit 1
+          fi
+          if [ "$actual_version" != "$EXPECTED_CODEX_VERSION" ]; then
+            echo "Installed Codex $actual_version; expected $EXPECTED_CODEX_VERSION" >&2
+            exit 1
+          fi
       - name: Record versions
         shell: bash
         run: |
           node --version > .codex-ci/node-version.txt
-          codex --version > .codex-ci/codex-version.txt
           uname -m > .codex-ci/architecture.txt
           sw_vers > .codex-ci/macos-version.txt
       - name: Run live sandbox canary
         env:
           CIRCUIT_MCP_LIVE_SECURITY: '1'
         run: npm run test -- tests/mcp/host-sandbox-canary-live.test.ts --reporter=json --outputFile=.codex-ci/sandbox-canary.json
+      - name: Prove missing Node has one clear loader remedy
+        env:
+          CIRCUIT_MCP_LIVE_MISSING_NODE: '1'
+        run: npm run test -- tests/mcp/host-missing-node-live.test.ts --reporter=json --outputFile=.codex-ci/missing-node.json
+      - name: Prove old Node has one clear loader remedy
+        env:
+          CIRCUIT_MCP_LIVE_OLD_NODE: '1'
+          CIRCUIT_MCP_OLD_NODE_BIN: ${{ steps.old-node-runtime.outputs.bin }}
+        run: npm run test -- tests/mcp/host-old-node-live.test.ts --reporter=json --outputFile=.codex-ci/old-node.json
       - name: Run packed-plugin real-loader smoke
         run: npm run smoke:host:codex:mcp -- --live --mode packed --output .codex-ci/packed-loader.json
       - name: Upload Codex evidence
@@ -94,11 +147,28 @@ jobs:
           if-no-files-found: error
           retention-days: 14
 
+  codex-reliability:
+    name: Codex reliability
+    if: ${{ always() }}
+    needs: [codex-versions, codex-mcp]
+    runs-on: ubuntu-latest
+    steps:
+      - name: Require every Codex reliability check
+        env:
+          CODEX_MCP_RESULT: ${{ needs.codex-mcp.result }}
+          CODEX_VERSIONS_RESULT: ${{ needs.codex-versions.result }}
+        shell: bash
+        run: |
+          test "$CODEX_VERSIONS_RESULT" = success
+          test "$CODEX_MCP_RESULT" = success
+
   checkpoint-browser:
     name: checkpoint review (Chromium)
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v5
+        with:
+          persist-credentials: false
       - uses: actions/setup-node@v6
         with:
           node-version: '22'

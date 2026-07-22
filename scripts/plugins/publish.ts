@@ -128,10 +128,69 @@ const VERSION_PATTERN = /^\d+\.\d+\.\d+(?:-[0-9A-Za-z.-]+)?(?:\+[0-9A-Za-z.-]+)?
 // ref out of the README at run time, so it must track the release tag.
 const README_REF_PATTERN = /circuit--v(\d+\.\d+\.\d+(?:-[0-9A-Za-z.-]+)?(?:\+[0-9A-Za-z.-]+)?)/g;
 const CODEX_SMOKE_SCRIPT = 'scripts/hosts/smoke/codex-mcp.ts';
-const PREVIOUS_PUBLIC_VERSION = '0.1.1';
 
 export function extractReadmeRefVersions(content: string): string[] {
   return [...new Set([...content.matchAll(README_REF_PATTERN)].map((match) => match[1] ?? ''))];
+}
+
+type ComparableVersion = {
+  readonly core: readonly [number, number, number];
+  readonly prerelease: readonly string[];
+};
+
+function comparableVersion(version: string): ComparableVersion | undefined {
+  if (!VERSION_PATTERN.test(version)) return undefined;
+  const withoutBuild = version.split('+', 1)[0] as string;
+  const separator = withoutBuild.indexOf('-');
+  const coreText = separator < 0 ? withoutBuild : withoutBuild.slice(0, separator);
+  const prerelease = separator < 0 ? [] : withoutBuild.slice(separator + 1).split('.');
+  const core = coreText.split('.').map(Number);
+  if (core.length !== 3 || core.some((part) => !Number.isSafeInteger(part))) return undefined;
+  return { core: core as [number, number, number], prerelease };
+}
+
+function compareVersions(left: string, right: string): number {
+  const leftVersion = comparableVersion(left);
+  const rightVersion = comparableVersion(right);
+  if (leftVersion === undefined || rightVersion === undefined) {
+    throw new Error('cannot compare an invalid version');
+  }
+  for (let index = 0; index < leftVersion.core.length; index += 1) {
+    const difference = (leftVersion.core[index] as number) - (rightVersion.core[index] as number);
+    if (difference !== 0) return difference;
+  }
+  if (leftVersion.prerelease.length === 0 || rightVersion.prerelease.length === 0) {
+    if (leftVersion.prerelease.length === rightVersion.prerelease.length) return 0;
+    return leftVersion.prerelease.length === 0 ? 1 : -1;
+  }
+  const length = Math.max(leftVersion.prerelease.length, rightVersion.prerelease.length);
+  for (let index = 0; index < length; index += 1) {
+    const leftPart = leftVersion.prerelease[index];
+    const rightPart = rightVersion.prerelease[index];
+    if (leftPart === undefined || rightPart === undefined) {
+      return leftPart === rightPart ? 0 : leftPart === undefined ? -1 : 1;
+    }
+    if (leftPart === rightPart) continue;
+    const leftNumeric = /^\d+$/u.test(leftPart);
+    const rightNumeric = /^\d+$/u.test(rightPart);
+    if (leftNumeric && rightNumeric) return Number(leftPart) - Number(rightPart);
+    if (leftNumeric !== rightNumeric) return leftNumeric ? -1 : 1;
+    return leftPart < rightPart ? -1 : 1;
+  }
+  return 0;
+}
+
+export function selectPreviousPublicVersion(
+  remoteTags: string,
+  currentVersion: string,
+): string | undefined {
+  if (comparableVersion(currentVersion) === undefined) return undefined;
+  const versions = splitLines(remoteTags)
+    .map((line) => /^[0-9a-f]{40,64}\trefs\/tags\/circuit--v([^\s^]+)$/u.exec(line)?.[1])
+    .filter((version): version is string => version !== undefined)
+    .filter((version) => comparableVersion(version) !== undefined)
+    .filter((version) => compareVersions(version, currentVersion) < 0);
+  return [...new Set(versions)].sort(compareVersions).at(-1);
 }
 
 function readJson<T = unknown>(path: string): T {
@@ -1143,12 +1202,29 @@ export function runPublish(
       fail('release requires the checked-in candidate host proof before publishing');
     }
     report.outputs.public_install_proven = false;
+    report.outputs.public_loader_proven = false;
     const tag = `circuit--v${report.versions.source}`;
     report.outputs.claude_tag = tag;
     const expectedTreeSha256 = packageTreeSha256(resolve(repoRoot, 'plugins/codex'));
     report.outputs.codex_plugin_tree_sha256 = expectedTreeSha256;
 
     assertReleaseTagAbsentFromRemote(tag);
+    const previousPublicVersion = selectPreviousPublicVersion(
+      runCommand('git_previous_public_tags', [
+        'git',
+        'ls-remote',
+        '--tags',
+        'origin',
+        'refs/tags/circuit--v*',
+      ]).stdout,
+      report.versions.source,
+    );
+    if (previousPublicVersion === undefined) {
+      fail(
+        `no older public Circuit tag exists before ${tag}; declare and publish a predecessor before running the upgrade proof.`,
+      );
+    }
+    report.outputs.previous_public_version = previousPublicVersion;
 
     runCodexMcpSmoke(
       'codex_mcp_smoke_packed_pre_publish',
@@ -1229,9 +1305,9 @@ export function runPublish(
           '--source',
           args.codexSource,
           '--old-ref',
-          `circuit--v${PREVIOUS_PUBLIC_VERSION}`,
+          `circuit--v${previousPublicVersion}`,
           '--old-version',
-          PREVIOUS_PUBLIC_VERSION,
+          previousPublicVersion,
           '--ref',
           tag,
           '--expected-version',
@@ -1241,7 +1317,7 @@ export function runPublish(
         ],
         expectedTreeSha256,
       );
-      if (!report.dry_run) report.outputs.public_install_proven = true;
+      if (!report.dry_run) report.outputs.public_loader_proven = true;
     } catch (verificationError) {
       const detail =
         verificationError instanceof Error ? verificationError.message : String(verificationError);

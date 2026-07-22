@@ -11,6 +11,7 @@ import {
 import { tmpdir } from 'node:os';
 import { delimiter, dirname, join, resolve } from 'node:path';
 import { afterEach, describe, expect, it } from 'vitest';
+import { MCP_TRANSIENT_ENVIRONMENT_NAMES } from '../../src/hosts/codex-mcp/transient-environment.js';
 
 const REPO_ROOT = resolve('.');
 const VERSION = (
@@ -237,4 +238,29 @@ describe('installed plugin doctor Codex MCP checks', () => {
       private_state: { status: 'not_initialized', initialized: false },
     });
   }, 30_000);
+
+  it.each([
+    ['missing value', MCP_TRANSIENT_ENVIRONMENT_NAMES.slice(1), undefined],
+    ['extra value', [...MCP_TRANSIENT_ENVIRONMENT_NAMES, 'AWS_SECRET_ACCESS_KEY'], undefined],
+    ['reordered values', [...MCP_TRANSIENT_ENVIRONMENT_NAMES].reverse(), undefined],
+    ['static environment', MCP_TRANSIENT_ENVIRONMENT_NAMES, { OPENAI_API_KEY: 'secret' }],
+  ] as const)(
+    'rejects installed MCP environment drift: %s',
+    (_label, envVars, env) => {
+      const input = fixture();
+      const configPath = join(input.codexInstalledRoot, '.mcp.json');
+      const config = JSON.parse(readFileSync(configPath, 'utf8')) as {
+        mcpServers: { circuit: Record<string, unknown> };
+      };
+      config.mcpServers.circuit.env_vars = envVars;
+      if (env !== undefined) config.mcpServers.circuit.env = env;
+      writeFileSync(configPath, `${JSON.stringify(config, null, 2)}\n`);
+
+      const result = runInstalledDoctor(input);
+
+      expect(result.status).toBe(1);
+      expect(result.output.codex.mcp.config.status).toBe('invalid');
+    },
+    30_000,
+  );
 });

@@ -1,5 +1,5 @@
 import { createHash } from 'node:crypto';
-import { mkdir, mkdtemp, readFile, realpath, rm, writeFile } from 'node:fs/promises';
+import { lstat, mkdir, mkdtemp, readFile, realpath, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 
@@ -38,6 +38,7 @@ const NOW = '2026-07-21T08:00:00.000Z';
 const DIGEST = 'a'.repeat(64);
 const FIRST_AUTHORIZATION = 'b'.repeat(64);
 const SECOND_AUTHORIZATION = 'c'.repeat(64);
+const FROZEN_V1_FIXTURE_SHA256 = 'f24b8f96d4fc435fc7cf82891894882e3487f53c46f1e93bb2602e5257508a26';
 const RUNTIME_ASSETS: McpRuntimeAssetPins = {
   schema_version: 1,
   digest_sha256: DIGEST,
@@ -52,7 +53,9 @@ const EXECUTABLE = {
 const roots: string[] = [];
 
 interface DurableStateV1Fixture {
+  readonly fixture_kind: 'circuit.mcp.durable-state-fixture';
   readonly fixture_version: 1;
+  readonly captured_from_circuit_version: '0.1.1';
   readonly checkpoint_request: Record<string, unknown>;
   readonly waiting_run: Record<string, unknown>;
   readonly waiting_lease: Record<string, unknown>;
@@ -151,6 +154,14 @@ async function writePrivateJson(path: string, value: unknown): Promise<void> {
   await writeFile(path, `${JSON.stringify(value)}\n`, { mode: 0o600 });
 }
 
+async function expectMode(path: string, mode: number): Promise<void> {
+  expect((await lstat(path)).mode & 0o777).toBe(mode);
+}
+
+async function expectMissing(path: string): Promise<void> {
+  await expect(lstat(path)).rejects.toMatchObject({ code: 'ENOENT' });
+}
+
 function bindFixtureWorkspace<T>(value: T, workspace: LifecycleWorkspaceIdentity): T {
   const replacements = new Map([
     ['__WORKSPACE_KEY__', workspace.key],
@@ -177,10 +188,17 @@ describe('Circuit MCP durable lifecycle restart', () => {
     const stateRoot = join(root, 'state');
     await mkdir(workspacePath, { mode: 0o700 });
     const workspace = trustedWorkspaceIdentity(workspacePath);
-    const frozen = JSON.parse(
-      await readFile(new URL('./fixtures/durable-state-v1.json', import.meta.url), 'utf8'),
-    ) as DurableStateV1Fixture;
-    expect(frozen.fixture_version).toBe(1);
+    const fixtureBytes = await readFile(
+      new URL('./fixtures/durable-state-v1.json', import.meta.url),
+      'utf8',
+    );
+    expect(createHash('sha256').update(fixtureBytes).digest('hex')).toBe(FROZEN_V1_FIXTURE_SHA256);
+    const frozen = JSON.parse(fixtureBytes) as DurableStateV1Fixture;
+    expect(frozen).toMatchObject({
+      fixture_kind: 'circuit.mcp.durable-state-fixture',
+      fixture_version: 1,
+      captured_from_circuit_version: '0.1.1',
+    });
 
     const state = stateAdapter({
       stateRoot,
@@ -209,6 +227,14 @@ describe('Circuit MCP durable lifecycle restart', () => {
     );
     await mkdir(join(checkpointPath, '..'), { recursive: true, mode: 0o700 });
     await writePrivateJson(checkpointPath, frozen.checkpoint_request);
+
+    await expectMode(stateRoot, 0o700);
+    await expectMode(state.store.runsRoot, 0o700);
+    await expectMode(state.store.leasesRoot, 0o700);
+    await expectMode(waitingPaths.run_dir, 0o700);
+    await expectMode(waitingPaths.state_file, 0o600);
+    await expectMode(waitingPaths.lease_file, 0o600);
+    await expectMode(checkpointPath, 0o600);
 
     const lifecycle = createLifecycle({
       workspace,
@@ -258,6 +284,9 @@ describe('Circuit MCP durable lifecycle restart', () => {
       state: 'cancelled',
       cleanup_confirmed: true,
     });
+    await expectMissing(waitingPaths.lease_file);
+    expect(state.store.readRun(workspace, RUN_ID).state).toBe('cancelled');
+    await expectMode(waitingPaths.state_file, 0o600);
 
     const recoveryRun = bindFixtureWorkspace(frozen.recovery_run, workspace);
     const recoveryLease = bindFixtureWorkspace(frozen.recovery_lease, workspace);
@@ -265,6 +294,28 @@ describe('Circuit MCP durable lifecycle restart', () => {
     await mkdir(recoveryPaths.run_dir, { recursive: true, mode: 0o700 });
     await writePrivateJson(recoveryPaths.state_file, recoveryRun);
     await writePrivateJson(recoveryPaths.lease_file, recoveryLease);
+
+    await expect(lifecycle.handle(call('circuit_list', {}))).resolves.toMatchObject({
+      ok: true,
+      runs: expect.arrayContaining([
+        expect.objectContaining({
+          run_id: NEXT_RUN_ID,
+          state: 'recovery_required',
+          checkpoint_available: false,
+        }),
+      ]),
+    });
+    await expect(
+      lifecycle.handle(call('circuit_status', { run_id: NEXT_RUN_ID })),
+    ).resolves.toMatchObject({
+      ok: true,
+      run_id: NEXT_RUN_ID,
+      state: 'recovery_required',
+      summary: 'Circuit could not confirm cleanup.',
+    });
+    await expectMode(recoveryPaths.run_dir, 0o700);
+    await expectMode(recoveryPaths.state_file, 0o600);
+    await expectMode(recoveryPaths.lease_file, 0o600);
 
     await expect(
       lifecycle.handle(call('circuit_recover', { run_id: NEXT_RUN_ID })),
@@ -276,6 +327,205 @@ describe('Circuit MCP durable lifecycle restart', () => {
       cleanup_confirmed: true,
       lease_released: true,
     });
+    await expectMissing(recoveryPaths.lease_file);
+    expect(state.store.readRun(workspace, NEXT_RUN_ID).state).toBe('interrupted');
+    await expectMode(recoveryPaths.state_file, 0o600);
+  });
+
+  it('resumes and reconciles a checkpoint reseeded from the frozen v1 fixture', async () => {
+    const root = await realpath(await mkdtemp(join(tmpdir(), 'circuit-mcp-v1-resume-')));
+    roots.push(root);
+    const workspacePath = join(root, 'workspace');
+    const stateRoot = join(root, 'state');
+    await mkdir(workspacePath, { mode: 0o700 });
+    const workspace = trustedWorkspaceIdentity(workspacePath);
+    const fixtureBytes = await readFile(
+      new URL('./fixtures/durable-state-v1.json', import.meta.url),
+      'utf8',
+    );
+    expect(createHash('sha256').update(fixtureBytes).digest('hex')).toBe(FROZEN_V1_FIXTURE_SHA256);
+    const frozen = JSON.parse(fixtureBytes) as DurableStateV1Fixture;
+
+    const resumedSupervisor = processIdentity(202, 'v1-resume-supervisor');
+    const resumedRuntime = processIdentity(302, SECOND_AUTHORIZATION);
+    let resumedProcessesAlive = true;
+    let classifiedExit = false;
+    const state = stateAdapter({
+      stateRoot,
+      inspect: (identity) =>
+        identity.birth_token === 'v1-resume-server-birth' ||
+        (resumedProcessesAlive &&
+          (identity.pid === resumedSupervisor.pid || identity.pid === resumedRuntime.pid))
+          ? 'alive'
+          : 'absent',
+      artifacts: {
+        classifyExit: async ({ record, exit }) => {
+          expect(record.launch.generation).toBe(2);
+          expect(exit).toMatchObject({
+            generation: 2,
+            authorization_sha256: SECOND_AUTHORIZATION,
+            process_group_cleanup: 'confirmed',
+          });
+          classifiedExit = true;
+          return {
+            state: 'interrupted',
+            summary: 'Circuit reconciled the resumed v1 checkpoint and confirmed cleanup.',
+          };
+        },
+      },
+    });
+    const waitingRun = bindFixtureWorkspace(frozen.waiting_run, workspace);
+    const waitingLease = bindFixtureWorkspace(frozen.waiting_lease, workspace);
+    const waitingPaths = state.store.pathsForRun(workspace, RUN_ID);
+    await mkdir(waitingPaths.run_dir, { recursive: true, mode: 0o700 });
+    await writePrivateJson(waitingPaths.state_file, waitingRun);
+    await writePrivateJson(waitingPaths.lease_file, waitingLease);
+
+    const checkpointPath = join(
+      workspacePath,
+      '.circuit',
+      'runs',
+      RUN_ID,
+      'steps',
+      'choose',
+      'request.json',
+    );
+    await mkdir(join(checkpointPath, '..'), { recursive: true, mode: 0o700 });
+    await writePrivateJson(checkpointPath, frozen.checkpoint_request);
+
+    const resumedLaunches: {
+      generation: number;
+      checkpointToken: string;
+      choiceId: string;
+    }[] = [];
+    const supervisorGenerations: number[] = [];
+    const lifecycle = createLifecycle({
+      workspace,
+      owner: owner('v1-resume-server', 102),
+      store: state.adapter,
+      launcher: {
+        begin: async ({ generation }) => {
+          supervisorGenerations.push(generation);
+          return {
+            supervisor: resumedSupervisor,
+            authorization_token: '2'.repeat(64),
+            authorization_sha256: SECOND_AUTHORIZATION,
+            authorize: async () => resumedRuntime,
+            closeBeforeAuthorization: async () => true,
+          };
+        },
+      },
+      workerFactory: {
+        createStart: async () => {
+          throw new Error('The v1 resume test must not create a start worker.');
+        },
+        createResume: async ({ run, checkpoint_token, choice_id }) => {
+          resumedLaunches.push({
+            generation: run.launch.generation,
+            checkpointToken: checkpoint_token,
+            choiceId: choice_id,
+          });
+          return { worker_entrypoint: '/tmp/worker.mjs', launch_payload: {} };
+        },
+      },
+    });
+
+    const status = CircuitStatusResponseV1.parse(
+      await lifecycle.handle(call('circuit_status', { run_id: RUN_ID })),
+    );
+    if (!status.ok || status.checkpoint === undefined) {
+      throw new Error('Circuit could not read the frozen v1 checkpoint.');
+    }
+    const choice = status.checkpoint.choices[0];
+    if (choice === undefined) throw new Error('The frozen v1 checkpoint had no advertised choice.');
+
+    const resumed = CircuitResumeResponseV1.parse(
+      await lifecycle.handle(
+        call('circuit_resume', {
+          run_id: RUN_ID,
+          checkpoint_token: status.checkpoint.token,
+          choice_id: choice.id,
+        }),
+      ),
+    );
+    if (!resumed.ok) {
+      throw new Error(
+        `Circuit could not resume the frozen v1 checkpoint: ${JSON.stringify({ resumed, record: state.store.readRun(workspace, RUN_ID), supervisorGenerations, resumedLaunches })}`,
+      );
+    }
+    expect(resumed).toMatchObject({ ok: true, run_id: RUN_ID, state: 'running' });
+    expect(supervisorGenerations).toEqual([2]);
+    expect(resumedLaunches).toEqual([
+      {
+        generation: 2,
+        checkpointToken: status.checkpoint.token,
+        choiceId: 'continue',
+      },
+    ]);
+    const resumedRecord = state.store.readRun(workspace, RUN_ID);
+    expect(resumedRecord.checkpoint).toBeUndefined();
+    expect(resumedRecord).toMatchObject({
+      state: 'running',
+      launch: {
+        generation: 2,
+        phase: 'runtime_recorded',
+        supervisor: resumedSupervisor,
+        runtime: resumedRuntime,
+      },
+    });
+
+    const controlDirectory = state.adapter.controlDirectory(workspace, RUN_ID);
+    await writePrivateJson(join(controlDirectory, 'launch-2-runtime.json'), {
+      schema_version: 1,
+      record_kind: 'circuit.mcp.runtime-observation',
+      run_id: RUN_ID,
+      generation: 2,
+      authorization_sha256: SECOND_AUTHORIZATION,
+      runtime: {
+        pid: resumedRuntime.pid,
+        process_group_id: resumedRuntime.process_group_id,
+        birth_token: resumedRuntime.birth_token,
+        started_at: resumedRuntime.started_at,
+      },
+      runtime_executable: EXECUTABLE,
+      recorded_at: NOW,
+    });
+    await writePrivateJson(join(controlDirectory, 'launch-2-exit.json'), {
+      schema_version: 1,
+      record_kind: 'circuit.mcp.exit-observation',
+      run_id: RUN_ID,
+      generation: 2,
+      authorization_sha256: SECOND_AUTHORIZATION,
+      runtime: {
+        pid: resumedRuntime.pid,
+        process_group_id: resumedRuntime.process_group_id,
+        birth_token: resumedRuntime.birth_token,
+        started_at: resumedRuntime.started_at,
+      },
+      observed_at: NOW,
+      exit_code: 1,
+      process_group_cleanup: 'confirmed',
+    });
+    resumedProcessesAlive = false;
+
+    await expect(
+      lifecycle.handle(call('circuit_status', { run_id: RUN_ID })),
+    ).resolves.toMatchObject({
+      ok: true,
+      run_id: RUN_ID,
+      state: 'interrupted',
+      summary: 'Circuit reconciled the resumed v1 checkpoint and confirmed cleanup.',
+    });
+    expect(classifiedExit).toBe(true);
+    expect(state.store.readRun(workspace, RUN_ID)).toMatchObject({
+      state: 'interrupted',
+      launch: {
+        generation: 2,
+        phase: 'exited',
+        exit: { exit_code: 1, process_group_cleanup: 'confirmed' },
+      },
+    });
+    await expectMissing(waitingPaths.lease_file);
   });
 
   it('cancels a waiting run after asset drift before starting a replacement', async () => {

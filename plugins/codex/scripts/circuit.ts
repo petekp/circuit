@@ -39,6 +39,21 @@ const CIRCUIT_HOST_KIND_ENV = 'CIRCUIT_HOST_KIND';
 const DOCTOR_SMOKE_TIMEOUT_MS = 120_000;
 const CODEX_FEATURES_TIMEOUT_MS = 5_000;
 const MINIMUM_CODEX_VERSION = '0.144.3';
+const MCP_LAUNCH_SCRIPT = [
+  'circuit_node_error() {',
+  "IFS= read -r request || request='';",
+  `id=$(printf '%s\\n' "$request" | /usr/bin/sed -n 's/.*"id"[[:space:]]*:[[:space:]]*\\([0-9][0-9]*\\).*/\\1/p');`,
+  `case "$id" in ''|*[!0-9]*) id=0 ;; esac;`,
+  'printf \'{"jsonrpc":"2.0","id":%s,"error":{"code":-32000,"message":"%s"}}\\n\' "$id" "$1";',
+  'exit 1;',
+  '};',
+  'if ! command -v node >/dev/null 2>&1; then circuit_node_error "Circuit MCP requires Node.js 22.18 or newer. Install Node.js 22.18 or newer, ensure node is on PATH, restart Codex, and try again."; fi;',
+  'node_version=$(node -p \'process.versions.node\' 2>/dev/null) || circuit_node_error "Circuit MCP could not read the Node.js version. Install Node.js 22.18 or newer, ensure node is on PATH, restart Codex, and try again.";',
+  'case "$node_version" in \'\'|*[!0-9.]*) circuit_node_error "Circuit MCP could not read the Node.js version. Install Node.js 22.18 or newer, ensure node is on PATH, restart Codex, and try again." ;; esac;',
+  'node_major=${node_version%%.*}; node_minor_tail=${node_version#*.}; node_minor=${node_minor_tail%%.*};',
+  'if [ "$node_major" -lt 22 ] || { [ "$node_major" -eq 22 ] && [ "$node_minor" -lt 18 ]; }; then circuit_node_error "Circuit MCP requires Node.js 22.18 or newer. Current Node.js is $node_version. Install Node.js 22.18 or newer, ensure node is on PATH, restart Codex, and try again."; fi;',
+  'exec node ./mcp/server.cjs',
+].join(' ');
 const MCP_TOOL_NAMES = [
   'circuit_start',
   'circuit_status',
@@ -46,6 +61,35 @@ const MCP_TOOL_NAMES = [
   'circuit_cancel',
   'circuit_list',
   'circuit_recover',
+] as const;
+const MCP_TRANSIENT_ENVIRONMENT_NAMES = [
+  'HOME',
+  'LANG',
+  'LC_ALL',
+  'LC_CTYPE',
+  'LOGNAME',
+  'PATH',
+  'SHELL',
+  'TERM',
+  'TMPDIR',
+  'TZ',
+  'USER',
+  'CODEX_HOME',
+  'OPENAI_API_KEY',
+  'OPENAI_BASE_URL',
+  'OPENAI_ORGANIZATION',
+  'OPENAI_PROJECT',
+  'HTTP_PROXY',
+  'HTTPS_PROXY',
+  'ALL_PROXY',
+  'NO_PROXY',
+  'http_proxy',
+  'https_proxy',
+  'all_proxy',
+  'no_proxy',
+  'SSL_CERT_FILE',
+  'SSL_CERT_DIR',
+  'NODE_EXTRA_CA_CERTS',
 ] as const;
 const MCP_RUNTIME_FILES = [
   ['server_cjs', 'mcp/server.cjs'],
@@ -230,12 +274,14 @@ function runDoctor(): number {
       typeof mcpServer === 'object' &&
         mcpServer !== null &&
         !Array.isArray(mcpServer) &&
-        mcpServer.command === 'node' &&
-        sameStrings(mcpServer.args, ['./mcp/server.cjs']) &&
+        mcpServer.command === '/bin/sh' &&
+        sameStrings(mcpServer.args, ['-c', MCP_LAUNCH_SCRIPT]) &&
         mcpServer.cwd === '.' &&
         mcpServer.required === true &&
         mcpServer.startup_timeout_sec === 10 &&
-        mcpServer.tool_timeout_sec === 240,
+        mcpServer.tool_timeout_sec === 240 &&
+        mcpServer.env === undefined &&
+        sameStrings(mcpServer.env_vars, MCP_TRANSIENT_ENVIRONMENT_NAMES),
       mcpConfigPath,
     ),
   );

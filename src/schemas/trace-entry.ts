@@ -502,6 +502,9 @@ export const RelayReceiptTraceEntry = TraceEntryBase.extend({
   // makes the receipt authoritative about the model even when the selection
   // layer pinned none.
   model: z.string().min(1).optional(),
+  // Additive evidence that the connector observed and validated this many
+  // completed web_search lifecycles. Absent on older and non-search receipts.
+  web_search_count: z.number().int().nonnegative().optional(),
 }).strict();
 export type RelayReceiptTraceEntry = z.infer<typeof RelayReceiptTraceEntry>;
 

@@ -11,7 +11,11 @@ import { tmpdir } from 'node:os';
 import { dirname, join, resolve } from 'node:path';
 import { describe, expect, it } from 'vitest';
 import { packageTreeSha256, packageTreeStatus } from '../../scripts/plugins/package-tree.ts';
-import { type CommandInvocation, runPublish } from '../../scripts/plugins/publish.ts';
+import {
+  type CommandInvocation,
+  runPublish,
+  selectPreviousPublicVersion,
+} from '../../scripts/plugins/publish.ts';
 
 const REPO_ROOT = resolve('.');
 
@@ -36,6 +40,7 @@ type GitFixture = {
 type RunnerOptions = {
   codexCacheTarget?: string;
   claudeMarketplaceList?: unknown;
+  publicTags?: string;
   onCall?: (invocation: CommandInvocation) => void;
 };
 
@@ -192,6 +197,14 @@ function createRunner(git: GitFixture = {}, options: RunnerOptions = {}) {
           return { exitCode: 0, stdout: `${head}\n`, stderr: '' };
         case 'git_origin_head':
           return { exitCode: 0, stdout: `${originHead}\n`, stderr: '' };
+        case 'git_previous_public_tags':
+          return {
+            exitCode: 0,
+            stdout:
+              options.publicTags ??
+              '1111111111111111111111111111111111111111\trefs/tags/circuit--v0.1.0-alpha.1\n',
+            stderr: '',
+          };
         case 'claude_marketplace_remove_user': {
           const name = invocation.argv[4];
           claudeMarketplaceList = claudeMarketplaceList.filter(
@@ -321,6 +334,21 @@ function ids(calls: CommandInvocation[]): string[] {
 }
 
 describe('plugin publish automation', () => {
+  it('derives the upgrade predecessor from immutable public tags', () => {
+    const tags = [
+      '1111111111111111111111111111111111111111\trefs/tags/circuit--v0.1.0-alpha.1',
+      '2222222222222222222222222222222222222222\trefs/tags/circuit--v0.1.0-alpha.2',
+      '3333333333333333333333333333333333333333\trefs/tags/circuit--v0.1.0',
+      '4444444444444444444444444444444444444444\trefs/tags/circuit--v0.1.1',
+      '5555555555555555555555555555555555555555\trefs/tags/other--v9.9.9',
+    ].join('\n');
+
+    expect(selectPreviousPublicVersion(tags, '0.1.0-alpha.2')).toBe('0.1.0-alpha.1');
+    expect(selectPreviousPublicVersion(tags, '0.1.1')).toBe('0.1.0');
+    expect(selectPreviousPublicVersion(tags, '0.1.2')).toBe('0.1.1');
+    expect(selectPreviousPublicVersion(tags, '0.1.0-alpha.1')).toBeUndefined();
+  });
+
   it('exposes package scripts for check, local, and release targets', () => {
     const pkg = JSON.parse(readFileSync(resolve(REPO_ROOT, 'package.json'), 'utf8')) as {
       scripts: Record<string, string>;
@@ -1102,7 +1130,8 @@ describe('plugin publish automation', () => {
 
       expect(published.status).toBe('published');
       expect(published.outputs.candidate_host_proven).toBe(true);
-      expect(published.outputs.public_install_proven).toBe(true);
+      expect(published.outputs.public_loader_proven).toBe(true);
+      expect(published.outputs.public_install_proven).toBe(false);
       expect(published.outputs.codex_plugin_tree_sha256).toBe(
         packageTreeSha256(join(root, 'plugins/codex')),
       );
@@ -1148,13 +1177,32 @@ describe('plugin publish automation', () => {
           '--mode',
           'upgrade',
           '--old-ref',
-          'circuit--v0.1.1',
+          'circuit--v0.1.0-alpha.1',
           '--old-version',
-          '0.1.1',
+          '0.1.0-alpha.1',
           '--ref',
           'circuit--v0.1.0-alpha.2',
         ]),
       );
+      expect(published.outputs.previous_public_version).toBe('0.1.0-alpha.1');
+    } finally {
+      rmSync(root, { recursive: true, force: true });
+    }
+  });
+
+  it('stops before publication when no older public release tag exists', () => {
+    const root = createFixture();
+    const { calls, runner } = createRunner({}, { publicTags: '' });
+    try {
+      const report = runPublish(
+        ['release', '--yes', '--codex-source', 'petekp/circuit', '--codex-marketplace', 'circuit'],
+        { repoRoot: root, runner },
+      );
+
+      expect(report.status).toBe('failed');
+      expect(report.errors.join('\n')).toContain('no older public Circuit tag');
+      expect(ids(calls)).toContain('git_previous_public_tags');
+      expect(ids(calls)).not.toContain('claude_tag_push');
     } finally {
       rmSync(root, { recursive: true, force: true });
     }

@@ -134,5 +134,6 @@ claims:
       script_checks:
         - scripts/release/emit-current-capabilities.ts --check
         - scripts/release/check-codex-mcp-first-run-proof.ts
+        - scripts/release/check-codex-mcp-candidate-matrix.ts
     user_risk: A user following the public Codex install could receive an unproven loader or workspace path and mistake setup friction for Circuit behavior.
     readiness_refs: [REL-014, REL-017]

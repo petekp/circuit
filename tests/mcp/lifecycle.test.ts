@@ -1156,7 +1156,10 @@ describe('Circuit MCP lifecycle', () => {
   });
 
   it.each([
-    ['recovery_process_alive', 'Call circuit_cancel for this run, then retry circuit_recover.'],
+    [
+      'recovery_process_alive',
+      'Call circuit_cancel for this run. If cancellation confirms cleanup, the run is closed. If it returns recovery_required, wait briefly, then retry circuit_recover with this run ID. If cleanup still cannot be confirmed, stop and report the run ID; do not force-unlock the workspace.',
+    ],
     [
       'recovery_process_unknown',
       'Wait briefly, then retry circuit_recover with this run ID. If Circuit still cannot confirm cleanup, stop and report the run ID; do not force-unlock the workspace.',

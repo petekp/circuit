@@ -333,6 +333,22 @@ describe('RelayReceiptTraceEntry', () => {
     expect(ok.success).toBe(true);
     if (ok.success) expect(ok.data.model).toBeUndefined();
   });
+
+  it('records a bounded count of reviewed web search events', () => {
+    const ok = RelayReceiptTraceEntry.safeParse({
+      ...relayReceiptTraceEntry,
+      web_search_count: 2,
+    });
+    expect(ok.success).toBe(true);
+    if (ok.success) expect(ok.data.web_search_count).toBe(2);
+
+    expect(
+      RelayReceiptTraceEntry.safeParse({
+        ...relayReceiptTraceEntry,
+        web_search_count: -1,
+      }).success,
+    ).toBe(false);
+  });
 });
 
 describe('RelayResultTraceEntry', () => {

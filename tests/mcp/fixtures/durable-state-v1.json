@@ -1,5 +1,7 @@
 {
+  "fixture_kind": "circuit.mcp.durable-state-fixture",
   "fixture_version": 1,
+  "captured_from_circuit_version": "0.1.1",
   "checkpoint_request": {
     "schema_version": 1,
     "step_id": "choose",

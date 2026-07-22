@@ -1895,10 +1895,14 @@ export class McpStateStore {
       }
       const proof = this.#recoveryProof(current);
       if (proof.includes('alive')) {
+        const hasCancellableIdentity =
+          current.launch.runtime !== undefined || current.launch.phase === 'supervisor_recorded';
         throw new McpStateStoreError(
           'recovery_process_alive',
           'Circuit found a process that may still belong to this run.',
-          'Call circuit_cancel for this run, then retry circuit_recover.',
+          hasCancellableIdentity
+            ? 'Call circuit_cancel for this run. If cancellation confirms cleanup, the run is closed. If it returns recovery_required, wait briefly, then retry circuit_recover with this run ID. If cleanup still cannot be confirmed, stop and report the run ID; do not force-unlock the workspace.'
+            : 'Wait briefly, then retry circuit_recover with this run ID. If Circuit still cannot confirm cleanup, stop and report the run ID; do not force-unlock the workspace.',
         );
       }
       if (proof.includes('unknown')) {

@@ -125,7 +125,7 @@ describe('shim behavior on a simulated Node version (subprocess)', () => {
       expect(stderr).toContain('20.11.1');
       if (shim === 'plugins/codex/mcp/server.cjs') {
         expect(stderr).toContain(
-          `Install Node.js ${FLOOR} or newer, restart Codex, and try again.`,
+          `Install Node.js ${FLOOR} or newer, ensure node is on PATH, restart Codex, and try again.`,
         );
       }
       // The whole point: never the cryptic loader error on an old Node.

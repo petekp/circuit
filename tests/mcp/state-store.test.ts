@@ -1548,14 +1548,50 @@ describe('MCP list and recovery', () => {
             owner: owner('r'),
           }),
         processStatus === 'alive' ? 'recovery_process_alive' : 'recovery_process_unknown',
-        processStatus === 'alive'
-          ? 'Call circuit_cancel for this run, then retry circuit_recover.'
-          : 'Wait briefly, then retry circuit_recover with this run ID. If Circuit still cannot confirm cleanup, stop and report the run ID; do not force-unlock the workspace.',
+        'Wait briefly, then retry circuit_recover with this run ID. If Circuit still cannot confirm cleanup, stop and report the run ID; do not force-unlock the workspace.',
       );
       expect(state.readRun(workspaceA, RUN_A).state).toBe('recovery_required');
       expect(lstatSync(state.pathsForRun(workspaceA, RUN_A).lease_file).isFile()).toBe(true);
     },
   );
+
+  it('retries identity-less recovery without sending the operator into workspace_busy', async () => {
+    const { stateRoot, workspaceA } = await fixture();
+    let processStatus: ProcessStatus = 'alive';
+    const state = store(stateRoot, () => processStatus);
+    reserve(state, workspaceA);
+    const claim = state.acquireOperation({
+      workspace: workspaceA,
+      run_id: RUN_A,
+      operation: 'reconcile',
+      owner: owner('x'),
+    });
+    if (!claim.ok) throw new Error('expected claim');
+    state.transitionRun({
+      handle: claim.handle,
+      to: 'recovery_required',
+      summary: 'Circuit could not confirm cleanup.',
+      recovery: {
+        reason: 'start_interrupted',
+        detected_at: NOW,
+        last_checked_at: NOW,
+        cancellation_requested: false,
+      },
+    });
+    state.releaseOperation(claim.handle);
+
+    expectStoreError(
+      () => state.recoverRun({ workspace: workspaceA, run_id: RUN_A, owner: owner('r') }),
+      'recovery_process_alive',
+      'Wait briefly, then retry circuit_recover with this run ID. If Circuit still cannot confirm cleanup, stop and report the run ID; do not force-unlock the workspace.',
+    );
+
+    processStatus = 'absent';
+    expect(
+      state.recoverRun({ workspace: workspaceA, run_id: RUN_A, owner: owner('r') }),
+    ).toMatchObject({ cleanup_confirmed: true, lease_released: true });
+    expect(() => reserve(state, workspaceA, RUN_B, owner('b'))).not.toThrow();
+  });
 
   it('recovers a reserved launch by exact owner PID even when Codex still owns the shared group', async () => {
     const { stateRoot, workspaceA } = await fixture();
@@ -1722,6 +1758,7 @@ describe('MCP list and recovery', () => {
     expectStoreError(
       () => state.recoverRun({ workspace: workspaceA, run_id: RUN_A, owner: owner('r') }),
       'recovery_process_alive',
+      'Call circuit_cancel for this run. If cancellation confirms cleanup, the run is closed. If it returns recovery_required, wait briefly, then retry circuit_recover with this run ID. If cleanup still cannot be confirmed, stop and report the run ID; do not force-unlock the workspace.',
     );
     expect(lstatSync(state.pathsForRun(workspaceA, RUN_A).lease_file).isFile()).toBe(true);
   });

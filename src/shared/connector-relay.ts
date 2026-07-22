@@ -39,6 +39,9 @@ export interface RelayResult {
   readonly duration_ms: number;
   readonly cli_version: string;
   readonly usage?: RelayUsage;
+  // Count of reviewed Codex web_search completions in this relay. Optional so
+  // older connector receipts and non-Codex connectors remain valid.
+  readonly web_search_count?: number;
   // The model the connector actually spawned with, when the connector resolves
   // it at dispatch. Set by codex when it falls back to (or confirms) a model
   // that the selection layer did not pin, so the run receipt is authoritative
