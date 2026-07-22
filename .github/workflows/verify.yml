@@ -126,16 +126,16 @@ jobs:
       - name: Run live sandbox canary
         env:
           CIRCUIT_MCP_LIVE_SECURITY: '1'
-        run: npm run test -- tests/mcp/host-sandbox-canary-live.test.ts --reporter=json --outputFile=.codex-ci/sandbox-canary.json
+        run: npm run test -- tests/mcp/host-sandbox-canary-live.test.ts --reporter=default --reporter=json --outputFile.json=.codex-ci/sandbox-canary.json
       - name: Prove missing Node has one clear loader remedy
         env:
           CIRCUIT_MCP_LIVE_MISSING_NODE: '1'
-        run: npm run test -- tests/mcp/host-missing-node-live.test.ts --reporter=json --outputFile=.codex-ci/missing-node.json
+        run: npm run test -- tests/mcp/host-missing-node-live.test.ts --reporter=default --reporter=json --outputFile.json=.codex-ci/missing-node.json
       - name: Prove old Node has one clear loader remedy
         env:
           CIRCUIT_MCP_LIVE_OLD_NODE: '1'
           CIRCUIT_MCP_OLD_NODE_BIN: ${{ steps.old-node-runtime.outputs.bin }}
-        run: npm run test -- tests/mcp/host-old-node-live.test.ts --reporter=json --outputFile=.codex-ci/old-node.json
+        run: npm run test -- tests/mcp/host-old-node-live.test.ts --reporter=default --reporter=json --outputFile.json=.codex-ci/old-node.json
       - name: Run packed-plugin real-loader smoke
         run: npm run smoke:host:codex:mcp -- --live --mode packed --output .codex-ci/packed-loader.json
       - name: Upload Codex evidence
@@ -145,6 +145,7 @@ jobs:
           name: codex-mcp-${{ matrix.os.arch }}-${{ matrix.codex }}
           path: .codex-ci
           if-no-files-found: error
+          include-hidden-files: true
           retention-days: 14
 
   codex-reliability:

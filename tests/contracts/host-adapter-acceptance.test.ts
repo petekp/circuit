@@ -265,6 +265,19 @@ describe('host adapter acceptance contract', () => {
     }
     assertPinnedOldNodeLoaderProof(verifyConfig, 'codex-mcp');
     assertExactCodexVersionProof(verifyConfig, 'codex-mcp', '${{ matrix.codex }}');
+    const codexMcpSteps = verifyConfig.jobs['codex-mcp']?.steps ?? [];
+    for (const [name, output] of [
+      ['Run live sandbox canary', 'sandbox-canary.json'],
+      ['Prove missing Node has one clear loader remedy', 'missing-node.json'],
+      ['Prove old Node has one clear loader remedy', 'old-node.json'],
+    ] as const) {
+      const evidenceStep = codexMcpSteps.find((step) => step.name === name);
+      expect(evidenceStep?.run).toContain('--reporter=default');
+      expect(evidenceStep?.run).toContain('--reporter=json');
+      expect(evidenceStep?.run).toContain(`--outputFile.json=.codex-ci/${output}`);
+    }
+    const codexEvidence = codexMcpSteps.find((step) => step.name === 'Upload Codex evidence');
+    expect(codexEvidence?.with?.['include-hidden-files']).toBe(true);
     const codexReliability = verifyConfig.jobs['codex-reliability'];
     expect(codexReliability?.name).toBe('Codex reliability');
     expect(codexReliability?.if).toBe('${{ always() }}');
@@ -357,6 +370,22 @@ describe('host adapter acceptance contract', () => {
       (step) => step.uses === 'actions/upload-artifact@v4',
     );
     expect(resolvedEvidence?.if).toBe('${{ always() }}');
+    expect(resolvedEvidence?.with?.['include-hidden-files']).toBe(true);
+    const compatibilitySteps = compatibilityConfig.jobs.compatibility?.steps ?? [];
+    for (const [name, output] of [
+      ['Run live sandbox canary', 'sandbox-canary.json'],
+      ['Prove missing Node has one clear loader remedy', 'missing-node.json'],
+      ['Prove old Node has one clear loader remedy', 'old-node.json'],
+    ] as const) {
+      const evidenceStep = compatibilitySteps.find((step) => step.name === name);
+      expect(evidenceStep?.run).toContain('--reporter=default');
+      expect(evidenceStep?.run).toContain('--reporter=json');
+      expect(evidenceStep?.run).toContain(`--outputFile.json=.codex-compatibility/${output}`);
+    }
+    const compatibilityEvidence = compatibilitySteps.find(
+      (step) => step.name === 'Upload compatibility evidence',
+    );
+    expect(compatibilityEvidence?.with?.['include-hidden-files']).toBe(true);
     for (const jobName of ['resolve', 'compatibility']) {
       const checkout = compatibilityConfig.jobs[jobName]?.steps?.find(
         (step) => step.uses === 'actions/checkout@v5',

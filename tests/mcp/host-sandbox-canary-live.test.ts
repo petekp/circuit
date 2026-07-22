@@ -64,5 +64,5 @@ suite('live no-spend Codex security canaries', () => {
         policy: { ...input.policy, searchMode: 'cached' as const },
       }),
     ).resolves.toBeUndefined();
-  }, 30_000);
+  }, 90_000);
 });

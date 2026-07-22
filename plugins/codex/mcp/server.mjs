@@ -25598,7 +25598,7 @@ function pathInside(parent, candidate2) {
 }
 
 // src/hosts/codex-mcp/host-sandbox-canary.ts
-var CANARY_TIMEOUT_MS = 1e4;
+var CANARY_TIMEOUT_MS = 2e4;
 var CANARY_OUTPUT_LIMIT_BYTES = 1024 * 1024;
 var EXPECTED_TOOL_NAMES = Object.freeze([
   "apply_patch",

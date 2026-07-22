@@ -62,6 +62,7 @@ jobs:
         with:
           name: codex-compatibility-resolved
           path: .codex-compatibility
+          include-hidden-files: true
           retention-days: 30
 
   compatibility:
@@ -141,16 +142,16 @@ jobs:
       - name: Run live sandbox canary
         env:
           CIRCUIT_MCP_LIVE_SECURITY: '1'
-        run: npm run test -- tests/mcp/host-sandbox-canary-live.test.ts --reporter=json --outputFile=.codex-compatibility/sandbox-canary.json
+        run: npm run test -- tests/mcp/host-sandbox-canary-live.test.ts --reporter=default --reporter=json --outputFile.json=.codex-compatibility/sandbox-canary.json
       - name: Prove missing Node has one clear loader remedy
         env:
           CIRCUIT_MCP_LIVE_MISSING_NODE: '1'
-        run: npm run test -- tests/mcp/host-missing-node-live.test.ts --reporter=json --outputFile=.codex-compatibility/missing-node.json
+        run: npm run test -- tests/mcp/host-missing-node-live.test.ts --reporter=default --reporter=json --outputFile.json=.codex-compatibility/missing-node.json
       - name: Prove old Node has one clear loader remedy
         env:
           CIRCUIT_MCP_LIVE_OLD_NODE: '1'
           CIRCUIT_MCP_OLD_NODE_BIN: ${{ steps.old-node-runtime.outputs.bin }}
-        run: npm run test -- tests/mcp/host-old-node-live.test.ts --reporter=json --outputFile=.codex-compatibility/old-node.json
+        run: npm run test -- tests/mcp/host-old-node-live.test.ts --reporter=default --reporter=json --outputFile.json=.codex-compatibility/old-node.json
       - name: Test current main as a packed plugin
         run: npm run smoke:host:codex:mcp -- --live --mode packed --output .codex-compatibility/main-packed.json
       - name: Test the exact public Circuit tag
@@ -172,6 +173,7 @@ jobs:
           name: codex-compatibility-${{ matrix.arch }}
           path: .codex-compatibility
           if-no-files-found: error
+          include-hidden-files: true
           retention-days: 30
 
   compatibility-issue:

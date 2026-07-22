@@ -150,7 +150,8 @@ describe('Codex named sandbox canary', () => {
     expect(run).toHaveBeenCalledWith(
       expect.objectContaining({
         executable: '/trusted/codex',
-        timeoutMs: 10_000,
+        timeoutMs: 20_000,
+        idleTimeoutMs: 20_000,
         stdoutMaxBytes: 1024 * 1024,
         args: expect.arrayContaining([
           'sandbox',
