@@ -54,6 +54,7 @@ function startLaunch(overrides: Record<string, unknown> = {}) {
       canonical_path: '/repo',
       device: '1',
       inode: '2',
+      identity_source: 'codex/sandbox-state-meta',
     },
     flow_root: '/plugin/flows',
     private_temp_root: '/private/state/run',
@@ -111,6 +112,22 @@ describe('MCP dedicated worker runtime', () => {
       parseMcpWorkerLaunch({
         ...startLaunch(),
         codex: { ...startLaunch().codex, executable: 'codex' },
+      }),
+    ).toThrow();
+    expect(() =>
+      parseMcpWorkerLaunch({
+        ...startLaunch(),
+        workspace: { ...startLaunch().workspace, identity_source: 'unsafe/source' },
+      }),
+    ).toThrow();
+    expect(() =>
+      parseMcpWorkerLaunch({
+        ...startLaunch(),
+        workspace: {
+          canonical_path: '/repo',
+          device: '1',
+          inode: '2',
+        },
       }),
     ).toThrow();
     expect(() =>
@@ -296,7 +313,7 @@ describe('MCP dedicated worker runtime', () => {
     expect(createRuntimeContextSpy).toHaveBeenCalledWith(
       expect.objectContaining({
         workspace: {
-          metadata_key: 'codex/sandbox-state-meta',
+          identity_source: 'codex/sandbox-state-meta',
           workspace: '/repo',
         },
         capabilities: expect.objectContaining({
@@ -333,6 +350,7 @@ describe('MCP dedicated worker runtime', () => {
           canonical_path: workspace,
           device: String(workspaceInfo.dev),
           inode: String(workspaceInfo.ino),
+          identity_source: 'codex/sandbox-state-meta',
         },
         private_temp_root: privateRoot,
       }),
@@ -368,7 +386,7 @@ describe('MCP dedicated worker runtime', () => {
       const privateRoot = join(root, 'private');
       const runsRoot = join(workspace, '.circuit', 'runs');
       await Promise.all([
-        mkdir(workspace),
+        mkdir(workspace, { recursive: true }),
         mkdir(outside),
         mkdir(privateRoot, { mode: 0o700 }),
         mkdir(linkedDirectory === 'runs' ? join(workspace, '.circuit') : runsRoot, {
@@ -387,6 +405,7 @@ describe('MCP dedicated worker runtime', () => {
             canonical_path: workspace,
             device: String(workspaceInfo.dev),
             inode: String(workspaceInfo.ino),
+            identity_source: 'codex/sandbox-state-meta',
           },
           private_temp_root: privateRoot,
         }),
@@ -420,6 +439,7 @@ describe('MCP dedicated worker runtime', () => {
           canonical_path: workspace,
           device: String(workspaceInfo.dev),
           inode: String(workspaceInfo.ino),
+          identity_source: 'codex/sandbox-state-meta',
         },
         private_temp_root: privateRoot,
       }),
@@ -451,6 +471,7 @@ describe('MCP dedicated worker runtime', () => {
           canonical_path: workspace,
           device: String(workspaceInfo.dev),
           inode: String(workspaceInfo.ino),
+          identity_source: 'codex/sandbox-state-meta',
         },
         private_temp_root: privateRoot,
       }),
@@ -515,6 +536,7 @@ describe('MCP dedicated worker runtime', () => {
           canonical_path: workspace,
           device: String(workspaceInfo.dev),
           inode: String(workspaceInfo.ino),
+          identity_source: 'codex/sandbox-state-meta',
         },
         flow_root: flowRoot,
         private_temp_root: privateRoot,
@@ -577,6 +599,7 @@ describe('MCP dedicated worker runtime', () => {
           canonical_path: workspace,
           device: String(workspaceInfo.dev),
           inode: String(workspaceInfo.ino),
+          identity_source: 'codex/sandbox-state-meta',
         },
         flow_root: flowRoot,
         private_temp_root: privateRoot,

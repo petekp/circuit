@@ -8,6 +8,7 @@ export interface LifecycleWorkspaceIdentity {
   readonly canonical_path: string;
   readonly device: string;
   readonly inode: string;
+  readonly identity_source?: 'codex/sandbox-state-meta' | 'mcp/roots';
 }
 
 export interface LifecycleExecutableIdentity {

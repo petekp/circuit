@@ -48,7 +48,7 @@ describe('sealed Codex MCP runtime context', () => {
 
     const context = createMcpRuntimeContext({
       workspace: {
-        metadata_key: 'codex/sandbox-state-meta',
+        identity_source: 'mcp/roots',
         workspace: root,
       },
       workspaceIdentity: {
@@ -72,6 +72,7 @@ describe('sealed Codex MCP runtime context', () => {
     });
 
     expect(context.workspace.canonical_path).toBe(root);
+    expect(context.workspace.identity_source).toBe('mcp/roots');
     expect(context.codex.executable).toBe(
       assets.assets.find((asset) => asset.id === 'codex')?.real_path,
     );
@@ -92,7 +93,7 @@ describe('sealed Codex MCP runtime context', () => {
     expect(() =>
       createMcpRuntimeContext({
         workspace: {
-          metadata_key: 'codex/sandbox-state-meta',
+          identity_source: 'codex/sandbox-state-meta',
           workspace: root,
         },
         workspaceIdentity: { device: '1', inode: '1' },

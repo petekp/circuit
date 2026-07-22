@@ -90,7 +90,7 @@ async function createFixture(
   const workspacePath = join(root, options.workspaceName ?? 'workspace');
   await mkdir(workspacePath, { recursive: true });
   const workspace: TrustedCodexWorkspace = {
-    metadata_key: CODEX_SANDBOX_METADATA_KEY,
+    identity_source: CODEX_SANDBOX_METADATA_KEY,
     workspace: await realpath(workspacePath),
   };
   const runId = options.runId ?? RUN_ID;

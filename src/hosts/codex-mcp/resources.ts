@@ -4,6 +4,9 @@ import { fileURLToPath } from 'node:url';
 
 export const CODEX_SANDBOX_METADATA_KEY = 'codex/sandbox-state-meta' as const;
 export const CODEX_MCP_ROOTS_SOURCE = 'mcp/roots' as const;
+export type CodexWorkspaceIdentitySource =
+  | typeof CODEX_SANDBOX_METADATA_KEY
+  | typeof CODEX_MCP_ROOTS_SOURCE;
 
 export type CodexWorkspaceMetadataErrorCode =
   | 'workspace_metadata_missing'
@@ -29,7 +32,7 @@ export class CodexWorkspaceMetadataError extends Error {
 }
 
 export interface TrustedCodexWorkspace {
-  readonly metadata_key: typeof CODEX_SANDBOX_METADATA_KEY;
+  readonly identity_source: CodexWorkspaceIdentitySource;
   readonly workspace: string;
 }
 
@@ -121,7 +124,7 @@ function pathFromTrustedFileUrl(value: string, label = 'sandboxCwd'): string {
 
 async function trustedWorkspaceFromPath(
   requestedPath: string,
-  identitySource: typeof CODEX_SANDBOX_METADATA_KEY | typeof CODEX_MCP_ROOTS_SOURCE,
+  identitySource: CodexWorkspaceIdentitySource,
 ): Promise<TrustedCodexWorkspace> {
   const resolvedPath = pathFromTrustedFileUrl(requestedPath, identitySource);
 
@@ -159,7 +162,7 @@ async function trustedWorkspaceFromPath(
   }
 
   return {
-    metadata_key: CODEX_SANDBOX_METADATA_KEY,
+    identity_source: identitySource,
     workspace,
   };
 }

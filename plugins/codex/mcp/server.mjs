@@ -28229,7 +28229,7 @@ async function trustedWorkspaceFromPath(requestedPath, identitySource) {
     );
   }
   return {
-    metadata_key: CODEX_SANDBOX_METADATA_KEY,
+    identity_source: identitySource,
     workspace
   };
 }
@@ -31771,13 +31771,7 @@ var CanonicalRuntimeArtifactReconciler = class {
         "The Circuit worker stopped before it recorded a normal outcome."
       );
     }
-    if (input.exit.exit_code !== void 0 && input.exit.exit_code !== 0) {
-      return failure(
-        "needs_attention",
-        "worker_exit_nonzero",
-        "The Circuit worker exited with an error before it completed or parked safely."
-      );
-    }
+    const workerExitedNonzero = input.exit.exit_code !== void 0 && input.exit.exit_code !== 0;
     let runRoot;
     let status;
     try {
@@ -31786,7 +31780,11 @@ var CanonicalRuntimeArtifactReconciler = class {
       await assertOrdinaryFile(join11(runRoot, "trace.ndjson"), MAX_TRACE_BYTES);
       status = projectRunStatusFromRunFolder(runRoot);
     } catch {
-      return failure(
+      return workerExitedNonzero ? failure(
+        "needs_attention",
+        "worker_exit_nonzero",
+        "The Circuit worker exited with an error before it completed or parked safely."
+      ) : failure(
         "needs_attention",
         "run_artifact_unavailable",
         "Circuit could not safely read the worker run artifacts."
@@ -31797,6 +31795,13 @@ var CanonicalRuntimeArtifactReconciler = class {
         "needs_attention",
         "run_artifact_mismatch",
         "The worker run artifacts do not match this Circuit run."
+      );
+    }
+    if (workerExitedNonzero && status.engine_state !== "completed") {
+      return failure(
+        "needs_attention",
+        "worker_exit_nonzero",
+        "The Circuit worker exited with an error before it completed or parked safely."
       );
     }
     if (status.engine_state === "waiting_checkpoint") {
@@ -31835,7 +31840,11 @@ var CanonicalRuntimeArtifactReconciler = class {
       };
     }
     if (status.engine_state === "open") {
-      return failure(
+      return workerExitedNonzero ? failure(
+        "needs_attention",
+        "worker_exit_nonzero",
+        "The Circuit worker exited with an error before it completed or parked safely."
+      ) : failure(
         "interrupted",
         "worker_interrupted",
         "The Circuit worker exited before it recorded a final outcome."
@@ -31866,6 +31875,13 @@ var CanonicalRuntimeArtifactReconciler = class {
         "needs_attention",
         "final_report_mismatch",
         "The worker final report does not match this Circuit run."
+      );
+    }
+    if (workerExitedNonzero && result.outcome === "complete") {
+      return failure(
+        "needs_attention",
+        "worker_exit_nonzero",
+        "The Circuit worker exited with an error before it completed or parked safely."
       );
     }
     if (status.engine_state !== "completed" || result.outcome !== "complete") {
@@ -32096,7 +32112,7 @@ async function requireValidatedInput(input) {
       "Circuit cannot read this checkpoint because its saved location is invalid."
     );
   }
-  if (input.workspace.metadata_key !== CODEX_SANDBOX_METADATA_KEY) {
+  if (input.workspace.identity_source !== CODEX_SANDBOX_METADATA_KEY && input.workspace.identity_source !== CODEX_MCP_ROOTS_SOURCE) {
     throw new CheckpointViewError(
       "workspace_unavailable",
       "Circuit did not receive the trusted Codex workspace identity."
@@ -33134,7 +33150,7 @@ var McpCheckpointAdapter = class {
     }
     return await readCheckpointView({
       workspace: {
-        metadata_key: CODEX_SANDBOX_METADATA_KEY,
+        identity_source: input.workspace.identity_source ?? CODEX_SANDBOX_METADATA_KEY,
         workspace: input.workspace.canonical_path
       },
       run_id: input.run.run_id,
@@ -33147,7 +33163,7 @@ var McpCheckpointAdapter = class {
     }
     await assertCheckpointResume({
       workspace: {
-        metadata_key: CODEX_SANDBOX_METADATA_KEY,
+        identity_source: input.workspace.identity_source ?? CODEX_SANDBOX_METADATA_KEY,
         workspace: input.workspace.canonical_path
       },
       run_id: input.run.run_id,
@@ -33214,7 +33230,8 @@ var McpWorkspaceIdentityV1 = external_exports.object({
   key: Sha2564,
   canonical_path: AbsolutePath3,
   device: external_exports.string().min(1).max(64),
-  inode: external_exports.string().min(1).max(64)
+  inode: external_exports.string().min(1).max(64),
+  identity_source: external_exports.enum([CODEX_SANDBOX_METADATA_KEY, CODEX_MCP_ROOTS_SOURCE]).default(CODEX_SANDBOX_METADATA_KEY)
 }).strict();
 var ExecutableIdentityV1 = external_exports.object({
   real_path: AbsolutePath3,
@@ -33576,7 +33593,7 @@ var McpStateStoreError = class extends Error {
 function workspaceKey(canonicalPath) {
   return createHash8("sha256").update(canonicalPath, "utf8").digest("hex");
 }
-function trustedWorkspaceIdentity(path) {
+function trustedWorkspaceIdentity(path, identitySource = CODEX_SANDBOX_METADATA_KEY) {
   let direct;
   try {
     direct = lstatSync5(path);
@@ -33595,7 +33612,8 @@ function trustedWorkspaceIdentity(path) {
     key: workspaceKey(canonicalPath),
     canonical_path: canonicalPath,
     device: String(stat4.dev),
-    inode: String(stat4.ino)
+    inode: String(stat4.ino),
+    identity_source: identitySource
   });
 }
 function errorCode3(error51) {
@@ -33631,7 +33649,7 @@ function assertCurrentWorkspace(workspace) {
   }
   let current;
   try {
-    current = trustedWorkspaceIdentity(parsed.canonical_path);
+    current = trustedWorkspaceIdentity(parsed.canonical_path, parsed.identity_source);
   } catch {
     throw new McpStateStoreError(
       "workspace_changed",
@@ -35686,7 +35704,8 @@ function createProductionWorkerFactory(options) {
         workspace: {
           canonical_path: input.workspace.canonical_path,
           device: input.workspace.device,
-          inode: input.workspace.inode
+          inode: input.workspace.inode,
+          identity_source: input.workspace.identity_source ?? "codex/sandbox-state-meta"
         },
         flow_root: join15(pluginRoot, "flows"),
         private_temp_root: privateTempRoot,
@@ -35793,7 +35812,7 @@ async function createProductionCircuitMcpHandler(options) {
         metadata: call.metadata,
         listRoots: call.listRoots
       });
-      return trustedWorkspaceIdentity(trusted.workspace);
+      return trustedWorkspaceIdentity(trusted.workspace, trusted.identity_source);
     },
     owner: async () => resolveOwner(),
     store: state,

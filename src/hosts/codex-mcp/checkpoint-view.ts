@@ -8,7 +8,11 @@ import { z } from 'zod';
 import { sha256OfJson, sha256OfString } from '../../schemas/hashing.js';
 import { RunId } from '../../schemas/ids.js';
 import { RunRelativePath } from '../../schemas/scalars.js';
-import { CODEX_SANDBOX_METADATA_KEY, type TrustedCodexWorkspace } from './resources.js';
+import {
+  CODEX_MCP_ROOTS_SOURCE,
+  CODEX_SANDBOX_METADATA_KEY,
+  type TrustedCodexWorkspace,
+} from './resources.js';
 
 const MAX_CHECKPOINT_REQUEST_BYTES = 256 * 1024;
 const READ_CHUNK_BYTES = 64 * 1024;
@@ -325,7 +329,10 @@ async function requireValidatedInput(
       'Circuit cannot read this checkpoint because its saved location is invalid.',
     );
   }
-  if (input.workspace.metadata_key !== CODEX_SANDBOX_METADATA_KEY) {
+  if (
+    input.workspace.identity_source !== CODEX_SANDBOX_METADATA_KEY &&
+    input.workspace.identity_source !== CODEX_MCP_ROOTS_SOURCE
+  ) {
     throw new CheckpointViewError(
       'workspace_unavailable',
       'Circuit did not receive the trusted Codex workspace identity.',

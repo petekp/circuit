@@ -649,7 +649,7 @@ export class McpCheckpointAdapter implements LifecycleCheckpointReader {
     }
     return await readCheckpointView({
       workspace: {
-        metadata_key: CODEX_SANDBOX_METADATA_KEY,
+        identity_source: input.workspace.identity_source ?? CODEX_SANDBOX_METADATA_KEY,
         workspace: input.workspace.canonical_path,
       },
       run_id: input.run.run_id,
@@ -663,7 +663,7 @@ export class McpCheckpointAdapter implements LifecycleCheckpointReader {
     }
     await assertCheckpointResume({
       workspace: {
-        metadata_key: CODEX_SANDBOX_METADATA_KEY,
+        identity_source: input.workspace.identity_source ?? CODEX_SANDBOX_METADATA_KEY,
         workspace: input.workspace.canonical_path,
       },
       run_id: input.run.run_id,

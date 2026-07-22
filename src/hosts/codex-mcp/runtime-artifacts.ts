@@ -181,13 +181,7 @@ export class CanonicalRuntimeArtifactReconciler implements RuntimeArtifactReconc
         'The Circuit worker stopped before it recorded a normal outcome.',
       );
     }
-    if (input.exit.exit_code !== undefined && input.exit.exit_code !== 0) {
-      return failure(
-        'needs_attention',
-        'worker_exit_nonzero',
-        'The Circuit worker exited with an error before it completed or parked safely.',
-      );
-    }
+    const workerExitedNonzero = input.exit.exit_code !== undefined && input.exit.exit_code !== 0;
 
     let runRoot: string;
     let status: ReturnType<typeof projectRunStatusFromRunFolder>;
@@ -197,11 +191,17 @@ export class CanonicalRuntimeArtifactReconciler implements RuntimeArtifactReconc
       await assertOrdinaryFile(join(runRoot, 'trace.ndjson'), MAX_TRACE_BYTES);
       status = projectRunStatusFromRunFolder(runRoot);
     } catch {
-      return failure(
-        'needs_attention',
-        'run_artifact_unavailable',
-        'Circuit could not safely read the worker run artifacts.',
-      );
+      return workerExitedNonzero
+        ? failure(
+            'needs_attention',
+            'worker_exit_nonzero',
+            'The Circuit worker exited with an error before it completed or parked safely.',
+          )
+        : failure(
+            'needs_attention',
+            'run_artifact_unavailable',
+            'Circuit could not safely read the worker run artifacts.',
+          );
     }
     if (
       'run_id' in status &&
@@ -212,6 +212,13 @@ export class CanonicalRuntimeArtifactReconciler implements RuntimeArtifactReconc
         'needs_attention',
         'run_artifact_mismatch',
         'The worker run artifacts do not match this Circuit run.',
+      );
+    }
+    if (workerExitedNonzero && status.engine_state !== 'completed') {
+      return failure(
+        'needs_attention',
+        'worker_exit_nonzero',
+        'The Circuit worker exited with an error before it completed or parked safely.',
       );
     }
 
@@ -252,11 +259,17 @@ export class CanonicalRuntimeArtifactReconciler implements RuntimeArtifactReconc
     }
 
     if (status.engine_state === 'open') {
-      return failure(
-        'interrupted',
-        'worker_interrupted',
-        'The Circuit worker exited before it recorded a final outcome.',
-      );
+      return workerExitedNonzero
+        ? failure(
+            'needs_attention',
+            'worker_exit_nonzero',
+            'The Circuit worker exited with an error before it completed or parked safely.',
+          )
+        : failure(
+            'interrupted',
+            'worker_interrupted',
+            'The Circuit worker exited before it recorded a final outcome.',
+          );
     }
     if (status.engine_state === 'invalid') {
       return failure(
@@ -284,6 +297,13 @@ export class CanonicalRuntimeArtifactReconciler implements RuntimeArtifactReconc
         'needs_attention',
         'final_report_mismatch',
         'The worker final report does not match this Circuit run.',
+      );
+    }
+    if (workerExitedNonzero && result.outcome === 'complete') {
+      return failure(
+        'needs_attention',
+        'worker_exit_nonzero',
+        'The Circuit worker exited with an error before it completed or parked safely.',
       );
     }
     if (status.engine_state !== 'completed' || result.outcome !== 'complete') {

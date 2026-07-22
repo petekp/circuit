@@ -17,6 +17,7 @@ import { CircuitStartInputV1 } from './contracts.js';
 import { runMcpCodexSubprocess } from './nested-codex-subprocess.js';
 import type { CreateMcpCodexRelayerDependencies, McpNestedCodexPolicy } from './nested-codex.js';
 import { derivePinnedNodeInstallation } from './production-paths.js';
+import { CODEX_MCP_ROOTS_SOURCE, CODEX_SANDBOX_METADATA_KEY } from './resources.js';
 import { createMcpRuntimeContext } from './runtime-context.js';
 import { type McpWorkerSecurity, createMcpWorkerSecurity } from './worker-security.js';
 import {
@@ -54,6 +55,7 @@ export const McpWorkerLaunchV1 = z
         canonical_path: AbsolutePath,
         device: z.string().regex(/^\d+$/),
         inode: z.string().regex(/^\d+$/),
+        identity_source: z.enum([CODEX_SANDBOX_METADATA_KEY, CODEX_MCP_ROOTS_SOURCE]),
       })
       .strict(),
     flow_root: AbsolutePath,
@@ -313,7 +315,7 @@ export async function runMcpWorkerLaunch(
     });
     const context = (dependencies.createRuntimeContext ?? createMcpRuntimeContext)({
       workspace: {
-        metadata_key: 'codex/sandbox-state-meta',
+        identity_source: launch.workspace.identity_source,
         workspace: launch.workspace.canonical_path,
       },
       workspaceIdentity: {

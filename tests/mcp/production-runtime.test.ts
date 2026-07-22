@@ -146,6 +146,7 @@ const workspace: LifecycleWorkspaceIdentity = {
   canonical_path: '/workspace',
   device: '10',
   inode: '20',
+  identity_source: 'mcp/roots',
 };
 
 const fixtureNodeInstallation = () => ({
@@ -618,7 +619,12 @@ describe('production Codex MCP composition', () => {
       authorization: 'd'.repeat(64),
       run_id: record.run_id,
       operation: { kind: 'start' },
-      workspace: { canonical_path: '/workspace', device: '10', inode: '20' },
+      workspace: {
+        canonical_path: '/workspace',
+        device: '10',
+        inode: '20',
+        identity_source: 'mcp/roots',
+      },
       asset_digest_sha256: runtimeAssets.digest_sha256,
       codex: {
         executable: '/opt/codex-real',

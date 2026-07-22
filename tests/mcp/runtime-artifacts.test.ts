@@ -15,7 +15,8 @@ const RUN_ID = '11111111-1111-4111-8111-111111111111';
 const NOW = '2026-07-21T08:00:00.000Z';
 const roots: string[] = [];
 
-async function fixture() {
+async function fixture(options: { readonly outcome?: 'complete' | 'stopped' } = {}) {
+  const outcome = options.outcome ?? 'complete';
   const root = await realpath(await mkdtemp(join(tmpdir(), 'circuit-mcp-artifacts-')));
   roots.push(root);
   const workspacePath = join(root, 'workspace');
@@ -52,7 +53,10 @@ async function fixture() {
       recorded_at: NOW,
       run_id: RUN_ID,
       kind: 'run.closed',
-      outcome: 'complete',
+      outcome,
+      ...(outcome === 'complete'
+        ? {}
+        : { reason: "primary result 'reports/review-result.json' reported outcome 'stopped'" }),
     },
   ];
   await writeFile(
@@ -64,11 +68,14 @@ async function fixture() {
     run_id: RUN_ID,
     flow_id: 'review',
     goal: 'Review this change',
-    outcome: 'complete',
-    summary: 'Review completed.',
+    outcome,
+    summary: outcome === 'complete' ? 'Review completed.' : 'Run closed with outcome stopped.',
     closed_at: NOW,
     trace_entries_observed: 2,
     manifest_hash: manifest.hash,
+    ...(outcome === 'complete'
+      ? {}
+      : { reason: "primary result 'reports/review-result.json' reported outcome 'stopped'" }),
   };
   await mkdir(join(runRoot, 'reports'), { mode: 0o700 });
   await writeFile(join(runRoot, 'reports', 'result.json'), `${JSON.stringify(result)}\n`, {
@@ -176,6 +183,20 @@ describe('MCP canonical runtime artifacts', () => {
     ).resolves.toMatchObject({
       state: 'needs_attention',
       failure: { code: 'worker_exit_nonzero' },
+    });
+  });
+
+  it('reads a cleanly closed stopped run after the worker exits nonzero', async () => {
+    const context = await fixture({ outcome: 'stopped' });
+    await expect(
+      new CanonicalRuntimeArtifactReconciler().classifyExit({
+        record: context.run,
+        exit: { ...context.exit, exit_code: 1 },
+      }),
+    ).resolves.toMatchObject({
+      state: 'needs_attention',
+      summary: "primary result 'reports/review-result.json' reported outcome 'stopped'",
+      failure: { code: 'run_needs_attention' },
     });
   });
 });

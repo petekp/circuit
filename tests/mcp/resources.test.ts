@@ -66,7 +66,7 @@ describe('Codex workspace metadata', () => {
     });
 
     expect(resolved).toEqual({
-      metadata_key: 'codex/sandbox-state-meta',
+      identity_source: 'codex/sandbox-state-meta',
       workspace: await realpath(workspace),
     });
   });
@@ -75,12 +75,12 @@ describe('Codex workspace metadata', () => {
     const workspace = await temporaryRoot();
 
     await expect(resolveTrustedCodexWorkspace(requestWithWorkspace(workspace))).resolves.toEqual({
-      metadata_key: CODEX_SANDBOX_METADATA_KEY,
+      identity_source: CODEX_SANDBOX_METADATA_KEY,
       workspace: await realpath(workspace),
     });
   });
 
-  it('falls back to a single MCP root when Codex omits sandbox-state metadata', async () => {
+  it('falls back to a single MCP root and reports the real identity source', async () => {
     const workspace = await temporaryRoot();
 
     await expect(
@@ -89,7 +89,7 @@ describe('Codex workspace metadata', () => {
         listRoots: async () => [{ uri: pathToFileURL(workspace).href, name: 'workspace' }],
       }),
     ).resolves.toEqual({
-      metadata_key: CODEX_SANDBOX_METADATA_KEY,
+      identity_source: 'mcp/roots',
       workspace,
     });
   });

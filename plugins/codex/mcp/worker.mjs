@@ -17580,6 +17580,10 @@ function derivePinnedNodeInstallation(executable) {
   return Object.freeze({ executable, bin, root });
 }
 
+// src/hosts/codex-mcp/resources.ts
+var CODEX_SANDBOX_METADATA_KEY = "codex/sandbox-state-meta";
+var CODEX_MCP_ROOTS_SOURCE = "mcp/roots";
+
 // src/hosts/codex-mcp/runtime-context.ts
 import { isAbsolute as isAbsolute5 } from "node:path";
 function createMcpRuntimeContext(input) {
@@ -17605,7 +17609,7 @@ function createMcpRuntimeContext(input) {
     canonical_path: input.workspace.workspace,
     device: input.workspaceIdentity.device,
     inode: input.workspaceIdentity.inode,
-    metadata_key: input.workspace.metadata_key
+    identity_source: input.workspace.identity_source
   });
   const search = Object.freeze({ ...input.search });
   const codexRuntime = Object.freeze({
@@ -19365,7 +19369,8 @@ var McpWorkerLaunchV1 = external_exports.object({
   workspace: external_exports.object({
     canonical_path: AbsolutePath2,
     device: external_exports.string().regex(/^\d+$/),
-    inode: external_exports.string().regex(/^\d+$/)
+    inode: external_exports.string().regex(/^\d+$/),
+    identity_source: external_exports.enum([CODEX_SANDBOX_METADATA_KEY, CODEX_MCP_ROOTS_SOURCE])
   }).strict(),
   flow_root: AbsolutePath2,
   private_temp_root: AbsolutePath2,
@@ -19565,7 +19570,7 @@ async function runMcpWorkerLaunch(launch, dependencies) {
     });
     const context = (dependencies.createRuntimeContext ?? createMcpRuntimeContext)({
       workspace: {
-        metadata_key: "codex/sandbox-state-meta",
+        identity_source: launch.workspace.identity_source,
         workspace: launch.workspace.canonical_path
       },
       workspaceIdentity: {

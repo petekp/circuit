@@ -406,6 +406,7 @@ export function createProductionWorkerFactory(
           canonical_path: input.workspace.canonical_path,
           device: input.workspace.device,
           inode: input.workspace.inode,
+          identity_source: input.workspace.identity_source ?? 'codex/sandbox-state-meta',
         },
         flow_root: join(pluginRoot, 'flows'),
         private_temp_root: privateTempRoot,
@@ -561,7 +562,7 @@ export async function createProductionCircuitMcpHandler(
         metadata: call.metadata,
         listRoots: call.listRoots,
       });
-      return trustedWorkspaceIdentity(trusted.workspace);
+      return trustedWorkspaceIdentity(trusted.workspace, trusted.identity_source);
     },
     owner: async () => resolveOwner(),
     store: state,

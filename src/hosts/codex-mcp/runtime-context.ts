@@ -19,7 +19,7 @@ export interface McpRuntimeContext {
     readonly canonical_path: string;
     readonly device: string;
     readonly inode: string;
-    readonly metadata_key: TrustedCodexWorkspace['metadata_key'];
+    readonly identity_source: TrustedCodexWorkspace['identity_source'];
   };
   readonly assets: McpRuntimeAssetPins;
   readonly codex: {
@@ -86,7 +86,7 @@ export function createMcpRuntimeContext(input: CreateMcpRuntimeContextInput): Mc
     canonical_path: input.workspace.workspace,
     device: input.workspaceIdentity.device,
     inode: input.workspaceIdentity.inode,
-    metadata_key: input.workspace.metadata_key,
+    identity_source: input.workspace.identity_source,
   });
   const search = Object.freeze({ ...input.search });
   const codexRuntime = Object.freeze({

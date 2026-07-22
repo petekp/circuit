@@ -60,7 +60,9 @@ Circuit trusts:
 - the Codex host process;
 - the Node process Codex uses to start the installed plugin;
 - the same-user plugin installation at launch time; and
-- `codex/sandbox-state-meta` metadata attached by the Codex plugin loader.
+- the current workspace identity supplied by Codex through
+  `codex/sandbox-state-meta`, or through Codex MCP roots when that metadata is
+  absent.
 
 Circuit does not trust:
 
@@ -72,13 +74,17 @@ Circuit does not trust:
   symlink checks; or
 - a PID without matching process birth and executable identity.
 
-The workspace comes only from `codex/sandbox-state-meta`. Circuit resolves it
-to a canonical directory and records its device and inode. Missing, renamed,
-malformed, remote, symlink-swapped, or non-directory values fail closed before
-a run is created. Before the MCP worker starts the ordinary engine, it creates
-and binds `.circuit`, `.circuit/runs`, and the exact run directory one segment
-at a time. A symbolic link, non-directory, canonical escape, or changed
-filesystem identity stops the launch before run files are written.
+Circuit first reads the workspace from `codex/sandbox-state-meta`. If that
+metadata is missing, it may fall back to exactly one Codex MCP root. Circuit
+records which source was used. Malformed metadata still fails closed; Circuit
+does not ignore a bad metadata value and silently use roots instead. The
+workspace is resolved to a canonical directory and its device and inode are
+recorded. Missing, renamed, malformed, remote, symlink-swapped, or
+non-directory values fail closed before a run is created. Before the MCP worker
+starts the ordinary engine, it creates and binds `.circuit`, `.circuit/runs`,
+and the exact run directory one segment at a time. A symbolic link,
+non-directory, canonical escape, or changed filesystem identity stops the
+launch before run files are written.
 
 Circuit requires Codex 0.144.3 or newer and successful capability probes for
 plugin MCP loading, strict configuration, workspace metadata, and the nested

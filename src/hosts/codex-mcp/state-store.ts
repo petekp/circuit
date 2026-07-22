@@ -24,6 +24,7 @@ import { z } from 'zod';
 import { sha256OfJson } from '../../schemas/hashing.js';
 import { checkpointBindingSha256 } from './checkpoint-view.js';
 import { CircuitStartInputV1, McpRunStateV1 } from './contracts.js';
+import { CODEX_MCP_ROOTS_SOURCE, CODEX_SANDBOX_METADATA_KEY } from './resources.js';
 
 const SHA256 = /^[a-f0-9]{64}$/;
 const RUN_ID = z.guid({ error: 'run_id must be a UUID' });
@@ -68,6 +69,9 @@ export const McpWorkspaceIdentityV1 = z
     canonical_path: AbsolutePath,
     device: z.string().min(1).max(64),
     inode: z.string().min(1).max(64),
+    identity_source: z
+      .enum([CODEX_SANDBOX_METADATA_KEY, CODEX_MCP_ROOTS_SOURCE])
+      .default(CODEX_SANDBOX_METADATA_KEY),
   })
   .strict();
 export type McpWorkspaceIdentity = z.infer<typeof McpWorkspaceIdentityV1>;
@@ -553,7 +557,10 @@ export function workspaceKey(canonicalPath: string): string {
   return createHash('sha256').update(canonicalPath, 'utf8').digest('hex');
 }
 
-export function trustedWorkspaceIdentity(path: string): McpWorkspaceIdentity {
+export function trustedWorkspaceIdentity(
+  path: string,
+  identitySource: McpWorkspaceIdentity['identity_source'] = CODEX_SANDBOX_METADATA_KEY,
+): McpWorkspaceIdentity {
   let direct: Stats;
   try {
     direct = lstatSync(path);
@@ -573,6 +580,7 @@ export function trustedWorkspaceIdentity(path: string): McpWorkspaceIdentity {
     canonical_path: canonicalPath,
     device: String(stat.dev),
     inode: String(stat.ino),
+    identity_source: identitySource,
   });
 }
 
@@ -648,7 +656,7 @@ function assertCurrentWorkspace(workspace: McpWorkspaceIdentity): void {
   }
   let current: McpWorkspaceIdentity;
   try {
-    current = trustedWorkspaceIdentity(parsed.canonical_path);
+    current = trustedWorkspaceIdentity(parsed.canonical_path, parsed.identity_source);
   } catch {
     throw new McpStateStoreError(
       'workspace_changed',
