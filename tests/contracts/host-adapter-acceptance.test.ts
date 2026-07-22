@@ -167,7 +167,7 @@ describe('host adapter acceptance contract', () => {
     expect(existsSync(resolve(REPO_ROOT, 'plugins/codex/hooks/session-start.ts'))).toBe(true);
   });
 
-  it('keeps real-host smoke scripts opt-in and outside verify', () => {
+  it('keeps paid host work outside verify and runs no-spend Codex checks in CI', () => {
     const packageJson = JSON.parse(readFileSync(resolve(REPO_ROOT, 'package.json'), 'utf8')) as {
       scripts: Record<string, string>;
     };
@@ -212,5 +212,24 @@ describe('host adapter acceptance contract', () => {
     expect(codexMcpSmoke).toContain("resolve(REPO_ROOT, '.mcp-host-tests')");
     expect(codexMcpSmoke).not.toContain('tmpdir()');
     expect(codexMcpSmoke).toContain('rmSync(root, { recursive: true, force: true })');
+
+    const verifyWorkflow = readFileSync(resolve(REPO_ROOT, '.github/workflows/verify.yml'), 'utf8');
+    expect(verifyWorkflow).toContain('macos-15');
+    expect(verifyWorkflow).toContain('macos-15-intel');
+    expect(verifyWorkflow).toContain('@openai/codex@${{ matrix.codex }}');
+    expect(verifyWorkflow).toContain('host-sandbox-canary-live.test.ts');
+    expect(verifyWorkflow).toContain('smoke:host:codex:mcp');
+    expect(verifyWorkflow).toContain('retention-days: 14');
+
+    const compatibilityWorkflow = readFileSync(
+      resolve(REPO_ROOT, '.github/workflows/codex-compatibility.yml'),
+      'utf8',
+    );
+    expect(compatibilityWorkflow).toContain('cron:');
+    expect(compatibilityWorkflow).toContain('npm view @openai/codex version');
+    expect(compatibilityWorkflow).toContain('--mode packed');
+    expect(compatibilityWorkflow).toContain('--mode published');
+    expect(compatibilityWorkflow).toContain('retention-days: 30');
+    expect(compatibilityWorkflow).toContain('Codex compatibility failure');
   });
 });

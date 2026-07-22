@@ -10,10 +10,10 @@ effort, and tools for each step from the step's role, so the reading that
 steers the run stays on the strong tier while routine steps run cheap. It
 gives agents and operators a better working environment than ad-hoc chat.
 
-Circuit is a workflow engine at its core, driven from a plain CLI. The
-Claude Code and Codex plugins are the bridge that teaches a host agent to
-drive that CLI, and today they are also the fastest way to install and try
-Circuit.
+Circuit is a workflow engine at its core, with a plain CLI for direct use. The
+Claude Code plugin teaches its host to drive that CLI. The Codex plugin uses a
+small MCP lifecycle so Circuit can start outside Codex's restricted task shell.
+Both plugins are also fast ways to install and try Circuit.
 
 Go from this:
 
@@ -74,11 +74,18 @@ create a symlink to get started this way.
 
 ### Codex
 
+Circuit's Codex path currently supports macOS. It requires Node.js 22.18 or
+newer and Codex 0.144.3 or newer.
+
 Install the published plugin from the marketplace:
 
 ```bash
 codex plugin marketplace add petekp/circuit --ref circuit--v0.1.1
 ```
+
+Restart Codex after installation. A single MCP approval is normal. A shell
+fallback or sandbox escalation means the setup failed; stop rather than
+working around it.
 
 Working from this checkout instead? Refresh the local plugin package and
 installed host caches:
@@ -90,7 +97,14 @@ npm run plugins:refresh-local
 Then ask Codex to use Circuit:
 
 ```text
-/circuit:run the checkout total is wrong when discounts and tax both apply
+Use Circuit to list recent Circuit runs for this workspace. Do not start a run.
+```
+
+That readiness check is free. If it succeeds, start with the read-only Review
+flow:
+
+```text
+/circuit:run review my current diff for obvious problems
 ```
 
 Codex can recommend the right Circuit flow from your natural-language request.

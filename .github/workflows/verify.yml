@@ -15,7 +15,7 @@ jobs:
         # windows-latest is intentionally omitted: the host-wrapper bin scripts
         # need .cmd shims and Windows-aware spawn handling before that slot can
         # pass. Track that as a separate Windows-support effort.
-        os: [ubuntu-latest, macos-latest]
+        os: [ubuntu-latest, macos-15]
     runs-on: ${{ matrix.os }}
     steps:
       - uses: actions/checkout@v5
@@ -25,6 +25,74 @@ jobs:
           cache: npm
       - run: npm ci
       - run: npm run verify
+
+  codex-versions:
+    runs-on: ubuntu-latest
+    outputs:
+      versions: ${{ steps.versions.outputs.value }}
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-node@v6
+        with:
+          node-version: '22.18.0'
+      - id: versions
+        shell: bash
+        run: echo "value=$(node -e "const value=require('./.github/codex-compatibility.json');process.stdout.write(JSON.stringify([value.minimum_supported,value.latest_proven]))")" >> "$GITHUB_OUTPUT"
+
+  codex-mcp:
+    needs: codex-versions
+    name: Codex MCP (${{ matrix.os.arch }}, Codex ${{ matrix.codex }})
+    strategy:
+      fail-fast: false
+      matrix:
+        os:
+          - runner: macos-15
+            arch: arm64
+          - runner: macos-15-intel
+            arch: x64
+        codex: ${{ fromJSON(needs.codex-versions.outputs.versions) }}
+    runs-on: ${{ matrix.os.runner }}
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-node@v6
+        with:
+          node-version: '22.18.0'
+          cache: npm
+      - run: npm ci
+      - name: Install exact Codex version
+        shell: bash
+        run: |
+          set -o pipefail
+          mkdir -p .codex-ci
+          package='@openai/codex@${{ matrix.codex }}'
+          if npm install --global "$package" 2>&1 | tee .codex-ci/install.log; then
+            exit 0
+          fi
+          if ! grep -Eqi 'ENOTFOUND|EAI_AGAIN|ECONNRESET|timed out|network|failed to fetch' .codex-ci/install.log; then
+            exit 1
+          fi
+          npm install --global "$package" 2>&1 | tee .codex-ci/install-retry.log
+      - name: Record versions
+        shell: bash
+        run: |
+          node --version > .codex-ci/node-version.txt
+          codex --version > .codex-ci/codex-version.txt
+          uname -m > .codex-ci/architecture.txt
+          sw_vers > .codex-ci/macos-version.txt
+      - name: Run live sandbox canary
+        env:
+          CIRCUIT_MCP_LIVE_SECURITY: '1'
+        run: npm run test -- tests/mcp/host-sandbox-canary-live.test.ts --reporter=json --outputFile=.codex-ci/sandbox-canary.json
+      - name: Run packed-plugin real-loader smoke
+        run: npm run smoke:host:codex:mcp -- --live --mode packed --output .codex-ci/packed-loader.json
+      - name: Upload Codex evidence
+        if: ${{ always() }}
+        uses: actions/upload-artifact@v4
+        with:
+          name: codex-mcp-${{ matrix.os.arch }}-${{ matrix.codex }}
+          path: .codex-ci
+          if-no-files-found: error
+          retention-days: 14
 
   checkpoint-browser:
     name: checkpoint review (Chromium)

@@ -1,6 +1,7 @@
 import { spawnSync } from 'node:child_process';
 import {
   chmodSync,
+  cpSync,
   existsSync,
   mkdirSync,
   mkdtempSync,
@@ -751,6 +752,116 @@ describe('Codex host plugin package', () => {
       );
       expect(output.checks).toContainEqual(
         expect.objectContaining({ name: 'bundled_runtime_exists', ok: true }),
+      );
+      expect(output.checks).toContainEqual(
+        expect.objectContaining({ name: 'mcp_config_exists', ok: true }),
+      );
+      expect(output.checks).toContainEqual(
+        expect.objectContaining({ name: 'mcp_config_parseable', ok: true }),
+      );
+      expect(output.checks).toContainEqual(
+        expect.objectContaining({ name: 'mcp_config_shape', ok: true }),
+      );
+      expect(output.checks).toContainEqual(
+        expect.objectContaining({ name: 'mcp_tool_roster', ok: true }),
+      );
+      for (const runtime of ['server_cjs', 'server_mjs', 'supervisor_mjs', 'worker_mjs']) {
+        expect(output.checks).toContainEqual(
+          expect.objectContaining({ name: `mcp_runtime_${runtime}`, ok: true }),
+        );
+      }
+      expect(output.checks).toContainEqual(
+        expect.objectContaining({
+          name: 'codex_version_supported',
+          severity: 'warning',
+        }),
+      );
+    } finally {
+      rmSync(tempDir, { recursive: true, force: true });
+    }
+  });
+
+  it('doctor rejects an installed Codex below the MCP minimum with one clear remedy', () => {
+    const tempDir = mkdtempSync(join(tmpdir(), 'circuit-codex-host-old-codex-'));
+    const binDir = join(tempDir, 'bin');
+    const fakeCodex = join(binDir, 'codex');
+    try {
+      mkdirSync(binDir, { recursive: true });
+      writeFileSync(
+        fakeCodex,
+        [
+          '#!/bin/sh',
+          'if [ "$1" = "--version" ]; then',
+          "  echo 'codex-cli 0.143.0'",
+          '  exit 0',
+          'fi',
+          'exit 1',
+          '',
+        ].join('\n'),
+      );
+      chmodSync(fakeCodex, 0o755);
+
+      const result = spawnSync(
+        process.execPath,
+        [resolve(PLUGIN_ROOT, 'scripts/circuit.ts'), 'doctor'],
+        {
+          cwd: tempDir,
+          encoding: 'utf8',
+          env: cleanPluginEnv({ PATH: `${binDir}${delimiter}${noAmbientCliPath()}` }),
+        },
+      );
+
+      expect(result.status, result.stderr).toBe(1);
+      const output = JSON.parse(result.stdout) as {
+        status: string;
+        checks: Array<{ name: string; ok: boolean; detail?: string; severity?: string }>;
+      };
+      expect(output.status).toBe('fail');
+      expect(output.checks).toContainEqual(
+        expect.objectContaining({
+          name: 'codex_version_supported',
+          ok: false,
+          detail:
+            'codex=0.143.0 required>=0.144.3. Update Codex to 0.144.3 or newer, restart Codex, and try again.',
+        }),
+      );
+    } finally {
+      rmSync(tempDir, { recursive: true, force: true });
+    }
+  });
+
+  it('doctor fails when the packaged MCP roster or runtime files are incomplete', () => {
+    const tempDir = mkdtempSync(join(tmpdir(), 'circuit-codex-host-broken-mcp-'));
+    const pluginRoot = join(tempDir, 'plugin');
+    try {
+      cpSync(PLUGIN_ROOT, pluginRoot, { recursive: true });
+      const configPath = join(pluginRoot, '.mcp.json');
+      const config = JSON.parse(readFileSync(configPath, 'utf8')) as {
+        mcpServers: { circuit: { enabled_tools: string[] } };
+      };
+      config.mcpServers.circuit.enabled_tools.pop();
+      writeFileSync(configPath, `${JSON.stringify(config, null, 2)}\n`);
+      rmSync(join(pluginRoot, 'mcp', 'worker.mjs'));
+
+      const result = spawnSync(
+        process.execPath,
+        [resolve(pluginRoot, 'scripts/circuit.ts'), 'doctor'],
+        {
+          cwd: tempDir,
+          encoding: 'utf8',
+          env: cleanPluginEnv(),
+        },
+      );
+
+      expect(result.status, result.stderr).toBe(1);
+      const output = JSON.parse(result.stdout) as {
+        checks: Array<{ name: string; ok: boolean }>;
+      };
+      expect(output.checks).toContainEqual(
+        expect.objectContaining({ name: 'mcp_tool_roster', ok: false }),
+      );
+      expect(output.checks).toContainEqual(
+        expect.objectContaining({ name: 'mcp_runtime_worker_mjs', ok: false }),
       );
     } finally {
       rmSync(tempDir, { recursive: true, force: true });

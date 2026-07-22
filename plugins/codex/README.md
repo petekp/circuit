@@ -17,16 +17,17 @@ entry point.
 
 ## MCP Status
 
-The packaged MCP bridge is experimental. Start and resume require live host,
-metadata, asset, and nested-sandbox checks. The bridge fails closed when any
-check is missing or uncertain; it does not fall back to the ordinary CLI or a
-weaker configuration. Nested workers use a practical Codex-equivalent boundary.
+The packaged MCP bridge is the supported way to run Circuit in Codex on macOS.
+It requires Node.js 22.18 or newer and Codex 0.144.3 or newer. Start and resume
+require live host, metadata, asset, and nested-sandbox checks. The bridge fails
+closed when a required check is missing or uncertain; it does not fall back to
+the ordinary CLI or a weaker configuration. Nested workers use a practical
+Codex-equivalent boundary.
 Codex may expose host-managed shared temporary directories; Circuit treats them
 as untrusted, never uses them for credentials or MCP control state, and does not
 block a run for that host limitation. Proof commands remain under a stricter
-Seatbelt boundary. The package remains experimental until the real plugin
-loader, trusted workspace metadata, and the public flow lifecycle pass the
-fresh-host proof.
+Seatbelt boundary. Public-release claims remain blocked until the exact public
+plugin passes the fresh-host proof.
 
 ## Editing Rule
 

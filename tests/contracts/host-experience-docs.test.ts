@@ -135,6 +135,12 @@ describe('host experience docs', () => {
     expect(doc).toContain('host/orchestrator behavior');
     expect(doc).toContain('worker connector behavior');
     expect(doc).toContain('docs/first-run.md');
+    expect(doc).toContain('macOS');
+    expect(doc).toMatch(/Node\.js 22\.18 or\s+newer/);
+    expect(doc).toMatch(/Codex 0\.144\.3 or newer/);
+    expect(doc).toContain('list recent Circuit runs for this workspace');
+    expect(doc).toContain('A single MCP approval is normal');
+    expect(doc).toMatch(/shell\s+fallback or sandbox escalation means the setup failed/);
     expect(doc).not.toContain('runtime_source');
     expect(doc).not.toContain('scripts/circuit.js');
     expect(doc).not.toContain('check:codex-plugin-cache');
@@ -153,6 +159,22 @@ describe('host experience docs', () => {
     expect(operatorGuide).not.toContain('old intent prefixes');
     expect(operatorGuide).not.toContain('develop:');
     expect(operatorGuide).toContain('Circuit records the selected flow');
+  });
+
+  it('distinguishes public and development Codex cache paths in first-run guidance', () => {
+    const doc = readFileSync(resolve(REPO_ROOT, 'docs/first-run.md'), 'utf8');
+
+    expect(doc).toContain('$HOME/.codex/plugins/cache/circuit/circuit/<version>/');
+    expect(doc).toContain('$HOME/.codex/plugins/cache/circuit-local/circuit/<version>/');
+    expect(doc).toContain('development-only');
+    expect(doc).toContain('list recent Circuit runs for this workspace');
+  });
+
+  it('allows only the normal MCP approval in the Codex host trial', () => {
+    const doc = readFileSync(resolve(REPO_ROOT, 'docs/host-trial-checklist.md'), 'utf8');
+
+    expect(doc).toContain('One normal MCP approval is allowed');
+    expect(doc).toMatch(/shell fallback or sandbox escalation is\s+a failure/);
   });
 
   it('keeps active Codex invocation docs on slash commands', () => {

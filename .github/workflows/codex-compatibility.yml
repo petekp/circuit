@@ -1,0 +1,178 @@
+name: codex-compatibility
+
+on:
+  schedule:
+    - cron: '23 10 * * *'
+  workflow_dispatch:
+
+permissions:
+  contents: write
+  issues: write
+  pull-requests: write
+
+jobs:
+  resolve:
+    runs-on: ubuntu-latest
+    outputs:
+      stable: ${{ steps.stable.outputs.version }}
+      public-ref: ${{ steps.public.outputs.ref }}
+      public-version: ${{ steps.public.outputs.version }}
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-node@v6
+        with:
+          node-version: '22.18.0'
+          cache: npm
+      - run: npm ci
+      - id: stable
+        name: Resolve current stable Codex
+        shell: bash
+        run: |
+          mkdir -p .codex-compatibility
+          if npm view @openai/codex version 2>&1 | tee .codex-compatibility/npm-view.log; then
+            version="$(tail -n 1 .codex-compatibility/npm-view.log | tr -d '[:space:]')"
+          elif grep -Eqi 'ENOTFOUND|EAI_AGAIN|ECONNRESET|timed out|network|failed to fetch' .codex-compatibility/npm-view.log; then
+            npm view @openai/codex version 2>&1 | tee .codex-compatibility/npm-view-retry.log
+            version="$(tail -n 1 .codex-compatibility/npm-view-retry.log | tr -d '[:space:]')"
+          else
+            exit 1
+          fi
+          printf '%s\n' "$version" > .codex-compatibility/stable-version.txt
+          echo "version=$version" >> "$GITHUB_OUTPUT"
+      - id: public
+        name: Read the public Circuit tag from README
+        shell: bash
+        run: |
+          ref="$(grep -Eo 'circuit--v[0-9]+\.[0-9]+\.[0-9]+' README.md | head -n 1)"
+          test -n "$ref"
+          version="${ref#circuit--v}"
+          echo "ref=$ref" >> "$GITHUB_OUTPUT"
+          echo "version=$version" >> "$GITHUB_OUTPUT"
+          printf '%s\n' "$ref" > .codex-compatibility/public-circuit-ref.txt
+      - uses: actions/upload-artifact@v4
+        with:
+          name: codex-compatibility-resolved
+          path: .codex-compatibility
+          retention-days: 30
+
+  compatibility:
+    needs: resolve
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - os: macos-15
+            arch: arm64
+          - os: macos-15-intel
+            arch: x64
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-node@v6
+        with:
+          node-version: '22.18.0'
+          cache: npm
+      - run: npm ci
+      - name: Install resolved Codex
+        shell: bash
+        run: |
+          set -o pipefail
+          mkdir -p .codex-compatibility
+          package='@openai/codex@${{ needs.resolve.outputs.stable }}'
+          if npm install --global "$package" 2>&1 | tee .codex-compatibility/install.log; then
+            exit 0
+          fi
+          if ! grep -Eqi 'ENOTFOUND|EAI_AGAIN|ECONNRESET|timed out|network|failed to fetch' .codex-compatibility/install.log; then
+            exit 1
+          fi
+          npm install --global "$package" 2>&1 | tee .codex-compatibility/install-retry.log
+      - name: Record host versions
+        shell: bash
+        run: |
+          node --version > .codex-compatibility/node-version.txt
+          codex --version > .codex-compatibility/codex-version.txt
+          uname -m > .codex-compatibility/architecture.txt
+          sw_vers > .codex-compatibility/macos-version.txt
+      - name: Run live sandbox canary
+        env:
+          CIRCUIT_MCP_LIVE_SECURITY: '1'
+        run: npm run test -- tests/mcp/host-sandbox-canary-live.test.ts --reporter=json --outputFile=.codex-compatibility/sandbox-canary.json
+      - name: Test current main as a packed plugin
+        run: npm run smoke:host:codex:mcp -- --live --mode packed --output .codex-compatibility/main-packed.json
+      - name: Test the exact public Circuit tag
+        run: npm run smoke:host:codex:mcp -- --live --mode published --source petekp/circuit --ref '${{ needs.resolve.outputs.public-ref }}' --expected-version '${{ needs.resolve.outputs.public-version }}' --output .codex-compatibility/public-tag.json
+      - name: Upload compatibility evidence
+        if: ${{ always() }}
+        uses: actions/upload-artifact@v4
+        with:
+          name: codex-compatibility-${{ matrix.arch }}
+          path: .codex-compatibility
+          if-no-files-found: error
+          retention-days: 30
+
+  compatibility-issue:
+    if: ${{ always() && (needs.resolve.result == 'failure' || needs.compatibility.result == 'failure') }}
+    needs: [resolve, compatibility]
+    runs-on: ubuntu-latest
+    steps:
+      - name: Open or update the compatibility issue
+        uses: actions/github-script@v8
+        with:
+          script: |
+            const title = 'Codex compatibility failure';
+            const body = [
+              'The daily no-spend Codex compatibility check failed.',
+              '',
+              `Workflow: ${context.serverUrl}/${context.repo.owner}/${context.repo.repo}/actions/runs/${context.runId}`,
+              `Resolved Codex: ${{ needs.resolve.outputs.stable || 'unavailable' }}`,
+              '',
+              'This issue stays open until both Apple Silicon and Intel checks pass.'
+            ].join('\n');
+            const { data: issues } = await github.rest.issues.listForRepo({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              state: 'open',
+              per_page: 100,
+            });
+            const existing = issues.find((issue) => issue.title === title && !issue.pull_request);
+            if (existing) {
+              await github.rest.issues.update({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                issue_number: existing.number,
+                body,
+              });
+            } else {
+              await github.rest.issues.create({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                title,
+                body,
+              });
+            }
+
+  update-latest-proven:
+    if: ${{ needs.compatibility.result == 'success' }}
+    needs: [resolve, compatibility]
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+      - name: Update latest proven version through a PR
+        env:
+          GH_TOKEN: ${{ github.token }}
+          STABLE: ${{ needs.resolve.outputs.stable }}
+        shell: bash
+        run: |
+          current="$(node -p "require('./.github/codex-compatibility.json').latest_proven")"
+          if [ "$current" = "$STABLE" ]; then
+            exit 0
+          fi
+          branch="automation/codex-latest-proven-$STABLE"
+          git config user.name github-actions[bot]
+          git config user.email 41898282+github-actions[bot]@users.noreply.github.com
+          git checkout -b "$branch"
+          node -e "const fs=require('fs');const p='.github/codex-compatibility.json';const value=JSON.parse(fs.readFileSync(p,'utf8'));value.latest_proven=process.env.STABLE;fs.writeFileSync(p,JSON.stringify(value,null,2)+'\n')"
+          git add .github/codex-compatibility.json
+          git commit -m "chore: prove Codex $STABLE compatibility"
+          git push origin "$branch"
+          gh pr create --base main --head "$branch" --title "Prove Codex $STABLE compatibility" --body "Both daily macOS architecture checks passed for Codex $STABLE."

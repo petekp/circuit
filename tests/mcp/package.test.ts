@@ -4,7 +4,11 @@ import { resolve } from 'node:path';
 import { pathToFileURL } from 'node:url';
 import { describe, expect, it } from 'vitest';
 
-import { isPackageOwnedFile, packageTreeStatus } from '../../scripts/plugins/package-tree.js';
+import {
+  isPackageOwnedFile,
+  packageTreeDigest,
+  packageTreeStatus,
+} from '../../scripts/plugins/package-tree.js';
 import { checkCodexMcpPackage } from '../../scripts/release/check-codex-mcp-package.js';
 import { MCP_TRANSIENT_ENVIRONMENT_NAMES } from '../../src/hosts/codex-mcp/transient-environment.js';
 
@@ -70,6 +74,22 @@ describe('production Codex MCP package', () => {
         status: 'extra-owned-files',
         extra_owned_files: ['mcp/unexpected.mjs'],
       });
+    } finally {
+      rmSync(temp, { recursive: true, force: true });
+    }
+  });
+
+  it('gives identical packaged plugin trees one stable digest', () => {
+    const temp = mkdtempSync(resolve(tmpdir(), 'circuit-mcp-tree-digest-'));
+    const target = resolve(temp, 'target');
+    try {
+      cpSync(CODEX_ROOT, target, { recursive: true });
+      const sourceDigest = packageTreeDigest(CODEX_ROOT);
+      expect(sourceDigest).toMatch(/^[0-9a-f]{64}$/);
+      expect(packageTreeDigest(target)).toBe(sourceDigest);
+
+      writeFileSync(resolve(target, 'README.md'), 'changed\n');
+      expect(packageTreeDigest(target)).not.toBe(sourceDigest);
     } finally {
       rmSync(temp, { recursive: true, force: true });
     }

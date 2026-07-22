@@ -15,6 +15,9 @@ for normal first-run setup; use [docs/first-run.md](first-run.md) instead.
 
 ## Codex Scenarios
 
+One normal MCP approval is allowed. Any shell fallback or sandbox escalation is
+a failure.
+
 - Fresh loader: install the packed plugin into an isolated `CODEX_HOME` and
   confirm the real Codex plugin loader starts Circuit's MCP server.
 - Trusted workspace: invoke `circuit_list` through the loaded MCP tool and
@@ -22,7 +25,7 @@ for normal first-run setup; use [docs/first-run.md](first-run.md) instead.
   `codex/sandbox-state-meta`. Then confirm the first Review writes its report
   only to the intended test workspace.
 - No shell fallback: confirm Codex calls the MCP tools and never runs Circuit
-  through `exec_command` or requests approval.
+  through `exec_command` or asks for any approval beyond the one MCP approval.
 - Natural Fix: run
   `/circuit:run the checkout total is wrong when discounts and tax both apply` and
   confirm Codex invokes Circuit with the Fix flow.

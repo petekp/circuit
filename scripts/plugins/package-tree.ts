@@ -65,6 +65,20 @@ export function walkPackageFiles(root: string): string[] {
   return walkFiles(root).filter(isPackageOwnedFile);
 }
 
+export function packageTreeDigest(root: string): string {
+  const hash = createHash('sha256');
+  for (const file of walkPackageFiles(resolve(root))) {
+    const bytes = readFileSync(resolve(root, file));
+    hash.update(file, 'utf8');
+    hash.update('\0', 'utf8');
+    hash.update(String(bytes.byteLength), 'utf8');
+    hash.update('\0', 'utf8');
+    hash.update(bytes);
+    hash.update('\0', 'utf8');
+  }
+  return hash.digest('hex');
+}
+
 function digestFile(path: string): string {
   return createHash('sha256').update(readFileSync(path)).digest('hex');
 }

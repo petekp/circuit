@@ -86,6 +86,50 @@ describe('release truth infrastructure', () => {
       'flow:runtime-proof',
     );
     expect(snapshot.connectors.map((connector) => connector.id).sort()).toContain('custom');
+    const codexHost = snapshot.hosts.find((host) => host.id === 'codex-plugin');
+    expect(codexHost).toMatchObject({
+      status: 'implemented',
+      summary:
+        'The Codex plugin runs the six-tool Circuit lifecycle through its packaged MCP server.',
+    });
+    expect(codexHost?.summary).not.toContain('model-mediated');
+    expect(codexHost?.evidence).toEqual(
+      expect.arrayContaining([
+        'plugins/codex/.mcp.json',
+        'plugins/codex/mcp/server.cjs',
+        'src/hosts/codex-mcp/contracts.ts',
+      ]),
+    );
+  });
+
+  it('blocks the public Codex MCP claim until its exact first-run proof is current', () => {
+    const claims = PublicClaimLedger.parse(yamlFile('docs/release/claims/public-claims.yaml'));
+    const proofs = ProofScenarioIndex.parse(yamlFile('docs/release/proofs/index.yaml'));
+    const exceptions = ParityExceptionLedger.parse(yamlFile('docs/release/parity/exceptions.yaml'));
+
+    expect(claims.claims.find((claim) => claim.id === 'CLAIM-CODEX-MCP-LIFECYCLE')).toMatchObject({
+      type: 'host',
+      status: 'release_blocker',
+      backing: {
+        capability_ids: ['host:codex-plugin'],
+        proof_ids: ['proof:codex-mcp-first-run'],
+        exception_ids: ['EX-REL-014-CODEX-MCP-FIRST-RUN'],
+      },
+    });
+    expect(
+      proofs.scenarios.find((proof) => proof.id === 'proof:codex-mcp-first-run'),
+    ).toMatchObject({
+      category: 'first-run',
+      status: 'release_blocker',
+      exception_ids: ['EX-REL-014-CODEX-MCP-FIRST-RUN'],
+    });
+    expect(
+      exceptions.exceptions.find((exception) => exception.id === 'EX-REL-014-CODEX-MCP-FIRST-RUN'),
+    ).toMatchObject({
+      claim_id: 'CLAIM-CODEX-MCP-LIFECYCLE',
+      proof_id: 'proof:codex-mcp-first-run',
+      status: 'release_blocker',
+    });
   });
 
   it('records canonical flow stages from circuit.json when mode files are present', () => {
@@ -175,9 +219,9 @@ describe('release truth infrastructure', () => {
     expect(capabilities.get('utility:handoff')?.axes.proof).toBe('Handoff/resume golden run.');
     expect(capabilities.get('feature:continuity')?.status).toBe('implemented');
     expect(capabilities.get('feature:continuity')?.axes.proof).toBe('Handoff/resume golden run.');
-    expect(capabilities.get('proof:golden-runs')?.status).toBe('implemented');
+    expect(capabilities.get('proof:golden-runs')?.status).toBe('partial');
     expect(capabilities.get('proof:golden-runs')?.summary).toContain(
-      'All defined golden example runs are captured.',
+      'remaining blockers: proof:codex-mcp-first-run',
     );
     expect(capabilities.get('proof:golden-runs')?.summary).not.toContain('proof:plan-execution');
   });
@@ -613,7 +657,9 @@ describe('release truth infrastructure', () => {
     const exceptions = ParityExceptionLedger.parse(yamlFile('docs/release/parity/exceptions.yaml'));
     const result = validateProofCoverage({ proofs, exceptions, pathExists: exists });
     expect(result.issues).toEqual([]);
-    expect(result.warnings).toEqual([]);
+    expect(result.warnings).toEqual([
+      'tracked proof: proof:codex-mcp-first-run is release_blocker',
+    ]);
   });
 
   it('keeps proof run files in the release proof corpus', () => {
