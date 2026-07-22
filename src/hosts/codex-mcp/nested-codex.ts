@@ -166,14 +166,26 @@ export function mcpCodexPrivateDirectories(tempRoot: string): McpCodexPrivateDir
   });
 }
 
+function nestedGitReadRoots(gitExecutable: string): readonly string[] {
+  const xcode = /^\/Applications\/[^/]*Xcode[^/]*\.app\/Contents\/Developer(?:\/|$)/u.exec(
+    gitExecutable,
+  );
+  if (xcode !== null) return Object.freeze([xcode[0].replace(/\/$/u, '')]);
+  if (pathInside('/Library/Developer/CommandLineTools', gitExecutable)) {
+    return Object.freeze(['/Library/Developer/CommandLineTools']);
+  }
+  return Object.freeze([]);
+}
+
 export function buildMcpCodexSandboxConfigArgs(policy: McpNestedCodexPolicy): string[] {
   assertPolicy(policy);
   const privateDirectories = mcpCodexPrivateDirectories(policy.tempRoot);
   const nodeBin = dirname(policy.nodeExecutable);
+  const gitBin = dirname(policy.gitExecutable);
   if (resolve(dirname(nodeBin)) !== resolve(policy.nodeInstallationRoot)) {
     throw new Error('The pinned Node executable has an unreviewed installation layout.');
   }
-  const shellPath = [nodeBin, '/usr/bin', '/bin'].join(delimiter);
+  const shellPath = [...new Set([nodeBin, gitBin, '/usr/bin', '/bin'])].join(delimiter);
   const filesystem = [
     [':minimal', 'read'],
     [':workspace_roots', 'write'],
@@ -181,6 +193,7 @@ export function buildMcpCodexSandboxConfigArgs(policy: McpNestedCodexPolicy): st
     [policy.tempRoot, 'write'],
     [policy.nodeInstallationRoot, 'read'],
     ['/System/Library/OpenSSL', 'read'],
+    ...nestedGitReadRoots(policy.gitExecutable).map((root) => [root, 'read'] as const),
     [policy.gitExecutable, 'read'],
   ] as const;
   const entries = [

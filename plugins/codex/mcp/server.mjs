@@ -25519,14 +25519,25 @@ function mcpCodexPrivateDirectories(tempRoot) {
     temp: join2(tempRoot, "nested-tmp")
   });
 }
+function nestedGitReadRoots(gitExecutable) {
+  const xcode = /^\/Applications\/[^/]*Xcode[^/]*\.app\/Contents\/Developer(?:\/|$)/u.exec(
+    gitExecutable
+  );
+  if (xcode !== null) return Object.freeze([xcode[0].replace(/\/$/u, "")]);
+  if (pathInside("/Library/Developer/CommandLineTools", gitExecutable)) {
+    return Object.freeze(["/Library/Developer/CommandLineTools"]);
+  }
+  return Object.freeze([]);
+}
 function buildMcpCodexSandboxConfigArgs(policy) {
   assertPolicy(policy);
   const privateDirectories = mcpCodexPrivateDirectories(policy.tempRoot);
   const nodeBin = dirname(policy.nodeExecutable);
+  const gitBin = dirname(policy.gitExecutable);
   if (resolve2(dirname(nodeBin)) !== resolve2(policy.nodeInstallationRoot)) {
     throw new Error("The pinned Node executable has an unreviewed installation layout.");
   }
-  const shellPath = [nodeBin, "/usr/bin", "/bin"].join(delimiter);
+  const shellPath = [.../* @__PURE__ */ new Set([nodeBin, gitBin, "/usr/bin", "/bin"])].join(delimiter);
   const filesystem = [
     [":minimal", "read"],
     [":workspace_roots", "write"],
@@ -25534,6 +25545,7 @@ function buildMcpCodexSandboxConfigArgs(policy) {
     [policy.tempRoot, "write"],
     [policy.nodeInstallationRoot, "read"],
     ["/System/Library/OpenSSL", "read"],
+    ...nestedGitReadRoots(policy.gitExecutable).map((root) => [root, "read"]),
     [policy.gitExecutable, "read"]
   ];
   const entries = [
@@ -25788,6 +25800,16 @@ function markerResults(output) {
   }
   return found;
 }
+function failedRequiredMarkerSummary(markers, networkHit) {
+  const missing = MARKERS.filter((name) => !markers.has(name));
+  const failed = REQUIRED_MARKERS.filter((name) => markers.get(name) === "fail");
+  const details = [
+    ...missing.length === 0 ? [] : [`missing ${missing.join(", ")}`],
+    ...failed.length === 0 ? [] : [`failed ${failed.join(", ")}`],
+    ...networkHit ? ["network listener was reached"] : []
+  ];
+  return details.length === 0 ? "unknown canary mismatch" : details.join("; ");
+}
 async function runCodexNestedSandboxCanary(input, dependencies = {}) {
   assertIsolatedProbeCodexHome(input);
   await assertProbeCodexHomeIsNotAnAlias(input);
@@ -25902,7 +25924,7 @@ async function runCodexNestedSandboxCanary(input, dependencies = {}) {
     const markers = markerResults(result.stdout);
     if (networkHit || markers.size !== MARKERS.length || MARKERS.some((name) => !markers.has(name)) || REQUIRED_MARKERS.some((name) => markers.get(name) !== "pass")) {
       throw new Error(
-        "The installed Codex sandbox did not confine files, environment, and direct network access."
+        `The installed Codex sandbox did not confine files, environment, and direct network access (${failedRequiredMarkerSummary(markers, networkHit)}).`
       );
     }
     return Object.freeze({
@@ -27773,6 +27795,10 @@ import { basename as basename2, delimiter as delimiter2, dirname as dirname4, is
 var EXECUTABLE_NAME = /^[A-Za-z0-9][A-Za-z0-9._-]{0,127}$/;
 var MAX_FLOW_ASSETS = 64;
 var MAX_PACKAGE_JSON_BYTES = 64 * 1024;
+var MACOS_DIRECT_GIT_CANDIDATES = [
+  "/Library/Developer/CommandLineTools/usr/bin/git",
+  "/Applications/Xcode.app/Contents/Developer/usr/bin/git"
+];
 var CODEX_NPM_TARGETS = Object.freeze({
   "darwin:arm64": {
     packageName: "@openai/codex-darwin-arm64",
@@ -27833,6 +27859,24 @@ function findExecutableOnPath(name, pathValue) {
     }
   }
   throw new McpProductionPathError(`Circuit could not find an executable ${name} on PATH.`);
+}
+function isExecutableFile(candidate2) {
+  try {
+    const info = statSync2(candidate2);
+    return info.isFile() && (info.mode & 73) !== 0;
+  } catch {
+    return false;
+  }
+}
+function resolveGitExecutableOnPath(pathValue, platform = process.platform, macosDirectGitCandidates = MACOS_DIRECT_GIT_CANDIDATES) {
+  if (platform === "darwin") {
+    for (const candidate2 of macosDirectGitCandidates) {
+      if (!isAbsolute9(candidate2) || candidate2.includes("\0")) continue;
+      if (!isExecutableFile(candidate2)) continue;
+      return realpathSync3.native(candidate2);
+    }
+  }
+  return findExecutableOnPath("git", pathValue);
 }
 function pathInside2(parent, candidate2) {
   const child = relative2(parent, candidate2);
@@ -35550,7 +35594,7 @@ function productionMcpLayout(input) {
   }
   const pluginRoot = resolve10(input.pluginRoot);
   const flowsRoot = join15(pluginRoot, "flows");
-  const gitExecutable = input.gitExecutable ?? "/usr/bin/git";
+  const gitExecutable = input.gitExecutable ?? resolveGitExecutableOnPath(input.pathValue);
   if (!isAbsolute14(gitExecutable)) throw new Error("The Git helper must be absolute.");
   return Object.freeze({
     pluginRoot,

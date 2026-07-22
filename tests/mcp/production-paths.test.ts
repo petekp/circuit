@@ -17,6 +17,7 @@ import {
   derivePinnedNodeInstallation,
   findExecutableOnPath,
   resolveCodexExecutableOnPath,
+  resolveGitExecutableOnPath,
 } from '../../src/hosts/codex-mcp/production-paths.js';
 
 describe('Codex MCP production paths', () => {
@@ -62,6 +63,64 @@ describe('Codex MCP production paths', () => {
     expect(() => derivePinnedNodeInstallation(resolve(root, 'node-without-bin-parent'))).toThrow(
       McpProductionPathError,
     );
+  });
+
+  it('prefers direct macOS developer Git over PATH Git', () => {
+    const root = mkdtempSync(resolve(tmpdir(), 'circuit-mcp-git-path-'));
+    const bin = resolve(root, 'homebrew', 'bin');
+    const developerBin = resolve(
+      root,
+      'Applications',
+      'Xcode.app',
+      'Contents',
+      'Developer',
+      'usr',
+      'bin',
+    );
+    mkdirSync(bin, { recursive: true });
+    mkdirSync(developerBin, { recursive: true });
+    const pathGit = resolve(bin, 'git');
+    const developerGit = resolve(developerBin, 'git');
+    writeFileSync(pathGit, '#!/bin/sh\n');
+    writeFileSync(developerGit, '#!/bin/sh\n');
+    chmodSync(pathGit, 0o755);
+    chmodSync(developerGit, 0o755);
+
+    expect(resolveGitExecutableOnPath(bin, 'darwin', [developerGit])).toBe(
+      realpathSync.native(developerGit),
+    );
+  });
+
+  it('does not require PATH Git when direct macOS developer Git is available', () => {
+    const root = mkdtempSync(resolve(tmpdir(), 'circuit-mcp-direct-git-'));
+    const developerBin = resolve(
+      root,
+      'Applications',
+      'Xcode.app',
+      'Contents',
+      'Developer',
+      'usr',
+      'bin',
+    );
+    mkdirSync(developerBin, { recursive: true });
+    const developerGit = resolve(developerBin, 'git');
+    writeFileSync(developerGit, '#!/bin/sh\n');
+    chmodSync(developerGit, 0o755);
+
+    expect(resolveGitExecutableOnPath('', 'darwin', [developerGit])).toBe(
+      realpathSync.native(developerGit),
+    );
+  });
+
+  it('falls back to PATH Git on macOS when direct developer Git is unavailable', () => {
+    const root = mkdtempSync(resolve(tmpdir(), 'circuit-mcp-homebrew-git-'));
+    const bin = resolve(root, 'homebrew', 'bin');
+    mkdirSync(bin, { recursive: true });
+    const git = resolve(bin, 'git');
+    writeFileSync(git, '#!/bin/sh\n');
+    chmodSync(git, 0o755);
+
+    expect(resolveGitExecutableOnPath(bin, 'darwin', [])).toBe(git);
   });
 
   it('bypasses the Vite+ multi-call wrapper and seals its native Codex package', () => {

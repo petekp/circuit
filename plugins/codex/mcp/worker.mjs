@@ -16773,14 +16773,25 @@ function mcpCodexPrivateDirectories(tempRoot) {
     temp: join(tempRoot, "nested-tmp")
   });
 }
+function nestedGitReadRoots(gitExecutable) {
+  const xcode = /^\/Applications\/[^/]*Xcode[^/]*\.app\/Contents\/Developer(?:\/|$)/u.exec(
+    gitExecutable
+  );
+  if (xcode !== null) return Object.freeze([xcode[0].replace(/\/$/u, "")]);
+  if (pathInside("/Library/Developer/CommandLineTools", gitExecutable)) {
+    return Object.freeze(["/Library/Developer/CommandLineTools"]);
+  }
+  return Object.freeze([]);
+}
 function buildMcpCodexSandboxConfigArgs(policy) {
   assertPolicy(policy);
   const privateDirectories = mcpCodexPrivateDirectories(policy.tempRoot);
   const nodeBin = dirname(policy.nodeExecutable);
+  const gitBin = dirname(policy.gitExecutable);
   if (resolve(dirname(nodeBin)) !== resolve(policy.nodeInstallationRoot)) {
     throw new Error("The pinned Node executable has an unreviewed installation layout.");
   }
-  const shellPath = [nodeBin, "/usr/bin", "/bin"].join(delimiter);
+  const shellPath = [.../* @__PURE__ */ new Set([nodeBin, gitBin, "/usr/bin", "/bin"])].join(delimiter);
   const filesystem = [
     [":minimal", "read"],
     [":workspace_roots", "write"],
@@ -16788,6 +16799,7 @@ function buildMcpCodexSandboxConfigArgs(policy) {
     [policy.tempRoot, "write"],
     [policy.nodeInstallationRoot, "read"],
     ["/System/Library/OpenSSL", "read"],
+    ...nestedGitReadRoots(policy.gitExecutable).map((root) => [root, "read"]),
     [policy.gitExecutable, "read"]
   ];
   const entries = [
@@ -18071,9 +18083,25 @@ function buildMacosSeatbeltProfile(input) {
   );
   return profile.join("\n");
 }
+function parseProcessTable(stdout, excludedPid) {
+  const entries = [];
+  for (const line of stdout.split("\n")) {
+    const match = /^\s*(\d+)\s+(\d+)\s+(\d+)\s+(.+?)\s*$/u.exec(line);
+    if (match?.[1] === void 0 || match[2] === void 0 || match[3] === void 0) continue;
+    const pid = Number(match[1]);
+    if (pid === excludedPid) continue;
+    entries.push({
+      pid,
+      parentPid: Number(match[2]),
+      processGroupId: Number(match[3]),
+      startToken: match[4] ?? ""
+    });
+  }
+  return entries;
+}
 function defaultInspectProcesses() {
   return new Promise((resolvePromise, rejectPromise) => {
-    execFile(
+    const child = execFile(
       "/bin/ps",
       ["-axo", "pid=,ppid=,pgid=,lstart="],
       { encoding: "utf8", maxBuffer: 2 * 1024 * 1024 },
@@ -18082,19 +18110,7 @@ function defaultInspectProcesses() {
           rejectPromise(error51);
           return;
         }
-        const entries = [];
-        for (const line of stdout.split("\n")) {
-          const match = /^\s*(\d+)\s+(\d+)\s+(\d+)\s+(.+?)\s*$/u.exec(line);
-          if (match?.[1] === void 0 || match[2] === void 0 || match[3] === void 0)
-            continue;
-          entries.push({
-            pid: Number(match[1]),
-            parentPid: Number(match[2]),
-            processGroupId: Number(match[3]),
-            startToken: match[4] ?? ""
-          });
-        }
-        resolvePromise(entries);
+        resolvePromise(parseProcessTable(stdout, child.pid));
       }
     );
   });

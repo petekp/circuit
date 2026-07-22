@@ -10,6 +10,7 @@ import {
   type ProofSandboxLaunch,
   buildMacosSeatbeltProfile,
   createMacosProofSandbox,
+  parseProcessTable,
   relatedProcesses,
   signalExpectedProofProcess,
 } from '../../src/hosts/codex-mcp/proof-sandbox.js';
@@ -65,18 +66,7 @@ function processTable(): readonly ProcessTableEntry[] {
     encoding: 'utf8',
   });
   if (result.status !== 0) throw new Error(result.stderr || 'ps failed');
-  const entries: ProcessTableEntry[] = [];
-  for (const line of result.stdout.split('\n')) {
-    const match = /^\s*(\d+)\s+(\d+)\s+(\d+)\s+(.+?)\s*$/u.exec(line);
-    if (match?.[1] === undefined || match[2] === undefined || match[3] === undefined) continue;
-    entries.push({
-      pid: Number(match[1]),
-      parentPid: Number(match[2]),
-      processGroupId: Number(match[3]),
-      startToken: match[4] ?? '',
-    });
-  }
-  return entries;
+  return parseProcessTable(result.stdout);
 }
 
 async function waitFor(check: () => boolean): Promise<void> {
@@ -92,6 +82,18 @@ afterEach(() => {
 });
 
 describe('Codex MCP proof sandbox', () => {
+  it('does not treat the process-table inspector as a proof background child', () => {
+    const stdout = [
+      '  100     1   100 Tue Jul 21 18:00:00 2026',
+      '  200   100   100 Tue Jul 21 18:00:01 2026',
+      '  300   100   100 Tue Jul 21 18:00:02 2026',
+    ].join('\n');
+
+    const parsed = parseProcessTable(stdout, 300);
+
+    expect(parsed.map((entry) => entry.pid)).toEqual([100, 200]);
+  });
+
   it('uses default-deny Seatbelt with no Mach-service allowances', () => {
     const profile = buildMacosSeatbeltProfile({
       workspace: '/tmp/example workspace',

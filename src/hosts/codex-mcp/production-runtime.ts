@@ -37,6 +37,7 @@ import {
   collectPackagedFlowAssets,
   derivePinnedNodeInstallation,
   resolveCodexExecutableOnPath,
+  resolveGitExecutableOnPath,
 } from './production-paths.js';
 import { loadPublicFlowCatalog } from './public-flow-catalog.js';
 import { resolveTrustedCodexWorkspaceFromSources } from './resources.js';
@@ -180,7 +181,7 @@ export function productionMcpLayout(input: ProductionMcpLayoutInput): Production
   }
   const pluginRoot = resolve(input.pluginRoot);
   const flowsRoot = join(pluginRoot, 'flows');
-  const gitExecutable = input.gitExecutable ?? '/usr/bin/git';
+  const gitExecutable = input.gitExecutable ?? resolveGitExecutableOnPath(input.pathValue);
   if (!isAbsolute(gitExecutable)) throw new Error('The Git helper must be absolute.');
   return Object.freeze({
     pluginRoot,

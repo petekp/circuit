@@ -462,9 +462,29 @@ export function buildMacosSeatbeltProfile(input: {
   return profile.join('\n');
 }
 
+export function parseProcessTable(
+  stdout: string,
+  excludedPid?: number,
+): readonly ProcessTableEntry[] {
+  const entries: ProcessTableEntry[] = [];
+  for (const line of stdout.split('\n')) {
+    const match = /^\s*(\d+)\s+(\d+)\s+(\d+)\s+(.+?)\s*$/u.exec(line);
+    if (match?.[1] === undefined || match[2] === undefined || match[3] === undefined) continue;
+    const pid = Number(match[1]);
+    if (pid === excludedPid) continue;
+    entries.push({
+      pid,
+      parentPid: Number(match[2]),
+      processGroupId: Number(match[3]),
+      startToken: match[4] ?? '',
+    });
+  }
+  return entries;
+}
+
 function defaultInspectProcesses(): Promise<readonly ProcessTableEntry[]> {
   return new Promise((resolvePromise, rejectPromise) => {
-    execFile(
+    const child = execFile(
       '/bin/ps',
       ['-axo', 'pid=,ppid=,pgid=,lstart='],
       { encoding: 'utf8', maxBuffer: 2 * 1024 * 1024 },
@@ -473,19 +493,7 @@ function defaultInspectProcesses(): Promise<readonly ProcessTableEntry[]> {
           rejectPromise(error);
           return;
         }
-        const entries: ProcessTableEntry[] = [];
-        for (const line of stdout.split('\n')) {
-          const match = /^\s*(\d+)\s+(\d+)\s+(\d+)\s+(.+?)\s*$/u.exec(line);
-          if (match?.[1] === undefined || match[2] === undefined || match[3] === undefined)
-            continue;
-          entries.push({
-            pid: Number(match[1]),
-            parentPid: Number(match[2]),
-            processGroupId: Number(match[3]),
-            startToken: match[4] ?? '',
-          });
-        }
-        resolvePromise(entries);
+        resolvePromise(parseProcessTable(stdout, child.pid));
       },
     );
   });

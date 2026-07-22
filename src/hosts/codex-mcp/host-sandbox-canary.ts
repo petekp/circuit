@@ -282,6 +282,20 @@ function markerResults(output: string): ReadonlyMap<string, string> {
   return found;
 }
 
+function failedRequiredMarkerSummary(
+  markers: ReadonlyMap<string, string>,
+  networkHit: boolean,
+): string {
+  const missing = MARKERS.filter((name) => !markers.has(name));
+  const failed = REQUIRED_MARKERS.filter((name) => markers.get(name) === 'fail');
+  const details = [
+    ...(missing.length === 0 ? [] : [`missing ${missing.join(', ')}`]),
+    ...(failed.length === 0 ? [] : [`failed ${failed.join(', ')}`]),
+    ...(networkHit ? ['network listener was reached'] : []),
+  ];
+  return details.length === 0 ? 'unknown canary mismatch' : details.join('; ');
+}
+
 /**
  * Runs a fixed shell probe through Codex's real named permissions profile.
  * Shared host temporary directories are measured but do not strengthen the
@@ -408,7 +422,7 @@ export async function runCodexNestedSandboxCanary(
       REQUIRED_MARKERS.some((name) => markers.get(name) !== 'pass')
     ) {
       throw new Error(
-        'The installed Codex sandbox did not confine files, environment, and direct network access.',
+        `The installed Codex sandbox did not confine files, environment, and direct network access (${failedRequiredMarkerSummary(markers, networkHit)}).`,
       );
     }
     return Object.freeze({

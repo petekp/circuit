@@ -14,6 +14,10 @@ import { basename, delimiter, dirname, isAbsolute, join, relative, resolve, sep 
 const EXECUTABLE_NAME = /^[A-Za-z0-9][A-Za-z0-9._-]{0,127}$/;
 const MAX_FLOW_ASSETS = 64;
 const MAX_PACKAGE_JSON_BYTES = 64 * 1024;
+const MACOS_DIRECT_GIT_CANDIDATES = [
+  '/Library/Developer/CommandLineTools/usr/bin/git',
+  '/Applications/Xcode.app/Contents/Developer/usr/bin/git',
+] as const;
 
 interface CodexNpmTarget {
   readonly packageName: string;
@@ -85,6 +89,30 @@ export function findExecutableOnPath(name: string, pathValue: string | undefined
     }
   }
   throw new McpProductionPathError(`Circuit could not find an executable ${name} on PATH.`);
+}
+
+function isExecutableFile(candidate: string): boolean {
+  try {
+    const info = statSync(candidate);
+    return info.isFile() && (info.mode & 0o111) !== 0;
+  } catch {
+    return false;
+  }
+}
+
+export function resolveGitExecutableOnPath(
+  pathValue: string | undefined,
+  platform: NodeJS.Platform = process.platform,
+  macosDirectGitCandidates: readonly string[] = MACOS_DIRECT_GIT_CANDIDATES,
+): string {
+  if (platform === 'darwin') {
+    for (const candidate of macosDirectGitCandidates) {
+      if (!isAbsolute(candidate) || candidate.includes('\0')) continue;
+      if (!isExecutableFile(candidate)) continue;
+      return realpathSync.native(candidate);
+    }
+  }
+  return findExecutableOnPath('git', pathValue);
 }
 
 function pathInside(parent: string, candidate: string): boolean {

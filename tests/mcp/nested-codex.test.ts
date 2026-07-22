@@ -129,6 +129,22 @@ describe('MCP nested Codex policy', () => {
     expect(args).not.toContain('--dangerously-bypass-approvals-and-sandbox');
   });
 
+  it('puts the pinned developer Git ahead of the Apple shim in the worker shell', () => {
+    const args = buildMcpCodexArgs(
+      { prompt: 'inspect git state' },
+      policy({
+        gitExecutable: '/Applications/Xcode.app/Contents/Developer/usr/bin/git',
+      }),
+    );
+
+    expect(args).toEqual(
+      expect.arrayContaining([
+        'permissions.circuit_mcp.filesystem={":minimal"="read",":workspace_roots"="write",":slash_tmp"="deny","/private/tmp/circuit-run"="write","/opt/node"="read","/System/Library/OpenSSL"="read","/Applications/Xcode.app/Contents/Developer"="read","/Applications/Xcode.app/Contents/Developer/usr/bin/git"="read"}',
+        'shell_environment_policy.set.PATH="/opt/node/bin:/Applications/Xcode.app/Contents/Developer/usr/bin:/usr/bin:/bin"',
+      ]),
+    );
+  });
+
   it('quotes adversarial dynamic TOML paths without creating another assignment', () => {
     const args = buildMcpCodexArgs(
       { prompt: 'test' },
