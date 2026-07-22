@@ -151,14 +151,14 @@ describe('flow-shape composition — changed-files honesty gate reaches composed
     }
   });
 
-  it('the composed criterion FIRES: it catches a worker that overclaims an untouched path', () => {
+  it('the composed criterion FIRES: it catches a worker that overclaims an untouched path', async () => {
     const { spec, flow } = composeAndCompile(FIX_FULL_ARC);
     const specAct = spec.items.find((it) => String(it.block) === 'act');
     const compiledAct = flow.steps.find((s) => s.id === String(specAct?.id));
     const criteria = acceptanceOf(compiledAct);
     if (criteria === undefined) throw new Error('composed act carries no criterion to fire');
 
-    const result = evaluateAcceptanceCriteria({
+    const result = await evaluateAcceptanceCriteria({
       stepId: 'act',
       criteria,
       resultBody: JSON.stringify({
@@ -177,14 +177,14 @@ describe('flow-shape composition — changed-files honesty gate reaches composed
     }
   });
 
-  it('the composed criterion PASSES a truthful changed_files claim', () => {
+  it('the composed criterion PASSES a truthful changed_files claim', async () => {
     const { spec, flow } = composeAndCompile(FIX_FULL_ARC);
     const specAct = spec.items.find((it) => String(it.block) === 'act');
     const compiledAct = flow.steps.find((s) => s.id === String(specAct?.id));
     const criteria = acceptanceOf(compiledAct);
     if (criteria === undefined) throw new Error('composed act carries no criterion');
 
-    const result = evaluateAcceptanceCriteria({
+    const result = await evaluateAcceptanceCriteria({
       stepId: 'act',
       criteria,
       resultBody: JSON.stringify({

@@ -7,11 +7,13 @@ import type {
   MemoryInputV0 as MemoryInputValue,
 } from '../../schemas/index.js';
 import type { PolicyLayer as PolicyLayerValue } from '../../schemas/policy-envelope.js';
+import type { ProofPlanCommand, ProofPlanCommandObservation } from '../../shared/proof-plan.js';
 import type {
   ProgressReporter,
   RelayFn,
   RuntimeEvidencePolicy,
 } from '../../shared/relay-runtime-types.js';
+import type { RuntimeGitReader } from '../../shared/runtime-git-reader.js';
 import type { ExecutorRegistry } from '../executors/index.js';
 import type { RelayConnector } from '../executors/relay.js';
 import type {
@@ -41,6 +43,8 @@ export const RUNTIME_CAPABILITY_NAMES = [
   'memoryInputs',
   'historyRecallReport',
   'historyRecallPrecision',
+  'proofCommandRunner',
+  'gitReader',
 ] as const;
 
 export type RuntimeCapabilityName = (typeof RUNTIME_CAPABILITY_NAMES)[number];
@@ -65,4 +69,9 @@ export interface RuntimeExecutionCapabilities {
   readonly memoryInputs?: readonly MemoryInputValue[];
   readonly historyRecallReport?: HistoryRecallReportValue;
   readonly historyRecallPrecision?: HistoryRecallPrecisionValue;
+  readonly proofCommandRunner?: (
+    command: ProofPlanCommand,
+    projectRoot: string,
+  ) => Promise<ProofPlanCommandObservation>;
+  readonly gitReader?: RuntimeGitReader;
 }

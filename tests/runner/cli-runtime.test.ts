@@ -1,5 +1,15 @@
+import { execFileSync } from 'node:child_process';
 import { randomUUID } from 'node:crypto';
-import { existsSync, mkdirSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
+import {
+  existsSync,
+  lstatSync,
+  mkdirSync,
+  readFileSync,
+  readlinkSync,
+  rmSync,
+  symlinkSync,
+  writeFileSync,
+} from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
@@ -14,6 +24,7 @@ import { ProgressEvent } from '../../src/schemas/progress-event.js';
 import { RunResult } from '../../src/schemas/result.js';
 import type { ComposeWriterFn, RelayFn } from '../../src/shared/relay-runtime-types.js';
 import { captureStreams, deterministicNow, makeStubRelayer } from '../helpers/runtime-fixtures.js';
+import { withScopedEnv } from '../helpers/scoped-env.js';
 
 const REVIEW_RELAY_BODY = JSON.stringify({
   verdict: 'NO_ISSUES_FOUND',
@@ -192,6 +203,74 @@ describe('CLI runtime', () => {
     expect(
       RunResult.parse(JSON.parse(readFileSync(join(runFolder, 'reports/result.json'), 'utf8'))),
     ).toMatchObject({ flow_id: 'review', outcome: 'complete' });
+  });
+
+  it('ignores MCP-looking environment variables and preserves valid workspace symlinks', async () => {
+    const realProject = join(runFolderBase, 'ordinary-real-project');
+    const workspaceAlias = join(runFolderBase, 'ordinary-workspace-alias');
+    const codexHome = join(runFolderBase, 'ordinary-codex-home');
+    const runFolder = join(runFolderBase, 'ordinary-symlink-review');
+    const target = join(realProject, 'src', 'target.ts');
+    const linked = join(realProject, 'src', 'linked.ts');
+    writeProjectRoot(realProject);
+    mkdirSync(join(realProject, 'src'), { recursive: true });
+    mkdirSync(codexHome, { recursive: true });
+    execFileSync('git', ['init', '--quiet'], { cwd: realProject });
+    writeFileSync(target, 'export const answer = 42;\n');
+    execFileSync('git', ['add', 'package.json', 'src/target.ts'], { cwd: realProject });
+    execFileSync(
+      'git',
+      [
+        '-c',
+        'user.name=Circuit',
+        '-c',
+        'user.email=circuit@example.test',
+        'commit',
+        '--quiet',
+        '-m',
+        'base',
+      ],
+      { cwd: realProject },
+    );
+    symlinkSync('target.ts', linked);
+    execFileSync('git', ['add', 'src/linked.ts'], { cwd: realProject });
+    symlinkSync(realProject, workspaceAlias, 'dir');
+
+    let relayedPrompt = '';
+    const result = await withScopedEnv(
+      {
+        CIRCUIT_HOST_KIND: undefined,
+        CIRCUIT_MCP_ACTIVATE: '1',
+        CIRCUIT_MCP_PROOF_RUNNER: '/outside/ordinary-cli-must-ignore-this',
+        CODEX_HOME: codexHome,
+      },
+      () =>
+        captureMain(
+          ['run', 'review', '--goal', 'review the staged symlink', '--run-folder', runFolder],
+          {
+            configCwd: workspaceAlias,
+            relayer: makeStubRelayer(
+              (input) => {
+                relayedPrompt = input.prompt;
+                return REVIEW_RELAY_BODY;
+              },
+              { receipt_id: 'stub-receipt-ordinary-symlink' },
+            ),
+          },
+        ),
+    );
+
+    expect(result.code, result.stderr).toBe(0);
+    expect(JSON.parse(result.stdout)).toMatchObject({
+      flow_id: 'review',
+      selected_flow: 'review',
+      outcome: 'complete',
+    });
+    expect(relayedPrompt).toContain('src/linked.ts');
+    expect(relayedPrompt).toContain('+target.ts');
+    expect(lstatSync(linked).isSymbolicLink()).toBe(true);
+    expect(readlinkSync(linked)).toBe('target.ts');
+    expect(existsSync(join(codexHome, 'circuit', 'mcp', 'v1'))).toBe(false);
   });
 
   it('keeps successful run stdout when post-run artifact writers fail', async () => {

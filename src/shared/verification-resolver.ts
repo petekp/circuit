@@ -1,6 +1,6 @@
 import { existsSync, readFileSync } from 'node:fs';
 import { join } from 'node:path';
-import type { VerificationCommand } from '../schemas/verification.js';
+import { VerificationCommand } from '../schemas/verification.js';
 import { ProofPlanBlockedError } from './proof-plan.js';
 
 export type VerificationNeed = 'build' | 'lint' | 'general';
@@ -115,9 +115,107 @@ function commandForScript(input: {
   };
 }
 
+function parseSimpleArgv(command: string): string[] | undefined {
+  const argv: string[] = [];
+  let current = '';
+  let quote: "'" | '"' | undefined;
+  let tokenStarted = false;
+
+  for (let index = 0; index < command.length; index += 1) {
+    const char = command[index];
+    if (char === undefined) continue;
+
+    if (quote !== undefined) {
+      if (char === quote) {
+        quote = undefined;
+        tokenStarted = true;
+        continue;
+      }
+      if (quote === '"' && char === '\\') {
+        const next = command[index + 1];
+        if (next === '"' || next === '\\') {
+          current += next;
+          index += 1;
+          tokenStarted = true;
+          continue;
+        }
+      }
+      current += char;
+      tokenStarted = true;
+      continue;
+    }
+
+    if (/\s/.test(char)) {
+      if (tokenStarted) {
+        argv.push(current);
+        current = '';
+        tokenStarted = false;
+      }
+      continue;
+    }
+
+    if (char === "'" || char === '"') {
+      quote = char;
+      tokenStarted = true;
+      continue;
+    }
+
+    // Verification executes argv directly, so shell control syntax is rejected.
+    if (/[|&;<>()`$]/.test(char)) return undefined;
+
+    current += char;
+    tokenStarted = true;
+  }
+
+  if (quote !== undefined) return undefined;
+  if (tokenStarted) argv.push(current);
+  if (argv.length === 0) return undefined;
+  if (argv.some((part) => part.length === 0)) return undefined;
+  return argv;
+}
+
+function trimInlineCwd(value: string): string | undefined {
+  const unquoted = /^`([^`]+)`$/u.exec(value.trim())?.[1] ?? value;
+  const cwd = unquoted
+    .trim()
+    .replace(/[.:;,]+$/u, '')
+    .trim();
+  if (/^(?:the\s+)?(?:workspace|project|repo|repository)\s+root$/iu.test(cwd)) return '.';
+  if (cwd.length === 0 || cwd.includes('\0')) return undefined;
+  if (/\s/.test(cwd)) return undefined;
+  if (cwd.startsWith('/') || cwd.split('/').some((segment) => segment === '..')) return undefined;
+  return cwd;
+}
+
+function explicitInlineVerifyWithCommand(
+  input: ResolveVerificationCommandsInput,
+): VerificationCommand | undefined {
+  const match =
+    /\bverify with\s+`([^`]+)`\s+from\s+(?:(`[^`]+`)|((?:the\s+)?(?:workspace|project|repo|repository)\s+root)|([^\s`]+))/iu.exec(
+      input.goal,
+    );
+  const rawCommand = match?.[1];
+  const rawCwd = match?.[2] ?? match?.[3] ?? match?.[4];
+  if (rawCommand === undefined || rawCwd === undefined) return undefined;
+  const argv = parseSimpleArgv(rawCommand);
+  const cwd = trimInlineCwd(rawCwd);
+  if (argv === undefined || cwd === undefined) return undefined;
+  return VerificationCommand.parse({
+    id: `${input.commandIdPrefix}-objective-1`,
+    cwd,
+    argv,
+    timeout_ms: input.timeoutMs ?? DEFAULT_VERIFICATION_TIMEOUT_MS,
+    max_output_bytes: input.maxOutputBytes ?? 200_000,
+    env: { ...(input.env ?? {}) },
+  });
+}
+
 export function resolveVerificationCommands(
   input: ResolveVerificationCommandsInput,
 ): VerificationResolverResult {
+  const explicitCommand = explicitInlineVerifyWithCommand(input);
+  if (explicitCommand !== undefined) return { status: 'ready', commands: [explicitCommand] };
+
   if (input.projectRoot === undefined) {
     return {
       status: 'blocked',

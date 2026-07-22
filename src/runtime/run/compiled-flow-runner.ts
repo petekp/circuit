@@ -181,6 +181,10 @@ export async function runCompiledFlowWithWaiting(
       ...(options.historyRecallPrecision === undefined
         ? {}
         : { historyRecallPrecision: options.historyRecallPrecision }),
+      ...(options.proofCommandRunner === undefined
+        ? {}
+        : { proofCommandRunner: options.proofCommandRunner }),
+      ...(options.gitReader === undefined ? {} : { gitReader: options.gitReader }),
       ...(options.maxSteps === undefined ? {} : { maxSteps: options.maxSteps }),
     },
   );

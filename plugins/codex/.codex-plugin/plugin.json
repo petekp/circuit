@@ -9,6 +9,7 @@
   "repository": "https://github.com/petekp/circuit",
   "license": "MIT",
   "keywords": ["circuit", "developer-flows", "codex", "automation"],
+  "mcpServers": "./.mcp.json",
   "skills": "./skills/",
   "interface": {
     "displayName": "Circuit",

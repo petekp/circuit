@@ -8,6 +8,7 @@ import {
 } from '../app/process-evidence/projection.js';
 import type { LiveFlowRunner } from '../app/run-envelope/autonomous-run.js';
 import type { ExecutorRegistry } from '../runtime/executors/index.js';
+import type { RuntimeExecutionCapabilities } from '../runtime/run/capabilities.js';
 import { runCompiledFlowWithWaiting } from '../runtime/run/compiled-flow-runner.js';
 import { isGraphCheckpointWaitingResult } from '../runtime/run/graph-runner.js';
 import { Axes, type Axes as AxesValue } from '../schemas/axes.js';
@@ -43,6 +44,8 @@ export interface RecoveryAttemptRunnerDeps {
   readonly projectRoot: string;
   readonly relayer: RelayFn | undefined;
   readonly runtimeExecutors: Partial<ExecutorRegistry> | undefined;
+  readonly proofCommandRunner: RuntimeExecutionCapabilities['proofCommandRunner'];
+  readonly gitReader: RuntimeExecutionCapabilities['gitReader'];
   readonly hostKind: HostKindValue | undefined;
   readonly selectionConfigLayers: readonly LayeredConfig[];
   readonly policyLayers: readonly PolicyLayerValue[];
@@ -60,6 +63,8 @@ export function createRecoveryAttemptRunner(deps: RecoveryAttemptRunnerDeps): Li
     projectRoot,
     relayer,
     runtimeExecutors,
+    proofCommandRunner,
+    gitReader,
     hostKind,
     selectionConfigLayers,
     policyLayers,
@@ -120,6 +125,8 @@ export function createRecoveryAttemptRunner(deps: RecoveryAttemptRunnerDeps): Li
       axes: recoveryAxes,
       ...(relayer === undefined ? {} : { relayer }),
       ...(runtimeExecutors === undefined ? {} : { executors: runtimeExecutors }),
+      ...(proofCommandRunner === undefined ? {} : { proofCommandRunner }),
+      ...(gitReader === undefined ? {} : { gitReader }),
       ...(hostKind === undefined ? {} : { hostKind }),
       ...(selectionConfigLayers.length === 0 ? {} : { selectionConfigLayers }),
       ...(policyLayers.length === 0 ? {} : { policyLayers }),

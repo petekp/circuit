@@ -23,6 +23,7 @@ import type { Axes } from '../../../schemas/axes.js';
 import type { LayeredConfig as LayeredConfigValue } from '../../../schemas/config.js';
 import type { PrototypeVariantConnectorPlanner } from '../../../selection/connector-planning.js';
 import type { RuntimeEvidencePolicy } from '../../../shared/relay-runtime-types.js';
+import type { RuntimeGitReader } from '../../../shared/runtime-git-reader.js';
 import type { RuntimeIndexedComposeStep, RuntimeIndexedFlow } from '../runtime-index.js';
 
 export type ComposeStep = RuntimeIndexedComposeStep;
@@ -46,6 +47,7 @@ export interface ComposeBuildContext {
   readonly axes?: Axes;
   readonly projectRoot?: string;
   readonly evidencePolicy?: RuntimeEvidencePolicy;
+  readonly gitReader?: RuntimeGitReader;
   readonly selectionConfigLayers?: readonly LayeredConfigValue[];
   readonly connectorPlanner?: PrototypeVariantConnectorPlanner;
   // True when this run's on-demand context-pull DELIVERY is active for the
@@ -72,5 +74,5 @@ export interface ComposeBuilder {
   // Per-flow logic. Returns the unvalidated report body — the
   // builder is responsible for validating against the registered
   // result schema before returning.
-  build(context: ComposeBuildContext): unknown;
+  build(context: ComposeBuildContext): unknown | Promise<unknown>;
 }

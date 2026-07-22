@@ -9,6 +9,7 @@
       "evals",
       "plugins/claude/runtime",
       "plugins/codex/runtime",
+      "plugins/codex/mcp",
       "src/shared/html/ui/css.generated.ts",
       "src/shared/html/checkpoint-review-runtime.generated.ts",
       "src/shared/html/ui/theme.css",

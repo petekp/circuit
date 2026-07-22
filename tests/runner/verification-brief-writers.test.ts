@@ -81,4 +81,48 @@ describe('verification brief writers', () => {
       ['npm', 'run', 'lint'],
     ]);
   });
+
+  it('Build honors an explicit inline verify-with command before inferred build-script needs', () => {
+    const projectRoot = tempRoot('build-brief-inline-verify-');
+    writePackageJson(projectRoot, {
+      test: 'node --test build.test.js',
+    });
+
+    const brief = checkpointWriter().build({
+      runFolder: '/tmp/run',
+      projectRoot,
+      goal: 'Build src/build-marker.ts with the codex-mcp-build-proof marker. Verify with `npm test` from the workspace root.',
+      responsePath: 'reports/checkpoints/frame-step-response.json',
+      step: {
+        id: 'frame-step',
+        title: 'Frame - confirm Build brief',
+        kind: 'checkpoint',
+        protocol: 'build-frame@v1',
+        reads: [],
+        routes: { continue: 'plan-step' },
+        check: {
+          kind: 'checkpoint_selection',
+          allow: ['continue'],
+        },
+        writes: {
+          request: 'reports/checkpoints/frame-step-request.json',
+          response: 'reports/checkpoints/frame-step-response.json',
+          report: { path: 'reports/build/brief.json', schema: 'build.brief@v1' },
+        },
+        policy: {
+          prompt: 'Confirm the Build brief before implementation starts.',
+          choices: [{ id: 'continue' }],
+          report_template: {
+            scope: 'Make the smallest safe change.',
+            success_criteria: ['Verification passes'],
+          },
+        },
+      },
+    } as never) as BuildBrief;
+
+    expect(brief.verification_command_candidates.map((command) => command.argv)).toEqual([
+      ['npm', 'test'],
+    ]);
+    expect(brief.verification_command_candidates[0]?.cwd).toBe('.');
+  });
 });

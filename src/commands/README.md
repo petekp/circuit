@@ -13,3 +13,7 @@ For generated Claude and Codex command/skill destinations, edit rules, and drift
 checks, use [docs/generated-surfaces.md](../../docs/generated-surfaces.md). For
 the host-ready flow-authoring checklist, use
 [docs/flows/authoring-model.md](../../docs/flows/authoring-model.md#adding-a-flow).
+
+One host-specific source is intentionally separate: the Codex MCP Run skill is
+authored at `src/hosts/codex-mcp/run-skill.md`. The ordinary Run source in this
+directory still owns the CLI guidance and the Claude and Codex command mirrors.

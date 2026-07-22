@@ -179,12 +179,19 @@ describe('host adapter acceptance contract', () => {
       resolve(REPO_ROOT, 'scripts/hosts/smoke/claude-handoff.ts'),
       'utf8',
     );
+    const codexMcpSmoke = readFileSync(
+      resolve(REPO_ROOT, 'scripts/hosts/smoke/codex-mcp.ts'),
+      'utf8',
+    );
 
     expect(packageJson.scripts['smoke:host:codex']).toBe(
       'node scripts/hosts/smoke/codex-handoff.ts',
     );
     expect(packageJson.scripts['smoke:host:claude']).toBe(
       'node scripts/hosts/smoke/claude-handoff.ts',
+    );
+    expect(packageJson.scripts['smoke:host:codex:mcp']).toBe(
+      'node scripts/hosts/smoke/codex-mcp.ts',
     );
     expect(packageJson.scripts.verify).not.toContain('smoke:host');
 
@@ -196,5 +203,14 @@ describe('host adapter acceptance contract', () => {
     }
     expect(codexSmoke).toContain('--use-real-user-hooks');
     expect(codexSmoke).toContain('restore(hooksPath, originalHooks)');
+    expect(codexMcpSmoke).toContain('--live');
+    expect(codexMcpSmoke).toContain('tool_search_call');
+    expect(codexMcpSmoke).toContain('circuit_list');
+    expect(codexMcpSmoke).toContain('seedWorkspaceSentinel');
+    expect(codexMcpSmoke).toContain("name: 'exact_workspace_identity'");
+    expect(codexMcpSmoke).toContain("name: 'owned_process_cleanup'");
+    expect(codexMcpSmoke).toContain("resolve(REPO_ROOT, '.mcp-host-tests')");
+    expect(codexMcpSmoke).not.toContain('tmpdir()');
+    expect(codexMcpSmoke).toContain('rmSync(root, { recursive: true, force: true })');
   });
 });

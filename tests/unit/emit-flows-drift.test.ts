@@ -98,6 +98,12 @@ describe('emit-flows.ts — stale per-mode sibling guard', () => {
   let runtimeProofCodexDir: string;
   let rootClaudeMarketplacePath: string;
   let rootClaudeObsoleteManifestPath: string;
+  let codexRunSkillPath: string;
+  let codexMcpRunSkillSourcePath: string;
+
+  function restoreCodexRunSkill() {
+    writeFileSync(codexRunSkillPath, readFileSync(codexMcpRunSkillSourcePath));
+  }
 
   function cleanupPlantedFixtures() {
     removeStaleSiblingIfPresent(stalePath);
@@ -109,6 +115,7 @@ describe('emit-flows.ts — stale per-mode sibling guard', () => {
     removeDirIfPresent(runtimeProofClaudeDir);
     removeDirIfPresent(runtimeProofCodexDir);
     removeStaleSiblingIfPresent(rootClaudeObsoleteManifestPath);
+    restoreCodexRunSkill();
   }
 
   beforeAll(() => {
@@ -140,6 +147,8 @@ describe('emit-flows.ts — stale per-mode sibling guard', () => {
     runtimeProofCodexDir = tempPath('plugins/codex/flows/runtime-proof');
     rootClaudeMarketplacePath = tempPath('.claude-plugin/marketplace.json');
     rootClaudeObsoleteManifestPath = tempPath('.claude-plugin/plugin.json');
+    codexRunSkillPath = tempPath('plugins/codex/skills/run/SKILL.md');
+    codexMcpRunSkillSourcePath = tempPath('src/hosts/codex-mcp/run-skill.md');
   });
 
   afterAll(() => {
@@ -161,6 +170,7 @@ describe('emit-flows.ts — stale per-mode sibling guard', () => {
     plantInternalHostMirror(runtimeProofClaudeDir);
     plantInternalHostMirror(runtimeProofCodexDir);
     plantStaleSibling(rootClaudeObsoleteManifestPath);
+    writeFileSync(codexRunSkillPath, '# stale Codex Run skill\n');
   }
 
   // The build+emit subprocess chain runs under a minute on a quiet machine and
@@ -188,6 +198,8 @@ describe('emit-flows.ts — stale per-mode sibling guard', () => {
     expect(staleCheckOutput).toContain('plugins/codex/flows/runtime-proof');
     expect(staleCheckOutput).toContain('stale host mirror for internal flow');
     expect(staleCheckOutput).toContain('obsolete root host surface');
+    expect(staleCheckOutput).toContain('plugins/codex/skills/run/SKILL.md');
+    expect(staleCheckOutput).toContain('drifted from src/hosts/codex-mcp/run-skill.md');
 
     cleanupPlantedFixtures();
     plantAllFixtures();
@@ -200,6 +212,7 @@ describe('emit-flows.ts — stale per-mode sibling guard', () => {
     expect(planted(runtimeProofClaudeDir)).toBe(true);
     expect(planted(runtimeProofCodexDir)).toBe(true);
     expect(planted(rootClaudeObsoleteManifestPath)).toBe(true);
+    expect(readFileSync(codexRunSkillPath, 'utf8')).toBe('# stale Codex Run skill\n');
     const marketplaceBefore = readFileSync(rootClaudeMarketplacePath, 'utf8');
     const staleEmit = runEmitScript([]);
     expect(staleEmit.status).toBe(0);
@@ -212,6 +225,7 @@ describe('emit-flows.ts — stale per-mode sibling guard', () => {
     expect(planted(runtimeProofClaudeDir)).toBe(false);
     expect(planted(runtimeProofCodexDir)).toBe(false);
     expect(planted(rootClaudeObsoleteManifestPath)).toBe(false);
+    expect(readFileSync(codexRunSkillPath)).toEqual(readFileSync(codexMcpRunSkillSourcePath));
     expect(readFileSync(rootClaudeMarketplacePath, 'utf8')).toBe(marketplaceBefore);
     expect(staleEmit.stdout ?? '').toContain(
       'removed stale generated/flows/build/never-a-mode.json',
@@ -239,6 +253,9 @@ describe('emit-flows.ts — stale per-mode sibling guard', () => {
     );
     expect(staleEmit.stdout ?? '').toContain(
       'removed obsolete root host surface .claude-plugin/plugin.json',
+    );
+    expect(staleEmit.stdout ?? '').toContain(
+      'emitted plugins/codex/skills/run/SKILL.md (codex MCP run skill)',
     );
 
     cleanupPlantedFixtures();

@@ -79,6 +79,7 @@ export interface WorktreePort {
   readonly projectRoot?: string;
   readonly evidencePolicy?: RunContext['evidencePolicy'];
   readonly runner?: RunContext['worktreeRunner'];
+  readonly gitReader?: RunContext['gitReader'];
 }
 
 export interface SelectionPort {
@@ -158,6 +159,7 @@ export function runPortsFromContext(context: RunContext): RunPorts {
     },
     worktree: {
       ...(context.projectRoot === undefined ? {} : { projectRoot: context.projectRoot }),
+      ...(context.gitReader === undefined ? {} : { gitReader: context.gitReader }),
       ...(context.evidencePolicy === undefined ? {} : { evidencePolicy: context.evidencePolicy }),
       ...(context.worktreeRunner === undefined ? {} : { runner: context.worktreeRunner }),
     },

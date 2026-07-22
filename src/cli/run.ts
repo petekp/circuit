@@ -4,6 +4,7 @@ import { dirname, join, resolve } from 'node:path';
 import { Command } from 'commander';
 
 import type { ExecutorRegistry } from '../runtime/executors/index.js';
+import type { RuntimeExecutionCapabilities } from '../runtime/run/capabilities.js';
 import {
   type CheckpointResumeRejectedResult,
   isCheckpointResumeRejectedResult,
@@ -19,7 +20,7 @@ import { TraceStore } from '../runtime/trace/trace-store.js';
 import { Axes, type Axes as AxesValue, TournamentN } from '../schemas/axes.js';
 import type { CheckpointReviewResponse as CheckpointReviewResponseValue } from '../schemas/checkpoint-review-response.js';
 import { type CompiledFlow, CompiledFlow as CompiledFlowSchema } from '../schemas/compiled-flow.js';
-import { Config, type LayeredConfig } from '../schemas/config.js';
+import { Config, type Config as ConfigValue, type LayeredConfig } from '../schemas/config.js';
 import { HostKind, type HostKind as HostKindValue } from '../schemas/host.js';
 import { CompiledFlowId, RunId } from '../schemas/ids.js';
 import { computeManifestHash } from '../schemas/manifest.js';
@@ -165,8 +166,18 @@ export interface RunCommandOptions {
   runId?: string;
   configHomeDir?: string;
   configCwd?: string;
+  /** Programmatic runtime root. Ordinary CLI calls leave this unset. */
+  projectRoot?: string;
+  /** Sealed host configuration injected without reading operator config files. */
+  invocationConfig?: ConfigValue;
+  /** Installed host packages explicitly bind their emitted generated-flow mirror. */
+  generatedFlowMirrorRoot?: string;
+  /** MCP uses its own lifecycle and must not install ordinary Codex hooks. */
+  codexInstallAssurance?: 'enabled' | 'disabled';
   hostKind?: HostKindValue;
   runtimeExecutors?: Partial<ExecutorRegistry>;
+  proofCommandRunner?: RuntimeExecutionCapabilities['proofCommandRunner'];
+  gitReader?: RuntimeExecutionCapabilities['gitReader'];
   historyRecall?: 'auto' | 'enabled' | 'disabled';
   /** Test or host seam; the default opens the explicit loopback review URL. */
   openCheckpointReview?: (url: string) => void;
@@ -809,6 +820,10 @@ function resumeRuntimeCheckpoint(input: {
     ...(input.options.runtimeExecutors === undefined
       ? {}
       : { executors: input.options.runtimeExecutors }),
+    ...(input.options.proofCommandRunner === undefined
+      ? {}
+      : { proofCommandRunner: input.options.proofCommandRunner }),
+    ...(input.options.gitReader === undefined ? {} : { gitReader: input.options.gitReader }),
     ...(input.options.relayer === undefined ? {} : { relayer: input.options.relayer }),
     ...(input.progress === undefined ? {} : { progress: input.progress }),
     progressSurfaceForFlowId,
@@ -1694,20 +1709,23 @@ export async function runExecutionCommand(
   // absent --process derives its value from the resolved power dial (config
   // layers + --power), and that derived value must be known before the
   // fixture/mode is selected below.
+  const invocationConfig =
+    options.invocationConfig === undefined && args.power === undefined
+      ? undefined
+      : Config.parse({
+          ...(options.invocationConfig ?? { schema_version: 1 }),
+          defaults: {
+            ...(options.invocationConfig?.defaults ?? {}),
+            ...(args.power === undefined ? {} : { power: args.power }),
+          },
+        });
   const runtimeConfigLayers = discoverRuntimeConfigLayers({
     ...(options.configHomeDir !== undefined ? { homeDir: options.configHomeDir } : {}),
     ...(options.configCwd !== undefined ? { cwd: options.configCwd } : {}),
     // --power rides the existing invocation config layer, so it composes with
     // (and outranks) a user-global or project `defaults.power` exactly like
     // any other layered config opinion.
-    ...(args.power === undefined
-      ? {}
-      : {
-          invocationConfig: Config.parse({
-            schema_version: 1,
-            defaults: { power: args.power },
-          }),
-        }),
+    ...(invocationConfig === undefined ? {} : { invocationConfig }),
   });
   const { policyLayers, selectionConfigLayers } = runtimeConfigLayers;
 
@@ -1817,12 +1835,12 @@ export async function runExecutionCommand(
   }
   const hostKind = runtimeHostKind(options);
 
-  const projectRoot = resolve(options.configCwd ?? process.cwd());
+  const projectRoot = resolve(options.projectRoot ?? options.configCwd ?? process.cwd());
 
   // A3: on Codex, restore needs a one-time hook install (Claude is zero-setup).
   // The front-door run is the only path a not-yet-installed Codex user reliably
   // triggers, so nudge once per repo here. Best-effort: never block a run.
-  if (hostKind === 'codex') {
+  if (hostKind === 'codex' && options.codexInstallAssurance !== 'disabled') {
     try {
       const assurance = codexInstallAssurance({ projectRoot, now });
       if (assurance.notice !== undefined) process.stderr.write(`${assurance.notice}\n`);
@@ -1843,6 +1861,9 @@ export async function runExecutionCommand(
     applyFixturePolicy(runtimeSupport, {
       args: runArgs,
       fixturePath,
+      ...(options.generatedFlowMirrorRoot === undefined
+        ? {}
+        : { generatedFlowMirrorRoot: options.generatedFlowMirrorRoot }),
     }),
     { hasComposeWriter: options.composeWriter !== undefined },
   );
@@ -1925,6 +1946,10 @@ export async function runExecutionCommand(
         : { entryModeName: entryModeSelection.entryModeName }),
       ...(options.relayer === undefined ? {} : { relayer: options.relayer }),
       ...(options.runtimeExecutors === undefined ? {} : { executors: options.runtimeExecutors }),
+      ...(options.proofCommandRunner === undefined
+        ? {}
+        : { proofCommandRunner: options.proofCommandRunner }),
+      ...(options.gitReader === undefined ? {} : { gitReader: options.gitReader }),
       ...(hostKind === undefined ? {} : { hostKind }),
       ...(selectionConfigLayers.length === 0 ? {} : { selectionConfigLayers }),
       ...(policyLayers.length === 0 ? {} : { policyLayers }),
@@ -2142,6 +2167,8 @@ export async function runExecutionCommand(
             projectRoot,
             relayer: options.relayer,
             runtimeExecutors: options.runtimeExecutors,
+            proofCommandRunner: options.proofCommandRunner,
+            gitReader: options.gitReader,
             hostKind,
             selectionConfigLayers,
             policyLayers,

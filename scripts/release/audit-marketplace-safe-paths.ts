@@ -23,6 +23,7 @@
 //   "Marketplace-safe by build-pipeline emission: ..."
 //   "Marketplace-safe by env var: ..."          (e.g., CIRCUIT_PLUGIN_ROOT)
 //   "Marketplace-safe by source-tree fallback: ..."   (dev-only)
+//   "Marketplace-safe by host metadata: ..."    (validated absolute host input)
 //
 // A new call site without one of those comments fails this check. The
 // failure message names the file and line so the author can either pick
@@ -36,7 +37,7 @@ import { fileURLToPath, pathToFileURL } from 'node:url';
 const REPO_ROOT = resolve(dirname(fileURLToPath(import.meta.url)), '../..');
 export const LOOKBACK_LINES = 10;
 export const SAFETY_PATTERN =
-  /Marketplace-safe by (build-time replacement|build-pipeline emission|env var|source-tree fallback):/i;
+  /Marketplace-safe by (build-time replacement|build-pipeline emission|env var|source-tree fallback|host metadata):/i;
 
 type Finding = {
   file: string;
@@ -101,7 +102,8 @@ function main(): void {
       '  Marketplace-safe by build-time replacement: ...\n' +
       '  Marketplace-safe by build-pipeline emission: ...\n' +
       '  Marketplace-safe by env var: ...\n' +
-      '  Marketplace-safe by source-tree fallback: ...\n\n',
+      '  Marketplace-safe by source-tree fallback: ...\n' +
+      '  Marketplace-safe by host metadata: ...\n\n',
   );
 
   for (const finding of findings) {

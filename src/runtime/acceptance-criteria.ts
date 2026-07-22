@@ -213,7 +213,7 @@ function commandTrace(
   };
 }
 
-export function evaluateAcceptanceCriteria(input: {
+export async function evaluateAcceptanceCriteria(input: {
   readonly stepId: string;
   readonly criteria: AcceptanceCriteria;
   readonly resultBody: string;
@@ -222,7 +222,13 @@ export function evaluateAcceptanceCriteria(input: {
   // Working-tree capture used by the `changed_on_disk` predicate. Defaults to a
   // real `git status` at projectRoot; injectable so unit tests stay hermetic.
   readonly captureChangedPaths?: (projectRoot: string) => ReadonlySet<string>;
-}): AcceptanceCriteriaEvaluationResult {
+  // Command proof must use the host's injected runner when one is present.
+  // Ordinary CLI calls leave this unset and retain the existing local runner.
+  readonly runProofCommand?: (
+    command: Extract<AcceptanceCriterion, { readonly kind: 'command' }>['command'],
+    projectRoot: string,
+  ) => ProofPlanCommandObservation | Promise<ProofPlanCommandObservation>;
+}): Promise<AcceptanceCriteriaEvaluationResult> {
   const checks: AcceptanceCriterionTrace[] = [];
   let parsedBody = input.parsedBody;
 
@@ -324,7 +330,7 @@ export function evaluateAcceptanceCriteria(input: {
     try {
       const trace = commandTrace(
         criterion,
-        runProofPlanCommand(criterion.command, input.projectRoot),
+        await (input.runProofCommand ?? runProofPlanCommand)(criterion.command, input.projectRoot),
       );
       checks.push(trace);
       if (trace.outcome === 'fail') {

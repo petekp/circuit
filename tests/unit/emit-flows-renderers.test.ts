@@ -8,13 +8,9 @@ import {
   renderCodexHostSkill,
 } from '../../scripts/flows/host-renderers.ts';
 
-// Real command sources that the emitter renders into host plugin surfaces.
-// HOST_DIRECT_COMMANDS in scripts/flows/emit.ts is ['handoff', 'run']; these
-// are the only files that flow through renderCodexHostSkill, so grounding the
-// renderer test on them keeps it aligned with what generation actually emits.
-// Re-basing on the real sources (rather than a hand-written fixture) means a
-// future edit to the command docs that breaks a renderer transform is caught
-// here instead of slipping through against a fixture that never changes.
+// Real direct-command sources. Handoff still flows through every renderer.
+// Run keeps the more complex host-command branches covered here, while its
+// Codex skill now comes from the dedicated MCP source tested separately.
 const repoRoot = fileURLToPath(new URL('../..', import.meta.url));
 const runSource = readFileSync(`${repoRoot}/src/commands/run.md`, 'utf8');
 const handoffSource = readFileSync(`${repoRoot}/src/commands/handoff.md`, 'utf8');
@@ -94,7 +90,7 @@ describe('emit-flows host renderers (real command sources)', () => {
     expect(rendered).not.toContain('`src/cli/circuit.ts`');
   });
 
-  it('renders the real run source into a Codex skill with no slash-command surface', () => {
+  it('can render the real run source without slash-command placeholders', () => {
     const rendered = renderCodexHostSkill('run', runSource);
 
     expect(rendered).toContain('name: run');

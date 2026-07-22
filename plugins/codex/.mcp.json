@@ -1,0 +1,49 @@
+{
+  "mcpServers": {
+    "circuit": {
+      "command": "node",
+      "args": ["./mcp/server.cjs"],
+      "cwd": ".",
+      "env_vars": [
+        "HOME",
+        "LANG",
+        "LC_ALL",
+        "LC_CTYPE",
+        "LOGNAME",
+        "PATH",
+        "SHELL",
+        "TERM",
+        "TMPDIR",
+        "TZ",
+        "USER",
+        "CODEX_HOME",
+        "OPENAI_API_KEY",
+        "OPENAI_BASE_URL",
+        "OPENAI_ORGANIZATION",
+        "OPENAI_PROJECT",
+        "HTTP_PROXY",
+        "HTTPS_PROXY",
+        "ALL_PROXY",
+        "NO_PROXY",
+        "http_proxy",
+        "https_proxy",
+        "all_proxy",
+        "no_proxy",
+        "SSL_CERT_FILE",
+        "SSL_CERT_DIR",
+        "NODE_EXTRA_CA_CERTS"
+      ],
+      "required": true,
+      "startup_timeout_sec": 10,
+      "tool_timeout_sec": 240,
+      "enabled_tools": [
+        "circuit_start",
+        "circuit_status",
+        "circuit_resume",
+        "circuit_cancel",
+        "circuit_list",
+        "circuit_recover"
+      ]
+    }
+  }
+}

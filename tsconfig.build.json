@@ -11,5 +11,5 @@
     "jsx": "react-jsx"
   },
   "include": ["src/**/*.ts", "src/**/*.tsx"],
-  "exclude": ["node_modules", "dist", "bootstrap", "tests"]
+  "exclude": ["node_modules", "dist", "bootstrap", "tests", "src/hosts/codex-mcp"]
 }

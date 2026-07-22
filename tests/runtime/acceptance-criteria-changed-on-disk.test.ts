@@ -32,8 +32,8 @@ function criteriaWith(changedOnDisk: boolean, claimedPath = 'changed_files'): Ac
 }
 
 describe('acceptance criteria — changed_on_disk predicate', () => {
-  it('passes when every claimed path actually changed in the working tree', () => {
-    const result = evaluateAcceptanceCriteria({
+  it('passes when every claimed path actually changed in the working tree', async () => {
+    const result = await evaluateAcceptanceCriteria({
       stepId: 'fix-act',
       criteria: criteriaWith(true),
       resultBody: JSON.stringify({ changed_files: ['src/foo.ts', 'src/bar.ts'] }),
@@ -43,8 +43,8 @@ describe('acceptance criteria — changed_on_disk predicate', () => {
     expect(result.kind).toBe('pass');
   });
 
-  it('FAILS when a claimed path shows no change on disk (overclaim)', () => {
-    const result = evaluateAcceptanceCriteria({
+  it('FAILS when a claimed path shows no change on disk (overclaim)', async () => {
+    const result = await evaluateAcceptanceCriteria({
       stepId: 'fix-act',
       criteria: criteriaWith(true),
       // Worker claims it changed src/buggy.ts, but the working tree is clean.
@@ -61,8 +61,8 @@ describe('acceptance criteria — changed_on_disk predicate', () => {
     expect(result.feedback.reason).toContain('src/buggy.ts');
   });
 
-  it('ignores extra dirt — a real change the worker did not claim never fails the gate', () => {
-    const result = evaluateAcceptanceCriteria({
+  it('ignores extra dirt — a real change the worker did not claim never fails the gate', async () => {
+    const result = await evaluateAcceptanceCriteria({
       stepId: 'fix-act',
       criteria: criteriaWith(true),
       resultBody: JSON.stringify({ changed_files: ['src/foo.ts'] }),
@@ -73,11 +73,11 @@ describe('acceptance criteria — changed_on_disk predicate', () => {
     expect(result.kind).toBe('pass');
   });
 
-  it('is inapplicable (passes) when projectRoot is absent — no tree to observe', () => {
+  it('is inapplicable (passes) when projectRoot is absent — no tree to observe', async () => {
     // The predicate asserts a property of an observable tree. With no project
     // root there is nothing to observe, so the claim is vacuously consistent.
     // A worker cannot induce this; real runs always carry a project root.
-    const result = evaluateAcceptanceCriteria({
+    const result = await evaluateAcceptanceCriteria({
       stepId: 'fix-act',
       criteria: criteriaWith(true),
       resultBody: JSON.stringify({ changed_files: ['src/foo.ts'] }),
@@ -86,12 +86,12 @@ describe('acceptance criteria — changed_on_disk predicate', () => {
     expect(result.kind).toBe('pass');
   });
 
-  it('is inapplicable (passes) when the working-tree capture throws — tree not observable', () => {
+  it('is inapplicable (passes) when the working-tree capture throws — tree not observable', async () => {
     // git error / not a repository is environmental, not a caught lie. Failing
     // here would only emit nonsense retry feedback the worker cannot act on, and
     // would abort runs in off-git environments where every other touched-files
     // check is already inert.
-    const result = evaluateAcceptanceCriteria({
+    const result = await evaluateAcceptanceCriteria({
       stepId: 'fix-act',
       criteria: criteriaWith(true),
       resultBody: JSON.stringify({ changed_files: ['src/foo.ts'] }),
@@ -103,8 +103,8 @@ describe('acceptance criteria — changed_on_disk predicate', () => {
     expect(result.kind).toBe('pass');
   });
 
-  it('treats an empty claim list as a vacuous pass (absence is present/non_empty job)', () => {
-    const result = evaluateAcceptanceCriteria({
+  it('treats an empty claim list as a vacuous pass (absence is present/non_empty job)', async () => {
+    const result = await evaluateAcceptanceCriteria({
       stepId: 'build-act',
       criteria: criteriaWith(true),
       resultBody: JSON.stringify({ changed_files: [] }),
@@ -164,10 +164,10 @@ describe('fix-act and build-act changed_on_disk wiring', () => {
     expect(checks).toContainEqual({ id: 'evidence-non-empty', predicate: 'non_empty' });
   });
 
-  it('fix-act accepts an honest report whose claimed file was restored to HEAD', () => {
+  it('fix-act accepts an honest report whose claimed file was restored to HEAD', async () => {
     const criteria = actStep(fixBlockItems).acceptanceCriteria;
     if (criteria === undefined) throw new Error('expected fix-act acceptance criteria');
-    const result = evaluateAcceptanceCriteria({
+    const result = await evaluateAcceptanceCriteria({
       stepId: 'fix-act',
       criteria,
       // The worker edited src/paginate.mjs, concluded the edit was wrong, and

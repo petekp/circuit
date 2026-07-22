@@ -229,7 +229,7 @@ describe('Codex host plugin package', () => {
     expect(rendering).toContain('operator_summary_markdown_path');
   });
 
-  it('exposes Codex skill and command surfaces backed by the Circuit CLI protocol', () => {
+  it('keeps the Codex command mirror on CLI while Run uses the MCP lifecycle', () => {
     expect(existsSync(resolve(PLUGIN_ROOT, 'scripts/circuit.ts'))).toBe(true);
 
     for (const command of EXPECTED_CODEX_COMMANDS) {
@@ -237,41 +237,41 @@ describe('Codex host plugin package', () => {
       expect(existsSync(resolve(PLUGIN_ROOT, `skills/${command}/SKILL.md`))).toBe(true);
     }
 
+    const command = readFileSync(resolve(PLUGIN_ROOT, 'commands/run.md'), 'utf8');
+    expect(command).toContain("node '<plugin root>/scripts/circuit.js' run fix --goal");
+    expect(command).toContain('--progress jsonl');
+    expect(command).toContain('new visible progress as the status block itself');
+    expect(command).toContain('`CIRCUIT` block');
+    expect(command).toContain('task_list.updated');
+    expect(command).toContain('user_input.requested');
+    expect(command).toContain('operator_summary_markdown_path');
+    expect(command).toContain(
+      "node '<plugin root>/scripts/circuit.js' resume --run-folder '<run_folder>' --checkpoint-review --progress jsonl",
+    );
+
     const skill = readFileSync(resolve(PLUGIN_ROOT, 'skills/run/SKILL.md'), 'utf8');
     expect(skill).toContain('name: run');
     expect(skill).not.toContain('name: circuit-run');
     expect(skill).toContain('# Circuit Run');
     expect(skill).toContain('## Use Case');
     expect(skill).toContain(
-      'Runs Circuit on any coding task by default — the intent front door with recorded flow selection, trace, reports, and evidence.',
+      'Runs Circuit through its Codex MCP tools, with durable progress, checkpoints, cancellation, recovery, and structured results.',
     );
-    expect(skill).toContain("node '<plugin root>/scripts/circuit.js' run fix --goal");
-    expect(skill).toContain('--progress jsonl');
-    expect(skill).toContain('new visible progress as the status block itself');
-    expect(skill).toContain('not as separate prose updates');
-    expect(skill).toContain('`CIRCUIT` block');
-    expect(skill).toContain('display.text');
-    expect(skill).toContain('task_list.updated');
-    expect(skill).toContain('user_input.requested');
-    expect(skill).toContain('run_surface_markdown_path');
-    expect(skill).toContain('operator_summary_markdown_path');
+    expect(skill).toContain('`circuit_start`');
+    expect(skill).toContain('`circuit_status`');
+    expect(skill).toContain('`circuit_resume`');
+    expect(skill).toContain('`circuit_cancel`');
+    expect(skill).toContain('`circuit_list`');
+    expect(skill).toContain('`circuit_recover`');
+    expect(skill).toContain('final_report.data');
     expect(skill).toContain('not published as separate host commands');
-    expect(skill).toContain('Do not use a path relative to the user');
     expect(skill).not.toMatch(/^# \/circuit:/m);
     expect(skill).not.toContain('/circuit:');
     expect(skill).not.toMatch(/\bslash command\b/i);
     expect(skill).not.toContain('slash-command');
     expect(skill).not.toContain('node plugins/codex/scripts/circuit.js');
-    expect(skill).toContain(
-      "node '<plugin root>/scripts/circuit.js' resume --run-folder '<run_folder>' --checkpoint-review --progress jsonl",
-    );
-    expect(skill).toContain('immediately start the blocking');
-    expect(skill).toContain('Leave it running.');
-    expect(skill).toContain('surface `review_url` immediately');
-    expect(skill).toMatch(/do not ask them to copy\s+or paste anything/i);
-    expect(skill).toContain(
-      "node '<plugin root>/scripts/circuit.js' resume --run-folder '<run_folder>' --checkpoint-choice '<choice>' --progress jsonl",
-    );
+    expect(skill).not.toContain("node '<plugin root>/scripts/circuit.js'");
+    expect(skill).not.toContain('--progress jsonl');
   });
 
   it('uses plugin-local skill names so Codex resolves Circuit:<skill>', () => {
@@ -817,6 +817,10 @@ describe('Codex host plugin package', () => {
     const canonicalFiles = collectJsonFiles(canonicalRoot).sort();
     const codexFiles = publicHostFlowFiles(collectJsonFiles(codexRoot)).sort();
 
+    expect(readFileSync(resolve(codexRoot, 'catalog.json'))).toEqual(
+      readFileSync(resolve(canonicalRoot, 'catalog.json')),
+    );
+
     expect(codexFiles).toEqual(publicHostFlowFiles(canonicalFiles));
 
     for (const file of codexFiles) {
@@ -861,7 +865,7 @@ describe('Codex host plugin package', () => {
     }
   });
 
-  it('generates Codex host skills from the same command surfaces', () => {
+  it('generates Codex host skills from their declared sources', () => {
     for (const command of EXPECTED_CODEX_COMMANDS) {
       const commandMarkdown = readFileSync(resolve(PLUGIN_ROOT, `commands/${command}.md`), 'utf8');
       const skill = readFileSync(resolve(PLUGIN_ROOT, `skills/${command}/SKILL.md`), 'utf8');
@@ -870,13 +874,6 @@ describe('Codex host plugin package', () => {
       expect(skill).toContain(`# ${EXPECTED_CODEX_SKILL_TITLES[command]}`);
       expect(skill).toContain('## Use Case');
       expect(skill).toMatch(/description: "(Runs Circuit|Chooses and runs)/);
-      expect(skill).toContain("node '<plugin root>/scripts/circuit.js'");
-      expect(skill).toContain('--progress jsonl');
-      expect(skill).toContain('presentation');
-      expect(skill).toContain('display.text');
-      expect(skill).toContain('task_list.updated');
-      expect(skill).toContain('user_input.requested');
-      expect(skill).toContain('operator_summary_markdown_path');
       expect(skill).not.toContain('./bin/circuit');
       expect(skill).not.toContain('invokes `circuit`');
       expect(skill).not.toContain('argument-hint:');
@@ -886,8 +883,26 @@ describe('Codex host plugin package', () => {
       expect(skill).not.toContain('/circuit:');
       expect(skill).not.toMatch(/\bslash command\b/i);
       expect(skill).not.toContain('slash-command');
-      expect(skill).toContain("Use the user's current request as the command input.");
       expect(commandMarkdown).toContain("node '<plugin root>/scripts/circuit.js'");
+
+      if (command === 'run') {
+        expect(skill).toBe(
+          readFileSync(resolve(REPO_ROOT, 'src/hosts/codex-mcp/run-skill.md'), 'utf8'),
+        );
+        expect(skill).toContain('`circuit_start`');
+        expect(skill).toContain('final_report.data');
+        expect(skill).not.toContain("node '<plugin root>/scripts/circuit.js'");
+        expect(skill).not.toContain('--progress jsonl');
+      } else {
+        expect(skill).toContain("node '<plugin root>/scripts/circuit.js'");
+        expect(skill).toContain('--progress jsonl');
+        expect(skill).toContain('presentation');
+        expect(skill).toContain('display.text');
+        expect(skill).toContain('task_list.updated');
+        expect(skill).toContain('user_input.requested');
+        expect(skill).toContain('operator_summary_markdown_path');
+        expect(skill).toContain("Use the user's current request as the command input.");
+      }
     }
   });
 

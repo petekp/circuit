@@ -155,10 +155,20 @@ export function applyFixturePolicy(
   input: {
     readonly args: FixturePolicyArgs;
     readonly fixturePath: string;
+    readonly generatedFlowMirrorRoot?: string;
   },
 ): RuntimeSupportDecision {
   if (decision.kind !== 'supported') return decision;
-  if (fixtureEligibleForRuntime(input)) return decision;
+  if (
+    fixtureEligibleForRuntime({
+      ...input,
+      ...(input.generatedFlowMirrorRoot === undefined
+        ? {}
+        : { generatedFlowMirrorRoot: input.generatedFlowMirrorRoot }),
+    })
+  ) {
+    return decision;
+  }
   return {
     ...decision,
     kind: 'unsupported',

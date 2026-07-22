@@ -144,9 +144,11 @@ const FLOW_CATALOG = await loadFlowCatalogFromCatalog();
 const CLAUDE_PLUGIN_ROOT_REL = 'plugins/claude';
 const CODEX_PLUGIN_ROOT_REL = 'plugins/codex';
 const SOURCE_COMMAND_ROOT_REL = 'src/commands';
+const CODEX_MCP_RUN_SKILL_SOURCE_REL = 'src/hosts/codex-mcp/run-skill.md';
 const GENERATED_SURFACE_MAP_REL = 'docs/generated-surfaces.md';
 const BLOCK_CATALOG_REL = 'docs/flows/block-catalog.json';
 const FLOW_CATALOG_REL = 'generated/flows/catalog.json';
+const CODEX_FLOW_CATALOG_REL = `${CODEX_PLUGIN_ROOT_REL}/flows/catalog.json`;
 const HOST_DIRECT_COMMANDS = ['handoff', 'run'];
 const CLI_ONLY_COMMANDS = ['create', 'generate', 'uninstall'];
 const ROOT_CLAUDE_MARKETPLACE_REL = '.claude-plugin/marketplace.json';
@@ -181,9 +183,9 @@ function renderSurfaceInventory(): string {
       '`src/flows/catalog.ts` (`deriveFlowCatalog`)',
       '`npm run build && node scripts/flows/emit.ts`',
       'no',
-      '`generated/flows/catalog.json`',
+      '`generated/flows/catalog.json`<br>`plugins/codex/flows/catalog.json`',
       '`node scripts/flows/emit.ts --check`',
-      'The static `flow.catalog@v1` routing-target set (public flows only). Derived from the flow definitions; the typed definitions own current facts.',
+      'The static `flow.catalog@v1` routing-target set (public flows only). The Codex-only mirror supplies the MCP public roster; Claude does not need a copy. Derived from the flow definitions; the typed definitions own current facts.',
     ],
     [
       'Flow-owned commands',
@@ -201,7 +203,16 @@ function renderSurfaceInventory(): string {
       'source yes; outputs no',
       '`plugins/claude/commands/<id>.md`<br>`plugins/codex/commands/<id>.md`<br>`plugins/codex/skills/<id>/SKILL.md`',
       '`node scripts/flows/emit.ts --check`',
-      'Covers visible host utilities such as run and handoff.',
+      'Covers visible host utilities such as run and handoff. The Codex Run skill has a dedicated MCP source below; the ordinary command mirrors still use these sources.',
+    ],
+    [
+      'Codex MCP Run skill source',
+      `\`${CODEX_MCP_RUN_SKILL_SOURCE_REL}\``,
+      '`scripts/flows/emit.ts` mirrors the native skill bytes',
+      'source yes; output no',
+      '`plugins/codex/skills/run/SKILL.md`',
+      '`node scripts/flows/emit.ts --check`',
+      'Codex-only MCP tool instructions. Claude and ordinary Circuit command instructions remain sourced from `src/commands/run.md`.',
     ],
     [
       'CLI-only utility sources',
@@ -292,6 +303,15 @@ function renderSurfaceInventory(): string {
       '`plugins/claude/runtime/circuit.js`<br>`plugins/codex/runtime/circuit.js`',
       '`npm run check-plugin-runtime` (runs under `npm run check-flow-drift`)',
       'esbuild bundle of the whole CLI engine that each host loads at runtime, plus the compiled `runtime/git-state.js` and copied `scripts/launcher-core.ts` sidecars. Editing any engine source under `src/` restales this bundle even when `node scripts/flows/emit.ts --check` reports clean; `npm run emit-flows` rebuilds it.',
+    ],
+    [
+      'Codex MCP package',
+      '`src/hosts/codex-mcp/**`',
+      '`npm run build-plugin-runtime` (`node scripts/plugins/codex-mcp-bundle.ts`)',
+      'no',
+      '`plugins/codex/.mcp.json`<br>`plugins/codex/mcp/server.cjs`<br>`plugins/codex/mcp/server.mjs`<br>`plugins/codex/mcp/supervisor.mjs`<br>`plugins/codex/mcp/worker.mjs`',
+      '`npm run check-plugin-runtime` plus `npm run check-codex-mcp-package`',
+      'Codex-only, self-contained MCP server, supervisor, worker, and Node version launcher. The Codex manifest activates this package. Claude and the ordinary Circuit CLI do not use it.',
     ],
     [
       'Command ownership note',
@@ -391,13 +411,17 @@ async function renderGeneratedSurfaceMap(): Promise<string> {
   const commandRows = HOST_DIRECT_COMMANDS.map((command) =>
     markdownTableRow([
       `\`${command}\``,
-      `\`${SOURCE_COMMAND_ROOT_REL}/${command}.md\``,
+      command === 'run'
+        ? `\`${SOURCE_COMMAND_ROOT_REL}/${command}.md\`<br>\`${CODEX_MCP_RUN_SKILL_SOURCE_REL}\` (Codex MCP skill only)`
+        : `\`${SOURCE_COMMAND_ROOT_REL}/${command}.md\``,
       markdownList([
         `${CLAUDE_PLUGIN_ROOT_REL}/commands/${command}.md`,
         `${CODEX_PLUGIN_ROOT_REL}/commands/${command}.md`,
         `${CODEX_PLUGIN_ROOT_REL}/skills/${command}/SKILL.md`,
       ]),
-      'Edit the direct command source; run `npm run emit-flows`.',
+      command === 'run'
+        ? `Edit \`${SOURCE_COMMAND_ROOT_REL}/${command}.md\` for ordinary command mirrors or \`${CODEX_MCP_RUN_SKILL_SOURCE_REL}\` for the Codex MCP skill; run \`npm run emit-flows\`.`
+        : 'Edit the direct command source; run `npm run emit-flows`.',
     ]),
   );
   const cliOnlyRows = CLI_ONLY_COMMANDS.map((command) =>
@@ -423,6 +447,7 @@ async function renderGeneratedSurfaceMap(): Promise<string> {
     '- Flow schematic JSON files under `src/flows/<id>/schematic.json` are generated outputs.',
     '- Flow-owned commands are authored in `src/flows/<id>/command.md`.',
     '- Direct commands are authored in `src/commands/<id>.md`.',
+    `- The Codex-only MCP Run skill is authored in \`${CODEX_MCP_RUN_SKILL_SOURCE_REL}\`; it does not change the ordinary Run command source.`,
     '- Canonical compiled manifests under `generated/flows/**` are generated outputs.',
     '- Host mirrors under `plugins/claude/skills/**`, `plugins/claude/commands/**`, `plugins/codex/flows/**`, `plugins/codex/commands/**`, and `plugins/codex/skills/**` are generated outputs.',
     '- Internal flows emit only under `generated/flows/**`; host mirrors for internal flows are stale and fail the drift check.',
@@ -437,7 +462,7 @@ async function renderGeneratedSurfaceMap(): Promise<string> {
     '',
     'The Codex plugin currently ships both `plugins/codex/commands/<id>.md` and `plugins/codex/skills/<id>/SKILL.md` generated outputs. The plugin manifest points Codex at `./skills/`, so skill files must stay runnable host instructions. Command files remain generated mirrors and authority/reference surfaces. Do not delete either surface without changing the Codex plugin contract, the emitter, and the drift checks together.',
     '',
-    'Codex skill files intentionally translate slash-command wording into skill-safe wording. They must not contain `$ARGUMENTS`, `argument-hint`, `/circuit:`, or source-only `## Authority` footers. If the host gains a smaller native presentation wrapper, change `scripts/flows/host-renderers.ts`, regenerate, and run `npm run check-flow-drift`.',
+    `Most Codex skill files translate host-command wording into skill-safe wording. They must not contain \`$ARGUMENTS\`, \`argument-hint\`, \`/circuit:\`, or source-only \`## Authority\` footers. The Run skill is different: \`${CODEX_MCP_RUN_SKILL_SOURCE_REL}\` owns its Codex-only MCP instructions and is mirrored byte for byte.`,
     '',
     renderSurfaceInventory(),
     '## Flow Outputs',
@@ -457,7 +482,7 @@ async function renderGeneratedSurfaceMap(): Promise<string> {
     '',
     '## Direct Commands',
     '',
-    'Direct commands are source files under `src/commands/` that are mirrored into host packages.',
+    `Direct command mirrors use sources under \`src/commands/\`. The Codex Run skill alone uses \`${CODEX_MCP_RUN_SKILL_SOURCE_REL}\`.`,
     '',
     markdownTableRow(['Command', 'Command source', 'Host mirrors', 'Edit rule']),
     markdownTableRow(['---', '---', '---', '---']),
@@ -852,6 +877,21 @@ function flowCatalogDescriptor(catalog: unknown, scratchDir: string): ArtifactDe
   };
 }
 
+function codexFlowCatalogDescriptor(catalog: unknown, scratchDir: string): ArtifactDescriptor {
+  return {
+    relPath: CODEX_FLOW_CATALOG_REL,
+    computeBytes: () =>
+      biomeFormatToString(CODEX_FLOW_CATALOG_REL, stringifyJson(catalog), scratchDir),
+    emitMessage: `emitted ${CODEX_FLOW_CATALOG_REL} from ${FLOW_CATALOG_REL}`,
+    checkOkMessage: `✓ ${CODEX_FLOW_CATALOG_REL} mirrors ${FLOW_CATALOG_REL}`,
+    checkMissingMessage: `✗ ${CODEX_FLOW_CATALOG_REL} is missing. Run \`npm run emit-flows\` to regenerate, then commit.`,
+    checkDriftMessage: [
+      `✗ ${CODEX_FLOW_CATALOG_REL} drifted from ${FLOW_CATALOG_REL}`,
+      '  Run `npm run emit-flows` to regenerate, then commit the diff.',
+    ],
+  };
+}
+
 function schematicDescriptor(entry: SchematicEntry, scratchDir: string): ArtifactDescriptor {
   return {
     relPath: entry.schematicPath,
@@ -992,26 +1032,30 @@ function flowCommandDescriptors(entry: SchematicEntry): ArtifactDescriptor[] {
 // Direct host command mirrors (run, handoff): Claude host command, Codex host
 // command, Codex host skill, for each direct command in order.
 function hostDirectCommandDescriptors(): ArtifactDescriptor[] {
-  return HOST_DIRECT_COMMANDS.flatMap((command) => [
-    markdownMirrorDescriptor(
-      `${SOURCE_COMMAND_ROOT_REL}/${command}.md`,
-      `${CLAUDE_PLUGIN_ROOT_REL}/commands/${command}.md`,
-      `claude-code host ${command} command`,
-      renderClaudeHostCommand,
-    ),
-    markdownMirrorDescriptor(
-      `${SOURCE_COMMAND_ROOT_REL}/${command}.md`,
-      `${CODEX_PLUGIN_ROOT_REL}/commands/${command}.md`,
-      `codex host ${command} command`,
-      renderCodexHostCommand,
-    ),
-    markdownMirrorDescriptor(
-      `${SOURCE_COMMAND_ROOT_REL}/${command}.md`,
-      `${CODEX_PLUGIN_ROOT_REL}/skills/${command}/SKILL.md`,
-      `codex host ${command} skill`,
-      (content) => renderCodexHostSkill(command, content),
-    ),
-  ]);
+  return HOST_DIRECT_COMMANDS.flatMap((command) => {
+    const commandSource = `${SOURCE_COMMAND_ROOT_REL}/${command}.md`;
+    const codexSkillSource = command === 'run' ? CODEX_MCP_RUN_SKILL_SOURCE_REL : commandSource;
+    return [
+      markdownMirrorDescriptor(
+        commandSource,
+        `${CLAUDE_PLUGIN_ROOT_REL}/commands/${command}.md`,
+        `claude-code host ${command} command`,
+        renderClaudeHostCommand,
+      ),
+      markdownMirrorDescriptor(
+        commandSource,
+        `${CODEX_PLUGIN_ROOT_REL}/commands/${command}.md`,
+        `codex host ${command} command`,
+        renderCodexHostCommand,
+      ),
+      markdownMirrorDescriptor(
+        codexSkillSource,
+        `${CODEX_PLUGIN_ROOT_REL}/skills/${command}/SKILL.md`,
+        command === 'run' ? 'codex MCP run skill' : `codex host ${command} skill`,
+        (content) => (command === 'run' ? content : renderCodexHostSkill(command, content)),
+      ),
+    ];
+  });
 }
 
 // The generated surface map. Not biome-formatted; rendered directly to its
@@ -1044,6 +1088,7 @@ async function buildArtifactDescriptors(scratchDir: string): Promise<{
   const descriptors: ArtifactDescriptor[] = [
     blockCatalogDescriptor(FLOW_BLOCK_CATALOG, scratchDir),
     flowCatalogDescriptor(FLOW_CATALOG, scratchDir),
+    codexFlowCatalogDescriptor(FLOW_CATALOG, scratchDir),
   ];
   const flowPlans: { entry: SchematicEntry; plan: SchematicFilePlan[] }[] = [];
   for (const entry of SCHEMATICS) {

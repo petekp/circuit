@@ -83,10 +83,10 @@ function explicitRegressionCommand(goal: string): FixVerificationCommand | undef
   });
 }
 
-function commandFromArgv(id: string, argv: readonly string[]): FixVerificationCommand {
+function commandFromArgv(id: string, argv: readonly string[], cwd = '.'): FixVerificationCommand {
   return FixVerificationCommand.parse({
     id,
-    cwd: '.',
+    cwd,
     argv,
     timeout_ms: 600_000,
     max_output_bytes: 200_000,
@@ -94,11 +94,46 @@ function commandFromArgv(id: string, argv: readonly string[]): FixVerificationCo
   });
 }
 
+function trimInlineCwd(value: string): string | undefined {
+  const unquoted = /^`([^`]+)`$/u.exec(value.trim())?.[1] ?? value;
+  const cwd = unquoted
+    .trim()
+    .replace(/[.:;,]+$/u, '')
+    .trim();
+  if (/^(?:the\s+)?(?:workspace|project|repo|repository)\s+root$/iu.test(cwd)) return '.';
+  if (cwd.length === 0 || cwd.includes('\0')) return undefined;
+  if (/\s/.test(cwd)) return undefined;
+  if (cwd.startsWith('/') || cwd.split('/').some((segment) => segment === '..')) return undefined;
+  return cwd;
+}
+
+function explicitInlineVerifyWithCommand(
+  goal: string,
+  id: string,
+): FixVerificationCommand | undefined {
+  const match =
+    /\bverify with\s+`([^`]+)`\s+from\s+(?:(`[^`]+`)|((?:the\s+)?(?:workspace|project|repo|repository)\s+root)|([^\s`]+))/iu.exec(
+      goal,
+    );
+  const rawCommand = match?.[1];
+  const rawCwd = match?.[2] ?? match?.[3] ?? match?.[4];
+  if (rawCommand === undefined || rawCwd === undefined) return undefined;
+  const argv = parseSimpleArgv(rawCommand);
+  const cwd = trimInlineCwd(rawCwd);
+  if (argv === undefined || cwd === undefined) return undefined;
+  return commandFromArgv(id, argv, cwd);
+}
+
+function explicitInlineVerifyWithCommands(goal: string): readonly FixVerificationCommand[] {
+  const command = explicitInlineVerifyWithCommand(goal, 'fix-objective-1');
+  return command === undefined ? [] : [command];
+}
+
 export function explicitObjectiveCheckCommands(goal: string): readonly FixVerificationCommand[] {
   const match =
     /\bObjective check commands:\s*\n([\s\S]*?)(?:\n\n|\nAllowed changed files:|$)/i.exec(goal);
   const rawSection = match?.[1];
-  if (rawSection === undefined) return [];
+  if (rawSection === undefined) return explicitInlineVerifyWithCommands(goal);
 
   const commands: FixVerificationCommand[] = [];
   const seen = new Set<string>();
@@ -116,7 +151,8 @@ export function explicitObjectiveCheckCommands(goal: string): readonly FixVerifi
 }
 
 function regressionContractForGoal(goal: string): FixRegressionContract {
-  const command = explicitRegressionCommand(goal);
+  const command =
+    explicitRegressionCommand(goal) ?? explicitInlineVerifyWithCommand(goal, 'fix-regression');
   if (command === undefined) {
     return {
       expected_behavior: `After fix: ${goal}`,

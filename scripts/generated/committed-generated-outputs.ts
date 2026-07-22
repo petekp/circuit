@@ -18,6 +18,7 @@
 // manifest — so it cannot silently lag the way a hand-kept list would.
 import { classifyAll } from '../docs/doc-classes.ts';
 import { CHECKPOINT_REVIEW_RUNTIME_OUTPUT_PATH } from '../html/build-checkpoint-review-runtime.ts';
+import { CODEX_MCP_OUTPUTS } from '../plugins/codex-mcp-bundle.ts';
 import {
   RUNTIME_BUNDLE_ASSET_SIDECARS,
   RUNTIME_BUNDLE_COMPILED_SIDECARS,
@@ -40,7 +41,11 @@ export function committedRuntimeBundleOutputs(): string[] {
 
 // Generated TypeScript/JavaScript artifacts committed for runtime use.
 export function committedGeneratedCodeOutputs(): string[] {
-  return [...committedRuntimeBundleOutputs(), CHECKPOINT_REVIEW_RUNTIME_OUTPUT_PATH].sort();
+  return [
+    ...committedRuntimeBundleOutputs(),
+    ...Object.values(CODEX_MCP_OUTPUTS),
+    CHECKPOINT_REVIEW_RUNTIME_OUTPUT_PATH,
+  ].sort();
 }
 
 // Tracked markdown classified `generated` by docs/doc-classes.json.
