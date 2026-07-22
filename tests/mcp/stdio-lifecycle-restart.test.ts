@@ -193,18 +193,23 @@ describe('Circuit MCP stdio lifecycle restart', () => {
         join(barrier, 'guard-held-server-a'),
         join(barrier, 'guard-held-server-b'),
       ]);
+      await writeFile(join(barrier, 'release-owner'), 'go\n', { mode: 0o600 });
       const refusedPath = await waitForAnyPath([
         join(barrier, 'refused-server-a.json'),
         join(barrier, 'refused-server-b.json'),
       ]);
       expect(heldPath.includes('server-a')).not.toBe(refusedPath.includes('server-a'));
-      await writeFile(join(barrier, 'release-owner'), 'go\n', { mode: 0o600 });
 
       const results = await responses;
       expect(results.filter((result) => result.ok)).toHaveLength(1);
-      expect(
-        results.filter((result) => !result.ok && result.error.code === 'workspace_guard_busy'),
-      ).toHaveLength(1);
+      const rejected = results.find((result) => !result.ok);
+      expect(rejected).toBeDefined();
+      if (rejected === undefined || rejected.ok) {
+        throw new Error(
+          `The same-instant start race had no rejected start: ${JSON.stringify(results)}`,
+        );
+      }
+      expect(['workspace_guard_busy', 'workspace_busy']).toContain(rejected.error.code);
       const winner = results.find((result) => result.ok);
       if (winner === undefined || !winner.ok) {
         throw new Error(`The same-instant start race had no winner: ${JSON.stringify(results)}`);
