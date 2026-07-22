@@ -10,13 +10,13 @@ const REQUIRED_EVIDENCE = [
   'exact_workspace_identity',
   'private_control_state',
   'owned_process_cleanup',
+  'source_ref_exact',
 ] as const;
 
 const EXPECTED = {
   pluginVersion: '0.1.2',
   pluginTreeSha256: 'a'.repeat(64),
   repository: 'petekp/circuit',
-  ref: 'circuit--v0.1.2',
 } as const;
 
 function report(): unknown {
@@ -26,10 +26,11 @@ function report(): unknown {
     surface: 'mcp',
     mode: 'published',
     status: 'pass',
+    proof_stage: 'candidate',
     reason: 'passed',
     source: {
       repository: 'petekp/circuit',
-      ref: 'circuit--v0.1.2',
+      ref: 'c'.repeat(40),
       expected_version: '0.1.2',
     },
     versions: {
@@ -53,9 +54,7 @@ function report(): unknown {
 
 describe('Codex MCP first-run release evidence', () => {
   it('accepts a passing published report for the exact plugin version and tree', () => {
-    expect(
-      validateCodexMcpFirstRunEvidence(report(), EXPECTED),
-    ).toEqual([]);
+    expect(validateCodexMcpFirstRunEvidence(report(), EXPECTED)).toEqual([]);
   });
 
   it('rejects stale versions, stale plugin bytes, and incomplete host proof', () => {
@@ -77,9 +76,7 @@ describe('Codex MCP first-run release evidence', () => {
       ),
     };
 
-    expect(
-      validateCodexMcpFirstRunEvidence(stale, EXPECTED),
-    ).toEqual(
+    expect(validateCodexMcpFirstRunEvidence(stale, EXPECTED)).toEqual(
       expect.arrayContaining([
         'evidence mode must be published',
         'evidence is missing the Node version',
@@ -94,18 +91,16 @@ describe('Codex MCP first-run release evidence', () => {
     const duplicate = report() as { evidence: Array<{ name: string; ok: boolean }> };
     duplicate.evidence.push({ name: 'circuit_list_invoked', ok: true });
 
-    expect(
-      validateCodexMcpFirstRunEvidence(duplicate, EXPECTED),
-    ).toContain('required evidence circuit_list_invoked did not pass exactly once');
+    expect(validateCodexMcpFirstRunEvidence(duplicate, EXPECTED)).toContain(
+      'required evidence circuit_list_invoked did not pass exactly once',
+    );
   });
 
   it('rejects a no-spend loader smoke that never completed Review', () => {
     const loaderOnly = report() as { review?: unknown };
-    delete loaderOnly.review;
+    loaderOnly.review = undefined;
 
-    expect(
-      validateCodexMcpFirstRunEvidence(loaderOnly, EXPECTED),
-    ).toEqual(
+    expect(validateCodexMcpFirstRunEvidence(loaderOnly, EXPECTED)).toEqual(
       expect.arrayContaining([
         'evidence is missing the Review run ID',
         'Review evidence status must be completed',
@@ -149,8 +144,17 @@ describe('Codex MCP first-run release evidence', () => {
     expect(validateCodexMcpFirstRunEvidence(wrongSource, EXPECTED)).toEqual(
       expect.arrayContaining([
         'evidence repository must be petekp/circuit',
-        'evidence ref must be circuit--v0.1.2',
+        'candidate evidence ref must be a full immutable Git commit SHA',
       ]),
+    );
+  });
+
+  it('rejects evidence that is not explicitly the pre-publication candidate proof', () => {
+    const wrongStage = report() as { proof_stage: string };
+    wrongStage.proof_stage = 'public';
+
+    expect(validateCodexMcpFirstRunEvidence(wrongStage, EXPECTED)).toContain(
+      'evidence proof_stage must be candidate',
     );
   });
 });

@@ -2,7 +2,6 @@ type ExpectedPlugin = {
   readonly pluginVersion: string;
   readonly pluginTreeSha256: string;
   readonly repository: string;
-  readonly ref: string;
 };
 
 const REQUIRED_EVIDENCE = [
@@ -13,9 +12,11 @@ const REQUIRED_EVIDENCE = [
   'exact_workspace_identity',
   'private_control_state',
   'owned_process_cleanup',
+  'source_ref_exact',
 ] as const;
 
 const SHA256 = /^[a-f0-9]{64}$/;
+const FULL_GIT_SHA = /^[a-f0-9]{40}$/;
 
 function record(value: unknown): Record<string, unknown> | undefined {
   return typeof value === 'object' && value !== null && !Array.isArray(value)
@@ -36,13 +37,16 @@ export function validateCodexMcpFirstRunEvidence(
   }
   if (root.mode !== 'published') issues.push('evidence mode must be published');
   if (root.status !== 'pass') issues.push('evidence status must be pass');
+  if (root.proof_stage !== 'candidate') {
+    issues.push('evidence proof_stage must be candidate');
+  }
 
   const source = record(root.source);
   if (source?.repository !== expected.repository) {
     issues.push(`evidence repository must be ${expected.repository}`);
   }
-  if (source?.ref !== expected.ref) {
-    issues.push(`evidence ref must be ${expected.ref}`);
+  if (typeof source?.ref !== 'string' || !FULL_GIT_SHA.test(source.ref)) {
+    issues.push('candidate evidence ref must be a full immutable Git commit SHA');
   }
   if (source?.expected_version !== expected.pluginVersion) {
     issues.push('evidence source version does not match the current plugin');

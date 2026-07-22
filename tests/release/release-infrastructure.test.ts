@@ -130,6 +130,44 @@ describe('release truth infrastructure', () => {
       proof_id: 'proof:codex-mcp-first-run',
       status: 'release_blocker',
     });
+
+    const blocked = releaseBlockers({ exceptions, claims, proofs });
+    expect(blocked.some((item) => item.startsWith('CLAIM-CODEX-MCP-LIFECYCLE:'))).toBe(true);
+    expect(blocked.some((item) => item.startsWith('proof:codex-mcp-first-run:'))).toBe(true);
+
+    const readyClaims = PublicClaimLedger.parse({
+      ...claims,
+      claims: claims.claims.map((claim) =>
+        claim.id === 'CLAIM-CODEX-MCP-LIFECYCLE'
+          ? {
+              ...claim,
+              status: 'verified_current',
+              backing: { ...claim.backing, exception_ids: [] },
+            }
+          : claim,
+      ),
+    });
+    const readyProofs = ProofScenarioIndex.parse({
+      ...proofs,
+      scenarios: proofs.scenarios.map((proof) =>
+        proof.id === 'proof:codex-mcp-first-run'
+          ? { ...proof, status: 'verified_current', exception_ids: [] }
+          : proof,
+      ),
+    });
+    const readyExceptions = ParityExceptionLedger.parse({
+      ...exceptions,
+      exceptions: exceptions.exceptions.filter(
+        (exception) => exception.id !== 'EX-REL-014-CODEX-MCP-FIRST-RUN',
+      ),
+    });
+    const ready = releaseBlockers({
+      exceptions: readyExceptions,
+      claims: readyClaims,
+      proofs: readyProofs,
+    });
+    expect(ready.some((item) => item.includes('CODEX-MCP'))).toBe(false);
+    expect(ready.some((item) => item.includes('codex-mcp-first-run'))).toBe(false);
   });
 
   it('records canonical flow stages from circuit.json when mode files are present', () => {

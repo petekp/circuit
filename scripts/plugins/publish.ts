@@ -1,7 +1,16 @@
 #!/usr/bin/env node
 
 import { spawnSync } from 'node:child_process';
-import { existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
+import {
+  constants,
+  accessSync,
+  existsSync,
+  mkdirSync,
+  mkdtempSync,
+  readFileSync,
+  rmSync,
+  writeFileSync,
+} from 'node:fs';
 import { homedir, tmpdir } from 'node:os';
 import { delimiter, dirname, isAbsolute, join, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -162,6 +171,31 @@ function noAmbientCliEnv(extra: NodeJS.ProcessEnv = {}): NodeJS.ProcessEnv {
     CIRCUIT_DEV: undefined,
     ...extra,
   };
+}
+
+function codexDoctorEnv(extra: NodeJS.ProcessEnv = {}): NodeJS.ProcessEnv {
+  const executableName = process.platform === 'win32' ? 'codex.exe' : 'codex';
+  const codexDirectory = (process.env.PATH ?? '')
+    .split(delimiter)
+    .filter(Boolean)
+    .find((directory) => {
+      try {
+        accessSync(resolve(directory, executableName), constants.X_OK);
+        return true;
+      } catch {
+        return false;
+      }
+    });
+  const path = [
+    ...noAmbientCliPath().split(delimiter),
+    ...(codexDirectory === undefined ? [] : [codexDirectory]),
+  ]
+    .filter((entry, index, entries) => entries.indexOf(entry) === index)
+    .join(delimiter);
+  return noAmbientCliEnv({
+    ...extra,
+    PATH: path,
+  });
 }
 
 function findClaudeMarketplacePlugin(
@@ -711,6 +745,7 @@ export function runPublish(
       runCommand('check_flow_drift', ['npm', 'run', 'check-flow-drift']);
       runCommand('verify', ['npm', 'run', 'verify']);
       runCommand('check_release_ready', ['npm', 'run', 'check-release-ready']);
+      if (args.target === 'release') report.outputs.candidate_host_proven = true;
       runCommand('claude_validate_root', ['claude', 'plugin', 'validate', '.']);
       runCommand('claude_validate_plugin', ['claude', 'plugin', 'validate', 'plugins/claude']);
       const claudeDoctor = runCommand(
@@ -722,7 +757,7 @@ export function runPublish(
       const codexDoctor = runCommand(
         'codex_doctor',
         [process.execPath, 'plugins/codex/scripts/circuit.ts', 'doctor'],
-        { env: noAmbientCliEnv() },
+        { env: codexDoctorEnv() },
       );
       assertBundledDoctor('codex_doctor', codexDoctor);
       runClaudeInstallSmoke();
@@ -971,7 +1006,7 @@ export function runPublish(
       'codex_installed_doctor',
       [process.execPath, resolve(checkedTarget, 'scripts/circuit.ts'), 'doctor'],
       {
-        env: noAmbientCliEnv({
+        env: codexDoctorEnv({
           CODEX_HOME: codexHome,
         }),
       },
@@ -1104,6 +1139,10 @@ export function runPublish(
   }
 
   function runReleasePublish(): void {
+    if (report.outputs.candidate_host_proven !== true) {
+      fail('release requires the checked-in candidate host proof before publishing');
+    }
+    report.outputs.public_install_proven = false;
     const tag = `circuit--v${report.versions.source}`;
     report.outputs.claude_tag = tag;
     const expectedTreeSha256 = packageTreeSha256(resolve(repoRoot, 'plugins/codex'));
@@ -1202,6 +1241,7 @@ export function runPublish(
         ],
         expectedTreeSha256,
       );
+      if (!report.dry_run) report.outputs.public_install_proven = true;
     } catch (verificationError) {
       const detail =
         verificationError instanceof Error ? verificationError.message : String(verificationError);

@@ -1101,6 +1101,8 @@ describe('plugin publish automation', () => {
       );
 
       expect(published.status).toBe('published');
+      expect(published.outputs.candidate_host_proven).toBe(true);
+      expect(published.outputs.public_install_proven).toBe(true);
       expect(published.outputs.codex_plugin_tree_sha256).toBe(
         packageTreeSha256(join(root, 'plugins/codex')),
       );
@@ -1115,10 +1117,16 @@ describe('plugin publish automation', () => {
         ]),
       );
       const beforeTag = ids(yes.calls).indexOf('codex_mcp_smoke_remote_sha_pre_publish');
+      const readiness = ids(yes.calls).indexOf('check_release_ready');
+      const packed = ids(yes.calls).indexOf('codex_mcp_smoke_packed_pre_publish');
       const tagPush = ids(yes.calls).indexOf('claude_tag_push');
       const publishedTag = ids(yes.calls).indexOf('codex_mcp_smoke_published_tag');
+      const upgradeProof = ids(yes.calls).indexOf('codex_mcp_smoke_upgrade');
+      expect(readiness).toBeLessThan(packed);
+      expect(packed).toBeLessThan(beforeTag);
       expect(beforeTag).toBeLessThan(tagPush);
       expect(publishedTag).toBeGreaterThan(tagPush);
+      expect(upgradeProof).toBeGreaterThan(publishedTag);
       const remoteSha = yes.calls.find(
         (call) => call.id === 'codex_mcp_smoke_remote_sha_pre_publish',
       );
@@ -1147,6 +1155,31 @@ describe('plugin publish automation', () => {
           'circuit--v0.1.0-alpha.2',
         ]),
       );
+    } finally {
+      rmSync(root, { recursive: true, force: true });
+    }
+  });
+
+  it('stops before every publish effect when candidate readiness fails', () => {
+    const root = createFixture();
+    const base = createRunner();
+    const runner = (invocation: CommandInvocation) => {
+      if (invocation.id === 'check_release_ready') {
+        base.calls.push(invocation);
+        return { exitCode: 1, stdout: '', stderr: 'candidate proof is still blocked\n' };
+      }
+      return base.runner(invocation);
+    };
+    try {
+      const report = runPublish(
+        ['release', '--yes', '--codex-source', 'petekp/circuit', '--codex-marketplace', 'circuit'],
+        { repoRoot: root, runner },
+      );
+
+      expect(report.status).toBe('failed');
+      expect(report.outputs.candidate_host_proven).not.toBe(true);
+      expect(ids(base.calls)).not.toContain('codex_mcp_smoke_packed_pre_publish');
+      expect(ids(base.calls)).not.toContain('claude_tag_push');
     } finally {
       rmSync(root, { recursive: true, force: true });
     }
@@ -1284,6 +1317,8 @@ describe('plugin publish automation', () => {
       );
 
       expect(report.status).toBe('published_unverified');
+      expect(report.outputs.candidate_host_proven).toBe(true);
+      expect(report.outputs.public_install_proven).toBe(false);
       expect(report.errors.join('\n')).toContain('Do not delete or rewrite it');
       expect(ids(base.calls)).not.toContain('git_tag_rollback');
       expect(ids(base.calls)).not.toContain('codex_mcp_smoke_published_tag');
@@ -1309,6 +1344,8 @@ describe('plugin publish automation', () => {
       );
 
       expect(report.status).toBe('published_unverified');
+      expect(report.outputs.candidate_host_proven).toBe(true);
+      expect(report.outputs.public_install_proven).toBe(false);
       expect(ids(base.calls)).toContain('claude_tag_push');
       expect(ids(base.calls)).not.toContain('git_tag_rollback');
       const errors = report.errors.join('\n');

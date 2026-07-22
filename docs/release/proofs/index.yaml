@@ -322,12 +322,12 @@ scenarios:
     exception_ids: []
     readiness_refs: [REL-017]
   - id: proof:codex-mcp-first-run
-    title: Public Codex MCP First Run
+    title: Codex MCP Candidate First Run
     category: first-run
-    command: npm run smoke:host:codex:mcp -- --live --mode published --source petekp/circuit --ref <exact-release-ref> --expected-version <version> --output <evidence-path>
+    command: Run the exact remote candidate commit through the no-spend loader proof and one first-attempt MCP Review, then record the combined evidence at <evidence-path>.
     expected_flow: review
     expected_outcome: Real Codex loader discovers six tools, lists the exact workspace, and completes Review on the first attempt.
-    summary_contract: Evidence names the exact plugin version and tree digest, Codex and Node versions, workspace, Review result, cleanup, and absence of shell fallback.
+    summary_contract: Evidence names the immutable candidate commit, exact plugin version and tree digest, Codex and Node versions, workspace, first-attempt Review result, cleanup, and absence of shell fallback or sandbox escalation.
     redaction_policy: Isolated host paths are normalized and credentials, proxy values, prompts, and source contents are excluded.
     required_files: []
     status: release_blocker

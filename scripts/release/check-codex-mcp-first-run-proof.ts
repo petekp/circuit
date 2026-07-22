@@ -34,7 +34,6 @@ async function main(): Promise<void> {
     pluginVersion: versionManifest.version,
     pluginTreeSha256: packageTreeSha256(resolve(projectRoot, 'plugins/codex')),
     repository: 'petekp/circuit',
-    ref: `circuit--v${versionManifest.version}`,
   });
   if (issues.length > 0) {
     for (const issue of issues) console.error(`error: ${issue}`);

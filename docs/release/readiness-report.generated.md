@@ -32,7 +32,7 @@ Infra checks may pass while release blockers remain. `npm run check-release-read
 
 ## Release Blockers
 
-- EX-REL-014-CODEX-MCP-FIRST-RUN: The packaged MCP lifecycle is implemented, but the exact public version and plugin-tree digest have not yet passed the fresh-host loader and Review proof.
+- EX-REL-014-CODEX-MCP-FIRST-RUN: The packaged MCP lifecycle is implemented, but the immutable release candidate and exact plugin-tree digest have not yet passed the fresh-host loader and first-attempt Review proof.
 - CLAIM-CODEX-MCP-LIFECYCLE: On supported macOS hosts, the Codex plugin runs Circuit through its six-tool MCP lifecycle without shell fallback or sandbox escalation.
 - proof:codex-mcp-first-run: proof scenario is not captured
 

@@ -41,5 +41,5 @@ exceptions:
     proof_id: proof:codex-mcp-first-run
     status: release_blocker
     readiness_ref: REL-014
-    rationale: The packaged MCP lifecycle is implemented, but the exact public version and plugin-tree digest have not yet passed the fresh-host loader and Review proof.
-    public_wording: Codex support remains release-blocked until the exact public plugin passes its first-run proof.
+    rationale: The packaged MCP lifecycle is implemented, but the immutable release candidate and exact plugin-tree digest have not yet passed the fresh-host loader and first-attempt Review proof.
+    public_wording: Codex support remains release-blocked until the exact release candidate passes its first-run proof. The release command separately verifies the immutable public tag after publishing it.
