@@ -32714,6 +32714,8 @@ function readSupervisorProgress(input) {
 }
 
 // src/hosts/codex-mcp/state-adapter.ts
+var EXIT_SUPERVISOR_RECHECK_ATTEMPTS = 5;
+var EXIT_SUPERVISOR_RECHECK_DELAY_MS = 25;
 function stateWorkspace(workspace) {
   return workspace;
 }
@@ -32989,6 +32991,20 @@ var McpLifecycleStateAdapter = class {
       this.#store.releaseOperation(acquired.handle);
     }
   }
+  async #settledSupervisorStatuses(supervisor) {
+    let statuses = [
+      this.#inspectProcess(supervisor),
+      this.#inspectProcessGroup(supervisor)
+    ];
+    if (!statuses.includes("unknown")) return statuses;
+    for (let attempt = 0; attempt < EXIT_SUPERVISOR_RECHECK_ATTEMPTS; attempt += 1) {
+      await delay3(EXIT_SUPERVISOR_RECHECK_DELAY_MS);
+      statuses = [this.#inspectProcess(supervisor), this.#inspectProcessGroup(supervisor)];
+      if (!statuses.includes("unknown")) return statuses;
+      if (statuses.includes("alive")) return statuses;
+    }
+    return statuses;
+  }
   async #reconcileClaimed(current, handle) {
     let record2 = current;
     if (record2.launch.phase === "reserved") {
@@ -33038,7 +33054,7 @@ var McpLifecycleStateAdapter = class {
     }
     if (observations.exit !== void 0) {
       if (record2.launch.supervisor !== void 0) {
-        const supervisorStatuses = [
+        const supervisorStatuses = observations.exit.process_group_cleanup === "confirmed" ? await this.#settledSupervisorStatuses(record2.launch.supervisor) : [
           this.#inspectProcess(record2.launch.supervisor),
           this.#inspectProcessGroup(record2.launch.supervisor)
         ];

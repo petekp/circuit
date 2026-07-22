@@ -35,6 +35,8 @@ import {
 import { SupervisorProgressError, readSupervisorProgress } from './supervisor-progress.js';
 
 type ExitObservation = NonNullable<SupervisorJournalObservations['exit']>;
+const EXIT_SUPERVISOR_RECHECK_ATTEMPTS = 5;
+const EXIT_SUPERVISOR_RECHECK_DELAY_MS = 25;
 
 export type RuntimeExitClassification =
   | {
@@ -428,6 +430,23 @@ export class McpLifecycleStateAdapter implements LifecycleStore {
     }
   }
 
+  async #settledSupervisorStatuses(
+    supervisor: ProcessIdentity,
+  ): Promise<readonly [ProcessStatus, ProcessStatus]> {
+    let statuses: readonly [ProcessStatus, ProcessStatus] = [
+      this.#inspectProcess(supervisor),
+      this.#inspectProcessGroup(supervisor),
+    ];
+    if (!statuses.includes('unknown')) return statuses;
+    for (let attempt = 0; attempt < EXIT_SUPERVISOR_RECHECK_ATTEMPTS; attempt += 1) {
+      await delay(EXIT_SUPERVISOR_RECHECK_DELAY_MS);
+      statuses = [this.#inspectProcess(supervisor), this.#inspectProcessGroup(supervisor)];
+      if (!statuses.includes('unknown')) return statuses;
+      if (statuses.includes('alive')) return statuses;
+    }
+    return statuses;
+  }
+
   async #reconcileClaimed(current: McpRunRecord, handle: OperationHandle): Promise<McpRunRecord> {
     let record = current;
     if (record.launch.phase === 'reserved') {
@@ -485,10 +504,13 @@ export class McpLifecycleStateAdapter implements LifecycleStore {
 
     if (observations.exit !== undefined) {
       if (record.launch.supervisor !== undefined) {
-        const supervisorStatuses = [
-          this.#inspectProcess(record.launch.supervisor),
-          this.#inspectProcessGroup(record.launch.supervisor),
-        ];
+        const supervisorStatuses =
+          observations.exit.process_group_cleanup === 'confirmed'
+            ? await this.#settledSupervisorStatuses(record.launch.supervisor)
+            : ([
+                this.#inspectProcess(record.launch.supervisor),
+                this.#inspectProcessGroup(record.launch.supervisor),
+              ] as const);
         if (supervisorStatuses.includes('alive')) return record;
         if (supervisorStatuses.includes('unknown')) {
           return this.#store.transitionRun({

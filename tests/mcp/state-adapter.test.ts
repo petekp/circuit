@@ -58,7 +58,7 @@ function supervisor(): ProcessIdentity {
 }
 
 async function fixture(
-  statuses: Map<string, ProcessStatus> = new Map(),
+  statuses: Map<string, ProcessStatus> | ((identity: ProcessIdentity) => ProcessStatus) = new Map(),
   retainedTerminalRuns?: number,
   tokenStatus: ProcessStatus = 'unknown',
 ) {
@@ -67,8 +67,11 @@ async function fixture(
   const workspacePath = join(root, 'workspace');
   const stateRoot = join(root, 'state');
   await mkdir(workspacePath, { mode: 0o700 });
-  const inspect = (identity: ProcessIdentity): ProcessStatus =>
-    statuses.get(identity.birth_token) ?? 'absent';
+  const inspect =
+    typeof statuses === 'function'
+      ? statuses
+      : (identity: ProcessIdentity): ProcessStatus =>
+          statuses.get(identity.birth_token) ?? 'absent';
   const inspectToken = vi.fn(() => tokenStatus);
   const store = new McpStateStore({
     stateRoot,
@@ -292,6 +295,50 @@ describe('MCP lifecycle state adapter', () => {
         owner: context.newOwner,
       }),
     ).toThrow(/could not prove/i);
+  });
+
+  it('settles a confirmed exit before requiring recovery for an uncertain supervisor', async () => {
+    let supervisorChecks = 0;
+    const context = await fixture((identity) => {
+      if (identity.birth_token !== 'supervisor-birth') return 'absent';
+      supervisorChecks += 1;
+      return supervisorChecks <= 2 ? 'unknown' : 'absent';
+    });
+    await reserveAndAuthorize(context);
+    const control = context.adapter.controlDirectory(context.workspace, RUN_ID);
+    await writePrivate(join(control, 'launch-1-runtime.json'), {
+      schema_version: 1,
+      record_kind: 'circuit.mcp.runtime-observation',
+      run_id: RUN_ID,
+      generation: 1,
+      authorization_sha256: AUTHORIZATION,
+      runtime: runtimeObservation(),
+      runtime_executable: EXECUTABLE,
+      recorded_at: NOW,
+    });
+    await writePrivate(join(control, 'launch-1-exit.json'), {
+      schema_version: 1,
+      record_kind: 'circuit.mcp.exit-observation',
+      run_id: RUN_ID,
+      generation: 1,
+      authorization_sha256: AUTHORIZATION,
+      runtime: runtimeObservation(),
+      observed_at: NOW,
+      exit_code: 0,
+      process_group_cleanup: 'confirmed',
+    });
+
+    const reconciled = await context.adapter.reconcileRun({
+      workspace: context.workspace,
+      run_id: RUN_ID,
+      owner: context.newOwner,
+    });
+    expect(reconciled).toMatchObject({
+      state: 'complete',
+      launch: { phase: 'exited', exit: { process_group_cleanup: 'confirmed' } },
+    });
+    expect(supervisorChecks).toBeGreaterThan(2);
+    expect(existsSync(context.store.pathsForRun(context.workspace, RUN_ID).lease_file)).toBe(false);
   });
 
   it('accepts exact cleanup confirmation without rewriting saved exit evidence', async () => {
