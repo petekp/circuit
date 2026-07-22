@@ -74,16 +74,17 @@ create a symlink to get started this way.
 
 ### Codex
 
-The MCP-based Codex path in this checkout supports macOS. It requires Node.js
-22.18 or newer and Codex 0.144.3 or newer.
+The MCP-based Codex path in this checkout supports macOS. It requires Node.js 22.18 or
+newer and Codex 0.144.3 or newer.
 
 The current public tag, `circuit--v0.1.1`, predates the MCP path. Do not use
 that tag to judge sandboxed Codex reliability. These instructions will switch
 to the exact `0.1.2` tag only after its public-install proof passes.
 
-After installing an MCP-capable build, restart Codex. A single MCP approval is
-normal. A shell fallback or sandbox escalation means the setup failed; stop
-rather than working around it.
+After installing an MCP-capable build, restart Codex.
+A single MCP approval is normal.
+Any shell fallback or sandbox escalation means the setup failed.
+Stop rather than working around it.
 
 Working from this checkout instead? Refresh the local plugin package and
 installed host caches:

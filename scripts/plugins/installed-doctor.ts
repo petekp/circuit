@@ -1,7 +1,7 @@
 #!/usr/bin/env node
 
 import { spawnSync } from 'node:child_process';
-import { existsSync, lstatSync, readFileSync, readdirSync } from 'node:fs';
+import { accessSync, constants, existsSync, lstatSync, readFileSync, readdirSync } from 'node:fs';
 import { homedir } from 'node:os';
 import { delimiter, dirname, join, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -52,6 +52,27 @@ function noAmbientCliEnv(extra: NodeJS.ProcessEnv = {}): NodeJS.ProcessEnv {
     CIRCUIT_DEV: undefined,
     ...extra,
   };
+}
+
+function codexDoctorPath(): string {
+  const executableName = process.platform === 'win32' ? 'codex.exe' : 'codex';
+  const codexDirectory = (process.env.PATH ?? '')
+    .split(delimiter)
+    .filter(Boolean)
+    .find((directory) => {
+      try {
+        accessSync(resolve(directory, executableName), constants.X_OK);
+        return true;
+      } catch {
+        return false;
+      }
+    });
+  return [
+    ...noAmbientCliPath().split(delimiter),
+    ...(codexDirectory === undefined ? [] : [codexDirectory]),
+  ]
+    .filter((entry, index, entries) => entries.indexOf(entry) === index)
+    .join(delimiter);
 }
 
 function runDoctor(scriptPath: string, env: NodeJS.ProcessEnv = {}): DoctorResult {
@@ -526,6 +547,7 @@ try {
   });
   const codexPlugin = pluginStatus(resolve(repoRoot, 'plugins/codex'), codexInstalledRoot, {
     CODEX_HOME: codexHome,
+    PATH: codexDoctorPath(),
   });
   const codexMcp = codexMcpSummary(codexInstalledRoot, codexHome);
   const codex = {

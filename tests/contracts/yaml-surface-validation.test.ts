@@ -26,7 +26,10 @@ const schemaByPath = {
     CustomFlowPackageDescriptor,
 } satisfies Record<string, z.ZodTypeAny>;
 
-const externalYamlPaths = new Set(['.github/workflows/verify.yml']);
+const externalYamlPaths = new Set([
+  '.github/workflows/codex-compatibility.yml',
+  '.github/workflows/verify.yml',
+]);
 
 function trackedYamlFiles(): string[] {
   return execFileSync('git', ['ls-files', '*.yaml', '*.yml'], {

@@ -9,7 +9,7 @@ import {
   writeFileSync,
 } from 'node:fs';
 import { tmpdir } from 'node:os';
-import { dirname, join, resolve } from 'node:path';
+import { delimiter, dirname, join, resolve } from 'node:path';
 import { afterEach, describe, expect, it } from 'vitest';
 
 const REPO_ROOT = resolve('.');
@@ -56,6 +56,7 @@ type Fixture = {
   codexHome: string;
   codexInstalledRoot: string;
   stateRoot: string;
+  binDir: string;
 };
 
 const fixtures: string[] = [];
@@ -69,6 +70,7 @@ function fixture(): Fixture {
   fixtures.push(root);
   const home = join(root, 'home');
   const codexHome = join(home, '.codex');
+  const binDir = join(root, 'bin');
   const claudeInstalledRoot = join(
     home,
     '.claude',
@@ -88,6 +90,10 @@ function fixture(): Fixture {
   );
   mkdirSync(dirname(claudeInstalledRoot), { recursive: true });
   mkdirSync(dirname(codexInstalledRoot), { recursive: true });
+  mkdirSync(binDir, { recursive: true });
+  const codex = join(binDir, 'codex');
+  writeFileSync(codex, "#!/bin/sh\necho 'codex-cli 0.144.3'\n");
+  chmodSync(codex, 0o755);
   cpSync(resolve(REPO_ROOT, 'plugins/claude'), claudeInstalledRoot, { recursive: true });
   cpSync(resolve(REPO_ROOT, 'plugins/codex'), codexInstalledRoot, { recursive: true });
   return {
@@ -96,6 +102,7 @@ function fixture(): Fixture {
     codexHome,
     codexInstalledRoot,
     stateRoot: join(codexHome, 'circuit', 'mcp', 'v1'),
+    binDir,
   };
 }
 
@@ -113,6 +120,7 @@ function runInstalledDoctor(input: Fixture): {
       CODEX_HOME: input.codexHome,
       CIRCUIT_CLI: undefined,
       CIRCUIT_DEV: undefined,
+      PATH: `${input.binDir}${delimiter}${process.env.PATH ?? ''}`,
     },
   });
   return {

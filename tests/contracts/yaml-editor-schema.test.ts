@@ -9,7 +9,10 @@ import {
 
 const root = resolve(__dirname, '..', '..');
 const vscodeSettingsPath = '.vscode/settings.json';
-const externalYamlPaths = new Set(['.github/workflows/verify.yml']);
+const externalYamlPaths = new Set([
+  '.github/workflows/codex-compatibility.yml',
+  '.github/workflows/verify.yml',
+]);
 
 function trackedYamlFiles(): string[] {
   return execFileSync('git', ['ls-files', '*.yaml', '*.yml'], {
