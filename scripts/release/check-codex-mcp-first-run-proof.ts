@@ -3,7 +3,7 @@
 import { readFileSync } from 'node:fs';
 import { resolve } from 'node:path';
 
-import { packageTreeDigest } from '../plugins/package-tree.ts';
+import { packageTreeSha256 } from '../plugins/package-tree.ts';
 import { validateCodexMcpFirstRunEvidence } from './codex-mcp-first-run-evidence.ts';
 import { loadReleaseSchemas, loadYamlWithSchema, projectRoot } from './shared.ts';
 
@@ -32,7 +32,7 @@ async function main(): Promise<void> {
   const evidence = JSON.parse(readFileSync(resolve(projectRoot, EVIDENCE_PATH), 'utf8')) as unknown;
   const issues = validateCodexMcpFirstRunEvidence(evidence, {
     pluginVersion: versionManifest.version,
-    pluginTreeSha256: packageTreeDigest(resolve(projectRoot, 'plugins/codex')),
+    pluginTreeSha256: packageTreeSha256(resolve(projectRoot, 'plugins/codex')),
     repository: 'petekp/circuit',
     ref: `circuit--v${versionManifest.version}`,
   });

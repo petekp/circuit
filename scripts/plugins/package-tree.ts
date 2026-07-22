@@ -1,5 +1,5 @@
 import { createHash } from 'node:crypto';
-import { existsSync, readFileSync, readdirSync, statSync } from 'node:fs';
+import { existsSync, readFileSync, readdirSync, readlinkSync, statSync } from 'node:fs';
 import { join, resolve } from 'node:path';
 
 const OWNED_ROOTS = new Set([
@@ -61,22 +61,57 @@ function walkFiles(root: string): string[] {
   return files.sort();
 }
 
-export function walkPackageFiles(root: string): string[] {
-  return walkFiles(root).filter(isPackageOwnedFile);
+type TreeEntry = { readonly path: string; readonly type: 'file' | 'symlink' };
+
+function walkAllTreeEntries(root: string): TreeEntry[] {
+  if (!existsSync(root) || !statSync(root).isDirectory()) return [];
+  const entries: TreeEntry[] = [];
+  const stack = [''];
+  while (stack.length > 0) {
+    const relDir = stack.pop() ?? '';
+    const absDir = resolve(root, relDir);
+    for (const entry of readdirSync(absDir, { withFileTypes: true })) {
+      const relPath = normalizeRelativePath(join(relDir, entry.name));
+      if (entry.isDirectory()) {
+        stack.push(relPath);
+      } else if (entry.isFile()) {
+        entries.push({ path: relPath, type: 'file' });
+      } else if (entry.isSymbolicLink()) {
+        entries.push({ path: relPath, type: 'symlink' });
+      } else {
+        throw new Error(`unsupported package-tree entry: ${relPath}`);
+      }
+    }
+  }
+  return entries.sort((left, right) => left.path.localeCompare(right.path));
 }
 
-export function packageTreeDigest(root: string): string {
+/** Stable digest of every file and symlink in a plugin package. */
+export function packageTreeSha256(root: string): string {
+  const canonicalRoot = resolve(root);
   const hash = createHash('sha256');
-  for (const file of walkPackageFiles(resolve(root))) {
-    const bytes = readFileSync(resolve(root, file));
-    hash.update(file, 'utf8');
-    hash.update('\0', 'utf8');
-    hash.update(String(bytes.byteLength), 'utf8');
-    hash.update('\0', 'utf8');
-    hash.update(bytes);
-    hash.update('\0', 'utf8');
+  for (const entry of walkAllTreeEntries(canonicalRoot)) {
+    const pathBytes = Buffer.from(entry.path, 'utf8');
+    const contents =
+      entry.type === 'file'
+        ? readFileSync(resolve(canonicalRoot, entry.path))
+        : Buffer.from(readlinkSync(resolve(canonicalRoot, entry.path)), 'utf8');
+    hash.update(entry.type);
+    hash.update('\0');
+    hash.update(String(pathBytes.byteLength));
+    hash.update('\0');
+    hash.update(pathBytes);
+    hash.update('\0');
+    hash.update(String(contents.byteLength));
+    hash.update('\0');
+    hash.update(contents);
+    hash.update('\0');
   }
   return hash.digest('hex');
+}
+
+export function walkPackageFiles(root: string): string[] {
+  return walkFiles(root).filter(isPackageOwnedFile);
 }
 
 function digestFile(path: string): string {

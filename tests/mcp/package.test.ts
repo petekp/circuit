@@ -6,7 +6,7 @@ import { describe, expect, it } from 'vitest';
 
 import {
   isPackageOwnedFile,
-  packageTreeDigest,
+  packageTreeSha256,
   packageTreeStatus,
 } from '../../scripts/plugins/package-tree.js';
 import { checkCodexMcpPackage } from '../../scripts/release/check-codex-mcp-package.js';
@@ -79,17 +79,15 @@ describe('production Codex MCP package', () => {
     }
   });
 
-  it('gives identical packaged plugin trees one stable digest', () => {
-    const temp = mkdtempSync(resolve(tmpdir(), 'circuit-mcp-tree-digest-'));
+  it('uses every installed plugin file in a stable tree digest', () => {
+    const temp = mkdtempSync(resolve(tmpdir(), 'circuit-mcp-digest-'));
     const target = resolve(temp, 'target');
     try {
       cpSync(CODEX_ROOT, target, { recursive: true });
-      const sourceDigest = packageTreeDigest(CODEX_ROOT);
-      expect(sourceDigest).toMatch(/^[0-9a-f]{64}$/);
-      expect(packageTreeDigest(target)).toBe(sourceDigest);
+      expect(packageTreeSha256(target)).toBe(packageTreeSha256(CODEX_ROOT));
 
-      writeFileSync(resolve(target, 'README.md'), 'changed\n');
-      expect(packageTreeDigest(target)).not.toBe(sourceDigest);
+      writeFileSync(resolve(target, 'operator-notes.txt'), 'unexpected bytes\n');
+      expect(packageTreeSha256(target)).not.toBe(packageTreeSha256(CODEX_ROOT));
     } finally {
       rmSync(temp, { recursive: true, force: true });
     }
