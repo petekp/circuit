@@ -1898,12 +1898,14 @@ export class McpStateStore {
         throw new McpStateStoreError(
           'recovery_process_alive',
           'Circuit found a process that may still belong to this run.',
+          'Call circuit_cancel for this run, then retry circuit_recover.',
         );
       }
       if (proof.includes('unknown')) {
         throw new McpStateStoreError(
           'recovery_process_unknown',
           'Circuit could not prove that every process from this run is absent.',
+          'Wait briefly, then retry circuit_recover with this run ID. If Circuit still cannot confirm cleanup, stop and report the run ID; do not force-unlock the workspace.',
         );
       }
 

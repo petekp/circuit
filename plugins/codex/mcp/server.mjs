@@ -27272,7 +27272,7 @@ var CircuitMcpLifecycle = class {
       throw new McpLifecycleError(
         "runtime_asset_changed",
         "Circuit runtime assets changed after this run started.",
-        "Reinstall the Circuit plugin, then start a new run."
+        "Call circuit_cancel for this run, restart Codex, then start a new Circuit run."
       );
     }
     const assertion = await this.#options.checkpoints.assertResume({
@@ -34682,13 +34682,15 @@ var McpStateStore = class {
       if (proof.includes("alive")) {
         throw new McpStateStoreError(
           "recovery_process_alive",
-          "Circuit found a process that may still belong to this run."
+          "Circuit found a process that may still belong to this run.",
+          "Call circuit_cancel for this run, then retry circuit_recover."
         );
       }
       if (proof.includes("unknown")) {
         throw new McpStateStoreError(
           "recovery_process_unknown",
-          "Circuit could not prove that every process from this run is absent."
+          "Circuit could not prove that every process from this run is absent.",
+          "Wait briefly, then retry circuit_recover with this run ID. If Circuit still cannot confirm cleanup, stop and report the run ID; do not force-unlock the workspace."
         );
       }
       const now = this.#now().toISOString();

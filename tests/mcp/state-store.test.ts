@@ -222,13 +222,16 @@ function simulateOrphanStaging(
   return staging;
 }
 
-function expectStoreError(action: () => unknown, code: string): void {
+function expectStoreError(action: () => unknown, code: string, nextAction?: string): void {
   try {
     action();
     throw new Error(`expected ${code}`);
   } catch (error) {
     expect(error).toBeInstanceOf(McpStateStoreError);
     expect((error as McpStateStoreError).code).toBe(code);
+    if (nextAction !== undefined) {
+      expect((error as McpStateStoreError).next_action).toBe(nextAction);
+    }
   }
 }
 
@@ -1545,6 +1548,9 @@ describe('MCP list and recovery', () => {
             owner: owner('r'),
           }),
         processStatus === 'alive' ? 'recovery_process_alive' : 'recovery_process_unknown',
+        processStatus === 'alive'
+          ? 'Call circuit_cancel for this run, then retry circuit_recover.'
+          : 'Wait briefly, then retry circuit_recover with this run ID. If Circuit still cannot confirm cleanup, stop and report the run ID; do not force-unlock the workspace.',
       );
       expect(state.readRun(workspaceA, RUN_A).state).toBe('recovery_required');
       expect(lstatSync(state.pathsForRun(workspaceA, RUN_A).lease_file).isFile()).toBe(true);

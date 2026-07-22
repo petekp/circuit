@@ -489,7 +489,7 @@ export class CircuitMcpLifecycle<TPrepared = unknown> {
       throw new McpLifecycleError(
         'runtime_asset_changed',
         'Circuit runtime assets changed after this run started.',
-        'Reinstall the Circuit plugin, then start a new run.',
+        'Call circuit_cancel for this run, restart Codex, then start a new Circuit run.',
       );
     }
     const assertion = await this.#options.checkpoints.assertResume({
