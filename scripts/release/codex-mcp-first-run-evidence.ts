@@ -1,6 +1,8 @@
 type ExpectedPlugin = {
   readonly pluginVersion: string;
   readonly pluginTreeSha256: string;
+  readonly repository: string;
+  readonly ref: string;
 };
 
 const REQUIRED_EVIDENCE = [
@@ -12,6 +14,8 @@ const REQUIRED_EVIDENCE = [
   'private_control_state',
   'owned_process_cleanup',
 ] as const;
+
+const SHA256 = /^[a-f0-9]{64}$/;
 
 function record(value: unknown): Record<string, unknown> | undefined {
   return typeof value === 'object' && value !== null && !Array.isArray(value)
@@ -34,11 +38,11 @@ export function validateCodexMcpFirstRunEvidence(
   if (root.status !== 'pass') issues.push('evidence status must be pass');
 
   const source = record(root.source);
-  if (typeof source?.repository !== 'string' || source.repository.length === 0) {
-    issues.push('evidence is missing the remote repository');
+  if (source?.repository !== expected.repository) {
+    issues.push(`evidence repository must be ${expected.repository}`);
   }
-  if (typeof source?.ref !== 'string' || source.ref.length === 0) {
-    issues.push('evidence is missing the exact remote ref');
+  if (source?.ref !== expected.ref) {
+    issues.push(`evidence ref must be ${expected.ref}`);
   }
   if (source?.expected_version !== expected.pluginVersion) {
     issues.push('evidence source version does not match the current plugin');
@@ -69,6 +73,26 @@ export function validateCodexMcpFirstRunEvidence(
     if (matching.length !== 1) {
       issues.push(`required evidence ${name} did not pass exactly once`);
     }
+  }
+
+  const review = record(root.review);
+  if (typeof review?.run_id !== 'string' || review.run_id.length === 0) {
+    issues.push('evidence is missing the Review run ID');
+  }
+  if (review?.status !== 'completed') {
+    issues.push('Review evidence status must be completed');
+  }
+  if (review?.attempt_count !== 1) {
+    issues.push('Review evidence must record exactly one attempt');
+  }
+  if (typeof review?.report_sha256 !== 'string' || !SHA256.test(review.report_sha256)) {
+    issues.push('evidence is missing a valid Review report digest');
+  }
+  if (review?.mcp_only !== true || review?.shell_fallback !== false) {
+    issues.push('Review evidence must prove MCP-only execution without shell fallback');
+  }
+  if (review?.sandbox_escalation !== false) {
+    issues.push('Review evidence must prove no sandbox escalation');
   }
   return issues;
 }

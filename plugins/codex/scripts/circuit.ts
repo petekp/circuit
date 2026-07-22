@@ -346,7 +346,7 @@ function runDoctor(): number {
   const minimumCodexVersion = parseVersionTuple(MINIMUM_CODEX_VERSION);
   if (codexVersionResult.error !== undefined || codexVersionResult.status !== 0) {
     checks.push(
-      warningCheck(
+      check(
         'codex_version_supported',
         false,
         `Codex was not found. Install Codex ${MINIMUM_CODEX_VERSION} or newer, restart Codex, and try again.`,

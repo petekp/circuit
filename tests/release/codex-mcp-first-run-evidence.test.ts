@@ -12,6 +12,13 @@ const REQUIRED_EVIDENCE = [
   'owned_process_cleanup',
 ] as const;
 
+const EXPECTED = {
+  pluginVersion: '0.1.2',
+  pluginTreeSha256: 'a'.repeat(64),
+  repository: 'petekp/circuit',
+  ref: 'circuit--v0.1.2',
+} as const;
+
 function report(): unknown {
   return {
     schema_version: 1,
@@ -22,7 +29,7 @@ function report(): unknown {
     reason: 'passed',
     source: {
       repository: 'petekp/circuit',
-      ref: 'candidate-sha',
+      ref: 'circuit--v0.1.2',
       expected_version: '0.1.2',
     },
     versions: {
@@ -32,16 +39,22 @@ function report(): unknown {
       plugin_tree_sha256: 'a'.repeat(64),
     },
     evidence: REQUIRED_EVIDENCE.map((name) => ({ name, ok: true })),
+    review: {
+      run_id: '11111111-1111-4111-8111-111111111111',
+      status: 'completed',
+      attempt_count: 1,
+      report_sha256: 'b'.repeat(64),
+      mcp_only: true,
+      shell_fallback: false,
+      sandbox_escalation: false,
+    },
   };
 }
 
 describe('Codex MCP first-run release evidence', () => {
   it('accepts a passing published report for the exact plugin version and tree', () => {
     expect(
-      validateCodexMcpFirstRunEvidence(report(), {
-        pluginVersion: '0.1.2',
-        pluginTreeSha256: 'a'.repeat(64),
-      }),
+      validateCodexMcpFirstRunEvidence(report(), EXPECTED),
     ).toEqual([]);
   });
 
@@ -65,10 +78,7 @@ describe('Codex MCP first-run release evidence', () => {
     };
 
     expect(
-      validateCodexMcpFirstRunEvidence(stale, {
-        pluginVersion: '0.1.2',
-        pluginTreeSha256: 'a'.repeat(64),
-      }),
+      validateCodexMcpFirstRunEvidence(stale, EXPECTED),
     ).toEqual(
       expect.arrayContaining([
         'evidence mode must be published',
@@ -85,10 +95,62 @@ describe('Codex MCP first-run release evidence', () => {
     duplicate.evidence.push({ name: 'circuit_list_invoked', ok: true });
 
     expect(
-      validateCodexMcpFirstRunEvidence(duplicate, {
-        pluginVersion: '0.1.2',
-        pluginTreeSha256: 'a'.repeat(64),
-      }),
+      validateCodexMcpFirstRunEvidence(duplicate, EXPECTED),
     ).toContain('required evidence circuit_list_invoked did not pass exactly once');
+  });
+
+  it('rejects a no-spend loader smoke that never completed Review', () => {
+    const loaderOnly = report() as { review?: unknown };
+    delete loaderOnly.review;
+
+    expect(
+      validateCodexMcpFirstRunEvidence(loaderOnly, EXPECTED),
+    ).toEqual(
+      expect.arrayContaining([
+        'evidence is missing the Review run ID',
+        'Review evidence status must be completed',
+        'Review evidence must record exactly one attempt',
+        'evidence is missing a valid Review report digest',
+        'Review evidence must prove MCP-only execution without shell fallback',
+        'Review evidence must prove no sandbox escalation',
+      ]),
+    );
+  });
+
+  it('rejects retried, escalated, or shell-fallback Review evidence', () => {
+    const unsafe = report() as {
+      review: {
+        attempt_count: number;
+        mcp_only: boolean;
+        shell_fallback: boolean;
+        sandbox_escalation: boolean;
+      };
+    };
+    unsafe.review.attempt_count = 2;
+    unsafe.review.mcp_only = false;
+    unsafe.review.shell_fallback = true;
+    unsafe.review.sandbox_escalation = true;
+
+    expect(validateCodexMcpFirstRunEvidence(unsafe, EXPECTED)).toEqual(
+      expect.arrayContaining([
+        'Review evidence must record exactly one attempt',
+        'Review evidence must prove MCP-only execution without shell fallback',
+        'Review evidence must prove no sandbox escalation',
+      ]),
+    );
+  });
+
+  it('rejects a moving branch or a different repository', () => {
+    const wrongSource = report() as {
+      source: { repository: string; ref: string };
+    };
+    wrongSource.source = { repository: 'someone/circuit', ref: 'main' };
+
+    expect(validateCodexMcpFirstRunEvidence(wrongSource, EXPECTED)).toEqual(
+      expect.arrayContaining([
+        'evidence repository must be petekp/circuit',
+        'evidence ref must be circuit--v0.1.2',
+      ]),
+    );
   });
 });

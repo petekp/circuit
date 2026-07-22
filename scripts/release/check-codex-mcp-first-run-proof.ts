@@ -33,6 +33,8 @@ async function main(): Promise<void> {
   const issues = validateCodexMcpFirstRunEvidence(evidence, {
     pluginVersion: versionManifest.version,
     pluginTreeSha256: packageTreeDigest(resolve(projectRoot, 'plugins/codex')),
+    repository: 'petekp/circuit',
+    ref: `circuit--v${versionManifest.version}`,
   });
   if (issues.length > 0) {
     for (const issue of issues) console.error(`error: ${issue}`);

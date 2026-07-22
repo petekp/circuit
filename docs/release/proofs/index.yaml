@@ -324,7 +324,7 @@ scenarios:
   - id: proof:codex-mcp-first-run
     title: Public Codex MCP First Run
     category: first-run
-    command: npm run smoke:host:codex:mcp -- --live --mode published --repository petekp/circuit --ref <exact-release-ref> --expected-version <version> --output <evidence-path>
+    command: npm run smoke:host:codex:mcp -- --live --mode published --source petekp/circuit --ref <exact-release-ref> --expected-version <version> --output <evidence-path>
     expected_flow: review
     expected_outcome: Real Codex loader discovers six tools, lists the exact workspace, and completes Review on the first attempt.
     summary_contract: Evidence names the exact plugin version and tree digest, Codex and Node versions, workspace, Review result, cleanup, and absence of shell fallback.

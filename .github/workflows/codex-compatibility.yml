@@ -29,14 +29,18 @@ jobs:
         shell: bash
         run: |
           mkdir -p .codex-compatibility
-          if npm view @openai/codex version 2>&1 | tee .codex-compatibility/npm-view.log; then
-            version="$(tail -n 1 .codex-compatibility/npm-view.log | tr -d '[:space:]')"
-          elif grep -Eqi 'ENOTFOUND|EAI_AGAIN|ECONNRESET|timed out|network|failed to fetch' .codex-compatibility/npm-view.log; then
-            npm view @openai/codex version 2>&1 | tee .codex-compatibility/npm-view-retry.log
-            version="$(tail -n 1 .codex-compatibility/npm-view-retry.log | tr -d '[:space:]')"
-          else
-            exit 1
+          output=.codex-compatibility/npm-view.json
+          error=.codex-compatibility/npm-view.error.log
+          if ! npm view @openai/codex version --json > "$output" 2> "$error"; then
+            if ! grep -Eqi 'ENOTFOUND|EAI_AGAIN|ECONNRESET|timed out|network|failed to fetch' "$error"; then
+              cat "$error"
+              exit 1
+            fi
+            output=.codex-compatibility/npm-view-retry.json
+            error=.codex-compatibility/npm-view-retry.error.log
+            npm view @openai/codex version --json > "$output" 2> "$error"
           fi
+          version="$(node -e "const fs=require('fs');const value=JSON.parse(fs.readFileSync(process.argv[1],'utf8'));if(typeof value!=='string'||!/^\\d+\\.\\d+\\.\\d+$/.test(value))process.exit(1);process.stdout.write(value)" "$output")"
           printf '%s\n' "$version" > .codex-compatibility/stable-version.txt
           echo "version=$version" >> "$GITHUB_OUTPUT"
       - id: public

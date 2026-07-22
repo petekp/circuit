@@ -693,14 +693,19 @@ describe('Codex host plugin package', () => {
 
   it('doctor verifies the installed Codex host package from a target repo', () => {
     const tempDir = mkdtempSync(join(tmpdir(), 'circuit-codex-host-doctor-'));
+    const binDir = join(tempDir, 'bin');
     try {
+      mkdirSync(binDir, { recursive: true });
+      const fakeCodex = join(binDir, 'codex');
+      writeFileSync(fakeCodex, "#!/bin/sh\necho 'codex-cli 0.144.3'\n");
+      chmodSync(fakeCodex, 0o755);
       const result = spawnSync(
         process.execPath,
         [resolve(PLUGIN_ROOT, 'scripts/circuit.ts'), 'doctor'],
         {
           cwd: tempDir,
           encoding: 'utf8',
-          env: cleanPluginEnv(),
+          env: cleanPluginEnv({ PATH: `${binDir}${delimiter}${noAmbientCliPath()}` }),
         },
       );
 
@@ -773,7 +778,39 @@ describe('Codex host plugin package', () => {
       expect(output.checks).toContainEqual(
         expect.objectContaining({
           name: 'codex_version_supported',
-          severity: 'warning',
+          ok: true,
+        }),
+      );
+    } finally {
+      rmSync(tempDir, { recursive: true, force: true });
+    }
+  });
+
+  it('doctor fails when Codex is missing with one clear remedy', () => {
+    const tempDir = mkdtempSync(join(tmpdir(), 'circuit-codex-host-missing-codex-'));
+    try {
+      const result = spawnSync(
+        process.execPath,
+        [resolve(PLUGIN_ROOT, 'scripts/circuit.ts'), 'doctor'],
+        {
+          cwd: tempDir,
+          encoding: 'utf8',
+          env: cleanPluginEnv({ PATH: noAmbientCliPath() }),
+        },
+      );
+
+      expect(result.status, result.stderr).toBe(1);
+      const output = JSON.parse(result.stdout) as {
+        status: string;
+        checks: Array<{ name: string; ok: boolean; detail?: string }>;
+      };
+      expect(output.status).toBe('fail');
+      expect(output.checks).toContainEqual(
+        expect.objectContaining({
+          name: 'codex_version_supported',
+          ok: false,
+          detail:
+            'Codex was not found. Install Codex 0.144.3 or newer, restart Codex, and try again.',
         }),
       );
     } finally {

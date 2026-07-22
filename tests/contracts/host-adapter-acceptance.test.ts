@@ -227,6 +227,9 @@ describe('host adapter acceptance contract', () => {
     );
     expect(compatibilityWorkflow).toContain('cron:');
     expect(compatibilityWorkflow).toContain('npm view @openai/codex version');
+    expect(compatibilityWorkflow).toContain('npm view @openai/codex version --json');
+    expect(compatibilityWorkflow).toContain('/^\\\\d+\\\\.\\\\d+\\\\.\\\\d+$/');
+    expect(compatibilityWorkflow).not.toContain('npm view @openai/codex version 2>&1 | tee');
     expect(compatibilityWorkflow).toContain('--mode packed');
     expect(compatibilityWorkflow).toContain('--mode published');
     expect(compatibilityWorkflow).toContain('retention-days: 30');

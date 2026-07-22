@@ -3,10 +3,11 @@
 Use this path when you want the smallest safe proof that Circuit is installed,
 can see its packaged flows, and can write a run folder.
 
-The MCP path in Codex currently supports macOS. It requires Node.js 22.18 or
-newer and Codex 0.144.3 or newer. A single MCP approval is normal on first use.
-If Codex tries to run Circuit through a shell or asks for sandbox escalation,
-the setup has failed. Stop instead of approving that workaround.
+The MCP path in Codex supports macOS starting with Circuit 0.1.2. It requires
+Node.js 22.18 or newer and Codex 0.144.3 or newer. Circuit 0.1.1 predates this
+path. A single MCP approval is normal on first use. If Codex tries to run
+Circuit through a shell or asks for sandbox escalation, the setup has failed.
+Stop instead of approving that workaround.
 
 ## 1. Run Doctor
 
@@ -31,7 +32,7 @@ ls "$HOME/.claude/plugins/cache/circuit/circuit/"
 node "$HOME/.claude/plugins/cache/circuit/circuit/<version>/scripts/circuit.js" doctor
 ```
 
-Public Codex marketplace install:
+Public Codex marketplace install, for Circuit 0.1.2 and later:
 
 ```bash
 ls "$HOME/.codex/plugins/cache/circuit/circuit/"
