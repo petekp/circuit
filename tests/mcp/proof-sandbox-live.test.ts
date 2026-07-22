@@ -140,6 +140,7 @@ describe.runIf(process.platform === 'darwin')('live macOS Codex MCP proof sandbo
         private: true,
         scripts: {
           'read-manager-config': `node proof-command.mjs reads ${JSON.stringify(managerConfig)}`,
+          'nested-npm-read': 'npm run read-manager-config --silent',
         },
       }),
     );
@@ -166,6 +167,10 @@ describe.runIf(process.platform === 'darwin')('live macOS Codex MCP proof sandbo
       request(['npm', 'run', 'read-manager-config', '--silent'], { timeout_ms: 10_000 }),
       workspace,
     );
+    const nestedManagerRead = await runner(
+      request(['npm', 'run', 'nested-npm-read', '--silent'], { timeout_ms: 10_000 }),
+      workspace,
+    );
 
     expect(nodeVersion.status, nodeVersion.stderr_summary).toBe('passed');
     expect(nodeVersion.stdout_summary.trim()).toMatch(/^v\d+\.\d+\.\d+/);
@@ -173,6 +178,8 @@ describe.runIf(process.platform === 'darwin')('live macOS Codex MCP proof sandbo
     expect(npmVersion.stdout_summary.trim()).toMatch(/^\d+\.\d+\.\d+/);
     expect(managerRead.status, managerRead.stderr_summary).toBe('passed');
     expect(JSON.parse(managerRead.stdout_summary)).toEqual({ 0: false });
+    expect(nestedManagerRead.status, nestedManagerRead.stderr_summary).toBe('passed');
+    expect(JSON.parse(nestedManagerRead.stdout_summary)).toEqual({ 0: false });
   }, 25_000);
 
   it('allows only workspace and private-temp writes', async () => {

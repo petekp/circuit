@@ -16954,7 +16954,7 @@ function createMcpCodexRelayer(policy, dependencies = {
 // src/hosts/codex-mcp/worker-runtime.ts
 import { readFileSync as readFileSync2 } from "node:fs";
 import { mkdir as mkdir4, realpath as realpath7, stat as stat4 } from "node:fs/promises";
-import { isAbsolute as isAbsolute11, join as join8, relative as relative8, resolve as resolve8 } from "node:path";
+import { dirname as dirname5, isAbsolute as isAbsolute11, join as join8, relative as relative8, resolve as resolve8 } from "node:path";
 
 // src/schemas/host.ts
 var HostKind = external_exports.enum(["generic-shell", "claude-code", "codex"]);
@@ -17797,6 +17797,16 @@ var MACOS_RUNTIME_READ_FILES = [
   "/dev/urandom",
   "/dev/zero"
 ];
+var SAFE_GIT_ENVIRONMENT = {
+  GIT_CONFIG_NOSYSTEM: "1",
+  GIT_CONFIG_GLOBAL: "/dev/null",
+  GIT_OPTIONAL_LOCKS: "0",
+  GIT_PAGER: "cat",
+  PAGER: "cat",
+  GIT_TERMINAL_PROMPT: "0",
+  GIT_ATTR_NOSYSTEM: "1",
+  GIT_NO_REPLACE_OBJECTS: "1"
+};
 var ProofSandboxError = class extends Error {
   code;
   constructor(code, message) {
@@ -18003,6 +18013,12 @@ function npmPackageRoot(executable) {
   if (markerIndex < 0) return void 0;
   return executable.slice(0, markerIndex + marker.length - 1);
 }
+function nodeInstallationBinForNpm(executable) {
+  const marker = "/lib/node_modules/npm/";
+  const markerIndex = executable.indexOf(marker);
+  if (markerIndex < 0) return void 0;
+  return join4(executable.slice(0, markerIndex), "bin");
+}
 async function selectedExecutableRuntimeAccess(executable) {
   const readFiles = /* @__PURE__ */ new Set([executable]);
   const readRoots = new Set(selectedDeveloperToolchainRoots(executable));
@@ -18011,6 +18027,8 @@ async function selectedExecutableRuntimeAccess(executable) {
     const hostNode = await resolveExecutable(process.execPath);
     readFiles.add(hostNode);
     readRoots.add(npmRoot);
+    const nodeBin = nodeInstallationBinForNpm(executable);
+    if (nodeBin !== void 0) readRoots.add(nodeBin);
   }
   return Object.freeze({
     readFiles: Object.freeze([...readFiles]),
@@ -18314,6 +18332,7 @@ function boundedEnvironment(input) {
     LANG: "C",
     LC_ALL: "C",
     TERM: "dumb",
+    ...SAFE_GIT_ENVIRONMENT,
     ...input.command,
     ...input.gitEnvironment
   };
@@ -18381,16 +18400,7 @@ async function validateReadFiles(readFiles) {
   );
 }
 function validateGitEnvironment(environment) {
-  const expected = {
-    GIT_CONFIG_NOSYSTEM: "1",
-    GIT_CONFIG_GLOBAL: "/dev/null",
-    GIT_OPTIONAL_LOCKS: "0",
-    GIT_PAGER: "cat",
-    PAGER: "cat",
-    GIT_TERMINAL_PROMPT: "0",
-    GIT_ATTR_NOSYSTEM: "1",
-    GIT_NO_REPLACE_OBJECTS: "1"
-  };
+  const expected = SAFE_GIT_ENVIRONMENT;
   if (JSON.stringify(environment) !== JSON.stringify(expected)) {
     throw new ProofSandboxError("invalid_git_read", "Safe Git environment is incomplete.");
   }
@@ -18435,7 +18445,8 @@ function createMacosProofSandbox(options) {
     const argv = Object.freeze([executable, ...command.argv.slice(1)]);
     const executableAccess = await selectedExecutableRuntimeAccess(executable);
     const readRoots = await validateReadRoots([
-      ...input.access === "git-read-only" ? input.readRoots ?? [] : [workspace],
+      ...input.access === "git-read-only" ? input.readRoots ?? [] : [workspace, ...input.readRoots ?? []],
+      ...options.readRoots ?? [],
       ...executableAccess.readRoots
     ]);
     const readFiles = await validateReadFiles(executableAccess.readFiles);
@@ -18642,6 +18653,7 @@ function createMacosProofSandbox(options) {
     execute: async (request, executionOptions = {}) => await executeInternal({
       command: request,
       access: "workspace-write",
+      ...executionOptions.readRoots === void 0 ? {} : { readRoots: executionOptions.readRoots },
       ...executionOptions.signal === void 0 ? {} : { signal: executionOptions.signal }
     }),
     executeGitRead: async (request, executionOptions = {}) => await executeInternal({
@@ -18676,7 +18688,7 @@ var SafeGitReadError = class extends Error {
     this.code = code;
   }
 };
-var SAFE_GIT_ENVIRONMENT = Object.freeze({
+var SAFE_GIT_ENVIRONMENT2 = Object.freeze({
   GIT_CONFIG_NOSYSTEM: "1",
   GIT_CONFIG_GLOBAL: "/dev/null",
   GIT_OPTIONAL_LOCKS: "0",
@@ -18953,7 +18965,7 @@ function gitRequest(executable, repository, operation, dynamicConfig = []) {
     max_output_bytes: GIT_OUTPUT_LIMIT_BYTES,
     access: "git-read-only",
     readRoots: repository.read_roots,
-    git_environment: SAFE_GIT_ENVIRONMENT
+    git_environment: SAFE_GIT_ENVIRONMENT2
   });
 }
 function auditGitConfiguration(output) {
@@ -19079,11 +19091,23 @@ function isInside3(root, candidate) {
   const fromRoot = relative6(root, candidate);
   return fromRoot === "" || !fromRoot.startsWith("..") && !isAbsolute9(fromRoot);
 }
-function proofPathEntries(environment) {
+function developerToolchainReadRoots(executable) {
+  const resolved = resolve6(executable);
+  const xcode = /^\/Applications\/[^/]*Xcode[^/]*\.app\/Contents\/Developer(?:\/|$)/u.exec(
+    resolved
+  );
+  if (xcode !== null) return Object.freeze([xcode[0].replace(/\/$/u, "")]);
+  if (isInside3("/Library/Developer/CommandLineTools", resolved)) {
+    return Object.freeze(["/Library/Developer/CommandLineTools"]);
+  }
+  return Object.freeze([]);
+}
+function proofPathEntries(environment, preferredExecutables = []) {
   const configured = (environment.PATH ?? "").split(delimiter4).filter((entry) => isAbsolute9(entry) && !entry.includes("\0"));
   return Object.freeze([
     .../* @__PURE__ */ new Set([
       dirname4(process.execPath),
+      ...preferredExecutables.filter((entry) => isAbsolute9(entry) && !entry.includes("\0")).map((entry) => dirname4(resolve6(entry))),
       "/usr/bin",
       "/bin",
       "/usr/sbin",
@@ -19091,6 +19115,9 @@ function proofPathEntries(environment) {
       ...configured
     ])
   ]);
+}
+function isGitStateHelperCommand(command) {
+  return command.id.endsWith("-git-state") && command.argv.some((entry) => /^git-state\.(?:js|ts)$/u.test(basename3(entry)));
 }
 function vitePlusInstallationRoot(candidate) {
   return /^(.*\/\.vite-plus)\/[^/]+\/bin\/vp$/u.exec(candidate)?.[1];
@@ -19132,11 +19159,16 @@ async function resolveProofExecutable(argv0, pathEntries) {
 }
 function createMcpWorkerSecurity(input, dependencies = {}) {
   const workspace = resolve6(input.workspace);
-  const pathEntries = proofPathEntries(input.environment);
+  const gitExecutable = resolve6(input.gitExecutable);
+  const pathEntries = proofPathEntries(input.environment, [gitExecutable]);
+  const readRoots = [
+    .../* @__PURE__ */ new Set([...input.runtimeReadRoots ?? [], ...developerToolchainReadRoots(gitExecutable)])
+  ];
   const sandbox = (dependencies.createSandbox ?? createMacosProofSandbox)({
     workspace,
     privateRoot: input.privateRoot,
     pathEntries,
+    ...readRoots.length === 0 ? {} : { readRoots },
     // The supervisor launches each worker as the leader of its own process
     // group. Proof and Git children stay in that durable cleanup boundary.
     ownerProcessGroupId: process.pid
@@ -19146,6 +19178,13 @@ function createMcpWorkerSecurity(input, dependencies = {}) {
     gitExecutable: input.gitExecutable,
     sandbox
   });
+  let gitMetadataReadRoots;
+  const resolveGitMetadataReadRoots = async () => {
+    gitMetadataReadRoots ??= resolveSafeGitRepository(workspace).then(
+      (repository) => repository.read_roots
+    );
+    return await gitMetadataReadRoots;
+  };
   const proofCommandRunner = async (command, projectRoot) => {
     const canonicalProjectRoot = resolve6(projectRoot);
     if (!isInside3(workspace, canonicalProjectRoot)) {
@@ -19157,14 +19196,16 @@ function createMcpWorkerSecurity(input, dependencies = {}) {
     preflightProofPlanCommand(command, cwd);
     const executable = await resolveProofExecutable(command.argv[0] ?? "", pathEntries);
     const sandboxCwd = relative6(workspace, cwd) || ".";
-    const result = await sandbox.execute({
+    const request = {
       id: command.id,
       cwd: sandboxCwd,
       argv: [executable, ...command.argv.slice(1)],
       env: command.env,
       timeout_ms: command.timeout_ms,
       max_output_bytes: command.max_output_bytes
-    });
+    };
+    const gitStateReadRoots = isGitStateHelperCommand(command) ? await resolveGitMetadataReadRoots() : void 0;
+    const result = gitStateReadRoots === void 0 ? await sandbox.execute(request) : await sandbox.execute(request, { readRoots: gitStateReadRoots });
     if (!result.cleanup.confirmed || result.status === "cleanup_unconfirmed") {
       throw new ProofPlanBlockedError(
         `Proof plan blocked: cleanup could not be confirmed for command '${command.id}'.`
@@ -19518,6 +19559,15 @@ function requireBoundAsset(launch, role, path) {
   }
   return asset;
 }
+function packagedRuntimeReadRoots(launch) {
+  const roots = /* @__PURE__ */ new Set();
+  for (const asset of launch.runtime_assets.assets) {
+    if (asset.id === "plugin_runtime:git_state" && asset.role === "plugin_runtime") {
+      roots.add(dirname5(asset.real_path));
+    }
+  }
+  return Object.freeze([...roots]);
+}
 async function verifyMcpWorkerLaunch(launch) {
   if (launch.asset_digest_sha256 !== launch.runtime_assets.digest_sha256) {
     throw new Error("The sealed runtime asset digest changed before the worker started.");
@@ -19582,6 +19632,7 @@ async function runMcpWorkerLaunch(launch, dependencies) {
       workspace: launch.workspace.canonical_path,
       privateRoot: launch.private_temp_root,
       gitExecutable: launch.git.executable,
+      runtimeReadRoots: packagedRuntimeReadRoots(launch),
       environment: dependencies.environment
     });
     const context = (dependencies.createRuntimeContext ?? createMcpRuntimeContext)({

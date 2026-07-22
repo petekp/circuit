@@ -291,6 +291,9 @@ describe('Codex MCP proof sandbox', () => {
       expect(body).toMatchObject({ cwd: realpathSync(workspace), marker: '1' });
       expect(body.secret).toBeUndefined();
       expect(body.proxy).toBeUndefined();
+      expect(body.gitConfigNoSystem).toBe('1');
+      expect(body.gitConfigGlobal).toBe('/dev/null');
+      expect(body.gitTerminalPrompt).toBe('0');
       expect(String(body.home).startsWith(realpathSync(workspace))).toBe(false);
       expect(String(body.temp)).toContain('circuit-proof-');
       expect(String(body.cache)).toContain('circuit-proof-');

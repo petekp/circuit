@@ -10,7 +10,11 @@ import {
 import type { RuntimeGitReader } from '../../shared/runtime-git-reader.js';
 import { createMacosProofSandbox } from './proof-sandbox.js';
 import type { MacosProofSandbox } from './proof-sandbox.js';
-import { type SafeGitReader, createSafeGitReader } from './safe-git-reader.js';
+import {
+  type SafeGitReader,
+  createSafeGitReader,
+  resolveSafeGitRepository,
+} from './safe-git-reader.js';
 
 export interface McpWorkerSecurity {
   readonly proofCommandRunner: NonNullable<RuntimeExecutionCapabilities['proofCommandRunner']>;
@@ -21,6 +25,7 @@ export interface CreateMcpWorkerSecurityInput {
   readonly workspace: string;
   readonly privateRoot: string;
   readonly gitExecutable: string;
+  readonly runtimeReadRoots?: readonly string[];
   readonly environment: NodeJS.ProcessEnv;
 }
 
@@ -38,13 +43,31 @@ function isInside(root: string, candidate: string): boolean {
   return fromRoot === '' || (!fromRoot.startsWith('..') && !isAbsolute(fromRoot));
 }
 
-function proofPathEntries(environment: NodeJS.ProcessEnv): readonly string[] {
+function developerToolchainReadRoots(executable: string): readonly string[] {
+  const resolved = resolve(executable);
+  const xcode = /^\/Applications\/[^/]*Xcode[^/]*\.app\/Contents\/Developer(?:\/|$)/u.exec(
+    resolved,
+  );
+  if (xcode !== null) return Object.freeze([xcode[0].replace(/\/$/u, '')]);
+  if (isInside('/Library/Developer/CommandLineTools', resolved)) {
+    return Object.freeze(['/Library/Developer/CommandLineTools']);
+  }
+  return Object.freeze([]);
+}
+
+function proofPathEntries(
+  environment: NodeJS.ProcessEnv,
+  preferredExecutables: readonly string[] = [],
+): readonly string[] {
   const configured = (environment.PATH ?? '')
     .split(delimiter)
     .filter((entry) => isAbsolute(entry) && !entry.includes('\0'));
   return Object.freeze([
     ...new Set([
       dirname(process.execPath),
+      ...preferredExecutables
+        .filter((entry) => isAbsolute(entry) && !entry.includes('\0'))
+        .map((entry) => dirname(resolve(entry))),
       '/usr/bin',
       '/bin',
       '/usr/sbin',
@@ -52,6 +75,16 @@ function proofPathEntries(environment: NodeJS.ProcessEnv): readonly string[] {
       ...configured,
     ]),
   ]);
+}
+
+function isGitStateHelperCommand(command: {
+  readonly id: string;
+  readonly argv: readonly string[];
+}): boolean {
+  return (
+    command.id.endsWith('-git-state') &&
+    command.argv.some((entry) => /^git-state\.(?:js|ts)$/u.test(basename(entry)))
+  );
 }
 
 function vitePlusInstallationRoot(candidate: string): string | undefined {
@@ -115,11 +148,16 @@ export function createMcpWorkerSecurity(
   dependencies: CreateMcpWorkerSecurityDependencies = {},
 ): McpWorkerSecurity {
   const workspace = resolve(input.workspace);
-  const pathEntries = proofPathEntries(input.environment);
+  const gitExecutable = resolve(input.gitExecutable);
+  const pathEntries = proofPathEntries(input.environment, [gitExecutable]);
+  const readRoots = [
+    ...new Set([...(input.runtimeReadRoots ?? []), ...developerToolchainReadRoots(gitExecutable)]),
+  ];
   const sandbox = (dependencies.createSandbox ?? createMacosProofSandbox)({
     workspace,
     privateRoot: input.privateRoot,
     pathEntries,
+    ...(readRoots.length === 0 ? {} : { readRoots }),
     // The supervisor launches each worker as the leader of its own process
     // group. Proof and Git children stay in that durable cleanup boundary.
     ownerProcessGroupId: process.pid,
@@ -129,6 +167,13 @@ export function createMcpWorkerSecurity(
     gitExecutable: input.gitExecutable,
     sandbox,
   });
+  let gitMetadataReadRoots: Promise<readonly string[]> | undefined;
+  const resolveGitMetadataReadRoots = async (): Promise<readonly string[]> => {
+    gitMetadataReadRoots ??= resolveSafeGitRepository(workspace).then(
+      (repository) => repository.read_roots,
+    );
+    return await gitMetadataReadRoots;
+  };
 
   const proofCommandRunner: McpWorkerSecurity['proofCommandRunner'] = async (
     command,
@@ -144,14 +189,21 @@ export function createMcpWorkerSecurity(
     preflightProofPlanCommand(command, cwd);
     const executable = await resolveProofExecutable(command.argv[0] ?? '', pathEntries);
     const sandboxCwd = relative(workspace, cwd) || '.';
-    const result = await sandbox.execute({
+    const request = {
       id: command.id,
       cwd: sandboxCwd,
       argv: [executable, ...command.argv.slice(1)],
       env: command.env,
       timeout_ms: command.timeout_ms,
       max_output_bytes: command.max_output_bytes,
-    });
+    };
+    const gitStateReadRoots = isGitStateHelperCommand(command)
+      ? await resolveGitMetadataReadRoots()
+      : undefined;
+    const result =
+      gitStateReadRoots === undefined
+        ? await sandbox.execute(request)
+        : await sandbox.execute(request, { readRoots: gitStateReadRoots });
     if (!result.cleanup.confirmed || result.status === 'cleanup_unconfirmed') {
       throw new ProofPlanBlockedError(
         `Proof plan blocked: cleanup could not be confirmed for command '${command.id}'.`,

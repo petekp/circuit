@@ -77686,21 +77686,47 @@ function explicitRegressionCommand(goal) {
     env: {}
   });
 }
-function commandFromArgv(id, argv) {
+function commandFromArgv(id, argv, cwd2 = ".") {
   return FixVerificationCommand.parse({
     id,
-    cwd: ".",
+    cwd: cwd2,
     argv,
     timeout_ms: 6e5,
     max_output_bytes: 2e5,
     env: {}
   });
 }
+function trimInlineCwd(value) {
+  const cwd2 = value.trim().replace(/[.:;,]+$/u, "").trim();
+  if (cwd2.length === 0 || cwd2.includes("\0"))
+    return void 0;
+  if (/\s/.test(cwd2))
+    return void 0;
+  if (cwd2.startsWith("/") || cwd2.split("/").some((segment) => segment === ".."))
+    return void 0;
+  return cwd2;
+}
+function explicitInlineVerifyWithCommand(goal, id) {
+  const match = /\bverify with\s+`([^`]+)`\s+from\s+`?([^`\s]+)`?/iu.exec(goal);
+  const rawCommand = match?.[1];
+  const rawCwd = match?.[2];
+  if (rawCommand === void 0 || rawCwd === void 0)
+    return void 0;
+  const argv = parseSimpleArgv(rawCommand);
+  const cwd2 = trimInlineCwd(rawCwd);
+  if (argv === void 0 || cwd2 === void 0)
+    return void 0;
+  return commandFromArgv(id, argv, cwd2);
+}
+function explicitInlineVerifyWithCommands(goal) {
+  const command = explicitInlineVerifyWithCommand(goal, "fix-objective-1");
+  return command === void 0 ? [] : [command];
+}
 function explicitObjectiveCheckCommands(goal) {
   const match = /\bObjective check commands:\s*\n([\s\S]*?)(?:\n\n|\nAllowed changed files:|$)/i.exec(goal);
   const rawSection = match?.[1];
   if (rawSection === void 0)
-    return [];
+    return explicitInlineVerifyWithCommands(goal);
   const commands = [];
   const seen = /* @__PURE__ */ new Set();
   for (const line of rawSection.split("\n")) {
@@ -77719,7 +77745,7 @@ function explicitObjectiveCheckCommands(goal) {
   return commands;
 }
 function regressionContractForGoal(goal) {
-  const command = explicitRegressionCommand(goal);
+  const command = explicitRegressionCommand(goal) ?? explicitInlineVerifyWithCommand(goal, "fix-regression");
   if (command === void 0) {
     return {
       expected_behavior: `After fix: ${goal}`,

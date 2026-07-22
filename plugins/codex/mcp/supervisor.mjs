@@ -18889,7 +18889,8 @@ function psValue2(pid, field) {
     throw new Error(`could not inspect process ${pid}`);
   }
   const value = result.stdout.trim();
-  if (value.length === 0 || value.length > 256) {
+  const maximum = field === "command" ? 8192 : 256;
+  if (value.length === 0 || value.length > maximum) {
     throw new Error(`process ${pid} returned invalid ${field} evidence`);
   }
   return value;

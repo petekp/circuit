@@ -66,6 +66,7 @@ function startLaunch(overrides: Record<string, unknown> = {}) {
         asset('node', 'node', '/opt/node/bin/node'),
         asset('codex', 'codex', '/opt/codex/bin/codex'),
         asset('plugin_runtime:worker', 'plugin_runtime', '/plugin/mcp/worker.mjs'),
+        asset('plugin_runtime:git_state', 'plugin_runtime', '/plugin/runtime/git-state.js'),
         asset('git_helper', 'git_helper', '/usr/bin/git'),
         asset('flow:prototype', 'packaged_flow', '/plugin/flows/prototype/circuit.json'),
       ],
@@ -261,10 +262,14 @@ describe('MCP dedicated worker runtime', () => {
       connectorName: 'codex',
       relay: vi.fn(),
     }));
+    const proofCommandRunner = vi.fn();
+    const gitReader = { read: vi.fn() };
+    const createSecurity = vi.fn(() => ({ proofCommandRunner, gitReader }));
     await expect(
       runMcpWorkerLaunch(parseMcpWorkerLaunch(startLaunch()), {
         main,
         createRelayer,
+        createSecurity,
         createRuntimeContext: createRuntimeContextSpy,
         verifyLaunch: async () => {},
         prepareDirectories: async () => ({
@@ -308,6 +313,12 @@ describe('MCP dedicated worker runtime', () => {
           CIRCUIT_MCP_ACTIVATE: '1',
           PATH: '/bin',
         },
+      }),
+    );
+    expect(createSecurity).toHaveBeenCalledWith(
+      expect.objectContaining({
+        gitExecutable: '/usr/bin/git',
+        runtimeReadRoots: ['/plugin/runtime'],
       }),
     );
     expect(createRuntimeContextSpy).toHaveBeenCalledWith(

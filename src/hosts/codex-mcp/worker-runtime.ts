@@ -1,6 +1,6 @@
 import { readFileSync } from 'node:fs';
 import { mkdir, realpath, stat } from 'node:fs/promises';
-import { isAbsolute, join, relative, resolve } from 'node:path';
+import { dirname, isAbsolute, join, relative, resolve } from 'node:path';
 import { z } from 'zod';
 
 import type { CliMainOptions } from '../../cli/circuit.js';
@@ -230,6 +230,16 @@ function requireBoundAsset(
   return asset;
 }
 
+function packagedRuntimeReadRoots(launch: McpWorkerLaunch): readonly string[] {
+  const roots = new Set<string>();
+  for (const asset of launch.runtime_assets.assets) {
+    if (asset.id === 'plugin_runtime:git_state' && asset.role === 'plugin_runtime') {
+      roots.add(dirname(asset.real_path));
+    }
+  }
+  return Object.freeze([...roots]);
+}
+
 export async function verifyMcpWorkerLaunch(launch: McpWorkerLaunch): Promise<void> {
   if (launch.asset_digest_sha256 !== launch.runtime_assets.digest_sha256) {
     throw new Error('The sealed runtime asset digest changed before the worker started.');
@@ -311,6 +321,7 @@ export async function runMcpWorkerLaunch(
       workspace: launch.workspace.canonical_path,
       privateRoot: launch.private_temp_root,
       gitExecutable: launch.git.executable,
+      runtimeReadRoots: packagedRuntimeReadRoots(launch),
       environment: dependencies.environment,
     });
     const context = (dependencies.createRuntimeContext ?? createMcpRuntimeContext)({

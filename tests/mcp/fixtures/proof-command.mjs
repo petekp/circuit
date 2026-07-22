@@ -15,6 +15,9 @@ if (mode === 'environment') {
       secret: process.env.OPENAI_API_KEY,
       proxy: process.env.HTTPS_PROXY,
       marker: process.env.CI,
+      gitConfigNoSystem: process.env.GIT_CONFIG_NOSYSTEM,
+      gitConfigGlobal: process.env.GIT_CONFIG_GLOBAL,
+      gitTerminalPrompt: process.env.GIT_TERMINAL_PROMPT,
     }),
   );
 } else if (mode === 'writes') {

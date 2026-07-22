@@ -37,6 +37,16 @@ const MACOS_RUNTIME_READ_FILES = [
   '/dev/urandom',
   '/dev/zero',
 ] as const;
+const SAFE_GIT_ENVIRONMENT: Readonly<Record<string, string>> = {
+  GIT_CONFIG_NOSYSTEM: '1',
+  GIT_CONFIG_GLOBAL: '/dev/null',
+  GIT_OPTIONAL_LOCKS: '0',
+  GIT_PAGER: 'cat',
+  PAGER: 'cat',
+  GIT_TERMINAL_PROMPT: '0',
+  GIT_ATTR_NOSYSTEM: '1',
+  GIT_NO_REPLACE_OBJECTS: '1',
+};
 
 export type ProofSandboxStatus =
   | 'passed'
@@ -100,6 +110,7 @@ interface MacosProofSandboxOptions {
   readonly workspace: string;
   readonly privateRoot: string;
   readonly pathEntries: readonly string[];
+  readonly readRoots?: readonly string[];
   /** The private worker group that owns every production proof process. */
   readonly ownerProcessGroupId?: number;
   readonly platform?: NodeJS.Platform;
@@ -127,7 +138,7 @@ export interface MacosProofSandbox {
   readonly run: (request: unknown) => Promise<ProofSandboxResult>;
   readonly execute: (
     request: ProofSandboxCommand,
-    options?: { readonly signal?: AbortSignal },
+    options?: { readonly signal?: AbortSignal; readonly readRoots?: readonly string[] },
   ) => Promise<ProofSandboxResult>;
   readonly executeGitRead: (
     request: GitReadSandboxRequest,
@@ -363,6 +374,13 @@ function npmPackageRoot(executable: string): string | undefined {
   return executable.slice(0, markerIndex + marker.length - 1);
 }
 
+function nodeInstallationBinForNpm(executable: string): string | undefined {
+  const marker = '/lib/node_modules/npm/';
+  const markerIndex = executable.indexOf(marker);
+  if (markerIndex < 0) return undefined;
+  return join(executable.slice(0, markerIndex), 'bin');
+}
+
 async function selectedExecutableRuntimeAccess(executable: string): Promise<ProofRuntimeAccess> {
   const readFiles = new Set([executable]);
   const readRoots = new Set(selectedDeveloperToolchainRoots(executable));
@@ -371,6 +389,8 @@ async function selectedExecutableRuntimeAccess(executable: string): Promise<Proo
     const hostNode = await resolveExecutable(process.execPath);
     readFiles.add(hostNode);
     readRoots.add(npmRoot);
+    const nodeBin = nodeInstallationBinForNpm(executable);
+    if (nodeBin !== undefined) readRoots.add(nodeBin);
   }
   return Object.freeze({
     readFiles: Object.freeze([...readFiles]),
@@ -771,6 +791,7 @@ function boundedEnvironment(input: {
     LANG: 'C',
     LC_ALL: 'C',
     TERM: 'dumb',
+    ...SAFE_GIT_ENVIRONMENT,
     ...input.command,
     ...input.gitEnvironment,
   };
@@ -849,16 +870,7 @@ async function validateReadFiles(readFiles: readonly string[]): Promise<readonly
 function validateGitEnvironment(
   environment: Readonly<Record<string, string>>,
 ): Readonly<Record<string, string>> {
-  const expected: Readonly<Record<string, string>> = {
-    GIT_CONFIG_NOSYSTEM: '1',
-    GIT_CONFIG_GLOBAL: '/dev/null',
-    GIT_OPTIONAL_LOCKS: '0',
-    GIT_PAGER: 'cat',
-    PAGER: 'cat',
-    GIT_TERMINAL_PROMPT: '0',
-    GIT_ATTR_NOSYSTEM: '1',
-    GIT_NO_REPLACE_OBJECTS: '1',
-  };
+  const expected = SAFE_GIT_ENVIRONMENT;
   if (JSON.stringify(environment) !== JSON.stringify(expected)) {
     throw new ProofSandboxError('invalid_git_read', 'Safe Git environment is incomplete.');
   }
@@ -912,7 +924,10 @@ export function createMacosProofSandbox(options: MacosProofSandboxOptions): Maco
     const argv = Object.freeze([executable, ...command.argv.slice(1)]);
     const executableAccess = await selectedExecutableRuntimeAccess(executable);
     const readRoots = await validateReadRoots([
-      ...(input.access === 'git-read-only' ? (input.readRoots ?? []) : [workspace]),
+      ...(input.access === 'git-read-only'
+        ? (input.readRoots ?? [])
+        : [workspace, ...(input.readRoots ?? [])]),
+      ...(options.readRoots ?? []),
       ...executableAccess.readRoots,
     ]);
     const readFiles = await validateReadFiles(executableAccess.readFiles);
@@ -1143,11 +1158,17 @@ export function createMacosProofSandbox(options: MacosProofSandboxOptions): Maco
       await executeInternal({ command: parseProofCommand(request), access: 'workspace-write' }),
     execute: async (
       request: ProofSandboxCommand,
-      executionOptions: { readonly signal?: AbortSignal } = {},
+      executionOptions: {
+        readonly signal?: AbortSignal;
+        readonly readRoots?: readonly string[];
+      } = {},
     ) =>
       await executeInternal({
         command: request,
         access: 'workspace-write',
+        ...(executionOptions.readRoots === undefined
+          ? {}
+          : { readRoots: executionOptions.readRoots }),
         ...(executionOptions.signal === undefined ? {} : { signal: executionOptions.signal }),
       }),
     executeGitRead: async (

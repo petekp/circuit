@@ -42,11 +42,14 @@ function buildBrief(
 ): {
   regression_contract: {
     regression_test:
-      | { status: 'failing-before-fix'; command: { argv: readonly string[] } }
+      | { status: 'failing-before-fix'; command: { cwd: string; argv: readonly string[] } }
       | { status: 'deferred' };
-    repro: { kind: string; command?: { argv: readonly string[] } };
+    repro: { kind: string; command?: { cwd: string; argv: readonly string[] } };
   };
-  verification_command_candidates: ReadonlyArray<{ argv: readonly string[] }>;
+  verification_command_candidates: ReadonlyArray<{
+    cwd: string;
+    argv: readonly string[];
+  }>;
 } {
   const context = {
     runFolder: '/tmp/run',
@@ -59,11 +62,14 @@ function buildBrief(
   return fixBriefComposeBuilder.build(context) as {
     regression_contract: {
       regression_test:
-        | { status: 'failing-before-fix'; command: { argv: readonly string[] } }
+        | { status: 'failing-before-fix'; command: { cwd: string; argv: readonly string[] } }
         | { status: 'deferred' };
-      repro: { kind: string; command?: { argv: readonly string[] } };
+      repro: { kind: string; command?: { cwd: string; argv: readonly string[] } };
     };
-    verification_command_candidates: ReadonlyArray<{ argv: readonly string[] }>;
+    verification_command_candidates: ReadonlyArray<{
+      cwd: string;
+      argv: readonly string[];
+    }>;
   };
 }
 
@@ -138,6 +144,51 @@ Allowed changed files:
       ['npm', 'test'],
       ['npm', 'run', 'edge'],
     ]);
+  });
+
+  it('uses an inline verify-with command and cwd as the verification plan', () => {
+    const root = tempRoot('fix-brief-inline-verify-');
+    const proofRoot = join(root, 'tmp', 'circuit-mcp-fix-proof');
+    mkdirSync(proofRoot, { recursive: true });
+    writePackageJson(root, { verify: 'echo generic', test: 'echo generic' });
+    writeFileSync(
+      join(proofRoot, 'package.json'),
+      `${JSON.stringify({ scripts: { test: 'node --test math.test.js' } }, null, 2)}\n`,
+    );
+
+    const brief = buildBrief(
+      root,
+      'Fix the seeded bug. Verify with `npm test` from tmp/circuit-mcp-fix-proof.',
+    );
+
+    expect(brief.verification_command_candidates[0]).toMatchObject({
+      cwd: 'tmp/circuit-mcp-fix-proof',
+      argv: ['npm', 'test'],
+    });
+    expect(brief.regression_contract.regression_test.status).toBe('failing-before-fix');
+    if (brief.regression_contract.regression_test.status !== 'failing-before-fix') {
+      throw new Error('expected failing-before-fix regression contract');
+    }
+    expect(brief.regression_contract.regression_test.command).toMatchObject({
+      cwd: 'tmp/circuit-mcp-fix-proof',
+      argv: ['npm', 'test'],
+    });
+    expect(brief.regression_contract.repro.command).toMatchObject({
+      cwd: 'tmp/circuit-mcp-fix-proof',
+      argv: ['npm', 'test'],
+    });
+  });
+
+  it('ignores an inline verify-with cwd that would escape the project root', () => {
+    const root = tempRoot('fix-brief-inline-verify-unsafe-cwd-');
+    writePackageJson(root, { verify: 'echo generic', test: 'echo generic' });
+
+    const brief = buildBrief(root, 'Fix the seeded bug. Verify with `npm test` from ../outside.');
+
+    expect(brief.verification_command_candidates[0]).toMatchObject({
+      cwd: '.',
+      argv: ['npm', 'run', 'verify'],
+    });
   });
 
   it('keeps quoted objective check arguments instead of dropping the command', () => {

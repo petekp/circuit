@@ -1,4 +1,4 @@
-import { mkdirSync, mkdtempSync, realpathSync, rmSync } from 'node:fs';
+import { mkdirSync, mkdtempSync, realpathSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { dirname, join } from 'node:path';
 import { afterEach, describe, expect, it, vi } from 'vitest';
@@ -52,6 +52,134 @@ describe('MCP worker security adapters', () => {
 
     expect(createSandbox).toHaveBeenCalledOnce();
     expect(createSandbox.mock.calls[0]?.[0]).not.toHaveProperty('toolchainReadRoots');
+  });
+
+  it('passes packaged runtime read roots to the proof sandbox', () => {
+    const { workspace, privateRoot } = fixture();
+    const createSandbox = vi.fn(
+      (_options: unknown) => ({ execute: vi.fn() }) as unknown as MacosProofSandbox,
+    );
+
+    createMcpWorkerSecurity(
+      {
+        workspace,
+        privateRoot,
+        gitExecutable: '/usr/bin/git',
+        runtimeReadRoots: ['/installed/circuit/runtime'],
+        environment: { PATH: '/usr/bin:/bin' },
+      },
+      {
+        createSandbox,
+        createGitReader: () => ({ read: vi.fn() }) as unknown as SafeGitReader,
+      },
+    );
+
+    expect(createSandbox).toHaveBeenCalledWith(
+      expect.objectContaining({
+        readRoots: ['/installed/circuit/runtime'],
+      }),
+    );
+  });
+
+  it('allows the internal git-state helper to read linked-worktree Git metadata', async () => {
+    const root = realpathSync(mkdtempSync(join(tmpdir(), 'circuit-linked-git-metadata-')));
+    roots.push(root);
+    const workspace = join(root, 'workspace');
+    const privateRoot = join(root, 'private');
+    const commonGitDir = join(root, 'main', '.git');
+    const worktreeGitDir = join(commonGitDir, 'worktrees', 'circuit12');
+    mkdirSync(workspace, { recursive: true });
+    mkdirSync(privateRoot, { recursive: true, mode: 0o700 });
+    mkdirSync(worktreeGitDir, { recursive: true });
+    writeFileSync(join(workspace, '.git'), `gitdir: ${worktreeGitDir}\n`);
+    writeFileSync(join(worktreeGitDir, 'commondir'), '../..');
+    writeFileSync(join(worktreeGitDir, 'gitdir'), join(workspace, '.git'));
+    const execute = vi.fn(async () => ({
+      schema_version: 1 as const,
+      status: 'passed' as const,
+      exit_code: 0,
+      signal: null,
+      stdout: '{}',
+      stderr: '',
+      truncated: false,
+      duration_ms: 4,
+      cleanup: { required: false, confirmed: true, observed_pids: [], remaining_pids: [] },
+      sandbox: {
+        provider: 'macos-seatbelt' as const,
+        network: 'denied' as const,
+        access: 'workspace-write' as const,
+        writable_roots: [workspace, privateRoot],
+        mach_services: [] as const,
+      },
+    }));
+
+    const security = createMcpWorkerSecurity(
+      {
+        workspace,
+        privateRoot,
+        gitExecutable: '/usr/bin/git',
+        runtimeReadRoots: ['/installed/circuit/runtime'],
+        environment: { PATH: `${dirname(process.execPath)}:/usr/bin:/bin` },
+      },
+      {
+        createSandbox: () => ({ execute }) as unknown as MacosProofSandbox,
+        createGitReader: () => ({ read: vi.fn() }) as unknown as SafeGitReader,
+      },
+    );
+
+    await expect(
+      security.proofCommandRunner(
+        {
+          id: 'fix-baseline-snapshot-git-state',
+          cwd: '.',
+          argv: [process.execPath, '/installed/circuit/runtime/git-state.js'],
+          env: {},
+          timeout_ms: 5_000,
+          max_output_bytes: 1_000,
+        },
+        workspace,
+      ),
+    ).resolves.toMatchObject({ status: 'passed' });
+    expect(execute).toHaveBeenCalledWith(
+      expect.any(Object),
+      expect.objectContaining({
+        readRoots: expect.arrayContaining([workspace, worktreeGitDir, commonGitDir]),
+      }),
+    );
+  });
+
+  it('prefers the pinned developer Git helper for proof commands', () => {
+    const { workspace, privateRoot } = fixture();
+    const createSandbox = vi.fn(
+      (_options: unknown) => ({ execute: vi.fn() }) as unknown as MacosProofSandbox,
+    );
+
+    createMcpWorkerSecurity(
+      {
+        workspace,
+        privateRoot,
+        gitExecutable: '/Library/Developer/CommandLineTools/usr/bin/git',
+        environment: { PATH: '/usr/bin:/bin' },
+      },
+      {
+        createSandbox,
+        createGitReader: () => ({ read: vi.fn() }) as unknown as SafeGitReader,
+      },
+    );
+
+    expect(createSandbox).toHaveBeenCalledWith(
+      expect.objectContaining({
+        pathEntries: expect.arrayContaining(['/Library/Developer/CommandLineTools/usr/bin']),
+        readRoots: ['/Library/Developer/CommandLineTools'],
+      }),
+    );
+    const options = createSandbox.mock.calls[0]?.[0] as
+      | { readonly pathEntries: readonly string[] }
+      | undefined;
+    expect(options).toBeDefined();
+    expect(
+      options?.pathEntries.indexOf('/Library/Developer/CommandLineTools/usr/bin'),
+    ).toBeLessThan(options?.pathEntries.indexOf('/usr/bin') ?? Number.POSITIVE_INFINITY);
   });
 
   it('routes proof commands through the injected sandbox and preserves bounded results', async () => {

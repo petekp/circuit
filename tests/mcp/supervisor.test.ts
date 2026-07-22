@@ -22,6 +22,7 @@ import {
 } from '../../src/hosts/codex-mcp/supervisor-protocol.js';
 import {
   BoundedLineReader,
+  MCP_PROCESS_TOKEN_ARGUMENT,
   cleanupSupervisorOwnedProcessGroup,
   sendWorkerPayload,
 } from '../../src/hosts/codex-mcp/supervisor-runtime.js';
@@ -60,8 +61,9 @@ function processGroupAbsent(processGroupId: number): boolean {
 
 async function makeFixture(
   workerMode: 'normal' | 'close-fd3' = 'normal',
-  supervisorMode: 'normal' | 'accept-auth-no-reply' = 'normal',
+  supervisorMode: 'normal' | 'accept-auth-no-reply' | 'real-observer' = 'normal',
   authorizationTimeoutMs = 8_000,
+  options: { readonly longWorkerPath?: boolean } = {},
 ): Promise<{
   readonly root: string;
   readonly control: string;
@@ -105,9 +107,29 @@ void runSupervisor({
       sourcemap: false,
     });
   } else {
-    await writeFile(
-      supervisor,
-      `import { readFileSync, writeFileSync, writeSync } from 'node:fs';
+    if (supervisorMode === 'real-observer') {
+      await build({
+        stdin: {
+          contents: `import { runSupervisor } from ${JSON.stringify(resolve('src/hosts/codex-mcp/supervisor-runtime.ts'))};
+void runSupervisor().catch((error) => {
+  process.stderr.write(\`Circuit MCP supervisor stopped: \${error instanceof Error ? error.message : String(error)}\\n\`);
+  process.exitCode = 1;
+});`,
+          resolveDir: process.cwd(),
+          sourcefile: 'test-supervisor-entrypoint.ts',
+          loader: 'ts',
+        },
+        outfile: supervisor,
+        bundle: true,
+        platform: 'node',
+        format: 'esm',
+        target: 'node22.18',
+        sourcemap: false,
+      });
+    } else {
+      await writeFile(
+        supervisor,
+        `import { readFileSync, writeFileSync, writeSync } from 'node:fs';
 const token = process.argv.find((value) => value.startsWith('--circuit-mcp-process-token='))?.split('=')[1];
 writeSync(4, JSON.stringify({
   schema_version: 1,
@@ -123,10 +145,14 @@ readFileSync(3, 'utf8');
 writeFileSync(new URL('./authorization-accepted', import.meta.url), 'yes');
 setInterval(() => {}, 1_000);
 `,
-      { mode: 0o600 },
-    );
+        { mode: 0o600 },
+      );
+    }
   }
-  const worker = join(root, 'worker.mjs');
+  const workerDirectory =
+    options.longWorkerPath === true ? join(root, `worker-command-path-${'x'.repeat(100)}`) : root;
+  await mkdir(workerDirectory, { recursive: true });
+  const worker = join(workerDirectory, 'worker.mjs');
   await writeFile(
     worker,
     `import { closeSync, readFileSync, writeFileSync } from 'node:fs';
@@ -646,6 +672,41 @@ describe('Codex MCP supervisor protocol', () => {
     );
     expect(readFileSync(runtimePath, 'utf8')).not.toContain('test-api-key');
     expect(readFileSync(exitPath, 'utf8')).not.toContain('test-api-key');
+  });
+
+  it('records a worker when the process command line is longer than 256 bytes', async () => {
+    const fixture = await makeFixture('normal', 'real-observer', 8_000, {
+      longWorkerPath: true,
+    });
+    const session = await fixture.launcher.begin({
+      run_id: RUN_ID,
+      generation: 1,
+      control_directory: fixture.control,
+      runtime_assets: fixture.pins,
+    });
+    const expectedCommand = `${process.execPath} ${fixture.worker} ${MCP_PROCESS_TOKEN_ARGUMENT}${session.authorization_sha256}`;
+    expect(Buffer.byteLength(expectedCommand, 'utf8')).toBeGreaterThan(256);
+
+    const runtime = await session.authorize({
+      worker: {
+        worker_entrypoint: fixture.worker,
+        launch_payload: {
+          authorization: session.authorization_token,
+          asset_digest_sha256: fixture.digest,
+          runtime_assets: fixture.pins,
+          exit_code: 0,
+        },
+      },
+    });
+
+    expect(runtime.pid).toBe(runtime.process_group_id);
+    expect(runtime.birth_token).toBe(session.authorization_sha256);
+    const exitJournal = await waitFor(() =>
+      readJournal(join(fixture.control, 'launch-1-exit.json'), (value) =>
+        ExitJournalV1.parse(value),
+      ),
+    );
+    expect(exitJournal).toMatchObject({ exit_code: 0, process_group_cleanup: 'confirmed' });
   });
 
   it('revalidates sealed assets in the supervisor before worker spawn', async () => {
