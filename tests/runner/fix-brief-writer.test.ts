@@ -179,6 +179,33 @@ Allowed changed files:
     });
   });
 
+  it('treats an inline verify-with command from the workspace root as project-root verification', () => {
+    const root = tempRoot('fix-brief-inline-verify-workspace-root-');
+    writePackageJson(root, { verify: 'echo generic', test: 'echo generic' });
+
+    const brief = buildBrief(
+      root,
+      'Fix the seeded bug. Verify with `npm test` from the workspace root.',
+    );
+
+    expect(brief.verification_command_candidates[0]).toMatchObject({
+      cwd: '.',
+      argv: ['npm', 'test'],
+    });
+    expect(brief.regression_contract.regression_test.status).toBe('failing-before-fix');
+    if (brief.regression_contract.regression_test.status !== 'failing-before-fix') {
+      throw new Error('expected failing-before-fix regression contract');
+    }
+    expect(brief.regression_contract.regression_test.command).toMatchObject({
+      cwd: '.',
+      argv: ['npm', 'test'],
+    });
+    expect(brief.regression_contract.repro.command).toMatchObject({
+      cwd: '.',
+      argv: ['npm', 'test'],
+    });
+  });
+
   it('ignores an inline verify-with cwd that would escape the project root', () => {
     const root = tempRoot('fix-brief-inline-verify-unsafe-cwd-');
     writePackageJson(root, { verify: 'echo generic', test: 'echo generic' });

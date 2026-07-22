@@ -95,10 +95,12 @@ function commandFromArgv(id: string, argv: readonly string[], cwd = '.'): FixVer
 }
 
 function trimInlineCwd(value: string): string | undefined {
-  const cwd = value
+  const unquoted = /^`([^`]+)`$/u.exec(value.trim())?.[1] ?? value;
+  const cwd = unquoted
     .trim()
     .replace(/[.:;,]+$/u, '')
     .trim();
+  if (/^(?:the\s+)?(?:workspace|project|repo|repository)\s+root$/iu.test(cwd)) return '.';
   if (cwd.length === 0 || cwd.includes('\0')) return undefined;
   if (/\s/.test(cwd)) return undefined;
   if (cwd.startsWith('/') || cwd.split('/').some((segment) => segment === '..')) return undefined;
@@ -109,9 +111,12 @@ function explicitInlineVerifyWithCommand(
   goal: string,
   id: string,
 ): FixVerificationCommand | undefined {
-  const match = /\bverify with\s+`([^`]+)`\s+from\s+`?([^`\s]+)`?/iu.exec(goal);
+  const match =
+    /\bverify with\s+`([^`]+)`\s+from\s+(?:(`[^`]+`)|((?:the\s+)?(?:workspace|project|repo|repository)\s+root)|([^\s`]+))/iu.exec(
+      goal,
+    );
   const rawCommand = match?.[1];
-  const rawCwd = match?.[2];
+  const rawCwd = match?.[2] ?? match?.[3] ?? match?.[4];
   if (rawCommand === undefined || rawCwd === undefined) return undefined;
   const argv = parseSimpleArgv(rawCommand);
   const cwd = trimInlineCwd(rawCwd);

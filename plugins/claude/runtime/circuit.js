@@ -77697,7 +77697,10 @@ function commandFromArgv(id, argv, cwd2 = ".") {
   });
 }
 function trimInlineCwd(value) {
-  const cwd2 = value.trim().replace(/[.:;,]+$/u, "").trim();
+  const unquoted = /^`([^`]+)`$/u.exec(value.trim())?.[1] ?? value;
+  const cwd2 = unquoted.trim().replace(/[.:;,]+$/u, "").trim();
+  if (/^(?:the\s+)?(?:workspace|project|repo|repository)\s+root$/iu.test(cwd2))
+    return ".";
   if (cwd2.length === 0 || cwd2.includes("\0"))
     return void 0;
   if (/\s/.test(cwd2))
@@ -77707,9 +77710,9 @@ function trimInlineCwd(value) {
   return cwd2;
 }
 function explicitInlineVerifyWithCommand(goal, id) {
-  const match = /\bverify with\s+`([^`]+)`\s+from\s+`?([^`\s]+)`?/iu.exec(goal);
+  const match = /\bverify with\s+`([^`]+)`\s+from\s+(?:(`[^`]+`)|((?:the\s+)?(?:workspace|project|repo|repository)\s+root)|([^\s`]+))/iu.exec(goal);
   const rawCommand = match?.[1];
-  const rawCwd = match?.[2];
+  const rawCwd = match?.[2] ?? match?.[3] ?? match?.[4];
   if (rawCommand === void 0 || rawCwd === void 0)
     return void 0;
   const argv = parseSimpleArgv(rawCommand);
