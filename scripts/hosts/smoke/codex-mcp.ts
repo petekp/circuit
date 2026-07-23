@@ -32,6 +32,7 @@ const REPO_ROOT = resolve(HERE, '..', '..', '..');
 const PLUGIN_ROOT = resolve(REPO_ROOT, 'plugins/codex');
 const PRIVATE_TEST_ROOT = resolve(REPO_ROOT, '.mcp-host-tests');
 const TIMEOUT_MS = 60_000;
+const HOST_NATURAL_CLEANUP_TIMEOUT_MS = 5_000;
 const MAX_OUTPUT_BYTES = 1024 * 1024;
 const MARKETPLACE = 'circuit-fresh-host-probe';
 const PUBLIC_MARKETPLACE = 'circuit';
@@ -210,6 +211,7 @@ export interface SmokeCommandTiming {
   readonly timeout_ms?: number;
   readonly force_kill_delay_ms?: number;
   readonly settlement_timeout_ms?: number;
+  readonly natural_cleanup_timeout_ms?: number;
 }
 
 function processGroupAbsent(pid: number): boolean {
@@ -221,10 +223,12 @@ function processGroupAbsent(pid: number): boolean {
   }
 }
 
-async function waitForProcessGroupAbsence(pid: number, attempts = 40): Promise<boolean> {
-  for (let attempt = 0; attempt < attempts; attempt += 1) {
+async function waitForProcessGroupAbsence(pid: number, timeoutMs = 1_000): Promise<boolean> {
+  const deadline = Date.now() + Math.max(0, timeoutMs);
+  while (Date.now() < deadline) {
     if (processGroupAbsent(pid)) return true;
-    await new Promise<void>((resolveWait) => setTimeout(resolveWait, 25));
+    const remaining = deadline - Date.now();
+    await new Promise<void>((resolveWait) => setTimeout(resolveWait, Math.min(25, remaining)));
   }
   return processGroupAbsent(pid);
 }
@@ -648,7 +652,10 @@ export async function runDetachedSmokeCommand(
         return;
       }
 
-      const cleanupConfirmed = pid === undefined ? true : await waitForProcessGroupAbsence(pid);
+      const cleanupConfirmed =
+        pid === undefined
+          ? true
+          : await waitForProcessGroupAbsence(pid, timing.natural_cleanup_timeout_ms);
       const cleanupAfterInterventionConfirmed = cleanupConfirmed
         ? true
         : await terminateProcessGroup(pid as number);
@@ -1435,6 +1442,7 @@ export async function runLiveProbe(
             NO_PROXY: '127.0.0.1,localhost',
             no_proxy: '127.0.0.1,localhost',
           },
+          { natural_cleanup_timeout_ms: HOST_NATURAL_CLEANUP_TIMEOUT_MS },
         );
         return { run, probe };
       } finally {
@@ -1479,6 +1487,7 @@ export async function runLiveProbe(
             NO_PROXY: '127.0.0.1,localhost',
             no_proxy: '127.0.0.1,localhost',
           },
+          { natural_cleanup_timeout_ms: HOST_NATURAL_CLEANUP_TIMEOUT_MS },
         );
         return { run, probe };
       } finally {

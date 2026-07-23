@@ -424,6 +424,23 @@ describe('Codex MCP host smoke automation', () => {
     expect(result.cleanup_after_intervention_confirmed).toBe(true);
   });
 
+  it('allows a bounded grace period for product children to exit naturally', async () => {
+    const result = await runDetachedSmokeCommand(
+      process.execPath,
+      [
+        '-e',
+        "const {spawn}=require('node:child_process');const child=spawn(process.execPath,['-e','setTimeout(()=>{},1200)'],{stdio:'ignore'});child.unref();",
+      ],
+      process.env,
+      { natural_cleanup_timeout_ms: 2_500 },
+    );
+
+    expect(result.status).toBe(0);
+    expect(result.cleanup_confirmed).toBe(true);
+    expect(result.cleanup_intervention_required).toBe(false);
+    expect(result.cleanup_after_intervention_confirmed).toBe(true);
+  });
+
   it('does not hang when a timed-out command leaves an escaped process holding its pipes', async () => {
     const root = mkdtempSync(join(tmpdir(), 'circuit-smoke-pipe-leak-'));
     const escapedPidPath = join(root, 'escaped.pid');
