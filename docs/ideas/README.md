@@ -139,6 +139,7 @@ every later extension in the note shipped.
 | [`output-model.md`](output-model.md) | `current-proposal` | 4 | Retained for the bounded final-digest content model and useful display-budget research. `run-milestone-stream.md` now owns during-Run legibility and control; the CLI rebuild supersedes the older transport, routing-checkpoint, direct-terminal, and progress-stream mechanics. |
 | [`portable-run-captures.md`](portable-run-captures.md) | `current-idea` | 4 | Idea for exporting successful Runs as reusable team or personal process patterns. Future behavior. |
 | [`run-milestone-stream.md`](run-milestone-stream.md) | `current-proposal` | 4 | Canonical end-to-end Run UX proposal for CLI, Claude Code, and Codex. It separates the shipped v1 milestone-delivery bridge from the post-v1 control plane; defines durable milestones, transient health, honest progress, attention, legal actions, progressive disclosure, quiet cadence, control semantics, parity fixtures, transcripts, risks, and acceptance tests; and recommends a public durable Run handle while keeping worker handles private to Circuit. The CLI rebuild owns supervisor, cursor, lease, and cancellation mechanics. No runtime implementation is authorized before v1. |
+| [`run-now.md`](run-now.md) | `current-proposal` | 4 | Post-v1 proposal for a read-only `circuit now` command that answers what is blocking progress, whose move it is, why, and the exact next command from existing Run and Trace evidence. It adds no durable state and authorizes no runtime work before v1. |
 
 ### Hosts, Connectors, And HITL
 

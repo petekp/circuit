@@ -393,6 +393,21 @@
       "last_checked": "2026-07-17"
     },
     {
+      "path": "docs/ideas/run-now.md",
+      "title": "circuit now: the present-tense Run surface",
+      "status": "current-proposal",
+      "category": "run-inspection-and-output",
+      "impact": 4,
+      "tags": ["cli-ux", "run-status", "operator-ux", "run-inspection", "liveness"],
+      "current_reading": "Post-v1 proposal for a read-only circuit now command that answers what is blocking progress, whose move it is, why, and the exact next command. It projects existing Run status and Trace evidence at query time, keeps unknown liveness unknown, adds no durable state, and explicitly does not authorize runtime work before v1.",
+      "related": [
+        "docs/ideas/run-milestone-stream.md",
+        "docs/ideas/cli-first-principles.md",
+        "docs/ideas/output-model.md"
+      ],
+      "last_checked": "2026-07-18"
+    },
+    {
       "path": "docs/ideas/popular-workflow-market-scan.md",
       "title": "Popular-workflow market scan (post-v1 lineup)",
       "status": "current-strategy-context",

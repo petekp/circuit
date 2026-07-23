@@ -233,6 +233,10 @@ Real directions, deliberately parked. Pointers only.
   [docs/ideas/run-milestone-stream.md](../ideas/run-milestone-stream.md); the
   mechanics are in
   [docs/ideas/cli-first-principles.md](../ideas/cli-first-principles.md).
+- **Present-tense Run status:** a read-only `circuit now` command would turn
+  the existing Run status and Trace evidence into one honest answer about
+  whose move it is and what to do next. The proposal is
+  [docs/ideas/run-now.md](../ideas/run-now.md).
 - **The recursion and recompile frontier:** mapped in
   [docs/ideas/north-star-status.md](../ideas/north-star-status.md). Parked as
   a body of work; nothing there blocks v1.
