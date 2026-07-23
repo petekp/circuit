@@ -1,12 +1,25 @@
 #!/usr/bin/env node
 
 import { spawnSync } from 'node:child_process';
-import { existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
+import {
+  constants,
+  accessSync,
+  existsSync,
+  mkdirSync,
+  mkdtempSync,
+  readFileSync,
+  rmSync,
+  writeFileSync,
+} from 'node:fs';
 import { homedir, tmpdir } from 'node:os';
 import { delimiter, dirname, isAbsolute, join, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { Command, CommanderError } from 'commander';
-import { type PackageTreeComparison, packageTreeStatus } from './package-tree.ts';
+import {
+  type PackageTreeComparison,
+  packageTreeSha256,
+  packageTreeStatus,
+} from './package-tree.ts';
 
 export type PublishTarget = 'check' | 'local' | 'release' | 'bump';
 
@@ -27,7 +40,7 @@ export type PublishReport = {
   schema_version: number;
   target: PublishTarget;
   dry_run: boolean;
-  status: 'passed' | 'published' | 'failed';
+  status: 'passed' | 'published' | 'published_unverified' | 'failed';
   repo_root: string;
   git: {
     branch: string;
@@ -114,9 +127,70 @@ const VERSION_PATTERN = /^\d+\.\d+\.\d+(?:-[0-9A-Za-z.-]+)?(?:\+[0-9A-Za-z.-]+)?
 // `--ref circuit--v0.1.0-alpha.10`. The Codex first-run funnel reads this
 // ref out of the README at run time, so it must track the release tag.
 const README_REF_PATTERN = /circuit--v(\d+\.\d+\.\d+(?:-[0-9A-Za-z.-]+)?(?:\+[0-9A-Za-z.-]+)?)/g;
+const CODEX_SMOKE_SCRIPT = 'scripts/hosts/smoke/codex-mcp.ts';
 
 export function extractReadmeRefVersions(content: string): string[] {
   return [...new Set([...content.matchAll(README_REF_PATTERN)].map((match) => match[1] ?? ''))];
+}
+
+type ComparableVersion = {
+  readonly core: readonly [number, number, number];
+  readonly prerelease: readonly string[];
+};
+
+function comparableVersion(version: string): ComparableVersion | undefined {
+  if (!VERSION_PATTERN.test(version)) return undefined;
+  const withoutBuild = version.split('+', 1)[0] as string;
+  const separator = withoutBuild.indexOf('-');
+  const coreText = separator < 0 ? withoutBuild : withoutBuild.slice(0, separator);
+  const prerelease = separator < 0 ? [] : withoutBuild.slice(separator + 1).split('.');
+  const core = coreText.split('.').map(Number);
+  if (core.length !== 3 || core.some((part) => !Number.isSafeInteger(part))) return undefined;
+  return { core: core as [number, number, number], prerelease };
+}
+
+function compareVersions(left: string, right: string): number {
+  const leftVersion = comparableVersion(left);
+  const rightVersion = comparableVersion(right);
+  if (leftVersion === undefined || rightVersion === undefined) {
+    throw new Error('cannot compare an invalid version');
+  }
+  for (let index = 0; index < leftVersion.core.length; index += 1) {
+    const difference = (leftVersion.core[index] as number) - (rightVersion.core[index] as number);
+    if (difference !== 0) return difference;
+  }
+  if (leftVersion.prerelease.length === 0 || rightVersion.prerelease.length === 0) {
+    if (leftVersion.prerelease.length === rightVersion.prerelease.length) return 0;
+    return leftVersion.prerelease.length === 0 ? 1 : -1;
+  }
+  const length = Math.max(leftVersion.prerelease.length, rightVersion.prerelease.length);
+  for (let index = 0; index < length; index += 1) {
+    const leftPart = leftVersion.prerelease[index];
+    const rightPart = rightVersion.prerelease[index];
+    if (leftPart === undefined || rightPart === undefined) {
+      return leftPart === rightPart ? 0 : leftPart === undefined ? -1 : 1;
+    }
+    if (leftPart === rightPart) continue;
+    const leftNumeric = /^\d+$/u.test(leftPart);
+    const rightNumeric = /^\d+$/u.test(rightPart);
+    if (leftNumeric && rightNumeric) return Number(leftPart) - Number(rightPart);
+    if (leftNumeric !== rightNumeric) return leftNumeric ? -1 : 1;
+    return leftPart < rightPart ? -1 : 1;
+  }
+  return 0;
+}
+
+export function selectPreviousPublicVersion(
+  remoteTags: string,
+  currentVersion: string,
+): string | undefined {
+  if (comparableVersion(currentVersion) === undefined) return undefined;
+  const versions = splitLines(remoteTags)
+    .map((line) => /^[0-9a-f]{40,64}\trefs\/tags\/circuit--v([^\s^]+)$/u.exec(line)?.[1])
+    .filter((version): version is string => version !== undefined)
+    .filter((version) => comparableVersion(version) !== undefined)
+    .filter((version) => compareVersions(version, currentVersion) < 0);
+  return [...new Set(versions)].sort(compareVersions).at(-1);
 }
 
 function readJson<T = unknown>(path: string): T {
@@ -156,6 +230,31 @@ function noAmbientCliEnv(extra: NodeJS.ProcessEnv = {}): NodeJS.ProcessEnv {
     CIRCUIT_DEV: undefined,
     ...extra,
   };
+}
+
+function codexDoctorEnv(extra: NodeJS.ProcessEnv = {}): NodeJS.ProcessEnv {
+  const executableName = process.platform === 'win32' ? 'codex.exe' : 'codex';
+  const codexDirectory = (process.env.PATH ?? '')
+    .split(delimiter)
+    .filter(Boolean)
+    .find((directory) => {
+      try {
+        accessSync(resolve(directory, executableName), constants.X_OK);
+        return true;
+      } catch {
+        return false;
+      }
+    });
+  const path = [
+    ...noAmbientCliPath().split(delimiter),
+    ...(codexDirectory === undefined ? [] : [codexDirectory]),
+  ]
+    .filter((entry, index, entries) => entries.indexOf(entry) === index)
+    .join(delimiter);
+  return noAmbientCliEnv({
+    ...extra,
+    PATH: path,
+  });
 }
 
 function findClaudeMarketplacePlugin(
@@ -316,7 +415,6 @@ export function runPublish(
     : (process.env.CODEX_HOME ?? resolve(home, '.codex'));
   const args = parseArgs(argv);
   const report = createReport(args, repoRoot);
-  let releaseCodexHome: string | undefined;
   let claudeSmokeHome: string | undefined;
   let claudeSmokeProject: string | undefined;
 
@@ -706,6 +804,7 @@ export function runPublish(
       runCommand('check_flow_drift', ['npm', 'run', 'check-flow-drift']);
       runCommand('verify', ['npm', 'run', 'verify']);
       runCommand('check_release_ready', ['npm', 'run', 'check-release-ready']);
+      if (args.target === 'release') report.outputs.candidate_host_proven = true;
       runCommand('claude_validate_root', ['claude', 'plugin', 'validate', '.']);
       runCommand('claude_validate_plugin', ['claude', 'plugin', 'validate', 'plugins/claude']);
       const claudeDoctor = runCommand(
@@ -717,7 +816,7 @@ export function runPublish(
       const codexDoctor = runCommand(
         'codex_doctor',
         [process.execPath, 'plugins/codex/scripts/circuit.ts', 'doctor'],
-        { env: noAmbientCliEnv() },
+        { env: codexDoctorEnv() },
       );
       assertBundledDoctor('codex_doctor', codexDoctor);
       runClaudeInstallSmoke();
@@ -966,7 +1065,7 @@ export function runPublish(
       'codex_installed_doctor',
       [process.execPath, resolve(checkedTarget, 'scripts/circuit.ts'), 'doctor'],
       {
-        env: noAmbientCliEnv({
+        env: codexDoctorEnv({
           CODEX_HOME: codexHome,
         }),
       },
@@ -995,10 +1094,9 @@ export function runPublish(
     }
   }
 
-  // Pre-flight: a release pushes the git tag `tag`, then publishes the Codex
-  // marketplace from that same ref. If the tag is already on origin, the push
-  // either fails or silently reuses an old commit — the two release halves then
-  // disagree about what shipped. Refuse to start when the tag is already taken.
+  // Pre-flight: a release pushes the immutable git tag `tag`, then proves the
+  // public Codex marketplace path from that ref. Refuse to start when the tag is
+  // already taken so a release can never silently reuse old bytes.
   // This is a read-only probe, so it also runs during a release dry-run.
   function assertReleaseTagAbsentFromRemote(tag: string): void {
     const existing = runCommand('git_tag_remote_check', [
@@ -1010,81 +1108,223 @@ export function runPublish(
     ]).stdout.trim();
     if (existing !== '') {
       fail(
-        `release tag ${tag} already exists on origin; bump the version or delete the remote tag before publishing (git push origin :refs/tags/${tag}).`,
+        `release tag ${tag} already exists on origin; keep the immutable tag, then bump the version and fix forward.`,
       );
     }
   }
 
-  // Reached only after the git tag was pushed (Claude half done) but the Codex
-  // marketplace publish failed. Try to undo the push so a release is
-  // all-or-nothing. If the rollback also fails, stop loudly with the exact
-  // commands an operator must run to reconcile the half-published release.
-  function reconcileHalfPublishedRelease(tag: string, codexError: unknown): never {
-    const detail = codexError instanceof Error ? codexError.message : String(codexError);
-    const rollback = runOptionalCommand(
-      'git_tag_rollback',
-      ['git', 'push', 'origin', `:refs/tags/${tag}`],
+  function runCodexMcpSmoke(
+    id:
+      | 'codex_mcp_smoke_packed_pre_publish'
+      | 'codex_mcp_smoke_remote_sha_pre_publish'
+      | 'codex_mcp_smoke_published_tag'
+      | 'codex_mcp_smoke_upgrade',
+    smokeArgs: readonly string[],
+    expectedTreeSha256: string,
+  ): void {
+    const result = runCommand(
+      id,
+      [process.execPath, resolve(repoRoot, CODEX_SMOKE_SCRIPT), '--live', ...smokeArgs],
       { effect: true },
     );
-    if (rollback.exitCode === 0) {
-      report.outputs.tag_rolled_back = tag;
+    if (report.dry_run) return;
+    const smoke = parseLastJsonObject(result.stdout);
+    const optionValue = (name: string): string | undefined => {
+      const index = smokeArgs.indexOf(name);
+      return index < 0 ? undefined : smokeArgs[index + 1];
+    };
+    const expectedMode = optionValue('--mode');
+    const expectedSource = optionValue('--source');
+    const expectedRef = optionValue('--ref');
+    const versions =
+      typeof smoke?.versions === 'object' &&
+      smoke.versions !== null &&
+      !Array.isArray(smoke.versions)
+        ? (smoke.versions as Record<string, unknown>)
+        : undefined;
+    const source =
+      typeof smoke?.source === 'object' && smoke.source !== null && !Array.isArray(smoke.source)
+        ? (smoke.source as Record<string, unknown>)
+        : undefined;
+    if (smoke?.status !== 'pass') {
+      fail(`${id} did not return a passing Codex MCP smoke report`);
+    }
+    if (smoke.mode !== expectedMode) {
+      fail(`${id} reported mode ${String(smoke.mode ?? '<missing>')}; expected ${expectedMode}`);
+    }
+    if (expectedSource !== undefined && source?.repository !== expectedSource) {
       fail(
-        `Codex marketplace publish failed after the git tag was pushed; rolled back tag ${tag} so no half-published release remains. Original failure: ${detail}`,
+        `${id} proved source ${String(source?.repository ?? '<missing>')}; expected ${expectedSource}`,
       );
     }
-    const rollbackDetail =
-      rollback.stderr.trim() || rollback.stdout.trim() || `exit ${rollback.exitCode}`;
-    report.outputs.half_published = {
-      tag,
-      codex_error: detail,
-      rollback_error: rollbackDetail,
-    };
-    fail(
-      [
-        'HALF-PUBLISHED RELEASE — manual reconcile required.',
-        `The git tag ${tag} is pushed to origin, but the Codex marketplace publish failed and the automatic tag rollback also failed.`,
-        `Codex failure: ${detail}`,
-        `Rollback failure: ${rollbackDetail}`,
-        'To finish the release, re-run the Codex publish:',
-        `  codex plugin marketplace add ${args.codexSource} --ref ${tag}`,
-        `  codex plugin marketplace upgrade ${args.codexMarketplace}`,
-        'Or to abandon it, delete the remote tag:',
-        `  git push origin :refs/tags/${tag}`,
-      ].join('\n'),
-    );
+    if (expectedRef !== undefined && source?.ref !== expectedRef) {
+      fail(`${id} proved ref ${String(source?.ref ?? '<missing>')}; expected ${expectedRef}`);
+    }
+    if (expectedRef !== undefined && source?.expected_version !== report.versions.source) {
+      fail(
+        `${id} source expected version ${String(source?.expected_version ?? '<missing>')}; expected ${report.versions.source}`,
+      );
+    }
+    if (versions?.plugin !== report.versions.source) {
+      fail(
+        `${id} proved Circuit ${String(versions?.plugin ?? '<missing>')}; expected ${report.versions.source}`,
+      );
+    }
+    if (versions.plugin_tree_sha256 !== expectedTreeSha256) {
+      fail(`${id} installed plugin tree does not match the release candidate bytes`);
+    }
+    if (
+      typeof versions.codex !== 'string' ||
+      typeof versions.node !== 'string' ||
+      !VERSION_PATTERN.test(versions.codex) ||
+      !VERSION_PATTERN.test(versions.node)
+    ) {
+      fail(`${id} did not record valid Codex and Node versions`);
+    }
+    const smokes = Array.isArray(report.outputs.codex_mcp_smokes)
+      ? report.outputs.codex_mcp_smokes
+      : [];
+    report.outputs.codex_mcp_smokes = [
+      ...smokes,
+      {
+        id,
+        mode: smoke.mode,
+        status: smoke.status,
+        versions,
+        ...(source === undefined ? {} : { source }),
+        evidence: smoke.evidence,
+      },
+    ];
   }
 
   function runReleasePublish(): void {
+    if (report.outputs.candidate_host_proven !== true) {
+      fail('release requires the checked-in candidate host proof before publishing');
+    }
+    report.outputs.public_install_proven = false;
+    report.outputs.public_loader_proven = false;
     const tag = `circuit--v${report.versions.source}`;
     report.outputs.claude_tag = tag;
+    const expectedTreeSha256 = packageTreeSha256(resolve(repoRoot, 'plugins/codex'));
+    report.outputs.codex_plugin_tree_sha256 = expectedTreeSha256;
 
     assertReleaseTagAbsentFromRemote(tag);
+    const previousPublicVersion = selectPreviousPublicVersion(
+      runCommand('git_previous_public_tags', [
+        'git',
+        'ls-remote',
+        '--tags',
+        'origin',
+        'refs/tags/circuit--v*',
+      ]).stdout,
+      report.versions.source,
+    );
+    if (previousPublicVersion === undefined) {
+      fail(
+        `no older public Circuit tag exists before ${tag}; declare and publish a predecessor before running the upgrade proof.`,
+      );
+    }
+    report.outputs.previous_public_version = previousPublicVersion;
+
+    runCodexMcpSmoke(
+      'codex_mcp_smoke_packed_pre_publish',
+      ['--mode', 'packed', '--expected-version', report.versions.source],
+      expectedTreeSha256,
+    );
+    runCodexMcpSmoke(
+      'codex_mcp_smoke_remote_sha_pre_publish',
+      [
+        '--mode',
+        'published',
+        '--source',
+        args.codexSource as string,
+        '--ref',
+        report.git.head,
+        '--expected-version',
+        report.versions.source,
+        '--marketplace',
+        args.codexMarketplace as string,
+      ],
+      expectedTreeSha256,
+    );
 
     runCommand('claude_tag_dry_run', ['claude', 'plugin', 'tag', 'plugins/claude', '--dry-run']);
-    runCommand('claude_tag_push', ['claude', 'plugin', 'tag', 'plugins/claude', '--push'], {
-      effect: true,
-    });
+    const tagPush = runOptionalCommand(
+      'claude_tag_push',
+      ['claude', 'plugin', 'tag', 'plugins/claude', '--push'],
+      {
+        effect: true,
+      },
+    );
+    if (!report.dry_run && tagPush.exitCode !== 0) {
+      const detail = tagPush.stderr.trim() || tagPush.stdout.trim() || `exit ${tagPush.exitCode}`;
+      const exposed = runOptionalCommand('git_tag_remote_after_push_failure', [
+        'git',
+        'ls-remote',
+        '--tags',
+        'origin',
+        `refs/tags/${tag}`,
+      ]);
+      if (exposed.exitCode !== 0 || exposed.stdout.trim() !== '') {
+        const exposureDetail =
+          exposed.exitCode === 0
+            ? 'the remote tag exists'
+            : `remote exposure could not be checked: ${exposed.stderr.trim() || exposed.stdout.trim() || `exit ${exposed.exitCode}`}`;
+        report.outputs.published_unverified = { tag, detail, exposure_detail: exposureDetail };
+        fail(
+          `PUBLISHED BUT UNVERIFIED — ${tag} may be public after the tag command failed. Do not delete or rewrite it; inspect the remote and fix forward if exposed. ${detail}`,
+        );
+      }
+      fail(`claude_tag_push failed before the tag was exposed: ${detail}`);
+    }
 
-    releaseCodexHome = mkdtempSync(join(tmpdir(), 'circuit-codex-release-'));
-    const codexEnv = { CODEX_HOME: releaseCodexHome };
     if (args.codexSource === undefined) fail('release requires --codex-source');
     if (args.codexMarketplace === undefined) fail('release requires --codex-marketplace');
     try {
-      runCommand(
-        'codex_marketplace_add_release',
-        ['codex', 'plugin', 'marketplace', 'add', args.codexSource, '--ref', tag],
-        { effect: true, env: codexEnv },
+      runCodexMcpSmoke(
+        'codex_mcp_smoke_published_tag',
+        [
+          '--mode',
+          'published',
+          '--source',
+          args.codexSource,
+          '--ref',
+          tag,
+          '--expected-version',
+          report.versions.source,
+          '--marketplace',
+          args.codexMarketplace,
+        ],
+        expectedTreeSha256,
       );
-      runCommand(
-        'codex_marketplace_upgrade_release',
-        ['codex', 'plugin', 'marketplace', 'upgrade', args.codexMarketplace],
-        { effect: true, env: codexEnv },
+      runCodexMcpSmoke(
+        'codex_mcp_smoke_upgrade',
+        [
+          '--mode',
+          'upgrade',
+          '--source',
+          args.codexSource,
+          '--old-ref',
+          `circuit--v${previousPublicVersion}`,
+          '--old-version',
+          previousPublicVersion,
+          '--ref',
+          tag,
+          '--expected-version',
+          report.versions.source,
+          '--marketplace',
+          args.codexMarketplace,
+        ],
+        expectedTreeSha256,
       );
-    } catch (codexError) {
-      // In a dry-run the two Codex commands and the tag push are all skipped,
-      // so nothing throws here; this compensation only trips on a real (--yes)
-      // publish where the tag push already took effect.
-      reconcileHalfPublishedRelease(tag, codexError);
+      if (!report.dry_run) report.outputs.public_loader_proven = true;
+    } catch (verificationError) {
+      const detail =
+        verificationError instanceof Error ? verificationError.message : String(verificationError);
+      report.outputs.published_unverified = { tag, detail };
+      fail(
+        `PUBLISHED BUT UNVERIFIED — immutable tag ${tag} remains public. Block the announcement and fix forward with a new patch release. ${detail}`,
+      );
     }
   }
 
@@ -1112,12 +1352,10 @@ export function runPublish(
 
     report.status = args.target === 'release' && args.yes ? 'published' : 'passed';
   } catch (err) {
-    report.status = 'failed';
+    report.status =
+      report.outputs.published_unverified === undefined ? 'failed' : 'published_unverified';
     report.errors.push(err instanceof Error ? err.message : String(err));
   } finally {
-    if (releaseCodexHome !== undefined) {
-      rmSync(releaseCodexHome, { recursive: true, force: true });
-    }
     if (claudeSmokeHome !== undefined) {
       rmSync(claudeSmokeHome, { recursive: true, force: true });
     }
@@ -1155,5 +1393,5 @@ if (process.argv[1] !== undefined && resolve(process.argv[1]) === SCRIPT_PATH) {
   } else {
     printHumanSummary(report);
   }
-  process.exit(report.status === 'failed' ? 1 : 0);
+  process.exit(report.status === 'failed' || report.status === 'published_unverified' ? 1 : 0);
 }

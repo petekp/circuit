@@ -14,12 +14,13 @@ import {
   rmSync,
   utimesSync,
 } from 'node:fs';
-import { dirname, isAbsolute, posix, resolve } from 'node:path';
+import { dirname, posix, resolve } from 'node:path';
 import { fileURLToPath, pathToFileURL } from 'node:url';
 import { Client } from '@modelcontextprotocol/sdk/client/index.js';
 import { StdioClientTransport } from '@modelcontextprotocol/sdk/client/stdio.js';
 import { MCP_TOOL_NAMES } from '../../src/hosts/codex-mcp/contracts.ts';
 import { MCP_TRANSIENT_ENVIRONMENT_NAMES } from '../../src/hosts/codex-mcp/transient-environment.ts';
+import { CODEX_MCP_LAUNCH_ARGS, CODEX_MCP_LAUNCH_COMMAND } from '../plugins/codex-mcp-launcher.ts';
 import { packageTreeStatus } from '../plugins/package-tree.ts';
 
 // Marketplace-safe by source-tree fallback: this release check runs only from
@@ -145,12 +146,11 @@ function readConfig(root: string): {
 } {
   const parsed = JSON.parse(readFileSync(resolve(root, '.mcp.json'), 'utf8')) as McpConfig;
   const server = parsed.mcpServers?.circuit;
-  const expectedArgs = ['./mcp/server.cjs'];
   if (
-    server?.command !== 'node' ||
+    server?.command !== CODEX_MCP_LAUNCH_COMMAND ||
     !Array.isArray(server.args) ||
     !server.args.every((value): value is string => typeof value === 'string') ||
-    JSON.stringify(server.args) !== JSON.stringify(expectedArgs) ||
+    JSON.stringify(server.args) !== JSON.stringify(CODEX_MCP_LAUNCH_ARGS) ||
     server.cwd !== '.' ||
     server.env !== undefined ||
     JSON.stringify(server.env_vars) !== JSON.stringify(MCP_TRANSIENT_ENVIRONMENT_NAMES) ||
@@ -163,13 +163,8 @@ function readConfig(root: string): {
       'Codex MCP config must use the fixed launcher, bounded tools, and transient environment allowlist',
     );
   }
-  for (const arg of server.args) {
-    if (isAbsolute(arg) || arg.includes('..')) {
-      throw new Error(`Codex MCP config contains an unsafe argument: ${JSON.stringify(arg)}`);
-    }
-    if (!existsSync(resolve(root, arg))) {
-      throw new Error(`Codex MCP config references a missing file: ${arg}`);
-    }
+  if (!existsSync(resolve(root, 'mcp/server.cjs'))) {
+    throw new Error('Codex MCP config references a missing file: mcp/server.cjs');
   }
   return { command: server.command, args: server.args, cwd: server.cwd };
 }
@@ -222,8 +217,8 @@ export async function checkCodexMcpPackage(): Promise<CodexMcpPackageCheckResult
 
     const transport = new StdioClientTransport({
       // Launch exactly what the packed plugin declares. This catches a
-      // package that validates `command: "node"` but cannot actually resolve
-      // that command in the plugin loader's controlled environment.
+      // package whose fixed launcher cannot actually resolve Node in the
+      // plugin loader's controlled environment.
       command: config.command,
       args: config.args,
       cwd: resolve(relocated, config.cwd),

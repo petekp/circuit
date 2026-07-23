@@ -2,7 +2,9 @@
 
 const [major = 0, minor = 0] = process.versions.node.split('.').map(Number);
 if (major < 22 || (major === 22 && minor < 18)) {
-  process.stderr.write('Circuit MCP requires Node 22.18.0 or newer.\n');
+  process.stderr.write(
+    `Circuit MCP requires Node 22.18.0 or newer. Current Node.js is ${process.versions.node}. Install Node.js 22.18 or newer, ensure node is on PATH, restart Codex, and try again.\n`,
+  );
   process.exit(1);
 }
 

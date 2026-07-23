@@ -36,3 +36,10 @@ exceptions:
     readiness_ref: REL-011
     rationale: The original Build stage path was Frame, Plan, Act, Verify, Review, Close. Circuit adds a read-only Analyze stage (the gather-context grounding step) between Frame and Plan so the plan is grounded in a real read of the codebase before any edit. This is an intentional enhancement, not a regression - every original Build stage is preserved and the added stage only reads.
     public_wording: Build reads the codebase in a read-only Analyze stage before planning, so the plan is grounded in the actual code.
+  - id: EX-REL-014-CODEX-MCP-FIRST-RUN
+    claim_id: CLAIM-CODEX-MCP-LIFECYCLE
+    proof_id: proof:codex-mcp-first-run
+    status: release_blocker
+    readiness_ref: REL-014
+    rationale: The packaged MCP lifecycle is implemented, but the immutable release candidate and exact plugin-tree digest have not yet passed the fresh-host loader and first-attempt Review proof.
+    public_wording: Codex support remains release-blocked until the exact release candidate passes its first-run proof. The release command separately verifies the immutable public tag after publishing it.

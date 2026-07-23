@@ -58,7 +58,15 @@ describe('Run-centered V1 safety ratchets', () => {
       ...walk('docs/release'),
     ].filter((path) => path !== 'src/flows/composition/propose-prompts.ts');
 
-    expect(matchingLines(operatorSurfaceFiles, /\bsupervisor\b/i)).toEqual([]);
+    const matches = matchingLines(operatorSurfaceFiles, /\bsupervisor\b/i).filter(
+      (line) =>
+        !line.match(
+          /^plugins\/codex\/scripts\/circuit\.ts:\d+: \['supervisor_mjs', 'mcp\/supervisor\.mjs'\],$/,
+        ),
+    );
+    // The packaged doctor inventories the literal runtime filename. This is a
+    // file-health check, not operator-facing lifecycle vocabulary.
+    expect(matches).toEqual([]);
   });
 
   it('keeps future Run envelope code away from runtime executor internals', () => {

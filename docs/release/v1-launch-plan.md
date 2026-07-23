@@ -26,10 +26,11 @@ stands, with first-run experience work explicitly in scope as it always was.
 
 ## What v1 is
 
-Circuit is a workflow engine that runs typed developer flows through a
-plain CLI. The Claude Code and Codex plugins are the bridge that teaches a
-host agent to drive that CLI, and today they are also how Circuit installs
-and how the first-run funnel reaches it. A flow is an encoded process: named steps, each running
+Circuit is a workflow engine that runs typed developer flows. The plain CLI is
+the direct interface. The Claude Code plugin teaches its host to drive that
+CLI. The Codex plugin uses a six-tool MCP lifecycle so it can run reliably from
+Codex's host boundary. Both plugins are also installation and first-run paths.
+A flow is an encoded process: named steps, each running
 as its own small harness with a role, a model choice, an effort level, a
 tool allowlist, and a mechanical check that real evidence exists before the
 run can advance.
@@ -63,10 +64,10 @@ Work items between here and the announcement. Each is checkable. Raw
 operator-reported issues land on the
 [pre-release punch list](pre-release-punch-list.md) first.
 
-1. **Cut a new release from `main`.** The published tag
-   (`circuit--v0.1.0-alpha.8`) predates the until-loop machinery,
-   `circuit preview`, and cross-tool-build. Announcing those capabilities
-   requires a release that contains them.
+1. **Publish and prove Circuit 0.1.2.** The current public tag (`circuit--v0.1.1`)
+   predates the Codex MCP lifecycle now on `main`. The release stays blocked
+   until the exact `0.1.2` tag and plugin-tree digest pass the public loader,
+   upgrade, and first Review proofs on Apple Silicon and Intel Macs.
 2. **Add the two missing claim entries to
    [docs/positioning.md](../positioning.md).** Done (2026-07-02): the
    registry now carries claim 3 (one dial allocates models by role, per
@@ -88,6 +89,9 @@ operator-reported issues land on the
 6. **Ship the first-run path.** See the first-run plan below. The current
    time-to-first-value is roughly ten minutes and the safest first flow
    (review) is the one that least demonstrates the thesis.
+   For Codex, the no-spend readiness check must list workspace runs through
+   MCP before the first paid flow. Shell fallback or sandbox escalation is a
+   failed setup, not an alternate path.
 7. **Reconcile the landing page with the honesty rule.** The rebuild's
    "It can't fake done" card overclaims; the current framing is "it can't
    skip the proof." Landing copy follows positioning.md, and the two new

@@ -2,6 +2,7 @@
 import { spawnSync } from 'node:child_process';
 import {
   existsSync,
+  lstatSync,
   mkdirSync,
   mkdtempSync,
   readFileSync,
@@ -37,6 +38,65 @@ const bundledRuntimePath = resolve(pluginRoot, 'runtime/circuit.js');
 const CIRCUIT_HOST_KIND_ENV = 'CIRCUIT_HOST_KIND';
 const DOCTOR_SMOKE_TIMEOUT_MS = 120_000;
 const CODEX_FEATURES_TIMEOUT_MS = 5_000;
+const MINIMUM_CODEX_VERSION = '0.144.3';
+const MCP_LAUNCH_SCRIPT = [
+  'circuit_node_error() {',
+  "IFS= read -r request || request='';",
+  `id=$(printf '%s\\n' "$request" | /usr/bin/sed -n 's/.*"id"[[:space:]]*:[[:space:]]*\\([0-9][0-9]*\\).*/\\1/p');`,
+  `case "$id" in ''|*[!0-9]*) id=0 ;; esac;`,
+  'printf \'{"jsonrpc":"2.0","id":%s,"error":{"code":-32000,"message":"%s"}}\\n\' "$id" "$1";',
+  'exit 1;',
+  '};',
+  'if ! command -v node >/dev/null 2>&1; then circuit_node_error "Circuit MCP requires Node.js 22.18 or newer. Install Node.js 22.18 or newer, ensure node is on PATH, restart Codex, and try again."; fi;',
+  'node_version=$(node -p \'process.versions.node\' 2>/dev/null) || circuit_node_error "Circuit MCP could not read the Node.js version. Install Node.js 22.18 or newer, ensure node is on PATH, restart Codex, and try again.";',
+  'case "$node_version" in \'\'|*[!0-9.]*) circuit_node_error "Circuit MCP could not read the Node.js version. Install Node.js 22.18 or newer, ensure node is on PATH, restart Codex, and try again." ;; esac;',
+  'node_major=${node_version%%.*}; node_minor_tail=${node_version#*.}; node_minor=${node_minor_tail%%.*};',
+  'if [ "$node_major" -lt 22 ] || { [ "$node_major" -eq 22 ] && [ "$node_minor" -lt 18 ]; }; then circuit_node_error "Circuit MCP requires Node.js 22.18 or newer. Current Node.js is $node_version. Install Node.js 22.18 or newer, ensure node is on PATH, restart Codex, and try again."; fi;',
+  'exec node ./mcp/server.cjs',
+].join(' ');
+const MCP_TOOL_NAMES = [
+  'circuit_start',
+  'circuit_status',
+  'circuit_resume',
+  'circuit_cancel',
+  'circuit_list',
+  'circuit_recover',
+] as const;
+const MCP_TRANSIENT_ENVIRONMENT_NAMES = [
+  'HOME',
+  'LANG',
+  'LC_ALL',
+  'LC_CTYPE',
+  'LOGNAME',
+  'PATH',
+  'SHELL',
+  'TERM',
+  'TMPDIR',
+  'TZ',
+  'USER',
+  'CODEX_HOME',
+  'OPENAI_API_KEY',
+  'OPENAI_BASE_URL',
+  'OPENAI_ORGANIZATION',
+  'OPENAI_PROJECT',
+  'HTTP_PROXY',
+  'HTTPS_PROXY',
+  'ALL_PROXY',
+  'NO_PROXY',
+  'http_proxy',
+  'https_proxy',
+  'all_proxy',
+  'no_proxy',
+  'SSL_CERT_FILE',
+  'SSL_CERT_DIR',
+  'NODE_EXTRA_CA_CERTS',
+] as const;
+const MCP_RUNTIME_FILES = [
+  ['server_cjs', 'mcp/server.cjs'],
+  ['server_mjs', 'mcp/server.mjs'],
+  ['supervisor_mjs', 'mcp/supervisor.mjs'],
+  ['worker_mjs', 'mcp/worker.mjs'],
+] as const;
 
 type CheckResult = {
   name: string;
@@ -120,6 +180,46 @@ function codexUserHandoffHookInstalled(): boolean {
   }
 }
 
+function parseVersionTuple(value: string): readonly [number, number, number] | undefined {
+  const match = /(?:^|\s)(\d+)\.(\d+)\.(\d+)(?:\s|$)/.exec(value.trim());
+  if (match === null) return undefined;
+  return [Number(match[1]), Number(match[2]), Number(match[3])];
+}
+
+function versionAtLeast(
+  actual: readonly [number, number, number],
+  minimum: readonly [number, number, number],
+): boolean {
+  const [actualMajor, actualMinor, actualPatch] = actual;
+  const [minimumMajor, minimumMinor, minimumPatch] = minimum;
+  for (const [actualPart, minimumPart] of [
+    [actualMajor, minimumMajor],
+    [actualMinor, minimumMinor],
+    [actualPatch, minimumPatch],
+  ] as const) {
+    if (actualPart > minimumPart) return true;
+    if (actualPart < minimumPart) return false;
+  }
+  return true;
+}
+
+function sameStrings(actual: unknown, expected: readonly string[]): boolean {
+  return (
+    Array.isArray(actual) &&
+    actual.length === expected.length &&
+    actual.every((value, index) => value === expected[index])
+  );
+}
+
+function mcpRuntimeFileIsSafe(path: string): boolean {
+  try {
+    const info = lstatSync(path);
+    return info.isFile() && !info.isSymbolicLink() && info.size > 0;
+  } catch {
+    return false;
+  }
+}
+
 function runDoctor(): number {
   const checks: CheckResult[] = [];
   const manifestPath = resolve(pluginRoot, '.codex-plugin/plugin.json');
@@ -144,6 +244,58 @@ function runDoctor(): number {
       manifestPath,
     ),
   );
+  checks.push(
+    check(
+      'plugin_manifest_mcp_activation',
+      manifest?.mcpServers === './.mcp.json',
+      'The Codex plugin manifest must activate ./.mcp.json.',
+    ),
+  );
+
+  const mcpConfigPath = resolve(pluginRoot, '.mcp.json');
+  checks.push(check('mcp_config_exists', existsSync(mcpConfigPath), mcpConfigPath));
+  let mcpConfig: JsonRecord | undefined;
+  try {
+    mcpConfig = existsSync(mcpConfigPath) ? readJson<JsonRecord>(mcpConfigPath) : undefined;
+    checks.push(check('mcp_config_parseable', mcpConfig !== undefined, mcpConfigPath));
+  } catch (error) {
+    checks.push(
+      check('mcp_config_parseable', false, error instanceof Error ? error.message : String(error)),
+    );
+  }
+  const mcpServers = mcpConfig?.mcpServers;
+  const mcpServer =
+    typeof mcpServers === 'object' && mcpServers !== null && !Array.isArray(mcpServers)
+      ? ((mcpServers as JsonRecord).circuit as JsonRecord | undefined)
+      : undefined;
+  checks.push(
+    check(
+      'mcp_config_shape',
+      typeof mcpServer === 'object' &&
+        mcpServer !== null &&
+        !Array.isArray(mcpServer) &&
+        mcpServer.command === '/bin/sh' &&
+        sameStrings(mcpServer.args, ['-c', MCP_LAUNCH_SCRIPT]) &&
+        mcpServer.cwd === '.' &&
+        mcpServer.required === true &&
+        mcpServer.startup_timeout_sec === 10 &&
+        mcpServer.tool_timeout_sec === 240 &&
+        mcpServer.env === undefined &&
+        sameStrings(mcpServer.env_vars, MCP_TRANSIENT_ENVIRONMENT_NAMES),
+      mcpConfigPath,
+    ),
+  );
+  checks.push(
+    check(
+      'mcp_tool_roster',
+      sameStrings(mcpServer?.enabled_tools, MCP_TOOL_NAMES),
+      `expected=${MCP_TOOL_NAMES.join(',')}`,
+    ),
+  );
+  for (const [name, relativePath] of MCP_RUNTIME_FILES) {
+    const path = resolve(pluginRoot, relativePath);
+    checks.push(check(`mcp_runtime_${name}`, mcpRuntimeFileIsSafe(path), path));
+  }
   checks.push(
     warningCheck(
       'codex_bundled_handoff_hooks_unregistered',
@@ -199,7 +351,7 @@ function runDoctor(): number {
   const wrapperPath = resolve(scriptDir, 'circuit.js');
   checks.push(check('wrapper_exists', existsSync(wrapperPath), wrapperPath));
   checks.push(check('packaged_flow_root_exists', existsSync(packagedFlowRoot), packagedFlowRoot));
-  for (const flow of ['build', 'explore', 'fix', 'review']) {
+  for (const flow of ['build', 'explore', 'fix', 'prototype', 'review']) {
     const flowPath = resolve(packagedFlowRoot, flow, 'circuit.json');
     checks.push(check(`packaged_flow_${flow}`, existsSync(flowPath), flowPath));
   }
@@ -229,6 +381,43 @@ function runDoctor(): number {
       `node=${process.versions.node} required>=${MIN_NODE_VERSION}`,
     ),
   );
+
+  const codexVersionResult = spawnSync('codex', ['--version'], {
+    encoding: 'utf8',
+    timeout: CODEX_FEATURES_TIMEOUT_MS,
+    stdio: ['ignore', 'pipe', 'pipe'],
+  });
+  const codexVersionText = (codexVersionResult.stdout ?? '').trim();
+  const codexVersion = parseVersionTuple(codexVersionText);
+  const minimumCodexVersion = parseVersionTuple(MINIMUM_CODEX_VERSION);
+  if (codexVersionResult.error !== undefined || codexVersionResult.status !== 0) {
+    checks.push(
+      check(
+        'codex_version_supported',
+        false,
+        `Codex was not found. Install Codex ${MINIMUM_CODEX_VERSION} or newer, restart Codex, and try again.`,
+      ),
+    );
+  } else if (codexVersion === undefined || minimumCodexVersion === undefined) {
+    checks.push(
+      check(
+        'codex_version_supported',
+        false,
+        `Codex returned an unreadable version (${JSON.stringify(codexVersionText)}). Update Codex to ${MINIMUM_CODEX_VERSION} or newer, restart Codex, and try again.`,
+      ),
+    );
+  } else {
+    const supported = versionAtLeast(codexVersion, minimumCodexVersion);
+    checks.push(
+      check(
+        'codex_version_supported',
+        supported,
+        supported
+          ? `codex=${codexVersion.join('.')} required>=${MINIMUM_CODEX_VERSION}`
+          : `codex=${codexVersion.join('.')} required>=${MINIMUM_CODEX_VERSION}. Update Codex to ${MINIMUM_CODEX_VERSION} or newer, restart Codex, and try again.`,
+      ),
+    );
+  }
   checks.push(check('bundled_runtime_exists', existsSync(bundledRuntimePath), bundledRuntimePath));
 
   const resolved = resolveRuntimeCommand();

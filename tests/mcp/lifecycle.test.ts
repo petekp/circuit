@@ -847,9 +847,10 @@ describe('Circuit MCP lifecycle', () => {
     store.seed(makeRun('waiting_for_input'));
     const { lifecycle } = fixture({
       store,
-      verify: async () => {
-        throw Object.assign(new Error('Assets changed.'), { code: 'runtime_asset_changed' });
-      },
+      loadRuntimeAssets: async () => ({
+        ...RUNTIME_ASSETS,
+        digest_sha256: '9'.repeat(64),
+      }),
     });
     const result = await lifecycle.handle(
       call('circuit_resume', {
@@ -858,7 +859,14 @@ describe('Circuit MCP lifecycle', () => {
         choice_id: 'continue',
       }),
     );
-    expect(result).toMatchObject({ ok: false, error: { code: 'runtime_asset_changed' } });
+    expect(result).toMatchObject({
+      ok: false,
+      error: {
+        code: 'runtime_asset_changed',
+        next_action:
+          'Call circuit_cancel for this run, restart Codex, then start a new Circuit run.',
+      },
+    });
     expect(store.records.get(RUN_ID)?.state).toBe('waiting_for_input');
     expect(store.calls.some((entry) => entry.startsWith('acquire:'))).toBe(false);
   });
@@ -1145,6 +1153,43 @@ describe('Circuit MCP lifecycle', () => {
       lease_released: true,
     });
     expect(verify).toHaveBeenCalledTimes(2);
+  });
+
+  it.each([
+    [
+      'recovery_process_alive',
+      'Call circuit_cancel for this run. If cancellation confirms cleanup, the run is closed. If it returns recovery_required, wait briefly, then retry circuit_recover with this run ID. If cleanup still cannot be confirmed, stop and report the run ID; do not force-unlock the workspace.',
+    ],
+    [
+      'recovery_process_unknown',
+      'Wait briefly, then retry circuit_recover with this run ID. If Circuit still cannot confirm cleanup, stop and report the run ID; do not force-unlock the workspace.',
+    ],
+  ] as const)('returns actionable guidance for %s', async (code, nextAction) => {
+    const store = new FakeStore();
+    store.seed(
+      makeRun('recovery_required', {
+        recovery: {
+          reason: 'cleanup_uncertain',
+          detected_at: NOW,
+          last_checked_at: NOW,
+          cancellation_requested: false,
+        },
+      }),
+    );
+    store.recoverRun = () => {
+      throw Object.assign(new Error('Circuit could not safely complete recovery.'), {
+        code,
+        next_action: nextAction,
+      });
+    };
+    const { lifecycle } = fixture({ store });
+
+    await expect(
+      lifecycle.handle(call('circuit_recover', { run_id: RUN_ID })),
+    ).resolves.toMatchObject({
+      ok: false,
+      error: { code, next_action: nextAction },
+    });
   });
 
   it('does not expose unexpected internal error text', async () => {

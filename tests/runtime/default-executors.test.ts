@@ -40,6 +40,7 @@ describe('runtime default executors', () => {
               result_body: JSON.stringify(stubRelayPayload),
               duration_ms: 0,
               cli_version: 'test-relayer',
+              web_search_count: 1,
             };
           },
         },
@@ -58,6 +59,7 @@ describe('runtime default executors', () => {
       const relayReceipt = trace.find((entry) => entry.kind === 'relay.receipt');
       expect(relayReceipt).toMatchObject({
         receipt_id: 'default-review-receipt',
+        web_search_count: 1,
       });
       expect(
         ReviewIntake.safeParse(

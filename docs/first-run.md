@@ -3,6 +3,12 @@
 Use this path when you want the smallest safe proof that Circuit is installed,
 can see its packaged flows, and can write a run folder.
 
+The MCP path in Codex supports macOS starting with Circuit 0.1.2. It requires
+Node.js 22.18 or newer and Codex 0.144.3 or newer. Circuit 0.1.1 predates this
+path. A single MCP approval is normal on first use. If Codex tries to run
+Circuit through a shell or asks for sandbox escalation, the setup has failed.
+Stop instead of approving that workaround.
+
 ## 1. Run Doctor
 
 Run the doctor for the package you are testing.
@@ -26,13 +32,20 @@ ls "$HOME/.claude/plugins/cache/circuit/circuit/"
 node "$HOME/.claude/plugins/cache/circuit/circuit/<version>/scripts/circuit.js" doctor
 ```
 
+Public Codex marketplace install, for Circuit 0.1.2 and later:
+
+```bash
+ls "$HOME/.codex/plugins/cache/circuit/circuit/"
+node "$HOME/.codex/plugins/cache/circuit/circuit/<version>/scripts/circuit.js" doctor
+```
+
 Codex plugin from this checkout:
 
 ```bash
 node plugins/codex/scripts/circuit.js doctor
 ```
 
-Synced Codex plugin cache:
+Synced Codex development-only plugin cache:
 
 ```bash
 ls "$HOME/.codex/plugins/cache/circuit-local/circuit/"
@@ -71,6 +84,15 @@ runtime. Invoke `circuit.js`. In this checkout the packages are
 
 
 ## 2. Preview Before You Spend
+
+In Codex, first ask the installed MCP server for a free readiness check:
+
+```text
+Use Circuit to list recent Circuit runs for this workspace. Do not start a run.
+```
+
+The response should identify the current workspace and start no worker. This
+proves the real plugin loader and Circuit tool are available before model spend.
 
 Before your first real run, look at what a run would do without paying for one.
 `circuit preview` is spawn-free: it never runs a connector, so it costs nothing.

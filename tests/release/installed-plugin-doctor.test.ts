@@ -9,8 +9,9 @@ import {
   writeFileSync,
 } from 'node:fs';
 import { tmpdir } from 'node:os';
-import { dirname, join, resolve } from 'node:path';
+import { delimiter, dirname, join, resolve } from 'node:path';
 import { afterEach, describe, expect, it } from 'vitest';
+import { MCP_TRANSIENT_ENVIRONMENT_NAMES } from '../../src/hosts/codex-mcp/transient-environment.js';
 
 const REPO_ROOT = resolve('.');
 const VERSION = (
@@ -56,6 +57,7 @@ type Fixture = {
   codexHome: string;
   codexInstalledRoot: string;
   stateRoot: string;
+  binDir: string;
 };
 
 const fixtures: string[] = [];
@@ -69,6 +71,7 @@ function fixture(): Fixture {
   fixtures.push(root);
   const home = join(root, 'home');
   const codexHome = join(home, '.codex');
+  const binDir = join(root, 'bin');
   const claudeInstalledRoot = join(
     home,
     '.claude',
@@ -88,6 +91,10 @@ function fixture(): Fixture {
   );
   mkdirSync(dirname(claudeInstalledRoot), { recursive: true });
   mkdirSync(dirname(codexInstalledRoot), { recursive: true });
+  mkdirSync(binDir, { recursive: true });
+  const codex = join(binDir, 'codex');
+  writeFileSync(codex, "#!/bin/sh\necho 'codex-cli 0.144.3'\n");
+  chmodSync(codex, 0o755);
   cpSync(resolve(REPO_ROOT, 'plugins/claude'), claudeInstalledRoot, { recursive: true });
   cpSync(resolve(REPO_ROOT, 'plugins/codex'), codexInstalledRoot, { recursive: true });
   return {
@@ -96,6 +103,7 @@ function fixture(): Fixture {
     codexHome,
     codexInstalledRoot,
     stateRoot: join(codexHome, 'circuit', 'mcp', 'v1'),
+    binDir,
   };
 }
 
@@ -113,6 +121,7 @@ function runInstalledDoctor(input: Fixture): {
       CODEX_HOME: input.codexHome,
       CIRCUIT_CLI: undefined,
       CIRCUIT_DEV: undefined,
+      PATH: `${input.binDir}${delimiter}${process.env.PATH ?? ''}`,
     },
   });
   return {
@@ -229,4 +238,29 @@ describe('installed plugin doctor Codex MCP checks', () => {
       private_state: { status: 'not_initialized', initialized: false },
     });
   }, 30_000);
+
+  it.each([
+    ['missing value', MCP_TRANSIENT_ENVIRONMENT_NAMES.slice(1), undefined],
+    ['extra value', [...MCP_TRANSIENT_ENVIRONMENT_NAMES, 'AWS_SECRET_ACCESS_KEY'], undefined],
+    ['reordered values', [...MCP_TRANSIENT_ENVIRONMENT_NAMES].reverse(), undefined],
+    ['static environment', MCP_TRANSIENT_ENVIRONMENT_NAMES, { OPENAI_API_KEY: 'secret' }],
+  ] as const)(
+    'rejects installed MCP environment drift: %s',
+    (_label, envVars, env) => {
+      const input = fixture();
+      const configPath = join(input.codexInstalledRoot, '.mcp.json');
+      const config = JSON.parse(readFileSync(configPath, 'utf8')) as {
+        mcpServers: { circuit: Record<string, unknown> };
+      };
+      config.mcpServers.circuit.env_vars = envVars;
+      if (env !== undefined) config.mcpServers.circuit.env = env;
+      writeFileSync(configPath, `${JSON.stringify(config, null, 2)}\n`);
+
+      const result = runInstalledDoctor(input);
+
+      expect(result.status).toBe(1);
+      expect(result.output.codex.mcp.config.status).toBe('invalid');
+    },
+    30_000,
+  );
 });

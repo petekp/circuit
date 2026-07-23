@@ -557,10 +557,21 @@ function hostRecords(): HostRecord[] {
     },
     {
       id: 'codex-plugin',
-      status: fileIsPresent('plugins/codex/.codex-plugin/plugin.json') ? 'partial' : 'missing',
-      summary: 'Codex plugin files exist and use the current model-mediated host surface.',
-      evidence: ['plugins/codex/.codex-plugin/plugin.json', 'plugins/codex/scripts/circuit.ts'],
-      readiness_refs: ['REL-014'],
+      status:
+        fileIsPresent('plugins/codex/.codex-plugin/plugin.json') &&
+        fileIsPresent('plugins/codex/.mcp.json') &&
+        fileIsPresent('plugins/codex/mcp/server.cjs')
+          ? 'implemented'
+          : 'missing',
+      summary:
+        'The Codex plugin runs the six-tool Circuit lifecycle through its packaged MCP server.',
+      evidence: [
+        'plugins/codex/.codex-plugin/plugin.json',
+        'plugins/codex/.mcp.json',
+        'plugins/codex/mcp/server.cjs',
+        'src/hosts/codex-mcp/contracts.ts',
+      ],
+      readiness_refs: [],
     },
     {
       id: 'generic-shell',

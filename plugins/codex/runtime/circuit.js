@@ -22799,7 +22799,10 @@ var init_trace_entry = __esm({
       // is already fixed by `resolved_selection` leaves it absent. Recording it
       // makes the receipt authoritative about the model even when the selection
       // layer pinned none.
-      model: external_exports.string().min(1).optional()
+      model: external_exports.string().min(1).optional(),
+      // Additive evidence that the connector observed and validated this many
+      // completed web_search lifecycles. Absent on older and non-search receipts.
+      web_search_count: external_exports.number().int().nonnegative().optional()
     }).strict();
     RelayResultTraceEntry = TraceEntryBase.extend({
       kind: external_exports.literal("relay.result"),
@@ -89601,7 +89604,7 @@ function validateCodexWebSearchItem(item, lifecycle, index) {
   return id;
 }
 function codexUnknownTypeRemediation(detectedVersion) {
-  return `Circuit was tested against Codex CLI ${CODEX_TESTED_CLI_RANGE}, and your Codex CLI reports "${detectedVersion}". The likely cause is a Codex CLI newer than Circuit has been tested against, which added a type Circuit has not reviewed yet. Check your Codex CLI version with: codex --version, and pin it to a version in the tested range if it is newer.`;
+  return `Circuit has verified Codex CLI ${CODEX_TESTED_CLI_RANGE}, and your Codex CLI reports "${detectedVersion}". The installed Codex version may be outside this tested range, or it may have added a protocol shape Circuit has not reviewed. Check your Codex CLI version with: codex --version. Update or pin Codex CLI to a version in this range, preferably 0.145.0, then retry.`;
 }
 function parseCodexStdout(stdout, prompt, duration_ms, cli_version) {
   const trace_entries = parseNdjsonObjects(stdout, "codex --json");
@@ -89738,7 +89741,8 @@ function parseCodexStdout(stdout, prompt, duration_ms, cli_version) {
     receipt_id: thread_id,
     result_body,
     duration_ms,
-    cli_version
+    cli_version,
+    ...webSearchCompletions.size === 0 ? {} : { web_search_count: webSearchCompletions.size }
   };
 }
 var CODEX_WRITE_FLAGS, CODEX_EXECUTABLE, CODEX_FORBIDDEN_ARGV_TOKENS, CODEX_REASONING_EFFORT_CONFIG_KEY, flagsAsStringArray, DEFAULT_IDLE_TIMEOUT_MS2, DEFAULT_ABSOLUTE_TIMEOUT_MS2, SIGTERM_TO_SIGKILL_GRACE_MS2, STDOUT_MAX_BYTES2, STDERR_MAX_BYTES2, VERSION_CAPTURE_TIMEOUT_MS, cachedCodexVersion, CODEX_OUTPUT_SCHEMA_UNSUPPORTED_KEYWORDS, KNOWN_CODEX_ITEM_TYPES, CODEX_WEB_SEARCH_MAX_STRING_LENGTH, CODEX_WEB_SEARCH_COMPLETED_ACTION_TYPES, CODEX_NONFATAL_ERROR_ITEM_MESSAGES, KNOWN_CODEX_EVENT_TYPES, CODEX_FAILURE_EVENT_TYPES, CODEX_TESTED_CLI_RANGE;
@@ -89851,7 +89855,7 @@ var init_codex = __esm({
       "turn.completed"
     ]);
     CODEX_FAILURE_EVENT_TYPES = /* @__PURE__ */ new Set(["turn.failed", "error"]);
-    CODEX_TESTED_CLI_RANGE = "0.118 to 0.130";
+    CODEX_TESTED_CLI_RANGE = "0.144.3 through 0.145.0";
   }
 });
 
@@ -98043,7 +98047,8 @@ async function executeProductionRelayAttempt(input) {
     // Present only when the connector resolved a model at dispatch (codex's
     // cache-resolved default). Keeps the receipt authoritative about the model
     // even when resolved_selection pinned none.
-    ...relayResult.model === void 0 ? {} : { model: relayResult.model }
+    ...relayResult.model === void 0 ? {} : { model: relayResult.model },
+    ...relayResult.web_search_count === void 0 ? {} : { web_search_count: relayResult.web_search_count }
   });
   await context.trace.append({
     run_id: context.runId,

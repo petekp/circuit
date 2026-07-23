@@ -1,6 +1,7 @@
 import { existsSync, readFileSync, readdirSync } from 'node:fs';
 import { dirname, relative, resolve } from 'node:path';
 import { describe, expect, it } from 'vitest';
+import YAML from 'yaml';
 
 const REPO_ROOT = resolve('.');
 const ACCEPTANCE_PATH = resolve(REPO_ROOT, 'docs/contracts/host-adapter-acceptance.md');
@@ -16,6 +17,36 @@ type CoverageRow = {
   readonly capability: string;
   readonly host: string;
   readonly coverage: string;
+};
+
+type Workflow = {
+  readonly concurrency?: {
+    readonly group?: string;
+    readonly 'cancel-in-progress'?: boolean;
+  };
+  readonly permissions?: Record<string, string>;
+  readonly jobs: Record<
+    string,
+    {
+      readonly concurrency?: {
+        readonly group?: string;
+        readonly 'cancel-in-progress'?: boolean;
+      };
+      readonly if?: string;
+      readonly name?: string;
+      readonly needs?: string | ReadonlyArray<string>;
+      readonly permissions?: Record<string, string>;
+      readonly steps?: ReadonlyArray<{
+        readonly env?: Record<string, string>;
+        readonly id?: string;
+        readonly if?: string;
+        readonly name?: string;
+        readonly run?: string;
+        readonly uses?: string;
+        readonly with?: Record<string, unknown>;
+      }>;
+    }
+  >;
 };
 
 function tableRowsAfterHeading(markdown: string, heading: string): string[] {
@@ -167,7 +198,7 @@ describe('host adapter acceptance contract', () => {
     expect(existsSync(resolve(REPO_ROOT, 'plugins/codex/hooks/session-start.ts'))).toBe(true);
   });
 
-  it('keeps real-host smoke scripts opt-in and outside verify', () => {
+  it('keeps paid host work outside verify and runs no-spend Codex checks in CI', () => {
     const packageJson = JSON.parse(readFileSync(resolve(REPO_ROOT, 'package.json'), 'utf8')) as {
       scripts: Record<string, string>;
     };
@@ -212,5 +243,203 @@ describe('host adapter acceptance contract', () => {
     expect(codexMcpSmoke).toContain("resolve(REPO_ROOT, '.mcp-host-tests')");
     expect(codexMcpSmoke).not.toContain('tmpdir()');
     expect(codexMcpSmoke).toContain('rmSync(root, { recursive: true, force: true })');
+
+    const verifyWorkflow = readFileSync(resolve(REPO_ROOT, '.github/workflows/verify.yml'), 'utf8');
+    expect(verifyWorkflow).toContain('macos-15');
+    expect(verifyWorkflow).toContain('macos-15-intel');
+    expect(verifyWorkflow).toContain('@openai/codex@${{ matrix.codex }}');
+    expect(verifyWorkflow).toContain('host-sandbox-canary-live.test.ts');
+    expect(verifyWorkflow).toContain('smoke:host:codex:mcp');
+    expect(verifyWorkflow).toContain('retention-days: 14');
+    const verifyConfig = YAML.parse(verifyWorkflow) as Workflow;
+    expect(verifyConfig.permissions).toEqual({ contents: 'read' });
+    const baselineCheckout = verifyConfig.jobs.verify?.steps?.find(
+      (step) => step.uses === 'actions/checkout@v5',
+    );
+    expect(baselineCheckout?.with?.['fetch-depth']).toBe(0);
+    for (const job of Object.values(verifyConfig.jobs)) {
+      const checkout = job.steps?.find((step) => step.uses === 'actions/checkout@v5');
+      if (checkout !== undefined) {
+        expect(checkout.with?.['persist-credentials']).toBe(false);
+      }
+    }
+    assertPinnedOldNodeLoaderProof(verifyConfig, 'codex-mcp');
+    assertExactCodexVersionProof(verifyConfig, 'codex-mcp', '${{ matrix.codex }}');
+    const codexMcpSteps = verifyConfig.jobs['codex-mcp']?.steps ?? [];
+    for (const [name, output] of [
+      ['Run live sandbox canary', 'sandbox-canary.json'],
+      ['Prove missing Node has one clear loader remedy', 'missing-node.json'],
+      ['Prove old Node has one clear loader remedy', 'old-node.json'],
+    ] as const) {
+      const evidenceStep = codexMcpSteps.find((step) => step.name === name);
+      expect(evidenceStep?.run).toContain('--reporter=default');
+      expect(evidenceStep?.run).toContain('--reporter=json');
+      expect(evidenceStep?.run).toContain(`--outputFile.json=.codex-ci/${output}`);
+    }
+    const codexEvidence = codexMcpSteps.find((step) => step.name === 'Upload Codex evidence');
+    expect(codexEvidence?.with?.['include-hidden-files']).toBe(true);
+    const codexReliability = verifyConfig.jobs['codex-reliability'];
+    expect(codexReliability?.name).toBe('Codex reliability');
+    expect(codexReliability?.if).toBe('${{ always() }}');
+    expect(codexReliability?.needs).toEqual(['codex-versions', 'codex-mcp']);
+    expect(codexReliability?.steps?.[0]?.env).toEqual({
+      CODEX_MCP_RESULT: '${{ needs.codex-mcp.result }}',
+      CODEX_VERSIONS_RESULT: '${{ needs.codex-versions.result }}',
+    });
+    expect(codexReliability?.steps?.[0]?.run).toContain('test "$CODEX_MCP_RESULT" = success');
+
+    const compatibilityWorkflow = readFileSync(
+      resolve(REPO_ROOT, '.github/workflows/codex-compatibility.yml'),
+      'utf8',
+    );
+    expect(compatibilityWorkflow).toContain('cron:');
+    expect(compatibilityWorkflow).toContain('npm view @openai/codex version');
+    expect(compatibilityWorkflow).toContain('npm view @openai/codex version --json');
+    expect(compatibilityWorkflow).toContain('/^\\\\d+\\\\.\\\\d+\\\\.\\\\d+$/');
+    expect(compatibilityWorkflow).not.toContain('npm view @openai/codex version 2>&1 | tee');
+    expect(compatibilityWorkflow).toContain('--mode packed');
+    expect(compatibilityWorkflow).toContain('--mode published');
+    expect(compatibilityWorkflow).toContain('isRetryablePublishedSmokeOutcome');
+    expect(compatibilityWorkflow).toContain('public-tag-attempt-1.json');
+    expect(compatibilityWorkflow).toContain('retention-days: 30');
+    expect(compatibilityWorkflow).toContain('Codex compatibility failure');
+    expect(compatibilityWorkflow).toContain("state: 'all'");
+    expect(compatibilityWorkflow).toContain("state_reason: 'completed'");
+    expect(compatibilityWorkflow).toContain("state: 'open'");
+    expect(compatibilityWorkflow).toContain('gh pr list');
+    expect(compatibilityWorkflow).toContain('git ls-remote --exit-code --heads origin');
+    expect(compatibilityWorkflow).not.toContain('git push --force');
+    const compatibilityConfig = YAML.parse(compatibilityWorkflow) as Workflow;
+    expect(compatibilityConfig.permissions).toEqual({ contents: 'read' });
+    // A newer passing run must cancel an older failing run before that older
+    // run can publish stale issue state after the newer result.
+    expect(compatibilityConfig.concurrency).toEqual({
+      group: 'codex-compatibility-${{ github.repository }}-${{ github.ref }}',
+      'cancel-in-progress': true,
+    });
+    expect(compatibilityConfig.jobs['compatibility-issue']?.permissions).toEqual({
+      actions: 'read',
+      contents: 'read',
+      issues: 'write',
+    });
+    const compatibilityIssueJob = compatibilityConfig.jobs['compatibility-issue'];
+    expect(compatibilityIssueJob?.if).toBe("${{ always() && github.ref == 'refs/heads/main' }}");
+    expect(compatibilityIssueJob?.concurrency).toEqual({
+      group: 'codex-compatibility-issue-${{ github.repository }}',
+      'cancel-in-progress': false,
+    });
+    const compatibilityIssueStep = compatibilityIssueJob?.steps?.find(
+      (step) => step.name === 'Open or update the compatibility issue',
+    );
+    expect(compatibilityIssueStep?.env).toMatchObject({
+      CURRENT_RUN_NUMBER: '${{ github.run_number }}',
+    });
+    const compatibilityIssueScript = String(compatibilityIssueStep?.with?.script ?? '');
+    expect(compatibilityIssueScript).toContain("workflow_id: 'codex-compatibility.yml'");
+    expect(compatibilityIssueScript).toContain("branch: 'main'");
+    expect(compatibilityIssueScript).toContain("status: 'completed'");
+    expect(compatibilityIssueScript).toContain("new Set(['success', 'failure'])");
+    expect(compatibilityIssueScript).toMatch(
+      /run\.run_number > currentRunNumber\s+&&\s+actionableConclusions\.has\(run\.conclusion \?\? ''\)/,
+    );
+    expect(compatibilityIssueScript).toMatch(/run\.run_number > currentRunNumber/);
+    expect(compatibilityIssueScript).toContain('circuit-codex-compatibility-run:');
+    expect(compatibilityIssueScript).toMatch(/existingRunNumber > currentRunNumber/);
+    expect(compatibilityIssueScript).toContain('body: recoveredBody');
+    const updateLatestProven = compatibilityConfig.jobs['update-latest-proven'];
+    expect(updateLatestProven?.if).toBe(
+      "${{ github.ref == 'refs/heads/main' && needs.compatibility.result == 'success' }}",
+    );
+    expect(updateLatestProven?.permissions).toEqual({
+      contents: 'write',
+      'pull-requests': 'write',
+    });
+    const automationCheckout = updateLatestProven?.steps?.find(
+      (step) => step.uses === 'actions/checkout@v5',
+    );
+    expect(automationCheckout?.with).toMatchObject({
+      ref: 'main',
+      'fetch-depth': 0,
+    });
+    expect(compatibilityWorkflow).toContain('group: codex-latest-proven');
+    expect(compatibilityWorkflow).toContain('cancel-in-progress: false');
+    expect(
+      compatibilityWorkflow.indexOf('git fetch origin "$branch:refs/remotes/origin/$branch"'),
+    ).toBeLessThan(compatibilityWorkflow.indexOf('if [ -n "$existing_pr" ]'));
+    const resolvedEvidence = compatibilityConfig.jobs.resolve?.steps?.find(
+      (step) => step.uses === 'actions/upload-artifact@v4',
+    );
+    expect(resolvedEvidence?.if).toBe('${{ always() }}');
+    expect(resolvedEvidence?.with?.['include-hidden-files']).toBe(true);
+    const compatibilitySteps = compatibilityConfig.jobs.compatibility?.steps ?? [];
+    for (const [name, output] of [
+      ['Run live sandbox canary', 'sandbox-canary.json'],
+      ['Prove missing Node has one clear loader remedy', 'missing-node.json'],
+      ['Prove old Node has one clear loader remedy', 'old-node.json'],
+    ] as const) {
+      const evidenceStep = compatibilitySteps.find((step) => step.name === name);
+      expect(evidenceStep?.run).toContain('--reporter=default');
+      expect(evidenceStep?.run).toContain('--reporter=json');
+      expect(evidenceStep?.run).toContain(`--outputFile.json=.codex-compatibility/${output}`);
+    }
+    const compatibilityEvidence = compatibilitySteps.find(
+      (step) => step.name === 'Upload compatibility evidence',
+    );
+    expect(compatibilityEvidence?.with?.['include-hidden-files']).toBe(true);
+    for (const jobName of ['resolve', 'compatibility']) {
+      const checkout = compatibilityConfig.jobs[jobName]?.steps?.find(
+        (step) => step.uses === 'actions/checkout@v5',
+      );
+      expect(checkout?.with?.['persist-credentials']).toBe(false);
+    }
+    assertPinnedOldNodeLoaderProof(compatibilityConfig, 'compatibility');
+    assertExactCodexVersionProof(
+      compatibilityConfig,
+      'compatibility',
+      '${{ needs.resolve.outputs.stable }}',
+    );
   });
 });
+
+function assertExactCodexVersionProof(
+  workflow: Workflow,
+  jobName: string,
+  expectedVersion: string,
+): void {
+  const step = workflow.jobs[jobName]?.steps?.find(
+    (candidate) => candidate.name === 'Verify exact installed Codex version',
+  );
+  expect(step?.env).toEqual({ EXPECTED_CODEX_VERSION: expectedVersion });
+  expect(step?.run).toContain('codex --version');
+  expect(step?.run).toContain('actual_version');
+  expect(step?.run).toContain('"$actual_version" != "$EXPECTED_CODEX_VERSION"');
+}
+
+function assertPinnedOldNodeLoaderProof(workflow: Workflow, jobName: string): void {
+  const steps = workflow.jobs[jobName]?.steps ?? [];
+  const npmCiIndex = steps.findIndex((step) => step.run === 'npm ci');
+  const oldNodeIndex = steps.findIndex(
+    (step) => step.uses === 'actions/setup-node@v6' && step.with?.['node-version'] === '22.17.1',
+  );
+  const captureIndex = steps.findIndex((step) => step.id === 'old-node-runtime');
+  const restoredNodeIndex = steps.findIndex(
+    (step, index) =>
+      index > oldNodeIndex &&
+      step.uses === 'actions/setup-node@v6' &&
+      step.with?.['node-version'] === '22.18.0',
+  );
+  const proofIndex = steps.findIndex(
+    (step) => step.name === 'Prove old Node has one clear loader remedy',
+  );
+
+  expect(npmCiIndex).toBeGreaterThanOrEqual(0);
+  expect(oldNodeIndex).toBeGreaterThan(npmCiIndex);
+  expect(captureIndex).toBeGreaterThan(oldNodeIndex);
+  expect(steps[captureIndex]?.run).toContain('test "$(node --version)" = \'v22.17.1\'');
+  expect(restoredNodeIndex).toBeGreaterThan(captureIndex);
+  expect(proofIndex).toBeGreaterThan(restoredNodeIndex);
+  expect(steps[proofIndex]?.env).toMatchObject({
+    CIRCUIT_MCP_LIVE_OLD_NODE: '1',
+    CIRCUIT_MCP_OLD_NODE_BIN: '${{ steps.old-node-runtime.outputs.bin }}',
+  });
+}

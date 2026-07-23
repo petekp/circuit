@@ -250,10 +250,15 @@
     },
     {
       "id": "codex-plugin",
-      "status": "partial",
-      "summary": "Codex plugin files exist and use the current model-mediated host surface.",
-      "evidence": ["plugins/codex/.codex-plugin/plugin.json", "plugins/codex/scripts/circuit.ts"],
-      "readiness_refs": ["REL-014"]
+      "status": "implemented",
+      "summary": "The Codex plugin runs the six-tool Circuit lifecycle through its packaged MCP server.",
+      "evidence": [
+        "plugins/codex/.codex-plugin/plugin.json",
+        "plugins/codex/.mcp.json",
+        "plugins/codex/mcp/server.cjs",
+        "src/hosts/codex-mcp/contracts.ts"
+      ],
+      "readiness_refs": []
     },
     {
       "id": "generic-shell",
@@ -555,10 +560,15 @@
       "id": "host:codex-plugin",
       "kind": "host",
       "title": "codex-plugin host",
-      "status": "partial",
-      "summary": "Codex plugin files exist and use the current model-mediated host surface.",
-      "evidence": ["plugins/codex/.codex-plugin/plugin.json", "plugins/codex/scripts/circuit.ts"],
-      "readiness_refs": ["REL-014"],
+      "status": "implemented",
+      "summary": "The Codex plugin runs the six-tool Circuit lifecycle through its packaged MCP server.",
+      "evidence": [
+        "plugins/codex/.codex-plugin/plugin.json",
+        "plugins/codex/.mcp.json",
+        "plugins/codex/mcp/server.cjs",
+        "src/hosts/codex-mcp/contracts.ts"
+      ],
+      "readiness_refs": [],
       "axes": {
         "intent_hints": [],
         "modes": [],
@@ -870,10 +880,10 @@
       "id": "proof:golden-runs",
       "kind": "proof",
       "title": "Golden release runs",
-      "status": "implemented",
-      "summary": "All defined golden example runs are captured.",
+      "status": "partial",
+      "summary": "15 golden example runs are captured; remaining blockers: proof:codex-mcp-first-run.",
       "evidence": ["docs/release/proofs/index.yaml"],
-      "readiness_refs": [],
+      "readiness_refs": ["REL-011"],
       "axes": {
         "intent_hints": [],
         "modes": [],

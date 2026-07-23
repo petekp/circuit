@@ -12,6 +12,7 @@ surface should also have a generated editor schema covered by
 
 | YAML surface | Classification | Validation |
 | --- | --- | --- |
+| `.github/workflows/codex-compatibility.yml` | GitHub Actions workflow | Parsed for YAML syntax by the inventory test. The contract belongs to GitHub Actions, not Circuit Zod schemas. |
 | `.github/workflows/verify.yml` | GitHub Actions workflow | Parsed for YAML syntax by the inventory test. The contract belongs to GitHub Actions, not Circuit Zod schemas. |
 | `docs/release/claims/public-claims.yaml` | Authored release ledger | Parsed as `PublicClaimLedger`; editor schema: `schemas/yaml/release-public-claims.schema.json`. |
 | `docs/release/parity/exceptions.yaml` | Authored release ledger | Parsed as `ParityExceptionLedger`; editor schema: `schemas/yaml/release-parity-exceptions.schema.json`. |

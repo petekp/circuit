@@ -8,6 +8,7 @@ import { Command } from 'commander';
 import { build } from 'esbuild';
 import { MCP_TRANSIENT_ENVIRONMENT_NAMES } from '../../src/hosts/codex-mcp/transient-environment.ts';
 import { formatWithBiome, stableJson } from '../shared/format.ts';
+import { CODEX_MCP_LAUNCH_ARGS, CODEX_MCP_LAUNCH_COMMAND } from './codex-mcp-launcher.ts';
 import { normalizeRuntimeBundle } from './runtime-bundle.ts';
 
 // Marketplace-safe by source-tree fallback: this generator runs only from a
@@ -28,8 +29,8 @@ const CONFIG_BODY = formatWithBiome(
   stableJson({
     mcpServers: {
       circuit: {
-        command: 'node',
-        args: ['./mcp/server.cjs'],
+        command: CODEX_MCP_LAUNCH_COMMAND,
+        args: CODEX_MCP_LAUNCH_ARGS,
         cwd: '.',
         env_vars: MCP_TRANSIENT_ENVIRONMENT_NAMES,
         required: true,

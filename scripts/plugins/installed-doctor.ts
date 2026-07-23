@@ -1,10 +1,12 @@
 #!/usr/bin/env node
 
 import { spawnSync } from 'node:child_process';
-import { existsSync, lstatSync, readFileSync, readdirSync } from 'node:fs';
+import { constants, accessSync, existsSync, lstatSync, readFileSync, readdirSync } from 'node:fs';
 import { homedir } from 'node:os';
 import { delimiter, dirname, join, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
+import { MCP_TRANSIENT_ENVIRONMENT_NAMES } from '../../src/hosts/codex-mcp/transient-environment.ts';
+import { CODEX_MCP_LAUNCH_ARGS, CODEX_MCP_LAUNCH_COMMAND } from './codex-mcp-launcher.ts';
 import { packageTreeStatus } from './package-tree.ts';
 
 const SCRIPT_PATH = fileURLToPath(import.meta.url);
@@ -52,6 +54,27 @@ function noAmbientCliEnv(extra: NodeJS.ProcessEnv = {}): NodeJS.ProcessEnv {
     CIRCUIT_DEV: undefined,
     ...extra,
   };
+}
+
+function codexDoctorPath(): string {
+  const executableName = process.platform === 'win32' ? 'codex.exe' : 'codex';
+  const codexDirectory = (process.env.PATH ?? '')
+    .split(delimiter)
+    .filter(Boolean)
+    .find((directory) => {
+      try {
+        accessSync(resolve(directory, executableName), constants.X_OK);
+        return true;
+      } catch {
+        return false;
+      }
+    });
+  return [
+    ...noAmbientCliPath().split(delimiter),
+    ...(codexDirectory === undefined ? [] : [codexDirectory]),
+  ]
+    .filter((entry, index, entries) => entries.indexOf(entry) === index)
+    .join(delimiter);
 }
 
 function runDoctor(scriptPath: string, env: NodeJS.ProcessEnv = {}): DoctorResult {
@@ -324,9 +347,11 @@ function codexMcpConfigSummary(installedRoot: string): JsonRecord {
 
     const record = server as JsonRecord;
     const errors: string[] = [];
-    if (record.command !== 'node') errors.push('command must be node');
-    if (!sameStrings(record.args, ['./mcp/server.cjs'])) {
-      errors.push('args must point only at ./mcp/server.cjs');
+    if (record.command !== CODEX_MCP_LAUNCH_COMMAND) {
+      errors.push(`command must be ${CODEX_MCP_LAUNCH_COMMAND}`);
+    }
+    if (!sameStrings(record.args, CODEX_MCP_LAUNCH_ARGS)) {
+      errors.push('args must use the fixed Circuit MCP Node launcher');
     }
     if (record.cwd !== '.') errors.push('cwd must be .');
     if (record.required !== true) errors.push('the Circuit MCP server must be required');
@@ -335,14 +360,10 @@ function codexMcpConfigSummary(installedRoot: string): JsonRecord {
     if (!sameStrings(record.enabled_tools, CODEX_MCP_TOOLS)) {
       errors.push('enabled tools do not match the Circuit MCP tool set');
     }
-    const envVars = record.env_vars;
-    if (
-      !Array.isArray(envVars) ||
-      !envVars.every((value) => typeof value === 'string') ||
-      !['CODEX_HOME', 'HOME', 'PATH'].every((name) => envVars.includes(name))
-    ) {
-      errors.push('environment forwarding must include CODEX_HOME, HOME, and PATH');
+    if (!sameStrings(record.env_vars, MCP_TRANSIENT_ENVIRONMENT_NAMES)) {
+      errors.push('environment forwarding does not match the reviewed transient allowlist');
     }
+    if (record.env !== undefined) errors.push('static MCP environment values are not allowed');
     return {
       status: errors.length === 0 ? 'ok' : 'invalid',
       path,
@@ -526,6 +547,7 @@ try {
   });
   const codexPlugin = pluginStatus(resolve(repoRoot, 'plugins/codex'), codexInstalledRoot, {
     CODEX_HOME: codexHome,
+    PATH: codexDoctorPath(),
   });
   const codexMcp = codexMcpSummary(codexInstalledRoot, codexHome);
   const codex = {

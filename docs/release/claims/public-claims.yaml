@@ -119,3 +119,21 @@ claims:
       script_checks: [scripts/release/emit-current-capabilities.ts --check]
     user_risk: A setup failure can be mistaken for a product failure.
     readiness_refs: [REL-017]
+  - id: CLAIM-CODEX-MCP-LIFECYCLE
+    claim: On supported macOS hosts, the Codex plugin runs Circuit through its six-tool MCP lifecycle without shell fallback or sandbox escalation.
+    type: host
+    status: release_blocker
+    surfaces: [README.md, docs/first-run.md, plugins/codex/README.md]
+    backing:
+      capability_ids: [host:codex-plugin]
+      proof_ids: [proof:codex-mcp-first-run]
+      exception_ids: [EX-REL-014-CODEX-MCP-FIRST-RUN]
+      test_paths:
+        - tests/mcp/package.test.ts
+        - tests/mcp/package-lifecycle-acceptance.test.ts
+      script_checks:
+        - scripts/release/emit-current-capabilities.ts --check
+        - scripts/release/check-codex-mcp-first-run-proof.ts
+        - scripts/release/check-codex-mcp-candidate-matrix.ts
+    user_risk: A user following the public Codex install could receive an unproven loader or workspace path and mistake setup friction for Circuit behavior.
+    readiness_refs: [REL-014, REL-017]

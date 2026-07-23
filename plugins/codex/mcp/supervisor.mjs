@@ -17900,7 +17900,10 @@ var RelayReceiptTraceEntry = TraceEntryBase.extend({
   // is already fixed by `resolved_selection` leaves it absent. Recording it
   // makes the receipt authoritative about the model even when the selection
   // layer pinned none.
-  model: external_exports.string().min(1).optional()
+  model: external_exports.string().min(1).optional(),
+  // Additive evidence that the connector observed and validated this many
+  // completed web_search lifecycles. Absent on older and non-search receipts.
+  web_search_count: external_exports.number().int().nonnegative().optional()
 }).strict();
 var RelayResultTraceEntry = TraceEntryBase.extend({
   kind: external_exports.literal("relay.result"),

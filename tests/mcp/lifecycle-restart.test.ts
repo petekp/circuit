@@ -1,5 +1,5 @@
 import { createHash } from 'node:crypto';
-import { mkdir, mkdtemp, realpath, rm, writeFile } from 'node:fs/promises';
+import { lstat, mkdir, mkdtemp, readFile, realpath, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 
@@ -33,10 +33,12 @@ import type { SupervisorLauncher } from '../../src/hosts/codex-mcp/supervisor-la
 import { sha256OfJson } from '../../src/schemas/hashing.js';
 
 const RUN_ID = '11111111-1111-4111-8111-111111111111';
+const NEXT_RUN_ID = '22222222-2222-4222-8222-222222222222';
 const NOW = '2026-07-21T08:00:00.000Z';
 const DIGEST = 'a'.repeat(64);
 const FIRST_AUTHORIZATION = 'b'.repeat(64);
 const SECOND_AUTHORIZATION = 'c'.repeat(64);
+const FROZEN_V1_FIXTURE_SHA256 = 'f24b8f96d4fc435fc7cf82891894882e3487f53c46f1e93bb2602e5257508a26';
 const RUNTIME_ASSETS: McpRuntimeAssetPins = {
   schema_version: 1,
   digest_sha256: DIGEST,
@@ -49,6 +51,17 @@ const EXECUTABLE = {
   sha256: 'd'.repeat(64),
 };
 const roots: string[] = [];
+
+interface DurableStateV1Fixture {
+  readonly fixture_kind: 'circuit.mcp.durable-state-fixture';
+  readonly fixture_version: 1;
+  readonly captured_from_circuit_version: '0.1.1';
+  readonly checkpoint_request: Record<string, unknown>;
+  readonly waiting_run: Record<string, unknown>;
+  readonly waiting_lease: Record<string, unknown>;
+  readonly recovery_run: Record<string, unknown>;
+  readonly recovery_lease: Record<string, unknown>;
+}
 
 function owner(instanceId: string, pid: number): LifecycleProcessOwnerIdentity {
   return {
@@ -81,6 +94,8 @@ function createLifecycle(input: {
   store: McpLifecycleStateAdapter;
   launcher: SupervisorLauncher;
   workerFactory: LifecycleWorkerFactory;
+  runtimeAssets?: McpRuntimeAssetPins;
+  randomRunId?: () => string;
 }): CircuitMcpLifecycle<undefined> {
   const reports: CreateCircuitMcpLifecycleOptions['reports'] = {
     read: async () => {
@@ -89,7 +104,7 @@ function createLifecycle(input: {
   };
   return new CircuitMcpLifecycle({
     platform: 'darwin',
-    loadRuntimeAssets: async () => RUNTIME_ASSETS,
+    loadRuntimeAssets: async () => input.runtimeAssets ?? RUNTIME_ASSETS,
     preflightLaunch: async () => undefined,
     resolveWorkspace: async () => input.workspace,
     owner: async () => input.owner,
@@ -107,7 +122,7 @@ function createLifecycle(input: {
       }),
     },
     now: () => new Date(NOW),
-    randomRunId: () => RUN_ID,
+    randomRunId: input.randomRunId ?? (() => RUN_ID),
   });
 }
 
@@ -139,11 +154,527 @@ async function writePrivateJson(path: string, value: unknown): Promise<void> {
   await writeFile(path, `${JSON.stringify(value)}\n`, { mode: 0o600 });
 }
 
+async function expectMode(path: string, mode: number): Promise<void> {
+  expect((await lstat(path)).mode & 0o777).toBe(mode);
+}
+
+async function expectMissing(path: string): Promise<void> {
+  await expect(lstat(path)).rejects.toMatchObject({ code: 'ENOENT' });
+}
+
+function bindFixtureWorkspace<T>(value: T, workspace: LifecycleWorkspaceIdentity): T {
+  const replacements = new Map([
+    ['__WORKSPACE_KEY__', workspace.key],
+    ['__WORKSPACE_PATH__', workspace.canonical_path],
+    ['__WORKSPACE_DEVICE__', workspace.device],
+    ['__WORKSPACE_INODE__', workspace.inode],
+  ]);
+  let serialized = JSON.stringify(value);
+  for (const [placeholder, replacement] of replacements) {
+    serialized = serialized.replaceAll(JSON.stringify(placeholder), JSON.stringify(replacement));
+  }
+  return JSON.parse(serialized) as T;
+}
+
 afterEach(async () => {
   for (const path of roots.splice(0)) await rm(path, { recursive: true, force: true });
 });
 
 describe('Circuit MCP durable lifecycle restart', () => {
+  it('reads and operates on the frozen v1 durable-state fixture', async () => {
+    const root = await realpath(await mkdtemp(join(tmpdir(), 'circuit-mcp-v1-state-')));
+    roots.push(root);
+    const workspacePath = join(root, 'workspace');
+    const stateRoot = join(root, 'state');
+    await mkdir(workspacePath, { mode: 0o700 });
+    const workspace = trustedWorkspaceIdentity(workspacePath);
+    const fixtureBytes = await readFile(
+      new URL('./fixtures/durable-state-v1.json', import.meta.url),
+      'utf8',
+    );
+    expect(createHash('sha256').update(fixtureBytes).digest('hex')).toBe(FROZEN_V1_FIXTURE_SHA256);
+    const frozen = JSON.parse(fixtureBytes) as DurableStateV1Fixture;
+    expect(frozen).toMatchObject({
+      fixture_kind: 'circuit.mcp.durable-state-fixture',
+      fixture_version: 1,
+      captured_from_circuit_version: '0.1.1',
+    });
+
+    const state = stateAdapter({
+      stateRoot,
+      inspect: () => 'absent',
+      artifacts: {
+        classifyExit: async () => {
+          throw new Error('The frozen waiting state must not be reclassified.');
+        },
+      },
+    });
+    const waitingRun = bindFixtureWorkspace(frozen.waiting_run, workspace);
+    const waitingLease = bindFixtureWorkspace(frozen.waiting_lease, workspace);
+    const waitingPaths = state.store.pathsForRun(workspace, RUN_ID);
+    await mkdir(waitingPaths.run_dir, { recursive: true, mode: 0o700 });
+    await writePrivateJson(waitingPaths.state_file, waitingRun);
+    await writePrivateJson(waitingPaths.lease_file, waitingLease);
+
+    const checkpointPath = join(
+      workspacePath,
+      '.circuit',
+      'runs',
+      RUN_ID,
+      'steps',
+      'choose',
+      'request.json',
+    );
+    await mkdir(join(checkpointPath, '..'), { recursive: true, mode: 0o700 });
+    await writePrivateJson(checkpointPath, frozen.checkpoint_request);
+
+    await expectMode(stateRoot, 0o700);
+    await expectMode(state.store.runsRoot, 0o700);
+    await expectMode(state.store.leasesRoot, 0o700);
+    await expectMode(waitingPaths.run_dir, 0o700);
+    await expectMode(waitingPaths.state_file, 0o600);
+    await expectMode(waitingPaths.lease_file, 0o600);
+    await expectMode(checkpointPath, 0o600);
+
+    const lifecycle = createLifecycle({
+      workspace,
+      owner: owner('current-server', 501),
+      store: state.adapter,
+      launcher: {
+        begin: async () => {
+          throw new Error('The v1 compatibility test must not launch a worker.');
+        },
+      },
+      workerFactory: {
+        createStart: async () => {
+          throw new Error('The v1 compatibility test must not create a start worker.');
+        },
+        createResume: async () => {
+          throw new Error('The v1 compatibility test must not create a resume worker.');
+        },
+      },
+    });
+
+    await expect(lifecycle.handle(call('circuit_list', {}))).resolves.toMatchObject({
+      ok: true,
+      runs: [
+        expect.objectContaining({
+          run_id: RUN_ID,
+          state: 'waiting_for_input',
+          checkpoint_available: true,
+        }),
+      ],
+    });
+    await expect(
+      lifecycle.handle(call('circuit_status', { run_id: RUN_ID })),
+    ).resolves.toMatchObject({
+      ok: true,
+      run_id: RUN_ID,
+      state: 'waiting_for_input',
+      checkpoint: {
+        prompt: 'Choose whether to keep the v1 prototype.',
+        choices: [{ id: 'continue', label: 'Keep prototype' }],
+      },
+    });
+    await expect(
+      lifecycle.handle(call('circuit_cancel', { run_id: RUN_ID })),
+    ).resolves.toMatchObject({
+      ok: true,
+      run_id: RUN_ID,
+      state: 'cancelled',
+      cleanup_confirmed: true,
+    });
+    await expectMissing(waitingPaths.lease_file);
+    expect(state.store.readRun(workspace, RUN_ID).state).toBe('cancelled');
+    await expectMode(waitingPaths.state_file, 0o600);
+
+    const recoveryRun = bindFixtureWorkspace(frozen.recovery_run, workspace);
+    const recoveryLease = bindFixtureWorkspace(frozen.recovery_lease, workspace);
+    const recoveryPaths = state.store.pathsForRun(workspace, NEXT_RUN_ID);
+    await mkdir(recoveryPaths.run_dir, { recursive: true, mode: 0o700 });
+    await writePrivateJson(recoveryPaths.state_file, recoveryRun);
+    await writePrivateJson(recoveryPaths.lease_file, recoveryLease);
+
+    await expect(lifecycle.handle(call('circuit_list', {}))).resolves.toMatchObject({
+      ok: true,
+      runs: expect.arrayContaining([
+        expect.objectContaining({
+          run_id: NEXT_RUN_ID,
+          state: 'recovery_required',
+          checkpoint_available: false,
+        }),
+      ]),
+    });
+    await expect(
+      lifecycle.handle(call('circuit_status', { run_id: NEXT_RUN_ID })),
+    ).resolves.toMatchObject({
+      ok: true,
+      run_id: NEXT_RUN_ID,
+      state: 'recovery_required',
+      summary: 'Circuit could not confirm cleanup.',
+    });
+    await expectMode(recoveryPaths.run_dir, 0o700);
+    await expectMode(recoveryPaths.state_file, 0o600);
+    await expectMode(recoveryPaths.lease_file, 0o600);
+
+    await expect(
+      lifecycle.handle(call('circuit_recover', { run_id: NEXT_RUN_ID })),
+    ).resolves.toMatchObject({
+      ok: true,
+      run_id: NEXT_RUN_ID,
+      state: 'interrupted',
+      recovered: true,
+      cleanup_confirmed: true,
+      lease_released: true,
+    });
+    await expectMissing(recoveryPaths.lease_file);
+    expect(state.store.readRun(workspace, NEXT_RUN_ID).state).toBe('interrupted');
+    await expectMode(recoveryPaths.state_file, 0o600);
+  });
+
+  it('resumes and reconciles a checkpoint reseeded from the frozen v1 fixture', async () => {
+    const root = await realpath(await mkdtemp(join(tmpdir(), 'circuit-mcp-v1-resume-')));
+    roots.push(root);
+    const workspacePath = join(root, 'workspace');
+    const stateRoot = join(root, 'state');
+    await mkdir(workspacePath, { mode: 0o700 });
+    const workspace = trustedWorkspaceIdentity(workspacePath);
+    const fixtureBytes = await readFile(
+      new URL('./fixtures/durable-state-v1.json', import.meta.url),
+      'utf8',
+    );
+    expect(createHash('sha256').update(fixtureBytes).digest('hex')).toBe(FROZEN_V1_FIXTURE_SHA256);
+    const frozen = JSON.parse(fixtureBytes) as DurableStateV1Fixture;
+
+    const resumedSupervisor = processIdentity(202, 'v1-resume-supervisor');
+    const resumedRuntime = processIdentity(302, SECOND_AUTHORIZATION);
+    let resumedProcessesAlive = true;
+    let classifiedExit = false;
+    const state = stateAdapter({
+      stateRoot,
+      inspect: (identity) =>
+        identity.birth_token === 'v1-resume-server-birth' ||
+        (resumedProcessesAlive &&
+          (identity.pid === resumedSupervisor.pid || identity.pid === resumedRuntime.pid))
+          ? 'alive'
+          : 'absent',
+      artifacts: {
+        classifyExit: async ({ record, exit }) => {
+          expect(record.launch.generation).toBe(2);
+          expect(exit).toMatchObject({
+            generation: 2,
+            authorization_sha256: SECOND_AUTHORIZATION,
+            process_group_cleanup: 'confirmed',
+          });
+          classifiedExit = true;
+          return {
+            state: 'interrupted',
+            summary: 'Circuit reconciled the resumed v1 checkpoint and confirmed cleanup.',
+          };
+        },
+      },
+    });
+    const waitingRun = bindFixtureWorkspace(frozen.waiting_run, workspace);
+    const waitingLease = bindFixtureWorkspace(frozen.waiting_lease, workspace);
+    const waitingPaths = state.store.pathsForRun(workspace, RUN_ID);
+    await mkdir(waitingPaths.run_dir, { recursive: true, mode: 0o700 });
+    await writePrivateJson(waitingPaths.state_file, waitingRun);
+    await writePrivateJson(waitingPaths.lease_file, waitingLease);
+
+    const checkpointPath = join(
+      workspacePath,
+      '.circuit',
+      'runs',
+      RUN_ID,
+      'steps',
+      'choose',
+      'request.json',
+    );
+    await mkdir(join(checkpointPath, '..'), { recursive: true, mode: 0o700 });
+    await writePrivateJson(checkpointPath, frozen.checkpoint_request);
+
+    const resumedLaunches: {
+      generation: number;
+      checkpointToken: string;
+      choiceId: string;
+    }[] = [];
+    const supervisorGenerations: number[] = [];
+    const lifecycle = createLifecycle({
+      workspace,
+      owner: owner('v1-resume-server', 102),
+      store: state.adapter,
+      launcher: {
+        begin: async ({ generation }) => {
+          supervisorGenerations.push(generation);
+          return {
+            supervisor: resumedSupervisor,
+            authorization_token: '2'.repeat(64),
+            authorization_sha256: SECOND_AUTHORIZATION,
+            authorize: async () => resumedRuntime,
+            closeBeforeAuthorization: async () => true,
+          };
+        },
+      },
+      workerFactory: {
+        createStart: async () => {
+          throw new Error('The v1 resume test must not create a start worker.');
+        },
+        createResume: async ({ run, checkpoint_token, choice_id }) => {
+          resumedLaunches.push({
+            generation: run.launch.generation,
+            checkpointToken: checkpoint_token,
+            choiceId: choice_id,
+          });
+          return { worker_entrypoint: '/tmp/worker.mjs', launch_payload: {} };
+        },
+      },
+    });
+
+    const status = CircuitStatusResponseV1.parse(
+      await lifecycle.handle(call('circuit_status', { run_id: RUN_ID })),
+    );
+    if (!status.ok || status.checkpoint === undefined) {
+      throw new Error('Circuit could not read the frozen v1 checkpoint.');
+    }
+    const choice = status.checkpoint.choices[0];
+    if (choice === undefined) throw new Error('The frozen v1 checkpoint had no advertised choice.');
+
+    const resumed = CircuitResumeResponseV1.parse(
+      await lifecycle.handle(
+        call('circuit_resume', {
+          run_id: RUN_ID,
+          checkpoint_token: status.checkpoint.token,
+          choice_id: choice.id,
+        }),
+      ),
+    );
+    if (!resumed.ok) {
+      throw new Error(
+        `Circuit could not resume the frozen v1 checkpoint: ${JSON.stringify({ resumed, record: state.store.readRun(workspace, RUN_ID), supervisorGenerations, resumedLaunches })}`,
+      );
+    }
+    expect(resumed).toMatchObject({ ok: true, run_id: RUN_ID, state: 'running' });
+    expect(supervisorGenerations).toEqual([2]);
+    expect(resumedLaunches).toEqual([
+      {
+        generation: 2,
+        checkpointToken: status.checkpoint.token,
+        choiceId: 'continue',
+      },
+    ]);
+    const resumedRecord = state.store.readRun(workspace, RUN_ID);
+    expect(resumedRecord.checkpoint).toBeUndefined();
+    expect(resumedRecord).toMatchObject({
+      state: 'running',
+      launch: {
+        generation: 2,
+        phase: 'runtime_recorded',
+        supervisor: resumedSupervisor,
+        runtime: resumedRuntime,
+      },
+    });
+
+    const controlDirectory = state.adapter.controlDirectory(workspace, RUN_ID);
+    await writePrivateJson(join(controlDirectory, 'launch-2-runtime.json'), {
+      schema_version: 1,
+      record_kind: 'circuit.mcp.runtime-observation',
+      run_id: RUN_ID,
+      generation: 2,
+      authorization_sha256: SECOND_AUTHORIZATION,
+      runtime: {
+        pid: resumedRuntime.pid,
+        process_group_id: resumedRuntime.process_group_id,
+        birth_token: resumedRuntime.birth_token,
+        started_at: resumedRuntime.started_at,
+      },
+      runtime_executable: EXECUTABLE,
+      recorded_at: NOW,
+    });
+    await writePrivateJson(join(controlDirectory, 'launch-2-exit.json'), {
+      schema_version: 1,
+      record_kind: 'circuit.mcp.exit-observation',
+      run_id: RUN_ID,
+      generation: 2,
+      authorization_sha256: SECOND_AUTHORIZATION,
+      runtime: {
+        pid: resumedRuntime.pid,
+        process_group_id: resumedRuntime.process_group_id,
+        birth_token: resumedRuntime.birth_token,
+        started_at: resumedRuntime.started_at,
+      },
+      observed_at: NOW,
+      exit_code: 1,
+      process_group_cleanup: 'confirmed',
+    });
+    resumedProcessesAlive = false;
+
+    await expect(
+      lifecycle.handle(call('circuit_status', { run_id: RUN_ID })),
+    ).resolves.toMatchObject({
+      ok: true,
+      run_id: RUN_ID,
+      state: 'interrupted',
+      summary: 'Circuit reconciled the resumed v1 checkpoint and confirmed cleanup.',
+    });
+    expect(classifiedExit).toBe(true);
+    expect(state.store.readRun(workspace, RUN_ID)).toMatchObject({
+      state: 'interrupted',
+      launch: {
+        generation: 2,
+        phase: 'exited',
+        exit: { exit_code: 1, process_group_cleanup: 'confirmed' },
+      },
+    });
+    await expectMissing(waitingPaths.lease_file);
+  });
+
+  it('cancels a waiting run after asset drift before starting a replacement', async () => {
+    const root = await realpath(await mkdtemp(join(tmpdir(), 'circuit-mcp-drift-cancel-')));
+    roots.push(root);
+    const workspacePath = join(root, 'workspace');
+    const stateRoot = join(root, 'state');
+    await mkdir(workspacePath, { mode: 0o700 });
+    const workspace = trustedWorkspaceIdentity(workspacePath);
+    const state = stateAdapter({
+      stateRoot,
+      artifacts: {
+        classifyExit: async () => {
+          throw new Error('A waiting run must not be reclassified.');
+        },
+      },
+    });
+
+    state.store.reserveRun({
+      run_id: RUN_ID,
+      workspace,
+      request: { flow: 'prototype', goal: 'Keep this checkpoint' },
+      runtime_assets_sha256: DIGEST,
+      owner: owner('old-server', 100),
+      summary: 'Circuit is preparing Prototype.',
+    });
+    const setup = state.store.acquireOperation({
+      workspace,
+      run_id: RUN_ID,
+      operation: 'reconcile',
+      owner: owner('setup-server', 101),
+    });
+    if (!setup.ok) throw new Error('Expected a setup claim.');
+    const supervisor = processIdentity(200, 'old-supervisor');
+    const runtime = processIdentity(300, FIRST_AUTHORIZATION);
+    state.store.advanceLaunch({
+      handle: setup.handle,
+      launch: {
+        generation: 1,
+        phase: 'supervisor_recorded',
+        allocation_owner: owner('old-server', 100),
+        supervisor,
+      },
+    });
+    state.store.advanceLaunch({
+      handle: setup.handle,
+      launch: {
+        generation: 1,
+        phase: 'launch_authorized',
+        allocation_owner: owner('old-server', 100),
+        supervisor,
+        authorization_sha256: FIRST_AUTHORIZATION,
+        authorized_at: NOW,
+      },
+    });
+    state.store.advanceLaunch({
+      handle: setup.handle,
+      launch: {
+        generation: 1,
+        phase: 'runtime_recorded',
+        allocation_owner: owner('old-server', 100),
+        supervisor,
+        runtime,
+        authorization_sha256: FIRST_AUTHORIZATION,
+        authorized_at: NOW,
+      },
+    });
+    state.store.advanceLaunch({
+      handle: setup.handle,
+      launch: {
+        generation: 1,
+        phase: 'exited',
+        allocation_owner: owner('old-server', 100),
+        supervisor,
+        runtime,
+        authorization_sha256: FIRST_AUTHORIZATION,
+        authorized_at: NOW,
+        exit: {
+          observed_at: NOW,
+          exit_code: 0,
+          process_group_cleanup: 'confirmed',
+        },
+      },
+    });
+    state.store.transitionRun({
+      handle: setup.handle,
+      to: 'waiting_for_input',
+      summary: 'Prototype is waiting for a choice.',
+      checkpoint: {
+        generation: 1,
+        step_id: 'choose',
+        attempt: 1,
+        request_path: 'steps/choose/request.json',
+        request_sha256: 'e'.repeat(64),
+        allowed_choices: ['continue'],
+        choices_sha256: sha256OfJson(['continue']),
+      },
+    });
+    state.store.releaseOperation(setup.handle);
+
+    const currentAssets = { ...RUNTIME_ASSETS, digest_sha256: '9'.repeat(64) };
+    const lifecycle = createLifecycle({
+      workspace,
+      owner: owner('new-server', 102),
+      store: state.adapter,
+      runtimeAssets: currentAssets,
+      randomRunId: () => NEXT_RUN_ID,
+      launcher: {
+        begin: async () => ({
+          supervisor: processIdentity(201, 'new-supervisor'),
+          authorization_token: '2'.repeat(64),
+          authorization_sha256: SECOND_AUTHORIZATION,
+          authorize: async () => processIdentity(301, SECOND_AUTHORIZATION),
+          closeBeforeAuthorization: async () => true,
+        }),
+      },
+      workerFactory: {
+        createStart: async () => ({ worker_entrypoint: '/tmp/worker.mjs', launch_payload: {} }),
+        createResume: async () => {
+          throw new Error('A drifted run must not launch a resume worker.');
+        },
+      },
+    });
+
+    const drifted = await lifecycle.handle(
+      call('circuit_resume', {
+        run_id: RUN_ID,
+        checkpoint_token: `cpt1.${'4'.repeat(64)}`,
+        choice_id: 'continue',
+      }),
+    );
+    expect(drifted).toMatchObject({
+      ok: false,
+      error: {
+        code: 'runtime_asset_changed',
+        next_action:
+          'Call circuit_cancel for this run, restart Codex, then start a new Circuit run.',
+      },
+    });
+
+    await expect(
+      lifecycle.handle(call('circuit_cancel', { run_id: RUN_ID })),
+    ).resolves.toMatchObject({ ok: true, state: 'cancelled', cleanup_confirmed: true });
+    await expect(
+      lifecycle.handle(call('circuit_start', { flow: 'review', goal: 'Review after upgrade' })),
+    ).resolves.toMatchObject({ ok: true, run_id: NEXT_RUN_ID, state: 'running' });
+    expect(state.store.readRun(workspace, NEXT_RUN_ID).state).toBe('running');
+  });
+
   it('lists and resumes a persisted Prototype checkpoint through a fresh server and store', async () => {
     const root = await realpath(await mkdtemp(join(tmpdir(), 'circuit-mcp-restart-')));
     roots.push(root);

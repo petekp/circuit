@@ -1,5 +1,6 @@
+import { spawnSync } from 'node:child_process';
 import { createHash } from 'node:crypto';
-import { existsSync, readFileSync, readdirSync, statSync } from 'node:fs';
+import { existsSync, readFileSync, readdirSync, readlinkSync, statSync } from 'node:fs';
 import { join, resolve } from 'node:path';
 
 const OWNED_ROOTS = new Set([
@@ -59,6 +60,129 @@ function walkFiles(root: string): string[] {
     }
   }
   return files.sort();
+}
+
+type TreeEntry = { readonly path: string; readonly type: 'file' | 'symlink' };
+type MaterializedTreeEntry = TreeEntry & { readonly contents: Buffer };
+
+function walkAllTreeEntries(root: string): TreeEntry[] {
+  if (!existsSync(root) || !statSync(root).isDirectory()) return [];
+  const entries: TreeEntry[] = [];
+  const stack = [''];
+  while (stack.length > 0) {
+    const relDir = stack.pop() ?? '';
+    const absDir = resolve(root, relDir);
+    for (const entry of readdirSync(absDir, { withFileTypes: true })) {
+      const relPath = normalizeRelativePath(join(relDir, entry.name));
+      if (entry.isDirectory()) {
+        stack.push(relPath);
+      } else if (entry.isFile()) {
+        entries.push({ path: relPath, type: 'file' });
+      } else if (entry.isSymbolicLink()) {
+        entries.push({ path: relPath, type: 'symlink' });
+      } else {
+        throw new Error(`unsupported package-tree entry: ${relPath}`);
+      }
+    }
+  }
+  return entries.sort((left, right) => left.path.localeCompare(right.path));
+}
+
+function digestTreeEntries(entries: readonly MaterializedTreeEntry[]): string {
+  const hash = createHash('sha256');
+  for (const entry of [...entries].sort((left, right) => left.path.localeCompare(right.path))) {
+    const pathBytes = Buffer.from(entry.path, 'utf8');
+    hash.update(entry.type);
+    hash.update('\0');
+    hash.update(String(pathBytes.byteLength));
+    hash.update('\0');
+    hash.update(pathBytes);
+    hash.update('\0');
+    hash.update(String(entry.contents.byteLength));
+    hash.update('\0');
+    hash.update(entry.contents);
+    hash.update('\0');
+  }
+  return hash.digest('hex');
+}
+
+/** Stable digest of every file and symlink in a plugin package. */
+export function packageTreeSha256(root: string): string {
+  const canonicalRoot = resolve(root);
+  return digestTreeEntries(
+    walkAllTreeEntries(canonicalRoot).map((entry) => ({
+      ...entry,
+      contents:
+        entry.type === 'file'
+          ? readFileSync(resolve(canonicalRoot, entry.path))
+          : Buffer.from(readlinkSync(resolve(canonicalRoot, entry.path)), 'utf8'),
+    })),
+  );
+}
+
+function gitOutput(repoRoot: string, args: readonly string[]): Buffer {
+  const result = spawnSync('git', ['-C', repoRoot, ...args], {
+    encoding: 'buffer',
+    maxBuffer: 64 * 1_048_576,
+  });
+  if (result.error !== undefined || result.status !== 0) {
+    const detail = Buffer.concat([
+      result.stderr ?? Buffer.alloc(0),
+      result.stdout ?? Buffer.alloc(0),
+    ])
+      .toString('utf8')
+      .trim();
+    throw new Error(detail || `git ${args[0] ?? ''} failed`);
+  }
+  return result.stdout ?? Buffer.alloc(0);
+}
+
+/** Recomputes the package digest from immutable blobs at one full Git commit. */
+export function packageGitTreeSha256(
+  repoRoot: string,
+  commit: string,
+  packagePath: string,
+): string {
+  if (!/^[a-f0-9]{40}$/u.test(commit)) throw new Error('commit must be a full Git SHA');
+  const normalizedRoot = normalizeRelativePath(packagePath);
+  if (
+    normalizedRoot.length === 0 ||
+    packagePath.startsWith('/') ||
+    packagePath.includes('\\') ||
+    normalizedRoot.split('/').some((segment) => segment === '.' || segment === '..')
+  ) {
+    throw new Error('package path must be a safe repository-relative path');
+  }
+  const prefix = `${normalizedRoot}/`;
+  const listing = gitOutput(repoRoot, [
+    'ls-tree',
+    '-rz',
+    '--full-tree',
+    commit,
+    '--',
+    normalizedRoot,
+  ]).toString('utf8');
+  const entries: MaterializedTreeEntry[] = [];
+  for (const line of listing.split('\0').filter(Boolean)) {
+    const match = line.match(/^([0-7]{6}) (blob|tree|commit) ([a-f0-9]{40,64})\t(.+)$/u);
+    if (match === null) throw new Error('Git returned a malformed package-tree entry');
+    const [, mode, objectType, objectId, fullPath] = match;
+    if (objectType !== 'blob' || objectId === undefined || fullPath === undefined) {
+      throw new Error(`unsupported Git package-tree entry: ${fullPath ?? '<unknown>'}`);
+    }
+    if (!fullPath.startsWith(prefix)) {
+      throw new Error('Git returned a package-tree entry outside the requested path');
+    }
+    const path = fullPath.slice(prefix.length);
+    if (path.length === 0) throw new Error('Git returned an empty package-tree path');
+    entries.push({
+      path,
+      type: mode === '120000' ? 'symlink' : 'file',
+      contents: gitOutput(repoRoot, ['cat-file', 'blob', objectId]),
+    });
+  }
+  if (entries.length === 0) throw new Error('Git commit has no plugin package tree');
+  return digestTreeEntries(entries);
 }
 
 export function walkPackageFiles(root: string): string[] {

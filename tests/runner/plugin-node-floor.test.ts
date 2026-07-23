@@ -20,6 +20,7 @@ const FLOOR = `${REQUIRED_NODE.major}.${REQUIRED_NODE.minor}`;
 type ShimSpec = { shim: string; target: string; delegates: boolean };
 
 const SHIMS: ShimSpec[] = [
+  { shim: 'plugins/codex/mcp/server.cjs', target: 'server.mjs', delegates: false },
   { shim: 'plugins/claude/scripts/circuit.js', target: 'circuit.ts', delegates: true },
   { shim: 'plugins/codex/scripts/circuit.js', target: 'circuit.ts', delegates: true },
   { shim: 'plugins/claude/hooks/session-start.js', target: 'session-start.ts', delegates: false },
@@ -122,6 +123,11 @@ describe('shim behavior on a simulated Node version (subprocess)', () => {
       expect(stderr).toContain('Node');
       expect(stderr).toContain(FLOOR);
       expect(stderr).toContain('20.11.1');
+      if (shim === 'plugins/codex/mcp/server.cjs') {
+        expect(stderr).toContain(
+          `Install Node.js ${FLOOR} or newer, ensure node is on PATH, restart Codex, and try again.`,
+        );
+      }
       // The whole point: never the cryptic loader error on an old Node.
       expect(stderr).not.toContain('ERR_UNKNOWN_FILE_EXTENSION');
     });

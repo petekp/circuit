@@ -20,7 +20,7 @@ import {
   tomlString,
 } from './nested-codex.js';
 
-const CANARY_TIMEOUT_MS = 10_000;
+const CANARY_TIMEOUT_MS = 20_000;
 const CANARY_OUTPUT_LIMIT_BYTES = 1024 * 1024;
 const EXPECTED_TOOL_NAMES = Object.freeze([
   'apply_patch',

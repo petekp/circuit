@@ -740,13 +740,13 @@ const CODEX_FAILURE_EVENT_TYPES = new Set<string>(['turn.failed', 'error']);
 // and point the operator at the fix rather than leaving them with a bare
 // "unknown type" that takes down every relay. This range records full
 // connector smoke coverage; an isolated parser fixture does not widen it.
-const CODEX_TESTED_CLI_RANGE = '0.118 to 0.130';
+const CODEX_TESTED_CLI_RANGE = '0.144.3 through 0.145.0';
 
 // Shared remediation appended to every unknown-type rejection. Fail-closed
 // stays fail-closed — this only makes the cause and the fix legible.
 // `detectedVersion` is the `codex --version` string captured for this relay.
 function codexUnknownTypeRemediation(detectedVersion: string): string {
-  return `Circuit was tested against Codex CLI ${CODEX_TESTED_CLI_RANGE}, and your Codex CLI reports "${detectedVersion}". The likely cause is a Codex CLI newer than Circuit has been tested against, which added a type Circuit has not reviewed yet. Check your Codex CLI version with: codex --version, and pin it to a version in the tested range if it is newer.`;
+  return `Circuit has verified Codex CLI ${CODEX_TESTED_CLI_RANGE}, and your Codex CLI reports "${detectedVersion}". The installed Codex version may be outside this tested range, or it may have added a protocol shape Circuit has not reviewed. Check your Codex CLI version with: codex --version. Update or pin Codex CLI to a version in this range, preferably 0.145.0, then retry.`;
 }
 
 export function parseCodexStdout(
@@ -955,5 +955,6 @@ export function parseCodexStdout(
     result_body,
     duration_ms,
     cli_version,
+    ...(webSearchCompletions.size === 0 ? {} : { web_search_count: webSearchCompletions.size }),
   };
 }
