@@ -47,6 +47,7 @@ describe('Codex MCP Run skill', () => {
     expect(existsSync(resolve(REPO_ROOT, MCP_RUN_SKILL_SOURCE))).toBe(true);
     if (!existsSync(resolve(REPO_ROOT, MCP_RUN_SKILL_SOURCE))) return;
     const skill = readRepoFile(MCP_RUN_SKILL_SOURCE);
+    const compactSkill = skill.replace(/\s+/g, ' ');
 
     for (const toolName of MCP_TOOL_NAMES) {
       expect(skill, toolName).toContain(`\`${toolName}\``);
@@ -64,6 +65,7 @@ describe('Codex MCP Run skill', () => {
     expect(skill).toContain('task restarted');
     expect(skill).toContain('checkpoint.token');
     expect(skill).toContain('choice.id');
+    expect(skill).toContain('descriptions when present');
     expect(skill).toContain('recovery_required');
     expect(skill).toContain('final_report.schema');
     expect(skill).toContain('final_report.summary');
@@ -71,6 +73,20 @@ describe('Codex MCP Run skill', () => {
     expect(skill).toContain('web_search: "cached"');
     expect(skill).toContain('cached_web_search: true');
     expect(skill).toMatch(/query leaves the machine/i);
+    expect(compactSkill).toContain(
+      'This includes starting, reconnecting, listing, reading progress, handling checkpoints, cancelling, recovering, and releasing the workspace.',
+    );
+    expect(skill).toContain('private MCP state files');
+    expect(compactSkill).toContain(
+      'An MCP error, timeout, restart, busy workspace, or uncertain launch is not permission to fall back.',
+    );
+    expect(compactSkill).toContain(
+      "This boundary governs Circuit run control. It does not disable Codex's normal file and shell tools",
+    );
+    expect(compactSkill).toContain('Do not invoke another Circuit interface from this Run skill');
+    expect(compactSkill).toContain(
+      'Requests to create or generate custom flows are outside this skill',
+    );
 
     for (const shellToken of [
       './bin/circuit',

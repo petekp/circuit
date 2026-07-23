@@ -28,9 +28,25 @@ Use exactly these six Circuit tools:
 - `circuit_list`
 - `circuit_recover`
 
-Do not start Circuit through a shell command, a plugin wrapper, or the ordinary
-CLI. Do not silently fall back to one of those paths when an MCP call fails.
-Show the returned error message and `next_action` when one is present.
+This includes starting, reconnecting, listing, reading progress, handling
+checkpoints, cancelling, recovering, and releasing the workspace.
+
+Do not perform those actions through the shell, a plugin wrapper, the ordinary
+Circuit CLI, or private MCP state files. An MCP error, timeout, restart, busy
+workspace, or uncertain launch is not permission to fall back. Never
+force-unlock the workspace or start a competing run.
+
+This boundary governs Circuit run control. It does not disable Codex's normal
+file and shell tools, but do not use those tools as a hidden replacement for
+the work assigned to an active Circuit run.
+
+Separate Circuit utilities are not MCP fallbacks. Do not invoke another Circuit
+interface from this Run skill unless separate guidance provides an exact
+supported workflow.
+
+Requests to create or generate custom flows are outside this skill. Explain
+that custom-flow authoring is currently separate from the MCP run lifecycle and
+route to dedicated authoring guidance when available.
 
 ## Choose the Flow
 
@@ -158,8 +174,8 @@ Handle states as follows:
 ## Checkpoints
 
 When status returns `waiting_for_input`, show the checkpoint `prompt` and its
-advertised choices with their labels and descriptions. Use the host's native
-question surface when available.
+advertised choices with their labels and descriptions when present. Use the
+host's native question surface when available.
 
 After the user chooses, call `circuit_resume` with the same `run_id`, the exact
 `checkpoint.token`, and the selected `choice.id`. Never invent a choice, pass
@@ -173,12 +189,17 @@ If the user wants to stop instead of choosing, call `circuit_cancel`.
 
 ## Cancel and Recover
 
-Call `circuit_cancel` when the user cancels the run or replaces the task. Do
-not describe cancellation as complete until the response says `state` is
-`cancelled` and `cleanup_confirmed` is true. Here, `cleanup_confirmed` means
+Call `circuit_cancel` when the user cancels the run or replaces the task. For a
+direct cancel response, do not describe cancellation as complete until `state`
+is `cancelled` and `cleanup_confirmed` is true. Here, `cleanup_confirmed` means
 Circuit observed that its recorded owned process group is absent. It does not
 promise containment of a descendant that deliberately detached before Circuit
 could observe it.
+
+If `circuit_status` or `circuit_list` already reports a cancelled run after a
+restart, treat it as terminal. Report its summary and do not call
+`circuit_cancel` again or claim that the reconnect response freshly proved
+cleanup.
 
 Call `circuit_recover` only for a run in `recovery_required`. Recovery proves
 that Circuit's recorded processes are absent before releasing the workspace.
@@ -188,7 +209,8 @@ It does not continue the run.
 - If recovery returns `interrupted`, explain that the old run is closed. Start
   a new run only if the user still wants the work continued.
 - If recovery returns an error because a process may still exist, show its
-  message and `next_action`. Do not force an unlock or start a competing run.
+  message and `next_action` when present. Do not force an unlock or start a
+  competing run.
 
 ## Render the Final Result
 

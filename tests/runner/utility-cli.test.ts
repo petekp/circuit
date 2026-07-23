@@ -1795,6 +1795,10 @@ describe('utility CLI commands', () => {
 
   it('can bind handoff continuity to a runtime waiting run and write active-run output', async () => {
     const root = tempRoot('circuit-handoff-run-');
+    writeFileSync(
+      join(root, 'package.json'),
+      `${JSON.stringify({ scripts: { test: 'node -e "process.exit(0)"' } }, null, 2)}\n`,
+    );
     const runFolder = join(root, 'run');
     const controlPlane = join(root, 'control-plane');
     const run = await captureMain(
@@ -1809,11 +1813,14 @@ describe('utility CLI commands', () => {
         runFolder,
       ],
       {
+        relayer: relayerWithBuildBodies(),
         runId: '55555555-5555-4555-8555-555555555555',
         now: () => new Date('2026-04-29T23:20:00.000Z'),
+        configHomeDir: join(root, 'empty-home'),
+        configCwd: root,
       },
     );
-    expect(run.code, run.stderr).toBe(0);
+    expect(run.code, `${run.stderr}\n${run.stdout}`).toBe(0);
     expect(JSON.parse(run.stdout)).toMatchObject({ outcome: 'checkpoint_waiting' });
 
     const save = await captureMain([

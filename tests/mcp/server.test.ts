@@ -47,6 +47,40 @@ describe('Codex MCP server contract', () => {
     expect(client.getServerCapabilities()?.experimental).toHaveProperty(CODEX_SANDBOX_METADATA_KEY);
   });
 
+  it('advertises self-contained lifecycle instructions without a CLI fallback', () => {
+    const instructions = client.getInstructions();
+    expect(instructions).toEqual(expect.any(String));
+    if (instructions === undefined) return;
+
+    const firstParagraph = instructions.split('\n\n')[0] ?? '';
+    expect(firstParagraph.length).toBeGreaterThan(0);
+    expect(firstParagraph.length).toBeLessThanOrEqual(512);
+    expect(firstParagraph).toContain("Use Circuit's MCP tools for the entire run lifecycle");
+    expect(firstParagraph).toContain('never replace them with shell or CLI commands');
+    expect(firstParagraph).toContain('circuit_start');
+    expect(firstParagraph).toContain('circuit_status');
+    expect(firstParagraph).toContain('circuit_list');
+    expect(firstParagraph).toContain('never automatically retry');
+    expect(firstParagraph).toContain('force-unlock');
+
+    expect(instructions).toContain('waiting_for_input');
+    expect(instructions).toContain('checkpoint.prompt');
+    expect(instructions).toContain('description when present');
+    expect(instructions).toContain('stop and wait for the user');
+    expect(instructions).toContain('Never choose for the user');
+    expect(instructions).toContain('recovery_required');
+    expect(instructions).toContain('state is complete and final_report is present');
+    expect(instructions).toContain('direct circuit_cancel response');
+    expect(instructions).toContain('state is cancelled and cleanup_confirmed is true');
+    expect(instructions).toContain(
+      'A cancelled state from circuit_status or circuit_list is terminal',
+    );
+    expect(instructions).toContain('query leaves the machine');
+    expect(instructions).toContain('untracked Review contents');
+    expect(instructions).toContain('error.next_action when present');
+    expect(instructions).toContain('Never execute next_action as shell or CLI text');
+  });
+
   it('describes cached search as leaving the machine and keeps live search absent', async () => {
     const result = await client.listTools();
     const start = result.tools.find((tool) => tool.name === 'circuit_start');
