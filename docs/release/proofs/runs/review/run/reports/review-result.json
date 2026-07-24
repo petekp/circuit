@@ -10,16 +10,24 @@
   ],
   "confidence_limitations": [
     "Untracked file contents were omitted from the relay (metadata-only policy).",
-    "Untracked file evidence was capped at 20 files."
+    "Assumed target: the current working tree. Name a commit, a range, staged, or unstaged to review something else.",
+    "untracked file contents were not included; pass --include-untracked-content only when those files are safe to relay"
   ],
   "evidence_summary": {
     "kind": "git-working-tree",
     "untracked_content_policy": "metadata-only",
     "untracked_file_count": 1,
     "untracked_files_sampled": 1,
-    "untracked_files_truncated": false
+    "untracked_files_truncated": false,
+    "target_kind": "working_tree",
+    "target_mode": "all",
+    "target_diff_included": true
   },
   "evidence_warnings": [
+    {
+      "kind": "target_assumed",
+      "message": "Assumed target: the current working tree. Name a commit, a range, staged, or unstaged to review something else."
+    },
     {
       "kind": "untracked_file_content_omitted",
       "message": "untracked file contents were not included; pass --include-untracked-content only when those files are safe to relay"

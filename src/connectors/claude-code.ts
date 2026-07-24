@@ -1,3 +1,4 @@
+import { rm } from 'node:fs/promises';
 import { CLAUDE_CODE_SUPPORTED_EFFORTS } from '../schemas/connector.js';
 import type { Effort } from '../schemas/selection-policy.js';
 import type { ResolvedSelection } from '../schemas/selection-policy.js';
@@ -9,6 +10,7 @@ import {
   sha256Hex,
 } from '../shared/connector-relay.js';
 import { extractJsonObject } from '../shared/json-extraction.js';
+import { createPromptOnlyRelayDirectory } from './prompt-only-directory.js';
 import { connectorRemediation } from './remediation.js';
 import {
   type ConnectorSubprocessResult,
@@ -76,6 +78,11 @@ export { sha256Hex };
 //   --verbose                — required by `--output-format stream-json`.
 //   --no-session-persistence — ephemeral session; no resumable session file
 //                              written under ~/.claude/projects/** per run.
+// Prompt-only Review relays additionally use `--safe-mode`. Current Claude
+// Code defines it as disabling CLAUDE.md, auto-memory, skills, plugins, hooks,
+// MCP servers, commands, agents, and other customizations while preserving
+// normal authentication and built-in model behavior. An older CLI that does
+// not support the flag exits before the relay, which is the safe failure mode.
 export const CLAUDE_CODE_DISPATCH_FLAGS = [
   '-p',
   '--permission-mode',
@@ -199,8 +206,14 @@ export function buildClaudeCodeArgs(input: ClaudeCodeRelayInput): string[] {
   // greedily consumes following argv elements, so it MUST lead and be
   // terminated by the next flag (`-p`) — never left adjacent to the trailing
   // prompt, which it would otherwise swallow. The CLI accepts a single
-  // comma-joined token. An empty list emits nothing (no dangling flag).
-  if (input.toolAllowList !== undefined && input.toolAllowList.length > 0) {
+  // comma-joined token. Prompt-only mode intentionally emits an empty token;
+  // ordinary equipment scopes omit the flag when no allow-list was declared.
+  if (input.promptOnly === true && (input.toolAllowList?.length ?? 0) > 0) {
+    throw new Error('A prompt-only relay cannot request worker tools.');
+  }
+  if (input.promptOnly === true) {
+    args.push('--tools', '', '--safe-mode');
+  } else if (input.toolAllowList !== undefined && input.toolAllowList.length > 0) {
     args.push('--tools', input.toolAllowList.join(','));
   }
   args.push(...CLAUDE_CODE_DISPATCH_FLAGS);
@@ -260,6 +273,23 @@ export function isClaudeCodeStructuredOutputCompatible(schema: Record<string, un
 }
 
 export async function relayClaudeCode(input: ClaudeCodeRelayInput): Promise<RelayResult> {
+  const promptOnlyDirectory =
+    input.promptOnly === true
+      ? await createPromptOnlyRelayDirectory(input.cwd, 'circuit-prompt-only-claude-')
+      : undefined;
+  try {
+    return await relayClaudeCodePrepared({
+      ...input,
+      ...(promptOnlyDirectory === undefined ? {} : { cwd: promptOnlyDirectory }),
+    });
+  } finally {
+    if (promptOnlyDirectory !== undefined) {
+      await rm(promptOnlyDirectory, { recursive: true, force: true });
+    }
+  }
+}
+
+async function relayClaudeCodePrepared(input: ClaudeCodeRelayInput): Promise<RelayResult> {
   // Per-step budgets map onto both bounds: budgets.wall_clock_ms overrides the
   // absolute backstop, budgets.inactivity_ms overrides the inactivity bound.
   // Each falls back to the connector default when absent.
@@ -343,7 +373,7 @@ export async function relayClaudeCode(input: ClaudeCodeRelayInput): Promise<Rela
       result.stdout,
       input.prompt,
       result.durationMs,
-      input.toolAllowList,
+      input.promptOnly === true ? [] : input.toolAllowList,
       // Same predicate that decided whether buildClaudeCodeArgs emitted
       // --json-schema, so the guard admits the CLI's return-channel tool exactly
       // when we asked for structured output — the two can't diverge.
@@ -366,8 +396,9 @@ export async function relayClaudeCode(input: ClaudeCodeRelayInput): Promise<Rela
 // MCP servers and slash commands stay closed at the flag layer and are
 // re-asserted here at parse time so a future flag regression that
 // silently widens either surface is caught before the connector result
-// reaches any downstream trace-writer. Tools are unconstrained by design
-// — the runtime check is the safety net for what workers produce.
+// reaches any downstream trace-writer. Ordinary relays may leave tools
+// unconstrained; prompt-only relays pass an explicit empty allow-list and are
+// checked here like any other enforced scope.
 export function parseClaudeCodeStdout(
   stdout: string,
   prompt: string,
@@ -433,7 +464,7 @@ export function parseClaudeCodeStdout(
   // flag layer; this is the parse-time safety net so a flag regression that
   // silently widened it (a tool we never granted appearing in the session)
   // fails the relay instead of letting an over-equipped worker reach flow state.
-  if (requestedTools !== undefined && requestedTools.length > 0) {
+  if (requestedTools !== undefined) {
     const sessionTools = initTraceEntry.tools;
     if (!Array.isArray(sessionTools)) {
       throw new Error(
@@ -459,6 +490,27 @@ export function parseClaudeCodeStdout(
       throw new Error(
         `enforced equipment scope violated: tools outside the allow-list are present in the session: ${rendered}. The relay passes --tools to restrict the surface to [${requestedTools.join(', ')}]; a tool beyond it means the restriction did not hold.`,
       );
+    }
+    for (const entry of trace_entries) {
+      const message = entry.message;
+      if (typeof message !== 'object' || message === null) continue;
+      const content = (message as Record<string, unknown>).content;
+      if (!Array.isArray(content)) continue;
+      for (const block of content) {
+        if (
+          typeof block !== 'object' ||
+          block === null ||
+          (block as Record<string, unknown>).type !== 'tool_use'
+        ) {
+          continue;
+        }
+        const name = (block as Record<string, unknown>).name;
+        if (typeof name !== 'string' || !allowed.has(name)) {
+          throw new Error(
+            'enforced equipment scope violated: an unapproved tool was used during the relay.',
+          );
+        }
+      }
     }
   }
 

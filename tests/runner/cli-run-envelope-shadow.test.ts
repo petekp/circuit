@@ -78,7 +78,7 @@ describe('CLI Run envelope shadow artifact', () => {
       'run',
       'review',
       '--goal',
-      'review this patch for safety problems',
+      'Review this supplied text: the run envelope should preserve completed Review evidence.',
       '--run-folder',
       runFolder,
     ]);

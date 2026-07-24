@@ -92,9 +92,20 @@ function reviewAssessmentDetails(report: JsonObject | undefined): string[] {
 function reviewEvidenceDetails(report: JsonObject | undefined): string[] {
   const evidenceSummary = isObject(report?.evidence_summary) ? report.evidence_summary : undefined;
   const kind = stringField(evidenceSummary, 'kind');
+  if (kind === 'goal') return ['Review evidence: stated goal only; no Git target requested.'];
   if (kind === 'unavailable') {
     const message = stringField(evidenceSummary, 'message');
     return message === undefined ? [] : [`Review evidence: unavailable (${message})`];
+  }
+  if (kind === 'git-target') {
+    const targetKind = stringField(evidenceSummary, 'target_kind');
+    const targetRef = stringField(evidenceSummary, 'target_ref');
+    const label = targetRef ?? targetKind ?? 'requested target';
+    if (evidenceSummary?.target_diff_included !== true) {
+      return [`Review evidence: ${label} diff unavailable.`];
+    }
+    const truncated = evidenceSummary?.target_diff_truncated === true ? ' (truncated)' : '';
+    return [`Review evidence: ${label} diff included${truncated}.`];
   }
   if (kind !== 'git-working-tree') return [];
 
@@ -102,19 +113,30 @@ function reviewEvidenceDetails(report: JsonObject | undefined): string[] {
   const count = numberField(evidenceSummary, 'untracked_file_count') ?? 0;
   const sampled = numberField(evidenceSummary, 'untracked_files_sampled') ?? 0;
   const truncated = evidenceSummary?.untracked_files_truncated === true;
+  const details: string[] = [];
+  // A summary written before the selected mode was recorded gets no evidence
+  // line rather than a guessed one.
+  const targetMode = stringField(evidenceSummary, 'target_mode');
+  if (targetMode !== undefined) {
+    details.push(
+      `Review evidence: ${targetMode} working-tree diff ${evidenceSummary?.target_diff_included === true ? 'included' : 'unavailable'}.`,
+    );
+  }
   if (policy === 'include-content') {
     const suffix = truncated ? '; additional untracked files were not sampled' : '';
-    return [
+    details.push(
       `Untracked evidence: contents included for ${plural(sampled, 'file')} (${plural(count, 'untracked file')} found${suffix}).`,
-    ];
+    );
+    return details;
   }
   if (policy === 'metadata-only' && count > 0) {
     const suffix = truncated ? '; additional untracked files were not sampled' : '';
-    return [
+    details.push(
       `Untracked evidence: paths and sizes only for ${plural(sampled, 'file')} (${plural(count, 'untracked file')} found${suffix}).`,
-    ];
+    );
+    return details;
   }
-  return [];
+  return details;
 }
 
 function hasEvidenceWarningKind(report: JsonObject | undefined, kind: string): boolean {
@@ -123,10 +145,76 @@ function hasEvidenceWarningKind(report: JsonObject | undefined, kind: string): b
   );
 }
 
-const reviewProjector: SummaryProjector = ({ flowReport }) => {
+// Gaps in what Circuit actually selected. D2: untracked files relayed as
+// metadata only are the default posture, so `untracked_file_content_omitted`
+// is a stated limitation, not a gap, and never holds a run open.
+const INCOMPLETE_REVIEW_EVIDENCE_WARNING_KINDS = new Set([
+  'binary_content_not_inspected',
+  'diff_truncated',
+  'untracked_file_skipped',
+  'submodule_content_not_inspected',
+]);
+
+function reviewEvidenceIncomplete(report: JsonObject | undefined): boolean {
+  const evidenceSummary = isObject(report?.evidence_summary) ? report.evidence_summary : undefined;
+  const evidenceKind = stringField(evidenceSummary, 'kind');
+  if (evidenceKind === 'git-target' && evidenceSummary?.target_diff_truncated === true) {
+    return true;
+  }
+  const untrackedContentRequested =
+    evidenceKind === 'git-working-tree' &&
+    stringField(evidenceSummary, 'untracked_content_policy') === 'include-content';
+  if (untrackedContentRequested && evidenceSummary?.untracked_files_truncated === true) {
+    return true;
+  }
+  return arrayField(report, 'evidence_warnings').some((item) => {
+    if (!isObject(item)) return false;
+    const kind = stringField(item, 'kind') ?? '';
+    if (kind === 'untracked_files_truncated') return untrackedContentRequested;
+    return INCOMPLETE_REVIEW_EVIDENCE_WARNING_KINDS.has(kind);
+  });
+}
+
+function hasCompleteUntrackedReviewEvidence(evidenceSummary: JsonObject | undefined): boolean {
+  if (
+    stringField(evidenceSummary, 'kind') !== 'git-working-tree' ||
+    stringField(evidenceSummary, 'target_mode') !== 'all' ||
+    stringField(evidenceSummary, 'untracked_content_policy') !== 'include-content' ||
+    evidenceSummary?.untracked_files_truncated === true
+  ) {
+    return false;
+  }
+  const count = numberField(evidenceSummary, 'untracked_file_count') ?? 0;
+  const sampled = numberField(evidenceSummary, 'untracked_files_sampled') ?? 0;
+  return count > 0 && sampled === count;
+}
+
+function reviewEvidenceUnavailable(report: JsonObject | undefined): boolean {
+  if (
+    hasEvidenceWarningKind(report, 'evidence_unavailable') ||
+    hasEvidenceWarningKind(report, 'target_unavailable') ||
+    hasEvidenceWarningKind(report, 'scope_empty')
+  ) {
+    return true;
+  }
+  const evidenceSummary = isObject(report?.evidence_summary) ? report.evidence_summary : undefined;
+  const kind = stringField(evidenceSummary, 'kind');
+  if (kind === 'unavailable') return true;
+  if (kind === 'git-target') return evidenceSummary?.target_diff_included !== true;
+  if (kind !== 'git-working-tree') return false;
+  return (
+    evidenceSummary?.target_diff_included !== true &&
+    !hasCompleteUntrackedReviewEvidence(evidenceSummary)
+  );
+}
+
+const reviewProjector: SummaryProjector = ({ flowReport, runOutcome }) => {
   const verdict = stringField(flowReport, 'verdict') ?? 'review complete';
   const findings = arrayField(flowReport, 'findings').length;
   const scopeEmpty = hasEvidenceWarningKind(flowReport, 'scope_empty');
+  const evidenceUnavailable = reviewEvidenceUnavailable(flowReport);
+  const evidenceIncomplete = reviewEvidenceIncomplete(flowReport);
+  const stopped = stringField(flowReport, 'outcome') === 'stopped' || runOutcome === 'stopped';
   const summaryDetail = flowSummaryDetail(flowReport);
   const assessmentDetails = reviewAssessmentDetails(flowReport);
   // Order: legacy result-summary line, assessment paragraph (the reviewer's
@@ -152,7 +240,13 @@ const reviewProjector: SummaryProjector = ({ flowReport }) => {
       : `Findings: ${findings}.`;
   const headline = scopeEmpty
     ? `Circuit: Review had no uncommitted source content to examine; committed history (HEAD~1) was not part of this review. ${findingPhrase}`
-    : `Circuit: Review complete. Verdict: ${verdict}. ${findingPhrase}`;
+    : evidenceUnavailable
+      ? `Circuit: Review did not have usable source evidence. ${findingPhrase}`
+      : evidenceIncomplete
+        ? `Circuit: Review source evidence was incomplete. ${findingPhrase}`
+        : stopped
+          ? `Circuit: Review stopped. Verdict: ${verdict}. ${findingPhrase}`
+          : `Circuit: Review complete. Verdict: ${verdict}. ${findingPhrase}`;
   return {
     headline,
     details,

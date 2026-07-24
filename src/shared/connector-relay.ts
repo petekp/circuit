@@ -53,6 +53,10 @@ export interface RelayResult {
 
 export interface ConnectorRelayInput {
   prompt: string;
+  // Internal relay boundary for flows whose complete review context is already
+  // embedded in the prompt. Supported connectors run without repository
+  // access or worker tools. This is not part of the public MCP contract.
+  promptOnly?: true;
   // Per-step absolute wall-clock ceiling (budgets.wall_clock_ms). The
   // connector's default backstop applies when absent.
   timeoutMs?: number;

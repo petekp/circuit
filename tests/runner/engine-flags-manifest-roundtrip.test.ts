@@ -94,6 +94,15 @@ describe('engine_flags on the compiled manifest (prototype, Stage 3b)', () => {
   });
 });
 
+describe('engine_flags on the compiled manifest (review)', () => {
+  it('keeps every Review relay limited to the evidence in its prompt', () => {
+    const flow = compiledFlow('review');
+    expect(flow.engine_flags?.relay_uses_prompt_only_context).toBe(true);
+    const executable = fromCompiledFlow(flow);
+    expect(executable.engineFlags?.relayUsesPromptOnlyContext).toBe(true);
+  });
+});
+
 describe('behavior-equivalence: the engine resolves the flags off the manifest', () => {
   // The runtime reads its flags through resolveEngineFlags(flow). With the flags
   // on the manifest and the by-id package deleted (M4), the resolved value the

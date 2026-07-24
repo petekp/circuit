@@ -841,6 +841,30 @@ describe('release truth infrastructure', () => {
     expect(script).not.toContain('composeWriter:');
   });
 
+  it('marks the golden Review relayer as prompt-only compatible', () => {
+    const script = readFileSync(
+      resolve(root, 'scripts/release/capture-golden-run-proofs.ts'),
+      'utf8',
+    );
+    const reviewRelayer = script.slice(
+      script.indexOf('function reviewRelayer()'),
+      script.indexOf('function fixRelayer('),
+    );
+
+    expect(reviewRelayer).toContain('promptOnlyContext: true');
+  });
+
+  it('stores the prompt-only boundary in the captured golden Review request', () => {
+    const request = readFileSync(
+      resolve(root, 'docs/release/proofs/runs/review/run/reports/relay/review.request.json'),
+      'utf8',
+    );
+
+    expect(request).toContain('Review sees only the captured evidence in this prompt');
+    expect(request).toContain('Do not read repository files, run tools');
+    expect(request).not.toContain('may inspect nearby repository files');
+  });
+
   it('keeps index.yaml command strings consistent with the capture scenarios', () => {
     const proofs = ProofScenarioIndex.parse(yamlFile('docs/release/proofs/index.yaml'));
     const script = readFileSync(
@@ -856,7 +880,7 @@ describe('release truth infrastructure', () => {
     const expectedFragments = new Map([
       ['proof:routed-build', ['run build', '"develop: add a small safe change"']],
       ['proof:explicit-build', ['run build', '"add a focused change"', '--process high']],
-      ['proof:review', ['run review', '"review this change"']],
+      ['proof:review', ['run review', '"review this change"', '--include-untracked-content']],
       [
         'proof:checkpoint-resume',
         [

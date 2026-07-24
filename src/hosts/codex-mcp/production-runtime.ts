@@ -3,6 +3,7 @@ import { lstat, mkdir, realpath, rm, stat } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { isAbsolute, join, relative, resolve } from 'node:path';
 
+import { validateFlowStartTarget } from '../../flows/registries/start-preflight.js';
 import {
   type McpRuntimeAssetPin,
   type McpRuntimeAssetPins,
@@ -25,7 +26,7 @@ import type {
   LifecycleWorkerFactory,
   LifecycleWorkspaceIdentity,
 } from './lifecycle-types.js';
-import { createCircuitMcpLifecycleHandler } from './lifecycle.js';
+import { McpLifecycleError, createCircuitMcpLifecycleHandler } from './lifecycle.js';
 import { ObservedCleanupController } from './process-cleanup.js';
 import {
   type ObservedProcessProbe,
@@ -325,6 +326,20 @@ export function createProductionLaunchPreflight(
             environment: dependencies.environment,
           },
         });
+        // Target selection is checked only after the host itself is proven
+        // usable. A sandboxed session that cannot launch Codex at all should
+        // hear about the sandbox, not about its Review target. Availability is
+        // the worker's answer: it reads the evidence once, and an unreadable or
+        // empty target aborts the run before any model is paid.
+        try {
+          validateFlowStartTarget(input.request.flow, input.request.goal);
+        } catch (error) {
+          throw new McpLifecycleError(
+            'invalid_review_target',
+            (error as Error).message,
+            'Choose one complete working tree, staged set, unstaged set, commit, or range target, or include the actual text to review.',
+          );
+        }
       } finally {
         await rm(probeRoot, { recursive: true, force: true });
       }

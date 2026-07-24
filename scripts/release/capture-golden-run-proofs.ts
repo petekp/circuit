@@ -417,6 +417,7 @@ function buildProofExecutors(): RuntimeExecutorsOption {
 function reviewRelayer(): Relayer {
   return {
     connectorName: 'claude-code',
+    promptOnlyContext: true,
     relay: async (input: RelayInput): Promise<RelayOutcome> => ({
       request_payload: input.prompt,
       receipt_id: 'proof-review',
@@ -431,7 +432,6 @@ function reviewRelayer(): Relayer {
         ],
         confidence_limitations: [
           'Untracked file contents were omitted from the relay (metadata-only policy).',
-          'Untracked file evidence was capped at 20 files.',
         ],
       }),
       duration_ms: 10,

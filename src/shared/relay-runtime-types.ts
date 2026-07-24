@@ -9,6 +9,10 @@ import type { ConnectorRelayInput, RelayResult } from './connector-relay.js';
 export interface RelayFn {
   readonly connectorName: string;
   readonly connector?: ResolvedConnector;
+  // Explicit capability claim required before a host-injected relayer may
+  // receive a prompt-only flow. Built-in direct connectors are checked at
+  // dispatch instead.
+  readonly promptOnlyContext?: true;
   readonly relay: (input: RelayInput) => Promise<RelayResult>;
 }
 

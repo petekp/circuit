@@ -131,7 +131,8 @@
     }
   ],
   "engine_flags": {
-    "binds_terminal_outcome_to_primary_result": true
+    "binds_terminal_outcome_to_primary_result": true,
+    "relay_uses_prompt_only_context": true
   },
   "runtime_surface": {
     "primary_result": {

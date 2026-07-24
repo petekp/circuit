@@ -522,6 +522,9 @@ describe('operator summary writer', () => {
         untracked_file_count: 0,
         untracked_files_sampled: 0,
         untracked_files_truncated: false,
+        target_kind: 'working_tree',
+        target_mode: 'staged',
+        target_diff_included: true,
       },
       evidence_warnings: [
         {
@@ -549,7 +552,7 @@ describe('operator summary writer', () => {
         'Read src/example.ts',
         'Replayed the staged diff against tests/example.test.ts',
         'Checked generated docs',
-        '+2 more in operator-summary.json.',
+        '+3 more in operator-summary.json.',
       ],
       // The machine warning takes the front slot (warnings never lose to
       // ordinary caveats), and the capped tail is announced, not hidden.
@@ -582,7 +585,7 @@ describe('operator summary writer', () => {
         '- Read src/example.ts',
         '- Replayed the staged diff against tests/example.test.ts',
         '- Checked generated docs',
-        '- +2 more in operator-summary.json.',
+        '- +3 more in operator-summary.json.',
         '- Caveat: diff_truncated: staged diff was truncated before relay',
         '- Caveat: HEAD~1 history was out of scope for this review.',
         '- Caveat: +3 more in operator-summary.json.',

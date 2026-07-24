@@ -49,6 +49,34 @@ describe('Claude Code MCP closure', () => {
   });
 });
 
+describe('Claude Code prompt-only relay boundary', () => {
+  it('requests an explicitly empty tool surface', () => {
+    expect(
+      buildClaudeCodeArgs({
+        prompt: 'review only the supplied evidence',
+        promptOnly: true,
+      } as Parameters<typeof buildClaudeCodeArgs>[0]),
+    ).toEqual(expect.arrayContaining(['--tools', '']));
+  });
+
+  it('disables user and project customizations only for prompt-only Review relays', () => {
+    const promptOnly = buildClaudeCodeArgs({
+      prompt: 'review only the supplied evidence',
+      promptOnly: true,
+    } as Parameters<typeof buildClaudeCodeArgs>[0]);
+    const ordinary = buildClaudeCodeArgs({ prompt: 'implement the requested change' });
+
+    expect(promptOnly).toContain('--safe-mode');
+    expect(ordinary).not.toContain('--safe-mode');
+  });
+
+  it('rejects any filesystem tool when prompt-only mode requested no tools', () => {
+    const init = buildInitLine({ tools: ['Read'] });
+    const stdout = `${init}\n${successResultLine()}\n`;
+    expect(() => parseClaudeCodeStdout(stdout, 'prompt', 1, [], false)).toThrow(/Read/);
+  });
+});
+
 describe('parseClaudeCodeStdout — structured_output precedence', () => {
   it('uses result.structured_output when the schema-piping path is in effect', () => {
     const init = buildInitLine();

@@ -703,10 +703,23 @@ function caveatsFrom(input: {
   readonly warnings: readonly OperatorSummaryWarning[];
 }): string[] {
   const caveats: string[] = [];
-  const add = (caveat: string) => {
+  // Same sentence, two channels: a flow that copies its evidence warnings into
+  // the reviewer's confidence limitations would otherwise spend two of the
+  // three brief slots saying one thing, and push the rest behind a "+N more"
+  // pointer. Dedupe on the message body, not the rendered line, because the
+  // warning channel prefixes its kind.
+  const seenBodies = new Set<string>();
+  const body = (caveat: string) =>
+    caveat
+      .trim()
+      .replace(/[.!?]+$/, '')
+      .toLowerCase();
+  const add = (caveat: string, messageBody = caveat) => {
     const trimmed = caveat.trim();
     if (trimmed.length === 0) return;
-    if (caveats.includes(trimmed)) return;
+    const key = body(messageBody);
+    if (seenBodies.has(key)) return;
+    seenBodies.add(key);
     caveats.push(trimmed);
   };
   // Machine warnings FIRST. A warning records a subsystem failure the run
@@ -714,7 +727,7 @@ function caveatsFrom(input: {
   // discovery); it must never lose its brief slot to an ordinary review
   // caveat, so position here is survival priority under the cap below.
   for (const warning of input.warnings) {
-    add(`${warning.kind}: ${warning.message}`);
+    add(`${warning.kind}: ${warning.message}`, warning.message);
   }
   for (const detail of input.details) {
     if (detail.startsWith('Confidence limitations: ')) {
@@ -1392,6 +1405,23 @@ function readDegradationWarnings(runFolder: string): OperatorSummaryWarning[] {
       if (message !== undefined) {
         warnings.push({ kind: 'context_delivery_failed', message: firstLine(message) });
       }
+      continue;
+    }
+    // The flow asked for a reviewer with no repository access and the chosen
+    // connector could not honor it. The run is still honest, but a reader who
+    // assumed the reviewer worked from the relayed evidence alone must be told.
+    if (entry.kind === 'relay.started') {
+      const seal = entry.context_seal;
+      if (!isObject(seal) || seal.applied !== false) continue;
+      const connector = isObject(entry.connector)
+        ? stringField(entry.connector, 'name')
+        : undefined;
+      const reason = stringField(seal, 'reason');
+      const cause = reason === undefined ? '' : ` (${firstLine(reason)})`;
+      warnings.push({
+        kind: 'relay_context_not_sealed',
+        message: `The reviewer ran with repository access. This flow asked for a reviewer that sees only the relayed evidence, and ${connector ?? 'the chosen connector'} could not honor that${cause}. Run this flow with Claude Code or Codex for a sealed reviewer.`,
+      });
     }
   }
   return warnings;

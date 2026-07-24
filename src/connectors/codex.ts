@@ -2,13 +2,14 @@ import { execFileSync } from 'node:child_process';
 import { readFileSync } from 'node:fs';
 import { mkdtemp, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
-import { join as joinPath } from 'node:path';
+import { isAbsolute, join as joinPath } from 'node:path';
 import { CODEX_SUPPORTED_EFFORTS } from '../schemas/connector.js';
 import type { Effort } from '../schemas/selection-policy.js';
 import type { ResolvedSelection } from '../schemas/selection-policy.js';
 import type { ConnectorRelayInput, RelayResult } from '../shared/connector-relay.js';
 import { extractJsonObject } from '../shared/json-extraction.js';
 import { codexModelsCachePath, resolveCodexDefaultModel } from './codex-default-model.js';
+import { createPromptOnlyRelayDirectory } from './prompt-only-directory.js';
 import { connectorRemediation } from './remediation.js';
 import {
   type ConnectorSubprocessResult,
@@ -39,6 +40,60 @@ export const CODEX_WRITE_FLAGS = Object.freeze([
   '--ignore-user-config',
   '--ignore-rules',
 ] as const);
+
+export const CODEX_PROMPT_ONLY_FLAGS = Object.freeze([
+  'exec',
+  '--json',
+  '--ephemeral',
+  '--skip-git-repo-check',
+  '--ignore-user-config',
+  '--ignore-rules',
+  '--strict-config',
+] as const);
+
+const CODEX_PROMPT_ONLY_BASE_CONFIG = Object.freeze([
+  'approval_policy="never"',
+  'history.persistence="none"',
+  'allow_login_shell=false',
+  'project_doc_max_bytes=0',
+  'skills.include_instructions=false',
+  ...[
+    'apps',
+    'auth_elicitation',
+    'browser_use',
+    'browser_use_external',
+    'browser_use_full_cdp_access',
+    'computer_use',
+    'hooks',
+    'image_generation',
+    'in_app_browser',
+    'memories',
+    'multi_agent',
+    'plugin_sharing',
+    'plugins',
+    'remote_plugin',
+    'shell_snapshot',
+    'shell_tool',
+    'skill_mcp_dependency_install',
+    'tool_call_mcp_elicitation',
+    'workspace_dependencies',
+  ].map((feature) => `features.${feature}=false`),
+  'tools.update_plan.enabled=false',
+  'mcp_servers={}',
+  'web_search="disabled"',
+] as const);
+
+function codexPromptOnlyConfig(cwd: string): readonly string[] {
+  if (!isAbsolute(cwd) || cwd.includes('\0')) {
+    throw new Error('A prompt-only Codex relay requires a private absolute working directory.');
+  }
+  return Object.freeze([
+    'default_permissions="circuit_prompt_only"',
+    `permissions.circuit_prompt_only.filesystem={":minimal"="read",":workspace_roots"="write",":slash_tmp"="deny",${JSON.stringify(cwd)}="write"}`,
+    'permissions.circuit_prompt_only.network.enabled=false',
+    ...CODEX_PROMPT_ONLY_BASE_CONFIG,
+  ]);
+}
 
 export const CODEX_EXECUTABLE = 'codex';
 
@@ -243,50 +298,92 @@ function isForbiddenCodexArg(arg: string): boolean {
   });
 }
 
-function isAllowedCodexConfigOverride(value: string | undefined): boolean {
+function isAllowedCodexConfigOverride(
+  value: string | undefined,
+  promptOnlyConfig: readonly string[],
+): boolean {
   return (
     value !== undefined &&
-    CODEX_SUPPORTED_EFFORTS.some((effort) => value === codexReasoningEffortConfigValue(effort))
+    (CODEX_SUPPORTED_EFFORTS.some((effort) => value === codexReasoningEffortConfigValue(effort)) ||
+      promptOnlyConfig.includes(value))
   );
 }
 
-export function assertCodexSpawnArgvBoundary(args: readonly string[]): void {
+export function assertCodexSpawnArgvBoundary(args: readonly string[], promptOnly = false): void {
+  const cdIndexes = args.map((arg, idx) => (arg === '--cd' ? idx : -1)).filter((idx) => idx >= 0);
+  const promptOnlyCwd =
+    promptOnly && cdIndexes.length === 1 && cdIndexes[0] !== undefined
+      ? args[cdIndexes[0] + 1]
+      : undefined;
+  const promptOnlyConfig =
+    promptOnly && promptOnlyCwd !== undefined ? codexPromptOnlyConfig(promptOnlyCwd) : [];
   const sandboxFlagIndexes = args
     .map((arg, idx) => (arg === '-s' ? idx : -1))
     .filter((idx) => idx >= 0);
   const sandboxFlagIndex = sandboxFlagIndexes[0];
+  if (promptOnly && sandboxFlagIndexes.length !== 0) {
+    throw new Error('codex prompt-only boundary must use its named permission profile, not -s');
+  }
   if (
-    sandboxFlagIndexes.length !== 1 ||
-    sandboxFlagIndex === undefined ||
-    args[sandboxFlagIndex + 1] !== 'workspace-write'
+    !promptOnly &&
+    (sandboxFlagIndexes.length !== 1 ||
+      sandboxFlagIndex === undefined ||
+      args[sandboxFlagIndex + 1] !== 'workspace-write')
   ) {
     throw new Error(
       'codex spawn argv boundary broken: exactly one "-s workspace-write" pair is required',
     );
   }
+  if (promptOnly && (cdIndexes.length !== 1 || promptOnlyCwd === undefined)) {
+    throw new Error('codex prompt-only boundary requires exactly one private --cd directory');
+  }
 
   let configOverrideCount = 0;
+  let effortOverrideCount = 0;
   for (let idx = 0; idx < args.length; idx += 1) {
     const arg = args[idx];
     if (arg === undefined) continue;
     if (arg === '-c') {
       configOverrideCount += 1;
-      if (configOverrideCount > 1) {
+      if (!promptOnly && configOverrideCount > 1) {
         throw new Error(
           'codex spawn argv boundary broken: at most one allowlisted -c override is allowed',
         );
       }
       const value = args[idx + 1];
-      if (!isAllowedCodexConfigOverride(value)) {
+      if (!isAllowedCodexConfigOverride(value, promptOnlyConfig)) {
         throw new Error(
-          `codex spawn argv boundary broken: only ${CODEX_REASONING_EFFORT_CONFIG_KEY}=<supported effort> is allowed after -c`,
+          promptOnly
+            ? 'codex spawn argv boundary broken: an unreviewed configuration override was provided after -c'
+            : `codex spawn argv boundary broken: only ${CODEX_REASONING_EFFORT_CONFIG_KEY}=<supported effort> is allowed after -c`,
         );
+      }
+      if (
+        CODEX_SUPPORTED_EFFORTS.some((effort) => value === codexReasoningEffortConfigValue(effort))
+      ) {
+        effortOverrideCount += 1;
+        if (effortOverrideCount > 1) {
+          throw new Error(
+            'codex spawn argv boundary broken: at most one reasoning effort override is allowed',
+          );
+        }
       }
       idx += 1;
       continue;
     }
     if (isForbiddenCodexArg(arg)) {
       throw new Error(`codex spawn argv boundary broken: forbidden argv token "${arg}"`);
+    }
+  }
+  if (promptOnly) {
+    if (!args.includes('--strict-config')) {
+      throw new Error('codex prompt-only boundary requires --strict-config');
+    }
+    for (const value of promptOnlyConfig) {
+      const matches = args.filter((arg, index) => arg === value && args[index - 1] === '-c');
+      if (matches.length !== 1) {
+        throw new Error(`codex prompt-only boundary is missing the sealed setting ${value}`);
+      }
     }
   }
 }
@@ -304,9 +401,18 @@ export function buildCodexArgs(
   schemaPath?: string,
   defaultModel?: string,
 ): string[] {
-  const args: string[] = [...CODEX_WRITE_FLAGS];
+  const promptOnly = input.promptOnly === true;
+  const promptOnlyConfig =
+    promptOnly && input.cwd !== undefined ? codexPromptOnlyConfig(input.cwd) : [];
+  if (promptOnly && promptOnlyConfig.length === 0) {
+    throw new Error('A prompt-only Codex relay requires a private working directory.');
+  }
+  const args: string[] = [...(promptOnly ? CODEX_PROMPT_ONLY_FLAGS : CODEX_WRITE_FLAGS)];
   if (input.cwd !== undefined) {
     args.push('--cd', input.cwd);
+  }
+  if (promptOnly) {
+    for (const value of promptOnlyConfig) args.push('-c', value);
   }
   const model = selectedOpenAIModel(input.resolvedSelection) ?? defaultModel;
   if (model !== undefined) {
@@ -321,7 +427,7 @@ export function buildCodexArgs(
     args.push('--output-schema', schemaPath);
   }
   args.push(input.prompt);
-  assertCodexSpawnArgvBoundary(args);
+  assertCodexSpawnArgvBoundary(args, promptOnly);
   return args;
 }
 
@@ -475,6 +581,23 @@ function codexModelCacheHint(model: string | undefined, streamError: string | un
 }
 
 export async function relayCodex(input: CodexRelayInput): Promise<RelayResult> {
+  const promptOnlyDirectory =
+    input.promptOnly === true
+      ? await createPromptOnlyRelayDirectory(input.cwd, 'circuit-prompt-only-codex-')
+      : undefined;
+  try {
+    return await relayCodexPrepared({
+      ...input,
+      ...(promptOnlyDirectory === undefined ? {} : { cwd: promptOnlyDirectory }),
+    });
+  } finally {
+    if (promptOnlyDirectory !== undefined) {
+      await rm(promptOnlyDirectory, { recursive: true, force: true });
+    }
+  }
+}
+
+async function relayCodexPrepared(input: CodexRelayInput): Promise<RelayResult> {
   // Per-step budgets map onto both bounds: budgets.wall_clock_ms overrides the
   // absolute backstop, budgets.inactivity_ms overrides the inactivity bound.
   // Each falls back to the connector default when absent.
@@ -576,7 +699,9 @@ export async function relayCodex(input: CodexRelayInput): Promise<RelayResult> {
       );
     }
     try {
-      const parsed = parseCodexStdout(result.stdout, input.prompt, result.durationMs, cli_version);
+      const parsed = parseCodexStdout(result.stdout, input.prompt, result.durationMs, cli_version, {
+        promptOnly: input.promptOnly === true,
+      });
       // Record which model the doer actually ran with. When the selection
       // pinned none, effectiveModel is the cache-resolved default — recording it
       // keeps the run receipt authoritative about the model even though the
@@ -613,6 +738,12 @@ const KNOWN_CODEX_ITEM_TYPES = new Set<string>([
   'todo_list',
   'web_search',
   'error',
+]);
+const PROMPT_ONLY_FORBIDDEN_CODEX_ITEM_TYPES = new Set<string>([
+  'command_execution',
+  'file_change',
+  'todo_list',
+  'web_search',
 ]);
 
 const CODEX_WEB_SEARCH_MAX_STRING_LENGTH = 16 * 1024;
@@ -754,6 +885,7 @@ export function parseCodexStdout(
   prompt: string,
   duration_ms: number,
   cli_version: string,
+  options: { readonly promptOnly?: boolean } = {},
 ): RelayResult {
   const trace_entries = parseNdjsonObjects(stdout, 'codex --json');
   if (trace_entries.length === 0) {
@@ -824,6 +956,9 @@ export function parseCodexStdout(
     if (typeof itemType !== 'string') {
       throw new Error(`item.started[${idx}].item.type is not a string`);
     }
+    if (options.promptOnly === true && PROMPT_ONLY_FORBIDDEN_CODEX_ITEM_TYPES.has(itemType)) {
+      throw new Error(`prompt-only relay boundary violated: item.started used ${itemType}`);
+    }
     if (itemType === 'error') {
       throw new Error(
         "capability-boundary violation: item.started item.type='error' is not a reviewed start item type",
@@ -858,6 +993,9 @@ export function parseCodexStdout(
     const itemType = item.type;
     if (typeof itemType !== 'string') {
       throw new Error(`item.completed[${idx}].item.type is not a string`);
+    }
+    if (options.promptOnly === true && PROMPT_ONLY_FORBIDDEN_CODEX_ITEM_TYPES.has(itemType)) {
+      throw new Error(`prompt-only relay boundary violated: item.completed used ${itemType}`);
     }
     if (!KNOWN_CODEX_ITEM_TYPES.has(itemType)) {
       throw new Error(
@@ -907,6 +1045,9 @@ export function parseCodexStdout(
     const itemType = item.type;
     if (typeof itemType !== 'string') {
       throw new Error(`item.updated[${idx}].item.type is not a string`);
+    }
+    if (options.promptOnly === true && PROMPT_ONLY_FORBIDDEN_CODEX_ITEM_TYPES.has(itemType)) {
+      throw new Error(`prompt-only relay boundary violated: item.updated used ${itemType}`);
     }
     // Error diagnostics are terminal items. An update carrying `type=error`
     // is a new protocol shape and must not inherit the completed-item exception.

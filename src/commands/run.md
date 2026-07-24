@@ -40,8 +40,9 @@ metacharacters:
 
    - **Fix** — bugs, regressions, broken behavior, failing tests, crashes,
      flaky behavior, or production issues.
-   - **Review** — audit-only review of existing code, current diff, PR, plan,
-     report, implementation, or risk surface. Do not implement changes.
+   - **Review** — audit-only review of existing code, a current diff, commit,
+     range, or PR; or a plan or report only when its actual text is included in
+     the request. Do not implement changes.
    - **Build** — implementation, refactor, docs, tests, or focused
      product/code changes that are not primarily bug fixes.
    - **Prototype** — disposable local prototypes, mockups, UI sketches,
@@ -56,6 +57,15 @@ metacharacters:
    short question only when the answer changes safety or mutation behavior,
    especially Review vs Build/Fix, Explore vs Build. If you genuinely cannot
    tell which flow fits, ask the operator rather than running without one.
+
+   A named plan or report file is not readable unless its contents are part of
+   the selected Git target. A file path by itself is not review evidence.
+   Otherwise, include the plan or report's actual text in the task.
+   Do not remove a requested file or directory subset or path exclusion to make
+   Review run. Circuit accepts only a complete target or actual supplied text.
+   A Review task that names no target reviews the current working tree, and the
+   report names that assumption. Circuit cannot fetch a pull request: to review
+   one, check the branch out locally first.
 2. **Build a shell-safe invocation.** Single-quote the raw task text; double
    quotes expand `$VAR`,
    `` `cmd` ``, `$(cmd)`, and `\` sequences — a malicious or accidental

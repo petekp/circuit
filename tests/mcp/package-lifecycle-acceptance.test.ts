@@ -31,7 +31,12 @@ import type {
   McpWorkerRuntimeDependencies,
 } from '../../src/hosts/codex-mcp/worker-runtime.js';
 import type { RuntimeExecutionCapabilities } from '../../src/runtime/run/capabilities.js';
-import type { RuntimeGitOperation, RuntimeGitReader } from '../../src/shared/runtime-git-reader.js';
+import type {
+  RuntimeGitOperation,
+  RuntimeGitPinnedTarget,
+  RuntimeGitReader,
+  RuntimeGitTarget,
+} from '../../src/shared/runtime-git-reader.js';
 import { captureStreams } from '../helpers/runtime-fixtures.js';
 import { initGitProjectRoot } from '../helpers/working-tree.js';
 import { createPackagedFlowRelayer } from './helpers/packaged-flow-relayer.js';
@@ -142,24 +147,219 @@ function acceptancePreflight(): ProductionLaunchPreflight {
   };
 }
 
-const GIT_ARGUMENTS: Readonly<Record<RuntimeGitOperation, readonly string[]>> = {
+type StaticGitOperation = Exclude<
+  RuntimeGitOperation,
+  'remote_repositories' | 'resolve_target' | 'target_diff' | 'target_diff_stat'
+>;
+
+const STATIC_GIT_ARGUMENTS: Readonly<Record<StaticGitOperation, readonly string[]>> = {
   status: ['status', '--porcelain=v1', '-z', '--untracked-files=all', '--ignore-submodules=none'],
-  staged_diff: ['diff', '--no-ext-diff', '--no-textconv', '--submodule=short', '--cached', '--'],
-  unstaged_diff: ['diff', '--no-ext-diff', '--no-textconv', '--submodule=short', '--'],
+  staged_diff: [
+    'diff',
+    '--no-ext-diff',
+    '--no-textconv',
+    '--submodule=short',
+    '--ignore-submodules=none',
+    '--cached',
+    '--',
+  ],
+  unstaged_diff: [
+    'diff',
+    '--no-ext-diff',
+    '--no-textconv',
+    '--submodule=short',
+    '--ignore-submodules=none',
+    '--',
+  ],
   staged_diff_stat: [
     'diff',
     '--no-ext-diff',
     '--no-textconv',
     '--submodule=short',
+    '--ignore-submodules=none',
     '--stat',
     '--cached',
     '--',
   ],
+  unstaged_diff_stat: [
+    'diff',
+    '--stat',
+    '--no-ext-diff',
+    '--no-textconv',
+    '--submodule=short',
+    '--ignore-submodules=none',
+    '--',
+  ],
+  hidden_index_flags: ['ls-files', '-v', '-z', '--'],
+  staged_changed_gitlinks: [
+    'diff',
+    '--raw',
+    '-z',
+    '--no-abbrev',
+    '--no-renames',
+    '--no-ext-diff',
+    '--no-textconv',
+    '--ignore-submodules=none',
+    '--cached',
+    '--',
+  ],
+  unstaged_changed_gitlinks: [
+    'diff',
+    '--raw',
+    '-z',
+    '--no-abbrev',
+    '--no-renames',
+    '--no-ext-diff',
+    '--no-textconv',
+    '--ignore-submodules=none',
+    '--',
+  ],
   untracked_files: ['ls-files', '--others', '--exclude-standard', '-z', '--'],
-  submodules: ['ls-files', '--stage', '-z', '--'],
 };
 
-function acceptanceSecurity(): {
+function targetGitArguments(
+  operation: 'target_diff' | 'target_diff_stat',
+  target: RuntimeGitPinnedTarget,
+  commitParent?: string | null,
+): readonly string[] {
+  const stat = operation === 'target_diff_stat' ? ['--stat'] : [];
+  if (target.kind === 'commit') {
+    if (commitParent === undefined) throw new Error('commit target requires inspected ancestry');
+    if (commitParent !== null) {
+      return [
+        'diff',
+        ...stat,
+        '--no-ext-diff',
+        '--no-textconv',
+        '--submodule=short',
+        '--ignore-submodules=none',
+        `${commitParent}^{commit}`,
+        `${target.commit}^{commit}`,
+        '--',
+      ];
+    }
+    return [
+      'show',
+      '--format=',
+      ...stat,
+      '--no-ext-diff',
+      '--no-textconv',
+      '--submodule=short',
+      '--ignore-submodules=none',
+      '--root',
+      `${target.commit}^{commit}`,
+      '--',
+    ];
+  }
+  return [
+    'diff',
+    ...stat,
+    '--no-ext-diff',
+    '--no-textconv',
+    '--submodule=short',
+    '--ignore-submodules=none',
+    `${target.base_commit}${target.dots}${target.head_commit}`,
+    '--',
+  ];
+}
+
+function acceptanceCommitParent(projectRoot: string, commit: string): string | null {
+  const result = spawnSync('/usr/bin/git', ['cat-file', 'commit', commit], {
+    cwd: projectRoot,
+    env: { ...process.env, GIT_NO_REPLACE_OBJECTS: '1' },
+    encoding: 'utf8',
+  });
+  if (result.status !== 0) throw new Error(result.stderr);
+  const header = (result.stdout ?? '').split('\n\n', 1)[0] ?? '';
+  const parent = header
+    .split('\n')
+    .find((line) => line.startsWith('parent '))
+    ?.slice('parent '.length);
+  if (parent !== undefined && !/^(?:[0-9a-f]{40}|[0-9a-f]{64})$/u.test(parent)) {
+    throw new Error('invalid commit parent');
+  }
+  return parent ?? null;
+}
+
+function resolveGitArguments(target: RuntimeGitTarget): readonly string[] {
+  if (target.kind === 'commit') {
+    return ['rev-parse', '--verify', '--end-of-options', `${target.ref}^{commit}`];
+  }
+  return [
+    'rev-parse',
+    '--revs-only',
+    '--end-of-options',
+    `${target.base}^{commit}..${target.head}^{commit}`,
+  ];
+}
+
+function isSymbolicTarget(
+  target: RuntimeGitTarget | RuntimeGitPinnedTarget,
+): target is RuntimeGitTarget {
+  if (target.kind === 'commit') return 'ref' in target;
+  return 'base' in target && 'head' in target;
+}
+
+function gitArguments(
+  operation: RuntimeGitOperation,
+  projectRoot: string,
+  target?: RuntimeGitTarget | RuntimeGitPinnedTarget,
+): readonly string[] {
+  if (operation === 'resolve_target') {
+    if (target === undefined || !isSymbolicTarget(target)) {
+      throw new Error('resolve_target requires a symbolic target');
+    }
+    return resolveGitArguments(target);
+  }
+  if (operation === 'target_diff' || operation === 'target_diff_stat') {
+    if (target === undefined || isSymbolicTarget(target)) {
+      throw new Error(`${operation} requires a pinned target`);
+    }
+    return targetGitArguments(
+      operation,
+      target,
+      target.kind === 'commit' ? acceptanceCommitParent(projectRoot, target.commit) : undefined,
+    );
+  }
+  return STATIC_GIT_ARGUMENTS[operation];
+}
+
+interface AcceptanceObservation {
+  readonly workspace: string;
+  readonly operation: RuntimeGitOperation;
+  readonly target?: RuntimeGitTarget | RuntimeGitPinnedTarget;
+}
+
+interface AcceptanceObservations {
+  readonly gitReads: AcceptanceObservation[];
+  readonly relayPrompts: Array<{ readonly workspace: string; readonly prompt: string }>;
+  readonly launchErrors: string[];
+}
+
+function acceptanceResolvedTarget(
+  target: RuntimeGitTarget,
+  output: string,
+): RuntimeGitPinnedTarget {
+  const lines = output.trimEnd().split('\n');
+  if (target.kind === 'commit') {
+    const commit = lines[0];
+    if (lines.length !== 1 || commit === undefined) throw new Error('invalid commit resolution');
+    return { kind: 'commit', commit };
+  }
+  const headCommit = lines[0];
+  const baseCommit = lines[1];
+  if (lines.length !== 2 || headCommit === undefined || !baseCommit?.startsWith('^')) {
+    throw new Error('invalid range resolution');
+  }
+  return {
+    kind: 'range',
+    base_commit: baseCommit.slice(1),
+    head_commit: headCommit,
+    dots: target.dots,
+  };
+}
+
+function acceptanceSecurity(observations: AcceptanceObservations): {
   readonly proofCommandRunner: NonNullable<RuntimeExecutionCapabilities['proofCommandRunner']>;
   readonly gitReader: RuntimeGitReader;
 } {
@@ -185,23 +385,33 @@ function acceptanceSecurity(): {
     };
   };
   const gitReader: RuntimeGitReader = {
-    read: async ({ operation, projectRoot }) => {
-      const result = spawnSync('/usr/bin/git', GIT_ARGUMENTS[operation], {
+    read: async ({ operation, projectRoot, target }) => {
+      observations.gitReads.push({
+        workspace: projectRoot,
+        operation,
+        ...(target === undefined ? {} : { target }),
+      });
+      const result = spawnSync('/usr/bin/git', gitArguments(operation, projectRoot, target), {
         cwd: projectRoot,
+        env: { ...process.env, GIT_NO_REPLACE_OBJECTS: '1' },
         encoding: 'utf8',
         maxBuffer: 2 * 1024 * 1024,
       });
       const exitCode = result.status ?? 1;
+      const stdout = result.stdout ?? '';
       return {
         schema_version: 1,
         ok: exitCode === 0,
         operation,
-        stdout: result.stdout ?? '',
+        stdout,
         stderr: result.stderr ?? '',
         exit_code: exitCode,
         truncated: false,
         limit_bytes: 2 * 1024 * 1024,
         cleanup_confirmed: true,
+        ...(operation === 'resolve_target' && target !== undefined && isSymbolicTarget(target)
+          ? { resolved_target: acceptanceResolvedTarget(target, stdout) }
+          : {}),
       };
     },
   };
@@ -211,6 +421,7 @@ function acceptanceSecurity(): {
 function acceptanceLauncher(
   workerModule: PackagedWorkerModule,
   nodeExecutable: LifecycleExecutableIdentity,
+  observations: AcceptanceObservations,
 ): SupervisorLauncher {
   let nextPid = 41_000;
   const authorizationSha256 = createHash('sha256').update(AUTHORIZATION_TOKEN).digest('hex');
@@ -229,20 +440,30 @@ function acceptanceLauncher(
             'runs',
             launch.run_id,
           );
-          const captured = await captureStreams(
-            async () =>
-              await workerModule.runPackagedMcpWorkerLaunch(launch, {
-                environment: { PATH: process.env.PATH ?? '' },
-                createRelayer: () =>
-                  createPackagedFlowRelayer({
+          const captured = await captureStreams(async () => {
+            const relayer = createPackagedFlowRelayer({
+              workspace: launch.workspace.canonical_path,
+              runFolder,
+            });
+            return await workerModule.runPackagedMcpWorkerLaunch(launch, {
+              environment: { PATH: process.env.PATH ?? '' },
+              createRelayer: () => ({
+                ...relayer,
+                relay: async (input) => {
+                  observations.relayPrompts.push({
                     workspace: launch.workspace.canonical_path,
-                    runFolder,
-                  }),
-                createSecurity: () => acceptanceSecurity(),
+                    prompt: input.prompt,
+                  });
+                  return await relayer.relay(input);
+                },
               }),
-          );
+              createSecurity: () => acceptanceSecurity(observations),
+            });
+          });
           if (captured.result !== 0) {
-            throw new Error(`Relocated worker failed: ${captured.stderr || captured.stdout}`);
+            const message = `Relocated worker failed: ${captured.stderr || captured.stdout}`;
+            observations.launchErrors.push(message);
+            throw new Error(message);
           }
           expect(runFolder).toContain(launch.run_id);
           return processIdentity(nextPid++, authorizationSha256, nodeExecutable);
@@ -278,7 +499,7 @@ const ACCEPTANCE_CASES: readonly AcceptanceCase[] = [
     name: 'Review',
     request: {
       flow: 'review',
-      goal: 'Review the deterministic workspace change.',
+      goal: 'Review staged changes.',
       web_search: 'off',
     },
   },
@@ -374,6 +595,17 @@ async function acceptanceWorkspace(root: string, name: string): Promise<string> 
   return workspace;
 }
 
+function runGit(workspace: string, args: readonly string[]): string {
+  const result = spawnSync('/usr/bin/git', args, {
+    cwd: workspace,
+    encoding: 'utf8',
+  });
+  if (result.status !== 0) {
+    throw new Error(result.stderr || `git ${args.join(' ')} failed`);
+  }
+  return (result.stdout ?? '').trim();
+}
+
 describe('relocated Codex MCP package lifecycle acceptance', () => {
   let tempRoot: string;
   let relocatedPlugin: string;
@@ -381,6 +613,11 @@ describe('relocated Codex MCP package lifecycle acceptance', () => {
   let assets: McpRuntimeAssetPins;
   let server: McpServer;
   let client: Client;
+  const observations: AcceptanceObservations = {
+    gitReads: [],
+    relayPrompts: [],
+    launchErrors: [],
+  };
 
   beforeAll(async () => {
     await mkdir(PRIVATE_TEST_ROOT, { recursive: true, mode: 0o700 });
@@ -442,7 +679,7 @@ describe('relocated Codex MCP package lifecycle acceptance', () => {
       dependencies: {
         loadRuntimeAssets: async () => assets,
         preflight: acceptancePreflight(),
-        launcher: acceptanceLauncher(workerModule, nodeIdentity),
+        launcher: acceptanceLauncher(workerModule, nodeIdentity, observations),
       },
     });
     const [clientTransport, serverTransport] = InMemoryTransport.createLinkedPair();
@@ -462,10 +699,14 @@ describe('relocated Codex MCP package lifecycle acceptance', () => {
       const workspace = await acceptanceWorkspace(tempRoot, name);
       if (request.flow === 'review') {
         await writeFile(join(workspace, 'src', 'review.ts'), 'export const changed = true;\n');
+        runGit(workspace, ['add', 'src/review.ts']);
       }
 
       const started = await call(client, workspace, 'circuit_start', request);
-      expect(started, JSON.stringify(started)).toMatchObject({ ok: true, state: 'running' });
+      expect(
+        started,
+        JSON.stringify({ started, launch_errors: observations.launchErrors }),
+      ).toMatchObject({ ok: true, state: 'running' });
       let status = await call(client, workspace, 'circuit_status', {
         run_id: started.run_id,
       });
@@ -498,4 +739,78 @@ describe('relocated Codex MCP package lifecycle acceptance', () => {
     },
     120_000,
   );
+
+  it('relays only an explicitly requested older commit through the relocated worker', async () => {
+    const workspace = await acceptanceWorkspace(tempRoot, 'Review explicit older commit');
+    const requestedMarker = 'requested-older-commit-marker';
+    const newerCommitMarker = 'excluded-newer-head-marker';
+    const workingTreeMarker = 'excluded-working-tree-marker';
+
+    await writeFile(
+      join(workspace, 'src', 'requested-commit.ts'),
+      `export const requested = '${requestedMarker}';\n`,
+    );
+    runGit(workspace, ['add', 'src/requested-commit.ts']);
+    runGit(workspace, ['commit', '-q', '-m', 'requested older commit']);
+    const requestedCommit = runGit(workspace, ['rev-parse', 'HEAD']);
+
+    await writeFile(
+      join(workspace, 'src', 'newer-head.ts'),
+      `export const newer = '${newerCommitMarker}';\n`,
+    );
+    runGit(workspace, ['add', 'src/newer-head.ts']);
+    runGit(workspace, ['commit', '-q', '-m', 'newer head commit']);
+    await writeFile(
+      join(workspace, 'src', 'working-tree.ts'),
+      `export const workingTree = '${workingTreeMarker}';\n`,
+    );
+
+    const started = await call(client, workspace, 'circuit_start', {
+      flow: 'review',
+      goal: `Review commit ${requestedCommit}.`,
+      web_search: 'off',
+    });
+    expect(started, JSON.stringify(started)).toMatchObject({
+      ok: true,
+      state: 'running',
+    });
+    const status = await call(client, workspace, 'circuit_status', {
+      run_id: started.run_id,
+    });
+    expect(status, JSON.stringify(status)).toMatchObject({
+      ok: true,
+      state: 'complete',
+      final_report: { schema: 'circuit.review.result' },
+    });
+
+    const gitReads = observations.gitReads.filter(
+      (observation) => observation.workspace === workspace,
+    );
+    expect(gitReads).toEqual([
+      {
+        workspace,
+        operation: 'resolve_target',
+        target: { kind: 'commit', ref: requestedCommit },
+      },
+      {
+        workspace,
+        operation: 'target_diff',
+        target: { kind: 'commit', commit: requestedCommit },
+      },
+      {
+        workspace,
+        operation: 'target_diff_stat',
+        target: { kind: 'commit', commit: requestedCommit },
+      },
+    ]);
+
+    const auditPrompt = observations.relayPrompts.find(
+      (observation) =>
+        observation.workspace === workspace && observation.prompt.includes('Step: audit-step'),
+    )?.prompt;
+    expect(auditPrompt).toContain(requestedMarker);
+    expect(auditPrompt).not.toContain(newerCommitMarker);
+    expect(auditPrompt).not.toContain(workingTreeMarker);
+    expect(auditPrompt).toContain('"kind": "git-target"');
+  }, 120_000);
 });

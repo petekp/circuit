@@ -447,7 +447,13 @@ export function createProgressProjector(input: {
         if (connector === undefined || role === undefined) break;
         const display = stepDisplay({ flow: input.flow, stepDisplayById, stepId });
         const capability = connectorFilesystemCapability(connector);
-        const statusText = relayStartedTextFor({ role, display });
+        const seal = entry.context_seal;
+        // A flow that asked for a sealed reviewer and did not get one is still
+        // an honest run, but the operator has to see it while it happens.
+        const unsealed = seal !== undefined && !seal.applied;
+        const statusText = unsealed
+          ? `${relayStartedTextFor({ role, display })} (reviewer not sealed: ${seal.reason ?? 'this connector kept repository access'})`
+          : relayStartedTextFor({ role, display });
         reportProgress(input.progress, {
           schema_version: 1,
           type: 'relay.started',
@@ -455,7 +461,11 @@ export function createProgressProjector(input: {
           flow_id: flowId,
           recorded_at: recordedAt,
           label: `Running ${role} relay with ${connector.name}`,
-          display: progressDisplay(circuitDisplayText(statusText), 'major', 'info'),
+          display: progressDisplay(
+            circuitDisplayText(statusText),
+            'major',
+            unsealed ? 'warning' : 'info',
+          ),
           presentation: replaceStatus(runId, `${stepId}:relay`, statusText),
           step_id: stepId,
           step_title: display.title,
@@ -464,6 +474,12 @@ export function createProgressProjector(input: {
           connector_name: connector.name,
           connector_kind: connector.kind,
           filesystem_capability: capability,
+          ...(seal === undefined
+            ? {}
+            : {
+                context_seal_applied: seal.applied,
+                ...(seal.reason === undefined ? {} : { context_seal_reason: seal.reason }),
+              }),
         });
         break;
       }

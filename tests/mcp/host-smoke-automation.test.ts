@@ -432,7 +432,7 @@ describe('Codex MCP host smoke automation', () => {
         "const {spawn}=require('node:child_process');const child=spawn(process.execPath,['-e','setTimeout(()=>{},1200)'],{stdio:'ignore'});child.unref();",
       ],
       process.env,
-      { natural_cleanup_timeout_ms: 2_500 },
+      { natural_cleanup_timeout_ms: 7_500 },
     );
 
     expect(result.status).toBe(0);

@@ -14,6 +14,7 @@ export const EngineFlagsManifest = z
   .object({
     binds_execution_depth_to_relay_selection: z.boolean().optional(),
     binds_terminal_outcome_to_primary_result: z.boolean().optional(),
+    relay_uses_prompt_only_context: z.boolean().optional(),
     iterates_slice_loop: z
       .object({
         head_step: z.string().min(1),

@@ -132,7 +132,7 @@ describe('run-start history recall', () => {
         'run',
         'review',
         '--goal',
-        'Use local history memory injection with cited hint-only recall',
+        'Review this supplied text: use local history memory injection with cited hint-only recall.',
         '--run-folder',
         runFolder,
       ],
@@ -187,7 +187,14 @@ describe('run-start history recall', () => {
     const prompts: string[] = [];
 
     const result = await captureMain(
-      ['run', 'review', '--goal', 'Review without prior history', '--run-folder', runFolder],
+      [
+        'run',
+        'review',
+        '--goal',
+        'Review this supplied text: no prior history is available.',
+        '--run-folder',
+        runFolder,
+      ],
       {
         configCwd: projectRoot,
         historyRecall: 'enabled',

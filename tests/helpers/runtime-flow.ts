@@ -244,11 +244,11 @@ export async function expectCompleteTrace(runDir: string): Promise<void> {
   }
 }
 
+// The parity fixture stubs every writer, so it collects no Git evidence. It
+// stands in as a goal-only Review: the target and the evidence agree, which is
+// what the report contracts require of a real run.
 function reviewEvidenceSummary() {
-  return {
-    kind: 'unavailable' as const,
-    message: 'runtime parity fixture',
-  };
+  return { kind: 'goal' as const };
 }
 
 function reportBody(
@@ -261,7 +261,8 @@ function reportBody(
     case 'review.intake@v1':
       return ReviewIntake.parse({
         scope: goal,
-        evidence: { kind: 'unavailable', reason: 'runtime parity fixture' },
+        target: { kind: 'goal' },
+        evidence: { kind: 'goal' },
         evidence_warnings: [],
       });
     case 'review.result@v1':

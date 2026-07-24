@@ -94,6 +94,7 @@ export async function relayWithResolvedConnector(
   connector: ResolvedConnector,
   input: {
     readonly prompt: string;
+    readonly promptOnly?: true;
     readonly timeoutMs?: number;
     readonly idleTimeoutMs?: number;
     readonly cwd?: string;
@@ -104,6 +105,7 @@ export async function relayWithResolvedConnector(
 ): Promise<RelayResult> {
   const relayInput = {
     prompt: input.prompt,
+    ...(input.promptOnly === true ? { promptOnly: true as const } : {}),
     ...(input.timeoutMs === undefined ? {} : { timeoutMs: input.timeoutMs }),
     ...(input.idleTimeoutMs === undefined ? {} : { idleTimeoutMs: input.idleTimeoutMs }),
     ...(input.cwd === undefined ? {} : { cwd: input.cwd }),
@@ -611,6 +613,29 @@ export async function executeProductionRelayAttempt(input: {
     compiledStep.equipment_scope,
     equipmentDecision,
   );
+  // D3: the flow asks for a sealed reviewer (prompt-only, no repository
+  // access). Claude Code and Codex can prove they honored it. Anything else
+  // runs the relay anyway rather than refusing the operator's run, and the
+  // unsealed fact is stamped here so the trace, the progress stream, and the
+  // operator summary all report that the reviewer had repository access.
+  const sealRequested = context.flow.engineFlags?.relayUsesPromptOnlyContext === true;
+  const sealFailure = !sealRequested
+    ? undefined
+    : context.relayer !== undefined
+      ? context.relayer.promptOnlyContext === true
+        ? undefined
+        : 'the host relay cannot prove that it removed repository access'
+      : relayExecution.connector.kind === 'custom' ||
+          relayExecution.connector.name === 'cursor-agent'
+        ? `the ${relayExecution.connector.name} connector cannot run without repository access`
+        : undefined;
+  const promptOnly = sealRequested && sealFailure === undefined;
+  const contextSeal = sealRequested
+    ? {
+        applied: sealFailure === undefined,
+        ...(sealFailure === undefined ? {} : { reason: sealFailure }),
+      }
+    : undefined;
   await context.trace.append({
     run_id: context.runId,
     kind: 'relay.started',
@@ -621,6 +646,7 @@ export async function executeProductionRelayAttempt(input: {
     resolved_selection: resolvedSelection,
     resolved_from: relayExecution.resolvedFrom,
     ...(equipmentEvidence === undefined ? {} : { equipment: equipmentEvidence }),
+    ...(contextSeal === undefined ? {} : { context_seal: contextSeal }),
   });
   if (loadedSkills.length > 0) {
     await context.trace.append({
@@ -659,6 +685,7 @@ export async function executeProductionRelayAttempt(input: {
       context.relayer === undefined
         ? await relayWithResolvedConnector(relayExecution.connector, {
             prompt,
+            ...(promptOnly ? { promptOnly: true as const } : {}),
             ...(relayTimeoutMs === undefined ? {} : { timeoutMs: relayTimeoutMs }),
             ...(relayInactivityMs === undefined ? {} : { idleTimeoutMs: relayInactivityMs }),
             ...(context.projectRoot === undefined ? {} : { cwd: context.projectRoot }),
@@ -672,6 +699,7 @@ export async function executeProductionRelayAttempt(input: {
           })
         : await context.relayer.relay({
             prompt,
+            ...(promptOnly ? { promptOnly: true as const } : {}),
             connector: relayExecution.connectorName,
             ...(relayTimeoutMs === undefined ? {} : { timeoutMs: relayTimeoutMs }),
             ...(relayInactivityMs === undefined ? {} : { idleTimeoutMs: relayInactivityMs }),

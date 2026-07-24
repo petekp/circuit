@@ -61,7 +61,7 @@ afterEach(() => {
 });
 
 describe('Codex MCP safe Git reader', () => {
-  it('uses only fixed operations, hardened Git flags, and explicit submodule inspection', async () => {
+  it('uses fixed hardened operations without an auxiliary full-index scan', async () => {
     const workspace = temporaryDirectory('circuit-mcp-git-shape');
     git(workspace, 'init', '--quiet');
     const calls: Parameters<SafeGitSandbox['executeGitRead']>[0][] = [];
@@ -79,11 +79,8 @@ describe('Codex MCP safe Git reader', () => {
       sandbox: fakeSandbox,
     });
 
-    const result = await reader.read({ operation: 'unstaged_diff' });
-    expect(result.submodules).toEqual([
-      { path: 'modules/child', index_oid: 'deadbeef', inspection: 'gitlink_only' },
-    ]);
-    expect(calls).toHaveLength(3);
+    await reader.read({ operation: 'unstaged_diff' });
+    expect(calls).toHaveLength(2);
     expect(calls[1]?.argv).toEqual(
       expect.arrayContaining([
         '--no-pager',
@@ -95,9 +92,11 @@ describe('Codex MCP safe Git reader', () => {
         '--no-ext-diff',
         '--no-textconv',
         '--submodule=short',
+        '--ignore-submodules=none',
       ]),
     );
     expect(calls[1]?.argv).not.toContain('--ignore-submodules=all');
+    expect(calls[1]?.argv).not.toContain('--stage');
     expect(calls[1]?.access).toBe('git-read-only');
   });
 
@@ -132,6 +131,452 @@ describe('Codex MCP safe Git reader', () => {
       expect.arrayContaining(['ls-files', '--others', '--exclude-standard', '-z']),
     );
     expect(primaryCalls.flatMap((call) => call.argv)).not.toContain('--recurse-submodules');
+  });
+
+  it('provides a bounded hidden-index inspection operation', async () => {
+    const workspace = temporaryDirectory('circuit-mcp-git-hidden-index');
+    git(workspace, 'init', '--quiet');
+    const calls: Parameters<SafeGitSandbox['executeGitRead']>[0][] = [];
+    const reader = createSafeGitReader({
+      workspace,
+      gitExecutable: '/usr/bin/git',
+      sandbox: {
+        async executeGitRead(request) {
+          calls.push(request);
+          if (request.argv.includes('-v')) return passed('h hidden.ts\0S sparse.ts\0');
+          return passed('');
+        },
+      },
+    });
+
+    const result = await reader.read({ operation: 'hidden_index_flags' });
+
+    expect(result).toMatchObject({
+      ok: true,
+      operation: 'hidden_index_flags',
+      stdout: 'h hidden.ts\0S sparse.ts\0',
+    });
+    const primary = calls.find((call) => call.argv.includes('-v'));
+    expect(primary?.argv).toEqual(expect.arrayContaining(['ls-files', '-v', '-z', '--']));
+    expect(primary?.argv).not.toContain('--recurse-submodules');
+  });
+
+  it('provides exact NUL-delimited raw gitlink change operations', async () => {
+    const workspace = temporaryDirectory('circuit-mcp-git-changed-gitlinks');
+    git(workspace, 'init', '--quiet');
+    const calls: Parameters<SafeGitSandbox['executeGitRead']>[0][] = [];
+    const reader = createSafeGitReader({
+      workspace,
+      gitExecutable: '/usr/bin/git',
+      sandbox: {
+        async executeGitRead(request) {
+          calls.push(request);
+          return passed('');
+        },
+      },
+    });
+
+    await reader.read({ operation: 'staged_changed_gitlinks' });
+    await reader.read({ operation: 'unstaged_changed_gitlinks' });
+
+    const primaryCalls = calls.filter((call) => !call.argv.includes('config'));
+    expect(primaryCalls).toHaveLength(2);
+    expect(primaryCalls[0]?.argv).toEqual(
+      expect.arrayContaining([
+        'diff',
+        '--raw',
+        '-z',
+        '--no-abbrev',
+        '--no-renames',
+        '--ignore-submodules=none',
+        '--cached',
+        '--',
+      ]),
+    );
+    expect(primaryCalls[1]?.argv).toEqual(
+      expect.arrayContaining([
+        'diff',
+        '--raw',
+        '-z',
+        '--no-abbrev',
+        '--no-renames',
+        '--ignore-submodules=none',
+        '--',
+      ]),
+    );
+  });
+
+  it('fails closed on a broken encoding but reviews a literal replacement character', async () => {
+    const workspace = temporaryDirectory('circuit-mcp-git-invalid-utf8');
+    git(workspace, 'init', '--quiet');
+    const readerFor = (body: string) =>
+      createSafeGitReader({
+        workspace,
+        gitExecutable: '/usr/bin/git',
+        sandbox: {
+          async executeGitRead(request) {
+            if (request.argv.includes('config') || request.argv.includes('--stage')) {
+              return passed('');
+            }
+            return passed(body);
+          },
+        },
+      });
+
+    // A lone surrogate can only come from a broken encoder.
+    await expect(
+      readerFor('diff --git a/invalid.txt b/invalid.txt\n+\ud800\n').read({
+        operation: 'staged_diff',
+      }),
+    ).rejects.toThrow(/UTF-8|replacement|encoding/i);
+
+    // U+FFFD is a legal character that real source files contain. Refusing it
+    // would refuse to review those files.
+    await expect(
+      readerFor('diff --git a/fffd.txt b/fffd.txt\n+\uFFFD\n').read({
+        operation: 'staged_diff',
+      }),
+    ).resolves.toMatchObject({ ok: true });
+  });
+
+  it('provides a bounded pinned commit diff with first-parent semantics', async () => {
+    const workspace = temporaryDirectory('circuit-mcp-git-latest-commit');
+    git(workspace, 'init', '--quiet');
+    const commit = 'a'.repeat(40);
+    const parent = 'b'.repeat(40);
+    const tree = 'c'.repeat(40);
+    const calls: Parameters<SafeGitSandbox['executeGitRead']>[0][] = [];
+    const reader = createSafeGitReader({
+      workspace,
+      gitExecutable: '/usr/bin/git',
+      sandbox: {
+        async executeGitRead(request) {
+          calls.push(request);
+          if (request.argv.includes('cat-file')) {
+            return passed(
+              `tree ${tree}\nparent ${parent}\nauthor Circuit <c@example.test> 0 +0000\n\ncommit\n`,
+            );
+          }
+          if (request.argv.includes('--stat')) return passed(' target.ts | 1 +\n');
+          return passed('diff --git a/target.ts b/target.ts\n+latest-commit-review-marker\n');
+        },
+      },
+    });
+
+    const diff = await reader.read({
+      operation: 'target_diff',
+      target: { kind: 'commit', commit },
+    });
+    const stat = await reader.read({
+      operation: 'target_diff_stat',
+      target: { kind: 'commit', commit },
+    });
+    expect(diff).toMatchObject({
+      ok: true,
+      stdout: expect.stringContaining('latest-commit-review-marker'),
+    });
+    expect(stat).toMatchObject({ ok: true, stdout: expect.stringContaining('target.ts') });
+    const primaryCalls = calls.filter(
+      (call) =>
+        call.argv.includes('diff') &&
+        !call.argv.includes('config') &&
+        !call.argv.includes('--stage'),
+    );
+    expect(primaryCalls[0]?.argv).toEqual(
+      expect.arrayContaining([
+        'diff',
+        '--no-ext-diff',
+        '--no-textconv',
+        '--submodule=short',
+        `${parent}^{commit}`,
+        `${commit}^{commit}`,
+        '--',
+      ]),
+    );
+    expect(primaryCalls[1]?.argv).toEqual(
+      expect.arrayContaining(['diff', '--stat', `${parent}^{commit}`, `${commit}^{commit}`, '--']),
+    );
+    expect(primaryCalls.flatMap((call) => call.argv)).not.toContain('--recurse-submodules');
+  });
+
+  it('does not treat a non-root commit as a root when its pinned parent is unavailable', async () => {
+    const workspace = temporaryDirectory('circuit-mcp-git-shallow-commit');
+    git(workspace, 'init', '--quiet');
+    const commit = 'a'.repeat(40);
+    const parent = 'b'.repeat(40);
+    const tree = 'c'.repeat(40);
+    const calls: Parameters<SafeGitSandbox['executeGitRead']>[0][] = [];
+    const reader = createSafeGitReader({
+      workspace,
+      gitExecutable: '/usr/bin/git',
+      sandbox: {
+        async executeGitRead(request) {
+          calls.push(request);
+          if (request.argv.includes('config')) return passed('');
+          if (request.argv.includes('cat-file')) {
+            return passed(
+              `tree ${tree}\nparent ${parent}\nauthor Circuit <c@example.test> 0 +0000\n\nchild\n`,
+            );
+          }
+          if (request.argv.includes('diff')) {
+            return {
+              ...passed(''),
+              status: 'failed',
+              exit_code: 128,
+              stderr: `fatal: bad object ${parent}`,
+            };
+          }
+          return passed('diff --git a/full-tree.ts b/full-tree.ts\n+wrong-root-diff\n');
+        },
+      },
+    });
+
+    const result = await reader.read({
+      operation: 'target_diff',
+      target: { kind: 'commit', commit },
+    });
+
+    expect(result).toMatchObject({
+      ok: false,
+      stderr: expect.stringContaining('bad object'),
+    });
+    const requestedArgv = calls.map((call) => call.argv);
+    expect(requestedArgv.some((argv) => argv.includes('cat-file'))).toBe(true);
+    expect(requestedArgv.some((argv) => argv.includes(`${parent}^{commit}`))).toBe(true);
+    expect(requestedArgv.some((argv) => argv.includes('show'))).toBe(false);
+  });
+
+  it('provides bounded explicit target diff operations with validated refs', async () => {
+    const workspace = temporaryDirectory('circuit-mcp-git-target');
+    git(workspace, 'init', '--quiet');
+    const baseCommit = 'a'.repeat(40);
+    const headCommit = 'b'.repeat(40);
+    const calls: Parameters<SafeGitSandbox['executeGitRead']>[0][] = [];
+    const reader = createSafeGitReader({
+      workspace,
+      gitExecutable: '/usr/bin/git',
+      sandbox: {
+        async executeGitRead(request) {
+          calls.push(request);
+          if (request.argv.includes('--stat')) return passed(' target.ts | 1 +\n');
+          return passed('diff --git a/target.ts b/target.ts\n+target-review-marker\n');
+        },
+      },
+    });
+
+    const diff = await reader.read({
+      operation: 'target_diff',
+      target: { kind: 'range', base_commit: baseCommit, head_commit: headCommit, dots: '...' },
+    });
+    const stat = await reader.read({
+      operation: 'target_diff_stat',
+      target: { kind: 'range', base_commit: baseCommit, head_commit: headCommit, dots: '...' },
+    });
+
+    expect(diff).toMatchObject({
+      ok: true,
+      stdout: expect.stringContaining('target-review-marker'),
+    });
+    expect(stat).toMatchObject({ ok: true, stdout: expect.stringContaining('target.ts') });
+    const primaryCalls = calls.filter(
+      (call) => !call.argv.includes('config') && !call.argv.includes('--stage'),
+    );
+    expect(primaryCalls[0]?.argv).toEqual(
+      expect.arrayContaining([
+        'diff',
+        '--no-ext-diff',
+        '--no-textconv',
+        '--submodule=short',
+        `${baseCommit}^{commit}...${headCommit}^{commit}`,
+        '--',
+      ]),
+    );
+    expect(primaryCalls[1]?.argv).toEqual(
+      expect.arrayContaining([
+        'diff',
+        '--stat',
+        '--no-ext-diff',
+        '--no-textconv',
+        '--submodule=short',
+        `${baseCommit}^{commit}...${headCommit}^{commit}`,
+        '--',
+      ]),
+    );
+    expect(primaryCalls.flatMap((call) => call.argv)).not.toContain('--recurse-submodules');
+  });
+
+  it('resolves a symbolic range once and requires its pinned commit ids for later reads', async () => {
+    const workspace = temporaryDirectory('circuit-mcp-git-pinned-range');
+    git(workspace, 'init', '--quiet');
+    const baseCommit = 'a'.repeat(40);
+    const headCommit = 'b'.repeat(40);
+    const calls: Parameters<SafeGitSandbox['executeGitRead']>[0][] = [];
+    const reader = createSafeGitReader({
+      workspace,
+      gitExecutable: '/usr/bin/git',
+      sandbox: {
+        async executeGitRead(request) {
+          calls.push(request);
+          if (request.argv.includes('config')) return passed('');
+          if (request.argv.includes('rev-parse')) {
+            return passed(`${headCommit}\n^${baseCommit}\n`);
+          }
+          if (request.argv.includes('--stat')) return passed(' target.ts | 1 +\n');
+          if (request.argv.includes('diff')) {
+            return passed('diff --git a/target.ts b/target.ts\n+pinned-target\n');
+          }
+          return passed('');
+        },
+      },
+    });
+
+    const resolved = await reader.read({
+      operation: 'resolve_target',
+      target: { kind: 'range', base: 'main', head: 'feature', dots: '...' },
+    });
+    expect(resolved).toMatchObject({
+      ok: true,
+      resolved_target: {
+        kind: 'range',
+        base_commit: baseCommit,
+        head_commit: headCommit,
+        dots: '...',
+      },
+    });
+
+    await reader.read({
+      operation: 'target_diff',
+      target: {
+        kind: 'range',
+        base_commit: baseCommit,
+        head_commit: headCommit,
+        dots: '...',
+      },
+    });
+    const resolutionCall = calls.find((call) => call.argv.includes('rev-parse'));
+    expect(resolutionCall?.argv).toEqual(
+      expect.arrayContaining([
+        'rev-parse',
+        '--revs-only',
+        '--end-of-options',
+        'main^{commit}..feature^{commit}',
+      ]),
+    );
+    const diffCall = calls.find(
+      (call) => call.argv.includes('diff') && !call.argv.includes('--stat'),
+    );
+    expect(diffCall?.argv).toContain(`${baseCommit}^{commit}...${headCommit}^{commit}`);
+    expect(diffCall?.argv).not.toContain('main^{commit}...feature^{commit}');
+  });
+
+  it('resolves a commit target to a strict immutable shape', async () => {
+    const workspace = temporaryDirectory('circuit-mcp-git-pinned-target-shapes');
+    git(workspace, 'init', '--quiet');
+    const commit = 'a'.repeat(40);
+    const calls: Parameters<SafeGitSandbox['executeGitRead']>[0][] = [];
+    const reader = createSafeGitReader({
+      workspace,
+      gitExecutable: '/usr/bin/git',
+      sandbox: {
+        async executeGitRead(request) {
+          calls.push(request);
+          if (request.argv.some((arg) => arg === 'HEAD^{commit}')) return passed(`${commit}\n`);
+          return passed('');
+        },
+      },
+    });
+
+    await expect(
+      reader.read({
+        operation: 'resolve_target',
+        target: { kind: 'commit', ref: 'HEAD' },
+      }),
+    ).resolves.toMatchObject({
+      resolved_target: { kind: 'commit', commit },
+    });
+    expect(calls.filter((call) => call.argv.includes('rev-parse'))).toHaveLength(1);
+  });
+
+  it('rejects malformed target resolution output instead of trusting it as an object id', async () => {
+    const workspace = temporaryDirectory('circuit-mcp-git-malformed-resolution');
+    git(workspace, 'init', '--quiet');
+    const reader = createSafeGitReader({
+      workspace,
+      gitExecutable: '/usr/bin/git',
+      sandbox: {
+        async executeGitRead(request) {
+          if (request.argv.includes('config')) return passed('');
+          return passed('not-an-object-id\n');
+        },
+      },
+    });
+
+    await expect(
+      reader.read({
+        operation: 'resolve_target',
+        target: { kind: 'commit', ref: 'HEAD' },
+      }),
+    ).rejects.toThrow(/invalid|unexpected/i);
+  });
+
+  it('rejects symbolic or malformed pinned targets before a diff runs', async () => {
+    const workspace = temporaryDirectory('circuit-mcp-git-pinned-target-input');
+    git(workspace, 'init', '--quiet');
+    const calls: Parameters<SafeGitSandbox['executeGitRead']>[0][] = [];
+    const reader = createSafeGitReader({
+      workspace,
+      gitExecutable: '/usr/bin/git',
+      sandbox: {
+        async executeGitRead(request) {
+          calls.push(request);
+          return passed('');
+        },
+      },
+    });
+
+    await expect(
+      reader.read({ operation: 'target_diff', target: { kind: 'commit', ref: 'HEAD' } }),
+    ).rejects.toThrow(/pinned|commit id|unknown/i);
+    await expect(
+      reader.read({
+        operation: 'target_diff',
+        target: { kind: 'commit', commit: 'abc1234' },
+      }),
+    ).rejects.toThrow(/commit id|object id|immutable/i);
+    expect(calls).toHaveLength(0);
+  });
+
+  it('rejects unsafe explicit target refs before Git runs', async () => {
+    const workspace = temporaryDirectory('circuit-mcp-git-target-input');
+    git(workspace, 'init', '--quiet');
+    const calls: Parameters<SafeGitSandbox['executeGitRead']>[0][] = [];
+    const reader = createSafeGitReader({
+      workspace,
+      gitExecutable: '/usr/bin/git',
+      sandbox: {
+        async executeGitRead(request) {
+          calls.push(request);
+          return passed('');
+        },
+      },
+    });
+
+    await expect(
+      reader.read({ operation: 'resolve_target', target: { kind: 'commit', ref: '--help' } }),
+    ).rejects.toThrow(/unsafe/i);
+    await expect(
+      reader.read({
+        operation: 'resolve_target',
+        target: { kind: 'range', base: 'main..secret', head: 'feature', dots: '..' },
+      }),
+    ).rejects.toThrow(/unsafe/i);
+    await expect(
+      reader.read({
+        operation: 'resolve_target',
+        target: { kind: 'range', base: 'main', head: 'feature:path', dots: '..' },
+      }),
+    ).rejects.toThrow(/unsafe/i);
+    expect(calls).toHaveLength(0);
   });
 
   it('rejects arbitrary arguments, unknown request fields, and arbitrary Git-dir pointers', async () => {
@@ -185,6 +630,16 @@ describe('Codex MCP safe Git reader', () => {
     await expect(resolveSafeGitRepository(linked)).rejects.toThrow(/alternates/i);
   });
 
+  it('rejects legacy Git graft metadata before any read', async () => {
+    const workspace = temporaryDirectory('circuit-mcp-git-grafts');
+    git(workspace, 'init', '--quiet');
+    const grafts = path.join(workspace, '.git', 'info', 'grafts');
+    mkdirSync(path.dirname(grafts), { recursive: true });
+    writeFileSync(grafts, `${'a'.repeat(40)} ${'b'.repeat(40)}\n`);
+
+    await expect(resolveSafeGitRepository(workspace)).rejects.toThrow(/graft/i);
+  });
+
   it('rejects Git metadata symlinks and local config includes before the read', async () => {
     const workspace = temporaryDirectory('circuit-mcp-git-metadata-symlink');
     const outside = temporaryDirectory('circuit-mcp-git-metadata-outside');
@@ -231,6 +686,106 @@ describe('Codex MCP safe Git reader', () => {
 
     const result = await reader.read({ operation: 'status' });
     expect(result).toMatchObject({ ok: false, truncated: true, limit_bytes: expect.any(Number) });
+  });
+
+  it('returns a confirmed bounded partial primary diff as reviewable but incomplete', async () => {
+    const workspace = temporaryDirectory('circuit-mcp-git-partial-primary-diff');
+    git(workspace, 'init', '--quiet');
+    const reader = createSafeGitReader({
+      workspace,
+      gitExecutable: '/usr/bin/git',
+      sandbox: {
+        async executeGitRead(request) {
+          if (request.argv.includes('config')) return passed('');
+          return {
+            ...passed('diff --git a/target.ts b/target.ts\n+bounded-primary\n'),
+            status: 'output_limit',
+            exit_code: null,
+            truncated: true,
+          };
+        },
+      },
+    });
+
+    const result = await reader.read({ operation: 'staged_diff' });
+
+    expect(result).toMatchObject({
+      ok: true,
+      operation: 'staged_diff',
+      stdout: expect.stringContaining('bounded-primary'),
+      truncated: true,
+      cleanup_confirmed: true,
+    });
+  });
+
+  it('clears auxiliary config output when the audit reaches its bound', async () => {
+    const workspace = temporaryDirectory('circuit-mcp-git-config-output-limit');
+    git(workspace, 'init', '--quiet');
+    let calls = 0;
+    const reader = createSafeGitReader({
+      workspace,
+      gitExecutable: '/usr/bin/git',
+      sandbox: {
+        async executeGitRead() {
+          calls += 1;
+          return {
+            ...passed('credential.helper\nAUXILIARY-CONFIG-SECRET\n'),
+            status: 'output_limit',
+            exit_code: null,
+            truncated: true,
+          };
+        },
+      },
+    });
+
+    const result = await reader.read({ operation: 'staged_diff' });
+
+    expect(result).toMatchObject({
+      ok: false,
+      operation: 'staged_diff',
+      stdout: '',
+      truncated: true,
+      cleanup_confirmed: true,
+    });
+    expect(result.stderr).toMatch(/configuration|audit/i);
+    expect(calls).toBe(1);
+  });
+
+  it('does not couple a pinned target diff to the current index submodule scan', async () => {
+    const workspace = temporaryDirectory('circuit-mcp-git-submodule-output');
+    git(workspace, 'init', '--quiet');
+    const commit = 'a'.repeat(40);
+    const calls: Parameters<SafeGitSandbox['executeGitRead']>[0][] = [];
+    const reader = createSafeGitReader({
+      workspace,
+      gitExecutable: '/usr/bin/git',
+      sandbox: {
+        async executeGitRead(request) {
+          calls.push(request);
+          if (request.argv.includes('config')) return passed('');
+          if (request.argv.includes('cat-file')) {
+            return passed(
+              `tree ${'c'.repeat(40)}\nauthor Circuit <c@example.test> 0 +0000\n\nroot\n`,
+            );
+          }
+          return passed('diff --git a/target.ts b/target.ts\n+primary-diff\n');
+        },
+      },
+    });
+
+    const result = await reader.read({
+      operation: 'target_diff',
+      target: { kind: 'commit', commit },
+    });
+
+    expect(result).toMatchObject({
+      ok: true,
+      operation: 'target_diff',
+      stdout: expect.stringContaining('primary-diff'),
+      truncated: false,
+      cleanup_confirmed: true,
+    });
+    expect(calls.some((call) => call.argv.includes('--stage'))).toBe(false);
   });
 
   it('does not run repository hooks, text converters, external diffs, fsmonitor, or host config', async () => {

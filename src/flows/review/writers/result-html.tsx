@@ -63,15 +63,104 @@ function WarningList({ warnings }: { readonly warnings: ReviewResultValue['evide
   );
 }
 
+function hasCompleteUntrackedReviewEvidence(report: ReviewResultValue): boolean {
+  const evidence = report.evidence_summary;
+  return (
+    evidence?.kind === 'git-working-tree' &&
+    evidence.target_mode === 'all' &&
+    evidence.untracked_content_policy === 'include-content' &&
+    evidence.untracked_file_count > 0 &&
+    evidence.untracked_files_sampled === evidence.untracked_file_count &&
+    !evidence.untracked_files_truncated
+  );
+}
+
+function evidenceIsUnavailable(report: ReviewResultValue): boolean {
+  if (report.evidence_summary?.kind === 'unavailable') return true;
+  if (
+    report.evidence_summary?.kind === 'git-target' &&
+    !report.evidence_summary.target_diff_included
+  ) {
+    return true;
+  }
+  if (
+    report.evidence_summary?.kind === 'git-working-tree' &&
+    !report.evidence_summary.target_diff_included &&
+    !hasCompleteUntrackedReviewEvidence(report)
+  ) {
+    return true;
+  }
+  return report.evidence_warnings.some(
+    (warning) =>
+      warning.kind === 'evidence_unavailable' ||
+      warning.kind === 'target_unavailable' ||
+      warning.kind === 'scope_empty',
+  );
+}
+
+// Gaps in what Circuit actually selected. D2: untracked files relayed as
+// metadata only are the default posture, so `untracked_file_content_omitted`
+// is a stated limitation, not a gap, and never overrides the verdict banner.
+const INCOMPLETE_EVIDENCE_WARNING_KINDS = new Set([
+  'binary_content_not_inspected',
+  'diff_truncated',
+  'untracked_file_skipped',
+  'submodule_content_not_inspected',
+]);
+
+function requestedUntrackedContent(report: ReviewResultValue): boolean {
+  return (
+    report.evidence_summary?.kind === 'git-working-tree' &&
+    report.evidence_summary.untracked_content_policy === 'include-content'
+  );
+}
+
+function evidenceIsIncomplete(report: ReviewResultValue): boolean {
+  if (
+    report.evidence_summary?.kind === 'git-target' &&
+    report.evidence_summary.target_diff_truncated
+  ) {
+    return true;
+  }
+  if (
+    report.evidence_summary?.kind === 'git-working-tree' &&
+    report.evidence_summary.untracked_files_truncated &&
+    requestedUntrackedContent(report)
+  ) {
+    return true;
+  }
+  return report.evidence_warnings.some(
+    (warning) =>
+      INCOMPLETE_EVIDENCE_WARNING_KINDS.has(warning.kind) ||
+      (warning.kind === 'untracked_files_truncated' && requestedUntrackedContent(report)),
+  );
+}
+
 function EvidenceSummary({ report }: { readonly report: ReviewResultValue }) {
   const evidence = report.evidence_summary;
   if (evidence === undefined) return <Summary text="No evidence summary was recorded." />;
+  if (evidence.kind === 'goal') {
+    return <Summary text="The stated goal was reviewed; no Git target was requested." />;
+  }
   if (evidence.kind === 'unavailable') return <Summary text={evidence.message} />;
+  if (evidence.kind === 'git-target') {
+    return (
+      <BulletList
+        items={[
+          `Review target: ${evidence.target_ref} (${evidence.target_kind})`,
+          `Target diff included: ${evidence.target_diff_included ? 'yes' : 'no'}`,
+          `Target diff truncated: ${evidence.target_diff_truncated ? 'yes' : 'no'}`,
+        ]}
+      />
+    );
+  }
   const sampled = `${evidence.untracked_files_sampled}/${evidence.untracked_file_count}`;
   const truncated = evidence.untracked_files_truncated ? 'yes' : 'no';
   return (
     <BulletList
       items={[
+        `Review target: ${evidence.target_mode} working-tree changes`,
+        `Target diff included: ${evidence.target_diff_included ? 'yes' : 'no'}`,
         `Untracked content policy: ${evidence.untracked_content_policy}`,
         `Untracked files sampled: ${sampled}`,
         `Untracked file list truncated: ${truncated}`,
@@ -84,7 +173,9 @@ function shouldRenderHtml(report: ReviewResultValue): boolean {
   return (
     report.findings.length > 0 ||
     report.evidence_warnings.length > 0 ||
-    report.confidence_limitations.length > 0
+    report.confidence_limitations.length > 0 ||
+    evidenceIsUnavailable(report) ||
+    evidenceIsIncomplete(report)
   );
 }
 
@@ -93,6 +184,8 @@ export const reviewResultProjector: HtmlProjector = (ctx) => {
   if (!parsed.success) return undefined;
   const report = parsed.data;
   if (!shouldRenderHtml(report)) return undefined;
+  const evidenceUnavailable = evidenceIsUnavailable(report);
+  const evidenceIncomplete = evidenceIsIncomplete(report);
 
   const worstIntent = report.findings.reduce<'positive' | 'attention' | 'negative'>(
     (intent, finding) => {
@@ -101,7 +194,9 @@ export const reviewResultProjector: HtmlProjector = (ctx) => {
       if (findingIntent === 'attention' && intent === 'positive') return 'attention';
       return intent;
     },
-    report.verdict === 'CLEAN' ? 'positive' : 'attention',
+    evidenceUnavailable || evidenceIncomplete || report.verdict !== 'CLEAN'
+      ? 'attention'
+      : 'positive',
   );
 
   return renderReportPage({
@@ -115,7 +210,15 @@ export const reviewResultProjector: HtmlProjector = (ctx) => {
       <>
         <VerdictBanner
           intent={worstIntent}
-          badgeText={report.verdict}
+          badgeText={
+            evidenceUnavailable
+              ? 'EVIDENCE UNAVAILABLE'
+              : evidenceIncomplete
+                ? 'EVIDENCE INCOMPLETE'
+                : report.outcome === 'stopped' || ctx.runOutcome === 'stopped'
+                  ? 'REVIEW STOPPED'
+                  : report.verdict
+          }
           main={<strong>{t(report.scope, MAX_PROMPT_LEN)}</strong>}
           aside={`${report.findings.length} finding${report.findings.length === 1 ? '' : 's'}`}
         />

@@ -146,6 +146,10 @@ export const RelayStartedProgressEvent = ProgressEventBase.extend({
   connector_name: z.string().min(1),
   connector_kind: z.enum(['builtin', 'custom']),
   filesystem_capability: z.enum(['read-only', 'trusted-write', 'isolated-write']),
+  // Present only when the flow asked for a sealed (prompt-only) reviewer.
+  // `false` means the relay ran with repository access anyway.
+  context_seal_applied: z.boolean().optional(),
+  context_seal_reason: z.string().min(1).optional(),
 }).strict();
 
 export const RelayCompletedProgressEvent = ProgressEventBase.extend({

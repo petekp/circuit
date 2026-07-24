@@ -10,13 +10,17 @@ export const ReviewRelayVerdict = z.enum(['NO_ISSUES_FOUND', 'ISSUES_FOUND']);
 export type ReviewRelayVerdict = z.infer<typeof ReviewRelayVerdict>;
 
 export const ReviewEvidenceWarningKind = z.enum([
+  'binary_content_not_inspected',
   'diff_truncated',
   'git_command_failed',
+  'target_unavailable',
   'untracked_file_skipped',
   'untracked_file_content_omitted',
   'untracked_files_truncated',
+  'submodule_content_not_inspected',
   'evidence_unavailable',
   'scope_empty',
+  'target_assumed',
 ]);
 export type ReviewEvidenceWarningKind = z.infer<typeof ReviewEvidenceWarningKind>;
 
@@ -40,6 +44,12 @@ export type ReviewEvidenceText = z.infer<typeof ReviewEvidenceText>;
 export const ReviewUntrackedContentPolicy = z.enum(['metadata-only', 'include-content']);
 export type ReviewUntrackedContentPolicy = z.infer<typeof ReviewUntrackedContentPolicy>;
 
+export const ReviewTargetKind = z.enum(['working_tree', 'commit', 'range']);
+export type ReviewTargetKind = z.infer<typeof ReviewTargetKind>;
+
+export const ReviewWorkingTreeMode = z.enum(['all', 'staged', 'unstaged']);
+export type ReviewWorkingTreeMode = z.infer<typeof ReviewWorkingTreeMode>;
+
 export const ReviewUntrackedFileEvidence = z
   .object({
     path: z.string().min(1),
@@ -50,7 +60,100 @@ export const ReviewUntrackedFileEvidence = z
   .strict();
 export type ReviewUntrackedFileEvidence = z.infer<typeof ReviewUntrackedFileEvidence>;
 
+const ReviewGitObjectId = z.string().regex(/^(?:[0-9a-f]{40}|[0-9a-f]{64})$/u);
+
+function addRequiredEvidenceField(value: unknown, field: string, ctx: z.RefinementCtx): void {
+  if (value !== undefined) return;
+  ctx.addIssue({
+    code: 'custom',
+    path: [field],
+    message: `${field} is required for this Review target`,
+  });
+}
+
+function addForbiddenEvidenceField(value: unknown, field: string, ctx: z.RefinementCtx): void {
+  if (value === undefined) return;
+  ctx.addIssue({
+    code: 'custom',
+    path: [field],
+    message: `${field} does not belong to this Review target`,
+  });
+}
+
+function addObjectIdPrefixMismatch(
+  ref: string,
+  objectId: string | undefined,
+  field: string,
+  ctx: z.RefinementCtx,
+): void {
+  if (
+    !/^[0-9a-f]{4,64}$/iu.test(ref) ||
+    objectId === undefined ||
+    objectId.toLowerCase().startsWith(ref.toLowerCase())
+  ) {
+    return;
+  }
+  ctx.addIssue({
+    code: 'custom',
+    path: [field],
+    message: `${field} does not match the object id named by the Review target`,
+  });
+}
+
+const ReviewGitTargetEvidence = z
+  .object({
+    kind: z.literal('git-target'),
+    project_root: z.string().min(1),
+    target_kind: z.enum(['commit', 'range']),
+    target_ref: z.string().min(1),
+    target_base_ref: z.string().min(1).optional(),
+    target_head_ref: z.string().min(1).optional(),
+    target_commit: ReviewGitObjectId.optional(),
+    target_base_commit: ReviewGitObjectId.optional(),
+    target_head_commit: ReviewGitObjectId.optional(),
+    target_diff: ReviewEvidenceText,
+    target_diff_stat: z.string(),
+  })
+  .strict()
+  .superRefine((evidence, ctx) => {
+    if (evidence.target_kind === 'commit') {
+      addRequiredEvidenceField(evidence.target_commit, 'target_commit', ctx);
+      addForbiddenEvidenceField(evidence.target_base_ref, 'target_base_ref', ctx);
+      addForbiddenEvidenceField(evidence.target_head_ref, 'target_head_ref', ctx);
+      addForbiddenEvidenceField(evidence.target_base_commit, 'target_base_commit', ctx);
+      addForbiddenEvidenceField(evidence.target_head_commit, 'target_head_commit', ctx);
+      addObjectIdPrefixMismatch(evidence.target_ref, evidence.target_commit, 'target_commit', ctx);
+      return;
+    }
+    addRequiredEvidenceField(evidence.target_base_ref, 'target_base_ref', ctx);
+    addRequiredEvidenceField(evidence.target_head_ref, 'target_head_ref', ctx);
+    addRequiredEvidenceField(evidence.target_base_commit, 'target_base_commit', ctx);
+    addRequiredEvidenceField(evidence.target_head_commit, 'target_head_commit', ctx);
+    addForbiddenEvidenceField(evidence.target_commit, 'target_commit', ctx);
+    if (evidence.target_base_ref !== undefined) {
+      addObjectIdPrefixMismatch(
+        evidence.target_base_ref,
+        evidence.target_base_commit,
+        'target_base_commit',
+        ctx,
+      );
+    }
+    if (evidence.target_head_ref !== undefined) {
+      addObjectIdPrefixMismatch(
+        evidence.target_head_ref,
+        evidence.target_head_commit,
+        'target_head_commit',
+        ctx,
+      );
+    }
+  });
+
 export const ReviewEvidence = z.discriminatedUnion('kind', [
+  z
+    .object({
+      kind: z.literal('goal'),
+    })
+    .strict(),
   z
     .object({
       kind: z.literal('unavailable'),
@@ -65,16 +168,27 @@ export const ReviewEvidence = z.discriminatedUnion('kind', [
       staged_diff: ReviewEvidenceText,
       unstaged_diff: ReviewEvidenceText,
       diff_stat: z.string(),
+      // Working-tree evidence always names the working tree. Explicit commit
+      // and range targets use the dedicated git-target variant below.
+      target_kind: z.literal('working_tree'),
+      target_mode: ReviewWorkingTreeMode,
       untracked_file_count: z.number().int().nonnegative(),
       untracked_files_truncated: z.boolean(),
       untracked_content_policy: ReviewUntrackedContentPolicy,
       untracked_files: z.array(ReviewUntrackedFileEvidence),
+      submodule_paths: z.array(z.string().min(1)).optional(),
     })
     .strict(),
+  ReviewGitTargetEvidence,
 ]);
 export type ReviewEvidence = z.infer<typeof ReviewEvidence>;
 
 export const ReviewEvidenceSummary = z.discriminatedUnion('kind', [
+  z
+    .object({
+      kind: z.literal('goal'),
+    })
+    .strict(),
   z
     .object({
       kind: z.literal('unavailable'),
@@ -88,14 +202,56 @@ export const ReviewEvidenceSummary = z.discriminatedUnion('kind', [
       untracked_file_count: z.number().int().nonnegative(),
       untracked_files_sampled: z.number().int().nonnegative(),
       untracked_files_truncated: z.boolean(),
+      target_kind: z.literal('working_tree'),
+      target_mode: ReviewWorkingTreeMode,
+      target_diff_included: z.boolean(),
+    })
+    .strict(),
+  z
+    .object({
+      kind: z.literal('git-target'),
+      target_kind: z.enum(['commit', 'range']),
+      target_ref: z.string().min(1),
+      target_diff_included: z.boolean(),
+      target_diff_truncated: z.boolean(),
     })
     .strict(),
 ]);
 export type ReviewEvidenceSummary = z.infer<typeof ReviewEvidenceSummary>;
 
+/**
+ * The Review target resolved from the operator's goal, persisted so every
+ * downstream projection reads the same decision instead of re-parsing the
+ * goal text. Re-parsing after the relay ran could refuse a Review that was
+ * already paid for.
+ */
+export const ReviewResolvedTarget = z.discriminatedUnion('kind', [
+  z.object({ kind: z.literal('goal') }).strict(),
+  z
+    .object({
+      kind: z.literal('working_tree'),
+      mode: ReviewWorkingTreeMode,
+      // False when Circuit assumed the working tree because the goal named no
+      // target. The assumption is reported to the operator as a warning.
+      explicit: z.boolean(),
+    })
+    .strict(),
+  z.object({ kind: z.literal('commit'), ref: z.string().min(1) }).strict(),
+  z
+    .object({
+      kind: z.literal('range'),
+      base: z.string().min(1),
+      head: z.string().min(1),
+      dots: z.enum(['..', '...']),
+    })
+    .strict(),
+]);
+export type ReviewResolvedTarget = z.infer<typeof ReviewResolvedTarget>;
+
 export const ReviewIntake = z
   .object({
     scope: z.string().min(1),
+    target: ReviewResolvedTarget,
     evidence: ReviewEvidence,
     evidence_warnings: z.array(ReviewEvidenceWarning).default([]),
   })

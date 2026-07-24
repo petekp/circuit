@@ -409,11 +409,11 @@ var require_codegen = __commonJS({
         const rhs = this.rhs === void 0 ? "" : ` = ${this.rhs}`;
         return `${varKind} ${this.name}${rhs};` + _n;
       }
-      optimizeNames(names, constants10) {
+      optimizeNames(names, constants11) {
         if (!names[this.name.str])
           return;
         if (this.rhs)
-          this.rhs = optimizeExpr(this.rhs, names, constants10);
+          this.rhs = optimizeExpr(this.rhs, names, constants11);
         return this;
       }
       get names() {
@@ -430,10 +430,10 @@ var require_codegen = __commonJS({
       render({ _n }) {
         return `${this.lhs} = ${this.rhs};` + _n;
       }
-      optimizeNames(names, constants10) {
+      optimizeNames(names, constants11) {
         if (this.lhs instanceof code_1.Name && !names[this.lhs.str] && !this.sideEffects)
           return;
-        this.rhs = optimizeExpr(this.rhs, names, constants10);
+        this.rhs = optimizeExpr(this.rhs, names, constants11);
         return this;
       }
       get names() {
@@ -494,8 +494,8 @@ var require_codegen = __commonJS({
       optimizeNodes() {
         return `${this.code}` ? this : void 0;
       }
-      optimizeNames(names, constants10) {
-        this.code = optimizeExpr(this.code, names, constants10);
+      optimizeNames(names, constants11) {
+        this.code = optimizeExpr(this.code, names, constants11);
         return this;
       }
       get names() {
@@ -524,12 +524,12 @@ var require_codegen = __commonJS({
         }
         return nodes.length > 0 ? this : void 0;
       }
-      optimizeNames(names, constants10) {
+      optimizeNames(names, constants11) {
         const { nodes } = this;
         let i = nodes.length;
         while (i--) {
           const n = nodes[i];
-          if (n.optimizeNames(names, constants10))
+          if (n.optimizeNames(names, constants11))
             continue;
           subtractNames(names, n.names);
           nodes.splice(i, 1);
@@ -582,12 +582,12 @@ var require_codegen = __commonJS({
           return void 0;
         return this;
       }
-      optimizeNames(names, constants10) {
+      optimizeNames(names, constants11) {
         var _a3;
-        this.else = (_a3 = this.else) === null || _a3 === void 0 ? void 0 : _a3.optimizeNames(names, constants10);
-        if (!(super.optimizeNames(names, constants10) || this.else))
+        this.else = (_a3 = this.else) === null || _a3 === void 0 ? void 0 : _a3.optimizeNames(names, constants11);
+        if (!(super.optimizeNames(names, constants11) || this.else))
           return;
-        this.condition = optimizeExpr(this.condition, names, constants10);
+        this.condition = optimizeExpr(this.condition, names, constants11);
         return this;
       }
       get names() {
@@ -610,10 +610,10 @@ var require_codegen = __commonJS({
       render(opts) {
         return `for(${this.iteration})` + super.render(opts);
       }
-      optimizeNames(names, constants10) {
-        if (!super.optimizeNames(names, constants10))
+      optimizeNames(names, constants11) {
+        if (!super.optimizeNames(names, constants11))
           return;
-        this.iteration = optimizeExpr(this.iteration, names, constants10);
+        this.iteration = optimizeExpr(this.iteration, names, constants11);
         return this;
       }
       get names() {
@@ -649,10 +649,10 @@ var require_codegen = __commonJS({
       render(opts) {
         return `for(${this.varKind} ${this.name} ${this.loop} ${this.iterable})` + super.render(opts);
       }
-      optimizeNames(names, constants10) {
-        if (!super.optimizeNames(names, constants10))
+      optimizeNames(names, constants11) {
+        if (!super.optimizeNames(names, constants11))
           return;
-        this.iterable = optimizeExpr(this.iterable, names, constants10);
+        this.iterable = optimizeExpr(this.iterable, names, constants11);
         return this;
       }
       get names() {
@@ -694,11 +694,11 @@ var require_codegen = __commonJS({
         (_b = this.finally) === null || _b === void 0 ? void 0 : _b.optimizeNodes();
         return this;
       }
-      optimizeNames(names, constants10) {
+      optimizeNames(names, constants11) {
         var _a3, _b;
-        super.optimizeNames(names, constants10);
-        (_a3 = this.catch) === null || _a3 === void 0 ? void 0 : _a3.optimizeNames(names, constants10);
-        (_b = this.finally) === null || _b === void 0 ? void 0 : _b.optimizeNames(names, constants10);
+        super.optimizeNames(names, constants11);
+        (_a3 = this.catch) === null || _a3 === void 0 ? void 0 : _a3.optimizeNames(names, constants11);
+        (_b = this.finally) === null || _b === void 0 ? void 0 : _b.optimizeNames(names, constants11);
         return this;
       }
       get names() {
@@ -999,7 +999,7 @@ var require_codegen = __commonJS({
     function addExprNames(names, from) {
       return from instanceof code_1._CodeOrName ? addNames(names, from.names) : names;
     }
-    function optimizeExpr(expr, names, constants10) {
+    function optimizeExpr(expr, names, constants11) {
       if (expr instanceof code_1.Name)
         return replaceName(expr);
       if (!canOptimize(expr))
@@ -1014,14 +1014,14 @@ var require_codegen = __commonJS({
         return items;
       }, []));
       function replaceName(n) {
-        const c = constants10[n.str];
+        const c = constants11[n.str];
         if (c === void 0 || names[n.str] !== 1)
           return n;
         delete names[n.str];
         return c;
       }
       function canOptimize(e) {
-        return e instanceof code_1._Code && e._items.some((c) => c instanceof code_1.Name && names[c.str] === 1 && constants10[c.str] !== void 0);
+        return e instanceof code_1._Code && e._items.some((c) => c instanceof code_1.Name && names[c.str] === 1 && constants11[c.str] !== void 0);
       }
     }
     function subtractNames(names, from) {
@@ -23041,6 +23041,579 @@ import { lstat as lstat5, mkdir as mkdir2, realpath as realpath7, rm as rm2, sta
 import { tmpdir as tmpdir2 } from "node:os";
 import { isAbsolute as isAbsolute14, join as join15, relative as relative6, resolve as resolve10 } from "node:path";
 
+// src/shared/runtime-git-reader.ts
+var RUNTIME_GIT_HARDENED_CONFIG = Object.freeze([
+  "core.hooksPath=/dev/null",
+  "core.fsmonitor=false",
+  "core.untrackedCache=false",
+  "core.attributesFile=/dev/null",
+  "core.excludesFile=/dev/null",
+  "color.ui=false",
+  "color.diff=false",
+  "diff.external=",
+  "interactive.diffFilter=",
+  "credential.helper=",
+  "core.sshCommand=false",
+  "protocol.allow=never",
+  "protocol.file.allow=never",
+  "protocol.ext.allow=never",
+  "submodule.recurse=false"
+]);
+
+// src/flows/review/reports.ts
+var ReviewFindingSeverity = external_exports.enum(["critical", "high", "medium", "low"]);
+var ReviewResultVerdict = external_exports.enum(["CLEAN", "ISSUES_FOUND"]);
+var ReviewRelayVerdict = external_exports.enum(["NO_ISSUES_FOUND", "ISSUES_FOUND"]);
+var ReviewEvidenceWarningKind = external_exports.enum([
+  "binary_content_not_inspected",
+  "diff_truncated",
+  "git_command_failed",
+  "target_unavailable",
+  "untracked_file_skipped",
+  "untracked_file_content_omitted",
+  "untracked_files_truncated",
+  "submodule_content_not_inspected",
+  "evidence_unavailable",
+  "scope_empty",
+  "target_assumed"
+]);
+var ReviewEvidenceWarning = external_exports.object({
+  kind: ReviewEvidenceWarningKind,
+  message: external_exports.string().min(1),
+  path: external_exports.string().min(1).optional()
+}).strict();
+var ReviewEvidenceText = external_exports.object({
+  text: external_exports.string(),
+  truncated: external_exports.boolean()
+}).strict();
+var ReviewUntrackedContentPolicy = external_exports.enum(["metadata-only", "include-content"]);
+var ReviewTargetKind = external_exports.enum(["working_tree", "commit", "range"]);
+var ReviewWorkingTreeMode = external_exports.enum(["all", "staged", "unstaged"]);
+var ReviewUntrackedFileEvidence = external_exports.object({
+  path: external_exports.string().min(1),
+  byte_length: external_exports.number().int().nonnegative(),
+  content: ReviewEvidenceText.optional(),
+  skipped_reason: external_exports.string().min(1).optional()
+}).strict();
+var ReviewGitObjectId = external_exports.string().regex(/^(?:[0-9a-f]{40}|[0-9a-f]{64})$/u);
+function addRequiredEvidenceField(value, field, ctx) {
+  if (value !== void 0) return;
+  ctx.addIssue({
+    code: "custom",
+    path: [field],
+    message: `${field} is required for this Review target`
+  });
+}
+function addForbiddenEvidenceField(value, field, ctx) {
+  if (value === void 0) return;
+  ctx.addIssue({
+    code: "custom",
+    path: [field],
+    message: `${field} does not belong to this Review target`
+  });
+}
+function addObjectIdPrefixMismatch(ref, objectId, field, ctx) {
+  if (!/^[0-9a-f]{4,64}$/iu.test(ref) || objectId === void 0 || objectId.toLowerCase().startsWith(ref.toLowerCase())) {
+    return;
+  }
+  ctx.addIssue({
+    code: "custom",
+    path: [field],
+    message: `${field} does not match the object id named by the Review target`
+  });
+}
+var ReviewGitTargetEvidence = external_exports.object({
+  kind: external_exports.literal("git-target"),
+  project_root: external_exports.string().min(1),
+  target_kind: external_exports.enum(["commit", "range"]),
+  target_ref: external_exports.string().min(1),
+  target_base_ref: external_exports.string().min(1).optional(),
+  target_head_ref: external_exports.string().min(1).optional(),
+  target_commit: ReviewGitObjectId.optional(),
+  target_base_commit: ReviewGitObjectId.optional(),
+  target_head_commit: ReviewGitObjectId.optional(),
+  target_diff: ReviewEvidenceText,
+  target_diff_stat: external_exports.string()
+}).strict().superRefine((evidence, ctx) => {
+  if (evidence.target_kind === "commit") {
+    addRequiredEvidenceField(evidence.target_commit, "target_commit", ctx);
+    addForbiddenEvidenceField(evidence.target_base_ref, "target_base_ref", ctx);
+    addForbiddenEvidenceField(evidence.target_head_ref, "target_head_ref", ctx);
+    addForbiddenEvidenceField(evidence.target_base_commit, "target_base_commit", ctx);
+    addForbiddenEvidenceField(evidence.target_head_commit, "target_head_commit", ctx);
+    addObjectIdPrefixMismatch(evidence.target_ref, evidence.target_commit, "target_commit", ctx);
+    return;
+  }
+  addRequiredEvidenceField(evidence.target_base_ref, "target_base_ref", ctx);
+  addRequiredEvidenceField(evidence.target_head_ref, "target_head_ref", ctx);
+  addRequiredEvidenceField(evidence.target_base_commit, "target_base_commit", ctx);
+  addRequiredEvidenceField(evidence.target_head_commit, "target_head_commit", ctx);
+  addForbiddenEvidenceField(evidence.target_commit, "target_commit", ctx);
+  if (evidence.target_base_ref !== void 0) {
+    addObjectIdPrefixMismatch(
+      evidence.target_base_ref,
+      evidence.target_base_commit,
+      "target_base_commit",
+      ctx
+    );
+  }
+  if (evidence.target_head_ref !== void 0) {
+    addObjectIdPrefixMismatch(
+      evidence.target_head_ref,
+      evidence.target_head_commit,
+      "target_head_commit",
+      ctx
+    );
+  }
+});
+var ReviewEvidence = external_exports.discriminatedUnion("kind", [
+  external_exports.object({
+    kind: external_exports.literal("goal")
+  }).strict(),
+  external_exports.object({
+    kind: external_exports.literal("unavailable"),
+    reason: external_exports.string().min(1)
+  }).strict(),
+  external_exports.object({
+    kind: external_exports.literal("git-working-tree"),
+    project_root: external_exports.string().min(1),
+    status_short: external_exports.string(),
+    staged_diff: ReviewEvidenceText,
+    unstaged_diff: ReviewEvidenceText,
+    diff_stat: external_exports.string(),
+    // Working-tree evidence always names the working tree. Explicit commit
+    // and range targets use the dedicated git-target variant below.
+    target_kind: external_exports.literal("working_tree"),
+    target_mode: ReviewWorkingTreeMode,
+    untracked_file_count: external_exports.number().int().nonnegative(),
+    untracked_files_truncated: external_exports.boolean(),
+    untracked_content_policy: ReviewUntrackedContentPolicy,
+    untracked_files: external_exports.array(ReviewUntrackedFileEvidence),
+    submodule_paths: external_exports.array(external_exports.string().min(1)).optional()
+  }).strict(),
+  ReviewGitTargetEvidence
+]);
+var ReviewEvidenceSummary = external_exports.discriminatedUnion("kind", [
+  external_exports.object({
+    kind: external_exports.literal("goal")
+  }).strict(),
+  external_exports.object({
+    kind: external_exports.literal("unavailable"),
+    message: external_exports.string().min(1)
+  }).strict(),
+  external_exports.object({
+    kind: external_exports.literal("git-working-tree"),
+    untracked_content_policy: ReviewUntrackedContentPolicy,
+    untracked_file_count: external_exports.number().int().nonnegative(),
+    untracked_files_sampled: external_exports.number().int().nonnegative(),
+    untracked_files_truncated: external_exports.boolean(),
+    target_kind: external_exports.literal("working_tree"),
+    target_mode: ReviewWorkingTreeMode,
+    target_diff_included: external_exports.boolean()
+  }).strict(),
+  external_exports.object({
+    kind: external_exports.literal("git-target"),
+    target_kind: external_exports.enum(["commit", "range"]),
+    target_ref: external_exports.string().min(1),
+    target_diff_included: external_exports.boolean(),
+    target_diff_truncated: external_exports.boolean()
+  }).strict()
+]);
+var ReviewResolvedTarget = external_exports.discriminatedUnion("kind", [
+  external_exports.object({ kind: external_exports.literal("goal") }).strict(),
+  external_exports.object({
+    kind: external_exports.literal("working_tree"),
+    mode: ReviewWorkingTreeMode,
+    // False when Circuit assumed the working tree because the goal named no
+    // target. The assumption is reported to the operator as a warning.
+    explicit: external_exports.boolean()
+  }).strict(),
+  external_exports.object({ kind: external_exports.literal("commit"), ref: external_exports.string().min(1) }).strict(),
+  external_exports.object({
+    kind: external_exports.literal("range"),
+    base: external_exports.string().min(1),
+    head: external_exports.string().min(1),
+    dots: external_exports.enum(["..", "..."])
+  }).strict()
+]);
+var ReviewIntake = external_exports.object({
+  scope: external_exports.string().min(1),
+  target: ReviewResolvedTarget,
+  evidence: ReviewEvidence,
+  evidence_warnings: external_exports.array(ReviewEvidenceWarning).default([])
+}).strict();
+var ReviewFinding = external_exports.object({
+  severity: ReviewFindingSeverity,
+  id: external_exports.string().min(1),
+  text: external_exports.string().min(1),
+  file_refs: external_exports.array(external_exports.string().min(1))
+}).strict();
+function computeReviewVerdict(findings) {
+  return findings.some((finding) => finding.severity !== "low") ? "ISSUES_FOUND" : "CLEAN";
+}
+var ReviewResult = external_exports.object({
+  scope: external_exports.string().min(1),
+  findings: external_exports.array(ReviewFinding),
+  verdict: ReviewResultVerdict,
+  // Terminal run outcome bound to the verdict (launch blocker fix). Review
+  // arms engineFlags.bindsTerminalOutcomeToPrimaryResult, so the engine reads
+  // this field at close time and maps it onto the run outcome: an honest
+  // ISSUES_FOUND verdict must close `stopped`, never a green `complete` over a
+  // known defect. CLEAN → complete, ISSUES_FOUND → stopped (see the
+  // superRefine below, which forces the two to agree).
+  outcome: external_exports.enum(["complete", "stopped"]),
+  // Plain-language paragraph from the reviewer: what was checked and what
+  // they concluded. Required even on a CLEAN verdict so a no-findings result
+  // does not collapse to "Findings: 0" without context. The operator-summary
+  // renderer reads this when the projection has no findings to list.
+  assessment: external_exports.string().min(1),
+  // Concrete verification steps the reviewer performed: files inspected,
+  // commands run, evidence cross-referenced. Empty array is permitted but
+  // discouraged — the prompt asks the reviewer to name at least one step.
+  verification: external_exports.array(external_exports.string().min(1)),
+  // Known gaps that limit certainty (out-of-scope files, untracked content
+  // omitted, missing context). Empty array is permitted when the reviewer
+  // had complete coverage; the operator-summary renderer surfaces non-empty
+  // entries so a CLEAN verdict cannot quietly stand in for "high confidence".
+  confidence_limitations: external_exports.array(external_exports.string().min(1)),
+  evidence_summary: ReviewEvidenceSummary.optional(),
+  evidence_warnings: external_exports.array(ReviewEvidenceWarning).default([])
+}).strict().superRefine((report, ctx) => {
+  const expected = computeReviewVerdict(report.findings);
+  if (report.verdict !== expected) {
+    ctx.addIssue({
+      code: "custom",
+      path: ["verdict"],
+      message: `verdict must be ${expected} for the report findings (CLEAN iff every finding is severity low)`
+    });
+  }
+  const expectedOutcome = report.verdict === "CLEAN" ? "complete" : "stopped";
+  if (report.outcome !== expectedOutcome) {
+    ctx.addIssue({
+      code: "custom",
+      path: ["outcome"],
+      message: `outcome must be ${expectedOutcome} for verdict ${report.verdict} (CLEAN \u2192 complete, ISSUES_FOUND \u2192 stopped)`
+    });
+  }
+});
+var ReviewRelayResult = external_exports.object({
+  verdict: ReviewRelayVerdict,
+  findings: external_exports.array(ReviewFinding),
+  // See ReviewResult.assessment — the reviewer's plain-language paragraph
+  // describing what was checked and what they concluded. Required for both
+  // NO_ISSUES_FOUND and ISSUES_FOUND verdicts: a clean output without an
+  // assessment is the regression that motivated this addition (vanilla
+  // Claude Code says what it checked even on a no-findings review; Circuit
+  // used to collapse to "Findings: 0").
+  assessment: external_exports.string().min(1),
+  // Concrete verification steps the reviewer performed (files, commands,
+  // evidence). Required as an array; the relay prompt asks for at least
+  // one entry.
+  verification: external_exports.array(external_exports.string().min(1)),
+  // Known gaps that limit certainty. Required as an array (may be empty
+  // when coverage was complete).
+  confidence_limitations: external_exports.array(external_exports.string().min(1))
+}).strict().superRefine((report, ctx) => {
+  const expected = report.findings.length === 0 ? "NO_ISSUES_FOUND" : "ISSUES_FOUND";
+  if (report.verdict !== expected) {
+    ctx.addIssue({
+      code: "custom",
+      path: ["verdict"],
+      message: `review relay verdict must be ${expected} for findings.length=${report.findings.length}`
+    });
+  }
+});
+
+// src/flows/review/writers/intake.ts
+var MAX_DIFF_CHARS = 12e4;
+var MAX_UNTRACKED_FILE_CHARS = 2e4;
+var MAX_GIT_BUFFER_BYTES = 10 * 1024 * 1024;
+var MAX_DIFF_BUFFER_BYTES = Math.max(MAX_DIFF_CHARS * 4, 1024 * 1024);
+var MAX_UNTRACKED_FILE_BYTES = MAX_UNTRACKED_FILE_CHARS + 1;
+var HEAD_COMMIT_REF = "HEAD";
+var SAFE_REVIEW_REF_PATTERN = /^[A-Za-z0-9._/@+~^-]{1,120}$/u;
+function isSafeReviewRef(value) {
+  return SAFE_REVIEW_REF_PATTERN.test(value) && !value.startsWith("-") && !value.includes("..") && !value.includes("@{");
+}
+var REVIEW_LEAD = String.raw`(?:review|inspect|audit|check|analyze)`;
+var PULL_REQUEST_UNSUPPORTED_REASON = "Review cannot fetch a pull request. Check out the PR branch locally, then review the working tree or an explicit range such as main...HEAD.";
+var PATH_SUBSET_UNSUPPORTED_REASON = "Review cannot narrow its evidence to part of a target. Review the whole working tree, a commit, or a range instead, and name the paths you care about in the goal so the reviewer concentrates there.";
+function normalizeReviewQuotes(scope) {
+  return scope.replace(/[’‘]/gu, "'").replace(/[“”]/gu, '"');
+}
+function maskReviewLiteralData(scope) {
+  const mask = (value) => value.replace(/[^\r\n]/gu, " ");
+  return scope.replace(/```[\s\S]*?```/gu, mask).replace(/"(?:\\.|[^"\\])*"/gu, mask).replace(/(^|[\s([{:;,])'(?:\\.|[^'\\])*'/gmu, mask).replace(/`(?:\\.|[^`\\])*`/gu, mask).replace(/^[ \t]*>[^\r\n]*$/gmu, mask).replace(/```[\s\S]*$/gu, mask).replace(/"(?:\\.|[^"\\])*$/gu, mask).replace(/`(?:\\.|[^`\\])*$/gu, mask);
+}
+function looksLikeReviewPath(value) {
+  const cleaned = value.replace(/^[<("'`]+/u, "").replace(/[>"'`),.;:!?]+$/u, "").replace(/[),.;:!?]+$/u, "");
+  if (cleaned.length === 0 || cleaned.includes("..") || /^https?:\/\//iu.test(cleaned))
+    return false;
+  return /(?:^|\/)(?:Dockerfile|LICENSE|Makefile|README)(?:\.[A-Za-z0-9_-]+)?$/u.test(cleaned) || /(?:^|\/)[^/\s]+\.[A-Za-z0-9][A-Za-z0-9_-]*$/u.test(cleaned) || /^(?:\.{0,2}\/|\/)[^\s]+$/u.test(cleaned) || /^[^/\s]+\/[^\s]+$/u.test(cleaned) || /^(?:[^/\s]+\/)+$/u.test(cleaned);
+}
+function looksLikeReviewSubsetPath(value) {
+  const cleaned = value.trim().replace(/^[<("'`]+/u, "").replace(/[>"'`),.;:!?]+$/u, "");
+  if (cleaned.length === 0 || /^https?:\/\//iu.test(cleaned)) return false;
+  return looksLikeReviewPath(cleaned) || /^\.[A-Za-z0-9_-]+$/u.test(cleaned) || /[*?[\]]/u.test(cleaned) || /^(?:\.\.\/)+[^\s]+$/u.test(cleaned) || /^(?:apps?|assets?|build|changelogs?|config(?:uration)?|dist|docs?|examples?|fixtures?|generated|lib|lockfiles?|migrations?|node_modules|packages?|scripts?|snapshots?|sources?|src|tests?|vendor)\/?$/iu.test(
+    cleaned
+  );
+}
+function topLevelReviewMaterialTail(scope) {
+  const firstLead = new RegExp(String.raw`\b${REVIEW_LEAD}\b`, "iu").exec(scope);
+  if (firstLead === null) return void 0;
+  const clause = scope.slice(firstLead.index);
+  const artifact = /^(?:review|inspect|audit|check|analyze)\s+(?:of\s+)?(?:(?:a|an|the|this|these|my|our|current|supplied|provided|following|below|attached|pasted|written|included|enclosed|draft|rollout|release|proposed|updated|final|technical|design|quoted)\s+){0,6}(?:artifact|brief|code|docs?|documentation|excerpt|file|instructions?|patch|plan|proposal|quotation|quote|report|request|snippet|spec(?:ification)?|text)\b(?<tail>[\s\S]*)$/iu.exec(
+    clause
+  );
+  if (artifact?.groups?.tail !== void 0) return artifact.groups.tail;
+  const direct = /^(?:review|inspect|audit|check|analyze)\s*(?<tail>(?::|(?:—|--)\s|["`]|```|\r?\n)[\s\S]*)$/iu.exec(
+    clause
+  );
+  return direct?.groups?.tail;
+}
+function materialAfterBoundary(tail) {
+  const direct = tail.trimStart();
+  if (/^(?:"|`|```)/u.test(direct)) return direct;
+  const boundary = /:(?=\s|["'`[{\n\r]|$)|\r?\n|(?:^|\s)(?:—|--)(?=\s|$)/u.exec(tail);
+  if (boundary === null) return void 0;
+  return tail.slice(boundary.index + boundary[0].length).trimStart();
+}
+function closingUnescapedQuote(value, quote) {
+  for (let index = 1; index < value.length; index += 1) {
+    if (value[index] !== quote) continue;
+    let backslashes = 0;
+    for (let cursor = index - 1; cursor >= 0 && value[cursor] === "\\"; cursor -= 1) {
+      backslashes += 1;
+    }
+    if (backslashes % 2 === 0) return index;
+  }
+  return -1;
+}
+function classifyReviewMaterialBody(body) {
+  const trimmed = body.trim();
+  if (trimmed.length === 0) return { kind: "empty" };
+  let material = trimmed;
+  if (trimmed.startsWith("```")) {
+    const openingLineEnd = trimmed.indexOf("\n");
+    const closingFence = openingLineEnd < 0 ? -1 : trimmed.indexOf("```", openingLineEnd + 1);
+    if (openingLineEnd < 0 || closingFence < 0) {
+      return {
+        kind: "malformed",
+        reason: "Review supplied material has an unclosed code fence."
+      };
+    }
+    material = trimmed.slice(openingLineEnd + 1, closingFence).trim();
+  } else {
+    const opening = trimmed[0];
+    if (opening === '"' || opening === "'" || opening === "`") {
+      const closing = closingUnescapedQuote(trimmed, opening);
+      if (closing < 0) {
+        return {
+          kind: "malformed",
+          reason: "Review supplied material has an unclosed quote."
+        };
+      }
+      material = trimmed.slice(1, closing).trim();
+    }
+  }
+  if (material.length === 0) return { kind: "empty" };
+  if (looksLikeReviewSubsetPath(material)) return { kind: "missing" };
+  return { kind: "supplied" };
+}
+function classifySuppliedReviewMaterial(scope) {
+  const tail = topLevelReviewMaterialTail(scope);
+  if (tail === void 0) return { kind: "none" };
+  const body = materialAfterBoundary(tail);
+  if (body === void 0) return { kind: "missing" };
+  return classifyReviewMaterialBody(body);
+}
+function namesPullRequest(scope) {
+  if (/\b(?:prs?|pull\s+requests?)\b/iu.test(scope)) return true;
+  if (/https?:\/\/\S*\/pull\/\d{1,7}\b/iu.test(scope)) return true;
+  return new RegExp(
+    String.raw`\b${REVIEW_LEAD}\s+(?:(?:the|this|that|my|our)\s+)?#\d{1,7}\b`,
+    "iu"
+  ).test(scope);
+}
+var RANGE_FILLER_WORDS = /* @__PURE__ */ new Set([
+  "and",
+  "anything",
+  "especially",
+  "everything",
+  "focus",
+  "including",
+  "it",
+  "maybe",
+  "now",
+  "ok",
+  "okay",
+  "or",
+  "perhaps",
+  "please",
+  "so",
+  "something",
+  "that",
+  "then",
+  "these",
+  "this",
+  "those",
+  "wait",
+  "well",
+  "what"
+]);
+function rangeTargetFromToken(token) {
+  const withoutSentencePunctuation = token.replace(/[,;:!?]+$/u, "");
+  const cleaned = withoutSentencePunctuation.endsWith(".") && !withoutSentencePunctuation.endsWith("..") ? withoutSentencePunctuation.slice(0, -1) : withoutSentencePunctuation;
+  const separator = cleaned.includes("...") ? "..." : "..";
+  const separatorIndex = cleaned.indexOf(separator);
+  if (separatorIndex < 0) return void 0;
+  const base = cleaned.slice(0, separatorIndex);
+  const head = cleaned.slice(separatorIndex + separator.length);
+  if (base.length === 0 || head.length === 0) return void 0;
+  if (!isSafeReviewRef(base) || !isSafeReviewRef(head)) return void 0;
+  if (RANGE_FILLER_WORDS.has(base.toLowerCase()) || RANGE_FILLER_WORDS.has(head.toLowerCase())) {
+    return void 0;
+  }
+  return { kind: "range", base, head, dots: separator };
+}
+function parseRangeForm(scope) {
+  for (const match of scope.matchAll(
+    /(?<=^|[\s(["'])(?<token>[A-Za-z0-9][A-Za-z0-9._/@+~^-]{0,240}\.{2,3}[A-Za-z0-9][A-Za-z0-9._/@+~^-]{0,240})/gu
+  )) {
+    const token = match.groups?.token;
+    if (token === void 0) continue;
+    const target = rangeTargetFromToken(token);
+    if (target !== void 0) return target;
+  }
+  return void 0;
+}
+var LATEST_COMMIT_PATTERN = /\b(?:(?:the|my|our)\s+)?(?:latest|last|most\s+recent)\s+commit\b|\bwhat\s+i\s+just\s+committed\b|\b(?:the\s+)?commit\s+i\s+just\s+made\b|\bwhat\s+changed\s+in\s+(?:the\s+)?last\s+commit\b/iu;
+function parseCommitForm(scope) {
+  if (LATEST_COMMIT_PATTERN.test(scope)) {
+    return { ok: true, target: { kind: "commit", ref: HEAD_COMMIT_REF } };
+  }
+  const keyword = /\b(?:commit|revision|rev)\s+(?:at\s+)?(?<ref>[^\s,;:!?)"'`]{1,240})/iu.exec(
+    scope
+  )?.groups?.ref;
+  if (keyword !== void 0) {
+    const ref = keyword.replace(/[.,;:!?)"'`]+$/u, "");
+    if (ref.length > 0) {
+      if (!isSafeReviewRef(ref)) {
+        return {
+          ok: false,
+          reason: `Review target names an unusable commit ref: ${ref}. Use a commit id, a tag, a branch name, or HEAD.`
+        };
+      }
+      return { ok: true, target: { kind: "commit", ref } };
+    }
+  }
+  return void 0;
+}
+function parseBareHeadForm(scope) {
+  const head = /(?<=^|[\s(["'])(?<ref>HEAD(?:[~^]\d*)*)(?=$|[\s,;:!?)\]"'`])/u.exec(scope)?.groups?.ref;
+  return head === void 0 ? void 0 : { kind: "commit", ref: head };
+}
+function parseWorkingTreeForm(scope) {
+  const staged = /(?<!\bnot[- ])(?<![\w-])staged\b/iu.test(scope);
+  const unstaged = /\b(?:unstaged|not[- ]staged)\b/iu.test(scope);
+  if (staged && unstaged) {
+    return { kind: "working_tree", mode: "all", explicit: true };
+  }
+  if (unstaged) return { kind: "working_tree", mode: "unstaged", explicit: true };
+  if (staged) return { kind: "working_tree", mode: "staged", explicit: true };
+  if (/\b(?:working[- ]tree|worktree|uncommitted\s+(?:changes?|work|files?)|current\s+(?:diff|changes?|work))\b/iu.test(
+    scope
+  )) {
+    return { kind: "working_tree", mode: "all", explicit: true };
+  }
+  return void 0;
+}
+var RESTRICTION_LEAD_IN = String.raw`(?:only|just|limited\s+to|restricted\s+to|scoped\s+to|confined\s+to|(?:changes?|diffs?|files?)\s+(?:in|under|below|within))`;
+var EXCLUSION_LEAD_IN = String.raw`(?:except(?:\s+for)?|excluding|ignoring|omitting|skipping|leaving\s+out|apart\s+from|aside\s+from|other\s+than|but\s+(?:do\s+not|don't|never)\s+(?:review|include|inspect|read|look\s+at)|but(?:\s+not)?)`;
+var NARROWING_CLAUSE_PATTERN = new RegExp(
+  String.raw`\b(?:${RESTRICTION_LEAD_IN}|${EXCLUSION_LEAD_IN})\s+(?:(?:in|inside|under|within|below)\s+)?(?:the\s+)?(?<path>[^\s,;!?]+)`,
+  "giu"
+);
+var EXCLUDED_CHANGE_CLASS_PATTERN = new RegExp(
+  String.raw`\b${EXCLUSION_LEAD_IN}\s+(?:any\s+|all\s+|the\s+)?(?:untracked|tracked|staged|unstaged|committed|new|deleted|renamed)\b`,
+  "iu"
+);
+function namesNarrowedPaths(scope) {
+  if (EXCLUDED_CHANGE_CLASS_PATTERN.test(scope)) return true;
+  for (const match of scope.matchAll(NARROWING_CLAUSE_PATTERN)) {
+    const path = match.groups?.path;
+    if (path !== void 0 && looksLikeReviewSubsetPath(path)) return true;
+  }
+  return false;
+}
+function namesPathOnlyRequest(scope) {
+  const pathOnly = /^\s*(?:review|inspect|audit|check|analyze)\s+(?:(?:only|the|this|my|our|current)\s+)*(?:(?:file|code|plan|report)\s*(?:(?:in|at|from)\s+|:\s*)?)?(?<path>\S+)(?<suffix>[\s\S]*)$/iu.exec(
+    scope
+  );
+  const path = pathOnly?.groups?.path;
+  if (path !== void 0 && looksLikeReviewPath(path)) {
+    const suffix = (pathOnly?.groups?.suffix ?? "").trim();
+    if (suffix.length === 0 || /^[.!?]$/u.test(suffix) || /^(?:,?\s*(?:for|with|especially)\b|,?\s+and\s+(?:focus|check|inspect|look|pay|prioritize|verify)\b)/iu.test(
+      suffix
+    )) {
+      return true;
+    }
+  }
+  return false;
+}
+function parseReviewTarget(scope) {
+  const normalizedScope = normalizeReviewQuotes(scope);
+  const suppliedMaterial = classifySuppliedReviewMaterial(normalizedScope);
+  if (suppliedMaterial.kind === "supplied") {
+    return { ok: true, target: { kind: "goal" } };
+  }
+  if (suppliedMaterial.kind === "malformed") {
+    return { ok: false, reason: suppliedMaterial.reason };
+  }
+  if (suppliedMaterial.kind === "empty") {
+    return {
+      ok: false,
+      reason: "Review was asked to inspect supplied material, but the goal ends before any material appears. Paste the text to review, or name a commit, a range, staged, or unstaged."
+    };
+  }
+  const authorityScope = maskReviewLiteralData(normalizedScope);
+  if (namesPullRequest(authorityScope)) {
+    return { ok: false, reason: PULL_REQUEST_UNSUPPORTED_REASON };
+  }
+  if (namesNarrowedPaths(authorityScope)) {
+    return { ok: false, reason: PATH_SUBSET_UNSUPPORTED_REASON };
+  }
+  const range = parseRangeForm(authorityScope);
+  const pinned = range === void 0 ? parseCommitForm(authorityScope) : { ok: true, target: range };
+  if (pinned !== void 0 && !pinned.ok) return pinned;
+  const workingTree = parseWorkingTreeForm(authorityScope);
+  if (pinned !== void 0 && workingTree !== void 0) {
+    return {
+      ok: false,
+      reason: "Review pins one target per run, and this goal names two. Run it once for the commit or range, then again for the working tree."
+    };
+  }
+  if (pinned !== void 0) return pinned;
+  if (workingTree !== void 0) return { ok: true, target: workingTree };
+  const bareHead = parseBareHeadForm(authorityScope);
+  if (bareHead !== void 0) return { ok: true, target: bareHead };
+  if (namesPathOnlyRequest(authorityScope)) {
+    return { ok: false, reason: PATH_SUBSET_UNSUPPORTED_REASON };
+  }
+  return {
+    ok: true,
+    target: { kind: "working_tree", mode: "all", explicit: false },
+    assumed: true
+  };
+}
+
+// src/flows/registries/start-preflight.ts
+function validateFlowStartTarget(flowId, goal) {
+  if (flowId !== "review") return;
+  const parsed = parseReviewTarget(goal);
+  if (!parsed.ok) throw new Error(parsed.reason);
+}
+
 // src/hosts/codex-mcp/asset-pins.ts
 import { createHash } from "node:crypto";
 import { createReadStream } from "node:fs";
@@ -23828,6 +24401,7 @@ async function runMcpCodexSubprocess(input) {
 }
 
 // src/hosts/codex-mcp/nested-codex.ts
+import { constants as constants3, realpathSync } from "node:fs";
 import { delimiter, dirname, isAbsolute as isAbsolute4, join as join2, relative, resolve as resolve2 } from "node:path";
 
 // src/schemas/ids.ts
@@ -25349,6 +25923,46 @@ var CODEX_WRITE_FLAGS = Object.freeze([
   "--ignore-user-config",
   "--ignore-rules"
 ]);
+var CODEX_PROMPT_ONLY_FLAGS = Object.freeze([
+  "exec",
+  "--json",
+  "--ephemeral",
+  "--skip-git-repo-check",
+  "--ignore-user-config",
+  "--ignore-rules",
+  "--strict-config"
+]);
+var CODEX_PROMPT_ONLY_BASE_CONFIG = Object.freeze([
+  'approval_policy="never"',
+  'history.persistence="none"',
+  "allow_login_shell=false",
+  "project_doc_max_bytes=0",
+  "skills.include_instructions=false",
+  ...[
+    "apps",
+    "auth_elicitation",
+    "browser_use",
+    "browser_use_external",
+    "browser_use_full_cdp_access",
+    "computer_use",
+    "hooks",
+    "image_generation",
+    "in_app_browser",
+    "memories",
+    "multi_agent",
+    "plugin_sharing",
+    "plugins",
+    "remote_plugin",
+    "shell_snapshot",
+    "shell_tool",
+    "skill_mcp_dependency_install",
+    "tool_call_mcp_elicitation",
+    "workspace_dependencies"
+  ].map((feature) => `features.${feature}=false`),
+  "tools.update_plan.enabled=false",
+  "mcp_servers={}",
+  'web_search="disabled"'
+]);
 var CODEX_FORBIDDEN_ARGV_TOKENS = Object.freeze([
   "--dangerously-bypass-approvals-and-sandbox",
   "--full-auto",
@@ -25564,10 +26178,29 @@ function buildMcpCodexSandboxConfigArgs(policy) {
   ];
   return entries.flatMap((entry) => ["-c", entry]);
 }
-function buildMcpCodexArgs(input, policy, schemaPath) {
+function buildMcpCodexArgs(input, policy, schemaPath, workingDirectory = policy.workspace) {
   assertPolicy(policy);
+  const privateRoot = input.promptOnly === true ? (() => {
+    try {
+      return realpathSync(policy.tempRoot);
+    } catch {
+      return resolve2(policy.tempRoot);
+    }
+  })() : resolve2(policy.tempRoot);
+  if (input.promptOnly === true && !pathInside(privateRoot, resolve2(workingDirectory))) {
+    throw new Error("The prompt-only Codex directory escaped its private run directory.");
+  }
   const model = selectedModel(input.resolvedSelection, policy);
   const effort = selectedEffort(input.resolvedSelection);
+  const hardeningArgs = input.promptOnly === true ? [
+    ...MCP_CODEX_HARDENING_CONFIG_ARGS.map(
+      (arg) => arg === "features.shell_tool=true" ? "features.shell_tool=false" : arg
+    ),
+    "-c",
+    "skills.include_instructions=false",
+    "-c",
+    "tools.update_plan.enabled=false"
+  ] : MCP_CODEX_HARDENING_CONFIG_ARGS;
   const args = [
     "exec",
     "--json",
@@ -25575,11 +26208,11 @@ function buildMcpCodexArgs(input, policy, schemaPath) {
     "--skip-git-repo-check",
     ...MCP_CODEX_STRICT_FLAGS,
     "--cd",
-    policy.workspace,
-    ...MCP_CODEX_HARDENING_CONFIG_ARGS,
+    workingDirectory,
+    ...hardeningArgs,
     ...buildMcpCodexSandboxConfigArgs(policy),
     "-c",
-    `web_search=${JSON.stringify(policy.searchMode === "cached" ? "cached" : "disabled")}`,
+    `web_search=${JSON.stringify(input.promptOnly !== true && policy.searchMode === "cached" ? "cached" : "disabled")}`,
     "-m",
     model
   ];
@@ -26621,7 +27254,7 @@ var MCP_TOOL_WIRE_OUTPUT_SCHEMAS = {
 
 // src/hosts/codex-mcp/supervisor-journal.ts
 import {
-  constants as constants3,
+  constants as constants4,
   closeSync as closeSync2,
   fstatSync as fstatSync2,
   fsyncSync,
@@ -26629,7 +27262,7 @@ import {
   openSync as openSync2,
   readFileSync as readFileSync2,
   readdirSync,
-  realpathSync,
+  realpathSync as realpathSync2,
   unlinkSync
 } from "node:fs";
 import { basename, dirname as dirname3, join as join5 } from "node:path";
@@ -26802,7 +27435,7 @@ function assertPrivateCanonicalDirectory(path) {
   } catch {
     throw new SupervisorJournalError("The supervisor control directory is unavailable.");
   }
-  if (direct.isSymbolicLink() || !direct.isDirectory() || realpathSync.native(path) !== path) {
+  if (direct.isSymbolicLink() || !direct.isDirectory() || realpathSync2.native(path) !== path) {
     throw new SupervisorJournalError("The supervisor control directory is unsafe.");
   }
   if ((direct.mode & 511) !== 448) {
@@ -26813,7 +27446,7 @@ function assertPrivateCanonicalDirectory(path) {
   }
 }
 function fsyncDirectory(path) {
-  const descriptor = openSync2(path, constants3.O_RDONLY);
+  const descriptor = openSync2(path, constants4.O_RDONLY);
   try {
     fsyncSync(descriptor);
   } finally {
@@ -26847,7 +27480,7 @@ function readJournal(path, parse3) {
   for (let attempt = 0; attempt < 4; attempt += 1) {
     let descriptor;
     try {
-      descriptor = openSync2(path, constants3.O_RDONLY | constants3.O_NONBLOCK | constants3.O_NOFOLLOW);
+      descriptor = openSync2(path, constants4.O_RDONLY | constants4.O_NONBLOCK | constants4.O_NOFOLLOW);
     } catch (error51) {
       if (errorCode(error51) === "ENOENT") return void 0;
       if (errorCode(error51) === "ELOOP") {
@@ -27584,7 +28217,7 @@ var ObservedCleanupController = class {
 // src/hosts/codex-mcp/process-probe.ts
 import { spawnSync as spawnSync2 } from "node:child_process";
 import { createHash as createHash3 } from "node:crypto";
-import { readFileSync as readFileSync3, realpathSync as realpathSync2, statSync } from "node:fs";
+import { readFileSync as readFileSync3, realpathSync as realpathSync3, statSync } from "node:fs";
 import { isAbsolute as isAbsolute8 } from "node:path";
 var UUID_PROCESS_TOKEN = "[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}";
 var SHA256_PROCESS_TOKEN = "[0-9a-f]{64}";
@@ -27594,7 +28227,7 @@ function isMcpProcessToken(value) {
 }
 function readExecutableIdentity(path) {
   if (!isAbsolute8(path)) throw new Error("The host executable path must be absolute.");
-  const realPath = realpathSync2.native(path);
+  const realPath = realpathSync3.native(path);
   const before = statSync(realPath);
   if (!before.isFile() || (before.mode & 73) === 0) {
     throw new Error("The host executable must be an executable regular file.");
@@ -27752,7 +28385,7 @@ function createExecutableMatcher() {
   const cached2 = /* @__PURE__ */ new Map();
   return (identity2) => {
     try {
-      if (realpathSync2.native(identity2.real_path) !== identity2.real_path) return false;
+      if (realpathSync3.native(identity2.real_path) !== identity2.real_path) return false;
       const info = statSync(identity2.real_path);
       if (!info.isFile() || String(info.dev) !== identity2.device || String(info.ino) !== identity2.inode) {
         return false;
@@ -27787,7 +28420,7 @@ import {
   readFileSync as readFileSync4,
   readSync,
   readdirSync as readdirSync2,
-  realpathSync as realpathSync3,
+  realpathSync as realpathSync4,
   statSync as statSync2
 } from "node:fs";
 import { createRequire } from "node:module";
@@ -27873,7 +28506,7 @@ function resolveGitExecutableOnPath(pathValue, platform = process.platform, maco
     for (const candidate2 of macosDirectGitCandidates) {
       if (!isAbsolute9(candidate2) || candidate2.includes("\0")) continue;
       if (!isExecutableFile(candidate2)) continue;
-      return realpathSync3.native(candidate2);
+      return realpathSync4.native(candidate2);
     }
   }
   return findExecutableOnPath("git", pathValue);
@@ -27931,7 +28564,7 @@ function officialCodexPackageRoot(launcher) {
       const manifest = readPackageJson(manifestPath);
       const bin = manifest.bin;
       const binPath = typeof bin === "object" && bin !== null && !Array.isArray(bin) ? bin.codex : void 0;
-      if (manifest.name === "@openai/codex" && binPath === "bin/codex.js" && realpathSync3.native(join6(directory, binPath)) === launcher) {
+      if (manifest.name === "@openai/codex" && binPath === "bin/codex.js" && realpathSync4.native(join6(directory, binPath)) === launcher) {
         return directory;
       }
     } catch (error51) {
@@ -27962,15 +28595,15 @@ function nativeCodexFromNpmLauncher(launcher, platform, arch) {
   let platformPackageRoot;
   try {
     const require2 = createRequire(join6(packageRoot, "package.json"));
-    const manifestPath = realpathSync3.native(require2.resolve(`${target.packageName}/package.json`));
+    const manifestPath = realpathSync4.native(require2.resolve(`${target.packageName}/package.json`));
     platformPackageRoot = dirname4(manifestPath);
   } catch {
   }
   const candidate2 = platformPackageRoot === void 0 ? join6(packageRoot, "vendor", target.triple, "bin", target.executableName) : join6(platformPackageRoot, "vendor", target.triple, "bin", target.executableName);
   let native;
   try {
-    native = realpathSync3.native(candidate2);
-    const root = realpathSync3.native(platformPackageRoot ?? packageRoot);
+    native = realpathSync4.native(candidate2);
+    const root = realpathSync4.native(platformPackageRoot ?? packageRoot);
     const info = statSync2(native);
     if (!pathInside2(root, native) || !info.isFile() || (info.mode & 73) === 0) {
       throw new Error("invalid native executable");
@@ -27992,7 +28625,7 @@ function nativeCodexFromVitePlusLauncher(discovered, wrapper, platform, arch) {
   const vitePlusRoot = dirname4(binRoot);
   let canonicalRoot;
   try {
-    canonicalRoot = realpathSync3.native(vitePlusRoot);
+    canonicalRoot = realpathSync4.native(vitePlusRoot);
   } catch {
     throw new McpProductionPathError("Circuit could not seal the Vite+ Codex package root.");
   }
@@ -28015,7 +28648,7 @@ function nativeCodexFromVitePlusLauncher(discovered, wrapper, platform, arch) {
   );
   let canonicalLauncher;
   try {
-    canonicalLauncher = realpathSync3.native(npmLauncher);
+    canonicalLauncher = realpathSync4.native(npmLauncher);
     if (!pathInside2(canonicalRoot, canonicalLauncher)) throw new Error("launcher escaped root");
   } catch {
     throw new McpProductionPathError(
@@ -28028,7 +28661,7 @@ function resolveCodexExecutableOnPath(pathValue, platform = process.platform, ar
   const discovered = findExecutableOnPath("codex", pathValue);
   let resolved;
   try {
-    resolved = realpathSync3.native(discovered);
+    resolved = realpathSync4.native(discovered);
     const info = statSync2(resolved);
     if (!info.isFile() || (info.mode & 73) === 0) throw new Error("not executable");
   } catch {
@@ -28110,7 +28743,7 @@ function collectPackagedFlowAssets(flowsRoot) {
 }
 
 // src/hosts/codex-mcp/public-flow-catalog.ts
-import { constants as constants4, closeSync as closeSync4, fstatSync as fstatSync3, openSync as openSync4, readFileSync as readFileSync5 } from "node:fs";
+import { constants as constants5, closeSync as closeSync4, fstatSync as fstatSync3, openSync as openSync4, readFileSync as readFileSync5 } from "node:fs";
 var MAX_CATALOG_BYTES = 1024 * 1024;
 var REQUIRED_PUBLIC_FLOWS = new Set(McpPublicFlowV1.options);
 var PublicCatalogV1 = external_exports.object({
@@ -28133,7 +28766,7 @@ var PublicFlowCatalogError = class extends Error {
 function loadPublicFlowCatalog(path) {
   let fd;
   try {
-    fd = openSync4(path, constants4.O_RDONLY | constants4.O_NOFOLLOW);
+    fd = openSync4(path, constants5.O_RDONLY | constants5.O_NOFOLLOW);
     const before = fstatSync3(fd);
     if (!before.isFile() || before.size === 0 || before.size > MAX_CATALOG_BYTES) {
       throw new Error("catalog is not a bounded regular file");
@@ -28336,12 +28969,12 @@ async function resolveTrustedCodexWorkspaceFromSources(input) {
 
 // src/hosts/codex-mcp/runtime-artifacts.ts
 import { createHash as createHash6 } from "node:crypto";
-import { constants as constants6 } from "node:fs";
+import { constants as constants7 } from "node:fs";
 import { lstat as lstat3, open as open2, realpath as realpath5 } from "node:fs/promises";
 import { isAbsolute as isAbsolute12, join as join11, relative as relative4, resolve as resolve8, sep as sep3 } from "node:path";
 
 // src/app/run-status/run-folder-projector.ts
-import { constants as constants5, accessSync, statSync as statSync3 } from "node:fs";
+import { constants as constants6, accessSync, statSync as statSync3 } from "node:fs";
 import { resolve as resolve7 } from "node:path";
 
 // src/shared/manifest-snapshot.ts
@@ -28409,7 +29042,7 @@ function runResultPath(runFolder) {
 }
 
 // src/shared/run-file-paths.ts
-import { existsSync, lstatSync as lstatSync3, realpathSync as realpathSync4 } from "node:fs";
+import { existsSync, lstatSync as lstatSync3, realpathSync as realpathSync5 } from "node:fs";
 import { isAbsolute as isAbsolute11, relative as relative3, resolve as resolve6, sep as sep2 } from "node:path";
 function isInsideOrSame(root, target) {
   const fromRoot = relative3(root, target);
@@ -28457,7 +29090,7 @@ function resolveRunFilePath(runDir, runRelativePath) {
     if (lstatSync3(root).isSymbolicLink()) {
       throw new Error(`run file path crosses symlink: ${runRelativePath}`);
     }
-    const rootReal = realpathSync4.native(root);
+    const rootReal = realpathSync5.native(root);
     let cursor = root;
     for (const segment of runRelativePath.split("/")) {
       cursor = resolve6(cursor, segment);
@@ -28465,7 +29098,7 @@ function resolveRunFilePath(runDir, runRelativePath) {
       if (lstatSync3(cursor).isSymbolicLink()) {
         throw new Error(`run file path crosses symlink: ${runRelativePath}`);
       }
-      if (!isInsideOrSame(rootReal, realpathSync4.native(cursor))) {
+      if (!isInsideOrSame(rootReal, realpathSync5.native(cursor))) {
         throw new Error(`run file path escapes run directory through symlink: ${runRelativePath}`);
       }
     }
@@ -29893,6 +30526,10 @@ var EquipmentEnforcementEvidence = external_exports.object({
   downgraded: external_exports.boolean(),
   enforced_tools: external_exports.array(external_exports.string().min(1)).min(1).optional()
 }).strict();
+var RelayContextSeal = external_exports.object({
+  applied: external_exports.boolean(),
+  reason: external_exports.string().min(1).optional()
+}).strict();
 var RelayStartedTraceEntry = TraceEntryBase.extend({
   kind: external_exports.literal("relay.started"),
   step_id: StepId,
@@ -29901,7 +30538,8 @@ var RelayStartedTraceEntry = TraceEntryBase.extend({
   role: RelayRole,
   resolved_selection: ResolvedSelection,
   resolved_from: RelayResolutionSource,
-  equipment: EquipmentEnforcementEvidence.optional()
+  equipment: EquipmentEnforcementEvidence.optional(),
+  context_seal: RelayContextSeal.optional()
 }).strict();
 var LoadedSkillCause = external_exports.enum(["selection", "binding", "skill-hook"]);
 var LoadedSkillEvidence = external_exports.object({
@@ -30515,6 +31153,7 @@ var AxisConfigRequirementList = external_exports.array(AxisConfigRequirement).mi
 var EngineFlagsManifest = external_exports.object({
   binds_execution_depth_to_relay_selection: external_exports.boolean().optional(),
   binds_terminal_outcome_to_primary_result: external_exports.boolean().optional(),
+  relay_uses_prompt_only_context: external_exports.boolean().optional(),
   iterates_slice_loop: external_exports.object({
     head_step: external_exports.string().min(1),
     tail_step: external_exports.string().min(1),
@@ -31645,7 +32284,7 @@ function assertReadableRunFolder(runFolder) {
     );
   }
   try {
-    accessSync(runFolder, constants5.R_OK | constants5.X_OK);
+    accessSync(runFolder, constants6.R_OK | constants6.X_OK);
   } catch (err) {
     throw new RunStatusFolderError(
       "folder_unreadable",
@@ -31771,7 +32410,7 @@ async function readBoundJson(runRoot, relativePath, maximumBytes) {
   if (pathInfo.isSymbolicLink() || !pathInfo.isFile() || pathInfo.nlink !== 1n || pathInfo.size === 0n || pathInfo.size > BigInt(maximumBytes)) {
     throw new Error("A canonical run report is unsafe or too large.");
   }
-  const handle = await open2(path, constants6.O_RDONLY | constants6.O_NOFOLLOW);
+  const handle = await open2(path, constants7.O_RDONLY | constants7.O_NOFOLLOW);
   let bytes;
   try {
     const before = await handle.stat({ bigint: true });
@@ -31953,12 +32592,12 @@ var CanonicalRuntimeArtifactReconciler = class {
 };
 
 // src/hosts/codex-mcp/state-adapter.ts
-import { realpathSync as realpathSync6 } from "node:fs";
+import { realpathSync as realpathSync7 } from "node:fs";
 import { setTimeout as delay3 } from "node:timers/promises";
 
 // src/hosts/codex-mcp/checkpoint-view.ts
 import { createHash as createHash7, timingSafeEqual } from "node:crypto";
-import { constants as constants7 } from "node:fs";
+import { constants as constants8 } from "node:fs";
 import { lstat as lstat4, open as open3, realpath as realpath6 } from "node:fs/promises";
 import { join as join12 } from "node:path";
 import { TextDecoder } from "node:util";
@@ -32225,7 +32864,7 @@ async function readStableRequestBytes(input) {
   try {
     handle = await open3(
       requestFile,
-      constants7.O_RDONLY | constants7.O_NONBLOCK | constants7.O_NOFOLLOW
+      constants8.O_RDONLY | constants8.O_NONBLOCK | constants8.O_NOFOLLOW
     );
     const descriptorBeforeInfo = await handle.stat({ bigint: true });
     if (!descriptorBeforeInfo.isFile() || descriptorBeforeInfo.nlink !== 1n || descriptorBeforeInfo.size > BigInt(MAX_CHECKPOINT_REQUEST_BYTES)) {
@@ -32372,14 +33011,14 @@ async function assertCheckpointResume(input) {
 
 // src/hosts/codex-mcp/supervisor-progress.ts
 import {
-  constants as constants8,
+  constants as constants9,
   closeSync as closeSync5,
   fstatSync as fstatSync4,
   fsyncSync as fsyncSync2,
   lstatSync as lstatSync4,
   openSync as openSync5,
   readSync as readSync2,
-  realpathSync as realpathSync5,
+  realpathSync as realpathSync6,
   writeSync
 } from "node:fs";
 import { basename as basename3, dirname as dirname5, join as join13 } from "node:path";
@@ -32493,7 +33132,11 @@ var RelayStartedProgressEvent = ProgressEventBase.extend({
   role: RelayRole,
   connector_name: external_exports.string().min(1),
   connector_kind: external_exports.enum(["builtin", "custom"]),
-  filesystem_capability: external_exports.enum(["read-only", "trusted-write", "isolated-write"])
+  filesystem_capability: external_exports.enum(["read-only", "trusted-write", "isolated-write"]),
+  // Present only when the flow asked for a sealed (prompt-only) reviewer.
+  // `false` means the relay ran with repository access anyway.
+  context_seal_applied: external_exports.boolean().optional(),
+  context_seal_reason: external_exports.string().min(1).optional()
 }).strict();
 var RelayCompletedProgressEvent = ProgressEventBase.extend({
   type: external_exports.literal("relay.completed"),
@@ -32650,14 +33293,14 @@ function progressPath(controlDirectory, generation) {
 }
 function assertPrivateDirectory(path) {
   const info = lstatSync4(path);
-  if (info.isSymbolicLink() || !info.isDirectory() || (info.mode & 511) !== 448 || typeof process.getuid === "function" && info.uid !== process.getuid() || realpathSync5.native(path) !== path) {
+  if (info.isSymbolicLink() || !info.isDirectory() || (info.mode & 511) !== 448 || typeof process.getuid === "function" && info.uid !== process.getuid() || realpathSync6.native(path) !== path) {
     throw new SupervisorProgressError("The supervisor progress directory is unsafe.");
   }
 }
 function readBoundedPrefix(path) {
   let descriptor;
   try {
-    descriptor = openSync5(path, constants8.O_RDONLY | constants8.O_NOFOLLOW);
+    descriptor = openSync5(path, constants9.O_RDONLY | constants9.O_NOFOLLOW);
   } catch (error51) {
     if (error51.code === "ENOENT") return void 0;
     throw error51;
@@ -32873,7 +33516,7 @@ var McpLifecycleStateAdapter = class {
   }
   controlDirectory(workspace, runId) {
     const path = this.#store.pathsForRun(stateWorkspace(workspace), runId).run_dir;
-    return realpathSync6.native(path);
+    return realpathSync7.native(path);
   }
   async waitForChange(input) {
     const deadline = Date.now() + Math.min(input.wait_ms, 1e4);
@@ -33247,7 +33890,7 @@ var McpCheckpointAdapter = class {
 // src/hosts/codex-mcp/state-store.ts
 import { createHash as createHash8, randomUUID as randomUUID3 } from "node:crypto";
 import {
-  constants as constants9,
+  constants as constants10,
   closeSync as closeSync6,
   existsSync as existsSync3,
   fstatSync as fstatSync5,
@@ -33258,7 +33901,7 @@ import {
   openSync as openSync6,
   opendirSync,
   readFileSync as readFileSync8,
-  realpathSync as realpathSync7,
+  realpathSync as realpathSync8,
   renameSync,
   rmSync as rmSync2,
   statSync as statSync4,
@@ -33669,7 +34312,7 @@ function trustedWorkspaceIdentity(path, identitySource = CODEX_SANDBOX_METADATA_
       "The trusted workspace must be a real directory, not a symbolic link."
     );
   }
-  const canonicalPath = realpathSync7.native(path);
+  const canonicalPath = realpathSync8.native(path);
   const stat4 = statSync4(canonicalPath);
   return McpWorkspaceIdentityV1.parse({
     key: workspaceKey(canonicalPath),
@@ -33756,7 +34399,7 @@ function ensurePrivateDirectory(path, recursive = false) {
   assertPrivateDirectory2(path);
 }
 function fsyncDirectory2(path) {
-  const fd = openSync6(path, constants9.O_RDONLY);
+  const fd = openSync6(path, constants10.O_RDONLY);
   try {
     fsyncSync3(fd);
   } finally {
@@ -33787,7 +34430,7 @@ function stageCompleteFile(target, contents) {
   const stage = join14(dirname6(target), `.${basename4(target)}.${randomUUID3()}.tmp`);
   const fd = openSync6(
     stage,
-    constants9.O_WRONLY | constants9.O_CREAT | constants9.O_EXCL | constants9.O_NOFOLLOW,
+    constants10.O_WRONLY | constants10.O_CREAT | constants10.O_EXCL | constants10.O_NOFOLLOW,
     384
   );
   try {
@@ -33847,7 +34490,7 @@ var TransientStateRead = class extends Error {
 function readStrictJsonOnce(path, schema, maxBytes, corruptCode) {
   let fd;
   try {
-    fd = openSync6(path, constants9.O_RDONLY | constants9.O_NONBLOCK | constants9.O_NOFOLLOW);
+    fd = openSync6(path, constants10.O_RDONLY | constants10.O_NONBLOCK | constants10.O_NOFOLLOW);
   } catch (error51) {
     if (errorCode3(error51) === "ELOOP") {
       throw new McpStateStoreError(
@@ -34019,7 +34662,7 @@ var McpStateStore = class {
       );
     }
     ensurePrivateDirectory(options.stateRoot, true);
-    this.stateRoot = realpathSync7.native(options.stateRoot);
+    this.stateRoot = realpathSync8.native(options.stateRoot);
     assertPrivateDirectory2(this.stateRoot);
     this.runsRoot = join14(this.stateRoot, "runs");
     this.leasesRoot = join14(this.stateRoot, "leases");
@@ -35714,6 +36357,15 @@ function createProductionLaunchPreflight(dependencies) {
             environment: dependencies.environment
           }
         });
+        try {
+          validateFlowStartTarget(input.request.flow, input.request.goal);
+        } catch (error51) {
+          throw new McpLifecycleError(
+            "invalid_review_target",
+            error51.message,
+            "Choose one complete working tree, staged set, unstaged set, commit, or range target, or include the actual text to review."
+          );
+        }
       } finally {
         await rm2(probeRoot, { recursive: true, force: true });
       }
@@ -43837,6 +44489,11 @@ var CIRCUIT_MCP_SERVER_INSTRUCTIONS = [
   "When the user asks to continue an earlier run and no run ID is available, call circuit_list. Continue only a clearly matching non-terminal run. Never match by flow alone; ask the user when multiple runs could match.",
   "Use circuit_recover only for recovery_required. Recovery closes the old run; it does not continue it. Stop without claiming success for needs_attention, cancelled, or interrupted. Claim success only when the state is complete and final_report is present.",
   "When the user cancels or replaces an active request, call circuit_cancel. On a direct circuit_cancel response, say the run was cancelled and start replacement work only when state is cancelled and cleanup_confirmed is true. A cancelled state from circuit_status or circuit_list is terminal; report it without calling circuit_cancel again or claiming fresh cleanup proof.",
+  "A direct user request to run Review on tracked workspace content authorizes the normal tracked-code relay for that Review run. Do not ask for a second confirmation for tracked files. This does not authorize cached web search or untracked Review file contents.",
+  "When the user asks Review to inspect a specific code target, keep that target in the goal. Examples include current diff, staged changes, latest commit, HEAD, HEAD~1, commit abc1234, and main...feature. Circuit uses that wording to collect the requested evidence. Do not rewrite a commit, range, or branch comparison as only current diff unless the user actually asked for staged or unstaged changes. When the goal names no target, Circuit reviews the current working tree and says so in the report.",
+  "Treat the selected target as the only code under review. Review sees only Circuit\u2019s captured evidence and cannot inspect nearby repository files or run tools. A file path by itself is not Review evidence; choose a complete target, or include the plan or report\u2019s actual text in the goal.",
+  "If the request narrows a complete target to a file or directory subset, or excludes paths, do not remove that restriction and do not start a broader Review. Explain that Circuit accepts only a complete target or actual supplied text, then ask the user which one they want.",
+  "Circuit cannot fetch a pull request. If the user asks to review one, say that Review reads local repository evidence only, and offer the local equivalent: check out the PR branch, then review the working tree or an explicit range such as main...HEAD. Do not fetch, call gh, or fall back to shell unless the user separately asks for that setup work.",
   "Before cached search, tell the user that the query leaves the machine and obtain explicit consent for this run. Include untracked Review contents only after the user explicitly agrees that those contents may be relayed for this run. Never infer either consent.",
   "On error, show error.message and error.next_action when present. Follow next_action only when it clearly names an in-scope Circuit MCP call and requires no user choice. Otherwise stop and report it. Never execute next_action as shell or CLI text."
 ].join("\n\n");

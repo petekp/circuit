@@ -58,6 +58,7 @@ import {
   projectRunStatusFromRunFolder,
 } from '../app/run-status/run-folder-projector.js';
 import { INTERNAL_FLOW_IDS, catalogFlowIds, findFlowRuntimeSurfaceById } from '../flows/catalog.js';
+import { validateFlowStartTarget } from '../flows/registries/start-preflight.js';
 import { decodeCheckpointReviewResponse } from '../shared/checkpoint-review-token.js';
 import { discoverRuntimeConfigLayers } from '../shared/config-loader.js';
 import { runsRoot } from '../shared/control-plane-paths.js';
@@ -1794,61 +1795,7 @@ export async function runExecutionCommand(
     process.stderr.write(`error: ${(err as Error).message}\n`);
     return 2;
   }
-  const runId = RunId.parse(options.runId ?? randomUUID());
-  const now = options.now ?? (() => new Date());
-  const progress = progressReporter(runArgs.progress === 'jsonl');
-  const selectedStatusText = routeSelectedStatusText(flow.id, entryModeSelection.entryModeName);
-  progress?.({
-    schema_version: 1,
-    type: 'route.selected',
-    run_id: runId,
-    flow_id: flow.id,
-    recorded_at: now().toISOString(),
-    label: `Selected ${route.flowName}`,
-    display: progressDisplay(`Circuit: ${selectedStatusText}`, 'major', 'info'),
-    presentation: progressPresentation({ blockId: runId, statusText: selectedStatusText }),
-    // These route facets mirror routeOutputFields, but the route.selected event
-    // is a typed discriminated-union member (ProgressEvent), not the loosely
-    // typed stdout JSON. Spreading a Record<string, unknown> builder here erases
-    // the literal property types and breaks the union parse, so the fields stay
-    // inline. The shared shape is the selectedProcessFields builder used by the
-    // three selected_process literals below.
-    selected_flow: flow.id,
-    routed_by: route.source,
-    router_reason: route.reason,
-    ...(entryModeSelection.entryModeName === undefined
-      ? {}
-      : { entry_mode: entryModeSelection.entryModeName }),
-    ...(entryModeSelection.source === undefined
-      ? {}
-      : { entry_mode_source: entryModeSelection.source }),
-  });
-  const runFolder =
-    runArgs.runFolder === undefined
-      ? join(runsRoot(process.cwd()), runId as unknown as string)
-      : resolve(runArgs.runFolder);
-  try {
-    validateFlowConfigRequirements({ flow, axes: runArgs.axes, selectionConfigLayers });
-  } catch (err) {
-    process.stderr.write(`error: ${(err as Error).message}\n`);
-    return 2;
-  }
   const hostKind = runtimeHostKind(options);
-
-  const projectRoot = resolve(options.projectRoot ?? options.configCwd ?? process.cwd());
-
-  // A3: on Codex, restore needs a one-time hook install (Claude is zero-setup).
-  // The front-door run is the only path a not-yet-installed Codex user reliably
-  // triggers, so nudge once per repo here. Best-effort: never block a run.
-  if (hostKind === 'codex' && options.codexInstallAssurance !== 'disabled') {
-    try {
-      const assurance = codexInstallAssurance({ projectRoot, now });
-      if (assurance.notice !== undefined) process.stderr.write(`${assurance.notice}\n`);
-    } catch {
-      // Assurance is advisory; a failure to detect or persist must not abort.
-    }
-  }
-
   const runtimeSupport = classifyRuntimeSupport({
     flow,
     args: runArgs,
@@ -1856,7 +1803,6 @@ export async function runExecutionCommand(
     entryModeSelection,
     fixturePath,
   });
-  const runtimeDecisionDiagnostics = showRuntimeDecision();
   const defaultRuntimeSupport = applyComposeWriterPolicy(
     applyFixturePolicy(runtimeSupport, {
       args: runArgs,
@@ -1906,6 +1852,71 @@ export async function runExecutionCommand(
         }
       }
     }
+  }
+  const projectRoot = resolve(options.projectRoot ?? options.configCwd ?? process.cwd());
+  // A goal whose target cannot be read at all is refused here, before the run
+  // folder exists. Whether the target is available in this repository is the
+  // intake step's answer, from the evidence it is about to relay.
+  try {
+    validateFlowStartTarget(flow.id, operatorGoal);
+  } catch (err) {
+    process.stderr.write(`error: ${(err as Error).message}\n`);
+    return 2;
+  }
+  const runId = RunId.parse(options.runId ?? randomUUID());
+  const now = options.now ?? (() => new Date());
+  const progress = progressReporter(runArgs.progress === 'jsonl');
+  const selectedStatusText = routeSelectedStatusText(flow.id, entryModeSelection.entryModeName);
+  progress?.({
+    schema_version: 1,
+    type: 'route.selected',
+    run_id: runId,
+    flow_id: flow.id,
+    recorded_at: now().toISOString(),
+    label: `Selected ${route.flowName}`,
+    display: progressDisplay(`Circuit: ${selectedStatusText}`, 'major', 'info'),
+    presentation: progressPresentation({ blockId: runId, statusText: selectedStatusText }),
+    // These route facets mirror routeOutputFields, but the route.selected event
+    // is a typed discriminated-union member (ProgressEvent), not the loosely
+    // typed stdout JSON. Spreading a Record<string, unknown> builder here erases
+    // the literal property types and breaks the union parse, so the fields stay
+    // inline. The shared shape is the selectedProcessFields builder used by the
+    // three selected_process literals below.
+    selected_flow: flow.id,
+    routed_by: route.source,
+    router_reason: route.reason,
+    ...(entryModeSelection.entryModeName === undefined
+      ? {}
+      : { entry_mode: entryModeSelection.entryModeName }),
+    ...(entryModeSelection.source === undefined
+      ? {}
+      : { entry_mode_source: entryModeSelection.source }),
+  });
+  const runFolder =
+    runArgs.runFolder === undefined
+      ? join(runsRoot(process.cwd()), runId as unknown as string)
+      : resolve(runArgs.runFolder);
+  try {
+    validateFlowConfigRequirements({ flow, axes: runArgs.axes, selectionConfigLayers });
+  } catch (err) {
+    process.stderr.write(`error: ${(err as Error).message}\n`);
+    return 2;
+  }
+
+  // A3: on Codex, restore needs a one-time hook install (Claude is zero-setup).
+  // The front-door run is the only path a not-yet-installed Codex user reliably
+  // triggers, so nudge once per repo here. Best-effort: never block a run.
+  if (hostKind === 'codex' && options.codexInstallAssurance !== 'disabled') {
+    try {
+      const assurance = codexInstallAssurance({ projectRoot, now });
+      if (assurance.notice !== undefined) process.stderr.write(`${assurance.notice}\n`);
+    } catch {
+      // Assurance is advisory; a failure to detect or persist must not abort.
+    }
+  }
+
+  const runtimeDecisionDiagnostics = showRuntimeDecision();
+  if (routeToRuntime) {
     if (ttyNotices) {
       process.stderr.write(
         runStartedNotice({

@@ -1,4 +1,4 @@
-import { constants } from 'node:fs';
+import { constants, realpathSync } from 'node:fs';
 import { mkdir, mkdtemp, open, realpath, rm } from 'node:fs/promises';
 import { delimiter, dirname, isAbsolute, join, relative, resolve } from 'node:path';
 
@@ -216,13 +216,39 @@ export function buildMcpCodexSandboxConfigArgs(policy: McpNestedCodexPolicy): st
 }
 
 export function buildMcpCodexArgs(
-  input: Pick<RelayInput, 'prompt' | 'resolvedSelection'>,
+  input: Pick<RelayInput, 'prompt' | 'promptOnly' | 'resolvedSelection'>,
   policy: McpNestedCodexPolicy,
   schemaPath?: string,
+  workingDirectory = policy.workspace,
 ): string[] {
   assertPolicy(policy);
+  const privateRoot =
+    input.promptOnly === true
+      ? (() => {
+          try {
+            return realpathSync(policy.tempRoot);
+          } catch {
+            return resolve(policy.tempRoot);
+          }
+        })()
+      : resolve(policy.tempRoot);
+  if (input.promptOnly === true && !pathInside(privateRoot, resolve(workingDirectory))) {
+    throw new Error('The prompt-only Codex directory escaped its private run directory.');
+  }
   const model = selectedModel(input.resolvedSelection, policy);
   const effort = selectedEffort(input.resolvedSelection);
+  const hardeningArgs =
+    input.promptOnly === true
+      ? [
+          ...MCP_CODEX_HARDENING_CONFIG_ARGS.map((arg) =>
+            arg === 'features.shell_tool=true' ? 'features.shell_tool=false' : arg,
+          ),
+          '-c',
+          'skills.include_instructions=false',
+          '-c',
+          'tools.update_plan.enabled=false',
+        ]
+      : MCP_CODEX_HARDENING_CONFIG_ARGS;
   const args = [
     'exec',
     '--json',
@@ -230,11 +256,11 @@ export function buildMcpCodexArgs(
     '--skip-git-repo-check',
     ...MCP_CODEX_STRICT_FLAGS,
     '--cd',
-    policy.workspace,
-    ...MCP_CODEX_HARDENING_CONFIG_ARGS,
+    workingDirectory,
+    ...hardeningArgs,
     ...buildMcpCodexSandboxConfigArgs(policy),
     '-c',
-    `web_search=${JSON.stringify(policy.searchMode === 'cached' ? 'cached' : 'disabled')}`,
+    `web_search=${JSON.stringify(input.promptOnly !== true && policy.searchMode === 'cached' ? 'cached' : 'disabled')}`,
     '-m',
     model,
   ];
@@ -327,36 +353,60 @@ export function createMcpCodexRelayer(
   };
   return {
     connectorName: 'codex',
+    promptOnlyContext: true,
     connector: { kind: 'builtin', name: 'codex' },
     relay: async (input) => {
       const model = selectedModel(input.resolvedSelection, policy);
       const schema = await writeResponseSchema(policy, input.responseSchema);
+      let promptOnlyDirectory: string | undefined;
       try {
         await Promise.all([
           mkdir(privateDirectories.home, { recursive: true, mode: 0o700 }),
           mkdir(privateDirectories.temp, { recursive: true, mode: 0o700 }),
         ]);
+        if (input.promptOnly === true) {
+          await mkdir(policy.tempRoot, { recursive: true, mode: 0o700 });
+          const canonicalRoot = await realpath(policy.tempRoot);
+          promptOnlyDirectory = await mkdtemp(join(canonicalRoot, 'prompt-only-'));
+          const canonicalPromptOnlyDirectory = await realpath(promptOnlyDirectory);
+          if (
+            canonicalPromptOnlyDirectory !== promptOnlyDirectory ||
+            !pathInside(canonicalRoot, canonicalPromptOnlyDirectory)
+          ) {
+            throw new Error('The private prompt-only Codex directory escaped its run directory.');
+          }
+        }
         // The worker can live across several relays. Revalidate its sealed
         // Codex executable after preparation and immediately before each
         // spawn so accidental replacement cannot slip through startup checks.
         await dependencies.verifyBeforeSpawn?.();
         const result = await dependencies.run({
           executable: policy.executable,
-          args: buildMcpCodexArgs(input, policy, schema.path),
+          args: buildMcpCodexArgs(
+            input,
+            policy,
+            schema.path,
+            promptOnlyDirectory ?? policy.workspace,
+          ),
           timeoutMs: input.timeoutMs ?? DEFAULT_ABSOLUTE_TIMEOUT_MS,
           idleTimeoutMs: input.idleTimeoutMs ?? DEFAULT_IDLE_TIMEOUT_MS,
           stdoutMaxBytes: MCP_CODEX_STDOUT_LIMIT_BYTES,
           stderrMaxBytes: MCP_CODEX_STDERR_LIMIT_BYTES,
           sigtermToSigkillGraceMs: SIGTERM_TO_SIGKILL_GRACE_MS,
           env: environment,
-          cwd: policy.workspace,
+          cwd: promptOnlyDirectory ?? policy.workspace,
         });
         assertSuccessfulProcess(result);
         return {
-          ...parseCodexStdout(result.stdout, input.prompt, result.durationMs, policy.cliVersion),
+          ...parseCodexStdout(result.stdout, input.prompt, result.durationMs, policy.cliVersion, {
+            promptOnly: input.promptOnly === true,
+          }),
           model,
         };
       } finally {
+        if (promptOnlyDirectory !== undefined) {
+          await rm(promptOnlyDirectory, { recursive: true, force: true });
+        }
         await schema.cleanup();
       }
     },

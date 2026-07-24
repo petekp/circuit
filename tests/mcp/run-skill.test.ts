@@ -73,6 +73,22 @@ describe('Codex MCP Run skill', () => {
     expect(skill).toContain('web_search: "cached"');
     expect(skill).toContain('cached_web_search: true');
     expect(skill).toMatch(/query leaves the machine/i);
+    // Four anchors for the target contract, one per decision the skill has to
+    // get right: consent to relay tracked code, one pinned target, no path
+    // subsets, and no pull-request fetch. Pinning every sentence of the section
+    // made ordinary rewording a test failure without catching anything more.
+    expect(compactSkill).toContain(
+      'A direct user request to run Review on tracked workspace content is enough permission',
+    );
+    expect(compactSkill).toContain('Treat that selected target as the only code under review');
+    expect(compactSkill).toContain(
+      'If the request narrows a complete target to a file or directory subset, or excludes paths',
+    );
+    expect(compactSkill).toContain('Circuit cannot fetch a pull request');
+    expect(compactSkill).not.toContain('may inspect nearby repository files');
+    expect(readRepoFile(CLI_RUN_SOURCE).replace(/\s+/g, ' ')).toContain(
+      'Do not remove a requested file or directory subset or path exclusion',
+    );
     expect(compactSkill).toContain(
       'This includes starting, reconnecting, listing, reading progress, handling checkpoints, cancelling, recovering, and releasing the workspace.',
     );

@@ -27,10 +27,13 @@ function realGitExecutable(): string {
   return realpathSync(result.stdout.trim());
 }
 
-function reader(workspace: string) {
+function reader(
+  workspace: string,
+  privateRoot = temporaryDirectory('circuit-mcp-live-git-private'),
+) {
   const sandbox = createMacosProofSandbox({
     workspace,
-    privateRoot: temporaryDirectory('circuit-mcp-live-git-private'),
+    privateRoot,
     pathEntries: [path.dirname(process.execPath), '/usr/bin', '/bin'],
   });
   return createSafeGitReader({
@@ -102,7 +105,7 @@ describe.runIf(process.platform === 'darwin')('live macOS Codex MCP safe Git rea
     }
   }, 90_000);
 
-  it('reports submodule gitlinks without recursively executing submodule configuration', async () => {
+  it('reports dirty submodule gitlinks through explicit reads', async () => {
     const root = temporaryDirectory('circuit-mcp-live-git-submodules');
     const workspace = path.join(root, 'workspace');
     const child = path.join(root, 'child');
@@ -127,16 +130,143 @@ describe.runIf(process.platform === 'darwin')('live macOS Codex MCP safe Git rea
     git(workspace, 'commit', '--quiet', '-am', 'add child');
     writeFileSync(path.join(workspace, 'modules', 'child', 'child.txt'), 'changed\n');
 
-    const status = await reader(realpathSync(workspace)).read({ operation: 'status' });
-    const diff = await reader(realpathSync(workspace)).read({ operation: 'unstaged_diff' });
+    const safeReader = reader(realpathSync(workspace));
+    const status = await safeReader.read({ operation: 'status' });
+    const diff = await safeReader.read({ operation: 'unstaged_diff' });
+    const changedGitlinks = await safeReader.read({ operation: 'unstaged_changed_gitlinks' });
     expect(status.ok, status.stderr).toBe(true);
     expect(diff.ok, diff.stderr).toBe(true);
+    expect(changedGitlinks.ok, changedGitlinks.stderr).toBe(true);
     expect(status.stdout).toContain('modules/child');
     expect(diff.stdout).toContain('modules/child');
-    expect(diff.submodules).toEqual([
-      expect.objectContaining({ path: 'modules/child', inspection: 'gitlink_only' }),
-    ]);
+    expect(changedGitlinks.stdout).toContain('modules/child');
     expect(diff.submodule_policy).toBe('reported_without_recursive_execution');
+  }, 90_000);
+
+  it('fails closed without executing a hostile dirty-submodule filter', async () => {
+    const root = temporaryDirectory('circuit-mcp-live-git-submodule-status');
+    const workspace = path.join(root, 'workspace');
+    const child = path.join(root, 'child');
+    const privateRoot = temporaryDirectory('circuit-mcp-live-git-submodule-status-private');
+    const marker = path.join(privateRoot, 'submodule-filter-ran');
+    git(root, 'init', '--quiet', workspace);
+    git(root, 'init', '--quiet', child);
+    commitFixture(workspace);
+    git(child, 'config', 'user.name', 'Circuit');
+    git(child, 'config', 'user.email', 'circuit@example.test');
+    writeFileSync(path.join(child, '.gitattributes'), '*.txt filter=hostile\n');
+    writeFileSync(path.join(child, 'child.txt'), 'base\n');
+    git(child, 'add', '.gitattributes', 'child.txt');
+    git(child, 'commit', '--quiet', '-m', 'child base');
+    git(
+      workspace,
+      '-c',
+      'protocol.file.allow=always',
+      'submodule',
+      'add',
+      '--quiet',
+      child,
+      'modules/child',
+    );
+    git(workspace, 'commit', '--quiet', '-am', 'add child');
+
+    const childWorktree = path.join(workspace, 'modules', 'child');
+    const helper = path.join(privateRoot, 'hostile-filter.sh');
+    writeFileSync(helper, `#!/bin/sh\nprintf entered > ${JSON.stringify(marker)}\nexec /bin/cat\n`);
+    chmodSync(helper, 0o700);
+    git(childWorktree, 'config', '--local', 'filter.hostile.clean', helper);
+    git(childWorktree, 'config', '--local', 'filter.hostile.required', 'true');
+    writeFileSync(path.join(childWorktree, 'child.txt'), 'evil\n');
+
+    const status = await reader(realpathSync(workspace), privateRoot).read({
+      operation: 'status',
+    });
+    const diff = await reader(realpathSync(workspace), privateRoot).read({
+      operation: 'unstaged_diff',
+    });
+
+    expect(status.ok).toBe(false);
+    expect(diff.ok).toBe(false);
+    expect(`${status.stderr}\n${diff.stderr}`).toMatch(/filter|submodule|failed|not permitted/i);
+    expect(existsSync(marker)).toBe(false);
+    expect(status.stdout).toBe('');
+    expect(diff.stdout).toBe('');
+    expect(status.submodule_policy).toBe('reported_without_recursive_execution');
+    expect(diff.submodule_policy).toBe('reported_without_recursive_execution');
+  }, 90_000);
+
+  it('does not let diff.ignoreSubmodules hide selected gitlink diffs or stats', async () => {
+    const root = temporaryDirectory('circuit-mcp-live-git-ignore-submodules');
+    const workspace = path.join(root, 'workspace');
+    const child = path.join(root, 'child');
+    git(root, 'init', '--quiet', workspace);
+    git(root, 'init', '--quiet', child);
+    commitFixture(workspace);
+    git(child, 'config', 'user.name', 'Circuit');
+    git(child, 'config', 'user.email', 'circuit@example.test');
+    writeFileSync(path.join(child, 'child.txt'), 'base\n');
+    git(child, 'add', 'child.txt');
+    git(child, 'commit', '--quiet', '-m', 'child base');
+    git(
+      workspace,
+      '-c',
+      'protocol.file.allow=always',
+      'submodule',
+      'add',
+      '--quiet',
+      child,
+      'modules/child',
+    );
+    git(workspace, 'commit', '--quiet', '-am', 'add child');
+    const baseCommit = git(workspace, 'rev-parse', 'HEAD');
+
+    const childWorktree = path.join(workspace, 'modules', 'child');
+    writeFileSync(path.join(childWorktree, 'child.txt'), 'updated\n');
+    git(childWorktree, 'add', 'child.txt');
+    git(childWorktree, 'commit', '--quiet', '-m', 'child update');
+    git(workspace, 'config', '--local', 'diff.ignoreSubmodules', 'all');
+    const safeReader = reader(realpathSync(workspace));
+
+    const unstagedStatus = await safeReader.read({ operation: 'status' });
+    const unstagedDiff = await safeReader.read({ operation: 'unstaged_diff' });
+    const unstagedStat = await safeReader.read({ operation: 'unstaged_diff_stat' });
+    const unstagedGitlinks = await safeReader.read({
+      operation: 'unstaged_changed_gitlinks',
+    });
+    expect(unstagedStatus.ok, unstagedStatus.stderr).toBe(true);
+    expect(unstagedDiff.ok, unstagedDiff.stderr).toBe(true);
+    expect(unstagedStat.ok, unstagedStat.stderr).toBe(true);
+    expect(unstagedGitlinks.ok, unstagedGitlinks.stderr).toBe(true);
+    expect(unstagedStatus.stdout).toContain('modules/child');
+    expect(unstagedDiff.stdout).toContain('modules/child');
+    expect(unstagedStat.stdout).toContain('modules/child');
+    expect(unstagedGitlinks.stdout).toContain('modules/child');
+
+    git(workspace, 'add', 'modules/child');
+    const stagedDiff = await safeReader.read({ operation: 'staged_diff' });
+    const stagedStat = await safeReader.read({ operation: 'staged_diff_stat' });
+    const stagedGitlinks = await safeReader.read({ operation: 'staged_changed_gitlinks' });
+    expect(stagedDiff.ok, stagedDiff.stderr).toBe(true);
+    expect(stagedStat.ok, stagedStat.stderr).toBe(true);
+    expect(stagedGitlinks.ok, stagedGitlinks.stderr).toBe(true);
+    expect(stagedDiff.stdout).toContain('modules/child');
+    expect(stagedStat.stdout).toContain('modules/child');
+    expect(stagedGitlinks.stdout).toContain('modules/child');
+
+    git(workspace, 'commit', '--quiet', '-m', 'update child');
+    const headCommit = git(workspace, 'rev-parse', 'HEAD');
+    const target = {
+      kind: 'range' as const,
+      base_commit: baseCommit,
+      head_commit: headCommit,
+      dots: '..' as const,
+    };
+    const targetDiff = await safeReader.read({ operation: 'target_diff', target });
+    const targetStat = await safeReader.read({ operation: 'target_diff_stat', target });
+    expect(targetDiff.ok, targetDiff.stderr).toBe(true);
+    expect(targetStat.ok, targetStat.stderr).toBe(true);
+    expect(targetDiff.stdout).toContain('modules/child');
+    expect(targetStat.stdout).toContain('modules/child');
   }, 90_000);
 
   it('returns staged stats and NUL-delimited untracked paths for Review intake', async () => {

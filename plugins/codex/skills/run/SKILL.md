@@ -53,8 +53,9 @@ route to dedicated authoring guidance when available.
 State the recommended flow and one short reason before starting, so the user
 can redirect you.
 
-- **Review** — inspect an existing change, diff, plan, or risk surface. Do not
-  implement changes.
+- **Review** — inspect a named code target, such as working changes, a commit,
+  a range, or a locally available PR; or inspect a plan or report only when its
+  actual text is included in the request. Do not implement changes.
 - **Fix** — repair a bug, regression, failing test, crash, or broken behavior.
 - **Build** — implement or refactor something that is not mainly a bug fix.
 - **Explore** — investigate a question, compare approaches, or make a decision
@@ -128,6 +129,39 @@ Tournament and autonomous modes cannot be combined.
 
 Search is off by default. Use `web_search: "off"` unless current web
 information is necessary and the user has given informed consent.
+
+A direct user request to run Review on tracked workspace content is enough
+permission for the normal tracked-code relay for that Review run. Do not ask
+for a second confirmation before relaying tracked files. This permission does
+not cover cached web search or untracked file contents.
+
+When the user asks Review to inspect a specific code target, keep that target
+in the `goal`. Examples: "current diff", "staged changes", "latest commit",
+`HEAD`, `HEAD~1`, `commit abc1234`, or `main...feature`. Circuit uses that
+wording to collect the requested evidence. Do not rewrite a commit, range, or
+branch comparison as only "current diff" unless the user actually asked for
+staged or unstaged changes. When the goal names no target, Circuit reviews the
+current working tree and says so in the report.
+
+Treat that selected target as the only code under review. Do not silently
+broaden the run to another working-tree layer, commit, or range. Review sees
+only the evidence Circuit captured for that target. It cannot inspect nearby
+repository files for extra context.
+
+If the request narrows a complete target to a file or directory subset, or
+excludes paths, do not remove that restriction and do not start a broader
+Review. Explain that Circuit accepts only a complete target or actual supplied
+text, then ask the user which one they want.
+
+A named plan or report file is not readable unless its contents are part of the
+captured Git target. A file path by itself is not review evidence. Otherwise,
+include the plan or report's actual text in the request.
+
+Circuit cannot fetch a pull request. If the user asks to review one, say that
+Review reads local repository evidence only, and offer the local equivalent:
+check out the PR branch, then review the working tree or an explicit range such
+as `main...HEAD`. Do not fetch, call `gh`, or fall back to shell unless the user
+separately asks for that setup work.
 
 Before cached search, tell the user that the search query leaves the machine
 and ask whether to continue. Consent applies only to this run. A prior answer

@@ -239,7 +239,7 @@ flows:
               'run',
               'review',
               '--goal',
-              'prove config reaches selection evidence',
+              'review this supplied text: The loaded config must reach relay selection evidence.',
               '--run-folder',
               runFolder,
             ],
@@ -330,7 +330,7 @@ policy:
             'run',
             'review',
             '--goal',
-            'prove policy refs reach guidance',
+            'review this supplied text: Policy references must reach relay guidance.',
             '--run-folder',
             runFolder,
           ],
@@ -388,7 +388,14 @@ policy:
     const { stdout } = await captureStreams(() =>
       withScopedEnv({ HOME: homeDir, CIRCUIT_GENERATED_FLOW_MIRROR_ROOT: undefined }, async () => {
         const exit = await main(
-          ['run', 'review', '--goal', 'policy should block connector', '--run-folder', runFolder],
+          [
+            'run',
+            'review',
+            '--goal',
+            'review this supplied text: The connector policy must reject the selected connector.',
+            '--run-folder',
+            runFolder,
+          ],
           {
             relayer,
             now: deterministicNow(Date.UTC(2026, 3, 24, 23, 46, 0)),
@@ -455,7 +462,14 @@ policy:
     const { stdout } = await captureStreams(() =>
       withScopedEnv({ HOME: homeDir, CIRCUIT_GENERATED_FLOW_MIRROR_ROOT: undefined }, async () => {
         const exit = await main(
-          ['run', 'review', '--goal', 'policy should block provider', '--run-folder', runFolder],
+          [
+            'run',
+            'review',
+            '--goal',
+            'review this supplied text: The provider policy must reject the selected provider.',
+            '--run-folder',
+            runFolder,
+          ],
           {
             relayer,
             now: deterministicNow(Date.UTC(2026, 3, 24, 23, 47, 0)),
@@ -505,7 +519,7 @@ policy:
     const output = await runReviewWithCapturedOutput({
       relayer,
       runFolder,
-      goal: 'policy should block effort',
+      goal: 'review this supplied text: The effort policy must reject the selected effort level.',
       runId: '86868686-8686-4686-8686-868686868691',
       nowMs: Date.UTC(2026, 3, 24, 23, 48, 0),
     });
@@ -549,7 +563,7 @@ policy:
     const output = await runReviewWithCapturedOutput({
       relayer,
       runFolder,
-      goal: 'policy should block skill',
+      goal: 'review this supplied text: The skill policy must reject the selected skill.',
       runId: '86868686-8686-4686-8686-868686868692',
       nowMs: Date.UTC(2026, 3, 24, 23, 49, 0),
     });

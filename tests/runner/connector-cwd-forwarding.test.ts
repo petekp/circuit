@@ -1,3 +1,14 @@
+import {
+  existsSync,
+  mkdirSync,
+  mkdtempSync,
+  readdirSync,
+  realpathSync,
+  rmSync,
+  symlinkSync,
+} from 'node:fs';
+import { tmpdir } from 'node:os';
+import { join } from 'node:path';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { relayClaudeCode } from '../../src/connectors/claude-code.js';
@@ -26,7 +37,7 @@ import type { ConnectorRelayInput } from '../../src/shared/connector-relay.js';
  */
 
 const hoisted = vi.hoisted(() => ({
-  calls: [] as Array<{ readonly cwd: string | undefined }>,
+  calls: [] as Array<{ readonly args: readonly string[]; readonly cwd: string | undefined }>,
 }));
 
 vi.mock('../../src/connectors/subprocess.js', async (importOriginal) => {
@@ -36,8 +47,11 @@ vi.mock('../../src/connectors/subprocess.js', async (importOriginal) => {
     // Capture the working directory the connector asked the subprocess to run
     // in, then return a minimal well-formed result. Empty stdout makes the
     // connector's own parser throw, but the relay has already recorded the cwd.
-    runConnectorSubprocess: async (input: { readonly cwd?: string }) => {
-      hoisted.calls.push({ cwd: input.cwd });
+    runConnectorSubprocess: async (input: {
+      readonly args: readonly string[];
+      readonly cwd?: string;
+    }) => {
+      hoisted.calls.push({ args: input.args, cwd: input.cwd });
       return {
         stdout: '',
         stderr: '',
@@ -64,6 +78,14 @@ vi.mock('node:child_process', async (importOriginal) => {
 });
 
 const EXPECTED_CWD = '/tmp/circuit-isolated-worktree';
+const ORIGINAL_TMPDIR = process.env.TMPDIR;
+const temporaryRoots: string[] = [];
+
+function temporaryDirectory(label: string): string {
+  const root = realpathSync(mkdtempSync(join(tmpdir(), `${label}-`)));
+  temporaryRoots.push(root);
+  return root;
+}
 
 // Codex resolves its default model from a cache before spawning unless the
 // selection pins one; pin an openai model so the relay reaches the spawn seam
@@ -92,6 +114,11 @@ beforeEach(() => {
 
 afterEach(() => {
   vi.clearAllMocks();
+  if (ORIGINAL_TMPDIR === undefined) Reflect.deleteProperty(process.env, 'TMPDIR');
+  else process.env.TMPDIR = ORIGINAL_TMPDIR;
+  for (const root of temporaryRoots.splice(0)) {
+    rmSync(root, { recursive: true, force: true });
+  }
 });
 
 describe('builtin connectors forward input.cwd to the spawned subprocess', () => {
@@ -122,6 +149,93 @@ describe('builtin connectors forward input.cwd to the spawned subprocess', () =>
 
       expect(hoisted.calls).toHaveLength(1);
       expect(hoisted.calls[0]?.cwd).toBeUndefined();
+    },
+  );
+});
+
+describe('prompt-only connectors replace the repository cwd', () => {
+  it.each(CONNECTORS.filter(({ name }) => name !== 'cursor-agent'))(
+    '$name uses and cleans a private cwd',
+    async ({ relay, extra }) => {
+      const workspace = temporaryDirectory('circuit-prompt-only-workspace');
+      await relay({
+        prompt: 'review only supplied evidence',
+        cwd: workspace,
+        promptOnly: true,
+        ...extra,
+      }).catch(() => undefined);
+
+      expect(hoisted.calls).toHaveLength(1);
+      const call = hoisted.calls[0];
+      expect(call?.cwd).toBeDefined();
+      expect(call?.cwd).not.toBe(workspace);
+      expect(call?.args).not.toContain(workspace);
+      expect(existsSync(call?.cwd ?? '')).toBe(false);
+    },
+  );
+
+  it.each(CONNECTORS.filter(({ name }) => name !== 'cursor-agent'))(
+    '$name fails before spawn when TMPDIR would place the private cwd inside the repository',
+    async ({ relay, extra }) => {
+      const workspace = temporaryDirectory('circuit-hostile-tmpdir-workspace');
+      process.env.TMPDIR = workspace;
+
+      await expect(
+        relay({
+          prompt: 'review only supplied evidence',
+          cwd: workspace,
+          promptOnly: true,
+          ...extra,
+        }),
+      ).rejects.toThrow(/prompt-only|private|overlap|separate/i);
+
+      expect(hoisted.calls).toHaveLength(0);
+      expect(readdirSync(workspace)).toEqual([]);
+    },
+  );
+
+  it.each(CONNECTORS.filter(({ name }) => name !== 'cursor-agent'))(
+    '$name rejects an in-repository TMPDIR whose name starts with two dots',
+    async ({ relay, extra }) => {
+      const workspace = temporaryDirectory('circuit-dot-prefix-tmpdir-workspace');
+      const hostileTmp = join(workspace, '..relay-tmp');
+      mkdirSync(hostileTmp);
+      process.env.TMPDIR = hostileTmp;
+
+      await expect(
+        relay({
+          prompt: 'review only supplied evidence',
+          cwd: workspace,
+          promptOnly: true,
+          ...extra,
+        }),
+      ).rejects.toThrow(/prompt-only|private|overlap|separate/i);
+
+      expect(hoisted.calls).toHaveLength(0);
+      expect(readdirSync(hostileTmp)).toEqual([]);
+    },
+  );
+
+  it.each(CONNECTORS.filter(({ name }) => name !== 'cursor-agent'))(
+    '$name resolves a symlinked TMPDIR before checking repository overlap',
+    async ({ relay, extra }) => {
+      const workspace = temporaryDirectory('circuit-symlinked-tmpdir-workspace');
+      const linkRoot = temporaryDirectory('circuit-symlinked-tmpdir-parent');
+      const linkedTmp = join(linkRoot, 'tmp');
+      symlinkSync(workspace, linkedTmp, 'dir');
+      process.env.TMPDIR = linkedTmp;
+
+      await expect(
+        relay({
+          prompt: 'review only supplied evidence',
+          cwd: workspace,
+          promptOnly: true,
+          ...extra,
+        }),
+      ).rejects.toThrow(/prompt-only|private|overlap|separate/i);
+
+      expect(hoisted.calls).toHaveLength(0);
+      expect(readdirSync(workspace)).toEqual([]);
     },
   );
 });

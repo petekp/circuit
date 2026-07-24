@@ -19050,6 +19050,7 @@ var init_engine_flags = __esm({
     EngineFlagsManifest = external_exports.object({
       binds_execution_depth_to_relay_selection: external_exports.boolean().optional(),
       binds_terminal_outcome_to_primary_result: external_exports.boolean().optional(),
+      relay_uses_prompt_only_context: external_exports.boolean().optional(),
       iterates_slice_loop: external_exports.object({
         head_step: external_exports.string().min(1),
         tail_step: external_exports.string().min(1),
@@ -22467,7 +22468,7 @@ var init_proof_assessment = __esm({
 });
 
 // dist/schemas/trace-entry.js
-var TraceEntryBase, ContentHash, CatalogSourcedBinding, RunBootstrappedTraceEntry, SliceIndex, StepEnteredTraceEntry, StepReportWrittenTraceEntry, StepReportSkippedTraceEntry, CheckEvaluatedTraceEntry, VerificationCommandEvaluatedTraceEntry, ProofAssessmentRef, ChangePacketRef2, SafeApplyBaseRef, SafeApplyResultRef, SafeApplyFinalVerificationRef, CheckpointBoundaryRef, ProofScope2, ProofAssessedTraceEntry, SafeApplyScope, SafeApplyResultTraceEntry, CheckpointRequestedTraceEntry, CheckpointResolvedTraceEntry, EquipmentEnforcementEvidence, RelayStartedTraceEntry, LoadedSkillCause, LoadedSkillEvidence, SkillsLoadedTraceEntry, RelayUsageEvidence, RelayCompletedTraceEntry, RelayRequestTraceEntry, RelayFailedTraceEntry, RelayReceiptTraceEntry, RelayResultTraceEntry, StepCompletedTraceEntry, StepAbortedTraceEntry, RunClosedOutcome, SubRunStartedTraceEntry, SubRunCompletedTraceEntry, FanoutConcurrencyLimit, FanoutExecutionPolicy, FanoutStartedTraceEntry, FanoutBranchStartedTraceEntry, FanoutBranchCompletedTraceEntry, FanoutJoinedTraceEntry, RunClosedTraceEntry, RunSkillHookTraceEntry, RunSkillHookErrorTraceEntry, PowerInferenceResolvedTraceEntry, PowerInferenceErrorTraceEntry, ContextDeliveryErrorTraceEntry, RunEquipmentReshapeTraceEntry, RunContextPullTraceEntry, RunContextDeliveryTraceEntry, RunUntilJudgmentTraceEntry, TraceEntry;
+var TraceEntryBase, ContentHash, CatalogSourcedBinding, RunBootstrappedTraceEntry, SliceIndex, StepEnteredTraceEntry, StepReportWrittenTraceEntry, StepReportSkippedTraceEntry, CheckEvaluatedTraceEntry, VerificationCommandEvaluatedTraceEntry, ProofAssessmentRef, ChangePacketRef2, SafeApplyBaseRef, SafeApplyResultRef, SafeApplyFinalVerificationRef, CheckpointBoundaryRef, ProofScope2, ProofAssessedTraceEntry, SafeApplyScope, SafeApplyResultTraceEntry, CheckpointRequestedTraceEntry, CheckpointResolvedTraceEntry, EquipmentEnforcementEvidence, RelayContextSeal, RelayStartedTraceEntry, LoadedSkillCause, LoadedSkillEvidence, SkillsLoadedTraceEntry, RelayUsageEvidence, RelayCompletedTraceEntry, RelayRequestTraceEntry, RelayFailedTraceEntry, RelayReceiptTraceEntry, RelayResultTraceEntry, StepCompletedTraceEntry, StepAbortedTraceEntry, RunClosedOutcome, SubRunStartedTraceEntry, SubRunCompletedTraceEntry, FanoutConcurrencyLimit, FanoutExecutionPolicy, FanoutStartedTraceEntry, FanoutBranchStartedTraceEntry, FanoutBranchCompletedTraceEntry, FanoutJoinedTraceEntry, RunClosedTraceEntry, RunSkillHookTraceEntry, RunSkillHookErrorTraceEntry, PowerInferenceResolvedTraceEntry, PowerInferenceErrorTraceEntry, ContextDeliveryErrorTraceEntry, RunEquipmentReshapeTraceEntry, RunContextPullTraceEntry, RunContextDeliveryTraceEntry, RunUntilJudgmentTraceEntry, TraceEntry;
 var init_trace_entry = __esm({
   "dist/schemas/trace-entry.js"() {
     "use strict";
@@ -22699,6 +22700,10 @@ var init_trace_entry = __esm({
       downgraded: external_exports.boolean(),
       enforced_tools: external_exports.array(external_exports.string().min(1)).min(1).optional()
     }).strict();
+    RelayContextSeal = external_exports.object({
+      applied: external_exports.boolean(),
+      reason: external_exports.string().min(1).optional()
+    }).strict();
     RelayStartedTraceEntry = TraceEntryBase.extend({
       kind: external_exports.literal("relay.started"),
       step_id: StepId,
@@ -22707,7 +22712,8 @@ var init_trace_entry = __esm({
       role: RelayRole,
       resolved_selection: ResolvedSelection,
       resolved_from: RelayResolutionSource,
-      equipment: EquipmentEnforcementEvidence.optional()
+      equipment: EquipmentEnforcementEvidence.optional(),
+      context_seal: RelayContextSeal.optional()
     }).strict();
     LoadedSkillCause = external_exports.enum(["selection", "binding", "skill-hook"]);
     LoadedSkillEvidence = external_exports.object({
@@ -23537,6 +23543,7 @@ function manifestEngineFlagsToInCode(manifest) {
     ...manifest.binds_terminal_outcome_to_primary_result === void 0 ? {} : {
       bindsTerminalOutcomeToPrimaryResult: manifest.binds_terminal_outcome_to_primary_result
     },
+    ...manifest.relay_uses_prompt_only_context === void 0 ? {} : { relayUsesPromptOnlyContext: manifest.relay_uses_prompt_only_context },
     ...slice === void 0 ? {} : { iteratesSliceLoop: translateSliceLoop(slice) },
     ...until === void 0 ? {} : { iteratesUntilCondition: translateUntilLoop(until) }
   };
@@ -23636,8 +23643,8 @@ function resolveProjectRelativeProofCwd(projectRoot, cwd2) {
     if (!existsSync3(cursor)) {
       throw new ProofPlanBlockedError(`verification cwd rejected: ${JSON.stringify(cwd2)} does not exist`);
     }
-    const stat2 = lstatSync2(cursor);
-    if (stat2.isSymbolicLink()) {
+    const stat3 = lstatSync2(cursor);
+    if (stat3.isSymbolicLink()) {
       throw new ProofPlanBlockedError(`verification cwd rejected: ${JSON.stringify(cwd2)} crosses symlink ${JSON.stringify(cursor)}`);
     }
     const cursorReal = realpathSync2.native(cursor);
@@ -25310,9 +25317,9 @@ var init_runtime_run_folder = __esm({
 import { constants, accessSync, statSync } from "node:fs";
 import { resolve as resolve4 } from "node:path";
 function assertReadableRunFolder(runFolder) {
-  let stat2;
+  let stat3;
   try {
-    stat2 = statSync(runFolder);
+    stat3 = statSync(runFolder);
   } catch (err) {
     const nodeCode = err.code;
     if (nodeCode === "ENOENT" || nodeCode === "ENOTDIR") {
@@ -25320,7 +25327,7 @@ function assertReadableRunFolder(runFolder) {
     }
     throw new RunStatusFolderError("folder_unreadable", runFolder, `run folder is unreadable: ${runFolder} (${errorMessage(err)})`);
   }
-  if (!stat2.isDirectory()) {
+  if (!stat3.isDirectory()) {
     throw new RunStatusFolderError("folder_unreadable", runFolder, `run folder is not a directory: ${runFolder}`);
   }
   try {
@@ -29604,10 +29611,10 @@ var require_resolve_block_map = __commonJS({
       let offset = bm.offset;
       let commentEnd = null;
       for (const collItem of bm.items) {
-        const { start, key, sep: sep5, value } = collItem;
+        const { start, key, sep: sep7, value } = collItem;
         const keyProps = resolveProps.resolveProps(start, {
           indicator: "explicit-key-ind",
-          next: key ?? sep5?.[0],
+          next: key ?? sep7?.[0],
           offset,
           onError,
           parentIndent: bm.indent,
@@ -29621,7 +29628,7 @@ var require_resolve_block_map = __commonJS({
             else if ("indent" in key && key.indent !== bm.indent)
               onError(offset, "BAD_INDENT", startColMsg);
           }
-          if (!keyProps.anchor && !keyProps.tag && !sep5) {
+          if (!keyProps.anchor && !keyProps.tag && !sep7) {
             commentEnd = keyProps.end;
             if (keyProps.comment) {
               if (map2.comment)
@@ -29645,7 +29652,7 @@ var require_resolve_block_map = __commonJS({
         ctx.atKey = false;
         if (utilMapIncludes.mapIncludes(ctx, map2.items, keyNode))
           onError(keyStart, "DUPLICATE_KEY", "Map keys must be unique");
-        const valueProps = resolveProps.resolveProps(sep5 ?? [], {
+        const valueProps = resolveProps.resolveProps(sep7 ?? [], {
           indicator: "map-value-ind",
           next: value,
           offset: keyNode.range[2],
@@ -29661,7 +29668,7 @@ var require_resolve_block_map = __commonJS({
             if (ctx.options.strict && keyProps.start < valueProps.found.offset - 1024)
               onError(keyNode.range, "KEY_OVER_1024_CHARS", "The : indicator must be at most 1024 chars after the start of an implicit block mapping key");
           }
-          const valueNode = value ? composeNode(ctx, value, valueProps, onError) : composeEmptyNode(ctx, offset, sep5, null, valueProps, onError);
+          const valueNode = value ? composeNode(ctx, value, valueProps, onError) : composeEmptyNode(ctx, offset, sep7, null, valueProps, onError);
           if (ctx.schema.compat)
             utilFlowIndentCheck.flowIndentCheck(bm.indent, value, onError);
           offset = valueNode.range[2];
@@ -29752,7 +29759,7 @@ var require_resolve_end = __commonJS({
       let comment = "";
       if (end) {
         let hasSpace = false;
-        let sep5 = "";
+        let sep7 = "";
         for (const token of end) {
           const { source, type } = token;
           switch (type) {
@@ -29766,13 +29773,13 @@ var require_resolve_end = __commonJS({
               if (!comment)
                 comment = cb;
               else
-                comment += sep5 + cb;
-              sep5 = "";
+                comment += sep7 + cb;
+              sep7 = "";
               break;
             }
             case "newline":
               if (comment)
-                sep5 += source;
+                sep7 += source;
               hasSpace = true;
               break;
             default:
@@ -29815,18 +29822,18 @@ var require_resolve_flow_collection = __commonJS({
       let offset = fc.offset + fc.start.source.length;
       for (let i = 0; i < fc.items.length; ++i) {
         const collItem = fc.items[i];
-        const { start, key, sep: sep5, value } = collItem;
+        const { start, key, sep: sep7, value } = collItem;
         const props = resolveProps.resolveProps(start, {
           flow: fcName,
           indicator: "explicit-key-ind",
-          next: key ?? sep5?.[0],
+          next: key ?? sep7?.[0],
           offset,
           onError,
           parentIndent: fc.indent,
           startOnNewline: false
         });
         if (!props.found) {
-          if (!props.anchor && !props.tag && !sep5 && !value) {
+          if (!props.anchor && !props.tag && !sep7 && !value) {
             if (i === 0 && props.comma)
               onError(props.comma, "UNEXPECTED_TOKEN", `Unexpected , in ${fcName}`);
             else if (i < fc.items.length - 1)
@@ -29880,8 +29887,8 @@ var require_resolve_flow_collection = __commonJS({
             }
           }
         }
-        if (!isMap && !sep5 && !props.found) {
-          const valueNode = value ? composeNode(ctx, value, props, onError) : composeEmptyNode(ctx, props.end, sep5, null, props, onError);
+        if (!isMap && !sep7 && !props.found) {
+          const valueNode = value ? composeNode(ctx, value, props, onError) : composeEmptyNode(ctx, props.end, sep7, null, props, onError);
           coll.items.push(valueNode);
           offset = valueNode.range[2];
           if (isBlock(value))
@@ -29893,7 +29900,7 @@ var require_resolve_flow_collection = __commonJS({
           if (isBlock(key))
             onError(keyNode.range, "BLOCK_IN_FLOW", blockMsg);
           ctx.atKey = false;
-          const valueProps = resolveProps.resolveProps(sep5 ?? [], {
+          const valueProps = resolveProps.resolveProps(sep7 ?? [], {
             flow: fcName,
             indicator: "map-value-ind",
             next: value,
@@ -29904,8 +29911,8 @@ var require_resolve_flow_collection = __commonJS({
           });
           if (valueProps.found) {
             if (!isMap && !props.found && ctx.options.strict) {
-              if (sep5)
-                for (const st of sep5) {
+              if (sep7)
+                for (const st of sep7) {
                   if (st === valueProps.found)
                     break;
                   if (st.type === "newline") {
@@ -29922,7 +29929,7 @@ var require_resolve_flow_collection = __commonJS({
             else
               onError(valueProps.start, "MISSING_CHAR", `Missing , or : between ${fcName} items`);
           }
-          const valueNode = value ? composeNode(ctx, value, valueProps, onError) : valueProps.found ? composeEmptyNode(ctx, valueProps.end, sep5, null, valueProps, onError) : null;
+          const valueNode = value ? composeNode(ctx, value, valueProps, onError) : valueProps.found ? composeEmptyNode(ctx, valueProps.end, sep7, null, valueProps, onError) : null;
           if (valueNode) {
             if (isBlock(value))
               onError(valueNode.range, "BLOCK_IN_FLOW", blockMsg);
@@ -30102,7 +30109,7 @@ var require_resolve_block_scalar = __commonJS({
           chompStart = i + 1;
       }
       let value = "";
-      let sep5 = "";
+      let sep7 = "";
       let prevMoreIndented = false;
       for (let i = 0; i < contentStart; ++i)
         value += lines[i][0].slice(trimIndent) + "\n";
@@ -30119,24 +30126,24 @@ var require_resolve_block_scalar = __commonJS({
           indent = "";
         }
         if (type === Scalar.Scalar.BLOCK_LITERAL) {
-          value += sep5 + indent.slice(trimIndent) + content;
-          sep5 = "\n";
+          value += sep7 + indent.slice(trimIndent) + content;
+          sep7 = "\n";
         } else if (indent.length > trimIndent || content[0] === "	") {
-          if (sep5 === " ")
-            sep5 = "\n";
-          else if (!prevMoreIndented && sep5 === "\n")
-            sep5 = "\n\n";
-          value += sep5 + indent.slice(trimIndent) + content;
-          sep5 = "\n";
+          if (sep7 === " ")
+            sep7 = "\n";
+          else if (!prevMoreIndented && sep7 === "\n")
+            sep7 = "\n\n";
+          value += sep7 + indent.slice(trimIndent) + content;
+          sep7 = "\n";
           prevMoreIndented = true;
         } else if (content === "") {
-          if (sep5 === "\n")
+          if (sep7 === "\n")
             value += "\n";
           else
-            sep5 = "\n";
+            sep7 = "\n";
         } else {
-          value += sep5 + content;
-          sep5 = " ";
+          value += sep7 + content;
+          sep7 = " ";
           prevMoreIndented = false;
         }
       }
@@ -30318,25 +30325,25 @@ var require_resolve_flow_scalar = __commonJS({
       if (!match)
         return source;
       let res = match[1];
-      let sep5 = " ";
+      let sep7 = " ";
       let pos = first.lastIndex;
       line.lastIndex = pos;
       while (match = line.exec(source)) {
         if (match[1] === "") {
-          if (sep5 === "\n")
-            res += sep5;
+          if (sep7 === "\n")
+            res += sep7;
           else
-            sep5 = "\n";
+            sep7 = "\n";
         } else {
-          res += sep5 + match[1];
-          sep5 = " ";
+          res += sep7 + match[1];
+          sep7 = " ";
         }
         pos = line.lastIndex;
       }
       const last = /[ \t]*(.*)/sy;
       last.lastIndex = pos;
       match = last.exec(source);
-      return res + sep5 + (match?.[1] ?? "");
+      return res + sep7 + (match?.[1] ?? "");
     }
     function doubleQuotedValue(source, onError) {
       let res = "";
@@ -31143,14 +31150,14 @@ var require_cst_stringify = __commonJS({
         }
       }
     }
-    function stringifyItem({ start, key, sep: sep5, value }) {
+    function stringifyItem({ start, key, sep: sep7, value }) {
       let res = "";
       for (const st of start)
         res += st.source;
       if (key)
         res += stringifyToken(key);
-      if (sep5)
-        for (const st of sep5)
+      if (sep7)
+        for (const st of sep7)
           res += st.source;
       if (value)
         res += stringifyToken(value);
@@ -32300,18 +32307,18 @@ var require_parser = __commonJS({
         if (this.type === "map-value-ind") {
           const prev = getPrevProps(this.peek(2));
           const start = getFirstKeyStartProps(prev);
-          let sep5;
+          let sep7;
           if (scalar.end) {
-            sep5 = scalar.end;
-            sep5.push(this.sourceToken);
+            sep7 = scalar.end;
+            sep7.push(this.sourceToken);
             delete scalar.end;
           } else
-            sep5 = [this.sourceToken];
+            sep7 = [this.sourceToken];
           const map2 = {
             type: "block-map",
             offset: scalar.offset,
             indent: scalar.indent,
-            items: [{ start, key: scalar, sep: sep5 }]
+            items: [{ start, key: scalar, sep: sep7 }]
           };
           this.onKeyLine = true;
           this.stack[this.stack.length - 1] = map2;
@@ -32464,15 +32471,15 @@ var require_parser = __commonJS({
                 } else if (isFlowToken(it.key) && !includesToken(it.sep, "newline")) {
                   const start2 = getFirstKeyStartProps(it.start);
                   const key = it.key;
-                  const sep5 = it.sep;
-                  sep5.push(this.sourceToken);
+                  const sep7 = it.sep;
+                  sep7.push(this.sourceToken);
                   delete it.key;
                   delete it.sep;
                   this.stack.push({
                     type: "block-map",
                     offset: this.offset,
                     indent: this.indent,
-                    items: [{ start: start2, key, sep: sep5 }]
+                    items: [{ start: start2, key, sep: sep7 }]
                   });
                 } else if (start.length > 0) {
                   it.sep = it.sep.concat(start, this.sourceToken);
@@ -32666,13 +32673,13 @@ var require_parser = __commonJS({
             const prev = getPrevProps(parent);
             const start = getFirstKeyStartProps(prev);
             fixFlowSeqItems(fc);
-            const sep5 = fc.end.splice(1, fc.end.length);
-            sep5.push(this.sourceToken);
+            const sep7 = fc.end.splice(1, fc.end.length);
+            sep7.push(this.sourceToken);
             const map2 = {
               type: "block-map",
               offset: fc.offset,
               indent: fc.indent,
-              items: [{ start, key: fc, sep: sep5 }]
+              items: [{ start, key: fc, sep: sep7 }]
             };
             this.onKeyLine = true;
             this.stack[this.stack.length - 1] = map2;
@@ -33820,9 +33827,9 @@ function runShow(argv, options) {
     return 0;
   }
   const palette = terminalPalette(colorEnabled());
-  const sep5 = palette.dim("\xB7");
+  const sep7 = palette.dim("\xB7");
   const lines = [
-    `${palette.accent("\u25C6")} ${palette.bold("circuit config")} ${sep5} layered selection config`,
+    `${palette.accent("\u25C6")} ${palette.bold("circuit config")} ${sep7} layered selection config`,
     ""
   ];
   for (const [layerName, filePath] of [
@@ -66779,8 +66786,8 @@ function resolveRunRelative(runFolder, relPath) {
     cursor = resolve12(cursor, segment);
     if (!existsSync13(cursor))
       break;
-    const stat2 = lstatSync4(cursor);
-    if (stat2.isSymbolicLink()) {
+    const stat3 = lstatSync4(cursor);
+    if (stat3.isSymbolicLink()) {
       throw new Error(`run-relative path rejected: ${JSON.stringify(relPath)} crosses symlink ${JSON.stringify(cursor)}`);
     }
     const cursorReal = realpathSync4.native(cursor);
@@ -84690,7 +84697,8 @@ var init_assembly_spec10 = __esm({
       // (which the verdict step writes as review.result.outcome = 'stopped') bind
       // the run's terminal outcome to 'stopped' rather than a green 'complete'.
       engine_flags: {
-        binds_terminal_outcome_to_primary_result: true
+        binds_terminal_outcome_to_primary_result: true,
+        relay_uses_prompt_only_context: true
       },
       items: reviewBlockItems,
       stageLabels: reviewStageLabels,
@@ -84713,6 +84721,7 @@ var init_relay_hints10 = __esm({
       instruction: [
         "Respond with a single raw JSON object whose top-level shape is exactly:",
         '{ "verdict": "<one-of-accepted-verdicts>", "findings": [{ "severity": "<critical|high|medium|low>", "id": "<stable finding id>", "text": "<finding text>", "file_refs": ["<file:line reference>"] }], "assessment": "<plain-language paragraph>", "verification": ["<step you performed>"], "confidence_limitations": ["<gap that limits certainty>"] }',
+        "The selected Review target is authoritative. Review sees only the captured evidence in this prompt. Evaluate findings only against the selected diff or content in the intake. Do not read repository files, run tools, substitute another Git view, working-tree layer, commit, range, or PR, or report unrelated issues. If the selected evidence is missing or incomplete, say so and never claim that the target has no issues.",
         "Audit the strongest claims in the material under review first: confirm each asserted outcome is backed by evidence you can see, and flag claims of completion, safety, or readiness that the cited evidence does not actually support.",
         "Calibrate severity to impact: critical for a defect that breaks the stated goal or ships a falsehood, high for a real bug or unsupported claim worth fixing before anyone relies on the result, medium for a material gap or risk worth surfacing, low for a minor or cosmetic note. Do not inflate a low note into a blocking finding, and do not bury a real defect as low.",
         'Use an empty findings array when there are no issues: { "verdict": "NO_ISSUES_FOUND", "findings": [], "assessment": "...", "verification": ["..."], "confidence_limitations": ["..."] }.',
@@ -84728,10 +84737,38 @@ var init_relay_hints10 = __esm({
 });
 
 // dist/flows/review/reports.js
+function addRequiredEvidenceField(value, field, ctx) {
+  if (value !== void 0)
+    return;
+  ctx.addIssue({
+    code: "custom",
+    path: [field],
+    message: `${field} is required for this Review target`
+  });
+}
+function addForbiddenEvidenceField(value, field, ctx) {
+  if (value === void 0)
+    return;
+  ctx.addIssue({
+    code: "custom",
+    path: [field],
+    message: `${field} does not belong to this Review target`
+  });
+}
+function addObjectIdPrefixMismatch(ref, objectId, field, ctx) {
+  if (!/^[0-9a-f]{4,64}$/iu.test(ref) || objectId === void 0 || objectId.toLowerCase().startsWith(ref.toLowerCase())) {
+    return;
+  }
+  ctx.addIssue({
+    code: "custom",
+    path: [field],
+    message: `${field} does not match the object id named by the Review target`
+  });
+}
 function computeReviewVerdict(findings) {
   return findings.some((finding3) => finding3.severity !== "low") ? "ISSUES_FOUND" : "CLEAN";
 }
-var ReviewFindingSeverity, ReviewResultVerdict, ReviewRelayVerdict, ReviewEvidenceWarningKind, ReviewEvidenceWarning, ReviewEvidenceText, ReviewUntrackedContentPolicy, ReviewUntrackedFileEvidence, ReviewEvidence, ReviewEvidenceSummary, ReviewIntake, ReviewFinding, ReviewResult, ReviewRelayResult;
+var ReviewFindingSeverity, ReviewResultVerdict, ReviewRelayVerdict, ReviewEvidenceWarningKind, ReviewEvidenceWarning, ReviewEvidenceText, ReviewUntrackedContentPolicy, ReviewTargetKind, ReviewWorkingTreeMode, ReviewUntrackedFileEvidence, ReviewGitObjectId, ReviewGitTargetEvidence, ReviewEvidence, ReviewEvidenceSummary, ReviewResolvedTarget, ReviewIntake, ReviewFinding, ReviewResult, ReviewRelayResult;
 var init_reports10 = __esm({
   "dist/flows/review/reports.js"() {
     "use strict";
@@ -84740,13 +84777,17 @@ var init_reports10 = __esm({
     ReviewResultVerdict = external_exports.enum(["CLEAN", "ISSUES_FOUND"]);
     ReviewRelayVerdict = external_exports.enum(["NO_ISSUES_FOUND", "ISSUES_FOUND"]);
     ReviewEvidenceWarningKind = external_exports.enum([
+      "binary_content_not_inspected",
       "diff_truncated",
       "git_command_failed",
+      "target_unavailable",
       "untracked_file_skipped",
       "untracked_file_content_omitted",
       "untracked_files_truncated",
+      "submodule_content_not_inspected",
       "evidence_unavailable",
-      "scope_empty"
+      "scope_empty",
+      "target_assumed"
     ]);
     ReviewEvidenceWarning = external_exports.object({
       kind: ReviewEvidenceWarningKind,
@@ -84758,13 +84799,53 @@ var init_reports10 = __esm({
       truncated: external_exports.boolean()
     }).strict();
     ReviewUntrackedContentPolicy = external_exports.enum(["metadata-only", "include-content"]);
+    ReviewTargetKind = external_exports.enum(["working_tree", "commit", "range"]);
+    ReviewWorkingTreeMode = external_exports.enum(["all", "staged", "unstaged"]);
     ReviewUntrackedFileEvidence = external_exports.object({
       path: external_exports.string().min(1),
       byte_length: external_exports.number().int().nonnegative(),
       content: ReviewEvidenceText.optional(),
       skipped_reason: external_exports.string().min(1).optional()
     }).strict();
+    ReviewGitObjectId = external_exports.string().regex(/^(?:[0-9a-f]{40}|[0-9a-f]{64})$/u);
+    ReviewGitTargetEvidence = external_exports.object({
+      kind: external_exports.literal("git-target"),
+      project_root: external_exports.string().min(1),
+      target_kind: external_exports.enum(["commit", "range"]),
+      target_ref: external_exports.string().min(1),
+      target_base_ref: external_exports.string().min(1).optional(),
+      target_head_ref: external_exports.string().min(1).optional(),
+      target_commit: ReviewGitObjectId.optional(),
+      target_base_commit: ReviewGitObjectId.optional(),
+      target_head_commit: ReviewGitObjectId.optional(),
+      target_diff: ReviewEvidenceText,
+      target_diff_stat: external_exports.string()
+    }).strict().superRefine((evidence2, ctx) => {
+      if (evidence2.target_kind === "commit") {
+        addRequiredEvidenceField(evidence2.target_commit, "target_commit", ctx);
+        addForbiddenEvidenceField(evidence2.target_base_ref, "target_base_ref", ctx);
+        addForbiddenEvidenceField(evidence2.target_head_ref, "target_head_ref", ctx);
+        addForbiddenEvidenceField(evidence2.target_base_commit, "target_base_commit", ctx);
+        addForbiddenEvidenceField(evidence2.target_head_commit, "target_head_commit", ctx);
+        addObjectIdPrefixMismatch(evidence2.target_ref, evidence2.target_commit, "target_commit", ctx);
+        return;
+      }
+      addRequiredEvidenceField(evidence2.target_base_ref, "target_base_ref", ctx);
+      addRequiredEvidenceField(evidence2.target_head_ref, "target_head_ref", ctx);
+      addRequiredEvidenceField(evidence2.target_base_commit, "target_base_commit", ctx);
+      addRequiredEvidenceField(evidence2.target_head_commit, "target_head_commit", ctx);
+      addForbiddenEvidenceField(evidence2.target_commit, "target_commit", ctx);
+      if (evidence2.target_base_ref !== void 0) {
+        addObjectIdPrefixMismatch(evidence2.target_base_ref, evidence2.target_base_commit, "target_base_commit", ctx);
+      }
+      if (evidence2.target_head_ref !== void 0) {
+        addObjectIdPrefixMismatch(evidence2.target_head_ref, evidence2.target_head_commit, "target_head_commit", ctx);
+      }
+    });
     ReviewEvidence = external_exports.discriminatedUnion("kind", [
+      external_exports.object({
+        kind: external_exports.literal("goal")
+      }).strict(),
       external_exports.object({
         kind: external_exports.literal("unavailable"),
         reason: external_exports.string().min(1)
@@ -84776,13 +84857,22 @@ var init_reports10 = __esm({
         staged_diff: ReviewEvidenceText,
         unstaged_diff: ReviewEvidenceText,
         diff_stat: external_exports.string(),
+        // Working-tree evidence always names the working tree. Explicit commit
+        // and range targets use the dedicated git-target variant below.
+        target_kind: external_exports.literal("working_tree"),
+        target_mode: ReviewWorkingTreeMode,
         untracked_file_count: external_exports.number().int().nonnegative(),
         untracked_files_truncated: external_exports.boolean(),
         untracked_content_policy: ReviewUntrackedContentPolicy,
-        untracked_files: external_exports.array(ReviewUntrackedFileEvidence)
-      }).strict()
+        untracked_files: external_exports.array(ReviewUntrackedFileEvidence),
+        submodule_paths: external_exports.array(external_exports.string().min(1)).optional()
+      }).strict(),
+      ReviewGitTargetEvidence
     ]);
     ReviewEvidenceSummary = external_exports.discriminatedUnion("kind", [
+      external_exports.object({
+        kind: external_exports.literal("goal")
+      }).strict(),
       external_exports.object({
         kind: external_exports.literal("unavailable"),
         message: external_exports.string().min(1)
@@ -84792,11 +84882,39 @@ var init_reports10 = __esm({
         untracked_content_policy: ReviewUntrackedContentPolicy,
         untracked_file_count: external_exports.number().int().nonnegative(),
         untracked_files_sampled: external_exports.number().int().nonnegative(),
-        untracked_files_truncated: external_exports.boolean()
+        untracked_files_truncated: external_exports.boolean(),
+        target_kind: external_exports.literal("working_tree"),
+        target_mode: ReviewWorkingTreeMode,
+        target_diff_included: external_exports.boolean()
+      }).strict(),
+      external_exports.object({
+        kind: external_exports.literal("git-target"),
+        target_kind: external_exports.enum(["commit", "range"]),
+        target_ref: external_exports.string().min(1),
+        target_diff_included: external_exports.boolean(),
+        target_diff_truncated: external_exports.boolean()
+      }).strict()
+    ]);
+    ReviewResolvedTarget = external_exports.discriminatedUnion("kind", [
+      external_exports.object({ kind: external_exports.literal("goal") }).strict(),
+      external_exports.object({
+        kind: external_exports.literal("working_tree"),
+        mode: ReviewWorkingTreeMode,
+        // False when Circuit assumed the working tree because the goal named no
+        // target. The assumption is reported to the operator as a warning.
+        explicit: external_exports.boolean()
+      }).strict(),
+      external_exports.object({ kind: external_exports.literal("commit"), ref: external_exports.string().min(1) }).strict(),
+      external_exports.object({
+        kind: external_exports.literal("range"),
+        base: external_exports.string().min(1),
+        head: external_exports.string().min(1),
+        dots: external_exports.enum(["..", "..."])
       }).strict()
     ]);
     ReviewIntake = external_exports.object({
       scope: external_exports.string().min(1),
+      target: ReviewResolvedTarget,
       evidence: ReviewEvidence,
       evidence_warnings: external_exports.array(ReviewEvidenceWarning).default([])
     }).strict();
@@ -84881,35 +84999,216 @@ var init_reports10 = __esm({
   }
 });
 
+// dist/shared/runtime-git-reader.js
+function runtimeGitTextIsValidUtf8(text) {
+  for (let index = 0; index < text.length; index += 1) {
+    const code = text.charCodeAt(index);
+    if (code >= 55296 && code <= 56319) {
+      const next = text.charCodeAt(index + 1);
+      if (next < 56320 || next > 57343)
+        return false;
+      index += 1;
+      continue;
+    }
+    if (code >= 56320 && code <= 57343)
+      return false;
+  }
+  return true;
+}
+function runtimeGitSpawnErrorAllowsPartialOutput(error52) {
+  if (typeof error52 !== "object" || error52 === null)
+    return false;
+  return error52.code === "ENOBUFS";
+}
+function changedPathsFromRuntimeGitStatus(stdout) {
+  const tokens = stdout.split("\0");
+  const changed = /* @__PURE__ */ new Set();
+  for (let index = 0; index < tokens.length; index += 1) {
+    const entry = tokens[index];
+    if (entry === void 0 || entry.length === 0)
+      continue;
+    if (entry.length < 4 || entry[2] !== " ") {
+      throw new Error("The bounded Git reader returned malformed status output.");
+    }
+    const status = entry.slice(0, 2);
+    const path = entry.slice(3);
+    if (path.length === 0)
+      throw new Error("The bounded Git reader returned an empty path.");
+    changed.add(path);
+    if (status.includes("R") || status.includes("C")) {
+      const previousPath = tokens[index + 1];
+      if (previousPath === void 0 || previousPath.length === 0) {
+        throw new Error("The bounded Git reader returned a malformed rename entry.");
+      }
+      changed.add(previousPath);
+      index += 1;
+    }
+  }
+  return changed;
+}
+var RUNTIME_GIT_HARDENED_CONFIG;
+var init_runtime_git_reader = __esm({
+  "dist/shared/runtime-git-reader.js"() {
+    "use strict";
+    RUNTIME_GIT_HARDENED_CONFIG = Object.freeze([
+      "core.hooksPath=/dev/null",
+      "core.fsmonitor=false",
+      "core.untrackedCache=false",
+      "core.attributesFile=/dev/null",
+      "core.excludesFile=/dev/null",
+      "color.ui=false",
+      "color.diff=false",
+      "diff.external=",
+      "interactive.diffFilter=",
+      "credential.helper=",
+      "core.sshCommand=false",
+      "protocol.allow=never",
+      "protocol.file.allow=never",
+      "protocol.ext.allow=never",
+      "submodule.recurse=false"
+    ]);
+  }
+});
+
+// dist/flows/review/writers/evidence-completeness.js
+function unavailableDiff(text) {
+  return /^git\s+.+\s+failed:/.test(text) || text.startsWith("Target unavailable:");
+}
+function usableDiff(diff2) {
+  return diff2 !== void 0 && diff2.text.length > 0 && !unavailableDiff(diff2.text);
+}
+function containsOpaqueSubmoduleChange(diff2) {
+  if (diff2 === void 0)
+    return false;
+  return /^(?:index [0-9a-f]+\.\.[0-9a-f]+ 160000|(?:old|new|new file|deleted file) mode 160000)\r?$/imu.test(diff2.text);
+}
+function normalizeBinaryDiffPath(path) {
+  const trimmed = path.trim().replace(/^"|"$/gu, "");
+  if (trimmed === "/dev/null")
+    return void 0;
+  return trimmed.replace(/^[ab]\//u, "");
+}
+function opaqueBinaryChangePaths(diff2) {
+  if (diff2 === void 0)
+    return [];
+  const paths = /* @__PURE__ */ new Set();
+  for (const match of diff2.text.matchAll(/^Binary files (?<left>.+) and (?<right>.+) differ\r?$/gmu)) {
+    for (const candidate of [match.groups?.right, match.groups?.left]) {
+      if (candidate === void 0)
+        continue;
+      const path = normalizeBinaryDiffPath(candidate);
+      if (path !== void 0)
+        paths.add(path);
+    }
+  }
+  return [...paths];
+}
+function containsOpaqueBinaryChange(diff2) {
+  return opaqueBinaryChangePaths(diff2).length > 0;
+}
+var init_evidence_completeness = __esm({
+  "dist/flows/review/writers/evidence-completeness.js"() {
+    "use strict";
+  }
+});
+
 // dist/flows/review/writers/intake-projection.js
 function gitCommandFailed(text) {
   return /^git\s+.+\s+failed:/.test(text);
 }
+function targetUnavailable(text) {
+  return gitCommandFailed(text) || text.startsWith("Target unavailable:");
+}
+function hasUsableTargetDiff(diff2) {
+  return diff2 !== void 0 && diff2.text.length > 0 && !targetUnavailable(diff2.text);
+}
+function appendOpaqueBinaryWarnings(warnings, diffs) {
+  const paths = new Set(diffs.flatMap((diff2) => opaqueBinaryChangePaths(diff2)));
+  for (const path of paths) {
+    warnings.push({
+      kind: "binary_content_not_inspected",
+      path,
+      message: `binary file content was not inspected: ${path}`
+    });
+  }
+}
 function reviewEvidenceWarnings(input) {
+  const assumption = input.assumedTarget === true ? [{ kind: "target_assumed", message: ASSUMED_WORKING_TREE_WARNING }] : [];
+  if (input.evidence.kind === "goal")
+    return [...assumption];
   if (input.evidence.kind === "unavailable") {
     return [
+      ...assumption,
       {
         kind: "evidence_unavailable",
         message: input.evidence.reason
       }
     ];
   }
-  const warnings = [];
+  if (input.evidence.kind === "git-target") {
+    const evidence3 = input.evidence;
+    const warnings2 = [...assumption];
+    if (evidence3.target_diff.truncated) {
+      warnings2.push({
+        kind: "diff_truncated",
+        message: `${evidence3.target_ref} diff was truncated before relay`
+      });
+    }
+    if (!hasUsableTargetDiff(evidence3.target_diff)) {
+      warnings2.push({
+        kind: "target_unavailable",
+        message: evidence3.target_diff.text.length > 0 ? evidence3.target_diff.text : `Target unavailable: ${evidence3.target_ref} produced an empty diff.`
+      });
+    }
+    if (targetUnavailable(evidence3.target_diff_stat)) {
+      warnings2.push({
+        kind: "target_unavailable",
+        message: evidence3.target_diff_stat
+      });
+    }
+    if (containsOpaqueSubmoduleChange(evidence3.target_diff)) {
+      warnings2.push({
+        kind: "submodule_content_not_inspected",
+        message: "nested submodule source content was not inspected"
+      });
+    }
+    appendOpaqueBinaryWarnings(warnings2, [evidence3.target_diff]);
+    return warnings2;
+  }
+  const warnings = [...assumption];
   const evidence2 = input.evidence;
+  for (const path of evidence2.submodule_paths ?? []) {
+    warnings.push({
+      kind: "submodule_content_not_inspected",
+      path,
+      message: "nested submodule source content was not inspected"
+    });
+  }
   const hasUntrackedContent = evidence2.untracked_files.some((file2) => file2.content !== void 0);
-  if (evidence2.staged_diff.text.length === 0 && evidence2.unstaged_diff.text.length === 0 && !hasUntrackedContent && !gitCommandFailed(evidence2.staged_diff.text) && !gitCommandFailed(evidence2.unstaged_diff.text)) {
+  const workingTreeMode = evidence2.target_mode;
+  const selectedDiffs = workingTreeMode === "staged" ? [evidence2.staged_diff] : workingTreeMode === "unstaged" ? [evidence2.unstaged_diff] : [evidence2.staged_diff, evidence2.unstaged_diff];
+  if (!warnings.some((warning) => warning.kind === "submodule_content_not_inspected") && selectedDiffs.some(containsOpaqueSubmoduleChange)) {
+    warnings.push({
+      kind: "submodule_content_not_inspected",
+      message: "nested submodule source content was not inspected"
+    });
+  }
+  appendOpaqueBinaryWarnings(warnings, selectedDiffs);
+  const hasSelectedTrackedDiff = workingTreeMode === "staged" ? evidence2.staged_diff.text.length > 0 : workingTreeMode === "unstaged" ? evidence2.unstaged_diff.text.length > 0 : evidence2.staged_diff.text.length > 0 || evidence2.unstaged_diff.text.length > 0;
+  const hasSelectedUntrackedContent = workingTreeMode === "all" && hasUntrackedContent;
+  if (!hasSelectedTrackedDiff && !hasSelectedUntrackedContent && !gitCommandFailed(evidence2.staged_diff.text) && !gitCommandFailed(evidence2.unstaged_diff.text)) {
     warnings.push({
       kind: "scope_empty",
       message: "review scoped to uncommitted changes only; HEAD~1 differences not examined. The reviewer had no source content to inspect: staged/unstaged diffs were empty and no untracked file content was relayed."
     });
   }
-  if (evidence2.staged_diff.truncated) {
+  if (workingTreeMode !== "unstaged" && evidence2.staged_diff.truncated) {
     warnings.push({
       kind: "diff_truncated",
       message: "staged diff was truncated before relay"
     });
   }
-  if (evidence2.unstaged_diff.truncated) {
+  if (workingTreeMode !== "staged" && evidence2.unstaged_diff.truncated) {
     warnings.push({
       kind: "diff_truncated",
       message: "unstaged diff was truncated before relay"
@@ -84933,7 +85232,7 @@ function reviewEvidenceWarnings(input) {
       message: evidence2.diff_stat
     });
   }
-  if (evidence2.untracked_files_truncated) {
+  if (workingTreeMode === "all" && evidence2.untracked_files_truncated) {
     warnings.push({
       kind: "untracked_files_truncated",
       message: `untracked file evidence was limited to ${input.maxUntrackedFiles} files`
@@ -84945,7 +85244,14 @@ function reviewEvidenceWarnings(input) {
       message: "untracked file contents were not included; pass --include-untracked-content only when those files are safe to relay"
     });
   }
-  for (const file2 of evidence2.untracked_files) {
+  for (const file2 of workingTreeMode === "all" ? evidence2.untracked_files : []) {
+    if (file2.content?.truncated === true) {
+      warnings.push({
+        kind: "diff_truncated",
+        path: file2.path,
+        message: `untracked file content was truncated before relay: ${file2.path}`
+      });
+    }
     if (file2.skipped_reason !== void 0) {
       warnings.push({
         kind: "untracked_file_skipped",
@@ -84959,32 +85265,58 @@ function reviewEvidenceWarnings(input) {
 function projectReviewIntake(input) {
   return ReviewIntake.parse({
     scope: input.scope,
+    target: input.target,
     evidence: input.evidence,
     evidence_warnings: reviewEvidenceWarnings({
       evidence: input.evidence,
-      maxUntrackedFiles: input.maxUntrackedFiles
+      maxUntrackedFiles: input.maxUntrackedFiles,
+      ...input.assumedTarget === true ? { assumedTarget: true } : {}
     })
   });
 }
+var ASSUMED_WORKING_TREE_WARNING;
 var init_intake_projection = __esm({
   "dist/flows/review/writers/intake-projection.js"() {
     "use strict";
     init_reports10();
+    init_evidence_completeness();
+    ASSUMED_WORKING_TREE_WARNING = "Assumed target: the current working tree. Name a commit, a range, staged, or unstaged to review something else.";
   }
 });
 
 // dist/flows/review/writers/intake.js
 import { spawnSync as spawnSync3 } from "node:child_process";
-import { closeSync as closeSync4, lstatSync as lstatSync6, openSync as openSync4, readSync as readSync4 } from "node:fs";
-import { isAbsolute as isAbsolute9, relative as relative9, resolve as resolve14 } from "node:path";
+import { constants as constants4, closeSync as closeSync4, fstatSync as fstatSync3, lstatSync as lstatSync6, openSync as openSync4, readSync as readSync4, realpathSync as realpathSync6 } from "node:fs";
+import { dirname as dirname6, isAbsolute as isAbsolute9, join as join16, relative as relative9, resolve as resolve14, sep as sep4 } from "node:path";
+import { TextDecoder as TextDecoder2 } from "node:util";
 function truncateText(text, maxChars) {
+  if (!runtimeGitTextIsValidUtf8(text)) {
+    throw new Error("Review evidence text is not valid UTF-8.");
+  }
   if (text.length <= maxChars)
     return { text, truncated: false };
+  let end = maxChars;
+  const lastIncluded = text.charCodeAt(end - 1);
+  const firstExcluded = text.charCodeAt(end);
+  if (lastIncluded >= 55296 && lastIncluded <= 56319 && firstExcluded >= 56320 && firstExcluded <= 57343) {
+    end -= 1;
+  }
+  const prefix = text.slice(0, end);
   return {
-    text: `${text.slice(0, maxChars)}
-[truncated ${text.length - maxChars} characters]`,
+    text: `${prefix}
+[truncated ${text.length - end} characters]`,
     truncated: true
   };
+}
+function decodeBoundedUtf8(sample, sourceContinues) {
+  const maximumTrim = sourceContinues ? Math.min(3, sample.length) : 0;
+  for (let trimmedBytes = 0; trimmedBytes <= maximumTrim; trimmedBytes += 1) {
+    try {
+      return new TextDecoder2("utf-8", { fatal: true }).decode(sample.subarray(0, sample.length - trimmedBytes));
+    } catch {
+    }
+  }
+  throw new Error("file content is not valid UTF-8");
 }
 function errorMessage3(err) {
   return err instanceof Error ? err.message : String(err);
@@ -84996,17 +85328,282 @@ function outputToString(output) {
     return output;
   return Buffer.from(output).toString("utf8");
 }
-function runGit(projectRoot, args, options = {}) {
-  const result = spawnSync3("git", [...args], {
-    cwd: projectRoot,
+function decodeGitOutput(output) {
+  if (output === null || output === void 0)
+    return "";
+  if (typeof output === "string") {
+    if (!runtimeGitTextIsValidUtf8(output)) {
+      throw new Error("Git output is not valid UTF-8.");
+    }
+    return output;
+  }
+  return new TextDecoder2("utf-8", { fatal: true }).decode(output);
+}
+function directGitEnvironment(options = {}) {
+  const inherited = Object.fromEntries(Object.entries(process.env).filter(([name]) => !name.startsWith("GIT_")));
+  return {
+    ...inherited,
+    GIT_ATTR_NOSYSTEM: "1",
+    ...options.readGlobalConfig === true ? {} : { GIT_CONFIG_GLOBAL: "/dev/null" },
+    GIT_CONFIG_NOSYSTEM: "1",
+    GIT_NO_REPLACE_OBJECTS: "1",
+    GIT_OPTIONAL_LOCKS: "0",
+    GIT_PAGER: "cat",
+    GIT_TERMINAL_PROMPT: "0",
+    PAGER: "cat"
+  };
+}
+function safeDirectoryArgs(values) {
+  return values.flatMap((value) => ["-c", `safe.directory=${value}`]);
+}
+function readGlobalSafeDirectories() {
+  const result = spawnSync3("git", ["config", "--global", "--no-includes", "--null", "--get-all", "safe.directory"], {
     encoding: "utf8",
-    maxBuffer: options.maxBufferBytes ?? MAX_GIT_BUFFER_BYTES,
-    stdio: ["ignore", "pipe", "pipe"]
+    env: directGitEnvironment({ readGlobalConfig: true }),
+    maxBuffer: MAX_GIT_BUFFER_BYTES,
+    stdio: ["ignore", "pipe", "pipe"],
+    timeout: DIRECT_GIT_TIMEOUT_MS
   });
   const stdout = outputToString(result.stdout);
   const stderr = outputToString(result.stderr).trim();
   if (result.error !== void 0) {
-    if (options.allowPartialStdout === true && stdout.length > 0) {
+    throw new Error(`Git safe.directory lookup failed: ${result.error.message}`);
+  }
+  if (result.status === 1 && stdout.length === 0 && stderr.length === 0)
+    return Object.freeze([]);
+  if (result.status !== 0) {
+    throw new Error(stderr.length > 0 ? `Git safe.directory lookup failed: ${stderr}` : `Git safe.directory lookup exited with status ${result.status ?? "unknown"}.`);
+  }
+  const values = stdout.split("\0");
+  if (values.at(-1) === "")
+    values.pop();
+  return Object.freeze(values.filter((value) => !value.includes("\n") && !value.includes("\r") && !value.includes("*")));
+}
+function directGitConfiguration(repository) {
+  const hardenedArgs = RUNTIME_GIT_HARDENED_CONFIG.flatMap((value) => ["-c", value]);
+  const result = spawnSync3("git", [
+    "--no-pager",
+    "--no-optional-locks",
+    `--git-dir=${repository.gitDir}`,
+    `--work-tree=${repository.workTree}`,
+    ...hardenedArgs,
+    ...safeDirectoryArgs(repository.safeDirectories),
+    "config",
+    "--null",
+    "--list",
+    "--no-includes"
+  ], {
+    cwd: repository.workTree,
+    encoding: "utf8",
+    env: directGitEnvironment(),
+    maxBuffer: MAX_GIT_BUFFER_BYTES,
+    stdio: ["ignore", "pipe", "pipe"],
+    timeout: DIRECT_GIT_TIMEOUT_MS
+  });
+  const stderr = outputToString(result.stderr).trim();
+  if (result.error !== void 0) {
+    return {
+      ok: false,
+      reason: `Git configuration audit failed: ${result.error.message}`
+    };
+  }
+  if (result.status !== 0) {
+    return {
+      ok: false,
+      reason: stderr.length > 0 ? `Git configuration audit failed: ${stderr}` : `Git configuration audit exited with status ${result.status ?? "unknown"}.`
+    };
+  }
+  const auditedConfig = outputToString(result.stdout);
+  const overrides = /* @__PURE__ */ new Set();
+  for (const entry of auditedConfig.split("\0")) {
+    if (entry.length === 0)
+      continue;
+    const separator = entry.indexOf("\n");
+    const key = (separator === -1 ? entry : entry.slice(0, separator)).toLowerCase();
+    if (key === "include.path" || key.startsWith("includeif.") && key.endsWith(".path")) {
+      return {
+        ok: false,
+        reason: "Git configuration includes are not supported for Review evidence."
+      };
+    }
+    if (/^filter\..+\.(clean|process|smudge)$/u.test(key))
+      overrides.add(`${key}=`);
+    if (/^filter\..+\.required$/u.test(key))
+      overrides.add(`${key}=false`);
+    if (/^diff\..+\.(command|textconv)$/u.test(key))
+      overrides.add(`${key}=`);
+  }
+  return {
+    ok: true,
+    overrides: Object.freeze([...overrides].sort()),
+    auditedConfig
+  };
+}
+function gitDirectoryFromMarker(markerPath) {
+  let markerStat;
+  try {
+    markerStat = lstatSync6(markerPath);
+  } catch (error52) {
+    if (error52.code === "ENOENT")
+      return void 0;
+    throw new Error(`Git repository marker could not be inspected: ${errorMessage3(error52)}`);
+  }
+  if (markerStat.isDirectory() || markerStat.isSymbolicLink()) {
+    try {
+      return realpathSync6(markerPath);
+    } catch (error52) {
+      throw new Error(`Git repository marker could not be resolved: ${errorMessage3(error52)}`);
+    }
+  }
+  if (!markerStat.isFile() || markerStat.size > 4096) {
+    throw new Error("Git repository marker has an unsupported shape.");
+  }
+  let descriptor;
+  try {
+    descriptor = openSync4(markerPath, constants4.O_RDONLY | constants4.O_NOFOLLOW);
+    const openedStat = fstatSync3(descriptor);
+    if (!openedStat.isFile() || openedStat.dev !== markerStat.dev || openedStat.ino !== markerStat.ino || openedStat.size !== markerStat.size) {
+      throw new Error("Git repository marker changed while it was inspected.");
+    }
+    const bytes = Buffer.alloc(openedStat.size);
+    let offset = 0;
+    while (offset < bytes.length) {
+      const count = readSync4(descriptor, bytes, offset, bytes.length - offset, offset);
+      if (count === 0)
+        break;
+      offset += count;
+    }
+    if (offset !== bytes.length) {
+      throw new Error("Git repository marker could not be read completely.");
+    }
+    const match = /^gitdir: ([^\0\r\n]+)\r?\n?$/u.exec(bytes.toString("utf8"));
+    if (match?.[1] === void 0) {
+      throw new Error("Git repository marker contains invalid data.");
+    }
+    return realpathSync6(resolve14(dirname6(markerPath), match[1]));
+  } catch (error52) {
+    throw new Error(`Git repository marker could not be read safely: ${errorMessage3(error52)}`);
+  } finally {
+    if (descriptor !== void 0)
+      closeSync4(descriptor);
+  }
+}
+function workTreeFromGitDirectory(requestedDirectory, gitDir) {
+  let current = requestedDirectory;
+  while (true) {
+    const markerPath = join16(current, ".git");
+    if (gitDirectoryFromMarker(markerPath) === gitDir)
+      return current;
+    const parent = dirname6(current);
+    if (parent === current)
+      break;
+    current = parent;
+  }
+  throw new Error("Git workspace discovery could not match the selected directory to its repository metadata.");
+}
+function prepareDirectGitContext(projectRoot) {
+  let requestedDirectory;
+  try {
+    requestedDirectory = realpathSync6(projectRoot);
+  } catch (error52) {
+    throw new Error(`Git workspace could not be resolved: ${errorMessage3(error52)}`);
+  }
+  const safeDirectories = readGlobalSafeDirectories();
+  const hardenedArgs = RUNTIME_GIT_HARDENED_CONFIG.flatMap((value) => ["-c", value]);
+  const result = spawnSync3("git", [
+    "--no-pager",
+    "--no-optional-locks",
+    ...hardenedArgs,
+    ...safeDirectoryArgs(safeDirectories),
+    "rev-parse",
+    "--path-format=absolute",
+    "--absolute-git-dir",
+    "--git-common-dir"
+  ], {
+    cwd: requestedDirectory,
+    encoding: "utf8",
+    env: directGitEnvironment(),
+    maxBuffer: MAX_GIT_BUFFER_BYTES,
+    stdio: ["ignore", "pipe", "pipe"],
+    timeout: DIRECT_GIT_TIMEOUT_MS
+  });
+  const stderr = outputToString(result.stderr).trim();
+  if (result.error !== void 0) {
+    throw new Error(`Git workspace discovery failed: ${result.error.message}`);
+  }
+  if (result.status !== 0) {
+    throw new Error(stderr.length > 0 ? `Git workspace discovery failed: ${stderr}` : `Git workspace discovery exited with status ${result.status ?? "unknown"}.`);
+  }
+  const paths = outputToString(result.stdout).split(/\r?\n/u).map((value) => value.trim()).filter((value) => value.length > 0);
+  if (paths.length !== 2 || paths.some((value) => value.includes("\0") || !isAbsolute9(value))) {
+    throw new Error("Git workspace discovery returned invalid repository paths.");
+  }
+  let workTree;
+  let gitDir;
+  let commonDir;
+  try {
+    gitDir = realpathSync6(paths[0]);
+    commonDir = realpathSync6(paths[1]);
+    workTree = workTreeFromGitDirectory(requestedDirectory, gitDir);
+  } catch (error52) {
+    throw new Error(`Git repository paths could not be resolved: ${errorMessage3(error52)}`);
+  }
+  if (!insideProject(workTree, requestedDirectory)) {
+    throw new Error("Git workspace discovery returned a worktree outside the requested directory.");
+  }
+  const repository = {
+    workTree,
+    gitDir,
+    commonDir,
+    safeDirectories
+  };
+  const configuration = directGitConfiguration(repository);
+  if (!configuration.ok)
+    throw new Error(configuration.reason);
+  return Object.freeze({
+    ...repository,
+    overrides: configuration.overrides,
+    auditedConfig: configuration.auditedConfig
+  });
+}
+function runGit(projectRoot, args, options = {}, preparedContext) {
+  let context;
+  try {
+    context = preparedContext ?? prepareDirectGitContext(projectRoot);
+  } catch (error52) {
+    return { ok: false, reason: errorMessage3(error52) };
+  }
+  const hardenedArgs = [...RUNTIME_GIT_HARDENED_CONFIG, ...context.overrides].flatMap((value) => [
+    "-c",
+    value
+  ]);
+  const result = spawnSync3("git", [
+    "--no-pager",
+    "--no-optional-locks",
+    `--git-dir=${context.gitDir}`,
+    `--work-tree=${context.workTree}`,
+    ...hardenedArgs,
+    ...safeDirectoryArgs(context.safeDirectories),
+    ...args
+  ], {
+    cwd: context.workTree,
+    env: directGitEnvironment(),
+    maxBuffer: options.maxBufferBytes ?? MAX_GIT_BUFFER_BYTES,
+    stdio: ["ignore", "pipe", "pipe"],
+    timeout: DIRECT_GIT_TIMEOUT_MS
+  });
+  let stdout;
+  try {
+    stdout = decodeGitOutput(result.stdout);
+  } catch {
+    return {
+      ok: false,
+      reason: `git ${args.join(" ")} returned output that is not valid UTF-8.`
+    };
+  }
+  const stderr = outputToString(result.stderr).trim();
+  if (result.error !== void 0) {
+    if (options.allowPartialStdout === true && stdout.length > 0 && runtimeGitSpawnErrorAllowsPartialOutput(result.error)) {
       return { ok: true, stdout, truncated_by_buffer: true };
     }
     return { ok: false, reason: `git ${args.join(" ")} failed: ${result.error.message}` };
@@ -85017,38 +85614,46 @@ function runGit(projectRoot, args, options = {}) {
   }
   return { ok: true, stdout, truncated_by_buffer: false };
 }
-function runGitDiff(projectRoot, args) {
-  const result = runGit(projectRoot, args, {
-    maxBufferBytes: MAX_DIFF_BUFFER_BYTES,
-    allowPartialStdout: true
-  });
-  if (!result.ok)
-    return truncateText(result.reason, MAX_DIFF_CHARS);
-  if (!result.truncated_by_buffer)
-    return truncateText(result.stdout, MAX_DIFF_CHARS);
-  const truncated = truncateText(result.stdout, MAX_DIFF_CHARS);
-  return {
-    text: `${truncated.text}
-[truncated because git output exceeded ${MAX_DIFF_BUFFER_BYTES} bytes before completion]`,
-    truncated: true
+async function readGit(reader, operation, projectRoot, target) {
+  const request = operation === "target_diff" || operation === "target_diff_stat" ? {
+    operation,
+    projectRoot,
+    target: target ?? (() => {
+      throw new Error(`Git ${operation} requires an immutable target.`);
+    })()
+  } : {
+    operation,
+    projectRoot
   };
-}
-async function readGit(reader, operation, projectRoot) {
-  const result = await reader.read({ operation, projectRoot });
+  const result = await reader.read(request);
   if (result.operation !== operation) {
     return { ok: false, reason: `Git reader returned ${result.operation} for ${operation}.` };
+  }
+  if (!runtimeGitTextIsValidUtf8(result.stdout)) {
+    return {
+      ok: false,
+      reason: `Git ${operation} output is not valid UTF-8 and cannot be reviewed safely.`
+    };
   }
   if (!result.cleanup_confirmed) {
     return { ok: false, reason: `Git ${operation} cleanup could not be confirmed.` };
   }
   if (!result.ok) {
-    if ((operation === "staged_diff" || operation === "unstaged_diff") && result.truncated && result.stdout.length > 0) {
+    const reason = result.stderr.trim();
+    return {
+      ok: false,
+      reason: reason.length === 0 ? `Git ${operation} failed.` : reason
+    };
+  }
+  if (result.truncated) {
+    const partialDiffAllowed = (operation === "staged_diff" || operation === "unstaged_diff" || operation === "target_diff") && result.stdout.length > 0;
+    if (partialDiffAllowed) {
       return { ok: true, stdout: result.stdout, truncated_by_buffer: true };
     }
     const reason = result.stderr.trim();
     return {
       ok: false,
-      reason: reason.length === 0 ? `Git ${operation} failed.` : reason
+      reason: reason.length === 0 ? `Git ${operation} output was truncated before it could be verified.` : reason
     };
   }
   return {
@@ -85056,6 +85661,469 @@ async function readGit(reader, operation, projectRoot) {
     stdout: result.stdout,
     truncated_by_buffer: result.truncated
   };
+}
+function isSafeReviewRef(value) {
+  return SAFE_REVIEW_REF_PATTERN.test(value) && !value.startsWith("-") && !value.includes("..") && !value.includes("@{");
+}
+function normalizeReviewQuotes(scope) {
+  return scope.replace(/[’‘]/gu, "'").replace(/[“”]/gu, '"');
+}
+function maskReviewLiteralData(scope) {
+  const mask = (value) => value.replace(/[^\r\n]/gu, " ");
+  return scope.replace(/```[\s\S]*?```/gu, mask).replace(/"(?:\\.|[^"\\])*"/gu, mask).replace(/(^|[\s([{:;,])'(?:\\.|[^'\\])*'/gmu, mask).replace(/`(?:\\.|[^`\\])*`/gu, mask).replace(/^[ \t]*>[^\r\n]*$/gmu, mask).replace(/```[\s\S]*$/gu, mask).replace(/"(?:\\.|[^"\\])*$/gu, mask).replace(/`(?:\\.|[^`\\])*$/gu, mask);
+}
+function looksLikeReviewPath(value) {
+  const cleaned = value.replace(/^[<("'`]+/u, "").replace(/[>"'`),.;:!?]+$/u, "").replace(/[),.;:!?]+$/u, "");
+  if (cleaned.length === 0 || cleaned.includes("..") || /^https?:\/\//iu.test(cleaned))
+    return false;
+  return /(?:^|\/)(?:Dockerfile|LICENSE|Makefile|README)(?:\.[A-Za-z0-9_-]+)?$/u.test(cleaned) || /(?:^|\/)[^/\s]+\.[A-Za-z0-9][A-Za-z0-9_-]*$/u.test(cleaned) || /^(?:\.{0,2}\/|\/)[^\s]+$/u.test(cleaned) || /^[^/\s]+\/[^\s]+$/u.test(cleaned) || /^(?:[^/\s]+\/)+$/u.test(cleaned);
+}
+function looksLikeReviewSubsetPath(value) {
+  const cleaned = value.trim().replace(/^[<("'`]+/u, "").replace(/[>"'`),.;:!?]+$/u, "");
+  if (cleaned.length === 0 || /^https?:\/\//iu.test(cleaned))
+    return false;
+  return looksLikeReviewPath(cleaned) || /^\.[A-Za-z0-9_-]+$/u.test(cleaned) || /[*?[\]]/u.test(cleaned) || /^(?:\.\.\/)+[^\s]+$/u.test(cleaned) || /^(?:apps?|assets?|build|changelogs?|config(?:uration)?|dist|docs?|examples?|fixtures?|generated|lib|lockfiles?|migrations?|node_modules|packages?|scripts?|snapshots?|sources?|src|tests?|vendor)\/?$/iu.test(cleaned);
+}
+function topLevelReviewMaterialTail(scope) {
+  const firstLead = new RegExp(String.raw`\b${REVIEW_LEAD}\b`, "iu").exec(scope);
+  if (firstLead === null)
+    return void 0;
+  const clause = scope.slice(firstLead.index);
+  const artifact = /^(?:review|inspect|audit|check|analyze)\s+(?:of\s+)?(?:(?:a|an|the|this|these|my|our|current|supplied|provided|following|below|attached|pasted|written|included|enclosed|draft|rollout|release|proposed|updated|final|technical|design|quoted)\s+){0,6}(?:artifact|brief|code|docs?|documentation|excerpt|file|instructions?|patch|plan|proposal|quotation|quote|report|request|snippet|spec(?:ification)?|text)\b(?<tail>[\s\S]*)$/iu.exec(clause);
+  if (artifact?.groups?.tail !== void 0)
+    return artifact.groups.tail;
+  const direct = /^(?:review|inspect|audit|check|analyze)\s*(?<tail>(?::|(?:—|--)\s|["`]|```|\r?\n)[\s\S]*)$/iu.exec(clause);
+  return direct?.groups?.tail;
+}
+function materialAfterBoundary(tail) {
+  const direct = tail.trimStart();
+  if (/^(?:"|`|```)/u.test(direct))
+    return direct;
+  const boundary = /:(?=\s|["'`[{\n\r]|$)|\r?\n|(?:^|\s)(?:—|--)(?=\s|$)/u.exec(tail);
+  if (boundary === null)
+    return void 0;
+  return tail.slice(boundary.index + boundary[0].length).trimStart();
+}
+function closingUnescapedQuote(value, quote) {
+  for (let index = 1; index < value.length; index += 1) {
+    if (value[index] !== quote)
+      continue;
+    let backslashes = 0;
+    for (let cursor = index - 1; cursor >= 0 && value[cursor] === "\\"; cursor -= 1) {
+      backslashes += 1;
+    }
+    if (backslashes % 2 === 0)
+      return index;
+  }
+  return -1;
+}
+function classifyReviewMaterialBody(body) {
+  const trimmed = body.trim();
+  if (trimmed.length === 0)
+    return { kind: "empty" };
+  let material = trimmed;
+  if (trimmed.startsWith("```")) {
+    const openingLineEnd = trimmed.indexOf("\n");
+    const closingFence = openingLineEnd < 0 ? -1 : trimmed.indexOf("```", openingLineEnd + 1);
+    if (openingLineEnd < 0 || closingFence < 0) {
+      return {
+        kind: "malformed",
+        reason: "Review supplied material has an unclosed code fence."
+      };
+    }
+    material = trimmed.slice(openingLineEnd + 1, closingFence).trim();
+  } else {
+    const opening = trimmed[0];
+    if (opening === '"' || opening === "'" || opening === "`") {
+      const closing = closingUnescapedQuote(trimmed, opening);
+      if (closing < 0) {
+        return {
+          kind: "malformed",
+          reason: "Review supplied material has an unclosed quote."
+        };
+      }
+      material = trimmed.slice(1, closing).trim();
+    }
+  }
+  if (material.length === 0)
+    return { kind: "empty" };
+  if (looksLikeReviewSubsetPath(material))
+    return { kind: "missing" };
+  return { kind: "supplied" };
+}
+function classifySuppliedReviewMaterial(scope) {
+  const tail = topLevelReviewMaterialTail(scope);
+  if (tail === void 0)
+    return { kind: "none" };
+  const body = materialAfterBoundary(tail);
+  if (body === void 0)
+    return { kind: "missing" };
+  return classifyReviewMaterialBody(body);
+}
+function namesPullRequest(scope) {
+  if (/\b(?:prs?|pull\s+requests?)\b/iu.test(scope))
+    return true;
+  if (/https?:\/\/\S*\/pull\/\d{1,7}\b/iu.test(scope))
+    return true;
+  return new RegExp(String.raw`\b${REVIEW_LEAD}\s+(?:(?:the|this|that|my|our)\s+)?#\d{1,7}\b`, "iu").test(scope);
+}
+function rangeTargetFromToken(token) {
+  const withoutSentencePunctuation = token.replace(/[,;:!?]+$/u, "");
+  const cleaned = withoutSentencePunctuation.endsWith(".") && !withoutSentencePunctuation.endsWith("..") ? withoutSentencePunctuation.slice(0, -1) : withoutSentencePunctuation;
+  const separator = cleaned.includes("...") ? "..." : "..";
+  const separatorIndex = cleaned.indexOf(separator);
+  if (separatorIndex < 0)
+    return void 0;
+  const base = cleaned.slice(0, separatorIndex);
+  const head = cleaned.slice(separatorIndex + separator.length);
+  if (base.length === 0 || head.length === 0)
+    return void 0;
+  if (!isSafeReviewRef(base) || !isSafeReviewRef(head))
+    return void 0;
+  if (RANGE_FILLER_WORDS.has(base.toLowerCase()) || RANGE_FILLER_WORDS.has(head.toLowerCase())) {
+    return void 0;
+  }
+  return { kind: "range", base, head, dots: separator };
+}
+function parseRangeForm(scope) {
+  for (const match of scope.matchAll(/(?<=^|[\s(["'])(?<token>[A-Za-z0-9][A-Za-z0-9._/@+~^-]{0,240}\.{2,3}[A-Za-z0-9][A-Za-z0-9._/@+~^-]{0,240})/gu)) {
+    const token = match.groups?.token;
+    if (token === void 0)
+      continue;
+    const target = rangeTargetFromToken(token);
+    if (target !== void 0)
+      return target;
+  }
+  return void 0;
+}
+function parseCommitForm(scope) {
+  if (LATEST_COMMIT_PATTERN.test(scope)) {
+    return { ok: true, target: { kind: "commit", ref: HEAD_COMMIT_REF } };
+  }
+  const keyword = /\b(?:commit|revision|rev)\s+(?:at\s+)?(?<ref>[^\s,;:!?)"'`]{1,240})/iu.exec(scope)?.groups?.ref;
+  if (keyword !== void 0) {
+    const ref = keyword.replace(/[.,;:!?)"'`]+$/u, "");
+    if (ref.length > 0) {
+      if (!isSafeReviewRef(ref)) {
+        return {
+          ok: false,
+          reason: `Review target names an unusable commit ref: ${ref}. Use a commit id, a tag, a branch name, or HEAD.`
+        };
+      }
+      return { ok: true, target: { kind: "commit", ref } };
+    }
+  }
+  return void 0;
+}
+function parseBareHeadForm(scope) {
+  const head = /(?<=^|[\s(["'])(?<ref>HEAD(?:[~^]\d*)*)(?=$|[\s,;:!?)\]"'`])/u.exec(scope)?.groups?.ref;
+  return head === void 0 ? void 0 : { kind: "commit", ref: head };
+}
+function parseWorkingTreeForm(scope) {
+  const staged = /(?<!\bnot[- ])(?<![\w-])staged\b/iu.test(scope);
+  const unstaged = /\b(?:unstaged|not[- ]staged)\b/iu.test(scope);
+  if (staged && unstaged) {
+    return { kind: "working_tree", mode: "all", explicit: true };
+  }
+  if (unstaged)
+    return { kind: "working_tree", mode: "unstaged", explicit: true };
+  if (staged)
+    return { kind: "working_tree", mode: "staged", explicit: true };
+  if (/\b(?:working[- ]tree|worktree|uncommitted\s+(?:changes?|work|files?)|current\s+(?:diff|changes?|work))\b/iu.test(scope)) {
+    return { kind: "working_tree", mode: "all", explicit: true };
+  }
+  return void 0;
+}
+function namesNarrowedPaths(scope) {
+  if (EXCLUDED_CHANGE_CLASS_PATTERN.test(scope))
+    return true;
+  for (const match of scope.matchAll(NARROWING_CLAUSE_PATTERN)) {
+    const path = match.groups?.path;
+    if (path !== void 0 && looksLikeReviewSubsetPath(path))
+      return true;
+  }
+  return false;
+}
+function namesPathOnlyRequest(scope) {
+  const pathOnly = /^\s*(?:review|inspect|audit|check|analyze)\s+(?:(?:only|the|this|my|our|current)\s+)*(?:(?:file|code|plan|report)\s*(?:(?:in|at|from)\s+|:\s*)?)?(?<path>\S+)(?<suffix>[\s\S]*)$/iu.exec(scope);
+  const path = pathOnly?.groups?.path;
+  if (path !== void 0 && looksLikeReviewPath(path)) {
+    const suffix = (pathOnly?.groups?.suffix ?? "").trim();
+    if (suffix.length === 0 || /^[.!?]$/u.test(suffix) || /^(?:,?\s*(?:for|with|especially)\b|,?\s+and\s+(?:focus|check|inspect|look|pay|prioritize|verify)\b)/iu.test(suffix)) {
+      return true;
+    }
+  }
+  return false;
+}
+function parseReviewTarget(scope) {
+  const normalizedScope = normalizeReviewQuotes(scope);
+  const suppliedMaterial = classifySuppliedReviewMaterial(normalizedScope);
+  if (suppliedMaterial.kind === "supplied") {
+    return { ok: true, target: { kind: "goal" } };
+  }
+  if (suppliedMaterial.kind === "malformed") {
+    return { ok: false, reason: suppliedMaterial.reason };
+  }
+  if (suppliedMaterial.kind === "empty") {
+    return {
+      ok: false,
+      reason: "Review was asked to inspect supplied material, but the goal ends before any material appears. Paste the text to review, or name a commit, a range, staged, or unstaged."
+    };
+  }
+  const authorityScope = maskReviewLiteralData(normalizedScope);
+  if (namesPullRequest(authorityScope)) {
+    return { ok: false, reason: PULL_REQUEST_UNSUPPORTED_REASON };
+  }
+  if (namesNarrowedPaths(authorityScope)) {
+    return { ok: false, reason: PATH_SUBSET_UNSUPPORTED_REASON };
+  }
+  const range = parseRangeForm(authorityScope);
+  const pinned = range === void 0 ? parseCommitForm(authorityScope) : { ok: true, target: range };
+  if (pinned !== void 0 && !pinned.ok)
+    return pinned;
+  const workingTree = parseWorkingTreeForm(authorityScope);
+  if (pinned !== void 0 && workingTree !== void 0) {
+    return {
+      ok: false,
+      reason: "Review pins one target per run, and this goal names two. Run it once for the commit or range, then again for the working tree."
+    };
+  }
+  if (pinned !== void 0)
+    return pinned;
+  if (workingTree !== void 0)
+    return { ok: true, target: workingTree };
+  const bareHead = parseBareHeadForm(authorityScope);
+  if (bareHead !== void 0)
+    return { ok: true, target: bareHead };
+  if (namesPathOnlyRequest(authorityScope)) {
+    return { ok: false, reason: PATH_SUBSET_UNSUPPORTED_REASON };
+  }
+  return {
+    ok: true,
+    target: { kind: "working_tree", mode: "all", explicit: false },
+    assumed: true
+  };
+}
+function reviewTargetLabel(target) {
+  if (target.kind === "commit")
+    return `commit ${target.ref}`;
+  return `range ${target.base}${target.dots}${target.head}`;
+}
+function runtimeTarget(target) {
+  if (target.kind === "goal" || target.kind === "working_tree")
+    return void 0;
+  if (target.kind === "commit")
+    return { kind: "commit", ref: target.ref };
+  return { kind: "range", base: target.base, head: target.head, dots: target.dots };
+}
+function resolveTargetArgs(target) {
+  if (target.kind === "commit") {
+    return ["rev-parse", "--verify", "--end-of-options", `${target.ref}^{commit}`];
+  }
+  return [
+    "rev-parse",
+    "--revs-only",
+    "--end-of-options",
+    `${target.base}^{commit}..${target.head}^{commit}`
+  ];
+}
+function resolvedObjectId(value, label) {
+  if (value === void 0 || !/^(?:[0-9a-f]{40}|[0-9a-f]{64})$/u.test(value)) {
+    throw new Error(`Review target unavailable: Git returned an invalid ${label}.`);
+  }
+  return value;
+}
+function parseResolvedTarget(target, output) {
+  const lines = output.trimEnd().split("\n");
+  if (target.kind === "commit") {
+    if (lines.length !== 1) {
+      throw new Error(`Review target unavailable: Git returned an invalid snapshot for commit ${target.ref}.`);
+    }
+    return {
+      kind: "commit",
+      commit: resolvedObjectId(lines[0], `commit id for ${target.ref}`)
+    };
+  }
+  if (lines.length !== 2 || !lines[1]?.startsWith("^")) {
+    throw new Error(`Review target unavailable: Git returned an invalid snapshot for range ${target.base}${target.dots}${target.head}.`);
+  }
+  return {
+    kind: "range",
+    base_commit: resolvedObjectId(lines[1].slice(1), `base commit id for ${target.base}${target.dots}${target.head}`),
+    head_commit: resolvedObjectId(lines[0], `head commit id for ${target.base}${target.dots}${target.head}`),
+    dots: target.dots
+  };
+}
+function pinnedTargetMatches(target, pinned) {
+  if (target.kind !== pinned.kind)
+    return false;
+  if (target.kind === "range" && pinned.kind === "range")
+    return target.dots === pinned.dots;
+  return true;
+}
+async function resolveTarget2(projectRoot, target, reader, directContext) {
+  if (reader === void 0) {
+    const result2 = runGit(projectRoot, resolveTargetArgs(target), {}, directContext);
+    if (!result2.ok)
+      throw new Error(`Review target unavailable: ${result2.reason}`);
+    return parseResolvedTarget(target, result2.stdout);
+  }
+  const result = await reader.read({
+    operation: "resolve_target",
+    projectRoot,
+    target
+  });
+  if (result.operation !== "resolve_target") {
+    throw new Error(`Review target unavailable: Git reader returned ${result.operation} for resolve_target.`);
+  }
+  if (!runtimeGitTextIsValidUtf8(result.stdout)) {
+    throw new Error("Review target unavailable: Git target resolution output is not valid UTF-8.");
+  }
+  if (!result.cleanup_confirmed) {
+    throw new Error("Review target unavailable: Git target resolution cleanup was not confirmed.");
+  }
+  if (result.truncated) {
+    throw new Error("Review target unavailable: Git target resolution was truncated before it could be verified.");
+  }
+  if (!result.ok || result.resolved_target === void 0) {
+    const reason = result.stderr.trim();
+    throw new Error(`Review target unavailable: ${reason.length > 0 ? reason : "Git could not resolve the requested target."}`);
+  }
+  if (!pinnedTargetMatches(target, result.resolved_target)) {
+    throw new Error("Review target unavailable: Git resolved a different target shape.");
+  }
+  return result.resolved_target;
+}
+function rawCommitParent(output, commit) {
+  const header = output.split("\n\n", 1)[0] ?? "";
+  const lines = header.split("\n");
+  if (!/^(?:tree) (?:[0-9a-f]{40}|[0-9a-f]{64})$/u.test(lines[0] ?? "")) {
+    throw new Error(`Review target unavailable: Git returned malformed raw commit data for ${commit}.`);
+  }
+  const parents = lines.filter((line) => line.startsWith("parent ")).map((line) => resolvedObjectId(line.slice("parent ".length), `parent commit id for ${commit}`));
+  return parents[0] ?? null;
+}
+function assertDirectGitMetadataSafe(context) {
+  for (const directory of /* @__PURE__ */ new Set([context.gitDir, context.commonDir])) {
+    for (const metadataPath of ["objects", "objects/info", "objects/pack"]) {
+      try {
+        if (lstatSync6(join16(directory, metadataPath)).isSymbolicLink()) {
+          throw new Error(`Review target unavailable: Git metadata path ${metadataPath} is a symbolic link.`);
+        }
+      } catch (error52) {
+        if (error52.code === "ENOENT")
+          continue;
+        throw error52;
+      }
+    }
+    for (const [metadataPath, message] of [
+      [
+        "objects/info/alternates",
+        "Git object alternates can escape the selected repository and are not supported."
+      ],
+      [
+        "info/grafts",
+        "Legacy Git graft metadata can rewrite commit ancestry and is not supported."
+      ]
+    ]) {
+      try {
+        lstatSync6(join16(directory, metadataPath));
+      } catch (error52) {
+        if (error52.code === "ENOENT")
+          continue;
+        throw new Error(`Review target unavailable: Git metadata path ${metadataPath} could not be checked. ${errorMessage3(error52)}`);
+      }
+      throw new Error(`Review target unavailable: ${message}`);
+    }
+  }
+}
+function prepareDirectTarget(projectRoot, target, directContext) {
+  if (target.kind !== "commit")
+    return target;
+  const raw = runGit(projectRoot, ["cat-file", "commit", target.commit], {}, directContext);
+  if (!raw.ok) {
+    throw new Error(`Review target unavailable: commit ${target.commit} could not be inspected. ${raw.reason}`);
+  }
+  return {
+    kind: "commit",
+    commit: target.commit,
+    parent_commit: rawCommitParent(raw.stdout, target.commit)
+  };
+}
+function targetDiffArgs(target, stat3 = false) {
+  const statArgs = stat3 ? ["--stat"] : [];
+  if (target.kind === "commit") {
+    if (target.parent_commit !== null) {
+      return [
+        "diff",
+        ...statArgs,
+        "--no-ext-diff",
+        "--no-textconv",
+        "--submodule=short",
+        "--ignore-submodules=none",
+        `${target.parent_commit}^{commit}`,
+        `${target.commit}^{commit}`,
+        "--"
+      ];
+    }
+    return [
+      "show",
+      "--format=",
+      ...statArgs,
+      "--no-ext-diff",
+      "--no-textconv",
+      "--submodule=short",
+      "--ignore-submodules=none",
+      "--root",
+      `${target.commit}^{commit}`,
+      "--"
+    ];
+  }
+  return [
+    "diff",
+    ...statArgs,
+    "--no-ext-diff",
+    "--no-textconv",
+    "--submodule=short",
+    "--ignore-submodules=none",
+    `${target.base_commit}${target.dots}${target.head_commit}`,
+    "--"
+  ];
+}
+function targetUnavailableMessage(target) {
+  return `Review target unavailable: ${reviewTargetLabel(target)} could not be read from this repository.`;
+}
+async function collectTargetEvidence(projectRoot, target, reader, directContext) {
+  const requestTarget = runtimeTarget(target);
+  if (requestTarget === void 0) {
+    throw new Error("Review target unavailable: the requested Git target could not be prepared.");
+  }
+  const pinnedTarget = await resolveTarget2(projectRoot, requestTarget, reader, directContext);
+  const evidenceResults = reader === void 0 ? (() => {
+    const directTarget = prepareDirectTarget(projectRoot, pinnedTarget, directContext);
+    return {
+      diff: runGit(projectRoot, targetDiffArgs(directTarget), {
+        maxBufferBytes: MAX_DIFF_BUFFER_BYTES,
+        allowPartialStdout: true
+      }, directContext),
+      diffStat: runGit(projectRoot, targetDiffArgs(directTarget, true), {}, directContext)
+    };
+  })() : {
+    diff: await readGit(reader, "target_diff", projectRoot, pinnedTarget),
+    diffStat: await readGit(reader, "target_diff_stat", projectRoot, pinnedTarget)
+  };
+  const { diff: diff2, diffStat } = evidenceResults;
+  if (!diff2.ok) {
+    throw new Error(`${targetUnavailableMessage(target)} ${diff2.reason}`);
+  }
+  if (!diffStat.ok) {
+    throw new Error(`${targetUnavailableMessage(target)} ${diffStat.reason}`);
+  }
+  const targetDiff = gitDiffEvidence(diff2);
+  if (targetDiff.text.length === 0) {
+    throw new Error(`Review target has no changes to inspect: ${reviewTargetLabel(target)} resolved successfully but produced an empty diff.`);
+  }
+  return { targetDiff, targetDiffStat: diffStat.stdout, pinnedTarget };
 }
 function gitDiffEvidence(result) {
   if (!result.ok)
@@ -85078,48 +86146,152 @@ function printableStatus(status) {
 }
 function insideProject(projectRoot, path) {
   const rel = relative9(projectRoot, path);
-  return rel === "" || !rel.startsWith("..") && !isAbsolute9(rel);
+  return rel === "" || rel !== ".." && !rel.startsWith(`..${sep4}`) && !isAbsolute9(rel);
+}
+function hiddenIndexFlagsFromOutput(projectRoot, output) {
+  if (output.length === 0)
+    return Object.freeze([]);
+  if (!output.endsWith("\0")) {
+    throw new Error("Review target unavailable: Git returned malformed hidden index flag output.");
+  }
+  const flags = [];
+  const seenPaths = /* @__PURE__ */ new Set();
+  for (const entry of output.slice(0, -1).split("\0")) {
+    const tag = entry[0];
+    const path = entry.slice(2);
+    if (tag === void 0 || !/^[HSMRCK?hsmrck]$/u.test(tag) || entry[1] !== " " || path.length === 0 || isAbsolute9(path) || !insideProject(projectRoot, resolve14(projectRoot, path)) || seenPaths.has(path)) {
+      throw new Error("Review target unavailable: Git returned malformed hidden index flag output.");
+    }
+    seenPaths.add(path);
+    const assumeUnchanged = /^[hsmrck]$/u.test(tag);
+    const skipWorktree = tag === "S" || tag === "s";
+    if (assumeUnchanged || skipWorktree)
+      flags.push({ tag, path });
+  }
+  return Object.freeze(flags);
+}
+async function inspectHiddenIndexFlags(projectRoot, reader, directContext) {
+  const result = reader === void 0 ? runGit(projectRoot, ["ls-files", "-v", "-z", "--"], {}, directContext) : await readGit(reader, "hidden_index_flags", projectRoot);
+  if (!result.ok) {
+    throw new Error(`Review target unavailable: hidden index flags could not be inspected. ${result.reason}`);
+  }
+  return {
+    result,
+    flags: hiddenIndexFlagsFromOutput(projectRoot, result.stdout)
+  };
+}
+function assertNoHiddenIndexFlags(flags) {
+  if (flags.length === 0)
+    return;
+  const paths = flags.map((flag) => JSON.stringify(flag.path)).join(", ");
+  throw new Error(`Review target unavailable: tracked paths use assume-unchanged or skip-worktree and can hide working-tree changes: ${paths}. Clear those flags with git update-index --no-assume-unchanged or --no-skip-worktree, then retry Review.`);
+}
+function changedGitlinkPathsFromRaw(projectRoot, output) {
+  if (output.length === 0)
+    return Object.freeze([]);
+  if (!output.endsWith("\0")) {
+    throw new Error("Review target unavailable: Git returned malformed changed-gitlink output without a final NUL delimiter.");
+  }
+  const tokens = output.slice(0, -1).split("\0");
+  if (tokens.length % 2 !== 0) {
+    throw new Error("Review target unavailable: Git returned malformed changed-gitlink output.");
+  }
+  const paths = /* @__PURE__ */ new Set();
+  for (let index = 0; index < tokens.length; index += 2) {
+    const header = tokens[index];
+    const path = tokens[index + 1];
+    const match = /^:([0-7]{6}) ([0-7]{6}) (?:[0-9a-f]{40}|[0-9a-f]{64}) (?:[0-9a-f]{40}|[0-9a-f]{64}) ([ADMTUXB])$/u.exec(header ?? "");
+    if (match?.[1] === void 0 || match[2] === void 0 || path === void 0 || path.length === 0 || isAbsolute9(path) || !insideProject(projectRoot, resolve14(projectRoot, path))) {
+      throw new Error("Review target unavailable: Git returned malformed changed-gitlink output.");
+    }
+    if (match[1] !== "160000" && match[2] !== "160000")
+      continue;
+    if (paths.has(path)) {
+      throw new Error(`Review target unavailable: Git returned duplicate changed-gitlink path ${JSON.stringify(path)}.`);
+    }
+    paths.add(path);
+  }
+  return Object.freeze([...paths].sort());
 }
 function readUntrackedFile(projectRoot, path, contentPolicy) {
   const abs = resolve14(projectRoot, path);
   if (!insideProject(projectRoot, abs)) {
     return { path, byte_length: 0, skipped_reason: "path resolves outside project root" };
   }
-  let stat2;
+  let pathStat;
+  let canonicalProjectRoot;
   try {
-    stat2 = lstatSync6(abs);
+    pathStat = lstatSync6(abs);
+    canonicalProjectRoot = realpathSync6(projectRoot);
   } catch (err) {
     return { path, byte_length: 0, skipped_reason: `failed to inspect file: ${errorMessage3(err)}` };
   }
-  if (stat2.isSymbolicLink()) {
-    return { path, byte_length: stat2.size, skipped_reason: "symbolic link skipped" };
+  if (pathStat.isSymbolicLink()) {
+    return { path, byte_length: pathStat.size, skipped_reason: "symbolic link skipped" };
   }
-  if (!stat2.isFile()) {
-    return { path, byte_length: stat2.size, skipped_reason: "not a regular file" };
-  }
-  if (contentPolicy === "metadata-only") {
-    return { path, byte_length: stat2.size };
+  if (!pathStat.isFile()) {
+    return { path, byte_length: pathStat.size, skipped_reason: "not a regular file" };
   }
   let fd;
   try {
-    const byteLimit = Math.min(stat2.size, MAX_UNTRACKED_FILE_BYTES);
-    fd = openSync4(abs, "r");
+    const canonicalBeforeOpen = realpathSync6(abs);
+    if (!insideProject(canonicalProjectRoot, canonicalBeforeOpen)) {
+      return {
+        path,
+        byte_length: pathStat.size,
+        skipped_reason: "path resolves outside project root"
+      };
+    }
+    fd = openSync4(abs, constants4.O_RDONLY | constants4.O_NOFOLLOW);
+    const openedStat = fstatSync3(fd);
+    const pathAfterOpen = lstatSync6(abs);
+    const canonicalAfterOpen = realpathSync6(abs);
+    if (!openedStat.isFile() || pathAfterOpen.isSymbolicLink() || openedStat.dev !== pathAfterOpen.dev || openedStat.ino !== pathAfterOpen.ino || pathStat.dev !== openedStat.dev || pathStat.ino !== openedStat.ino || canonicalBeforeOpen !== canonicalAfterOpen || !insideProject(canonicalProjectRoot, canonicalAfterOpen)) {
+      return {
+        path,
+        byte_length: openedStat.size,
+        skipped_reason: "file changed while evidence was being collected"
+      };
+    }
+    if (contentPolicy === "metadata-only") {
+      return { path, byte_length: openedStat.size };
+    }
+    const byteLimit = Math.min(openedStat.size, MAX_UNTRACKED_FILE_BYTES);
     const bytes = Buffer.alloc(byteLimit);
     const bytesRead = readSync4(fd, bytes, 0, byteLimit, 0);
+    const afterReadStat = fstatSync3(fd);
+    const pathAfterRead = lstatSync6(abs);
+    if (afterReadStat.dev !== openedStat.dev || afterReadStat.ino !== openedStat.ino || afterReadStat.size !== openedStat.size || pathAfterRead.isSymbolicLink() || pathAfterRead.dev !== openedStat.dev || pathAfterRead.ino !== openedStat.ino || realpathSync6(abs) !== canonicalAfterOpen) {
+      return {
+        path,
+        byte_length: afterReadStat.size,
+        skipped_reason: "file changed while evidence was being collected"
+      };
+    }
     const sample = bytes.subarray(0, bytesRead);
     if (sample.includes(0)) {
-      return { path, byte_length: stat2.size, skipped_reason: "binary file skipped" };
+      return { path, byte_length: openedStat.size, skipped_reason: "binary file skipped" };
     }
-    const content = truncateText(sample.toString("utf8"), MAX_UNTRACKED_FILE_CHARS);
+    let decoded;
+    try {
+      decoded = decodeBoundedUtf8(sample, openedStat.size > bytesRead);
+    } catch {
+      return {
+        path,
+        byte_length: openedStat.size,
+        skipped_reason: "file content is not valid UTF-8"
+      };
+    }
+    const content = truncateText(decoded, MAX_UNTRACKED_FILE_CHARS);
     return {
       path,
-      byte_length: stat2.size,
-      content: stat2.size > bytesRead && !content.truncated ? { ...content, truncated: true } : content
+      byte_length: openedStat.size,
+      content: openedStat.size > bytesRead && !content.truncated ? { ...content, truncated: true } : content
     };
   } catch (err) {
     return {
       path,
-      byte_length: stat2.size,
+      byte_length: pathStat.size,
       skipped_reason: `failed to read file: ${errorMessage3(err)}`
     };
   } finally {
@@ -85131,10 +86303,14 @@ function readUntrackedFile(projectRoot, path, contentPolicy) {
     }
   }
 }
-async function collectUntrackedFiles(projectRoot, contentPolicy, reader) {
-  const listed = reader === void 0 ? runGit(projectRoot, ["ls-files", "--others", "--exclude-standard", "-z"]) : await readGit(reader, "untracked_files", projectRoot);
-  if (!listed.ok)
-    return { count: 0, truncated: false, files: [] };
+async function collectUntrackedFiles(projectRoot, contentPolicy, reader, directContext) {
+  const listed = reader === void 0 ? runGit(projectRoot, ["ls-files", "--others", "--exclude-standard", "-z"], {}, directContext) : await readGit(reader, "untracked_files", projectRoot);
+  if (!listed.ok) {
+    throw new Error(`Review target unavailable: untracked files could not be enumerated. ${listed.reason}`);
+  }
+  if (listed.truncated_by_buffer) {
+    throw new Error("Review target unavailable: the untracked file listing was truncated before it could be verified.");
+  }
   const paths = listed.stdout.split("\0").filter((path) => path.length > 0);
   return {
     count: paths.length,
@@ -85142,38 +86318,184 @@ async function collectUntrackedFiles(projectRoot, contentPolicy, reader) {
     files: paths.slice(0, MAX_UNTRACKED_FILES).map((path) => readUntrackedFile(projectRoot, path, contentPolicy))
   };
 }
-async function collectReviewEvidence(projectRoot, options = {}) {
+async function collectReviewEvidence(projectRoot, options) {
+  const target = options.target;
+  if (target.kind === "goal")
+    return { kind: "goal" };
   if (projectRoot === void 0) {
+    const targetLabel = target.kind === "working_tree" ? `${target.mode === "all" ? "working tree" : target.mode} changes` : reviewTargetLabel(target);
+    throw new Error(`Review target unavailable: ${targetLabel} cannot be read because the workspace root was not provided.`);
+  }
+  const directContext = options.gitReader === void 0 ? prepareDirectGitContext(projectRoot) : void 0;
+  if (directContext !== void 0)
+    assertDirectGitMetadataSafe(directContext);
+  const evidenceRoot = directContext?.workTree ?? projectRoot;
+  if (target.kind !== "working_tree") {
+    const targetEvidence = await collectTargetEvidence(evidenceRoot, target, options.gitReader, directContext);
     return {
-      kind: "unavailable",
-      reason: "CompiledFlowInvocation.projectRoot was not provided"
+      kind: "git-target",
+      project_root: evidenceRoot,
+      target_kind: target.kind,
+      target_ref: reviewTargetLabel(target),
+      ...target.kind === "range" ? {
+        target_base_ref: target.base,
+        target_head_ref: target.head
+      } : {},
+      ...targetEvidence.pinnedTarget.kind === "commit" ? { target_commit: targetEvidence.pinnedTarget.commit } : {
+        target_base_commit: targetEvidence.pinnedTarget.base_commit,
+        target_head_commit: targetEvidence.pinnedTarget.head_commit
+      },
+      target_diff: targetEvidence.targetDiff,
+      target_diff_stat: targetEvidence.targetDiffStat
     };
   }
-  const status = options.gitReader === void 0 ? runGit(projectRoot, ["status", "--short"]) : await readGit(options.gitReader, "status", projectRoot);
-  if (!status.ok)
-    return { kind: "unavailable", reason: status.reason };
-  const staged = options.gitReader === void 0 ? runGitDiff(projectRoot, ["diff", "--cached", "--no-ext-diff", "--"]) : gitDiffEvidence(await readGit(options.gitReader, "staged_diff", projectRoot));
-  const unstaged = options.gitReader === void 0 ? runGitDiff(projectRoot, ["diff", "--no-ext-diff", "--"]) : gitDiffEvidence(await readGit(options.gitReader, "unstaged_diff", projectRoot));
-  const diffStat = options.gitReader === void 0 ? runGit(projectRoot, ["diff", "--stat", "--cached", "--no-ext-diff"]) : await readGit(options.gitReader, "staged_diff_stat", projectRoot);
+  const emptyDiffResult = { ok: true, stdout: "", truncated_by_buffer: false };
+  const hiddenIndex = await inspectHiddenIndexFlags(evidenceRoot, options.gitReader, directContext);
+  assertNoHiddenIndexFlags(hiddenIndex.flags);
+  const readDiff = async (operation, directArgs) => options.gitReader === void 0 ? runGit(evidenceRoot, directArgs, {
+    maxBufferBytes: MAX_DIFF_BUFFER_BYTES,
+    allowPartialStdout: true
+  }, directContext) : await readGit(options.gitReader, operation, evidenceRoot);
+  const readStat = async (operation, directArgs) => options.gitReader === void 0 ? runGit(evidenceRoot, directArgs, {}, directContext) : await readGit(options.gitReader, operation, evidenceRoot);
+  const readChangedGitlinks = async (operation, directArgs) => options.gitReader === void 0 ? runGit(evidenceRoot, directArgs, {}, directContext) : await readGit(options.gitReader, operation, evidenceRoot);
+  const stagedDiffArgs = [
+    "diff",
+    "--cached",
+    "--no-ext-diff",
+    "--no-textconv",
+    "--submodule=short",
+    "--ignore-submodules=none",
+    "--"
+  ];
+  const unstagedDiffArgs = [
+    "diff",
+    "--no-ext-diff",
+    "--no-textconv",
+    "--submodule=short",
+    "--ignore-submodules=none",
+    "--"
+  ];
+  const stagedChangedGitlinkArgs = [
+    "diff",
+    "--raw",
+    "-z",
+    "--no-abbrev",
+    "--no-renames",
+    "--no-ext-diff",
+    "--no-textconv",
+    "--ignore-submodules=none",
+    "--cached",
+    "--"
+  ];
+  const unstagedChangedGitlinkArgs = [
+    "diff",
+    "--raw",
+    "-z",
+    "--no-abbrev",
+    "--no-renames",
+    "--no-ext-diff",
+    "--no-textconv",
+    "--ignore-submodules=none",
+    "--"
+  ];
+  const readStatus = async () => options.gitReader === void 0 ? runGit(evidenceRoot, ["status", "--short", "--ignore-submodules=none"], {}, directContext) : await readGit(options.gitReader, "status", evidenceRoot);
+  const status = target.mode === "all" ? await readStatus() : { ok: true, stdout: "", truncated_by_buffer: false };
+  if (!status.ok) {
+    throw new Error(`Review target unavailable: Git status could not be read. ${status.reason}`);
+  }
+  const stagedResult = target.mode === "unstaged" ? emptyDiffResult : await readDiff("staged_diff", stagedDiffArgs);
+  const unstagedResult = target.mode === "staged" ? emptyDiffResult : await readDiff("unstaged_diff", unstagedDiffArgs);
+  if (!stagedResult.ok) {
+    throw new Error(`Review target unavailable: staged changes could not be read. ${stagedResult.reason}`);
+  }
+  if (!unstagedResult.ok) {
+    throw new Error(`Review target unavailable: unstaged changes could not be read. ${unstagedResult.reason}`);
+  }
+  const staged = gitDiffEvidence(stagedResult);
+  const unstaged = gitDiffEvidence(unstagedResult);
+  const stagedStat = target.mode === "unstaged" ? { ok: true, stdout: "", truncated_by_buffer: false } : await readStat("staged_diff_stat", [
+    "diff",
+    "--stat",
+    "--cached",
+    "--no-ext-diff",
+    "--no-textconv",
+    "--submodule=short",
+    "--ignore-submodules=none",
+    "--"
+  ]);
+  const unstagedStat = target.mode === "staged" ? { ok: true, stdout: "", truncated_by_buffer: false } : await readStat("unstaged_diff_stat", [
+    "diff",
+    "--stat",
+    "--no-ext-diff",
+    "--no-textconv",
+    "--submodule=short",
+    "--ignore-submodules=none",
+    "--"
+  ]);
+  if (!stagedStat.ok) {
+    throw new Error(`Review target unavailable: the staged change summary could not be read. ${stagedStat.reason}`);
+  }
+  if (!unstagedStat.ok) {
+    throw new Error(`Review target unavailable: the unstaged change summary could not be read. ${unstagedStat.reason}`);
+  }
+  const stagedChangedGitlinks = target.mode === "unstaged" ? emptyDiffResult : await readChangedGitlinks("staged_changed_gitlinks", stagedChangedGitlinkArgs);
+  const unstagedChangedGitlinks = target.mode === "staged" ? emptyDiffResult : await readChangedGitlinks("unstaged_changed_gitlinks", unstagedChangedGitlinkArgs);
+  if (!stagedChangedGitlinks.ok) {
+    throw new Error(`Review target unavailable: staged submodule gitlinks could not be inspected. ${stagedChangedGitlinks.reason}`);
+  }
+  if (!unstagedChangedGitlinks.ok) {
+    throw new Error(`Review target unavailable: unstaged submodule gitlinks could not be inspected. ${unstagedChangedGitlinks.reason}`);
+  }
+  const submodulePaths = Object.freeze([
+    .../* @__PURE__ */ new Set([
+      ...changedGitlinkPathsFromRaw(evidenceRoot, stagedChangedGitlinks.stdout),
+      ...changedGitlinkPathsFromRaw(evidenceRoot, unstagedChangedGitlinks.stdout)
+    ])
+  ].sort());
   const untrackedContentPolicy = options.includeUntrackedFileContent === true ? "include-content" : "metadata-only";
-  const untracked = await collectUntrackedFiles(projectRoot, untrackedContentPolicy, options.gitReader);
+  const untracked = target.mode === "all" ? await collectUntrackedFiles(evidenceRoot, untrackedContentPolicy, options.gitReader, directContext) : { count: 0, truncated: false, files: [] };
+  const selectedTrackedContentAvailable = staged.text.length > 0 || unstaged.text.length > 0;
+  const selectedUntrackedContentAvailable = untracked.files.some((file2) => (file2.content?.text.length ?? 0) > 0);
+  const selectedContentAvailable = selectedTrackedContentAvailable || selectedUntrackedContentAvailable;
+  if (target.mode === "all" && !selectedTrackedContentAvailable && untracked.count > 0 && untrackedContentPolicy === "metadata-only") {
+    throw new Error("Review selected only untracked files, but their contents were not authorized for relay. After confirming those files are safe to share, retry with --include-untracked-content (or set include_untracked_content: true through MCP with explicit consent).");
+  }
+  if (target.mode === "all" && !selectedContentAvailable && untracked.files.some((file2) => file2.skipped_reason !== void 0)) {
+    const reasons = [
+      ...new Set(untracked.files.map((file2) => file2.skipped_reason).filter((reason) => reason !== void 0))
+    ];
+    throw new Error(`Review target has no usable content to inspect because selected untracked files could not be read safely: ${reasons.join("; ")}.`);
+  }
+  if (!selectedContentAvailable) {
+    throw new Error(target.explicit ? `Review target has no changes to inspect: ${target.mode === "all" ? "working tree changes" : `${target.mode} changes`} are empty.` : "Review found no changes to inspect. The goal did not name a target, so Review looked at the working tree. Name a commit, a range, staged, or unstaged if you meant a different target.");
+  }
+  const statSections = [
+    ...stagedStat.ok && stagedStat.stdout.length > 0 ? [`Staged:
+${stagedStat.stdout}`] : [],
+    ...unstagedStat.ok && unstagedStat.stdout.length > 0 ? [`Unstaged:
+${unstagedStat.stdout}`] : []
+  ];
   return {
     kind: "git-working-tree",
-    project_root: projectRoot,
+    project_root: evidenceRoot,
     status_short: printableStatus(status.stdout),
     staged_diff: staged,
     unstaged_diff: unstaged,
-    diff_stat: diffStat.ok ? diffStat.stdout : diffStat.reason,
+    diff_stat: statSections.join("\n"),
+    target_kind: "working_tree",
+    target_mode: target.mode,
     untracked_file_count: untracked.count,
     untracked_files_truncated: untracked.truncated,
     untracked_content_policy: untrackedContentPolicy,
-    untracked_files: untracked.files
+    untracked_files: untracked.files,
+    ...submodulePaths.length === 0 ? {} : { submodule_paths: [...submodulePaths] }
   };
 }
-var MAX_DIFF_CHARS, MAX_UNTRACKED_FILES, MAX_UNTRACKED_FILE_CHARS, MAX_GIT_BUFFER_BYTES, MAX_DIFF_BUFFER_BYTES, MAX_UNTRACKED_FILE_BYTES, reviewIntakeComposeBuilder;
+var MAX_DIFF_CHARS, MAX_UNTRACKED_FILES, MAX_UNTRACKED_FILE_CHARS, MAX_GIT_BUFFER_BYTES, MAX_DIFF_BUFFER_BYTES, MAX_UNTRACKED_FILE_BYTES, DIRECT_GIT_TIMEOUT_MS, HEAD_COMMIT_REF, SAFE_REVIEW_REF_PATTERN, REVIEW_LEAD, PULL_REQUEST_UNSUPPORTED_REASON, PATH_SUBSET_UNSUPPORTED_REASON, RANGE_FILLER_WORDS, LATEST_COMMIT_PATTERN, RESTRICTION_LEAD_IN, EXCLUSION_LEAD_IN, NARROWING_CLAUSE_PATTERN, EXCLUDED_CHANGE_CLASS_PATTERN, reviewIntakeComposeBuilder;
 var init_intake2 = __esm({
   "dist/flows/review/writers/intake.js"() {
     "use strict";
+    init_runtime_git_reader();
     init_intake_projection();
     MAX_DIFF_CHARS = 12e4;
     MAX_UNTRACKED_FILES = 20;
@@ -85181,17 +86503,61 @@ var init_intake2 = __esm({
     MAX_GIT_BUFFER_BYTES = 10 * 1024 * 1024;
     MAX_DIFF_BUFFER_BYTES = Math.max(MAX_DIFF_CHARS * 4, 1024 * 1024);
     MAX_UNTRACKED_FILE_BYTES = MAX_UNTRACKED_FILE_CHARS + 1;
+    DIRECT_GIT_TIMEOUT_MS = 3e4;
+    HEAD_COMMIT_REF = "HEAD";
+    SAFE_REVIEW_REF_PATTERN = /^[A-Za-z0-9._/@+~^-]{1,120}$/u;
+    REVIEW_LEAD = String.raw`(?:review|inspect|audit|check|analyze)`;
+    PULL_REQUEST_UNSUPPORTED_REASON = "Review cannot fetch a pull request. Check out the PR branch locally, then review the working tree or an explicit range such as main...HEAD.";
+    PATH_SUBSET_UNSUPPORTED_REASON = "Review cannot narrow its evidence to part of a target. Review the whole working tree, a commit, or a range instead, and name the paths you care about in the goal so the reviewer concentrates there.";
+    RANGE_FILLER_WORDS = /* @__PURE__ */ new Set([
+      "and",
+      "anything",
+      "especially",
+      "everything",
+      "focus",
+      "including",
+      "it",
+      "maybe",
+      "now",
+      "ok",
+      "okay",
+      "or",
+      "perhaps",
+      "please",
+      "so",
+      "something",
+      "that",
+      "then",
+      "these",
+      "this",
+      "those",
+      "wait",
+      "well",
+      "what"
+    ]);
+    LATEST_COMMIT_PATTERN = /\b(?:(?:the|my|our)\s+)?(?:latest|last|most\s+recent)\s+commit\b|\bwhat\s+i\s+just\s+committed\b|\b(?:the\s+)?commit\s+i\s+just\s+made\b|\bwhat\s+changed\s+in\s+(?:the\s+)?last\s+commit\b/iu;
+    RESTRICTION_LEAD_IN = String.raw`(?:only|just|limited\s+to|restricted\s+to|scoped\s+to|confined\s+to|(?:changes?|diffs?|files?)\s+(?:in|under|below|within))`;
+    EXCLUSION_LEAD_IN = String.raw`(?:except(?:\s+for)?|excluding|ignoring|omitting|skipping|leaving\s+out|apart\s+from|aside\s+from|other\s+than|but\s+(?:do\s+not|don't|never)\s+(?:review|include|inspect|read|look\s+at)|but(?:\s+not)?)`;
+    NARROWING_CLAUSE_PATTERN = new RegExp(String.raw`\b(?:${RESTRICTION_LEAD_IN}|${EXCLUSION_LEAD_IN})\s+(?:(?:in|inside|under|within|below)\s+)?(?:the\s+)?(?<path>[^\s,;!?]+)`, "giu");
+    EXCLUDED_CHANGE_CLASS_PATTERN = new RegExp(String.raw`\b${EXCLUSION_LEAD_IN}\s+(?:any\s+|all\s+|the\s+)?(?:untracked|tracked|staged|unstaged|committed|new|deleted|renamed)\b`, "iu");
     reviewIntakeComposeBuilder = {
       resultSchemaName: "review.intake@v1",
       async build(context) {
+        const parsedTarget = parseReviewTarget(context.goal);
+        if (!parsedTarget.ok)
+          throw new Error(parsedTarget.reason);
+        const target = parsedTarget.target;
         const evidence2 = await collectReviewEvidence(context.projectRoot, {
           ...context.evidencePolicy?.includeUntrackedFileContent === true ? { includeUntrackedFileContent: true } : {},
+          target,
           ...context.gitReader === void 0 ? {} : { gitReader: context.gitReader }
         });
         return projectReviewIntake({
           scope: context.goal,
+          target,
           evidence: evidence2,
-          maxUntrackedFiles: MAX_UNTRACKED_FILES
+          maxUntrackedFiles: MAX_UNTRACKED_FILES,
+          ...parsedTarget.assumed === true ? { assumedTarget: true } : {}
         });
       }
     };
@@ -85199,37 +86565,181 @@ var init_intake2 = __esm({
 });
 
 // dist/flows/review/writers/result-projection.js
+function selectedWorkingTreeDiffIncluded(evidence2) {
+  if (evidence2.target_mode === "staged")
+    return usableDiff(evidence2.staged_diff);
+  if (evidence2.target_mode === "unstaged")
+    return usableDiff(evidence2.unstaged_diff);
+  return usableDiff(evidence2.staged_diff) || usableDiff(evidence2.unstaged_diff);
+}
+function workingTreeLayersFromStatus(status) {
+  let staged = false;
+  let unstaged = false;
+  for (const line of status.split("\n")) {
+    if (line.length < 3 || line[2] !== " ")
+      continue;
+    const indexStatus = line[0];
+    const workTreeStatus = line[1];
+    if (indexStatus !== void 0 && indexStatus !== " " && indexStatus !== "?" && indexStatus !== "!") {
+      staged = true;
+    }
+    if (workTreeStatus !== void 0 && workTreeStatus !== " " && workTreeStatus !== "?" && workTreeStatus !== "!") {
+      unstaged = true;
+    }
+  }
+  return { staged, unstaged };
+}
+function untrackedFileListIsInconsistent(evidence2) {
+  return evidence2.untracked_files_truncated ? evidence2.untracked_file_count <= evidence2.untracked_files.length : evidence2.untracked_file_count !== evidence2.untracked_files.length;
+}
 function evidenceSummary(evidence2) {
+  if (evidence2.kind === "goal")
+    return { kind: "goal" };
   if (evidence2.kind === "unavailable") {
     return { kind: "unavailable", message: evidence2.reason };
+  }
+  if (evidence2.kind === "git-target") {
+    return {
+      kind: "git-target",
+      target_kind: evidence2.target_kind,
+      target_ref: evidence2.target_ref,
+      target_diff_included: usableDiff(evidence2.target_diff),
+      target_diff_truncated: evidence2.target_diff.truncated
+    };
   }
   return {
     kind: "git-working-tree",
     untracked_content_policy: evidence2.untracked_content_policy,
     untracked_file_count: evidence2.untracked_file_count,
     untracked_files_sampled: evidence2.untracked_files.length,
-    untracked_files_truncated: evidence2.untracked_files_truncated
+    untracked_files_truncated: evidence2.untracked_files_truncated,
+    target_kind: "working_tree",
+    target_mode: evidence2.target_mode,
+    target_diff_included: selectedWorkingTreeDiffIncluded(evidence2)
+  };
+}
+function evidenceScopeMismatch(intake) {
+  const evidence2 = intake.evidence;
+  const target = intake.target;
+  const mismatch = (expected) => `the persisted evidence does not match the requested scope: expected ${expected}`;
+  if (evidence2.kind === "goal") {
+    return target.kind === "goal" ? void 0 : mismatch(`${target.kind} target evidence`);
+  }
+  if (evidence2.kind === "unavailable")
+    return void 0;
+  if (evidence2.kind === "git-target") {
+    if (target.kind === "commit" && evidence2.target_kind === "commit" && evidence2.target_ref === `commit ${target.ref}`) {
+      return void 0;
+    }
+    if (target.kind === "range" && evidence2.target_kind === "range" && evidence2.target_ref === `range ${target.base}${target.dots}${target.head}` && evidence2.target_base_ref === target.base && evidence2.target_head_ref === target.head) {
+      return void 0;
+    }
+    return mismatch(`${target.kind} target evidence`);
+  }
+  if (target.kind === "goal")
+    return mismatch("goal-only evidence");
+  if (target.kind !== "working_tree") {
+    return mismatch(`dedicated pinned ${target.kind} target evidence`);
+  }
+  return evidence2.target_mode === target.mode ? void 0 : mismatch(`${target.mode} working-tree target metadata`);
+}
+function unusableEvidenceReason(intake) {
+  const target = intake.target;
+  const requiresGitEvidence = target.kind !== "goal";
+  if (intake.evidence.kind === "unavailable" && requiresGitEvidence) {
+    return intake.evidence.reason;
+  }
+  const scopeMismatch = evidenceScopeMismatch(intake);
+  if (scopeMismatch !== void 0)
+    return scopeMismatch;
+  if (intake.evidence.kind === "git-working-tree" && target.kind === "working_tree") {
+    const selectedTrackedDiff = selectedWorkingTreeDiffIncluded(intake.evidence);
+    const selectedUntrackedContent = target.mode === "all" && intake.evidence.untracked_files.some((file2) => usableDiff(file2.content));
+    if (!selectedTrackedDiff && !selectedUntrackedContent) {
+      return `the requested ${target.mode} working-tree target has no usable selected evidence`;
+    }
+  }
+  const blockingWarning = intake.evidence_warnings.find((warning) => warning.kind === "target_unavailable" || requiresGitEvidence && warning.kind === "evidence_unavailable");
+  if (blockingWarning !== void 0)
+    return blockingWarning.message;
+  if (intake.evidence.kind === "git-target" && !usableDiff(intake.evidence.target_diff)) {
+    return `the requested target ${intake.evidence.target_ref} has no usable diff`;
+  }
+  return void 0;
+}
+function selectedEvidenceIncomplete(intake) {
+  const evidence2 = intake.evidence;
+  if (evidence2.kind === "goal" || evidence2.kind === "unavailable")
+    return false;
+  if (evidence2.kind === "git-target") {
+    return evidence2.target_diff.truncated || containsOpaqueBinaryChange(evidence2.target_diff) || containsOpaqueSubmoduleChange(evidence2.target_diff);
+  }
+  const requestedUntrackedContent2 = evidence2.untracked_content_policy === "include-content";
+  const untrackedContentIncomplete = requestedUntrackedContent2 && (evidence2.untracked_files_truncated || untrackedFileListIsInconsistent(evidence2) || evidence2.untracked_files.some((file2) => file2.content === void 0 || file2.content.truncated));
+  if (evidence2.target_mode === "staged") {
+    return evidence2.staged_diff.truncated || containsOpaqueBinaryChange(evidence2.staged_diff) || containsOpaqueSubmoduleChange(evidence2.staged_diff) || (evidence2.submodule_paths?.length ?? 0) > 0;
+  }
+  if (evidence2.target_mode === "unstaged") {
+    return evidence2.unstaged_diff.truncated || containsOpaqueBinaryChange(evidence2.unstaged_diff) || containsOpaqueSubmoduleChange(evidence2.unstaged_diff) || (evidence2.submodule_paths?.length ?? 0) > 0;
+  }
+  const statusLayers = workingTreeLayersFromStatus(evidence2.status_short);
+  return evidence2.staged_diff.truncated || evidence2.unstaged_diff.truncated || containsOpaqueBinaryChange(evidence2.staged_diff) || containsOpaqueBinaryChange(evidence2.unstaged_diff) || containsOpaqueSubmoduleChange(evidence2.staged_diff) || containsOpaqueSubmoduleChange(evidence2.unstaged_diff) || statusLayers.staged && !usableDiff(evidence2.staged_diff) || statusLayers.unstaged && !usableDiff(evidence2.unstaged_diff) || untrackedContentIncomplete || (evidence2.submodule_paths?.length ?? 0) > 0;
+}
+function incompleteEvidenceFinding(intake) {
+  if (!selectedEvidenceIncomplete(intake))
+    return void 0;
+  const warnings = intake.evidence_warnings.filter((warning) => warning.kind !== "target_assumed" && LIMITATION_WARNING_KINDS.has(warning.kind));
+  return {
+    severity: "medium",
+    id: "circuit-review-evidence-incomplete",
+    text: `Circuit could inspect only part of the selected Review target, so this Review cannot be reported as clean.${warnings.length === 0 ? "" : ` ${warnings.map((warning) => warning.message).join(" ")}`}`,
+    file_refs: [
+      ...new Set(warnings.map((warning) => warning.path).filter((path) => path !== void 0))
+    ]
   };
 }
 function projectReviewResult(input) {
-  const verdict = computeReviewVerdict(input.relayResult.findings);
+  const evidenceFailure = unusableEvidenceReason(input.intake);
+  if (evidenceFailure !== void 0) {
+    throw new Error(`Review cannot complete because its source evidence is unavailable: ${evidenceFailure}`);
+  }
+  const incompleteFinding = incompleteEvidenceFinding(input.intake);
+  const findings = incompleteFinding === void 0 ? input.relayResult.findings : [...input.relayResult.findings, incompleteFinding];
+  const circuitLimitations = input.intake.evidence_warnings.filter((warning) => LIMITATION_WARNING_KINDS.has(warning.kind)).map((warning) => warning.message);
+  if (incompleteFinding !== void 0 && circuitLimitations.length === 0) {
+    circuitLimitations.push("Circuit could inspect only part of the selected Review target.");
+  }
+  const verdict = computeReviewVerdict(findings);
   const outcome = verdict === "CLEAN" ? "complete" : "stopped";
   return ReviewResult.parse({
     scope: input.intake.scope,
-    findings: input.relayResult.findings,
+    findings,
     verdict,
     outcome,
-    assessment: input.relayResult.assessment,
+    assessment: incompleteFinding === void 0 ? input.relayResult.assessment : `Circuit could inspect only part of the selected Review target. Relay assessment: ${input.relayResult.assessment}`,
     verification: input.relayResult.verification,
-    confidence_limitations: input.relayResult.confidence_limitations,
+    confidence_limitations: [
+      .../* @__PURE__ */ new Set([...input.relayResult.confidence_limitations, ...circuitLimitations])
+    ],
     evidence_summary: evidenceSummary(input.intake.evidence),
     evidence_warnings: input.intake.evidence_warnings
   });
 }
+var LIMITATION_WARNING_KINDS;
 var init_result_projection5 = __esm({
   "dist/flows/review/writers/result-projection.js"() {
     "use strict";
     init_reports10();
+    init_evidence_completeness();
+    LIMITATION_WARNING_KINDS = /* @__PURE__ */ new Set([
+      "binary_content_not_inspected",
+      "diff_truncated",
+      "submodule_content_not_inspected",
+      "target_assumed",
+      "untracked_file_content_omitted",
+      "untracked_file_skipped",
+      "untracked_files_truncated"
+    ]);
   }
 });
 
@@ -85394,24 +86904,63 @@ function WarningList({ warnings }) {
     return (0, import_jsx_runtime13.jsx)(Summary, { text: "No evidence warnings." });
   return (0, import_jsx_runtime13.jsx)("ul", { className: "m-0 list-disc space-y-1.5 pl-4 text-[13px] leading-normal marker:text-muted-foreground/60", children: warnings.map((warning) => (0, import_jsx_runtime13.jsxs)("li", { children: [(0, import_jsx_runtime13.jsx)("strong", { children: t(warning.kind, 120) }), warning.path === void 0 ? null : (0, import_jsx_runtime13.jsxs)(import_jsx_runtime13.Fragment, { children: [" (", t(warning.path, MAX_BULLET_LEN), ")"] }), ":", " ", t(warning.message, MAX_BULLET_LEN)] }, `${warning.kind}:${warning.message}`)) });
 }
+function hasCompleteUntrackedReviewEvidence(report) {
+  const evidence2 = report.evidence_summary;
+  return evidence2?.kind === "git-working-tree" && evidence2.target_mode === "all" && evidence2.untracked_content_policy === "include-content" && evidence2.untracked_file_count > 0 && evidence2.untracked_files_sampled === evidence2.untracked_file_count && !evidence2.untracked_files_truncated;
+}
+function evidenceIsUnavailable(report) {
+  if (report.evidence_summary?.kind === "unavailable")
+    return true;
+  if (report.evidence_summary?.kind === "git-target" && !report.evidence_summary.target_diff_included) {
+    return true;
+  }
+  if (report.evidence_summary?.kind === "git-working-tree" && !report.evidence_summary.target_diff_included && !hasCompleteUntrackedReviewEvidence(report)) {
+    return true;
+  }
+  return report.evidence_warnings.some((warning) => warning.kind === "evidence_unavailable" || warning.kind === "target_unavailable" || warning.kind === "scope_empty");
+}
+function requestedUntrackedContent(report) {
+  return report.evidence_summary?.kind === "git-working-tree" && report.evidence_summary.untracked_content_policy === "include-content";
+}
+function evidenceIsIncomplete(report) {
+  if (report.evidence_summary?.kind === "git-target" && report.evidence_summary.target_diff_truncated) {
+    return true;
+  }
+  if (report.evidence_summary?.kind === "git-working-tree" && report.evidence_summary.untracked_files_truncated && requestedUntrackedContent(report)) {
+    return true;
+  }
+  return report.evidence_warnings.some((warning) => INCOMPLETE_EVIDENCE_WARNING_KINDS.has(warning.kind) || warning.kind === "untracked_files_truncated" && requestedUntrackedContent(report));
+}
 function EvidenceSummary({ report }) {
   const evidence2 = report.evidence_summary;
   if (evidence2 === void 0)
     return (0, import_jsx_runtime13.jsx)(Summary, { text: "No evidence summary was recorded." });
+  if (evidence2.kind === "goal") {
+    return (0, import_jsx_runtime13.jsx)(Summary, { text: "The stated goal was reviewed; no Git target was requested." });
+  }
   if (evidence2.kind === "unavailable")
     return (0, import_jsx_runtime13.jsx)(Summary, { text: evidence2.message });
+  if (evidence2.kind === "git-target") {
+    return (0, import_jsx_runtime13.jsx)(BulletList, { items: [
+      `Review target: ${evidence2.target_ref} (${evidence2.target_kind})`,
+      `Target diff included: ${evidence2.target_diff_included ? "yes" : "no"}`,
+      `Target diff truncated: ${evidence2.target_diff_truncated ? "yes" : "no"}`
+    ] });
+  }
   const sampled = `${evidence2.untracked_files_sampled}/${evidence2.untracked_file_count}`;
   const truncated = evidence2.untracked_files_truncated ? "yes" : "no";
   return (0, import_jsx_runtime13.jsx)(BulletList, { items: [
+    `Review target: ${evidence2.target_mode} working-tree changes`,
+    `Target diff included: ${evidence2.target_diff_included ? "yes" : "no"}`,
     `Untracked content policy: ${evidence2.untracked_content_policy}`,
     `Untracked files sampled: ${sampled}`,
     `Untracked file list truncated: ${truncated}`
   ] });
 }
 function shouldRenderHtml(report) {
-  return report.findings.length > 0 || report.evidence_warnings.length > 0 || report.confidence_limitations.length > 0;
+  return report.findings.length > 0 || report.evidence_warnings.length > 0 || report.confidence_limitations.length > 0 || evidenceIsUnavailable(report) || evidenceIsIncomplete(report);
 }
-var import_jsx_runtime13, reviewResultProjector;
+var import_jsx_runtime13, INCOMPLETE_EVIDENCE_WARNING_KINDS, reviewResultProjector;
 var init_result_html = __esm({
   "dist/flows/review/writers/result-html.js"() {
     "use strict";
@@ -85420,6 +86969,12 @@ var init_result_html = __esm({
     init_react_page();
     init_report_components();
     init_reports10();
+    INCOMPLETE_EVIDENCE_WARNING_KINDS = /* @__PURE__ */ new Set([
+      "binary_content_not_inspected",
+      "diff_truncated",
+      "untracked_file_skipped",
+      "submodule_content_not_inspected"
+    ]);
     reviewResultProjector = (ctx) => {
       const parsed = ReviewResult.safeParse(ctx.flowReport);
       if (!parsed.success)
@@ -85427,6 +86982,8 @@ var init_result_html = __esm({
       const report = parsed.data;
       if (!shouldRenderHtml(report))
         return void 0;
+      const evidenceUnavailable = evidenceIsUnavailable(report);
+      const evidenceIncomplete = evidenceIsIncomplete(report);
       const worstIntent = report.findings.reduce((intent, finding3) => {
         const findingIntent = severityIntent(finding3.severity);
         if (findingIntent === "negative")
@@ -85434,7 +86991,7 @@ var init_result_html = __esm({
         if (findingIntent === "attention" && intent === "positive")
           return "attention";
         return intent;
-      }, report.verdict === "CLEAN" ? "positive" : "attention");
+      }, evidenceUnavailable || evidenceIncomplete || report.verdict !== "CLEAN" ? "attention" : "positive");
       return renderReportPage({
         title: "Review result",
         metaLine: `Circuit \xB7 Review \xB7 ${ctx.runOutcome}`,
@@ -85442,7 +86999,7 @@ var init_result_html = __esm({
         subtitle: report.assessment,
         footerLeft: `Run ${ctx.runId}`,
         footerRight: "reports/review-result.json",
-        children: (0, import_jsx_runtime13.jsxs)(import_jsx_runtime13.Fragment, { children: [(0, import_jsx_runtime13.jsx)(VerdictBanner, { intent: worstIntent, badgeText: report.verdict, main: (0, import_jsx_runtime13.jsx)("strong", { children: t(report.scope, MAX_PROMPT_LEN) }), aside: `${report.findings.length} finding${report.findings.length === 1 ? "" : "s"}` }), (0, import_jsx_runtime13.jsxs)("div", { className: "flex flex-col gap-4", children: [(0, import_jsx_runtime13.jsx)(ReportCard, { intent: worstIntent, eyebrow: "Findings", title: "Reviewer findings", children: (0, import_jsx_runtime13.jsx)(FindingList, { findings: report.findings }) }), (0, import_jsx_runtime13.jsxs)(ReportCard, { eyebrow: "Evidence", title: "What was checked", children: [(0, import_jsx_runtime13.jsx)(Summary, { text: report.assessment }), (0, import_jsx_runtime13.jsxs)("div", { children: [(0, import_jsx_runtime13.jsx)(SectionLabel, { children: "Verification" }), (0, import_jsx_runtime13.jsx)(StringList, { items: report.verification })] }), (0, import_jsx_runtime13.jsxs)("div", { children: [(0, import_jsx_runtime13.jsx)(SectionLabel, { children: "Confidence limits" }), (0, import_jsx_runtime13.jsx)(StringList, { items: report.confidence_limitations })] })] }), (0, import_jsx_runtime13.jsxs)(ReportCard, { eyebrow: "Caveats", title: "Evidence caveats", ...report.evidence_warnings.length > 0 ? { badge: { text: "Scope limited", intent: "attention" } } : {}, children: [(0, import_jsx_runtime13.jsx)(WarningList, { warnings: report.evidence_warnings }), (0, import_jsx_runtime13.jsx)(EvidenceSummary, { report })] })] })] })
+        children: (0, import_jsx_runtime13.jsxs)(import_jsx_runtime13.Fragment, { children: [(0, import_jsx_runtime13.jsx)(VerdictBanner, { intent: worstIntent, badgeText: evidenceUnavailable ? "EVIDENCE UNAVAILABLE" : evidenceIncomplete ? "EVIDENCE INCOMPLETE" : report.outcome === "stopped" || ctx.runOutcome === "stopped" ? "REVIEW STOPPED" : report.verdict, main: (0, import_jsx_runtime13.jsx)("strong", { children: t(report.scope, MAX_PROMPT_LEN) }), aside: `${report.findings.length} finding${report.findings.length === 1 ? "" : "s"}` }), (0, import_jsx_runtime13.jsxs)("div", { className: "flex flex-col gap-4", children: [(0, import_jsx_runtime13.jsx)(ReportCard, { intent: worstIntent, eyebrow: "Findings", title: "Reviewer findings", children: (0, import_jsx_runtime13.jsx)(FindingList, { findings: report.findings }) }), (0, import_jsx_runtime13.jsxs)(ReportCard, { eyebrow: "Evidence", title: "What was checked", children: [(0, import_jsx_runtime13.jsx)(Summary, { text: report.assessment }), (0, import_jsx_runtime13.jsxs)("div", { children: [(0, import_jsx_runtime13.jsx)(SectionLabel, { children: "Verification" }), (0, import_jsx_runtime13.jsx)(StringList, { items: report.verification })] }), (0, import_jsx_runtime13.jsxs)("div", { children: [(0, import_jsx_runtime13.jsx)(SectionLabel, { children: "Confidence limits" }), (0, import_jsx_runtime13.jsx)(StringList, { items: report.confidence_limitations })] })] }), (0, import_jsx_runtime13.jsxs)(ReportCard, { eyebrow: "Caveats", title: "Evidence caveats", ...report.evidence_warnings.length > 0 ? { badge: { text: "Scope limited", intent: "attention" } } : {}, children: [(0, import_jsx_runtime13.jsx)(WarningList, { warnings: report.evidence_warnings }), (0, import_jsx_runtime13.jsx)(EvidenceSummary, { report })] })] })] })
       });
     };
   }
@@ -87602,7 +89159,11 @@ var init_progress_event = __esm({
       role: RelayRole,
       connector_name: external_exports.string().min(1),
       connector_kind: external_exports.enum(["builtin", "custom"]),
-      filesystem_capability: external_exports.enum(["read-only", "trusted-write", "isolated-write"])
+      filesystem_capability: external_exports.enum(["read-only", "trusted-write", "isolated-write"]),
+      // Present only when the flow asked for a sealed (prompt-only) reviewer.
+      // `false` means the relay ran with repository access anyway.
+      context_seal_applied: external_exports.boolean().optional(),
+      context_seal_reason: external_exports.string().min(1).optional()
     }).strict();
     RelayCompletedProgressEvent = ProgressEventBase.extend({
       type: external_exports.literal("relay.completed"),
@@ -88089,7 +89650,7 @@ var init_custom_flow_descriptor = __esm({
 import { randomUUID as randomUUID3 } from "node:crypto";
 import { existsSync as existsSync22, mkdirSync as mkdirSync4, readFileSync as readFileSync37, rmSync as rmSync4, writeFileSync as writeFileSync5 } from "node:fs";
 import { homedir as homedir2 } from "node:os";
-import { dirname as dirname6, join as join16, resolve as resolve15 } from "node:path";
+import { dirname as dirname7, join as join17, resolve as resolve15 } from "node:path";
 function slugify2(value) {
   const slug = value.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-+|-+$/g, "").slice(0, 48).replace(/-+$/g, "");
   return slug.length > 0 ? slug : `custom-${randomUUID3().slice(0, 8)}`;
@@ -88103,37 +89664,37 @@ function assertValidSlug(slug) {
   }
 }
 function customHome(home) {
-  return resolve15(home ?? join16(homedir2(), ".config", "circuit", "custom"));
+  return resolve15(home ?? join17(homedir2(), ".config", "circuit", "custom"));
 }
 function draftRoot(home, slug) {
-  return join16(home, "drafts", slug);
+  return join17(home, "drafts", slug);
 }
 function publishedRoot(home, slug) {
-  return join16(home, "skills", slug);
+  return join17(home, "skills", slug);
 }
 function flowRoot(home) {
-  return join16(home, "flows");
+  return join17(home, "flows");
 }
 function customFlowInvocation(slug, home) {
   return `circuit run ${slug} --flow-root '${flowRoot(home)}' --goal '<task>' --progress jsonl`;
 }
 function commandRoot(home) {
-  return join16(home, "commands");
+  return join17(home, "commands");
 }
 function reportsRoot(home) {
-  return join16(home, "reports");
+  return join17(home, "reports");
 }
 function manifestPath(home) {
-  return join16(home, "manifest.json");
+  return join17(home, "manifest.json");
 }
 function resultPath(home, slug, action) {
-  return join16(reportsRoot(home), `${slug}-${action}-result.json`);
+  return join17(reportsRoot(home), `${slug}-${action}-result.json`);
 }
 function summaryPath(home, slug) {
-  return join16(reportsRoot(home), `${slug}-operator-summary.md`);
+  return join17(reportsRoot(home), `${slug}-operator-summary.md`);
 }
 function writeText(path, text) {
-  mkdirSync4(dirname6(path), { recursive: true });
+  mkdirSync4(dirname7(path), { recursive: true });
   writeFileSync5(path, text.endsWith("\n") ? text : `${text}
 `);
 }
@@ -88236,17 +89797,17 @@ function publishManifest(input) {
       {
         id: input.slug,
         description: input.description,
-        flow_path: join16(flowRoot(input.home), input.slug, "circuit.json"),
-        flow_paths: input.filenames.map((filename) => join16(flowRoot(input.home), input.slug, filename)),
-        skill_path: join16(publishedRoot(input.home, input.slug), "SKILL.md"),
-        command_path: join16(commandRoot(input.home), `${input.slug}.md`),
+        flow_path: join17(flowRoot(input.home), input.slug, "circuit.json"),
+        flow_paths: input.filenames.map((filename) => join17(flowRoot(input.home), input.slug, filename)),
+        skill_path: join17(publishedRoot(input.home, input.slug), "SKILL.md"),
+        command_path: join17(commandRoot(input.home), `${input.slug}.md`),
         published_at: input.createdAt
       }
     ]
   });
 }
 function writeValidationResult(input) {
-  writeJson2(join16(draftRoot(input.home, input.slug), "validation-result.json"), {
+  writeJson2(join17(draftRoot(input.home, input.slug), "validation-result.json"), {
     schema_version: 1,
     status: "valid",
     validated_flow_id: input.flow.id,
@@ -88260,7 +89821,7 @@ function writeValidationResult(input) {
   });
 }
 function readDraftMetadata(home, slug) {
-  const raw = JSON.parse(readFileSync37(join16(draftRoot(home, slug), "validation-result.json"), "utf8"));
+  const raw = JSON.parse(readFileSync37(join17(draftRoot(home, slug), "validation-result.json"), "utf8"));
   const filenames = Array.isArray(raw.flow_files) && raw.flow_files.every((f) => typeof f === "string") ? raw.flow_files : ["circuit.json"];
   return {
     filenames,
@@ -88277,13 +89838,13 @@ function writeDraft(input) {
   rmSync4(root, { recursive: true, force: true });
   mkdirSync4(root, { recursive: true });
   const descriptor = circuitYaml(input.slug, input.description);
-  validateCircuitYamlDescriptor(descriptor, join16(root, "circuit.yaml"), input.slug);
-  writeText(join16(root, "SKILL.md"), skillMarkdown(input.slug, input.description, input.home));
-  writeText(join16(root, "circuit.yaml"), descriptor);
+  validateCircuitYamlDescriptor(descriptor, join17(root, "circuit.yaml"), input.slug);
+  writeText(join17(root, "SKILL.md"), skillMarkdown(input.slug, input.description, input.home));
+  writeText(join17(root, "circuit.yaml"), descriptor);
   for (const { filename, flow } of input.files) {
-    writeJson2(join16(root, filename), flow);
+    writeJson2(join17(root, filename), flow);
   }
-  writeText(join16(root, "command.md"), commandMarkdown(input.slug, input.description, input.home));
+  writeText(join17(root, "command.md"), commandMarkdown(input.slug, input.description, input.home));
   writeValidationResult({
     home: input.home,
     slug: input.slug,
@@ -88296,7 +89857,7 @@ function writeDraft(input) {
 function loadDraftFlow(home, slug) {
   const { filenames } = readDraftMetadata(home, slug);
   const files = filenames.map((filename) => {
-    const path = join16(draftRoot(home, slug), filename);
+    const path = join17(draftRoot(home, slug), filename);
     const flow = CompiledFlow.parse(JSON.parse(readFileSync37(path, "utf8")));
     validateCustomFlow(slug, flow, `custom flow draft (${filename})`);
     return { filename, flow };
@@ -88305,23 +89866,23 @@ function loadDraftFlow(home, slug) {
 }
 function publishDraft(input) {
   const draft = draftRoot(input.home, input.slug);
-  if (!existsSync22(join16(draft, "SKILL.md"))) {
+  if (!existsSync22(join17(draft, "SKILL.md"))) {
     throw new Error(`draft missing for ${input.slug}: ${draft}`);
   }
-  const descriptor = readFileSync37(join16(draft, "circuit.yaml"), "utf8");
-  validateCircuitYamlDescriptor(descriptor, join16(draft, "circuit.yaml"), input.slug);
+  const descriptor = readFileSync37(join17(draft, "circuit.yaml"), "utf8");
+  validateCircuitYamlDescriptor(descriptor, join17(draft, "circuit.yaml"), input.slug);
   const { filenames } = readDraftMetadata(input.home, input.slug);
   const skillRoot = publishedRoot(input.home, input.slug);
-  const customFlowRoot = join16(flowRoot(input.home), input.slug);
+  const customFlowRoot = join17(flowRoot(input.home), input.slug);
   rmSync4(customFlowRoot, { recursive: true, force: true });
   mkdirSync4(skillRoot, { recursive: true });
   mkdirSync4(customFlowRoot, { recursive: true });
-  writeText(join16(skillRoot, "SKILL.md"), readFileSync37(join16(draft, "SKILL.md"), "utf8"));
-  writeText(join16(skillRoot, "circuit.yaml"), descriptor);
+  writeText(join17(skillRoot, "SKILL.md"), readFileSync37(join17(draft, "SKILL.md"), "utf8"));
+  writeText(join17(skillRoot, "circuit.yaml"), descriptor);
   for (const filename of filenames) {
-    writeText(join16(customFlowRoot, filename), readFileSync37(join16(draft, filename), "utf8"));
+    writeText(join17(customFlowRoot, filename), readFileSync37(join17(draft, filename), "utf8"));
   }
-  writeText(join16(commandRoot(input.home), `${input.slug}.md`), readFileSync37(join16(draft, "command.md"), "utf8"));
+  writeText(join17(commandRoot(input.home), `${input.slug}.md`), readFileSync37(join17(draft, "command.md"), "utf8"));
   publishManifest({ ...input, filenames });
 }
 var import_yaml3, RESERVED_FLOW_IDS;
@@ -88340,7 +89901,7 @@ var init_custom_flow_package = __esm({
 
 // dist/cli/runtime-routing-policy.js
 import { readFileSync as readFileSync38 } from "node:fs";
-import { basename as basename4, dirname as dirname7, relative as relative10, resolve as resolve16 } from "node:path";
+import { basename as basename4, dirname as dirname8, relative as relative10, resolve as resolve16 } from "node:path";
 function pathIsInside(parent, child) {
   const rel = relative10(parent, child);
   return rel.length === 0 || !rel.startsWith("..") && !rel.startsWith("/");
@@ -88364,7 +89925,7 @@ function fixtureEligibleForRuntime(input) {
 }
 function readCustomFlowEntries(flowRoot2) {
   try {
-    const manifest = JSON.parse(readFileSync38(resolve16(dirname7(resolve16(flowRoot2)), "manifest.json"), "utf8"));
+    const manifest = JSON.parse(readFileSync38(resolve16(dirname8(resolve16(flowRoot2)), "manifest.json"), "utf8"));
     if (manifest === null || typeof manifest !== "object" || Array.isArray(manifest))
       return [];
     const customFlows = manifest.custom_flows;
@@ -88397,12 +89958,12 @@ function unrecordedPublishedSiblingReason(input) {
   if (flowRoot2 === void 0)
     return void 0;
   const fixturePath = resolve16(input.fixturePath);
-  const fixtureDir = dirname7(fixturePath);
+  const fixtureDir = dirname8(fixturePath);
   for (const candidate of readCustomFlowEntries(flowRoot2)) {
     const recorded = recordedFlowPaths(candidate);
     if (recorded.length === 0)
       continue;
-    if (dirname7(recorded[0]) !== fixtureDir)
+    if (dirname8(recorded[0]) !== fixtureDir)
       continue;
     if (recorded.includes(fixturePath))
       continue;
@@ -88550,6 +90111,49 @@ var init_json_extraction = __esm({
   }
 });
 
+// dist/connectors/prompt-only-directory.js
+import { mkdtemp, realpath, rm, stat } from "node:fs/promises";
+import { tmpdir } from "node:os";
+import { isAbsolute as isAbsolute10, join as join19, relative as relative11, sep as sep5 } from "node:path";
+function pathInsideOrEqual(parent, candidate) {
+  const child = relative11(parent, candidate);
+  return child === "" || child !== ".." && !child.startsWith(`..${sep5}`) && !isAbsolute10(child);
+}
+async function createPromptOnlyRelayDirectory(projectDirectory, prefix) {
+  if (projectDirectory === void 0 || !isAbsolute10(projectDirectory)) {
+    throw new Error("A prompt-only relay requires the original project as an absolute directory.");
+  }
+  let canonicalProject;
+  try {
+    canonicalProject = await realpath(projectDirectory);
+    if (!(await stat(canonicalProject)).isDirectory()) {
+      throw new Error("not a directory");
+    }
+  } catch {
+    throw new Error("A prompt-only relay requires the original project to be a real directory.");
+  }
+  let allocatedDirectory;
+  try {
+    allocatedDirectory = await mkdtemp(join19(tmpdir(), prefix));
+    const canonicalRelay = await realpath(allocatedDirectory);
+    if (pathInsideOrEqual(canonicalProject, canonicalRelay) || pathInsideOrEqual(canonicalRelay, canonicalProject)) {
+      throw new Error("The prompt-only relay directory overlaps the original project. Use a private temporary directory outside the project.");
+    }
+    return canonicalRelay;
+  } catch (error52) {
+    if (allocatedDirectory !== void 0) {
+      await rm(allocatedDirectory, { recursive: true, force: true }).catch(() => {
+      });
+    }
+    throw error52;
+  }
+}
+var init_prompt_only_directory = __esm({
+  "dist/connectors/prompt-only-directory.js"() {
+    "use strict";
+  }
+});
+
 // dist/connectors/remediation.js
 function connectorRemediation(name) {
   switch (name) {
@@ -88570,15 +90174,15 @@ var init_remediation = __esm({
 // dist/connectors/state-dir.js
 import { existsSync as existsSync24, mkdirSync as mkdirSync5, rmdirSync, unlinkSync, writeFileSync as writeFileSync6 } from "node:fs";
 import { homedir as homedir3 } from "node:os";
-import { join as join18 } from "node:path";
+import { join as join20 } from "node:path";
 function codexStateDir(env3 = process.env) {
   const fromEnv = env3.CODEX_HOME;
   if (fromEnv !== void 0 && fromEnv.trim() !== "")
     return fromEnv;
-  return join18(homedir3(), ".codex");
+  return join20(homedir3(), ".codex");
 }
 function probeStateDirWritable(dir) {
-  const probeFile = join18(dir, `.circuit-write-probe-${process.pid}`);
+  const probeFile = join20(dir, `.circuit-write-probe-${process.pid}`);
   let createdDir = false;
   try {
     if (!existsSync24(dir)) {
@@ -88606,7 +90210,7 @@ var init_state_dir = __esm({
 
 // dist/connectors/subprocess.js
 import { spawn } from "node:child_process";
-import { dirname as dirname8 } from "node:path";
+import { dirname as dirname9 } from "node:path";
 import { performance as performance2 } from "node:perf_hooks";
 function isConnectorSubprocessSpawnError(error52) {
   return error52 instanceof ConnectorSubprocessSpawnError || error52 instanceof Error && error52.name === "ConnectorSubprocessSpawnError";
@@ -88699,7 +90303,7 @@ ${input.streamError ?? ""}`;
   return void 0;
 }
 function parentOfPath(path) {
-  return path === void 0 ? void 0 : dirname8(path);
+  return path === void 0 ? void 0 : dirname9(path);
 }
 function lastLineWithout(text, exclude) {
   const lines = text.split("\n");
@@ -88917,6 +90521,7 @@ var init_subprocess = __esm({
 });
 
 // dist/connectors/claude-code.js
+import { rm as rm2 } from "node:fs/promises";
 function selectedAnthropicModel(selection) {
   const model = selection?.model;
   if (model === void 0)
@@ -88933,7 +90538,12 @@ function assertClaudeCodeEffort(effort) {
 }
 function buildClaudeCodeArgs(input) {
   const args = [];
-  if (input.toolAllowList !== void 0 && input.toolAllowList.length > 0) {
+  if (input.promptOnly === true && (input.toolAllowList?.length ?? 0) > 0) {
+    throw new Error("A prompt-only relay cannot request worker tools.");
+  }
+  if (input.promptOnly === true) {
+    args.push("--tools", "", "--safe-mode");
+  } else if (input.toolAllowList !== void 0 && input.toolAllowList.length > 0) {
     args.push("--tools", input.toolAllowList.join(","));
   }
   args.push(...CLAUDE_CODE_DISPATCH_FLAGS);
@@ -88971,6 +90581,19 @@ function isClaudeCodeStructuredOutputCompatible(schema) {
   return schema.type === "object";
 }
 async function relayClaudeCode(input) {
+  const promptOnlyDirectory = input.promptOnly === true ? await createPromptOnlyRelayDirectory(input.cwd, "circuit-prompt-only-claude-") : void 0;
+  try {
+    return await relayClaudeCodePrepared({
+      ...input,
+      ...promptOnlyDirectory === void 0 ? {} : { cwd: promptOnlyDirectory }
+    });
+  } finally {
+    if (promptOnlyDirectory !== void 0) {
+      await rm2(promptOnlyDirectory, { recursive: true, force: true });
+    }
+  }
+}
+async function relayClaudeCodePrepared(input) {
   const absoluteTimeoutMs = input.timeoutMs ?? DEFAULT_ABSOLUTE_TIMEOUT_MS;
   const idleTimeoutMs = input.idleTimeoutMs ?? DEFAULT_IDLE_TIMEOUT_MS;
   const args = buildClaudeCodeArgs(input);
@@ -89030,7 +90653,7 @@ async function relayClaudeCode(input) {
       result.stdout,
       input.prompt,
       result.durationMs,
-      input.toolAllowList,
+      input.promptOnly === true ? [] : input.toolAllowList,
       // Same predicate that decided whether buildClaudeCodeArgs emitted
       // --json-schema, so the guard admits the CLI's return-channel tool exactly
       // when we asked for structured output — the two can't diverge.
@@ -89067,7 +90690,7 @@ function parseClaudeCodeStdout(stdout, prompt, duration_ms, requestedTools, stru
   if (!Array.isArray(slashCommands) || slashCommands.length !== 0) {
     throw new Error(`init.slash_commands must be []; got ${JSON.stringify(slashCommands)}. CLAUDE_CODE_DISPATCH_FLAGS includes --disable-slash-commands to keep this surface closed.`);
   }
-  if (requestedTools !== void 0 && requestedTools.length > 0) {
+  if (requestedTools !== void 0) {
     const sessionTools = initTraceEntry.tools;
     if (!Array.isArray(sessionTools)) {
       throw new Error(`init.tools must be an array to verify the enforced equipment scope; got ${JSON.stringify(sessionTools)}`);
@@ -89081,6 +90704,23 @@ function parseClaudeCodeStdout(stdout, prompt, duration_ms, requestedTools, stru
     if (leaked.length !== 0) {
       const rendered = leaked.map((tool) => typeof tool === "string" ? tool : JSON.stringify(tool)).join(", ");
       throw new Error(`enforced equipment scope violated: tools outside the allow-list are present in the session: ${rendered}. The relay passes --tools to restrict the surface to [${requestedTools.join(", ")}]; a tool beyond it means the restriction did not hold.`);
+    }
+    for (const entry of trace_entries) {
+      const message = entry.message;
+      if (typeof message !== "object" || message === null)
+        continue;
+      const content = message.content;
+      if (!Array.isArray(content))
+        continue;
+      for (const block of content) {
+        if (typeof block !== "object" || block === null || block.type !== "tool_use") {
+          continue;
+        }
+        const name = block.name;
+        if (typeof name !== "string" || !allowed.has(name)) {
+          throw new Error("enforced equipment scope violated: an unapproved tool was used during the relay.");
+        }
+      }
     }
   }
   const receipt_id = initTraceEntry.session_id;
@@ -89180,6 +90820,7 @@ var init_claude_code = __esm({
     init_connector();
     init_connector_relay();
     init_json_extraction();
+    init_prompt_only_directory();
     init_remediation();
     init_subprocess();
     CLAUDE_CODE_DISPATCH_FLAGS = [
@@ -89209,12 +90850,12 @@ var init_claude_code = __esm({
 
 // dist/connectors/codex-default-model.js
 import { readFileSync as readFileSync39 } from "node:fs";
-import { join as join19 } from "node:path";
+import { join as join21 } from "node:path";
 function codexHomeDir() {
   return codexStateDir(process.env);
 }
 function codexModelsCachePath() {
-  return join19(codexHomeDir(), CODEX_MODELS_CACHE_FILENAME);
+  return join21(codexHomeDir(), CODEX_MODELS_CACHE_FILENAME);
 }
 function candidateFrom(value) {
   if (typeof value !== "object" || value === null)
@@ -89301,9 +90942,20 @@ var init_codex_default_model = __esm({
 // dist/connectors/codex.js
 import { execFileSync as execFileSync3 } from "node:child_process";
 import { readFileSync as readFileSync40 } from "node:fs";
-import { mkdtemp, rm, writeFile } from "node:fs/promises";
-import { tmpdir } from "node:os";
-import { join as joinPath } from "node:path";
+import { mkdtemp as mkdtemp2, rm as rm3, writeFile } from "node:fs/promises";
+import { tmpdir as tmpdir2 } from "node:os";
+import { isAbsolute as isAbsolute11, join as joinPath } from "node:path";
+function codexPromptOnlyConfig(cwd2) {
+  if (!isAbsolute11(cwd2) || cwd2.includes("\0")) {
+    throw new Error("A prompt-only Codex relay requires a private absolute working directory.");
+  }
+  return Object.freeze([
+    'default_permissions="circuit_prompt_only"',
+    `permissions.circuit_prompt_only.filesystem={":minimal"="read",":workspace_roots"="write",":slash_tmp"="deny",${JSON.stringify(cwd2)}="write"}`,
+    "permissions.circuit_prompt_only.network.enabled=false",
+    ...CODEX_PROMPT_ONLY_BASE_CONFIG
+  ]);
+}
 function captureCodexVersion() {
   if (cachedCodexVersion !== void 0)
     return cachedCodexVersion;
@@ -89351,28 +91003,44 @@ function isForbiddenCodexArg(arg) {
     return token.startsWith("--") && arg.startsWith(`${token}=`);
   });
 }
-function isAllowedCodexConfigOverride(value) {
-  return value !== void 0 && CODEX_SUPPORTED_EFFORTS.some((effort) => value === codexReasoningEffortConfigValue(effort));
+function isAllowedCodexConfigOverride(value, promptOnlyConfig) {
+  return value !== void 0 && (CODEX_SUPPORTED_EFFORTS.some((effort) => value === codexReasoningEffortConfigValue(effort)) || promptOnlyConfig.includes(value));
 }
-function assertCodexSpawnArgvBoundary(args) {
+function assertCodexSpawnArgvBoundary(args, promptOnly = false) {
+  const cdIndexes = args.map((arg, idx) => arg === "--cd" ? idx : -1).filter((idx) => idx >= 0);
+  const promptOnlyCwd = promptOnly && cdIndexes.length === 1 && cdIndexes[0] !== void 0 ? args[cdIndexes[0] + 1] : void 0;
+  const promptOnlyConfig = promptOnly && promptOnlyCwd !== void 0 ? codexPromptOnlyConfig(promptOnlyCwd) : [];
   const sandboxFlagIndexes = args.map((arg, idx) => arg === "-s" ? idx : -1).filter((idx) => idx >= 0);
   const sandboxFlagIndex = sandboxFlagIndexes[0];
-  if (sandboxFlagIndexes.length !== 1 || sandboxFlagIndex === void 0 || args[sandboxFlagIndex + 1] !== "workspace-write") {
+  if (promptOnly && sandboxFlagIndexes.length !== 0) {
+    throw new Error("codex prompt-only boundary must use its named permission profile, not -s");
+  }
+  if (!promptOnly && (sandboxFlagIndexes.length !== 1 || sandboxFlagIndex === void 0 || args[sandboxFlagIndex + 1] !== "workspace-write")) {
     throw new Error('codex spawn argv boundary broken: exactly one "-s workspace-write" pair is required');
   }
+  if (promptOnly && (cdIndexes.length !== 1 || promptOnlyCwd === void 0)) {
+    throw new Error("codex prompt-only boundary requires exactly one private --cd directory");
+  }
   let configOverrideCount = 0;
+  let effortOverrideCount = 0;
   for (let idx = 0; idx < args.length; idx += 1) {
     const arg = args[idx];
     if (arg === void 0)
       continue;
     if (arg === "-c") {
       configOverrideCount += 1;
-      if (configOverrideCount > 1) {
+      if (!promptOnly && configOverrideCount > 1) {
         throw new Error("codex spawn argv boundary broken: at most one allowlisted -c override is allowed");
       }
       const value = args[idx + 1];
-      if (!isAllowedCodexConfigOverride(value)) {
-        throw new Error(`codex spawn argv boundary broken: only ${CODEX_REASONING_EFFORT_CONFIG_KEY}=<supported effort> is allowed after -c`);
+      if (!isAllowedCodexConfigOverride(value, promptOnlyConfig)) {
+        throw new Error(promptOnly ? "codex spawn argv boundary broken: an unreviewed configuration override was provided after -c" : `codex spawn argv boundary broken: only ${CODEX_REASONING_EFFORT_CONFIG_KEY}=<supported effort> is allowed after -c`);
+      }
+      if (CODEX_SUPPORTED_EFFORTS.some((effort) => value === codexReasoningEffortConfigValue(effort))) {
+        effortOverrideCount += 1;
+        if (effortOverrideCount > 1) {
+          throw new Error("codex spawn argv boundary broken: at most one reasoning effort override is allowed");
+        }
       }
       idx += 1;
       continue;
@@ -89381,11 +91049,31 @@ function assertCodexSpawnArgvBoundary(args) {
       throw new Error(`codex spawn argv boundary broken: forbidden argv token "${arg}"`);
     }
   }
+  if (promptOnly) {
+    if (!args.includes("--strict-config")) {
+      throw new Error("codex prompt-only boundary requires --strict-config");
+    }
+    for (const value of promptOnlyConfig) {
+      const matches = args.filter((arg, index) => arg === value && args[index - 1] === "-c");
+      if (matches.length !== 1) {
+        throw new Error(`codex prompt-only boundary is missing the sealed setting ${value}`);
+      }
+    }
+  }
 }
 function buildCodexArgs(input, schemaPath, defaultModel) {
-  const args = [...CODEX_WRITE_FLAGS];
+  const promptOnly = input.promptOnly === true;
+  const promptOnlyConfig = promptOnly && input.cwd !== void 0 ? codexPromptOnlyConfig(input.cwd) : [];
+  if (promptOnly && promptOnlyConfig.length === 0) {
+    throw new Error("A prompt-only Codex relay requires a private working directory.");
+  }
+  const args = [...promptOnly ? CODEX_PROMPT_ONLY_FLAGS : CODEX_WRITE_FLAGS];
   if (input.cwd !== void 0) {
     args.push("--cd", input.cwd);
+  }
+  if (promptOnly) {
+    for (const value of promptOnlyConfig)
+      args.push("-c", value);
   }
   const model = selectedOpenAIModel(input.resolvedSelection) ?? defaultModel;
   if (model !== void 0) {
@@ -89400,7 +91088,7 @@ function buildCodexArgs(input, schemaPath, defaultModel) {
     args.push("--output-schema", schemaPath);
   }
   args.push(input.prompt);
-  assertCodexSpawnArgvBoundary(args);
+  assertCodexSpawnArgvBoundary(args, promptOnly);
   return args;
 }
 function isRecord5(value) {
@@ -89439,13 +91127,13 @@ function isCodexOutputSchemaCompatible(schema) {
   return schema.type === "object" && isCodexOutputSchemaNodeCompatible(schema);
 }
 async function writeSchemaTempFile(schema) {
-  const dir = await mkdtemp(joinPath(tmpdir(), "circuit-codex-schema-"));
+  const dir = await mkdtemp2(joinPath(tmpdir2(), "circuit-codex-schema-"));
   try {
     const path = joinPath(dir, "schema.json");
     await writeFile(path, JSON.stringify(schema), "utf8");
     return { dir, path };
   } catch (err) {
-    await rm(dir, { recursive: true, force: true }).catch(() => void 0);
+    await rm3(dir, { recursive: true, force: true }).catch(() => void 0);
     throw err;
   }
 }
@@ -89453,7 +91141,7 @@ async function cleanupSchemaTempDir(dir) {
   if (dir === void 0)
     return;
   try {
-    await rm(dir, { recursive: true, force: true });
+    await rm3(dir, { recursive: true, force: true });
   } catch {
   }
 }
@@ -89477,6 +91165,19 @@ function codexModelCacheHint(model, streamError) {
   return ` The model id '${model}' is not in the local Codex models cache, so it may be misspelled or not available to this account. Check the model set in your Circuit config, or run \`circuit doctor\`.`;
 }
 async function relayCodex(input) {
+  const promptOnlyDirectory = input.promptOnly === true ? await createPromptOnlyRelayDirectory(input.cwd, "circuit-prompt-only-codex-") : void 0;
+  try {
+    return await relayCodexPrepared({
+      ...input,
+      ...promptOnlyDirectory === void 0 ? {} : { cwd: promptOnlyDirectory }
+    });
+  } finally {
+    if (promptOnlyDirectory !== void 0) {
+      await rm3(promptOnlyDirectory, { recursive: true, force: true });
+    }
+  }
+}
+async function relayCodexPrepared(input) {
   const absoluteTimeoutMs = input.timeoutMs ?? DEFAULT_ABSOLUTE_TIMEOUT_MS2;
   const idleTimeoutMs = input.idleTimeoutMs ?? DEFAULT_IDLE_TIMEOUT_MS2;
   const cli_version = captureCodexVersion();
@@ -89537,7 +91238,9 @@ async function relayCodex(input) {
       throw new Error(`codex subprocess stdout exceeded ${STDOUT_MAX_BYTES2} bytes; capability-boundary check cannot be evaluated on truncated stream`);
     }
     try {
-      const parsed = parseCodexStdout(result.stdout, input.prompt, result.durationMs, cli_version);
+      const parsed = parseCodexStdout(result.stdout, input.prompt, result.durationMs, cli_version, {
+        promptOnly: input.promptOnly === true
+      });
       return { ...parsed, model: effectiveModel };
     } catch (error52) {
       const stderrSuffix = cappedSuffix(result.stderrCapped, "stderr");
@@ -89606,7 +91309,7 @@ function validateCodexWebSearchItem(item, lifecycle, index) {
 function codexUnknownTypeRemediation(detectedVersion) {
   return `Circuit has verified Codex CLI ${CODEX_TESTED_CLI_RANGE}, and your Codex CLI reports "${detectedVersion}". The installed Codex version may be outside this tested range, or it may have added a protocol shape Circuit has not reviewed. Check your Codex CLI version with: codex --version. Update or pin Codex CLI to a version in this range, preferably 0.145.0, then retry.`;
 }
-function parseCodexStdout(stdout, prompt, duration_ms, cli_version) {
+function parseCodexStdout(stdout, prompt, duration_ms, cli_version, options = {}) {
   const trace_entries = parseNdjsonObjects(stdout, "codex --json");
   if (trace_entries.length === 0) {
     throw new Error("codex --json stdout is empty");
@@ -89647,6 +91350,9 @@ function parseCodexStdout(stdout, prompt, duration_ms, cli_version) {
     if (typeof itemType !== "string") {
       throw new Error(`item.started[${idx}].item.type is not a string`);
     }
+    if (options.promptOnly === true && PROMPT_ONLY_FORBIDDEN_CODEX_ITEM_TYPES.has(itemType)) {
+      throw new Error(`prompt-only relay boundary violated: item.started used ${itemType}`);
+    }
     if (itemType === "error") {
       throw new Error("capability-boundary violation: item.started item.type='error' is not a reviewed start item type");
     }
@@ -89671,6 +91377,9 @@ function parseCodexStdout(stdout, prompt, duration_ms, cli_version) {
     const itemType = item2.type;
     if (typeof itemType !== "string") {
       throw new Error(`item.completed[${idx}].item.type is not a string`);
+    }
+    if (options.promptOnly === true && PROMPT_ONLY_FORBIDDEN_CODEX_ITEM_TYPES.has(itemType)) {
+      throw new Error(`prompt-only relay boundary violated: item.completed used ${itemType}`);
     }
     if (!KNOWN_CODEX_ITEM_TYPES.has(itemType)) {
       throw new Error(`capability-boundary violation: item.completed[${idx}].item.type='${itemType}' is not in the known-types allowlist (${Array.from(KNOWN_CODEX_ITEM_TYPES).join(", ")}). A new Codex item type must be reviewed before the connector admits it. ${codexUnknownTypeRemediation(cli_version)}`);
@@ -89712,6 +91421,9 @@ function parseCodexStdout(stdout, prompt, duration_ms, cli_version) {
     if (typeof itemType !== "string") {
       throw new Error(`item.updated[${idx}].item.type is not a string`);
     }
+    if (options.promptOnly === true && PROMPT_ONLY_FORBIDDEN_CODEX_ITEM_TYPES.has(itemType)) {
+      throw new Error(`prompt-only relay boundary violated: item.updated used ${itemType}`);
+    }
     if (itemType === "error") {
       throw new Error("capability-boundary violation: item.updated item.type='error' is not a reviewed progress item type");
     }
@@ -89745,13 +91457,14 @@ function parseCodexStdout(stdout, prompt, duration_ms, cli_version) {
     ...webSearchCompletions.size === 0 ? {} : { web_search_count: webSearchCompletions.size }
   };
 }
-var CODEX_WRITE_FLAGS, CODEX_EXECUTABLE, CODEX_FORBIDDEN_ARGV_TOKENS, CODEX_REASONING_EFFORT_CONFIG_KEY, flagsAsStringArray, DEFAULT_IDLE_TIMEOUT_MS2, DEFAULT_ABSOLUTE_TIMEOUT_MS2, SIGTERM_TO_SIGKILL_GRACE_MS2, STDOUT_MAX_BYTES2, STDERR_MAX_BYTES2, VERSION_CAPTURE_TIMEOUT_MS, cachedCodexVersion, CODEX_OUTPUT_SCHEMA_UNSUPPORTED_KEYWORDS, KNOWN_CODEX_ITEM_TYPES, CODEX_WEB_SEARCH_MAX_STRING_LENGTH, CODEX_WEB_SEARCH_COMPLETED_ACTION_TYPES, CODEX_NONFATAL_ERROR_ITEM_MESSAGES, KNOWN_CODEX_EVENT_TYPES, CODEX_FAILURE_EVENT_TYPES, CODEX_TESTED_CLI_RANGE;
+var CODEX_WRITE_FLAGS, CODEX_PROMPT_ONLY_FLAGS, CODEX_PROMPT_ONLY_BASE_CONFIG, CODEX_EXECUTABLE, CODEX_FORBIDDEN_ARGV_TOKENS, CODEX_REASONING_EFFORT_CONFIG_KEY, flagsAsStringArray, DEFAULT_IDLE_TIMEOUT_MS2, DEFAULT_ABSOLUTE_TIMEOUT_MS2, SIGTERM_TO_SIGKILL_GRACE_MS2, STDOUT_MAX_BYTES2, STDERR_MAX_BYTES2, VERSION_CAPTURE_TIMEOUT_MS, cachedCodexVersion, CODEX_OUTPUT_SCHEMA_UNSUPPORTED_KEYWORDS, KNOWN_CODEX_ITEM_TYPES, PROMPT_ONLY_FORBIDDEN_CODEX_ITEM_TYPES, CODEX_WEB_SEARCH_MAX_STRING_LENGTH, CODEX_WEB_SEARCH_COMPLETED_ACTION_TYPES, CODEX_NONFATAL_ERROR_ITEM_MESSAGES, KNOWN_CODEX_EVENT_TYPES, CODEX_FAILURE_EVENT_TYPES, CODEX_TESTED_CLI_RANGE;
 var init_codex = __esm({
   "dist/connectors/codex.js"() {
     "use strict";
     init_connector();
     init_json_extraction();
     init_codex_default_model();
+    init_prompt_only_directory();
     init_remediation();
     init_subprocess();
     CODEX_WRITE_FLAGS = Object.freeze([
@@ -89763,6 +91476,46 @@ var init_codex = __esm({
       "--skip-git-repo-check",
       "--ignore-user-config",
       "--ignore-rules"
+    ]);
+    CODEX_PROMPT_ONLY_FLAGS = Object.freeze([
+      "exec",
+      "--json",
+      "--ephemeral",
+      "--skip-git-repo-check",
+      "--ignore-user-config",
+      "--ignore-rules",
+      "--strict-config"
+    ]);
+    CODEX_PROMPT_ONLY_BASE_CONFIG = Object.freeze([
+      'approval_policy="never"',
+      'history.persistence="none"',
+      "allow_login_shell=false",
+      "project_doc_max_bytes=0",
+      "skills.include_instructions=false",
+      ...[
+        "apps",
+        "auth_elicitation",
+        "browser_use",
+        "browser_use_external",
+        "browser_use_full_cdp_access",
+        "computer_use",
+        "hooks",
+        "image_generation",
+        "in_app_browser",
+        "memories",
+        "multi_agent",
+        "plugin_sharing",
+        "plugins",
+        "remote_plugin",
+        "shell_snapshot",
+        "shell_tool",
+        "skill_mcp_dependency_install",
+        "tool_call_mcp_elicitation",
+        "workspace_dependencies"
+      ].map((feature) => `features.${feature}=false`),
+      "tools.update_plan.enabled=false",
+      "mcp_servers={}",
+      'web_search="disabled"'
     ]);
     CODEX_EXECUTABLE = "codex";
     CODEX_FORBIDDEN_ARGV_TOKENS = Object.freeze([
@@ -89836,6 +91589,12 @@ var init_codex = __esm({
       "todo_list",
       "web_search",
       "error"
+    ]);
+    PROMPT_ONLY_FORBIDDEN_CODEX_ITEM_TYPES = /* @__PURE__ */ new Set([
+      "command_execution",
+      "file_change",
+      "todo_list",
+      "web_search"
     ]);
     CODEX_WEB_SEARCH_MAX_STRING_LENGTH = 16 * 1024;
     CODEX_WEB_SEARCH_COMPLETED_ACTION_TYPES = /* @__PURE__ */ new Set([
@@ -92713,9 +94472,9 @@ var init_fanout_branch_template = __esm({
 // dist/shared/user-skill-registry.js
 import { existsSync as existsSync25, readFileSync as readFileSync41, readdirSync as readdirSync4 } from "node:fs";
 import { homedir as homedir4 } from "node:os";
-import { join as join20, resolve as resolve17 } from "node:path";
+import { join as join22, resolve as resolve17 } from "node:path";
 function defaultUserSkillRoots(homeDir = homedir4()) {
-  return [join20(homeDir, ".agents", "skills"), join20(homeDir, ".claude", "skills")];
+  return [join22(homeDir, ".agents", "skills"), join22(homeDir, ".claude", "skills")];
 }
 function parseSkillMarkdown(text, skillPath) {
   if (!text.startsWith("---"))
@@ -92758,7 +94517,7 @@ function discoverCandidates(roots) {
       const key = id.data;
       if (candidates.has(key))
         continue;
-      const skillPath = join20(rootAbs, entry.name, "SKILL.md");
+      const skillPath = join22(rootAbs, entry.name, "SKILL.md");
       if (!existsSync25(skillPath))
         continue;
       candidates.set(key, {
@@ -92813,7 +94572,7 @@ function createUserSkillRegistry(options = {}) {
         throw new Error([
           `Circuit could not find skill '${key}'.`,
           "Searched:",
-          ...searchedRoots.map((root) => `- ${join20(root, key, "SKILL.md")}`)
+          ...searchedRoots.map((root) => `- ${join22(root, key, "SKILL.md")}`)
         ].join("\n"));
       }
       return loadCached(key, candidate);
@@ -94597,11 +96356,11 @@ var init_report_schemas = __esm({
 });
 
 // dist/connectors/custom.js
-import { mkdtemp as mkdtemp2, readFile as readFile4, rm as rm2, stat, writeFile as writeFile2 } from "node:fs/promises";
-import { tmpdir as tmpdir2 } from "node:os";
-import { join as join21 } from "node:path";
+import { mkdtemp as mkdtemp3, readFile as readFile4, rm as rm4, stat as stat2, writeFile as writeFile2 } from "node:fs/promises";
+import { tmpdir as tmpdir3 } from "node:os";
+import { join as join23 } from "node:path";
 async function extractConfiguredOutput(descriptor, outputFile) {
-  const outputStats = await stat(outputFile);
+  const outputStats = await stat2(outputFile);
   if (outputStats.size > OUTPUT_MAX_BYTES) {
     throw new Error(`custom connector '${descriptor.name}' output file exceeded ${OUTPUT_MAX_BYTES} bytes`);
   }
@@ -94636,9 +96395,9 @@ async function relayCustom(input) {
   if (executable === void 0) {
     throw new Error(`custom connector '${descriptor.name}' command is empty`);
   }
-  const tempDir = await mkdtemp2(join21(tmpdir2(), "circuit-custom-connector-"));
-  const promptFile = join21(tempDir, "prompt.txt");
-  const outputFile = join21(tempDir, "output.txt");
+  const tempDir = await mkdtemp3(join23(tmpdir3(), "circuit-custom-connector-"));
+  const promptFile = join23(tempDir, "prompt.txt");
+  const outputFile = join23(tempDir, "output.txt");
   await writeFile2(promptFile, input.prompt, "utf8");
   const args = [...baseArgs, promptFile, outputFile];
   const timeoutMs2 = input.timeoutMs ?? DEFAULT_TIMEOUT_MS;
@@ -94688,7 +96447,7 @@ async function relayCustom(input) {
       throw new Error(`custom connector '${descriptor.name}': ${error52.message}; stdout[:500]=${result.stdout.slice(0, 500)}${stdoutSuffix}; stderr[:200]=${result.stderr.slice(0, 200)}${stderrSuffix}`);
     }
   } finally {
-    await rm2(tempDir, { recursive: true, force: true });
+    await rm4(tempDir, { recursive: true, force: true });
   }
 }
 var DEFAULT_TIMEOUT_MS, SIGTERM_TO_SIGKILL_GRACE_MS4, OUTPUT_MAX_BYTES, STDOUT_MAX_BYTES4, STDERR_MAX_BYTES4;
@@ -94804,39 +96563,6 @@ var init_proof_assessment2 = __esm({
     "use strict";
     init_hashing();
     init_proof_assessment();
-  }
-});
-
-// dist/shared/runtime-git-reader.js
-function changedPathsFromRuntimeGitStatus(stdout) {
-  const tokens = stdout.split("\0");
-  const changed = /* @__PURE__ */ new Set();
-  for (let index = 0; index < tokens.length; index += 1) {
-    const entry = tokens[index];
-    if (entry === void 0 || entry.length === 0)
-      continue;
-    if (entry.length < 4 || entry[2] !== " ") {
-      throw new Error("The bounded Git reader returned malformed status output.");
-    }
-    const status = entry.slice(0, 2);
-    const path = entry.slice(3);
-    if (path.length === 0)
-      throw new Error("The bounded Git reader returned an empty path.");
-    changed.add(path);
-    if (status.includes("R") || status.includes("C")) {
-      const previousPath = tokens[index + 1];
-      if (previousPath === void 0 || previousPath.length === 0) {
-        throw new Error("The bounded Git reader returned a malformed rename entry.");
-      }
-      changed.add(previousPath);
-      index += 1;
-    }
-  }
-  return changed;
-}
-var init_runtime_git_reader = __esm({
-  "dist/shared/runtime-git-reader.js"() {
-    "use strict";
   }
 });
 
@@ -97598,6 +99324,7 @@ var init_relay_support = __esm({
 async function relayWithResolvedConnector(connector, input) {
   const relayInput = {
     prompt: input.prompt,
+    ...input.promptOnly === true ? { promptOnly: true } : {},
     ...input.timeoutMs === void 0 ? {} : { timeoutMs: input.timeoutMs },
     ...input.idleTimeoutMs === void 0 ? {} : { idleTimeoutMs: input.idleTimeoutMs },
     ...input.cwd === void 0 ? {} : { cwd: input.cwd },
@@ -97956,6 +99683,13 @@ async function executeProductionRelayAttempt(input) {
   });
   const equipmentDecision = resolveEquipmentEnforcement(compiledStep.equipment_scope, connectorToolScopeCapability(relayExecution.connector));
   const equipmentEvidence = equipmentEnforcementEvidence(compiledStep.equipment_scope, equipmentDecision);
+  const sealRequested = context.flow.engineFlags?.relayUsesPromptOnlyContext === true;
+  const sealFailure = !sealRequested ? void 0 : context.relayer !== void 0 ? context.relayer.promptOnlyContext === true ? void 0 : "the host relay cannot prove that it removed repository access" : relayExecution.connector.kind === "custom" || relayExecution.connector.name === "cursor-agent" ? `the ${relayExecution.connector.name} connector cannot run without repository access` : void 0;
+  const promptOnly = sealRequested && sealFailure === void 0;
+  const contextSeal = sealRequested ? {
+    applied: sealFailure === void 0,
+    ...sealFailure === void 0 ? {} : { reason: sealFailure }
+  } : void 0;
   await context.trace.append({
     run_id: context.runId,
     kind: "relay.started",
@@ -97965,7 +99699,8 @@ async function executeProductionRelayAttempt(input) {
     role: RelayRole.parse(relayExecution.role),
     resolved_selection: resolvedSelection,
     resolved_from: relayExecution.resolvedFrom,
-    ...equipmentEvidence === void 0 ? {} : { equipment: equipmentEvidence }
+    ...equipmentEvidence === void 0 ? {} : { equipment: equipmentEvidence },
+    ...contextSeal === void 0 ? {} : { context_seal: contextSeal }
   });
   if (loadedSkills.length > 0) {
     await context.trace.append({
@@ -97998,6 +99733,7 @@ async function executeProductionRelayAttempt(input) {
     const relayInactivityMs = inactivityMs(step);
     relayResult = context.relayer === void 0 ? await relayWithResolvedConnector(relayExecution.connector, {
       prompt,
+      ...promptOnly ? { promptOnly: true } : {},
       ...relayTimeoutMs === void 0 ? {} : { timeoutMs: relayTimeoutMs },
       ...relayInactivityMs === void 0 ? {} : { idleTimeoutMs: relayInactivityMs },
       ...context.projectRoot === void 0 ? {} : { cwd: context.projectRoot },
@@ -98008,6 +99744,7 @@ async function executeProductionRelayAttempt(input) {
       ...equipmentDecision.toolAllowList === void 0 ? {} : { toolAllowList: equipmentDecision.toolAllowList }
     }) : await context.relayer.relay({
       prompt,
+      ...promptOnly ? { promptOnly: true } : {},
       connector: relayExecution.connectorName,
       ...relayTimeoutMs === void 0 ? {} : { timeoutMs: relayTimeoutMs },
       ...relayInactivityMs === void 0 ? {} : { idleTimeoutMs: relayInactivityMs },
@@ -98325,7 +100062,7 @@ var init_relay = __esm({
 
 // dist/runtime/executors/sub-run.js
 import { randomUUID as randomUUID5 } from "node:crypto";
-import { dirname as dirname9, join as join22 } from "node:path";
+import { dirname as dirname10, join as join24 } from "node:path";
 function checkPassVerdicts(step) {
   const pass = step.check.pass;
   return Array.isArray(pass) ? pass.filter((entry) => typeof entry === "string") : [];
@@ -98429,7 +100166,7 @@ async function executeSubRunInternal(step, context) {
     return await recordSubRunCheckFailure(step, context, `sub-run step '${step.id}': resolver returned flow id '${childFlow.id}' but flow_ref names '${step.flowRef}'`);
   }
   const childRunId = randomUUID5();
-  const childRunDir = join22(dirname9(context.runDir), childRunId);
+  const childRunDir = join24(dirname10(context.runDir), childRunId);
   await context.trace.append({
     run_id: context.runId,
     kind: "sub_run.started",
@@ -98570,7 +100307,7 @@ var init_sub_run = __esm({
 
 // dist/runtime/run/reuse-children.js
 import { existsSync as existsSync27, readFileSync as readFileSync43 } from "node:fs";
-import { isAbsolute as isAbsolute10, join as join23 } from "node:path";
+import { isAbsolute as isAbsolute12, join as join25 } from "node:path";
 function isCompletedSubRunBranch(entry, stepId, branchId) {
   return entry.kind === "fanout.branch_completed" && entry.step_id === stepId && entry.branch_id === branchId && entry.branch_kind === "sub-run" && entry.child_outcome === "complete";
 }
@@ -98597,9 +100334,9 @@ async function lookupReusableSubRunBranch(input) {
   }
   if (worktreePath === void 0)
     return void 0;
-  if (!existsSync27(join23(worktreePath, ".git")))
+  if (!existsSync27(join25(worktreePath, ".git")))
     return void 0;
-  const resultAbs = isAbsolute10(completed.result_path) ? completed.result_path : join23(input.priorRunFolder, completed.result_path);
+  const resultAbs = isAbsolute12(completed.result_path) ? completed.result_path : join25(input.priorRunFolder, completed.result_path);
   let resultBody;
   try {
     resultBody = RunResult.parse(JSON.parse(readFileSync43(resultAbs, "utf8")));
@@ -98630,7 +100367,7 @@ var init_types2 = __esm({
 
 // dist/runtime/fanout/branch-execution.js
 import { randomUUID as randomUUID6 } from "node:crypto";
-import { dirname as dirname10, join as join24 } from "node:path";
+import { dirname as dirname11, join as join26 } from "node:path";
 async function appendFanoutBranchStarted(context, fields) {
   await context.trace.append({
     run_id: context.runId,
@@ -99056,7 +100793,7 @@ async function executeSubRunFanoutBranch(step, context, branch, worktreeRunner, 
     if (childFlow.id !== branch.flowRef) {
       throw new Error(`resolver returned flow id '${childFlow.id}' but branch flow_ref names '${branch.flowRef}'`);
     }
-    const childRunDir = join24(dirname10(context.runDir), childRunId);
+    const childRunDir = join26(dirname11(context.runDir), childRunId);
     const child = await context.childRunner({
       flowBytes: resolved.flowBytes,
       runDir: childRunDir,
@@ -99231,14 +100968,14 @@ var init_branch_expansion = __esm({
 
 // dist/runtime/fanout/run-owner-lock.js
 import { mkdirSync as mkdirSync6, readFileSync as readFileSync44, rmSync as rmSync5, writeFileSync as writeFileSync7 } from "node:fs";
-import { join as join25 } from "node:path";
+import { join as join27 } from "node:path";
 function ownerLockPath(worktreesRoot, runId) {
-  return join25(worktreesRoot, runId, OWNER_LOCK_FILENAME);
+  return join27(worktreesRoot, runId, OWNER_LOCK_FILENAME);
 }
 function writeOwnerLock(worktreesRoot, runId, startedAt) {
   const lock = { schema_version: 1, pid: process.pid, started_at: startedAt };
   try {
-    mkdirSync6(join25(worktreesRoot, runId), { recursive: true });
+    mkdirSync6(join27(worktreesRoot, runId), { recursive: true });
     writeFileSync7(ownerLockPath(worktreesRoot, runId), JSON.stringify(lock), "utf8");
   } catch {
   }
@@ -99324,7 +101061,7 @@ var init_worktree = __esm({
 });
 
 // dist/runtime/executors/fanout.js
-import { rm as rm3 } from "node:fs/promises";
+import { rm as rm5 } from "node:fs/promises";
 import { join as joinPath2 } from "node:path";
 function aggregateRef(step) {
   const aggregate2 = step.writes?.aggregate;
@@ -99425,7 +101162,7 @@ async function executeFanoutInternal(step, context, relayConnector) {
   const branchDirRoot = branchesDir(step);
   const aggregate2 = aggregateRef(step);
   if ((context.activeSliceIndex ?? 0) > 0) {
-    await rm3(context.files.resolve(branchDirRoot), { recursive: true, force: true });
+    await rm5(context.files.resolve(branchDirRoot), { recursive: true, force: true });
   }
   const branches = await expandFanoutBranches(step, context.files, context);
   if (branches.length === 0) {
@@ -99599,7 +101336,7 @@ var init_fanout = __esm({
 
 // dist/runtime/run/oracle-command-pin.js
 import { existsSync as existsSync28, readFileSync as readFileSync45 } from "node:fs";
-import { join as join26 } from "node:path";
+import { join as join28 } from "node:path";
 function createOracleCommandPinChannel() {
   return { pins: /* @__PURE__ */ new Map() };
 }
@@ -99608,7 +101345,7 @@ function readReferencedScriptBody(command, projectRoot) {
   if (script === void 0)
     return void 0;
   const cwdAbs = resolveProjectRelativeProofCwd(projectRoot, command.cwd);
-  const packageJsonPath = join26(cwdAbs, "package.json");
+  const packageJsonPath = join28(cwdAbs, "package.json");
   if (!existsSync28(packageJsonPath)) {
     throw new OracleCommandDriftError(`oracle script "${script}" for command '${command.id}' vanished: package.json missing at its cwd`);
   }
@@ -100162,9 +101899,9 @@ var init_frozen_eval = __esm({
 
 // dist/runtime/run/manifest-snapshot.js
 import { mkdir as mkdir2, readFile as readFile5, writeFile as writeFile3 } from "node:fs/promises";
-import { dirname as dirname11, join as join27 } from "node:path";
+import { dirname as dirname12, join as join29 } from "node:path";
 function runtimeManifestSnapshotPath(runDir) {
-  return join27(runDir, MANIFEST_SNAPSHOT_RUN_FILE);
+  return join29(runDir, MANIFEST_SNAPSHOT_RUN_FILE);
 }
 async function writeRuntimeManifestSnapshot(input) {
   const bytes = Buffer.from(input.bytes);
@@ -100178,7 +101915,7 @@ async function writeRuntimeManifestSnapshot(input) {
     bytes_base64: bytes.toString("base64")
   });
   const path = runtimeManifestSnapshotPath(input.runDir);
-  await mkdir2(dirname11(path), { recursive: true });
+  await mkdir2(dirname12(path), { recursive: true });
   await writeFile3(path, `${JSON.stringify(snapshot, null, 2)}
 `, { encoding: "utf8", flag: "wx" });
   return snapshot;
@@ -100450,7 +102187,7 @@ var init_write_capable_worker_disclosure = __esm({
 });
 
 // dist/runtime/projections/progress.js
-import { join as join28 } from "node:path";
+import { join as join30 } from "node:path";
 function stepTitle(input) {
   if (input.stepId === void 0)
     return "<unknown step>";
@@ -100521,7 +102258,7 @@ function reportTaskListProgress(input) {
   });
 }
 function readJsonReport2(files, runDir, reportPath) {
-  const text = files.readText(join28(runDir, reportPath));
+  const text = files.readText(join30(runDir, reportPath));
   if (text === void 0)
     throw new Error(`progress projection could not read ${reportPath}`);
   return JSON.parse(text);
@@ -100612,7 +102349,7 @@ function checkpointChoiceLabel(choice) {
   return choice.split(/[-_]/).filter((part) => part.length > 0).map((part) => `${part.slice(0, 1).toUpperCase()}${part.slice(1)}`).join(" ");
 }
 function checkpointRequestPath(runDir, requestPath) {
-  return requestPath.startsWith("/") ? requestPath : join28(runDir, requestPath);
+  return requestPath.startsWith("/") ? requestPath : join30(runDir, requestPath);
 }
 function shouldWarnAboutWriteCapableWorker(flow) {
   return flowMayInvokeWriteCapableWorker(flow.id) || flow.steps.some((step) => step.kind === "relay" && step.role === "implementer");
@@ -100718,7 +102455,9 @@ function createProgressProjector(input) {
           break;
         const display = stepDisplay({ flow: input.flow, stepDisplayById, stepId });
         const capability2 = connectorFilesystemCapability(connector);
-        const statusText = relayStartedTextFor({ role, display });
+        const seal = entry.context_seal;
+        const unsealed = seal !== void 0 && !seal.applied;
+        const statusText = unsealed ? `${relayStartedTextFor({ role, display })} (reviewer not sealed: ${seal.reason ?? "this connector kept repository access"})` : relayStartedTextFor({ role, display });
         reportProgress(input.progress, {
           schema_version: 1,
           type: "relay.started",
@@ -100726,7 +102465,7 @@ function createProgressProjector(input) {
           flow_id: flowId,
           recorded_at: recordedAt,
           label: `Running ${role} relay with ${connector.name}`,
-          display: progressDisplay(circuitDisplayText(statusText), "major", "info"),
+          display: progressDisplay(circuitDisplayText(statusText), "major", unsealed ? "warning" : "info"),
           presentation: replaceStatus(runId, `${stepId}:relay`, statusText),
           step_id: stepId,
           step_title: display.title,
@@ -100734,7 +102473,11 @@ function createProgressProjector(input) {
           role,
           connector_name: connector.name,
           connector_kind: connector.kind,
-          filesystem_capability: capability2
+          filesystem_capability: capability2,
+          ...seal === void 0 ? {} : {
+            context_seal_applied: seal.applied,
+            ...seal.reason === void 0 ? {} : { context_seal_reason: seal.reason }
+          }
         });
         break;
       }
@@ -100892,7 +102635,7 @@ function createProgressProjector(input) {
         const presentation = tournamentCheckpointPresentation({
           readJson: (path) => {
             try {
-              const text = projectionFiles.readText(join28(input.runDir, path));
+              const text = projectionFiles.readText(join30(input.runDir, path));
               return text === void 0 ? void 0 : JSON.parse(text);
             } catch {
               return void 0;
@@ -101198,19 +102941,19 @@ var init_external_files = __esm({
 import { readFileSync as readFileSync47 } from "node:fs";
 import { lstat, mkdir as mkdir3, readdir } from "node:fs/promises";
 async function assertFreshRunDir(runDir) {
-  let stat2;
+  let stat3;
   try {
-    stat2 = await lstat(runDir);
+    stat3 = await lstat(runDir);
   } catch (error52) {
     if (error52.code !== "ENOENT")
       throw error52;
     await mkdir3(runDir, { recursive: true });
-    stat2 = await lstat(runDir);
+    stat3 = await lstat(runDir);
   }
-  if (stat2.isSymbolicLink()) {
+  if (stat3.isSymbolicLink()) {
     throw new Error("runtime baseline requires a fresh run directory; existing path is a symlink");
   }
-  if (!stat2.isDirectory()) {
+  if (!stat3.isDirectory()) {
     throw new Error("runtime baseline requires a fresh run directory; existing path is not a directory");
   }
   const entries = await readdir(runDir);
@@ -101653,7 +103396,7 @@ var init_until_corridor = __esm({
 
 // dist/runtime/run/graph-runner.js
 import { randomUUID as randomUUID7 } from "node:crypto";
-import { join as join29 } from "node:path";
+import { join as join31 } from "node:path";
 function isGraphCheckpointWaitingResult(result) {
   return "kind" in result && result.kind === "checkpoint_waiting";
 }
@@ -101843,7 +103586,7 @@ async function executeExecutableFlowOutcomeUnsafe(flow, options) {
   const bindingLegibility = resolveBindingLegibility(flow);
   const engineFlags = resolveEngineFlags(flow);
   const editFileSurfaceSources = surfaceSourcesFromDeclarations(flow.reportFileSurfaces ?? {});
-  const honestyLedger = engineFlags?.iteratesUntilCondition?.stopJudge !== void 0 ? new HonestyLedger({ path: join29(runDir, "honesty-ledger.json") }) : void 0;
+  const honestyLedger = engineFlags?.iteratesUntilCondition?.stopJudge !== void 0 ? new HonestyLedger({ path: join31(runDir, "honesty-ledger.json") }) : void 0;
   const oracleCommandPins = honestyLedger === void 0 ? void 0 : createOracleCommandPinChannel();
   const context = {
     flow,
@@ -102875,12 +104618,12 @@ var init_compiled_flow_runner = __esm({
 
 // dist/runtime/run/resume-lock.js
 import { mkdirSync as mkdirSync7, readFileSync as readFileSync48, rmSync as rmSync6, writeFileSync as writeFileSync8 } from "node:fs";
-import { join as join30 } from "node:path";
+import { join as join32 } from "node:path";
 function resumeLockPath(runDir) {
-  return join30(runDir, RESUME_LOCK_FILENAME);
+  return join32(runDir, RESUME_LOCK_FILENAME);
 }
 function reclaimIntentPath(runDir) {
-  return join30(runDir, RESUME_RECLAIM_FILENAME);
+  return join32(runDir, RESUME_RECLAIM_FILENAME);
 }
 function createExclusive(path, payload) {
   try {
@@ -104143,12 +105886,12 @@ var init_local_review_references = __esm({
 
 // dist/app/checkpoints/local-review-assets.js
 import { createHash as createHash9 } from "node:crypto";
-import { constants as constants4, closeSync as closeSync5, fstatSync as fstatSync3, lstatSync as lstatSync7, openSync as openSync5, readSync as readSync5, realpathSync as realpathSync6, statSync as statSync3 } from "node:fs";
-import { extname as extname2, isAbsolute as isAbsolute11, relative as relative11, resolve as resolve19, sep as sep4 } from "node:path";
+import { constants as constants5, closeSync as closeSync5, fstatSync as fstatSync4, lstatSync as lstatSync7, openSync as openSync5, readSync as readSync5, realpathSync as realpathSync7, statSync as statSync3 } from "node:fs";
+import { extname as extname2, isAbsolute as isAbsolute13, relative as relative12, resolve as resolve19, sep as sep6 } from "node:path";
 import { fileURLToPath as fileURLToPath2, pathToFileURL as pathToFileURL2 } from "node:url";
 function isInside4(root, target) {
-  const fromRoot = relative11(root, target);
-  return fromRoot !== "" && !fromRoot.startsWith(`..${sep4}`) && fromRoot !== ".." && !isAbsolute11(fromRoot);
+  const fromRoot = relative12(root, target);
+  return fromRoot !== "" && !fromRoot.startsWith(`..${sep6}`) && fromRoot !== ".." && !isAbsolute13(fromRoot);
 }
 function safeRealFile(rootPath, targetPath) {
   try {
@@ -104158,17 +105901,17 @@ function safeRealFile(rootPath, targetPath) {
     if (!rootInfo.isDirectory() || rootInfo.isSymbolicLink() || !isInside4(root, target)) {
       return void 0;
     }
-    const realRoot = realpathSync6.native(root);
+    const realRoot = realpathSync7.native(root);
     let cursor = root;
-    for (const segment of relative11(root, target).split(sep4)) {
+    for (const segment of relative12(root, target).split(sep6)) {
       cursor = resolve19(cursor, segment);
       if (lstatSync7(cursor).isSymbolicLink())
         return void 0;
-      const realCursor = realpathSync6.native(cursor);
+      const realCursor = realpathSync7.native(cursor);
       if (realCursor !== realRoot && !isInside4(realRoot, realCursor))
         return void 0;
     }
-    const realTarget = realpathSync6.native(target);
+    const realTarget = realpathSync7.native(target);
     if (!isInside4(realRoot, realTarget) || !statSync3(realTarget).isFile())
       return void 0;
     return realTarget;
@@ -104184,18 +105927,18 @@ function safeRealDirectory(rootPath, targetPath) {
     if (!rootInfo.isDirectory() || rootInfo.isSymbolicLink() || !isInside4(root, target)) {
       return void 0;
     }
-    const realRoot = realpathSync6.native(root);
+    const realRoot = realpathSync7.native(root);
     let cursor = root;
-    for (const segment of relative11(root, target).split(sep4)) {
+    for (const segment of relative12(root, target).split(sep6)) {
       cursor = resolve19(cursor, segment);
       const info = lstatSync7(cursor);
       if (info.isSymbolicLink())
         return void 0;
-      const realCursor = realpathSync6.native(cursor);
+      const realCursor = realpathSync7.native(cursor);
       if (!isInside4(realRoot, realCursor))
         return void 0;
     }
-    const realTarget = realpathSync6.native(target);
+    const realTarget = realpathSync7.native(target);
     if (!isInside4(realRoot, realTarget) || !statSync3(realTarget).isDirectory())
       return void 0;
     return realTarget;
@@ -104204,7 +105947,7 @@ function safeRealDirectory(rootPath, targetPath) {
   }
 }
 function identityFromDescriptor(descriptor) {
-  const info = fstatSync3(descriptor, { bigint: true });
+  const info = fstatSync4(descriptor, { bigint: true });
   return {
     device: info.dev,
     inode: info.ino,
@@ -104251,7 +105994,7 @@ function captureStableBytes(input) {
     return void 0;
   let descriptor;
   try {
-    descriptor = openSync5(beforePath, constants4.O_RDONLY | constants4.O_NONBLOCK | constants4.O_NOFOLLOW);
+    descriptor = openSync5(beforePath, constants5.O_RDONLY | constants5.O_NONBLOCK | constants5.O_NOFOLLOW);
     const before = identityFromDescriptor(descriptor);
     if (!before.regular || before.size > BigInt(input.byteLimit))
       return void 0;
@@ -104411,7 +106154,7 @@ function captureLocalCheckpointReviewAssets(options) {
     }
     const projectRoot = options.projectRoot;
     const verified = CheckpointReviewAssetGroups.parse(options.reviewAssets);
-    const realProjectRoot = realpathSync6.native(resolve19(projectRoot));
+    const realProjectRoot = realpathSync7.native(resolve19(projectRoot));
     return verified.map((group) => {
       const root = safeRealDirectory(projectRoot, resolve19(projectRoot, group.root));
       if (root === void 0) {
@@ -104479,7 +106222,7 @@ function captureLocalCheckpointReviewAssets(options) {
     pathIndexes.set(captured.realPath, index);
     pending.push({
       realPath: captured.realPath,
-      root: realpathSync6.native(resolve19(input.root)),
+      root: realpathSync7.native(resolve19(input.root)),
       contentType,
       bytes: captured.bytes,
       pageReferences: input.pageReference === void 0 ? [] : [input.pageReference],
@@ -104494,7 +106237,7 @@ function captureLocalCheckpointReviewAssets(options) {
       continue;
     const realTarget = (() => {
       try {
-        return realpathSync6.native(resolve19(targetPath));
+        return realpathSync7.native(resolve19(targetPath));
       } catch {
         return void 0;
       }
@@ -105350,15 +107093,15 @@ var init_local_review_session = __esm({
 
 // dist/memory/project-store.js
 import { existsSync as existsSync29, readFileSync as readFileSync50 } from "node:fs";
-import { join as join31, resolve as resolve20 } from "node:path";
+import { join as join33, resolve as resolve20 } from "node:path";
 function resolveProjectStorePaths(options = {}) {
   const repoRoot = resolve20(options.repoRoot ?? process.cwd());
   const memoryDir = options.memoryDir === void 0 ? memoryRoot(repoRoot) : resolve20(repoRoot, options.memoryDir);
   return {
     repoRoot,
     memoryDir,
-    factsPath: join31(memoryDir, PROJECT_FACTS_FILE),
-    manifestPath: join31(memoryDir, MEMORY_MANIFEST_FILE)
+    factsPath: join33(memoryDir, PROJECT_FACTS_FILE),
+    manifestPath: join33(memoryDir, MEMORY_MANIFEST_FILE)
   };
 }
 function readProjectFacts(options = {}) {
@@ -105464,7 +107207,7 @@ var init_project_store = __esm({
 
 // dist/memory/project-injection.js
 import { existsSync as existsSync30, readFileSync as readFileSync51 } from "node:fs";
-import { join as join32, resolve as resolve21 } from "node:path";
+import { join as join34, resolve as resolve21 } from "node:path";
 function reverifyStaleness(fact, runsBase, checkedAt) {
   const sourceSha = fact.source.sha256 ?? fact.source.ref.sha256;
   const runId = fact.source.ref.run_id;
@@ -105473,7 +107216,7 @@ function reverifyStaleness(fact, runsBase, checkedAt) {
   }
   try {
     const relPath = fact.source.ref.ref.split("#")[0] ?? fact.source.ref.ref;
-    const abs = join32(runsBase, runId, relPath);
+    const abs = join34(runsBase, runId, relPath);
     if (!existsSync30(abs)) {
       return { status: "stale", checked_at: checkedAt, reason_codes: ["memory_stale"] };
     }
@@ -105516,9 +107259,9 @@ var init_project_injection = __esm({
 
 // dist/history/run-corpus.js
 import { existsSync as existsSync31, readdirSync as readdirSync5, statSync as statSync4 } from "node:fs";
-import { basename as basename5, join as join33 } from "node:path";
+import { basename as basename5, join as join35 } from "node:path";
 function isCandidateRunFolder(runFolder) {
-  return existsSync31(join33(runFolder, "manifest.snapshot.json")) || existsSync31(join33(runFolder, "trace.ndjson")) || existsSync31(join33(runFolder, "reports/result.json"));
+  return existsSync31(join35(runFolder, "manifest.snapshot.json")) || existsSync31(join35(runFolder, "trace.ndjson")) || existsSync31(join35(runFolder, "reports/result.json"));
 }
 function listCandidateRunFolders(runsBase) {
   if (!existsSync31(runsBase)) {
@@ -105526,19 +107269,19 @@ function listCandidateRunFolders(runsBase) {
       runsBase
     });
   }
-  let stat2;
+  let stat3;
   try {
-    stat2 = statSync4(runsBase);
+    stat3 = statSync4(runsBase);
   } catch (error52) {
     throw new HistoryCommandError("runs_base_unreadable", `runs base unreadable: ${error52 instanceof Error ? error52.message : String(error52)}`, { runsBase });
   }
-  if (!stat2.isDirectory()) {
+  if (!stat3.isDirectory()) {
     throw new HistoryCommandError("runs_base_unreadable", `runs base is not a directory: ${runsBase}`, {
       runsBase
     });
   }
   try {
-    return readdirSync5(runsBase, { withFileTypes: true }).filter((entry) => entry.isDirectory()).map((entry) => join33(runsBase, entry.name)).filter(isCandidateRunFolder).sort((left, right) => basename5(left).localeCompare(basename5(right)));
+    return readdirSync5(runsBase, { withFileTypes: true }).filter((entry) => entry.isDirectory()).map((entry) => join35(runsBase, entry.name)).filter(isCandidateRunFolder).sort((left, right) => basename5(left).localeCompare(basename5(right)));
   } catch (error52) {
     throw new HistoryCommandError("runs_base_unreadable", `runs base unreadable: ${error52 instanceof Error ? error52.message : String(error52)}`, { runsBase });
   }
@@ -105566,9 +107309,9 @@ var init_run_corpus = __esm({
 
 // dist/shared/run-artifact-io.js
 import { statSync as statSync5 } from "node:fs";
-import { isAbsolute as isAbsolute12, relative as relative12 } from "node:path";
+import { isAbsolute as isAbsolute14, relative as relative13 } from "node:path";
 function runRelativePath(runFolder, path) {
-  return isAbsolute12(path) ? relative12(runFolder, path) : path;
+  return isAbsolute14(path) ? relative13(runFolder, path) : path;
 }
 function mtimeMs(path) {
   return Math.trunc(statSync5(path).mtimeMs);
@@ -105580,8 +107323,8 @@ var init_run_artifact_io = __esm({
 });
 
 // dist/app/history/run-source-files.js
-import { existsSync as existsSync32, lstatSync as lstatSync8, readdirSync as readdirSync6, realpathSync as realpathSync7 } from "node:fs";
-import { isAbsolute as isAbsolute13, relative as relative13, resolve as resolve22 } from "node:path";
+import { existsSync as existsSync32, lstatSync as lstatSync8, readdirSync as readdirSync6, realpathSync as realpathSync8 } from "node:fs";
+import { isAbsolute as isAbsolute15, relative as relative14, resolve as resolve22 } from "node:path";
 function collectRunSourceFiles(runFolder) {
   const runFolderAbs = resolve22(runFolder);
   const files = /* @__PURE__ */ new Set();
@@ -105606,13 +107349,13 @@ function isSymlink(absPath) {
   }
 }
 function isInside5(root, target) {
-  const fromRoot = relative13(root, target);
-  return fromRoot === "" || !fromRoot.startsWith("..") && !isAbsolute13(fromRoot);
+  const fromRoot = relative14(root, target);
+  return fromRoot === "" || !fromRoot.startsWith("..") && !isAbsolute15(fromRoot);
 }
 function walkReportJsonFiles(reportsRoot2) {
   if (!existsSync32(reportsRoot2))
     return [];
-  const rootReal = realpathSync7.native(reportsRoot2);
+  const rootReal = realpathSync8.native(reportsRoot2);
   const out = [];
   const stack = [reportsRoot2];
   while (stack.length > 0) {
@@ -105623,7 +107366,7 @@ function walkReportJsonFiles(reportsRoot2) {
       const absPath = resolve22(current, entry.name);
       if (entry.isSymbolicLink() || lstatSync8(absPath).isSymbolicLink())
         continue;
-      const real = realpathSync7.native(absPath);
+      const real = realpathSync8.native(absPath);
       if (!isInside5(rootReal, real))
         continue;
       if (entry.isDirectory()) {
@@ -105642,8 +107385,8 @@ var init_run_source_files = __esm({
 });
 
 // dist/app/history/extract.js
-import { existsSync as existsSync33, lstatSync as lstatSync9, readFileSync as readFileSync52, readdirSync as readdirSync7, realpathSync as realpathSync8 } from "node:fs";
-import { basename as basename6, isAbsolute as isAbsolute14, relative as relative14, resolve as resolve23 } from "node:path";
+import { existsSync as existsSync33, lstatSync as lstatSync9, readFileSync as readFileSync52, readdirSync as readdirSync7, realpathSync as realpathSync9 } from "node:fs";
+import { basename as basename6, isAbsolute as isAbsolute16, relative as relative15, resolve as resolve23 } from "node:path";
 function isObject3(value) {
   return value !== null && typeof value === "object" && !Array.isArray(value);
 }
@@ -105674,21 +107417,21 @@ function sha256File(path) {
   return sha256OfString(readFileSync52(path, "utf8"));
 }
 function isInside6(root, target) {
-  const fromRoot = relative14(root, target);
-  return fromRoot === "" || !fromRoot.startsWith("..") && !isAbsolute14(fromRoot);
+  const fromRoot = relative15(root, target);
+  return fromRoot === "" || !fromRoot.startsWith("..") && !isAbsolute16(fromRoot);
 }
 function listFiles(root, prefix = "") {
   const absRoot = resolve23(root);
   if (!existsSync33(absRoot))
     return [];
-  const rootReal = realpathSync8.native(absRoot);
+  const rootReal = realpathSync9.native(absRoot);
   const out = [];
   function walk(absDir, relDir) {
     for (const entry of readdirSync7(absDir, { withFileTypes: true })) {
       const absPath = resolve23(absDir, entry.name);
       if (lstatSync9(absPath).isSymbolicLink())
         continue;
-      const real = realpathSync8.native(absPath);
+      const real = realpathSync9.native(absPath);
       if (!isInside6(rootReal, real))
         continue;
       const relPath = relDir.length === 0 ? entry.name : `${relDir}/${entry.name}`;
@@ -106308,7 +108051,7 @@ var init_extract = __esm({
 
 // dist/app/history/indexer.js
 import { existsSync as existsSync34, mkdirSync as mkdirSync8, readFileSync as readFileSync53, renameSync as renameSync2, writeFileSync as writeFileSync9 } from "node:fs";
-import { join as join34, resolve as resolve24 } from "node:path";
+import { join as join36, resolve as resolve24 } from "node:path";
 function resolveHistoryPaths(options = {}) {
   const repoRoot = resolve24(options.repoRoot ?? process.cwd());
   const runsBase = options.runsBase === void 0 ? runsRoot(repoRoot) : resolve24(repoRoot, options.runsBase);
@@ -106317,8 +108060,8 @@ function resolveHistoryPaths(options = {}) {
     repoRoot,
     runsBase,
     indexDir,
-    manifestPath: join34(indexDir, HISTORY_MANIFEST_FILE),
-    documentsPath: join34(indexDir, HISTORY_DOCUMENTS_FILE)
+    manifestPath: join36(indexDir, HISTORY_MANIFEST_FILE),
+    documentsPath: join36(indexDir, HISTORY_DOCUMENTS_FILE)
   };
 }
 function computeLatestSourceMtime(sourceFiles) {
@@ -106536,9 +108279,9 @@ var init_indexer = __esm({
 
 // dist/app/history/memory-effect-read.js
 import { existsSync as existsSync35, readFileSync as readFileSync54 } from "node:fs";
-import { join as join35 } from "node:path";
+import { join as join37 } from "node:path";
 function loadMemoryEffectReport(paths) {
-  const effectPath = join35(paths.indexDir, HISTORY_MEMORY_EFFECT_FILE);
+  const effectPath = join37(paths.indexDir, HISTORY_MEMORY_EFFECT_FILE);
   if (!existsSync35(effectPath)) {
     return {
       warnings: [
@@ -107237,19 +108980,19 @@ var init_run_start_recall = __esm({
 });
 
 // dist/app/operator-summary/resume-command.js
-import { isAbsolute as isAbsolute15, join as join36, resolve as resolve25 } from "node:path";
+import { isAbsolute as isAbsolute17, join as join38, resolve as resolve25 } from "node:path";
 function shellSingleQuote2(value) {
   return `'${value.replace(/'/g, "'\\''")}'`;
 }
 function operatorSummaryResumeCommandPrefix(input) {
   const execPath = input.execPath;
-  if (execPath !== void 0 && isAbsolute15(execPath) && input.pluginRoot !== void 0 && isAbsolute15(input.pluginRoot) && input.hostKind !== void 0 && input.hostKind !== "generic-shell") {
-    const wrapper = join36(input.pluginRoot, "scripts", "circuit.js");
+  if (execPath !== void 0 && isAbsolute17(execPath) && input.pluginRoot !== void 0 && isAbsolute17(input.pluginRoot) && input.hostKind !== void 0 && input.hostKind !== "generic-shell") {
+    const wrapper = join38(input.pluginRoot, "scripts", "circuit.js");
     const presentation = input.hostKind === "claude-code" ? " present" : "";
     return `${shellSingleQuote2(execPath)} ${shellSingleQuote2(wrapper)}${presentation} resume`;
   }
-  if (execPath !== void 0 && isAbsolute15(execPath) && input.cliEntryPath !== void 0) {
-    const entry = isAbsolute15(input.cliEntryPath) ? input.cliEntryPath : resolve25(input.cliEntryPath);
+  if (execPath !== void 0 && isAbsolute17(execPath) && input.cliEntryPath !== void 0) {
+    const entry = isAbsolute17(input.cliEntryPath) ? input.cliEntryPath : resolve25(input.cliEntryPath);
     return `${shellSingleQuote2(execPath)} ${shellSingleQuote2(entry)} resume`;
   }
   return "circuit resume";
@@ -107661,9 +109404,21 @@ function reviewAssessmentDetails(report) {
 function reviewEvidenceDetails(report) {
   const evidenceSummary2 = isObject4(report?.evidence_summary) ? report.evidence_summary : void 0;
   const kind = stringField2(evidenceSummary2, "kind");
+  if (kind === "goal")
+    return ["Review evidence: stated goal only; no Git target requested."];
   if (kind === "unavailable") {
     const message = stringField2(evidenceSummary2, "message");
     return message === void 0 ? [] : [`Review evidence: unavailable (${message})`];
+  }
+  if (kind === "git-target") {
+    const targetKind = stringField2(evidenceSummary2, "target_kind");
+    const targetRef = stringField2(evidenceSummary2, "target_ref");
+    const label = targetRef ?? targetKind ?? "requested target";
+    if (evidenceSummary2?.target_diff_included !== true) {
+      return [`Review evidence: ${label} diff unavailable.`];
+    }
+    const truncated2 = evidenceSummary2?.target_diff_truncated === true ? " (truncated)" : "";
+    return [`Review evidence: ${label} diff included${truncated2}.`];
   }
   if (kind !== "git-working-tree")
     return [];
@@ -107671,22 +109426,66 @@ function reviewEvidenceDetails(report) {
   const count = numberField(evidenceSummary2, "untracked_file_count") ?? 0;
   const sampled = numberField(evidenceSummary2, "untracked_files_sampled") ?? 0;
   const truncated = evidenceSummary2?.untracked_files_truncated === true;
+  const details = [];
+  const targetMode = stringField2(evidenceSummary2, "target_mode");
+  if (targetMode !== void 0) {
+    details.push(`Review evidence: ${targetMode} working-tree diff ${evidenceSummary2?.target_diff_included === true ? "included" : "unavailable"}.`);
+  }
   if (policy2 === "include-content") {
     const suffix = truncated ? "; additional untracked files were not sampled" : "";
-    return [
-      `Untracked evidence: contents included for ${plural(sampled, "file")} (${plural(count, "untracked file")} found${suffix}).`
-    ];
+    details.push(`Untracked evidence: contents included for ${plural(sampled, "file")} (${plural(count, "untracked file")} found${suffix}).`);
+    return details;
   }
   if (policy2 === "metadata-only" && count > 0) {
     const suffix = truncated ? "; additional untracked files were not sampled" : "";
-    return [
-      `Untracked evidence: paths and sizes only for ${plural(sampled, "file")} (${plural(count, "untracked file")} found${suffix}).`
-    ];
+    details.push(`Untracked evidence: paths and sizes only for ${plural(sampled, "file")} (${plural(count, "untracked file")} found${suffix}).`);
+    return details;
   }
-  return [];
+  return details;
 }
 function hasEvidenceWarningKind(report, kind) {
   return arrayField(report, "evidence_warnings").some((item) => isObject4(item) && stringField2(item, "kind") === kind);
+}
+function reviewEvidenceIncomplete(report) {
+  const evidenceSummary2 = isObject4(report?.evidence_summary) ? report.evidence_summary : void 0;
+  const evidenceKind = stringField2(evidenceSummary2, "kind");
+  if (evidenceKind === "git-target" && evidenceSummary2?.target_diff_truncated === true) {
+    return true;
+  }
+  const untrackedContentRequested = evidenceKind === "git-working-tree" && stringField2(evidenceSummary2, "untracked_content_policy") === "include-content";
+  if (untrackedContentRequested && evidenceSummary2?.untracked_files_truncated === true) {
+    return true;
+  }
+  return arrayField(report, "evidence_warnings").some((item) => {
+    if (!isObject4(item))
+      return false;
+    const kind = stringField2(item, "kind") ?? "";
+    if (kind === "untracked_files_truncated")
+      return untrackedContentRequested;
+    return INCOMPLETE_REVIEW_EVIDENCE_WARNING_KINDS.has(kind);
+  });
+}
+function hasCompleteUntrackedReviewEvidence2(evidenceSummary2) {
+  if (stringField2(evidenceSummary2, "kind") !== "git-working-tree" || stringField2(evidenceSummary2, "target_mode") !== "all" || stringField2(evidenceSummary2, "untracked_content_policy") !== "include-content" || evidenceSummary2?.untracked_files_truncated === true) {
+    return false;
+  }
+  const count = numberField(evidenceSummary2, "untracked_file_count") ?? 0;
+  const sampled = numberField(evidenceSummary2, "untracked_files_sampled") ?? 0;
+  return count > 0 && sampled === count;
+}
+function reviewEvidenceUnavailable(report) {
+  if (hasEvidenceWarningKind(report, "evidence_unavailable") || hasEvidenceWarningKind(report, "target_unavailable") || hasEvidenceWarningKind(report, "scope_empty")) {
+    return true;
+  }
+  const evidenceSummary2 = isObject4(report?.evidence_summary) ? report.evidence_summary : void 0;
+  const kind = stringField2(evidenceSummary2, "kind");
+  if (kind === "unavailable")
+    return true;
+  if (kind === "git-target")
+    return evidenceSummary2?.target_diff_included !== true;
+  if (kind !== "git-working-tree")
+    return false;
+  return evidenceSummary2?.target_diff_included !== true && !hasCompleteUntrackedReviewEvidence2(evidenceSummary2);
 }
 function buildFixDetails(flowReport) {
   const details = [];
@@ -107827,17 +109626,26 @@ function projectSummary(input) {
   const projector = SUMMARY_PROJECTORS[input.flowId] ?? defaultProjector;
   return projector(input);
 }
-var reviewProjector, buildProjector, prototypeProjector, goalProjector, fixProjector, pursueProjector, defaultProjector, SUMMARY_PROJECTORS;
+var INCOMPLETE_REVIEW_EVIDENCE_WARNING_KINDS, reviewProjector, buildProjector, prototypeProjector, goalProjector, fixProjector, pursueProjector, defaultProjector, SUMMARY_PROJECTORS;
 var init_projections = __esm({
   "dist/shared/operator-summary/projections.js"() {
     "use strict";
     init_explore();
     init_json2();
     init_text();
-    reviewProjector = ({ flowReport }) => {
+    INCOMPLETE_REVIEW_EVIDENCE_WARNING_KINDS = /* @__PURE__ */ new Set([
+      "binary_content_not_inspected",
+      "diff_truncated",
+      "untracked_file_skipped",
+      "submodule_content_not_inspected"
+    ]);
+    reviewProjector = ({ flowReport, runOutcome: runOutcome3 }) => {
       const verdict = stringField2(flowReport, "verdict") ?? "review complete";
       const findings = arrayField(flowReport, "findings").length;
       const scopeEmpty = hasEvidenceWarningKind(flowReport, "scope_empty");
+      const evidenceUnavailable = reviewEvidenceUnavailable(flowReport);
+      const evidenceIncomplete = reviewEvidenceIncomplete(flowReport);
+      const stopped = stringField2(flowReport, "outcome") === "stopped" || runOutcome3 === "stopped";
       const summaryDetail = flowSummaryDetail(flowReport);
       const assessmentDetails = reviewAssessmentDetails(flowReport);
       const [assessmentLine, ...verificationAndLimitations] = assessmentDetails;
@@ -107850,7 +109658,7 @@ var init_projections = __esm({
       details.push(...verificationAndLimitations);
       details.push(...reviewEvidenceDetails(flowReport));
       const findingPhrase = verdict === "CLEAN" && findings > 0 ? `Low-severity notes: ${findings}.` : `Findings: ${findings}.`;
-      const headline = scopeEmpty ? `Circuit: Review had no uncommitted source content to examine; committed history (HEAD~1) was not part of this review. ${findingPhrase}` : `Circuit: Review complete. Verdict: ${verdict}. ${findingPhrase}`;
+      const headline = scopeEmpty ? `Circuit: Review had no uncommitted source content to examine; committed history (HEAD~1) was not part of this review. ${findingPhrase}` : evidenceUnavailable ? `Circuit: Review did not have usable source evidence. ${findingPhrase}` : evidenceIncomplete ? `Circuit: Review source evidence was incomplete. ${findingPhrase}` : stopped ? `Circuit: Review stopped. Verdict: ${verdict}. ${findingPhrase}` : `Circuit: Review complete. Verdict: ${verdict}. ${findingPhrase}`;
       return {
         headline,
         details
@@ -107991,9 +109799,9 @@ var init_operator_summary2 = __esm({
 // dist/app/operator-summary/writer.js
 import { createHash as createHash10 } from "node:crypto";
 import { existsSync as existsSync38, mkdirSync as mkdirSync9, readFileSync as readFileSync57, rmSync as rmSync7, writeFileSync as writeFileSync10 } from "node:fs";
-import { dirname as dirname12, isAbsolute as isAbsolute16, join as join37, relative as relative15, resolve as resolve26 } from "node:path";
+import { dirname as dirname13, isAbsolute as isAbsolute18, join as join39, relative as relative16, resolve as resolve26 } from "node:path";
 function readPriorRoute(runFolder) {
-  const path = join37(runFolder, "reports", "operator-summary.json");
+  const path = join39(runFolder, "reports", "operator-summary.json");
   if (!existsSync38(path))
     return {};
   try {
@@ -108063,22 +109871,22 @@ function salvageKeyPoints(input) {
   return points;
 }
 function jsonPath(runFolder) {
-  return join37(runFolder, "reports", "operator-summary.json");
+  return join39(runFolder, "reports", "operator-summary.json");
 }
 function markdownPath(runFolder) {
-  return join37(runFolder, "reports", "operator-summary.md");
+  return join39(runFolder, "reports", "operator-summary.md");
 }
 function htmlPath(runFolder) {
-  return join37(runFolder, "reports", "operator-summary.html");
+  return join39(runFolder, "reports", "operator-summary.html");
 }
 function isInsideOrSame4(root, target) {
-  const fromRoot = relative15(root, target);
-  return fromRoot === "" || !fromRoot.startsWith("..") && !isAbsolute16(fromRoot);
+  const fromRoot = relative16(root, target);
+  return fromRoot === "" || !fromRoot.startsWith("..") && !isAbsolute18(fromRoot);
 }
 function readCheckpointRequest(runFolder, checkpoint) {
   let requestPath;
   try {
-    requestPath = isAbsolute16(checkpoint.request_path) ? resolve26(checkpoint.request_path) : resolveRunRelative(runFolder, checkpoint.request_path);
+    requestPath = isAbsolute18(checkpoint.request_path) ? resolve26(checkpoint.request_path) : resolveRunRelative(runFolder, checkpoint.request_path);
   } catch {
     return void 0;
   }
@@ -108096,7 +109904,7 @@ function readCheckpointRequest(runFolder, checkpoint) {
 function verifiedCheckpointReviewInputs(runFolder, checkpoint) {
   let requestPath;
   try {
-    requestPath = isAbsolute16(checkpoint.request_path) ? resolve26(checkpoint.request_path) : resolveRunRelative(runFolder, checkpoint.request_path);
+    requestPath = isAbsolute18(checkpoint.request_path) ? resolve26(checkpoint.request_path) : resolveRunRelative(runFolder, checkpoint.request_path);
   } catch {
     throw new Error("checkpoint review request path is invalid");
   }
@@ -108190,7 +109998,7 @@ function checkpointProjectRoot(request) {
   if (!isObject4(executionContext))
     return void 0;
   const projectRoot = stringField2(executionContext, "project_root");
-  return projectRoot !== void 0 && isAbsolute16(projectRoot) ? projectRoot : void 0;
+  return projectRoot !== void 0 && isAbsolute18(projectRoot) ? projectRoot : void 0;
 }
 function checkpointDepth(request) {
   const executionContext = request?.execution_context;
@@ -108440,16 +110248,20 @@ function keyPointsFromDetails(details) {
 }
 function caveatsFrom(input) {
   const caveats = [];
-  const add = (caveat) => {
+  const seenBodies = /* @__PURE__ */ new Set();
+  const body = (caveat) => caveat.trim().replace(/[.!?]+$/, "").toLowerCase();
+  const add = (caveat, messageBody = caveat) => {
     const trimmed = caveat.trim();
     if (trimmed.length === 0)
       return;
-    if (caveats.includes(trimmed))
+    const key = body(messageBody);
+    if (seenBodies.has(key))
       return;
+    seenBodies.add(key);
     caveats.push(trimmed);
   };
   for (const warning of input.warnings) {
-    add(`${warning.kind}: ${warning.message}`);
+    add(`${warning.kind}: ${warning.message}`, warning.message);
   }
   for (const detail of input.details) {
     if (detail.startsWith("Confidence limitations: ")) {
@@ -108610,7 +110422,7 @@ function evidenceLinks2(runFolder, report) {
   return { links, warnings };
 }
 function readAutoResolutions(runFolder) {
-  const tracePath = join37(runFolder, "trace.ndjson");
+  const tracePath = join39(runFolder, "trace.ndjson");
   if (!existsSync38(tracePath))
     return [];
   const records = [];
@@ -108650,7 +110462,7 @@ function emptySpendTotals() {
   };
 }
 function readRunReceipt(runFolder) {
-  const tracePath = join37(runFolder, "trace.ndjson");
+  const tracePath = join39(runFolder, "trace.ndjson");
   if (!existsSync38(tracePath))
     return void 0;
   let depth;
@@ -108878,7 +110690,7 @@ function skillHookSourceLabel(source) {
   }
 }
 function readSkillHookSummary(runFolder) {
-  const tracePath = join37(runFolder, "trace.ndjson");
+  const tracePath = join39(runFolder, "trace.ndjson");
   if (!existsSync38(tracePath))
     return { activations: [], warnings: [] };
   const seen = /* @__PURE__ */ new Set();
@@ -108933,7 +110745,7 @@ function readSkillHookSummary(runFolder) {
   return { activations, warnings };
 }
 function readDegradationWarnings(runFolder) {
-  const tracePath = join37(runFolder, "trace.ndjson");
+  const tracePath = join39(runFolder, "trace.ndjson");
   if (!existsSync38(tracePath))
     return [];
   const warnings = [];
@@ -108972,6 +110784,19 @@ function readDegradationWarnings(runFolder) {
       if (message !== void 0) {
         warnings.push({ kind: "context_delivery_failed", message: firstLine2(message) });
       }
+      continue;
+    }
+    if (entry.kind === "relay.started") {
+      const seal = entry.context_seal;
+      if (!isObject4(seal) || seal.applied !== false)
+        continue;
+      const connector = isObject4(entry.connector) ? stringField2(entry.connector, "name") : void 0;
+      const reason = stringField2(seal, "reason");
+      const cause = reason === void 0 ? "" : ` (${firstLine2(reason)})`;
+      warnings.push({
+        kind: "relay_context_not_sealed",
+        message: `The reviewer ran with repository access. This flow asked for a reviewer that sees only the relayed evidence, and ${connector ?? "the chosen connector"} could not honor that${cause}. Run this flow with Claude Code or Codex for a sealed reviewer.`
+      });
     }
   }
   return warnings;
@@ -108988,7 +110813,7 @@ function friendlyAbortReason(reason) {
   return void 0;
 }
 function readAutoConnectorPicks(runFolder) {
-  const tracePath = join37(runFolder, "trace.ndjson");
+  const tracePath = join39(runFolder, "trace.ndjson");
   const picks = /* @__PURE__ */ new Map();
   if (!existsSync38(tracePath))
     return picks;
@@ -109036,7 +110861,7 @@ function skillHookActivationLine(activation) {
   return `\`${activation.hook}\` ${parts.join("; ")} \u2014 ${provenance}`;
 }
 function readEquipmentReshapeSummary(runFolder) {
-  const tracePath = join37(runFolder, "trace.ndjson");
+  const tracePath = join39(runFolder, "trace.ndjson");
   if (!existsSync38(tracePath))
     return { reshapes: [], warnings: [] };
   const seen = /* @__PURE__ */ new Set();
@@ -109092,7 +110917,7 @@ function equipmentReshapeLine(reshape) {
   return `\`${reshape.step_id}\` confirmed ${domains}; equipped ${equipped}`;
 }
 function readIterationLedger(runFolder) {
-  const tracePath = join37(runFolder, "trace.ndjson");
+  const tracePath = join39(runFolder, "trace.ndjson");
   if (!existsSync38(tracePath))
     return [];
   const entries = [];
@@ -109344,7 +111169,7 @@ function writeOperatorSummary(input) {
   const ledgerRows = readIterationLedger(input.runFolder);
   const outJsonPath = jsonPath(input.runFolder);
   const outMarkdownPath = markdownPath(input.runFolder);
-  mkdirSync9(dirname12(outJsonPath), { recursive: true });
+  mkdirSync9(dirname13(outJsonPath), { recursive: true });
   const candidateHtmlPath = htmlPath(input.runFolder);
   let outHtmlPath;
   const htmlRender = renderOperatorSummaryHtml({
@@ -109526,7 +111351,7 @@ var init_writer = __esm({
 
 // dist/app/process-evidence/projection.js
 import { existsSync as existsSync39, mkdirSync as mkdirSync10, writeFileSync as writeFileSync11 } from "node:fs";
-import { dirname as dirname13, join as join38 } from "node:path";
+import { dirname as dirname14, join as join40 } from "node:path";
 function traceRef2(runId) {
   return {
     kind: "trace",
@@ -109585,15 +111410,15 @@ function projectClosedProcessEvidence(input) {
     runId: input.runResult.run_id,
     flowId
   });
-  const declaredReportRefs = declaredPaths.filter((path) => existsSync39(join38(input.runFolder, path))).map((path) => reportRef({
+  const declaredReportRefs = declaredPaths.filter((path) => existsSync39(join40(input.runFolder, path))).map((path) => reportRef({
     runFolder: input.runFolder,
-    path: join38(input.runFolder, path),
+    path: join40(input.runFolder, path),
     runId: input.runResult.run_id,
     flowId
   }));
   const additionalRefs = (input.additionalEvidencePaths ?? []).map((path) => reportRef({
     runFolder: input.runFolder,
-    path: join38(input.runFolder, path),
+    path: join40(input.runFolder, path),
     runId: input.runResult.run_id,
     flowId
   }));
@@ -109651,8 +111476,8 @@ function projectCheckpointWaitingProcessEvidence(input) {
 }
 function writeProcessEvidenceProjection(input) {
   const projection = ProcessEvidenceProjection.parse(input.projection);
-  const outPath = join38(input.runFolder, PROCESS_EVIDENCE_RELATIVE_PATH);
-  mkdirSync10(dirname13(outPath), { recursive: true });
+  const outPath = join40(input.runFolder, PROCESS_EVIDENCE_RELATIVE_PATH);
+  mkdirSync10(dirname14(outPath), { recursive: true });
   writeFileSync11(outPath, `${JSON.stringify(projection, null, 2)}
 `);
   return { path: outPath, projection };
@@ -109763,7 +111588,7 @@ var init_no_progress = __esm({
 
 // dist/app/run-envelope/source-record.js
 import { mkdirSync as mkdirSync11, writeFileSync as writeFileSync12 } from "node:fs";
-import { dirname as dirname14, join as join39 } from "node:path";
+import { dirname as dirname15, join as join41 } from "node:path";
 function childRunIdFromProjection(projection) {
   return RunId.parse(projection.child_run_ref.run_id);
 }
@@ -109804,7 +111629,7 @@ function renderSurfaceMarkdown(input) {
     ...input.record.surface_output.artifact_links
   ];
   const uniqueArtifactRefs = artifactRefs.filter((ref, index, refs) => refs.findIndex((candidate) => candidate.ref === ref.ref) === index);
-  const artifactLine = uniqueArtifactRefs.map((ref) => markdownLink(artifactLabel(ref), join39(input.runFolder, ref.ref))).join(" \xB7 ");
+  const artifactLine = uniqueArtifactRefs.map((ref) => markdownLink(artifactLabel(ref), join41(input.runFolder, ref.ref))).join(" \xB7 ");
   return ["CIRCUIT", `\u23BF ${input.record.surface_output.status_text}`, "", artifactLine, ""].join("\n");
 }
 function processAttemptOutcome(outcome) {
@@ -110312,17 +112137,17 @@ function writeRunEnvelopeRecord(input) {
     }),
     outcome
   });
-  const outPath = join39(input.runFolder, RUN_ENVELOPE_RELATIVE_PATH);
-  mkdirSync11(dirname14(outPath), { recursive: true });
+  const outPath = join41(input.runFolder, RUN_ENVELOPE_RELATIVE_PATH);
+  mkdirSync11(dirname15(outPath), { recursive: true });
   const decisionPacketPaths = decisionArtifacts.map((artifact) => {
-    const path = join39(input.runFolder, artifact.ref.ref);
-    mkdirSync11(dirname14(path), { recursive: true });
+    const path = join41(input.runFolder, artifact.ref.ref);
+    mkdirSync11(dirname15(path), { recursive: true });
     writeFileSync12(path, artifact.body);
     return path;
   });
   writeFileSync12(outPath, `${JSON.stringify(record2, null, 2)}
 `);
-  const surfacePath = join39(input.runFolder, RUN_SURFACE_RELATIVE_PATH);
+  const surfacePath = join41(input.runFolder, RUN_SURFACE_RELATIVE_PATH);
   writeFileSync12(surfacePath, renderSurfaceMarkdown({ runFolder: input.runFolder, record: record2 }));
   return {
     path: outPath,
@@ -110482,6 +112307,21 @@ var init_autonomous_run = __esm({
   }
 });
 
+// dist/flows/registries/start-preflight.js
+function validateFlowStartTarget(flowId, goal) {
+  if (flowId !== "review")
+    return;
+  const parsed = parseReviewTarget(goal);
+  if (!parsed.ok)
+    throw new Error(parsed.reason);
+}
+var init_start_preflight = __esm({
+  "dist/flows/registries/start-preflight.js"() {
+    "use strict";
+    init_intake2();
+  }
+});
+
 // dist/shared/checkpoint-review-token.js
 function decodeCheckpointReviewResponse(token) {
   if (!token.startsWith(TOKEN_PREFIX) || token.length > MAX_TOKEN_CHARS) {
@@ -110513,15 +112353,15 @@ var init_checkpoint_review_token = __esm({
 });
 
 // dist/cli/checkpoint-response-file.js
-import { constants as constants5, closeSync as closeSync6, fstatSync as fstatSync4, openSync as openSync6, readSync as readSync6 } from "node:fs";
-import { isAbsolute as isAbsolute17, resolve as resolve27 } from "node:path";
-import { TextDecoder as TextDecoder2 } from "node:util";
+import { constants as constants6, closeSync as closeSync6, fstatSync as fstatSync5, openSync as openSync6, readSync as readSync6 } from "node:fs";
+import { isAbsolute as isAbsolute19, resolve as resolve27 } from "node:path";
+import { TextDecoder as TextDecoder3 } from "node:util";
 function resolveCheckpointResponseFilePath(argument, cwd2) {
-  return isAbsolute17(argument) ? argument : resolve27(cwd2, argument);
+  return isAbsolute19(argument) ? argument : resolve27(cwd2, argument);
 }
 function openResponseFile(path) {
   try {
-    return openSync6(path, constants5.O_RDONLY | constants5.O_NONBLOCK);
+    return openSync6(path, constants6.O_RDONLY | constants6.O_NONBLOCK);
   } catch (error52) {
     const code = error52.code;
     if (code === "ENOENT" || code === "ENOTDIR") {
@@ -110536,16 +112376,16 @@ function openResponseFile(path) {
 function readBoundedRegularFile(path) {
   const fd = openResponseFile(path);
   try {
-    let stat2;
+    let stat3;
     try {
-      stat2 = fstatSync4(fd);
+      stat3 = fstatSync5(fd);
     } catch {
       throw new CheckpointResponseFileError("unreadable", path, `The checkpoint response file at ${path} could not be inspected.`);
     }
-    if (!stat2.isFile()) {
+    if (!stat3.isFile()) {
       throw new CheckpointResponseFileError("not_regular_file", path, `The checkpoint response path at ${path} must be a regular file; folders, pipes, sockets, and devices are not supported.`);
     }
-    if (stat2.size > MAX_CHECKPOINT_RESPONSE_FILE_BYTES) {
+    if (stat3.size > MAX_CHECKPOINT_RESPONSE_FILE_BYTES) {
       throw new CheckpointResponseFileError("too_large", path, `The checkpoint response file at ${path} is too large (limit 64 KiB). Shorten the review notes and export it again.`);
     }
     const buffer = Buffer.allocUnsafe(MAX_CHECKPOINT_RESPONSE_FILE_BYTES + 1);
@@ -110573,7 +112413,7 @@ function readBoundedRegularFile(path) {
 }
 function decodeUtf83(bytes, path) {
   try {
-    return new TextDecoder2("utf-8", { fatal: true }).decode(bytes);
+    return new TextDecoder3("utf-8", { fatal: true }).decode(bytes);
   } catch {
     throw new CheckpointResponseFileError("invalid_utf8", path, `The checkpoint response file at ${path} is not valid UTF-8. Export it again from the current review page.`);
   }
@@ -110725,7 +112565,7 @@ var init_checkpoint_review_open = __esm({
 
 // dist/cli/compiled-flow-loading.js
 import { existsSync as existsSync40, readFileSync as readFileSync58 } from "node:fs";
-import { dirname as dirname15, resolve as resolve28 } from "node:path";
+import { dirname as dirname16, resolve as resolve28 } from "node:path";
 import { fileURLToPath as fileURLToPath3 } from "node:url";
 function defaultFlowRoot() {
   const cwdRoot = resolve28("generated/flows");
@@ -110792,7 +112632,7 @@ var init_compiled_flow_loading = __esm({
     "use strict";
     init_canonical_stage_policy();
     init_compiled_flow();
-    packageFlowRoot = resolve28(dirname15(fileURLToPath3(import.meta.url)), "../..", "generated/flows");
+    packageFlowRoot = resolve28(dirname16(fileURLToPath3(import.meta.url)), "../..", "generated/flows");
   }
 });
 
@@ -110800,7 +112640,7 @@ var init_compiled_flow_loading = __esm({
 import { createHash as createHash11 } from "node:crypto";
 import { accessSync as accessSync3, copyFileSync, existsSync as existsSync41, constants as fsConstants, mkdirSync as mkdirSync12, readFileSync as readFileSync59, writeFileSync as writeFileSync13 } from "node:fs";
 import { homedir as homedir5 } from "node:os";
-import { dirname as dirname16, join as join40, resolve as resolve29 } from "node:path";
+import { dirname as dirname17, join as join42, resolve as resolve29 } from "node:path";
 import { fileURLToPath as fileURLToPath4 } from "node:url";
 function defaultCodexHooksFile() {
   const codexHome = process.env.CODEX_HOME ?? resolve29(homedir5(), ".codex");
@@ -110820,7 +112660,7 @@ function missingDefaultLauncherMessage(launcher) {
   ].join(" ");
 }
 function defaultLauncherPath() {
-  return resolveDefaultLauncher(process.env.CIRCUIT_PLUGIN_ROOT, dirname16(fileURLToPath4(import.meta.url)));
+  return resolveDefaultLauncher(process.env.CIRCUIT_PLUGIN_ROOT, dirname17(fileURLToPath4(import.meta.url)));
 }
 function parseCodexHooksHost(args) {
   if (args.host === "codex")
@@ -110986,7 +112826,7 @@ function isExecutableFile(path) {
   }
 }
 function writeHooksConfig(path, config2) {
-  mkdirSync12(dirname16(path), { recursive: true });
+  mkdirSync12(dirname17(path), { recursive: true });
   let backupPath;
   if (existsSync41(path)) {
     const candidate = `${path}.circuit-backup`;
@@ -111167,11 +113007,11 @@ function runHandoffHooksCommand(args) {
   throw new Error("handoff hooks requires install, uninstall, or doctor");
 }
 function codexInstallNudgeMarkerPath(controlPlane) {
-  return join40(continuityRoot(controlPlane), CODEX_INSTALL_NUDGE_MARKER);
+  return join42(continuityRoot(controlPlane), CODEX_INSTALL_NUDGE_MARKER);
 }
 function codexReinstallNudgeMarkerPath(controlPlane, staleLauncher) {
   const digest = createHash11("sha256").update(staleLauncher).digest("hex").slice(0, 12);
-  return join40(continuityRoot(controlPlane), `${CODEX_REINSTALL_NUDGE_MARKER}-${digest}`);
+  return join42(continuityRoot(controlPlane), `${CODEX_REINSTALL_NUDGE_MARKER}-${digest}`);
 }
 function codexHookInstallState(hooksPath) {
   if (!existsSync41(hooksPath))
@@ -111210,7 +113050,7 @@ function codexHookInstallState(hooksPath) {
 function writeNudgeMarker(markerPath, now) {
   const stampedAt = (now ?? (() => /* @__PURE__ */ new Date()))().toISOString();
   try {
-    mkdirSync12(dirname16(markerPath), { recursive: true });
+    mkdirSync12(dirname17(markerPath), { recursive: true });
     writeFileSync13(markerPath, `nudged at ${stampedAt}
 `);
   } catch {
@@ -111260,7 +113100,7 @@ var init_handoff_codex_hooks = __esm({
 
 // dist/app/run-envelope/shadow-record.js
 import { mkdirSync as mkdirSync13, writeFileSync as writeFileSync14 } from "node:fs";
-import { dirname as dirname17, join as join41 } from "node:path";
+import { dirname as dirname18, join as join43 } from "node:path";
 function reportRef2(input) {
   return {
     kind: "report",
@@ -111348,8 +113188,8 @@ function writeRunEnvelopeShadowRecord(input) {
     child_run: childRun,
     artifact_links: artifactLinks
   });
-  const outPath = join41(input.runFolder, RUN_ENVELOPE_SHADOW_RELATIVE_PATH);
-  mkdirSync13(dirname17(outPath), { recursive: true });
+  const outPath = join43(input.runFolder, RUN_ENVELOPE_SHADOW_RELATIVE_PATH);
+  mkdirSync13(dirname18(outPath), { recursive: true });
   writeFileSync14(outPath, `${JSON.stringify(record2, null, 2)}
 `);
   return { path: outPath, record: record2 };
@@ -111368,7 +113208,7 @@ var init_shadow_record = __esm({
 
 // dist/cli/post-run-artifacts.js
 import { readFileSync as readFileSync60 } from "node:fs";
-import { join as join42 } from "node:path";
+import { join as join44 } from "node:path";
 function tryPostRunArtifact(label, context, write) {
   try {
     return write();
@@ -111398,7 +113238,7 @@ function resolveFlowPrimaryResult(input) {
     return {};
   let primaryResult;
   try {
-    primaryResult = JSON.parse(readFileSync60(join42(input.runFolder, primaryResultPath), "utf8"));
+    primaryResult = JSON.parse(readFileSync60(join44(input.runFolder, primaryResultPath), "utf8"));
   } catch {
     return {};
   }
@@ -111456,7 +113296,7 @@ var init_post_run_artifacts = __esm({
 // dist/cli/recovery-attempt-runner.js
 import { randomUUID as randomUUID8 } from "node:crypto";
 import { readFileSync as readFileSync61 } from "node:fs";
-import { join as join43 } from "node:path";
+import { join as join45 } from "node:path";
 function createRecoveryAttemptRunner(deps) {
   const { primaryProjection, fixtureSelectionName, flowRoot: flowRoot2, parentAxes, runFolder, operatorGoal, now, projectRoot, relayer, runtimeExecutors, proofCommandRunner, gitReader, hostKind, selectionConfigLayers, policyLayers } = deps;
   const recoveryFlowCache = /* @__PURE__ */ new Map();
@@ -111485,7 +113325,7 @@ function createRecoveryAttemptRunner(deps) {
       tournament: false,
       autonomous: parentAxes.autonomous && support.supportsAutonomous
     });
-    const attemptFolder = join43(runFolder, "attempts", `attempt-${attemptNumber}-${processId}`);
+    const attemptFolder = join45(runFolder, "attempts", `attempt-${attemptNumber}-${processId}`);
     const recoveryResult = await runCompiledFlowWithWaiting({
       flowBytes: recoveryFlow.bytes,
       compiledFlowPath: recoveryFlow.path,
@@ -111545,7 +113385,7 @@ var init_recovery_attempt_runner = __esm({
 });
 
 // dist/cli/resume-input.js
-import { join as join44, resolve as resolve30 } from "node:path";
+import { join as join46, resolve as resolve30 } from "node:path";
 function matchCheckpointChoice(raw, choices) {
   for (const choice of choices) {
     if (choice.id === raw)
@@ -111582,7 +113422,7 @@ function runFolderCandidates(argument, cwd2) {
   const isBareName = !argument.includes("/") && !argument.includes("\\") && argument !== "." && argument !== "..";
   if (!isBareName)
     return [direct];
-  return [direct, join44(runsRoot(cwd2), argument)];
+  return [direct, join46(runsRoot(cwd2), argument)];
 }
 function missingRunFolderMessage(input) {
   const lead = input.exists ? `error: ${input.resolved} is not a resumable Circuit run folder (it has no readable run trace).` : `error: no Circuit run folder found at ${input.resolved}.`;
@@ -111766,7 +113606,7 @@ var init_run_preflight = __esm({
 });
 
 // dist/cli/run-stdout-envelope.js
-import { join as join45 } from "node:path";
+import { join as join47 } from "node:path";
 function leadingNumber(message) {
   const match = message.match(/\d+/);
   return match === null ? 0 : Number(match[0]);
@@ -111797,7 +113637,7 @@ function historyRecallOutputFields(input) {
     history_recall: {
       status: input.report.status,
       memory_input_count: input.report.memory_input_count,
-      report_path: join45(input.runFolder, HISTORY_RECALL_REPORT_PATH),
+      report_path: join47(input.runFolder, HISTORY_RECALL_REPORT_PATH),
       rebuilt: input.report.rebuilt,
       ...input.report.index_state === void 0 ? {} : { index_state: input.report.index_state },
       warnings: collapseIdenticalCodeWarnings(input.report.warnings.map((warning) => ({ code: warning.code, message: warning.message })))
@@ -111854,7 +113694,7 @@ var init_run_stdout_envelope = __esm({
 });
 
 // dist/cli/tty-notice.js
-import { join as join46 } from "node:path";
+import { join as join48 } from "node:path";
 function ttyNoticesEnabled(input) {
   return input.stream.isTTY === true && !input.progressJsonl;
 }
@@ -111862,7 +113702,7 @@ function runStartedNotice(input) {
   const mode = input.entryModeName === void 0 ? "" : ` (${input.entryModeName})`;
   return [
     `Running ${input.flowName}${mode}. This can take a while.`,
-    `Reports land in ${join46(input.runFolder, "reports")} while the run works.`,
+    `Reports land in ${join48(input.runFolder, "reports")} while the run works.`,
     ""
   ].join("\n");
 }
@@ -111881,7 +113721,7 @@ function checkpointWaitingNotice(input) {
 }
 function runFinishedNotice(input) {
   return `
-Run finished: ${input.outcome}. Reports: ${join46(input.runFolder, "reports")}
+Run finished: ${input.outcome}. Reports: ${join48(input.runFolder, "reports")}
 `;
 }
 var init_tty_notice = __esm({
@@ -111893,7 +113733,7 @@ var init_tty_notice = __esm({
 // dist/cli/run.js
 import { createHash as createHash12, randomUUID as randomUUID9 } from "node:crypto";
 import { existsSync as existsSync42, mkdirSync as mkdirSync14, readFileSync as readFileSync62, readdirSync as readdirSync8, writeFileSync as writeFileSync15 } from "node:fs";
-import { dirname as dirname18, join as join47, resolve as resolve31 } from "node:path";
+import { dirname as dirname19, join as join49, resolve as resolve31 } from "node:path";
 function resumeCommandPrefix(hostKind) {
   return operatorSummaryResumeCommandPrefix({
     ...hostKind === void 0 ? {} : { hostKind },
@@ -112952,7 +114792,7 @@ function unknownFlowMessage(flowName, flowRoot2) {
   const root = flowRoot2 !== void 0 ? resolve31(flowRoot2) : defaultFlowRoot();
   let available = [];
   try {
-    available = readdirSync8(root, { withFileTypes: true }).filter((entry) => entry.isDirectory() && existsSync42(join47(root, entry.name, "circuit.json"))).map((entry) => entry.name).filter((name) => !INTERNAL_FLOW_IDS.has(name)).sort();
+    available = readdirSync8(root, { withFileTypes: true }).filter((entry) => entry.isDirectory() && existsSync42(join49(root, entry.name, "circuit.json"))).map((entry) => entry.name).filter((name) => !INTERNAL_FLOW_IDS.has(name)).sort();
   } catch {
     available = [];
   }
@@ -113033,50 +114873,7 @@ async function runExecutionCommand(args, options) {
 `);
     return 2;
   }
-  const runId = RunId.parse(options.runId ?? randomUUID9());
-  const now = options.now ?? (() => /* @__PURE__ */ new Date());
-  const progress = progressReporter(runArgs.progress === "jsonl");
-  const selectedStatusText = routeSelectedStatusText(flow.id, entryModeSelection.entryModeName);
-  progress?.({
-    schema_version: 1,
-    type: "route.selected",
-    run_id: runId,
-    flow_id: flow.id,
-    recorded_at: now().toISOString(),
-    label: `Selected ${route.flowName}`,
-    display: progressDisplay(`Circuit: ${selectedStatusText}`, "major", "info"),
-    presentation: progressPresentation({ blockId: runId, statusText: selectedStatusText }),
-    // These route facets mirror routeOutputFields, but the route.selected event
-    // is a typed discriminated-union member (ProgressEvent), not the loosely
-    // typed stdout JSON. Spreading a Record<string, unknown> builder here erases
-    // the literal property types and breaks the union parse, so the fields stay
-    // inline. The shared shape is the selectedProcessFields builder used by the
-    // three selected_process literals below.
-    selected_flow: flow.id,
-    routed_by: route.source,
-    router_reason: route.reason,
-    ...entryModeSelection.entryModeName === void 0 ? {} : { entry_mode: entryModeSelection.entryModeName },
-    ...entryModeSelection.source === void 0 ? {} : { entry_mode_source: entryModeSelection.source }
-  });
-  const runFolder = runArgs.runFolder === void 0 ? join47(runsRoot(process.cwd()), runId) : resolve31(runArgs.runFolder);
-  try {
-    validateFlowConfigRequirements({ flow, axes: runArgs.axes, selectionConfigLayers });
-  } catch (err) {
-    process.stderr.write(`error: ${err.message}
-`);
-    return 2;
-  }
   const hostKind = runtimeHostKind(options);
-  const projectRoot = resolve31(options.projectRoot ?? options.configCwd ?? process.cwd());
-  if (hostKind === "codex" && options.codexInstallAssurance !== "disabled") {
-    try {
-      const assurance = codexInstallAssurance({ projectRoot, now });
-      if (assurance.notice !== void 0)
-        process.stderr.write(`${assurance.notice}
-`);
-    } catch {
-    }
-  }
   const runtimeSupport = classifyRuntimeSupport({
     flow,
     args: runArgs,
@@ -113084,7 +114881,6 @@ async function runExecutionCommand(args, options) {
     entryModeSelection,
     fixturePath
   });
-  const runtimeDecisionDiagnostics = showRuntimeDecision();
   const defaultRuntimeSupport = applyComposeWriterPolicy(applyFixturePolicy(runtimeSupport, {
     args: runArgs,
     fixturePath,
@@ -113117,6 +114913,59 @@ async function runExecutionCommand(args, options) {
         }
       }
     }
+  }
+  const projectRoot = resolve31(options.projectRoot ?? options.configCwd ?? process.cwd());
+  try {
+    validateFlowStartTarget(flow.id, operatorGoal);
+  } catch (err) {
+    process.stderr.write(`error: ${err.message}
+`);
+    return 2;
+  }
+  const runId = RunId.parse(options.runId ?? randomUUID9());
+  const now = options.now ?? (() => /* @__PURE__ */ new Date());
+  const progress = progressReporter(runArgs.progress === "jsonl");
+  const selectedStatusText = routeSelectedStatusText(flow.id, entryModeSelection.entryModeName);
+  progress?.({
+    schema_version: 1,
+    type: "route.selected",
+    run_id: runId,
+    flow_id: flow.id,
+    recorded_at: now().toISOString(),
+    label: `Selected ${route.flowName}`,
+    display: progressDisplay(`Circuit: ${selectedStatusText}`, "major", "info"),
+    presentation: progressPresentation({ blockId: runId, statusText: selectedStatusText }),
+    // These route facets mirror routeOutputFields, but the route.selected event
+    // is a typed discriminated-union member (ProgressEvent), not the loosely
+    // typed stdout JSON. Spreading a Record<string, unknown> builder here erases
+    // the literal property types and breaks the union parse, so the fields stay
+    // inline. The shared shape is the selectedProcessFields builder used by the
+    // three selected_process literals below.
+    selected_flow: flow.id,
+    routed_by: route.source,
+    router_reason: route.reason,
+    ...entryModeSelection.entryModeName === void 0 ? {} : { entry_mode: entryModeSelection.entryModeName },
+    ...entryModeSelection.source === void 0 ? {} : { entry_mode_source: entryModeSelection.source }
+  });
+  const runFolder = runArgs.runFolder === void 0 ? join49(runsRoot(process.cwd()), runId) : resolve31(runArgs.runFolder);
+  try {
+    validateFlowConfigRequirements({ flow, axes: runArgs.axes, selectionConfigLayers });
+  } catch (err) {
+    process.stderr.write(`error: ${err.message}
+`);
+    return 2;
+  }
+  if (hostKind === "codex" && options.codexInstallAssurance !== "disabled") {
+    try {
+      const assurance = codexInstallAssurance({ projectRoot, now });
+      if (assurance.notice !== void 0)
+        process.stderr.write(`${assurance.notice}
+`);
+    } catch {
+    }
+  }
+  const runtimeDecisionDiagnostics = showRuntimeDecision();
+  if (routeToRuntime) {
     if (ttyNotices) {
       process.stderr.write(runStartedNotice({
         flowName: route.flowName,
@@ -113338,8 +115187,8 @@ async function runExecutionCommand(args, options) {
             policyLayers
           })
         });
-        const autonomousLoopPath = join47(runFolder, AUTONOMOUS_LOOP_RELATIVE_PATH);
-        mkdirSync14(dirname18(autonomousLoopPath), { recursive: true });
+        const autonomousLoopPath = join49(runFolder, AUTONOMOUS_LOOP_RELATIVE_PATH);
+        mkdirSync14(dirname19(autonomousLoopPath), { recursive: true });
         writeFileSync15(autonomousLoopPath, `${JSON.stringify(autonomousLoop, null, 2)}
 `);
       } catch (err) {
@@ -113377,7 +115226,7 @@ async function runExecutionCommand(args, options) {
       postRunArtifactWarnings,
       operatorSummary,
       runEnvelope,
-      autonomousLoop: autonomousLoop === void 0 ? void 0 : { ...autonomousLoop, path: join47(runFolder, AUTONOMOUS_LOOP_RELATIVE_PATH) }
+      autonomousLoop: autonomousLoop === void 0 ? void 0 : { ...autonomousLoop, path: join49(runFolder, AUTONOMOUS_LOOP_RELATIVE_PATH) }
     }), null, 2)}
 `);
     if (ttyNotices) {
@@ -113422,6 +115271,7 @@ var init_run2 = __esm({
     init_autonomous_run();
     init_run_folder_projector();
     init_catalog();
+    init_start_preflight();
     init_checkpoint_review_token();
     init_config_loader();
     init_control_plane_paths();
@@ -113673,9 +115523,9 @@ function renderStyledTable(palette, rows) {
   }).join("\n");
 }
 function diamondHeaderLine(palette, command, parts = []) {
-  const sep5 = palette.dim("\xB7");
+  const sep7 = palette.dim("\xB7");
   const segments = [palette.bold(command), ...parts];
-  return `${palette.accent("\u25C6")} ${segments.join(` ${sep5} `)}`;
+  return `${palette.accent("\u25C6")} ${segments.join(` ${sep7} `)}`;
 }
 function columnHeader(palette, labels) {
   return labels.map((label) => cell2(label, palette.dim));
@@ -113941,13 +115791,13 @@ var init_preview = __esm({
 
 // dist/cli/version-info.js
 import { readFileSync as readFileSync64 } from "node:fs";
-import { dirname as dirname19, resolve as resolve32 } from "node:path";
+import { dirname as dirname20, resolve as resolve32 } from "node:path";
 import { fileURLToPath as fileURLToPath5 } from "node:url";
 function readSourceVersion() {
   if (true)
     return "0.1.1";
   const candidates = [
-    resolve32(dirname19(fileURLToPath5(import.meta.url)), "../../plugins/version.json"),
+    resolve32(dirname20(fileURLToPath5(import.meta.url)), "../../plugins/version.json"),
     resolve32(process.cwd(), "plugins/version.json")
   ];
   for (const candidate of candidates) {
@@ -115368,7 +117218,7 @@ __export(generate_exports, {
   runGenerateCommand: () => runGenerateCommand
 });
 import { existsSync as existsSync44 } from "node:fs";
-import { join as join49 } from "node:path";
+import { join as join51 } from "node:path";
 function parseArgs2(argv) {
   const program2 = new Command("circuit generate").option("--description <task>").option("--name <slug>").option("--home <path>").option("--created-at <iso>").option("--publish").option("--yes").option("--max-repair <n>").option("--timeout-ms <ms>").option("--progress <format>");
   parseCommanderOrThrow(program2, argv);
@@ -115519,7 +117369,7 @@ async function runGenerateCommand(argv, options = {}) {
     if (args.name !== void 0) {
       const namedSlug = slugify2(args.name);
       assertValidSlug(namedSlug);
-      if (args.publish && existsSync44(join49(flowRoot(home), namedSlug, "circuit.json"))) {
+      if (args.publish && existsSync44(join51(flowRoot(home), namedSlug, "circuit.json"))) {
         throw new Error(`custom flow already published: ${namedSlug}`);
       }
     }
@@ -115562,7 +117412,7 @@ async function runGenerateCommand(argv, options = {}) {
       return 1;
     }
     const slug = composed.slug;
-    if (args.publish && existsSync44(join49(flowRoot(home), slug, "circuit.json"))) {
+    if (args.publish && existsSync44(join51(flowRoot(home), slug, "circuit.json"))) {
       throw new Error(`custom flow already published: ${slug}`);
     }
     const createdAt = args.createdAt ?? now().toISOString();
@@ -115597,11 +117447,11 @@ async function runGenerateCommand(argv, options = {}) {
       converged_round: composed.convergedRound,
       repair_rounds: composed.repairRounds,
       draft_path: draftRoot(home, slug),
-      validation_path: join49(draftRoot(home, slug), "validation-result.json"),
+      validation_path: join51(draftRoot(home, slug), "validation-result.json"),
       ...args.publish ? {
         published_path: publishedRoot(home, slug),
-        flow_path: join49(flowRoot(home), slug, "circuit.json"),
-        command_path: join49(commandRoot(home), `${slug}.md`),
+        flow_path: join51(flowRoot(home), slug, "circuit.json"),
+        command_path: join51(commandRoot(home), `${slug}.md`),
         manifest_path: manifestPath(home)
       } : {},
       operator_summary_markdown_path: summaryPath(home, slug)
@@ -117573,7 +119423,7 @@ var init_yoga_wasm_base64_esm = __esm({
 });
 
 // node_modules/yoga-layout/dist/src/generated/YGEnums.js
-var Align, BoxSizing, Dimension, Direction, Display, Edge, Errata, ExperimentalFeature, FlexDirection, Gutter, Justify, LogLevel, MeasureMode, NodeType, Overflow, PositionType, Unit, Wrap, constants6, YGEnums_default;
+var Align, BoxSizing, Dimension, Direction, Display, Edge, Errata, ExperimentalFeature, FlexDirection, Gutter, Justify, LogLevel, MeasureMode, NodeType, Overflow, PositionType, Unit, Wrap, constants7, YGEnums_default;
 var init_YGEnums = __esm({
   "node_modules/yoga-layout/dist/src/generated/YGEnums.js"() {
     Align = /* @__PURE__ */ (function(Align2) {
@@ -117702,7 +119552,7 @@ var init_YGEnums = __esm({
       Wrap2[Wrap2["WrapReverse"] = 2] = "WrapReverse";
       return Wrap2;
     })({});
-    constants6 = {
+    constants7 = {
       ALIGN_AUTO: Align.Auto,
       ALIGN_FLEX_START: Align.FlexStart,
       ALIGN_CENTER: Align.Center,
@@ -117776,7 +119626,7 @@ var init_YGEnums = __esm({
       WRAP_WRAP: Wrap.Wrap,
       WRAP_WRAP_REVERSE: Wrap.WrapReverse
     };
-    YGEnums_default = constants6;
+    YGEnums_default = constants7;
   }
 });
 
@@ -154578,7 +156428,7 @@ init_esm();
 init_compile_schematic_to_flow();
 init_compiled_flow_file_plan();
 import { existsSync as existsSync23 } from "node:fs";
-import { join as join17 } from "node:path";
+import { join as join18 } from "node:path";
 
 // dist/flows/resolvers/archetype.js
 init_flow_schematic();
@@ -155064,11 +156914,11 @@ async function runCreateCommand(argv, options = {}) {
     const slug = slugify2(args.name ?? args.description);
     assertValidSlug(slug);
     const home = customHome(args.home);
-    if (args.publish && existsSync23(join17(flowRoot(home), slug, "circuit.json"))) {
+    if (args.publish && existsSync23(join18(flowRoot(home), slug, "circuit.json"))) {
       throw new Error(`custom flow already published: ${slug}`);
     }
     const createdAt = args.createdAt ?? now().toISOString();
-    const draftExists = existsSync23(join17(draftRoot(home, slug), "circuit.json"));
+    const draftExists = existsSync23(join18(draftRoot(home, slug), "circuit.json"));
     let files;
     let mainFlow;
     let archetype;
@@ -155115,11 +156965,11 @@ async function runCreateCommand(argv, options = {}) {
       status,
       slug,
       draft_path: draftRoot(home, slug),
-      validation_path: join17(draftRoot(home, slug), "validation-result.json"),
+      validation_path: join18(draftRoot(home, slug), "validation-result.json"),
       ...args.publish ? {
         published_path: publishedRoot(home, slug),
-        flow_path: join17(flowRoot(home), slug, "circuit.json"),
-        command_path: join17(commandRoot(home), `${slug}.md`),
+        flow_path: join18(flowRoot(home), slug, "circuit.json"),
+        command_path: join18(commandRoot(home), `${slug}.md`),
         manifest_path: manifestPath(home)
       } : {},
       operator_summary_markdown_path: summaryPath(home, slug)
@@ -155246,7 +157096,7 @@ init_terminal_style();
 
 // dist/cli/workspace-hygiene.js
 import { existsSync as existsSync43, readFileSync as readFileSync63 } from "node:fs";
-import { join as join48 } from "node:path";
+import { join as join50 } from "node:path";
 var PRETTIER_CONFIG_FILES = [
   ".prettierrc",
   ".prettierrc.json",
@@ -155272,11 +157122,11 @@ function fileHasCircuitLine(path) {
   }
 }
 function hasPrettierSetup(projectRoot) {
-  if (PRETTIER_CONFIG_FILES.some((name) => existsSync43(join48(projectRoot, name))))
+  if (PRETTIER_CONFIG_FILES.some((name) => existsSync43(join50(projectRoot, name))))
     return true;
-  if (existsSync43(join48(projectRoot, ".prettierignore")))
+  if (existsSync43(join50(projectRoot, ".prettierignore")))
     return true;
-  const packageJsonPath = join48(projectRoot, "package.json");
+  const packageJsonPath = join50(projectRoot, "package.json");
   if (!existsSync43(packageJsonPath))
     return false;
   try {
@@ -155289,15 +157139,15 @@ function hasPrettierSetup(projectRoot) {
   }
 }
 function workspaceHygieneFindings(projectRoot) {
-  if (!existsSync43(join48(projectRoot, ".circuit")))
+  if (!existsSync43(join50(projectRoot, ".circuit")))
     return [];
   if (!hasPrettierSetup(projectRoot))
     return [];
-  const covered = fileHasCircuitLine(join48(projectRoot, ".prettierignore")) || // Prettier 3 honors the repo-root .gitignore by default, so a `.circuit`
+  const covered = fileHasCircuitLine(join50(projectRoot, ".prettierignore")) || // Prettier 3 honors the repo-root .gitignore by default, so a `.circuit`
   // line there also covers it. Circuit's own seeded ignore lives NESTED at
   // `.circuit/.gitignore`, which Prettier never reads; that blind spot is
   // exactly what this probe exists to catch.
-  fileHasCircuitLine(join48(projectRoot, ".gitignore"));
+  fileHasCircuitLine(join50(projectRoot, ".gitignore"));
   if (covered)
     return [];
   return [
@@ -155463,10 +157313,10 @@ init_terminal_style();
 init_version_info();
 function renderFrontDoor() {
   const palette = terminalPalette(colorEnabled());
-  const sep5 = palette.dim("\xB7");
+  const sep7 = palette.dim("\xB7");
   const line = (command, blurb) => `  ${command.padEnd(46)} ${palette.dim(blurb)}`;
   return [
-    `${palette.accent("\u25C6")} ${palette.bold("circuit")} ${sep5} v${readSourceVersion()} ${sep5} configurable developer flows`,
+    `${palette.accent("\u25C6")} ${palette.bold("circuit")} ${sep7} v${readSourceVersion()} ${sep7} configurable developer flows`,
     "",
     `${palette.bold("run flows")}`,
     line('circuit run <flow> --goal "<goal>"', "execute a flow with evidence and a report"),
@@ -156358,7 +158208,7 @@ init_schemas3();
 init_atomic_io();
 init_outcome();
 init_indexer();
-import { join as join51 } from "node:path";
+import { join as join53 } from "node:path";
 
 // dist/app/history/memory-merge.js
 init_schemas3();
@@ -156367,7 +158217,7 @@ init_outcome();
 init_indexer();
 init_memory_identity();
 import { existsSync as existsSync46, readFileSync as readFileSync66 } from "node:fs";
-import { join as join50 } from "node:path";
+import { join as join52 } from "node:path";
 var RUN_ENVELOPE_RELATIVE_PATH2 = "reports/run-envelope.json";
 var RECALL_REPORT_RELATIVE_PATH = "reports/history/recall.json";
 var EFFECT_NOTE = "Report-only linkage (Slice 1). Effect requires cross-run aggregation over comparable runs (Slice 2).";
@@ -156378,7 +158228,7 @@ function deriveAbortReason(envelope) {
   return attempt.blocked_reason ?? attempt.summary;
 }
 function readRecallInputs(runFolder, warnings) {
-  const recallPath = join50(runFolder, RECALL_REPORT_RELATIVE_PATH);
+  const recallPath = join52(runFolder, RECALL_REPORT_RELATIVE_PATH);
   if (!existsSync46(recallPath)) {
     warnings.push({
       code: "recall_report_missing",
@@ -156434,7 +158284,7 @@ function resolveInput(memoryInputId, recallInputs, runFolder, warnings) {
 }
 function extractRunMemoryLinkage(runFolder) {
   const warnings = [];
-  const envelopePath = join50(runFolder, RUN_ENVELOPE_RELATIVE_PATH2);
+  const envelopePath = join52(runFolder, RUN_ENVELOPE_RELATIVE_PATH2);
   if (!existsSync46(envelopePath)) {
     warnings.push({
       code: "envelope_missing",
@@ -156544,7 +158394,7 @@ function buildMemoryMergeReport(options = {}) {
   });
 }
 function writeMemoryMergeReport(report, paths) {
-  const outPath = join50(paths.indexDir, HISTORY_MEMORY_MERGE_FILE);
+  const outPath = join52(paths.indexDir, HISTORY_MEMORY_MERGE_FILE);
   writeJsonAtomic(outPath, report, {
     validate: (raw) => HistoryMemoryMergeV1.parse(JSON.parse(raw))
   });
@@ -156741,7 +158591,7 @@ function buildMemoryEffectReport(options = {}) {
   });
 }
 function writeMemoryEffectReport(report, paths) {
-  const outPath = join51(paths.indexDir, HISTORY_MEMORY_EFFECT_FILE);
+  const outPath = join53(paths.indexDir, HISTORY_MEMORY_EFFECT_FILE);
   writeJsonAtomic(outPath, report, {
     validate: (raw) => HistoryMemoryEffectV1.parse(JSON.parse(raw))
   });
@@ -156756,7 +158606,7 @@ init_memory_preview();
 init_schemas3();
 init_atomic_io();
 import { existsSync as existsSync47, readFileSync as readFileSync67 } from "node:fs";
-import { join as join52 } from "node:path";
+import { join as join54 } from "node:path";
 var HISTORY_PULL_LOG_RELATIVE_PATH = "reports/history/pull-log.json";
 function pullLogUnavailable(runFolder, error52) {
   return {
@@ -156767,7 +158617,7 @@ function pullLogUnavailable(runFolder, error52) {
   };
 }
 function readPullLog(runFolder) {
-  const path = join52(runFolder, HISTORY_PULL_LOG_RELATIVE_PATH);
+  const path = join54(runFolder, HISTORY_PULL_LOG_RELATIVE_PATH);
   if (!existsSync47(path))
     return void 0;
   try {
@@ -156777,7 +158627,7 @@ function readPullLog(runFolder) {
   }
 }
 function appendPullLogEntry(runFolder, input) {
-  const outPath = join52(runFolder, HISTORY_PULL_LOG_RELATIVE_PATH);
+  const outPath = join54(runFolder, HISTORY_PULL_LOG_RELATIVE_PATH);
   const warnings = [];
   let existing;
   try {
@@ -157140,7 +158990,7 @@ init_indexer();
 init_catalog();
 import { createHash as createHash13 } from "node:crypto";
 import { existsSync as existsSync49, readFileSync as readFileSync69 } from "node:fs";
-import { basename as basename8, join as join53 } from "node:path";
+import { basename as basename8, join as join55 } from "node:path";
 
 // dist/memory/project-identity.js
 var import_yaml5 = __toESM(require_dist(), 1);
@@ -157315,7 +159165,7 @@ function resolveNoteSource(input) {
     { rel: "reports/result.json", kind: "report" }
   ];
   for (const candidate of candidates) {
-    const abs = join53(input.runFolder, candidate.rel);
+    const abs = join55(input.runFolder, candidate.rel);
     if (!existsSync49(abs))
       continue;
     const sha2564 = sha256Text(readFileSync69(abs, "utf8"));
@@ -157327,7 +159177,7 @@ function resolveNoteSource(input) {
     });
     return { ref, sha256: sha2564 };
   }
-  const tracePath = join53(input.runFolder, "trace.ndjson");
+  const tracePath = join55(input.runFolder, "trace.ndjson");
   if (existsSync49(tracePath)) {
     const runId = basename8(input.runFolder);
     const sha2564 = sha256Text(readFileSync69(tracePath, "utf8"));
@@ -157502,23 +159352,23 @@ init_preview();
 
 // dist/cli/reclaim.js
 init_esm();
-import { join as join55, resolve as resolve34 } from "node:path";
+import { join as join57, resolve as resolve34 } from "node:path";
 
 // dist/runtime/fanout/worktree-reaper.js
 init_trace_store();
 init_run_owner_lock();
 init_worktree();
 import { readdir as readdir2 } from "node:fs/promises";
-import { join as join54 } from "node:path";
+import { join as join56 } from "node:path";
 var listWorktreesFromDisk = async (worktreesRoot) => {
   const entries = [];
   const runDirs = await listSubdirectories(worktreesRoot);
   for (const runId of runDirs) {
-    const stepDirs = await listSubdirectories(join54(worktreesRoot, runId));
+    const stepDirs = await listSubdirectories(join56(worktreesRoot, runId));
     for (const stepId of stepDirs) {
-      const branchDirs = await listSubdirectories(join54(worktreesRoot, runId, stepId));
+      const branchDirs = await listSubdirectories(join56(worktreesRoot, runId, stepId));
       for (const branchId of branchDirs) {
-        entries.push({ path: join54(worktreesRoot, runId, stepId, branchId), runId });
+        entries.push({ path: join56(worktreesRoot, runId, stepId, branchId), runId });
       }
     }
   }
@@ -157538,7 +159388,7 @@ function makeTraceRunStatusResolver(runsRoot2) {
   return async (runId) => {
     let entries;
     try {
-      const trace = new TraceStore(join54(runsRoot2, runId));
+      const trace = new TraceStore(join56(runsRoot2, runId));
       entries = await trace.load();
     } catch {
       return "unknown";
@@ -157661,7 +159511,7 @@ async function runReclaimCommand(argv) {
     return 2;
   }
   const projectRoot = parsed.projectRoot;
-  const worktreesRoot = join55(controlPlaneRoot(projectRoot), "worktrees");
+  const worktreesRoot = join57(controlPlaneRoot(projectRoot), "worktrees");
   const summary = await reapWorktrees({
     worktreesRoot,
     // Anchor `git worktree remove` at the resolved project root so reclaim works
@@ -157765,7 +159615,7 @@ init_atomic_io();
 init_commander_support();
 init_run2();
 import { existsSync as existsSync50, readFileSync as readFileSync70 } from "node:fs";
-import { join as join56, resolve as resolve35 } from "node:path";
+import { join as join58, resolve as resolve35 } from "node:path";
 var START_LINE = /^\s*<!--\s*circuit:start\s*-->\s*$/;
 var END_LINE = /^\s*<!--\s*circuit:end\s*-->\s*$/;
 var UNINSTALL_TARGET_FILES = ["AGENTS.md", "CLAUDE.md"];
@@ -157916,7 +159766,7 @@ async function runUninstallCommand(argv, options = {}) {
   let malformedAny = false;
   let strippedAny = false;
   for (const file2 of UNINSTALL_TARGET_FILES) {
-    const path = join56(args.dir, file2);
+    const path = join58(args.dir, file2);
     if (!existsSync50(path)) {
       files.push({ file: file2, path, status: "absent" });
       continue;

@@ -1372,6 +1372,12 @@ process.stdout.write(JSON.stringify({ schema_version: 1, outcome: 'complete' }) 
       expect(output.checks).toContainEqual(
         expect.objectContaining({ name: 'temp_repo_review_smoke', ok: true }),
       );
+      expect(output.checks).toContainEqual(
+        expect.objectContaining({ name: 'temp_repo_review_intake_includes_marker', ok: true }),
+      );
+      expect(output.checks).toContainEqual(
+        expect.objectContaining({ name: 'temp_repo_review_prompt_includes_marker', ok: true }),
+      );
     } finally {
       rmSync(tempDir, { recursive: true, force: true });
     }

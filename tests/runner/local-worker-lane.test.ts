@@ -21,8 +21,9 @@ import { userGlobalConfigPath } from '../../src/shared/config-loader.js';
 let root: string;
 let homeDir: string;
 let cwdDir: string;
+let flowMirrorRoot: string;
 
-// The connector subprocess echoes its selection env vars into the review
+// The connector subprocess echoes its selection env vars into the relay
 // report so the test can assert what actually crossed the process boundary.
 const CONNECTOR_SCRIPT = `
 const { writeFileSync } = require('node:fs');
@@ -38,7 +39,7 @@ writeFileSync(outputFile, JSON.stringify({
 `;
 
 function writeLaneWorkspace(): string {
-  // The reviewer script lives in the operator's workspace, but the config that
+  // The connector script lives in the operator's workspace, but the config that
   // authorizes running it as a custom connector is the operator's own
   // user-global config, not the project's `.circuit/config.yaml`. A project
   // config cannot supply a command-running connector, so the whole lane is
@@ -46,6 +47,22 @@ function writeLaneWorkspace(): string {
   const scriptPath = join(cwdDir, 'local-reviewer.cjs');
   mkdirSync(cwdDir, { recursive: true });
   writeFileSync(scriptPath, CONNECTOR_SCRIPT);
+
+  // Production Review deliberately requires a built-in connector that can
+  // prove prompt-only isolation. This older lane test instead exercises the
+  // generic custom-connector path. A test-only trusted mirror turns that one
+  // Review flag off without weakening the shipped Review contract.
+  const mirroredFlowDir = join(flowMirrorRoot, 'review');
+  mkdirSync(mirroredFlowDir, { recursive: true });
+  const mirroredFlow = JSON.parse(readFileSync('generated/flows/review/circuit.json', 'utf8')) as {
+    engine_flags: { relay_uses_prompt_only_context?: boolean };
+  };
+  mirroredFlow.engine_flags.relay_uses_prompt_only_context = false;
+  writeFileSync(
+    join(mirroredFlowDir, 'circuit.json'),
+    `${JSON.stringify(mirroredFlow, null, 2)}\n`,
+  );
+
   const userConfigPath = userGlobalConfigPath(homeDir);
   mkdirSync(dirname(userConfigPath), { recursive: true });
   writeFileSync(
@@ -79,14 +96,16 @@ async function runReviewThroughLane(input: {
   readonly runFolder: string;
   readonly extraArgs?: readonly string[];
 }): Promise<readonly Record<string, unknown>[]> {
-  await captureStreams(() =>
+  const command = await captureStreams(() =>
     withScopedEnv({ HOME: homeDir, CIRCUIT_GENERATED_FLOW_MIRROR_ROOT: undefined }, async () => {
-      const exit = await main(
+      return main(
         [
           'run',
           'review',
           '--goal',
-          'prove the local worker lane end to end',
+          'review this supplied text: prove the local worker lane end to end',
+          '--flow-root',
+          flowMirrorRoot,
           '--run-folder',
           input.runFolder,
           ...(input.extraArgs ?? []),
@@ -96,11 +115,14 @@ async function runReviewThroughLane(input: {
           runId: '42424242-4242-4242-4242-424242424242',
           configHomeDir: homeDir,
           configCwd: cwdDir,
+          generatedFlowMirrorRoot: flowMirrorRoot,
         },
       );
-      expect(exit).toBe(0);
     }),
   );
+  if (command.result !== 0) {
+    throw new Error(`review command failed:\n${command.stderr}\n${command.stdout}`);
+  }
   return readFileSync(join(input.runFolder, 'trace.ndjson'), 'utf8')
     .split('\n')
     .filter(Boolean)
@@ -111,6 +133,7 @@ beforeEach(() => {
   root = mkdtempSync(join(tmpdir(), 'circuit-local-lane-'));
   homeDir = join(root, 'home');
   cwdDir = join(root, 'cwd');
+  flowMirrorRoot = join(root, 'flow-mirror');
   writeLaneWorkspace();
 });
 

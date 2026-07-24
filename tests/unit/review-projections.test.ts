@@ -1,0 +1,675 @@
+import { describe, expect, it } from 'vitest';
+
+import {
+  projectReviewIntake,
+  projectReviewResult,
+  reviewEvidenceWarnings,
+} from '../../src/flows/review/index.js';
+import {
+  type ReviewEvidence,
+  ReviewIntake,
+  ReviewRelayResult,
+  type ReviewResolvedTarget,
+} from '../../src/flows/review/reports.js';
+
+const COMMIT_A = 'aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa';
+const COMMIT_B = 'bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb';
+const COMMIT_C = 'cccccccccccccccccccccccccccccccccccccccc';
+
+function cleanRelay() {
+  return ReviewRelayResult.parse({
+    verdict: 'NO_ISSUES_FOUND',
+    findings: [],
+    assessment: 'The requested source evidence had no actionable issue.',
+    verification: ['Read the relayed diff.'],
+    confidence_limitations: [],
+  });
+}
+
+function workingTreeTarget(mode: 'staged' | 'unstaged' | 'all'): ReviewResolvedTarget {
+  return { kind: 'working_tree', mode, explicit: true };
+}
+
+function workingTreeEvidence(
+  mode: 'staged' | 'unstaged' | 'all',
+  overrides: Record<string, unknown> = {},
+) {
+  return {
+    kind: 'git-working-tree',
+    project_root: '/tmp/project',
+    status_short: 'M  staged.ts\n M unstaged.ts\n',
+    staged_diff: {
+      text: 'diff --git a/staged.ts b/staged.ts\n+staged\n',
+      truncated: false,
+    },
+    unstaged_diff: {
+      text: 'diff --git a/unstaged.ts b/unstaged.ts\n+unstaged\n',
+      truncated: false,
+    },
+    diff_stat: ' staged.ts | 1 +\n unstaged.ts | 1 +\n',
+    target_kind: 'working_tree',
+    target_mode: mode,
+    untracked_file_count: 0,
+    untracked_files_truncated: false,
+    untracked_content_policy: 'metadata-only',
+    untracked_files: [],
+    ...overrides,
+  } as ReviewEvidence;
+}
+
+/** Intake as the compose builder writes it: resolved target plus its evidence. */
+function workingTreeIntake(
+  scope: string,
+  mode: 'staged' | 'unstaged' | 'all',
+  evidenceOverrides: Record<string, unknown> = {},
+  options: { readonly assumedTarget?: boolean } = {},
+) {
+  return projectReviewIntake({
+    scope,
+    target: workingTreeTarget(mode),
+    evidence: workingTreeEvidence(mode, evidenceOverrides),
+    maxUntrackedFiles: 20,
+    ...(options.assumedTarget === true ? { assumedTarget: true } : {}),
+  });
+}
+
+function targetIntake(
+  scope: string,
+  target: ReviewResolvedTarget,
+  evidence: Record<string, unknown>,
+) {
+  return projectReviewIntake({
+    scope,
+    target,
+    evidence: {
+      kind: 'git-target',
+      project_root: '/tmp/project',
+      target_diff: {
+        text: 'diff --git a/src/example.ts b/src/example.ts\n+const value = 2;\n',
+        truncated: false,
+      },
+      target_diff_stat: ' src/example.ts | 1 +\n',
+      ...evidence,
+    } as ReviewEvidence,
+    maxUntrackedFiles: 20,
+  });
+}
+
+function commitIntake(ref: string, evidence: Record<string, unknown> = {}) {
+  return targetIntake(
+    `review commit ${ref}`,
+    { kind: 'commit', ref },
+    {
+      target_kind: 'commit',
+      target_ref: `commit ${ref}`,
+      target_commit: COMMIT_A,
+      ...evidence,
+    },
+  );
+}
+
+describe('Review evidence projections', () => {
+  it('summarizes pinned target evidence without working-tree fields', () => {
+    const intake = commitIntake('HEAD^', {
+      target_diff: {
+        text: 'diff --git a/src/example.ts b/src/example.ts\n+const value = 2;\n',
+        truncated: true,
+      },
+    });
+
+    expect(intake.evidence_warnings).toEqual([
+      {
+        kind: 'diff_truncated',
+        message: 'commit HEAD^ diff was truncated before relay',
+      },
+    ]);
+    expect(projectReviewResult({ intake, relayResult: cleanRelay() }).evidence_summary).toEqual({
+      kind: 'git-target',
+      target_kind: 'commit',
+      target_ref: 'commit HEAD^',
+      target_diff_included: true,
+      target_diff_truncated: true,
+    });
+  });
+
+  it('accepts a commit target whose evidence pins the same ref', () => {
+    expect(
+      projectReviewResult({ intake: commitIntake('HEAD^'), relayResult: cleanRelay() }),
+    ).toMatchObject({
+      verdict: 'CLEAN',
+      outcome: 'complete',
+    });
+  });
+
+  it('accepts a range target whose evidence pins both endpoints', () => {
+    const intake = targetIntake(
+      'review main...feature',
+      { kind: 'range', base: 'main', head: 'feature', dots: '...' },
+      {
+        target_kind: 'range',
+        target_ref: 'range main...feature',
+        target_base_ref: 'main',
+        target_head_ref: 'feature',
+        target_base_commit: COMMIT_A,
+        target_head_commit: COMMIT_B,
+      },
+    );
+
+    expect(projectReviewResult({ intake, relayResult: cleanRelay() })).toMatchObject({
+      verdict: 'CLEAN',
+      outcome: 'complete',
+    });
+  });
+
+  it.each([
+    {
+      name: 'the commit ref differs from the resolved target',
+      target: { kind: 'commit', ref: 'HEAD^' } as const,
+      evidence: {
+        target_kind: 'commit',
+        target_ref: 'commit HEAD~2',
+        target_commit: COMMIT_A,
+      },
+    },
+    {
+      name: 'a range endpoint differs from the resolved target',
+      target: { kind: 'range', base: 'main', head: 'feature', dots: '...' } as const,
+      evidence: {
+        target_kind: 'range',
+        target_ref: 'range main...other',
+        target_base_ref: 'main',
+        target_head_ref: 'other',
+        target_base_commit: COMMIT_A,
+        target_head_commit: COMMIT_B,
+      },
+    },
+    {
+      name: 'a working-tree request received commit evidence',
+      target: workingTreeTarget('staged'),
+      evidence: {
+        target_kind: 'commit',
+        target_ref: 'commit HEAD',
+        target_commit: COMMIT_A,
+      },
+    },
+    {
+      name: 'a goal-only request received commit evidence',
+      target: { kind: 'goal' } as const,
+      evidence: {
+        target_kind: 'commit',
+        target_ref: 'commit HEAD',
+        target_commit: COMMIT_A,
+      },
+    },
+  ])('rejects persisted evidence when $name', ({ target, evidence }) => {
+    const intake = targetIntake('review something', target, evidence);
+    expect(() => projectReviewResult({ intake, relayResult: cleanRelay() })).toThrow(
+      'does not match the requested scope',
+    );
+  });
+
+  it('rejects working-tree evidence collected for the wrong layer', () => {
+    const intake = ReviewIntake.parse({
+      ...workingTreeIntake('review staged changes', 'staged'),
+      target: workingTreeTarget('unstaged'),
+    });
+    expect(() => projectReviewResult({ intake, relayResult: cleanRelay() })).toThrow(
+      'does not match the requested scope',
+    );
+  });
+
+  it('rejects working-tree evidence for a goal-only Review', () => {
+    const intake = ReviewIntake.parse({
+      ...workingTreeIntake('review this rollout plan for operational risks', 'all'),
+      target: { kind: 'goal' },
+    });
+    expect(() => projectReviewResult({ intake, relayResult: cleanRelay() })).toThrow(
+      'does not match the requested scope',
+    );
+  });
+
+  it.each([
+    {
+      name: 'pinned commit diff',
+      intake: () =>
+        commitIntake('aaaaaaa', {
+          target_diff: {
+            text: 'diff --git a/src/example.ts b/src/example.ts\n+const value = 2;\n',
+            truncated: true,
+          },
+        }),
+    },
+    {
+      name: 'selected staged diff',
+      intake: () =>
+        workingTreeIntake('review staged changes', 'staged', {
+          staged_diff: {
+            text: 'diff --git a/staged.ts b/staged.ts\n+staged\n',
+            truncated: true,
+          },
+        }),
+    },
+    {
+      name: 'selected unstaged diff',
+      intake: () =>
+        workingTreeIntake('review unstaged changes', 'unstaged', {
+          unstaged_diff: {
+            text: 'diff --git a/unstaged.ts b/unstaged.ts\n+unstaged\n',
+            truncated: true,
+          },
+        }),
+    },
+    {
+      name: 'requested untracked file content',
+      intake: () =>
+        workingTreeIntake('review the working tree', 'all', {
+          status_short: '?? new-file.ts\n',
+          staged_diff: { text: '', truncated: false },
+          unstaged_diff: { text: '', truncated: false },
+          diff_stat: '',
+          untracked_content_policy: 'include-content',
+          untracked_file_count: 1,
+          untracked_files: [
+            {
+              path: 'new-file.ts',
+              byte_length: 48_000,
+              content: {
+                text: 'export const visiblePrefix = true;\n[truncated]',
+                truncated: true,
+              },
+            },
+          ],
+        }),
+    },
+    {
+      name: 'requested untracked file list',
+      intake: () =>
+        workingTreeIntake('review the working tree', 'all', {
+          status_short: '?? first-new-file.ts\n',
+          staged_diff: { text: '', truncated: false },
+          unstaged_diff: { text: '', truncated: false },
+          diff_stat: '',
+          untracked_content_policy: 'include-content',
+          untracked_file_count: 21,
+          untracked_files_truncated: true,
+          untracked_files: [
+            {
+              path: 'first-new-file.ts',
+              byte_length: 28,
+              content: {
+                text: 'export const first = true;\n',
+                truncated: false,
+              },
+            },
+          ],
+        }),
+    },
+  ])('cannot report CLEAN when the selected $name is truncated', ({ intake }) => {
+    expect(projectReviewResult({ intake: intake(), relayResult: cleanRelay() })).toMatchObject({
+      verdict: 'ISSUES_FOUND',
+      outcome: 'stopped',
+    });
+  });
+
+  it('cannot report CLEAN from a truncated pinned target when its persisted warning is missing', () => {
+    const intake = ReviewIntake.parse({
+      ...commitIntake('aaaaaaa', {
+        target_diff: {
+          text: 'diff --git a/src/example.ts b/src/example.ts\n+const visiblePrefix = true;\n',
+          truncated: true,
+        },
+      }),
+      evidence_warnings: [],
+    });
+
+    expect(projectReviewResult({ intake, relayResult: cleanRelay() })).toMatchObject({
+      verdict: 'ISSUES_FOUND',
+      outcome: 'stopped',
+    });
+  });
+
+  it('cannot report CLEAN from a truncated selected diff when its persisted warning is missing', () => {
+    const intake = ReviewIntake.parse({
+      ...workingTreeIntake('review staged changes', 'staged', {
+        staged_diff: {
+          text: 'diff --git a/staged.ts b/staged.ts\n+const visiblePrefix = true;\n',
+          truncated: true,
+        },
+      }),
+      evidence_warnings: [],
+    });
+
+    expect(projectReviewResult({ intake, relayResult: cleanRelay() })).toMatchObject({
+      verdict: 'ISSUES_FOUND',
+      outcome: 'stopped',
+    });
+  });
+
+  // D2: untracked files relayed as metadata only are the default posture, not a
+  // coverage gap. They are reported as a limitation and the verdict stands.
+  it('still reports CLEAN when untracked files were relayed as metadata only', () => {
+    const intake = workingTreeIntake('review the working tree', 'all', {
+      status_short: 'M  staged.ts\n?? hidden.ts\n',
+      unstaged_diff: { text: '', truncated: false },
+      untracked_content_policy: 'metadata-only',
+      untracked_file_count: 1,
+      untracked_files: [{ path: 'hidden.ts', byte_length: 42 }],
+    });
+
+    expect(projectReviewResult({ intake, relayResult: cleanRelay() })).toMatchObject({
+      verdict: 'CLEAN',
+      outcome: 'complete',
+      confidence_limitations: [
+        expect.stringContaining('untracked file contents were not included'),
+      ],
+    });
+  });
+
+  it('cannot report CLEAN when a requested untracked file was skipped', () => {
+    const intake = workingTreeIntake('review the working tree', 'all', {
+      status_short: 'M  staged.ts\n?? binary.dat\n',
+      unstaged_diff: { text: '', truncated: false },
+      untracked_content_policy: 'include-content',
+      untracked_file_count: 1,
+      untracked_files: [
+        {
+          path: 'binary.dat',
+          byte_length: 3,
+          skipped_reason: 'binary file skipped',
+        },
+      ],
+    });
+
+    expect(projectReviewResult({ intake, relayResult: cleanRelay() })).toMatchObject({
+      verdict: 'ISSUES_FOUND',
+      outcome: 'stopped',
+      findings: [expect.objectContaining({ id: 'circuit-review-evidence-incomplete' })],
+    });
+  });
+
+  it('cannot report CLEAN when nested submodule working-tree content was not inspected', () => {
+    const intake = workingTreeIntake('review the working tree', 'all', {
+      unstaged_diff: { text: '', truncated: false },
+      submodule_paths: ['modules/child'],
+    });
+
+    expect(intake.evidence_warnings).toContainEqual({
+      kind: 'submodule_content_not_inspected',
+      path: 'modules/child',
+      message: 'nested submodule source content was not inspected',
+    });
+    expect(projectReviewResult({ intake, relayResult: cleanRelay() })).toMatchObject({
+      verdict: 'ISSUES_FOUND',
+      outcome: 'stopped',
+      findings: [expect.objectContaining({ id: 'circuit-review-evidence-incomplete' })],
+    });
+  });
+
+  it('cannot report CLEAN when a pinned target contains only a submodule gitlink update', () => {
+    const intake = commitIntake('aaaaaaa', {
+      target_diff: {
+        text: [
+          'diff --git a/modules/child b/modules/child',
+          'index aaaaaaa..bbbbbbb 160000',
+          '--- a/modules/child',
+          '+++ b/modules/child',
+          '@@ -1 +1 @@',
+          `-Subproject commit ${COMMIT_A}`,
+          `+Subproject commit ${COMMIT_B}`,
+          '',
+        ].join('\n'),
+        truncated: false,
+      },
+      target_diff_stat: ' modules/child | 2 +-\n',
+    });
+
+    expect(intake.evidence_warnings).toContainEqual({
+      kind: 'submodule_content_not_inspected',
+      message: 'nested submodule source content was not inspected',
+    });
+    expect(projectReviewResult({ intake, relayResult: cleanRelay() })).toMatchObject({
+      verdict: 'ISSUES_FOUND',
+      outcome: 'stopped',
+      findings: [expect.objectContaining({ id: 'circuit-review-evidence-incomplete' })],
+    });
+  });
+
+  it('names uninspected binary content in a pinned target', () => {
+    const intake = commitIntake('aaaaaaa', {
+      target_diff: {
+        text: [
+          'diff --git a/assets/logo.png b/assets/logo.png',
+          'index 1f2e3d4..5a6b7c8 100644',
+          'Binary files a/assets/logo.png and b/assets/logo.png differ',
+          '',
+        ].join('\n'),
+        truncated: false,
+      },
+      target_diff_stat: ' assets/logo.png | Bin 12 -> 24 bytes\n',
+    });
+
+    expect(intake.evidence_warnings).toContainEqual({
+      kind: 'binary_content_not_inspected',
+      path: 'assets/logo.png',
+      message: 'binary file content was not inspected: assets/logo.png',
+    });
+    expect(projectReviewResult({ intake, relayResult: cleanRelay() })).toMatchObject({
+      verdict: 'ISSUES_FOUND',
+      outcome: 'stopped',
+      confidence_limitations: [
+        expect.stringContaining('binary file content was not inspected: assets/logo.png'),
+      ],
+    });
+  });
+
+  it('cannot report CLEAN when the selected diff contains only a binary-file marker', () => {
+    const intake = workingTreeIntake('review staged changes', 'staged', {
+      status_short: 'M  image.png\n',
+      staged_diff: {
+        text: [
+          'diff --git a/image.png b/image.png',
+          'index 1f2e3d4..5a6b7c8 100644',
+          'Binary files a/image.png and b/image.png differ',
+          '',
+        ].join('\n'),
+        truncated: false,
+      },
+      unstaged_diff: { text: '', truncated: false },
+      diff_stat: ' image.png | Bin 12 -> 24 bytes\n',
+    });
+
+    expect(intake.evidence_warnings).toContainEqual({
+      kind: 'binary_content_not_inspected',
+      path: 'image.png',
+      message: 'binary file content was not inspected: image.png',
+    });
+    expect(projectReviewResult({ intake, relayResult: cleanRelay() })).toMatchObject({
+      verdict: 'ISSUES_FOUND',
+      outcome: 'stopped',
+      assessment: expect.stringMatching(/^Circuit could inspect only part/),
+      confidence_limitations: [
+        expect.stringContaining('binary file content was not inspected: image.png'),
+      ],
+      findings: [expect.objectContaining({ id: 'circuit-review-evidence-incomplete' })],
+    });
+  });
+
+  it('cannot report CLEAN when all-mode status names an unstaged change but its diff is empty', () => {
+    const intake = workingTreeIntake('review the working tree', 'all', {
+      status_short: 'M  staged.ts\n M unstaged.ts\n',
+      unstaged_diff: { text: '', truncated: false },
+    });
+
+    expect(projectReviewResult({ intake, relayResult: cleanRelay() })).toMatchObject({
+      verdict: 'ISSUES_FOUND',
+      outcome: 'stopped',
+      findings: [expect.objectContaining({ id: 'circuit-review-evidence-incomplete' })],
+    });
+  });
+
+  it('cannot report CLEAN when a requested untracked count and file list disagree', () => {
+    const intake = workingTreeIntake('review the working tree', 'all', {
+      status_short: 'M  staged.ts\n?? missing-new-file.ts\n',
+      unstaged_diff: { text: '', truncated: false },
+      untracked_content_policy: 'include-content',
+      untracked_file_count: 1,
+      untracked_files_truncated: false,
+      untracked_files: [],
+    });
+
+    expect(projectReviewResult({ intake, relayResult: cleanRelay() })).toMatchObject({
+      verdict: 'ISSUES_FOUND',
+      outcome: 'stopped',
+      findings: [expect.objectContaining({ id: 'circuit-review-evidence-incomplete' })],
+    });
+  });
+
+  it.each([
+    {
+      mode: 'staged',
+      stagedText: 'diff --git a/staged.ts b/staged.ts\n+staged\n',
+      unstagedText: '',
+    },
+    {
+      mode: 'unstaged',
+      stagedText: '',
+      unstagedText: 'diff --git a/unstaged.ts b/unstaged.ts\n+unstaged\n',
+    },
+    {
+      mode: 'all',
+      stagedText: '',
+      unstagedText: 'diff --git a/unstaged.ts b/unstaged.ts\n+unstaged\n',
+    },
+  ] as const)(
+    'reports the selected $mode working-tree diff as included',
+    ({ mode, stagedText, unstagedText }) => {
+      const result = projectReviewResult({
+        intake: workingTreeIntake(`review ${mode} changes`, mode, {
+          status_short: stagedText.length > 0 ? 'M  staged.ts\n' : ' M unstaged.ts\n',
+          staged_diff: { text: stagedText, truncated: false },
+          unstaged_diff: { text: unstagedText, truncated: false },
+        }),
+        relayResult: cleanRelay(),
+      });
+
+      expect(result.evidence_summary).toMatchObject({
+        kind: 'git-working-tree',
+        target_kind: 'working_tree',
+        target_mode: mode,
+        target_diff_included: true,
+      });
+    },
+  );
+
+  // D1: an unrecognised goal reviews the working tree and says so, rather than
+  // refusing. The assumption is a named limitation, not a verdict.
+  it('names the assumed working-tree target without holding it against the verdict', () => {
+    const intake = workingTreeIntake('review this thing', 'all', {}, { assumedTarget: true });
+
+    expect(intake.evidence_warnings[0]).toEqual({
+      kind: 'target_assumed',
+      message: expect.stringContaining('Assumed target: the current working tree.'),
+    });
+    expect(projectReviewResult({ intake, relayResult: cleanRelay() })).toMatchObject({
+      verdict: 'CLEAN',
+      outcome: 'complete',
+      confidence_limitations: [
+        expect.stringContaining('Assumed target: the current working tree.'),
+      ],
+    });
+  });
+
+  it('refuses to turn persisted unavailable evidence into a clean result', () => {
+    const intake = ReviewIntake.parse({
+      scope: 'review commit missing',
+      target: { kind: 'commit', ref: 'missing' },
+      evidence: {
+        kind: 'unavailable',
+        reason: 'The requested commit could not be read.',
+      },
+      evidence_warnings: [
+        {
+          kind: 'evidence_unavailable',
+          message: 'The requested commit could not be read.',
+        },
+      ],
+    });
+
+    expect(() => projectReviewResult({ intake, relayResult: cleanRelay() })).toThrow(
+      'Review cannot complete because its source evidence is unavailable',
+    );
+  });
+
+  it('keeps a Review of actual supplied material usable without Git evidence', () => {
+    const intake = ReviewIntake.parse({
+      scope: 'review this rollout plan:\nUse one pinned target and stop if it is unavailable.',
+      target: { kind: 'goal' },
+      evidence: { kind: 'goal' },
+      evidence_warnings: [],
+    });
+
+    expect(projectReviewResult({ intake, relayResult: cleanRelay() })).toMatchObject({
+      verdict: 'CLEAN',
+      outcome: 'complete',
+      evidence_summary: { kind: 'goal' },
+    });
+  });
+
+  it('refuses an unavailable pinned target instead of falling back to the working tree', () => {
+    const unavailable = 'Target unavailable: deadbeef could not be read from this repository.';
+    const intake = ReviewIntake.parse({
+      scope: 'review commit deadbeef',
+      target: { kind: 'commit', ref: 'deadbeef' },
+      evidence: {
+        kind: 'git-target',
+        project_root: '/tmp/project',
+        target_kind: 'commit',
+        target_ref: 'commit deadbeef',
+        target_commit: COMMIT_C,
+        target_diff: { text: unavailable, truncated: false },
+        target_diff_stat: unavailable,
+      },
+      evidence_warnings: [{ kind: 'target_unavailable', message: unavailable }],
+    });
+
+    expect(() => projectReviewResult({ intake, relayResult: cleanRelay() })).toThrow(
+      'Review cannot complete because its source evidence is unavailable',
+    );
+  });
+
+  it('rejects evidence from the unselected working-tree layer', () => {
+    const intake = workingTreeIntake('review staged changes', 'staged', {
+      staged_diff: { text: '', truncated: false },
+      unstaged_diff: {
+        text: 'diff --git a/unstaged.ts b/unstaged.ts\n+unrelated unstaged work\n',
+        truncated: false,
+      },
+    });
+
+    expect(() => projectReviewResult({ intake, relayResult: cleanRelay() })).toThrow(
+      'no usable selected evidence',
+    );
+  });
+
+  it('marks an empty pinned target as unavailable', () => {
+    const evidence = {
+      kind: 'git-target',
+      project_root: '/tmp/project',
+      target_kind: 'range',
+      target_ref: 'range HEAD..HEAD',
+      target_base_ref: 'HEAD',
+      target_head_ref: 'HEAD',
+      target_base_commit: COMMIT_A,
+      target_head_commit: COMMIT_A,
+      target_diff: { text: '', truncated: false },
+      target_diff_stat: '',
+    } as const;
+
+    expect(reviewEvidenceWarnings({ evidence, maxUntrackedFiles: 20 })).toEqual([
+      {
+        kind: 'target_unavailable',
+        message: 'Target unavailable: range HEAD..HEAD produced an empty diff.',
+      },
+    ]);
+  });
+});
