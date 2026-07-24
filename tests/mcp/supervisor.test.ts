@@ -36,7 +36,7 @@ const roots: string[] = [];
 // Under full-suite load its bounded `ps` calls and cleanup can outlive the
 // worker's own short test limits, so the evidence watchdog needs a wider
 // budget than the product timers it is observing.
-async function waitFor<T>(read: () => T | undefined, timeoutMs = 30_000): Promise<T> {
+async function waitFor<T>(read: () => T | undefined, timeoutMs = 8_000): Promise<T> {
   const deadline = Date.now() + timeoutMs;
   while (Date.now() < deadline) {
     const value = read();

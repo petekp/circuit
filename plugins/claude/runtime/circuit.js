@@ -110248,16 +110248,20 @@ function keyPointsFromDetails(details) {
 }
 function caveatsFrom(input) {
   const caveats = [];
-  const add = (caveat) => {
+  const seenBodies = /* @__PURE__ */ new Set();
+  const body = (caveat) => caveat.trim().replace(/[.!?]+$/, "").toLowerCase();
+  const add = (caveat, messageBody = caveat) => {
     const trimmed = caveat.trim();
     if (trimmed.length === 0)
       return;
-    if (caveats.includes(trimmed))
+    const key = body(messageBody);
+    if (seenBodies.has(key))
       return;
+    seenBodies.add(key);
     caveats.push(trimmed);
   };
   for (const warning of input.warnings) {
-    add(`${warning.kind}: ${warning.message}`);
+    add(`${warning.kind}: ${warning.message}`, warning.message);
   }
   for (const detail of input.details) {
     if (detail.startsWith("Confidence limitations: ")) {
