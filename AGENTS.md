@@ -14,11 +14,23 @@ Only this guide defines agent rules. Anything else is context.
 
 ## Current focus
 
-Circuit is shipping and announcing v1. Read
-[`docs/release/v1-launch-plan.md`](docs/release/v1-launch-plan.md) before
-starting new work. It carries the launch blockers, the settled messaging
-decisions, and the standing rule that new features wait until after the
-announcement.
+The user experience is the only rule. A flow has to match what a person
+reasonably expects when they type a request, and where it can, beat it. That
+outranks internal consistency, prior sign-off, and any argument that starts
+"but principled behavior here is".
+
+Two consequences worth stating plainly:
+
+- No prior flow-design decision is settled. If a behavior only survives
+  because someone once approved it, re-derive it from what a user would
+  expect, and change it if it does not hold up.
+- Refusal is close to a last resort. When a request is comprehensible, do the
+  useful thing and name the assumption in the report. Refuse only when any
+  action would be wrong: no repository at all, a genuinely empty target,
+  something the run cannot honestly claim to have done.
+
+When a constraint is real, the fix is to build the missing capability, not to
+teach the operator to phrase around it.
 
 See [`UBIQUITOUS_LANGUAGE.md`](UBIQUITOUS_LANGUAGE.md) for the canonical product
 vocabulary (flow, schematic, block, route, relay, check, trace, report,
