@@ -101,11 +101,11 @@ export interface RuntimeGitReader {
 
 /**
  * Runtime Git results cross process and plugin boundaries as strings. Reject
- * replacement characters and malformed surrogate pairs so a lossy decoder
- * cannot silently turn unknown source bytes into apparently reviewable text.
+ * malformed surrogate pairs, which only a broken encoder produces. A literal
+ * U+FFFD is not rejected: it is a legal character that real source files
+ * contain, and refusing it would refuse reviews of those files.
  */
 export function runtimeGitTextIsValidUtf8(text: string): boolean {
-  if (text.includes('\uFFFD')) return false;
   for (let index = 0; index < text.length; index += 1) {
     const code = text.charCodeAt(index);
     if (code >= 0xd800 && code <= 0xdbff) {

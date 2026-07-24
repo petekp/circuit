@@ -115,14 +115,6 @@ export async function relayWithResolvedConnector(
     ...(input.responseSchema === undefined ? {} : { responseSchema: input.responseSchema }),
     ...(input.toolAllowList === undefined ? {} : { toolAllowList: input.toolAllowList }),
   };
-  if (
-    input.promptOnly === true &&
-    (connector.kind === 'custom' || connector.name === 'cursor-agent')
-  ) {
-    throw new Error(
-      `The ${connector.name} connector cannot run a prompt-only relay. Choose Claude Code or Codex.`,
-    );
-  }
   if (connector.kind === 'custom') {
     return relayCustom({ ...relayInput, descriptor: connector });
   }
@@ -621,21 +613,29 @@ export async function executeProductionRelayAttempt(input: {
     compiledStep.equipment_scope,
     equipmentDecision,
   );
-  const promptOnly = context.flow.engineFlags?.relayUsesPromptOnlyContext === true;
-  if (promptOnly && context.relayer !== undefined && context.relayer.promptOnlyContext !== true) {
-    throw new Error(
-      'The selected host relay cannot prove that it removed repository access for this Review.',
-    );
-  }
-  if (
-    promptOnly &&
-    context.relayer === undefined &&
-    (relayExecution.connector.kind === 'custom' || relayExecution.connector.name === 'cursor-agent')
-  ) {
-    throw new Error(
-      `The ${relayExecution.connector.name} connector cannot run this Review without repository access. Choose Claude Code or Codex.`,
-    );
-  }
+  // D3: the flow asks for a sealed reviewer (prompt-only, no repository
+  // access). Claude Code and Codex can prove they honored it. Anything else
+  // runs the relay anyway rather than refusing the operator's run, and the
+  // unsealed fact is stamped here so the trace, the progress stream, and the
+  // operator summary all report that the reviewer had repository access.
+  const sealRequested = context.flow.engineFlags?.relayUsesPromptOnlyContext === true;
+  const sealFailure = !sealRequested
+    ? undefined
+    : context.relayer !== undefined
+      ? context.relayer.promptOnlyContext === true
+        ? undefined
+        : 'the host relay cannot prove that it removed repository access'
+      : relayExecution.connector.kind === 'custom' ||
+          relayExecution.connector.name === 'cursor-agent'
+        ? `the ${relayExecution.connector.name} connector cannot run without repository access`
+        : undefined;
+  const promptOnly = sealRequested && sealFailure === undefined;
+  const contextSeal = sealRequested
+    ? {
+        applied: sealFailure === undefined,
+        ...(sealFailure === undefined ? {} : { reason: sealFailure }),
+      }
+    : undefined;
   await context.trace.append({
     run_id: context.runId,
     kind: 'relay.started',
@@ -646,6 +646,7 @@ export async function executeProductionRelayAttempt(input: {
     resolved_selection: resolvedSelection,
     resolved_from: relayExecution.resolvedFrom,
     ...(equipmentEvidence === undefined ? {} : { equipment: equipmentEvidence }),
+    ...(contextSeal === undefined ? {} : { context_seal: contextSeal }),
   });
   if (loadedSkills.length > 0) {
     await context.trace.append({

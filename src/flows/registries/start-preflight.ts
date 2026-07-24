@@ -1,3 +1,6 @@
+// Dispatch shim between the run entrypoints and the one flow that selects a
+// Git target today. If a second flow ever adopts targets, derive this from the
+// flow catalog instead of naming flow ids here.
 import type { RuntimeGitReader } from '../../shared/runtime-git-reader.js';
 import { parseReviewTarget, validateReviewTargetAvailability } from '../review/writers/intake.js';
 

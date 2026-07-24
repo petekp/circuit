@@ -79,8 +79,7 @@ describe('Codex MCP safe Git reader', () => {
       sandbox: fakeSandbox,
     });
 
-    const result = await reader.read({ operation: 'unstaged_diff' });
-    expect(result.submodules).toEqual([]);
+    await reader.read({ operation: 'unstaged_diff' });
     expect(calls).toHaveLength(2);
     expect(calls[1]?.argv).toEqual(
       expect.arrayContaining([
@@ -207,25 +206,37 @@ describe('Codex MCP safe Git reader', () => {
     );
   });
 
-  it('fails closed when a Git read contains a replacement character from lossy decoding', async () => {
+  it('fails closed on a broken encoding but reviews a literal replacement character', async () => {
     const workspace = temporaryDirectory('circuit-mcp-git-invalid-utf8');
     git(workspace, 'init', '--quiet');
-    const reader = createSafeGitReader({
-      workspace,
-      gitExecutable: '/usr/bin/git',
-      sandbox: {
-        async executeGitRead(request) {
-          if (request.argv.includes('config') || request.argv.includes('--stage')) {
-            return passed('');
-          }
-          return passed('diff --git a/invalid.txt b/invalid.txt\n+\uFFFD\n');
+    const readerFor = (body: string) =>
+      createSafeGitReader({
+        workspace,
+        gitExecutable: '/usr/bin/git',
+        sandbox: {
+          async executeGitRead(request) {
+            if (request.argv.includes('config') || request.argv.includes('--stage')) {
+              return passed('');
+            }
+            return passed(body);
+          },
         },
-      },
-    });
+      });
 
-    await expect(reader.read({ operation: 'staged_diff' })).rejects.toThrow(
-      /UTF-8|replacement|encoding/i,
-    );
+    // A lone surrogate can only come from a broken encoder.
+    await expect(
+      readerFor('diff --git a/invalid.txt b/invalid.txt\n+\ud800\n').read({
+        operation: 'staged_diff',
+      }),
+    ).rejects.toThrow(/UTF-8|replacement|encoding/i);
+
+    // U+FFFD is a legal character that real source files contain. Refusing it
+    // would refuse to review those files.
+    await expect(
+      readerFor('diff --git a/fffd.txt b/fffd.txt\n+\uFFFD\n').read({
+        operation: 'staged_diff',
+      }),
+    ).resolves.toMatchObject({ ok: true });
   });
 
   it('provides a bounded pinned commit diff with first-parent semantics', async () => {
@@ -394,80 +405,6 @@ describe('Codex MCP safe Git reader', () => {
     expect(primaryCalls.flatMap((call) => call.argv)).not.toContain('--recurse-submodules');
   });
 
-  it('uses a local PR merge snapshot instead of the current HEAD', async () => {
-    const workspace = temporaryDirectory('circuit-mcp-git-pr-target');
-    git(workspace, 'init', '--quiet');
-    const mergeCommit = 'a'.repeat(40);
-    const baseCommit = 'b'.repeat(40);
-    const headCommit = 'c'.repeat(40);
-    const calls: Parameters<SafeGitSandbox['executeGitRead']>[0][] = [];
-    const reader = createSafeGitReader({
-      workspace,
-      gitExecutable: '/usr/bin/git',
-      sandbox: {
-        async executeGitRead(request) {
-          calls.push(request);
-          return passed('');
-        },
-      },
-    });
-
-    await reader.read({
-      operation: 'target_diff',
-      target: {
-        kind: 'pull_request',
-        number: 123,
-        merge_commit: mergeCommit,
-        base_commit: baseCommit,
-        head_commit: headCommit,
-      },
-    });
-    const primary = calls.find(
-      (call) =>
-        call.argv.includes('diff') &&
-        !call.argv.includes('config') &&
-        !call.argv.includes('--stage'),
-    );
-    expect(primary?.argv).toContain(`${baseCommit}^{commit}...${headCommit}^{commit}`);
-    expect(primary?.argv).not.toContain('HEAD...refs/pull/123/head');
-  });
-
-  it('returns only sanitized GitHub repository identities from audited remote config', async () => {
-    const workspace = temporaryDirectory('circuit-mcp-git-remotes');
-    git(workspace, 'init', '--quiet');
-    const calls: Parameters<SafeGitSandbox['executeGitRead']>[0][] = [];
-    const reader = createSafeGitReader({
-      workspace,
-      gitExecutable: '/usr/bin/git',
-      sandbox: {
-        async executeGitRead(request) {
-          calls.push(request);
-          if (request.argv.includes('config')) {
-            return passed(
-              [
-                'remote.origin.url\nhttps://token@example.test@github.com/Acme/Widget.git',
-                'remote.upstream.url\ngit@github.com:ACME/widget.git',
-                'remote.other.url\nhttps://gitlab.com/acme/other.git',
-                '',
-              ].join('\0'),
-            );
-          }
-          return passed('');
-        },
-      },
-    });
-
-    const result = await reader.read({ operation: 'remote_repositories' });
-
-    expect(result).toMatchObject({
-      ok: true,
-      stdout: 'github.com/acme/widget\n',
-      cleanup_confirmed: true,
-    });
-    expect(result.stdout).not.toContain('token');
-    expect(calls).toHaveLength(1);
-  });
-
   it('resolves a symbolic range once and requires its pinned commit ids for later reads', async () => {
     const workspace = temporaryDirectory('circuit-mcp-git-pinned-range');
     git(workspace, 'init', '--quiet');
@@ -532,13 +469,10 @@ describe('Codex MCP safe Git reader', () => {
     expect(diffCall?.argv).not.toContain('main^{commit}...feature^{commit}');
   });
 
-  it('resolves commit and PR targets to strict immutable shapes', async () => {
+  it('resolves a commit target to a strict immutable shape', async () => {
     const workspace = temporaryDirectory('circuit-mcp-git-pinned-target-shapes');
     git(workspace, 'init', '--quiet');
     const commit = 'a'.repeat(40);
-    const mergeCommit = 'b'.repeat(40);
-    const baseCommit = 'c'.repeat(40);
-    const headCommit = 'd'.repeat(40);
     const calls: Parameters<SafeGitSandbox['executeGitRead']>[0][] = [];
     const reader = createSafeGitReader({
       workspace,
@@ -546,19 +480,7 @@ describe('Codex MCP safe Git reader', () => {
       sandbox: {
         async executeGitRead(request) {
           calls.push(request);
-          if (request.argv.includes('config')) {
-            return passed(
-              [
-                'remote.origin.url\nhttps://github.com/acme/widget.git',
-                'remote.origin.fetch\n+refs/pull/*/merge:refs/circuit/github.com/acme/widget/pull/*/merge',
-                '',
-              ].join('\0'),
-            );
-          }
           if (request.argv.some((arg) => arg === 'HEAD^{commit}')) return passed(`${commit}\n`);
-          if (request.argv.includes('rev-parse')) {
-            return passed(`${mergeCommit}\n${headCommit}\n^${baseCommit}\n`);
-          }
           return passed('');
         },
       },
@@ -572,89 +494,7 @@ describe('Codex MCP safe Git reader', () => {
     ).resolves.toMatchObject({
       resolved_target: { kind: 'commit', commit },
     });
-    await expect(
-      reader.read({
-        operation: 'resolve_target',
-        target: { kind: 'pull_request', number: 123 },
-      }),
-    ).resolves.toMatchObject({
-      resolved_target: {
-        kind: 'pull_request',
-        number: 123,
-        merge_commit: mergeCommit,
-        base_commit: baseCommit,
-        head_commit: headCommit,
-      },
-    });
-    expect(calls.filter((call) => call.argv.includes('rev-parse'))).toHaveLength(2);
-    expect(
-      calls.find((call) =>
-        call.argv.includes('refs/circuit/github.com/acme/widget/pull/123/merge^{commit}'),
-      )?.argv,
-    ).toEqual(
-      expect.arrayContaining(['refs/circuit/github.com/acme/widget/pull/123/merge^{commit}']),
-    );
-  });
-
-  it('selects the repository named by an exact PR URL target when two remotes have that PR number', async () => {
-    const workspace = temporaryDirectory('circuit-mcp-git-exact-pr-repository');
-    git(workspace, 'init', '--quiet');
-    const mergeCommit = 'a'.repeat(40);
-    const baseCommit = 'b'.repeat(40);
-    const headCommit = 'c'.repeat(40);
-    const calls: Parameters<SafeGitSandbox['executeGitRead']>[0][] = [];
-    const reader = createSafeGitReader({
-      workspace,
-      gitExecutable: '/usr/bin/git',
-      sandbox: {
-        async executeGitRead(request) {
-          calls.push(request);
-          if (request.argv.includes('config')) {
-            return passed(
-              [
-                'remote.origin.url\nhttps://github.com/acme/widget-fork.git',
-                'remote.origin.fetch\n+refs/pull/*/merge:refs/circuit/github.com/acme/widget-fork/pull/*/merge',
-                'remote.upstream.url\nhttps://github.com/acme/widget.git',
-                'remote.upstream.fetch\n+refs/pull/*/merge:refs/circuit/github.com/acme/widget/pull/*/merge',
-                '',
-              ].join('\0'),
-            );
-          }
-          if (request.argv.includes('rev-parse')) {
-            return passed(`${mergeCommit}\n${headCommit}\n^${baseCommit}\n`);
-          }
-          return passed('');
-        },
-      },
-    });
-
-    await expect(
-      reader.read({
-        operation: 'resolve_target',
-        target: {
-          kind: 'pull_request',
-          number: 123,
-          repository: 'github.com/acme/widget',
-        },
-      }),
-    ).resolves.toMatchObject({
-      resolved_target: {
-        kind: 'pull_request',
-        number: 123,
-        repository: 'github.com/acme/widget',
-        merge_commit: mergeCommit,
-        base_commit: baseCommit,
-        head_commit: headCommit,
-      },
-    });
-
-    const resolution = calls.find((call) => call.argv.includes('rev-parse'));
-    expect(resolution?.argv).toContain(
-      'refs/circuit/github.com/acme/widget/pull/123/merge^{commit}',
-    );
-    expect(resolution?.argv).not.toContain(
-      'refs/circuit/github.com/acme/widget-fork/pull/123/merge^{commit}',
-    );
+    expect(calls.filter((call) => call.argv.includes('rev-parse'))).toHaveLength(1);
   });
 
   it('rejects malformed target resolution output instead of trusting it as an object id', async () => {
@@ -946,82 +786,6 @@ describe('Codex MCP safe Git reader', () => {
       cleanup_confirmed: true,
     });
     expect(calls.some((call) => call.argv.includes('--stage'))).toBe(false);
-  });
-
-  it('validates regular index entries while returning only submodule gitlinks', async () => {
-    const workspace = temporaryDirectory('circuit-mcp-git-valid-mixed-index');
-    git(workspace, 'init', '--quiet');
-    const regularObject = 'a'.repeat(40);
-    const submoduleObject = 'b'.repeat(40);
-    const reader = createSafeGitReader({
-      workspace,
-      gitExecutable: '/usr/bin/git',
-      sandbox: {
-        async executeGitRead(request) {
-          return passed(
-            request.argv.includes('--stage')
-              ? `100644 ${regularObject} 0\tREADME.md\0` +
-                  `160000 ${submoduleObject} 0\tmodules/child\0`
-              : '',
-          );
-        },
-      },
-    });
-
-    const result = await reader.read({ operation: 'submodules' });
-
-    expect(result.submodules).toEqual([
-      {
-        path: 'modules/child',
-        index_oid: submoduleObject,
-        inspection: 'gitlink_only',
-      },
-    ]);
-  });
-
-  it.each([
-    {
-      name: 'missing final NUL',
-      output: `160000 ${'b'.repeat(40)} 0\tmodules/child`,
-    },
-    {
-      name: 'malformed gitlink object id',
-      output: '160000 not-an-object-id 0\tmodules/child\0',
-    },
-    {
-      name: 'duplicate path',
-      output:
-        `160000 ${'b'.repeat(40)} 0\tmodules/child\0` +
-        `160000 ${'c'.repeat(40)} 0\tmodules/child\0`,
-    },
-    {
-      name: 'malformed regular-file object id',
-      output: '100644 not-an-object-id 0\tREADME.md\0',
-    },
-    {
-      name: 'malformed regular-file stage',
-      output: `100644 ${'b'.repeat(40)} 4\tREADME.md\0`,
-    },
-    {
-      name: 'malformed regular-file frame',
-      output: 'garbage\0',
-    },
-  ])('rejects malformed explicit submodule output: $name', async ({ output }) => {
-    const workspace = temporaryDirectory('circuit-mcp-git-malformed-submodules');
-    git(workspace, 'init', '--quiet');
-    const reader = createSafeGitReader({
-      workspace,
-      gitExecutable: '/usr/bin/git',
-      sandbox: {
-        async executeGitRead(request) {
-          return passed(request.argv.includes('--stage') ? output : '');
-        },
-      },
-    });
-
-    await expect(reader.read({ operation: 'submodules' })).rejects.toThrow(
-      /submodule|malformed|duplicate|NUL/i,
-    );
   });
 
   it('does not run repository hooks, text converters, external diffs, fsmonitor, or host config', async () => {

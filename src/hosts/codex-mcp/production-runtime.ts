@@ -300,16 +300,6 @@ export function createProductionLaunchPreflight(
 
   const result: ProductionLaunchPreflight = {
     validate: async (input: Parameters<ProductionLaunchPreflight['validate']>[0]) => {
-      let reviewTargetNeedsGit = false;
-      try {
-        reviewTargetNeedsGit = flowStartNeedsGitEvidence(input.request.flow, input.request.goal);
-      } catch (error) {
-        throw new McpLifecycleError(
-          'invalid_review_target',
-          (error as Error).message,
-          'Choose one complete working tree, staged set, unstaged set, commit, range, or PR target, or include the actual text to review.',
-        );
-      }
       await verifyAssets(input.runtime_assets);
       const codex = requiredAsset(input.runtime_assets, 'codex', 'codex');
       const node = requiredAsset(input.runtime_assets, 'node', 'node');
@@ -342,6 +332,19 @@ export function createProductionLaunchPreflight(
             environment: dependencies.environment,
           },
         });
+        // Target selection is checked only after the host itself is proven
+        // usable. A sandboxed session that cannot launch Codex at all should
+        // hear about the sandbox, not about its Review target.
+        let reviewTargetNeedsGit = false;
+        try {
+          reviewTargetNeedsGit = flowStartNeedsGitEvidence(input.request.flow, input.request.goal);
+        } catch (error) {
+          throw new McpLifecycleError(
+            'invalid_review_target',
+            (error as Error).message,
+            'Choose one complete working tree, staged set, unstaged set, commit, or range target, or include the actual text to review.',
+          );
+        }
         if (reviewTargetNeedsGit) {
           const reviewPrivateRoot = join(probeRoot, 'review-preflight');
           await mkdir(reviewPrivateRoot, { recursive: true, mode: 0o700 });

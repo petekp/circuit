@@ -105,7 +105,7 @@ describe.runIf(process.platform === 'darwin')('live macOS Codex MCP safe Git rea
     }
   }, 90_000);
 
-  it('reports registered and dirty submodule paths through explicit reads', async () => {
+  it('reports dirty submodule gitlinks through explicit reads', async () => {
     const root = temporaryDirectory('circuit-mcp-live-git-submodules');
     const workspace = path.join(root, 'workspace');
     const child = path.join(root, 'child');
@@ -134,18 +134,12 @@ describe.runIf(process.platform === 'darwin')('live macOS Codex MCP safe Git rea
     const status = await safeReader.read({ operation: 'status' });
     const diff = await safeReader.read({ operation: 'unstaged_diff' });
     const changedGitlinks = await safeReader.read({ operation: 'unstaged_changed_gitlinks' });
-    const submodules = await safeReader.read({ operation: 'submodules' });
     expect(status.ok, status.stderr).toBe(true);
     expect(diff.ok, diff.stderr).toBe(true);
     expect(changedGitlinks.ok, changedGitlinks.stderr).toBe(true);
-    expect(submodules.ok, submodules.stderr).toBe(true);
     expect(status.stdout).toContain('modules/child');
     expect(diff.stdout).toContain('modules/child');
     expect(changedGitlinks.stdout).toContain('modules/child');
-    expect(diff.submodules).toEqual([]);
-    expect(submodules.submodules).toEqual([
-      expect.objectContaining({ path: 'modules/child', inspection: 'gitlink_only' }),
-    ]);
     expect(diff.submodule_policy).toBe('reported_without_recursive_execution');
   }, 90_000);
 

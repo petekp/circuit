@@ -327,6 +327,19 @@ export const EquipmentEnforcementEvidence = z
   .strict();
 export type EquipmentEnforcementEvidence = z.infer<typeof EquipmentEnforcementEvidence>;
 
+// Present only on relays whose flow asked for a prompt-only reviewer (no
+// repository access). `applied: false` means the chosen connector could not
+// honor that request and the relay ran with repository access anyway — the
+// run is still honest, but the reviewer was not sealed, and every operator
+// surface must say so.
+export const RelayContextSeal = z
+  .object({
+    applied: z.boolean(),
+    reason: z.string().min(1).optional(),
+  })
+  .strict();
+export type RelayContextSeal = z.infer<typeof RelayContextSeal>;
+
 export const RelayStartedTraceEntry = TraceEntryBase.extend({
   kind: z.literal('relay.started'),
   step_id: StepId,
@@ -336,6 +349,7 @@ export const RelayStartedTraceEntry = TraceEntryBase.extend({
   resolved_selection: ResolvedSelection,
   resolved_from: RelayResolutionSource,
   equipment: EquipmentEnforcementEvidence.optional(),
+  context_seal: RelayContextSeal.optional(),
 }).strict();
 export type RelayStartedTraceEntry = z.infer<typeof RelayStartedTraceEntry>;
 

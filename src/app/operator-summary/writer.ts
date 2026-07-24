@@ -1392,6 +1392,23 @@ function readDegradationWarnings(runFolder: string): OperatorSummaryWarning[] {
       if (message !== undefined) {
         warnings.push({ kind: 'context_delivery_failed', message: firstLine(message) });
       }
+      continue;
+    }
+    // The flow asked for a reviewer with no repository access and the chosen
+    // connector could not honor it. The run is still honest, but a reader who
+    // assumed the reviewer worked from the relayed evidence alone must be told.
+    if (entry.kind === 'relay.started') {
+      const seal = entry.context_seal;
+      if (!isObject(seal) || seal.applied !== false) continue;
+      const connector = isObject(entry.connector)
+        ? stringField(entry.connector, 'name')
+        : undefined;
+      const reason = stringField(seal, 'reason');
+      const cause = reason === undefined ? '' : ` (${firstLine(reason)})`;
+      warnings.push({
+        kind: 'relay_context_not_sealed',
+        message: `The reviewer ran with repository access. This flow asked for a reviewer that sees only the relayed evidence, and ${connector ?? 'the chosen connector'} could not honor that${cause}. Run this flow with Claude Code or Codex for a sealed reviewer.`,
+      });
     }
   }
   return warnings;

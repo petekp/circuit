@@ -1795,6 +1795,64 @@ export async function runExecutionCommand(
     process.stderr.write(`error: ${(err as Error).message}\n`);
     return 2;
   }
+  const hostKind = runtimeHostKind(options);
+  const runtimeSupport = classifyRuntimeSupport({
+    flow,
+    args: runArgs,
+    route,
+    entryModeSelection,
+    fixturePath,
+  });
+  const defaultRuntimeSupport = applyComposeWriterPolicy(
+    applyFixturePolicy(runtimeSupport, {
+      args: runArgs,
+      fixturePath,
+      ...(options.generatedFlowMirrorRoot === undefined
+        ? {}
+        : { generatedFlowMirrorRoot: options.generatedFlowMirrorRoot }),
+    }),
+    { hasComposeWriter: options.composeWriter !== undefined },
+  );
+  const routeToRuntime = defaultRuntimeSupport.kind === 'supported';
+
+  const ttyNotices = ttyNoticesEnabled({
+    stream: process.stderr,
+    progressJsonl: runArgs.progress === 'jsonl',
+  });
+
+  if (routeToRuntime) {
+    // Connector preflight, in the run's own process environment, before the
+    // run folder exists: a run that cannot possibly relay (codex's state
+    // directory unwritable because this session is sandboxed) is refused here
+    // with the cause and the next step, instead of aborting seconds into the
+    // run with raw stderr. A missing worker CLI only warns — the run may
+    // legitimately reach its first checkpoint before any worker spawns.
+    // Doctor cannot stand in for this check — it runs in the operator's
+    // terminal environment, not necessarily the one that spawns the workers.
+    const connectorPreflight =
+      options.connectorPreflight ??
+      (options.relayer === undefined && options.runtimeExecutors === undefined
+        ? preflightRunConnectors
+        : undefined);
+    if (connectorPreflight !== undefined) {
+      const verdict = await connectorPreflight({
+        flow,
+        configLayers: selectionConfigLayers,
+        depth: CompiledDepth.parse(selectedDepth(flow, runArgs, entryModeSelection)),
+        ...(policyLayers.length === 0 ? {} : { policyLayers }),
+        ...(hostKind === undefined ? {} : { hostKind }),
+      });
+      if (!verdict.ok) {
+        process.stderr.write(`error: ${verdict.refusal}\n`);
+        return 2;
+      }
+      if (ttyNotices) {
+        for (const warning of verdict.warnings) {
+          process.stderr.write(`note: ${warning}\n`);
+        }
+      }
+    }
+  }
   const projectRoot = resolve(options.projectRoot ?? options.configCwd ?? process.cwd());
   try {
     await validateFlowStartAvailability({
@@ -1847,7 +1905,6 @@ export async function runExecutionCommand(
     process.stderr.write(`error: ${(err as Error).message}\n`);
     return 2;
   }
-  const hostKind = runtimeHostKind(options);
 
   // A3: on Codex, restore needs a one-time hook install (Claude is zero-setup).
   // The front-door run is the only path a not-yet-installed Codex user reliably
@@ -1861,63 +1918,8 @@ export async function runExecutionCommand(
     }
   }
 
-  const runtimeSupport = classifyRuntimeSupport({
-    flow,
-    args: runArgs,
-    route,
-    entryModeSelection,
-    fixturePath,
-  });
   const runtimeDecisionDiagnostics = showRuntimeDecision();
-  const defaultRuntimeSupport = applyComposeWriterPolicy(
-    applyFixturePolicy(runtimeSupport, {
-      args: runArgs,
-      fixturePath,
-      ...(options.generatedFlowMirrorRoot === undefined
-        ? {}
-        : { generatedFlowMirrorRoot: options.generatedFlowMirrorRoot }),
-    }),
-    { hasComposeWriter: options.composeWriter !== undefined },
-  );
-  const routeToRuntime = defaultRuntimeSupport.kind === 'supported';
-
-  const ttyNotices = ttyNoticesEnabled({
-    stream: process.stderr,
-    progressJsonl: runArgs.progress === 'jsonl',
-  });
-
   if (routeToRuntime) {
-    // Connector preflight, in the run's own process environment, before the
-    // run folder exists: a run that cannot possibly relay (codex's state
-    // directory unwritable because this session is sandboxed) is refused here
-    // with the cause and the next step, instead of aborting seconds into the
-    // run with raw stderr. A missing worker CLI only warns — the run may
-    // legitimately reach its first checkpoint before any worker spawns.
-    // Doctor cannot stand in for this check — it runs in the operator's
-    // terminal environment, not necessarily the one that spawns the workers.
-    const connectorPreflight =
-      options.connectorPreflight ??
-      (options.relayer === undefined && options.runtimeExecutors === undefined
-        ? preflightRunConnectors
-        : undefined);
-    if (connectorPreflight !== undefined) {
-      const verdict = await connectorPreflight({
-        flow,
-        configLayers: selectionConfigLayers,
-        depth: CompiledDepth.parse(selectedDepth(flow, runArgs, entryModeSelection)),
-        ...(policyLayers.length === 0 ? {} : { policyLayers }),
-        ...(hostKind === undefined ? {} : { hostKind }),
-      });
-      if (!verdict.ok) {
-        process.stderr.write(`error: ${verdict.refusal}\n`);
-        return 2;
-      }
-      if (ttyNotices) {
-        for (const warning of verdict.warnings) {
-          process.stderr.write(`note: ${warning}\n`);
-        }
-      }
-    }
     if (ttyNotices) {
       process.stderr.write(
         runStartedNotice({
