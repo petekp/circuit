@@ -23,6 +23,9 @@ export const ReviewEvidenceWarningKind = z.enum([
   'target_assumed',
   'target_scoped',
   'scope_not_applied',
+  'snapshot_fallback',
+  'snapshot_truncated',
+  'snapshot_file_skipped',
 ]);
 export type ReviewEvidenceWarningKind = z.infer<typeof ReviewEvidenceWarningKind>;
 
@@ -46,7 +49,7 @@ export type ReviewEvidenceText = z.infer<typeof ReviewEvidenceText>;
 export const ReviewUntrackedContentPolicy = z.enum(['metadata-only', 'include-content']);
 export type ReviewUntrackedContentPolicy = z.infer<typeof ReviewUntrackedContentPolicy>;
 
-export const ReviewTargetKind = z.enum(['working_tree', 'commit', 'range']);
+export const ReviewTargetKind = z.enum(['working_tree', 'commit', 'range', 'snapshot']);
 export type ReviewTargetKind = z.infer<typeof ReviewTargetKind>;
 
 // Which layers of the working tree a review covers. `all` is staged, unstaged
@@ -81,6 +84,19 @@ export const ReviewUntrackedFileEvidence = z
   })
   .strict();
 export type ReviewUntrackedFileEvidence = z.infer<typeof ReviewUntrackedFileEvidence>;
+
+// One file read whole rather than as a diff. The shape matches untracked
+// evidence because the read is the same read: bounded contents, or a plain
+// reason the contents are absent.
+export const ReviewSnapshotFileEvidence = z
+  .object({
+    path: z.string().min(1),
+    byte_length: z.number().int().nonnegative(),
+    content: ReviewEvidenceText.optional(),
+    skipped_reason: z.string().min(1).optional(),
+  })
+  .strict();
+export type ReviewSnapshotFileEvidence = z.infer<typeof ReviewSnapshotFileEvidence>;
 
 const ReviewGitObjectId = z.string().regex(/^(?:[0-9a-f]{40}|[0-9a-f]{64})$/u);
 
@@ -204,6 +220,23 @@ export const ReviewEvidence = z.discriminatedUnion('kind', [
     })
     .strict(),
   ReviewGitTargetEvidence,
+  // The current contents of the tracked files at a named path, with no diff
+  // involved. This is what "review src/auth" asks for when nothing there has
+  // changed. A snapshot always names a path scope: an unscoped snapshot would
+  // be the whole repository, which is more than one relay can hold.
+  z
+    .object({
+      kind: z.literal('git-snapshot'),
+      project_root: z.string().min(1),
+      target_kind: z.literal('snapshot'),
+      files: z.array(ReviewSnapshotFileEvidence),
+      // How many tracked files the scope matched before any bound applied, so
+      // a reader can tell a complete snapshot from a sampled one.
+      matched_file_count: z.number().int().nonnegative(),
+      files_truncated: z.boolean(),
+      path_scope: ReviewPathScope,
+    })
+    .strict(),
 ]);
 export type ReviewEvidence = z.infer<typeof ReviewEvidence>;
 
@@ -242,6 +275,16 @@ export const ReviewEvidenceSummary = z.discriminatedUnion('kind', [
       path_scope: ReviewPathScope.optional(),
     })
     .strict(),
+  z
+    .object({
+      kind: z.literal('git-snapshot'),
+      target_kind: z.literal('snapshot'),
+      matched_file_count: z.number().int().nonnegative(),
+      files_sampled: z.number().int().nonnegative(),
+      files_truncated: z.boolean(),
+      path_scope: ReviewPathScope,
+    })
+    .strict(),
 ]);
 export type ReviewEvidenceSummary = z.infer<typeof ReviewEvidenceSummary>;
 
@@ -277,6 +320,15 @@ export const ReviewResolvedTarget = z.discriminatedUnion('kind', [
       head: z.string().min(1),
       dots: z.enum(['..', '...']),
       paths: ReviewPathScope.optional(),
+    })
+    .strict(),
+  // Code as it stands rather than a change to it. The paths are required for
+  // the same reason the evidence requires them: a snapshot of everything is
+  // more than one review can hold.
+  z
+    .object({
+      kind: z.literal('snapshot'),
+      paths: ReviewPathScope,
     })
     .strict(),
 ]);

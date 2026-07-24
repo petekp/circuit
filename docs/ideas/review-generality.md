@@ -10,23 +10,25 @@ are not the same, and only one of them is how anybody talks about code review.
 
 Run the natural asks against the flow as shipped:
 
-| What a person types | Today |
-| --- | --- |
-| review my changes | works |
-| review the last commit | works |
-| review this branch against main | works |
-| review this plan: `<pasted text>` | works |
-| review src/auth | errors |
-| review src/auth/session.ts | errors |
-| review this PR | errors |
-| review my changes, just the frontend | errors |
-| review everything except the generated files | errors |
-| review the plan at docs/plans/foo.md | reviews the working tree instead |
-| review whether this breaks the callers | reviews the diff, cannot answer |
-| review the auth flow across these three files | reviews the working tree instead |
+| What a person types | Then | Now |
+| --- | --- | --- |
+| review my changes | works | works |
+| review the last commit | works | works |
+| review this branch against main | works | works |
+| review this plan: `<pasted text>` | works | works |
+| review src/auth | errors | works |
+| review src/auth/session.ts | errors | works |
+| review my changes, just the frontend | errors | works |
+| review everything except the generated files | errors | works |
+| review src/auth for latent issues | errors | works |
+| review this PR | errors | errors |
+| review the plan at docs/plans/foo.md | reviews the working tree instead | unchanged |
+| review whether this breaks the callers | reviews the diff, cannot answer | unchanged |
+| review the auth flow across these three files | reviews the working tree instead | unchanged |
+| review this codebase | reviews the working tree instead | unchanged |
 
-Four of twelve. The failures are not exotic phrasings. They are the ordinary
-ways people describe what they want read.
+Four of thirteen when this was written. The failures were not exotic
+phrasings. They are the ordinary ways people describe what they want read.
 
 Worse, three of the failures are silent: the run succeeds, reviews something
 the person did not ask about, and reports a verdict. The report is honest
@@ -44,6 +46,8 @@ given. Three kinds, freely combined:
   What exists today.
 - **Snapshot evidence.** A file or directory as it currently stands. This is
   what "review src/auth" means, and no amount of diff machinery produces it.
+  Landed: `target.kind === 'snapshot'`, collected through `git ls-files` so
+  ignored files and build output can never enter it.
 - **Document evidence.** Text supplied in the goal, or a file Circuit reads on
   the operator's behalf because the goal named its path.
 
@@ -93,16 +97,42 @@ removed because nothing behind it worked. The answer is to make it work:
 resolve the PR to a local range, fetching the ref when the host has network
 and credentials, and fall back to a named assumption when it does not.
 
+## Three regimes, not one flow with more options
+
+People will point Review at whatever they have, and what they point it at
+falls into three groups that differ in kind, not degree:
+
+1. **One change.** A diff. Fits in a prompt. Works today.
+2. **One file or a small directory.** Snapshot evidence. Fits in a prompt.
+   Works today, bounded and reported.
+3. **A whole codebase.** Does not fit in a prompt, and no bound makes it fit.
+   "Review this codebase" needs fan-out: split the tree into reviewable units,
+   run a reviewer per unit, and merge the findings. The engine already has the
+   `queue` and `batch` blocks for this, but only the `pursue` flow uses them,
+   and the Review schematic has exactly one relay step.
+
+Regime 3 is the honest gap. Until it is built, a request that lands there gets
+a bounded sample plus a report that says so, never a clean verdict over code
+nobody read.
+
 ## Sequencing
 
-1. **Path scoping.** Subsets and exclusions become change evidence over a path
-   set, with the scope named in the report. Deletes a refusal, adds a flag.
-2. **Snapshot evidence.** New evidence kind. Serves "review src/auth", "review
-   this file", and "review the plan at `<path>`".
-3. **Automatic context.** Change evidence carries the current contents of the
+1. **Path scoping.** Landed. Subsets and exclusions became change evidence
+   over a path set, with the scope named in the report.
+2. **Snapshot evidence.** Landed. Serves "review src/auth", "review this
+   file", and any path where nothing has changed. Two ways in: the operator
+   asks for the current state directly, or an empty diff at a named path falls
+   back to a snapshot and says which one the findings are about. Bounded at 25
+   files, 40k characters per file, 150k characters total, and every bound is
+   reported rather than absorbed: `matched_file_count` versus the files
+   actually read, plus a `snapshot_truncated` warning that forces the run to
+   close honest rather than clean. Still open: "review the plan at `<path>`",
+   which needs a snapshot of an untracked document.
+3. **Codebase fan-out.** Regime 3. Split, review per unit, merge.
+4. **Automatic context.** Change evidence carries the current contents of the
    files it touches, bounded.
-4. **Mediated reads.** Spike the bounding and loop cost first.
-5. **Pull requests.** Fetch, resolve to a range, degrade honestly.
+5. **Mediated reads.** Spike the bounding and loop cost first.
+6. **Pull requests.** Fetch, resolve to a range, degrade honestly.
 
 Each stage is independently shippable and independently useful.
 

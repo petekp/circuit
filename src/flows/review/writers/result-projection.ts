@@ -76,6 +76,16 @@ function evidenceSummary(evidence: ReviewEvidence): ReviewEvidenceSummary {
       ...(evidence.path_scope === undefined ? {} : { path_scope: evidence.path_scope }),
     };
   }
+  if (evidence.kind === 'git-snapshot') {
+    return {
+      kind: 'git-snapshot',
+      target_kind: 'snapshot',
+      matched_file_count: evidence.matched_file_count,
+      files_sampled: evidence.files.length,
+      files_truncated: evidence.files_truncated,
+      path_scope: evidence.path_scope,
+    };
+  }
   return {
     kind: 'git-working-tree',
     untracked_content_policy: evidence.untracked_content_policy,
@@ -146,8 +156,12 @@ function evidenceScopeMismatch(intake: ReviewIntake): string | undefined {
     }
     return mismatch(`${target.kind} target evidence`);
   }
+  if (evidence.kind === 'git-snapshot') {
+    return target.kind === 'snapshot' ? undefined : mismatch(`${target.kind} target evidence`);
+  }
 
   if (target.kind === 'goal') return mismatch('goal-only evidence');
+  if (target.kind === 'snapshot') return mismatch('snapshot evidence');
   if (target.kind !== 'working_tree') {
     return mismatch(`dedicated pinned ${target.kind} target evidence`);
   }
@@ -188,6 +202,12 @@ function unusableEvidenceReason(intake: ReviewIntake): string | undefined {
   if (intake.evidence.kind === 'git-target' && !usableDiff(intake.evidence.target_diff)) {
     return `the requested target ${intake.evidence.target_ref} has no usable diff`;
   }
+  if (
+    intake.evidence.kind === 'git-snapshot' &&
+    !intake.evidence.files.some((file) => usableDiff(file.content))
+  ) {
+    return 'the requested paths matched no file whose contents could be read';
+  }
   return undefined;
 }
 
@@ -205,6 +225,15 @@ function selectedEvidenceIncomplete(intake: ReviewIntake): boolean {
       evidence.target_diff.truncated ||
       containsOpaqueBinaryChange(evidence.target_diff) ||
       containsOpaqueSubmoduleChange(evidence.target_diff)
+    );
+  }
+  if (evidence.kind === 'git-snapshot') {
+    // A snapshot is partial when the path matched more files than the bound
+    // allows, or when any file Circuit did select could not be read whole.
+    return (
+      evidence.files_truncated ||
+      evidence.matched_file_count !== evidence.files.length ||
+      evidence.files.some((file) => file.content === undefined || file.content.truncated)
     );
   }
 
@@ -251,6 +280,8 @@ function selectedEvidenceIncomplete(intake: ReviewIntake): boolean {
 const LIMITATION_WARNING_KINDS: ReadonlySet<ReviewEvidenceWarningKind> = new Set([
   'binary_content_not_inspected',
   'diff_truncated',
+  'snapshot_file_skipped',
+  'snapshot_truncated',
   'submodule_content_not_inspected',
   'target_assumed',
   'untracked_file_content_omitted',

@@ -49,6 +49,7 @@ describe('review evidence honesty', () => {
       staged_changed_gitlinks: '',
       unstaged_changed_gitlinks: '',
       untracked_files: 'notes.txt\0',
+      tracked_files: '',
     };
     const gitReader: RuntimeGitReader = {
       read: async (request) => {
@@ -140,6 +141,7 @@ describe('review evidence honesty', () => {
       staged_changed_gitlinks: `:160000 160000 ${TEST_COMMIT_A} ${TEST_COMMIT_B} M\0modules/child\0`,
       unstaged_changed_gitlinks: '',
       untracked_files: '',
+      tracked_files: '',
     };
     const gitReader: RuntimeGitReader = {
       read: async (request) => ({
@@ -1739,5 +1741,113 @@ describe('review evidence honesty', () => {
     expect(outcome.outcome).toBe('aborted');
     expect(outcome.reason).toMatch(/no changes|no usable|empty/i);
     expect(relayCalls).toBe(0);
+  });
+
+  // A snapshot enumerates through Git, not the filesystem, so build output and
+  // anything gitignored can never become evidence no matter how large the path
+  // scope is.
+  it('keeps ignored and untracked files out of snapshot evidence', async () => {
+    const { bytes } = loadFixture();
+    const runFolder = join(reviewRunFolderBase(), 'snapshot-ignored');
+    const projectRoot = join(reviewRunFolderBase(), 'snapshot-ignored-project');
+    mkdirSync(join(projectRoot, 'src'), { recursive: true });
+    execFileSync('git', ['init'], { cwd: projectRoot, stdio: 'pipe' });
+    writeFileSync(join(projectRoot, '.gitignore'), 'src/build.js\n');
+    writeFileSync(join(projectRoot, 'src', 'app.ts'), "const app = 'TRACKED_SNAPSHOT';\n");
+    writeFileSync(join(projectRoot, 'src', 'build.js'), "const built = 'IGNORED_OUTPUT';\n");
+    execFileSync('git', ['add', '.'], { cwd: projectRoot, stdio: 'pipe' });
+    execFileSync(
+      'git',
+      ['-c', 'user.name=Circuit', '-c', 'user.email=circuit@example.test', 'commit', '-m', 'base'],
+      { cwd: projectRoot, stdio: 'pipe' },
+    );
+    // Written after the commit so it is untracked as well as unignored.
+    writeFileSync(join(projectRoot, 'src', 'scratch.ts'), "const scratch = 'UNTRACKED_NOTE';\n");
+    let relayCalls = 0;
+
+    const outcome = await runCompiledFlow({
+      runDir: runFolder,
+      flowBytes: bytes,
+      runId: '79000000-0000-0000-0000-000000000131',
+      goal: 'review src/ as it stands',
+      depth: 'medium',
+      now: deterministicNow(Date.UTC(2026, 6, 24, 12, 0, 0)),
+      projectRoot,
+      relayer: {
+        connectorName: 'codex',
+        relay: async (input: ClaudeCodeRelayInput): Promise<RelayResult> => {
+          relayCalls += 1;
+          expect(input.prompt).toContain('TRACKED_SNAPSHOT');
+          expect(input.prompt).not.toContain('IGNORED_OUTPUT');
+          expect(input.prompt).not.toContain('UNTRACKED_NOTE');
+          return {
+            request_payload: input.prompt,
+            receipt_id: 'stub-receipt-snapshot-ignored',
+            result_body: JSON.stringify(cleanRelayResult()),
+            duration_ms: 1,
+            cli_version: '0.0.0-stub',
+          };
+        },
+      },
+    });
+
+    expect(outcome.outcome).toBe('complete');
+    expect(relayCalls).toBe(1);
+    const intake = ReviewIntake.parse(
+      JSON.parse(readFileSync(join(runFolder, 'reports', 'review-intake.json'), 'utf8')),
+    );
+    expect(intake.evidence).toMatchObject({ kind: 'git-snapshot', matched_file_count: 1 });
+  });
+
+  // A snapshot that reached its file bound is a sample, and the report has to
+  // let a reader tell a sample from a complete read.
+  it('reports the snapshot file bound instead of absorbing it', async () => {
+    const { bytes } = loadFixture();
+    const runFolder = join(reviewRunFolderBase(), 'snapshot-bound');
+    const projectRoot = join(reviewRunFolderBase(), 'snapshot-bound-project');
+    const fileCount = 40;
+    mkdirSync(join(projectRoot, 'src'), { recursive: true });
+    execFileSync('git', ['init'], { cwd: projectRoot, stdio: 'pipe' });
+    for (let index = 0; index < fileCount; index += 1) {
+      writeFileSync(join(projectRoot, 'src', `mod-${index}.ts`), `export const mod = ${index};\n`);
+    }
+    execFileSync('git', ['add', '.'], { cwd: projectRoot, stdio: 'pipe' });
+    execFileSync(
+      'git',
+      ['-c', 'user.name=Circuit', '-c', 'user.email=circuit@example.test', 'commit', '-m', 'base'],
+      { cwd: projectRoot, stdio: 'pipe' },
+    );
+
+    const outcome = await runCompiledFlow({
+      runDir: runFolder,
+      flowBytes: bytes,
+      runId: '79000000-0000-0000-0000-000000000132',
+      goal: 'review src/ as it stands',
+      depth: 'medium',
+      now: deterministicNow(Date.UTC(2026, 6, 24, 12, 5, 0)),
+      projectRoot,
+      relayer: relayerWith(cleanRelayResult()),
+    });
+
+    const intake = ReviewIntake.parse(
+      JSON.parse(readFileSync(join(runFolder, 'reports', 'review-intake.json'), 'utf8')),
+    );
+    if (intake.evidence.kind !== 'git-snapshot') throw new Error('expected snapshot evidence');
+    expect(intake.evidence.matched_file_count).toBe(fileCount);
+    expect(intake.evidence.files.length).toBeLessThan(fileCount);
+    expect(intake.evidence.files_truncated).toBe(true);
+    expect(intake.evidence_warnings.map((warning) => warning.kind)).toContain('snapshot_truncated');
+
+    // A sampled snapshot is partial coverage, so the reviewer's clean verdict
+    // cannot stand as a clean run.
+    expect(outcome.outcome).toBe('stopped');
+    const result = ReviewResult.parse(
+      JSON.parse(readFileSync(join(runFolder, 'reports', 'review-result.json'), 'utf8')),
+    );
+    expect(result.verdict).toBe('ISSUES_FOUND');
+    const incomplete = result.findings.find(
+      (finding) => finding.id === 'circuit-review-evidence-incomplete',
+    );
+    expect(incomplete?.text).toMatch(/25 of 40|only part/i);
   });
 });

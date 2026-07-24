@@ -14,6 +14,10 @@ export type ReviewIntakeProjectorInputs = {
   readonly maxUntrackedFiles: number;
   readonly assumedTarget?: boolean;
   readonly scopeNotApplied?: readonly string[];
+  // The change target the operator named turned out to be empty at those
+  // paths, so Review read the current contents instead. Named out loud,
+  // because "no findings" means something different for each.
+  readonly snapshotFallbackFrom?: string;
 };
 
 /**
@@ -31,8 +35,22 @@ export function reviewPathScopeLabel(scope: ReviewPathScope): string {
   ].join(' and ');
 }
 
+/**
+ * The same scope written as a bare path list, for sentences that already supply
+ * their own verb. `reviewPathScopeLabel` starts with "limited to", which reads
+ * wrong in the middle of a sentence.
+ */
+export function reviewPathScopePaths(scope: ReviewPathScope): string {
+  const included = scope.include.length > 0 ? scope.include.join(', ') : 'the repository';
+  return scope.exclude.length > 0 ? `${included} excluding ${scope.exclude.join(', ')}` : included;
+}
+
 function pathScopeOf(evidence: ReviewEvidence): ReviewPathScope | undefined {
-  if (evidence.kind === 'git-working-tree' || evidence.kind === 'git-target') {
+  if (
+    evidence.kind === 'git-working-tree' ||
+    evidence.kind === 'git-target' ||
+    evidence.kind === 'git-snapshot'
+  ) {
     return evidence.path_scope;
   }
   return undefined;
@@ -48,13 +66,23 @@ function pathScopeOf(evidence: ReviewEvidence): ReviewPathScope | undefined {
 function scopeWarnings(input: {
   readonly evidence: ReviewEvidence;
   readonly scopeNotApplied?: readonly string[];
+  readonly snapshotFallbackFrom?: string;
 }): ReviewEvidenceWarning[] {
   const warnings: ReviewEvidenceWarning[] = [];
+  if (input.snapshotFallbackFrom !== undefined) {
+    warnings.push({
+      kind: 'snapshot_fallback',
+      message: `Nothing has changed in ${input.snapshotFallbackFrom}, so Review read the code as it stands instead of a diff. The findings are about the current state, not about a change.`,
+    });
+  }
   const scope = pathScopeOf(input.evidence);
   if (scope !== undefined) {
     warnings.push({
       kind: 'target_scoped',
-      message: `Review was ${reviewPathScopeLabel(scope)}. Changes outside those paths were not read.`,
+      message:
+        input.evidence.kind === 'git-snapshot'
+          ? `Review read the current contents of ${reviewPathScopePaths(scope)}. Nothing outside those paths was read.`
+          : `Review was ${reviewPathScopeLabel(scope)}. Changes outside those paths were not read.`,
     });
   }
   for (const phrase of input.scopeNotApplied ?? []) {
@@ -97,12 +125,19 @@ export function reviewEvidenceWarnings(input: {
   readonly maxUntrackedFiles: number;
   readonly assumedTarget?: boolean;
   readonly scopeNotApplied?: readonly string[];
+  readonly snapshotFallbackFrom?: string;
 }): ReviewEvidenceWarning[] {
   const assumption: readonly ReviewEvidenceWarning[] = [
     ...(input.assumedTarget === true
       ? [{ kind: 'target_assumed' as const, message: ASSUMED_WORKING_TREE_WARNING }]
       : []),
-    ...scopeWarnings(input),
+    ...scopeWarnings({
+      evidence: input.evidence,
+      ...(input.scopeNotApplied === undefined ? {} : { scopeNotApplied: input.scopeNotApplied }),
+      ...(input.snapshotFallbackFrom === undefined
+        ? {}
+        : { snapshotFallbackFrom: input.snapshotFallbackFrom }),
+    }),
   ];
   if (input.evidence.kind === 'goal') return [...assumption];
   if (input.evidence.kind === 'unavailable') {
@@ -146,6 +181,40 @@ export function reviewEvidenceWarnings(input: {
       });
     }
     appendOpaqueBinaryWarnings(warnings, [evidence.target_diff]);
+    return warnings;
+  }
+
+  if (input.evidence.kind === 'git-snapshot') {
+    const evidence = input.evidence;
+    const warnings: ReviewEvidenceWarning[] = [...assumption];
+    if (evidence.files_truncated || evidence.matched_file_count > evidence.files.length) {
+      warnings.push({
+        kind: 'snapshot_truncated',
+        message: `${reviewPathScopePaths(evidence.path_scope)} matched ${evidence.matched_file_count} files. Review read ${evidence.files.length} of them and did not inspect the rest.`,
+      });
+    }
+    for (const file of evidence.files) {
+      if (file.content?.truncated === true) {
+        warnings.push({
+          kind: 'diff_truncated',
+          path: file.path,
+          message: `file content was truncated before relay: ${file.path}`,
+        });
+      }
+      if (file.skipped_reason !== undefined) {
+        warnings.push({
+          kind: 'snapshot_file_skipped',
+          path: file.path,
+          message: `${file.path} was not inspected: ${file.skipped_reason}`,
+        });
+      }
+    }
+    if (!evidence.files.some((file) => (file.content?.text.length ?? 0) > 0)) {
+      warnings.push({
+        kind: 'scope_empty',
+        message: `Review found no readable file contents at ${reviewPathScopePaths(evidence.path_scope)}.`,
+      });
+    }
     return warnings;
   }
 
@@ -267,6 +336,9 @@ export function projectReviewIntake(input: ReviewIntakeProjectorInputs): ReviewI
       maxUntrackedFiles: input.maxUntrackedFiles,
       ...(input.assumedTarget === true ? { assumedTarget: true } : {}),
       ...(input.scopeNotApplied === undefined ? {} : { scopeNotApplied: input.scopeNotApplied }),
+      ...(input.snapshotFallbackFrom === undefined
+        ? {}
+        : { snapshotFallbackFrom: input.snapshotFallbackFrom }),
     }),
   });
 }

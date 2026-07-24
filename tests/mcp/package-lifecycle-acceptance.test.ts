@@ -215,6 +215,7 @@ const STATIC_GIT_ARGUMENTS: Readonly<Record<StaticGitOperation, readonly string[
     '--',
   ],
   untracked_files: ['ls-files', '--others', '--exclude-standard', '-z', '--'],
+  tracked_files: ['ls-files', '--cached', '--exclude-standard', '-z', '--'],
 };
 
 function targetGitArguments(

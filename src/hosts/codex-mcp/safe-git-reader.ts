@@ -32,7 +32,8 @@ export type SafeGitOperation =
   | 'hidden_index_flags'
   | 'staged_changed_gitlinks'
   | 'unstaged_changed_gitlinks'
-  | 'untracked_files';
+  | 'untracked_files'
+  | 'tracked_files';
 
 type StaticSafeGitOperation = Exclude<
   SafeGitOperation,
@@ -179,6 +180,7 @@ const OPERATION_ARGS: Readonly<Record<StaticSafeGitOperation, readonly string[]>
     '--',
   ],
   untracked_files: ['ls-files', '--others', '--exclude-standard', '-z', '--'],
+  tracked_files: ['ls-files', '--cached', '--exclude-standard', '-z', '--'],
 };
 const CONFIG_AUDIT_ARGS = ['config', '--null', '--list', '--no-includes'] as const;
 const METADATA_PATHS = [
@@ -531,7 +533,8 @@ function parseRequest(value: unknown): ParsedSafeGitRequest {
     record.operation !== 'hidden_index_flags' &&
     record.operation !== 'staged_changed_gitlinks' &&
     record.operation !== 'unstaged_changed_gitlinks' &&
-    record.operation !== 'untracked_files'
+    record.operation !== 'untracked_files' &&
+    record.operation !== 'tracked_files'
   ) {
     throw new SafeGitReadError('invalid_git_read', 'Git read operation is not supported.');
   }

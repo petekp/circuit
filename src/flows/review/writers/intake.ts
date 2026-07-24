@@ -37,17 +37,27 @@ import type {
   ReviewEvidenceText,
   ReviewPathScope,
   ReviewResolvedTarget,
+  ReviewSnapshotFileEvidence,
   ReviewUntrackedContentPolicy,
   ReviewUntrackedFileEvidence,
 } from '../reports.js';
-import { projectReviewIntake, reviewPathScopeLabel } from './intake-projection.js';
+import {
+  projectReviewIntake,
+  reviewPathScopeLabel,
+  reviewPathScopePaths,
+} from './intake-projection.js';
 
 const MAX_DIFF_CHARS = 120_000;
 const MAX_UNTRACKED_FILES = 20;
 const MAX_UNTRACKED_FILE_CHARS = 20_000;
+// Snapshot bounds. A snapshot competes for the same relay budget a diff does,
+// so the total is the binding limit and the file count only stops a very wide
+// path from spending it all on preambles. Whatever these leave out is reported.
+const MAX_SNAPSHOT_FILES = 25;
+const MAX_SNAPSHOT_FILE_CHARS = 40_000;
+const MAX_SNAPSHOT_TOTAL_CHARS = 150_000;
 const MAX_GIT_BUFFER_BYTES = 10 * 1024 * 1024;
 const MAX_DIFF_BUFFER_BYTES = Math.max(MAX_DIFF_CHARS * 4, 1024 * 1024);
-const MAX_UNTRACKED_FILE_BYTES = MAX_UNTRACKED_FILE_CHARS + 1;
 const DIRECT_GIT_TIMEOUT_MS = 30_000;
 const HEAD_COMMIT_REF = 'HEAD';
 const SAFE_REVIEW_REF_PATTERN = /^[A-Za-z0-9._/@+~^-]{1,120}$/u;
@@ -81,6 +91,13 @@ type DirectGitContext = DirectGitRepository & {
 
 type ReviewTarget = ReviewResolvedTarget;
 
+/**
+ * The target resolved and read cleanly and simply contains no changes. Kept
+ * distinct from every other collection failure so the snapshot fallback fires
+ * on an empty target and never on a Git error, which it would otherwise hide.
+ */
+class ReviewTargetEmptyError extends Error {}
+
 type ReviewTargetParseResult =
   | {
       readonly ok: true;
@@ -91,6 +108,11 @@ type ReviewTargetParseResult =
       // names each one so a wider review is never mistaken for the requested
       // one.
       readonly scopeNotApplied?: readonly string[];
+      // The goal named where to look but not which changes. If nothing has
+      // changed at those paths, reviewing the code as it stands answers the
+      // question the operator actually asked, so evidence collection switches
+      // to a snapshot of these paths instead of reporting an empty target.
+      readonly snapshotFallback?: ReviewPathScope;
     }
   | { readonly ok: false; readonly reason: string };
 
@@ -923,6 +945,15 @@ function targetWithoutChangeClass(
   return target.mode === 'all' ? { ...target, mode: 'tracked' } : target;
 }
 
+/**
+ * Phrasings that ask about code as it stands rather than about a change to it.
+ * Kept narrow on purpose: each one is unambiguous, because reading these into
+ * a goal that meant "review my edits" would review the wrong thing. A goal
+ * without one of these still reaches a snapshot when its diff turns out empty.
+ */
+const SNAPSHOT_REQUEST_PATTERN =
+  /\b(?:as (?:it|they) stands?|as-is|current state|existing code|whole file|entire file|latent (?:issues?|bugs?|problems?|defects?))\b/iu;
+
 const MAX_SCOPE_PATHS = 32;
 const MAX_SCOPE_PATH_LENGTH = 200;
 // Repository-relative path or glob. Excludes ':' so a token lifted from prose
@@ -1008,23 +1039,40 @@ function extractReviewScope(scope: string): ReviewScopeRequest {
   return { paths: { include, exclude }, ...carve, notApplied };
 }
 
-// A bare path as the whole request. Read last: it competes with ordinary prose,
-// so every explicit target form gets the first say.
+// A bare path as the whole request: a verb, some optional throat-clearing, and
+// somewhere to look. Written as parts because the vocabulary is the point, and
+// a single expression this wide is unreadable.
+const PATH_ONLY_REQUEST_PATTERN = new RegExp(
+  [
+    '^\\s*',
+    // "review src/auth", "look at src/auth", "take a look at src/auth".
+    '(?:review|inspect|audit|check|analyze|examine|(?:take\\s+a\\s+)?look\\s+at)\\s+',
+    // "the", "my current", "the whole existing" — any run of these, or none.
+    '(?:(?:only|the|this|my|our|current|existing|whole|entire|full)\\s+)*',
+    // An optional noun for what is being pointed at, with the preposition that
+    // usually follows it: "the code in src/auth", "the state of src/auth".
+    '(?:(?:files?|code|plan|report|directory|dir|folder|module|package|contents?|state)\\s*',
+    '(?:(?:in|at|from|of|under|within)\\s+|:\\s*)?)?',
+    '(?<path>\\S+)(?<suffix>[\\s\\S]*)$',
+  ].join(''),
+  'iu',
+);
+
+// What may follow the path without changing what the request is about. A
+// focusing clause ("for auth bugs") or a snapshot phrasing ("as it stands")
+// still names the same path; anything else is a sentence Review has not
+// understood, and guessing at it would review the wrong thing.
+const PATH_ONLY_SUFFIX_PATTERN =
+  /^(?:,?\s*(?:for|with|especially)\b|,?\s+and\s+(?:focus|check|inspect|look|pay|prioritize|verify)\b|,?\s*as[-\s](?:it|they)\s+stands?\b|,?\s*as[-\s]is\b)/iu;
+
+// Read last: it competes with ordinary prose, so every explicit target form
+// gets the first say.
 function pathOnlyRequestPath(scope: string): string | undefined {
-  const pathOnly =
-    /^\s*(?:review|inspect|audit|check|analyze)\s+(?:(?:only|the|this|my|our|current)\s+)*(?:(?:file|code|plan|report)\s*(?:(?:in|at|from)\s+|:\s*)?)?(?<path>\S+)(?<suffix>[\s\S]*)$/iu.exec(
-      scope,
-    );
+  const pathOnly = PATH_ONLY_REQUEST_PATTERN.exec(scope);
   const path = pathOnly?.groups?.path;
   if (path !== undefined && looksLikeReviewPath(path)) {
     const suffix = (pathOnly?.groups?.suffix ?? '').trim();
-    if (
-      suffix.length === 0 ||
-      /^[.!?]$/u.test(suffix) ||
-      /^(?:,?\s*(?:for|with|especially)\b|,?\s+and\s+(?:focus|check|inspect|look|pay|prioritize|verify)\b)/iu.test(
-        suffix,
-      )
-    ) {
+    if (suffix.length === 0 || /^[.!?]$/u.test(suffix) || PATH_ONLY_SUFFIX_PATTERN.test(suffix)) {
       return path;
     }
   }
@@ -1049,6 +1097,7 @@ function scopedParseResult(
   target: ReviewTarget,
   requested: ReviewScopeRequest,
   assumed = false,
+  snapshotFallback?: ReviewPathScope,
 ): ReviewTargetParseResult {
   const scoped = requested.paths === undefined ? target : withPathScope(target, requested.paths);
   const carve = requested.excludedChangeClass;
@@ -1061,6 +1110,25 @@ function scopedParseResult(
     ok: true,
     target: narrowed ?? scoped,
     ...(assumed ? { assumed: true } : {}),
+    ...(notApplied.length === 0 ? {} : { scopeNotApplied: notApplied }),
+    ...(snapshotFallback === undefined ? {} : { snapshotFallback }),
+  };
+}
+
+/**
+ * A request for the code itself rather than for a change to it. A change-class
+ * carve-out cannot apply here, because there is no change to carve, so it is
+ * reported as a narrowing Review did not apply rather than dropped.
+ */
+function snapshotParseResult(
+  paths: ReviewPathScope,
+  requested: ReviewScopeRequest,
+): ReviewTargetParseResult {
+  const carve = requested.excludedChangeClass;
+  const notApplied = [...requested.notApplied, ...(carve === undefined ? [] : [carve.phrase])];
+  return {
+    ok: true,
+    target: { kind: 'snapshot', paths },
     ...(notApplied.length === 0 ? {} : { scopeNotApplied: notApplied }),
   };
 }
@@ -1118,26 +1186,34 @@ export function parseReviewTarget(scope: string): ReviewTargetParseResult {
   const bareHead = parseBareHeadForm(authorityScope);
   if (bareHead !== undefined) return scopedParseResult(bareHead, requested);
 
-  // "review src/auth" names what to look at, not which changes. Review the
-  // working tree under that path and say the target was assumed.
+  // "review src/auth" names what to look at, not which changes.
   const pathOnly = requested.paths === undefined ? pathOnlyRequestPath(authorityScope) : undefined;
-  if (pathOnly !== undefined) {
-    const path = scopePathFromToken(pathOnly);
-    if (path !== undefined) {
-      return scopedParseResult(
-        { kind: 'working_tree', mode: 'all', explicit: false },
-        { ...requested, paths: { include: [path], exclude: [] } },
-        true,
-      );
-    }
-    return scopedParseResult(
-      { kind: 'working_tree', mode: 'all', explicit: false },
-      { ...requested, notApplied: [...requested.notApplied, pathOnly.trim()] },
-      true,
-    );
+  const pathOnlyPath = pathOnly === undefined ? undefined : scopePathFromToken(pathOnly);
+  const scoped: ReviewScopeRequest =
+    pathOnlyPath !== undefined
+      ? { ...requested, paths: { include: [pathOnlyPath], exclude: [] } }
+      : pathOnly === undefined
+        ? requested
+        : { ...requested, notApplied: [...requested.notApplied, pathOnly.trim()] };
+
+  const assumedWorkingTree = { kind: 'working_tree', mode: 'all', explicit: false } as const;
+  if (scoped.paths === undefined) return scopedParseResult(assumedWorkingTree, scoped, true);
+
+  // A snapshot needs somewhere to look. An exclusion on its own does not name
+  // one: "review everything except tests/" is the whole repository minus a
+  // directory, which is the codebase-scale review Circuit cannot yet do in one
+  // pass, so it stays a change review and reports honestly when there are none.
+  if (scoped.paths.include.length === 0) {
+    return scopedParseResult(assumedWorkingTree, scoped, true);
   }
 
-  return scopedParseResult({ kind: 'working_tree', mode: 'all', explicit: false }, requested, true);
+  // The goal named where to look and nothing about changes. "as it stands"
+  // says outright that the code itself is the subject; otherwise review the
+  // changes there first and fall back to the code only if there are none.
+  if (SNAPSHOT_REQUEST_PATTERN.test(authorityScope)) {
+    return snapshotParseResult(scoped.paths, scoped);
+  }
+  return scopedParseResult(assumedWorkingTree, scoped, true, scoped.paths);
 }
 
 export function reviewScopeRequiresGitEvidence(scope: string): boolean {
@@ -1147,16 +1223,18 @@ export function reviewScopeRequiresGitEvidence(scope: string): boolean {
 }
 
 function reviewTargetLabel(
-  target: Exclude<ReviewTarget, { readonly kind: 'goal' | 'working_tree' }>,
+  target: Extract<ReviewTarget, { readonly kind: 'commit' | 'range' }>,
 ): string {
   if (target.kind === 'commit') return `commit ${target.ref}`;
   return `range ${target.base}${target.dots}${target.head}`;
 }
 
 function runtimeTarget(target: ReviewTarget): RuntimeGitTarget | undefined {
-  if (target.kind === 'goal' || target.kind === 'working_tree') return undefined;
   if (target.kind === 'commit') return { kind: 'commit', ref: target.ref };
-  return { kind: 'range', base: target.base, head: target.head, dots: target.dots };
+  if (target.kind === 'range') {
+    return { kind: 'range', base: target.base, head: target.head, dots: target.dots };
+  }
+  return undefined;
 }
 
 function resolveTargetArgs(target: RuntimeGitTarget): readonly string[] {
@@ -1374,14 +1452,14 @@ function targetDiffArgs(target: DirectPinnedTarget, stat = false): readonly stri
 }
 
 function targetUnavailableMessage(
-  target: Exclude<ReviewTarget, { readonly kind: 'goal' | 'working_tree' }>,
+  target: Extract<ReviewTarget, { readonly kind: 'commit' | 'range' }>,
 ): string {
   return `Review target unavailable: ${reviewTargetLabel(target)} could not be read from this repository.`;
 }
 
 async function collectTargetEvidence(
   projectRoot: string,
-  target: Exclude<ReviewTarget, { readonly kind: 'goal' | 'working_tree' }>,
+  target: Extract<ReviewTarget, { readonly kind: 'commit' | 'range' }>,
   reader?: RuntimeGitReader,
   directContext?: DirectGitContext,
 ): Promise<{
@@ -1579,10 +1657,17 @@ function changedGitlinkPathsFromRaw(projectRoot: string, output: string): readon
   return Object.freeze([...paths].sort());
 }
 
-function readUntrackedFile(
+/**
+ * Read one workspace file into evidence under bounds, re-checking after the
+ * open and after the read that the path is still the same regular file inside
+ * the project. Used for untracked evidence and for snapshots, which differ in
+ * how much of a file they are willing to carry but not in how it is read.
+ */
+function readWorkspaceFile(
   projectRoot: string,
   path: string,
   contentPolicy: ReviewUntrackedContentPolicy,
+  maxChars: number = MAX_UNTRACKED_FILE_CHARS,
 ): ReviewUntrackedFileEvidence {
   const abs = resolve(projectRoot, path);
   if (!insideProject(projectRoot, abs)) {
@@ -1637,7 +1722,7 @@ function readUntrackedFile(
       return { path, byte_length: openedStat.size };
     }
 
-    const byteLimit = Math.min(openedStat.size, MAX_UNTRACKED_FILE_BYTES);
+    const byteLimit = Math.min(openedStat.size, maxChars + 1);
     const bytes = Buffer.alloc(byteLimit);
     const bytesRead = readSync(fd, bytes, 0, byteLimit, 0);
     const afterReadStat = fstatSync(fd);
@@ -1671,7 +1756,7 @@ function readUntrackedFile(
         skipped_reason: 'file content is not valid UTF-8',
       };
     }
-    const content = truncateText(decoded, MAX_UNTRACKED_FILE_CHARS);
+    const content = truncateText(decoded, maxChars);
     return {
       path,
       byte_length: openedStat.size,
@@ -1737,8 +1822,64 @@ async function collectUntrackedFiles(
     truncated: listed.truncated_by_buffer || paths.length > MAX_UNTRACKED_FILES,
     files: paths
       .slice(0, MAX_UNTRACKED_FILES)
-      .map((path) => readUntrackedFile(projectRoot, path, contentPolicy)),
+      .map((path) => readWorkspaceFile(projectRoot, path, contentPolicy)),
   };
+}
+
+/**
+ * Read the current contents of the tracked files a path scope names. The file
+ * list comes from Git rather than the filesystem, so ignored paths and build
+ * output can never enter a snapshot even when the operator points at a
+ * directory that contains them.
+ *
+ * Bounds are applied in listing order and reported, never absorbed: a caller
+ * can always tell a complete snapshot from a partial one by comparing
+ * `matched_file_count` against the files it received.
+ */
+async function collectSnapshotEvidence(
+  projectRoot: string,
+  paths: ReviewPathScope,
+  reader?: RuntimeGitReader,
+  directContext?: DirectGitContext,
+): Promise<{
+  readonly matchedFileCount: number;
+  readonly truncated: boolean;
+  readonly files: ReviewSnapshotFileEvidence[];
+}> {
+  const listed =
+    reader === undefined
+      ? runGit(
+          projectRoot,
+          runtimeGitArgsWithPathScope(['ls-files', '--cached', '--exclude-standard', '-z'], paths),
+          {},
+          directContext,
+        )
+      : await readGit(reader, 'tracked_files', projectRoot, undefined, paths);
+  if (!listed.ok) {
+    throw new Error(
+      `Review target unavailable: the files at ${reviewPathScopePaths(paths)} could not be listed. ${listed.reason}`,
+    );
+  }
+  if (listed.truncated_by_buffer) {
+    throw new Error(
+      'Review target unavailable: the file listing was truncated before it could be verified.',
+    );
+  }
+  const matched = listed.stdout.split('\0').filter((path) => path.length > 0);
+  const files: ReviewSnapshotFileEvidence[] = [];
+  let spentChars = 0;
+  for (const path of matched) {
+    if (files.length >= MAX_SNAPSHOT_FILES || spentChars >= MAX_SNAPSHOT_TOTAL_CHARS) break;
+    const file = readWorkspaceFile(
+      projectRoot,
+      path,
+      'include-content',
+      Math.min(MAX_SNAPSHOT_FILE_CHARS, MAX_SNAPSHOT_TOTAL_CHARS - spentChars),
+    );
+    spentChars += file.content?.text.length ?? 0;
+    files.push(file);
+  }
+  return { matchedFileCount: matched.length, truncated: files.length < matched.length, files };
 }
 
 async function collectReviewEvidence(
@@ -1755,7 +1896,9 @@ async function collectReviewEvidence(
     const targetLabel =
       target.kind === 'working_tree'
         ? `${target.mode === 'all' ? 'working tree' : target.mode} changes`
-        : reviewTargetLabel(target);
+        : target.kind === 'snapshot'
+          ? reviewPathScopePaths(target.paths)
+          : reviewTargetLabel(target);
     throw new Error(
       `Review target unavailable: ${targetLabel} cannot be read because the workspace root was not provided.`,
     );
@@ -1764,6 +1907,29 @@ async function collectReviewEvidence(
     options.gitReader === undefined ? prepareDirectGitContext(projectRoot) : undefined;
   if (directContext !== undefined) assertDirectGitMetadataSafe(directContext);
   const evidenceRoot = directContext?.workTree ?? projectRoot;
+
+  if (target.kind === 'snapshot') {
+    const snapshot = await collectSnapshotEvidence(
+      evidenceRoot,
+      target.paths,
+      options.gitReader,
+      directContext,
+    );
+    if (snapshot.matchedFileCount === 0) {
+      throw new Error(
+        `Review found no tracked files at ${reviewPathScopePaths(target.paths)}. Check the path, or name a commit, a range, staged, or unstaged to review a change instead.`,
+      );
+    }
+    return {
+      kind: 'git-snapshot',
+      project_root: evidenceRoot,
+      target_kind: 'snapshot',
+      files: snapshot.files,
+      matched_file_count: snapshot.matchedFileCount,
+      files_truncated: snapshot.truncated,
+      path_scope: target.paths,
+    };
+  }
 
   if (target.kind !== 'working_tree') {
     const targetEvidence = await collectTargetEvidence(
@@ -2017,7 +2183,7 @@ async function collectReviewEvidence(
   }
   if (!selectedContentAvailable) {
     const scopeSuffix = paths === undefined ? '' : ` ${reviewPathScopeLabel(paths)}`;
-    throw new Error(
+    throw new ReviewTargetEmptyError(
       target.explicit
         ? `Review target has no changes to inspect: ${target.mode === 'all' ? 'working tree changes' : `${target.mode} changes`}${scopeSuffix} are empty.`
         : `Review found no changes to inspect. The goal did not name a target, so Review looked at the working tree${scopeSuffix}. Name a commit, a range, staged, or unstaged if you meant a different target.`,
@@ -2053,23 +2219,45 @@ export const reviewIntakeComposeBuilder: ComposeBuilder = {
   async build(context: ComposeBuildContext): Promise<unknown> {
     const parsedTarget = parseReviewTarget(context.goal);
     if (!parsedTarget.ok) throw new Error(parsedTarget.reason);
-    const target = parsedTarget.target;
-    const evidence = await collectReviewEvidence(context.projectRoot, {
-      ...(context.evidencePolicy?.includeUntrackedFileContent === true
-        ? { includeUntrackedFileContent: true }
-        : {}),
-      target,
-      ...(context.gitReader === undefined ? {} : { gitReader: context.gitReader }),
-    });
+    const untrackedContent =
+      context.evidencePolicy?.includeUntrackedFileContent === true
+        ? { includeUntrackedFileContent: true as const }
+        : {};
+    const reader = context.gitReader === undefined ? {} : { gitReader: context.gitReader };
+    const collect = async (target: ReviewTarget): Promise<ReviewEvidence> =>
+      await collectReviewEvidence(context.projectRoot, { ...untrackedContent, target, ...reader });
+
+    let target = parsedTarget.target;
+    let evidence: ReviewEvidence;
+    let snapshotFallbackFrom: string | undefined;
+    try {
+      evidence = await collect(target);
+    } catch (error) {
+      // The operator named paths but no change. An empty diff there is not a
+      // dead end: the code at those paths is what they pointed at, so review
+      // it rather than reporting that nothing happened.
+      const fallback = parsedTarget.snapshotFallback;
+      if (fallback === undefined || !(error instanceof ReviewTargetEmptyError)) throw error;
+      snapshotFallbackFrom = reviewPathScopePaths(fallback);
+      target = { kind: 'snapshot', paths: fallback };
+      evidence = await collect(target);
+    }
+
     return projectReviewIntake({
       scope: context.goal,
       target,
       evidence,
       maxUntrackedFiles: MAX_UNTRACKED_FILES,
-      ...(parsedTarget.assumed === true ? { assumedTarget: true } : {}),
+      // An assumed working tree that became a snapshot is no longer an
+      // assumption about which changes to read, so the warning would misdescribe
+      // what happened.
+      ...(parsedTarget.assumed === true && snapshotFallbackFrom === undefined
+        ? { assumedTarget: true }
+        : {}),
       ...(parsedTarget.scopeNotApplied === undefined
         ? {}
         : { scopeNotApplied: parsedTarget.scopeNotApplied }),
+      ...(snapshotFallbackFrom === undefined ? {} : { snapshotFallbackFrom }),
     });
   },
 };

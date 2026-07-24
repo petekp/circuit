@@ -154,6 +154,8 @@ describe('Review target parsing', () => {
   describe('path scopes', () => {
     // A bare path is the whole request. It names what to look at, not which
     // changes, so the working tree is still an assumption and still declared.
+    // The same path rides along as a snapshot fallback: if nothing has changed
+    // there, the code at that path is still what the operator pointed at.
     it.each([
       { goal: 'review src/app.ts', include: ['src/app.ts'] },
       { goal: 'review only src/foo.ts', include: ['src/foo.ts'] },
@@ -170,6 +172,7 @@ describe('Review target parsing', () => {
           paths: { include, exclude: [] },
         },
         assumed: true,
+        snapshotFallback: { include, exclude: [] },
       });
     });
 
@@ -294,6 +297,46 @@ describe('Review target parsing', () => {
         });
       },
     );
+  });
+
+  describe('snapshot targets', () => {
+    // Some requests are about the code rather than a change to it. When the
+    // operator says so and names somewhere to look, Review reads the files
+    // rather than a diff, without waiting to discover the diff is empty.
+    it.each([
+      'review src/auth as it stands',
+      'review src/auth for latent issues',
+      'look at the current state of src/auth',
+      'review the existing code in src/auth',
+      'review the whole file src/auth',
+    ])('reads %j as a snapshot of the named path', (goal) => {
+      expect(parseReviewTarget(goal)).toMatchObject({
+        ok: true,
+        target: { kind: 'snapshot', paths: { include: ['src/auth'], exclude: [] } },
+      });
+    });
+
+    // A snapshot needs somewhere to look. "Everything except tests" is the
+    // repository minus a directory, which is more than one review can hold, so
+    // it stays a change review rather than becoming an unbounded snapshot.
+    it.each([
+      'review everything except tests/ as it stands',
+      'find latent issues everywhere but node_modules',
+    ])('keeps %j a change review because no path is named', (goal) => {
+      const parsed = parseReviewTarget(goal);
+      expect(parsed).toMatchObject({ ok: true, target: { kind: 'working_tree' } });
+      expect(parsed).not.toHaveProperty('snapshotFallback');
+    });
+
+    // Without a path there is nothing to bound the read, so the phrasing alone
+    // never turns a whole-repository request into a snapshot.
+    it('keeps an unscoped latent-issue request a change review', () => {
+      expect(parseReviewTarget('review my code for latent issues')).toMatchObject({
+        ok: true,
+        target: { kind: 'working_tree', mode: 'all', explicit: false },
+        assumed: true,
+      });
+    });
   });
 
   describe('two explicit targets in one goal', () => {

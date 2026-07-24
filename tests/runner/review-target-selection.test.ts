@@ -202,6 +202,7 @@ describe('review target selection', () => {
       staged_changed_gitlinks: '',
       unstaged_changed_gitlinks: '',
       untracked_files: '',
+      tracked_files: '',
     };
     const gitReader: RuntimeGitReader = {
       read: async (request) => {
@@ -381,6 +382,7 @@ describe('review target selection', () => {
       staged_changed_gitlinks: '',
       unstaged_changed_gitlinks: '',
       untracked_files: 'unrelated-note.txt\0',
+      tracked_files: '',
     };
     const gitReader: RuntimeGitReader = {
       read: async (request) => {
@@ -455,6 +457,7 @@ describe('review target selection', () => {
       staged_changed_gitlinks: '',
       unstaged_changed_gitlinks: '',
       untracked_files: '',
+      tracked_files: '',
     };
     const gitReader: RuntimeGitReader = {
       read: async ({ operation }) => {
@@ -710,6 +713,7 @@ describe('review target selection', () => {
       staged_changed_gitlinks: '',
       unstaged_changed_gitlinks: '',
       untracked_files: '',
+      tracked_files: '',
     };
     const gitReader: RuntimeGitReader = {
       read: async (request) => {
@@ -1346,6 +1350,7 @@ describe('review target selection', () => {
       staged_changed_gitlinks: '',
       unstaged_changed_gitlinks: '',
       untracked_files: '',
+      tracked_files: '',
     };
     const gitReader: RuntimeGitReader = {
       read: async (request) => {
@@ -1570,16 +1575,17 @@ describe('review target selection', () => {
     },
   );
 
-  // Stage 2 of the Review rework gives a path with no changes its own snapshot
-  // evidence. Until then the run stops, and the message has to name the path so
-  // the operator can tell "nothing changed there" from "Review looked elsewhere".
-  it('names the path when a path-only request has no changes', async () => {
+  // "review src/foo.ts" on a file nobody has touched is the ordinary ask, not
+  // an error. There is no diff to show, so the reviewer gets the file itself.
+  it('reviews a path with no changes by reading the code as it stands', async () => {
     const { bytes } = loadFixture();
     const runFolder = join(reviewRunFolderBase(), 'path-only-unchanged');
     const projectRoot = join(reviewRunFolderBase(), 'path-only-unchanged-project');
+    const fileMarker = 'SNAPSHOT_CONTENT_UNDER_REVIEW';
     mkdirSync(join(projectRoot, 'src'), { recursive: true });
     execFileSync('git', ['init'], { cwd: projectRoot, stdio: 'pipe' });
-    writeFileSync(join(projectRoot, 'src', 'foo.ts'), 'const foo = 1;\n');
+    writeFileSync(join(projectRoot, 'src', 'foo.ts'), `const foo = '${fileMarker}';\n`);
+    writeFileSync(join(projectRoot, 'src', 'elsewhere.ts'), "const other = 'OUT_OF_SCOPE';\n");
     execFileSync('git', ['add', '.'], { cwd: projectRoot, stdio: 'pipe' });
     execFileSync(
       'git',
@@ -1598,6 +1604,70 @@ describe('review target selection', () => {
       projectRoot,
       relayer: {
         connectorName: 'codex',
+        relay: async (input: ClaudeCodeRelayInput): Promise<RelayResult> => {
+          relayCalls += 1;
+          expect(input.prompt).toContain(fileMarker);
+          // The path scope still binds a snapshot: a sibling file in the same
+          // directory is outside what the operator named.
+          expect(input.prompt).not.toContain('OUT_OF_SCOPE');
+          return {
+            request_payload: input.prompt,
+            receipt_id: 'stub-receipt-snapshot',
+            result_body: JSON.stringify(cleanRelayResult()),
+            duration_ms: 1,
+            cli_version: '0.0.0-stub',
+          };
+        },
+      },
+    });
+
+    expect(outcome.outcome).toBe('complete');
+    expect(relayCalls).toBe(1);
+    const intake = ReviewIntake.parse(
+      JSON.parse(readFileSync(join(runFolder, 'reports', 'review-intake.json'), 'utf8')),
+    );
+    expect(intake.target).toEqual({
+      kind: 'snapshot',
+      paths: { include: ['src/foo.ts'], exclude: [] },
+    });
+    expect(intake.evidence).toMatchObject({
+      kind: 'git-snapshot',
+      matched_file_count: 1,
+      files_truncated: false,
+    });
+    // The operator has to be able to tell "nothing is wrong with this change"
+    // from "there was no change, so I read the file".
+    const fallback = intake.evidence_warnings.find(
+      (warning) => warning.kind === 'snapshot_fallback',
+    );
+    expect(fallback?.message).toContain('src/foo.ts');
+  });
+
+  it('says so plainly when a path-only request names nothing Git tracks', async () => {
+    const { bytes } = loadFixture();
+    const runFolder = join(reviewRunFolderBase(), 'path-only-missing');
+    const projectRoot = join(reviewRunFolderBase(), 'path-only-missing-project');
+    mkdirSync(join(projectRoot, 'src'), { recursive: true });
+    execFileSync('git', ['init'], { cwd: projectRoot, stdio: 'pipe' });
+    writeFileSync(join(projectRoot, 'src', 'present.ts'), 'const present = 1;\n');
+    execFileSync('git', ['add', '.'], { cwd: projectRoot, stdio: 'pipe' });
+    execFileSync(
+      'git',
+      ['-c', 'user.name=Circuit', '-c', 'user.email=circuit@example.test', 'commit', '-m', 'base'],
+      { cwd: projectRoot, stdio: 'pipe' },
+    );
+    let relayCalls = 0;
+
+    const outcome = await runCompiledFlow({
+      runDir: runFolder,
+      flowBytes: bytes,
+      runId: '79000000-0000-0000-0000-000000000128',
+      goal: 'review src/typo.ts',
+      depth: 'medium',
+      now: deterministicNow(Date.UTC(2026, 6, 24, 11, 50, 0)),
+      projectRoot,
+      relayer: {
+        connectorName: 'codex',
         relay: async (): Promise<RelayResult> => {
           relayCalls += 1;
           throw new Error('an empty target must never reach the reviewer');
@@ -1606,7 +1676,7 @@ describe('review target selection', () => {
     });
 
     expect(outcome.outcome).toBe('aborted');
-    expect(outcome.reason).toContain('src/foo.ts');
+    expect(outcome.reason).toContain('src/typo.ts');
     expect(relayCalls).toBe(0);
     expect(existsSync(join(runFolder, 'reports', 'review-intake.json'))).toBe(false);
   });

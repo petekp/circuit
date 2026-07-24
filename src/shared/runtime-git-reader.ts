@@ -11,6 +11,10 @@ export const RUNTIME_GIT_OPERATIONS = [
   'staged_changed_gitlinks',
   'unstaged_changed_gitlinks',
   'untracked_files',
+  // Files Git tracks under a path scope. Snapshot reviews enumerate through
+  // Git rather than the filesystem so ignored files and build output can never
+  // enter the evidence.
+  'tracked_files',
 ] as const;
 
 export const RUNTIME_GIT_HARDENED_CONFIG = Object.freeze([

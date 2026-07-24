@@ -130,6 +130,20 @@ function reviewEvidenceDetails(report: JsonObject | undefined): string[] {
     const truncated = evidenceSummary?.target_diff_truncated === true ? ' (truncated)' : '';
     return [`Review evidence: ${label} diff included${truncated}.`, ...scope];
   }
+  if (kind === 'git-snapshot') {
+    const matched = numberField(evidenceSummary, 'matched_file_count') ?? 0;
+    const sampled = numberField(evidenceSummary, 'files_sampled') ?? 0;
+    const scope = isObject(evidenceSummary?.path_scope) ? evidenceSummary.path_scope : undefined;
+    const include = arrayField(scope, 'include').filter(
+      (entry): entry is string => typeof entry === 'string',
+    );
+    const where = include.length > 0 ? include.join(', ') : 'the requested paths';
+    const rest =
+      sampled < matched ? ` ${plural(matched - sampled, 'file')} were not inspected.` : '';
+    return [
+      `Review evidence: current contents of ${plural(sampled, 'file')} at ${where}, not a diff.${rest}`,
+    ];
+  }
   if (kind !== 'git-working-tree') return [];
 
   const policy = stringField(evidenceSummary, 'untracked_content_policy');

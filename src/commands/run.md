@@ -64,6 +64,11 @@ metacharacters:
    Keep a requested file or directory subset or path exclusion in the task text.
    Circuit reads it as a path scope, reviews only those paths, and names the
    scope in the report; removing it would review more than was asked for.
+   A Review task that names a path with nothing changed reviews the current
+   contents of the tracked files there instead of a diff, and the report says
+   which one the findings are about. Keep phrasing like "as it stands" or "for
+   latent issues" in the task text: it asks for that read directly instead of
+   waiting to discover the diff is empty.
    A Review task that names no target reviews the current working tree, and the
    report names that assumption. Circuit cannot fetch a pull request: to review
    one, check the branch out locally first.

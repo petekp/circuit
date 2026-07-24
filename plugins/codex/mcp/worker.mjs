@@ -18942,7 +18942,8 @@ var OPERATION_ARGS = {
     "--ignore-submodules=none",
     "--"
   ],
-  untracked_files: ["ls-files", "--others", "--exclude-standard", "-z", "--"]
+  untracked_files: ["ls-files", "--others", "--exclude-standard", "-z", "--"],
+  tracked_files: ["ls-files", "--cached", "--exclude-standard", "-z", "--"]
 };
 var CONFIG_AUDIT_ARGS = ["config", "--null", "--list", "--no-includes"];
 var METADATA_PATHS = [
@@ -19247,7 +19248,7 @@ function parseRequest(value) {
       throw new SafeGitReadError("invalid_git_read", `Unknown field ${JSON.stringify(key)}.`);
     }
   }
-  if (record2.operation !== "status" && record2.operation !== "staged_diff" && record2.operation !== "unstaged_diff" && record2.operation !== "staged_diff_stat" && record2.operation !== "unstaged_diff_stat" && record2.operation !== "resolve_target" && record2.operation !== "target_diff" && record2.operation !== "target_diff_stat" && record2.operation !== "hidden_index_flags" && record2.operation !== "staged_changed_gitlinks" && record2.operation !== "unstaged_changed_gitlinks" && record2.operation !== "untracked_files") {
+  if (record2.operation !== "status" && record2.operation !== "staged_diff" && record2.operation !== "unstaged_diff" && record2.operation !== "staged_diff_stat" && record2.operation !== "unstaged_diff_stat" && record2.operation !== "resolve_target" && record2.operation !== "target_diff" && record2.operation !== "target_diff_stat" && record2.operation !== "hidden_index_flags" && record2.operation !== "staged_changed_gitlinks" && record2.operation !== "unstaged_changed_gitlinks" && record2.operation !== "untracked_files" && record2.operation !== "tracked_files") {
     throw new SafeGitReadError("invalid_git_read", "Git read operation is not supported.");
   }
   const operation = record2.operation;

@@ -23077,7 +23077,10 @@ var ReviewEvidenceWarningKind = external_exports.enum([
   "scope_empty",
   "target_assumed",
   "target_scoped",
-  "scope_not_applied"
+  "scope_not_applied",
+  "snapshot_fallback",
+  "snapshot_truncated",
+  "snapshot_file_skipped"
 ]);
 var ReviewEvidenceWarning = external_exports.object({
   kind: ReviewEvidenceWarningKind,
@@ -23089,7 +23092,7 @@ var ReviewEvidenceText = external_exports.object({
   truncated: external_exports.boolean()
 }).strict();
 var ReviewUntrackedContentPolicy = external_exports.enum(["metadata-only", "include-content"]);
-var ReviewTargetKind = external_exports.enum(["working_tree", "commit", "range"]);
+var ReviewTargetKind = external_exports.enum(["working_tree", "commit", "range", "snapshot"]);
 var ReviewWorkingTreeMode = external_exports.enum(["all", "tracked", "staged", "unstaged"]);
 var ReviewPathScope = external_exports.object({
   include: external_exports.array(external_exports.string().min(1)),
@@ -23099,6 +23102,12 @@ var ReviewPathScope = external_exports.object({
   "A path scope must include or exclude at least one path."
 );
 var ReviewUntrackedFileEvidence = external_exports.object({
+  path: external_exports.string().min(1),
+  byte_length: external_exports.number().int().nonnegative(),
+  content: ReviewEvidenceText.optional(),
+  skipped_reason: external_exports.string().min(1).optional()
+}).strict();
+var ReviewSnapshotFileEvidence = external_exports.object({
   path: external_exports.string().min(1),
   byte_length: external_exports.number().int().nonnegative(),
   content: ReviewEvidenceText.optional(),
@@ -23202,7 +23211,22 @@ var ReviewEvidence = external_exports.discriminatedUnion("kind", [
     submodule_paths: external_exports.array(external_exports.string().min(1)).optional(),
     path_scope: ReviewPathScope.optional()
   }).strict(),
-  ReviewGitTargetEvidence
+  ReviewGitTargetEvidence,
+  // The current contents of the tracked files at a named path, with no diff
+  // involved. This is what "review src/auth" asks for when nothing there has
+  // changed. A snapshot always names a path scope: an unscoped snapshot would
+  // be the whole repository, which is more than one relay can hold.
+  external_exports.object({
+    kind: external_exports.literal("git-snapshot"),
+    project_root: external_exports.string().min(1),
+    target_kind: external_exports.literal("snapshot"),
+    files: external_exports.array(ReviewSnapshotFileEvidence),
+    // How many tracked files the scope matched before any bound applied, so
+    // a reader can tell a complete snapshot from a sampled one.
+    matched_file_count: external_exports.number().int().nonnegative(),
+    files_truncated: external_exports.boolean(),
+    path_scope: ReviewPathScope
+  }).strict()
 ]);
 var ReviewEvidenceSummary = external_exports.discriminatedUnion("kind", [
   external_exports.object({
@@ -23230,6 +23254,14 @@ var ReviewEvidenceSummary = external_exports.discriminatedUnion("kind", [
     target_diff_included: external_exports.boolean(),
     target_diff_truncated: external_exports.boolean(),
     path_scope: ReviewPathScope.optional()
+  }).strict(),
+  external_exports.object({
+    kind: external_exports.literal("git-snapshot"),
+    target_kind: external_exports.literal("snapshot"),
+    matched_file_count: external_exports.number().int().nonnegative(),
+    files_sampled: external_exports.number().int().nonnegative(),
+    files_truncated: external_exports.boolean(),
+    path_scope: ReviewPathScope
   }).strict()
 ]);
 var ReviewResolvedTarget = external_exports.discriminatedUnion("kind", [
@@ -23253,6 +23285,13 @@ var ReviewResolvedTarget = external_exports.discriminatedUnion("kind", [
     head: external_exports.string().min(1),
     dots: external_exports.enum(["..", "..."]),
     paths: ReviewPathScope.optional()
+  }).strict(),
+  // Code as it stands rather than a change to it. The paths are required for
+  // the same reason the evidence requires them: a snapshot of everything is
+  // more than one review can hold.
+  external_exports.object({
+    kind: external_exports.literal("snapshot"),
+    paths: ReviewPathScope
   }).strict()
 ]);
 var ReviewIntake = external_exports.object({
@@ -23345,10 +23384,8 @@ var ReviewRelayResult = external_exports.object({
 
 // src/flows/review/writers/intake.ts
 var MAX_DIFF_CHARS = 12e4;
-var MAX_UNTRACKED_FILE_CHARS = 2e4;
 var MAX_GIT_BUFFER_BYTES = 10 * 1024 * 1024;
 var MAX_DIFF_BUFFER_BYTES = Math.max(MAX_DIFF_CHARS * 4, 1024 * 1024);
-var MAX_UNTRACKED_FILE_BYTES = MAX_UNTRACKED_FILE_CHARS + 1;
 var HEAD_COMMIT_REF = "HEAD";
 var SAFE_REVIEW_REF_PATTERN = /^[A-Za-z0-9._/@+~^-]{1,120}$/u;
 function isSafeReviewRef(value) {
@@ -23571,6 +23608,7 @@ function targetWithoutChangeClass(target, changeClass) {
   if (name !== "untracked") return void 0;
   return target.mode === "all" ? { ...target, mode: "tracked" } : target;
 }
+var SNAPSHOT_REQUEST_PATTERN = /\b(?:as (?:it|they) stands?|as-is|current state|existing code|whole file|entire file|latent (?:issues?|bugs?|problems?|defects?))\b/iu;
 var MAX_SCOPE_PATHS = 32;
 var MAX_SCOPE_PATH_LENGTH = 200;
 var SAFE_SCOPE_PATH_PATTERN = /^[A-Za-z0-9._@+*?[\]/-]+$/u;
@@ -23614,16 +23652,28 @@ function extractReviewScope(scope) {
   }
   return { paths: { include, exclude }, ...carve, notApplied };
 }
+var PATH_ONLY_REQUEST_PATTERN = new RegExp(
+  [
+    "^\\s*",
+    // "review src/auth", "look at src/auth", "take a look at src/auth".
+    "(?:review|inspect|audit|check|analyze|examine|(?:take\\s+a\\s+)?look\\s+at)\\s+",
+    // "the", "my current", "the whole existing" — any run of these, or none.
+    "(?:(?:only|the|this|my|our|current|existing|whole|entire|full)\\s+)*",
+    // An optional noun for what is being pointed at, with the preposition that
+    // usually follows it: "the code in src/auth", "the state of src/auth".
+    "(?:(?:files?|code|plan|report|directory|dir|folder|module|package|contents?|state)\\s*",
+    "(?:(?:in|at|from|of|under|within)\\s+|:\\s*)?)?",
+    "(?<path>\\S+)(?<suffix>[\\s\\S]*)$"
+  ].join(""),
+  "iu"
+);
+var PATH_ONLY_SUFFIX_PATTERN = /^(?:,?\s*(?:for|with|especially)\b|,?\s+and\s+(?:focus|check|inspect|look|pay|prioritize|verify)\b|,?\s*as[-\s](?:it|they)\s+stands?\b|,?\s*as[-\s]is\b)/iu;
 function pathOnlyRequestPath(scope) {
-  const pathOnly = /^\s*(?:review|inspect|audit|check|analyze)\s+(?:(?:only|the|this|my|our|current)\s+)*(?:(?:file|code|plan|report)\s*(?:(?:in|at|from)\s+|:\s*)?)?(?<path>\S+)(?<suffix>[\s\S]*)$/iu.exec(
-    scope
-  );
+  const pathOnly = PATH_ONLY_REQUEST_PATTERN.exec(scope);
   const path = pathOnly?.groups?.path;
   if (path !== void 0 && looksLikeReviewPath(path)) {
     const suffix = (pathOnly?.groups?.suffix ?? "").trim();
-    if (suffix.length === 0 || /^[.!?]$/u.test(suffix) || /^(?:,?\s*(?:for|with|especially)\b|,?\s+and\s+(?:focus|check|inspect|look|pay|prioritize|verify)\b)/iu.test(
-      suffix
-    )) {
+    if (suffix.length === 0 || /^[.!?]$/u.test(suffix) || PATH_ONLY_SUFFIX_PATTERN.test(suffix)) {
       return path;
     }
   }
@@ -23641,7 +23691,7 @@ function withPathScope(target, paths) {
       return target;
   }
 }
-function scopedParseResult(target, requested, assumed = false) {
+function scopedParseResult(target, requested, assumed = false, snapshotFallback) {
   const scoped = requested.paths === void 0 ? target : withPathScope(target, requested.paths);
   const carve = requested.excludedChangeClass;
   const narrowed = carve === void 0 ? scoped : targetWithoutChangeClass(scoped, carve.name);
@@ -23653,6 +23703,16 @@ function scopedParseResult(target, requested, assumed = false) {
     ok: true,
     target: narrowed ?? scoped,
     ...assumed ? { assumed: true } : {},
+    ...notApplied.length === 0 ? {} : { scopeNotApplied: notApplied },
+    ...snapshotFallback === void 0 ? {} : { snapshotFallback }
+  };
+}
+function snapshotParseResult(paths, requested) {
+  const carve = requested.excludedChangeClass;
+  const notApplied = [...requested.notApplied, ...carve === void 0 ? [] : [carve.phrase]];
+  return {
+    ok: true,
+    target: { kind: "snapshot", paths },
     ...notApplied.length === 0 ? {} : { scopeNotApplied: notApplied }
   };
 }
@@ -23691,22 +23751,17 @@ function parseReviewTarget(scope) {
   const bareHead = parseBareHeadForm(authorityScope);
   if (bareHead !== void 0) return scopedParseResult(bareHead, requested);
   const pathOnly = requested.paths === void 0 ? pathOnlyRequestPath(authorityScope) : void 0;
-  if (pathOnly !== void 0) {
-    const path = scopePathFromToken(pathOnly);
-    if (path !== void 0) {
-      return scopedParseResult(
-        { kind: "working_tree", mode: "all", explicit: false },
-        { ...requested, paths: { include: [path], exclude: [] } },
-        true
-      );
-    }
-    return scopedParseResult(
-      { kind: "working_tree", mode: "all", explicit: false },
-      { ...requested, notApplied: [...requested.notApplied, pathOnly.trim()] },
-      true
-    );
+  const pathOnlyPath = pathOnly === void 0 ? void 0 : scopePathFromToken(pathOnly);
+  const scoped = pathOnlyPath !== void 0 ? { ...requested, paths: { include: [pathOnlyPath], exclude: [] } } : pathOnly === void 0 ? requested : { ...requested, notApplied: [...requested.notApplied, pathOnly.trim()] };
+  const assumedWorkingTree = { kind: "working_tree", mode: "all", explicit: false };
+  if (scoped.paths === void 0) return scopedParseResult(assumedWorkingTree, scoped, true);
+  if (scoped.paths.include.length === 0) {
+    return scopedParseResult(assumedWorkingTree, scoped, true);
   }
-  return scopedParseResult({ kind: "working_tree", mode: "all", explicit: false }, requested, true);
+  if (SNAPSHOT_REQUEST_PATTERN.test(authorityScope)) {
+    return snapshotParseResult(scoped.paths, scoped);
+  }
+  return scopedParseResult(assumedWorkingTree, scoped, true, scoped.paths);
 }
 
 // src/flows/registries/start-preflight.ts

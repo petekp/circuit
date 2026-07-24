@@ -154,6 +154,21 @@ function EvidenceSummary({ report }: { readonly report: ReviewResultValue }) {
       />
     );
   }
+  if (evidence.kind === 'git-snapshot') {
+    const scope = [
+      ...evidence.path_scope.include,
+      ...evidence.path_scope.exclude.map((path) => `excluding ${path}`),
+    ].join(', ');
+    return (
+      <BulletList
+        items={[
+          `Review target: current contents of ${scope}`,
+          `Files read: ${evidence.files_sampled}/${evidence.matched_file_count}`,
+          `File list truncated: ${evidence.files_truncated ? 'yes' : 'no'}`,
+        ]}
+      />
+    );
+  }
   const sampled = `${evidence.untracked_files_sampled}/${evidence.untracked_file_count}`;
   const truncated = evidence.untracked_files_truncated ? 'yes' : 'no';
   return (

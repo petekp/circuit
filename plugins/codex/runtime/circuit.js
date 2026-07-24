@@ -62356,7 +62356,7 @@ var init_css_generated = __esm({
   "dist/shared/html/ui/css.generated.js"() {
     "use strict";
     UI_CSS = `/*! tailwindcss v4.3.2 | MIT License | https://tailwindcss.com */
-@layer properties{@supports (((-webkit-hyphens:none)) and (not (margin-trim:inline))) or ((-moz-orient:inline) and (not (color:rgb(from red r g b)))){*,:before,:after,::backdrop{--tw-space-y-reverse:0;--tw-border-style:solid;--tw-leading:initial;--tw-font-weight:initial;--tw-tracking:initial;--tw-shadow:0 0 #0000;--tw-shadow-color:initial;--tw-shadow-alpha:100%;--tw-inset-shadow:0 0 #0000;--tw-inset-shadow-color:initial;--tw-inset-shadow-alpha:100%;--tw-ring-color:initial;--tw-ring-shadow:0 0 #0000;--tw-inset-ring-color:initial;--tw-inset-ring-shadow:0 0 #0000;--tw-ring-inset:initial;--tw-ring-offset-width:0px;--tw-ring-offset-color:#fff;--tw-ring-offset-shadow:0 0 #0000;--tw-outline-style:solid;--tw-translate-x:0;--tw-translate-y:0;--tw-translate-z:0}}}@layer theme{:root,:host{--font-sans:ui-sans-serif, system-ui, sans-serif, "Apple Color Emoji", "Segoe UI Emoji", "Segoe UI Symbol", "Noto Color Emoji";--font-mono:ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace;--color-white:#fff;--spacing:.25rem;--container-6xl:72rem;--text-xs:.75rem;--text-xs--line-height:calc(1 / .75);--text-sm:.875rem;--text-sm--line-height:calc(1.25 / .875);--text-base:1rem;--text-base--line-height:calc(1.5 / 1);--text-lg:1.125rem;--text-lg--line-height:calc(1.75 / 1.125);--font-weight-normal:400;--font-weight-medium:500;--font-weight-semibold:600;--tracking-tight:-.025em;--leading-tight:1.25;--leading-snug:1.375;--leading-normal:1.5;--leading-relaxed:1.625;--default-transition-duration:.15s;--default-transition-timing-function:cubic-bezier(.4, 0, .2, 1);--default-font-family:var(--font-sans);--default-mono-font-family:var(--font-mono)}}@layer base{*,:after,:before,::backdrop{box-sizing:border-box;border:0 solid;margin:0;padding:0}::file-selector-button{box-sizing:border-box;border:0 solid;margin:0;padding:0}html,:host{-webkit-text-size-adjust:100%;tab-size:4;line-height:1.5;font-family:var(--default-font-family,ui-sans-serif, system-ui, sans-serif, "Apple Color Emoji", "Segoe UI Emoji", "Segoe UI Symbol", "Noto Color Emoji");font-feature-settings:var(--default-font-feature-settings,normal);font-variation-settings:var(--default-font-variation-settings,normal);-webkit-tap-highlight-color:transparent}hr{height:0;color:inherit;border-top-width:1px}abbr:where([title]){-webkit-text-decoration:underline dotted;text-decoration:underline dotted}h1,h2,h3,h4,h5,h6{font-size:inherit;font-weight:inherit}a{color:inherit;-webkit-text-decoration:inherit;-webkit-text-decoration:inherit;-webkit-text-decoration:inherit;text-decoration:inherit}b,strong{font-weight:bolder}code,kbd,samp,pre{font-family:var(--default-mono-font-family,ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace);font-feature-settings:var(--default-mono-font-feature-settings,normal);font-variation-settings:var(--default-mono-font-variation-settings,normal);font-size:1em}small{font-size:80%}sub,sup{vertical-align:baseline;font-size:75%;line-height:0;position:relative}sub{bottom:-.25em}sup{top:-.5em}table{text-indent:0;border-color:inherit;border-collapse:collapse}:-moz-focusring{outline:auto}progress{vertical-align:baseline}summary{display:list-item}ol,ul,menu{list-style:none}img,svg,video,canvas,audio,iframe,embed,object{vertical-align:middle;display:block}img,video{max-width:100%;height:auto}button,input,select,optgroup,textarea{font:inherit;font-feature-settings:inherit;font-variation-settings:inherit;letter-spacing:inherit;color:inherit;opacity:1;background-color:#0000;border-radius:0}::file-selector-button{font:inherit;font-feature-settings:inherit;font-variation-settings:inherit;letter-spacing:inherit;color:inherit;opacity:1;background-color:#0000;border-radius:0}:where(select:is([multiple],[size])) optgroup{font-weight:bolder}:where(select:is([multiple],[size])) optgroup option{padding-inline-start:20px}::file-selector-button{margin-inline-end:4px}::placeholder{opacity:1}@supports (not ((-webkit-appearance:-apple-pay-button))) or (contain-intrinsic-size:1px){::placeholder{color:currentColor}@supports (color:color-mix(in lab, red, red)){::placeholder{color:color-mix(in oklab, currentcolor 50%, transparent)}}}textarea{resize:vertical}::-webkit-search-decoration{-webkit-appearance:none}::-webkit-date-and-time-value{min-height:1lh;text-align:inherit}::-webkit-datetime-edit{display:inline-flex}::-webkit-datetime-edit-fields-wrapper{padding:0}::-webkit-datetime-edit{padding-block:0}::-webkit-datetime-edit-year-field{padding-block:0}::-webkit-datetime-edit-month-field{padding-block:0}::-webkit-datetime-edit-day-field{padding-block:0}::-webkit-datetime-edit-hour-field{padding-block:0}::-webkit-datetime-edit-minute-field{padding-block:0}::-webkit-datetime-edit-second-field{padding-block:0}::-webkit-datetime-edit-millisecond-field{padding-block:0}::-webkit-datetime-edit-meridiem-field{padding-block:0}::-webkit-calendar-picker-indicator{line-height:1}:-moz-ui-invalid{box-shadow:none}button,input:where([type=button],[type=reset],[type=submit]){appearance:button}::file-selector-button{appearance:button}::-webkit-inner-spin-button{height:auto}::-webkit-outer-spin-button{height:auto}[hidden]:where(:not([hidden=until-found])){display:none!important}*{border-color:var(--border);outline-color:var(--ring)}@supports (color:color-mix(in lab, red, red)){*{outline-color:color-mix(in oklab, var(--ring) 50%, transparent)}}body{background-color:var(--background);color:var(--foreground)}}@layer components{input[data-slot=checkbox]:checked{background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%23fafaf9' stroke-width='3' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M20 6 9 17l-5-5'/%3E%3C/svg%3E");background-position:50%;background-repeat:no-repeat;background-size:.75rem}input[data-slot=radio-group-item]:checked{background-image:radial-gradient(circle closest-side, var(--primary) 45%, transparent 50%)}}@layer utilities{.\\@container\\/card-header{container:card-header/inline-size}.\\@container\\/field-group{container:field-group/inline-size}.pointer-events-none{pointer-events:none}.visible{visibility:visible}.absolute{position:absolute}.relative{position:relative}.static{position:static}.inset-0{inset:0}.top-1\\/2{top:50%}.col-start-2{grid-column-start:2}.row-span-2{grid-row:span 2/span 2}.row-start-1{grid-row-start:1}.m-0{margin:0}.mx-auto{margin-inline:auto}.-my-2{margin-block:calc(var(--spacing) * -2)}.mt-2{margin-top:calc(var(--spacing) * 2)}.mt-2\\.5{margin-top:calc(var(--spacing) * 2.5)}.mt-3{margin-top:calc(var(--spacing) * 3)}.mt-4{margin-top:calc(var(--spacing) * 4)}.mt-8{margin-top:calc(var(--spacing) * 8)}.mt-12{margin-top:calc(var(--spacing) * 12)}.mb-0\\.5{margin-bottom:calc(var(--spacing) * .5)}.mb-1\\.5{margin-bottom:calc(var(--spacing) * 1.5)}.mb-2{margin-bottom:calc(var(--spacing) * 2)}.mb-2\\.5{margin-bottom:calc(var(--spacing) * 2.5)}.mb-3{margin-bottom:calc(var(--spacing) * 3)}.mb-6{margin-bottom:calc(var(--spacing) * 6)}.ml-4{margin-left:calc(var(--spacing) * 4)}.line-clamp-1{-webkit-line-clamp:1;-webkit-box-orient:vertical;display:-webkit-box;overflow:hidden}.block{display:block}.flex{display:flex}.grid{display:grid}.hidden{display:none}.inline-flex{display:inline-flex}.table{display:table}.table-caption{display:table-caption}.table-cell{display:table-cell}.table-row{display:table-row}.field-sizing-content{field-sizing:content}.aspect-square{aspect-ratio:1}.size-4{width:calc(var(--spacing) * 4);height:calc(var(--spacing) * 4)}.size-8{width:calc(var(--spacing) * 8);height:calc(var(--spacing) * 8)}.size-9{width:calc(var(--spacing) * 9);height:calc(var(--spacing) * 9)}.size-10{width:calc(var(--spacing) * 10);height:calc(var(--spacing) * 10)}.h-5{height:calc(var(--spacing) * 5)}.h-8{height:calc(var(--spacing) * 8)}.h-9{height:calc(var(--spacing) * 9)}.h-10{height:calc(var(--spacing) * 10)}.min-h-4{min-height:calc(var(--spacing) * 4)}.min-h-16{min-height:calc(var(--spacing) * 16)}.w-fit{width:fit-content}.w-full{width:100%}.max-w-6xl{max-width:var(--container-6xl)}.min-w-0{min-width:0}.min-w-5{min-width:calc(var(--spacing) * 5)}.min-w-\\[200px\\]{min-width:200px}.flex-1{flex:1}.shrink-0{flex-shrink:0}.caption-bottom{caption-side:bottom}.cursor-pointer{cursor:pointer}.list-disc{list-style-type:disc}.appearance-none{appearance:none}.auto-rows-min{grid-auto-rows:min-content}.grid-cols-1{grid-template-columns:repeat(1,minmax(0,1fr))}.grid-cols-\\[0_1fr\\]{grid-template-columns:0 1fr}.grid-cols-\\[repeat\\(auto-fit\\,minmax\\(320px\\,1fr\\)\\)\\]{grid-template-columns:repeat(auto-fit,minmax(320px,1fr))}.grid-rows-\\[auto_auto\\]{grid-template-rows:auto auto}.flex-col{flex-direction:column}.flex-row{flex-direction:row}.flex-wrap{flex-wrap:wrap}.items-baseline{align-items:baseline}.items-center{align-items:center}.items-start{align-items:flex-start}.justify-between{justify-content:space-between}.justify-center{justify-content:center}.justify-items-start{justify-items:start}.gap-1{gap:var(--spacing)}.gap-1\\.5{gap:calc(var(--spacing) * 1.5)}.gap-2{gap:calc(var(--spacing) * 2)}.gap-2\\.5{gap:calc(var(--spacing) * 2.5)}.gap-3{gap:calc(var(--spacing) * 3)}.gap-3\\.5{gap:calc(var(--spacing) * 3.5)}.gap-4{gap:calc(var(--spacing) * 4)}.gap-6{gap:calc(var(--spacing) * 6)}.gap-7{gap:calc(var(--spacing) * 7)}:where(.space-y-1\\.5>:not(:last-child)){--tw-space-y-reverse:0;margin-block-start:calc(calc(var(--spacing) * 1.5) * var(--tw-space-y-reverse));margin-block-end:calc(calc(var(--spacing) * 1.5) * calc(1 - var(--tw-space-y-reverse)))}.gap-y-0\\.5{row-gap:calc(var(--spacing) * .5)}.self-start{align-self:flex-start}.justify-self-end{justify-self:flex-end}.truncate{text-overflow:ellipsis;white-space:nowrap;overflow:hidden}.overflow-hidden{overflow:hidden}.overflow-x-auto{overflow-x:auto}.rounded-\\[4px\\]{border-radius:4px}.rounded-full{border-radius:3.40282e38px}.rounded-lg{border-radius:var(--radius)}.rounded-md{border-radius:calc(var(--radius) - 2px)}.rounded-sm{border-radius:calc(var(--radius) - 4px)}.rounded-xl{border-radius:calc(var(--radius) + 4px)}.border{border-style:var(--tw-border-style);border-width:1px}.border-t{border-top-style:var(--tw-border-style);border-top-width:1px}.border-b{border-bottom-style:var(--tw-border-style);border-bottom-width:1px}.border-attention\\/60{border-color:var(--attention)}@supports (color:color-mix(in lab, red, red)){.border-attention\\/60{border-color:color-mix(in oklab, var(--attention) 60%, transparent)}}.border-border{border-color:var(--border)}.border-destructive\\/50{border-color:var(--destructive)}@supports (color:color-mix(in lab, red, red)){.border-destructive\\/50{border-color:color-mix(in oklab, var(--destructive) 50%, transparent)}}.border-destructive\\/60{border-color:var(--destructive)}@supports (color:color-mix(in lab, red, red)){.border-destructive\\/60{border-color:color-mix(in oklab, var(--destructive) 60%, transparent)}}.border-info\\/50{border-color:var(--info)}@supports (color:color-mix(in lab, red, red)){.border-info\\/50{border-color:color-mix(in oklab, var(--info) 50%, transparent)}}.border-input{border-color:var(--input)}.border-positive\\/50{border-color:var(--positive)}@supports (color:color-mix(in lab, red, red)){.border-positive\\/50{border-color:color-mix(in oklab, var(--positive) 50%, transparent)}}.border-positive\\/60{border-color:var(--positive)}@supports (color:color-mix(in lab, red, red)){.border-positive\\/60{border-color:color-mix(in oklab, var(--positive) 60%, transparent)}}.border-transparent{border-color:#0000}.bg-attention\\/5{background-color:var(--attention)}@supports (color:color-mix(in lab, red, red)){.bg-attention\\/5{background-color:color-mix(in oklab, var(--attention) 5%, transparent)}}.bg-background{background-color:var(--background)}.bg-border{background-color:var(--border)}.bg-card{background-color:var(--card)}.bg-destructive,.bg-destructive\\/5{background-color:var(--destructive)}@supports (color:color-mix(in lab, red, red)){.bg-destructive\\/5{background-color:color-mix(in oklab, var(--destructive) 5%, transparent)}}.bg-info\\/5{background-color:var(--info)}@supports (color:color-mix(in lab, red, red)){.bg-info\\/5{background-color:color-mix(in oklab, var(--info) 5%, transparent)}}.bg-muted,.bg-muted\\/40{background-color:var(--muted)}@supports (color:color-mix(in lab, red, red)){.bg-muted\\/40{background-color:color-mix(in oklab, var(--muted) 40%, transparent)}}.bg-muted\\/50{background-color:var(--muted)}@supports (color:color-mix(in lab, red, red)){.bg-muted\\/50{background-color:color-mix(in oklab, var(--muted) 50%, transparent)}}.bg-positive\\/5{background-color:var(--positive)}@supports (color:color-mix(in lab, red, red)){.bg-positive\\/5{background-color:color-mix(in oklab, var(--positive) 5%, transparent)}}.bg-primary{background-color:var(--primary)}.bg-secondary{background-color:var(--secondary)}.bg-transparent{background-color:#0000}.p-2{padding:calc(var(--spacing) * 2)}.px-1{padding-inline:var(--spacing)}.px-2{padding-inline:calc(var(--spacing) * 2)}.px-3{padding-inline:calc(var(--spacing) * 3)}.px-4{padding-inline:calc(var(--spacing) * 4)}.px-5{padding-inline:calc(var(--spacing) * 5)}.px-6{padding-inline:calc(var(--spacing) * 6)}.py-0\\.5{padding-block:calc(var(--spacing) * .5)}.py-1{padding-block:var(--spacing)}.py-2{padding-block:calc(var(--spacing) * 2)}.py-3{padding-block:calc(var(--spacing) * 3)}.py-4{padding-block:calc(var(--spacing) * 4)}.py-5{padding-block:calc(var(--spacing) * 5)}.py-6{padding-block:calc(var(--spacing) * 6)}.py-12{padding-block:calc(var(--spacing) * 12)}.pt-0\\.5{padding-top:calc(var(--spacing) * .5)}.pt-4{padding-top:calc(var(--spacing) * 4)}.pt-6{padding-top:calc(var(--spacing) * 6)}.pb-24{padding-bottom:calc(var(--spacing) * 24)}.pl-4{padding-left:calc(var(--spacing) * 4)}.text-left{text-align:left}.align-middle{vertical-align:middle}.font-mono{font-family:var(--font-mono)}.font-sans{font-family:var(--font-sans)}.text-base{font-size:var(--text-base);line-height:var(--tw-leading,var(--text-base--line-height))}.text-lg{font-size:var(--text-lg);line-height:var(--tw-leading,var(--text-lg--line-height))}.text-sm{font-size:var(--text-sm);line-height:var(--tw-leading,var(--text-sm--line-height))}.text-xs{font-size:var(--text-xs);line-height:var(--tw-leading,var(--text-xs--line-height))}.text-\\[10px\\]{font-size:10px}.text-\\[11px\\]{font-size:11px}.text-\\[13px\\]{font-size:13px}.text-\\[15px\\]{font-size:15px}.text-\\[27px\\]{font-size:27px}.leading-none{--tw-leading:1;line-height:1}.leading-normal{--tw-leading:var(--leading-normal);line-height:var(--leading-normal)}.leading-relaxed{--tw-leading:var(--leading-relaxed);line-height:var(--leading-relaxed)}.leading-snug{--tw-leading:var(--leading-snug);line-height:var(--leading-snug)}.leading-tight{--tw-leading:var(--leading-tight);line-height:var(--leading-tight)}.font-medium{--tw-font-weight:var(--font-weight-medium);font-weight:var(--font-weight-medium)}.font-normal{--tw-font-weight:var(--font-weight-normal);font-weight:var(--font-weight-normal)}.font-semibold{--tw-font-weight:var(--font-weight-semibold);font-weight:var(--font-weight-semibold)}.tracking-\\[0\\.05em\\]{--tw-tracking:.05em;letter-spacing:.05em}.tracking-\\[0\\.06em\\]{--tw-tracking:.06em;letter-spacing:.06em}.tracking-\\[0\\.08em\\]{--tw-tracking:.08em;letter-spacing:.08em}.tracking-tight{--tw-tracking:var(--tracking-tight);letter-spacing:var(--tracking-tight)}.text-balance{text-wrap:balance}.break-words{overflow-wrap:break-word}.whitespace-nowrap{white-space:nowrap}.text-attention{color:var(--attention)}.text-card-foreground{color:var(--card-foreground)}.text-destructive{color:var(--destructive)}.text-foreground{color:var(--foreground)}.text-info{color:var(--info)}.text-muted-foreground,.text-muted-foreground\\/80{color:var(--muted-foreground)}@supports (color:color-mix(in lab, red, red)){.text-muted-foreground\\/80{color:color-mix(in oklab, var(--muted-foreground) 80%, transparent)}}.text-positive{color:var(--positive)}.text-primary{color:var(--primary)}.text-primary-foreground{color:var(--primary-foreground)}.text-secondary-foreground{color:var(--secondary-foreground)}.text-white{color:var(--color-white)}.lowercase{text-transform:lowercase}.uppercase{text-transform:uppercase}.underline-offset-4{text-underline-offset:4px}.antialiased{-webkit-font-smoothing:antialiased;-moz-osx-font-smoothing:grayscale}.shadow-none{--tw-shadow:0 0 #0000;box-shadow:var(--tw-inset-shadow), var(--tw-inset-ring-shadow), var(--tw-ring-offset-shadow), var(--tw-ring-shadow), var(--tw-shadow)}.shadow-sm{--tw-shadow:0 1px 3px 0 var(--tw-shadow-color,#0000001a), 0 1px 2px -1px var(--tw-shadow-color,#0000001a);box-shadow:var(--tw-inset-shadow), var(--tw-inset-ring-shadow), var(--tw-ring-offset-shadow), var(--tw-ring-shadow), var(--tw-shadow)}.shadow-xs{--tw-shadow:0 1px 2px 0 var(--tw-shadow-color,#0000000d);box-shadow:var(--tw-inset-shadow), var(--tw-inset-ring-shadow), var(--tw-ring-offset-shadow), var(--tw-ring-shadow), var(--tw-shadow)}.ring-\\[3px\\]{--tw-ring-shadow:var(--tw-ring-inset,) 0 0 0 calc(3px + var(--tw-ring-offset-width)) var(--tw-ring-color,currentcolor);box-shadow:var(--tw-inset-shadow), var(--tw-inset-ring-shadow), var(--tw-ring-offset-shadow), var(--tw-ring-shadow), var(--tw-shadow)}.ring-attention\\/10{--tw-ring-color:var(--attention)}@supports (color:color-mix(in lab, red, red)){.ring-attention\\/10{--tw-ring-color:color-mix(in oklab, var(--attention) 10%, transparent)}}.ring-destructive\\/10{--tw-ring-color:var(--destructive)}@supports (color:color-mix(in lab, red, red)){.ring-destructive\\/10{--tw-ring-color:color-mix(in oklab, var(--destructive) 10%, transparent)}}.ring-info\\/10{--tw-ring-color:var(--info)}@supports (color:color-mix(in lab, red, red)){.ring-info\\/10{--tw-ring-color:color-mix(in oklab, var(--info) 10%, transparent)}}.ring-positive\\/10{--tw-ring-color:var(--positive)}@supports (color:color-mix(in lab, red, red)){.ring-positive\\/10{--tw-ring-color:color-mix(in oklab, var(--positive) 10%, transparent)}}.outline{outline-style:var(--tw-outline-style);outline-width:1px}.transition-\\[color\\,box-shadow\\]{transition-property:color,box-shadow;transition-timing-function:var(--tw-ease,var(--default-transition-timing-function));transition-duration:var(--tw-duration,var(--default-transition-duration))}.transition-all{transition-property:all;transition-timing-function:var(--tw-ease,var(--default-transition-timing-function));transition-duration:var(--tw-duration,var(--default-transition-duration))}.transition-colors{transition-property:color,background-color,border-color,outline-color,text-decoration-color,fill,stroke,--tw-gradient-from,--tw-gradient-via,--tw-gradient-to;transition-timing-function:var(--tw-ease,var(--default-transition-timing-function));transition-duration:var(--tw-duration,var(--default-transition-duration))}.transition-shadow{transition-property:box-shadow;transition-timing-function:var(--tw-ease,var(--default-transition-timing-function));transition-duration:var(--tw-duration,var(--default-transition-duration))}.outline-none{--tw-outline-style:none;outline-style:none}.select-none{-webkit-user-select:none;user-select:none}.group-has-\\[\\[data-orientation\\=horizontal\\]\\]\\/field\\:text-balance:is(:where(.group\\/field):has([data-orientation=horizontal]) *){text-wrap:balance}.group-data-\\[disabled\\=true\\]\\:pointer-events-none:is(:where(.group)[data-disabled=true] *){pointer-events:none}.group-data-\\[disabled\\=true\\]\\:opacity-50:is(:where(.group)[data-disabled=true] *),.group-data-\\[disabled\\=true\\]\\/field\\:opacity-50:is(:where(.group\\/field)[data-disabled=true] *){opacity:.5}.group-data-\\[variant\\=outline\\]\\/field-group\\:-mb-2:is(:where(.group\\/field-group)[data-variant=outline] *){margin-bottom:calc(var(--spacing) * -2)}.peer-disabled\\:cursor-not-allowed:is(:where(.peer):disabled~*){cursor:not-allowed}.peer-disabled\\:opacity-50:is(:where(.peer):disabled~*),.peer-\\[\\[data-disabled\\]\\]\\:opacity-50:is(:where(.peer)[data-disabled]~*){opacity:.5}.marker\\:text-muted-foreground\\/60 ::marker{color:var(--muted-foreground)}@supports (color:color-mix(in lab, red, red)){.marker\\:text-muted-foreground\\/60 ::marker{color:color-mix(in oklab, var(--muted-foreground) 60%, transparent)}}.marker\\:text-muted-foreground\\/60::marker{color:var(--muted-foreground)}@supports (color:color-mix(in lab, red, red)){.marker\\:text-muted-foreground\\/60::marker{color:color-mix(in oklab, var(--muted-foreground) 60%, transparent)}}.marker\\:text-muted-foreground\\/60 ::-webkit-details-marker{color:var(--muted-foreground)}@supports (color:color-mix(in lab, red, red)){.marker\\:text-muted-foreground\\/60 ::-webkit-details-marker{color:color-mix(in oklab, var(--muted-foreground) 60%, transparent)}}.marker\\:text-muted-foreground\\/60::-webkit-details-marker{color:var(--muted-foreground)}@supports (color:color-mix(in lab, red, red)){.marker\\:text-muted-foreground\\/60::-webkit-details-marker{color:color-mix(in oklab, var(--muted-foreground) 60%, transparent)}}.selection\\:bg-primary ::selection{background-color:var(--primary)}.selection\\:bg-primary::selection{background-color:var(--primary)}.selection\\:text-primary-foreground ::selection{color:var(--primary-foreground)}.selection\\:text-primary-foreground::selection{color:var(--primary-foreground)}.file\\:inline-flex::file-selector-button{display:inline-flex}.file\\:h-7::file-selector-button{height:calc(var(--spacing) * 7)}.file\\:border-0::file-selector-button{border-style:var(--tw-border-style);border-width:0}.file\\:bg-transparent::file-selector-button{background-color:#0000}.file\\:text-sm::file-selector-button{font-size:var(--text-sm);line-height:var(--tw-leading,var(--text-sm--line-height))}.file\\:font-medium::file-selector-button{--tw-font-weight:var(--font-weight-medium);font-weight:var(--font-weight-medium)}.file\\:text-foreground::file-selector-button{color:var(--foreground)}.placeholder\\:text-muted-foreground::placeholder{color:var(--muted-foreground)}.last\\:mt-0:last-child{margin-top:0}.checked\\:border-primary:checked{border-color:var(--primary)}.checked\\:bg-primary:checked{background-color:var(--primary)}@media (hover:hover){.hover\\:bg-accent:hover{background-color:var(--accent)}.hover\\:bg-destructive\\/90:hover{background-color:var(--destructive)}@supports (color:color-mix(in lab, red, red)){.hover\\:bg-destructive\\/90:hover{background-color:color-mix(in oklab, var(--destructive) 90%, transparent)}}.hover\\:bg-muted\\/50:hover{background-color:var(--muted)}@supports (color:color-mix(in lab, red, red)){.hover\\:bg-muted\\/50:hover{background-color:color-mix(in oklab, var(--muted) 50%, transparent)}}.hover\\:bg-primary\\/90:hover{background-color:var(--primary)}@supports (color:color-mix(in lab, red, red)){.hover\\:bg-primary\\/90:hover{background-color:color-mix(in oklab, var(--primary) 90%, transparent)}}.hover\\:bg-secondary\\/80:hover{background-color:var(--secondary)}@supports (color:color-mix(in lab, red, red)){.hover\\:bg-secondary\\/80:hover{background-color:color-mix(in oklab, var(--secondary) 80%, transparent)}}.hover\\:text-accent-foreground:hover{color:var(--accent-foreground)}.hover\\:text-foreground:hover{color:var(--foreground)}.hover\\:underline:hover{text-decoration-line:underline}}.focus-visible\\:border-ring:focus-visible{border-color:var(--ring)}.focus-visible\\:ring-\\[3px\\]:focus-visible{--tw-ring-shadow:var(--tw-ring-inset,) 0 0 0 calc(3px + var(--tw-ring-offset-width)) var(--tw-ring-color,currentcolor);box-shadow:var(--tw-inset-shadow), var(--tw-inset-ring-shadow), var(--tw-ring-offset-shadow), var(--tw-ring-shadow), var(--tw-shadow)}.focus-visible\\:ring-destructive\\/20:focus-visible{--tw-ring-color:var(--destructive)}@supports (color:color-mix(in lab, red, red)){.focus-visible\\:ring-destructive\\/20:focus-visible{--tw-ring-color:color-mix(in oklab, var(--destructive) 20%, transparent)}}.focus-visible\\:ring-ring\\/50:focus-visible{--tw-ring-color:var(--ring)}@supports (color:color-mix(in lab, red, red)){.focus-visible\\:ring-ring\\/50:focus-visible{--tw-ring-color:color-mix(in oklab, var(--ring) 50%, transparent)}}.disabled\\:pointer-events-none:disabled{pointer-events:none}.disabled\\:cursor-not-allowed:disabled{cursor:not-allowed}.disabled\\:opacity-50:disabled{opacity:.5}.has-data-\\[slot\\=card-action\\]\\:grid-cols-\\[1fr_auto\\]:has([data-slot=card-action]){grid-template-columns:1fr auto}.has-data-\\[state\\=checked\\]\\:border-primary:has([data-state=checked]){border-color:var(--primary)}.has-data-\\[state\\=checked\\]\\:bg-primary\\/5:has([data-state=checked]){background-color:var(--primary)}@supports (color:color-mix(in lab, red, red)){.has-data-\\[state\\=checked\\]\\:bg-primary\\/5:has([data-state=checked]){background-color:color-mix(in oklab, var(--primary) 5%, transparent)}}.has-\\[\\>\\[data-slot\\=checkbox-group\\]\\]\\:gap-3:has(>[data-slot=checkbox-group]){gap:calc(var(--spacing) * 3)}.has-\\[\\>\\[data-slot\\=field-content\\]\\]\\:items-start:has(>[data-slot=field-content]){align-items:flex-start}.has-\\[\\>\\[data-slot\\=field\\]\\]\\:w-full:has(>[data-slot=field]){width:100%}.has-\\[\\>\\[data-slot\\=field\\]\\]\\:flex-col:has(>[data-slot=field]){flex-direction:column}.has-\\[\\>\\[data-slot\\=field\\]\\]\\:rounded-md:has(>[data-slot=field]){border-radius:calc(var(--radius) - 2px)}.has-\\[\\>\\[data-slot\\=field\\]\\]\\:border:has(>[data-slot=field]){border-style:var(--tw-border-style);border-width:1px}.has-\\[\\>\\[data-slot\\=radio-group\\]\\]\\:gap-3:has(>[data-slot=radio-group]){gap:calc(var(--spacing) * 3)}.has-\\[\\>svg\\]\\:grid-cols-\\[calc\\(var\\(--spacing\\)\\*4\\)_1fr\\]:has(>svg){grid-template-columns:calc(var(--spacing) * 4) 1fr}.has-\\[\\>svg\\]\\:gap-x-3:has(>svg){column-gap:calc(var(--spacing) * 3)}.has-\\[\\>svg\\]\\:px-2\\.5:has(>svg){padding-inline:calc(var(--spacing) * 2.5)}.has-\\[\\>svg\\]\\:px-3:has(>svg){padding-inline:calc(var(--spacing) * 3)}.has-\\[\\>svg\\]\\:px-4:has(>svg){padding-inline:calc(var(--spacing) * 4)}.aria-invalid\\:border-destructive[aria-invalid=true]{border-color:var(--destructive)}.aria-invalid\\:ring-destructive\\/20[aria-invalid=true]{--tw-ring-color:var(--destructive)}@supports (color:color-mix(in lab, red, red)){.aria-invalid\\:ring-destructive\\/20[aria-invalid=true]{--tw-ring-color:color-mix(in oklab, var(--destructive) 20%, transparent)}}.data-\\[invalid\\=true\\]\\:text-destructive[data-invalid=true]{color:var(--destructive)}.data-\\[orientation\\=horizontal\\]\\:h-px[data-orientation=horizontal]{height:1px}.data-\\[orientation\\=horizontal\\]\\:w-full[data-orientation=horizontal]{width:100%}.data-\\[orientation\\=vertical\\]\\:h-full[data-orientation=vertical]{height:100%}.data-\\[orientation\\=vertical\\]\\:w-px[data-orientation=vertical]{width:1px}:is(.\\*\\:data-\\[slot\\=alert-description\\]\\:text-destructive\\/90>*)[data-slot=alert-description]{color:var(--destructive)}@supports (color:color-mix(in lab, red, red)){:is(.\\*\\:data-\\[slot\\=alert-description\\]\\:text-destructive\\/90>*)[data-slot=alert-description]{color:color-mix(in oklab, var(--destructive) 90%, transparent)}}.data-\\[slot\\=checkbox-group\\]\\:gap-3[data-slot=checkbox-group]{gap:calc(var(--spacing) * 3)}.data-\\[state\\=selected\\]\\:bg-muted[data-state=selected]{background-color:var(--muted)}.data-\\[variant\\=label\\]\\:text-sm[data-variant=label]{font-size:var(--text-sm);line-height:var(--tw-leading,var(--text-sm--line-height))}.data-\\[variant\\=legend\\]\\:text-base[data-variant=legend]{font-size:var(--text-base);line-height:var(--tw-leading,var(--text-base--line-height))}.nth-last-2\\:-mt-1:nth-last-child(2){margin-top:calc(var(--spacing) * -1)}@media (min-width:40rem){.sm\\:grid-cols-2{grid-template-columns:repeat(2,minmax(0,1fr))}}@media (min-width:48rem){.md\\:grid-cols-2{grid-template-columns:repeat(2,minmax(0,1fr))}.md\\:text-sm{font-size:var(--text-sm);line-height:var(--tw-leading,var(--text-sm--line-height))}}@container field-group (min-width:28rem){.\\@md\\/field-group\\:flex-row{flex-direction:row}.\\@md\\/field-group\\:items-center{align-items:center}.\\@md\\/field-group\\:has-\\[\\>\\[data-slot\\=field-content\\]\\]\\:items-start:has(>[data-slot=field-content]){align-items:flex-start}}@media (prefers-color-scheme:dark){.dark\\:border-input{border-color:var(--input)}.dark\\:bg-destructive\\/60{background-color:var(--destructive)}@supports (color:color-mix(in lab, red, red)){.dark\\:bg-destructive\\/60{background-color:color-mix(in oklab, var(--destructive) 60%, transparent)}}.dark\\:bg-input\\/30{background-color:var(--input)}@supports (color:color-mix(in lab, red, red)){.dark\\:bg-input\\/30{background-color:color-mix(in oklab, var(--input) 30%, transparent)}}.dark\\:checked\\:bg-primary:checked{background-color:var(--primary)}@media (hover:hover){.dark\\:hover\\:bg-accent\\/50:hover{background-color:var(--accent)}@supports (color:color-mix(in lab, red, red)){.dark\\:hover\\:bg-accent\\/50:hover{background-color:color-mix(in oklab, var(--accent) 50%, transparent)}}.dark\\:hover\\:bg-input\\/50:hover{background-color:var(--input)}@supports (color:color-mix(in lab, red, red)){.dark\\:hover\\:bg-input\\/50:hover{background-color:color-mix(in oklab, var(--input) 50%, transparent)}}}.dark\\:focus-visible\\:ring-destructive\\/40:focus-visible{--tw-ring-color:var(--destructive)}@supports (color:color-mix(in lab, red, red)){.dark\\:focus-visible\\:ring-destructive\\/40:focus-visible{--tw-ring-color:color-mix(in oklab, var(--destructive) 40%, transparent)}}.dark\\:has-data-\\[state\\=checked\\]\\:bg-primary\\/10:has([data-state=checked]){background-color:var(--primary)}@supports (color:color-mix(in lab, red, red)){.dark\\:has-data-\\[state\\=checked\\]\\:bg-primary\\/10:has([data-state=checked]){background-color:color-mix(in oklab, var(--primary) 10%, transparent)}}.dark\\:aria-invalid\\:ring-destructive\\/40[aria-invalid=true]{--tw-ring-color:var(--destructive)}@supports (color:color-mix(in lab, red, red)){.dark\\:aria-invalid\\:ring-destructive\\/40[aria-invalid=true]{--tw-ring-color:color-mix(in oklab, var(--destructive) 40%, transparent)}}}.\\[\\&_p\\]\\:leading-relaxed p{--tw-leading:var(--leading-relaxed);line-height:var(--leading-relaxed)}.\\[\\&_svg\\]\\:pointer-events-none svg{pointer-events:none}.\\[\\&_svg\\]\\:shrink-0 svg{flex-shrink:0}.\\[\\&_svg\\:not\\(\\[class\\*\\=\\'size-\\'\\]\\)\\]\\:size-3 svg:not([class*=size-]){width:calc(var(--spacing) * 3);height:calc(var(--spacing) * 3)}.\\[\\&_svg\\:not\\(\\[class\\*\\=\\'size-\\'\\]\\)\\]\\:size-4 svg:not([class*=size-]){width:calc(var(--spacing) * 4);height:calc(var(--spacing) * 4)}.\\[\\&_tr\\]\\:border-b tr{border-bottom-style:var(--tw-border-style);border-bottom-width:1px}.\\[\\&_tr\\:last-child\\]\\:border-0 tr:last-child{border-style:var(--tw-border-style);border-width:0}.\\[\\&\\:has\\(\\[role\\=checkbox\\]\\)\\]\\:pr-0:has([role=checkbox]){padding-right:0}.\\[\\.border-b\\]\\:pb-6.border-b{padding-bottom:calc(var(--spacing) * 6)}.\\[\\.border-t\\]\\:pt-6.border-t{padding-top:calc(var(--spacing) * 6)}.\\[\\&\\>\\*\\]\\:w-full>*{width:100%}.\\[\\&\\>\\*\\]\\:data-\\[slot\\=field\\]\\:p-4>[data-slot=field]{padding:calc(var(--spacing) * 4)}@container field-group (min-width:28rem){.\\@md\\/field-group\\:\\[\\&\\>\\*\\]\\:w-auto>*{width:auto}}.\\[\\&\\>\\.sr-only\\]\\:w-auto>.sr-only{width:auto}.\\[\\&\\>\\[data-slot\\=field-group\\]\\]\\:gap-4>[data-slot=field-group]{gap:calc(var(--spacing) * 4)}.\\[\\&\\>\\[data-slot\\=field-label\\]\\]\\:flex-auto>[data-slot=field-label]{flex:auto}@container field-group (min-width:28rem){.\\@md\\/field-group\\:\\[\\&\\>\\[data-slot\\=field-label\\]\\]\\:flex-auto>[data-slot=field-label]{flex:auto}}.\\[\\&\\>\\[role\\=checkbox\\]\\]\\:translate-y-\\[2px\\]>[role=checkbox]{--tw-translate-y:2px;translate:var(--tw-translate-x) var(--tw-translate-y)}.has-\\[\\>\\[data-slot\\=field-content\\]\\]\\:\\[\\&\\>\\[role\\=checkbox\\]\\,\\[role\\=radio\\]\\]\\:mt-px:has(>[data-slot=field-content])>[role=checkbox],.has-\\[\\>\\[data-slot\\=field-content\\]\\]\\:\\[\\&\\>\\[role\\=checkbox\\]\\,\\[role\\=radio\\]\\]\\:mt-px:has(>[data-slot=field-content]) [role=radio]{margin-top:1px}@container field-group (min-width:28rem){.\\@md\\/field-group\\:has-\\[\\>\\[data-slot\\=field-content\\]\\]\\:\\[\\&\\>\\[role\\=checkbox\\]\\,\\[role\\=radio\\]\\]\\:mt-px:has(>[data-slot=field-content])>[role=checkbox],.\\@md\\/field-group\\:has-\\[\\>\\[data-slot\\=field-content\\]\\]\\:\\[\\&\\>\\[role\\=checkbox\\]\\,\\[role\\=radio\\]\\]\\:mt-px:has(>[data-slot=field-content]) [role=radio]{margin-top:1px}}.\\[\\&\\>a\\]\\:underline>a{text-decoration-line:underline}.\\[\\&\\>a\\]\\:underline-offset-4>a{text-underline-offset:4px}.\\[\\&\\>a\\:hover\\]\\:text-primary>a:hover{color:var(--primary)}.\\[\\&\\>svg\\]\\:pointer-events-none>svg{pointer-events:none}.\\[\\&\\>svg\\]\\:size-3>svg{width:calc(var(--spacing) * 3);height:calc(var(--spacing) * 3)}.\\[\\&\\>svg\\]\\:size-4>svg{width:calc(var(--spacing) * 4);height:calc(var(--spacing) * 4)}.\\[\\&\\>svg\\]\\:translate-y-0\\.5>svg{--tw-translate-y:calc(var(--spacing) * .5);translate:var(--tw-translate-x) var(--tw-translate-y)}.\\[\\&\\>svg\\]\\:text-current>svg{color:currentColor}.\\[\\&\\>tr\\]\\:last\\:border-b-0>tr:last-child{border-bottom-style:var(--tw-border-style);border-bottom-width:0}[data-slot=tooltip-content] .\\[\\[data-slot\\=tooltip-content\\]_\\&\\]\\:bg-background\\/20{background-color:var(--background)}@supports (color:color-mix(in lab, red, red)){[data-slot=tooltip-content] .\\[\\[data-slot\\=tooltip-content\\]_\\&\\]\\:bg-background\\/20{background-color:color-mix(in oklab, var(--background) 20%, transparent)}}[data-slot=tooltip-content] .\\[\\[data-slot\\=tooltip-content\\]_\\&\\]\\:text-background{color:var(--background)}@media (prefers-color-scheme:dark){[data-slot=tooltip-content] .dark\\:\\[\\[data-slot\\=tooltip-content\\]_\\&\\]\\:bg-background\\/10{background-color:var(--background)}@supports (color:color-mix(in lab, red, red)){[data-slot=tooltip-content] .dark\\:\\[\\[data-slot\\=tooltip-content\\]_\\&\\]\\:bg-background\\/10{background-color:color-mix(in oklab, var(--background) 10%, transparent)}}}[data-variant=legend]+.\\[\\[data-variant\\=legend\\]\\+\\&\\]\\:-mt-1\\.5{margin-top:calc(var(--spacing) * -1.5)}@media (hover:hover){a.\\[a\\&\\]\\:hover\\:bg-accent:hover{background-color:var(--accent)}a.\\[a\\&\\]\\:hover\\:bg-destructive\\/90:hover{background-color:var(--destructive)}@supports (color:color-mix(in lab, red, red)){a.\\[a\\&\\]\\:hover\\:bg-destructive\\/90:hover{background-color:color-mix(in oklab, var(--destructive) 90%, transparent)}}a.\\[a\\&\\]\\:hover\\:bg-primary\\/90:hover{background-color:var(--primary)}@supports (color:color-mix(in lab, red, red)){a.\\[a\\&\\]\\:hover\\:bg-primary\\/90:hover{background-color:color-mix(in oklab, var(--primary) 90%, transparent)}}a.\\[a\\&\\]\\:hover\\:bg-secondary\\/90:hover{background-color:var(--secondary)}@supports (color:color-mix(in lab, red, red)){a.\\[a\\&\\]\\:hover\\:bg-secondary\\/90:hover{background-color:color-mix(in oklab, var(--secondary) 90%, transparent)}}a.\\[a\\&\\]\\:hover\\:text-accent-foreground:hover{color:var(--accent-foreground)}}}:root{--radius:.625rem;--background:oklch(100% 0 0);--foreground:oklch(14.7% .004 49.25);--card:oklch(100% 0 0);--card-foreground:oklch(14.7% .004 49.25);--popover:oklch(100% 0 0);--popover-foreground:oklch(14.7% .004 49.25);--primary:oklch(21.6% .006 56.043);--primary-foreground:oklch(98.5% .001 106.423);--secondary:oklch(97% .001 106.424);--secondary-foreground:oklch(21.6% .006 56.043);--muted:oklch(97% .001 106.424);--muted-foreground:oklch(55.3% .013 58.071);--accent:oklch(97% .001 106.424);--accent-foreground:oklch(21.6% .006 56.043);--destructive:oklch(57.7% .245 27.325);--border:oklch(92.3% .003 48.717);--input:oklch(92.3% .003 48.717);--ring:oklch(70.9% .01 56.259);--positive:oklch(62.7% .194 149.214);--attention:oklch(66.6% .179 58.318);--info:oklch(54.6% .245 262.881)}@media (prefers-color-scheme:dark){:root{--background:oklch(14.7% .004 49.25);--foreground:oklch(98.5% .001 106.423);--card:oklch(21.6% .006 56.043);--card-foreground:oklch(98.5% .001 106.423);--popover:oklch(21.6% .006 56.043);--popover-foreground:oklch(98.5% .001 106.423);--primary:oklch(92.3% .003 48.717);--primary-foreground:oklch(21.6% .006 56.043);--secondary:oklch(26.8% .007 34.298);--secondary-foreground:oklch(98.5% .001 106.423);--muted:oklch(26.8% .007 34.298);--muted-foreground:oklch(70.9% .01 56.259);--accent:oklch(26.8% .007 34.298);--accent-foreground:oklch(98.5% .001 106.423);--destructive:oklch(70.4% .191 22.216);--border:oklch(100% 0 0/.1);--input:oklch(100% 0 0/.15);--ring:oklch(55.3% .013 58.071);--positive:oklch(79.2% .209 151.711);--attention:oklch(82.8% .189 84.429);--info:oklch(70.7% .165 254.624)}input[data-slot=checkbox]:checked{background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%23292524' stroke-width='3' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M20 6 9 17l-5-5'/%3E%3C/svg%3E")}}@property --tw-space-y-reverse{syntax:"*";inherits:false;initial-value:0}@property --tw-border-style{syntax:"*";inherits:false;initial-value:solid}@property --tw-leading{syntax:"*";inherits:false}@property --tw-font-weight{syntax:"*";inherits:false}@property --tw-tracking{syntax:"*";inherits:false}@property --tw-shadow{syntax:"*";inherits:false;initial-value:0 0 #0000}@property --tw-shadow-color{syntax:"*";inherits:false}@property --tw-shadow-alpha{syntax:"<percentage>";inherits:false;initial-value:100%}@property --tw-inset-shadow{syntax:"*";inherits:false;initial-value:0 0 #0000}@property --tw-inset-shadow-color{syntax:"*";inherits:false}@property --tw-inset-shadow-alpha{syntax:"<percentage>";inherits:false;initial-value:100%}@property --tw-ring-color{syntax:"*";inherits:false}@property --tw-ring-shadow{syntax:"*";inherits:false;initial-value:0 0 #0000}@property --tw-inset-ring-color{syntax:"*";inherits:false}@property --tw-inset-ring-shadow{syntax:"*";inherits:false;initial-value:0 0 #0000}@property --tw-ring-inset{syntax:"*";inherits:false}@property --tw-ring-offset-width{syntax:"<length>";inherits:false;initial-value:0}@property --tw-ring-offset-color{syntax:"*";inherits:false;initial-value:#fff}@property --tw-ring-offset-shadow{syntax:"*";inherits:false;initial-value:0 0 #0000}@property --tw-outline-style{syntax:"*";inherits:false;initial-value:solid}@property --tw-translate-x{syntax:"*";inherits:false;initial-value:0}@property --tw-translate-y{syntax:"*";inherits:false;initial-value:0}@property --tw-translate-z{syntax:"*";inherits:false;initial-value:0}`;
+@layer properties{@supports (((-webkit-hyphens:none)) and (not (margin-trim:inline))) or ((-moz-orient:inline) and (not (color:rgb(from red r g b)))){*,:before,:after,::backdrop{--tw-space-y-reverse:0;--tw-border-style:solid;--tw-leading:initial;--tw-font-weight:initial;--tw-tracking:initial;--tw-shadow:0 0 #0000;--tw-shadow-color:initial;--tw-shadow-alpha:100%;--tw-inset-shadow:0 0 #0000;--tw-inset-shadow-color:initial;--tw-inset-shadow-alpha:100%;--tw-ring-color:initial;--tw-ring-shadow:0 0 #0000;--tw-inset-ring-color:initial;--tw-inset-ring-shadow:0 0 #0000;--tw-ring-inset:initial;--tw-ring-offset-width:0px;--tw-ring-offset-color:#fff;--tw-ring-offset-shadow:0 0 #0000;--tw-outline-style:solid;--tw-translate-x:0;--tw-translate-y:0;--tw-translate-z:0}}}@layer theme{:root,:host{--font-sans:ui-sans-serif, system-ui, sans-serif, "Apple Color Emoji", "Segoe UI Emoji", "Segoe UI Symbol", "Noto Color Emoji";--font-mono:ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace;--color-white:#fff;--spacing:.25rem;--container-6xl:72rem;--text-xs:.75rem;--text-xs--line-height:calc(1 / .75);--text-sm:.875rem;--text-sm--line-height:calc(1.25 / .875);--text-base:1rem;--text-base--line-height:calc(1.5 / 1);--text-lg:1.125rem;--text-lg--line-height:calc(1.75 / 1.125);--font-weight-normal:400;--font-weight-medium:500;--font-weight-semibold:600;--tracking-tight:-.025em;--leading-tight:1.25;--leading-snug:1.375;--leading-normal:1.5;--leading-relaxed:1.625;--default-transition-duration:.15s;--default-transition-timing-function:cubic-bezier(.4, 0, .2, 1);--default-font-family:var(--font-sans);--default-mono-font-family:var(--font-mono)}}@layer base{*,:after,:before,::backdrop{box-sizing:border-box;border:0 solid;margin:0;padding:0}::file-selector-button{box-sizing:border-box;border:0 solid;margin:0;padding:0}html,:host{-webkit-text-size-adjust:100%;tab-size:4;line-height:1.5;font-family:var(--default-font-family,ui-sans-serif, system-ui, sans-serif, "Apple Color Emoji", "Segoe UI Emoji", "Segoe UI Symbol", "Noto Color Emoji");font-feature-settings:var(--default-font-feature-settings,normal);font-variation-settings:var(--default-font-variation-settings,normal);-webkit-tap-highlight-color:transparent}hr{height:0;color:inherit;border-top-width:1px}abbr:where([title]){-webkit-text-decoration:underline dotted;text-decoration:underline dotted}h1,h2,h3,h4,h5,h6{font-size:inherit;font-weight:inherit}a{color:inherit;-webkit-text-decoration:inherit;-webkit-text-decoration:inherit;-webkit-text-decoration:inherit;text-decoration:inherit}b,strong{font-weight:bolder}code,kbd,samp,pre{font-family:var(--default-mono-font-family,ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace);font-feature-settings:var(--default-mono-font-feature-settings,normal);font-variation-settings:var(--default-mono-font-variation-settings,normal);font-size:1em}small{font-size:80%}sub,sup{vertical-align:baseline;font-size:75%;line-height:0;position:relative}sub{bottom:-.25em}sup{top:-.5em}table{text-indent:0;border-color:inherit;border-collapse:collapse}:-moz-focusring{outline:auto}progress{vertical-align:baseline}summary{display:list-item}ol,ul,menu{list-style:none}img,svg,video,canvas,audio,iframe,embed,object{vertical-align:middle;display:block}img,video{max-width:100%;height:auto}button,input,select,optgroup,textarea{font:inherit;font-feature-settings:inherit;font-variation-settings:inherit;letter-spacing:inherit;color:inherit;opacity:1;background-color:#0000;border-radius:0}::file-selector-button{font:inherit;font-feature-settings:inherit;font-variation-settings:inherit;letter-spacing:inherit;color:inherit;opacity:1;background-color:#0000;border-radius:0}:where(select:is([multiple],[size])) optgroup{font-weight:bolder}:where(select:is([multiple],[size])) optgroup option{padding-inline-start:20px}::file-selector-button{margin-inline-end:4px}::placeholder{opacity:1}@supports (not ((-webkit-appearance:-apple-pay-button))) or (contain-intrinsic-size:1px){::placeholder{color:currentColor}@supports (color:color-mix(in lab, red, red)){::placeholder{color:color-mix(in oklab, currentcolor 50%, transparent)}}}textarea{resize:vertical}::-webkit-search-decoration{-webkit-appearance:none}::-webkit-date-and-time-value{min-height:1lh;text-align:inherit}::-webkit-datetime-edit{display:inline-flex}::-webkit-datetime-edit-fields-wrapper{padding:0}::-webkit-datetime-edit{padding-block:0}::-webkit-datetime-edit-year-field{padding-block:0}::-webkit-datetime-edit-month-field{padding-block:0}::-webkit-datetime-edit-day-field{padding-block:0}::-webkit-datetime-edit-hour-field{padding-block:0}::-webkit-datetime-edit-minute-field{padding-block:0}::-webkit-datetime-edit-second-field{padding-block:0}::-webkit-datetime-edit-millisecond-field{padding-block:0}::-webkit-datetime-edit-meridiem-field{padding-block:0}::-webkit-calendar-picker-indicator{line-height:1}:-moz-ui-invalid{box-shadow:none}button,input:where([type=button],[type=reset],[type=submit]){appearance:button}::file-selector-button{appearance:button}::-webkit-inner-spin-button{height:auto}::-webkit-outer-spin-button{height:auto}[hidden]:where(:not([hidden=until-found])){display:none!important}*{border-color:var(--border);outline-color:var(--ring)}@supports (color:color-mix(in lab, red, red)){*{outline-color:color-mix(in oklab, var(--ring) 50%, transparent)}}body{background-color:var(--background);color:var(--foreground)}}@layer components{input[data-slot=checkbox]:checked{background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%23fafaf9' stroke-width='3' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M20 6 9 17l-5-5'/%3E%3C/svg%3E");background-position:50%;background-repeat:no-repeat;background-size:.75rem}input[data-slot=radio-group-item]:checked{background-image:radial-gradient(circle closest-side, var(--primary) 45%, transparent 50%)}}@layer utilities{.\\@container\\/card-header{container:card-header/inline-size}.\\@container\\/field-group{container:field-group/inline-size}.pointer-events-none{pointer-events:none}.visible{visibility:visible}.absolute{position:absolute}.relative{position:relative}.static{position:static}.inset-0{inset:0}.top-1\\/2{top:50%}.col-start-2{grid-column-start:2}.row-span-2{grid-row:span 2/span 2}.row-start-1{grid-row-start:1}.m-0{margin:0}.mx-auto{margin-inline:auto}.-my-2{margin-block:calc(var(--spacing) * -2)}.mt-2{margin-top:calc(var(--spacing) * 2)}.mt-2\\.5{margin-top:calc(var(--spacing) * 2.5)}.mt-3{margin-top:calc(var(--spacing) * 3)}.mt-4{margin-top:calc(var(--spacing) * 4)}.mt-8{margin-top:calc(var(--spacing) * 8)}.mt-12{margin-top:calc(var(--spacing) * 12)}.mb-0\\.5{margin-bottom:calc(var(--spacing) * .5)}.mb-1\\.5{margin-bottom:calc(var(--spacing) * 1.5)}.mb-2{margin-bottom:calc(var(--spacing) * 2)}.mb-2\\.5{margin-bottom:calc(var(--spacing) * 2.5)}.mb-3{margin-bottom:calc(var(--spacing) * 3)}.mb-6{margin-bottom:calc(var(--spacing) * 6)}.ml-4{margin-left:calc(var(--spacing) * 4)}.line-clamp-1{-webkit-line-clamp:1;-webkit-box-orient:vertical;display:-webkit-box;overflow:hidden}.block{display:block}.contents{display:contents}.flex{display:flex}.grid{display:grid}.hidden{display:none}.inline-flex{display:inline-flex}.table{display:table}.table-caption{display:table-caption}.table-cell{display:table-cell}.table-row{display:table-row}.field-sizing-content{field-sizing:content}.aspect-square{aspect-ratio:1}.size-4{width:calc(var(--spacing) * 4);height:calc(var(--spacing) * 4)}.size-8{width:calc(var(--spacing) * 8);height:calc(var(--spacing) * 8)}.size-9{width:calc(var(--spacing) * 9);height:calc(var(--spacing) * 9)}.size-10{width:calc(var(--spacing) * 10);height:calc(var(--spacing) * 10)}.h-5{height:calc(var(--spacing) * 5)}.h-8{height:calc(var(--spacing) * 8)}.h-9{height:calc(var(--spacing) * 9)}.h-10{height:calc(var(--spacing) * 10)}.min-h-4{min-height:calc(var(--spacing) * 4)}.min-h-16{min-height:calc(var(--spacing) * 16)}.w-fit{width:fit-content}.w-full{width:100%}.max-w-6xl{max-width:var(--container-6xl)}.min-w-0{min-width:0}.min-w-5{min-width:calc(var(--spacing) * 5)}.min-w-\\[200px\\]{min-width:200px}.flex-1{flex:1}.shrink-0{flex-shrink:0}.caption-bottom{caption-side:bottom}.cursor-pointer{cursor:pointer}.list-disc{list-style-type:disc}.appearance-none{appearance:none}.auto-rows-min{grid-auto-rows:min-content}.grid-cols-1{grid-template-columns:repeat(1,minmax(0,1fr))}.grid-cols-\\[0_1fr\\]{grid-template-columns:0 1fr}.grid-cols-\\[repeat\\(auto-fit\\,minmax\\(320px\\,1fr\\)\\)\\]{grid-template-columns:repeat(auto-fit,minmax(320px,1fr))}.grid-rows-\\[auto_auto\\]{grid-template-rows:auto auto}.flex-col{flex-direction:column}.flex-row{flex-direction:row}.flex-wrap{flex-wrap:wrap}.items-baseline{align-items:baseline}.items-center{align-items:center}.items-start{align-items:flex-start}.justify-between{justify-content:space-between}.justify-center{justify-content:center}.justify-items-start{justify-items:start}.gap-1{gap:var(--spacing)}.gap-1\\.5{gap:calc(var(--spacing) * 1.5)}.gap-2{gap:calc(var(--spacing) * 2)}.gap-2\\.5{gap:calc(var(--spacing) * 2.5)}.gap-3{gap:calc(var(--spacing) * 3)}.gap-3\\.5{gap:calc(var(--spacing) * 3.5)}.gap-4{gap:calc(var(--spacing) * 4)}.gap-6{gap:calc(var(--spacing) * 6)}.gap-7{gap:calc(var(--spacing) * 7)}:where(.space-y-1\\.5>:not(:last-child)){--tw-space-y-reverse:0;margin-block-start:calc(calc(var(--spacing) * 1.5) * var(--tw-space-y-reverse));margin-block-end:calc(calc(var(--spacing) * 1.5) * calc(1 - var(--tw-space-y-reverse)))}.gap-y-0\\.5{row-gap:calc(var(--spacing) * .5)}.self-start{align-self:flex-start}.justify-self-end{justify-self:flex-end}.truncate{text-overflow:ellipsis;white-space:nowrap;overflow:hidden}.overflow-hidden{overflow:hidden}.overflow-x-auto{overflow-x:auto}.rounded-\\[4px\\]{border-radius:4px}.rounded-full{border-radius:3.40282e38px}.rounded-lg{border-radius:var(--radius)}.rounded-md{border-radius:calc(var(--radius) - 2px)}.rounded-sm{border-radius:calc(var(--radius) - 4px)}.rounded-xl{border-radius:calc(var(--radius) + 4px)}.border{border-style:var(--tw-border-style);border-width:1px}.border-t{border-top-style:var(--tw-border-style);border-top-width:1px}.border-b{border-bottom-style:var(--tw-border-style);border-bottom-width:1px}.border-attention\\/60{border-color:var(--attention)}@supports (color:color-mix(in lab, red, red)){.border-attention\\/60{border-color:color-mix(in oklab, var(--attention) 60%, transparent)}}.border-border{border-color:var(--border)}.border-destructive\\/50{border-color:var(--destructive)}@supports (color:color-mix(in lab, red, red)){.border-destructive\\/50{border-color:color-mix(in oklab, var(--destructive) 50%, transparent)}}.border-destructive\\/60{border-color:var(--destructive)}@supports (color:color-mix(in lab, red, red)){.border-destructive\\/60{border-color:color-mix(in oklab, var(--destructive) 60%, transparent)}}.border-info\\/50{border-color:var(--info)}@supports (color:color-mix(in lab, red, red)){.border-info\\/50{border-color:color-mix(in oklab, var(--info) 50%, transparent)}}.border-input{border-color:var(--input)}.border-positive\\/50{border-color:var(--positive)}@supports (color:color-mix(in lab, red, red)){.border-positive\\/50{border-color:color-mix(in oklab, var(--positive) 50%, transparent)}}.border-positive\\/60{border-color:var(--positive)}@supports (color:color-mix(in lab, red, red)){.border-positive\\/60{border-color:color-mix(in oklab, var(--positive) 60%, transparent)}}.border-transparent{border-color:#0000}.bg-attention\\/5{background-color:var(--attention)}@supports (color:color-mix(in lab, red, red)){.bg-attention\\/5{background-color:color-mix(in oklab, var(--attention) 5%, transparent)}}.bg-background{background-color:var(--background)}.bg-border{background-color:var(--border)}.bg-card{background-color:var(--card)}.bg-destructive,.bg-destructive\\/5{background-color:var(--destructive)}@supports (color:color-mix(in lab, red, red)){.bg-destructive\\/5{background-color:color-mix(in oklab, var(--destructive) 5%, transparent)}}.bg-info\\/5{background-color:var(--info)}@supports (color:color-mix(in lab, red, red)){.bg-info\\/5{background-color:color-mix(in oklab, var(--info) 5%, transparent)}}.bg-muted,.bg-muted\\/40{background-color:var(--muted)}@supports (color:color-mix(in lab, red, red)){.bg-muted\\/40{background-color:color-mix(in oklab, var(--muted) 40%, transparent)}}.bg-muted\\/50{background-color:var(--muted)}@supports (color:color-mix(in lab, red, red)){.bg-muted\\/50{background-color:color-mix(in oklab, var(--muted) 50%, transparent)}}.bg-positive\\/5{background-color:var(--positive)}@supports (color:color-mix(in lab, red, red)){.bg-positive\\/5{background-color:color-mix(in oklab, var(--positive) 5%, transparent)}}.bg-primary{background-color:var(--primary)}.bg-secondary{background-color:var(--secondary)}.bg-transparent{background-color:#0000}.p-2{padding:calc(var(--spacing) * 2)}.px-1{padding-inline:var(--spacing)}.px-2{padding-inline:calc(var(--spacing) * 2)}.px-3{padding-inline:calc(var(--spacing) * 3)}.px-4{padding-inline:calc(var(--spacing) * 4)}.px-5{padding-inline:calc(var(--spacing) * 5)}.px-6{padding-inline:calc(var(--spacing) * 6)}.py-0\\.5{padding-block:calc(var(--spacing) * .5)}.py-1{padding-block:var(--spacing)}.py-2{padding-block:calc(var(--spacing) * 2)}.py-3{padding-block:calc(var(--spacing) * 3)}.py-4{padding-block:calc(var(--spacing) * 4)}.py-5{padding-block:calc(var(--spacing) * 5)}.py-6{padding-block:calc(var(--spacing) * 6)}.py-12{padding-block:calc(var(--spacing) * 12)}.pt-0\\.5{padding-top:calc(var(--spacing) * .5)}.pt-4{padding-top:calc(var(--spacing) * 4)}.pt-6{padding-top:calc(var(--spacing) * 6)}.pb-24{padding-bottom:calc(var(--spacing) * 24)}.pl-4{padding-left:calc(var(--spacing) * 4)}.text-left{text-align:left}.align-middle{vertical-align:middle}.font-mono{font-family:var(--font-mono)}.font-sans{font-family:var(--font-sans)}.text-base{font-size:var(--text-base);line-height:var(--tw-leading,var(--text-base--line-height))}.text-lg{font-size:var(--text-lg);line-height:var(--tw-leading,var(--text-lg--line-height))}.text-sm{font-size:var(--text-sm);line-height:var(--tw-leading,var(--text-sm--line-height))}.text-xs{font-size:var(--text-xs);line-height:var(--tw-leading,var(--text-xs--line-height))}.text-\\[10px\\]{font-size:10px}.text-\\[11px\\]{font-size:11px}.text-\\[13px\\]{font-size:13px}.text-\\[15px\\]{font-size:15px}.text-\\[27px\\]{font-size:27px}.leading-none{--tw-leading:1;line-height:1}.leading-normal{--tw-leading:var(--leading-normal);line-height:var(--leading-normal)}.leading-relaxed{--tw-leading:var(--leading-relaxed);line-height:var(--leading-relaxed)}.leading-snug{--tw-leading:var(--leading-snug);line-height:var(--leading-snug)}.leading-tight{--tw-leading:var(--leading-tight);line-height:var(--leading-tight)}.font-medium{--tw-font-weight:var(--font-weight-medium);font-weight:var(--font-weight-medium)}.font-normal{--tw-font-weight:var(--font-weight-normal);font-weight:var(--font-weight-normal)}.font-semibold{--tw-font-weight:var(--font-weight-semibold);font-weight:var(--font-weight-semibold)}.tracking-\\[0\\.05em\\]{--tw-tracking:.05em;letter-spacing:.05em}.tracking-\\[0\\.06em\\]{--tw-tracking:.06em;letter-spacing:.06em}.tracking-\\[0\\.08em\\]{--tw-tracking:.08em;letter-spacing:.08em}.tracking-tight{--tw-tracking:var(--tracking-tight);letter-spacing:var(--tracking-tight)}.text-balance{text-wrap:balance}.break-words{overflow-wrap:break-word}.whitespace-nowrap{white-space:nowrap}.text-attention{color:var(--attention)}.text-card-foreground{color:var(--card-foreground)}.text-destructive{color:var(--destructive)}.text-foreground{color:var(--foreground)}.text-info{color:var(--info)}.text-muted-foreground,.text-muted-foreground\\/80{color:var(--muted-foreground)}@supports (color:color-mix(in lab, red, red)){.text-muted-foreground\\/80{color:color-mix(in oklab, var(--muted-foreground) 80%, transparent)}}.text-positive{color:var(--positive)}.text-primary{color:var(--primary)}.text-primary-foreground{color:var(--primary-foreground)}.text-secondary-foreground{color:var(--secondary-foreground)}.text-white{color:var(--color-white)}.lowercase{text-transform:lowercase}.uppercase{text-transform:uppercase}.underline-offset-4{text-underline-offset:4px}.antialiased{-webkit-font-smoothing:antialiased;-moz-osx-font-smoothing:grayscale}.shadow-none{--tw-shadow:0 0 #0000;box-shadow:var(--tw-inset-shadow), var(--tw-inset-ring-shadow), var(--tw-ring-offset-shadow), var(--tw-ring-shadow), var(--tw-shadow)}.shadow-sm{--tw-shadow:0 1px 3px 0 var(--tw-shadow-color,#0000001a), 0 1px 2px -1px var(--tw-shadow-color,#0000001a);box-shadow:var(--tw-inset-shadow), var(--tw-inset-ring-shadow), var(--tw-ring-offset-shadow), var(--tw-ring-shadow), var(--tw-shadow)}.shadow-xs{--tw-shadow:0 1px 2px 0 var(--tw-shadow-color,#0000000d);box-shadow:var(--tw-inset-shadow), var(--tw-inset-ring-shadow), var(--tw-ring-offset-shadow), var(--tw-ring-shadow), var(--tw-shadow)}.ring-\\[3px\\]{--tw-ring-shadow:var(--tw-ring-inset,) 0 0 0 calc(3px + var(--tw-ring-offset-width)) var(--tw-ring-color,currentcolor);box-shadow:var(--tw-inset-shadow), var(--tw-inset-ring-shadow), var(--tw-ring-offset-shadow), var(--tw-ring-shadow), var(--tw-shadow)}.ring-attention\\/10{--tw-ring-color:var(--attention)}@supports (color:color-mix(in lab, red, red)){.ring-attention\\/10{--tw-ring-color:color-mix(in oklab, var(--attention) 10%, transparent)}}.ring-destructive\\/10{--tw-ring-color:var(--destructive)}@supports (color:color-mix(in lab, red, red)){.ring-destructive\\/10{--tw-ring-color:color-mix(in oklab, var(--destructive) 10%, transparent)}}.ring-info\\/10{--tw-ring-color:var(--info)}@supports (color:color-mix(in lab, red, red)){.ring-info\\/10{--tw-ring-color:color-mix(in oklab, var(--info) 10%, transparent)}}.ring-positive\\/10{--tw-ring-color:var(--positive)}@supports (color:color-mix(in lab, red, red)){.ring-positive\\/10{--tw-ring-color:color-mix(in oklab, var(--positive) 10%, transparent)}}.outline{outline-style:var(--tw-outline-style);outline-width:1px}.transition-\\[color\\,box-shadow\\]{transition-property:color,box-shadow;transition-timing-function:var(--tw-ease,var(--default-transition-timing-function));transition-duration:var(--tw-duration,var(--default-transition-duration))}.transition-all{transition-property:all;transition-timing-function:var(--tw-ease,var(--default-transition-timing-function));transition-duration:var(--tw-duration,var(--default-transition-duration))}.transition-colors{transition-property:color,background-color,border-color,outline-color,text-decoration-color,fill,stroke,--tw-gradient-from,--tw-gradient-via,--tw-gradient-to;transition-timing-function:var(--tw-ease,var(--default-transition-timing-function));transition-duration:var(--tw-duration,var(--default-transition-duration))}.transition-shadow{transition-property:box-shadow;transition-timing-function:var(--tw-ease,var(--default-transition-timing-function));transition-duration:var(--tw-duration,var(--default-transition-duration))}.outline-none{--tw-outline-style:none;outline-style:none}.select-none{-webkit-user-select:none;user-select:none}.group-has-\\[\\[data-orientation\\=horizontal\\]\\]\\/field\\:text-balance:is(:where(.group\\/field):has([data-orientation=horizontal]) *){text-wrap:balance}.group-data-\\[disabled\\=true\\]\\:pointer-events-none:is(:where(.group)[data-disabled=true] *){pointer-events:none}.group-data-\\[disabled\\=true\\]\\:opacity-50:is(:where(.group)[data-disabled=true] *),.group-data-\\[disabled\\=true\\]\\/field\\:opacity-50:is(:where(.group\\/field)[data-disabled=true] *){opacity:.5}.group-data-\\[variant\\=outline\\]\\/field-group\\:-mb-2:is(:where(.group\\/field-group)[data-variant=outline] *){margin-bottom:calc(var(--spacing) * -2)}.peer-disabled\\:cursor-not-allowed:is(:where(.peer):disabled~*){cursor:not-allowed}.peer-disabled\\:opacity-50:is(:where(.peer):disabled~*),.peer-\\[\\[data-disabled\\]\\]\\:opacity-50:is(:where(.peer)[data-disabled]~*){opacity:.5}.marker\\:text-muted-foreground\\/60 ::marker{color:var(--muted-foreground)}@supports (color:color-mix(in lab, red, red)){.marker\\:text-muted-foreground\\/60 ::marker{color:color-mix(in oklab, var(--muted-foreground) 60%, transparent)}}.marker\\:text-muted-foreground\\/60::marker{color:var(--muted-foreground)}@supports (color:color-mix(in lab, red, red)){.marker\\:text-muted-foreground\\/60::marker{color:color-mix(in oklab, var(--muted-foreground) 60%, transparent)}}.marker\\:text-muted-foreground\\/60 ::-webkit-details-marker{color:var(--muted-foreground)}@supports (color:color-mix(in lab, red, red)){.marker\\:text-muted-foreground\\/60 ::-webkit-details-marker{color:color-mix(in oklab, var(--muted-foreground) 60%, transparent)}}.marker\\:text-muted-foreground\\/60::-webkit-details-marker{color:var(--muted-foreground)}@supports (color:color-mix(in lab, red, red)){.marker\\:text-muted-foreground\\/60::-webkit-details-marker{color:color-mix(in oklab, var(--muted-foreground) 60%, transparent)}}.selection\\:bg-primary ::selection{background-color:var(--primary)}.selection\\:bg-primary::selection{background-color:var(--primary)}.selection\\:text-primary-foreground ::selection{color:var(--primary-foreground)}.selection\\:text-primary-foreground::selection{color:var(--primary-foreground)}.file\\:inline-flex::file-selector-button{display:inline-flex}.file\\:h-7::file-selector-button{height:calc(var(--spacing) * 7)}.file\\:border-0::file-selector-button{border-style:var(--tw-border-style);border-width:0}.file\\:bg-transparent::file-selector-button{background-color:#0000}.file\\:text-sm::file-selector-button{font-size:var(--text-sm);line-height:var(--tw-leading,var(--text-sm--line-height))}.file\\:font-medium::file-selector-button{--tw-font-weight:var(--font-weight-medium);font-weight:var(--font-weight-medium)}.file\\:text-foreground::file-selector-button{color:var(--foreground)}.placeholder\\:text-muted-foreground::placeholder{color:var(--muted-foreground)}.last\\:mt-0:last-child{margin-top:0}.checked\\:border-primary:checked{border-color:var(--primary)}.checked\\:bg-primary:checked{background-color:var(--primary)}@media (hover:hover){.hover\\:bg-accent:hover{background-color:var(--accent)}.hover\\:bg-destructive\\/90:hover{background-color:var(--destructive)}@supports (color:color-mix(in lab, red, red)){.hover\\:bg-destructive\\/90:hover{background-color:color-mix(in oklab, var(--destructive) 90%, transparent)}}.hover\\:bg-muted\\/50:hover{background-color:var(--muted)}@supports (color:color-mix(in lab, red, red)){.hover\\:bg-muted\\/50:hover{background-color:color-mix(in oklab, var(--muted) 50%, transparent)}}.hover\\:bg-primary\\/90:hover{background-color:var(--primary)}@supports (color:color-mix(in lab, red, red)){.hover\\:bg-primary\\/90:hover{background-color:color-mix(in oklab, var(--primary) 90%, transparent)}}.hover\\:bg-secondary\\/80:hover{background-color:var(--secondary)}@supports (color:color-mix(in lab, red, red)){.hover\\:bg-secondary\\/80:hover{background-color:color-mix(in oklab, var(--secondary) 80%, transparent)}}.hover\\:text-accent-foreground:hover{color:var(--accent-foreground)}.hover\\:text-foreground:hover{color:var(--foreground)}.hover\\:underline:hover{text-decoration-line:underline}}.focus-visible\\:border-ring:focus-visible{border-color:var(--ring)}.focus-visible\\:ring-\\[3px\\]:focus-visible{--tw-ring-shadow:var(--tw-ring-inset,) 0 0 0 calc(3px + var(--tw-ring-offset-width)) var(--tw-ring-color,currentcolor);box-shadow:var(--tw-inset-shadow), var(--tw-inset-ring-shadow), var(--tw-ring-offset-shadow), var(--tw-ring-shadow), var(--tw-shadow)}.focus-visible\\:ring-destructive\\/20:focus-visible{--tw-ring-color:var(--destructive)}@supports (color:color-mix(in lab, red, red)){.focus-visible\\:ring-destructive\\/20:focus-visible{--tw-ring-color:color-mix(in oklab, var(--destructive) 20%, transparent)}}.focus-visible\\:ring-ring\\/50:focus-visible{--tw-ring-color:var(--ring)}@supports (color:color-mix(in lab, red, red)){.focus-visible\\:ring-ring\\/50:focus-visible{--tw-ring-color:color-mix(in oklab, var(--ring) 50%, transparent)}}.disabled\\:pointer-events-none:disabled{pointer-events:none}.disabled\\:cursor-not-allowed:disabled{cursor:not-allowed}.disabled\\:opacity-50:disabled{opacity:.5}.has-data-\\[slot\\=card-action\\]\\:grid-cols-\\[1fr_auto\\]:has([data-slot=card-action]){grid-template-columns:1fr auto}.has-data-\\[state\\=checked\\]\\:border-primary:has([data-state=checked]){border-color:var(--primary)}.has-data-\\[state\\=checked\\]\\:bg-primary\\/5:has([data-state=checked]){background-color:var(--primary)}@supports (color:color-mix(in lab, red, red)){.has-data-\\[state\\=checked\\]\\:bg-primary\\/5:has([data-state=checked]){background-color:color-mix(in oklab, var(--primary) 5%, transparent)}}.has-\\[\\>\\[data-slot\\=checkbox-group\\]\\]\\:gap-3:has(>[data-slot=checkbox-group]){gap:calc(var(--spacing) * 3)}.has-\\[\\>\\[data-slot\\=field-content\\]\\]\\:items-start:has(>[data-slot=field-content]){align-items:flex-start}.has-\\[\\>\\[data-slot\\=field\\]\\]\\:w-full:has(>[data-slot=field]){width:100%}.has-\\[\\>\\[data-slot\\=field\\]\\]\\:flex-col:has(>[data-slot=field]){flex-direction:column}.has-\\[\\>\\[data-slot\\=field\\]\\]\\:rounded-md:has(>[data-slot=field]){border-radius:calc(var(--radius) - 2px)}.has-\\[\\>\\[data-slot\\=field\\]\\]\\:border:has(>[data-slot=field]){border-style:var(--tw-border-style);border-width:1px}.has-\\[\\>\\[data-slot\\=radio-group\\]\\]\\:gap-3:has(>[data-slot=radio-group]){gap:calc(var(--spacing) * 3)}.has-\\[\\>svg\\]\\:grid-cols-\\[calc\\(var\\(--spacing\\)\\*4\\)_1fr\\]:has(>svg){grid-template-columns:calc(var(--spacing) * 4) 1fr}.has-\\[\\>svg\\]\\:gap-x-3:has(>svg){column-gap:calc(var(--spacing) * 3)}.has-\\[\\>svg\\]\\:px-2\\.5:has(>svg){padding-inline:calc(var(--spacing) * 2.5)}.has-\\[\\>svg\\]\\:px-3:has(>svg){padding-inline:calc(var(--spacing) * 3)}.has-\\[\\>svg\\]\\:px-4:has(>svg){padding-inline:calc(var(--spacing) * 4)}.aria-invalid\\:border-destructive[aria-invalid=true]{border-color:var(--destructive)}.aria-invalid\\:ring-destructive\\/20[aria-invalid=true]{--tw-ring-color:var(--destructive)}@supports (color:color-mix(in lab, red, red)){.aria-invalid\\:ring-destructive\\/20[aria-invalid=true]{--tw-ring-color:color-mix(in oklab, var(--destructive) 20%, transparent)}}.data-\\[invalid\\=true\\]\\:text-destructive[data-invalid=true]{color:var(--destructive)}.data-\\[orientation\\=horizontal\\]\\:h-px[data-orientation=horizontal]{height:1px}.data-\\[orientation\\=horizontal\\]\\:w-full[data-orientation=horizontal]{width:100%}.data-\\[orientation\\=vertical\\]\\:h-full[data-orientation=vertical]{height:100%}.data-\\[orientation\\=vertical\\]\\:w-px[data-orientation=vertical]{width:1px}:is(.\\*\\:data-\\[slot\\=alert-description\\]\\:text-destructive\\/90>*)[data-slot=alert-description]{color:var(--destructive)}@supports (color:color-mix(in lab, red, red)){:is(.\\*\\:data-\\[slot\\=alert-description\\]\\:text-destructive\\/90>*)[data-slot=alert-description]{color:color-mix(in oklab, var(--destructive) 90%, transparent)}}.data-\\[slot\\=checkbox-group\\]\\:gap-3[data-slot=checkbox-group]{gap:calc(var(--spacing) * 3)}.data-\\[state\\=selected\\]\\:bg-muted[data-state=selected]{background-color:var(--muted)}.data-\\[variant\\=label\\]\\:text-sm[data-variant=label]{font-size:var(--text-sm);line-height:var(--tw-leading,var(--text-sm--line-height))}.data-\\[variant\\=legend\\]\\:text-base[data-variant=legend]{font-size:var(--text-base);line-height:var(--tw-leading,var(--text-base--line-height))}.nth-last-2\\:-mt-1:nth-last-child(2){margin-top:calc(var(--spacing) * -1)}@media (min-width:40rem){.sm\\:grid-cols-2{grid-template-columns:repeat(2,minmax(0,1fr))}}@media (min-width:48rem){.md\\:grid-cols-2{grid-template-columns:repeat(2,minmax(0,1fr))}.md\\:text-sm{font-size:var(--text-sm);line-height:var(--tw-leading,var(--text-sm--line-height))}}@container field-group (min-width:28rem){.\\@md\\/field-group\\:flex-row{flex-direction:row}.\\@md\\/field-group\\:items-center{align-items:center}.\\@md\\/field-group\\:has-\\[\\>\\[data-slot\\=field-content\\]\\]\\:items-start:has(>[data-slot=field-content]){align-items:flex-start}}@media (prefers-color-scheme:dark){.dark\\:border-input{border-color:var(--input)}.dark\\:bg-destructive\\/60{background-color:var(--destructive)}@supports (color:color-mix(in lab, red, red)){.dark\\:bg-destructive\\/60{background-color:color-mix(in oklab, var(--destructive) 60%, transparent)}}.dark\\:bg-input\\/30{background-color:var(--input)}@supports (color:color-mix(in lab, red, red)){.dark\\:bg-input\\/30{background-color:color-mix(in oklab, var(--input) 30%, transparent)}}.dark\\:checked\\:bg-primary:checked{background-color:var(--primary)}@media (hover:hover){.dark\\:hover\\:bg-accent\\/50:hover{background-color:var(--accent)}@supports (color:color-mix(in lab, red, red)){.dark\\:hover\\:bg-accent\\/50:hover{background-color:color-mix(in oklab, var(--accent) 50%, transparent)}}.dark\\:hover\\:bg-input\\/50:hover{background-color:var(--input)}@supports (color:color-mix(in lab, red, red)){.dark\\:hover\\:bg-input\\/50:hover{background-color:color-mix(in oklab, var(--input) 50%, transparent)}}}.dark\\:focus-visible\\:ring-destructive\\/40:focus-visible{--tw-ring-color:var(--destructive)}@supports (color:color-mix(in lab, red, red)){.dark\\:focus-visible\\:ring-destructive\\/40:focus-visible{--tw-ring-color:color-mix(in oklab, var(--destructive) 40%, transparent)}}.dark\\:has-data-\\[state\\=checked\\]\\:bg-primary\\/10:has([data-state=checked]){background-color:var(--primary)}@supports (color:color-mix(in lab, red, red)){.dark\\:has-data-\\[state\\=checked\\]\\:bg-primary\\/10:has([data-state=checked]){background-color:color-mix(in oklab, var(--primary) 10%, transparent)}}.dark\\:aria-invalid\\:ring-destructive\\/40[aria-invalid=true]{--tw-ring-color:var(--destructive)}@supports (color:color-mix(in lab, red, red)){.dark\\:aria-invalid\\:ring-destructive\\/40[aria-invalid=true]{--tw-ring-color:color-mix(in oklab, var(--destructive) 40%, transparent)}}}.\\[\\&_p\\]\\:leading-relaxed p{--tw-leading:var(--leading-relaxed);line-height:var(--leading-relaxed)}.\\[\\&_svg\\]\\:pointer-events-none svg{pointer-events:none}.\\[\\&_svg\\]\\:shrink-0 svg{flex-shrink:0}.\\[\\&_svg\\:not\\(\\[class\\*\\=\\'size-\\'\\]\\)\\]\\:size-3 svg:not([class*=size-]){width:calc(var(--spacing) * 3);height:calc(var(--spacing) * 3)}.\\[\\&_svg\\:not\\(\\[class\\*\\=\\'size-\\'\\]\\)\\]\\:size-4 svg:not([class*=size-]){width:calc(var(--spacing) * 4);height:calc(var(--spacing) * 4)}.\\[\\&_tr\\]\\:border-b tr{border-bottom-style:var(--tw-border-style);border-bottom-width:1px}.\\[\\&_tr\\:last-child\\]\\:border-0 tr:last-child{border-style:var(--tw-border-style);border-width:0}.\\[\\&\\:has\\(\\[role\\=checkbox\\]\\)\\]\\:pr-0:has([role=checkbox]){padding-right:0}.\\[\\.border-b\\]\\:pb-6.border-b{padding-bottom:calc(var(--spacing) * 6)}.\\[\\.border-t\\]\\:pt-6.border-t{padding-top:calc(var(--spacing) * 6)}.\\[\\&\\>\\*\\]\\:w-full>*{width:100%}.\\[\\&\\>\\*\\]\\:data-\\[slot\\=field\\]\\:p-4>[data-slot=field]{padding:calc(var(--spacing) * 4)}@container field-group (min-width:28rem){.\\@md\\/field-group\\:\\[\\&\\>\\*\\]\\:w-auto>*{width:auto}}.\\[\\&\\>\\.sr-only\\]\\:w-auto>.sr-only{width:auto}.\\[\\&\\>\\[data-slot\\=field-group\\]\\]\\:gap-4>[data-slot=field-group]{gap:calc(var(--spacing) * 4)}.\\[\\&\\>\\[data-slot\\=field-label\\]\\]\\:flex-auto>[data-slot=field-label]{flex:auto}@container field-group (min-width:28rem){.\\@md\\/field-group\\:\\[\\&\\>\\[data-slot\\=field-label\\]\\]\\:flex-auto>[data-slot=field-label]{flex:auto}}.\\[\\&\\>\\[role\\=checkbox\\]\\]\\:translate-y-\\[2px\\]>[role=checkbox]{--tw-translate-y:2px;translate:var(--tw-translate-x) var(--tw-translate-y)}.has-\\[\\>\\[data-slot\\=field-content\\]\\]\\:\\[\\&\\>\\[role\\=checkbox\\]\\,\\[role\\=radio\\]\\]\\:mt-px:has(>[data-slot=field-content])>[role=checkbox],.has-\\[\\>\\[data-slot\\=field-content\\]\\]\\:\\[\\&\\>\\[role\\=checkbox\\]\\,\\[role\\=radio\\]\\]\\:mt-px:has(>[data-slot=field-content]) [role=radio]{margin-top:1px}@container field-group (min-width:28rem){.\\@md\\/field-group\\:has-\\[\\>\\[data-slot\\=field-content\\]\\]\\:\\[\\&\\>\\[role\\=checkbox\\]\\,\\[role\\=radio\\]\\]\\:mt-px:has(>[data-slot=field-content])>[role=checkbox],.\\@md\\/field-group\\:has-\\[\\>\\[data-slot\\=field-content\\]\\]\\:\\[\\&\\>\\[role\\=checkbox\\]\\,\\[role\\=radio\\]\\]\\:mt-px:has(>[data-slot=field-content]) [role=radio]{margin-top:1px}}.\\[\\&\\>a\\]\\:underline>a{text-decoration-line:underline}.\\[\\&\\>a\\]\\:underline-offset-4>a{text-underline-offset:4px}.\\[\\&\\>a\\:hover\\]\\:text-primary>a:hover{color:var(--primary)}.\\[\\&\\>svg\\]\\:pointer-events-none>svg{pointer-events:none}.\\[\\&\\>svg\\]\\:size-3>svg{width:calc(var(--spacing) * 3);height:calc(var(--spacing) * 3)}.\\[\\&\\>svg\\]\\:size-4>svg{width:calc(var(--spacing) * 4);height:calc(var(--spacing) * 4)}.\\[\\&\\>svg\\]\\:translate-y-0\\.5>svg{--tw-translate-y:calc(var(--spacing) * .5);translate:var(--tw-translate-x) var(--tw-translate-y)}.\\[\\&\\>svg\\]\\:text-current>svg{color:currentColor}.\\[\\&\\>tr\\]\\:last\\:border-b-0>tr:last-child{border-bottom-style:var(--tw-border-style);border-bottom-width:0}[data-slot=tooltip-content] .\\[\\[data-slot\\=tooltip-content\\]_\\&\\]\\:bg-background\\/20{background-color:var(--background)}@supports (color:color-mix(in lab, red, red)){[data-slot=tooltip-content] .\\[\\[data-slot\\=tooltip-content\\]_\\&\\]\\:bg-background\\/20{background-color:color-mix(in oklab, var(--background) 20%, transparent)}}[data-slot=tooltip-content] .\\[\\[data-slot\\=tooltip-content\\]_\\&\\]\\:text-background{color:var(--background)}@media (prefers-color-scheme:dark){[data-slot=tooltip-content] .dark\\:\\[\\[data-slot\\=tooltip-content\\]_\\&\\]\\:bg-background\\/10{background-color:var(--background)}@supports (color:color-mix(in lab, red, red)){[data-slot=tooltip-content] .dark\\:\\[\\[data-slot\\=tooltip-content\\]_\\&\\]\\:bg-background\\/10{background-color:color-mix(in oklab, var(--background) 10%, transparent)}}}[data-variant=legend]+.\\[\\[data-variant\\=legend\\]\\+\\&\\]\\:-mt-1\\.5{margin-top:calc(var(--spacing) * -1.5)}@media (hover:hover){a.\\[a\\&\\]\\:hover\\:bg-accent:hover{background-color:var(--accent)}a.\\[a\\&\\]\\:hover\\:bg-destructive\\/90:hover{background-color:var(--destructive)}@supports (color:color-mix(in lab, red, red)){a.\\[a\\&\\]\\:hover\\:bg-destructive\\/90:hover{background-color:color-mix(in oklab, var(--destructive) 90%, transparent)}}a.\\[a\\&\\]\\:hover\\:bg-primary\\/90:hover{background-color:var(--primary)}@supports (color:color-mix(in lab, red, red)){a.\\[a\\&\\]\\:hover\\:bg-primary\\/90:hover{background-color:color-mix(in oklab, var(--primary) 90%, transparent)}}a.\\[a\\&\\]\\:hover\\:bg-secondary\\/90:hover{background-color:var(--secondary)}@supports (color:color-mix(in lab, red, red)){a.\\[a\\&\\]\\:hover\\:bg-secondary\\/90:hover{background-color:color-mix(in oklab, var(--secondary) 90%, transparent)}}a.\\[a\\&\\]\\:hover\\:text-accent-foreground:hover{color:var(--accent-foreground)}}}:root{--radius:.625rem;--background:oklch(100% 0 0);--foreground:oklch(14.7% .004 49.25);--card:oklch(100% 0 0);--card-foreground:oklch(14.7% .004 49.25);--popover:oklch(100% 0 0);--popover-foreground:oklch(14.7% .004 49.25);--primary:oklch(21.6% .006 56.043);--primary-foreground:oklch(98.5% .001 106.423);--secondary:oklch(97% .001 106.424);--secondary-foreground:oklch(21.6% .006 56.043);--muted:oklch(97% .001 106.424);--muted-foreground:oklch(55.3% .013 58.071);--accent:oklch(97% .001 106.424);--accent-foreground:oklch(21.6% .006 56.043);--destructive:oklch(57.7% .245 27.325);--border:oklch(92.3% .003 48.717);--input:oklch(92.3% .003 48.717);--ring:oklch(70.9% .01 56.259);--positive:oklch(62.7% .194 149.214);--attention:oklch(66.6% .179 58.318);--info:oklch(54.6% .245 262.881)}@media (prefers-color-scheme:dark){:root{--background:oklch(14.7% .004 49.25);--foreground:oklch(98.5% .001 106.423);--card:oklch(21.6% .006 56.043);--card-foreground:oklch(98.5% .001 106.423);--popover:oklch(21.6% .006 56.043);--popover-foreground:oklch(98.5% .001 106.423);--primary:oklch(92.3% .003 48.717);--primary-foreground:oklch(21.6% .006 56.043);--secondary:oklch(26.8% .007 34.298);--secondary-foreground:oklch(98.5% .001 106.423);--muted:oklch(26.8% .007 34.298);--muted-foreground:oklch(70.9% .01 56.259);--accent:oklch(26.8% .007 34.298);--accent-foreground:oklch(98.5% .001 106.423);--destructive:oklch(70.4% .191 22.216);--border:oklch(100% 0 0/.1);--input:oklch(100% 0 0/.15);--ring:oklch(55.3% .013 58.071);--positive:oklch(79.2% .209 151.711);--attention:oklch(82.8% .189 84.429);--info:oklch(70.7% .165 254.624)}input[data-slot=checkbox]:checked{background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%23292524' stroke-width='3' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M20 6 9 17l-5-5'/%3E%3C/svg%3E")}}@property --tw-space-y-reverse{syntax:"*";inherits:false;initial-value:0}@property --tw-border-style{syntax:"*";inherits:false;initial-value:solid}@property --tw-leading{syntax:"*";inherits:false}@property --tw-font-weight{syntax:"*";inherits:false}@property --tw-tracking{syntax:"*";inherits:false}@property --tw-shadow{syntax:"*";inherits:false;initial-value:0 0 #0000}@property --tw-shadow-color{syntax:"*";inherits:false}@property --tw-shadow-alpha{syntax:"<percentage>";inherits:false;initial-value:100%}@property --tw-inset-shadow{syntax:"*";inherits:false;initial-value:0 0 #0000}@property --tw-inset-shadow-color{syntax:"*";inherits:false}@property --tw-inset-shadow-alpha{syntax:"<percentage>";inherits:false;initial-value:100%}@property --tw-ring-color{syntax:"*";inherits:false}@property --tw-ring-shadow{syntax:"*";inherits:false;initial-value:0 0 #0000}@property --tw-inset-ring-color{syntax:"*";inherits:false}@property --tw-inset-ring-shadow{syntax:"*";inherits:false;initial-value:0 0 #0000}@property --tw-ring-inset{syntax:"*";inherits:false}@property --tw-ring-offset-width{syntax:"<length>";inherits:false;initial-value:0}@property --tw-ring-offset-color{syntax:"*";inherits:false;initial-value:#fff}@property --tw-ring-offset-shadow{syntax:"*";inherits:false;initial-value:0 0 #0000}@property --tw-outline-style{syntax:"*";inherits:false;initial-value:solid}@property --tw-translate-x{syntax:"*";inherits:false;initial-value:0}@property --tw-translate-y{syntax:"*";inherits:false;initial-value:0}@property --tw-translate-z{syntax:"*";inherits:false;initial-value:0}`;
   }
 });
 
@@ -84722,6 +84722,7 @@ var init_relay_hints10 = __esm({
         "Respond with a single raw JSON object whose top-level shape is exactly:",
         '{ "verdict": "<one-of-accepted-verdicts>", "findings": [{ "severity": "<critical|high|medium|low>", "id": "<stable finding id>", "text": "<finding text>", "file_refs": ["<file:line reference>"] }], "assessment": "<plain-language paragraph>", "verification": ["<step you performed>"], "confidence_limitations": ["<gap that limits certainty>"] }',
         "The selected Review target is authoritative. Review sees only the captured evidence in this prompt. Evaluate findings only against the selected diff or content in the intake. Do not read repository files, run tools, substitute another Git view, working-tree layer, commit, range, or PR, or report unrelated issues. If the selected evidence is missing or incomplete, say so and never claim that the target has no issues.",
+        "Match the question to the evidence. When the intake carries a diff, review the change: judge what it does to the code around it, and do not report pre-existing conditions it did not introduce. When the intake carries whole file contents instead of a diff, review the code as it stands: the file is the subject, none of it is necessarily new, and every finding should name what is wrong now rather than what changed. Never describe a snapshot as if it were a change, or a change as if it were the whole file.",
         "Audit the strongest claims in the material under review first: confirm each asserted outcome is backed by evidence you can see, and flag claims of completion, safety, or readiness that the cited evidence does not actually support.",
         "Calibrate severity to impact: critical for a defect that breaks the stated goal or ships a falsehood, high for a real bug or unsupported claim worth fixing before anyone relies on the result, medium for a material gap or risk worth surfacing, low for a minor or cosmetic note. Do not inflate a low note into a blocking finding, and do not bury a real defect as low.",
         'Use an empty findings array when there are no issues: { "verdict": "NO_ISSUES_FOUND", "findings": [], "assessment": "...", "verification": ["..."], "confidence_limitations": ["..."] }.',
@@ -84768,7 +84769,7 @@ function addObjectIdPrefixMismatch(ref, objectId, field, ctx) {
 function computeReviewVerdict(findings) {
   return findings.some((finding3) => finding3.severity !== "low") ? "ISSUES_FOUND" : "CLEAN";
 }
-var ReviewFindingSeverity, ReviewResultVerdict, ReviewRelayVerdict, ReviewEvidenceWarningKind, ReviewEvidenceWarning, ReviewEvidenceText, ReviewUntrackedContentPolicy, ReviewTargetKind, ReviewWorkingTreeMode, ReviewPathScope, ReviewUntrackedFileEvidence, ReviewGitObjectId, ReviewGitTargetEvidence, ReviewEvidence, ReviewEvidenceSummary, ReviewResolvedTarget, ReviewIntake, ReviewFinding, ReviewResult, ReviewRelayResult;
+var ReviewFindingSeverity, ReviewResultVerdict, ReviewRelayVerdict, ReviewEvidenceWarningKind, ReviewEvidenceWarning, ReviewEvidenceText, ReviewUntrackedContentPolicy, ReviewTargetKind, ReviewWorkingTreeMode, ReviewPathScope, ReviewUntrackedFileEvidence, ReviewSnapshotFileEvidence, ReviewGitObjectId, ReviewGitTargetEvidence, ReviewEvidence, ReviewEvidenceSummary, ReviewResolvedTarget, ReviewIntake, ReviewFinding, ReviewResult, ReviewRelayResult;
 var init_reports10 = __esm({
   "dist/flows/review/reports.js"() {
     "use strict";
@@ -84789,7 +84790,10 @@ var init_reports10 = __esm({
       "scope_empty",
       "target_assumed",
       "target_scoped",
-      "scope_not_applied"
+      "scope_not_applied",
+      "snapshot_fallback",
+      "snapshot_truncated",
+      "snapshot_file_skipped"
     ]);
     ReviewEvidenceWarning = external_exports.object({
       kind: ReviewEvidenceWarningKind,
@@ -84801,13 +84805,19 @@ var init_reports10 = __esm({
       truncated: external_exports.boolean()
     }).strict();
     ReviewUntrackedContentPolicy = external_exports.enum(["metadata-only", "include-content"]);
-    ReviewTargetKind = external_exports.enum(["working_tree", "commit", "range"]);
+    ReviewTargetKind = external_exports.enum(["working_tree", "commit", "range", "snapshot"]);
     ReviewWorkingTreeMode = external_exports.enum(["all", "tracked", "staged", "unstaged"]);
     ReviewPathScope = external_exports.object({
       include: external_exports.array(external_exports.string().min(1)),
       exclude: external_exports.array(external_exports.string().min(1))
     }).strict().refine((scope) => scope.include.length > 0 || scope.exclude.length > 0, "A path scope must include or exclude at least one path.");
     ReviewUntrackedFileEvidence = external_exports.object({
+      path: external_exports.string().min(1),
+      byte_length: external_exports.number().int().nonnegative(),
+      content: ReviewEvidenceText.optional(),
+      skipped_reason: external_exports.string().min(1).optional()
+    }).strict();
+    ReviewSnapshotFileEvidence = external_exports.object({
       path: external_exports.string().min(1),
       byte_length: external_exports.number().int().nonnegative(),
       content: ReviewEvidenceText.optional(),
@@ -84875,7 +84885,22 @@ var init_reports10 = __esm({
         submodule_paths: external_exports.array(external_exports.string().min(1)).optional(),
         path_scope: ReviewPathScope.optional()
       }).strict(),
-      ReviewGitTargetEvidence
+      ReviewGitTargetEvidence,
+      // The current contents of the tracked files at a named path, with no diff
+      // involved. This is what "review src/auth" asks for when nothing there has
+      // changed. A snapshot always names a path scope: an unscoped snapshot would
+      // be the whole repository, which is more than one relay can hold.
+      external_exports.object({
+        kind: external_exports.literal("git-snapshot"),
+        project_root: external_exports.string().min(1),
+        target_kind: external_exports.literal("snapshot"),
+        files: external_exports.array(ReviewSnapshotFileEvidence),
+        // How many tracked files the scope matched before any bound applied, so
+        // a reader can tell a complete snapshot from a sampled one.
+        matched_file_count: external_exports.number().int().nonnegative(),
+        files_truncated: external_exports.boolean(),
+        path_scope: ReviewPathScope
+      }).strict()
     ]);
     ReviewEvidenceSummary = external_exports.discriminatedUnion("kind", [
       external_exports.object({
@@ -84903,6 +84928,14 @@ var init_reports10 = __esm({
         target_diff_included: external_exports.boolean(),
         target_diff_truncated: external_exports.boolean(),
         path_scope: ReviewPathScope.optional()
+      }).strict(),
+      external_exports.object({
+        kind: external_exports.literal("git-snapshot"),
+        target_kind: external_exports.literal("snapshot"),
+        matched_file_count: external_exports.number().int().nonnegative(),
+        files_sampled: external_exports.number().int().nonnegative(),
+        files_truncated: external_exports.boolean(),
+        path_scope: ReviewPathScope
       }).strict()
     ]);
     ReviewResolvedTarget = external_exports.discriminatedUnion("kind", [
@@ -84926,6 +84959,13 @@ var init_reports10 = __esm({
         head: external_exports.string().min(1),
         dots: external_exports.enum(["..", "..."]),
         paths: ReviewPathScope.optional()
+      }).strict(),
+      // Code as it stands rather than a change to it. The paths are required for
+      // the same reason the evidence requires them: a snapshot of everything is
+      // more than one review can hold.
+      external_exports.object({
+        kind: external_exports.literal("snapshot"),
+        paths: ReviewPathScope
       }).strict()
     ]);
     ReviewIntake = external_exports.object({
@@ -85146,19 +85186,29 @@ function reviewPathScopeLabel(scope) {
     ...scope.exclude.length > 0 ? [`excluding ${scope.exclude.join(", ")}`] : []
   ].join(" and ");
 }
+function reviewPathScopePaths(scope) {
+  const included = scope.include.length > 0 ? scope.include.join(", ") : "the repository";
+  return scope.exclude.length > 0 ? `${included} excluding ${scope.exclude.join(", ")}` : included;
+}
 function pathScopeOf(evidence2) {
-  if (evidence2.kind === "git-working-tree" || evidence2.kind === "git-target") {
+  if (evidence2.kind === "git-working-tree" || evidence2.kind === "git-target" || evidence2.kind === "git-snapshot") {
     return evidence2.path_scope;
   }
   return void 0;
 }
 function scopeWarnings(input) {
   const warnings = [];
+  if (input.snapshotFallbackFrom !== void 0) {
+    warnings.push({
+      kind: "snapshot_fallback",
+      message: `Nothing has changed in ${input.snapshotFallbackFrom}, so Review read the code as it stands instead of a diff. The findings are about the current state, not about a change.`
+    });
+  }
   const scope = pathScopeOf(input.evidence);
   if (scope !== void 0) {
     warnings.push({
       kind: "target_scoped",
-      message: `Review was ${reviewPathScopeLabel(scope)}. Changes outside those paths were not read.`
+      message: input.evidence.kind === "git-snapshot" ? `Review read the current contents of ${reviewPathScopePaths(scope)}. Nothing outside those paths was read.` : `Review was ${reviewPathScopeLabel(scope)}. Changes outside those paths were not read.`
     });
   }
   for (const phrase of input.scopeNotApplied ?? []) {
@@ -85191,7 +85241,11 @@ function appendOpaqueBinaryWarnings(warnings, diffs) {
 function reviewEvidenceWarnings(input) {
   const assumption = [
     ...input.assumedTarget === true ? [{ kind: "target_assumed", message: ASSUMED_WORKING_TREE_WARNING }] : [],
-    ...scopeWarnings(input)
+    ...scopeWarnings({
+      evidence: input.evidence,
+      ...input.scopeNotApplied === void 0 ? {} : { scopeNotApplied: input.scopeNotApplied },
+      ...input.snapshotFallbackFrom === void 0 ? {} : { snapshotFallbackFrom: input.snapshotFallbackFrom }
+    })
   ];
   if (input.evidence.kind === "goal")
     return [...assumption];
@@ -85232,6 +85286,39 @@ function reviewEvidenceWarnings(input) {
       });
     }
     appendOpaqueBinaryWarnings(warnings2, [evidence3.target_diff]);
+    return warnings2;
+  }
+  if (input.evidence.kind === "git-snapshot") {
+    const evidence3 = input.evidence;
+    const warnings2 = [...assumption];
+    if (evidence3.files_truncated || evidence3.matched_file_count > evidence3.files.length) {
+      warnings2.push({
+        kind: "snapshot_truncated",
+        message: `${reviewPathScopePaths(evidence3.path_scope)} matched ${evidence3.matched_file_count} files. Review read ${evidence3.files.length} of them and did not inspect the rest.`
+      });
+    }
+    for (const file2 of evidence3.files) {
+      if (file2.content?.truncated === true) {
+        warnings2.push({
+          kind: "diff_truncated",
+          path: file2.path,
+          message: `file content was truncated before relay: ${file2.path}`
+        });
+      }
+      if (file2.skipped_reason !== void 0) {
+        warnings2.push({
+          kind: "snapshot_file_skipped",
+          path: file2.path,
+          message: `${file2.path} was not inspected: ${file2.skipped_reason}`
+        });
+      }
+    }
+    if (!evidence3.files.some((file2) => (file2.content?.text.length ?? 0) > 0)) {
+      warnings2.push({
+        kind: "scope_empty",
+        message: `Review found no readable file contents at ${reviewPathScopePaths(evidence3.path_scope)}.`
+      });
+    }
     return warnings2;
   }
   const warnings = [...assumption];
@@ -85330,7 +85417,8 @@ function projectReviewIntake(input) {
       evidence: input.evidence,
       maxUntrackedFiles: input.maxUntrackedFiles,
       ...input.assumedTarget === true ? { assumedTarget: true } : {},
-      ...input.scopeNotApplied === void 0 ? {} : { scopeNotApplied: input.scopeNotApplied }
+      ...input.scopeNotApplied === void 0 ? {} : { scopeNotApplied: input.scopeNotApplied },
+      ...input.snapshotFallbackFrom === void 0 ? {} : { snapshotFallbackFrom: input.snapshotFallbackFrom }
     })
   });
 }
@@ -85953,11 +86041,11 @@ function extractReviewScope(scope) {
   return { paths: { include, exclude }, ...carve, notApplied };
 }
 function pathOnlyRequestPath(scope) {
-  const pathOnly = /^\s*(?:review|inspect|audit|check|analyze)\s+(?:(?:only|the|this|my|our|current)\s+)*(?:(?:file|code|plan|report)\s*(?:(?:in|at|from)\s+|:\s*)?)?(?<path>\S+)(?<suffix>[\s\S]*)$/iu.exec(scope);
+  const pathOnly = PATH_ONLY_REQUEST_PATTERN.exec(scope);
   const path = pathOnly?.groups?.path;
   if (path !== void 0 && looksLikeReviewPath(path)) {
     const suffix = (pathOnly?.groups?.suffix ?? "").trim();
-    if (suffix.length === 0 || /^[.!?]$/u.test(suffix) || /^(?:,?\s*(?:for|with|especially)\b|,?\s+and\s+(?:focus|check|inspect|look|pay|prioritize|verify)\b)/iu.test(suffix)) {
+    if (suffix.length === 0 || /^[.!?]$/u.test(suffix) || PATH_ONLY_SUFFIX_PATTERN.test(suffix)) {
       return path;
     }
   }
@@ -85975,7 +86063,7 @@ function withPathScope(target, paths) {
       return target;
   }
 }
-function scopedParseResult(target, requested, assumed = false) {
+function scopedParseResult(target, requested, assumed = false, snapshotFallback) {
   const scoped = requested.paths === void 0 ? target : withPathScope(target, requested.paths);
   const carve = requested.excludedChangeClass;
   const narrowed = carve === void 0 ? scoped : targetWithoutChangeClass(scoped, carve.name);
@@ -85987,6 +86075,16 @@ function scopedParseResult(target, requested, assumed = false) {
     ok: true,
     target: narrowed ?? scoped,
     ...assumed ? { assumed: true } : {},
+    ...notApplied.length === 0 ? {} : { scopeNotApplied: notApplied },
+    ...snapshotFallback === void 0 ? {} : { snapshotFallback }
+  };
+}
+function snapshotParseResult(paths, requested) {
+  const carve = requested.excludedChangeClass;
+  const notApplied = [...requested.notApplied, ...carve === void 0 ? [] : [carve.phrase]];
+  return {
+    ok: true,
+    target: { kind: "snapshot", paths },
     ...notApplied.length === 0 ? {} : { scopeNotApplied: notApplied }
   };
 }
@@ -86029,14 +86127,18 @@ function parseReviewTarget(scope) {
   if (bareHead !== void 0)
     return scopedParseResult(bareHead, requested);
   const pathOnly = requested.paths === void 0 ? pathOnlyRequestPath(authorityScope) : void 0;
-  if (pathOnly !== void 0) {
-    const path = scopePathFromToken(pathOnly);
-    if (path !== void 0) {
-      return scopedParseResult({ kind: "working_tree", mode: "all", explicit: false }, { ...requested, paths: { include: [path], exclude: [] } }, true);
-    }
-    return scopedParseResult({ kind: "working_tree", mode: "all", explicit: false }, { ...requested, notApplied: [...requested.notApplied, pathOnly.trim()] }, true);
+  const pathOnlyPath = pathOnly === void 0 ? void 0 : scopePathFromToken(pathOnly);
+  const scoped = pathOnlyPath !== void 0 ? { ...requested, paths: { include: [pathOnlyPath], exclude: [] } } : pathOnly === void 0 ? requested : { ...requested, notApplied: [...requested.notApplied, pathOnly.trim()] };
+  const assumedWorkingTree = { kind: "working_tree", mode: "all", explicit: false };
+  if (scoped.paths === void 0)
+    return scopedParseResult(assumedWorkingTree, scoped, true);
+  if (scoped.paths.include.length === 0) {
+    return scopedParseResult(assumedWorkingTree, scoped, true);
   }
-  return scopedParseResult({ kind: "working_tree", mode: "all", explicit: false }, requested, true);
+  if (SNAPSHOT_REQUEST_PATTERN.test(authorityScope)) {
+    return snapshotParseResult(scoped.paths, scoped);
+  }
+  return scopedParseResult(assumedWorkingTree, scoped, true, scoped.paths);
 }
 function reviewTargetLabel(target) {
   if (target.kind === "commit")
@@ -86044,11 +86146,12 @@ function reviewTargetLabel(target) {
   return `range ${target.base}${target.dots}${target.head}`;
 }
 function runtimeTarget(target) {
-  if (target.kind === "goal" || target.kind === "working_tree")
-    return void 0;
   if (target.kind === "commit")
     return { kind: "commit", ref: target.ref };
-  return { kind: "range", base: target.base, head: target.head, dots: target.dots };
+  if (target.kind === "range") {
+    return { kind: "range", base: target.base, head: target.head, dots: target.dots };
+  }
+  return void 0;
 }
 function resolveTargetArgs(target) {
   if (target.kind === "commit") {
@@ -86348,7 +86451,7 @@ function changedGitlinkPathsFromRaw(projectRoot, output) {
   }
   return Object.freeze([...paths].sort());
 }
-function readUntrackedFile(projectRoot, path, contentPolicy) {
+function readWorkspaceFile(projectRoot, path, contentPolicy, maxChars = MAX_UNTRACKED_FILE_CHARS) {
   const abs = resolve14(projectRoot, path);
   if (!insideProject(projectRoot, abs)) {
     return { path, byte_length: 0, skipped_reason: "path resolves outside project root" };
@@ -86391,7 +86494,7 @@ function readUntrackedFile(projectRoot, path, contentPolicy) {
     if (contentPolicy === "metadata-only") {
       return { path, byte_length: openedStat.size };
     }
-    const byteLimit = Math.min(openedStat.size, MAX_UNTRACKED_FILE_BYTES);
+    const byteLimit = Math.min(openedStat.size, maxChars + 1);
     const bytes = Buffer.alloc(byteLimit);
     const bytesRead = readSync4(fd, bytes, 0, byteLimit, 0);
     const afterReadStat = fstatSync3(fd);
@@ -86417,7 +86520,7 @@ function readUntrackedFile(projectRoot, path, contentPolicy) {
         skipped_reason: "file content is not valid UTF-8"
       };
     }
-    const content = truncateText(decoded, MAX_UNTRACKED_FILE_CHARS);
+    const content = truncateText(decoded, maxChars);
     return {
       path,
       byte_length: openedStat.size,
@@ -86450,21 +86553,56 @@ async function collectUntrackedFiles(projectRoot, contentPolicy, reader, directC
   return {
     count: paths.length,
     truncated: listed.truncated_by_buffer || paths.length > MAX_UNTRACKED_FILES,
-    files: paths.slice(0, MAX_UNTRACKED_FILES).map((path) => readUntrackedFile(projectRoot, path, contentPolicy))
+    files: paths.slice(0, MAX_UNTRACKED_FILES).map((path) => readWorkspaceFile(projectRoot, path, contentPolicy))
   };
+}
+async function collectSnapshotEvidence(projectRoot, paths, reader, directContext) {
+  const listed = reader === void 0 ? runGit(projectRoot, runtimeGitArgsWithPathScope(["ls-files", "--cached", "--exclude-standard", "-z"], paths), {}, directContext) : await readGit(reader, "tracked_files", projectRoot, void 0, paths);
+  if (!listed.ok) {
+    throw new Error(`Review target unavailable: the files at ${reviewPathScopePaths(paths)} could not be listed. ${listed.reason}`);
+  }
+  if (listed.truncated_by_buffer) {
+    throw new Error("Review target unavailable: the file listing was truncated before it could be verified.");
+  }
+  const matched = listed.stdout.split("\0").filter((path) => path.length > 0);
+  const files = [];
+  let spentChars = 0;
+  for (const path of matched) {
+    if (files.length >= MAX_SNAPSHOT_FILES || spentChars >= MAX_SNAPSHOT_TOTAL_CHARS)
+      break;
+    const file2 = readWorkspaceFile(projectRoot, path, "include-content", Math.min(MAX_SNAPSHOT_FILE_CHARS, MAX_SNAPSHOT_TOTAL_CHARS - spentChars));
+    spentChars += file2.content?.text.length ?? 0;
+    files.push(file2);
+  }
+  return { matchedFileCount: matched.length, truncated: files.length < matched.length, files };
 }
 async function collectReviewEvidence(projectRoot, options) {
   const target = options.target;
   if (target.kind === "goal")
     return { kind: "goal" };
   if (projectRoot === void 0) {
-    const targetLabel = target.kind === "working_tree" ? `${target.mode === "all" ? "working tree" : target.mode} changes` : reviewTargetLabel(target);
+    const targetLabel = target.kind === "working_tree" ? `${target.mode === "all" ? "working tree" : target.mode} changes` : target.kind === "snapshot" ? reviewPathScopePaths(target.paths) : reviewTargetLabel(target);
     throw new Error(`Review target unavailable: ${targetLabel} cannot be read because the workspace root was not provided.`);
   }
   const directContext = options.gitReader === void 0 ? prepareDirectGitContext(projectRoot) : void 0;
   if (directContext !== void 0)
     assertDirectGitMetadataSafe(directContext);
   const evidenceRoot = directContext?.workTree ?? projectRoot;
+  if (target.kind === "snapshot") {
+    const snapshot = await collectSnapshotEvidence(evidenceRoot, target.paths, options.gitReader, directContext);
+    if (snapshot.matchedFileCount === 0) {
+      throw new Error(`Review found no tracked files at ${reviewPathScopePaths(target.paths)}. Check the path, or name a commit, a range, staged, or unstaged to review a change instead.`);
+    }
+    return {
+      kind: "git-snapshot",
+      project_root: evidenceRoot,
+      target_kind: "snapshot",
+      files: snapshot.files,
+      matched_file_count: snapshot.matchedFileCount,
+      files_truncated: snapshot.truncated,
+      path_scope: target.paths
+    };
+  }
   if (target.kind !== "working_tree") {
     const targetEvidence = await collectTargetEvidence(evidenceRoot, target, options.gitReader, directContext);
     return {
@@ -86605,7 +86743,7 @@ async function collectReviewEvidence(projectRoot, options) {
   }
   if (!selectedContentAvailable) {
     const scopeSuffix = paths === void 0 ? "" : ` ${reviewPathScopeLabel(paths)}`;
-    throw new Error(target.explicit ? `Review target has no changes to inspect: ${target.mode === "all" ? "working tree changes" : `${target.mode} changes`}${scopeSuffix} are empty.` : `Review found no changes to inspect. The goal did not name a target, so Review looked at the working tree${scopeSuffix}. Name a commit, a range, staged, or unstaged if you meant a different target.`);
+    throw new ReviewTargetEmptyError(target.explicit ? `Review target has no changes to inspect: ${target.mode === "all" ? "working tree changes" : `${target.mode} changes`}${scopeSuffix} are empty.` : `Review found no changes to inspect. The goal did not name a target, so Review looked at the working tree${scopeSuffix}. Name a commit, a range, staged, or unstaged if you meant a different target.`);
   }
   const statSections = [
     ...stagedStat.ok && stagedStat.stdout.length > 0 ? [`Staged:
@@ -86630,7 +86768,7 @@ ${unstagedStat.stdout}`] : []
     ...paths === void 0 ? {} : { path_scope: paths }
   };
 }
-var MAX_DIFF_CHARS, MAX_UNTRACKED_FILES, MAX_UNTRACKED_FILE_CHARS, MAX_GIT_BUFFER_BYTES, MAX_DIFF_BUFFER_BYTES, MAX_UNTRACKED_FILE_BYTES, DIRECT_GIT_TIMEOUT_MS, HEAD_COMMIT_REF, SAFE_REVIEW_REF_PATTERN, REVIEW_LEAD, PULL_REQUEST_UNSUPPORTED_REASON, RANGE_FILLER_WORDS, LATEST_COMMIT_PATTERN, RESTRICTION_LEAD_IN, EXCLUSION_LEAD_IN, NARROWING_CLAUSE_TAIL, RESTRICTION_CLAUSE_PATTERN, EXCLUSION_CLAUSE_PATTERN, EXCLUDED_CHANGE_CLASS_PATTERN, MAX_SCOPE_PATHS, MAX_SCOPE_PATH_LENGTH, SAFE_SCOPE_PATH_PATTERN, NO_REVIEW_SCOPE, reviewIntakeComposeBuilder;
+var MAX_DIFF_CHARS, MAX_UNTRACKED_FILES, MAX_UNTRACKED_FILE_CHARS, MAX_SNAPSHOT_FILES, MAX_SNAPSHOT_FILE_CHARS, MAX_SNAPSHOT_TOTAL_CHARS, MAX_GIT_BUFFER_BYTES, MAX_DIFF_BUFFER_BYTES, DIRECT_GIT_TIMEOUT_MS, HEAD_COMMIT_REF, SAFE_REVIEW_REF_PATTERN, ReviewTargetEmptyError, REVIEW_LEAD, PULL_REQUEST_UNSUPPORTED_REASON, RANGE_FILLER_WORDS, LATEST_COMMIT_PATTERN, RESTRICTION_LEAD_IN, EXCLUSION_LEAD_IN, NARROWING_CLAUSE_TAIL, RESTRICTION_CLAUSE_PATTERN, EXCLUSION_CLAUSE_PATTERN, EXCLUDED_CHANGE_CLASS_PATTERN, SNAPSHOT_REQUEST_PATTERN, MAX_SCOPE_PATHS, MAX_SCOPE_PATH_LENGTH, SAFE_SCOPE_PATH_PATTERN, NO_REVIEW_SCOPE, PATH_ONLY_REQUEST_PATTERN, PATH_ONLY_SUFFIX_PATTERN, reviewIntakeComposeBuilder;
 var init_intake2 = __esm({
   "dist/flows/review/writers/intake.js"() {
     "use strict";
@@ -86639,12 +86777,16 @@ var init_intake2 = __esm({
     MAX_DIFF_CHARS = 12e4;
     MAX_UNTRACKED_FILES = 20;
     MAX_UNTRACKED_FILE_CHARS = 2e4;
+    MAX_SNAPSHOT_FILES = 25;
+    MAX_SNAPSHOT_FILE_CHARS = 4e4;
+    MAX_SNAPSHOT_TOTAL_CHARS = 15e4;
     MAX_GIT_BUFFER_BYTES = 10 * 1024 * 1024;
     MAX_DIFF_BUFFER_BYTES = Math.max(MAX_DIFF_CHARS * 4, 1024 * 1024);
-    MAX_UNTRACKED_FILE_BYTES = MAX_UNTRACKED_FILE_CHARS + 1;
     DIRECT_GIT_TIMEOUT_MS = 3e4;
     HEAD_COMMIT_REF = "HEAD";
     SAFE_REVIEW_REF_PATTERN = /^[A-Za-z0-9._/@+~^-]{1,120}$/u;
+    ReviewTargetEmptyError = class extends Error {
+    };
     REVIEW_LEAD = String.raw`(?:review|inspect|audit|check|analyze)`;
     PULL_REQUEST_UNSUPPORTED_REASON = "Review cannot fetch a pull request. Check out the PR branch locally, then review the working tree or an explicit range such as main...HEAD.";
     RANGE_FILLER_WORDS = /* @__PURE__ */ new Set([
@@ -86680,29 +86822,57 @@ var init_intake2 = __esm({
     RESTRICTION_CLAUSE_PATTERN = new RegExp(String.raw`\b(?:${RESTRICTION_LEAD_IN})${NARROWING_CLAUSE_TAIL}`, "giu");
     EXCLUSION_CLAUSE_PATTERN = new RegExp(String.raw`\b(?:${EXCLUSION_LEAD_IN})${NARROWING_CLAUSE_TAIL}`, "giu");
     EXCLUDED_CHANGE_CLASS_PATTERN = new RegExp(String.raw`\b${EXCLUSION_LEAD_IN}\s+(?:any\s+|all\s+|the\s+)?(?<changeClass>untracked|tracked|staged|unstaged|committed|new|deleted|renamed)\b`, "iu");
+    SNAPSHOT_REQUEST_PATTERN = /\b(?:as (?:it|they) stands?|as-is|current state|existing code|whole file|entire file|latent (?:issues?|bugs?|problems?|defects?))\b/iu;
     MAX_SCOPE_PATHS = 32;
     MAX_SCOPE_PATH_LENGTH = 200;
     SAFE_SCOPE_PATH_PATTERN = /^[A-Za-z0-9._@+*?[\]/-]+$/u;
     NO_REVIEW_SCOPE = Object.freeze({ notApplied: Object.freeze([]) });
+    PATH_ONLY_REQUEST_PATTERN = new RegExp([
+      "^\\s*",
+      // "review src/auth", "look at src/auth", "take a look at src/auth".
+      "(?:review|inspect|audit|check|analyze|examine|(?:take\\s+a\\s+)?look\\s+at)\\s+",
+      // "the", "my current", "the whole existing" — any run of these, or none.
+      "(?:(?:only|the|this|my|our|current|existing|whole|entire|full)\\s+)*",
+      // An optional noun for what is being pointed at, with the preposition that
+      // usually follows it: "the code in src/auth", "the state of src/auth".
+      "(?:(?:files?|code|plan|report|directory|dir|folder|module|package|contents?|state)\\s*",
+      "(?:(?:in|at|from|of|under|within)\\s+|:\\s*)?)?",
+      "(?<path>\\S+)(?<suffix>[\\s\\S]*)$"
+    ].join(""), "iu");
+    PATH_ONLY_SUFFIX_PATTERN = /^(?:,?\s*(?:for|with|especially)\b|,?\s+and\s+(?:focus|check|inspect|look|pay|prioritize|verify)\b|,?\s*as[-\s](?:it|they)\s+stands?\b|,?\s*as[-\s]is\b)/iu;
     reviewIntakeComposeBuilder = {
       resultSchemaName: "review.intake@v1",
       async build(context) {
         const parsedTarget = parseReviewTarget(context.goal);
         if (!parsedTarget.ok)
           throw new Error(parsedTarget.reason);
-        const target = parsedTarget.target;
-        const evidence2 = await collectReviewEvidence(context.projectRoot, {
-          ...context.evidencePolicy?.includeUntrackedFileContent === true ? { includeUntrackedFileContent: true } : {},
-          target,
-          ...context.gitReader === void 0 ? {} : { gitReader: context.gitReader }
-        });
+        const untrackedContent = context.evidencePolicy?.includeUntrackedFileContent === true ? { includeUntrackedFileContent: true } : {};
+        const reader = context.gitReader === void 0 ? {} : { gitReader: context.gitReader };
+        const collect = async (target2) => await collectReviewEvidence(context.projectRoot, { ...untrackedContent, target: target2, ...reader });
+        let target = parsedTarget.target;
+        let evidence2;
+        let snapshotFallbackFrom;
+        try {
+          evidence2 = await collect(target);
+        } catch (error52) {
+          const fallback = parsedTarget.snapshotFallback;
+          if (fallback === void 0 || !(error52 instanceof ReviewTargetEmptyError))
+            throw error52;
+          snapshotFallbackFrom = reviewPathScopePaths(fallback);
+          target = { kind: "snapshot", paths: fallback };
+          evidence2 = await collect(target);
+        }
         return projectReviewIntake({
           scope: context.goal,
           target,
           evidence: evidence2,
           maxUntrackedFiles: MAX_UNTRACKED_FILES,
-          ...parsedTarget.assumed === true ? { assumedTarget: true } : {},
-          ...parsedTarget.scopeNotApplied === void 0 ? {} : { scopeNotApplied: parsedTarget.scopeNotApplied }
+          // An assumed working tree that became a snapshot is no longer an
+          // assumption about which changes to read, so the warning would misdescribe
+          // what happened.
+          ...parsedTarget.assumed === true && snapshotFallbackFrom === void 0 ? { assumedTarget: true } : {},
+          ...parsedTarget.scopeNotApplied === void 0 ? {} : { scopeNotApplied: parsedTarget.scopeNotApplied },
+          ...snapshotFallbackFrom === void 0 ? {} : { snapshotFallbackFrom }
         });
       }
     };
@@ -86753,6 +86923,16 @@ function evidenceSummary(evidence2) {
       ...evidence2.path_scope === void 0 ? {} : { path_scope: evidence2.path_scope }
     };
   }
+  if (evidence2.kind === "git-snapshot") {
+    return {
+      kind: "git-snapshot",
+      target_kind: "snapshot",
+      matched_file_count: evidence2.matched_file_count,
+      files_sampled: evidence2.files.length,
+      files_truncated: evidence2.files_truncated,
+      path_scope: evidence2.path_scope
+    };
+  }
   return {
     kind: "git-working-tree",
     untracked_content_policy: evidence2.untracked_content_policy,
@@ -86791,8 +86971,13 @@ function evidenceScopeMismatch(intake) {
     }
     return mismatch(`${target.kind} target evidence`);
   }
+  if (evidence2.kind === "git-snapshot") {
+    return target.kind === "snapshot" ? void 0 : mismatch(`${target.kind} target evidence`);
+  }
   if (target.kind === "goal")
     return mismatch("goal-only evidence");
+  if (target.kind === "snapshot")
+    return mismatch("snapshot evidence");
   if (target.kind !== "working_tree") {
     return mismatch(`dedicated pinned ${target.kind} target evidence`);
   }
@@ -86820,6 +87005,9 @@ function unusableEvidenceReason(intake) {
   if (intake.evidence.kind === "git-target" && !usableDiff(intake.evidence.target_diff)) {
     return `the requested target ${intake.evidence.target_ref} has no usable diff`;
   }
+  if (intake.evidence.kind === "git-snapshot" && !intake.evidence.files.some((file2) => usableDiff(file2.content))) {
+    return "the requested paths matched no file whose contents could be read";
+  }
   return void 0;
 }
 function selectedEvidenceIncomplete(intake) {
@@ -86828,6 +87016,9 @@ function selectedEvidenceIncomplete(intake) {
     return false;
   if (evidence2.kind === "git-target") {
     return evidence2.target_diff.truncated || containsOpaqueBinaryChange(evidence2.target_diff) || containsOpaqueSubmoduleChange(evidence2.target_diff);
+  }
+  if (evidence2.kind === "git-snapshot") {
+    return evidence2.files_truncated || evidence2.matched_file_count !== evidence2.files.length || evidence2.files.some((file2) => file2.content === void 0 || file2.content.truncated);
   }
   const requestedUntrackedContent2 = evidence2.untracked_content_policy === "include-content";
   const untrackedContentIncomplete = requestedUntrackedContent2 && (evidence2.untracked_files_truncated || untrackedFileListIsInconsistent(evidence2) || evidence2.untracked_files.some((file2) => file2.content === void 0 || file2.content.truncated));
@@ -86889,6 +87080,8 @@ var init_result_projection5 = __esm({
     LIMITATION_WARNING_KINDS = /* @__PURE__ */ new Set([
       "binary_content_not_inspected",
       "diff_truncated",
+      "snapshot_file_skipped",
+      "snapshot_truncated",
       "submodule_content_not_inspected",
       "target_assumed",
       "untracked_file_content_omitted",
@@ -87100,6 +87293,17 @@ function EvidenceSummary({ report }) {
       `Review target: ${evidence2.target_ref} (${evidence2.target_kind})`,
       `Target diff included: ${evidence2.target_diff_included ? "yes" : "no"}`,
       `Target diff truncated: ${evidence2.target_diff_truncated ? "yes" : "no"}`
+    ] });
+  }
+  if (evidence2.kind === "git-snapshot") {
+    const scope = [
+      ...evidence2.path_scope.include,
+      ...evidence2.path_scope.exclude.map((path) => `excluding ${path}`)
+    ].join(", ");
+    return (0, import_jsx_runtime13.jsx)(BulletList, { items: [
+      `Review target: current contents of ${scope}`,
+      `Files read: ${evidence2.files_sampled}/${evidence2.matched_file_count}`,
+      `File list truncated: ${evidence2.files_truncated ? "yes" : "no"}`
     ] });
   }
   const sampled = `${evidence2.untracked_files_sampled}/${evidence2.untracked_file_count}`;
@@ -109589,6 +109793,17 @@ function reviewEvidenceDetails(report) {
     }
     const truncated2 = evidenceSummary2?.target_diff_truncated === true ? " (truncated)" : "";
     return [`Review evidence: ${label} diff included${truncated2}.`, ...scope];
+  }
+  if (kind === "git-snapshot") {
+    const matched = numberField(evidenceSummary2, "matched_file_count") ?? 0;
+    const sampled2 = numberField(evidenceSummary2, "files_sampled") ?? 0;
+    const scope = isObject4(evidenceSummary2?.path_scope) ? evidenceSummary2.path_scope : void 0;
+    const include = arrayField(scope, "include").filter((entry) => typeof entry === "string");
+    const where = include.length > 0 ? include.join(", ") : "the requested paths";
+    const rest = sampled2 < matched ? ` ${plural(matched - sampled2, "file")} were not inspected.` : "";
+    return [
+      `Review evidence: current contents of ${plural(sampled2, "file")} at ${where}, not a diff.${rest}`
+    ];
   }
   if (kind !== "git-working-tree")
     return [];
