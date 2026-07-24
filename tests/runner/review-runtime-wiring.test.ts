@@ -42,7 +42,6 @@ import type {
 const FIXTURE_PATH = resolve('generated/flows/review/circuit.json');
 const TEST_COMMIT_A = 'a'.repeat(40);
 const TEST_COMMIT_B = 'b'.repeat(40);
-const TEST_COMMIT_C = 'c'.repeat(40);
 
 function pinnedTargetFor(target: RuntimeGitTarget): RuntimeGitPinnedTarget {
   if (target.kind === 'commit') {
@@ -52,23 +51,11 @@ function pinnedTargetFor(target: RuntimeGitTarget): RuntimeGitPinnedTarget {
         : TEST_COMMIT_A;
     return { kind: 'commit', commit };
   }
-  if (target.kind === 'range') {
-    return {
-      kind: 'range',
-      base_commit: TEST_COMMIT_A,
-      head_commit: TEST_COMMIT_B,
-      dots: target.dots,
-    };
-  }
   return {
-    kind: 'pull_request',
-    number: target.number,
-    ...('repository' in target && target.repository !== undefined
-      ? { repository: target.repository }
-      : {}),
-    merge_commit: TEST_COMMIT_A,
-    base_commit: TEST_COMMIT_B,
-    head_commit: TEST_COMMIT_C,
+    kind: 'range',
+    base_commit: TEST_COMMIT_A,
+    head_commit: TEST_COMMIT_B,
+    dots: target.dots,
   };
 }
 
@@ -245,7 +232,10 @@ afterEach(() => {
 });
 
 describe('registered review compose writer', () => {
-  it('stops before spend when an injected reviewer cannot prove prompt-only isolation', async () => {
+  // D3: a reviewer that cannot prove prompt-only isolation still runs. Refusing
+  // the operator's run was worse than reporting the weaker guarantee, so the
+  // unsealed fact is recorded on the trace instead.
+  it('runs an injected reviewer that cannot prove prompt-only isolation and records it', async () => {
     const { bytes } = loadFixture();
     const runFolder = join(runFolderBase, 'review-relayer-without-prompt-only-boundary');
     let relayCalls = 0;
@@ -259,16 +249,27 @@ describe('registered review compose writer', () => {
       now: deterministicNow(Date.UTC(2026, 6, 24, 10, 5, 0)),
       relayer: {
         connectorName: 'codex',
-        relay: async (): Promise<RelayResult> => {
+        relay: async (input): Promise<RelayResult> => {
           relayCalls += 1;
-          throw new Error('unsupported relayer must not be called');
+          return {
+            request_payload: input.prompt,
+            receipt_id: 'stub-receipt-unsealed',
+            result_body: JSON.stringify(cleanRelayResult()),
+            duration_ms: 1,
+            cli_version: '0.0.0-stub',
+          };
         },
       },
     });
 
-    expect(outcome.outcome).toBe('aborted');
-    expect(outcome.reason).toMatch(/cannot prove|repository access/i);
-    expect(relayCalls).toBe(0);
+    expect(outcome.outcome).toBe('complete');
+    expect(relayCalls).toBe(1);
+    const started = (await readTraceEntries(runFolder)).find(
+      (entry) => entry.kind === 'relay.started',
+    );
+    expect(started).toMatchObject({
+      context_seal: { applied: false, reason: expect.stringMatching(/cannot prove/i) },
+    });
   });
 
   it('writes schema-valid review.result with the default compose writer', async () => {
@@ -780,19 +781,13 @@ describe('registered review compose writer', () => {
     expect(relayCalls).toBe(0);
   });
 
-  it('rejects a vague goal-only Review before collecting Git evidence or calling the relay', async () => {
+  // D1: an unrecognised goal is not a stop. Review falls back to the working
+  // tree and says so in the intake warnings rather than refusing the run.
+  it('defaults an unrecognised goal to the working tree and names the assumption', async () => {
     const { bytes } = loadFixture();
-    const runFolder = join(runFolderBase, 'goal-only-evidence');
-    const projectRoot = join(runFolderBase, 'goal-only-project');
-    const unrelatedMarker = 'unrelated-working-tree-marker';
-    mkdirSync(projectRoot, { recursive: true });
-    let gitReads = 0;
-    const gitReader: RuntimeGitReader = {
-      read: async ({ operation }) => {
-        gitReads += 1;
-        throw new Error(`goal-only Review must not request Git operation ${operation}`);
-      },
-    };
+    const runFolder = join(runFolderBase, 'assumed-working-tree');
+    const projectRoot = stagedReviewProject('assumed-working-tree-project');
+    let relayCalls = 0;
 
     const outcome = await runCompiledFlow({
       runDir: runFolder,
@@ -802,20 +797,31 @@ describe('registered review compose writer', () => {
       depth: 'medium',
       now: deterministicNow(Date.UTC(2026, 6, 20, 14, 0, 0)),
       projectRoot,
-      gitReader,
       relayer: {
         connectorName: 'codex',
-        relay: async (): Promise<RelayResult> => {
-          throw new Error('vague goal-only Review must not call the relay');
+        relay: async (input): Promise<RelayResult> => {
+          relayCalls += 1;
+          return {
+            request_payload: input.prompt,
+            receipt_id: 'stub-receipt-assumed-target',
+            result_body: JSON.stringify(cleanRelayResult()),
+            duration_ms: 1,
+            cli_version: '0.0.0-stub',
+          };
         },
       },
     });
 
-    expect(outcome.outcome).toBe('aborted');
-    expect(outcome.reason).toMatch(/actual|material|source|target|text/i);
-    expect(gitReads).toBe(0);
-    expect(existsSync(join(runFolder, 'reports', 'review-intake.json'))).toBe(false);
-    expect(readFileSync(join(runFolder, 'trace.ndjson'), 'utf8')).not.toContain(unrelatedMarker);
+    expect(outcome.outcome).toBe('complete');
+    expect(relayCalls).toBe(1);
+    const intake = JSON.parse(
+      readFileSync(join(runFolder, 'reports', 'review-intake.json'), 'utf8'),
+    ) as {
+      target: { kind: string; mode?: string; explicit?: boolean };
+      evidence_warnings: Array<{ kind: string; message: string }>;
+    };
+    expect(intake.target).toMatchObject({ kind: 'working_tree', mode: 'all', explicit: false });
+    expect(intake.evidence_warnings.map((warning) => warning.kind)).toContain('target_assumed');
   });
 
   it('reviews actual supplied text without collecting or relaying unrelated working-tree code', async () => {
@@ -934,12 +940,11 @@ describe('registered review compose writer', () => {
     writeFileSync(join(projectRoot, 'notes.txt'), 'bounded untracked note\n');
     const seen: RuntimeGitOperation[] = [];
     const outputs: Readonly<Record<RuntimeGitOperation, string>> = {
-      status: ' M src/app.ts\0?? notes.txt\0',
+      status: 'M  src/app.ts\0?? notes.txt\0',
       staged_diff: 'diff --git a/src/app.ts b/src/app.ts\n',
       unstaged_diff: '',
       staged_diff_stat: ' src/app.ts | 1 +\n',
       unstaged_diff_stat: '',
-      remote_repositories: '',
       resolve_target: '',
       target_diff: '',
       target_diff_stat: '',
@@ -947,7 +952,6 @@ describe('registered review compose writer', () => {
       staged_changed_gitlinks: '',
       unstaged_changed_gitlinks: '',
       untracked_files: 'notes.txt\0',
-      submodules: '',
     };
     const gitReader: RuntimeGitReader = {
       read: async (request) => {
@@ -995,7 +999,8 @@ describe('registered review compose writer', () => {
       },
     });
 
-    expect(outcome.outcome).toBe('stopped');
+    expect(outcome.outcome).toBe('complete');
+    // One pass. Review reads the working tree once and pins what it read.
     expect(seen).toEqual([
       'hidden_index_flags',
       'status',
@@ -1006,102 +1011,7 @@ describe('registered review compose writer', () => {
       'staged_changed_gitlinks',
       'unstaged_changed_gitlinks',
       'untracked_files',
-      'status',
-      'staged_diff',
-      'unstaged_diff',
-      'staged_diff_stat',
-      'unstaged_diff_stat',
-      'staged_changed_gitlinks',
-      'unstaged_changed_gitlinks',
-      'untracked_files',
-      'hidden_index_flags',
     ]);
-  });
-
-  it('aborts before relay when the working tree changes while evidence is collected', async () => {
-    const { bytes } = loadFixture();
-    const runFolder = join(runFolderBase, 'bounded-git-working-tree-race');
-    const projectRoot = join(runFolderBase, 'bounded-git-working-tree-race-project');
-    const latePath = join(projectRoot, 'late-secret.txt');
-    mkdirSync(projectRoot, { recursive: true });
-    const calls = new Map<RuntimeGitOperation, number>();
-    const stableOutputs: Readonly<Record<RuntimeGitOperation, string>> = {
-      status: 'M  tracked.ts\0',
-      staged_diff: 'diff --git a/tracked.ts b/tracked.ts\n+const tracked = true;\n',
-      unstaged_diff: '',
-      staged_diff_stat: ' tracked.ts | 1 +\n',
-      unstaged_diff_stat: '',
-      remote_repositories: '',
-      resolve_target: '',
-      target_diff: '',
-      target_diff_stat: '',
-      hidden_index_flags: '',
-      staged_changed_gitlinks: '',
-      unstaged_changed_gitlinks: '',
-      untracked_files: '',
-      submodules: '',
-    };
-    const gitReader: RuntimeGitReader = {
-      read: async (request) => {
-        const count = (calls.get(request.operation) ?? 0) + 1;
-        calls.set(request.operation, count);
-        let stdout = stableOutputs[request.operation];
-        if (request.operation === 'untracked_files') {
-          if (count === 1) {
-            writeFileSync(latePath, 'created after the first Git listing\n');
-          } else {
-            stdout = 'late-secret.txt\0';
-          }
-        } else if (request.operation === 'status' && existsSync(latePath)) {
-          stdout = 'M  tracked.ts\0?? late-secret.txt\0';
-        }
-        return {
-          schema_version: 1,
-          ok: true,
-          operation: request.operation,
-          stdout,
-          stderr: '',
-          exit_code: 0,
-          truncated: false,
-          limit_bytes: 2 * 1024 * 1024,
-          cleanup_confirmed: true,
-          ...(request.operation === 'resolve_target'
-            ? { resolved_target: pinnedTargetFor(request.target) }
-            : {}),
-        };
-      },
-    };
-    let relayCalls = 0;
-
-    const outcome = await runCompiledFlow({
-      runDir: runFolder,
-      flowBytes: bytes,
-      runId: '79000000-0000-0000-0000-000000000100',
-      goal: 'review my current changes',
-      depth: 'medium',
-      now: deterministicNow(Date.UTC(2026, 6, 24, 9, 35, 0)),
-      projectRoot,
-      gitReader,
-      relayer: {
-        connectorName: 'codex',
-        relay: async (): Promise<RelayResult> => {
-          relayCalls += 1;
-          return {
-            request_payload: 'working-tree race must not relay',
-            receipt_id: 'stub-receipt-working-tree-race',
-            result_body: JSON.stringify(cleanRelayResult()),
-            duration_ms: 1,
-            cli_version: '0.0.0-stub',
-          };
-        },
-      },
-    });
-
-    expect(outcome.outcome).toBe('aborted');
-    expect(outcome.reason).toMatch(/working tree changed while evidence was collected/i);
-    expect(calls.get('status')).toBeGreaterThanOrEqual(2);
-    expect(calls.get('untracked_files')).toBeGreaterThanOrEqual(2);
-    expect(relayCalls).toBe(0);
   });
 
   it('uses the real Git worktree when Review starts from a nested directory', async () => {
@@ -1337,7 +1247,6 @@ describe('registered review compose writer', () => {
       unstaged_diff: '',
       staged_diff_stat: ' root.ts | 1 +\n',
       unstaged_diff_stat: '',
-      remote_repositories: '',
       resolve_target: '',
       target_diff: '',
       target_diff_stat: '',
@@ -1345,7 +1254,6 @@ describe('registered review compose writer', () => {
       staged_changed_gitlinks: `:160000 160000 ${TEST_COMMIT_A} ${TEST_COMMIT_B} M\0modules/child\0`,
       unstaged_changed_gitlinks: '',
       untracked_files: '',
-      submodules: `160000 ${TEST_COMMIT_A} 0\tmodules/child\0`,
     };
     const gitReader: RuntimeGitReader = {
       read: async (request) => ({
@@ -1627,7 +1535,6 @@ describe('registered review compose writer', () => {
       unstaged_diff: '',
       staged_diff_stat: '',
       unstaged_diff_stat: '',
-      remote_repositories: '',
       resolve_target: '',
       target_diff: `diff --git a/src/app.ts b/src/app.ts\n+${marker}\n`,
       target_diff_stat: ' src/app.ts | 1 +\n',
@@ -1635,7 +1542,6 @@ describe('registered review compose writer', () => {
       staged_changed_gitlinks: '',
       unstaged_changed_gitlinks: '',
       untracked_files: '',
-      submodules: '',
     };
     const gitReader: RuntimeGitReader = {
       read: async (request) => {
@@ -1735,7 +1641,7 @@ describe('registered review compose writer', () => {
         connectorName: 'codex',
         relay: async (input: ClaudeCodeRelayInput): Promise<RelayResult> => {
           expect(input.prompt).toContain('"target_kind": "commit"');
-          expect(input.prompt).toContain(`"target_ref": "${commit}"`);
+          expect(input.prompt).toContain(`"target_ref": "commit ${commit}"`);
           expect(input.prompt).toContain('"target_diff"');
           expect(input.prompt).toContain(marker);
           return {
@@ -2005,7 +1911,6 @@ describe('registered review compose writer', () => {
       unstaged_diff: `diff --git a/unrelated-unstaged.ts b/unrelated-unstaged.ts\n+${unstagedMarker}\n`,
       staged_diff_stat: ' unrelated-staged.ts | 1 +\n',
       unstaged_diff_stat: ' unrelated-unstaged.ts | 1 +\n',
-      remote_repositories: '',
       resolve_target: '',
       target_diff: `diff --git a/requested.ts b/requested.ts\n+${requestedMarker}\n`,
       target_diff_stat: ' requested.ts | 1 +\n',
@@ -2013,7 +1918,6 @@ describe('registered review compose writer', () => {
       staged_changed_gitlinks: '',
       unstaged_changed_gitlinks: '',
       untracked_files: 'unrelated-note.txt\0',
-      submodules: '',
     };
     const gitReader: RuntimeGitReader = {
       read: async (request) => {
@@ -2081,7 +1985,6 @@ describe('registered review compose writer', () => {
       unstaged_diff: `diff --git a/unstaged.ts b/unstaged.ts\n+${unstagedMarker}\n`,
       staged_diff_stat: ' staged.ts | 1 +\n',
       unstaged_diff_stat: ' unstaged.ts | 1 +\n',
-      remote_repositories: '',
       resolve_target: '',
       target_diff: '',
       target_diff_stat: '',
@@ -2089,7 +1992,6 @@ describe('registered review compose writer', () => {
       staged_changed_gitlinks: '',
       unstaged_changed_gitlinks: '',
       untracked_files: '',
-      submodules: '',
     };
     const gitReader: RuntimeGitReader = {
       read: async ({ operation }) => {
@@ -2134,15 +2036,12 @@ describe('registered review compose writer', () => {
     });
 
     expect(outcome.outcome).toBe('complete');
+    // Staged-only evidence never reads the unstaged side.
     expect(seen).toEqual([
       'hidden_index_flags',
       'staged_diff',
       'staged_diff_stat',
       'staged_changed_gitlinks',
-      'staged_diff',
-      'staged_diff_stat',
-      'staged_changed_gitlinks',
-      'hidden_index_flags',
     ]);
   });
 
@@ -2525,15 +2424,6 @@ describe('registered review compose writer', () => {
       'staged_changed_gitlinks',
       'unstaged_changed_gitlinks',
       'untracked_files',
-      'status',
-      'staged_diff',
-      'unstaged_diff',
-      'staged_diff_stat',
-      'unstaged_diff_stat',
-      'staged_changed_gitlinks',
-      'unstaged_changed_gitlinks',
-      'untracked_files',
-      'hidden_index_flags',
     ]);
   });
 
@@ -2553,7 +2443,6 @@ describe('registered review compose writer', () => {
       unstaged_diff: '',
       staged_diff_stat: '',
       unstaged_diff_stat: '',
-      remote_repositories: '',
       resolve_target: '',
       target_diff: `diff --git a/src/app.ts b/src/app.ts\n+${marker}\n`,
       target_diff_stat: ' src/app.ts | 1 +\n',
@@ -2561,7 +2450,6 @@ describe('registered review compose writer', () => {
       staged_changed_gitlinks: '',
       unstaged_changed_gitlinks: '',
       untracked_files: '',
-      submodules: '',
     };
     const gitReader: RuntimeGitReader = {
       read: async (request) => {
@@ -2626,457 +2514,30 @@ describe('registered review compose writer', () => {
     ]);
   });
 
-  it('stops before relay when an explicit PR target is unavailable', async () => {
-    const { bytes } = loadFixture();
-    const runFolder = join(runFolderBase, 'unavailable-pr-target');
-    const projectRoot = join(runFolderBase, 'unavailable-pr-project');
-    mkdirSync(projectRoot, { recursive: true });
-    execFileSync('git', ['init'], { cwd: projectRoot, stdio: 'pipe' });
-    let relayCalls = 0;
-
-    const outcome = await runCompiledFlow({
-      runDir: runFolder,
-      flowBytes: bytes,
-      runId: '79000000-0000-0000-0000-000000000028',
-      goal: 'review PR #123',
-      depth: 'medium',
-      now: deterministicNow(Date.UTC(2026, 6, 20, 14, 0, 0)),
-      projectRoot,
-      relayer: {
-        connectorName: 'codex',
-        relay: async (): Promise<RelayResult> => {
-          relayCalls += 1;
-          throw new Error('reviewer must not run without the requested PR evidence');
-        },
-      },
-    });
-
-    expect(outcome.outcome).toBe('aborted');
-    expect(outcome.reason).toMatch(/PR #123/i);
-    expect(outcome.reason).toMatch(/not available|unavailable/i);
-    expect(relayCalls).toBe(0);
-    expect(existsSync(join(runFolder, 'reports', 'review-result.json'))).toBe(false);
-    const traceEntries = await readTraceEntries(runFolder);
-    expect(traceEntries.some((entry) => entry.kind === 'relay.started')).toBe(false);
-  });
-
-  it('reviews a locally proven PR snapshot independently of the checked-out branch', async () => {
-    const { bytes } = loadFixture();
-    const runFolder = join(runFolderBase, 'local-pr-snapshot');
-    const projectRoot = join(runFolderBase, 'local-pr-snapshot-project');
-    const marker = 'local-pr-feature-marker';
-    mkdirSync(projectRoot, { recursive: true });
-    execFileSync('git', ['init', '-b', 'main'], { cwd: projectRoot, stdio: 'pipe' });
-    execFileSync('git', ['remote', 'add', 'origin', 'https://github.com/acme/widget.git'], {
-      cwd: projectRoot,
-      stdio: 'pipe',
-    });
-    execFileSync(
-      'git',
-      [
-        'config',
-        '--add',
-        'remote.origin.fetch',
-        '+refs/pull/*/merge:refs/circuit/github.com/acme/widget/pull/*/merge',
-      ],
-      { cwd: projectRoot, stdio: 'pipe' },
-    );
-    writeFileSync(join(projectRoot, 'base.ts'), 'export const base = true;\n');
-    execFileSync('git', ['add', 'base.ts'], { cwd: projectRoot, stdio: 'pipe' });
-    execFileSync(
-      'git',
-      ['-c', 'user.name=Circuit', '-c', 'user.email=circuit@example.test', 'commit', '-m', 'base'],
-      { cwd: projectRoot, stdio: 'pipe' },
-    );
-    execFileSync('git', ['switch', '-c', 'feature'], { cwd: projectRoot, stdio: 'pipe' });
-    writeFileSync(join(projectRoot, 'feature.ts'), `export const feature = '${marker}';\n`);
-    execFileSync('git', ['add', 'feature.ts'], { cwd: projectRoot, stdio: 'pipe' });
-    execFileSync(
-      'git',
-      [
-        '-c',
-        'user.name=Circuit',
-        '-c',
-        'user.email=circuit@example.test',
-        'commit',
-        '-m',
-        'feature',
-      ],
-      { cwd: projectRoot, stdio: 'pipe' },
-    );
-    const featureCommit = execFileSync('git', ['rev-parse', 'HEAD'], {
-      cwd: projectRoot,
-      encoding: 'utf8',
-    }).trim();
-    execFileSync('git', ['switch', 'main'], { cwd: projectRoot, stdio: 'pipe' });
-    writeFileSync(join(projectRoot, 'main.ts'), 'export const main = true;\n');
-    execFileSync('git', ['add', 'main.ts'], { cwd: projectRoot, stdio: 'pipe' });
-    execFileSync(
-      'git',
-      [
-        '-c',
-        'user.name=Circuit',
-        '-c',
-        'user.email=circuit@example.test',
-        'commit',
-        '-m',
-        'main change',
-      ],
-      { cwd: projectRoot, stdio: 'pipe' },
-    );
-    execFileSync(
-      'git',
-      [
-        '-c',
-        'user.name=Circuit',
-        '-c',
-        'user.email=circuit@example.test',
-        'merge',
-        '--no-ff',
-        'feature',
-        '-m',
-        'merge feature',
-      ],
-      { cwd: projectRoot, stdio: 'pipe' },
-    );
-    const mergeCommit = execFileSync('git', ['rev-parse', 'HEAD'], {
-      cwd: projectRoot,
-      encoding: 'utf8',
-    }).trim();
-    execFileSync(
-      'git',
-      ['update-ref', 'refs/circuit/github.com/acme/widget/pull/123/merge', mergeCommit],
-      {
-        cwd: projectRoot,
-        stdio: 'pipe',
-      },
-    );
-    execFileSync('git', ['update-ref', 'refs/pull/123/head', featureCommit], {
-      cwd: projectRoot,
-      stdio: 'pipe',
-    });
-    execFileSync('git', ['switch', 'feature'], { cwd: projectRoot, stdio: 'pipe' });
-
-    const outcome = await runCompiledFlow({
-      runDir: runFolder,
-      flowBytes: bytes,
-      runId: '79000000-0000-0000-0000-00000000002f',
-      goal: 'review https://github.com/acme/widget/pull/123/files?diff=split',
-      depth: 'medium',
-      now: deterministicNow(Date.UTC(2026, 6, 20, 14, 0, 0)),
-      projectRoot,
-      relayer: {
-        connectorName: 'codex',
-        relay: async (input: ClaudeCodeRelayInput): Promise<RelayResult> => {
-          expect(input.prompt).toContain(marker);
-          expect(input.prompt).toContain('"target_kind": "pull_request"');
-          return {
-            request_payload: input.prompt,
-            receipt_id: 'stub-receipt-local-pr-snapshot',
-            result_body: JSON.stringify(cleanRelayResult()),
-            duration_ms: 1,
-            cli_version: '0.0.0-stub',
-          };
-        },
-      },
-    });
-
-    expect(outcome.outcome).toBe('complete');
-  });
-
-  it('rejects a bare PR number when a worktree-only remote makes its repository ambiguous', async () => {
-    const { bytes } = loadFixture();
-    const runFolder = join(runFolderBase, 'worktree-remote-ambiguous-pr');
-    const projectRoot = join(runFolderBase, 'worktree-remote-ambiguous-pr-project');
-    mkdirSync(projectRoot, { recursive: true });
-    execFileSync('git', ['init', '-b', 'main'], { cwd: projectRoot, stdio: 'pipe' });
-    execFileSync('git', ['remote', 'add', 'origin', 'https://github.com/acme/widget.git'], {
-      cwd: projectRoot,
-      stdio: 'pipe',
-    });
-    execFileSync(
-      'git',
-      [
-        'config',
-        '--add',
-        'remote.origin.fetch',
-        '+refs/pull/*/merge:refs/circuit/github.com/acme/widget/pull/*/merge',
-      ],
-      { cwd: projectRoot, stdio: 'pipe' },
-    );
-    writeFileSync(join(projectRoot, 'base.ts'), 'export const base = true;\n');
-    execFileSync('git', ['add', 'base.ts'], { cwd: projectRoot, stdio: 'pipe' });
-    execFileSync(
-      'git',
-      ['-c', 'user.name=Circuit', '-c', 'user.email=circuit@example.test', 'commit', '-m', 'base'],
-      { cwd: projectRoot, stdio: 'pipe' },
-    );
-    execFileSync('git', ['switch', '-c', 'feature'], { cwd: projectRoot, stdio: 'pipe' });
-    writeFileSync(join(projectRoot, 'feature.ts'), 'export const feature = true;\n');
-    execFileSync('git', ['add', 'feature.ts'], { cwd: projectRoot, stdio: 'pipe' });
-    execFileSync(
-      'git',
-      [
-        '-c',
-        'user.name=Circuit',
-        '-c',
-        'user.email=circuit@example.test',
-        'commit',
-        '-m',
-        'feature',
-      ],
-      { cwd: projectRoot, stdio: 'pipe' },
-    );
-    execFileSync('git', ['switch', 'main'], { cwd: projectRoot, stdio: 'pipe' });
-    execFileSync(
-      'git',
-      [
-        '-c',
-        'user.name=Circuit',
-        '-c',
-        'user.email=circuit@example.test',
-        'merge',
-        '--no-ff',
-        'feature',
-        '-m',
-        'merge feature',
-      ],
-      { cwd: projectRoot, stdio: 'pipe' },
-    );
-    const mergeCommit = execFileSync('git', ['rev-parse', 'HEAD'], {
-      cwd: projectRoot,
-      encoding: 'utf8',
-    }).trim();
-    execFileSync(
-      'git',
-      ['update-ref', 'refs/circuit/github.com/acme/widget/pull/123/merge', mergeCommit],
-      { cwd: projectRoot, stdio: 'pipe' },
-    );
-    execFileSync('git', ['config', '--local', 'extensions.worktreeConfig', 'true'], {
-      cwd: projectRoot,
-      stdio: 'pipe',
-    });
-    execFileSync(
-      'git',
-      ['config', '--worktree', 'remote.other.url', 'https://github.com/other/project.git'],
-      { cwd: projectRoot, stdio: 'pipe' },
-    );
-    let relayCalls = 0;
-
-    const outcome = await runCompiledFlow({
-      runDir: runFolder,
-      flowBytes: bytes,
-      runId: '79000000-0000-0000-0000-000000000104',
-      goal: 'review PR #123',
-      depth: 'medium',
-      now: deterministicNow(Date.UTC(2026, 6, 24, 9, 55, 0)),
-      projectRoot,
-      relayer: {
-        connectorName: 'codex',
-        relay: async (): Promise<RelayResult> => {
-          relayCalls += 1;
-          return {
-            request_payload: 'ambiguous PR repository must not be reviewed',
-            receipt_id: 'stub-receipt-worktree-remote-ambiguous-pr',
-            result_body: JSON.stringify(cleanRelayResult()),
-            duration_ms: 1,
-            cli_version: '0.0.0-stub',
-          };
-        },
-      },
-    });
-
-    expect(outcome.outcome).toBe('aborted');
-    expect(outcome.reason).toMatch(/repository|multiple|ambiguous/i);
-    expect(relayCalls).toBe(0);
-  });
-
-  it('rejects a PR URL for a different repository before relay', async () => {
-    const { bytes } = loadFixture();
-    const runFolder = join(runFolderBase, 'foreign-pr-url');
-    const projectRoot = join(runFolderBase, 'foreign-pr-url-project');
-    mkdirSync(projectRoot, { recursive: true });
-    execFileSync('git', ['init'], { cwd: projectRoot, stdio: 'pipe' });
-    execFileSync('git', ['remote', 'add', 'origin', 'git@github.com:acme/widget.git'], {
-      cwd: projectRoot,
-      stdio: 'pipe',
-    });
-    writeFileSync(join(projectRoot, 'target.ts'), 'export const target = true;\n');
-    execFileSync('git', ['add', 'target.ts'], { cwd: projectRoot, stdio: 'pipe' });
-    execFileSync(
-      'git',
-      ['-c', 'user.name=Circuit', '-c', 'user.email=circuit@example.test', 'commit', '-m', 'base'],
-      { cwd: projectRoot, stdio: 'pipe' },
-    );
-    let relayCalls = 0;
-
-    const outcome = await runCompiledFlow({
-      runDir: runFolder,
-      flowBytes: bytes,
-      runId: '79000000-0000-0000-0000-000000000030',
-      goal: 'review https://github.com/other/project/pull/123',
-      depth: 'medium',
-      now: deterministicNow(Date.UTC(2026, 6, 20, 14, 0, 0)),
-      projectRoot,
-      relayer: {
-        connectorName: 'codex',
-        relay: async (): Promise<RelayResult> => {
-          relayCalls += 1;
-          throw new Error('foreign PR URL must fail before relay');
-        },
-      },
-    });
-
-    expect(outcome.outcome).toBe('aborted');
-    expect(outcome.reason).toMatch(/other\/project|repository/i);
-    expect(relayCalls).toBe(0);
-  });
-
-  it('rejects a local PR ref whose repository provenance no longer matches the remote', async () => {
-    const { bytes } = loadFixture();
-    const runFolder = join(runFolderBase, 'stale-local-pr-provenance');
-    const projectRoot = join(runFolderBase, 'stale-local-pr-provenance-project');
-    mkdirSync(projectRoot, { recursive: true });
-    execFileSync('git', ['init', '-b', 'main'], { cwd: projectRoot, stdio: 'pipe' });
-    execFileSync('git', ['remote', 'add', 'origin', 'https://github.com/acme/widget.git'], {
-      cwd: projectRoot,
-      stdio: 'pipe',
-    });
-    writeFileSync(join(projectRoot, 'base.ts'), 'export const base = true;\n');
-    execFileSync('git', ['add', 'base.ts'], { cwd: projectRoot, stdio: 'pipe' });
-    execFileSync(
-      'git',
-      ['-c', 'user.name=Circuit', '-c', 'user.email=circuit@example.test', 'commit', '-m', 'base'],
-      { cwd: projectRoot, stdio: 'pipe' },
-    );
-    execFileSync('git', ['switch', '-c', 'feature'], { cwd: projectRoot, stdio: 'pipe' });
-    writeFileSync(
-      join(projectRoot, 'feature.ts'),
-      "export const sourceRepository = 'acme/widget';\n",
-    );
-    execFileSync('git', ['add', 'feature.ts'], { cwd: projectRoot, stdio: 'pipe' });
-    execFileSync(
-      'git',
-      [
-        '-c',
-        'user.name=Circuit',
-        '-c',
-        'user.email=circuit@example.test',
-        'commit',
-        '-m',
-        'feature',
-      ],
-      { cwd: projectRoot, stdio: 'pipe' },
-    );
-    execFileSync('git', ['switch', 'main'], { cwd: projectRoot, stdio: 'pipe' });
-    execFileSync(
-      'git',
-      [
-        '-c',
-        'user.name=Circuit',
-        '-c',
-        'user.email=circuit@example.test',
-        'merge',
-        '--no-ff',
-        'feature',
-        '-m',
-        'merge feature',
-      ],
-      { cwd: projectRoot, stdio: 'pipe' },
-    );
-    const mergeCommit = execFileSync('git', ['rev-parse', 'HEAD'], {
-      cwd: projectRoot,
-      encoding: 'utf8',
-    }).trim();
-    execFileSync('git', ['update-ref', 'refs/pull/123/merge', mergeCommit], {
-      cwd: projectRoot,
-      stdio: 'pipe',
-    });
-
-    // The local PR ref above was created while origin identified acme/widget.
-    // Reusing it after origin changes to other/project must not make that old
-    // snapshot count as proof of other/project#123.
-    execFileSync('git', ['remote', 'set-url', 'origin', 'https://github.com/other/project.git'], {
-      cwd: projectRoot,
-      stdio: 'pipe',
-    });
-    let relayCalls = 0;
-
-    const outcome = await runCompiledFlow({
-      runDir: runFolder,
-      flowBytes: bytes,
-      runId: '79000000-0000-0000-0000-00000000003b',
-      goal: 'review https://github.com/other/project/pull/123',
-      depth: 'medium',
-      now: deterministicNow(Date.UTC(2026, 6, 23, 9, 5, 0)),
-      projectRoot,
-      relayer: {
-        connectorName: 'codex',
-        relay: async (): Promise<RelayResult> => {
-          relayCalls += 1;
-          return {
-            request_payload: 'stale local PR ref must not be relayed',
-            receipt_id: 'stub-receipt-stale-local-pr-provenance',
-            result_body: JSON.stringify(cleanRelayResult()),
-            duration_ms: 1,
-            cli_version: '0.0.0-stub',
-          };
-        },
-      },
-    });
-
-    expect(outcome.outcome).toBe('aborted');
-    expect(outcome.reason).toMatch(/provenance|repository|local PR ref/i);
-    expect(relayCalls).toBe(0);
-    expect(existsSync(join(runFolder, 'reports', 'review-result.json'))).toBe(false);
-  });
-
-  it.each([
-    {
-      label: 'URL',
-      goal: 'review https://github.com/acme/widget/pull/123',
-    },
-    {
-      label: 'bare number',
-      goal: 'review PR #123',
-    },
-  ])(
-    'rejects a $label PR target when no local GitHub repository identity can prove it',
-    async ({ label, goal }) => {
+  // D5: Review has no fetch story for a pull request. It stops at intake with
+  // local instructions rather than reviewing something the operator did not ask
+  // for.
+  it.each(['review PR #123', 'review https://github.com/acme/widget/pull/123'])(
+    'stops %j at intake before any Git read or relay',
+    async (goal) => {
       const { bytes } = loadFixture();
-      const suffix = label.replaceAll(' ', '-').toLowerCase();
-      const runFolder = join(runFolderBase, `unproven-pr-repository-${suffix}`);
-      const projectRoot = join(runFolderBase, `unproven-pr-repository-${suffix}-project`);
+      const suffix = goal.includes('http') ? 'url' : 'number';
+      const runFolder = join(runFolderBase, `pull-request-${suffix}`);
+      const projectRoot = join(runFolderBase, `pull-request-${suffix}-project`);
       mkdirSync(projectRoot, { recursive: true });
       let relayCalls = 0;
-      const seen: RuntimeGitOperation[] = [];
+      let gitReads = 0;
       const gitReader: RuntimeGitReader = {
-        read: async (request) => {
-          seen.push(request.operation);
-          return {
-            schema_version: 1,
-            ok: true,
-            operation: request.operation,
-            stdout:
-              request.operation === 'target_diff'
-                ? 'diff --git a/pr.ts b/pr.ts\n+unproven-pr-marker\n'
-                : '',
-            stderr: '',
-            exit_code: 0,
-            truncated: false,
-            limit_bytes: 2 * 1024 * 1024,
-            cleanup_confirmed: true,
-            ...(request.operation === 'resolve_target'
-              ? { resolved_target: pinnedTargetFor(request.target) }
-              : {}),
-          };
+        read: async ({ operation }) => {
+          gitReads += 1;
+          throw new Error(`a pull-request goal must not request Git operation ${operation}`);
         },
       };
 
       const outcome = await runCompiledFlow({
         runDir: runFolder,
         flowBytes: bytes,
-        runId: `79000000-0000-0000-0000-00000000003${label === 'URL' ? '7' : '8'}`,
+        runId: '79000000-0000-0000-0000-000000000028',
         goal,
         depth: 'medium',
         now: deterministicNow(Date.UTC(2026, 6, 20, 14, 0, 0)),
@@ -3086,231 +2547,20 @@ describe('registered review compose writer', () => {
           connectorName: 'codex',
           relay: async (): Promise<RelayResult> => {
             relayCalls += 1;
-            return {
-              request_payload: goal,
-              receipt_id: 'stub-receipt-unproven-pr',
-              result_body: JSON.stringify(cleanRelayResult()),
-              duration_ms: 1,
-              cli_version: '0.0.0-stub',
-            };
+            throw new Error('reviewer must not run for a pull-request goal');
           },
         },
       });
 
       expect(outcome.outcome).toBe('aborted');
-      expect(outcome.reason).toMatch(/local GitHub repository|GitHub remote|repository identity/i);
+      expect(outcome.reason).toMatch(/Check out the PR branch locally/i);
+      expect(gitReads).toBe(0);
       expect(relayCalls).toBe(0);
-      expect(seen).toEqual(['remote_repositories']);
+      expect(existsSync(join(runFolder, 'reports', 'review-result.json'))).toBe(false);
+      const traceEntries = await readTraceEntries(runFolder);
+      expect(traceEntries.some((entry) => entry.kind === 'relay.started')).toBe(false);
     },
   );
-
-  it('uses the repository named by an exact PR URL when the workspace has origin and upstream', async () => {
-    const { bytes } = loadFixture();
-    const runFolder = join(runFolderBase, 'exact-pr-repository');
-    const projectRoot = join(runFolderBase, 'exact-pr-repository-project');
-    mkdirSync(projectRoot, { recursive: true });
-    const seen: Array<{ readonly operation: RuntimeGitOperation; readonly target?: unknown }> = [];
-    const marker = 'exact-pr-repository-marker';
-    const gitReader: RuntimeGitReader = {
-      read: async (request) => {
-        seen.push({
-          operation: request.operation,
-          ...('target' in request ? { target: request.target } : {}),
-        });
-        return {
-          schema_version: 1,
-          ok: true,
-          operation: request.operation,
-          stdout:
-            request.operation === 'remote_repositories'
-              ? 'github.com/acme/widget\ngithub.com/acme/widget-fork\n'
-              : request.operation === 'target_diff'
-                ? `diff --git a/pr.ts b/pr.ts\n+${marker}\n`
-                : '',
-          stderr: '',
-          exit_code: 0,
-          truncated: false,
-          limit_bytes: 2 * 1024 * 1024,
-          cleanup_confirmed: true,
-          ...(request.operation === 'resolve_target'
-            ? { resolved_target: pinnedTargetFor(request.target) }
-            : {}),
-        };
-      },
-    };
-
-    const outcome = await runCompiledFlow({
-      runDir: runFolder,
-      flowBytes: bytes,
-      runId: '79000000-0000-0000-0000-000000000039',
-      goal: 'review https://github.com/acme/widget/pull/123',
-      depth: 'medium',
-      now: deterministicNow(Date.UTC(2026, 6, 20, 14, 0, 0)),
-      projectRoot,
-      gitReader,
-      relayer: {
-        connectorName: 'codex',
-        relay: async (input: ClaudeCodeRelayInput): Promise<RelayResult> => {
-          expect(input.prompt).toContain(marker);
-          return {
-            request_payload: input.prompt,
-            receipt_id: 'stub-receipt-exact-pr-repository',
-            result_body: JSON.stringify(cleanRelayResult()),
-            duration_ms: 1,
-            cli_version: '0.0.0-stub',
-          };
-        },
-      },
-    });
-
-    expect(outcome.outcome).toBe('complete');
-    expect(seen).toContainEqual({
-      operation: 'resolve_target',
-      target: {
-        kind: 'pull_request',
-        number: 123,
-        repository: 'github.com/acme/widget',
-      },
-    });
-  });
-
-  it('binds a bare PR to the one proven local repository and rejects a different resolved repository', async () => {
-    const { bytes } = loadFixture();
-    const runFolder = join(runFolderBase, 'bare-pr-repository-binding');
-    const projectRoot = join(runFolderBase, 'bare-pr-repository-binding-project');
-    mkdirSync(projectRoot, { recursive: true });
-    const seen: Array<{ readonly operation: RuntimeGitOperation; readonly target?: unknown }> = [];
-    let relayCalls = 0;
-    const gitReader: RuntimeGitReader = {
-      read: async (request) => {
-        seen.push({
-          operation: request.operation,
-          ...('target' in request ? { target: request.target } : {}),
-        });
-        return {
-          schema_version: 1,
-          ok: true,
-          operation: request.operation,
-          stdout:
-            request.operation === 'remote_repositories'
-              ? 'github.com/acme/repository-a\n'
-              : request.operation === 'target_diff'
-                ? 'diff --git a/pr.ts b/pr.ts\n+wrong-repository-marker\n'
-                : '',
-          stderr: '',
-          exit_code: 0,
-          truncated: false,
-          limit_bytes: 2 * 1024 * 1024,
-          cleanup_confirmed: true,
-          ...(request.operation === 'resolve_target'
-            ? {
-                resolved_target: {
-                  kind: 'pull_request' as const,
-                  number: 123,
-                  repository: 'github.com/acme/repository-b',
-                  merge_commit: TEST_COMMIT_A,
-                  base_commit: TEST_COMMIT_B,
-                  head_commit: TEST_COMMIT_C,
-                },
-              }
-            : {}),
-        };
-      },
-    };
-
-    const outcome = await runCompiledFlow({
-      runDir: runFolder,
-      flowBytes: bytes,
-      runId: '79000000-0000-0000-0000-000000000093',
-      goal: 'review PR #123',
-      depth: 'medium',
-      now: deterministicNow(Date.UTC(2026, 6, 24, 9, 10, 0)),
-      projectRoot,
-      gitReader,
-      relayer: {
-        connectorName: 'codex',
-        relay: async (): Promise<RelayResult> => {
-          relayCalls += 1;
-          return {
-            request_payload: 'wrong repository target must not be relayed',
-            receipt_id: 'stub-receipt-bare-pr-repository-binding',
-            result_body: JSON.stringify(cleanRelayResult()),
-            duration_ms: 1,
-            cli_version: '0.0.0-stub',
-          };
-        },
-      },
-    });
-
-    expect(outcome.outcome).toBe('aborted');
-    expect(outcome.reason).toMatch(/different target|repository/i);
-    expect(seen).toEqual([
-      { operation: 'remote_repositories' },
-      {
-        operation: 'resolve_target',
-        target: {
-          kind: 'pull_request',
-          number: 123,
-          repository: 'github.com/acme/repository-a',
-        },
-      },
-    ]);
-    expect(relayCalls).toBe(0);
-  });
-
-  it('rejects an ambiguous bare PR snapshot when the workspace has multiple GitHub repositories', async () => {
-    const label = 'bare number';
-    const goal = 'review PR #123';
-    const { bytes } = loadFixture();
-    const suffix = label.replaceAll(' ', '-').toLowerCase();
-    const runFolder = join(runFolderBase, `ambiguous-pr-repository-${suffix}`);
-    const projectRoot = join(runFolderBase, `ambiguous-pr-repository-${suffix}-project`);
-    mkdirSync(projectRoot, { recursive: true });
-    let relayCalls = 0;
-    const seen: RuntimeGitOperation[] = [];
-    const gitReader: RuntimeGitReader = {
-      read: async ({ operation }) => {
-        seen.push(operation);
-        return {
-          schema_version: 1,
-          ok: true,
-          operation,
-          stdout:
-            operation === 'remote_repositories'
-              ? 'github.com/acme/widget\ngithub.com/acme/widget-fork\n'
-              : '',
-          stderr: '',
-          exit_code: 0,
-          truncated: false,
-          limit_bytes: 2 * 1024 * 1024,
-          cleanup_confirmed: true,
-        };
-      },
-    };
-
-    const outcome = await runCompiledFlow({
-      runDir: runFolder,
-      flowBytes: bytes,
-      runId: '79000000-0000-0000-0000-000000000032',
-      goal,
-      depth: 'medium',
-      now: deterministicNow(Date.UTC(2026, 6, 20, 14, 0, 0)),
-      projectRoot,
-      gitReader,
-      relayer: {
-        connectorName: 'codex',
-        relay: async (): Promise<RelayResult> => {
-          relayCalls += 1;
-          throw new Error('ambiguous PR snapshot must fail before relay');
-        },
-      },
-    });
-
-    expect(outcome.outcome).toBe('aborted');
-    expect(outcome.reason).toMatch(/ambiguous|multiple|repository/i);
-    expect(relayCalls).toBe(0);
-    expect(seen).toEqual(['remote_repositories']);
-  });
 
   it('keeps bounded partial diff evidence when the injected Git reader reaches its output limit', async () => {
     const { bytes } = loadFixture();
@@ -3430,7 +2680,9 @@ describe('registered review compose writer', () => {
     expect(runtimeGitTextIsValidUtf8(intake.evidence.staged_diff.text)).toBe(true);
   });
 
-  it('omits untracked file contents by default and does not report the full target clean', async () => {
+  // D2: metadata-only untracked evidence is the default posture. It is reported
+  // as a limitation and does not hold the verdict hostage.
+  it('omits untracked file contents by default and still closes the review', async () => {
     const { bytes } = loadFixture();
     const runFolder = join(runFolderBase, 'untracked-metadata-only');
     const projectRoot = join(runFolderBase, 'metadata-only-project');
@@ -3466,7 +2718,12 @@ describe('registered review compose writer', () => {
       },
     });
 
-    expect(outcome.outcome).toBe('stopped');
+    expect(outcome.outcome).toBe('complete');
+    const result = JSON.parse(
+      readFileSync(join(runFolder, 'reports', 'review-result.json'), 'utf8'),
+    ) as { verdict: string; confidence_limitations: readonly string[] };
+    expect(result.verdict).toBe('CLEAN');
+    expect(result.confidence_limitations.join(' ')).toMatch(/untracked/i);
     const intake = ReviewIntake.parse(
       JSON.parse(readFileSync(join(runFolder, 'reports', 'review-intake.json'), 'utf8')),
     );
@@ -5096,65 +4353,6 @@ describe('registered review compose writer', () => {
     expect(relayCalls).toBe(0);
   });
 
-  it('stops injected Review instead of relaying replacement characters from a tracked diff', async () => {
-    const { bytes } = loadFixture();
-    const runFolder = join(runFolderBase, 'injected-invalid-utf8-tracked');
-    const projectRoot = join(runFolderBase, 'injected-invalid-utf8-tracked-project');
-    mkdirSync(projectRoot, { recursive: true });
-    const gitReader: RuntimeGitReader = {
-      read: async (request) => {
-        const operation = request.operation as string;
-        return {
-          schema_version: 1,
-          ok: true,
-          operation: request.operation,
-          stdout:
-            operation === 'staged_diff'
-              ? 'diff --git a/invalid.txt b/invalid.txt\n+\uFFFD\n'
-              : operation === 'staged_diff_stat'
-                ? ' invalid.txt | 1 +\n'
-                : operation === 'status'
-                  ? 'M  invalid.txt\0'
-                  : '',
-          stderr: '',
-          exit_code: 0,
-          truncated: false,
-          limit_bytes: 2 * 1024 * 1024,
-          cleanup_confirmed: true,
-        };
-      },
-    };
-    let relayCalls = 0;
-
-    const outcome = await runCompiledFlow({
-      runDir: runFolder,
-      flowBytes: bytes,
-      runId: '79000000-0000-0000-0000-00000000010f',
-      goal: 'review staged changes',
-      depth: 'medium',
-      now: deterministicNow(Date.UTC(2026, 6, 24, 10, 50, 0)),
-      projectRoot,
-      gitReader,
-      relayer: {
-        connectorName: 'codex',
-        relay: async (): Promise<RelayResult> => {
-          relayCalls += 1;
-          return {
-            request_payload: 'replacement characters must not reach the reviewer',
-            receipt_id: 'stub-receipt-invalid-utf8-injected',
-            result_body: JSON.stringify(cleanRelayResult()),
-            duration_ms: 1,
-            cli_version: '0.0.0-stub',
-          };
-        },
-      },
-    });
-
-    expect(outcome.outcome).toBe('aborted');
-    expect(outcome.reason).toMatch(/UTF-8|encoding|replacement/i);
-    expect(relayCalls).toBe(0);
-  });
-
   it('never relays auxiliary Git configuration output as a truncated staged diff', async () => {
     const { bytes } = loadFixture();
     const runFolder = join(runFolderBase, 'auxiliary-config-output');
@@ -5210,66 +4408,6 @@ describe('registered review compose writer', () => {
     expect(relayCalls).toBe(0);
     expect(existsSync(join(runFolder, 'reports', 'review-intake.json'))).toBe(false);
     expect(readFileSync(join(runFolder, 'trace.ndjson'), 'utf8')).not.toContain(secretMarker);
-  });
-
-  it('rejects a working-tree snapshot when its selected diff stat changes', async () => {
-    const { bytes } = loadFixture();
-    const runFolder = join(runFolderBase, 'changed-diff-stat');
-    const projectRoot = join(runFolderBase, 'changed-diff-stat-project');
-    mkdirSync(projectRoot, { recursive: true });
-    let statReads = 0;
-    const gitReader: RuntimeGitReader = {
-      read: async (request) => {
-        const operation = request.operation as string;
-        const stdout =
-          operation === 'staged_diff'
-            ? 'diff --git a/source.ts b/source.ts\n+stable selected diff\n'
-            : operation === 'staged_diff_stat'
-              ? `${statReads++ === 0 ? 'source.ts' : 'different.ts'} | 1 +\n`
-              : '';
-        return {
-          schema_version: 1,
-          ok: true,
-          operation: request.operation,
-          stdout,
-          stderr: '',
-          exit_code: 0,
-          truncated: false,
-          limit_bytes: 2 * 1024 * 1024,
-          cleanup_confirmed: true,
-        };
-      },
-    };
-    let relayCalls = 0;
-
-    const outcome = await runCompiledFlow({
-      runDir: runFolder,
-      flowBytes: bytes,
-      runId: '79000000-0000-0000-0000-000000000116',
-      goal: 'review staged changes',
-      depth: 'medium',
-      now: deterministicNow(Date.UTC(2026, 6, 24, 11, 20, 0)),
-      projectRoot,
-      gitReader,
-      relayer: {
-        connectorName: 'codex',
-        relay: async (): Promise<RelayResult> => {
-          relayCalls += 1;
-          return {
-            request_payload: 'unstable stat must not be relayed',
-            receipt_id: 'stub-receipt-changed-diff-stat',
-            result_body: JSON.stringify(cleanRelayResult()),
-            duration_ms: 1,
-            cli_version: '0.0.0-stub',
-          };
-        },
-      },
-    });
-
-    expect(outcome.outcome).toBe('aborted');
-    expect(outcome.reason).toMatch(/working tree changed while evidence was collected/i);
-    expect(statReads).toBe(2);
-    expect(relayCalls).toBe(0);
   });
 
   it('maps an opaque submodule change to its exact machine-readable path', async () => {

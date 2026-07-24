@@ -31,7 +31,6 @@ import type {
   McpWorkerRuntimeDependencies,
 } from '../../src/hosts/codex-mcp/worker-runtime.js';
 import type { RuntimeExecutionCapabilities } from '../../src/runtime/run/capabilities.js';
-import { githubRepositoriesFromGitConfig } from '../../src/shared/github-repository.js';
 import type {
   RuntimeGitOperation,
   RuntimeGitPinnedTarget,
@@ -216,7 +215,6 @@ const STATIC_GIT_ARGUMENTS: Readonly<Record<StaticGitOperation, readonly string[
     '--',
   ],
   untracked_files: ['ls-files', '--others', '--exclude-standard', '-z', '--'],
-  submodules: ['ls-files', '--stage', '-z', '--'],
 };
 
 function targetGitArguments(
@@ -253,18 +251,6 @@ function targetGitArguments(
       '--',
     ];
   }
-  if (target.kind === 'range') {
-    return [
-      'diff',
-      ...stat,
-      '--no-ext-diff',
-      '--no-textconv',
-      '--submodule=short',
-      '--ignore-submodules=none',
-      `${target.base_commit}${target.dots}${target.head_commit}`,
-      '--',
-    ];
-  }
   return [
     'diff',
     ...stat,
@@ -272,7 +258,7 @@ function targetGitArguments(
     '--no-textconv',
     '--submodule=short',
     '--ignore-submodules=none',
-    `${target.base_commit}...${target.head_commit}`,
+    `${target.base_commit}${target.dots}${target.head_commit}`,
     '--',
   ];
 }
@@ -299,21 +285,11 @@ function resolveGitArguments(target: RuntimeGitTarget): readonly string[] {
   if (target.kind === 'commit') {
     return ['rev-parse', '--verify', '--end-of-options', `${target.ref}^{commit}`];
   }
-  if (target.kind === 'range') {
-    return [
-      'rev-parse',
-      '--revs-only',
-      '--end-of-options',
-      `${target.base}^{commit}..${target.head}^{commit}`,
-    ];
-  }
-  const mergeRef = `refs/pull/${target.number}/merge`;
   return [
     'rev-parse',
     '--revs-only',
     '--end-of-options',
-    `${mergeRef}^{commit}`,
-    `${mergeRef}^1^{commit}..${mergeRef}^2^{commit}`,
+    `${target.base}^{commit}..${target.head}^{commit}`,
   ];
 }
 
@@ -321,8 +297,7 @@ function isSymbolicTarget(
   target: RuntimeGitTarget | RuntimeGitPinnedTarget,
 ): target is RuntimeGitTarget {
   if (target.kind === 'commit') return 'ref' in target;
-  if (target.kind === 'range') return 'base' in target && 'head' in target;
-  return !('merge_commit' in target);
+  return 'base' in target && 'head' in target;
 }
 
 function gitArguments(
@@ -330,9 +305,6 @@ function gitArguments(
   projectRoot: string,
   target?: RuntimeGitTarget | RuntimeGitPinnedTarget,
 ): readonly string[] {
-  if (operation === 'remote_repositories') {
-    return ['config', '--null', '--list', '--no-includes'];
-  }
   if (operation === 'resolve_target') {
     if (target === undefined || !isSymbolicTarget(target)) {
       throw new Error('resolve_target requires a symbolic target');
@@ -374,36 +346,16 @@ function acceptanceResolvedTarget(
     if (lines.length !== 1 || commit === undefined) throw new Error('invalid commit resolution');
     return { kind: 'commit', commit };
   }
-  if (target.kind === 'range') {
-    const headCommit = lines[0];
-    const baseCommit = lines[1];
-    if (lines.length !== 2 || headCommit === undefined || !baseCommit?.startsWith('^')) {
-      throw new Error('invalid range resolution');
-    }
-    return {
-      kind: 'range',
-      base_commit: baseCommit.slice(1),
-      head_commit: headCommit,
-      dots: target.dots,
-    };
-  }
-  const mergeCommit = lines[0];
-  const headCommit = lines[1];
-  const baseCommit = lines[2];
-  if (
-    lines.length !== 3 ||
-    mergeCommit === undefined ||
-    headCommit === undefined ||
-    !baseCommit?.startsWith('^')
-  ) {
-    throw new Error('invalid PR resolution');
+  const headCommit = lines[0];
+  const baseCommit = lines[1];
+  if (lines.length !== 2 || headCommit === undefined || !baseCommit?.startsWith('^')) {
+    throw new Error('invalid range resolution');
   }
   return {
-    kind: 'pull_request',
-    number: target.number,
-    merge_commit: mergeCommit,
+    kind: 'range',
     base_commit: baseCommit.slice(1),
     head_commit: headCommit,
+    dots: target.dots,
   };
 }
 
@@ -446,13 +398,7 @@ function acceptanceSecurity(observations: AcceptanceObservations): {
         maxBuffer: 2 * 1024 * 1024,
       });
       const exitCode = result.status ?? 1;
-      const stdout =
-        operation === 'remote_repositories' && exitCode === 0
-          ? (() => {
-              const repositories = githubRepositoriesFromGitConfig(result.stdout ?? '');
-              return repositories.length === 0 ? '' : `${repositories.join('\n')}\n`;
-            })()
-          : (result.stdout ?? '');
+      const stdout = result.stdout ?? '';
       return {
         schema_version: 1,
         ok: exitCode === 0,

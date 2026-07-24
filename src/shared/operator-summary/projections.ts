@@ -114,10 +114,14 @@ function reviewEvidenceDetails(report: JsonObject | undefined): string[] {
   const sampled = numberField(evidenceSummary, 'untracked_files_sampled') ?? 0;
   const truncated = evidenceSummary?.untracked_files_truncated === true;
   const details: string[] = [];
-  const targetMode = stringField(evidenceSummary, 'target_mode') ?? 'working tree';
-  details.push(
-    `Review evidence: ${targetMode} working-tree diff ${evidenceSummary?.target_diff_included === true ? 'included' : 'unavailable'}.`,
-  );
+  // A summary written before the selected mode was recorded gets no evidence
+  // line rather than a guessed one.
+  const targetMode = stringField(evidenceSummary, 'target_mode');
+  if (targetMode !== undefined) {
+    details.push(
+      `Review evidence: ${targetMode} working-tree diff ${evidenceSummary?.target_diff_included === true ? 'included' : 'unavailable'}.`,
+    );
+  }
   if (policy === 'include-content') {
     const suffix = truncated ? '; additional untracked files were not sampled' : '';
     details.push(
@@ -141,12 +145,13 @@ function hasEvidenceWarningKind(report: JsonObject | undefined, kind: string): b
   );
 }
 
+// Gaps in what Circuit actually selected. D2: untracked files relayed as
+// metadata only are the default posture, so `untracked_file_content_omitted`
+// is a stated limitation, not a gap, and never holds a run open.
 const INCOMPLETE_REVIEW_EVIDENCE_WARNING_KINDS = new Set([
   'binary_content_not_inspected',
   'diff_truncated',
-  'untracked_file_content_omitted',
   'untracked_file_skipped',
-  'untracked_files_truncated',
   'submodule_content_not_inspected',
 ]);
 
@@ -156,14 +161,18 @@ function reviewEvidenceIncomplete(report: JsonObject | undefined): boolean {
   if (evidenceKind === 'git-target' && evidenceSummary?.target_diff_truncated === true) {
     return true;
   }
-  if (evidenceKind === 'git-working-tree' && evidenceSummary?.untracked_files_truncated === true) {
+  const untrackedContentRequested =
+    evidenceKind === 'git-working-tree' &&
+    stringField(evidenceSummary, 'untracked_content_policy') === 'include-content';
+  if (untrackedContentRequested && evidenceSummary?.untracked_files_truncated === true) {
     return true;
   }
-  return arrayField(report, 'evidence_warnings').some(
-    (item) =>
-      isObject(item) &&
-      INCOMPLETE_REVIEW_EVIDENCE_WARNING_KINDS.has(stringField(item, 'kind') ?? ''),
-  );
+  return arrayField(report, 'evidence_warnings').some((item) => {
+    if (!isObject(item)) return false;
+    const kind = stringField(item, 'kind') ?? '';
+    if (kind === 'untracked_files_truncated') return untrackedContentRequested;
+    return INCOMPLETE_REVIEW_EVIDENCE_WARNING_KINDS.has(kind);
+  });
 }
 
 function hasCompleteUntrackedReviewEvidence(evidenceSummary: JsonObject | undefined): boolean {

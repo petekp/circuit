@@ -8,10 +8,9 @@ describe('operator-summary Review projection', () => {
     'diff_truncated',
     'untracked_files_truncated',
     'untracked_file_skipped',
-    'untracked_file_content_omitted',
     'submodule_content_not_inspected',
   ] as const)(
-    'does not present a persisted legacy clean verdict as clean when evidence has a %s warning',
+    'does not present a clean verdict as clean when evidence has a %s warning',
     (warningKind) => {
       const projection = projectSummary({
         runFolder: '/tmp/circuit-run',
@@ -45,6 +44,42 @@ describe('operator-summary Review projection', () => {
       expect(projection.headline).not.toContain('Verdict: CLEAN');
     },
   );
+
+  // D2: relaying untracked files as metadata only is the default posture, not
+  // an inspection gap. It is a stated limitation and must not unseat a verdict.
+  it('still reports a clean verdict when untracked files were relayed as metadata only', () => {
+    const projection = projectSummary({
+      runFolder: '/tmp/circuit-run',
+      flowId: 'review',
+      runOutcome: 'complete',
+      resultSummary: 'Circuit run complete.',
+      flowReport: {
+        findings: [],
+        verdict: 'CLEAN',
+        assessment: 'The tracked changes had no actionable issue.',
+        verification: ['Read the working-tree diff.'],
+        confidence_limitations: ['Untracked file contents were not read.'],
+        evidence_summary: {
+          kind: 'git-working-tree',
+          untracked_content_policy: 'metadata-only',
+          untracked_file_count: 3,
+          untracked_files_sampled: 3,
+          untracked_files_truncated: false,
+          target_kind: 'working_tree',
+          target_mode: 'all',
+          target_diff_included: true,
+        },
+        evidence_warnings: [
+          {
+            kind: 'untracked_file_content_omitted',
+            message: 'Untracked files were relayed as paths and sizes only.',
+          },
+        ],
+      },
+    });
+
+    expect(projection.headline).toBe('Circuit: Review complete. Verdict: CLEAN. Findings: 0.');
+  });
 
   it('treats a truncated dedicated Git target as incomplete even when its warning is missing', () => {
     const projection = projectSummary({
@@ -108,7 +143,7 @@ describe('operator-summary Review projection', () => {
     expect(projection.headline).not.toContain('Verdict: CLEAN');
   });
 
-  it('deduplicates the legacy HEAD target and committed-diff aliases', () => {
+  it('names a pinned commit target once, with its diff state', () => {
     const projection = projectSummary({
       runFolder: '/tmp/circuit-run',
       flowId: 'review',
@@ -118,22 +153,18 @@ describe('operator-summary Review projection', () => {
         findings: [],
         verdict: 'CLEAN',
         evidence_summary: {
-          kind: 'git-working-tree',
-          untracked_content_policy: 'metadata-only',
-          untracked_file_count: 0,
-          untracked_files_sampled: 0,
-          untracked_files_truncated: false,
+          kind: 'git-target',
           target_kind: 'commit',
-          target_ref: 'HEAD',
+          target_ref: 'commit HEAD',
           target_diff_included: true,
-          committed_diff_included: true,
+          target_diff_truncated: false,
         },
         evidence_warnings: [],
       },
     });
 
     expect(projection.details.filter((detail) => detail.startsWith('Review evidence:'))).toEqual([
-      'Review evidence: HEAD diff included.',
+      'Review evidence: commit HEAD diff included.',
     ]);
   });
 
@@ -163,7 +194,7 @@ describe('operator-summary Review projection', () => {
     );
   });
 
-  it('does not present a legacy explicit target with no included diff as clean', () => {
+  it('does not present an explicit target with no included diff as clean', () => {
     const projection = projectSummary({
       runFolder: '/tmp/circuit-run',
       flowId: 'review',
@@ -173,15 +204,11 @@ describe('operator-summary Review projection', () => {
         findings: [],
         verdict: 'CLEAN',
         evidence_summary: {
-          kind: 'git-working-tree',
-          untracked_content_policy: 'metadata-only',
-          untracked_file_count: 0,
-          untracked_files_sampled: 0,
-          untracked_files_truncated: false,
+          kind: 'git-target',
           target_kind: 'commit',
-          target_ref: 'deadbeef',
+          target_ref: 'commit deadbeef',
           target_diff_included: false,
-          committed_diff_included: false,
+          target_diff_truncated: false,
         },
         evidence_warnings: [],
       },
@@ -190,7 +217,7 @@ describe('operator-summary Review projection', () => {
     expect(projection.headline).toBe(
       'Circuit: Review did not have usable source evidence. Findings: 0.',
     );
-    expect(projection.details).toContain('Review evidence: deadbeef diff unavailable.');
+    expect(projection.details).toContain('Review evidence: commit deadbeef diff unavailable.');
   });
 
   it.each(['staged', 'unstaged', 'all'] as const)(

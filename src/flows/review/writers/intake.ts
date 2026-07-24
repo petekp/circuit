@@ -574,7 +574,7 @@ const PULL_REQUEST_UNSUPPORTED_REASON =
   'Review cannot fetch a pull request. Check out the PR branch locally, then review the working tree or an explicit range such as main...HEAD.';
 
 const PATH_SUBSET_UNSUPPORTED_REASON =
-  'Review cannot pin a subset of paths as its evidence. Review the whole working tree, a commit, or a range instead, and name the paths you care about in the goal so the reviewer concentrates there.';
+  'Review cannot narrow its evidence to part of a target. Review the whole working tree, a commit, or a range instead, and name the paths you care about in the goal so the reviewer concentrates there.';
 
 function normalizeReviewQuotes(scope: string): string {
   return scope.replace(/[’‘]/gu, "'").replace(/[“”]/gu, '"');
@@ -634,7 +634,11 @@ function looksLikeReviewSubsetPath(value: string): boolean {
 // --- inline supplied material (the `goal` target kind) --------------------
 
 type SuppliedReviewMaterialClassification =
+  // The operator drew a supplied-material boundary and left it empty.
+  | { readonly kind: 'empty' }
   | { readonly kind: 'supplied' }
+  // No boundary, or a boundary whose body is really a path. Both fall
+  // through to the rest of the grammar.
   | { readonly kind: 'missing' }
   | { readonly kind: 'malformed'; readonly reason: string }
   | { readonly kind: 'none' };
@@ -677,7 +681,7 @@ function closingUnescapedQuote(value: string, quote: '"' | "'" | '`'): number {
 
 function classifyReviewMaterialBody(body: string): SuppliedReviewMaterialClassification {
   const trimmed = body.trim();
-  if (trimmed.length === 0) return { kind: 'missing' };
+  if (trimmed.length === 0) return { kind: 'empty' };
   let material = trimmed;
   if (trimmed.startsWith('```')) {
     const openingLineEnd = trimmed.indexOf('\n');
@@ -702,9 +706,8 @@ function classifyReviewMaterialBody(body: string): SuppliedReviewMaterialClassif
       material = trimmed.slice(1, closing).trim();
     }
   }
-  if (material.length === 0 || looksLikeReviewSubsetPath(material)) {
-    return { kind: 'missing' };
-  }
+  if (material.length === 0) return { kind: 'empty' };
+  if (looksLikeReviewSubsetPath(material)) return { kind: 'missing' };
   return { kind: 'supplied' };
 }
 
@@ -794,12 +797,15 @@ const LATEST_COMMIT_PATTERN =
   /\b(?:(?:the|my|our)\s+)?(?:latest|last|most\s+recent)\s+commit\b|\bwhat\s+i\s+just\s+committed\b|\b(?:the\s+)?commit\s+i\s+just\s+made\b|\bwhat\s+changed\s+in\s+(?:the\s+)?last\s+commit\b/iu;
 
 function parseCommitForm(scope: string): ReviewTargetParseResult | undefined {
+  if (LATEST_COMMIT_PATTERN.test(scope)) {
+    return { ok: true, target: { kind: 'commit', ref: HEAD_COMMIT_REF } };
+  }
   const keyword = /\b(?:commit|revision|rev)\s+(?:at\s+)?(?<ref>[^\s,;:!?)"'`]{1,240})/iu.exec(
     scope,
   )?.groups?.ref;
   if (keyword !== undefined) {
     const ref = keyword.replace(/[.,;:!?)"'`]+$/u, '');
-    if (ref.length > 0 && !ref.includes('..')) {
+    if (ref.length > 0) {
       if (!isSafeReviewRef(ref)) {
         return {
           ok: false,
@@ -809,17 +815,20 @@ function parseCommitForm(scope: string): ReviewTargetParseResult | undefined {
       return { ok: true, target: { kind: 'commit', ref } };
     }
   }
-  if (LATEST_COMMIT_PATTERN.test(scope)) {
-    return { ok: true, target: { kind: 'commit', ref: HEAD_COMMIT_REF } };
-  }
-  const head = /(?<=^|[\s(["'])(?<ref>HEAD(?:[~^]\d*)*)(?=$|[\s,;:!?)\]"'`])/u.exec(scope)?.groups
-    ?.ref;
-  if (head !== undefined) return { ok: true, target: { kind: 'commit', ref: head } };
   return undefined;
 }
 
+// A bare "HEAD" is a commit target, but only once the working-tree forms have
+// had their say: "review current changes against HEAD" names the working tree.
+function parseBareHeadForm(scope: string): ReviewTarget | undefined {
+  const head = /(?<=^|[\s(["'])(?<ref>HEAD(?:[~^]\d*)*)(?=$|[\s,;:!?)\]"'`])/u.exec(scope)?.groups
+    ?.ref;
+  return head === undefined ? undefined : { kind: 'commit', ref: head };
+}
+
 function parseWorkingTreeForm(scope: string): ReviewTarget | undefined {
-  const staged = /\bstaged\b/iu.test(scope);
+  // "unstaged" and "not staged" contain "staged"; neither selects the index.
+  const staged = /(?<!\bnot[- ])(?<![\w-])staged\b/iu.test(scope);
   const unstaged = /\b(?:unstaged|not[- ]staged)\b/iu.test(scope);
   if (staged && unstaged) {
     return { kind: 'working_tree', mode: 'all', explicit: true };
@@ -827,7 +836,7 @@ function parseWorkingTreeForm(scope: string): ReviewTarget | undefined {
   if (unstaged) return { kind: 'working_tree', mode: 'unstaged', explicit: true };
   if (staged) return { kind: 'working_tree', mode: 'staged', explicit: true };
   if (
-    /\b(?:working[- ]tree|worktree|uncommitted\s+(?:changes?|work|files?)|current\s+diff)\b/iu.test(
+    /\b(?:working[- ]tree|worktree|uncommitted\s+(?:changes?|work|files?)|current\s+(?:diff|changes?|work))\b/iu.test(
       scope,
     )
   ) {
@@ -836,7 +845,45 @@ function parseWorkingTreeForm(scope: string): ReviewTarget | undefined {
   return undefined;
 }
 
-function namesPathSubset(scope: string): boolean {
+// A narrowing clause ("only in src/", "except tests/") has to be read before
+// the rest of the grammar. "review latest commit only in src/foo.ts" names a
+// commit, and reviewing that whole commit would silently review more than the
+// operator asked for.
+//
+// Restriction narrows to something; exclusion carves something out. They are
+// kept apart because restricting to "staged" is a target Review supports,
+// while excluding "untracked" is not.
+const RESTRICTION_LEAD_IN = String.raw`(?:only|just|limited\s+to|restricted\s+to|scoped\s+to|confined\s+to|(?:changes?|diffs?|files?)\s+(?:in|under|below|within))`;
+
+// Longest alternatives first: "but do not review x" must not be consumed by
+// the bare "but" branch, which would read "do" as the excluded path.
+const EXCLUSION_LEAD_IN = String.raw`(?:except(?:\s+for)?|excluding|ignoring|omitting|skipping|leaving\s+out|apart\s+from|aside\s+from|other\s+than|but\s+(?:do\s+not|don't|never)\s+(?:review|include|inspect|read|look\s+at)|but(?:\s+not)?)`;
+
+const NARROWING_CLAUSE_PATTERN = new RegExp(
+  String.raw`\b(?:${RESTRICTION_LEAD_IN}|${EXCLUSION_LEAD_IN})\s+(?:(?:in|inside|under|within|below)\s+)?(?:the\s+)?(?<path>[^\s,;!?]+)`,
+  'giu',
+);
+
+// Classes of change Review cannot carve out of a target it pins as a whole.
+const EXCLUDED_CHANGE_CLASS_PATTERN = new RegExp(
+  String.raw`\b${EXCLUSION_LEAD_IN}\s+(?:any\s+|all\s+|the\s+)?(?:untracked|tracked|staged|unstaged|committed|new|deleted|renamed)\b`,
+  'iu',
+);
+
+function namesNarrowedPaths(scope: string): boolean {
+  if (EXCLUDED_CHANGE_CLASS_PATTERN.test(scope)) return true;
+  // Every narrowing clause gets a look. The first one is often prose ("only in
+  // the parts that ..."); a later one can still name a real path.
+  for (const match of scope.matchAll(NARROWING_CLAUSE_PATTERN)) {
+    const path = match.groups?.path;
+    if (path !== undefined && looksLikeReviewSubsetPath(path)) return true;
+  }
+  return false;
+}
+
+// A bare path as the whole request. Read last: it competes with ordinary prose,
+// so every explicit target form gets the first say.
+function namesPathOnlyRequest(scope: string): boolean {
   const pathOnly =
     /^\s*(?:review|inspect|audit|check|analyze)\s+(?:(?:only|the|this|my|our|current)\s+)*(?:(?:file|code|plan|report)\s*(?:(?:in|at|from)\s+|:\s*)?)?(?<path>\S+)(?<suffix>[\s\S]*)$/iu.exec(
       scope,
@@ -854,11 +901,7 @@ function namesPathSubset(scope: string): boolean {
       return true;
     }
   }
-  const scoped =
-    /\b(?:only|just|limited\s+to|restricted\s+to|scoped\s+to|confined\s+to|except|excluding|ignoring|omitting|skipping|other\s+than|(?:changes?|diffs?|files?)\s+(?:in|under|below|within))\s+(?:the\s+)?(?<path>[^\s,;.!?]+)/iu.exec(
-      scope,
-    )?.groups?.path;
-  return scoped !== undefined && looksLikeReviewSubsetPath(scoped);
+  return false;
 }
 
 export function parseReviewTarget(scope: string): ReviewTargetParseResult {
@@ -870,6 +913,13 @@ export function parseReviewTarget(scope: string): ReviewTargetParseResult {
   if (suppliedMaterial.kind === 'malformed') {
     return { ok: false, reason: suppliedMaterial.reason };
   }
+  if (suppliedMaterial.kind === 'empty') {
+    return {
+      ok: false,
+      reason:
+        'Review was asked to inspect supplied material, but the goal ends before any material appears. Paste the text to review, or name a commit, a range, staged, or unstaged.',
+    };
+  }
 
   // Everything below reads target selection from prose, so pasted literals
   // must not vote.
@@ -879,16 +929,34 @@ export function parseReviewTarget(scope: string): ReviewTargetParseResult {
     return { ok: false, reason: PULL_REQUEST_UNSUPPORTED_REASON };
   }
 
-  const range = parseRangeForm(authorityScope);
-  if (range !== undefined) return { ok: true, target: range };
+  if (namesNarrowedPaths(authorityScope)) {
+    return { ok: false, reason: PATH_SUBSET_UNSUPPORTED_REASON };
+  }
 
-  const commit = parseCommitForm(authorityScope);
-  if (commit !== undefined) return commit;
+  const range = parseRangeForm(authorityScope);
+  const pinned: ReviewTargetParseResult | undefined =
+    range === undefined ? parseCommitForm(authorityScope) : { ok: true, target: range };
+  if (pinned !== undefined && !pinned.ok) return pinned;
 
   const workingTree = parseWorkingTreeForm(authorityScope);
+
+  // Two explicit targets in one goal. Picking either one reviews something the
+  // operator did not ask for, and there is no safe default between them.
+  if (pinned !== undefined && workingTree !== undefined) {
+    return {
+      ok: false,
+      reason:
+        'Review pins one target per run, and this goal names two. Run it once for the commit or range, then again for the working tree.',
+    };
+  }
+
+  if (pinned !== undefined) return pinned;
   if (workingTree !== undefined) return { ok: true, target: workingTree };
 
-  if (namesPathSubset(authorityScope)) {
+  const bareHead = parseBareHeadForm(authorityScope);
+  if (bareHead !== undefined) return { ok: true, target: bareHead };
+
+  if (namesPathOnlyRequest(authorityScope)) {
     return { ok: false, reason: PATH_SUBSET_UNSUPPORTED_REASON };
   }
 
@@ -1608,22 +1676,22 @@ async function collectReviewEvidence(
     target.mode === 'all'
       ? await readStatus()
       : { ok: true as const, stdout: '', truncated_by_buffer: false };
+  // Evidence failures are fatal whether or not the operator named the target.
+  // D1 makes an unnamed goal review the working tree, so an unreadable working
+  // tree means Review has nothing to review, and it says so before it spends.
   if (!status.ok) {
-    if (target.explicit) {
-      throw new Error(`Review target unavailable: Git status could not be read. ${status.reason}`);
-    }
-    return { kind: 'unavailable', reason: status.reason };
+    throw new Error(`Review target unavailable: Git status could not be read. ${status.reason}`);
   }
   const stagedResult =
     target.mode === 'unstaged' ? emptyDiffResult : await readDiff('staged_diff', stagedDiffArgs);
   const unstagedResult =
     target.mode === 'staged' ? emptyDiffResult : await readDiff('unstaged_diff', unstagedDiffArgs);
-  if (target.explicit && !stagedResult.ok) {
+  if (!stagedResult.ok) {
     throw new Error(
       `Review target unavailable: staged changes could not be read. ${stagedResult.reason}`,
     );
   }
-  if (target.explicit && !unstagedResult.ok) {
+  if (!unstagedResult.ok) {
     throw new Error(
       `Review target unavailable: unstaged changes could not be read. ${unstagedResult.reason}`,
     );
@@ -1655,12 +1723,12 @@ async function collectReviewEvidence(
           '--ignore-submodules=none',
           '--',
         ]);
-  if (target.explicit && !stagedStat.ok) {
+  if (!stagedStat.ok) {
     throw new Error(
       `Review target unavailable: the staged change summary could not be read. ${stagedStat.reason}`,
     );
   }
-  if (target.explicit && !unstagedStat.ok) {
+  if (!unstagedStat.ok) {
     throw new Error(
       `Review target unavailable: the unstaged change summary could not be read. ${unstagedStat.reason}`,
     );
@@ -1735,9 +1803,11 @@ async function collectReviewEvidence(
       `Review target has no usable content to inspect because selected untracked files could not be read safely: ${reasons.join('; ')}.`,
     );
   }
-  if (target.explicit && !selectedContentAvailable) {
+  if (!selectedContentAvailable) {
     throw new Error(
-      `Review target has no changes to inspect: ${target.mode === 'all' ? 'working tree changes' : `${target.mode} changes`} are empty.`,
+      target.explicit
+        ? `Review target has no changes to inspect: ${target.mode === 'all' ? 'working tree changes' : `${target.mode} changes`} are empty.`
+        : 'Review found no changes to inspect. The goal did not name a target, so Review looked at the working tree. Name a commit, a range, staged, or unstaged if you meant a different target.',
     );
   }
 
@@ -1747,18 +1817,13 @@ async function collectReviewEvidence(
       ? [`Unstaged:\n${unstagedStat.stdout}`]
       : []),
   ];
-  const statFailures = [
-    ...(!stagedStat.ok ? [stagedStat.reason] : []),
-    ...(!unstagedStat.ok ? [unstagedStat.reason] : []),
-  ];
-
   return {
     kind: 'git-working-tree',
     project_root: evidenceRoot,
     status_short: printableStatus(status.stdout),
     staged_diff: staged,
     unstaged_diff: unstaged,
-    diff_stat: [...statSections, ...statFailures].join('\n'),
+    diff_stat: statSections.join('\n'),
     target_kind: 'working_tree',
     target_mode: target.mode,
     untracked_file_count: untracked.count,
@@ -1767,21 +1832,6 @@ async function collectReviewEvidence(
     untracked_files: untracked.files,
     ...(submodulePaths.length === 0 ? {} : { submodule_paths: [...submodulePaths] }),
   };
-}
-
-export async function validateReviewTargetAvailability(input: {
-  readonly goal: string;
-  readonly projectRoot: string | undefined;
-  readonly includeUntrackedFileContent?: boolean;
-  readonly gitReader?: RuntimeGitReader;
-}): Promise<void> {
-  const parsedTarget = parseReviewTarget(input.goal);
-  if (!parsedTarget.ok) throw new Error(parsedTarget.reason);
-  await collectReviewEvidence(input.projectRoot, {
-    target: parsedTarget.target,
-    ...(input.includeUntrackedFileContent === true ? { includeUntrackedFileContent: true } : {}),
-    ...(input.gitReader === undefined ? {} : { gitReader: input.gitReader }),
-  });
 }
 
 export const reviewIntakeComposeBuilder: ComposeBuilder = {

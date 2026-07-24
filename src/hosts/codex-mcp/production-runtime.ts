@@ -3,10 +3,7 @@ import { lstat, mkdir, realpath, rm, stat } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { isAbsolute, join, relative, resolve } from 'node:path';
 
-import {
-  flowStartNeedsGitEvidence,
-  validateFlowStartAvailability,
-} from '../../flows/registries/start-preflight.js';
+import { validateFlowStartTarget } from '../../flows/registries/start-preflight.js';
 import {
   type McpRuntimeAssetPin,
   type McpRuntimeAssetPins,
@@ -54,7 +51,6 @@ import {
   type ProcessSupervisorLauncherOptions,
   type SupervisorLauncher,
 } from './supervisor-launcher.js';
-import { createMcpWorkerSecurity } from './worker-security.js';
 
 const PLUGIN_RUNTIME_FILES = [
   ['manifest', '.codex-plugin/plugin.json'],
@@ -247,7 +243,6 @@ interface ProductionPreflightDependencies {
   readonly loadRoster?: typeof loadCodexModelRoster;
   readonly loadCatalog?: typeof loadPublicFlowCatalog;
   readonly deriveNodeInstallation?: typeof derivePinnedNodeInstallation;
-  readonly createWorkerSecurity?: typeof createMcpWorkerSecurity;
 }
 
 function pathInside(parent: string, candidate: string): boolean {
@@ -296,7 +291,6 @@ export function createProductionLaunchPreflight(
   const loadCatalog = dependencies.loadCatalog ?? loadPublicFlowCatalog;
   const deriveNodeInstallation =
     dependencies.deriveNodeInstallation ?? derivePinnedNodeInstallation;
-  const createWorkerSecurity = dependencies.createWorkerSecurity ?? createMcpWorkerSecurity;
 
   const result: ProductionLaunchPreflight = {
     validate: async (input: Parameters<ProductionLaunchPreflight['validate']>[0]) => {
@@ -334,43 +328,17 @@ export function createProductionLaunchPreflight(
         });
         // Target selection is checked only after the host itself is proven
         // usable. A sandboxed session that cannot launch Codex at all should
-        // hear about the sandbox, not about its Review target.
-        let reviewTargetNeedsGit = false;
+        // hear about the sandbox, not about its Review target. Availability is
+        // the worker's answer: it reads the evidence once, and an unreadable or
+        // empty target aborts the run before any model is paid.
         try {
-          reviewTargetNeedsGit = flowStartNeedsGitEvidence(input.request.flow, input.request.goal);
+          validateFlowStartTarget(input.request.flow, input.request.goal);
         } catch (error) {
           throw new McpLifecycleError(
             'invalid_review_target',
             (error as Error).message,
             'Choose one complete working tree, staged set, unstaged set, commit, or range target, or include the actual text to review.',
           );
-        }
-        if (reviewTargetNeedsGit) {
-          const reviewPrivateRoot = join(probeRoot, 'review-preflight');
-          await mkdir(reviewPrivateRoot, { recursive: true, mode: 0o700 });
-          const security = createWorkerSecurity({
-            workspace: input.workspace.canonical_path,
-            privateRoot: reviewPrivateRoot,
-            gitExecutable: git.real_path,
-            environment: dependencies.environment,
-          });
-          try {
-            await validateFlowStartAvailability({
-              flowId: input.request.flow,
-              goal: input.request.goal,
-              projectRoot: input.workspace.canonical_path,
-              ...(input.request.include_untracked_content === true
-                ? { includeUntrackedFileContent: true }
-                : {}),
-              gitReader: security.gitReader,
-            });
-          } catch (error) {
-            throw new McpLifecycleError(
-              'review_target_unavailable',
-              (error as Error).message,
-              'Choose one available Review target and retry.',
-            );
-          }
         }
       } finally {
         await rm(probeRoot, { recursive: true, force: true });

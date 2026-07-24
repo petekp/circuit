@@ -10,26 +10,41 @@
   "status_text": "Review",
   "brief_slots": {
     "headline": "Circuit · Review",
-    "assessment": "Reviewer inspected the relayed staged diff and untracked file content and found nothing actionable in scope.",
+    "assessment": "Reviewer inspected the relayed staged-diff and untracked-file evidence and found nothing actionable in scope.",
     "key_points": [
       "Inspected the relayed review-intake report.",
-      "Cross-checked the staged diff and the complete untracked file content.",
+      "Cross-checked the staged diff against the untracked-file metadata.",
       "Review evidence: all working-tree diff included.",
-      "Untracked evidence: contents included for 1 file (1 untracked file found)."
+      "Untracked evidence: paths and sizes only for 1 file (1 untracked file found)."
     ],
-    "caveats": [],
+    "caveats": [
+      "target_assumed: Assumed target: the current working tree. Name a commit, a range, staged, or unstaged to review something else.",
+      "untracked_file_content_omitted: untracked file contents were not included; pass --include-untracked-content only when those files are safe to relay",
+      "+3 more in operator-summary.json."
+    ],
     "next_action": "nothing required."
   },
   "details": [
     "Run note: Run closed with outcome complete via @complete.",
-    "Assessment: Reviewer inspected the relayed staged diff and untracked file content and found nothing actionable in scope.",
-    "Reviewer steps: Inspected the relayed review-intake report.; Cross-checked the staged diff and the complete untracked file content.",
+    "Assessment: Reviewer inspected the relayed staged-diff and untracked-file evidence and found nothing actionable in scope.",
+    "Reviewer steps: Inspected the relayed review-intake report.; Cross-checked the staged diff against the untracked-file metadata.",
+    "Confidence limitations: Untracked file contents were omitted from the relay (metadata-only policy).; Assumed target: the current working tree. Name a commit, a range, staged, or unstaged to review something else.; untracked file contents were not included; pass --include-untracked-content only when those files are safe to relay",
     "Review evidence: all working-tree diff included.",
-    "Untracked evidence: contents included for 1 file (1 untracked file found)."
+    "Untracked evidence: paths and sizes only for 1 file (1 untracked file found)."
   ],
-  "evidence_warnings": [],
+  "evidence_warnings": [
+    {
+      "kind": "target_assumed",
+      "message": "Assumed target: the current working tree. Name a commit, a range, staged, or unstaged to review something else."
+    },
+    {
+      "kind": "untracked_file_content_omitted",
+      "message": "untracked file contents were not included; pass --include-untracked-content only when those files are safe to relay"
+    }
+  ],
   "run_folder": "<repo>/docs/release/proofs/runs/review/run",
   "result_path": "<repo>/docs/release/proofs/runs/review/run/reports/result.json",
+  "html_path": "<repo>/docs/release/proofs/runs/review/run/reports/operator-summary.html",
   "report_paths": [
     {
       "label": "Run result",
@@ -38,6 +53,10 @@
     {
       "label": "review result",
       "path": "<repo>/docs/release/proofs/runs/review/run/reports/review-result.json"
+    },
+    {
+      "label": "Operator summary (HTML)",
+      "path": "<repo>/docs/release/proofs/runs/review/run/reports/operator-summary.html"
     }
   ],
   "receipt": {

@@ -4,10 +4,7 @@ import { reviewFlowDefinition } from './flow.js';
 const compiledFlowPackage = compileFlowDefinition(reviewFlowDefinition);
 
 export { compiledFlowPackage as reviewCompiledFlowPackage };
-export {
-  parseReviewTarget,
-  validateReviewTargetAvailability,
-} from './writers/intake.js';
+export { parseReviewTarget } from './writers/intake.js';
 export {
   projectReviewIntake,
   reviewEvidenceWarnings,

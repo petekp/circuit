@@ -529,7 +529,7 @@ describe('CLI router', () => {
     ]);
 
     expect(result.exit).toBe(2);
-    expect(result.stderr).toMatch(/more than one code target|ambiguous/iu);
+    expect(result.stderr).toMatch(/Review pins one target per run/iu);
     expect(result.stderr).not.toContain('"type":"run.started"');
     expect(existsSync(runFolder)).toBe(false);
   });

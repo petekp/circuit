@@ -98,14 +98,22 @@ function evidenceIsUnavailable(report: ReviewResultValue): boolean {
   );
 }
 
+// Gaps in what Circuit actually selected. D2: untracked files relayed as
+// metadata only are the default posture, so `untracked_file_content_omitted`
+// is a stated limitation, not a gap, and never overrides the verdict banner.
 const INCOMPLETE_EVIDENCE_WARNING_KINDS = new Set([
   'binary_content_not_inspected',
   'diff_truncated',
-  'untracked_file_content_omitted',
   'untracked_file_skipped',
-  'untracked_files_truncated',
   'submodule_content_not_inspected',
 ]);
+
+function requestedUntrackedContent(report: ReviewResultValue): boolean {
+  return (
+    report.evidence_summary?.kind === 'git-working-tree' &&
+    report.evidence_summary.untracked_content_policy === 'include-content'
+  );
+}
 
 function evidenceIsIncomplete(report: ReviewResultValue): boolean {
   if (
@@ -116,12 +124,15 @@ function evidenceIsIncomplete(report: ReviewResultValue): boolean {
   }
   if (
     report.evidence_summary?.kind === 'git-working-tree' &&
-    report.evidence_summary.untracked_files_truncated
+    report.evidence_summary.untracked_files_truncated &&
+    requestedUntrackedContent(report)
   ) {
     return true;
   }
-  return report.evidence_warnings.some((warning) =>
-    INCOMPLETE_EVIDENCE_WARNING_KINDS.has(warning.kind),
+  return report.evidence_warnings.some(
+    (warning) =>
+      INCOMPLETE_EVIDENCE_WARNING_KINDS.has(warning.kind) ||
+      (warning.kind === 'untracked_files_truncated' && requestedUntrackedContent(report)),
   );
 }
 

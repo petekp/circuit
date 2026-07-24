@@ -17,6 +17,7 @@
   "operator_summary_path": "<repo>/docs/release/proofs/runs/review/run/reports/operator-summary.json",
   "operator_summary_markdown_path": "<repo>/docs/release/proofs/runs/review/run/reports/operator-summary.md",
   "operator_summary_status_text": "Review",
+  "operator_summary_html_path": "<repo>/docs/release/proofs/runs/review/run/reports/operator-summary.html",
   "run_envelope_path": "<repo>/docs/release/proofs/runs/review/run/reports/run-envelope.json",
   "run_process_evidence_path": "<repo>/docs/release/proofs/runs/review/run/reports/process-evidence.json",
   "run_surface_markdown_path": "<repo>/docs/release/proofs/runs/review/run/reports/run-surface.md",

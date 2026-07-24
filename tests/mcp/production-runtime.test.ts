@@ -440,13 +440,36 @@ describe('production Codex MCP composition', () => {
     });
   });
 
-  it('rejects an ambiguous Review target before loading assets or reserving a run', async () => {
+  // The host is proven usable first (a sandboxed session must hear about the
+  // sandbox, not about its Review target), then the target is checked before
+  // any run is reserved.
+  it('rejects an ambiguous Review target before reserving a run', async () => {
     const verifyAssets = vi.fn(async () => {});
+    const probeHost = vi.fn(async () => ({
+      codex_version: '0.144.3',
+      minimum_version: '0.144.3' as const,
+      plugin_mcp: true as const,
+      strict_config: true as const,
+      workspace_metadata: true as const,
+      nested_sandbox: true as const,
+      shared_temp_isolation: 'exposed' as const,
+    }));
     const preflight = createProductionLaunchPreflight({
       codexHome: '/codex-home',
       stateRoot: '/control-state',
       environment: {},
       verifyAssets,
+      probeHost,
+      loadRoster: (): CodexModelRoster => ({
+        default_model: 'gpt-5.4',
+        allowed_models: ['gpt-5.4'],
+        efforts_by_model: new Map([
+          ['gpt-5.4', new Set<'low' | 'medium' | 'high' | 'xhigh'>(['low', 'high'])],
+        ]),
+        cached_search_models: new Set(['gpt-5.4']),
+      }),
+      loadCatalog: (): ReadonlySet<McpPublicFlowV1> => new Set(['review']),
+      deriveNodeInstallation: fixtureNodeInstallation,
     });
 
     await expect(
@@ -460,7 +483,6 @@ describe('production Codex MCP composition', () => {
         runtime_assets: assets('/plugin'),
       }),
     ).rejects.toMatchObject({ code: 'invalid_review_target' });
-    expect(verifyAssets).not.toHaveBeenCalled();
   });
 
   it('keeps identical concurrent preflights bound to their own opaque preparations', async () => {

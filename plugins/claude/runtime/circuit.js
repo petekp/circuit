@@ -22468,7 +22468,7 @@ var init_proof_assessment = __esm({
 });
 
 // dist/schemas/trace-entry.js
-var TraceEntryBase, ContentHash, CatalogSourcedBinding, RunBootstrappedTraceEntry, SliceIndex, StepEnteredTraceEntry, StepReportWrittenTraceEntry, StepReportSkippedTraceEntry, CheckEvaluatedTraceEntry, VerificationCommandEvaluatedTraceEntry, ProofAssessmentRef, ChangePacketRef2, SafeApplyBaseRef, SafeApplyResultRef, SafeApplyFinalVerificationRef, CheckpointBoundaryRef, ProofScope2, ProofAssessedTraceEntry, SafeApplyScope, SafeApplyResultTraceEntry, CheckpointRequestedTraceEntry, CheckpointResolvedTraceEntry, EquipmentEnforcementEvidence, RelayStartedTraceEntry, LoadedSkillCause, LoadedSkillEvidence, SkillsLoadedTraceEntry, RelayUsageEvidence, RelayCompletedTraceEntry, RelayRequestTraceEntry, RelayFailedTraceEntry, RelayReceiptTraceEntry, RelayResultTraceEntry, StepCompletedTraceEntry, StepAbortedTraceEntry, RunClosedOutcome, SubRunStartedTraceEntry, SubRunCompletedTraceEntry, FanoutConcurrencyLimit, FanoutExecutionPolicy, FanoutStartedTraceEntry, FanoutBranchStartedTraceEntry, FanoutBranchCompletedTraceEntry, FanoutJoinedTraceEntry, RunClosedTraceEntry, RunSkillHookTraceEntry, RunSkillHookErrorTraceEntry, PowerInferenceResolvedTraceEntry, PowerInferenceErrorTraceEntry, ContextDeliveryErrorTraceEntry, RunEquipmentReshapeTraceEntry, RunContextPullTraceEntry, RunContextDeliveryTraceEntry, RunUntilJudgmentTraceEntry, TraceEntry;
+var TraceEntryBase, ContentHash, CatalogSourcedBinding, RunBootstrappedTraceEntry, SliceIndex, StepEnteredTraceEntry, StepReportWrittenTraceEntry, StepReportSkippedTraceEntry, CheckEvaluatedTraceEntry, VerificationCommandEvaluatedTraceEntry, ProofAssessmentRef, ChangePacketRef2, SafeApplyBaseRef, SafeApplyResultRef, SafeApplyFinalVerificationRef, CheckpointBoundaryRef, ProofScope2, ProofAssessedTraceEntry, SafeApplyScope, SafeApplyResultTraceEntry, CheckpointRequestedTraceEntry, CheckpointResolvedTraceEntry, EquipmentEnforcementEvidence, RelayContextSeal, RelayStartedTraceEntry, LoadedSkillCause, LoadedSkillEvidence, SkillsLoadedTraceEntry, RelayUsageEvidence, RelayCompletedTraceEntry, RelayRequestTraceEntry, RelayFailedTraceEntry, RelayReceiptTraceEntry, RelayResultTraceEntry, StepCompletedTraceEntry, StepAbortedTraceEntry, RunClosedOutcome, SubRunStartedTraceEntry, SubRunCompletedTraceEntry, FanoutConcurrencyLimit, FanoutExecutionPolicy, FanoutStartedTraceEntry, FanoutBranchStartedTraceEntry, FanoutBranchCompletedTraceEntry, FanoutJoinedTraceEntry, RunClosedTraceEntry, RunSkillHookTraceEntry, RunSkillHookErrorTraceEntry, PowerInferenceResolvedTraceEntry, PowerInferenceErrorTraceEntry, ContextDeliveryErrorTraceEntry, RunEquipmentReshapeTraceEntry, RunContextPullTraceEntry, RunContextDeliveryTraceEntry, RunUntilJudgmentTraceEntry, TraceEntry;
 var init_trace_entry = __esm({
   "dist/schemas/trace-entry.js"() {
     "use strict";
@@ -22700,6 +22700,10 @@ var init_trace_entry = __esm({
       downgraded: external_exports.boolean(),
       enforced_tools: external_exports.array(external_exports.string().min(1)).min(1).optional()
     }).strict();
+    RelayContextSeal = external_exports.object({
+      applied: external_exports.boolean(),
+      reason: external_exports.string().min(1).optional()
+    }).strict();
     RelayStartedTraceEntry = TraceEntryBase.extend({
       kind: external_exports.literal("relay.started"),
       step_id: StepId,
@@ -22708,7 +22712,8 @@ var init_trace_entry = __esm({
       role: RelayRole,
       resolved_selection: ResolvedSelection,
       resolved_from: RelayResolutionSource,
-      equipment: EquipmentEnforcementEvidence.optional()
+      equipment: EquipmentEnforcementEvidence.optional(),
+      context_seal: RelayContextSeal.optional()
     }).strict();
     LoadedSkillCause = external_exports.enum(["selection", "binding", "skill-hook"]);
     LoadedSkillEvidence = external_exports.object({
@@ -84763,7 +84768,7 @@ function addObjectIdPrefixMismatch(ref, objectId, field, ctx) {
 function computeReviewVerdict(findings) {
   return findings.some((finding3) => finding3.severity !== "low") ? "ISSUES_FOUND" : "CLEAN";
 }
-var ReviewFindingSeverity, ReviewResultVerdict, ReviewRelayVerdict, ReviewEvidenceWarningKind, ReviewEvidenceWarning, ReviewEvidenceText, ReviewUntrackedContentPolicy, ReviewTargetKind, ReviewWorkingTreeMode, ReviewUntrackedFileEvidence, ReviewGitObjectId, ReviewGitHubRepositoryKey, ReviewGitTargetEvidence, ReviewEvidence, ReviewEvidenceSummary, ReviewIntake, ReviewFinding, ReviewResult, ReviewRelayResult;
+var ReviewFindingSeverity, ReviewResultVerdict, ReviewRelayVerdict, ReviewEvidenceWarningKind, ReviewEvidenceWarning, ReviewEvidenceText, ReviewUntrackedContentPolicy, ReviewTargetKind, ReviewWorkingTreeMode, ReviewUntrackedFileEvidence, ReviewGitObjectId, ReviewGitTargetEvidence, ReviewEvidence, ReviewEvidenceSummary, ReviewResolvedTarget, ReviewIntake, ReviewFinding, ReviewResult, ReviewRelayResult;
 var init_reports10 = __esm({
   "dist/flows/review/reports.js"() {
     "use strict";
@@ -84781,7 +84786,8 @@ var init_reports10 = __esm({
       "untracked_files_truncated",
       "submodule_content_not_inspected",
       "evidence_unavailable",
-      "scope_empty"
+      "scope_empty",
+      "target_assumed"
     ]);
     ReviewEvidenceWarning = external_exports.object({
       kind: ReviewEvidenceWarningKind,
@@ -84793,7 +84799,7 @@ var init_reports10 = __esm({
       truncated: external_exports.boolean()
     }).strict();
     ReviewUntrackedContentPolicy = external_exports.enum(["metadata-only", "include-content"]);
-    ReviewTargetKind = external_exports.enum(["working_tree", "commit", "range", "pull_request"]);
+    ReviewTargetKind = external_exports.enum(["working_tree", "commit", "range"]);
     ReviewWorkingTreeMode = external_exports.enum(["all", "staged", "unstaged"]);
     ReviewUntrackedFileEvidence = external_exports.object({
       path: external_exports.string().min(1),
@@ -84802,19 +84808,16 @@ var init_reports10 = __esm({
       skipped_reason: external_exports.string().min(1).optional()
     }).strict();
     ReviewGitObjectId = external_exports.string().regex(/^(?:[0-9a-f]{40}|[0-9a-f]{64})$/u);
-    ReviewGitHubRepositoryKey = external_exports.string().regex(/^github\.com\/[a-z0-9_.-]+\/[a-z0-9_.-]+$/u);
     ReviewGitTargetEvidence = external_exports.object({
       kind: external_exports.literal("git-target"),
       project_root: external_exports.string().min(1),
-      target_kind: external_exports.enum(["commit", "range", "pull_request"]),
+      target_kind: external_exports.enum(["commit", "range"]),
       target_ref: external_exports.string().min(1),
       target_base_ref: external_exports.string().min(1).optional(),
       target_head_ref: external_exports.string().min(1).optional(),
-      target_repository: ReviewGitHubRepositoryKey.optional(),
       target_commit: ReviewGitObjectId.optional(),
       target_base_commit: ReviewGitObjectId.optional(),
       target_head_commit: ReviewGitObjectId.optional(),
-      target_merge_commit: ReviewGitObjectId.optional(),
       target_diff: ReviewEvidenceText,
       target_diff_stat: external_exports.string()
     }).strict().superRefine((evidence2, ctx) => {
@@ -84822,36 +84825,22 @@ var init_reports10 = __esm({
         addRequiredEvidenceField(evidence2.target_commit, "target_commit", ctx);
         addForbiddenEvidenceField(evidence2.target_base_ref, "target_base_ref", ctx);
         addForbiddenEvidenceField(evidence2.target_head_ref, "target_head_ref", ctx);
-        addForbiddenEvidenceField(evidence2.target_repository, "target_repository", ctx);
         addForbiddenEvidenceField(evidence2.target_base_commit, "target_base_commit", ctx);
         addForbiddenEvidenceField(evidence2.target_head_commit, "target_head_commit", ctx);
-        addForbiddenEvidenceField(evidence2.target_merge_commit, "target_merge_commit", ctx);
         addObjectIdPrefixMismatch(evidence2.target_ref, evidence2.target_commit, "target_commit", ctx);
         return;
       }
-      if (evidence2.target_kind === "range") {
-        addRequiredEvidenceField(evidence2.target_base_ref, "target_base_ref", ctx);
-        addRequiredEvidenceField(evidence2.target_head_ref, "target_head_ref", ctx);
-        addRequiredEvidenceField(evidence2.target_base_commit, "target_base_commit", ctx);
-        addRequiredEvidenceField(evidence2.target_head_commit, "target_head_commit", ctx);
-        addForbiddenEvidenceField(evidence2.target_repository, "target_repository", ctx);
-        addForbiddenEvidenceField(evidence2.target_commit, "target_commit", ctx);
-        addForbiddenEvidenceField(evidence2.target_merge_commit, "target_merge_commit", ctx);
-        if (evidence2.target_base_ref !== void 0) {
-          addObjectIdPrefixMismatch(evidence2.target_base_ref, evidence2.target_base_commit, "target_base_commit", ctx);
-        }
-        if (evidence2.target_head_ref !== void 0) {
-          addObjectIdPrefixMismatch(evidence2.target_head_ref, evidence2.target_head_commit, "target_head_commit", ctx);
-        }
-        return;
-      }
-      addRequiredEvidenceField(evidence2.target_repository, "target_repository", ctx);
-      addRequiredEvidenceField(evidence2.target_merge_commit, "target_merge_commit", ctx);
+      addRequiredEvidenceField(evidence2.target_base_ref, "target_base_ref", ctx);
+      addRequiredEvidenceField(evidence2.target_head_ref, "target_head_ref", ctx);
       addRequiredEvidenceField(evidence2.target_base_commit, "target_base_commit", ctx);
       addRequiredEvidenceField(evidence2.target_head_commit, "target_head_commit", ctx);
-      addForbiddenEvidenceField(evidence2.target_base_ref, "target_base_ref", ctx);
-      addForbiddenEvidenceField(evidence2.target_head_ref, "target_head_ref", ctx);
       addForbiddenEvidenceField(evidence2.target_commit, "target_commit", ctx);
+      if (evidence2.target_base_ref !== void 0) {
+        addObjectIdPrefixMismatch(evidence2.target_base_ref, evidence2.target_base_commit, "target_base_commit", ctx);
+      }
+      if (evidence2.target_head_ref !== void 0) {
+        addObjectIdPrefixMismatch(evidence2.target_head_ref, evidence2.target_head_commit, "target_head_commit", ctx);
+      }
     });
     ReviewEvidence = external_exports.discriminatedUnion("kind", [
       external_exports.object({
@@ -84868,19 +84857,10 @@ var init_reports10 = __esm({
         staged_diff: ReviewEvidenceText,
         unstaged_diff: ReviewEvidenceText,
         diff_stat: external_exports.string(),
-        target_kind: ReviewTargetKind.optional(),
-        target_mode: ReviewWorkingTreeMode.optional(),
-        // Legacy target fields remain readable so interrupted local runs created
-        // by the pre-release target spike can still be inspected. New explicit
-        // targets use the dedicated git-target variant below.
-        target_ref: external_exports.string().min(1).optional(),
-        target_base_ref: external_exports.string().min(1).optional(),
-        target_head_ref: external_exports.string().min(1).optional(),
-        target_diff: ReviewEvidenceText.optional(),
-        target_diff_stat: external_exports.string().optional(),
-        committed_diff_ref: external_exports.string().min(1).optional(),
-        committed_diff: ReviewEvidenceText.optional(),
-        committed_diff_stat: external_exports.string().optional(),
+        // Working-tree evidence always names the working tree. Explicit commit
+        // and range targets use the dedicated git-target variant below.
+        target_kind: external_exports.literal("working_tree"),
+        target_mode: ReviewWorkingTreeMode,
         untracked_file_count: external_exports.number().int().nonnegative(),
         untracked_files_truncated: external_exports.boolean(),
         untracked_content_policy: ReviewUntrackedContentPolicy,
@@ -84903,22 +84883,38 @@ var init_reports10 = __esm({
         untracked_file_count: external_exports.number().int().nonnegative(),
         untracked_files_sampled: external_exports.number().int().nonnegative(),
         untracked_files_truncated: external_exports.boolean(),
-        target_kind: ReviewTargetKind.optional(),
-        target_mode: ReviewWorkingTreeMode.optional(),
-        target_ref: external_exports.string().min(1).optional(),
-        target_diff_included: external_exports.boolean().optional(),
-        committed_diff_included: external_exports.boolean().optional()
+        target_kind: external_exports.literal("working_tree"),
+        target_mode: ReviewWorkingTreeMode,
+        target_diff_included: external_exports.boolean()
       }).strict(),
       external_exports.object({
         kind: external_exports.literal("git-target"),
-        target_kind: external_exports.enum(["commit", "range", "pull_request"]),
+        target_kind: external_exports.enum(["commit", "range"]),
         target_ref: external_exports.string().min(1),
         target_diff_included: external_exports.boolean(),
         target_diff_truncated: external_exports.boolean()
       }).strict()
     ]);
+    ReviewResolvedTarget = external_exports.discriminatedUnion("kind", [
+      external_exports.object({ kind: external_exports.literal("goal") }).strict(),
+      external_exports.object({
+        kind: external_exports.literal("working_tree"),
+        mode: ReviewWorkingTreeMode,
+        // False when Circuit assumed the working tree because the goal named no
+        // target. The assumption is reported to the operator as a warning.
+        explicit: external_exports.boolean()
+      }).strict(),
+      external_exports.object({ kind: external_exports.literal("commit"), ref: external_exports.string().min(1) }).strict(),
+      external_exports.object({
+        kind: external_exports.literal("range"),
+        base: external_exports.string().min(1),
+        head: external_exports.string().min(1),
+        dots: external_exports.enum(["..", "..."])
+      }).strict()
+    ]);
     ReviewIntake = external_exports.object({
       scope: external_exports.string().min(1),
+      target: ReviewResolvedTarget,
       evidence: ReviewEvidence,
       evidence_warnings: external_exports.array(ReviewEvidenceWarning).default([])
     }).strict();
@@ -85003,155 +84999,8 @@ var init_reports10 = __esm({
   }
 });
 
-// dist/shared/github-repository.js
-function repositoryIdentity(owner, name) {
-  const normalizedOwner = owner.trim();
-  const normalizedName = name.trim().replace(/\.git$/iu, "");
-  if (normalizedOwner.length === 0 || normalizedName.length === 0 || !GITHUB_REPOSITORY_PART.test(normalizedOwner) || !GITHUB_REPOSITORY_PART.test(normalizedName)) {
-    return void 0;
-  }
-  return {
-    host: "github.com",
-    owner: normalizedOwner.toLowerCase(),
-    name: normalizedName.toLowerCase()
-  };
-}
-function githubRepositoryKey(repository) {
-  return `${repository.host}/${repository.owner}/${repository.name}`;
-}
-function parseGitHubRemoteUrl(value) {
-  const trimmed = value.trim();
-  const scp = /^(?:[^@\s]+@)?(?:www\.)?github\.com:(?<owner>[^/\s]+)\/(?<name>[^/\s]+)$/iu.exec(trimmed);
-  if (scp?.groups?.owner !== void 0 && scp.groups.name !== void 0) {
-    return repositoryIdentity(scp.groups.owner, scp.groups.name);
-  }
-  let parsed;
-  try {
-    parsed = new URL(trimmed);
-  } catch {
-    return void 0;
-  }
-  if (!["github.com", "www.github.com"].includes(parsed.hostname.toLowerCase()) || !GITHUB_REMOTE_PROTOCOLS.has(parsed.protocol.toLowerCase()) || parsed.search.length > 0 || parsed.hash.length > 0) {
-    return void 0;
-  }
-  const parts = parsed.pathname.split("/").filter((part) => part.length > 0);
-  if (parts.length !== 2 || parts[0] === void 0 || parts[1] === void 0)
-    return void 0;
-  return repositoryIdentity(parts[0], parts[1]);
-}
-function githubRepositoriesFromGitConfig(output) {
-  const repositories = /* @__PURE__ */ new Set();
-  for (const { key, value } of gitConfigEntries(output)) {
-    if (!/^remote\..+\.url$/iu.test(key))
-      continue;
-    const repository = parseGitHubRemoteUrl(value);
-    if (repository !== void 0)
-      repositories.add(githubRepositoryKey(repository));
-  }
-  return Object.freeze([...repositories].sort());
-}
-function gitConfigEntries(output) {
-  const entries = [];
-  for (const entry of output.split("\0")) {
-    if (entry.length === 0)
-      continue;
-    const separator = entry.indexOf("\n");
-    if (separator === -1)
-      continue;
-    entries.push({
-      key: entry.slice(0, separator),
-      value: entry.slice(separator + 1)
-    });
-  }
-  return entries;
-}
-function fetchRefMapsPullRequest(refspec, number4, expectedDestination) {
-  const normalized = refspec.startsWith("+") ? refspec.slice(1) : refspec;
-  if (normalized.startsWith("^"))
-    return false;
-  const separator = normalized.indexOf(":");
-  if (separator === -1 || normalized.indexOf(":", separator + 1) !== -1)
-    return false;
-  const source = normalized.slice(0, separator);
-  const destination = normalized.slice(separator + 1);
-  const exactSource = `refs/pull/${number4}/merge`;
-  if (source === exactSource)
-    return destination === expectedDestination;
-  if (source !== "refs/pull/*/merge")
-    return false;
-  if ((destination.match(/\*/gu) ?? []).length !== 1)
-    return false;
-  return destination.replace("*", String(number4)) === expectedDestination;
-}
-function negativeFetchRefExcludesPullRequest(refspec, number4) {
-  if (!refspec.startsWith("^"))
-    return false;
-  const source = refspec.slice(1);
-  if (source.length === 0 || source.includes(":"))
-    return false;
-  const expectedSource = `refs/pull/${number4}/merge`;
-  if (source === expectedSource)
-    return true;
-  if ((source.match(/\*/gu) ?? []).length !== 1)
-    return false;
-  const wildcard = source.indexOf("*");
-  const prefix = source.slice(0, wildcard);
-  const suffix = source.slice(wildcard + 1);
-  return expectedSource.startsWith(prefix) && expectedSource.endsWith(suffix) && expectedSource.length >= prefix.length + suffix.length;
-}
-function githubPullRequestMergeRefsFromGitConfig(output, number4) {
-  const remotes = /* @__PURE__ */ new Map();
-  for (const { key, value } of gitConfigEntries(output)) {
-    const match = /^remote\.(?<name>.+)\.(?<field>url|fetch)$/iu.exec(key);
-    const name = match?.groups?.name;
-    const field = match?.groups?.field?.toLowerCase();
-    if (name === void 0 || field === void 0)
-      continue;
-    const remote = remotes.get(name) ?? { urls: [], fetches: [] };
-    if (field === "url")
-      remote.urls.push(value);
-    else
-      remote.fetches.push(value);
-    remotes.set(name, remote);
-  }
-  const candidates = /* @__PURE__ */ new Map();
-  for (const remote of remotes.values()) {
-    const repositories = new Set(remote.urls.map(parseGitHubRemoteUrl).filter((repository2) => repository2 !== void 0).map(githubRepositoryKey));
-    if (repositories.size !== 1)
-      continue;
-    const repository = [...repositories][0];
-    if (repository === void 0)
-      continue;
-    const ref = `refs/circuit/${repository}/pull/${number4}/merge`;
-    if (remote.fetches.some((fetch2) => negativeFetchRefExcludesPullRequest(fetch2, number4))) {
-      continue;
-    }
-    if (!remote.fetches.some((fetch2) => fetchRefMapsPullRequest(fetch2, number4, ref)))
-      continue;
-    candidates.set(`${repository}\0${ref}`, { repository, ref });
-  }
-  return Object.freeze([...candidates.values()].sort((left, right) => `${left.repository}\0${left.ref}`.localeCompare(`${right.repository}\0${right.ref}`)));
-}
-var GITHUB_REPOSITORY_PART, GITHUB_REMOTE_PROTOCOLS;
-var init_github_repository = __esm({
-  "dist/shared/github-repository.js"() {
-    "use strict";
-    GITHUB_REPOSITORY_PART = /^[A-Za-z0-9_.-]+$/u;
-    GITHUB_REMOTE_PROTOCOLS = /* @__PURE__ */ new Set([
-      "git:",
-      "git+ssh:",
-      "http:",
-      "https:",
-      "ssh:",
-      "ssh+git:"
-    ]);
-  }
-});
-
 // dist/shared/runtime-git-reader.js
 function runtimeGitTextIsValidUtf8(text) {
-  if (text.includes("\uFFFD"))
-    return false;
   for (let index = 0; index < text.length; index += 1) {
     const code = text.charCodeAt(index);
     if (code >= 55296 && code <= 56319) {
@@ -85222,6 +85071,12 @@ var init_runtime_git_reader = __esm({
 });
 
 // dist/flows/review/writers/evidence-completeness.js
+function unavailableDiff(text) {
+  return /^git\s+.+\s+failed:/.test(text) || text.startsWith("Target unavailable:");
+}
+function usableDiff(diff2) {
+  return diff2 !== void 0 && diff2.text.length > 0 && !unavailableDiff(diff2.text);
+}
 function containsOpaqueSubmoduleChange(diff2) {
   if (diff2 === void 0)
     return false;
@@ -85278,10 +85133,12 @@ function appendOpaqueBinaryWarnings(warnings, diffs) {
   }
 }
 function reviewEvidenceWarnings(input) {
+  const assumption = input.assumedTarget === true ? [{ kind: "target_assumed", message: ASSUMED_WORKING_TREE_WARNING }] : [];
   if (input.evidence.kind === "goal")
-    return [];
+    return [...assumption];
   if (input.evidence.kind === "unavailable") {
     return [
+      ...assumption,
       {
         kind: "evidence_unavailable",
         message: input.evidence.reason
@@ -85290,7 +85147,7 @@ function reviewEvidenceWarnings(input) {
   }
   if (input.evidence.kind === "git-target") {
     const evidence3 = input.evidence;
-    const warnings2 = [];
+    const warnings2 = [...assumption];
     if (evidence3.target_diff.truncated) {
       warnings2.push({
         kind: "diff_truncated",
@@ -85318,7 +85175,7 @@ function reviewEvidenceWarnings(input) {
     appendOpaqueBinaryWarnings(warnings2, [evidence3.target_diff]);
     return warnings2;
   }
-  const warnings = [];
+  const warnings = [...assumption];
   const evidence2 = input.evidence;
   for (const path of evidence2.submodule_paths ?? []) {
     warnings.push({
@@ -85328,10 +85185,8 @@ function reviewEvidenceWarnings(input) {
     });
   }
   const hasUntrackedContent = evidence2.untracked_files.some((file2) => file2.content !== void 0);
-  const hasCommittedDiff = evidence2.committed_diff !== void 0 && evidence2.committed_diff.text.length > 0 && !gitCommandFailed(evidence2.committed_diff.text);
-  const hasTargetDiff = hasUsableTargetDiff(evidence2.target_diff);
-  const workingTreeMode = evidence2.target_mode ?? "all";
-  const selectedDiffs = evidence2.target_kind !== void 0 && evidence2.target_kind !== "working_tree" ? [evidence2.target_diff, evidence2.committed_diff] : workingTreeMode === "staged" ? [evidence2.staged_diff] : workingTreeMode === "unstaged" ? [evidence2.unstaged_diff] : [evidence2.staged_diff, evidence2.unstaged_diff];
+  const workingTreeMode = evidence2.target_mode;
+  const selectedDiffs = workingTreeMode === "staged" ? [evidence2.staged_diff] : workingTreeMode === "unstaged" ? [evidence2.unstaged_diff] : [evidence2.staged_diff, evidence2.unstaged_diff];
   if (!warnings.some((warning) => warning.kind === "submodule_content_not_inspected") && selectedDiffs.some(containsOpaqueSubmoduleChange)) {
     warnings.push({
       kind: "submodule_content_not_inspected",
@@ -85341,7 +85196,7 @@ function reviewEvidenceWarnings(input) {
   appendOpaqueBinaryWarnings(warnings, selectedDiffs);
   const hasSelectedTrackedDiff = workingTreeMode === "staged" ? evidence2.staged_diff.text.length > 0 : workingTreeMode === "unstaged" ? evidence2.unstaged_diff.text.length > 0 : evidence2.staged_diff.text.length > 0 || evidence2.unstaged_diff.text.length > 0;
   const hasSelectedUntrackedContent = workingTreeMode === "all" && hasUntrackedContent;
-  if (!hasSelectedTrackedDiff && !hasSelectedUntrackedContent && !hasCommittedDiff && !hasTargetDiff && (evidence2.target_kind === void 0 || evidence2.target_kind === "working_tree") && !gitCommandFailed(evidence2.staged_diff.text) && !gitCommandFailed(evidence2.unstaged_diff.text)) {
+  if (!hasSelectedTrackedDiff && !hasSelectedUntrackedContent && !gitCommandFailed(evidence2.staged_diff.text) && !gitCommandFailed(evidence2.unstaged_diff.text)) {
     warnings.push({
       kind: "scope_empty",
       message: "review scoped to uncommitted changes only; HEAD~1 differences not examined. The reviewer had no source content to inspect: staged/unstaged diffs were empty and no untracked file content was relayed."
@@ -85357,21 +85212,6 @@ function reviewEvidenceWarnings(input) {
     warnings.push({
       kind: "diff_truncated",
       message: "unstaged diff was truncated before relay"
-    });
-  }
-  if (evidence2.committed_diff?.truncated === true) {
-    const duplicatedByTarget = evidence2.target_diff?.truncated === true && evidence2.target_diff.text === evidence2.committed_diff.text;
-    if (!duplicatedByTarget) {
-      warnings.push({
-        kind: "diff_truncated",
-        message: `${evidence2.committed_diff_ref ?? "committed"} diff was truncated before relay`
-      });
-    }
-  }
-  if (evidence2.target_diff?.truncated === true) {
-    warnings.push({
-      kind: "diff_truncated",
-      message: `${evidence2.target_ref ?? "target"} diff was truncated before relay`
     });
   }
   if (gitCommandFailed(evidence2.staged_diff.text)) {
@@ -85390,35 +85230,6 @@ function reviewEvidenceWarnings(input) {
     warnings.push({
       kind: "git_command_failed",
       message: evidence2.diff_stat
-    });
-  }
-  if (evidence2.committed_diff !== void 0 && gitCommandFailed(evidence2.committed_diff.text)) {
-    warnings.push({
-      kind: "git_command_failed",
-      message: evidence2.committed_diff.text
-    });
-  }
-  if (evidence2.target_diff !== void 0 && targetUnavailable(evidence2.target_diff.text)) {
-    warnings.push({
-      kind: "target_unavailable",
-      message: evidence2.target_diff.text
-    });
-  } else if (evidence2.target_kind !== void 0 && evidence2.target_kind !== "working_tree" && !hasTargetDiff) {
-    warnings.push({
-      kind: "target_unavailable",
-      message: `Target unavailable: ${evidence2.target_ref ?? evidence2.target_kind} produced no diff evidence.`
-    });
-  }
-  if (evidence2.committed_diff_stat !== void 0 && gitCommandFailed(evidence2.committed_diff_stat)) {
-    warnings.push({
-      kind: "git_command_failed",
-      message: evidence2.committed_diff_stat
-    });
-  }
-  if (evidence2.target_diff_stat !== void 0 && targetUnavailable(evidence2.target_diff_stat)) {
-    warnings.push({
-      kind: "target_unavailable",
-      message: evidence2.target_diff_stat
     });
   }
   if (workingTreeMode === "all" && evidence2.untracked_files_truncated) {
@@ -85454,18 +85265,22 @@ function reviewEvidenceWarnings(input) {
 function projectReviewIntake(input) {
   return ReviewIntake.parse({
     scope: input.scope,
+    target: input.target,
     evidence: input.evidence,
     evidence_warnings: reviewEvidenceWarnings({
       evidence: input.evidence,
-      maxUntrackedFiles: input.maxUntrackedFiles
+      maxUntrackedFiles: input.maxUntrackedFiles,
+      ...input.assumedTarget === true ? { assumedTarget: true } : {}
     })
   });
 }
+var ASSUMED_WORKING_TREE_WARNING;
 var init_intake_projection = __esm({
   "dist/flows/review/writers/intake-projection.js"() {
     "use strict";
     init_reports10();
     init_evidence_completeness();
+    ASSUMED_WORKING_TREE_WARNING = "Assumed target: the current working tree. Name a commit, a range, staged, or unstaged to review something else.";
   }
 });
 
@@ -85758,15 +85573,6 @@ function runGit(projectRoot, args, options = {}, preparedContext) {
   } catch (error52) {
     return { ok: false, reason: errorMessage3(error52) };
   }
-  const currentConfiguration = directGitConfiguration(context);
-  if (!currentConfiguration.ok)
-    return currentConfiguration;
-  if (currentConfiguration.auditedConfig !== context.auditedConfig) {
-    return {
-      ok: false,
-      reason: "Git configuration changed while Review evidence was being collected."
-    };
-  }
   const hardenedArgs = [...RUNTIME_GIT_HARDENED_CONFIG, ...context.overrides].flatMap((value) => [
     "-c",
     value
@@ -85859,18 +85665,12 @@ async function readGit(reader, operation, projectRoot, target) {
 function isSafeReviewRef(value) {
   return SAFE_REVIEW_REF_PATTERN.test(value) && !value.startsWith("-") && !value.includes("..") && !value.includes("@{");
 }
-function normalizeUnambiguousReviewAliases(scope) {
-  return scope.replace(/^\s*((?:latest|last|current)\s+commit)\s+review(?=\s*[.!?]?\s*$)/iu, "review $1").replace(/\bwhat\s+i\s+just\s+committed\b/giu, "latest commit").replace(/\b(?:the\s+)?commit\s+i\s+just\s+made\b/giu, "latest commit").replace(/\b(?:(?:the|my|our)\s+)?most\s+recent\s+commit\b/giu, "latest commit").replace(/\bwhat\s+changed\s+in\s+(?:the\s+)?last\s+commit\b/giu, "latest commit").replace(/\bwhat(?:'s|\s+is)\s+staged\b/giu, "staged changes").replace(/\bwhat\s+i\s+staged\b/giu, "staged changes").replace(/\beverything\s+i\s+have\s+not\s+committed\b/giu, "working tree changes").replace(/\ball\s+uncommitted\s+files\b/giu, "working tree changes");
+function normalizeReviewQuotes(scope) {
+  return scope.replace(/[’‘]/gu, "'").replace(/[“”]/gu, '"');
 }
-function hasTargetSelectionSuffix(scope, mentionEnd) {
-  const suffix = scope.slice(mentionEnd).trimStart();
-  if (suffix.length === 0)
-    return true;
-  if (/^[.!?](?:\s|$)/u.test(suffix))
-    return true;
-  if (/^[,;:](?:\s|$)/u.test(suffix))
-    return true;
-  return /^(?:only\b|for\b|with\b|especially\b|against\b|focus(?:ing)?(?:\s+on)?\b|(?:and|or|plus|then|as\s+well\s+as)\b|but\b|except\b|excluding\b|without\b|skip(?:ping)?\b|ignor(?:e|ing)\b|omit(?:ting)?\b|(?:leave|leaving)\s+out\b|save\s+for\b|other\s+than\b|versus\b|vs\.?\b|compared\s+(?:to|with)\b|through\b)/iu.test(suffix);
+function maskReviewLiteralData(scope) {
+  const mask = (value) => value.replace(/[^\r\n]/gu, " ");
+  return scope.replace(/```[\s\S]*?```/gu, mask).replace(/"(?:\\.|[^"\\])*"/gu, mask).replace(/(^|[\s([{:;,])'(?:\\.|[^'\\])*'/gmu, mask).replace(/`(?:\\.|[^`\\])*`/gu, mask).replace(/^[ \t]*>[^\r\n]*$/gmu, mask).replace(/```[\s\S]*$/gu, mask).replace(/"(?:\\.|[^"\\])*$/gu, mask).replace(/`(?:\\.|[^`\\])*$/gu, mask);
 }
 function looksLikeReviewPath(value) {
   const cleaned = value.replace(/^[<("'`]+/u, "").replace(/[>"'`),.;:!?]+$/u, "").replace(/[),.;:!?]+$/u, "");
@@ -85878,29 +85678,18 @@ function looksLikeReviewPath(value) {
     return false;
   return /(?:^|\/)(?:Dockerfile|LICENSE|Makefile|README)(?:\.[A-Za-z0-9_-]+)?$/u.test(cleaned) || /(?:^|\/)[^/\s]+\.[A-Za-z0-9][A-Za-z0-9_-]*$/u.test(cleaned) || /^(?:\.{0,2}\/|\/)[^\s]+$/u.test(cleaned) || /^[^/\s]+\/[^\s]+$/u.test(cleaned) || /^(?:[^/\s]+\/)+$/u.test(cleaned);
 }
-function looksLikeReviewSubsetPath(value, explicitPathKind = false) {
+function looksLikeReviewSubsetPath(value) {
   const cleaned = value.trim().replace(/^[<("'`]+/u, "").replace(/[>"'`),.;:!?]+$/u, "");
   if (cleaned.length === 0 || /^https?:\/\//iu.test(cleaned))
     return false;
-  return explicitPathKind || looksLikeReviewPath(cleaned) || /^\.[A-Za-z0-9_-]+$/u.test(cleaned) || /[*?[\]]/u.test(cleaned) || /^(?:\.\.\/)+[^\s]+$/u.test(cleaned) || /^(?:apps?|assets?|build|changelogs?|config(?:uration)?|dist|docs?|examples?|fixtures?|generated|lib|lockfiles?|migrations?|node_modules|packages?|scripts?|snapshots?|sources?|src|tests?|vendor)\/?$/iu.test(cleaned);
-}
-function isPathOnlyReviewRequest(scope) {
-  const match = /^\s*(?:review|inspect|audit|check|analyze)\s+(?:(?:only|the|this|my|our|current)\s+)*(?:(?:file|code|plan|report)\s*(?:(?:in|at|from)\s+|:\s*)?)?(?<path>\S+)(?<suffix>[\s\S]*)$/iu.exec(scope);
-  const path = match?.groups?.path;
-  const suffix = match?.groups?.suffix ?? "";
-  if (path === void 0 || !looksLikeReviewPath(path))
-    return false;
-  const trimmedSuffix = suffix.trim();
-  if (trimmedSuffix.length === 0 || /^[.!?]$/u.test(trimmedSuffix))
-    return true;
-  return /^(?:,?\s*(?:for|with|especially)\b|,?\s+and\s+(?:focus|check|inspect|look|pay|prioritize|verify)\b)/iu.test(trimmedSuffix);
+  return looksLikeReviewPath(cleaned) || /^\.[A-Za-z0-9_-]+$/u.test(cleaned) || /[*?[\]]/u.test(cleaned) || /^(?:\.\.\/)+[^\s]+$/u.test(cleaned) || /^(?:apps?|assets?|build|changelogs?|config(?:uration)?|dist|docs?|examples?|fixtures?|generated|lib|lockfiles?|migrations?|node_modules|packages?|scripts?|snapshots?|sources?|src|tests?|vendor)\/?$/iu.test(cleaned);
 }
 function topLevelReviewMaterialTail(scope) {
-  const firstLead = /\b(?:review|inspect|audit|check|analyze)\b/iu.exec(scope);
+  const firstLead = new RegExp(String.raw`\b${REVIEW_LEAD}\b`, "iu").exec(scope);
   if (firstLead === null)
     return void 0;
   const clause = scope.slice(firstLead.index);
-  const artifact = /^(?:review|inspect|audit|check|analyze)\s+(?:of\s+)?(?:(?:a|an|the|this|these|my|our|current|supplied|provided|following|below|attached|pasted|written|included|enclosed|draft|rollout|release|proposed|updated|final|technical|design|quoted)\s+){0,6}(?:artifact|brief|code|docs?|documentation|excerpt|file|instructions?|patch|plan|proposal|quotation|report|request|snippet|spec(?:ification)?|text)\b(?<tail>[\s\S]*)$/iu.exec(clause);
+  const artifact = /^(?:review|inspect|audit|check|analyze)\s+(?:of\s+)?(?:(?:a|an|the|this|these|my|our|current|supplied|provided|following|below|attached|pasted|written|included|enclosed|draft|rollout|release|proposed|updated|final|technical|design|quoted)\s+){0,6}(?:artifact|brief|code|docs?|documentation|excerpt|file|instructions?|patch|plan|proposal|quotation|quote|report|request|snippet|spec(?:ification)?|text)\b(?<tail>[\s\S]*)$/iu.exec(clause);
   if (artifact?.groups?.tail !== void 0)
     return artifact.groups.tail;
   const direct = /^(?:review|inspect|audit|check|analyze)\s*(?<tail>(?::|(?:—|--)\s|["`]|```|\r?\n)[\s\S]*)$/iu.exec(clause);
@@ -85931,7 +85720,7 @@ function closingUnescapedQuote(value, quote) {
 function classifyReviewMaterialBody(body) {
   const trimmed = body.trim();
   if (trimmed.length === 0)
-    return { kind: "missing" };
+    return { kind: "empty" };
   let material = trimmed;
   if (trimmed.startsWith("```")) {
     const openingLineEnd = trimmed.indexOf("\n");
@@ -85956,9 +85745,10 @@ function classifyReviewMaterialBody(body) {
       material = trimmed.slice(1, closing).trim();
     }
   }
-  if (material.length === 0 || looksLikeReviewSubsetPath(material)) {
+  if (material.length === 0)
+    return { kind: "empty" };
+  if (looksLikeReviewSubsetPath(material))
     return { kind: "missing" };
-  }
   return { kind: "supplied" };
 }
 function classifySuppliedReviewMaterial(scope) {
@@ -85970,824 +85760,171 @@ function classifySuppliedReviewMaterial(scope) {
     return { kind: "missing" };
   return classifyReviewMaterialBody(body);
 }
-function withoutNegatedReviewClauses(scope) {
-  return scope.replace(/\b(?:do\s+not|don't|never)\s+(?:review|inspect|audit|check|analyze)\b[^;.!?]*?(?=(?:\b(?:but|and(?:\s+instead)?|instead)\s+)(?:review|inspect|audit|check|analyze)\b|[;.!?]|$)/giu, " ").replace(/\b(?:but|and(?:\s+instead)?|instead)\s+(?=(?:review|inspect|audit|check|analyze)\b)/giu, " ");
-}
-function maskReviewLiteralData(scope) {
-  const mask = (value) => value.replace(/[^\r\n]/gu, " ");
-  return scope.replace(/```[\s\S]*?```/gu, mask).replace(/"(?:\\.|[^"\\])*"/gu, mask).replace(/(^|[\s([{:;,])'(?:\\.|[^'\\])*'/gmu, mask).replace(/`(?:\\.|[^`\\])*`/gu, mask).replace(/^[ \t]*>[^\r\n]*$/gmu, mask).replace(/```[\s\S]*$/gu, mask).replace(/"(?:\\.|[^"\\])*$/gu, mask).replace(/`(?:\\.|[^`\\])*$/gu, mask);
-}
-function reviewScopeHasSuppliedMaterial(scope) {
-  const normalizedScope = withImplicitReviewLead(normalizeUnambiguousReviewAliases(scope.replace(/[’‘]/gu, "'")));
-  return classifySuppliedReviewMaterial(withoutNegatedReviewClauses(normalizedScope)).kind === "supplied";
-}
-function hasTopLevelArtifactReviewSubject(scope) {
-  return topLevelReviewMaterialTail(scope) !== void 0;
-}
-function unsupportedReviewComparison(scope) {
-  for (const match of scope.matchAll(/\b(?:changes?|diffs?)\s+across\s+(?<base>[A-Za-z0-9][A-Za-z0-9._/@+~^-]{0,120})\s+and\s+(?<head>[A-Za-z0-9][A-Za-z0-9._/@+~^-]{0,120})\b/giu)) {
-    if (!hasAffirmativeReviewTargetLead(scope, match.index ?? 0))
-      continue;
-    const base = match.groups?.base;
-    const head = match.groups?.head;
-    if (base !== void 0 && head !== void 0) {
-      return `Review target comparison is ambiguous. Use one explicit range such as ${base}...${head}.`;
-    }
-  }
-  for (const match of scope.matchAll(/\b(?<base>[A-Za-z0-9][A-Za-z0-9._/@+~^-]{0,120})\s+(?:versus|vs\.?|compared\s+(?:to|with))\s+(?<head>[A-Za-z0-9][A-Za-z0-9._/@+~^-]{0,120})\b/giu)) {
-    if (!hasAffirmativeReviewTargetLead(scope, match.index ?? 0))
-      continue;
-    const base = match.groups?.base;
-    const head = match.groups?.head;
-    if (base !== void 0 && head !== void 0) {
-      return `Review target comparison is ambiguous. Use one explicit range such as ${base}...${head}.`;
-    }
-  }
-  for (const match of scope.matchAll(/\b(?:commit|revision|rev)\s+(?:at\s+)?(?<base>[A-Za-z0-9][A-Za-z0-9._/@+~^-]{0,120})\s+(?:through|thru)\s+(?:(?:commit|revision|rev)\s+)?(?<head>[A-Za-z0-9][A-Za-z0-9._/@+~^-]{0,120})\b/giu)) {
-    if (!hasAffirmativeReviewTargetLead(scope, match.index ?? 0))
-      continue;
-    const base = match.groups?.base;
-    const head = match.groups?.head;
-    if (base !== void 0 && head !== void 0) {
-      return `Review target comparison is ambiguous. Use one explicit range such as ${base}...${head}.`;
-    }
-  }
-  for (const match of scope.matchAll(/\b(?<left>(?:(?:latest|last|current)\s+commit|HEAD(?:[~^]\d*)?|(?:commit|revision|rev)\s+(?:at\s+)?[A-Za-z0-9][A-Za-z0-9._/@+~^-]{0,120}|(?:pr|pull request)\s*#?\d{1,7}))\s+(?:versus|vs\.?|compared\s+to)\s+(?<right>(?:(?:latest|last|current)\s+commit|HEAD(?:[~^]\d*)?|(?:commit|revision|rev)\s+(?:at\s+)?[A-Za-z0-9][A-Za-z0-9._/@+~^-]{0,120}|(?:pr|pull request)\s*#?\d{1,7}|[A-Za-z0-9][A-Za-z0-9._/@+~^-]{0,120}))\b/giu)) {
-    if (!hasAffirmativeReviewTargetLead(scope, match.index ?? 0))
-      continue;
-    return "Review target comparison is ambiguous. Choose one complete target or use one explicit Git range.";
-  }
-  return void 0;
-}
-function hasUnsupportedPathSubset(scope) {
-  for (const match of scope.matchAll(/(?:^|[,;])\s*(?<path>"[^"\r\n]+"|'[^'\r\n]+'|`[^`\r\n]+`|[^\s,;]+)\s+only(?=$|[\s,.;:!?])/giu)) {
-    if (!hasSelectedReviewTargetBefore(scope, match.index ?? 0))
-      continue;
-    const path = match.groups?.path;
-    if (path !== void 0 && looksLikeReviewSubsetPath(path))
-      return true;
-  }
-  for (const match of scope.matchAll(/(?:\b(?:but\s+)?(?:only|just)\s+(?:(?:in|from|for|of|under|within)\s+)?|\b(?:in|from|for|of|under|within)\s+|\b(?:confined|limited|restricted|scoped)\s+to\s+)(?:the\s+)?(?:(?<leading_kind>file|path|director(?:y|ies)|folders?)\s+)?(?<path>"[^"\r\n]+"|'[^'\r\n]+'|`[^`\r\n]+`|\S+)(?:\s+(?<trailing_kind>file|path|director(?:y|ies)|folders?))?(?=$|[\s,.;:!?])/giu)) {
-    const matchEnd = (match.index ?? 0) + match[0].length;
-    if (/^from\b/iu.test(match[0]) && /^\s+to\s+[A-Za-z0-9][A-Za-z0-9._/@+~^-]{0,120}\b/u.test(scope.slice(matchEnd))) {
-      continue;
-    }
-    if (!hasSelectedReviewTargetBefore(scope, match.index ?? 0))
-      continue;
-    const path = match.groups?.path;
-    const explicitPathKind = match.groups?.leading_kind !== void 0 || match.groups?.trailing_kind !== void 0;
-    if (path !== void 0 && looksLikeReviewSubsetPath(path, explicitPathKind))
-      return true;
-  }
-  for (const match of scope.matchAll(/\b(?:review|inspect|audit|check|analyze)\s+(?:of\s+)?(?:(?:only|just|the|this|these|my|our|current)\s+)*(?:(?<leading_kind>file|path|director(?:y|ies)|folders?)\s+)?(?<path>"[^"\r\n]+"|'[^'\r\n]+'|`[^`\r\n]+`|\S+)(?:\s+(?<trailing_kind>file|path|director(?:y|ies)|folders?))?\s+(?<link>in|from|of|at|under|within|between)\s+(?<target>[^;!?]+)(?=$|[;!?])/giu)) {
-    const path = match.groups?.path;
-    const link2 = match.groups?.link?.toLowerCase();
-    const target = match.groups?.target?.trim();
-    if (path === void 0 || link2 === void 0 || target === void 0)
-      continue;
-    const explicitPathKind = match.groups?.leading_kind !== void 0 || match.groups?.trailing_kind !== void 0;
-    if (!looksLikeReviewSubsetPath(path, explicitPathKind))
-      continue;
-    const targetScope = link2 === "from" && /\bto\b/iu.test(target) ? `review changes from ${target}` : link2 === "between" && /\band\b/iu.test(target) ? `review changes between ${target}` : `review ${target}`;
-    const candidates = [
-      parseRange(targetScope),
-      parsePullRequestUrl(targetScope),
-      parsePullRequestMention(targetScope),
-      parseCommit(targetScope),
-      parseWorkingTree(targetScope)
-    ];
-    if (candidates.some((candidate) => candidate?.ok === true && candidate.target.kind !== "goal")) {
-      return true;
-    }
-  }
-  return false;
-}
-function reviewTargetLabel(target) {
-  if (target.kind === "commit")
-    return target.ref;
-  if (target.kind === "range")
-    return `${target.base}${target.dots}${target.head}`;
-  return `PR #${target.number}`;
-}
-function sameRepository(left, right) {
-  return left === void 0 || right === void 0 || githubRepositoryKey(left) === githubRepositoryKey(right);
-}
-function sameReviewTarget(left, right) {
-  if (left.kind !== right.kind)
-    return false;
-  if (left.kind === "goal" && right.kind === "goal")
+function namesPullRequest(scope) {
+  if (/\b(?:prs?|pull\s+requests?)\b/iu.test(scope))
     return true;
-  if (left.kind === "working_tree" && right.kind === "working_tree") {
-    return left.mode === right.mode;
-  }
-  if (left.kind === "commit" && right.kind === "commit")
-    return left.ref === right.ref;
-  if (left.kind === "range" && right.kind === "range") {
-    return left.base === right.base && left.head === right.head && left.dots === right.dots;
-  }
-  if (left.kind === "pull_request" && right.kind === "pull_request") {
-    return left.number === right.number && sameRepository(left.repository, right.repository);
-  }
-  return false;
-}
-function deduplicateReviewTargets(targets) {
-  const unique2 = [];
-  for (const target of targets) {
-    const index = unique2.findIndex((candidate) => sameReviewTarget(candidate, target));
-    if (index === -1) {
-      unique2.push(target);
-      continue;
-    }
-    const existing = unique2[index];
-    if (existing?.kind === "pull_request" && target.kind === "pull_request" && existing.repository === void 0 && target.repository !== void 0) {
-      unique2[index] = target;
-    }
-  }
-  return unique2;
-}
-function hasEarlierArtifactReviewSubject(prefix, leadIndex) {
-  return /\b(?:review|inspect|audit|check|analyze)\s+(?:(?:a|an|the|this|these|my|our|current|supplied)\s+){0,4}(?:brief|docs?|documentation|instructions?|plan|proposal|report|request|spec(?:ification)?|text)\b[\s\S]*$/iu.test(prefix.slice(0, leadIndex));
-}
-function hasDirectReviewLead(scope, targetIndex) {
-  const prefix = scope.slice(0, targetIndex);
-  const match = /\b(?:review|inspect|audit|check|analyze)\s+(?:(?:all|both|only|the|this|these|my|our|current|large)\s+){0,4}(?:(?:changes?|diffs?|files?|code)\s+(?:(?:in|from|for|of|at|on|introduced\s+by)\s+(?:the\s+)?)?)?[<(["']?\s*$/iu.exec(prefix);
-  return match !== null && !hasEarlierArtifactReviewSubject(prefix, match.index);
-}
-function hasNounReviewLead(scope, targetIndex) {
-  const prefix = scope.slice(0, targetIndex);
-  const match = /\b(?:(?:a|the)\s+)?review\s+of\s+(?:(?:all|both|only|the|this|these|my|our|current|large)\s+){0,4}(?:(?:changes?|diffs?|files?|code)\s+(?:(?:in|from|for|of|at|on|introduced\s+by)\s+(?:the\s+)?)?)?[<(["']?\s*$/iu.exec(prefix);
-  return match !== null && !hasEarlierArtifactReviewSubject(prefix, match.index);
-}
-function beforeReviewTargetListConnector(scope, targetIndex) {
-  const prefix = scope.slice(0, targetIndex);
-  const connector = /(?:(?:,\s*)?(?:and(?:\s+also)?|or|plus|then|as\s+well\s+as)|[,&+])\s*(?:(?:(?:all|both|only|the|this|these|my|our|current)\s+){0,4}(?:changes?|diffs?|files?|code)\s+(?:(?:in|from|for|of|at|on|introduced\s+by)\s+(?:the\s+)?)?)?$/iu.exec(prefix);
-  return connector === null ? void 0 : prefix.slice(0, connector.index);
-}
-function isReviewTargetListSeparator(value) {
-  return /^\s*(?:(?:,\s*)?(?:and(?:\s+also)?|or|plus|then|as\s+well\s+as)|[,&+])\s*$/iu.test(value);
-}
-function continuesReviewTargetList(scope, targetIndex) {
-  const beforeConnector = beforeReviewTargetListConnector(scope, targetIndex);
-  if (beforeConnector === void 0)
-    return false;
-  return /\b(?:review|inspect|audit|check|analyze)\b[^;.!?]*(?:\b(?:commit|revision|rev)\s+(?:at\s+)?\S+|\b(?:latest|last|current)\s+(?:commit|committed\s+changes?)\b|\b(?:pr|pull request)\s*#?\d{1,7}\b|\bHEAD(?:[~^]\d*)?\b|[A-Za-z0-9][A-Za-z0-9._/@+~^-]{0,120}\.{2,3}[A-Za-z0-9][A-Za-z0-9._/@+~^-]{0,120}|\b(?:changes?|diffs?)\s+(?:between\s+[A-Za-z0-9][A-Za-z0-9._/@+~^-]{0,120}\s+and|from\s+[A-Za-z0-9][A-Za-z0-9._/@+~^-]{0,120}\s+to)\s+[A-Za-z0-9][A-Za-z0-9._/@+~^-]{0,120}|\b(?:(?:staged|unstaged|not[- ]staged|local|current)\s+(?:changes?|diffs?)|(?:working[- ]tree|worktree)))\s*$/iu.test(beforeConnector);
-}
-function hasAffirmativeReviewTargetLead(scope, targetIndex) {
-  return hasDirectReviewLead(scope, targetIndex) || hasNounReviewLead(scope, targetIndex) || continuesReviewTargetList(scope, targetIndex) || continuesSelectedPullRequestUrl(scope, targetIndex);
-}
-function continuesSelectedPullRequestUrl(scope, targetIndex) {
-  const beforeConnector = beforeReviewTargetListConnector(scope, targetIndex);
-  if (beforeConnector === void 0)
-    return false;
-  const parsed = parsePullRequestUrl(beforeConnector);
-  return parsed?.ok === true && parsed.target.kind === "pull_request";
-}
-function parsePullRequestUrlCandidate(candidate) {
-  const cleaned = candidate.replace(/[.,;:]+$/u, "");
-  let parsed;
-  try {
-    parsed = new URL(/^https?:\/\//iu.test(cleaned) ? cleaned : `https://${cleaned}`);
-  } catch {
-    return { ok: false, reason: `Review target is not a valid GitHub PR URL: ${cleaned}` };
-  }
-  const parts = parsed.pathname.split("/").filter((part) => part.length > 0);
-  const numberText = parts[3];
-  const suffix = parts.slice(4);
-  const suffixIsSupported = suffix.length === 0 || suffix.length === 1 && ["checks", "commits", "files"].includes(suffix[0]?.toLowerCase() ?? "") || suffix.length === 2 && suffix[0]?.toLowerCase() === "commits" && /^[0-9a-f]{7,64}$/iu.test(suffix[1] ?? "");
-  if (!["github.com", "www.github.com"].includes(parsed.hostname.toLowerCase()) || parts[2]?.toLowerCase() !== "pull" || numberText === void 0 || !/^\d{1,6}$/u.test(numberText) || !suffixIsSupported) {
-    return { ok: false, reason: `Review target is not a valid GitHub PR URL: ${cleaned}` };
-  }
-  const number4 = Number.parseInt(numberText, 10);
-  const owner = parts[0];
-  const name = parts[1];
-  const repository = owner === void 0 || name === void 0 ? void 0 : parseGitHubRemoteUrl(`https://github.com/${owner}/${name}`);
-  if (number4 < 1 || number4 > 999999 || repository === void 0) {
-    return { ok: false, reason: `Review target is not a valid GitHub PR URL: ${cleaned}` };
-  }
-  return { ok: true, target: { kind: "pull_request", number: number4, repository } };
-}
-function parsePullRequestUrl(scope) {
-  const targets = [];
-  for (const match of scope.matchAll(/(?:^|[\s("'[<])(?<url>(?:https?:\/\/)?(?:www\.)?[A-Za-z0-9.-]*github[A-Za-z0-9.-]*\/[^\s/"'`)]+\/[^\s/"'`)]+\/pull(?:\/[^\s)"'`>]*)?)/giu)) {
-    const candidate = match.groups?.url;
-    if (candidate === void 0)
-      continue;
-    const candidateOffset = match[0].indexOf(candidate);
-    const targetIndex = (match.index ?? 0) + Math.max(0, candidateOffset);
-    const prefix = scope.slice(0, targetIndex);
-    const followsSelectedPrNumber = /\b(?:review|inspect|audit|check|analyze)\b[^;.!?]*\b(?:pr|pull request)\s*#?\d{1,6}\s+(?:at|from|in)\s*$/iu.test(prefix);
-    const followsSelectedPrLabel = /\b(?:review|inspect|audit|check|analyze)\s+(?:(?:all|both|only|the|this|these|my|our|current)\s+){0,4}(?:(?:changes?|diffs?|files?|code)\s+(?:(?:in|from|for|of|at|on|introduced\s+by)\s+(?:the\s+)?)?)?(?:pr|pull request)\s*$/iu.test(prefix);
-    const continuesSelectedUrl = targets.length > 0 && beforeReviewTargetListConnector(scope, targetIndex) !== void 0;
-    const continuesSelectedNamedTarget = continuesReviewTargetList(scope, targetIndex);
-    if (!hasDirectReviewLead(scope, targetIndex) && !followsSelectedPrNumber && !followsSelectedPrLabel && !continuesSelectedUrl && !continuesSelectedNamedTarget) {
-      continue;
-    }
-    const parsed = parsePullRequestUrlCandidate(candidate);
-    if (!parsed.ok)
-      return parsed;
-    targets.push(parsed.target);
-  }
-  const uniqueTargets = deduplicateReviewTargets(targets);
-  if (uniqueTargets.length > 1) {
-    return {
-      ok: false,
-      reason: "Review target is ambiguous because the request names more than one PR."
-    };
-  }
-  const target = uniqueTargets[0];
-  return target === void 0 ? void 0 : { ok: true, target };
+  if (/https?:\/\/\S*\/pull\/\d{1,7}\b/iu.test(scope))
+    return true;
+  return new RegExp(String.raw`\b${REVIEW_LEAD}\s+(?:(?:the|this|that|my|our)\s+)?#\d{1,7}\b`, "iu").test(scope);
 }
 function rangeTargetFromToken(token) {
   const withoutSentencePunctuation = token.replace(/[,;:!?]+$/u, "");
   const cleaned = withoutSentencePunctuation.endsWith(".") && !withoutSentencePunctuation.endsWith("..") ? withoutSentencePunctuation.slice(0, -1) : withoutSentencePunctuation;
   const separator = cleaned.includes("...") ? "..." : "..";
   const separatorIndex = cleaned.indexOf(separator);
+  if (separatorIndex < 0)
+    return void 0;
   const base = cleaned.slice(0, separatorIndex);
   const head = cleaned.slice(separatorIndex + separator.length);
-  const looksLikeProseEllipsis = separator === "..." && /^[A-Za-z]+$/u.test(base) && /^[A-Za-z]+$/u.test(head) && (["docs", "notes", "parser", "plan", "proposal", "text"].includes(base.toLowerCase()) || ["and", "especially", "focus", "including", "maybe", "or", "perhaps", "then"].includes(head.toLowerCase()));
-  if (looksLikeProseEllipsis || !isSafeReviewRef(base) || !isSafeReviewRef(head)) {
+  if (base.length === 0 || head.length === 0)
+    return void 0;
+  if (!isSafeReviewRef(base) || !isSafeReviewRef(head))
+    return void 0;
+  if (RANGE_FILLER_WORDS.has(base.toLowerCase()) || RANGE_FILLER_WORDS.has(head.toLowerCase())) {
     return void 0;
   }
   return { kind: "range", base, head, dots: separator };
 }
-function withImplicitReviewLead(scope) {
-  const trimmed = scope.trim();
-  const startsWithBareTarget = /^(?:(?:pr|pull request)\s*#?\d{1,7}\b|(?:latest|last|current)\s+(?:commit|committed\s+changes?)\b|(?:last|previous|prior|past|latest|recent)\s+(?:(?:\d+|[A-Za-z-]+(?:\s+[A-Za-z-]+){0,2})\s+)?commits\b|HEAD(?:[~^]\d*)?(?=$|[\s,;:!?])|(?:commit|revision|rev)\s+(?:at\s+)?\S+|[A-Za-z0-9][A-Za-z0-9._/@+~^-]{0,240}\.{2,3}[A-Za-z0-9]|(?:staged|unstaged|not[- ]staged|local)\s+(?:changes?|diffs?|work)\b|(?:working[- ]tree|worktree)(?:\s+(?:changes?|diffs?|files?|code|work))?\b|(?:(?:everything|all(?:\s+(?:changes?|diffs?))?)\s+(?:in|on)\s+(?:the\s+)?(?:this|current)\s+branch|(?:this|current)\s+branch)\b)/iu.test(trimmed);
-  return startsWithBareTarget ? `review ${trimmed}` : scope;
-}
-function parseRange(scope) {
-  const targets = [];
-  const naturalCandidates = [
-    ...scope.matchAll(/\b(?:the\s+)?(?:changes?|diffs?)\s+between\s+(?<base>[A-Za-z0-9][A-Za-z0-9._/@+~^-]{0,120})\s+and\s+(?<head>[A-Za-z0-9][A-Za-z0-9._/@+~^-]{0,120})(?=$|[\s)"'\].,;:!?])/giu),
-    ...scope.matchAll(/\b(?:the\s+)?(?:changes?|diffs?)\s+from\s+(?<base>[A-Za-z0-9][A-Za-z0-9._/@+~^-]{0,120})\s+to\s+(?<head>[A-Za-z0-9][A-Za-z0-9._/@+~^-]{0,120})(?=$|[\s)"'\].,;:!?])/giu)
-  ].sort((left, right) => (left.index ?? 0) - (right.index ?? 0));
-  let previousNaturalEnd;
-  for (const match of naturalCandidates) {
-    const targetIndex = match.index ?? 0;
-    const betweenNaturalTargets = previousNaturalEnd === void 0 ? "" : scope.slice(previousNaturalEnd, targetIndex);
-    const continuesNaturalTarget = previousNaturalEnd !== void 0 && isReviewTargetListSeparator(betweenNaturalTargets);
-    if (!hasDirectReviewLead(scope, targetIndex) && !continuesNaturalTarget && !continuesReviewTargetList(scope, targetIndex) && !continuesSelectedPullRequestUrl(scope, targetIndex)) {
-      continue;
-    }
-    const base = match.groups?.base;
-    const head = match.groups?.head?.replace(/[.,;:!?]+$/u, "");
-    if (base !== void 0 && head !== void 0 && isSafeReviewRef(base) && isSafeReviewRef(head)) {
-      targets.push({ kind: "range", base, head, dots: "..." });
-      previousNaturalEnd = targetIndex + match[0].length;
-    }
-  }
-  for (const match of scope.matchAll(/(?:^|[\s("'[])(?<token>[A-Za-z0-9][A-Za-z0-9._/@+~^-]{0,240}\.{2,3}[A-Za-z0-9][A-Za-z0-9._/@+~^-]{0,120})(?=$|[\s)"'\].,])/gu)) {
+function parseRangeForm(scope) {
+  for (const match of scope.matchAll(/(?<=^|[\s(["'])(?<token>[A-Za-z0-9][A-Za-z0-9._/@+~^-]{0,240}\.{2,3}[A-Za-z0-9][A-Za-z0-9._/@+~^-]{0,240})/gu)) {
     const token = match.groups?.token;
     if (token === void 0)
       continue;
-    const tokenOffset = match[0].indexOf(token);
-    const targetIndex = (match.index ?? 0) + Math.max(0, tokenOffset);
-    const hasAffirmativeLead = hasDirectReviewLead(scope, targetIndex) || hasNounReviewLead(scope, targetIndex);
-    const prefix = scope.slice(0, targetIndex);
-    const continuesAcceptedList = targets.length > 0 && /\b(?:and|or|plus)\s*$/iu.test(prefix) || continuesReviewTargetList(scope, targetIndex) || continuesSelectedPullRequestUrl(scope, targetIndex);
-    if (!hasAffirmativeLead && !continuesAcceptedList)
-      continue;
-    const target2 = rangeTargetFromToken(token);
-    if (target2 !== void 0)
-      targets.push(target2);
-  }
-  const uniqueTargets = deduplicateReviewTargets(targets);
-  if (uniqueTargets.length > 1) {
-    return {
-      ok: false,
-      reason: "Review target is ambiguous because the request names more than one Git range."
-    };
-  }
-  const malformedRange = /(?:^|[\s("'[])(?<token>[A-Za-z0-9._/@+~^-]*\.{2,}[A-Za-z0-9._/@+~^-]*)(?=$|[\s)"'\].,])/u.exec(scope)?.groups?.token;
-  if (malformedRange !== void 0 && rangeTargetFromToken(malformedRange) === void 0 && /[A-Za-z0-9_/@+~^-]/u.test(malformedRange) && !(malformedRange.includes("...") && /^[A-Za-z]+\.\.\.[A-Za-z]+$/u.test(malformedRange))) {
-    return { ok: false, reason: "Review target contains a malformed Git range." };
-  }
-  const target = uniqueTargets[0];
-  return target === void 0 ? void 0 : { ok: true, target };
-}
-function parsePullRequestMention(scope) {
-  for (const match of scope.matchAll(/\b(?:pr|pull request)\s*(?<candidate>#[^\s,;:!?]+|\d+[^\s,;:!?]*)/giu)) {
-    if (!hasAffirmativeReviewTargetLead(scope, match.index ?? 0))
-      continue;
-    const candidate = match.groups?.candidate?.replace(/[)"'\]>.,;:!?]+$/u, "");
-    if (candidate === void 0)
-      continue;
-    const numberText = candidate.replace(/^#/u, "");
-    const number4 = Number.parseInt(numberText, 10);
-    if (!/^\d{1,7}$/u.test(numberText) || number4 < 1 || number4 > 999999) {
-      return { ok: false, reason: `Review target PR number is invalid: ${candidate}` };
-    }
-  }
-  const numbers = [...scope.matchAll(/\b(?:pr|pull request)\s*#?(?<number>\d{1,7})\b/giu)].filter((match) => hasAffirmativeReviewTargetLead(scope, match.index ?? 0)).map((match) => match.groups?.number).filter((number4) => number4 !== void 0);
-  const targets = [];
-  for (const numberText of numbers) {
-    const number4 = Number.parseInt(numberText, 10);
-    if (number4 < 1 || number4 > 999999) {
-      return { ok: false, reason: `Review target PR number is invalid: ${numberText}` };
-    }
-    targets.push({ kind: "pull_request", number: number4 });
-  }
-  const uniqueTargets = deduplicateReviewTargets(targets);
-  if (uniqueTargets.length > 1) {
-    return {
-      ok: false,
-      reason: "Review target is ambiguous because the request names more than one PR."
-    };
-  }
-  const target = uniqueTargets[0];
-  if (target !== void 0) {
-    return { ok: true, target };
-  }
-  if (/\breview\s+(?:the\s+)?(?:pr|pull request)\s+(?:handling|integration|logic|parser|rendering|support)\b/iu.test(scope)) {
-    return void 0;
-  }
-  if (/\b(?:review|inspect|audit|check|analyze)\s+(?:(?:all|both|the|this|these|my|our|current)\s+){0,4}(?:(?:changes?|diffs?|files?|code)\s+(?:(?:in|from|for|of|at|on|introduced\s+by)\s+(?:the\s+)?)?)?(?:pr|pull request)\s+[A-Za-z][A-Za-z-]*\b/iu.test(scope)) {
-    return void 0;
-  }
-  if (/\b(?:review|inspect|audit|check|analyze)\s+(?:(?:all|both|the|this|these|my|our|current)\s+){0,4}(?:(?:changes?|diffs?|files?|code)\s+(?:(?:in|from|for|of|at|on|introduced\s+by)\s+(?:the\s+)?)?)?(?:pr|pull request)\s+(?:https?:\/\/)?(?:www\.)?github\.com\//iu.test(scope)) {
-    return void 0;
-  }
-  if (/\b(?:review|inspect|audit|check|analyze)\s+(?:(?:all|both|the|this|these|my|our|current)\s+){0,4}(?:(?:changes?|diffs?|files?|code)\s+(?:(?:in|from|for|of|at|on|introduced\s+by)\s+(?:the\s+)?)?)?(?:pr|pull request)(?:\s*#|\s+\d+\S*|\b)/iu.test(scope)) {
-    return { ok: false, reason: "Review target contains a malformed PR number." };
+    const target = rangeTargetFromToken(token);
+    if (target !== void 0)
+      return target;
   }
   return void 0;
 }
-function withoutExcludedWorkingTreeTargets(scope) {
-  return scope.replace(/\b(?:ignore|exclude|excluding|skip|omit|except(?:\s+for)?|(?:do\s+not|don't|dont)\s+include|not(?:\s+including)?)\s+(?:the\s+)?(?:(?:my|our|current)\s+)?(?:(?:working[- ]tree|worktree)(?:\s+(?:changes?|diffs?))?|uncommitted\s+(?:changes?|diffs?|work|code)|(?:changes?|diffs?))\b/giu, " ");
-}
-function hasAffirmativeWorkingTreeMention(scope, pattern) {
-  return [...scope.matchAll(pattern)].some((match) => {
-    const targetIndex = match.index ?? 0;
-    return hasAffirmativeReviewTargetLead(scope, targetIndex) && hasTargetSelectionSuffix(scope, targetIndex + match[0].length);
-  });
-}
-function parseWorkingTree(scope) {
-  const affirmativeWorkingTreeScope = withoutExcludedWorkingTreeTargets(scope);
-  if (/\breview\s+(?:the\s+)?(?:working[- ]tree|worktree)\s+(?:behavior|handling|integration|logic|parser|parsing|support)\b/iu.test(affirmativeWorkingTreeScope)) {
-    return void 0;
+function parseCommitForm(scope) {
+  if (LATEST_COMMIT_PATTERN.test(scope)) {
+    return { ok: true, target: { kind: "commit", ref: HEAD_COMMIT_REF } };
   }
-  const workingTreeUnit = String.raw`(?:changes?|diffs?|files?|code|work|symlinks?)`;
-  const reviewLead = String.raw`\b(?:review|inspect|audit|check|analyze)\s+(?:(?:all|the|only|both|my|our|current|large)\s+){0,4}`;
-  const exclusionLead = String.raw`(?:excluding|without|except(?:\s+for)?|but\s+not|(?:but\s+)?(?:do\s+not|don't|dont)\s+include|(?:but\s+)?not\s+including)`;
-  const selectsTrackedOnly = /\b(?:review|inspect|audit|check|analyze)\s+(?:only\s+tracked(?:\s+(?:changes?|diffs?|files?|code|work))?|tracked(?:\s+(?:changes?|diffs?|files?|code|work))?\s+only)(?=$|[.,;:!?])/iu.test(scope);
-  const workingTreeSelection = String.raw`(?:(?:(?:my|our|current|all)\s+)?(?:changes?|diffs?|files?|code|work)|(?:the\s+)?(?:working[- ]tree|worktree)(?:\s+(?:changes?|diffs?|files?))?|uncommitted\s+(?:changes?|diffs?|work|code))`;
-  const excludesUntracked = new RegExp(String.raw`${reviewLead}${workingTreeSelection}[^;.!?]*?\b${exclusionLead}\s+(?:the\s+)?untracked(?:\s+(?:changes?|diffs?|files?|code|content|work))?\b`, "iu").test(scope);
-  if (selectsTrackedOnly || excludesUntracked) {
-    return {
-      ok: false,
-      reason: "Review cannot safely honor a tracked-only target because working-tree evidence includes untracked file metadata. Choose staged changes, unstaged changes, or the full working tree."
-    };
-  }
-  const excludesUnstaged = new RegExp(String.raw`\b${exclusionLead}\s+(?:the\s+)?unstaged(?:\s+(?:changes?|diffs?))?\b`, "iu").test(scope) || /,\s*not\s+unstaged(?:\s+(?:changes?|diffs?))?\b/iu.test(scope);
-  const excludesStaged = new RegExp(String.raw`\b${exclusionLead}\s+(?:the\s+)?staged(?:\s+(?:changes?|diffs?))?\b`, "iu").test(scope) || /,\s*not\s+staged(?:\s+(?:changes?|diffs?))?\b/iu.test(scope);
-  const hasBothWorkingTreeLayers = new RegExp(String.raw`${reviewLead}(?:(?:staged)(?:\s+${workingTreeUnit})?\s*(?:and|&|\+|plus)\s*(?:unstaged|not[- ]staged)|(?:unstaged|not[- ]staged)(?:\s+${workingTreeUnit})?\s*(?:and|&|\+|plus)\s*staged)\s+${workingTreeUnit}\b`, "iu").test(scope);
-  const hasUnstaged = hasAffirmativeWorkingTreeMention(scope, /\b(?:unstaged|not[- ]staged)\s+(?:changes?|diffs?|files?|code|work|symlinks?)\b/giu) || /\b(?:review|inspect|audit|check|analyze)\s+(?:(?:what\s+is|only)\s+)(?:unstaged|not[- ]staged)(?=$|[.;:!?])/iu.test(scope);
-  const withoutUnstagedPhrases = scope.replace(/\b(?:unstaged|not[- ]staged)\s+(?:changes?|diffs?)\b/giu, "");
-  const hasStaged = hasAffirmativeWorkingTreeMention(withoutUnstagedPhrases, /\b(?:staged|cached|index)\s+(?:changes?|diffs?|files?|code|work|symlinks?)\b/giu) || /\b(?:review|inspect|audit|check|analyze)\s+(?:(?:what\s+is|only)\s+staged|(?:the\s+)?index)(?=$|[.;:!?])/iu.test(scope) || /\b(?:review|inspect|audit|check|analyze)\s+staged\s+but\s+not\s+unstaged\b/iu.test(scope);
-  const hasGeneralWorkingTree = hasAffirmativeWorkingTreeMention(affirmativeWorkingTreeScope, /\b(?:(?:all|my|our|current)\s+(?:changes?|diffs?|files?|code|work)|(?:changes?|diffs?))\b/giu);
-  if (excludesStaged && excludesUnstaged) {
-    return {
-      ok: false,
-      reason: "Review target excludes both staged and unstaged changes."
-    };
-  }
-  if (excludesUnstaged && hasStaged) {
-    return { ok: true, target: { kind: "working_tree", mode: "staged", explicit: true } };
-  }
-  if (excludesStaged && hasUnstaged) {
-    return { ok: true, target: { kind: "working_tree", mode: "unstaged", explicit: true } };
-  }
-  if (excludesStaged && hasGeneralWorkingTree) {
-    return { ok: true, target: { kind: "working_tree", mode: "unstaged", explicit: true } };
-  }
-  if (excludesUnstaged && hasGeneralWorkingTree) {
-    return { ok: true, target: { kind: "working_tree", mode: "staged", explicit: true } };
-  }
-  if (hasBothWorkingTreeLayers && !excludesStaged && !excludesUnstaged) {
-    return { ok: true, target: { kind: "working_tree", mode: "all", explicit: true } };
-  }
-  if (hasStaged && hasUnstaged && !excludesStaged && !excludesUnstaged) {
-    return { ok: true, target: { kind: "working_tree", mode: "all", explicit: true } };
-  }
-  if (hasUnstaged) {
-    return { ok: true, target: { kind: "working_tree", mode: "unstaged", explicit: true } };
-  }
-  if (hasStaged) {
-    return { ok: true, target: { kind: "working_tree", mode: "staged", explicit: true } };
-  }
-  const hasNamedUntrackedFile = hasAffirmativeWorkingTreeMention(affirmativeWorkingTreeScope, /\buntracked(?:\s+[^\s,.;:!?]+){0,3}\s+files?\b/giu);
-  const hasLocalChanges = hasAffirmativeWorkingTreeMention(affirmativeWorkingTreeScope, /\blocal\s+(?:changes?|diffs?|files?|code|work)\b/giu);
-  const hasExplicitWorkingTree = hasAffirmativeWorkingTreeMention(affirmativeWorkingTreeScope, /\b(?:working[- ]tree|worktree)(?:\s+(?:changes?|diffs?|files?|code|work))?\b/giu);
-  const hasUncommittedMaterial = hasAffirmativeWorkingTreeMention(affirmativeWorkingTreeScope, /\buncommitted\s+(?:changes?|diffs?|files?|work|code)\b/giu);
-  if (hasNamedUntrackedFile || hasLocalChanges || hasGeneralWorkingTree || hasExplicitWorkingTree || hasUncommittedMaterial) {
-    return { ok: true, target: { kind: "working_tree", mode: "all", explicit: true } };
+  const keyword = /\b(?:commit|revision|rev)\s+(?:at\s+)?(?<ref>[^\s,;:!?)"'`]{1,240})/iu.exec(scope)?.groups?.ref;
+  if (keyword !== void 0) {
+    const ref = keyword.replace(/[.,;:!?)"'`]+$/u, "");
+    if (ref.length > 0) {
+      if (!isSafeReviewRef(ref)) {
+        return {
+          ok: false,
+          reason: `Review target names an unusable commit ref: ${ref}. Use a commit id, a tag, a branch name, or HEAD.`
+        };
+      }
+      return { ok: true, target: { kind: "commit", ref } };
+    }
   }
   return void 0;
 }
-function parseCommit(scope) {
-  const targets = [];
-  for (const match of scope.matchAll(/\b(?:latest|last|current)\s+(?:commit|committed\s+changes?)\b/giu)) {
-    const targetIndex = match.index ?? 0;
-    if (hasAffirmativeReviewTargetLead(scope, targetIndex) && hasTargetSelectionSuffix(scope, targetIndex + match[0].length)) {
-      targets.push({ kind: "commit", ref: HEAD_COMMIT_REF });
-    }
+function parseBareHeadForm(scope) {
+  const head = /(?<=^|[\s(["'])(?<ref>HEAD(?:[~^]\d*)*)(?=$|[\s,;:!?)\]"'`])/u.exec(scope)?.groups?.ref;
+  return head === void 0 ? void 0 : { kind: "commit", ref: head };
+}
+function parseWorkingTreeForm(scope) {
+  const staged = /(?<!\bnot[- ])(?<![\w-])staged\b/iu.test(scope);
+  const unstaged = /\b(?:unstaged|not[- ]staged)\b/iu.test(scope);
+  if (staged && unstaged) {
+    return { kind: "working_tree", mode: "all", explicit: true };
   }
-  for (const match of scope.matchAll(/\b(?:review|inspect|audit|check|analyze)\s+(?:the\s+)?(?:this\s+commit|changes?\s+in\s+this\s+commit)\b/giu)) {
-    const targetIndex = match.index ?? 0;
-    if (hasTargetSelectionSuffix(scope, targetIndex + match[0].length)) {
-      targets.push({ kind: "commit", ref: HEAD_COMMIT_REF });
-    }
-  }
-  let skippedSubjectMention = false;
-  for (const match of scope.matchAll(/\b(?<kind>commit|revision|rev)\s+(?:at\s+)?(?<ref>\S+)/giu)) {
-    const kind = match.groups?.kind?.toLowerCase();
-    const explicitCommit = match.groups?.ref;
-    if (explicitCommit === void 0)
-      continue;
-    if (!hasAffirmativeReviewTargetLead(scope, match.index ?? 0))
-      continue;
-    const prefix = scope.slice(0, match.index);
-    if (kind === "commit" && /\b(?:can|could|current|last|latest|may|might|must|should|this|to|will|would)\s+$/iu.test(prefix)) {
-      continue;
-    }
-    const ref = explicitCommit.replace(/[.,;:!?]+$/u, "");
-    const directSubjectMention = kind === "commit" && /^(?:behavior|code|handling|history|implementation|logic|message|parser|parsing|support|workflow)$/iu.test(ref) && /\b(?:review|inspect|audit|check|analyze)\s+(?:the\s+)?$/iu.test(prefix);
-    if (directSubjectMention || !hasTargetSelectionSuffix(scope, (match.index ?? 0) + match[0].length)) {
-      skippedSubjectMention = true;
-      continue;
-    }
-    if (!isSafeReviewRef(ref)) {
-      return { ok: false, reason: `Review target contains an unsafe Git ref: ${ref}` };
-    }
-    targets.push({ kind: "commit", ref });
-  }
-  for (const match of scope.matchAll(/\b(?<ref>HEAD(?:[~^]\d*)?)(?=$|[\s)"'\].,])/gu)) {
-    if (!hasAffirmativeReviewTargetLead(scope, match.index ?? 0))
-      continue;
-    const headRef = match.groups?.ref;
-    const suffix = scope.slice((match.index ?? 0) + match[0].length);
-    if (suffix.startsWith(".."))
-      continue;
-    if (!hasTargetSelectionSuffix(scope, (match.index ?? 0) + match[0].length)) {
-      continue;
-    }
-    if (headRef !== void 0 && isSafeReviewRef(headRef)) {
-      targets.push({ kind: "commit", ref: headRef });
-    }
-  }
-  for (const match of scope.matchAll(/\b(?<ref>HEAD[^\s)"'\].,]*)/gu)) {
-    if (!hasAffirmativeReviewTargetLead(scope, match.index ?? 0))
-      continue;
-    const namedHead = match.groups?.ref;
-    if (namedHead !== void 0 && !/^HEAD(?:[~^]\d*)?$/u.test(namedHead.replace(/[.,;:!?]+$/u, ""))) {
-      return { ok: false, reason: "Review target contains a malformed HEAD ref." };
-    }
-  }
-  const uniqueTargets = deduplicateReviewTargets(targets);
-  if (uniqueTargets.length > 1) {
-    return {
-      ok: false,
-      reason: "Review target is ambiguous because the request names more than one commit."
-    };
-  }
-  const target = uniqueTargets[0];
-  if (target !== void 0)
-    return { ok: true, target };
-  if (!skippedSubjectMention && /\breview\s+(?:the\s+)?(?:commit|revision|rev)\b/iu.test(scope)) {
-    return { ok: false, reason: "Review target names a commit without a Git ref." };
+  if (unstaged)
+    return { kind: "working_tree", mode: "unstaged", explicit: true };
+  if (staged)
+    return { kind: "working_tree", mode: "staged", explicit: true };
+  if (/\b(?:working[- ]tree|worktree|uncommitted\s+(?:changes?|work|files?)|current\s+(?:diff|changes?|work))\b/iu.test(scope)) {
+    return { kind: "working_tree", mode: "all", explicit: true };
   }
   return void 0;
 }
-function parseBareBranch(scope) {
-  for (const match of scope.matchAll(/\b(?:review|inspect|audit|check|analyze)\s+(?:(?:(?:all\s+)?(?:changes?|diffs?)|everything)\s+(?:in|on)\s+(?:the\s+)?(?:this|current)\s+branch|(?:the\s+)?(?:this|current)\s+branch)\b/giu)) {
-    if (!hasTargetSelectionSuffix(scope, (match.index ?? 0) + match[0].length))
-      continue;
-    return {
-      ok: false,
-      reason: "Review target names the current branch without a comparison base. Use an explicit range such as main...HEAD."
-    };
-  }
-  for (const match of scope.matchAll(/\bbranch\s+(?<ref>\S+)/giu)) {
-    if (!hasAffirmativeReviewTargetLead(scope, match.index ?? 0))
-      continue;
-    const branch = match.groups?.ref;
-    if (branch === void 0)
-      continue;
-    const ref = branch.replace(/[.,;:!?]+$/u, "");
-    if (/^(?:behavior|handling|integration|logic|parser|parsing|support)$/iu.test(ref)) {
-      continue;
-    }
-    if (!hasTargetSelectionSuffix(scope, (match.index ?? 0) + match[0].length))
-      continue;
-    if (!isSafeReviewRef(ref)) {
-      return { ok: false, reason: `Review target contains an unsafe Git ref: ${ref}` };
-    }
-    return {
-      ok: false,
-      reason: `Review target names branch ${ref} without a comparison base. Use an explicit range such as main...${ref}.`
-    };
-  }
-  return void 0;
-}
-function hasSelectedReviewTargetBefore(scope, targetIndex) {
-  const prefix = scope.slice(0, targetIndex).trim();
-  if (prefix.length === 0)
-    return false;
-  const candidates = [
-    parseRange(prefix),
-    parsePullRequestUrl(prefix),
-    parsePullRequestMention(prefix),
-    parseCommit(prefix),
-    parseWorkingTree(prefix)
-  ];
-  return candidates.some((candidate) => candidate?.ok === true && candidate.target.kind !== "goal");
-}
-function hasExplicitFileOrPathExclusion(scope) {
-  for (const match of scope.matchAll(/\b(?:except(?:\s+for)?|exclud(?:e|ing)|without|skip(?:ping)?|omit(?:ting)?|ignor(?:e|ing)|but\s+not|save\s+for|other\s+than|(?:but\s+)?(?:do\s+not|don't|dont)\s+(?:include|review|inspect|audit|check|analyze)|(?:leave|leaving)\s+out)\s+(?:the\s+)?(?<excluded>[^;!?]+)/giu)) {
-    if (!hasSelectedReviewTargetBefore(scope, match.index ?? 0))
-      continue;
-    const excluded = match.groups?.excluded?.trim();
-    if (excluded === void 0)
-      continue;
-    if (/^(?:generating|writing|running|creating|editing|changing|modifying|updating|producing|adding|removing)\b/iu.test(excluded)) {
-      continue;
-    }
-    if (/^(?:(?:my|our|current)\s+)?(?:(?:working[- ]tree|worktree)(?:\s+(?:changes?|diffs?))?|uncommitted\s+(?:changes?|diffs?|work|code)|(?:staged|unstaged|not[- ]staged|untracked)(?:\s+(?:changes?|diffs?|files?|code|content|work))?|current\s+(?:changes?|diffs?))\b/iu.test(excluded)) {
-      continue;
-    }
-    if (/(?:^|\s)(?:\.{0,2}\/|[^\s,]+\/[^\s,]*|[^\s,]+\.[A-Za-z0-9][A-Za-z0-9_-]*)(?=$|[\s,.)])/u.test(excluded) || /\b(?:file|path|director(?:y|ies)|folders?)\b/iu.test(excluded) || /\b(?:assets?|build|changelogs?|config(?:uration)?|dist|docs?|documentation|examples?|fixtures?|generated|lockfiles?|migrations?|node_modules|snapshots?|sources?|src|tests?|vendor)\b/iu.test(excluded) || /\b(?:Dockerfile|LICENSE|Makefile|README)\b/iu.test(excluded)) {
-      return true;
-    }
+function namesNarrowedPaths(scope) {
+  if (EXCLUDED_CHANGE_CLASS_PATTERN.test(scope))
     return true;
+  for (const match of scope.matchAll(NARROWING_CLAUSE_PATTERN)) {
+    const path = match.groups?.path;
+    if (path !== void 0 && looksLikeReviewSubsetPath(path))
+      return true;
   }
   return false;
 }
-function hasMultipleReviewTargetClauses(scope) {
-  const clauses = scope.split(/\s*(?:;|\balongside\b|\btogether\s+with\b|\band\b)\s*/iu).map((clause) => clause.trim()).filter((clause) => clause.length > 0);
-  if (clauses.length < 2)
-    return false;
-  const targets = clauses.flatMap((clause) => {
-    const candidateScope = /^(?:review|inspect|audit|check|analyze)\b/iu.test(clause) ? clause : `review ${clause}`;
-    return [
-      parseRange(candidateScope),
-      parsePullRequestUrl(candidateScope),
-      parsePullRequestMention(candidateScope),
-      parseCommit(candidateScope),
-      parseWorkingTree(candidateScope)
-    ].flatMap((result) => result?.ok === true ? [result.target] : []);
-  });
-  const uniqueTargets = deduplicateReviewTargets(targets);
-  if (uniqueTargets.every((target) => target.kind === "working_tree"))
-    return false;
-  return uniqueTargets.length > 1;
+function namesPathOnlyRequest(scope) {
+  const pathOnly = /^\s*(?:review|inspect|audit|check|analyze)\s+(?:(?:only|the|this|my|our|current)\s+)*(?:(?:file|code|plan|report)\s*(?:(?:in|at|from)\s+|:\s*)?)?(?<path>\S+)(?<suffix>[\s\S]*)$/iu.exec(scope);
+  const path = pathOnly?.groups?.path;
+  if (path !== void 0 && looksLikeReviewPath(path)) {
+    const suffix = (pathOnly?.groups?.suffix ?? "").trim();
+    if (suffix.length === 0 || /^[.!?]$/u.test(suffix) || /^(?:,?\s*(?:for|with|especially)\b|,?\s+and\s+(?:focus|check|inspect|look|pay|prioritize|verify)\b)/iu.test(suffix)) {
+      return true;
+    }
+  }
+  return false;
 }
 function parseReviewTarget(scope) {
-  const normalizedScope = withImplicitReviewLead(normalizeUnambiguousReviewAliases(scope.replace(/[’‘]/gu, "'")));
-  const affirmativeScope = withoutNegatedReviewClauses(normalizedScope);
-  const suppliedMaterial = classifySuppliedReviewMaterial(affirmativeScope);
+  const normalizedScope = normalizeReviewQuotes(scope);
+  const suppliedMaterial = classifySuppliedReviewMaterial(normalizedScope);
   if (suppliedMaterial.kind === "supplied") {
     return { ok: true, target: { kind: "goal" } };
   }
   if (suppliedMaterial.kind === "malformed") {
     return { ok: false, reason: suppliedMaterial.reason };
   }
+  if (suppliedMaterial.kind === "empty") {
+    return {
+      ok: false,
+      reason: "Review was asked to inspect supplied material, but the goal ends before any material appears. Paste the text to review, or name a commit, a range, staged, or unstaged."
+    };
+  }
   const authorityScope = maskReviewLiteralData(normalizedScope);
-  const affirmativeAuthorityScope = maskReviewLiteralData(affirmativeScope);
-  if (hasExplicitFileOrPathExclusion(authorityScope)) {
+  if (namesPullRequest(authorityScope)) {
+    return { ok: false, reason: PULL_REQUEST_UNSUPPORTED_REASON };
+  }
+  if (namesNarrowedPaths(authorityScope)) {
+    return { ok: false, reason: PATH_SUBSET_UNSUPPORTED_REASON };
+  }
+  const range = parseRangeForm(authorityScope);
+  const pinned = range === void 0 ? parseCommitForm(authorityScope) : { ok: true, target: range };
+  if (pinned !== void 0 && !pinned.ok)
+    return pinned;
+  const workingTree = parseWorkingTreeForm(authorityScope);
+  if (pinned !== void 0 && workingTree !== void 0) {
     return {
       ok: false,
-      reason: "Review target uses a file or path exclusion that cannot be pinned safely. Choose one complete working tree, commit, range, or PR target."
+      reason: "Review pins one target per run, and this goal names two. Run it once for the commit or range, then again for the working tree."
     };
   }
-  if (hasUnsupportedPathSubset(authorityScope)) {
-    return {
-      ok: false,
-      reason: "Review target uses a path subset that cannot be pinned safely. Choose one complete working tree, commit, range, or PR target."
-    };
+  if (pinned !== void 0)
+    return pinned;
+  if (workingTree !== void 0)
+    return { ok: true, target: workingTree };
+  const bareHead = parseBareHeadForm(authorityScope);
+  if (bareHead !== void 0)
+    return { ok: true, target: bareHead };
+  if (namesPathOnlyRequest(authorityScope)) {
+    return { ok: false, reason: PATH_SUBSET_UNSUPPORTED_REASON };
   }
-  if (isPathOnlyReviewRequest(affirmativeAuthorityScope)) {
-    return {
-      ok: false,
-      reason: "A file path by itself is not Review evidence. Choose one complete working tree, commit, range, or PR target, or include the actual plan or report text in the request."
-    };
-  }
-  if (suppliedMaterial.kind === "missing" || hasTopLevelArtifactReviewSubject(affirmativeAuthorityScope)) {
-    return {
-      ok: false,
-      reason: "Review has no supplied source material. Choose one complete working tree, commit, range, or PR target, or include the actual plan, report, code, or text in the request."
-    };
-  }
-  const unsupportedComparison = unsupportedReviewComparison(affirmativeAuthorityScope);
-  if (unsupportedComparison !== void 0) {
-    return { ok: false, reason: unsupportedComparison };
-  }
-  if (hasMultipleReviewTargetClauses(affirmativeAuthorityScope)) {
-    return {
-      ok: false,
-      reason: "Review target is ambiguous because the request names more than one code target. Choose one working tree, commit, range, or PR target."
-    };
-  }
-  if (/\b(?:review|inspect|audit|check|analyze)\s+(?:the\s+)?(?:(?:changes?|diffs?)\s+(?:in|from)\s+)?(?:last|previous|prior|past|latest|recent)\s+(?:(?:\d+|[A-Za-z-]+(?:\s+[A-Za-z-]+){0,2})\s+)?commits\b/iu.test(affirmativeAuthorityScope)) {
-    return {
-      ok: false,
-      reason: "Review target names more than one commit without exact bounds. Use an explicit range such as HEAD~2...HEAD."
-    };
-  }
-  for (const match of affirmativeAuthorityScope.matchAll(/\b(?:prs?|pull requests?)\s*#?\d{1,7}\s*\/\s*(?:(?:pr|pull request)\s*)?#?\d{1,7}\b/giu)) {
-    if ((match.index ?? 0) !== 0 && !hasAffirmativeReviewTargetLead(affirmativeAuthorityScope, match.index ?? 0)) {
-      continue;
-    }
-    return {
-      ok: false,
-      reason: "Review target is ambiguous because the request names more than one PR."
-    };
-  }
-  for (const match of affirmativeAuthorityScope.matchAll(/\b(?:(?:commits|revisions|revs)\s+[A-Za-z0-9._@+~^-]+\s*\/\s*[A-Za-z0-9._@+~^-]+|(?:commit|revision|rev)\s+(?:[0-9a-f]{6,64}|HEAD(?:[~^]\d*)?)\s*\/\s*(?:(?:commit|revision|rev)\s+)?(?:[0-9a-f]{6,64}|HEAD(?:[~^]\d*)?)|(?:commit|revision|rev)\s+[A-Za-z0-9._@+~^-]+\s*\/\s*(?:commit|revision|rev)\s+[A-Za-z0-9._@+~^-]+)\b/giu)) {
-    if ((match.index ?? 0) !== 0 && !hasAffirmativeReviewTargetLead(affirmativeAuthorityScope, match.index ?? 0)) {
-      continue;
-    }
-    return {
-      ok: false,
-      reason: "Review target is ambiguous because the request names more than one commit. Choose one commit or one explicit range."
-    };
-  }
-  const pluralCommitList = /\b(?:review|inspect|audit|check|analyze)\s+(?:both\s+)?(?:commits|revisions|revs)\s+(?<first>[A-Za-z0-9][A-Za-z0-9._/@+~^-]{0,120})\s+(?:and|or|plus)\s+(?<second>[A-Za-z0-9][A-Za-z0-9._/@+~^-]{0,120})\b/iu.exec(affirmativeAuthorityScope)?.groups;
-  const subjectWords = /* @__PURE__ */ new Set([
-    "behavior",
-    "handling",
-    "implementation",
-    "logic",
-    "parser",
-    "parsing",
-    "support"
-  ]);
-  const proseContinuationWords = /* @__PURE__ */ new Set([
-    "check",
-    "concentrate",
-    "ensure",
-    "especially",
-    "exclude",
-    "excluding",
-    "focus",
-    "ignore",
-    "inspect",
-    "look",
-    "omit",
-    "pay",
-    "prioritize",
-    "skip",
-    "verify"
-  ]);
-  for (const match of affirmativeAuthorityScope.matchAll(/\b(?:prs?|pull requests?)\s*#?\d{1,7}(?:\s*,\s*|\s*&\s*|\s*\+\s*|\s+(?:and|or|plus)\s+)#?\d{1,7}\b/giu)) {
-    if (!hasAffirmativeReviewTargetLead(affirmativeAuthorityScope, match.index ?? 0))
-      continue;
-    return {
-      ok: false,
-      reason: "Review target is ambiguous because the request names more than one PR."
-    };
-  }
-  for (const match of affirmativeAuthorityScope.matchAll(/\b(?:commits?|revisions?|revs?)\s+(?<first>[A-Za-z0-9][A-Za-z0-9._/@+~^-]{0,120})(?:\s*,\s*|\s*&\s*|\s*\+\s*|\s+(?:and|or|plus)\s+)(?<second>[A-Za-z0-9][A-Za-z0-9._/@+~^-]{0,120})\b/giu)) {
-    if (!hasAffirmativeReviewTargetLead(affirmativeAuthorityScope, match.index ?? 0))
-      continue;
-    const first = match.groups?.first;
-    const second = match.groups?.second;
-    if (second !== void 0 && proseContinuationWords.has(second.toLowerCase())) {
-      continue;
-    }
-    if (first !== void 0 && second !== void 0 && subjectWords.has(first.toLowerCase()) && subjectWords.has(second.toLowerCase())) {
-      continue;
-    }
-    return {
-      ok: false,
-      reason: "Review target is ambiguous because the request names more than one commit. Choose one commit or one explicit range."
-    };
-  }
-  if (pluralCommitList?.first !== void 0 && pluralCommitList.second !== void 0 && !proseContinuationWords.has(pluralCommitList.second.toLowerCase()) && (!subjectWords.has(pluralCommitList.first.toLowerCase()) || !subjectWords.has(pluralCommitList.second.toLowerCase()))) {
-    return {
-      ok: false,
-      reason: "Review target is ambiguous because the request names more than one commit. Choose one commit or one explicit range."
-    };
-  }
-  if (/\b(?:review|inspect|audit|check|analyze)\s+(?:both\s+)?(?:prs|pull requests)\s+#?\d{1,7}\s+(?:and|or|plus)\s+#?\d{1,7}\b/iu.test(affirmativeAuthorityScope)) {
-    return {
-      ok: false,
-      reason: "Review target is ambiguous because the request names more than one PR."
-    };
-  }
-  if (/\b(?:review|inspect|audit|check|analyze)\s+(?:everything|all(?:\s+(?:code|changes?|diffs?))?)\s+(?:except|excluding)\s+(?:the\s+)?(?:commit|revision|rev|pr|pull request|branch|range|staged|unstaged|working[- ]tree|worktree)\b/iu.test(affirmativeAuthorityScope)) {
-    return {
-      ok: false,
-      reason: "Review target uses an exclusion that cannot be pinned safely. Choose one explicit working tree, commit, range, or PR target."
-    };
-  }
-  if (/\b(?:review|inspect|audit|check|analyze)\b[^;.!?]*\b(?:since|after|before)\s+(?:the\s+)?(?:commit|revision|rev)\s+\S+/iu.test(affirmativeAuthorityScope)) {
-    return {
-      ok: false,
-      reason: "Review target uses a relative commit comparison that cannot be pinned safely. Use an explicit range such as abc123...HEAD."
-    };
-  }
-  const specificResults = [
-    parseRange(affirmativeAuthorityScope),
-    parsePullRequestUrl(affirmativeAuthorityScope),
-    parsePullRequestMention(affirmativeAuthorityScope),
-    parseCommit(affirmativeAuthorityScope),
-    parseBareBranch(affirmativeAuthorityScope)
-  ].filter((result) => result !== void 0);
-  const workingTreeResult = parseWorkingTree(affirmativeAuthorityScope);
-  const results = [
-    ...specificResults,
-    ...workingTreeResult === void 0 ? [] : [workingTreeResult]
-  ];
-  const invalid3 = results.find((result) => !result.ok);
-  if (invalid3 !== void 0)
-    return invalid3;
-  const specificTargets = specificResults.flatMap((result) => result.ok ? [result.target] : []);
-  const workingTreeTargets = workingTreeResult?.ok === true ? [workingTreeResult.target] : [];
-  const targets = deduplicateReviewTargets([...specificTargets, ...workingTreeTargets]);
-  if (targets.length > 1) {
-    return {
-      ok: false,
-      reason: "Review target is ambiguous because the request names more than one code target. Choose one working tree, commit, range, or PR target."
-    };
-  }
-  if (targets.length === 0) {
-    const againstComparison = /\b(?:review|inspect|audit|check|analyze)\s+(?<base>[A-Za-z0-9][A-Za-z0-9._/@+~^-]{0,120})\s+against\s+(?<head>[A-Za-z0-9][A-Za-z0-9._/@+~^-]{0,120})(?=$|[\s)"'\],;:!?])/iu.exec(affirmativeAuthorityScope)?.groups;
-    const base = againstComparison?.base;
-    const head = againstComparison?.head?.replace(/[.,;:!?]+$/u, "");
-    if (base !== void 0 && head !== void 0 && isSafeReviewRef(base) && isSafeReviewRef(head)) {
-      return {
-        ok: false,
-        reason: `Review target comparison is ambiguous. Use an explicit range such as ${base}...${head}.`
-      };
-    }
-    if (/\b(?:review|inspect|audit|check|analyze)\s+(?:the\s+)?(?:changes?|diffs?)\s+(?:from|to|between|against)\b/iu.test(affirmativeAuthorityScope)) {
-      return {
-        ok: false,
-        reason: "Review target comparison is incomplete. Use one explicit range such as main...HEAD."
-      };
-    }
-    if (/\b(?:review|inspect|audit|check|analyze)\s+(?:(?:the|only|what\s+is)\s+)?(?:staged|unstaged|index|tracked|untracked)(?=$|[.,;:!?])/iu.test(affirmativeAuthorityScope)) {
-      return {
-        ok: false,
-        reason: "Review target wording is incomplete. Choose staged changes, unstaged changes, or the full working tree."
-      };
-    }
-  }
-  if (specificTargets.length === 0 && workingTreeTargets.length === 0 && /\b(?:the|these|this)\s+(?:changes?|diffs?)\b(?=$|[.,;:!?]|\s+(?:for|with|especially|focus(?:ing)?(?:\s+on)?)\b)/iu.test(affirmativeAuthorityScope)) {
-    return {
-      ok: true,
-      target: { kind: "working_tree", mode: "all", explicit: true }
-    };
-  }
-  const target = targets[0];
-  if (target !== void 0)
-    return { ok: true, target };
   return {
-    ok: false,
-    reason: "Review has no supplied source material. Choose one complete working tree, commit, range, or PR target, or include the actual plan, report, code, or text in the request."
+    ok: true,
+    target: { kind: "working_tree", mode: "all", explicit: false },
+    assumed: true
   };
 }
-function reviewScopeRequiresGitEvidence(scope) {
-  const parsed = parseReviewTarget(scope);
-  if (!parsed.ok)
-    return true;
-  return parsed.target.kind !== "goal";
+function reviewTargetLabel(target) {
+  if (target.kind === "commit")
+    return `commit ${target.ref}`;
+  return `range ${target.base}${target.dots}${target.head}`;
 }
 function runtimeTarget(target) {
   if (target.kind === "goal" || target.kind === "working_tree")
     return void 0;
   if (target.kind === "commit")
     return { kind: "commit", ref: target.ref };
-  if (target.kind === "range") {
-    return { kind: "range", base: target.base, head: target.head, dots: target.dots };
-  }
-  return {
-    kind: "pull_request",
-    number: target.number,
-    ...target.repository === void 0 ? {} : { repository: githubRepositoryKey(target.repository) }
-  };
+  return { kind: "range", base: target.base, head: target.head, dots: target.dots };
 }
-function resolveTargetArgs(target, pullRequestMergeRef) {
+function resolveTargetArgs(target) {
   if (target.kind === "commit") {
     return ["rev-parse", "--verify", "--end-of-options", `${target.ref}^{commit}`];
-  }
-  if (target.kind === "range") {
-    return [
-      "rev-parse",
-      "--revs-only",
-      "--end-of-options",
-      `${target.base}^{commit}..${target.head}^{commit}`
-    ];
-  }
-  if (pullRequestMergeRef === void 0) {
-    throw new Error(`Review target unavailable: PR #${target.number} has no repository-bound local merge ref.`);
   }
   return [
     "rev-parse",
     "--revs-only",
     "--end-of-options",
-    `${pullRequestMergeRef}^{commit}`,
-    `${pullRequestMergeRef}^1^{commit}..${pullRequestMergeRef}^2^{commit}`
+    `${target.base}^{commit}..${target.head}^{commit}`
   ];
 }
 function resolvedObjectId(value, label) {
@@ -86807,27 +85944,14 @@ function parseResolvedTarget(target, output) {
       commit: resolvedObjectId(lines[0], `commit id for ${target.ref}`)
     };
   }
-  if (target.kind === "range") {
-    if (lines.length !== 2 || !lines[1]?.startsWith("^")) {
-      throw new Error(`Review target unavailable: Git returned an invalid snapshot for range ${target.base}${target.dots}${target.head}.`);
-    }
-    return {
-      kind: "range",
-      base_commit: resolvedObjectId(lines[1].slice(1), `base commit id for ${target.base}${target.dots}${target.head}`),
-      head_commit: resolvedObjectId(lines[0], `head commit id for ${target.base}${target.dots}${target.head}`),
-      dots: target.dots
-    };
-  }
-  if (lines.length !== 3 || !lines[2]?.startsWith("^")) {
-    throw new Error(`Review target unavailable: Git returned an invalid snapshot for PR #${target.number}.`);
+  if (lines.length !== 2 || !lines[1]?.startsWith("^")) {
+    throw new Error(`Review target unavailable: Git returned an invalid snapshot for range ${target.base}${target.dots}${target.head}.`);
   }
   return {
-    kind: "pull_request",
-    number: target.number,
-    ...target.repository === void 0 ? {} : { repository: target.repository },
-    merge_commit: resolvedObjectId(lines[0], `merge commit id for PR #${target.number}`),
-    base_commit: resolvedObjectId(lines[2].slice(1), `base commit id for PR #${target.number}`),
-    head_commit: resolvedObjectId(lines[1], `head commit id for PR #${target.number}`)
+    kind: "range",
+    base_commit: resolvedObjectId(lines[1].slice(1), `base commit id for ${target.base}${target.dots}${target.head}`),
+    head_commit: resolvedObjectId(lines[0], `head commit id for ${target.base}${target.dots}${target.head}`),
+    dots: target.dots
   };
 }
 function pinnedTargetMatches(target, pinned) {
@@ -86835,14 +85959,11 @@ function pinnedTargetMatches(target, pinned) {
     return false;
   if (target.kind === "range" && pinned.kind === "range")
     return target.dots === pinned.dots;
-  if (target.kind === "pull_request" && pinned.kind === "pull_request") {
-    return target.number === pinned.number && target.repository === pinned.repository;
-  }
   return true;
 }
-async function resolveTarget2(projectRoot, target, reader, pullRequestMergeRef, directContext) {
+async function resolveTarget2(projectRoot, target, reader, directContext) {
   if (reader === void 0) {
-    const result2 = runGit(projectRoot, resolveTargetArgs(target, pullRequestMergeRef), {}, directContext);
+    const result2 = runGit(projectRoot, resolveTargetArgs(target), {}, directContext);
     if (!result2.ok)
       throw new Error(`Review target unavailable: ${result2.reason}`);
     return parseResolvedTarget(target, result2.stdout);
@@ -86958,18 +86079,6 @@ function targetDiffArgs(target, stat3 = false) {
       "--"
     ];
   }
-  if (target.kind === "range") {
-    return [
-      "diff",
-      ...statArgs,
-      "--no-ext-diff",
-      "--no-textconv",
-      "--submodule=short",
-      "--ignore-submodules=none",
-      `${target.base_commit}${target.dots}${target.head_commit}`,
-      "--"
-    ];
-  }
   return [
     "diff",
     ...statArgs,
@@ -86977,59 +86086,19 @@ function targetDiffArgs(target, stat3 = false) {
     "--no-textconv",
     "--submodule=short",
     "--ignore-submodules=none",
-    `${target.base_commit}...${target.head_commit}`,
+    `${target.base_commit}${target.dots}${target.head_commit}`,
     "--"
   ];
 }
 function targetUnavailableMessage(target) {
-  const label = reviewTargetLabel(target);
-  if (target.kind === "pull_request") {
-    return `Review target unavailable: PR #${target.number} is not available as a complete local snapshot. A checked-out PR head does not identify its base. Review an explicit range such as main...HEAD, or fetch the PR merge ref locally.`;
-  }
-  return `Review target unavailable: ${label} could not be read from this repository.`;
-}
-async function assertPullRequestRepository(projectRoot, target, reader, directContext) {
-  const directConfiguration = reader === void 0 ? directContext?.auditedConfig : void 0;
-  const result = reader === void 0 ? void 0 : await readGit(reader, "remote_repositories", projectRoot);
-  if (reader === void 0 && directConfiguration === void 0 || result !== void 0 && !result.ok) {
-    throw new Error(`Review target unavailable: ${reviewTargetLabel(target)} repository identity could not be verified.`);
-  }
-  const repositoryEntries = reader === void 0 ? githubRepositoriesFromGitConfig(directConfiguration) : result.stdout.split(/\r?\n/u).map((entry) => entry.trim()).filter((entry) => entry.length > 0);
-  const repositories = [...new Set(repositoryEntries)];
-  const requested = target.repository === void 0 ? void 0 : githubRepositoryKey(target.repository);
-  if (repositories.length === 0) {
-    throw new Error(`Review target unavailable: ${reviewTargetLabel(target)} cannot be tied to a local GitHub repository because this workspace has no GitHub remote.`);
-  }
-  if (requested !== void 0 && !repositories.includes(requested)) {
-    throw new Error(`Review target repository mismatch: ${requested} is not one of this workspace's configured GitHub repositories.`);
-  }
-  if (requested === void 0 && repositories.length > 1) {
-    throw new Error(`Review target repository is ambiguous: this workspace has multiple GitHub repositories, so the local PR merge ref cannot be tied safely to ${requested ?? `PR #${target.number}`}. Review an explicit range such as main...HEAD instead.`);
-  }
-  const repository = requested ?? repositories[0];
-  if (repository === void 0) {
-    throw new Error(`Review target unavailable: ${reviewTargetLabel(target)} repository identity could not be verified.`);
-  }
-  if (reader !== void 0)
-    return { repository };
-  const mergeRefs = githubPullRequestMergeRefsFromGitConfig(directConfiguration, target.number).filter((candidate) => candidate.repository === repository);
-  const mergeRef = mergeRefs[0]?.ref;
-  if (mergeRefs.length !== 1 || mergeRef === void 0) {
-    throw new Error(`Review target unavailable: ${reviewTargetLabel(target)} has no locally provable repository-bound merge ref. Fetch it into refs/circuit/${repository}/pull/${target.number}/merge with a matching remote fetch refspec, or review an explicit range such as main...HEAD.`);
-  }
-  return { repository, mergeRef };
+  return `Review target unavailable: ${reviewTargetLabel(target)} could not be read from this repository.`;
 }
 async function collectTargetEvidence(projectRoot, target, reader, directContext) {
-  const pullRequestProof = target.kind === "pull_request" ? await assertPullRequestRepository(projectRoot, target, reader, directContext) : void 0;
-  const requestTarget = target.kind === "pull_request" && pullRequestProof !== void 0 ? {
-    kind: "pull_request",
-    number: target.number,
-    repository: pullRequestProof.repository
-  } : runtimeTarget(target);
+  const requestTarget = runtimeTarget(target);
   if (requestTarget === void 0) {
     throw new Error("Review target unavailable: the requested Git target could not be prepared.");
   }
-  const pinnedTarget = await resolveTarget2(projectRoot, requestTarget, reader, pullRequestProof?.mergeRef, directContext);
+  const pinnedTarget = await resolveTarget2(projectRoot, requestTarget, reader, directContext);
   const evidenceResults = reader === void 0 ? (() => {
     const directTarget = prepareDirectTarget(projectRoot, pinnedTarget, directContext);
     return {
@@ -87054,12 +86123,7 @@ async function collectTargetEvidence(projectRoot, target, reader, directContext)
   if (targetDiff.text.length === 0) {
     throw new Error(`Review target has no changes to inspect: ${reviewTargetLabel(target)} resolved successfully but produced an empty diff.`);
   }
-  return {
-    targetDiff,
-    targetDiffStat: diffStat.stdout,
-    pinnedTarget,
-    ...pullRequestProof === void 0 ? {} : { targetRepository: pullRequestProof.repository }
-  };
+  return { targetDiff, targetDiffStat: diffStat.stdout, pinnedTarget };
 }
 function gitDiffEvidence(result) {
   if (!result.ok)
@@ -87254,17 +86318,6 @@ async function collectUntrackedFiles(projectRoot, contentPolicy, reader, directC
     files: paths.slice(0, MAX_UNTRACKED_FILES).map((path) => readUntrackedFile(projectRoot, path, contentPolicy))
   };
 }
-function sameGitResult(left, right) {
-  if (left.ok !== right.ok)
-    return false;
-  if (left.ok && right.ok) {
-    return left.stdout === right.stdout && left.truncated_by_buffer === right.truncated_by_buffer;
-  }
-  return !left.ok && !right.ok && left.reason === right.reason;
-}
-function sameUntrackedEvidence(left, right) {
-  return JSON.stringify(left) === JSON.stringify(right);
-}
 async function collectReviewEvidence(projectRoot, options) {
   const target = options.target;
   if (target.kind === "goal")
@@ -87288,12 +86341,7 @@ async function collectReviewEvidence(projectRoot, options) {
         target_base_ref: target.base,
         target_head_ref: target.head
       } : {},
-      ...target.kind === "pull_request" ? { target_repository: targetEvidence.targetRepository } : {},
-      ...targetEvidence.pinnedTarget.kind === "commit" ? { target_commit: targetEvidence.pinnedTarget.commit } : targetEvidence.pinnedTarget.kind === "range" ? {
-        target_base_commit: targetEvidence.pinnedTarget.base_commit,
-        target_head_commit: targetEvidence.pinnedTarget.head_commit
-      } : {
-        target_merge_commit: targetEvidence.pinnedTarget.merge_commit,
+      ...targetEvidence.pinnedTarget.kind === "commit" ? { target_commit: targetEvidence.pinnedTarget.commit } : {
         target_base_commit: targetEvidence.pinnedTarget.base_commit,
         target_head_commit: targetEvidence.pinnedTarget.head_commit
       },
@@ -87353,17 +86401,14 @@ async function collectReviewEvidence(projectRoot, options) {
   const readStatus = async () => options.gitReader === void 0 ? runGit(evidenceRoot, ["status", "--short", "--ignore-submodules=none"], {}, directContext) : await readGit(options.gitReader, "status", evidenceRoot);
   const status = target.mode === "all" ? await readStatus() : { ok: true, stdout: "", truncated_by_buffer: false };
   if (!status.ok) {
-    if (target.explicit) {
-      throw new Error(`Review target unavailable: Git status could not be read. ${status.reason}`);
-    }
-    return { kind: "unavailable", reason: status.reason };
+    throw new Error(`Review target unavailable: Git status could not be read. ${status.reason}`);
   }
   const stagedResult = target.mode === "unstaged" ? emptyDiffResult : await readDiff("staged_diff", stagedDiffArgs);
   const unstagedResult = target.mode === "staged" ? emptyDiffResult : await readDiff("unstaged_diff", unstagedDiffArgs);
-  if (target.explicit && !stagedResult.ok) {
+  if (!stagedResult.ok) {
     throw new Error(`Review target unavailable: staged changes could not be read. ${stagedResult.reason}`);
   }
-  if (target.explicit && !unstagedResult.ok) {
+  if (!unstagedResult.ok) {
     throw new Error(`Review target unavailable: unstaged changes could not be read. ${unstagedResult.reason}`);
   }
   const staged = gitDiffEvidence(stagedResult);
@@ -87387,10 +86432,10 @@ async function collectReviewEvidence(projectRoot, options) {
     "--ignore-submodules=none",
     "--"
   ]);
-  if (target.explicit && !stagedStat.ok) {
+  if (!stagedStat.ok) {
     throw new Error(`Review target unavailable: the staged change summary could not be read. ${stagedStat.reason}`);
   }
-  if (target.explicit && !unstagedStat.ok) {
+  if (!unstagedStat.ok) {
     throw new Error(`Review target unavailable: the unstaged change summary could not be read. ${unstagedStat.reason}`);
   }
   const stagedChangedGitlinks = target.mode === "unstaged" ? emptyDiffResult : await readChangedGitlinks("staged_changed_gitlinks", stagedChangedGitlinkArgs);
@@ -87409,36 +86454,6 @@ async function collectReviewEvidence(projectRoot, options) {
   ].sort());
   const untrackedContentPolicy = options.includeUntrackedFileContent === true ? "include-content" : "metadata-only";
   const untracked = target.mode === "all" ? await collectUntrackedFiles(evidenceRoot, untrackedContentPolicy, options.gitReader, directContext) : { count: 0, truncated: false, files: [] };
-  const confirmedStatus = target.mode === "all" ? await readStatus() : { ok: true, stdout: "", truncated_by_buffer: false };
-  const confirmedStagedResult = target.mode === "unstaged" ? emptyDiffResult : await readDiff("staged_diff", stagedDiffArgs);
-  const confirmedUnstagedResult = target.mode === "staged" ? emptyDiffResult : await readDiff("unstaged_diff", unstagedDiffArgs);
-  const confirmedStagedStat = target.mode === "unstaged" ? emptyDiffResult : await readStat("staged_diff_stat", [
-    "diff",
-    "--stat",
-    "--cached",
-    "--no-ext-diff",
-    "--no-textconv",
-    "--submodule=short",
-    "--ignore-submodules=none",
-    "--"
-  ]);
-  const confirmedUnstagedStat = target.mode === "staged" ? emptyDiffResult : await readStat("unstaged_diff_stat", [
-    "diff",
-    "--stat",
-    "--no-ext-diff",
-    "--no-textconv",
-    "--submodule=short",
-    "--ignore-submodules=none",
-    "--"
-  ]);
-  const confirmedStagedChangedGitlinks = target.mode === "unstaged" ? emptyDiffResult : await readChangedGitlinks("staged_changed_gitlinks", stagedChangedGitlinkArgs);
-  const confirmedUnstagedChangedGitlinks = target.mode === "staged" ? emptyDiffResult : await readChangedGitlinks("unstaged_changed_gitlinks", unstagedChangedGitlinkArgs);
-  const confirmedUntracked = target.mode === "all" ? await collectUntrackedFiles(evidenceRoot, untrackedContentPolicy, options.gitReader, directContext) : { count: 0, truncated: false, files: [] };
-  const confirmedHiddenIndex = await inspectHiddenIndexFlags(evidenceRoot, options.gitReader, directContext);
-  assertNoHiddenIndexFlags(confirmedHiddenIndex.flags);
-  if (!sameGitResult(hiddenIndex.result, confirmedHiddenIndex.result) || !sameGitResult(status, confirmedStatus) || !sameGitResult(stagedResult, confirmedStagedResult) || !sameGitResult(unstagedResult, confirmedUnstagedResult) || !sameGitResult(stagedStat, confirmedStagedStat) || !sameGitResult(unstagedStat, confirmedUnstagedStat) || !sameGitResult(stagedChangedGitlinks, confirmedStagedChangedGitlinks) || !sameGitResult(unstagedChangedGitlinks, confirmedUnstagedChangedGitlinks) || !sameUntrackedEvidence(untracked, confirmedUntracked)) {
-    throw new Error("Review target unavailable: the working tree changed while evidence was collected. Retry after the working tree settles.");
-  }
   const selectedTrackedContentAvailable = staged.text.length > 0 || unstaged.text.length > 0;
   const selectedUntrackedContentAvailable = untracked.files.some((file2) => (file2.content?.text.length ?? 0) > 0);
   const selectedContentAvailable = selectedTrackedContentAvailable || selectedUntrackedContentAvailable;
@@ -87451,8 +86466,8 @@ async function collectReviewEvidence(projectRoot, options) {
     ];
     throw new Error(`Review target has no usable content to inspect because selected untracked files could not be read safely: ${reasons.join("; ")}.`);
   }
-  if (target.explicit && !selectedContentAvailable) {
-    throw new Error(`Review target has no changes to inspect: ${target.mode === "all" ? "working tree changes" : `${target.mode} changes`} are empty.`);
+  if (!selectedContentAvailable) {
+    throw new Error(target.explicit ? `Review target has no changes to inspect: ${target.mode === "all" ? "working tree changes" : `${target.mode} changes`} are empty.` : "Review found no changes to inspect. The goal did not name a target, so Review looked at the working tree. Name a commit, a range, staged, or unstaged if you meant a different target.");
   }
   const statSections = [
     ...stagedStat.ok && stagedStat.stdout.length > 0 ? [`Staged:
@@ -87460,17 +86475,13 @@ ${stagedStat.stdout}`] : [],
     ...unstagedStat.ok && unstagedStat.stdout.length > 0 ? [`Unstaged:
 ${unstagedStat.stdout}`] : []
   ];
-  const statFailures = [
-    ...!stagedStat.ok ? [stagedStat.reason] : [],
-    ...!unstagedStat.ok ? [unstagedStat.reason] : []
-  ];
   return {
     kind: "git-working-tree",
     project_root: evidenceRoot,
     status_short: printableStatus(status.stdout),
     staged_diff: staged,
     unstaged_diff: unstaged,
-    diff_stat: [...statSections, ...statFailures].join("\n"),
+    diff_stat: statSections.join("\n"),
     target_kind: "working_tree",
     target_mode: target.mode,
     untracked_file_count: untracked.count,
@@ -87480,21 +86491,10 @@ ${unstagedStat.stdout}`] : []
     ...submodulePaths.length === 0 ? {} : { submodule_paths: [...submodulePaths] }
   };
 }
-async function validateReviewTargetAvailability(input) {
-  const parsedTarget = parseReviewTarget(input.goal);
-  if (!parsedTarget.ok)
-    throw new Error(parsedTarget.reason);
-  await collectReviewEvidence(input.projectRoot, {
-    target: parsedTarget.target,
-    ...input.includeUntrackedFileContent === true ? { includeUntrackedFileContent: true } : {},
-    ...input.gitReader === void 0 ? {} : { gitReader: input.gitReader }
-  });
-}
-var MAX_DIFF_CHARS, MAX_UNTRACKED_FILES, MAX_UNTRACKED_FILE_CHARS, MAX_GIT_BUFFER_BYTES, MAX_DIFF_BUFFER_BYTES, MAX_UNTRACKED_FILE_BYTES, DIRECT_GIT_TIMEOUT_MS, HEAD_COMMIT_REF, SAFE_REVIEW_REF_PATTERN, reviewIntakeComposeBuilder;
+var MAX_DIFF_CHARS, MAX_UNTRACKED_FILES, MAX_UNTRACKED_FILE_CHARS, MAX_GIT_BUFFER_BYTES, MAX_DIFF_BUFFER_BYTES, MAX_UNTRACKED_FILE_BYTES, DIRECT_GIT_TIMEOUT_MS, HEAD_COMMIT_REF, SAFE_REVIEW_REF_PATTERN, REVIEW_LEAD, PULL_REQUEST_UNSUPPORTED_REASON, PATH_SUBSET_UNSUPPORTED_REASON, RANGE_FILLER_WORDS, LATEST_COMMIT_PATTERN, RESTRICTION_LEAD_IN, EXCLUSION_LEAD_IN, NARROWING_CLAUSE_PATTERN, EXCLUDED_CHANGE_CLASS_PATTERN, reviewIntakeComposeBuilder;
 var init_intake2 = __esm({
   "dist/flows/review/writers/intake.js"() {
     "use strict";
-    init_github_repository();
     init_runtime_git_reader();
     init_intake_projection();
     MAX_DIFF_CHARS = 12e4;
@@ -87506,6 +86506,40 @@ var init_intake2 = __esm({
     DIRECT_GIT_TIMEOUT_MS = 3e4;
     HEAD_COMMIT_REF = "HEAD";
     SAFE_REVIEW_REF_PATTERN = /^[A-Za-z0-9._/@+~^-]{1,120}$/u;
+    REVIEW_LEAD = String.raw`(?:review|inspect|audit|check|analyze)`;
+    PULL_REQUEST_UNSUPPORTED_REASON = "Review cannot fetch a pull request. Check out the PR branch locally, then review the working tree or an explicit range such as main...HEAD.";
+    PATH_SUBSET_UNSUPPORTED_REASON = "Review cannot narrow its evidence to part of a target. Review the whole working tree, a commit, or a range instead, and name the paths you care about in the goal so the reviewer concentrates there.";
+    RANGE_FILLER_WORDS = /* @__PURE__ */ new Set([
+      "and",
+      "anything",
+      "especially",
+      "everything",
+      "focus",
+      "including",
+      "it",
+      "maybe",
+      "now",
+      "ok",
+      "okay",
+      "or",
+      "perhaps",
+      "please",
+      "so",
+      "something",
+      "that",
+      "then",
+      "these",
+      "this",
+      "those",
+      "wait",
+      "well",
+      "what"
+    ]);
+    LATEST_COMMIT_PATTERN = /\b(?:(?:the|my|our)\s+)?(?:latest|last|most\s+recent)\s+commit\b|\bwhat\s+i\s+just\s+committed\b|\b(?:the\s+)?commit\s+i\s+just\s+made\b|\bwhat\s+changed\s+in\s+(?:the\s+)?last\s+commit\b/iu;
+    RESTRICTION_LEAD_IN = String.raw`(?:only|just|limited\s+to|restricted\s+to|scoped\s+to|confined\s+to|(?:changes?|diffs?|files?)\s+(?:in|under|below|within))`;
+    EXCLUSION_LEAD_IN = String.raw`(?:except(?:\s+for)?|excluding|ignoring|omitting|skipping|leaving\s+out|apart\s+from|aside\s+from|other\s+than|but\s+(?:do\s+not|don't|never)\s+(?:review|include|inspect|read|look\s+at)|but(?:\s+not)?)`;
+    NARROWING_CLAUSE_PATTERN = new RegExp(String.raw`\b(?:${RESTRICTION_LEAD_IN}|${EXCLUSION_LEAD_IN})\s+(?:(?:in|inside|under|within|below)\s+)?(?:the\s+)?(?<path>[^\s,;!?]+)`, "giu");
+    EXCLUDED_CHANGE_CLASS_PATTERN = new RegExp(String.raw`\b${EXCLUSION_LEAD_IN}\s+(?:any\s+|all\s+|the\s+)?(?:untracked|tracked|staged|unstaged|committed|new|deleted|renamed)\b`, "iu");
     reviewIntakeComposeBuilder = {
       resultSchemaName: "review.intake@v1",
       async build(context) {
@@ -87520,8 +86554,10 @@ var init_intake2 = __esm({
         });
         return projectReviewIntake({
           scope: context.goal,
+          target,
           evidence: evidence2,
-          maxUntrackedFiles: MAX_UNTRACKED_FILES
+          maxUntrackedFiles: MAX_UNTRACKED_FILES,
+          ...parsedTarget.assumed === true ? { assumedTarget: true } : {}
         });
       }
     };
@@ -87529,23 +86565,12 @@ var init_intake2 = __esm({
 });
 
 // dist/flows/review/writers/result-projection.js
-function unavailableDiff(text) {
-  return /^git\s+.+\s+failed:/.test(text) || text.startsWith("Target unavailable:");
-}
-function usableDiff(diff2) {
-  return diff2 !== void 0 && diff2.text.length > 0 && !unavailableDiff(diff2.text);
-}
 function selectedWorkingTreeDiffIncluded(evidence2) {
-  if (evidence2.target_kind !== "working_tree")
-    return usableDiff(evidence2.target_diff);
   if (evidence2.target_mode === "staged")
     return usableDiff(evidence2.staged_diff);
   if (evidence2.target_mode === "unstaged")
     return usableDiff(evidence2.unstaged_diff);
-  if (evidence2.target_mode === "all") {
-    return usableDiff(evidence2.staged_diff) || usableDiff(evidence2.unstaged_diff);
-  }
-  return usableDiff(evidence2.target_diff);
+  return usableDiff(evidence2.staged_diff) || usableDiff(evidence2.unstaged_diff);
 }
 function workingTreeLayersFromStatus(status) {
   let staged = false;
@@ -87582,87 +86607,56 @@ function evidenceSummary(evidence2) {
       target_diff_truncated: evidence2.target_diff.truncated
     };
   }
-  const targetDiffIncluded = selectedWorkingTreeDiffIncluded(evidence2);
   return {
     kind: "git-working-tree",
     untracked_content_policy: evidence2.untracked_content_policy,
     untracked_file_count: evidence2.untracked_file_count,
     untracked_files_sampled: evidence2.untracked_files.length,
     untracked_files_truncated: evidence2.untracked_files_truncated,
-    ...evidence2.target_kind === void 0 ? {} : { target_kind: evidence2.target_kind },
-    ...evidence2.target_mode === void 0 ? {} : { target_mode: evidence2.target_mode },
-    ...evidence2.target_ref === void 0 ? {} : { target_ref: evidence2.target_ref },
-    target_diff_included: targetDiffIncluded,
-    // The pre-release target spike wrote the same HEAD diff under both names.
-    // Keep old reports readable, but never advertise that duplicate as a
-    // second piece of evidence.
-    committed_diff_included: !targetDiffIncluded && usableDiff(evidence2.committed_diff)
+    target_kind: "working_tree",
+    target_mode: evidence2.target_mode,
+    target_diff_included: selectedWorkingTreeDiffIncluded(evidence2)
   };
 }
 function evidenceScopeMismatch(intake) {
   const evidence2 = intake.evidence;
-  const parsed = parseReviewTarget(intake.scope);
-  if (!parsed.ok) {
-    return `the persisted evidence does not match the requested scope: ${parsed.reason}`;
-  }
-  const target = parsed.target;
+  const target = intake.target;
+  const mismatch = (expected) => `the persisted evidence does not match the requested scope: expected ${expected}`;
   if (evidence2.kind === "goal") {
-    return target.kind === "goal" ? void 0 : `the persisted evidence does not match the requested scope: expected ${target.kind} target evidence`;
+    return target.kind === "goal" ? void 0 : mismatch(`${target.kind} target evidence`);
   }
   if (evidence2.kind === "unavailable")
     return void 0;
   if (evidence2.kind === "git-target") {
-    if (target.kind === "commit" && evidence2.target_kind === "commit" && evidence2.target_ref === target.ref) {
+    if (target.kind === "commit" && evidence2.target_kind === "commit" && evidence2.target_ref === `commit ${target.ref}`) {
       return void 0;
     }
-    if (target.kind === "range" && evidence2.target_kind === "range" && evidence2.target_ref === `${target.base}${target.dots}${target.head}` && evidence2.target_base_ref === target.base && evidence2.target_head_ref === target.head) {
+    if (target.kind === "range" && evidence2.target_kind === "range" && evidence2.target_ref === `range ${target.base}${target.dots}${target.head}` && evidence2.target_base_ref === target.base && evidence2.target_head_ref === target.head) {
       return void 0;
     }
-    if (target.kind === "pull_request" && evidence2.target_kind === "pull_request" && evidence2.target_ref === `PR #${target.number}` && (target.repository === void 0 || evidence2.target_repository === githubRepositoryKey(target.repository))) {
-      return void 0;
-    }
-    return `the persisted evidence does not match the requested scope: expected ${target.kind} target evidence`;
+    return mismatch(`${target.kind} target evidence`);
   }
-  if (target.kind === "goal") {
-    return "the persisted evidence does not match the requested scope: expected goal-only evidence";
+  if (target.kind === "goal")
+    return mismatch("goal-only evidence");
+  if (target.kind !== "working_tree") {
+    return mismatch(`dedicated pinned ${target.kind} target evidence`);
   }
-  if (target.kind === "working_tree") {
-    if (!target.explicit)
-      return void 0;
-    if (evidence2.target_kind === "working_tree" && evidence2.target_mode === target.mode) {
-      return void 0;
-    }
-    return `the persisted evidence does not match the requested scope: expected ${target.mode} working-tree target metadata`;
-  }
-  return `the persisted evidence does not match the requested scope: expected dedicated pinned ${target.kind} target evidence`;
+  return evidence2.target_mode === target.mode ? void 0 : mismatch(`${target.mode} working-tree target metadata`);
 }
 function unusableEvidenceReason(intake) {
-  if (intake.evidence.kind === "goal" && !reviewScopeHasSuppliedMaterial(intake.scope)) {
-    return "the goal-only Review has no actual supplied source material";
-  }
-  const requiresGitEvidence = reviewScopeRequiresGitEvidence(intake.scope);
+  const target = intake.target;
+  const requiresGitEvidence = target.kind !== "goal";
   if (intake.evidence.kind === "unavailable" && requiresGitEvidence) {
     return intake.evidence.reason;
   }
   const scopeMismatch = evidenceScopeMismatch(intake);
   if (scopeMismatch !== void 0)
     return scopeMismatch;
-  const parsed = parseReviewTarget(intake.scope);
-  if (!parsed.ok)
-    return parsed.reason;
-  if (intake.evidence.kind === "git-working-tree") {
-    const target = parsed.target;
-    if (target.kind === "working_tree") {
-      const selectedTrackedDiff = target.mode === "staged" ? usableDiff(intake.evidence.staged_diff) : target.mode === "unstaged" ? usableDiff(intake.evidence.unstaged_diff) : usableDiff(intake.evidence.staged_diff) || usableDiff(intake.evidence.unstaged_diff);
-      const selectedUntrackedContent = target.mode === "all" && intake.evidence.untracked_files.some((file2) => usableDiff(file2.content));
-      if (!selectedTrackedDiff && !selectedUntrackedContent) {
-        return `the requested ${target.mode} working-tree target has no usable selected evidence`;
-      }
-    } else if (target.kind !== "goal") {
-      const matchingLegacyCommit = target.kind === "commit" && intake.evidence.committed_diff_ref === target.ref && usableDiff(intake.evidence.committed_diff);
-      if (!usableDiff(intake.evidence.target_diff) && !matchingLegacyCommit) {
-        return `the requested target ${intake.evidence.target_ref ?? target.kind} has no usable selected diff`;
-      }
+  if (intake.evidence.kind === "git-working-tree" && target.kind === "working_tree") {
+    const selectedTrackedDiff = selectedWorkingTreeDiffIncluded(intake.evidence);
+    const selectedUntrackedContent = target.mode === "all" && intake.evidence.untracked_files.some((file2) => usableDiff(file2.content));
+    if (!selectedTrackedDiff && !selectedUntrackedContent) {
+      return `the requested ${target.mode} working-tree target has no usable selected evidence`;
     }
   }
   const blockingWarning = intake.evidence_warnings.find((warning) => warning.kind === "target_unavailable" || requiresGitEvidence && warning.kind === "evidence_unavailable");
@@ -87670,9 +86664,6 @@ function unusableEvidenceReason(intake) {
     return blockingWarning.message;
   if (intake.evidence.kind === "git-target" && !usableDiff(intake.evidence.target_diff)) {
     return `the requested target ${intake.evidence.target_ref} has no usable diff`;
-  }
-  if (intake.evidence.kind === "git-working-tree" && intake.evidence.target_kind !== void 0 && intake.evidence.target_kind !== "working_tree" && !usableDiff(intake.evidence.target_diff) && !usableDiff(intake.evidence.committed_diff)) {
-    return `the requested target ${intake.evidence.target_ref ?? intake.evidence.target_kind} has no usable diff`;
   }
   return void 0;
 }
@@ -87683,29 +86674,21 @@ function selectedEvidenceIncomplete(intake) {
   if (evidence2.kind === "git-target") {
     return evidence2.target_diff.truncated || containsOpaqueBinaryChange(evidence2.target_diff) || containsOpaqueSubmoduleChange(evidence2.target_diff);
   }
-  const parsed = parseReviewTarget(intake.scope);
-  if (!parsed.ok)
-    return false;
-  const target = parsed.target;
-  if (target.kind === "working_tree") {
-    if (target.mode === "staged") {
-      return evidence2.staged_diff.truncated || containsOpaqueBinaryChange(evidence2.staged_diff) || containsOpaqueSubmoduleChange(evidence2.staged_diff) || (evidence2.submodule_paths?.length ?? 0) > 0;
-    }
-    if (target.mode === "unstaged") {
-      return evidence2.unstaged_diff.truncated || containsOpaqueBinaryChange(evidence2.unstaged_diff) || containsOpaqueSubmoduleChange(evidence2.unstaged_diff) || (evidence2.submodule_paths?.length ?? 0) > 0;
-    }
-    const statusLayers = workingTreeLayersFromStatus(evidence2.status_short);
-    return evidence2.staged_diff.truncated || evidence2.unstaged_diff.truncated || containsOpaqueBinaryChange(evidence2.staged_diff) || containsOpaqueBinaryChange(evidence2.unstaged_diff) || containsOpaqueSubmoduleChange(evidence2.staged_diff) || containsOpaqueSubmoduleChange(evidence2.unstaged_diff) || statusLayers.staged && !usableDiff(evidence2.staged_diff) || statusLayers.unstaged && !usableDiff(evidence2.unstaged_diff) || evidence2.untracked_files_truncated || untrackedFileListIsInconsistent(evidence2) || evidence2.untracked_files.some((file2) => file2.content === void 0 || file2.content.truncated) || (evidence2.submodule_paths?.length ?? 0) > 0;
+  const requestedUntrackedContent2 = evidence2.untracked_content_policy === "include-content";
+  const untrackedContentIncomplete = requestedUntrackedContent2 && (evidence2.untracked_files_truncated || untrackedFileListIsInconsistent(evidence2) || evidence2.untracked_files.some((file2) => file2.content === void 0 || file2.content.truncated));
+  if (evidence2.target_mode === "staged") {
+    return evidence2.staged_diff.truncated || containsOpaqueBinaryChange(evidence2.staged_diff) || containsOpaqueSubmoduleChange(evidence2.staged_diff) || (evidence2.submodule_paths?.length ?? 0) > 0;
   }
-  if (target.kind === "commit" && evidence2.target_diff === void 0) {
-    return evidence2.committed_diff_ref === target.ref && (evidence2.committed_diff?.truncated === true || containsOpaqueBinaryChange(evidence2.committed_diff) || containsOpaqueSubmoduleChange(evidence2.committed_diff));
+  if (evidence2.target_mode === "unstaged") {
+    return evidence2.unstaged_diff.truncated || containsOpaqueBinaryChange(evidence2.unstaged_diff) || containsOpaqueSubmoduleChange(evidence2.unstaged_diff) || (evidence2.submodule_paths?.length ?? 0) > 0;
   }
-  return evidence2.target_diff?.truncated === true || containsOpaqueBinaryChange(evidence2.target_diff) || containsOpaqueSubmoduleChange(evidence2.target_diff);
+  const statusLayers = workingTreeLayersFromStatus(evidence2.status_short);
+  return evidence2.staged_diff.truncated || evidence2.unstaged_diff.truncated || containsOpaqueBinaryChange(evidence2.staged_diff) || containsOpaqueBinaryChange(evidence2.unstaged_diff) || containsOpaqueSubmoduleChange(evidence2.staged_diff) || containsOpaqueSubmoduleChange(evidence2.unstaged_diff) || statusLayers.staged && !usableDiff(evidence2.staged_diff) || statusLayers.unstaged && !usableDiff(evidence2.unstaged_diff) || untrackedContentIncomplete || (evidence2.submodule_paths?.length ?? 0) > 0;
 }
 function incompleteEvidenceFinding(intake) {
   if (!selectedEvidenceIncomplete(intake))
     return void 0;
-  const warnings = intake.evidence_warnings.filter((warning) => warning.kind === "diff_truncated" || warning.kind === "binary_content_not_inspected" || warning.kind === "untracked_files_truncated" || warning.kind === "untracked_file_content_omitted" || warning.kind === "untracked_file_skipped" || warning.kind === "submodule_content_not_inspected");
+  const warnings = intake.evidence_warnings.filter((warning) => warning.kind !== "target_assumed" && LIMITATION_WARNING_KINDS.has(warning.kind));
   return {
     severity: "medium",
     id: "circuit-review-evidence-incomplete",
@@ -87722,7 +86705,7 @@ function projectReviewResult(input) {
   }
   const incompleteFinding = incompleteEvidenceFinding(input.intake);
   const findings = incompleteFinding === void 0 ? input.relayResult.findings : [...input.relayResult.findings, incompleteFinding];
-  const circuitLimitations = incompleteFinding === void 0 ? [] : input.intake.evidence_warnings.filter((warning) => warning.kind === "binary_content_not_inspected" || warning.kind === "diff_truncated" || warning.kind === "submodule_content_not_inspected" || warning.kind === "untracked_file_content_omitted" || warning.kind === "untracked_file_skipped" || warning.kind === "untracked_files_truncated").map((warning) => warning.message);
+  const circuitLimitations = input.intake.evidence_warnings.filter((warning) => LIMITATION_WARNING_KINDS.has(warning.kind)).map((warning) => warning.message);
   if (incompleteFinding !== void 0 && circuitLimitations.length === 0) {
     circuitLimitations.push("Circuit could inspect only part of the selected Review target.");
   }
@@ -87742,13 +86725,21 @@ function projectReviewResult(input) {
     evidence_warnings: input.intake.evidence_warnings
   });
 }
+var LIMITATION_WARNING_KINDS;
 var init_result_projection5 = __esm({
   "dist/flows/review/writers/result-projection.js"() {
     "use strict";
-    init_github_repository();
     init_reports10();
     init_evidence_completeness();
-    init_intake2();
+    LIMITATION_WARNING_KINDS = /* @__PURE__ */ new Set([
+      "binary_content_not_inspected",
+      "diff_truncated",
+      "submodule_content_not_inspected",
+      "target_assumed",
+      "untracked_file_content_omitted",
+      "untracked_file_skipped",
+      "untracked_files_truncated"
+    ]);
   }
 });
 
@@ -87923,22 +86914,22 @@ function evidenceIsUnavailable(report) {
   if (report.evidence_summary?.kind === "git-target" && !report.evidence_summary.target_diff_included) {
     return true;
   }
-  if (report.evidence_summary?.kind === "git-working-tree" && report.evidence_summary.target_kind !== void 0 && report.evidence_summary.target_kind !== "working_tree" && report.evidence_summary.target_diff_included !== true && report.evidence_summary.committed_diff_included !== true) {
-    return true;
-  }
-  if (report.evidence_summary?.kind === "git-working-tree" && report.evidence_summary.target_kind === "working_tree" && report.evidence_summary.target_diff_included !== true && !hasCompleteUntrackedReviewEvidence(report)) {
+  if (report.evidence_summary?.kind === "git-working-tree" && !report.evidence_summary.target_diff_included && !hasCompleteUntrackedReviewEvidence(report)) {
     return true;
   }
   return report.evidence_warnings.some((warning) => warning.kind === "evidence_unavailable" || warning.kind === "target_unavailable" || warning.kind === "scope_empty");
+}
+function requestedUntrackedContent(report) {
+  return report.evidence_summary?.kind === "git-working-tree" && report.evidence_summary.untracked_content_policy === "include-content";
 }
 function evidenceIsIncomplete(report) {
   if (report.evidence_summary?.kind === "git-target" && report.evidence_summary.target_diff_truncated) {
     return true;
   }
-  if (report.evidence_summary?.kind === "git-working-tree" && report.evidence_summary.untracked_files_truncated) {
+  if (report.evidence_summary?.kind === "git-working-tree" && report.evidence_summary.untracked_files_truncated && requestedUntrackedContent(report)) {
     return true;
   }
-  return report.evidence_warnings.some((warning) => INCOMPLETE_EVIDENCE_WARNING_KINDS.has(warning.kind));
+  return report.evidence_warnings.some((warning) => INCOMPLETE_EVIDENCE_WARNING_KINDS.has(warning.kind) || warning.kind === "untracked_files_truncated" && requestedUntrackedContent(report));
 }
 function EvidenceSummary({ report }) {
   const evidence2 = report.evidence_summary;
@@ -87958,14 +86949,9 @@ function EvidenceSummary({ report }) {
   }
   const sampled = `${evidence2.untracked_files_sampled}/${evidence2.untracked_file_count}`;
   const truncated = evidence2.untracked_files_truncated ? "yes" : "no";
-  const workingTreeTargetLines = evidence2.target_kind === "working_tree" && evidence2.target_mode !== void 0 ? [
-    `Review target: ${evidence2.target_mode} working-tree changes`,
-    `Target diff included: ${evidence2.target_diff_included === true ? "yes" : "no"}`
-  ] : [];
-  const targetLine = evidence2.target_diff_included === true && evidence2.target_kind !== "working_tree" ? `Review target: ${evidence2.target_ref ?? evidence2.target_kind ?? "requested target"}` : evidence2.committed_diff_included === true ? "Review target: latest commit" : void 0;
   return (0, import_jsx_runtime13.jsx)(BulletList, { items: [
-    ...workingTreeTargetLines,
-    ...targetLine === void 0 ? [] : [targetLine],
+    `Review target: ${evidence2.target_mode} working-tree changes`,
+    `Target diff included: ${evidence2.target_diff_included ? "yes" : "no"}`,
     `Untracked content policy: ${evidence2.untracked_content_policy}`,
     `Untracked files sampled: ${sampled}`,
     `Untracked file list truncated: ${truncated}`
@@ -87986,9 +86972,7 @@ var init_result_html = __esm({
     INCOMPLETE_EVIDENCE_WARNING_KINDS = /* @__PURE__ */ new Set([
       "binary_content_not_inspected",
       "diff_truncated",
-      "untracked_file_content_omitted",
       "untracked_file_skipped",
-      "untracked_files_truncated",
       "submodule_content_not_inspected"
     ]);
     reviewResultProjector = (ctx) => {
@@ -90175,7 +89159,11 @@ var init_progress_event = __esm({
       role: RelayRole,
       connector_name: external_exports.string().min(1),
       connector_kind: external_exports.enum(["builtin", "custom"]),
-      filesystem_capability: external_exports.enum(["read-only", "trusted-write", "isolated-write"])
+      filesystem_capability: external_exports.enum(["read-only", "trusted-write", "isolated-write"]),
+      // Present only when the flow asked for a sealed (prompt-only) reviewer.
+      // `false` means the relay ran with repository access anyway.
+      context_seal_applied: external_exports.boolean().optional(),
+      context_seal_reason: external_exports.string().min(1).optional()
     }).strict();
     RelayCompletedProgressEvent = ProgressEventBase.extend({
       type: external_exports.literal("relay.completed"),
@@ -100344,9 +99332,6 @@ async function relayWithResolvedConnector(connector, input) {
     ...input.responseSchema === void 0 ? {} : { responseSchema: input.responseSchema },
     ...input.toolAllowList === void 0 ? {} : { toolAllowList: input.toolAllowList }
   };
-  if (input.promptOnly === true && (connector.kind === "custom" || connector.name === "cursor-agent")) {
-    throw new Error(`The ${connector.name} connector cannot run a prompt-only relay. Choose Claude Code or Codex.`);
-  }
   if (connector.kind === "custom") {
     return relayCustom({ ...relayInput, descriptor: connector });
   }
@@ -100698,13 +99683,13 @@ async function executeProductionRelayAttempt(input) {
   });
   const equipmentDecision = resolveEquipmentEnforcement(compiledStep.equipment_scope, connectorToolScopeCapability(relayExecution.connector));
   const equipmentEvidence = equipmentEnforcementEvidence(compiledStep.equipment_scope, equipmentDecision);
-  const promptOnly = context.flow.engineFlags?.relayUsesPromptOnlyContext === true;
-  if (promptOnly && context.relayer !== void 0 && context.relayer.promptOnlyContext !== true) {
-    throw new Error("The selected host relay cannot prove that it removed repository access for this Review.");
-  }
-  if (promptOnly && context.relayer === void 0 && (relayExecution.connector.kind === "custom" || relayExecution.connector.name === "cursor-agent")) {
-    throw new Error(`The ${relayExecution.connector.name} connector cannot run this Review without repository access. Choose Claude Code or Codex.`);
-  }
+  const sealRequested = context.flow.engineFlags?.relayUsesPromptOnlyContext === true;
+  const sealFailure = !sealRequested ? void 0 : context.relayer !== void 0 ? context.relayer.promptOnlyContext === true ? void 0 : "the host relay cannot prove that it removed repository access" : relayExecution.connector.kind === "custom" || relayExecution.connector.name === "cursor-agent" ? `the ${relayExecution.connector.name} connector cannot run without repository access` : void 0;
+  const promptOnly = sealRequested && sealFailure === void 0;
+  const contextSeal = sealRequested ? {
+    applied: sealFailure === void 0,
+    ...sealFailure === void 0 ? {} : { reason: sealFailure }
+  } : void 0;
   await context.trace.append({
     run_id: context.runId,
     kind: "relay.started",
@@ -100714,7 +99699,8 @@ async function executeProductionRelayAttempt(input) {
     role: RelayRole.parse(relayExecution.role),
     resolved_selection: resolvedSelection,
     resolved_from: relayExecution.resolvedFrom,
-    ...equipmentEvidence === void 0 ? {} : { equipment: equipmentEvidence }
+    ...equipmentEvidence === void 0 ? {} : { equipment: equipmentEvidence },
+    ...contextSeal === void 0 ? {} : { context_seal: contextSeal }
   });
   if (loadedSkills.length > 0) {
     await context.trace.append({
@@ -103469,7 +102455,9 @@ function createProgressProjector(input) {
           break;
         const display = stepDisplay({ flow: input.flow, stepDisplayById, stepId });
         const capability2 = connectorFilesystemCapability(connector);
-        const statusText = relayStartedTextFor({ role, display });
+        const seal = entry.context_seal;
+        const unsealed = seal !== void 0 && !seal.applied;
+        const statusText = unsealed ? `${relayStartedTextFor({ role, display })} (reviewer not sealed: ${seal.reason ?? "this connector kept repository access"})` : relayStartedTextFor({ role, display });
         reportProgress(input.progress, {
           schema_version: 1,
           type: "relay.started",
@@ -103477,7 +102465,7 @@ function createProgressProjector(input) {
           flow_id: flowId,
           recorded_at: recordedAt,
           label: `Running ${role} relay with ${connector.name}`,
-          display: progressDisplay(circuitDisplayText(statusText), "major", "info"),
+          display: progressDisplay(circuitDisplayText(statusText), "major", unsealed ? "warning" : "info"),
           presentation: replaceStatus(runId, `${stepId}:relay`, statusText),
           step_id: stepId,
           step_title: display.title,
@@ -103485,7 +102473,11 @@ function createProgressProjector(input) {
           role,
           connector_name: connector.name,
           connector_kind: connector.kind,
-          filesystem_capability: capability2
+          filesystem_capability: capability2,
+          ...seal === void 0 ? {} : {
+            context_seal_applied: seal.applied,
+            ...seal.reason === void 0 ? {} : { context_seal_reason: seal.reason }
+          }
         });
         break;
       }
@@ -110419,9 +109411,9 @@ function reviewEvidenceDetails(report) {
     return message === void 0 ? [] : [`Review evidence: unavailable (${message})`];
   }
   if (kind === "git-target") {
-    const targetKind2 = stringField2(evidenceSummary2, "target_kind");
-    const targetRef2 = stringField2(evidenceSummary2, "target_ref");
-    const label = targetRef2 ?? targetKind2 ?? "requested target";
+    const targetKind = stringField2(evidenceSummary2, "target_kind");
+    const targetRef = stringField2(evidenceSummary2, "target_ref");
+    const label = targetRef ?? targetKind ?? "requested target";
     if (evidenceSummary2?.target_diff_included !== true) {
       return [`Review evidence: ${label} diff unavailable.`];
     }
@@ -110435,18 +109427,9 @@ function reviewEvidenceDetails(report) {
   const sampled = numberField(evidenceSummary2, "untracked_files_sampled") ?? 0;
   const truncated = evidenceSummary2?.untracked_files_truncated === true;
   const details = [];
-  const targetKind = stringField2(evidenceSummary2, "target_kind");
   const targetMode = stringField2(evidenceSummary2, "target_mode");
-  const targetRef = stringField2(evidenceSummary2, "target_ref");
-  if (targetKind === "working_tree" && targetMode !== void 0) {
+  if (targetMode !== void 0) {
     details.push(`Review evidence: ${targetMode} working-tree diff ${evidenceSummary2?.target_diff_included === true ? "included" : "unavailable"}.`);
-  } else if (evidenceSummary2?.target_diff_included === true && targetKind !== "working_tree") {
-    const label = targetRef ?? targetKind ?? "requested target";
-    details.push(`Review evidence: ${label} diff included.`);
-  } else if (evidenceSummary2?.committed_diff_included === true) {
-    details.push("Review evidence: latest commit diff included.");
-  } else if (targetKind !== void 0 && targetKind !== "working_tree") {
-    details.push(`Review evidence: ${targetRef ?? targetKind} diff unavailable.`);
   }
   if (policy2 === "include-content") {
     const suffix = truncated ? "; additional untracked files were not sampled" : "";
@@ -110469,10 +109452,18 @@ function reviewEvidenceIncomplete(report) {
   if (evidenceKind === "git-target" && evidenceSummary2?.target_diff_truncated === true) {
     return true;
   }
-  if (evidenceKind === "git-working-tree" && evidenceSummary2?.untracked_files_truncated === true) {
+  const untrackedContentRequested = evidenceKind === "git-working-tree" && stringField2(evidenceSummary2, "untracked_content_policy") === "include-content";
+  if (untrackedContentRequested && evidenceSummary2?.untracked_files_truncated === true) {
     return true;
   }
-  return arrayField(report, "evidence_warnings").some((item) => isObject4(item) && INCOMPLETE_REVIEW_EVIDENCE_WARNING_KINDS.has(stringField2(item, "kind") ?? ""));
+  return arrayField(report, "evidence_warnings").some((item) => {
+    if (!isObject4(item))
+      return false;
+    const kind = stringField2(item, "kind") ?? "";
+    if (kind === "untracked_files_truncated")
+      return untrackedContentRequested;
+    return INCOMPLETE_REVIEW_EVIDENCE_WARNING_KINDS.has(kind);
+  });
 }
 function hasCompleteUntrackedReviewEvidence2(evidenceSummary2) {
   if (stringField2(evidenceSummary2, "kind") !== "git-working-tree" || stringField2(evidenceSummary2, "target_mode") !== "all" || stringField2(evidenceSummary2, "untracked_content_policy") !== "include-content" || evidenceSummary2?.untracked_files_truncated === true) {
@@ -110494,11 +109485,7 @@ function reviewEvidenceUnavailable(report) {
     return evidenceSummary2?.target_diff_included !== true;
   if (kind !== "git-working-tree")
     return false;
-  const targetKind = stringField2(evidenceSummary2, "target_kind");
-  if (targetKind === "working_tree") {
-    return evidenceSummary2?.target_diff_included !== true && !hasCompleteUntrackedReviewEvidence2(evidenceSummary2);
-  }
-  return targetKind !== void 0 && targetKind !== "working_tree" && evidenceSummary2?.target_diff_included !== true && evidenceSummary2?.committed_diff_included !== true;
+  return evidenceSummary2?.target_diff_included !== true && !hasCompleteUntrackedReviewEvidence2(evidenceSummary2);
 }
 function buildFixDetails(flowReport) {
   const details = [];
@@ -110649,9 +109636,7 @@ var init_projections = __esm({
     INCOMPLETE_REVIEW_EVIDENCE_WARNING_KINDS = /* @__PURE__ */ new Set([
       "binary_content_not_inspected",
       "diff_truncated",
-      "untracked_file_content_omitted",
       "untracked_file_skipped",
-      "untracked_files_truncated",
       "submodule_content_not_inspected"
     ]);
     reviewProjector = ({ flowReport, runOutcome: runOutcome3 }) => {
@@ -111795,6 +110780,19 @@ function readDegradationWarnings(runFolder) {
       if (message !== void 0) {
         warnings.push({ kind: "context_delivery_failed", message: firstLine2(message) });
       }
+      continue;
+    }
+    if (entry.kind === "relay.started") {
+      const seal = entry.context_seal;
+      if (!isObject4(seal) || seal.applied !== false)
+        continue;
+      const connector = isObject4(entry.connector) ? stringField2(entry.connector, "name") : void 0;
+      const reason = stringField2(seal, "reason");
+      const cause = reason === void 0 ? "" : ` (${firstLine2(reason)})`;
+      warnings.push({
+        kind: "relay_context_not_sealed",
+        message: `The reviewer ran with repository access. This flow asked for a reviewer that sees only the relayed evidence, and ${connector ?? "the chosen connector"} could not honor that${cause}. Run this flow with Claude Code or Codex for a sealed reviewer.`
+      });
     }
   }
   return warnings;
@@ -113302,6 +112300,21 @@ var init_autonomous_run = __esm({
     "use strict";
     init_continuation_loop();
     init_source_record();
+  }
+});
+
+// dist/flows/registries/start-preflight.js
+function validateFlowStartTarget(flowId, goal) {
+  if (flowId !== "review")
+    return;
+  const parsed = parseReviewTarget(goal);
+  if (!parsed.ok)
+    throw new Error(parsed.reason);
+}
+var init_start_preflight = __esm({
+  "dist/flows/registries/start-preflight.js"() {
+    "use strict";
+    init_intake2();
   }
 });
 
@@ -115856,20 +114869,54 @@ async function runExecutionCommand(args, options) {
 `);
     return 2;
   }
-  const projectRoot = resolve31(options.projectRoot ?? options.configCwd ?? process.cwd());
-  if (flow.id === "review") {
-    try {
-      await validateReviewTargetAvailability({
-        goal: operatorGoal,
-        projectRoot,
-        ...runArgs.includeUntrackedContent ? { includeUntrackedFileContent: true } : {},
-        ...options.gitReader === void 0 ? {} : { gitReader: options.gitReader }
+  const hostKind = runtimeHostKind(options);
+  const runtimeSupport = classifyRuntimeSupport({
+    flow,
+    args: runArgs,
+    route,
+    entryModeSelection,
+    fixturePath
+  });
+  const defaultRuntimeSupport = applyComposeWriterPolicy(applyFixturePolicy(runtimeSupport, {
+    args: runArgs,
+    fixturePath,
+    ...options.generatedFlowMirrorRoot === void 0 ? {} : { generatedFlowMirrorRoot: options.generatedFlowMirrorRoot }
+  }), { hasComposeWriter: options.composeWriter !== void 0 });
+  const routeToRuntime = defaultRuntimeSupport.kind === "supported";
+  const ttyNotices = ttyNoticesEnabled({
+    stream: process.stderr,
+    progressJsonl: runArgs.progress === "jsonl"
+  });
+  if (routeToRuntime) {
+    const connectorPreflight = options.connectorPreflight ?? (options.relayer === void 0 && options.runtimeExecutors === void 0 ? preflightRunConnectors : void 0);
+    if (connectorPreflight !== void 0) {
+      const verdict = await connectorPreflight({
+        flow,
+        configLayers: selectionConfigLayers,
+        depth: CompiledDepth.parse(selectedDepth(flow, runArgs, entryModeSelection)),
+        ...policyLayers.length === 0 ? {} : { policyLayers },
+        ...hostKind === void 0 ? {} : { hostKind }
       });
-    } catch (err) {
-      process.stderr.write(`error: ${err.message}
+      if (!verdict.ok) {
+        process.stderr.write(`error: ${verdict.refusal}
 `);
-      return 2;
+        return 2;
+      }
+      if (ttyNotices) {
+        for (const warning of verdict.warnings) {
+          process.stderr.write(`note: ${warning}
+`);
+        }
+      }
     }
+  }
+  const projectRoot = resolve31(options.projectRoot ?? options.configCwd ?? process.cwd());
+  try {
+    validateFlowStartTarget(flow.id, operatorGoal);
+  } catch (err) {
+    process.stderr.write(`error: ${err.message}
+`);
+    return 2;
   }
   const runId = RunId.parse(options.runId ?? randomUUID9());
   const now = options.now ?? (() => /* @__PURE__ */ new Date());
@@ -115904,7 +114951,6 @@ async function runExecutionCommand(args, options) {
 `);
     return 2;
   }
-  const hostKind = runtimeHostKind(options);
   if (hostKind === "codex" && options.codexInstallAssurance !== "disabled") {
     try {
       const assurance = codexInstallAssurance({ projectRoot, now });
@@ -115914,46 +114960,8 @@ async function runExecutionCommand(args, options) {
     } catch {
     }
   }
-  const runtimeSupport = classifyRuntimeSupport({
-    flow,
-    args: runArgs,
-    route,
-    entryModeSelection,
-    fixturePath
-  });
   const runtimeDecisionDiagnostics = showRuntimeDecision();
-  const defaultRuntimeSupport = applyComposeWriterPolicy(applyFixturePolicy(runtimeSupport, {
-    args: runArgs,
-    fixturePath,
-    ...options.generatedFlowMirrorRoot === void 0 ? {} : { generatedFlowMirrorRoot: options.generatedFlowMirrorRoot }
-  }), { hasComposeWriter: options.composeWriter !== void 0 });
-  const routeToRuntime = defaultRuntimeSupport.kind === "supported";
-  const ttyNotices = ttyNoticesEnabled({
-    stream: process.stderr,
-    progressJsonl: runArgs.progress === "jsonl"
-  });
   if (routeToRuntime) {
-    const connectorPreflight = options.connectorPreflight ?? (options.relayer === void 0 && options.runtimeExecutors === void 0 ? preflightRunConnectors : void 0);
-    if (connectorPreflight !== void 0) {
-      const verdict = await connectorPreflight({
-        flow,
-        configLayers: selectionConfigLayers,
-        depth: CompiledDepth.parse(selectedDepth(flow, runArgs, entryModeSelection)),
-        ...policyLayers.length === 0 ? {} : { policyLayers },
-        ...hostKind === void 0 ? {} : { hostKind }
-      });
-      if (!verdict.ok) {
-        process.stderr.write(`error: ${verdict.refusal}
-`);
-        return 2;
-      }
-      if (ttyNotices) {
-        for (const warning of verdict.warnings) {
-          process.stderr.write(`note: ${warning}
-`);
-        }
-      }
-    }
     if (ttyNotices) {
       process.stderr.write(runStartedNotice({
         flowName: route.flowName,
@@ -116259,7 +115267,7 @@ var init_run2 = __esm({
     init_autonomous_run();
     init_run_folder_projector();
     init_catalog();
-    init_intake2();
+    init_start_preflight();
     init_checkpoint_review_token();
     init_config_loader();
     init_control_plane_paths();

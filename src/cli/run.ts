@@ -58,7 +58,7 @@ import {
   projectRunStatusFromRunFolder,
 } from '../app/run-status/run-folder-projector.js';
 import { INTERNAL_FLOW_IDS, catalogFlowIds, findFlowRuntimeSurfaceById } from '../flows/catalog.js';
-import { validateFlowStartAvailability } from '../flows/registries/start-preflight.js';
+import { validateFlowStartTarget } from '../flows/registries/start-preflight.js';
 import { decodeCheckpointReviewResponse } from '../shared/checkpoint-review-token.js';
 import { discoverRuntimeConfigLayers } from '../shared/config-loader.js';
 import { runsRoot } from '../shared/control-plane-paths.js';
@@ -1854,14 +1854,11 @@ export async function runExecutionCommand(
     }
   }
   const projectRoot = resolve(options.projectRoot ?? options.configCwd ?? process.cwd());
+  // A goal whose target cannot be read at all is refused here, before the run
+  // folder exists. Whether the target is available in this repository is the
+  // intake step's answer, from the evidence it is about to relay.
   try {
-    await validateFlowStartAvailability({
-      flowId: flow.id,
-      goal: operatorGoal,
-      projectRoot,
-      ...(runArgs.includeUntrackedContent ? { includeUntrackedFileContent: true } : {}),
-      ...(options.gitReader === undefined ? {} : { gitReader: options.gitReader }),
-    });
+    validateFlowStartTarget(flow.id, operatorGoal);
   } catch (err) {
     process.stderr.write(`error: ${(err as Error).message}\n`);
     return 2;

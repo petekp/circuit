@@ -3,6 +3,7 @@
 // derivation mapping (power word -> process word), the per-flow clamp shapes
 // (full ladder / floor / pin), an explicit --process beating the derivation,
 // and that an explicit --process outside the flow's set still fails closed.
+import { execFileSync } from 'node:child_process';
 import { mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
@@ -71,6 +72,10 @@ function createProofProject(name: string): string {
     join(projectRoot, 'package.json'),
     `${JSON.stringify({ private: true, scripts: { verify: 'node -e "process.exit(0)"' } }, null, 2)}\n`,
   );
+  // A real repository with one staged change: Review reads Git evidence before
+  // it reaches the relay, so a bare directory would stop the run at intake.
+  execFileSync('git', ['init'], { cwd: projectRoot, stdio: 'pipe' });
+  execFileSync('git', ['add', 'package.json'], { cwd: projectRoot, stdio: 'pipe' });
   return projectRoot;
 }
 

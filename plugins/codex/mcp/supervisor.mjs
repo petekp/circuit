@@ -17798,6 +17798,10 @@ var EquipmentEnforcementEvidence = external_exports.object({
   downgraded: external_exports.boolean(),
   enforced_tools: external_exports.array(external_exports.string().min(1)).min(1).optional()
 }).strict();
+var RelayContextSeal = external_exports.object({
+  applied: external_exports.boolean(),
+  reason: external_exports.string().min(1).optional()
+}).strict();
 var RelayStartedTraceEntry = TraceEntryBase.extend({
   kind: external_exports.literal("relay.started"),
   step_id: StepId,
@@ -17806,7 +17810,8 @@ var RelayStartedTraceEntry = TraceEntryBase.extend({
   role: RelayRole,
   resolved_selection: ResolvedSelection,
   resolved_from: RelayResolutionSource,
-  equipment: EquipmentEnforcementEvidence.optional()
+  equipment: EquipmentEnforcementEvidence.optional(),
+  context_seal: RelayContextSeal.optional()
 }).strict();
 var LoadedSkillCause = external_exports.enum(["selection", "binding", "skill-hook"]);
 var LoadedSkillEvidence = external_exports.object({
@@ -18440,7 +18445,11 @@ var RelayStartedProgressEvent = ProgressEventBase.extend({
   role: RelayRole,
   connector_name: external_exports.string().min(1),
   connector_kind: external_exports.enum(["builtin", "custom"]),
-  filesystem_capability: external_exports.enum(["read-only", "trusted-write", "isolated-write"])
+  filesystem_capability: external_exports.enum(["read-only", "trusted-write", "isolated-write"]),
+  // Present only when the flow asked for a sealed (prompt-only) reviewer.
+  // `false` means the relay ran with repository access anyway.
+  context_seal_applied: external_exports.boolean().optional(),
+  context_seal_reason: external_exports.string().min(1).optional()
 }).strict();
 var RelayCompletedProgressEvent = ProgressEventBase.extend({
   type: external_exports.literal("relay.completed"),

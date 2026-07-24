@@ -30,6 +30,9 @@ describe('reviewResultProjector', () => {
           untracked_file_count: 1,
           untracked_files_sampled: 1,
           untracked_files_truncated: false,
+          target_kind: 'working_tree',
+          target_mode: 'staged',
+          target_diff_included: true,
         },
         evidence_warnings: [
           {
@@ -73,6 +76,9 @@ describe('reviewResultProjector', () => {
           untracked_file_count: 0,
           untracked_files_sampled: 0,
           untracked_files_truncated: false,
+          target_kind: 'working_tree',
+          target_mode: 'all',
+          target_diff_included: true,
         },
         evidence_warnings: [],
       },
@@ -94,10 +100,9 @@ describe('reviewResultProjector', () => {
     'diff_truncated',
     'untracked_files_truncated',
     'untracked_file_skipped',
-    'untracked_file_content_omitted',
     'submodule_content_not_inspected',
   ] as const)(
-    'does not render a persisted legacy clean verdict as clean when evidence has a %s warning',
+    'does not render a clean verdict as clean when evidence has a %s warning',
     (warningKind) => {
       const html = reviewResultProjector({
         runFolder: '/tmp/circuit-run',
@@ -120,6 +125,7 @@ describe('reviewResultProjector', () => {
             untracked_files_truncated: warningKind === 'untracked_files_truncated',
             target_kind: 'working_tree',
             target_mode: 'all',
+            target_diff_included: true,
           },
           evidence_warnings: [
             {
