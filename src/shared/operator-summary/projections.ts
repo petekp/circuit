@@ -114,21 +114,10 @@ function reviewEvidenceDetails(report: JsonObject | undefined): string[] {
   const sampled = numberField(evidenceSummary, 'untracked_files_sampled') ?? 0;
   const truncated = evidenceSummary?.untracked_files_truncated === true;
   const details: string[] = [];
-  const targetKind = stringField(evidenceSummary, 'target_kind');
-  const targetMode = stringField(evidenceSummary, 'target_mode');
-  const targetRef = stringField(evidenceSummary, 'target_ref');
-  if (targetKind === 'working_tree' && targetMode !== undefined) {
-    details.push(
-      `Review evidence: ${targetMode} working-tree diff ${evidenceSummary?.target_diff_included === true ? 'included' : 'unavailable'}.`,
-    );
-  } else if (evidenceSummary?.target_diff_included === true && targetKind !== 'working_tree') {
-    const label = targetRef ?? targetKind ?? 'requested target';
-    details.push(`Review evidence: ${label} diff included.`);
-  } else if (evidenceSummary?.committed_diff_included === true) {
-    details.push('Review evidence: latest commit diff included.');
-  } else if (targetKind !== undefined && targetKind !== 'working_tree') {
-    details.push(`Review evidence: ${targetRef ?? targetKind} diff unavailable.`);
-  }
+  const targetMode = stringField(evidenceSummary, 'target_mode') ?? 'working tree';
+  details.push(
+    `Review evidence: ${targetMode} working-tree diff ${evidenceSummary?.target_diff_included === true ? 'included' : 'unavailable'}.`,
+  );
   if (policy === 'include-content') {
     const suffix = truncated ? '; additional untracked files were not sampled' : '';
     details.push(
@@ -204,18 +193,9 @@ function reviewEvidenceUnavailable(report: JsonObject | undefined): boolean {
   if (kind === 'unavailable') return true;
   if (kind === 'git-target') return evidenceSummary?.target_diff_included !== true;
   if (kind !== 'git-working-tree') return false;
-  const targetKind = stringField(evidenceSummary, 'target_kind');
-  if (targetKind === 'working_tree') {
-    return (
-      evidenceSummary?.target_diff_included !== true &&
-      !hasCompleteUntrackedReviewEvidence(evidenceSummary)
-    );
-  }
   return (
-    targetKind !== undefined &&
-    targetKind !== 'working_tree' &&
     evidenceSummary?.target_diff_included !== true &&
-    evidenceSummary?.committed_diff_included !== true
+    !hasCompleteUntrackedReviewEvidence(evidenceSummary)
   );
 }
 

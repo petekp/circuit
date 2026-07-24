@@ -63,6 +63,9 @@ metacharacters:
    Otherwise, include the plan or report's actual text in the task.
    Do not remove a requested file or directory subset or path exclusion to make
    Review run. Circuit accepts only a complete target or actual supplied text.
+   A Review task that names no target reviews the current working tree, and the
+   report names that assumption. Circuit cannot fetch a pull request: to review
+   one, check the branch out locally first.
 2. **Build a shell-safe invocation.** Single-quote the raw task text; double
    quotes expand `$VAR`,
    `` `cmd` ``, `$(cmd)`, and `\` sequences — a malicious or accidental

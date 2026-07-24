@@ -1,12 +1,21 @@
 import { ReviewIntake } from '../reports.js';
-import type { ReviewEvidence, ReviewEvidenceWarning } from '../reports.js';
+import type { ReviewEvidence, ReviewEvidenceWarning, ReviewResolvedTarget } from '../reports.js';
 import { containsOpaqueSubmoduleChange, opaqueBinaryChangePaths } from './evidence-completeness.js';
 
 export type ReviewIntakeProjectorInputs = {
   readonly scope: string;
+  readonly target: ReviewResolvedTarget;
   readonly evidence: ReviewEvidence;
   readonly maxUntrackedFiles: number;
+  readonly assumedTarget?: boolean;
 };
+
+/**
+ * Named assumption text for D1: an unrecognised goal reviews the working tree
+ * rather than refusing, and says so out loud.
+ */
+export const ASSUMED_WORKING_TREE_WARNING =
+  'Assumed target: the current working tree. Name a commit, a range, staged, or unstaged to review something else.';
 
 function gitCommandFailed(text: string): boolean {
   return /^git\s+.+\s+failed:/.test(text);
@@ -37,10 +46,16 @@ function appendOpaqueBinaryWarnings(
 export function reviewEvidenceWarnings(input: {
   readonly evidence: ReviewEvidence;
   readonly maxUntrackedFiles: number;
+  readonly assumedTarget?: boolean;
 }): ReviewEvidenceWarning[] {
-  if (input.evidence.kind === 'goal') return [];
+  const assumption: readonly ReviewEvidenceWarning[] =
+    input.assumedTarget === true
+      ? [{ kind: 'target_assumed', message: ASSUMED_WORKING_TREE_WARNING }]
+      : [];
+  if (input.evidence.kind === 'goal') return [...assumption];
   if (input.evidence.kind === 'unavailable') {
     return [
+      ...assumption,
       {
         kind: 'evidence_unavailable',
         message: input.evidence.reason,
@@ -50,7 +65,7 @@ export function reviewEvidenceWarnings(input: {
 
   if (input.evidence.kind === 'git-target') {
     const evidence = input.evidence;
-    const warnings: ReviewEvidenceWarning[] = [];
+    const warnings: ReviewEvidenceWarning[] = [...assumption];
     if (evidence.target_diff.truncated) {
       warnings.push({
         kind: 'diff_truncated',
@@ -82,7 +97,7 @@ export function reviewEvidenceWarnings(input: {
     return warnings;
   }
 
-  const warnings: ReviewEvidenceWarning[] = [];
+  const warnings: ReviewEvidenceWarning[] = [...assumption];
   const evidence = input.evidence;
   for (const path of evidence.submodule_paths ?? []) {
     warnings.push({
@@ -92,20 +107,13 @@ export function reviewEvidenceWarnings(input: {
     });
   }
   const hasUntrackedContent = evidence.untracked_files.some((file) => file.content !== undefined);
-  const hasCommittedDiff =
-    evidence.committed_diff !== undefined &&
-    evidence.committed_diff.text.length > 0 &&
-    !gitCommandFailed(evidence.committed_diff.text);
-  const hasTargetDiff = hasUsableTargetDiff(evidence.target_diff);
-  const workingTreeMode = evidence.target_mode ?? 'all';
+  const workingTreeMode = evidence.target_mode;
   const selectedDiffs =
-    evidence.target_kind !== undefined && evidence.target_kind !== 'working_tree'
-      ? [evidence.target_diff, evidence.committed_diff]
-      : workingTreeMode === 'staged'
-        ? [evidence.staged_diff]
-        : workingTreeMode === 'unstaged'
-          ? [evidence.unstaged_diff]
-          : [evidence.staged_diff, evidence.unstaged_diff];
+    workingTreeMode === 'staged'
+      ? [evidence.staged_diff]
+      : workingTreeMode === 'unstaged'
+        ? [evidence.unstaged_diff]
+        : [evidence.staged_diff, evidence.unstaged_diff];
   if (
     !warnings.some((warning) => warning.kind === 'submodule_content_not_inspected') &&
     selectedDiffs.some(containsOpaqueSubmoduleChange)
@@ -126,9 +134,6 @@ export function reviewEvidenceWarnings(input: {
   if (
     !hasSelectedTrackedDiff &&
     !hasSelectedUntrackedContent &&
-    !hasCommittedDiff &&
-    !hasTargetDiff &&
-    (evidence.target_kind === undefined || evidence.target_kind === 'working_tree') &&
     !gitCommandFailed(evidence.staged_diff.text) &&
     !gitCommandFailed(evidence.unstaged_diff.text)
   ) {
@@ -150,23 +155,6 @@ export function reviewEvidenceWarnings(input: {
       message: 'unstaged diff was truncated before relay',
     });
   }
-  if (evidence.committed_diff?.truncated === true) {
-    const duplicatedByTarget =
-      evidence.target_diff?.truncated === true &&
-      evidence.target_diff.text === evidence.committed_diff.text;
-    if (!duplicatedByTarget) {
-      warnings.push({
-        kind: 'diff_truncated',
-        message: `${evidence.committed_diff_ref ?? 'committed'} diff was truncated before relay`,
-      });
-    }
-  }
-  if (evidence.target_diff?.truncated === true) {
-    warnings.push({
-      kind: 'diff_truncated',
-      message: `${evidence.target_ref ?? 'target'} diff was truncated before relay`,
-    });
-  }
   if (gitCommandFailed(evidence.staged_diff.text)) {
     warnings.push({
       kind: 'git_command_failed',
@@ -183,42 +171,6 @@ export function reviewEvidenceWarnings(input: {
     warnings.push({
       kind: 'git_command_failed',
       message: evidence.diff_stat,
-    });
-  }
-  if (evidence.committed_diff !== undefined && gitCommandFailed(evidence.committed_diff.text)) {
-    warnings.push({
-      kind: 'git_command_failed',
-      message: evidence.committed_diff.text,
-    });
-  }
-  if (evidence.target_diff !== undefined && targetUnavailable(evidence.target_diff.text)) {
-    warnings.push({
-      kind: 'target_unavailable',
-      message: evidence.target_diff.text,
-    });
-  } else if (
-    evidence.target_kind !== undefined &&
-    evidence.target_kind !== 'working_tree' &&
-    !hasTargetDiff
-  ) {
-    warnings.push({
-      kind: 'target_unavailable',
-      message: `Target unavailable: ${evidence.target_ref ?? evidence.target_kind} produced no diff evidence.`,
-    });
-  }
-  if (
-    evidence.committed_diff_stat !== undefined &&
-    gitCommandFailed(evidence.committed_diff_stat)
-  ) {
-    warnings.push({
-      kind: 'git_command_failed',
-      message: evidence.committed_diff_stat,
-    });
-  }
-  if (evidence.target_diff_stat !== undefined && targetUnavailable(evidence.target_diff_stat)) {
-    warnings.push({
-      kind: 'target_unavailable',
-      message: evidence.target_diff_stat,
     });
   }
   if (workingTreeMode === 'all' && evidence.untracked_files_truncated) {
@@ -256,10 +208,12 @@ export function reviewEvidenceWarnings(input: {
 export function projectReviewIntake(input: ReviewIntakeProjectorInputs): ReviewIntake {
   return ReviewIntake.parse({
     scope: input.scope,
+    target: input.target,
     evidence: input.evidence,
     evidence_warnings: reviewEvidenceWarnings({
       evidence: input.evidence,
       maxUntrackedFiles: input.maxUntrackedFiles,
+      ...(input.assumedTarget === true ? { assumedTarget: true } : {}),
     }),
   });
 }

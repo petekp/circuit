@@ -1,11 +1,6 @@
 import { lstat, readFile, realpath, stat } from 'node:fs/promises';
 import { basename, isAbsolute, join, relative, resolve, sep } from 'node:path';
 import {
-  githubPullRequestMergeRefsFromGitConfig,
-  githubRepositoriesFromGitConfig,
-  parseGitHubRepositoryKey,
-} from '../../shared/github-repository.js';
-import {
   RUNTIME_GIT_HARDENED_CONFIG,
   type RuntimeGitPinnedTarget,
   type RuntimeGitTarget,
@@ -28,19 +23,17 @@ export type SafeGitOperation =
   | 'unstaged_diff'
   | 'staged_diff_stat'
   | 'unstaged_diff_stat'
-  | 'remote_repositories'
   | 'resolve_target'
   | 'target_diff'
   | 'target_diff_stat'
   | 'hidden_index_flags'
   | 'staged_changed_gitlinks'
   | 'unstaged_changed_gitlinks'
-  | 'untracked_files'
-  | 'submodules';
+  | 'untracked_files';
 
 type StaticSafeGitOperation = Exclude<
   SafeGitOperation,
-  'resolve_target' | 'target_diff' | 'target_diff_stat' | 'remote_repositories'
+  'resolve_target' | 'target_diff' | 'target_diff_stat'
 >;
 
 type ParsedSafeGitRequest =
@@ -53,7 +46,7 @@ type ParsedSafeGitRequest =
       readonly target: RuntimeGitPinnedTarget;
     }
   | {
-      readonly operation: StaticSafeGitOperation | 'remote_repositories';
+      readonly operation: StaticSafeGitOperation;
       readonly target?: never;
     };
 
@@ -71,12 +64,6 @@ export interface SafeGitRepository {
   readonly read_roots: readonly string[];
 }
 
-export interface SafeGitSubmodule {
-  readonly path: string;
-  readonly index_oid: string;
-  readonly inspection: 'gitlink_only';
-}
-
 export interface SafeGitReadResult {
   readonly schema_version: 1;
   readonly ok: boolean;
@@ -86,7 +73,6 @@ export interface SafeGitReadResult {
   readonly exit_code: number | null;
   readonly truncated: boolean;
   readonly limit_bytes: number;
-  readonly submodules: readonly SafeGitSubmodule[];
   readonly submodule_policy: 'reported_without_recursive_execution';
   readonly attribute_policy: 'external_commands_disabled';
   readonly cleanup_confirmed: boolean;
@@ -187,7 +173,6 @@ const OPERATION_ARGS: Readonly<Record<StaticSafeGitOperation, readonly string[]>
     '--',
   ],
   untracked_files: ['ls-files', '--others', '--exclude-standard', '-z', '--'],
-  submodules: ['ls-files', '--stage', '-z', '--'],
 };
 const CONFIG_AUDIT_ARGS = ['config', '--null', '--list', '--no-includes'] as const;
 const METADATA_PATHS = [
@@ -451,37 +436,6 @@ function parseSymbolicTarget(value: unknown): RuntimeGitTarget {
       dots: record.dots,
     };
   }
-  if (record.kind === 'pull_request') {
-    for (const key of Object.keys(record)) {
-      if (key !== 'kind' && key !== 'number' && key !== 'repository') {
-        throw new SafeGitReadError(
-          'invalid_git_read',
-          `Unknown Git pull request target field ${key}.`,
-        );
-      }
-    }
-    if (
-      typeof record.number !== 'number' ||
-      !Number.isInteger(record.number) ||
-      record.number < 1 ||
-      record.number > 999_999
-    ) {
-      throw new SafeGitReadError('invalid_git_read', 'Git pull request target is invalid.');
-    }
-    const repository =
-      record.repository === undefined ? undefined : parseGitHubRepositoryKey(record.repository);
-    if (record.repository !== undefined && repository === undefined) {
-      throw new SafeGitReadError(
-        'invalid_git_read',
-        'Git pull request repository must be a canonical GitHub repository identity.',
-      );
-    }
-    return {
-      kind: 'pull_request',
-      number: record.number,
-      ...(repository === undefined ? {} : { repository }),
-    };
-  }
   throw new SafeGitReadError('invalid_git_read', 'Git target kind is not supported.');
 }
 
@@ -533,47 +487,6 @@ function parsePinnedTarget(value: unknown): RuntimeGitPinnedTarget {
       dots: record.dots,
     };
   }
-  if (record.kind === 'pull_request') {
-    for (const key of Object.keys(record)) {
-      if (
-        key !== 'kind' &&
-        key !== 'number' &&
-        key !== 'repository' &&
-        key !== 'merge_commit' &&
-        key !== 'base_commit' &&
-        key !== 'head_commit'
-      ) {
-        throw new SafeGitReadError(
-          'invalid_git_read',
-          `Unknown pinned Git pull request target field ${key}.`,
-        );
-      }
-    }
-    if (
-      typeof record.number !== 'number' ||
-      !Number.isInteger(record.number) ||
-      record.number < 1 ||
-      record.number > 999_999
-    ) {
-      throw new SafeGitReadError('invalid_git_read', 'Pinned Git pull request number is invalid.');
-    }
-    const repository =
-      record.repository === undefined ? undefined : parseGitHubRepositoryKey(record.repository);
-    if (record.repository !== undefined && repository === undefined) {
-      throw new SafeGitReadError(
-        'invalid_git_read',
-        'Pinned Git pull request repository must be a canonical GitHub repository identity.',
-      );
-    }
-    return {
-      kind: 'pull_request',
-      number: record.number,
-      ...(repository === undefined ? {} : { repository }),
-      merge_commit: validateObjectId(record.merge_commit, 'Pinned Git PR merge commit id'),
-      base_commit: validateObjectId(record.base_commit, 'Pinned Git PR base commit id'),
-      head_commit: validateObjectId(record.head_commit, 'Pinned Git PR head commit id'),
-    };
-  }
   throw new SafeGitReadError('invalid_git_read', 'Pinned Git target kind is not supported.');
 }
 
@@ -593,15 +506,13 @@ function parseRequest(value: unknown): ParsedSafeGitRequest {
     record.operation !== 'unstaged_diff' &&
     record.operation !== 'staged_diff_stat' &&
     record.operation !== 'unstaged_diff_stat' &&
-    record.operation !== 'remote_repositories' &&
     record.operation !== 'resolve_target' &&
     record.operation !== 'target_diff' &&
     record.operation !== 'target_diff_stat' &&
     record.operation !== 'hidden_index_flags' &&
     record.operation !== 'staged_changed_gitlinks' &&
     record.operation !== 'unstaged_changed_gitlinks' &&
-    record.operation !== 'untracked_files' &&
-    record.operation !== 'submodules'
+    record.operation !== 'untracked_files'
   ) {
     throw new SafeGitReadError('invalid_git_read', 'Git read operation is not supported.');
   }
@@ -680,18 +591,6 @@ function targetArgs(
       '--',
     ]);
   }
-  if (target.kind === 'range') {
-    return Object.freeze([
-      'diff',
-      ...stat,
-      '--no-ext-diff',
-      '--no-textconv',
-      '--submodule=short',
-      '--ignore-submodules=none',
-      `${target.base_commit}^{commit}${target.dots}${target.head_commit}^{commit}`,
-      '--',
-    ]);
-  }
   return Object.freeze([
     'diff',
     ...stat,
@@ -699,60 +598,35 @@ function targetArgs(
     '--no-textconv',
     '--submodule=short',
     '--ignore-submodules=none',
-    `${target.base_commit}^{commit}...${target.head_commit}^{commit}`,
+    `${target.base_commit}^{commit}${target.dots}${target.head_commit}^{commit}`,
     '--',
   ]);
 }
 
-function resolveTargetArgs(
-  target: RuntimeGitTarget,
-  pullRequestMergeRef?: string,
-): readonly string[] {
+function resolveTargetArgs(target: RuntimeGitTarget): readonly string[] {
   if (target.kind === 'commit') {
     return Object.freeze(['rev-parse', '--verify', '--end-of-options', `${target.ref}^{commit}`]);
-  }
-  if (target.kind === 'range') {
-    return Object.freeze([
-      'rev-parse',
-      '--revs-only',
-      '--end-of-options',
-      `${target.base}^{commit}..${target.head}^{commit}`,
-    ]);
-  }
-  if (pullRequestMergeRef === undefined) {
-    throw new SafeGitReadError(
-      'invalid_git_read',
-      `PR #${target.number} has no repository-bound local merge ref.`,
-    );
   }
   return Object.freeze([
     'rev-parse',
     '--revs-only',
     '--end-of-options',
-    `${pullRequestMergeRef}^{commit}`,
-    `${pullRequestMergeRef}^1^{commit}..${pullRequestMergeRef}^2^{commit}`,
+    `${target.base}^{commit}..${target.head}^{commit}`,
   ]);
 }
 
 function operationArgs(
   request: SafeGitCommandRequest,
   commitParent?: string | null,
-  pullRequestMergeRef?: string,
 ): readonly string[] {
   if (request.operation === 'commit_object') {
     return Object.freeze(['cat-file', 'commit', `${request.commit}^{commit}`]);
   }
   if (request.operation === 'resolve_target') {
-    return resolveTargetArgs(request.target, pullRequestMergeRef);
+    return resolveTargetArgs(request.target);
   }
   if (request.operation === 'target_diff' || request.operation === 'target_diff_stat') {
     return targetArgs(request.operation, request.target, commitParent);
-  }
-  if (request.operation === 'remote_repositories') {
-    throw new SafeGitReadError(
-      'invalid_git_read',
-      'Remote repository identities come from the audited Git configuration.',
-    );
   }
   return OPERATION_ARGS[request.operation];
 }
@@ -782,33 +656,17 @@ function parseResolvedTarget(target: RuntimeGitTarget, output: string): RuntimeG
       commit: resolvedObjectId(lines[0], 'commit id'),
     };
   }
-  if (target.kind === 'range') {
-    if (lines.length !== 2 || !lines[1]?.startsWith('^')) {
-      throw new SafeGitReadError(
-        'invalid_git_output',
-        'Git returned an unexpected range target resolution shape.',
-      );
-    }
-    return {
-      kind: 'range',
-      base_commit: resolvedObjectId(lines[1].slice(1), 'range base commit id'),
-      head_commit: resolvedObjectId(lines[0], 'range head commit id'),
-      dots: target.dots,
-    };
-  }
-  if (lines.length !== 3 || !lines[2]?.startsWith('^')) {
+  if (lines.length !== 2 || !lines[1]?.startsWith('^')) {
     throw new SafeGitReadError(
       'invalid_git_output',
-      'Git returned an unexpected PR target resolution shape.',
+      'Git returned an unexpected range target resolution shape.',
     );
   }
   return {
-    kind: 'pull_request',
-    number: target.number,
-    ...(target.repository === undefined ? {} : { repository: target.repository }),
-    merge_commit: resolvedObjectId(lines[0], 'PR merge commit id'),
-    base_commit: resolvedObjectId(lines[2].slice(1), 'PR base commit id'),
-    head_commit: resolvedObjectId(lines[1], 'PR head commit id'),
+    kind: 'range',
+    base_commit: resolvedObjectId(lines[1].slice(1), 'range base commit id'),
+    head_commit: resolvedObjectId(lines[0], 'range head commit id'),
+    dots: target.dots,
   };
 }
 
@@ -839,7 +697,6 @@ function gitArgv(
   request: SafeGitCommandRequest | { readonly operation: 'config_audit' },
   dynamicConfig: readonly string[] = [],
   commitParent?: string | null,
-  pullRequestMergeRef?: string,
 ): readonly string[] {
   return Object.freeze([
     executable,
@@ -850,7 +707,7 @@ function gitArgv(
     ...[...RUNTIME_GIT_HARDENED_CONFIG, ...dynamicConfig].flatMap((value) => ['-c', value]),
     ...(request.operation === 'config_audit'
       ? CONFIG_AUDIT_ARGS
-      : operationArgs(request, commitParent, pullRequestMergeRef)),
+      : operationArgs(request, commitParent)),
   ]);
 }
 
@@ -860,20 +717,12 @@ function gitRequest(
   request: SafeGitCommandRequest | { readonly operation: 'config_audit' },
   dynamicConfig: readonly string[] = [],
   commitParent?: string | null,
-  pullRequestMergeRef?: string,
 ): GitReadSandboxRequest {
   const operation = request.operation;
   return Object.freeze({
     id: `safe-git-${operation.replaceAll('_', '-')}`,
     cwd: '.',
-    argv: gitArgv(
-      executable,
-      repository,
-      request,
-      dynamicConfig,
-      commitParent,
-      pullRequestMergeRef,
-    ),
+    argv: gitArgv(executable, repository, request, dynamicConfig, commitParent),
     env: Object.freeze({}),
     timeout_ms: GIT_TIMEOUT_MS,
     max_output_bytes: GIT_OUTPUT_LIMIT_BYTES,
@@ -915,65 +764,6 @@ function auditGitConfiguration(output: string): readonly string[] {
   return Object.freeze([...dynamicConfig].sort());
 }
 
-function parseSubmodules(output: string, workspace: string): readonly SafeGitSubmodule[] {
-  if (output.length === 0) return Object.freeze([]);
-  if (!output.endsWith('\0')) {
-    throw new SafeGitReadError(
-      'invalid_git_output',
-      'Git returned malformed submodule output without a final NUL delimiter.',
-    );
-  }
-  const submodules: SafeGitSubmodule[] = [];
-  const seenPaths = new Set<string>();
-  for (const entry of output.slice(0, -1).split('\0')) {
-    const match =
-      /^(040000|100644|100755|120000|160000) ([a-f0-9]{40}|[a-f0-9]{64}) ([0-3])\t([\s\S]+)$/u.exec(
-        entry,
-      );
-    if (
-      match?.[1] === undefined ||
-      match[2] === undefined ||
-      match[3] === undefined ||
-      match[4] === undefined
-    ) {
-      throw new SafeGitReadError(
-        'invalid_git_output',
-        'Git returned a malformed index entry while inspecting submodules.',
-      );
-    }
-    const mode = match[1];
-    const objectId = match[2];
-    const stage = match[3];
-    const entryPath = match[4];
-    if (isAbsolute(entryPath) || !isInside(workspace, resolve(workspace, entryPath))) {
-      throw new SafeGitReadError(
-        'unsafe_submodule_path',
-        'A Git index path escapes the workspace.',
-      );
-    }
-    if (mode !== '160000') continue;
-    if (stage !== '0') {
-      throw new SafeGitReadError(
-        'unsafe_submodule_state',
-        'Unmerged submodule index entries require manual inspection.',
-      );
-    }
-    if (seenPaths.has(entryPath)) {
-      throw new SafeGitReadError(
-        'invalid_git_output',
-        `Git returned a duplicate submodule path ${JSON.stringify(entryPath)}.`,
-      );
-    }
-    seenPaths.add(entryPath);
-    submodules.push({
-      path: entryPath,
-      index_oid: objectId,
-      inspection: 'gitlink_only',
-    });
-  }
-  return Object.freeze(submodules);
-}
-
 function failedResult(operation: SafeGitOperation, result: ProofSandboxResult): SafeGitReadResult {
   return Object.freeze({
     schema_version: 1,
@@ -984,7 +774,6 @@ function failedResult(operation: SafeGitOperation, result: ProofSandboxResult): 
     exit_code: result.exit_code,
     truncated: result.truncated,
     limit_bytes: GIT_OUTPUT_LIMIT_BYTES,
-    submodules: Object.freeze([]),
     submodule_policy: 'reported_without_recursive_execution',
     attribute_policy: 'external_commands_disabled',
     cleanup_confirmed: result.cleanup.confirmed,
@@ -1020,7 +809,6 @@ function successfulResult(input: {
   readonly stderr?: string;
   readonly exitCode?: number | null;
   readonly truncated?: boolean;
-  readonly submodules?: readonly SafeGitSubmodule[];
   readonly resolvedTarget?: RuntimeGitPinnedTarget;
 }): SafeGitReadResult {
   return Object.freeze({
@@ -1032,7 +820,6 @@ function successfulResult(input: {
     exit_code: input.exitCode === undefined ? 0 : input.exitCode,
     truncated: input.truncated ?? false,
     limit_bytes: GIT_OUTPUT_LIMIT_BYTES,
-    submodules: Object.freeze([...(input.submodules ?? [])]),
     submodule_policy: 'reported_without_recursive_execution',
     attribute_policy: 'external_commands_disabled',
     cleanup_confirmed: true,
@@ -1068,13 +855,6 @@ export function createSafeGitReader(options: CreateSafeGitReaderOptions): SafeGi
       }
       assertValidGitOutputEncoding(configAudit.stdout, 'Git configuration output');
       const dynamicConfig = auditGitConfiguration(configAudit.stdout);
-      if (operation === 'remote_repositories') {
-        const repositories = githubRepositoriesFromGitConfig(configAudit.stdout);
-        return successfulResult({
-          operation,
-          stdout: repositories.length === 0 ? '' : `${repositories.join('\n')}\n`,
-        });
-      }
       let commitParent: string | null | undefined;
       if (
         (parsed.operation === 'target_diff' || parsed.operation === 'target_diff_stat') &&
@@ -1094,33 +874,8 @@ export function createSafeGitReader(options: CreateSafeGitReaderOptions): SafeGi
         assertValidGitOutputEncoding(commitInspection.stdout, 'Git commit inspection output');
         commitParent = parseRawCommitParent(parsed.target.commit, commitInspection.stdout);
       }
-      let pullRequestMergeRef: string | undefined;
-      if (parsed.operation === 'resolve_target' && parsed.target.kind === 'pull_request') {
-        const requestedRepository = parsed.target.repository;
-        const candidates = githubPullRequestMergeRefsFromGitConfig(
-          configAudit.stdout,
-          parsed.target.number,
-        ).filter(
-          (candidate) =>
-            requestedRepository === undefined || candidate.repository === requestedRepository,
-        );
-        pullRequestMergeRef = candidates[0]?.ref;
-        if (candidates.length !== 1 || pullRequestMergeRef === undefined) {
-          throw new SafeGitReadError(
-            'invalid_git_read',
-            `PR #${parsed.target.number} has no single repository-bound local merge ref.`,
-          );
-        }
-      }
       const primary = await options.sandbox.executeGitRead(
-        gitRequest(
-          executable,
-          repository,
-          parsed,
-          dynamicConfig,
-          commitParent,
-          pullRequestMergeRef,
-        ),
+        gitRequest(executable, repository, parsed, dynamicConfig, commitParent),
       );
       if (primary.status !== 'passed' || !primary.cleanup.confirmed) {
         const boundedPartialDiff =
@@ -1153,17 +908,11 @@ export function createSafeGitReader(options: CreateSafeGitReaderOptions): SafeGi
         });
       }
 
-      const submodules =
-        operation === 'submodules'
-          ? parseSubmodules(primary.stdout, repository.workspace)
-          : Object.freeze([]);
-
       return successfulResult({
         operation,
         stdout: primary.stdout,
         stderr: primary.stderr,
         exitCode: primary.exit_code,
-        submodules,
       });
     },
   });

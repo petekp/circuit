@@ -85,17 +85,7 @@ function evidenceIsUnavailable(report: ReviewResultValue): boolean {
   }
   if (
     report.evidence_summary?.kind === 'git-working-tree' &&
-    report.evidence_summary.target_kind !== undefined &&
-    report.evidence_summary.target_kind !== 'working_tree' &&
-    report.evidence_summary.target_diff_included !== true &&
-    report.evidence_summary.committed_diff_included !== true
-  ) {
-    return true;
-  }
-  if (
-    report.evidence_summary?.kind === 'git-working-tree' &&
-    report.evidence_summary.target_kind === 'working_tree' &&
-    report.evidence_summary.target_diff_included !== true &&
+    !report.evidence_summary.target_diff_included &&
     !hasCompleteUntrackedReviewEvidence(report)
   ) {
     return true;
@@ -155,24 +145,11 @@ function EvidenceSummary({ report }: { readonly report: ReviewResultValue }) {
   }
   const sampled = `${evidence.untracked_files_sampled}/${evidence.untracked_file_count}`;
   const truncated = evidence.untracked_files_truncated ? 'yes' : 'no';
-  const workingTreeTargetLines =
-    evidence.target_kind === 'working_tree' && evidence.target_mode !== undefined
-      ? [
-          `Review target: ${evidence.target_mode} working-tree changes`,
-          `Target diff included: ${evidence.target_diff_included === true ? 'yes' : 'no'}`,
-        ]
-      : [];
-  const targetLine =
-    evidence.target_diff_included === true && evidence.target_kind !== 'working_tree'
-      ? `Review target: ${evidence.target_ref ?? evidence.target_kind ?? 'requested target'}`
-      : evidence.committed_diff_included === true
-        ? 'Review target: latest commit'
-        : undefined;
   return (
     <BulletList
       items={[
-        ...workingTreeTargetLines,
-        ...(targetLine === undefined ? [] : [targetLine]),
+        `Review target: ${evidence.target_mode} working-tree changes`,
+        `Target diff included: ${evidence.target_diff_included ? 'yes' : 'no'}`,
         `Untracked content policy: ${evidence.untracked_content_policy}`,
         `Untracked files sampled: ${sampled}`,
         `Untracked file list truncated: ${truncated}`,

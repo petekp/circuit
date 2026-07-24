@@ -18,13 +18,6 @@ import {
 import { dirname, isAbsolute, join, relative, resolve, sep } from 'node:path';
 import { TextDecoder } from 'node:util';
 import {
-  type GitHubRepositoryIdentity,
-  githubPullRequestMergeRefsFromGitConfig,
-  githubRepositoriesFromGitConfig,
-  githubRepositoryKey,
-  parseGitHubRemoteUrl,
-} from '../../../shared/github-repository.js';
-import {
   RUNTIME_GIT_HARDENED_CONFIG,
   type RuntimeGitOperation,
   type RuntimeGitPinnedTarget,
@@ -41,6 +34,7 @@ import type {
 import type {
   ReviewEvidence,
   ReviewEvidenceText,
+  ReviewResolvedTarget,
   ReviewUntrackedContentPolicy,
   ReviewUntrackedFileEvidence,
 } from '../reports.js';
@@ -83,34 +77,14 @@ type DirectGitContext = DirectGitRepository & {
   readonly auditedConfig: string;
 };
 
-type ReviewTarget =
-  | {
-      readonly kind: 'goal';
-    }
-  | {
-      readonly kind: 'working_tree';
-      readonly mode: 'all' | 'staged' | 'unstaged';
-      readonly explicit: boolean;
-    }
-  | { readonly kind: 'commit'; readonly ref: string }
-  | {
-      readonly kind: 'range';
-      readonly base: string;
-      readonly head: string;
-      readonly dots: '..' | '...';
-    }
-  | {
-      readonly kind: 'pull_request';
-      readonly number: number;
-      readonly repository?: GitHubRepositoryIdentity;
-    };
+type ReviewTarget = ReviewResolvedTarget;
 
 type ReviewTargetParseResult =
-  | { readonly ok: true; readonly target: ReviewTarget }
+  | { readonly ok: true; readonly target: ReviewTarget; readonly assumed?: boolean }
   | { readonly ok: false; readonly reason: string };
 
 type DirectPinnedTarget =
-  | Exclude<RuntimeGitPinnedTarget, { readonly kind: 'commit' }>
+  | Extract<RuntimeGitPinnedTarget, { readonly kind: 'range' }>
   | {
       readonly kind: 'commit';
       readonly commit: string;
@@ -452,14 +426,6 @@ function runGit(
   } catch (error) {
     return { ok: false, reason: errorMessage(error) };
   }
-  const currentConfiguration = directGitConfiguration(context);
-  if (!currentConfiguration.ok) return currentConfiguration;
-  if (currentConfiguration.auditedConfig !== context.auditedConfig) {
-    return {
-      ok: false,
-      reason: 'Git configuration changed while Review evidence was being collected.',
-    };
-  }
   const hardenedArgs = [...RUNTIME_GIT_HARDENED_CONFIG, ...context.overrides].flatMap((value) => [
     '-c',
     value,
@@ -591,27 +557,45 @@ function isSafeReviewRef(value: string): boolean {
   );
 }
 
-function normalizeUnambiguousReviewAliases(scope: string): string {
-  return scope
-    .replace(/^\s*((?:latest|last|current)\s+commit)\s+review(?=\s*[.!?]?\s*$)/iu, 'review $1')
-    .replace(/\bwhat\s+i\s+just\s+committed\b/giu, 'latest commit')
-    .replace(/\b(?:the\s+)?commit\s+i\s+just\s+made\b/giu, 'latest commit')
-    .replace(/\b(?:(?:the|my|our)\s+)?most\s+recent\s+commit\b/giu, 'latest commit')
-    .replace(/\bwhat\s+changed\s+in\s+(?:the\s+)?last\s+commit\b/giu, 'latest commit')
-    .replace(/\bwhat(?:'s|\s+is)\s+staged\b/giu, 'staged changes')
-    .replace(/\bwhat\s+i\s+staged\b/giu, 'staged changes')
-    .replace(/\beverything\s+i\s+have\s+not\s+committed\b/giu, 'working tree changes')
-    .replace(/\ball\s+uncommitted\s+files\b/giu, 'working tree changes');
+// --- Review target selection ---------------------------------------------
+//
+// The grammar recognises explicit target forms only: staged/unstaged, a
+// commit, a range, or material supplied inline. Everything else falls back
+// to the current working tree and says so. Refusing ordinary phrasings like
+// "code review please" costs more than reviewing the obvious thing and
+// naming the assumption out loud.
+//
+// Malformed *explicit* forms still fail closed, but they fail when the
+// target is resolved against the repository, not when it is phrased.
+
+const REVIEW_LEAD = String.raw`(?:review|inspect|audit|check|analyze)`;
+
+const PULL_REQUEST_UNSUPPORTED_REASON =
+  'Review cannot fetch a pull request. Check out the PR branch locally, then review the working tree or an explicit range such as main...HEAD.';
+
+const PATH_SUBSET_UNSUPPORTED_REASON =
+  'Review cannot pin a subset of paths as its evidence. Review the whole working tree, a commit, or a range instead, and name the paths you care about in the goal so the reviewer concentrates there.';
+
+function normalizeReviewQuotes(scope: string): string {
+  return scope.replace(/[’‘]/gu, "'").replace(/[“”]/gu, '"');
 }
 
-function hasTargetSelectionSuffix(scope: string, mentionEnd: number): boolean {
-  const suffix = scope.slice(mentionEnd).trimStart();
-  if (suffix.length === 0) return true;
-  if (/^[.!?](?:\s|$)/u.test(suffix)) return true;
-  if (/^[,;:](?:\s|$)/u.test(suffix)) return true;
-  return /^(?:only\b|for\b|with\b|especially\b|against\b|focus(?:ing)?(?:\s+on)?\b|(?:and|or|plus|then|as\s+well\s+as)\b|but\b|except\b|excluding\b|without\b|skip(?:ping)?\b|ignor(?:e|ing)\b|omit(?:ting)?\b|(?:leave|leaving)\s+out\b|save\s+for\b|other\s+than\b|versus\b|vs\.?\b|compared\s+(?:to|with)\b|through\b)/iu.test(
-    suffix,
-  );
+/**
+ * Blank out quoted, fenced and blockquoted spans so material the operator
+ * pasted for review cannot be mistaken for a target selection. Masking keeps
+ * the original offsets so match positions stay meaningful.
+ */
+function maskReviewLiteralData(scope: string): string {
+  const mask = (value: string): string => value.replace(/[^\r\n]/gu, ' ');
+  return scope
+    .replace(/```[\s\S]*?```/gu, mask)
+    .replace(/"(?:\\.|[^"\\])*"/gu, mask)
+    .replace(/(^|[\s([{:;,])'(?:\\.|[^'\\])*'/gmu, mask)
+    .replace(/`(?:\\.|[^`\\])*`/gu, mask)
+    .replace(/^[ \t]*>[^\r\n]*$/gmu, mask)
+    .replace(/```[\s\S]*$/gu, mask)
+    .replace(/"(?:\\.|[^"\\])*$/gu, mask)
+    .replace(/`(?:\\.|[^`\\])*$/gu, mask);
 }
 
 function looksLikeReviewPath(value: string): boolean {
@@ -630,14 +614,13 @@ function looksLikeReviewPath(value: string): boolean {
   );
 }
 
-function looksLikeReviewSubsetPath(value: string, explicitPathKind = false): boolean {
+function looksLikeReviewSubsetPath(value: string): boolean {
   const cleaned = value
     .trim()
     .replace(/^[<("'`]+/u, '')
     .replace(/[>"'`),.;:!?]+$/u, '');
   if (cleaned.length === 0 || /^https?:\/\//iu.test(cleaned)) return false;
   return (
-    explicitPathKind ||
     looksLikeReviewPath(cleaned) ||
     /^\.[A-Za-z0-9_-]+$/u.test(cleaned) ||
     /[*?[\]]/u.test(cleaned) ||
@@ -648,20 +631,7 @@ function looksLikeReviewSubsetPath(value: string, explicitPathKind = false): boo
   );
 }
 
-function isPathOnlyReviewRequest(scope: string): boolean {
-  const match =
-    /^\s*(?:review|inspect|audit|check|analyze)\s+(?:(?:only|the|this|my|our|current)\s+)*(?:(?:file|code|plan|report)\s*(?:(?:in|at|from)\s+|:\s*)?)?(?<path>\S+)(?<suffix>[\s\S]*)$/iu.exec(
-      scope,
-    );
-  const path = match?.groups?.path;
-  const suffix = match?.groups?.suffix ?? '';
-  if (path === undefined || !looksLikeReviewPath(path)) return false;
-  const trimmedSuffix = suffix.trim();
-  if (trimmedSuffix.length === 0 || /^[.!?]$/u.test(trimmedSuffix)) return true;
-  return /^(?:,?\s*(?:for|with|especially)\b|,?\s+and\s+(?:focus|check|inspect|look|pay|prioritize|verify)\b)/iu.test(
-    trimmedSuffix,
-  );
-}
+// --- inline supplied material (the `goal` target kind) --------------------
 
 type SuppliedReviewMaterialClassification =
   | { readonly kind: 'supplied' }
@@ -670,7 +640,7 @@ type SuppliedReviewMaterialClassification =
   | { readonly kind: 'none' };
 
 function topLevelReviewMaterialTail(scope: string): string | undefined {
-  const firstLead = /\b(?:review|inspect|audit|check|analyze)\b/iu.exec(scope);
+  const firstLead = new RegExp(String.raw`\b${REVIEW_LEAD}\b`, 'iu').exec(scope);
   if (firstLead === null) return undefined;
   const clause = scope.slice(firstLead.index);
   const artifact =
@@ -746,345 +716,48 @@ function classifySuppliedReviewMaterial(scope: string): SuppliedReviewMaterialCl
   return classifyReviewMaterialBody(body);
 }
 
-function withoutNegatedReviewClauses(scope: string): string {
-  return scope
-    .replace(
-      /\b(?:do\s+not|don't|never)\s+(?:review|inspect|audit|check|analyze)\b[^;.!?]*?(?=(?:\b(?:but|and(?:\s+instead)?|instead)\s+)(?:review|inspect|audit|check|analyze)\b|[;.!?]|$)/giu,
-      ' ',
-    )
-    .replace(
-      /\b(?:but|and(?:\s+instead)?|instead)\s+(?=(?:review|inspect|audit|check|analyze)\b)/giu,
-      ' ',
-    );
+// --- explicit target forms ------------------------------------------------
+
+function namesPullRequest(scope: string): boolean {
+  if (/\b(?:prs?|pull\s+requests?)\b/iu.test(scope)) return true;
+  if (/https?:\/\/\S*\/pull\/\d{1,7}\b/iu.test(scope)) return true;
+  return new RegExp(
+    String.raw`\b${REVIEW_LEAD}\s+(?:(?:the|this|that|my|our)\s+)?#\d{1,7}\b`,
+    'iu',
+  ).test(scope);
 }
 
-function maskReviewLiteralData(scope: string): string {
-  const mask = (value: string): string => value.replace(/[^\r\n]/gu, ' ');
-  return scope
-    .replace(/```[\s\S]*?```/gu, mask)
-    .replace(/"(?:\\.|[^"\\])*"/gu, mask)
-    .replace(/(^|[\s([{:;,])'(?:\\.|[^'\\])*'/gmu, mask)
-    .replace(/`(?:\\.|[^`\\])*`/gu, mask)
-    .replace(/^[ \t]*>[^\r\n]*$/gmu, mask)
-    .replace(/```[\s\S]*$/gu, mask)
-    .replace(/"(?:\\.|[^"\\])*$/gu, mask)
-    .replace(/`(?:\\.|[^`\\])*$/gu, mask);
-}
-
-export function reviewScopeHasSuppliedMaterial(scope: string): boolean {
-  const normalizedScope = withImplicitReviewLead(
-    normalizeUnambiguousReviewAliases(scope.replace(/[’‘]/gu, "'").replace(/[“”]/gu, '"')),
-  );
-  return (
-    classifySuppliedReviewMaterial(withoutNegatedReviewClauses(normalizedScope)).kind === 'supplied'
-  );
-}
-
-function hasTopLevelArtifactReviewSubject(scope: string): boolean {
-  return topLevelReviewMaterialTail(scope) !== undefined;
-}
-
-function unsupportedReviewComparison(scope: string): string | undefined {
-  for (const match of scope.matchAll(
-    /\b(?:changes?|diffs?)\s+across\s+(?<base>[A-Za-z0-9][A-Za-z0-9._/@+~^-]{0,120})\s+and\s+(?<head>[A-Za-z0-9][A-Za-z0-9._/@+~^-]{0,120})\b/giu,
-  )) {
-    if (!hasAffirmativeReviewTargetLead(scope, match.index ?? 0)) continue;
-    const base = match.groups?.base;
-    const head = match.groups?.head;
-    if (base !== undefined && head !== undefined) {
-      return `Review target comparison is ambiguous. Use one explicit range such as ${base}...${head}.`;
-    }
-  }
-
-  for (const match of scope.matchAll(
-    /\b(?<base>[A-Za-z0-9][A-Za-z0-9._/@+~^-]{0,120})\s+(?:versus|vs\.?|compared\s+(?:to|with))\s+(?<head>[A-Za-z0-9][A-Za-z0-9._/@+~^-]{0,120})\b/giu,
-  )) {
-    if (!hasAffirmativeReviewTargetLead(scope, match.index ?? 0)) continue;
-    const base = match.groups?.base;
-    const head = match.groups?.head;
-    if (base !== undefined && head !== undefined) {
-      return `Review target comparison is ambiguous. Use one explicit range such as ${base}...${head}.`;
-    }
-  }
-
-  for (const match of scope.matchAll(
-    /\b(?:commit|revision|rev)\s+(?:at\s+)?(?<base>[A-Za-z0-9][A-Za-z0-9._/@+~^-]{0,120})\s+(?:through|thru)\s+(?:(?:commit|revision|rev)\s+)?(?<head>[A-Za-z0-9][A-Za-z0-9._/@+~^-]{0,120})\b/giu,
-  )) {
-    if (!hasAffirmativeReviewTargetLead(scope, match.index ?? 0)) continue;
-    const base = match.groups?.base;
-    const head = match.groups?.head;
-    if (base !== undefined && head !== undefined) {
-      return `Review target comparison is ambiguous. Use one explicit range such as ${base}...${head}.`;
-    }
-  }
-
-  for (const match of scope.matchAll(
-    /\b(?<left>(?:(?:latest|last|current)\s+commit|HEAD(?:[~^]\d*)?|(?:commit|revision|rev)\s+(?:at\s+)?[A-Za-z0-9][A-Za-z0-9._/@+~^-]{0,120}|(?:pr|pull request)\s*#?\d{1,7}))\s+(?:versus|vs\.?|compared\s+to)\s+(?<right>(?:(?:latest|last|current)\s+commit|HEAD(?:[~^]\d*)?|(?:commit|revision|rev)\s+(?:at\s+)?[A-Za-z0-9][A-Za-z0-9._/@+~^-]{0,120}|(?:pr|pull request)\s*#?\d{1,7}|[A-Za-z0-9][A-Za-z0-9._/@+~^-]{0,120}))\b/giu,
-  )) {
-    if (!hasAffirmativeReviewTargetLead(scope, match.index ?? 0)) continue;
-    return 'Review target comparison is ambiguous. Choose one complete target or use one explicit Git range.';
-  }
-  return undefined;
-}
-
-function hasUnsupportedPathSubset(scope: string): boolean {
-  for (const match of scope.matchAll(
-    /(?:^|[,;])\s*(?<path>"[^"\r\n]+"|'[^'\r\n]+'|`[^`\r\n]+`|[^\s,;]+)\s+only(?=$|[\s,.;:!?])/giu,
-  )) {
-    if (!hasSelectedReviewTargetBefore(scope, match.index ?? 0)) continue;
-    if (match.groups?.path !== undefined) return true;
-  }
-
-  for (const match of scope.matchAll(
-    /(?:\b(?:but\s+)?(?:only|just)\s+(?:(?:in|from|for|of|under|within)\s+)?|\b(?:in|from|for|of|under|within)\s+|\b(?:confined|limited|restricted|scoped)\s+to\s+)(?:the\s+)?(?:(?<leading_kind>file|path|director(?:y|ies)|folders?)\s+)?(?<path>"[^"\r\n]+"|'[^'\r\n]+'|`[^`\r\n]+`|\S+)(?:\s+(?<trailing_kind>file|path|director(?:y|ies)|folders?))?(?=$|[\s,.;:!?])/giu,
-  )) {
-    const matchEnd = (match.index ?? 0) + match[0].length;
-    if (
-      /^from\b/iu.test(match[0]) &&
-      /^\s+to\s+[A-Za-z0-9][A-Za-z0-9._/@+~^-]{0,120}\b/u.test(scope.slice(matchEnd))
-    ) {
-      continue;
-    }
-    if (!hasSelectedReviewTargetBefore(scope, match.index ?? 0)) continue;
-    const path = match.groups?.path;
-    const explicitPathKind =
-      match.groups?.leading_kind !== undefined || match.groups?.trailing_kind !== undefined;
-    if (path !== undefined && looksLikeReviewSubsetPath(path, explicitPathKind)) return true;
-  }
-
-  for (const match of scope.matchAll(
-    /\b(?:review|inspect|audit|check|analyze)\s+(?:of\s+)?(?:(?:only|just|the|this|these|my|our|current)\s+)*(?:(?<leading_kind>file|path|director(?:y|ies)|folders?)\s+)?(?<path>"[^"\r\n]+"|'[^'\r\n]+'|`[^`\r\n]+`|\S+)(?:\s+(?<trailing_kind>file|path|director(?:y|ies)|folders?))?\s+(?<link>in|from|of|at|under|within|between)\s+(?<target>[^;!?]+)(?=$|[;!?])/giu,
-  )) {
-    const path = match.groups?.path;
-    const link = match.groups?.link?.toLowerCase();
-    const target = match.groups?.target?.trim();
-    if (path === undefined || link === undefined || target === undefined) continue;
-    const explicitPathKind =
-      match.groups?.leading_kind !== undefined || match.groups?.trailing_kind !== undefined;
-    if (!looksLikeReviewSubsetPath(path, explicitPathKind)) continue;
-    const targetScope =
-      link === 'from' && /\bto\b/iu.test(target)
-        ? `review changes from ${target}`
-        : link === 'between' && /\band\b/iu.test(target)
-          ? `review changes between ${target}`
-          : `review ${target}`;
-    const candidates = [
-      parseRange(targetScope),
-      parsePullRequestUrl(targetScope),
-      parsePullRequestMention(targetScope),
-      parseCommit(targetScope),
-      parseWorkingTree(targetScope),
-    ];
-    if (
-      candidates.some((candidate) => candidate?.ok === true && candidate.target.kind !== 'goal')
-    ) {
-      return true;
-    }
-  }
-  return false;
-}
-
-function reviewTargetLabel(
-  target: Exclude<ReviewTarget, { readonly kind: 'goal' | 'working_tree' }>,
-): string {
-  if (target.kind === 'commit') return target.ref;
-  if (target.kind === 'range') return `${target.base}${target.dots}${target.head}`;
-  return `PR #${target.number}`;
-}
-
-function sameRepository(
-  left: GitHubRepositoryIdentity | undefined,
-  right: GitHubRepositoryIdentity | undefined,
-): boolean {
-  return (
-    left === undefined ||
-    right === undefined ||
-    githubRepositoryKey(left) === githubRepositoryKey(right)
-  );
-}
-
-function sameReviewTarget(left: ReviewTarget, right: ReviewTarget): boolean {
-  if (left.kind !== right.kind) return false;
-  if (left.kind === 'goal' && right.kind === 'goal') return true;
-  if (left.kind === 'working_tree' && right.kind === 'working_tree') {
-    return left.mode === right.mode;
-  }
-  if (left.kind === 'commit' && right.kind === 'commit') return left.ref === right.ref;
-  if (left.kind === 'range' && right.kind === 'range') {
-    return left.base === right.base && left.head === right.head && left.dots === right.dots;
-  }
-  if (left.kind === 'pull_request' && right.kind === 'pull_request') {
-    return left.number === right.number && sameRepository(left.repository, right.repository);
-  }
-  return false;
-}
-
-function deduplicateReviewTargets(targets: readonly ReviewTarget[]): ReviewTarget[] {
-  const unique: ReviewTarget[] = [];
-  for (const target of targets) {
-    const index = unique.findIndex((candidate) => sameReviewTarget(candidate, target));
-    if (index === -1) {
-      unique.push(target);
-      continue;
-    }
-    const existing = unique[index];
-    if (
-      existing?.kind === 'pull_request' &&
-      target.kind === 'pull_request' &&
-      existing.repository === undefined &&
-      target.repository !== undefined
-    ) {
-      unique[index] = target;
-    }
-  }
-  return unique;
-}
-
-function hasEarlierArtifactReviewSubject(prefix: string, leadIndex: number): boolean {
-  return /\b(?:review|inspect|audit|check|analyze)\s+(?:(?:a|an|the|this|these|my|our|current|supplied)\s+){0,4}(?:brief|docs?|documentation|instructions?|plan|proposal|report|request|spec(?:ification)?|text)\b[\s\S]*$/iu.test(
-    prefix.slice(0, leadIndex),
-  );
-}
-
-function hasDirectReviewLead(scope: string, targetIndex: number): boolean {
-  const prefix = scope.slice(0, targetIndex);
-  const match =
-    /\b(?:review|inspect|audit|check|analyze)\s+(?:(?:all|both|only|the|this|these|my|our|current|large)\s+){0,4}(?:(?:changes?|diffs?|files?|code)\s+(?:(?:in|from|for|of|at|on|introduced\s+by)\s+(?:the\s+)?)?)?[<(["']?\s*$/iu.exec(
-      prefix,
-    );
-  return match !== null && !hasEarlierArtifactReviewSubject(prefix, match.index);
-}
-
-function hasNounReviewLead(scope: string, targetIndex: number): boolean {
-  const prefix = scope.slice(0, targetIndex);
-  const match =
-    /\b(?:(?:a|the)\s+)?review\s+of\s+(?:(?:all|both|only|the|this|these|my|our|current|large)\s+){0,4}(?:(?:changes?|diffs?|files?|code)\s+(?:(?:in|from|for|of|at|on|introduced\s+by)\s+(?:the\s+)?)?)?[<(["']?\s*$/iu.exec(
-      prefix,
-    );
-  return match !== null && !hasEarlierArtifactReviewSubject(prefix, match.index);
-}
-
-function beforeReviewTargetListConnector(scope: string, targetIndex: number): string | undefined {
-  const prefix = scope.slice(0, targetIndex);
-  const connector =
-    /(?:(?:,\s*)?(?:and(?:\s+also)?|or|plus|then|as\s+well\s+as)|[,&+])\s*(?:(?:(?:all|both|only|the|this|these|my|our|current)\s+){0,4}(?:changes?|diffs?|files?|code)\s+(?:(?:in|from|for|of|at|on|introduced\s+by)\s+(?:the\s+)?)?)?$/iu.exec(
-      prefix,
-    );
-  return connector === null ? undefined : prefix.slice(0, connector.index);
-}
-
-function isReviewTargetListSeparator(value: string): boolean {
-  return /^\s*(?:(?:,\s*)?(?:and(?:\s+also)?|or|plus|then|as\s+well\s+as)|[,&+])\s*$/iu.test(value);
-}
-
-function continuesReviewTargetList(scope: string, targetIndex: number): boolean {
-  const beforeConnector = beforeReviewTargetListConnector(scope, targetIndex);
-  if (beforeConnector === undefined) return false;
-  return /\b(?:review|inspect|audit|check|analyze)\b[^;.!?]*(?:\b(?:commit|revision|rev)\s+(?:at\s+)?\S+|\b(?:latest|last|current)\s+(?:commit|committed\s+changes?)\b|\b(?:pr|pull request)\s*#?\d{1,7}\b|\bHEAD(?:[~^]\d*)?\b|[A-Za-z0-9][A-Za-z0-9._/@+~^-]{0,120}\.{2,3}[A-Za-z0-9][A-Za-z0-9._/@+~^-]{0,120}|\b(?:changes?|diffs?)\s+(?:between\s+[A-Za-z0-9][A-Za-z0-9._/@+~^-]{0,120}\s+and|from\s+[A-Za-z0-9][A-Za-z0-9._/@+~^-]{0,120}\s+to)\s+[A-Za-z0-9][A-Za-z0-9._/@+~^-]{0,120}|\b(?:(?:staged|unstaged|not[- ]staged|local|current)\s+(?:changes?|diffs?)|(?:working[- ]tree|worktree)))\s*$/iu.test(
-    beforeConnector,
-  );
-}
-
-function hasAffirmativeReviewTargetLead(scope: string, targetIndex: number): boolean {
-  return (
-    hasDirectReviewLead(scope, targetIndex) ||
-    hasNounReviewLead(scope, targetIndex) ||
-    continuesReviewTargetList(scope, targetIndex) ||
-    continuesSelectedPullRequestUrl(scope, targetIndex)
-  );
-}
-
-function continuesSelectedPullRequestUrl(scope: string, targetIndex: number): boolean {
-  const beforeConnector = beforeReviewTargetListConnector(scope, targetIndex);
-  if (beforeConnector === undefined) return false;
-  const parsed = parsePullRequestUrl(beforeConnector);
-  return parsed?.ok === true && parsed.target.kind === 'pull_request';
-}
-
-function parsePullRequestUrlCandidate(candidate: string): ReviewTargetParseResult {
-  const cleaned = candidate.replace(/[.,;:]+$/u, '');
-  let parsed: URL;
-  try {
-    parsed = new URL(/^https?:\/\//iu.test(cleaned) ? cleaned : `https://${cleaned}`);
-  } catch {
-    return { ok: false, reason: `Review target is not a valid GitHub PR URL: ${cleaned}` };
-  }
-  const parts = parsed.pathname.split('/').filter((part) => part.length > 0);
-  const numberText = parts[3];
-  const suffix = parts.slice(4);
-  const suffixIsSupported =
-    suffix.length === 0 ||
-    (suffix.length === 1 &&
-      ['checks', 'commits', 'files'].includes(suffix[0]?.toLowerCase() ?? '')) ||
-    (suffix.length === 2 &&
-      suffix[0]?.toLowerCase() === 'commits' &&
-      /^[0-9a-f]{7,64}$/iu.test(suffix[1] ?? ''));
-  if (
-    !['github.com', 'www.github.com'].includes(parsed.hostname.toLowerCase()) ||
-    parts[2]?.toLowerCase() !== 'pull' ||
-    numberText === undefined ||
-    !/^\d{1,6}$/u.test(numberText) ||
-    !suffixIsSupported
-  ) {
-    return { ok: false, reason: `Review target is not a valid GitHub PR URL: ${cleaned}` };
-  }
-  const number = Number.parseInt(numberText, 10);
-  const owner = parts[0];
-  const name = parts[1];
-  const repository =
-    owner === undefined || name === undefined
-      ? undefined
-      : parseGitHubRemoteUrl(`https://github.com/${owner}/${name}`);
-  if (number < 1 || number > 999_999 || repository === undefined) {
-    return { ok: false, reason: `Review target is not a valid GitHub PR URL: ${cleaned}` };
-  }
-  return { ok: true, target: { kind: 'pull_request', number, repository } };
-}
-
-function parsePullRequestUrl(scope: string): ReviewTargetParseResult | undefined {
-  const targets: ReviewTarget[] = [];
-  for (const match of scope.matchAll(
-    /(?:^|[\s("'[<])(?<url>(?:https?:\/\/)?(?:www\.)?[A-Za-z0-9.-]*github[A-Za-z0-9.-]*\/[^\s/"'`)]+\/[^\s/"'`)]+\/pull(?:\/[^\s)"'`>]*)?)/giu,
-  )) {
-    const candidate = match.groups?.url;
-    if (candidate === undefined) continue;
-    const candidateOffset = match[0].indexOf(candidate);
-    const targetIndex = (match.index ?? 0) + Math.max(0, candidateOffset);
-    const prefix = scope.slice(0, targetIndex);
-    const followsSelectedPrNumber =
-      /\b(?:review|inspect|audit|check|analyze)\b[^;.!?]*\b(?:pr|pull request)\s*#?\d{1,6}\s+(?:at|from|in)\s*$/iu.test(
-        prefix,
-      );
-    const followsSelectedPrLabel =
-      /\b(?:review|inspect|audit|check|analyze)\s+(?:(?:all|both|only|the|this|these|my|our|current)\s+){0,4}(?:(?:changes?|diffs?|files?|code)\s+(?:(?:in|from|for|of|at|on|introduced\s+by)\s+(?:the\s+)?)?)?(?:pr|pull request)\s*$/iu.test(
-        prefix,
-      );
-    const continuesSelectedUrl =
-      targets.length > 0 && beforeReviewTargetListConnector(scope, targetIndex) !== undefined;
-    const continuesSelectedNamedTarget = continuesReviewTargetList(scope, targetIndex);
-    if (
-      !hasDirectReviewLead(scope, targetIndex) &&
-      !followsSelectedPrNumber &&
-      !followsSelectedPrLabel &&
-      !continuesSelectedUrl &&
-      !continuesSelectedNamedTarget
-    ) {
-      continue;
-    }
-    const parsed = parsePullRequestUrlCandidate(candidate);
-    if (!parsed.ok) return parsed;
-    targets.push(parsed.target);
-  }
-  const uniqueTargets = deduplicateReviewTargets(targets);
-  if (uniqueTargets.length > 1) {
-    return {
-      ok: false,
-      reason: 'Review target is ambiguous because the request names more than one PR.',
-    };
-  }
-  const target = uniqueTargets[0];
-  return target === undefined ? undefined : { ok: true, target };
-}
+/**
+ * Words that show up on both sides of a prose ellipsis. A range is an
+ * explicit form, so a false positive here would fail a run closed on
+ * ordinary phrasing. Refuse to read these as refs.
+ */
+const RANGE_FILLER_WORDS = new Set([
+  'and',
+  'anything',
+  'especially',
+  'everything',
+  'focus',
+  'including',
+  'it',
+  'maybe',
+  'now',
+  'ok',
+  'okay',
+  'or',
+  'perhaps',
+  'please',
+  'so',
+  'something',
+  'that',
+  'then',
+  'these',
+  'this',
+  'those',
+  'wait',
+  'well',
+  'what',
+]);
 
 function rangeTargetFromToken(token: string): ReviewTarget | undefined {
   const withoutSentencePunctuation = token.replace(/[,;:!?]+$/u, '');
@@ -1094,807 +767,135 @@ function rangeTargetFromToken(token: string): ReviewTarget | undefined {
       : withoutSentencePunctuation;
   const separator = cleaned.includes('...') ? '...' : '..';
   const separatorIndex = cleaned.indexOf(separator);
+  if (separatorIndex < 0) return undefined;
   const base = cleaned.slice(0, separatorIndex);
   const head = cleaned.slice(separatorIndex + separator.length);
-  const looksLikeProseEllipsis =
-    separator === '...' &&
-    /^[A-Za-z]+$/u.test(base) &&
-    /^[A-Za-z]+$/u.test(head) &&
-    (['docs', 'notes', 'parser', 'plan', 'proposal', 'text'].includes(base.toLowerCase()) ||
-      ['and', 'especially', 'focus', 'including', 'maybe', 'or', 'perhaps', 'then'].includes(
-        head.toLowerCase(),
-      ));
-  if (looksLikeProseEllipsis || !isSafeReviewRef(base) || !isSafeReviewRef(head)) {
+  if (base.length === 0 || head.length === 0) return undefined;
+  if (!isSafeReviewRef(base) || !isSafeReviewRef(head)) return undefined;
+  if (RANGE_FILLER_WORDS.has(base.toLowerCase()) || RANGE_FILLER_WORDS.has(head.toLowerCase())) {
     return undefined;
   }
   return { kind: 'range', base, head, dots: separator };
 }
 
-function withImplicitReviewLead(scope: string): string {
-  const trimmed = scope.trim();
-  const startsWithBareTarget =
-    /^(?:(?:pr|pull request)\s*#?\d{1,7}\b|(?:latest|last|current)\s+(?:commit|committed\s+changes?)\b|(?:last|previous|prior|past|latest|recent)\s+(?:(?:\d+|[A-Za-z-]+(?:\s+[A-Za-z-]+){0,2})\s+)?commits\b|HEAD(?:[~^]\d*)?(?=$|[\s,;:!?])|(?:commit|revision|rev)\s+(?:at\s+)?\S+|[A-Za-z0-9][A-Za-z0-9._/@+~^-]{0,240}\.{2,3}[A-Za-z0-9]|(?:staged|unstaged|not[- ]staged|local)\s+(?:changes?|diffs?|work)\b|(?:working[- ]tree|worktree)(?:\s+(?:changes?|diffs?|files?|code|work))?\b|(?:(?:everything|all(?:\s+(?:changes?|diffs?))?)\s+(?:in|on)\s+(?:the\s+)?(?:this|current)\s+branch|(?:this|current)\s+branch)\b)/iu.test(
-      trimmed,
-    );
-  return startsWithBareTarget ? `review ${trimmed}` : scope;
-}
-
-function parseRange(scope: string): ReviewTargetParseResult | undefined {
-  const targets: ReviewTarget[] = [];
-  const naturalCandidates = [
-    ...scope.matchAll(
-      /\b(?:the\s+)?(?:changes?|diffs?)\s+between\s+(?<base>[A-Za-z0-9][A-Za-z0-9._/@+~^-]{0,120})\s+and\s+(?<head>[A-Za-z0-9][A-Za-z0-9._/@+~^-]{0,120})(?=$|[\s)"'\].,;:!?])/giu,
-    ),
-    ...scope.matchAll(
-      /\b(?:the\s+)?(?:changes?|diffs?)\s+from\s+(?<base>[A-Za-z0-9][A-Za-z0-9._/@+~^-]{0,120})\s+to\s+(?<head>[A-Za-z0-9][A-Za-z0-9._/@+~^-]{0,120})(?=$|[\s)"'\].,;:!?])/giu,
-    ),
-  ].sort((left, right) => (left.index ?? 0) - (right.index ?? 0));
-  let previousNaturalEnd: number | undefined;
-  for (const match of naturalCandidates) {
-    const targetIndex = match.index ?? 0;
-    const betweenNaturalTargets =
-      previousNaturalEnd === undefined ? '' : scope.slice(previousNaturalEnd, targetIndex);
-    const continuesNaturalTarget =
-      previousNaturalEnd !== undefined && isReviewTargetListSeparator(betweenNaturalTargets);
-    if (
-      !hasDirectReviewLead(scope, targetIndex) &&
-      !continuesNaturalTarget &&
-      !continuesReviewTargetList(scope, targetIndex) &&
-      !continuesSelectedPullRequestUrl(scope, targetIndex)
-    ) {
-      continue;
-    }
-    const base = match.groups?.base;
-    const head = match.groups?.head?.replace(/[.,;:!?]+$/u, '');
-    if (
-      base !== undefined &&
-      head !== undefined &&
-      isSafeReviewRef(base) &&
-      isSafeReviewRef(head)
-    ) {
-      targets.push({ kind: 'range', base, head, dots: '...' });
-      previousNaturalEnd = targetIndex + match[0].length;
-    }
-  }
+function parseRangeForm(scope: string): ReviewTarget | undefined {
   for (const match of scope.matchAll(
-    /(?:^|[\s("'[])(?<token>[A-Za-z0-9][A-Za-z0-9._/@+~^-]{0,240}\.{2,3}[A-Za-z0-9][A-Za-z0-9._/@+~^-]{0,120})(?=$|[\s)"'\].,])/gu,
+    /(?<=^|[\s(["'])(?<token>[A-Za-z0-9][A-Za-z0-9._/@+~^-]{0,240}\.{2,3}[A-Za-z0-9][A-Za-z0-9._/@+~^-]{0,240})/gu,
   )) {
     const token = match.groups?.token;
     if (token === undefined) continue;
-    const tokenOffset = match[0].indexOf(token);
-    const targetIndex = (match.index ?? 0) + Math.max(0, tokenOffset);
-    const hasAffirmativeLead =
-      hasDirectReviewLead(scope, targetIndex) || hasNounReviewLead(scope, targetIndex);
-    const prefix = scope.slice(0, targetIndex);
-    const continuesAcceptedList =
-      (targets.length > 0 && /\b(?:and|or|plus)\s*$/iu.test(prefix)) ||
-      continuesReviewTargetList(scope, targetIndex) ||
-      continuesSelectedPullRequestUrl(scope, targetIndex);
-    if (!hasAffirmativeLead && !continuesAcceptedList) continue;
     const target = rangeTargetFromToken(token);
-    if (target !== undefined) targets.push(target);
-  }
-  const uniqueTargets = deduplicateReviewTargets(targets);
-  if (uniqueTargets.length > 1) {
-    return {
-      ok: false,
-      reason: 'Review target is ambiguous because the request names more than one Git range.',
-    };
-  }
-  const malformedRange =
-    /(?:^|[\s("'[])(?<token>[A-Za-z0-9._/@+~^-]*\.{2,}[A-Za-z0-9._/@+~^-]*)(?=$|[\s)"'\].,])/u.exec(
-      scope,
-    )?.groups?.token;
-  if (
-    malformedRange !== undefined &&
-    rangeTargetFromToken(malformedRange) === undefined &&
-    /[A-Za-z0-9_/@+~^-]/u.test(malformedRange) &&
-    !(malformedRange.includes('...') && /^[A-Za-z]+\.\.\.[A-Za-z]+$/u.test(malformedRange))
-  ) {
-    return { ok: false, reason: 'Review target contains a malformed Git range.' };
-  }
-  const target = uniqueTargets[0];
-  return target === undefined ? undefined : { ok: true, target };
-}
-
-function parsePullRequestMention(scope: string): ReviewTargetParseResult | undefined {
-  for (const match of scope.matchAll(
-    /\b(?:pr|pull request)\s*(?<candidate>#[^\s,;:!?]+|\d+[^\s,;:!?]*)/giu,
-  )) {
-    if (!hasAffirmativeReviewTargetLead(scope, match.index ?? 0)) continue;
-    const candidate = match.groups?.candidate?.replace(/[)"'\]>.,;:!?]+$/u, '');
-    if (candidate === undefined) continue;
-    const numberText = candidate.replace(/^#/u, '');
-    const number = Number.parseInt(numberText, 10);
-    if (!/^\d{1,7}$/u.test(numberText) || number < 1 || number > 999_999) {
-      return { ok: false, reason: `Review target PR number is invalid: ${candidate}` };
-    }
-  }
-  const numbers = [...scope.matchAll(/\b(?:pr|pull request)\s*#?(?<number>\d{1,7})\b/giu)]
-    .filter((match) => hasAffirmativeReviewTargetLead(scope, match.index ?? 0))
-    .map((match) => match.groups?.number)
-    .filter((number): number is string => number !== undefined);
-  const targets: ReviewTarget[] = [];
-  for (const numberText of numbers) {
-    const number = Number.parseInt(numberText, 10);
-    if (number < 1 || number > 999_999) {
-      return { ok: false, reason: `Review target PR number is invalid: ${numberText}` };
-    }
-    targets.push({ kind: 'pull_request', number });
-  }
-  const uniqueTargets = deduplicateReviewTargets(targets);
-  if (uniqueTargets.length > 1) {
-    return {
-      ok: false,
-      reason: 'Review target is ambiguous because the request names more than one PR.',
-    };
-  }
-  const target = uniqueTargets[0];
-  if (target !== undefined) {
-    return { ok: true, target };
-  }
-  if (
-    /\breview\s+(?:the\s+)?(?:pr|pull request)\s+(?:handling|integration|logic|parser|rendering|support)\b/iu.test(
-      scope,
-    )
-  ) {
-    return undefined;
-  }
-  if (
-    /\b(?:review|inspect|audit|check|analyze)\s+(?:(?:all|both|the|this|these|my|our|current)\s+){0,4}(?:(?:changes?|diffs?|files?|code)\s+(?:(?:in|from|for|of|at|on|introduced\s+by)\s+(?:the\s+)?)?)?(?:pr|pull request)\s+[A-Za-z][A-Za-z-]*\b/iu.test(
-      scope,
-    )
-  ) {
-    return undefined;
-  }
-  if (
-    /\b(?:review|inspect|audit|check|analyze)\s+(?:(?:all|both|the|this|these|my|our|current)\s+){0,4}(?:(?:changes?|diffs?|files?|code)\s+(?:(?:in|from|for|of|at|on|introduced\s+by)\s+(?:the\s+)?)?)?(?:pr|pull request)\s+(?:https?:\/\/)?(?:www\.)?github\.com\//iu.test(
-      scope,
-    )
-  ) {
-    return undefined;
-  }
-  if (
-    /\b(?:review|inspect|audit|check|analyze)\s+(?:(?:all|both|the|this|these|my|our|current)\s+){0,4}(?:(?:changes?|diffs?|files?|code)\s+(?:(?:in|from|for|of|at|on|introduced\s+by)\s+(?:the\s+)?)?)?(?:pr|pull request)(?:\s*#|\s+\d+\S*|\b)/iu.test(
-      scope,
-    )
-  ) {
-    return { ok: false, reason: 'Review target contains a malformed PR number.' };
+    if (target !== undefined) return target;
   }
   return undefined;
 }
 
-function withoutExcludedWorkingTreeTargets(scope: string): string {
-  return scope.replace(
-    /\b(?:ignore|exclude|excluding|skip|omit|except(?:\s+for)?|(?:do\s+not|don't|dont)\s+include|not(?:\s+including)?)\s+(?:the\s+)?(?:(?:my|our|current)\s+)?(?:(?:working[- ]tree|worktree)(?:\s+(?:changes?|diffs?))?|uncommitted\s+(?:changes?|diffs?|work|code)|(?:changes?|diffs?))\b/giu,
-    ' ',
-  );
+const LATEST_COMMIT_PATTERN =
+  /\b(?:(?:the|my|our)\s+)?(?:latest|last|most\s+recent)\s+commit\b|\bwhat\s+i\s+just\s+committed\b|\b(?:the\s+)?commit\s+i\s+just\s+made\b|\bwhat\s+changed\s+in\s+(?:the\s+)?last\s+commit\b/iu;
+
+function parseCommitForm(scope: string): ReviewTargetParseResult | undefined {
+  const keyword = /\b(?:commit|revision|rev)\s+(?:at\s+)?(?<ref>[^\s,;:!?)"'`]{1,240})/iu.exec(
+    scope,
+  )?.groups?.ref;
+  if (keyword !== undefined) {
+    const ref = keyword.replace(/[.,;:!?)"'`]+$/u, '');
+    if (ref.length > 0 && !ref.includes('..')) {
+      if (!isSafeReviewRef(ref)) {
+        return {
+          ok: false,
+          reason: `Review target names an unusable commit ref: ${ref}. Use a commit id, a tag, a branch name, or HEAD.`,
+        };
+      }
+      return { ok: true, target: { kind: 'commit', ref } };
+    }
+  }
+  if (LATEST_COMMIT_PATTERN.test(scope)) {
+    return { ok: true, target: { kind: 'commit', ref: HEAD_COMMIT_REF } };
+  }
+  const head = /(?<=^|[\s(["'])(?<ref>HEAD(?:[~^]\d*)*)(?=$|[\s,;:!?)\]"'`])/u.exec(scope)?.groups
+    ?.ref;
+  if (head !== undefined) return { ok: true, target: { kind: 'commit', ref: head } };
+  return undefined;
 }
 
-function hasAffirmativeWorkingTreeMention(scope: string, pattern: RegExp): boolean {
-  return [...scope.matchAll(pattern)].some((match) => {
-    const targetIndex = match.index ?? 0;
-    return (
-      hasAffirmativeReviewTargetLead(scope, targetIndex) &&
-      hasTargetSelectionSuffix(scope, targetIndex + match[0].length)
-    );
-  });
-}
-
-function parseWorkingTree(scope: string): ReviewTargetParseResult | undefined {
-  const affirmativeWorkingTreeScope = withoutExcludedWorkingTreeTargets(scope);
+function parseWorkingTreeForm(scope: string): ReviewTarget | undefined {
+  const staged = /\bstaged\b/iu.test(scope);
+  const unstaged = /\b(?:unstaged|not[- ]staged)\b/iu.test(scope);
+  if (staged && unstaged) {
+    return { kind: 'working_tree', mode: 'all', explicit: true };
+  }
+  if (unstaged) return { kind: 'working_tree', mode: 'unstaged', explicit: true };
+  if (staged) return { kind: 'working_tree', mode: 'staged', explicit: true };
   if (
-    /\breview\s+(?:the\s+)?(?:working[- ]tree|worktree)\s+(?:behavior|handling|integration|logic|parser|parsing|support)\b/iu.test(
-      affirmativeWorkingTreeScope,
+    /\b(?:working[- ]tree|worktree|uncommitted\s+(?:changes?|work|files?)|current\s+diff)\b/iu.test(
+      scope,
     )
   ) {
-    return undefined;
+    return { kind: 'working_tree', mode: 'all', explicit: true };
   }
-  const workingTreeUnit = String.raw`(?:changes?|diffs?|files?|code|work|symlinks?)`;
-  const reviewLead = String.raw`\b(?:review|inspect|audit|check|analyze)\s+(?:(?:all|the|only|both|my|our|current|large)\s+){0,4}`;
-  const exclusionLead = String.raw`(?:excluding|without|except(?:\s+for)?|but\s+not|(?:but\s+)?(?:do\s+not|don't|dont)\s+include|(?:but\s+)?not\s+including)`;
-  const selectsTrackedOnly =
-    /\b(?:review|inspect|audit|check|analyze)\s+(?:only\s+tracked(?:\s+(?:changes?|diffs?|files?|code|work))?|tracked(?:\s+(?:changes?|diffs?|files?|code|work))?\s+only)(?=$|[.,;:!?])/iu.test(
+  return undefined;
+}
+
+function namesPathSubset(scope: string): boolean {
+  const pathOnly =
+    /^\s*(?:review|inspect|audit|check|analyze)\s+(?:(?:only|the|this|my|our|current)\s+)*(?:(?:file|code|plan|report)\s*(?:(?:in|at|from)\s+|:\s*)?)?(?<path>\S+)(?<suffix>[\s\S]*)$/iu.exec(
       scope,
     );
-  const workingTreeSelection = String.raw`(?:(?:(?:my|our|current|all)\s+)?(?:changes?|diffs?|files?|code|work)|(?:the\s+)?(?:working[- ]tree|worktree)(?:\s+(?:changes?|diffs?|files?))?|uncommitted\s+(?:changes?|diffs?|work|code))`;
-  const excludesUntracked = new RegExp(
-    String.raw`${reviewLead}${workingTreeSelection}[^;.!?]*?\b${exclusionLead}\s+(?:the\s+)?untracked(?:\s+(?:changes?|diffs?|files?|code|content|work))?\b`,
-    'iu',
-  ).test(scope);
-  if (selectsTrackedOnly || excludesUntracked) {
-    return {
-      ok: false,
-      reason:
-        'Review cannot safely honor a tracked-only target because working-tree evidence includes untracked file metadata. Choose staged changes, unstaged changes, or the full working tree.',
-    };
-  }
-  const excludesUnstaged =
-    new RegExp(
-      String.raw`\b${exclusionLead}\s+(?:the\s+)?unstaged(?:\s+(?:changes?|diffs?))?\b`,
-      'iu',
-    ).test(scope) || /,\s*not\s+unstaged(?:\s+(?:changes?|diffs?))?\b/iu.test(scope);
-  const excludesStaged =
-    new RegExp(
-      String.raw`\b${exclusionLead}\s+(?:the\s+)?staged(?:\s+(?:changes?|diffs?))?\b`,
-      'iu',
-    ).test(scope) || /,\s*not\s+staged(?:\s+(?:changes?|diffs?))?\b/iu.test(scope);
-  const hasBothWorkingTreeLayers = new RegExp(
-    String.raw`${reviewLead}(?:(?:staged)(?:\s+${workingTreeUnit})?\s*(?:and|&|\+|plus)\s*(?:unstaged|not[- ]staged)|(?:unstaged|not[- ]staged)(?:\s+${workingTreeUnit})?\s*(?:and|&|\+|plus)\s*staged)\s+${workingTreeUnit}\b`,
-    'iu',
-  ).test(scope);
-  const hasUnstaged =
-    hasAffirmativeWorkingTreeMention(
-      scope,
-      /\b(?:unstaged|not[- ]staged)\s+(?:changes?|diffs?|files?|code|work|symlinks?)\b/giu,
-    ) ||
-    /\b(?:review|inspect|audit|check|analyze)\s+(?:(?:what\s+is|only)\s+)(?:unstaged|not[- ]staged)(?=$|[.;:!?])/iu.test(
-      scope,
-    );
-  const withoutUnstagedPhrases = scope.replace(
-    /\b(?:unstaged|not[- ]staged)\s+(?:changes?|diffs?)\b/giu,
-    '',
-  );
-  const hasStaged =
-    hasAffirmativeWorkingTreeMention(
-      withoutUnstagedPhrases,
-      /\b(?:staged|cached|index)\s+(?:changes?|diffs?|files?|code|work|symlinks?)\b/giu,
-    ) ||
-    /\b(?:review|inspect|audit|check|analyze)\s+(?:(?:what\s+is|only)\s+staged|(?:the\s+)?index)(?=$|[.;:!?])/iu.test(
-      scope,
-    ) ||
-    /\b(?:review|inspect|audit|check|analyze)\s+staged\s+but\s+not\s+unstaged\b/iu.test(scope);
-  const hasGeneralWorkingTree = hasAffirmativeWorkingTreeMention(
-    affirmativeWorkingTreeScope,
-    /\b(?:(?:all|my|our|current)\s+(?:changes?|diffs?|files?|code|work)|(?:changes?|diffs?))\b/giu,
-  );
-  if (excludesStaged && excludesUnstaged) {
-    return {
-      ok: false,
-      reason: 'Review target excludes both staged and unstaged changes.',
-    };
-  }
-  if (excludesUnstaged && hasStaged) {
-    return { ok: true, target: { kind: 'working_tree', mode: 'staged', explicit: true } };
-  }
-  if (excludesStaged && hasUnstaged) {
-    return { ok: true, target: { kind: 'working_tree', mode: 'unstaged', explicit: true } };
-  }
-  if (excludesStaged && hasGeneralWorkingTree) {
-    return { ok: true, target: { kind: 'working_tree', mode: 'unstaged', explicit: true } };
-  }
-  if (excludesUnstaged && hasGeneralWorkingTree) {
-    return { ok: true, target: { kind: 'working_tree', mode: 'staged', explicit: true } };
-  }
-  if (hasBothWorkingTreeLayers && !excludesStaged && !excludesUnstaged) {
-    return { ok: true, target: { kind: 'working_tree', mode: 'all', explicit: true } };
-  }
-  if (hasStaged && hasUnstaged && !excludesStaged && !excludesUnstaged) {
-    return { ok: true, target: { kind: 'working_tree', mode: 'all', explicit: true } };
-  }
-  if (hasUnstaged) {
-    return { ok: true, target: { kind: 'working_tree', mode: 'unstaged', explicit: true } };
-  }
-  if (hasStaged) {
-    return { ok: true, target: { kind: 'working_tree', mode: 'staged', explicit: true } };
-  }
-  const hasNamedUntrackedFile = hasAffirmativeWorkingTreeMention(
-    affirmativeWorkingTreeScope,
-    /\buntracked(?:\s+[^\s,.;:!?]+){0,3}\s+files?\b/giu,
-  );
-  const hasLocalChanges = hasAffirmativeWorkingTreeMention(
-    affirmativeWorkingTreeScope,
-    /\blocal\s+(?:changes?|diffs?|files?|code|work)\b/giu,
-  );
-  const hasExplicitWorkingTree = hasAffirmativeWorkingTreeMention(
-    affirmativeWorkingTreeScope,
-    /\b(?:working[- ]tree|worktree)(?:\s+(?:changes?|diffs?|files?|code|work))?\b/giu,
-  );
-  const hasUncommittedMaterial = hasAffirmativeWorkingTreeMention(
-    affirmativeWorkingTreeScope,
-    /\buncommitted\s+(?:changes?|diffs?|files?|work|code)\b/giu,
-  );
-  if (
-    hasNamedUntrackedFile ||
-    hasLocalChanges ||
-    hasGeneralWorkingTree ||
-    hasExplicitWorkingTree ||
-    hasUncommittedMaterial
-  ) {
-    return { ok: true, target: { kind: 'working_tree', mode: 'all', explicit: true } };
-  }
-  return undefined;
-}
-
-function parseCommit(scope: string): ReviewTargetParseResult | undefined {
-  const targets: ReviewTarget[] = [];
-  for (const match of scope.matchAll(
-    /\b(?:latest|last|current)\s+(?:commit|committed\s+changes?)\b/giu,
-  )) {
-    const targetIndex = match.index ?? 0;
+  const path = pathOnly?.groups?.path;
+  if (path !== undefined && looksLikeReviewPath(path)) {
+    const suffix = (pathOnly?.groups?.suffix ?? '').trim();
     if (
-      hasAffirmativeReviewTargetLead(scope, targetIndex) &&
-      hasTargetSelectionSuffix(scope, targetIndex + match[0].length)
-    ) {
-      targets.push({ kind: 'commit', ref: HEAD_COMMIT_REF });
-    }
-  }
-  for (const match of scope.matchAll(
-    /\b(?:review|inspect|audit|check|analyze)\s+(?:the\s+)?(?:this\s+commit|changes?\s+in\s+this\s+commit)\b/giu,
-  )) {
-    const targetIndex = match.index ?? 0;
-    if (hasTargetSelectionSuffix(scope, targetIndex + match[0].length)) {
-      targets.push({ kind: 'commit', ref: HEAD_COMMIT_REF });
-    }
-  }
-
-  let skippedSubjectMention = false;
-  for (const match of scope.matchAll(/\b(?<kind>commit|revision|rev)\s+(?:at\s+)?(?<ref>\S+)/giu)) {
-    const kind = match.groups?.kind?.toLowerCase();
-    const explicitCommit = match.groups?.ref;
-    if (explicitCommit === undefined) continue;
-    if (!hasAffirmativeReviewTargetLead(scope, match.index ?? 0)) continue;
-    const prefix = scope.slice(0, match.index);
-    if (
-      kind === 'commit' &&
-      /\b(?:can|could|current|last|latest|may|might|must|should|this|to|will|would)\s+$/iu.test(
-        prefix,
+      suffix.length === 0 ||
+      /^[.!?]$/u.test(suffix) ||
+      /^(?:,?\s*(?:for|with|especially)\b|,?\s+and\s+(?:focus|check|inspect|look|pay|prioritize|verify)\b)/iu.test(
+        suffix,
       )
-    ) {
-      continue;
-    }
-    const ref = explicitCommit.replace(/[.,;:!?]+$/u, '');
-    const directSubjectMention =
-      kind === 'commit' &&
-      /^(?:behavior|code|handling|history|implementation|logic|message|parser|parsing|support|workflow)$/iu.test(
-        ref,
-      ) &&
-      /\b(?:review|inspect|audit|check|analyze)\s+(?:the\s+)?$/iu.test(prefix);
-    if (
-      directSubjectMention ||
-      !hasTargetSelectionSuffix(scope, (match.index ?? 0) + match[0].length)
-    ) {
-      skippedSubjectMention = true;
-      continue;
-    }
-    if (!isSafeReviewRef(ref)) {
-      return { ok: false, reason: `Review target contains an unsafe Git ref: ${ref}` };
-    }
-    targets.push({ kind: 'commit', ref });
-  }
-
-  for (const match of scope.matchAll(/\b(?<ref>HEAD(?:[~^]\d*)?)(?=$|[\s)"'\].,])/gu)) {
-    if (!hasAffirmativeReviewTargetLead(scope, match.index ?? 0)) continue;
-    const headRef = match.groups?.ref;
-    const suffix = scope.slice((match.index ?? 0) + match[0].length);
-    if (suffix.startsWith('..')) continue;
-    if (!hasTargetSelectionSuffix(scope, (match.index ?? 0) + match[0].length)) {
-      continue;
-    }
-    if (headRef !== undefined && isSafeReviewRef(headRef)) {
-      targets.push({ kind: 'commit', ref: headRef });
-    }
-  }
-  for (const match of scope.matchAll(/\b(?<ref>HEAD[^\s)"'\].,]*)/gu)) {
-    if (!hasAffirmativeReviewTargetLead(scope, match.index ?? 0)) continue;
-    const namedHead = match.groups?.ref;
-    if (
-      namedHead !== undefined &&
-      !/^HEAD(?:[~^]\d*)?$/u.test(namedHead.replace(/[.,;:!?]+$/u, ''))
-    ) {
-      return { ok: false, reason: 'Review target contains a malformed HEAD ref.' };
-    }
-  }
-  const uniqueTargets = deduplicateReviewTargets(targets);
-  if (uniqueTargets.length > 1) {
-    return {
-      ok: false,
-      reason: 'Review target is ambiguous because the request names more than one commit.',
-    };
-  }
-  const target = uniqueTargets[0];
-  if (target !== undefined) return { ok: true, target };
-  if (!skippedSubjectMention && /\breview\s+(?:the\s+)?(?:commit|revision|rev)\b/iu.test(scope)) {
-    return { ok: false, reason: 'Review target names a commit without a Git ref.' };
-  }
-  return undefined;
-}
-
-function parseBareBranch(scope: string): ReviewTargetParseResult | undefined {
-  for (const match of scope.matchAll(
-    /\b(?:review|inspect|audit|check|analyze)\s+(?:(?:(?:all\s+)?(?:changes?|diffs?)|everything)\s+(?:in|on)\s+(?:the\s+)?(?:this|current)\s+branch|(?:the\s+)?(?:this|current)\s+branch)\b/giu,
-  )) {
-    if (!hasTargetSelectionSuffix(scope, (match.index ?? 0) + match[0].length)) continue;
-    return {
-      ok: false,
-      reason:
-        'Review target names the current branch without a comparison base. Use an explicit range such as main...HEAD.',
-    };
-  }
-  for (const match of scope.matchAll(/\bbranch\s+(?<ref>\S+)/giu)) {
-    if (!hasAffirmativeReviewTargetLead(scope, match.index ?? 0)) continue;
-    const branch = match.groups?.ref;
-    if (branch === undefined) continue;
-    const ref = branch.replace(/[.,;:!?]+$/u, '');
-    if (/^(?:behavior|handling|integration|logic|parser|parsing|support)$/iu.test(ref)) {
-      continue;
-    }
-    if (!hasTargetSelectionSuffix(scope, (match.index ?? 0) + match[0].length)) continue;
-    if (!isSafeReviewRef(ref)) {
-      return { ok: false, reason: `Review target contains an unsafe Git ref: ${ref}` };
-    }
-    return {
-      ok: false,
-      reason: `Review target names branch ${ref} without a comparison base. Use an explicit range such as main...${ref}.`,
-    };
-  }
-  return undefined;
-}
-
-function hasSelectedReviewTargetBefore(scope: string, targetIndex: number): boolean {
-  const prefix = scope.slice(0, targetIndex).trim();
-  if (prefix.length === 0) return false;
-  const candidates = [
-    parseRange(prefix),
-    parsePullRequestUrl(prefix),
-    parsePullRequestMention(prefix),
-    parseCommit(prefix),
-    parseWorkingTree(prefix),
-  ];
-  return candidates.some((candidate) => candidate?.ok === true && candidate.target.kind !== 'goal');
-}
-
-function hasExplicitFileOrPathExclusion(scope: string): boolean {
-  for (const match of scope.matchAll(
-    /\b(?:except(?:\s+for)?|exclud(?:e|ing)|without|skip(?:ping)?|omit(?:ting)?|ignor(?:e|ing)|but\s+not|save\s+for|other\s+than|(?:but\s+)?(?:do\s+not|don't|dont)\s+(?:include|review|inspect|audit|check|analyze)|(?:leave|leaving)\s+out)\s+(?:the\s+)?(?<excluded>[^;!?]+)/giu,
-  )) {
-    if (!hasSelectedReviewTargetBefore(scope, match.index ?? 0)) continue;
-    const excluded = match.groups?.excluded?.trim();
-    if (excluded === undefined) continue;
-    if (
-      /^(?:generating|writing|running|creating|editing|changing|modifying|updating|producing|adding|removing)\b/iu.test(
-        excluded,
-      )
-    ) {
-      continue;
-    }
-    if (
-      /^(?:(?:my|our|current)\s+)?(?:(?:working[- ]tree|worktree)(?:\s+(?:changes?|diffs?))?|uncommitted\s+(?:changes?|diffs?|work|code)|(?:staged|unstaged|not[- ]staged|untracked)(?:\s+(?:changes?|diffs?|files?|code|content|work))?|current\s+(?:changes?|diffs?))\b/iu.test(
-        excluded,
-      )
-    ) {
-      continue;
-    }
-    if (
-      /(?:^|\s)(?:\.{0,2}\/|[^\s,]+\/[^\s,]*|[^\s,]+\.[A-Za-z0-9][A-Za-z0-9_-]*)(?=$|[\s,.)])/u.test(
-        excluded,
-      ) ||
-      /\b(?:file|path|director(?:y|ies)|folders?)\b/iu.test(excluded) ||
-      /\b(?:assets?|build|changelogs?|config(?:uration)?|dist|docs?|documentation|examples?|fixtures?|generated|lockfiles?|migrations?|node_modules|snapshots?|sources?|src|tests?|vendor)\b/iu.test(
-        excluded,
-      ) ||
-      /\b(?:Dockerfile|LICENSE|Makefile|README)\b/iu.test(excluded)
     ) {
       return true;
     }
-    // An explicit exclusion after a selected target is a scope restriction.
-    // If Circuit cannot prove what the noun names, it must stop rather than
-    // silently review the broader target.
-    return true;
   }
-  return false;
-}
-
-function hasMultipleReviewTargetClauses(scope: string): boolean {
-  const clauses = scope
-    .split(/\s*(?:;|\balongside\b|\btogether\s+with\b|\band\b)\s*/iu)
-    .map((clause) => clause.trim())
-    .filter((clause) => clause.length > 0);
-  if (clauses.length < 2) return false;
-  const targets = clauses.flatMap((clause) => {
-    const normalizedClause = clause.replace(/^(?:and|also|plus)\s+/iu, '');
-    const candidateScope = /^(?:review|inspect|audit|check|analyze)\b/iu.test(normalizedClause)
-      ? normalizedClause
-      : `review ${normalizedClause}`;
-    return [
-      parseRange(candidateScope),
-      parsePullRequestUrl(candidateScope),
-      parsePullRequestMention(candidateScope),
-      parseCommit(candidateScope),
-      parseWorkingTree(candidateScope),
-    ].flatMap((result) => (result?.ok === true ? [result.target] : []));
-  });
-  const uniqueTargets = deduplicateReviewTargets(targets);
-  if (uniqueTargets.every((target) => target.kind === 'working_tree')) return false;
-  return uniqueTargets.length > 1;
+  const scoped =
+    /\b(?:only|just|limited\s+to|restricted\s+to|scoped\s+to|confined\s+to|except|excluding|ignoring|omitting|skipping|other\s+than|(?:changes?|diffs?|files?)\s+(?:in|under|below|within))\s+(?:the\s+)?(?<path>[^\s,;.!?]+)/iu.exec(
+      scope,
+    )?.groups?.path;
+  return scoped !== undefined && looksLikeReviewSubsetPath(scoped);
 }
 
 export function parseReviewTarget(scope: string): ReviewTargetParseResult {
-  const normalizedScope = withImplicitReviewLead(
-    normalizeUnambiguousReviewAliases(scope.replace(/[’‘]/gu, "'").replace(/[“”]/gu, '"')),
-  );
-  const affirmativeScope = withoutNegatedReviewClauses(normalizedScope);
-  const suppliedMaterial = classifySuppliedReviewMaterial(affirmativeScope);
+  const normalizedScope = normalizeReviewQuotes(scope);
+  const suppliedMaterial = classifySuppliedReviewMaterial(normalizedScope);
   if (suppliedMaterial.kind === 'supplied') {
     return { ok: true, target: { kind: 'goal' } };
   }
   if (suppliedMaterial.kind === 'malformed') {
     return { ok: false, reason: suppliedMaterial.reason };
   }
+
+  // Everything below reads target selection from prose, so pasted literals
+  // must not vote.
   const authorityScope = maskReviewLiteralData(normalizedScope);
-  const affirmativeAuthorityScope = maskReviewLiteralData(affirmativeScope);
-  if (hasExplicitFileOrPathExclusion(authorityScope)) {
-    return {
-      ok: false,
-      reason:
-        'Review target uses a file or path exclusion that cannot be pinned safely. Choose one complete working tree, commit, range, or PR target.',
-    };
+
+  if (namesPullRequest(authorityScope)) {
+    return { ok: false, reason: PULL_REQUEST_UNSUPPORTED_REASON };
   }
-  if (hasUnsupportedPathSubset(authorityScope)) {
-    return {
-      ok: false,
-      reason:
-        'Review target uses a path subset that cannot be pinned safely. Choose one complete working tree, commit, range, or PR target.',
-    };
+
+  const range = parseRangeForm(authorityScope);
+  if (range !== undefined) return { ok: true, target: range };
+
+  const commit = parseCommitForm(authorityScope);
+  if (commit !== undefined) return commit;
+
+  const workingTree = parseWorkingTreeForm(authorityScope);
+  if (workingTree !== undefined) return { ok: true, target: workingTree };
+
+  if (namesPathSubset(authorityScope)) {
+    return { ok: false, reason: PATH_SUBSET_UNSUPPORTED_REASON };
   }
-  if (isPathOnlyReviewRequest(affirmativeAuthorityScope)) {
-    return {
-      ok: false,
-      reason:
-        'A file path by itself is not Review evidence. Choose one complete working tree, commit, range, or PR target, or include the actual plan or report text in the request.',
-    };
-  }
-  if (
-    suppliedMaterial.kind === 'missing' ||
-    hasTopLevelArtifactReviewSubject(affirmativeAuthorityScope)
-  ) {
-    return {
-      ok: false,
-      reason:
-        'Review has no supplied source material. Choose one complete working tree, commit, range, or PR target, or include the actual plan, report, code, or text in the request.',
-    };
-  }
-  const unsupportedComparison = unsupportedReviewComparison(affirmativeAuthorityScope);
-  if (unsupportedComparison !== undefined) {
-    return { ok: false, reason: unsupportedComparison };
-  }
-  if (hasMultipleReviewTargetClauses(affirmativeAuthorityScope)) {
-    return {
-      ok: false,
-      reason:
-        'Review target is ambiguous because the request names more than one code target. Choose one working tree, commit, range, or PR target.',
-    };
-  }
-  if (
-    /\b(?:review|inspect|audit|check|analyze)\s+(?:the\s+)?(?:(?:changes?|diffs?)\s+(?:in|from)\s+)?(?:last|previous|prior|past|latest|recent)\s+(?:(?:\d+|[A-Za-z-]+(?:\s+[A-Za-z-]+){0,2})\s+)?commits\b/iu.test(
-      affirmativeAuthorityScope,
-    )
-  ) {
-    return {
-      ok: false,
-      reason:
-        'Review target names more than one commit without exact bounds. Use an explicit range such as HEAD~2...HEAD.',
-    };
-  }
-  for (const match of affirmativeAuthorityScope.matchAll(
-    /\b(?:prs?|pull requests?)\s*#?\d{1,7}\s*\/\s*(?:(?:pr|pull request)\s*)?#?\d{1,7}\b/giu,
-  )) {
-    if (
-      (match.index ?? 0) !== 0 &&
-      !hasAffirmativeReviewTargetLead(affirmativeAuthorityScope, match.index ?? 0)
-    ) {
-      continue;
-    }
-    return {
-      ok: false,
-      reason: 'Review target is ambiguous because the request names more than one PR.',
-    };
-  }
-  for (const match of affirmativeAuthorityScope.matchAll(
-    /\b(?:(?:commits|revisions|revs)\s+[A-Za-z0-9._@+~^-]+\s*\/\s*[A-Za-z0-9._@+~^-]+|(?:commit|revision|rev)\s+(?:[0-9a-f]{6,64}|HEAD(?:[~^]\d*)?)\s*\/\s*(?:(?:commit|revision|rev)\s+)?(?:[0-9a-f]{6,64}|HEAD(?:[~^]\d*)?)|(?:commit|revision|rev)\s+[A-Za-z0-9._@+~^-]+\s*\/\s*(?:commit|revision|rev)\s+[A-Za-z0-9._@+~^-]+)\b/giu,
-  )) {
-    if (
-      (match.index ?? 0) !== 0 &&
-      !hasAffirmativeReviewTargetLead(affirmativeAuthorityScope, match.index ?? 0)
-    ) {
-      continue;
-    }
-    return {
-      ok: false,
-      reason:
-        'Review target is ambiguous because the request names more than one commit. Choose one commit or one explicit range.',
-    };
-  }
-  const pluralCommitList =
-    /\b(?:review|inspect|audit|check|analyze)\s+(?:both\s+)?(?:commits|revisions|revs)\s+(?<first>[A-Za-z0-9][A-Za-z0-9._/@+~^-]{0,120})\s+(?:and|or|plus)\s+(?<second>[A-Za-z0-9][A-Za-z0-9._/@+~^-]{0,120})\b/iu.exec(
-      affirmativeAuthorityScope,
-    )?.groups;
-  const subjectWords = new Set([
-    'behavior',
-    'handling',
-    'implementation',
-    'logic',
-    'parser',
-    'parsing',
-    'support',
-  ]);
-  const proseContinuationWords = new Set([
-    'check',
-    'concentrate',
-    'ensure',
-    'especially',
-    'exclude',
-    'excluding',
-    'focus',
-    'ignore',
-    'inspect',
-    'look',
-    'omit',
-    'pay',
-    'prioritize',
-    'skip',
-    'verify',
-  ]);
-  for (const match of affirmativeAuthorityScope.matchAll(
-    /\b(?:prs?|pull requests?)\s*#?\d{1,7}(?:\s*,\s*|\s*&\s*|\s*\+\s*|\s+(?:and|or|plus)\s+)#?\d{1,7}\b/giu,
-  )) {
-    if (!hasAffirmativeReviewTargetLead(affirmativeAuthorityScope, match.index ?? 0)) continue;
-    return {
-      ok: false,
-      reason: 'Review target is ambiguous because the request names more than one PR.',
-    };
-  }
-  for (const match of affirmativeAuthorityScope.matchAll(
-    /\b(?:commits?|revisions?|revs?)\s+(?<first>[A-Za-z0-9][A-Za-z0-9._/@+~^-]{0,120})(?:\s*,\s*|\s*&\s*|\s*\+\s*|\s+(?:and|or|plus)\s+)(?<second>[A-Za-z0-9][A-Za-z0-9._/@+~^-]{0,120})\b/giu,
-  )) {
-    if (!hasAffirmativeReviewTargetLead(affirmativeAuthorityScope, match.index ?? 0)) continue;
-    const first = match.groups?.first;
-    const second = match.groups?.second;
-    if (second !== undefined && proseContinuationWords.has(second.toLowerCase())) {
-      continue;
-    }
-    if (
-      first !== undefined &&
-      second !== undefined &&
-      subjectWords.has(first.toLowerCase()) &&
-      subjectWords.has(second.toLowerCase())
-    ) {
-      continue;
-    }
-    return {
-      ok: false,
-      reason:
-        'Review target is ambiguous because the request names more than one commit. Choose one commit or one explicit range.',
-    };
-  }
-  if (
-    pluralCommitList?.first !== undefined &&
-    pluralCommitList.second !== undefined &&
-    !proseContinuationWords.has(pluralCommitList.second.toLowerCase()) &&
-    (!subjectWords.has(pluralCommitList.first.toLowerCase()) ||
-      !subjectWords.has(pluralCommitList.second.toLowerCase()))
-  ) {
-    return {
-      ok: false,
-      reason:
-        'Review target is ambiguous because the request names more than one commit. Choose one commit or one explicit range.',
-    };
-  }
-  if (
-    /\b(?:review|inspect|audit|check|analyze)\s+(?:both\s+)?(?:prs|pull requests)\s+#?\d{1,7}\s+(?:and|or|plus)\s+#?\d{1,7}\b/iu.test(
-      affirmativeAuthorityScope,
-    )
-  ) {
-    return {
-      ok: false,
-      reason: 'Review target is ambiguous because the request names more than one PR.',
-    };
-  }
-  if (
-    /\b(?:review|inspect|audit|check|analyze)\s+(?:everything|all(?:\s+(?:code|changes?|diffs?))?)\s+(?:except|excluding)\s+(?:the\s+)?(?:commit|revision|rev|pr|pull request|branch|range|staged|unstaged|working[- ]tree|worktree)\b/iu.test(
-      affirmativeAuthorityScope,
-    )
-  ) {
-    return {
-      ok: false,
-      reason:
-        'Review target uses an exclusion that cannot be pinned safely. Choose one explicit working tree, commit, range, or PR target.',
-    };
-  }
-  if (
-    /\b(?:review|inspect|audit|check|analyze)\b[^;.!?]*\b(?:since|after|before)\s+(?:the\s+)?(?:commit|revision|rev)\s+\S+/iu.test(
-      affirmativeAuthorityScope,
-    )
-  ) {
-    return {
-      ok: false,
-      reason:
-        'Review target uses a relative commit comparison that cannot be pinned safely. Use an explicit range such as abc123...HEAD.',
-    };
-  }
-  const specificResults = [
-    parseRange(affirmativeAuthorityScope),
-    parsePullRequestUrl(affirmativeAuthorityScope),
-    parsePullRequestMention(affirmativeAuthorityScope),
-    parseCommit(affirmativeAuthorityScope),
-    parseBareBranch(affirmativeAuthorityScope),
-  ].filter((result): result is ReviewTargetParseResult => result !== undefined);
-  const workingTreeResult = parseWorkingTree(affirmativeAuthorityScope);
-  const results = [
-    ...specificResults,
-    ...(workingTreeResult === undefined ? [] : [workingTreeResult]),
-  ];
-  const invalid = results.find((result) => !result.ok);
-  if (invalid !== undefined) return invalid;
-  const specificTargets = specificResults.flatMap((result) => (result.ok ? [result.target] : []));
-  const workingTreeTargets = workingTreeResult?.ok === true ? [workingTreeResult.target] : [];
-  const targets = deduplicateReviewTargets([...specificTargets, ...workingTreeTargets]);
-  if (targets.length > 1) {
-    return {
-      ok: false,
-      reason:
-        'Review target is ambiguous because the request names more than one code target. Choose one working tree, commit, range, or PR target.',
-    };
-  }
-  if (targets.length === 0) {
-    const againstComparison =
-      /\b(?:review|inspect|audit|check|analyze)\s+(?<base>[A-Za-z0-9][A-Za-z0-9._/@+~^-]{0,120})\s+against\s+(?<head>[A-Za-z0-9][A-Za-z0-9._/@+~^-]{0,120})(?=$|[\s)"'\],;:!?])/iu.exec(
-        affirmativeAuthorityScope,
-      )?.groups;
-    const base = againstComparison?.base;
-    const head = againstComparison?.head?.replace(/[.,;:!?]+$/u, '');
-    if (
-      base !== undefined &&
-      head !== undefined &&
-      isSafeReviewRef(base) &&
-      isSafeReviewRef(head)
-    ) {
-      return {
-        ok: false,
-        reason: `Review target comparison is ambiguous. Use an explicit range such as ${base}...${head}.`,
-      };
-    }
-    if (
-      /\b(?:review|inspect|audit|check|analyze)\s+(?:the\s+)?(?:changes?|diffs?)\s+(?:from|to|between|against)\b/iu.test(
-        affirmativeAuthorityScope,
-      )
-    ) {
-      return {
-        ok: false,
-        reason:
-          'Review target comparison is incomplete. Use one explicit range such as main...HEAD.',
-      };
-    }
-    if (
-      /\b(?:review|inspect|audit|check|analyze)\s+(?:(?:the|only|what\s+is)\s+)?(?:staged|unstaged|index|tracked|untracked)(?=$|[.,;:!?])/iu.test(
-        affirmativeAuthorityScope,
-      )
-    ) {
-      return {
-        ok: false,
-        reason:
-          'Review target wording is incomplete. Choose staged changes, unstaged changes, or the full working tree.',
-      };
-    }
-  }
-  if (
-    specificTargets.length === 0 &&
-    workingTreeTargets.length === 0 &&
-    /\b(?:(?:the|these)\s+(?:changes?|diffs?)|this\s+(?:change|diff))\b(?=$|[.,;:!?]|\s+(?:for|with|especially|focus(?:ing)?(?:\s+on)?)\b)/iu.test(
-      affirmativeAuthorityScope,
-    )
-  ) {
-    return {
-      ok: true,
-      target: { kind: 'working_tree', mode: 'all', explicit: true },
-    };
-  }
-  const target = targets[0];
-  if (target !== undefined) return { ok: true, target };
+
   return {
-    ok: false,
-    reason:
-      'Review has no supplied source material. Choose one complete working tree, commit, range, or PR target, or include the actual plan, report, code, or text in the request.',
+    ok: true,
+    target: { kind: 'working_tree', mode: 'all', explicit: false },
+    assumed: true,
   };
 }
 
@@ -1904,47 +905,28 @@ export function reviewScopeRequiresGitEvidence(scope: string): boolean {
   return parsed.target.kind !== 'goal';
 }
 
+function reviewTargetLabel(
+  target: Exclude<ReviewTarget, { readonly kind: 'goal' | 'working_tree' }>,
+): string {
+  if (target.kind === 'commit') return `commit ${target.ref}`;
+  return `range ${target.base}${target.dots}${target.head}`;
+}
+
 function runtimeTarget(target: ReviewTarget): RuntimeGitTarget | undefined {
   if (target.kind === 'goal' || target.kind === 'working_tree') return undefined;
   if (target.kind === 'commit') return { kind: 'commit', ref: target.ref };
-  if (target.kind === 'range') {
-    return { kind: 'range', base: target.base, head: target.head, dots: target.dots };
-  }
-  return {
-    kind: 'pull_request',
-    number: target.number,
-    ...(target.repository === undefined
-      ? {}
-      : { repository: githubRepositoryKey(target.repository) }),
-  };
+  return { kind: 'range', base: target.base, head: target.head, dots: target.dots };
 }
 
-function resolveTargetArgs(
-  target: RuntimeGitTarget,
-  pullRequestMergeRef?: string,
-): readonly string[] {
+function resolveTargetArgs(target: RuntimeGitTarget): readonly string[] {
   if (target.kind === 'commit') {
     return ['rev-parse', '--verify', '--end-of-options', `${target.ref}^{commit}`];
-  }
-  if (target.kind === 'range') {
-    return [
-      'rev-parse',
-      '--revs-only',
-      '--end-of-options',
-      `${target.base}^{commit}..${target.head}^{commit}`,
-    ];
-  }
-  if (pullRequestMergeRef === undefined) {
-    throw new Error(
-      `Review target unavailable: PR #${target.number} has no repository-bound local merge ref.`,
-    );
   }
   return [
     'rev-parse',
     '--revs-only',
     '--end-of-options',
-    `${pullRequestMergeRef}^{commit}`,
-    `${pullRequestMergeRef}^1^{commit}..${pullRequestMergeRef}^2^{commit}`,
+    `${target.base}^{commit}..${target.head}^{commit}`,
   ];
 }
 
@@ -1968,46 +950,28 @@ function parseResolvedTarget(target: RuntimeGitTarget, output: string): RuntimeG
       commit: resolvedObjectId(lines[0], `commit id for ${target.ref}`),
     };
   }
-  if (target.kind === 'range') {
-    if (lines.length !== 2 || !lines[1]?.startsWith('^')) {
-      throw new Error(
-        `Review target unavailable: Git returned an invalid snapshot for range ${target.base}${target.dots}${target.head}.`,
-      );
-    }
-    return {
-      kind: 'range',
-      base_commit: resolvedObjectId(
-        lines[1].slice(1),
-        `base commit id for ${target.base}${target.dots}${target.head}`,
-      ),
-      head_commit: resolvedObjectId(
-        lines[0],
-        `head commit id for ${target.base}${target.dots}${target.head}`,
-      ),
-      dots: target.dots,
-    };
-  }
-  if (lines.length !== 3 || !lines[2]?.startsWith('^')) {
+  if (lines.length !== 2 || !lines[1]?.startsWith('^')) {
     throw new Error(
-      `Review target unavailable: Git returned an invalid snapshot for PR #${target.number}.`,
+      `Review target unavailable: Git returned an invalid snapshot for range ${target.base}${target.dots}${target.head}.`,
     );
   }
   return {
-    kind: 'pull_request',
-    number: target.number,
-    ...(target.repository === undefined ? {} : { repository: target.repository }),
-    merge_commit: resolvedObjectId(lines[0], `merge commit id for PR #${target.number}`),
-    base_commit: resolvedObjectId(lines[2].slice(1), `base commit id for PR #${target.number}`),
-    head_commit: resolvedObjectId(lines[1], `head commit id for PR #${target.number}`),
+    kind: 'range',
+    base_commit: resolvedObjectId(
+      lines[1].slice(1),
+      `base commit id for ${target.base}${target.dots}${target.head}`,
+    ),
+    head_commit: resolvedObjectId(
+      lines[0],
+      `head commit id for ${target.base}${target.dots}${target.head}`,
+    ),
+    dots: target.dots,
   };
 }
 
 function pinnedTargetMatches(target: RuntimeGitTarget, pinned: RuntimeGitPinnedTarget): boolean {
   if (target.kind !== pinned.kind) return false;
   if (target.kind === 'range' && pinned.kind === 'range') return target.dots === pinned.dots;
-  if (target.kind === 'pull_request' && pinned.kind === 'pull_request') {
-    return target.number === pinned.number && target.repository === pinned.repository;
-  }
   return true;
 }
 
@@ -2015,16 +979,10 @@ async function resolveTarget(
   projectRoot: string,
   target: RuntimeGitTarget,
   reader?: RuntimeGitReader,
-  pullRequestMergeRef?: string,
   directContext?: DirectGitContext,
 ): Promise<RuntimeGitPinnedTarget> {
   if (reader === undefined) {
-    const result = runGit(
-      projectRoot,
-      resolveTargetArgs(target, pullRequestMergeRef),
-      {},
-      directContext,
-    );
+    const result = runGit(projectRoot, resolveTargetArgs(target), {}, directContext);
     if (!result.ok) throw new Error(`Review target unavailable: ${result.reason}`);
     return parseResolvedTarget(target, result.stdout);
   }
@@ -2162,18 +1120,6 @@ function targetDiffArgs(target: DirectPinnedTarget, stat = false): readonly stri
       '--',
     ];
   }
-  if (target.kind === 'range') {
-    return [
-      'diff',
-      ...statArgs,
-      '--no-ext-diff',
-      '--no-textconv',
-      '--submodule=short',
-      '--ignore-submodules=none',
-      `${target.base_commit}${target.dots}${target.head_commit}`,
-      '--',
-    ];
-  }
   return [
     'diff',
     ...statArgs,
@@ -2181,7 +1127,7 @@ function targetDiffArgs(target: DirectPinnedTarget, stat = false): readonly stri
     '--no-textconv',
     '--submodule=short',
     '--ignore-submodules=none',
-    `${target.base_commit}...${target.head_commit}`,
+    `${target.base_commit}${target.dots}${target.head_commit}`,
     '--',
   ];
 }
@@ -2189,73 +1135,7 @@ function targetDiffArgs(target: DirectPinnedTarget, stat = false): readonly stri
 function targetUnavailableMessage(
   target: Exclude<ReviewTarget, { readonly kind: 'goal' | 'working_tree' }>,
 ): string {
-  const label = reviewTargetLabel(target);
-  if (target.kind === 'pull_request') {
-    return `Review target unavailable: PR #${target.number} is not available as a complete local snapshot. A checked-out PR head does not identify its base. Review an explicit range such as main...HEAD, or fetch the PR merge ref locally.`;
-  }
-  return `Review target unavailable: ${label} could not be read from this repository.`;
-}
-
-async function assertPullRequestRepository(
-  projectRoot: string,
-  target: Extract<ReviewTarget, { readonly kind: 'pull_request' }>,
-  reader?: RuntimeGitReader,
-  directContext?: DirectGitContext,
-): Promise<{ readonly repository: string; readonly mergeRef?: string }> {
-  const directConfiguration = reader === undefined ? directContext?.auditedConfig : undefined;
-  const result =
-    reader === undefined ? undefined : await readGit(reader, 'remote_repositories', projectRoot);
-  if (
-    (reader === undefined && directConfiguration === undefined) ||
-    (result !== undefined && !result.ok)
-  ) {
-    throw new Error(
-      `Review target unavailable: ${reviewTargetLabel(target)} repository identity could not be verified.`,
-    );
-  }
-  const repositoryEntries =
-    reader === undefined
-      ? githubRepositoriesFromGitConfig(directConfiguration as string)
-      : (result as Extract<GitResult, { readonly ok: true }>).stdout
-          .split(/\r?\n/u)
-          .map((entry) => entry.trim())
-          .filter((entry) => entry.length > 0);
-  const repositories = [...new Set(repositoryEntries)];
-  const requested =
-    target.repository === undefined ? undefined : githubRepositoryKey(target.repository);
-  if (repositories.length === 0) {
-    throw new Error(
-      `Review target unavailable: ${reviewTargetLabel(target)} cannot be tied to a local GitHub repository because this workspace has no GitHub remote.`,
-    );
-  }
-  if (requested !== undefined && !repositories.includes(requested)) {
-    throw new Error(
-      `Review target repository mismatch: ${requested} is not one of this workspace's configured GitHub repositories.`,
-    );
-  }
-  if (requested === undefined && repositories.length > 1) {
-    throw new Error(
-      `Review target repository is ambiguous: this workspace has multiple GitHub repositories, so the local PR merge ref cannot be tied safely to ${requested ?? `PR #${target.number}`}. Review an explicit range such as main...HEAD instead.`,
-    );
-  }
-  const repository = requested ?? repositories[0];
-  if (repository === undefined) {
-    throw new Error(
-      `Review target unavailable: ${reviewTargetLabel(target)} repository identity could not be verified.`,
-    );
-  }
-  if (reader !== undefined) return { repository };
-  const mergeRefs = githubPullRequestMergeRefsFromGitConfig(
-    directConfiguration as string,
-    target.number,
-  ).filter((candidate) => candidate.repository === repository);
-  const mergeRef = mergeRefs[0]?.ref;
-  if (mergeRefs.length !== 1 || mergeRef === undefined) {
-    throw new Error(
-      `Review target unavailable: ${reviewTargetLabel(target)} has no locally provable repository-bound merge ref. Fetch it into refs/circuit/${repository}/pull/${target.number}/merge with a matching remote fetch refspec, or review an explicit range such as main...HEAD.`,
-    );
-  }
-  return { repository, mergeRef };
+  return `Review target unavailable: ${reviewTargetLabel(target)} could not be read from this repository.`;
 }
 
 async function collectTargetEvidence(
@@ -2267,30 +1147,12 @@ async function collectTargetEvidence(
   readonly targetDiff: ReviewEvidenceText;
   readonly targetDiffStat: string;
   readonly pinnedTarget: RuntimeGitPinnedTarget;
-  readonly targetRepository?: string;
 }> {
-  const pullRequestProof =
-    target.kind === 'pull_request'
-      ? await assertPullRequestRepository(projectRoot, target, reader, directContext)
-      : undefined;
-  const requestTarget =
-    target.kind === 'pull_request' && pullRequestProof !== undefined
-      ? {
-          kind: 'pull_request' as const,
-          number: target.number,
-          repository: pullRequestProof.repository,
-        }
-      : runtimeTarget(target);
+  const requestTarget = runtimeTarget(target);
   if (requestTarget === undefined) {
     throw new Error('Review target unavailable: the requested Git target could not be prepared.');
   }
-  const pinnedTarget = await resolveTarget(
-    projectRoot,
-    requestTarget,
-    reader,
-    pullRequestProof?.mergeRef,
-    directContext,
-  );
+  const pinnedTarget = await resolveTarget(projectRoot, requestTarget, reader, directContext);
   const evidenceResults =
     reader === undefined
       ? (() => {
@@ -2325,12 +1187,7 @@ async function collectTargetEvidence(
       `Review target has no changes to inspect: ${reviewTargetLabel(target)} resolved successfully but produced an empty diff.`,
     );
   }
-  return {
-    targetDiff,
-    targetDiffStat: diffStat.stdout,
-    pinnedTarget,
-    ...(pullRequestProof === undefined ? {} : { targetRepository: pullRequestProof.repository }),
-  };
+  return { targetDiff, targetDiffStat: diffStat.stdout, pinnedTarget };
 }
 
 function gitDiffEvidence(result: GitResult): ReviewEvidenceText {
@@ -2617,21 +1474,6 @@ async function collectUntrackedFiles(
   };
 }
 
-function sameGitResult(left: GitResult, right: GitResult): boolean {
-  if (left.ok !== right.ok) return false;
-  if (left.ok && right.ok) {
-    return left.stdout === right.stdout && left.truncated_by_buffer === right.truncated_by_buffer;
-  }
-  return !left.ok && !right.ok && left.reason === right.reason;
-}
-
-function sameUntrackedEvidence(
-  left: Awaited<ReturnType<typeof collectUntrackedFiles>>,
-  right: Awaited<ReturnType<typeof collectUntrackedFiles>>,
-): boolean {
-  return JSON.stringify(left) === JSON.stringify(right);
-}
-
 async function collectReviewEvidence(
   projectRoot: string | undefined,
   options: {
@@ -2674,21 +1516,12 @@ async function collectReviewEvidence(
             target_head_ref: target.head,
           }
         : {}),
-      ...(target.kind === 'pull_request'
-        ? { target_repository: targetEvidence.targetRepository }
-        : {}),
       ...(targetEvidence.pinnedTarget.kind === 'commit'
         ? { target_commit: targetEvidence.pinnedTarget.commit }
-        : targetEvidence.pinnedTarget.kind === 'range'
-          ? {
-              target_base_commit: targetEvidence.pinnedTarget.base_commit,
-              target_head_commit: targetEvidence.pinnedTarget.head_commit,
-            }
-          : {
-              target_merge_commit: targetEvidence.pinnedTarget.merge_commit,
-              target_base_commit: targetEvidence.pinnedTarget.base_commit,
-              target_head_commit: targetEvidence.pinnedTarget.head_commit,
-            }),
+        : {
+            target_base_commit: targetEvidence.pinnedTarget.base_commit,
+            target_head_commit: targetEvidence.pinnedTarget.head_commit,
+          }),
       target_diff: targetEvidence.targetDiff,
       target_diff_stat: targetEvidence.targetDiffStat,
     };
@@ -2870,78 +1703,6 @@ async function collectReviewEvidence(
           directContext,
         )
       : { count: 0, truncated: false, files: [] };
-  const confirmedStatus =
-    target.mode === 'all'
-      ? await readStatus()
-      : { ok: true as const, stdout: '', truncated_by_buffer: false };
-  const confirmedStagedResult =
-    target.mode === 'unstaged' ? emptyDiffResult : await readDiff('staged_diff', stagedDiffArgs);
-  const confirmedUnstagedResult =
-    target.mode === 'staged' ? emptyDiffResult : await readDiff('unstaged_diff', unstagedDiffArgs);
-  const confirmedStagedStat =
-    target.mode === 'unstaged'
-      ? emptyDiffResult
-      : await readStat('staged_diff_stat', [
-          'diff',
-          '--stat',
-          '--cached',
-          '--no-ext-diff',
-          '--no-textconv',
-          '--submodule=short',
-          '--ignore-submodules=none',
-          '--',
-        ]);
-  const confirmedUnstagedStat =
-    target.mode === 'staged'
-      ? emptyDiffResult
-      : await readStat('unstaged_diff_stat', [
-          'diff',
-          '--stat',
-          '--no-ext-diff',
-          '--no-textconv',
-          '--submodule=short',
-          '--ignore-submodules=none',
-          '--',
-        ]);
-  const confirmedStagedChangedGitlinks =
-    target.mode === 'unstaged'
-      ? emptyDiffResult
-      : await readChangedGitlinks('staged_changed_gitlinks', stagedChangedGitlinkArgs);
-  const confirmedUnstagedChangedGitlinks =
-    target.mode === 'staged'
-      ? emptyDiffResult
-      : await readChangedGitlinks('unstaged_changed_gitlinks', unstagedChangedGitlinkArgs);
-  const confirmedUntracked =
-    target.mode === 'all'
-      ? await collectUntrackedFiles(
-          evidenceRoot,
-          untrackedContentPolicy,
-          options.gitReader,
-          directContext,
-        )
-      : { count: 0, truncated: false, files: [] };
-  const confirmedHiddenIndex = await inspectHiddenIndexFlags(
-    evidenceRoot,
-    options.gitReader,
-    directContext,
-  );
-  assertNoHiddenIndexFlags(confirmedHiddenIndex.flags);
-  if (
-    !sameGitResult(hiddenIndex.result, confirmedHiddenIndex.result) ||
-    !sameGitResult(status, confirmedStatus) ||
-    !sameGitResult(stagedResult, confirmedStagedResult) ||
-    !sameGitResult(unstagedResult, confirmedUnstagedResult) ||
-    !sameGitResult(stagedStat, confirmedStagedStat) ||
-    !sameGitResult(unstagedStat, confirmedUnstagedStat) ||
-    !sameGitResult(stagedChangedGitlinks, confirmedStagedChangedGitlinks) ||
-    !sameGitResult(unstagedChangedGitlinks, confirmedUnstagedChangedGitlinks) ||
-    !sameUntrackedEvidence(untracked, confirmedUntracked)
-  ) {
-    throw new Error(
-      'Review target unavailable: the working tree changed while evidence was collected. Retry after the working tree settles.',
-    );
-  }
-
   const selectedTrackedContentAvailable = staged.text.length > 0 || unstaged.text.length > 0;
   const selectedUntrackedContentAvailable = untracked.files.some(
     (file) => (file.content?.text.length ?? 0) > 0,
@@ -3038,8 +1799,10 @@ export const reviewIntakeComposeBuilder: ComposeBuilder = {
     });
     return projectReviewIntake({
       scope: context.goal,
+      target,
       evidence,
       maxUntrackedFiles: MAX_UNTRACKED_FILES,
+      ...(parsedTarget.assumed === true ? { assumedTarget: true } : {}),
     });
   },
 };

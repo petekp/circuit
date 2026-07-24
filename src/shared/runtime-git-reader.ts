@@ -4,7 +4,6 @@ export const RUNTIME_GIT_OPERATIONS = [
   'unstaged_diff',
   'staged_diff_stat',
   'unstaged_diff_stat',
-  'remote_repositories',
   'resolve_target',
   'target_diff',
   'target_diff_stat',
@@ -12,7 +11,6 @@ export const RUNTIME_GIT_OPERATIONS = [
   'staged_changed_gitlinks',
   'unstaged_changed_gitlinks',
   'untracked_files',
-  'submodules',
 ] as const;
 
 export const RUNTIME_GIT_HARDENED_CONFIG = Object.freeze([
@@ -45,11 +43,6 @@ export type RuntimeGitTarget =
       readonly base: string;
       readonly head: string;
       readonly dots: '..' | '...';
-    }
-  | {
-      readonly kind: 'pull_request';
-      readonly number: number;
-      readonly repository?: string;
     };
 
 export type RuntimeGitPinnedTarget =
@@ -62,14 +55,6 @@ export type RuntimeGitPinnedTarget =
       readonly base_commit: string;
       readonly head_commit: string;
       readonly dots: '..' | '...';
-    }
-  | {
-      readonly kind: 'pull_request';
-      readonly number: number;
-      readonly repository?: string;
-      readonly merge_commit: string;
-      readonly base_commit: string;
-      readonly head_commit: string;
     };
 
 export interface RuntimeGitReadResult {

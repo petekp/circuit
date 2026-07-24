@@ -1,3 +1,16 @@
+/**
+ * Single owner of "is this diff real evidence?". Intake writes a failure
+ * string into the diff slot when Git could not produce one, so a non-empty
+ * diff is not by itself proof that the reviewer saw source.
+ */
+export function unavailableDiff(text: string): boolean {
+  return /^git\s+.+\s+failed:/.test(text) || text.startsWith('Target unavailable:');
+}
+
+export function usableDiff(diff: { readonly text: string } | undefined): boolean {
+  return diff !== undefined && diff.text.length > 0 && !unavailableDiff(diff.text);
+}
+
 export function containsOpaqueSubmoduleChange(
   diff: { readonly text: string } | undefined,
 ): boolean {

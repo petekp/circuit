@@ -1,7 +1,7 @@
-import { githubRepositoryKey } from '../../../shared/github-repository.js';
 import {
   type ReviewEvidence,
   type ReviewEvidenceSummary,
+  type ReviewEvidenceWarningKind,
   type ReviewFinding,
   type ReviewIntake,
   type ReviewRelayResult,
@@ -11,31 +11,15 @@ import {
 import {
   containsOpaqueBinaryChange,
   containsOpaqueSubmoduleChange,
+  usableDiff,
 } from './evidence-completeness.js';
-import {
-  parseReviewTarget,
-  reviewScopeHasSuppliedMaterial,
-  reviewScopeRequiresGitEvidence,
-} from './intake.js';
-
-function unavailableDiff(text: string): boolean {
-  return /^git\s+.+\s+failed:/.test(text) || text.startsWith('Target unavailable:');
-}
-
-function usableDiff(diff: { readonly text: string } | undefined): boolean {
-  return diff !== undefined && diff.text.length > 0 && !unavailableDiff(diff.text);
-}
 
 function selectedWorkingTreeDiffIncluded(
   evidence: Extract<ReviewEvidence, { readonly kind: 'git-working-tree' }>,
 ): boolean {
-  if (evidence.target_kind !== 'working_tree') return usableDiff(evidence.target_diff);
   if (evidence.target_mode === 'staged') return usableDiff(evidence.staged_diff);
   if (evidence.target_mode === 'unstaged') return usableDiff(evidence.unstaged_diff);
-  if (evidence.target_mode === 'all') {
-    return usableDiff(evidence.staged_diff) || usableDiff(evidence.unstaged_diff);
-  }
-  return usableDiff(evidence.target_diff);
+  return usableDiff(evidence.staged_diff) || usableDiff(evidence.unstaged_diff);
 }
 
 function workingTreeLayersFromStatus(status: string): {
@@ -90,116 +74,84 @@ function evidenceSummary(evidence: ReviewEvidence): ReviewEvidenceSummary {
       target_diff_truncated: evidence.target_diff.truncated,
     };
   }
-  const targetDiffIncluded = selectedWorkingTreeDiffIncluded(evidence);
   return {
     kind: 'git-working-tree',
     untracked_content_policy: evidence.untracked_content_policy,
     untracked_file_count: evidence.untracked_file_count,
     untracked_files_sampled: evidence.untracked_files.length,
     untracked_files_truncated: evidence.untracked_files_truncated,
-    ...(evidence.target_kind === undefined ? {} : { target_kind: evidence.target_kind }),
-    ...(evidence.target_mode === undefined ? {} : { target_mode: evidence.target_mode }),
-    ...(evidence.target_ref === undefined ? {} : { target_ref: evidence.target_ref }),
-    target_diff_included: targetDiffIncluded,
-    // The pre-release target spike wrote the same HEAD diff under both names.
-    // Keep old reports readable, but never advertise that duplicate as a
-    // second piece of evidence.
-    committed_diff_included: !targetDiffIncluded && usableDiff(evidence.committed_diff),
+    target_kind: 'working_tree',
+    target_mode: evidence.target_mode,
+    target_diff_included: selectedWorkingTreeDiffIncluded(evidence),
   };
 }
 
+/**
+ * Integrity check between the target Circuit resolved at intake and the
+ * evidence it persisted alongside it. Both are written by the same compose
+ * builder, so a mismatch means the report was edited or truncated between
+ * intake and result.
+ */
 function evidenceScopeMismatch(intake: ReviewIntake): string | undefined {
   const evidence = intake.evidence;
-  const parsed = parseReviewTarget(intake.scope);
-  if (!parsed.ok) {
-    return `the persisted evidence does not match the requested scope: ${parsed.reason}`;
-  }
+  const target = intake.target;
+  const mismatch = (expected: string): string =>
+    `the persisted evidence does not match the requested scope: expected ${expected}`;
 
-  const target = parsed.target;
   if (evidence.kind === 'goal') {
-    return target.kind === 'goal'
-      ? undefined
-      : `the persisted evidence does not match the requested scope: expected ${target.kind} target evidence`;
+    return target.kind === 'goal' ? undefined : mismatch(`${target.kind} target evidence`);
   }
   if (evidence.kind === 'unavailable') return undefined;
   if (evidence.kind === 'git-target') {
     if (
       target.kind === 'commit' &&
       evidence.target_kind === 'commit' &&
-      evidence.target_ref === target.ref
+      evidence.target_ref === `commit ${target.ref}`
     ) {
       return undefined;
     }
     if (
       target.kind === 'range' &&
       evidence.target_kind === 'range' &&
-      evidence.target_ref === `${target.base}${target.dots}${target.head}` &&
+      evidence.target_ref === `range ${target.base}${target.dots}${target.head}` &&
       evidence.target_base_ref === target.base &&
       evidence.target_head_ref === target.head
     ) {
       return undefined;
     }
-    if (
-      target.kind === 'pull_request' &&
-      evidence.target_kind === 'pull_request' &&
-      evidence.target_ref === `PR #${target.number}` &&
-      (target.repository === undefined ||
-        evidence.target_repository === githubRepositoryKey(target.repository))
-    ) {
-      return undefined;
-    }
-    return `the persisted evidence does not match the requested scope: expected ${target.kind} target evidence`;
+    return mismatch(`${target.kind} target evidence`);
   }
 
-  if (target.kind === 'goal') {
-    return 'the persisted evidence does not match the requested scope: expected goal-only evidence';
+  if (target.kind === 'goal') return mismatch('goal-only evidence');
+  if (target.kind !== 'working_tree') {
+    return mismatch(`dedicated pinned ${target.kind} target evidence`);
   }
-  if (target.kind === 'working_tree') {
-    if (!target.explicit) return undefined;
-    if (evidence.target_kind === 'working_tree' && evidence.target_mode === target.mode) {
-      return undefined;
-    }
-    return `the persisted evidence does not match the requested scope: expected ${target.mode} working-tree target metadata`;
-  }
-
-  return `the persisted evidence does not match the requested scope: expected dedicated pinned ${target.kind} target evidence`;
+  return evidence.target_mode === target.mode
+    ? undefined
+    : mismatch(`${target.mode} working-tree target metadata`);
 }
 
+/**
+ * Reasons the persisted evidence cannot support any Review at all. This runs
+ * before the relay result is trusted, and every reason it returns is a
+ * property of intake alone, so it can never turn a paid relay into a throw
+ * that intake would not already have refused.
+ */
 function unusableEvidenceReason(intake: ReviewIntake): string | undefined {
-  if (intake.evidence.kind === 'goal' && !reviewScopeHasSuppliedMaterial(intake.scope)) {
-    return 'the goal-only Review has no actual supplied source material';
-  }
-  const requiresGitEvidence = reviewScopeRequiresGitEvidence(intake.scope);
+  const target = intake.target;
+  const requiresGitEvidence = target.kind !== 'goal';
   if (intake.evidence.kind === 'unavailable' && requiresGitEvidence) {
     return intake.evidence.reason;
   }
   const scopeMismatch = evidenceScopeMismatch(intake);
   if (scopeMismatch !== undefined) return scopeMismatch;
-  const parsed = parseReviewTarget(intake.scope);
-  if (!parsed.ok) return parsed.reason;
-  if (intake.evidence.kind === 'git-working-tree') {
-    const target = parsed.target;
-    if (target.kind === 'working_tree') {
-      const selectedTrackedDiff =
-        target.mode === 'staged'
-          ? usableDiff(intake.evidence.staged_diff)
-          : target.mode === 'unstaged'
-            ? usableDiff(intake.evidence.unstaged_diff)
-            : usableDiff(intake.evidence.staged_diff) || usableDiff(intake.evidence.unstaged_diff);
-      const selectedUntrackedContent =
-        target.mode === 'all' &&
-        intake.evidence.untracked_files.some((file) => usableDiff(file.content));
-      if (!selectedTrackedDiff && !selectedUntrackedContent) {
-        return `the requested ${target.mode} working-tree target has no usable selected evidence`;
-      }
-    } else if (target.kind !== 'goal') {
-      const matchingLegacyCommit =
-        target.kind === 'commit' &&
-        intake.evidence.committed_diff_ref === target.ref &&
-        usableDiff(intake.evidence.committed_diff);
-      if (!usableDiff(intake.evidence.target_diff) && !matchingLegacyCommit) {
-        return `the requested target ${intake.evidence.target_ref ?? target.kind} has no usable selected diff`;
-      }
+  if (intake.evidence.kind === 'git-working-tree' && target.kind === 'working_tree') {
+    const selectedTrackedDiff = selectedWorkingTreeDiffIncluded(intake.evidence);
+    const selectedUntrackedContent =
+      target.mode === 'all' &&
+      intake.evidence.untracked_files.some((file) => usableDiff(file.content));
+    if (!selectedTrackedDiff && !selectedUntrackedContent) {
+      return `the requested ${target.mode} working-tree target has no usable selected evidence`;
     }
   }
   const blockingWarning = intake.evidence_warnings.find(
@@ -211,18 +163,15 @@ function unusableEvidenceReason(intake: ReviewIntake): string | undefined {
   if (intake.evidence.kind === 'git-target' && !usableDiff(intake.evidence.target_diff)) {
     return `the requested target ${intake.evidence.target_ref} has no usable diff`;
   }
-  if (
-    intake.evidence.kind === 'git-working-tree' &&
-    intake.evidence.target_kind !== undefined &&
-    intake.evidence.target_kind !== 'working_tree' &&
-    !usableDiff(intake.evidence.target_diff) &&
-    !usableDiff(intake.evidence.committed_diff)
-  ) {
-    return `the requested target ${intake.evidence.target_ref ?? intake.evidence.target_kind} has no usable diff`;
-  }
   return undefined;
 }
 
+/**
+ * True when Circuit inspected only part of what the operator selected. D2:
+ * untracked files without content are the default posture, not a gap, so they
+ * only count when the operator asked for untracked content and Circuit still
+ * could not deliver it.
+ */
 function selectedEvidenceIncomplete(intake: ReviewIntake): boolean {
   const evidence = intake.evidence;
   if (evidence.kind === 'goal' || evidence.kind === 'unavailable') return false;
@@ -234,69 +183,60 @@ function selectedEvidenceIncomplete(intake: ReviewIntake): boolean {
     );
   }
 
-  const parsed = parseReviewTarget(intake.scope);
-  if (!parsed.ok) return false;
-  const target = parsed.target;
-  if (target.kind === 'working_tree') {
-    if (target.mode === 'staged') {
-      return (
-        evidence.staged_diff.truncated ||
-        containsOpaqueBinaryChange(evidence.staged_diff) ||
-        containsOpaqueSubmoduleChange(evidence.staged_diff) ||
-        (evidence.submodule_paths?.length ?? 0) > 0
-      );
-    }
-    if (target.mode === 'unstaged') {
-      return (
-        evidence.unstaged_diff.truncated ||
-        containsOpaqueBinaryChange(evidence.unstaged_diff) ||
-        containsOpaqueSubmoduleChange(evidence.unstaged_diff) ||
-        (evidence.submodule_paths?.length ?? 0) > 0
-      );
-    }
-    const statusLayers = workingTreeLayersFromStatus(evidence.status_short);
-    return (
-      evidence.staged_diff.truncated ||
-      evidence.unstaged_diff.truncated ||
-      containsOpaqueBinaryChange(evidence.staged_diff) ||
-      containsOpaqueBinaryChange(evidence.unstaged_diff) ||
-      containsOpaqueSubmoduleChange(evidence.staged_diff) ||
-      containsOpaqueSubmoduleChange(evidence.unstaged_diff) ||
-      (statusLayers.staged && !usableDiff(evidence.staged_diff)) ||
-      (statusLayers.unstaged && !usableDiff(evidence.unstaged_diff)) ||
-      evidence.untracked_files_truncated ||
+  const requestedUntrackedContent = evidence.untracked_content_policy === 'include-content';
+  const untrackedContentIncomplete =
+    requestedUntrackedContent &&
+    (evidence.untracked_files_truncated ||
       untrackedFileListIsInconsistent(evidence) ||
       evidence.untracked_files.some(
         (file) => file.content === undefined || file.content.truncated,
-      ) ||
+      ));
+
+  if (evidence.target_mode === 'staged') {
+    return (
+      evidence.staged_diff.truncated ||
+      containsOpaqueBinaryChange(evidence.staged_diff) ||
+      containsOpaqueSubmoduleChange(evidence.staged_diff) ||
       (evidence.submodule_paths?.length ?? 0) > 0
     );
   }
-  if (target.kind === 'commit' && evidence.target_diff === undefined) {
+  if (evidence.target_mode === 'unstaged') {
     return (
-      evidence.committed_diff_ref === target.ref &&
-      (evidence.committed_diff?.truncated === true ||
-        containsOpaqueBinaryChange(evidence.committed_diff) ||
-        containsOpaqueSubmoduleChange(evidence.committed_diff))
+      evidence.unstaged_diff.truncated ||
+      containsOpaqueBinaryChange(evidence.unstaged_diff) ||
+      containsOpaqueSubmoduleChange(evidence.unstaged_diff) ||
+      (evidence.submodule_paths?.length ?? 0) > 0
     );
   }
+  const statusLayers = workingTreeLayersFromStatus(evidence.status_short);
   return (
-    evidence.target_diff?.truncated === true ||
-    containsOpaqueBinaryChange(evidence.target_diff) ||
-    containsOpaqueSubmoduleChange(evidence.target_diff)
+    evidence.staged_diff.truncated ||
+    evidence.unstaged_diff.truncated ||
+    containsOpaqueBinaryChange(evidence.staged_diff) ||
+    containsOpaqueBinaryChange(evidence.unstaged_diff) ||
+    containsOpaqueSubmoduleChange(evidence.staged_diff) ||
+    containsOpaqueSubmoduleChange(evidence.unstaged_diff) ||
+    (statusLayers.staged && !usableDiff(evidence.staged_diff)) ||
+    (statusLayers.unstaged && !usableDiff(evidence.unstaged_diff)) ||
+    untrackedContentIncomplete ||
+    (evidence.submodule_paths?.length ?? 0) > 0
   );
 }
+
+const LIMITATION_WARNING_KINDS: ReadonlySet<ReviewEvidenceWarningKind> = new Set([
+  'binary_content_not_inspected',
+  'diff_truncated',
+  'submodule_content_not_inspected',
+  'target_assumed',
+  'untracked_file_content_omitted',
+  'untracked_file_skipped',
+  'untracked_files_truncated',
+]);
 
 function incompleteEvidenceFinding(intake: ReviewIntake): ReviewFinding | undefined {
   if (!selectedEvidenceIncomplete(intake)) return undefined;
   const warnings = intake.evidence_warnings.filter(
-    (warning) =>
-      warning.kind === 'diff_truncated' ||
-      warning.kind === 'binary_content_not_inspected' ||
-      warning.kind === 'untracked_files_truncated' ||
-      warning.kind === 'untracked_file_content_omitted' ||
-      warning.kind === 'untracked_file_skipped' ||
-      warning.kind === 'submodule_content_not_inspected',
+    (warning) => warning.kind !== 'target_assumed' && LIMITATION_WARNING_KINDS.has(warning.kind),
   );
   return {
     severity: 'medium',
@@ -327,20 +267,12 @@ export function projectReviewResult(input: {
     incompleteFinding === undefined
       ? input.relayResult.findings
       : [...input.relayResult.findings, incompleteFinding];
-  const circuitLimitations =
-    incompleteFinding === undefined
-      ? []
-      : input.intake.evidence_warnings
-          .filter(
-            (warning) =>
-              warning.kind === 'binary_content_not_inspected' ||
-              warning.kind === 'diff_truncated' ||
-              warning.kind === 'submodule_content_not_inspected' ||
-              warning.kind === 'untracked_file_content_omitted' ||
-              warning.kind === 'untracked_file_skipped' ||
-              warning.kind === 'untracked_files_truncated',
-          )
-          .map((warning) => warning.message);
+  // Every known coverage gap becomes a confidence limitation, whether or not it
+  // rose to a finding. Under D2 the common case (untracked files relayed as
+  // metadata only) is exactly this: reported, not held against the verdict.
+  const circuitLimitations = input.intake.evidence_warnings
+    .filter((warning) => LIMITATION_WARNING_KINDS.has(warning.kind))
+    .map((warning) => warning.message);
   if (incompleteFinding !== undefined && circuitLimitations.length === 0) {
     circuitLimitations.push('Circuit could inspect only part of the selected Review target.');
   }
