@@ -103,7 +103,7 @@ output. Without `--autonomous`, Run runs a single process and is unchanged.
 | Flow | Use it for | Write behavior |
 | --- | --- | --- |
 | Explore | Investigating, explaining, comparing options, or making a decision before editing code. | Does not implement the change for you. |
-| Review | Auditing one complete working tree, staged or unstaged set, commit, Git range, or locally available PR. For a plan or report, include its actual text in the request; a file path alone is not evidence. File or directory subsets and path exclusions stop instead of broadening to the complete target. | Audit-only. |
+| Review | Auditing one complete working tree, staged or unstaged set, commit, or Git range. Name the target in the goal; a goal that names none reviews the current working tree and says so in the report. For a plan or report, include its actual text in the request; a file path alone is not evidence. File or directory subsets and path exclusions stop instead of broadening to the complete target. Circuit does not fetch pull requests: check the branch out first, then review the working tree or a range. | Audit-only. |
 | Fix | Bugs, regressions, failing tests, crashes, flaky behavior, or production issues. | May invoke a write-capable worker. |
 | Build | Features, refactors, docs, tests, or focused code changes that are not mainly bug fixes. | May invoke a write-capable worker. |
 | Prototype | Disposable local prototypes, mockups, UI sketches, or model-comparison variants before Build. | May invoke a write-capable worker and writes local prototype evidence. |
@@ -239,6 +239,10 @@ Review collects untracked file paths and sizes by default, but not untracked
 file contents. If you explicitly want Review to send untracked file contents to
 the configured worker, add `--include-untracked-content` after you confirm
 those files are safe to relay.
+
+Metadata-only untracked files do not stop the run or force findings. The review
+closes on what it actually read, and the report names the untracked files it
+could not open as a limit on its confidence.
 
 ## Generated Files
 
