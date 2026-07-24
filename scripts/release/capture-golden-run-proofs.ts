@@ -417,6 +417,7 @@ function buildProofExecutors(): RuntimeExecutorsOption {
 function reviewRelayer(): Relayer {
   return {
     connectorName: 'claude-code',
+    promptOnlyContext: true,
     relay: async (input: RelayInput): Promise<RelayOutcome> => ({
       request_payload: input.prompt,
       receipt_id: 'proof-review',
@@ -424,15 +425,12 @@ function reviewRelayer(): Relayer {
         verdict: 'NO_ISSUES_FOUND',
         findings: [],
         assessment:
-          'Reviewer inspected the relayed staged-diff and untracked-file evidence and found nothing actionable in scope.',
+          'Reviewer inspected the relayed staged diff and untracked file content and found nothing actionable in scope.',
         verification: [
           'Inspected the relayed review-intake report.',
-          'Cross-checked the staged diff against the untracked-file metadata.',
+          'Cross-checked the staged diff and the complete untracked file content.',
         ],
-        confidence_limitations: [
-          'Untracked file contents were omitted from the relay (metadata-only policy).',
-          'Untracked file evidence was capped at 20 files.',
-        ],
+        confidence_limitations: [],
       }),
       duration_ms: 10,
       cli_version: 'proof-stub',
@@ -1574,7 +1572,7 @@ const scenarios: Scenario[] = [
   },
   {
     slug: 'review',
-    argv: ['run', 'review', '--goal', 'review this change'],
+    argv: ['run', 'review', '--goal', 'review this change', '--include-untracked-content'],
     relayer: reviewRelayer(),
     prepareProject: prepareReviewProofProject,
     runId: '44444444-4444-4444-4444-444444444404',

@@ -47,11 +47,11 @@ scenarios:
   - id: proof:review
     title: Standalone Review
     category: doing-work
-    command: ./bin/circuit run review --goal "review this change" --progress jsonl
+    command: ./bin/circuit run review --goal "review this change" --include-untracked-content --progress jsonl
     expected_flow: review
     expected_outcome: complete or needs_attention
     summary_contract: Summary lists review verdict, findings, evidence policy, and next action.
-    redaction_policy: Untracked contents are excluded unless an explicit opt-in example is used.
+    redaction_policy: The synthetic fixture explicitly opts in to relaying its untracked note.
     required_files:
       - docs/release/proofs/runs/review/progress.jsonl
       - docs/release/proofs/runs/review/operator-summary.md

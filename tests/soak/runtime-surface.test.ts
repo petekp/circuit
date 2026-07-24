@@ -15,6 +15,8 @@ const REVIEW_RELAY_BODY = JSON.stringify({
   verification: ['Inspected the relayed intake report.'],
   confidence_limitations: [],
 });
+const SUPPLIED_REVIEW_GOAL =
+  'review this supplied text: The fixture changes a value from 42 to 43.';
 const BUILD_RELAY_BODY = JSON.stringify({
   verdict: 'accept',
   summary: 'Build relay completed for runtime soak',
@@ -104,7 +106,7 @@ describe('runtime surface soak', () => {
     async () => {
       const runFolder = join(runFolderBase, 'review');
       const result = await captureMain(
-        ['run', 'review', '--goal', 'review this patch', '--run-folder', runFolder],
+        ['run', 'review', '--goal', SUPPLIED_REVIEW_GOAL, '--run-folder', runFolder],
         { relayer: relayerWithBody(REVIEW_RELAY_BODY) },
       );
 
@@ -277,7 +279,7 @@ describe('runtime surface soak', () => {
           'run',
           'review',
           '--goal',
-          'review this patch',
+          SUPPLIED_REVIEW_GOAL,
           '--fixture',
           join(process.cwd(), 'generated/flows/review/circuit.json'),
           '--run-folder',
@@ -299,7 +301,7 @@ describe('runtime surface soak', () => {
           'run',
           'review',
           '--goal',
-          'review this patch',
+          SUPPLIED_REVIEW_GOAL,
           '--fixture',
           fixturePath,
           '--run-folder',

@@ -33,6 +33,8 @@ const REVIEW_RELAY_BODY = JSON.stringify({
   verification: ['Inspected the relayed intake report.'],
   confidence_limitations: [],
 });
+const SUPPLIED_REVIEW_GOAL =
+  'review this supplied text: The fixture changes a value from 42 to 43.';
 
 function relayerWithBody(body: string): RelayFn {
   return makeStubRelayer(body, { receipt_id: 'stub-receipt-cli-runtime' });
@@ -153,7 +155,7 @@ describe('CLI runtime', () => {
   it('runs Review through the default runtime without runtime identity fields', async () => {
     const runFolder = join(runFolderBase, 'review');
     const result = await captureMain(
-      ['run', 'review', '--goal', 'review this patch', '--run-folder', runFolder],
+      ['run', 'review', '--goal', SUPPLIED_REVIEW_GOAL, '--run-folder', runFolder],
       { relayer: relayerWithBody(REVIEW_RELAY_BODY) },
     );
 
@@ -283,7 +285,7 @@ describe('CLI runtime', () => {
       { receipt_id: 'stub-receipt-cli-runtime' },
     );
     const result = await captureMain(
-      ['run', 'review', '--goal', 'review this patch', '--run-folder', runFolder],
+      ['run', 'review', '--goal', SUPPLIED_REVIEW_GOAL, '--run-folder', runFolder],
       { relayer },
     );
 
@@ -315,7 +317,7 @@ describe('CLI runtime', () => {
         'run',
         'review',
         '--goal',
-        'review this patch',
+        SUPPLIED_REVIEW_GOAL,
         '--progress',
         'jsonl',
         '--run-folder',
@@ -344,7 +346,7 @@ describe('CLI runtime', () => {
   it('emits selector diagnostics only when requested', async () => {
     const runFolder = join(runFolderBase, 'review-diagnostics');
     const result = await withRuntimeDiagnostics(() =>
-      captureMain(['run', 'review', '--goal', 'review this patch', '--run-folder', runFolder], {
+      captureMain(['run', 'review', '--goal', SUPPLIED_REVIEW_GOAL, '--run-folder', runFolder], {
         relayer: relayerWithBody(REVIEW_RELAY_BODY),
       }),
     );
@@ -368,7 +370,7 @@ describe('CLI runtime', () => {
         'run',
         'review',
         '--goal',
-        'review this patch',
+        SUPPLIED_REVIEW_GOAL,
         '--fixture',
         join(process.cwd(), 'generated/flows/review/circuit.json'),
         '--run-folder',
@@ -403,7 +405,7 @@ describe('CLI runtime', () => {
           'run',
           'review',
           '--goal',
-          'review this patch',
+          SUPPLIED_REVIEW_GOAL,
           '--run-folder',
           join(runFolderBase, 'a3-run-1'),
         ],
@@ -418,7 +420,7 @@ describe('CLI runtime', () => {
           'run',
           'review',
           '--goal',
-          'review this patch again',
+          SUPPLIED_REVIEW_GOAL,
           '--run-folder',
           join(runFolderBase, 'a3-run-2'),
         ],
@@ -445,7 +447,7 @@ describe('CLI runtime', () => {
         'run',
         'review',
         '--goal',
-        'review this patch',
+        SUPPLIED_REVIEW_GOAL,
         '--fixture',
         fixturePath,
         '--run-folder',
@@ -464,7 +466,7 @@ describe('CLI runtime', () => {
     const runFolder = join(runFolderBase, 'compose-writer');
     let writerCalled = false;
     const result = await captureMain(
-      ['run', 'review', '--goal', 'review this patch', '--run-folder', runFolder],
+      ['run', 'review', '--goal', SUPPLIED_REVIEW_GOAL, '--run-folder', runFolder],
       {
         relayer: relayerWithBody(REVIEW_RELAY_BODY),
         composeWriter: () => {

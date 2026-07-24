@@ -36,7 +36,7 @@ function runResult(): Record<string, unknown> {
     schema_version: 1,
     run_id: RUN_ID,
     flow_id: 'review',
-    goal: 'Review the fixture change',
+    goal: 'Review staged changes',
     outcome: 'complete',
     summary: 'The fixture change is clean.',
     closed_at: '2026-07-22T12:00:00.000Z',
@@ -48,7 +48,7 @@ function runResult(): Record<string, unknown> {
 
 function reviewResult(): Record<string, unknown> {
   return {
-    scope: 'fixture change',
+    scope: 'Review staged changes',
     findings: [],
     verdict: 'CLEAN',
     outcome: 'complete',
@@ -70,7 +70,7 @@ function hostTrace(result: Record<string, unknown>): string {
         type: 'mcp_tool_call',
         server: 'circuit',
         tool: 'circuit_start',
-        arguments: { flow: 'review', goal: 'Review the fixture change', web_search: 'off' },
+        arguments: { flow: 'review', goal: 'Review staged changes', web_search: 'off' },
       },
     },
     {
@@ -80,7 +80,7 @@ function hostTrace(result: Record<string, unknown>): string {
         type: 'mcp_tool_call',
         server: 'circuit',
         tool: 'circuit_start',
-        arguments: { flow: 'review', goal: 'Review the fixture change', web_search: 'off' },
+        arguments: { flow: 'review', goal: 'Review staged changes', web_search: 'off' },
         result: {
           structured_content: { schema_version: 1, ok: true, run_id: RUN_ID, state: 'starting' },
         },

@@ -182,7 +182,7 @@ describe('run intake preflight: refuse the sandbox class, warn on missing CLIs',
     const args = parseExecutionArgs('run', [
       'review',
       '--goal',
-      'sandbox preflight contract: missing CLI warns at intake, run proceeds',
+      'Review this supplied text: a missing CLI should warn at intake while the run proceeds.',
       '--run-folder',
       runFolder,
     ]);

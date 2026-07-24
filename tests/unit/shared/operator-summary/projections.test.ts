@@ -2,6 +2,349 @@ import { describe, expect, it } from 'vitest';
 
 import { projectSummary } from '../../../../src/shared/operator-summary/projections.js';
 
+describe('operator-summary Review projection', () => {
+  it.each([
+    'binary_content_not_inspected',
+    'diff_truncated',
+    'untracked_files_truncated',
+    'untracked_file_skipped',
+    'untracked_file_content_omitted',
+    'submodule_content_not_inspected',
+  ] as const)(
+    'does not present a persisted legacy clean verdict as clean when evidence has a %s warning',
+    (warningKind) => {
+      const projection = projectSummary({
+        runFolder: '/tmp/circuit-run',
+        flowId: 'review',
+        runOutcome: 'complete',
+        resultSummary: 'Circuit run complete.',
+        flowReport: {
+          findings: [],
+          verdict: 'CLEAN',
+          assessment: 'The old run returned no findings.',
+          verification: ['Read the available working-tree evidence.'],
+          confidence_limitations: [],
+          evidence_summary: {
+            kind: 'git-working-tree',
+            untracked_content_policy: 'include-content',
+            untracked_file_count: 1,
+            untracked_files_sampled: 1,
+            untracked_files_truncated: warningKind === 'untracked_files_truncated',
+            target_kind: 'working_tree',
+            target_mode: 'all',
+          },
+          evidence_warnings: [
+            {
+              kind: warningKind,
+              message: `Legacy Review evidence warning: ${warningKind}`,
+            },
+          ],
+        },
+      });
+
+      expect(projection.headline).not.toContain('Verdict: CLEAN');
+    },
+  );
+
+  it('treats a truncated dedicated Git target as incomplete even when its warning is missing', () => {
+    const projection = projectSummary({
+      runFolder: '/tmp/circuit-run',
+      flowId: 'review',
+      runOutcome: 'complete',
+      resultSummary: 'Circuit run complete.',
+      flowReport: {
+        findings: [],
+        verdict: 'CLEAN',
+        assessment: 'The requested commit had no actionable issue.',
+        verification: ['Read the requested commit diff.'],
+        confidence_limitations: [],
+        evidence_summary: {
+          kind: 'git-target',
+          target_kind: 'commit',
+          target_ref: 'HEAD^',
+          target_diff_included: true,
+          target_diff_truncated: true,
+        },
+        evidence_warnings: [],
+      },
+    });
+
+    expect(projection.headline).toBe(
+      'Circuit: Review source evidence was incomplete. Findings: 0.',
+    );
+    expect(projection.headline).not.toContain('Verdict: CLEAN');
+    expect(projection.details).toContain('Review evidence: HEAD^ diff included (truncated).');
+    expect(projection.details.some((detail) => detail.startsWith('Untracked evidence:'))).toBe(
+      false,
+    );
+  });
+
+  it('treats a truncated working-tree file list as incomplete even when its warning is missing', () => {
+    const projection = projectSummary({
+      runFolder: '/tmp/circuit-run',
+      flowId: 'review',
+      runOutcome: 'complete',
+      resultSummary: 'Circuit run complete.',
+      flowReport: {
+        findings: [],
+        verdict: 'CLEAN',
+        evidence_summary: {
+          kind: 'git-working-tree',
+          untracked_content_policy: 'include-content',
+          untracked_file_count: 2,
+          untracked_files_sampled: 1,
+          untracked_files_truncated: true,
+          target_kind: 'working_tree',
+          target_mode: 'all',
+          target_diff_included: true,
+        },
+        evidence_warnings: [],
+      },
+    });
+
+    expect(projection.headline).toBe(
+      'Circuit: Review source evidence was incomplete. Findings: 0.',
+    );
+    expect(projection.headline).not.toContain('Verdict: CLEAN');
+  });
+
+  it('deduplicates the legacy HEAD target and committed-diff aliases', () => {
+    const projection = projectSummary({
+      runFolder: '/tmp/circuit-run',
+      flowId: 'review',
+      runOutcome: 'complete',
+      resultSummary: 'Circuit run complete.',
+      flowReport: {
+        findings: [],
+        verdict: 'CLEAN',
+        evidence_summary: {
+          kind: 'git-working-tree',
+          untracked_content_policy: 'metadata-only',
+          untracked_file_count: 0,
+          untracked_files_sampled: 0,
+          untracked_files_truncated: false,
+          target_kind: 'commit',
+          target_ref: 'HEAD',
+          target_diff_included: true,
+          committed_diff_included: true,
+        },
+        evidence_warnings: [],
+      },
+    });
+
+    expect(projection.details.filter((detail) => detail.startsWith('Review evidence:'))).toEqual([
+      'Review evidence: HEAD diff included.',
+    ]);
+  });
+
+  it('does not present a persisted legacy clean verdict as clean when evidence was unavailable', () => {
+    const projection = projectSummary({
+      runFolder: '/tmp/circuit-run',
+      flowId: 'review',
+      runOutcome: 'complete',
+      resultSummary: 'Circuit run complete.',
+      flowReport: {
+        findings: [],
+        verdict: 'CLEAN',
+        evidence_summary: {
+          kind: 'unavailable',
+          message: 'The requested commit could not be read.',
+        },
+        evidence_warnings: [],
+      },
+    });
+
+    expect(projection.headline).toBe(
+      'Circuit: Review did not have usable source evidence. Findings: 0.',
+    );
+    expect(projection.headline).not.toContain('Verdict: CLEAN');
+    expect(projection.details).toContain(
+      'Review evidence: unavailable (The requested commit could not be read.)',
+    );
+  });
+
+  it('does not present a legacy explicit target with no included diff as clean', () => {
+    const projection = projectSummary({
+      runFolder: '/tmp/circuit-run',
+      flowId: 'review',
+      runOutcome: 'complete',
+      resultSummary: 'Circuit run complete.',
+      flowReport: {
+        findings: [],
+        verdict: 'CLEAN',
+        evidence_summary: {
+          kind: 'git-working-tree',
+          untracked_content_policy: 'metadata-only',
+          untracked_file_count: 0,
+          untracked_files_sampled: 0,
+          untracked_files_truncated: false,
+          target_kind: 'commit',
+          target_ref: 'deadbeef',
+          target_diff_included: false,
+          committed_diff_included: false,
+        },
+        evidence_warnings: [],
+      },
+    });
+
+    expect(projection.headline).toBe(
+      'Circuit: Review did not have usable source evidence. Findings: 0.',
+    );
+    expect(projection.details).toContain('Review evidence: deadbeef diff unavailable.');
+  });
+
+  it.each(['staged', 'unstaged', 'all'] as const)(
+    'names the selected %s working-tree mode and whether its diff was included',
+    (mode) => {
+      const projection = projectSummary({
+        runFolder: '/tmp/circuit-run',
+        flowId: 'review',
+        runOutcome: 'complete',
+        resultSummary: 'Circuit run complete.',
+        flowReport: {
+          findings: [],
+          verdict: 'CLEAN',
+          outcome: 'complete',
+          evidence_summary: {
+            kind: 'git-working-tree',
+            untracked_content_policy: 'metadata-only',
+            untracked_file_count: 0,
+            untracked_files_sampled: 0,
+            untracked_files_truncated: false,
+            target_kind: 'working_tree',
+            target_mode: mode,
+            target_diff_included: true,
+          },
+          evidence_warnings: [],
+        },
+      });
+
+      expect(projection.details).toContain(`Review evidence: ${mode} working-tree diff included.`);
+    },
+  );
+
+  it.each(['staged', 'unstaged', 'all'] as const)(
+    'does not present a selected %s working-tree target with no included source as clean',
+    (mode) => {
+      const projection = projectSummary({
+        runFolder: '/tmp/circuit-run',
+        flowId: 'review',
+        runOutcome: 'complete',
+        resultSummary: 'Circuit run complete.',
+        flowReport: {
+          findings: [],
+          verdict: 'CLEAN',
+          outcome: 'complete',
+          evidence_summary: {
+            kind: 'git-working-tree',
+            untracked_content_policy: 'metadata-only',
+            untracked_file_count: 0,
+            untracked_files_sampled: 0,
+            untracked_files_truncated: false,
+            target_kind: 'working_tree',
+            target_mode: mode,
+            target_diff_included: false,
+          },
+          evidence_warnings: [],
+        },
+      });
+
+      expect(projection.headline).toBe(
+        'Circuit: Review did not have usable source evidence. Findings: 0.',
+      );
+      expect(projection.headline).not.toContain('Verdict: CLEAN');
+    },
+  );
+
+  it('keeps a complete untracked-only working-tree Review eligible for a clean result', () => {
+    const projection = projectSummary({
+      runFolder: '/tmp/circuit-run',
+      flowId: 'review',
+      runOutcome: 'complete',
+      resultSummary: 'Circuit run complete.',
+      flowReport: {
+        findings: [],
+        verdict: 'CLEAN',
+        outcome: 'complete',
+        evidence_summary: {
+          kind: 'git-working-tree',
+          untracked_content_policy: 'include-content',
+          untracked_file_count: 1,
+          untracked_files_sampled: 1,
+          untracked_files_truncated: false,
+          target_kind: 'working_tree',
+          target_mode: 'all',
+          target_diff_included: false,
+        },
+        evidence_warnings: [],
+      },
+    });
+
+    expect(projection.headline).toBe('Circuit: Review complete. Verdict: CLEAN. Findings: 0.');
+    expect(projection.details).toContain(
+      'Untracked evidence: contents included for 1 file (1 untracked file found).',
+    );
+  });
+
+  it('names a stopped Review instead of saying it completed', () => {
+    const projection = projectSummary({
+      runFolder: '/tmp/circuit-run',
+      flowId: 'review',
+      runOutcome: 'stopped',
+      resultSummary: 'Circuit run stopped.',
+      flowReport: {
+        findings: [
+          {
+            severity: 'high',
+            id: 'unsafe-change',
+            text: 'The change is unsafe.',
+            file_refs: ['src/example.ts:1'],
+          },
+        ],
+        verdict: 'ISSUES_FOUND',
+        outcome: 'stopped',
+        evidence_warnings: [],
+      },
+    });
+
+    expect(projection.headline).toBe(
+      'Circuit: Review stopped. Verdict: ISSUES_FOUND. Findings: 1.',
+    );
+    expect(projection.headline).not.toContain('Review complete');
+  });
+
+  it('leads with incomplete evidence even when the Review also stopped on a finding', () => {
+    const projection = projectSummary({
+      runFolder: '/tmp/circuit-run',
+      flowId: 'review',
+      runOutcome: 'stopped',
+      resultSummary: 'Circuit run stopped.',
+      flowReport: {
+        findings: [
+          {
+            severity: 'medium',
+            id: 'partial-evidence',
+            text: 'Only part of the target was available.',
+            file_refs: [],
+          },
+        ],
+        verdict: 'ISSUES_FOUND',
+        outcome: 'stopped',
+        evidence_warnings: [
+          {
+            kind: 'diff_truncated',
+            message: 'The selected diff was truncated.',
+          },
+        ],
+      },
+    });
+
+    expect(projection.headline).toBe(
+      'Circuit: Review source evidence was incomplete. Findings: 1.',
+    );
+  });
+});
+
 describe('operator-summary Prototype projection', () => {
   it('summarizes Prototype model-comparison results with selected variant and evidence counts', () => {
     const projection = projectSummary({

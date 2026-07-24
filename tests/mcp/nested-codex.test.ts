@@ -1,9 +1,10 @@
-import { mkdir, mkdtemp, rm, stat } from 'node:fs/promises';
+import { mkdir, mkdtemp, realpath, rm, stat } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
 import type { ConnectorSubprocessResult } from '../../src/connectors/subprocess.js';
+import type { RunMcpCodexSubprocessInput } from '../../src/hosts/codex-mcp/nested-codex-subprocess.js';
 import {
   MCP_CODEX_STDERR_LIMIT_BYTES,
   MCP_CODEX_STDOUT_LIMIT_BYTES,
@@ -262,6 +263,51 @@ describe('MCP nested Codex policy', () => {
     ).resolves.toEqual(
       expect.arrayContaining([expect.objectContaining({ mode: expect.any(Number) })]),
     );
+  });
+
+  it('runs prompt-only relays in a private empty directory instead of the repository', async () => {
+    const tempRoot = await privateTempRoot();
+    const workspace = join(tempRoot, 'workspace');
+    await mkdir(workspace, { mode: 0o700 });
+    const stdout = [
+      JSON.stringify({ type: 'thread.started', thread_id: 'thread-prompt-only' }),
+      JSON.stringify({ type: 'turn.started' }),
+      JSON.stringify({
+        type: 'item.completed',
+        item: { id: 'item-1', type: 'agent_message', text: '{"ok":true}' },
+      }),
+      JSON.stringify({ type: 'turn.completed', usage: {} }),
+    ].join('\n');
+    let spawn: RunMcpCodexSubprocessInput | undefined;
+    const run = vi.fn(async (input: RunMcpCodexSubprocessInput) => {
+      spawn = input;
+      return successfulProcess(stdout);
+    });
+    const relayer = createMcpCodexRelayer(policy({ workspace, tempRoot }), {
+      run,
+      environment: {},
+    });
+
+    await relayer.relay({
+      prompt: 'review only the supplied evidence',
+      promptOnly: true,
+    } as Parameters<typeof relayer.relay>[0]);
+
+    expect(spawn).toBeDefined();
+    const captured = spawn as unknown as RunMcpCodexSubprocessInput;
+    expect(captured.cwd).not.toBe(workspace);
+    expect(captured.cwd.startsWith(await realpath(tempRoot))).toBe(true);
+    expect(captured.args).toEqual(
+      expect.arrayContaining([
+        '--cd',
+        captured.cwd,
+        'features.shell_tool=false',
+        'skills.include_instructions=false',
+        'tools.update_plan.enabled=false',
+      ]),
+    );
+    expect(captured.args).not.toContain(workspace);
+    await expect(stat(captured.cwd)).rejects.toThrow();
   });
 
   it('fails closed on truncated output, timeouts, and nonzero exits', async () => {

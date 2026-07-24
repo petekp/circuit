@@ -391,6 +391,7 @@ function prototypeRelay(
 export function createPackagedFlowRelayer(options: PackagedFlowRelayerOptions): RelayFn {
   return {
     connectorName: 'codex',
+    promptOnlyContext: true,
     relay: async (input) => {
       const fixtureResult =
         reviewRelay(input) ??

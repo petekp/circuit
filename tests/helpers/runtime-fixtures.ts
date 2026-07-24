@@ -120,6 +120,9 @@ export async function captureJson<T = unknown>(
  * constant string or a function of the relay input (for prompt-dependent stubs).
  * `connectorName` defaults to `claude-code`; pass `overrides` for a different
  * `receipt_id`, connector identity, or any other RelayResult field.
+ *
+ * The fixture only consumes the supplied prompt and never reads a workspace,
+ * so it can truthfully declare the prompt-only boundary required by Review.
  */
 export function makeStubRelayer(
   body: string | ((input: RelayInput) => string),
@@ -128,6 +131,7 @@ export function makeStubRelayer(
   const { connectorName = 'claude-code', ...resultOverrides } = overrides;
   return {
     connectorName,
+    promptOnlyContext: true,
     relay: async (input: RelayInput): Promise<RelayResult> =>
       stubRelayResult({
         request_payload: input.prompt,

@@ -10,7 +10,7 @@ import { resolve as resolve9 } from "node:path";
 import { fileURLToPath } from "node:url";
 
 // src/hosts/codex-mcp/nested-codex.ts
-import { constants } from "node:fs";
+import { constants, realpathSync } from "node:fs";
 import { mkdir, mkdtemp, open, realpath, rm } from "node:fs/promises";
 import { delimiter, dirname, isAbsolute as isAbsolute2, join, relative, resolve } from "node:path";
 
@@ -16154,6 +16154,46 @@ var CODEX_WRITE_FLAGS = Object.freeze([
   "--ignore-user-config",
   "--ignore-rules"
 ]);
+var CODEX_PROMPT_ONLY_FLAGS = Object.freeze([
+  "exec",
+  "--json",
+  "--ephemeral",
+  "--skip-git-repo-check",
+  "--ignore-user-config",
+  "--ignore-rules",
+  "--strict-config"
+]);
+var CODEX_PROMPT_ONLY_BASE_CONFIG = Object.freeze([
+  'approval_policy="never"',
+  'history.persistence="none"',
+  "allow_login_shell=false",
+  "project_doc_max_bytes=0",
+  "skills.include_instructions=false",
+  ...[
+    "apps",
+    "auth_elicitation",
+    "browser_use",
+    "browser_use_external",
+    "browser_use_full_cdp_access",
+    "computer_use",
+    "hooks",
+    "image_generation",
+    "in_app_browser",
+    "memories",
+    "multi_agent",
+    "plugin_sharing",
+    "plugins",
+    "remote_plugin",
+    "shell_snapshot",
+    "shell_tool",
+    "skill_mcp_dependency_install",
+    "tool_call_mcp_elicitation",
+    "workspace_dependencies"
+  ].map((feature) => `features.${feature}=false`),
+  "tools.update_plan.enabled=false",
+  "mcp_servers={}",
+  'web_search="disabled"'
+]);
 var CODEX_FORBIDDEN_ARGV_TOKENS = Object.freeze([
   "--dangerously-bypass-approvals-and-sandbox",
   "--full-auto",
@@ -16255,6 +16295,12 @@ var KNOWN_CODEX_ITEM_TYPES = /* @__PURE__ */ new Set([
   "web_search",
   "error"
 ]);
+var PROMPT_ONLY_FORBIDDEN_CODEX_ITEM_TYPES = /* @__PURE__ */ new Set([
+  "command_execution",
+  "file_change",
+  "todo_list",
+  "web_search"
+]);
 var CODEX_WEB_SEARCH_MAX_STRING_LENGTH = 16 * 1024;
 var CODEX_WEB_SEARCH_COMPLETED_ACTION_TYPES = /* @__PURE__ */ new Set([
   "search",
@@ -16332,7 +16378,7 @@ var CODEX_TESTED_CLI_RANGE = "0.144.3 through 0.145.0";
 function codexUnknownTypeRemediation(detectedVersion) {
   return `Circuit has verified Codex CLI ${CODEX_TESTED_CLI_RANGE}, and your Codex CLI reports "${detectedVersion}". The installed Codex version may be outside this tested range, or it may have added a protocol shape Circuit has not reviewed. Check your Codex CLI version with: codex --version. Update or pin Codex CLI to a version in this range, preferably 0.145.0, then retry.`;
 }
-function parseCodexStdout(stdout, prompt, duration_ms, cli_version) {
+function parseCodexStdout(stdout, prompt, duration_ms, cli_version, options = {}) {
   const trace_entries = parseNdjsonObjects(stdout, "codex --json");
   if (trace_entries.length === 0) {
     throw new Error("codex --json stdout is empty");
@@ -16377,6 +16423,9 @@ function parseCodexStdout(stdout, prompt, duration_ms, cli_version) {
     if (typeof itemType !== "string") {
       throw new Error(`item.started[${idx}].item.type is not a string`);
     }
+    if (options.promptOnly === true && PROMPT_ONLY_FORBIDDEN_CODEX_ITEM_TYPES.has(itemType)) {
+      throw new Error(`prompt-only relay boundary violated: item.started used ${itemType}`);
+    }
     if (itemType === "error") {
       throw new Error(
         "capability-boundary violation: item.started item.type='error' is not a reviewed start item type"
@@ -16405,6 +16454,9 @@ function parseCodexStdout(stdout, prompt, duration_ms, cli_version) {
     const itemType = item2.type;
     if (typeof itemType !== "string") {
       throw new Error(`item.completed[${idx}].item.type is not a string`);
+    }
+    if (options.promptOnly === true && PROMPT_ONLY_FORBIDDEN_CODEX_ITEM_TYPES.has(itemType)) {
+      throw new Error(`prompt-only relay boundary violated: item.completed used ${itemType}`);
     }
     if (!KNOWN_CODEX_ITEM_TYPES.has(itemType)) {
       throw new Error(
@@ -16449,6 +16501,9 @@ function parseCodexStdout(stdout, prompt, duration_ms, cli_version) {
     const itemType = item2.type;
     if (typeof itemType !== "string") {
       throw new Error(`item.updated[${idx}].item.type is not a string`);
+    }
+    if (options.promptOnly === true && PROMPT_ONLY_FORBIDDEN_CODEX_ITEM_TYPES.has(itemType)) {
+      throw new Error(`prompt-only relay boundary violated: item.updated used ${itemType}`);
     }
     if (itemType === "error") {
       throw new Error(
@@ -16819,10 +16874,29 @@ function buildMcpCodexSandboxConfigArgs(policy) {
   ];
   return entries.flatMap((entry) => ["-c", entry]);
 }
-function buildMcpCodexArgs(input, policy, schemaPath) {
+function buildMcpCodexArgs(input, policy, schemaPath, workingDirectory = policy.workspace) {
   assertPolicy(policy);
+  const privateRoot = input.promptOnly === true ? (() => {
+    try {
+      return realpathSync(policy.tempRoot);
+    } catch {
+      return resolve(policy.tempRoot);
+    }
+  })() : resolve(policy.tempRoot);
+  if (input.promptOnly === true && !pathInside(privateRoot, resolve(workingDirectory))) {
+    throw new Error("The prompt-only Codex directory escaped its private run directory.");
+  }
   const model = selectedModel(input.resolvedSelection, policy);
   const effort = selectedEffort(input.resolvedSelection);
+  const hardeningArgs = input.promptOnly === true ? [
+    ...MCP_CODEX_HARDENING_CONFIG_ARGS.map(
+      (arg) => arg === "features.shell_tool=true" ? "features.shell_tool=false" : arg
+    ),
+    "-c",
+    "skills.include_instructions=false",
+    "-c",
+    "tools.update_plan.enabled=false"
+  ] : MCP_CODEX_HARDENING_CONFIG_ARGS;
   const args = [
     "exec",
     "--json",
@@ -16830,11 +16904,11 @@ function buildMcpCodexArgs(input, policy, schemaPath) {
     "--skip-git-repo-check",
     ...MCP_CODEX_STRICT_FLAGS,
     "--cd",
-    policy.workspace,
-    ...MCP_CODEX_HARDENING_CONFIG_ARGS,
+    workingDirectory,
+    ...hardeningArgs,
     ...buildMcpCodexSandboxConfigArgs(policy),
     "-c",
-    `web_search=${JSON.stringify(policy.searchMode === "cached" ? "cached" : "disabled")}`,
+    `web_search=${JSON.stringify(input.promptOnly !== true && policy.searchMode === "cached" ? "cached" : "disabled")}`,
     "-m",
     model
   ];
@@ -16919,33 +16993,54 @@ function createMcpCodexRelayer(policy, dependencies = {
   };
   return {
     connectorName: "codex",
+    promptOnlyContext: true,
     connector: { kind: "builtin", name: "codex" },
     relay: async (input) => {
       const model = selectedModel(input.resolvedSelection, policy);
       const schema = await writeResponseSchema(policy, input.responseSchema);
+      let promptOnlyDirectory;
       try {
         await Promise.all([
           mkdir(privateDirectories.home, { recursive: true, mode: 448 }),
           mkdir(privateDirectories.temp, { recursive: true, mode: 448 })
         ]);
+        if (input.promptOnly === true) {
+          await mkdir(policy.tempRoot, { recursive: true, mode: 448 });
+          const canonicalRoot = await realpath(policy.tempRoot);
+          promptOnlyDirectory = await mkdtemp(join(canonicalRoot, "prompt-only-"));
+          const canonicalPromptOnlyDirectory = await realpath(promptOnlyDirectory);
+          if (canonicalPromptOnlyDirectory !== promptOnlyDirectory || !pathInside(canonicalRoot, canonicalPromptOnlyDirectory)) {
+            throw new Error("The private prompt-only Codex directory escaped its run directory.");
+          }
+        }
         await dependencies.verifyBeforeSpawn?.();
         const result = await dependencies.run({
           executable: policy.executable,
-          args: buildMcpCodexArgs(input, policy, schema.path),
+          args: buildMcpCodexArgs(
+            input,
+            policy,
+            schema.path,
+            promptOnlyDirectory ?? policy.workspace
+          ),
           timeoutMs: input.timeoutMs ?? DEFAULT_ABSOLUTE_TIMEOUT_MS,
           idleTimeoutMs: input.idleTimeoutMs ?? DEFAULT_IDLE_TIMEOUT_MS,
           stdoutMaxBytes: MCP_CODEX_STDOUT_LIMIT_BYTES,
           stderrMaxBytes: MCP_CODEX_STDERR_LIMIT_BYTES,
           sigtermToSigkillGraceMs: SIGTERM_TO_SIGKILL_GRACE_MS,
           env: environment,
-          cwd: policy.workspace
+          cwd: promptOnlyDirectory ?? policy.workspace
         });
         assertSuccessfulProcess(result);
         return {
-          ...parseCodexStdout(result.stdout, input.prompt, result.durationMs, policy.cliVersion),
+          ...parseCodexStdout(result.stdout, input.prompt, result.durationMs, policy.cliVersion, {
+            promptOnly: input.promptOnly === true
+          }),
           model
         };
       } finally {
+        if (promptOnlyDirectory !== void 0) {
+          await rm(promptOnlyDirectory, { recursive: true, force: true });
+        }
         await schema.cleanup();
       }
     }
@@ -17655,7 +17750,7 @@ import { access, realpath as realpath5 } from "node:fs/promises";
 import { basename as basename3, delimiter as delimiter4, dirname as dirname4, isAbsolute as isAbsolute9, join as join6, relative as relative6, resolve as resolve6 } from "node:path";
 
 // src/shared/proof-plan.ts
-import { existsSync, lstatSync, readFileSync, realpathSync } from "node:fs";
+import { existsSync, lstatSync, readFileSync, realpathSync as realpathSync2 } from "node:fs";
 import { isAbsolute as isAbsolute6, join as join3, relative as relative3, resolve as resolve3 } from "node:path";
 var ProofPlanBlockedError = class extends Error {
   constructor(message) {
@@ -17680,7 +17775,7 @@ function resolveProjectRelativeProofCwd(projectRoot, cwd) {
       `verification project root rejected: ${rootAbs} does not exist`
     );
   }
-  const rootReal = realpathSync.native(rootAbs);
+  const rootReal = realpathSync2.native(rootAbs);
   let cursor = rootAbs;
   for (const segment of cwd.split("/")) {
     if (segment === ".") continue;
@@ -17696,14 +17791,14 @@ function resolveProjectRelativeProofCwd(projectRoot, cwd) {
         `verification cwd rejected: ${JSON.stringify(cwd)} crosses symlink ${JSON.stringify(cursor)}`
       );
     }
-    const cursorReal = realpathSync.native(cursor);
+    const cursorReal = realpathSync2.native(cursor);
     if (!isInsideOrSame(rootReal, cursorReal)) {
       throw new ProofPlanBlockedError(
         `verification cwd rejected: ${JSON.stringify(cwd)} escapes real project root through ${JSON.stringify(cursor)}`
       );
     }
   }
-  const targetReal = realpathSync.native(targetAbs);
+  const targetReal = realpathSync2.native(targetAbs);
   if (!isInsideOrSame(rootReal, targetReal)) {
     throw new ProofPlanBlockedError(
       `verification cwd rejected: ${JSON.stringify(cwd)} escapes real project root`
@@ -18676,11 +18771,185 @@ function createMacosProofSandbox(options) {
 
 // src/hosts/codex-mcp/safe-git-reader.ts
 import { lstat as lstat2, readFile, realpath as realpath4, stat as stat3 } from "node:fs/promises";
-import { basename as basename2, isAbsolute as isAbsolute8, join as join5, relative as relative5, resolve as resolve5 } from "node:path";
+import { basename as basename2, isAbsolute as isAbsolute8, join as join5, relative as relative5, resolve as resolve5, sep as sep2 } from "node:path";
+
+// src/shared/github-repository.ts
+var GITHUB_REPOSITORY_PART = /^[A-Za-z0-9_.-]+$/u;
+var GITHUB_REMOTE_PROTOCOLS = /* @__PURE__ */ new Set([
+  "git:",
+  "git+ssh:",
+  "http:",
+  "https:",
+  "ssh:",
+  "ssh+git:"
+]);
+function repositoryIdentity(owner, name) {
+  const normalizedOwner = owner.trim();
+  const normalizedName = name.trim().replace(/\.git$/iu, "");
+  if (normalizedOwner.length === 0 || normalizedName.length === 0 || !GITHUB_REPOSITORY_PART.test(normalizedOwner) || !GITHUB_REPOSITORY_PART.test(normalizedName)) {
+    return void 0;
+  }
+  return {
+    host: "github.com",
+    owner: normalizedOwner.toLowerCase(),
+    name: normalizedName.toLowerCase()
+  };
+}
+function githubRepositoryKey(repository) {
+  return `${repository.host}/${repository.owner}/${repository.name}`;
+}
+function parseGitHubRepositoryKey(value) {
+  if (typeof value !== "string") return void 0;
+  const parts = value.split("/");
+  if (parts.length !== 3 || parts[0] !== "github.com") return void 0;
+  const owner = parts[1];
+  const name = parts[2];
+  if (owner === void 0 || name === void 0) return void 0;
+  const repository = repositoryIdentity(owner, name);
+  if (repository === void 0) return void 0;
+  const key = githubRepositoryKey(repository);
+  return key === value ? key : void 0;
+}
+function parseGitHubRemoteUrl(value) {
+  const trimmed = value.trim();
+  const scp = /^(?:[^@\s]+@)?(?:www\.)?github\.com:(?<owner>[^/\s]+)\/(?<name>[^/\s]+)$/iu.exec(
+    trimmed
+  );
+  if (scp?.groups?.owner !== void 0 && scp.groups.name !== void 0) {
+    return repositoryIdentity(scp.groups.owner, scp.groups.name);
+  }
+  let parsed;
+  try {
+    parsed = new URL(trimmed);
+  } catch {
+    return void 0;
+  }
+  if (!["github.com", "www.github.com"].includes(parsed.hostname.toLowerCase()) || !GITHUB_REMOTE_PROTOCOLS.has(parsed.protocol.toLowerCase()) || parsed.search.length > 0 || parsed.hash.length > 0) {
+    return void 0;
+  }
+  const parts = parsed.pathname.split("/").filter((part) => part.length > 0);
+  if (parts.length !== 2 || parts[0] === void 0 || parts[1] === void 0) return void 0;
+  return repositoryIdentity(parts[0], parts[1]);
+}
+function githubRepositoriesFromGitConfig(output) {
+  const repositories = /* @__PURE__ */ new Set();
+  for (const { key, value } of gitConfigEntries(output)) {
+    if (!/^remote\..+\.url$/iu.test(key)) continue;
+    const repository = parseGitHubRemoteUrl(value);
+    if (repository !== void 0) repositories.add(githubRepositoryKey(repository));
+  }
+  return Object.freeze([...repositories].sort());
+}
+function gitConfigEntries(output) {
+  const entries = [];
+  for (const entry of output.split("\0")) {
+    if (entry.length === 0) continue;
+    const separator = entry.indexOf("\n");
+    if (separator === -1) continue;
+    entries.push({
+      key: entry.slice(0, separator),
+      value: entry.slice(separator + 1)
+    });
+  }
+  return entries;
+}
+function fetchRefMapsPullRequest(refspec, number4, expectedDestination) {
+  const normalized = refspec.startsWith("+") ? refspec.slice(1) : refspec;
+  if (normalized.startsWith("^")) return false;
+  const separator = normalized.indexOf(":");
+  if (separator === -1 || normalized.indexOf(":", separator + 1) !== -1) return false;
+  const source = normalized.slice(0, separator);
+  const destination = normalized.slice(separator + 1);
+  const exactSource = `refs/pull/${number4}/merge`;
+  if (source === exactSource) return destination === expectedDestination;
+  if (source !== "refs/pull/*/merge") return false;
+  if ((destination.match(/\*/gu) ?? []).length !== 1) return false;
+  return destination.replace("*", String(number4)) === expectedDestination;
+}
+function negativeFetchRefExcludesPullRequest(refspec, number4) {
+  if (!refspec.startsWith("^")) return false;
+  const source = refspec.slice(1);
+  if (source.length === 0 || source.includes(":")) return false;
+  const expectedSource = `refs/pull/${number4}/merge`;
+  if (source === expectedSource) return true;
+  if ((source.match(/\*/gu) ?? []).length !== 1) return false;
+  const wildcard = source.indexOf("*");
+  const prefix = source.slice(0, wildcard);
+  const suffix = source.slice(wildcard + 1);
+  return expectedSource.startsWith(prefix) && expectedSource.endsWith(suffix) && expectedSource.length >= prefix.length + suffix.length;
+}
+function githubPullRequestMergeRefsFromGitConfig(output, number4) {
+  const remotes = /* @__PURE__ */ new Map();
+  for (const { key, value } of gitConfigEntries(output)) {
+    const match = /^remote\.(?<name>.+)\.(?<field>url|fetch)$/iu.exec(key);
+    const name = match?.groups?.name;
+    const field = match?.groups?.field?.toLowerCase();
+    if (name === void 0 || field === void 0) continue;
+    const remote = remotes.get(name) ?? { urls: [], fetches: [] };
+    if (field === "url") remote.urls.push(value);
+    else remote.fetches.push(value);
+    remotes.set(name, remote);
+  }
+  const candidates = /* @__PURE__ */ new Map();
+  for (const remote of remotes.values()) {
+    const repositories = new Set(
+      remote.urls.map(parseGitHubRemoteUrl).filter((repository2) => repository2 !== void 0).map(githubRepositoryKey)
+    );
+    if (repositories.size !== 1) continue;
+    const repository = [...repositories][0];
+    if (repository === void 0) continue;
+    const ref = `refs/circuit/${repository}/pull/${number4}/merge`;
+    if (remote.fetches.some((fetch) => negativeFetchRefExcludesPullRequest(fetch, number4))) {
+      continue;
+    }
+    if (!remote.fetches.some((fetch) => fetchRefMapsPullRequest(fetch, number4, ref))) continue;
+    candidates.set(`${repository}\0${ref}`, { repository, ref });
+  }
+  return Object.freeze(
+    [...candidates.values()].sort(
+      (left, right) => `${left.repository}\0${left.ref}`.localeCompare(`${right.repository}\0${right.ref}`)
+    )
+  );
+}
+
+// src/shared/runtime-git-reader.ts
+var RUNTIME_GIT_HARDENED_CONFIG = Object.freeze([
+  "core.hooksPath=/dev/null",
+  "core.fsmonitor=false",
+  "core.untrackedCache=false",
+  "core.attributesFile=/dev/null",
+  "core.excludesFile=/dev/null",
+  "color.ui=false",
+  "color.diff=false",
+  "diff.external=",
+  "interactive.diffFilter=",
+  "credential.helper=",
+  "core.sshCommand=false",
+  "protocol.allow=never",
+  "protocol.file.allow=never",
+  "protocol.ext.allow=never",
+  "submodule.recurse=false"
+]);
+function runtimeGitTextIsValidUtf8(text) {
+  if (text.includes("\uFFFD")) return false;
+  for (let index = 0; index < text.length; index += 1) {
+    const code = text.charCodeAt(index);
+    if (code >= 55296 && code <= 56319) {
+      const next = text.charCodeAt(index + 1);
+      if (next < 56320 || next > 57343) return false;
+      index += 1;
+      continue;
+    }
+    if (code >= 56320 && code <= 57343) return false;
+  }
+  return true;
+}
+
+// src/hosts/codex-mcp/safe-git-reader.ts
 var MAX_GIT_POINTER_BYTES = 8 * 1024;
 var GIT_OUTPUT_LIMIT_BYTES = 2 * 1024 * 1024;
 var GIT_TIMEOUT_MS = 3e4;
-var REQUEST_FIELDS2 = /* @__PURE__ */ new Set(["operation"]);
+var REQUEST_FIELDS2 = /* @__PURE__ */ new Set(["operation", "target"]);
 var SafeGitReadError = class extends Error {
   code;
   constructor(code, message) {
@@ -18699,32 +18968,62 @@ var SAFE_GIT_ENVIRONMENT2 = Object.freeze({
   GIT_ATTR_NOSYSTEM: "1",
   GIT_NO_REPLACE_OBJECTS: "1"
 });
-var HARDENED_CONFIG = [
-  "core.hooksPath=/dev/null",
-  "core.fsmonitor=false",
-  "core.untrackedCache=false",
-  "core.attributesFile=/dev/null",
-  "core.excludesFile=/dev/null",
-  "diff.external=",
-  "interactive.diffFilter=",
-  "credential.helper=",
-  "core.sshCommand=false",
-  "protocol.allow=never",
-  "protocol.file.allow=never",
-  "protocol.ext.allow=never",
-  "submodule.recurse=false"
-];
 var OPERATION_ARGS = {
   status: ["status", "--porcelain=v1", "-z", "--untracked-files=all", "--ignore-submodules=none"],
-  staged_diff: ["diff", "--no-ext-diff", "--no-textconv", "--submodule=short", "--cached", "--"],
-  unstaged_diff: ["diff", "--no-ext-diff", "--no-textconv", "--submodule=short", "--"],
+  staged_diff: [
+    "diff",
+    "--no-ext-diff",
+    "--no-textconv",
+    "--submodule=short",
+    "--ignore-submodules=none",
+    "--cached",
+    "--"
+  ],
+  unstaged_diff: [
+    "diff",
+    "--no-ext-diff",
+    "--no-textconv",
+    "--submodule=short",
+    "--ignore-submodules=none",
+    "--"
+  ],
   staged_diff_stat: [
     "diff",
     "--no-ext-diff",
     "--no-textconv",
     "--submodule=short",
+    "--ignore-submodules=none",
     "--stat",
     "--cached",
+    "--"
+  ],
+  unstaged_diff_stat: [
+    "diff",
+    "--stat",
+    "--no-ext-diff",
+    "--no-textconv",
+    "--submodule=short",
+    "--ignore-submodules=none",
+    "--"
+  ],
+  hidden_index_flags: ["ls-files", "-v", "-z", "--"],
+  staged_changed_gitlinks: [
+    "diff",
+    "--raw",
+    "-z",
+    "--no-abbrev",
+    "--no-renames",
+    "--ignore-submodules=none",
+    "--cached",
+    "--"
+  ],
+  unstaged_changed_gitlinks: [
+    "diff",
+    "--raw",
+    "-z",
+    "--no-abbrev",
+    "--no-renames",
+    "--ignore-submodules=none",
     "--"
   ],
   untracked_files: ["ls-files", "--others", "--exclude-standard", "-z", "--"],
@@ -18751,7 +19050,7 @@ function errorMessage2(error51) {
 }
 function isInside2(root, candidate) {
   const fromRoot = relative5(root, candidate);
-  return fromRoot === "" || !fromRoot.startsWith("..") && !isAbsolute8(fromRoot);
+  return fromRoot === "" || fromRoot !== ".." && !fromRoot.startsWith(`..${sep2}`) && !isAbsolute8(fromRoot);
 }
 async function readSmallRegularFile(candidate, label) {
   const metadata = await lstat2(candidate).catch((error51) => {
@@ -18780,6 +19079,21 @@ async function rejectObjectAlternates(gitDirectories) {
       throw new SafeGitReadError(
         "unsafe_git_directory",
         "Git object alternates can escape the trusted Git directory and are not supported."
+      );
+    } catch (error51) {
+      if (error51.code === "ENOENT") continue;
+      throw error51;
+    }
+  }
+}
+async function rejectLegacyGrafts(gitDirectories) {
+  for (const directory of gitDirectories) {
+    const grafts = join5(directory, "info", "grafts");
+    try {
+      await lstat2(grafts);
+      throw new SafeGitReadError(
+        "unsafe_git_directory",
+        "Legacy Git graft metadata can change commit ancestry and is not supported."
       );
     } catch (error51) {
       if (error51.code === "ENOENT") continue;
@@ -18842,6 +19156,7 @@ async function resolveSafeGitRepository(workspaceInput) {
     }
     await rejectMetadataSymlinks([gitDirectory2]);
     await rejectObjectAlternates([gitDirectory2]);
+    await rejectLegacyGrafts([gitDirectory2]);
     return Object.freeze({
       workspace,
       git_dir: gitDirectory2,
@@ -18904,12 +19219,155 @@ async function resolveSafeGitRepository(workspaceInput) {
   }
   await rejectMetadataSymlinks([gitDirectory, commonDirectory]);
   await rejectObjectAlternates([gitDirectory, commonDirectory]);
+  await rejectLegacyGrafts([gitDirectory, commonDirectory]);
   return Object.freeze({
     workspace,
     git_dir: gitDirectory,
     common_dir: commonDirectory,
     read_roots: Object.freeze([.../* @__PURE__ */ new Set([workspace, gitDirectory, commonDirectory])])
   });
+}
+function validateRefToken(value, label) {
+  if (typeof value !== "string" || value.length === 0) {
+    throw new SafeGitReadError("invalid_git_read", `${label} must be a non-empty Git ref.`);
+  }
+  if (value.length > 120 || value.startsWith("-") || value.includes("\0") || value.includes("..") || value.includes("@{") || !/^[A-Za-z0-9._/@+~^-]+$/u.test(value)) {
+    throw new SafeGitReadError("invalid_git_read", `${label} is an unsafe Git ref.`);
+  }
+  return value;
+}
+function parseSymbolicTarget(value) {
+  if (typeof value !== "object" || value === null || Array.isArray(value)) {
+    throw new SafeGitReadError("invalid_git_read", "Git target must be an object.");
+  }
+  const record2 = value;
+  if (record2.kind === "commit") {
+    for (const key of Object.keys(record2)) {
+      if (key !== "kind" && key !== "ref") {
+        throw new SafeGitReadError("invalid_git_read", `Unknown Git commit target field ${key}.`);
+      }
+    }
+    return { kind: "commit", ref: validateRefToken(record2.ref, "Git target ref") };
+  }
+  if (record2.kind === "range") {
+    for (const key of Object.keys(record2)) {
+      if (key !== "kind" && key !== "base" && key !== "head" && key !== "dots") {
+        throw new SafeGitReadError("invalid_git_read", `Unknown Git range target field ${key}.`);
+      }
+    }
+    if (record2.dots !== ".." && record2.dots !== "...") {
+      throw new SafeGitReadError("invalid_git_read", "Git target range dots must be .. or ....");
+    }
+    return {
+      kind: "range",
+      base: validateRefToken(record2.base, "Git target base ref"),
+      head: validateRefToken(record2.head, "Git target head ref"),
+      dots: record2.dots
+    };
+  }
+  if (record2.kind === "pull_request") {
+    for (const key of Object.keys(record2)) {
+      if (key !== "kind" && key !== "number" && key !== "repository") {
+        throw new SafeGitReadError(
+          "invalid_git_read",
+          `Unknown Git pull request target field ${key}.`
+        );
+      }
+    }
+    if (typeof record2.number !== "number" || !Number.isInteger(record2.number) || record2.number < 1 || record2.number > 999999) {
+      throw new SafeGitReadError("invalid_git_read", "Git pull request target is invalid.");
+    }
+    const repository = record2.repository === void 0 ? void 0 : parseGitHubRepositoryKey(record2.repository);
+    if (record2.repository !== void 0 && repository === void 0) {
+      throw new SafeGitReadError(
+        "invalid_git_read",
+        "Git pull request repository must be a canonical GitHub repository identity."
+      );
+    }
+    return {
+      kind: "pull_request",
+      number: record2.number,
+      ...repository === void 0 ? {} : { repository }
+    };
+  }
+  throw new SafeGitReadError("invalid_git_read", "Git target kind is not supported.");
+}
+function validateObjectId(value, label) {
+  if (typeof value !== "string" || !/^(?:[0-9a-f]{40}|[0-9a-f]{64})$/u.test(value)) {
+    throw new SafeGitReadError(
+      "invalid_git_read",
+      `${label} must be a full immutable Git object id.`
+    );
+  }
+  return value;
+}
+function parsePinnedTarget(value) {
+  if (typeof value !== "object" || value === null || Array.isArray(value)) {
+    throw new SafeGitReadError("invalid_git_read", "Pinned Git target must be an object.");
+  }
+  const record2 = value;
+  if (record2.kind === "commit") {
+    for (const key of Object.keys(record2)) {
+      if (key !== "kind" && key !== "commit") {
+        throw new SafeGitReadError(
+          "invalid_git_read",
+          `Unknown pinned Git commit target field ${key}.`
+        );
+      }
+    }
+    return {
+      kind: "commit",
+      commit: validateObjectId(record2.commit, "Pinned Git commit id")
+    };
+  }
+  if (record2.kind === "range") {
+    for (const key of Object.keys(record2)) {
+      if (key !== "kind" && key !== "base_commit" && key !== "head_commit" && key !== "dots") {
+        throw new SafeGitReadError(
+          "invalid_git_read",
+          `Unknown pinned Git range target field ${key}.`
+        );
+      }
+    }
+    if (record2.dots !== ".." && record2.dots !== "...") {
+      throw new SafeGitReadError("invalid_git_read", "Pinned Git range dots must be .. or ....");
+    }
+    return {
+      kind: "range",
+      base_commit: validateObjectId(record2.base_commit, "Pinned Git base commit id"),
+      head_commit: validateObjectId(record2.head_commit, "Pinned Git head commit id"),
+      dots: record2.dots
+    };
+  }
+  if (record2.kind === "pull_request") {
+    for (const key of Object.keys(record2)) {
+      if (key !== "kind" && key !== "number" && key !== "repository" && key !== "merge_commit" && key !== "base_commit" && key !== "head_commit") {
+        throw new SafeGitReadError(
+          "invalid_git_read",
+          `Unknown pinned Git pull request target field ${key}.`
+        );
+      }
+    }
+    if (typeof record2.number !== "number" || !Number.isInteger(record2.number) || record2.number < 1 || record2.number > 999999) {
+      throw new SafeGitReadError("invalid_git_read", "Pinned Git pull request number is invalid.");
+    }
+    const repository = record2.repository === void 0 ? void 0 : parseGitHubRepositoryKey(record2.repository);
+    if (record2.repository !== void 0 && repository === void 0) {
+      throw new SafeGitReadError(
+        "invalid_git_read",
+        "Pinned Git pull request repository must be a canonical GitHub repository identity."
+      );
+    }
+    return {
+      kind: "pull_request",
+      number: record2.number,
+      ...repository === void 0 ? {} : { repository },
+      merge_commit: validateObjectId(record2.merge_commit, "Pinned Git PR merge commit id"),
+      base_commit: validateObjectId(record2.base_commit, "Pinned Git PR base commit id"),
+      head_commit: validateObjectId(record2.head_commit, "Pinned Git PR head commit id")
+    };
+  }
+  throw new SafeGitReadError("invalid_git_read", "Pinned Git target kind is not supported.");
 }
 function parseRequest(value) {
   if (typeof value !== "object" || value === null || Array.isArray(value)) {
@@ -18921,10 +19379,23 @@ function parseRequest(value) {
       throw new SafeGitReadError("invalid_git_read", `Unknown field ${JSON.stringify(key)}.`);
     }
   }
-  if (record2.operation !== "status" && record2.operation !== "staged_diff" && record2.operation !== "unstaged_diff" && record2.operation !== "staged_diff_stat" && record2.operation !== "untracked_files" && record2.operation !== "submodules") {
+  if (record2.operation !== "status" && record2.operation !== "staged_diff" && record2.operation !== "unstaged_diff" && record2.operation !== "staged_diff_stat" && record2.operation !== "unstaged_diff_stat" && record2.operation !== "remote_repositories" && record2.operation !== "resolve_target" && record2.operation !== "target_diff" && record2.operation !== "target_diff_stat" && record2.operation !== "hidden_index_flags" && record2.operation !== "staged_changed_gitlinks" && record2.operation !== "unstaged_changed_gitlinks" && record2.operation !== "untracked_files" && record2.operation !== "submodules") {
     throw new SafeGitReadError("invalid_git_read", "Git read operation is not supported.");
   }
-  return record2.operation;
+  const operation = record2.operation;
+  if (operation === "resolve_target") {
+    return { operation, target: parseSymbolicTarget(record2.target) };
+  }
+  if (operation === "target_diff" || operation === "target_diff_stat") {
+    return { operation, target: parsePinnedTarget(record2.target) };
+  }
+  if (record2.target !== void 0) {
+    throw new SafeGitReadError(
+      "invalid_git_read",
+      "Git target is only allowed for target resolution and diff operations."
+    );
+  }
+  return { operation };
 }
 async function resolveGitExecutable(candidate) {
   if (!isAbsolute8(candidate)) {
@@ -18945,22 +19416,205 @@ async function resolveGitExecutable(candidate) {
   }
   return executable;
 }
-function gitArgv(executable, repository, operation, dynamicConfig = []) {
+function targetArgs(operation, target, commitParent) {
+  const stat5 = operation === "target_diff_stat" ? ["--stat"] : [];
+  if (target.kind === "commit") {
+    if (commitParent === void 0) {
+      throw new SafeGitReadError(
+        "invalid_git_read",
+        "Pinned commit ancestry must be inspected before reading its diff."
+      );
+    }
+    if (commitParent !== null) {
+      return Object.freeze([
+        "diff",
+        ...stat5,
+        "--no-ext-diff",
+        "--no-textconv",
+        "--submodule=short",
+        "--ignore-submodules=none",
+        `${commitParent}^{commit}`,
+        `${target.commit}^{commit}`,
+        "--"
+      ]);
+    }
+    return Object.freeze([
+      "show",
+      "--format=",
+      ...stat5,
+      "--no-ext-diff",
+      "--no-textconv",
+      "--submodule=short",
+      "--ignore-submodules=none",
+      "--root",
+      `${target.commit}^{commit}`,
+      "--"
+    ]);
+  }
+  if (target.kind === "range") {
+    return Object.freeze([
+      "diff",
+      ...stat5,
+      "--no-ext-diff",
+      "--no-textconv",
+      "--submodule=short",
+      "--ignore-submodules=none",
+      `${target.base_commit}^{commit}${target.dots}${target.head_commit}^{commit}`,
+      "--"
+    ]);
+  }
+  return Object.freeze([
+    "diff",
+    ...stat5,
+    "--no-ext-diff",
+    "--no-textconv",
+    "--submodule=short",
+    "--ignore-submodules=none",
+    `${target.base_commit}^{commit}...${target.head_commit}^{commit}`,
+    "--"
+  ]);
+}
+function resolveTargetArgs(target, pullRequestMergeRef) {
+  if (target.kind === "commit") {
+    return Object.freeze(["rev-parse", "--verify", "--end-of-options", `${target.ref}^{commit}`]);
+  }
+  if (target.kind === "range") {
+    return Object.freeze([
+      "rev-parse",
+      "--revs-only",
+      "--end-of-options",
+      `${target.base}^{commit}..${target.head}^{commit}`
+    ]);
+  }
+  if (pullRequestMergeRef === void 0) {
+    throw new SafeGitReadError(
+      "invalid_git_read",
+      `PR #${target.number} has no repository-bound local merge ref.`
+    );
+  }
+  return Object.freeze([
+    "rev-parse",
+    "--revs-only",
+    "--end-of-options",
+    `${pullRequestMergeRef}^{commit}`,
+    `${pullRequestMergeRef}^1^{commit}..${pullRequestMergeRef}^2^{commit}`
+  ]);
+}
+function operationArgs(request, commitParent, pullRequestMergeRef) {
+  if (request.operation === "commit_object") {
+    return Object.freeze(["cat-file", "commit", `${request.commit}^{commit}`]);
+  }
+  if (request.operation === "resolve_target") {
+    return resolveTargetArgs(request.target, pullRequestMergeRef);
+  }
+  if (request.operation === "target_diff" || request.operation === "target_diff_stat") {
+    return targetArgs(request.operation, request.target, commitParent);
+  }
+  if (request.operation === "remote_repositories") {
+    throw new SafeGitReadError(
+      "invalid_git_read",
+      "Remote repository identities come from the audited Git configuration."
+    );
+  }
+  return OPERATION_ARGS[request.operation];
+}
+function resolvedObjectId(value, label) {
+  if (value === void 0 || !/^(?:[0-9a-f]{40}|[0-9a-f]{64})$/u.test(value)) {
+    throw new SafeGitReadError(
+      "invalid_git_output",
+      `Git returned an invalid ${label} while resolving the Review target.`
+    );
+  }
+  return value;
+}
+function parseResolvedTarget(target, output) {
+  const lines = output.split("\n");
+  if (lines.at(-1) === "") lines.pop();
+  if (target.kind === "commit") {
+    if (lines.length !== 1) {
+      throw new SafeGitReadError(
+        "invalid_git_output",
+        "Git returned an unexpected commit target resolution shape."
+      );
+    }
+    return {
+      kind: "commit",
+      commit: resolvedObjectId(lines[0], "commit id")
+    };
+  }
+  if (target.kind === "range") {
+    if (lines.length !== 2 || !lines[1]?.startsWith("^")) {
+      throw new SafeGitReadError(
+        "invalid_git_output",
+        "Git returned an unexpected range target resolution shape."
+      );
+    }
+    return {
+      kind: "range",
+      base_commit: resolvedObjectId(lines[1].slice(1), "range base commit id"),
+      head_commit: resolvedObjectId(lines[0], "range head commit id"),
+      dots: target.dots
+    };
+  }
+  if (lines.length !== 3 || !lines[2]?.startsWith("^")) {
+    throw new SafeGitReadError(
+      "invalid_git_output",
+      "Git returned an unexpected PR target resolution shape."
+    );
+  }
+  return {
+    kind: "pull_request",
+    number: target.number,
+    ...target.repository === void 0 ? {} : { repository: target.repository },
+    merge_commit: resolvedObjectId(lines[0], "PR merge commit id"),
+    base_commit: resolvedObjectId(lines[2].slice(1), "PR base commit id"),
+    head_commit: resolvedObjectId(lines[1], "PR head commit id")
+  };
+}
+function parseRawCommitParent(commit, output) {
+  const header = output.split("\n\n", 1)[0] ?? "";
+  const lines = header.split("\n");
+  if (!/^(?:tree) (?:[0-9a-f]{40}|[0-9a-f]{64})$/u.test(lines[0] ?? "")) {
+    throw new SafeGitReadError(
+      "invalid_git_output",
+      `Git returned malformed raw commit data for ${commit}.`
+    );
+  }
+  const parentLines = lines.filter((line) => line.startsWith("parent "));
+  for (const line of parentLines) {
+    if (!/^parent (?:[0-9a-f]{40}|[0-9a-f]{64})$/u.test(line)) {
+      throw new SafeGitReadError(
+        "invalid_git_output",
+        `Git returned an invalid parent id for ${commit}.`
+      );
+    }
+  }
+  return parentLines[0]?.slice("parent ".length) ?? null;
+}
+function gitArgv(executable, repository, request, dynamicConfig = [], commitParent, pullRequestMergeRef) {
   return Object.freeze([
     executable,
     "--no-pager",
     "--no-optional-locks",
     `--git-dir=${repository.git_dir}`,
     `--work-tree=${repository.workspace}`,
-    ...[...HARDENED_CONFIG, ...dynamicConfig].flatMap((value) => ["-c", value]),
-    ...operation === "config_audit" ? CONFIG_AUDIT_ARGS : OPERATION_ARGS[operation]
+    ...[...RUNTIME_GIT_HARDENED_CONFIG, ...dynamicConfig].flatMap((value) => ["-c", value]),
+    ...request.operation === "config_audit" ? CONFIG_AUDIT_ARGS : operationArgs(request, commitParent, pullRequestMergeRef)
   ]);
 }
-function gitRequest(executable, repository, operation, dynamicConfig = []) {
+function gitRequest(executable, repository, request, dynamicConfig = [], commitParent, pullRequestMergeRef) {
+  const operation = request.operation;
   return Object.freeze({
     id: `safe-git-${operation.replaceAll("_", "-")}`,
     cwd: ".",
-    argv: gitArgv(executable, repository, operation, dynamicConfig),
+    argv: gitArgv(
+      executable,
+      repository,
+      request,
+      dynamicConfig,
+      commitParent,
+      pullRequestMergeRef
+    ),
     env: Object.freeze({}),
     timeout_ms: GIT_TIMEOUT_MS,
     max_output_bytes: GIT_OUTPUT_LIMIT_BYTES,
@@ -19001,27 +19655,52 @@ function auditGitConfiguration(output) {
   return Object.freeze([...dynamicConfig].sort());
 }
 function parseSubmodules(output, workspace) {
+  if (output.length === 0) return Object.freeze([]);
+  if (!output.endsWith("\0")) {
+    throw new SafeGitReadError(
+      "invalid_git_output",
+      "Git returned malformed submodule output without a final NUL delimiter."
+    );
+  }
   const submodules = [];
-  for (const entry of output.split("\0")) {
-    if (entry.length === 0) continue;
-    const match = /^160000 ([a-f0-9]{7,64}) (\d+)\t([\s\S]+)$/u.exec(entry);
-    if (match?.[1] === void 0 || match[2] === void 0 || match[3] === void 0) continue;
-    if (match[2] !== "0") {
+  const seenPaths = /* @__PURE__ */ new Set();
+  for (const entry of output.slice(0, -1).split("\0")) {
+    const match = /^(040000|100644|100755|120000|160000) ([a-f0-9]{40}|[a-f0-9]{64}) ([0-3])\t([\s\S]+)$/u.exec(
+      entry
+    );
+    if (match?.[1] === void 0 || match[2] === void 0 || match[3] === void 0 || match[4] === void 0) {
+      throw new SafeGitReadError(
+        "invalid_git_output",
+        "Git returned a malformed index entry while inspecting submodules."
+      );
+    }
+    const mode = match[1];
+    const objectId = match[2];
+    const stage = match[3];
+    const entryPath = match[4];
+    if (isAbsolute8(entryPath) || !isInside2(workspace, resolve5(workspace, entryPath))) {
+      throw new SafeGitReadError(
+        "unsafe_submodule_path",
+        "A Git index path escapes the workspace."
+      );
+    }
+    if (mode !== "160000") continue;
+    if (stage !== "0") {
       throw new SafeGitReadError(
         "unsafe_submodule_state",
         "Unmerged submodule index entries require manual inspection."
       );
     }
-    const submodulePath = match[3];
-    if (isAbsolute8(submodulePath) || !isInside2(workspace, resolve5(workspace, submodulePath))) {
+    if (seenPaths.has(entryPath)) {
       throw new SafeGitReadError(
-        "unsafe_submodule_path",
-        "A submodule path escapes the workspace."
+        "invalid_git_output",
+        `Git returned a duplicate submodule path ${JSON.stringify(entryPath)}.`
       );
     }
+    seenPaths.add(entryPath);
     submodules.push({
-      path: submodulePath,
-      index_oid: match[1],
+      path: entryPath,
+      index_oid: objectId,
       inspection: "gitlink_only"
     });
   }
@@ -19043,45 +19722,146 @@ function failedResult(operation, result) {
     cleanup_confirmed: result.cleanup.confirmed
   });
 }
+function failedAuxiliaryResult(operation, result, message) {
+  return Object.freeze({
+    ...failedResult(operation, result),
+    stdout: "",
+    stderr: message
+  });
+}
+function failedCommitInspectionResult(operation, result) {
+  return Object.freeze({
+    ...failedResult(operation, result),
+    stdout: "",
+    stderr: "Git commit ancestry inspection failed before the requested read could be trusted."
+  });
+}
+function successfulResult(input) {
+  return Object.freeze({
+    schema_version: 1,
+    ok: true,
+    operation: input.operation,
+    stdout: input.stdout,
+    stderr: input.stderr ?? "",
+    exit_code: input.exitCode === void 0 ? 0 : input.exitCode,
+    truncated: input.truncated ?? false,
+    limit_bytes: GIT_OUTPUT_LIMIT_BYTES,
+    submodules: Object.freeze([...input.submodules ?? []]),
+    submodule_policy: "reported_without_recursive_execution",
+    attribute_policy: "external_commands_disabled",
+    cleanup_confirmed: true,
+    ...input.resolvedTarget === void 0 ? {} : { resolved_target: input.resolvedTarget }
+  });
+}
+function assertValidGitOutputEncoding(output, label) {
+  if (!runtimeGitTextIsValidUtf8(output)) {
+    throw new SafeGitReadError(
+      "invalid_git_output",
+      `${label} is not valid UTF-8 and cannot be used as trusted Review evidence.`
+    );
+  }
+}
 function createSafeGitReader(options) {
   return Object.freeze({
     async read(request) {
-      const operation = parseRequest(request);
+      const parsed = parseRequest(request);
+      const operation = parsed.operation;
       const repository = await resolveSafeGitRepository(options.workspace);
       const executable = await resolveGitExecutable(options.gitExecutable);
       const configAudit = await options.sandbox.executeGitRead(
-        gitRequest(executable, repository, "config_audit")
+        gitRequest(executable, repository, { operation: "config_audit" })
       );
       if (configAudit.status !== "passed" || !configAudit.cleanup.confirmed) {
-        return failedResult(operation, configAudit);
+        return failedAuxiliaryResult(
+          operation,
+          configAudit,
+          "Git configuration audit failed before the requested read could be trusted."
+        );
       }
+      assertValidGitOutputEncoding(configAudit.stdout, "Git configuration output");
       const dynamicConfig = auditGitConfiguration(configAudit.stdout);
+      if (operation === "remote_repositories") {
+        const repositories = githubRepositoriesFromGitConfig(configAudit.stdout);
+        return successfulResult({
+          operation,
+          stdout: repositories.length === 0 ? "" : `${repositories.join("\n")}
+`
+        });
+      }
+      let commitParent;
+      if ((parsed.operation === "target_diff" || parsed.operation === "target_diff_stat") && parsed.target.kind === "commit") {
+        const commitInspection = await options.sandbox.executeGitRead(
+          gitRequest(
+            executable,
+            repository,
+            { operation: "commit_object", commit: parsed.target.commit },
+            dynamicConfig
+          )
+        );
+        if (commitInspection.status !== "passed" || !commitInspection.cleanup.confirmed) {
+          return failedCommitInspectionResult(operation, commitInspection);
+        }
+        assertValidGitOutputEncoding(commitInspection.stdout, "Git commit inspection output");
+        commitParent = parseRawCommitParent(parsed.target.commit, commitInspection.stdout);
+      }
+      let pullRequestMergeRef;
+      if (parsed.operation === "resolve_target" && parsed.target.kind === "pull_request") {
+        const requestedRepository = parsed.target.repository;
+        const candidates = githubPullRequestMergeRefsFromGitConfig(
+          configAudit.stdout,
+          parsed.target.number
+        ).filter(
+          (candidate) => requestedRepository === void 0 || candidate.repository === requestedRepository
+        );
+        pullRequestMergeRef = candidates[0]?.ref;
+        if (candidates.length !== 1 || pullRequestMergeRef === void 0) {
+          throw new SafeGitReadError(
+            "invalid_git_read",
+            `PR #${parsed.target.number} has no single repository-bound local merge ref.`
+          );
+        }
+      }
       const primary = await options.sandbox.executeGitRead(
-        gitRequest(executable, repository, operation, dynamicConfig)
+        gitRequest(
+          executable,
+          repository,
+          parsed,
+          dynamicConfig,
+          commitParent,
+          pullRequestMergeRef
+        )
       );
       if (primary.status !== "passed" || !primary.cleanup.confirmed) {
+        const boundedPartialDiff = primary.status === "output_limit" && primary.cleanup.confirmed && primary.stdout.length > 0 && (operation === "staged_diff" || operation === "unstaged_diff" || operation === "target_diff");
+        if (boundedPartialDiff) {
+          assertValidGitOutputEncoding(primary.stdout, `Git ${operation} output`);
+          return successfulResult({
+            operation,
+            stdout: primary.stdout,
+            stderr: primary.stderr,
+            exitCode: primary.exit_code,
+            truncated: true
+          });
+        }
         return failedResult(operation, primary);
       }
-      const submoduleObservation = operation === "submodules" ? primary : await options.sandbox.executeGitRead(
-        gitRequest(executable, repository, "submodules", dynamicConfig)
-      );
-      if (submoduleObservation.status !== "passed" || !submoduleObservation.cleanup.confirmed) {
-        return failedResult(operation, submoduleObservation);
+      assertValidGitOutputEncoding(primary.stdout, `Git ${operation} output`);
+      if (parsed.operation === "resolve_target") {
+        return successfulResult({
+          operation,
+          stdout: primary.stdout,
+          stderr: primary.stderr,
+          exitCode: primary.exit_code,
+          resolvedTarget: parseResolvedTarget(parsed.target, primary.stdout)
+        });
       }
-      const submodules = parseSubmodules(submoduleObservation.stdout, repository.workspace);
-      return Object.freeze({
-        schema_version: 1,
-        ok: true,
+      const submodules = operation === "submodules" ? parseSubmodules(primary.stdout, repository.workspace) : Object.freeze([]);
+      return successfulResult({
         operation,
         stdout: primary.stdout,
         stderr: primary.stderr,
-        exit_code: primary.exit_code,
-        truncated: false,
-        limit_bytes: GIT_OUTPUT_LIMIT_BYTES,
-        submodules,
-        submodule_policy: "reported_without_recursive_execution",
-        attribute_policy: "external_commands_disabled",
-        cleanup_confirmed: true
+        exitCode: primary.exit_code,
+        submodules
       });
     }
   });
@@ -19225,11 +20005,11 @@ function createMcpWorkerSecurity(input, dependencies = {}) {
     };
   };
   const gitReader = {
-    read: async ({ operation, projectRoot }) => {
+    read: async ({ operation, projectRoot, target }) => {
       if (resolve6(projectRoot) !== workspace) {
         throw new Error("The bounded Git reader is sealed to the trusted workspace.");
       }
-      return await safeGit.read({ operation });
+      return await safeGit.read({ operation, ...target === void 0 ? {} : { target } });
     }
   };
   return Object.freeze({ proofCommandRunner, gitReader });

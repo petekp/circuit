@@ -94,6 +94,7 @@ export async function relayWithResolvedConnector(
   connector: ResolvedConnector,
   input: {
     readonly prompt: string;
+    readonly promptOnly?: true;
     readonly timeoutMs?: number;
     readonly idleTimeoutMs?: number;
     readonly cwd?: string;
@@ -104,6 +105,7 @@ export async function relayWithResolvedConnector(
 ): Promise<RelayResult> {
   const relayInput = {
     prompt: input.prompt,
+    ...(input.promptOnly === true ? { promptOnly: true as const } : {}),
     ...(input.timeoutMs === undefined ? {} : { timeoutMs: input.timeoutMs }),
     ...(input.idleTimeoutMs === undefined ? {} : { idleTimeoutMs: input.idleTimeoutMs }),
     ...(input.cwd === undefined ? {} : { cwd: input.cwd }),
@@ -113,6 +115,14 @@ export async function relayWithResolvedConnector(
     ...(input.responseSchema === undefined ? {} : { responseSchema: input.responseSchema }),
     ...(input.toolAllowList === undefined ? {} : { toolAllowList: input.toolAllowList }),
   };
+  if (
+    input.promptOnly === true &&
+    (connector.kind === 'custom' || connector.name === 'cursor-agent')
+  ) {
+    throw new Error(
+      `The ${connector.name} connector cannot run a prompt-only relay. Choose Claude Code or Codex.`,
+    );
+  }
   if (connector.kind === 'custom') {
     return relayCustom({ ...relayInput, descriptor: connector });
   }
@@ -611,6 +621,21 @@ export async function executeProductionRelayAttempt(input: {
     compiledStep.equipment_scope,
     equipmentDecision,
   );
+  const promptOnly = context.flow.engineFlags?.relayUsesPromptOnlyContext === true;
+  if (promptOnly && context.relayer !== undefined && context.relayer.promptOnlyContext !== true) {
+    throw new Error(
+      'The selected host relay cannot prove that it removed repository access for this Review.',
+    );
+  }
+  if (
+    promptOnly &&
+    context.relayer === undefined &&
+    (relayExecution.connector.kind === 'custom' || relayExecution.connector.name === 'cursor-agent')
+  ) {
+    throw new Error(
+      `The ${relayExecution.connector.name} connector cannot run this Review without repository access. Choose Claude Code or Codex.`,
+    );
+  }
   await context.trace.append({
     run_id: context.runId,
     kind: 'relay.started',
@@ -659,6 +684,7 @@ export async function executeProductionRelayAttempt(input: {
       context.relayer === undefined
         ? await relayWithResolvedConnector(relayExecution.connector, {
             prompt,
+            ...(promptOnly ? { promptOnly: true as const } : {}),
             ...(relayTimeoutMs === undefined ? {} : { timeoutMs: relayTimeoutMs }),
             ...(relayInactivityMs === undefined ? {} : { idleTimeoutMs: relayInactivityMs }),
             ...(context.projectRoot === undefined ? {} : { cwd: context.projectRoot }),
@@ -672,6 +698,7 @@ export async function executeProductionRelayAttempt(input: {
           })
         : await context.relayer.relay({
             prompt,
+            ...(promptOnly ? { promptOnly: true as const } : {}),
             connector: relayExecution.connectorName,
             ...(relayTimeoutMs === undefined ? {} : { timeoutMs: relayTimeoutMs }),
             ...(relayInactivityMs === undefined ? {} : { idleTimeoutMs: relayInactivityMs }),

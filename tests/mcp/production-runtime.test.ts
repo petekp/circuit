@@ -160,7 +160,11 @@ function runRecord(): LifecycleRunRecord {
     revision: 0,
     run_id: '019f64f5-1f4d-7d91-8cda-a309cc72c300',
     workspace,
-    request: { flow: 'review', goal: 'Review this change', web_search: 'off' },
+    request: {
+      flow: 'review',
+      goal: 'Review this text: fixture material for the test.',
+      web_search: 'off',
+    },
     state: 'starting',
     summary: 'Starting Review.',
     runtime_assets_sha256: 'b'.repeat(64),
@@ -436,6 +440,29 @@ describe('production Codex MCP composition', () => {
     });
   });
 
+  it('rejects an ambiguous Review target before loading assets or reserving a run', async () => {
+    const verifyAssets = vi.fn(async () => {});
+    const preflight = createProductionLaunchPreflight({
+      codexHome: '/codex-home',
+      stateRoot: '/control-state',
+      environment: {},
+      verifyAssets,
+    });
+
+    await expect(
+      preflight.validate({
+        workspace,
+        request: {
+          flow: 'review',
+          goal: 'review latest commit and staged changes',
+          web_search: 'off',
+        },
+        runtime_assets: assets('/plugin'),
+      }),
+    ).rejects.toMatchObject({ code: 'invalid_review_target' });
+    expect(verifyAssets).not.toHaveBeenCalled();
+  });
+
   it('keeps identical concurrent preflights bound to their own opaque preparations', async () => {
     const runtimeAssets = assets('/plugin');
     const verifyAssets = vi.fn(async () => {});
@@ -480,7 +507,7 @@ describe('production Codex MCP composition', () => {
       workspace,
       request: {
         flow: 'review' as const,
-        goal: 'Review',
+        goal: 'Review this text: fixture material for the test.',
         web_search: 'cached' as const,
         consent: { cached_web_search: true as const },
       },

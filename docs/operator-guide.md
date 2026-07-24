@@ -103,7 +103,7 @@ output. Without `--autonomous`, Run runs a single process and is unchanged.
 | Flow | Use it for | Write behavior |
 | --- | --- | --- |
 | Explore | Investigating, explaining, comparing options, or making a decision before editing code. | Does not implement the change for you. |
-| Review | Auditing code, a diff, a PR, a plan, a report, or a risk surface. | Audit-only. |
+| Review | Auditing one complete working tree, staged or unstaged set, commit, Git range, or locally available PR. For a plan or report, include its actual text in the request; a file path alone is not evidence. File or directory subsets and path exclusions stop instead of broadening to the complete target. | Audit-only. |
 | Fix | Bugs, regressions, failing tests, crashes, flaky behavior, or production issues. | May invoke a write-capable worker. |
 | Build | Features, refactors, docs, tests, or focused code changes that are not mainly bug fixes. | May invoke a write-capable worker. |
 | Prototype | Disposable local prototypes, mockups, UI sketches, or model-comparison variants before Build. | May invoke a write-capable worker and writes local prototype evidence. |

@@ -226,11 +226,11 @@ export function createMcpWorkerSecurity(
     };
   };
   const gitReader: RuntimeGitReader = {
-    read: async ({ operation, projectRoot }) => {
+    read: async ({ operation, projectRoot, target }) => {
       if (resolve(projectRoot) !== workspace) {
         throw new Error('The bounded Git reader is sealed to the trusted workspace.');
       }
-      return await safeGit.read({ operation });
+      return await safeGit.read({ operation, ...(target === undefined ? {} : { target }) });
     },
   };
   return Object.freeze({ proofCommandRunner, gitReader });

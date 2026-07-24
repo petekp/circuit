@@ -10,6 +10,7 @@ import { afterEach, describe, expect, it, vi } from 'vitest';
 
 import { pinMcpRuntimeAssets } from '../../src/hosts/codex-mcp/asset-pins.js';
 import type { LifecycleExecutableIdentity } from '../../src/hosts/codex-mcp/lifecycle-types.js';
+import type { LifecycleProcessProbe } from '../../src/hosts/codex-mcp/process-cleanup.js';
 import { ObservedProcessProbe } from '../../src/hosts/codex-mcp/process-probe.js';
 import { ProcessSupervisorLauncher } from '../../src/hosts/codex-mcp/supervisor-launcher.js';
 import { readSupervisorProgress } from '../../src/hosts/codex-mcp/supervisor-progress.js';
@@ -31,7 +32,11 @@ const RUN_ID = '11111111-1111-4111-8111-111111111111';
 const NOW = '2026-07-21T08:00:00.000Z';
 const roots: string[] = [];
 
-async function waitFor<T>(read: () => T | undefined, timeoutMs = 8_000): Promise<T> {
+// These integration checks deliberately use the real macOS process probe.
+// Under full-suite load its bounded `ps` calls and cleanup can outlive the
+// worker's own short test limits, so the evidence watchdog needs a wider
+// budget than the product timers it is observing.
+async function waitFor<T>(read: () => T | undefined, timeoutMs = 30_000): Promise<T> {
   const deadline = Date.now() + timeoutMs;
   while (Date.now() < deadline) {
     const value = read();
@@ -59,11 +64,30 @@ function processGroupAbsent(processGroupId: number): boolean {
   }
 }
 
+function directFixtureProcessProbe(): LifecycleProcessProbe {
+  return {
+    inspectProcess: async (identity) => (processAbsent(identity.pid) ? 'absent' : 'alive'),
+    inspectProcessGroup: async (identity) =>
+      processGroupAbsent(identity.process_group_id) ? 'absent' : 'alive',
+    signalOwnedProcessGroup: async (identity, signal) => {
+      try {
+        process.kill(-identity.process_group_id, signal);
+        return 'sent';
+      } catch (error) {
+        return (error as NodeJS.ErrnoException).code === 'ESRCH' ? 'absent' : 'unknown';
+      }
+    },
+  };
+}
+
 async function makeFixture(
   workerMode: 'normal' | 'close-fd3' = 'normal',
   supervisorMode: 'normal' | 'accept-auth-no-reply' | 'real-observer' = 'normal',
   authorizationTimeoutMs = 8_000,
-  options: { readonly longWorkerPath?: boolean } = {},
+  options: {
+    readonly longWorkerPath?: boolean;
+    readonly processProbe?: LifecycleProcessProbe;
+  } = {},
 ): Promise<{
   readonly root: string;
   readonly control: string;
@@ -263,6 +287,7 @@ if (launch.mode === 'overflow') {
       killMs: 1_000,
       stdoutBytes: 1_024,
       stderrBytes: 1_024,
+      ...(options.processProbe === undefined ? {} : { processProbe: options.processProbe }),
     }),
   };
 }
@@ -534,13 +559,19 @@ describe('Codex MCP supervisor protocol', () => {
   });
 
   it('bounds authorization when a supervisor accepts it but never replies', async () => {
-    const fixture = await makeFixture('normal', 'accept-auth-no-reply', 100);
+    const fixture = await makeFixture('normal', 'accept-auth-no-reply', 100, {
+      // This test isolates the authorization deadline. Separate tests exercise
+      // the full identity-checking macOS probe, whose real `ps` calls can be
+      // delayed when the complete suite runs in parallel.
+      processProbe: directFixtureProcessProbe(),
+    });
     const session = await fixture.launcher.begin({
       run_id: RUN_ID,
       generation: 1,
       control_directory: fixture.control,
       runtime_assets: fixture.pins,
     });
+    let watchdog: NodeJS.Timeout | undefined;
 
     try {
       await expect(
@@ -555,12 +586,12 @@ describe('Codex MCP supervisor protocol', () => {
               },
             },
           }),
-          new Promise<never>((_resolve, reject) =>
-            setTimeout(
+          new Promise<never>((_resolve, reject) => {
+            watchdog = setTimeout(
               () => reject(new Error('parent authorization timeout was not enforced')),
               3_000,
-            ),
-          ),
+            );
+          }),
         ]),
       ).rejects.toMatchObject({
         message: expect.stringMatching(/authorization timed out/i),
@@ -571,6 +602,7 @@ describe('Codex MCP supervisor protocol', () => {
         processGroupAbsent(session.supervisor.process_group_id) ? true : undefined,
       );
     } finally {
+      if (watchdog !== undefined) clearTimeout(watchdog);
       if (!processGroupAbsent(session.supervisor.process_group_id)) {
         process.kill(-session.supervisor.process_group_id, 'SIGKILL');
       }

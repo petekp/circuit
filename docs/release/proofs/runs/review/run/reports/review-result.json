@@ -3,26 +3,22 @@
   "findings": [],
   "verdict": "CLEAN",
   "outcome": "complete",
-  "assessment": "Reviewer inspected the relayed staged-diff and untracked-file evidence and found nothing actionable in scope.",
+  "assessment": "Reviewer inspected the relayed staged diff and untracked file content and found nothing actionable in scope.",
   "verification": [
     "Inspected the relayed review-intake report.",
-    "Cross-checked the staged diff against the untracked-file metadata."
+    "Cross-checked the staged diff and the complete untracked file content."
   ],
-  "confidence_limitations": [
-    "Untracked file contents were omitted from the relay (metadata-only policy).",
-    "Untracked file evidence was capped at 20 files."
-  ],
+  "confidence_limitations": [],
   "evidence_summary": {
     "kind": "git-working-tree",
-    "untracked_content_policy": "metadata-only",
+    "untracked_content_policy": "include-content",
     "untracked_file_count": 1,
     "untracked_files_sampled": 1,
-    "untracked_files_truncated": false
+    "untracked_files_truncated": false,
+    "target_kind": "working_tree",
+    "target_mode": "all",
+    "target_diff_included": true,
+    "committed_diff_included": false
   },
-  "evidence_warnings": [
-    {
-      "kind": "untracked_file_content_omitted",
-      "message": "untracked file contents were not included; pass --include-untracked-content only when those files are safe to relay"
-    }
-  ]
+  "evidence_warnings": []
 }

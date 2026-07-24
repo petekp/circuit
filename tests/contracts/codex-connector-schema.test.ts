@@ -188,6 +188,37 @@ describe('Codex connector — src/connectors/codex.ts module shape', () => {
     ]);
   });
 
+  it('buildCodexArgs disables tools and seals prompt-only relays into a named profile', () => {
+    const args = buildCodexArgs({
+      cwd: '/tmp/circuit-prompt-only',
+      prompt: 'review only the supplied evidence',
+      promptOnly: true,
+      resolvedSelection: {
+        model: { provider: 'openai', model: 'gpt-5.5' },
+        skills: [],
+        invocation_options: {},
+      },
+    } as Parameters<typeof buildCodexArgs>[0]);
+
+    expect(args).toEqual(
+      expect.arrayContaining([
+        '--cd',
+        '/tmp/circuit-prompt-only',
+        '--strict-config',
+        'default_permissions="circuit_prompt_only"',
+        'permissions.circuit_prompt_only.filesystem={":minimal"="read",":workspace_roots"="write",":slash_tmp"="deny","/tmp/circuit-prompt-only"="write"}',
+        'permissions.circuit_prompt_only.network.enabled=false',
+        'features.shell_tool=false',
+        'skills.include_instructions=false',
+        'tools.update_plan.enabled=false',
+        'mcp_servers={}',
+        'web_search="disabled"',
+      ]),
+    );
+    expect(args).not.toContain('-s');
+    expect(args).not.toContain('workspace-write');
+  });
+
   it('buildCodexArgs rejects non-openai model providers instead of silently ignoring them', () => {
     expect(() =>
       buildCodexArgs({
@@ -419,6 +450,36 @@ describe('Codex connector — parseCodexStdout NDJSON parser branches', () => {
     });
     const parsed = parseCodexStdout(stdout, 'p', 0, 'codex-cli 0.130.0');
     expect(JSON.parse(parsed.result_body)).toEqual({ verdict: 'accept' });
+  });
+
+  it('rejects command execution in a prompt-only relay', () => {
+    const stdout = ndjson({
+      items: [
+        { type: 'command_execution', id: 'item_0' },
+        { type: 'agent_message', id: 'item_1', text: '{"ok":true}' },
+      ],
+    });
+
+    expect(() =>
+      parseCodexStdout(stdout, 'prompt', 1, 'codex-cli 0.145.0', {
+        promptOnly: true,
+      } as never),
+    ).toThrow(/prompt-only|command_execution/i);
+  });
+
+  it('rejects planning-tool activity in a prompt-only relay', () => {
+    const stdout = ndjson({
+      items: [
+        { type: 'todo_list', id: 'item_0' },
+        { type: 'agent_message', id: 'item_1', text: '{"ok":true}' },
+      ],
+    });
+
+    expect(() =>
+      parseCodexStdout(stdout, 'prompt', 1, 'codex-cli 0.145.0', {
+        promptOnly: true,
+      } as never),
+    ).toThrow(/prompt-only|todo_list/i);
   });
 
   it('accepts todo_list items emitted by current Codex before the terminal agent_message', () => {

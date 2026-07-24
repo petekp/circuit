@@ -74,6 +74,43 @@ describe('Codex MCP Run skill', () => {
     expect(skill).toContain('cached_web_search: true');
     expect(skill).toMatch(/query leaves the machine/i);
     expect(compactSkill).toContain(
+      'A direct user request to run Review on tracked workspace content is enough permission',
+    );
+    expect(compactSkill).toContain(
+      'Do not ask for a second confirmation before relaying tracked files',
+    );
+    expect(compactSkill).toContain('When the user asks Review to inspect a specific code target');
+    expect(compactSkill).toContain('Treat that selected target as the only code under review');
+    expect(compactSkill).toContain(
+      'Do not silently broaden the run to another working-tree layer, commit, range, or PR',
+    );
+    expect(compactSkill).toContain(
+      'If the request narrows a complete target to a file or directory subset, or excludes paths',
+    );
+    expect(compactSkill).toContain('do not remove that restriction');
+    expect(compactSkill).toContain('Review sees only the evidence Circuit captured');
+    expect(compactSkill).not.toContain('may inspect nearby repository files');
+    expect(compactSkill).not.toContain('risk surface');
+    expect(readRepoFile(CLI_RUN_SOURCE)).not.toContain('risk surface');
+    expect(compactSkill).toContain(
+      'a plan or report only when its actual text is included in the request',
+    );
+    expect(compactSkill).toContain(
+      'A named plan or report file is not readable unless its contents are part of the captured Git target',
+    );
+    expect(readRepoFile(CLI_RUN_SOURCE).replace(/\s+/g, ' ')).toContain(
+      'a plan or report only when its actual text is included in the request',
+    );
+    expect(readRepoFile(CLI_RUN_SOURCE).replace(/\s+/g, ' ')).toContain(
+      'A named plan or report file is not readable unless its contents are part of the selected Git target',
+    );
+    expect(readRepoFile(CLI_RUN_SOURCE).replace(/\s+/g, ' ')).toContain(
+      'Do not remove a requested file or directory subset or path exclusion',
+    );
+    expect(compactSkill).toContain('commit abc1234');
+    expect(compactSkill).toContain('main...feature');
+    expect(compactSkill).toContain('PR review uses local repository evidence');
+    expect(compactSkill).toContain(
       'This includes starting, reconnecting, listing, reading progress, handling checkpoints, cancelling, recovering, and releasing the workspace.',
     );
     expect(skill).toContain('private MCP state files');

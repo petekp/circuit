@@ -108,6 +108,9 @@ export function manifestEngineFlagsToInCode(
       : {
           bindsTerminalOutcomeToPrimaryResult: manifest.binds_terminal_outcome_to_primary_result,
         }),
+    ...(manifest.relay_uses_prompt_only_context === undefined
+      ? {}
+      : { relayUsesPromptOnlyContext: manifest.relay_uses_prompt_only_context }),
     ...(slice === undefined ? {} : { iteratesSliceLoop: translateSliceLoop(slice) }),
     ...(until === undefined ? {} : { iteratesUntilCondition: translateUntilLoop(until) }),
   };

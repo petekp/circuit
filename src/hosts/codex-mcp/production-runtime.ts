@@ -4,6 +4,10 @@ import { tmpdir } from 'node:os';
 import { isAbsolute, join, relative, resolve } from 'node:path';
 
 import {
+  flowStartNeedsGitEvidence,
+  validateFlowStartAvailability,
+} from '../../flows/registries/start-preflight.js';
+import {
   type McpRuntimeAssetPin,
   type McpRuntimeAssetPins,
   pinMcpRuntimeAssets,
@@ -25,7 +29,7 @@ import type {
   LifecycleWorkerFactory,
   LifecycleWorkspaceIdentity,
 } from './lifecycle-types.js';
-import { createCircuitMcpLifecycleHandler } from './lifecycle.js';
+import { McpLifecycleError, createCircuitMcpLifecycleHandler } from './lifecycle.js';
 import { ObservedCleanupController } from './process-cleanup.js';
 import {
   type ObservedProcessProbe,
@@ -50,6 +54,7 @@ import {
   type ProcessSupervisorLauncherOptions,
   type SupervisorLauncher,
 } from './supervisor-launcher.js';
+import { createMcpWorkerSecurity } from './worker-security.js';
 
 const PLUGIN_RUNTIME_FILES = [
   ['manifest', '.codex-plugin/plugin.json'],
@@ -242,6 +247,7 @@ interface ProductionPreflightDependencies {
   readonly loadRoster?: typeof loadCodexModelRoster;
   readonly loadCatalog?: typeof loadPublicFlowCatalog;
   readonly deriveNodeInstallation?: typeof derivePinnedNodeInstallation;
+  readonly createWorkerSecurity?: typeof createMcpWorkerSecurity;
 }
 
 function pathInside(parent: string, candidate: string): boolean {
@@ -290,9 +296,20 @@ export function createProductionLaunchPreflight(
   const loadCatalog = dependencies.loadCatalog ?? loadPublicFlowCatalog;
   const deriveNodeInstallation =
     dependencies.deriveNodeInstallation ?? derivePinnedNodeInstallation;
+  const createWorkerSecurity = dependencies.createWorkerSecurity ?? createMcpWorkerSecurity;
 
   const result: ProductionLaunchPreflight = {
     validate: async (input: Parameters<ProductionLaunchPreflight['validate']>[0]) => {
+      let reviewTargetNeedsGit = false;
+      try {
+        reviewTargetNeedsGit = flowStartNeedsGitEvidence(input.request.flow, input.request.goal);
+      } catch (error) {
+        throw new McpLifecycleError(
+          'invalid_review_target',
+          (error as Error).message,
+          'Choose one complete working tree, staged set, unstaged set, commit, range, or PR target, or include the actual text to review.',
+        );
+      }
       await verifyAssets(input.runtime_assets);
       const codex = requiredAsset(input.runtime_assets, 'codex', 'codex');
       const node = requiredAsset(input.runtime_assets, 'node', 'node');
@@ -325,6 +342,33 @@ export function createProductionLaunchPreflight(
             environment: dependencies.environment,
           },
         });
+        if (reviewTargetNeedsGit) {
+          const reviewPrivateRoot = join(probeRoot, 'review-preflight');
+          await mkdir(reviewPrivateRoot, { recursive: true, mode: 0o700 });
+          const security = createWorkerSecurity({
+            workspace: input.workspace.canonical_path,
+            privateRoot: reviewPrivateRoot,
+            gitExecutable: git.real_path,
+            environment: dependencies.environment,
+          });
+          try {
+            await validateFlowStartAvailability({
+              flowId: input.request.flow,
+              goal: input.request.goal,
+              projectRoot: input.workspace.canonical_path,
+              ...(input.request.include_untracked_content === true
+                ? { includeUntrackedFileContent: true }
+                : {}),
+              gitReader: security.gitReader,
+            });
+          } catch (error) {
+            throw new McpLifecycleError(
+              'review_target_unavailable',
+              (error as Error).message,
+              'Choose one available Review target and retry.',
+            );
+          }
+        }
       } finally {
         await rm(probeRoot, { recursive: true, force: true });
       }

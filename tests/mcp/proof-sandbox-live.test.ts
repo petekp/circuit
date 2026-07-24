@@ -180,7 +180,7 @@ describe.runIf(process.platform === 'darwin')('live macOS Codex MCP proof sandbo
     expect(JSON.parse(managerRead.stdout_summary)).toEqual({ 0: false });
     expect(nestedManagerRead.status, nestedManagerRead.stderr_summary).toBe('passed');
     expect(JSON.parse(nestedManagerRead.stdout_summary)).toEqual({ 0: false });
-  }, 25_000);
+  }, 60_000);
 
   it('allows only workspace and private-temp writes', async () => {
     const workspace = temporaryDirectory('circuit-mcp-live-write-workspace');

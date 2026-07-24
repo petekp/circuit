@@ -1,6 +1,7 @@
 #!/usr/bin/env node
 import { spawnSync } from 'node:child_process';
 import {
+  chmodSync,
   existsSync,
   lstatSync,
   mkdirSync,
@@ -11,7 +12,7 @@ import {
   writeFileSync,
 } from 'node:fs';
 import { tmpdir } from 'node:os';
-import { dirname, join, resolve } from 'node:path';
+import { delimiter, dirname, join, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import {
   GENERATED_FLOW_MIRROR_ROOT_ENV,
@@ -463,43 +464,89 @@ function runDoctor(): number {
 
   const smokeRoot = mkdtempSync(join(tmpdir(), 'circuit-codex-doctor-'));
   try {
-    // The doctor's stub reviewer is a custom (arbitrary-command) connector.
-    // C1 (pre-launch audit) refuses custom connectors declared in a PROJECT
-    // layer as an RCE trust boundary, so the stub must live in a user-global
-    // layer instead. Point the runtime's home at a temp dir inside smokeRoot
-    // (HOME in each spawn env below) and write the config to its user-global
-    // path. Both smokes (review + checkpoint build) run with cwd=smokeRoot and
-    // read this same config, so both set HOME. This also makes the smoke
-    // hermetic: it never reads the operator's real ~/.config/circuit/config.yaml.
+    // Exercise the real built-in Codex connector without spending money. The
+    // executable emits the reviewed JSONL protocol from the prompt-only relay
+    // directory. A tracked marker proves Review captured the selected
+    // working-tree diff before moving the connector away from the repository.
     const smokeHome = resolve(smokeRoot, 'home');
     const userConfigDir = resolve(smokeHome, '.config', 'circuit');
+    const smokeBin = resolve(smokeRoot, 'bin');
+    const fakeCodex = resolve(smokeBin, 'codex');
+    const smokePath = `${smokeBin}${delimiter}${process.env.PATH ?? ''}`;
+    const smokeProject = resolve(smokeRoot, 'project');
     const runFolder = resolve(smokeRoot, 'run');
+    const reviewFile = resolve(smokeProject, 'doctor-review.txt');
+    const reviewMarker = 'CIRCUIT_CODEX_DOCTOR_WORKING_TREE_MARKER';
+    const promptCapture = resolve(smokeRoot, 'review-prompt.txt');
     mkdirSync(userConfigDir, { recursive: true });
+    mkdirSync(smokeBin, { recursive: true });
+    mkdirSync(smokeProject, { recursive: true });
+    const gitSetup = [
+      spawnSync('git', ['init'], { cwd: smokeProject, stdio: 'ignore' }),
+      spawnSync('git', ['config', 'user.name', 'Circuit Doctor'], {
+        cwd: smokeProject,
+        stdio: 'ignore',
+      }),
+      spawnSync('git', ['config', 'user.email', 'doctor@circuit.local'], {
+        cwd: smokeProject,
+        stdio: 'ignore',
+      }),
+    ];
+    writeFileSync(reviewFile, 'base review fixture\n');
+    gitSetup.push(
+      spawnSync('git', ['add', 'doctor-review.txt'], { cwd: smokeProject, stdio: 'ignore' }),
+      spawnSync('git', ['commit', '-m', 'Create doctor review fixture'], {
+        cwd: smokeProject,
+        stdio: 'ignore',
+      }),
+    );
+    writeFileSync(reviewFile, `base review fixture\n${reviewMarker}\n`);
+    checks.push(
+      check(
+        'temp_repo_review_fixture',
+        gitSetup.every((result) => result.status === 0 && result.error === undefined),
+        gitSetup
+          .map((result) => result.error?.message ?? `status=${result.status ?? 'unknown'}`)
+          .join(', '),
+      ),
+    );
+    writeFileSync(
+      fakeCodex,
+      `#!/usr/bin/env node
+const { writeFileSync } = require('node:fs');
+if (process.argv.includes('--version')) {
+  process.stdout.write('codex-cli 0.144.3\\n');
+  process.exit(0);
+}
+const prompt = process.argv.at(-1) ?? '';
+writeFileSync(${JSON.stringify(promptCapture)}, prompt);
+if (!prompt.includes(${JSON.stringify(reviewMarker)})) {
+  process.stderr.write('doctor marker missing from Review relay prompt\\n');
+  process.exit(2);
+}
+const result = ${JSON.stringify({
+        verdict: 'NO_ISSUES_FOUND',
+        findings: [],
+        assessment: 'Doctor stub reviewer: nothing actionable in the relayed evidence.',
+        verification: ['Doctor stub: inspected the relayed intake report.'],
+        confidence_limitations: [],
+      })};
+for (const event of [
+  { type: 'thread.started', thread_id: 'doctor-thread' },
+  { type: 'turn.started' },
+  { type: 'item.completed', item: { id: 'doctor-item', type: 'agent_message', text: JSON.stringify(result) } },
+  { type: 'turn.completed', usage: {} },
+]) process.stdout.write(JSON.stringify(event) + '\\n');
+`,
+    );
+    chmodSync(fakeCodex, 0o700);
     writeFileSync(
       resolve(userConfigDir, 'config.yaml'),
       `${JSON.stringify(
         {
           schema_version: 1,
           host: { kind: 'codex' },
-          relay: {
-            roles: {
-              reviewer: { kind: 'named', name: 'doctor-reviewer' },
-            },
-            connectors: {
-              'doctor-reviewer': {
-                kind: 'custom',
-                name: 'doctor-reviewer',
-                command: [
-                  process.execPath,
-                  '-e',
-                  "require('node:fs').writeFileSync(process.argv[2], JSON.stringify({verdict:'NO_ISSUES_FOUND',findings:[],assessment:'Doctor stub reviewer: nothing actionable in the relayed evidence.',verification:['Doctor stub: inspected the relayed intake report.'],confidence_limitations:[]}))",
-                ],
-                prompt_transport: 'prompt-file',
-                output: { kind: 'output-file' },
-                capabilities: { filesystem: 'read-only', structured_output: 'json' },
-              },
-            },
-          },
+          defaults: { selection: { model: { provider: 'openai', model: 'gpt-5.4' } } },
         },
         null,
         2,
@@ -512,7 +559,7 @@ function runDoctor(): number {
           'run',
           'review',
           '--goal',
-          'review this patch',
+          'review current working tree changes',
           '--flow-root',
           packagedFlowRoot,
           '--run-folder',
@@ -521,11 +568,12 @@ function runDoctor(): number {
           'jsonl',
         ]),
         {
-          cwd: smokeRoot,
+          cwd: smokeProject,
           encoding: 'utf8',
           env: runtimeEnv(resolved.runtime, {
             ...process.env,
             HOME: smokeHome,
+            PATH: smokePath,
             [GENERATED_FLOW_MIRROR_ROOT_ENV]: packagedFlowRoot,
           }),
           timeout: DOCTOR_SMOKE_TIMEOUT_MS,
@@ -555,7 +603,7 @@ function runDoctor(): number {
             output?.selected_flow === 'review' &&
             output?.outcome === 'complete' &&
             existsSync(resolve(runFolder, 'reports', 'review-result.json')),
-          `status=${result.status ?? 'unknown'} error=${result.error?.message ?? 'none'} stderr=${result.stderr.slice(0, 500)}`,
+          `status=${result.status ?? 'unknown'} error=${result.error?.message ?? 'none'} output=${JSON.stringify(output).slice(0, 1_000)} stderr=${result.stderr.slice(0, 500)}`,
         ),
       );
       checks.push(
@@ -595,10 +643,31 @@ function runDoctor(): number {
             : 'operator_summary_markdown_path missing',
         ),
       );
+      const intakePath = resolve(runFolder, 'reports', 'review-intake.json');
+      const intakeText = existsSync(intakePath) ? readFileSync(intakePath, 'utf8') : '';
+      const promptText = existsSync(promptCapture) ? readFileSync(promptCapture, 'utf8') : '';
+      checks.push(
+        check(
+          'temp_repo_review_intake_includes_marker',
+          intakeText.includes(reviewMarker),
+          intakeText.includes(reviewMarker)
+            ? intakePath
+            : `${reviewMarker} missing from ${intakePath}`,
+        ),
+      );
+      checks.push(
+        check(
+          'temp_repo_review_prompt_includes_marker',
+          promptText.includes(reviewMarker),
+          promptText.includes(reviewMarker)
+            ? promptCapture
+            : `${reviewMarker} missing from ${promptCapture}`,
+        ),
+      );
 
       const checkpointRunFolder = resolve(smokeRoot, 'checkpoint-run');
       writeFileSync(
-        resolve(smokeRoot, 'package.json'),
+        resolve(smokeProject, 'package.json'),
         `${JSON.stringify(
           {
             private: true,
@@ -627,11 +696,12 @@ function runDoctor(): number {
           'jsonl',
         ]),
         {
-          cwd: smokeRoot,
+          cwd: smokeProject,
           encoding: 'utf8',
           env: runtimeEnv(resolved.runtime, {
             ...process.env,
             HOME: smokeHome,
+            PATH: smokePath,
             [GENERATED_FLOW_MIRROR_ROOT_ENV]: packagedFlowRoot,
           }),
           timeout: DOCTOR_SMOKE_TIMEOUT_MS,

@@ -12,21 +12,22 @@
       "text": "",
       "truncated": false
     },
-    "diff_stat": " src/example.ts | 2 +-\n 1 file changed, 1 insertion(+), 1 deletion(-)\n",
+    "diff_stat": "Staged:\n src/example.ts | 2 +-\n 1 file changed, 1 insertion(+), 1 deletion(-)\n",
+    "target_kind": "working_tree",
+    "target_mode": "all",
     "untracked_file_count": 1,
     "untracked_files_truncated": false,
-    "untracked_content_policy": "metadata-only",
+    "untracked_content_policy": "include-content",
     "untracked_files": [
       {
         "path": "notes.md",
-        "byte_length": 23
+        "byte_length": 23,
+        "content": {
+          "text": "Untracked review note.\n",
+          "truncated": false
+        }
       }
     ]
   },
-  "evidence_warnings": [
-    {
-      "kind": "untracked_file_content_omitted",
-      "message": "untracked file contents were not included; pass --include-untracked-content only when those files are safe to relay"
-    }
-  ]
+  "evidence_warnings": []
 }

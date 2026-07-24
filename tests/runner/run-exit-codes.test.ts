@@ -39,7 +39,7 @@ describe('run exit codes mirror the closed outcome', () => {
     const args = parseExecutionArgs('run', [
       'review',
       '--goal',
-      'exit-code contract: malformed relay body must abort nonzero',
+      'Review this supplied text: a malformed relay body must abort with a nonzero exit code.',
       '--run-folder',
       runFolder,
     ]);
@@ -63,7 +63,7 @@ describe('run exit codes mirror the closed outcome', () => {
     const args = parseExecutionArgs('run', [
       'review',
       '--goal',
-      'exit-code contract: a clean close stays 0',
+      'Review this supplied text: a clean close should keep exit code zero.',
       '--run-folder',
       runFolder,
     ]);

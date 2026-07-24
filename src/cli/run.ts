@@ -58,6 +58,7 @@ import {
   projectRunStatusFromRunFolder,
 } from '../app/run-status/run-folder-projector.js';
 import { INTERNAL_FLOW_IDS, catalogFlowIds, findFlowRuntimeSurfaceById } from '../flows/catalog.js';
+import { validateFlowStartAvailability } from '../flows/registries/start-preflight.js';
 import { decodeCheckpointReviewResponse } from '../shared/checkpoint-review-token.js';
 import { discoverRuntimeConfigLayers } from '../shared/config-loader.js';
 import { runsRoot } from '../shared/control-plane-paths.js';
@@ -1794,6 +1795,19 @@ export async function runExecutionCommand(
     process.stderr.write(`error: ${(err as Error).message}\n`);
     return 2;
   }
+  const projectRoot = resolve(options.projectRoot ?? options.configCwd ?? process.cwd());
+  try {
+    await validateFlowStartAvailability({
+      flowId: flow.id,
+      goal: operatorGoal,
+      projectRoot,
+      ...(runArgs.includeUntrackedContent ? { includeUntrackedFileContent: true } : {}),
+      ...(options.gitReader === undefined ? {} : { gitReader: options.gitReader }),
+    });
+  } catch (err) {
+    process.stderr.write(`error: ${(err as Error).message}\n`);
+    return 2;
+  }
   const runId = RunId.parse(options.runId ?? randomUUID());
   const now = options.now ?? (() => new Date());
   const progress = progressReporter(runArgs.progress === 'jsonl');
@@ -1834,8 +1848,6 @@ export async function runExecutionCommand(
     return 2;
   }
   const hostKind = runtimeHostKind(options);
-
-  const projectRoot = resolve(options.projectRoot ?? options.configCwd ?? process.cwd());
 
   // A3: on Codex, restore needs a one-time hook install (Claude is zero-setup).
   // The front-door run is the only path a not-yet-installed Codex user reliably

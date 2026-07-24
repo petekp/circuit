@@ -27,11 +27,12 @@ describe('runtime default executors', () => {
         flowBytes,
         runDir,
         runId: 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa',
-        goal: 'Review the default runtime executor path.',
+        goal: 'Review this supplied text: the default runtime executor should complete without parity helpers.',
         projectRoot: process.cwd(),
         now: () => new Date('2026-05-03T00:00:00.000Z'),
         relayer: {
           connectorName: 'claude-code',
+          promptOnlyContext: true,
           async relay(input) {
             relayCalls += 1;
             return {

@@ -751,6 +751,12 @@ describe('Codex host plugin package', () => {
         expect.objectContaining({ name: 'temp_repo_review_operator_summary', ok: true }),
       );
       expect(output.checks).toContainEqual(
+        expect.objectContaining({ name: 'temp_repo_review_intake_includes_marker', ok: true }),
+      );
+      expect(output.checks).toContainEqual(
+        expect.objectContaining({ name: 'temp_repo_review_prompt_includes_marker', ok: true }),
+      );
+      expect(output.checks).toContainEqual(
         expect.objectContaining({ name: 'temp_repo_checkpoint_user_input_requested', ok: true }),
       );
       expect(output.checks).toContainEqual(
@@ -954,7 +960,7 @@ describe('Codex host plugin package', () => {
             'run',
             'review',
             '--goal',
-            'review this patch',
+            'review this supplied text: the packaged Codex flow root should load outside the checkout',
             '--flow-root',
             resolve(PLUGIN_ROOT, 'flows'),
             '--run-folder',
@@ -967,6 +973,7 @@ describe('Codex host plugin package', () => {
             now: () => new Date(Date.UTC(2026, 3, 28, 12, 0, 0)),
             relayer: {
               connectorName: 'claude-code',
+              promptOnlyContext: true,
               relay: async (_input: RelayInput): Promise<RelayResult> => ({
                 request_payload: 'stub-request',
                 receipt_id: 'stub-receipt',

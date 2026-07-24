@@ -47,7 +47,7 @@ async function runReview(input: {
           'run',
           'review',
           '--goal',
-          'prove the power dial reaches relay selection',
+          'Review this supplied text: the power dial should reach relay selection.',
           '--run-folder',
           input.runFolder,
           ...(input.extraArgs ?? []),

@@ -233,6 +233,9 @@ export interface CompiledFlowEngineFlags {
   // a non-complete semantic outcome. This keeps host-visible run status
   // honest for flows whose close writer can finish with follow-up needed.
   readonly bindsTerminalOutcomeToPrimaryResult?: boolean;
+  // When true, relay workers receive only the composed prompt. Supported
+  // connectors remove repository access and worker tools before dispatch.
+  readonly relayUsesPromptOnlyContext?: boolean;
   // When set, the engine iterates a per-slice implement+verify loop over
   // the slices a prior step produced. Absent = single pass.
   readonly iteratesSliceLoop?: SliceLoopEngineFlag;

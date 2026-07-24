@@ -107,6 +107,7 @@ export const reviewAssemblySpec: FlowSchematicAssemblySpec = {
   // the run's terminal outcome to 'stopped' rather than a green 'complete'.
   engine_flags: {
     binds_terminal_outcome_to_primary_result: true,
+    relay_uses_prompt_only_context: true,
   },
   items: reviewBlockItems,
   stageLabels: reviewStageLabels,

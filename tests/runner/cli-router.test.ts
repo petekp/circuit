@@ -392,7 +392,7 @@ describe('CLI router', () => {
         'run',
         'review',
         '--goal',
-        'review this patch for safety problems',
+        'review this patch for safety problems:\n\nconst value = unsafeInput;',
         '--run-folder',
         join(runFolderBase, 'review'),
       ],
@@ -413,7 +413,7 @@ describe('CLI router', () => {
         'run',
         'review',
         '--goal',
-        'review this patch for safety problems',
+        'review this patch for safety problems:\n\nconst value = unsafeInput;',
         '--progress',
         'jsonl',
         '--run-folder',
@@ -513,6 +513,25 @@ describe('CLI router', () => {
       line_mode: 'append',
       status_text: 'Framing the work...',
     });
+  });
+
+  it('rejects an invalid Review target before creating a run', async () => {
+    const runFolder = join(runFolderBase, 'invalid-review-target');
+    const result = await runMainExit([
+      'run',
+      'review',
+      '--goal',
+      'review latest commit and staged changes',
+      '--progress',
+      'jsonl',
+      '--run-folder',
+      runFolder,
+    ]);
+
+    expect(result.exit).toBe(2);
+    expect(result.stderr).toMatch(/more than one code target|ambiguous/iu);
+    expect(result.stderr).not.toContain('"type":"run.started"');
+    expect(existsSync(runFolder)).toBe(false);
   });
 
   it('keeps Explore progress display focused on the operator, not internal report names', async () => {
@@ -715,7 +734,7 @@ describe('CLI router', () => {
         'run',
         'review',
         '--goal',
-        'review this malformed relay body',
+        'review this text: malformed relay fixture',
         '--progress',
         'jsonl',
         '--run-folder',

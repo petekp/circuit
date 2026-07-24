@@ -125,7 +125,7 @@ describe('Slice 3 precision write/record surfaces (downstream of the recall fn)'
         'run',
         'review',
         '--goal',
-        'Review the dashboard filter with cited hint-only recall',
+        'Review this supplied text: the dashboard filter should use cited hint-only recall.',
         '--run-folder',
         runFolder,
       ],

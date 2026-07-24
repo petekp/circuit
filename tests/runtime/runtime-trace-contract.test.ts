@@ -48,7 +48,7 @@ describe('runtime trace contract', () => {
       flowBytes: readFileSync(join(process.cwd(), 'generated/flows/review/circuit.json')),
       runDir: runFolder,
       runId: '85000000-0000-4000-8000-000000000101',
-      goal: 'review this patch',
+      goal: 'review this supplied text: The trace must record real entries that satisfy the public schema.',
       now: deterministicNow(Date.UTC(2026, 4, 7, 12, 0, 0)),
       relayer: relayerWithBody(REVIEW_RELAY_BODY),
     });
@@ -143,7 +143,7 @@ describe('runtime trace contract', () => {
       flowBytes: readFileSync(join(process.cwd(), 'generated/flows/review/circuit.json')),
       runDir: runFolder,
       runId: '85000000-0000-4000-8000-000000000104',
-      goal: 'review this patch with usage capture',
+      goal: 'review this supplied text: The trace must retain the usage reported by the connector.',
       now: deterministicNow(Date.UTC(2026, 4, 7, 12, 30, 0)),
       relayer: makeStubRelayer(REVIEW_RELAY_BODY, {
         receipt_id: 'stub-receipt-runtime-trace-contract',
@@ -177,7 +177,7 @@ describe('runtime trace contract', () => {
       compiledFlowPath,
       runDir: runFolder,
       runId: '85000000-0000-4000-8000-000000000102',
-      goal: 'review this patch with source path',
+      goal: 'review this supplied text: The trace must use the generated work contract source path.',
       now: deterministicNow(Date.UTC(2026, 4, 7, 12, 10, 0)),
       relayer: relayerWithBody(REVIEW_RELAY_BODY),
     });
@@ -210,7 +210,7 @@ describe('runtime trace contract', () => {
       flowBytes: readFileSync(join(process.cwd(), 'generated/flows/review/circuit.json')),
       runDir: runFolder,
       runId: '85000000-0000-4000-8000-000000000103',
-      goal: 'review this patch with policy provenance',
+      goal: 'review this supplied text: The trace must retain the policy source for relay guidance.',
       now: deterministicNow(Date.UTC(2026, 4, 7, 12, 20, 0)),
       relayer: relayerWithBody(REVIEW_RELAY_BODY),
       selectionConfigLayers: [
