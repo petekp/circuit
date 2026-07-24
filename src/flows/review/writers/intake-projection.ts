@@ -1,5 +1,10 @@
 import { ReviewIntake } from '../reports.js';
-import type { ReviewEvidence, ReviewEvidenceWarning, ReviewResolvedTarget } from '../reports.js';
+import type {
+  ReviewEvidence,
+  ReviewEvidenceWarning,
+  ReviewPathScope,
+  ReviewResolvedTarget,
+} from '../reports.js';
 import { containsOpaqueSubmoduleChange, opaqueBinaryChangePaths } from './evidence-completeness.js';
 
 export type ReviewIntakeProjectorInputs = {
@@ -8,6 +13,7 @@ export type ReviewIntakeProjectorInputs = {
   readonly evidence: ReviewEvidence;
   readonly maxUntrackedFiles: number;
   readonly assumedTarget?: boolean;
+  readonly scopeNotApplied?: readonly string[];
 };
 
 /**
@@ -16,6 +22,49 @@ export type ReviewIntakeProjectorInputs = {
  */
 export const ASSUMED_WORKING_TREE_WARNING =
   'Assumed target: the current working tree. Name a commit, a range, staged, or unstaged to review something else.';
+
+/** Plain-language rendering of a path scope, for operator-facing messages. */
+export function reviewPathScopeLabel(scope: ReviewPathScope): string {
+  return [
+    ...(scope.include.length > 0 ? [`limited to ${scope.include.join(', ')}`] : []),
+    ...(scope.exclude.length > 0 ? [`excluding ${scope.exclude.join(', ')}`] : []),
+  ].join(' and ');
+}
+
+function pathScopeOf(evidence: ReviewEvidence): ReviewPathScope | undefined {
+  if (evidence.kind === 'git-working-tree' || evidence.kind === 'git-target') {
+    return evidence.path_scope;
+  }
+  return undefined;
+}
+
+/**
+ * Two scope warnings, and they say opposite things on purpose. `target_scoped`
+ * reports a narrowing that *was* applied, so a reader knows the review covers
+ * less than the target name suggests. `scope_not_applied` reports one that was
+ * asked for and could not be, so a wider review is never mistaken for the
+ * requested one.
+ */
+function scopeWarnings(input: {
+  readonly evidence: ReviewEvidence;
+  readonly scopeNotApplied?: readonly string[];
+}): ReviewEvidenceWarning[] {
+  const warnings: ReviewEvidenceWarning[] = [];
+  const scope = pathScopeOf(input.evidence);
+  if (scope !== undefined) {
+    warnings.push({
+      kind: 'target_scoped',
+      message: `Review was ${reviewPathScopeLabel(scope)}. Changes outside those paths were not read.`,
+    });
+  }
+  for (const phrase of input.scopeNotApplied ?? []) {
+    warnings.push({
+      kind: 'scope_not_applied',
+      message: `Review could not narrow the target to "${phrase}", so it reviewed the whole target instead.`,
+    });
+  }
+  return warnings;
+}
 
 function gitCommandFailed(text: string): boolean {
   return /^git\s+.+\s+failed:/.test(text);
@@ -47,11 +96,14 @@ export function reviewEvidenceWarnings(input: {
   readonly evidence: ReviewEvidence;
   readonly maxUntrackedFiles: number;
   readonly assumedTarget?: boolean;
+  readonly scopeNotApplied?: readonly string[];
 }): ReviewEvidenceWarning[] {
-  const assumption: readonly ReviewEvidenceWarning[] =
-    input.assumedTarget === true
-      ? [{ kind: 'target_assumed', message: ASSUMED_WORKING_TREE_WARNING }]
-      : [];
+  const assumption: readonly ReviewEvidenceWarning[] = [
+    ...(input.assumedTarget === true
+      ? [{ kind: 'target_assumed' as const, message: ASSUMED_WORKING_TREE_WARNING }]
+      : []),
+    ...scopeWarnings(input),
+  ];
   if (input.evidence.kind === 'goal') return [...assumption];
   if (input.evidence.kind === 'unavailable') {
     return [
@@ -214,6 +266,7 @@ export function projectReviewIntake(input: ReviewIntakeProjectorInputs): ReviewI
       evidence: input.evidence,
       maxUntrackedFiles: input.maxUntrackedFiles,
       ...(input.assumedTarget === true ? { assumedTarget: true } : {}),
+      ...(input.scopeNotApplied === undefined ? {} : { scopeNotApplied: input.scopeNotApplied }),
     }),
   });
 }

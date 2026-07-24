@@ -78,15 +78,16 @@ describe('Codex MCP server contract', () => {
     expect(instructions).toContain('query leaves the machine');
     expect(instructions).toContain('untracked Review contents');
     // Four anchors for the Review target contract, one per decision the host
-    // has to get right: consent to relay tracked code, one pinned target, no
-    // path subsets, and no pull-request fetch. Pinning every sentence made
-    // ordinary rewording a test failure without catching anything more.
+    // has to get right: consent to relay tracked code, one pinned target, keep
+    // a path narrowing instead of widening it, and no pull-request fetch.
+    // Pinning every sentence made ordinary rewording a test failure without
+    // catching anything more.
     expect(instructions).toContain(
       'A direct user request to run Review on tracked workspace content authorizes the normal tracked-code relay',
     );
     expect(instructions).toContain('selected target as the only code under review');
     expect(instructions).toContain(
-      'If the request narrows a complete target to a file or directory subset, or excludes paths',
+      'If the request narrows the target to a file or directory, or excludes paths, keep that wording in the goal',
     );
     expect(instructions).toContain('Circuit cannot fetch a pull request');
     expect(instructions).toContain('error.next_action when present');

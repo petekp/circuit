@@ -24,6 +24,7 @@ import {
   type RuntimeGitReadRequest,
   type RuntimeGitReader,
   type RuntimeGitTarget,
+  runtimeGitArgsWithPathScope,
   runtimeGitSpawnErrorAllowsPartialOutput,
   runtimeGitTextIsValidUtf8,
 } from '../../../shared/runtime-git-reader.js';
@@ -34,11 +35,12 @@ import type {
 import type {
   ReviewEvidence,
   ReviewEvidenceText,
+  ReviewPathScope,
   ReviewResolvedTarget,
   ReviewUntrackedContentPolicy,
   ReviewUntrackedFileEvidence,
 } from '../reports.js';
-import { projectReviewIntake } from './intake-projection.js';
+import { projectReviewIntake, reviewPathScopeLabel } from './intake-projection.js';
 
 const MAX_DIFF_CHARS = 120_000;
 const MAX_UNTRACKED_FILES = 20;
@@ -80,7 +82,16 @@ type DirectGitContext = DirectGitRepository & {
 type ReviewTarget = ReviewResolvedTarget;
 
 type ReviewTargetParseResult =
-  | { readonly ok: true; readonly target: ReviewTarget; readonly assumed?: boolean }
+  | {
+      readonly ok: true;
+      readonly target: ReviewTarget;
+      readonly assumed?: boolean;
+      // Narrowings the operator asked for that Review could not turn into a
+      // path scope. The run still happens over the whole target; the report
+      // names each one so a wider review is never mistaken for the requested
+      // one.
+      readonly scopeNotApplied?: readonly string[];
+    }
   | { readonly ok: false; readonly reason: string };
 
 type DirectPinnedTarget =
@@ -484,7 +495,9 @@ async function readGit(
   operation: Exclude<RuntimeGitOperation, 'resolve_target'>,
   projectRoot: string,
   target?: RuntimeGitPinnedTarget,
+  paths?: ReviewPathScope,
 ): Promise<GitResult> {
+  const scope = paths === undefined ? {} : { paths };
   const request: RuntimeGitReadRequest =
     operation === 'target_diff' || operation === 'target_diff_stat'
       ? {
@@ -495,6 +508,7 @@ async function readGit(
             (() => {
               throw new Error(`Git ${operation} requires an immutable target.`);
             })(),
+          ...scope,
         }
       : {
           operation: operation as Exclude<
@@ -502,6 +516,7 @@ async function readGit(
             'resolve_target' | 'target_diff' | 'target_diff_stat'
           >,
           projectRoot,
+          ...scope,
         };
   const result = await reader.read(request);
   if (result.operation !== operation) {
@@ -559,11 +574,18 @@ function isSafeReviewRef(value: string): boolean {
 
 // --- Review target selection ---------------------------------------------
 //
-// The grammar recognises explicit target forms only: staged/unstaged, a
-// commit, a range, or material supplied inline. Everything else falls back
-// to the current working tree and says so. Refusing ordinary phrasings like
-// "code review please" costs more than reviewing the obvious thing and
-// naming the assumption out loud.
+// The grammar recognises explicit target forms: staged/unstaged, a commit, a
+// range, or material supplied inline. Everything else falls back to the
+// current working tree and says so. Refusing ordinary phrasings like "code
+// review please" costs more than reviewing the obvious thing and naming the
+// assumption out loud.
+//
+// A goal can also narrow the target to a set of paths ("only in src/",
+// "except tests/", or a bare "review src/auth"). That narrowing rides along
+// with whichever target the grammar picks and becomes a Git pathspec. A
+// narrowing Review cannot express as a pathspec does not stop the run: the
+// review covers the whole target and the report names what it could not
+// apply.
 //
 // Malformed *explicit* forms still fail closed, but they fail when the
 // target is resolved against the repository, not when it is phrased.
@@ -572,9 +594,6 @@ const REVIEW_LEAD = String.raw`(?:review|inspect|audit|check|analyze)`;
 
 const PULL_REQUEST_UNSUPPORTED_REASON =
   'Review cannot fetch a pull request. Check out the PR branch locally, then review the working tree or an explicit range such as main...HEAD.';
-
-const PATH_SUBSET_UNSUPPORTED_REASON =
-  'Review cannot narrow its evidence to part of a target. Review the whole working tree, a commit, or a range instead, and name the paths you care about in the goal so the reviewer concentrates there.';
 
 function normalizeReviewQuotes(scope: string): string {
   return scope.replace(/[’‘]/gu, "'").replace(/[“”]/gu, '"');
@@ -859,31 +878,139 @@ const RESTRICTION_LEAD_IN = String.raw`(?:only|just|limited\s+to|restricted\s+to
 // the bare "but" branch, which would read "do" as the excluded path.
 const EXCLUSION_LEAD_IN = String.raw`(?:except(?:\s+for)?|excluding|ignoring|omitting|skipping|leaving\s+out|apart\s+from|aside\s+from|other\s+than|but\s+(?:do\s+not|don't|never)\s+(?:review|include|inspect|read|look\s+at)|but(?:\s+not)?)`;
 
-const NARROWING_CLAUSE_PATTERN = new RegExp(
-  String.raw`\b(?:${RESTRICTION_LEAD_IN}|${EXCLUSION_LEAD_IN})\s+(?:(?:in|inside|under|within|below)\s+)?(?:the\s+)?(?<path>[^\s,;!?]+)`,
+const NARROWING_CLAUSE_TAIL = String.raw`\s+(?:(?:in|inside|under|within|below)\s+)?(?:the\s+)?(?<path>[^\s,;!?]+)`;
+
+const RESTRICTION_CLAUSE_PATTERN = new RegExp(
+  String.raw`\b(?:${RESTRICTION_LEAD_IN})${NARROWING_CLAUSE_TAIL}`,
   'giu',
 );
 
-// Classes of change Review cannot carve out of a target it pins as a whole.
+const EXCLUSION_CLAUSE_PATTERN = new RegExp(
+  String.raw`\b(?:${EXCLUSION_LEAD_IN})${NARROWING_CLAUSE_TAIL}`,
+  'giu',
+);
+
+// A narrowing by class of change rather than by path: "except untracked files",
+// "except the deleted ones". These are not pathspecs, so they are resolved
+// against the target itself. Some are already true of the target Review picked,
+// one narrows the working tree, and the rest it cannot express.
 const EXCLUDED_CHANGE_CLASS_PATTERN = new RegExp(
-  String.raw`\b${EXCLUSION_LEAD_IN}\s+(?:any\s+|all\s+|the\s+)?(?:untracked|tracked|staged|unstaged|committed|new|deleted|renamed)\b`,
+  String.raw`\b${EXCLUSION_LEAD_IN}\s+(?:any\s+|all\s+|the\s+)?(?<changeClass>untracked|tracked|staged|unstaged|committed|new|deleted|renamed)\b`,
   'iu',
 );
 
-function namesNarrowedPaths(scope: string): boolean {
-  if (EXCLUDED_CHANGE_CLASS_PATTERN.test(scope)) return true;
-  // Every narrowing clause gets a look. The first one is often prose ("only in
-  // the parts that ..."); a later one can still name a real path.
-  for (const match of scope.matchAll(NARROWING_CLAUSE_PATTERN)) {
-    const path = match.groups?.path;
-    if (path !== undefined && looksLikeReviewSubsetPath(path)) return true;
+/**
+ * Apply a change-class exclusion to the target it narrows, or return undefined
+ * when Review cannot express it. Returning the target unchanged means the
+ * exclusion was already true: a commit diff has no untracked files in it, so
+ * "review the last commit except untracked" asks for nothing extra and should
+ * not warn about a narrowing that was never needed.
+ */
+function targetWithoutChangeClass(
+  target: ReviewTarget,
+  changeClass: string,
+): ReviewTarget | undefined {
+  const name = changeClass.toLowerCase();
+  if (target.kind === 'commit' || target.kind === 'range') {
+    // A commit diff is committed, tracked content and nothing else.
+    return name === 'untracked' || name === 'staged' || name === 'unstaged' ? target : undefined;
   }
-  return false;
+  if (target.kind !== 'working_tree') return undefined;
+  // The working tree never contains committed-only changes.
+  if (name === 'committed') return target;
+  if (name !== 'untracked') return undefined;
+  // Only `all` reaches untracked files; the narrower modes already exclude them.
+  return target.mode === 'all' ? { ...target, mode: 'tracked' } : target;
+}
+
+const MAX_SCOPE_PATHS = 32;
+const MAX_SCOPE_PATH_LENGTH = 200;
+// Repository-relative path or glob. Excludes ':' so a token lifted from prose
+// can never introduce pathspec magic, and excludes whitespace and backslashes
+// so one token is always one pathspec.
+const SAFE_SCOPE_PATH_PATTERN = /^[A-Za-z0-9._@+*?[\]/-]+$/u;
+
+/**
+ * Turn a path token lifted from prose into something Git can be handed as a
+ * pathspec. Anything that could escape the repository or carry pathspec magic
+ * comes back undefined, and the caller reports it as a narrowing it could not
+ * apply rather than silently reviewing something else.
+ */
+function scopePathFromToken(value: string): string | undefined {
+  const cleaned = value
+    .trim()
+    .replace(/^[<("'`]+/u, '')
+    .replace(/[>"'`),.;:!?]+$/u, '');
+  if (
+    cleaned.length === 0 ||
+    cleaned.length > MAX_SCOPE_PATH_LENGTH ||
+    !SAFE_SCOPE_PATH_PATTERN.test(cleaned) ||
+    cleaned.startsWith('/') ||
+    cleaned.startsWith('-') ||
+    cleaned.split('/').includes('..')
+  ) {
+    return undefined;
+  }
+  return cleaned;
+}
+
+type ReviewScopeRequest = {
+  readonly paths?: ReviewPathScope;
+  // Resolved once the target is known, because whether Review can honour it
+  // depends on what the target already covers.
+  readonly excludedChangeClass?: { readonly phrase: string; readonly name: string };
+  readonly notApplied: readonly string[];
+};
+
+const NO_REVIEW_SCOPE: ReviewScopeRequest = Object.freeze({ notApplied: Object.freeze([]) });
+
+/**
+ * Read the narrowing clauses out of a goal. "only in src/" restricts, "except
+ * tests/" carves out, and both can appear in one goal. Every clause gets a
+ * look: the first is often prose ("only in the parts that ..."), and a later
+ * one can still name a real path.
+ */
+function extractReviewScope(scope: string): ReviewScopeRequest {
+  const include: string[] = [];
+  const exclude: string[] = [];
+  const notApplied: string[] = [];
+  const changeClassMatch = EXCLUDED_CHANGE_CLASS_PATTERN.exec(scope);
+  const changeClassName = changeClassMatch?.groups?.changeClass;
+  const excludedChangeClass =
+    changeClassMatch === null || changeClassMatch === undefined || changeClassName === undefined
+      ? undefined
+      : { phrase: changeClassMatch[0].trim(), name: changeClassName };
+  const collect = (pattern: RegExp, into: string[]): void => {
+    for (const match of scope.matchAll(pattern)) {
+      const token = match.groups?.path;
+      if (token === undefined || !looksLikeReviewSubsetPath(token)) continue;
+      const path = scopePathFromToken(token);
+      if (path === undefined) {
+        notApplied.push(token.trim());
+        continue;
+      }
+      if (!into.includes(path)) into.push(path);
+    }
+  };
+  collect(RESTRICTION_CLAUSE_PATTERN, include);
+  collect(EXCLUSION_CLAUSE_PATTERN, exclude);
+  while (include.length + exclude.length > MAX_SCOPE_PATHS) {
+    const dropped = exclude.length > include.length ? exclude.pop() : include.pop();
+    if (dropped === undefined) break;
+    notApplied.push(dropped);
+  }
+  const carve = excludedChangeClass === undefined ? {} : { excludedChangeClass };
+  if (include.length === 0 && exclude.length === 0) {
+    return notApplied.length === 0 && excludedChangeClass === undefined
+      ? NO_REVIEW_SCOPE
+      : { ...carve, notApplied };
+  }
+  return { paths: { include, exclude }, ...carve, notApplied };
 }
 
 // A bare path as the whole request. Read last: it competes with ordinary prose,
 // so every explicit target form gets the first say.
-function namesPathOnlyRequest(scope: string): boolean {
+function pathOnlyRequestPath(scope: string): string | undefined {
   const pathOnly =
     /^\s*(?:review|inspect|audit|check|analyze)\s+(?:(?:only|the|this|my|our|current)\s+)*(?:(?:file|code|plan|report)\s*(?:(?:in|at|from)\s+|:\s*)?)?(?<path>\S+)(?<suffix>[\s\S]*)$/iu.exec(
       scope,
@@ -898,10 +1025,44 @@ function namesPathOnlyRequest(scope: string): boolean {
         suffix,
       )
     ) {
-      return true;
+      return path;
     }
   }
-  return false;
+  return undefined;
+}
+
+function withPathScope(target: ReviewTarget, paths: ReviewPathScope): ReviewTarget {
+  switch (target.kind) {
+    case 'working_tree':
+      return { ...target, paths };
+    case 'commit':
+      return { ...target, paths };
+    case 'range':
+      return { ...target, paths };
+    default:
+      // Supplied material has no repository paths to scope.
+      return target;
+  }
+}
+
+function scopedParseResult(
+  target: ReviewTarget,
+  requested: ReviewScopeRequest,
+  assumed = false,
+): ReviewTargetParseResult {
+  const scoped = requested.paths === undefined ? target : withPathScope(target, requested.paths);
+  const carve = requested.excludedChangeClass;
+  const narrowed = carve === undefined ? scoped : targetWithoutChangeClass(scoped, carve.name);
+  const notApplied = [
+    ...requested.notApplied,
+    ...(carve !== undefined && narrowed === undefined ? [carve.phrase] : []),
+  ];
+  return {
+    ok: true,
+    target: narrowed ?? scoped,
+    ...(assumed ? { assumed: true } : {}),
+    ...(notApplied.length === 0 ? {} : { scopeNotApplied: notApplied }),
+  };
 }
 
 export function parseReviewTarget(scope: string): ReviewTargetParseResult {
@@ -929,9 +1090,10 @@ export function parseReviewTarget(scope: string): ReviewTargetParseResult {
     return { ok: false, reason: PULL_REQUEST_UNSUPPORTED_REASON };
   }
 
-  if (namesNarrowedPaths(authorityScope)) {
-    return { ok: false, reason: PATH_SUBSET_UNSUPPORTED_REASON };
-  }
+  // The narrowing clauses are read before the target grammar. "review latest
+  // commit only in src/" names a commit and a scope, and reviewing the whole
+  // commit would review more than the operator asked for.
+  const requested = extractReviewScope(authorityScope);
 
   const range = parseRangeForm(authorityScope);
   const pinned: ReviewTargetParseResult | undefined =
@@ -950,21 +1112,32 @@ export function parseReviewTarget(scope: string): ReviewTargetParseResult {
     };
   }
 
-  if (pinned !== undefined) return pinned;
-  if (workingTree !== undefined) return { ok: true, target: workingTree };
+  if (pinned !== undefined) return scopedParseResult(pinned.target, requested);
+  if (workingTree !== undefined) return scopedParseResult(workingTree, requested);
 
   const bareHead = parseBareHeadForm(authorityScope);
-  if (bareHead !== undefined) return { ok: true, target: bareHead };
+  if (bareHead !== undefined) return scopedParseResult(bareHead, requested);
 
-  if (namesPathOnlyRequest(authorityScope)) {
-    return { ok: false, reason: PATH_SUBSET_UNSUPPORTED_REASON };
+  // "review src/auth" names what to look at, not which changes. Review the
+  // working tree under that path and say the target was assumed.
+  const pathOnly = requested.paths === undefined ? pathOnlyRequestPath(authorityScope) : undefined;
+  if (pathOnly !== undefined) {
+    const path = scopePathFromToken(pathOnly);
+    if (path !== undefined) {
+      return scopedParseResult(
+        { kind: 'working_tree', mode: 'all', explicit: false },
+        { ...requested, paths: { include: [path], exclude: [] } },
+        true,
+      );
+    }
+    return scopedParseResult(
+      { kind: 'working_tree', mode: 'all', explicit: false },
+      { ...requested, notApplied: [...requested.notApplied, pathOnly.trim()] },
+      true,
+    );
   }
 
-  return {
-    ok: true,
-    target: { kind: 'working_tree', mode: 'all', explicit: false },
-    assumed: true,
-  };
+  return scopedParseResult({ kind: 'working_tree', mode: 'all', explicit: false }, requested, true);
 }
 
 export function reviewScopeRequiresGitEvidence(scope: string): boolean {
@@ -1220,6 +1393,7 @@ async function collectTargetEvidence(
   if (requestTarget === undefined) {
     throw new Error('Review target unavailable: the requested Git target could not be prepared.');
   }
+  const paths = target.paths;
   const pinnedTarget = await resolveTarget(projectRoot, requestTarget, reader, directContext);
   const evidenceResults =
     reader === undefined
@@ -1228,19 +1402,24 @@ async function collectTargetEvidence(
           return {
             diff: runGit(
               projectRoot,
-              targetDiffArgs(directTarget),
+              runtimeGitArgsWithPathScope(targetDiffArgs(directTarget), paths),
               {
                 maxBufferBytes: MAX_DIFF_BUFFER_BYTES,
                 allowPartialStdout: true,
               },
               directContext,
             ),
-            diffStat: runGit(projectRoot, targetDiffArgs(directTarget, true), {}, directContext),
+            diffStat: runGit(
+              projectRoot,
+              runtimeGitArgsWithPathScope(targetDiffArgs(directTarget, true), paths),
+              {},
+              directContext,
+            ),
           };
         })()
       : {
-          diff: await readGit(reader, 'target_diff', projectRoot, pinnedTarget),
-          diffStat: await readGit(reader, 'target_diff_stat', projectRoot, pinnedTarget),
+          diff: await readGit(reader, 'target_diff', projectRoot, pinnedTarget, paths),
+          diffStat: await readGit(reader, 'target_diff_stat', projectRoot, pinnedTarget, paths),
         };
   const { diff, diffStat } = evidenceResults;
   if (!diff.ok) {
@@ -1252,7 +1431,9 @@ async function collectTargetEvidence(
   const targetDiff = gitDiffEvidence(diff);
   if (targetDiff.text.length === 0) {
     throw new Error(
-      `Review target has no changes to inspect: ${reviewTargetLabel(target)} resolved successfully but produced an empty diff.`,
+      `Review target has no changes to inspect: ${reviewTargetLabel(target)}${
+        paths === undefined ? '' : ` ${reviewPathScopeLabel(paths)}`
+      } resolved successfully but produced an empty diff.`,
     );
   }
   return { targetDiff, targetDiffStat: diffStat.stdout, pinnedTarget };
@@ -1322,14 +1503,23 @@ async function inspectHiddenIndexFlags(
   projectRoot: string,
   reader?: RuntimeGitReader,
   directContext?: DirectGitContext,
+  paths?: ReviewPathScope,
 ): Promise<{
   readonly result: GitResult;
   readonly flags: readonly HiddenIndexFlag[];
 }> {
+  // Scoped with the rest of the read: a hidden flag outside the reviewed paths
+  // cannot hide a change inside them, and stopping the run over it would stop
+  // a review that was never going to look there.
   const result =
     reader === undefined
-      ? runGit(projectRoot, ['ls-files', '-v', '-z', '--'], {}, directContext)
-      : await readGit(reader, 'hidden_index_flags', projectRoot);
+      ? runGit(
+          projectRoot,
+          runtimeGitArgsWithPathScope(['ls-files', '-v', '-z', '--'], paths),
+          {},
+          directContext,
+        )
+      : await readGit(reader, 'hidden_index_flags', projectRoot, undefined, paths);
   if (!result.ok) {
     throw new Error(
       `Review target unavailable: hidden index flags could not be inspected. ${result.reason}`,
@@ -1513,6 +1703,7 @@ async function collectUntrackedFiles(
   contentPolicy: ReviewUntrackedContentPolicy,
   reader?: RuntimeGitReader,
   directContext?: DirectGitContext,
+  pathScope?: ReviewPathScope,
 ): Promise<{
   readonly count: number;
   readonly truncated: boolean;
@@ -1520,8 +1711,16 @@ async function collectUntrackedFiles(
 }> {
   const listed =
     reader === undefined
-      ? runGit(projectRoot, ['ls-files', '--others', '--exclude-standard', '-z'], {}, directContext)
-      : await readGit(reader, 'untracked_files', projectRoot);
+      ? runGit(
+          projectRoot,
+          runtimeGitArgsWithPathScope(
+            ['ls-files', '--others', '--exclude-standard', '-z'],
+            pathScope,
+          ),
+          {},
+          directContext,
+        )
+      : await readGit(reader, 'untracked_files', projectRoot, undefined, pathScope);
   if (!listed.ok) {
     throw new Error(
       `Review target unavailable: untracked files could not be enumerated. ${listed.reason}`,
@@ -1592,11 +1791,18 @@ async function collectReviewEvidence(
           }),
       target_diff: targetEvidence.targetDiff,
       target_diff_stat: targetEvidence.targetDiffStat,
+      ...(target.paths === undefined ? {} : { path_scope: target.paths }),
     };
   }
 
   const emptyDiffResult: GitResult = { ok: true, stdout: '', truncated_by_buffer: false };
-  const hiddenIndex = await inspectHiddenIndexFlags(evidenceRoot, options.gitReader, directContext);
+  const paths = target.paths;
+  const hiddenIndex = await inspectHiddenIndexFlags(
+    evidenceRoot,
+    options.gitReader,
+    directContext,
+    paths,
+  );
   assertNoHiddenIndexFlags(hiddenIndex.flags);
   const readDiff = async (
     operation: 'staged_diff' | 'unstaged_diff',
@@ -1605,28 +1811,28 @@ async function collectReviewEvidence(
     options.gitReader === undefined
       ? runGit(
           evidenceRoot,
-          directArgs,
+          runtimeGitArgsWithPathScope(directArgs, paths),
           {
             maxBufferBytes: MAX_DIFF_BUFFER_BYTES,
             allowPartialStdout: true,
           },
           directContext,
         )
-      : await readGit(options.gitReader, operation, evidenceRoot);
+      : await readGit(options.gitReader, operation, evidenceRoot, undefined, paths);
   const readStat = async (
     operation: 'staged_diff_stat' | 'unstaged_diff_stat',
     directArgs: readonly string[],
   ): Promise<GitResult> =>
     options.gitReader === undefined
-      ? runGit(evidenceRoot, directArgs, {}, directContext)
-      : await readGit(options.gitReader, operation, evidenceRoot);
+      ? runGit(evidenceRoot, runtimeGitArgsWithPathScope(directArgs, paths), {}, directContext)
+      : await readGit(options.gitReader, operation, evidenceRoot, undefined, paths);
   const readChangedGitlinks = async (
     operation: 'staged_changed_gitlinks' | 'unstaged_changed_gitlinks',
     directArgs: readonly string[],
   ): Promise<GitResult> =>
     options.gitReader === undefined
-      ? runGit(evidenceRoot, directArgs, {}, directContext)
-      : await readGit(options.gitReader, operation, evidenceRoot);
+      ? runGit(evidenceRoot, runtimeGitArgsWithPathScope(directArgs, paths), {}, directContext)
+      : await readGit(options.gitReader, operation, evidenceRoot, undefined, paths);
   const stagedDiffArgs = [
     'diff',
     '--cached',
@@ -1669,8 +1875,13 @@ async function collectReviewEvidence(
   ] as const;
   const readStatus = async (): Promise<GitResult> =>
     options.gitReader === undefined
-      ? runGit(evidenceRoot, ['status', '--short', '--ignore-submodules=none'], {}, directContext)
-      : await readGit(options.gitReader, 'status', evidenceRoot);
+      ? runGit(
+          evidenceRoot,
+          runtimeGitArgsWithPathScope(['status', '--short', '--ignore-submodules=none'], paths),
+          {},
+          directContext,
+        )
+      : await readGit(options.gitReader, 'status', evidenceRoot, undefined, paths);
 
   const status =
     target.mode === 'all'
@@ -1769,6 +1980,7 @@ async function collectReviewEvidence(
           untrackedContentPolicy,
           options.gitReader,
           directContext,
+          paths,
         )
       : { count: 0, truncated: false, files: [] };
   const selectedTrackedContentAvailable = staged.text.length > 0 || unstaged.text.length > 0;
@@ -1804,10 +2016,11 @@ async function collectReviewEvidence(
     );
   }
   if (!selectedContentAvailable) {
+    const scopeSuffix = paths === undefined ? '' : ` ${reviewPathScopeLabel(paths)}`;
     throw new Error(
       target.explicit
-        ? `Review target has no changes to inspect: ${target.mode === 'all' ? 'working tree changes' : `${target.mode} changes`} are empty.`
-        : 'Review found no changes to inspect. The goal did not name a target, so Review looked at the working tree. Name a commit, a range, staged, or unstaged if you meant a different target.',
+        ? `Review target has no changes to inspect: ${target.mode === 'all' ? 'working tree changes' : `${target.mode} changes`}${scopeSuffix} are empty.`
+        : `Review found no changes to inspect. The goal did not name a target, so Review looked at the working tree${scopeSuffix}. Name a commit, a range, staged, or unstaged if you meant a different target.`,
     );
   }
 
@@ -1831,6 +2044,7 @@ async function collectReviewEvidence(
     untracked_content_policy: untrackedContentPolicy,
     untracked_files: untracked.files,
     ...(submodulePaths.length === 0 ? {} : { submodule_paths: [...submodulePaths] }),
+    ...(paths === undefined ? {} : { path_scope: paths }),
   };
 }
 
@@ -1853,6 +2067,9 @@ export const reviewIntakeComposeBuilder: ComposeBuilder = {
       evidence,
       maxUntrackedFiles: MAX_UNTRACKED_FILES,
       ...(parsedTarget.assumed === true ? { assumedTarget: true } : {}),
+      ...(parsedTarget.scopeNotApplied === undefined
+        ? {}
+        : { scopeNotApplied: parsedTarget.scopeNotApplied }),
     });
   },
 };

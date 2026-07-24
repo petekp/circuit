@@ -84768,7 +84768,7 @@ function addObjectIdPrefixMismatch(ref, objectId, field, ctx) {
 function computeReviewVerdict(findings) {
   return findings.some((finding3) => finding3.severity !== "low") ? "ISSUES_FOUND" : "CLEAN";
 }
-var ReviewFindingSeverity, ReviewResultVerdict, ReviewRelayVerdict, ReviewEvidenceWarningKind, ReviewEvidenceWarning, ReviewEvidenceText, ReviewUntrackedContentPolicy, ReviewTargetKind, ReviewWorkingTreeMode, ReviewUntrackedFileEvidence, ReviewGitObjectId, ReviewGitTargetEvidence, ReviewEvidence, ReviewEvidenceSummary, ReviewResolvedTarget, ReviewIntake, ReviewFinding, ReviewResult, ReviewRelayResult;
+var ReviewFindingSeverity, ReviewResultVerdict, ReviewRelayVerdict, ReviewEvidenceWarningKind, ReviewEvidenceWarning, ReviewEvidenceText, ReviewUntrackedContentPolicy, ReviewTargetKind, ReviewWorkingTreeMode, ReviewPathScope, ReviewUntrackedFileEvidence, ReviewGitObjectId, ReviewGitTargetEvidence, ReviewEvidence, ReviewEvidenceSummary, ReviewResolvedTarget, ReviewIntake, ReviewFinding, ReviewResult, ReviewRelayResult;
 var init_reports10 = __esm({
   "dist/flows/review/reports.js"() {
     "use strict";
@@ -84787,7 +84787,9 @@ var init_reports10 = __esm({
       "submodule_content_not_inspected",
       "evidence_unavailable",
       "scope_empty",
-      "target_assumed"
+      "target_assumed",
+      "target_scoped",
+      "scope_not_applied"
     ]);
     ReviewEvidenceWarning = external_exports.object({
       kind: ReviewEvidenceWarningKind,
@@ -84800,7 +84802,11 @@ var init_reports10 = __esm({
     }).strict();
     ReviewUntrackedContentPolicy = external_exports.enum(["metadata-only", "include-content"]);
     ReviewTargetKind = external_exports.enum(["working_tree", "commit", "range"]);
-    ReviewWorkingTreeMode = external_exports.enum(["all", "staged", "unstaged"]);
+    ReviewWorkingTreeMode = external_exports.enum(["all", "tracked", "staged", "unstaged"]);
+    ReviewPathScope = external_exports.object({
+      include: external_exports.array(external_exports.string().min(1)),
+      exclude: external_exports.array(external_exports.string().min(1))
+    }).strict().refine((scope) => scope.include.length > 0 || scope.exclude.length > 0, "A path scope must include or exclude at least one path.");
     ReviewUntrackedFileEvidence = external_exports.object({
       path: external_exports.string().min(1),
       byte_length: external_exports.number().int().nonnegative(),
@@ -84819,7 +84825,8 @@ var init_reports10 = __esm({
       target_base_commit: ReviewGitObjectId.optional(),
       target_head_commit: ReviewGitObjectId.optional(),
       target_diff: ReviewEvidenceText,
-      target_diff_stat: external_exports.string()
+      target_diff_stat: external_exports.string(),
+      path_scope: ReviewPathScope.optional()
     }).strict().superRefine((evidence2, ctx) => {
       if (evidence2.target_kind === "commit") {
         addRequiredEvidenceField(evidence2.target_commit, "target_commit", ctx);
@@ -84865,7 +84872,8 @@ var init_reports10 = __esm({
         untracked_files_truncated: external_exports.boolean(),
         untracked_content_policy: ReviewUntrackedContentPolicy,
         untracked_files: external_exports.array(ReviewUntrackedFileEvidence),
-        submodule_paths: external_exports.array(external_exports.string().min(1)).optional()
+        submodule_paths: external_exports.array(external_exports.string().min(1)).optional(),
+        path_scope: ReviewPathScope.optional()
       }).strict(),
       ReviewGitTargetEvidence
     ]);
@@ -84885,14 +84893,16 @@ var init_reports10 = __esm({
         untracked_files_truncated: external_exports.boolean(),
         target_kind: external_exports.literal("working_tree"),
         target_mode: ReviewWorkingTreeMode,
-        target_diff_included: external_exports.boolean()
+        target_diff_included: external_exports.boolean(),
+        path_scope: ReviewPathScope.optional()
       }).strict(),
       external_exports.object({
         kind: external_exports.literal("git-target"),
         target_kind: external_exports.enum(["commit", "range"]),
         target_ref: external_exports.string().min(1),
         target_diff_included: external_exports.boolean(),
-        target_diff_truncated: external_exports.boolean()
+        target_diff_truncated: external_exports.boolean(),
+        path_scope: ReviewPathScope.optional()
       }).strict()
     ]);
     ReviewResolvedTarget = external_exports.discriminatedUnion("kind", [
@@ -84902,14 +84912,20 @@ var init_reports10 = __esm({
         mode: ReviewWorkingTreeMode,
         // False when Circuit assumed the working tree because the goal named no
         // target. The assumption is reported to the operator as a warning.
-        explicit: external_exports.boolean()
+        explicit: external_exports.boolean(),
+        paths: ReviewPathScope.optional()
       }).strict(),
-      external_exports.object({ kind: external_exports.literal("commit"), ref: external_exports.string().min(1) }).strict(),
+      external_exports.object({
+        kind: external_exports.literal("commit"),
+        ref: external_exports.string().min(1),
+        paths: ReviewPathScope.optional()
+      }).strict(),
       external_exports.object({
         kind: external_exports.literal("range"),
         base: external_exports.string().min(1),
         head: external_exports.string().min(1),
-        dots: external_exports.enum(["..", "..."])
+        dots: external_exports.enum(["..", "..."]),
+        paths: ReviewPathScope.optional()
       }).strict()
     ]);
     ReviewIntake = external_exports.object({
@@ -85000,6 +85016,17 @@ var init_reports10 = __esm({
 });
 
 // dist/shared/runtime-git-reader.js
+function runtimeGitPathspecs(scope) {
+  if (scope === void 0)
+    return Object.freeze([]);
+  return Object.freeze([...scope.include, ...scope.exclude.map((path) => `:(exclude)${path}`)]);
+}
+function runtimeGitArgsWithPathScope(args, scope) {
+  const specs = runtimeGitPathspecs(scope);
+  if (specs.length === 0)
+    return args;
+  return args.at(-1) === "--" ? [...args, ...specs] : [...args, "--", ...specs];
+}
 function runtimeGitTextIsValidUtf8(text) {
   for (let index = 0; index < text.length; index += 1) {
     const code = text.charCodeAt(index);
@@ -85113,6 +85140,35 @@ var init_evidence_completeness = __esm({
 });
 
 // dist/flows/review/writers/intake-projection.js
+function reviewPathScopeLabel(scope) {
+  return [
+    ...scope.include.length > 0 ? [`limited to ${scope.include.join(", ")}`] : [],
+    ...scope.exclude.length > 0 ? [`excluding ${scope.exclude.join(", ")}`] : []
+  ].join(" and ");
+}
+function pathScopeOf(evidence2) {
+  if (evidence2.kind === "git-working-tree" || evidence2.kind === "git-target") {
+    return evidence2.path_scope;
+  }
+  return void 0;
+}
+function scopeWarnings(input) {
+  const warnings = [];
+  const scope = pathScopeOf(input.evidence);
+  if (scope !== void 0) {
+    warnings.push({
+      kind: "target_scoped",
+      message: `Review was ${reviewPathScopeLabel(scope)}. Changes outside those paths were not read.`
+    });
+  }
+  for (const phrase of input.scopeNotApplied ?? []) {
+    warnings.push({
+      kind: "scope_not_applied",
+      message: `Review could not narrow the target to "${phrase}", so it reviewed the whole target instead.`
+    });
+  }
+  return warnings;
+}
 function gitCommandFailed(text) {
   return /^git\s+.+\s+failed:/.test(text);
 }
@@ -85133,7 +85189,10 @@ function appendOpaqueBinaryWarnings(warnings, diffs) {
   }
 }
 function reviewEvidenceWarnings(input) {
-  const assumption = input.assumedTarget === true ? [{ kind: "target_assumed", message: ASSUMED_WORKING_TREE_WARNING }] : [];
+  const assumption = [
+    ...input.assumedTarget === true ? [{ kind: "target_assumed", message: ASSUMED_WORKING_TREE_WARNING }] : [],
+    ...scopeWarnings(input)
+  ];
   if (input.evidence.kind === "goal")
     return [...assumption];
   if (input.evidence.kind === "unavailable") {
@@ -85270,7 +85329,8 @@ function projectReviewIntake(input) {
     evidence_warnings: reviewEvidenceWarnings({
       evidence: input.evidence,
       maxUntrackedFiles: input.maxUntrackedFiles,
-      ...input.assumedTarget === true ? { assumedTarget: true } : {}
+      ...input.assumedTarget === true ? { assumedTarget: true } : {},
+      ...input.scopeNotApplied === void 0 ? {} : { scopeNotApplied: input.scopeNotApplied }
     })
   });
 }
@@ -85614,16 +85674,19 @@ function runGit(projectRoot, args, options = {}, preparedContext) {
   }
   return { ok: true, stdout, truncated_by_buffer: false };
 }
-async function readGit(reader, operation, projectRoot, target) {
+async function readGit(reader, operation, projectRoot, target, paths) {
+  const scope = paths === void 0 ? {} : { paths };
   const request = operation === "target_diff" || operation === "target_diff_stat" ? {
     operation,
     projectRoot,
     target: target ?? (() => {
       throw new Error(`Git ${operation} requires an immutable target.`);
-    })()
+    })(),
+    ...scope
   } : {
     operation,
-    projectRoot
+    projectRoot,
+    ...scope
   };
   const result = await reader.read(request);
   if (result.operation !== operation) {
@@ -85834,26 +85897,98 @@ function parseWorkingTreeForm(scope) {
   }
   return void 0;
 }
-function namesNarrowedPaths(scope) {
-  if (EXCLUDED_CHANGE_CLASS_PATTERN.test(scope))
-    return true;
-  for (const match of scope.matchAll(NARROWING_CLAUSE_PATTERN)) {
-    const path = match.groups?.path;
-    if (path !== void 0 && looksLikeReviewSubsetPath(path))
-      return true;
+function targetWithoutChangeClass(target, changeClass) {
+  const name = changeClass.toLowerCase();
+  if (target.kind === "commit" || target.kind === "range") {
+    return name === "untracked" || name === "staged" || name === "unstaged" ? target : void 0;
   }
-  return false;
+  if (target.kind !== "working_tree")
+    return void 0;
+  if (name === "committed")
+    return target;
+  if (name !== "untracked")
+    return void 0;
+  return target.mode === "all" ? { ...target, mode: "tracked" } : target;
 }
-function namesPathOnlyRequest(scope) {
+function scopePathFromToken(value) {
+  const cleaned = value.trim().replace(/^[<("'`]+/u, "").replace(/[>"'`),.;:!?]+$/u, "");
+  if (cleaned.length === 0 || cleaned.length > MAX_SCOPE_PATH_LENGTH || !SAFE_SCOPE_PATH_PATTERN.test(cleaned) || cleaned.startsWith("/") || cleaned.startsWith("-") || cleaned.split("/").includes("..")) {
+    return void 0;
+  }
+  return cleaned;
+}
+function extractReviewScope(scope) {
+  const include = [];
+  const exclude = [];
+  const notApplied = [];
+  const changeClassMatch = EXCLUDED_CHANGE_CLASS_PATTERN.exec(scope);
+  const changeClassName = changeClassMatch?.groups?.changeClass;
+  const excludedChangeClass = changeClassMatch === null || changeClassMatch === void 0 || changeClassName === void 0 ? void 0 : { phrase: changeClassMatch[0].trim(), name: changeClassName };
+  const collect = (pattern, into) => {
+    for (const match of scope.matchAll(pattern)) {
+      const token = match.groups?.path;
+      if (token === void 0 || !looksLikeReviewSubsetPath(token))
+        continue;
+      const path = scopePathFromToken(token);
+      if (path === void 0) {
+        notApplied.push(token.trim());
+        continue;
+      }
+      if (!into.includes(path))
+        into.push(path);
+    }
+  };
+  collect(RESTRICTION_CLAUSE_PATTERN, include);
+  collect(EXCLUSION_CLAUSE_PATTERN, exclude);
+  while (include.length + exclude.length > MAX_SCOPE_PATHS) {
+    const dropped = exclude.length > include.length ? exclude.pop() : include.pop();
+    if (dropped === void 0)
+      break;
+    notApplied.push(dropped);
+  }
+  const carve = excludedChangeClass === void 0 ? {} : { excludedChangeClass };
+  if (include.length === 0 && exclude.length === 0) {
+    return notApplied.length === 0 && excludedChangeClass === void 0 ? NO_REVIEW_SCOPE : { ...carve, notApplied };
+  }
+  return { paths: { include, exclude }, ...carve, notApplied };
+}
+function pathOnlyRequestPath(scope) {
   const pathOnly = /^\s*(?:review|inspect|audit|check|analyze)\s+(?:(?:only|the|this|my|our|current)\s+)*(?:(?:file|code|plan|report)\s*(?:(?:in|at|from)\s+|:\s*)?)?(?<path>\S+)(?<suffix>[\s\S]*)$/iu.exec(scope);
   const path = pathOnly?.groups?.path;
   if (path !== void 0 && looksLikeReviewPath(path)) {
     const suffix = (pathOnly?.groups?.suffix ?? "").trim();
     if (suffix.length === 0 || /^[.!?]$/u.test(suffix) || /^(?:,?\s*(?:for|with|especially)\b|,?\s+and\s+(?:focus|check|inspect|look|pay|prioritize|verify)\b)/iu.test(suffix)) {
-      return true;
+      return path;
     }
   }
-  return false;
+  return void 0;
+}
+function withPathScope(target, paths) {
+  switch (target.kind) {
+    case "working_tree":
+      return { ...target, paths };
+    case "commit":
+      return { ...target, paths };
+    case "range":
+      return { ...target, paths };
+    default:
+      return target;
+  }
+}
+function scopedParseResult(target, requested, assumed = false) {
+  const scoped = requested.paths === void 0 ? target : withPathScope(target, requested.paths);
+  const carve = requested.excludedChangeClass;
+  const narrowed = carve === void 0 ? scoped : targetWithoutChangeClass(scoped, carve.name);
+  const notApplied = [
+    ...requested.notApplied,
+    ...carve !== void 0 && narrowed === void 0 ? [carve.phrase] : []
+  ];
+  return {
+    ok: true,
+    target: narrowed ?? scoped,
+    ...assumed ? { assumed: true } : {},
+    ...notApplied.length === 0 ? {} : { scopeNotApplied: notApplied }
+  };
 }
 function parseReviewTarget(scope) {
   const normalizedScope = normalizeReviewQuotes(scope);
@@ -85874,9 +86009,7 @@ function parseReviewTarget(scope) {
   if (namesPullRequest(authorityScope)) {
     return { ok: false, reason: PULL_REQUEST_UNSUPPORTED_REASON };
   }
-  if (namesNarrowedPaths(authorityScope)) {
-    return { ok: false, reason: PATH_SUBSET_UNSUPPORTED_REASON };
-  }
+  const requested = extractReviewScope(authorityScope);
   const range = parseRangeForm(authorityScope);
   const pinned = range === void 0 ? parseCommitForm(authorityScope) : { ok: true, target: range };
   if (pinned !== void 0 && !pinned.ok)
@@ -85889,20 +86022,21 @@ function parseReviewTarget(scope) {
     };
   }
   if (pinned !== void 0)
-    return pinned;
+    return scopedParseResult(pinned.target, requested);
   if (workingTree !== void 0)
-    return { ok: true, target: workingTree };
+    return scopedParseResult(workingTree, requested);
   const bareHead = parseBareHeadForm(authorityScope);
   if (bareHead !== void 0)
-    return { ok: true, target: bareHead };
-  if (namesPathOnlyRequest(authorityScope)) {
-    return { ok: false, reason: PATH_SUBSET_UNSUPPORTED_REASON };
+    return scopedParseResult(bareHead, requested);
+  const pathOnly = requested.paths === void 0 ? pathOnlyRequestPath(authorityScope) : void 0;
+  if (pathOnly !== void 0) {
+    const path = scopePathFromToken(pathOnly);
+    if (path !== void 0) {
+      return scopedParseResult({ kind: "working_tree", mode: "all", explicit: false }, { ...requested, paths: { include: [path], exclude: [] } }, true);
+    }
+    return scopedParseResult({ kind: "working_tree", mode: "all", explicit: false }, { ...requested, notApplied: [...requested.notApplied, pathOnly.trim()] }, true);
   }
-  return {
-    ok: true,
-    target: { kind: "working_tree", mode: "all", explicit: false },
-    assumed: true
-  };
+  return scopedParseResult({ kind: "working_tree", mode: "all", explicit: false }, requested, true);
 }
 function reviewTargetLabel(target) {
   if (target.kind === "commit")
@@ -86098,19 +86232,20 @@ async function collectTargetEvidence(projectRoot, target, reader, directContext)
   if (requestTarget === void 0) {
     throw new Error("Review target unavailable: the requested Git target could not be prepared.");
   }
+  const paths = target.paths;
   const pinnedTarget = await resolveTarget2(projectRoot, requestTarget, reader, directContext);
   const evidenceResults = reader === void 0 ? (() => {
     const directTarget = prepareDirectTarget(projectRoot, pinnedTarget, directContext);
     return {
-      diff: runGit(projectRoot, targetDiffArgs(directTarget), {
+      diff: runGit(projectRoot, runtimeGitArgsWithPathScope(targetDiffArgs(directTarget), paths), {
         maxBufferBytes: MAX_DIFF_BUFFER_BYTES,
         allowPartialStdout: true
       }, directContext),
-      diffStat: runGit(projectRoot, targetDiffArgs(directTarget, true), {}, directContext)
+      diffStat: runGit(projectRoot, runtimeGitArgsWithPathScope(targetDiffArgs(directTarget, true), paths), {}, directContext)
     };
   })() : {
-    diff: await readGit(reader, "target_diff", projectRoot, pinnedTarget),
-    diffStat: await readGit(reader, "target_diff_stat", projectRoot, pinnedTarget)
+    diff: await readGit(reader, "target_diff", projectRoot, pinnedTarget, paths),
+    diffStat: await readGit(reader, "target_diff_stat", projectRoot, pinnedTarget, paths)
   };
   const { diff: diff2, diffStat } = evidenceResults;
   if (!diff2.ok) {
@@ -86121,7 +86256,7 @@ async function collectTargetEvidence(projectRoot, target, reader, directContext)
   }
   const targetDiff = gitDiffEvidence(diff2);
   if (targetDiff.text.length === 0) {
-    throw new Error(`Review target has no changes to inspect: ${reviewTargetLabel(target)} resolved successfully but produced an empty diff.`);
+    throw new Error(`Review target has no changes to inspect: ${reviewTargetLabel(target)}${paths === void 0 ? "" : ` ${reviewPathScopeLabel(paths)}`} resolved successfully but produced an empty diff.`);
   }
   return { targetDiff, targetDiffStat: diffStat.stdout, pinnedTarget };
 }
@@ -86170,8 +86305,8 @@ function hiddenIndexFlagsFromOutput(projectRoot, output) {
   }
   return Object.freeze(flags);
 }
-async function inspectHiddenIndexFlags(projectRoot, reader, directContext) {
-  const result = reader === void 0 ? runGit(projectRoot, ["ls-files", "-v", "-z", "--"], {}, directContext) : await readGit(reader, "hidden_index_flags", projectRoot);
+async function inspectHiddenIndexFlags(projectRoot, reader, directContext, paths) {
+  const result = reader === void 0 ? runGit(projectRoot, runtimeGitArgsWithPathScope(["ls-files", "-v", "-z", "--"], paths), {}, directContext) : await readGit(reader, "hidden_index_flags", projectRoot, void 0, paths);
   if (!result.ok) {
     throw new Error(`Review target unavailable: hidden index flags could not be inspected. ${result.reason}`);
   }
@@ -86303,8 +86438,8 @@ function readUntrackedFile(projectRoot, path, contentPolicy) {
     }
   }
 }
-async function collectUntrackedFiles(projectRoot, contentPolicy, reader, directContext) {
-  const listed = reader === void 0 ? runGit(projectRoot, ["ls-files", "--others", "--exclude-standard", "-z"], {}, directContext) : await readGit(reader, "untracked_files", projectRoot);
+async function collectUntrackedFiles(projectRoot, contentPolicy, reader, directContext, pathScope) {
+  const listed = reader === void 0 ? runGit(projectRoot, runtimeGitArgsWithPathScope(["ls-files", "--others", "--exclude-standard", "-z"], pathScope), {}, directContext) : await readGit(reader, "untracked_files", projectRoot, void 0, pathScope);
   if (!listed.ok) {
     throw new Error(`Review target unavailable: untracked files could not be enumerated. ${listed.reason}`);
   }
@@ -86346,18 +86481,20 @@ async function collectReviewEvidence(projectRoot, options) {
         target_head_commit: targetEvidence.pinnedTarget.head_commit
       },
       target_diff: targetEvidence.targetDiff,
-      target_diff_stat: targetEvidence.targetDiffStat
+      target_diff_stat: targetEvidence.targetDiffStat,
+      ...target.paths === void 0 ? {} : { path_scope: target.paths }
     };
   }
   const emptyDiffResult = { ok: true, stdout: "", truncated_by_buffer: false };
-  const hiddenIndex = await inspectHiddenIndexFlags(evidenceRoot, options.gitReader, directContext);
+  const paths = target.paths;
+  const hiddenIndex = await inspectHiddenIndexFlags(evidenceRoot, options.gitReader, directContext, paths);
   assertNoHiddenIndexFlags(hiddenIndex.flags);
-  const readDiff = async (operation, directArgs) => options.gitReader === void 0 ? runGit(evidenceRoot, directArgs, {
+  const readDiff = async (operation, directArgs) => options.gitReader === void 0 ? runGit(evidenceRoot, runtimeGitArgsWithPathScope(directArgs, paths), {
     maxBufferBytes: MAX_DIFF_BUFFER_BYTES,
     allowPartialStdout: true
-  }, directContext) : await readGit(options.gitReader, operation, evidenceRoot);
-  const readStat = async (operation, directArgs) => options.gitReader === void 0 ? runGit(evidenceRoot, directArgs, {}, directContext) : await readGit(options.gitReader, operation, evidenceRoot);
-  const readChangedGitlinks = async (operation, directArgs) => options.gitReader === void 0 ? runGit(evidenceRoot, directArgs, {}, directContext) : await readGit(options.gitReader, operation, evidenceRoot);
+  }, directContext) : await readGit(options.gitReader, operation, evidenceRoot, void 0, paths);
+  const readStat = async (operation, directArgs) => options.gitReader === void 0 ? runGit(evidenceRoot, runtimeGitArgsWithPathScope(directArgs, paths), {}, directContext) : await readGit(options.gitReader, operation, evidenceRoot, void 0, paths);
+  const readChangedGitlinks = async (operation, directArgs) => options.gitReader === void 0 ? runGit(evidenceRoot, runtimeGitArgsWithPathScope(directArgs, paths), {}, directContext) : await readGit(options.gitReader, operation, evidenceRoot, void 0, paths);
   const stagedDiffArgs = [
     "diff",
     "--cached",
@@ -86398,7 +86535,7 @@ async function collectReviewEvidence(projectRoot, options) {
     "--ignore-submodules=none",
     "--"
   ];
-  const readStatus = async () => options.gitReader === void 0 ? runGit(evidenceRoot, ["status", "--short", "--ignore-submodules=none"], {}, directContext) : await readGit(options.gitReader, "status", evidenceRoot);
+  const readStatus = async () => options.gitReader === void 0 ? runGit(evidenceRoot, runtimeGitArgsWithPathScope(["status", "--short", "--ignore-submodules=none"], paths), {}, directContext) : await readGit(options.gitReader, "status", evidenceRoot, void 0, paths);
   const status = target.mode === "all" ? await readStatus() : { ok: true, stdout: "", truncated_by_buffer: false };
   if (!status.ok) {
     throw new Error(`Review target unavailable: Git status could not be read. ${status.reason}`);
@@ -86453,7 +86590,7 @@ async function collectReviewEvidence(projectRoot, options) {
     ])
   ].sort());
   const untrackedContentPolicy = options.includeUntrackedFileContent === true ? "include-content" : "metadata-only";
-  const untracked = target.mode === "all" ? await collectUntrackedFiles(evidenceRoot, untrackedContentPolicy, options.gitReader, directContext) : { count: 0, truncated: false, files: [] };
+  const untracked = target.mode === "all" ? await collectUntrackedFiles(evidenceRoot, untrackedContentPolicy, options.gitReader, directContext, paths) : { count: 0, truncated: false, files: [] };
   const selectedTrackedContentAvailable = staged.text.length > 0 || unstaged.text.length > 0;
   const selectedUntrackedContentAvailable = untracked.files.some((file2) => (file2.content?.text.length ?? 0) > 0);
   const selectedContentAvailable = selectedTrackedContentAvailable || selectedUntrackedContentAvailable;
@@ -86467,7 +86604,8 @@ async function collectReviewEvidence(projectRoot, options) {
     throw new Error(`Review target has no usable content to inspect because selected untracked files could not be read safely: ${reasons.join("; ")}.`);
   }
   if (!selectedContentAvailable) {
-    throw new Error(target.explicit ? `Review target has no changes to inspect: ${target.mode === "all" ? "working tree changes" : `${target.mode} changes`} are empty.` : "Review found no changes to inspect. The goal did not name a target, so Review looked at the working tree. Name a commit, a range, staged, or unstaged if you meant a different target.");
+    const scopeSuffix = paths === void 0 ? "" : ` ${reviewPathScopeLabel(paths)}`;
+    throw new Error(target.explicit ? `Review target has no changes to inspect: ${target.mode === "all" ? "working tree changes" : `${target.mode} changes`}${scopeSuffix} are empty.` : `Review found no changes to inspect. The goal did not name a target, so Review looked at the working tree${scopeSuffix}. Name a commit, a range, staged, or unstaged if you meant a different target.`);
   }
   const statSections = [
     ...stagedStat.ok && stagedStat.stdout.length > 0 ? [`Staged:
@@ -86488,10 +86626,11 @@ ${unstagedStat.stdout}`] : []
     untracked_files_truncated: untracked.truncated,
     untracked_content_policy: untrackedContentPolicy,
     untracked_files: untracked.files,
-    ...submodulePaths.length === 0 ? {} : { submodule_paths: [...submodulePaths] }
+    ...submodulePaths.length === 0 ? {} : { submodule_paths: [...submodulePaths] },
+    ...paths === void 0 ? {} : { path_scope: paths }
   };
 }
-var MAX_DIFF_CHARS, MAX_UNTRACKED_FILES, MAX_UNTRACKED_FILE_CHARS, MAX_GIT_BUFFER_BYTES, MAX_DIFF_BUFFER_BYTES, MAX_UNTRACKED_FILE_BYTES, DIRECT_GIT_TIMEOUT_MS, HEAD_COMMIT_REF, SAFE_REVIEW_REF_PATTERN, REVIEW_LEAD, PULL_REQUEST_UNSUPPORTED_REASON, PATH_SUBSET_UNSUPPORTED_REASON, RANGE_FILLER_WORDS, LATEST_COMMIT_PATTERN, RESTRICTION_LEAD_IN, EXCLUSION_LEAD_IN, NARROWING_CLAUSE_PATTERN, EXCLUDED_CHANGE_CLASS_PATTERN, reviewIntakeComposeBuilder;
+var MAX_DIFF_CHARS, MAX_UNTRACKED_FILES, MAX_UNTRACKED_FILE_CHARS, MAX_GIT_BUFFER_BYTES, MAX_DIFF_BUFFER_BYTES, MAX_UNTRACKED_FILE_BYTES, DIRECT_GIT_TIMEOUT_MS, HEAD_COMMIT_REF, SAFE_REVIEW_REF_PATTERN, REVIEW_LEAD, PULL_REQUEST_UNSUPPORTED_REASON, RANGE_FILLER_WORDS, LATEST_COMMIT_PATTERN, RESTRICTION_LEAD_IN, EXCLUSION_LEAD_IN, NARROWING_CLAUSE_TAIL, RESTRICTION_CLAUSE_PATTERN, EXCLUSION_CLAUSE_PATTERN, EXCLUDED_CHANGE_CLASS_PATTERN, MAX_SCOPE_PATHS, MAX_SCOPE_PATH_LENGTH, SAFE_SCOPE_PATH_PATTERN, NO_REVIEW_SCOPE, reviewIntakeComposeBuilder;
 var init_intake2 = __esm({
   "dist/flows/review/writers/intake.js"() {
     "use strict";
@@ -86508,7 +86647,6 @@ var init_intake2 = __esm({
     SAFE_REVIEW_REF_PATTERN = /^[A-Za-z0-9._/@+~^-]{1,120}$/u;
     REVIEW_LEAD = String.raw`(?:review|inspect|audit|check|analyze)`;
     PULL_REQUEST_UNSUPPORTED_REASON = "Review cannot fetch a pull request. Check out the PR branch locally, then review the working tree or an explicit range such as main...HEAD.";
-    PATH_SUBSET_UNSUPPORTED_REASON = "Review cannot narrow its evidence to part of a target. Review the whole working tree, a commit, or a range instead, and name the paths you care about in the goal so the reviewer concentrates there.";
     RANGE_FILLER_WORDS = /* @__PURE__ */ new Set([
       "and",
       "anything",
@@ -86538,8 +86676,14 @@ var init_intake2 = __esm({
     LATEST_COMMIT_PATTERN = /\b(?:(?:the|my|our)\s+)?(?:latest|last|most\s+recent)\s+commit\b|\bwhat\s+i\s+just\s+committed\b|\b(?:the\s+)?commit\s+i\s+just\s+made\b|\bwhat\s+changed\s+in\s+(?:the\s+)?last\s+commit\b/iu;
     RESTRICTION_LEAD_IN = String.raw`(?:only|just|limited\s+to|restricted\s+to|scoped\s+to|confined\s+to|(?:changes?|diffs?|files?)\s+(?:in|under|below|within))`;
     EXCLUSION_LEAD_IN = String.raw`(?:except(?:\s+for)?|excluding|ignoring|omitting|skipping|leaving\s+out|apart\s+from|aside\s+from|other\s+than|but\s+(?:do\s+not|don't|never)\s+(?:review|include|inspect|read|look\s+at)|but(?:\s+not)?)`;
-    NARROWING_CLAUSE_PATTERN = new RegExp(String.raw`\b(?:${RESTRICTION_LEAD_IN}|${EXCLUSION_LEAD_IN})\s+(?:(?:in|inside|under|within|below)\s+)?(?:the\s+)?(?<path>[^\s,;!?]+)`, "giu");
-    EXCLUDED_CHANGE_CLASS_PATTERN = new RegExp(String.raw`\b${EXCLUSION_LEAD_IN}\s+(?:any\s+|all\s+|the\s+)?(?:untracked|tracked|staged|unstaged|committed|new|deleted|renamed)\b`, "iu");
+    NARROWING_CLAUSE_TAIL = String.raw`\s+(?:(?:in|inside|under|within|below)\s+)?(?:the\s+)?(?<path>[^\s,;!?]+)`;
+    RESTRICTION_CLAUSE_PATTERN = new RegExp(String.raw`\b(?:${RESTRICTION_LEAD_IN})${NARROWING_CLAUSE_TAIL}`, "giu");
+    EXCLUSION_CLAUSE_PATTERN = new RegExp(String.raw`\b(?:${EXCLUSION_LEAD_IN})${NARROWING_CLAUSE_TAIL}`, "giu");
+    EXCLUDED_CHANGE_CLASS_PATTERN = new RegExp(String.raw`\b${EXCLUSION_LEAD_IN}\s+(?:any\s+|all\s+|the\s+)?(?<changeClass>untracked|tracked|staged|unstaged|committed|new|deleted|renamed)\b`, "iu");
+    MAX_SCOPE_PATHS = 32;
+    MAX_SCOPE_PATH_LENGTH = 200;
+    SAFE_SCOPE_PATH_PATTERN = /^[A-Za-z0-9._@+*?[\]/-]+$/u;
+    NO_REVIEW_SCOPE = Object.freeze({ notApplied: Object.freeze([]) });
     reviewIntakeComposeBuilder = {
       resultSchemaName: "review.intake@v1",
       async build(context) {
@@ -86557,7 +86701,8 @@ var init_intake2 = __esm({
           target,
           evidence: evidence2,
           maxUntrackedFiles: MAX_UNTRACKED_FILES,
-          ...parsedTarget.assumed === true ? { assumedTarget: true } : {}
+          ...parsedTarget.assumed === true ? { assumedTarget: true } : {},
+          ...parsedTarget.scopeNotApplied === void 0 ? {} : { scopeNotApplied: parsedTarget.scopeNotApplied }
         });
       }
     };
@@ -86604,7 +86749,8 @@ function evidenceSummary(evidence2) {
       target_kind: evidence2.target_kind,
       target_ref: evidence2.target_ref,
       target_diff_included: usableDiff(evidence2.target_diff),
-      target_diff_truncated: evidence2.target_diff.truncated
+      target_diff_truncated: evidence2.target_diff.truncated,
+      ...evidence2.path_scope === void 0 ? {} : { path_scope: evidence2.path_scope }
     };
   }
   return {
@@ -86615,8 +86761,14 @@ function evidenceSummary(evidence2) {
     untracked_files_truncated: evidence2.untracked_files_truncated,
     target_kind: "working_tree",
     target_mode: evidence2.target_mode,
-    target_diff_included: selectedWorkingTreeDiffIncluded(evidence2)
+    target_diff_included: selectedWorkingTreeDiffIncluded(evidence2),
+    ...evidence2.path_scope === void 0 ? {} : { path_scope: evidence2.path_scope }
   };
+}
+function samePathScope(requested, collected) {
+  if (requested === void 0 || collected === void 0)
+    return requested === collected;
+  return requested.include.length === collected.include.length && requested.exclude.length === collected.exclude.length && requested.include.every((path, index) => path === collected.include[index]) && requested.exclude.every((path, index) => path === collected.exclude[index]);
 }
 function evidenceScopeMismatch(intake) {
   const evidence2 = intake.evidence;
@@ -86627,6 +86779,9 @@ function evidenceScopeMismatch(intake) {
   }
   if (evidence2.kind === "unavailable")
     return void 0;
+  if (target.kind !== "goal" && !samePathScope(target.paths, evidence2.path_scope)) {
+    return mismatch("evidence collected under the path scope the goal asked for");
+  }
   if (evidence2.kind === "git-target") {
     if (target.kind === "commit" && evidence2.target_kind === "commit" && evidence2.target_ref === `commit ${target.ref}`) {
       return void 0;
@@ -109401,6 +109556,20 @@ function reviewAssessmentDetails(report) {
   }
   return lines;
 }
+function reviewPathScopeDetails(evidenceSummary2) {
+  const scope = isObject4(evidenceSummary2?.path_scope) ? evidenceSummary2.path_scope : void 0;
+  if (scope === void 0)
+    return [];
+  const include = arrayField(scope, "include").filter((entry) => typeof entry === "string");
+  const exclude = arrayField(scope, "exclude").filter((entry) => typeof entry === "string");
+  const parts = [
+    ...include.length > 0 ? [`limited to ${include.join(", ")}`] : [],
+    ...exclude.length > 0 ? [`excluding ${exclude.join(", ")}`] : []
+  ];
+  if (parts.length === 0)
+    return [];
+  return [`Review paths: ${parts.join(" and ")}. Changes outside those paths were not read.`];
+}
 function reviewEvidenceDetails(report) {
   const evidenceSummary2 = isObject4(report?.evidence_summary) ? report.evidence_summary : void 0;
   const kind = stringField2(evidenceSummary2, "kind");
@@ -109414,11 +109583,12 @@ function reviewEvidenceDetails(report) {
     const targetKind = stringField2(evidenceSummary2, "target_kind");
     const targetRef = stringField2(evidenceSummary2, "target_ref");
     const label = targetRef ?? targetKind ?? "requested target";
+    const scope = reviewPathScopeDetails(evidenceSummary2);
     if (evidenceSummary2?.target_diff_included !== true) {
-      return [`Review evidence: ${label} diff unavailable.`];
+      return [`Review evidence: ${label} diff unavailable.`, ...scope];
     }
     const truncated2 = evidenceSummary2?.target_diff_truncated === true ? " (truncated)" : "";
-    return [`Review evidence: ${label} diff included${truncated2}.`];
+    return [`Review evidence: ${label} diff included${truncated2}.`, ...scope];
   }
   if (kind !== "git-working-tree")
     return [];
@@ -109431,6 +109601,7 @@ function reviewEvidenceDetails(report) {
   if (targetMode !== void 0) {
     details.push(`Review evidence: ${targetMode} working-tree diff ${evidenceSummary2?.target_diff_included === true ? "included" : "unavailable"}.`);
   }
+  details.push(...reviewPathScopeDetails(evidenceSummary2));
   if (policy2 === "include-content") {
     const suffix = truncated ? "; additional untracked files were not sampled" : "";
     details.push(`Untracked evidence: contents included for ${plural(sampled, "file")} (${plural(count, "untracked file")} found${suffix}).`);

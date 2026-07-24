@@ -4,6 +4,7 @@ import {
   type ReviewEvidenceWarningKind,
   type ReviewFinding,
   type ReviewIntake,
+  type ReviewPathScope,
   type ReviewRelayResult,
   ReviewResult,
   computeReviewVerdict,
@@ -72,6 +73,7 @@ function evidenceSummary(evidence: ReviewEvidence): ReviewEvidenceSummary {
       target_ref: evidence.target_ref,
       target_diff_included: usableDiff(evidence.target_diff),
       target_diff_truncated: evidence.target_diff.truncated,
+      ...(evidence.path_scope === undefined ? {} : { path_scope: evidence.path_scope }),
     };
   }
   return {
@@ -83,7 +85,27 @@ function evidenceSummary(evidence: ReviewEvidence): ReviewEvidenceSummary {
     target_kind: 'working_tree',
     target_mode: evidence.target_mode,
     target_diff_included: selectedWorkingTreeDiffIncluded(evidence),
+    ...(evidence.path_scope === undefined ? {} : { path_scope: evidence.path_scope }),
   };
+}
+
+/**
+ * The scope the operator asked for and the scope the evidence was collected
+ * under have to be the same object, in the same order. A report that names a
+ * narrowing Git never received would be a lie of exactly the kind the evidence
+ * contract exists to prevent.
+ */
+function samePathScope(
+  requested: ReviewPathScope | undefined,
+  collected: ReviewPathScope | undefined,
+): boolean {
+  if (requested === undefined || collected === undefined) return requested === collected;
+  return (
+    requested.include.length === collected.include.length &&
+    requested.exclude.length === collected.exclude.length &&
+    requested.include.every((path, index) => path === collected.include[index]) &&
+    requested.exclude.every((path, index) => path === collected.exclude[index])
+  );
 }
 
 /**
@@ -102,6 +124,9 @@ function evidenceScopeMismatch(intake: ReviewIntake): string | undefined {
     return target.kind === 'goal' ? undefined : mismatch(`${target.kind} target evidence`);
   }
   if (evidence.kind === 'unavailable') return undefined;
+  if (target.kind !== 'goal' && !samePathScope(target.paths, evidence.path_scope)) {
+    return mismatch('evidence collected under the path scope the goal asked for');
+  }
   if (evidence.kind === 'git-target') {
     if (
       target.kind === 'commit' &&

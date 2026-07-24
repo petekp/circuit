@@ -25,9 +25,9 @@ import {
 } from './review-wiring-harness.js';
 
 // Which code a Review run is about: goal text, working tree, staged set,
-// commit, and range, plus the requests Review refuses to narrow (path subsets
-// and exclusions). What the evidence then admits about itself is
-// review-evidence-honesty's subject.
+// commit, and range, plus the narrowings that ride along with them (path
+// subsets, exclusions, and the change classes Review cannot carve out). What
+// the evidence then admits about itself is review-evidence-honesty's subject.
 describe('review target selection', () => {
   useReviewRunFolders();
 
@@ -1020,10 +1020,11 @@ describe('review target selection', () => {
     expect(relayCalls).toBe(0);
   });
 
-  it('rejects an untracked-file exclusion before collecting or relaying that file', async () => {
+  it('narrows to the tracked working tree when the goal excludes untracked files', async () => {
     const { bytes } = loadFixture();
     const runFolder = join(reviewRunFolderBase(), 'excluded-untracked-file');
     const projectRoot = join(reviewRunFolderBase(), 'excluded-untracked-file-project');
+    const trackedMarker = 'TRACKED_CHANGE_UNDER_REVIEW';
     mkdirSync(projectRoot, { recursive: true });
     execFileSync('git', ['init'], { cwd: projectRoot, stdio: 'pipe' });
     writeFileSync(join(projectRoot, 'tracked.txt'), 'base\n');
@@ -1033,7 +1034,7 @@ describe('review target selection', () => {
       ['-c', 'user.name=Circuit', '-c', 'user.email=circuit@example.test', 'commit', '-m', 'base'],
       { cwd: projectRoot, stdio: 'pipe' },
     );
-    writeFileSync(join(projectRoot, 'tracked.txt'), 'changed\n');
+    writeFileSync(join(projectRoot, 'tracked.txt'), `${trackedMarker}\n`);
     writeFileSync(join(projectRoot, 'secret-untracked.txt'), 'excluded-untracked-marker\n');
 
     let relayCalls = 0;
@@ -1043,55 +1044,66 @@ describe('review target selection', () => {
       runId: '79000000-0000-0000-0000-00000000010b',
       goal: 'review current changes except untracked files',
       depth: 'medium',
+      // Untracked content is authorized, and the goal still excludes it. The
+      // goal wins: an authorization is a ceiling, not an instruction.
       evidencePolicy: { includeUntrackedFileContent: true },
       now: deterministicNow(Date.UTC(2026, 6, 24, 10, 0, 0)),
       projectRoot,
       relayer: {
         connectorName: 'codex',
-        relay: async (): Promise<RelayResult> => {
+        relay: async (input: ClaudeCodeRelayInput): Promise<RelayResult> => {
           relayCalls += 1;
-          throw new Error('excluded untracked evidence must never reach relay');
+          expect(input.prompt).toContain(trackedMarker);
+          expect(input.prompt).not.toContain('secret-untracked.txt');
+          expect(input.prompt).not.toContain('excluded-untracked-marker');
+          return {
+            request_payload: input.prompt,
+            receipt_id: 'stub-receipt-tracked-only',
+            result_body: JSON.stringify(cleanRelayResult()),
+            duration_ms: 1,
+            cli_version: '0.0.0-stub',
+          };
         },
       },
     });
 
-    expect(outcome.outcome).toBe('aborted');
-    expect(outcome.reason).toMatch(/untracked|exclusion|target/i);
-    expect(relayCalls).toBe(0);
-    expect(existsSync(join(runFolder, 'reports', 'review-intake.json'))).toBe(false);
+    expect(outcome.outcome).toBe('complete');
+    expect(relayCalls).toBe(1);
+    const intake = ReviewIntake.parse(
+      JSON.parse(readFileSync(join(runFolder, 'reports', 'review-intake.json'), 'utf8')),
+    );
+    expect(intake.target).toEqual({ kind: 'working_tree', mode: 'tracked', explicit: true });
+    // The narrowing was applied, so nothing is reported as unapplied.
+    expect(intake.evidence_warnings.map((warning) => warning.kind)).not.toContain(
+      'scope_not_applied',
+    );
     const trace = readFileSync(join(runFolder, 'trace.ndjson'), 'utf8');
     expect(trace).not.toContain('secret-untracked.txt');
     expect(trace).not.toContain('excluded-untracked-marker');
   });
 
-  it('rejects a path exclusion before collecting or relaying the excluded commit content', async () => {
+  it('reviews a commit under the requested path exclusion and names the scope', async () => {
     const { bytes } = loadFixture();
     const runFolder = join(reviewRunFolderBase(), 'excluded-commit-path');
     const projectRoot = join(reviewRunFolderBase(), 'excluded-commit-path-project');
+    const excludedMarker = 'EXCLUDED_COMMIT_CONTENT_MUST_NOT_LEAK';
+    const keptMarker = 'KEPT_COMMIT_CONTENT_UNDER_REVIEW';
     mkdirSync(join(projectRoot, 'src'), { recursive: true });
     execFileSync('git', ['init'], { cwd: projectRoot, stdio: 'pipe' });
-    writeFileSync(
-      join(projectRoot, 'src', 'excluded-secret.ts'),
-      'export const secret = "base";\n',
-    );
-    execFileSync('git', ['add', 'src/excluded-secret.ts'], {
-      cwd: projectRoot,
-      stdio: 'pipe',
-    });
+    writeFileSync(join(projectRoot, 'src', 'excluded-secret.ts'), 'export const secret = "a";\n');
+    writeFileSync(join(projectRoot, 'src', 'kept.ts'), 'export const kept = "a";\n');
+    execFileSync('git', ['add', '.'], { cwd: projectRoot, stdio: 'pipe' });
     execFileSync(
       'git',
       ['-c', 'user.name=Circuit', '-c', 'user.email=circuit@example.test', 'commit', '-m', 'base'],
       { cwd: projectRoot, stdio: 'pipe' },
     );
-    const excludedMarker = 'EXCLUDED_COMMIT_CONTENT_MUST_NOT_LEAK';
     writeFileSync(
       join(projectRoot, 'src', 'excluded-secret.ts'),
       `export const secret = "${excludedMarker}";\n`,
     );
-    execFileSync('git', ['add', 'src/excluded-secret.ts'], {
-      cwd: projectRoot,
-      stdio: 'pipe',
-    });
+    writeFileSync(join(projectRoot, 'src', 'kept.ts'), `export const kept = "${keptMarker}";\n`);
+    execFileSync('git', ['add', '.'], { cwd: projectRoot, stdio: 'pipe' });
     execFileSync(
       'git',
       [
@@ -1101,7 +1113,7 @@ describe('review target selection', () => {
         'user.email=circuit@example.test',
         'commit',
         '-m',
-        'change excluded content',
+        'change both files',
       ],
       { cwd: projectRoot, stdio: 'pipe' },
     );
@@ -1117,20 +1129,45 @@ describe('review target selection', () => {
       projectRoot,
       relayer: {
         connectorName: 'codex',
-        relay: async (): Promise<RelayResult> => {
+        relay: async (input: ClaudeCodeRelayInput): Promise<RelayResult> => {
           relayCalls += 1;
-          throw new Error('excluded commit content must never reach the reviewer');
+          expect(input.prompt).toContain(keptMarker);
+          expect(input.prompt).not.toContain(excludedMarker);
+          return {
+            request_payload: input.prompt,
+            receipt_id: 'stub-receipt-excluded-commit-path',
+            result_body: JSON.stringify(cleanRelayResult()),
+            duration_ms: 1,
+            cli_version: '0.0.0-stub',
+          };
         },
       },
     });
 
-    expect(outcome.outcome).toBe('aborted');
-    expect(outcome.reason).toMatch(/exclusion|path|subset/i);
-    expect(relayCalls).toBe(0);
-    expect(existsSync(join(runFolder, 'reports', 'review-intake.json'))).toBe(false);
-    const trace = readFileSync(join(runFolder, 'trace.ndjson'), 'utf8');
-    expect(trace.match(/src\/excluded-secret\.ts/gu)).toHaveLength(1);
-    expect(trace).not.toContain(excludedMarker);
+    expect(outcome.outcome).toBe('complete');
+    expect(relayCalls).toBe(1);
+    const intake = ReviewIntake.parse(
+      JSON.parse(readFileSync(join(runFolder, 'reports', 'review-intake.json'), 'utf8')),
+    );
+    expect(intake.target).toMatchObject({
+      kind: 'commit',
+      paths: { include: [], exclude: ['src/excluded-secret.ts'] },
+    });
+    expect(intake.evidence_warnings).toContainEqual(
+      expect.objectContaining({
+        kind: 'target_scoped',
+        message: expect.stringContaining('excluding src/excluded-secret.ts'),
+      }),
+    );
+    // The report has to carry the scope too, or a reader could take the review
+    // for a full one.
+    const result = ReviewResult.parse(
+      JSON.parse(readFileSync(join(runFolder, 'reports', 'review-result.json'), 'utf8')),
+    );
+    expect(result.evidence_summary).toMatchObject({
+      path_scope: { include: [], exclude: ['src/excluded-secret.ts'] },
+    });
+    expect(readFileSync(join(runFolder, 'trace.ndjson'), 'utf8')).not.toContain(excludedMarker);
   });
 
   it.each([
@@ -1153,16 +1190,18 @@ describe('review target selection', () => {
       runId: '79000000-0000-0000-0000-000000000116',
     },
   ])(
-    'rejects $label exclusions before Git collection or relay',
+    'keeps $label exclusions out of the Git reads and the relay',
     async ({ goal, excludedPath, label, runId }) => {
       const { bytes } = loadFixture();
       const runFolder = join(reviewRunFolderBase(), `excluded-target-clause-${label}`);
       const projectRoot = join(reviewRunFolderBase(), `excluded-target-clause-${label}-project`);
       const excludedMarker = `EXCLUDED_${label.toUpperCase().replaceAll('-', '_')}_MUST_NOT_LEAK`;
+      const keptMarker = `KEPT_${label.toUpperCase().replaceAll('-', '_')}_UNDER_REVIEW`;
       mkdirSync(join(projectRoot, 'migrations'), { recursive: true });
       execFileSync('git', ['init'], { cwd: projectRoot, stdio: 'pipe' });
       writeFileSync(join(projectRoot, excludedPath), `${excludedMarker}\n`);
-      execFileSync('git', ['add', excludedPath], { cwd: projectRoot, stdio: 'pipe' });
+      writeFileSync(join(projectRoot, 'kept.txt'), `${keptMarker}\n`);
+      execFileSync('git', ['add', '.'], { cwd: projectRoot, stdio: 'pipe' });
       execFileSync(
         'git',
         [
@@ -1188,31 +1227,38 @@ describe('review target selection', () => {
         projectRoot,
         relayer: {
           connectorName: 'codex',
-          relay: async (): Promise<RelayResult> => {
+          relay: async (input: ClaudeCodeRelayInput): Promise<RelayResult> => {
             relayCalls += 1;
-            throw new Error('excluded target-clause content must never reach the reviewer');
+            expect(input.prompt).toContain(keptMarker);
+            expect(input.prompt).not.toContain(excludedMarker);
+            return {
+              request_payload: input.prompt,
+              receipt_id: `stub-receipt-${label}`,
+              result_body: JSON.stringify(cleanRelayResult()),
+              duration_ms: 1,
+              cli_version: '0.0.0-stub',
+            };
           },
         },
       });
 
-      expect(outcome.outcome).toBe('aborted');
-      expect(outcome.reason).toMatch(/complete|exclusion|path|target/i);
-      expect(relayCalls).toBe(0);
-      expect(existsSync(join(runFolder, 'reports', 'review-intake.json'))).toBe(false);
+      expect(outcome.outcome).toBe('complete');
+      expect(relayCalls).toBe(1);
       expect(readFileSync(join(runFolder, 'trace.ndjson'), 'utf8')).not.toContain(excludedMarker);
     },
   );
 
-  it('rejects a path subset before collecting commit evidence or calling the relay', async () => {
+  it('reviews only the paths a commit subset names', async () => {
     const { bytes } = loadFixture();
     const runFolder = join(reviewRunFolderBase(), 'path-subset-commit');
     const projectRoot = join(reviewRunFolderBase(), 'path-subset-commit-project');
-    const selectedPath = 'src/foo.ts';
-    const fileMarker = 'PATH_SUBSET_COMMIT_MUST_NOT_LEAK';
+    const selectedMarker = 'PATH_SUBSET_SELECTED_UNDER_REVIEW';
+    const unselectedMarker = 'PATH_SUBSET_UNSELECTED_MUST_NOT_LEAK';
     mkdirSync(join(projectRoot, 'src'), { recursive: true });
     execFileSync('git', ['init'], { cwd: projectRoot, stdio: 'pipe' });
-    writeFileSync(join(projectRoot, selectedPath), `${fileMarker}\n`);
-    execFileSync('git', ['add', selectedPath], { cwd: projectRoot, stdio: 'pipe' });
+    writeFileSync(join(projectRoot, 'src', 'foo.ts'), `const foo = "${selectedMarker}";\n`);
+    writeFileSync(join(projectRoot, 'src', 'bar.ts'), `const bar = "${unselectedMarker}";\n`);
+    execFileSync('git', ['add', '.'], { cwd: projectRoot, stdio: 'pipe' });
     execFileSync(
       'git',
       [
@@ -1238,66 +1284,205 @@ describe('review target selection', () => {
       projectRoot,
       relayer: {
         connectorName: 'codex',
-        relay: async (): Promise<RelayResult> => {
+        relay: async (input: ClaudeCodeRelayInput): Promise<RelayResult> => {
           relayCalls += 1;
-          throw new Error('path subset content must never reach the reviewer');
+          expect(input.prompt).toContain(selectedMarker);
+          expect(input.prompt).not.toContain(unselectedMarker);
+          return {
+            request_payload: input.prompt,
+            receipt_id: 'stub-receipt-path-subset-commit',
+            result_body: JSON.stringify(cleanRelayResult()),
+            duration_ms: 1,
+            cli_version: '0.0.0-stub',
+          };
         },
       },
     });
 
-    expect(outcome.outcome).toBe('aborted');
-    expect(outcome.reason).toMatch(/complete|path|subset|target/i);
-    expect(relayCalls).toBe(0);
-    expect(existsSync(join(runFolder, 'reports', 'review-intake.json'))).toBe(false);
-    expect(readFileSync(join(runFolder, 'trace.ndjson'), 'utf8')).not.toContain(fileMarker);
+    expect(outcome.outcome).toBe('complete');
+    expect(relayCalls).toBe(1);
+    const intake = ReviewIntake.parse(
+      JSON.parse(readFileSync(join(runFolder, 'reports', 'review-intake.json'), 'utf8')),
+    );
+    expect(intake.target).toMatchObject({
+      kind: 'commit',
+      paths: { include: ['src/foo.ts'], exclude: [] },
+    });
+    expect(readFileSync(join(runFolder, 'trace.ndjson'), 'utf8')).not.toContain(unselectedMarker);
   });
 
-  it.each(['review latest commit only in src/', 'review only src/foo.ts in latest commit'])(
-    'rejects the path subset in %j before any Git read or relay',
-    async (goal) => {
-      const { bytes } = loadFixture();
-      const label = goal.includes('only in') ? 'directory-subset' : 'reverse-path-subset';
-      const runFolder = join(reviewRunFolderBase(), label);
-      const projectRoot = join(reviewRunFolderBase(), `${label}-project`);
-      mkdirSync(projectRoot, { recursive: true });
-      let gitReads = 0;
-      let relayCalls = 0;
-      const gitReader: RuntimeGitReader = {
-        read: async ({ operation }) => {
-          gitReads += 1;
-          throw new Error(`path subset must not request Git operation ${operation}`);
-        },
-      };
-
-      const outcome = await runCompiledFlow({
-        runDir: runFolder,
-        flowBytes: bytes,
-        runId:
-          label === 'directory-subset'
-            ? '79000000-0000-0000-0000-000000000121'
-            : '79000000-0000-0000-0000-000000000122',
-        goal,
-        depth: 'medium',
-        now: deterministicNow(Date.UTC(2026, 6, 24, 11, 30, 0)),
-        projectRoot,
-        gitReader,
-        relayer: {
-          connectorName: 'codex',
-          relay: async (): Promise<RelayResult> => {
-            relayCalls += 1;
-            throw new Error('path subset must not reach the reviewer');
-          },
-        },
-      });
-
-      expect(outcome.outcome).toBe('aborted');
-      expect(outcome.reason).toMatch(/complete|path|subset|target/i);
-      expect(gitReads).toBe(0);
-      expect(relayCalls).toBe(0);
-      expect(existsSync(join(runFolder, 'reports', 'review-intake.json'))).toBe(false);
+  // The scope has to survive the trip across the reader boundary, because the
+  // sandboxed reader is what actually builds the Git arguments in a Codex host.
+  it.each([
+    {
+      goal: 'review latest commit only in src/',
+      expected: { include: ['src/'], exclude: [] },
+      runId: '79000000-0000-0000-0000-000000000121',
+      label: 'directory-subset',
     },
-  );
+    {
+      goal: 'review only src/foo.ts in latest commit',
+      expected: { include: ['src/foo.ts'], exclude: [] },
+      runId: '79000000-0000-0000-0000-000000000122',
+      label: 'reverse-path-subset',
+    },
+  ])('hands $label to the injected Git reader as a path scope', async (testCase) => {
+    const { bytes } = loadFixture();
+    const runFolder = join(reviewRunFolderBase(), testCase.label);
+    const projectRoot = join(reviewRunFolderBase(), `${testCase.label}-project`);
+    const marker = 'SCOPED_READER_DIFF_MARKER';
+    mkdirSync(projectRoot, { recursive: true });
+    const scopedReads: Array<{ operation: RuntimeGitOperation; paths?: unknown }> = [];
+    const outputs: Readonly<Record<RuntimeGitOperation, string>> = {
+      status: '',
+      staged_diff: '',
+      unstaged_diff: '',
+      staged_diff_stat: '',
+      unstaged_diff_stat: '',
+      resolve_target: '',
+      target_diff: `diff --git a/src/foo.ts b/src/foo.ts\n+${marker}\n`,
+      target_diff_stat: ' src/foo.ts | 1 +\n',
+      hidden_index_flags: '',
+      staged_changed_gitlinks: '',
+      unstaged_changed_gitlinks: '',
+      untracked_files: '',
+    };
+    const gitReader: RuntimeGitReader = {
+      read: async (request) => {
+        scopedReads.push({
+          operation: request.operation,
+          ...(request.paths === undefined ? {} : { paths: request.paths }),
+        });
+        return {
+          schema_version: 1,
+          ok: true,
+          operation: request.operation,
+          stdout: outputs[request.operation],
+          stderr: '',
+          exit_code: 0,
+          truncated: false,
+          limit_bytes: 2 * 1024 * 1024,
+          cleanup_confirmed: true,
+          ...(request.operation === 'resolve_target'
+            ? { resolved_target: pinnedTargetFor(request.target) }
+            : {}),
+        };
+      },
+    };
 
+    const outcome = await runCompiledFlow({
+      runDir: runFolder,
+      flowBytes: bytes,
+      runId: testCase.runId,
+      goal: testCase.goal,
+      depth: 'medium',
+      now: deterministicNow(Date.UTC(2026, 6, 24, 11, 30, 0)),
+      projectRoot,
+      gitReader,
+      relayer: relayerWith(cleanRelayResult()),
+    });
+
+    expect(outcome.outcome).toBe('complete');
+    expect(scopedReads).toEqual([
+      // Resolving a ref reads no paths, so the scope must not ride along.
+      { operation: 'resolve_target' },
+      { operation: 'target_diff', paths: testCase.expected },
+      { operation: 'target_diff_stat', paths: testCase.expected },
+    ]);
+  });
+
+  it('scopes working-tree reads so an excluded file never reaches the reviewer', async () => {
+    const { bytes } = loadFixture();
+    const runFolder = join(reviewRunFolderBase(), 'working-tree-path-scope');
+    const projectRoot = join(reviewRunFolderBase(), 'working-tree-path-scope-project');
+    const keptMarker = 'WORKING_TREE_KEPT_UNDER_REVIEW';
+    const excludedMarker = 'WORKING_TREE_EXCLUDED_MUST_NOT_LEAK';
+    mkdirSync(join(projectRoot, 'src'), { recursive: true });
+    mkdirSync(join(projectRoot, 'generated'), { recursive: true });
+    execFileSync('git', ['init'], { cwd: projectRoot, stdio: 'pipe' });
+    writeFileSync(join(projectRoot, 'src', 'app.ts'), 'const app = "base";\n');
+    writeFileSync(join(projectRoot, 'generated', 'bundle.ts'), 'const bundle = "base";\n');
+    execFileSync('git', ['add', '.'], { cwd: projectRoot, stdio: 'pipe' });
+    execFileSync(
+      'git',
+      ['-c', 'user.name=Circuit', '-c', 'user.email=circuit@example.test', 'commit', '-m', 'base'],
+      { cwd: projectRoot, stdio: 'pipe' },
+    );
+    writeFileSync(join(projectRoot, 'src', 'app.ts'), `const app = "${keptMarker}";\n`);
+    writeFileSync(
+      join(projectRoot, 'generated', 'bundle.ts'),
+      `const bundle = "${excludedMarker}";\n`,
+    );
+    let relayCalls = 0;
+
+    const outcome = await runCompiledFlow({
+      runDir: runFolder,
+      flowBytes: bytes,
+      runId: '79000000-0000-0000-0000-000000000125',
+      goal: 'review the working tree except the generated files',
+      depth: 'medium',
+      now: deterministicNow(Date.UTC(2026, 6, 24, 11, 35, 0)),
+      projectRoot,
+      relayer: {
+        connectorName: 'codex',
+        relay: async (input: ClaudeCodeRelayInput): Promise<RelayResult> => {
+          relayCalls += 1;
+          expect(input.prompt).toContain(keptMarker);
+          expect(input.prompt).not.toContain(excludedMarker);
+          return {
+            request_payload: input.prompt,
+            receipt_id: 'stub-receipt-working-tree-path-scope',
+            result_body: JSON.stringify(cleanRelayResult()),
+            duration_ms: 1,
+            cli_version: '0.0.0-stub',
+          };
+        },
+      },
+    });
+
+    expect(outcome.outcome).toBe('complete');
+    expect(relayCalls).toBe(1);
+    const intake = ReviewIntake.parse(
+      JSON.parse(readFileSync(join(runFolder, 'reports', 'review-intake.json'), 'utf8')),
+    );
+    expect(intake.target).toMatchObject({
+      kind: 'working_tree',
+      mode: 'all',
+      paths: { include: [], exclude: ['generated'] },
+    });
+    expect(readFileSync(join(runFolder, 'trace.ndjson'), 'utf8')).not.toContain(excludedMarker);
+  });
+
+  it('says which narrowing it could not apply instead of reviewing in silence', async () => {
+    const { bytes } = loadFixture();
+    const runFolder = join(reviewRunFolderBase(), 'scope-not-applied');
+    const projectRoot = stagedReviewProject('scope-not-applied-project');
+
+    const outcome = await runCompiledFlow({
+      runDir: runFolder,
+      flowBytes: bytes,
+      runId: '79000000-0000-0000-0000-000000000126',
+      goal: 'review the working tree except deleted files',
+      depth: 'medium',
+      now: deterministicNow(Date.UTC(2026, 6, 24, 11, 40, 0)),
+      projectRoot,
+      relayer: relayerWith(cleanRelayResult()),
+    });
+
+    expect(outcome.outcome).toBe('complete');
+    const intake = ReviewIntake.parse(
+      JSON.parse(readFileSync(join(runFolder, 'reports', 'review-intake.json'), 'utf8')),
+    );
+    expect(intake.evidence_warnings).toContainEqual(
+      expect.objectContaining({
+        kind: 'scope_not_applied',
+        message: expect.stringContaining('except deleted'),
+      }),
+    );
+  });
+
+  // A bare path names what to look at, not which changes. Review reads it as
+  // the working tree under that path and says the target was assumed.
   it.each([
     {
       label: 'source-file',
@@ -1312,17 +1497,19 @@ describe('review target selection', () => {
       runId: '79000000-0000-0000-0000-000000000118',
     },
   ])(
-    'rejects a path-only $label request before reading or relaying it',
+    'scopes a path-only $label request to that path',
     async ({ goal, label, runId, selectedPath }) => {
       const { bytes } = loadFixture();
       const runFolder = join(reviewRunFolderBase(), `path-only-${label}`);
       const projectRoot = join(reviewRunFolderBase(), `path-only-${label}-project`);
-      const fileMarker = `PATH_ONLY_${label.toUpperCase().replaceAll('-', '_')}_MUST_NOT_LEAK`;
+      const selectedMarker = `PATH_ONLY_${label.toUpperCase().replaceAll('-', '_')}_UNDER_REVIEW`;
+      const otherMarker = `PATH_ONLY_${label.toUpperCase().replaceAll('-', '_')}_MUST_NOT_LEAK`;
       mkdirSync(join(projectRoot, 'src'), { recursive: true });
       mkdirSync(join(projectRoot, 'docs', 'release'), { recursive: true });
       execFileSync('git', ['init'], { cwd: projectRoot, stdio: 'pipe' });
-      writeFileSync(join(projectRoot, selectedPath), `${fileMarker}\n`);
-      execFileSync('git', ['add', selectedPath], { cwd: projectRoot, stdio: 'pipe' });
+      writeFileSync(join(projectRoot, selectedPath), 'base\n');
+      writeFileSync(join(projectRoot, 'unrelated.txt'), 'base\n');
+      execFileSync('git', ['add', '.'], { cwd: projectRoot, stdio: 'pipe' });
       execFileSync(
         'git',
         [
@@ -1336,6 +1523,8 @@ describe('review target selection', () => {
         ],
         { cwd: projectRoot, stdio: 'pipe' },
       );
+      writeFileSync(join(projectRoot, selectedPath), `${selectedMarker}\n`);
+      writeFileSync(join(projectRoot, 'unrelated.txt'), `${otherMarker}\n`);
       let relayCalls = 0;
 
       const outcome = await runCompiledFlow({
@@ -1348,18 +1537,77 @@ describe('review target selection', () => {
         projectRoot,
         relayer: {
           connectorName: 'codex',
-          relay: async (): Promise<RelayResult> => {
+          relay: async (input: ClaudeCodeRelayInput): Promise<RelayResult> => {
             relayCalls += 1;
-            throw new Error('path-only content must never reach the reviewer');
+            expect(input.prompt).toContain(selectedMarker);
+            expect(input.prompt).not.toContain(otherMarker);
+            return {
+              request_payload: input.prompt,
+              receipt_id: `stub-receipt-path-only-${label}`,
+              result_body: JSON.stringify(cleanRelayResult()),
+              duration_ms: 1,
+              cli_version: '0.0.0-stub',
+            };
           },
         },
       });
 
-      expect(outcome.outcome).toBe('aborted');
-      expect(outcome.reason).toMatch(/complete working tree|commit|range|PR|actual text/i);
-      expect(relayCalls).toBe(0);
-      expect(existsSync(join(runFolder, 'reports', 'review-intake.json'))).toBe(false);
-      expect(readFileSync(join(runFolder, 'trace.ndjson'), 'utf8')).not.toContain(fileMarker);
+      expect(outcome.outcome).toBe('complete');
+      expect(relayCalls).toBe(1);
+      const intake = ReviewIntake.parse(
+        JSON.parse(readFileSync(join(runFolder, 'reports', 'review-intake.json'), 'utf8')),
+      );
+      expect(intake.target).toEqual({
+        kind: 'working_tree',
+        mode: 'all',
+        explicit: false,
+        paths: { include: [selectedPath], exclude: [] },
+      });
+      const warningKinds = intake.evidence_warnings.map((warning) => warning.kind);
+      expect(warningKinds).toContain('target_assumed');
+      expect(warningKinds).toContain('target_scoped');
+      expect(readFileSync(join(runFolder, 'trace.ndjson'), 'utf8')).not.toContain(otherMarker);
     },
   );
+
+  // Stage 2 of the Review rework gives a path with no changes its own snapshot
+  // evidence. Until then the run stops, and the message has to name the path so
+  // the operator can tell "nothing changed there" from "Review looked elsewhere".
+  it('names the path when a path-only request has no changes', async () => {
+    const { bytes } = loadFixture();
+    const runFolder = join(reviewRunFolderBase(), 'path-only-unchanged');
+    const projectRoot = join(reviewRunFolderBase(), 'path-only-unchanged-project');
+    mkdirSync(join(projectRoot, 'src'), { recursive: true });
+    execFileSync('git', ['init'], { cwd: projectRoot, stdio: 'pipe' });
+    writeFileSync(join(projectRoot, 'src', 'foo.ts'), 'const foo = 1;\n');
+    execFileSync('git', ['add', '.'], { cwd: projectRoot, stdio: 'pipe' });
+    execFileSync(
+      'git',
+      ['-c', 'user.name=Circuit', '-c', 'user.email=circuit@example.test', 'commit', '-m', 'base'],
+      { cwd: projectRoot, stdio: 'pipe' },
+    );
+    let relayCalls = 0;
+
+    const outcome = await runCompiledFlow({
+      runDir: runFolder,
+      flowBytes: bytes,
+      runId: '79000000-0000-0000-0000-000000000127',
+      goal: 'review src/foo.ts',
+      depth: 'medium',
+      now: deterministicNow(Date.UTC(2026, 6, 24, 11, 45, 0)),
+      projectRoot,
+      relayer: {
+        connectorName: 'codex',
+        relay: async (): Promise<RelayResult> => {
+          relayCalls += 1;
+          throw new Error('an empty target must never reach the reviewer');
+        },
+      },
+    });
+
+    expect(outcome.outcome).toBe('aborted');
+    expect(outcome.reason).toContain('src/foo.ts');
+    expect(relayCalls).toBe(0);
+    expect(existsSync(join(runFolder, 'reports', 'review-intake.json'))).toBe(false);
+  });
 });

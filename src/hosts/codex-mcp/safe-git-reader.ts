@@ -2,8 +2,11 @@ import { lstat, readFile, realpath, stat } from 'node:fs/promises';
 import { basename, isAbsolute, join, relative, resolve, sep } from 'node:path';
 import {
   RUNTIME_GIT_HARDENED_CONFIG,
+  type RuntimeGitPathScope,
   type RuntimeGitPinnedTarget,
   type RuntimeGitTarget,
+  runtimeGitArgsWithPathScope,
+  runtimeGitPathScopeProblem,
   runtimeGitTextIsValidUtf8,
 } from '../../shared/runtime-git-reader.js';
 import type {
@@ -15,7 +18,7 @@ import type {
 const MAX_GIT_POINTER_BYTES = 8 * 1024;
 const GIT_OUTPUT_LIMIT_BYTES = 2 * 1024 * 1024;
 const GIT_TIMEOUT_MS = 30_000;
-const REQUEST_FIELDS = new Set(['operation', 'target']);
+const REQUEST_FIELDS = new Set(['operation', 'target', 'paths']);
 
 export type SafeGitOperation =
   | 'status'
@@ -40,14 +43,17 @@ type ParsedSafeGitRequest =
   | {
       readonly operation: 'resolve_target';
       readonly target: RuntimeGitTarget;
+      readonly paths?: never;
     }
   | {
       readonly operation: 'target_diff' | 'target_diff_stat';
       readonly target: RuntimeGitPinnedTarget;
+      readonly paths?: RuntimeGitPathScope;
     }
   | {
       readonly operation: StaticSafeGitOperation;
       readonly target?: never;
+      readonly paths?: RuntimeGitPathScope;
     };
 
 type SafeGitCommandRequest =
@@ -490,6 +496,19 @@ function parsePinnedTarget(value: unknown): RuntimeGitPinnedTarget {
   throw new SafeGitReadError('invalid_git_read', 'Pinned Git target kind is not supported.');
 }
 
+/**
+ * The scope arrives from another process, so it is re-validated here rather
+ * than trusted. A pathspec is an argument to the Git command this reader is
+ * about to run, and the whole point of this reader is that it decides its own
+ * arguments.
+ */
+function parsePathScope(value: unknown): RuntimeGitPathScope | undefined {
+  if (value === undefined) return undefined;
+  const problem = runtimeGitPathScopeProblem(value);
+  if (problem !== undefined) throw new SafeGitReadError('invalid_git_read', problem);
+  return value as RuntimeGitPathScope;
+}
+
 function parseRequest(value: unknown): ParsedSafeGitRequest {
   if (typeof value !== 'object' || value === null || Array.isArray(value)) {
     throw new SafeGitReadError('invalid_git_read', 'Git read request must be an object.');
@@ -518,10 +537,18 @@ function parseRequest(value: unknown): ParsedSafeGitRequest {
   }
   const operation = record.operation;
   if (operation === 'resolve_target') {
+    if (record.paths !== undefined) {
+      throw new SafeGitReadError(
+        'invalid_git_read',
+        'Resolving a Git target reads no paths, so a path scope is not allowed.',
+      );
+    }
     return { operation, target: parseSymbolicTarget(record.target) };
   }
+  const paths = parsePathScope(record.paths);
+  const scope = paths === undefined ? {} : { paths };
   if (operation === 'target_diff' || operation === 'target_diff_stat') {
-    return { operation, target: parsePinnedTarget(record.target) };
+    return { operation, target: parsePinnedTarget(record.target), ...scope };
   }
   if (record.target !== undefined) {
     throw new SafeGitReadError(
@@ -529,7 +556,7 @@ function parseRequest(value: unknown): ParsedSafeGitRequest {
       'Git target is only allowed for target resolution and diff operations.',
     );
   }
-  return { operation };
+  return { operation, ...scope };
 }
 
 async function resolveGitExecutable(candidate: string): Promise<string> {
@@ -626,9 +653,12 @@ function operationArgs(
     return resolveTargetArgs(request.target);
   }
   if (request.operation === 'target_diff' || request.operation === 'target_diff_stat') {
-    return targetArgs(request.operation, request.target, commitParent);
+    return runtimeGitArgsWithPathScope(
+      targetArgs(request.operation, request.target, commitParent),
+      request.paths,
+    );
   }
-  return OPERATION_ARGS[request.operation];
+  return runtimeGitArgsWithPathScope(OPERATION_ARGS[request.operation], request.paths);
 }
 
 function resolvedObjectId(value: string | undefined, label: string): string {

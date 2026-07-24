@@ -45,6 +45,93 @@ export type RuntimeGitTarget =
       readonly dots: '..' | '...';
     };
 
+/**
+ * A repository-relative narrowing of a Git read. The strings are plain paths
+ * or globs; the pathspec magic that turns an exclusion into `:(exclude)path`
+ * is added here, once, so no caller has to hand-build one.
+ */
+export type RuntimeGitPathScope = {
+  readonly include: readonly string[];
+  readonly exclude: readonly string[];
+};
+
+const RUNTIME_GIT_SCOPE_PATH_PATTERN = /^[A-Za-z0-9._@+*?[\]/-]+$/u;
+const MAX_RUNTIME_GIT_SCOPE_PATHS = 32;
+const MAX_RUNTIME_GIT_SCOPE_PATH_LENGTH = 200;
+
+function runtimeGitScopePathProblem(value: unknown, label: string): string | undefined {
+  if (typeof value !== 'string' || value.length === 0) {
+    return `Git path scope ${label} entries must be non-empty strings.`;
+  }
+  if (value.length > MAX_RUNTIME_GIT_SCOPE_PATH_LENGTH) {
+    return `Git path scope ${label} entry is too long.`;
+  }
+  if (!RUNTIME_GIT_SCOPE_PATH_PATTERN.test(value)) {
+    return `Git path scope ${label} entry ${JSON.stringify(value)} is not a plain repository path.`;
+  }
+  if (value.startsWith('/') || value.startsWith('-') || value.split('/').includes('..')) {
+    return `Git path scope ${label} entry ${JSON.stringify(value)} must stay inside the repository.`;
+  }
+  return undefined;
+}
+
+/**
+ * Validate a path scope that crossed a process boundary. The reader that runs
+ * Git re-checks it rather than trusting the caller: a pathspec is an argument
+ * to a command, and a scope arriving as `-x` or `:(attr:...)` would be one the
+ * operator never asked for.
+ */
+export function runtimeGitPathScopeProblem(value: unknown): string | undefined {
+  if (typeof value !== 'object' || value === null || Array.isArray(value)) {
+    return 'Git path scope must be an object.';
+  }
+  const record = value as Record<string, unknown>;
+  for (const key of Object.keys(record)) {
+    if (key !== 'include' && key !== 'exclude') {
+      return `Unknown Git path scope field ${JSON.stringify(key)}.`;
+    }
+  }
+  if (!Array.isArray(record.include) || !Array.isArray(record.exclude)) {
+    return 'Git path scope include and exclude must both be arrays.';
+  }
+  if (record.include.length === 0 && record.exclude.length === 0) {
+    return 'Git path scope must name at least one path.';
+  }
+  if (record.include.length + record.exclude.length > MAX_RUNTIME_GIT_SCOPE_PATHS) {
+    return 'Git path scope names too many paths.';
+  }
+  for (const entry of record.include) {
+    const problem = runtimeGitScopePathProblem(entry, 'include');
+    if (problem !== undefined) return problem;
+  }
+  for (const entry of record.exclude) {
+    const problem = runtimeGitScopePathProblem(entry, 'exclude');
+    if (problem !== undefined) return problem;
+  }
+  return undefined;
+}
+
+export function runtimeGitPathspecs(scope: RuntimeGitPathScope | undefined): readonly string[] {
+  if (scope === undefined) return Object.freeze([]);
+  return Object.freeze([...scope.include, ...scope.exclude.map((path) => `:(exclude)${path}`)]);
+}
+
+/**
+ * Append a path scope to a Git argument list. Git needs the `--` separator
+ * before pathspecs; some argument lists already carry one, so this adds it
+ * only when it is missing. With no scope the arguments are returned unchanged,
+ * which keeps an unscoped read byte-identical to what it was before scoping
+ * existed.
+ */
+export function runtimeGitArgsWithPathScope(
+  args: readonly string[],
+  scope: RuntimeGitPathScope | undefined,
+): readonly string[] {
+  const specs = runtimeGitPathspecs(scope);
+  if (specs.length === 0) return args;
+  return args.at(-1) === '--' ? [...args, ...specs] : [...args, '--', ...specs];
+}
+
 export type RuntimeGitPinnedTarget =
   | {
       readonly kind: 'commit';
@@ -75,11 +162,14 @@ export type RuntimeGitReadRequest =
       readonly operation: 'resolve_target';
       readonly projectRoot: string;
       readonly target: RuntimeGitTarget;
+      // Resolving a ref reads no paths, so a scope here would be meaningless.
+      readonly paths?: never;
     }
   | {
       readonly operation: 'target_diff' | 'target_diff_stat';
       readonly projectRoot: string;
       readonly target: RuntimeGitPinnedTarget;
+      readonly paths?: RuntimeGitPathScope;
     }
   | {
       readonly operation: Exclude<
@@ -88,6 +178,7 @@ export type RuntimeGitReadRequest =
       >;
       readonly projectRoot: string;
       readonly target?: never;
+      readonly paths?: RuntimeGitPathScope;
     };
 
 /**

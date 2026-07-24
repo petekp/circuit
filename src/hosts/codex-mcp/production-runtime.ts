@@ -337,7 +337,7 @@ export function createProductionLaunchPreflight(
           throw new McpLifecycleError(
             'invalid_review_target',
             (error as Error).message,
-            'Choose one complete working tree, staged set, unstaged set, commit, or range target, or include the actual text to review.',
+            'Name one target: the working tree, the staged set, the unstaged set, a commit, or a range. Narrow it with paths if you want. To review a plan or report, include its actual text.',
           );
         }
       } finally {

@@ -18791,6 +18791,62 @@ var RUNTIME_GIT_HARDENED_CONFIG = Object.freeze([
   "protocol.ext.allow=never",
   "submodule.recurse=false"
 ]);
+var RUNTIME_GIT_SCOPE_PATH_PATTERN = /^[A-Za-z0-9._@+*?[\]/-]+$/u;
+var MAX_RUNTIME_GIT_SCOPE_PATHS = 32;
+var MAX_RUNTIME_GIT_SCOPE_PATH_LENGTH = 200;
+function runtimeGitScopePathProblem(value, label) {
+  if (typeof value !== "string" || value.length === 0) {
+    return `Git path scope ${label} entries must be non-empty strings.`;
+  }
+  if (value.length > MAX_RUNTIME_GIT_SCOPE_PATH_LENGTH) {
+    return `Git path scope ${label} entry is too long.`;
+  }
+  if (!RUNTIME_GIT_SCOPE_PATH_PATTERN.test(value)) {
+    return `Git path scope ${label} entry ${JSON.stringify(value)} is not a plain repository path.`;
+  }
+  if (value.startsWith("/") || value.startsWith("-") || value.split("/").includes("..")) {
+    return `Git path scope ${label} entry ${JSON.stringify(value)} must stay inside the repository.`;
+  }
+  return void 0;
+}
+function runtimeGitPathScopeProblem(value) {
+  if (typeof value !== "object" || value === null || Array.isArray(value)) {
+    return "Git path scope must be an object.";
+  }
+  const record2 = value;
+  for (const key of Object.keys(record2)) {
+    if (key !== "include" && key !== "exclude") {
+      return `Unknown Git path scope field ${JSON.stringify(key)}.`;
+    }
+  }
+  if (!Array.isArray(record2.include) || !Array.isArray(record2.exclude)) {
+    return "Git path scope include and exclude must both be arrays.";
+  }
+  if (record2.include.length === 0 && record2.exclude.length === 0) {
+    return "Git path scope must name at least one path.";
+  }
+  if (record2.include.length + record2.exclude.length > MAX_RUNTIME_GIT_SCOPE_PATHS) {
+    return "Git path scope names too many paths.";
+  }
+  for (const entry of record2.include) {
+    const problem = runtimeGitScopePathProblem(entry, "include");
+    if (problem !== void 0) return problem;
+  }
+  for (const entry of record2.exclude) {
+    const problem = runtimeGitScopePathProblem(entry, "exclude");
+    if (problem !== void 0) return problem;
+  }
+  return void 0;
+}
+function runtimeGitPathspecs(scope) {
+  if (scope === void 0) return Object.freeze([]);
+  return Object.freeze([...scope.include, ...scope.exclude.map((path) => `:(exclude)${path}`)]);
+}
+function runtimeGitArgsWithPathScope(args, scope) {
+  const specs = runtimeGitPathspecs(scope);
+  if (specs.length === 0) return args;
+  return args.at(-1) === "--" ? [...args, ...specs] : [...args, "--", ...specs];
+}
 function runtimeGitTextIsValidUtf8(text) {
   for (let index = 0; index < text.length; index += 1) {
     const code = text.charCodeAt(index);
@@ -18809,7 +18865,7 @@ function runtimeGitTextIsValidUtf8(text) {
 var MAX_GIT_POINTER_BYTES = 8 * 1024;
 var GIT_OUTPUT_LIMIT_BYTES = 2 * 1024 * 1024;
 var GIT_TIMEOUT_MS = 3e4;
-var REQUEST_FIELDS2 = /* @__PURE__ */ new Set(["operation", "target"]);
+var REQUEST_FIELDS2 = /* @__PURE__ */ new Set(["operation", "target", "paths"]);
 var SafeGitReadError = class extends Error {
   code;
   constructor(code, message) {
@@ -19175,6 +19231,12 @@ function parsePinnedTarget(value) {
   }
   throw new SafeGitReadError("invalid_git_read", "Pinned Git target kind is not supported.");
 }
+function parsePathScope(value) {
+  if (value === void 0) return void 0;
+  const problem = runtimeGitPathScopeProblem(value);
+  if (problem !== void 0) throw new SafeGitReadError("invalid_git_read", problem);
+  return value;
+}
 function parseRequest(value) {
   if (typeof value !== "object" || value === null || Array.isArray(value)) {
     throw new SafeGitReadError("invalid_git_read", "Git read request must be an object.");
@@ -19190,10 +19252,18 @@ function parseRequest(value) {
   }
   const operation = record2.operation;
   if (operation === "resolve_target") {
+    if (record2.paths !== void 0) {
+      throw new SafeGitReadError(
+        "invalid_git_read",
+        "Resolving a Git target reads no paths, so a path scope is not allowed."
+      );
+    }
     return { operation, target: parseSymbolicTarget(record2.target) };
   }
+  const paths = parsePathScope(record2.paths);
+  const scope = paths === void 0 ? {} : { paths };
   if (operation === "target_diff" || operation === "target_diff_stat") {
-    return { operation, target: parsePinnedTarget(record2.target) };
+    return { operation, target: parsePinnedTarget(record2.target), ...scope };
   }
   if (record2.target !== void 0) {
     throw new SafeGitReadError(
@@ -19201,7 +19271,7 @@ function parseRequest(value) {
       "Git target is only allowed for target resolution and diff operations."
     );
   }
-  return { operation };
+  return { operation, ...scope };
 }
 async function resolveGitExecutable(candidate) {
   if (!isAbsolute8(candidate)) {
@@ -19287,9 +19357,12 @@ function operationArgs(request, commitParent) {
     return resolveTargetArgs(request.target);
   }
   if (request.operation === "target_diff" || request.operation === "target_diff_stat") {
-    return targetArgs(request.operation, request.target, commitParent);
+    return runtimeGitArgsWithPathScope(
+      targetArgs(request.operation, request.target, commitParent),
+      request.paths
+    );
   }
-  return OPERATION_ARGS[request.operation];
+  return runtimeGitArgsWithPathScope(OPERATION_ARGS[request.operation], request.paths);
 }
 function resolvedObjectId(value, label) {
   if (value === void 0 || !/^(?:[0-9a-f]{40}|[0-9a-f]{64})$/u.test(value)) {
@@ -19667,11 +19740,15 @@ function createMcpWorkerSecurity(input, dependencies = {}) {
     };
   };
   const gitReader = {
-    read: async ({ operation, projectRoot, target }) => {
+    read: async ({ operation, projectRoot, target, paths }) => {
       if (resolve6(projectRoot) !== workspace) {
         throw new Error("The bounded Git reader is sealed to the trusted workspace.");
       }
-      return await safeGit.read({ operation, ...target === void 0 ? {} : { target } });
+      return await safeGit.read({
+        operation,
+        ...target === void 0 ? {} : { target },
+        ...paths === void 0 ? {} : { paths }
+      });
     }
   };
   return Object.freeze({ proofCommandRunner, gitReader });

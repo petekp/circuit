@@ -54,8 +54,9 @@ metacharacters:
    A named plan or report file is not readable unless its contents are part of
    the selected Git target. A file path by itself is not review evidence.
    Otherwise, include the plan or report's actual text in the task.
-   Do not remove a requested file or directory subset or path exclusion to make
-   Review run. Circuit accepts only a complete target or actual supplied text.
+   Keep a requested file or directory subset or path exclusion in the task text.
+   Circuit reads it as a path scope, reviews only those paths, and names the
+   scope in the report; removing it would review more than was asked for.
    A Review task that names no target reviews the current working tree, and the
    report names that assumption. Circuit cannot fetch a pull request: to review
    one, check the branch out locally first.

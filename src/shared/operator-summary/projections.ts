@@ -89,6 +89,28 @@ function reviewAssessmentDetails(report: JsonObject | undefined): string[] {
   return lines;
 }
 
+/**
+ * The paths a Review was narrowed to. Stated on its own line because it is the
+ * difference between "your working tree is clean" and "the part of your
+ * working tree I was pointed at is clean".
+ */
+function reviewPathScopeDetails(evidenceSummary: JsonObject | undefined): string[] {
+  const scope = isObject(evidenceSummary?.path_scope) ? evidenceSummary.path_scope : undefined;
+  if (scope === undefined) return [];
+  const include = arrayField(scope, 'include').filter(
+    (entry): entry is string => typeof entry === 'string',
+  );
+  const exclude = arrayField(scope, 'exclude').filter(
+    (entry): entry is string => typeof entry === 'string',
+  );
+  const parts = [
+    ...(include.length > 0 ? [`limited to ${include.join(', ')}`] : []),
+    ...(exclude.length > 0 ? [`excluding ${exclude.join(', ')}`] : []),
+  ];
+  if (parts.length === 0) return [];
+  return [`Review paths: ${parts.join(' and ')}. Changes outside those paths were not read.`];
+}
+
 function reviewEvidenceDetails(report: JsonObject | undefined): string[] {
   const evidenceSummary = isObject(report?.evidence_summary) ? report.evidence_summary : undefined;
   const kind = stringField(evidenceSummary, 'kind');
@@ -101,11 +123,12 @@ function reviewEvidenceDetails(report: JsonObject | undefined): string[] {
     const targetKind = stringField(evidenceSummary, 'target_kind');
     const targetRef = stringField(evidenceSummary, 'target_ref');
     const label = targetRef ?? targetKind ?? 'requested target';
+    const scope = reviewPathScopeDetails(evidenceSummary);
     if (evidenceSummary?.target_diff_included !== true) {
-      return [`Review evidence: ${label} diff unavailable.`];
+      return [`Review evidence: ${label} diff unavailable.`, ...scope];
     }
     const truncated = evidenceSummary?.target_diff_truncated === true ? ' (truncated)' : '';
-    return [`Review evidence: ${label} diff included${truncated}.`];
+    return [`Review evidence: ${label} diff included${truncated}.`, ...scope];
   }
   if (kind !== 'git-working-tree') return [];
 
@@ -122,6 +145,7 @@ function reviewEvidenceDetails(report: JsonObject | undefined): string[] {
       `Review evidence: ${targetMode} working-tree diff ${evidenceSummary?.target_diff_included === true ? 'included' : 'unavailable'}.`,
     );
   }
+  details.push(...reviewPathScopeDetails(evidenceSummary));
   if (policy === 'include-content') {
     const suffix = truncated ? '; additional untracked files were not sampled' : '';
     details.push(

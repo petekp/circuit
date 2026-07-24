@@ -21,6 +21,8 @@ export const ReviewEvidenceWarningKind = z.enum([
   'evidence_unavailable',
   'scope_empty',
   'target_assumed',
+  'target_scoped',
+  'scope_not_applied',
 ]);
 export type ReviewEvidenceWarningKind = z.infer<typeof ReviewEvidenceWarningKind>;
 
@@ -47,8 +49,28 @@ export type ReviewUntrackedContentPolicy = z.infer<typeof ReviewUntrackedContent
 export const ReviewTargetKind = z.enum(['working_tree', 'commit', 'range']);
 export type ReviewTargetKind = z.infer<typeof ReviewTargetKind>;
 
-export const ReviewWorkingTreeMode = z.enum(['all', 'staged', 'unstaged']);
+// Which layers of the working tree a review covers. `all` is staged, unstaged
+// and untracked; `tracked` is the same minus untracked, which is what an
+// operator who wrote "except untracked files" asked for.
+export const ReviewWorkingTreeMode = z.enum(['all', 'tracked', 'staged', 'unstaged']);
 export type ReviewWorkingTreeMode = z.infer<typeof ReviewWorkingTreeMode>;
+
+// A target narrowed to part of what it would otherwise cover. Present only when
+// the operator asked for the narrowing, so an absent scope means "all of it"
+// and no consumer has to distinguish empty from unset. Paths are repository
+// relative and carry no pathspec magic; the readers add that when they build
+// the Git arguments.
+export const ReviewPathScope = z
+  .object({
+    include: z.array(z.string().min(1)),
+    exclude: z.array(z.string().min(1)),
+  })
+  .strict()
+  .refine(
+    (scope) => scope.include.length > 0 || scope.exclude.length > 0,
+    'A path scope must include or exclude at least one path.',
+  );
+export type ReviewPathScope = z.infer<typeof ReviewPathScope>;
 
 export const ReviewUntrackedFileEvidence = z
   .object({
@@ -113,6 +135,7 @@ const ReviewGitTargetEvidence = z
     target_head_commit: ReviewGitObjectId.optional(),
     target_diff: ReviewEvidenceText,
     target_diff_stat: z.string(),
+    path_scope: ReviewPathScope.optional(),
   })
   .strict()
   .superRefine((evidence, ctx) => {
@@ -177,6 +200,7 @@ export const ReviewEvidence = z.discriminatedUnion('kind', [
       untracked_content_policy: ReviewUntrackedContentPolicy,
       untracked_files: z.array(ReviewUntrackedFileEvidence),
       submodule_paths: z.array(z.string().min(1)).optional(),
+      path_scope: ReviewPathScope.optional(),
     })
     .strict(),
   ReviewGitTargetEvidence,
@@ -205,6 +229,7 @@ export const ReviewEvidenceSummary = z.discriminatedUnion('kind', [
       target_kind: z.literal('working_tree'),
       target_mode: ReviewWorkingTreeMode,
       target_diff_included: z.boolean(),
+      path_scope: ReviewPathScope.optional(),
     })
     .strict(),
   z
@@ -214,6 +239,7 @@ export const ReviewEvidenceSummary = z.discriminatedUnion('kind', [
       target_ref: z.string().min(1),
       target_diff_included: z.boolean(),
       target_diff_truncated: z.boolean(),
+      path_scope: ReviewPathScope.optional(),
     })
     .strict(),
 ]);
@@ -234,15 +260,23 @@ export const ReviewResolvedTarget = z.discriminatedUnion('kind', [
       // False when Circuit assumed the working tree because the goal named no
       // target. The assumption is reported to the operator as a warning.
       explicit: z.boolean(),
+      paths: ReviewPathScope.optional(),
     })
     .strict(),
-  z.object({ kind: z.literal('commit'), ref: z.string().min(1) }).strict(),
+  z
+    .object({
+      kind: z.literal('commit'),
+      ref: z.string().min(1),
+      paths: ReviewPathScope.optional(),
+    })
+    .strict(),
   z
     .object({
       kind: z.literal('range'),
       base: z.string().min(1),
       head: z.string().min(1),
       dots: z.enum(['..', '...']),
+      paths: ReviewPathScope.optional(),
     })
     .strict(),
 ]);

@@ -437,6 +437,17 @@
       "last_checked": "2026-07-08"
     },
     {
+      "path": "docs/ideas/review-generality.md",
+      "title": "Review, rethought around what people actually ask for",
+      "status": "implementation-spec",
+      "category": "flows-and-blocks",
+      "impact": 5,
+      "tags": ["review", "evidence-kinds", "path-scoping", "refusal", "mediated-reads"],
+      "current_reading": "Review models which diff; people mean the thing they want looked at. Scores the flow at four of twelve natural requests and replaces target kinds with evidence kinds (change, snapshot, document, freely combined). Sequences the work: path scoping, snapshot evidence, automatic context for touched files, mediated reads to replace the hard seal, then a pull-request fetch story. Supersedes the target-selection decisions from #165 wherever it speaks.",
+      "related": ["docs/ideas/deprioritized-ledger.md"],
+      "last_checked": "2026-07-24"
+    },
+    {
       "path": "docs/ideas/resolver-shared-shape.md",
       "title": "The resolver shared shape (observed, not extracted)",
       "status": "current-gap-analysis",

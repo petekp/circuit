@@ -148,10 +148,10 @@ broaden the run to another working-tree layer, commit, or range. Review sees
 only the evidence Circuit captured for that target. It cannot inspect nearby
 repository files for extra context.
 
-If the request narrows a complete target to a file or directory subset, or
-excludes paths, do not remove that restriction and do not start a broader
-Review. Explain that Circuit accepts only a complete target or actual supplied
-text, then ask the user which one they want.
+If the request narrows the target to a file or directory, or excludes paths,
+keep that wording in the goal. Circuit reads it as a path scope, reviews only
+those paths, and names the scope in the report. Do not widen the request to a
+complete target, and do not drop the narrowing because it looks like a detail.
 
 A named plan or report file is not readable unless its contents are part of the
 captured Git target. A file path by itself is not review evidence. Otherwise,

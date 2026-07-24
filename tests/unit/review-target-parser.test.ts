@@ -149,31 +149,151 @@ describe('Review target parsing', () => {
         reason: expect.stringContaining('Check out the PR branch locally'),
       });
     });
+  });
 
-    // D4: Review cannot pin a subset of paths as evidence. The stop says what
-    // to run instead.
+  describe('path scopes', () => {
+    // A bare path is the whole request. It names what to look at, not which
+    // changes, so the working tree is still an assumption and still declared.
     it.each([
-      'review only src/foo.ts',
-      'review src/app.ts',
-      'review changes in src/',
-      'review everything except tests/',
-      'review everything but node_modules',
-      'review latest commit but do not review package-lock.json',
-      'review latest commit, leaving out migrations',
-      'review current changes except untracked files',
-      'review the file: src/app.ts',
-      // A narrowing clause outranks the target it narrows. Reviewing the whole
-      // commit here would review more than the operator asked for.
-      'review latest commit only in src/',
-      'review latest commit only in src/foo.ts',
-      'review only src/foo.ts in latest commit',
-      'review HEAD~1..HEAD except node_modules/',
-    ])('refuses the path subset in %j and names the alternative', (goal) => {
+      { goal: 'review src/app.ts', include: ['src/app.ts'] },
+      { goal: 'review only src/foo.ts', include: ['src/foo.ts'] },
+      { goal: 'review the file: src/app.ts', include: ['src/app.ts'] },
+      { goal: 'review src/auth', include: ['src/auth'] },
+      { goal: 'review changes in src/', include: ['src/'] },
+    ])('reads $goal as the working tree scoped to $include', ({ goal, include }) => {
       expect(parseReviewTarget(goal)).toEqual({
-        ok: false,
-        reason: expect.stringContaining('Review the whole working tree, a commit, or a range'),
+        ok: true,
+        target: {
+          kind: 'working_tree',
+          mode: 'all',
+          explicit: false,
+          paths: { include, exclude: [] },
+        },
+        assumed: true,
       });
     });
+
+    it.each([
+      { goal: 'review everything except tests/', exclude: ['tests/'] },
+      { goal: 'review everything but node_modules', exclude: ['node_modules'] },
+      { goal: 'review everything except the generated files', exclude: ['generated'] },
+    ])('reads $goal as the working tree excluding $exclude', ({ goal, exclude }) => {
+      expect(parseReviewTarget(goal)).toEqual({
+        ok: true,
+        target: {
+          kind: 'working_tree',
+          mode: 'all',
+          explicit: false,
+          paths: { include: [], exclude },
+        },
+        assumed: true,
+      });
+    });
+
+    // A narrowing clause rides along with the target it narrows. Reviewing the
+    // whole commit here would review more than the operator asked for.
+    it.each([
+      { goal: 'review latest commit only in src/', include: ['src/'], exclude: [] },
+      { goal: 'review latest commit only in src/foo.ts', include: ['src/foo.ts'], exclude: [] },
+      { goal: 'review only src/foo.ts in latest commit', include: ['src/foo.ts'], exclude: [] },
+      {
+        goal: 'review latest commit but do not review package-lock.json',
+        include: [],
+        exclude: ['package-lock.json'],
+      },
+      {
+        goal: 'review latest commit, leaving out migrations',
+        include: [],
+        exclude: ['migrations'],
+      },
+    ])('scopes the commit named by $goal', ({ goal, include, exclude }) => {
+      expect(parseReviewTarget(goal)).toEqual({
+        ok: true,
+        target: { kind: 'commit', ref: 'HEAD', paths: { include, exclude } },
+      });
+    });
+
+    it('scopes a range', () => {
+      expect(parseReviewTarget('review HEAD~1..HEAD except node_modules/')).toEqual({
+        ok: true,
+        target: {
+          kind: 'range',
+          base: 'HEAD~1',
+          head: 'HEAD',
+          dots: '..',
+          paths: { include: [], exclude: ['node_modules/'] },
+        },
+      });
+    });
+
+    it('scopes an explicit working-tree mode', () => {
+      expect(parseReviewTarget('review staged changes in src/')).toEqual({
+        ok: true,
+        target: {
+          kind: 'working_tree',
+          mode: 'staged',
+          explicit: true,
+          paths: { include: ['src/'], exclude: [] },
+        },
+      });
+    });
+
+    // "except untracked files" is not a pathspec, but it is a working-tree
+    // mode, so Review honours it by narrowing to the tracked layers.
+    it.each([
+      'review current changes except untracked files',
+      'review the working tree but not untracked',
+      'review uncommitted changes, ignoring untracked files',
+    ])('narrows %j to the tracked working tree', (goal) => {
+      expect(parseReviewTarget(goal)).toEqual({
+        ok: true,
+        target: { kind: 'working_tree', mode: 'tracked', explicit: true },
+      });
+    });
+
+    // The exclusion was already true of the target, so there is nothing to
+    // narrow and nothing to warn about.
+    it.each([
+      { goal: 'review staged changes except untracked files', mode: 'staged' },
+      { goal: 'review unstaged changes, ignoring untracked', mode: 'unstaged' },
+    ])('leaves $goal alone because it already excludes untracked files', ({ goal, mode }) => {
+      expect(parseReviewTarget(goal)).toEqual({
+        ok: true,
+        target: { kind: 'working_tree', mode, explicit: true },
+      });
+    });
+
+    it('leaves a commit target alone because its diff has no untracked files', () => {
+      expect(parseReviewTarget('review the latest commit except untracked files')).toEqual({
+        ok: true,
+        target: { kind: 'commit', ref: 'HEAD' },
+      });
+    });
+
+    // A narrowing Review cannot express as a pathspec or a mode does not stop
+    // the run. The review covers the whole target and says what it could not
+    // apply.
+    it.each([
+      { goal: 'review current changes except deleted files', phrase: 'except deleted' },
+      { goal: 'review the latest commit but not renamed files', phrase: 'but not renamed' },
+    ])('reviews the whole target when $phrase cannot be carved out', ({ goal, phrase }) => {
+      const parsed = parseReviewTarget(goal);
+      expect(parsed).toMatchObject({ ok: true, scopeNotApplied: [phrase] });
+    });
+
+    // A path that would escape the repository is never handed to Git, and the
+    // run says so rather than quietly reviewing everything.
+    it.each(['review only ../secrets', 'review everything except ../../etc'])(
+      'refuses to scope to the escaping path in %j and says so',
+      (goal) => {
+        expect(parseReviewTarget(goal)).toEqual({
+          ok: true,
+          target: { kind: 'working_tree', mode: 'all', explicit: false },
+          assumed: true,
+          scopeNotApplied: [expect.stringMatching(/\.\./u)],
+        });
+      },
+    );
   });
 
   describe('two explicit targets in one goal', () => {

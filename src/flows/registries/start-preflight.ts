@@ -3,8 +3,9 @@
 // flow catalog instead of naming flow ids here.
 //
 // This is a parse-level gate only: it refuses a goal whose target cannot be
-// read at all (two targets in one goal, a path subset, a pull request) before
-// the entrypoint creates a run. Whether that target is *available* in this
+// read at all (two targets in one goal, a pull request, malformed supplied
+// material) before the entrypoint creates a run. Whether that target is
+// *available* in this
 // repository is answered once, by the intake step, using the evidence it is
 // about to relay. Asking twice would read the whole diff twice and let the two
 // answers disagree.
