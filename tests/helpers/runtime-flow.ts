@@ -265,6 +265,14 @@ function reportBody(
         evidence: { kind: 'goal' },
         evidence_warnings: [],
       });
+    case 'review.verdict@v1':
+      return ReviewRelayResult.parse({
+        verdict: 'NO_ISSUES_FOUND',
+        findings: [],
+        assessment: 'Parity fixture: no findings observed in the relayed evidence.',
+        verification: ['Runtime parity fixture stub.'],
+        confidence_limitations: [],
+      });
     case 'review.result@v1':
       return ReviewResult.parse({
         scope: goal,
@@ -822,17 +830,13 @@ async function writeRelayFiles(step: ExecutableStep, context: RunContext): Promi
     await writeText(context, step.writes.receipt.path, `stub receipt for ${step.id}\n`);
   }
   if (step.writes?.result !== undefined) {
-    const body =
-      step.id === 'audit-step'
-        ? ReviewRelayResult.parse({
-            verdict: 'NO_ISSUES_FOUND',
-            findings: [],
-            assessment: 'Parity fixture: no findings observed in the relayed evidence.',
-            verification: ['Runtime parity fixture stub.'],
-            confidence_limitations: [],
-          })
-        : reportBody(step, context, step.writes.report?.schema);
-    await context.files.writeJson(step.writes.result, body);
+    // Keyed on the declared schema, not the step id: a relay step that names a
+    // typed report gets a body that step's own contract accepts, wherever the
+    // step lives and whatever it is called.
+    await context.files.writeJson(
+      step.writes.result,
+      reportBody(step, context, step.writes.report?.schema),
+    );
   }
 }
 
