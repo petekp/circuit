@@ -165,6 +165,9 @@
           "description": "A skill for executing a queue of related goals one at a time, verifying each before moving to the next."
         }
       ],
+      "budgets": {
+        "wall_clock_ms": 7200000
+      },
       "routes": {
         "continue": "verify-step",
         "retry": "batch-step",

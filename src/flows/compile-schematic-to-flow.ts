@@ -295,6 +295,9 @@ function compileItem(
       ? {}
       : { equipment_scope: item.equipment_scope }),
     ...(item.route_from_report === undefined ? {} : { route_from_report: item.route_from_report }),
+    // Copied verbatim, like equipment_scope. Omitted when undeclared so flows
+    // that set no budget keep byte-stable compiled output.
+    ...(item.budgets === undefined ? {} : { budgets: item.budgets }),
   } as const;
 
   switch (item.execution.kind) {

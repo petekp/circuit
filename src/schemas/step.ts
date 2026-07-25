@@ -37,7 +37,7 @@ export const RouteFromReport = z
   .strict();
 export type RouteFromReport = z.infer<typeof RouteFromReport>;
 
-const StepBase = z.object({
+export const StepBase = z.object({
   id: StepId,
   title: z.string().min(1),
   protocol: ProtocolId,
@@ -56,7 +56,13 @@ const StepBase = z.object({
   route_from_report: RouteFromReport.optional(),
   budgets: z
     .object({
-      max_attempts: z.number().int().positive().max(10),
+      // Optional so a step can declare a timeout without also picking a retry
+      // count. The runtime reads `configuredMaxAttempts(step) ?? (recoveryRoute
+      // ? 2 : 1)`: one declared number standing in for two different defaults,
+      // so any value written here to satisfy a required field would change
+      // retry behaviour on one of the two route shapes. Absent means "keep the
+      // route-derived default", which is the only answer that perturbs nothing.
+      max_attempts: z.number().int().positive().max(10).optional(),
       wall_clock_ms: z.number().int().positive().optional(),
       // Per-step inactivity ceiling forwarded to the connector watchdog; for
       // steps whose relay legitimately goes silent longer than the connector

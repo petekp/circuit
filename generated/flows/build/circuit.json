@@ -221,6 +221,9 @@
           "description": "A skill for implementing the planned change in the existing code style, keeping edits scoped to the plan."
         }
       ],
+      "budgets": {
+        "wall_clock_ms": 7200000
+      },
       "executor": "worker",
       "kind": "relay",
       "role": "implementer",

@@ -42,6 +42,7 @@ import {
   RelayConnectorName,
   RelayRole,
   RouteFromReport,
+  StepBase,
 } from './step.js';
 
 export const FlowSchematicStatus = z.enum(['candidate', 'active', 'deprecated']);
@@ -212,6 +213,19 @@ export const SchematicStep = z
     // byte-stable; an enforced scope is constrained to relay steps (any role)
     // by the cross-field guard in superRefine below.
     equipment_scope: EquipmentScope.optional(),
+    // Per-step ceilings the runtime and the connectors already honour: the
+    // watchdog's inactivity and wall-clock bounds, and the retry count. This is
+    // the authoring end of a path that was otherwise complete — the runtime step
+    // schema, the manifest, and all four connectors handled budgets long before
+    // a schematic could declare one. Optional, and reused verbatim from the
+    // runtime step schema so the two cannot drift.
+    //
+    // Deliberately not relay-gated, unlike equipment_scope enforcement. The
+    // timeouts only bite where a worker subprocess exists, but max_attempts is
+    // read for every step kind (graph-runner's configuredMaxAttempts) and the
+    // checkpoint executor threads budgets through too, so a blanket guard would
+    // reject legitimate authoring.
+    budgets: StepBase.shape.budgets,
     routes: z.record(z.string(), StepRouteTarget).refine((routes) => {
       return Object.keys(routes).length > 0;
     }, 'schematic item must declare at least one route'),

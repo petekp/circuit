@@ -92,6 +92,15 @@ export const pursueBlockItems: readonly BlockStepUse[] = [
     receiptPath: 'reports/relay/pursuit-batch.receipt.txt',
     resultPath: 'reports/relay/pursuit-batch.result.json',
     pass: ['accept', 'partial'],
+    // The single longest relay in the recorded corpus: a median of about 20
+    // minutes and a tail of 28, against a 60-minute connector backstop. Unlike
+    // most relays this one is a serialized batch, so its duration scales with the
+    // size of the queue handed to it — the median is already a third of the cap
+    // and a larger batch walks straight into it.
+    //
+    // Wall clock only, for the reason given on build's act-step: the inactivity
+    // bound is what catches a wedged worker, and it is left at the default.
+    budgets: { wall_clock_ms: 7_200_000 },
     skillSlots: [
       {
         id: 'pursuit-serial-execution',

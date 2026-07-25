@@ -115,6 +115,18 @@ export const buildBlockItems: readonly BlockStepUse[] = [
     receiptPath: 'reports/relay/build-act.receipt.txt',
     resultPath: 'reports/relay/build-act.result.json',
     pass: ['accept'],
+    // The longest-running relay in this flow by a wide margin: across 19 recorded
+    // executions the median is about six minutes and the tail reaches 21, against
+    // a connector wall-clock backstop of 60. That tail is a change big enough to
+    // need a long implementation pass, which is exactly the run whose work is most
+    // expensive to throw away, and the headroom is under 3x.
+    //
+    // Only the wall clock is raised. The inactivity bound stays at the connector
+    // default, because inactivity is what actually detects a wedged worker — a
+    // stuck process goes quiet, while a slow one keeps streaming. Raising the
+    // backstop therefore costs very little: the idle bound still reclaims a hung
+    // relay in ten minutes.
+    budgets: { wall_clock_ms: 7_200_000 },
     acceptanceCriteria: {
       checks: [
         {
