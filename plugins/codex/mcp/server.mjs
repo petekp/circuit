@@ -23080,7 +23080,15 @@ var ReviewEvidenceWarningKind = external_exports.enum([
   "scope_not_applied",
   "snapshot_fallback",
   "snapshot_truncated",
-  "snapshot_file_skipped"
+  "snapshot_file_skipped",
+  // The operator named the repository as a whole. Distinct from
+  // `target_assumed`, which says no target was named: saying that here would
+  // tell someone they gave no target when they gave one Review cannot cover.
+  "whole_repository_narrowed",
+  // The operator asked for the code as it stands but named nowhere to look, so
+  // the run reviewed changes instead. Said out loud, because "no findings"
+  // answers a different question than the one asked.
+  "snapshot_not_applied"
 ]);
 var ReviewEvidenceWarning = external_exports.object({
   kind: ReviewEvidenceWarningKind,
@@ -23609,6 +23617,7 @@ function targetWithoutChangeClass(target, changeClass) {
   return target.mode === "all" ? { ...target, mode: "tracked" } : target;
 }
 var SNAPSHOT_REQUEST_PATTERN = /\b(?:as (?:it|they) stands?|as-is|current state|existing code|whole file|entire file|latent (?:issues?|bugs?|problems?|defects?))\b/iu;
+var WHOLE_REPOSITORY_PATTERN = /\b(?:(?:whole|entire|full|complete|across the)\s+(?:repo|repository|codebase|code\s?base|project)|(?:this|the)\s+(?:repo|repository|codebase|code\s?base)\b|everything|all\s+(?:of\s+)?the\s+code\b)/iu;
 var MAX_SCOPE_PATHS = 32;
 var MAX_SCOPE_PATH_LENGTH = 200;
 var SAFE_SCOPE_PATH_PATTERN = /^[A-Za-z0-9._@+*?[\]/-]+$/u;
@@ -23691,7 +23700,7 @@ function withPathScope(target, paths) {
       return target;
   }
 }
-function scopedParseResult(target, requested, assumed = false, snapshotFallback) {
+function scopedParseResult(target, requested, options = {}) {
   const scoped = requested.paths === void 0 ? target : withPathScope(target, requested.paths);
   const carve = requested.excludedChangeClass;
   const narrowed = carve === void 0 ? scoped : targetWithoutChangeClass(scoped, carve.name);
@@ -23702,9 +23711,11 @@ function scopedParseResult(target, requested, assumed = false, snapshotFallback)
   return {
     ok: true,
     target: narrowed ?? scoped,
-    ...assumed ? { assumed: true } : {},
+    ...options.assumed === true ? { assumed: true } : {},
     ...notApplied.length === 0 ? {} : { scopeNotApplied: notApplied },
-    ...snapshotFallback === void 0 ? {} : { snapshotFallback }
+    ...options.snapshotFallback === void 0 ? {} : { snapshotFallback: options.snapshotFallback },
+    ...options.wholeRepository === true ? { wholeRepository: true } : {},
+    ...options.snapshotNotApplied === true ? { snapshotNotApplied: true } : {}
   };
 }
 function snapshotParseResult(paths, requested) {
@@ -23754,14 +23765,22 @@ function parseReviewTarget(scope) {
   const pathOnlyPath = pathOnly === void 0 ? void 0 : scopePathFromToken(pathOnly);
   const scoped = pathOnlyPath !== void 0 ? { ...requested, paths: { include: [pathOnlyPath], exclude: [] } } : pathOnly === void 0 ? requested : { ...requested, notApplied: [...requested.notApplied, pathOnly.trim()] };
   const assumedWorkingTree = { kind: "working_tree", mode: "all", explicit: false };
-  if (scoped.paths === void 0) return scopedParseResult(assumedWorkingTree, scoped, true);
+  const unscoped = {
+    assumed: true,
+    ...WHOLE_REPOSITORY_PATTERN.test(authorityScope) ? { wholeRepository: true } : {},
+    ...SNAPSHOT_REQUEST_PATTERN.test(authorityScope) ? { snapshotNotApplied: true } : {}
+  };
+  if (scoped.paths === void 0) return scopedParseResult(assumedWorkingTree, scoped, unscoped);
   if (scoped.paths.include.length === 0) {
-    return scopedParseResult(assumedWorkingTree, scoped, true);
+    return scopedParseResult(assumedWorkingTree, scoped, unscoped);
   }
   if (SNAPSHOT_REQUEST_PATTERN.test(authorityScope)) {
     return snapshotParseResult(scoped.paths, scoped);
   }
-  return scopedParseResult(assumedWorkingTree, scoped, true, scoped.paths);
+  return scopedParseResult(assumedWorkingTree, scoped, {
+    assumed: true,
+    snapshotFallback: scoped.paths
+  });
 }
 
 // src/flows/registries/start-preflight.ts

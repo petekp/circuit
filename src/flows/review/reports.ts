@@ -26,6 +26,14 @@ export const ReviewEvidenceWarningKind = z.enum([
   'snapshot_fallback',
   'snapshot_truncated',
   'snapshot_file_skipped',
+  // The operator named the repository as a whole. Distinct from
+  // `target_assumed`, which says no target was named: saying that here would
+  // tell someone they gave no target when they gave one Review cannot cover.
+  'whole_repository_narrowed',
+  // The operator asked for the code as it stands but named nowhere to look, so
+  // the run reviewed changes instead. Said out loud, because "no findings"
+  // answers a different question than the one asked.
+  'snapshot_not_applied',
 ]);
 export type ReviewEvidenceWarningKind = z.infer<typeof ReviewEvidenceWarningKind>;
 

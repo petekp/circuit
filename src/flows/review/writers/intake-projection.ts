@@ -18,6 +18,11 @@ export type ReviewIntakeProjectorInputs = {
   // paths, so Review read the current contents instead. Named out loud,
   // because "no findings" means something different for each.
   readonly snapshotFallbackFrom?: string;
+  // The operator asked about the repository as a whole. Review covered the
+  // changes in it, which is less than that, so the difference is reported.
+  readonly wholeRepository?: boolean;
+  // The operator asked for the code as it stands with nowhere named to look.
+  readonly snapshotNotApplied?: boolean;
 };
 
 /**
@@ -26,6 +31,22 @@ export type ReviewIntakeProjectorInputs = {
  */
 export const ASSUMED_WORKING_TREE_WARNING =
   'Assumed target: the current working tree. Name a commit, a range, staged, or unstaged to review something else.';
+
+/**
+ * The operator named the repository as the subject and Review covered the
+ * changes in it instead. Says what was covered, says what was not, and names
+ * the one thing that does read code rather than a diff, because otherwise the
+ * only way to learn that is to find out afterwards.
+ */
+export const WHOLE_REPOSITORY_NARROWED_WARNING =
+  'You asked about the whole repository. Review covered the changes in it, not every file: reading a whole codebase in one pass is not something it can do yet. Name a path to review the code there as it stands, such as "review src/auth as it stands".';
+
+/**
+ * The snapshot phrasing was understood and not honoured. The reason is the
+ * missing bound, so the fix is to supply one, and the message says which.
+ */
+export const SNAPSHOT_NOT_APPLIED_WARNING =
+  'You asked about the code as it stands, and Review read changes instead. Reading files rather than a diff needs a path to bound it. Name one, such as "review src/auth as it stands".';
 
 /** Plain-language rendering of a path scope, for operator-facing messages. */
 export function reviewPathScopeLabel(scope: ReviewPathScope): string {
@@ -126,10 +147,27 @@ export function reviewEvidenceWarnings(input: {
   readonly assumedTarget?: boolean;
   readonly scopeNotApplied?: readonly string[];
   readonly snapshotFallbackFrom?: string;
+  readonly wholeRepository?: boolean;
+  readonly snapshotNotApplied?: boolean;
 }): ReviewEvidenceWarning[] {
   const assumption: readonly ReviewEvidenceWarning[] = [
-    ...(input.assumedTarget === true
-      ? [{ kind: 'target_assumed' as const, message: ASSUMED_WORKING_TREE_WARNING }]
+    // These two describe the same working tree and must never both appear. One
+    // says the operator named no target, the other says they named one Review
+    // cannot fully cover, and only one of those can be true of a given goal.
+    ...(input.wholeRepository === true
+      ? [
+          {
+            kind: 'whole_repository_narrowed' as const,
+            message: WHOLE_REPOSITORY_NARROWED_WARNING,
+          },
+        ]
+      : input.assumedTarget === true
+        ? [{ kind: 'target_assumed' as const, message: ASSUMED_WORKING_TREE_WARNING }]
+        : []),
+    // Independent of the above: a goal can name the repository and also ask for
+    // the code as it stands, and both go unmet for different reasons.
+    ...(input.snapshotNotApplied === true
+      ? [{ kind: 'snapshot_not_applied' as const, message: SNAPSHOT_NOT_APPLIED_WARNING }]
       : []),
     ...scopeWarnings({
       evidence: input.evidence,
@@ -339,6 +377,8 @@ export function projectReviewIntake(input: ReviewIntakeProjectorInputs): ReviewI
       ...(input.snapshotFallbackFrom === undefined
         ? {}
         : { snapshotFallbackFrom: input.snapshotFallbackFrom }),
+      ...(input.wholeRepository === true ? { wholeRepository: true } : {}),
+      ...(input.snapshotNotApplied === true ? { snapshotNotApplied: true } : {}),
     }),
   });
 }

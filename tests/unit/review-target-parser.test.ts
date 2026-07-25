@@ -93,12 +93,21 @@ describe('Review target parsing', () => {
 
     // A prose ellipsis is not a range. Reading one as a range would fail the
     // run closed on ordinary phrasing.
-    it.each([
-      'review this plan...especially the rollout risks',
-      'review it...ok',
-      'review everything...including the tests',
-    ])('does not read the prose ellipsis in %j as a range', (goal) => {
-      expect(parseReviewTarget(goal)).toEqual(ASSUMED_WORKING_TREE);
+    it.each(['review this plan...especially the rollout risks', 'review it...ok'])(
+      'does not read the prose ellipsis in %j as a range',
+      (goal) => {
+        expect(parseReviewTarget(goal)).toEqual(ASSUMED_WORKING_TREE);
+      },
+    );
+
+    // Same rule, but "everything" also names the repository, so this one lands
+    // on the working tree carrying the whole-repository mark rather than the
+    // plain unnamed-target default.
+    it('does not read the prose ellipsis in an everything-scoped goal as a range', () => {
+      expect(parseReviewTarget('review everything...including the tests')).toEqual({
+        ...ASSUMED_WORKING_TREE,
+        wholeRepository: true,
+      });
     });
   });
 
@@ -176,6 +185,9 @@ describe('Review target parsing', () => {
       });
     });
 
+    // "everything except X" is the repository minus a directory, so the
+    // exclusion narrows the change review and the whole-repository mark rides
+    // along to keep the report from claiming no target was named.
     it.each([
       { goal: 'review everything except tests/', exclude: ['tests/'] },
       { goal: 'review everything but node_modules', exclude: ['node_modules'] },
@@ -190,6 +202,7 @@ describe('Review target parsing', () => {
           paths: { include: [], exclude },
         },
         assumed: true,
+        wholeRepository: true,
       });
     });
 
@@ -286,14 +299,20 @@ describe('Review target parsing', () => {
 
     // A path that would escape the repository is never handed to Git, and the
     // run says so rather than quietly reviewing everything.
-    it.each(['review only ../secrets', 'review everything except ../../etc'])(
-      'refuses to scope to the escaping path in %j and says so',
-      (goal) => {
+    it.each([
+      { goal: 'review only ../secrets', wholeRepository: false },
+      // Also names the repository, so both facts are reported: the escaping
+      // path was refused, and the request was about the repository as a whole.
+      { goal: 'review everything except ../../etc', wholeRepository: true },
+    ])(
+      'refuses to scope to the escaping path in $goal and says so',
+      ({ goal, wholeRepository }) => {
         expect(parseReviewTarget(goal)).toEqual({
           ok: true,
           target: { kind: 'working_tree', mode: 'all', explicit: false },
           assumed: true,
           scopeNotApplied: [expect.stringMatching(/\.\./u)],
+          ...(wholeRepository ? { wholeRepository: true } : {}),
         });
       },
     );
@@ -337,6 +356,81 @@ describe('Review target parsing', () => {
         assumed: true,
       });
     });
+
+    // Staying a change review is the right call, but doing it quietly is not.
+    // The operator asked for the code as it stands and got a diff, so the
+    // request has to come back named rather than dropped on the floor.
+    it.each([
+      'review my code for latent issues',
+      'review the repo as it stands',
+      'audit this codebase for latent bugs',
+    ])('records the dropped snapshot request in %j', (goal) => {
+      expect(parseReviewTarget(goal)).toMatchObject({
+        ok: true,
+        target: { kind: 'working_tree' },
+        snapshotNotApplied: true,
+      });
+    });
+
+    // A snapshot that was honoured has nothing to report as unapplied.
+    it('does not record a dropped snapshot request when the snapshot happened', () => {
+      expect(parseReviewTarget('review src/auth as it stands')).not.toHaveProperty(
+        'snapshotNotApplied',
+      );
+    });
+  });
+
+  describe('whole-repository requests are a named target, not a missing one', () => {
+    // These name the repository as the subject. Reading them as "no target
+    // given" tells the operator they said nothing when they said something,
+    // and then offers four alternatives that are all narrower than the ask.
+    it.each([
+      'review the whole repo',
+      'review this entire codebase',
+      'audit this codebase',
+      'review the whole project for problems',
+      'do a full review of the repository',
+      'review all the code',
+      'review the codebase for security issues',
+      'review everything',
+    ])('marks %j as a whole-repository request', (goal) => {
+      expect(parseReviewTarget(goal)).toMatchObject({
+        ok: true,
+        target: { kind: 'working_tree', mode: 'all', explicit: false },
+        wholeRepository: true,
+      });
+    });
+
+    // An exclusion still narrows the change review, and the request is still
+    // about the repository as a whole, so both facts have to survive.
+    it('keeps the path exclusion on an excluding whole-repository request', () => {
+      expect(parseReviewTarget('review everything except tests/')).toMatchObject({
+        ok: true,
+        target: { paths: { include: [], exclude: ['tests/'] } },
+        wholeRepository: true,
+      });
+    });
+
+    // Naming a path is naming a target. These must not pick up the
+    // whole-repository message, or a scoped review would describe itself as
+    // something it is not.
+    it.each([
+      'review src/runtime',
+      'review src/auth as it stands',
+      'review staged changes',
+      'review commit abc1234',
+    ])('does not mark %j as a whole-repository request', (goal) => {
+      expect(parseReviewTarget(goal)).not.toHaveProperty('wholeRepository');
+    });
+
+    // D1 is a different situation with a different message: the operator named
+    // nothing, so "assumed the working tree" is the honest thing to say.
+    it.each(['review', 'review my changes', 'give this a once-over'])(
+      'leaves the unnamed-target default alone for %j',
+      (goal) => {
+        expect(parseReviewTarget(goal)).not.toHaveProperty('wholeRepository');
+      },
+    );
   });
 
   describe('two explicit targets in one goal', () => {

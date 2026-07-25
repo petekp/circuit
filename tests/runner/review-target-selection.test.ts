@@ -74,6 +74,133 @@ describe('review target selection', () => {
     expect(intake.evidence_warnings.map((warning) => warning.kind)).toContain('target_assumed');
   });
 
+  // Naming the repository is naming a target. The run still covers the changes,
+  // which is less than was asked for, so the gap is what the report has to name
+  // — and it must not also claim the goal named nothing.
+  it('tells a whole-repository request what it covered instead of claiming no target was named', async () => {
+    const { bytes } = loadFixture();
+    const runFolder = join(reviewRunFolderBase(), 'whole-repository-narrowed');
+    const projectRoot = stagedReviewProject('whole-repository-narrowed-project');
+    let relayCalls = 0;
+
+    const outcome = await runCompiledFlow({
+      runDir: runFolder,
+      flowBytes: bytes,
+      runId: '79000000-0000-0000-0000-000000000061',
+      goal: 'audit this codebase for security problems',
+      depth: 'medium',
+      now: deterministicNow(Date.UTC(2026, 6, 24, 14, 0, 0)),
+      projectRoot,
+      relayer: {
+        connectorName: 'codex',
+        relay: async (input): Promise<RelayResult> => {
+          relayCalls += 1;
+          return {
+            request_payload: input.prompt,
+            receipt_id: 'stub-receipt-whole-repository',
+            result_body: JSON.stringify(cleanRelayResult()),
+            duration_ms: 1,
+            cli_version: '0.0.0-stub',
+          };
+        },
+      },
+    });
+
+    expect(outcome.outcome).toBe('complete');
+    expect(relayCalls).toBe(1);
+    const intake = JSON.parse(
+      readFileSync(join(runFolder, 'reports', 'review-intake.json'), 'utf8'),
+    ) as { evidence_warnings: Array<{ kind: string; message: string }> };
+    const kinds = intake.evidence_warnings.map((warning) => warning.kind);
+    expect(kinds).toContain('whole_repository_narrowed');
+    expect(kinds).not.toContain('target_assumed');
+    const narrowed = intake.evidence_warnings.find(
+      (warning) => warning.kind === 'whole_repository_narrowed',
+    );
+    expect(narrowed?.message).toMatch(/whole repository/iu);
+    expect(narrowed?.message).toMatch(/not something it can do yet/iu);
+  });
+
+  // The phrase was understood and could not be honoured. Reporting that is the
+  // difference between an answer about a diff and an answer that looks like it
+  // was about the code.
+  it('names the dropped snapshot request when the goal asks for the code but no path', async () => {
+    const { bytes } = loadFixture();
+    const runFolder = join(reviewRunFolderBase(), 'snapshot-not-applied');
+    const projectRoot = stagedReviewProject('snapshot-not-applied-project');
+    let relayCalls = 0;
+
+    const outcome = await runCompiledFlow({
+      runDir: runFolder,
+      flowBytes: bytes,
+      runId: '79000000-0000-0000-0000-000000000062',
+      goal: 'review my code for latent issues',
+      depth: 'medium',
+      now: deterministicNow(Date.UTC(2026, 6, 24, 15, 0, 0)),
+      projectRoot,
+      relayer: {
+        connectorName: 'codex',
+        relay: async (input): Promise<RelayResult> => {
+          relayCalls += 1;
+          return {
+            request_payload: input.prompt,
+            receipt_id: 'stub-receipt-snapshot-not-applied',
+            result_body: JSON.stringify(cleanRelayResult()),
+            duration_ms: 1,
+            cli_version: '0.0.0-stub',
+          };
+        },
+      },
+    });
+
+    expect(outcome.outcome).toBe('complete');
+    expect(relayCalls).toBe(1);
+    const intake = JSON.parse(
+      readFileSync(join(runFolder, 'reports', 'review-intake.json'), 'utf8'),
+    ) as { evidence_warnings: Array<{ kind: string; message: string }> };
+    const dropped = intake.evidence_warnings.find(
+      (warning) => warning.kind === 'snapshot_not_applied',
+    );
+    expect(dropped?.message).toMatch(/as it stands/iu);
+    expect(dropped?.message).toMatch(/needs a path to bound it/iu);
+  });
+
+  // The clean-tree stop is where the old message was worst: it told the
+  // operator they named no target and offered four narrower targets, none of
+  // which is a codebase audit.
+  it('stops a whole-repository request on a clean tree by naming the real limit', async () => {
+    const { bytes } = loadFixture();
+    const runFolder = join(reviewRunFolderBase(), 'whole-repository-clean-tree');
+    const projectRoot = join(reviewRunFolderBase(), 'whole-repository-clean-project');
+    mkdirSync(projectRoot, { recursive: true });
+    execFileSync('git', ['init'], { cwd: projectRoot, stdio: 'pipe' });
+
+    let relayCalls = 0;
+    const outcome = await runCompiledFlow({
+      runDir: runFolder,
+      flowBytes: bytes,
+      runId: '79000000-0000-0000-0000-000000000063',
+      goal: 'review the whole repo',
+      depth: 'medium',
+      now: deterministicNow(Date.UTC(2026, 6, 24, 16, 0, 0)),
+      projectRoot,
+      relayer: {
+        connectorName: 'codex',
+        relay: async (): Promise<RelayResult> => {
+          relayCalls += 1;
+          throw new Error('a clean tree must stop before relay');
+        },
+      },
+    });
+
+    expect(relayCalls).toBe(0);
+    expect(outcome.reason).toMatch(/whole codebase in one pass/iu);
+    expect(outcome.reason).toMatch(/as it stands/iu);
+    // The two claims that made the old message unusable.
+    expect(outcome.reason).not.toMatch(/did not name a target/iu);
+    expect(outcome.reason).not.toMatch(/staged, or unstaged/iu);
+  });
+
   it('reviews actual supplied text without collecting or relaying unrelated working-tree code', async () => {
     const { bytes } = loadFixture();
     const runFolder = join(reviewRunFolderBase(), 'supplied-goal-only-evidence');

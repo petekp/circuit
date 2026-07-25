@@ -84792,7 +84792,15 @@ var init_reports10 = __esm({
       "scope_not_applied",
       "snapshot_fallback",
       "snapshot_truncated",
-      "snapshot_file_skipped"
+      "snapshot_file_skipped",
+      // The operator named the repository as a whole. Distinct from
+      // `target_assumed`, which says no target was named: saying that here would
+      // tell someone they gave no target when they gave one Review cannot cover.
+      "whole_repository_narrowed",
+      // The operator asked for the code as it stands but named nowhere to look, so
+      // the run reviewed changes instead. Said out loud, because "no findings"
+      // answers a different question than the one asked.
+      "snapshot_not_applied"
     ]);
     ReviewEvidenceWarning = external_exports.object({
       kind: ReviewEvidenceWarningKind,
@@ -85239,7 +85247,18 @@ function appendOpaqueBinaryWarnings(warnings, diffs) {
 }
 function reviewEvidenceWarnings(input) {
   const assumption = [
-    ...input.assumedTarget === true ? [{ kind: "target_assumed", message: ASSUMED_WORKING_TREE_WARNING }] : [],
+    // These two describe the same working tree and must never both appear. One
+    // says the operator named no target, the other says they named one Review
+    // cannot fully cover, and only one of those can be true of a given goal.
+    ...input.wholeRepository === true ? [
+      {
+        kind: "whole_repository_narrowed",
+        message: WHOLE_REPOSITORY_NARROWED_WARNING
+      }
+    ] : input.assumedTarget === true ? [{ kind: "target_assumed", message: ASSUMED_WORKING_TREE_WARNING }] : [],
+    // Independent of the above: a goal can name the repository and also ask for
+    // the code as it stands, and both go unmet for different reasons.
+    ...input.snapshotNotApplied === true ? [{ kind: "snapshot_not_applied", message: SNAPSHOT_NOT_APPLIED_WARNING }] : [],
     ...scopeWarnings({
       evidence: input.evidence,
       ...input.scopeNotApplied === void 0 ? {} : { scopeNotApplied: input.scopeNotApplied },
@@ -85417,17 +85436,21 @@ function projectReviewIntake(input) {
       maxUntrackedFiles: input.maxUntrackedFiles,
       ...input.assumedTarget === true ? { assumedTarget: true } : {},
       ...input.scopeNotApplied === void 0 ? {} : { scopeNotApplied: input.scopeNotApplied },
-      ...input.snapshotFallbackFrom === void 0 ? {} : { snapshotFallbackFrom: input.snapshotFallbackFrom }
+      ...input.snapshotFallbackFrom === void 0 ? {} : { snapshotFallbackFrom: input.snapshotFallbackFrom },
+      ...input.wholeRepository === true ? { wholeRepository: true } : {},
+      ...input.snapshotNotApplied === true ? { snapshotNotApplied: true } : {}
     })
   });
 }
-var ASSUMED_WORKING_TREE_WARNING;
+var ASSUMED_WORKING_TREE_WARNING, WHOLE_REPOSITORY_NARROWED_WARNING, SNAPSHOT_NOT_APPLIED_WARNING;
 var init_intake_projection = __esm({
   "dist/flows/review/writers/intake-projection.js"() {
     "use strict";
     init_reports10();
     init_evidence_completeness();
     ASSUMED_WORKING_TREE_WARNING = "Assumed target: the current working tree. Name a commit, a range, staged, or unstaged to review something else.";
+    WHOLE_REPOSITORY_NARROWED_WARNING = 'You asked about the whole repository. Review covered the changes in it, not every file: reading a whole codebase in one pass is not something it can do yet. Name a path to review the code there as it stands, such as "review src/auth as it stands".';
+    SNAPSHOT_NOT_APPLIED_WARNING = 'You asked about the code as it stands, and Review read changes instead. Reading files rather than a diff needs a path to bound it. Name one, such as "review src/auth as it stands".';
   }
 });
 
@@ -86062,7 +86085,7 @@ function withPathScope(target, paths) {
       return target;
   }
 }
-function scopedParseResult(target, requested, assumed = false, snapshotFallback) {
+function scopedParseResult(target, requested, options = {}) {
   const scoped = requested.paths === void 0 ? target : withPathScope(target, requested.paths);
   const carve = requested.excludedChangeClass;
   const narrowed = carve === void 0 ? scoped : targetWithoutChangeClass(scoped, carve.name);
@@ -86073,9 +86096,11 @@ function scopedParseResult(target, requested, assumed = false, snapshotFallback)
   return {
     ok: true,
     target: narrowed ?? scoped,
-    ...assumed ? { assumed: true } : {},
+    ...options.assumed === true ? { assumed: true } : {},
     ...notApplied.length === 0 ? {} : { scopeNotApplied: notApplied },
-    ...snapshotFallback === void 0 ? {} : { snapshotFallback }
+    ...options.snapshotFallback === void 0 ? {} : { snapshotFallback: options.snapshotFallback },
+    ...options.wholeRepository === true ? { wholeRepository: true } : {},
+    ...options.snapshotNotApplied === true ? { snapshotNotApplied: true } : {}
   };
 }
 function snapshotParseResult(paths, requested) {
@@ -86129,15 +86154,23 @@ function parseReviewTarget(scope) {
   const pathOnlyPath = pathOnly === void 0 ? void 0 : scopePathFromToken(pathOnly);
   const scoped = pathOnlyPath !== void 0 ? { ...requested, paths: { include: [pathOnlyPath], exclude: [] } } : pathOnly === void 0 ? requested : { ...requested, notApplied: [...requested.notApplied, pathOnly.trim()] };
   const assumedWorkingTree = { kind: "working_tree", mode: "all", explicit: false };
+  const unscoped = {
+    assumed: true,
+    ...WHOLE_REPOSITORY_PATTERN.test(authorityScope) ? { wholeRepository: true } : {},
+    ...SNAPSHOT_REQUEST_PATTERN.test(authorityScope) ? { snapshotNotApplied: true } : {}
+  };
   if (scoped.paths === void 0)
-    return scopedParseResult(assumedWorkingTree, scoped, true);
+    return scopedParseResult(assumedWorkingTree, scoped, unscoped);
   if (scoped.paths.include.length === 0) {
-    return scopedParseResult(assumedWorkingTree, scoped, true);
+    return scopedParseResult(assumedWorkingTree, scoped, unscoped);
   }
   if (SNAPSHOT_REQUEST_PATTERN.test(authorityScope)) {
     return snapshotParseResult(scoped.paths, scoped);
   }
-  return scopedParseResult(assumedWorkingTree, scoped, true, scoped.paths);
+  return scopedParseResult(assumedWorkingTree, scoped, {
+    assumed: true,
+    snapshotFallback: scoped.paths
+  });
 }
 function reviewTargetLabel(target) {
   if (target.kind === "commit")
@@ -86742,7 +86775,10 @@ async function collectReviewEvidence(projectRoot, options) {
   }
   if (!selectedContentAvailable) {
     const scopeSuffix = paths === void 0 ? "" : ` ${reviewPathScopeLabel(paths)}`;
-    throw new ReviewTargetEmptyError(target.explicit ? `Review target has no changes to inspect: ${target.mode === "all" ? "working tree changes" : `${target.mode} changes`}${scopeSuffix} are empty.` : `Review found no changes to inspect. The goal did not name a target, so Review looked at the working tree${scopeSuffix}. Name a commit, a range, staged, or unstaged if you meant a different target.`);
+    if (target.explicit) {
+      throw new ReviewTargetEmptyError(`Review target has no changes to inspect: ${target.mode === "all" ? "working tree changes" : `${target.mode} changes`}${scopeSuffix} are empty.`);
+    }
+    throw new ReviewTargetEmptyError(options.wholeRepository === true ? `Review found nothing to inspect: there are no uncommitted changes${scopeSuffix}. Reviewing a whole codebase in one pass is not something Review can do yet. Name a path to review the code there as it stands, such as "review src/auth as it stands".` : `Review found no changes to inspect. The goal did not name a target, so Review looked at the working tree${scopeSuffix}. Name a commit, a range, staged, or unstaged if you meant a different target.`);
   }
   const statSections = [
     ...stagedStat.ok && stagedStat.stdout.length > 0 ? [`Staged:
@@ -86767,7 +86803,7 @@ ${unstagedStat.stdout}`] : []
     ...paths === void 0 ? {} : { path_scope: paths }
   };
 }
-var MAX_DIFF_CHARS, MAX_UNTRACKED_FILES, MAX_UNTRACKED_FILE_CHARS, MAX_SNAPSHOT_FILES, MAX_SNAPSHOT_FILE_CHARS, MAX_SNAPSHOT_TOTAL_CHARS, MAX_GIT_BUFFER_BYTES, MAX_DIFF_BUFFER_BYTES, DIRECT_GIT_TIMEOUT_MS, HEAD_COMMIT_REF, SAFE_REVIEW_REF_PATTERN, ReviewTargetEmptyError, REVIEW_LEAD, PULL_REQUEST_UNSUPPORTED_REASON, RANGE_FILLER_WORDS, LATEST_COMMIT_PATTERN, RESTRICTION_LEAD_IN, EXCLUSION_LEAD_IN, NARROWING_CLAUSE_TAIL, RESTRICTION_CLAUSE_PATTERN, EXCLUSION_CLAUSE_PATTERN, EXCLUDED_CHANGE_CLASS_PATTERN, SNAPSHOT_REQUEST_PATTERN, MAX_SCOPE_PATHS, MAX_SCOPE_PATH_LENGTH, SAFE_SCOPE_PATH_PATTERN, NO_REVIEW_SCOPE, PATH_ONLY_REQUEST_PATTERN, PATH_ONLY_SUFFIX_PATTERN, reviewIntakeComposeBuilder;
+var MAX_DIFF_CHARS, MAX_UNTRACKED_FILES, MAX_UNTRACKED_FILE_CHARS, MAX_SNAPSHOT_FILES, MAX_SNAPSHOT_FILE_CHARS, MAX_SNAPSHOT_TOTAL_CHARS, MAX_GIT_BUFFER_BYTES, MAX_DIFF_BUFFER_BYTES, DIRECT_GIT_TIMEOUT_MS, HEAD_COMMIT_REF, SAFE_REVIEW_REF_PATTERN, ReviewTargetEmptyError, REVIEW_LEAD, PULL_REQUEST_UNSUPPORTED_REASON, RANGE_FILLER_WORDS, LATEST_COMMIT_PATTERN, RESTRICTION_LEAD_IN, EXCLUSION_LEAD_IN, NARROWING_CLAUSE_TAIL, RESTRICTION_CLAUSE_PATTERN, EXCLUSION_CLAUSE_PATTERN, EXCLUDED_CHANGE_CLASS_PATTERN, SNAPSHOT_REQUEST_PATTERN, WHOLE_REPOSITORY_PATTERN, MAX_SCOPE_PATHS, MAX_SCOPE_PATH_LENGTH, SAFE_SCOPE_PATH_PATTERN, NO_REVIEW_SCOPE, PATH_ONLY_REQUEST_PATTERN, PATH_ONLY_SUFFIX_PATTERN, reviewIntakeComposeBuilder;
 var init_intake2 = __esm({
   "dist/flows/review/writers/intake.js"() {
     "use strict";
@@ -86822,6 +86858,7 @@ var init_intake2 = __esm({
     EXCLUSION_CLAUSE_PATTERN = new RegExp(String.raw`\b(?:${EXCLUSION_LEAD_IN})${NARROWING_CLAUSE_TAIL}`, "giu");
     EXCLUDED_CHANGE_CLASS_PATTERN = new RegExp(String.raw`\b${EXCLUSION_LEAD_IN}\s+(?:any\s+|all\s+|the\s+)?(?<changeClass>untracked|tracked|staged|unstaged|committed|new|deleted|renamed)\b`, "iu");
     SNAPSHOT_REQUEST_PATTERN = /\b(?:as (?:it|they) stands?|as-is|current state|existing code|whole file|entire file|latent (?:issues?|bugs?|problems?|defects?))\b/iu;
+    WHOLE_REPOSITORY_PATTERN = /\b(?:(?:whole|entire|full|complete|across the)\s+(?:repo|repository|codebase|code\s?base|project)|(?:this|the)\s+(?:repo|repository|codebase|code\s?base)\b|everything|all\s+(?:of\s+)?the\s+code\b)/iu;
     MAX_SCOPE_PATHS = 32;
     MAX_SCOPE_PATH_LENGTH = 200;
     SAFE_SCOPE_PATH_PATTERN = /^[A-Za-z0-9._@+*?[\]/-]+$/u;
@@ -86847,7 +86884,15 @@ var init_intake2 = __esm({
           throw new Error(parsedTarget.reason);
         const untrackedContent = context.evidencePolicy?.includeUntrackedFileContent === true ? { includeUntrackedFileContent: true } : {};
         const reader = context.gitReader === void 0 ? {} : { gitReader: context.gitReader };
-        const collect = async (target2) => await collectReviewEvidence(context.projectRoot, { ...untrackedContent, target: target2, ...reader });
+        const collect = async (target2) => await collectReviewEvidence(context.projectRoot, {
+          ...untrackedContent,
+          target: target2,
+          ...reader,
+          // Shapes the empty-target message only. A clean tree ends the run either
+          // way, but "you named no target" is the wrong sentence to hand someone
+          // who named the repository.
+          ...parsedTarget.wholeRepository === true ? { wholeRepository: true } : {}
+        });
         let target = parsedTarget.target;
         let evidence2;
         let snapshotFallbackFrom;
@@ -86871,7 +86916,9 @@ var init_intake2 = __esm({
           // what happened.
           ...parsedTarget.assumed === true && snapshotFallbackFrom === void 0 ? { assumedTarget: true } : {},
           ...parsedTarget.scopeNotApplied === void 0 ? {} : { scopeNotApplied: parsedTarget.scopeNotApplied },
-          ...snapshotFallbackFrom === void 0 ? {} : { snapshotFallbackFrom }
+          ...snapshotFallbackFrom === void 0 ? {} : { snapshotFallbackFrom },
+          ...parsedTarget.wholeRepository === true ? { wholeRepository: true } : {},
+          ...parsedTarget.snapshotNotApplied === true ? { snapshotNotApplied: true } : {}
         });
       }
     };
