@@ -891,6 +891,21 @@
         "docs/ideas/run-milestone-stream.md"
       ],
       "last_checked": "2026-07-17"
+    },
+    {
+      "path": "docs/ideas/review-target-input.md",
+      "title": "Stop guessing the review target from prose",
+      "status": "current-proposal",
+      "category": "flows-and-blocks",
+      "impact": 4,
+      "tags": ["review-flow", "target-selection", "cli-ux", "evidence-honesty", "host-commands"],
+      "current_reading": "Review guesses which commits to look at from the goal sentence, using 21 hand-written word patterns in src/flows/review/writers/intake.ts including a 24-word list of ordinary English words (please, maybe, okay, wait) that must not be mistaken for branch names. The host agent already understood the request before compressing it into that sentence, so the grammar redoes upstream inference worse, and it breaks the CLI's own stated rule that it never classifies goal text. Companion to review-generality.md, which asks what kinds of thing Review can be pointed at; this asks how the target gets named. Proposes an explicit --target input (plus --paths/--exclude), the engine validating and recording instead of parsing, the prose grammar demoted to a frozen fallback for hand-typed CLI use, and target provenance recorded so an inferred target is visibly an inference. Four slices. The named risk is host instruction-following, which must be measured before the host-fills-it-in slice is trusted. Measured while writing it: review-generality.md's table claims \"review this branch against main\" works, and it silently reviews the working tree instead.",
+      "related": [
+        "docs/ideas/review-generality.md",
+        "docs/ideas/cli-first-principles.md",
+        "UBIQUITOUS_LANGUAGE.md"
+      ],
+      "last_checked": "2026-07-24"
     }
   ]
 }

@@ -15,6 +15,7 @@
       "src/shared/html/ui/theme.css",
       ".circuit",
       ".claude",
+      ".mcp-host-tests",
       ".worktrees",
       "docs/release/proofs/runs",
       "experiments/e1/fixtures",

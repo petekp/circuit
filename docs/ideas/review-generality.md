@@ -12,9 +12,9 @@ Run the natural asks against the flow as shipped:
 
 | What a person types | Then | Now |
 | --- | --- | --- |
-| review my changes | works | works |
+| review my changes | works | right target, reported as a guess |
 | review the last commit | works | works |
-| review this branch against main | works | works |
+| review this branch against main | claimed to work, does not | reviews the working tree instead |
 | review this plan: `<pasted text>` | works | works |
 | review src/auth | errors | works |
 | review src/auth/session.ts | errors | works |
@@ -34,6 +34,24 @@ Worse, three of the failures are silent: the run succeeds, reviews something
 the person did not ask about, and reports a verdict. The report is honest
 about what it read, which is the one thing that keeps this from being a
 disaster, but honesty about the wrong answer is still the wrong answer.
+
+Two corrections to the first four rows, measured 2026-07-24 against the flow as
+shipped, because this table was wrong about them:
+
+- **`review this branch against main` does not work.** It silently reviews the
+  working tree. The row claimed it worked in both columns. It never did. The
+  branch-comparison wording is not in the target grammar at all.
+- **`review my changes` lands on the right target but reports it as a guess.**
+  The wording is not in the working-tree pattern list, so it falls through to
+  the assumed default and the operator is told "Assumed target: the current
+  working tree. Name a commit, a range, staged, or unstaged to review something
+  else." The most common review request there is gets answered correctly and
+  then described as an unanswered one.
+
+Both are instances of the same underlying shape, which this document does not
+address: the target is *guessed from prose* rather than named. See
+[`review-target-input.md`](review-target-input.md). Adding phrasings to the
+grammar was tried, once per case, and is not the fix.
 
 ## What changes
 
