@@ -185,6 +185,54 @@ describe('Review target parsing', () => {
       });
     });
 
+    // The narrowing word can follow the path as easily as precede it, and the
+    // two orders mean the same thing. Only the leading order was read, so
+    // "review src/auth only" reviewed the entire working tree and said nothing
+    // about having ignored the word.
+    it.each([
+      { goal: 'review src/auth only', include: ['src/auth'] },
+      { goal: 'review src/app.ts alone', include: ['src/app.ts'] },
+      { goal: 'review src/runtime and nothing else', include: ['src/runtime'] },
+      { goal: 'review the tests only', include: ['tests'] },
+    ])('reads the trailing narrowing in $goal as a scope on $include', ({ goal, include }) => {
+      expect(parseReviewTarget(goal)).toMatchObject({
+        ok: true,
+        target: { kind: 'working_tree', paths: { include, exclude: [] } },
+      });
+    });
+
+    // A trailing narrowing must not turn a ref into a path. "review
+    // main...HEAD only" is a range, and scoping the range to a directory named
+    // "main...HEAD" would review nothing at all.
+    it.each([
+      'review main...HEAD only',
+      'review HEAD~1..HEAD only',
+      'review commit abc1234 only',
+      'review the latest commit only',
+    ])('does not read the ref in %j as a trailing path scope', (goal) => {
+      const parsed = parseReviewTarget(goal) as {
+        ok: true;
+        target: { kind: string; paths?: unknown };
+      };
+      expect(parsed.target.kind).toMatch(/^(?:commit|range)$/u);
+      expect(parsed.target.paths).toBeUndefined();
+    });
+
+    // Ordinary prose that happens to end in a narrowing word names no path, so
+    // it must not invent one.
+    it.each([
+      'review this only',
+      'review my changes only',
+      'review the plan only',
+      'just review it',
+    ])('invents no path scope for %j', (goal) => {
+      const parsed = parseReviewTarget(goal) as {
+        ok: true;
+        target: { paths?: { include: string[] } };
+      };
+      expect(parsed.target.paths?.include ?? []).toEqual([]);
+    });
+
     // "everything except X" is the repository minus a directory, so the
     // exclusion narrows the change review and the whole-repository mark rides
     // along to keep the report from claiming no target was named.
@@ -295,6 +343,44 @@ describe('Review target parsing', () => {
     ])('reviews the whole target when $phrase cannot be carved out', ({ goal, phrase }) => {
       const parsed = parseReviewTarget(goal);
       expect(parsed).toMatchObject({ ok: true, scopeNotApplied: [phrase] });
+    });
+
+    // Naming a kind of code is naming a subset, even when Review cannot turn it
+    // into a pathspec. These used to review the entire working tree and report
+    // nothing, so the operator had no way to know the words were ignored.
+    it.each([
+      { goal: 'review only the typescript files', phrase: 'typescript files' },
+      { goal: 'review just the auth module', phrase: 'auth module' },
+      { goal: 'review only the auth service', phrase: 'auth service' },
+      { goal: 'review just the frontend components', phrase: 'frontend components' },
+    ])('reports $phrase as a narrowing it could not apply', ({ goal, phrase }) => {
+      expect(parseReviewTarget(goal)).toMatchObject({
+        ok: true,
+        scopeNotApplied: [phrase],
+      });
+    });
+
+    // Reported only when nothing resolved. "the generated files" reaches a real
+    // directory, so claiming it went unapplied would be the opposite lie.
+    it.each(['review only the generated files', 'review only the docs files'])(
+      'stays quiet for %j because the narrowing did resolve',
+      (goal) => {
+        expect(parseReviewTarget(goal)).not.toHaveProperty('scopeNotApplied');
+      },
+    );
+
+    // Ordinary prose that happens to contain a narrowing word must not produce
+    // a warning quoting a random verb. This is what keeps the warning worth
+    // reading at all.
+    it.each([
+      'review my changes but focus on safety',
+      'give this a once-over, just be thorough',
+      'review this but not too deeply',
+      'review my work but only if it looks risky',
+      'just review it',
+      'review this diff but check the error paths',
+    ])('reports no unapplied narrowing for the prose in %j', (goal) => {
+      expect(parseReviewTarget(goal)).not.toHaveProperty('scopeNotApplied');
     });
 
     // A path that would escape the repository is never handed to Git, and the

@@ -922,6 +922,42 @@ const EXCLUSION_CLAUSE_PATTERN = new RegExp(
   'giu',
 );
 
+/**
+ * The same restriction with the narrowing word after the path: "review src/auth
+ * only". English puts it either side and means the same thing, but only the
+ * leading order was read, so this phrasing reviewed the entire working tree and
+ * said nothing about having ignored the word. A wrong review, not a missing note.
+ *
+ * The token still has to look like a path to be used, which is what keeps
+ * "review this only" and "review my changes only" from inventing a scope, and
+ * what keeps a bare commit hash out: "review commit abc1234 only" leaves
+ * "abc1234", which is no more path-like than any other word.
+ */
+const POSTFIX_RESTRICTION_CLAUSE_PATTERN =
+  /(?<path>[^\s,;!?]+)\s+(?:only|alone|and\s+nothing\s+else)\b/giu;
+
+/**
+ * Range syntax survives the path test, because a pathspec may contain dots.
+ * "review main...HEAD only" would then scope the range to a directory named
+ * `main...HEAD` and review nothing at all, so refs are rejected up front.
+ */
+const RANGE_LIKE_TOKEN_PATTERN = /\.\./u;
+
+/**
+ * A narrowing that names a kind of code rather than a path: "only the
+ * typescript files", "just the auth module". Review cannot turn these into a
+ * pathspec, and it used to review the whole target and report nothing, so the
+ * operator's words disappeared without trace.
+ *
+ * The category noun is what makes this safe to report. The restriction lead-ins
+ * are ordinary English — "just review it", "but only if it looks risky" — and
+ * quoting whichever word followed one of those would fill reports with warnings
+ * about verbs and erode the ones worth reading. Requiring "<something> files",
+ * "<something> module" and friends is what separates a stated subset from prose.
+ */
+const UNRESOLVED_SUBSET_PATTERN =
+  /\b(?:only|just|limited\s+to|restricted\s+to|scoped\s+to|confined\s+to)\s+(?:the\s+)?(?<subset>[A-Za-z0-9._-]+(?:\s+[A-Za-z0-9._-]+)?\s+(?:files?|modules?|directory|directories|folders?|packages?|dirs?|tests?|code|components?|services?))\b/iu;
+
 // A narrowing by class of change rather than by path: "except untracked files",
 // "except the deleted ones". These are not pathspecs, so they are resolved
 // against the target itself. Some are already true of the target Review picked,
@@ -1038,10 +1074,15 @@ function extractReviewScope(scope: string): ReviewScopeRequest {
     changeClassMatch === null || changeClassMatch === undefined || changeClassName === undefined
       ? undefined
       : { phrase: changeClassMatch[0].trim(), name: changeClassName };
-  const collect = (pattern: RegExp, into: string[]): void => {
+  const collect = (
+    pattern: RegExp,
+    into: string[],
+    options: { readonly rejectRefs?: boolean } = {},
+  ): void => {
     for (const match of scope.matchAll(pattern)) {
       const token = match.groups?.path;
       if (token === undefined || !looksLikeReviewSubsetPath(token)) continue;
+      if (options.rejectRefs === true && RANGE_LIKE_TOKEN_PATTERN.test(token)) continue;
       const path = scopePathFromToken(token);
       if (path === undefined) {
         notApplied.push(token.trim());
@@ -1052,6 +1093,16 @@ function extractReviewScope(scope: string): ReviewScopeRequest {
   };
   collect(RESTRICTION_CLAUSE_PATTERN, include);
   collect(EXCLUSION_CLAUSE_PATTERN, exclude);
+  // Read after the leading forms so "review only src/auth" is already resolved
+  // and this adds nothing; it exists for the goals the leading forms never saw.
+  collect(POSTFIX_RESTRICTION_CLAUSE_PATTERN, include, { rejectRefs: true });
+  // Only once every pattern above has had its say. "only the generated files"
+  // reaches a real directory, and reporting that as unapplied would be the
+  // opposite lie from the one this fixes.
+  if (include.length === 0) {
+    const subset = UNRESOLVED_SUBSET_PATTERN.exec(scope)?.groups?.subset;
+    if (subset !== undefined) notApplied.push(subset.trim());
+  }
   while (include.length + exclude.length > MAX_SCOPE_PATHS) {
     const dropped = exclude.length > include.length ? exclude.pop() : include.pop();
     if (dropped === undefined) break;

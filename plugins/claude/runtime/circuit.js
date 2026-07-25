@@ -86034,10 +86034,12 @@ function extractReviewScope(scope) {
   const changeClassMatch = EXCLUDED_CHANGE_CLASS_PATTERN.exec(scope);
   const changeClassName = changeClassMatch?.groups?.changeClass;
   const excludedChangeClass = changeClassMatch === null || changeClassMatch === void 0 || changeClassName === void 0 ? void 0 : { phrase: changeClassMatch[0].trim(), name: changeClassName };
-  const collect = (pattern, into) => {
+  const collect = (pattern, into, options = {}) => {
     for (const match of scope.matchAll(pattern)) {
       const token = match.groups?.path;
       if (token === void 0 || !looksLikeReviewSubsetPath(token))
+        continue;
+      if (options.rejectRefs === true && RANGE_LIKE_TOKEN_PATTERN.test(token))
         continue;
       const path = scopePathFromToken(token);
       if (path === void 0) {
@@ -86050,6 +86052,12 @@ function extractReviewScope(scope) {
   };
   collect(RESTRICTION_CLAUSE_PATTERN, include);
   collect(EXCLUSION_CLAUSE_PATTERN, exclude);
+  collect(POSTFIX_RESTRICTION_CLAUSE_PATTERN, include, { rejectRefs: true });
+  if (include.length === 0) {
+    const subset = UNRESOLVED_SUBSET_PATTERN.exec(scope)?.groups?.subset;
+    if (subset !== void 0)
+      notApplied.push(subset.trim());
+  }
   while (include.length + exclude.length > MAX_SCOPE_PATHS) {
     const dropped = exclude.length > include.length ? exclude.pop() : include.pop();
     if (dropped === void 0)
@@ -86803,7 +86811,7 @@ ${unstagedStat.stdout}`] : []
     ...paths === void 0 ? {} : { path_scope: paths }
   };
 }
-var MAX_DIFF_CHARS, MAX_UNTRACKED_FILES, MAX_UNTRACKED_FILE_CHARS, MAX_SNAPSHOT_FILES, MAX_SNAPSHOT_FILE_CHARS, MAX_SNAPSHOT_TOTAL_CHARS, MAX_GIT_BUFFER_BYTES, MAX_DIFF_BUFFER_BYTES, DIRECT_GIT_TIMEOUT_MS, HEAD_COMMIT_REF, SAFE_REVIEW_REF_PATTERN, ReviewTargetEmptyError, REVIEW_LEAD, PULL_REQUEST_UNSUPPORTED_REASON, RANGE_FILLER_WORDS, LATEST_COMMIT_PATTERN, RESTRICTION_LEAD_IN, EXCLUSION_LEAD_IN, NARROWING_CLAUSE_TAIL, RESTRICTION_CLAUSE_PATTERN, EXCLUSION_CLAUSE_PATTERN, EXCLUDED_CHANGE_CLASS_PATTERN, SNAPSHOT_REQUEST_PATTERN, WHOLE_REPOSITORY_PATTERN, MAX_SCOPE_PATHS, MAX_SCOPE_PATH_LENGTH, SAFE_SCOPE_PATH_PATTERN, NO_REVIEW_SCOPE, PATH_ONLY_REQUEST_PATTERN, PATH_ONLY_SUFFIX_PATTERN, reviewIntakeComposeBuilder;
+var MAX_DIFF_CHARS, MAX_UNTRACKED_FILES, MAX_UNTRACKED_FILE_CHARS, MAX_SNAPSHOT_FILES, MAX_SNAPSHOT_FILE_CHARS, MAX_SNAPSHOT_TOTAL_CHARS, MAX_GIT_BUFFER_BYTES, MAX_DIFF_BUFFER_BYTES, DIRECT_GIT_TIMEOUT_MS, HEAD_COMMIT_REF, SAFE_REVIEW_REF_PATTERN, ReviewTargetEmptyError, REVIEW_LEAD, PULL_REQUEST_UNSUPPORTED_REASON, RANGE_FILLER_WORDS, LATEST_COMMIT_PATTERN, RESTRICTION_LEAD_IN, EXCLUSION_LEAD_IN, NARROWING_CLAUSE_TAIL, RESTRICTION_CLAUSE_PATTERN, EXCLUSION_CLAUSE_PATTERN, POSTFIX_RESTRICTION_CLAUSE_PATTERN, RANGE_LIKE_TOKEN_PATTERN, UNRESOLVED_SUBSET_PATTERN, EXCLUDED_CHANGE_CLASS_PATTERN, SNAPSHOT_REQUEST_PATTERN, WHOLE_REPOSITORY_PATTERN, MAX_SCOPE_PATHS, MAX_SCOPE_PATH_LENGTH, SAFE_SCOPE_PATH_PATTERN, NO_REVIEW_SCOPE, PATH_ONLY_REQUEST_PATTERN, PATH_ONLY_SUFFIX_PATTERN, reviewIntakeComposeBuilder;
 var init_intake2 = __esm({
   "dist/flows/review/writers/intake.js"() {
     "use strict";
@@ -86856,6 +86864,9 @@ var init_intake2 = __esm({
     NARROWING_CLAUSE_TAIL = String.raw`\s+(?:(?:in|inside|under|within|below)\s+)?(?:the\s+)?(?<path>[^\s,;!?]+)`;
     RESTRICTION_CLAUSE_PATTERN = new RegExp(String.raw`\b(?:${RESTRICTION_LEAD_IN})${NARROWING_CLAUSE_TAIL}`, "giu");
     EXCLUSION_CLAUSE_PATTERN = new RegExp(String.raw`\b(?:${EXCLUSION_LEAD_IN})${NARROWING_CLAUSE_TAIL}`, "giu");
+    POSTFIX_RESTRICTION_CLAUSE_PATTERN = /(?<path>[^\s,;!?]+)\s+(?:only|alone|and\s+nothing\s+else)\b/giu;
+    RANGE_LIKE_TOKEN_PATTERN = /\.\./u;
+    UNRESOLVED_SUBSET_PATTERN = /\b(?:only|just|limited\s+to|restricted\s+to|scoped\s+to|confined\s+to)\s+(?:the\s+)?(?<subset>[A-Za-z0-9._-]+(?:\s+[A-Za-z0-9._-]+)?\s+(?:files?|modules?|directory|directories|folders?|packages?|dirs?|tests?|code|components?|services?))\b/iu;
     EXCLUDED_CHANGE_CLASS_PATTERN = new RegExp(String.raw`\b${EXCLUSION_LEAD_IN}\s+(?:any\s+|all\s+|the\s+)?(?<changeClass>untracked|tracked|staged|unstaged|committed|new|deleted|renamed)\b`, "iu");
     SNAPSHOT_REQUEST_PATTERN = /\b(?:as (?:it|they) stands?|as-is|current state|existing code|whole file|entire file|latent (?:issues?|bugs?|problems?|defects?))\b/iu;
     WHOLE_REPOSITORY_PATTERN = /\b(?:(?:whole|entire|full|complete|across the)\s+(?:repo|repository|codebase|code\s?base|project)|(?:this|the)\s+(?:repo|repository|codebase|code\s?base)\b|everything|all\s+(?:of\s+)?the\s+code\b)/iu;

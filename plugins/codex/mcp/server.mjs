@@ -23602,6 +23602,9 @@ var EXCLUSION_CLAUSE_PATTERN = new RegExp(
   String.raw`\b(?:${EXCLUSION_LEAD_IN})${NARROWING_CLAUSE_TAIL}`,
   "giu"
 );
+var POSTFIX_RESTRICTION_CLAUSE_PATTERN = /(?<path>[^\s,;!?]+)\s+(?:only|alone|and\s+nothing\s+else)\b/giu;
+var RANGE_LIKE_TOKEN_PATTERN = /\.\./u;
+var UNRESOLVED_SUBSET_PATTERN = /\b(?:only|just|limited\s+to|restricted\s+to|scoped\s+to|confined\s+to)\s+(?:the\s+)?(?<subset>[A-Za-z0-9._-]+(?:\s+[A-Za-z0-9._-]+)?\s+(?:files?|modules?|directory|directories|folders?|packages?|dirs?|tests?|code|components?|services?))\b/iu;
 var EXCLUDED_CHANGE_CLASS_PATTERN = new RegExp(
   String.raw`\b${EXCLUSION_LEAD_IN}\s+(?:any\s+|all\s+|the\s+)?(?<changeClass>untracked|tracked|staged|unstaged|committed|new|deleted|renamed)\b`,
   "iu"
@@ -23636,10 +23639,11 @@ function extractReviewScope(scope) {
   const changeClassMatch = EXCLUDED_CHANGE_CLASS_PATTERN.exec(scope);
   const changeClassName = changeClassMatch?.groups?.changeClass;
   const excludedChangeClass = changeClassMatch === null || changeClassMatch === void 0 || changeClassName === void 0 ? void 0 : { phrase: changeClassMatch[0].trim(), name: changeClassName };
-  const collect = (pattern, into) => {
+  const collect = (pattern, into, options = {}) => {
     for (const match of scope.matchAll(pattern)) {
       const token = match.groups?.path;
       if (token === void 0 || !looksLikeReviewSubsetPath(token)) continue;
+      if (options.rejectRefs === true && RANGE_LIKE_TOKEN_PATTERN.test(token)) continue;
       const path = scopePathFromToken(token);
       if (path === void 0) {
         notApplied.push(token.trim());
@@ -23650,6 +23654,11 @@ function extractReviewScope(scope) {
   };
   collect(RESTRICTION_CLAUSE_PATTERN, include);
   collect(EXCLUSION_CLAUSE_PATTERN, exclude);
+  collect(POSTFIX_RESTRICTION_CLAUSE_PATTERN, include, { rejectRefs: true });
+  if (include.length === 0) {
+    const subset = UNRESOLVED_SUBSET_PATTERN.exec(scope)?.groups?.subset;
+    if (subset !== void 0) notApplied.push(subset.trim());
+  }
   while (include.length + exclude.length > MAX_SCOPE_PATHS) {
     const dropped = exclude.length > include.length ? exclude.pop() : include.pop();
     if (dropped === void 0) break;
