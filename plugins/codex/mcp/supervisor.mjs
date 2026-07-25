@@ -15881,7 +15881,13 @@ var StepBase = external_exports.object({
   equipment_scope: EquipmentScope.optional(),
   route_from_report: RouteFromReport.optional(),
   budgets: external_exports.object({
-    max_attempts: external_exports.number().int().positive().max(10),
+    // Optional so a step can declare a timeout without also picking a retry
+    // count. The runtime reads `configuredMaxAttempts(step) ?? (recoveryRoute
+    // ? 2 : 1)`: one declared number standing in for two different defaults,
+    // so any value written here to satisfy a required field would change
+    // retry behaviour on one of the two route shapes. Absent means "keep the
+    // route-derived default", which is the only answer that perturbs nothing.
+    max_attempts: external_exports.number().int().positive().max(10).optional(),
     wall_clock_ms: external_exports.number().int().positive().optional(),
     // Per-step inactivity ceiling forwarded to the connector watchdog; for
     // steps whose relay legitimately goes silent longer than the connector
@@ -16438,6 +16444,64 @@ var RelayResolutionSource = external_exports.discriminatedUnion("source", [
   DefaultResolutionSource,
   AutoResolutionSource
 ]);
+
+// src/schemas/engine-provenance.ts
+var EngineSha = external_exports.string().regex(/^[0-9a-f]{40}$/, "engine sha must be a 40-character git commit");
+var EngineBuildDigest = external_exports.string().regex(/^[0-9a-f]{64}$/, "engine build digest must be a sha-256 of the bundle that ran");
+var EngineProvenanceSource = external_exports.enum(["git", "build-stamp", "unknown"]);
+var EngineProvenance = external_exports.object({
+  version: external_exports.string().min(1),
+  source: EngineProvenanceSource,
+  sha: EngineSha.optional(),
+  build_digest: EngineBuildDigest.optional(),
+  dirty: external_exports.boolean().optional()
+}).strict().superRefine((provenance, ctx) => {
+  if (provenance.source === "git") {
+    if (provenance.sha === void 0) {
+      ctx.addIssue({
+        code: "custom",
+        path: ["sha"],
+        message: "a git-sourced engine stamp must carry the commit git reported"
+      });
+    }
+    if (provenance.dirty === void 0) {
+      ctx.addIssue({
+        code: "custom",
+        path: ["dirty"],
+        message: "a git-sourced engine stamp must carry the working-tree state git reported"
+      });
+    }
+    if (provenance.build_digest !== void 0) {
+      ctx.addIssue({
+        code: "custom",
+        path: ["build_digest"],
+        message: "a git-sourced engine ran from source, not from a single hashable bundle"
+      });
+    }
+    return;
+  }
+  if (provenance.dirty !== void 0) {
+    ctx.addIssue({
+      code: "custom",
+      path: ["dirty"],
+      message: `a ${provenance.source} engine stamp has no working tree and cannot report one`
+    });
+  }
+  if (provenance.sha !== void 0) {
+    ctx.addIssue({
+      code: "custom",
+      path: ["sha"],
+      message: `a ${provenance.source} engine stamp has no commit to report`
+    });
+  }
+  if (provenance.source === "unknown" && provenance.build_digest !== void 0) {
+    ctx.addIssue({
+      code: "custom",
+      path: ["build_digest"],
+      message: "an engine that could not identify itself must not report a build digest"
+    });
+  }
+});
 
 // src/schemas/recovery-route-kind.ts
 var RecoveryRouteKind = external_exports.enum([
@@ -17613,7 +17677,14 @@ var RunBootstrappedTraceEntry = TraceEntryBase.extend({
   // and omitted entirely when nothing was reduced; a composed flow with a needs
   // model (M9) can populate it. Optional so prior fixtures and resumed runs
   // (which never re-bootstrap) stay valid — an omitted field makes no claim.
-  reduced_bindings: external_exports.array(CatalogSourcedBinding).optional()
+  reduced_bindings: external_exports.array(CatalogSourcedBinding).optional(),
+  // Which engine bootstrapped this run. Stamped here as well as on the result
+  // so a crash-healed record, which is rebuilt from this entry, reports the
+  // engine that actually ran rather than the one that did the healing.
+  // Optional for the same reason as `reduced_bindings`: prior fixtures and
+  // resumed runs (which never re-bootstrap) stay valid, and an omitted field
+  // makes no claim.
+  engine: EngineProvenance.optional()
 }).strict();
 var SliceIndex = external_exports.number().int().nonnegative();
 var StepEnteredTraceEntry = TraceEntryBase.extend({

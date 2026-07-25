@@ -2983,7 +2983,7 @@ var require_compile = __commonJS({
       const schOrFunc = root.refs[ref];
       if (schOrFunc)
         return schOrFunc;
-      let _sch = resolve12.call(this, root, ref);
+      let _sch = resolve13.call(this, root, ref);
       if (_sch === void 0) {
         const schema = (_a3 = root.localRefs) === null || _a3 === void 0 ? void 0 : _a3[ref];
         const { schemaId } = this.opts;
@@ -3010,7 +3010,7 @@ var require_compile = __commonJS({
     function sameSchemaEnv(s1, s2) {
       return s1.schema === s2.schema && s1.root === s2.root && s1.baseId === s2.baseId;
     }
-    function resolve12(root, ref) {
+    function resolve13(root, ref) {
       let sch;
       while (typeof (sch = this.refs[ref]) == "string")
         ref = sch;
@@ -3641,7 +3641,7 @@ var require_fast_uri = __commonJS({
       }
       return uri;
     }
-    function resolve12(baseURI, relativeURI, options) {
+    function resolve13(baseURI, relativeURI, options) {
       const schemelessOptions = options ? Object.assign({ scheme: "null" }, options) : { scheme: "null" };
       const resolved = resolveComponent(parse3(baseURI, schemelessOptions), parse3(relativeURI, schemelessOptions), schemelessOptions, true);
       schemelessOptions.skipEscape = true;
@@ -3905,7 +3905,7 @@ var require_fast_uri = __commonJS({
     var fastUri = {
       SCHEMES,
       normalize: normalize2,
-      resolve: resolve12,
+      resolve: resolve13,
       resolveComponent,
       equal,
       serialize,
@@ -6895,8 +6895,8 @@ var require_dist = __commonJS({
 });
 
 // src/hosts/codex-mcp/entrypoint.ts
-import { dirname as dirname7, resolve as resolve11 } from "node:path";
-import { fileURLToPath as fileURLToPath2 } from "node:url";
+import { dirname as dirname8, resolve as resolve12 } from "node:path";
+import { fileURLToPath as fileURLToPath3 } from "node:url";
 
 // node_modules/@modelcontextprotocol/sdk/dist/esm/server/stdio.js
 import process3 from "node:process";
@@ -23024,12 +23024,12 @@ var StdioServerTransport = class {
     this.onclose?.();
   }
   send(message) {
-    return new Promise((resolve12) => {
+    return new Promise((resolve13) => {
       const json2 = serializeMessage(message);
       if (this._stdout.write(json2)) {
-        resolve12();
+        resolve13();
       } else {
-        this._stdout.once("drain", resolve12);
+        this._stdout.once("drain", resolve13);
       }
     });
   }
@@ -23039,7 +23039,7 @@ var StdioServerTransport = class {
 import { randomUUID as randomUUID5 } from "node:crypto";
 import { lstat as lstat5, mkdir as mkdir2, realpath as realpath7, rm as rm2, stat as stat3 } from "node:fs/promises";
 import { tmpdir as tmpdir2 } from "node:os";
-import { isAbsolute as isAbsolute14, join as join15, relative as relative6, resolve as resolve10 } from "node:path";
+import { isAbsolute as isAbsolute14, join as join15, relative as relative6, resolve as resolve11 } from "node:path";
 
 // src/shared/runtime-git-reader.ts
 var RUNTIME_GIT_HARDENED_CONFIG = Object.freeze([
@@ -24473,7 +24473,7 @@ async function runMcpCodexSubprocess(input) {
     );
   }
   const start = performance.now();
-  return await new Promise((resolve12, reject) => {
+  return await new Promise((resolve13, reject) => {
     let child;
     try {
       child = spawn(input.executable, [...input.args], {
@@ -24539,7 +24539,7 @@ async function runMcpCodexSubprocess(input) {
       if (settled) return;
       settled = true;
       clearAllTimers();
-      resolve12({
+      resolve13({
         stdout,
         stderr,
         stdoutCapped,
@@ -25600,7 +25600,13 @@ var StepBase = external_exports.object({
   equipment_scope: EquipmentScope.optional(),
   route_from_report: RouteFromReport.optional(),
   budgets: external_exports.object({
-    max_attempts: external_exports.number().int().positive().max(10),
+    // Optional so a step can declare a timeout without also picking a retry
+    // count. The runtime reads `configuredMaxAttempts(step) ?? (recoveryRoute
+    // ? 2 : 1)`: one declared number standing in for two different defaults,
+    // so any value written here to satisfy a required field would change
+    // retry behaviour on one of the two route shapes. Absent means "keep the
+    // route-derived default", which is the only answer that perturbs nothing.
+    max_attempts: external_exports.number().int().positive().max(10).optional(),
     wall_clock_ms: external_exports.number().int().positive().optional(),
     // Per-step inactivity ceiling forwarded to the connector watchdog; for
     // steps whose relay legitimately goes silent longer than the connector
@@ -26545,9 +26551,9 @@ function checkedResult(result, name) {
   }
 }
 async function listen(server) {
-  await new Promise((resolve12, reject) => {
+  await new Promise((resolve13, reject) => {
     server.once("error", reject);
-    server.listen(0, "127.0.0.1", () => resolve12());
+    server.listen(0, "127.0.0.1", () => resolve13());
   });
   const address = server.address();
   if (address === null || typeof address === "string") {
@@ -26558,8 +26564,8 @@ async function listen(server) {
 async function closeServer(server) {
   if (!server.listening) return;
   if ("closeAllConnections" in server) server.closeAllConnections();
-  await new Promise((resolve12, reject) => {
-    server.close((error51) => error51 === void 0 ? resolve12() : reject(error51));
+  await new Promise((resolve13, reject) => {
+    server.close((error51) => error51 === void 0 ? resolve13() : reject(error51));
   });
 }
 function probeEnvironment(input) {
@@ -29158,11 +29164,11 @@ async function resolveTrustedCodexWorkspaceFromSources(input) {
 import { createHash as createHash6 } from "node:crypto";
 import { constants as constants7 } from "node:fs";
 import { lstat as lstat3, open as open2, realpath as realpath5 } from "node:fs/promises";
-import { isAbsolute as isAbsolute12, join as join11, relative as relative4, resolve as resolve8, sep as sep3 } from "node:path";
+import { isAbsolute as isAbsolute12, join as join11, relative as relative4, resolve as resolve9, sep as sep3 } from "node:path";
 
 // src/app/run-status/run-folder-projector.ts
 import { constants as constants6, accessSync, statSync as statSync3 } from "node:fs";
-import { resolve as resolve7 } from "node:path";
+import { resolve as resolve8 } from "node:path";
 
 // src/shared/manifest-snapshot.ts
 import { readFileSync as readFileSync6, writeFileSync } from "node:fs";
@@ -29220,6 +29226,64 @@ function verifyManifestSnapshotBytes(runFolder) {
 // src/app/run-status/projection-common.ts
 import { existsSync as existsSync2 } from "node:fs";
 import { join as join9 } from "node:path";
+
+// src/schemas/engine-provenance.ts
+var EngineSha = external_exports.string().regex(/^[0-9a-f]{40}$/, "engine sha must be a 40-character git commit");
+var EngineBuildDigest = external_exports.string().regex(/^[0-9a-f]{64}$/, "engine build digest must be a sha-256 of the bundle that ran");
+var EngineProvenanceSource = external_exports.enum(["git", "build-stamp", "unknown"]);
+var EngineProvenance = external_exports.object({
+  version: external_exports.string().min(1),
+  source: EngineProvenanceSource,
+  sha: EngineSha.optional(),
+  build_digest: EngineBuildDigest.optional(),
+  dirty: external_exports.boolean().optional()
+}).strict().superRefine((provenance, ctx) => {
+  if (provenance.source === "git") {
+    if (provenance.sha === void 0) {
+      ctx.addIssue({
+        code: "custom",
+        path: ["sha"],
+        message: "a git-sourced engine stamp must carry the commit git reported"
+      });
+    }
+    if (provenance.dirty === void 0) {
+      ctx.addIssue({
+        code: "custom",
+        path: ["dirty"],
+        message: "a git-sourced engine stamp must carry the working-tree state git reported"
+      });
+    }
+    if (provenance.build_digest !== void 0) {
+      ctx.addIssue({
+        code: "custom",
+        path: ["build_digest"],
+        message: "a git-sourced engine ran from source, not from a single hashable bundle"
+      });
+    }
+    return;
+  }
+  if (provenance.dirty !== void 0) {
+    ctx.addIssue({
+      code: "custom",
+      path: ["dirty"],
+      message: `a ${provenance.source} engine stamp has no working tree and cannot report one`
+    });
+  }
+  if (provenance.sha !== void 0) {
+    ctx.addIssue({
+      code: "custom",
+      path: ["sha"],
+      message: `a ${provenance.source} engine stamp has no commit to report`
+    });
+  }
+  if (provenance.source === "unknown" && provenance.build_digest !== void 0) {
+    ctx.addIssue({
+      code: "custom",
+      path: ["build_digest"],
+      message: "an engine that could not identify itself must not report a build digest"
+    });
+  }
+});
 
 // src/shared/result-path.ts
 import { join as join8 } from "node:path";
@@ -30528,7 +30592,14 @@ var RunBootstrappedTraceEntry = TraceEntryBase.extend({
   // and omitted entirely when nothing was reduced; a composed flow with a needs
   // model (M9) can populate it. Optional so prior fixtures and resumed runs
   // (which never re-bootstrap) stay valid — an omitted field makes no claim.
-  reduced_bindings: external_exports.array(CatalogSourcedBinding).optional()
+  reduced_bindings: external_exports.array(CatalogSourcedBinding).optional(),
+  // Which engine bootstrapped this run. Stamped here as well as on the result
+  // so a crash-healed record, which is rebuilt from this entry, reports the
+  // engine that actually ran rather than the one that did the healing.
+  // Optional for the same reason as `reduced_bindings`: prior fixtures and
+  // resumed runs (which never re-bootstrap) stay valid, and an omitted field
+  // makes no claim.
+  engine: EngineProvenance.optional()
 }).strict();
 var SliceIndex = external_exports.number().int().nonnegative();
 var StepEnteredTraceEntry = TraceEntryBase.extend({
@@ -31259,6 +31330,12 @@ function isRunClosedOutcome(value) {
 function optionalRunClosedOutcome(value) {
   return isRunClosedOutcome(value) ? value : void 0;
 }
+
+// src/shared/engine-provenance.ts
+import { dirname as dirname5, resolve as resolve7 } from "node:path";
+import { fileURLToPath as fileURLToPath2 } from "node:url";
+var engineModulePath = fileURLToPath2(import.meta.url);
+var engineModuleDir = dirname5(engineModulePath);
 
 // src/schemas/axes.ts
 var TournamentN = external_exports.number().int().min(2).max(4);
@@ -32481,7 +32558,7 @@ function assertReadableRunFolder(runFolder) {
   }
 }
 function projectRunStatusFromRunFolder(runFolder) {
-  const resolvedRunFolder = resolve7(runFolder);
+  const resolvedRunFolder = resolve8(runFolder);
   assertReadableRunFolder(resolvedRunFolder);
   let manifest;
   try {
@@ -32521,7 +32598,11 @@ var RunResult = external_exports.object({
   trace_entries_observed: external_exports.number().int().nonnegative(),
   manifest_hash: external_exports.string().min(1),
   reason: external_exports.string().min(1).optional(),
-  verdict: external_exports.string().min(1).optional()
+  verdict: external_exports.string().min(1).optional(),
+  // Which engine produced this record, so run history can be cohorted by
+  // build. Optional so every run recorded before the stamp existed stays
+  // readable — an omitted field makes no claim.
+  engine: EngineProvenance.optional()
 }).strict();
 
 // src/hosts/codex-mcp/runtime-artifacts.ts
@@ -32571,7 +32652,7 @@ async function safeRunFilePath(runRoot, relativePath, maximumBytes) {
 }
 async function canonicalRunRoot(record2) {
   const workspace = await realpath5(record2.workspace.canonical_path);
-  if (workspace !== resolve8(record2.workspace.canonical_path)) {
+  if (workspace !== resolve9(record2.workspace.canonical_path)) {
     throw new Error("The trusted workspace changed before Circuit read run artifacts.");
   }
   const workspaceInfo = await lstat3(workspace, { bigint: true });
@@ -33208,7 +33289,7 @@ import {
   realpathSync as realpathSync6,
   writeSync
 } from "node:fs";
-import { basename as basename3, dirname as dirname5, join as join13 } from "node:path";
+import { basename as basename3, dirname as dirname6, join as join13 } from "node:path";
 
 // src/schemas/progress-event.ts
 var MAX_STATUS_TEXT_CHARS = 180;
@@ -34095,7 +34176,7 @@ import {
   unlinkSync as unlinkSync2,
   writeFileSync as writeFileSync2
 } from "node:fs";
-import { basename as basename4, dirname as dirname6, isAbsolute as isAbsolute13, join as join14, normalize, relative as relative5, resolve as resolve9, sep as sep4 } from "node:path";
+import { basename as basename4, dirname as dirname7, isAbsolute as isAbsolute13, join as join14, normalize, relative as relative5, resolve as resolve10, sep as sep4 } from "node:path";
 var SHA256 = /^[a-f0-9]{64}$/;
 var RUN_ID = external_exports.guid({ error: "run_id must be a UUID" });
 var MAX_STATE_BYTES = 1048576;
@@ -34614,7 +34695,7 @@ function jsonBytes(value) {
 `;
 }
 function stageCompleteFile(target, contents) {
-  const stage = join14(dirname6(target), `.${basename4(target)}.${randomUUID3()}.tmp`);
+  const stage = join14(dirname7(target), `.${basename4(target)}.${randomUUID3()}.tmp`);
   const fd = openSync6(
     stage,
     constants10.O_WRONLY | constants10.O_CREAT | constants10.O_EXCL | constants10.O_NOFOLLOW,
@@ -34638,21 +34719,21 @@ function createJsonExclusive(target, value) {
     try {
       linkSync(stage, target);
       created = true;
-      fsyncDirectory2(dirname6(target));
+      fsyncDirectory2(dirname7(target));
     } catch (error51) {
       if (errorCode3(error51) !== "EEXIST") throw error51;
     }
     return created;
   } finally {
     rmSync2(stage, { force: true });
-    fsyncDirectory2(dirname6(target));
+    fsyncDirectory2(dirname7(target));
   }
 }
 function replaceJsonAtomic(target, value) {
   const stage = stageCompleteFile(target, jsonBytes(value));
   try {
     renameSync(stage, target);
-    fsyncDirectory2(dirname6(target));
+    fsyncDirectory2(dirname7(target));
   } catch (error51) {
     rmSync2(stage, { force: true });
     throw error51;
@@ -34760,7 +34841,7 @@ function unlinkExactClaim(path, expected) {
     );
   }
   unlinkSync2(path);
-  fsyncDirectory2(dirname6(path));
+  fsyncDirectory2(dirname7(path));
 }
 function unlinkExactLease(path, expected) {
   const current = readStrictJson(path, WorkspaceLeaseRecordV1, MAX_CONTROL_BYTES, "lease_corrupt");
@@ -34768,7 +34849,7 @@ function unlinkExactLease(path, expected) {
     throw new McpStateStoreError("lease_changed", "The workspace lease changed before release.");
   }
   unlinkSync2(path);
-  fsyncDirectory2(dirname6(path));
+  fsyncDirectory2(dirname7(path));
 }
 function unlinkExactWorkspaceGuard(path, expected) {
   const current = readStrictJson(
@@ -34784,7 +34865,7 @@ function unlinkExactWorkspaceGuard(path, expected) {
     );
   }
   unlinkSync2(path);
-  fsyncDirectory2(dirname6(path));
+  fsyncDirectory2(dirname7(path));
 }
 var ALLOWED_TRANSITIONS = {
   starting: /* @__PURE__ */ new Set([
@@ -36067,11 +36148,11 @@ var BoundedLineReader = class {
       if (remaining !== void 0 && remaining <= 0) {
         throw new Error("supervisor channel timed out");
       }
-      await new Promise((resolve12, reject) => {
+      await new Promise((resolve13, reject) => {
         let timer;
         const wake = () => {
           if (timer !== void 0) clearTimeout(timer);
-          resolve12();
+          resolve13();
         };
         this.#waiters.push(wake);
         if (remaining !== void 0) {
@@ -36115,9 +36196,9 @@ var SupervisorLaunchError = class extends Error {
 };
 function writeAuthorization(channel, value) {
   const bytes = encodeSupervisorMessage(value);
-  return new Promise((resolve12, reject) => {
+  return new Promise((resolve13, reject) => {
     channel.end(bytes, (error51) => {
-      if (error51 === null || error51 === void 0) resolve12();
+      if (error51 === null || error51 === void 0) resolve13();
       else reject(error51);
     });
   });
@@ -36194,8 +36275,8 @@ var ProcessSupervisorLauncher = class {
       const message = error51 instanceof Error ? error51.message : String(error51);
       throw new SupervisorLaunchError(message, true);
     }
-    const childError = new Promise((resolve12) => {
-      child.once("error", (error51) => resolve12(error51));
+    const childError = new Promise((resolve13) => {
+      child.once("error", (error51) => resolve13(error51));
     });
     if (child.pid === void 0) {
       const error51 = await Promise.race([
@@ -36368,7 +36449,7 @@ function resolveProductionCodexHome(environment) {
   if (!isAbsolute14(candidate2) || candidate2.includes("\0")) {
     throw new Error("Circuit MCP requires an absolute CODEX_HOME directory.");
   }
-  return resolve10(candidate2);
+  return resolve11(candidate2);
 }
 var SHARED_TEMP_ROOT_CANDIDATES2 = [
   "/tmp",
@@ -36381,7 +36462,7 @@ async function canonicalSharedTempRoots() {
   for (const root of [...SHARED_TEMP_ROOT_CANDIDATES2, tmpdir2()]) {
     if (!isAbsolute14(root)) continue;
     try {
-      const canonicalRoot = await realpath7(resolve10(root));
+      const canonicalRoot = await realpath7(resolve11(root));
       if ((await stat3(canonicalRoot)).isDirectory()) sharedRoots.add(canonicalRoot);
     } catch (error51) {
       if (error51.code === "ENOENT") continue;
@@ -36396,7 +36477,7 @@ async function resolvePrivateProductionCodexHome(candidate2) {
   }
   let canonicalHome;
   try {
-    canonicalHome = await realpath7(resolve10(candidate2));
+    canonicalHome = await realpath7(resolve11(candidate2));
     if (!(await stat3(canonicalHome)).isDirectory()) throw new Error("not a directory");
   } catch {
     throw new Error("Circuit MCP requires CODEX_HOME to name an existing directory.");
@@ -36444,7 +36525,7 @@ function productionMcpLayout(input) {
   if (!isAbsolute14(input.nodeExecutable)) {
     throw new Error("The host Node executable must be absolute.");
   }
-  const pluginRoot = resolve10(input.pluginRoot);
+  const pluginRoot = resolve11(input.pluginRoot);
   const flowsRoot = join15(pluginRoot, "flows");
   const gitExecutable = input.gitExecutable ?? resolveGitExecutableOnPath(input.pathValue);
   if (!isAbsolute14(gitExecutable)) throw new Error("The Git helper must be absolute.");
@@ -36578,7 +36659,7 @@ function createProductionLaunchPreflight(dependencies) {
 }
 async function privateGenerationDirectory(controlDirectory, generation) {
   const canonicalControl = await realpath7(controlDirectory);
-  if (canonicalControl !== resolve10(controlDirectory)) {
+  if (canonicalControl !== resolve11(controlDirectory)) {
     throw new Error("The Circuit control directory changed before worker launch.");
   }
   const privateRoot = join15(canonicalControl, "private");
@@ -36588,7 +36669,7 @@ async function privateGenerationDirectory(controlDirectory, generation) {
   return await realpath7(generationRoot);
 }
 function createProductionWorkerFactory(options) {
-  const pluginRoot = resolve10(options.pluginRoot);
+  const pluginRoot = resolve11(options.pluginRoot);
   const create = async (input) => {
     const preparation = input.prepared_launch.consume();
     const worker = requiredAsset(input.runtime_assets, "plugin_runtime:worker", "plugin_runtime");
@@ -36663,7 +36744,7 @@ function createProductionSupervisorLauncher(options) {
 }
 async function createProductionCircuitMcpHandler(options) {
   const environment = options.environment ?? process.env;
-  const pluginRoot = resolve10(options.pluginRoot);
+  const pluginRoot = resolve11(options.pluginRoot);
   const codexHome = await resolvePrivateProductionCodexHome(options.codexHome);
   const stateRoot = await resolvePrivateProductionStateRoot(codexHome);
   const hostProbe = options.processProbe === void 0 ? createMacOsProcessProbe() : void 0;
@@ -42631,7 +42712,7 @@ var Protocol = class {
           return;
         }
         const pollInterval = task2.pollInterval ?? this._options?.defaultTaskPollInterval ?? 1e3;
-        await new Promise((resolve12) => setTimeout(resolve12, pollInterval));
+        await new Promise((resolve13) => setTimeout(resolve13, pollInterval));
         options?.signal?.throwIfAborted();
       }
     } catch (error51) {
@@ -42648,7 +42729,7 @@ var Protocol = class {
    */
   request(request, resultSchema, options) {
     const { relatedRequestId, resumptionToken, onresumptiontoken, task, relatedTask } = options ?? {};
-    return new Promise((resolve12, reject) => {
+    return new Promise((resolve13, reject) => {
       const earlyReject = (error51) => {
         reject(error51);
       };
@@ -42726,7 +42807,7 @@ var Protocol = class {
           if (!parseResult.success) {
             reject(parseResult.error);
           } else {
-            resolve12(parseResult.data);
+            resolve13(parseResult.data);
           }
         } catch (error51) {
           reject(error51);
@@ -42987,12 +43068,12 @@ var Protocol = class {
       }
     } catch {
     }
-    return new Promise((resolve12, reject) => {
+    return new Promise((resolve13, reject) => {
       if (signal.aborted) {
         reject(new McpError(ErrorCode.InvalidRequest, "Request cancelled"));
         return;
       }
-      const timeoutId = setTimeout(resolve12, interval);
+      const timeoutId = setTimeout(resolve13, interval);
       signal.addEventListener("abort", () => {
         clearTimeout(timeoutId);
         reject(new McpError(ErrorCode.InvalidRequest, "Request cancelled"));
@@ -44092,7 +44173,7 @@ var McpServer = class {
     let task = createTaskResult.task;
     const pollInterval = task.pollInterval ?? 5e3;
     while (task.status !== "completed" && task.status !== "failed" && task.status !== "cancelled") {
-      await new Promise((resolve12) => setTimeout(resolve12, pollInterval));
+      await new Promise((resolve13) => setTimeout(resolve13, pollInterval));
       const updatedTask = await extra.taskStore.getTask(taskId);
       if (!updatedTask) {
         throw new McpError(ErrorCode.InternalError, `Task ${taskId} not found during polling`);
@@ -44750,7 +44831,7 @@ function createCircuitMcpServer(options) {
 // src/hosts/codex-mcp/entrypoint.ts
 async function createPackagedCircuitMcpServer(options = {}) {
   const environment = options.environment ?? process.env;
-  const pluginRoot = options.pluginRoot ?? resolve11(dirname7(fileURLToPath2(import.meta.url)), "..");
+  const pluginRoot = options.pluginRoot ?? resolve12(dirname8(fileURLToPath3(import.meta.url)), "..");
   const handle = await createProductionCircuitMcpHandler({
     ...options,
     pluginRoot,
