@@ -36,9 +36,11 @@ import {
   customHome,
   draftRoot,
   flowRoot,
+  loadDraftFlow,
   manifestPath,
   publishDraft,
   publishedRoot,
+  readDraftMetadata,
   resultPath,
   slugify,
   summaryPath,
@@ -177,6 +179,25 @@ type ComposeResult =
       readonly repairRounds: number;
     };
 
+// Recover a reviewed draft as if it had just been composed, so the publish tail
+// is identical either way. The shape round-trips through the archetype's
+// composition string ("block-level (<shape>)"), which the draft already records,
+// so reuse costs no schema change. The round counters describe a composition
+// that did not happen on this run and are never reported on this path.
+function composedFromDraft(home: string, slug: string): ComposeResult {
+  const { files } = loadDraftFlow(home, slug);
+  const { archetype } = readDraftMetadata(home, slug);
+  return {
+    ok: true,
+    slug,
+    files,
+    archetype,
+    shape: /^block-level \((.+)\)$/.exec(archetype.composition)?.[1] ?? archetype.composition,
+    convergedRound: 0,
+    repairRounds: 0,
+  };
+}
+
 // The generate producer: PROPOSE a flow shape, run the floor, then compile the
 // runnable spec into the same CompiledFlowFile[] the publish tail consumes.
 async function composeCustomFlow(input: {
@@ -237,10 +258,12 @@ function summaryMarkdown(input: {
   readonly home: string;
   readonly shape: string;
   readonly convergedRound: number;
+  readonly reusedDraft: boolean;
 }): string {
   const invocation = customFlowInvocation(input.slug, input.home);
-  const convergence =
-    input.convergedRound === 0
+  const convergence = input.reusedDraft
+    ? 'Circuit published the draft as reviewed. It composed nothing on this run.'
+    : input.convergedRound === 0
       ? 'The first proposal was runnable as composed.'
       : `It converged after ${input.convergedRound} verifier-guided repair round(s).`;
   return [
@@ -269,7 +292,10 @@ function summaryMarkdown(input: {
     '## Next Action',
     input.status === 'published'
       ? 'Run the usage command above, or reload the host command surface if your host caches slash commands.'
-      : 'Review the draft, then rerun generate with `--publish --yes` when ready.',
+      : // Name the slug. Without `--name` a rerun composes a NEW flow and
+        // publishes that instead, because the model picks the slug and nothing
+        // ties the rerun back to the draft under review.
+        `Review the draft, then publish exactly it with \`circuit generate --description '${input.description}' --name ${input.slug} --publish --yes\`.`,
   ].join('\n');
 }
 
@@ -311,21 +337,33 @@ export async function runGenerateCommand(
     // slug here rather than after a full propose+repair spend (create validates up
     // front the same way). The model-chosen-id path is validated post-compose, where
     // the slug genuinely cannot be known earlier.
-    if (args.name !== undefined) {
-      const namedSlug = slugify(args.name);
+    const namedSlug = args.name === undefined ? undefined : slugify(args.name);
+    if (namedSlug !== undefined) {
       assertValidSlug(namedSlug);
       if (args.publish && existsSync(join(flowRoot(home), namedSlug, 'circuit.json'))) {
         throw new Error(`custom flow already published: ${namedSlug}`);
       }
     }
 
-    const composed = await composeCustomFlow({
-      description: args.description,
-      name: args.name,
-      relay,
-      maxRepair: args.maxRepair,
-      timeoutMs: args.timeoutMs,
-    });
+    // Publishing a named draft that already exists ships EXACTLY what the
+    // operator reviewed. Composing again would ask the model a second time and
+    // publish that second answer, and writeDraft rmSyncs the draft root first,
+    // so the approved flow would be deleted on the way. create.ts resolves the
+    // same fork the same way.
+    const reusedDraft =
+      args.publish &&
+      namedSlug !== undefined &&
+      existsSync(join(draftRoot(home, namedSlug), 'circuit.json'));
+
+    const composed = reusedDraft
+      ? composedFromDraft(home, namedSlug as string)
+      : await composeCustomFlow({
+          description: args.description,
+          name: args.name,
+          relay,
+          maxRepair: args.maxRepair,
+          timeoutMs: args.timeoutMs,
+        });
 
     if (!composed.ok) {
       // Honest fail-closed: the model never produced a runnable flow. Report the
@@ -366,14 +404,18 @@ export async function runGenerateCommand(
     }
     const createdAt = args.createdAt ?? now().toISOString();
 
-    writeDraft({
-      home,
-      slug,
-      description: args.description,
-      files: composed.files,
-      archetype: composed.archetype,
-      source: 'composed',
-    });
+    // Never rewrite a draft we are only here to publish: writeDraft rmSyncs the
+    // root, and this is the flow the operator already approved.
+    if (!reusedDraft) {
+      writeDraft({
+        home,
+        slug,
+        description: args.description,
+        files: composed.files,
+        archetype: composed.archetype,
+        source: 'composed',
+      });
+    }
     const status = args.publish ? 'published' : 'draft_created';
     if (args.publish) {
       publishDraft({ home, slug, description: args.description, createdAt });
@@ -385,6 +427,7 @@ export async function runGenerateCommand(
       home,
       shape: composed.shape,
       convergedRound: composed.convergedRound,
+      reusedDraft,
     });
     writeText(summaryPath(home, slug), summary);
 
@@ -395,8 +438,11 @@ export async function runGenerateCommand(
       slug,
       shape: composed.shape,
       proposer_model: PROPOSER_MODEL_LABEL,
-      converged_round: composed.convergedRound,
-      repair_rounds: composed.repairRounds,
+      // The round counters describe a composition. A reuse publish did not run
+      // one, so it reports that it reused instead of reporting zero rounds.
+      ...(reusedDraft
+        ? { reused_draft: true }
+        : { converged_round: composed.convergedRound, repair_rounds: composed.repairRounds }),
       draft_path: draftRoot(home, slug),
       validation_path: join(draftRoot(home, slug), 'validation-result.json'),
       ...(args.publish

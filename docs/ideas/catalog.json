@@ -31,6 +31,32 @@
   ],
   "entries": [
     {
+      "path": "docs/ideas/flow-catalog-first-principles.md",
+      "title": "The flow catalog, re-derived from first principles",
+      "status": "current-proposal",
+      "category": "flows-and-blocks",
+      "impact": 5,
+      "tags": [
+        "flow-catalog",
+        "reporting-fidelity",
+        "capability-reachability",
+        "flow-generation",
+        "honesty-floor",
+        "operator-summary",
+        "fix-flow"
+      ],
+      "current_reading": "Answers the catalog question from evidence rather than taste, and answers it in an unexpected way: the catalog's problem is not its shape or size but that it does not use the engine it sits on. Two verified pillars. First, reporting fidelity is leaking in three unrelated subsystems: fix's result projection makes its own success gate unreachable (regression_status 'deferred' passes every step-level gate then disqualifies the run, locked in result-projection.ts AND twice more in the FixResult schema refinements), producing 19 runs across 4 projects with zero completions, including six pete-2025 runs on 2026-07-15 where verification passed, the change set passed and an independent reviewer returned 'accept' while the operator summary said 'The flow stopped before complete evidence was produced', omitted every success signal, emptied caveats while residual_risks carried two real limitations, gave an internal file path and enum as the stop reason, and prescribed a rerun (the operator complied six times over 3.5 hours); review prints a reviewer self-report claiming it inspected the complete diff when the ledger recorded scope_empty with zero bytes relayed; and generate --publish re-runs proposeFlow before publishing while writeDraft rmSyncs the reviewed draft, so the consent gate ships a regenerated flow nobody reviewed and deletes the one they approved. Second, and the part that actually answers what a powerful catalog looks like: step-level selection is used by 0 of 107 shipped schematic items, pick-winner and disjoint-merge joins by zero flows, four blocks (intake, route, queue, risk-rollback-check) by zero flows, equipment_scope by exactly one step, command/exit-status acceptance criteria by zero flows despite positioning.md presenting them as an honesty mechanism, while connector pinning, the oracle pin with frozen paths, and sub-run are reachable only from internal flows. Because deriveActualMenu builds the generator's entire vocabulary by walking shipped schematics tagged with donorFlowId/donorStepId, a capability no hand-authored flow demonstrates is doubly unreachable: hidden from the person and absent from the machine's grammar. That reframes catalog design from covering the task space to spanning the capability space, and gives each proposed member an explicit primitive it must make sayable. Proposes five flows (Change absorbing build/fix/pursue/cross-tool-build as dials, Explore, Prototype, a new Ground premise-check, and Codify), Review demoted from peer flow to the capability 12 of 13 flows already embed, two instruments and three engine capabilities. Also documents a methodological finding that constrains all of this: mining the run corpus produced three false positives out of four confident findings because run records carry no engine version, so the corpus cannot be honestly read and every reliability claim including this document's is uncheckable without cohorting. Carries the honest caveat that our evals cannot currently discriminate good from great ('the tasks did not discriminate'), so the catalog half is a bet grounded in measured constraints while the reporting-fidelity half is bugs. UPDATED after an adversarial design panel: the presentation half of all three fidelity defects is FIXED on this branch (brief key-point ranking, scope_empty self-report labelling, generate --publish draft reuse), each with a failing-first test, verify:fast green at 5729 tests. The panel added a fourth false positive against the author (connector preflight already ships as src/cli/run-preflight.ts, residual gap is only the hardcoded attempt:1 and relay-only walk), a fifth built-and-unused capability (per-step budgets, 0 of 107 items, schema at src/schemas/step.ts:57 consumed at src/runtime/executors/relay.ts:136,144, against real 180s and 600s connector kills), and the finding that the proposed Change dials are NOT buildable until generic named axes land because src/schemas/axes.ts is a strict four-member object and CompiledFlowEngineFlags is documented as deliberately narrow. Most importantly the panel argued the catalog collapse out of the author's own recommendation and the author agreed: every fidelity repair lands equally well on today's thirteen packages, zero diagnosed non-completions were catalog-shaped, and the cost argument for collapsing is an intuition wearing a measurement's clothes because dials still execute the same blocks. Standing recommendation is now: fix fidelity, stamp the engine SHA so run history becomes readable, declare budgets, hold the catalog reshape and decide it on data. Section 6's span analysis is kept because it survives whatever the door count turns out to be.",
+      "related": [
+        "docs/ideas/north-star-status.md",
+        "docs/ideas/future-proofing-circuit.md",
+        "docs/ideas/flow-ideas.md",
+        "docs/ideas/expertise-to-flow-experience.md",
+        "docs/positioning.md",
+        "docs/contracts/run.md"
+      ],
+      "last_checked": "2026-07-25"
+    },
+    {
       "path": "docs/ideas/cli-first-principles.md",
       "title": "Circuit CLI rebuild plan",
       "status": "implementation-spec",

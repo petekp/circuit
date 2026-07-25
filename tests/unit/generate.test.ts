@@ -29,6 +29,19 @@ const RUNNABLE_ROLESET: CompositionRoleSet = {
   ],
 };
 
+// A SECOND runnable role set, distinguishable from the first by step count.
+// Used to prove which composition a publish actually shipped.
+const OTHER_RUNNABLE_ROLESET: CompositionRoleSet = {
+  id: 'stub-triage-lean',
+  title: 'Stub Triage Lean',
+  purpose: 'A second known-runnable role set, one step shorter than the first.',
+  roles: [
+    { stage: 'frame', block: 'frame', executionKind: 'compose' },
+    { stage: 'analyze', block: 'gather-context', executionKind: 'relay', relayRole: 'researcher' },
+    { stage: 'close', block: 'close-with-evidence', executionKind: 'compose', terminal: true },
+  ],
+};
+
 // A role set that cannot be made runnable: a lone non-terminal act step, no
 // opener, no close. The floor rejects it; with --max-repair 0 the rejection is
 // immediate (round 0 only), so this stays a fast, deterministic wall.
@@ -123,6 +136,39 @@ describe('circuit generate — composes and publishes a bespoke flow', () => {
     expect(manifest.custom_flows).toHaveLength(1);
     expect(manifest.custom_flows[0]?.id).toBe(slug);
     expect(manifest.custom_flows[0]?.flow_path).toBe(flowPath);
+  });
+
+  it('publishes the draft the operator reviewed, not a fresh recomposition', async () => {
+    // Circuit's own draft summary tells the operator: "Review the draft, then
+    // rerun generate with `--publish --yes` when ready." That rerun has to
+    // publish what they reviewed. Composing again would ship a flow nobody
+    // looked at AND delete the approved one, because writeDraft rmSyncs the
+    // draft root before writing.
+    const args = ['--description', 'triage a flaky test', '--name', 'my-triage', '--home', home];
+    const drafted = await runGenerateCommand(args, {
+      relayer: stubRelayServing(JSON.stringify(RUNNABLE_ROLESET)),
+    });
+    expect(drafted).toBe(0);
+    const reviewed = JSON.parse(
+      readFileSync(join(home, 'drafts', 'my-triage', 'circuit.json'), 'utf8'),
+    ) as { steps: unknown[] };
+    expect(reviewed.steps).toHaveLength(RUNNABLE_ROLESET.roles.length);
+
+    // The operator reviewed that draft and reruns to publish it. The model would
+    // answer differently now; the run must not silently take the new answer.
+    stdout.length = 0; // lastJson() reads the whole buffer; keep it to this run
+    const published = await runGenerateCommand([...args, '--publish', '--yes'], {
+      relayer: stubRelayServing(JSON.stringify(OTHER_RUNNABLE_ROLESET)),
+    });
+    expect(published).toBe(0);
+    const result = lastJson();
+    expect(result.status).toBe('published');
+
+    const shipped = JSON.parse(
+      readFileSync(join(home, 'flows', 'my-triage', 'circuit.json'), 'utf8'),
+    ) as { steps: unknown[] };
+    expect(shipped.steps).toEqual(reviewed.steps);
+    expect(result.reused_draft).toBe(true);
   });
 
   it('honors --name as the slug override', async () => {

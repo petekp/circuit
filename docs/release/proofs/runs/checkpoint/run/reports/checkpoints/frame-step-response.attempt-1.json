@@ -1,0 +1,7 @@
+{
+  "schema_version": 1,
+  "step_id": "frame-step",
+  "selection": "continue",
+  "route_id": "continue",
+  "resolution_source": "operator"
+}

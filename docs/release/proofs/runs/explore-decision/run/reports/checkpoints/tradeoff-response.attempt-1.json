@@ -1,0 +1,7 @@
+{
+  "schema_version": 1,
+  "step_id": "tradeoff-checkpoint-step",
+  "selection": "option-2",
+  "route_id": "pass",
+  "resolution_source": "operator"
+}

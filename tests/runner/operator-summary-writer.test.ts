@@ -750,6 +750,49 @@ describe('operator summary writer', () => {
     expect(markdown).toContain('scope_empty');
   });
 
+  it('marks a reviewer self-report as unbacked when the ledger says nothing was relayed', () => {
+    // The reviewer writes its own account of what it did. On run 1fbbd9ba that
+    // account said it had inspected the complete diff while the engine's own
+    // ledger recorded scope_empty and zero bytes relayed. Circuit printed the
+    // claim verbatim. The engine knows better than the model here, so the
+    // contradiction has to reach the operator.
+    writeReport('reports/review-result.json', {
+      scope: 'review the pending changes',
+      findings: [],
+      verdict: 'CLEAN',
+      assessment: 'Inspected the complete diff and found no safety problems.',
+      verification: ['Read every changed hunk', 'Traced each call site'],
+      evidence_summary: {
+        kind: 'git-working-tree',
+        untracked_content_policy: 'metadata-only',
+        untracked_file_count: 0,
+        untracked_files_sampled: 0,
+        untracked_files_truncated: false,
+      },
+      evidence_warnings: [
+        {
+          kind: 'scope_empty',
+          message: 'The reviewer had no source content to inspect.',
+        },
+      ],
+    });
+
+    const written = writeOperatorSummary({
+      runFolder,
+      runResult: baseResult('review'),
+      route: { selectedFlow: 'review' },
+    });
+
+    const details = written.summary.details.join('\n');
+    // The claims survive (deleting them hides that the reviewer overclaimed),
+    // but they are never presented as an account of work Circuit saw happen.
+    expect(details).toContain('Inspected the complete diff');
+    expect(details).toMatch(/self-reported/i);
+    expect(details).toMatch(/Circuit relayed no source content/i);
+    expect(details).not.toContain('Assessment: Inspected the complete diff');
+    expect(details).not.toContain('Reviewer steps: Read every changed hunk');
+  });
+
   it('lists Review findings with severity, text, and file refs in the operator summary', () => {
     writeReport('reports/review-result.json', {
       scope: 'review staged evil.js',
@@ -1267,6 +1310,63 @@ describe('operator summary writer', () => {
     expect(
       slots.key_points.some((point) => /Regression:/i.test(point) && /unverified/i.test(point)),
     ).toBe(true);
+  });
+
+  it('keeps a stopped Fix run’s own findings ahead of environment boilerplate in the brief', () => {
+    // Reproduces run fce99631 (pete-2025, 2026-07-15). Verification passed, the
+    // change set passed, and the reviewer returned accept, but the deferred
+    // regression made outcome 'partial', which binds the run closed 'stopped'.
+    //
+    // The brief the operator actually read led with the internal stop reason and
+    // two environment lines, and pushed "Verification: passed.", the deferred
+    // regression, and "Review: accepted." behind a "+N more" pointer. `details`
+    // is assembled with `Worker access:` PREPENDED ahead of the flow projection
+    // (writer.ts), the stopped branch then prepends the stop reason and salvage
+    // lines, and MAX_KEY_POINTS is 4 — so the flow's own findings are evicted by
+    // position alone. The operator reran the flow six times over 3.5 hours.
+    //
+    // Environment context must yield to what the flow found.
+    writeReport('reports/fix-result.json', {
+      summary: "Fix 'restore the failing login test': added the fallback guard.",
+      outcome: 'partial',
+      verification_status: 'passed',
+      regression_rerun_status: 'deferred',
+      review_status: 'accept',
+      evidence_links: [],
+    });
+    // Present on the real run, and load-bearing: without them the salvage lines
+    // claim review never ran and verification failed, contradicting the result.
+    writeReport('reports/fix/verification.json', { overall_status: 'passed', commands: [] });
+    writeReport('reports/fix/review.json', { verdict: 'accept' });
+
+    const stoppedResult = RunResult.parse({
+      ...baseResult('fix'),
+      outcome: 'stopped',
+      reason: "primary result 'reports/fix-result.json' reported outcome 'partial'",
+    });
+
+    const written = writeOperatorSummary({
+      runFolder,
+      runResult: stoppedResult,
+      route: { selectedFlow: 'fix' },
+    });
+
+    const slots = written.summary.brief_slots;
+    if (slots === undefined) throw new Error('expected brief_slots');
+
+    // The run passed verification and was accepted by review. A brief that omits
+    // both while showing worker access is not a summary of what happened.
+    expect(slots.key_points.some((point) => /Verification:\s*passed/i.test(point))).toBe(true);
+    expect(
+      slots.key_points.some((point) => /Regression:/i.test(point) && /unverified/i.test(point)),
+    ).toBe(true);
+
+    // Environment disclosure may still appear, but never ahead of a finding.
+    const firstContext = slots.key_points.findIndex((point) => /^Worker access:/.test(point));
+    const firstFinding = slots.key_points.findIndex((point) => /^Verification:/.test(point));
+    if (firstContext !== -1 && firstFinding !== -1) {
+      expect(firstFinding).toBeLessThan(firstContext);
+    }
   });
 
   it('falls back to the run-level outcome when the flow-result file is missing instead of silently rendering complete', () => {

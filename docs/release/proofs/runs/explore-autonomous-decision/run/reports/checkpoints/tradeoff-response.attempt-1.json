@@ -1,0 +1,184 @@
+{
+  "schema_version": 1,
+  "step_id": "tradeoff-checkpoint-step",
+  "selection": "option-2",
+  "route_id": "pass",
+  "resolution_source": "policy",
+  "auto_resolution": {
+    "checkpoint_id": "tradeoff-checkpoint-step",
+    "checkpoint_label": "Decision — tradeoff checkpoint",
+    "policy": "highest-score",
+    "resolved_value": "option-2",
+    "alternatives_available": [
+      "option-1"
+    ],
+    "scores": {
+      "option-2": {
+        "aggregate_score": 1,
+        "runtime_veto_count": 0
+      },
+      "option-1": {
+        "aggregate_score": 0.875,
+        "runtime_veto_count": 1
+      }
+    },
+    "rubric_results": {
+      "option-2": {
+        "dims": {
+          "evidence_rigor": {
+            "runtime_signal": "met",
+            "model_judgment": "pass",
+            "final_score": "pass",
+            "dim_score": 1,
+            "runtime_vetoed": false
+          },
+          "actionability": {
+            "runtime_signal": "met",
+            "model_judgment": "pass",
+            "final_score": "pass",
+            "dim_score": 1,
+            "runtime_vetoed": false
+          },
+          "coverage_adequacy": {
+            "runtime_signal": "met",
+            "model_judgment": "pass",
+            "final_score": "pass",
+            "dim_score": 1,
+            "runtime_vetoed": false
+          },
+          "scope_discipline": {
+            "runtime_signal": "met",
+            "model_judgment": "pass",
+            "final_score": "pass",
+            "dim_score": 1,
+            "runtime_vetoed": false
+          },
+          "honest_calibration": {
+            "runtime_signal": "n/a",
+            "model_judgment": "pass",
+            "final_score": "pass",
+            "dim_score": 1,
+            "runtime_vetoed": false
+          },
+          "project_specificity": {
+            "runtime_signal": "n/a",
+            "model_judgment": "pass",
+            "final_score": "pass",
+            "dim_score": 1,
+            "runtime_vetoed": false
+          },
+          "insight_density": {
+            "runtime_signal": "n/a",
+            "model_judgment": "pass",
+            "final_score": "pass",
+            "dim_score": 1,
+            "runtime_vetoed": false
+          },
+          "branch_distinctness": {
+            "runtime_signal": "n/a",
+            "model_judgment": "pass",
+            "final_score": "pass",
+            "dim_score": 1,
+            "runtime_vetoed": false
+          }
+        },
+        "aggregate_score": 1,
+        "runtime_veto_count": 0,
+        "tie_break": {
+          "ordered_dims": [
+            "evidence_rigor",
+            "actionability",
+            "coverage_adequacy",
+            "scope_discipline",
+            "honest_calibration",
+            "project_specificity",
+            "insight_density",
+            "branch_distinctness"
+          ],
+          "final_reason": "not-ranked"
+        }
+      },
+      "option-1": {
+        "dims": {
+          "evidence_rigor": {
+            "runtime_signal": "missing",
+            "model_judgment": "pass",
+            "final_score": "fail",
+            "dim_score": 0,
+            "runtime_vetoed": true
+          },
+          "actionability": {
+            "runtime_signal": "met",
+            "model_judgment": "pass",
+            "final_score": "pass",
+            "dim_score": 1,
+            "runtime_vetoed": false
+          },
+          "coverage_adequacy": {
+            "runtime_signal": "met",
+            "model_judgment": "pass",
+            "final_score": "pass",
+            "dim_score": 1,
+            "runtime_vetoed": false
+          },
+          "scope_discipline": {
+            "runtime_signal": "met",
+            "model_judgment": "pass",
+            "final_score": "pass",
+            "dim_score": 1,
+            "runtime_vetoed": false
+          },
+          "honest_calibration": {
+            "runtime_signal": "n/a",
+            "model_judgment": "pass",
+            "final_score": "pass",
+            "dim_score": 1,
+            "runtime_vetoed": false
+          },
+          "project_specificity": {
+            "runtime_signal": "n/a",
+            "model_judgment": "pass",
+            "final_score": "pass",
+            "dim_score": 1,
+            "runtime_vetoed": false
+          },
+          "insight_density": {
+            "runtime_signal": "n/a",
+            "model_judgment": "pass",
+            "final_score": "pass",
+            "dim_score": 1,
+            "runtime_vetoed": false
+          },
+          "branch_distinctness": {
+            "runtime_signal": "n/a",
+            "model_judgment": "pass",
+            "final_score": "pass",
+            "dim_score": 1,
+            "runtime_vetoed": false
+          }
+        },
+        "aggregate_score": 0.875,
+        "runtime_veto_count": 1,
+        "tie_break": {
+          "ordered_dims": [
+            "evidence_rigor",
+            "actionability",
+            "coverage_adequacy",
+            "scope_discipline",
+            "honest_calibration",
+            "project_specificity",
+            "insight_density",
+            "branch_distinctness"
+          ],
+          "final_reason": "not-ranked"
+        }
+      }
+    },
+    "winning_score": 1,
+    "runner_up_score": 0.875,
+    "margin": 0.125,
+    "tie_break": "aggregate_score",
+    "runtime_veto_effect": "option-1 evidence_rigor runtime_signal=missing forced final_score=fail and dim_score=0",
+    "resolved_at": "2026-04-29T17:30:46.000Z"
+  }
+}

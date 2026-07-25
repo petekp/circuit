@@ -63,22 +63,29 @@ function reviewFindingDetails(report: JsonObject | undefined): string[] {
   return lines;
 }
 
+// Circuit relayed nothing, so every line the reviewer wrote about its own work
+// is a claim the engine can contradict. Label them rather than delete them:
+// deleting hides that the reviewer overclaimed, which is the thing worth seeing.
+const SELF_REPORT_UNBACKED_DETAIL =
+  'Circuit relayed no source content to the reviewer, so it cannot confirm any self-reported step below happened.';
+
 // Reviewer-supplied prose: the assessment paragraph, the verification steps
 // they took, and any confidence limitations they flagged. Required on the
 // relay/result schema so a CLEAN verdict cannot collapse to a bare count;
 // rendered here so the operator sees what was checked even when there are
 // no findings to list.
-function reviewAssessmentDetails(report: JsonObject | undefined): string[] {
+function reviewAssessmentDetails(report: JsonObject | undefined, scopeEmpty: boolean): string[] {
   const lines: string[] = [];
+  const claimed = scopeEmpty ? ' (self-reported, unbacked)' : '';
   const assessment = stringField(report, 'assessment');
   if (assessment !== undefined && assessment.trim().length > 0) {
-    lines.push(`Assessment: ${assessment.trim()}`);
+    lines.push(`Assessment${claimed}: ${assessment.trim()}`);
   }
   const verification = stringArrayField(report, 'verification')
     .map((step) => step.trim())
     .filter((step) => step.length > 0);
   if (verification.length > 0) {
-    lines.push(`Reviewer steps: ${verification.join('; ')}`);
+    lines.push(`Reviewer steps${claimed}: ${verification.join('; ')}`);
   }
   const limitations = stringArrayField(report, 'confidence_limitations')
     .map((entry) => entry.trim())
@@ -254,7 +261,7 @@ const reviewProjector: SummaryProjector = ({ flowReport, runOutcome }) => {
   const evidenceIncomplete = reviewEvidenceIncomplete(flowReport);
   const stopped = stringField(flowReport, 'outcome') === 'stopped' || runOutcome === 'stopped';
   const summaryDetail = flowSummaryDetail(flowReport);
-  const assessmentDetails = reviewAssessmentDetails(flowReport);
+  const assessmentDetails = reviewAssessmentDetails(flowReport, scopeEmpty);
   // Order: legacy result-summary line, assessment paragraph (the reviewer's
   // framing), the findings list, then verification + limitations + evidence.
   // Assessment lives in `assessmentDetails`; we splice the verification and
@@ -263,6 +270,10 @@ const reviewProjector: SummaryProjector = ({ flowReport, runOutcome }) => {
   const [assessmentLine, ...verificationAndLimitations] = assessmentDetails;
   const details: string[] = [];
   if (summaryDetail !== undefined) details.push(summaryDetail);
+  // The contradiction leads, so the operator reads what Circuit knows before
+  // reading what the reviewer said about itself (run 1fbbd9ba claimed a
+  // complete-diff inspection against a scope_empty ledger).
+  if (scopeEmpty && assessmentDetails.length > 0) details.push(SELF_REPORT_UNBACKED_DETAIL);
   if (assessmentLine !== undefined) details.push(assessmentLine);
   details.push(...reviewFindingDetails(flowReport));
   details.push(...verificationAndLimitations);

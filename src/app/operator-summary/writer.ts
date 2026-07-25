@@ -183,8 +183,14 @@ function capWithOverflow(items: readonly string[], max: number): string[] {
 // lines fill the card, the dropped candidates still live in the details array
 // of the same operator-summary.json this brief is part of.
 function briefKeyPoints(priority: readonly string[], candidates: readonly string[]): string[] {
-  const front = priority.slice(0, MAX_KEY_POINTS);
-  return [...front, ...capWithOverflow(candidates, MAX_KEY_POINTS - front.length)];
+  // A branch's own prepended lines hold the front slots, EXCEPT the ones that
+  // only describe the run's surroundings. Those sink in with the candidates so
+  // MAX_KEY_POINTS is spent on what the flow found. Salvage lines that are real
+  // findings ("Verification: command 'x' exited 1") are not context and keep
+  // their priority.
+  const front = priority.filter((point) => !isContextKeyPoint(point)).slice(0, MAX_KEY_POINTS);
+  const rest = [...candidates, ...priority.filter(isContextKeyPoint)];
+  return [...front, ...capWithOverflow(rest, MAX_KEY_POINTS - front.length)];
 }
 
 // The real salvage menu for a stopped or aborted run: the operator inspects
@@ -651,6 +657,25 @@ function normalizedAssessment(details: readonly string[], fallback: string): str
   );
 }
 
+// Lines that describe the run's surroundings rather than what the flow found.
+// `Worker access:` is PREPENDED to `details` ahead of the flow's own projection,
+// and `Connector:` trails it, so on position alone they take the front key-point
+// slots. Under MAX_KEY_POINTS that evicted real findings: a stopped Fix run
+// (fce99631) showed the stop reason, worker access, and the working tree while
+// pushing "Verification: passed.", the deferred regression, and "Review:
+// accepted." behind a "+N more" pointer. Context still renders, but only after
+// the flow has had its say.
+const CONTEXT_KEY_POINT_PREFIXES = ['Worker access: ', 'Connector: '] as const;
+
+// On an ABORT this is a finding: the operator must know the work survived, or
+// they discard it. On a stopped run that finished its steps and closed degraded
+// it is only context, and it was crowding out the flow's own findings.
+const WORKING_TREE_SALVAGE_PREFIX = 'Working tree: ';
+
+function isContextKeyPoint(point: string): boolean {
+  return CONTEXT_KEY_POINT_PREFIXES.some((prefix) => point.startsWith(prefix));
+}
+
 // Uncapped key-point candidates, in render order. Callers that prepend their
 // own lines (the outcome-override briefs) combine first and cap once —
 // capping twice would let an inner "+N more" line survive while real points
@@ -691,7 +716,12 @@ function keyPointCandidatesFromDetails(details: readonly string[]): string[] {
     }
     add(detail);
   }
-  return points;
+  // Stable partition: findings keep their relative order, context keeps its own,
+  // and context sinks behind every finding so the cap drops surroundings first.
+  return [
+    ...points.filter((point) => !isContextKeyPoint(point)),
+    ...points.filter(isContextKeyPoint),
+  ];
 }
 
 function keyPointsFromDetails(details: readonly string[]): string[] {
@@ -855,6 +885,12 @@ function runOutcomeOverrideBrief(input: {
     };
   }
   if (input.runResult.outcome === 'stopped') {
+    // A stopped run ran its steps and closed degraded, so "your edits are
+    // uncommitted" is surroundings and sinks behind the flow's own findings.
+    // The abort branch above keeps it up front on purpose: there the work is
+    // genuinely at risk and the operator has to be told it survived.
+    const salvage = salvageKeyPoints({ runFolder: input.runFolder, flowId: input.flowId });
+    const isWorkingTree = (point: string): boolean => point.startsWith(WORKING_TREE_SALVAGE_PREFIX);
     return {
       headline: digestHeadline(input.flowName),
       assessment: 'The flow stopped before complete evidence was produced.',
@@ -863,9 +899,9 @@ function runOutcomeOverrideBrief(input: {
           ...(input.runResult.reason === undefined
             ? []
             : [`Stop reason: ${input.runResult.reason}`]),
-          ...salvageKeyPoints({ runFolder: input.runFolder, flowId: input.flowId }),
+          ...salvage.filter((point) => !isWorkingTree(point)),
         ],
-        keyPoints,
+        [...keyPoints, ...salvage.filter(isWorkingTree)],
       ),
       caveats: [],
       next_action: SALVAGE_NEXT_ACTION,
