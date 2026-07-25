@@ -26231,7 +26231,7 @@ function pathInside(parent, candidate2) {
 }
 
 // src/hosts/codex-mcp/host-sandbox-canary.ts
-var CANARY_TIMEOUT_MS = 2e4;
+var CANARY_TIMEOUT_MS = 45e3;
 var CANARY_OUTPUT_LIMIT_BYTES = 1024 * 1024;
 var EXPECTED_TOOL_NAMES = Object.freeze([
   "apply_patch",
@@ -26351,9 +26351,11 @@ function shellQuote(value) {
 }
 function checkedResult(result, name) {
   if (result.timedOut || result.stdoutCapped || result.stderrCapped || result.code !== 0) {
-    const detail = result.stderr.trim().slice(0, 500);
+    const cause = result.timedOut ? `timed out after ${CANARY_TIMEOUT_MS}ms` : result.stdoutCapped ? `produced more than ${CANARY_OUTPUT_LIMIT_BYTES} bytes on stdout` : result.stderrCapped ? `produced more than ${MCP_CODEX_STDERR_LIMIT_BYTES} bytes on stderr` : `exited ${result.code}`;
+    const output = result.stderr.trim() || result.stdout.trim();
+    const detail = output.slice(0, 500);
     throw new Error(
-      `Circuit could not prove the Codex ${name}${detail.length === 0 ? "." : `: ${detail}`}`
+      `Circuit could not prove the Codex ${name}: it ${cause}${detail.length === 0 ? " and wrote nothing." : `. Output: ${detail}`}`
     );
   }
 }

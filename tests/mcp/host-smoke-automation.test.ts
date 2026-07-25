@@ -19,6 +19,7 @@ import {
   buildMarketplaceInstallPhases,
   buildMarketplaceInstallPlan,
   classifySmokeFailure,
+  declaresMcpServer,
   isRetryablePublishedSmokeOutcome,
   normalizeGitSource,
   parseSmokeOptions,
@@ -256,6 +257,42 @@ describe('Codex MCP host smoke automation', () => {
       expect(() => assertPluginTreeMatchesSource(source, installed, 'installed plugin')).toThrow(
         'installed plugin tree does not match its verified source',
       );
+    } finally {
+      rmSync(root, { recursive: true, force: true });
+    }
+  });
+
+  // The published-mode canary installs whatever the newest public tag is, and a
+  // release can predate the MCP server entirely — v0.1.1 did. Every MCP probe
+  // asks that release about a surface it never shipped, so it has to be possible
+  // to tell "this release has no MCP server" from "this release is broken".
+  // The signal is the release's own declaration: a tree that carries a server
+  // file but never names it exposes no tools, so the file alone would be a lie.
+  it('reads whether a published release declares an MCP server of its own', () => {
+    const root = mkdtempSync(join(tmpdir(), 'circuit-smoke-mcp-declaration-'));
+    const preMcp = join(root, 'pre-mcp');
+    const declared = join(root, 'declared');
+    const empty = join(root, 'empty-declaration');
+    const unparseable = join(root, 'unparseable');
+    const carriesFileOnly = join(root, 'file-without-declaration');
+    try {
+      for (const tree of [preMcp, declared, empty, unparseable, carriesFileOnly]) {
+        mkdirSync(tree, { recursive: true });
+      }
+      writeFileSync(
+        join(declared, '.mcp.json'),
+        '{"mcpServers":{"circuit":{"command":"node","args":["mcp/server.cjs"]}}}\n',
+      );
+      writeFileSync(join(empty, '.mcp.json'), '{"mcpServers":{}}\n');
+      writeFileSync(join(unparseable, '.mcp.json'), '{"mcpServers":\n');
+      mkdirSync(join(carriesFileOnly, 'mcp'), { recursive: true });
+      writeFileSync(join(carriesFileOnly, 'mcp', 'server.cjs'), '// unreferenced\n');
+
+      expect(declaresMcpServer(declared)).toBe(true);
+      expect(declaresMcpServer(preMcp)).toBe(false);
+      expect(declaresMcpServer(empty)).toBe(false);
+      expect(declaresMcpServer(unparseable)).toBe(false);
+      expect(declaresMcpServer(carriesFileOnly)).toBe(false);
     } finally {
       rmSync(root, { recursive: true, force: true });
     }

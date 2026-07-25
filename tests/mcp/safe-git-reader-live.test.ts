@@ -17,7 +17,19 @@ function temporaryDirectory(label: string): string {
 
 function git(cwd: string, ...args: string[]): string {
   const result = spawnSync('/usr/bin/git', args, { cwd, encoding: 'utf8' });
-  if (result.status !== 0) throw new Error(result.stderr);
+  if (result.status !== 0) {
+    // Report the command, the status, and BOTH streams. Several git failures say
+    // nothing on stderr — `git commit` writes "nothing to commit" to stdout and
+    // exits 1 — so a stderr-only message can be empty, which is how a CI failure
+    // here once arrived with no diagnosis attached.
+    throw new Error(
+      [
+        `git ${args.join(' ')} exited ${result.status} in ${cwd}`,
+        `stdout: ${result.stdout.trim() || '<empty>'}`,
+        `stderr: ${result.stderr.trim() || '<empty>'}`,
+      ].join('\n'),
+    );
+  }
   return result.stdout.trim();
 }
 
@@ -253,8 +265,14 @@ describe.runIf(process.platform === 'darwin')('live macOS Codex MCP safe Git rea
     expect(stagedStat.stdout).toContain('modules/child');
     expect(stagedGitlinks.stdout).toContain('modules/child');
 
-    git(workspace, 'commit', '--quiet', '-m', 'update child');
+    // `diff.ignoreSubmodules=all` is set on this repo to attack the READER, but
+    // git's own change detection honors it too: with it in force, `git commit`
+    // sees no submodule change and exits 1 with "nothing to commit" — on stdout,
+    // so `--quiet` swallows the reason. This setup commit has to move the
+    // gitlink, so it overrides the hostile config for itself only.
+    git(workspace, '-c', 'diff.ignoreSubmodules=none', 'commit', '-m', 'update child');
     const headCommit = git(workspace, 'rev-parse', 'HEAD');
+    expect(headCommit).not.toBe(baseCommit);
     const target = {
       kind: 'range' as const,
       base_commit: baseCommit,

@@ -64,5 +64,7 @@ suite('live no-spend Codex security canaries', () => {
         policy: { ...input.policy, searchMode: 'cached' as const },
       }),
     ).resolves.toBeUndefined();
-  }, 90_000);
+    // Three sequential nested-Codex probes, each with its own fail-closed
+    // budget. The ceiling has to clear all three on the slowest supported host.
+  }, 180_000);
 });

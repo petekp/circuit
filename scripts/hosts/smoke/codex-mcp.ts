@@ -40,6 +40,7 @@ const SEMVER_PATTERN = /^\d+\.\d+\.\d+(?:-[0-9A-Za-z.-]+)?(?:\+[0-9A-Za-z.-]+)?$
 const SAFE_MARKETPLACE_NAME = /^[a-z0-9][a-z0-9-]{0,63}$/;
 const SAFE_REF = /^[A-Za-z0-9][A-Za-z0-9._/+-]{0,199}$/;
 const MINIMUM_NODE_VERSION = `${REQUIRED_NODE.major}.${REQUIRED_NODE.minor}.0`;
+const CODEX_PLUGIN_MCP_CONFIG = '.mcp.json';
 export const SENTINEL_RUN_ID = '019f64f5-1f4d-7d91-8cda-a309cc72c301';
 const DIAGNOSTIC_SENTINELS = [
   ['scratch-root', '019f64f5-1f4d-7d91-8cda-a309cc72c310'],
@@ -281,6 +282,29 @@ function outcome(
     versions: input.versions,
     evidence,
   };
+}
+
+// Whether an installed plugin tree declares a Codex MCP server of its own. This
+// reads the release's declaration rather than looking for a server file, because
+// the declaration is what decides whether Codex will ever start one: a tree that
+// carries the file but never names it exposes no tools, and a probe that went
+// looking for the file would call that release compatible.
+export function declaresMcpServer(installedPluginPath: string): boolean {
+  const configPath = join(installedPluginPath, CODEX_PLUGIN_MCP_CONFIG);
+  if (!existsSync(configPath)) return false;
+  let parsed: unknown;
+  try {
+    parsed = JSON.parse(readFileSync(configPath, 'utf8'));
+  } catch {
+    // Unreadable is not the same as absent, and this function is only asked to
+    // decide whether there is a surface worth probing. Say no, and let the probe
+    // that follows report the broken config on a release that claims to have one.
+    return false;
+  }
+  if (typeof parsed !== 'object' || parsed === null || Array.isArray(parsed)) return false;
+  const servers = (parsed as { readonly mcpServers?: unknown }).mcpServers;
+  if (typeof servers !== 'object' || servers === null || Array.isArray(servers)) return false;
+  return Object.keys(servers).length > 0;
 }
 
 function remoteSource(source: string): boolean {
@@ -817,7 +841,21 @@ async function startProbeServer(mode: 'mcp' | 'old-host' = 'mcp'): Promise<Probe
           .filter((name): name is string => typeof name === 'string')
           .sort();
         if (JSON.stringify(discoveredTools) !== JSON.stringify([...MCP_TOOL_NAMES].sort())) {
-          protocolError = `tool_search returned unexpected Circuit tools: ${discoveredTools.join(', ')}`;
+          // Name the difference in both directions. The old message printed only
+          // the tools that came back, so a search that found nothing at all
+          // reported "unexpected Circuit tools:" and stopped there, which is how
+          // this failure reached CI carrying no idea of what was wrong.
+          const missing = MCP_TOOL_NAMES.filter((name) => !discoveredTools.includes(name));
+          const unexpected = discoveredTools.filter(
+            (name) => !MCP_TOOL_NAMES.includes(name as (typeof MCP_TOOL_NAMES)[number]),
+          );
+          protocolError = [
+            `tool_search returned the wrong Circuit tools. Found ${
+              discoveredTools.length === 0 ? 'none' : discoveredTools.join(', ')
+            }.`,
+            missing.length === 0 ? '' : ` Missing ${missing.join(', ')}.`,
+            unexpected.length === 0 ? '' : ` Unexpected ${unexpected.join(', ')}.`,
+          ].join('');
           response.writeHead(500).end();
           return;
         }
@@ -1658,6 +1696,29 @@ export async function runLiveProbe(
     evidence.push({ name: 'plugin_tree_sha256', ok: true, detail: pluginTreeSha256 });
     assertPluginListed(expectedVersion, 'current');
     evidence.push({ name: 'installed_plugin_enabled', ok: true, detail: expectedVersion });
+
+    // A published release can predate the MCP server. Upgrade mode already knows
+    // that (it installs a pre-MCP version on purpose), but published mode points
+    // at whatever the newest public tag happens to be, and every probe below this
+    // line asks the release about a surface it may never have shipped. Asking
+    // anyway reports a product failure for a release that was never broken, so
+    // check first and say plainly that there is nothing here to prove. The check
+    // reads the release's own MCP declaration, so it starts proving the real
+    // thing on its own the first time a release ships one.
+    if (options.mode === 'published' && !declaresMcpServer(installedPluginPath)) {
+      evidence.push({
+        name: 'published_release_declares_mcp_server',
+        ok: false,
+        detail: `Circuit ${expectedVersion} ships no ${CODEX_PLUGIN_MCP_CONFIG} declaring an MCP server.`,
+      });
+      return outcome(
+        options.mode,
+        'skip',
+        `Circuit ${expectedVersion} was released before the Codex MCP server, so it has no MCP surface to prove. This check starts running by itself with the first release that ships ${CODEX_PLUGIN_MCP_CONFIG}.`,
+        evidence,
+        { ...(sourceDetails === undefined ? {} : { source: sourceDetails }), versions: versions() },
+      );
+    }
 
     if (existsSync(stateRoot)) {
       throw new SmokeProbeError(

@@ -780,12 +780,26 @@ describe('review under hostile Git conditions', () => {
       env: replacementEnvironment,
       encoding: 'utf8',
     }).trim();
-    const replacementCommit = execFileSync('git', ['commit-tree', replacementTree], {
-      cwd: projectRoot,
-      env: replacementEnvironment,
-      input: 'replacement\n',
-      encoding: 'utf8',
-    }).trim();
+    // commit-tree needs an author the same way `git commit` does, and it gets it
+    // from the same place: config, then the OS account name. A CI runner has
+    // neither, so the identity has to be passed in rather than inherited.
+    const replacementCommit = execFileSync(
+      'git',
+      [
+        '-c',
+        'user.name=Circuit',
+        '-c',
+        'user.email=circuit@example.test',
+        'commit-tree',
+        replacementTree,
+      ],
+      {
+        cwd: projectRoot,
+        env: replacementEnvironment,
+        input: 'replacement\n',
+        encoding: 'utf8',
+      },
+    ).trim();
     rmSync(replacementIndex, { force: true });
     rmSync(join(projectRoot, 'replacement.ts'), { force: true });
     execFileSync('git', ['replace', originalCommit, replacementCommit], {

@@ -20,7 +20,20 @@ import {
   tomlString,
 } from './nested-codex.js';
 
-const CANARY_TIMEOUT_MS = 20_000;
+// How long one nested-Codex probe may take before Circuit calls it unproven.
+//
+// Measured on the hosted CI matrix: arm64 macOS finishes all three probes in the
+// live canary test in ~11s, while x64 cannot finish the first inside 20s and
+// fails there on every Codex version, so the cause is the host and not a Codex
+// change. The same x64 runner label has also cleared all three probes in 12s in
+// another workflow, which says this is variance under load rather than a floor
+// the host cannot beat. Starting a sandboxed Codex is process-heavy, so size the
+// budget for the slowest host Circuit supports rather than the fastest.
+//
+// It is a fail-closed budget, not a latency target: it costs nothing on a
+// healthy host and only delays the report when a probe is genuinely stuck. The
+// error names the timeout and its length, so a host that needs more says so.
+const CANARY_TIMEOUT_MS = 45_000;
 const CANARY_OUTPUT_LIMIT_BYTES = 1024 * 1024;
 const EXPECTED_TOOL_NAMES = Object.freeze([
   'apply_patch',
@@ -173,9 +186,23 @@ function shellQuote(value: string): string {
 
 function checkedResult(result: ConnectorSubprocessResult, name: string): void {
   if (result.timedOut || result.stdoutCapped || result.stderrCapped || result.code !== 0) {
-    const detail = result.stderr.trim().slice(0, 500);
+    // Four different things reach this line, and which one it was decides what to
+    // do about it: a timeout means the host needs longer, a capped stream means
+    // the probe said too much, a nonzero exit means Codex refused. Name it, and
+    // fall back to stdout when stderr is empty — a timed-out Codex often says
+    // nothing on stderr at all, which is how this failure once reached CI twice
+    // carrying no diagnosis.
+    const cause = result.timedOut
+      ? `timed out after ${CANARY_TIMEOUT_MS}ms`
+      : result.stdoutCapped
+        ? `produced more than ${CANARY_OUTPUT_LIMIT_BYTES} bytes on stdout`
+        : result.stderrCapped
+          ? `produced more than ${MCP_CODEX_STDERR_LIMIT_BYTES} bytes on stderr`
+          : `exited ${result.code}`;
+    const output = result.stderr.trim() || result.stdout.trim();
+    const detail = output.slice(0, 500);
     throw new Error(
-      `Circuit could not prove the Codex ${name}${detail.length === 0 ? '.' : `: ${detail}`}`,
+      `Circuit could not prove the Codex ${name}: it ${cause}${detail.length === 0 ? ' and wrote nothing.' : `. Output: ${detail}`}`,
     );
   }
 }

@@ -150,8 +150,8 @@ describe('Codex named sandbox canary', () => {
     expect(run).toHaveBeenCalledWith(
       expect.objectContaining({
         executable: '/trusted/codex',
-        timeoutMs: 20_000,
-        idleTimeoutMs: 20_000,
+        timeoutMs: 45_000,
+        idleTimeoutMs: 45_000,
         stdoutMaxBytes: 1024 * 1024,
         args: expect.arrayContaining([
           'sandbox',
@@ -289,6 +289,27 @@ describe('Codex named sandbox canary', () => {
         sharedTempRootCandidates: input.sharedTempRoots,
       }),
     ).rejects.toThrow(/could not prove/);
+  });
+
+  // A canary that fails has to say which of the four things went wrong, because
+  // the remedy differs: a timeout means the host needs longer, a nonzero exit
+  // means Codex refused. A bare "could not prove" sent this failure through CI
+  // twice with nothing to act on.
+  it('names the cause when the canary fails, and reads stdout when stderr is silent', async () => {
+    const input = await fixture();
+    await expect(
+      runCodexNestedSandboxCanary(input, {
+        run: async () => ({ ...result(''), timedOut: true, timeoutKind: 'absolute' }),
+        sharedTempRootCandidates: input.sharedTempRoots,
+      }),
+    ).rejects.toThrow(/timed out after \d+ms/);
+
+    await expect(
+      runCodexNestedSandboxCanary(input, {
+        run: async () => ({ ...result('nested codex refused the sandbox'), code: 3 }),
+        sharedTempRootCandidates: input.sharedTempRoots,
+      }),
+    ).rejects.toThrow(/exited 3\. Output: nested codex refused the sandbox/);
   });
 
   it("never uses or removes the operator's real Codex auth file", async () => {
