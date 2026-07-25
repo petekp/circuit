@@ -22,6 +22,7 @@ import {
   seedPowerInferenceFromTrace,
 } from '../../selection/power-inference.js';
 import { resolvePowerDialSetting } from '../../selection/power-tiers.js';
+import { resolveEngineProvenance } from '../../shared/engine-provenance.js';
 import { resolveDottedPath } from '../../shared/fanout-branch-template.js';
 import { isProofPlanBlockedError } from '../../shared/proof-plan.js';
 import { createUserSkillRegistry } from '../../shared/user-skill-registry.js';
@@ -802,6 +803,11 @@ async function executeExecutableFlowOutcomeUnsafe(
         flow,
         ...(context.entryModeName === undefined ? {} : { entryModeName: context.entryModeName }),
       }),
+      // Which engine is running. Stamped at bootstrap rather than only at close
+      // so a run that crashes still records what produced it, and so a
+      // crash-healed result reports the engine that ran instead of the one that
+      // did the healing.
+      engine: resolveEngineProvenance(),
       // Empty for every built-in (the manifest is the sole authority post-M4);
       // omitted entirely when empty so a run that reduced nothing makes no claim.
       // A composed flow with a needs model (M9) can populate it again.

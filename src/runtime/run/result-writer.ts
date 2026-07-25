@@ -1,3 +1,4 @@
+import type { EngineProvenance } from '../../schemas/engine-provenance.js';
 import { RUN_RESULT_RELATIVE_PATH } from '../../shared/result-path.js';
 import type { RunClosedOutcome, RunId } from '../domain/run.js';
 import type { RunFileStore } from '../run-files/run-file-store.js';
@@ -7,6 +8,11 @@ export interface RuntimeRunResult {
   readonly run_id: RunId;
   readonly flow_id: string;
   readonly goal: string;
+  // Declared here because closeRun writes it (spread properties bypass excess
+  // property checking, so its absence was invisible to tsc rather than
+  // intentional). result-recovery cannot supply it: `why` is not on the
+  // run.bootstrapped entry, so a crash-healed record still omits it.
+  readonly why?: string;
   readonly outcome: RunClosedOutcome;
   readonly summary: string;
   readonly closed_at: string;
@@ -14,6 +20,7 @@ export interface RuntimeRunResult {
   readonly manifest_hash: string;
   readonly reason?: string;
   readonly verdict?: string;
+  readonly engine?: EngineProvenance;
 }
 
 export async function writeRuntimeRunResult(

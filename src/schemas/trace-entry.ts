@@ -7,6 +7,7 @@ import {
   SafeApplyReasonCode,
 } from './change-packet.js';
 import { RelayResolutionSource, ResolvedConnector } from './connector.js';
+import { EngineProvenance } from './engine-provenance.js';
 import { EquipmentEnforcement } from './equipment-scope.js';
 import {
   GuidanceDecisionId,
@@ -68,6 +69,13 @@ export const RunBootstrappedTraceEntry = TraceEntryBase.extend({
   // model (M9) can populate it. Optional so prior fixtures and resumed runs
   // (which never re-bootstrap) stay valid — an omitted field makes no claim.
   reduced_bindings: z.array(CatalogSourcedBinding).optional(),
+  // Which engine bootstrapped this run. Stamped here as well as on the result
+  // so a crash-healed record, which is rebuilt from this entry, reports the
+  // engine that actually ran rather than the one that did the healing.
+  // Optional for the same reason as `reduced_bindings`: prior fixtures and
+  // resumed runs (which never re-bootstrap) stay valid, and an omitted field
+  // makes no claim.
+  engine: EngineProvenance.optional(),
 }).strict();
 export type RunBootstrappedTraceEntry = z.infer<typeof RunBootstrappedTraceEntry>;
 

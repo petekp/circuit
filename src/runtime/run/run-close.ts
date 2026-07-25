@@ -6,6 +6,7 @@
 // WHEN to close; this module decides what the closed run records.
 
 import type { GuidanceDecisionTraceEntryBody } from '../../schemas/guidance-decision.js';
+import { resolveEngineProvenance } from '../../shared/engine-provenance.js';
 import { isDegradedCompletionOutcome } from '../../shared/outcome.js';
 import type { TerminalTarget } from '../domain/route.js';
 import type { RunClosedOutcome } from '../domain/run.js';
@@ -391,6 +392,7 @@ export async function closeRun(
     manifest_hash: context.manifestHash,
     ...(finalReason === undefined ? {} : { reason: finalReason }),
     ...(verdict === undefined ? {} : { verdict }),
+    engine: resolveEngineProvenance(),
   };
   const resultPath = await writeRuntimeRunResult(context.files, result);
   return { kind: 'closed', result: { ...result, resultPath } };

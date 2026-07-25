@@ -12,6 +12,7 @@
 // is forward-recovery, which is out of scope.
 
 import { existsSync } from 'node:fs';
+import { EngineProvenance } from '../../schemas/engine-provenance.js';
 import { RunId } from '../../schemas/ids.js';
 import { runResultPath } from '../../shared/result-path.js';
 import type { TraceEntry } from '../domain/trace.js';
@@ -74,6 +75,15 @@ export async function regenerateMissingRunResult(
     return { regenerated: false, reason: 'incomplete-trace' };
   }
 
+  // Parsed rather than trusted: the trace is durable but not schema-checked on
+  // read, and a malformed stamp should degrade to no stamp instead of failing
+  // the whole recovery or writing a result that cannot be parsed back.
+  const bootstrapEngineRaw = (bootstrap as { readonly engine?: unknown } | undefined)?.engine;
+  const bootstrapEngineParsed =
+    bootstrapEngineRaw === undefined ? undefined : EngineProvenance.safeParse(bootstrapEngineRaw);
+  const bootstrapEngine =
+    bootstrapEngineParsed?.success === true ? bootstrapEngineParsed.data : undefined;
+
   const outcome = closed.outcome;
   const verdict = outcome === 'complete' ? latestAdmittedVerdict(entries) : undefined;
 
@@ -117,6 +127,12 @@ export async function regenerateMissingRunResult(
     manifest_hash: manifestHash,
     ...(closed.reason === undefined ? {} : { reason: closed.reason }),
     ...(verdict === undefined ? {} : { verdict }),
+    // Read back from the bootstrap entry, never re-probed. This is a projection
+    // of a run that already happened, possibly on a different engine build than
+    // the one doing the healing, and stamping the healer here would assert
+    // something the run never observed. A run bootstrapped before this field
+    // existed simply carries no stamp.
+    ...(bootstrapEngine === undefined ? {} : { engine: bootstrapEngine }),
   };
 
   const resultPath = await writeRuntimeRunResult(files, result);

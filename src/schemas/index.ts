@@ -39,6 +39,7 @@ export * from './acceptance-criteria.js';
 export * from './process.js';
 export * from './context-request.js';
 export * from './engine-flags.js';
+export * from './engine-provenance.js';
 export * from './equipment-discovery.js';
 export * from './equipment-scope.js';
 export * from './role.js';

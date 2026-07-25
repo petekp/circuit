@@ -1,4 +1,5 @@
 import { z } from 'zod';
+import { EngineProvenance } from './engine-provenance.js';
 import { CompiledFlowId, RunId } from './ids.js';
 import { RunClosedOutcome } from './trace-entry.js';
 
@@ -51,6 +52,10 @@ export const RunResult = z
     manifest_hash: z.string().min(1),
     reason: z.string().min(1).optional(),
     verdict: z.string().min(1).optional(),
+    // Which engine produced this record, so run history can be cohorted by
+    // build. Optional so every run recorded before the stamp existed stays
+    // readable — an omitted field makes no claim.
+    engine: EngineProvenance.optional(),
   })
   .strict();
 export type RunResult = z.infer<typeof RunResult>;
