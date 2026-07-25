@@ -89,6 +89,10 @@
       "kind": "relay",
       "role": "reviewer",
       "writes": {
+        "report": {
+          "path": "reports/review-verdict.json",
+          "schema": "review.verdict@v1"
+        },
         "request": "reports/relay/review.request.json",
         "receipt": "reports/relay/review.receipt.txt",
         "result": "stages/analyze/review-raw-findings.json"
@@ -106,7 +110,7 @@
       "id": "verdict-step",
       "title": "Verdict — emit review.result",
       "protocol": "review-verdict@v1",
-      "reads": ["reports/review-intake.json", "stages/analyze/review-raw-findings.json"],
+      "reads": ["reports/review-intake.json", "reports/review-verdict.json"],
       "routes": {
         "complete": "@complete",
         "pass": "@complete",

@@ -34,12 +34,16 @@ const VALID_REVIEW_BODY = JSON.stringify({
 });
 
 describe('run exit codes mirror the closed outcome', () => {
-  it('exits 1 when the run closes aborted, with the envelope intact on stdout', async () => {
-    const runFolder = join(mkdtempSync(join(tmpdir(), 'circuit-exit-codes-')), 'aborted-run');
+  // A reviewer that answers with the wrong shape closes `evidence_invalid`: the
+  // relay ran, but its report never validated, so there is nothing to stand on.
+  // What this test pins is the exit code, not the label — every close short of
+  // complete exits 1.
+  it('exits 1 when the run closes short of complete, with the envelope intact on stdout', async () => {
+    const runFolder = join(mkdtempSync(join(tmpdir(), 'circuit-exit-codes-')), 'unproven-run');
     const args = parseExecutionArgs('run', [
       'review',
       '--goal',
-      'Review this supplied text: a malformed relay body must abort with a nonzero exit code.',
+      'Review this supplied text: a malformed relay body must close with a nonzero exit code.',
       '--run-folder',
       runFolder,
     ]);
@@ -48,14 +52,14 @@ describe('run exit codes mirror the closed outcome', () => {
     );
 
     const envelope = JSON.parse(stdout) as Record<string, unknown>;
-    expect(envelope.outcome).toBe('aborted');
+    expect(envelope.outcome).toBe('evidence_invalid');
     expect(result).toBe(1);
     // The failure signal is additive: the envelope still carries the receipts.
     expect(typeof envelope.result_path).toBe('string');
     const recorded = JSON.parse(readFileSync(envelope.result_path as string, 'utf8')) as {
       outcome?: string;
     };
-    expect(recorded.outcome).toBe('aborted');
+    expect(recorded.outcome).toBe('evidence_invalid');
   });
 
   it('still exits 0 when the run closes complete', async () => {

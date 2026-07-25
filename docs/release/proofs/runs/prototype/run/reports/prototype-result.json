@@ -8,6 +8,7 @@
   "entry_points": [
     "docs/release/proofs/runs/prototype/run/prototype-files/index.html"
   ],
+  "integration_touchpoints": [],
   "preview_instructions": "Open docs/release/proofs/runs/prototype/run/prototype-files/index.html locally.",
   "residual_risks": [
     "Prototype is not wired to live Circuit flow-saving behavior.",

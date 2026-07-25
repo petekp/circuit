@@ -16,13 +16,13 @@
     "flow_id": "review",
     "outcome": "complete",
     "trace_entries_observed": 18,
-    "manifest_hash": "32f1f7562b288d94be595bf68909ea4b09eaf51ee69c661d8d8ef75b9a6aab9e",
+    "manifest_hash": "fb48eb43bf3fe43fc521c868505f661a8ff63ed1ccad7da3eb5971f8d84ff1b7",
     "result_ref": {
       "source": "child_result",
       "ref": {
         "kind": "report",
         "ref": "reports/result.json",
-        "sha256": "77833d833a8721037f8746b0d84bd9295d86d6a35dafaa9d16e6d4a9e4e599a3",
+        "sha256": "ba2e1ec8f3fd50ae8ec323a6e6c6fec00417593176c15570ff5157413f4a21eb",
         "run_id": "44444444-4444-4444-4444-444444444404",
         "flow_id": "review"
       }
@@ -32,7 +32,7 @@
     {
       "kind": "report",
       "ref": "reports/result.json",
-      "sha256": "77833d833a8721037f8746b0d84bd9295d86d6a35dafaa9d16e6d4a9e4e599a3",
+      "sha256": "ba2e1ec8f3fd50ae8ec323a6e6c6fec00417593176c15570ff5157413f4a21eb",
       "run_id": "44444444-4444-4444-4444-444444444404",
       "flow_id": "review"
     }

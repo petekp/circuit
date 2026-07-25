@@ -21,6 +21,15 @@ import type {
 import { ReviewIntake, ReviewRelayResult } from '../reports.js';
 import { projectReviewResult } from './result-projection.js';
 
+/**
+ * Where the reviewer's response lands for the close step to read.
+ *
+ * Prefer the relay step's typed report: when the step declares one, the runtime
+ * has already validated the body against `review.verdict@v1` before writing it,
+ * and the compiler routes the close step's read there. The raw result path is
+ * the fallback for a relay step that declares no report, where the body reaches
+ * the close step unvalidated.
+ */
 function reviewerRelayResultPath(
   flow: RuntimeIndexedFlow,
   closeStep: ComposeBuildContext['step'],
@@ -37,13 +46,19 @@ function reviewerRelayResultPath(
       `review.result@v1 requires exactly one reviewer relay routing to '${closeStepId}', found ${reviewerRelayes.length}`,
     );
   }
-  const resultPath = reviewerRelayes[0]?.writes.result as unknown as string | undefined;
-  if (resultPath === undefined || !closeStep.reads.includes(resultPath as never)) {
+  const relayWrites = reviewerRelayes[0]?.writes;
+  const reportPath = relayWrites?.report?.path as unknown as string | undefined;
+  const resultPath = relayWrites?.result as unknown as string | undefined;
+  const readable = [reportPath, resultPath].find(
+    (candidate): candidate is string =>
+      candidate !== undefined && closeStep.reads.includes(candidate as never),
+  );
+  if (readable === undefined) {
     throw new Error(
-      `review.result@v1 requires close step '${closeStepId}' to read the reviewer relay result path '${resultPath ?? '<missing>'}'`,
+      `review.result@v1 requires close step '${closeStepId}' to read the reviewer verdict at '${reportPath ?? resultPath ?? '<missing>'}'`,
     );
   }
-  return resultPath;
+  return readable;
 }
 
 function reviewIntakePath(

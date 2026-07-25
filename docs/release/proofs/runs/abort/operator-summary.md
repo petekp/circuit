@@ -3,8 +3,10 @@ Circuit · Build
 The run aborted before this flow could finish.
 
 - Abort reason: step 'act-step' handler threw: relay step 'act-step': connector invocation failed (proof connector failure while implementing the synthetic Build change)
+- Working tree: the attempt's edits remain uncommitted.
+- Review: independent review did not run.
 - Worker access: A worker can edit this checkout.
 
-Next: fix the abort cause, then rerun the flow.
+Next: review the diff, run verification at your own budget, then resume, rerun, or discard the attempt.
 
-⎿ depth medium · power medium · 2 worker runs · all checks passed
+⎿ power medium · process medium · 2 worker runs · all checks passed

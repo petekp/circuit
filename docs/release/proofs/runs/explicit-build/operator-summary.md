@@ -9,6 +9,6 @@ Circuit is waiting for a checkpoint choice before this flow can continue.
 
 Next: choose a checkpoint option to continue.
 
-⎿ depth high · 0 worker runs
+⎿ process high · 0 worker runs
 
 Rich summary: <repo>/docs/release/proofs/runs/explicit-build/run/reports/operator-summary.html

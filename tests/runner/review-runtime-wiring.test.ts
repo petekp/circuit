@@ -195,7 +195,14 @@ describe('registered review compose writer', () => {
     expect(report.verdict).toBe('CLEAN');
   });
 
-  it('aborts instead of throwing when the admitted relay result is not review-shaped', async () => {
+  // A reviewer that answers with the wrong shape is caught where the reviewer
+  // answered, not one step downstream. The audit step declares a typed report,
+  // so the runtime validates the body against review.verdict@v1 the moment it
+  // arrives: the step takes its recovery route and asks the reviewer again, and
+  // only when the second answer is malformed too does the run close. It closes
+  // `evidence_invalid` — a relay finished but its report is unproven — rather
+  // than `aborted`, which the engine reserves for contract violations.
+  it('re-asks the reviewer and closes evidence_invalid when the relay result is not review-shaped', async () => {
     const { bytes } = loadFixture();
     const runFolder = join(reviewRunFolderBase(), 'bad-review-relay-shape');
     const projectRoot = stagedReviewProject('bad-review-relay-project');
@@ -211,19 +218,18 @@ describe('registered review compose writer', () => {
       relayer: relayerWithBody('{"verdict":"NO_ISSUES_FOUND","findings":"not-an-array"}'),
     });
 
-    expect(outcome.outcome).toBe('aborted');
-    expect(outcome.reason).toContain("step 'verdict-step' handler threw");
-    expect(outcome.reason).toContain('"findings"');
+    expect(outcome.outcome).toBe('evidence_invalid');
+    // The reason names the step, the schema, and the offending field, so the
+    // operator can see what the reviewer got wrong without opening the run.
+    expect(outcome.reason).toContain("relay step 'audit-step'");
+    expect(outcome.reason).toContain('review.verdict@v1');
+    expect(outcome.reason).toContain('findings');
+    // Neither the reviewer's verdict nor the flow result is written from a body
+    // that failed validation.
+    expect(existsSync(join(runFolder, 'reports', 'review-verdict.json'))).toBe(false);
     expect(existsSync(join(runFolder, 'reports', 'review-result.json'))).toBe(false);
 
     const traceEntries = await readTraceEntries(runFolder);
-    const verdictAbort = traceEntries.find(
-      (trace_entry) =>
-        trace_entry.kind === 'step.aborted' && trace_entry.step_id === 'verdict-step',
-    );
-    if (verdictAbort?.kind !== 'step.aborted') throw new Error('expected verdict abort trace');
-    expect(verdictAbort.reason).toContain('"findings"');
-
     expect(traceEntries.map(traceEntryLabel)).toEqual([
       'run.bootstrapped',
       'guidance.decision:flow_selection',
@@ -238,9 +244,20 @@ describe('registered review compose writer', () => {
       'relay.result:audit-step',
       'relay.completed:audit-step',
       'check.evaluated:audit-step',
+      'guidance.decision:recovery_route:audit-step',
       'step.completed:audit-step',
-      'step.entered:verdict-step',
-      'step.aborted:verdict-step',
+      // Second ask: the retry route sends the same step back to the reviewer.
+      'step.entered:audit-step',
+      'guidance.decision:relay_execution:audit-step',
+      'relay.started:audit-step',
+      'relay.request:audit-step',
+      'relay.receipt:audit-step',
+      'relay.result:audit-step',
+      'relay.completed:audit-step',
+      'check.evaluated:audit-step',
+      'guidance.decision:recovery_route:audit-step',
+      'step.completed:audit-step',
+      'step.aborted:audit-step',
       'run.closed',
     ]);
   });

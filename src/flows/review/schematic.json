@@ -83,6 +83,7 @@
       "route_overrides": {},
       "protocol": "review-audit@v1",
       "writes": {
+        "report_path": "reports/review-verdict.json",
         "request_path": "reports/relay/review.request.json",
         "receipt_path": "reports/relay/review.receipt.txt",
         "result_path": "stages/analyze/review-raw-findings.json"

@@ -3,6 +3,7 @@ Title: Decision — fan out option cases / option-1
 Role: researcher — you investigate and report; you do not modify the checkout.
 Accepted verdicts: accept
 Depth: medium. Tune your thoroughness and effort to this level; it does not change which steps run.
+Power dial: auto. Include recommended_power in your report: judge from what you read which model tier (low, medium, or high) the downstream implementation and review need, with one short rationale sentence.
 
 Operator Goal:
 decide: React vs Vue

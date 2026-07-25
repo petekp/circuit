@@ -17,17 +17,17 @@
     "work_contract_ref": {
       "kind": "work_contract",
       "ref": "<repo>/generated/flows/build/circuit.work-contract.v0.json",
-      "sha256": "a2df5f845bab01bd801907849701225cba4f7caf6e3505a784a71302fa82499b",
+      "sha256": "183c0b08176aeadfb222c28a2634d59836ae1db392eb928c9ed109e411d75e56",
       "flow_id": "build"
     },
     "checkpoint_boundary_ref": {
       "kind": "work_contract",
       "ref": "compiled-flow/steps/frame-step/checkpoint-boundary.v0",
-      "sha256": "413ff980771aed9355a1956335588ea8d09d950c6eec3cffd59f3659e3b785f9",
+      "sha256": "b06331df45cc4da4988ea348d63dd1b12085791990f10c46835508035241e6fd",
       "flow_id": "build",
       "step_id": "frame-step"
     },
-    "checkpoint_boundary_hash": "413ff980771aed9355a1956335588ea8d09d950c6eec3cffd59f3659e3b785f9",
+    "checkpoint_boundary_hash": "b06331df45cc4da4988ea348d63dd1b12085791990f10c46835508035241e6fd",
     "selection_config_layers": [
       {
         "layer": "project",
@@ -38,7 +38,7 @@
           "relay": {
             "default": "auto",
             "roles": {},
-            "circuits": {},
+            "flows": {},
             "connectors": {}
           },
           "skills": {
@@ -50,7 +50,7 @@
               "disabled_patterns": {}
             }
           },
-          "circuits": {
+          "flows": {
             "prototype": {
               "skill_bindings": {},
               "variant_models": [
@@ -112,10 +112,23 @@
                   }
                 }
               ]
+            },
+            "build": {
+              "selection": {
+                "effort": "none",
+                "skills": {
+                  "mode": "inherit"
+                },
+                "depth": "low",
+                "invocation_options": {}
+              },
+              "skill_bindings": {}
             }
           },
           "power_tiers": {},
-          "defaults": {}
+          "defaults": {
+            "power": "auto"
+          }
         }
       }
     ],

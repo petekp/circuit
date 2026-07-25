@@ -31,7 +31,6 @@ import { responseJsonSchemaFromZod } from '../shared/zod-to-response-schema.js';
 import { buildReportSchemaRegistry } from './catalog-derivations.js';
 import { flowPackages } from './catalog.js';
 import { GoalGate } from './goal/reports.js';
-import { ReviewRelayResult } from './review/reports.js';
 import { RuntimeProofCompose } from './runtime-proof/reports.js';
 
 function isRecord(value: unknown): value is Record<string, unknown> {
@@ -109,24 +108,21 @@ const UNIFORM_PRODUCER_GENERIC_SCHEMAS: Readonly<Record<string, z.ZodType<unknow
 // CONSUMES raw — read by an item input under the generic name, produced in-flow,
 // and NOT specialized to a flow-scoped actual — needs a canonical body so the
 // single-actual typing gate (collectUnregisteredConsumedContractIssues) can
-// verify the consumer reads a known shape. Two ship today, each consuming the
-// generic raw inside one flow:
+// verify the consumer reads a known shape. One ships today:
 //   - plan.strategy@v1  → RuntimeProofCompose  (runtime-proof: compose-step
 //                          outputs it, relay-step reads it as `plan`)
-//   - review.verdict@v1 → ReviewRelayResult    (review: the reviewer relay
-//                          outputs it, verdict-step reads it as `review`)
-// The body is the SAME Zod schema the producing item writes — RuntimeProofCompose
-// is the compose writer's result (runtime-proof.compose@v1), ReviewRelayResult is
-// what the close step parses the reviewer relay against (review/writers/result.ts)
-// — so the registration matches runtime truth, never re-authoring a shape. Other
-// flows that reuse these generics alias them to flow-scoped actuals and read the
-// actual; this registration is consulted only where the generic is read raw,
-// which is exactly the two flows above. Divergent producer generics are NOT
-// listed (they have no single canonical body); the typing gate exempts them
-// because they are write-only umbrellas the anti-widening gate already guards.
+// The body is the SAME Zod schema the producing item writes (RuntimeProofCompose
+// is the compose writer's result, runtime-proof.compose@v1), so the registration
+// matches runtime truth and never re-authors a shape.
+//
+// `review.verdict@v1` used to be listed here for the same reason. It no longer
+// needs to be: Review registers it as a real relay report on the audit step, so
+// the ordinary report registry supplies the body and a second registration here
+// would collide. That is the shape of the fix rather than an exception to it —
+// an entry in this table means a contract the engine can type but a connector
+// cannot be handed, so prefer registering the report.
 const RAW_CONSUMED_GENERIC_SCHEMAS: Readonly<Record<string, z.ZodType<unknown>>> = {
   'plan.strategy@v1': RuntimeProofCompose,
-  'review.verdict@v1': ReviewRelayResult,
 };
 
 // Every body the engine can resolve by contract NAME, in three parts:

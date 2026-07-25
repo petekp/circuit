@@ -84642,6 +84642,12 @@ var init_assembly_spec10 = __esm({
         input: { brief: "review.intake@v1" },
         execution: { kind: "relay", role: "reviewer" },
         protocol: "review-audit@v1",
+        // Declaring the typed report here is what makes the reviewer's response
+        // shape enforced rather than requested: the runtime converts the schema to
+        // JSON Schema and hands it to the connector's structured-output flag, and a
+        // response that violates it fails at this step, where the retry route is,
+        // instead of at the close step one step downstream.
+        reportPath: "reports/review-verdict.json",
         requestPath: "reports/relay/review.request.json",
         receiptPath: "reports/relay/review.receipt.txt",
         resultPath: "stages/analyze/review-raw-findings.json",
@@ -84708,32 +84714,25 @@ var init_assembly_spec10 = __esm({
 });
 
 // dist/flows/review/relay-hints.js
-var reviewRelayShapeHint;
+var reviewRelayInstruction;
 var init_relay_hints10 = __esm({
   "dist/flows/review/relay-hints.js"() {
     "use strict";
-    reviewRelayShapeHint = {
-      kind: "structural",
-      id: "review.relay-result@structural",
-      match(step) {
-        return step.role === "reviewer" && step.check.pass.includes("NO_ISSUES_FOUND") && step.check.pass.includes("ISSUES_FOUND");
-      },
-      instruction: [
-        "Respond with a single raw JSON object whose top-level shape is exactly:",
-        '{ "verdict": "<one-of-accepted-verdicts>", "findings": [{ "severity": "<critical|high|medium|low>", "id": "<stable finding id>", "text": "<finding text>", "file_refs": ["<file:line reference>"] }], "assessment": "<plain-language paragraph>", "verification": ["<step you performed>"], "confidence_limitations": ["<gap that limits certainty>"] }',
-        "The selected Review target is authoritative. Review sees only the captured evidence in this prompt. Evaluate findings only against the selected diff or content in the intake. Do not read repository files, run tools, substitute another Git view, working-tree layer, commit, range, or PR, or report unrelated issues. If the selected evidence is missing or incomplete, say so and never claim that the target has no issues.",
-        "Match the question to the evidence. When the intake carries a diff, review the change: judge what it does to the code around it, and do not report pre-existing conditions it did not introduce. When the intake carries whole file contents instead of a diff, review the code as it stands: the file is the subject, none of it is necessarily new, and every finding should name what is wrong now rather than what changed. Never describe a snapshot as if it were a change, or a change as if it were the whole file.",
-        "Audit the strongest claims in the material under review first: confirm each asserted outcome is backed by evidence you can see, and flag claims of completion, safety, or readiness that the cited evidence does not actually support.",
-        "Calibrate severity to impact: critical for a defect that breaks the stated goal or ships a falsehood, high for a real bug or unsupported claim worth fixing before anyone relies on the result, medium for a material gap or risk worth surfacing, low for a minor or cosmetic note. Do not inflate a low note into a blocking finding, and do not bury a real defect as low.",
-        'Use an empty findings array when there are no issues: { "verdict": "NO_ISSUES_FOUND", "findings": [], "assessment": "...", "verification": ["..."], "confidence_limitations": ["..."] }.',
-        "Use an empty file_refs array when a finding has no file-specific reference.",
-        "The assessment field is REQUIRED on every verdict, including NO_ISSUES_FOUND. State plainly what you checked and what you concluded; do not return a bare verdict.",
-        "The verification array is your self-report of concrete steps you took: files inspected, commands run, evidence cross-referenced. Include at least one entry on every verdict so the operator can audit the review.",
-        "The confidence_limitations array names anything that limits certainty: out-of-scope files, omitted untracked content, areas you did not inspect, assumptions you had to make. Use an empty array only when coverage was complete.",
-        "Do not include extra top-level keys. Do not wrap the JSON in Markdown code fences. Do not include any prose before or after the JSON object.",
-        "The runtime parses your response with JSON.parse, rejects verdicts the schema does not allow, and the close step validates findings, assessment, verification, and confidence_limitations before writing reports/review-result.json."
-      ].join(" ")
-    };
+    reviewRelayInstruction = [
+      "Respond with a single raw JSON object whose top-level shape is exactly:",
+      '{ "verdict": "<one-of-accepted-verdicts>", "findings": [{ "severity": "<critical|high|medium|low>", "id": "<stable finding id>", "text": "<finding text>", "file_refs": ["<file:line reference>"] }], "assessment": "<plain-language paragraph>", "verification": ["<step you performed>"], "confidence_limitations": ["<gap that limits certainty>"] }',
+      "The selected Review target is authoritative. Review sees only the captured evidence in this prompt. Evaluate findings only against the selected diff or content in the intake. Do not read repository files, run tools, substitute another Git view, working-tree layer, commit, range, or PR, or report unrelated issues. If the selected evidence is missing or incomplete, say so and never claim that the target has no issues.",
+      "Match the question to the evidence. When the intake carries a diff, review the change: judge what it does to the code around it, and do not report pre-existing conditions it did not introduce. When the intake carries whole file contents instead of a diff, review the code as it stands: the file is the subject, none of it is necessarily new, and every finding should name what is wrong now rather than what changed. Never describe a snapshot as if it were a change, or a change as if it were the whole file.",
+      "Audit the strongest claims in the material under review first: confirm each asserted outcome is backed by evidence you can see, and flag claims of completion, safety, or readiness that the cited evidence does not actually support.",
+      "Calibrate severity to impact: critical for a defect that breaks the stated goal or ships a falsehood, high for a real bug or unsupported claim worth fixing before anyone relies on the result, medium for a material gap or risk worth surfacing, low for a minor or cosmetic note. Do not inflate a low note into a blocking finding, and do not bury a real defect as low.",
+      'Use an empty findings array when there are no issues: { "verdict": "NO_ISSUES_FOUND", "findings": [], "assessment": "...", "verification": ["..."], "confidence_limitations": ["..."] }.',
+      "Use an empty file_refs array when a finding has no file-specific reference.",
+      "The assessment field is REQUIRED on every verdict, including NO_ISSUES_FOUND. State plainly what you checked and what you concluded; do not return a bare verdict.",
+      "The verification array is your self-report of concrete steps you took: files inspected, commands run, evidence cross-referenced. Include at least one entry on every verdict so the operator can audit the review.",
+      "The confidence_limitations array names anything that limits certainty: out-of-scope files, omitted untracked content, areas you did not inspect, assumptions you had to make. Use an empty array only when coverage was complete.",
+      "Do not include extra top-level keys. Do not wrap the JSON in Markdown code fences. Do not include any prose before or after the JSON object.",
+      "The runtime parses your response with JSON.parse and validates it against the review.verdict@v1 schema at this step; an extra key, a missing field, or a verdict the schema does not allow is rejected and you are asked again. Only a response that validates reaches the close step, which writes reports/review-result.json."
+    ].join(" ");
   }
 });
 
@@ -87099,11 +87098,14 @@ function reviewerRelayResultPath(flow, closeStep) {
   if (reviewerRelayes.length !== 1) {
     throw new Error(`review.result@v1 requires exactly one reviewer relay routing to '${closeStepId}', found ${reviewerRelayes.length}`);
   }
-  const resultPath2 = reviewerRelayes[0]?.writes.result;
-  if (resultPath2 === void 0 || !closeStep.reads.includes(resultPath2)) {
-    throw new Error(`review.result@v1 requires close step '${closeStepId}' to read the reviewer relay result path '${resultPath2 ?? "<missing>"}'`);
+  const relayWrites = reviewerRelayes[0]?.writes;
+  const reportPath = relayWrites?.report?.path;
+  const resultPath2 = relayWrites?.result;
+  const readable = [reportPath, resultPath2].find((candidate) => candidate !== void 0 && closeStep.reads.includes(candidate));
+  if (readable === void 0) {
+    throw new Error(`review.result@v1 requires close step '${closeStepId}' to read the reviewer verdict at '${reportPath ?? resultPath2 ?? "<missing>"}'`);
   }
-  return resultPath2;
+  return readable;
 }
 function reviewIntakePath(flow, closeStep) {
   const closeStepId = closeStep.id;
@@ -87177,6 +87179,15 @@ var init_data11 = __esm({
           schema: ReviewIntake,
           writers: { compose: [reviewIntakeComposeBuilder] }
         },
+        // The reviewer's own response. Registering it on the relay channel is what
+        // lets the runtime hand the shape to the connector's structured-output flag
+        // instead of only asking for it in prose.
+        {
+          schemaName: "review.verdict@v1",
+          channel: "relay",
+          schema: ReviewRelayResult,
+          relayHint: reviewRelayInstruction
+        },
         {
           schemaName: "review.result@v1",
           channel: "report",
@@ -87184,7 +87195,6 @@ var init_data11 = __esm({
           writers: { compose: [reviewResultComposeBuilder] }
         }
       ],
-      structuralHints: [reviewRelayShapeHint],
       runtimeSurface: {
         primaryResult: {
           schemaName: "review.result@v1",
@@ -88638,15 +88648,13 @@ var init_contract_body_signature = __esm({
     init_catalog_derivations();
     init_catalog();
     init_reports7();
-    init_reports10();
     init_reports11();
     UNIFORM_PRODUCER_GENERIC_SCHEMAS = {
       "goal.child-run@v1": RunResult,
       "goal.gate-review@v1": GoalGate
     };
     RAW_CONSUMED_GENERIC_SCHEMAS = {
-      "plan.strategy@v1": RuntimeProofCompose,
-      "review.verdict@v1": ReviewRelayResult
+      "plan.strategy@v1": RuntimeProofCompose
     };
     BODY_REGISTRY = (() => {
       const reports = buildReportSchemaRegistry(flowPackages, {
@@ -91468,7 +91476,7 @@ function isCodexOutputSchemaNodeCompatible(node) {
   if (!isRecord5(node))
     return true;
   for (const key of Object.keys(node)) {
-    if (CODEX_OUTPUT_SCHEMA_UNSUPPORTED_KEYWORDS.has(key))
+    if (CODEX_OUTPUT_SCHEMA_DISQUALIFYING_KEYWORDS.has(key))
       return false;
   }
   if (Array.isArray(node.type))
@@ -91481,6 +91489,19 @@ function isCodexOutputSchemaNodeCompatible(node) {
       return false;
   }
   return Object.values(node).every(isCodexOutputSchemaNodeCompatible);
+}
+function codexOutputSchemaFrom(node) {
+  if (Array.isArray(node))
+    return node.map(codexOutputSchemaFrom);
+  if (!isRecord5(node))
+    return node;
+  const cleaned = {};
+  for (const [key, value] of Object.entries(node)) {
+    if (CODEX_OUTPUT_SCHEMA_STRIPPABLE_KEYWORDS.has(key))
+      continue;
+    cleaned[key] = codexOutputSchemaFrom(value);
+  }
+  return cleaned;
 }
 function isCodexOutputSchemaCompatible(schema) {
   return schema.type === "object" && isCodexOutputSchemaNodeCompatible(schema);
@@ -91545,7 +91566,7 @@ async function relayCodexPrepared(input) {
   try {
     const effectiveModel = selectedOpenAIModel(input.resolvedSelection) ?? resolveCodexDefaultModel();
     if (input.responseSchema !== void 0 && isCodexOutputSchemaCompatible(input.responseSchema)) {
-      const allocated = await writeSchemaTempFile(input.responseSchema);
+      const allocated = await writeSchemaTempFile(codexOutputSchemaFrom(input.responseSchema));
       tempDir = allocated.dir;
       schemaPath = allocated.path;
     }
@@ -91816,7 +91837,7 @@ function parseCodexStdout(stdout, prompt, duration_ms, cli_version, options = {}
     ...webSearchCompletions.size === 0 ? {} : { web_search_count: webSearchCompletions.size }
   };
 }
-var CODEX_WRITE_FLAGS, CODEX_PROMPT_ONLY_FLAGS, CODEX_PROMPT_ONLY_BASE_CONFIG, CODEX_EXECUTABLE, CODEX_FORBIDDEN_ARGV_TOKENS, CODEX_REASONING_EFFORT_CONFIG_KEY, flagsAsStringArray, DEFAULT_IDLE_TIMEOUT_MS2, DEFAULT_ABSOLUTE_TIMEOUT_MS2, SIGTERM_TO_SIGKILL_GRACE_MS2, STDOUT_MAX_BYTES2, STDERR_MAX_BYTES2, VERSION_CAPTURE_TIMEOUT_MS, cachedCodexVersion, CODEX_OUTPUT_SCHEMA_UNSUPPORTED_KEYWORDS, KNOWN_CODEX_ITEM_TYPES, PROMPT_ONLY_FORBIDDEN_CODEX_ITEM_TYPES, CODEX_WEB_SEARCH_MAX_STRING_LENGTH, CODEX_WEB_SEARCH_COMPLETED_ACTION_TYPES, CODEX_NONFATAL_ERROR_ITEM_MESSAGES, KNOWN_CODEX_EVENT_TYPES, CODEX_FAILURE_EVENT_TYPES, CODEX_TESTED_CLI_RANGE;
+var CODEX_WRITE_FLAGS, CODEX_PROMPT_ONLY_FLAGS, CODEX_PROMPT_ONLY_BASE_CONFIG, CODEX_EXECUTABLE, CODEX_FORBIDDEN_ARGV_TOKENS, CODEX_REASONING_EFFORT_CONFIG_KEY, flagsAsStringArray, DEFAULT_IDLE_TIMEOUT_MS2, DEFAULT_ABSOLUTE_TIMEOUT_MS2, SIGTERM_TO_SIGKILL_GRACE_MS2, STDOUT_MAX_BYTES2, STDERR_MAX_BYTES2, VERSION_CAPTURE_TIMEOUT_MS, cachedCodexVersion, CODEX_OUTPUT_SCHEMA_STRIPPABLE_KEYWORDS, CODEX_OUTPUT_SCHEMA_DISQUALIFYING_KEYWORDS, KNOWN_CODEX_ITEM_TYPES, PROMPT_ONLY_FORBIDDEN_CODEX_ITEM_TYPES, CODEX_WEB_SEARCH_MAX_STRING_LENGTH, CODEX_WEB_SEARCH_COMPLETED_ACTION_TYPES, CODEX_NONFATAL_ERROR_ITEM_MESSAGES, KNOWN_CODEX_EVENT_TYPES, CODEX_FAILURE_EVENT_TYPES, CODEX_TESTED_CLI_RANGE;
 var init_codex = __esm({
   "dist/connectors/codex.js"() {
     "use strict";
@@ -91905,22 +91926,12 @@ var init_codex = __esm({
     STDOUT_MAX_BYTES2 = 16 * 1024 * 1024;
     STDERR_MAX_BYTES2 = 1024 * 1024;
     VERSION_CAPTURE_TIMEOUT_MS = 5e3;
-    CODEX_OUTPUT_SCHEMA_UNSUPPORTED_KEYWORDS = /* @__PURE__ */ new Set([
+    CODEX_OUTPUT_SCHEMA_STRIPPABLE_KEYWORDS = /* @__PURE__ */ new Set([
       "$id",
-      "$ref",
       "$schema",
-      "$defs",
-      "allOf",
-      "anyOf",
-      "const",
-      "contains",
-      "definitions",
-      "dependentRequired",
-      "dependentSchemas",
       "exclusiveMaximum",
       "exclusiveMinimum",
       "format",
-      "if",
       "maxContains",
       "maxItems",
       "maxLength",
@@ -91932,13 +91943,25 @@ var init_codex = __esm({
       "minProperties",
       "minimum",
       "multipleOf",
+      "pattern",
+      "uniqueItems"
+    ]);
+    CODEX_OUTPUT_SCHEMA_DISQUALIFYING_KEYWORDS = /* @__PURE__ */ new Set([
+      "$ref",
+      "$defs",
+      "allOf",
+      "anyOf",
+      "const",
+      "contains",
+      "definitions",
+      "dependentRequired",
+      "dependentSchemas",
+      "if",
       "not",
       "oneOf",
-      "pattern",
       "patternProperties",
       "propertyNames",
-      "then",
-      "uniqueItems"
+      "then"
     ]);
     KNOWN_CODEX_ITEM_TYPES = /* @__PURE__ */ new Set([
       "agent_message",

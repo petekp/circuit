@@ -3,7 +3,7 @@
   "contract_ref": {
     "kind": "work_contract",
     "ref": "generated/flows/review/circuit.work-contract.v0.json",
-    "sha256": "1044d17b4c4c1114ff98f07ab9811689012f1efabe0a8a6eadf2c9ebea107ed0",
+    "sha256": "30500e05b78e7140eccc6d97c97ed282ae8883551b4fc04b6a6477686d9c1485",
     "flow_id": "review"
   },
   "work_contract": {
@@ -139,6 +139,10 @@
         "protocol": "review-audit@v1",
         "reads": ["reports/review-intake.json"],
         "writes": {
+          "report": {
+            "path": "reports/review-verdict.json",
+            "schema": "review.verdict@v1"
+          },
           "request": "reports/relay/review.request.json",
           "receipt": "reports/relay/review.receipt.txt",
           "result": "stages/analyze/review-raw-findings.json"
@@ -164,7 +168,7 @@
         "kind": "compose",
         "executor": "orchestrator",
         "protocol": "review-verdict@v1",
-        "reads": ["reports/review-intake.json", "stages/analyze/review-raw-findings.json"],
+        "reads": ["reports/review-intake.json", "reports/review-verdict.json"],
         "writes": {
           "report": {
             "path": "reports/review-result.json",
@@ -192,9 +196,19 @@
           "step_id": "audit-step",
           "role": "reviewer",
           "writes": {
+            "report": {
+              "path": "reports/review-verdict.json",
+              "schema": "review.verdict@v1"
+            },
             "request": "reports/relay/review.request.json",
             "receipt": "reports/relay/review.receipt.txt",
             "result": "stages/analyze/review-raw-findings.json"
+          },
+          "report": {
+            "step_id": "audit-step",
+            "slot": "report",
+            "path": "reports/review-verdict.json",
+            "schema": "review.verdict@v1"
           }
         }
       ],
@@ -217,6 +231,12 @@
           "slot": "report",
           "path": "reports/review-intake.json",
           "schema": "review.intake@v1"
+        },
+        {
+          "step_id": "audit-step",
+          "slot": "report",
+          "path": "reports/review-verdict.json",
+          "schema": "review.verdict@v1"
         },
         {
           "step_id": "verdict-step",
@@ -281,7 +301,7 @@
         "source_ref": {
           "kind": "work_contract",
           "ref": "compiled-flow/steps/intake-step/routes/stop",
-          "sha256": "5e95288075ab7b33fc2e1e37fdb71dac71d33422fbb4e5a394e9b7fc604b6f23",
+          "sha256": "5a90c239b668e3c9f388ee3a87f73165a1236b5d515b775e61ebee85fefef082",
           "flow_id": "review"
         }
       },
@@ -310,7 +330,7 @@
         "source_ref": {
           "kind": "work_contract",
           "ref": "compiled-flow/steps/audit-step/routes/retry",
-          "sha256": "5e95288075ab7b33fc2e1e37fdb71dac71d33422fbb4e5a394e9b7fc604b6f23",
+          "sha256": "5a90c239b668e3c9f388ee3a87f73165a1236b5d515b775e61ebee85fefef082",
           "flow_id": "review"
         }
       },
@@ -341,7 +361,7 @@
         "source_ref": {
           "kind": "work_contract",
           "ref": "compiled-flow/steps/audit-step/routes/stop",
-          "sha256": "5e95288075ab7b33fc2e1e37fdb71dac71d33422fbb4e5a394e9b7fc604b6f23",
+          "sha256": "5a90c239b668e3c9f388ee3a87f73165a1236b5d515b775e61ebee85fefef082",
           "flow_id": "review"
         }
       },
@@ -372,7 +392,7 @@
         "source_ref": {
           "kind": "work_contract",
           "ref": "compiled-flow/steps/verdict-step/routes/stop",
-          "sha256": "5e95288075ab7b33fc2e1e37fdb71dac71d33422fbb4e5a394e9b7fc604b6f23",
+          "sha256": "5a90c239b668e3c9f388ee3a87f73165a1236b5d515b775e61ebee85fefef082",
           "flow_id": "review"
         }
       }

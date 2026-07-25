@@ -75,6 +75,7 @@
   "receipt": {
     "depth": "high",
     "power": "medium",
+    "power_source": "auto",
     "worker_runs": 1,
     "escalations": 0,
     "models": [

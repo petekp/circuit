@@ -8,4 +8,4 @@ add a small safe change: Implemented the requested synthetic change.
 
 Next: nothing required.
 
-⎿ depth medium · power medium · 3 worker runs · all checks passed
+⎿ power medium · process medium · 3 worker runs · all checks passed

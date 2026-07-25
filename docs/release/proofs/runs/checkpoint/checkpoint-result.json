@@ -13,6 +13,7 @@
   "operator_summary_path": "<repo>/docs/release/proofs/runs/checkpoint/run/reports/operator-summary.json",
   "operator_summary_markdown_path": "<repo>/docs/release/proofs/runs/checkpoint/run/reports/operator-summary.md",
   "operator_summary_status_text": "Build",
+  "operator_summary_html_path": "<repo>/docs/release/proofs/runs/checkpoint/run/reports/operator-summary.html",
   "run_envelope_path": "<repo>/docs/release/proofs/runs/checkpoint/run/reports/run-envelope.json",
   "run_process_evidence_path": "<repo>/docs/release/proofs/runs/checkpoint/run/reports/process-evidence.json",
   "run_surface_markdown_path": "<repo>/docs/release/proofs/runs/checkpoint/run/reports/run-surface.md",
@@ -22,7 +23,9 @@
   ],
   "checkpoint": {
     "step_id": "frame-step",
+    "attempt": 1,
     "request_path": "<repo>/docs/release/proofs/runs/checkpoint/run/reports/checkpoints/frame-step-request.json",
+    "request_sha256": "abb0979dff753eb2669be13dacb45bfb7e536876a1a28208672a03ae0e0779ff",
     "allowed_choices": [
       "continue"
     ]

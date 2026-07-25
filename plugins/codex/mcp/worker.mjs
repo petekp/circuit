@@ -16221,22 +16221,12 @@ for (const forbidden of CODEX_FORBIDDEN_ARGV_TOKENS) {
 }
 var STDOUT_MAX_BYTES = 16 * 1024 * 1024;
 var STDERR_MAX_BYTES = 1024 * 1024;
-var CODEX_OUTPUT_SCHEMA_UNSUPPORTED_KEYWORDS = /* @__PURE__ */ new Set([
+var CODEX_OUTPUT_SCHEMA_STRIPPABLE_KEYWORDS = /* @__PURE__ */ new Set([
   "$id",
-  "$ref",
   "$schema",
-  "$defs",
-  "allOf",
-  "anyOf",
-  "const",
-  "contains",
-  "definitions",
-  "dependentRequired",
-  "dependentSchemas",
   "exclusiveMaximum",
   "exclusiveMinimum",
   "format",
-  "if",
   "maxContains",
   "maxItems",
   "maxLength",
@@ -16248,13 +16238,25 @@ var CODEX_OUTPUT_SCHEMA_UNSUPPORTED_KEYWORDS = /* @__PURE__ */ new Set([
   "minProperties",
   "minimum",
   "multipleOf",
+  "pattern",
+  "uniqueItems"
+]);
+var CODEX_OUTPUT_SCHEMA_DISQUALIFYING_KEYWORDS = /* @__PURE__ */ new Set([
+  "$ref",
+  "$defs",
+  "allOf",
+  "anyOf",
+  "const",
+  "contains",
+  "definitions",
+  "dependentRequired",
+  "dependentSchemas",
+  "if",
   "not",
   "oneOf",
-  "pattern",
   "patternProperties",
   "propertyNames",
-  "then",
-  "uniqueItems"
+  "then"
 ]);
 function isRecord(value) {
   return typeof value === "object" && value !== null && !Array.isArray(value);
@@ -16272,7 +16274,7 @@ function isCodexOutputSchemaNodeCompatible(node) {
   if (Array.isArray(node)) return node.every(isCodexOutputSchemaNodeCompatible);
   if (!isRecord(node)) return true;
   for (const key of Object.keys(node)) {
-    if (CODEX_OUTPUT_SCHEMA_UNSUPPORTED_KEYWORDS.has(key)) return false;
+    if (CODEX_OUTPUT_SCHEMA_DISQUALIFYING_KEYWORDS.has(key)) return false;
   }
   if (Array.isArray(node.type)) return false;
   if (node.type === "object") {
@@ -16282,6 +16284,16 @@ function isCodexOutputSchemaNodeCompatible(node) {
     if (!everyObjectPropertyIsRequired(node)) return false;
   }
   return Object.values(node).every(isCodexOutputSchemaNodeCompatible);
+}
+function codexOutputSchemaFrom(node) {
+  if (Array.isArray(node)) return node.map(codexOutputSchemaFrom);
+  if (!isRecord(node)) return node;
+  const cleaned = {};
+  for (const [key, value] of Object.entries(node)) {
+    if (CODEX_OUTPUT_SCHEMA_STRIPPABLE_KEYWORDS.has(key)) continue;
+    cleaned[key] = codexOutputSchemaFrom(value);
+  }
+  return cleaned;
 }
 function isCodexOutputSchemaCompatible(schema) {
   return schema.type === "object" && isCodexOutputSchemaNodeCompatible(schema);
@@ -16944,7 +16956,7 @@ async function writeResponseSchema(policy, schema) {
     384
   );
   try {
-    await handle.writeFile(`${JSON.stringify(schema)}
+    await handle.writeFile(`${JSON.stringify(codexOutputSchemaFrom(schema))}
 `, "utf8");
     await handle.sync();
   } catch (error51) {

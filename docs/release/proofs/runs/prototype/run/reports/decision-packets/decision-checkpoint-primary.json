@@ -27,7 +27,7 @@
     "request_ref": {
       "kind": "request",
       "ref": "reports/checkpoints/prototype-review-request.json",
-      "sha256": "36c62fea8efb960069882ff4db06ea88392f230c3345a8aff54a3162874f2954",
+      "sha256": "143c54feda90b5b94e9ba893d3f77925469ceaa89f742f7f17f6f62024fb4189",
       "run_id": "44444444-4444-4444-4444-444444444443",
       "flow_id": "prototype",
       "step_id": "prototype-checkpoint-step"
@@ -37,14 +37,14 @@
     {
       "kind": "evidence",
       "ref": "reports/process-evidence.json",
-      "sha256": "a4b4d0ed5fdc858519490c589bc342013086abc6a3f2d7c3bc37724f93284e3f",
+      "sha256": "0f8cdf938b5c636a411f431bf038be48179e5b5451a3bbaefb79fd01515a132d",
       "run_id": "44444444-4444-4444-4444-444444444443",
       "flow_id": "prototype"
     },
     {
       "kind": "request",
       "ref": "reports/checkpoints/prototype-review-request.json",
-      "sha256": "36c62fea8efb960069882ff4db06ea88392f230c3345a8aff54a3162874f2954",
+      "sha256": "143c54feda90b5b94e9ba893d3f77925469ceaa89f742f7f17f6f62024fb4189",
       "run_id": "44444444-4444-4444-4444-444444444443",
       "flow_id": "prototype",
       "step_id": "prototype-checkpoint-step"

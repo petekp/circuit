@@ -23,7 +23,9 @@
   ],
   "checkpoint": {
     "step_id": "prototype-checkpoint-step",
+    "attempt": 1,
     "request_path": "<repo>/docs/release/proofs/runs/prototype/run/reports/checkpoints/prototype-review-request.json",
+    "request_sha256": "143c54feda90b5b94e9ba893d3f77925469ceaa89f742f7f17f6f62024fb4189",
     "allowed_choices": [
       "keep-prototype",
       "save-build-input",

@@ -8,4 +8,4 @@ Implemented the requested synthetic change.
 
 Next: nothing required.
 
-⎿ depth high · power medium · 3 worker runs · all checks passed
+⎿ power medium · process high · 3 worker runs · all checks passed

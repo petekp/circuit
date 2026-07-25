@@ -259,6 +259,7 @@
   "receipt": {
     "depth": "autonomous",
     "power": "medium",
+    "power_source": "auto",
     "worker_runs": 3,
     "escalations": 0,
     "models": [

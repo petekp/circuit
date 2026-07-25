@@ -80,7 +80,7 @@
         "run",
         "check"
       ],
-      "timeout_ms": 120000,
+      "timeout_ms": 600000,
       "max_output_bytes": 200000,
       "env": {}
     }

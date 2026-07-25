@@ -54,6 +54,7 @@
   "receipt": {
     "depth": "medium",
     "power": "medium",
+    "power_source": "auto",
     "worker_runs": 2,
     "escalations": 0,
     "models": [

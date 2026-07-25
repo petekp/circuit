@@ -5,8 +5,8 @@
   "goal": "quick fix: restore the failing login test",
   "outcome": "stopped",
   "summary": "Run closed with outcome stopped.",
-  "closed_at": "2026-04-29T20:31:10.000Z",
-  "trace_entries_observed": 69,
-  "manifest_hash": "ed31afd9371ae9bae3675d937bae594faa110ad938b5db7241eef274b101b6fc",
+  "closed_at": "2026-04-29T20:31:09.000Z",
+  "trace_entries_observed": 68,
+  "manifest_hash": "602780d3ea03a0a08eb2d32ad2db497567516eb04df1b164a275ba7d2b69435e",
   "reason": "primary result 'reports/fix-result.json' reported outcome 'partial'"
 }

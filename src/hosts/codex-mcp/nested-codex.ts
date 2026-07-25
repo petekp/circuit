@@ -2,7 +2,11 @@ import { constants, realpathSync } from 'node:fs';
 import { mkdir, mkdtemp, open, realpath, rm } from 'node:fs/promises';
 import { delimiter, dirname, isAbsolute, join, relative, resolve } from 'node:path';
 
-import { isCodexOutputSchemaCompatible, parseCodexStdout } from '../../connectors/codex.js';
+import {
+  codexOutputSchemaFrom,
+  isCodexOutputSchemaCompatible,
+  parseCodexStdout,
+} from '../../connectors/codex.js';
 import type { ConnectorSubprocessResult } from '../../connectors/subprocess.js';
 import type { ResolvedSelection } from '../../schemas/selection-policy.js';
 import type { RelayFn, RelayInput } from '../../shared/relay-runtime-types.js';
@@ -300,7 +304,10 @@ async function writeResponseSchema(
     0o600,
   );
   try {
-    await handle.writeFile(`${JSON.stringify(schema)}\n`, 'utf8');
+    // Narrowing-only keywords are stripped for the same reason as the direct
+    // connector path: Codex rejects them, and the runtime Zod parse enforces
+    // them regardless.
+    await handle.writeFile(`${JSON.stringify(codexOutputSchemaFrom(schema))}\n`, 'utf8');
     await handle.sync();
   } catch (error) {
     await handle.close();

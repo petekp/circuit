@@ -1743,6 +1743,61 @@ describe('review evidence honesty', () => {
     expect(relayCalls).toBe(0);
   });
 
+  // The reviewer's response shape is enforced, not requested. The runtime hands
+  // the connector a JSON Schema derived from the same Zod body the close step
+  // validates against, so a connector with a structured-output flag holds the
+  // model to it instead of the prompt merely asking.
+  it('hands the reviewer relay the verdict response schema', async () => {
+    const { bytes } = loadFixture();
+    const runFolder = join(reviewRunFolderBase(), 'verdict-response-schema');
+    const projectRoot = join(reviewRunFolderBase(), 'verdict-response-schema-project');
+    mkdirSync(join(projectRoot, 'src'), { recursive: true });
+    execFileSync('git', ['init'], { cwd: projectRoot, stdio: 'pipe' });
+    writeFileSync(join(projectRoot, 'src', 'app.ts'), 'const app = 1;\n');
+    execFileSync('git', ['add', '.'], { cwd: projectRoot, stdio: 'pipe' });
+    let seenSchema: Record<string, unknown> | undefined;
+
+    const outcome = await runCompiledFlow({
+      runDir: runFolder,
+      flowBytes: bytes,
+      runId: '79000000-0000-0000-0000-000000000133',
+      goal: 'review staged changes',
+      depth: 'medium',
+      now: deterministicNow(Date.UTC(2026, 6, 24, 12, 10, 0)),
+      projectRoot,
+      relayer: {
+        connectorName: 'claude-code',
+        promptOnlyContext: true,
+        relay: async (input: ClaudeCodeRelayInput): Promise<RelayResult> => {
+          seenSchema = input.responseSchema;
+          return {
+            request_payload: input.prompt,
+            receipt_id: 'stub-receipt-response-schema',
+            result_body: JSON.stringify(cleanRelayResult()),
+            duration_ms: 1,
+            cli_version: '0.0.0-stub',
+          };
+        },
+      },
+    });
+
+    expect(outcome.outcome).toBe('complete');
+    expect(seenSchema).toBeDefined();
+    const properties = seenSchema?.properties as Record<string, { enum?: string[] }> | undefined;
+    expect(properties?.verdict?.enum).toEqual(['NO_ISSUES_FOUND', 'ISSUES_FOUND']);
+    expect(seenSchema?.required).toEqual([
+      'verdict',
+      'findings',
+      'assessment',
+      'verification',
+      'confidence_limitations',
+    ]);
+    // The same shape is written as a typed report at the audit step, so a
+    // malformed response fails where the retry route is rather than one step
+    // downstream at the close.
+    expect(existsSync(join(runFolder, 'reports', 'review-verdict.json'))).toBe(true);
+  });
+
   // A snapshot enumerates through Git, not the filesystem, so build output and
   // anything gitignored can never become evidence no matter how large the path
   // scope is.

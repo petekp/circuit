@@ -4,7 +4,7 @@
   "shadow_reason": "source-owned-run-not-active",
   "run_id": "44444444-4444-4444-4444-444444444407",
   "operator_intent": "quick fix: restore the failing login test",
-  "recorded_at": "2026-04-29T20:31:11.000Z",
+  "recorded_at": "2026-04-29T20:31:10.000Z",
   "selected_process": {
     "process_id": "fix",
     "routed_by": "explicit",
@@ -15,14 +15,14 @@
     "run_folder": "<repo>/docs/release/proofs/runs/fix/run",
     "flow_id": "fix",
     "outcome": "stopped",
-    "trace_entries_observed": 69,
-    "manifest_hash": "ed31afd9371ae9bae3675d937bae594faa110ad938b5db7241eef274b101b6fc",
+    "trace_entries_observed": 68,
+    "manifest_hash": "602780d3ea03a0a08eb2d32ad2db497567516eb04df1b164a275ba7d2b69435e",
     "result_ref": {
       "source": "child_result",
       "ref": {
         "kind": "report",
         "ref": "reports/result.json",
-        "sha256": "35d99bd1f70cb123033e82395f4a425927f39fb681e93b4e90cfb727f4fb6ff7",
+        "sha256": "70d863bc06000a9740985782888a2a33b8f7dd6ad26a0825c961e8d9a4083bed",
         "run_id": "44444444-4444-4444-4444-444444444407",
         "flow_id": "fix"
       }
@@ -32,7 +32,7 @@
     {
       "kind": "report",
       "ref": "reports/result.json",
-      "sha256": "35d99bd1f70cb123033e82395f4a425927f39fb681e93b4e90cfb727f4fb6ff7",
+      "sha256": "70d863bc06000a9740985782888a2a33b8f7dd6ad26a0825c961e8d9a4083bed",
       "run_id": "44444444-4444-4444-4444-444444444407",
       "flow_id": "fix"
     }

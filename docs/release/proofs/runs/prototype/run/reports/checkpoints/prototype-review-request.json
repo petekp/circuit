@@ -7,6 +7,23 @@
     "save-build-input",
     "discard-prototype"
   ],
+  "choices": [
+    {
+      "id": "keep-prototype",
+      "label": "Keep Prototype",
+      "description": "Save the prototype as useful evidence and stop here."
+    },
+    {
+      "id": "save-build-input",
+      "label": "Save Build Input",
+      "description": "Close with a Build-ready follow-up prompt, without running Build."
+    },
+    {
+      "id": "discard-prototype",
+      "label": "Discard Prototype",
+      "description": "Mark the prototype as discarded while keeping the evidence trail."
+    }
+  ],
   "safe_default_choice": "keep-prototype",
   "execution_context": {
     "axes": {
@@ -19,17 +36,17 @@
     "work_contract_ref": {
       "kind": "work_contract",
       "ref": "<repo>/generated/flows/prototype/circuit.work-contract.v0.json",
-      "sha256": "ce523d3066b2f3190275bfb4381f1d5e9a2755681078593f8e208fe7e6d5f4df",
+      "sha256": "84e68f2bbabdda968727dc68ee57c3d001c51eeebf7114b081048f001376c394",
       "flow_id": "prototype"
     },
     "checkpoint_boundary_ref": {
       "kind": "work_contract",
       "ref": "compiled-flow/steps/prototype-checkpoint-step/checkpoint-boundary.v0",
-      "sha256": "81e23ed21e509cb1a606a211e3ea99939c7494c3545f4bedf6436920243ea43b",
+      "sha256": "4e7a54bd4f82ea7285608d542bde3328365c9b5d23d251f49678d3ec77ca6d4e",
       "flow_id": "prototype",
       "step_id": "prototype-checkpoint-step"
     },
-    "checkpoint_boundary_hash": "81e23ed21e509cb1a606a211e3ea99939c7494c3545f4bedf6436920243ea43b",
+    "checkpoint_boundary_hash": "4e7a54bd4f82ea7285608d542bde3328365c9b5d23d251f49678d3ec77ca6d4e",
     "selection_config_layers": [
       {
         "layer": "project",
@@ -40,7 +57,7 @@
           "relay": {
             "default": "auto",
             "roles": {},
-            "circuits": {},
+            "flows": {},
             "connectors": {}
           },
           "skills": {
@@ -52,7 +69,7 @@
               "disabled_patterns": {}
             }
           },
-          "circuits": {
+          "flows": {
             "prototype": {
               "skill_bindings": {},
               "variant_models": [
@@ -114,13 +131,58 @@
                   }
                 }
               ]
+            },
+            "build": {
+              "selection": {
+                "effort": "none",
+                "skills": {
+                  "mode": "inherit"
+                },
+                "depth": "low",
+                "invocation_options": {}
+              },
+              "skill_bindings": {}
             }
           },
           "power_tiers": {},
-          "defaults": {}
+          "defaults": {
+            "power": "auto"
+          }
         }
       }
     ],
-    "policy_layers": []
+    "policy_layers": [],
+    "review_inputs": [
+      {
+        "path": "reports/prototype/brief.json",
+        "sha256": "896b9c643f9bbc236265e6a1f4041bbf37ef253ee66ff992e9d18604db43f549"
+      },
+      {
+        "path": "reports/prototype/plan.json",
+        "sha256": "34979a9e644eac82f3a8ace7a6a109536d71b2e4ce881dcade2c69242296a481"
+      },
+      {
+        "path": "reports/prototype/artifact.json",
+        "sha256": "33f9ae14b303b91d1712b99411d3927841a9c5c4ba62b2899c016ef4fa750e60"
+      },
+      {
+        "path": "reports/prototype/verification.json",
+        "sha256": "a453c0490e643efe2191282f5c6bf9385b7b25c39432f4f9536cea39c89f1b64"
+      }
+    ],
+    "review_assets": [
+      {
+        "root": "docs/release/proofs/runs/prototype/run/prototype-files",
+        "entry_points": [
+          "docs/release/proofs/runs/prototype/run/prototype-files/index.html"
+        ],
+        "files": [
+          {
+            "path": "docs/release/proofs/runs/prototype/run/prototype-files/index.html",
+            "sha256": "d95e568eabe9c4ec1d029508f2f7b92458392cb2a4ffaed216de1cb835620074"
+          }
+        ]
+      }
+    ]
   }
 }

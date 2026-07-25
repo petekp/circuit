@@ -2,8 +2,8 @@
 //
 // Mirrors tests/runner/compose-builder-registry.test.ts but for the
 // relay shape-hint path. Verifies every registered schema returns
-// its hint, unknown schemas miss the schema lookup, and the structural
-// reviewer-role match fires when no schema match is available.
+// its hint, unknown schemas miss the schema lookup, and a structural
+// match fires when no schema match is available.
 //
 // Expected sets are DERIVED from src/flows/catalog.ts so adding a
 // new flow's hint doesn't require this test to know about it. The
@@ -43,22 +43,21 @@ function relayStepWithSchema(schema: string): RelayStep {
   } as unknown as RelayStep;
 }
 
-function reviewerStructuralStep(): RelayStep {
+// A reviewer step whose report schema is a generic contract name no flow
+// registers a schema hint under. The schema lookup misses, so the structural
+// list gets its turn — which is the fallback this file exists to prove.
+function structuralOnlyReviewerStep(): RelayStep {
   return {
-    id: 'audit-step',
-    title: 'audit',
-    protocol: 'review@v1',
+    id: 'converge-judge-step',
+    title: 'judge',
+    protocol: 'converge@v1',
     reads: [],
     routes: { pass: '@continue' },
     executor: 'orchestrator',
     kind: 'relay',
     role: 'reviewer',
-    writes: {
-      request_path: 'reports/relay/review.request.json',
-      receipt_path: 'reports/relay/review.receipt.txt',
-      result_path: 'reports/relay/review.result.json',
-    },
-    check: { pass: ['NO_ISSUES_FOUND', 'ISSUES_FOUND'] },
+    writes: { report: { path: 'reports/judgment.json', schema: 'converge.judgment@v1' } },
+    check: { pass: ['accept', 'accept-with-fixes', 'reject'] },
   } as unknown as RelayStep;
 }
 
@@ -143,17 +142,17 @@ describe('relay shape-hint registry', () => {
     expect(findRelayShapeHint(relayStepWithSchema('unknown.schema@v1'))).toBeUndefined();
   });
 
-  it('falls back to the structural reviewer-role hint for steps without a typed report', () => {
-    const hint = findRelayShapeHint(reviewerStructuralStep());
+  it('falls back to a structural hint when the schema lookup misses', () => {
+    const hint = findRelayShapeHint(structuralOnlyReviewerStep());
     expect(hint).toBeDefined();
-    expect(hint).toContain('NO_ISSUES_FOUND');
-    expect(hint).toContain('"findings"');
+    expect(hint).toContain('stop-judge of a converge loop');
+    expect(hint).toContain('"goal_met"');
   });
 
   it('round-trips every catalog-declared structural hint id through the registry', () => {
-    // Floor: at least one structural hint exists today (review's
-    // standalone audit step). Prevents vacuous pass if all structural
-    // hints were dropped from the catalog.
+    // Floor: at least one structural hint exists today (the converge
+    // stop-judge, whose contract name is generic). Prevents vacuous pass if
+    // all structural hints were dropped from the catalog.
     expect(EXPECTED_STRUCTURAL_HINT_IDS.length).toBeGreaterThanOrEqual(1);
 
     const registered = listRegisteredStructuralHints().map((hint) => hint.id);

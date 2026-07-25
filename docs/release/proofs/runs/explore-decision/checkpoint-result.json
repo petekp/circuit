@@ -13,6 +13,7 @@
   "operator_summary_path": "<repo>/docs/release/proofs/runs/explore-decision/run/reports/operator-summary.json",
   "operator_summary_markdown_path": "<repo>/docs/release/proofs/runs/explore-decision/run/reports/operator-summary.md",
   "operator_summary_status_text": "Explore",
+  "operator_summary_html_path": "<repo>/docs/release/proofs/runs/explore-decision/run/reports/operator-summary.html",
   "run_envelope_path": "<repo>/docs/release/proofs/runs/explore-decision/run/reports/run-envelope.json",
   "run_process_evidence_path": "<repo>/docs/release/proofs/runs/explore-decision/run/reports/process-evidence.json",
   "run_surface_markdown_path": "<repo>/docs/release/proofs/runs/explore-decision/run/reports/run-surface.md",
@@ -22,7 +23,9 @@
   ],
   "checkpoint": {
     "step_id": "tradeoff-checkpoint-step",
+    "attempt": 1,
     "request_path": "<repo>/docs/release/proofs/runs/explore-decision/run/reports/checkpoints/tradeoff-request.json",
+    "request_sha256": "f1cdd448ba49544567693932bb7910e25c786289758b1bbce57477dd89b08a2f",
     "allowed_choices": [
       "option-1",
       "option-2",

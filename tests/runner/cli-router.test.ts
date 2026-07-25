@@ -729,6 +729,10 @@ describe('CLI router', () => {
 
   it('emits run.aborted progress when a run aborts', async () => {
     const abortRunFolder = join(runFolderBase, 'review-progress-aborted');
+    // A reply that is not JSON at all is the abort case: nothing about it can be
+    // salvaged or re-read, so the run exhausts its retries and closes aborted.
+    // (A reply that parses but fails its schema is a different close —
+    // evidence_invalid — because the relay did produce something.)
     const { output, progress } = await runMainJsonWithProgress(
       [
         'run',
@@ -740,7 +744,7 @@ describe('CLI router', () => {
         '--run-folder',
         abortRunFolder,
       ],
-      '{"verdict":"NO_ISSUES_FOUND","findings":"not-an-array"}',
+      'this reply is not JSON at all',
     );
 
     expect(output.outcome).toBe('aborted');

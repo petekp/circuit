@@ -8,4 +8,4 @@ Executed both pursuits serially and wrote both claimed changes.
 
 Next: nothing required.
 
-⎿ depth medium · power medium · 2 worker runs · all checks passed
+⎿ power medium · process medium · 2 worker runs · all checks passed

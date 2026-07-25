@@ -17,7 +17,7 @@
     "work_contract_ref": {
       "kind": "work_contract",
       "ref": "<repo>/generated/flows/build/circuit.work-contract.v0.json",
-      "sha256": "a2df5f845bab01bd801907849701225cba4f7caf6e3505a784a71302fa82499b",
+      "sha256": "183c0b08176aeadfb222c28a2634d59836ae1db392eb928c9ed109e411d75e56",
       "flow_id": "build"
     },
     "checkpoint_boundary_ref": {

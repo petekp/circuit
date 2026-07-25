@@ -80,6 +80,7 @@
   "receipt": {
     "depth": "tournament",
     "power": "medium",
+    "power_source": "auto",
     "worker_runs": 4,
     "escalations": 0,
     "models": [

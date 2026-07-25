@@ -8,4 +8,4 @@ Circuit · Build
 
 Next: nothing required.
 
-⎿ depth medium · power medium · 3 worker runs · all checks passed
+⎿ power medium · process medium · 3 worker runs · all checks passed

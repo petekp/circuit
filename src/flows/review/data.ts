@@ -1,8 +1,8 @@
 import { assembleFlowSchematic } from '../assemble-flow-schematic.js';
 import type { FlowData } from '../flow-definition.js';
 import { reviewAssemblySpec } from './assembly-spec.js';
-import { reviewRelayShapeHint } from './relay-hints.js';
-import { ReviewIntake, ReviewResult } from './reports.js';
+import { reviewRelayInstruction } from './relay-hints.js';
+import { ReviewIntake, ReviewRelayResult, ReviewResult } from './reports.js';
 import { reviewIntakeComposeBuilder } from './writers/intake.js';
 import { reviewResultComposeBuilder } from './writers/result.js';
 
@@ -36,6 +36,15 @@ export const reviewFlowData = {
       schema: ReviewIntake,
       writers: { compose: [reviewIntakeComposeBuilder] },
     },
+    // The reviewer's own response. Registering it on the relay channel is what
+    // lets the runtime hand the shape to the connector's structured-output flag
+    // instead of only asking for it in prose.
+    {
+      schemaName: 'review.verdict@v1',
+      channel: 'relay',
+      schema: ReviewRelayResult,
+      relayHint: reviewRelayInstruction,
+    },
     {
       schemaName: 'review.result@v1',
       channel: 'report',
@@ -43,7 +52,6 @@ export const reviewFlowData = {
       writers: { compose: [reviewResultComposeBuilder] },
     },
   ],
-  structuralHints: [reviewRelayShapeHint],
   runtimeSurface: {
     primaryResult: {
       schemaName: 'review.result@v1',

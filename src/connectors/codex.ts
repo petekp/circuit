@@ -440,22 +440,21 @@ export function buildCodexArgs(
 // Exported for direct test coverage of the cleanup-on-throw path; not a
 // stable runtime surface.
 //
-const CODEX_OUTPUT_SCHEMA_UNSUPPORTED_KEYWORDS: ReadonlySet<string> = new Set([
+// Keywords Codex rejects that only ever NARROW what a schema accepts. Dropping
+// one widens the schema handed to the CLI and never changes its shape, so the
+// worker is still steered to the right structure and Zod still rejects a value
+// that violates the constraint at the relay boundary. `$schema` and `$id` are
+// here because they are annotations, not constraints at all.
+//
+// This set is why the flag fires. Every schema Circuit derives from Zod carries
+// a `$schema` annotation, and any `.min(1)` becomes `minLength`, so treating
+// these as disqualifying meant no flow schema ever reached `--output-schema`.
+const CODEX_OUTPUT_SCHEMA_STRIPPABLE_KEYWORDS: ReadonlySet<string> = new Set([
   '$id',
-  '$ref',
   '$schema',
-  '$defs',
-  'allOf',
-  'anyOf',
-  'const',
-  'contains',
-  'definitions',
-  'dependentRequired',
-  'dependentSchemas',
   'exclusiveMaximum',
   'exclusiveMinimum',
   'format',
-  'if',
   'maxContains',
   'maxItems',
   'maxLength',
@@ -467,13 +466,30 @@ const CODEX_OUTPUT_SCHEMA_UNSUPPORTED_KEYWORDS: ReadonlySet<string> = new Set([
   'minProperties',
   'minimum',
   'multipleOf',
+  'pattern',
+  'uniqueItems',
+]);
+
+// Keywords Codex rejects that CHANGE the shape. Dropping one of these would
+// hand the CLI a schema that describes a different structure than the runtime
+// validates, so a schema carrying any of them is skipped outright and the prose
+// shape hint stays the only steering.
+const CODEX_OUTPUT_SCHEMA_DISQUALIFYING_KEYWORDS: ReadonlySet<string> = new Set([
+  '$ref',
+  '$defs',
+  'allOf',
+  'anyOf',
+  'const',
+  'contains',
+  'definitions',
+  'dependentRequired',
+  'dependentSchemas',
+  'if',
   'not',
   'oneOf',
-  'pattern',
   'patternProperties',
   'propertyNames',
   'then',
-  'uniqueItems',
 ]);
 
 function isRecord(value: unknown): value is Record<string, unknown> {
@@ -498,7 +514,7 @@ function isCodexOutputSchemaNodeCompatible(node: unknown): boolean {
   if (!isRecord(node)) return true;
 
   for (const key of Object.keys(node)) {
-    if (CODEX_OUTPUT_SCHEMA_UNSUPPORTED_KEYWORDS.has(key)) return false;
+    if (CODEX_OUTPUT_SCHEMA_DISQUALIFYING_KEYWORDS.has(key)) return false;
   }
 
   if (Array.isArray(node.type)) return false;
@@ -510,6 +526,23 @@ function isCodexOutputSchemaNodeCompatible(node: unknown): boolean {
   }
 
   return Object.values(node).every(isCodexOutputSchemaNodeCompatible);
+}
+
+/**
+ * The same schema with the narrowing-only keywords removed, ready for
+ * `--output-schema`. Structure is untouched: every property, type, required
+ * list, and nesting level survives. What is dropped is the validation detail
+ * Codex will not accept, which the runtime Zod parse enforces anyway.
+ */
+export function codexOutputSchemaFrom(node: unknown): unknown {
+  if (Array.isArray(node)) return node.map(codexOutputSchemaFrom);
+  if (!isRecord(node)) return node;
+  const cleaned: Record<string, unknown> = {};
+  for (const [key, value] of Object.entries(node)) {
+    if (CODEX_OUTPUT_SCHEMA_STRIPPABLE_KEYWORDS.has(key)) continue;
+    cleaned[key] = codexOutputSchemaFrom(value);
+  }
+  return cleaned;
 }
 
 // Probe whether a JSON Schema can be passed to codex's `--output-schema`.
@@ -622,12 +655,16 @@ async function relayCodexPrepared(input: CodexRelayInput): Promise<RelayResult> 
     // `finally` below still runs (tempDir is undefined at this point, a no-op).
     const effectiveModel =
       selectedOpenAIModel(input.resolvedSelection) ?? resolveCodexDefaultModel();
-    // Degrade gracefully for schemas outside Codex's structured-output subset:
-    // skip the flag and fall back to the prose shape hint already embedded in
-    // the prompt. The downstream runtime Zod check still validates worker
-    // output.
+    // Degrade gracefully for schemas whose SHAPE is outside Codex's
+    // structured-output subset: skip the flag and fall back to the prose shape
+    // hint already embedded in the prompt. Narrowing-only keywords are stripped
+    // rather than disqualifying, because dropping them cannot make the CLI
+    // build the wrong structure. The downstream runtime Zod check still
+    // validates worker output either way.
     if (input.responseSchema !== undefined && isCodexOutputSchemaCompatible(input.responseSchema)) {
-      const allocated = await writeSchemaTempFile(input.responseSchema);
+      const allocated = await writeSchemaTempFile(
+        codexOutputSchemaFrom(input.responseSchema) as Record<string, unknown>,
+      );
       tempDir = allocated.dir;
       schemaPath = allocated.path;
     }

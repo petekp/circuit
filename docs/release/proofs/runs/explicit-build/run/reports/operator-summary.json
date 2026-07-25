@@ -47,7 +47,9 @@
   },
   "checkpoint": {
     "step_id": "frame-step",
+    "attempt": 1,
     "request_path": "<repo>/docs/release/proofs/runs/explicit-build/run/reports/checkpoints/frame-step-request.json",
+    "request_sha256": "3740339920df25e29b8417e9935dfee7e1846eba14c6c514735c1d324cfc10e6",
     "allowed_choices": [
       "continue"
     ]

@@ -13,12 +13,12 @@
     "assessment": "The flow stopped before complete evidence was produced.",
     "key_points": [
       "Stop reason: primary result 'reports/fix-result.json' reported outcome 'partial'",
-      "Worker access: A worker can edit this checkout.",
-      "Verification: passed.",
-      "Regression: not proven by a command, so the relevance of the change to the bug is unverified."
+      "Working tree: the attempt's edits remain uncommitted.",
+      "Review: independent review did not run.",
+      "+4 more in operator-summary.json."
     ],
     "caveats": [],
-    "next_action": "inspect the stopped run and choose whether to rerun or hand off."
+    "next_action": "review the diff, run verification at your own budget, then resume, rerun, or discard the attempt."
   },
   "details": [
     "Worker access: A worker can edit this checkout.",
@@ -101,7 +101,7 @@
         "model": "sonnet"
       }
     ],
-    "checks_evaluated": 9,
+    "checks_evaluated": 8,
     "checks_failed": 0
   }
 }

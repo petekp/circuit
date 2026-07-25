@@ -47,6 +47,12 @@ export const reviewBlockItems: readonly BlockStepUse[] = [
     input: { brief: 'review.intake@v1' },
     execution: { kind: 'relay', role: 'reviewer' },
     protocol: 'review-audit@v1',
+    // Declaring the typed report here is what makes the reviewer's response
+    // shape enforced rather than requested: the runtime converts the schema to
+    // JSON Schema and hands it to the connector's structured-output flag, and a
+    // response that violates it fails at this step, where the retry route is,
+    // instead of at the close step one step downstream.
+    reportPath: 'reports/review-verdict.json',
     requestPath: 'reports/relay/review.request.json',
     receiptPath: 'reports/relay/review.receipt.txt',
     resultPath: 'stages/analyze/review-raw-findings.json',

@@ -6,6 +6,18 @@
     "option-1",
     "option-2"
   ],
+  "choices": [
+    {
+      "id": "option-1",
+      "label": "React",
+      "description": "Choose React for the broad ecosystem and hiring pool."
+    },
+    {
+      "id": "option-2",
+      "label": "Vue",
+      "description": "Choose Vue for a smaller surface and faster product iteration."
+    }
+  ],
   "safe_default_choice": "option-1",
   "execution_context": {
     "axes": {
@@ -39,7 +51,7 @@
           "relay": {
             "default": "auto",
             "roles": {},
-            "circuits": {},
+            "flows": {},
             "connectors": {}
           },
           "skills": {
@@ -51,7 +63,7 @@
               "disabled_patterns": {}
             }
           },
-          "circuits": {
+          "flows": {
             "prototype": {
               "skill_bindings": {},
               "variant_models": [
@@ -113,13 +125,37 @@
                   }
                 }
               ]
+            },
+            "build": {
+              "selection": {
+                "effort": "none",
+                "skills": {
+                  "mode": "inherit"
+                },
+                "depth": "low",
+                "invocation_options": {}
+              },
+              "skill_bindings": {}
             }
           },
           "power_tiers": {},
-          "defaults": {}
+          "defaults": {
+            "power": "auto"
+          }
         }
       }
     ],
-    "policy_layers": []
+    "policy_layers": [],
+    "review_inputs": [
+      {
+        "path": "reports/tournament-review.json",
+        "sha256": "a357c0d014c971800968c2bb005ef5cdd8ea4ec3f7e923b4e4dab380c0ab06a8"
+      },
+      {
+        "path": "reports/tournament-aggregate.json",
+        "sha256": "add9aad61a38bcd816887d611a00278859fd412740b29f7398f1b8f12a2a7d5b"
+      }
+    ],
+    "review_assets": []
   }
 }
