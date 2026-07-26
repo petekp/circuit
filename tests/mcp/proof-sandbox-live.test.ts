@@ -57,12 +57,27 @@ async function wait(milliseconds: number): Promise<void> {
   await new Promise<void>((resolvePromise) => setTimeout(resolvePromise, milliseconds));
 }
 
-async function waitForFile(pathname: string): Promise<void> {
+/**
+ * Wait for the proof command to have written its process id, not merely to have
+ * created the file it writes it into.
+ *
+ * Waiting on existence alone is a race the test loses on a loaded machine. The
+ * writer creates the file and then writes to it, so a poll that stops at the
+ * first `existsSync` can read the gap between the two and come away with
+ * nothing, or with the partial bytes of a file whose size landed before its
+ * contents did. It then hands that to `ps`, which rejects it, and the test
+ * fails as "could not inspect proof process" with an unreadable id. That reads
+ * as the sandbox having lost the process, which is the alarming thing this
+ * suite exists to detect, when what actually happened is the test got there
+ * first. A wrong red is worse than a slow green.
+ */
+async function waitForProcessId(pathname: string): Promise<string> {
   for (let attempt = 0; attempt < 400; attempt += 1) {
-    if (existsSync(pathname)) return;
+    const body = existsSync(pathname) ? readFileSync(pathname, 'utf8').trim() : '';
+    if (/^\d+$/u.test(body)) return body;
     await wait(25);
   }
-  throw new Error(`timed out waiting for ${pathname}`);
+  throw new Error(`timed out waiting for a process id in ${pathname}`);
 }
 
 afterEach(() => {
@@ -70,6 +85,27 @@ afterEach(() => {
 });
 
 describe.runIf(process.platform === 'darwin')('live macOS Codex MCP proof sandbox', () => {
+  // Pins the wait itself, because the failure it prevents looks like a sandbox
+  // fault rather than a test fault, and cost a green build on CI once already.
+  it('waits for the process id to land, not for its file to appear', async () => {
+    const workspace = temporaryDirectory('circuit-mcp-live-pidwait-workspace');
+    const pidFile = path.join(workspace, 'slow.pid');
+    // The state a writer passes through between creating the file and filling
+    // it. Waiting on existence returns here and reads nothing.
+    writeFileSync(pidFile, '');
+
+    let landed: string | undefined;
+    const waiting = waitForProcessId(pidFile).then((pid) => {
+      landed = pid;
+      return pid;
+    });
+    await wait(150);
+    expect(landed).toBeUndefined();
+
+    writeFileSync(pidFile, '4242\n');
+    await expect(waiting).resolves.toBe('4242');
+  }, 15_000);
+
   it('keeps proof commands inside the caller process group', async () => {
     const workspace = temporaryDirectory('circuit-mcp-live-group-workspace');
     const parentGroup = spawnSync('/bin/ps', ['-o', 'pgid=', '-p', String(process.pid)], {
@@ -81,8 +117,7 @@ describe.runIf(process.platform === 'darwin')('live macOS Codex MCP proof sandbo
       request([process.execPath, fixture(workspace), 'identity', pidFile]),
       { signal: controller.signal },
     );
-    await waitForFile(pidFile);
-    const proofPid = readFileSync(pidFile, 'utf8').trim();
+    const proofPid = await waitForProcessId(pidFile);
     const proofGroup = spawnSync('/bin/ps', ['-o', 'pgid=', '-p', proofPid], {
       encoding: 'utf8',
     });
