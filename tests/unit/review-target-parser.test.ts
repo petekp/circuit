@@ -254,6 +254,36 @@ describe('Review target parsing', () => {
       });
     });
 
+    // One filler word between the narrowing word and the path used to lose the
+    // exclusion outright: "but" matched, "skip" was read as the path, failed the
+    // path test, and "tests/" one word later was never reached. The operator
+    // asked for tests/ to be left out and Review read them anyway, silently,
+    // which is the failure mode a narrowing clause exists to avoid.
+    it.each([
+      { goal: 'review the staged changes but skip tests/', exclude: ['tests/'] },
+      { goal: 'review the working tree but ignore node_modules', exclude: ['node_modules'] },
+      { goal: 'review the working tree except maybe docs/', exclude: ['docs/'] },
+    ])('reads the exclusion in $goal', ({ goal, exclude }) => {
+      const parsed = parseReviewTarget(goal);
+      if (!parsed.ok) throw new Error(parsed.reason);
+      if (parsed.target.kind === 'goal') throw new Error('expected a git target');
+      expect(parsed.target.paths?.exclude ?? []).toEqual(exclude);
+    });
+
+    // The lookahead only reaches a token that already looks like a path, so an
+    // ordinary sentence still narrows nothing. Reading a scope out of these
+    // would review a fraction of what was asked for.
+    it.each([
+      'review the diff but not too deeply',
+      'review my changes but skip the boring parts',
+      'review this branch but be quick about it',
+    ])('reads no exclusion out of %s', (goal) => {
+      const parsed = parseReviewTarget(goal);
+      if (!parsed.ok) throw new Error(parsed.reason);
+      if (parsed.target.kind === 'goal') throw new Error('expected a git target');
+      expect(parsed.target.paths?.exclude ?? []).toEqual([]);
+    });
+
     // A narrowing clause rides along with the target it narrows. Reviewing the
     // whole commit here would review more than the operator asked for.
     it.each([

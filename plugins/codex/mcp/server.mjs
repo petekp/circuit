@@ -23640,6 +23640,9 @@ function scopePathFromToken(value) {
   }
   return cleaned;
 }
+function nextSubsetPathToken(trailing) {
+  return /^\s+(?<path>[^\s,;!?]+)/u.exec(trailing)?.groups?.path;
+}
 var NO_REVIEW_SCOPE = Object.freeze({ notApplied: Object.freeze([]) });
 function extractReviewScope(scope) {
   const include = [];
@@ -23650,7 +23653,8 @@ function extractReviewScope(scope) {
   const excludedChangeClass = changeClassMatch === null || changeClassMatch === void 0 || changeClassName === void 0 ? void 0 : { phrase: changeClassMatch[0].trim(), name: changeClassName };
   const collect = (pattern, into, options = {}) => {
     for (const match of scope.matchAll(pattern)) {
-      const token = match.groups?.path;
+      const matched = match.groups?.path;
+      const token = matched !== void 0 && !looksLikeReviewSubsetPath(matched) && options.lookAhead === true ? nextSubsetPathToken(scope.slice(match.index + match[0].length)) : matched;
       if (token === void 0 || !looksLikeReviewSubsetPath(token)) continue;
       if (options.rejectRefs === true && RANGE_LIKE_TOKEN_PATTERN.test(token)) continue;
       const path = scopePathFromToken(token);
@@ -23661,8 +23665,8 @@ function extractReviewScope(scope) {
       if (!into.includes(path)) into.push(path);
     }
   };
-  collect(RESTRICTION_CLAUSE_PATTERN, include);
-  collect(EXCLUSION_CLAUSE_PATTERN, exclude);
+  collect(RESTRICTION_CLAUSE_PATTERN, include, { lookAhead: true });
+  collect(EXCLUSION_CLAUSE_PATTERN, exclude, { lookAhead: true });
   collect(POSTFIX_RESTRICTION_CLAUSE_PATTERN, include, { rejectRefs: true });
   if (include.length === 0) {
     const subset = UNRESOLVED_SUBSET_PATTERN.exec(scope)?.groups?.subset;

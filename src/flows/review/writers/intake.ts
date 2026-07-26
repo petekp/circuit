@@ -1048,6 +1048,25 @@ function scopePathFromToken(value: string): string | undefined {
   return cleaned;
 }
 
+/**
+ * The next word, when the word right after a narrowing lead-in was not a path.
+ *
+ * English puts a word between the two more often than the lead-in list can
+ * chase: "but skip tests/", "but ignore node_modules", "except maybe docs/".
+ * The clause tail consumed that word as the path, it failed the path test, and
+ * the real path one word later was never reached, so the narrowing vanished
+ * without a trace in the report.
+ *
+ * This is a shape, not another phrasing. The vocabulary lists stay closed; what
+ * widens is how far past a lead-in the path may sit, by exactly one word. The
+ * path test is what keeps it honest: it wants a slash, an extension, a glob, or
+ * a directory name Review already knows, so ordinary prose after an ordinary
+ * "but" still yields nothing.
+ */
+function nextSubsetPathToken(trailing: string): string | undefined {
+  return /^\s+(?<path>[^\s,;!?]+)/u.exec(trailing)?.groups?.path;
+}
+
 type ReviewScopeRequest = {
   readonly paths?: ReviewPathScope;
   // Resolved once the target is known, because whether Review can honour it
@@ -1077,10 +1096,14 @@ function extractReviewScope(scope: string): ReviewScopeRequest {
   const collect = (
     pattern: RegExp,
     into: string[],
-    options: { readonly rejectRefs?: boolean } = {},
+    options: { readonly rejectRefs?: boolean; readonly lookAhead?: boolean } = {},
   ): void => {
     for (const match of scope.matchAll(pattern)) {
-      const token = match.groups?.path;
+      const matched = match.groups?.path;
+      const token =
+        matched !== undefined && !looksLikeReviewSubsetPath(matched) && options.lookAhead === true
+          ? nextSubsetPathToken(scope.slice(match.index + match[0].length))
+          : matched;
       if (token === undefined || !looksLikeReviewSubsetPath(token)) continue;
       if (options.rejectRefs === true && RANGE_LIKE_TOKEN_PATTERN.test(token)) continue;
       const path = scopePathFromToken(token);
@@ -1091,8 +1114,8 @@ function extractReviewScope(scope: string): ReviewScopeRequest {
       if (!into.includes(path)) into.push(path);
     }
   };
-  collect(RESTRICTION_CLAUSE_PATTERN, include);
-  collect(EXCLUSION_CLAUSE_PATTERN, exclude);
+  collect(RESTRICTION_CLAUSE_PATTERN, include, { lookAhead: true });
+  collect(EXCLUSION_CLAUSE_PATTERN, exclude, { lookAhead: true });
   // Read after the leading forms so "review only src/auth" is already resolved
   // and this adds nothing; it exists for the goals the leading forms never saw.
   collect(POSTFIX_RESTRICTION_CLAUSE_PATTERN, include, { rejectRefs: true });
