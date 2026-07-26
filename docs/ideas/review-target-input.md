@@ -180,3 +180,47 @@ needing their own fixes.
   `HEAD~3`, which does not exist, and reports `range HEAD~3..HEAD could not be
   read` rather than naming the real limit. Under an explicit target the caller
   chose the range, so a precise error is both possible and correct.
+
+## Resolution, 2026-07-25
+
+Slices 1, 2, and 3 shipped together. Slice 4 stays open.
+
+`--target` is now a run flag. It accepts `working-tree`, `staged`, `unstaged`,
+`commit:<ref>`, and a range such as `main...HEAD` or `HEAD~3..HEAD`. It reaches
+the flow through the run context, so the engine carries the string and never
+reads it: the flow validates it and turns it into a target. Routing is still
+model-only.
+
+Three things came out differently from the plan above.
+
+**The risk gate was re-derived, and it was a gate for strangers.** The plan
+above says slice 3 is not done until a fixed set of natural requests has been
+run through a real host session and scored for how often the flag is set
+correctly. That gate exists to earn trust in an unknown host operator before
+depending on it. We are the host operator. Slice 2's provenance field is the
+measurement, and it collects itself from the runs we already do: every run where
+the host failed to name a target says so in its own report. So the three slices
+shipped together, and the thing to watch is the frequency of the
+`target_inferred` warning, which should fall toward zero on its own as the host
+surfaces take hold. A formal eval buys nothing that watching our own reports
+does not.
+
+**Supplied material is neither named nor inferred, and the plan did not
+consider it.** When the goal carries the subject inline, the target resolves to
+`goal` and nothing was recovered by phrase matching. Recording that as inferred
+would report a guess that never happened, so it records as named. The provenance
+field answers one question: did the caller decide what Review would look at, or
+did Review decide for them.
+
+**Naming a target skips the only reader of prose narrowings.** The prose parser
+is what reads a clause like "only src/auth", so bypassing it would have dropped
+that narrowing without a word, moving the silent mis-scope from the target to
+the paths. The intake now reports the narrowing it did not apply, as an evidence
+warning naming the phrase. It reports rather than applies on purpose: applying
+prose narrowing on top of an explicit target would keep the phrase grammar
+load-bearing, which is the opposite of the direction here. Slice 4 is the real
+fix.
+
+Also worth recording: the phrase grammar is frozen. Nothing above licenses a new
+pattern. Everything the fallback recognizes today, it keeps recognizing, and the
+answer to a phrasing it misses is a flag, not a twenty-second pattern.

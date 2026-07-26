@@ -85,6 +85,8 @@ interface CommandHelp {
 const RUN_FLAG_BLURBS: Readonly<Record<string, string>> = {
   '--goal': 'what the run must accomplish (required)',
   '--why': 'why the goal matters; extra context the run may use',
+  '--target':
+    'what to work on, named outright; Review takes working-tree, staged, unstaged, commit:<ref>, or a range like main...HEAD',
   '--process': 'thoroughness override; normally derived from --power',
   '--power': 'model dial; default medium, auto lets the run pick within configured bounds',
   '--tournament': 'fan out branches and select one; optional count, default 3',

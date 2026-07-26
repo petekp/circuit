@@ -17366,6 +17366,7 @@ var CursorV1 = external_exports.number().int().nonnegative().max(Number.MAX_SAFE
 var SummaryV1 = external_exports.string().trim().min(1).max(1e3);
 var GoalV1 = external_exports.string().trim().min(1).max(8e3);
 var WhyV1 = external_exports.string().trim().min(1).max(2e3);
+var TargetV1 = external_exports.string().trim().min(1).max(500);
 var ChoiceIdV1 = external_exports.string().min(1).max(64).regex(/^[a-z0-9][a-z0-9._-]*$/, "choice_id must be a safe lowercase identifier");
 var CheckpointTokenV1 = external_exports.string().min(16).max(1024);
 var SafeNameV1 = external_exports.string().min(1).max(128).regex(/^[A-Za-z0-9][A-Za-z0-9._@/-]*$/, "must be a bounded name, not a command");
@@ -17396,6 +17397,7 @@ var CircuitStartInputV1 = external_exports.object({
   flow: McpPublicFlowV1,
   goal: GoalV1,
   why: WhyV1.optional(),
+  target: TargetV1.optional(),
   power: external_exports.enum(["auto", "low", "medium", "high"]).optional(),
   process: external_exports.enum(["low", "medium", "high"]).optional(),
   tournament: external_exports.number().int().min(2).max(4).optional(),
@@ -20059,6 +20061,7 @@ function buildMcpWorkerArgv(launch) {
     launch.flow_root
   ];
   if (request.why !== void 0) argv.push("--why", request.why);
+  if (request.target !== void 0) argv.push("--target", request.target);
   if (request.power !== void 0) argv.push("--power", request.power);
   if (request.process !== void 0) argv.push("--process", request.process);
   if (request.tournament !== void 0) argv.push("--tournament", String(request.tournament));

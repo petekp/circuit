@@ -34,6 +34,10 @@ const CursorV1 = z.number().int().nonnegative().max(Number.MAX_SAFE_INTEGER);
 const SummaryV1 = z.string().trim().min(1).max(1_000);
 const GoalV1 = z.string().trim().min(1).max(8_000);
 const WhyV1 = z.string().trim().min(1).max(2_000);
+// A named target, carried opaquely like the CLI flag it becomes. Bounded only
+// by length here: the flow that owns the vocabulary is the one that validates
+// it, so this host must not grow a second, drifting copy of that grammar.
+const TargetV1 = z.string().trim().min(1).max(500);
 const ChoiceIdV1 = z
   .string()
   .min(1)
@@ -90,6 +94,7 @@ export const CircuitStartInputV1 = z
     flow: McpPublicFlowV1,
     goal: GoalV1,
     why: WhyV1.optional(),
+    target: TargetV1.optional(),
     power: z.enum(['auto', 'low', 'medium', 'high']).optional(),
     process: z.enum(['low', 'medium', 'high']).optional(),
     tournament: z.number().int().min(2).max(4).optional(),

@@ -135,13 +135,22 @@ permission for the normal tracked-code relay for that Review run. Do not ask
 for a second confirmation before relaying tracked files. This permission does
 not cover cached web search or untracked file contents.
 
-When the user asks Review to inspect a specific code target, keep that target
-in the `goal`. Examples: "current diff", "staged changes", "latest commit",
-`HEAD`, `HEAD~1`, `commit abc1234`, or `main...feature`. Circuit uses that
-wording to collect the requested evidence. Do not rewrite a commit, range, or
-branch comparison as only "current diff" unless the user actually asked for
-staged or unstaged changes. When the goal names no target, Circuit reviews the
-current working tree and says so in the report.
+When the user asks Review to inspect a specific code target, name it in
+`target` rather than leaving it in the `goal` for Circuit to recover. Accepted
+values are `working-tree`, `staged`, `unstaged`, `commit:<ref>`, and a range
+such as `main...HEAD` or `HEAD~3..HEAD`. Map what the user said onto one of
+those: "my staged changes" is `staged`, "this branch against main" is
+`main...HEAD`, "the last three commits" is `HEAD~3..HEAD`, "what I just
+committed" is `commit:HEAD`. Do not narrow a commit, range, or branch
+comparison to the working tree unless the user actually asked for staged or
+unstaged changes.
+
+When the user named no target, omit `target`. Circuit reads the goal text
+instead, reviews the current working tree if it finds nothing there, and
+records in the report that the target was inferred. Do not invent a value to
+fill the field. An invented target is reported as a fact, while an inferred one
+is reported as a guess, so guessing in this field is strictly worse than
+leaving it empty.
 
 Treat that selected target as the only code under review. Do not silently
 broaden the run to another working-tree layer, commit, or range. Review sees

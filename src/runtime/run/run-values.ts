@@ -25,6 +25,10 @@ export interface RunValue {
   readonly packageIndex: RunContext['packageIndex'];
   readonly runId: RunContext['runId'];
   readonly goal: string;
+  // Projected alongside goal so a compose writer reads both from context.run.
+  // Absent unless the caller named a target, which is what keeps every run that
+  // does not pass --target byte-identical to before the flag existed.
+  readonly target?: string;
   readonly manifestHash: string;
   readonly entryModeName?: string;
   readonly depth?: string;
@@ -110,6 +114,7 @@ export function runValueFromContext(context: RunContext): RunValue {
     packageIndex: context.packageIndex,
     runId: context.runId,
     goal: context.goal,
+    ...(context.target === undefined ? {} : { target: context.target }),
     manifestHash: context.manifestHash,
     ...(context.entryModeName === undefined ? {} : { entryModeName: context.entryModeName }),
     ...(context.depth === undefined ? {} : { depth: context.depth }),

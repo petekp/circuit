@@ -82,6 +82,18 @@ metacharacters:
      unblocks, why now — pass it as `--why` after the goal, escaped and
      single-quoted the same way. Omit the flag when no reason was stated;
      never invent one.
+   - **On a Review run, name the target with `--target` when the user
+     indicated one.** You already understood which code they meant; pass it
+     rather than leaving Circuit to recover it from the goal sentence. The
+     accepted values are `working-tree`, `staged`, `unstaged`,
+     `commit:<ref>`, and a range such as `main...HEAD` or `HEAD~3..HEAD`.
+     Map what the user said onto one of those: "my staged changes" is
+     `staged`, "this branch against main" is `main...HEAD`, "the last three
+     commits" is `HEAD~3..HEAD`, "what I just committed" is `commit:HEAD`.
+     **If the user did not indicate a target, omit the flag.** Circuit falls
+     back to reading the goal text and reports that it did so. A target you
+     invented is worse than one Circuit admits it guessed, because the report
+     will present yours as a fact.
 
    Example for a Fix task with a stated reason:
 
@@ -89,7 +101,14 @@ metacharacters:
    node '<plugin root>/scripts/circuit.js' run fix --goal 'the checkout total is wrong when discounts and tax both apply' --why 'totals are blocking the release cut' --progress jsonl
    ```
 
-   Example for a Review task:
+   Example for a Review task where the user named the target ("review my
+   branch against main for safety problems"):
+
+   ```bash
+   node '<plugin root>/scripts/circuit.js' run review --goal 'review this branch for safety problems' --target main...HEAD --progress jsonl
+   ```
+
+   Example for a Review task where the user named no target:
 
    ```bash
    node '<plugin root>/scripts/circuit.js' run review --goal 'review the current diff for safety problems' --progress jsonl

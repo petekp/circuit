@@ -4,12 +4,14 @@ import type {
   ReviewEvidenceWarning,
   ReviewPathScope,
   ReviewResolvedTarget,
+  ReviewTargetProvenance,
 } from '../reports.js';
 import { containsOpaqueSubmoduleChange, opaqueBinaryChangePaths } from './evidence-completeness.js';
 
 export type ReviewIntakeProjectorInputs = {
   readonly scope: string;
   readonly target: ReviewResolvedTarget;
+  readonly targetProvenance: ReviewTargetProvenance;
   readonly evidence: ReviewEvidence;
   readonly maxUntrackedFiles: number;
   readonly assumedTarget?: boolean;
@@ -40,6 +42,16 @@ export const ASSUMED_WORKING_TREE_WARNING =
  */
 export const WHOLE_REPOSITORY_NARROWED_WARNING =
   'You asked about the whole repository. Review covered the changes in it, not every file: reading a whole codebase in one pass is not something it can do yet. Name a path to review the code there as it stands, such as "review src/auth as it stands".';
+
+/**
+ * Nobody named a target, so one was read out of the goal text. The wording has
+ * to carry two things at once: what Review decided, and the fact that deciding
+ * it was Review's doing rather than the operator's. "Matched" is the honest
+ * verb — phrase matching is what happened, and it is right about most goals and
+ * silently wrong about the rest.
+ */
+export const TARGET_INFERRED_WARNING =
+  'No target was named, so Review matched one out of the goal text. It is reviewing what that matched, which may not be what you meant. Pass --target to say it outright, such as --target main...HEAD, --target staged, or --target commit:abc1234.';
 
 /**
  * The snapshot phrasing was understood and not honoured. The reason is the
@@ -144,16 +156,26 @@ function appendOpaqueBinaryWarnings(
 export function reviewEvidenceWarnings(input: {
   readonly evidence: ReviewEvidence;
   readonly maxUntrackedFiles: number;
+  readonly targetProvenance?: ReviewTargetProvenance;
   readonly assumedTarget?: boolean;
   readonly scopeNotApplied?: readonly string[];
   readonly snapshotFallbackFrom?: string;
   readonly wholeRepository?: boolean;
   readonly snapshotNotApplied?: boolean;
 }): ReviewEvidenceWarning[] {
+  // These two describe the same working tree and must never both appear. One
+  // says the operator named no target, the other says they named one Review
+  // cannot fully cover, and only one of those can be true of a given goal.
+  const targetDisclosed = input.wholeRepository === true || input.assumedTarget === true;
+  // Supplied material is the third way a target gets settled, and it is not an
+  // inference at all: the operator pasted the thing to review, so the goal text
+  // IS the subject rather than a description of one somewhere in Git. The
+  // intake writer already records that case as named, so this is a guard rather
+  // than a live branch — but this function is exported and takes its provenance
+  // as an argument, and the message it suppresses would be an outright false
+  // statement about what Review did.
+  const suppliedMaterial = input.evidence.kind === 'goal';
   const assumption: readonly ReviewEvidenceWarning[] = [
-    // These two describe the same working tree and must never both appear. One
-    // says the operator named no target, the other says they named one Review
-    // cannot fully cover, and only one of those can be true of a given goal.
     ...(input.wholeRepository === true
       ? [
           {
@@ -164,6 +186,13 @@ export function reviewEvidenceWarnings(input: {
       : input.assumedTarget === true
         ? [{ kind: 'target_assumed' as const, message: ASSUMED_WORKING_TREE_WARNING }]
         : []),
+    // Third member of the same family, and the one that covers the case the
+    // other two miss: a phrase matched, so the target looks chosen. Suppressed
+    // when either of the above fired, because both already say the target was
+    // not the operator's, and saying it twice reads as two separate problems.
+    ...(input.targetProvenance === 'inferred' && !targetDisclosed && !suppliedMaterial
+      ? [{ kind: 'target_inferred' as const, message: TARGET_INFERRED_WARNING }]
+      : []),
     // Independent of the above: a goal can name the repository and also ask for
     // the code as it stands, and both go unmet for different reasons.
     ...(input.snapshotNotApplied === true
@@ -368,10 +397,12 @@ export function projectReviewIntake(input: ReviewIntakeProjectorInputs): ReviewI
   return ReviewIntake.parse({
     scope: input.scope,
     target: input.target,
+    target_provenance: input.targetProvenance,
     evidence: input.evidence,
     evidence_warnings: reviewEvidenceWarnings({
       evidence: input.evidence,
       maxUntrackedFiles: input.maxUntrackedFiles,
+      targetProvenance: input.targetProvenance,
       ...(input.assumedTarget === true ? { assumedTarget: true } : {}),
       ...(input.scopeNotApplied === undefined ? {} : { scopeNotApplied: input.scopeNotApplied }),
       ...(input.snapshotFallbackFrom === undefined

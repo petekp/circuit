@@ -61,6 +61,7 @@ async function writeRegisteredComposeReport(
       flow,
       step: indexedStep,
       goal: context.run.goal,
+      ...(context.run.target === undefined ? {} : { target: context.run.target }),
       ...(context.run.axes === undefined ? {} : { axes: context.run.axes }),
       ...(context.ports.worktree.projectRoot === undefined
         ? {}

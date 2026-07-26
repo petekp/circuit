@@ -32,6 +32,10 @@ export interface RunExecutionFlag {
 export const RUN_EXECUTION_FLAGS: readonly RunExecutionFlag[] = [
   { flag: '--goal', valueHint: '<goal>', docValid: true },
   { flag: '--why', valueHint: '<why>', docValid: true },
+  // What to work on, named instead of left to be recovered from --goal prose.
+  // The value is opaque here: each flow owns its own target vocabulary and
+  // validates the string itself, so the CLI carries it and never classifies it.
+  { flag: '--target', valueHint: '<target>', docValid: true },
   { flag: '--process', valueHint: `<${Process.options.join('|')}>`, docValid: true },
   { flag: '--power', valueHint: `<${PowerDialSetting.options.join('|')}>`, docValid: true },
   { flag: '--tournament', valueHint: '[2|3|4]', docValid: true },

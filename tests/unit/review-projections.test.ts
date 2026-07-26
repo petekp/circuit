@@ -67,6 +67,10 @@ function workingTreeIntake(
   return projectReviewIntake({
     scope,
     target: workingTreeTarget(mode),
+    // An assumed target is definitionally one nobody named. Everything else
+    // here stands in for a target the caller stated, which is what keeps these
+    // cases about evidence warnings rather than about provenance.
+    targetProvenance: options.assumedTarget === true ? ('inferred' as const) : ('named' as const),
     evidence: workingTreeEvidence(mode, evidenceOverrides),
     maxUntrackedFiles: 20,
     ...(options.assumedTarget === true ? { assumedTarget: true } : {}),
@@ -81,6 +85,7 @@ function targetIntake(
   return projectReviewIntake({
     scope,
     target,
+    targetProvenance: 'named',
     evidence: {
       kind: 'git-target',
       project_root: '/tmp/project',
@@ -583,6 +588,7 @@ describe('Review evidence projections', () => {
     const intake = ReviewIntake.parse({
       scope: 'review commit missing',
       target: { kind: 'commit', ref: 'missing' },
+      target_provenance: 'named',
       evidence: {
         kind: 'unavailable',
         reason: 'The requested commit could not be read.',
@@ -604,6 +610,7 @@ describe('Review evidence projections', () => {
     const intake = ReviewIntake.parse({
       scope: 'review this rollout plan:\nUse one pinned target and stop if it is unavailable.',
       target: { kind: 'goal' },
+      target_provenance: 'named',
       evidence: { kind: 'goal' },
       evidence_warnings: [],
     });
@@ -620,6 +627,7 @@ describe('Review evidence projections', () => {
     const intake = ReviewIntake.parse({
       scope: 'review commit deadbeef',
       target: { kind: 'commit', ref: 'deadbeef' },
+      target_provenance: 'named',
       evidence: {
         kind: 'git-target',
         project_root: '/tmp/project',

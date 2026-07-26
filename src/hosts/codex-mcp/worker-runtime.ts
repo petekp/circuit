@@ -164,6 +164,7 @@ export function buildMcpWorkerArgv(launch: McpWorkerLaunch): string[] {
     launch.flow_root,
   ];
   if (request.why !== undefined) argv.push('--why', request.why);
+  if (request.target !== undefined) argv.push('--target', request.target);
   if (request.power !== undefined) argv.push('--power', request.power);
   if (request.process !== undefined) argv.push('--process', request.process);
   if (request.tournament !== undefined) argv.push('--tournament', String(request.tournament));

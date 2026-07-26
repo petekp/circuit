@@ -34,6 +34,13 @@ export const ReviewEvidenceWarningKind = z.enum([
   // the run reviewed changes instead. Said out loud, because "no findings"
   // answers a different question than the one asked.
   'snapshot_not_applied',
+  // Nobody named a target, so one was read out of the goal text by phrase
+  // matching. Distinct from `target_assumed`, which reports the case where the
+  // matching found nothing and the working tree was assumed. This one reports
+  // the opposite and more dangerous case: a pattern DID match, so the run looks
+  // definite, and nothing until now distinguished that from a target the caller
+  // actually asked for. Only one of the two ever fires.
+  'target_inferred',
 ]);
 export type ReviewEvidenceWarningKind = z.infer<typeof ReviewEvidenceWarningKind>;
 
@@ -342,10 +349,24 @@ export const ReviewResolvedTarget = z.discriminatedUnion('kind', [
 ]);
 export type ReviewResolvedTarget = z.infer<typeof ReviewResolvedTarget>;
 
+/**
+ * Where the resolved target came from. `named` means the caller said it, on the
+ * command line or through the host. `inferred` means it was recovered from the
+ * goal prose by phrase matching.
+ *
+ * Required, not optional, and deliberately: every intake has a provenance, and
+ * an absent field would read as "named" to anyone skimming. The distinction is
+ * the point. A guess and a fact are equally definite once resolved, so without
+ * this the report cannot tell the operator which one it is holding.
+ */
+export const ReviewTargetProvenance = z.enum(['named', 'inferred']);
+export type ReviewTargetProvenance = z.infer<typeof ReviewTargetProvenance>;
+
 export const ReviewIntake = z
   .object({
     scope: z.string().min(1),
     target: ReviewResolvedTarget,
+    target_provenance: ReviewTargetProvenance,
     evidence: ReviewEvidence,
     evidence_warnings: z.array(ReviewEvidenceWarning).default([]),
   })

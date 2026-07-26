@@ -84970,7 +84970,7 @@ function addObjectIdPrefixMismatch(ref, objectId, field, ctx) {
 function computeReviewVerdict(findings) {
   return findings.some((finding3) => finding3.severity !== "low") ? "ISSUES_FOUND" : "CLEAN";
 }
-var ReviewFindingSeverity, ReviewResultVerdict, ReviewRelayVerdict, ReviewEvidenceWarningKind, ReviewEvidenceWarning, ReviewEvidenceText, ReviewUntrackedContentPolicy, ReviewTargetKind, ReviewWorkingTreeMode, ReviewPathScope, ReviewUntrackedFileEvidence, ReviewSnapshotFileEvidence, ReviewGitObjectId, ReviewGitTargetEvidence, ReviewEvidence, ReviewEvidenceSummary, ReviewResolvedTarget, ReviewIntake, ReviewFinding, ReviewResult, ReviewRelayResult;
+var ReviewFindingSeverity, ReviewResultVerdict, ReviewRelayVerdict, ReviewEvidenceWarningKind, ReviewEvidenceWarning, ReviewEvidenceText, ReviewUntrackedContentPolicy, ReviewTargetKind, ReviewWorkingTreeMode, ReviewPathScope, ReviewUntrackedFileEvidence, ReviewSnapshotFileEvidence, ReviewGitObjectId, ReviewGitTargetEvidence, ReviewEvidence, ReviewEvidenceSummary, ReviewResolvedTarget, ReviewTargetProvenance, ReviewIntake, ReviewFinding, ReviewResult, ReviewRelayResult;
 var init_reports10 = __esm({
   "dist/flows/review/reports.js"() {
     "use strict";
@@ -85002,7 +85002,14 @@ var init_reports10 = __esm({
       // The operator asked for the code as it stands but named nowhere to look, so
       // the run reviewed changes instead. Said out loud, because "no findings"
       // answers a different question than the one asked.
-      "snapshot_not_applied"
+      "snapshot_not_applied",
+      // Nobody named a target, so one was read out of the goal text by phrase
+      // matching. Distinct from `target_assumed`, which reports the case where the
+      // matching found nothing and the working tree was assumed. This one reports
+      // the opposite and more dangerous case: a pattern DID match, so the run looks
+      // definite, and nothing until now distinguished that from a target the caller
+      // actually asked for. Only one of the two ever fires.
+      "target_inferred"
     ]);
     ReviewEvidenceWarning = external_exports.object({
       kind: ReviewEvidenceWarningKind,
@@ -85177,9 +85184,11 @@ var init_reports10 = __esm({
         paths: ReviewPathScope
       }).strict()
     ]);
+    ReviewTargetProvenance = external_exports.enum(["named", "inferred"]);
     ReviewIntake = external_exports.object({
       scope: external_exports.string().min(1),
       target: ReviewResolvedTarget,
+      target_provenance: ReviewTargetProvenance,
       evidence: ReviewEvidence,
       evidence_warnings: external_exports.array(ReviewEvidenceWarning).default([])
     }).strict();
@@ -85448,16 +85457,20 @@ function appendOpaqueBinaryWarnings(warnings, diffs) {
   }
 }
 function reviewEvidenceWarnings(input) {
+  const targetDisclosed = input.wholeRepository === true || input.assumedTarget === true;
+  const suppliedMaterial = input.evidence.kind === "goal";
   const assumption = [
-    // These two describe the same working tree and must never both appear. One
-    // says the operator named no target, the other says they named one Review
-    // cannot fully cover, and only one of those can be true of a given goal.
     ...input.wholeRepository === true ? [
       {
         kind: "whole_repository_narrowed",
         message: WHOLE_REPOSITORY_NARROWED_WARNING
       }
     ] : input.assumedTarget === true ? [{ kind: "target_assumed", message: ASSUMED_WORKING_TREE_WARNING }] : [],
+    // Third member of the same family, and the one that covers the case the
+    // other two miss: a phrase matched, so the target looks chosen. Suppressed
+    // when either of the above fired, because both already say the target was
+    // not the operator's, and saying it twice reads as two separate problems.
+    ...input.targetProvenance === "inferred" && !targetDisclosed && !suppliedMaterial ? [{ kind: "target_inferred", message: TARGET_INFERRED_WARNING }] : [],
     // Independent of the above: a goal can name the repository and also ask for
     // the code as it stands, and both go unmet for different reasons.
     ...input.snapshotNotApplied === true ? [{ kind: "snapshot_not_applied", message: SNAPSHOT_NOT_APPLIED_WARNING }] : [],
@@ -85632,10 +85645,12 @@ function projectReviewIntake(input) {
   return ReviewIntake.parse({
     scope: input.scope,
     target: input.target,
+    target_provenance: input.targetProvenance,
     evidence: input.evidence,
     evidence_warnings: reviewEvidenceWarnings({
       evidence: input.evidence,
       maxUntrackedFiles: input.maxUntrackedFiles,
+      targetProvenance: input.targetProvenance,
       ...input.assumedTarget === true ? { assumedTarget: true } : {},
       ...input.scopeNotApplied === void 0 ? {} : { scopeNotApplied: input.scopeNotApplied },
       ...input.snapshotFallbackFrom === void 0 ? {} : { snapshotFallbackFrom: input.snapshotFallbackFrom },
@@ -85644,7 +85659,7 @@ function projectReviewIntake(input) {
     })
   });
 }
-var ASSUMED_WORKING_TREE_WARNING, WHOLE_REPOSITORY_NARROWED_WARNING, SNAPSHOT_NOT_APPLIED_WARNING;
+var ASSUMED_WORKING_TREE_WARNING, WHOLE_REPOSITORY_NARROWED_WARNING, TARGET_INFERRED_WARNING, SNAPSHOT_NOT_APPLIED_WARNING;
 var init_intake_projection = __esm({
   "dist/flows/review/writers/intake-projection.js"() {
     "use strict";
@@ -85652,6 +85667,7 @@ var init_intake_projection = __esm({
     init_evidence_completeness();
     ASSUMED_WORKING_TREE_WARNING = "Assumed target: the current working tree. Name a commit, a range, staged, or unstaged to review something else.";
     WHOLE_REPOSITORY_NARROWED_WARNING = 'You asked about the whole repository. Review covered the changes in it, not every file: reading a whole codebase in one pass is not something it can do yet. Name a path to review the code there as it stands, such as "review src/auth as it stands".';
+    TARGET_INFERRED_WARNING = "No target was named, so Review matched one out of the goal text. It is reviewing what that matched, which may not be what you meant. Pass --target to say it outright, such as --target main...HEAD, --target staged, or --target commit:abc1234.";
     SNAPSHOT_NOT_APPLIED_WARNING = 'You asked about the code as it stands, and Review read changes instead. Reading files rather than a diff needs a path to bound it. Name one, such as "review src/auth as it stands".';
   }
 });
@@ -86382,6 +86398,74 @@ function parseReviewTarget(scope) {
     snapshotFallback: scoped.paths
   });
 }
+function parseExplicitReviewTarget(value) {
+  const named = value.trim();
+  if (named.length === 0) {
+    return { ok: false, reason: `--target was empty. Name one of: ${EXPLICIT_TARGET_VOCABULARY}.` };
+  }
+  const keyword = named.toLowerCase();
+  if (keyword === "working-tree" || keyword === "working_tree") {
+    return { ok: true, target: { kind: "working_tree", mode: "all", explicit: true } };
+  }
+  if (keyword === "staged" || keyword === "unstaged") {
+    return { ok: true, target: { kind: "working_tree", mode: keyword, explicit: true } };
+  }
+  const commitPrefix = "commit:";
+  if (keyword.startsWith(commitPrefix)) {
+    const ref = named.slice(commitPrefix.length);
+    if (ref.length === 0) {
+      return {
+        ok: false,
+        reason: "--target commit: names no commit. Write the ref after the colon, such as commit:abc1234."
+      };
+    }
+    if (!isSafeReviewRef(ref)) {
+      return { ok: false, reason: unsafeRefReason(ref) };
+    }
+    return { ok: true, target: { kind: "commit", ref } };
+  }
+  if (named.includes("..")) {
+    const dots = named.includes("...") ? "..." : "..";
+    const separatorIndex = named.indexOf(dots);
+    const base = named.slice(0, separatorIndex);
+    const head = named.slice(separatorIndex + dots.length);
+    if (base.length === 0 || head.length === 0) {
+      return {
+        ok: false,
+        reason: `--target "${named}" is a range missing one of its ends. Name both, such as main...HEAD.`
+      };
+    }
+    if (!isSafeReviewRef(base))
+      return { ok: false, reason: unsafeRefReason(base) };
+    if (!isSafeReviewRef(head))
+      return { ok: false, reason: unsafeRefReason(head) };
+    return { ok: true, target: { kind: "range", base, head, dots } };
+  }
+  return {
+    ok: false,
+    reason: `Review does not know the target "${named}". Name one of: ${EXPLICIT_TARGET_VOCABULARY}.`
+  };
+}
+function proseNarrowingPhrases(goal) {
+  const authorityScope = maskReviewLiteralData(normalizeReviewQuotes(goal));
+  const requested = extractReviewScope(authorityScope);
+  const phrases = [...requested.notApplied];
+  if (requested.paths !== void 0) {
+    phrases.push(reviewPathScopePaths(requested.paths));
+  } else {
+    const pathOnly = pathOnlyRequestPath(authorityScope);
+    if (pathOnly !== void 0) {
+      phrases.push(scopePathFromToken(pathOnly) ?? pathOnly.trim());
+    }
+  }
+  const carve = requested.excludedChangeClass;
+  if (carve !== void 0)
+    phrases.push(carve.phrase);
+  return phrases;
+}
+function unsafeRefReason(ref) {
+  return `--target named the ref "${ref}", which Review will not hand to Git. A ref may not start with a dash, contain '..' inside a single end, or use '@{'. Name one of: ${EXPLICIT_TARGET_VOCABULARY}.`;
+}
 function reviewTargetLabel(target) {
   if (target.kind === "commit")
     return `commit ${target.ref}`;
@@ -87013,7 +87097,7 @@ ${unstagedStat.stdout}`] : []
     ...paths === void 0 ? {} : { path_scope: paths }
   };
 }
-var MAX_DIFF_CHARS, MAX_UNTRACKED_FILES, MAX_UNTRACKED_FILE_CHARS, MAX_SNAPSHOT_FILES, MAX_SNAPSHOT_FILE_CHARS, MAX_SNAPSHOT_TOTAL_CHARS, MAX_GIT_BUFFER_BYTES, MAX_DIFF_BUFFER_BYTES, DIRECT_GIT_TIMEOUT_MS, HEAD_COMMIT_REF, SAFE_REVIEW_REF_PATTERN, ReviewTargetEmptyError, REVIEW_LEAD, PULL_REQUEST_UNSUPPORTED_REASON, RANGE_FILLER_WORDS, LATEST_COMMIT_PATTERN, RESTRICTION_LEAD_IN, EXCLUSION_LEAD_IN, NARROWING_CLAUSE_TAIL, RESTRICTION_CLAUSE_PATTERN, EXCLUSION_CLAUSE_PATTERN, POSTFIX_RESTRICTION_CLAUSE_PATTERN, RANGE_LIKE_TOKEN_PATTERN, UNRESOLVED_SUBSET_PATTERN, EXCLUDED_CHANGE_CLASS_PATTERN, SNAPSHOT_REQUEST_PATTERN, WHOLE_REPOSITORY_PATTERN, MAX_SCOPE_PATHS, MAX_SCOPE_PATH_LENGTH, SAFE_SCOPE_PATH_PATTERN, NO_REVIEW_SCOPE, PATH_ONLY_REQUEST_PATTERN, PATH_ONLY_SUFFIX_PATTERN, reviewIntakeComposeBuilder;
+var MAX_DIFF_CHARS, MAX_UNTRACKED_FILES, MAX_UNTRACKED_FILE_CHARS, MAX_SNAPSHOT_FILES, MAX_SNAPSHOT_FILE_CHARS, MAX_SNAPSHOT_TOTAL_CHARS, MAX_GIT_BUFFER_BYTES, MAX_DIFF_BUFFER_BYTES, DIRECT_GIT_TIMEOUT_MS, HEAD_COMMIT_REF, SAFE_REVIEW_REF_PATTERN, ReviewTargetEmptyError, REVIEW_LEAD, PULL_REQUEST_UNSUPPORTED_REASON, RANGE_FILLER_WORDS, LATEST_COMMIT_PATTERN, RESTRICTION_LEAD_IN, EXCLUSION_LEAD_IN, NARROWING_CLAUSE_TAIL, RESTRICTION_CLAUSE_PATTERN, EXCLUSION_CLAUSE_PATTERN, POSTFIX_RESTRICTION_CLAUSE_PATTERN, RANGE_LIKE_TOKEN_PATTERN, UNRESOLVED_SUBSET_PATTERN, EXCLUDED_CHANGE_CLASS_PATTERN, SNAPSHOT_REQUEST_PATTERN, WHOLE_REPOSITORY_PATTERN, MAX_SCOPE_PATHS, MAX_SCOPE_PATH_LENGTH, SAFE_SCOPE_PATH_PATTERN, NO_REVIEW_SCOPE, PATH_ONLY_REQUEST_PATTERN, PATH_ONLY_SUFFIX_PATTERN, EXPLICIT_TARGET_VOCABULARY, reviewIntakeComposeBuilder;
 var init_intake2 = __esm({
   "dist/flows/review/writers/intake.js"() {
     "use strict";
@@ -87089,12 +87173,17 @@ var init_intake2 = __esm({
       "(?<path>\\S+)(?<suffix>[\\s\\S]*)$"
     ].join(""), "iu");
     PATH_ONLY_SUFFIX_PATTERN = /^(?:,?\s*(?:for|with|especially)\b|,?\s+and\s+(?:focus|check|inspect|look|pay|prioritize|verify)\b|,?\s*as[-\s](?:it|they)\s+stands?\b|,?\s*as[-\s]is\b)/iu;
+    EXPLICIT_TARGET_VOCABULARY = "working-tree, staged, unstaged, commit:<ref>, or a range such as main...HEAD or HEAD~3..HEAD";
     reviewIntakeComposeBuilder = {
       resultSchemaName: "review.intake@v1",
       async build(context) {
-        const parsedTarget = parseReviewTarget(context.goal);
+        const named = context.target;
+        const parsedTarget = named === void 0 ? parseReviewTarget(context.goal) : parseExplicitReviewTarget(named);
         if (!parsedTarget.ok)
           throw new Error(parsedTarget.reason);
+        const targetProvenance = named !== void 0 || parsedTarget.target.kind === "goal" ? "named" : "inferred";
+        const narrowingUnread = named === void 0 ? [] : proseNarrowingPhrases(context.goal);
+        const scopeNotApplied = parsedTarget.scopeNotApplied ?? (narrowingUnread.length === 0 ? void 0 : narrowingUnread);
         const untrackedContent = context.evidencePolicy?.includeUntrackedFileContent === true ? { includeUntrackedFileContent: true } : {};
         const reader = context.gitReader === void 0 ? {} : { gitReader: context.gitReader };
         const collect = async (target2) => await collectReviewEvidence(context.projectRoot, {
@@ -87122,13 +87211,14 @@ var init_intake2 = __esm({
         return projectReviewIntake({
           scope: context.goal,
           target,
+          targetProvenance,
           evidence: evidence2,
           maxUntrackedFiles: MAX_UNTRACKED_FILES,
           // An assumed working tree that became a snapshot is no longer an
           // assumption about which changes to read, so the warning would misdescribe
           // what happened.
           ...parsedTarget.assumed === true && snapshotFallbackFrom === void 0 ? { assumedTarget: true } : {},
-          ...parsedTarget.scopeNotApplied === void 0 ? {} : { scopeNotApplied: parsedTarget.scopeNotApplied },
+          ...scopeNotApplied === void 0 ? {} : { scopeNotApplied },
           ...snapshotFallbackFrom === void 0 ? {} : { snapshotFallbackFrom },
           ...parsedTarget.wholeRepository === true ? { wholeRepository: true } : {},
           ...parsedTarget.snapshotNotApplied === true ? { snapshotNotApplied: true } : {}
@@ -96539,6 +96629,7 @@ function runValueFromContext(context) {
     packageIndex: context.packageIndex,
     runId: context.runId,
     goal: context.goal,
+    ...context.target === void 0 ? {} : { target: context.target },
     manifestHash: context.manifestHash,
     ...context.entryModeName === void 0 ? {} : { entryModeName: context.entryModeName },
     ...context.depth === void 0 ? {} : { depth: context.depth },
@@ -96678,6 +96769,7 @@ async function writeRegisteredComposeReport(step, context) {
       flow,
       step: indexedStep2,
       goal: context.run.goal,
+      ...context.run.target === void 0 ? {} : { target: context.run.target },
       ...context.run.axes === void 0 ? {} : { axes: context.run.axes },
       ...context.ports.worktree.projectRoot === void 0 ? {} : { projectRoot: context.ports.worktree.projectRoot },
       ...context.ports.worktree.evidencePolicy === void 0 ? {} : { evidencePolicy: context.ports.worktree.evidencePolicy },
@@ -104241,6 +104333,7 @@ async function executeExecutableFlowOutcomeUnsafe(flow, options) {
     runDir,
     goal: options.goal ?? `Run ${flow.id}`,
     ...options.why === void 0 || options.why.length === 0 ? {} : { why: options.why },
+    ...options.target === void 0 || options.target.length === 0 ? {} : { target: options.target },
     manifestHash: resolveManifestHash(flow, options),
     ...options.workContractRef === void 0 ? {} : { workContractRef: options.workContractRef },
     ...options.recoveryRouteBindings === void 0 ? {} : { recoveryRouteBindings: options.recoveryRouteBindings },
@@ -105190,6 +105283,7 @@ async function runCompiledFlowWithWaiting(options) {
     ...options.runId === void 0 ? {} : { runId: options.runId },
     goal: options.goal,
     ...options.why === void 0 ? {} : { why: options.why },
+    ...options.target === void 0 ? {} : { target: options.target },
     manifestHash: computeManifestHash(options.flowBytes),
     manifestBytes: options.flowBytes,
     // Step 2 — the live equipment reshaper, built once per run from the parsed
@@ -114143,6 +114237,10 @@ var init_run_flag_vocabulary = __esm({
     RUN_EXECUTION_FLAGS = [
       { flag: "--goal", valueHint: "<goal>", docValid: true },
       { flag: "--why", valueHint: "<why>", docValid: true },
+      // What to work on, named instead of left to be recovered from --goal prose.
+      // The value is opaque here: each flow owns its own target vocabulary and
+      // validates the string itself, so the CLI carries it and never classifies it.
+      { flag: "--target", valueHint: "<target>", docValid: true },
       { flag: "--process", valueHint: `<${Process.options.join("|")}>`, docValid: true },
       { flag: "--power", valueHint: `<${PowerDialSetting.options.join("|")}>`, docValid: true },
       { flag: "--tournament", valueHint: "[2|3|4]", docValid: true },
@@ -114502,6 +114600,10 @@ function parseExecutionArgs(command, argv) {
   if (why !== void 0 && why.length === 0) {
     throw new Error("--why must be non-empty when provided");
   }
+  const target = opts.target;
+  if (target !== void 0 && target.trim().length === 0) {
+    throw new Error("--target must be non-empty when provided");
+  }
   const runFolder = opts.runFolder;
   const fixturePath = opts.fixture;
   const flowRoot2 = opts.flowRoot;
@@ -114561,6 +114663,9 @@ function parseExecutionArgs(command, argv) {
     if (why !== void 0) {
       throw new Error("checkpoint resume reuses the saved run goal; omit --why");
     }
+    if (target !== void 0) {
+      throw new Error("checkpoint resume reuses the target the run already resolved; omit --target");
+    }
     if (fixturePath !== void 0) {
       throw new Error("checkpoint resume loads the saved flow manifest; omit --fixture");
     }
@@ -114613,6 +114718,8 @@ function parseExecutionArgs(command, argv) {
     result.goal = goal;
   if (why !== void 0)
     result.why = why;
+  if (target !== void 0)
+    result.target = target.trim();
   if (power !== void 0)
     result.power = power;
   if (flowName !== void 0)
@@ -115684,6 +115791,7 @@ async function runExecutionCommand(args, options) {
       runId,
       goal: operatorGoal,
       ...runArgs.why === void 0 ? {} : { why: runArgs.why },
+      ...runArgs.target === void 0 ? {} : { target: runArgs.target },
       now,
       projectRoot,
       childCompiledFlowResolver: defaultChildCompiledFlowResolver(runArgs.flowRoot),
@@ -158626,6 +158734,7 @@ function renderRootHelp() {
 var RUN_FLAG_BLURBS = {
   "--goal": "what the run must accomplish (required)",
   "--why": "why the goal matters; extra context the run may use",
+  "--target": "what to work on, named outright; Review takes working-tree, staged, unstaged, commit:<ref>, or a range like main...HEAD",
   "--process": "thoroughness override; normally derived from --power",
   "--power": "model dial; default medium, auto lets the run pick within configured bounds",
   "--tournament": "fan out branches and select one; optional count, default 3",

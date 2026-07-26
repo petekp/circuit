@@ -27,6 +27,12 @@ export interface RunContext
   // Operator-stated reason behind the goal (--why). Optional, unlike goal:
   // when absent, relay prompts are byte-identical to runs before the flag.
   readonly why?: string;
+  // What the run is about, named rather than inferred (--target). Carried
+  // verbatim and never interpreted here: the engine does not own a target
+  // vocabulary, and a flow that has one reads this string and validates it
+  // against its own. Absent means nothing was named, which is what tells a flow
+  // to fall back to whatever it did before the flag existed.
+  readonly target?: string;
   readonly manifestHash: string;
   // A prior crashed run's folder to reuse finished children from (the
   // `--reuse-children-from` restart pointer). Run-state, not a capability:

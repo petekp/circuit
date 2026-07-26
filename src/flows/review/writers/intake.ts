@@ -1316,6 +1316,120 @@ export function parseReviewTarget(scope: string): ReviewTargetParseResult {
   });
 }
 
+/**
+ * The target vocabulary, written the way it is typed. Every rejection below
+ * ends with this list, because a rejection that does not say what would have
+ * worked just moves the guessing from the engine to the operator.
+ */
+const EXPLICIT_TARGET_VOCABULARY =
+  'working-tree, staged, unstaged, commit:<ref>, or a range such as main...HEAD or HEAD~3..HEAD';
+
+/**
+ * Read a target the caller named outright, rather than one recovered from the
+ * goal prose.
+ *
+ * This is deliberately not a grammar. It recognises a closed vocabulary exactly
+ * and rejects everything else by name. The prose parser has to be forgiving,
+ * because refusing an ordinary sentence costs more than reviewing the obvious
+ * thing and disclosing the assumption. An explicit target is the opposite case:
+ * the caller stated an intent, so quietly reviewing something adjacent to it is
+ * strictly worse than saying the value was not understood. Nothing here strips
+ * punctuation, skips filler words, or falls back.
+ */
+export function parseExplicitReviewTarget(value: string): ReviewTargetParseResult {
+  const named = value.trim();
+  if (named.length === 0) {
+    return { ok: false, reason: `--target was empty. Name one of: ${EXPLICIT_TARGET_VOCABULARY}.` };
+  }
+
+  // Only the keywords are case-folded. A ref is not: Git refs are
+  // case-sensitive, and lowercasing one would hand Git a name the caller never
+  // typed and report the failure against the wrong string.
+  const keyword = named.toLowerCase();
+  if (keyword === 'working-tree' || keyword === 'working_tree') {
+    return { ok: true, target: { kind: 'working_tree', mode: 'all', explicit: true } };
+  }
+  if (keyword === 'staged' || keyword === 'unstaged') {
+    return { ok: true, target: { kind: 'working_tree', mode: keyword, explicit: true } };
+  }
+
+  const commitPrefix = 'commit:';
+  if (keyword.startsWith(commitPrefix)) {
+    const ref = named.slice(commitPrefix.length);
+    if (ref.length === 0) {
+      return {
+        ok: false,
+        reason:
+          '--target commit: names no commit. Write the ref after the colon, such as commit:abc1234.',
+      };
+    }
+    if (!isSafeReviewRef(ref)) {
+      return { ok: false, reason: unsafeRefReason(ref) };
+    }
+    return { ok: true, target: { kind: 'commit', ref } };
+  }
+
+  if (named.includes('..')) {
+    // Three dots first: '..' is a prefix of '...', so testing the shorter form
+    // first would split 'main...HEAD' into 'main' and '.HEAD'.
+    const dots = named.includes('...') ? '...' : '..';
+    const separatorIndex = named.indexOf(dots);
+    const base = named.slice(0, separatorIndex);
+    const head = named.slice(separatorIndex + dots.length);
+    if (base.length === 0 || head.length === 0) {
+      return {
+        ok: false,
+        reason: `--target "${named}" is a range missing one of its ends. Name both, such as main...HEAD.`,
+      };
+    }
+    if (!isSafeReviewRef(base)) return { ok: false, reason: unsafeRefReason(base) };
+    if (!isSafeReviewRef(head)) return { ok: false, reason: unsafeRefReason(head) };
+    return { ok: true, target: { kind: 'range', base, head, dots } };
+  }
+
+  return {
+    ok: false,
+    reason: `Review does not know the target "${named}". Name one of: ${EXPLICIT_TARGET_VOCABULARY}.`,
+  };
+}
+
+/**
+ * Path narrowings the goal asks for, phrased for a report that did not apply
+ * them.
+ *
+ * Naming a target skips the prose parser, and the prose parser is currently the
+ * only thing that reads a narrowing like "only in src/auth". Without this, a
+ * named target would drop that narrowing on the floor without a word, which is
+ * the exact failure the explicit target exists to remove — moving a silent
+ * mis-scope from the target to the paths is not progress.
+ *
+ * It reports rather than applies, deliberately. Applying prose narrowing on top
+ * of an explicit target would keep the phrase grammar load-bearing, and the
+ * ruling on that grammar is that it stops growing. `--paths` is the real fix.
+ */
+function proseNarrowingPhrases(goal: string): readonly string[] {
+  const authorityScope = maskReviewLiteralData(normalizeReviewQuotes(goal));
+  const requested = extractReviewScope(authorityScope);
+  const phrases = [...requested.notApplied];
+  if (requested.paths !== undefined) {
+    phrases.push(reviewPathScopePaths(requested.paths));
+  } else {
+    // The bare form, "review src/auth", which names somewhere to look without
+    // any narrowing clause around it.
+    const pathOnly = pathOnlyRequestPath(authorityScope);
+    if (pathOnly !== undefined) {
+      phrases.push(scopePathFromToken(pathOnly) ?? pathOnly.trim());
+    }
+  }
+  const carve = requested.excludedChangeClass;
+  if (carve !== undefined) phrases.push(carve.phrase);
+  return phrases;
+}
+
+function unsafeRefReason(ref: string): string {
+  return `--target named the ref "${ref}", which Review will not hand to Git. A ref may not start with a dash, contain '..' inside a single end, or use '@{'. Name one of: ${EXPLICIT_TARGET_VOCABULARY}.`;
+}
+
 export function reviewScopeRequiresGitEvidence(scope: string): boolean {
   const parsed = parseReviewTarget(scope);
   if (!parsed.ok) return true;
@@ -2328,8 +2442,27 @@ async function collectReviewEvidence(
 export const reviewIntakeComposeBuilder: ComposeBuilder = {
   resultSchemaName: 'review.intake@v1',
   async build(context: ComposeBuildContext): Promise<unknown> {
-    const parsedTarget = parseReviewTarget(context.goal);
+    // The explicit target wins outright, and is not merely consulted when the
+    // grammar comes up empty. A caller who named a target has already decided;
+    // letting a phrase match override that would make the flag advisory and
+    // leave the guess in charge, which is the whole problem.
+    const named = context.target;
+    const parsedTarget =
+      named === undefined ? parseReviewTarget(context.goal) : parseExplicitReviewTarget(named);
     if (!parsedTarget.ok) throw new Error(parsedTarget.reason);
+    // Supplied material counts as named. The question this field answers is
+    // whether the caller decided what Review would look at or Review decided
+    // for them, and when the goal carries the material inline the caller handed
+    // over the subject itself. Nothing was recovered by phrase matching, so
+    // calling it inferred would report a guess that never happened.
+    const targetProvenance =
+      named !== undefined || parsedTarget.target.kind === 'goal' ? 'named' : 'inferred';
+    // Skipping the prose parser also skips the only reader of path narrowings,
+    // so anything the goal asked to narrow to goes unread here. Name it in the
+    // report instead of quietly reviewing wider than the request.
+    const narrowingUnread = named === undefined ? [] : proseNarrowingPhrases(context.goal);
+    const scopeNotApplied =
+      parsedTarget.scopeNotApplied ?? (narrowingUnread.length === 0 ? undefined : narrowingUnread);
     const untrackedContent =
       context.evidencePolicy?.includeUntrackedFileContent === true
         ? { includeUntrackedFileContent: true as const }
@@ -2365,6 +2498,7 @@ export const reviewIntakeComposeBuilder: ComposeBuilder = {
     return projectReviewIntake({
       scope: context.goal,
       target,
+      targetProvenance,
       evidence,
       maxUntrackedFiles: MAX_UNTRACKED_FILES,
       // An assumed working tree that became a snapshot is no longer an
@@ -2373,9 +2507,7 @@ export const reviewIntakeComposeBuilder: ComposeBuilder = {
       ...(parsedTarget.assumed === true && snapshotFallbackFrom === undefined
         ? { assumedTarget: true }
         : {}),
-      ...(parsedTarget.scopeNotApplied === undefined
-        ? {}
-        : { scopeNotApplied: parsedTarget.scopeNotApplied }),
+      ...(scopeNotApplied === undefined ? {} : { scopeNotApplied }),
       ...(snapshotFallbackFrom === undefined ? {} : { snapshotFallbackFrom }),
       ...(parsedTarget.wholeRepository === true ? { wholeRepository: true } : {}),
       ...(parsedTarget.snapshotNotApplied === true ? { snapshotNotApplied: true } : {}),

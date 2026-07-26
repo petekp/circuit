@@ -5,6 +5,7 @@
     "mode": "all",
     "explicit": false
   },
+  "target_provenance": "inferred",
   "evidence": {
     "kind": "git-working-tree",
     "project_root": "<repo>/docs/release/proofs/runs/review/project",

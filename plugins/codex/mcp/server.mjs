@@ -23088,7 +23088,14 @@ var ReviewEvidenceWarningKind = external_exports.enum([
   // The operator asked for the code as it stands but named nowhere to look, so
   // the run reviewed changes instead. Said out loud, because "no findings"
   // answers a different question than the one asked.
-  "snapshot_not_applied"
+  "snapshot_not_applied",
+  // Nobody named a target, so one was read out of the goal text by phrase
+  // matching. Distinct from `target_assumed`, which reports the case where the
+  // matching found nothing and the working tree was assumed. This one reports
+  // the opposite and more dangerous case: a pattern DID match, so the run looks
+  // definite, and nothing until now distinguished that from a target the caller
+  // actually asked for. Only one of the two ever fires.
+  "target_inferred"
 ]);
 var ReviewEvidenceWarning = external_exports.object({
   kind: ReviewEvidenceWarningKind,
@@ -23302,9 +23309,11 @@ var ReviewResolvedTarget = external_exports.discriminatedUnion("kind", [
     paths: ReviewPathScope
   }).strict()
 ]);
+var ReviewTargetProvenance = external_exports.enum(["named", "inferred"]);
 var ReviewIntake = external_exports.object({
   scope: external_exports.string().min(1),
   target: ReviewResolvedTarget,
+  target_provenance: ReviewTargetProvenance,
   evidence: ReviewEvidence,
   evidence_warnings: external_exports.array(ReviewEvidenceWarning).default([])
 }).strict();
@@ -27146,6 +27155,7 @@ var CursorV1 = external_exports.number().int().nonnegative().max(Number.MAX_SAFE
 var SummaryV1 = external_exports.string().trim().min(1).max(1e3);
 var GoalV1 = external_exports.string().trim().min(1).max(8e3);
 var WhyV1 = external_exports.string().trim().min(1).max(2e3);
+var TargetV1 = external_exports.string().trim().min(1).max(500);
 var ChoiceIdV1 = external_exports.string().min(1).max(64).regex(/^[a-z0-9][a-z0-9._-]*$/, "choice_id must be a safe lowercase identifier");
 var CheckpointTokenV1 = external_exports.string().min(16).max(1024);
 var SafeNameV1 = external_exports.string().min(1).max(128).regex(/^[A-Za-z0-9][A-Za-z0-9._@/-]*$/, "must be a bounded name, not a command");
@@ -27176,6 +27186,7 @@ var CircuitStartInputV1 = external_exports.object({
   flow: McpPublicFlowV1,
   goal: GoalV1,
   why: WhyV1.optional(),
+  target: TargetV1.optional(),
   power: external_exports.enum(["auto", "low", "medium", "high"]).optional(),
   process: external_exports.enum(["low", "medium", "high"]).optional(),
   tournament: external_exports.number().int().min(2).max(4).optional(),

@@ -33,6 +33,9 @@ export interface CompiledFlowRunOptions extends RuntimeExecutionCapabilities {
   readonly runId?: string;
   readonly goal: string;
   readonly why?: string;
+  // What to work on, named rather than inferred (--target). Carried verbatim
+  // for the flow to interpret; the runtime owns no target vocabulary.
+  readonly target?: string;
   readonly entryModeName?: string;
   readonly depth?: string;
   readonly axes?: Axes;
@@ -113,6 +116,7 @@ export async function runCompiledFlowWithWaiting(
       ...(options.runId === undefined ? {} : { runId: options.runId }),
       goal: options.goal,
       ...(options.why === undefined ? {} : { why: options.why }),
+      ...(options.target === undefined ? {} : { target: options.target }),
       manifestHash: computeManifestHash(options.flowBytes),
       manifestBytes: options.flowBytes,
       // Step 2 — the live equipment reshaper, built once per run from the parsed

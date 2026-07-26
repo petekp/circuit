@@ -127,6 +127,7 @@ export interface ParsedArgs {
   flowName?: string;
   goal?: string;
   why?: string;
+  target?: string;
   axes: AxesValue;
   power?: PowerDialValue;
   powerProvided: boolean;
@@ -236,6 +237,7 @@ export function parseExecutionArgs(command: 'run' | 'resume', argv: readonly str
   const opts = program.opts<{
     goal?: string;
     why?: string;
+    target?: string;
     process?: string;
     power?: string;
     tournament?: boolean | string;
@@ -313,6 +315,14 @@ export function parseExecutionArgs(command: 'run' | 'resume', argv: readonly str
   const why = opts.why;
   if (why !== undefined && why.length === 0) {
     throw new Error('--why must be non-empty when provided');
+  }
+  const target = opts.target;
+  if (target !== undefined && target.trim().length === 0) {
+    // Emptiness is the one thing the CLI can judge about a target. Everything
+    // past that is the flow's vocabulary, and rejecting an unknown value here
+    // would put a target grammar in the runtime, which is what this flag exists
+    // to get rid of.
+    throw new Error('--target must be non-empty when provided');
   }
   const runFolder = opts.runFolder;
   const fixturePath = opts.fixture;
@@ -394,6 +404,11 @@ export function parseExecutionArgs(command: 'run' | 'resume', argv: readonly str
     if (why !== undefined) {
       throw new Error('checkpoint resume reuses the saved run goal; omit --why');
     }
+    if (target !== undefined) {
+      throw new Error(
+        'checkpoint resume reuses the target the run already resolved; omit --target',
+      );
+    }
     if (fixturePath !== undefined) {
       throw new Error('checkpoint resume loads the saved flow manifest; omit --fixture');
     }
@@ -462,6 +477,7 @@ export function parseExecutionArgs(command: 'run' | 'resume', argv: readonly str
   };
   if (goal !== undefined) result.goal = goal;
   if (why !== undefined) result.why = why;
+  if (target !== undefined) result.target = target.trim();
   if (power !== undefined) result.power = power;
   if (flowName !== undefined) result.flowName = flowName;
   if (runFolder !== undefined) result.runFolder = runFolder;
@@ -1947,6 +1963,7 @@ export async function runExecutionCommand(
       runId,
       goal: operatorGoal,
       ...(runArgs.why === undefined ? {} : { why: runArgs.why }),
+      ...(runArgs.target === undefined ? {} : { target: runArgs.target }),
       now,
       projectRoot,
       childCompiledFlowResolver: defaultChildCompiledFlowResolver(runArgs.flowRoot),

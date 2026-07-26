@@ -87,6 +87,7 @@ export interface GraphRunnerOptions extends RuntimeExecutionCapabilities {
   readonly runId?: string;
   readonly goal?: string;
   readonly why?: string;
+  readonly target?: string;
   readonly manifestHash?: string;
   readonly manifestBytes?: Uint8Array;
   // The live equipment reshaper. Present only on the live path
@@ -587,6 +588,9 @@ async function executeExecutableFlowOutcomeUnsafe(
     runDir,
     goal: options.goal ?? `Run ${flow.id}`,
     ...(options.why === undefined || options.why.length === 0 ? {} : { why: options.why }),
+    ...(options.target === undefined || options.target.length === 0
+      ? {}
+      : { target: options.target }),
     manifestHash: resolveManifestHash(flow, options),
     ...(options.workContractRef === undefined ? {} : { workContractRef: options.workContractRef }),
     ...(options.recoveryRouteBindings === undefined

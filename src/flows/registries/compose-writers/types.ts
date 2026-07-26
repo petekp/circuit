@@ -44,6 +44,12 @@ export interface ComposeBuildContext {
   readonly flow: RuntimeIndexedFlow;
   readonly step: ComposeStep;
   readonly goal: string;
+  // What the run is about, named by the caller instead of recovered from the
+  // goal prose (`--target`). Opaque to the engine on purpose: the vocabulary is
+  // the flow's, not the runtime's, so the string is carried verbatim and the
+  // flow that understands it validates it. Absent on every run that does not
+  // pass the flag, which is what keeps the prose fallback byte-identical.
+  readonly target?: string;
   readonly axes?: Axes;
   readonly projectRoot?: string;
   readonly evidencePolicy?: RuntimeEvidencePolicy;

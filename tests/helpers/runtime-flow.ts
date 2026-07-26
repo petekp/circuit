@@ -262,6 +262,9 @@ function reportBody(
       return ReviewIntake.parse({
         scope: goal,
         target: { kind: 'goal' },
+        // Supplied material: the operator handed over the subject, so nothing
+        // about the target was guessed.
+        target_provenance: 'named',
         evidence: { kind: 'goal' },
         evidence_warnings: [],
       });
