@@ -200,6 +200,15 @@ function briefKeyPoints(priority: readonly string[], candidates: readonly string
 const SALVAGE_NEXT_ACTION =
   'review the diff, run verification at your own budget, then resume, rerun, or discard the attempt.';
 
+// The salvage menu assumes there is an attempt sitting in the checkout to keep
+// or throw away. A flow whose workers cannot edit the checkout leaves nothing
+// to salvage, so it gets the menu that fits: read what came back and run again.
+const READ_AND_RERUN_NEXT_ACTION = 'read the run folder for what came back, then rerun.';
+
+function salvageNextAction(flowId: string): string {
+  return flowMayInvokeWriteCapableWorker(flowId) ? SALVAGE_NEXT_ACTION : READ_AND_RERUN_NEXT_ACTION;
+}
+
 // Only Build and Fix run a verification step and an independent review step
 // whose reports live at this well-known per-flow path today. Any other flow
 // simply renders no salvage line for that report — never a false claim.
@@ -793,10 +802,28 @@ function nextActionFrom(details: readonly string[], flowId: string, outcomeLabel
   return 'nothing required.';
 }
 
+// Whether a stop is the flow stating its result rather than the run coming up
+// short. Review binds ISSUES_FOUND to `stopped` so that finding something
+// cannot close green, which means every review that did its whole job and
+// found a defect closes stopped. Those runs produced complete evidence and a
+// verdict, and the flow-aware brief already knows how to say so; the degraded
+// brief buries the verdict under salvage prose written for a failed attempt.
+// Keyed on the flow's own report carrying the verdict, so a run that stopped
+// before producing one still gets the degraded brief.
+function stopStatesTheFlowResult(flowId: string, flowReport: JsonObject | undefined): boolean {
+  switch (flowId) {
+    case 'review':
+      return stringField(flowReport, 'verdict') !== undefined;
+    default:
+      return false;
+  }
+}
+
 function runOutcomeOverrideBrief(input: {
   readonly runFolder: string;
   readonly flowId: string;
   readonly flowName: string;
+  readonly flowReport: JsonObject | undefined;
   readonly runResult: OperatorSummaryRunResult;
   readonly details: readonly string[];
   readonly checkpointDefaultChoice?: string | undefined;
@@ -837,14 +864,19 @@ function runOutcomeOverrideBrief(input: {
         keyPoints,
       ),
       caveats: [],
-      next_action: SALVAGE_NEXT_ACTION,
+      next_action: salvageNextAction(input.flowId),
     };
   }
   if (input.runResult.outcome === 'evidence_invalid') {
     return {
       headline: digestHeadline(input.flowName),
-      assessment:
-        'The worker finished and produced work, but its report failed validation, so the run could not prove the work. The files it created were not deleted.',
+      // Two different runs wear this outcome. A doer flow's worker edited the
+      // checkout and the operator has to be told those edits survived. A
+      // reading flow's worker answered a question and created nothing, so the
+      // same sentence would describe files that never existed.
+      assessment: flowMayInvokeWriteCapableWorker(input.flowId)
+        ? 'The worker finished and produced work, but its report failed validation, so the run could not prove the work. The files it created were not deleted.'
+        : 'The worker finished and answered, but its report failed validation, so the run could not stand behind the answer. Nothing in this checkout was changed.',
       key_points: briefKeyPoints(
         [
           ...(input.runResult.reason === undefined
@@ -855,7 +887,7 @@ function runOutcomeOverrideBrief(input: {
         keyPoints,
       ),
       caveats: [],
-      next_action: SALVAGE_NEXT_ACTION,
+      next_action: salvageNextAction(input.flowId),
     };
   }
   if (input.runResult.outcome === 'escalated') {
@@ -885,6 +917,7 @@ function runOutcomeOverrideBrief(input: {
     };
   }
   if (input.runResult.outcome === 'stopped') {
+    if (stopStatesTheFlowResult(input.flowId, input.flowReport)) return undefined;
     // A stopped run ran its steps and closed degraded, so "your edits are
     // uncommitted" is surroundings and sinks behind the flow's own findings.
     // The abort branch above keeps it up front on purpose: there the work is
@@ -925,6 +958,7 @@ function buildBriefSlots(input: {
     runFolder: input.runFolder,
     flowId: input.flowId,
     flowName,
+    flowReport: input.flowReport,
     runResult: input.runResult,
     details: input.details,
     ...(input.checkpointDefaultChoice === undefined
@@ -1217,7 +1251,7 @@ function readRunReceipt(runFolder: string): OperatorRunReceipt | undefined {
 // model ids no — those live in the JSON receipt and the run record. The ⎿
 // glyph is the CIRCUIT status-block grammar: the trailer reads as machine
 // truth at the end of the model-written digest, with no feature-name label.
-function receiptLine(receipt: OperatorRunReceipt): string {
+function receiptLine(receipt: OperatorRunReceipt, outcome: string): string {
   const runsWord = receipt.worker_runs === 1 ? 'worker run' : 'worker runs';
   const parts: string[] = [];
   if (receipt.power !== undefined) {
@@ -1242,10 +1276,16 @@ function receiptLine(receipt: OperatorRunReceipt): string {
     );
   }
   if (receipt.checks_evaluated > 0) {
+    // "all checks passed" is only ever said about a run that closed clean.
+    // Step checks prove the steps ran, not that the flow liked what it found:
+    // Review's checks pass on either verdict, so a review that filed a defect
+    // still evaluates clean, and the phrase reads as an all-clear on the run.
+    // The count says the same thing without the second meaning.
+    const passed = receipt.checks_evaluated - receipt.checks_failed;
     parts.push(
-      receipt.checks_failed === 0
+      receipt.checks_failed === 0 && outcome === 'complete'
         ? 'all checks passed'
-        : `${receipt.checks_evaluated - receipt.checks_failed} of ${receipt.checks_evaluated} checks passed`,
+        : `${passed} of ${receipt.checks_evaluated} checks passed`,
     );
   }
   return `⎿ ${parts.join(' · ')}`;
@@ -1710,7 +1750,7 @@ function renderMarkdown(
       }
     }
     if (summary.receipt !== undefined) {
-      lines.push('', receiptLine(summary.receipt));
+      lines.push('', receiptLine(summary.receipt, summary.outcome));
       const spend = spendLine(summary.receipt);
       if (spend !== undefined) lines.push(spend);
       const reduced = reducedBindingsLine(summary.receipt);
@@ -1768,7 +1808,7 @@ function renderMarkdown(
   }
 
   if (summary.receipt !== undefined) {
-    lines.push('', receiptLine(summary.receipt));
+    lines.push('', receiptLine(summary.receipt, summary.outcome));
     const spend = spendLine(summary.receipt);
     if (spend !== undefined) lines.push(spend);
     const reduced = reducedBindingsLine(summary.receipt);

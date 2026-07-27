@@ -1398,6 +1398,84 @@ describe('operator summary writer', () => {
     );
   });
 
+  // Review binds ISSUES_FOUND to the terminal outcome 'stopped' on purpose, so
+  // a review that did its whole job and found something closes 'stopped'. The
+  // generic degraded-run brief read that as a failure and buried the verdict.
+  it('reports what a stopped Review found instead of calling the run degraded', () => {
+    writeReport('reports/review-result.json', {
+      scope: 'review the staged change',
+      findings: [
+        {
+          id: 'unbounded-retry',
+          severity: 'medium',
+          title: 'Retry loop has no ceiling',
+          detail: 'The retry helper loops until success with no attempt cap.',
+          file_refs: ['src/retry.ts:41'],
+        },
+      ],
+      verdict: 'ISSUES_FOUND',
+      outcome: 'stopped',
+      assessment: 'One medium issue in the staged diff: the retry loop is unbounded.',
+      evidence_summary: { kind: 'git-working-tree' },
+    });
+
+    const written = writeOperatorSummary({
+      runFolder,
+      runResult: RunResult.parse({ ...baseResult('review'), outcome: 'stopped' }),
+      route: { selectedFlow: 'review' },
+    });
+
+    const slots = written.summary.brief_slots;
+    expect(slots?.assessment).not.toBe('The flow stopped before complete evidence was produced.');
+    expect(slots?.assessment).toContain('retry loop is unbounded');
+    expect(slots?.next_action).toBe('address the findings, then rerun Review.');
+    expect(slots?.next_action).not.toContain('discard the attempt');
+    const markdown = readFileSync(written.markdownPath, 'utf8');
+    expect(markdown).not.toContain('stopped before complete evidence');
+  });
+
+  // The salvage prose was written for a doer flow whose worker edits the
+  // checkout. Review's reviewer is sealed and creates nothing, so telling its
+  // operator that files were not deleted describes a run that never happened.
+  it('does not offer doer-flow salvage prose when a Review report fails validation', () => {
+    const invalidResult = RunResult.parse({
+      ...baseResult('review'),
+      outcome: 'evidence_invalid',
+      summary: 'review could not prove its report',
+      reason: 'review.verdict@v1 rejected the reviewer reply',
+    });
+
+    const written = writeOperatorSummary({
+      runFolder,
+      runResult: invalidResult,
+      route: { selectedFlow: 'review' },
+    });
+
+    const slots = written.summary.brief_slots;
+    expect(slots?.assessment).not.toContain('files it created were not deleted');
+    expect(slots?.next_action).not.toContain('review the diff');
+    expect(slots?.next_action).not.toContain('discard the attempt');
+    expect(slots?.assessment).toContain('failed validation');
+  });
+
+  it('still offers salvage prose when a doer flow report fails validation', () => {
+    const invalidResult = RunResult.parse({
+      ...baseResult('build'),
+      outcome: 'evidence_invalid',
+      summary: 'build could not prove its report',
+      reason: 'build.result@v1 rejected the implementer reply',
+    });
+
+    const written = writeOperatorSummary({
+      runFolder,
+      runResult: invalidResult,
+      route: { selectedFlow: 'build' },
+    });
+
+    expect(written.summary.brief_slots?.assessment).toContain('files it created were not deleted');
+    expect(written.summary.brief_slots?.next_action).toContain('discard the attempt');
+  });
+
   it('uses a defined handoff digest shape for run-level handoff outcomes', () => {
     const handoffResult = RunResult.parse({
       ...baseResult('build'),
@@ -3662,6 +3740,29 @@ describe('operator summary writer — run receipt', () => {
     expect(written.summary.receipt).toMatchObject({ checks_evaluated: 3, checks_failed: 1 });
     const markdown = readFileSync(written.markdownPath, 'utf8');
     expect(markdown).toContain('⎿ process high · 1 worker run · 2 of 3 checks passed');
+    expect(markdown).not.toContain('all checks passed');
+  });
+
+  // Review's step checks pass on either verdict, so a review that filed a
+  // defect still evaluates clean. "all checks passed" reads as a verdict on the
+  // run; the count reads as what it is, a count.
+  it('reports the passed-of-evaluated count instead of claiming all checks passed on a run that did not close clean', () => {
+    writeTrace([
+      bootstrapped('medium'),
+      relayStarted(2, 'audit-step', 1),
+      checkEvaluated(3, 'pass'),
+      checkEvaluated(4, 'pass'),
+    ]);
+
+    const written = writeOperatorSummary({
+      runFolder,
+      runResult: RunResult.parse({ ...baseResult('review'), outcome: 'stopped' }),
+      route: { selectedFlow: 'review' },
+    });
+
+    expect(written.summary.receipt).toMatchObject({ checks_evaluated: 2, checks_failed: 0 });
+    const markdown = readFileSync(written.markdownPath, 'utf8');
+    expect(markdown).toContain('2 of 2 checks passed');
     expect(markdown).not.toContain('all checks passed');
   });
 
