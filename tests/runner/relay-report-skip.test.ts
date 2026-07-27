@@ -1,25 +1,22 @@
 // Pass-without-report legibility.
 //
-// A relay step that passes its check normally materializes its schema-tied
-// report from the result body. There is a narrow degradation seam: the body
-// parsed at check time, the schema accepted it, but the re-parse that feeds
-// the report writer fails (relay.ts backfills `parsedBody` with a guarded
-// JSON.parse whose catch used to swallow the error). The step still passes —
-// correctly, the check already ruled — but `writes.report.path` silently never
-// appears, and every downstream reader (operator-summary projection, CI
-// tooling, the close path) sees "no report" with no explanation.
+// A relay step that passes its check materializes its schema-tied report from
+// the result body. There used to be a degradation seam here: the body was
+// parsed once for the check, again for schema validation, and then a THIRD and
+// FOURTH time to feed the report writer. If one of those later parses diverged,
+// the step still passed — correctly, the check had ruled — but
+// `writes.report.path` silently never appeared, and every downstream reader
+// (operator-summary projection, CI tooling, the close path) saw "no report"
+// with no explanation. The `step.report_skipped` trace entry was added to make
+// that gap legible.
 //
-// These tests pin the fix: the pass verdict is UNCHANGED, but the skipped
-// report becomes a durable `step.report_skipped` trace entry naming the
-// report path, the raw-result fallback, and the remedy.
-//
-// Reproducing the seam: on the default path the same string parses at check
-// time and at backfill time, so the divergence cannot be reached with input
-// alone. The test spies on JSON.parse and fails only the 3rd and 4th parses
-// of the exact sentinel body — occurrence 1 is the check evaluation,
-// occurrence 2 is the schema parseReport, occurrence 3 is the validator's
-// parsedBody extraction, occurrence 4 is the executor's backfill. Everything
-// else (trace validation, file IO, other bodies) parses normally.
+// The seam is now closed at the source: schema validation returns the validated
+// body and the writer persists THAT, so on a schema-tied report there is no
+// later parse left to diverge from the one the check ruled on. The first test
+// pins the closed seam — the body is parsed for the check and for validation,
+// and the report is written from the validated output. `step.report_skipped`
+// stays in the executor as defense for a relay whose validator returns no
+// parsed body; its rendering is covered in operator-summary-writer.test.ts.
 import { existsSync, mkdtempSync, readFileSync, rmSync } from 'node:fs';
 import { mkdir, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
@@ -61,21 +58,12 @@ afterEach(() => {
   rmSync(runFolderBase, { recursive: true, force: true });
 });
 
-describe('a passed relay whose report cannot be materialized is legible', () => {
-  it('keeps the pass verdict but records step.report_skipped naming the path, the raw result, and the remedy', async () => {
+describe('a passed relay materializes its report from the body the check ruled on', () => {
+  it('parses the result body only for the check and for schema validation, then writes that validated body', async () => {
     const realParse = JSON.parse.bind(JSON);
     let sentinelParses = 0;
     vi.spyOn(JSON, 'parse').mockImplementation((text: string, ...rest: unknown[]) => {
-      if (text === SENTINEL_BODY) {
-        sentinelParses += 1;
-        // 1 = check evaluation, 2 = schema parseReport: both succeed, so the
-        // step passes. 3 = validator parsedBody, 4 = executor backfill: both
-        // fail, so nothing feeds the report writer. Later parses (if any)
-        // behave normally so the close path is untouched.
-        if (sentinelParses === 3 || sentinelParses === 4) {
-          throw new SyntaxError('simulated backfill parse divergence');
-        }
-      }
+      if (text === SENTINEL_BODY) sentinelParses += 1;
       return realParse(
         text,
         ...(rest as [((this: unknown, key: string, value: unknown) => unknown)?]),
@@ -105,10 +93,11 @@ describe('a passed relay whose report cannot be materialized is legible', () => 
       },
     });
 
-    // The divergence actually happened (guards against the seam moving).
-    expect(sentinelParses).toBeGreaterThanOrEqual(4);
+    // Two parses, not four: the check evaluation and the schema validation. A
+    // third would mean the writer re-derived a body the check never saw, which
+    // is exactly the divergence this seam used to admit.
+    expect(sentinelParses).toBe(2);
 
-    // The pass verdict is untouched: the check ruled, the run completes.
     expect(result.outcome).toBe('complete');
 
     const trace = await new TraceStore(runFolder).load();
@@ -118,24 +107,12 @@ describe('a passed relay whose report cannot be materialized is legible', () => 
     if (checkEvaluated?.kind !== 'check.evaluated') throw new Error('expected check.evaluated');
     expect(checkEvaluated.outcome).toBe('pass');
 
-    // The report was never written...
-    expect(existsSync(join(runFolder, 'reports', 'relay-canonical.json'))).toBe(false);
-    expect(
-      trace.find((e) => e.kind === 'step.report_written' && e.step_id === 'relay-step'),
-    ).toBeUndefined();
-
-    // ...and that is now a durable, legible record instead of a silent gap.
-    const skipped = trace.find((e) => e.kind === 'step.report_skipped');
-    expect(skipped).toBeDefined();
-    expect(skipped).toMatchObject({
-      step_id: 'relay-step',
-      report_path: 'reports/relay-canonical.json',
-    });
-    const reason = (skipped as { reason?: string }).reason ?? '';
-    // Names the condition, the surviving raw evidence, and the remedy.
-    expect(reason).toContain('passed its check');
-    expect(reason).toContain('reports/relay.result.json');
-    expect(reason).toMatch(/rerun/i);
+    // The report exists, matches the validated body, and no skip marker was
+    // recorded — there is no gap left to explain.
+    const reportPath = join(runFolder, 'reports', 'relay-canonical.json');
+    expect(existsSync(reportPath)).toBe(true);
+    expect(JSON.parse(readFileSync(reportPath, 'utf8'))).toMatchObject({ verdict: 'ok' });
+    expect(trace.find((e) => e.kind === 'step.report_skipped')).toBeUndefined();
   });
 
   it('writes the report and records no skip marker when the body parses cleanly', async () => {

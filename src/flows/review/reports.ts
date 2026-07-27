@@ -464,14 +464,16 @@ export const ReviewRelayResult = z
     confidence_limitations: z.array(z.string().min(1)),
   })
   .strict()
-  .superRefine((report, ctx) => {
-    const expected = report.findings.length === 0 ? 'NO_ISSUES_FOUND' : 'ISSUES_FOUND';
-    if (report.verdict !== expected) {
-      ctx.addIssue({
-        code: 'custom',
-        path: ['verdict'],
-        message: `review relay verdict must be ${expected} for findings.length=${report.findings.length}`,
-      });
-    }
+  // Derive the verdict from the findings rather than rejecting a reviewer that
+  // picked the wrong word for its own answer. The findings are the substance;
+  // the verdict is a one-word label over them, and `projectReviewResult`
+  // already recomputes the operator-facing verdict from the findings list.
+  // Rejecting instead would return failureKind 'schema' from the relay
+  // executor, which retries once and then closes the run `evidence_invalid` —
+  // a whole review of real defects thrown away over a mislabel.
+  .transform((report) => {
+    const verdict: z.infer<typeof ReviewRelayVerdict> =
+      report.findings.length === 0 ? 'NO_ISSUES_FOUND' : 'ISSUES_FOUND';
+    return { ...report, verdict };
   });
 export type ReviewRelayResult = z.infer<typeof ReviewRelayResult>;

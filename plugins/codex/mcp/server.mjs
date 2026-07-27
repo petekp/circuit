@@ -23388,15 +23388,9 @@ var ReviewRelayResult = external_exports.object({
   // Known gaps that limit certainty. Required as an array (may be empty
   // when coverage was complete).
   confidence_limitations: external_exports.array(external_exports.string().min(1))
-}).strict().superRefine((report, ctx) => {
-  const expected = report.findings.length === 0 ? "NO_ISSUES_FOUND" : "ISSUES_FOUND";
-  if (report.verdict !== expected) {
-    ctx.addIssue({
-      code: "custom",
-      path: ["verdict"],
-      message: `review relay verdict must be ${expected} for findings.length=${report.findings.length}`
-    });
-  }
+}).strict().transform((report) => {
+  const verdict = report.findings.length === 0 ? "NO_ISSUES_FOUND" : "ISSUES_FOUND";
+  return { ...report, verdict };
 });
 
 // src/flows/review/writers/intake.ts

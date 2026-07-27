@@ -454,11 +454,10 @@ async function defaultValidateAcceptedProductionRelay(
         failureKind: 'schema',
       };
     }
-    try {
-      parsedBody = JSON.parse(relayResult.result_body) as unknown;
-    } catch {
-      parsedBody = undefined;
-    }
+    // The validated output, not the raw body: a schema that normalizes (applies
+    // a default, derives a field) has its result persisted, so the run folder
+    // never holds a report the schema would have rewritten.
+    parsedBody = parseResult.data;
   }
   if (step.acceptanceCriteria !== undefined) {
     let capturedChangedPaths: ReadonlySet<string> | undefined;
@@ -819,22 +818,18 @@ export async function executeProductionRelayAttempt(input: {
       reportBody = parsedBody;
     } else if (checkEvaluation.kind === 'fail' && step.report.schema !== undefined) {
       const parseResult = parseReport(step.report.schema, relayResult.result_body);
-      if (parseResult.kind === 'ok') {
-        try {
-          reportBody = JSON.parse(relayResult.result_body) as unknown;
-        } catch {
-          reportBody = undefined;
-        }
-      }
+      if (parseResult.kind === 'ok') reportBody = parseResult.data;
     }
     if (reportBody !== undefined) {
       await context.files.writeJson(step.report, reportBody);
       parsedBody = reportBody;
       writtenReportPath = step.report.path;
     } else if (checkEvaluation.kind === 'pass' && evaluation.kind === 'pass') {
-      // Passed step, no report body: the check accepted this body, but the
-      // re-parse that feeds the writer failed, so `writes.report.path` will
-      // never appear on disk. The pass verdict stands — the check already
+      // Passed step, no report body: the check accepted this body, but nothing
+      // handed the writer a parsed one, so `writes.report.path` will never
+      // appear on disk. Schema-tied reports no longer reach here — validation
+      // returns the body the writer persists — so this covers a relay whose
+      // validator produced no parsed body at all. The pass verdict stands — the check already
       // ruled — but the gap must be a durable record, not a silent absence:
       // without it, downstream readers cannot tell "this step writes no
       // report" from "the report vanished". (The check-fail branch above

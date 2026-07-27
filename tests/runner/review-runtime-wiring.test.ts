@@ -195,6 +195,57 @@ describe('registered review compose writer', () => {
     expect(report.verdict).toBe('CLEAN');
   });
 
+  // A reviewer that describes a real problem but picks the wrong verdict word
+  // has said something true and something mislabelled. The findings are the
+  // substance; the verdict is a label the projection already derives. So the
+  // label is corrected, not treated as a malformed answer: the run closes
+  // `stopped` on an honest ISSUES_FOUND instead of throwing the whole review
+  // away as `evidence_invalid`.
+  it('derives the relay verdict from the findings instead of rejecting a mislabelled one', async () => {
+    const { bytes } = loadFixture();
+    const runFolder = join(reviewRunFolderBase(), 'mislabelled-review-verdict');
+    const projectRoot = stagedReviewProject('mislabelled-review-verdict-project');
+    const finding = {
+      severity: 'high',
+      id: 'REVIEW-MISLABEL-1',
+      text: 'The reviewer described a real high-severity defect.',
+      file_refs: ['review-target.ts'],
+    };
+
+    const outcome = await runCompiledFlow({
+      runDir: runFolder,
+      flowBytes: bytes,
+      runId: '79000000-0000-0000-0000-000000000107',
+      goal: 'review staged changes where the reviewer mislabels its own verdict',
+      depth: 'medium',
+      now: deterministicNow(Date.UTC(2026, 6, 27, 10, 0, 0)),
+      projectRoot,
+      // Findings present, but the reviewer answered NO_ISSUES_FOUND.
+      relayer: relayerWithBody(
+        JSON.stringify({ verdict: 'NO_ISSUES_FOUND', findings: [finding], ...stubProse() }),
+      ),
+    });
+
+    expect(outcome.outcome).toBe('stopped');
+
+    const report = ReviewResult.parse(
+      JSON.parse(readFileSync(join(runFolder, 'reports', 'review-result.json'), 'utf8')),
+    );
+    expect(report.verdict).toBe('ISSUES_FOUND');
+    expect(report.findings).toEqual([finding]);
+
+    // The reviewer's own persisted verdict is normalized too, so the run folder
+    // does not carry a report that contradicts its own findings list.
+    const relayReport = ReviewRelayResult.parse(
+      JSON.parse(readFileSync(join(runFolder, 'reports', 'review-verdict.json'), 'utf8')),
+    );
+    expect(relayReport.verdict).toBe('ISSUES_FOUND');
+
+    // One ask. The mislabel must not burn the step's retry.
+    const traceEntries = await readTraceEntries(runFolder);
+    expect(traceEntries.filter((entry) => entry.kind === 'relay.completed')).toHaveLength(1);
+  });
+
   // A reviewer that answers with the wrong shape is caught where the reviewer
   // answered, not one step downstream. The audit step declares a typed report,
   // so the runtime validates the body against review.verdict@v1 the moment it

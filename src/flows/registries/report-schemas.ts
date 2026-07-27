@@ -36,7 +36,10 @@ const REGISTRY = buildReportSchemaRegistry(flowPackages, {
 });
 
 export type ReportParseResult =
-  | { readonly kind: 'ok' }
+  // `data` is the schema's OUTPUT, not the raw body: defaults are materialized
+  // and transforms have run. Callers that persist a relay report write this,
+  // so what lands in the run folder is the shape the schema actually admits.
+  | { readonly kind: 'ok'; readonly data: unknown }
   | { readonly kind: 'fail'; readonly reason: string };
 
 // Resolve the Zod schema for a registered report name, or undefined when
@@ -81,5 +84,5 @@ export function parseReport(schemaName: string, resultBody: string): ReportParse
       reason: `report body did not validate against schema '${schemaName}' (${issueSummary})`,
     };
   }
-  return { kind: 'ok' };
+  return { kind: 'ok', data: result.data };
 }

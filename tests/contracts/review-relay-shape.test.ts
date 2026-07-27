@@ -72,14 +72,21 @@ describe('review analyze relay shape', () => {
       verification: ['Inspected the relayed intake report.'],
       confidence_limitations: ['HEAD~1 history was out of scope.'],
     };
+    // A word outside the accepted vocabulary is still rejected.
     expect(ReviewRelayResult.safeParse({ ...cleanShape, verdict: 'CLEAN' }).success).toBe(false);
+    // A verdict that contradicts the findings is corrected, not rejected. The
+    // findings are the substance of the answer; the verdict is a label the
+    // schema derives from them, so a mislabel cannot destroy a real review.
     expect(
-      ReviewRelayResult.safeParse({
+      ReviewRelayResult.parse({
         ...cleanShape,
         verdict: 'NO_ISSUES_FOUND',
         findings: parsedResult.findings,
-      }).success,
-    ).toBe(false);
+      }).verdict,
+    ).toBe('ISSUES_FOUND');
+    expect(
+      ReviewRelayResult.parse({ ...cleanShape, verdict: 'ISSUES_FOUND', findings: [] }).verdict,
+    ).toBe('NO_ISSUES_FOUND');
     // Bare {verdict, findings} relay payloads — the legacy shape — must now
     // be rejected. The reviewer prose fields (assessment, verification,
     // confidence_limitations) are required so a NO_ISSUES_FOUND verdict
