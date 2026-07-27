@@ -1870,11 +1870,13 @@ export async function runExecutionCommand(
     }
   }
   const projectRoot = resolve(options.projectRoot ?? options.configCwd ?? process.cwd());
-  // A goal whose target cannot be read at all is refused here, before the run
-  // folder exists. Whether the target is available in this repository is the
-  // intake step's answer, from the evidence it is about to relay.
+  // A target that cannot be read at all is refused here, before the run folder
+  // exists. Whether the target is available in this repository is the intake
+  // step's answer, from the evidence it is about to relay. --target is passed
+  // through because it wins outright downstream; withholding it here would
+  // refuse goals whose wording the flow never reads.
   try {
-    validateFlowStartTarget(flow.id, operatorGoal);
+    validateFlowStartTarget(flow.id, operatorGoal, runArgs.target);
   } catch (err) {
     process.stderr.write(`error: ${(err as Error).message}\n`);
     return 2;

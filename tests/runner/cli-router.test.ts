@@ -534,6 +534,53 @@ describe('CLI router', () => {
     expect(existsSync(runFolder)).toBe(false);
   });
 
+  // The words in the goal are how the caller described the target, not a second
+  // statement of it. Once --target is passed the flow never reads them, so the
+  // gate must not refuse on them either.
+  it('runs a Review whose goal says pull request when --target names one', async () => {
+    const projectRoot = join(runFolderBase, 'pr-worded-goal-project');
+    mkdirSync(projectRoot, { recursive: true });
+    execFileSync('git', ['init'], { cwd: projectRoot, stdio: 'pipe' });
+    writeFileSync(join(projectRoot, 'scratch.txt'), 'the change under review\n');
+
+    const output = await runMainJson(
+      [
+        'run',
+        'review',
+        '--goal',
+        'review the PR I just pushed',
+        '--target',
+        'working-tree',
+        '--include-untracked-content',
+        '--run-folder',
+        join(runFolderBase, 'pr-worded-goal-with-target'),
+      ],
+      REVIEW_RELAY_BODY,
+      { configCwd: projectRoot },
+    );
+
+    expect(output.flow_id).toBe('review');
+    expect(output.outcome).toBe('complete');
+  });
+
+  it('still rejects a malformed --target before creating a run', async () => {
+    const runFolder = join(runFolderBase, 'malformed-explicit-target');
+    const result = await runMainExit([
+      'run',
+      'review',
+      '--goal',
+      'review my changes',
+      '--target',
+      'commit:',
+      '--run-folder',
+      runFolder,
+    ]);
+
+    expect(result.exit).toBe(2);
+    expect(result.stderr).toMatch(/names no commit/iu);
+    expect(existsSync(runFolder)).toBe(false);
+  });
+
   it('keeps Explore progress display focused on the operator, not internal report names', async () => {
     const runFolder = join(runFolderBase, 'explore-progress-jsonl');
     const { output, progress } = await runMainJsonWithRelayerAndProgress(

@@ -332,7 +332,7 @@ export function createProductionLaunchPreflight(
         // the worker's answer: it reads the evidence once, and an unreadable or
         // empty target aborts the run before any model is paid.
         try {
-          validateFlowStartTarget(input.request.flow, input.request.goal);
+          validateFlowStartTarget(input.request.flow, input.request.goal, input.request.target);
         } catch (error) {
           throw new McpLifecycleError(
             'invalid_review_target',
