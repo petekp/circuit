@@ -308,6 +308,88 @@ function incompleteEvidenceFinding(intake: ReviewIntake): ReviewFinding | undefi
   };
 }
 
+// Paths named by a unified diff Circuit produced. Reads the `diff --git` header
+// rather than the +++ line so a deletion, whose +++ is /dev/null, still counts.
+const DIFF_HEADER_PATTERN = /^diff --git a\/(?<from>.+?) b\/(?<to>.+)$/gmu;
+
+function diffPaths(diff: { readonly text: string }): readonly string[] {
+  const paths: string[] = [];
+  for (const match of diff.text.matchAll(DIFF_HEADER_PATTERN)) {
+    const { from, to } = match.groups ?? {};
+    if (from !== undefined) paths.push(from);
+    if (to !== undefined) paths.push(to);
+  }
+  return paths;
+}
+
+/**
+ * The files Circuit actually put in front of the reviewer, or undefined when
+ * this evidence carries no path list worth comparing against.
+ *
+ * Undefined means "no opinion", and every branch that returns it is a case
+ * where a real citation could look invented: material supplied in the goal has
+ * no file set at all, and a truncated diff is missing the paths past its cut.
+ * Accusing a reviewer of citing a file it was shown is worse than staying
+ * quiet, so the doubt runs that way on purpose.
+ */
+function relayedPaths(evidence: ReviewEvidence): ReadonlySet<string> | undefined {
+  if (evidence.kind === 'git-snapshot') {
+    if (evidence.files_truncated) return undefined;
+    return new Set(evidence.files.map((file) => file.path));
+  }
+  if (evidence.kind === 'git-target') {
+    if (evidence.target_diff.truncated) return undefined;
+    return new Set(diffPaths(evidence.target_diff));
+  }
+  if (evidence.kind === 'git-working-tree') {
+    if (evidence.staged_diff.truncated || evidence.unstaged_diff.truncated) return undefined;
+    if (evidence.untracked_files_truncated) return undefined;
+    return new Set([
+      ...diffPaths(evidence.staged_diff),
+      ...diffPaths(evidence.unstaged_diff),
+      ...evidence.untracked_files.map((file) => file.path),
+    ]);
+  }
+  return undefined;
+}
+
+/**
+ * A citation is the one part of a finding an operator can check, and the
+ * reviewer is sealed: it never saw the repository, so a path it names came
+ * either from the relayed evidence or from nowhere. Circuit says which.
+ *
+ * This reports; it does not reject. A finding can be right about a real defect
+ * and wrong about where it lives, and throwing the answer away over the second
+ * would lose the first.
+ */
+function unbackedCitationLimitation(input: {
+  readonly intake: ReviewIntake;
+  readonly findings: readonly ReviewFinding[];
+}): string | undefined {
+  const relayed = relayedPaths(input.intake.evidence);
+  if (relayed === undefined) return undefined;
+  const unbacked = new Set<string>();
+  for (const finding of input.findings) {
+    for (const ref of finding.file_refs) {
+      const path = citationPath(ref);
+      if (path.length === 0 || relayed.has(path)) continue;
+      unbacked.add(path);
+    }
+  }
+  if (unbacked.size === 0) return undefined;
+  const names = [...unbacked].sort().join(', ');
+  return `This review cites ${unbacked.size === 1 ? 'a file' : 'files'} Circuit did not relay to the reviewer: ${names}. Circuit cannot back ${unbacked.size === 1 ? 'that reference' : 'those references'} against the evidence it collected.`;
+}
+
+// `file_refs` entries are file:line references by convention. Strip a trailing
+// line (and column) so `src/retry.ts:41` compares as `src/retry.ts`, and strip
+// a leading `./` so the two spellings of one path do not read as two files.
+function citationPath(ref: string): string {
+  const withoutPosition =
+    /^(?<path>.+?)(?::\d+){1,2}$/u.exec(ref.trim())?.groups?.path ?? ref.trim();
+  return withoutPosition.replace(/^\.\//u, '');
+}
+
 export function projectReviewResult(input: {
   readonly intake: ReviewIntake;
   readonly relayResult: ReviewRelayResult;
@@ -332,6 +414,8 @@ export function projectReviewResult(input: {
   if (incompleteFinding !== undefined && circuitLimitations.length === 0) {
     circuitLimitations.push('Circuit could inspect only part of the selected Review target.');
   }
+  const unbackedCitations = unbackedCitationLimitation({ intake: input.intake, findings });
+  if (unbackedCitations !== undefined) circuitLimitations.push(unbackedCitations);
   const verdict = computeReviewVerdict(findings);
   const outcome = verdict === 'CLEAN' ? 'complete' : 'stopped';
   return ReviewResult.parse({

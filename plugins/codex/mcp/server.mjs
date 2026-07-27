@@ -23804,11 +23804,61 @@ function parseReviewTarget(scope) {
     snapshotFallback: scoped.paths
   });
 }
+var EXPLICIT_TARGET_VOCABULARY = "working-tree, staged, unstaged, commit:<ref>, or a range such as main...HEAD or HEAD~3..HEAD";
+function parseExplicitReviewTarget(value) {
+  const named = value.trim();
+  if (named.length === 0) {
+    return { ok: false, reason: `--target was empty. Name one of: ${EXPLICIT_TARGET_VOCABULARY}.` };
+  }
+  const keyword = named.toLowerCase();
+  if (keyword === "working-tree" || keyword === "working_tree") {
+    return { ok: true, target: { kind: "working_tree", mode: "all", explicit: true } };
+  }
+  if (keyword === "staged" || keyword === "unstaged") {
+    return { ok: true, target: { kind: "working_tree", mode: keyword, explicit: true } };
+  }
+  const commitPrefix = "commit:";
+  if (keyword.startsWith(commitPrefix)) {
+    const ref = named.slice(commitPrefix.length);
+    if (ref.length === 0) {
+      return {
+        ok: false,
+        reason: "--target commit: names no commit. Write the ref after the colon, such as commit:abc1234."
+      };
+    }
+    if (!isSafeReviewRef(ref)) {
+      return { ok: false, reason: unsafeRefReason(ref) };
+    }
+    return { ok: true, target: { kind: "commit", ref } };
+  }
+  if (named.includes("..")) {
+    const dots = named.includes("...") ? "..." : "..";
+    const separatorIndex = named.indexOf(dots);
+    const base = named.slice(0, separatorIndex);
+    const head = named.slice(separatorIndex + dots.length);
+    if (base.length === 0 || head.length === 0) {
+      return {
+        ok: false,
+        reason: `--target "${named}" is a range missing one of its ends. Name both, such as main...HEAD.`
+      };
+    }
+    if (!isSafeReviewRef(base)) return { ok: false, reason: unsafeRefReason(base) };
+    if (!isSafeReviewRef(head)) return { ok: false, reason: unsafeRefReason(head) };
+    return { ok: true, target: { kind: "range", base, head, dots } };
+  }
+  return {
+    ok: false,
+    reason: `Review does not know the target "${named}". Name one of: ${EXPLICIT_TARGET_VOCABULARY}.`
+  };
+}
+function unsafeRefReason(ref) {
+  return `--target named the ref "${ref}", which Review will not hand to Git. A ref may not start with a dash, contain '..' inside a single end, or use '@{'. Name one of: ${EXPLICIT_TARGET_VOCABULARY}.`;
+}
 
 // src/flows/registries/start-preflight.ts
-function validateFlowStartTarget(flowId, goal) {
+function validateFlowStartTarget(flowId, goal, target) {
   if (flowId !== "review") return;
-  const parsed = parseReviewTarget(goal);
+  const parsed = target === void 0 ? parseReviewTarget(goal) : parseExplicitReviewTarget(target);
   if (!parsed.ok) throw new Error(parsed.reason);
 }
 
@@ -36641,7 +36691,7 @@ function createProductionLaunchPreflight(dependencies) {
           }
         });
         try {
-          validateFlowStartTarget(input.request.flow, input.request.goal);
+          validateFlowStartTarget(input.request.flow, input.request.goal, input.request.target);
         } catch (error51) {
           throw new McpLifecycleError(
             "invalid_review_target",

@@ -680,4 +680,112 @@ describe('Review evidence projections', () => {
       },
     ]);
   });
+
+  // A citation is the one part of a finding an operator can check. When it
+  // names a file Circuit never put in front of the reviewer, nothing in the
+  // report distinguished it from a real one. Circuit says so rather than
+  // rejecting the review: throwing the whole answer away over one bad
+  // reference loses the findings that were good.
+  describe('citations Circuit cannot back', () => {
+    function findingRelay(fileRefs: readonly string[]) {
+      return ReviewRelayResult.parse({
+        verdict: 'ISSUES_FOUND',
+        findings: [
+          {
+            severity: 'medium',
+            id: 'unbounded-retry',
+            text: 'The retry helper loops with no attempt cap.',
+            file_refs: [...fileRefs],
+          },
+        ],
+        assessment: 'One medium issue in the relayed diff.',
+        verification: ['Read the relayed diff.'],
+        confidence_limitations: [],
+      });
+    }
+
+    it('names a finding that cites a file the run never relayed', () => {
+      const result = projectReviewResult({
+        intake: workingTreeIntake('review the working tree', 'all'),
+        relayResult: findingRelay(['src/auth/session.ts:88']),
+      });
+
+      expect(
+        result.confidence_limitations.some((limit) => limit.includes('src/auth/session.ts')),
+      ).toBe(true);
+      // The finding survives. Only its backing is in question.
+      expect(result.findings).toHaveLength(1);
+      expect(result.verdict).toBe('ISSUES_FOUND');
+    });
+
+    it('says nothing about a citation that names a relayed file', () => {
+      const result = projectReviewResult({
+        intake: workingTreeIntake('review the working tree', 'all'),
+        relayResult: findingRelay(['staged.ts:3']),
+      });
+
+      expect(result.confidence_limitations).toEqual([]);
+    });
+
+    it('says nothing when the relayed diff was truncated', () => {
+      // Paths past the cut are missing from the relayed set, so a real
+      // citation would look invented. No opinion beats a false accusation.
+      const result = projectReviewResult({
+        intake: workingTreeIntake('review the working tree', 'all', {
+          staged_diff: { text: 'diff --git a/staged.ts b/staged.ts\n+staged\n', truncated: true },
+        }),
+        relayResult: findingRelay(['src/auth/session.ts:88']),
+      });
+
+      expect(
+        result.confidence_limitations.some((limit) => limit.includes('src/auth/session.ts')),
+      ).toBe(false);
+    });
+
+    it('says nothing when the goal supplied the material itself', () => {
+      const result = projectReviewResult({
+        intake: projectReviewIntake({
+          scope: 'review this patch',
+          target: { kind: 'goal' },
+          targetProvenance: 'named',
+          evidence: { kind: 'goal' } as ReviewEvidence,
+          maxUntrackedFiles: 20,
+        }),
+        relayResult: findingRelay(['src/auth/session.ts:88']),
+      });
+
+      expect(result.confidence_limitations).toEqual([]);
+    });
+
+    it('names a snapshot citation outside the files it read', () => {
+      const result = projectReviewResult({
+        intake: projectReviewIntake({
+          scope: 'review src/retry as it stands',
+          target: { kind: 'snapshot', paths: { include: ['src/retry'], exclude: [] } },
+          targetProvenance: 'named',
+          evidence: {
+            kind: 'git-snapshot',
+            project_root: '/tmp/project',
+            target_kind: 'snapshot',
+            files: [
+              {
+                path: 'src/retry/loop.ts',
+                byte_length: 24,
+                content: { text: 'export const loop = 1;\n', truncated: false },
+              },
+            ],
+            matched_file_count: 1,
+            files_truncated: false,
+            path_scope: { include: ['src/retry'], exclude: [] },
+          } as ReviewEvidence,
+          maxUntrackedFiles: 20,
+        }),
+        relayResult: findingRelay(['src/retry/loop.ts:4', 'src/other/thing.ts:9']),
+      });
+
+      const named = result.confidence_limitations.join(' ');
+      expect(named).toContain('src/other/thing.ts');
+      expect(named).not.toContain('src/retry/loop.ts');
+    });
+  });
 });

@@ -84930,7 +84930,7 @@ var init_relay_hints10 = __esm({
       'Use an empty findings array when there are no issues: { "verdict": "NO_ISSUES_FOUND", "findings": [], "assessment": "...", "verification": ["..."], "confidence_limitations": ["..."] }.',
       "Use an empty file_refs array when a finding has no file-specific reference.",
       "The assessment field is REQUIRED on every verdict, including NO_ISSUES_FOUND. State plainly what you checked and what you concluded; do not return a bare verdict.",
-      "The verification array is your self-report of concrete steps you took: files inspected, commands run, evidence cross-referenced. Include at least one entry on every verdict so the operator can audit the review.",
+      "The verification array is your self-report of how you worked the evidence in this prompt: which relayed diffs or files you read, and what you cross-referenced against what. You have no repository, no shell, and no tools here, so never claim to have opened a file, run a command, or executed a test. Include at least one entry on every verdict so the operator can see how the review was done.",
       "The confidence_limitations array names anything that limits certainty: out-of-scope files, omitted untracked content, areas you did not inspect, assumptions you had to make. Use an empty array only when coverage was complete.",
       "Do not include extra top-level keys. Do not wrap the JSON in Markdown code fences. Do not include any prose before or after the JSON object.",
       "The runtime parses your response with JSON.parse and validates it against the review.verdict@v1 schema at this step; an extra key, a missing field, or a verdict the schema does not allow is rejected and you are asked again. Only a response that validates reaches the close step, which writes reports/review-result.json."
@@ -87397,6 +87397,63 @@ function incompleteEvidenceFinding(intake) {
     ]
   };
 }
+function diffPaths(diff2) {
+  const paths = [];
+  for (const match of diff2.text.matchAll(DIFF_HEADER_PATTERN)) {
+    const { from, to } = match.groups ?? {};
+    if (from !== void 0)
+      paths.push(from);
+    if (to !== void 0)
+      paths.push(to);
+  }
+  return paths;
+}
+function relayedPaths(evidence2) {
+  if (evidence2.kind === "git-snapshot") {
+    if (evidence2.files_truncated)
+      return void 0;
+    return new Set(evidence2.files.map((file2) => file2.path));
+  }
+  if (evidence2.kind === "git-target") {
+    if (evidence2.target_diff.truncated)
+      return void 0;
+    return new Set(diffPaths(evidence2.target_diff));
+  }
+  if (evidence2.kind === "git-working-tree") {
+    if (evidence2.staged_diff.truncated || evidence2.unstaged_diff.truncated)
+      return void 0;
+    if (evidence2.untracked_files_truncated)
+      return void 0;
+    return /* @__PURE__ */ new Set([
+      ...diffPaths(evidence2.staged_diff),
+      ...diffPaths(evidence2.unstaged_diff),
+      ...evidence2.untracked_files.map((file2) => file2.path)
+    ]);
+  }
+  return void 0;
+}
+function unbackedCitationLimitation(input) {
+  const relayed = relayedPaths(input.intake.evidence);
+  if (relayed === void 0)
+    return void 0;
+  const unbacked = /* @__PURE__ */ new Set();
+  for (const finding3 of input.findings) {
+    for (const ref of finding3.file_refs) {
+      const path = citationPath(ref);
+      if (path.length === 0 || relayed.has(path))
+        continue;
+      unbacked.add(path);
+    }
+  }
+  if (unbacked.size === 0)
+    return void 0;
+  const names = [...unbacked].sort().join(", ");
+  return `This review cites ${unbacked.size === 1 ? "a file" : "files"} Circuit did not relay to the reviewer: ${names}. Circuit cannot back ${unbacked.size === 1 ? "that reference" : "those references"} against the evidence it collected.`;
+}
+function citationPath(ref) {
+  const withoutPosition = /^(?<path>.+?)(?::\d+){1,2}$/u.exec(ref.trim())?.groups?.path ?? ref.trim();
+  return withoutPosition.replace(/^\.\//u, "");
+}
 function projectReviewResult(input) {
   const evidenceFailure = unusableEvidenceReason(input.intake);
   if (evidenceFailure !== void 0) {
@@ -87408,6 +87465,9 @@ function projectReviewResult(input) {
   if (incompleteFinding !== void 0 && circuitLimitations.length === 0) {
     circuitLimitations.push("Circuit could inspect only part of the selected Review target.");
   }
+  const unbackedCitations = unbackedCitationLimitation({ intake: input.intake, findings });
+  if (unbackedCitations !== void 0)
+    circuitLimitations.push(unbackedCitations);
   const verdict = computeReviewVerdict(findings);
   const outcome = verdict === "CLEAN" ? "complete" : "stopped";
   return ReviewResult.parse({
@@ -87424,7 +87484,7 @@ function projectReviewResult(input) {
     evidence_warnings: input.intake.evidence_warnings
   });
 }
-var LIMITATION_WARNING_KINDS;
+var LIMITATION_WARNING_KINDS, DIFF_HEADER_PATTERN;
 var init_result_projection5 = __esm({
   "dist/flows/review/writers/result-projection.js"() {
     "use strict";
@@ -87441,6 +87501,7 @@ var init_result_projection5 = __esm({
       "untracked_file_skipped",
       "untracked_files_truncated"
     ]);
+    DIFF_HEADER_PATTERN = /^diff --git a\/(?<from>.+?) b\/(?<to>.+)$/gmu;
   }
 });
 
@@ -110612,6 +110673,9 @@ function briefKeyPoints(priority, candidates) {
   const rest = [...candidates, ...priority.filter(isContextKeyPoint)];
   return [...front, ...capWithOverflow(rest, MAX_KEY_POINTS - front.length)];
 }
+function salvageNextAction(flowId) {
+  return flowMayInvokeWriteCapableWorker(flowId) ? SALVAGE_NEXT_ACTION : READ_AND_RERUN_NEXT_ACTION;
+}
 function verificationFailureLine(runFolder, flowId) {
   const path = VERIFICATION_REPORT_PATH_BY_FLOW[flowId];
   if (path === void 0)
@@ -111089,6 +111153,14 @@ function nextActionFrom(details, flowId, outcomeLabel) {
     return "inspect the failed proof and rerun after correction.";
   return "nothing required.";
 }
+function stopStatesTheFlowResult(flowId, flowReport) {
+  switch (flowId) {
+    case "review":
+      return stringField2(flowReport, "verdict") !== void 0;
+    default:
+      return false;
+  }
+}
 function runOutcomeOverrideBrief(input) {
   const keyPoints = keyPointCandidatesFromDetails(input.details);
   if (input.runResult.outcome === "checkpoint_waiting") {
@@ -111113,19 +111185,23 @@ function runOutcomeOverrideBrief(input) {
         ...salvageKeyPoints({ runFolder: input.runFolder, flowId: input.flowId })
       ], keyPoints),
       caveats: [],
-      next_action: SALVAGE_NEXT_ACTION
+      next_action: salvageNextAction(input.flowId)
     };
   }
   if (input.runResult.outcome === "evidence_invalid") {
     return {
       headline: digestHeadline(input.flowName),
-      assessment: "The worker finished and produced work, but its report failed validation, so the run could not prove the work. The files it created were not deleted.",
+      // Two different runs wear this outcome. A doer flow's worker edited the
+      // checkout and the operator has to be told those edits survived. A
+      // reading flow's worker answered a question and created nothing, so the
+      // same sentence would describe files that never existed.
+      assessment: flowMayInvokeWriteCapableWorker(input.flowId) ? "The worker finished and produced work, but its report failed validation, so the run could not prove the work. The files it created were not deleted." : "The worker finished and answered, but its report failed validation, so the run could not stand behind the answer. Nothing in this checkout was changed.",
       key_points: briefKeyPoints([
         ...input.runResult.reason === void 0 ? [] : [`Validation failure: ${input.runResult.reason}`],
         ...salvageKeyPoints({ runFolder: input.runFolder, flowId: input.flowId })
       ], keyPoints),
       caveats: [],
-      next_action: SALVAGE_NEXT_ACTION
+      next_action: salvageNextAction(input.flowId)
     };
   }
   if (input.runResult.outcome === "escalated") {
@@ -111147,6 +111223,8 @@ function runOutcomeOverrideBrief(input) {
     };
   }
   if (input.runResult.outcome === "stopped") {
+    if (stopStatesTheFlowResult(input.flowId, input.flowReport))
+      return void 0;
     const salvage = salvageKeyPoints({ runFolder: input.runFolder, flowId: input.flowId });
     const isWorkingTree = (point) => point.startsWith(WORKING_TREE_SALVAGE_PREFIX);
     return {
@@ -111168,6 +111246,7 @@ function buildBriefSlots(input) {
     runFolder: input.runFolder,
     flowId: input.flowId,
     flowName,
+    flowReport: input.flowReport,
     runResult: input.runResult,
     details: input.details,
     ...input.checkpointDefaultChoice === void 0 ? {} : { checkpointDefaultChoice: input.checkpointDefaultChoice }
@@ -111402,7 +111481,7 @@ function readRunReceipt(runFolder) {
     ...spend === void 0 ? {} : { spend }
   };
 }
-function receiptLine(receipt) {
+function receiptLine(receipt, outcome) {
   const runsWord = receipt.worker_runs === 1 ? "worker run" : "worker runs";
   const parts = [];
   if (receipt.power !== void 0) {
@@ -111415,7 +111494,8 @@ function receiptLine(receipt) {
     parts.push(`${receipt.escalations} ${receipt.escalations === 1 ? "escalation" : "escalations"}`);
   }
   if (receipt.checks_evaluated > 0) {
-    parts.push(receipt.checks_failed === 0 ? "all checks passed" : `${receipt.checks_evaluated - receipt.checks_failed} of ${receipt.checks_evaluated} checks passed`);
+    const passed = receipt.checks_evaluated - receipt.checks_failed;
+    parts.push(receipt.checks_failed === 0 && outcome === "complete" ? "all checks passed" : `${passed} of ${receipt.checks_evaluated} checks passed`);
   }
   return `\u23BF ${parts.join(" \xB7 ")}`;
 }
@@ -111791,7 +111871,7 @@ function renderMarkdown(summary, ledgerRows) {
       }
     }
     if (summary.receipt !== void 0) {
-      lines2.push("", receiptLine(summary.receipt));
+      lines2.push("", receiptLine(summary.receipt, summary.outcome));
       const spend = spendLine(summary.receipt);
       if (spend !== void 0)
         lines2.push(spend);
@@ -111845,7 +111925,7 @@ function renderMarkdown(summary, ledgerRows) {
     }
   }
   if (summary.receipt !== void 0) {
-    lines.push("", receiptLine(summary.receipt));
+    lines.push("", receiptLine(summary.receipt, summary.outcome));
     const spend = spendLine(summary.receipt);
     if (spend !== void 0)
       lines.push(spend);
@@ -112093,7 +112173,7 @@ function writeOperatorSummary(input) {
     ...projectRoot === void 0 ? {} : { reviewProjectRoot: projectRoot }
   };
 }
-var HTML_REPORT_LABEL, MAX_KEY_POINTS, MAX_CAVEATS, SALVAGE_NEXT_ACTION, VERIFICATION_REPORT_PATH_BY_FLOW, REVIEW_REPORT_PATH_BY_FLOW, CONTEXT_KEY_POINT_PREFIXES, WORKING_TREE_SALVAGE_PREFIX, SPEND_ROLE_ORDER, REDUCED_BINDING_LABELS, RECOVERY_BINDING_ABORT_PATTERN, RECOVERY_NO_EVIDENCE_ABORT_PATTERN;
+var HTML_REPORT_LABEL, MAX_KEY_POINTS, MAX_CAVEATS, SALVAGE_NEXT_ACTION, READ_AND_RERUN_NEXT_ACTION, VERIFICATION_REPORT_PATH_BY_FLOW, REVIEW_REPORT_PATH_BY_FLOW, CONTEXT_KEY_POINT_PREFIXES, WORKING_TREE_SALVAGE_PREFIX, SPEND_ROLE_ORDER, REDUCED_BINDING_LABELS, RECOVERY_BINDING_ABORT_PATTERN, RECOVERY_NO_EVIDENCE_ABORT_PATTERN;
 var init_writer = __esm({
   "dist/app/operator-summary/writer.js"() {
     "use strict";
@@ -112118,6 +112198,7 @@ var init_writer = __esm({
     MAX_KEY_POINTS = 4;
     MAX_CAVEATS = 3;
     SALVAGE_NEXT_ACTION = "review the diff, run verification at your own budget, then resume, rerun, or discard the attempt.";
+    READ_AND_RERUN_NEXT_ACTION = "read the run folder for what came back, then rerun.";
     VERIFICATION_REPORT_PATH_BY_FLOW = {
       build: "reports/build/verification.json",
       fix: "reports/fix/verification.json"
@@ -113100,10 +113181,10 @@ var init_autonomous_run = __esm({
 });
 
 // dist/flows/registries/start-preflight.js
-function validateFlowStartTarget(flowId, goal) {
+function validateFlowStartTarget(flowId, goal, target) {
   if (flowId !== "review")
     return;
-  const parsed = parseReviewTarget(goal);
+  const parsed = target === void 0 ? parseReviewTarget(goal) : parseExplicitReviewTarget(target);
   if (!parsed.ok)
     throw new Error(parsed.reason);
 }
@@ -115721,7 +115802,7 @@ async function runExecutionCommand(args, options) {
   }
   const projectRoot = resolve32(options.projectRoot ?? options.configCwd ?? process.cwd());
   try {
-    validateFlowStartTarget(flow.id, operatorGoal);
+    validateFlowStartTarget(flow.id, operatorGoal, runArgs.target);
   } catch (err) {
     process.stderr.write(`error: ${err.message}
 `);
