@@ -420,6 +420,27 @@ function singleUnitCoverage(evidence: ReviewEvidence): {
 export const CODEBASE_UNIT_BUDGET = { maxFilesPerUnit: 12, maxCharsPerUnit: 60_000 } as const;
 
 /**
+ * How many units the audit step can actually review.
+ *
+ * This has to equal `max_branches` on the audit fan-out. The engine treats a
+ * dynamic fan-out that expands past `max_branches` as a hard error and throws,
+ * so a packer free to emit more units than the flow declares does not degrade —
+ * it kills the run after the intake has already succeeded.
+ *
+ * Packing cannot be assumed to reach the budget. Units are flushed at directory
+ * boundaries, so an ordinary tree of many small directories yields units well
+ * under 12 files, and the count is set by how the tree is shaped rather than by
+ * how much text it holds. Circuit's own `src/` packs to 35 units at 1.44M
+ * characters, where perfect packing would be 24. Deriving the file and
+ * character caps from 24 x the unit budget was arithmetic that only held for a
+ * tree that packs perfectly, and no real one does.
+ *
+ * See `tests/unit/review-projections.test.ts` for the test that keeps this
+ * equal to the schematic.
+ */
+export const MAX_REVIEW_UNITS = 24;
+
+/**
  * Pack a snapshot's files into units, or return undefined for a target that is
  * not a file set.
  *
@@ -432,15 +453,26 @@ function snapshotUnits(
   scope: string,
   evidence: ReviewEvidence,
   body: Record<string, unknown>,
-): readonly ReviewIntakeUnit[] | undefined {
+): { units: readonly ReviewIntakeUnit[]; coverage: ReviewUnitCoverage } | undefined {
   if (evidence.kind !== 'git-snapshot') return undefined;
-  const packed = packReviewUnits(
+  const allPacked = packReviewUnits(
     evidence.files.map((file) => ({ path: file.path, size: file.content?.text.length ?? 0 })),
     CODEBASE_UNIT_BUDGET,
   );
-  if (packed.length === 0) return undefined;
+  if (allPacked.length === 0) return undefined;
+  // More units than there are reviewers to run them. Keep what can actually be
+  // reviewed and let the count of files it covers carry the rest: a short
+  // review that says how far it got is worth having, and the alternative here
+  // is the engine throwing on expansion and the operator getting nothing.
+  const packed = allPacked.slice(0, MAX_REVIEW_UNITS);
+  const reviewedPaths = new Set(packed.flatMap((unit) => unit.paths));
+  const coverage = {
+    matched_file_count: evidence.matched_file_count,
+    reviewed_file_count: reviewedPaths.size,
+    truncated: evidence.files_truncated || packed.length < allPacked.length,
+  };
   const byPath = new Map(evidence.files.map((file) => [file.path, file]));
-  return packed.map((unit) => {
+  const units = packed.map((unit) => {
     const files = unit.paths
       .map((path) => byPath.get(path))
       .filter((file): file is (typeof evidence.files)[number] => file !== undefined);
@@ -459,6 +491,7 @@ function snapshotUnits(
       contents: JSON.stringify({ ...body, evidence: { ...evidence, files } }, null, 2),
     };
   });
+  return { units, coverage };
 }
 
 export function projectReviewIntake(input: ReviewIntakeProjectorInputs): ReviewIntake {
@@ -484,8 +517,10 @@ export function projectReviewIntake(input: ReviewIntakeProjectorInputs): ReviewI
   // everything. So a snapshot is packed into units and reviewed a unit at a
   // time. Every other target is one unit, carrying exactly the evidence bundle
   // a whole-target reviewer was always handed.
+  const packedSnapshot =
+    input.units === undefined ? snapshotUnits(input.scope, input.evidence, body) : undefined;
   const units = input.units ??
-    snapshotUnits(input.scope, input.evidence, body) ?? [
+    packedSnapshot?.units ?? [
       {
         unit_id: 'unit-1',
         label: singleUnitLabel(input.target),
@@ -501,6 +536,10 @@ export function projectReviewIntake(input: ReviewIntakeProjectorInputs): ReviewI
   return ReviewIntake.parse({
     ...body,
     units,
-    unit_coverage: input.unitCoverage ?? singleUnitCoverage(input.evidence),
+    // A snapshot that packed past the reviewer count reports the files its
+    // units actually carry, not everything the snapshot matched, so dropping
+    // units cannot read as full coverage.
+    unit_coverage:
+      input.unitCoverage ?? packedSnapshot?.coverage ?? singleUnitCoverage(input.evidence),
   });
 }

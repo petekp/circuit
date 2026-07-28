@@ -85906,11 +85906,18 @@ function singleUnitCoverage(evidence2) {
 function snapshotUnits(scope, evidence2, body) {
   if (evidence2.kind !== "git-snapshot")
     return void 0;
-  const packed = packReviewUnits(evidence2.files.map((file2) => ({ path: file2.path, size: file2.content?.text.length ?? 0 })), CODEBASE_UNIT_BUDGET);
-  if (packed.length === 0)
+  const allPacked = packReviewUnits(evidence2.files.map((file2) => ({ path: file2.path, size: file2.content?.text.length ?? 0 })), CODEBASE_UNIT_BUDGET);
+  if (allPacked.length === 0)
     return void 0;
+  const packed = allPacked.slice(0, MAX_REVIEW_UNITS);
+  const reviewedPaths = new Set(packed.flatMap((unit) => unit.paths));
+  const coverage = {
+    matched_file_count: evidence2.matched_file_count,
+    reviewed_file_count: reviewedPaths.size,
+    truncated: evidence2.files_truncated || packed.length < allPacked.length
+  };
   const byPath = new Map(evidence2.files.map((file2) => [file2.path, file2]));
-  return packed.map((unit) => {
+  const units = packed.map((unit) => {
     const files = unit.paths.map((path) => byPath.get(path)).filter((file2) => file2 !== void 0);
     return {
       unit_id: unit.unit_id,
@@ -85924,6 +85931,7 @@ function snapshotUnits(scope, evidence2, body) {
       contents: JSON.stringify({ ...body, evidence: { ...evidence2, files } }, null, 2)
     };
   });
+  return { units, coverage };
 }
 function projectReviewIntake(input) {
   const body = {
@@ -85941,7 +85949,8 @@ function projectReviewIntake(input) {
       ...input.snapshotNotApplied === true ? { snapshotNotApplied: true } : {}
     })
   };
-  const units = input.units ?? snapshotUnits(input.scope, input.evidence, body) ?? [
+  const packedSnapshot = input.units === void 0 ? snapshotUnits(input.scope, input.evidence, body) : void 0;
+  const units = input.units ?? packedSnapshot?.units ?? [
     {
       unit_id: "unit-1",
       label: singleUnitLabel(input.target),
@@ -85957,10 +85966,13 @@ function projectReviewIntake(input) {
   return ReviewIntake.parse({
     ...body,
     units,
-    unit_coverage: input.unitCoverage ?? singleUnitCoverage(input.evidence)
+    // A snapshot that packed past the reviewer count reports the files its
+    // units actually carry, not everything the snapshot matched, so dropping
+    // units cannot read as full coverage.
+    unit_coverage: input.unitCoverage ?? packedSnapshot?.coverage ?? singleUnitCoverage(input.evidence)
   });
 }
-var ASSUMED_WORKING_TREE_WARNING, TARGET_INFERRED_WARNING, SNAPSHOT_NOT_APPLIED_WARNING, CODEBASE_UNIT_BUDGET;
+var ASSUMED_WORKING_TREE_WARNING, TARGET_INFERRED_WARNING, SNAPSHOT_NOT_APPLIED_WARNING, CODEBASE_UNIT_BUDGET, MAX_REVIEW_UNITS;
 var init_intake_projection = __esm({
   "dist/flows/review/writers/intake-projection.js"() {
     "use strict";
@@ -85971,6 +85983,7 @@ var init_intake_projection = __esm({
     TARGET_INFERRED_WARNING = "No target was named, so Review matched one out of the goal text. It is reviewing what that matched, which may not be what you meant. Pass --target to say it outright, such as --target main...HEAD, --target staged, or --target commit:abc1234.";
     SNAPSHOT_NOT_APPLIED_WARNING = 'You asked about the code as it stands, and Review read changes instead. Reading files rather than a diff needs a path to bound it. Name one, such as "review src/auth as it stands".';
     CODEBASE_UNIT_BUDGET = { maxFilesPerUnit: 12, maxCharsPerUnit: 6e4 };
+    MAX_REVIEW_UNITS = 24;
   }
 });
 
@@ -101783,6 +101796,17 @@ function planRelayFanoutBranchGuidanceDecision(input) {
     ...input.relayConnector === void 0 ? {} : { suppliedConnector: input.relayConnector }
   });
 }
+function connectorRetryBackoffMs(attemptNumber) {
+  return CONNECTOR_RETRY_BASE_BACKOFF_MS * 2 ** Math.max(0, attemptNumber - 2);
+}
+async function pause(ms) {
+  await new Promise((resolve36) => {
+    setTimeout(resolve36, ms);
+  });
+}
+function branchAnswerStands(attempt) {
+  return attempt.kind !== "connector_failed" && attempt.evaluation.kind === "pass";
+}
 async function executeRelayFanoutBranch(step, context, branch, relayConnector, branchDirRel, branchDirAbs) {
   const startMs = Date.now();
   const attempt = context.activeStepAttempt ?? 1;
@@ -101817,7 +101841,10 @@ async function executeRelayFanoutBranch(step, context, branch, relayConnector, b
       });
       let relayAttempt = await ask();
       const maxAttempts = branch.max_attempts ?? 1;
-      for (let attemptNumber = 2; attemptNumber <= maxAttempts && relayAttempt.kind !== "connector_failed" && relayAttempt.evaluation.kind !== "pass"; attemptNumber += 1) {
+      for (let attemptNumber = 2; attemptNumber <= maxAttempts && !branchAnswerStands(relayAttempt); attemptNumber += 1) {
+        if (relayAttempt.kind === "connector_failed") {
+          await pause(connectorRetryBackoffMs(attemptNumber));
+        }
         relayAttempt = await ask();
       }
       const durationMs2 = Math.max(0, Date.now() - startMs);
@@ -102156,7 +102183,7 @@ async function executeSubRunFanoutBranch(step, context, branch, worktreeRunner, 
 function branchNeedsWorktree(branch) {
   return branch.kind === "sub-run";
 }
-var ITEM_EVIDENCE_FILE;
+var ITEM_EVIDENCE_FILE, CONNECTOR_RETRY_BASE_BACKOFF_MS;
 var init_branch_execution = __esm({
   "dist/runtime/fanout/branch-execution.js"() {
     "use strict";
@@ -102172,6 +102199,7 @@ var init_branch_execution = __esm({
     init_reuse_children();
     init_types2();
     ITEM_EVIDENCE_FILE = "evidence.md";
+    CONNECTOR_RETRY_BASE_BACKOFF_MS = 400;
   }
 });
 

@@ -177,4 +177,62 @@ describe('review this codebase', () => {
     expect(prompts.size).toBeGreaterThan(0);
     expect(result.confidence_limitations.join(' ')).toMatch(/parts of this target/iu);
   });
+
+  // A reviewer whose connector dies mid-flight is not a reviewer that answered
+  // wrong — it is a reviewer that never got asked properly. The live proof run
+  // lost a unit exactly this way: the CLI stopped after six turns and forty-five
+  // seconds of real work, and the run forfeited that slice of the codebase
+  // without ever asking again. One re-ask, inside the attempt budget the flow
+  // already declares, is the difference between covering the tree and not.
+  it('asks again when a reviewer connector dies, and covers the unit it lost', async () => {
+    const { bytes } = loadFixture();
+    const runFolder = join(reviewRunFolderBase(), 'review-codebase-connector-flake');
+    const projectRoot = stagedCodebase('review-codebase-flake-project');
+    const prompts = new Map<string, string>();
+    const clean = recordingReviewers(prompts);
+    let flaked: string | undefined;
+    let deaths = 0;
+
+    const outcome = await runCompiledFlow({
+      runDir: runFolder,
+      flowBytes: bytes,
+      runId: '79000000-0000-0000-0000-0000000000c2',
+      goal: 'review this whole codebase',
+      depth: 'medium',
+      projectRoot,
+      now: deterministicNow(Date.UTC(2026, 6, 28, 10, 0, 0)),
+      relayer: {
+        connectorName: 'claude-code',
+        promptOnlyContext: true,
+        relay: async (input: RelayInput): Promise<RelayResult> => {
+          const unitId = /Step: audit-step-(\S+)/.exec(input.prompt)?.[1] ?? 'unknown';
+          // The first unit asked loses its connector once, then answers.
+          flaked ??= unitId;
+          if (unitId === flaked && deaths === 0) {
+            deaths += 1;
+            throw new Error('connector died mid-flight (stop_reason: tool_use)');
+          }
+          return await clean.relay(input);
+        },
+      },
+    });
+
+    expect(deaths).toBe(1);
+    expect(outcome.outcome).toBe('complete');
+
+    // The unit whose connector died was asked again and answered, so the tree is
+    // fully covered and nothing is filed as unreviewed.
+    const covered = FILES.filter((file) =>
+      [...prompts.values()].some((prompt) => prompt.includes(file.marker)),
+    );
+    expect(covered).toHaveLength(FILES.length);
+
+    const result = ReviewResult.parse(
+      JSON.parse(readFileSync(join(runFolder, 'reports/review-result.json'), 'utf8')),
+    );
+    expect(
+      result.findings.find((finding) => finding.id === 'circuit-review-unit-not-reviewed'),
+    ).toBeUndefined();
+    expect(result.verdict).toBe('CLEAN');
+  });
 });
