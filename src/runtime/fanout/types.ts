@@ -27,6 +27,10 @@ export interface ResolvedRelayBranch {
   // Branch-local evidence, appended to the fanout step's own reads. Already
   // `$item`-substituted by the time it lands here.
   readonly reads?: readonly string[];
+  // Text lifted off this branch's source item, which the engine writes into the
+  // branch folder and adds to the branch's reads. Carried as the resolved text
+  // rather than as a field name so the item itself does not have to travel.
+  readonly item_evidence?: string;
   readonly provenance_field?: string;
   readonly connector?: string;
   readonly selection?: unknown;

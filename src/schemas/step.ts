@@ -315,6 +315,22 @@ export const FanoutRelayBranchExecution = z
     // context bound the split exists to break. In a dynamic fanout these paths
     // carry `$item` placeholders, so branch k reads slice k.
     reads: z.array(RunRelativePath).optional(),
+    // Name of a text field on the source item whose value IS this branch's
+    // evidence. The engine writes that text into the branch folder and reads it
+    // back, so the slice does not have to exist as a file before the run.
+    //
+    // `reads` covers the case where a prior step already wrote one file per
+    // slice. Nothing in Circuit does that today — a compose writer returns one
+    // report body and a relay step writes one report — so a step that splits a
+    // corpus has exactly one place to put the pieces: the items of its own
+    // report. This field is what gets piece k out of that report and in front of
+    // worker k. Dynamic fanouts only; a static branch has no item.
+    item_evidence_field: z
+      .string()
+      .regex(/^[a-z_][a-z0-9_]*$/i, {
+        message: 'item_evidence_field must be a top-level JSON field name',
+      })
+      .optional(),
     provenance_field: z
       .string()
       .regex(/^[a-z_][a-z0-9_]*$/i, {

@@ -20465,6 +20465,19 @@ var init_step = __esm({
       // context bound the split exists to break. In a dynamic fanout these paths
       // carry `$item` placeholders, so branch k reads slice k.
       reads: external_exports.array(RunRelativePath).optional(),
+      // Name of a text field on the source item whose value IS this branch's
+      // evidence. The engine writes that text into the branch folder and reads it
+      // back, so the slice does not have to exist as a file before the run.
+      //
+      // `reads` covers the case where a prior step already wrote one file per
+      // slice. Nothing in Circuit does that today — a compose writer returns one
+      // report body and a relay step writes one report — so a step that splits a
+      // corpus has exactly one place to put the pieces: the items of its own
+      // report. This field is what gets piece k out of that report and in front of
+      // worker k. Dynamic fanouts only; a static branch has no item.
+      item_evidence_field: external_exports.string().regex(/^[a-z_][a-z0-9_]*$/i, {
+        message: "item_evidence_field must be a top-level JSON field name"
+      }).optional(),
       provenance_field: external_exports.string().regex(/^[a-z_][a-z0-9_]*$/i, {
         message: "provenance_field must be a top-level JSON field name"
       }).optional()
@@ -101210,9 +101223,13 @@ function relayBranchProvenanceFailure(branch, reportBody) {
   }
   return void 0;
 }
-function relayBranchReads(step, branch) {
+function relayBranchReads(step, branch, branchDirRel) {
   const paths = (step.reads ?? []).map((ref) => ref.path);
-  for (const path of branch.reads ?? []) {
+  const branchPaths = [
+    ...branch.item_evidence === void 0 ? [] : [`${branchDirRel}/${ITEM_EVIDENCE_FILE}`],
+    ...branch.reads ?? []
+  ];
+  for (const path of branchPaths) {
     if (!paths.includes(path))
       paths.push(path);
   }
@@ -101228,7 +101245,7 @@ function syntheticRelayStep(step, branch, branchDirRel) {
     title: syntheticRelayTitle(step, branch),
     ...step.protocol === void 0 ? {} : { protocol: step.protocol },
     routes: { pass: { kind: "terminal", target: "@complete" } },
-    reads: relayBranchReads(step, branch).map((path) => ({ path })),
+    reads: relayBranchReads(step, branch, branchDirRel).map((path) => ({ path })),
     writes: {
       request: { path: `${branchDirRel}/request.txt` },
       receipt: { path: `${branchDirRel}/receipt.txt` },
@@ -101252,7 +101269,7 @@ function syntheticCompiledRelayStepV1(step, branch, branchDirRel) {
     id: `${step.id}-${branch.branch_id}`,
     title: syntheticRelayTitle(step, branch),
     protocol: step.protocol ?? `${step.id}@v1`,
-    reads: relayBranchReads(step, branch),
+    reads: relayBranchReads(step, branch, branchDirRel),
     routes: { pass: "@complete" },
     ...branch.selection === void 0 ? {} : { selection: branch.selection },
     skill_slots: [],
@@ -101335,6 +101352,10 @@ async function executeRelayFanoutBranch(step, context, branch, relayConnector, b
     worktree_path: branchDirAbs
   });
   try {
+    if (branch.item_evidence !== void 0) {
+      await context.files.writeText(`${branchDirRel}/${ITEM_EVIDENCE_FILE}`, branch.item_evidence.endsWith("\n") ? branch.item_evidence : `${branch.item_evidence}
+`);
+    }
     if (relayConnector === void 0) {
       const relayStep = syntheticRelayStep(step, branch, branchDirRel);
       const relayAttempt = await executeProductionRelayAttempt({
@@ -101684,6 +101705,7 @@ async function executeSubRunFanoutBranch(step, context, branch, worktreeRunner, 
 function branchNeedsWorktree(branch) {
   return branch.kind === "sub-run";
 }
+var ITEM_EVIDENCE_FILE;
 var init_branch_execution = __esm({
   "dist/runtime/fanout/branch-execution.js"() {
     "use strict";
@@ -101698,11 +101720,25 @@ var init_branch_execution = __esm({
     init_relay_support();
     init_reuse_children();
     init_types2();
+    ITEM_EVIDENCE_FILE = "evidence.md";
   }
 });
 
 // dist/runtime/fanout/branch-expansion.js
-function resolveBranch(branch) {
+function itemEvidence(item, field, branchId) {
+  if (item === void 0) {
+    throw new Error(`fanout branch '${branchId}': item_evidence_field needs a dynamic fanout; a static branch has no item to take evidence from`);
+  }
+  if (item === null || typeof item !== "object" || Array.isArray(item)) {
+    throw new Error(`dynamic fanout branch '${branchId}': item_evidence_field '${field}' needs an object item`);
+  }
+  const value = item[field];
+  if (typeof value !== "string" || value.length === 0) {
+    throw new Error(`dynamic fanout branch '${branchId}': item field '${field}' must be non-empty text to serve as this branch's evidence`);
+  }
+  return value;
+}
+function resolveBranch(branch, item) {
   if ("flow_ref" in branch) {
     return {
       kind: "sub-run",
@@ -101722,6 +101758,9 @@ function resolveBranch(branch) {
     goal: branch.execution.goal,
     report_schema: branch.execution.report_schema,
     ...branch.execution.reads === void 0 ? {} : { reads: branch.execution.reads.map((path) => String(path)) },
+    ...branch.execution.item_evidence_field === void 0 ? {} : {
+      item_evidence: itemEvidence(item, branch.execution.item_evidence_field, branch.branch_id)
+    },
     ...branch.execution.provenance_field === void 0 ? {} : { provenance_field: branch.execution.provenance_field },
     ...branch.connector === void 0 ? {} : { connector: branch.connector },
     ...branch.selection === void 0 ? {} : { selection: branch.selection }
@@ -101755,7 +101794,7 @@ async function expandFanoutBranches(step, files, context) {
       throw new Error(`dynamic fanout produced duplicate branch_id '${branch.branch_id}'`);
     }
     seen.add(branch.branch_id);
-    resolved.push(resolveBranch(branch));
+    resolved.push(resolveBranch(branch, item));
   }
   return resolved;
 }

@@ -6,7 +6,32 @@ import type { RunFileStore } from '../run-files/run-file-store.js';
 import type { RunContext } from '../run/run-context.js';
 import type { ResolvedBranch } from './types.js';
 
-function resolveBranch(branch: FanoutBranch): ResolvedBranch {
+// Lift the branch's evidence off its own source item. A field that is missing,
+// empty, or not text fails the expansion instead of quietly handing the worker
+// an empty slice: a reviewer that sees nothing reports nothing, and a fanout
+// that silently reviews nothing is the exact dishonesty this flow exists to
+// avoid.
+function itemEvidence(item: unknown, field: string, branchId: string): string {
+  if (item === undefined) {
+    throw new Error(
+      `fanout branch '${branchId}': item_evidence_field needs a dynamic fanout; a static branch has no item to take evidence from`,
+    );
+  }
+  if (item === null || typeof item !== 'object' || Array.isArray(item)) {
+    throw new Error(
+      `dynamic fanout branch '${branchId}': item_evidence_field '${field}' needs an object item`,
+    );
+  }
+  const value = (item as Record<string, unknown>)[field];
+  if (typeof value !== 'string' || value.length === 0) {
+    throw new Error(
+      `dynamic fanout branch '${branchId}': item field '${field}' must be non-empty text to serve as this branch's evidence`,
+    );
+  }
+  return value;
+}
+
+function resolveBranch(branch: FanoutBranch, item?: unknown): ResolvedBranch {
   if ('flow_ref' in branch) {
     return {
       kind: 'sub-run',
@@ -28,6 +53,11 @@ function resolveBranch(branch: FanoutBranch): ResolvedBranch {
     ...(branch.execution.reads === undefined
       ? {}
       : { reads: branch.execution.reads.map((path) => String(path)) }),
+    ...(branch.execution.item_evidence_field === undefined
+      ? {}
+      : {
+          item_evidence: itemEvidence(item, branch.execution.item_evidence_field, branch.branch_id),
+        }),
     ...(branch.execution.provenance_field === undefined
       ? {}
       : { provenance_field: branch.execution.provenance_field }),
@@ -80,7 +110,7 @@ export async function expandFanoutBranches(
       throw new Error(`dynamic fanout produced duplicate branch_id '${branch.branch_id}'`);
     }
     seen.add(branch.branch_id);
-    resolved.push(resolveBranch(branch));
+    resolved.push(resolveBranch(branch, item));
   }
   return resolved;
 }
