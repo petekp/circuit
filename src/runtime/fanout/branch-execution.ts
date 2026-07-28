@@ -273,6 +273,31 @@ export function planRelayFanoutBranchGuidanceDecision(input: {
   });
 }
 
+// Delay before a re-ask that follows a dead connector, doubling per attempt.
+// Short on purpose: the point is to let a transient condition clear, not to wait
+// out a rate limit, and every branch in a fan-out is holding a slot while it
+// waits.
+export const CONNECTOR_RETRY_BASE_BACKOFF_MS = 400;
+
+export function connectorRetryBackoffMs(attemptNumber: number): number {
+  return CONNECTOR_RETRY_BASE_BACKOFF_MS * 2 ** Math.max(0, attemptNumber - 2);
+}
+
+async function pause(ms: number): Promise<void> {
+  await new Promise<void>((resolve) => {
+    setTimeout(resolve, ms);
+  });
+}
+
+// An answer this branch can keep: the connector came back AND what it said
+// passed validation and the admit list. Anything else is worth one more ask,
+// within the branch's attempt budget.
+function branchAnswerStands(
+  attempt: Awaited<ReturnType<typeof executeProductionRelayAttempt>>,
+): boolean {
+  return attempt.kind !== 'connector_failed' && attempt.evaluation.kind === 'pass';
+}
+
 export async function executeRelayFanoutBranch(
   step: FanoutStep,
   context: RunContext,
@@ -324,19 +349,29 @@ export async function executeRelayFanoutBranch(
           },
           validateAcceptedResult: (input) => validateAcceptedRelayFanoutBranch(branch, input),
         });
-      // Ask again on an answer this branch cannot use — a body that does not
-      // validate, or a verdict outside the admit list. A connector that failed
-      // to run is not re-asked: nothing about the request changed, so a second
-      // identical invocation is a second identical failure.
+      // Ask again on anything this branch cannot use: an answer whose body does
+      // not validate, a verdict outside the admit list, or a connector that
+      // never came back. Connector failures used to be exempt, on the argument
+      // that nothing about the request changed so a second identical invocation
+      // would fail identically. That holds for a request the connector rejects
+      // outright, and not for what is actually observed — a worker that ran for
+      // real and died mid-flight. The cost of the miss also moved: a lost branch
+      // used to fail one relay loudly, and now silently forfeits a slice of a
+      // codebase review while the run closes around the hole.
       let relayAttempt = await ask();
       const maxAttempts = branch.max_attempts ?? 1;
       for (
         let attemptNumber = 2;
-        attemptNumber <= maxAttempts &&
-        relayAttempt.kind !== 'connector_failed' &&
-        relayAttempt.evaluation.kind !== 'pass';
+        attemptNumber <= maxAttempts && !branchAnswerStands(relayAttempt);
         attemptNumber += 1
       ) {
+        // Space out a re-ask that follows a dead connector. A failure that came
+        // back with a usable shape is re-asked immediately, as before; a failure
+        // with no answer at all is the one worth letting settle, since the cause
+        // is as likely to be load or a transient host condition as the request.
+        if (relayAttempt.kind === 'connector_failed') {
+          await pause(connectorRetryBackoffMs(attemptNumber));
+        }
         relayAttempt = await ask();
       }
       const durationMs = Math.max(0, Date.now() - startMs);

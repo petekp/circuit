@@ -101782,6 +101782,17 @@ function planRelayFanoutBranchGuidanceDecision(input) {
     ...input.relayConnector === void 0 ? {} : { suppliedConnector: input.relayConnector }
   });
 }
+function connectorRetryBackoffMs(attemptNumber) {
+  return CONNECTOR_RETRY_BASE_BACKOFF_MS * 2 ** Math.max(0, attemptNumber - 2);
+}
+async function pause(ms) {
+  await new Promise((resolve36) => {
+    setTimeout(resolve36, ms);
+  });
+}
+function branchAnswerStands(attempt) {
+  return attempt.kind !== "connector_failed" && attempt.evaluation.kind === "pass";
+}
 async function executeRelayFanoutBranch(step, context, branch, relayConnector, branchDirRel, branchDirAbs) {
   const startMs = Date.now();
   const attempt = context.activeStepAttempt ?? 1;
@@ -101816,7 +101827,10 @@ async function executeRelayFanoutBranch(step, context, branch, relayConnector, b
       });
       let relayAttempt = await ask();
       const maxAttempts = branch.max_attempts ?? 1;
-      for (let attemptNumber = 2; attemptNumber <= maxAttempts && relayAttempt.kind !== "connector_failed" && relayAttempt.evaluation.kind !== "pass"; attemptNumber += 1) {
+      for (let attemptNumber = 2; attemptNumber <= maxAttempts && !branchAnswerStands(relayAttempt); attemptNumber += 1) {
+        if (relayAttempt.kind === "connector_failed") {
+          await pause(connectorRetryBackoffMs(attemptNumber));
+        }
         relayAttempt = await ask();
       }
       const durationMs2 = Math.max(0, Date.now() - startMs);
@@ -102155,7 +102169,7 @@ async function executeSubRunFanoutBranch(step, context, branch, worktreeRunner, 
 function branchNeedsWorktree(branch) {
   return branch.kind === "sub-run";
 }
-var ITEM_EVIDENCE_FILE;
+var ITEM_EVIDENCE_FILE, CONNECTOR_RETRY_BASE_BACKOFF_MS;
 var init_branch_execution = __esm({
   "dist/runtime/fanout/branch-execution.js"() {
     "use strict";
@@ -102171,6 +102185,7 @@ var init_branch_execution = __esm({
     init_reuse_children();
     init_types2();
     ITEM_EVIDENCE_FILE = "evidence.md";
+    CONNECTOR_RETRY_BASE_BACKOFF_MS = 400;
   }
 });
 
