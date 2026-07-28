@@ -14,6 +14,7 @@ export {
   packReviewUnits,
 } from './writers/units.js';
 export {
+  MAX_REVIEW_UNITS,
   projectReviewIntake,
   reviewEvidenceWarnings,
 } from './writers/intake-projection.js';

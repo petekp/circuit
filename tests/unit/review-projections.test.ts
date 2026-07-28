@@ -1,6 +1,8 @@
+import { readFileSync } from 'node:fs';
 import { describe, expect, it } from 'vitest';
 
 import {
+  MAX_REVIEW_UNITS,
   projectReviewIntake,
   projectReviewResult,
   reviewEvidenceWarnings,
@@ -805,6 +807,89 @@ describe('Review evidence projections', () => {
       const named = result.confidence_limitations.join(' ');
       expect(named).toContain('src/other/thing.ts');
       expect(named).not.toContain('src/retry/loop.ts');
+    });
+  });
+
+  // How many units the intake may emit. The audit step fans out one reviewer
+  // per unit and the engine throws when a dynamic fan-out expands past
+  // max_branches, so a packer free to emit more units than the flow declares
+  // does not degrade — it kills the run after the intake already succeeded, on
+  // exactly the "review this codebase" request the split exists to serve.
+  describe('units the audit step can actually run', () => {
+    // Many small directories, which is what an ordinary tree looks like and
+    // what the packer handles worst: units flush at directory boundaries, so
+    // the count is set by how the tree is shaped, not by how much text it holds.
+    function wideTree(directories: number, filesPerDirectory: number): ReviewEvidence {
+      const files = [];
+      for (let d = 0; d < directories; d += 1) {
+        for (let f = 0; f < filesPerDirectory; f += 1) {
+          files.push({
+            path: `src/pkg-${d}/mod-${f}.ts`,
+            byte_length: 20_000,
+            content: { text: 'x'.repeat(20_000), truncated: false },
+          });
+        }
+      }
+      return {
+        kind: 'git-snapshot',
+        project_root: '/tmp/project',
+        target_kind: 'snapshot',
+        files,
+        matched_file_count: files.length,
+        files_truncated: false,
+        path_scope: { include: ['src'], exclude: [] },
+      } as ReviewEvidence;
+    }
+
+    function intakeFor(evidence: ReviewEvidence): ReviewIntake {
+      return projectReviewIntake({
+        scope: 'review this codebase',
+        target: { kind: 'snapshot', paths: { include: ['src'], exclude: [] } },
+        targetProvenance: 'named',
+        evidence,
+        maxUntrackedFiles: 20,
+      });
+    }
+
+    it('never emits more units than the audit fan-out will run', () => {
+      // 40 directories of 2 files each packs to one unit per directory or
+      // worse, which is well past the reviewer count.
+      const intake = intakeFor(wideTree(40, 2));
+      expect(intake.units.length).toBeLessThanOrEqual(MAX_REVIEW_UNITS);
+    });
+
+    it('reports the files it dropped rather than claiming it covered them', () => {
+      const evidence = wideTree(40, 2);
+      const intake = intakeFor(evidence);
+      const carried = new Set(intake.units.flatMap((unit) => unit.paths));
+
+      // Coverage counts what the units actually carry, so a verdict built on
+      // them cannot read as covering the whole target.
+      expect(intake.unit_coverage.matched_file_count).toBe(80);
+      expect(intake.unit_coverage.reviewed_file_count).toBe(carried.size);
+      expect(carried.size).toBeLessThan(80);
+      expect(intake.unit_coverage.truncated).toBe(true);
+    });
+
+    it('leaves a tree that fits alone', () => {
+      const intake = intakeFor(wideTree(3, 2));
+      expect(intake.units.length).toBeLessThanOrEqual(MAX_REVIEW_UNITS);
+      expect(intake.unit_coverage.reviewed_file_count).toBe(6);
+      expect(intake.unit_coverage.truncated).toBe(false);
+    });
+
+    // The cap is only correct while it equals what the schematic declares, and
+    // the two live in different files in different languages.
+    it('matches the max_branches the audit step declares', () => {
+      const schematic = JSON.parse(
+        readFileSync(new URL('../../src/flows/review/schematic.json', import.meta.url), 'utf8'),
+      ) as { items: ReadonlyArray<{ fanout?: { branches?: { max_branches?: number } } }> };
+      const declared = schematic.items
+        .map((item) => item.fanout?.branches?.max_branches)
+        .filter((value): value is number => value !== undefined);
+
+      expect(declared).not.toHaveLength(0);
+      for (const maxBranches of declared) expect(maxBranches).toBe(MAX_REVIEW_UNITS);
     });
   });
 });
