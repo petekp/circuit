@@ -23452,8 +23452,12 @@ var ReviewAuditAggregate = external_exports.object({
   }
 });
 
+// src/flows/review/writers/intake-projection.ts
+var CODEBASE_UNIT_BUDGET = { maxFilesPerUnit: 12, maxCharsPerUnit: 6e4 };
+
 // src/flows/review/writers/intake.ts
 var MAX_DIFF_CHARS = 12e4;
+var MAX_SNAPSHOT_FILE_CHARS = CODEBASE_UNIT_BUDGET.maxCharsPerUnit;
 var MAX_GIT_BUFFER_BYTES = 10 * 1024 * 1024;
 var MAX_DIFF_BUFFER_BYTES = Math.max(MAX_DIFF_CHARS * 4, 1024 * 1024);
 var HEAD_COMMIT_REF = "HEAD";

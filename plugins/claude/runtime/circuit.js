@@ -85979,7 +85979,7 @@ import { spawnSync as spawnSync3 } from "node:child_process";
 import { constants as constants4, closeSync as closeSync4, fstatSync as fstatSync3, lstatSync as lstatSync6, openSync as openSync4, readSync as readSync4, realpathSync as realpathSync6 } from "node:fs";
 import { dirname as dirname7, isAbsolute as isAbsolute9, join as join16, relative as relative9, resolve as resolve15, sep as sep4 } from "node:path";
 import { TextDecoder as TextDecoder2 } from "node:util";
-function truncateText(text, maxChars) {
+function truncateText(text, maxChars, sourceByteLength) {
   if (!runtimeGitTextIsValidUtf8(text)) {
     throw new Error("Review evidence text is not valid UTF-8.");
   }
@@ -85992,9 +85992,10 @@ function truncateText(text, maxChars) {
     end -= 1;
   }
   const prefix = text.slice(0, end);
+  const marker = sourceByteLength === void 0 ? `[truncated ${text.length - end} characters]` : `[truncated: first ${end} characters of a ${sourceByteLength}-byte file]`;
   return {
     text: `${prefix}
-[truncated ${text.length - end} characters]`,
+${marker}`,
     truncated: true
   };
 }
@@ -87154,7 +87155,7 @@ function readWorkspaceFile(projectRoot, path, contentPolicy, maxChars = MAX_UNTR
         skipped_reason: "file content is not valid UTF-8"
       };
     }
-    const content = truncateText(decoded, maxChars);
+    const content = truncateText(decoded, maxChars, openedStat.size);
     return {
       path,
       byte_length: openedStat.size,
@@ -87416,7 +87417,7 @@ var init_intake2 = __esm({
     MAX_UNTRACKED_FILES = 20;
     MAX_UNTRACKED_FILE_CHARS = 2e4;
     MAX_SNAPSHOT_FILES = 288;
-    MAX_SNAPSHOT_FILE_CHARS = 4e4;
+    MAX_SNAPSHOT_FILE_CHARS = CODEBASE_UNIT_BUDGET.maxCharsPerUnit;
     MAX_SNAPSHOT_TOTAL_CHARS = 144e4;
     MAX_GIT_BUFFER_BYTES = 10 * 1024 * 1024;
     MAX_DIFF_BUFFER_BYTES = Math.max(MAX_DIFF_CHARS * 4, 1024 * 1024);

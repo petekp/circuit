@@ -42,6 +42,7 @@ import type {
   ReviewUntrackedFileEvidence,
 } from '../reports.js';
 import {
+  CODEBASE_UNIT_BUDGET,
   projectReviewIntake,
   reviewPathScopeLabel,
   reviewPathScopePaths,
@@ -54,10 +55,20 @@ const MAX_UNTRACKED_FILE_CHARS = 20_000;
 // split into units and reviewed a unit at a time, so the binding limit is how
 // many reviewers the audit step will run (24) times what one reviewer holds
 // (12 files, 60k characters — CODEBASE_UNIT_BUDGET in intake-projection.ts).
-// The per-file cap is unchanged; whatever these leave out is reported as
-// coverage the verdict does not stand on.
+// Whatever these leave out is reported as coverage the verdict does not stand
+// on.
+//
+// The per-file cap is one unit: the largest file a reviewer can be handed is the
+// largest file that fits in a reviewer, which is what the unit budget already
+// says. Measured against a real tree rather than padded fixtures, the old 40k
+// cap cut 39 of this repository's 1,138 hand-written source and test files, and
+// the cut fell hardest on the files a review most wants read whole — the graph
+// runner, the CLI entrypoint, the composer, this file. Twenty of those thirty
+// nine fit inside a unit and were being truncated for no structural reason.
+// The nineteen larger than a unit are still cut, and still say so: a file bigger
+// than one reviewer needs splitting across units, which does not exist yet.
 const MAX_SNAPSHOT_FILES = 288;
-const MAX_SNAPSHOT_FILE_CHARS = 40_000;
+const MAX_SNAPSHOT_FILE_CHARS = CODEBASE_UNIT_BUDGET.maxCharsPerUnit;
 const MAX_SNAPSHOT_TOTAL_CHARS = 1_440_000;
 const MAX_GIT_BUFFER_BYTES = 10 * 1024 * 1024;
 const MAX_DIFF_BUFFER_BYTES = Math.max(MAX_DIFF_CHARS * 4, 1024 * 1024);
@@ -132,7 +143,16 @@ type DirectPinnedTarget =
       readonly parent_commit: string | null;
     };
 
-function truncateText(text: string, maxChars: number): ReviewEvidenceText {
+// `sourceByteLength` is for callers that only ever read a bounded sample of the
+// source, so `text` is not the whole thing and the characters past `maxChars`
+// cannot be counted from it. Without it, a file read that stops one character
+// past the cap would tell the reviewer one character was dropped, whatever the
+// file's real size. State the size that is actually known instead.
+function truncateText(
+  text: string,
+  maxChars: number,
+  sourceByteLength?: number,
+): ReviewEvidenceText {
   if (!runtimeGitTextIsValidUtf8(text)) {
     throw new Error('Review evidence text is not valid UTF-8.');
   }
@@ -149,8 +169,12 @@ function truncateText(text: string, maxChars: number): ReviewEvidenceText {
     end -= 1;
   }
   const prefix = text.slice(0, end);
+  const marker =
+    sourceByteLength === undefined
+      ? `[truncated ${text.length - end} characters]`
+      : `[truncated: first ${end} characters of a ${sourceByteLength}-byte file]`;
   return {
-    text: `${prefix}\n[truncated ${text.length - end} characters]`,
+    text: `${prefix}\n${marker}`,
     truncated: true,
   };
 }
@@ -2000,7 +2024,7 @@ function readWorkspaceFile(
         skipped_reason: 'file content is not valid UTF-8',
       };
     }
-    const content = truncateText(decoded, maxChars);
+    const content = truncateText(decoded, maxChars, openedStat.size);
     return {
       path,
       byte_length: openedStat.size,
