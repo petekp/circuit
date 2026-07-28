@@ -277,7 +277,7 @@ export function planRelayFanoutBranchGuidanceDecision(input: {
 // Short on purpose: the point is to let a transient condition clear, not to wait
 // out a rate limit, and every branch in a fan-out is holding a slot while it
 // waits.
-export const CONNECTOR_RETRY_BASE_BACKOFF_MS = 400;
+const CONNECTOR_RETRY_BASE_BACKOFF_MS = 400;
 
 export function connectorRetryBackoffMs(attemptNumber: number): number {
   return CONNECTOR_RETRY_BASE_BACKOFF_MS * 2 ** Math.max(0, attemptNumber - 2);
