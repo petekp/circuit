@@ -85992,12 +85992,19 @@ import { spawnSync as spawnSync3 } from "node:child_process";
 import { constants as constants4, closeSync as closeSync4, fstatSync as fstatSync3, lstatSync as lstatSync6, openSync as openSync4, readSync as readSync4, realpathSync as realpathSync6 } from "node:fs";
 import { dirname as dirname7, isAbsolute as isAbsolute9, join as join16, relative as relative9, resolve as resolve15, sep as sep4 } from "node:path";
 import { TextDecoder as TextDecoder2 } from "node:util";
-function truncateText(text, maxChars, sourceByteLength) {
+function truncateText(text, maxChars, sourceByteLength, sampleIsPartial = false) {
   if (!runtimeGitTextIsValidUtf8(text)) {
     throw new Error("Review evidence text is not valid UTF-8.");
   }
-  if (text.length <= maxChars)
-    return { text, truncated: false };
+  if (text.length <= maxChars) {
+    if (!sampleIsPartial || sourceByteLength === void 0)
+      return { text, truncated: false };
+    return {
+      text: `${text}
+[truncated: first ${text.length} characters of a ${sourceByteLength}-byte file]`,
+      truncated: true
+    };
+  }
   let end = maxChars;
   const lastIncluded = text.charCodeAt(end - 1);
   const firstExcluded = text.charCodeAt(end);
@@ -87168,12 +87175,8 @@ function readWorkspaceFile(projectRoot, path, contentPolicy, maxChars = MAX_UNTR
         skipped_reason: "file content is not valid UTF-8"
       };
     }
-    const content = truncateText(decoded, maxChars, openedStat.size);
-    return {
-      path,
-      byte_length: openedStat.size,
-      content: openedStat.size > bytesRead && !content.truncated ? { ...content, truncated: true } : content
-    };
+    const content = truncateText(decoded, maxChars, openedStat.size, openedStat.size > bytesRead);
+    return { path, byte_length: openedStat.size, content };
   } catch (err) {
     return {
       path,

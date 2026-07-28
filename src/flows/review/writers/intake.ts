@@ -148,15 +148,27 @@ type DirectPinnedTarget =
 // cannot be counted from it. Without it, a file read that stops one character
 // past the cap would tell the reviewer one character was dropped, whatever the
 // file's real size. State the size that is actually known instead.
+//
+// `sampleIsPartial` covers the case where the sample never even reaches the cap.
+// The read is bounded by bytes and the cap counts characters, so a file of
+// wide characters can be cut a long way short and still hand back text under
+// `maxChars`. Nothing about that text says it was cut, so the caller has to.
 function truncateText(
   text: string,
   maxChars: number,
   sourceByteLength?: number,
+  sampleIsPartial = false,
 ): ReviewEvidenceText {
   if (!runtimeGitTextIsValidUtf8(text)) {
     throw new Error('Review evidence text is not valid UTF-8.');
   }
-  if (text.length <= maxChars) return { text, truncated: false };
+  if (text.length <= maxChars) {
+    if (!sampleIsPartial || sourceByteLength === undefined) return { text, truncated: false };
+    return {
+      text: `${text}\n[truncated: first ${text.length} characters of a ${sourceByteLength}-byte file]`,
+      truncated: true,
+    };
+  }
   let end = maxChars;
   const lastIncluded = text.charCodeAt(end - 1);
   const firstExcluded = text.charCodeAt(end);
@@ -2024,15 +2036,8 @@ function readWorkspaceFile(
         skipped_reason: 'file content is not valid UTF-8',
       };
     }
-    const content = truncateText(decoded, maxChars, openedStat.size);
-    return {
-      path,
-      byte_length: openedStat.size,
-      content:
-        openedStat.size > bytesRead && !content.truncated
-          ? { ...content, truncated: true }
-          : content,
-    };
+    const content = truncateText(decoded, maxChars, openedStat.size, openedStat.size > bytesRead);
+    return { path, byte_length: openedStat.size, content };
   } catch (err) {
     return {
       path,
