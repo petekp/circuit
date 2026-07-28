@@ -858,7 +858,7 @@ function runOutcomeOverrideBrief(input: {
         [
           ...(input.runResult.reason === undefined
             ? []
-            : [`Abort reason: ${input.runResult.reason}`]),
+            : [`Abort reason: ${briefReason(input.runResult.reason)}`]),
           ...salvageKeyPoints({ runFolder: input.runFolder, flowId: input.flowId }),
         ],
         keyPoints,
@@ -881,7 +881,7 @@ function runOutcomeOverrideBrief(input: {
         [
           ...(input.runResult.reason === undefined
             ? []
-            : [`Validation failure: ${input.runResult.reason}`]),
+            : [`Validation failure: ${briefReason(input.runResult.reason)}`]),
           ...salvageKeyPoints({ runFolder: input.runFolder, flowId: input.flowId }),
         ],
         keyPoints,
@@ -897,7 +897,7 @@ function runOutcomeOverrideBrief(input: {
       key_points: briefKeyPoints(
         input.runResult.reason === undefined
           ? []
-          : [`Escalation reason: ${input.runResult.reason}`],
+          : [`Escalation reason: ${briefReason(input.runResult.reason)}`],
         keyPoints,
       ),
       caveats: [],
@@ -909,7 +909,9 @@ function runOutcomeOverrideBrief(input: {
       headline: digestHeadline(input.flowName),
       assessment: 'The flow prepared a handoff instead of closing complete.',
       key_points: briefKeyPoints(
-        input.runResult.reason === undefined ? [] : [`Handoff reason: ${input.runResult.reason}`],
+        input.runResult.reason === undefined
+          ? []
+          : [`Handoff reason: ${briefReason(input.runResult.reason)}`],
         keyPoints,
       ),
       caveats: [],
@@ -931,7 +933,7 @@ function runOutcomeOverrideBrief(input: {
         [
           ...(input.runResult.reason === undefined
             ? []
-            : [`Stop reason: ${input.runResult.reason}`]),
+            : [`Stop reason: ${briefReason(input.runResult.reason)}`]),
           ...salvage.filter((point) => !isWorkingTree(point)),
         ],
         [...keyPoints, ...salvage.filter(isWorkingTree)],
@@ -1366,6 +1368,28 @@ function reducedBindingsLine(receipt: OperatorRunReceipt): string | undefined {
 function firstLine(text: string): string {
   const head = text.split(/\r?\n/)[0]?.trim() ?? '';
   return head.length > 0 ? head : text.trim();
+}
+
+// Every connector ends a failure message with the raw subprocess streams,
+// tagged `stdout[:500]=` / `stderr[:2000]=` (see src/connectors/*.ts). That tail
+// is diagnostic material, not something an operator reads: for a `--json` relay
+// the stdout head is JSONL handshake events, thousands of characters of them.
+// The sentence that says what broke is always in front of the tag, because the
+// connectors compute a plain-English lead first and prepend it.
+const RAW_STREAM_TAG = /;\s*std(?:out|err)\[:\d+\]=/;
+// Long enough for a lead sentence plus the exit-code clause, short enough that
+// four of these still fit on a card.
+const MAX_BRIEF_REASON = 240;
+
+// Shorten an engine reason for the fixed-size brief. The full string is never
+// lost: it stays verbatim in the details array of the same operator-summary.json
+// this brief belongs to, in the run's trace, and in result.json.
+function briefReason(reason: string): string {
+  const beforeStreams = reason.split(RAW_STREAM_TAG)[0] ?? reason;
+  const head = firstLine(beforeStreams);
+  const shortened =
+    head.length > MAX_BRIEF_REASON ? head.slice(0, MAX_BRIEF_REASON).trimEnd() : head;
+  return shortened.length < reason.trim().length ? `${shortened} …` : shortened;
 }
 
 function skillHookSourceLabel(source: OperatorSkillHookActivationValue['source']): string {

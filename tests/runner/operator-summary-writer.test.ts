@@ -3011,6 +3011,49 @@ describe('operator summary writer', () => {
     );
   });
 
+  // A failed connector relay's reason ends in the raw subprocess streams. For a
+  // `--json` relay the stdout head is JSONL handshake events, so pasting the
+  // whole reason into the brief buries the one sentence that says what broke
+  // under thousands of characters of machine output. The brief gets the
+  // sentence; the raw streams stay in details and on disk.
+  it('keeps raw subprocess streams out of the brief while details keep them verbatim', () => {
+    const streamNoise = Array.from(
+      { length: 12 },
+      (_, index) =>
+        `{"id":"${index}","msg":{"type":"session_configured","model":"gpt-5-codex","cwd":"/repo"}}`,
+    ).join('\n');
+    const rawReason = `relay step 'review-relay': connector invocation failed (Codex is not signed in. Run \`codex login\` to sign in. codex subprocess exited with code 1; stdout[:500]=${streamNoise}; stderr[:2000]=stream error: unauthorized)`;
+    const result = RunResult.parse({
+      ...baseResult('review'),
+      outcome: 'aborted',
+      summary: 'review aborted',
+      reason: rawReason,
+    });
+
+    const written = writeOperatorSummary({
+      runFolder,
+      runResult: result,
+      route: { selectedFlow: 'review' },
+    });
+
+    const keyPoint = written.summary.brief_slots?.key_points.find((point) =>
+      point.startsWith('Abort reason:'),
+    );
+    expect(keyPoint).toBeDefined();
+    // The operator still learns what happened and what to do about it.
+    expect(keyPoint).toContain('Codex is not signed in');
+    expect(keyPoint).toContain('codex login');
+    // But not by way of the raw stream dump.
+    expect(keyPoint).not.toContain('stdout[:500]=');
+    expect(keyPoint).not.toContain('session_configured');
+    expect(keyPoint?.length).toBeLessThanOrEqual(280);
+    // Nothing is lost: the full reason stays verbatim in the details array of
+    // the same operator-summary.json this brief is part of.
+    expect(written.summary.details).toContain(`Abort reason: ${rawReason}`);
+    // And the markdown digest, which renders the brief, stays free of it.
+    expect(readFileSync(written.markdownPath, 'utf8')).not.toContain('session_configured');
+  });
+
   // The recovery-binding abort reasons are contract-pinned trace strings full
   // of engine vocabulary ("WorkContract", "recovery binding", raw cause ids).
   // The trace keeps them verbatim; the summary must lead with what actually

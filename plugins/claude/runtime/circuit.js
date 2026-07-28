@@ -111166,7 +111166,7 @@ function runOutcomeOverrideBrief(input) {
       headline: digestHeadline(input.flowName),
       assessment: "The run aborted before this flow could finish.",
       key_points: briefKeyPoints([
-        ...input.runResult.reason === void 0 ? [] : [`Abort reason: ${input.runResult.reason}`],
+        ...input.runResult.reason === void 0 ? [] : [`Abort reason: ${briefReason(input.runResult.reason)}`],
         ...salvageKeyPoints({ runFolder: input.runFolder, flowId: input.flowId })
       ], keyPoints),
       caveats: [],
@@ -111182,7 +111182,7 @@ function runOutcomeOverrideBrief(input) {
       // same sentence would describe files that never existed.
       assessment: flowMayInvokeWriteCapableWorker(input.flowId) ? "The worker finished and produced work, but its report failed validation, so the run could not prove the work. The files it created were not deleted." : "The worker finished and answered, but its report failed validation, so the run could not stand behind the answer. Nothing in this checkout was changed.",
       key_points: briefKeyPoints([
-        ...input.runResult.reason === void 0 ? [] : [`Validation failure: ${input.runResult.reason}`],
+        ...input.runResult.reason === void 0 ? [] : [`Validation failure: ${briefReason(input.runResult.reason)}`],
         ...salvageKeyPoints({ runFolder: input.runFolder, flowId: input.flowId })
       ], keyPoints),
       caveats: [],
@@ -111193,7 +111193,7 @@ function runOutcomeOverrideBrief(input) {
     return {
       headline: digestHeadline(input.flowName),
       assessment: "The run escalated because Circuit could not close the flow safely.",
-      key_points: briefKeyPoints(input.runResult.reason === void 0 ? [] : [`Escalation reason: ${input.runResult.reason}`], keyPoints),
+      key_points: briefKeyPoints(input.runResult.reason === void 0 ? [] : [`Escalation reason: ${briefReason(input.runResult.reason)}`], keyPoints),
       caveats: [],
       next_action: "inspect the escalation reason and choose the recovery path."
     };
@@ -111202,7 +111202,7 @@ function runOutcomeOverrideBrief(input) {
     return {
       headline: digestHeadline(input.flowName),
       assessment: "The flow prepared a handoff instead of closing complete.",
-      key_points: briefKeyPoints(input.runResult.reason === void 0 ? [] : [`Handoff reason: ${input.runResult.reason}`], keyPoints),
+      key_points: briefKeyPoints(input.runResult.reason === void 0 ? [] : [`Handoff reason: ${briefReason(input.runResult.reason)}`], keyPoints),
       caveats: [],
       next_action: "resume from the handoff record."
     };
@@ -111216,7 +111216,7 @@ function runOutcomeOverrideBrief(input) {
       headline: digestHeadline(input.flowName),
       assessment: "The flow stopped before complete evidence was produced.",
       key_points: briefKeyPoints([
-        ...input.runResult.reason === void 0 ? [] : [`Stop reason: ${input.runResult.reason}`],
+        ...input.runResult.reason === void 0 ? [] : [`Stop reason: ${briefReason(input.runResult.reason)}`],
         ...salvage.filter((point) => !isWorkingTree(point))
       ], [...keyPoints, ...salvage.filter(isWorkingTree)]),
       caveats: [],
@@ -111533,6 +111533,12 @@ function reducedBindingsLine(receipt) {
 function firstLine2(text) {
   const head = text.split(/\r?\n/)[0]?.trim() ?? "";
   return head.length > 0 ? head : text.trim();
+}
+function briefReason(reason) {
+  const beforeStreams = reason.split(RAW_STREAM_TAG)[0] ?? reason;
+  const head = firstLine2(beforeStreams);
+  const shortened = head.length > MAX_BRIEF_REASON ? head.slice(0, MAX_BRIEF_REASON).trimEnd() : head;
+  return shortened.length < reason.trim().length ? `${shortened} \u2026` : shortened;
 }
 function skillHookSourceLabel(source) {
   switch (source) {
@@ -112158,7 +112164,7 @@ function writeOperatorSummary(input) {
     ...projectRoot === void 0 ? {} : { reviewProjectRoot: projectRoot }
   };
 }
-var HTML_REPORT_LABEL, MAX_KEY_POINTS, MAX_CAVEATS, SALVAGE_NEXT_ACTION, READ_AND_RERUN_NEXT_ACTION, VERIFICATION_REPORT_PATH_BY_FLOW, REVIEW_REPORT_PATH_BY_FLOW, CONTEXT_KEY_POINT_PREFIXES, WORKING_TREE_SALVAGE_PREFIX, SPEND_ROLE_ORDER, REDUCED_BINDING_LABELS, RECOVERY_BINDING_ABORT_PATTERN, RECOVERY_NO_EVIDENCE_ABORT_PATTERN;
+var HTML_REPORT_LABEL, MAX_KEY_POINTS, MAX_CAVEATS, SALVAGE_NEXT_ACTION, READ_AND_RERUN_NEXT_ACTION, VERIFICATION_REPORT_PATH_BY_FLOW, REVIEW_REPORT_PATH_BY_FLOW, CONTEXT_KEY_POINT_PREFIXES, WORKING_TREE_SALVAGE_PREFIX, SPEND_ROLE_ORDER, REDUCED_BINDING_LABELS, RAW_STREAM_TAG, MAX_BRIEF_REASON, RECOVERY_BINDING_ABORT_PATTERN, RECOVERY_NO_EVIDENCE_ABORT_PATTERN;
 var init_writer = __esm({
   "dist/app/operator-summary/writer.js"() {
     "use strict";
@@ -112202,6 +112208,8 @@ var init_writer = __esm({
       terminal_outcome_binding: "terminal outcome",
       primary_result_surface: "primary result"
     };
+    RAW_STREAM_TAG = /;\s*std(?:out|err)\[:\d+\]=/;
+    MAX_BRIEF_REASON = 240;
     RECOVERY_BINDING_ABORT_PATTERN = /^step '([^']+)' selected recovery route '([^']+)' (?:after|for) \S+,? but (?:the WorkContract does not declare a matching recovery binding|its WorkContract binding only allows: .+)$/;
     RECOVERY_NO_EVIDENCE_ABORT_PATTERN = /^step '([^']+)' selected recovery route '([^']+)' without failure evidence$/;
   }
