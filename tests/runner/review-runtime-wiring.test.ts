@@ -6,8 +6,9 @@ import { deterministicNow } from '../helpers/runtime-fixtures.js';
 
 import type { ClaudeCodeRelayInput } from '../../src/connectors/claude-code.js';
 import {
-  ReviewRelayResult,
+  type ReviewRelayResult,
   ReviewResult,
+  ReviewUnitVerdict,
   computeReviewVerdict,
 } from '../../src/flows/review/reports.js';
 import type { RelayResult } from '../../src/shared/connector-relay.js';
@@ -222,7 +223,12 @@ describe('registered review compose writer', () => {
       projectRoot,
       // Findings present, but the reviewer answered NO_ISSUES_FOUND.
       relayer: relayerWithBody(
-        JSON.stringify({ verdict: 'NO_ISSUES_FOUND', findings: [finding], ...stubProse() }),
+        JSON.stringify({
+          unit_id: 'unit-1',
+          verdict: 'NO_ISSUES_FOUND',
+          findings: [finding],
+          ...stubProse(),
+        }),
       ),
     });
 
@@ -236,8 +242,10 @@ describe('registered review compose writer', () => {
 
     // The reviewer's own persisted verdict is normalized too, so the run folder
     // does not carry a report that contradicts its own findings list.
-    const relayReport = ReviewRelayResult.parse(
-      JSON.parse(readFileSync(join(runFolder, 'reports', 'review-verdict.json'), 'utf8')),
+    const relayReport = ReviewUnitVerdict.parse(
+      JSON.parse(
+        readFileSync(join(runFolder, 'reports', 'review-units', 'unit-1', 'report.json'), 'utf8'),
+      ),
     );
     expect(relayReport.verdict).toBe('ISSUES_FOUND');
 
@@ -272,8 +280,8 @@ describe('registered review compose writer', () => {
     expect(outcome.outcome).toBe('evidence_invalid');
     // The reason names the step, the schema, and the offending field, so the
     // operator can see what the reviewer got wrong without opening the run.
-    expect(outcome.reason).toContain("relay step 'audit-step'");
-    expect(outcome.reason).toContain('review.verdict@v1');
+    expect(outcome.reason).toContain("relay fanout branch 'unit-1'");
+    expect(outcome.reason).toContain('review.unit-verdict@v1');
     expect(outcome.reason).toContain('findings');
     // Neither the reviewer's verdict nor the flow result is written from a body
     // that failed validation.
@@ -288,26 +296,28 @@ describe('registered review compose writer', () => {
       'step.report_written:intake-step',
       'step.completed:intake-step',
       'step.entered:audit-step',
-      'guidance.decision:relay_execution:audit-step',
-      'relay.started:audit-step',
-      'relay.request:audit-step',
-      'relay.receipt:audit-step',
-      'relay.result:audit-step',
-      'relay.completed:audit-step',
+      'fanout.started:audit-step',
+      'fanout.branch_started:audit-step',
+      'guidance.decision:relay_execution:audit-step-unit-1',
+      'relay.started:audit-step-unit-1',
+      'relay.request:audit-step-unit-1',
+      'relay.receipt:audit-step-unit-1',
+      'relay.result:audit-step-unit-1',
+      'relay.completed:audit-step-unit-1',
+      'check.evaluated:audit-step-unit-1',
+      // Second ask: the branch asks its reviewer again rather than losing the
+      // unit to one malformed answer.
+      'guidance.decision:relay_execution:audit-step-unit-1',
+      'relay.started:audit-step-unit-1',
+      'relay.request:audit-step-unit-1',
+      'relay.receipt:audit-step-unit-1',
+      'relay.result:audit-step-unit-1',
+      'relay.completed:audit-step-unit-1',
+      'check.evaluated:audit-step-unit-1',
+      'fanout.branch_completed:audit-step',
+      'step.report_written:audit-step',
+      'fanout.joined:audit-step',
       'check.evaluated:audit-step',
-      'guidance.decision:recovery_route:audit-step',
-      'step.completed:audit-step',
-      // Second ask: the retry route sends the same step back to the reviewer.
-      'step.entered:audit-step',
-      'guidance.decision:relay_execution:audit-step',
-      'relay.started:audit-step',
-      'relay.request:audit-step',
-      'relay.receipt:audit-step',
-      'relay.result:audit-step',
-      'relay.completed:audit-step',
-      'check.evaluated:audit-step',
-      'guidance.decision:recovery_route:audit-step',
-      'step.completed:audit-step',
       'step.aborted:audit-step',
       'run.closed',
     ]);
@@ -334,9 +344,11 @@ describe('registered review compose writer', () => {
 
       expect(outcome.outcome).toBe(expectedOutcome);
 
-      const rawRelayPath = join(runFolder, 'stages', 'analyze', 'review-raw-findings.json');
+      // One reviewer per unit: a single-unit target puts the reviewer's own
+      // answer in that unit's branch folder, verbatim.
+      const rawRelayPath = join(runFolder, 'reports', 'review-units', 'unit-1', 'result.json');
       expect(existsSync(rawRelayPath)).toBe(true);
-      expect(ReviewRelayResult.parse(JSON.parse(readFileSync(rawRelayPath, 'utf8')))).toEqual(
+      expect(ReviewUnitVerdict.parse(JSON.parse(readFileSync(rawRelayPath, 'utf8')))).toMatchObject(
         relay,
       );
 
@@ -357,6 +369,18 @@ describe('registered review compose writer', () => {
       }
       expect(relayCompleted.verdict).toBe(relay.verdict);
 
+      // Two checks now: the unit reviewer's own verdict, and the join over
+      // every unit that answered.
+      const unitCheck = traceEntries.find(
+        (trace_entry) =>
+          trace_entry.kind === 'check.evaluated' && trace_entry.step_id === 'audit-step-unit-1',
+      );
+      if (unitCheck?.kind !== 'check.evaluated') {
+        throw new Error('expected unit reviewer check.evaluated trace_entry');
+      }
+      expect(unitCheck.check_kind).toBe('result_verdict');
+      expect(unitCheck.outcome).toBe('pass');
+
       const reviewCheck = traceEntries.find(
         (trace_entry) =>
           trace_entry.kind === 'check.evaluated' && trace_entry.step_id === 'audit-step',
@@ -364,7 +388,7 @@ describe('registered review compose writer', () => {
       if (reviewCheck?.kind !== 'check.evaluated') {
         throw new Error('expected review check.evaluated trace_entry');
       }
-      expect(reviewCheck.check_kind).toBe('result_verdict');
+      expect(reviewCheck.check_kind).toBe('fanout_aggregate');
       expect(reviewCheck.outcome).toBe('pass');
 
       // The analyze stage is a relay stage, so its durable report
@@ -378,12 +402,18 @@ describe('registered review compose writer', () => {
         'step.report_written:intake-step',
         'step.completed:intake-step',
         'step.entered:audit-step',
-        'guidance.decision:relay_execution:audit-step',
-        'relay.started:audit-step',
-        'relay.request:audit-step',
-        'relay.receipt:audit-step',
-        'relay.result:audit-step',
-        'relay.completed:audit-step',
+        'fanout.started:audit-step',
+        'fanout.branch_started:audit-step',
+        'guidance.decision:relay_execution:audit-step-unit-1',
+        'relay.started:audit-step-unit-1',
+        'relay.request:audit-step-unit-1',
+        'relay.receipt:audit-step-unit-1',
+        'relay.result:audit-step-unit-1',
+        'relay.completed:audit-step-unit-1',
+        'check.evaluated:audit-step-unit-1',
+        'fanout.branch_completed:audit-step',
+        'step.report_written:audit-step',
+        'fanout.joined:audit-step',
         'check.evaluated:audit-step',
         'step.completed:audit-step',
         'step.entered:verdict-step',

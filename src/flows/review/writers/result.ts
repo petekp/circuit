@@ -1,11 +1,10 @@
 // Review result compose writer.
 //
-// Reads the upstream reviewer relay's result body (NOT a typed
-// report at a known schema path — this is the relay's
-// writes.result file) and lifts findings + verdict into the canonical
-// ReviewResult report. This is the one compose writer that does
-// not consume a typed report via schema-name lookup; it consumes a
-// relay result, so the path resolver is custom.
+// Reads the audit fan-out's aggregate — one file carrying every unit
+// reviewer's verdict body, plus the fact of any unit whose reviewer produced
+// none — and merges it into the canonical ReviewResult report. Most targets
+// are a single unit, so the common case is one body in, one review out; a
+// split target merges several, and says so.
 
 import { readFileSync } from 'node:fs';
 import { resolveRunRelative } from '../../../shared/run-relative-path.js';
@@ -15,50 +14,45 @@ import type {
 } from '../../registries/compose-writers/types.js';
 import type {
   RuntimeIndexedComposeStep,
+  RuntimeIndexedFanoutStep,
   RuntimeIndexedFlow,
-  RuntimeIndexedRelayStep,
 } from '../../registries/runtime-index.js';
-import { ReviewIntake, ReviewRelayResult } from '../reports.js';
+import { ReviewAuditAggregate, ReviewIntake } from '../reports.js';
 import { projectReviewResult } from './result-projection.js';
+import { mergeReviewUnits } from './unit-merge.js';
 
 /**
- * Where the reviewer's response lands for the close step to read.
+ * Where the audit step's joined aggregate lands for the close step to read.
  *
- * Prefer the relay step's typed report: when the step declares one, the runtime
- * has already validated the body against `review.verdict@v1` before writing it,
- * and the compiler routes the close step's read there. The raw result path is
- * the fallback for a relay step that declares no report, where the body reaches
- * the close step unvalidated.
+ * The aggregate is a typed report the engine writes after the last branch
+ * joins, so unlike the raw relay result it read before, this path is a
+ * declared write and the close step's read of it is checked here rather than
+ * assumed.
  */
-function reviewerRelayResultPath(
+function reviewAuditAggregatePath(
   flow: RuntimeIndexedFlow,
   closeStep: ComposeBuildContext['step'],
 ): string {
   const closeStepId = closeStep.id as unknown as string;
-  const reviewerRelayes = flow.steps.filter(
-    (candidate): candidate is RuntimeIndexedRelayStep =>
-      candidate.kind === 'relay' &&
-      candidate.role === 'reviewer' &&
-      (candidate.routes.pass as unknown as string) === closeStepId,
+  const audits = flow.steps.filter(
+    (candidate): candidate is RuntimeIndexedFanoutStep =>
+      candidate.kind === 'fanout' && (candidate.routes.pass as unknown as string) === closeStepId,
   );
-  if (reviewerRelayes.length !== 1) {
+  if (audits.length !== 1) {
     throw new Error(
-      `review.result@v1 requires exactly one reviewer relay routing to '${closeStepId}', found ${reviewerRelayes.length}`,
+      `review.result@v1 requires exactly one audit fan-out routing to '${closeStepId}', found ${audits.length}`,
     );
   }
-  const relayWrites = reviewerRelayes[0]?.writes;
-  const reportPath = relayWrites?.report?.path as unknown as string | undefined;
-  const resultPath = relayWrites?.result as unknown as string | undefined;
-  const readable = [reportPath, resultPath].find(
-    (candidate): candidate is string =>
-      candidate !== undefined && closeStep.reads.includes(candidate as never),
-  );
-  if (readable === undefined) {
+  // A fan-out writes its joined report under `aggregate`, not `report`.
+  const reportPath = audits[0]?.writes.aggregate;
+  const path =
+    typeof reportPath === 'string' ? reportPath : (reportPath?.path as string | undefined);
+  if (path === undefined || !closeStep.reads.includes(path as never)) {
     throw new Error(
-      `review.result@v1 requires close step '${closeStepId}' to read the reviewer verdict at '${reportPath ?? resultPath ?? '<missing>'}'`,
+      `review.result@v1 requires close step '${closeStepId}' to read the audit aggregate at '${path ?? '<missing>'}'`,
     );
   }
-  return readable;
+  return path;
 }
 
 function reviewIntakePath(
@@ -87,7 +81,7 @@ export const reviewResultComposeBuilder: ComposeBuilder = {
   // typed report at a schema-mapped path. The build function does
   // its own resolution.
   build(context: ComposeBuildContext): unknown {
-    const path = reviewerRelayResultPath(context.flow, context.step);
+    const path = reviewAuditAggregatePath(context.flow, context.step);
     const intake = ReviewIntake.parse(
       JSON.parse(
         readFileSync(
@@ -96,9 +90,10 @@ export const reviewResultComposeBuilder: ComposeBuilder = {
         ),
       ),
     );
-    const relayResult = ReviewRelayResult.parse(
+    const aggregate = ReviewAuditAggregate.parse(
       JSON.parse(readFileSync(resolveRunRelative(context.runFolder, path), 'utf8')),
     );
-    return projectReviewResult({ intake, relayResult });
+    const merged = mergeReviewUnits({ intake, aggregate });
+    return projectReviewResult({ intake, relayResult: merged.relayResult });
   },
 };

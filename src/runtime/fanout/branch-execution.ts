@@ -127,7 +127,8 @@ function relayBranchReads(
   branch: ResolvedRelayBranch,
   branchDirRel: string,
 ): readonly string[] {
-  const paths = (step.reads ?? []).map((ref) => ref.path);
+  const paths =
+    branch.inherit_step_reads === false ? [] : (step.reads ?? []).map((ref) => ref.path);
   const branchPaths = [
     ...(branch.item_evidence === undefined ? [] : [`${branchDirRel}/${ITEM_EVIDENCE_FILE}`]),
     ...(branch.reads ?? []),
@@ -311,17 +312,33 @@ export async function executeRelayFanoutBranch(
       // relay steps. Injected connectors below remain a compatibility path for
       // tests and hosts that provide their own branch-local relay implementation.
       const relayStep = syntheticRelayStep(step, branch, branchDirRel);
-      const relayAttempt = await executeProductionRelayAttempt({
-        step: relayStep,
-        compiledStep: syntheticCompiledRelayStepV1(step, branch, branchDirRel),
-        context,
-        branchGoal: branch.goal,
-        formatConnectorFailureReason: (_stepId, error) => {
-          const reason = error instanceof Error ? error.message : String(error);
-          return `relay fanout branch '${branch.branch_id}': connector invocation failed (${reason})`;
-        },
-        validateAcceptedResult: (input) => validateAcceptedRelayFanoutBranch(branch, input),
-      });
+      const ask = async () =>
+        await executeProductionRelayAttempt({
+          step: relayStep,
+          compiledStep: syntheticCompiledRelayStepV1(step, branch, branchDirRel),
+          context,
+          branchGoal: branch.goal,
+          formatConnectorFailureReason: (_stepId, error) => {
+            const reason = error instanceof Error ? error.message : String(error);
+            return `relay fanout branch '${branch.branch_id}': connector invocation failed (${reason})`;
+          },
+          validateAcceptedResult: (input) => validateAcceptedRelayFanoutBranch(branch, input),
+        });
+      // Ask again on an answer this branch cannot use — a body that does not
+      // validate, or a verdict outside the admit list. A connector that failed
+      // to run is not re-asked: nothing about the request changed, so a second
+      // identical invocation is a second identical failure.
+      let relayAttempt = await ask();
+      const maxAttempts = branch.max_attempts ?? 1;
+      for (
+        let attemptNumber = 2;
+        attemptNumber <= maxAttempts &&
+        relayAttempt.kind !== 'connector_failed' &&
+        relayAttempt.evaluation.kind !== 'pass';
+        attemptNumber += 1
+      ) {
+        relayAttempt = await ask();
+      }
       const durationMs = Math.max(0, Date.now() - startMs);
       const outcome =
         relayAttempt.kind === 'connector_failed'

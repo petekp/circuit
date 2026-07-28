@@ -50,12 +50,15 @@ import {
 const MAX_DIFF_CHARS = 120_000;
 const MAX_UNTRACKED_FILES = 20;
 const MAX_UNTRACKED_FILE_CHARS = 20_000;
-// Snapshot bounds. A snapshot competes for the same relay budget a diff does,
-// so the total is the binding limit and the file count only stops a very wide
-// path from spending it all on preambles. Whatever these leave out is reported.
-const MAX_SNAPSHOT_FILES = 25;
+// Snapshot bounds. A snapshot no longer competes for one relay's budget: it is
+// split into units and reviewed a unit at a time, so the binding limit is how
+// many reviewers the audit step will run (24) times what one reviewer holds
+// (12 files, 60k characters — CODEBASE_UNIT_BUDGET in intake-projection.ts).
+// The per-file cap is unchanged; whatever these leave out is reported as
+// coverage the verdict does not stand on.
+const MAX_SNAPSHOT_FILES = 288;
 const MAX_SNAPSHOT_FILE_CHARS = 40_000;
-const MAX_SNAPSHOT_TOTAL_CHARS = 150_000;
+const MAX_SNAPSHOT_TOTAL_CHARS = 1_440_000;
 const MAX_GIT_BUFFER_BYTES = 10 * 1024 * 1024;
 const MAX_DIFF_BUFFER_BYTES = Math.max(MAX_DIFF_CHARS * 4, 1024 * 1024);
 const DIRECT_GIT_TIMEOUT_MS = 30_000;
@@ -113,11 +116,6 @@ type ReviewTargetParseResult =
       // question the operator actually asked, so evidence collection switches
       // to a snapshot of these paths instead of reporting an empty target.
       readonly snapshotFallback?: ReviewPathScope;
-      // The operator named the repository itself as the subject. That is a
-      // target, not a missing one, so it must not be reported as an assumption
-      // about an unnamed goal. Review still covers the changes it can hold, and
-      // the report says plainly that a whole-codebase pass is not among them.
-      readonly wholeRepository?: boolean;
       // The operator asked for the code as it stands but named nowhere to look,
       // so there is nothing to bound the read and this stays a change review.
       // Reported rather than dropped: the answer is about a diff, and the
@@ -1200,7 +1198,6 @@ function scopedParseResult(
   options: {
     readonly assumed?: boolean;
     readonly snapshotFallback?: ReviewPathScope;
-    readonly wholeRepository?: boolean;
     readonly snapshotNotApplied?: boolean;
   } = {},
 ): ReviewTargetParseResult {
@@ -1219,7 +1216,6 @@ function scopedParseResult(
     ...(options.snapshotFallback === undefined
       ? {}
       : { snapshotFallback: options.snapshotFallback }),
-    ...(options.wholeRepository === true ? { wholeRepository: true } : {}),
     ...(options.snapshotNotApplied === true ? { snapshotNotApplied: true } : {}),
   };
 }
@@ -1308,21 +1304,32 @@ export function parseReviewTarget(scope: string): ReviewTargetParseResult {
   const assumedWorkingTree = { kind: 'working_tree', mode: 'all', explicit: false } as const;
 
   // Both branches below land on the change review because no path bounds the
-  // read. What the operator asked for still travels with the result: naming the
-  // repository is a target, and asking for the code as it stands is a question
-  // about something other than a diff. Neither gets to arrive silently.
+  // read. Asking for the code as it stands is a question about something other
+  // than a diff, so that does not get to arrive silently.
   const unscoped = {
     assumed: true,
-    ...(WHOLE_REPOSITORY_PATTERN.test(authorityScope) ? { wholeRepository: true } : {}),
     ...(SNAPSHOT_REQUEST_PATTERN.test(authorityScope) ? { snapshotNotApplied: true } : {}),
   } as const;
 
+  // "Review this codebase" names the code as the subject, and the code is now
+  // something Review can read: the tree is split into units and reviewed a unit
+  // at a time. So the repository is the target, not the diff inside it. This is
+  // the request that used to be refused.
+  if (WHOLE_REPOSITORY_PATTERN.test(authorityScope)) {
+    const repositoryScope = scoped.paths ?? { include: ['.'], exclude: [] };
+    return snapshotParseResult(
+      repositoryScope.include.length === 0
+        ? { ...repositoryScope, include: ['.'] }
+        : repositoryScope,
+      scoped,
+    );
+  }
+
   if (scoped.paths === undefined) return scopedParseResult(assumedWorkingTree, scoped, unscoped);
 
-  // A snapshot needs somewhere to look. An exclusion on its own does not name
-  // one: "review everything except tests/" is the whole repository minus a
-  // directory, which is the codebase-scale review Circuit cannot yet do in one
-  // pass, so it stays a change review and reports honestly when there are none.
+  // A snapshot needs somewhere to look, and an exclusion on its own does not
+  // name one. A repository-scoped goal already became a snapshot above, so what
+  // is left here is an exclusion with no subject, which stays a change review.
   if (scoped.paths.include.length === 0) {
     return scopedParseResult(assumedWorkingTree, scoped, unscoped);
   }
@@ -2125,7 +2132,6 @@ async function collectReviewEvidence(
     readonly includeUntrackedFileContent?: boolean;
     readonly target: ReviewTarget;
     readonly gitReader?: RuntimeGitReader;
-    readonly wholeRepository?: boolean;
   },
 ): Promise<ReviewEvidence> {
   const target = options.target;
@@ -2154,8 +2160,13 @@ async function collectReviewEvidence(
       directContext,
     );
     if (snapshot.matchedFileCount === 0) {
+      // Nobody named a path when the target is the repository itself, so
+      // "check the path" would send the operator after a path they never gave.
+      const wholeTree = target.paths.include.length === 1 && target.paths.include[0] === '.';
       throw new Error(
-        `Review found no tracked files at ${reviewPathScopePaths(target.paths)}. Check the path, or name a commit, a range, staged, or unstaged to review a change instead.`,
+        wholeTree
+          ? 'Review found no tracked files in this repository. Commit the files to review, or name a commit, a range, staged, or unstaged to review a change instead.'
+          : `Review found no tracked files at ${reviewPathScopePaths(target.paths)}. Check the path, or name a commit, a range, staged, or unstaged to review a change instead.`,
       );
     }
     return {
@@ -2426,15 +2437,8 @@ async function collectReviewEvidence(
         `Review target has no changes to inspect: ${target.mode === 'all' ? 'working tree changes' : `${target.mode} changes`}${scopeSuffix} are empty.`,
       );
     }
-    // Both branches end the run, and which sentence the operator gets decides
-    // whether they can act on it. Someone who named the repository is not
-    // helped by being told they named nothing, and none of commit, range,
-    // staged or unstaged is a smaller version of what they asked for. Say what
-    // Review cannot do yet, and name the one thing that reads code.
     throw new ReviewTargetEmptyError(
-      options.wholeRepository === true
-        ? `Review found nothing to inspect: there are no uncommitted changes${scopeSuffix}. Reviewing a whole codebase in one pass is not something Review can do yet. Name a path to review the code there as it stands, such as "review src/auth as it stands".`
-        : `Review found no changes to inspect. The goal did not name a target, so Review looked at the working tree${scopeSuffix}. Name a commit, a range, staged, or unstaged if you meant a different target.`,
+      `Review found no changes to inspect. The goal did not name a target, so Review looked at the working tree${scopeSuffix}. Name a commit, a range, staged, or unstaged if you meant a different target.`,
     );
   }
 
@@ -2496,10 +2500,6 @@ export const reviewIntakeComposeBuilder: ComposeBuilder = {
         ...untrackedContent,
         target,
         ...reader,
-        // Shapes the empty-target message only. A clean tree ends the run either
-        // way, but "you named no target" is the wrong sentence to hand someone
-        // who named the repository.
-        ...(parsedTarget.wholeRepository === true ? { wholeRepository: true as const } : {}),
       });
 
     let target = parsedTarget.target;
@@ -2532,7 +2532,6 @@ export const reviewIntakeComposeBuilder: ComposeBuilder = {
         : {}),
       ...(scopeNotApplied === undefined ? {} : { scopeNotApplied }),
       ...(snapshotFallbackFrom === undefined ? {} : { snapshotFallbackFrom }),
-      ...(parsedTarget.wholeRepository === true ? { wholeRepository: true } : {}),
       ...(parsedTarget.snapshotNotApplied === true ? { snapshotNotApplied: true } : {}),
     });
   },

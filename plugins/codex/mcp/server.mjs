@@ -23081,10 +23081,6 @@ var ReviewEvidenceWarningKind = external_exports.enum([
   "snapshot_fallback",
   "snapshot_truncated",
   "snapshot_file_skipped",
-  // The operator named the repository as a whole. Distinct from
-  // `target_assumed`, which says no target was named: saying that here would
-  // tell someone they gave no target when they gave one Review cannot cover.
-  "whole_repository_narrowed",
   // The operator asked for the code as it stands but named nowhere to look, so
   // the run reviewed changes instead. Said out loud, because "no findings"
   // answers a different question than the one asked.
@@ -23310,12 +23306,44 @@ var ReviewResolvedTarget = external_exports.discriminatedUnion("kind", [
   }).strict()
 ]);
 var ReviewTargetProvenance = external_exports.enum(["named", "inferred"]);
+var ReviewIntakeUnit = external_exports.object({
+  unit_id: external_exports.string().regex(/^[a-z0-9]+(?:-[a-z0-9]+)*$/u, {
+    message: "unit_id must be a kebab-case slug"
+  }),
+  // What a person would call this unit, for the report and the operator view.
+  label: external_exports.string().min(1),
+  // Repository-relative paths this unit covers. Empty when the unit is a
+  // change rather than a set of files, which is the ordinary single-unit case.
+  paths: external_exports.array(external_exports.string().min(1)),
+  // What this unit's reviewer is asked to do. Carried per unit because a
+  // codebase reviewer needs to be told which slice it holds and that other
+  // slices exist.
+  goal: external_exports.string().min(1),
+  // The evidence itself, verbatim. The engine writes this text into the
+  // reviewer's branch folder and reads it back, so the reviewer sees this
+  // unit and nothing else.
+  contents: external_exports.string().min(1)
+}).strict();
+var ReviewUnitCoverage = external_exports.object({
+  // Files the target matched before any bound applied.
+  matched_file_count: external_exports.number().int().nonnegative(),
+  // Files the units actually carry.
+  reviewed_file_count: external_exports.number().int().nonnegative(),
+  // True when the target was larger than Review could pack into units, so
+  // some of it was left out. A verdict over a truncated target may not claim
+  // to have reviewed the whole thing.
+  truncated: external_exports.boolean()
+}).strict();
 var ReviewIntake = external_exports.object({
   scope: external_exports.string().min(1),
   target: ReviewResolvedTarget,
   target_provenance: ReviewTargetProvenance,
   evidence: ReviewEvidence,
-  evidence_warnings: external_exports.array(ReviewEvidenceWarning).default([])
+  evidence_warnings: external_exports.array(ReviewEvidenceWarning).default([]),
+  // Always present and never empty: an intake that framed a review but named
+  // no unit would be an intake that captured nothing for the reviewer to read.
+  units: external_exports.array(ReviewIntakeUnit).min(1),
+  unit_coverage: ReviewUnitCoverage
 }).strict();
 var ReviewFinding = external_exports.object({
   severity: ReviewFindingSeverity,
@@ -23371,7 +23399,7 @@ var ReviewResult = external_exports.object({
     });
   }
 });
-var ReviewRelayResult = external_exports.object({
+var ReviewRelayResultShape = external_exports.object({
   verdict: ReviewRelayVerdict,
   findings: external_exports.array(ReviewFinding),
   // See ReviewResult.assessment — the reviewer's plain-language paragraph
@@ -23388,9 +23416,40 @@ var ReviewRelayResult = external_exports.object({
   // Known gaps that limit certainty. Required as an array (may be empty
   // when coverage was complete).
   confidence_limitations: external_exports.array(external_exports.string().min(1))
-}).strict().transform((report) => {
-  const verdict = report.findings.length === 0 ? "NO_ISSUES_FOUND" : "ISSUES_FOUND";
-  return { ...report, verdict };
+}).strict();
+function withDerivedRelayVerdict(report) {
+  return {
+    ...report,
+    verdict: report.findings.length === 0 ? "NO_ISSUES_FOUND" : "ISSUES_FOUND"
+  };
+}
+var ReviewRelayResult = ReviewRelayResultShape.transform(withDerivedRelayVerdict);
+var ReviewUnitVerdict = ReviewRelayResultShape.extend({
+  unit_id: external_exports.string().min(1)
+}).strict().transform(withDerivedRelayVerdict);
+var ReviewAuditAggregateBranch = external_exports.object({
+  branch_id: external_exports.string().min(1),
+  child_run_id: external_exports.string().min(1),
+  child_outcome: external_exports.enum(["complete", "aborted", "handoff", "stopped", "escalated"]),
+  verdict: external_exports.string().min(1),
+  admitted: external_exports.boolean(),
+  result_path: external_exports.string().min(1),
+  duration_ms: external_exports.number().nonnegative(),
+  result_body: ReviewUnitVerdict.optional()
+}).strict();
+var ReviewAuditAggregate = external_exports.object({
+  schema_version: external_exports.literal(1),
+  join_policy: external_exports.literal("aggregate-any"),
+  branch_count: external_exports.number().int().positive(),
+  branches: external_exports.array(ReviewAuditAggregateBranch).min(1)
+}).strict().superRefine((aggregate, ctx) => {
+  if (aggregate.branch_count !== aggregate.branches.length) {
+    ctx.addIssue({
+      code: "custom",
+      path: ["branch_count"],
+      message: "branch_count must match branches.length"
+    });
+  }
 });
 
 // src/flows/review/writers/intake.ts
@@ -23730,7 +23789,6 @@ function scopedParseResult(target, requested, options = {}) {
     ...options.assumed === true ? { assumed: true } : {},
     ...notApplied.length === 0 ? {} : { scopeNotApplied: notApplied },
     ...options.snapshotFallback === void 0 ? {} : { snapshotFallback: options.snapshotFallback },
-    ...options.wholeRepository === true ? { wholeRepository: true } : {},
     ...options.snapshotNotApplied === true ? { snapshotNotApplied: true } : {}
   };
 }
@@ -23783,9 +23841,15 @@ function parseReviewTarget(scope) {
   const assumedWorkingTree = { kind: "working_tree", mode: "all", explicit: false };
   const unscoped = {
     assumed: true,
-    ...WHOLE_REPOSITORY_PATTERN.test(authorityScope) ? { wholeRepository: true } : {},
     ...SNAPSHOT_REQUEST_PATTERN.test(authorityScope) ? { snapshotNotApplied: true } : {}
   };
+  if (WHOLE_REPOSITORY_PATTERN.test(authorityScope)) {
+    const repositoryScope = scoped.paths ?? { include: ["."], exclude: [] };
+    return snapshotParseResult(
+      repositoryScope.include.length === 0 ? { ...repositoryScope, include: ["."] } : repositoryScope,
+      scoped
+    );
+  }
   if (scoped.paths === void 0) return scopedParseResult(assumedWorkingTree, scoped, unscoped);
   if (scoped.paths.include.length === 0) {
     return scopedParseResult(assumedWorkingTree, scoped, unscoped);
@@ -24849,6 +24913,9 @@ var DisjointMergeJoin = external_exports.object({
 var AggregateOnlyJoin = external_exports.object({
   policy: external_exports.literal("aggregate-only")
 }).strict();
+var AggregateAnyJoin = external_exports.object({
+  policy: external_exports.literal("aggregate-any")
+}).strict();
 var AggregateSurvivorsJoin = external_exports.object({
   policy: external_exports.literal("aggregate-survivors")
 }).strict();
@@ -24856,6 +24923,7 @@ var FanoutJoinPolicy = external_exports.discriminatedUnion("policy", [
   PickWinnerJoin,
   DisjointMergeJoin,
   AggregateOnlyJoin,
+  AggregateAnyJoin,
   AggregateSurvivorsJoin
 ]);
 var FanoutAggregateCheck = external_exports.object({
@@ -25843,9 +25911,25 @@ var FanoutRelayBranchExecution = external_exports.object({
   item_evidence_field: external_exports.string().regex(/^[a-z_][a-z0-9_]*$/i, {
     message: "item_evidence_field must be a top-level JSON field name"
   }).optional(),
+  // Whether this branch also reads the fanout step's own `reads`. True by
+  // default, because shared context is usually what the step's evidence is.
+  //
+  // Set false when the step's evidence is the source report the branches were
+  // expanded from AND that report is large — a report holding N slices is N
+  // times the size of the one slice this branch needs, so inheriting it would
+  // hand every worker the whole corpus and undo the split.
+  inherit_step_reads: external_exports.boolean().optional(),
   provenance_field: external_exports.string().regex(/^[a-z_][a-z0-9_]*$/i, {
     message: "provenance_field must be a top-level JSON field name"
-  }).optional()
+  }).optional(),
+  // How many times this branch may ask its worker before the branch fails.
+  // One by default.
+  //
+  // A top-level relay step recovers a malformed answer through its retry
+  // route: ask again, once. A branch has no routes, so without this a single
+  // badly shaped response throws away that branch's whole share of the work.
+  // Set it where a re-ask is cheaper than losing the slice.
+  max_attempts: external_exports.number().int().min(1).max(3).optional()
 }).strict();
 var FanoutRelayBranch = external_exports.object({
   branch_id: external_exports.string().min(1).max(64).regex(FANOUT_BRANCH_ID_REGEX, { message: "branch_id must be a kebab-case slug" }),
@@ -31089,7 +31173,13 @@ var FanoutJoinedTraceEntry = TraceEntryBase.extend({
   // The join policy that ran; mirrors the FanoutAggregateCheck.join.policy
   // field but echoed into the trace_entry so the audit log is self-contained
   // (no need to cross-reference the schematic to interpret outcomes).
-  policy: external_exports.enum(["pick-winner", "disjoint-merge", "aggregate-only", "aggregate-survivors"]),
+  policy: external_exports.enum([
+    "pick-winner",
+    "disjoint-merge",
+    "aggregate-only",
+    "aggregate-any",
+    "aggregate-survivors"
+  ]),
   // For pick-winner: the selected branch_id. Absent for the other policies.
   selected_branch_id: external_exports.string().min(1).optional(),
   // Path to the runtime-built aggregate report.
@@ -33525,7 +33615,13 @@ var FanoutJoinedProgressEvent = ProgressEventBase.extend({
   type: external_exports.literal("fanout.joined"),
   step_id: StepId,
   step_title: external_exports.string().min(1),
-  policy: external_exports.enum(["pick-winner", "disjoint-merge", "aggregate-only", "aggregate-survivors"]),
+  policy: external_exports.enum([
+    "pick-winner",
+    "disjoint-merge",
+    "aggregate-only",
+    "aggregate-any",
+    "aggregate-survivors"
+  ]),
   aggregate_path: external_exports.string().min(1),
   branches_completed: external_exports.number().int().nonnegative(),
   branches_failed: external_exports.number().int().nonnegative(),

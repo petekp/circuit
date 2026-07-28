@@ -267,6 +267,18 @@ function reportBody(
         target_provenance: 'named',
         evidence: { kind: 'goal' },
         evidence_warnings: [],
+        // Supplied material is one unit, which is what the audit fan-out
+        // dispatches over.
+        units: [
+          {
+            unit_id: 'unit-1',
+            label: 'the supplied material',
+            paths: [],
+            goal,
+            contents: goal,
+          },
+        ],
+        unit_coverage: { matched_file_count: 1, reviewed_file_count: 1, truncated: false },
       });
     case 'review.verdict@v1':
       return ReviewRelayResult.parse({

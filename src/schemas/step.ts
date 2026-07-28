@@ -331,12 +331,28 @@ export const FanoutRelayBranchExecution = z
         message: 'item_evidence_field must be a top-level JSON field name',
       })
       .optional(),
+    // Whether this branch also reads the fanout step's own `reads`. True by
+    // default, because shared context is usually what the step's evidence is.
+    //
+    // Set false when the step's evidence is the source report the branches were
+    // expanded from AND that report is large — a report holding N slices is N
+    // times the size of the one slice this branch needs, so inheriting it would
+    // hand every worker the whole corpus and undo the split.
+    inherit_step_reads: z.boolean().optional(),
     provenance_field: z
       .string()
       .regex(/^[a-z_][a-z0-9_]*$/i, {
         message: 'provenance_field must be a top-level JSON field name',
       })
       .optional(),
+    // How many times this branch may ask its worker before the branch fails.
+    // One by default.
+    //
+    // A top-level relay step recovers a malformed answer through its retry
+    // route: ask again, once. A branch has no routes, so without this a single
+    // badly shaped response throws away that branch's whole share of the work.
+    // Set it where a re-ask is cheaper than losing the slice.
+    max_attempts: z.number().int().min(1).max(3).optional(),
   })
   .strict();
 export type FanoutRelayBranchExecution = z.infer<typeof FanoutRelayBranchExecution>;

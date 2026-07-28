@@ -10,6 +10,7 @@ import { PolicyLayer } from '../../src/schemas/policy-envelope.js';
 import { captureStreams, makeStubRelayer } from '../helpers/runtime-fixtures.js';
 
 const VALID_REVIEW_BODY = JSON.stringify({
+  unit_id: 'unit-1',
   verdict: 'NO_ISSUES_FOUND',
   findings: [],
   assessment: 'Stub reviewer: nothing actionable in the relayed evidence.',

@@ -1,0 +1,29 @@
+{
+  "schema_version": 1,
+  "join_policy": "aggregate-any",
+  "branch_count": 1,
+  "branches": [
+    {
+      "branch_id": "unit-1",
+      "child_run_id": "24762ecb-135d-4644-8f44-5da97cd4bd74",
+      "child_outcome": "complete",
+      "verdict": "NO_ISSUES_FOUND",
+      "admitted": true,
+      "result_path": "reports/review-units/unit-1/report.json",
+      "duration_ms": 8,
+      "result_body": {
+        "unit_id": "unit-1",
+        "verdict": "NO_ISSUES_FOUND",
+        "findings": [],
+        "assessment": "Reviewer inspected the relayed staged-diff and untracked-file evidence and found nothing actionable in scope.",
+        "verification": [
+          "Inspected the relayed review-intake report.",
+          "Cross-checked the staged diff against the untracked-file metadata."
+        ],
+        "confidence_limitations": [
+          "Untracked file contents were omitted from the relay (metadata-only policy)."
+        ]
+      }
+    }
+  ]
+}

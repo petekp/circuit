@@ -11,6 +11,8 @@ import type { RelayFn } from '../../src/shared/relay-runtime-types.js';
 import { deterministicNow, makeStubRelayer } from '../helpers/runtime-fixtures.js';
 
 const REVIEW_RELAY_BODY = JSON.stringify({
+  // Review fans out one reviewer per unit; a single-unit target has unit-1.
+  unit_id: 'unit-1',
   verdict: 'NO_ISSUES_FOUND',
   findings: [],
   assessment: 'Stub reviewer: nothing actionable in the relayed evidence.',

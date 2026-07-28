@@ -45,6 +45,7 @@ function joinPolicy(step: FanoutStep): FanoutJoinPolicy {
     policy === 'pick-winner' ||
     policy === 'disjoint-merge' ||
     policy === 'aggregate-only' ||
+    policy === 'aggregate-any' ||
     policy === 'aggregate-survivors'
   ) {
     return policy;

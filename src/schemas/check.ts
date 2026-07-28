@@ -128,6 +128,13 @@ export type ResultVerdictCheck = z.infer<typeof ResultVerdictCheck>;
 //   bodies are gathered into the parent's `aggregate` report for
 //   downstream consumption. Check passes iff every child reached a closed
 //   outcome (any outcome) and produced a parseable result body.
+// aggregate-any: Split-work shape. No worktree merge. Children's result
+//   bodies are gathered into the parent's `aggregate` report. Check passes
+//   iff at least ONE child produced a parseable result body. Use it when the
+//   parent's close step can report a missing child honestly and the work the
+//   other children did is worth more than the failure is worth blocking on.
+//   A step whose result would be wrong without every child wants
+//   aggregate-only instead.
 // aggregate-survivors: Tournament shape. No worktree merge. Children's
 //   result bodies are gathered into the parent's `aggregate` report for
 //   downstream consumption. Check passes iff at least two children reached
@@ -153,6 +160,13 @@ export const AggregateOnlyJoin = z
   .strict();
 export type AggregateOnlyJoin = z.infer<typeof AggregateOnlyJoin>;
 
+export const AggregateAnyJoin = z
+  .object({
+    policy: z.literal('aggregate-any'),
+  })
+  .strict();
+export type AggregateAnyJoin = z.infer<typeof AggregateAnyJoin>;
+
 export const AggregateSurvivorsJoin = z
   .object({
     policy: z.literal('aggregate-survivors'),
@@ -164,6 +178,7 @@ export const FanoutJoinPolicy = z.discriminatedUnion('policy', [
   PickWinnerJoin,
   DisjointMergeJoin,
   AggregateOnlyJoin,
+  AggregateAnyJoin,
   AggregateSurvivorsJoin,
 ]);
 export type FanoutJoinPolicy = z.infer<typeof FanoutJoinPolicy>;

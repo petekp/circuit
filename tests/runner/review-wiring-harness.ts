@@ -52,24 +52,27 @@ export function loadFixture(): { bytes: Buffer } {
   return { bytes };
 }
 
+// Move the audit fan-out's joined aggregate to a different path, so a test can
+// prove the close writer finds it through the flow graph rather than through a
+// path baked into the writer.
 export function loadFixtureWithRenamedAnalyzeResultPath(resultPath: string): {
   bytes: Buffer;
 } {
   const raw = JSON.parse(readFileSync(FIXTURE_PATH, 'utf8')) as {
     steps: Array<{
       id: string;
-      writes?: { result?: string };
+      writes?: { aggregate?: { path: string; schema: string } };
       reads?: string[];
     }>;
   };
+  const defaultPath = 'reports/review-audit-aggregate.json';
   for (const step of raw.steps) {
-    if (step.id === 'audit-step' && step.writes !== undefined) {
-      step.writes.result = resultPath;
+    const aggregate = step.writes?.aggregate;
+    if (step.id === 'audit-step' && aggregate !== undefined) {
+      aggregate.path = resultPath;
     }
     if (step.id === 'verdict-step' && step.reads !== undefined) {
-      step.reads = step.reads.map((path) =>
-        path === 'stages/analyze/review-raw-findings.json' ? resultPath : path,
-      );
+      step.reads = step.reads.map((path) => (path === defaultPath ? resultPath : path));
     }
   }
   const bytes = Buffer.from(`${JSON.stringify(raw, null, 2)}\n`);
@@ -93,12 +96,16 @@ export function stubProse(): {
   };
 }
 
-export function cleanRelayResult(): ReviewRelayResult {
-  return { verdict: 'NO_ISSUES_FOUND', findings: [], ...stubProse() };
+// Every target these suites review is one unit, so the stub answers as unit-1.
+export function cleanRelayResult(): ReviewRelayResult & { unit_id: string } {
+  return { unit_id: 'unit-1', verdict: 'NO_ISSUES_FOUND', findings: [], ...stubProse() };
 }
 
+// Single-unit targets are the whole of these suites, so the stub reviewer
+// answers under the only unit the intake emits. A reviewer that reported under
+// another id would be rejected by the audit step, which is the point of the id.
 export function relayerWith(result: ReviewRelayResult): RelayFn {
-  return relayerWithBody(JSON.stringify(result));
+  return relayerWithBody(JSON.stringify({ unit_id: 'unit-1', ...result }));
 }
 
 export function relayerWithBody(body: string): RelayFn {

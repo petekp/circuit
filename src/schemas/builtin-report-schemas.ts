@@ -114,7 +114,13 @@ const FanoutAggregateFixtureBranchShape = z.looseObject({
 const FanoutAggregateFixtureShape = z
   .looseObject({
     schema_version: z.literal(1),
-    join_policy: z.enum(['pick-winner', 'disjoint-merge', 'aggregate-only', 'aggregate-survivors']),
+    join_policy: z.enum([
+      'pick-winner',
+      'disjoint-merge',
+      'aggregate-only',
+      'aggregate-any',
+      'aggregate-survivors',
+    ]),
     branch_count: z.number().int().nonnegative(),
     winner_branch_id: z.string().min(1).optional(),
     branches: z.array(FanoutAggregateFixtureBranchShape),

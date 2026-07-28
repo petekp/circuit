@@ -40,5 +40,19 @@
       "kind": "untracked_file_content_omitted",
       "message": "untracked file contents were not included; pass --include-untracked-content only when those files are safe to relay"
     }
-  ]
+  ],
+  "units": [
+    {
+      "unit_id": "unit-1",
+      "label": "the working tree",
+      "paths": [],
+      "goal": "review this change (You are reviewing unit unit-1, the working tree, which is the whole of this target. Report under unit_id \"unit-1\".)",
+      "contents": "{\n  \"scope\": \"review this change\",\n  \"target\": {\n    \"kind\": \"working_tree\",\n    \"mode\": \"all\",\n    \"explicit\": false\n  },\n  \"target_provenance\": \"inferred\",\n  \"evidence\": {\n    \"kind\": \"git-working-tree\",\n    \"project_root\": \"<repo>/docs/release/proofs/runs/review/project\",\n    \"status_short\": \"M  src/example.ts\\n?? notes.md\\n\",\n    \"staged_diff\": {\n      \"text\": \"diff --git a/src/example.ts b/src/example.ts\\nindex 64a32fd..87f1789 100644\\n--- a/src/example.ts\\n+++ b/src/example.ts\\n@@ -1 +1 @@\\n-export const answer = 42;\\n+export const answer = 43;\\n\",\n      \"truncated\": false\n    },\n    \"unstaged_diff\": {\n      \"text\": \"\",\n      \"truncated\": false\n    },\n    \"diff_stat\": \"Staged:\\n src/example.ts | 2 +-\\n 1 file changed, 1 insertion(+), 1 deletion(-)\\n\",\n    \"target_kind\": \"working_tree\",\n    \"target_mode\": \"all\",\n    \"untracked_file_count\": 1,\n    \"untracked_files_truncated\": false,\n    \"untracked_content_policy\": \"metadata-only\",\n    \"untracked_files\": [\n      {\n        \"path\": \"notes.md\",\n        \"byte_length\": 23\n      }\n    ]\n  },\n  \"evidence_warnings\": [\n    {\n      \"kind\": \"target_assumed\",\n      \"message\": \"Assumed target: the current working tree. Name a commit, a range, staged, or unstaged to review something else.\"\n    },\n    {\n      \"kind\": \"untracked_file_content_omitted\",\n      \"message\": \"untracked file contents were not included; pass --include-untracked-content only when those files are safe to relay\"\n    }\n  ]\n}"
+    }
+  ],
+  "unit_coverage": {
+    "matched_file_count": 0,
+    "reviewed_file_count": 0,
+    "truncated": false
+  }
 }

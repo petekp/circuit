@@ -79,9 +79,17 @@ export function connectorsForCompiledFlow(
 
   const resolved: ChosenStepConnector[] = [];
   for (const step of index.flow.steps as readonly RuntimeIndexedStep[]) {
-    if (step.kind !== 'relay') continue;
-    const role = RelayRoleSchema.parse(step.role);
-    const explicitConnector = explicitConnectorForStep(step, layers);
+    // A fan-out over relay branches dispatches through a connector just as a
+    // relay step does. Skipping it would leave the run with no connector to
+    // probe, so a missing CLI would go unwarned until the run hit it.
+    const branchRelay = step.kind === 'fanout' ? step.branch_relay : undefined;
+    if (step.kind !== 'relay' && branchRelay === undefined) continue;
+    const relayShaped = (branchRelay === undefined ? step : { ...step, ...branchRelay }) as Extract<
+      RuntimeIndexedStep,
+      { kind: 'relay' }
+    >;
+    const role = RelayRoleSchema.parse(relayShaped.role);
+    const explicitConnector = explicitConnectorForStep(relayShaped, layers);
     const decision = resolveConnectorForGuidanceInput({
       flowId,
       role,

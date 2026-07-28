@@ -4,7 +4,7 @@
   "shadow_reason": "source-owned-run-not-active",
   "run_id": "44444444-4444-4444-4444-444444444404",
   "operator_intent": "review this change",
-  "recorded_at": "2026-04-29T19:00:20.000Z",
+  "recorded_at": "2026-04-29T19:00:26.000Z",
   "selected_process": {
     "process_id": "review",
     "routed_by": "explicit",
@@ -15,14 +15,14 @@
     "run_folder": "<repo>/docs/release/proofs/runs/review/run",
     "flow_id": "review",
     "outcome": "complete",
-    "trace_entries_observed": 18,
-    "manifest_hash": "fb48eb43bf3fe43fc521c868505f661a8ff63ed1ccad7da3eb5971f8d84ff1b7",
+    "trace_entries_observed": 24,
+    "manifest_hash": "0c5880b14a294c3ccf6253812730255ede099370f7b9be7f1631582dd85f9181",
     "result_ref": {
       "source": "child_result",
       "ref": {
         "kind": "report",
         "ref": "reports/result.json",
-        "sha256": "ba2e1ec8f3fd50ae8ec323a6e6c6fec00417593176c15570ff5157413f4a21eb",
+        "sha256": "d6a9f7b93b35f465f25f6f301df03c23a0f41932f76dc29e4521eff8425ac748",
         "run_id": "44444444-4444-4444-4444-444444444404",
         "flow_id": "review"
       }
@@ -32,7 +32,7 @@
     {
       "kind": "report",
       "ref": "reports/result.json",
-      "sha256": "ba2e1ec8f3fd50ae8ec323a6e6c6fec00417593176c15570ff5157413f4a21eb",
+      "sha256": "d6a9f7b93b35f465f25f6f301df03c23a0f41932f76dc29e4521eff8425ac748",
       "run_id": "44444444-4444-4444-4444-444444444404",
       "flow_id": "review"
     }

@@ -15,6 +15,8 @@ const tempRoots: string[] = [];
 const PRIOR_RUN_ID = '22222222-2222-4222-8222-222222222222';
 const RECORDED_AT = '2026-05-26T12:00:00.000Z';
 const REVIEW_RELAY_BODY = JSON.stringify({
+  // Review fans out one reviewer per unit; a single-unit target has unit-1.
+  unit_id: 'unit-1',
   verdict: 'NO_ISSUES_FOUND',
   findings: [],
   assessment: 'Stub reviewer: nothing actionable in the relayed evidence.',

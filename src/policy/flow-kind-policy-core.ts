@@ -74,9 +74,30 @@ function isReviewResultReportWriter(step: unknown): boolean {
   return report?.schema === 'review.result@v1';
 }
 
+// The verdict has to come from a reviewer that is not the author of the work.
+// A step satisfies that either by being a reviewer relay itself or by fanning
+// out to reviewer relays: one reviewer or eight, the independence is the same
+// property, and a flow that splits a large target across several reviewers
+// must not fail an invariant about having one.
 function isReviewerRelay(step: unknown): boolean {
   const s = objectRecord(step);
-  return s !== undefined && s.kind === 'relay' && s.role === 'reviewer';
+  if (s === undefined) return false;
+  if (s.kind === 'relay') return s.role === 'reviewer';
+  if (s.kind !== 'fanout') return false;
+  const branches = objectRecord(s.branches);
+  if (branches === undefined) return false;
+  const templates =
+    branches.kind === 'dynamic'
+      ? [branches.template]
+      : Array.isArray(branches.branches)
+        ? branches.branches
+        : [];
+  // Every branch, not some branch: a fan-out where one arm is a reviewer and
+  // the rest are something else is not an independent review of the whole.
+  return (
+    templates.length > 0 &&
+    templates.every((branch) => objectRecord(objectRecord(branch)?.execution)?.role === 'reviewer')
+  );
 }
 
 function declaredCanonicalsFor(fixture: RecordLike): Set<string> {

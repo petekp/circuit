@@ -10,6 +10,8 @@ import { main } from '../../src/cli/circuit.js';
 import { RunEnvelopeRecord, RunEnvelopeShadowRecord } from '../../src/schemas/run-envelope.js';
 
 const REVIEW_RELAY_BODY = JSON.stringify({
+  // Review fans out one reviewer per unit; a single-unit target has unit-1.
+  unit_id: 'unit-1',
   verdict: 'NO_ISSUES_FOUND',
   findings: [],
   assessment: 'Stub reviewer: nothing actionable in the relayed evidence.',

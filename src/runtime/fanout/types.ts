@@ -31,7 +31,11 @@ export interface ResolvedRelayBranch {
   // branch folder and adds to the branch's reads. Carried as the resolved text
   // rather than as a field name so the item itself does not have to travel.
   readonly item_evidence?: string;
+  // False when this branch reads only its own evidence, not the step's.
+  readonly inherit_step_reads?: boolean;
   readonly provenance_field?: string;
+  // Asks allowed before this branch fails. Absent means one.
+  readonly max_attempts?: number;
   readonly connector?: string;
   readonly selection?: unknown;
 }

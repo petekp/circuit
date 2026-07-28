@@ -1086,6 +1086,11 @@ function readRunReceipt(runFolder: string): OperatorRunReceipt | undefined {
     | { recommended: Power; rationale: string; resolved: Power; clamped: boolean }
     | undefined;
   let workerRuns = 0;
+  // Steps whose worker died and never answered on a later attempt. A fan-out
+  // keeps going when one branch fails, so the run can close with part of its
+  // target unreviewed; the check tally cannot show that, because a worker
+  // that never answered never reached a check.
+  const failedRelaysByStep = new Map<string, number>();
   let escalations = 0;
   let checksEvaluated = 0;
   let checksFailed = 0;
@@ -1149,8 +1154,19 @@ function readRunReceipt(runFolder: string): OperatorRunReceipt | undefined {
       }
       continue;
     }
+    if (entry.kind === 'relay.failed') {
+      const stepId = stringField(entry, 'step_id');
+      if (stepId !== undefined) {
+        failedRelaysByStep.set(stepId, (failedRelaysByStep.get(stepId) ?? 0) + 1);
+      }
+      continue;
+    }
     if (entry.kind === 'relay.completed') {
       const stepId = stringField(entry, 'step_id');
+      // A step that failed and then answered on a retry recovered; only a
+      // step left with no answer at all counts as a worker that never
+      // came back.
+      if (stepId !== undefined) failedRelaysByStep.delete(stepId);
       const started =
         stepId === undefined || typeof entry.attempt !== 'number'
           ? undefined
@@ -1238,6 +1254,7 @@ function readRunReceipt(runFolder: string): OperatorRunReceipt | undefined {
         }
       : {}),
     worker_runs: workerRuns,
+    ...(failedRelaysByStep.size === 0 ? {} : { worker_runs_failed: failedRelaysByStep.size }),
     escalations,
     models,
     checks_evaluated: checksEvaluated,
@@ -1271,7 +1288,13 @@ function receiptLine(receipt: OperatorRunReceipt, outcome: string): string {
     parts.push(`power ${receipt.power}${autoQualifier}`);
   }
   parts.push(`process ${receipt.depth}`);
-  parts.push(`${receipt.worker_runs} ${runsWord}`);
+  // A worker that never came back leaves part of the work undone, and the
+  // check tally cannot say so — it only counts the workers that answered.
+  parts.push(
+    receipt.worker_runs_failed === undefined
+      ? `${receipt.worker_runs} ${runsWord}`
+      : `${receipt.worker_runs} ${runsWord} (${receipt.worker_runs_failed} never came back)`,
+  );
   if (receipt.escalations > 0) {
     parts.push(
       `${receipt.escalations} ${receipt.escalations === 1 ? 'escalation' : 'escalations'}`,

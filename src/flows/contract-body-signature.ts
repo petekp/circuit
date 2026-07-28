@@ -115,12 +115,11 @@ const UNIFORM_PRODUCER_GENERIC_SCHEMAS: Readonly<Record<string, z.ZodType<unknow
 // is the compose writer's result, runtime-proof.compose@v1), so the registration
 // matches runtime truth and never re-authors a shape.
 //
-// `review.verdict@v1` used to be listed here for the same reason. It no longer
-// needs to be: Review registers it as a real relay report on the audit step, so
-// the ordinary report registry supplies the body and a second registration here
-// would collide. That is the shape of the fix rather than an exception to it —
-// an entry in this table means a contract the engine can type but a connector
-// cannot be handed, so prefer registering the report.
+// `review.verdict@v1` used to be listed here for the same reason, and then was
+// dropped because Review registered it as a real relay report. Neither applies
+// now: Review's audit step is a fan-out, so the registered bodies are the per
+// unit report and the joined aggregate, and Review aliases the generic to the
+// aggregate. Nothing reads the generic name raw, so it needs no body here.
 const RAW_CONSUMED_GENERIC_SCHEMAS: Readonly<Record<string, z.ZodType<unknown>>> = {
   'plan.strategy@v1': RuntimeProofCompose,
 };

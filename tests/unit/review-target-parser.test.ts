@@ -100,13 +100,12 @@ describe('Review target parsing', () => {
       },
     );
 
-    // Same rule, but "everything" also names the repository, so this one lands
-    // on the working tree carrying the whole-repository mark rather than the
-    // plain unnamed-target default.
+    // Same rule, but "everything" names the repository, which is a target
+    // Review can now read: the tree itself, split into units.
     it('does not read the prose ellipsis in an everything-scoped goal as a range', () => {
       expect(parseReviewTarget('review everything...including the tests')).toEqual({
-        ...ASSUMED_WORKING_TREE,
-        wholeRepository: true,
+        ok: true,
+        target: { kind: 'snapshot', paths: { include: ['.'], exclude: [] } },
       });
     });
   });
@@ -233,24 +232,17 @@ describe('Review target parsing', () => {
       expect(parsed.target.paths?.include ?? []).toEqual([]);
     });
 
-    // "everything except X" is the repository minus a directory, so the
-    // exclusion narrows the change review and the whole-repository mark rides
-    // along to keep the report from claiming no target was named.
+    // "everything except X" is the repository minus a directory. The
+    // repository is the target, so this reads the code there rather than the
+    // diff, and the exclusion still keeps that directory out of it.
     it.each([
       { goal: 'review everything except tests/', exclude: ['tests/'] },
       { goal: 'review everything but node_modules', exclude: ['node_modules'] },
       { goal: 'review everything except the generated files', exclude: ['generated'] },
-    ])('reads $goal as the working tree excluding $exclude', ({ goal, exclude }) => {
+    ])('reads $goal as the repository excluding $exclude', ({ goal, exclude }) => {
       expect(parseReviewTarget(goal)).toEqual({
         ok: true,
-        target: {
-          kind: 'working_tree',
-          mode: 'all',
-          explicit: false,
-          paths: { include: [], exclude },
-        },
-        assumed: true,
-        wholeRepository: true,
+        target: { kind: 'snapshot', paths: { include: ['.'], exclude } },
       });
     });
 
@@ -415,23 +407,24 @@ describe('Review target parsing', () => {
 
     // A path that would escape the repository is never handed to Git, and the
     // run says so rather than quietly reviewing everything.
-    it.each([
-      { goal: 'review only ../secrets', wholeRepository: false },
-      // Also names the repository, so both facts are reported: the escaping
-      // path was refused, and the request was about the repository as a whole.
-      { goal: 'review everything except ../../etc', wholeRepository: true },
-    ])(
-      'refuses to scope to the escaping path in $goal and says so',
-      ({ goal, wholeRepository }) => {
-        expect(parseReviewTarget(goal)).toEqual({
-          ok: true,
-          target: { kind: 'working_tree', mode: 'all', explicit: false },
-          assumed: true,
-          scopeNotApplied: [expect.stringMatching(/\.\./u)],
-          ...(wholeRepository ? { wholeRepository: true } : {}),
-        });
-      },
-    );
+    it('refuses to scope to the escaping path in an unnamed-target goal and says so', () => {
+      expect(parseReviewTarget('review only ../secrets')).toEqual({
+        ok: true,
+        target: { kind: 'working_tree', mode: 'all', explicit: false },
+        assumed: true,
+        scopeNotApplied: [expect.stringMatching(/\.\./u)],
+      });
+    });
+
+    // The repository is still the target, so the run reads the code; the
+    // escaping exclusion is refused and reported rather than handed to Git.
+    it('refuses the escaping path in a repository-scoped goal and still reads the code', () => {
+      expect(parseReviewTarget('review everything except ../../etc')).toEqual({
+        ok: true,
+        target: { kind: 'snapshot', paths: { include: ['.'], exclude: [] } },
+        scopeNotApplied: [expect.stringMatching(/\.\./u)],
+      });
+    });
   });
 
   describe('snapshot targets', () => {
@@ -451,14 +444,20 @@ describe('Review target parsing', () => {
       });
     });
 
-    // A snapshot needs somewhere to look. "Everything except tests" is the
-    // repository minus a directory, which is more than one review can hold, so
-    // it stays a change review rather than becoming an unbounded snapshot.
-    it.each([
-      'review everything except tests/ as it stands',
-      'find latent issues everywhere but node_modules',
-    ])('keeps %j a change review because no path is named', (goal) => {
-      const parsed = parseReviewTarget(goal);
+    // "Everything except tests" is the repository minus a directory. The
+    // repository is a target Review reads a unit at a time, so this is a
+    // snapshot of the tree with that directory left out.
+    it('reads an excluding repository request as a snapshot of the rest', () => {
+      expect(parseReviewTarget('review everything except tests/ as it stands')).toMatchObject({
+        ok: true,
+        target: { kind: 'snapshot', paths: { include: ['.'], exclude: ['tests/'] } },
+      });
+    });
+
+    // "Everywhere" does not name the repository the way "everything" does, so
+    // nothing bounds the read and it stays a change review.
+    it('keeps an unbounded latent-issue sweep a change review', () => {
+      const parsed = parseReviewTarget('find latent issues everywhere but node_modules');
       expect(parsed).toMatchObject({ ok: true, target: { kind: 'working_tree' } });
       expect(parsed).not.toHaveProperty('snapshotFallback');
     });
@@ -476,17 +475,30 @@ describe('Review target parsing', () => {
     // Staying a change review is the right call, but doing it quietly is not.
     // The operator asked for the code as it stands and got a diff, so the
     // request has to come back named rather than dropped on the floor.
-    it.each([
-      'review my code for latent issues',
-      'review the repo as it stands',
-      'audit this codebase for latent bugs',
-    ])('records the dropped snapshot request in %j', (goal) => {
-      expect(parseReviewTarget(goal)).toMatchObject({
-        ok: true,
-        target: { kind: 'working_tree' },
-        snapshotNotApplied: true,
-      });
-    });
+    it.each(['review my code for latent issues'])(
+      'records the dropped snapshot request in %j',
+      (goal) => {
+        expect(parseReviewTarget(goal)).toMatchObject({
+          ok: true,
+          target: { kind: 'working_tree' },
+          snapshotNotApplied: true,
+        });
+      },
+    );
+
+    // Naming the repository is naming a target, so these read the code rather
+    // than a diff and there is no dropped request to report.
+    it.each(['review the repo as it stands', 'audit this codebase for latent bugs'])(
+      'reads the repository named in %j as a snapshot',
+      (goal) => {
+        const parsed = parseReviewTarget(goal);
+        expect(parsed).toMatchObject({
+          ok: true,
+          target: { kind: 'snapshot', paths: { include: ['.'], exclude: [] } },
+        });
+        expect(parsed).not.toHaveProperty('snapshotNotApplied');
+      },
+    );
 
     // A snapshot that was honoured has nothing to report as unapplied.
     it('does not record a dropped snapshot request when the snapshot happened', () => {
@@ -496,10 +508,10 @@ describe('Review target parsing', () => {
     });
   });
 
-  describe('whole-repository requests are a named target, not a missing one', () => {
-    // These name the repository as the subject. Reading them as "no target
-    // given" tells the operator they said nothing when they said something,
-    // and then offers four alternatives that are all narrower than the ask.
+  describe('whole-repository requests read the code, not the diff inside it', () => {
+    // These name the repository as the subject. The subject is the code, so
+    // Review reads the tree and splits it into units rather than reviewing
+    // whatever happens to be uncommitted in it.
     it.each([
       'review the whole repo',
       'review this entire codebase',
@@ -509,42 +521,43 @@ describe('Review target parsing', () => {
       'review all the code',
       'review the codebase for security issues',
       'review everything',
-    ])('marks %j as a whole-repository request', (goal) => {
+    ])('reads %j as a snapshot of the repository', (goal) => {
       expect(parseReviewTarget(goal)).toMatchObject({
         ok: true,
-        target: { kind: 'working_tree', mode: 'all', explicit: false },
-        wholeRepository: true,
+        target: { kind: 'snapshot', paths: { include: ['.'], exclude: [] } },
       });
     });
 
-    // An exclusion still narrows the change review, and the request is still
-    // about the repository as a whole, so both facts have to survive.
+    // The exclusion has to survive the switch from diff to code, or the run
+    // reads the directory the operator asked it to leave alone.
     it('keeps the path exclusion on an excluding whole-repository request', () => {
       expect(parseReviewTarget('review everything except tests/')).toMatchObject({
         ok: true,
-        target: { paths: { include: [], exclude: ['tests/'] } },
-        wholeRepository: true,
+        target: { kind: 'snapshot', paths: { include: ['.'], exclude: ['tests/'] } },
       });
     });
 
-    // Naming a path is naming a target. These must not pick up the
-    // whole-repository message, or a scoped review would describe itself as
-    // something it is not.
-    it.each([
-      'review src/runtime',
-      'review src/auth as it stands',
-      'review staged changes',
-      'review commit abc1234',
-    ])('does not mark %j as a whole-repository request', (goal) => {
-      expect(parseReviewTarget(goal)).not.toHaveProperty('wholeRepository');
-    });
+    // Naming a path or a change is naming something narrower than the
+    // repository, and none of these become a whole-tree read.
+    it.each(['review src/runtime', 'review staged changes', 'review commit abc1234'])(
+      'does not read %j as the whole repository',
+      (goal) => {
+        expect(parseReviewTarget(goal)).not.toMatchObject({
+          target: { kind: 'snapshot', paths: { include: ['.'] } },
+        });
+      },
+    );
 
     // D1 is a different situation with a different message: the operator named
     // nothing, so "assumed the working tree" is the honest thing to say.
     it.each(['review', 'review my changes', 'give this a once-over'])(
       'leaves the unnamed-target default alone for %j',
       (goal) => {
-        expect(parseReviewTarget(goal)).not.toHaveProperty('wholeRepository');
+        expect(parseReviewTarget(goal)).toMatchObject({
+          ok: true,
+          target: { kind: 'working_tree' },
+          assumed: true,
+        });
       },
     );
   });

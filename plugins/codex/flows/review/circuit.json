@@ -85,32 +85,58 @@
           "description": "A skill for independently auditing code or a change for correctness, regressions, and scope creep."
         }
       ],
-      "executor": "worker",
-      "kind": "relay",
-      "role": "reviewer",
-      "writes": {
-        "report": {
-          "path": "reports/review-verdict.json",
-          "schema": "review.verdict@v1"
+      "executor": "orchestrator",
+      "kind": "fanout",
+      "branches": {
+        "kind": "dynamic",
+        "source_report": "reports/review-intake.json",
+        "items_path": "units",
+        "template": {
+          "branch_id": "$item.unit_id",
+          "execution": {
+            "kind": "relay",
+            "role": "reviewer",
+            "goal": "$item.goal",
+            "report_schema": "review.unit-verdict@v1",
+            "item_evidence_field": "contents",
+            "inherit_step_reads": false,
+            "provenance_field": "unit_id",
+            "max_attempts": 2
+          }
         },
-        "request": "reports/relay/review.request.json",
-        "receipt": "reports/relay/review.receipt.txt",
-        "result": "stages/analyze/review-raw-findings.json"
+        "max_branches": 24
+      },
+      "concurrency": {
+        "kind": "bounded",
+        "max": 4
+      },
+      "on_child_failure": "continue-others",
+      "writes": {
+        "branches_dir": "reports/review-units",
+        "aggregate": {
+          "path": "reports/review-audit-aggregate.json",
+          "schema": "review.audit-aggregate@v1"
+        }
       },
       "check": {
-        "kind": "result_verdict",
+        "kind": "fanout_aggregate",
         "source": {
-          "kind": "relay_result",
-          "ref": "result"
+          "kind": "fanout_results",
+          "ref": "aggregate"
         },
-        "pass": ["NO_ISSUES_FOUND", "ISSUES_FOUND"]
+        "join": {
+          "policy": "aggregate-any"
+        },
+        "verdicts": {
+          "admit": ["NO_ISSUES_FOUND", "ISSUES_FOUND"]
+        }
       }
     },
     {
       "id": "verdict-step",
       "title": "Verdict — emit review.result",
       "protocol": "review-verdict@v1",
-      "reads": ["reports/review-intake.json", "reports/review-verdict.json"],
+      "reads": ["reports/review-intake.json", "reports/review-audit-aggregate.json"],
       "routes": {
         "complete": "@complete",
         "pass": "@complete",

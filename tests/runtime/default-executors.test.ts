@@ -2,7 +2,7 @@ import { mkdtemp, readFile, rm } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { describe, expect, it } from 'vitest';
-import { ReviewIntake, ReviewRelayResult, ReviewResult } from '../../src/flows/review/reports.js';
+import { ReviewIntake, ReviewResult, ReviewUnitVerdict } from '../../src/flows/review/reports.js';
 import { runCompiledFlow } from '../../src/runtime/run/compiled-flow-runner.js';
 import { TraceStore } from '../../src/runtime/trace/trace-store.js';
 import { RunResult } from '../../src/schemas/result.js';
@@ -16,6 +16,7 @@ describe('runtime default executors', () => {
       );
       let relayCalls = 0;
       const stubRelayPayload = {
+        unit_id: 'unit-1',
         verdict: 'NO_ISSUES_FOUND' as const,
         findings: [] as never[],
         assessment: 'Stub reviewer: nothing actionable in the relayed evidence.',
@@ -67,10 +68,14 @@ describe('runtime default executors', () => {
           JSON.parse(await readFile(join(runDir, 'reports', 'review-intake.json'), 'utf8')),
         ).success,
       ).toBe(true);
+      // One unit, so one branch, and its report is the reviewer's own answer.
       expect(
-        ReviewRelayResult.parse(
+        ReviewUnitVerdict.parse(
           JSON.parse(
-            await readFile(join(runDir, 'stages', 'analyze', 'review-raw-findings.json'), 'utf8'),
+            await readFile(
+              join(runDir, 'reports', 'review-units', 'unit-1', 'report.json'),
+              'utf8',
+            ),
           ),
         ),
       ).toEqual(stubRelayPayload);

@@ -58,9 +58,15 @@ function resolveBranch(branch: FanoutBranch, item?: unknown): ResolvedBranch {
       : {
           item_evidence: itemEvidence(item, branch.execution.item_evidence_field, branch.branch_id),
         }),
+    ...(branch.execution.inherit_step_reads === undefined
+      ? {}
+      : { inherit_step_reads: branch.execution.inherit_step_reads }),
     ...(branch.execution.provenance_field === undefined
       ? {}
       : { provenance_field: branch.execution.provenance_field }),
+    ...(branch.execution.max_attempts === undefined
+      ? {}
+      : { max_attempts: branch.execution.max_attempts }),
     ...(branch.connector === undefined ? {} : { connector: branch.connector }),
     ...(branch.selection === undefined ? {} : { selection: branch.selection }),
   };

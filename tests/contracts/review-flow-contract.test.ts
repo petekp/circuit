@@ -25,22 +25,34 @@ describe('review flow contract fixture', () => {
     expect(result.detail).toMatch(/frame, analyze, close/);
   });
 
-  it('binds the analyze relay shape pinned for P2.9 review', () => {
+  // The audit is a fan-out over the intake's units: one reviewer relay per
+  // unit, joined into one aggregate the close step reads.
+  it('binds the analyze fan-out shape to one reviewer relay per unit', () => {
     const fixture = loadReviewFixture();
     const steps = fixture.steps as Array<Record<string, unknown>>;
     const auditStep = steps.find((step) => step.id === 'audit-step');
-    expect(auditStep?.kind).toBe('relay');
-    expect(auditStep?.executor).toBe('worker');
-    expect(auditStep?.role).toBe('reviewer');
+    expect(auditStep?.kind).toBe('fanout');
+    expect(auditStep?.executor).toBe('orchestrator');
+
+    const branches = auditStep?.branches as
+      | { kind?: unknown; items_path?: unknown; template?: { execution?: Record<string, unknown> } }
+      | undefined;
+    expect(branches?.kind).toBe('dynamic');
+    expect(branches?.items_path).toBe('units');
+    expect(branches?.template?.execution?.kind).toBe('relay');
+    expect(branches?.template?.execution?.role).toBe('reviewer');
 
     const writes = auditStep?.writes as Record<string, unknown> | undefined;
-    expect(writes?.result).toBe('stages/analyze/review-raw-findings.json');
+    expect(writes?.branches_dir).toBe('reports/review-units');
+    expect((writes?.aggregate as { path?: unknown } | undefined)?.path).toBe(
+      'reports/review-audit-aggregate.json',
+    );
     const check = auditStep?.check as
-      | { source?: { kind?: unknown; ref?: unknown }; pass?: unknown }
+      | { source?: { kind?: unknown; ref?: unknown }; verdicts?: { admit?: unknown } }
       | undefined;
-    expect(check?.source?.kind).toBe('relay_result');
-    expect(check?.source?.ref).toBe('result');
-    expect(check?.pass).toEqual(['NO_ISSUES_FOUND', 'ISSUES_FOUND']);
+    expect(check?.source?.kind).toBe('fanout_results');
+    expect(check?.source?.ref).toBe('aggregate');
+    expect(check?.verdicts?.admit).toEqual(['NO_ISSUES_FOUND', 'ISSUES_FOUND']);
   });
 
   it('binds the close step to the registered review.result report', () => {

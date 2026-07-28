@@ -584,6 +584,22 @@ describe('Review evidence projections', () => {
     });
   });
 
+  // Every intake carries the units its reviewers were split into. These three
+  // literals are hand-built rather than produced by the intake writer, so they
+  // supply the single-unit shape the writer would have given them.
+  const SINGLE_UNIT = {
+    units: [
+      {
+        unit_id: 'unit-1',
+        label: 'the whole target',
+        paths: [],
+        goal: 'Review this target.',
+        contents: '{}',
+      },
+    ],
+    unit_coverage: { matched_file_count: 1, reviewed_file_count: 1, truncated: false },
+  } as const;
+
   it('refuses to turn persisted unavailable evidence into a clean result', () => {
     const intake = ReviewIntake.parse({
       scope: 'review commit missing',
@@ -599,6 +615,7 @@ describe('Review evidence projections', () => {
           message: 'The requested commit could not be read.',
         },
       ],
+      ...SINGLE_UNIT,
     });
 
     expect(() => projectReviewResult({ intake, relayResult: cleanRelay() })).toThrow(
@@ -613,6 +630,7 @@ describe('Review evidence projections', () => {
       target_provenance: 'named',
       evidence: { kind: 'goal' },
       evidence_warnings: [],
+      ...SINGLE_UNIT,
     });
 
     expect(projectReviewResult({ intake, relayResult: cleanRelay() })).toMatchObject({
@@ -638,6 +656,7 @@ describe('Review evidence projections', () => {
         target_diff_stat: unavailable,
       },
       evidence_warnings: [{ kind: 'target_unavailable', message: unavailable }],
+      ...SINGLE_UNIT,
     });
 
     expect(() => projectReviewResult({ intake, relayResult: cleanRelay() })).toThrow(

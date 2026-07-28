@@ -1,4 +1,5 @@
 {
+  "unit_id": "unit-1",
   "verdict": "NO_ISSUES_FOUND",
   "findings": [],
   "assessment": "Reviewer inspected the relayed staged-diff and untracked-file evidence and found nothing actionable in scope.",
