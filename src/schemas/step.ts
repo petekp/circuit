@@ -307,6 +307,14 @@ export const FanoutRelayBranchExecution = z
     role: RelayRole,
     goal: z.string().min(1),
     report_schema: z.string().min(1),
+    // Evidence this branch reads on top of the fanout step's own `reads`.
+    //
+    // Without it every branch of a fanout sees byte-identical evidence, which
+    // makes a genuine split impossible: handing all N reviewers the whole
+    // corpus to review one slice each is quadratic and reintroduces the very
+    // context bound the split exists to break. In a dynamic fanout these paths
+    // carry `$item` placeholders, so branch k reads slice k.
+    reads: z.array(RunRelativePath).optional(),
     provenance_field: z
       .string()
       .regex(/^[a-z_][a-z0-9_]*$/i, {

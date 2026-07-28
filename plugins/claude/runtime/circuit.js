@@ -20457,6 +20457,14 @@ var init_step = __esm({
       role: RelayRole,
       goal: external_exports.string().min(1),
       report_schema: external_exports.string().min(1),
+      // Evidence this branch reads on top of the fanout step's own `reads`.
+      //
+      // Without it every branch of a fanout sees byte-identical evidence, which
+      // makes a genuine split impossible: handing all N reviewers the whole
+      // corpus to review one slice each is quadratic and reintroduces the very
+      // context bound the split exists to break. In a dynamic fanout these paths
+      // carry `$item` placeholders, so branch k reads slice k.
+      reads: external_exports.array(RunRelativePath).optional(),
       provenance_field: external_exports.string().regex(/^[a-z_][a-z0-9_]*$/i, {
         message: "provenance_field must be a top-level JSON field name"
       }).optional()
@@ -101202,8 +101210,13 @@ function relayBranchProvenanceFailure(branch, reportBody) {
   }
   return void 0;
 }
-function relayBranchReads(step) {
-  return (step.reads ?? []).map((ref) => ref.path);
+function relayBranchReads(step, branch) {
+  const paths = (step.reads ?? []).map((ref) => ref.path);
+  for (const path of branch.reads ?? []) {
+    if (!paths.includes(path))
+      paths.push(path);
+  }
+  return paths;
 }
 function syntheticRelayTitle(step, branch) {
   return `${step.title ?? step.id} / ${branch.branch_id}`;
@@ -101215,7 +101228,7 @@ function syntheticRelayStep(step, branch, branchDirRel) {
     title: syntheticRelayTitle(step, branch),
     ...step.protocol === void 0 ? {} : { protocol: step.protocol },
     routes: { pass: { kind: "terminal", target: "@complete" } },
-    ...step.reads === void 0 ? {} : { reads: step.reads },
+    reads: relayBranchReads(step, branch).map((path) => ({ path })),
     writes: {
       request: { path: `${branchDirRel}/request.txt` },
       receipt: { path: `${branchDirRel}/receipt.txt` },
@@ -101239,7 +101252,7 @@ function syntheticCompiledRelayStepV1(step, branch, branchDirRel) {
     id: `${step.id}-${branch.branch_id}`,
     title: syntheticRelayTitle(step, branch),
     protocol: step.protocol ?? `${step.id}@v1`,
-    reads: relayBranchReads(step),
+    reads: relayBranchReads(step, branch),
     routes: { pass: "@complete" },
     ...branch.selection === void 0 ? {} : { selection: branch.selection },
     skill_slots: [],
@@ -101708,6 +101721,7 @@ function resolveBranch(branch) {
     role: branch.execution.role,
     goal: branch.execution.goal,
     report_schema: branch.execution.report_schema,
+    ...branch.execution.reads === void 0 ? {} : { reads: branch.execution.reads.map((path) => String(path)) },
     ...branch.execution.provenance_field === void 0 ? {} : { provenance_field: branch.execution.provenance_field },
     ...branch.connector === void 0 ? {} : { connector: branch.connector },
     ...branch.selection === void 0 ? {} : { selection: branch.selection }

@@ -125,9 +125,17 @@ falls into three groups that differ in kind, not degree:
    Works today, bounded and reported.
 3. **A whole codebase.** Does not fit in a prompt, and no bound makes it fit.
    "Review this codebase" needs fan-out: split the tree into reviewable units,
-   run a reviewer per unit, and merge the findings. The engine already has the
-   `queue` and `batch` blocks for this, but only the `pursue` flow uses them,
-   and the Review schematic has exactly one relay step.
+   run a reviewer per unit, and merge the findings. The mechanism is the
+   dynamic fanout step, which expands one branch per item of an upstream
+   report and is already how `prototype` and `pursue` run their parallel work.
+   Two pieces were missing under it. The split itself, which landed as the
+   unit packer in the Review package. And per-branch evidence: until now every
+   branch of a fanout read exactly the step's own reads, so branch k saw the
+   whole tree while being asked to review slice k, which is quadratic and puts
+   each reviewer straight back inside the bound the split exists to break. A
+   branch can now name its own `$item`-substituted reads. What is left is
+   wiring Review's audit step to it and merging the per-unit reports into one
+   verdict, and the Review schematic still has exactly one relay step.
 
 Regime 3 is the honest gap. Until it is built, a request that lands there gets
 a bounded sample plus a report that says so, never a clean verdict over code

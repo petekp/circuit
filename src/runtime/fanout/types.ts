@@ -24,6 +24,9 @@ export interface ResolvedRelayBranch {
   readonly role: string;
   readonly goal: string;
   readonly report_schema: string;
+  // Branch-local evidence, appended to the fanout step's own reads. Already
+  // `$item`-substituted by the time it lands here.
+  readonly reads?: readonly string[];
   readonly provenance_field?: string;
   readonly connector?: string;
   readonly selection?: unknown;

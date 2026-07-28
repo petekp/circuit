@@ -25,6 +25,9 @@ function resolveBranch(branch: FanoutBranch): ResolvedBranch {
     role: branch.execution.role,
     goal: branch.execution.goal,
     report_schema: branch.execution.report_schema,
+    ...(branch.execution.reads === undefined
+      ? {}
+      : { reads: branch.execution.reads.map((path) => String(path)) }),
     ...(branch.execution.provenance_field === undefined
       ? {}
       : { provenance_field: branch.execution.provenance_field }),

@@ -15708,6 +15708,14 @@ var FanoutRelayBranchExecution = external_exports.object({
   role: RelayRole,
   goal: external_exports.string().min(1),
   report_schema: external_exports.string().min(1),
+  // Evidence this branch reads on top of the fanout step's own `reads`.
+  //
+  // Without it every branch of a fanout sees byte-identical evidence, which
+  // makes a genuine split impossible: handing all N reviewers the whole
+  // corpus to review one slice each is quadratic and reintroduces the very
+  // context bound the split exists to break. In a dynamic fanout these paths
+  // carry `$item` placeholders, so branch k reads slice k.
+  reads: external_exports.array(RunRelativePath).optional(),
   provenance_field: external_exports.string().regex(/^[a-z_][a-z0-9_]*$/i, {
     message: "provenance_field must be a top-level JSON field name"
   }).optional()

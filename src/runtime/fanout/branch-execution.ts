@@ -114,8 +114,15 @@ function relayBranchProvenanceFailure(
   return undefined;
 }
 
-function relayBranchReads(step: FanoutStep): readonly string[] {
-  return (step.reads ?? []).map((ref) => ref.path);
+// The step's shared evidence first, then the branch's own. Shared context keeps
+// its position at the head of the prompt, and a branch that names a path the
+// step already reads does not get it twice.
+function relayBranchReads(step: FanoutStep, branch: ResolvedRelayBranch): readonly string[] {
+  const paths = (step.reads ?? []).map((ref) => ref.path);
+  for (const path of branch.reads ?? []) {
+    if (!paths.includes(path)) paths.push(path);
+  }
+  return paths;
 }
 
 // Title carries only ids: the branch goal renders as its own labeled
@@ -138,7 +145,7 @@ function syntheticRelayStep(
     title: syntheticRelayTitle(step, branch),
     ...(step.protocol === undefined ? {} : { protocol: step.protocol }),
     routes: { pass: { kind: 'terminal', target: '@complete' } },
-    ...(step.reads === undefined ? {} : { reads: step.reads }),
+    reads: relayBranchReads(step, branch).map((path) => ({ path })),
     writes: {
       request: { path: `${branchDirRel}/request.txt` },
       receipt: { path: `${branchDirRel}/receipt.txt` },
@@ -167,7 +174,7 @@ function syntheticCompiledRelayStepV1(
     id: `${step.id}-${branch.branch_id}` as never,
     title: syntheticRelayTitle(step, branch),
     protocol: (step.protocol ?? `${step.id}@v1`) as never,
-    reads: relayBranchReads(step) as never,
+    reads: relayBranchReads(step, branch) as never,
     routes: { pass: '@complete' },
     ...(branch.selection === undefined ? {} : { selection: branch.selection as never }),
     skill_slots: [],
