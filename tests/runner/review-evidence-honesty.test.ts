@@ -1,5 +1,5 @@
 import { execFileSync } from 'node:child_process';
-import { chmodSync, existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs';
+import { chmodSync, existsSync, mkdirSync, readFileSync, statSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { describe, expect, it } from 'vitest';
 import { deterministicNow } from '../helpers/runtime-fixtures.js';
@@ -1911,5 +1911,125 @@ describe('review evidence honesty', () => {
       (finding) => finding.id === 'circuit-review-evidence-incomplete',
     );
     expect(incomplete?.text).toMatch(/25 of 40|only part/i);
+  });
+
+  // How big a file a reviewer may be handed whole. The answer the split already
+  // implies is "one unit": a file that fits inside a reviewer's budget has no
+  // structural reason to arrive cut. Measured against real source rather than
+  // padded fixtures, the previous 40k cap was cutting files that fit — the
+  // largest hand-written modules in this repository, which are exactly the ones
+  // a review most wants read whole. A file larger than a unit is still cut, and
+  // still says so, because splitting one file across units does not exist.
+  it('hands a reviewer a file that fits in a unit whole, and admits cutting one that does not', async () => {
+    const { bytes } = loadFixture();
+    const runFolder = join(reviewRunFolderBase(), 'snapshot-file-cap');
+    const projectRoot = join(reviewRunFolderBase(), 'snapshot-file-cap-project');
+    mkdirSync(join(projectRoot, 'src'), { recursive: true });
+    execFileSync('git', ['init'], { cwd: projectRoot, stdio: 'pipe' });
+    // One file inside a reviewer's 60k budget, one well past it.
+    const line = `// ${'x'.repeat(76)}\n`;
+    const fitsPath = join(projectRoot, 'src', 'fits.ts');
+    const oversizePath = join(projectRoot, 'src', 'oversize.ts');
+    writeFileSync(fitsPath, line.repeat(600));
+    writeFileSync(oversizePath, line.repeat(1400));
+    const fitsChars = readFileSync(fitsPath, 'utf8').length;
+    execFileSync('git', ['add', '.'], { cwd: projectRoot, stdio: 'pipe' });
+    execFileSync(
+      'git',
+      ['-c', 'user.name=Circuit', '-c', 'user.email=circuit@example.test', 'commit', '-m', 'base'],
+      { cwd: projectRoot, stdio: 'pipe' },
+    );
+
+    await runCompiledFlow({
+      runDir: runFolder,
+      flowBytes: bytes,
+      runId: '79000000-0000-0000-0000-000000000133',
+      goal: 'review src/ as it stands',
+      depth: 'medium',
+      now: deterministicNow(Date.UTC(2026, 6, 28, 12, 5, 0)),
+      projectRoot,
+      relayer: relayerWith(cleanRelayResult()),
+    });
+
+    const intake = ReviewIntake.parse(
+      JSON.parse(readFileSync(join(runFolder, 'reports', 'review-intake.json'), 'utf8')),
+    );
+    if (intake.evidence.kind !== 'git-snapshot') throw new Error('expected snapshot evidence');
+    const fits = intake.evidence.files.find((file) => file.path === 'src/fits.ts');
+    const oversize = intake.evidence.files.find((file) => file.path === 'src/oversize.ts');
+
+    // Between 40k and a unit: cut before, whole now.
+    expect(fitsChars).toBeGreaterThan(40_000);
+    expect(fitsChars).toBeLessThanOrEqual(60_000);
+    expect(fits?.content?.truncated).toBe(false);
+    expect(fits?.content?.text.length).toBe(fitsChars);
+
+    // Bigger than any reviewer holds, so it is cut — and the intake says which
+    // file, by path, rather than letting a partial read pass as a whole one.
+    expect(oversize?.content?.truncated).toBe(true);
+    expect(oversize?.content?.text.slice(0, 60_000).length).toBe(60_000);
+    // The marker a reviewer actually reads has to describe the real file. The
+    // read stops one character past the cap, so counting the remainder from the
+    // sample would tell the reviewer a single character was dropped from a file
+    // roughly twice the size of what it was handed.
+    const oversizeBytes = readFileSync(oversizePath, 'utf8').length;
+    expect(oversize?.content?.text).toContain(
+      `[truncated: first 60000 characters of a ${oversizeBytes}-byte file]`,
+    );
+    expect(oversize?.content?.text).not.toContain('[truncated 1 characters]');
+    const truncationWarnings = intake.evidence_warnings.map((warning) => warning.message);
+    expect(truncationWarnings).toContain(
+      'file content was truncated before relay: src/oversize.ts',
+    );
+    expect(truncationWarnings).not.toContain(
+      'file content was truncated before relay: src/fits.ts',
+    );
+  });
+
+  it('tells a reviewer a wide-character file was cut, even though the sample fits', async () => {
+    const { bytes } = loadFixture();
+    const runFolder = join(reviewRunFolderBase(), 'snapshot-wide-chars');
+    const projectRoot = join(reviewRunFolderBase(), 'snapshot-wide-chars-project');
+    mkdirSync(join(projectRoot, 'src'), { recursive: true });
+    execFileSync('git', ['init'], { cwd: projectRoot, stdio: 'pipe' });
+    // The read is bounded by BYTES and the cap is counted in CHARACTERS. Three
+    // bytes per character means a file far past the cap yields a sample well
+    // under it, so nothing about the text itself says it was cut.
+    const widePath = join(projectRoot, 'src', 'wide.ts');
+    writeFileSync(widePath, `// ${'あ'.repeat(76)}\n`.repeat(700));
+    const wideBytes = statSync(widePath).size;
+    execFileSync('git', ['add', '.'], { cwd: projectRoot, stdio: 'pipe' });
+    execFileSync(
+      'git',
+      ['-c', 'user.name=Circuit', '-c', 'user.email=circuit@example.test', 'commit', '-m', 'base'],
+      { cwd: projectRoot, stdio: 'pipe' },
+    );
+
+    await runCompiledFlow({
+      runDir: runFolder,
+      flowBytes: bytes,
+      runId: '79000000-0000-0000-0000-000000000134',
+      goal: 'review src/ as it stands',
+      depth: 'medium',
+      now: deterministicNow(Date.UTC(2026, 6, 28, 12, 6, 0)),
+      projectRoot,
+      relayer: relayerWith(cleanRelayResult()),
+    });
+
+    const intake = ReviewIntake.parse(
+      JSON.parse(readFileSync(join(runFolder, 'reports', 'review-intake.json'), 'utf8')),
+    );
+    if (intake.evidence.kind !== 'git-snapshot') throw new Error('expected snapshot evidence');
+    const wide = intake.evidence.files.find((file) => file.path === 'src/wide.ts');
+
+    // The file really is bigger than a reviewer holds.
+    expect(wideBytes).toBeGreaterThan(60_000);
+    expect(wide?.content?.truncated).toBe(true);
+    // What the reviewer reads has to say so, inline, or a partial file reads as
+    // a whole one and "no issues here" means nothing.
+    expect(wide?.content?.text).toContain(`of a ${wideBytes}-byte file]`);
+    expect(intake.evidence_warnings.map((warning) => warning.message)).toContain(
+      'file content was truncated before relay: src/wide.ts',
+    );
   });
 });

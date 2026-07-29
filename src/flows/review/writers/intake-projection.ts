@@ -417,7 +417,7 @@ function singleUnitCoverage(evidence: ReviewEvidence): {
  * one review can speak to specifically. A tree bigger than one unit becomes
  * more units rather than a bigger prompt.
  */
-const CODEBASE_UNIT_BUDGET = { maxFilesPerUnit: 12, maxCharsPerUnit: 60_000 } as const;
+export const CODEBASE_UNIT_BUDGET = { maxFilesPerUnit: 12, maxCharsPerUnit: 60_000 } as const;
 
 /**
  * How many units the audit step can actually review.
