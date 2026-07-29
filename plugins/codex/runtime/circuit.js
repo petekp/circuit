@@ -19543,7 +19543,7 @@ var init_acceptance_criteria = __esm({
 });
 
 // dist/schemas/check.js
-var ReportSource, CheckpointResponseSource, RelayResultSource, SubRunResultSource, FanoutResultsSource, CheckSource, SchemaSectionsCheck, CheckpointAllowFrom, CheckpointSelectionCheck, ResultVerdictCheck, PickWinnerJoin, DisjointMergeJoin, AggregateOnlyJoin, AggregateSurvivorsJoin, FanoutJoinPolicy, FanoutAggregateCheck, Check;
+var ReportSource, CheckpointResponseSource, RelayResultSource, SubRunResultSource, FanoutResultsSource, CheckSource, SchemaSectionsCheck, CheckpointAllowFrom, CheckpointSelectionCheck, ResultVerdictCheck, PickWinnerJoin, DisjointMergeJoin, AggregateOnlyJoin, AggregateAnyJoin, AggregateSurvivorsJoin, FanoutJoinPolicy, FanoutAggregateCheck, Check;
 var init_check = __esm({
   "dist/schemas/check.js"() {
     "use strict";
@@ -19603,6 +19603,9 @@ var init_check = __esm({
     AggregateOnlyJoin = external_exports.object({
       policy: external_exports.literal("aggregate-only")
     }).strict();
+    AggregateAnyJoin = external_exports.object({
+      policy: external_exports.literal("aggregate-any")
+    }).strict();
     AggregateSurvivorsJoin = external_exports.object({
       policy: external_exports.literal("aggregate-survivors")
     }).strict();
@@ -19610,6 +19613,7 @@ var init_check = __esm({
       PickWinnerJoin,
       DisjointMergeJoin,
       AggregateOnlyJoin,
+      AggregateAnyJoin,
       AggregateSurvivorsJoin
     ]);
     FanoutAggregateCheck = external_exports.object({
@@ -20465,9 +20469,38 @@ var init_step = __esm({
       // context bound the split exists to break. In a dynamic fanout these paths
       // carry `$item` placeholders, so branch k reads slice k.
       reads: external_exports.array(RunRelativePath).optional(),
+      // Name of a text field on the source item whose value IS this branch's
+      // evidence. The engine writes that text into the branch folder and reads it
+      // back, so the slice does not have to exist as a file before the run.
+      //
+      // `reads` covers the case where a prior step already wrote one file per
+      // slice. Nothing in Circuit does that today — a compose writer returns one
+      // report body and a relay step writes one report — so a step that splits a
+      // corpus has exactly one place to put the pieces: the items of its own
+      // report. This field is what gets piece k out of that report and in front of
+      // worker k. Dynamic fanouts only; a static branch has no item.
+      item_evidence_field: external_exports.string().regex(/^[a-z_][a-z0-9_]*$/i, {
+        message: "item_evidence_field must be a top-level JSON field name"
+      }).optional(),
+      // Whether this branch also reads the fanout step's own `reads`. True by
+      // default, because shared context is usually what the step's evidence is.
+      //
+      // Set false when the step's evidence is the source report the branches were
+      // expanded from AND that report is large — a report holding N slices is N
+      // times the size of the one slice this branch needs, so inheriting it would
+      // hand every worker the whole corpus and undo the split.
+      inherit_step_reads: external_exports.boolean().optional(),
       provenance_field: external_exports.string().regex(/^[a-z_][a-z0-9_]*$/i, {
         message: "provenance_field must be a top-level JSON field name"
-      }).optional()
+      }).optional(),
+      // How many times this branch may ask its worker before the branch fails.
+      // One by default.
+      //
+      // A top-level relay step recovers a malformed answer through its retry
+      // route: ask again, once. A branch has no routes, so without this a single
+      // badly shaped response throws away that branch's whole share of the work.
+      // Set it where a re-ask is cheaper than losing the slice.
+      max_attempts: external_exports.number().int().min(1).max(3).optional()
     }).strict();
     FanoutRelayBranch = external_exports.object({
       branch_id: external_exports.string().min(1).max(64).regex(FANOUT_BRANCH_ID_REGEX, { message: "branch_id must be a kebab-case slug" }),
@@ -23010,7 +23043,13 @@ var init_trace_entry = __esm({
       // The join policy that ran; mirrors the FanoutAggregateCheck.join.policy
       // field but echoed into the trace_entry so the audit log is self-contained
       // (no need to cross-reference the schematic to interpret outcomes).
-      policy: external_exports.enum(["pick-winner", "disjoint-merge", "aggregate-only", "aggregate-survivors"]),
+      policy: external_exports.enum([
+        "pick-winner",
+        "disjoint-merge",
+        "aggregate-only",
+        "aggregate-any",
+        "aggregate-survivors"
+      ]),
       // For pick-winner: the selected branch_id. Absent for the other policies.
       selected_branch_id: external_exports.string().min(1).optional(),
       // Path to the runtime-built aggregate report.
@@ -23398,6 +23437,7 @@ var init_trace_fields = __esm({
       "pick-winner",
       "disjoint-merge",
       "aggregate-only",
+      "aggregate-any",
       "aggregate-survivors"
     ];
   }
@@ -76558,7 +76598,13 @@ var init_builtin_report_schemas = __esm({
     });
     FanoutAggregateFixtureShape = external_exports.looseObject({
       schema_version: external_exports.literal(1),
-      join_policy: external_exports.enum(["pick-winner", "disjoint-merge", "aggregate-only", "aggregate-survivors"]),
+      join_policy: external_exports.enum([
+        "pick-winner",
+        "disjoint-merge",
+        "aggregate-only",
+        "aggregate-any",
+        "aggregate-survivors"
+      ]),
       branch_count: external_exports.number().int().nonnegative(),
       winner_branch_id: external_exports.string().min(1).optional(),
       branches: external_exports.array(FanoutAggregateFixtureBranchShape)
@@ -84850,17 +84896,17 @@ var init_assembly_spec10 = __esm({
         stage: "analyze",
         block: "review",
         input: { brief: "review.intake@v1" },
-        execution: { kind: "relay", role: "reviewer" },
+        // One reviewer per unit. Most targets are one unit, so most runs still
+        // relay a single reviewer; a target too large for one prompt becomes
+        // several, and each reviewer is handed its own unit and nothing else.
+        // Splitting is what the intake did, not what this step decides.
+        execution: { kind: "fanout" },
+        output: "review.audit-aggregate@v1",
         protocol: "review-audit@v1",
-        // Declaring the typed report here is what makes the reviewer's response
-        // shape enforced rather than requested: the runtime converts the schema to
-        // JSON Schema and hands it to the connector's structured-output flag, and a
-        // response that violates it fails at this step, where the retry route is,
-        // instead of at the close step one step downstream.
-        reportPath: "reports/review-verdict.json",
-        requestPath: "reports/relay/review.request.json",
-        receiptPath: "reports/relay/review.receipt.txt",
-        resultPath: "stages/analyze/review-raw-findings.json",
+        writes: {
+          report_path: "reports/review-audit-aggregate.json",
+          branches_dir_path: "reports/review-units"
+        },
         pass: ["NO_ISSUES_FOUND", "ISSUES_FOUND"],
         skillSlots: [
           {
@@ -84868,14 +84914,55 @@ var init_assembly_spec10 = __esm({
             description: "A skill for independently auditing code or a change for correctness, regressions, and scope creep."
           }
         ],
-        routes: { continue: "verdict-step", retry: "audit-step", stop: "@stop" }
+        routes: { continue: "verdict-step", retry: "audit-step", stop: "@stop" },
+        fanout: {
+          branches: {
+            kind: "dynamic",
+            source_report: "reports/review-intake.json",
+            items_path: "units",
+            template: {
+              branch_id: "$item.unit_id",
+              execution: {
+                kind: "relay",
+                role: "reviewer",
+                goal: "$item.goal",
+                report_schema: "review.unit-verdict@v1",
+                // The reviewer is sealed from the repository, so the unit's own
+                // text is the only thing it can read. The engine writes this
+                // item's `contents` into the branch folder and reads it back.
+                item_evidence_field: "contents",
+                // The step's evidence is the intake report, which holds every
+                // unit's contents. Inheriting it would hand each reviewer the whole
+                // target and undo the split, so a unit reviewer reads its unit and
+                // nothing else.
+                inherit_step_reads: false,
+                // A reviewer cannot report on a unit it was not given.
+                provenance_field: "unit_id",
+                // A reviewer that answers in the wrong shape gets asked once more,
+                // the way a single-reviewer audit step used to through its retry
+                // route. Losing a whole unit of the target to one malformed
+                // response is a worse trade than one extra ask.
+                max_attempts: 2
+              }
+            },
+            max_branches: 24
+          },
+          concurrency: { kind: "bounded", max: 4 },
+          // One reviewer failing does not throw away the units that did report.
+          // The close step is told which units are missing and says so.
+          on_child_failure: "continue-others",
+          // One reviewer failing must not throw away the units that answered: the
+          // close step merges what came back and reports the rest as not reviewed,
+          // which is a more useful and more honest end than no review at all.
+          join: { policy: "aggregate-any" }
+        }
       },
       {
         id: "verdict-step",
         title: "Verdict \u2014 emit review.result",
         stage: "close",
         block: "close-with-evidence",
-        input: { brief: "review.intake@v1", review: "review.verdict@v1" },
+        input: { brief: "review.intake@v1", review: "review.audit-aggregate@v1" },
         output: "review.result@v1",
         execution: { kind: "compose" },
         protocol: "review-verdict@v1",
@@ -84898,7 +84985,10 @@ var init_assembly_spec10 = __esm({
       initial_contracts: ["task.intake@v1", "route.decision@v1"],
       contract_aliases: [
         { generic: "flow.brief@v1", actual: "review.intake@v1" },
-        { generic: "review.verdict@v1", actual: "review.verdict@v1" },
+        // The review block's generic verdict contract is satisfied by the audit
+        // fan-out's aggregate: it carries every unit's verdict body, which is the
+        // whole of what a single reviewer used to return.
+        { generic: "review.verdict@v1", actual: "review.audit-aggregate@v1" },
         { generic: "flow.result@v1", actual: "review.result@v1" }
       ],
       axes: {
@@ -84930,18 +85020,19 @@ var init_relay_hints10 = __esm({
     "use strict";
     reviewRelayInstruction = [
       "Respond with a single raw JSON object whose top-level shape is exactly:",
-      '{ "verdict": "<one-of-accepted-verdicts>", "findings": [{ "severity": "<critical|high|medium|low>", "id": "<stable finding id>", "text": "<finding text>", "file_refs": ["<file:line reference>"] }], "assessment": "<plain-language paragraph>", "verification": ["<step you performed>"], "confidence_limitations": ["<gap that limits certainty>"] }',
+      '{ "unit_id": "<the unit id named in your task>", "verdict": "<one-of-accepted-verdicts>", "findings": [{ "severity": "<critical|high|medium|low>", "id": "<stable finding id>", "text": "<finding text>", "file_refs": ["<file:line reference>"] }], "assessment": "<plain-language paragraph>", "verification": ["<step you performed>"], "confidence_limitations": ["<gap that limits certainty>"] }',
+      "Your task names the unit you are reviewing. Copy that id into unit_id exactly. A large target is split into units and reviewed a unit at a time, and the id is how your answer is attributed to the part you were shown; an answer under another unit's id is rejected. Review the evidence in this prompt and nothing else: other units exist, you cannot see them, and they are not your subject.",
       "The selected Review target is authoritative. Review sees only the captured evidence in this prompt. Evaluate findings only against the selected diff or content in the intake. Do not read repository files, run tools, substitute another Git view, working-tree layer, commit, range, or PR, or report unrelated issues. If the selected evidence is missing or incomplete, say so and never claim that the target has no issues.",
       "Match the question to the evidence. When the intake carries a diff, review the change: judge what it does to the code around it, and do not report pre-existing conditions it did not introduce. When the intake carries whole file contents instead of a diff, review the code as it stands: the file is the subject, none of it is necessarily new, and every finding should name what is wrong now rather than what changed. Never describe a snapshot as if it were a change, or a change as if it were the whole file.",
       "Audit the strongest claims in the material under review first: confirm each asserted outcome is backed by evidence you can see, and flag claims of completion, safety, or readiness that the cited evidence does not actually support.",
       "Calibrate severity to impact: critical for a defect that breaks the stated goal or ships a falsehood, high for a real bug or unsupported claim worth fixing before anyone relies on the result, medium for a material gap or risk worth surfacing, low for a minor or cosmetic note. Do not inflate a low note into a blocking finding, and do not bury a real defect as low.",
-      'Use an empty findings array when there are no issues: { "verdict": "NO_ISSUES_FOUND", "findings": [], "assessment": "...", "verification": ["..."], "confidence_limitations": ["..."] }.',
+      'Use an empty findings array when there are no issues: { "unit_id": "...", "verdict": "NO_ISSUES_FOUND", "findings": [], "assessment": "...", "verification": ["..."], "confidence_limitations": ["..."] }.',
       "Use an empty file_refs array when a finding has no file-specific reference.",
       "The assessment field is REQUIRED on every verdict, including NO_ISSUES_FOUND. State plainly what you checked and what you concluded; do not return a bare verdict.",
       "The verification array is your self-report of how you worked the evidence in this prompt: which relayed diffs or files you read, and what you cross-referenced against what. You have no repository, no shell, and no tools here, so never claim to have opened a file, run a command, or executed a test. Include at least one entry on every verdict so the operator can see how the review was done.",
       "The confidence_limitations array names anything that limits certainty: out-of-scope files, omitted untracked content, areas you did not inspect, assumptions you had to make. Use an empty array only when coverage was complete.",
       "Do not include extra top-level keys. Do not wrap the JSON in Markdown code fences. Do not include any prose before or after the JSON object.",
-      "The runtime parses your response with JSON.parse and validates it against the review.verdict@v1 schema at this step; an extra key, a missing field, or a verdict the schema does not allow is rejected and you are asked again. Only a response that validates reaches the close step, which writes reports/review-result.json."
+      "The runtime parses your response with JSON.parse and validates it against the review.unit-verdict@v1 schema at this step; an extra key, a missing field, or a verdict the schema does not allow is rejected and you are asked again. Only a response that validates reaches the close step, which writes reports/review-result.json."
     ].join(" ");
   }
 });
@@ -84978,7 +85069,13 @@ function addObjectIdPrefixMismatch(ref, objectId, field, ctx) {
 function computeReviewVerdict(findings) {
   return findings.some((finding3) => finding3.severity !== "low") ? "ISSUES_FOUND" : "CLEAN";
 }
-var ReviewFindingSeverity, ReviewResultVerdict, ReviewRelayVerdict, ReviewEvidenceWarningKind, ReviewEvidenceWarning, ReviewEvidenceText, ReviewUntrackedContentPolicy, ReviewTargetKind, ReviewWorkingTreeMode, ReviewPathScope, ReviewUntrackedFileEvidence, ReviewSnapshotFileEvidence, ReviewGitObjectId, ReviewGitTargetEvidence, ReviewEvidence, ReviewEvidenceSummary, ReviewResolvedTarget, ReviewTargetProvenance, ReviewIntake, ReviewFinding, ReviewResult, ReviewRelayResult;
+function withDerivedRelayVerdict(report) {
+  return {
+    ...report,
+    verdict: report.findings.length === 0 ? "NO_ISSUES_FOUND" : "ISSUES_FOUND"
+  };
+}
+var ReviewFindingSeverity, ReviewResultVerdict, ReviewRelayVerdict, ReviewEvidenceWarningKind, ReviewEvidenceWarning, ReviewEvidenceText, ReviewUntrackedContentPolicy, ReviewTargetKind, ReviewWorkingTreeMode, ReviewPathScope, ReviewUntrackedFileEvidence, ReviewSnapshotFileEvidence, ReviewGitObjectId, ReviewGitTargetEvidence, ReviewEvidence, ReviewEvidenceSummary, ReviewResolvedTarget, ReviewTargetProvenance, ReviewIntakeUnit, ReviewUnitCoverage, ReviewIntake, ReviewFinding, ReviewResult, ReviewRelayResultShape, ReviewRelayResult, ReviewUnitVerdict, ReviewAuditAggregateBranch, ReviewAuditAggregate;
 var init_reports10 = __esm({
   "dist/flows/review/reports.js"() {
     "use strict";
@@ -85003,10 +85100,6 @@ var init_reports10 = __esm({
       "snapshot_fallback",
       "snapshot_truncated",
       "snapshot_file_skipped",
-      // The operator named the repository as a whole. Distinct from
-      // `target_assumed`, which says no target was named: saying that here would
-      // tell someone they gave no target when they gave one Review cannot cover.
-      "whole_repository_narrowed",
       // The operator asked for the code as it stands but named nowhere to look, so
       // the run reviewed changes instead. Said out loud, because "no findings"
       // answers a different question than the one asked.
@@ -85193,12 +85286,44 @@ var init_reports10 = __esm({
       }).strict()
     ]);
     ReviewTargetProvenance = external_exports.enum(["named", "inferred"]);
+    ReviewIntakeUnit = external_exports.object({
+      unit_id: external_exports.string().regex(/^[a-z0-9]+(?:-[a-z0-9]+)*$/u, {
+        message: "unit_id must be a kebab-case slug"
+      }),
+      // What a person would call this unit, for the report and the operator view.
+      label: external_exports.string().min(1),
+      // Repository-relative paths this unit covers. Empty when the unit is a
+      // change rather than a set of files, which is the ordinary single-unit case.
+      paths: external_exports.array(external_exports.string().min(1)),
+      // What this unit's reviewer is asked to do. Carried per unit because a
+      // codebase reviewer needs to be told which slice it holds and that other
+      // slices exist.
+      goal: external_exports.string().min(1),
+      // The evidence itself, verbatim. The engine writes this text into the
+      // reviewer's branch folder and reads it back, so the reviewer sees this
+      // unit and nothing else.
+      contents: external_exports.string().min(1)
+    }).strict();
+    ReviewUnitCoverage = external_exports.object({
+      // Files the target matched before any bound applied.
+      matched_file_count: external_exports.number().int().nonnegative(),
+      // Files the units actually carry.
+      reviewed_file_count: external_exports.number().int().nonnegative(),
+      // True when the target was larger than Review could pack into units, so
+      // some of it was left out. A verdict over a truncated target may not claim
+      // to have reviewed the whole thing.
+      truncated: external_exports.boolean()
+    }).strict();
     ReviewIntake = external_exports.object({
       scope: external_exports.string().min(1),
       target: ReviewResolvedTarget,
       target_provenance: ReviewTargetProvenance,
       evidence: ReviewEvidence,
-      evidence_warnings: external_exports.array(ReviewEvidenceWarning).default([])
+      evidence_warnings: external_exports.array(ReviewEvidenceWarning).default([]),
+      // Always present and never empty: an intake that framed a review but named
+      // no unit would be an intake that captured nothing for the reviewer to read.
+      units: external_exports.array(ReviewIntakeUnit).min(1),
+      unit_coverage: ReviewUnitCoverage
     }).strict();
     ReviewFinding = external_exports.object({
       severity: ReviewFindingSeverity,
@@ -85251,7 +85376,7 @@ var init_reports10 = __esm({
         });
       }
     });
-    ReviewRelayResult = external_exports.object({
+    ReviewRelayResultShape = external_exports.object({
       verdict: ReviewRelayVerdict,
       findings: external_exports.array(ReviewFinding),
       // See ReviewResult.assessment — the reviewer's plain-language paragraph
@@ -85268,9 +85393,34 @@ var init_reports10 = __esm({
       // Known gaps that limit certainty. Required as an array (may be empty
       // when coverage was complete).
       confidence_limitations: external_exports.array(external_exports.string().min(1))
-    }).strict().transform((report) => {
-      const verdict = report.findings.length === 0 ? "NO_ISSUES_FOUND" : "ISSUES_FOUND";
-      return { ...report, verdict };
+    }).strict();
+    ReviewRelayResult = ReviewRelayResultShape.transform(withDerivedRelayVerdict);
+    ReviewUnitVerdict = ReviewRelayResultShape.extend({
+      unit_id: external_exports.string().min(1)
+    }).strict().transform(withDerivedRelayVerdict);
+    ReviewAuditAggregateBranch = external_exports.object({
+      branch_id: external_exports.string().min(1),
+      child_run_id: external_exports.string().min(1),
+      child_outcome: external_exports.enum(["complete", "aborted", "handoff", "stopped", "escalated"]),
+      verdict: external_exports.string().min(1),
+      admitted: external_exports.boolean(),
+      result_path: external_exports.string().min(1),
+      duration_ms: external_exports.number().nonnegative(),
+      result_body: ReviewUnitVerdict.optional()
+    }).strict();
+    ReviewAuditAggregate = external_exports.object({
+      schema_version: external_exports.literal(1),
+      join_policy: external_exports.literal("aggregate-any"),
+      branch_count: external_exports.number().int().positive(),
+      branches: external_exports.array(ReviewAuditAggregateBranch).min(1)
+    }).strict().superRefine((aggregate2, ctx) => {
+      if (aggregate2.branch_count !== aggregate2.branches.length) {
+        ctx.addIssue({
+          code: "custom",
+          path: ["branch_count"],
+          message: "branch_count must match branches.length"
+        });
+      }
     });
   }
 });
@@ -85399,6 +85549,100 @@ var init_evidence_completeness = __esm({
   }
 });
 
+// dist/flows/review/writers/units.js
+function directoryOf(path) {
+  const cut = path.lastIndexOf("/");
+  return cut === -1 ? "" : path.slice(0, cut);
+}
+function directoryLabel(directory) {
+  return directory === "" ? REPOSITORY_ROOT_LABEL : directory;
+}
+function groupByDirectory(files) {
+  const byDirectory = /* @__PURE__ */ new Map();
+  for (const file2 of files) {
+    const directory = directoryOf(file2.path);
+    const existing = byDirectory.get(directory);
+    if (existing === void 0)
+      byDirectory.set(directory, [file2]);
+    else
+      existing.push(file2);
+  }
+  return [...byDirectory.entries()].sort(([left], [right]) => left < right ? -1 : left > right ? 1 : 0).map(([directory, groupFiles]) => {
+    const sorted = [...groupFiles].sort((left, right) => left.path < right.path ? -1 : left.path > right.path ? 1 : 0);
+    return {
+      directory,
+      files: sorted,
+      chars: sorted.reduce((total, file2) => total + file2.size, 0)
+    };
+  });
+}
+function emptyUnit() {
+  return { files: [], chars: 0, directories: [] };
+}
+function labelFor(unit) {
+  const labels = unit.directories.map(directoryLabel);
+  if (labels.length === 0)
+    return REPOSITORY_ROOT_LABEL;
+  if (labels.length === 1)
+    return labels[0];
+  if (labels.length === 2)
+    return `${labels[0]} + ${labels[1]}`;
+  return `${labels[0]} + ${labels.length - 1} more`;
+}
+function closeUnit(unit, index, overrideLabel) {
+  return {
+    unit_id: `unit-${index}`,
+    label: overrideLabel ?? labelFor(unit),
+    paths: unit.files.map((file2) => file2.path),
+    estimated_chars: unit.chars
+  };
+}
+function packReviewUnits(files, budget) {
+  const groups = groupByDirectory(files);
+  const units = [];
+  let open = emptyUnit();
+  const flush = (label) => {
+    if (open.files.length === 0)
+      return;
+    units.push(closeUnit(open, units.length + 1, label));
+    open = emptyUnit();
+  };
+  const fitsInOpen = (fileCount, chars) => open.files.length + fileCount <= budget.maxFilesPerUnit && open.chars + chars <= budget.maxCharsPerUnit;
+  for (const group of groups) {
+    const groupFitsAlone = group.files.length <= budget.maxFilesPerUnit && group.chars <= budget.maxCharsPerUnit;
+    if (groupFitsAlone) {
+      if (!fitsInOpen(group.files.length, group.chars))
+        flush();
+      open.files.push(...group.files);
+      open.chars += group.chars;
+      open.directories.push(group.directory);
+      continue;
+    }
+    flush();
+    let part = 1;
+    for (const file2 of group.files) {
+      if (open.files.length > 0 && !fitsInOpen(1, file2.size)) {
+        flush(`${directoryLabel(group.directory)} (part ${part})`);
+        part += 1;
+      }
+      open.files.push(file2);
+      open.chars += file2.size;
+      if (open.directories.length === 0)
+        open.directories.push(group.directory);
+    }
+    flush(`${directoryLabel(group.directory)} (part ${part})`);
+  }
+  flush();
+  return units;
+}
+var REPOSITORY_ROOT_LABEL;
+var init_units = __esm({
+  "dist/flows/review/writers/units.js"() {
+    "use strict";
+    REPOSITORY_ROOT_LABEL = "the repository root";
+  }
+});
+
 // dist/flows/review/writers/intake-projection.js
 function reviewPathScopeLabel(scope) {
   return [
@@ -85459,15 +85703,10 @@ function appendOpaqueBinaryWarnings(warnings, diffs) {
   }
 }
 function reviewEvidenceWarnings(input) {
-  const targetDisclosed = input.wholeRepository === true || input.assumedTarget === true;
+  const targetDisclosed = input.assumedTarget === true;
   const suppliedMaterial = input.evidence.kind === "goal";
   const assumption = [
-    ...input.wholeRepository === true ? [
-      {
-        kind: "whole_repository_narrowed",
-        message: WHOLE_REPOSITORY_NARROWED_WARNING
-      }
-    ] : input.assumedTarget === true ? [{ kind: "target_assumed", message: ASSUMED_WORKING_TREE_WARNING }] : [],
+    ...input.assumedTarget === true ? [{ kind: "target_assumed", message: ASSUMED_WORKING_TREE_WARNING }] : [],
     // Third member of the same family, and the one that covers the case the
     // other two miss: a phrase matched, so the target looks chosen. Suppressed
     // when either of the above fired, because both already say the target was
@@ -85643,8 +85882,59 @@ function reviewEvidenceWarnings(input) {
   }
   return warnings;
 }
+function singleUnitLabel(target) {
+  if (target.kind === "goal")
+    return "the material in the goal";
+  if (target.kind === "commit")
+    return `commit ${target.ref}`;
+  if (target.kind === "range")
+    return `range ${target.base}${target.dots}${target.head}`;
+  if (target.kind === "snapshot")
+    return reviewPathScopeLabel(target.paths);
+  return target.mode === "all" ? "the working tree" : `${target.mode} changes`;
+}
+function singleUnitCoverage(evidence2) {
+  if (evidence2.kind !== "git-snapshot") {
+    return { matched_file_count: 0, reviewed_file_count: 0, truncated: false };
+  }
+  return {
+    matched_file_count: evidence2.matched_file_count,
+    reviewed_file_count: evidence2.files.length,
+    truncated: evidence2.files_truncated
+  };
+}
+function snapshotUnits(scope, evidence2, body) {
+  if (evidence2.kind !== "git-snapshot")
+    return void 0;
+  const allPacked = packReviewUnits(evidence2.files.map((file2) => ({ path: file2.path, size: file2.content?.text.length ?? 0 })), CODEBASE_UNIT_BUDGET);
+  if (allPacked.length === 0)
+    return void 0;
+  const packed = allPacked.slice(0, MAX_REVIEW_UNITS);
+  const reviewedPaths = new Set(packed.flatMap((unit) => unit.paths));
+  const coverage = {
+    matched_file_count: evidence2.matched_file_count,
+    reviewed_file_count: reviewedPaths.size,
+    truncated: evidence2.files_truncated || packed.length < allPacked.length
+  };
+  const byPath = new Map(evidence2.files.map((file2) => [file2.path, file2]));
+  const units = packed.map((unit) => {
+    const files = unit.paths.map((path) => byPath.get(path)).filter((file2) => file2 !== void 0);
+    return {
+      unit_id: unit.unit_id,
+      label: unit.label,
+      paths: [...unit.paths],
+      // Tell the reviewer what it is holding and what it is not. A reviewer
+      // that thinks a twelfth of a repository is the whole thing will write a
+      // conclusion about the whole thing, which is the failure this split
+      // exists to avoid.
+      goal: packed.length === 1 ? `${scope} (You are reviewing unit ${unit.unit_id}, ${unit.label}, which is the whole of this target. Report under unit_id "${unit.unit_id}".)` : `${scope} (You are reviewing unit ${unit.unit_id} of ${packed.length}: ${unit.label}, ${files.length} of the ${evidence2.files.length} files in this target. Report under unit_id "${unit.unit_id}". The other units are being reviewed separately by other reviewers; you cannot see them, so review what is in this prompt and do not draw conclusions about the rest of the codebase.)`,
+      contents: JSON.stringify({ ...body, evidence: { ...evidence2, files } }, null, 2)
+    };
+  });
+  return { units, coverage };
+}
 function projectReviewIntake(input) {
-  return ReviewIntake.parse({
+  const body = {
     scope: input.scope,
     target: input.target,
     target_provenance: input.targetProvenance,
@@ -85656,21 +85946,44 @@ function projectReviewIntake(input) {
       ...input.assumedTarget === true ? { assumedTarget: true } : {},
       ...input.scopeNotApplied === void 0 ? {} : { scopeNotApplied: input.scopeNotApplied },
       ...input.snapshotFallbackFrom === void 0 ? {} : { snapshotFallbackFrom: input.snapshotFallbackFrom },
-      ...input.wholeRepository === true ? { wholeRepository: true } : {},
       ...input.snapshotNotApplied === true ? { snapshotNotApplied: true } : {}
     })
+  };
+  const packedSnapshot = input.units === void 0 ? snapshotUnits(input.scope, input.evidence, body) : void 0;
+  const units = input.units ?? packedSnapshot?.units ?? [
+    {
+      unit_id: "unit-1",
+      label: singleUnitLabel(input.target),
+      paths: [],
+      // The unit id travels in the goal because the goal is what the reviewer
+      // is told to do, and it has to report under the id it was given. Saying
+      // this unit is the whole target is what stops a reviewer from hedging
+      // about parts it cannot see when there are none.
+      goal: `${input.scope} (You are reviewing unit unit-1, ${singleUnitLabel(input.target)}, which is the whole of this target. Report under unit_id "unit-1".)`,
+      contents: JSON.stringify(body, null, 2)
+    }
+  ];
+  return ReviewIntake.parse({
+    ...body,
+    units,
+    // A snapshot that packed past the reviewer count reports the files its
+    // units actually carry, not everything the snapshot matched, so dropping
+    // units cannot read as full coverage.
+    unit_coverage: input.unitCoverage ?? packedSnapshot?.coverage ?? singleUnitCoverage(input.evidence)
   });
 }
-var ASSUMED_WORKING_TREE_WARNING, WHOLE_REPOSITORY_NARROWED_WARNING, TARGET_INFERRED_WARNING, SNAPSHOT_NOT_APPLIED_WARNING;
+var ASSUMED_WORKING_TREE_WARNING, TARGET_INFERRED_WARNING, SNAPSHOT_NOT_APPLIED_WARNING, CODEBASE_UNIT_BUDGET, MAX_REVIEW_UNITS;
 var init_intake_projection = __esm({
   "dist/flows/review/writers/intake-projection.js"() {
     "use strict";
     init_reports10();
     init_evidence_completeness();
+    init_units();
     ASSUMED_WORKING_TREE_WARNING = "Assumed target: the current working tree. Name a commit, a range, staged, or unstaged to review something else.";
-    WHOLE_REPOSITORY_NARROWED_WARNING = 'You asked about the whole repository. Review covered the changes in it, not every file: reading a whole codebase in one pass is not something it can do yet. Name a path to review the code there as it stands, such as "review src/auth as it stands".';
     TARGET_INFERRED_WARNING = "No target was named, so Review matched one out of the goal text. It is reviewing what that matched, which may not be what you meant. Pass --target to say it outright, such as --target main...HEAD, --target staged, or --target commit:abc1234.";
     SNAPSHOT_NOT_APPLIED_WARNING = 'You asked about the code as it stands, and Review read changes instead. Reading files rather than a diff needs a path to bound it. Name one, such as "review src/auth as it stands".';
+    CODEBASE_UNIT_BUDGET = { maxFilesPerUnit: 12, maxCharsPerUnit: 6e4 };
+    MAX_REVIEW_UNITS = 24;
   }
 });
 
@@ -86331,7 +86644,6 @@ function scopedParseResult(target, requested, options = {}) {
     ...options.assumed === true ? { assumed: true } : {},
     ...notApplied.length === 0 ? {} : { scopeNotApplied: notApplied },
     ...options.snapshotFallback === void 0 ? {} : { snapshotFallback: options.snapshotFallback },
-    ...options.wholeRepository === true ? { wholeRepository: true } : {},
     ...options.snapshotNotApplied === true ? { snapshotNotApplied: true } : {}
   };
 }
@@ -86388,9 +86700,12 @@ function parseReviewTarget(scope) {
   const assumedWorkingTree = { kind: "working_tree", mode: "all", explicit: false };
   const unscoped = {
     assumed: true,
-    ...WHOLE_REPOSITORY_PATTERN.test(authorityScope) ? { wholeRepository: true } : {},
     ...SNAPSHOT_REQUEST_PATTERN.test(authorityScope) ? { snapshotNotApplied: true } : {}
   };
+  if (WHOLE_REPOSITORY_PATTERN.test(authorityScope)) {
+    const repositoryScope = scoped.paths ?? { include: ["."], exclude: [] };
+    return snapshotParseResult(repositoryScope.include.length === 0 ? { ...repositoryScope, include: ["."] } : repositoryScope, scoped);
+  }
   if (scoped.paths === void 0)
     return scopedParseResult(assumedWorkingTree, scoped, unscoped);
   if (scoped.paths.include.length === 0) {
@@ -86923,7 +87238,8 @@ async function collectReviewEvidence(projectRoot, options) {
   if (target.kind === "snapshot") {
     const snapshot = await collectSnapshotEvidence(evidenceRoot, target.paths, options.gitReader, directContext);
     if (snapshot.matchedFileCount === 0) {
-      throw new Error(`Review found no tracked files at ${reviewPathScopePaths(target.paths)}. Check the path, or name a commit, a range, staged, or unstaged to review a change instead.`);
+      const wholeTree = target.paths.include.length === 1 && target.paths.include[0] === ".";
+      throw new Error(wholeTree ? "Review found no tracked files in this repository. Commit the files to review, or name a commit, a range, staged, or unstaged to review a change instead." : `Review found no tracked files at ${reviewPathScopePaths(target.paths)}. Check the path, or name a commit, a range, staged, or unstaged to review a change instead.`);
     }
     return {
       kind: "git-snapshot",
@@ -87078,7 +87394,7 @@ async function collectReviewEvidence(projectRoot, options) {
     if (target.explicit) {
       throw new ReviewTargetEmptyError(`Review target has no changes to inspect: ${target.mode === "all" ? "working tree changes" : `${target.mode} changes`}${scopeSuffix} are empty.`);
     }
-    throw new ReviewTargetEmptyError(options.wholeRepository === true ? `Review found nothing to inspect: there are no uncommitted changes${scopeSuffix}. Reviewing a whole codebase in one pass is not something Review can do yet. Name a path to review the code there as it stands, such as "review src/auth as it stands".` : `Review found no changes to inspect. The goal did not name a target, so Review looked at the working tree${scopeSuffix}. Name a commit, a range, staged, or unstaged if you meant a different target.`);
+    throw new ReviewTargetEmptyError(`Review found no changes to inspect. The goal did not name a target, so Review looked at the working tree${scopeSuffix}. Name a commit, a range, staged, or unstaged if you meant a different target.`);
   }
   const statSections = [
     ...stagedStat.ok && stagedStat.stdout.length > 0 ? [`Staged:
@@ -87112,9 +87428,9 @@ var init_intake2 = __esm({
     MAX_DIFF_CHARS = 12e4;
     MAX_UNTRACKED_FILES = 20;
     MAX_UNTRACKED_FILE_CHARS = 2e4;
-    MAX_SNAPSHOT_FILES = 25;
+    MAX_SNAPSHOT_FILES = 288;
     MAX_SNAPSHOT_FILE_CHARS = 4e4;
-    MAX_SNAPSHOT_TOTAL_CHARS = 15e4;
+    MAX_SNAPSHOT_TOTAL_CHARS = 144e4;
     MAX_GIT_BUFFER_BYTES = 10 * 1024 * 1024;
     MAX_DIFF_BUFFER_BYTES = Math.max(MAX_DIFF_CHARS * 4, 1024 * 1024);
     DIRECT_GIT_TIMEOUT_MS = 3e4;
@@ -87195,11 +87511,7 @@ var init_intake2 = __esm({
         const collect = async (target2) => await collectReviewEvidence(context.projectRoot, {
           ...untrackedContent,
           target: target2,
-          ...reader,
-          // Shapes the empty-target message only. A clean tree ends the run either
-          // way, but "you named no target" is the wrong sentence to hand someone
-          // who named the repository.
-          ...parsedTarget.wholeRepository === true ? { wholeRepository: true } : {}
+          ...reader
         });
         let target = parsedTarget.target;
         let evidence2;
@@ -87226,7 +87538,6 @@ var init_intake2 = __esm({
           ...parsedTarget.assumed === true && snapshotFallbackFrom === void 0 ? { assumedTarget: true } : {},
           ...scopeNotApplied === void 0 ? {} : { scopeNotApplied },
           ...snapshotFallbackFrom === void 0 ? {} : { snapshotFallbackFrom },
-          ...parsedTarget.wholeRepository === true ? { wholeRepository: true } : {},
           ...parsedTarget.snapshotNotApplied === true ? { snapshotNotApplied: true } : {}
         });
       }
@@ -87507,22 +87818,101 @@ var init_result_projection5 = __esm({
   }
 });
 
+// dist/flows/review/writers/unit-merge.js
+function unitLabel(units, unitId) {
+  const unit = units.get(unitId);
+  return unit === void 0 ? unitId : `${unitId} (${unit.label})`;
+}
+function attributed(text, label, multiUnit) {
+  return multiUnit ? `${label}: ${text}` : text;
+}
+function coverageFinding(missing, units) {
+  const names = missing.map((unitId) => unitLabel(units, unitId)).join(", ");
+  const filesFromMissing = [
+    ...new Set(missing.flatMap((unitId) => units.get(unitId)?.paths ?? []))
+  ];
+  return {
+    severity: "medium",
+    id: "circuit-review-unit-not-reviewed",
+    text: missing.length === 1 ? `No reviewer verdict came back for one part of this target (${names}), so this Review cannot be reported as clean: that part was not reviewed.` : `No reviewer verdict came back for ${missing.length} parts of this target (${names}), so this Review cannot be reported as clean: those parts were not reviewed.`,
+    file_refs: filesFromMissing
+  };
+}
+function truncationFinding(intake) {
+  const coverage = intake.unit_coverage;
+  if (!coverage.truncated)
+    return void 0;
+  return {
+    severity: "medium",
+    id: "circuit-review-target-truncated",
+    text: `This target was larger than Review could take in: it reviewed ${coverage.reviewed_file_count} of ${coverage.matched_file_count} files, so this Review cannot be reported as clean. Name a narrower path to review the rest.`,
+    file_refs: []
+  };
+}
+function mergeReviewUnits(input) {
+  const units = new Map(input.intake.units.map((unit) => [unit.unit_id, unit]));
+  const multiUnit = input.intake.units.length > 1;
+  const bodies = new Map(input.aggregate.branches.filter((branch) => branch.admitted && branch.result_body !== void 0).map((branch) => [branch.branch_id, branch.result_body]));
+  const findings = [];
+  const assessments = [];
+  const verification = [];
+  const limitations = [];
+  const missingUnitIds = [];
+  for (const unit of input.intake.units) {
+    const body = bodies.get(unit.unit_id);
+    const label = unitLabel(units, unit.unit_id);
+    if (body === void 0) {
+      missingUnitIds.push(unit.unit_id);
+      continue;
+    }
+    findings.push(...body.findings);
+    assessments.push(attributed(body.assessment, label, multiUnit));
+    verification.push(...body.verification.map((step) => attributed(step, label, multiUnit)));
+    limitations.push(...body.confidence_limitations.map((note) => attributed(note, label, multiUnit)));
+  }
+  if (missingUnitIds.length === input.intake.units.length) {
+    throw new Error(`Review cannot report a verdict: no reviewer produced a result for any of the ${input.intake.units.length} unit(s) in this target.`);
+  }
+  if (missingUnitIds.length > 0) {
+    findings.push(coverageFinding(missingUnitIds, units));
+    limitations.push(`Review covered ${input.intake.units.length - missingUnitIds.length} of ${input.intake.units.length} parts of this target. Nothing is known about the rest.`);
+  }
+  const truncation = truncationFinding(input.intake);
+  if (truncation !== void 0) {
+    findings.push(truncation);
+    limitations.push(`Review read ${input.intake.unit_coverage.reviewed_file_count} of the ${input.intake.unit_coverage.matched_file_count} files this target matched.`);
+  }
+  return {
+    relayResult: {
+      verdict: findings.length === 0 ? "NO_ISSUES_FOUND" : "ISSUES_FOUND",
+      findings,
+      assessment: assessments.join("\n\n"),
+      verification,
+      confidence_limitations: [...new Set(limitations)]
+    },
+    missingUnitIds
+  };
+}
+var init_unit_merge = __esm({
+  "dist/flows/review/writers/unit-merge.js"() {
+    "use strict";
+  }
+});
+
 // dist/flows/review/writers/result.js
 import { readFileSync as readFileSync35 } from "node:fs";
-function reviewerRelayResultPath(flow, closeStep) {
+function reviewAuditAggregatePath(flow, closeStep) {
   const closeStepId = closeStep.id;
-  const reviewerRelayes = flow.steps.filter((candidate) => candidate.kind === "relay" && candidate.role === "reviewer" && candidate.routes.pass === closeStepId);
-  if (reviewerRelayes.length !== 1) {
-    throw new Error(`review.result@v1 requires exactly one reviewer relay routing to '${closeStepId}', found ${reviewerRelayes.length}`);
+  const audits = flow.steps.filter((candidate) => candidate.kind === "fanout" && candidate.routes.pass === closeStepId);
+  if (audits.length !== 1) {
+    throw new Error(`review.result@v1 requires exactly one audit fan-out routing to '${closeStepId}', found ${audits.length}`);
   }
-  const relayWrites = reviewerRelayes[0]?.writes;
-  const reportPath = relayWrites?.report?.path;
-  const resultPath2 = relayWrites?.result;
-  const readable = [reportPath, resultPath2].find((candidate) => candidate !== void 0 && closeStep.reads.includes(candidate));
-  if (readable === void 0) {
-    throw new Error(`review.result@v1 requires close step '${closeStepId}' to read the reviewer verdict at '${reportPath ?? resultPath2 ?? "<missing>"}'`);
+  const reportPath = audits[0]?.writes.aggregate;
+  const path = typeof reportPath === "string" ? reportPath : reportPath?.path;
+  if (path === void 0 || !closeStep.reads.includes(path)) {
+    throw new Error(`review.result@v1 requires close step '${closeStepId}' to read the audit aggregate at '${path ?? "<missing>"}'`);
   }
-  return readable;
+  return path;
 }
 function reviewIntakePath(flow, closeStep) {
   const closeStepId = closeStep.id;
@@ -87540,16 +87930,18 @@ var init_result2 = __esm({
     init_run_relative_path();
     init_reports10();
     init_result_projection5();
+    init_unit_merge();
     reviewResultComposeBuilder = {
       resultSchemaName: "review.result@v1",
       // No declarative reads — the read is a relay result body, not a
       // typed report at a schema-mapped path. The build function does
       // its own resolution.
       build(context) {
-        const path = reviewerRelayResultPath(context.flow, context.step);
+        const path = reviewAuditAggregatePath(context.flow, context.step);
         const intake = ReviewIntake.parse(JSON.parse(readFileSync35(resolveRunRelative(context.runFolder, reviewIntakePath(context.flow, context.step)), "utf8")));
-        const relayResult = ReviewRelayResult.parse(JSON.parse(readFileSync35(resolveRunRelative(context.runFolder, path), "utf8")));
-        return projectReviewResult({ intake, relayResult });
+        const aggregate2 = ReviewAuditAggregate.parse(JSON.parse(readFileSync35(resolveRunRelative(context.runFolder, path), "utf8")));
+        const merged = mergeReviewUnits({ intake, aggregate: aggregate2 });
+        return projectReviewResult({ intake, relayResult: merged.relayResult });
       }
     };
   }
@@ -87596,14 +87988,21 @@ var init_data11 = __esm({
           schema: ReviewIntake,
           writers: { compose: [reviewIntakeComposeBuilder] }
         },
-        // The reviewer's own response. Registering it on the relay channel is what
+        // One unit reviewer's response. Registering it on the relay channel is what
         // lets the runtime hand the shape to the connector's structured-output flag
         // instead of only asking for it in prose.
         {
-          schemaName: "review.verdict@v1",
+          schemaName: "review.unit-verdict@v1",
           channel: "relay",
-          schema: ReviewRelayResult,
+          schema: ReviewUnitVerdict,
           relayHint: reviewRelayInstruction
+        },
+        // The engine's fan-out aggregate over the unit reviewers. No writer: the
+        // fanout executor writes it after joining the branches.
+        {
+          schemaName: "review.audit-aggregate@v1",
+          channel: "report",
+          schema: ReviewAuditAggregate
         },
         {
           schemaName: "review.result@v1",
@@ -89991,7 +90390,13 @@ var init_progress_event = __esm({
       type: external_exports.literal("fanout.joined"),
       step_id: StepId,
       step_title: external_exports.string().min(1),
-      policy: external_exports.enum(["pick-winner", "disjoint-merge", "aggregate-only", "aggregate-survivors"]),
+      policy: external_exports.enum([
+        "pick-winner",
+        "disjoint-merge",
+        "aggregate-only",
+        "aggregate-any",
+        "aggregate-survivors"
+      ]),
       aggregate_path: external_exports.string().min(1),
       branches_completed: external_exports.number().int().nonnegative(),
       branches_failed: external_exports.number().int().nonnegative(),
@@ -90156,7 +90561,17 @@ function isReviewResultReportWriter(step) {
 }
 function isReviewerRelay(step) {
   const s = objectRecord(step);
-  return s !== void 0 && s.kind === "relay" && s.role === "reviewer";
+  if (s === void 0)
+    return false;
+  if (s.kind === "relay")
+    return s.role === "reviewer";
+  if (s.kind !== "fanout")
+    return false;
+  const branches = objectRecord(s.branches);
+  if (branches === void 0)
+    return false;
+  const templates = branches.kind === "dynamic" ? [branches.template] : Array.isArray(branches.branches) ? branches.branches : [];
+  return templates.length > 0 && templates.every((branch) => objectRecord(objectRecord(branch)?.execution)?.role === "reviewer");
 }
 function declaredCanonicalsFor(fixture) {
   const declared = /* @__PURE__ */ new Set();
@@ -93227,6 +93642,39 @@ function baseStep2(step) {
     ...step.budgets === void 0 ? {} : { budgets: step.budgets }
   };
 }
+function fanoutBranchRelay(step) {
+  const branches = step.branches;
+  const templates = branches.kind === "dynamic" ? [branches.template] : branches.branches;
+  const executions = templates.map((branch) => {
+    const record2 = branch;
+    return record2?.execution;
+  });
+  const first = executions[0];
+  if (executions.length === 0 || first?.kind !== "relay")
+    return void 0;
+  if (!executions.every((execution) => execution?.kind === "relay")) {
+    return void 0;
+  }
+  const branchRecord = templates[0];
+  if (branchRecord?.connector?.includes("$") === true)
+    return void 0;
+  const selection = branchSelection(branchRecord?.selection);
+  return {
+    role: first.role,
+    ...branchRecord?.connector === void 0 ? {} : { connector: branchRecord.connector },
+    ...selection === void 0 ? {} : { selection }
+  };
+}
+function branchSelection(selection) {
+  if (selection === void 0 || selection === null)
+    return void 0;
+  const parsed = SelectionOverride.safeParse({
+    ...selection,
+    skills: selection.skills ?? { mode: "inherit" },
+    invocation_options: selection.invocation_options ?? {}
+  });
+  return parsed.success ? parsed.data : void 0;
+}
 function indexedStep(step) {
   const base = baseStep2(step);
   if (step.kind === "checkpoint") {
@@ -93243,6 +93691,14 @@ function indexedStep(step) {
       role: step.role,
       ...step.connector === void 0 ? {} : { connector: step.connector },
       ...step.acceptanceCriteria === void 0 ? {} : { acceptance_criteria: step.acceptanceCriteria }
+    };
+  }
+  if (step.kind === "fanout") {
+    const relay = fanoutBranchRelay(step);
+    return {
+      ...base,
+      kind: step.kind,
+      ...relay === void 0 ? {} : { branch_relay: relay }
     };
   }
   return { ...base, kind: step.kind };
@@ -96982,6 +97438,15 @@ function evaluateFanoutJoinPolicy(input) {
       failureReason: `tournament collapsed: fanout step '${stepId}' had ${parseableSurvivors.length} parseable survivor(s), need at least 2${detail}`
     };
   }
+  if (policy2 === "aggregate-any") {
+    if (parseableSurvivors.length >= 1)
+      return { joinedSuccessfully: true };
+    const failedOutcome = outcomes.find((outcome) => outcome.failure_reason !== void 0);
+    return {
+      joinedSuccessfully: false,
+      failureReason: failedOutcome?.failure_reason === void 0 ? `fanout step '${stepId}' aggregate-any: no branch produced a parseable result body` : `fanout step '${stepId}' aggregate-any: no branch produced a parseable result body (${failedOutcome.failure_reason})`
+    };
+  }
   if (policy2 === "aggregate-only") {
     const allClosed = outcomes.every((outcome) => RunClosedOutcome.options.includes(outcome.child_outcome));
     const allParseable = parseableSurvivors.length === outcomes.length;
@@ -97983,6 +98448,12 @@ var init_operator_summary = __esm({
       power_rationale: external_exports.string().min(1).optional(),
       power_clamped: external_exports.boolean().optional(),
       worker_runs: external_exports.number().int().nonnegative(),
+      // Steps whose worker never came back — it failed and no later attempt
+      // answered. A fan-out step keeps going when one branch dies, so a run can
+      // close with part of its target unworked; the check counts cannot show
+      // that, because a worker that never answered never reached a check.
+      // Absent when every worker answered.
+      worker_runs_failed: external_exports.number().int().positive().optional(),
       escalations: external_exports.number().int().nonnegative(),
       models: external_exports.array(ProviderScopedModel),
       checks_evaluated: external_exports.number().int().nonnegative(),
@@ -101210,9 +101681,13 @@ function relayBranchProvenanceFailure(branch, reportBody) {
   }
   return void 0;
 }
-function relayBranchReads(step, branch) {
-  const paths = (step.reads ?? []).map((ref) => ref.path);
-  for (const path of branch.reads ?? []) {
+function relayBranchReads(step, branch, branchDirRel) {
+  const paths = branch.inherit_step_reads === false ? [] : (step.reads ?? []).map((ref) => ref.path);
+  const branchPaths = [
+    ...branch.item_evidence === void 0 ? [] : [`${branchDirRel}/${ITEM_EVIDENCE_FILE}`],
+    ...branch.reads ?? []
+  ];
+  for (const path of branchPaths) {
     if (!paths.includes(path))
       paths.push(path);
   }
@@ -101228,7 +101703,7 @@ function syntheticRelayStep(step, branch, branchDirRel) {
     title: syntheticRelayTitle(step, branch),
     ...step.protocol === void 0 ? {} : { protocol: step.protocol },
     routes: { pass: { kind: "terminal", target: "@complete" } },
-    reads: relayBranchReads(step, branch).map((path) => ({ path })),
+    reads: relayBranchReads(step, branch, branchDirRel).map((path) => ({ path })),
     writes: {
       request: { path: `${branchDirRel}/request.txt` },
       receipt: { path: `${branchDirRel}/receipt.txt` },
@@ -101252,7 +101727,7 @@ function syntheticCompiledRelayStepV1(step, branch, branchDirRel) {
     id: `${step.id}-${branch.branch_id}`,
     title: syntheticRelayTitle(step, branch),
     protocol: step.protocol ?? `${step.id}@v1`,
-    reads: relayBranchReads(step, branch),
+    reads: relayBranchReads(step, branch, branchDirRel),
     routes: { pass: "@complete" },
     ...branch.selection === void 0 ? {} : { selection: branch.selection },
     skill_slots: [],
@@ -101335,9 +101810,13 @@ async function executeRelayFanoutBranch(step, context, branch, relayConnector, b
     worktree_path: branchDirAbs
   });
   try {
+    if (branch.item_evidence !== void 0) {
+      await context.files.writeText(`${branchDirRel}/${ITEM_EVIDENCE_FILE}`, branch.item_evidence.endsWith("\n") ? branch.item_evidence : `${branch.item_evidence}
+`);
+    }
     if (relayConnector === void 0) {
       const relayStep = syntheticRelayStep(step, branch, branchDirRel);
-      const relayAttempt = await executeProductionRelayAttempt({
+      const ask = async () => await executeProductionRelayAttempt({
         step: relayStep,
         compiledStep: syntheticCompiledRelayStepV1(step, branch, branchDirRel),
         context,
@@ -101348,6 +101827,11 @@ async function executeRelayFanoutBranch(step, context, branch, relayConnector, b
         },
         validateAcceptedResult: (input) => validateAcceptedRelayFanoutBranch(branch, input)
       });
+      let relayAttempt = await ask();
+      const maxAttempts = branch.max_attempts ?? 1;
+      for (let attemptNumber = 2; attemptNumber <= maxAttempts && relayAttempt.kind !== "connector_failed" && relayAttempt.evaluation.kind !== "pass"; attemptNumber += 1) {
+        relayAttempt = await ask();
+      }
       const durationMs2 = Math.max(0, Date.now() - startMs);
       const outcome = relayAttempt.kind === "connector_failed" ? {
         child_outcome: "aborted",
@@ -101684,6 +102168,7 @@ async function executeSubRunFanoutBranch(step, context, branch, worktreeRunner, 
 function branchNeedsWorktree(branch) {
   return branch.kind === "sub-run";
 }
+var ITEM_EVIDENCE_FILE;
 var init_branch_execution = __esm({
   "dist/runtime/fanout/branch-execution.js"() {
     "use strict";
@@ -101698,11 +102183,25 @@ var init_branch_execution = __esm({
     init_relay_support();
     init_reuse_children();
     init_types2();
+    ITEM_EVIDENCE_FILE = "evidence.md";
   }
 });
 
 // dist/runtime/fanout/branch-expansion.js
-function resolveBranch(branch) {
+function itemEvidence(item, field, branchId) {
+  if (item === void 0) {
+    throw new Error(`fanout branch '${branchId}': item_evidence_field needs a dynamic fanout; a static branch has no item to take evidence from`);
+  }
+  if (item === null || typeof item !== "object" || Array.isArray(item)) {
+    throw new Error(`dynamic fanout branch '${branchId}': item_evidence_field '${field}' needs an object item`);
+  }
+  const value = item[field];
+  if (typeof value !== "string" || value.length === 0) {
+    throw new Error(`dynamic fanout branch '${branchId}': item field '${field}' must be non-empty text to serve as this branch's evidence`);
+  }
+  return value;
+}
+function resolveBranch(branch, item) {
   if ("flow_ref" in branch) {
     return {
       kind: "sub-run",
@@ -101722,7 +102221,12 @@ function resolveBranch(branch) {
     goal: branch.execution.goal,
     report_schema: branch.execution.report_schema,
     ...branch.execution.reads === void 0 ? {} : { reads: branch.execution.reads.map((path) => String(path)) },
+    ...branch.execution.item_evidence_field === void 0 ? {} : {
+      item_evidence: itemEvidence(item, branch.execution.item_evidence_field, branch.branch_id)
+    },
+    ...branch.execution.inherit_step_reads === void 0 ? {} : { inherit_step_reads: branch.execution.inherit_step_reads },
     ...branch.execution.provenance_field === void 0 ? {} : { provenance_field: branch.execution.provenance_field },
+    ...branch.execution.max_attempts === void 0 ? {} : { max_attempts: branch.execution.max_attempts },
     ...branch.connector === void 0 ? {} : { connector: branch.connector },
     ...branch.selection === void 0 ? {} : { selection: branch.selection }
   };
@@ -101755,7 +102259,7 @@ async function expandFanoutBranches(step, files, context) {
       throw new Error(`dynamic fanout produced duplicate branch_id '${branch.branch_id}'`);
     }
     seen.add(branch.branch_id);
-    resolved.push(resolveBranch(branch));
+    resolved.push(resolveBranch(branch, item));
   }
   return resolved;
 }
@@ -101879,7 +102383,7 @@ function branchesDir(step) {
 }
 function joinPolicy(step) {
   const policy2 = step.check.join?.policy;
-  if (policy2 === "pick-winner" || policy2 === "disjoint-merge" || policy2 === "aggregate-only" || policy2 === "aggregate-survivors") {
+  if (policy2 === "pick-winner" || policy2 === "disjoint-merge" || policy2 === "aggregate-only" || policy2 === "aggregate-any" || policy2 === "aggregate-survivors") {
     return policy2;
   }
   throw new Error(`fanout step '${step.id}' has unsupported join policy`);
@@ -102990,10 +103494,23 @@ var init_write_capable_worker_disclosure = __esm({
 
 // dist/runtime/projections/progress.js
 import { join as join30 } from "node:path";
+function displayStepId(input) {
+  if (input.flow.steps.some((step) => step.id === input.stepId))
+    return input.stepId;
+  let parent;
+  for (const step of input.flow.steps) {
+    if (!input.stepId.startsWith(`${step.id}-`))
+      continue;
+    if (parent === void 0 || step.id.length > parent.length)
+      parent = step.id;
+  }
+  return parent ?? input.stepId;
+}
 function stepTitle(input) {
   if (input.stepId === void 0)
     return "<unknown step>";
-  return input.flow.steps.find((step) => step.id === input.stepId)?.title ?? input.stepId;
+  const stepId = displayStepId({ flow: input.flow, stepId: input.stepId });
+  return input.flow.steps.find((step) => step.id === stepId)?.title ?? input.stepId;
 }
 function flowLabel(flowId) {
   return flowId.split("-").filter((part) => part.length > 0).map((part) => `${part.slice(0, 1).toUpperCase()}${part.slice(1)}`).join(" ");
@@ -103158,7 +103675,7 @@ function shouldWarnAboutWriteCapableWorker(flow) {
 }
 function stepDisplay(input) {
   const title = stepTitle({ flow: input.flow, stepId: input.stepId });
-  const metadata = input.stepDisplayById.get(input.stepId);
+  const metadata = input.stepDisplayById.get(displayStepId({ flow: input.flow, stepId: input.stepId }));
   if (metadata !== void 0) {
     return {
       title,
@@ -111339,6 +111856,7 @@ function readRunReceipt(runFolder) {
   let powerAuto = false;
   let inference;
   let workerRuns = 0;
+  const failedRelaysByStep = /* @__PURE__ */ new Map();
   let escalations = 0;
   let checksEvaluated = 0;
   let checksFailed = 0;
@@ -111399,8 +111917,17 @@ function readRunReceipt(runFolder) {
       }
       continue;
     }
+    if (entry.kind === "relay.failed") {
+      const stepId = stringField2(entry, "step_id");
+      if (stepId !== void 0) {
+        failedRelaysByStep.set(stepId, (failedRelaysByStep.get(stepId) ?? 0) + 1);
+      }
+      continue;
+    }
     if (entry.kind === "relay.completed") {
       const stepId = stringField2(entry, "step_id");
+      if (stepId !== void 0)
+        failedRelaysByStep.delete(stepId);
       const started = stepId === void 0 || typeof entry.attempt !== "number" ? void 0 : relayRoleByKey.get(`${stepId}#${entry.attempt}`);
       if (started === void 0)
         continue;
@@ -111472,6 +111999,7 @@ function readRunReceipt(runFolder) {
       power_clamped: inference.clamped
     } : {},
     worker_runs: workerRuns,
+    ...failedRelaysByStep.size === 0 ? {} : { worker_runs_failed: failedRelaysByStep.size },
     escalations,
     models,
     checks_evaluated: checksEvaluated,
@@ -111488,7 +112016,7 @@ function receiptLine(receipt, outcome) {
     parts.push(`power ${receipt.power}${autoQualifier}`);
   }
   parts.push(`process ${receipt.depth}`);
-  parts.push(`${receipt.worker_runs} ${runsWord}`);
+  parts.push(receipt.worker_runs_failed === void 0 ? `${receipt.worker_runs} ${runsWord}` : `${receipt.worker_runs} ${runsWord} (${receipt.worker_runs_failed} never came back)`);
   if (receipt.escalations > 0) {
     parts.push(`${receipt.escalations} ${receipt.escalations === 1 ? "escalation" : "escalations"}`);
   }
@@ -114406,9 +114934,11 @@ function planRunRelays(input) {
   const executable = fromCompiledFlow(input.flow);
   const index = buildRuntimePackageIndex(executable);
   const plans = [];
-  for (const step of index.flow.steps) {
-    if (step.kind !== "relay")
+  for (const indexedStep2 of index.flow.steps) {
+    const branchRelay = indexedStep2.kind === "fanout" ? indexedStep2.branch_relay : void 0;
+    if (indexedStep2.kind !== "relay" && branchRelay === void 0)
       continue;
+    const step = branchRelay === void 0 ? indexedStep2 : { ...indexedStep2, ...branchRelay };
     const relay = resolveRelayGuidanceExecution({
       flowId: index.flow.id,
       role: step.role,
@@ -116289,7 +116819,8 @@ function previewRelayStep(input) {
     powerSource: resolved.power_source ?? "fixed",
     escalated: resolved.power_escalated === true,
     ...problem === void 0 ? {} : { problem },
-    ...input.skipped ? { skippedAtProcess: true } : {}
+    ...input.skipped ? { skippedAtProcess: true } : {},
+    ...input.runsPerItem === true ? { runsPerItem: true } : {}
   };
 }
 function enumeratePreviewSteps(result, definition, process15) {
@@ -116344,16 +116875,19 @@ function resolveFlowSelectionPreview(input) {
   const relaySteps = [];
   const nonRelaySteps = [];
   for (const { step, flow, skipped } of enumeratePreviewSteps(compileResult, definition, process15)) {
-    if (step.kind === "relay") {
+    const branchRelay = step.kind === "fanout" ? step.branch_relay : void 0;
+    if (step.kind === "relay" || branchRelay !== void 0) {
+      const relayShaped = branchRelay === void 0 ? step : { ...step, ...branchRelay, kind: "relay" };
       relaySteps.push(previewRelayStep({
-        step,
+        step: relayShaped,
         flow,
         flowId: input.flowId,
         layers,
         depth,
         hostKind: input.hostKind,
         codexDefaultModel,
-        skipped
+        skipped,
+        ...branchRelay === void 0 ? {} : { runsPerItem: true }
       }));
     } else {
       nonRelaySteps.push({
@@ -116498,7 +117032,7 @@ function sourceCellText(modelSource, effortSource) {
 function stepCells(palette, step, process15) {
   if (step.skippedAtProcess === true) {
     return [
-      cell2(step.stepId, palette.dim),
+      cell2(step.runsPerItem === true ? `${step.stepId} (per item)` : step.stepId, palette.dim),
       cell2(step.role, palette.dim),
       cell2(step.connector, palette.dim),
       cell2(modelCell(step), palette.dim),
@@ -116509,7 +117043,9 @@ function stepCells(palette, step, process15) {
   const modelPaint = step.model === void 0 ? palette.dim : isExplicit(step.modelSource) ? composePaints(palette.bold, palette.provider(step.provider)) : palette.provider(step.provider);
   const effortPaint = step.effort === void 0 ? palette.dim : isExplicit(step.effortSource) ? palette.bold : void 0;
   return [
-    cell2(step.stepId),
+    // A fan-out row is one relay repeated per item, and a reader who is told
+    // "one reviewer" when the run dispatches six has been misinformed.
+    cell2(step.runsPerItem === true ? `${step.stepId} (per item)` : step.stepId),
     cell2(step.role, palette.role(step.role)),
     cell2(step.connector),
     cell2(modelCell(step), modelPaint),
@@ -157934,10 +158470,12 @@ function connectorsForCompiledFlow(compiled, layers, hostKind) {
   const flowId = index.flow.id;
   const resolved = [];
   for (const step of index.flow.steps) {
-    if (step.kind !== "relay")
+    const branchRelay = step.kind === "fanout" ? step.branch_relay : void 0;
+    if (step.kind !== "relay" && branchRelay === void 0)
       continue;
-    const role = RelayRole.parse(step.role);
-    const explicitConnector = explicitConnectorForStep(step, layers);
+    const relayShaped = branchRelay === void 0 ? step : { ...step, ...branchRelay };
+    const role = RelayRole.parse(relayShaped.role);
+    const explicitConnector = explicitConnectorForStep(relayShaped, layers);
     const decision2 = resolveConnectorForGuidanceInput({
       flowId,
       role,

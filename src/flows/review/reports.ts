@@ -26,10 +26,6 @@ export const ReviewEvidenceWarningKind = z.enum([
   'snapshot_fallback',
   'snapshot_truncated',
   'snapshot_file_skipped',
-  // The operator named the repository as a whole. Distinct from
-  // `target_assumed`, which says no target was named: saying that here would
-  // tell someone they gave no target when they gave one Review cannot cover.
-  'whole_repository_narrowed',
   // The operator asked for the code as it stands but named nowhere to look, so
   // the run reviewed changes instead. Said out loud, because "no findings"
   // answers a different question than the one asked.
@@ -362,6 +358,60 @@ export type ReviewResolvedTarget = z.infer<typeof ReviewResolvedTarget>;
 export const ReviewTargetProvenance = z.enum(['named', 'inferred']);
 export type ReviewTargetProvenance = z.infer<typeof ReviewTargetProvenance>;
 
+/**
+ * One reviewable unit: the whole of what a single reviewer is shown.
+ *
+ * Review's reviewer is sealed from the repository, so a unit is not a pointer
+ * to code — it carries the code. Most targets are one unit, because a diff or a
+ * handful of files fits in one prompt. A whole codebase does not, so it becomes
+ * several, and the audit step runs one reviewer per unit.
+ *
+ * `unit_id` doubles as the fan-out branch id, which is why it is a slug rather
+ * than free text.
+ */
+export const ReviewIntakeUnit = z
+  .object({
+    unit_id: z.string().regex(/^[a-z0-9]+(?:-[a-z0-9]+)*$/u, {
+      message: 'unit_id must be a kebab-case slug',
+    }),
+    // What a person would call this unit, for the report and the operator view.
+    label: z.string().min(1),
+    // Repository-relative paths this unit covers. Empty when the unit is a
+    // change rather than a set of files, which is the ordinary single-unit case.
+    paths: z.array(z.string().min(1)),
+    // What this unit's reviewer is asked to do. Carried per unit because a
+    // codebase reviewer needs to be told which slice it holds and that other
+    // slices exist.
+    goal: z.string().min(1),
+    // The evidence itself, verbatim. The engine writes this text into the
+    // reviewer's branch folder and reads it back, so the reviewer sees this
+    // unit and nothing else.
+    contents: z.string().min(1),
+  })
+  .strict();
+export type ReviewIntakeUnit = z.infer<typeof ReviewIntakeUnit>;
+
+/**
+ * How much of the target the units actually account for.
+ *
+ * A split review can be honest only if the close step can say what it covered.
+ * Every target reports this, so nothing downstream has to infer coverage from
+ * the shape of the evidence.
+ */
+export const ReviewUnitCoverage = z
+  .object({
+    // Files the target matched before any bound applied.
+    matched_file_count: z.number().int().nonnegative(),
+    // Files the units actually carry.
+    reviewed_file_count: z.number().int().nonnegative(),
+    // True when the target was larger than Review could pack into units, so
+    // some of it was left out. A verdict over a truncated target may not claim
+    // to have reviewed the whole thing.
+    truncated: z.boolean(),
+  })
+  .strict();
+export type ReviewUnitCoverage = z.infer<typeof ReviewUnitCoverage>;
+
 export const ReviewIntake = z
   .object({
     scope: z.string().min(1),
@@ -369,6 +419,10 @@ export const ReviewIntake = z
     target_provenance: ReviewTargetProvenance,
     evidence: ReviewEvidence,
     evidence_warnings: z.array(ReviewEvidenceWarning).default([]),
+    // Always present and never empty: an intake that framed a review but named
+    // no unit would be an intake that captured nothing for the reviewer to read.
+    units: z.array(ReviewIntakeUnit).min(1),
+    unit_coverage: ReviewUnitCoverage,
   })
   .strict();
 export type ReviewIntake = z.infer<typeof ReviewIntake>;
@@ -444,7 +498,7 @@ export const ReviewResult = z
   });
 export type ReviewResult = z.infer<typeof ReviewResult>;
 
-export const ReviewRelayResult = z
+const ReviewRelayResultShape = z
   .object({
     verdict: ReviewRelayVerdict,
     findings: z.array(ReviewFinding),
@@ -463,17 +517,79 @@ export const ReviewRelayResult = z
     // when coverage was complete).
     confidence_limitations: z.array(z.string().min(1)),
   })
-  .strict()
-  // Derive the verdict from the findings rather than rejecting a reviewer that
-  // picked the wrong word for its own answer. The findings are the substance;
-  // the verdict is a one-word label over them, and `projectReviewResult`
-  // already recomputes the operator-facing verdict from the findings list.
-  // Rejecting instead would return failureKind 'schema' from the relay
-  // executor, which retries once and then closes the run `evidence_invalid` —
-  // a whole review of real defects thrown away over a mislabel.
-  .transform((report) => {
-    const verdict: z.infer<typeof ReviewRelayVerdict> =
-      report.findings.length === 0 ? 'NO_ISSUES_FOUND' : 'ISSUES_FOUND';
-    return { ...report, verdict };
-  });
+  .strict();
+
+// Derive the verdict from the findings rather than rejecting a reviewer that
+// picked the wrong word for its own answer. The findings are the substance;
+// the verdict is a one-word label over them, and `projectReviewResult`
+// already recomputes the operator-facing verdict from the findings list.
+// Rejecting instead would return failureKind 'schema' from the relay
+// executor, which retries once and then closes the run `evidence_invalid` —
+// a whole review of real defects thrown away over a mislabel.
+function withDerivedRelayVerdict<T extends { readonly findings: readonly unknown[] }>(
+  report: T,
+): T & { verdict: z.infer<typeof ReviewRelayVerdict> } {
+  return {
+    ...report,
+    verdict: report.findings.length === 0 ? 'NO_ISSUES_FOUND' : 'ISSUES_FOUND',
+  };
+}
+
+export const ReviewRelayResult = ReviewRelayResultShape.transform(withDerivedRelayVerdict);
 export type ReviewRelayResult = z.infer<typeof ReviewRelayResult>;
+
+/**
+ * One unit's reviewer response.
+ *
+ * Identical to a whole-target review except that it names the unit it was
+ * assigned. The audit step checks that name against the branch it dispatched,
+ * so a reviewer cannot report on a slice it was not given, and the close step
+ * can attribute every finding to the unit it came from.
+ */
+export const ReviewUnitVerdict = ReviewRelayResultShape.extend({
+  unit_id: z.string().min(1),
+})
+  .strict()
+  .transform(withDerivedRelayVerdict);
+export type ReviewUnitVerdict = z.infer<typeof ReviewUnitVerdict>;
+
+/**
+ * The fan-out aggregate the engine writes after joining the audit's branches.
+ *
+ * The close step reads this one file rather than each branch report: it carries
+ * every unit's verdict body plus, for units whose reviewer never produced one,
+ * the fact that it did not. That second half is what makes an honest partial
+ * close possible.
+ */
+export const ReviewAuditAggregateBranch = z
+  .object({
+    branch_id: z.string().min(1),
+    child_run_id: z.string().min(1),
+    child_outcome: z.enum(['complete', 'aborted', 'handoff', 'stopped', 'escalated']),
+    verdict: z.string().min(1),
+    admitted: z.boolean(),
+    result_path: z.string().min(1),
+    duration_ms: z.number().nonnegative(),
+    result_body: ReviewUnitVerdict.optional(),
+  })
+  .strict();
+export type ReviewAuditAggregateBranch = z.infer<typeof ReviewAuditAggregateBranch>;
+
+export const ReviewAuditAggregate = z
+  .object({
+    schema_version: z.literal(1),
+    join_policy: z.literal('aggregate-any'),
+    branch_count: z.number().int().positive(),
+    branches: z.array(ReviewAuditAggregateBranch).min(1),
+  })
+  .strict()
+  .superRefine((aggregate, ctx) => {
+    if (aggregate.branch_count !== aggregate.branches.length) {
+      ctx.addIssue({
+        code: 'custom',
+        path: ['branch_count'],
+        message: 'branch_count must match branches.length',
+      });
+    }
+  });
+export type ReviewAuditAggregate = z.infer<typeof ReviewAuditAggregate>;

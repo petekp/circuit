@@ -18,7 +18,12 @@
         }
       },
       "stages": ["Intake", "Independent Audit", "Verdict"],
-      "reports": ["review.intake@v1", "review.result@v1", "review.verdict@v1"],
+      "reports": [
+        "review.audit-aggregate@v1",
+        "review.intake@v1",
+        "review.result@v1",
+        "review.unit-verdict@v1"
+      ],
       "writers": {
         "compose": 2,
         "close": 0,

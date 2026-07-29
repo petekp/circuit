@@ -182,6 +182,12 @@ export const OperatorRunReceipt = z
     power_rationale: z.string().min(1).optional(),
     power_clamped: z.boolean().optional(),
     worker_runs: z.number().int().nonnegative(),
+    // Steps whose worker never came back — it failed and no later attempt
+    // answered. A fan-out step keeps going when one branch dies, so a run can
+    // close with part of its target unworked; the check counts cannot show
+    // that, because a worker that never answered never reached a check.
+    // Absent when every worker answered.
+    worker_runs_failed: z.number().int().positive().optional(),
     escalations: z.number().int().nonnegative(),
     models: z.array(ProviderScopedModel),
     checks_evaluated: z.number().int().nonnegative(),

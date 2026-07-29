@@ -5,8 +5,14 @@
   "goal": "review this change",
   "outcome": "complete",
   "summary": "Run closed with outcome complete via @complete.",
-  "closed_at": "2026-04-29T19:00:19.000Z",
-  "trace_entries_observed": 18,
-  "manifest_hash": "fb48eb43bf3fe43fc521c868505f661a8ff63ed1ccad7da3eb5971f8d84ff1b7",
-  "verdict": "NO_ISSUES_FOUND"
+  "closed_at": "2026-04-29T19:00:25.000Z",
+  "trace_entries_observed": 24,
+  "manifest_hash": "0c5880b14a294c3ccf6253812730255ede099370f7b9be7f1631582dd85f9181",
+  "verdict": "NO_ISSUES_FOUND",
+  "engine": {
+    "version": "0.1.1",
+    "source": "git",
+    "sha": "b5b26ab59dce6725958c7804bfd7f19820f6a350",
+    "dirty": true
+  }
 }

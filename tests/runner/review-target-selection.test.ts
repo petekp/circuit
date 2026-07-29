@@ -74,10 +74,10 @@ describe('review target selection', () => {
     expect(intake.evidence_warnings.map((warning) => warning.kind)).toContain('target_assumed');
   });
 
-  // Naming the repository is naming a target. The run still covers the changes,
-  // which is less than was asked for, so the gap is what the report has to name
-  // — and it must not also claim the goal named nothing.
-  it('tells a whole-repository request what it covered instead of claiming no target was named', async () => {
+  // Naming the repository is naming a target, and the target is the code. The
+  // run reads the tree and splits it into units rather than quietly reviewing
+  // whatever happens to be uncommitted in it.
+  it('reads the code when the goal names the whole repository', async () => {
     const { bytes } = loadFixture();
     const runFolder = join(reviewRunFolderBase(), 'whole-repository-narrowed');
     const projectRoot = stagedReviewProject('whole-repository-narrowed-project');
@@ -107,18 +107,20 @@ describe('review target selection', () => {
     });
 
     expect(outcome.outcome).toBe('complete');
-    expect(relayCalls).toBe(1);
+    expect(relayCalls).toBeGreaterThanOrEqual(1);
     const intake = JSON.parse(
       readFileSync(join(runFolder, 'reports', 'review-intake.json'), 'utf8'),
-    ) as { evidence_warnings: Array<{ kind: string; message: string }> };
-    const kinds = intake.evidence_warnings.map((warning) => warning.kind);
-    expect(kinds).toContain('whole_repository_narrowed');
-    expect(kinds).not.toContain('target_assumed');
-    const narrowed = intake.evidence_warnings.find(
-      (warning) => warning.kind === 'whole_repository_narrowed',
-    );
-    expect(narrowed?.message).toMatch(/whole repository/iu);
-    expect(narrowed?.message).toMatch(/not something it can do yet/iu);
+    ) as {
+      target: { kind: string; paths?: { include: string[] } };
+      units: Array<{ unit_id: string }>;
+      evidence: { kind: string };
+      evidence_warnings: Array<{ kind: string; message: string }>;
+    };
+    expect(intake.target).toMatchObject({ kind: 'snapshot', paths: { include: ['.'] } });
+    expect(intake.evidence.kind).toBe('git-snapshot');
+    expect(intake.units.length).toBeGreaterThanOrEqual(1);
+    // The operator named a target, so nothing may claim they named none.
+    expect(intake.evidence_warnings.map((warning) => warning.kind)).not.toContain('target_assumed');
   });
 
   // The phrase was understood and could not be honoured. Reporting that is the
@@ -165,10 +167,9 @@ describe('review target selection', () => {
     expect(dropped?.message).toMatch(/needs a path to bound it/iu);
   });
 
-  // The clean-tree stop is where the old message was worst: it told the
-  // operator they named no target and offered four narrower targets, none of
-  // which is a codebase audit.
-  it('stops a whole-repository request on a clean tree by naming the real limit', async () => {
+  // A repository with nothing committed has nothing to read. The stop has to
+  // say that, and must not send the operator after a path they never named.
+  it('stops a whole-repository request on an empty repository by naming the real limit', async () => {
     const { bytes } = loadFixture();
     const runFolder = join(reviewRunFolderBase(), 'whole-repository-clean-tree');
     const projectRoot = join(reviewRunFolderBase(), 'whole-repository-clean-project');
@@ -188,17 +189,16 @@ describe('review target selection', () => {
         connectorName: 'codex',
         relay: async (): Promise<RelayResult> => {
           relayCalls += 1;
-          throw new Error('a clean tree must stop before relay');
+          throw new Error('an empty repository must stop before relay');
         },
       },
     });
 
     expect(relayCalls).toBe(0);
-    expect(outcome.reason).toMatch(/whole codebase in one pass/iu);
-    expect(outcome.reason).toMatch(/as it stands/iu);
+    expect(outcome.reason).toMatch(/no tracked files in this repository/iu);
     // The two claims that made the old message unusable.
     expect(outcome.reason).not.toMatch(/did not name a target/iu);
-    expect(outcome.reason).not.toMatch(/staged, or unstaged/iu);
+    expect(outcome.reason).not.toMatch(/Check the path/iu);
   });
 
   it('reviews actual supplied text without collecting or relaying unrelated working-tree code', async () => {

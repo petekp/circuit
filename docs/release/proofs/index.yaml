@@ -60,7 +60,8 @@ scenarios:
     backing_paths:
       - docs/release/proofs/runs/review/run/reports/review-intake.json
       - docs/release/proofs/runs/review/run/reports/review-result.json
-      - docs/release/proofs/runs/review/run/reports/relay/review.receipt.txt
+      - docs/release/proofs/runs/review/run/reports/review-audit-aggregate.json
+      - docs/release/proofs/runs/review/run/reports/review-units/unit-1/receipt.txt
       - docs/release/proofs/runs/review/run/reports/result.json
     exception_ids: []
     readiness_refs: [REL-005, REL-011]

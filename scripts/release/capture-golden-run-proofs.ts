@@ -422,6 +422,10 @@ function reviewRelayer(): Relayer {
       request_payload: input.prompt,
       receipt_id: 'proof-review',
       result_body: JSON.stringify({
+        // The audit step fans out one reviewer per unit, and each reviewer
+        // reports under the unit it was handed. The branch step id carries
+        // it: `audit-step-<unit id>`.
+        unit_id: /Step: audit-step-([a-z0-9-]+)/u.exec(input.prompt)?.[1] ?? 'unit-1',
         verdict: 'NO_ISSUES_FOUND',
         findings: [],
         assessment:

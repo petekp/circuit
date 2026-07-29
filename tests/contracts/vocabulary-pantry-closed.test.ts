@@ -109,6 +109,12 @@ const WRITE_ONLY_UMBRELLAS: readonly string[] = [
   // see the header note and EXPECTED_RESOLVED below.
   'goal.checkpoint@v1',
   'prototype.checkpoint@v1',
+  // Review's audit step used to register this generic as its own relay report,
+  // which is what typed it. The step is now a fan-out: each branch reports
+  // review.unit-verdict@v1 and the join writes review.audit-aggregate@v1, which
+  // is what Review aliases the generic to. No flow reads the generic name raw
+  // any more, so it joins the write-only umbrellas and both gates stay inert.
+  'review.verdict@v1',
   'risk.decision@v1',
   'user.goal@v1',
   'verification.result@v1',
@@ -236,17 +242,16 @@ describe('vocabulary pantry is closed (A4 lock test)', () => {
       'pursuit.contract@v1',
       'pursuit.graph@v1',
       'review.intake@v1',
-      'review.verdict@v1',
       'route.decision@v1',
       'task.intake@v1',
     ];
 
     expect(resolved).toEqual(EXPECTED_RESOLVED);
     expect(unresolved).toEqual(EXPECTED_UNRESOLVED);
-    // Exact counts after genuine-linear-LIVE typed flow.result@v1: 36 total =
-    // 17 resolved + 19 unresolved (flow.result@v1 moved resolved←unresolved).
-    expect(resolved.length).toBe(17);
-    expect(unresolved.length).toBe(19);
+    // Exact counts after Review's audit step became a fan-out: 36 total =
+    // 16 resolved + 20 unresolved (review.verdict@v1 moved unresolved←resolved).
+    expect(resolved.length).toBe(16);
+    expect(unresolved.length).toBe(20);
     expect(resolved.length + unresolved.length).toBe(36);
   });
 

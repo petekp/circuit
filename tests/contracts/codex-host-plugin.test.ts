@@ -974,10 +974,14 @@ describe('Codex host plugin package', () => {
             relayer: {
               connectorName: 'claude-code',
               promptOnlyContext: true,
-              relay: async (_input: RelayInput): Promise<RelayResult> => ({
+              relay: async (input: RelayInput): Promise<RelayResult> => ({
                 request_payload: 'stub-request',
                 receipt_id: 'stub-receipt',
                 result_body: JSON.stringify({
+                  // The audit step fans out one reviewer per unit, and each
+                  // reviewer reports under the unit it was handed. The branch
+                  // step id carries it: `audit-step-<unit id>`.
+                  unit_id: /Step: audit-step-([a-z0-9-]+)/u.exec(input.prompt)?.[1] ?? 'unit-1',
                   verdict: 'NO_ISSUES_FOUND',
                   findings: [],
                   assessment: 'Stub reviewer: nothing actionable in the relayed evidence.',

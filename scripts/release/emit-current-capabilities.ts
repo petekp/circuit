@@ -266,6 +266,24 @@ function generatedStepsFor(id: string): NonNullable<FlowGeneratedFile['json']['s
   return readGeneratedFlowFiles(id).flatMap((file) => file.json.steps ?? []);
 }
 
+// A step relays to a reviewer either directly or through the branches of a
+// fan-out. Review's audit step is the second kind — one reviewer per unit —
+// so reading only the step's own `role` would report a flow whose whole
+// purpose is review as having no reviewer relay.
+function stepRelaysToReviewer(step: { readonly role?: string; readonly branches?: unknown }) {
+  if (step.role === 'reviewer') return true;
+  const branches = step.branches as
+    | { readonly template?: { readonly execution?: { readonly role?: string } } }
+    | { readonly branches?: readonly { readonly execution?: { readonly role?: string } }[] }
+    | undefined;
+  if (branches === undefined) return false;
+  const templates = [
+    ...('template' in branches && branches.template !== undefined ? [branches.template] : []),
+    ...('branches' in branches && branches.branches !== undefined ? branches.branches : []),
+  ];
+  return templates.some((branch) => branch?.execution?.role === 'reviewer');
+}
+
 function flowBehaviorAxes(pkg: FlowRecord): Record<string, string> {
   const steps = generatedStepsFor(pkg.id);
   const axes: Record<string, string> = {};
@@ -274,7 +292,7 @@ function flowBehaviorAxes(pkg: FlowRecord): Record<string, string> {
       'Compiled checkpoints can pause, auto-resolve safe defaults, or resume from operator input.';
   }
   if (
-    steps.some((step) => step.role === 'reviewer') ||
+    steps.some((step) => stepRelaysToReviewer(step)) ||
     readGeneratedFlowFiles(pkg.id).some((file) =>
       (file.json.stages ?? []).some((stage) => stage.canonical === 'review'),
     )

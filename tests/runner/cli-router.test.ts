@@ -94,6 +94,8 @@ const PURSUIT_REVIEW_BODY = JSON.stringify({
 // reviewer prose on every verdict, so a bare `{verdict, findings}` body would
 // fail validation and abort the run.
 const REVIEW_RELAY_BODY = JSON.stringify({
+  // Review fans out one reviewer per unit; a single-unit target has unit-1.
+  unit_id: 'unit-1',
   verdict: 'NO_ISSUES_FOUND',
   findings: [],
   assessment: 'Stub reviewer: nothing actionable in the relayed evidence.',
@@ -488,14 +490,17 @@ describe('CLI router', () => {
     expect(progress.find((event) => event.type === 'relay.started')?.display.text).toBe(
       'Circuit: Asking the reviewer to check the result...',
     );
+    // The audit step fans out one reviewer per unit, so the slot is per branch
+    // (`audit-step-<unit id>:relay`). Two reviewers running at once would
+    // otherwise overwrite each other's progress line.
     expect(progress.find((event) => event.type === 'relay.started')?.presentation).toMatchObject({
       line_mode: 'replace_slot',
-      slot_id: 'audit-step:relay',
+      slot_id: 'audit-step-unit-1:relay',
       status_text: 'Asking the reviewer to check the result...',
     });
     expect(progress.find((event) => event.type === 'relay.completed')?.presentation).toMatchObject({
       line_mode: 'replace_slot',
-      slot_id: 'audit-step:relay',
+      slot_id: 'audit-step-unit-1:relay',
       status_text: 'Finished checking the result.',
     });
     expect(progress.find((event) => event.type === 'relay.started')?.display.text).not.toContain(

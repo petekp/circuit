@@ -1,0 +1,44 @@
+{
+  "scope": "review this change",
+  "target": {
+    "kind": "working_tree",
+    "mode": "all",
+    "explicit": false
+  },
+  "target_provenance": "inferred",
+  "evidence": {
+    "kind": "git-working-tree",
+    "project_root": "<repo>/docs/release/proofs/runs/review/project",
+    "status_short": "M  src/example.ts\n?? notes.md\n",
+    "staged_diff": {
+      "text": "diff --git a/src/example.ts b/src/example.ts\nindex 64a32fd..87f1789 100644\n--- a/src/example.ts\n+++ b/src/example.ts\n@@ -1 +1 @@\n-export const answer = 42;\n+export const answer = 43;\n",
+      "truncated": false
+    },
+    "unstaged_diff": {
+      "text": "",
+      "truncated": false
+    },
+    "diff_stat": "Staged:\n src/example.ts | 2 +-\n 1 file changed, 1 insertion(+), 1 deletion(-)\n",
+    "target_kind": "working_tree",
+    "target_mode": "all",
+    "untracked_file_count": 1,
+    "untracked_files_truncated": false,
+    "untracked_content_policy": "metadata-only",
+    "untracked_files": [
+      {
+        "path": "notes.md",
+        "byte_length": 23
+      }
+    ]
+  },
+  "evidence_warnings": [
+    {
+      "kind": "target_assumed",
+      "message": "Assumed target: the current working tree. Name a commit, a range, staged, or unstaged to review something else."
+    },
+    {
+      "kind": "untracked_file_content_omitted",
+      "message": "untracked file contents were not included; pass --include-untracked-content only when those files are safe to relay"
+    }
+  ]
+}

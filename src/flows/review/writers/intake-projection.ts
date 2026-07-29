@@ -2,11 +2,14 @@ import { ReviewIntake } from '../reports.js';
 import type {
   ReviewEvidence,
   ReviewEvidenceWarning,
+  ReviewIntakeUnit,
   ReviewPathScope,
   ReviewResolvedTarget,
   ReviewTargetProvenance,
+  ReviewUnitCoverage,
 } from '../reports.js';
 import { containsOpaqueSubmoduleChange, opaqueBinaryChangePaths } from './evidence-completeness.js';
+import { packReviewUnits } from './units.js';
 
 export type ReviewIntakeProjectorInputs = {
   readonly scope: string;
@@ -20,11 +23,12 @@ export type ReviewIntakeProjectorInputs = {
   // paths, so Review read the current contents instead. Named out loud,
   // because "no findings" means something different for each.
   readonly snapshotFallbackFrom?: string;
-  // The operator asked about the repository as a whole. Review covered the
-  // changes in it, which is less than that, so the difference is reported.
-  readonly wholeRepository?: boolean;
   // The operator asked for the code as it stands with nowhere named to look.
   readonly snapshotNotApplied?: boolean;
+  // A target too large for one reviewer, already split. Absent for every target
+  // that fits in one prompt, which is most of them.
+  readonly units?: readonly ReviewIntakeUnit[];
+  readonly unitCoverage?: ReviewUnitCoverage;
 };
 
 /**
@@ -33,15 +37,6 @@ export type ReviewIntakeProjectorInputs = {
  */
 export const ASSUMED_WORKING_TREE_WARNING =
   'Assumed target: the current working tree. Name a commit, a range, staged, or unstaged to review something else.';
-
-/**
- * The operator named the repository as the subject and Review covered the
- * changes in it instead. Says what was covered, says what was not, and names
- * the one thing that does read code rather than a diff, because otherwise the
- * only way to learn that is to find out afterwards.
- */
-export const WHOLE_REPOSITORY_NARROWED_WARNING =
-  'You asked about the whole repository. Review covered the changes in it, not every file: reading a whole codebase in one pass is not something it can do yet. Name a path to review the code there as it stands, such as "review src/auth as it stands".';
 
 /**
  * Nobody named a target, so one was read out of the goal text. The wording has
@@ -160,13 +155,9 @@ export function reviewEvidenceWarnings(input: {
   readonly assumedTarget?: boolean;
   readonly scopeNotApplied?: readonly string[];
   readonly snapshotFallbackFrom?: string;
-  readonly wholeRepository?: boolean;
   readonly snapshotNotApplied?: boolean;
 }): ReviewEvidenceWarning[] {
-  // These two describe the same working tree and must never both appear. One
-  // says the operator named no target, the other says they named one Review
-  // cannot fully cover, and only one of those can be true of a given goal.
-  const targetDisclosed = input.wholeRepository === true || input.assumedTarget === true;
+  const targetDisclosed = input.assumedTarget === true;
   // Supplied material is the third way a target gets settled, and it is not an
   // inference at all: the operator pasted the thing to review, so the goal text
   // IS the subject rather than a description of one somewhere in Git. The
@@ -176,16 +167,9 @@ export function reviewEvidenceWarnings(input: {
   // statement about what Review did.
   const suppliedMaterial = input.evidence.kind === 'goal';
   const assumption: readonly ReviewEvidenceWarning[] = [
-    ...(input.wholeRepository === true
-      ? [
-          {
-            kind: 'whole_repository_narrowed' as const,
-            message: WHOLE_REPOSITORY_NARROWED_WARNING,
-          },
-        ]
-      : input.assumedTarget === true
-        ? [{ kind: 'target_assumed' as const, message: ASSUMED_WORKING_TREE_WARNING }]
-        : []),
+    ...(input.assumedTarget === true
+      ? [{ kind: 'target_assumed' as const, message: ASSUMED_WORKING_TREE_WARNING }]
+      : []),
     // Third member of the same family, and the one that covers the case the
     // other two miss: a phrase matched, so the target looks chosen. Suppressed
     // when either of the above fired, because both already say the target was
@@ -393,8 +377,125 @@ export function reviewEvidenceWarnings(input: {
   return warnings;
 }
 
+/** How a single-unit target describes itself in the unit list. */
+function singleUnitLabel(target: ReviewResolvedTarget): string {
+  if (target.kind === 'goal') return 'the material in the goal';
+  if (target.kind === 'commit') return `commit ${target.ref}`;
+  if (target.kind === 'range') return `range ${target.base}${target.dots}${target.head}`;
+  if (target.kind === 'snapshot') return reviewPathScopeLabel(target.paths);
+  return target.mode === 'all' ? 'the working tree' : `${target.mode} changes`;
+}
+
+/**
+ * File counts behind the coverage line.
+ *
+ * Only a snapshot reviews a file set, so only a snapshot can leave files out.
+ * A diff target reports zero of both: the question "how many files did you
+ * cover" is not one a change review answers, and reporting a made-up number
+ * would be worse than reporting none.
+ */
+function singleUnitCoverage(evidence: ReviewEvidence): {
+  matched_file_count: number;
+  reviewed_file_count: number;
+  truncated: boolean;
+} {
+  if (evidence.kind !== 'git-snapshot') {
+    return { matched_file_count: 0, reviewed_file_count: 0, truncated: false };
+  }
+  return {
+    matched_file_count: evidence.matched_file_count,
+    reviewed_file_count: evidence.files.length,
+    truncated: evidence.files_truncated,
+  };
+}
+
+/**
+ * What one reviewer is asked to hold.
+ *
+ * The bound is the reviewer's prompt, not the repository: 60k characters of
+ * source is a large but readable slice, and a dozen files is about as many as
+ * one review can speak to specifically. A tree bigger than one unit becomes
+ * more units rather than a bigger prompt.
+ */
+const CODEBASE_UNIT_BUDGET = { maxFilesPerUnit: 12, maxCharsPerUnit: 60_000 } as const;
+
+/**
+ * How many units the audit step can actually review.
+ *
+ * This has to equal `max_branches` on the audit fan-out. The engine treats a
+ * dynamic fan-out that expands past `max_branches` as a hard error and throws,
+ * so a packer free to emit more units than the flow declares does not degrade —
+ * it kills the run after the intake has already succeeded.
+ *
+ * Packing cannot be assumed to reach the budget. Units are flushed at directory
+ * boundaries, so an ordinary tree of many small directories yields units well
+ * under 12 files, and the count is set by how the tree is shaped rather than by
+ * how much text it holds. Circuit's own `src/` packs to 35 units at 1.44M
+ * characters, where perfect packing would be 24. Deriving the file and
+ * character caps from 24 x the unit budget was arithmetic that only held for a
+ * tree that packs perfectly, and no real one does.
+ *
+ * See `tests/unit/review-projections.test.ts` for the test that keeps this
+ * equal to the schematic.
+ */
+export const MAX_REVIEW_UNITS = 24;
+
+/**
+ * Pack a snapshot's files into units, or return undefined for a target that is
+ * not a file set.
+ *
+ * Each unit's contents is an intake body with the evidence narrowed to that
+ * unit's files. Keeping the shape identical to the whole-target body is what
+ * lets one reviewer prompt serve both cases: the reviewer reads the same
+ * structure whether it holds the entire target or a twelfth of it.
+ */
+function snapshotUnits(
+  scope: string,
+  evidence: ReviewEvidence,
+  body: Record<string, unknown>,
+): { units: readonly ReviewIntakeUnit[]; coverage: ReviewUnitCoverage } | undefined {
+  if (evidence.kind !== 'git-snapshot') return undefined;
+  const allPacked = packReviewUnits(
+    evidence.files.map((file) => ({ path: file.path, size: file.content?.text.length ?? 0 })),
+    CODEBASE_UNIT_BUDGET,
+  );
+  if (allPacked.length === 0) return undefined;
+  // More units than there are reviewers to run them. Keep what can actually be
+  // reviewed and let the count of files it covers carry the rest: a short
+  // review that says how far it got is worth having, and the alternative here
+  // is the engine throwing on expansion and the operator getting nothing.
+  const packed = allPacked.slice(0, MAX_REVIEW_UNITS);
+  const reviewedPaths = new Set(packed.flatMap((unit) => unit.paths));
+  const coverage = {
+    matched_file_count: evidence.matched_file_count,
+    reviewed_file_count: reviewedPaths.size,
+    truncated: evidence.files_truncated || packed.length < allPacked.length,
+  };
+  const byPath = new Map(evidence.files.map((file) => [file.path, file]));
+  const units = packed.map((unit) => {
+    const files = unit.paths
+      .map((path) => byPath.get(path))
+      .filter((file): file is (typeof evidence.files)[number] => file !== undefined);
+    return {
+      unit_id: unit.unit_id,
+      label: unit.label,
+      paths: [...unit.paths],
+      // Tell the reviewer what it is holding and what it is not. A reviewer
+      // that thinks a twelfth of a repository is the whole thing will write a
+      // conclusion about the whole thing, which is the failure this split
+      // exists to avoid.
+      goal:
+        packed.length === 1
+          ? `${scope} (You are reviewing unit ${unit.unit_id}, ${unit.label}, which is the whole of this target. Report under unit_id "${unit.unit_id}".)`
+          : `${scope} (You are reviewing unit ${unit.unit_id} of ${packed.length}: ${unit.label}, ${files.length} of the ${evidence.files.length} files in this target. Report under unit_id "${unit.unit_id}". The other units are being reviewed separately by other reviewers; you cannot see them, so review what is in this prompt and do not draw conclusions about the rest of the codebase.)`,
+      contents: JSON.stringify({ ...body, evidence: { ...evidence, files } }, null, 2),
+    };
+  });
+  return { units, coverage };
+}
+
 export function projectReviewIntake(input: ReviewIntakeProjectorInputs): ReviewIntake {
-  return ReviewIntake.parse({
+  const body = {
     scope: input.scope,
     target: input.target,
     target_provenance: input.targetProvenance,
@@ -408,8 +509,37 @@ export function projectReviewIntake(input: ReviewIntakeProjectorInputs): ReviewI
       ...(input.snapshotFallbackFrom === undefined
         ? {}
         : { snapshotFallbackFrom: input.snapshotFallbackFrom }),
-      ...(input.wholeRepository === true ? { wholeRepository: true } : {}),
       ...(input.snapshotNotApplied === true ? { snapshotNotApplied: true } : {}),
     }),
+  };
+  // A snapshot is the one target that can outgrow a single prompt: it carries
+  // whole files rather than a diff, and "review this codebase" is a snapshot of
+  // everything. So a snapshot is packed into units and reviewed a unit at a
+  // time. Every other target is one unit, carrying exactly the evidence bundle
+  // a whole-target reviewer was always handed.
+  const packedSnapshot =
+    input.units === undefined ? snapshotUnits(input.scope, input.evidence, body) : undefined;
+  const units = input.units ??
+    packedSnapshot?.units ?? [
+      {
+        unit_id: 'unit-1',
+        label: singleUnitLabel(input.target),
+        paths: [],
+        // The unit id travels in the goal because the goal is what the reviewer
+        // is told to do, and it has to report under the id it was given. Saying
+        // this unit is the whole target is what stops a reviewer from hedging
+        // about parts it cannot see when there are none.
+        goal: `${input.scope} (You are reviewing unit unit-1, ${singleUnitLabel(input.target)}, which is the whole of this target. Report under unit_id "unit-1".)`,
+        contents: JSON.stringify(body, null, 2),
+      },
+    ];
+  return ReviewIntake.parse({
+    ...body,
+    units,
+    // A snapshot that packed past the reviewer count reports the files its
+    // units actually carry, not everything the snapshot matched, so dropping
+    // units cannot read as full coverage.
+    unit_coverage:
+      input.unitCoverage ?? packedSnapshot?.coverage ?? singleUnitCoverage(input.evidence),
   });
 }

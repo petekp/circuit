@@ -114,12 +114,26 @@ function relayBranchProvenanceFailure(
   return undefined;
 }
 
+// Where a branch's own item text lands when the template names an
+// `item_evidence_field`. It sits in the branch folder beside the request,
+// receipt and report, so the run folder shows exactly what this worker saw.
+const ITEM_EVIDENCE_FILE = 'evidence.md';
+
 // The step's shared evidence first, then the branch's own. Shared context keeps
 // its position at the head of the prompt, and a branch that names a path the
 // step already reads does not get it twice.
-function relayBranchReads(step: FanoutStep, branch: ResolvedRelayBranch): readonly string[] {
-  const paths = (step.reads ?? []).map((ref) => ref.path);
-  for (const path of branch.reads ?? []) {
+function relayBranchReads(
+  step: FanoutStep,
+  branch: ResolvedRelayBranch,
+  branchDirRel: string,
+): readonly string[] {
+  const paths =
+    branch.inherit_step_reads === false ? [] : (step.reads ?? []).map((ref) => ref.path);
+  const branchPaths = [
+    ...(branch.item_evidence === undefined ? [] : [`${branchDirRel}/${ITEM_EVIDENCE_FILE}`]),
+    ...(branch.reads ?? []),
+  ];
+  for (const path of branchPaths) {
     if (!paths.includes(path)) paths.push(path);
   }
   return paths;
@@ -145,7 +159,7 @@ function syntheticRelayStep(
     title: syntheticRelayTitle(step, branch),
     ...(step.protocol === undefined ? {} : { protocol: step.protocol }),
     routes: { pass: { kind: 'terminal', target: '@complete' } },
-    reads: relayBranchReads(step, branch).map((path) => ({ path })),
+    reads: relayBranchReads(step, branch, branchDirRel).map((path) => ({ path })),
     writes: {
       request: { path: `${branchDirRel}/request.txt` },
       receipt: { path: `${branchDirRel}/receipt.txt` },
@@ -174,7 +188,7 @@ function syntheticCompiledRelayStepV1(
     id: `${step.id}-${branch.branch_id}` as never,
     title: syntheticRelayTitle(step, branch),
     protocol: (step.protocol ?? `${step.id}@v1`) as never,
-    reads: relayBranchReads(step, branch) as never,
+    reads: relayBranchReads(step, branch, branchDirRel) as never,
     routes: { pass: '@complete' },
     ...(branch.selection === undefined ? {} : { selection: branch.selection as never }),
     skill_slots: [],
@@ -282,23 +296,49 @@ export async function executeRelayFanoutBranch(
   });
 
   try {
+    // Materialize this branch's slice before anything composes a prompt: the
+    // read is declared against the branch folder, so the file has to be there
+    // by the time the prompt is built or the worker is handed
+    // `[reads unavailable: ...]` where its work should be.
+    if (branch.item_evidence !== undefined) {
+      await context.files.writeText(
+        `${branchDirRel}/${ITEM_EVIDENCE_FILE}`,
+        branch.item_evidence.endsWith('\n') ? branch.item_evidence : `${branch.item_evidence}\n`,
+      );
+    }
     if (relayConnector === undefined) {
       // Production relay branches reuse the normal relay attempt path so request,
       // receipt, result, report, trace, and validation behavior match top-level
       // relay steps. Injected connectors below remain a compatibility path for
       // tests and hosts that provide their own branch-local relay implementation.
       const relayStep = syntheticRelayStep(step, branch, branchDirRel);
-      const relayAttempt = await executeProductionRelayAttempt({
-        step: relayStep,
-        compiledStep: syntheticCompiledRelayStepV1(step, branch, branchDirRel),
-        context,
-        branchGoal: branch.goal,
-        formatConnectorFailureReason: (_stepId, error) => {
-          const reason = error instanceof Error ? error.message : String(error);
-          return `relay fanout branch '${branch.branch_id}': connector invocation failed (${reason})`;
-        },
-        validateAcceptedResult: (input) => validateAcceptedRelayFanoutBranch(branch, input),
-      });
+      const ask = async () =>
+        await executeProductionRelayAttempt({
+          step: relayStep,
+          compiledStep: syntheticCompiledRelayStepV1(step, branch, branchDirRel),
+          context,
+          branchGoal: branch.goal,
+          formatConnectorFailureReason: (_stepId, error) => {
+            const reason = error instanceof Error ? error.message : String(error);
+            return `relay fanout branch '${branch.branch_id}': connector invocation failed (${reason})`;
+          },
+          validateAcceptedResult: (input) => validateAcceptedRelayFanoutBranch(branch, input),
+        });
+      // Ask again on an answer this branch cannot use — a body that does not
+      // validate, or a verdict outside the admit list. A connector that failed
+      // to run is not re-asked: nothing about the request changed, so a second
+      // identical invocation is a second identical failure.
+      let relayAttempt = await ask();
+      const maxAttempts = branch.max_attempts ?? 1;
+      for (
+        let attemptNumber = 2;
+        attemptNumber <= maxAttempts &&
+        relayAttempt.kind !== 'connector_failed' &&
+        relayAttempt.evaluation.kind !== 'pass';
+        attemptNumber += 1
+      ) {
+        relayAttempt = await ask();
+      }
       const durationMs = Math.max(0, Date.now() - startMs);
       const outcome =
         relayAttempt.kind === 'connector_failed'

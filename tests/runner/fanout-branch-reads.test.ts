@@ -57,16 +57,22 @@ function seedRelayStep(id: string, reportPath: string, next: string): Record<str
   };
 }
 
+interface FanoutShape {
+  readonly stepReads?: readonly string[];
+  readonly branchReads?: readonly string[];
+  readonly itemEvidenceField?: string;
+}
+
 // The shipped sweep fanout, re-pointed at the seeded unit list and given
 // per-unit branch reads. Its concurrency, failure policy, aggregate write and
 // join are the compiled step's own.
-function fanoutStep(stepReads: readonly string[]): Record<string, unknown> {
+function fanoutStep(shape: FanoutShape): Record<string, unknown> {
   const compiled = JSON.parse(readFileSync(SWEEP_FIXTURE_PATH, 'utf8')) as {
     steps: Record<string, unknown>[];
   };
   const step = compiled.steps.find((entry) => entry.kind === 'fanout');
   if (step === undefined) throw new Error('no fanout step in the compiled sweep flow');
-  step.reads = [...stepReads];
+  step.reads = [...(shape.stepReads ?? [])];
   step.routes = { pass: '@complete', continue: '@complete', stop: '@stop' };
   step.branches = {
     kind: 'dynamic',
@@ -80,7 +86,10 @@ function fanoutStep(stepReads: readonly string[]): Record<string, unknown> {
         goal: 'Fix the findings in $item.pursuit_id.',
         report_schema: 'sweep.unit-fix@v1',
         provenance_field: 'unit_id',
-        reads: ['reports/units/$item.pursuit_id.json'],
+        ...(shape.branchReads === undefined ? {} : { reads: [...shape.branchReads] }),
+        ...(shape.itemEvidenceField === undefined
+          ? {}
+          : { item_evidence_field: shape.itemEvidenceField }),
       },
     },
     max_branches: 16,
@@ -88,8 +97,8 @@ function fanoutStep(stepReads: readonly string[]): Record<string, unknown> {
   return step;
 }
 
-function probeFlow(stepReads: readonly string[]): ExecutableFlow {
-  const fanout = fanoutStep(stepReads);
+function probeFlow(shape: FanoutShape): ExecutableFlow {
+  const fanout = fanoutStep(shape);
   const steps = [
     seedRelayStep('seed-units', UNITS_PATH, 'seed-unit-a'),
     seedRelayStep('seed-unit-a', 'reports/units/unit-a.json', 'seed-unit-b'),
@@ -124,7 +133,7 @@ function seedBody(marker: string): string {
     completed: UNIT_IDS.map((unitId) => ({
       pursuit_id: unitId,
       status: 'completed',
-      summary: `${unitId} is listed`,
+      summary: `SLICE-${unitId}: the only source this branch should see.`,
       evidence: [UNITS_PATH],
     })),
     skipped: [],
@@ -175,10 +184,10 @@ describe('dynamic fanout per-branch reads', () => {
 
   async function run(
     name: string,
-    stepReads: readonly string[],
+    shape: FanoutShape,
   ): Promise<{ prompts: Map<string, string>; outcome: string }> {
     const prompts = new Map<string, string>();
-    const result = await executeExecutableFlow(probeFlow(stepReads), {
+    const result = await executeExecutableFlow(probeFlow(shape), {
       runDir: join(baseDir, name),
       runId: randomUUID(),
       goal: 'fix each unit',
@@ -198,7 +207,9 @@ describe('dynamic fanout per-branch reads', () => {
   });
 
   it('hands each branch its own slice and no other', async () => {
-    const { prompts, outcome } = await run('split', []);
+    const { prompts, outcome } = await run('split', {
+      branchReads: ['reports/units/$item.pursuit_id.json'],
+    });
 
     expect(outcome).toBe('complete');
     expect([...prompts.keys()].sort()).toEqual(['unit-a', 'unit-b']);
@@ -214,11 +225,34 @@ describe('dynamic fanout per-branch reads', () => {
   });
 
   it('puts the shared step evidence ahead of the branch evidence', async () => {
-    const { prompts } = await run('shared', [UNITS_PATH]);
+    const { prompts } = await run('shared', {
+      stepReads: [UNITS_PATH],
+      branchReads: ['reports/units/$item.pursuit_id.json'],
+    });
 
     const alpha = prompts.get('unit-a') as string;
     const shared = alpha.indexOf(`path="${UNITS_PATH}"`);
     expect(shared).toBeGreaterThan(-1);
     expect(shared).toBeLessThan(alpha.indexOf('path="reports/units/unit-a.json"'));
+  });
+
+  // The slice a branch reviews does not have to exist as a file before the run:
+  // when the source item carries the text itself, the engine writes that item's
+  // own field into the branch folder and reads it there. This is what lets a
+  // sealed reviewer — one with no repository access at all — still be handed one
+  // unit of a codebase and nothing else.
+  it('writes the branch its own item text and reads it back', async () => {
+    const { prompts, outcome } = await run('item-evidence', {
+      itemEvidenceField: 'summary',
+    });
+
+    expect(outcome).toBe('complete');
+    const alpha = prompts.get('unit-a') as string;
+    const bravo = prompts.get('unit-b') as string;
+    expect(alpha).toContain('path="reports/sweep/wave-branches/unit-a/evidence.md"');
+    expect(alpha).toContain('SLICE-unit-a');
+    expect(alpha).not.toContain('SLICE-unit-b');
+    expect(bravo).toContain('SLICE-unit-b');
+    expect(bravo).not.toContain('SLICE-unit-a');
   });
 });

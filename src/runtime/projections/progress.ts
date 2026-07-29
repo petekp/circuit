@@ -38,12 +38,34 @@ export interface ProgressProjectionFiles {
   readText(path: string): string | undefined;
 }
 
+// A fan-out branch runs under a synthetic step id of `<step id>-<branch id>`,
+// which is not a step in the flow. For operator copy that id has to resolve
+// back to the step it came from, or the reviewer working on one unit of a
+// codebase is announced as the raw id `audit-step-unit-1` with generic
+// wording. The branch keeps its own progress slot; only the words come from
+// the parent.
+function displayStepId(input: {
+  readonly flow: ExecutableFlow;
+  readonly stepId: string;
+}): string {
+  if (input.flow.steps.some((step) => step.id === input.stepId)) return input.stepId;
+  let parent: string | undefined;
+  for (const step of input.flow.steps) {
+    if (!input.stepId.startsWith(`${step.id}-`)) continue;
+    // Longest match wins, so a step id that is itself a prefix of another
+    // step id cannot claim the other one's branches.
+    if (parent === undefined || step.id.length > parent.length) parent = step.id;
+  }
+  return parent ?? input.stepId;
+}
+
 function stepTitle(input: {
   readonly flow: ExecutableFlow;
   readonly stepId: string | undefined;
 }): string {
   if (input.stepId === undefined) return '<unknown step>';
-  return input.flow.steps.find((step) => step.id === input.stepId)?.title ?? input.stepId;
+  const stepId = displayStepId({ flow: input.flow, stepId: input.stepId });
+  return input.flow.steps.find((step) => step.id === stepId)?.title ?? input.stepId;
 }
 
 function flowLabel(flowId: string): string {
@@ -318,7 +340,9 @@ function stepDisplay(input: {
   readonly relayCompletedText?: string;
 } {
   const title = stepTitle({ flow: input.flow, stepId: input.stepId });
-  const metadata = input.stepDisplayById.get(input.stepId);
+  const metadata = input.stepDisplayById.get(
+    displayStepId({ flow: input.flow, stepId: input.stepId }),
+  );
   if (metadata !== undefined) {
     return {
       title,

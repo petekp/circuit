@@ -150,7 +150,7 @@ function stepCells(
   // they are what the step would use at a process where it runs.
   if (step.skippedAtProcess === true) {
     return [
-      cell(step.stepId, palette.dim),
+      cell(step.runsPerItem === true ? `${step.stepId} (per item)` : step.stepId, palette.dim),
       cell(step.role, palette.dim),
       cell(step.connector, palette.dim),
       cell(modelCell(step), palette.dim),
@@ -171,7 +171,9 @@ function stepCells(
         ? palette.bold
         : undefined;
   return [
-    cell(step.stepId),
+    // A fan-out row is one relay repeated per item, and a reader who is told
+    // "one reviewer" when the run dispatches six has been misinformed.
+    cell(step.runsPerItem === true ? `${step.stepId} (per item)` : step.stepId),
     cell(step.role, palette.role(step.role)),
     cell(step.connector),
     cell(modelCell(step), modelPaint),

@@ -855,8 +855,10 @@ describe('release truth infrastructure', () => {
   });
 
   it('stores the prompt-only boundary in the captured golden Review request', () => {
+    // The audit step relays one reviewer per unit, so the request lives in
+    // that unit's branch folder rather than a single shared relay folder.
     const request = readFileSync(
-      resolve(root, 'docs/release/proofs/runs/review/run/reports/relay/review.request.json'),
+      resolve(root, 'docs/release/proofs/runs/review/run/reports/review-units/unit-1/request.txt'),
       'utf8',
     );
 

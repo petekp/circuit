@@ -26,6 +26,7 @@ import { captureStreams, makeStubRelayer } from '../helpers/runtime-fixtures.js'
 
 const MALFORMED_REVIEW_BODY = '{"verdict":"NO_ISSUES_FOUND","findings":"not-an-array"}';
 const VALID_REVIEW_BODY = JSON.stringify({
+  unit_id: 'unit-1',
   verdict: 'NO_ISSUES_FOUND',
   findings: [],
   assessment: 'Stub reviewer: nothing actionable in the relayed evidence.',

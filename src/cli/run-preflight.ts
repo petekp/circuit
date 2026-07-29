@@ -86,8 +86,15 @@ function planRunRelays(input: RunPreflightInput): readonly PlannedRelay[] {
   const index = buildRuntimePackageIndex(executable);
   const plans: PlannedRelay[] = [];
 
-  for (const step of index.flow.steps as readonly RuntimeIndexedStep[]) {
-    if (step.kind !== 'relay') continue;
+  for (const indexedStep of index.flow.steps as readonly RuntimeIndexedStep[]) {
+    // A fan-out over relay branches dispatches through a connector, so it has
+    // to be planned. Skipping it would let a run whose only workers live in a
+    // fan-out pass a preflight that checked nothing.
+    const branchRelay = indexedStep.kind === 'fanout' ? indexedStep.branch_relay : undefined;
+    if (indexedStep.kind !== 'relay' && branchRelay === undefined) continue;
+    const step = (
+      branchRelay === undefined ? indexedStep : { ...indexedStep, ...branchRelay }
+    ) as Extract<RuntimeIndexedStep, { kind: 'relay' }>;
     const relay = resolveRelayGuidanceExecution({
       flowId: index.flow.id,
       role: step.role,

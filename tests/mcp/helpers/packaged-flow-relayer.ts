@@ -20,7 +20,7 @@ import {
   PrototypeVariantOptions,
   PrototypeVariantReview,
 } from '../../../src/flows/prototype/reports.js';
-import { ReviewRelayResult } from '../../../src/flows/review/reports.js';
+import { ReviewUnitVerdict } from '../../../src/flows/review/reports.js';
 import type { RelayResult } from '../../../src/shared/connector-relay.js';
 import type { RelayFn, RelayInput } from '../../../src/shared/relay-runtime-types.js';
 import { reflectChangedFiles } from '../../helpers/working-tree.js';
@@ -78,11 +78,15 @@ function prototypeFileBody(relativePath: string, label: string): string {
 }
 
 function reviewRelay(input: RelayInput): RelayResult | undefined {
+  // The audit step fans out one reviewer per unit, so the synthetic step id
+  // carries the unit: `audit-step-unit-1`.
   if (!input.prompt.includes('Step: audit-step')) return undefined;
+  const unitId = /Step: audit-step-([a-z0-9-]+)/u.exec(input.prompt)?.[1] ?? 'unit-1';
   return result(
     input,
     'packaged-review-audit',
-    ReviewRelayResult.parse({
+    ReviewUnitVerdict.parse({
+      unit_id: unitId,
       verdict: 'NO_ISSUES_FOUND',
       findings: [],
       assessment: 'The deterministic packaged MCP fixture found no actionable issue.',

@@ -108,6 +108,21 @@ export function evaluateFanoutJoinPolicy(input: FanoutJoinInput): FanoutJoinResu
     };
   }
 
+  // At least one branch answered. The parent's close step is responsible for
+  // saying which branches did not — a join that passed here is not a claim that
+  // everything was covered, only that there is something to report on.
+  if (policy === 'aggregate-any') {
+    if (parseableSurvivors.length >= 1) return { joinedSuccessfully: true };
+    const failedOutcome = outcomes.find((outcome) => outcome.failure_reason !== undefined);
+    return {
+      joinedSuccessfully: false,
+      failureReason:
+        failedOutcome?.failure_reason === undefined
+          ? `fanout step '${stepId}' aggregate-any: no branch produced a parseable result body`
+          : `fanout step '${stepId}' aggregate-any: no branch produced a parseable result body (${failedOutcome.failure_reason})`,
+    };
+  }
+
   if (policy === 'aggregate-only') {
     const allClosed = outcomes.every((outcome) =>
       (RunClosedOutcomeEnum.options as readonly string[]).includes(outcome.child_outcome),

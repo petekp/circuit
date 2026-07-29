@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { ReviewIntake, ReviewRelayResult, ReviewResult } from '../../src/flows/review/reports.js';
+import { ReviewIntake, ReviewResult, ReviewUnitVerdict } from '../../src/flows/review/reports.js';
 import { RunFileStore } from '../../src/runtime/run-files/run-file-store.js';
 import { readRuntimeManifestSnapshot } from '../../src/runtime/run/manifest-snapshot.js';
 import { CompiledFlow as CompiledFlowSchema } from '../../src/schemas/compiled-flow.js';
@@ -27,6 +27,20 @@ describe('review runtime parity', () => {
         runDir,
         runId: '11111111-1111-4111-8111-111111111111',
         goal: 'review the current change',
+        // The audit step is a real fan-out over the intake's units, so it needs
+        // a reviewer to answer rather than a stubbed step writer.
+        relayConnector: {
+          async relay() {
+            return {
+              unit_id: 'unit-1',
+              verdict: 'NO_ISSUES_FOUND',
+              findings: [],
+              assessment: 'Parity fixture: no findings observed in the relayed evidence.',
+              verification: ['Runtime parity fixture stub.'],
+              confidence_limitations: [],
+            };
+          },
+        },
       });
 
       expect(result).toMatchObject({
@@ -43,7 +57,7 @@ describe('review runtime parity', () => {
         ReviewIntake.safeParse(await files.readJson('reports/review-intake.json')).success,
       ).toBe(true);
       expect(
-        ReviewRelayResult.safeParse(await files.readJson('stages/analyze/review-raw-findings.json'))
+        ReviewUnitVerdict.safeParse(await files.readJson('reports/review-units/unit-1/report.json'))
           .success,
       ).toBe(true);
       expect(
@@ -53,7 +67,8 @@ describe('review runtime parity', () => {
       expect(runResult).toMatchObject({
         flow_id: 'review',
         outcome: 'complete',
-        trace_entries_observed: 9,
+        // The audit fan-out adds its own start, branch, and join entries.
+        trace_entries_observed: 15,
         manifest_hash: fixture.manifestHash,
       });
       const manifestSnapshot = await readRuntimeManifestSnapshot(runDir);
@@ -73,8 +88,14 @@ describe('review runtime parity', () => {
       });
       expect(runResult.manifest_hash).toBe(manifestSnapshot.hash);
 
-      await expect(runFileExists(runDir, 'reports/relay/review.request.json')).resolves.toBe(true);
-      await expect(runFileExists(runDir, 'reports/relay/review.receipt.txt')).resolves.toBe(true);
+      // A unit's relay leaves its request and receipt in that unit's own
+      // folder, so a reader can tell which reviewer was asked what.
+      await expect(runFileExists(runDir, 'reports/review-units/unit-1/request.json')).resolves.toBe(
+        true,
+      );
+      await expect(runFileExists(runDir, 'reports/review-units/unit-1/receipt.txt')).resolves.toBe(
+        true,
+      );
     });
   });
 });

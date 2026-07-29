@@ -616,13 +616,17 @@ if (!prompt.includes(${JSON.stringify(reviewMarker)})) {
   process.stderr.write('doctor marker missing from Review relay prompt\\n');
   process.exit(2);
 }
-const result = ${JSON.stringify({
+// The audit step fans out one reviewer per unit, and each reviewer has to
+// report under the unit id it was handed. The branch's step id carries it:
+// \`audit-step-<unit id>\`.
+const unitId = /Step: audit-step-([a-z0-9-]+)/u.exec(prompt)?.[1] ?? 'unit-1';
+const result = { unit_id: unitId, ...${JSON.stringify({
           verdict: 'NO_ISSUES_FOUND',
           findings: [],
           assessment: 'Doctor stub reviewer: nothing actionable in the relayed evidence.',
           verification: ['Doctor stub: inspected the relayed intake report.'],
           confidence_limitations: [],
-        })};
+        })} };
 const structured = process.argv.includes('--json-schema');
 for (const event of [
   { type: 'system', subtype: 'init', session_id: 'doctor-session', claude_code_version: 'doctor-stub', tools: structured ? ['StructuredOutput'] : [], mcp_servers: [], slash_commands: [] },

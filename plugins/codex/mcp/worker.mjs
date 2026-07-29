@@ -14731,6 +14731,9 @@ var DisjointMergeJoin = external_exports.object({
 var AggregateOnlyJoin = external_exports.object({
   policy: external_exports.literal("aggregate-only")
 }).strict();
+var AggregateAnyJoin = external_exports.object({
+  policy: external_exports.literal("aggregate-any")
+}).strict();
 var AggregateSurvivorsJoin = external_exports.object({
   policy: external_exports.literal("aggregate-survivors")
 }).strict();
@@ -14738,6 +14741,7 @@ var FanoutJoinPolicy = external_exports.discriminatedUnion("policy", [
   PickWinnerJoin,
   DisjointMergeJoin,
   AggregateOnlyJoin,
+  AggregateAnyJoin,
   AggregateSurvivorsJoin
 ]);
 var FanoutAggregateCheck = external_exports.object({
@@ -15716,9 +15720,38 @@ var FanoutRelayBranchExecution = external_exports.object({
   // context bound the split exists to break. In a dynamic fanout these paths
   // carry `$item` placeholders, so branch k reads slice k.
   reads: external_exports.array(RunRelativePath).optional(),
+  // Name of a text field on the source item whose value IS this branch's
+  // evidence. The engine writes that text into the branch folder and reads it
+  // back, so the slice does not have to exist as a file before the run.
+  //
+  // `reads` covers the case where a prior step already wrote one file per
+  // slice. Nothing in Circuit does that today — a compose writer returns one
+  // report body and a relay step writes one report — so a step that splits a
+  // corpus has exactly one place to put the pieces: the items of its own
+  // report. This field is what gets piece k out of that report and in front of
+  // worker k. Dynamic fanouts only; a static branch has no item.
+  item_evidence_field: external_exports.string().regex(/^[a-z_][a-z0-9_]*$/i, {
+    message: "item_evidence_field must be a top-level JSON field name"
+  }).optional(),
+  // Whether this branch also reads the fanout step's own `reads`. True by
+  // default, because shared context is usually what the step's evidence is.
+  //
+  // Set false when the step's evidence is the source report the branches were
+  // expanded from AND that report is large — a report holding N slices is N
+  // times the size of the one slice this branch needs, so inheriting it would
+  // hand every worker the whole corpus and undo the split.
+  inherit_step_reads: external_exports.boolean().optional(),
   provenance_field: external_exports.string().regex(/^[a-z_][a-z0-9_]*$/i, {
     message: "provenance_field must be a top-level JSON field name"
-  }).optional()
+  }).optional(),
+  // How many times this branch may ask its worker before the branch fails.
+  // One by default.
+  //
+  // A top-level relay step recovers a malformed answer through its retry
+  // route: ask again, once. A branch has no routes, so without this a single
+  // badly shaped response throws away that branch's whole share of the work.
+  // Set it where a re-ask is cheaper than losing the slice.
+  max_attempts: external_exports.number().int().min(1).max(3).optional()
 }).strict();
 var FanoutRelayBranch = external_exports.object({
   branch_id: external_exports.string().min(1).max(64).regex(FANOUT_BRANCH_ID_REGEX, { message: "branch_id must be a kebab-case slug" }),

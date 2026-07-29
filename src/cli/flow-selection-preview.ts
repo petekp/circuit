@@ -98,6 +98,10 @@ export interface RelayStepSelectionPreview {
   // never from a per-flow special case, so the preview cannot advertise work
   // a run would skip.
   readonly skippedAtProcess?: boolean;
+  // True when this row is a fan-out step: the relay below runs once per item the
+  // step dispatches over, not once. How many items there are depends on the
+  // target, so the readout says "per item" rather than inventing a count.
+  readonly runsPerItem?: boolean;
 }
 
 export interface NonRelayStepSelectionPreview {
@@ -203,6 +207,7 @@ function previewRelayStep(input: {
   readonly hostKind: HostKind | undefined;
   readonly codexDefaultModel: () => string;
   readonly skipped: boolean;
+  readonly runsPerItem?: boolean;
 }): RelayStepSelectionPreview {
   const { step, flow, layers } = input;
   const role = RelayRoleSchema.parse(step.role);
@@ -284,6 +289,7 @@ function previewRelayStep(input: {
     escalated: resolved.power_escalated === true,
     ...(problem === undefined ? {} : { problem }),
     ...(input.skipped ? { skippedAtProcess: true } : {}),
+    ...(input.runsPerItem === true ? { runsPerItem: true } : {}),
   };
 }
 
@@ -383,10 +389,17 @@ export function resolveFlowSelectionPreview(
   const relaySteps: RelayStepSelectionPreview[] = [];
   const nonRelaySteps: NonRelayStepSelectionPreview[] = [];
   for (const { step, flow, skipped } of enumeratePreviewSteps(compileResult, definition, process)) {
-    if (step.kind === 'relay') {
+    // A fan-out whose branches are relays IS relay work: it dispatches one
+    // worker per item. Reading it as a non-relay step would tell an operator
+    // that a flow whose only workers live in a fan-out relays nothing.
+    const branchRelay = step.kind === 'fanout' ? step.branch_relay : undefined;
+    if (step.kind === 'relay' || branchRelay !== undefined) {
+      const relayShaped = (
+        branchRelay === undefined ? step : { ...step, ...branchRelay, kind: 'relay' }
+      ) as RuntimeIndexedRelayStep;
       relaySteps.push(
         previewRelayStep({
-          step,
+          step: relayShaped,
           flow,
           flowId: input.flowId,
           layers,
@@ -394,6 +407,7 @@ export function resolveFlowSelectionPreview(
           hostKind: input.hostKind,
           codexDefaultModel,
           skipped,
+          ...(branchRelay === undefined ? {} : { runsPerItem: true }),
         }),
       );
     } else {

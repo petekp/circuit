@@ -13,7 +13,7 @@
     },
     {
       "generic": "review.verdict@v1",
-      "actual": "review.verdict@v1"
+      "actual": "review.audit-aggregate@v1"
     },
     {
       "generic": "flow.result@v1",
@@ -63,11 +63,10 @@
         "brief": "review.intake@v1"
       },
       "optional_inputs": [],
-      "output": "review.verdict@v1",
+      "output": "review.audit-aggregate@v1",
       "evidence_requirements": ["verdict", "findings", "confidence", "required fixes"],
       "execution": {
-        "kind": "relay",
-        "role": "reviewer"
+        "kind": "fanout"
       },
       "skill_slots": [
         {
@@ -83,13 +82,40 @@
       "route_overrides": {},
       "protocol": "review-audit@v1",
       "writes": {
-        "report_path": "reports/review-verdict.json",
-        "request_path": "reports/relay/review.request.json",
-        "receipt_path": "reports/relay/review.receipt.txt",
-        "result_path": "stages/analyze/review-raw-findings.json"
+        "report_path": "reports/review-audit-aggregate.json",
+        "branches_dir_path": "reports/review-units"
       },
       "check": {
         "pass": ["NO_ISSUES_FOUND", "ISSUES_FOUND"]
+      },
+      "fanout": {
+        "branches": {
+          "kind": "dynamic",
+          "source_report": "reports/review-intake.json",
+          "items_path": "units",
+          "template": {
+            "branch_id": "$item.unit_id",
+            "execution": {
+              "kind": "relay",
+              "role": "reviewer",
+              "goal": "$item.goal",
+              "report_schema": "review.unit-verdict@v1",
+              "item_evidence_field": "contents",
+              "inherit_step_reads": false,
+              "provenance_field": "unit_id",
+              "max_attempts": 2
+            }
+          },
+          "max_branches": 24
+        },
+        "concurrency": {
+          "kind": "bounded",
+          "max": 4
+        },
+        "on_child_failure": "continue-others",
+        "join": {
+          "policy": "aggregate-any"
+        }
       }
     },
     {
@@ -99,7 +125,7 @@
       "stage": "close",
       "input": {
         "brief": "review.intake@v1",
-        "review": "review.verdict@v1"
+        "review": "review.audit-aggregate@v1"
       },
       "optional_inputs": [],
       "output": "review.result@v1",

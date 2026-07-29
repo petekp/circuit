@@ -3704,6 +3704,66 @@ describe('operator summary writer — run receipt', () => {
     );
   });
 
+  it('says how many worker runs never came back', () => {
+    // A fan-out runs one worker per unit and keeps going when one of them
+    // dies. The check tally only counts workers that answered, so without
+    // this the trailer reads "3 of 3 checks passed" on a run where a third
+    // of the target was never reviewed.
+    writeTrace([
+      bootstrapped('medium'),
+      relayStarted(2, 'audit-step-unit-1', 1),
+      checkEvaluated(3, 'pass'),
+      relayStarted(4, 'audit-step-unit-2', 1),
+      traceEntry(5, 'relay.failed', {
+        step_id: 'audit-step-unit-2',
+        attempt: 1,
+        reason: 'connector invocation failed',
+      }),
+      relayStarted(6, 'audit-step-unit-3', 1),
+      checkEvaluated(7, 'pass'),
+      checkEvaluated(8, 'pass'),
+    ]);
+
+    const written = writeOperatorSummary({
+      runFolder,
+      runResult: baseResult('review'),
+      route: { selectedFlow: 'review' },
+    });
+
+    expect(written.summary.receipt).toMatchObject({
+      worker_runs: 3,
+      worker_runs_failed: 1,
+    });
+    expect(readFileSync(written.markdownPath, 'utf8')).toContain(
+      '3 worker runs (1 never came back)',
+    );
+  });
+
+  it('does not call a worker run failed when its retry came back', () => {
+    writeTrace([
+      bootstrapped('medium'),
+      relayStarted(2, 'apply-step', 1),
+      traceEntry(3, 'relay.failed', {
+        step_id: 'apply-step',
+        attempt: 1,
+        reason: 'connector subprocess crashed',
+      }),
+      relayStarted(4, 'apply-step', 2),
+      traceEntry(5, 'relay.completed', { step_id: 'apply-step', attempt: 2, verdict: 'DONE' }),
+      checkEvaluated(6, 'pass'),
+    ]);
+
+    const written = writeOperatorSummary({
+      runFolder,
+      runResult: baseResult('fix'),
+      route: { selectedFlow: 'fix' },
+    });
+
+    expect(written.summary.receipt).toMatchObject({ worker_runs: 2 });
+    expect(written.summary.receipt).not.toHaveProperty('worker_runs_failed');
+    expect(readFileSync(written.markdownPath, 'utf8')).not.toContain('never came back');
+  });
+
   it('surfaces a reduced-bindings note when a composed flow lost catalog-sourced bindings', () => {
     // First-class composition: a composed flow that cannot resolve some
     // catalog-sourced bindings records them on run.bootstrapped. The receipt must

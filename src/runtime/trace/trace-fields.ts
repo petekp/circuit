@@ -200,6 +200,7 @@ const FANOUT_JOIN_POLICIES: readonly FanoutJoinPolicy[] = [
   'pick-winner',
   'disjoint-merge',
   'aggregate-only',
+  'aggregate-any',
   'aggregate-survivors',
 ];
 

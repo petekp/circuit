@@ -45,17 +45,17 @@ export const reviewBlockItems: readonly BlockStepUse[] = [
     stage: 'analyze',
     block: 'review',
     input: { brief: 'review.intake@v1' },
-    execution: { kind: 'relay', role: 'reviewer' },
+    // One reviewer per unit. Most targets are one unit, so most runs still
+    // relay a single reviewer; a target too large for one prompt becomes
+    // several, and each reviewer is handed its own unit and nothing else.
+    // Splitting is what the intake did, not what this step decides.
+    execution: { kind: 'fanout' },
+    output: 'review.audit-aggregate@v1',
     protocol: 'review-audit@v1',
-    // Declaring the typed report here is what makes the reviewer's response
-    // shape enforced rather than requested: the runtime converts the schema to
-    // JSON Schema and hands it to the connector's structured-output flag, and a
-    // response that violates it fails at this step, where the retry route is,
-    // instead of at the close step one step downstream.
-    reportPath: 'reports/review-verdict.json',
-    requestPath: 'reports/relay/review.request.json',
-    receiptPath: 'reports/relay/review.receipt.txt',
-    resultPath: 'stages/analyze/review-raw-findings.json',
+    writes: {
+      report_path: 'reports/review-audit-aggregate.json',
+      branches_dir_path: 'reports/review-units',
+    },
     pass: ['NO_ISSUES_FOUND', 'ISSUES_FOUND'],
     skillSlots: [
       {
@@ -65,13 +65,54 @@ export const reviewBlockItems: readonly BlockStepUse[] = [
       },
     ],
     routes: { continue: 'verdict-step', retry: 'audit-step', stop: '@stop' },
+    fanout: {
+      branches: {
+        kind: 'dynamic',
+        source_report: 'reports/review-intake.json',
+        items_path: 'units',
+        template: {
+          branch_id: '$item.unit_id',
+          execution: {
+            kind: 'relay',
+            role: 'reviewer',
+            goal: '$item.goal',
+            report_schema: 'review.unit-verdict@v1',
+            // The reviewer is sealed from the repository, so the unit's own
+            // text is the only thing it can read. The engine writes this
+            // item's `contents` into the branch folder and reads it back.
+            item_evidence_field: 'contents',
+            // The step's evidence is the intake report, which holds every
+            // unit's contents. Inheriting it would hand each reviewer the whole
+            // target and undo the split, so a unit reviewer reads its unit and
+            // nothing else.
+            inherit_step_reads: false,
+            // A reviewer cannot report on a unit it was not given.
+            provenance_field: 'unit_id',
+            // A reviewer that answers in the wrong shape gets asked once more,
+            // the way a single-reviewer audit step used to through its retry
+            // route. Losing a whole unit of the target to one malformed
+            // response is a worse trade than one extra ask.
+            max_attempts: 2,
+          },
+        },
+        max_branches: 24,
+      },
+      concurrency: { kind: 'bounded', max: 4 },
+      // One reviewer failing does not throw away the units that did report.
+      // The close step is told which units are missing and says so.
+      on_child_failure: 'continue-others',
+      // One reviewer failing must not throw away the units that answered: the
+      // close step merges what came back and reports the rest as not reviewed,
+      // which is a more useful and more honest end than no review at all.
+      join: { policy: 'aggregate-any' },
+    },
   },
   {
     id: 'verdict-step',
     title: 'Verdict — emit review.result',
     stage: 'close',
     block: 'close-with-evidence',
-    input: { brief: 'review.intake@v1', review: 'review.verdict@v1' },
+    input: { brief: 'review.intake@v1', review: 'review.audit-aggregate@v1' },
     output: 'review.result@v1',
     execution: { kind: 'compose' },
     protocol: 'review-verdict@v1',
@@ -97,7 +138,10 @@ export const reviewAssemblySpec: FlowSchematicAssemblySpec = {
   initial_contracts: ['task.intake@v1', 'route.decision@v1'],
   contract_aliases: [
     { generic: 'flow.brief@v1', actual: 'review.intake@v1' },
-    { generic: 'review.verdict@v1', actual: 'review.verdict@v1' },
+    // The review block's generic verdict contract is satisfied by the audit
+    // fan-out's aggregate: it carries every unit's verdict body, which is the
+    // whole of what a single reviewer used to return.
+    { generic: 'review.verdict@v1', actual: 'review.audit-aggregate@v1' },
     { generic: 'flow.result@v1', actual: 'review.result@v1' },
   ],
   axes: {

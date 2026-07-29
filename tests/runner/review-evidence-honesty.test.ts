@@ -1785,17 +1785,23 @@ describe('review evidence honesty', () => {
     expect(seenSchema).toBeDefined();
     const properties = seenSchema?.properties as Record<string, { enum?: string[] }> | undefined;
     expect(properties?.verdict?.enum).toEqual(['NO_ISSUES_FOUND', 'ISSUES_FOUND']);
+    // A reviewer answers for the one unit it was handed, and an answer that
+    // names no unit cannot be attributed to a slice of the target, so the id
+    // is required rather than optional.
     expect(seenSchema?.required).toEqual([
       'verdict',
       'findings',
       'assessment',
       'verification',
       'confidence_limitations',
+      'unit_id',
     ]);
-    // The same shape is written as a typed report at the audit step, so a
-    // malformed response fails where the retry route is rather than one step
-    // downstream at the close.
-    expect(existsSync(join(runFolder, 'reports', 'review-verdict.json'))).toBe(true);
+    // The same shape is written as a typed report in the branch's own folder,
+    // so a malformed response fails at the audit step where the re-ask is
+    // rather than one step downstream at the close.
+    expect(existsSync(join(runFolder, 'reports', 'review-units', 'unit-1', 'report.json'))).toBe(
+      true,
+    );
   });
 
   // A snapshot enumerates through Git, not the filesystem, so build output and
@@ -1860,7 +1866,8 @@ describe('review evidence honesty', () => {
     const { bytes } = loadFixture();
     const runFolder = join(reviewRunFolderBase(), 'snapshot-bound');
     const projectRoot = join(reviewRunFolderBase(), 'snapshot-bound-project');
-    const fileCount = 40;
+    // Past MAX_SNAPSHOT_FILES, so the read is a sample rather than the target.
+    const fileCount = 300;
     mkdirSync(join(projectRoot, 'src'), { recursive: true });
     execFileSync('git', ['init'], { cwd: projectRoot, stdio: 'pipe' });
     for (let index = 0; index < fileCount; index += 1) {

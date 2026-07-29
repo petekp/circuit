@@ -83,6 +83,18 @@ export interface RuntimeIndexedSubRunStep extends RuntimeIndexedStepBase {
 
 export interface RuntimeIndexedFanoutStep extends RuntimeIndexedStepBase {
   readonly kind: 'fanout';
+  // Present when every branch of this fan-out is a relay. The fan-out dispatches
+  // one worker per item, and each of those workers is a relay with a role and,
+  // where the flow pins one, a connector. Readouts that answer "which model does
+  // this flow use" have to see them, or a flow whose only relays live inside a
+  // fan-out reads as a flow that relays nothing.
+  readonly branch_relay?:
+    | {
+        readonly role: 'researcher' | 'implementer' | 'reviewer';
+        readonly connector?: string | undefined;
+        readonly selection?: SelectionOverrideValue | undefined;
+      }
+    | undefined;
 }
 
 export type RuntimeIndexedStep =

@@ -686,7 +686,13 @@ export const FanoutJoinedTraceEntry = TraceEntryBase.extend({
   // The join policy that ran; mirrors the FanoutAggregateCheck.join.policy
   // field but echoed into the trace_entry so the audit log is self-contained
   // (no need to cross-reference the schematic to interpret outcomes).
-  policy: z.enum(['pick-winner', 'disjoint-merge', 'aggregate-only', 'aggregate-survivors']),
+  policy: z.enum([
+    'pick-winner',
+    'disjoint-merge',
+    'aggregate-only',
+    'aggregate-any',
+    'aggregate-survivors',
+  ]),
   // For pick-winner: the selected branch_id. Absent for the other policies.
   selected_branch_id: z.string().min(1).optional(),
   // Path to the runtime-built aggregate report.

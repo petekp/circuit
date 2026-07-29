@@ -29,6 +29,7 @@ const CONNECTOR_SCRIPT = `
 const { writeFileSync } = require('node:fs');
 const outputFile = process.argv[process.argv.length - 1];
 writeFileSync(outputFile, JSON.stringify({
+  unit_id: 'unit-1',
   verdict: 'NO_ISSUES_FOUND',
   findings: [],
   assessment: 'env model=' + (process.env.CIRCUIT_RELAY_MODEL ?? 'unset')
