@@ -24,8 +24,8 @@
   "scripts": {
     "check": "tsc --noEmit",
     "build": "tsc -p tsconfig.build.json",
-    "test": "vitest run --exclude 'tests/mcp/proof-sandbox.test.ts' --exclude 'tests/mcp/proof-sandbox-live.test.ts' && npm run test:mcp-sandbox-serial",
-    "test:fast": "vitest run --exclude 'tests/runner/cli-router.test.ts' --exclude 'tests/unit/emit-flows-drift.test.ts' --exclude 'tests/mcp/proof-sandbox.test.ts' --exclude 'tests/mcp/proof-sandbox-live.test.ts' && npm run test:mcp-sandbox-serial",
+    "test": "node scripts/run-tests.mjs",
+    "test:fast": "node scripts/run-tests.mjs --fast",
     "test:mcp-sandbox-serial": "vitest run --fileParallelism=false tests/mcp/proof-sandbox.test.ts tests/mcp/proof-sandbox-live.test.ts",
     "test:browser": "npm run build && playwright test --config tests/browser/playwright.config.ts",
     "test:watch": "vitest",
