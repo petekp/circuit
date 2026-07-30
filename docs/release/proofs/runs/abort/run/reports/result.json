@@ -7,6 +7,12 @@
   "summary": "Run closed with outcome aborted.",
   "closed_at": "2026-04-29T20:00:32.000Z",
   "trace_entries_observed": 31,
-  "manifest_hash": "29d5fac819a30f023ccb88bbd51529899553cb19248574b6570a917520f9b197",
-  "reason": "step 'act-step' handler threw: relay step 'act-step': connector invocation failed (proof connector failure while implementing the synthetic Build change)"
+  "manifest_hash": "6f08ae6c9e9b48d9c496a36c005de8615e65131285791a188681fc59b45b6f53",
+  "reason": "step 'act-step' handler threw: relay step 'act-step': connector invocation failed (proof connector failure while implementing the synthetic Build change)",
+  "engine": {
+    "version": "0.1.1",
+    "source": "git",
+    "sha": "d6c4e92ab1fa13d88db7132a80f01f2c0c2f27e4",
+    "dirty": true
+  }
 }

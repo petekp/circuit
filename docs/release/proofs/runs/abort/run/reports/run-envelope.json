@@ -89,13 +89,13 @@
           "ref": {
             "kind": "report",
             "ref": "reports/result.json",
-            "sha256": "af8d3ad2c59beec8bb8a0000ac925e2a60b777f7cb2be6481456ede72336397f",
+            "sha256": "3cc37ebc204e81692d095da0110c1b9f944d20f4f4992c1e03d30b5e4e2fac3d",
             "run_id": "44444444-4444-4444-4444-444444444406",
             "flow_id": "build"
           }
         },
         "trace_entries_observed": 31,
-        "manifest_hash": "29d5fac819a30f023ccb88bbd51529899553cb19248574b6570a917520f9b197"
+        "manifest_hash": "6f08ae6c9e9b48d9c496a36c005de8615e65131285791a188681fc59b45b6f53"
       },
       "evidence_refs": [
         {
@@ -103,7 +103,7 @@
           "ref": {
             "kind": "evidence",
             "ref": "reports/process-evidence.json",
-            "sha256": "31967a54b516d49781e3d94e791a1bc34dcf116970cf0ad8ed57c308806ab530",
+            "sha256": "8f6f3b67accc20578d9c4ec231cbfad66a5c27bb06ca6a973a233c48dc486068",
             "run_id": "44444444-4444-4444-4444-444444444406",
             "flow_id": "build"
           }
@@ -113,13 +113,14 @@
           "ref": {
             "kind": "report",
             "ref": "reports/result.json",
-            "sha256": "af8d3ad2c59beec8bb8a0000ac925e2a60b777f7cb2be6481456ede72336397f",
+            "sha256": "3cc37ebc204e81692d095da0110c1b9f944d20f4f4992c1e03d30b5e4e2fac3d",
             "run_id": "44444444-4444-4444-4444-444444444406",
             "flow_id": "build"
           }
         }
       ],
-      "summary": "Run closed with outcome aborted."
+      "summary": "Run closed with outcome aborted.",
+      "blocked_reason": "step 'act-step' handler threw: relay step 'act-step': connector invocation failed (proof connector failure while implementing the synthetic Build change)"
     }
   ],
   "completion_gate": {
@@ -135,7 +136,7 @@
             "ref": {
               "kind": "evidence",
               "ref": "reports/process-evidence.json",
-              "sha256": "31967a54b516d49781e3d94e791a1bc34dcf116970cf0ad8ed57c308806ab530",
+              "sha256": "8f6f3b67accc20578d9c4ec231cbfad66a5c27bb06ca6a973a233c48dc486068",
               "run_id": "44444444-4444-4444-4444-444444444406",
               "flow_id": "build"
             }
@@ -153,21 +154,21 @@
   "memory_update_events": [],
   "surface_output": {
     "schema": "run.surface-output@v0",
-    "status_text": "Failed: build could not close with the required process evidence.",
+    "status_text": "Failed: build stopped before finishing its process. step 'act-step' handler threw: relay step 'act-step': connector invocation failed (proof connector failure while implementing the synthetic Build change)",
     "outcome": "failed",
-    "next_action": "Inspect the process evidence and rerun with a corrected goal.",
+    "next_action": "Address the reason above, then rerun.",
     "artifact_links": [
       {
         "kind": "evidence",
         "ref": "reports/process-evidence.json",
-        "sha256": "31967a54b516d49781e3d94e791a1bc34dcf116970cf0ad8ed57c308806ab530",
+        "sha256": "8f6f3b67accc20578d9c4ec231cbfad66a5c27bb06ca6a973a233c48dc486068",
         "run_id": "44444444-4444-4444-4444-444444444406",
         "flow_id": "build"
       },
       {
         "kind": "report",
         "ref": "reports/result.json",
-        "sha256": "af8d3ad2c59beec8bb8a0000ac925e2a60b777f7cb2be6481456ede72336397f",
+        "sha256": "3cc37ebc204e81692d095da0110c1b9f944d20f4f4992c1e03d30b5e4e2fac3d",
         "run_id": "44444444-4444-4444-4444-444444444406",
         "flow_id": "build"
       }

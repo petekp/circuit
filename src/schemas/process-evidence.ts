@@ -150,14 +150,15 @@ export const ProcessEvidenceProjection = z
       });
     }
     if (
-      ['stopped', 'blocked', 'failed'].includes(projection.outcome) &&
+      ['stopped', 'blocked', 'failed', 'aborted'].includes(projection.outcome) &&
       projection.blocked_reason === undefined &&
       projection.next_action === undefined
     ) {
       ctx.addIssue({
         code: 'custom',
         path: ['blocked_reason'],
-        message: 'stopped, blocked or failed process projections require a reason or next action',
+        message:
+          'stopped, blocked, failed or aborted process projections require a reason or next action',
       });
     }
   });

@@ -9,4 +9,4 @@ The run aborted before this flow could finish.
 
 Next: review the diff, run verification at your own budget, then resume, rerun, or discard the attempt.
 
-⎿ power medium · process medium · 2 worker runs · all checks passed
+⎿ power medium · process medium · 2 worker runs (1 never came back) · 3 of 3 checks passed
