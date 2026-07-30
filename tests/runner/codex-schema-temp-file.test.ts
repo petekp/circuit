@@ -6,27 +6,37 @@
 // cleaned up — otherwise every failed relay leaks a `circuit-codex-
 // schema-*` directory under the OS temp dir.
 
-import { readdir } from 'node:fs/promises';
+import { mkdtemp, readdir, rm } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
+import { join } from 'node:path';
 import { describe, expect, it } from 'vitest';
 
 import { writeSchemaTempFile } from '../../src/connectors/codex.js';
 
-async function countSchemaTempDirs(): Promise<number> {
-  const entries = await readdir(tmpdir());
-  return entries.filter((entry) => entry.startsWith('circuit-codex-schema-')).length;
-}
-
 describe('codex writeSchemaTempFile cleanup', () => {
   it('cleans up the mkdtemp dir when JSON.stringify throws on a BigInt schema', async () => {
-    const before = await countSchemaTempDirs();
-    // BigInt is not JSON-serializable; JSON.stringify throws synchronously
-    // after the temp dir has been allocated. Without cleanup, the dir
-    // leaks.
-    const badSchema = { weird: 1n } as unknown as Record<string, unknown>;
-    await expect(writeSchemaTempFile(badSchema)).rejects.toThrow();
-    const after = await countSchemaTempDirs();
-    expect(after).toBe(before);
+    // Redirect the OS temp dir to a private directory for the duration:
+    // counting `circuit-codex-schema-*` entries in the shared tmpdir races
+    // every other suite worker that allocates or cleans the same pattern.
+    // `os.tmpdir()` re-reads TMPDIR on each call, so the SUT allocates here.
+    const isolated = await mkdtemp(join(tmpdir(), 'codex-schema-cleanup-probe-'));
+    const previousTmpdir = process.env.TMPDIR;
+    process.env.TMPDIR = isolated;
+    try {
+      // BigInt is not JSON-serializable; JSON.stringify throws synchronously
+      // after the temp dir has been allocated. Without cleanup, the dir
+      // leaks.
+      const badSchema = { weird: 1n } as unknown as Record<string, unknown>;
+      await expect(writeSchemaTempFile(badSchema)).rejects.toThrow();
+      const leaked = (await readdir(isolated)).filter((entry) =>
+        entry.startsWith('circuit-codex-schema-'),
+      );
+      expect(leaked).toEqual([]);
+    } finally {
+      if (previousTmpdir === undefined) Reflect.deleteProperty(process.env, 'TMPDIR');
+      else process.env.TMPDIR = previousTmpdir;
+      await rm(isolated, { recursive: true, force: true });
+    }
   });
 
   it('returns dir + path for a well-formed schema and creates a real file', async () => {
