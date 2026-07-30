@@ -23642,7 +23642,7 @@ import { dirname as dirname3, resolve as resolve3 } from "node:path";
 import { fileURLToPath } from "node:url";
 function readSourceVersion() {
   if (true)
-    return "0.1.1";
+    return "0.1.2";
   const candidates = [
     resolve3(engineModuleDir, "../../plugins/version.json"),
     resolve3(process.cwd(), "plugins/version.json")

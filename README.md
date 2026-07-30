@@ -77,7 +77,7 @@ create a symlink to get started this way.
 The MCP-based Codex path in this checkout supports macOS. It requires Node.js 22.18 or
 newer and Codex 0.144.3 or newer.
 
-The current public tag, `circuit--v0.1.1`, predates the MCP path. Do not use
+The current public tag, `circuit--v0.1.2`, predates the MCP path. Do not use
 that tag to judge sandboxed Codex reliability. These instructions will switch
 to the exact `0.1.2` tag only after its public-install proof passes.
 

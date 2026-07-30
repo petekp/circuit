@@ -10,7 +10,7 @@ stdout:
   "flow_root": "<repo>/plugins/codex/flows",
   "runtime_source": "bundled",
   "runtime_path": "<repo>/plugins/codex/runtime/circuit.js",
-  "runtime_version": "0.1.1",
+  "runtime_version": "0.1.2",
   "checks": [
     {
       "name": "plugin_manifest_exists",
@@ -173,7 +173,7 @@ stdout:
     {
       "name": "node_version_supported",
       "ok": true,
-      "detail": "node=24.18.0 required>=22.18.0"
+      "detail": "node=24.18.1 required>=22.18.0"
     },
     {
       "name": "codex_version_supported",
@@ -203,17 +203,17 @@ stdout:
     {
       "name": "temp_repo_review_smoke",
       "ok": true,
-      "detail": "status=0 error=none output={\"schema_version\":1,\"run_id\":\"64dc8e1f-00a5-404f-bf4e-db42c3875bf5\",\"flow_id\":\"review\",\"resolved_axes\":{\"depth\":\"medium\",\"tournament\":false,\"autonomous\":false},\"selected_flow\":\"review\",\"routed_by\":\"explicit\",\"router_reason\":\"explicit flow positional argument\",\"run_folder\":\"<tmp>",\"outcome\":\"complete\",\"trace_entries_observed\":18,\"result_path\":\"<tmp>",\"history_recall\":{\"status\":\"unavailable\",\"memory_input_count\":0,\"report_path\":\"<tmp>",\"rebuilt\":false,\"warnings\":[{\"code\":\"source_invalid\",\"message\":\"history recall unavailable (runs_base_not_found): runs base not found: <tmp>"}]},\"operator_summary_path\":\"<tmp> stderr={\"schema_version\":1,\"type\":\"route.selected\",\"run_id\":\"64dc8e1f-00a5-404f-bf4e-db42c3875bf5\",\"flow_id\":\"review\",\"recorded_at\":\"2026-07-25T00:36:04.064Z\",\"label\":\"Selected review\",\"display\":{\"text\":\"Circuit: Chose review.\",\"importance\":\"major\",\"tone\":\"info\"},\"presentation\":{\"block_id\":\"64dc8e1f-00a5-404f-bf4e-db42c3875bf5\",\"line_mode\":\"append\",\"status_text\":\"Chose review.\"},\"selected_flow\":\"review\",\"routed_by\":\"explicit\",\"router_reason\":\"explicit flow positional argument\"}\n{\"schema_version\":1,\"typ"
+      "detail": "status=0 error=none output={\"schema_version\":1,\"run_id\":\"fac30331-4ab2-48a0-895c-06a14de21a9a\",\"flow_id\":\"review\",\"resolved_axes\":{\"depth\":\"medium\",\"tournament\":false,\"autonomous\":false},\"selected_flow\":\"review\",\"routed_by\":\"explicit\",\"router_reason\":\"explicit flow positional argument\",\"run_folder\":\"<tmp>",\"outcome\":\"complete\",\"trace_entries_observed\":24,\"result_path\":\"<tmp>",\"history_recall\":{\"status\":\"unavailable\",\"memory_input_count\":0,\"report_path\":\"<tmp>",\"rebuilt\":false,\"warnings\":[{\"code\":\"source_invalid\",\"message\":\"history recall unavailable (runs_base_not_found): runs base not found: <tmp>"}]},\"operator_summary_path\":\"<tmp> stderr={\"schema_version\":1,\"type\":\"route.selected\",\"run_id\":\"fac30331-4ab2-48a0-895c-06a14de21a9a\",\"flow_id\":\"review\",\"recorded_at\":\"2026-07-30T04:36:49.235Z\",\"label\":\"Selected review\",\"display\":{\"text\":\"Circuit: Chose review.\",\"importance\":\"major\",\"tone\":\"info\"},\"presentation\":{\"block_id\":\"fac30331-4ab2-48a0-895c-06a14de21a9a\",\"line_mode\":\"append\",\"status_text\":\"Chose review.\"},\"selected_flow\":\"review\",\"routed_by\":\"explicit\",\"router_reason\":\"explicit flow positional argument\"}\n{\"schema_version\":1,\"typ"
     },
     {
       "name": "temp_repo_review_progress",
       "ok": true,
-      "detail": "events=route.selected,run.started,task_list.updated,step.started,task_list.updated,evidence.collected,step.completed,task_list.updated,step.started,task_list.updated,relay.started,relay.completed,step.completed,task_list.updated,step.started,task_list.updated,step.completed,task_list.updated,run.completed"
+      "detail": "events=route.selected,run.started,task_list.updated,step.started,task_list.updated,evidence.collected,evidence.warning,step.completed,task_list.updated,step.started,task_list.updated,fanout.started,fanout.branch_started,relay.started,relay.completed,fanout.branch_completed,fanout.joined,step.completed,task_list.updated,step.started,task_list.updated,evidence.collected,evidence.warning,step.completed,task_list.updated,run.completed"
     },
     {
       "name": "temp_repo_review_progress_display",
       "ok": true,
-      "detail": "display_events=19"
+      "detail": "display_events=26"
     },
     {
       "name": "temp_repo_review_operator_summary",
