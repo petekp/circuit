@@ -24362,7 +24362,7 @@ function latestRecoveryFailureEvidence(input) {
     }
     if (entry.kind === "check.evaluated") {
       if (entry.outcome !== "fail")
-        continue;
+        return void 0;
       return {
         ref: traceRefForEntry({
           context: input.context,
@@ -96466,10 +96466,21 @@ async function appendRelayExecutionGuidance(context, input) {
     id: skill.id,
     ...skill.slot === void 0 ? {} : { slot: skill.slot }
   }));
+  const decisionId = `gd-relay-${idPart(stepId)}-${input.attempt}`;
+  for (const entry of context.trace.getAll()) {
+    if (entry.kind !== "guidance.decision")
+      continue;
+    if (entry.decision_id !== decisionId)
+      continue;
+    const selected = entry.selected;
+    if (selected?.request_payload_hash === input.requestPayloadHash) {
+      return entry;
+    }
+  }
   return await context.trace.append({
     run_id: context.runId,
     kind: "guidance.decision",
-    decision_id: `gd-relay-${idPart(stepId)}-${input.attempt}`,
+    decision_id: decisionId,
     subject: "relay_execution",
     scope: {
       run_id: context.runId,
@@ -101338,9 +101349,21 @@ async function executeRelayResult(step, context, connector) {
 async function executeRelay(step, context, connector) {
   return unwrapStepExecutionResult(await executeRelayResult(step, context, connector));
 }
+function connectorRetryBackoffMs(attemptNumber) {
+  return CONNECTOR_RETRY_BASE_BACKOFF_MS * 2 ** Math.max(0, attemptNumber - 2);
+}
+async function pauseMs(ms) {
+  await new Promise((resolve38) => {
+    setTimeout(resolve38, ms);
+  });
+}
 async function executeProductionRelay(step, context) {
   const compiledStep = requireRuntimeIndexedStep(context.packageIndex, step.id, "relay");
-  const relayAttempt = await executeProductionRelayAttempt({ step, context, compiledStep });
+  let relayAttempt = await executeProductionRelayAttempt({ step, context, compiledStep });
+  for (let askNumber = 2; askNumber <= RELAY_CONNECTOR_ASK_BUDGET && relayAttempt.kind === "connector_failed"; askNumber += 1) {
+    await pauseMs(connectorRetryBackoffMs(askNumber));
+    relayAttempt = await executeProductionRelayAttempt({ step, context, compiledStep });
+  }
   if (relayAttempt.kind === "connector_failed") {
     const recoveryRoute2 = recoveryRouteForFailure({
       step,
@@ -101406,7 +101429,7 @@ async function executeProductionRelay(step, context) {
     return { route: recoveryRoute, details: { reason: evaluation.reason } };
   throw new Error(evaluation.reason);
 }
-var BUILTIN_CONNECTOR_RELAYERS;
+var BUILTIN_CONNECTOR_RELAYERS, CONNECTOR_RETRY_BASE_BACKOFF_MS, RELAY_CONNECTOR_ASK_BUDGET;
 var init_relay = __esm({
   "dist/runtime/executors/relay.js"() {
     "use strict";
@@ -101441,6 +101464,8 @@ var init_relay = __esm({
       codex: relayCodex,
       "cursor-agent": relayCursorAgent
     };
+    CONNECTOR_RETRY_BASE_BACKOFF_MS = 400;
+    RELAY_CONNECTOR_ASK_BUDGET = 2;
   }
 });
 
@@ -101912,9 +101937,6 @@ function planRelayFanoutBranchGuidanceDecision(input) {
     ...input.relayConnector === void 0 ? {} : { suppliedConnector: input.relayConnector }
   });
 }
-function connectorRetryBackoffMs(attemptNumber) {
-  return CONNECTOR_RETRY_BASE_BACKOFF_MS * 2 ** Math.max(0, attemptNumber - 2);
-}
 async function pause(ms) {
   await new Promise((resolve38) => {
     setTimeout(resolve38, ms);
@@ -102299,7 +102321,7 @@ async function executeSubRunFanoutBranch(step, context, branch, worktreeRunner, 
 function branchNeedsWorktree(branch) {
   return branch.kind === "sub-run";
 }
-var ITEM_EVIDENCE_FILE, CONNECTOR_RETRY_BASE_BACKOFF_MS;
+var ITEM_EVIDENCE_FILE;
 var init_branch_execution = __esm({
   "dist/runtime/fanout/branch-execution.js"() {
     "use strict";
@@ -102315,7 +102337,6 @@ var init_branch_execution = __esm({
     init_reuse_children();
     init_types2();
     ITEM_EVIDENCE_FILE = "evidence.md";
-    CONNECTOR_RETRY_BASE_BACKOFF_MS = 400;
   }
 });
 
@@ -115217,6 +115238,19 @@ function planRunRelays(input) {
       configLayers: input.configLayers
     });
     assertConnectorSelectionCompatible(relay.connectorName, resolvedSelection);
+    const escalatedSelection = materializePowerSelection({
+      resolved: stackSelection,
+      role: RelayRole.parse(relay.role),
+      connectorName: relay.connectorName,
+      attempt: 2,
+      configLayers: input.configLayers
+    });
+    try {
+      assertConnectorSelectionCompatible(relay.connectorName, escalatedSelection);
+    } catch (error52) {
+      const message = error52 instanceof Error ? error52.message : String(error52);
+      throw new Error(`${message} (this selection is reached when a step retry escalates the power tier)`);
+    }
     plans.push({ connectorName: relay.connectorName });
   }
   return plans;

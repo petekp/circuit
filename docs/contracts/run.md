@@ -422,13 +422,16 @@ property-test harness + reducer exist in Stage 2.
   but a log that contains an unresolved `checkpoint.requested` followed by
   a `step.completed` represents an impossible state.
 
-- `run.prop.relay_trace_entry_pairing` — For every `relay.started` trace_entry on
-  a `(step_id, attempt)` pair, there is exactly one subsequent relay
-  terminal trace_entry on the same pair before any terminal step trace_entry:
+- `run.prop.relay_trace_entry_pairing` — Every `relay.started` trace_entry on
+  a `(step_id, attempt)` pair is followed by exactly one relay terminal
+  trace_entry for that ask before any terminal step trace_entry:
   `relay.completed` when the connector invocation returns a result, or
   `relay.failed` when the connector invocation itself fails before a
-  result exists. A `relay.started` with neither terminal relay trace_entry
-  is a reducer inconsistency.
+  result exists. A dead connector earns one spaced re-ask at the connector
+  layer, so one attempt may contain more than one started-to-terminal
+  cycle; the last cycle's terminal is the decisive one for the attempt. A
+  `relay.started` with no terminal relay trace_entry is a reducer
+  inconsistency.
 
   **Slice 37 §Amendment (durable relay transcript, ADR-0007 CC#P2-2).**
   The TraceEntry discriminated union additionally carries durable transcript
@@ -632,6 +635,16 @@ property-test harness + reducer exist in Stage 2.
   by subject, each with a one-line description. Documentation only; no schema or
   invariant change. Source of truth stays the discriminated union in
   `src/schemas/trace-entry.ts`.
+
+- **v0.4-amendment (connector-layer retry, 2026-07-29)** — a connector
+  invocation that fails is re-asked once at the connector layer (top-level
+  relays and fanout branches alike), so a single `(step_id, attempt)` pair may
+  now record more than one `relay.started`-to-terminal cycle;
+  `run.prop.relay_trace_entry_pairing` reworded from exactly-one-per-attempt
+  to exactly-one-per-ask with the last terminal decisive. The re-ask reuses
+  the attempt's recorded `guidance.decision` (ids stay unique per RUN-I5a)
+  and failure evidence for recovery routing binds to the last decisive
+  entry, never to a death an earlier re-ask absorbed.
 
 - **v0.5 (Stage 1)** — Absorb Codex adversarial property-auditor pass
   findings. Ratify `property_ids` above by landing the corresponding

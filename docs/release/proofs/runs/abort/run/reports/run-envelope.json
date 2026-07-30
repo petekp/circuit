@@ -78,8 +78,8 @@
       "attempt_id": "attempt-primary",
       "process_id": "build",
       "goal": "simulate connector failure",
-      "started_at": "2026-04-29T20:00:33.000Z",
-      "completed_at": "2026-04-29T20:00:33.000Z",
+      "started_at": "2026-04-29T20:00:36.000Z",
+      "completed_at": "2026-04-29T20:00:36.000Z",
       "outcome": "failed",
       "child_run": {
         "run_id": "44444444-4444-4444-4444-444444444406",
@@ -89,12 +89,12 @@
           "ref": {
             "kind": "report",
             "ref": "reports/result.json",
-            "sha256": "3cc37ebc204e81692d095da0110c1b9f944d20f4f4992c1e03d30b5e4e2fac3d",
+            "sha256": "d1b88b3f948770e1cb429bcdad8d8dd02282b0f43e32756013772b7b7414c497",
             "run_id": "44444444-4444-4444-4444-444444444406",
             "flow_id": "build"
           }
         },
-        "trace_entries_observed": 31,
+        "trace_entries_observed": 34,
         "manifest_hash": "6f08ae6c9e9b48d9c496a36c005de8615e65131285791a188681fc59b45b6f53"
       },
       "evidence_refs": [
@@ -103,7 +103,7 @@
           "ref": {
             "kind": "evidence",
             "ref": "reports/process-evidence.json",
-            "sha256": "8f6f3b67accc20578d9c4ec231cbfad66a5c27bb06ca6a973a233c48dc486068",
+            "sha256": "bbf5cf8ae1294037652d3443b3216a4296dfda77b17c365d1c9d1b572b2591dc",
             "run_id": "44444444-4444-4444-4444-444444444406",
             "flow_id": "build"
           }
@@ -113,7 +113,7 @@
           "ref": {
             "kind": "report",
             "ref": "reports/result.json",
-            "sha256": "3cc37ebc204e81692d095da0110c1b9f944d20f4f4992c1e03d30b5e4e2fac3d",
+            "sha256": "d1b88b3f948770e1cb429bcdad8d8dd02282b0f43e32756013772b7b7414c497",
             "run_id": "44444444-4444-4444-4444-444444444406",
             "flow_id": "build"
           }
@@ -136,7 +136,7 @@
             "ref": {
               "kind": "evidence",
               "ref": "reports/process-evidence.json",
-              "sha256": "8f6f3b67accc20578d9c4ec231cbfad66a5c27bb06ca6a973a233c48dc486068",
+              "sha256": "bbf5cf8ae1294037652d3443b3216a4296dfda77b17c365d1c9d1b572b2591dc",
               "run_id": "44444444-4444-4444-4444-444444444406",
               "flow_id": "build"
             }
@@ -161,14 +161,14 @@
       {
         "kind": "evidence",
         "ref": "reports/process-evidence.json",
-        "sha256": "8f6f3b67accc20578d9c4ec231cbfad66a5c27bb06ca6a973a233c48dc486068",
+        "sha256": "bbf5cf8ae1294037652d3443b3216a4296dfda77b17c365d1c9d1b572b2591dc",
         "run_id": "44444444-4444-4444-4444-444444444406",
         "flow_id": "build"
       },
       {
         "kind": "report",
         "ref": "reports/result.json",
-        "sha256": "3cc37ebc204e81692d095da0110c1b9f944d20f4f4992c1e03d30b5e4e2fac3d",
+        "sha256": "d1b88b3f948770e1cb429bcdad8d8dd02282b0f43e32756013772b7b7414c497",
         "run_id": "44444444-4444-4444-4444-444444444406",
         "flow_id": "build"
       }

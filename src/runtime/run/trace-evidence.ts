@@ -57,7 +57,11 @@ export function latestRecoveryFailureEvidence(input: {
       continue;
     }
     if (entry.kind === 'check.evaluated') {
-      if (entry.outcome !== 'fail') continue;
+      // A non-fail evaluation is decisive: this attempt's work was accepted,
+      // so nothing earlier in the attempt is failure evidence for the route it
+      // selected. Scanning past it would attribute a connector death the
+      // relay-layer retry already absorbed to a passing attempt.
+      if (entry.outcome !== 'fail') return undefined;
       return {
         ref: traceRefForEntry({
           context: input.context,

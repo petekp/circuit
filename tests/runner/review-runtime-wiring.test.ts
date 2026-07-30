@@ -306,8 +306,9 @@ describe('registered review compose writer', () => {
       'relay.completed:audit-step-unit-1',
       'check.evaluated:audit-step-unit-1',
       // Second ask: the branch asks its reviewer again rather than losing the
-      // unit to one malformed answer.
-      'guidance.decision:relay_execution:audit-step-unit-1',
+      // unit to one malformed answer. The re-ask re-plans the same deterministic
+      // guidance decision, so the recorded one is reused — appending it twice
+      // would give the trace duplicate decision ids and fail the run contract.
       'relay.started:audit-step-unit-1',
       'relay.request:audit-step-unit-1',
       'relay.receipt:audit-step-unit-1',

@@ -4,7 +4,7 @@
   "shadow_reason": "source-owned-run-not-active",
   "run_id": "44444444-4444-4444-4444-444444444406",
   "operator_intent": "simulate connector failure",
-  "recorded_at": "2026-04-29T20:00:33.000Z",
+  "recorded_at": "2026-04-29T20:00:36.000Z",
   "selected_process": {
     "process_id": "build",
     "routed_by": "explicit",
@@ -15,14 +15,14 @@
     "run_folder": "<repo>/docs/release/proofs/runs/abort/run",
     "flow_id": "build",
     "outcome": "aborted",
-    "trace_entries_observed": 31,
+    "trace_entries_observed": 34,
     "manifest_hash": "6f08ae6c9e9b48d9c496a36c005de8615e65131285791a188681fc59b45b6f53",
     "result_ref": {
       "source": "child_result",
       "ref": {
         "kind": "report",
         "ref": "reports/result.json",
-        "sha256": "3cc37ebc204e81692d095da0110c1b9f944d20f4f4992c1e03d30b5e4e2fac3d",
+        "sha256": "d1b88b3f948770e1cb429bcdad8d8dd02282b0f43e32756013772b7b7414c497",
         "run_id": "44444444-4444-4444-4444-444444444406",
         "flow_id": "build"
       }
@@ -32,7 +32,7 @@
     {
       "kind": "report",
       "ref": "reports/result.json",
-      "sha256": "3cc37ebc204e81692d095da0110c1b9f944d20f4f4992c1e03d30b5e4e2fac3d",
+      "sha256": "d1b88b3f948770e1cb429bcdad8d8dd02282b0f43e32756013772b7b7414c497",
       "run_id": "44444444-4444-4444-4444-444444444406",
       "flow_id": "build"
     }

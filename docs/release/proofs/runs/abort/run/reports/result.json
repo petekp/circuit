@@ -5,14 +5,14 @@
   "goal": "simulate connector failure",
   "outcome": "aborted",
   "summary": "Run closed with outcome aborted.",
-  "closed_at": "2026-04-29T20:00:32.000Z",
-  "trace_entries_observed": 31,
+  "closed_at": "2026-04-29T20:00:35.000Z",
+  "trace_entries_observed": 34,
   "manifest_hash": "6f08ae6c9e9b48d9c496a36c005de8615e65131285791a188681fc59b45b6f53",
   "reason": "step 'act-step' handler threw: relay step 'act-step': connector invocation failed (proof connector failure while implementing the synthetic Build change)",
   "engine": {
     "version": "0.1.1",
     "source": "git",
-    "sha": "d6c4e92ab1fa13d88db7132a80f01f2c0c2f27e4",
+    "sha": "7351a37abd4fff16c79ee288903257e136c25305",
     "dirty": true
   }
 }

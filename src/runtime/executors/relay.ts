@@ -977,9 +977,45 @@ export async function executeRelay(
   return unwrapStepExecutionResult(await executeRelayResult(step, context, connector));
 }
 
+// Delay before a re-ask that follows a dead connector, doubling per attempt.
+// Short on purpose: the point is to let a transient condition clear, not to
+// wait out a rate limit. Shared with fanout branch re-asks, which follow the
+// same curve.
+const CONNECTOR_RETRY_BASE_BACKOFF_MS = 400;
+
+export function connectorRetryBackoffMs(attemptNumber: number): number {
+  return CONNECTOR_RETRY_BASE_BACKOFF_MS * 2 ** Math.max(0, attemptNumber - 2);
+}
+
+async function pauseMs(ms: number): Promise<void> {
+  await new Promise<void>((resolve) => {
+    setTimeout(resolve, ms);
+  });
+}
+
+// Total connector asks a step gets before its failure is allowed to take the
+// step down. A dead subprocess (bare exit 1, a SIGTERM 143, an inactivity
+// timeout) is a pipe failure, not a work failure: the flow's own retry routes
+// and budgets are sized for work that came back wrong, and most flows declare
+// no route for a connector death at all, so one death aborted the whole run.
+// One spaced re-ask at the connector layer absorbs the transient class the
+// same way fanout branches already do (Review's units ask twice).
+const RELAY_CONNECTOR_ASK_BUDGET = 2;
+
 async function executeProductionRelay(step: RelayStep, context: RunContext): Promise<StepOutcome> {
   const compiledStep = requireRuntimeIndexedStep(context.packageIndex, step.id, 'relay');
-  const relayAttempt = await executeProductionRelayAttempt({ step, context, compiledStep });
+  let relayAttempt = await executeProductionRelayAttempt({ step, context, compiledStep });
+  for (
+    let askNumber = 2;
+    askNumber <= RELAY_CONNECTOR_ASK_BUDGET && relayAttempt.kind === 'connector_failed';
+    askNumber += 1
+  ) {
+    // Every ask is recorded in full (relay.started / relay.request /
+    // relay.failed), so the trace stays honest about the death while the run
+    // survives it.
+    await pauseMs(connectorRetryBackoffMs(askNumber));
+    relayAttempt = await executeProductionRelayAttempt({ step, context, compiledStep });
+  }
   if (relayAttempt.kind === 'connector_failed') {
     const recoveryRoute = recoveryRouteForFailure({
       step,

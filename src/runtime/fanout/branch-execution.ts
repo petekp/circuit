@@ -12,6 +12,7 @@ import type { TraceEntry } from '../domain/trace.js';
 import {
   type ProductionRelayAttemptValidationInput,
   type RelayConnector,
+  connectorRetryBackoffMs,
   executeProductionRelayAttempt,
 } from '../executors/relay.js';
 import { RECURSION_DEPTH_CAP } from '../executors/sub-run.js';
@@ -273,15 +274,10 @@ export function planRelayFanoutBranchGuidanceDecision(input: {
   });
 }
 
-// Delay before a re-ask that follows a dead connector, doubling per attempt.
-// Short on purpose: the point is to let a transient condition clear, not to wait
-// out a rate limit, and every branch in a fan-out is holding a slot while it
-// waits.
-const CONNECTOR_RETRY_BASE_BACKOFF_MS = 400;
-
-export function connectorRetryBackoffMs(attemptNumber: number): number {
-  return CONNECTOR_RETRY_BASE_BACKOFF_MS * 2 ** Math.max(0, attemptNumber - 2);
-}
+// The backoff curve lives beside the top-level relay retry in relay.ts; both
+// layers space their re-asks the same way. Re-exported here because fanout
+// branch re-asks are where it first earned its place.
+export { connectorRetryBackoffMs };
 
 async function pause(ms: number): Promise<void> {
   await new Promise<void>((resolve) => {

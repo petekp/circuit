@@ -14,6 +14,8 @@ import { mkdirSync } from 'node:fs';
 import { dirname, join } from 'node:path';
 import { describe, expect, it } from 'vitest';
 import { ReviewResult } from '../../src/flows/review/reports.js';
+import { TraceStore } from '../../src/runtime/trace/trace-store.js';
+import { RunTrace } from '../../src/schemas/run.js';
 import type { RelayResult } from '../../src/shared/connector-relay.js';
 import type { RelayFn, RelayInput } from '../../src/shared/relay-runtime-types.js';
 import { deterministicNow } from '../helpers/runtime-fixtures.js';
@@ -234,5 +236,16 @@ describe('review this codebase', () => {
       result.findings.find((finding) => finding.id === 'circuit-review-unit-not-reviewed'),
     ).toBeUndefined();
     expect(result.verdict).toBe('CLEAN');
+
+    // The retried branch re-plans the same deterministic guidance decision;
+    // the recorded decision must be reused, not appended twice, or the whole
+    // run's trace fails the strict contract (unique decision ids) and the run
+    // turns invisible to every listing that projects it.
+    const traceEntries = await new TraceStore(runFolder).load();
+    const parsedTrace = RunTrace.safeParse(traceEntries);
+    expect(
+      parsedTrace.success,
+      parsedTrace.success ? '' : JSON.stringify(parsedTrace.error.issues),
+    ).toBe(true);
   });
 });
