@@ -13,8 +13,8 @@
     "assessment": "The flow stopped before complete evidence was produced.",
     "key_points": [
       "Stop reason: primary result 'reports/fix-result.json' reported outcome 'partial'",
-      "Working tree: the attempt's edits remain uncommitted.",
       "Review: independent review did not run.",
+      "Verification: passed.",
       "+4 more in operator-summary.json."
     ],
     "caveats": [],
@@ -90,6 +90,7 @@
     "depth": "medium",
     "power": "medium",
     "worker_runs": 4,
+    "worker_runs_failed": 1,
     "escalations": 0,
     "models": [
       {

@@ -1,4 +1,4 @@
-import { ReviewIntake } from '../reports.js';
+import { ReviewIntake, reviewEvidenceWarningLabel } from '../reports.js';
 import type {
   ReviewEvidence,
   ReviewEvidenceWarning,
@@ -449,10 +449,29 @@ export const MAX_REVIEW_UNITS = 24;
  * lets one reviewer prompt serve both cases: the reviewer reads the same
  * structure whether it holds the entire target or a twelfth of it.
  */
+/**
+ * Warnings as a reviewer should see them: a plain-English limitation and the
+ * message, with the runtime `kind` tag left behind.
+ *
+ * A reviewer writes prose an operator reads, so anything in its prompt is
+ * something it can quote. One of them quoted `diff_truncated` straight into a
+ * finding. The typed kind stays on the intake for the writers that branch on
+ * it; only the prompt copy is translated.
+ */
+function promptWarnings(
+  warnings: readonly ReviewEvidenceWarning[],
+): ReadonlyArray<Record<string, string>> {
+  return warnings.map((warning) => ({
+    limitation: reviewEvidenceWarningLabel(warning.kind),
+    ...(warning.path === undefined ? {} : { path: warning.path }),
+    message: warning.message,
+  }));
+}
+
 function snapshotUnits(
   scope: string,
   evidence: ReviewEvidence,
-  body: Record<string, unknown>,
+  body: { readonly evidence_warnings: readonly ReviewEvidenceWarning[] } & Record<string, unknown>,
 ): { units: readonly ReviewIntakeUnit[]; coverage: ReviewUnitCoverage } | undefined {
   if (evidence.kind !== 'git-snapshot') return undefined;
   const allPacked = packReviewUnits(
@@ -472,10 +491,21 @@ function snapshotUnits(
     truncated: evidence.files_truncated || packed.length < allPacked.length,
   };
   const byPath = new Map(evidence.files.map((file) => [file.path, file]));
+  const allWarnings = body.evidence_warnings;
   const units = packed.map((unit) => {
     const files = unit.paths
       .map((path) => byPath.get(path))
       .filter((file): file is (typeof evidence.files)[number] => file !== undefined);
+    // A warning that names a file belongs only to the unit holding that file.
+    // Handing every reviewer the whole target's warnings made them hedge their
+    // verdicts over files they were never given, which is the opposite of what
+    // the warnings are for. Warnings with no path describe the target as a
+    // whole and stay on every unit. The intake keeps the full list either way,
+    // so nothing is lost to the merge step or the operator report.
+    const held = new Set(unit.paths);
+    const warnings = allWarnings.filter(
+      (warning) => warning.path === undefined || held.has(warning.path),
+    );
     return {
       unit_id: unit.unit_id,
       label: unit.label,
@@ -488,14 +518,28 @@ function snapshotUnits(
         packed.length === 1
           ? `${scope} (You are reviewing unit ${unit.unit_id}, ${unit.label}, which is the whole of this target. Report under unit_id "${unit.unit_id}".)`
           : `${scope} (You are reviewing unit ${unit.unit_id} of ${packed.length}: ${unit.label}, ${files.length} of the ${evidence.files.length} files in this target. Report under unit_id "${unit.unit_id}". The other units are being reviewed separately by other reviewers; you cannot see them, so review what is in this prompt and do not draw conclusions about the rest of the codebase.)`,
-      contents: JSON.stringify({ ...body, evidence: { ...evidence, files } }, null, 2),
+      contents: JSON.stringify(
+        {
+          ...body,
+          evidence: { ...evidence, files },
+          evidence_warnings: promptWarnings(warnings),
+        },
+        null,
+        2,
+      ),
     };
   });
   return { units, coverage };
 }
 
 export function projectReviewIntake(input: ReviewIntakeProjectorInputs): ReviewIntake {
-  const body = {
+  const body: {
+    scope: string;
+    target: ReviewIntakeProjectorInputs['target'];
+    target_provenance: ReviewIntakeProjectorInputs['targetProvenance'];
+    evidence: ReviewEvidence;
+    evidence_warnings: readonly ReviewEvidenceWarning[];
+  } = {
     scope: input.scope,
     target: input.target,
     target_provenance: input.targetProvenance,
@@ -530,7 +574,11 @@ export function projectReviewIntake(input: ReviewIntakeProjectorInputs): ReviewI
         // this unit is the whole target is what stops a reviewer from hedging
         // about parts it cannot see when there are none.
         goal: `${input.scope} (You are reviewing unit unit-1, ${singleUnitLabel(input.target)}, which is the whole of this target. Report under unit_id "unit-1".)`,
-        contents: JSON.stringify(body, null, 2),
+        contents: JSON.stringify(
+          { ...body, evidence_warnings: promptWarnings(body.evidence_warnings) },
+          null,
+          2,
+        ),
       },
     ];
   return ReviewIntake.parse({

@@ -1,0 +1,31 @@
+{
+  "schema": "run.decision-packet@v0",
+  "decision_id": "decision-stopped-result",
+  "reason": "operator-judgment",
+  "prompt": "The process finished and reported a result that is not clean. Choose what to do.",
+  "choices": [
+    {
+      "id": "act-on-result",
+      "label": "Act on the result",
+      "effect": "Take the reported findings forward as follow-up work."
+    },
+    {
+      "id": "accept",
+      "label": "Accept as is",
+      "effect": "Record the result and close without further work."
+    }
+  ],
+  "resume_target": {
+    "kind": "run-envelope",
+    "run_id": "44444444-4444-4444-4444-444444444407"
+  },
+  "artifact_refs": [
+    {
+      "kind": "evidence",
+      "ref": "reports/process-evidence.json",
+      "sha256": "650e1eddb8c98440b65184d227a6abfcbd54f90fe15400ec87896b3540daa49b",
+      "run_id": "44444444-4444-4444-4444-444444444407",
+      "flow_id": "fix"
+    }
+  ]
+}

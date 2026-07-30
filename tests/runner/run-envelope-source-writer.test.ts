@@ -587,13 +587,94 @@ describe('Run envelope source writer', () => {
     });
 
     const record = RunEnvelopeRecord.parse(JSON.parse(readFileSync(written.path, 'utf8')));
-    expect(record.outcome).toBe('blocked');
-    expect(record.surface_output.status_text).toBe(
-      'Blocked: review did not produce enough process evidence.',
-    );
     expect(record.process_attempts[0]?.summary).toBe(
       'Review stopped before producing a private result report.',
     );
     expect(record.surface_output.status_text).not.toMatch(/\b(?:done|complete|completed)\b/i);
+  });
+
+  // A stopped close is a deliberate pause, not a failure. Review binds an
+  // ISSUES_FOUND verdict to `stopped` (src/flows/review/reports.ts), so a review
+  // that ran its whole process and honestly reported findings arrives here. It
+  // must not be headlined as a run that failed to produce its evidence, and it
+  // must not be recorded as `blocked` — `blocked` is in the failure set
+  // (src/shared/outcome.ts), which would file a healthy review as a failure in
+  // run history. The canonical mapping is stopped -> needs_attention.
+  it('reports a review that stopped with findings as needs-follow-up, not blocked', () => {
+    const runFolder = join(tempDir, 'issues-found-review-run');
+    const resultPath = join(runFolder, 'reports/result.json');
+    const stoppedResult = RunResult.parse({
+      ...runResult('review'),
+      outcome: 'stopped',
+      summary: 'Review completed and found 20 issues.',
+      reason: 'Review closed ISSUES_FOUND with 20 findings.',
+    });
+    writeJson(resultPath, stoppedResult);
+    const processEvidence = writtenClosedProcessEvidence({
+      runFolder,
+      runResult: stoppedResult,
+      resultPath,
+    });
+
+    const written = writeRunEnvelopeRecord({
+      runFolder,
+      operatorIntent: 'Review the patch.',
+      selectedProcess: {
+        process_id: 'review',
+        routed_by: 'explicit',
+        router_reason: 'explicit flow positional argument',
+      },
+      processEvidence,
+      recordedAt: '2026-05-28T05:01:00.000Z',
+    });
+
+    const record = RunEnvelopeRecord.parse(JSON.parse(readFileSync(written.path, 'utf8')));
+    expect(record.outcome).toBe('needs_attention');
+    expect(record.surface_output.status_text).not.toMatch(/^Blocked:/);
+    // The specific lie: the review DID produce its process evidence.
+    expect(record.surface_output.status_text).not.toMatch(/enough process evidence/);
+    // It also must not read as a clean pass, and it must not be mistaken for a
+    // checkpoint the operator is expected to answer.
+    expect(record.surface_output.status_text).not.toMatch(/\b(?:done|complete|completed)\b/i);
+    expect(record.surface_output.status_text).not.toMatch(/waiting at a checkpoint/);
+    // The flow's own stated reason survives to the operator.
+    expect(record.surface_output.status_text).toContain(
+      'Review closed ISSUES_FOUND with 20 findings.',
+    );
+  });
+
+  it('still records an escalated child process as blocked', () => {
+    const runFolder = join(tempDir, 'escalated-run');
+    const resultPath = join(runFolder, 'reports/result.json');
+    const escalatedResult = RunResult.parse({
+      ...runResult('review'),
+      outcome: 'escalated',
+      summary: 'Review escalated without producing its evidence.',
+      reason: 'No reviewable target was found.',
+    });
+    writeJson(resultPath, escalatedResult);
+    const processEvidence = writtenClosedProcessEvidence({
+      runFolder,
+      runResult: escalatedResult,
+      resultPath,
+    });
+
+    const written = writeRunEnvelopeRecord({
+      runFolder,
+      operatorIntent: 'Review the patch.',
+      selectedProcess: {
+        process_id: 'review',
+        routed_by: 'explicit',
+        router_reason: 'explicit flow positional argument',
+      },
+      processEvidence,
+      recordedAt: '2026-05-28T05:01:00.000Z',
+    });
+
+    const record = RunEnvelopeRecord.parse(JSON.parse(readFileSync(written.path, 'utf8')));
+    expect(record.outcome).toBe('blocked');
+    expect(record.surface_output.status_text).toBe(
+      'Blocked: review did not produce enough process evidence.',
+    );
   });
 });

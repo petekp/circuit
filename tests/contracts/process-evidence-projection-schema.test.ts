@@ -237,8 +237,11 @@ describe('ProcessEvidenceProjection', () => {
       expectBlockedReason: false,
     },
     {
+      // A stopped close keeps its own identity rather than collapsing into
+      // `blocked`. Review binds ISSUES_FOUND to `stopped`, so folding the two
+      // filed an honest review as a failed run.
       runOutcome: 'stopped' as const,
-      projectionOutcome: 'blocked' as const,
+      projectionOutcome: 'stopped' as const,
       expectBlockedReason: true,
     },
     {

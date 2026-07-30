@@ -22,7 +22,7 @@
       "ref": {
         "kind": "report",
         "ref": "reports/result.json",
-        "sha256": "70d863bc06000a9740985782888a2a33b8f7dd6ad26a0825c961e8d9a4083bed",
+        "sha256": "034667ec95bf72a07690af0ac841c8babebef3466c0c082e75afc75ef430362f",
         "run_id": "44444444-4444-4444-4444-444444444407",
         "flow_id": "fix"
       }
@@ -32,7 +32,7 @@
     {
       "kind": "report",
       "ref": "reports/result.json",
-      "sha256": "70d863bc06000a9740985782888a2a33b8f7dd6ad26a0825c961e8d9a4083bed",
+      "sha256": "034667ec95bf72a07690af0ac841c8babebef3466c0c082e75afc75ef430362f",
       "run_id": "44444444-4444-4444-4444-444444444407",
       "flow_id": "fix"
     }

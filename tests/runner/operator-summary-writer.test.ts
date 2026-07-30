@@ -489,7 +489,11 @@ describe('operator summary writer', () => {
     const markdown = readFileSync(written.markdownPath, 'utf8');
     expect(markdown).toContain('Circuit · Review');
     expect(markdown).toContain('Untracked evidence: contents included for 1 file');
-    expect(markdown).toContain('diff_truncated');
+    // The JSON record above keeps the machine `kind`. What an operator reads
+    // must not: snake_case enum tags are jargon, and agents echo them back into
+    // their own prose.
+    expect(markdown).toContain('Diff truncated: staged diff was truncated before relay');
+    expect(markdown).not.toContain('diff_truncated');
     expect(markdown).not.toContain('CIRCUIT');
     expect(markdown).not.toContain('write-capable Claude Code worker');
     expect(markdown).not.toContain('v0.1.0 closed');
@@ -557,7 +561,7 @@ describe('operator summary writer', () => {
       // The machine warning takes the front slot (warnings never lose to
       // ordinary caveats), and the capped tail is announced, not hidden.
       caveats: [
-        'diff_truncated: staged diff was truncated before relay',
+        'Diff truncated: staged diff was truncated before relay',
         'HEAD~1 history was out of scope for this review.',
         '+3 more in operator-summary.json.',
       ],
@@ -586,7 +590,7 @@ describe('operator summary writer', () => {
         '- Replayed the staged diff against tests/example.test.ts',
         '- Checked generated docs',
         '- +3 more in operator-summary.json.',
-        '- Caveat: diff_truncated: staged diff was truncated before relay',
+        '- Caveat: Diff truncated: staged diff was truncated before relay',
         '- Caveat: HEAD~1 history was out of scope for this review.',
         '- Caveat: +3 more in operator-summary.json.',
         '',
@@ -747,7 +751,7 @@ describe('operator summary writer', () => {
     );
     const markdown = readFileSync(written.markdownPath, 'utf8');
     expect(markdown).toContain('no uncommitted source content to examine');
-    expect(markdown).toContain('scope_empty');
+    expect(markdown).toContain('Scope empty');
   });
 
   it('marks a reviewer self-report as unbacked when the ledger says nothing was relayed', () => {
@@ -2656,7 +2660,7 @@ describe('operator summary writer', () => {
     expect(written.summary.evidence_warnings).toContainEqual(
       expect.objectContaining({ kind: 'html_write_failed' }),
     );
-    expect(markdown).toContain('html_write_failed');
+    expect(markdown).toContain('Html write failed');
     // The pre-existing directory at the target path was cleaned up so the
     // envelope can never claim a path that does not point at a valid file.
     expect(existsSync(join(runFolder, 'reports', 'operator-summary.html'))).toBe(false);
@@ -3258,7 +3262,7 @@ describe('operator summary writer — live equipment reshapes (F2)', () => {
     expect(warning?.message).toContain('unconfirmed');
     // The brief form folds the warning into a caveat the operator reads.
     const markdown = readFileSync(written.markdownPath, 'utf8');
-    expect(markdown).toContain('equipment_discovery_parked');
+    expect(markdown).toContain('Equipment discovery parked');
     expect(markdown).toContain('unconfirmed');
   });
 
@@ -4702,13 +4706,13 @@ describe('brief caps never hide warnings and always announce overflow', () => {
     const caveats = written.summary.brief_slots?.caveats ?? [];
     // The machine warning holds the FIRST slot; it can never be evicted by
     // benign limitations.
-    expect(caveats[0]).toBe('skill_hook_dispatch_failed: hook dispatcher threw mid-run');
+    expect(caveats[0]).toBe('Skill hook dispatch failed: hook dispatcher threw mid-run');
     // The cap still holds (schema max 3), and the final slot announces what
     // was dropped instead of dropping it silently.
     expect(caveats).toHaveLength(3);
     expect(caveats[2]).toMatch(/^\+\d+ more in operator-summary\.json\.$/);
     const markdown = readFileSync(written.markdownPath, 'utf8');
-    expect(markdown).toContain('Caveat: skill_hook_dispatch_failed: hook dispatcher threw mid-run');
+    expect(markdown).toContain('Caveat: Skill hook dispatch failed: hook dispatcher threw mid-run');
     expect(markdown).toMatch(/Caveat: \+\d+ more in operator-summary\.json\./);
     // Everything dropped from the brief is still durable in the JSON record.
     expect(written.summary.details).toContainEqual(

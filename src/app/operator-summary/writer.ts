@@ -495,6 +495,18 @@ function warningRecords(report: JsonObject | undefined): OperatorSummaryWarning[
   });
 }
 
+// Operator-facing name for a warning kind. Kinds are runtime enum tags
+// (`diff_truncated`, `skill_hook_dispatch_failed`); the record keeps them so
+// downstream logic can still match, but nothing a person reads should show one.
+// Beyond being jargon, a reviewer that saw one in its prompt copied it straight
+// into a finding. Deliberately generic: this file is flow-agnostic, so it
+// de-underscores rather than importing any one flow's vocabulary.
+function warningLabel(kind: string): string {
+  const words = kind.replace(/_/g, ' ').trim();
+  if (words.length === 0) return kind;
+  return `${words.slice(0, 1).toUpperCase()}${words.slice(1)}`;
+}
+
 function flowDisplayName(flowId: string): string {
   return flowId
     .split('-')
@@ -766,7 +778,7 @@ function caveatsFrom(input: {
   // discovery); it must never lose its brief slot to an ordinary review
   // caveat, so position here is survival priority under the cap below.
   for (const warning of input.warnings) {
-    add(`${warning.kind}: ${warning.message}`, warning.message);
+    add(`${warningLabel(warning.kind)}: ${warning.message}`, warning.message);
   }
   for (const detail of input.details) {
     if (detail.startsWith('Confidence limitations: ')) {
@@ -1850,7 +1862,7 @@ function renderMarkdown(
     lines.push('', 'Warnings:');
     for (const warning of summary.evidence_warnings) {
       const path = warning.path === undefined ? '' : ` (${warning.path})`;
-      lines.push(`- ${warning.kind}${path}: ${warning.message}`);
+      lines.push(`- ${warningLabel(warning.kind)}${path}: ${warning.message}`);
     }
   }
 
