@@ -461,6 +461,28 @@ describe('Codex MCP host smoke automation', () => {
     expect(result.cleanup_after_intervention_confirmed).toBe(true);
   });
 
+  it('attributes abandoned git survivors to the host, not the product', async () => {
+    // Codex 0.146 starts background marketplace re-clones during exec and
+    // exits without waiting for them. Those git processes are host-owned:
+    // they must be terminated and recorded, but they are not a product leak.
+    const result = await runDetachedSmokeCommand(
+      process.execPath,
+      [
+        '-e',
+        "const {spawn}=require('node:child_process');const child=spawn('/bin/sleep',['30'],{stdio:'ignore',argv0:'git-remote-https'});child.unref();",
+      ],
+      process.env,
+    );
+
+    expect(result.status).toBe(0);
+    expect(result.cleanup_confirmed).toBe(true);
+    expect(result.cleanup_intervention_required).toBe(true);
+    expect(result.cleanup_after_intervention_confirmed).toBe(true);
+    expect(
+      result.surviving_group_commands?.some((c: string) => c.includes('git-remote-https')),
+    ).toBe(true);
+  });
+
   it('allows a bounded grace period for product children to exit naturally', async () => {
     const result = await runDetachedSmokeCommand(
       process.execPath,

@@ -202,10 +202,16 @@ export interface SmokeCommandResult {
   readonly stdout: string;
   readonly stderr: string;
   readonly timed_out: boolean;
-  /** True only when the process group was already gone without help from the harness. */
+  /**
+   * True when no product-owned process outlived the host: the process group
+   * was already gone, or every survivor was a host-owned git process (Codex
+   * abandons background marketplace re-clones on exit; observed on 0.146).
+   */
   readonly cleanup_confirmed: boolean;
   readonly cleanup_intervention_required: boolean;
   readonly cleanup_after_intervention_confirmed: boolean;
+  /** Commands still alive in the group after the natural window, verbatim. */
+  readonly surviving_group_commands?: readonly string[];
 }
 
 export interface SmokeCommandTiming {
@@ -232,6 +238,43 @@ async function waitForProcessGroupAbsence(pid: number, timeoutMs = 1_000): Promi
     await new Promise<void>((resolveWait) => setTimeout(resolveWait, Math.min(25, remaining)));
   }
   return processGroupAbsent(pid);
+}
+
+/**
+ * Snapshots the commands still alive in a process group. Returns undefined
+ * when the snapshot itself cannot be trusted (ps failed), so callers stay
+ * conservative instead of passing on missing evidence.
+ */
+function survivingGroupCommands(pgid: number): readonly string[] | undefined {
+  const result = spawnSync('ps', ['-axo', 'pgid=,command='], {
+    encoding: 'utf8',
+    timeout: 5_000,
+    maxBuffer: MAX_OUTPUT_BYTES,
+  });
+  if (result.error !== undefined || result.status !== 0) return undefined;
+  const survivors: string[] = [];
+  for (const line of result.stdout.split('\n')) {
+    const match = line.match(/^\s*(\d+)\s+(.*)$/);
+    if (match?.[1] === undefined || match[2] === undefined) continue;
+    if (Number(match[1]) !== pgid) continue;
+    survivors.push(match[2].trim());
+  }
+  return survivors;
+}
+
+/**
+ * The product never leaves long-running git processes: its git helper calls
+ * are short synchronous reads. A git-family survivor in the host's group is
+ * the host's own abandoned marketplace re-clone, not a product leak.
+ */
+function hostOwnedGitCommand(command: string): boolean {
+  const first = command.split(/\s+/, 1)[0] ?? '';
+  const basename =
+    first
+      .replace(/^\(|\)$/g, '')
+      .split('/')
+      .pop() ?? '';
+  return /^git(-[a-z-]+)?$/.test(basename);
 }
 
 async function terminateProcessGroup(pid: number): Promise<boolean> {
@@ -676,11 +719,22 @@ export async function runDetachedSmokeCommand(
         return;
       }
 
-      const cleanupConfirmed =
+      const naturallyAbsent =
         pid === undefined
           ? true
           : await waitForProcessGroupAbsence(pid, timing.natural_cleanup_timeout_ms);
-      const cleanupAfterInterventionConfirmed = cleanupConfirmed
+      let survivors: readonly string[] | undefined;
+      let productCleanupConfirmed = naturallyAbsent;
+      if (!naturallyAbsent && pid !== undefined) {
+        survivors = survivingGroupCommands(pid);
+        if (survivors !== undefined) {
+          // An empty snapshot means the group emptied between the two checks.
+          // A snapshot of only host-owned git processes means the host, not
+          // the product, abandoned them; they are terminated and recorded.
+          productCleanupConfirmed = survivors.length === 0 || survivors.every(hostOwnedGitCommand);
+        }
+      }
+      const cleanupAfterInterventionConfirmed = naturallyAbsent
         ? true
         : await terminateProcessGroup(pid as number);
       resolveRun({
@@ -688,9 +742,12 @@ export async function runDetachedSmokeCommand(
         stdout,
         stderr,
         timed_out: timedOut,
-        cleanup_confirmed: cleanupConfirmed,
-        cleanup_intervention_required: !cleanupConfirmed,
+        cleanup_confirmed: productCleanupConfirmed,
+        cleanup_intervention_required: !naturallyAbsent,
         cleanup_after_intervention_confirmed: cleanupAfterInterventionConfirmed,
+        ...(survivors === undefined || survivors.length === 0
+          ? {}
+          : { surviving_group_commands: survivors }),
       });
     };
     const armSettlementWatchdog = (): void => {
@@ -1726,7 +1783,16 @@ export async function runLiveProbe(
         { class: 'host', code: 'profile_not_fresh', retryable: false },
       );
     }
+    const recordHostSurvivors = (run: SmokeCommandResult): void => {
+      if (run.surviving_group_commands === undefined) return;
+      evidence.push({
+        name: 'host_abandoned_processes_terminated',
+        ok: run.cleanup_confirmed,
+        detail: run.surviving_group_commands.join(' | ').slice(0, 400),
+      });
+    };
     const bootstrap = await runLoaderRound();
+    recordHostSurvivors(bootstrap.run);
     const bootstrapStructured = parseMcpResult(bootstrap.run.stdout);
     const bootstrapStatePrivate =
       existsSync(stateRoot) &&
@@ -1809,6 +1875,7 @@ export async function runLiveProbe(
     }
 
     const loaded = await runLoaderRound();
+    recordHostSurvivors(loaded.run);
     const { run, probe } = loaded;
     evidence.push({
       name: 'real_plugin_loader_completed',
