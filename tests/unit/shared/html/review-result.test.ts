@@ -51,7 +51,11 @@ describe('reviewResultProjector', () => {
     expect(html).not.toContain('>ISSUES_FOUND<');
     expect(html).toContain('eval call enables remote code execution');
     expect(html).toContain('evil.js:7');
-    expect(html).toContain('diff_truncated');
+    // The warning is named in plain English. `diff_truncated` is an internal
+    // enum tag; putting it in front of an operator breaks the no-jargon rule in
+    // AGENTS.md, and reviewers copied it back out into their own prose.
+    expect(html).toContain('Content truncated before review');
+    expect(html).not.toContain('diff_truncated');
     expect(html).toContain('Untracked files were metadata only.');
     expect(html).not.toContain('<script>alert(1)</script>');
   });

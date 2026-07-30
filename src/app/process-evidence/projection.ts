@@ -91,6 +91,11 @@ function normalizeClosedOutcome(outcome: RunResult['outcome']): ProcessEvidenceO
   // A run whose work exists but whose typed report failed validation is a
   // failed attempt (retryable), not a blocked one.
   if (outcome === 'evidence_invalid') return 'failed';
+  // A stopped close is a deliberate pause by a process that ran to the end and
+  // produced its evidence — Review binds ISSUES_FOUND to it. It is NOT blocked;
+  // collapsing the two told the operator a healthy run had failed to produce
+  // proof. `escalated` remains the genuine blocked case and falls through.
+  if (outcome === 'stopped') return 'stopped';
   return 'blocked';
 }
 
@@ -156,9 +161,11 @@ export function projectClosedProcessEvidence(
     missing_evidence: missingEvidenceFor(input.runResult),
     trace_entries_observed: input.runResult.trace_entries_observed,
     manifest_hash: input.runResult.manifest_hash,
-    // The schema requires a reason for both blocked and failed projections;
-    // 'failed' is reached here when the run closed evidence_invalid.
-    ...(outcome === 'blocked' || outcome === 'failed'
+    // The schema requires a reason for stopped, blocked and failed projections;
+    // 'failed' is reached here when the run closed evidence_invalid. For a
+    // stopped close this reason is the flow's own account of why it did not
+    // close clean, and it is what the operator surface quotes.
+    ...(outcome === 'stopped' || outcome === 'blocked' || outcome === 'failed'
       ? { blocked_reason: input.runResult.reason ?? input.runResult.summary }
       : {}),
   });

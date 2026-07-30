@@ -4,8 +4,15 @@ import { Ref } from './ref.js';
 
 export const PROCESS_EVIDENCE_RELATIVE_PATH = 'reports/process-evidence.json';
 
+// `stopped` is carried distinctly from `blocked` on purpose. A stopped close is
+// a deliberate pause by a process that DID run and DID produce its evidence —
+// Review binds an ISSUES_FOUND verdict to it. Folding it into `blocked` (the
+// old behavior) both headlined a healthy run as a failure to produce evidence
+// and filed it in the failure set (see src/shared/outcome.ts), which is what
+// made run history read as mostly-failing.
 export const ProcessEvidenceOutcome = z.enum([
   'complete',
+  'stopped',
   'blocked',
   'failed',
   'checkpoint_waiting',
@@ -143,14 +150,14 @@ export const ProcessEvidenceProjection = z
       });
     }
     if (
-      ['blocked', 'failed'].includes(projection.outcome) &&
+      ['stopped', 'blocked', 'failed'].includes(projection.outcome) &&
       projection.blocked_reason === undefined &&
       projection.next_action === undefined
     ) {
       ctx.addIssue({
         code: 'custom',
         path: ['blocked_reason'],
-        message: 'blocked or failed process projections require a reason or next action',
+        message: 'stopped, blocked or failed process projections require a reason or next action',
       });
     }
   });

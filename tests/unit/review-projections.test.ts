@@ -878,6 +878,95 @@ describe('Review evidence projections', () => {
       expect(intake.unit_coverage.truncated).toBe(false);
     });
 
+    // A reviewer that is handed a warning about a file it was never given has
+    // no way to act on it, and hedges its whole verdict over ground it does not
+    // hold. Per-file warnings belong to the unit that carries the file; only
+    // warnings about the target as a whole belong to every unit.
+    it('gives each unit only the warnings about files it actually holds', () => {
+      const evidence = wideTree(6, 2);
+      const files = [...(evidence as { files: { path: string }[] }).files];
+      // Two files spoiled in different directories, so the packer puts them in
+      // different units.
+      const spoiled = [files[0]?.path, files[10]?.path].filter(
+        (path): path is string => path !== undefined,
+      );
+      expect(spoiled).toHaveLength(2);
+      const spoiledEvidence = {
+        ...evidence,
+        files: (evidence as unknown as { files: Record<string, unknown>[] }).files.map((file) =>
+          spoiled.includes(file.path as string)
+            ? { ...file, content: { text: 'x'.repeat(20_000), truncated: true } }
+            : file,
+        ),
+      } as ReviewEvidence;
+
+      const intake = intakeFor(spoiledEvidence);
+      // Every spoiled file is still named somewhere: scoping must not silently
+      // drop a warning.
+      const allUnitWarnings = intake.units.flatMap((unit) => {
+        const body = JSON.parse(unit.contents) as {
+          evidence_warnings?: ReadonlyArray<{ path?: string }>;
+        };
+        return body.evidence_warnings ?? [];
+      });
+      for (const path of spoiled) {
+        expect(allUnitWarnings.filter((warning) => warning.path === path)).toHaveLength(1);
+      }
+
+      for (const unit of intake.units) {
+        const body = JSON.parse(unit.contents) as {
+          evidence_warnings?: ReadonlyArray<{ path?: string }>;
+        };
+        for (const warning of body.evidence_warnings ?? []) {
+          if (warning.path === undefined) continue;
+          expect(unit.paths).toContain(warning.path);
+        }
+      }
+    });
+
+    // The whole-target warning list is what the merge step and the operator
+    // report read, so scoping the per-unit copies must not thin it.
+    it('keeps every warning on the intake itself', () => {
+      const evidence = wideTree(6, 2);
+      const files = (evidence as unknown as { files: Record<string, unknown>[] }).files;
+      const spoiledEvidence = {
+        ...evidence,
+        files: files.map((file, index) =>
+          index === 0 ? { ...file, content: { text: 'x'.repeat(20_000), truncated: true } } : file,
+        ),
+      } as ReviewEvidence;
+
+      const intake = intakeFor(spoiledEvidence);
+      expect(
+        intake.evidence_warnings.filter((warning) => warning.kind === 'diff_truncated'),
+      ).toHaveLength(1);
+    });
+
+    // Reviewers write prose for operators. Anything in their prompt is
+    // something they can echo, and one of them echoed the raw enum tag
+    // `diff_truncated` into a finding. The prompt gets the message, not the
+    // machine vocabulary.
+    it('does not put internal warning tags in a reviewer prompt', () => {
+      const evidence = wideTree(3, 2);
+      const files = (evidence as unknown as { files: Record<string, unknown>[] }).files;
+      const spoiledEvidence = {
+        ...evidence,
+        files: files.map((file, index) =>
+          index === 0 ? { ...file, content: { text: 'x'.repeat(20_000), truncated: true } } : file,
+        ),
+      } as ReviewEvidence;
+
+      const intake = intakeFor(spoiledEvidence);
+      const carrying = intake.units.filter((unit) => unit.contents.includes('truncated before'));
+      expect(carrying.length).toBeGreaterThan(0);
+      for (const unit of intake.units) {
+        expect(unit.contents).not.toContain('diff_truncated');
+        expect(unit.contents).not.toContain('"kind": "snapshot_file_skipped"');
+      }
+      // The message itself still reaches the reviewer that holds the file.
+      expect(carrying[0]?.contents).toContain('file content was truncated before relay');
+    });
+
     // The cap is only correct while it equals what the schematic declares, and
     // the two live in different files in different languages.
     it('matches the max_branches the audit step declares', () => {

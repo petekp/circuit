@@ -80,7 +80,7 @@
       "goal": "quick fix: restore the failing login test",
       "started_at": "2026-04-29T20:31:10.000Z",
       "completed_at": "2026-04-29T20:31:10.000Z",
-      "outcome": "blocked",
+      "outcome": "needs_attention",
       "child_run": {
         "run_id": "44444444-4444-4444-4444-444444444407",
         "run_folder": "<repo>/docs/release/proofs/runs/fix/run",
@@ -89,7 +89,7 @@
           "ref": {
             "kind": "report",
             "ref": "reports/result.json",
-            "sha256": "70d863bc06000a9740985782888a2a33b8f7dd6ad26a0825c961e8d9a4083bed",
+            "sha256": "034667ec95bf72a07690af0ac841c8babebef3466c0c082e75afc75ef430362f",
             "run_id": "44444444-4444-4444-4444-444444444407",
             "flow_id": "fix"
           }
@@ -103,7 +103,7 @@
           "ref": {
             "kind": "evidence",
             "ref": "reports/process-evidence.json",
-            "sha256": "ccfca1c8dbbcf0d01776518c62ed7d0c64beb8bff90f45d045f26b5c5fe9af46",
+            "sha256": "650e1eddb8c98440b65184d227a6abfcbd54f90fe15400ec87896b3540daa49b",
             "run_id": "44444444-4444-4444-4444-444444444407",
             "flow_id": "fix"
           }
@@ -113,7 +113,7 @@
           "ref": {
             "kind": "report",
             "ref": "reports/result.json",
-            "sha256": "70d863bc06000a9740985782888a2a33b8f7dd6ad26a0825c961e8d9a4083bed",
+            "sha256": "034667ec95bf72a07690af0ac841c8babebef3466c0c082e75afc75ef430362f",
             "run_id": "44444444-4444-4444-4444-444444444407",
             "flow_id": "fix"
           }
@@ -125,18 +125,18 @@
   ],
   "completion_gate": {
     "schema": "run.completion-gate@v0",
-    "verdict": "blocked",
+    "verdict": "needs_followup",
     "claim_results": [
       {
         "claim_id": "process-evidence",
-        "status": "blocked",
+        "status": "missing",
         "evidence": [
           {
             "source": "process_evidence",
             "ref": {
               "kind": "evidence",
               "ref": "reports/process-evidence.json",
-              "sha256": "ccfca1c8dbbcf0d01776518c62ed7d0c64beb8bff90f45d045f26b5c5fe9af46",
+              "sha256": "650e1eddb8c98440b65184d227a6abfcbd54f90fe15400ec87896b3540daa49b",
               "run_id": "44444444-4444-4444-4444-444444444407",
               "flow_id": "fix"
             }
@@ -148,31 +148,75 @@
     "gate_passes": [],
     "clean_streak": 0,
     "required_passes": 2,
-    "next_action": "blocked"
+    "next_action": "plan-followup-process"
   },
-  "decision_packets": [],
+  "decision_packets": [
+    {
+      "schema": "run.decision-packet@v0",
+      "decision_id": "decision-stopped-result",
+      "reason": "operator-judgment",
+      "prompt": "The process finished and reported a result that is not clean. Choose what to do.",
+      "choices": [
+        {
+          "id": "act-on-result",
+          "label": "Act on the result",
+          "effect": "Take the reported findings forward as follow-up work."
+        },
+        {
+          "id": "accept",
+          "label": "Accept as is",
+          "effect": "Record the result and close without further work."
+        }
+      ],
+      "resume_target": {
+        "kind": "run-envelope",
+        "run_id": "44444444-4444-4444-4444-444444444407"
+      },
+      "artifact_refs": [
+        {
+          "kind": "evidence",
+          "ref": "reports/process-evidence.json",
+          "sha256": "650e1eddb8c98440b65184d227a6abfcbd54f90fe15400ec87896b3540daa49b",
+          "run_id": "44444444-4444-4444-4444-444444444407",
+          "flow_id": "fix"
+        }
+      ]
+    }
+  ],
   "memory_update_events": [],
   "surface_output": {
     "schema": "run.surface-output@v0",
-    "status_text": "Blocked: fix did not produce enough process evidence.",
-    "outcome": "blocked",
-    "next_action": "Inspect the process evidence and choose a recovery path.",
+    "status_text": "Needs follow-up: fix ran its full process and stopped without a clean result. primary result 'reports/fix-result.json' reported outcome 'partial'",
+    "outcome": "needs_attention",
+    "next_action": "Read the process result and decide whether to act on what it found.",
     "artifact_links": [
       {
         "kind": "evidence",
         "ref": "reports/process-evidence.json",
-        "sha256": "ccfca1c8dbbcf0d01776518c62ed7d0c64beb8bff90f45d045f26b5c5fe9af46",
+        "sha256": "650e1eddb8c98440b65184d227a6abfcbd54f90fe15400ec87896b3540daa49b",
         "run_id": "44444444-4444-4444-4444-444444444407",
         "flow_id": "fix"
       },
       {
         "kind": "report",
+        "ref": "reports/decision-packets/decision-stopped-result.json",
+        "sha256": "63f0a5749155069d9f2d8a307f38f5c4189d1d387b5117a5c9298bf0af76ece7",
+        "run_id": "44444444-4444-4444-4444-444444444407"
+      },
+      {
+        "kind": "report",
         "ref": "reports/result.json",
-        "sha256": "70d863bc06000a9740985782888a2a33b8f7dd6ad26a0825c961e8d9a4083bed",
+        "sha256": "034667ec95bf72a07690af0ac841c8babebef3466c0c082e75afc75ef430362f",
         "run_id": "44444444-4444-4444-4444-444444444407",
         "flow_id": "fix"
       }
-    ]
+    ],
+    "decision_packet_ref": {
+      "kind": "report",
+      "ref": "reports/decision-packets/decision-stopped-result.json",
+      "sha256": "63f0a5749155069d9f2d8a307f38f5c4189d1d387b5117a5c9298bf0af76ece7",
+      "run_id": "44444444-4444-4444-4444-444444444407"
+    }
   },
-  "outcome": "blocked"
+  "outcome": "needs_attention"
 }

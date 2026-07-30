@@ -337,6 +337,29 @@ do the work better. Section 5 shows a machine-composed flow matched a hand-autho
 doing the work. It is that hand-authored packages are the only way a capability enters the
 generator's vocabulary at all.
 
+### Source note: machine index, human catalog
+
+A July 2026 article on
+[graph-engineered retrieval](https://x.com/i/article/2080680228016230400) offers a useful
+analogy, not evidence about Circuit. Its useful distinction is between the structure a
+person browses and the compact index a model reads. The underlying rule is **cheap,
+deterministic retrieval before model reasoning**: narrow the corpus first, then spend the
+model turn on the selected material. The same rule already appears inside Circuit's
+[`on-demand-context-pull.md`](on-demand-context-pull.md) as typed lookup before semantic
+retrieval.
+
+That sharpens the coupling above. Circuit's human-facing flow catalog is also the source
+of the generator's actual menu. Holding the catalog collapse is still the right decision,
+but the longer-term question is not only how many public flow doors exist. It is whether
+the generator should have a compact, generated capability index that can grow
+independently of those doors. Such an index must remain derived and validated, not become a
+hand-maintained second source of truth. It would select candidate actuals; the compiler and
+Checks would remain authoritative.
+
+This is a post-v1 architecture note, not a new Flow, Block, or reason to change the catalog
+now. The source's performance claims are anecdotal; Circuit would need its own comparison
+of correctness, time, and tokens before using them.
+
 ## 5. What the measurements forbid
 
 Any catalog proposal has to survive the repo's own results, and several of them are

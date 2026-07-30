@@ -15,7 +15,11 @@ import {
   VerdictBanner,
   renderReportPage,
 } from '../../../shared/html/report-components.js';
-import { ReviewResult, type ReviewResult as ReviewResultValue } from '../reports.js';
+import {
+  ReviewResult,
+  type ReviewResult as ReviewResultValue,
+  reviewEvidenceWarningLabel,
+} from '../reports.js';
 
 function severityIntent(severity: string): 'negative' | 'attention' | 'info' {
   if (severity === 'critical' || severity === 'high') return 'negative';
@@ -54,7 +58,7 @@ function WarningList({ warnings }: { readonly warnings: ReviewResultValue['evide
     <ul className="m-0 list-disc space-y-1.5 pl-4 text-[13px] leading-normal marker:text-muted-foreground/60">
       {warnings.map((warning) => (
         <li key={`${warning.kind}:${warning.message}`}>
-          <strong>{t(warning.kind, 120)}</strong>
+          <strong>{t(reviewEvidenceWarningLabel(warning.kind), 120)}</strong>
           {warning.path === undefined ? null : <> ({t(warning.path, MAX_BULLET_LEN)})</>}:{' '}
           {t(warning.message, MAX_BULLET_LEN)}
         </li>

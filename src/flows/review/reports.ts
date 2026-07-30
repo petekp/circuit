@@ -49,6 +49,38 @@ export const ReviewEvidenceWarning = z
   .strict();
 export type ReviewEvidenceWarning = z.infer<typeof ReviewEvidenceWarning>;
 
+// Operator-facing name for each warning kind. The kinds above are runtime
+// vocabulary and must never reach a person: `diff_truncated` is both jargon and
+// actively wrong for a snapshot, where nothing was diffed and a file's contents
+// were cut. Rendering the raw tag also taught reviewers to echo it back into
+// their own findings. Every kind needs an entry; the record type makes a new
+// kind without a label a type error rather than a silent leak.
+const REVIEW_EVIDENCE_WARNING_LABELS: Record<ReviewEvidenceWarningKind, string> = {
+  binary_content_not_inspected: 'Binary content not inspected',
+  diff_truncated: 'Content truncated before review',
+  git_command_failed: 'Git command failed',
+  target_unavailable: 'Target unavailable',
+  untracked_file_skipped: 'Untracked file skipped',
+  untracked_file_content_omitted: 'Untracked file contents not read',
+  untracked_files_truncated: 'Untracked file list cut short',
+  submodule_content_not_inspected: 'Submodule contents not inspected',
+  evidence_unavailable: 'Evidence unavailable',
+  scope_empty: 'Nothing to review in scope',
+  target_assumed: 'Target assumed',
+  target_scoped: 'Target narrowed by scope',
+  scope_not_applied: 'Requested scope not applied',
+  snapshot_fallback: 'Fell back to reading the code as it stands',
+  snapshot_truncated: 'Not every matched file was read',
+  snapshot_file_skipped: 'File skipped',
+  snapshot_not_applied: 'Reviewed changes instead of the code as it stands',
+  target_inferred: 'Target inferred from the goal text',
+};
+
+/** Plain-English name for an evidence warning, for anything a person reads. */
+export function reviewEvidenceWarningLabel(kind: ReviewEvidenceWarningKind): string {
+  return REVIEW_EVIDENCE_WARNING_LABELS[kind];
+}
+
 export const ReviewEvidenceText = z
   .object({
     text: z.string(),

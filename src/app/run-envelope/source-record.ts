@@ -154,6 +154,9 @@ function processAttemptOutcome(
   outcome: ProcessEvidenceProjection['outcome'],
 ): RunEnvelopeRecordValue['process_attempts'][number]['outcome'] {
   if (outcome === 'aborted') return 'failed';
+  // The attempt vocabulary has no `stopped`; the canonical mapping for a
+  // deliberate pause is `needs_attention` (see src/shared/outcome.ts).
+  if (outcome === 'stopped') return 'needs_attention';
   return outcome;
 }
 
@@ -178,6 +181,10 @@ function runOutcome(input: {
   if (input.missingEvidence !== undefined) return 'needs_attention';
   if (input.projection.outcome === 'checkpoint_waiting') return 'needs_attention';
   if (input.projection.outcome === 'aborted') return 'failed';
+  // stopped -> needs_attention is the canonical mapping (src/shared/outcome.ts).
+  // It keeps a deliberate pause out of the failure set, so a Review that ran
+  // fully and reported findings is not filed as a failed run.
+  if (input.projection.outcome === 'stopped') return 'needs_attention';
   return input.projection.outcome;
 }
 
@@ -380,6 +387,31 @@ function gateFor(input: {
     };
   }
 
+  // A stopped close needs follow-up, it is not blocked. The process evidence is
+  // present — what is unproved is the claim that the work is DONE, because the
+  // flow itself reported a non-clean result. Calling this 'blocked' told the
+  // operator the process had failed to produce evidence it had in fact produced.
+  if (input.projection.outcome === 'stopped') {
+    return {
+      schema: 'run.completion-gate@v0',
+      verdict: 'needs_followup',
+      claim_results: [
+        {
+          claim_id: 'process-evidence',
+          status: 'missing',
+          evidence: [input.processEvidence],
+          gap:
+            input.projection.blocked_reason ??
+            'The selected process ran fully but did not close with a clean result.',
+        },
+      ],
+      gate_passes: [],
+      clean_streak: 0,
+      required_passes: 2,
+      next_action: 'plan-followup-process',
+    };
+  }
+
   const failed = input.projection.outcome === 'failed' || input.projection.outcome === 'aborted';
   return {
     schema: 'run.completion-gate@v0',
@@ -454,6 +486,39 @@ function decisionPacketsFor(input: {
             id: 'stop',
             label: 'Stop here',
             effect: 'Leave the Run open with the missing evidence recorded.',
+          },
+        ],
+        resume_target: {
+          kind: 'run-envelope',
+          run_id: input.childRunId,
+        },
+        artifact_refs: [input.processEvidence.ref],
+      },
+    ];
+  }
+
+  // A stopped close is a real decision point, not a failure: the process ran to
+  // the end, produced its evidence, and reported a result that is not clean. A
+  // Review that found issues lands here. Somebody has to decide what to do with
+  // what it found, so say so and record the choice rather than filing the run
+  // as blocked.
+  if (input.projection.outcome === 'stopped') {
+    return [
+      {
+        schema: 'run.decision-packet@v0',
+        decision_id: 'decision-stopped-result',
+        reason: 'operator-judgment',
+        prompt: 'The process finished and reported a result that is not clean. Choose what to do.',
+        choices: [
+          {
+            id: 'act-on-result',
+            label: 'Act on the result',
+            effect: 'Take the reported findings forward as follow-up work.',
+          },
+          {
+            id: 'accept',
+            label: 'Accept as is',
+            effect: 'Record the result and close without further work.',
           },
         ],
         resume_target: {
@@ -548,6 +613,11 @@ function surfaceFor(input: {
   readonly memoryIndicator?: string;
   readonly childResult?: RunEvidenceRef;
   readonly checkpointRequest?: Ref;
+  // Set only when the child process closed `stopped` — a deliberate pause after
+  // a full run, which shares the `needs_attention` outcome with a checkpoint
+  // wait but means something different to the operator. Carries the flow's own
+  // stated reason when it gave one.
+  readonly stoppedReason?: string;
 }): RunEnvelopeRecordValue['surface_output'] {
   const artifactLinks = [
     input.processEvidence.ref,
@@ -592,6 +662,22 @@ function surfaceFor(input: {
     };
   }
   if (input.outcome === 'needs_attention') {
+    if (input.stoppedReason !== undefined) {
+      // The process ran to the end and produced its evidence; it just did not
+      // close clean. Say that, and carry the flow's reason. Saying "did not
+      // produce enough process evidence" here was a plain falsehood — it is
+      // what made an honest Review headline as a broken run.
+      const reason = input.stoppedReason.trim();
+      const reasonSuffix = reason ? ` ${reason}` : '';
+      return {
+        ...base,
+        status_text: `Needs follow-up: ${input.processId} ran its full process and stopped without a clean result.${reasonSuffix}`,
+        next_action: 'Read the process result and decide whether to act on what it found.',
+        ...(input.decisionPacketRefs?.[0] === undefined
+          ? {}
+          : { decision_packet_ref: input.decisionPacketRefs[0] }),
+      };
+    }
     if (input.missingEvidence !== undefined) {
       return {
         ...base,
@@ -802,6 +888,9 @@ export function writeRunEnvelopeRecord(
       ...(flowOutcome === undefined ? {} : { flowOutcome }),
       ...(flowOutcomeReason === undefined ? {} : { flowOutcomeReason }),
       ...(missingEvidence && { missingEvidence }),
+      ...(projection.outcome === 'stopped'
+        ? { stoppedReason: projection.blocked_reason ?? projection.summary }
+        : {}),
       decisionPacketRefs: decisionArtifacts.map((artifact) => artifact.ref),
       ...(memoryIndicator === undefined ? {} : { memoryIndicator }),
       ...(childResult === undefined ? {} : { childResult }),

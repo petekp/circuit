@@ -85038,6 +85038,9 @@ var init_relay_hints10 = __esm({
 });
 
 // dist/flows/review/reports.js
+function reviewEvidenceWarningLabel(kind) {
+  return REVIEW_EVIDENCE_WARNING_LABELS[kind];
+}
 function addRequiredEvidenceField(value, field, ctx) {
   if (value !== void 0)
     return;
@@ -85075,7 +85078,7 @@ function withDerivedRelayVerdict(report) {
     verdict: report.findings.length === 0 ? "NO_ISSUES_FOUND" : "ISSUES_FOUND"
   };
 }
-var ReviewFindingSeverity, ReviewResultVerdict, ReviewRelayVerdict, ReviewEvidenceWarningKind, ReviewEvidenceWarning, ReviewEvidenceText, ReviewUntrackedContentPolicy, ReviewTargetKind, ReviewWorkingTreeMode, ReviewPathScope, ReviewUntrackedFileEvidence, ReviewSnapshotFileEvidence, ReviewGitObjectId, ReviewGitTargetEvidence, ReviewEvidence, ReviewEvidenceSummary, ReviewResolvedTarget, ReviewTargetProvenance, ReviewIntakeUnit, ReviewUnitCoverage, ReviewIntake, ReviewFinding, ReviewResult, ReviewRelayResultShape, ReviewRelayResult, ReviewUnitVerdict, ReviewAuditAggregateBranch, ReviewAuditAggregate;
+var ReviewFindingSeverity, ReviewResultVerdict, ReviewRelayVerdict, ReviewEvidenceWarningKind, ReviewEvidenceWarning, REVIEW_EVIDENCE_WARNING_LABELS, ReviewEvidenceText, ReviewUntrackedContentPolicy, ReviewTargetKind, ReviewWorkingTreeMode, ReviewPathScope, ReviewUntrackedFileEvidence, ReviewSnapshotFileEvidence, ReviewGitObjectId, ReviewGitTargetEvidence, ReviewEvidence, ReviewEvidenceSummary, ReviewResolvedTarget, ReviewTargetProvenance, ReviewIntakeUnit, ReviewUnitCoverage, ReviewIntake, ReviewFinding, ReviewResult, ReviewRelayResultShape, ReviewRelayResult, ReviewUnitVerdict, ReviewAuditAggregateBranch, ReviewAuditAggregate;
 var init_reports10 = __esm({
   "dist/flows/review/reports.js"() {
     "use strict";
@@ -85117,6 +85120,26 @@ var init_reports10 = __esm({
       message: external_exports.string().min(1),
       path: external_exports.string().min(1).optional()
     }).strict();
+    REVIEW_EVIDENCE_WARNING_LABELS = {
+      binary_content_not_inspected: "Binary content not inspected",
+      diff_truncated: "Content truncated before review",
+      git_command_failed: "Git command failed",
+      target_unavailable: "Target unavailable",
+      untracked_file_skipped: "Untracked file skipped",
+      untracked_file_content_omitted: "Untracked file contents not read",
+      untracked_files_truncated: "Untracked file list cut short",
+      submodule_content_not_inspected: "Submodule contents not inspected",
+      evidence_unavailable: "Evidence unavailable",
+      scope_empty: "Nothing to review in scope",
+      target_assumed: "Target assumed",
+      target_scoped: "Target narrowed by scope",
+      scope_not_applied: "Requested scope not applied",
+      snapshot_fallback: "Fell back to reading the code as it stands",
+      snapshot_truncated: "Not every matched file was read",
+      snapshot_file_skipped: "File skipped",
+      snapshot_not_applied: "Reviewed changes instead of the code as it stands",
+      target_inferred: "Target inferred from the goal text"
+    };
     ReviewEvidenceText = external_exports.object({
       text: external_exports.string(),
       truncated: external_exports.boolean()
@@ -85903,6 +85926,13 @@ function singleUnitCoverage(evidence2) {
     truncated: evidence2.files_truncated
   };
 }
+function promptWarnings(warnings) {
+  return warnings.map((warning) => ({
+    limitation: reviewEvidenceWarningLabel(warning.kind),
+    ...warning.path === void 0 ? {} : { path: warning.path },
+    message: warning.message
+  }));
+}
 function snapshotUnits(scope, evidence2, body) {
   if (evidence2.kind !== "git-snapshot")
     return void 0;
@@ -85917,8 +85947,11 @@ function snapshotUnits(scope, evidence2, body) {
     truncated: evidence2.files_truncated || packed.length < allPacked.length
   };
   const byPath = new Map(evidence2.files.map((file2) => [file2.path, file2]));
+  const allWarnings = body.evidence_warnings;
   const units = packed.map((unit) => {
     const files = unit.paths.map((path) => byPath.get(path)).filter((file2) => file2 !== void 0);
+    const held = new Set(unit.paths);
+    const warnings = allWarnings.filter((warning) => warning.path === void 0 || held.has(warning.path));
     return {
       unit_id: unit.unit_id,
       label: unit.label,
@@ -85928,7 +85961,11 @@ function snapshotUnits(scope, evidence2, body) {
       // conclusion about the whole thing, which is the failure this split
       // exists to avoid.
       goal: packed.length === 1 ? `${scope} (You are reviewing unit ${unit.unit_id}, ${unit.label}, which is the whole of this target. Report under unit_id "${unit.unit_id}".)` : `${scope} (You are reviewing unit ${unit.unit_id} of ${packed.length}: ${unit.label}, ${files.length} of the ${evidence2.files.length} files in this target. Report under unit_id "${unit.unit_id}". The other units are being reviewed separately by other reviewers; you cannot see them, so review what is in this prompt and do not draw conclusions about the rest of the codebase.)`,
-      contents: JSON.stringify({ ...body, evidence: { ...evidence2, files } }, null, 2)
+      contents: JSON.stringify({
+        ...body,
+        evidence: { ...evidence2, files },
+        evidence_warnings: promptWarnings(warnings)
+      }, null, 2)
     };
   });
   return { units, coverage };
@@ -85960,7 +85997,7 @@ function projectReviewIntake(input) {
       // this unit is the whole target is what stops a reviewer from hedging
       // about parts it cannot see when there are none.
       goal: `${input.scope} (You are reviewing unit unit-1, ${singleUnitLabel(input.target)}, which is the whole of this target. Report under unit_id "unit-1".)`,
-      contents: JSON.stringify(body, null, 2)
+      contents: JSON.stringify({ ...body, evidence_warnings: promptWarnings(body.evidence_warnings) }, null, 2)
     }
   ];
   return ReviewIntake.parse({
@@ -88080,7 +88117,7 @@ function StringList({ items }) {
 function WarningList({ warnings }) {
   if (warnings.length === 0)
     return (0, import_jsx_runtime13.jsx)(Summary, { text: "No evidence warnings." });
-  return (0, import_jsx_runtime13.jsx)("ul", { className: "m-0 list-disc space-y-1.5 pl-4 text-[13px] leading-normal marker:text-muted-foreground/60", children: warnings.map((warning) => (0, import_jsx_runtime13.jsxs)("li", { children: [(0, import_jsx_runtime13.jsx)("strong", { children: t(warning.kind, 120) }), warning.path === void 0 ? null : (0, import_jsx_runtime13.jsxs)(import_jsx_runtime13.Fragment, { children: [" (", t(warning.path, MAX_BULLET_LEN), ")"] }), ":", " ", t(warning.message, MAX_BULLET_LEN)] }, `${warning.kind}:${warning.message}`)) });
+  return (0, import_jsx_runtime13.jsx)("ul", { className: "m-0 list-disc space-y-1.5 pl-4 text-[13px] leading-normal marker:text-muted-foreground/60", children: warnings.map((warning) => (0, import_jsx_runtime13.jsxs)("li", { children: [(0, import_jsx_runtime13.jsx)("strong", { children: t(reviewEvidenceWarningLabel(warning.kind), 120) }), warning.path === void 0 ? null : (0, import_jsx_runtime13.jsxs)(import_jsx_runtime13.Fragment, { children: [" (", t(warning.path, MAX_BULLET_LEN), ")"] }), ":", " ", t(warning.message, MAX_BULLET_LEN)] }, `${warning.kind}:${warning.message}`)) });
 }
 function hasCompleteUntrackedReviewEvidence(report) {
   const evidence2 = report.evidence_summary;
@@ -98513,6 +98550,7 @@ var init_process_evidence = __esm({
     PROCESS_EVIDENCE_RELATIVE_PATH = "reports/process-evidence.json";
     ProcessEvidenceOutcome = external_exports.enum([
       "complete",
+      "stopped",
       "blocked",
       "failed",
       "checkpoint_waiting",
@@ -98630,11 +98668,11 @@ var init_process_evidence = __esm({
           message: "complete process projections cannot have missing evidence"
         });
       }
-      if (["blocked", "failed"].includes(projection.outcome) && projection.blocked_reason === void 0 && projection.next_action === void 0) {
+      if (["stopped", "blocked", "failed"].includes(projection.outcome) && projection.blocked_reason === void 0 && projection.next_action === void 0) {
         ctx.addIssue({
           code: "custom",
           path: ["blocked_reason"],
-          message: "blocked or failed process projections require a reason or next action"
+          message: "stopped, blocked or failed process projections require a reason or next action"
         });
       }
     });
@@ -111441,6 +111479,12 @@ function warningRecords(report) {
     return [{ kind, message, ...path === void 0 ? {} : { path } }];
   });
 }
+function warningLabel(kind) {
+  const words = kind.replace(/_/g, " ").trim();
+  if (words.length === 0)
+    return kind;
+  return `${words.slice(0, 1).toUpperCase()}${words.slice(1)}`;
+}
 function flowDisplayName(flowId) {
   return flowId.split("-").map((part) => `${part.slice(0, 1).toUpperCase()}${part.slice(1)}`).join(" ");
 }
@@ -111648,7 +111692,7 @@ function caveatsFrom(input) {
     caveats.push(trimmed);
   };
   for (const warning of input.warnings) {
-    add(`${warning.kind}: ${warning.message}`, warning.message);
+    add(`${warningLabel(warning.kind)}: ${warning.message}`, warning.message);
   }
   for (const detail of input.details) {
     if (detail.startsWith("Confidence limitations: ")) {
@@ -112473,7 +112517,7 @@ function renderMarkdown(summary, ledgerRows) {
     lines.push("", "Warnings:");
     for (const warning of summary.evidence_warnings) {
       const path = warning.path === void 0 ? "" : ` (${warning.path})`;
-      lines.push(`- ${warning.kind}${path}: ${warning.message}`);
+      lines.push(`- ${warningLabel(warning.kind)}${path}: ${warning.message}`);
     }
   }
   if (summary.receipt !== void 0) {
@@ -112811,6 +112855,8 @@ function normalizeClosedOutcome(outcome) {
     return outcome;
   if (outcome === "evidence_invalid")
     return "failed";
+  if (outcome === "stopped")
+    return "stopped";
   return "blocked";
 }
 function declaredReportPaths(flowId) {
@@ -112863,9 +112909,11 @@ function projectClosedProcessEvidence(input) {
     missing_evidence: missingEvidenceFor(input.runResult),
     trace_entries_observed: input.runResult.trace_entries_observed,
     manifest_hash: input.runResult.manifest_hash,
-    // The schema requires a reason for both blocked and failed projections;
-    // 'failed' is reached here when the run closed evidence_invalid.
-    ...outcome === "blocked" || outcome === "failed" ? { blocked_reason: input.runResult.reason ?? input.runResult.summary } : {}
+    // The schema requires a reason for stopped, blocked and failed projections;
+    // 'failed' is reached here when the run closed evidence_invalid. For a
+    // stopped close this reason is the flow's own account of why it did not
+    // close clean, and it is what the operator surface quotes.
+    ...outcome === "stopped" || outcome === "blocked" || outcome === "failed" ? { blocked_reason: input.runResult.reason ?? input.runResult.summary } : {}
   });
 }
 function projectCheckpointWaitingProcessEvidence(input) {
@@ -113062,6 +113110,8 @@ function renderSurfaceMarkdown(input) {
 function processAttemptOutcome(outcome) {
   if (outcome === "aborted")
     return "failed";
+  if (outcome === "stopped")
+    return "needs_attention";
   return outcome;
 }
 function missingRunEvidence(projection) {
@@ -113084,6 +113134,8 @@ function runOutcome2(input) {
     return "needs_attention";
   if (input.projection.outcome === "aborted")
     return "failed";
+  if (input.projection.outcome === "stopped")
+    return "needs_attention";
   return input.projection.outcome;
 }
 function selectionSourceFor(routedBy) {
@@ -113224,6 +113276,24 @@ function gateFor(input) {
       next_action: "handoff"
     };
   }
+  if (input.projection.outcome === "stopped") {
+    return {
+      schema: "run.completion-gate@v0",
+      verdict: "needs_followup",
+      claim_results: [
+        {
+          claim_id: "process-evidence",
+          status: "missing",
+          evidence: [input.processEvidence],
+          gap: input.projection.blocked_reason ?? "The selected process ran fully but did not close with a clean result."
+        }
+      ],
+      gate_passes: [],
+      clean_streak: 0,
+      required_passes: 2,
+      next_action: "plan-followup-process"
+    };
+  }
   const failed = input.projection.outcome === "failed" || input.projection.outcome === "aborted";
   return {
     schema: "run.completion-gate@v0",
@@ -113281,6 +113351,33 @@ function decisionPacketsFor(input) {
             id: "stop",
             label: "Stop here",
             effect: "Leave the Run open with the missing evidence recorded."
+          }
+        ],
+        resume_target: {
+          kind: "run-envelope",
+          run_id: input.childRunId
+        },
+        artifact_refs: [input.processEvidence.ref]
+      }
+    ];
+  }
+  if (input.projection.outcome === "stopped") {
+    return [
+      {
+        schema: "run.decision-packet@v0",
+        decision_id: "decision-stopped-result",
+        reason: "operator-judgment",
+        prompt: "The process finished and reported a result that is not clean. Choose what to do.",
+        choices: [
+          {
+            id: "act-on-result",
+            label: "Act on the result",
+            effect: "Take the reported findings forward as follow-up work."
+          },
+          {
+            id: "accept",
+            label: "Accept as is",
+            effect: "Record the result and close without further work."
           }
         ],
         resume_target: {
@@ -113381,6 +113478,16 @@ function surfaceFor(input) {
     };
   }
   if (input.outcome === "needs_attention") {
+    if (input.stoppedReason !== void 0) {
+      const reason = input.stoppedReason.trim();
+      const reasonSuffix = reason ? ` ${reason}` : "";
+      return {
+        ...base,
+        status_text: `Needs follow-up: ${input.processId} ran its full process and stopped without a clean result.${reasonSuffix}`,
+        next_action: "Read the process result and decide whether to act on what it found.",
+        ...input.decisionPacketRefs?.[0] === void 0 ? {} : { decision_packet_ref: input.decisionPacketRefs[0] }
+      };
+    }
     if (input.missingEvidence !== void 0) {
       return {
         ...base,
@@ -113557,6 +113664,7 @@ function writeRunEnvelopeRecord(input) {
       ...flowOutcome === void 0 ? {} : { flowOutcome },
       ...flowOutcomeReason === void 0 ? {} : { flowOutcomeReason },
       ...missingEvidence && { missingEvidence },
+      ...projection.outcome === "stopped" ? { stoppedReason: projection.blocked_reason ?? projection.summary } : {},
       decisionPacketRefs: decisionArtifacts.map((artifact) => artifact.ref),
       ...memoryIndicator === void 0 ? {} : { memoryIndicator },
       ...childResult === void 0 ? {} : { childResult },

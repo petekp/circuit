@@ -8,5 +8,11 @@
   "closed_at": "2026-04-29T20:31:09.000Z",
   "trace_entries_observed": 68,
   "manifest_hash": "602780d3ea03a0a08eb2d32ad2db497567516eb04df1b164a275ba7d2b69435e",
-  "reason": "primary result 'reports/fix-result.json' reported outcome 'partial'"
+  "reason": "primary result 'reports/fix-result.json' reported outcome 'partial'",
+  "engine": {
+    "version": "0.1.1",
+    "source": "git",
+    "sha": "f350b23e654fa293cd5fad172b7e0c1cbfe3ac7b",
+    "dirty": true
+  }
 }

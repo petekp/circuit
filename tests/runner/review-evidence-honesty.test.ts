@@ -921,7 +921,12 @@ describe('review evidence honesty', () => {
         connectorName: 'codex',
         relay: async (input: ClaudeCodeRelayInput): Promise<RelayResult> => {
           expect(input.prompt).toContain(marker);
-          expect(input.prompt).toContain('"diff_truncated"');
+          // The reviewer is told the limitation in plain English. The runtime
+          // `kind` tag stays on the persisted intake (asserted below) and out of
+          // the prompt, because reviewers echo prompt text into their findings.
+          expect(input.prompt).toContain('Content truncated before review');
+          expect(input.prompt).not.toContain('"diff_truncated"');
+          expect(input.prompt).not.toContain('Target unavailable');
           expect(input.prompt).not.toContain('"target_unavailable"');
           return {
             request_payload: input.prompt,

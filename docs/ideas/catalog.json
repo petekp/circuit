@@ -932,6 +932,99 @@
         "UBIQUITOUS_LANGUAGE.md"
       ],
       "last_checked": "2026-07-24"
+    },
+    {
+      "path": "docs/ideas/review-orient-and-breadth.md",
+      "title": "Review: one process for breadth and depth",
+      "status": "current-proposal",
+      "category": "flows-and-blocks",
+      "impact": 4,
+      "tags": ["review-flow", "codebase-fanout", "coverage-honesty", "orient", "route-from-report"],
+      "current_reading": "Design note for handling a whole-codebase review and a single-change review as one distilled process (orient, theorize where risk lives, examine, report the theory with the findings) rather than two flows. Carries the measured result that what to review is a one-dimensional dial, priorfix^a / size^b computed per repo, which traverses the whole precision/coverage frontier monotonically and dominated three of four model-based selection conditions; replicated at two cutoffs. Also carries two refutations of its own earlier claims, both from pre-registered experiments filed alongside: prose coverage disclosure does not change consuming-agent behavior, and moving it into the verdict line fixes reception but not laundering. Concludes the fork between breadth and depth stays narrow enough for route_from_report on an intake-emitted field. The selection dial is written up but NOT built.",
+      "related": [
+        "docs/ideas/review-orient-evidence-log.md",
+        "docs/ideas/review-coverage-consumer-test.md",
+        "docs/ideas/review-coverage-placement-test.md",
+        "docs/ideas/review-generality.md"
+      ],
+      "last_checked": "2026-07-29"
+    },
+    {
+      "path": "docs/ideas/review-orient-evidence-log.md",
+      "title": "Review orient: evidence log",
+      "status": "current-gap-analysis",
+      "category": "verification-and-evals",
+      "impact": 3,
+      "tags": ["review-flow", "defect-prediction", "baselines", "twr", "evidence-log"],
+      "current_reading": "Raw evidence behind the Review breadth/depth design note: leak-free time-split scoring of selection strategies on this repo, the published ManualUp and ManualDown baselines the literature requires, Google TWR, and a sweep of the (priorfix)^a / size^b space with its Pareto frontier. Records two corrections to earlier claims made in this workstream: recall-at-budget alone is gameable, and the assertion that no computed metric produced defect-specific signal was false. Also summarizes the competitor and academic reading. Bounded by a noisy proxy answer key, so read every number as ordinal.",
+      "related": ["docs/ideas/review-orient-and-breadth.md"],
+      "last_checked": "2026-07-29"
+    },
+    {
+      "path": "docs/ideas/review-orient-morning-brief.md",
+      "title": "Review orient: plain-language brief",
+      "status": "current-gap-analysis",
+      "category": "flows-and-blocks",
+      "impact": 3,
+      "tags": ["review-flow", "summary", "selection-dial"],
+      "current_reading": "Zero-jargon summary of the Review orient investigation for a reader who was away: selection is a dial not a design choice, the model did not beat the dial, Google shipped the same idea and measured no effect, and where the open product decision sits (where to set the dial). Companion to the design note and the evidence log.",
+      "related": [
+        "docs/ideas/review-orient-and-breadth.md",
+        "docs/ideas/review-orient-evidence-log.md"
+      ],
+      "last_checked": "2026-07-29"
+    },
+    {
+      "path": "docs/ideas/review-coverage-consumer-prereg.md",
+      "title": "Pre-registration: does a consuming agent use coverage disclosure",
+      "status": "design-evaluation",
+      "category": "verification-and-evals",
+      "impact": 3,
+      "tags": ["review-flow", "coverage-honesty", "pre-registration", "agent-consumers"],
+      "current_reading": "Pre-registration written before any arm ran: three byte-identical review reports differing only in a coverage block, a fixed rubric, and four refutation rows fixed in advance. Exists so the result that followed cannot be read as post-hoc.",
+      "related": ["docs/ideas/review-coverage-consumer-test.md"],
+      "last_checked": "2026-07-29"
+    },
+    {
+      "path": "docs/ideas/review-coverage-consumer-test.md",
+      "title": "Prose coverage disclosure does not survive one hop",
+      "status": "design-evaluation",
+      "category": "verification-and-evals",
+      "impact": 3,
+      "tags": ["review-flow", "coverage-honesty", "refuted", "agent-consumers"],
+      "current_reading": "Result of the pre-registered consumer test, n=15. All fifteen agents made the same decision, none queued review of unexamined code, and none repeated the coverage figure. The load-bearing finding is worse than a null: agents handed \"82 of 342 examined, no claim is made about the other 260\" wrote team summaries reading \"review found no blockers.\" An honest report satisfying every Review invariant was laundered into a clean bill of health by its own consumer. Refutes the claim that prose disclosure is a market opening, in the form it was written. Names the author own ship-biased task design as a confound bounding the decision measure.",
+      "related": [
+        "docs/ideas/review-coverage-consumer-prereg.md",
+        "docs/ideas/review-coverage-placement-test.md",
+        "docs/ideas/review-orient-and-breadth.md"
+      ],
+      "last_checked": "2026-07-29"
+    },
+    {
+      "path": "docs/ideas/review-coverage-placement-prereg.md",
+      "title": "Pre-registration: does placement stop coverage laundering",
+      "status": "design-evaluation",
+      "category": "verification-and-evals",
+      "impact": 3,
+      "tags": ["review-flow", "coverage-honesty", "pre-registration", "verdict-line"],
+      "current_reading": "Pre-registration for the follow-up test: coverage in a report section versus fused into the verdict line, with the verdict arm deliberately given fewer coverage words so any advantage cannot be a volume effect, plus a rebalanced decision task and an explicit manipulation-check arm.",
+      "related": ["docs/ideas/review-coverage-placement-test.md"],
+      "last_checked": "2026-07-29"
+    },
+    {
+      "path": "docs/ideas/review-coverage-placement-test.md",
+      "title": "Verdict-line coverage fixes reception, not laundering",
+      "status": "design-evaluation",
+      "category": "verification-and-evals",
+      "impact": 3,
+      "tags": ["review-flow", "coverage-honesty", "verdict-line", "agent-consumers"],
+      "current_reading": "Result of the placement test, n=18. Fusing coverage into the verdict line raised how often the figure reached the consuming agent's own reasoning (5 of 6 versus 3 of 6 for a section and 0 of 6 for none, p=0.015), but team-post preservation was only 2 of 6 versus 0 of 6, p=0.455, which licenses no claim. The diagnosis is that the fact is received and destroyed at compression, so the remedy is not report prose at all but requiring the consumer to emit a coverage field. Also records a methodological debt: 33 of 33 agents across both experiments made the identical decision, so the decision axis is unmeasured rather than null.",
+      "related": [
+        "docs/ideas/review-coverage-placement-prereg.md",
+        "docs/ideas/review-coverage-consumer-test.md",
+        "docs/ideas/review-orient-and-breadth.md"
+      ],
+      "last_checked": "2026-07-29"
     }
   ]
 }
