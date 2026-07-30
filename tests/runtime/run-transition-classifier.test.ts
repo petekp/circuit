@@ -88,6 +88,61 @@ describe('run transition classifier', () => {
     });
   });
 
+  it('reroutes exhausted recovery attempts to a declared exhaustion route', () => {
+    const transition = classifyRouteTargetTransition({
+      stepId: 'verify',
+      route: 'retry',
+      target: { kind: 'step', stepId: 'act' },
+      targetCompletedCount: 2,
+      isRecoveryReturnToOrigin: false,
+      routeHasRecoveryMechanics: true,
+      targetMaxAttempts: 2,
+      recoveryReasonSuffix: '; last recovery reason: verification failed',
+      exhaustionRoute: 'continue',
+    });
+
+    expect(transition).toEqual({
+      kind: 'exhaustion_reroute',
+      routeId: 'continue',
+      reason:
+        "route 'retry' for step 'act' exhausted max_attempts=2; last recovery reason: verification failed",
+    });
+    expect(isRouteTargetAbort(transition)).toBe(false);
+  });
+
+  it('still aborts when the declared exhaustion route is the exhausted route itself', () => {
+    const transition = classifyRouteTargetTransition({
+      stepId: 'verify',
+      route: 'retry',
+      target: { kind: 'step', stepId: 'act' },
+      targetCompletedCount: 2,
+      isRecoveryReturnToOrigin: false,
+      routeHasRecoveryMechanics: true,
+      targetMaxAttempts: 2,
+      recoveryReasonSuffix: '',
+      exhaustionRoute: 'retry',
+    });
+
+    expect(transition).toMatchObject({ kind: 'recovery_attempts_exhausted_abort' });
+    expect(isRouteTargetAbort(transition)).toBe(true);
+  });
+
+  it('leaves non-exhaustion aborts alone when an exhaustion route is declared', () => {
+    expect(
+      classifyRouteTargetTransition({
+        stepId: 'review',
+        route: 'pass',
+        target: { kind: 'step', stepId: 'act' },
+        targetCompletedCount: 1,
+        isRecoveryReturnToOrigin: false,
+        routeHasRecoveryMechanics: false,
+        targetMaxAttempts: 2,
+        recoveryReasonSuffix: '',
+        exhaustionRoute: 'continue',
+      }),
+    ).toMatchObject({ kind: 'completed_step_cycle_abort' });
+  });
+
   it('names exhausted recovery attempts but permits recovery returns to origin', () => {
     expect(
       classifyRouteTargetTransition({

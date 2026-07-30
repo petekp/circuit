@@ -13,5 +13,11 @@
   "open_questions": [],
   "anticipated_file_extensions": [
     ".ts"
-  ]
+  ],
+  "slices": [],
+  "guardrails": {
+    "non_goals": [],
+    "invariants": []
+  },
+  "allowed_touch_area": []
 }

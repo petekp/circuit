@@ -37,7 +37,8 @@
   "receipt": {
     "depth": "medium",
     "power": "medium",
-    "worker_runs": 2,
+    "worker_runs": 3,
+    "worker_runs_failed": 1,
     "escalations": 0,
     "models": [
       {

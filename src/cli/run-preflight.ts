@@ -121,6 +121,25 @@ function planRunRelays(input: RunPreflightInput): readonly PlannedRelay[] {
       configLayers: input.configLayers,
     });
     assertConnectorSelectionCompatible(relay.connectorName, resolvedSelection);
+    // A step retry bumps the power tier one notch, so the escalated tier's
+    // selection is as reachable as the first attempt's. Assert it now, or an
+    // incompatible tier in config kills the run only when a mid-flight retry
+    // escalates into it — after the work the retry was meant to save.
+    const escalatedSelection = materializePowerSelection({
+      resolved: stackSelection,
+      role: RelayRole.parse(relay.role),
+      connectorName: relay.connectorName,
+      attempt: 2,
+      configLayers: input.configLayers,
+    });
+    try {
+      assertConnectorSelectionCompatible(relay.connectorName, escalatedSelection);
+    } catch (error) {
+      const message = error instanceof Error ? error.message : String(error);
+      throw new Error(
+        `${message} (this selection is reached when a step retry escalates the power tier)`,
+      );
+    }
     plans.push({ connectorName: relay.connectorName });
   }
 

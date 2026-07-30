@@ -92,10 +92,26 @@ export async function appendRelayExecutionGuidance(
     ...(skill.slot === undefined ? {} : { slot: skill.slot }),
   }));
 
+  // A connector-layer re-ask (top-level or fanout branch) re-plans the same
+  // deterministic decision within the same attempt. The trace contract
+  // requires decision ids to be unique, and the decision genuinely was made
+  // once, so return the recorded entry instead of appending a duplicate. The
+  // request hash must match: a same-id decision for a DIFFERENT request is a
+  // conflict the contract should surface, never silently reuse.
+  const decisionId = `gd-relay-${idPart(stepId as unknown as string)}-${input.attempt}`;
+  for (const entry of context.trace.getAll()) {
+    if (entry.kind !== 'guidance.decision') continue;
+    if (entry.decision_id !== decisionId) continue;
+    const selected = entry.selected as { readonly request_payload_hash?: string } | undefined;
+    if (selected?.request_payload_hash === input.requestPayloadHash) {
+      return entry as unknown as GuidanceDecisionTraceEntryBody;
+    }
+  }
+
   return (await context.trace.append({
     run_id: context.runId,
     kind: 'guidance.decision',
-    decision_id: `gd-relay-${idPart(stepId as unknown as string)}-${input.attempt}`,
+    decision_id: decisionId,
     subject: 'relay_execution',
     scope: {
       run_id: context.runId,

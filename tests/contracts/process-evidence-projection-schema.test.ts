@@ -232,9 +232,12 @@ describe('ProcessEvidenceProjection', () => {
       expectBlockedReason: false,
     },
     {
+      // An aborted run's cause lives in the run result's reason (for example
+      // which retry budget ran out). Projecting it is what lets the operator
+      // headline say why the run died instead of a generic evidence claim.
       runOutcome: 'aborted' as const,
       projectionOutcome: 'aborted' as const,
-      expectBlockedReason: false,
+      expectBlockedReason: true,
     },
     {
       // A stopped close keeps its own identity rather than collapsing into

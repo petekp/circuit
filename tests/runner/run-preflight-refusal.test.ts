@@ -1,6 +1,6 @@
-import { existsSync, mkdirSync, mkdtempSync, writeFileSync } from 'node:fs';
+import { existsSync, mkdirSync, mkdtempSync, readFileSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
-import { join } from 'node:path';
+import { join, resolve } from 'node:path';
 import { describe, expect, it } from 'vitest';
 
 import { preflightRunConnectors } from '../../src/cli/run-preflight.js';
@@ -258,6 +258,45 @@ describe('run intake preflight: refuse the sandbox class, warn on missing CLIs',
       },
     });
     expect(unknown).toEqual({ ok: true, warnings: [] });
+  });
+
+  // A step retry bumps the power tier one notch, so the escalated tier's
+  // selection is as reachable as the first attempt's. The corpus lost runs to
+  // exactly this input-validation class reaching a subprocess mid-flight;
+  // asserting only attempt 1 would leave the escalated selection to die there.
+  it('refuses a power tier the connector cannot honor before a retry escalates into it', async () => {
+    const { CompiledFlow } = await import('../../src/schemas/compiled-flow.js');
+    const flow = CompiledFlow.parse(
+      JSON.parse(readFileSync(resolve('generated/flows/runtime-proof/circuit.json'), 'utf8')),
+    );
+    // Attempt 1 resolves the low tier (effort 'low', honored). The one-notch
+    // escalation lands on the medium tier, which this config poisons with an
+    // effort codex rejects.
+    const configLayer = LayeredConfig.parse({
+      layer: 'project',
+      config: {
+        schema_version: 1,
+        relay: { default: 'codex' },
+        defaults: { power: 'low' },
+        power_tiers: { codex: { medium: { effort: 'none' } } },
+      },
+    });
+
+    const verdict = await preflightRunConnectors({
+      flow,
+      configLayers: [configLayer],
+      depth: 'medium',
+      probes: {
+        presence: () =>
+          Promise.resolve({ kind: 'ran', code: 0, stdout: '1.0.0', stderr: '', timedOut: false }),
+        stateDir: (dir) => ({ writable: true, dir }),
+      },
+    });
+
+    expect(verdict.ok).toBe(false);
+    if (verdict.ok) throw new Error('expected a refusal');
+    expect(verdict.refusal).toContain("codex connector cannot honor effort 'none'");
+    expect(verdict.refusal).toContain('retry escalates');
   });
 
   it('keeps effort none valid when policy selects cursor-agent', async () => {

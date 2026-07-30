@@ -288,6 +288,7 @@
         "retry": "act-step",
         "stop": "@stop"
       },
+      "exhaustion_route": "continue",
       "route_overrides": {},
       "protocol": "build-verify@v1",
       "writes": {

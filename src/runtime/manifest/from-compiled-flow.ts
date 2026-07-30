@@ -93,6 +93,7 @@ function baseStep(step: CompiledStep): BaseStep {
     ...(step.route_from_report === undefined ? {} : { routeFromReport: step.route_from_report }),
     check: step.check,
     ...(step.budgets === undefined ? {} : { budgets: step.budgets }),
+    ...(step.exhaustion_route === undefined ? {} : { exhaustionRoute: step.exhaustion_route }),
   };
 }
 

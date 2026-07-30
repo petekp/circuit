@@ -101,6 +101,8 @@ Typical step concerns:
 - `selection`: optional model, effort, skill, depth, or invocation options.
 - `routes`: named outcomes mapped to step ids or terminal targets.
 - `route_overrides`: mode-specific route target overrides.
+- `exhaustion_route`: optional fallback taken when a recovery route this step
+  selects has already exhausted its target's retry budget.
 
 The compiler normalizes the authored shape into a CompiledFlow. Runtime graph
 invariants then apply to the compiled manifest, not to prose in this document.
@@ -156,6 +158,14 @@ Branches help when they represent a real choice:
 
 If a flow needs many tiny branches, that usually means the block model is
 missing a better reusable block.
+
+A step whose failure outcome retries earlier work should also declare
+`exhaustion_route`: the route the engine takes when that retry budget is spent.
+Without it, exhaustion aborts the run and discards every report in it. With it,
+the run follows the named route — usually `continue`, so the failing report
+travels forward to review and close as honest evidence. The named route must be
+one of the step's own declared routes and must not target `@complete`; a spent
+retry budget can never close as success.
 
 ## Human Decisions
 

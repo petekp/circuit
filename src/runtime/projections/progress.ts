@@ -90,6 +90,22 @@ const RECOVERY_MOVE_COPY: Readonly<Record<string, string>> = {
   escalate: 'escalating the run',
 };
 
+// Copy for an engine-sanctioned exhaustion reroute: the retry budget behind a
+// failing step is spent and the run takes the step's declared exhaustion route
+// instead of aborting. Shape-aware so a terminal fallback says the run stops
+// while a forward fallback says it moves on — both with the failure on record.
+function exhaustionRerouteMove(input: {
+  readonly flow: ExecutableFlow;
+  readonly stepId: string;
+  readonly routeId: string;
+}): string {
+  const target = input.flow.steps.find((step) => step.id === input.stepId)?.routes[input.routeId];
+  const stops = typeof target === 'object' && target !== null && target.kind === 'terminal';
+  return stops
+    ? 'the retry budget is spent, so the run stops with the failing result recorded'
+    : 'the retry budget is spent, so the run moves on with the failing result recorded';
+}
+
 // Non-complete close outcomes render as warnings with an honest verb; only
 // 'complete' earns "Finished" with a success tone.
 const RUN_CLOSE_VERB: Readonly<Partial<Record<string, string>>> = {
@@ -384,6 +400,9 @@ export function createProgressProjector(input: {
   // check failed (routed to recovery) apart from one that passed. Keeps the
   // first failure's reason for the attempt; cleared when the attempt reports.
   const failedChecks = new Map<string, { attempt: number; reason?: string }>();
+  // Engine-sanctioned exhaustion reroutes per step, so step.completed can say
+  // the retry budget is spent rather than the generic recovery copy.
+  const exhaustionReroutes = new Map<string, { attempt: number; toRoute: string }>();
   const flowId = input.flow.id as CompiledFlowId;
   const runId = input.runId as ProgressRunId;
 
@@ -795,6 +814,14 @@ export function createProgressProjector(input: {
         });
         break;
       }
+      case 'step.exhaustion_rerouted': {
+        if (entry.step_id === undefined || entry.attempt === undefined) break;
+        exhaustionReroutes.set(entry.step_id, {
+          attempt: entry.attempt,
+          toRoute: entry.to_route,
+        });
+        break;
+      }
       case 'step.completed': {
         const stepId = entry.step_id;
         if (
@@ -811,7 +838,15 @@ export function createProgressProjector(input: {
         taskStatuses.set(stepId, failedCheck === undefined ? 'completed' : 'failed');
         const display = stepDisplay({ flow: input.flow, stepDisplayById, stepId });
         if (failedCheck !== undefined) {
-          const move = RECOVERY_MOVE_COPY[entry.route_taken] ?? 'rerouting the run';
+          const reroute = exhaustionReroutes.get(stepId);
+          const exhausted =
+            reroute !== undefined &&
+            reroute.attempt === entry.attempt &&
+            reroute.toRoute === entry.route_taken;
+          if (exhausted) exhaustionReroutes.delete(stepId);
+          const move = exhausted
+            ? exhaustionRerouteMove({ flow: input.flow, stepId, routeId: entry.route_taken })
+            : (RECOVERY_MOVE_COPY[entry.route_taken] ?? 'rerouting the run');
           const statusText = `${display.taskTitle} did not pass on attempt ${entry.attempt}; ${move}.`;
           reportProgress(input.progress, {
             schema_version: 1,

@@ -13,7 +13,7 @@
   "run_folder": "<repo>/docs/release/proofs/runs/abort/run",
   "outcome": "aborted",
   "reason": "step 'act-step' handler threw: relay step 'act-step': connector invocation failed (proof connector failure while implementing the synthetic Build change)",
-  "trace_entries_observed": 31,
+  "trace_entries_observed": 34,
   "result_path": "<repo>/docs/release/proofs/runs/abort/run/reports/result.json",
   "operator_summary_path": "<repo>/docs/release/proofs/runs/abort/run/reports/operator-summary.json",
   "operator_summary_markdown_path": "<repo>/docs/release/proofs/runs/abort/run/reports/operator-summary.md",
@@ -21,5 +21,5 @@
   "run_envelope_path": "<repo>/docs/release/proofs/runs/abort/run/reports/run-envelope.json",
   "run_process_evidence_path": "<repo>/docs/release/proofs/runs/abort/run/reports/process-evidence.json",
   "run_surface_markdown_path": "<repo>/docs/release/proofs/runs/abort/run/reports/run-surface.md",
-  "run_surface_status_text": "Failed: build could not close with the required process evidence."
+  "run_surface_status_text": "Failed: build stopped before finishing its process. step 'act-step' handler threw: relay step 'act-step': connector invocation failed (proof connector failure while implementing the synthetic Build change)"
 }

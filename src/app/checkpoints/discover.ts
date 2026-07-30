@@ -16,8 +16,11 @@
 // "needs attention" flag, which also covers dead crashed folders and
 // missing-evidence runs that are not resumable.
 
-import { type Dirent, readdirSync } from 'node:fs';
+import { type Dirent, existsSync, readFileSync, readdirSync } from 'node:fs';
 import { join, resolve } from 'node:path';
+import { sha256Hex } from '../../shared/connector-relay.js';
+import { verifyManifestSnapshotBytes } from '../../shared/manifest-snapshot.js';
+import { resolveRunFilePath } from '../../shared/run-file-paths.js';
 import { realBriefGitProbe } from '../continuity/brief.js';
 import type { BriefGitProbe, StalenessFacts } from '../continuity/brief.js';
 import { projectRunStatusFromRunFolder } from '../run-status/run-folder-projector.js';
@@ -34,8 +37,20 @@ export interface CheckpointRow {
     readonly choices: ReadonlyArray<{ readonly id: string; readonly label: string }>;
     readonly request_path?: string;
   };
-  /** The existing per-run resume command. The checkpoints list only links to it. */
-  readonly resume_command: string;
+  /**
+   * The existing per-run resume command. The checkpoints list only links to
+   * it. Omitted for runs parked by an older engine: resume refuses to load
+   * their trace, and the list never prints a command it knows will refuse.
+   */
+  readonly resume_command?: string;
+  /**
+   * Present when the run parked under an older engine whose trace no longer
+   * parses against the current schema. The run is still genuinely waiting --
+   * its park state comes from the raw trace, its identity from the verified
+   * manifest, and its fork from the hash-verified request report -- but it is
+   * not resumable by this engine.
+   */
+  readonly parked_by_older_engine?: true;
   /**
    * Best-effort divergence between the run's captured baseline and the live
    * repo. Present only when a baseline was resolved AND the probe returned
@@ -104,6 +119,115 @@ function probeStaleness(
   }
 }
 
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return value !== null && typeof value === 'object' && !Array.isArray(value);
+}
+
+/**
+ * Salvage listing for a run parked by an OLDER engine. The strict projection
+ * parses every trace entry against the current schema, so one entry written
+ * before a schema field was added makes the whole run project as invalid --
+ * and a run that is genuinely waiting on an operator vanishes from the list.
+ * Five real runs waited invisibly for 70 days this way.
+ *
+ * This reads the trace structurally (raw JSON lines, no schema) and lists the
+ * run only when the park state is unambiguous: no result.json, no run.closed
+ * anywhere, and the final entry is checkpoint.requested. Everything shown is
+ * still verified: identity comes from the self-verifying manifest snapshot,
+ * the goal from the bootstrap entry only when its manifest hash matches, and
+ * the fork prompt/choices from the request report only when its bytes hash to
+ * what the engine recorded at park time. No resume command is offered --
+ * resume strict-parses the same trace and would refuse.
+ */
+export function salvageOlderEngineParkedRow(runFolder: string): CheckpointRow | undefined {
+  if (existsSync(join(runFolder, 'result.json'))) return undefined;
+
+  let entries: Record<string, unknown>[];
+  try {
+    const lines = readFileSync(join(runFolder, 'trace.ndjson'), 'utf8')
+      .trim()
+      .split('\n')
+      .filter((line) => line.length > 0);
+    const parsed = lines.map((line) => JSON.parse(line) as unknown);
+    if (!parsed.every(isRecord)) return undefined;
+    entries = parsed;
+  } catch {
+    return undefined;
+  }
+  if (entries.some((entry) => entry.kind === 'run.closed')) return undefined;
+  const last = entries[entries.length - 1];
+  if (last === undefined || last.kind !== 'checkpoint.requested') return undefined;
+
+  let manifest: ReturnType<typeof verifyManifestSnapshotBytes>;
+  try {
+    manifest = verifyManifestSnapshotBytes(runFolder);
+  } catch {
+    // Without a verified identity there is nothing honest to list.
+    return undefined;
+  }
+
+  const bootstrap = entries[0];
+  const goal =
+    bootstrap !== undefined &&
+    bootstrap.kind === 'run.bootstrapped' &&
+    bootstrap.manifest_hash === manifest.hash &&
+    typeof bootstrap.goal === 'string' &&
+    bootstrap.goal.length > 0
+      ? bootstrap.goal
+      : '(goal could not be read)';
+
+  // Fork content from the request report, trusted only when its bytes hash to
+  // what the engine recorded when it parked.
+  const requestPath = typeof last.request_path === 'string' ? last.request_path : undefined;
+  let prompt: string | undefined;
+  let choiceIds: readonly string[] | undefined;
+  if (requestPath !== undefined && typeof last.request_report_hash === 'string') {
+    try {
+      const requestText = readFileSync(resolveRunFilePath(runFolder, requestPath), 'utf8');
+      if (sha256Hex(requestText) === last.request_report_hash) {
+        const request = JSON.parse(requestText) as unknown;
+        if (isRecord(request)) {
+          if (typeof request.prompt === 'string' && request.prompt.length > 0) {
+            prompt = request.prompt;
+          }
+          const allowed = request.allowed_choices;
+          if (
+            Array.isArray(allowed) &&
+            allowed.length > 0 &&
+            allowed.every((choice): choice is string => typeof choice === 'string')
+          ) {
+            choiceIds = allowed;
+          }
+        }
+      }
+    } catch {
+      // Unreadable or tampered request report: fall back to the trace options.
+    }
+  }
+  if (choiceIds === undefined) {
+    const options = last.options;
+    choiceIds =
+      Array.isArray(options) &&
+      options.length > 0 &&
+      options.every((option): option is string => typeof option === 'string')
+        ? options
+        : [];
+  }
+
+  return {
+    run_folder: resolve(runFolder),
+    run_id: manifest.run_id as unknown as string,
+    flow_id: manifest.flow_id as unknown as string,
+    goal,
+    checkpoint: {
+      ...(prompt === undefined ? {} : { prompt }),
+      choices: choiceIds.map((id) => ({ id, label: id })),
+      ...(requestPath === undefined ? {} : { request_path: requestPath }),
+    },
+    parked_by_older_engine: true,
+  };
+}
+
 function listRunFolders(runsRoot: string): readonly string[] {
   let entries: Dirent[];
   try {
@@ -143,8 +267,16 @@ export function discoverCheckpointsList(input: DiscoverCheckpointsListInput): Ch
     // The resumable-park predicate. Narrower than "needs attention" on purpose:
     // a dead crashed folder and a missing-evidence run are both attention-worthy
     // but neither is resumable, so neither belongs in a checkpoints list that
-    // links resume.
-    if (projection.reason !== 'checkpoint_waiting') continue;
+    // links resume. The one exception: a trace the CURRENT engine cannot read
+    // may still describe a run that genuinely parked under an older engine, so
+    // trace_invalid gets a structural salvage pass before being skipped.
+    if (projection.reason !== 'checkpoint_waiting') {
+      if (projection.reason === 'trace_invalid') {
+        const salvaged = salvageOlderEngineParkedRow(runFolder);
+        if (salvaged !== undefined) rows.push(salvaged);
+      }
+      continue;
+    }
 
     const baseline = baselineFor(runFolder);
     const staleness = probeStaleness(baseline, gitProbe, projectRoot);

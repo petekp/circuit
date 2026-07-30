@@ -12,12 +12,13 @@ import { sha256Hex } from '../../src/shared/connector-relay.js';
 import { writeManifestSnapshot } from '../../src/shared/manifest-snapshot.js';
 import { captureStreams } from '../helpers/runtime-fixtures.js';
 
-// Three run folders share one runs root: one parked at a checkpoint
-// (checkpoint_waiting), one dead crashed folder (trace ends mid-step, no
-// checkpoint, no close), one cleanly closed folder. The checkpoints list must
-// list ONLY the parked one, render its fork (prompt + choices), attach
-// staleness from an injected stub probe, and EXCLUDE the dead and closed
-// folders.
+// Run folders share one runs root: parked at a checkpoint (checkpoint_waiting),
+// parked by an OLDER engine (trace no longer parses strictly), a dead crashed
+// folder (trace ends mid-step, no checkpoint, no close), and a cleanly closed
+// folder. The checkpoints list must show BOTH parked classes -- the older-engine
+// one salvaged honestly, without a resume link -- render forks (prompt +
+// choices), attach staleness from an injected stub probe, and EXCLUDE the dead
+// and closed folders.
 
 const tempRoots: string[] = [];
 const RECORDED_AT = '2026-04-30T12:00:00.000Z';
@@ -163,6 +164,51 @@ function makeParkedFolder(runsRoot: string, runId: string, goal: string): string
   return runFolder;
 }
 
+// A run parked at a checkpoint by an OLDER engine: identical to the parked
+// fixture except the checkpoint.requested entry predates the boundary fields
+// (`boundary_ref`/`boundary_hash`), so it no longer parses under the current
+// trace schema and the strict projection calls the whole run invalid. This is
+// the exact shape of the five real runs that waited invisibly for 70 days.
+function makeOldShapeParkedFolder(runsRoot: string, runId: string, goal: string): string {
+  const runFolder = makeRunFolder(runsRoot, 'parked-old-shape');
+  const manifestHash = writeManifest(runFolder, runId);
+
+  const requestPath = join(runFolder, FIX_CHECKPOINT_REQUEST_PATH);
+  mkdirSync(dirname(requestPath), { recursive: true });
+  const requestText = `${JSON.stringify(
+    {
+      schema_version: 1,
+      step_id: FIX_CHECKPOINT_STEP,
+      prompt: 'Diagnosis did not cleanly reproduce the bug. Choose how to proceed.',
+      allowed_choices: ['continue'],
+      execution_context: { selection_config_layers: [] },
+    },
+    null,
+    2,
+  )}\n`;
+  writeFileSync(requestPath, requestText);
+  const requestHash = sha256Hex(requestText);
+
+  writeTrace(runFolder, [
+    bootstrap({ runId, manifestHash, goal }),
+    stepEntered(runId, 1, FIX_CHECKPOINT_STEP),
+    {
+      schema_version: 1,
+      sequence: 2,
+      recorded_at: RECORDED_AT,
+      run_id: runId,
+      kind: 'checkpoint.requested',
+      step_id: FIX_CHECKPOINT_STEP,
+      attempt: 1,
+      options: ['continue'],
+      request_path: FIX_CHECKPOINT_REQUEST_PATH,
+      request_report_hash: requestHash,
+      auto_resolved: false,
+    },
+  ]);
+  return runFolder;
+}
+
 // A dead crashed folder: bootstrap then a step.entered that never completes,
 // no checkpoint, no run.closed. needs_attention but NOT resumable.
 function makeDeadFolder(runsRoot: string, runId: string): string {
@@ -190,6 +236,7 @@ function makeClosedFolder(runsRoot: string, runId: string): string {
 const PARKED_RUN_ID = '11111111-1111-4111-8111-111111111111';
 const DEAD_RUN_ID = '22222222-2222-4222-8222-222222222222';
 const CLOSED_RUN_ID = '33333333-3333-4333-8333-333333333333';
+const OLD_SHAPE_RUN_ID = '44444444-4444-4444-8444-444444444444';
 
 const STALENESS: StalenessFacts = {
   head_advanced: true,
@@ -287,6 +334,89 @@ describe('checkpoints list discovery', () => {
 
     expect(checkpoints.rows).toHaveLength(1);
     expect(checkpoints.rows[0]?.staleness).toBeUndefined();
+  });
+
+  it('keeps a parked run visible when its trace no longer parses under the current engine', () => {
+    const runsRoot = newRunsRoot();
+    const oldShapeFolder = makeOldShapeParkedFolder(
+      runsRoot,
+      OLD_SHAPE_RUN_ID,
+      'Prototype three variants of the settings page',
+    );
+    const parkedFolder = makeParkedFolder(runsRoot, PARKED_RUN_ID, 'Fix the checkout bug');
+    makeDeadFolder(runsRoot, DEAD_RUN_ID);
+    makeClosedFolder(runsRoot, CLOSED_RUN_ID);
+
+    const checkpoints = discoverCheckpointsList({ runsRoot, gitProbe: stubProbe });
+
+    // Both parked runs are listed; the schema-evolution orphan is not dropped.
+    expect(checkpoints.rows).toHaveLength(2);
+    const salvaged = checkpoints.rows.find((row) => row.run_folder === resolve(oldShapeFolder));
+    if (salvaged === undefined) throw new Error('expected the old-shape parked run to be listed');
+
+    // Identity comes from the verified manifest; the goal from the bootstrap
+    // entry whose manifest hash matches it.
+    expect(salvaged.run_id).toBe(OLD_SHAPE_RUN_ID);
+    expect(salvaged.flow_id).toBe('fix');
+    expect(salvaged.goal).toBe('Prototype three variants of the settings page');
+
+    // The fork comes from the request report, verified against the hash the
+    // engine recorded when it parked.
+    expect(salvaged.checkpoint.prompt).toContain('Choose how to proceed');
+    expect(salvaged.checkpoint.choices.map((choice) => choice.id)).toEqual(['continue']);
+
+    // The row says what is true: this run parked under an older engine and
+    // resume cannot load it, so no resume command is offered.
+    expect(salvaged.parked_by_older_engine).toBe(true);
+    expect(salvaged.resume_command).toBeUndefined();
+
+    // The healthy parked run is unchanged: resumable, not marked.
+    const healthy = checkpoints.rows.find((row) => row.run_folder === resolve(parkedFolder));
+    if (healthy === undefined) throw new Error('expected the healthy parked run to be listed');
+    expect(healthy.parked_by_older_engine).toBeUndefined();
+    expect(healthy.resume_command).toContain('circuit resume');
+
+    // Salvage does not resurrect dead or closed folders.
+    const folders = checkpoints.rows.map((listed) => listed.run_folder);
+    expect(folders).not.toContain(resolve(join(runsRoot, 'dead')));
+    expect(folders).not.toContain(resolve(join(runsRoot, 'closed')));
+  });
+
+  it('does not salvage a run that already closed with a result on disk', () => {
+    const runsRoot = newRunsRoot();
+    const oldShapeFolder = makeOldShapeParkedFolder(
+      runsRoot,
+      OLD_SHAPE_RUN_ID,
+      'Prototype three variants of the settings page',
+    );
+    // A result.json means the run is settled: whatever the trace looks like,
+    // it is not waiting on anyone.
+    writeFileSync(
+      join(oldShapeFolder, 'result.json'),
+      `${JSON.stringify({ outcome: 'stopped' })}\n`,
+    );
+
+    const checkpoints = discoverCheckpointsList({ runsRoot, gitProbe: stubProbe });
+    expect(checkpoints.rows).toEqual([]);
+  });
+
+  it('renders the old-shape parked run with an honest note instead of a resume link', () => {
+    const runsRoot = newRunsRoot();
+    makeOldShapeParkedFolder(
+      runsRoot,
+      OLD_SHAPE_RUN_ID,
+      'Prototype three variants of the settings page',
+    );
+
+    const checkpoints = discoverCheckpointsList({ runsRoot, gitProbe: stubProbe });
+    const text = renderCheckpointsList(checkpoints);
+
+    expect(text).toContain('Prototype three variants of the settings page');
+    expect(text).toContain('parked under an older version of Circuit');
+    // No resume link is printed for a run resume would refuse.
+    expect(text).not.toContain('circuit resume');
+    // The folder line stays: that is where the saved work lives.
+    expect(text).toContain(resolve(join(runsRoot, 'parked-old-shape')));
   });
 
   it('returns an empty checkpoints list when the runs root does not exist', () => {

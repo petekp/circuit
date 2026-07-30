@@ -383,6 +383,7 @@
         "ask": "fix-no-repro-decision",
         "stop": "@stop"
       },
+      "exhaustion_route": "continue",
       "route_overrides": {},
       "protocol": "fix-verify@v1",
       "writes": {
@@ -414,6 +415,7 @@
         "retry": "fix-act",
         "stop": "@stop"
       },
+      "exhaustion_route": "continue",
       "route_overrides": {},
       "protocol": "fix-change-set@v1",
       "writes": {
@@ -444,6 +446,7 @@
         "retry": "fix-act",
         "stop": "@stop"
       },
+      "exhaustion_route": "continue",
       "route_overrides": {
         "continue": {
           "low": "fix-close-low"

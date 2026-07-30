@@ -48,6 +48,11 @@ export interface BaseStep {
   readonly routeFromReport?: { readonly path: readonly string[] };
   readonly check: Check;
   readonly budgets?: StepBudgets;
+  // Declared fallback for a spent recovery budget: when a recovery route this
+  // step selects has exhausted its target's max_attempts, the engine takes
+  // this route (which must name another of `routes`) instead of aborting the
+  // run. Carried from the compiled step's `exhaustion_route`.
+  readonly exhaustionRoute?: string;
 }
 
 export interface ComposeStep extends BaseStep {

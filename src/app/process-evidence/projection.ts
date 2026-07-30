@@ -161,11 +161,16 @@ export function projectClosedProcessEvidence(
     missing_evidence: missingEvidenceFor(input.runResult),
     trace_entries_observed: input.runResult.trace_entries_observed,
     manifest_hash: input.runResult.manifest_hash,
-    // The schema requires a reason for stopped, blocked and failed projections;
-    // 'failed' is reached here when the run closed evidence_invalid. For a
-    // stopped close this reason is the flow's own account of why it did not
-    // close clean, and it is what the operator surface quotes.
-    ...(outcome === 'stopped' || outcome === 'blocked' || outcome === 'failed'
+    // The schema requires a reason for stopped, blocked, failed and aborted
+    // projections; 'failed' is reached here when the run closed
+    // evidence_invalid. For a stopped close this reason is the flow's own
+    // account of why it did not close clean. For an aborted close it is the
+    // run's account of what killed it (for example which retry budget ran
+    // out). Either way it is what the operator surface quotes.
+    ...(outcome === 'stopped' ||
+    outcome === 'blocked' ||
+    outcome === 'failed' ||
+    outcome === 'aborted'
       ? { blocked_reason: input.runResult.reason ?? input.runResult.summary }
       : {}),
   });

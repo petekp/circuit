@@ -573,12 +573,13 @@ describe('Standard Fix review rework wiring', () => {
     expect(recorder.actPrompts[1]).toContain('src/test.ts:1');
   }, 120_000);
 
-  it('uses the current retry reason when act attempts exhaust inside an older review corridor', async () => {
+  it('uses the current failure reason at each exhaustion door across the change-set reroute', async () => {
     const { bytes } = loadDefaultFixture();
     const recorder: ReviewReworkRecorder = { actPrompts: [], reviewPrompts: [] };
 
+    const runDir = join(runFolderBase, 'review-rework-current-retry-reason');
     const outcome = await runCompiledFlow({
-      runDir: join(runFolderBase, 'review-rework-current-retry-reason'),
+      runDir,
       flowBytes: bytes,
       runId: 'f1000000-0000-0000-0000-000000000003',
       goal: 'surface the failure that actually exhausted the retry budget',
@@ -589,11 +590,29 @@ describe('Standard Fix review rework wiring', () => {
       projectRoot,
     });
 
-    expect(outcome.outcome).toBe('aborted');
+    // First door: fix-change-set selects retry, finds fix-act exhausted, and
+    // takes its declared exhaustion route instead of aborting. The reroute
+    // must record the change-set failure that spent the budget, not the older
+    // review reject from the corridor the run was inside.
+    const entries = await new TraceStore(runDir).load();
+    const reroute = entries.find((entry) => entry.kind === 'step.exhaustion_rerouted');
+    expect(reroute).toMatchObject({
+      step_id: 'fix-change-set',
+      from_route: 'retry',
+      to_route: 'continue',
+    });
+    expect(reroute?.reason ?? '').toContain(CURRENT_CHANGE_SET_FAILURE_REASON);
+
+    // The run then moves forward with the failure on record: verify and the
+    // regression rerun run again, and review runs a second time and rejects
+    // again. That reject re-enters the review corridor, fix-act is still
+    // exhausted, and fix-review declares no exhaustion route — so the run
+    // aborts there, citing the review reject as the current reason.
     expect(recorder.actPrompts).toHaveLength(2);
-    expect(recorder.reviewPrompts).toHaveLength(1);
+    expect(recorder.reviewPrompts).toHaveLength(2);
+    expect(outcome.outcome).toBe('aborted');
     expect(outcome.reason).toContain('max_attempts=2');
-    expect(outcome.reason).toContain(CURRENT_CHANGE_SET_FAILURE_REASON);
-    expect(outcome.reason).not.toContain("connector declared verdict 'reject'");
+    expect(outcome.reason).toContain("the reviewer rejected the work (verdict 'reject')");
+    expect(outcome.reason).not.toContain(CURRENT_CHANGE_SET_FAILURE_REASON);
   }, 120_000);
 });

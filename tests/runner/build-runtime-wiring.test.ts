@@ -362,8 +362,9 @@ describe('Build runtime wiring', () => {
       const { bytes } = loadFixture();
       const runFolder = join(runFolderBase, 'slice-unfixable');
       // A check that always fails: the first slice can never reach a passing
-      // verify, so the run must exhaust the slice's retry budget and abort
-      // WITHOUT advancing to slice 2 or reaching review.
+      // verify, so the run exhausts the slice's retry budget and takes the
+      // declared exhaustion route to close — WITHOUT advancing to slice 2,
+      // and WITHOUT reading as success.
       const failingCheck = 'node -e "process.exit(1)"';
 
       const outcome = await runCompiledFlow({
@@ -377,8 +378,9 @@ describe('Build runtime wiring', () => {
         projectRoot: makeVerificationProjectRoot(failingCheck),
       });
 
-      // The run does not close complete: a failing slice cannot advance.
-      expect(outcome.outcome).not.toBe('complete');
+      // The run closes stopped, not complete: the failing verification is on
+      // record and the primary-result binding refuses to call the run a success.
+      expect(outcome.outcome).toBe('stopped');
       const trace_entries = await readTraceEntries(runFolder);
       const completions = trace_entries.filter((entry) => entry.kind === 'step.completed');
       // Every loop-body completion stayed on slice 0; none advanced.
@@ -388,13 +390,26 @@ describe('Build runtime wiring', () => {
       for (const entry of loopBody) {
         expect((entry as { slice_index?: number }).slice_index).toBe(0);
       }
-      // No verify ever took the advance route, and review never ran.
+      // No verify ever took the advance route to a later slice.
       expect(
         completions.some(
           (entry) => entry.step_id === 'verify-step' && entry.route_taken === 'advance',
         ),
       ).toBe(false);
-      expect(completions.some((entry) => entry.step_id === 'review-step')).toBe(false);
+      // Exhaustion took verify-step's declared route instead of aborting, so
+      // the close corridor (touch-area, review, close) still ran and the work
+      // was preserved rather than discarded.
+      const reroute = trace_entries.find((entry) => entry.kind === 'step.exhaustion_rerouted') as
+        | { step_id?: string; from_route?: string; to_route?: string }
+        | undefined;
+      expect(reroute).toMatchObject({
+        step_id: 'verify-step',
+        from_route: 'retry',
+        to_route: 'continue',
+      });
+      expect(completions.some((entry) => entry.step_id === 'review-step')).toBe(true);
+      expect(completions.some((entry) => entry.step_id === 'close-step')).toBe(true);
+      expect(trace_entries.some((entry) => entry.kind === 'step.aborted')).toBe(false);
     },
     BUILD_RUNTIME_TIMEOUT_MS,
   );

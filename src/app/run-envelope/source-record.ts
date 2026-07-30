@@ -618,6 +618,11 @@ function surfaceFor(input: {
   // wait but means something different to the operator. Carries the flow's own
   // stated reason when it gave one.
   readonly stoppedReason?: string;
+  // Set when the child process died (`aborted`) or its evidence failed
+  // validation (`failed`): the run's own account of the cause, for example
+  // which retry budget ran out. The failed headline quotes it so the operator
+  // does not have to dig through process evidence to learn why the run died.
+  readonly failureReason?: string;
 }): RunEnvelopeRecordValue['surface_output'] {
   const artifactLinks = [
     input.processEvidence.ref,
@@ -712,10 +717,18 @@ function surfaceFor(input: {
     };
   }
   if (input.outcome === 'failed') {
+    // Lead with the run's own account of what killed it. "Could not close with
+    // the required process evidence" was technically true but useless — the
+    // cause was already sitting in the run result, and telling the operator to
+    // "rerun with a corrected goal" blamed the goal for an engine failure.
+    const reason = input.failureReason?.trim();
+    const reasonSuffix = reason ? ` ${reason}` : '';
     return {
       ...base,
-      status_text: `Failed: ${input.processId} could not close with the required process evidence.`,
-      next_action: 'Inspect the process evidence and rerun with a corrected goal.',
+      status_text: `Failed: ${input.processId} stopped before finishing its process.${reasonSuffix}`,
+      next_action: reason
+        ? 'Address the reason above, then rerun.'
+        : 'Inspect the process evidence for the cause before rerunning.',
     };
   }
   // Defensive default: every RunEnvelopeOutcome above is handled, so this only
@@ -723,7 +736,7 @@ function surfaceFor(input: {
   return {
     ...base,
     status_text: `Stopped: ${input.processId} could not close with enough process evidence.`,
-    next_action: 'Inspect the process evidence and rerun with a corrected goal.',
+    next_action: 'Inspect the process evidence for the cause before rerunning.',
   };
 }
 
@@ -890,6 +903,9 @@ export function writeRunEnvelopeRecord(
       ...(missingEvidence && { missingEvidence }),
       ...(projection.outcome === 'stopped'
         ? { stoppedReason: projection.blocked_reason ?? projection.summary }
+        : {}),
+      ...(projection.outcome === 'aborted' || projection.outcome === 'failed'
+        ? { failureReason: projection.blocked_reason ?? projection.summary }
         : {}),
       decisionPacketRefs: decisionArtifacts.map((artifact) => artifact.ref),
       ...(memoryIndicator === undefined ? {} : { memoryIndicator }),

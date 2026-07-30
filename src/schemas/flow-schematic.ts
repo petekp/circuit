@@ -229,6 +229,11 @@ export const SchematicStep = z
     routes: z.record(z.string(), StepRouteTarget).refine((routes) => {
       return Object.keys(routes).length > 0;
     }, 'schematic item must declare at least one route'),
+    // Declared fallback for a spent recovery budget: when a recovery route this
+    // step selects has exhausted its target's max_attempts, the engine takes
+    // this route instead of aborting the run. Must name another key of `routes`
+    // (cross-field guard in superRefine below). Absent = abort on exhaustion.
+    exhaustion_route: z.string().min(1).optional(),
     route_overrides: z.record(z.string(), SchematicRouteModeOverrides).default({}),
     route_from_report: RouteFromReport.optional(),
     // The fields below are required by the schematic → CompiledFlow compiler. They
@@ -284,6 +289,24 @@ export const SchematicStep = z
           code: 'custom',
           path: ['optional_inputs', key],
           message: `optional_inputs entry "${key}" is not a declared input key`,
+        });
+      }
+    }
+    if (item.exhaustion_route !== undefined) {
+      if (!Object.hasOwn(item.routes, item.exhaustion_route)) {
+        ctx.addIssue({
+          code: 'custom',
+          path: ['exhaustion_route'],
+          message: `exhaustion_route '${item.exhaustion_route}' must name one of the step's declared routes`,
+        });
+      } else if (item.routes[item.exhaustion_route] === '@complete') {
+        // A spent retry budget must never read as success. Exhaustion may go to
+        // a close step (whose result binds the terminal outcome honestly), a
+        // checkpoint, or a stop — but never straight to @complete.
+        ctx.addIssue({
+          code: 'custom',
+          path: ['exhaustion_route'],
+          message: `exhaustion_route '${item.exhaustion_route}' must not target '@complete': a spent retry budget can never close as success`,
         });
       }
     }

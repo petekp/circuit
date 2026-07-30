@@ -282,6 +282,7 @@
         "retry": "act-step",
         "stop": "@stop"
       },
+      "exhaustion_route": "continue",
       "executor": "orchestrator",
       "kind": "verification",
       "writes": {

@@ -27,9 +27,34 @@ function throwingRelayer(): RelayFn {
   };
 }
 
+// A worker that dies once mid-flight (the corpus classes: bare exit 1, a 143,
+// an inactivity timeout) and answers cleanly when asked again. The engine's
+// connector-layer retry must save this run instead of aborting it.
+function diesOnceRelayer(): { relayer: RelayFn; calls: () => number } {
+  let calls = 0;
+  return {
+    calls: () => calls,
+    relayer: {
+      connectorName: 'claude-code',
+      relay: async (input) => {
+        calls += 1;
+        if (calls === 1) throw new Error('claude CLI exited with code 143');
+        return {
+          request_payload: input.prompt,
+          receipt_id: 'receipt-retry-1',
+          result_body: '{"verdict":"ok"}',
+          duration_ms: 5,
+          cli_version: 'test-cli 0.0.1',
+        };
+      },
+    },
+  };
+}
+
 async function runFailureCase(input: {
   readonly runFolder: string;
   readonly bytes: Buffer;
+  readonly relayer?: RelayFn;
 }) {
   const result = await runCompiledFlow({
     runDir: input.runFolder,
@@ -38,7 +63,7 @@ async function runFailureCase(input: {
     goal: 'connector failure must close durably',
     depth: 'medium',
     now: deterministicNow(Date.UTC(2026, 3, 24, 18, 0, 0)),
-    relayer: throwingRelayer(),
+    relayer: input.relayer ?? throwingRelayer(),
     executors: {
       compose: async (step, context) => {
         if (step.kind !== 'compose') throw new Error('expected compose step');
@@ -93,11 +118,16 @@ describe('runtime-safety-floor connector invocation failure closure', () => {
       invocation_options: {},
     });
 
+    // Two full ask cycles: a dead connector earns one spaced re-ask at the
+    // connector layer before the failure is allowed to take down the step.
     const relayStepKinds = outcome.trace_entries
       .filter((trace_entry) => 'step_id' in trace_entry && trace_entry.step_id === 'relay-step')
       .map((trace_entry) => trace_entry.kind);
     expect(relayStepKinds).toEqual([
       'step.entered',
+      'relay.started',
+      'relay.request',
+      'relay.failed',
       'relay.started',
       'relay.request',
       'relay.failed',
@@ -148,5 +178,48 @@ describe('runtime-safety-floor connector invocation failure closure', () => {
     expect(result.reason).toBe(closed.reason);
 
     expect(flow.id).toBe('runtime-proof');
+  });
+
+  it('completes the run when the connector dies once and answers on the re-ask', async () => {
+    const { bytes } = loadFixture();
+    const runFolder = join(runFolderBase, 'dies-once-relayer');
+    const { relayer, calls } = diesOnceRelayer();
+
+    const outcome = await runFailureCase({ runFolder, bytes, relayer });
+
+    // The death was transient, so the run must not be lost to it.
+    expect(outcome.result.outcome).toBe('complete');
+    expect(calls()).toBe(2);
+
+    // The trace stays honest about the death: the failed ask is recorded in
+    // full, then the second ask runs to receipt and result.
+    const relayStepKinds = outcome.trace_entries
+      .filter((trace_entry) => 'step_id' in trace_entry && trace_entry.step_id === 'relay-step')
+      .map((trace_entry) => trace_entry.kind);
+    expect(relayStepKinds).toEqual([
+      'step.entered',
+      'relay.started',
+      'relay.request',
+      'relay.failed',
+      'relay.started',
+      'relay.request',
+      'relay.receipt',
+      'relay.result',
+      'relay.completed',
+      'check.evaluated',
+      'step.completed',
+    ]);
+
+    const failed = outcome.trace_entries.find((e) => e.kind === 'relay.failed');
+    if (failed?.kind !== 'relay.failed') throw new Error('expected relay.failed');
+    expect(failed.reason).toMatch(/exited with code 143/);
+
+    expect(existsSync(join(runFolder, 'reports', 'relay.receipt.json'))).toBe(true);
+    expect(existsSync(join(runFolder, 'reports', 'relay.result.json'))).toBe(true);
+    expect(outcome.trace_entries.find((e) => e.kind === 'step.aborted')).toBeUndefined();
+
+    const closed = outcome.trace_entries.find((e) => e.kind === 'run.closed');
+    if (closed?.kind !== 'run.closed') throw new Error('expected run.closed');
+    expect(closed.outcome).toBe('complete');
   });
 });

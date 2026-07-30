@@ -78,8 +78,8 @@
       "attempt_id": "attempt-primary",
       "process_id": "build",
       "goal": "simulate connector failure",
-      "started_at": "2026-04-29T20:00:33.000Z",
-      "completed_at": "2026-04-29T20:00:33.000Z",
+      "started_at": "2026-04-29T20:00:36.000Z",
+      "completed_at": "2026-04-29T20:00:36.000Z",
       "outcome": "failed",
       "child_run": {
         "run_id": "44444444-4444-4444-4444-444444444406",
@@ -89,13 +89,13 @@
           "ref": {
             "kind": "report",
             "ref": "reports/result.json",
-            "sha256": "af8d3ad2c59beec8bb8a0000ac925e2a60b777f7cb2be6481456ede72336397f",
+            "sha256": "d1b88b3f948770e1cb429bcdad8d8dd02282b0f43e32756013772b7b7414c497",
             "run_id": "44444444-4444-4444-4444-444444444406",
             "flow_id": "build"
           }
         },
-        "trace_entries_observed": 31,
-        "manifest_hash": "29d5fac819a30f023ccb88bbd51529899553cb19248574b6570a917520f9b197"
+        "trace_entries_observed": 34,
+        "manifest_hash": "6f08ae6c9e9b48d9c496a36c005de8615e65131285791a188681fc59b45b6f53"
       },
       "evidence_refs": [
         {
@@ -103,7 +103,7 @@
           "ref": {
             "kind": "evidence",
             "ref": "reports/process-evidence.json",
-            "sha256": "31967a54b516d49781e3d94e791a1bc34dcf116970cf0ad8ed57c308806ab530",
+            "sha256": "bbf5cf8ae1294037652d3443b3216a4296dfda77b17c365d1c9d1b572b2591dc",
             "run_id": "44444444-4444-4444-4444-444444444406",
             "flow_id": "build"
           }
@@ -113,13 +113,14 @@
           "ref": {
             "kind": "report",
             "ref": "reports/result.json",
-            "sha256": "af8d3ad2c59beec8bb8a0000ac925e2a60b777f7cb2be6481456ede72336397f",
+            "sha256": "d1b88b3f948770e1cb429bcdad8d8dd02282b0f43e32756013772b7b7414c497",
             "run_id": "44444444-4444-4444-4444-444444444406",
             "flow_id": "build"
           }
         }
       ],
-      "summary": "Run closed with outcome aborted."
+      "summary": "Run closed with outcome aborted.",
+      "blocked_reason": "step 'act-step' handler threw: relay step 'act-step': connector invocation failed (proof connector failure while implementing the synthetic Build change)"
     }
   ],
   "completion_gate": {
@@ -135,7 +136,7 @@
             "ref": {
               "kind": "evidence",
               "ref": "reports/process-evidence.json",
-              "sha256": "31967a54b516d49781e3d94e791a1bc34dcf116970cf0ad8ed57c308806ab530",
+              "sha256": "bbf5cf8ae1294037652d3443b3216a4296dfda77b17c365d1c9d1b572b2591dc",
               "run_id": "44444444-4444-4444-4444-444444444406",
               "flow_id": "build"
             }
@@ -153,21 +154,21 @@
   "memory_update_events": [],
   "surface_output": {
     "schema": "run.surface-output@v0",
-    "status_text": "Failed: build could not close with the required process evidence.",
+    "status_text": "Failed: build stopped before finishing its process. step 'act-step' handler threw: relay step 'act-step': connector invocation failed (proof connector failure while implementing the synthetic Build change)",
     "outcome": "failed",
-    "next_action": "Inspect the process evidence and rerun with a corrected goal.",
+    "next_action": "Address the reason above, then rerun.",
     "artifact_links": [
       {
         "kind": "evidence",
         "ref": "reports/process-evidence.json",
-        "sha256": "31967a54b516d49781e3d94e791a1bc34dcf116970cf0ad8ed57c308806ab530",
+        "sha256": "bbf5cf8ae1294037652d3443b3216a4296dfda77b17c365d1c9d1b572b2591dc",
         "run_id": "44444444-4444-4444-4444-444444444406",
         "flow_id": "build"
       },
       {
         "kind": "report",
         "ref": "reports/result.json",
-        "sha256": "af8d3ad2c59beec8bb8a0000ac925e2a60b777f7cb2be6481456ede72336397f",
+        "sha256": "d1b88b3f948770e1cb429bcdad8d8dd02282b0f43e32756013772b7b7414c497",
         "run_id": "44444444-4444-4444-4444-444444444406",
         "flow_id": "build"
       }

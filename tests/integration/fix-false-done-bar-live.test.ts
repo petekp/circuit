@@ -387,8 +387,9 @@ describe('Live False-Done Fix bar', () => {
       repos.push(repo);
       appendRepoFile(repo, 'src/preexisting.ts', '// operator was investigating\n');
 
+      const runDir = join(runFolderBase, 'pre-dirty');
       const outcome = await runCompiledFlow({
-        runDir: join(runFolderBase, 'pre-dirty'),
+        runDir,
         flowBytes: loadLiteFixture().bytes,
         runId: 'f1000000-0000-0000-0000-0000000000bb',
         goal: 'fix the broken initialization',
@@ -414,11 +415,17 @@ describe('Live False-Done Fix bar', () => {
         projectRoot: repo,
       });
 
-      // The chain should abort because fix.change-set@v1 keeps failing on the
-      // undeclared mutation; recovery routes to retry until attempts are
-      // exhausted.
-      expect(outcome.outcome).toBe('aborted');
-      expect(outcome.reason ?? '').toMatch(/change-set|undeclared|recovery|attempts/i);
+      // fix.change-set@v1 keeps failing on the undeclared mutation; recovery
+      // routes to retry until attempts are exhausted, then the step's declared
+      // exhaustion route advances the run to close with the failure on record.
+      // The run stops (never completes) and the result denies 'fixed'.
+      expect(outcome.outcome).toBe('stopped');
+      expect(outcome.reason ?? '').toMatch(/primary result/);
+      const primary = JSON.parse(
+        readFileSync(join(runDir, 'reports', 'fix-result.json'), 'utf8'),
+      ) as { outcome: string; change_set_status: string };
+      expect(primary.outcome).not.toBe('fixed');
+      expect(primary.change_set_status).toBe('fail');
     },
     LIVE_FALSE_DONE_TIMEOUT_MS,
   );
@@ -432,8 +439,9 @@ describe('Live False-Done Fix bar', () => {
       const repo = initRepo();
       repos.push(repo);
 
+      const runDir = join(runFolderBase, 'mid-run-commit');
       const outcome = await runCompiledFlow({
-        runDir: join(runFolderBase, 'mid-run-commit'),
+        runDir,
         flowBytes: loadLiteFixture().bytes,
         runId: 'f1000000-0000-0000-0000-0000000000cc',
         goal: 'fix the parser',
@@ -459,8 +467,16 @@ describe('Live False-Done Fix bar', () => {
         projectRoot: repo,
       });
 
-      expect(outcome.outcome).toBe('aborted');
-      expect(outcome.reason ?? '').toMatch(/change-set|HEAD|recovery|attempts/i);
+      // HEAD divergence keeps failing the change-set; once the retry budget is
+      // spent the declared exhaustion route closes the run with the failure on
+      // record instead of aborting. Stopped, and the result denies 'fixed'.
+      expect(outcome.outcome).toBe('stopped');
+      expect(outcome.reason ?? '').toMatch(/primary result/);
+      const primary = JSON.parse(
+        readFileSync(join(runDir, 'reports', 'fix-result.json'), 'utf8'),
+      ) as { outcome: string; change_set_status: string };
+      expect(primary.outcome).not.toBe('fixed');
+      expect(primary.change_set_status).toBe('fail');
     },
     LIVE_FALSE_DONE_TIMEOUT_MS,
   );
@@ -484,8 +500,9 @@ describe('Live False-Done Fix bar', () => {
         expectedFixedContent,
       );
 
+      const runDir = join(runFolderBase, 'regression-still-failing');
       const outcome = await runCompiledFlow({
-        runDir: join(runFolderBase, 'regression-still-failing'),
+        runDir,
         flowBytes: loadLiteFixture().bytes,
         runId: 'f1000000-0000-0000-0000-0000000000dd',
         goal: 'fix the bug in v',
@@ -512,8 +529,16 @@ describe('Live False-Done Fix bar', () => {
         projectRoot: repo,
       });
 
-      expect(outcome.outcome).toBe('aborted');
-      expect(outcome.reason ?? '').toMatch(/regression|recovery|attempts/i);
+      // The rerun keeps proving the regression still fails; after the retry
+      // budget is spent the declared exhaustion route closes the run with the
+      // still-failing rerun on record. Stopped, and the result denies 'fixed'.
+      expect(outcome.outcome).toBe('stopped');
+      expect(outcome.reason ?? '').toMatch(/primary result/);
+      const primary = JSON.parse(
+        readFileSync(join(runDir, 'reports', 'fix-result.json'), 'utf8'),
+      ) as { outcome: string; regression_rerun_status: string };
+      expect(primary.outcome).not.toBe('fixed');
+      expect(primary.regression_rerun_status).toBe('still-failing');
     },
     LIVE_FALSE_DONE_TIMEOUT_MS,
   );

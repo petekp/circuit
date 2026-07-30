@@ -492,9 +492,14 @@ describe('Run envelope source writer', () => {
       next_action: 'failed',
     });
     expect(record.process_attempts[0]?.outcome).toBe('failed');
+    // The headline carries the run's own failure reason -- the fact the
+    // operator actually needs -- instead of a generic evidence claim, and the
+    // advice no longer misdiagnoses every abort as a goal problem.
     expect(record.surface_output.status_text).toBe(
-      'Failed: review could not close with the required process evidence.',
+      'Failed: review stopped before finishing its process. The relay process aborted.',
     );
+    expect(record.surface_output.next_action).toBe('Address the reason above, then rerun.');
+    expect(record.surface_output.next_action).not.toContain('corrected goal');
     expect(record.surface_output.status_text).not.toMatch(/\b(?:done|complete|completed)\b/i);
   });
 

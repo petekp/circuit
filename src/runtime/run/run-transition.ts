@@ -20,6 +20,14 @@ export type RouteTargetTransition =
       readonly terminalTarget: TerminalTarget;
     }
   | {
+      // Recovery budget spent, but the step declared where exhaustion goes:
+      // take `routeId` (one of the step's own declared routes) instead of
+      // aborting. The reason string is preserved for the trace.
+      readonly kind: 'exhaustion_reroute';
+      readonly routeId: string;
+      readonly reason: string;
+    }
+  | {
       readonly kind:
         | 'self_pass_cycle_abort'
         | 'completed_step_cycle_abort'
@@ -27,10 +35,22 @@ export type RouteTargetTransition =
       readonly reason: string;
     };
 
-export function isRouteTargetAbort(
-  transition: RouteTargetTransition,
-): transition is Extract<RouteTargetTransition, { readonly reason: string }> {
-  return 'reason' in transition;
+const ROUTE_TARGET_ABORT_KINDS: ReadonlySet<RouteTargetTransition['kind']> = new Set([
+  'self_pass_cycle_abort',
+  'completed_step_cycle_abort',
+  'recovery_attempts_exhausted_abort',
+]);
+
+export function isRouteTargetAbort(transition: RouteTargetTransition): transition is Extract<
+  RouteTargetTransition,
+  {
+    readonly kind:
+      | 'self_pass_cycle_abort'
+      | 'completed_step_cycle_abort'
+      | 'recovery_attempts_exhausted_abort';
+  }
+> {
+  return ROUTE_TARGET_ABORT_KINDS.has(transition.kind);
 }
 
 export function classifyRouteDeclarationTransition(input: {
@@ -74,6 +94,11 @@ export function classifyRouteTargetTransition(input: {
   readonly routeHasRecoveryMechanics: boolean;
   readonly targetMaxAttempts: number;
   readonly recoveryReasonSuffix: string;
+  // The step's declared fallback for a spent recovery budget. When set (and
+  // not the exhausted route itself), exhaustion becomes a reroute through this
+  // declared route instead of an abort, so honest instrumented work survives
+  // to a close the flow chose. Absent = abort, exactly as before.
+  readonly exhaustionRoute?: string;
 }): RouteTargetTransition {
   if (input.target.kind === 'terminal') {
     return { kind: 'terminal_close', terminalTarget: input.target.target };
@@ -95,10 +120,11 @@ export function classifyRouteTargetTransition(input: {
     })
   ) {
     if (input.routeHasRecoveryMechanics) {
-      return {
-        kind: 'recovery_attempts_exhausted_abort',
-        reason: `route '${input.route}' for step '${input.target.stepId}' exhausted max_attempts=${input.targetMaxAttempts}${input.recoveryReasonSuffix}`,
-      };
+      const reason = `route '${input.route}' for step '${input.target.stepId}' exhausted max_attempts=${input.targetMaxAttempts}${input.recoveryReasonSuffix}`;
+      if (input.exhaustionRoute !== undefined && input.exhaustionRoute !== input.route) {
+        return { kind: 'exhaustion_reroute', routeId: input.exhaustionRoute, reason };
+      }
+      return { kind: 'recovery_attempts_exhausted_abort', reason };
     }
     return {
       kind: 'completed_step_cycle_abort',

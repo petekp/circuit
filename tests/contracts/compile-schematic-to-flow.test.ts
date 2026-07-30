@@ -98,15 +98,18 @@ describe('compileSchematicToCompiledFlow — failure modes', () => {
     ]);
     const items = raw.items
       .filter((item) => keep.has(item.id))
-      .map((item) =>
-        item.id === 'verify-step'
-          ? {
-              ...item,
-              output: 'test.writerless-verification@v1',
-              routes: { continue: '@complete', stop: '@stop' },
-            }
-          : item,
-      );
+      .map((item) => {
+        if (item.id !== 'verify-step') return item;
+        // The rewired `continue` targets '@complete', so the step's declared
+        // exhaustion_route must go: keeping it would (correctly) trip the
+        // never-close-as-success floor, which is not what this fixture tests.
+        const { exhaustion_route: _exhaustionRoute, ...rest } = item;
+        return {
+          ...rest,
+          output: 'test.writerless-verification@v1',
+          routes: { continue: '@complete', stop: '@stop' },
+        };
+      });
     const trimmed = {
       ...raw,
       items,

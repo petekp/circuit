@@ -1264,11 +1264,19 @@ describe('runtime control-loop parity twins', () => {
       receiptExists: false,
       resultExists: false,
     });
+    // Two full ask cycles: a dead connector earns one spaced re-ask at the
+    // connector layer before the failure is allowed to take the step down.
+    // The re-ask re-plans the same deterministic guidance decision, so the
+    // recorded decision is reused rather than appended twice (decision ids
+    // are unique by contract).
     expect(trace.map((entry) => entry.kind)).toEqual([
       'run.bootstrapped',
       'guidance.decision',
       'step.entered',
       'guidance.decision',
+      'relay.started',
+      'relay.request',
+      'relay.failed',
       'relay.started',
       'relay.request',
       'relay.failed',
@@ -1987,9 +1995,13 @@ describe('runtime control-loop parity twins', () => {
     expect(result.outcome).toBe('escalated');
     expect(result.verdict).toBeUndefined();
     expect(resultJson.verdict).toBeUndefined();
-    const relayFailedIndex = trace.findIndex(
+    // The bound failure evidence is the LAST failed ask: the connector-layer
+    // retry asks once more after a death, and the recovery decision binds to
+    // the decisive failure, not the one the retry absorbed.
+    const relayFailedEntries = trace.filter(
       (entry) => entry.kind === 'relay.failed' && entry.step_id === 'relay-step',
     );
+    const lastRelayFailed = relayFailedEntries[relayFailedEntries.length - 1];
     expect(trace).toEqual(
       expect.arrayContaining([
         expect.objectContaining({
@@ -2011,7 +2023,7 @@ describe('runtime control-loop parity twins', () => {
             failure_cause: 'relay_connector_failed',
             failure_ref: expect.objectContaining({
               kind: 'trace',
-              sequence: trace[relayFailedIndex]?.sequence,
+              sequence: lastRelayFailed?.sequence,
             }),
             binding_ref: expect.objectContaining({
               kind: 'work_contract',
