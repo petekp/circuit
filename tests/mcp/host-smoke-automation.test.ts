@@ -14,6 +14,7 @@ import { join } from 'node:path';
 import { describe, expect, it } from 'vitest';
 import {
   assertOldHostRoundSucceeded,
+  assertOldRoundStatePosture,
   assertPluginTreeMatchesSource,
   assertSupportedSmokeVersions,
   buildMarketplaceInstallPhases,
@@ -459,6 +460,48 @@ describe('Codex MCP host smoke automation', () => {
     expect(result.cleanup_confirmed).toBe(false);
     expect(result.cleanup_intervention_required).toBe(true);
     expect(result.cleanup_after_intervention_confirmed).toBe(true);
+  });
+
+  it('judges old-version control state by whether the old version ships MCP', () => {
+    // Pre-MCP old versions must leave no control state behind.
+    expect(
+      assertOldRoundStatePosture({
+        oldDeclaresMcpServer: false,
+        stateExists: false,
+        statePrivate: false,
+      }),
+    ).toEqual([]);
+    expect(() =>
+      assertOldRoundStatePosture({
+        oldDeclaresMcpServer: false,
+        stateExists: true,
+        statePrivate: true,
+      }),
+    ).toThrow(/pre-MCP/);
+    // An MCP-shipping old version creating private state is the expected
+    // upgrade boundary, recorded as evidence rather than failed.
+    const withState = assertOldRoundStatePosture({
+      oldDeclaresMcpServer: true,
+      stateExists: true,
+      statePrivate: true,
+    });
+    expect(withState).toHaveLength(1);
+    expect(withState[0]).toMatchObject({ name: 'old_plugin_created_mcp_state', ok: true });
+    // Non-private old state is still a product failure.
+    expect(() =>
+      assertOldRoundStatePosture({
+        oldDeclaresMcpServer: true,
+        stateExists: true,
+        statePrivate: false,
+      }),
+    ).toThrow(/private/);
+    const withoutState = assertOldRoundStatePosture({
+      oldDeclaresMcpServer: true,
+      stateExists: false,
+      statePrivate: false,
+    });
+    expect(withoutState).toHaveLength(1);
+    expect(withoutState[0]).toMatchObject({ name: 'old_plugin_created_mcp_state', ok: true });
   });
 
   it('attributes abandoned git survivors to the host, not the product', async () => {

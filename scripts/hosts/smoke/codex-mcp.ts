@@ -973,6 +973,42 @@ async function startProbeServer(mode: 'mcp' | 'old-host' = 'mcp'): Promise<Probe
   };
 }
 
+/**
+ * Judges the control state left behind by the old plugin version in the
+ * upgrade proof. A pre-MCP old version must leave nothing. An MCP-shipping
+ * old version creating private state IS the upgrade boundary being proven:
+ * record it as evidence. State the old version left world-readable is still
+ * a product failure regardless of era.
+ */
+export function assertOldRoundStatePosture(input: {
+  readonly oldDeclaresMcpServer: boolean;
+  readonly stateExists: boolean;
+  readonly statePrivate: boolean;
+}): Evidence[] {
+  if (!input.oldDeclaresMcpServer) {
+    if (!input.stateExists) return [];
+    throw new SmokeProbeError(
+      'The pre-MCP Circuit version unexpectedly created current MCP control state.',
+      { class: 'product', code: 'old_plugin_state_mismatch', retryable: false },
+    );
+  }
+  if (input.stateExists && !input.statePrivate) {
+    throw new SmokeProbeError(
+      'The old Circuit version created MCP control state that is not private.',
+      { class: 'product', code: 'old_plugin_state_mismatch', retryable: false },
+    );
+  }
+  return [
+    {
+      name: 'old_plugin_created_mcp_state',
+      ok: true,
+      detail: input.stateExists
+        ? 'The old MCP-shipping version created private control state; the new loader must start against it.'
+        : 'The old MCP-shipping version left no control state behind.',
+    },
+  ];
+}
+
 export function assertOldHostRoundSucceeded(
   run: SmokeCommandResult,
   providerRequests: number,
@@ -1611,6 +1647,8 @@ export async function runLiveProbe(
       (options.mode === 'packed' ? pluginManifestVersion(PLUGIN_ROOT) : '');
     const stateRoot = join(codexHome, 'circuit', 'mcp', 'v1');
     let installedPluginPath: string | undefined;
+    let oldInstalledPluginPath: string | undefined;
+    let oldDeclaredMcpServer = false;
     let installedMarketplacePath = marketplace;
     let oldExpectedTreeSha256: string | undefined;
     let currentExpectedTreeSha256 =
@@ -1682,6 +1720,7 @@ export async function runLiveProbe(
         );
         if (isOld) {
           previousPluginVersion = installed.version;
+          oldInstalledPluginPath = installed.installedPath;
           evidence.push({ name: 'old_plugin_version_exact', ok: true, detail: installed.version });
           evidence.push({
             name: 'old_plugin_tree_exact',
@@ -1717,6 +1756,8 @@ export async function runLiveProbe(
         ok: true,
         detail: options.oldVersion as string,
       });
+      oldDeclaredMcpServer =
+        oldInstalledPluginPath !== undefined && declaresMcpServer(oldInstalledPluginPath);
       const oldHost = await runOldHostRound();
       assertOldHostRoundSucceeded(
         oldHost.run,
@@ -1725,12 +1766,13 @@ export async function runLiveProbe(
       );
       evidence.push({ name: 'old_real_codex_host_completed', ok: true });
       evidence.push({ name: 'old_owned_process_cleanup', ok: true });
-      if (existsSync(stateRoot)) {
-        throw new SmokeProbeError(
-          'The pre-MCP Circuit version unexpectedly created current MCP control state.',
-          { class: 'product', code: 'old_plugin_state_mismatch', retryable: false },
-        );
-      }
+      evidence.push(
+        ...assertOldRoundStatePosture({
+          oldDeclaresMcpServer: oldDeclaredMcpServer,
+          stateExists: existsSync(stateRoot),
+          statePrivate: privateDirectory(stateRoot),
+        }),
+      );
     }
     for (const step of installPhases.afterOldHost) executeInstallStep(step);
     if (installedPluginPath === undefined || pluginVersion !== expectedVersion) {
@@ -1777,7 +1819,10 @@ export async function runLiveProbe(
       );
     }
 
-    if (existsSync(stateRoot)) {
+    // In upgrade mode with an MCP-shipping old version, existing control
+    // state is the point: the new loader must start against what the old
+    // version left behind. Every other mode requires a fresh profile.
+    if (!oldDeclaredMcpServer && existsSync(stateRoot)) {
       throw new SmokeProbeError(
         'The isolated profile contained Circuit control state before the real loader started.',
         { class: 'host', code: 'profile_not_fresh', retryable: false },
