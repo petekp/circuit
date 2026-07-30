@@ -45,9 +45,62 @@ export const CIRCUIT_MCP_SERVER_INSTRUCTIONS = [
   'On error, show error.message and error.next_action when present. Follow next_action only when it clearly names an in-scope Circuit MCP call and requires no user choice. Otherwise stop and report it. Never execute next_action as shell or CLI text.',
 ].join('\n\n');
 
-// Status may reconcile durable supervisor evidence and release a finished
-// workspace lease. Only list is a strictly read-only operation.
-const READ_ONLY_TOOLS = new Set<McpToolName>(['circuit_list']);
+// Codex approval policies act on these hints, and headless codex exec
+// auto-cancels any destructive-annotated tool call outright (openai/codex
+// #16685, #24135). Each label is therefore chosen per tool instead of derived
+// from one read-only flag. Status and recover only maintain Circuit's own run
+// records: status may reconcile supervisor evidence and release a finished
+// workspace lease, and recover closes a run whose processes are proven absent,
+// so neither is read-only, but neither can damage user work. Start and resume
+// launch flows that may edit the checkout, and cancel kills processes, so
+// those three stay destructive. Start alone reaches the network, and only
+// after explicit cached-search consent.
+const TOOL_ANNOTATIONS: Record<
+  McpToolName,
+  {
+    readonly readOnlyHint: boolean;
+    readonly destructiveHint: boolean;
+    readonly idempotentHint: boolean;
+    readonly openWorldHint: boolean;
+  }
+> = {
+  circuit_start: {
+    readOnlyHint: false,
+    destructiveHint: true,
+    idempotentHint: false,
+    openWorldHint: true,
+  },
+  circuit_status: {
+    readOnlyHint: false,
+    destructiveHint: false,
+    idempotentHint: false,
+    openWorldHint: false,
+  },
+  circuit_resume: {
+    readOnlyHint: false,
+    destructiveHint: true,
+    idempotentHint: false,
+    openWorldHint: false,
+  },
+  circuit_cancel: {
+    readOnlyHint: false,
+    destructiveHint: true,
+    idempotentHint: false,
+    openWorldHint: false,
+  },
+  circuit_list: {
+    readOnlyHint: true,
+    destructiveHint: false,
+    idempotentHint: true,
+    openWorldHint: false,
+  },
+  circuit_recover: {
+    readOnlyHint: false,
+    destructiveHint: false,
+    idempotentHint: false,
+    openWorldHint: false,
+  },
+};
 
 export interface CircuitMcpToolCall {
   readonly name: McpToolName;
@@ -90,7 +143,6 @@ export function createCircuitMcpServer(options: CreateCircuitMcpServerOptions): 
   const handle = options.handle;
 
   function registerTool(name: McpToolName): void {
-    const readOnly = READ_ONLY_TOOLS.has(name);
     server.registerTool(
       name,
       {
@@ -98,12 +150,7 @@ export function createCircuitMcpServer(options: CreateCircuitMcpServerOptions): 
         description: TOOL_DESCRIPTIONS[name],
         inputSchema: MCP_TOOL_INPUT_SCHEMAS[name],
         outputSchema: MCP_TOOL_WIRE_OUTPUT_SCHEMAS[name],
-        annotations: {
-          readOnlyHint: readOnly,
-          destructiveHint: !readOnly,
-          idempotentHint: readOnly,
-          openWorldHint: name === 'circuit_start',
-        },
+        annotations: { ...TOOL_ANNOTATIONS[name] },
       },
       async (input: unknown, extra: RequestHandlerExtra<ServerRequest, ServerNotification>) => {
         const response = MCP_TOOL_RESPONSE_SCHEMAS[name].parse(

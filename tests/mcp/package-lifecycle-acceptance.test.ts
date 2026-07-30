@@ -107,8 +107,8 @@ function preparedLaunch() {
   const efforts = new Set(['low', 'medium', 'high', 'xhigh'] as const);
   return {
     capabilities: {
-      codex_version: '0.144.3',
-      minimum_version: '0.144.3' as const,
+      codex_version: '0.146.0',
+      minimum_version: '0.146.0' as const,
       plugin_mcp: true as const,
       strict_config: true as const,
       workspace_metadata: true as const,

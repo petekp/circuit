@@ -137,7 +137,7 @@ describe('host experience docs', () => {
     expect(doc).toContain('docs/first-run.md');
     expect(doc).toContain('macOS');
     expect(doc).toMatch(/Node\.js 22\.18 or\s+newer/);
-    expect(doc).toMatch(/Codex 0\.144\.3 or newer/);
+    expect(doc).toMatch(/Codex 0\.146\.0 or newer/);
     expect(doc).toContain('list recent Circuit runs for this workspace');
     expect(doc).toContain('A single MCP approval is normal');
     expect(doc).toMatch(/shell\s+fallback or sandbox escalation means the setup failed/);

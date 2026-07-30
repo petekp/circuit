@@ -1,3 +1,7 @@
+import { chmodSync, mkdtempSync, rmSync, writeFileSync } from 'node:fs';
+import { tmpdir } from 'node:os';
+import { dirname, join } from 'node:path';
+
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 import {
@@ -66,15 +70,17 @@ describe('Codex MCP host preflight', () => {
   });
 
   it('proves version and the exact strict nested-Codex configuration without a paid model run', async () => {
+    const strictParseStopped = {
+      status: 1,
+      stdout: '',
+      stderr: 'Error: no transport configured; use --listen or enable remote control',
+    };
     const run = vi
       .fn()
-      .mockReturnValueOnce({ status: 0, stdout: 'codex-cli 0.144.3\n', stderr: '' })
+      .mockReturnValueOnce({ status: 0, stdout: 'codex-cli 0.146.0\n', stderr: '' })
       .mockReturnValueOnce({ status: 0, stdout: HELP, stderr: '' })
-      .mockReturnValueOnce({
-        status: 1,
-        stdout: '',
-        stderr: 'Error: no transport configured; use --listen or enable remote control',
-      });
+      .mockReturnValueOnce(strictParseStopped)
+      .mockReturnValueOnce(strictParseStopped);
 
     await expect(
       probeCodexHostCapabilities('/trusted/codex', {
@@ -84,7 +90,7 @@ describe('Codex MCP host preflight', () => {
         ...passingCanaries,
       }),
     ).resolves.toMatchObject({
-      codex_version: '0.144.3',
+      codex_version: '0.146.0',
       strict_config: true,
       nested_sandbox: true,
       shared_temp_isolation: 'isolated',
@@ -118,6 +124,20 @@ describe('Codex MCP host preflight', () => {
         'project_doc_max_bytes=0',
       ]),
     );
+    // The prompt-only relay sends extra hardening fields, and older Codex
+    // releases reject unknown fields under --strict-config. The probe must
+    // prove the exact prompt-only shape too, not just the tool-run shape.
+    const promptOnlyProbe = run.mock.calls[3];
+    expect(promptOnlyProbe?.[1]).toEqual(
+      expect.arrayContaining([
+        'app-server',
+        '--strict-config',
+        'skills.include_instructions=false',
+        'tools.update_plan.enabled=false',
+        'features.shell_tool=false',
+      ]),
+    );
+    expect(promptOnlyProbe?.[1]).not.toEqual(expect.arrayContaining(['features.shell_tool=true']));
     expect(passingCanaries.runToolSurfaceCanary).toHaveBeenCalledWith(nested);
     expect(passingCanaries.runSandboxCanary).toHaveBeenCalledWith(nested);
     expect(passingCanaries.runSandboxCanary.mock.invocationCallOrder[0]).toBeLessThan(
@@ -128,23 +148,25 @@ describe('Codex MCP host preflight', () => {
   it('fails closed when the strict probe exits unsuccessfully', async () => {
     const run = vi
       .fn()
-      .mockReturnValueOnce({ status: 0, stdout: 'codex-cli 0.144.3\n', stderr: '' })
+      .mockReturnValueOnce({ status: 0, stdout: 'codex-cli 0.146.0\n', stderr: '' })
       .mockReturnValueOnce({ status: 2, stdout: '', stderr: 'unknown config key' });
 
-    await expect(
-      probeCodexHostCapabilities('/trusted/codex', {
-        run,
-        workspaceMetadataValidated: true,
-        nested,
-        ...passingCanaries,
-      }),
-    ).rejects.toThrow(McpHostPreflightError);
+    const failure = probeCodexHostCapabilities('/trusted/codex', {
+      run,
+      workspaceMetadataValidated: true,
+      nested,
+      ...passingCanaries,
+    });
+    await expect(failure).rejects.toThrow(McpHostPreflightError);
+    await expect(failure).rejects.toMatchObject({
+      message: expect.stringMatching(/unknown config key/),
+    });
   });
 
   it('fails when Codex does not strictly accept every fixed hardening key', async () => {
     const run = vi
       .fn()
-      .mockReturnValueOnce({ status: 0, stdout: 'codex-cli 0.144.3\n', stderr: '' })
+      .mockReturnValueOnce({ status: 0, stdout: 'codex-cli 0.146.0\n', stderr: '' })
       .mockReturnValueOnce({ status: 0, stdout: HELP, stderr: '' })
       .mockReturnValueOnce({
         status: 1,
@@ -160,16 +182,110 @@ describe('Codex MCP host preflight', () => {
         ...passingCanaries,
       }),
     ).rejects.toMatchObject({
-      message: expect.stringMatching(/strictly accept/i),
+      message: expect.stringMatching(/strictly accept.*features\.plugin_hooks/is),
       nextAction: expect.stringMatching(/strict configuration/i),
     });
+  });
+
+  it('reports what Codex said when the strict probe fails for a non-config reason', async () => {
+    const run = vi
+      .fn()
+      .mockReturnValueOnce({ status: 0, stdout: 'codex-cli 0.146.0\n', stderr: '' })
+      .mockReturnValueOnce({ status: 0, stdout: HELP, stderr: '' })
+      .mockReturnValueOnce({
+        status: 1,
+        stdout: '',
+        stderr: 'No such file or directory (os error 2)',
+      });
+
+    await expect(
+      probeCodexHostCapabilities('/trusted/codex', {
+        run,
+        workspaceMetadataValidated: true,
+        nested,
+        ...passingCanaries,
+      }),
+    ).rejects.toMatchObject({
+      message: expect.stringMatching(/os error 2/),
+    });
+  });
+
+  it('keeps probes working after the host deletes the directory the server was launched from', async () => {
+    // Codex 0.146 reinstalls the plugin cache after spawning the MCP server,
+    // which deletes the server's working directory. Probes must not inherit
+    // that doomed directory: the live failure was a strict-config probe that
+    // died on current-directory resolution and was misread as a config
+    // rejection. The fake Codex below mirrors the live behavior: --version and
+    // exec --help never resolve the working directory, app-server does.
+    const fixtureRoot = mkdtempSync(join(tmpdir(), 'circuit-preflight-cwd-'));
+    const fakeCodex = join(fixtureRoot, 'codex');
+    writeFileSync(
+      fakeCodex,
+      `#!/bin/sh
+case "$1" in
+  --version)
+    printf 'codex-cli 0.146.0\\n'
+    exit 0
+    ;;
+  exec)
+    printf -- '--strict-config\\n--ignore-user-config\\n--ignore-rules\\n--json\\n--sandbox <MODE>\\n--ephemeral\\n'
+    exit 0
+    ;;
+  app-server)
+    if ! "${process.execPath}" -e 'process.cwd()' 2>/dev/null; then
+      printf 'No such file or directory (os error 2)\\n' >&2
+      exit 1
+    fi
+    printf 'Error: no transport configured; use --listen or enable remote control\\n' >&2
+    exit 1
+    ;;
+esac
+exit 9
+`,
+    );
+    chmodSync(fakeCodex, 0o755);
+    const nodeExecutable = process.execPath;
+    const policy = {
+      ...nested.policy,
+      executable: fakeCodex,
+      workspace: fixtureRoot,
+      tempRoot: join(fixtureRoot, 'private'),
+      nodeExecutable,
+      nodeInstallationRoot: dirname(dirname(nodeExecutable)),
+    };
+    const originalCwd = process.cwd();
+    const doomed = mkdtempSync(join(tmpdir(), 'circuit-preflight-doomed-'));
+    process.chdir(doomed);
+    rmSync(doomed, { recursive: true, force: true });
+    try {
+      await expect(
+        probeCodexHostCapabilities(fakeCodex, {
+          workspaceMetadataValidated: true,
+          environment: process.env,
+          nested: {
+            policy,
+            codexHome: join(fixtureRoot, 'codex-home'),
+            environment: {},
+          },
+          ...passingCanaries,
+        }),
+      ).resolves.toMatchObject({ codex_version: '0.146.0', strict_config: true });
+    } finally {
+      process.chdir(originalCwd);
+      rmSync(fixtureRoot, { recursive: true, force: true });
+    }
   });
 
   it('accepts Codex-equivalent shared temporary exposure and records it privately', async () => {
     const run = vi
       .fn()
-      .mockReturnValueOnce({ status: 0, stdout: 'codex-cli 0.144.3\n', stderr: '' })
+      .mockReturnValueOnce({ status: 0, stdout: 'codex-cli 0.146.0\n', stderr: '' })
       .mockReturnValueOnce({ status: 0, stdout: HELP, stderr: '' })
+      .mockReturnValueOnce({
+        status: 1,
+        stdout: '',
+        stderr: 'Error: no transport configured; use --listen or enable remote control',
+      })
       .mockReturnValueOnce({
         status: 1,
         stdout: '',
@@ -193,8 +309,13 @@ describe('Codex MCP host preflight', () => {
   it('fails closed when the real named sandbox canary finds an unsafe required boundary', async () => {
     const run = vi
       .fn()
-      .mockReturnValueOnce({ status: 0, stdout: 'codex-cli 0.144.3\n', stderr: '' })
+      .mockReturnValueOnce({ status: 0, stdout: 'codex-cli 0.146.0\n', stderr: '' })
       .mockReturnValueOnce({ status: 0, stdout: HELP, stderr: '' })
+      .mockReturnValueOnce({
+        status: 1,
+        stdout: '',
+        stderr: 'Error: no transport configured; use --listen or enable remote control',
+      })
       .mockReturnValueOnce({
         status: 1,
         stdout: '',
@@ -220,8 +341,13 @@ describe('Codex MCP host preflight', () => {
   it('names a tool-surface canary failure and gives its own remedy', async () => {
     const run = vi
       .fn()
-      .mockReturnValueOnce({ status: 0, stdout: 'codex-cli 0.144.3\n', stderr: '' })
+      .mockReturnValueOnce({ status: 0, stdout: 'codex-cli 0.146.0\n', stderr: '' })
       .mockReturnValueOnce({ status: 0, stdout: HELP, stderr: '' })
+      .mockReturnValueOnce({
+        status: 1,
+        stdout: '',
+        stderr: 'Error: no transport configured; use --listen or enable remote control',
+      })
       .mockReturnValueOnce({
         status: 1,
         stdout: '',

@@ -25,6 +25,7 @@ import {
   BoundedLineReader,
   MCP_PROCESS_TOKEN_ARGUMENT,
   cleanupSupervisorOwnedProcessGroup,
+  createBoundedStderrTail,
   sendWorkerPayload,
 } from '../../src/hosts/codex-mcp/supervisor-runtime.js';
 
@@ -220,6 +221,7 @@ if (launch.mode === 'overflow') {
   writeFileSync(new URL('./background.pid', import.meta.url), String(child.pid));
   child.unref();
 } else {
+  if (typeof launch.stderr_text === 'string') process.stderr.write(launch.stderr_text);
   process.exitCode = launch.exit_code ?? 0;
 }
 }
@@ -706,6 +708,49 @@ describe('Codex MCP supervisor protocol', () => {
     );
     expect(readFileSync(runtimePath, 'utf8')).not.toContain('test-api-key');
     expect(readFileSync(exitPath, 'utf8')).not.toContain('test-api-key');
+  });
+
+  // The worker's stderr is where the engine explains a failed launch. The
+  // progress writer deliberately never copies diagnostics into durable state,
+  // so without this tail a worker that dies on startup leaves no words behind.
+  it('persists a bounded stderr tail in the exit journal when the worker exits nonzero', async () => {
+    const fixture = await makeFixture();
+    const session = await fixture.launcher.begin({
+      run_id: RUN_ID,
+      generation: 1,
+      control_directory: fixture.control,
+      runtime_assets: fixture.pins,
+    });
+    const diagnostic = `error: --process 'low' is not supported by flow 'review'\n`;
+    await session.authorize({
+      worker: {
+        worker_entrypoint: fixture.worker,
+        launch_payload: {
+          authorization: session.authorization_token,
+          asset_digest_sha256: fixture.digest,
+          runtime_assets: fixture.pins,
+          exit_code: 2,
+          stderr_text: `${'x'.repeat(400)}\n${diagnostic}`,
+        },
+      },
+    });
+
+    const exitJournal = await waitFor(() =>
+      readJournal(join(fixture.control, 'launch-1-exit.json'), (value) =>
+        ExitJournalV1.parse(value),
+      ),
+    );
+    expect(exitJournal.exit_code).toBe(2);
+    expect(exitJournal.stderr_tail).toContain("--process 'low' is not supported");
+  });
+
+  it('keeps only the newest stderr bytes when a worker floods before dying', () => {
+    const tail = createBoundedStderrTail();
+    tail.push(Buffer.from('x'.repeat(10_000)));
+    tail.push('the last words survive');
+    const text = tail.text();
+    expect(text.length).toBeLessThanOrEqual(4_096);
+    expect(text.endsWith('the last words survive')).toBe(true);
   });
 
   it('records a worker when the process command line is longer than 256 bytes', async () => {

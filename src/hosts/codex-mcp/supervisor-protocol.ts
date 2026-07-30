@@ -186,6 +186,10 @@ export const ExitJournalV1 = z
     signal: z.string().min(1).max(64).optional(),
     process_group_cleanup: z.enum(['confirmed', 'unconfirmed']),
     output_limit_exceeded: z.enum(['stdout', 'stderr']).optional(),
+    // The newest worker stderr, kept so a worker that dies on startup still
+    // leaves its own explanation behind. Progress lines share this stream and
+    // are filtered out by the consumer, not here.
+    stderr_tail: z.string().min(1).max(8_192).optional(),
   })
   .strict();
 export type ExitJournal = z.infer<typeof ExitJournalV1>;

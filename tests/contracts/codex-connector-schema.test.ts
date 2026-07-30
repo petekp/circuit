@@ -1049,7 +1049,7 @@ describe('Codex connector — unknown-type errors explain version skew (M7)', ()
     } catch (err) {
       const message = (err as Error).message;
       expect(message).toContain('novel.future.trace_entry'); // (a) names the type
-      expect(message).toMatch(/0\.144\.3 through 0\.145\.0/); // (b) states the supported range
+      expect(message).toMatch(/0\.144\.3 through 0\.146\.0/); // (b) states the supported range
       expect(message).toMatch(/outside this tested range/i); // (c) version-skew cause
       expect(message).toContain('codex --version'); // (c) the actionable fix
       expect(message).toMatch(/update or pin/i);
@@ -1075,7 +1075,7 @@ describe('Codex connector — unknown-type errors explain version skew (M7)', ()
     } catch (err) {
       const message = (err as Error).message;
       expect(message).toContain('apply_patch');
-      expect(message).toMatch(/0\.144\.3 through 0\.145\.0/);
+      expect(message).toMatch(/0\.144\.3 through 0\.146\.0/);
       expect(message).toMatch(/outside this tested range/i);
       expect(message).toContain('codex --version');
       expect(message).toMatch(/update or pin/i);
@@ -1101,7 +1101,7 @@ describe('Codex connector — unknown-type errors explain version skew (M7)', ()
     } catch (err) {
       const message = (err as Error).message;
       expect(message).toContain('apply_patch');
-      expect(message).toMatch(/0\.144\.3 through 0\.145\.0/);
+      expect(message).toMatch(/0\.144\.3 through 0\.146\.0/);
       expect(message).toMatch(/outside this tested range/i);
       expect(message).toContain('codex --version');
       expect(message).toMatch(/update or pin/i);

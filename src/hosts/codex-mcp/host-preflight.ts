@@ -13,6 +13,7 @@ import {
   MCP_CODEX_HARDENING_CONFIG_ARGS,
   MCP_CODEX_STRICT_FLAGS,
   buildMcpCodexSandboxConfigArgs,
+  mcpCodexPromptOnlyHardeningConfigArgs,
 } from './nested-codex.js';
 
 const MAX_PROBE_OUTPUT_BYTES = 1024 * 1024;
@@ -73,11 +74,17 @@ function productionRunner(environment: NodeJS.ProcessEnv): {
   const isolatedCodexHome = mkdtempSync(join(tmpdir(), 'circuit-codex-capability-'));
   return {
     run: (executable, args) => {
+      // The isolated home doubles as the probe working directory. The host can
+      // delete the directory this server was launched from (Codex 0.146
+      // reinstalls the plugin cache after spawning the MCP server), and a
+      // probe that inherits that deleted directory dies on startup for a
+      // reason that has nothing to do with configuration.
       const result = spawnSync(executable, [...args], {
         encoding: 'utf8',
         timeout: 5_000,
         maxBuffer: MAX_PROBE_OUTPUT_BYTES,
         env: safeProbeEnvironment(environment, isolatedCodexHome),
+        cwd: isolatedCodexHome,
       });
       return {
         status: result.status,
@@ -90,10 +97,24 @@ function productionRunner(environment: NodeJS.ProcessEnv): {
   };
 }
 
+/**
+ * Names what actually happened, including what the probe wrote. A probe can
+ * fail for host reasons that look nothing like the capability being proven,
+ * and a report that drops Codex's own words turns those into false diagnoses.
+ */
+function probeFailureDetail(result: ProbeResult): string {
+  const cause =
+    result.error !== undefined
+      ? `failed to run (${result.error.message})`
+      : `exited ${result.status ?? 'without a status'}`;
+  const output = `${result.stderr}\n${result.stdout}`.trim().slice(0, 500);
+  return `it ${cause}${output.length === 0 ? ' and wrote nothing' : `. Codex reported: ${output}`}`;
+}
+
 function requireSuccessfulProbe(result: ProbeResult, name: string, nextAction: string): string {
   if (result.error !== undefined || result.status !== 0) {
     throw new McpHostPreflightError(
-      `Circuit could not prove the required Codex ${name}.`,
+      `Circuit could not prove the required Codex ${name}: ${probeFailureDetail(result)}.`,
       nextAction,
     );
   }
@@ -110,7 +131,7 @@ function requireSuccessfulProbe(result: ProbeResult, name: string, nextAction: s
 function requireStrictConfigProbe(result: ProbeResult): void {
   if (result.error !== undefined) {
     throw new McpHostPreflightError(
-      'Circuit could not prove that Codex accepts the fixed hardening configuration.',
+      `Circuit could not prove that Codex accepts the fixed hardening configuration: ${probeFailureDetail(result)}.`,
       STRICT_CONFIG_ACTION,
     );
   }
@@ -127,7 +148,7 @@ function requireStrictConfigProbe(result: ProbeResult): void {
   if (result.status === 0 || (result.status === 1 && /no transport configured/i.test(output)))
     return;
   throw new McpHostPreflightError(
-    "The installed Codex did not strictly accept Circuit's fixed hardening configuration.",
+    `The installed Codex did not strictly accept Circuit's fixed hardening configuration: ${probeFailureDetail(result)}.`,
     STRICT_CONFIG_ACTION,
   );
 }
@@ -174,19 +195,25 @@ export async function probeCodexHostCapabilities(
       'required execution flags',
       CODEX_FLAGS_ACTION,
     );
+    const strictConfigProbeArgs = (hardeningArgs: readonly string[]): string[] => [
+      'app-server',
+      '--strict-config',
+      '--listen',
+      'off',
+      '-c',
+      'analytics.enabled=false',
+      ...hardeningArgs,
+      ...buildMcpCodexSandboxConfigArgs(options.nested.policy),
+      '-c',
+      'web_search="disabled"',
+    ];
     requireStrictConfigProbe(
-      run(codexExecutable, [
-        'app-server',
-        '--strict-config',
-        '--listen',
-        'off',
-        '-c',
-        'analytics.enabled=false',
-        ...MCP_CODEX_HARDENING_CONFIG_ARGS,
-        ...buildMcpCodexSandboxConfigArgs(options.nested.policy),
-        '-c',
-        'web_search="disabled"',
-      ]),
+      run(codexExecutable, strictConfigProbeArgs(MCP_CODEX_HARDENING_CONFIG_ARGS)),
+    );
+    // The prompt-only relay adds fields that older Codex releases reject under
+    // --strict-config. Prove that exact shape here, before any run depends on it.
+    requireStrictConfigProbe(
+      run(codexExecutable, strictConfigProbeArgs(mcpCodexPromptOnlyHardeningConfigArgs())),
     );
     let sandbox: Awaited<ReturnType<typeof runCodexNestedSandboxCanary>>;
     try {

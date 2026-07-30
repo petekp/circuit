@@ -94,7 +94,7 @@ function fixture(): Fixture {
   mkdirSync(dirname(codexInstalledRoot), { recursive: true });
   mkdirSync(binDir, { recursive: true });
   const codex = join(binDir, 'codex');
-  writeFileSync(codex, "#!/bin/sh\necho 'codex-cli 0.144.3'\n");
+  writeFileSync(codex, "#!/bin/sh\necho 'codex-cli 0.146.0'\n");
   chmodSync(codex, 0o755);
   cpSync(resolve(REPO_ROOT, 'plugins/claude'), claudeInstalledRoot, { recursive: true });
   cpSync(resolve(REPO_ROOT, 'plugins/codex'), codexInstalledRoot, { recursive: true });

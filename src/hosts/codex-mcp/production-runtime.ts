@@ -19,6 +19,7 @@ import {
 } from './codex-model-roster.js';
 import type { CircuitStartInputV1 } from './contracts.js';
 import { McpFinalReportReader } from './final-report-reader.js';
+import { type PackagedFlowStartAxes, loadPackagedFlowStartAxes } from './flow-axes.js';
 import { probeCodexHostCapabilities } from './host-preflight.js';
 import type {
   LifecycleProcessOwnerIdentity,
@@ -242,12 +243,61 @@ interface ProductionPreflightDependencies {
   readonly probeHost?: typeof probeCodexHostCapabilities;
   readonly loadRoster?: typeof loadCodexModelRoster;
   readonly loadCatalog?: typeof loadPublicFlowCatalog;
+  readonly loadFlowAxes?: typeof loadPackagedFlowStartAxes;
   readonly deriveNodeInstallation?: typeof derivePinnedNodeInstallation;
 }
 
 function pathInside(parent: string, candidate: string): boolean {
   const child = relative(parent, candidate);
   return child === '' || (!child.startsWith('..') && !isAbsolute(child));
+}
+
+function prosaicChoiceList(values: readonly string[]): string {
+  if (values.length === 1) return values[0] ?? '';
+  return `${values.slice(0, -1).join(', ')} or ${values.at(-1)}`;
+}
+
+/**
+ * Refuses dial values the selected flow does not run at, before a worker and a
+ * nested Codex are paid for. The global start schema accepts every dial value
+ * some flow supports; without this check a per-flow-invalid value sails
+ * through and dies deep in the engine as an unexplained worker exit. The
+ * allowed values come from the same sealed fixture the engine enforces.
+ */
+function validateFlowStartOptions(
+  request: CircuitStartInputV1,
+  axesForFlow: (flow: CircuitStartInputV1['flow']) => PackagedFlowStartAxes,
+): void {
+  if (
+    request.process === undefined &&
+    request.tournament === undefined &&
+    request.autonomous !== true
+  ) {
+    return;
+  }
+  const axes = axesForFlow(request.flow);
+  if (request.process !== undefined && !axes.allowed_processes.includes(request.process)) {
+    const allowed = prosaicChoiceList(axes.allowed_processes);
+    throw new McpLifecycleError(
+      'invalid_flow_option',
+      `The ${request.flow} flow does not run at process '${request.process}'. It runs at process ${allowed}.`,
+      `Start again with process ${allowed}, or omit process to use the flow default.`,
+    );
+  }
+  if (request.tournament !== undefined && !axes.supports_tournament) {
+    throw new McpLifecycleError(
+      'invalid_flow_option',
+      `The ${request.flow} flow does not run as a tournament.`,
+      'Start again without the tournament option.',
+    );
+  }
+  if (request.autonomous === true && !axes.supports_autonomous) {
+    throw new McpLifecycleError(
+      'invalid_flow_option',
+      `The ${request.flow} flow does not run autonomously.`,
+      'Start again without the autonomous option.',
+    );
+  }
 }
 
 function preparedProductionLaunch(data: PreparedProductionLaunchData): PreparedProductionLaunch {
@@ -289,6 +339,7 @@ export function createProductionLaunchPreflight(
   const probeHost = dependencies.probeHost ?? probeCodexHostCapabilities;
   const loadRoster = dependencies.loadRoster ?? loadCodexModelRoster;
   const loadCatalog = dependencies.loadCatalog ?? loadPublicFlowCatalog;
+  const loadFlowAxes = dependencies.loadFlowAxes ?? loadPackagedFlowStartAxes;
   const deriveNodeInstallation =
     dependencies.deriveNodeInstallation ?? derivePinnedNodeInstallation;
 
@@ -348,6 +399,14 @@ export function createProductionLaunchPreflight(
       if (!publicFlows.has(input.request.flow)) {
         throw new Error('The selected flow is not present in the sealed public flow catalog.');
       }
+      validateFlowStartOptions(input.request, (flow) => {
+        const fixture = requiredAsset(
+          input.runtime_assets,
+          `flow:${flow}-circuit`,
+          'packaged_flow',
+        );
+        return loadFlowAxes(fixture.real_path);
+      });
       if (input.request.variants !== undefined) {
         validatePrototypeVariantModels(input.request.variants, roster);
       }

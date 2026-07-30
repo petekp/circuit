@@ -45,7 +45,7 @@ jobs:
           node-version: '22.18.0'
       - id: versions
         shell: bash
-        run: echo "value=$(node -e "const value=require('./.github/codex-compatibility.json');process.stdout.write(JSON.stringify([value.minimum_supported,value.latest_proven]))")" >> "$GITHUB_OUTPUT"
+        run: echo "value=$(node -e "const value=require('./.github/codex-compatibility.json');process.stdout.write(JSON.stringify([...new Set([value.minimum_supported,value.latest_proven])]))")" >> "$GITHUB_OUTPUT"
 
   codex-mcp:
     needs: codex-versions

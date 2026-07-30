@@ -72,8 +72,8 @@ function startLaunch(overrides: Record<string, unknown> = {}) {
       ],
     },
     capabilities: {
-      codex_version: '0.144.3',
-      minimum_version: '0.144.3' as const,
+      codex_version: '0.146.0',
+      minimum_version: '0.146.0' as const,
       plugin_mcp: true as const,
       strict_config: true as const,
       workspace_metadata: true as const,
@@ -82,7 +82,7 @@ function startLaunch(overrides: Record<string, unknown> = {}) {
     },
     codex: {
       executable: '/opt/codex/bin/codex',
-      version: '0.144.3',
+      version: '0.146.0',
       default_model: 'gpt-5.1-codex-mini',
       allowed_models: ['gpt-5.1-codex-mini', 'gpt-5.2-codex'],
     },
@@ -140,7 +140,7 @@ describe('MCP dedicated worker runtime', () => {
     expect(() =>
       parseMcpWorkerLaunch({
         ...startLaunch(),
-        capabilities: { ...startLaunch().capabilities, codex_version: '0.145.0' },
+        capabilities: { ...startLaunch().capabilities, codex_version: '0.147.0' },
       }),
     ).toThrow(/match the sealed Codex capability/i);
 

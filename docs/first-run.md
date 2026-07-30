@@ -4,7 +4,7 @@ Use this path when you want the smallest safe proof that Circuit is installed,
 can see its packaged flows, and can write a run folder.
 
 The MCP path in Codex supports macOS starting with Circuit 0.1.2. It requires
-Node.js 22.18 or newer and Codex 0.144.3 or newer. Circuit 0.1.1 predates this
+Node.js 22.18 or newer and Codex 0.146.0 or newer. Circuit 0.1.1 predates this
 path. A single MCP approval is normal on first use. If Codex tries to run
 Circuit through a shell or asks for sandbox escalation, the setup has failed.
 Stop instead of approving that workaround.

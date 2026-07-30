@@ -409,11 +409,11 @@ var require_codegen = __commonJS({
         const rhs = this.rhs === void 0 ? "" : ` = ${this.rhs}`;
         return `${varKind} ${this.name}${rhs};` + _n;
       }
-      optimizeNames(names, constants11) {
+      optimizeNames(names, constants12) {
         if (!names[this.name.str])
           return;
         if (this.rhs)
-          this.rhs = optimizeExpr(this.rhs, names, constants11);
+          this.rhs = optimizeExpr(this.rhs, names, constants12);
         return this;
       }
       get names() {
@@ -430,10 +430,10 @@ var require_codegen = __commonJS({
       render({ _n }) {
         return `${this.lhs} = ${this.rhs};` + _n;
       }
-      optimizeNames(names, constants11) {
+      optimizeNames(names, constants12) {
         if (this.lhs instanceof code_1.Name && !names[this.lhs.str] && !this.sideEffects)
           return;
-        this.rhs = optimizeExpr(this.rhs, names, constants11);
+        this.rhs = optimizeExpr(this.rhs, names, constants12);
         return this;
       }
       get names() {
@@ -494,8 +494,8 @@ var require_codegen = __commonJS({
       optimizeNodes() {
         return `${this.code}` ? this : void 0;
       }
-      optimizeNames(names, constants11) {
-        this.code = optimizeExpr(this.code, names, constants11);
+      optimizeNames(names, constants12) {
+        this.code = optimizeExpr(this.code, names, constants12);
         return this;
       }
       get names() {
@@ -524,12 +524,12 @@ var require_codegen = __commonJS({
         }
         return nodes.length > 0 ? this : void 0;
       }
-      optimizeNames(names, constants11) {
+      optimizeNames(names, constants12) {
         const { nodes } = this;
         let i = nodes.length;
         while (i--) {
           const n = nodes[i];
-          if (n.optimizeNames(names, constants11))
+          if (n.optimizeNames(names, constants12))
             continue;
           subtractNames(names, n.names);
           nodes.splice(i, 1);
@@ -582,12 +582,12 @@ var require_codegen = __commonJS({
           return void 0;
         return this;
       }
-      optimizeNames(names, constants11) {
+      optimizeNames(names, constants12) {
         var _a3;
-        this.else = (_a3 = this.else) === null || _a3 === void 0 ? void 0 : _a3.optimizeNames(names, constants11);
-        if (!(super.optimizeNames(names, constants11) || this.else))
+        this.else = (_a3 = this.else) === null || _a3 === void 0 ? void 0 : _a3.optimizeNames(names, constants12);
+        if (!(super.optimizeNames(names, constants12) || this.else))
           return;
-        this.condition = optimizeExpr(this.condition, names, constants11);
+        this.condition = optimizeExpr(this.condition, names, constants12);
         return this;
       }
       get names() {
@@ -610,10 +610,10 @@ var require_codegen = __commonJS({
       render(opts) {
         return `for(${this.iteration})` + super.render(opts);
       }
-      optimizeNames(names, constants11) {
-        if (!super.optimizeNames(names, constants11))
+      optimizeNames(names, constants12) {
+        if (!super.optimizeNames(names, constants12))
           return;
-        this.iteration = optimizeExpr(this.iteration, names, constants11);
+        this.iteration = optimizeExpr(this.iteration, names, constants12);
         return this;
       }
       get names() {
@@ -649,10 +649,10 @@ var require_codegen = __commonJS({
       render(opts) {
         return `for(${this.varKind} ${this.name} ${this.loop} ${this.iterable})` + super.render(opts);
       }
-      optimizeNames(names, constants11) {
-        if (!super.optimizeNames(names, constants11))
+      optimizeNames(names, constants12) {
+        if (!super.optimizeNames(names, constants12))
           return;
-        this.iterable = optimizeExpr(this.iterable, names, constants11);
+        this.iterable = optimizeExpr(this.iterable, names, constants12);
         return this;
       }
       get names() {
@@ -694,11 +694,11 @@ var require_codegen = __commonJS({
         (_b = this.finally) === null || _b === void 0 ? void 0 : _b.optimizeNodes();
         return this;
       }
-      optimizeNames(names, constants11) {
+      optimizeNames(names, constants12) {
         var _a3, _b;
-        super.optimizeNames(names, constants11);
-        (_a3 = this.catch) === null || _a3 === void 0 ? void 0 : _a3.optimizeNames(names, constants11);
-        (_b = this.finally) === null || _b === void 0 ? void 0 : _b.optimizeNames(names, constants11);
+        super.optimizeNames(names, constants12);
+        (_a3 = this.catch) === null || _a3 === void 0 ? void 0 : _a3.optimizeNames(names, constants12);
+        (_b = this.finally) === null || _b === void 0 ? void 0 : _b.optimizeNames(names, constants12);
         return this;
       }
       get names() {
@@ -999,7 +999,7 @@ var require_codegen = __commonJS({
     function addExprNames(names, from) {
       return from instanceof code_1._CodeOrName ? addNames(names, from.names) : names;
     }
-    function optimizeExpr(expr, names, constants11) {
+    function optimizeExpr(expr, names, constants12) {
       if (expr instanceof code_1.Name)
         return replaceName(expr);
       if (!canOptimize(expr))
@@ -1014,14 +1014,14 @@ var require_codegen = __commonJS({
         return items;
       }, []));
       function replaceName(n) {
-        const c = constants11[n.str];
+        const c = constants12[n.str];
         if (c === void 0 || names[n.str] !== 1)
           return n;
         delete names[n.str];
         return c;
       }
       function canOptimize(e) {
-        return e instanceof code_1._Code && e._items.some((c) => c instanceof code_1.Name && names[c.str] === 1 && constants11[c.str] !== void 0);
+        return e instanceof code_1._Code && e._items.some((c) => c instanceof code_1.Name && names[c.str] === 1 && constants12[c.str] !== void 0);
       }
     }
     function subtractNames(names, from) {
@@ -6895,6 +6895,7 @@ var require_dist = __commonJS({
 });
 
 // src/hosts/codex-mcp/entrypoint.ts
+import { realpath as realpath8 } from "node:fs/promises";
 import { dirname as dirname8, resolve as resolve12 } from "node:path";
 import { fileURLToPath as fileURLToPath3 } from "node:url";
 
@@ -24418,6 +24419,53 @@ var McpFinalReportReader = class {
   }
 };
 
+// src/hosts/codex-mcp/flow-axes.ts
+import { constants as constants3, closeSync as closeSync2, fstatSync as fstatSync2, openSync as openSync2, readFileSync as readFileSync2 } from "node:fs";
+var MAX_FLOW_FIXTURE_BYTES = 4 * 1024 * 1024;
+var PackagedFlowAxesV1 = external_exports.object({
+  axes: external_exports.object({
+    allowed_depths: external_exports.array(external_exports.enum(["low", "medium", "high"])).min(1),
+    supports_tournament: external_exports.boolean(),
+    supports_autonomous: external_exports.boolean()
+  })
+});
+var PackagedFlowAxesError = class extends Error {
+  code = "flow_package_invalid";
+  nextAction = "Reinstall the Circuit plugin, then retry.";
+  constructor(message) {
+    super(message);
+    this.name = "PackagedFlowAxesError";
+  }
+};
+function loadPackagedFlowStartAxes(path) {
+  let fd;
+  try {
+    fd = openSync2(path, constants3.O_RDONLY | constants3.O_NOFOLLOW);
+    const before = fstatSync2(fd);
+    if (!before.isFile() || before.size === 0 || before.size > MAX_FLOW_FIXTURE_BYTES) {
+      throw new Error("the flow fixture is not a bounded regular file");
+    }
+    const decoded = PackagedFlowAxesV1.parse(JSON.parse(readFileSync2(fd, "utf8")));
+    const after = fstatSync2(fd);
+    if (before.dev !== after.dev || before.ino !== after.ino || before.size !== after.size || before.mtimeMs !== after.mtimeMs || before.ctimeMs !== after.ctimeMs) {
+      throw new Error("the flow fixture changed while Circuit read it");
+    }
+    return {
+      allowed_processes: decoded.axes.allowed_depths,
+      supports_tournament: decoded.axes.supports_tournament,
+      supports_autonomous: decoded.axes.supports_autonomous
+    };
+  } catch (error51) {
+    if (error51 instanceof PackagedFlowAxesError) throw error51;
+    const message = error51 instanceof Error ? error51.message : String(error51);
+    throw new PackagedFlowAxesError(
+      `Circuit could not trust the packaged flow it was asked to start: ${message}`
+    );
+  } finally {
+    if (fd !== void 0) closeSync2(fd);
+  }
+}
+
 // src/hosts/codex-mcp/host-preflight.ts
 import { spawnSync } from "node:child_process";
 import { mkdtempSync, rmSync } from "node:fs";
@@ -24425,7 +24473,7 @@ import { tmpdir } from "node:os";
 import { isAbsolute as isAbsolute6, join as join4 } from "node:path";
 
 // src/hosts/codex-mcp/capabilities.ts
-var MINIMUM_CODEX_VERSION = "0.144.3";
+var MINIMUM_CODEX_VERSION = "0.146.0";
 var CodexHostCapabilityError = class extends Error {
   code;
   nextAction;
@@ -24442,7 +24490,7 @@ function parseCodexCliVersion(output) {
     throw new CodexHostCapabilityError(
       "codex_version_invalid",
       "Circuit could not understand the Codex version output.",
-      "Run codex --version, then install Codex 0.144.3 or newer."
+      `Run codex --version, then install Codex ${MINIMUM_CODEX_VERSION} or newer.`
     );
   }
   const [, majorText, minorText, patchText] = match;
@@ -24453,7 +24501,7 @@ function parseCodexCliVersion(output) {
     throw new CodexHostCapabilityError(
       "codex_version_invalid",
       "Circuit could not understand the Codex version output.",
-      "Run codex --version, then install Codex 0.144.3 or newer."
+      `Run codex --version, then install Codex ${MINIMUM_CODEX_VERSION} or newer.`
     );
   }
   return { major, minor, patch, text: `${major}.${minor}.${patch}` };
@@ -24463,7 +24511,7 @@ function compareVersion(left, right) {
   if (left.minor !== right.minor) return left.minor - right.minor;
   return left.patch - right.patch;
 }
-var MINIMUM_PARSED_VERSION = { major: 0, minor: 144, patch: 3, text: "0.144.3" };
+var MINIMUM_PARSED_VERSION = { major: 0, minor: 146, patch: 0, text: "0.146.0" };
 var REQUIRED_EXEC_HELP_CAPABILITIES = [
   ["strict configuration", /(^|\s)--strict-config(?:\s|$)/m],
   ["ignored user config", /(^|\s)--ignore-user-config(?:\s|$)/m],
@@ -24711,7 +24759,7 @@ async function runMcpCodexSubprocess(input) {
 }
 
 // src/hosts/codex-mcp/nested-codex.ts
-import { constants as constants3, realpathSync } from "node:fs";
+import { constants as constants4, realpathSync } from "node:fs";
 import { delimiter, dirname, isAbsolute as isAbsolute4, join as join2, relative, resolve as resolve2 } from "node:path";
 
 // src/schemas/ids.ts
@@ -26437,6 +26485,17 @@ var MCP_CODEX_HARDENING_CONFIG_ARGS = [
   "-c",
   "mcp_servers={}"
 ];
+function mcpCodexPromptOnlyHardeningConfigArgs() {
+  return [
+    ...MCP_CODEX_HARDENING_CONFIG_ARGS.map(
+      (arg) => arg === "features.shell_tool=true" ? "features.shell_tool=false" : arg
+    ),
+    "-c",
+    "skills.include_instructions=false",
+    "-c",
+    "tools.update_plan.enabled=false"
+  ];
+}
 var SUPPORTED_EFFORTS = /* @__PURE__ */ new Set(["low", "medium", "high", "xhigh"]);
 function selectedModel(selection, policy) {
   const selected = selection?.model;
@@ -26556,15 +26615,7 @@ function buildMcpCodexArgs(input, policy, schemaPath, workingDirectory = policy.
   }
   const model = selectedModel(input.resolvedSelection, policy);
   const effort = selectedEffort(input.resolvedSelection);
-  const hardeningArgs = input.promptOnly === true ? [
-    ...MCP_CODEX_HARDENING_CONFIG_ARGS.map(
-      (arg) => arg === "features.shell_tool=true" ? "features.shell_tool=false" : arg
-    ),
-    "-c",
-    "skills.include_instructions=false",
-    "-c",
-    "tools.update_plan.enabled=false"
-  ] : MCP_CODEX_HARDENING_CONFIG_ARGS;
+  const hardeningArgs = input.promptOnly === true ? mcpCodexPromptOnlyHardeningConfigArgs() : MCP_CODEX_HARDENING_CONFIG_ARGS;
   const args = [
     "exec",
     "--json",
@@ -27159,7 +27210,8 @@ function productionRunner(environment) {
         encoding: "utf8",
         timeout: 5e3,
         maxBuffer: MAX_PROBE_OUTPUT_BYTES,
-        env: safeProbeEnvironment(environment, isolatedCodexHome)
+        env: safeProbeEnvironment(environment, isolatedCodexHome),
+        cwd: isolatedCodexHome
       });
       return {
         status: result.status,
@@ -27171,10 +27223,16 @@ function productionRunner(environment) {
     dispose: () => rmSync(isolatedCodexHome, { recursive: true, force: true })
   };
 }
+function probeFailureDetail(result) {
+  const cause = result.error !== void 0 ? `failed to run (${result.error.message})` : `exited ${result.status ?? "without a status"}`;
+  const output = `${result.stderr}
+${result.stdout}`.trim().slice(0, 500);
+  return `it ${cause}${output.length === 0 ? " and wrote nothing" : `. Codex reported: ${output}`}`;
+}
 function requireSuccessfulProbe(result, name, nextAction) {
   if (result.error !== void 0 || result.status !== 0) {
     throw new McpHostPreflightError(
-      `Circuit could not prove the required Codex ${name}.`,
+      `Circuit could not prove the required Codex ${name}: ${probeFailureDetail(result)}.`,
       nextAction
     );
   }
@@ -27191,7 +27249,7 @@ ${result.stderr}`;
 function requireStrictConfigProbe(result) {
   if (result.error !== void 0) {
     throw new McpHostPreflightError(
-      "Circuit could not prove that Codex accepts the fixed hardening configuration.",
+      `Circuit could not prove that Codex accepts the fixed hardening configuration: ${probeFailureDetail(result)}.`,
       STRICT_CONFIG_ACTION
     );
   }
@@ -27206,7 +27264,7 @@ ${result.stderr}`;
   if (result.status === 0 || result.status === 1 && /no transport configured/i.test(output))
     return;
   throw new McpHostPreflightError(
-    "The installed Codex did not strictly accept Circuit's fixed hardening configuration.",
+    `The installed Codex did not strictly accept Circuit's fixed hardening configuration: ${probeFailureDetail(result)}.`,
     STRICT_CONFIG_ACTION
   );
 }
@@ -27241,19 +27299,23 @@ async function probeCodexHostCapabilities(codexExecutable, options) {
       "required execution flags",
       CODEX_FLAGS_ACTION
     );
+    const strictConfigProbeArgs = (hardeningArgs) => [
+      "app-server",
+      "--strict-config",
+      "--listen",
+      "off",
+      "-c",
+      "analytics.enabled=false",
+      ...hardeningArgs,
+      ...buildMcpCodexSandboxConfigArgs(options.nested.policy),
+      "-c",
+      'web_search="disabled"'
+    ];
     requireStrictConfigProbe(
-      run(codexExecutable, [
-        "app-server",
-        "--strict-config",
-        "--listen",
-        "off",
-        "-c",
-        "analytics.enabled=false",
-        ...MCP_CODEX_HARDENING_CONFIG_ARGS,
-        ...buildMcpCodexSandboxConfigArgs(options.nested.policy),
-        "-c",
-        'web_search="disabled"'
-      ])
+      run(codexExecutable, strictConfigProbeArgs(MCP_CODEX_HARDENING_CONFIG_ARGS))
+    );
+    requireStrictConfigProbe(
+      run(codexExecutable, strictConfigProbeArgs(mcpCodexPromptOnlyHardeningConfigArgs()))
     );
     let sandbox;
     try {
@@ -27622,13 +27684,13 @@ var MCP_TOOL_WIRE_OUTPUT_SCHEMAS = {
 
 // src/hosts/codex-mcp/supervisor-journal.ts
 import {
-  constants as constants4,
-  closeSync as closeSync2,
-  fstatSync as fstatSync2,
+  constants as constants5,
+  closeSync as closeSync3,
+  fstatSync as fstatSync3,
   fsyncSync,
   lstatSync,
-  openSync as openSync2,
-  readFileSync as readFileSync2,
+  openSync as openSync3,
+  readFileSync as readFileSync3,
   readdirSync,
   realpathSync as realpathSync2,
   unlinkSync
@@ -27762,7 +27824,11 @@ var ExitJournalV1 = external_exports.object({
   exit_code: external_exports.number().int().min(-1).max(255).optional(),
   signal: external_exports.string().min(1).max(64).optional(),
   process_group_cleanup: external_exports.enum(["confirmed", "unconfirmed"]),
-  output_limit_exceeded: external_exports.enum(["stdout", "stderr"]).optional()
+  output_limit_exceeded: external_exports.enum(["stdout", "stderr"]).optional(),
+  // The newest worker stderr, kept so a worker that dies on startup still
+  // leaves its own explanation behind. Progress lines share this stream and
+  // are filtered out by the consumer, not here.
+  stderr_tail: external_exports.string().min(1).max(8192).optional()
 }).strict();
 function encodeSupervisorMessage(value) {
   const encoded = Buffer2.from(`${JSON.stringify(value)}
@@ -27814,11 +27880,11 @@ function assertPrivateCanonicalDirectory(path) {
   }
 }
 function fsyncDirectory(path) {
-  const descriptor = openSync2(path, constants4.O_RDONLY);
+  const descriptor = openSync3(path, constants5.O_RDONLY);
   try {
     fsyncSync(descriptor);
   } finally {
-    closeSync2(descriptor);
+    closeSync3(descriptor);
   }
 }
 function repairStalePublishLink(path, published) {
@@ -27848,7 +27914,7 @@ function readJournal(path, parse3) {
   for (let attempt = 0; attempt < 4; attempt += 1) {
     let descriptor;
     try {
-      descriptor = openSync2(path, constants4.O_RDONLY | constants4.O_NONBLOCK | constants4.O_NOFOLLOW);
+      descriptor = openSync3(path, constants5.O_RDONLY | constants5.O_NONBLOCK | constants5.O_NOFOLLOW);
     } catch (error51) {
       if (errorCode(error51) === "ENOENT") return void 0;
       if (errorCode(error51) === "ELOOP") {
@@ -27857,7 +27923,7 @@ function readJournal(path, parse3) {
       throw error51;
     }
     try {
-      const before = fstatSync2(descriptor);
+      const before = fstatSync3(descriptor);
       if (!before.isFile() || before.nlink !== 1 || (before.mode & 511) !== 384 || typeof process.getuid === "function" && before.uid !== process.getuid()) {
         if (before.isFile() && before.nlink === 2) {
           if (repairStalePublishLink(path, before) || attempt < 3) continue;
@@ -27867,8 +27933,8 @@ function readJournal(path, parse3) {
       if (before.size === 0 || before.size > MAX_SUPERVISOR_MESSAGE_BYTES) {
         throw new SupervisorJournalError("A supervisor journal has an invalid size.");
       }
-      const bytes = readFileSync2(descriptor);
-      const after = fstatSync2(descriptor);
+      const bytes = readFileSync3(descriptor);
+      const after = fstatSync3(descriptor);
       const atPath = lstatSync(path);
       if (before.dev !== after.dev || before.ino !== after.ino || before.size !== after.size || before.mtimeMs !== after.mtimeMs || after.dev !== atPath.dev || after.ino !== atPath.ino || atPath.isSymbolicLink()) {
         if (attempt < 3) continue;
@@ -27886,7 +27952,7 @@ function readJournal(path, parse3) {
         throw new SupervisorJournalError("A supervisor journal contains an invalid record.");
       }
     } finally {
-      closeSync2(descriptor);
+      closeSync3(descriptor);
     }
   }
   throw new SupervisorJournalError("A supervisor journal remained busy.");
@@ -28585,7 +28651,7 @@ var ObservedCleanupController = class {
 // src/hosts/codex-mcp/process-probe.ts
 import { spawnSync as spawnSync2 } from "node:child_process";
 import { createHash as createHash3 } from "node:crypto";
-import { readFileSync as readFileSync3, realpathSync as realpathSync3, statSync } from "node:fs";
+import { readFileSync as readFileSync4, realpathSync as realpathSync3, statSync } from "node:fs";
 import { isAbsolute as isAbsolute8 } from "node:path";
 var UUID_PROCESS_TOKEN = "[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}";
 var SHA256_PROCESS_TOKEN = "[0-9a-f]{64}";
@@ -28600,7 +28666,7 @@ function readExecutableIdentity(path) {
   if (!before.isFile() || (before.mode & 73) === 0) {
     throw new Error("The host executable must be an executable regular file.");
   }
-  const sha256 = createHash3("sha256").update(readFileSync3(realPath)).digest("hex");
+  const sha256 = createHash3("sha256").update(readFileSync4(realPath)).digest("hex");
   const after = statSync(realPath);
   if (before.dev !== after.dev || before.ino !== after.ino || before.size !== after.size || before.mode !== after.mode || before.mtimeMs !== after.mtimeMs || before.ctimeMs !== after.ctimeMs) {
     throw new Error("The host executable changed while Circuit inspected it.");
@@ -28761,7 +28827,7 @@ function createExecutableMatcher() {
       const key = `${identity2.real_path}\0${identity2.device}\0${identity2.inode}\0${identity2.sha256}`;
       const prior = cached2.get(key);
       if (prior?.mtimeMs === info.mtimeMs && prior.ctimeMs === info.ctimeMs) return true;
-      const sha256 = createHash3("sha256").update(readFileSync3(identity2.real_path)).digest("hex");
+      const sha256 = createHash3("sha256").update(readFileSync4(identity2.real_path)).digest("hex");
       if (sha256 !== identity2.sha256) return false;
       cached2.set(key, { mtimeMs: info.mtimeMs, ctimeMs: info.ctimeMs });
       return true;
@@ -28782,10 +28848,10 @@ function createMacOsProcessProbe() {
 
 // src/hosts/codex-mcp/production-paths.ts
 import {
-  closeSync as closeSync3,
+  closeSync as closeSync4,
   lstatSync as lstatSync2,
-  openSync as openSync3,
-  readFileSync as readFileSync4,
+  openSync as openSync4,
+  readFileSync as readFileSync5,
   readSync,
   readdirSync as readdirSync2,
   realpathSync as realpathSync4,
@@ -28884,12 +28950,12 @@ function pathInside2(parent, candidate2) {
   return child === "" || !child.startsWith("..") && !isAbsolute9(child);
 }
 function isNativeExecutable(path) {
-  const descriptor = openSync3(path, "r");
+  const descriptor = openSync4(path, "r");
   const bytes = Buffer.alloc(4);
   try {
     if (readSync(descriptor, bytes, 0, bytes.length, 0) !== bytes.length) return false;
   } finally {
-    closeSync3(descriptor);
+    closeSync4(descriptor);
   }
   const hex3 = bytes.toString("hex");
   return hex3 === "7f454c46" || hex3.startsWith("4d5a") || (/* @__PURE__ */ new Set([
@@ -28910,7 +28976,7 @@ function readPackageJson(path) {
   }
   let value;
   try {
-    value = JSON.parse(readFileSync4(path, "utf8"));
+    value = JSON.parse(readFileSync5(path, "utf8"));
   } catch {
     throw new McpProductionPathError("Circuit could not parse the Codex package manifest.");
   }
@@ -29111,7 +29177,7 @@ function collectPackagedFlowAssets(flowsRoot) {
 }
 
 // src/hosts/codex-mcp/public-flow-catalog.ts
-import { constants as constants5, closeSync as closeSync4, fstatSync as fstatSync3, openSync as openSync4, readFileSync as readFileSync5 } from "node:fs";
+import { constants as constants6, closeSync as closeSync5, fstatSync as fstatSync4, openSync as openSync5, readFileSync as readFileSync6 } from "node:fs";
 var MAX_CATALOG_BYTES = 1024 * 1024;
 var REQUIRED_PUBLIC_FLOWS = new Set(McpPublicFlowV1.options);
 var PublicCatalogV1 = external_exports.object({
@@ -29134,13 +29200,13 @@ var PublicFlowCatalogError = class extends Error {
 function loadPublicFlowCatalog(path) {
   let fd;
   try {
-    fd = openSync4(path, constants5.O_RDONLY | constants5.O_NOFOLLOW);
-    const before = fstatSync3(fd);
+    fd = openSync5(path, constants6.O_RDONLY | constants6.O_NOFOLLOW);
+    const before = fstatSync4(fd);
     if (!before.isFile() || before.size === 0 || before.size > MAX_CATALOG_BYTES) {
       throw new Error("catalog is not a bounded regular file");
     }
-    const decoded = PublicCatalogV1.parse(JSON.parse(readFileSync5(fd, "utf8")));
-    const after = fstatSync3(fd);
+    const decoded = PublicCatalogV1.parse(JSON.parse(readFileSync6(fd, "utf8")));
+    const after = fstatSync4(fd);
     if (before.dev !== after.dev || before.ino !== after.ino || before.size !== after.size || before.mtimeMs !== after.mtimeMs || before.ctimeMs !== after.ctimeMs) {
       throw new Error("catalog changed while Circuit read it");
     }
@@ -29154,7 +29220,7 @@ function loadPublicFlowCatalog(path) {
     const message = error51 instanceof Error ? error51.message : String(error51);
     throw new PublicFlowCatalogError(`Circuit could not trust its public flow catalog: ${message}`);
   } finally {
-    if (fd !== void 0) closeSync4(fd);
+    if (fd !== void 0) closeSync5(fd);
   }
 }
 
@@ -29337,16 +29403,16 @@ async function resolveTrustedCodexWorkspaceFromSources(input) {
 
 // src/hosts/codex-mcp/runtime-artifacts.ts
 import { createHash as createHash6 } from "node:crypto";
-import { constants as constants7 } from "node:fs";
+import { constants as constants8 } from "node:fs";
 import { lstat as lstat3, open as open2, realpath as realpath5 } from "node:fs/promises";
 import { isAbsolute as isAbsolute12, join as join11, relative as relative4, resolve as resolve9, sep as sep3 } from "node:path";
 
 // src/app/run-status/run-folder-projector.ts
-import { constants as constants6, accessSync, statSync as statSync3 } from "node:fs";
+import { constants as constants7, accessSync, statSync as statSync3 } from "node:fs";
 import { resolve as resolve8 } from "node:path";
 
 // src/shared/manifest-snapshot.ts
-import { readFileSync as readFileSync6, writeFileSync } from "node:fs";
+import { readFileSync as readFileSync7, writeFileSync } from "node:fs";
 import { join as join7 } from "node:path";
 
 // src/schemas/manifest.ts
@@ -29390,7 +29456,7 @@ function manifestSnapshotPath(runFolder) {
   return join7(runFolder, "manifest.snapshot.json");
 }
 function readManifestSnapshot(runFolder) {
-  const text = readFileSync6(manifestSnapshotPath(runFolder), "utf8");
+  const text = readFileSync7(manifestSnapshotPath(runFolder), "utf8");
   const raw = JSON.parse(text);
   return ManifestSnapshot.parse(raw);
 }
@@ -32189,7 +32255,7 @@ function stepMetadata(flow, stepId) {
 }
 
 // src/app/run-status/runtime-run-folder.ts
-import { readFileSync as readFileSync7 } from "node:fs";
+import { readFileSync as readFileSync8 } from "node:fs";
 import { join as join10 } from "node:path";
 
 // src/runtime/projections/tournament-checkpoint-context.ts
@@ -32292,7 +32358,7 @@ function isRecord4(value) {
 }
 function readRawTraceEntries(runFolder) {
   const tracePath = join10(runFolder, "trace.ndjson");
-  const text = readFileSync7(tracePath, "utf8");
+  const text = readFileSync8(tracePath, "utf8");
   const trimmed = text.trim();
   if (trimmed.length === 0) return [];
   const entries = trimmed.split("\n").map((line, index) => {
@@ -32461,7 +32527,7 @@ function runtimeWaitingCheckpointProjection(input) {
   let requestAbs;
   try {
     requestAbs = resolveRunFilePath(input.runFolder, requestPath);
-    requestText = readFileSync7(requestAbs, "utf8");
+    requestText = readFileSync8(requestAbs, "utf8");
   } catch (err) {
     return invalidProjection({
       runFolder: input.runFolder,
@@ -32523,7 +32589,7 @@ function runtimeWaitingCheckpointProjection(input) {
   const presentation = tournamentCheckpointPresentation({
     readJson: (path) => {
       try {
-        return JSON.parse(readFileSync7(join10(input.runFolder, path), "utf8"));
+        return JSON.parse(readFileSync8(join10(input.runFolder, path), "utf8"));
       } catch {
         return void 0;
       }
@@ -32738,7 +32804,7 @@ function assertReadableRunFolder(runFolder) {
     );
   }
   try {
-    accessSync(runFolder, constants6.R_OK | constants6.X_OK);
+    accessSync(runFolder, constants7.R_OK | constants7.X_OK);
   } catch (err) {
     throw new RunStatusFolderError(
       "folder_unreadable",
@@ -32808,6 +32874,28 @@ function plainSummary(value, fallback) {
 function failure(state, code, message) {
   return { state, summary: message, failure: { code, message } };
 }
+function workerStderrDiagnostic(tail) {
+  if (tail === void 0) return void 0;
+  const lines = tail.split("\n").map((line) => line.trim()).filter((line) => line.length > 0).filter((line) => {
+    try {
+      JSON.parse(line);
+      return false;
+    } catch {
+      return true;
+    }
+  });
+  if (lines.length === 0) return void 0;
+  return lines.join(" ").slice(-500);
+}
+function workerExitNonzeroFailure(stderrTail) {
+  const base = "The Circuit worker exited with an error before it completed or parked safely.";
+  const diagnostic = workerStderrDiagnostic(stderrTail);
+  return failure(
+    "needs_attention",
+    "worker_exit_nonzero",
+    diagnostic === void 0 ? base : `${base} It reported: ${diagnostic}`
+  );
+}
 function sameFile(left, right) {
   return left.dev === right.dev && left.ino === right.ino && left.size === right.size && left.mtimeNs === right.mtimeNs && left.ctimeNs === right.ctimeNs && left.nlink === right.nlink;
 }
@@ -32868,7 +32956,7 @@ async function readBoundJson(runRoot, relativePath, maximumBytes) {
   if (pathInfo.isSymbolicLink() || !pathInfo.isFile() || pathInfo.nlink !== 1n || pathInfo.size === 0n || pathInfo.size > BigInt(maximumBytes)) {
     throw new Error("A canonical run report is unsafe or too large.");
   }
-  const handle = await open2(path, constants7.O_RDONLY | constants7.O_NOFOLLOW);
+  const handle = await open2(path, constants8.O_RDONLY | constants8.O_NOFOLLOW);
   let bytes;
   try {
     const before = await handle.stat({ bigint: true });
@@ -32924,11 +33012,7 @@ var CanonicalRuntimeArtifactReconciler = class {
       await assertOrdinaryFile(join11(runRoot, "trace.ndjson"), MAX_TRACE_BYTES);
       status = projectRunStatusFromRunFolder(runRoot);
     } catch {
-      return workerExitedNonzero ? failure(
-        "needs_attention",
-        "worker_exit_nonzero",
-        "The Circuit worker exited with an error before it completed or parked safely."
-      ) : failure(
+      return workerExitedNonzero ? workerExitNonzeroFailure(input.exit.stderr_tail) : failure(
         "needs_attention",
         "run_artifact_unavailable",
         "Circuit could not safely read the worker run artifacts."
@@ -32942,11 +33026,7 @@ var CanonicalRuntimeArtifactReconciler = class {
       );
     }
     if (workerExitedNonzero && status.engine_state !== "completed") {
-      return failure(
-        "needs_attention",
-        "worker_exit_nonzero",
-        "The Circuit worker exited with an error before it completed or parked safely."
-      );
+      return workerExitNonzeroFailure(input.exit.stderr_tail);
     }
     if (status.engine_state === "waiting_checkpoint") {
       const checkpoint = status.checkpoint;
@@ -33055,7 +33135,7 @@ import { setTimeout as delay3 } from "node:timers/promises";
 
 // src/hosts/codex-mcp/checkpoint-view.ts
 import { createHash as createHash7, timingSafeEqual } from "node:crypto";
-import { constants as constants8 } from "node:fs";
+import { constants as constants9 } from "node:fs";
 import { lstat as lstat4, open as open3, realpath as realpath6 } from "node:fs/promises";
 import { join as join12 } from "node:path";
 import { TextDecoder } from "node:util";
@@ -33322,7 +33402,7 @@ async function readStableRequestBytes(input) {
   try {
     handle = await open3(
       requestFile,
-      constants8.O_RDONLY | constants8.O_NONBLOCK | constants8.O_NOFOLLOW
+      constants9.O_RDONLY | constants9.O_NONBLOCK | constants9.O_NOFOLLOW
     );
     const descriptorBeforeInfo = await handle.stat({ bigint: true });
     if (!descriptorBeforeInfo.isFile() || descriptorBeforeInfo.nlink !== 1n || descriptorBeforeInfo.size > BigInt(MAX_CHECKPOINT_REQUEST_BYTES)) {
@@ -33469,12 +33549,12 @@ async function assertCheckpointResume(input) {
 
 // src/hosts/codex-mcp/supervisor-progress.ts
 import {
-  constants as constants9,
-  closeSync as closeSync5,
-  fstatSync as fstatSync4,
+  constants as constants10,
+  closeSync as closeSync6,
+  fstatSync as fstatSync5,
   fsyncSync as fsyncSync2,
   lstatSync as lstatSync4,
-  openSync as openSync5,
+  openSync as openSync6,
   readSync as readSync2,
   realpathSync as realpathSync6,
   writeSync
@@ -33764,13 +33844,13 @@ function assertPrivateDirectory(path) {
 function readBoundedPrefix(path) {
   let descriptor;
   try {
-    descriptor = openSync5(path, constants9.O_RDONLY | constants9.O_NOFOLLOW);
+    descriptor = openSync6(path, constants10.O_RDONLY | constants10.O_NOFOLLOW);
   } catch (error51) {
     if (error51.code === "ENOENT") return void 0;
     throw error51;
   }
   try {
-    const before = fstatSync4(descriptor);
+    const before = fstatSync5(descriptor);
     if (!before.isFile() || before.nlink !== 1 || (before.mode & 511) !== 384 || typeof process.getuid === "function" && before.uid !== process.getuid() || before.size > MAX_PROGRESS_FILE_BYTES) {
       throw new SupervisorProgressError("A supervisor progress file is unsafe or too large.");
     }
@@ -33786,7 +33866,7 @@ function readBoundedPrefix(path) {
         "A supervisor progress file changed while Circuit read it."
       );
     }
-    const after = fstatSync4(descriptor);
+    const after = fstatSync5(descriptor);
     const atPath = lstatSync4(path);
     if (before.dev !== after.dev || before.ino !== after.ino || after.size < before.size || after.dev !== atPath.dev || after.ino !== atPath.ino || atPath.isSymbolicLink()) {
       throw new SupervisorProgressError(
@@ -33795,7 +33875,7 @@ function readBoundedPrefix(path) {
     }
     return bytes;
   } finally {
-    closeSync5(descriptor);
+    closeSync6(descriptor);
   }
 }
 function readSupervisorProgress(input) {
@@ -34354,17 +34434,17 @@ var McpCheckpointAdapter = class {
 // src/hosts/codex-mcp/state-store.ts
 import { createHash as createHash8, randomUUID as randomUUID3 } from "node:crypto";
 import {
-  constants as constants10,
-  closeSync as closeSync6,
+  constants as constants11,
+  closeSync as closeSync7,
   existsSync as existsSync3,
-  fstatSync as fstatSync5,
+  fstatSync as fstatSync6,
   fsyncSync as fsyncSync3,
   linkSync,
   lstatSync as lstatSync5,
   mkdirSync,
-  openSync as openSync6,
+  openSync as openSync7,
   opendirSync,
-  readFileSync as readFileSync8,
+  readFileSync as readFileSync9,
   realpathSync as realpathSync8,
   renameSync,
   rmSync as rmSync2,
@@ -34863,11 +34943,11 @@ function ensurePrivateDirectory(path, recursive = false) {
   assertPrivateDirectory2(path);
 }
 function fsyncDirectory2(path) {
-  const fd = openSync6(path, constants10.O_RDONLY);
+  const fd = openSync7(path, constants11.O_RDONLY);
   try {
     fsyncSync3(fd);
   } finally {
-    closeSync6(fd);
+    closeSync7(fd);
   }
 }
 function readDirectoryBounded(path, maximumEntries, code, message, nextAction) {
@@ -34892,9 +34972,9 @@ function jsonBytes(value) {
 }
 function stageCompleteFile(target, contents) {
   const stage = join14(dirname7(target), `.${basename4(target)}.${randomUUID3()}.tmp`);
-  const fd = openSync6(
+  const fd = openSync7(
     stage,
-    constants10.O_WRONLY | constants10.O_CREAT | constants10.O_EXCL | constants10.O_NOFOLLOW,
+    constants11.O_WRONLY | constants11.O_CREAT | constants11.O_EXCL | constants11.O_NOFOLLOW,
     384
   );
   try {
@@ -34904,7 +34984,7 @@ function stageCompleteFile(target, contents) {
     rmSync2(stage, { force: true });
     throw error51;
   } finally {
-    closeSync6(fd);
+    closeSync7(fd);
   }
   return stage;
 }
@@ -34954,7 +35034,7 @@ var TransientStateRead = class extends Error {
 function readStrictJsonOnce(path, schema, maxBytes, corruptCode) {
   let fd;
   try {
-    fd = openSync6(path, constants10.O_RDONLY | constants10.O_NONBLOCK | constants10.O_NOFOLLOW);
+    fd = openSync7(path, constants11.O_RDONLY | constants11.O_NONBLOCK | constants11.O_NOFOLLOW);
   } catch (error51) {
     if (errorCode3(error51) === "ELOOP") {
       throw new McpStateStoreError(
@@ -34965,13 +35045,13 @@ function readStrictJsonOnce(path, schema, maxBytes, corruptCode) {
     throw error51;
   }
   try {
-    const before = fstatSync5(fd);
+    const before = fstatSync6(fd);
     assertPrivateRegularFile(path, before);
     if (before.size > maxBytes) {
       throw new McpStateStoreError(corruptCode, `Circuit state file is too large: ${path}`);
     }
-    const raw = readFileSync8(fd, "utf8");
-    const after = fstatSync5(fd);
+    const raw = readFileSync9(fd, "utf8");
+    const after = fstatSync6(fd);
     let atPath;
     try {
       atPath = lstatSync5(path);
@@ -35001,7 +35081,7 @@ function readStrictJsonOnce(path, schema, maxBytes, corruptCode) {
     }
     return parsed.data;
   } finally {
-    closeSync6(fd);
+    closeSync7(fd);
   }
 }
 function readStrictJson(path, schema, maxBytes, corruptCode) {
@@ -36760,6 +36840,38 @@ function pathInside3(parent, candidate2) {
   const child = relative6(parent, candidate2);
   return child === "" || !child.startsWith("..") && !isAbsolute14(child);
 }
+function prosaicChoiceList(values) {
+  if (values.length === 1) return values[0] ?? "";
+  return `${values.slice(0, -1).join(", ")} or ${values.at(-1)}`;
+}
+function validateFlowStartOptions(request, axesForFlow) {
+  if (request.process === void 0 && request.tournament === void 0 && request.autonomous !== true) {
+    return;
+  }
+  const axes = axesForFlow(request.flow);
+  if (request.process !== void 0 && !axes.allowed_processes.includes(request.process)) {
+    const allowed = prosaicChoiceList(axes.allowed_processes);
+    throw new McpLifecycleError(
+      "invalid_flow_option",
+      `The ${request.flow} flow does not run at process '${request.process}'. It runs at process ${allowed}.`,
+      `Start again with process ${allowed}, or omit process to use the flow default.`
+    );
+  }
+  if (request.tournament !== void 0 && !axes.supports_tournament) {
+    throw new McpLifecycleError(
+      "invalid_flow_option",
+      `The ${request.flow} flow does not run as a tournament.`,
+      "Start again without the tournament option."
+    );
+  }
+  if (request.autonomous === true && !axes.supports_autonomous) {
+    throw new McpLifecycleError(
+      "invalid_flow_option",
+      `The ${request.flow} flow does not run autonomously.`,
+      "Start again without the autonomous option."
+    );
+  }
+}
 function preparedProductionLaunch(data) {
   let pending = Object.freeze(data);
   const capsule = /* @__PURE__ */ Object.create(null);
@@ -36786,6 +36898,7 @@ function createProductionLaunchPreflight(dependencies) {
   const probeHost = dependencies.probeHost ?? probeCodexHostCapabilities;
   const loadRoster = dependencies.loadRoster ?? loadCodexModelRoster;
   const loadCatalog = dependencies.loadCatalog ?? loadPublicFlowCatalog;
+  const loadFlowAxes = dependencies.loadFlowAxes ?? loadPackagedFlowStartAxes;
   const deriveNodeInstallation = dependencies.deriveNodeInstallation ?? derivePinnedNodeInstallation;
   const result = {
     validate: async (input) => {
@@ -36838,6 +36951,14 @@ function createProductionLaunchPreflight(dependencies) {
       if (!publicFlows.has(input.request.flow)) {
         throw new Error("The selected flow is not present in the sealed public flow catalog.");
       }
+      validateFlowStartOptions(input.request, (flow) => {
+        const fixture = requiredAsset(
+          input.runtime_assets,
+          `flow:${flow}-circuit`,
+          "packaged_flow"
+        );
+        return loadFlowAxes(fixture.real_path);
+      });
       if (input.request.variants !== void 0) {
         validatePrototypeVariantModels(input.request.variants, roster);
       }
@@ -44961,7 +45082,44 @@ var CIRCUIT_MCP_SERVER_INSTRUCTIONS = [
   "Before cached search, tell the user that the query leaves the machine and obtain explicit consent for this run. Include untracked Review contents only after the user explicitly agrees that those contents may be relayed for this run. Never infer either consent.",
   "On error, show error.message and error.next_action when present. Follow next_action only when it clearly names an in-scope Circuit MCP call and requires no user choice. Otherwise stop and report it. Never execute next_action as shell or CLI text."
 ].join("\n\n");
-var READ_ONLY_TOOLS = /* @__PURE__ */ new Set(["circuit_list"]);
+var TOOL_ANNOTATIONS = {
+  circuit_start: {
+    readOnlyHint: false,
+    destructiveHint: true,
+    idempotentHint: false,
+    openWorldHint: true
+  },
+  circuit_status: {
+    readOnlyHint: false,
+    destructiveHint: false,
+    idempotentHint: false,
+    openWorldHint: false
+  },
+  circuit_resume: {
+    readOnlyHint: false,
+    destructiveHint: true,
+    idempotentHint: false,
+    openWorldHint: false
+  },
+  circuit_cancel: {
+    readOnlyHint: false,
+    destructiveHint: true,
+    idempotentHint: false,
+    openWorldHint: false
+  },
+  circuit_list: {
+    readOnlyHint: true,
+    destructiveHint: false,
+    idempotentHint: true,
+    openWorldHint: false
+  },
+  circuit_recover: {
+    readOnlyHint: false,
+    destructiveHint: false,
+    idempotentHint: false,
+    openWorldHint: false
+  }
+};
 function renderResponse(response) {
   if (response.ok === false) {
     const error51 = response.error;
@@ -44987,7 +45145,6 @@ function createCircuitMcpServer(options) {
   );
   const handle = options.handle;
   function registerTool(name) {
-    const readOnly = READ_ONLY_TOOLS.has(name);
     server.registerTool(
       name,
       {
@@ -44995,12 +45152,7 @@ function createCircuitMcpServer(options) {
         description: TOOL_DESCRIPTIONS[name],
         inputSchema: MCP_TOOL_INPUT_SCHEMAS[name],
         outputSchema: MCP_TOOL_WIRE_OUTPUT_SCHEMAS[name],
-        annotations: {
-          readOnlyHint: readOnly,
-          destructiveHint: !readOnly,
-          idempotentHint: readOnly,
-          openWorldHint: name === "circuit_start"
-        }
+        annotations: { ...TOOL_ANNOTATIONS[name] }
       },
       async (input, extra) => {
         const response = MCP_TOOL_RESPONSE_SCHEMAS[name].parse(
@@ -45036,11 +45188,23 @@ async function createPackagedCircuitMcpServer(options = {}) {
   });
   return createCircuitMcpServer({ handle });
 }
+async function anchorPackagedServerToDurableCwd(environment = process.env) {
+  const codexHome = resolveProductionCodexHome(environment);
+  try {
+    const canonical = await realpath8(codexHome);
+    process.chdir(canonical);
+    return canonical;
+  } catch {
+    throw new Error("Circuit MCP requires CODEX_HOME to name an existing directory it can enter.");
+  }
+}
 async function runPackagedCircuitMcpServer() {
+  await anchorPackagedServerToDurableCwd();
   const server = await createPackagedCircuitMcpServer();
   await server.connect(new StdioServerTransport());
 }
 export {
+  anchorPackagedServerToDurableCwd,
   createPackagedCircuitMcpServer,
   runPackagedCircuitMcpServer
 };
