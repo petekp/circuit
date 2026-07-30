@@ -93,6 +93,7 @@ locations:
 | Run decision timeline | [docs/architecture/run-process.md](architecture/run-process.md) |
 | Config and connector routing | [docs/configuration.md](configuration.md) |
 | Flow and block authoring | [docs/flows/authoring-model.md](flows/authoring-model.md) and [docs/flows/blocks.md](flows/blocks.md) |
+| Per-flow expectation-versus-behavior audit | [docs/flows/dossiers/](flows/dossiers/), starting with [synthesis.md](flows/dossiers/synthesis.md) |
 | Contract, guidance, proof, and recovery pivot | [docs/pivot/contract-guidance-proof-recovery/](pivot/contract-guidance-proof-recovery/) |
 | Generated command, skill, schematic, manifest, and plugin output ownership | [docs/generated-surfaces.md](generated-surfaces.md) |
 | Host package maps | [plugins/README.md](../plugins/README.md), [plugins/claude/README.md](../plugins/claude/README.md), and [plugins/codex/README.md](../plugins/codex/README.md) |
