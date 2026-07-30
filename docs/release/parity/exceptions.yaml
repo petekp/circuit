@@ -39,7 +39,7 @@ exceptions:
   - id: EX-REL-014-CODEX-MCP-FIRST-RUN
     claim_id: CLAIM-CODEX-MCP-LIFECYCLE
     proof_id: proof:codex-mcp-first-run
-    status: release_blocker
+    status: approved_exception
     readiness_ref: REL-014
-    rationale: The packaged MCP lifecycle is implemented, but the immutable release candidate and exact plugin-tree digest have not yet passed the fresh-host loader and first-attempt Review proof.
-    public_wording: Codex support remains release-blocked until the exact release candidate passes its first-run proof. The release command separately verifies the immutable public tag after publishing it.
+    rationale: The packaged MCP lifecycle is implemented, and the no-spend fresh-host loader proof passed for the exact 0.1.2 candidate in both packed and published modes, with the source ref and plugin tree digest bound (docs/release/proofs/runs/codex-mcp-first-run). The paid first-attempt Review proof and the two-architecture release matrix have not run because their evidence tooling does not exist yet. The README keeps steering sandboxed Codex work to the checkout until that proof lands.
+    public_wording: The Codex plugin's fresh-host install and loader checks passed at the exact release candidate. The full paid end-to-end proof is an openly tracked gap, and the README steers sandboxed Codex work to the checkout until it lands.

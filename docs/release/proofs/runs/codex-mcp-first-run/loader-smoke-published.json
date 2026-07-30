@@ -1,0 +1,94 @@
+{
+  "schema_version": 1,
+  "host": "codex",
+  "surface": "mcp",
+  "mode": "published",
+  "status": "pass",
+  "reason": "The published plugin loaded, discovered Circuit, and identified the exact fresh-host worktree.",
+  "source": {
+    "repository": "petekp/circuit",
+    "ref": "1a15ec4e52126c412ff23cf5e27f6d259a9ce336",
+    "expected_version": "0.1.2"
+  },
+  "versions": {
+    "codex": "0.144.3",
+    "node": "24.18.1",
+    "plugin": "0.1.2",
+    "plugin_tree_sha256": "5c803c941737651c6db3d7c2339fb3e16c03152fde6586b52bf0b181d5fca3f1"
+  },
+  "evidence": [
+    {
+      "name": "codex_version_recorded",
+      "ok": true,
+      "detail": "0.144.3"
+    },
+    {
+      "name": "node_version_recorded",
+      "ok": true,
+      "detail": "24.18.1"
+    },
+    {
+      "name": "source_ref_exact",
+      "ok": true,
+      "detail": "1a15ec4e52126c412ff23cf5e27f6d259a9ce336@1a15ec4e52126c412ff23cf5e27f6d259a9ce336"
+    },
+    {
+      "name": "plugin_version_exact",
+      "ok": true,
+      "detail": "0.1.2"
+    },
+    {
+      "name": "plugin_tree_exact",
+      "ok": true,
+      "detail": "5c803c941737651c6db3d7c2339fb3e16c03152fde6586b52bf0b181d5fca3f1"
+    },
+    {
+      "name": "plugin_tree_sha256",
+      "ok": true,
+      "detail": "5c803c941737651c6db3d7c2339fb3e16c03152fde6586b52bf0b181d5fca3f1"
+    },
+    {
+      "name": "installed_plugin_enabled",
+      "ok": true,
+      "detail": "0.1.2"
+    },
+    {
+      "name": "product_created_private_control_state",
+      "ok": true,
+      "detail": "The packaged MCP runtime created 0700 control directories. Product-created 0600 files are enforced by tests/mcp/state-store.test.ts (creates one atomic workspace lease and private state files)."
+    },
+    {
+      "name": "real_plugin_loader_completed",
+      "ok": true
+    },
+    {
+      "name": "owned_process_cleanup",
+      "ok": true
+    },
+    {
+      "name": "tool_search_discovered_six_tools",
+      "ok": true,
+      "detail": "circuit_cancel, circuit_list, circuit_recover, circuit_resume, circuit_start, circuit_status"
+    },
+    {
+      "name": "circuit_list_invoked",
+      "ok": true,
+      "detail": "3 provider requests"
+    },
+    {
+      "name": "diagnostic_sentinel_permissions",
+      "ok": true,
+      "detail": "This 0600 file is a harness-seeded fixture; product file creation is covered by tests/mcp/state-store.test.ts (creates one atomic workspace lease and private state files)."
+    },
+    {
+      "name": "trusted_workspace_metadata",
+      "ok": true,
+      "detail": "circuit_list accepted codex/sandbox-state-meta"
+    },
+    {
+      "name": "exact_workspace_identity",
+      "ok": true,
+      "detail": "019f64f5-1f4d-7d91-8cda-a309cc72c301"
+    }
+  ]
+}

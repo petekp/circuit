@@ -102,38 +102,48 @@ describe('release truth infrastructure', () => {
     );
   });
 
-  it('blocks the public Codex MCP claim until its exact first-run proof is current', () => {
+  it('tracks the public Codex MCP claim as an approved exception backed by loader evidence', () => {
     const claims = PublicClaimLedger.parse(yamlFile('docs/release/claims/public-claims.yaml'));
     const proofs = ProofScenarioIndex.parse(yamlFile('docs/release/proofs/index.yaml'));
     const exceptions = ParityExceptionLedger.parse(yamlFile('docs/release/parity/exceptions.yaml'));
 
     expect(claims.claims.find((claim) => claim.id === 'CLAIM-CODEX-MCP-LIFECYCLE')).toMatchObject({
       type: 'host',
-      status: 'release_blocker',
+      status: 'approved_exception',
       backing: {
         capability_ids: ['host:codex-plugin'],
         proof_ids: ['proof:codex-mcp-first-run'],
         exception_ids: ['EX-REL-014-CODEX-MCP-FIRST-RUN'],
       },
     });
-    expect(
-      proofs.scenarios.find((proof) => proof.id === 'proof:codex-mcp-first-run'),
-    ).toMatchObject({
+    const firstRunProof = proofs.scenarios.find(
+      (proof) => proof.id === 'proof:codex-mcp-first-run',
+    );
+    expect(firstRunProof).toMatchObject({
       category: 'first-run',
-      status: 'release_blocker',
+      status: 'approved_exception',
       exception_ids: ['EX-REL-014-CODEX-MCP-FIRST-RUN'],
     });
+    // The exception is only honest while the no-spend loader evidence it cites
+    // exists on disk and stays bound to the scenario.
+    expect(firstRunProof?.backing_paths).toEqual([
+      'docs/release/proofs/runs/codex-mcp-first-run/loader-smoke-packed.json',
+      'docs/release/proofs/runs/codex-mcp-first-run/loader-smoke-published.json',
+    ]);
+    for (const path of firstRunProof?.backing_paths ?? []) {
+      expect(exists(path)).toBe(true);
+    }
     expect(
       exceptions.exceptions.find((exception) => exception.id === 'EX-REL-014-CODEX-MCP-FIRST-RUN'),
     ).toMatchObject({
       claim_id: 'CLAIM-CODEX-MCP-LIFECYCLE',
       proof_id: 'proof:codex-mcp-first-run',
-      status: 'release_blocker',
+      status: 'approved_exception',
     });
 
     const blocked = releaseBlockers({ exceptions, claims, proofs });
-    expect(blocked.some((item) => item.startsWith('CLAIM-CODEX-MCP-LIFECYCLE:'))).toBe(true);
-    expect(blocked.some((item) => item.startsWith('proof:codex-mcp-first-run:'))).toBe(true);
+    expect(blocked.some((item) => item.startsWith('CLAIM-CODEX-MCP-LIFECYCLE:'))).toBe(false);
+    expect(blocked.some((item) => item.startsWith('proof:codex-mcp-first-run:'))).toBe(false);
 
     const readyClaims = PublicClaimLedger.parse({
       ...claims,
@@ -690,13 +700,13 @@ describe('release truth infrastructure', () => {
     );
   });
 
-  it('proof coverage is complete as a tracked blocker set', () => {
+  it('proof coverage is complete with the first-run proof tracked as an approved exception', () => {
     const proofs = ProofScenarioIndex.parse(yamlFile('docs/release/proofs/index.yaml'));
     const exceptions = ParityExceptionLedger.parse(yamlFile('docs/release/parity/exceptions.yaml'));
     const result = validateProofCoverage({ proofs, exceptions, pathExists: exists });
     expect(result.issues).toEqual([]);
     expect(result.warnings).toEqual([
-      'tracked proof: proof:codex-mcp-first-run is release_blocker',
+      'tracked proof: proof:codex-mcp-first-run is approved_exception',
     ]);
   });
 

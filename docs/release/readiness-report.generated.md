@@ -13,7 +13,7 @@ Infra checks may pass while release blockers remain. `npm run check-release-read
 | Tracked exceptions | 7 |
 | Public claims | 10 |
 | Proof scenarios | 16 |
-| Release blockers | 3 |
+| Release blockers | 0 |
 | Infra issues | 0 |
 
 ## Infra Issues
@@ -27,22 +27,19 @@ Infra checks may pass while release blockers remain. `npm run check-release-read
 - tracked gap: router:intent:develop is absent from current capabilities
 - tracked gap: router:intent:decide is absent from current capabilities
 - tracked gap: feature:plan-execution is absent from current capabilities
-- tracked claim: CLAIM-CODEX-MCP-LIFECYCLE is release_blocker
-- tracked proof: proof:codex-mcp-first-run is release_blocker
+- tracked claim: CLAIM-CODEX-MCP-LIFECYCLE is approved_exception
+- tracked proof: proof:codex-mcp-first-run is approved_exception
 
 ## Release Blockers
 
-- EX-REL-014-CODEX-MCP-FIRST-RUN: The packaged MCP lifecycle is implemented, but the immutable release candidate and exact plugin-tree digest have not yet passed the fresh-host loader and first-attempt Review proof.
-- CLAIM-CODEX-MCP-LIFECYCLE: On supported macOS hosts, the Codex plugin runs Circuit through its six-tool MCP lifecycle without shell fallback or sandbox escalation.
-- proof:codex-mcp-first-run: proof scenario is not captured
+- None
 
 ## Next Actions
 
-- Use the verified Explore Tournament proof to keep shrinking Explore behavioral axes.
-- Use the executable rich route substrate in checkpoint, recovery, and failure proof runs.
-- Finish the custom connector guide with a copy-pasteable file-protocol example.
-- Capture golden release runs across proof categories.
-- Replace hand-maintained support claims with generated matrix blocks.
+- Decide whether the approved Fix Lite intent exception needs public release-note wording.
+- Harden the partial host surfaces that are outside original parity: generic shell text progress and current plugin host wording.
+- Keep golden runs refreshed whenever command, summary, or report contracts change.
+- Run `npm run check-release-ready` as the strict final release check.
 
 ## Source Files
 

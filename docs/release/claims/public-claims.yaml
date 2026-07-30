@@ -122,7 +122,7 @@ claims:
   - id: CLAIM-CODEX-MCP-LIFECYCLE
     claim: On supported macOS hosts, the Codex plugin runs Circuit through its six-tool MCP lifecycle without shell fallback or sandbox escalation.
     type: host
-    status: release_blocker
+    status: approved_exception
     surfaces: [README.md, docs/first-run.md, plugins/codex/README.md]
     backing:
       capability_ids: [host:codex-plugin]

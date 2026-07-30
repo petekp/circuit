@@ -331,8 +331,10 @@ scenarios:
     summary_contract: Evidence binds the immutable candidate bytes to the first-attempt Review artifacts, every public flow and tournament mode, both Mac architectures, cached-search consent, proof-network blocking, cleanup, spend, and absence of shell fallback or sandbox escalation.
     redaction_policy: Isolated host paths are normalized and credentials, proxy values, prompts, and source contents are excluded.
     required_files: []
-    status: release_blocker
-    backing_paths: []
+    status: approved_exception
+    backing_paths:
+      - docs/release/proofs/runs/codex-mcp-first-run/loader-smoke-packed.json
+      - docs/release/proofs/runs/codex-mcp-first-run/loader-smoke-published.json
     exception_ids: [EX-REL-014-CODEX-MCP-FIRST-RUN]
     readiness_refs: [REL-014, REL-017]
   - id: proof:plan-execution
