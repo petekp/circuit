@@ -123,13 +123,12 @@ describe('the help command (B2)', () => {
 });
 
 describe('bare subcommand-family commands (B3)', () => {
-  it('bare circuit runs names the missing subcommand instead of leaking commander internals', async () => {
+  it('bare circuit runs prints the recent-runs listing instead of demanding a subcommand', async () => {
     const result = await captureMain(['runs']);
-    expect(result.code).toBe(2);
+    expect(result.code).toBe(0);
     expect(result.stdout).not.toContain('outputHelp');
-    const envelope = JSON.parse(result.stdout) as { error: { message: string } };
-    expect(envelope.error.message).toContain('runs requires a subcommand');
-    expect(envelope.error.message).toContain('show');
+    // Either real runs or the honest empty state; never an invocation error.
+    expect(result.stdout).toMatch(/saved run/i);
   });
 
   it('bare circuit history names the missing subcommand and the valid ones', async () => {

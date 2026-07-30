@@ -55,7 +55,14 @@ function renderRow(row: CheckpointRow, index: number): string {
   lines.push(`   Choices: ${choices}`);
   const staleness = stalenessLine(row.staleness);
   if (staleness !== undefined) lines.push(`   ${staleness}`);
-  lines.push(`   Resume: ${row.resume_command}`);
+  if (row.parked_by_older_engine === true) {
+    // Say what is true: the run is waiting, but this engine cannot load its
+    // trace, so printing a resume command would be a lie.
+    lines.push('   This run parked under an older version of Circuit, so resume cannot load it.');
+    lines.push('   The saved work is still in the folder above.');
+  } else if (row.resume_command !== undefined) {
+    lines.push(`   Resume: ${row.resume_command}`);
+  }
   return lines.join('\n');
 }
 

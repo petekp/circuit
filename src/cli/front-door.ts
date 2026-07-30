@@ -29,7 +29,7 @@ export function renderFrontDoor(): string {
     line('circuit generate --description "<task>"', 'compose a custom flow block-by-block'),
     '',
     `${palette.bold('history and upkeep')}`,
-    line('circuit runs show / history / memory', 'inspect past runs and operator notes'),
+    line('circuit runs / history / memory', 'list past runs and operator notes'),
     line('circuit doctor', 'connector health and run readiness'),
     line('circuit reclaim / uninstall / version', 'housekeeping'),
     '',

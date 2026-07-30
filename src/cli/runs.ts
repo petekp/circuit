@@ -1,10 +1,13 @@
+import { resolve } from 'node:path';
 import { Command } from 'commander';
 import { healClosedRunResult } from '../app/run-status/projection-common.js';
 import {
   RunStatusFolderError,
   projectRunStatusFromRunFolder,
 } from '../app/run-status/run-folder-projector.js';
+import { discoverRunsList, renderRunsList } from '../app/runs-list/list.js';
 import { type EngineErrorCodeV1, EngineErrorV1 } from '../schemas/run-status.js';
+import { runsRoot } from '../shared/control-plane-paths.js';
 import {
   commanderErrorMessage,
   configureCommanderProgram,
@@ -55,14 +58,11 @@ function parseShowArgs(argv: readonly string[]): { readonly runFolder: string } 
   try {
     program.parse(argv, { from: 'user' });
   } catch (err) {
-    // Bare `circuit runs` makes Commander raise its internal help error
-    // ('(outputHelp)') before any action runs; fall through so the operator
-    // sees the real missing-subcommand message below instead of the token.
     if (!isCommanderHelpSignal(err)) return commanderErrorMessage(err);
   }
 
   if (showOptions === undefined) {
-    return 'runs requires a subcommand: use circuit runs show --run-folder <path> --json';
+    return 'runs show requires --run-folder <path> --json';
   }
 
   if (showOptions.json !== true) return 'runs show requires --json';
@@ -70,7 +70,56 @@ function parseShowArgs(argv: readonly string[]): { readonly runFolder: string } 
   return { runFolder: showOptions.runFolder };
 }
 
+interface ParsedListArgs {
+  readonly runsBase: string;
+  readonly json: boolean;
+}
+
+function parseListArgs(argv: readonly string[]): ParsedListArgs | string {
+  let options: { json?: boolean; projectRoot?: string; runsBase?: string } | undefined;
+  const program = configureCommanderProgram(new Command('circuit runs'))
+    .option('--json')
+    .option('--project-root <path>')
+    .option('--runs-base <path>')
+    .allowExcessArguments(false)
+    .action(() => {
+      options = program.opts<{ json?: boolean; projectRoot?: string; runsBase?: string }>();
+    });
+  try {
+    program.parse(argv, { from: 'user' });
+  } catch (err) {
+    return commanderErrorMessage(err);
+  }
+  if (options === undefined) return 'runs could not parse its arguments';
+
+  const projectRoot = resolve(options.projectRoot ?? process.cwd());
+  const runsBase =
+    options.runsBase === undefined ? runsRoot(projectRoot) : resolve(options.runsBase);
+  return { runsBase, json: options.json === true };
+}
+
+/**
+ * Bare `circuit runs` is the recent-runs listing; `circuit runs show` stays
+ * the per-folder detail projection.
+ */
 export async function runRunsCommand(argv: readonly string[]): Promise<number> {
+  if (argv[0] !== 'show') {
+    const parsed = parseListArgs(argv);
+    if (typeof parsed === 'string') return invalidInvocation(parsed);
+    const list = discoverRunsList({ runsRoot: parsed.runsBase });
+    if (parsed.json) {
+      writeJson({
+        api_version: 'runs-list-v1',
+        schema_version: 1,
+        runs_root: list.runs_root,
+        rows: list.rows,
+      });
+    } else {
+      process.stdout.write(`${renderRunsList(list)}\n`);
+    }
+    return 0;
+  }
+
   const parsed = parseShowArgs(argv);
   if (typeof parsed === 'string') return invalidInvocation(parsed);
 

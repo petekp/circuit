@@ -264,14 +264,18 @@ const COMMAND_HELP: Readonly<Record<CliCommandName, CommandHelp>> = {
     next: 'reinstalling the plugin restores the instruction block.',
   },
   runs: {
-    summary: 'inspect one recorded run',
-    usage: ['circuit runs show --run-folder <path> --json'],
-    flags: [
-      { flag: '--run-folder <path>', blurb: 'the run folder to project (required)' },
-      { flag: '--json', blurb: 'required; the projection is JSON' },
+    summary: 'list recent runs, or inspect one in detail',
+    usage: [
+      'circuit runs [--project-root <path>] [--runs-base <path>] [--json]',
+      'circuit runs show --run-folder <path> --json',
     ],
-    example: 'circuit runs show --run-folder .circuit/runs/<run_id> --json',
-    next: 'circuit history query searches across all recorded runs.',
+    flags: [
+      { flag: '--runs-base <path>', blurb: 'override where recorded runs are read from' },
+      { flag: '--json', blurb: 'machine output (required for show)' },
+      { flag: '--run-folder <path>', blurb: 'show only: the run folder to project' },
+    ],
+    example: 'circuit runs',
+    next: 'circuit checkpoints lists runs waiting on a decision.',
   },
   reclaim: {
     summary: 'remove orphaned fanout worktrees left behind by killed runs',
