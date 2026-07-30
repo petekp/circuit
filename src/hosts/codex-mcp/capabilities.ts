@@ -76,6 +76,20 @@ function compareVersion(left: ParsedVersion, right: ParsedVersion): number {
 
 const MINIMUM_PARSED_VERSION: ParsedVersion = { major: 0, minor: 146, patch: 0, text: '0.146.0' };
 
+// A host below the floor usually fails later probes too, for reasons that
+// read like config internals. Check the version first so the operator hears
+// the real problem: their Codex is too old.
+export function requireSupportedCodexVersion(versionOutput: string): void {
+  const version = parseCodexCliVersion(versionOutput);
+  if (compareVersion(version, MINIMUM_PARSED_VERSION) < 0) {
+    throw new CodexHostCapabilityError(
+      'codex_version_unsupported',
+      `Circuit MCP requires Codex ${MINIMUM_CODEX_VERSION} or newer; this host reports ${version.text}.`,
+      `Update Codex to ${MINIMUM_CODEX_VERSION} or newer, then retry.`,
+    );
+  }
+}
+
 const REQUIRED_EXEC_HELP_CAPABILITIES = [
   ['strict configuration', /(^|\s)--strict-config(?:\s|$)/m],
   ['ignored user config', /(^|\s)--ignore-user-config(?:\s|$)/m],
@@ -88,14 +102,8 @@ const REQUIRED_EXEC_HELP_CAPABILITIES = [
 export function assertCodexHostCapabilities(
   input: CodexHostCapabilityProbeInput,
 ): CodexHostCapabilities {
+  requireSupportedCodexVersion(input.versionOutput);
   const version = parseCodexCliVersion(input.versionOutput);
-  if (compareVersion(version, MINIMUM_PARSED_VERSION) < 0) {
-    throw new CodexHostCapabilityError(
-      'codex_version_unsupported',
-      `Circuit MCP requires Codex ${MINIMUM_CODEX_VERSION} or newer; this host reports ${version.text}.`,
-      `Update Codex to ${MINIMUM_CODEX_VERSION} or newer, then retry.`,
-    );
-  }
 
   if (input.pluginMcpTransport !== 'stdio') {
     throw new CodexHostCapabilityError(

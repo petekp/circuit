@@ -3,7 +3,11 @@ import { mkdtempSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { isAbsolute, join } from 'node:path';
 
-import { type CodexHostCapabilities, assertCodexHostCapabilities } from './capabilities.js';
+import {
+  type CodexHostCapabilities,
+  assertCodexHostCapabilities,
+  requireSupportedCodexVersion,
+} from './capabilities.js';
 import {
   type CodexNestedHostProbeInput,
   runCodexNestedSandboxCanary,
@@ -190,6 +194,7 @@ export async function probeCodexHostCapabilities(
       'version',
       CODEX_INSTALL_ACTION,
     );
+    requireSupportedCodexVersion(versionOutput);
     const execHelpOutput = requireSuccessfulProbe(
       run(codexExecutable, ['exec', ...MCP_CODEX_STRICT_FLAGS, '--help']),
       'required execution flags',

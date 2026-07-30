@@ -24512,6 +24512,16 @@ function compareVersion(left, right) {
   return left.patch - right.patch;
 }
 var MINIMUM_PARSED_VERSION = { major: 0, minor: 146, patch: 0, text: "0.146.0" };
+function requireSupportedCodexVersion(versionOutput) {
+  const version2 = parseCodexCliVersion(versionOutput);
+  if (compareVersion(version2, MINIMUM_PARSED_VERSION) < 0) {
+    throw new CodexHostCapabilityError(
+      "codex_version_unsupported",
+      `Circuit MCP requires Codex ${MINIMUM_CODEX_VERSION} or newer; this host reports ${version2.text}.`,
+      `Update Codex to ${MINIMUM_CODEX_VERSION} or newer, then retry.`
+    );
+  }
+}
 var REQUIRED_EXEC_HELP_CAPABILITIES = [
   ["strict configuration", /(^|\s)--strict-config(?:\s|$)/m],
   ["ignored user config", /(^|\s)--ignore-user-config(?:\s|$)/m],
@@ -24521,14 +24531,8 @@ var REQUIRED_EXEC_HELP_CAPABILITIES = [
   ["ephemeral sessions", /(^|\s)--ephemeral(?:\s|$)/m]
 ];
 function assertCodexHostCapabilities(input) {
+  requireSupportedCodexVersion(input.versionOutput);
   const version2 = parseCodexCliVersion(input.versionOutput);
-  if (compareVersion(version2, MINIMUM_PARSED_VERSION) < 0) {
-    throw new CodexHostCapabilityError(
-      "codex_version_unsupported",
-      `Circuit MCP requires Codex ${MINIMUM_CODEX_VERSION} or newer; this host reports ${version2.text}.`,
-      `Update Codex to ${MINIMUM_CODEX_VERSION} or newer, then retry.`
-    );
-  }
   if (input.pluginMcpTransport !== "stdio") {
     throw new CodexHostCapabilityError(
       "codex_capability_missing",
@@ -27294,6 +27298,7 @@ async function probeCodexHostCapabilities(codexExecutable, options) {
       "version",
       CODEX_INSTALL_ACTION
     );
+    requireSupportedCodexVersion(versionOutput);
     const execHelpOutput = requireSuccessfulProbe(
       run(codexExecutable, ["exec", ...MCP_CODEX_STRICT_FLAGS, "--help"]),
       "required execution flags",

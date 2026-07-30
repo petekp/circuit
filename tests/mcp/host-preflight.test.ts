@@ -163,6 +163,29 @@ describe('Codex MCP host preflight', () => {
     });
   });
 
+  it('names the version floor when Codex is too old, before any config probe can speak', async () => {
+    // A 0.145 host also fails the strict-config probe (it rejects the
+    // prompt-only fields), but the operator's real problem is the version.
+    // The floor check must run first so the message says "update to 0.146.0"
+    // instead of quoting a config-field error.
+    const run = vi
+      .fn()
+      .mockReturnValueOnce({ status: 0, stdout: 'codex-cli 0.145.0\n', stderr: '' });
+
+    await expect(
+      probeCodexHostCapabilities('/trusted/codex', {
+        run,
+        workspaceMetadataValidated: true,
+        nested,
+        ...passingCanaries,
+      }),
+    ).rejects.toMatchObject({
+      message: expect.stringMatching(/requires Codex 0\.146\.0 or newer.*reports 0\.145\.0/),
+      nextAction: expect.stringMatching(/Update Codex to 0\.146\.0 or newer/),
+    });
+    expect(run).toHaveBeenCalledTimes(1);
+  });
+
   it('fails when Codex does not strictly accept every fixed hardening key', async () => {
     const run = vi
       .fn()
