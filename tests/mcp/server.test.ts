@@ -112,6 +112,22 @@ describe('Codex MCP server contract', () => {
     expect(list?.annotations?.idempotentHint).toBe(true);
   });
 
+  // Headless Codex (codex exec) auto-cancels destructive-annotated tools
+  // (openai/codex #16685, #24135). Tools that only maintain Circuit's own
+  // bookkeeping must not carry a destructive label, or a headless session
+  // cannot even ask how its runs are doing. Start, resume, and cancel keep the
+  // label honestly: a run can edit the checkout, and cancel kills processes.
+  it('labels as destructive only the tools that can touch user work', async () => {
+    const result = await client.listTools();
+    const byName = new Map(result.tools.map((tool) => [tool.name, tool.annotations]));
+    expect(byName.get('circuit_start')?.destructiveHint).toBe(true);
+    expect(byName.get('circuit_resume')?.destructiveHint).toBe(true);
+    expect(byName.get('circuit_cancel')?.destructiveHint).toBe(true);
+    expect(byName.get('circuit_status')?.destructiveHint).toBe(false);
+    expect(byName.get('circuit_list')?.destructiveHint).toBe(false);
+    expect(byName.get('circuit_recover')?.destructiveHint).toBe(false);
+  });
+
   it('renders a stable error returned by its lifecycle handler', async () => {
     const result = await client.callTool({
       name: 'circuit_status',

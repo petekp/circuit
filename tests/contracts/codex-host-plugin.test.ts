@@ -698,7 +698,7 @@ describe('Codex host plugin package', () => {
     try {
       mkdirSync(binDir, { recursive: true });
       const fakeCodex = join(binDir, 'codex');
-      writeFileSync(fakeCodex, "#!/bin/sh\necho 'codex-cli 0.144.3'\n");
+      writeFileSync(fakeCodex, "#!/bin/sh\necho 'codex-cli 0.146.0'\n");
       chmodSync(fakeCodex, 0o755);
       const result = spawnSync(
         process.execPath,
@@ -817,7 +817,7 @@ describe('Codex host plugin package', () => {
           name: 'codex_version_supported',
           ok: false,
           detail:
-            'Codex was not found. Install Codex 0.144.3 or newer, restart Codex, and try again.',
+            'Codex was not found. Install Codex 0.146.0 or newer, restart Codex, and try again.',
         }),
       );
     } finally {
@@ -866,7 +866,7 @@ describe('Codex host plugin package', () => {
           name: 'codex_version_supported',
           ok: false,
           detail:
-            'codex=0.143.0 required>=0.144.3. Update Codex to 0.144.3 or newer, restart Codex, and try again.',
+            'codex=0.143.0 required>=0.146.0. Update Codex to 0.146.0 or newer, restart Codex, and try again.',
         }),
       );
     } finally {

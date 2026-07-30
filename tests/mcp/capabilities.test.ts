@@ -19,7 +19,7 @@ describe('Codex MCP capability preflight', () => {
   it('accepts the minimum supported Codex version only with every live capability', () => {
     expect(
       assertCodexHostCapabilities({
-        versionOutput: 'codex-cli 0.144.3\n',
+        versionOutput: 'codex-cli 0.146.0\n',
         execHelpOutput: COMPLETE_HELP,
         pluginMcpTransport: 'stdio',
         workspaceMetadataValidated: true,
@@ -27,7 +27,7 @@ describe('Codex MCP capability preflight', () => {
         sharedTempIsolation: 'isolated',
       }),
     ).toEqual({
-      codex_version: '0.144.3',
+      codex_version: '0.146.0',
       minimum_version: MINIMUM_CODEX_VERSION,
       plugin_mcp: true,
       strict_config: true,
@@ -40,7 +40,7 @@ describe('Codex MCP capability preflight', () => {
   it('accepts and records Codex-equivalent shared temporary exposure', () => {
     expect(
       assertCodexHostCapabilities({
-        versionOutput: 'codex-cli 0.144.3\n',
+        versionOutput: 'codex-cli 0.146.0\n',
         execHelpOutput: COMPLETE_HELP,
         pluginMcpTransport: 'stdio',
         workspaceMetadataValidated: true,
@@ -53,7 +53,7 @@ describe('Codex MCP capability preflight', () => {
     });
   });
 
-  it.each(['0.144.2', '0.143.99', '0.118.0'])(
+  it.each(['0.145.0', '0.144.3', '0.143.99', '0.118.0'])(
     'rejects unsupported Codex %s before trusting feature probes',
     (version) => {
       expect(() =>
@@ -65,7 +65,7 @@ describe('Codex MCP capability preflight', () => {
           nestedSandboxValidated: true,
           sharedTempIsolation: 'isolated',
         }),
-      ).toThrow(/0\.144\.3 or newer/);
+      ).toThrow(/0\.146\.0 or newer/);
     },
   );
 
@@ -85,7 +85,7 @@ describe('Codex MCP capability preflight', () => {
   ])('rejects a host missing %s', (_label, replacement) => {
     expect(() =>
       assertCodexHostCapabilities({
-        versionOutput: 'codex-cli 0.144.3',
+        versionOutput: 'codex-cli 0.146.0',
         execHelpOutput: COMPLETE_HELP,
         pluginMcpTransport: 'stdio',
         workspaceMetadataValidated: true,
@@ -102,7 +102,7 @@ describe('Codex MCP capability preflight', () => {
   ] as const)('rejects a %s private shared-temp posture', (_label, sharedTempIsolation) => {
     expect(() =>
       assertCodexHostCapabilities({
-        versionOutput: 'codex-cli 0.144.3',
+        versionOutput: 'codex-cli 0.146.0',
         execHelpOutput: COMPLETE_HELP,
         pluginMcpTransport: 'stdio',
         workspaceMetadataValidated: true,

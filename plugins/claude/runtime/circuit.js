@@ -92623,7 +92623,7 @@ function validateCodexWebSearchItem(item, lifecycle, index) {
   return id;
 }
 function codexUnknownTypeRemediation(detectedVersion) {
-  return `Circuit has verified Codex CLI ${CODEX_TESTED_CLI_RANGE}, and your Codex CLI reports "${detectedVersion}". The installed Codex version may be outside this tested range, or it may have added a protocol shape Circuit has not reviewed. Check your Codex CLI version with: codex --version. Update or pin Codex CLI to a version in this range, preferably 0.145.0, then retry.`;
+  return `Circuit has verified Codex CLI ${CODEX_TESTED_CLI_RANGE}, and your Codex CLI reports "${detectedVersion}". The installed Codex version may be outside this tested range, or it may have added a protocol shape Circuit has not reviewed. Check your Codex CLI version with: codex --version. Update or pin Codex CLI to a version in this range, preferably 0.146.0, then retry.`;
 }
 function parseCodexStdout(stdout, prompt, duration_ms, cli_version, options = {}) {
   const trace_entries = parseNdjsonObjects(stdout, "codex --json");
@@ -92932,7 +92932,7 @@ var init_codex = __esm({
       "turn.completed"
     ]);
     CODEX_FAILURE_EVENT_TYPES = /* @__PURE__ */ new Set(["turn.failed", "error"]);
-    CODEX_TESTED_CLI_RANGE = "0.144.3 through 0.145.0";
+    CODEX_TESTED_CLI_RANGE = "0.144.3 through 0.146.0";
   }
 });
 

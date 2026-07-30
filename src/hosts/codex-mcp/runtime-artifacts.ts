@@ -28,6 +28,39 @@ function failure(
   return { state, summary: message, failure: { code, message } };
 }
 
+/**
+ * The engine explains a failed launch on the worker's stderr, which also
+ * carries machine progress lines. Repeat only the human part: any line that
+ * parses as JSON is progress, already delivered through its own channel.
+ */
+function workerStderrDiagnostic(tail: string | undefined): string | undefined {
+  if (tail === undefined) return undefined;
+  const lines = tail
+    .split('\n')
+    .map((line) => line.trim())
+    .filter((line) => line.length > 0)
+    .filter((line) => {
+      try {
+        JSON.parse(line);
+        return false;
+      } catch {
+        return true;
+      }
+    });
+  if (lines.length === 0) return undefined;
+  return lines.join(' ').slice(-500);
+}
+
+function workerExitNonzeroFailure(stderrTail: string | undefined): RuntimeExitClassification {
+  const base = 'The Circuit worker exited with an error before it completed or parked safely.';
+  const diagnostic = workerStderrDiagnostic(stderrTail);
+  return failure(
+    'needs_attention',
+    'worker_exit_nonzero',
+    diagnostic === undefined ? base : `${base} It reported: ${diagnostic}`,
+  );
+}
+
 function sameFile(left: BigIntStats, right: BigIntStats): boolean {
   return (
     left.dev === right.dev &&
@@ -192,11 +225,7 @@ export class CanonicalRuntimeArtifactReconciler implements RuntimeArtifactReconc
       status = projectRunStatusFromRunFolder(runRoot);
     } catch {
       return workerExitedNonzero
-        ? failure(
-            'needs_attention',
-            'worker_exit_nonzero',
-            'The Circuit worker exited with an error before it completed or parked safely.',
-          )
+        ? workerExitNonzeroFailure(input.exit.stderr_tail)
         : failure(
             'needs_attention',
             'run_artifact_unavailable',
@@ -215,11 +244,7 @@ export class CanonicalRuntimeArtifactReconciler implements RuntimeArtifactReconc
       );
     }
     if (workerExitedNonzero && status.engine_state !== 'completed') {
-      return failure(
-        'needs_attention',
-        'worker_exit_nonzero',
-        'The Circuit worker exited with an error before it completed or parked safely.',
-      );
+      return workerExitNonzeroFailure(input.exit.stderr_tail);
     }
 
     if (status.engine_state === 'waiting_checkpoint') {

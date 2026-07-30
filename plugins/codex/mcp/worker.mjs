@@ -16440,9 +16440,9 @@ var KNOWN_CODEX_EVENT_TYPES = /* @__PURE__ */ new Set([
   "turn.completed"
 ]);
 var CODEX_FAILURE_EVENT_TYPES = /* @__PURE__ */ new Set(["turn.failed", "error"]);
-var CODEX_TESTED_CLI_RANGE = "0.144.3 through 0.145.0";
+var CODEX_TESTED_CLI_RANGE = "0.144.3 through 0.146.0";
 function codexUnknownTypeRemediation(detectedVersion) {
-  return `Circuit has verified Codex CLI ${CODEX_TESTED_CLI_RANGE}, and your Codex CLI reports "${detectedVersion}". The installed Codex version may be outside this tested range, or it may have added a protocol shape Circuit has not reviewed. Check your Codex CLI version with: codex --version. Update or pin Codex CLI to a version in this range, preferably 0.145.0, then retry.`;
+  return `Circuit has verified Codex CLI ${CODEX_TESTED_CLI_RANGE}, and your Codex CLI reports "${detectedVersion}". The installed Codex version may be outside this tested range, or it may have added a protocol shape Circuit has not reviewed. Check your Codex CLI version with: codex --version. Update or pin Codex CLI to a version in this range, preferably 0.146.0, then retry.`;
 }
 function parseCodexStdout(stdout, prompt, duration_ms, cli_version, options = {}) {
   const trace_entries = parseNdjsonObjects(stdout, "codex --json");
@@ -16832,6 +16832,17 @@ var MCP_CODEX_HARDENING_CONFIG_ARGS = [
   "-c",
   "mcp_servers={}"
 ];
+function mcpCodexPromptOnlyHardeningConfigArgs() {
+  return [
+    ...MCP_CODEX_HARDENING_CONFIG_ARGS.map(
+      (arg) => arg === "features.shell_tool=true" ? "features.shell_tool=false" : arg
+    ),
+    "-c",
+    "skills.include_instructions=false",
+    "-c",
+    "tools.update_plan.enabled=false"
+  ];
+}
 var SUPPORTED_EFFORTS = /* @__PURE__ */ new Set(["low", "medium", "high", "xhigh"]);
 function safeMcpCodexEnvironment(environment) {
   return mcpTransientEnvironment(environment);
@@ -16954,15 +16965,7 @@ function buildMcpCodexArgs(input, policy, schemaPath, workingDirectory = policy.
   }
   const model = selectedModel(input.resolvedSelection, policy);
   const effort = selectedEffort(input.resolvedSelection);
-  const hardeningArgs = input.promptOnly === true ? [
-    ...MCP_CODEX_HARDENING_CONFIG_ARGS.map(
-      (arg) => arg === "features.shell_tool=true" ? "features.shell_tool=false" : arg
-    ),
-    "-c",
-    "skills.include_instructions=false",
-    "-c",
-    "tools.update_plan.enabled=false"
-  ] : MCP_CODEX_HARDENING_CONFIG_ARGS;
+  const hardeningArgs = input.promptOnly === true ? mcpCodexPromptOnlyHardeningConfigArgs() : MCP_CODEX_HARDENING_CONFIG_ARGS;
   const args = [
     "exec",
     "--json",
@@ -17392,7 +17395,7 @@ async function verifyMcpRuntimeAsset(expected) {
 }
 
 // src/hosts/codex-mcp/capabilities.ts
-var MINIMUM_CODEX_VERSION = "0.144.3";
+var MINIMUM_CODEX_VERSION = "0.146.0";
 
 // src/hosts/codex-mcp/contracts.ts
 var MCP_SCHEMA_VERSION = 1;

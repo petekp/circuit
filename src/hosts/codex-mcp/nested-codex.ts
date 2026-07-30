@@ -63,6 +63,23 @@ export const MCP_CODEX_HARDENING_CONFIG_ARGS = [
   'mcp_servers={}',
 ] as const;
 
+/**
+ * The prompt-only relay swaps the shell tool off and silences the remaining
+ * instruction surfaces. Codex releases before 0.146 reject these fields under
+ * --strict-config, which is why the host preflight proves this exact shape.
+ */
+export function mcpCodexPromptOnlyHardeningConfigArgs(): string[] {
+  return [
+    ...MCP_CODEX_HARDENING_CONFIG_ARGS.map((arg) =>
+      arg === 'features.shell_tool=true' ? 'features.shell_tool=false' : arg,
+    ),
+    '-c',
+    'skills.include_instructions=false',
+    '-c',
+    'tools.update_plan.enabled=false',
+  ];
+}
+
 const SUPPORTED_EFFORTS = new Set(['low', 'medium', 'high', 'xhigh']);
 export interface McpNestedCodexPolicy {
   readonly executable: string;
@@ -243,15 +260,7 @@ export function buildMcpCodexArgs(
   const effort = selectedEffort(input.resolvedSelection);
   const hardeningArgs =
     input.promptOnly === true
-      ? [
-          ...MCP_CODEX_HARDENING_CONFIG_ARGS.map((arg) =>
-            arg === 'features.shell_tool=true' ? 'features.shell_tool=false' : arg,
-          ),
-          '-c',
-          'skills.include_instructions=false',
-          '-c',
-          'tools.update_plan.enabled=false',
-        ]
+      ? mcpCodexPromptOnlyHardeningConfigArgs()
       : MCP_CODEX_HARDENING_CONFIG_ARGS;
   const args = [
     'exec',

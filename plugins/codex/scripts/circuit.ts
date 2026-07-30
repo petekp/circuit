@@ -39,7 +39,7 @@ const bundledRuntimePath = resolve(pluginRoot, 'runtime/circuit.js');
 const CIRCUIT_HOST_KIND_ENV = 'CIRCUIT_HOST_KIND';
 const DOCTOR_SMOKE_TIMEOUT_MS = 120_000;
 const CODEX_FEATURES_TIMEOUT_MS = 5_000;
-const MINIMUM_CODEX_VERSION = '0.144.3';
+const MINIMUM_CODEX_VERSION = '0.146.0';
 const MCP_LAUNCH_SCRIPT = [
   'circuit_node_error() {',
   "IFS= read -r request || request='';",
@@ -515,7 +515,7 @@ function runDoctor(): number {
       `#!/usr/bin/env node
 const { writeFileSync } = require('node:fs');
 if (process.argv.includes('--version')) {
-  process.stdout.write('codex-cli 0.144.3\\n');
+  process.stdout.write('codex-cli 0.146.0\\n');
   process.exit(0);
 }
 const prompt = process.argv.at(-1) ?? '';

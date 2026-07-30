@@ -389,12 +389,12 @@ describe('production Codex MCP composition', () => {
         JSON.stringify({
           name: '@openai/codex',
           bin: { codex: 'bin/codex.js' },
-          optionalDependencies: { [target.packageName]: '0.144.3' },
+          optionalDependencies: { [target.packageName]: '0.146.0' },
         }),
       ),
       writeFile(
         join(platformPackageRoot, 'package.json'),
-        JSON.stringify({ name: target.packageName, version: '0.144.3' }),
+        JSON.stringify({ name: target.packageName, version: '0.146.0' }),
       ),
       writeFile(launcher, '#!/usr/bin/env node\n// unchanged launcher\n', { mode: 0o700 }),
       writeFile(
@@ -446,8 +446,8 @@ describe('production Codex MCP composition', () => {
   it('rejects an ambiguous Review target before reserving a run', async () => {
     const verifyAssets = vi.fn(async () => {});
     const probeHost = vi.fn(async () => ({
-      codex_version: '0.144.3',
-      minimum_version: '0.144.3' as const,
+      codex_version: '0.146.0',
+      minimum_version: '0.146.0' as const,
       plugin_mcp: true as const,
       strict_config: true as const,
       workspace_metadata: true as const,
@@ -485,12 +485,119 @@ describe('production Codex MCP composition', () => {
     ).rejects.toMatchObject({ code: 'invalid_review_target' });
   });
 
+  // The live v0.1.2 failure: a process value the global schema accepts but the
+  // selected flow refuses sailed through start, launched a worker, and died as
+  // an opaque exit 2. The boundary must refuse it first, with the flow's real
+  // allowed values, read from the same sealed fixture the engine enforces.
+  it('rejects a process value the selected flow does not run at, before any worker launch', async () => {
+    const loadFlowAxes = vi.fn(() => ({
+      allowed_processes: ['medium' as const],
+      supports_tournament: false,
+      supports_autonomous: false,
+    }));
+    const preflight = createProductionLaunchPreflight({
+      codexHome: '/codex-home',
+      stateRoot: '/control-state',
+      environment: {},
+      verifyAssets: async () => {},
+      probeHost: async () => ({
+        codex_version: '0.146.0',
+        minimum_version: '0.146.0',
+        plugin_mcp: true,
+        strict_config: true,
+        workspace_metadata: true,
+        nested_sandbox: true,
+        shared_temp_isolation: 'exposed',
+      }),
+      loadRoster: (): CodexModelRoster => ({
+        default_model: 'gpt-5.4',
+        allowed_models: ['gpt-5.4'],
+        efforts_by_model: new Map([
+          ['gpt-5.4', new Set<'low' | 'medium' | 'high' | 'xhigh'>(['low', 'high'])],
+        ]),
+        cached_search_models: new Set(['gpt-5.4']),
+      }),
+      loadCatalog: (): ReadonlySet<McpPublicFlowV1> => new Set(['review']),
+      loadFlowAxes,
+      deriveNodeInstallation: fixtureNodeInstallation,
+    });
+
+    const failure = preflight.validate({
+      workspace,
+      request: {
+        flow: 'review',
+        goal: 'Review this text: fixture material for the test.',
+        process: 'low',
+        web_search: 'off',
+      },
+      runtime_assets: assets('/plugin'),
+    });
+    await expect(failure).rejects.toMatchObject({ code: 'invalid_flow_option' });
+    await expect(failure).rejects.toMatchObject({
+      message: expect.stringContaining('medium'),
+    });
+    expect(loadFlowAxes).toHaveBeenCalledWith('/plugin/flows/review/circuit.json');
+  });
+
+  it('rejects tournament and autonomous requests on a flow that does not support them', async () => {
+    const preflight = createProductionLaunchPreflight({
+      codexHome: '/codex-home',
+      stateRoot: '/control-state',
+      environment: {},
+      verifyAssets: async () => {},
+      probeHost: async () => ({
+        codex_version: '0.146.0',
+        minimum_version: '0.146.0',
+        plugin_mcp: true,
+        strict_config: true,
+        workspace_metadata: true,
+        nested_sandbox: true,
+        shared_temp_isolation: 'exposed',
+      }),
+      loadRoster: (): CodexModelRoster => ({
+        default_model: 'gpt-5.4',
+        allowed_models: ['gpt-5.4'],
+        efforts_by_model: new Map([
+          ['gpt-5.4', new Set<'low' | 'medium' | 'high' | 'xhigh'>(['low', 'high'])],
+        ]),
+        cached_search_models: new Set(['gpt-5.4']),
+      }),
+      loadCatalog: (): ReadonlySet<McpPublicFlowV1> => new Set(['review']),
+      loadFlowAxes: () => ({
+        allowed_processes: ['medium' as const],
+        supports_tournament: false,
+        supports_autonomous: false,
+      }),
+      deriveNodeInstallation: fixtureNodeInstallation,
+    });
+    const request = {
+      flow: 'review' as const,
+      goal: 'Review this text: fixture material for the test.',
+      web_search: 'off' as const,
+    };
+
+    await expect(
+      preflight.validate({
+        workspace,
+        request: { ...request, tournament: 2 },
+        runtime_assets: assets('/plugin'),
+      }),
+    ).rejects.toMatchObject({ code: 'invalid_flow_option' });
+    await expect(
+      preflight.validate({
+        workspace,
+        request: { ...request, autonomous: true },
+        runtime_assets: assets('/plugin'),
+      }),
+    ).rejects.toMatchObject({ code: 'invalid_flow_option' });
+  });
+
   it('keeps identical concurrent preflights bound to their own opaque preparations', async () => {
     const runtimeAssets = assets('/plugin');
     const verifyAssets = vi.fn(async () => {});
     const probeHost = vi.fn(async () => ({
-      codex_version: '0.144.3',
-      minimum_version: '0.144.3' as const,
+      codex_version: '0.146.0',
+      minimum_version: '0.146.0' as const,
       plugin_mcp: true as const,
       strict_config: true as const,
       workspace_metadata: true as const,
@@ -576,8 +683,8 @@ describe('production Codex MCP composition', () => {
       environment: {},
       verifyAssets: async () => {},
       probeHost: async () => ({
-        codex_version: '0.144.3',
-        minimum_version: '0.144.3',
+        codex_version: '0.146.0',
+        minimum_version: '0.146.0',
         plugin_mcp: true,
         strict_config: true,
         workspace_metadata: true,
@@ -624,8 +731,8 @@ describe('production Codex MCP composition', () => {
       environment: {},
       verifyAssets: async () => {},
       probeHost: async () => ({
-        codex_version: '0.144.3',
-        minimum_version: '0.144.3',
+        codex_version: '0.146.0',
+        minimum_version: '0.146.0',
         plugin_mcp: true,
         strict_config: true,
         workspace_metadata: true,
@@ -677,7 +784,7 @@ describe('production Codex MCP composition', () => {
       asset_digest_sha256: runtimeAssets.digest_sha256,
       codex: {
         executable: '/opt/codex-real',
-        version: '0.144.3',
+        version: '0.146.0',
         default_model: 'gpt-5.2-codex',
         allowed_models: ['gpt-5.2-codex'],
       },

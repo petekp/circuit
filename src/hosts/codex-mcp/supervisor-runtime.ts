@@ -51,6 +51,15 @@ function describeError(error: unknown): string {
   return error instanceof Error ? error.message : String(error);
 }
 
+// The launch failure message has a 1,000 character protocol budget. Keep the
+// original failure whole and spend what is left on the newest worker stderr.
+function withWorkerStderr(message: string, stderr: string): string {
+  if (stderr === '') return message;
+  const room = 1_000 - message.length - '. The worker wrote: '.length;
+  if (room < 40) return message;
+  return `${message}. The worker wrote: ${stderr.slice(-room)}`;
+}
+
 function psValue(pid: number, field: 'pgid' | 'command'): string {
   const result = spawnSync('/bin/ps', ['-ww', '-o', `${field}=`, '-p', String(pid)], {
     encoding: 'utf8',
@@ -345,6 +354,45 @@ export function sendWorkerPayload(
   });
 }
 
+const STDERR_TAIL_LIMIT_BYTES = 4_096;
+
+export interface BoundedStderrTail {
+  readonly push: (chunk: Buffer | string) => void;
+  readonly text: () => string;
+}
+
+/**
+ * Keeps the newest worker stderr bytes. The progress writer deliberately never
+ * copies diagnostics into durable state, so when a worker dies on startup this
+ * suffix is the only record of what it said. Newest wins because the engine
+ * prints its reason last.
+ */
+export function createBoundedStderrTail(): BoundedStderrTail {
+  let tail = Buffer.alloc(0);
+  return {
+    push: (chunk) => {
+      const bytes = typeof chunk === 'string' ? Buffer.from(chunk, 'utf8') : chunk;
+      tail = Buffer.concat([tail, bytes]);
+      if (tail.byteLength > STDERR_TAIL_LIMIT_BYTES) {
+        tail = Buffer.from(tail.subarray(tail.byteLength - STDERR_TAIL_LIMIT_BYTES));
+      }
+    },
+    text: () => {
+      // Journal text stays printable: keep newlines and tabs, drop the rest of
+      // the control range and the replacement character a mid-sequence UTF-8
+      // cut can leave at the front.
+      let out = '';
+      for (const character of tail.toString('utf8')) {
+        const code = character.codePointAt(0) ?? 0;
+        if (code === 0x0a || code === 0x09 || (code >= 0x20 && code !== 0x7f && code !== 0xfffd)) {
+          out += character;
+        }
+      }
+      return out.trim();
+    },
+  };
+}
+
 function captureBounded(
   stream: Readable | null,
   limit: number,
@@ -549,6 +597,43 @@ export async function runSupervisor(options: RunSupervisorOptions = {}): Promise
     executable: runtimeExecutable(authorization),
   };
   let progressWriter: SupervisorProgressWriter | undefined;
+  let outputLimitExceeded: 'stdout' | 'stderr' | undefined;
+  let resolveForcedCompletion: ((cleanup: 'confirmed' | 'unconfirmed') => void) | undefined;
+  const forcedCompletion = new Promise<'confirmed' | 'unconfirmed'>((resolve) => {
+    resolveForcedCompletion = resolve;
+  });
+  const stopForOutputLimit = (kind: 'stdout' | 'stderr'): void => {
+    if (outputLimitExceeded !== undefined) return;
+    outputLimitExceeded = kind;
+    void cleanupSupervisorOwnedProcessGroup(
+      runtimeIdentity,
+      processProbe,
+      authorization.limits.terminate_ms,
+      authorization.limits.kill_ms,
+    ).then((cleanup) => resolveForcedCompletion?.(cleanup));
+  };
+  // Stderr capture starts before the identity handshake so a worker that dies
+  // on its first breath still leaves its words in the exit evidence.
+  const stderrTail = createBoundedStderrTail();
+  let ingestProgress: (chunk: Buffer | string) => void = (chunk) => {
+    progressWriter?.ingest(chunk);
+  };
+  captureBounded(
+    worker.stderr,
+    authorization.limits.stderr_bytes,
+    'stderr',
+    stopForOutputLimit,
+    (chunk) => {
+      stderrTail.push(chunk);
+      try {
+        ingestProgress(chunk);
+      } catch {
+        // Progress is advisory. A full or damaged control directory must not
+        // cost the launch its stderr evidence or crash the supervisor.
+        ingestProgress = () => undefined;
+      }
+    },
+  );
   try {
     runtime = await processObserver(worker.pid, worker.pid, workerBirthToken);
     runtimeIdentity = { ...runtime, executable: runtimeExecutable(authorization) };
@@ -585,6 +670,7 @@ export async function runSupervisor(options: RunSupervisorOptions = {}): Promise
       authorization.limits.kill_ms,
     );
     closeProgressWriter(progressWriter);
+    const lastWords = stderrTail.text();
     try {
       if (runtime === undefined) throw new Error('worker runtime identity was not recorded');
       writeJournalExclusive(
@@ -598,6 +684,7 @@ export async function runSupervisor(options: RunSupervisorOptions = {}): Promise
           runtime,
           observed_at: new Date().toISOString(),
           process_group_cleanup: cleanup,
+          ...(lastWords === '' ? {} : { stderr_tail: lastWords }),
         }),
       );
     } catch {
@@ -610,7 +697,7 @@ export async function runSupervisor(options: RunSupervisorOptions = {}): Promise
         schema_version: 1,
         kind: 'launch_failed',
         stage: 'worker_identity',
-        message: describeError(error),
+        message: withWorkerStderr(describeError(error), lastWords),
         cleanup_confirmed: cleanup === 'confirmed',
       }),
     ).catch(() => undefined);
@@ -631,29 +718,7 @@ export async function runSupervisor(options: RunSupervisorOptions = {}): Promise
   responseStream.end();
   authorizationStream.destroy();
 
-  let outputLimitExceeded: 'stdout' | 'stderr' | undefined;
-  let resolveForcedCompletion: ((cleanup: 'confirmed' | 'unconfirmed') => void) | undefined;
-  const forcedCompletion = new Promise<'confirmed' | 'unconfirmed'>((resolve) => {
-    resolveForcedCompletion = resolve;
-  });
-  const stopForOutputLimit = (kind: 'stdout' | 'stderr'): void => {
-    if (outputLimitExceeded !== undefined) return;
-    outputLimitExceeded = kind;
-    void cleanupSupervisorOwnedProcessGroup(
-      runtimeIdentity,
-      processProbe,
-      authorization.limits.terminate_ms,
-      authorization.limits.kill_ms,
-    ).then((cleanup) => resolveForcedCompletion?.(cleanup));
-  };
   captureBounded(worker.stdout, authorization.limits.stdout_bytes, 'stdout', stopForOutputLimit);
-  captureBounded(
-    worker.stderr,
-    authorization.limits.stderr_bytes,
-    'stderr',
-    stopForOutputLimit,
-    (chunk) => progressWriter?.ingest(chunk),
-  );
   const outcome = await Promise.race([
     workerResult.then((result) => ({ kind: 'worker' as const, result })),
     forcedCompletion.then((cleanup) => ({ kind: 'forced' as const, cleanup })),
@@ -669,6 +734,7 @@ export async function runSupervisor(options: RunSupervisorOptions = {}): Promise
           authorization.limits.kill_ms,
         );
   closeProgressWriter(progressWriter);
+  const lastWords = stderrTail.text();
   const exitJournal = ExitJournalV1.parse({
     schema_version: 1,
     record_kind: 'circuit.mcp.exit-observation',
@@ -681,6 +747,7 @@ export async function runSupervisor(options: RunSupervisorOptions = {}): Promise
     ...(result.signal === undefined ? {} : { signal: result.signal }),
     process_group_cleanup: cleanup,
     ...(outputLimitExceeded === undefined ? {} : { output_limit_exceeded: outputLimitExceeded }),
+    ...(lastWords === '' ? {} : { stderr_tail: lastWords }),
   });
   writeJournalExclusive(journalPath(authorization, 'exit'), exitJournal);
 }

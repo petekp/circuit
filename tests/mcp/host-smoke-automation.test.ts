@@ -124,14 +124,14 @@ describe('Codex MCP host smoke automation', () => {
   });
 
   it('enforces the supported Node and Codex floors', () => {
-    expect(() => assertSupportedSmokeVersions('22.17.0', '0.144.3')).toThrow(
+    expect(() => assertSupportedSmokeVersions('22.17.0', '0.146.0')).toThrow(
       'Node.js 22.18.0 or newer',
     );
-    expect(() => assertSupportedSmokeVersions('22.18.0', '0.144.2')).toThrow(
-      'Codex 0.144.3 or newer',
+    expect(() => assertSupportedSmokeVersions('22.18.0', '0.145.0')).toThrow(
+      'Codex 0.146.0 or newer',
     );
-    expect(() => assertSupportedSmokeVersions('22.18.0', '0.144.3')).not.toThrow();
-    expect(() => assertSupportedSmokeVersions('24.0.0', '0.145.0')).not.toThrow();
+    expect(() => assertSupportedSmokeVersions('22.18.0', '0.146.0')).not.toThrow();
+    expect(() => assertSupportedSmokeVersions('24.0.0', '0.147.0')).not.toThrow();
   });
 
   it('replaces an immutable old marketplace ref before explicitly installing the new plugin', () => {

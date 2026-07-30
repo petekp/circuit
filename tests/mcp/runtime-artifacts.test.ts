@@ -186,6 +186,34 @@ describe('MCP canonical runtime artifacts', () => {
     });
   });
 
+  // A worker that dies on startup writes no run artifacts at all. The exit
+  // journal's stderr tail is the only surviving explanation, so the failure
+  // report must repeat the worker's words, minus progress noise.
+  it('repeats the worker stderr diagnostic when a nonzero exit left no artifacts', async () => {
+    const context = await fixture();
+    await rm(join(context.runRoot, 'trace.ndjson'));
+    const progressLine = JSON.stringify({
+      schema_version: 1,
+      type: 'run.started',
+      run_id: RUN_ID,
+    });
+    const classification = await new CanonicalRuntimeArtifactReconciler().classifyExit({
+      record: context.run,
+      exit: {
+        ...context.exit,
+        exit_code: 2,
+        stderr_tail: `${progressLine}\nerror: --process low is not supported by flow 'review'\n`,
+      },
+    });
+
+    expect(classification).toMatchObject({
+      state: 'needs_attention',
+      failure: { code: 'worker_exit_nonzero' },
+    });
+    expect(classification.summary).toContain("--process low is not supported by flow 'review'");
+    expect(classification.summary).not.toContain('run.started');
+  });
+
   it('reads a cleanly closed stopped run after the worker exits nonzero', async () => {
     const context = await fixture({ outcome: 'stopped' });
     await expect(

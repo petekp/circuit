@@ -43,7 +43,29 @@ Every response has `schema_version: 1`, structured data, a short plain-English
 summary, and stable errors with `code`, `message`, and an optional
 `next_action`.
 
-## Search policy
+### Tool annotations and headless Codex
+
+Codex reads MCP tool annotations when it decides whether a call needs
+approval, and headless `codex exec` auto-cancels any call whose tool carries
+`destructiveHint: true` (upstream issues openai/codex#16685 and
+openai/codex#24135). Circuit therefore labels each tool honestly instead of
+marking everything but `circuit_list` destructive:
+
+- `circuit_start`, `circuit_resume`, and `circuit_cancel` are destructive. A
+  run can edit the checkout, and cancel kills processes.
+- `circuit_status` and `circuit_recover` are not destructive and not
+  read-only. They maintain Circuit's own run records: status may reconcile
+  supervisor evidence and release a finished workspace lease, and recover
+  closes a run whose processes are proven absent. Neither can damage user
+  work.
+- `circuit_list` is read-only and idempotent.
+- Only `circuit_start` is open-world, because cached search can send the
+  query off the machine after explicit consent.
+
+Until the upstream issues ship a headless approval path, a headless session
+can watch, list, and repair runs but cannot start, resume, or cancel them.
+Keep those three destructive anyway. The labels describe what the tools do;
+they are not a lever for working around the host.
 
 Search is off unless the caller requests `web_search: cached` and separately
 confirms consent. The tool description must say that the search query leaves
@@ -86,7 +108,7 @@ and the exact run directory one segment at a time. A symbolic link,
 non-directory, canonical escape, or changed filesystem identity stops the
 launch before run files are written.
 
-Circuit requires Codex 0.144.3 or newer and successful capability probes for
+Circuit requires Codex 0.146.0 or newer and successful capability probes for
 plugin MCP loading, strict configuration, workspace metadata, and the nested
 shell sandbox. A version number alone is not enough. The sandbox probe performs
 local filesystem, environment, executable, and loopback-network checks before

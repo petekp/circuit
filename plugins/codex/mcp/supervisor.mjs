@@ -18962,7 +18962,11 @@ var ExitJournalV1 = external_exports.object({
   exit_code: external_exports.number().int().min(-1).max(255).optional(),
   signal: external_exports.string().min(1).max(64).optional(),
   process_group_cleanup: external_exports.enum(["confirmed", "unconfirmed"]),
-  output_limit_exceeded: external_exports.enum(["stdout", "stderr"]).optional()
+  output_limit_exceeded: external_exports.enum(["stdout", "stderr"]).optional(),
+  // The newest worker stderr, kept so a worker that dies on startup still
+  // leaves its own explanation behind. Progress lines share this stream and
+  // are filtered out by the consumer, not here.
+  stderr_tail: external_exports.string().min(1).max(8192).optional()
 }).strict();
 function encodeSupervisorMessage(value) {
   const encoded = Buffer2.from(`${JSON.stringify(value)}
@@ -19030,6 +19034,12 @@ var PROCESS_OBSERVATION_DELAY_MS = 10;
 var MCP_PROCESS_TOKEN_ARGUMENT = "--circuit-mcp-process-token=";
 function describeError2(error51) {
   return error51 instanceof Error ? error51.message : String(error51);
+}
+function withWorkerStderr(message, stderr) {
+  if (stderr === "") return message;
+  const room = 1e3 - message.length - ". The worker wrote: ".length;
+  if (room < 40) return message;
+  return `${message}. The worker wrote: ${stderr.slice(-room)}`;
 }
 function psValue2(pid, field) {
   const result = spawnSync2("/bin/ps", ["-ww", "-o", `${field}=`, "-p", String(pid)], {
@@ -19287,6 +19297,29 @@ function sendWorkerPayload(channel, payload, timeoutMs) {
     }
   });
 }
+var STDERR_TAIL_LIMIT_BYTES = 4096;
+function createBoundedStderrTail() {
+  let tail = Buffer.alloc(0);
+  return {
+    push: (chunk) => {
+      const bytes = typeof chunk === "string" ? Buffer.from(chunk, "utf8") : chunk;
+      tail = Buffer.concat([tail, bytes]);
+      if (tail.byteLength > STDERR_TAIL_LIMIT_BYTES) {
+        tail = Buffer.from(tail.subarray(tail.byteLength - STDERR_TAIL_LIMIT_BYTES));
+      }
+    },
+    text: () => {
+      let out = "";
+      for (const character of tail.toString("utf8")) {
+        const code = character.codePointAt(0) ?? 0;
+        if (code === 10 || code === 9 || code >= 32 && code !== 127 && code !== 65533) {
+          out += character;
+        }
+      }
+      return out.trim();
+    }
+  };
+}
 function captureBounded(stream, limit, kind, onLimit, onChunk) {
   if (stream === null) return;
   let bytes = 0;
@@ -19449,6 +19482,39 @@ async function runSupervisor(options = {}) {
     executable: runtimeExecutable(authorization)
   };
   let progressWriter;
+  let outputLimitExceeded;
+  let resolveForcedCompletion;
+  const forcedCompletion = new Promise((resolve) => {
+    resolveForcedCompletion = resolve;
+  });
+  const stopForOutputLimit = (kind) => {
+    if (outputLimitExceeded !== void 0) return;
+    outputLimitExceeded = kind;
+    void cleanupSupervisorOwnedProcessGroup(
+      runtimeIdentity,
+      processProbe,
+      authorization.limits.terminate_ms,
+      authorization.limits.kill_ms
+    ).then((cleanup2) => resolveForcedCompletion?.(cleanup2));
+  };
+  const stderrTail = createBoundedStderrTail();
+  let ingestProgress = (chunk) => {
+    progressWriter?.ingest(chunk);
+  };
+  captureBounded(
+    worker.stderr,
+    authorization.limits.stderr_bytes,
+    "stderr",
+    stopForOutputLimit,
+    (chunk) => {
+      stderrTail.push(chunk);
+      try {
+        ingestProgress(chunk);
+      } catch {
+        ingestProgress = () => void 0;
+      }
+    }
+  );
   try {
     runtime = await processObserver(worker.pid, worker.pid, workerBirthToken);
     runtimeIdentity = { ...runtime, executable: runtimeExecutable(authorization) };
@@ -19485,6 +19551,7 @@ async function runSupervisor(options = {}) {
       authorization.limits.kill_ms
     );
     closeProgressWriter(progressWriter);
+    const lastWords2 = stderrTail.text();
     try {
       if (runtime === void 0) throw new Error("worker runtime identity was not recorded");
       writeJournalExclusive(
@@ -19497,7 +19564,8 @@ async function runSupervisor(options = {}) {
           authorization_sha256: authorizationSha256,
           runtime,
           observed_at: (/* @__PURE__ */ new Date()).toISOString(),
-          process_group_cleanup: cleanup2
+          process_group_cleanup: cleanup2,
+          ...lastWords2 === "" ? {} : { stderr_tail: lastWords2 }
         })
       );
     } catch {
@@ -19508,7 +19576,7 @@ async function runSupervisor(options = {}) {
         schema_version: 1,
         kind: "launch_failed",
         stage: "worker_identity",
-        message: describeError2(error51),
+        message: withWorkerStderr(describeError2(error51), lastWords2),
         cleanup_confirmed: cleanup2 === "confirmed"
       })
     ).catch(() => void 0);
@@ -19526,29 +19594,7 @@ async function runSupervisor(options = {}) {
   ).catch(() => void 0);
   responseStream.end();
   authorizationStream.destroy();
-  let outputLimitExceeded;
-  let resolveForcedCompletion;
-  const forcedCompletion = new Promise((resolve) => {
-    resolveForcedCompletion = resolve;
-  });
-  const stopForOutputLimit = (kind) => {
-    if (outputLimitExceeded !== void 0) return;
-    outputLimitExceeded = kind;
-    void cleanupSupervisorOwnedProcessGroup(
-      runtimeIdentity,
-      processProbe,
-      authorization.limits.terminate_ms,
-      authorization.limits.kill_ms
-    ).then((cleanup2) => resolveForcedCompletion?.(cleanup2));
-  };
   captureBounded(worker.stdout, authorization.limits.stdout_bytes, "stdout", stopForOutputLimit);
-  captureBounded(
-    worker.stderr,
-    authorization.limits.stderr_bytes,
-    "stderr",
-    stopForOutputLimit,
-    (chunk) => progressWriter?.ingest(chunk)
-  );
   const outcome = await Promise.race([
     workerResult.then((result2) => ({ kind: "worker", result: result2 })),
     forcedCompletion.then((cleanup2) => ({ kind: "forced", cleanup: cleanup2 }))
@@ -19561,6 +19607,7 @@ async function runSupervisor(options = {}) {
     authorization.limits.kill_ms
   );
   closeProgressWriter(progressWriter);
+  const lastWords = stderrTail.text();
   const exitJournal = ExitJournalV1.parse({
     schema_version: 1,
     record_kind: "circuit.mcp.exit-observation",
@@ -19572,7 +19619,8 @@ async function runSupervisor(options = {}) {
     ...result.exitCode === void 0 ? {} : { exit_code: result.exitCode },
     ...result.signal === void 0 ? {} : { signal: result.signal },
     process_group_cleanup: cleanup,
-    ...outputLimitExceeded === void 0 ? {} : { output_limit_exceeded: outputLimitExceeded }
+    ...outputLimitExceeded === void 0 ? {} : { output_limit_exceeded: outputLimitExceeded },
+    ...lastWords === "" ? {} : { stderr_tail: lastWords }
   });
   writeJournalExclusive(journalPath(authorization, "exit"), exitJournal);
 }

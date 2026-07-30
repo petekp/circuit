@@ -1,4 +1,4 @@
-export const MINIMUM_CODEX_VERSION = '0.144.3' as const;
+export const MINIMUM_CODEX_VERSION = '0.146.0' as const;
 
 export type CodexSharedTempIsolation = 'isolated' | 'exposed';
 
@@ -51,7 +51,7 @@ export function parseCodexCliVersion(output: string): ParsedVersion {
     throw new CodexHostCapabilityError(
       'codex_version_invalid',
       'Circuit could not understand the Codex version output.',
-      'Run codex --version, then install Codex 0.144.3 or newer.',
+      `Run codex --version, then install Codex ${MINIMUM_CODEX_VERSION} or newer.`,
     );
   }
   const [, majorText, minorText, patchText] = match;
@@ -62,7 +62,7 @@ export function parseCodexCliVersion(output: string): ParsedVersion {
     throw new CodexHostCapabilityError(
       'codex_version_invalid',
       'Circuit could not understand the Codex version output.',
-      'Run codex --version, then install Codex 0.144.3 or newer.',
+      `Run codex --version, then install Codex ${MINIMUM_CODEX_VERSION} or newer.`,
     );
   }
   return { major, minor, patch, text: `${major}.${minor}.${patch}` };
@@ -74,7 +74,7 @@ function compareVersion(left: ParsedVersion, right: ParsedVersion): number {
   return left.patch - right.patch;
 }
 
-const MINIMUM_PARSED_VERSION: ParsedVersion = { major: 0, minor: 144, patch: 3, text: '0.144.3' };
+const MINIMUM_PARSED_VERSION: ParsedVersion = { major: 0, minor: 146, patch: 0, text: '0.146.0' };
 
 const REQUIRED_EXEC_HELP_CAPABILITIES = [
   ['strict configuration', /(^|\s)--strict-config(?:\s|$)/m],

@@ -18,7 +18,7 @@ entry point.
 ## MCP Status
 
 The packaged MCP bridge is the supported way to run Circuit in Codex on macOS.
-It requires Node.js 22.18 or newer and Codex 0.144.3 or newer. Start and resume
+It requires Node.js 22.18 or newer and Codex 0.146.0 or newer. Start and resume
 require live host, metadata, asset, and nested-sandbox checks. The bridge fails
 closed when a required check is missing or uncertain; it does not fall back to
 the ordinary CLI or a weaker configuration. Nested workers use a practical

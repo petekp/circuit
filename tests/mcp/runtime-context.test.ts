@@ -56,8 +56,8 @@ describe('sealed Codex MCP runtime context', () => {
         inode: String(workspaceStat.ino),
       },
       capabilities: {
-        codex_version: '0.144.3',
-        minimum_version: '0.144.3',
+        codex_version: '0.146.0',
+        minimum_version: '0.146.0',
         plugin_mcp: true,
         strict_config: true,
         workspace_metadata: true,
@@ -98,8 +98,8 @@ describe('sealed Codex MCP runtime context', () => {
         },
         workspaceIdentity: { device: '1', inode: '1' },
         capabilities: {
-          codex_version: '0.144.3',
-          minimum_version: '0.144.3',
+          codex_version: '0.146.0',
+          minimum_version: '0.146.0',
           plugin_mcp: true,
           strict_config: true,
           workspace_metadata: true,
