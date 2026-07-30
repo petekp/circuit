@@ -154,6 +154,26 @@ export function validateExecutableFlow(flow: ExecutableFlow): ExecutableFlowVali
         );
       }
     }
+
+    if (step.exhaustionRoute !== undefined) {
+      const exhaustionTarget = step.routes[step.exhaustionRoute];
+      if (exhaustionTarget === undefined) {
+        issues.push(
+          `step '${step.id}' exhaustion route '${step.exhaustionRoute}' must name one of the step's declared routes`,
+        );
+      } else if (
+        isRouteTarget(exhaustionTarget) &&
+        exhaustionTarget.kind === 'terminal' &&
+        exhaustionTarget.target === '@complete'
+      ) {
+        // A spent retry budget must never read as success: exhaustion may go
+        // to a close step, a checkpoint, or a stop — never straight to
+        // @complete.
+        issues.push(
+          `step '${step.id}' exhaustion route '${step.exhaustionRoute}' must not target '@complete'`,
+        );
+      }
+    }
   }
 
   return { ok: issues.length === 0, issues };

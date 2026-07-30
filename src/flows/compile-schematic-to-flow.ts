@@ -298,6 +298,7 @@ function compileItem(
     // Copied verbatim, like equipment_scope. Omitted when undeclared so flows
     // that set no budget keep byte-stable compiled output.
     ...(item.budgets === undefined ? {} : { budgets: item.budgets }),
+    ...(item.exhaustion_route === undefined ? {} : { exhaustion_route: item.exhaustion_route }),
   } as const;
 
   switch (item.execution.kind) {

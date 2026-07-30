@@ -174,6 +174,14 @@ export const buildBlockItems: readonly BlockStepUse[] = [
     reportPath: 'reports/build/verification.json',
     required: ['overall_status', 'commands'],
     routes: { continue: 'build-touch-area', advance: 'act-step', retry: 'act-step', stop: '@stop' },
+    // A failing verification selects `retry` back into act-step. When that
+    // budget is spent, exhaustion advances via `continue` instead of aborting:
+    // the failing verification report is already honest evidence, so the
+    // touch-area check, review, and close still run, close-with-evidence emits
+    // a non-clean result, and `binds_terminal_outcome_to_primary_result` maps
+    // it to 'stopped' — the work is preserved and the run can never read as
+    // success.
+    exhaustion_route: 'continue',
   },
   {
     id: 'build-touch-area',

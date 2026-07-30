@@ -20288,6 +20288,13 @@ var init_step = __esm({
       routes: external_exports.record(external_exports.string(), external_exports.string()).refine((m) => Object.keys(m).length > 0, {
         message: "Step must declare at least one route (including `@complete`)."
       }),
+      // Declared fallback for a spent recovery budget. When a recovery route this
+      // step selects has exhausted its target's max_attempts, the engine takes
+      // this route instead of aborting the run, so the work already on disk
+      // survives to a close the flow chose. Must name another key of `routes`
+      // (enforced at the schematic gate). Absent = abort on exhaustion, the
+      // long-standing default.
+      exhaustion_route: external_exports.string().min(1).optional(),
       selection: SelectionOverride.optional(),
       skill_hooks: SkillHookNameArray.optional(),
       skill_slots: SkillSlotArray.optional(),
@@ -22580,7 +22587,7 @@ var init_proof_assessment = __esm({
 });
 
 // dist/schemas/trace-entry.js
-var TraceEntryBase, ContentHash, CatalogSourcedBinding, RunBootstrappedTraceEntry, SliceIndex, StepEnteredTraceEntry, StepReportWrittenTraceEntry, StepReportSkippedTraceEntry, CheckEvaluatedTraceEntry, VerificationCommandEvaluatedTraceEntry, ProofAssessmentRef, ChangePacketRef2, SafeApplyBaseRef, SafeApplyResultRef, SafeApplyFinalVerificationRef, CheckpointBoundaryRef, ProofScope2, ProofAssessedTraceEntry, SafeApplyScope, SafeApplyResultTraceEntry, CheckpointRequestedTraceEntry, CheckpointResolvedTraceEntry, EquipmentEnforcementEvidence, RelayContextSeal, RelayStartedTraceEntry, LoadedSkillCause, LoadedSkillEvidence, SkillsLoadedTraceEntry, RelayUsageEvidence, RelayCompletedTraceEntry, RelayRequestTraceEntry, RelayFailedTraceEntry, RelayReceiptTraceEntry, RelayResultTraceEntry, StepCompletedTraceEntry, StepAbortedTraceEntry, RunClosedOutcome, SubRunStartedTraceEntry, SubRunCompletedTraceEntry, FanoutConcurrencyLimit, FanoutExecutionPolicy, FanoutStartedTraceEntry, FanoutBranchStartedTraceEntry, FanoutBranchCompletedTraceEntry, FanoutJoinedTraceEntry, RunClosedTraceEntry, RunSkillHookTraceEntry, RunSkillHookErrorTraceEntry, PowerInferenceResolvedTraceEntry, PowerInferenceErrorTraceEntry, ContextDeliveryErrorTraceEntry, RunEquipmentReshapeTraceEntry, RunContextPullTraceEntry, RunContextDeliveryTraceEntry, RunUntilJudgmentTraceEntry, TraceEntry;
+var TraceEntryBase, ContentHash, CatalogSourcedBinding, RunBootstrappedTraceEntry, SliceIndex, StepEnteredTraceEntry, StepReportWrittenTraceEntry, StepReportSkippedTraceEntry, CheckEvaluatedTraceEntry, VerificationCommandEvaluatedTraceEntry, ProofAssessmentRef, ChangePacketRef2, SafeApplyBaseRef, SafeApplyResultRef, SafeApplyFinalVerificationRef, CheckpointBoundaryRef, ProofScope2, ProofAssessedTraceEntry, SafeApplyScope, SafeApplyResultTraceEntry, CheckpointRequestedTraceEntry, CheckpointResolvedTraceEntry, EquipmentEnforcementEvidence, RelayContextSeal, RelayStartedTraceEntry, LoadedSkillCause, LoadedSkillEvidence, SkillsLoadedTraceEntry, RelayUsageEvidence, RelayCompletedTraceEntry, RelayRequestTraceEntry, RelayFailedTraceEntry, RelayReceiptTraceEntry, RelayResultTraceEntry, StepCompletedTraceEntry, StepAbortedTraceEntry, StepExhaustionReroutedTraceEntry, RunClosedOutcome, SubRunStartedTraceEntry, SubRunCompletedTraceEntry, FanoutConcurrencyLimit, FanoutExecutionPolicy, FanoutStartedTraceEntry, FanoutBranchStartedTraceEntry, FanoutBranchCompletedTraceEntry, FanoutJoinedTraceEntry, RunClosedTraceEntry, RunSkillHookTraceEntry, RunSkillHookErrorTraceEntry, PowerInferenceResolvedTraceEntry, PowerInferenceErrorTraceEntry, ContextDeliveryErrorTraceEntry, RunEquipmentReshapeTraceEntry, RunContextPullTraceEntry, RunContextDeliveryTraceEntry, RunUntilJudgmentTraceEntry, TraceEntry;
 var init_trace_entry = __esm({
   "dist/schemas/trace-entry.js"() {
     "use strict";
@@ -22949,6 +22956,14 @@ var init_trace_entry = __esm({
       attempt: external_exports.number().int().positive(),
       reason: external_exports.string().min(1)
     }).strict();
+    StepExhaustionReroutedTraceEntry = TraceEntryBase.extend({
+      kind: external_exports.literal("step.exhaustion_rerouted"),
+      step_id: StepId,
+      attempt: external_exports.number().int().positive(),
+      from_route: external_exports.string().min(1),
+      to_route: external_exports.string().min(1),
+      reason: external_exports.string().min(1)
+    }).strict();
     RunClosedOutcome = external_exports.enum([
       "complete",
       "aborted",
@@ -23160,6 +23175,7 @@ var init_trace_entry = __esm({
       FanoutJoinedTraceEntry,
       StepCompletedTraceEntry,
       StepAbortedTraceEntry,
+      StepExhaustionReroutedTraceEntry,
       RunClosedTraceEntry,
       RunSkillHookTraceEntry,
       RunSkillHookErrorTraceEntry,
@@ -64978,6 +64994,11 @@ var init_flow_schematic = __esm({
       routes: external_exports.record(external_exports.string(), StepRouteTarget).refine((routes) => {
         return Object.keys(routes).length > 0;
       }, "schematic item must declare at least one route"),
+      // Declared fallback for a spent recovery budget: when a recovery route this
+      // step selects has exhausted its target's max_attempts, the engine takes
+      // this route instead of aborting the run. Must name another key of `routes`
+      // (cross-field guard in superRefine below). Absent = abort on exhaustion.
+      exhaustion_route: external_exports.string().min(1).optional(),
       route_overrides: external_exports.record(external_exports.string(), SchematicRouteModeOverrides).default({}),
       route_from_report: RouteFromReport.optional(),
       // The fields below are required by the schematic → CompiledFlow compiler. They
@@ -65031,6 +65052,21 @@ var init_flow_schematic = __esm({
             code: "custom",
             path: ["optional_inputs", key],
             message: `optional_inputs entry "${key}" is not a declared input key`
+          });
+        }
+      }
+      if (item.exhaustion_route !== void 0) {
+        if (!Object.hasOwn(item.routes, item.exhaustion_route)) {
+          ctx.addIssue({
+            code: "custom",
+            path: ["exhaustion_route"],
+            message: `exhaustion_route '${item.exhaustion_route}' must name one of the step's declared routes`
+          });
+        } else if (item.routes[item.exhaustion_route] === "@complete") {
+          ctx.addIssue({
+            code: "custom",
+            path: ["exhaustion_route"],
+            message: `exhaustion_route '${item.exhaustion_route}' must not target '@complete': a spent retry budget can never close as success`
           });
         }
       }
@@ -65933,7 +65969,15 @@ var init_assembly_spec = __esm({
         protocol: "build-verify@v1",
         reportPath: "reports/build/verification.json",
         required: ["overall_status", "commands"],
-        routes: { continue: "build-touch-area", advance: "act-step", retry: "act-step", stop: "@stop" }
+        routes: { continue: "build-touch-area", advance: "act-step", retry: "act-step", stop: "@stop" },
+        // A failing verification selects `retry` back into act-step. When that
+        // budget is spent, exhaustion advances via `continue` instead of aborting:
+        // the failing verification report is already honest evidence, so the
+        // touch-area check, review, and close still run, close-with-evidence emits
+        // a non-clean result, and `binds_terminal_outcome_to_primary_result` maps
+        // it to 'stopped' — the work is preserved and the run can never read as
+        // success.
+        exhaustion_route: "continue"
       },
       {
         id: "build-touch-area",
@@ -72709,8 +72753,10 @@ var init_assembly_spec3 = __esm({
         required: ["overall_status", "commands"],
         // continue on a green verify. A red verify routes back to implement-step so
         // the doer addresses the failures; the loop is bounded by the step's
-        // max_attempts_per_step, after which the run stops without claiming complete.
-        routes: { continue: "close-step", retry: "implement-step", stop: "@stop" }
+        // max_attempts_per_step, after which exhaustion advances to close with the
+        // failing verification recorded — the run stops without claiming complete.
+        routes: { continue: "close-step", retry: "implement-step", stop: "@stop" },
+        exhaustion_route: "continue"
       },
       {
         id: "close-step",
@@ -77019,7 +77065,11 @@ var init_assembly_spec6 = __esm({
           retry: "fix-act",
           ask: "fix-no-repro-decision",
           stop: "@stop"
-        }
+        },
+        // Spent retry budget: advance with the failing report recorded as evidence
+        // instead of aborting and discarding the run. Close-with-evidence emits a
+        // non-clean result that maps to an honest 'stopped'.
+        exhaustion_route: "continue"
       },
       {
         id: "fix-change-set",
@@ -77035,7 +77085,10 @@ var init_assembly_spec6 = __esm({
         protocol: "fix-change-set@v1",
         writes: { report_path: "reports/fix/change-set.json" },
         check: { required: ["status", "overall_status"] },
-        routes: { continue: "fix-verify", retry: "fix-act", stop: "@stop" }
+        routes: { continue: "fix-verify", retry: "fix-act", stop: "@stop" },
+        // Spent retry budget: advance with the failing report recorded as evidence
+        // instead of aborting and discarding the run.
+        exhaustion_route: "continue"
       },
       {
         id: "fix-regression-rerun",
@@ -77048,7 +77101,10 @@ var init_assembly_spec6 = __esm({
         writes: { report_path: "reports/fix/regression-rerun.json" },
         check: { required: ["status", "overall_status"] },
         routeOverrides: { continue: { low: "fix-close-low" } },
-        routes: { continue: "fix-review", retry: "fix-act", stop: "@stop" }
+        routes: { continue: "fix-review", retry: "fix-act", stop: "@stop" },
+        // Spent retry budget: advance with the failing report recorded as evidence
+        // instead of aborting and discarding the run.
+        exhaustion_route: "continue"
       },
       {
         id: "fix-review",
@@ -83808,7 +83864,10 @@ var init_assembly_spec9 = __esm({
         protocol: "pursuit-verify@v1",
         reportPath: "reports/pursuit/verification.json",
         required: ["overall_status", "commands"],
-        routes: { continue: "review-step", retry: "batch-step", stop: "@stop" }
+        routes: { continue: "review-step", retry: "batch-step", stop: "@stop" },
+        // Spent retry budget: advance with the failing report recorded as evidence
+        // instead of aborting and discarding the run.
+        exhaustion_route: "continue"
       },
       {
         id: "review-step",
@@ -89860,7 +89919,8 @@ function compileItem(item, reads, routes) {
     ...item.route_from_report === void 0 ? {} : { route_from_report: item.route_from_report },
     // Copied verbatim, like equipment_scope. Omitted when undeclared so flows
     // that set no budget keep byte-stable compiled output.
-    ...item.budgets === void 0 ? {} : { budgets: item.budgets }
+    ...item.budgets === void 0 ? {} : { budgets: item.budgets },
+    ...item.exhaustion_route === void 0 ? {} : { exhaustion_route: item.exhaustion_route }
   };
   switch (item.execution.kind) {
     case "compose": {
@@ -93480,6 +93540,14 @@ function validateExecutableFlow(flow) {
         issues.push(`step '${step.id}' route '${routeName}' targets unknown step '${target.stepId}'`);
       }
     }
+    if (step.exhaustionRoute !== void 0) {
+      const exhaustionTarget = step.routes[step.exhaustionRoute];
+      if (exhaustionTarget === void 0) {
+        issues.push(`step '${step.id}' exhaustion route '${step.exhaustionRoute}' must name one of the step's declared routes`);
+      } else if (isRouteTarget(exhaustionTarget) && exhaustionTarget.kind === "terminal" && exhaustionTarget.target === "@complete") {
+        issues.push(`step '${step.id}' exhaustion route '${step.exhaustionRoute}' must not target '@complete'`);
+      }
+    }
   }
   return { ok: issues.length === 0, issues };
 }
@@ -93548,7 +93616,8 @@ function baseStep(step) {
     ...step.equipment_scope === void 0 ? {} : { equipmentScope: step.equipment_scope },
     ...step.route_from_report === void 0 ? {} : { routeFromReport: step.route_from_report },
     check: step.check,
-    ...step.budgets === void 0 ? {} : { budgets: step.budgets }
+    ...step.budgets === void 0 ? {} : { budgets: step.budgets },
+    ...step.exhaustion_route === void 0 ? {} : { exhaustionRoute: step.exhaustion_route }
   };
 }
 function convertStep(step) {
@@ -95339,6 +95408,7 @@ var init_work_contract_projection2 = __esm({
         "protocol",
         "reads",
         "routes",
+        "exhaustion_route",
         "selection",
         "skill_slots",
         "equipment_scope",
@@ -95355,6 +95425,7 @@ var init_work_contract_projection2 = __esm({
         "protocol",
         "reads",
         "routes",
+        "exhaustion_route",
         "selection",
         "skill_slots",
         "equipment_scope",
@@ -95371,6 +95442,7 @@ var init_work_contract_projection2 = __esm({
         "protocol",
         "reads",
         "routes",
+        "exhaustion_route",
         "selection",
         "skill_slots",
         "equipment_scope",
@@ -95388,6 +95460,7 @@ var init_work_contract_projection2 = __esm({
         "protocol",
         "reads",
         "routes",
+        "exhaustion_route",
         "selection",
         "skill_slots",
         "equipment_scope",
@@ -95407,6 +95480,7 @@ var init_work_contract_projection2 = __esm({
         "protocol",
         "reads",
         "routes",
+        "exhaustion_route",
         "selection",
         "skill_slots",
         "equipment_scope",
@@ -95426,6 +95500,7 @@ var init_work_contract_projection2 = __esm({
         "protocol",
         "reads",
         "routes",
+        "exhaustion_route",
         "selection",
         "skill_slots",
         "equipment_scope",
@@ -103572,6 +103647,11 @@ function stepTitle(input) {
 function flowLabel(flowId) {
   return flowId.split("-").filter((part) => part.length > 0).map((part) => `${part.slice(0, 1).toUpperCase()}${part.slice(1)}`).join(" ");
 }
+function exhaustionRerouteMove(input) {
+  const target = input.flow.steps.find((step) => step.id === input.stepId)?.routes[input.routeId];
+  const stops = typeof target === "object" && target !== null && target.kind === "terminal";
+  return stops ? "the retry budget is spent, so the run stops with the failing result recorded" : "the retry budget is spent, so the run moves on with the failing result recorded";
+}
 function fallbackRelayStartedStatusText(role) {
   if (role === "researcher") {
     return "Asking the researcher to clarify the task...";
@@ -103755,6 +103835,7 @@ function createProgressProjector(input) {
   const stepDisplayById = new Map(input.progressSurface?.steps.map((step) => [step.stepId, step]) ?? []);
   const activeAttempts = /* @__PURE__ */ new Map();
   const failedChecks = /* @__PURE__ */ new Map();
+  const exhaustionReroutes = /* @__PURE__ */ new Map();
   const flowId = input.flow.id;
   const runId = input.runId;
   return (entry) => {
@@ -104096,6 +104177,15 @@ function createProgressProjector(input) {
         });
         break;
       }
+      case "step.exhaustion_rerouted": {
+        if (entry.step_id === void 0 || entry.attempt === void 0)
+          break;
+        exhaustionReroutes.set(entry.step_id, {
+          attempt: entry.attempt,
+          toRoute: entry.to_route
+        });
+        break;
+      }
       case "step.completed": {
         const stepId = entry.step_id;
         if (stepId === void 0 || entry.attempt === void 0 || entry.route_taken === void 0) {
@@ -104108,7 +104198,11 @@ function createProgressProjector(input) {
         taskStatuses.set(stepId, failedCheck === void 0 ? "completed" : "failed");
         const display = stepDisplay({ flow: input.flow, stepDisplayById, stepId });
         if (failedCheck !== void 0) {
-          const move = RECOVERY_MOVE_COPY[entry.route_taken] ?? "rerouting the run";
+          const reroute = exhaustionReroutes.get(stepId);
+          const exhausted = reroute !== void 0 && reroute.attempt === entry.attempt && reroute.toRoute === entry.route_taken;
+          if (exhausted)
+            exhaustionReroutes.delete(stepId);
+          const move = exhausted ? exhaustionRerouteMove({ flow: input.flow, stepId, routeId: entry.route_taken }) : RECOVERY_MOVE_COPY[entry.route_taken] ?? "rerouting the run";
           const statusText = `${display.taskTitle} did not pass on attempt ${entry.attempt}; ${move}.`;
           reportProgress(input.progress, {
             schema_version: 1,
@@ -104423,7 +104517,7 @@ var init_run_boundary = __esm({
 
 // dist/runtime/run/run-transition.js
 function isRouteTargetAbort(transition) {
-  return "reason" in transition;
+  return ROUTE_TARGET_ABORT_KINDS.has(transition.kind);
 }
 function classifyRouteDeclarationTransition(input) {
   if (input.target === void 0) {
@@ -104454,10 +104548,11 @@ function classifyRouteTargetTransition(input) {
     maxAttempts: input.targetMaxAttempts
   })) {
     if (input.routeHasRecoveryMechanics) {
-      return {
-        kind: "recovery_attempts_exhausted_abort",
-        reason: `route '${input.route}' for step '${input.target.stepId}' exhausted max_attempts=${input.targetMaxAttempts}${input.recoveryReasonSuffix}`
-      };
+      const reason = `route '${input.route}' for step '${input.target.stepId}' exhausted max_attempts=${input.targetMaxAttempts}${input.recoveryReasonSuffix}`;
+      if (input.exhaustionRoute !== void 0 && input.exhaustionRoute !== input.route) {
+        return { kind: "exhaustion_reroute", routeId: input.exhaustionRoute, reason };
+      }
+      return { kind: "recovery_attempts_exhausted_abort", reason };
     }
     return {
       kind: "completed_step_cycle_abort",
@@ -104466,9 +104561,15 @@ function classifyRouteTargetTransition(input) {
   }
   return { kind: "step_advance", targetStepId: input.target.stepId };
 }
+var ROUTE_TARGET_ABORT_KINDS;
 var init_run_transition = __esm({
   "dist/runtime/run/run-transition.js"() {
     "use strict";
+    ROUTE_TARGET_ABORT_KINDS = /* @__PURE__ */ new Set([
+      "self_pass_cycle_abort",
+      "completed_step_cycle_abort",
+      "recovery_attempts_exhausted_abort"
+    ]);
   }
 });
 
@@ -105534,101 +105635,126 @@ async function executeExecutableFlowOutcomeUnsafe(flow, options) {
         route = attentionRoute;
       }
     }
-    const routeDeclaration = classifyRouteDeclarationTransition({
-      stepId: step.id,
-      route,
-      target: step.routes[route]
-    });
-    if (routeDeclaration.kind === "undeclared_route_abort") {
-      await trace.append({
-        run_id: runId,
-        kind: "step.aborted",
-        step_id: step.id,
-        attempt,
-        reason: routeDeclaration.reason
+    let recoveryBinding;
+    let routeHasRecoveryMechanics = false;
+    let recoveryFailure;
+    let targetTransition;
+    let sanctionedExhaustionReroute = false;
+    let exhaustionRerouteReason;
+    for (; ; ) {
+      const routeDeclaration = classifyRouteDeclarationTransition({
+        stepId: step.id,
+        route,
+        target: step.routes[route]
       });
-      return await closeRun(context, "aborted", void 0, routeDeclaration.reason);
-    }
-    const target = routeDeclaration.target;
-    const recoveryBinding = recoveryBindingForCompletedRoute({
-      bindings: recoveryRouteBindings,
-      step,
-      route,
-      target
-    });
-    const routeHasRecoveryMechanics = isRecoveryRouteForMechanics({
-      bindings: recoveryRouteBindings,
-      step,
-      route
-    });
-    const directRecoveryFailure = latestRecoveryFailureEvidence({
-      context,
-      stepId: step.id,
-      attempt,
-      details,
-      ...loopBodyIndex === void 0 ? {} : { sliceIndex: loopBodyIndex }
-    }) ?? reportSelectedCheckpointBoundaryEvidence({
-      context,
-      stepId: step.id,
-      attempt,
-      details,
-      binding: recoveryBinding
-    });
-    const recoveryFailure = directRecoveryFailure ?? (routeHasRecoveryMechanics ? corridor.evidenceFor({
-      stepId: step.id,
-      attempt,
-      binding: recoveryBinding
-    }) : void 0);
-    if (untilCorridor.isActive() && untilFlag?.stopJudge !== void 0 && isUntilBodyStep && recoveryFailure === void 0 && !routeHasRecoveryMechanics) {
-      context.honestyLedger?.clearLatch(step.id);
-    }
-    const bindingVerdict = recoveryBindingVerdict({
-      workContractRef: context.workContractRef,
-      stepId: step.id,
-      stepKind: step.kind,
-      route,
-      routeHasRecoveryMechanics,
-      recoveryFailure,
-      recoveryBinding
-    });
-    if (bindingVerdict.kind === "abort") {
-      await trace.append({
-        run_id: runId,
-        kind: "step.aborted",
-        step_id: step.id,
-        attempt,
-        reason: bindingVerdict.reason
+      if (routeDeclaration.kind === "undeclared_route_abort") {
+        await trace.append({
+          run_id: runId,
+          kind: "step.aborted",
+          step_id: step.id,
+          attempt,
+          reason: routeDeclaration.reason
+        });
+        return await closeRun(context, "aborted", void 0, routeDeclaration.reason);
+      }
+      const target = routeDeclaration.target;
+      recoveryBinding = recoveryBindingForCompletedRoute({
+        bindings: recoveryRouteBindings,
+        step,
+        route,
+        target
       });
-      return await closeRun(context, "aborted", void 0, bindingVerdict.reason);
-    }
-    const targetCountKey = target.kind === "step" ? untilCorridor.isLoopBodyStep(target.stepId) ? untilCorridor.countKey(target.stepId, untilCorridor.currentIterationIndex()) : sliceCorridor.countKey(target.stepId, sliceCorridor.currentSliceIndex()) : void 0;
-    const targetCompletedCount = targetCountKey !== void 0 ? completedStepCounts.get(targetCountKey) ?? 0 : 0;
-    const targetStep = target.kind === "step" ? steps.get(target.stepId) : void 0;
-    const isRecoveryReturnToOrigin = target.kind === "step" ? corridor.isReturnToOrigin({
-      stepId: target.stepId,
-      route
-    }) : false;
-    const targetMaxAttempts = target.kind === "step" && targetStep !== void 0 ? maxAttemptsForRoute(targetStep, routeHasRecoveryMechanics, policyMaxAttemptsCap) : maxAttemptsForRoute(step, routeHasRecoveryMechanics, policyMaxAttemptsCap);
-    const currentRecoveryReasonSuffix = routeHasRecoveryMechanics && typeof details.reason === "string" && details.reason.trim().length > 0 ? `; last recovery reason: ${details.reason.trim()}` : corridor.lastReasonSuffix();
-    const targetTransition = classifyRouteTargetTransition({
-      stepId: step.id,
-      route,
-      target,
-      targetCompletedCount,
-      isRecoveryReturnToOrigin,
-      routeHasRecoveryMechanics,
-      targetMaxAttempts,
-      recoveryReasonSuffix: currentRecoveryReasonSuffix
-    });
-    if (isRouteTargetAbort(targetTransition)) {
-      await trace.append({
-        run_id: runId,
-        kind: "step.aborted",
-        step_id: step.id,
-        attempt,
-        reason: targetTransition.reason
+      routeHasRecoveryMechanics = isRecoveryRouteForMechanics({
+        bindings: recoveryRouteBindings,
+        step,
+        route
       });
-      return await closeRun(context, "aborted", void 0, targetTransition.reason);
+      const directRecoveryFailure = latestRecoveryFailureEvidence({
+        context,
+        stepId: step.id,
+        attempt,
+        details,
+        ...loopBodyIndex === void 0 ? {} : { sliceIndex: loopBodyIndex }
+      }) ?? reportSelectedCheckpointBoundaryEvidence({
+        context,
+        stepId: step.id,
+        attempt,
+        details,
+        binding: recoveryBinding
+      });
+      recoveryFailure = directRecoveryFailure ?? (routeHasRecoveryMechanics ? corridor.evidenceFor({
+        stepId: step.id,
+        attempt,
+        binding: recoveryBinding
+      }) : void 0);
+      if (untilCorridor.isActive() && untilFlag?.stopJudge !== void 0 && isUntilBodyStep && recoveryFailure === void 0 && !routeHasRecoveryMechanics) {
+        context.honestyLedger?.clearLatch(step.id);
+      }
+      const bindingVerdict = sanctionedExhaustionReroute ? { kind: "ok" } : recoveryBindingVerdict({
+        workContractRef: context.workContractRef,
+        stepId: step.id,
+        stepKind: step.kind,
+        route,
+        routeHasRecoveryMechanics,
+        recoveryFailure,
+        recoveryBinding
+      });
+      if (bindingVerdict.kind === "abort") {
+        await trace.append({
+          run_id: runId,
+          kind: "step.aborted",
+          step_id: step.id,
+          attempt,
+          reason: bindingVerdict.reason
+        });
+        return await closeRun(context, "aborted", void 0, bindingVerdict.reason);
+      }
+      const targetCountKey = target.kind === "step" ? untilCorridor.isLoopBodyStep(target.stepId) ? untilCorridor.countKey(target.stepId, untilCorridor.currentIterationIndex()) : sliceCorridor.countKey(target.stepId, sliceCorridor.currentSliceIndex()) : void 0;
+      const targetCompletedCount = targetCountKey !== void 0 ? completedStepCounts.get(targetCountKey) ?? 0 : 0;
+      const targetStep = target.kind === "step" ? steps.get(target.stepId) : void 0;
+      const isRecoveryReturnToOrigin = target.kind === "step" ? corridor.isReturnToOrigin({
+        stepId: target.stepId,
+        route
+      }) : false;
+      const targetMaxAttempts = target.kind === "step" && targetStep !== void 0 ? maxAttemptsForRoute(targetStep, routeHasRecoveryMechanics, policyMaxAttemptsCap) : maxAttemptsForRoute(step, routeHasRecoveryMechanics, policyMaxAttemptsCap);
+      const currentRecoveryReasonSuffix = routeHasRecoveryMechanics && typeof details.reason === "string" && details.reason.trim().length > 0 ? `; last recovery reason: ${details.reason.trim()}` : corridor.lastReasonSuffix();
+      targetTransition = classifyRouteTargetTransition({
+        stepId: step.id,
+        route,
+        target,
+        targetCompletedCount,
+        isRecoveryReturnToOrigin,
+        routeHasRecoveryMechanics,
+        targetMaxAttempts,
+        recoveryReasonSuffix: currentRecoveryReasonSuffix,
+        ...step.exhaustionRoute === void 0 || sanctionedExhaustionReroute ? {} : { exhaustionRoute: step.exhaustionRoute }
+      });
+      if (targetTransition.kind === "exhaustion_reroute") {
+        await trace.append({
+          run_id: runId,
+          kind: "step.exhaustion_rerouted",
+          step_id: step.id,
+          attempt,
+          from_route: route,
+          to_route: targetTransition.routeId,
+          reason: targetTransition.reason
+        });
+        route = targetTransition.routeId;
+        sanctionedExhaustionReroute = true;
+        exhaustionRerouteReason = targetTransition.reason;
+        continue;
+      }
+      if (isRouteTargetAbort(targetTransition)) {
+        await trace.append({
+          run_id: runId,
+          kind: "step.aborted",
+          step_id: step.id,
+          attempt,
+          reason: targetTransition.reason
+        });
+        return await closeRun(context, "aborted", void 0, targetTransition.reason);
+      }
+      break;
     }
     if (routeHasRecoveryMechanics) {
       corridor.enter({
@@ -105803,7 +105929,7 @@ async function executeExecutableFlowOutcomeUnsafe(flow, options) {
       }
     }
     if (targetTransition.kind === "terminal_close") {
-      return await closeRun(context, outcomeForTerminal(targetTransition.terminalTarget), targetTransition.terminalTarget);
+      return await closeRun(context, outcomeForTerminal(targetTransition.terminalTarget), targetTransition.terminalTarget, exhaustionRerouteReason);
     }
     currentStepId = targetTransition.targetStepId;
     incomingRouteTaken = route;

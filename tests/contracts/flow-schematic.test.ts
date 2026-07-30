@@ -326,6 +326,46 @@ describe('flow schematic schema — active Fix schematic', () => {
     }
   });
 
+  it('keeps the declared exhaustion route through parse', () => {
+    const raw = readJson(fixSchematicPath) as Record<string, unknown>;
+    const result = FlowSchematic.safeParse(raw);
+    expect(result.success).toBe(true);
+    if (result.success) {
+      const verify = result.data.items.find((item) => item.id === 'fix-verify');
+      expect(verify?.exhaustion_route).toBe('continue');
+    }
+  });
+
+  it('rejects an exhaustion route that does not name a declared route', () => {
+    const raw = readJson(fixSchematicPath) as Record<string, unknown>;
+    const items = raw.items as Array<Record<string, unknown>>;
+    const verify = items.find((item) => item.id === 'fix-verify');
+    if (verify === undefined) throw new Error('fixture missing verify item');
+    verify.exhaustion_route = 'split';
+    const result = FlowSchematic.safeParse(raw);
+    expect(result.success).toBe(false);
+    if (!result.success) {
+      expect(result.error.message).toMatch(
+        /exhaustion_route 'split' must name one of the step's declared routes/,
+      );
+    }
+  });
+
+  it('rejects an exhaustion route that targets @complete', () => {
+    // A spent retry budget can never close as success.
+    const raw = readJson(fixSchematicPath) as Record<string, unknown>;
+    const items = raw.items as Array<Record<string, unknown>>;
+    const verify = items.find((item) => item.id === 'fix-verify');
+    if (verify === undefined) throw new Error('fixture missing verify item');
+    (verify.routes as Record<string, unknown>).complete = '@complete';
+    verify.exhaustion_route = 'complete';
+    const result = FlowSchematic.safeParse(raw);
+    expect(result.success).toBe(false);
+    if (!result.success) {
+      expect(result.error.message).toMatch(/must not target '@complete'/);
+    }
+  });
+
   it('rejects duplicate evidence requirements at parse time', () => {
     const raw = readJson(fixSchematicPath) as Record<string, unknown>;
     const items = raw.items as Array<Record<string, unknown>>;

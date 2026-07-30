@@ -164,8 +164,10 @@ export const crossToolBuildBlockItems: readonly BlockStepUse[] = [
     required: ['overall_status', 'commands'],
     // continue on a green verify. A red verify routes back to implement-step so
     // the doer addresses the failures; the loop is bounded by the step's
-    // max_attempts_per_step, after which the run stops without claiming complete.
+    // max_attempts_per_step, after which exhaustion advances to close with the
+    // failing verification recorded — the run stops without claiming complete.
     routes: { continue: 'close-step', retry: 'implement-step', stop: '@stop' },
+    exhaustion_route: 'continue',
   },
   {
     id: 'close-step',

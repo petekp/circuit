@@ -66,6 +66,10 @@ const FLOW_KEYS = new Set([
 
 const STAGE_KEYS = new Set(['id', 'title', 'canonical', 'steps', 'selection']);
 
+// `exhaustion_route` is classified without contributing a hint for the same
+// reason as `engine_flags`: it is engine-sanctioned behavior (where the engine
+// sends a step whose recovery budget is spent), not an authority the worker
+// can select, so it is not part of the recovery surface the contract polices.
 const STEP_KEYS: Readonly<Record<Step['kind'], ReadonlySet<string>>> = {
   compose: new Set([
     'id',
@@ -73,6 +77,7 @@ const STEP_KEYS: Readonly<Record<Step['kind'], ReadonlySet<string>>> = {
     'protocol',
     'reads',
     'routes',
+    'exhaustion_route',
     'selection',
     'skill_slots',
     'equipment_scope',
@@ -89,6 +94,7 @@ const STEP_KEYS: Readonly<Record<Step['kind'], ReadonlySet<string>>> = {
     'protocol',
     'reads',
     'routes',
+    'exhaustion_route',
     'selection',
     'skill_slots',
     'equipment_scope',
@@ -105,6 +111,7 @@ const STEP_KEYS: Readonly<Record<Step['kind'], ReadonlySet<string>>> = {
     'protocol',
     'reads',
     'routes',
+    'exhaustion_route',
     'selection',
     'skill_slots',
     'equipment_scope',
@@ -122,6 +129,7 @@ const STEP_KEYS: Readonly<Record<Step['kind'], ReadonlySet<string>>> = {
     'protocol',
     'reads',
     'routes',
+    'exhaustion_route',
     'selection',
     'skill_slots',
     'equipment_scope',
@@ -141,6 +149,7 @@ const STEP_KEYS: Readonly<Record<Step['kind'], ReadonlySet<string>>> = {
     'protocol',
     'reads',
     'routes',
+    'exhaustion_route',
     'selection',
     'skill_slots',
     'equipment_scope',
@@ -160,6 +169,7 @@ const STEP_KEYS: Readonly<Record<Step['kind'], ReadonlySet<string>>> = {
     'protocol',
     'reads',
     'routes',
+    'exhaustion_route',
     'selection',
     'skill_slots',
     'equipment_scope',

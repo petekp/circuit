@@ -267,6 +267,7 @@
         "retry": "implement-step",
         "stop": "@stop"
       },
+      "exhaustion_route": "continue",
       "route_overrides": {},
       "protocol": "cross-tool-build-verify@v1",
       "writes": {

@@ -11,6 +11,7 @@ import { executeExecutableFlowOutcome } from '../../src/runtime/run/graph-runner
 import { TraceStore } from '../../src/runtime/trace/trace-store.js';
 import { CompiledFlowId, StepId } from '../../src/schemas/ids.js';
 import type { RecoveryRouteBindingV0 } from '../../src/schemas/recovery-route-kind.js';
+import { RunTrace } from '../../src/schemas/run.js';
 
 let runFolderBase: string;
 
@@ -26,8 +27,9 @@ function composeStep(
   id: string,
   routes: Record<
     string,
-    { kind: 'step'; stepId: string } | { kind: 'terminal'; target: '@complete' }
+    { kind: 'step'; stepId: string } | { kind: 'terminal'; target: '@complete' | '@stop' }
   >,
+  extras: { exhaustionRoute?: string } = {},
 ): ExecutableFlow['steps'][number] {
   return {
     id,
@@ -39,6 +41,7 @@ function composeStep(
       required: ['summary'],
     },
     routes,
+    ...(extras.exhaustionRoute === undefined ? {} : { exhaustionRoute: extras.exhaustionRoute }),
   };
 }
 
@@ -251,5 +254,222 @@ describe('run transition characterization', () => {
       ['verify-step', 2, 'pass'],
       ['change-set-step', 2, 'pass'],
     ]);
+  });
+});
+
+// The executor that never lets change-set-step pass: every attempt records a
+// failed check and selects the bound recovery route, so the retry budget on the
+// route's target is guaranteed to exhaust.
+function alwaysFailingChangeSetExecutors(): Pick<ExecutorRegistry, 'compose'> {
+  return {
+    compose: async (step, context) => {
+      if (step.id === 'change-set-step') {
+        await context.trace.append({
+          run_id: context.runId,
+          kind: 'check.evaluated',
+          step_id: step.id,
+          attempt: context.activeStepAttempt ?? 1,
+          check_kind: 'schema_sections',
+          outcome: 'fail',
+          reason: 'change-set mismatch',
+        });
+        return { route: 'retry', details: { reason: 'change-set mismatch' } };
+      }
+      return { route: 'pass' };
+    },
+  };
+}
+
+describe('declared exhaustion routes', () => {
+  it('aborts on a spent recovery budget when no exhaustion route is declared', async () => {
+    const runDir = join(runFolderBase, 'exhaustion-default-abort');
+    const outcome = await executeExecutableFlowOutcome(
+      transitionFlow([
+        composeStep('act-step', { pass: { kind: 'step', stepId: 'verify-step' } }),
+        composeStep('verify-step', { pass: { kind: 'step', stepId: 'change-set-step' } }),
+        composeStep('change-set-step', {
+          pass: { kind: 'terminal', target: '@complete' },
+          retry: { kind: 'step', stepId: 'act-step' },
+          stop: { kind: 'terminal', target: '@stop' },
+        }),
+      ]),
+      {
+        runDir,
+        runId: '73000000-0000-4000-8000-000000000005',
+        goal: 'characterize exhaustion default abort',
+        now: deterministicNow(Date.UTC(2026, 5, 5, 1, 20, 0)),
+        workContractRef: recoveryWorkContractRef,
+        recoveryRouteBindings: [recoveryBinding()],
+        executors: alwaysFailingChangeSetExecutors(),
+      },
+    );
+
+    expect(outcome.kind).toBe('closed');
+    if (outcome.kind !== 'closed') throw new Error('expected closed outcome');
+    expect(outcome.result.outcome).toBe('aborted');
+    expect(outcome.result.reason).toContain(
+      "route 'retry' for step 'act-step' exhausted max_attempts=2",
+    );
+  });
+
+  it('routes a spent recovery budget through the declared exhaustion route to an honest stop', async () => {
+    const runDir = join(runFolderBase, 'exhaustion-reroute-stop');
+    const outcome = await executeExecutableFlowOutcome(
+      transitionFlow([
+        composeStep('act-step', { pass: { kind: 'step', stepId: 'verify-step' } }),
+        composeStep('verify-step', { pass: { kind: 'step', stepId: 'change-set-step' } }),
+        composeStep(
+          'change-set-step',
+          {
+            pass: { kind: 'terminal', target: '@complete' },
+            retry: { kind: 'step', stepId: 'act-step' },
+            stop: { kind: 'terminal', target: '@stop' },
+          },
+          { exhaustionRoute: 'stop' },
+        ),
+      ]),
+      {
+        runDir,
+        runId: '73000000-0000-4000-8000-000000000006',
+        goal: 'characterize exhaustion reroute to stop',
+        now: deterministicNow(Date.UTC(2026, 5, 5, 1, 25, 0)),
+        workContractRef: recoveryWorkContractRef,
+        recoveryRouteBindings: [recoveryBinding()],
+        executors: alwaysFailingChangeSetExecutors(),
+      },
+    );
+
+    expect(outcome.kind).toBe('closed');
+    if (outcome.kind !== 'closed') throw new Error('expected closed outcome');
+    expect(outcome.result.outcome).toBe('stopped');
+    expect(outcome.result.reason).toContain(
+      "route 'retry' for step 'act-step' exhausted max_attempts=2",
+    );
+    expect(outcome.result.reason).toContain('change-set mismatch');
+
+    const entries = await trace(runDir);
+    expect(entries).toContainEqual(
+      expect.objectContaining({
+        kind: 'step.exhaustion_rerouted',
+        step_id: 'change-set-step',
+        attempt: 2,
+        from_route: 'retry',
+        to_route: 'stop',
+        reason: expect.stringContaining('exhausted max_attempts=2'),
+      }),
+    );
+    expect(entries).toContainEqual(
+      expect.objectContaining({
+        kind: 'step.completed',
+        step_id: 'change-set-step',
+        attempt: 2,
+        route_taken: 'stop',
+      }),
+    );
+    expect(entries).toContainEqual(
+      expect.objectContaining({ kind: 'run.closed', outcome: 'stopped' }),
+    );
+    expect(entries).not.toContainEqual(expect.objectContaining({ kind: 'step.aborted' }));
+    const parsed = RunTrace.safeParse(entries);
+    expect(parsed.success, parsed.success ? '' : JSON.stringify(parsed.error.issues)).toBe(true);
+  });
+
+  it('continues through a forward fallback step when the exhaustion route advances', async () => {
+    const runDir = join(runFolderBase, 'exhaustion-reroute-forward');
+    const outcome = await executeExecutableFlowOutcome(
+      transitionFlow([
+        composeStep('act-step', { pass: { kind: 'step', stepId: 'verify-step' } }),
+        composeStep('verify-step', { pass: { kind: 'step', stepId: 'change-set-step' } }),
+        composeStep(
+          'change-set-step',
+          {
+            pass: { kind: 'terminal', target: '@complete' },
+            retry: { kind: 'step', stepId: 'act-step' },
+            close: { kind: 'step', stepId: 'summary-step' },
+          },
+          { exhaustionRoute: 'close' },
+        ),
+        composeStep('summary-step', { pass: { kind: 'terminal', target: '@complete' } }),
+      ]),
+      {
+        runDir,
+        runId: '73000000-0000-4000-8000-000000000007',
+        goal: 'characterize exhaustion reroute to a fallback step',
+        now: deterministicNow(Date.UTC(2026, 5, 5, 1, 30, 0)),
+        workContractRef: recoveryWorkContractRef,
+        recoveryRouteBindings: [recoveryBinding()],
+        executors: alwaysFailingChangeSetExecutors(),
+      },
+    );
+
+    expect(outcome.kind).toBe('closed');
+    if (outcome.kind !== 'closed') throw new Error('expected closed outcome');
+    expect(outcome.result.outcome).toBe('complete');
+    const entries = await trace(runDir);
+    expect(entries).toContainEqual(
+      expect.objectContaining({
+        kind: 'step.exhaustion_rerouted',
+        step_id: 'change-set-step',
+        attempt: 2,
+        from_route: 'retry',
+        to_route: 'close',
+      }),
+    );
+    expect(transitionKinds(entries).slice(-3)).toEqual([
+      ['step.entered', 'summary-step', 1],
+      ['step.completed', 'summary-step', 1],
+      ['run.closed', 'complete'],
+    ]);
+  });
+
+  it('rejects an exhaustion route that does not name a declared route', async () => {
+    const runDir = join(runFolderBase, 'exhaustion-route-undeclared');
+    const outcome = await executeExecutableFlowOutcome(
+      transitionFlow([
+        composeStep(
+          'change-set-step',
+          { pass: { kind: 'terminal', target: '@complete' } },
+          { exhaustionRoute: 'missing' },
+        ),
+      ]),
+      {
+        runDir,
+        runId: '73000000-0000-4000-8000-000000000008',
+        goal: 'characterize undeclared exhaustion route rejection',
+        now: deterministicNow(Date.UTC(2026, 5, 5, 1, 35, 0)),
+      },
+    );
+
+    expect(outcome.kind).toBe('rejected');
+    if (outcome.kind !== 'rejected') throw new Error('expected rejected outcome');
+    expect(outcome.reason).toContain(
+      "exhaustion route 'missing' must name one of the step's declared routes",
+    );
+  });
+
+  it('rejects an exhaustion route that targets @complete', async () => {
+    const runDir = join(runFolderBase, 'exhaustion-route-complete');
+    const outcome = await executeExecutableFlowOutcome(
+      transitionFlow([
+        composeStep(
+          'change-set-step',
+          {
+            pass: { kind: 'terminal', target: '@complete' },
+            retry: { kind: 'step', stepId: 'change-set-step' },
+          },
+          { exhaustionRoute: 'pass' },
+        ),
+      ]),
+      {
+        runDir,
+        runId: '73000000-0000-4000-8000-000000000009',
+        goal: 'characterize complete-target exhaustion route rejection',
+        now: deterministicNow(Date.UTC(2026, 5, 5, 1, 40, 0)),
+      },
+    );
+
+    expect(outcome.kind).toBe('rejected');
+    if (outcome.kind !== 'rejected') throw new Error('expected rejected outcome');
+    expect(outcome.reason).toContain("must not target '@complete'");
   });
 });

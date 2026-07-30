@@ -7,7 +7,7 @@ last_updated: 2026-07-09
 depends_on: [ids, check, selection-policy, scalars, skill, skill-hook, acceptance-criteria, equipment-scope]
 report_ids:
   - step.definition
-invariant_ids: [STEP-I1, STEP-I2, STEP-I3, STEP-I4, STEP-I5, STEP-I6, STEP-I7, STEP-I8, STEP-I9, STEP-I10, STEP-I11, STEP-I12, STEP-I13, STEP-I14]
+invariant_ids: [STEP-I1, STEP-I2, STEP-I3, STEP-I4, STEP-I5, STEP-I6, STEP-I7, STEP-I8, STEP-I9, STEP-I10, STEP-I11, STEP-I12, STEP-I13, STEP-I14, STEP-I15]
 property_ids: [step.prop.budget_bounds, step.prop.relay_role_presence, step.prop.check_kind_source_kind_pairing, step.prop.check_source_ref_closure, step.prop.run_relative_paths, step.prop.writes_shape_per_variant, step.prop.skill_slots_unique, step.prop.skill_hooks_unique, step.prop.relay_acceptance_criteria_shape]
 ---
 
@@ -223,6 +223,21 @@ enforced via `src/schemas/step.ts`, `src/schemas/check.ts`, and
   Enforced by `RouteFromReport` in `src/schemas/step.ts`, resolved by
   `readRouteFromReport` in `src/runtime/executors/shared.ts`, and applied in
   `src/runtime/executors/relay.ts` and `src/runtime/executors/compose.ts`.
+
+- **STEP-I15 — Exhaustion routes are declared, closed, and never success.**
+  Every Step may carry `exhaustion_route`, naming where the run goes when a
+  recovery route this step selects has already exhausted its target's
+  max_attempts. When present, the engine takes that route (recorded as a
+  `step.exhaustion_rerouted` trace entry plus the normal `step.completed`)
+  instead of returning `recovery_attempts_exhausted_abort`; absent means abort,
+  the long-standing default. The value MUST name one of the step's own declared
+  `routes`, and the named route MUST NOT target `@complete` — a spent retry
+  budget can never close as success; it may go to a close step (whose result
+  binds the terminal outcome honestly), a checkpoint, or a stop. Enforced at
+  authoring time by the `SchematicStep` superRefine in
+  `src/schemas/flow-schematic.ts`, at load time by `validateExecutableFlow` in
+  `src/runtime/manifest/validate-executable-flow.ts`, and applied by
+  `classifyRouteTargetTransition` in `src/runtime/run/run-transition.ts`.
 
 ## Pre-conditions
 

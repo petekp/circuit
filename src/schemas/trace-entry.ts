@@ -559,6 +559,21 @@ export const StepAbortedTraceEntry = TraceEntryBase.extend({
 }).strict();
 export type StepAbortedTraceEntry = z.infer<typeof StepAbortedTraceEntry>;
 
+// A spent recovery budget redirected through the step's declared exhaustion
+// route instead of aborting the run. `from_route` is the recovery route the
+// step selected, `to_route` the declared fallback the engine took, and
+// `reason` the exhaustion that would otherwise have aborted the run. The
+// step.completed entry that follows records `to_route` as the route taken.
+export const StepExhaustionReroutedTraceEntry = TraceEntryBase.extend({
+  kind: z.literal('step.exhaustion_rerouted'),
+  step_id: StepId,
+  attempt: z.number().int().positive(),
+  from_route: z.string().min(1),
+  to_route: z.string().min(1),
+  reason: z.string().min(1),
+}).strict();
+export type StepExhaustionReroutedTraceEntry = z.infer<typeof StepExhaustionReroutedTraceEntry>;
+
 // 'evidence_invalid' is the completed-but-unproven close: a relay finished and
 // produced work, but its typed report failed validation, so the run cannot
 // prove the work. Distinct from 'aborted' so the operator knows there is real
@@ -904,6 +919,7 @@ export const TraceEntry = z
     FanoutJoinedTraceEntry,
     StepCompletedTraceEntry,
     StepAbortedTraceEntry,
+    StepExhaustionReroutedTraceEntry,
     RunClosedTraceEntry,
     RunSkillHookTraceEntry,
     RunSkillHookErrorTraceEntry,

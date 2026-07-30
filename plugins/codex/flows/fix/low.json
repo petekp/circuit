@@ -342,6 +342,7 @@
         "ask": "fix-no-repro-decision",
         "stop": "@stop"
       },
+      "exhaustion_route": "continue",
       "executor": "orchestrator",
       "kind": "verification",
       "writes": {
@@ -370,6 +371,7 @@
         "retry": "fix-act",
         "stop": "@stop"
       },
+      "exhaustion_route": "continue",
       "executor": "orchestrator",
       "kind": "verification",
       "writes": {
@@ -398,6 +400,7 @@
         "retry": "fix-act",
         "stop": "@stop"
       },
+      "exhaustion_route": "continue",
       "executor": "orchestrator",
       "kind": "verification",
       "writes": {

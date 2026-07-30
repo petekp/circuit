@@ -307,6 +307,53 @@ describe('runtime progress projection', () => {
     expect(lastTaskList?.tasks.find((task) => task.id === 'fix-verify')?.status).toBe('failed');
   });
 
+  it('explains an exhaustion reroute instead of the generic recovery copy', () => {
+    // When the retry budget behind a verify step is spent, the engine takes the
+    // step's declared exhaustion route instead of aborting. The live stream
+    // must say that plainly, not fall back to the generic "rerouting the run".
+    const progress = projectProgress('fix', [
+      trace({ sequence: 0, kind: 'run.bootstrapped', flow_id: 'fix' }),
+      trace({ sequence: 1, kind: 'step.entered', step_id: 'fix-verify', attempt: 2 }),
+      trace({
+        sequence: 2,
+        kind: 'check.evaluated',
+        step_id: 'fix-verify',
+        attempt: 2,
+        check_kind: 'acceptance_criteria',
+        outcome: 'fail',
+        reason: 'npm test exited 1',
+      }),
+      trace({
+        sequence: 3,
+        kind: 'step.exhaustion_rerouted',
+        step_id: 'fix-verify',
+        attempt: 2,
+        from_route: 'retry',
+        to_route: 'continue',
+        reason: "route 'retry' for step 'fix-act' exhausted max_attempts=2",
+      }),
+      trace({
+        sequence: 4,
+        kind: 'step.completed',
+        step_id: 'fix-verify',
+        attempt: 2,
+        route_taken: 'continue',
+      }),
+    ]);
+
+    const completed = progress.find((event) => event.type === 'step.completed');
+    expect(completed?.display.text).toBe(
+      'Circuit: Verify the fix did not pass on attempt 2; the retry budget is spent, so the run moves on with the failing result recorded.',
+    );
+    expect(completed?.display.tone).toBe('warning');
+    expect(completed).toMatchObject({
+      route_taken: 'continue',
+      failure_reason: 'npm test exited 1',
+    });
+    const lastTaskList = progress.filter((event) => event.type === 'task_list.updated').at(-1);
+    expect(lastTaskList?.tasks.find((task) => task.id === 'fix-verify')?.status).toBe('failed');
+  });
+
   it('keeps success copy for a later attempt that passes after a failed one', () => {
     const progress = projectProgress('fix', [
       trace({ sequence: 0, kind: 'run.bootstrapped', flow_id: 'fix' }),

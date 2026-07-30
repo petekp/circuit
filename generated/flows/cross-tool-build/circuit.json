@@ -262,6 +262,7 @@
         "retry": "implement-step",
         "stop": "@stop"
       },
+      "exhaustion_route": "continue",
       "executor": "orchestrator",
       "kind": "verification",
       "writes": {

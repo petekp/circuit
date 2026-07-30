@@ -225,6 +225,10 @@ export const fixBlockItems: readonly BlockStepUse[] = [
       ask: 'fix-no-repro-decision',
       stop: '@stop',
     },
+    // Spent retry budget: advance with the failing report recorded as evidence
+    // instead of aborting and discarding the run. Close-with-evidence emits a
+    // non-clean result that maps to an honest 'stopped'.
+    exhaustion_route: 'continue',
   },
   {
     id: 'fix-change-set',
@@ -241,6 +245,9 @@ export const fixBlockItems: readonly BlockStepUse[] = [
     writes: { report_path: 'reports/fix/change-set.json' },
     check: { required: ['status', 'overall_status'] },
     routes: { continue: 'fix-verify', retry: 'fix-act', stop: '@stop' },
+    // Spent retry budget: advance with the failing report recorded as evidence
+    // instead of aborting and discarding the run.
+    exhaustion_route: 'continue',
   },
   {
     id: 'fix-regression-rerun',
@@ -254,6 +261,9 @@ export const fixBlockItems: readonly BlockStepUse[] = [
     check: { required: ['status', 'overall_status'] },
     routeOverrides: { continue: { low: 'fix-close-low' } },
     routes: { continue: 'fix-review', retry: 'fix-act', stop: '@stop' },
+    // Spent retry budget: advance with the failing report recorded as evidence
+    // instead of aborting and discarding the run.
+    exhaustion_route: 'continue',
   },
   {
     id: 'fix-review',

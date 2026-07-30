@@ -297,8 +297,10 @@ afterEach(() => {
 
 interface ExpectedOutcome {
   // The lite Fix run should never close as 'fixed' on a false-done. It either
-  // closes 'partial' (when verification + regression succeed but a different
-  // pillar fails) or aborts (when a pillar fails hard, e.g. recovery exhausts).
+  // closes 'partial' (when the run reaches fix-close with a failing pillar on
+  // record — including via a verify step's declared exhaustion route after the
+  // retry budget is spent) or aborts (when a pillar fails hard at a door with
+  // no declared exhaustion route).
   readonly closeMode: 'partial' | 'aborted';
 }
 
@@ -405,6 +407,10 @@ const SCENARIOS: ReadonlyArray<{ scenario: ScenarioConfig; expected: ExpectedOut
       // says 'passed') and the change-set matches declared (so
       // fix.change-set says 'pass'), but the regression command still fails
       // post-fix. Without fix.regression-rerun, this would close as 'fixed'.
+      // The rerun keeps failing until the retry budget on fix-act is spent;
+      // fix-regression-rerun's declared exhaustion route then advances the run
+      // to fix-close with the still-failing rerun on record, so the result is
+      // an explicit 'partial', never 'fixed'.
       id: '06-regression-still-failing',
       goal: 'fix parser bug that requires actual code change',
       briefRegressionContract: {
@@ -422,7 +428,7 @@ const SCENARIOS: ReadonlyArray<{ scenario: ScenarioConfig; expected: ExpectedOut
       observedFiles: ['src/parser.ts'],
       headDiverged: false,
     },
-    expected: { closeMode: 'aborted' },
+    expected: { closeMode: 'partial' },
   },
 ];
 

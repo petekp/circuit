@@ -207,6 +207,7 @@
         "retry": "batch-step",
         "stop": "@stop"
       },
+      "exhaustion_route": "continue",
       "route_overrides": {},
       "protocol": "pursuit-verify@v1",
       "writes": {

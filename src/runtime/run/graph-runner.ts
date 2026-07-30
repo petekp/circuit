@@ -54,7 +54,11 @@ import { appendFlowSelectionGuidance, appendRecoveryRouteGuidance } from './guid
 import { HonestyLedger } from './honesty-ledger.js';
 import { writeRuntimeManifestSnapshot } from './manifest-snapshot.js';
 import { createOracleCommandPinChannel } from './oracle-command-pin.js';
-import { recoveryBindingVerdict, recoveryCauseAllowed } from './recovery-binding-verdict.js';
+import {
+  type RecoveryFailureEvidence,
+  recoveryBindingVerdict,
+  recoveryCauseAllowed,
+} from './recovery-binding-verdict.js';
 import { RecoveryCorridor } from './recovery-corridor.js';
 import { openRunBoundary } from './run-boundary.js';
 import {
@@ -66,6 +70,7 @@ import {
 } from './run-close.js';
 import type { RunContext } from './run-context.js';
 import {
+  type RouteTargetTransition,
   classifyRouteDeclarationTransition,
   classifyRouteTargetTransition,
   isCompletedStepReentryAbort,
@@ -1594,144 +1599,187 @@ async function executeExecutableFlowOutcomeUnsafe(
       // 'stop-clean' leaves the tail's forward route intact (the clean exit).
     }
 
-    const routeDeclaration = classifyRouteDeclarationTransition({
-      stepId: step.id,
-      route,
-      target: step.routes[route],
-    });
-    if (routeDeclaration.kind === 'undeclared_route_abort') {
-      await trace.append({
-        run_id: runId,
-        kind: 'step.aborted',
-        step_id: step.id,
-        attempt,
-        reason: routeDeclaration.reason,
+    // Route-target classification runs in a redirect loop so a declared
+    // exhaustion route can be honored. When the selected recovery route's
+    // budget is spent and the step declares `exhaustionRoute`, the engine
+    // takes that declared route instead of aborting: the careful work already
+    // on disk survives to whatever close the flow chose (an honest stopped
+    // result, a checkpoint, or any other declared target). At most one
+    // redirect per completion — the second pass classifies the declared route
+    // with the declaration disabled, so a fallback that itself dead-ends
+    // still aborts loudly.
+    let recoveryBinding: RecoveryRouteBindingV0 | undefined;
+    let routeHasRecoveryMechanics = false;
+    let recoveryFailure: RecoveryFailureEvidence | undefined;
+    let targetTransition: RouteTargetTransition;
+    let sanctionedExhaustionReroute = false;
+    let exhaustionRerouteReason: string | undefined;
+    for (;;) {
+      const routeDeclaration = classifyRouteDeclarationTransition({
+        stepId: step.id,
+        route,
+        target: step.routes[route],
       });
-      return await closeRun(context, 'aborted', undefined, routeDeclaration.reason);
-    }
-    const target = routeDeclaration.target;
+      if (routeDeclaration.kind === 'undeclared_route_abort') {
+        await trace.append({
+          run_id: runId,
+          kind: 'step.aborted',
+          step_id: step.id,
+          attempt,
+          reason: routeDeclaration.reason,
+        });
+        return await closeRun(context, 'aborted', undefined, routeDeclaration.reason);
+      }
+      const target = routeDeclaration.target;
 
-    const recoveryBinding = recoveryBindingForCompletedRoute({
-      bindings: recoveryRouteBindings,
-      step,
-      route,
-      target,
-    });
-    const routeHasRecoveryMechanics = isRecoveryRouteForMechanics({
-      bindings: recoveryRouteBindings,
-      step,
-      route,
-    });
-    const directRecoveryFailure =
-      latestRecoveryFailureEvidence({
-        context,
-        stepId: step.id,
-        attempt,
-        details,
-        ...(loopBodyIndex === undefined ? {} : { sliceIndex: loopBodyIndex }),
-      }) ??
-      reportSelectedCheckpointBoundaryEvidence({
-        context,
-        stepId: step.id,
-        attempt,
-        details,
-        binding: recoveryBinding,
+      recoveryBinding = recoveryBindingForCompletedRoute({
+        bindings: recoveryRouteBindings,
+        step,
+        route,
+        target,
       });
-    const recoveryFailure =
-      directRecoveryFailure ??
-      (routeHasRecoveryMechanics
-        ? corridor.evidenceFor({
+      routeHasRecoveryMechanics = isRecoveryRouteForMechanics({
+        bindings: recoveryRouteBindings,
+        step,
+        route,
+      });
+      const directRecoveryFailure =
+        latestRecoveryFailureEvidence({
+          context,
+          stepId: step.id,
+          attempt,
+          details,
+          ...(loopBodyIndex === undefined ? {} : { sliceIndex: loopBodyIndex }),
+        }) ??
+        reportSelectedCheckpointBoundaryEvidence({
+          context,
+          stepId: step.id,
+          attempt,
+          details,
+          binding: recoveryBinding,
+        });
+      recoveryFailure =
+        directRecoveryFailure ??
+        (routeHasRecoveryMechanics
+          ? corridor.evidenceFor({
+              stepId: step.id,
+              attempt,
+              binding: recoveryBinding,
+            })
+          : undefined);
+
+      // Until loop, latch-clear (slice 3): a body step that re-runs and completes
+      // its check clean (no recovery failure, no recovery route) clears any
+      // overclaim latch it held from an earlier iteration. The ledger tracks the
+      // step's LATEST state, so a clean pass resolves the latch; only then can the
+      // close-path finalize chokepoint let the run reach complete. Inert on every
+      // run with no judge-gated until ledger.
+      if (
+        untilCorridor.isActive() &&
+        untilFlag?.stopJudge !== undefined &&
+        isUntilBodyStep &&
+        recoveryFailure === undefined &&
+        !routeHasRecoveryMechanics
+      ) {
+        context.honestyLedger?.clearLatch(step.id);
+      }
+
+      // On the sanctioned second pass the failure evidence still exists (it is
+      // in the reports and the trace), but the declared fallback is a forward
+      // route the schematic chose for exactly this state — not an agent
+      // smuggling a failure through an unbound route — so the binding verdict
+      // does not re-judge it.
+      const bindingVerdict = sanctionedExhaustionReroute
+        ? ({ kind: 'ok' } as const)
+        : recoveryBindingVerdict({
+            workContractRef: context.workContractRef,
             stepId: step.id,
-            attempt,
-            binding: recoveryBinding,
-          })
-        : undefined);
-
-    // Until loop, latch-clear (slice 3): a body step that re-runs and completes
-    // its check clean (no recovery failure, no recovery route) clears any
-    // overclaim latch it held from an earlier iteration. The ledger tracks the
-    // step's LATEST state, so a clean pass resolves the latch; only then can the
-    // close-path finalize chokepoint let the run reach complete. Inert on every
-    // run with no judge-gated until ledger.
-    if (
-      untilCorridor.isActive() &&
-      untilFlag?.stopJudge !== undefined &&
-      isUntilBodyStep &&
-      recoveryFailure === undefined &&
-      !routeHasRecoveryMechanics
-    ) {
-      context.honestyLedger?.clearLatch(step.id);
-    }
-
-    const bindingVerdict = recoveryBindingVerdict({
-      workContractRef: context.workContractRef,
-      stepId: step.id,
-      stepKind: step.kind,
-      route,
-      routeHasRecoveryMechanics,
-      recoveryFailure,
-      recoveryBinding,
-    });
-    if (bindingVerdict.kind === 'abort') {
-      await trace.append({
-        run_id: runId,
-        kind: 'step.aborted',
-        step_id: step.id,
-        attempt,
-        reason: bindingVerdict.reason,
-      });
-      return await closeRun(context, 'aborted', undefined, bindingVerdict.reason);
-    }
-
-    // The live loop index here is post-advance, so a re-enter/advance redirect
-    // to the loop head reads the next iteration's (empty) count rather than the
-    // just-completed one's, and is not flagged as a cycle. Whichever corridor
-    // owns the target step supplies its key; the two are mutually exclusive.
-    const targetCountKey =
-      target.kind === 'step'
-        ? untilCorridor.isLoopBodyStep(target.stepId)
-          ? untilCorridor.countKey(target.stepId, untilCorridor.currentIterationIndex())
-          : sliceCorridor.countKey(target.stepId, sliceCorridor.currentSliceIndex())
-        : undefined;
-    const targetCompletedCount =
-      targetCountKey !== undefined ? (completedStepCounts.get(targetCountKey) ?? 0) : 0;
-    const targetStep = target.kind === 'step' ? steps.get(target.stepId) : undefined;
-    const isRecoveryReturnToOrigin =
-      target.kind === 'step'
-        ? corridor.isReturnToOrigin({
-            stepId: target.stepId,
+            stepKind: step.kind,
             route,
-          })
-        : false;
-    const targetMaxAttempts =
-      target.kind === 'step' && targetStep !== undefined
-        ? maxAttemptsForRoute(targetStep, routeHasRecoveryMechanics, policyMaxAttemptsCap)
-        : maxAttemptsForRoute(step, routeHasRecoveryMechanics, policyMaxAttemptsCap);
-    const currentRecoveryReasonSuffix =
-      routeHasRecoveryMechanics &&
-      typeof details.reason === 'string' &&
-      details.reason.trim().length > 0
-        ? `; last recovery reason: ${details.reason.trim()}`
-        : corridor.lastReasonSuffix();
-    const targetTransition = classifyRouteTargetTransition({
-      stepId: step.id,
-      route,
-      target,
-      targetCompletedCount,
-      isRecoveryReturnToOrigin,
-      routeHasRecoveryMechanics,
-      targetMaxAttempts,
-      recoveryReasonSuffix: currentRecoveryReasonSuffix,
-    });
-    if (isRouteTargetAbort(targetTransition)) {
-      await trace.append({
-        run_id: runId,
-        kind: 'step.aborted',
-        step_id: step.id,
-        attempt,
-        reason: targetTransition.reason,
+            routeHasRecoveryMechanics,
+            recoveryFailure,
+            recoveryBinding,
+          });
+      if (bindingVerdict.kind === 'abort') {
+        await trace.append({
+          run_id: runId,
+          kind: 'step.aborted',
+          step_id: step.id,
+          attempt,
+          reason: bindingVerdict.reason,
+        });
+        return await closeRun(context, 'aborted', undefined, bindingVerdict.reason);
+      }
+
+      // The live loop index here is post-advance, so a re-enter/advance redirect
+      // to the loop head reads the next iteration's (empty) count rather than the
+      // just-completed one's, and is not flagged as a cycle. Whichever corridor
+      // owns the target step supplies its key; the two are mutually exclusive.
+      const targetCountKey =
+        target.kind === 'step'
+          ? untilCorridor.isLoopBodyStep(target.stepId)
+            ? untilCorridor.countKey(target.stepId, untilCorridor.currentIterationIndex())
+            : sliceCorridor.countKey(target.stepId, sliceCorridor.currentSliceIndex())
+          : undefined;
+      const targetCompletedCount =
+        targetCountKey !== undefined ? (completedStepCounts.get(targetCountKey) ?? 0) : 0;
+      const targetStep = target.kind === 'step' ? steps.get(target.stepId) : undefined;
+      const isRecoveryReturnToOrigin =
+        target.kind === 'step'
+          ? corridor.isReturnToOrigin({
+              stepId: target.stepId,
+              route,
+            })
+          : false;
+      const targetMaxAttempts =
+        target.kind === 'step' && targetStep !== undefined
+          ? maxAttemptsForRoute(targetStep, routeHasRecoveryMechanics, policyMaxAttemptsCap)
+          : maxAttemptsForRoute(step, routeHasRecoveryMechanics, policyMaxAttemptsCap);
+      const currentRecoveryReasonSuffix =
+        routeHasRecoveryMechanics &&
+        typeof details.reason === 'string' &&
+        details.reason.trim().length > 0
+          ? `; last recovery reason: ${details.reason.trim()}`
+          : corridor.lastReasonSuffix();
+      targetTransition = classifyRouteTargetTransition({
+        stepId: step.id,
+        route,
+        target,
+        targetCompletedCount,
+        isRecoveryReturnToOrigin,
+        routeHasRecoveryMechanics,
+        targetMaxAttempts,
+        recoveryReasonSuffix: currentRecoveryReasonSuffix,
+        ...(step.exhaustionRoute === undefined || sanctionedExhaustionReroute
+          ? {}
+          : { exhaustionRoute: step.exhaustionRoute }),
       });
-      return await closeRun(context, 'aborted', undefined, targetTransition.reason);
+      if (targetTransition.kind === 'exhaustion_reroute') {
+        await trace.append({
+          run_id: runId,
+          kind: 'step.exhaustion_rerouted',
+          step_id: step.id,
+          attempt,
+          from_route: route,
+          to_route: targetTransition.routeId,
+          reason: targetTransition.reason,
+        });
+        route = targetTransition.routeId;
+        sanctionedExhaustionReroute = true;
+        exhaustionRerouteReason = targetTransition.reason;
+        continue;
+      }
+      if (isRouteTargetAbort(targetTransition)) {
+        await trace.append({
+          run_id: runId,
+          kind: 'step.aborted',
+          step_id: step.id,
+          attempt,
+          reason: targetTransition.reason,
+        });
+        return await closeRun(context, 'aborted', undefined, targetTransition.reason);
+      }
+      break;
     }
 
     if (routeHasRecoveryMechanics) {
@@ -2056,10 +2104,15 @@ async function executeExecutableFlowOutcomeUnsafe(
     }
 
     if (targetTransition.kind === 'terminal_close') {
+      // When a declared exhaustion route led straight to this terminal, carry
+      // the exhaustion reason into the result so the close names its cause
+      // without the operator having to read the trace. Undefined otherwise —
+      // the ordinary terminal close is unchanged.
       return await closeRun(
         context,
         outcomeForTerminal(targetTransition.terminalTarget),
         targetTransition.terminalTarget,
+        exhaustionRerouteReason,
       );
     }
 

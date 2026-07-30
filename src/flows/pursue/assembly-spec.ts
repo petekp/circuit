@@ -125,6 +125,9 @@ export const pursueBlockItems: readonly BlockStepUse[] = [
     reportPath: 'reports/pursuit/verification.json',
     required: ['overall_status', 'commands'],
     routes: { continue: 'review-step', retry: 'batch-step', stop: '@stop' },
+    // Spent retry budget: advance with the failing report recorded as evidence
+    // instead of aborting and discarding the run.
+    exhaustion_route: 'continue',
   },
   {
     id: 'review-step',

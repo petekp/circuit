@@ -25719,6 +25719,13 @@ var StepBase = external_exports.object({
   routes: external_exports.record(external_exports.string(), external_exports.string()).refine((m) => Object.keys(m).length > 0, {
     message: "Step must declare at least one route (including `@complete`)."
   }),
+  // Declared fallback for a spent recovery budget. When a recovery route this
+  // step selects has exhausted its target's max_attempts, the engine takes
+  // this route instead of aborting the run, so the work already on disk
+  // survives to a close the flow chose. Must name another key of `routes`
+  // (enforced at the schematic gate). Absent = abort on exhaustion, the
+  // long-standing default.
+  exhaustion_route: external_exports.string().min(1).optional(),
   selection: SelectionOverride.optional(),
   skill_hooks: SkillHookNameArray.optional(),
   skill_slots: SkillSlotArray.optional(),
@@ -31083,6 +31090,14 @@ var StepAbortedTraceEntry = TraceEntryBase.extend({
   attempt: external_exports.number().int().positive(),
   reason: external_exports.string().min(1)
 }).strict();
+var StepExhaustionReroutedTraceEntry = TraceEntryBase.extend({
+  kind: external_exports.literal("step.exhaustion_rerouted"),
+  step_id: StepId,
+  attempt: external_exports.number().int().positive(),
+  from_route: external_exports.string().min(1),
+  to_route: external_exports.string().min(1),
+  reason: external_exports.string().min(1)
+}).strict();
 var RunClosedOutcome = external_exports.enum([
   "complete",
   "aborted",
@@ -31294,6 +31309,7 @@ var TraceEntry = external_exports.discriminatedUnion("kind", [
   FanoutJoinedTraceEntry,
   StepCompletedTraceEntry,
   StepAbortedTraceEntry,
+  StepExhaustionReroutedTraceEntry,
   RunClosedTraceEntry,
   RunSkillHookTraceEntry,
   RunSkillHookErrorTraceEntry,
