@@ -317,10 +317,9 @@ function buildFixDetails(flowReport: JsonObject | undefined): string[] {
   if (verification !== undefined) {
     details.push(`Verification: ${friendlyVerificationStatus(verification)}.`);
   }
-  // Surface the regression rerun whenever it did not clear. On the default path
-  // it defaults to 'deferred', so a 'passed' verification with a silent
-  // regression status reads as relevance-proven when it is not. 'cleared' is
-  // the only outcome that earns silence.
+  // Surface the regression rerun whenever it did not clear. A 'passed'
+  // verification with a silent regression status reads as relevance-proven when
+  // it is not. 'cleared' is the only outcome that earns silence.
   const regression = stringField(flowReport, 'regression_rerun_status');
   if (regression !== undefined && regression !== 'cleared') {
     details.push(`Regression: ${friendlyRegressionStatus(regression)}.`);

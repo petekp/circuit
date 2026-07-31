@@ -24515,6 +24515,9 @@ function primaryResultCausePhrases(primaryResult) {
   if (primaryResult.review_verdict === "accept-with-fixes") {
     phrases.push("review verdict 'accept-with-fixes'");
   }
+  if (primaryResult.regression_status === "deferred") {
+    phrases.push("no before-and-after proof was captured for the reported bug");
+  }
   for (const path of stringArrayField(primaryResult.touch_area, "out_of_bounds_paths")) {
     phrases.push(`out-of-bounds path '${path}'`);
   }
@@ -77213,7 +77216,10 @@ var init_assembly_spec6 = __esm({
         title: "Verify \u2014 rerun regression command after fix",
         stage: "verify",
         block: "run-verification",
-        input: { proof: "verification.plan@v1", brief: "fix.brief@v1" },
+        // Reads the baseline's report, not the brief: the command to rerun is
+        // whatever the baseline actually ran, so the two cannot disagree about
+        // which command is the proof.
+        input: { proof: "verification.plan@v1", regression: "fix.regression-proof@v1" },
         output: "fix.regression-rerun@v1",
         protocol: "fix-regression-rerun@v1",
         writes: { report_path: "reports/fix/regression-rerun.json" },
@@ -77410,7 +77416,7 @@ var init_assembly_spec6 = __esm({
 });
 
 // dist/flows/fix/reports.js
-var FIX_RESULT_SCHEMA_BY_ARTIFACT_ID, FIX_RESULT_PATH_BY_ARTIFACT_ID, REQUIRED_FIX_RESULT_ARTIFACT_IDS, NonEmptyStringArray2, LenientNonEmptyStringArray, FixVerificationCommand, FixRegressionContract, FixBrief, FixContextSource, FixContext, FixReproductionStatus, FixDiagnosis, FixNoReproDecisionKind, FixNoReproRoute, NO_REPRO_DECISION_ROUTE, FixNoReproDecision, FixChange, FixVerificationCommandResult, FixVerification, FixRegressionProofObservation, FixRegressionProofStatus, FixRegressionProof, FixBaselineSnapshotEntry, FixHiddenIndexFlag, FixBaselineSnapshot, FixChangeSet, FixRegressionRerunStatus, FixRegressionRerun, FixReviewVerdict, FixReviewFinding, FixReview, FixResultOutcome, FixResultReportId, FixResultReportPointer, FixReviewStatus, FixResult;
+var FIX_RESULT_SCHEMA_BY_ARTIFACT_ID, FIX_RESULT_PATH_BY_ARTIFACT_ID, REQUIRED_FIX_RESULT_ARTIFACT_IDS, NonEmptyStringArray2, LenientNonEmptyStringArray, FixVerificationCommand, FixRegressionContract, FixBrief, FixContextSource, FixContext, FixReproductionStatus, FixDiagnosis, FixNoReproDecisionKind, FixNoReproRoute, NO_REPRO_DECISION_ROUTE, FixNoReproDecision, FixChange, FixVerificationCommandResult, FixVerification, FixRegressionProofObservation, FixRegressionProofStatus, FixRegressionCommandSource, FixRegressionProof, FixBaselineSnapshotEntry, FixHiddenIndexFlag, FixBaselineSnapshot, FixChangeSet, FixRegressionRerunStatus, FixRegressionRerun, FixReviewVerdict, FixReviewFinding, FixReview, FixResultOutcome, FixResultReportId, FixResultReportPointer, FixReviewStatus, FixResult;
 var init_reports6 = __esm({
   "dist/flows/fix/reports.js"() {
     "use strict";
@@ -77658,11 +77664,18 @@ var init_reports6 = __esm({
         });
       }
     });
-    FixRegressionProofStatus = external_exports.enum(["proved", "deferred", "not-proved"]);
+    FixRegressionProofStatus = external_exports.enum([
+      "proved",
+      "deferred",
+      "not-captured",
+      "not-proved"
+    ]);
+    FixRegressionCommandSource = external_exports.enum(["declared", "adopted-verification"]);
     FixRegressionProof = external_exports.object({
       status: FixRegressionProofStatus,
       overall_status: external_exports.enum(["passed", "failed"]),
       reason: external_exports.string().min(1).optional(),
+      command_source: FixRegressionCommandSource.optional(),
       baseline: FixRegressionProofObservation.optional()
     }).strict().superRefine((proof, ctx) => {
       const expectedOverall = proof.status === "not-proved" ? "failed" : "passed";
@@ -77709,6 +77722,29 @@ var init_reports6 = __esm({
             path: ["status"],
             message: "status 'not-proved' requires baseline command_status 'passed'"
           });
+        }
+        if (proof.status === "not-captured") {
+          if (proof.baseline?.command_status !== "passed") {
+            ctx.addIssue({
+              code: "custom",
+              path: ["status"],
+              message: "status 'not-captured' requires baseline command_status 'passed'"
+            });
+          }
+          if (proof.command_source !== "adopted-verification") {
+            ctx.addIssue({
+              code: "custom",
+              path: ["command_source"],
+              message: "status 'not-captured' requires command_source 'adopted-verification'; a declared repro that passes pre-fix is 'not-proved'"
+            });
+          }
+          if (proof.reason === void 0) {
+            ctx.addIssue({
+              code: "custom",
+              path: ["reason"],
+              message: "reason is required when status is 'not-captured'"
+            });
+          }
         }
       }
     });
@@ -77819,6 +77855,7 @@ var init_reports6 = __esm({
       status: FixRegressionRerunStatus,
       overall_status: external_exports.enum(["passed", "failed"]),
       reason: external_exports.string().min(1).optional(),
+      command_source: FixRegressionCommandSource.optional(),
       rerun: FixRegressionProofObservation.optional()
     }).strict().superRefine((proof, ctx) => {
       const expectedOverall = proof.status === "still-failing" ? "failed" : "passed";
@@ -78618,6 +78655,23 @@ var init_close5 = __esm({
   }
 });
 
+// dist/flows/fix/writers/regression-command.js
+function regressionProofCommand(brief) {
+  const regressionTest = brief.regression_contract.regression_test;
+  if (regressionTest.status === "failing-before-fix") {
+    return { command: regressionTest.command, source: "declared" };
+  }
+  const adopted = brief.verification_command_candidates[0];
+  if (adopted === void 0)
+    return void 0;
+  return { command: adopted, source: "adopted-verification" };
+}
+var init_regression_command = __esm({
+  "dist/flows/fix/writers/regression-command.js"() {
+    "use strict";
+  }
+});
+
 // dist/flows/fix/writers/regression-projection.js
 function regressionObservationPayload(observation) {
   return {
@@ -78634,12 +78688,12 @@ function regressionObservationPayload(observation) {
     stderr_summary: observation.stderr_summary
   };
 }
-function projectFixRegressionBaseline(observations) {
-  if (observations.length === 0) {
+function projectFixRegressionBaseline(observations, selected) {
+  if (observations.length === 0 || selected === void 0) {
     return FixRegressionProof.parse({
       status: "deferred",
       overall_status: "passed",
-      reason: "Brief deferred the regression test; no runtime baseline was collected."
+      reason: "No command was available to run before the fix, so no regression baseline was collected."
     });
   }
   const observation = observations[0];
@@ -78651,22 +78705,33 @@ function projectFixRegressionBaseline(observations) {
     return FixRegressionProof.parse({
       status: "proved",
       overall_status: "passed",
+      command_source: selected.source,
+      baseline
+    });
+  }
+  if (selected.source === "adopted-verification") {
+    return FixRegressionProof.parse({
+      status: "not-captured",
+      overall_status: "passed",
+      command_source: selected.source,
+      reason: "This project's own check already passed before the fix, so there is no failing-to-passing evidence to capture for this bug. The change still has to pass that check to close, but nothing here demonstrates the reported bug was present.",
       baseline
     });
   }
   return FixRegressionProof.parse({
     status: "not-proved",
     overall_status: "failed",
+    command_source: selected.source,
     reason: "Brief claimed the regression test fails before the fix, but the runtime observed it pass. The brief selected the wrong pre-fix proof command or the bug no longer reproduces.",
     baseline
   });
 }
-function projectFixRegressionRerun(observations) {
-  if (observations.length === 0) {
+function projectFixRegressionRerun(observations, source) {
+  if (observations.length === 0 || source === void 0) {
     return FixRegressionRerun.parse({
       status: "deferred",
       overall_status: "passed",
-      reason: "Brief deferred the regression test; no runtime rerun was performed."
+      reason: "The baseline captured no regression proof, so there was nothing to rerun."
     });
   }
   const observation = observations[0];
@@ -78678,13 +78743,15 @@ function projectFixRegressionRerun(observations) {
     return FixRegressionRerun.parse({
       status: "cleared",
       overall_status: "passed",
+      command_source: source,
       rerun
     });
   }
   return FixRegressionRerun.parse({
     status: "still-failing",
     overall_status: "failed",
-    reason: "Brief declared the regression test fails before the fix and the baseline confirmed that, but the same command still fails after the fix. The fix did not clear the regression.",
+    command_source: source,
+    reason: "The baseline observed this command failing before the fix, but the same command still fails after it. The fix did not clear the regression.",
     rerun
   });
 }
@@ -78697,6 +78764,13 @@ var init_regression_projection = __esm({
 
 // dist/flows/fix/writers/regression-baseline.js
 import { readFileSync as readFileSync25 } from "node:fs";
+function readBrief(context) {
+  const briefPath = reportPathForSchemaInRuntimeFlow(context.flow, "fix.brief@v1");
+  if (!context.step.reads.includes(briefPath)) {
+    throw new Error(`fix.regression-proof@v1 requires step '${context.step.id}' to read ${briefPath}`);
+  }
+  return FixBrief.parse(JSON.parse(readFileSync25(resolveRunRelative(context.runFolder, briefPath), "utf8")));
+}
 var fixRegressionBaselineWriter;
 var init_regression_baseline = __esm({
   "dist/flows/fix/writers/regression-baseline.js"() {
@@ -78704,26 +78778,20 @@ var init_regression_baseline = __esm({
     init_run_relative_path();
     init_runtime_index();
     init_reports6();
+    init_regression_command();
     init_regression_projection();
     fixRegressionBaselineWriter = {
       resultSchemaName: "fix.regression-proof@v1",
-      // Reads the brief's regression_test contract to source the pre-fix proof
-      // command. Declared so a composer wires the read and the offline floor resolves
-      // it; loadCommands below is the enforcing source of truth.
+      // Reads the brief to source the pre-fix proof command. Declared so a composer
+      // wires the read and the offline floor resolves it; loadCommands below is the
+      // enforcing source of truth.
       reads: [{ name: "brief", schema: "fix.brief@v1", required: true }],
       loadCommands(context) {
-        const briefPath = reportPathForSchemaInRuntimeFlow(context.flow, "fix.brief@v1");
-        if (!context.step.reads.includes(briefPath)) {
-          throw new Error(`fix.regression-proof@v1 requires step '${context.step.id}' to read ${briefPath}`);
-        }
-        const brief = FixBrief.parse(JSON.parse(readFileSync25(resolveRunRelative(context.runFolder, briefPath), "utf8")));
-        if (brief.regression_contract.regression_test.status !== "failing-before-fix") {
-          return [];
-        }
-        return [brief.regression_contract.regression_test.command];
+        const selected = regressionProofCommand(readBrief(context));
+        return selected === void 0 ? [] : [selected.command];
       },
-      buildResult(observations) {
-        return projectFixRegressionBaseline(observations);
+      buildResult(observations, context) {
+        return projectFixRegressionBaseline(observations, regressionProofCommand(readBrief(context)));
       }
     };
   }
@@ -78731,6 +78799,13 @@ var init_regression_baseline = __esm({
 
 // dist/flows/fix/writers/regression-rerun.js
 import { readFileSync as readFileSync26 } from "node:fs";
+function readBaseline(context) {
+  const proofPath = reportPathForSchemaInRuntimeFlow(context.flow, "fix.regression-proof@v1");
+  if (!context.step.reads.includes(proofPath)) {
+    throw new Error(`fix.regression-rerun@v1 requires step '${context.step.id}' to read ${proofPath}`);
+  }
+  return FixRegressionProof.parse(JSON.parse(readFileSync26(resolveRunRelative(context.runFolder, proofPath), "utf8")));
+}
 var fixRegressionRerunWriter;
 var init_regression_rerun = __esm({
   "dist/flows/fix/writers/regression-rerun.js"() {
@@ -78741,24 +78816,27 @@ var init_regression_rerun = __esm({
     init_regression_projection();
     fixRegressionRerunWriter = {
       resultSchemaName: "fix.regression-rerun@v1",
-      // Re-runs the same regression command the brief declared (which the baseline
-      // writer also sources), so it reads the brief. Declared so a composer wires the
-      // read and the offline floor resolves it; loadCommands below is the enforcing
-      // source of truth.
-      reads: [{ name: "brief", schema: "fix.brief@v1", required: true }],
+      // Re-runs the command the baseline recorded, so it reads the baseline's
+      // report. Declared so a composer wires the read and the offline floor
+      // resolves it; loadCommands below is the enforcing source of truth.
+      reads: [{ name: "regression", schema: "fix.regression-proof@v1", required: true }],
       loadCommands(context) {
-        const briefPath = reportPathForSchemaInRuntimeFlow(context.flow, "fix.brief@v1");
-        if (!context.step.reads.includes(briefPath)) {
-          throw new Error(`fix.regression-rerun@v1 requires step '${context.step.id}' to read ${briefPath}`);
-        }
-        const brief = FixBrief.parse(JSON.parse(readFileSync26(resolveRunRelative(context.runFolder, briefPath), "utf8")));
-        if (brief.regression_contract.regression_test.status !== "failing-before-fix") {
+        const proof = readBaseline(context);
+        if (proof.status !== "proved" || proof.baseline === void 0)
           return [];
-        }
-        return [brief.regression_contract.regression_test.command];
+        return [
+          {
+            id: proof.baseline.command_id,
+            cwd: proof.baseline.cwd,
+            argv: proof.baseline.argv,
+            timeout_ms: proof.baseline.timeout_ms,
+            max_output_bytes: proof.baseline.max_output_bytes,
+            env: proof.baseline.env
+          }
+        ];
       },
-      buildResult(observations) {
-        return projectFixRegressionRerun(observations);
+      buildResult(observations, context) {
+        return projectFixRegressionRerun(observations, readBaseline(context).command_source);
       }
     };
   }
@@ -110829,7 +110907,7 @@ function friendlyRegressionStatus(status) {
   if (status === "cleared")
     return "reproduced before the fix and cleared after";
   if (status === "deferred")
-    return "not proven by a command, so the relevance of the change to the bug is unverified";
+    return "no failing-then-passing evidence was captured, so nothing here shows the change is what fixed the bug";
   if (status === "still-failing")
     return "the regression command still fails after the fix";
   return status;

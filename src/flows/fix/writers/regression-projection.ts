@@ -1,5 +1,7 @@
 import type { VerificationCommandObservation } from '../../registries/verification-writers/types.js';
+import type { FixRegressionCommandSource } from '../reports.js';
 import { FixRegressionProof, FixRegressionRerun } from '../reports.js';
+import type { RegressionProofCommand } from './regression-command.js';
 
 function regressionObservationPayload(observation: VerificationCommandObservation) {
   return {
@@ -19,12 +21,14 @@ function regressionObservationPayload(observation: VerificationCommandObservatio
 
 export function projectFixRegressionBaseline(
   observations: readonly VerificationCommandObservation[],
+  selected: RegressionProofCommand | undefined,
 ): FixRegressionProof {
-  if (observations.length === 0) {
+  if (observations.length === 0 || selected === undefined) {
     return FixRegressionProof.parse({
       status: 'deferred',
       overall_status: 'passed',
-      reason: 'Brief deferred the regression test; no runtime baseline was collected.',
+      reason:
+        'No command was available to run before the fix, so no regression baseline was collected.',
     });
   }
   const observation = observations[0];
@@ -36,12 +40,26 @@ export function projectFixRegressionBaseline(
     return FixRegressionProof.parse({
       status: 'proved',
       overall_status: 'passed',
+      command_source: selected.source,
+      baseline,
+    });
+  }
+  // A pass before the fix means different things depending on who chose the
+  // command, so the two cases get different statuses and different routes.
+  if (selected.source === 'adopted-verification') {
+    return FixRegressionProof.parse({
+      status: 'not-captured',
+      overall_status: 'passed',
+      command_source: selected.source,
+      reason:
+        "This project's own check already passed before the fix, so there is no failing-to-passing evidence to capture for this bug. The change still has to pass that check to close, but nothing here demonstrates the reported bug was present.",
       baseline,
     });
   }
   return FixRegressionProof.parse({
     status: 'not-proved',
     overall_status: 'failed',
+    command_source: selected.source,
     reason:
       'Brief claimed the regression test fails before the fix, but the runtime observed it pass. The brief selected the wrong pre-fix proof command or the bug no longer reproduces.',
     baseline,
@@ -50,12 +68,13 @@ export function projectFixRegressionBaseline(
 
 export function projectFixRegressionRerun(
   observations: readonly VerificationCommandObservation[],
+  source: FixRegressionCommandSource | undefined,
 ): FixRegressionRerun {
-  if (observations.length === 0) {
+  if (observations.length === 0 || source === undefined) {
     return FixRegressionRerun.parse({
       status: 'deferred',
       overall_status: 'passed',
-      reason: 'Brief deferred the regression test; no runtime rerun was performed.',
+      reason: 'The baseline captured no regression proof, so there was nothing to rerun.',
     });
   }
   const observation = observations[0];
@@ -67,14 +86,16 @@ export function projectFixRegressionRerun(
     return FixRegressionRerun.parse({
       status: 'cleared',
       overall_status: 'passed',
+      command_source: source,
       rerun,
     });
   }
   return FixRegressionRerun.parse({
     status: 'still-failing',
     overall_status: 'failed',
+    command_source: source,
     reason:
-      'Brief declared the regression test fails before the fix and the baseline confirmed that, but the same command still fails after the fix. The fix did not clear the regression.',
+      'The baseline observed this command failing before the fix, but the same command still fails after it. The fix did not clear the regression.',
     rerun,
   });
 }

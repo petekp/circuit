@@ -3,7 +3,7 @@ contract: fix
 status: ratified-v0.1
 version: 0.1
 schema_source: src/flows/fix/reports.ts
-last_updated: 2026-07-09
+last_updated: 2026-07-31
 depends_on: [flow, flow-blocks, flow-schematic, step, connector]
 report_ids:
   - fix.brief
@@ -43,12 +43,12 @@ skips the review relay after verification; medium and high keep it.
 | `fix.context` | Evidence gathered before diagnosis | `<run-folder>/reports/fix/context.json` |
 | `fix.diagnosis` | Cause, reproduction status, and uncertainty | `<run-folder>/reports/fix/diagnosis.json` |
 | `fix.no-repro-decision` | Operator or mode-policy choice when evidence is uncertain. Compiled future routing intent: no runtime path produces it yet (see the no-repro note below) | `<run-folder>/reports/fix/no-repro-decision.json` |
-| `fix.regression-proof` | Pre-fix observation of the brief's regression command | `<run-folder>/reports/fix/regression-proof.json` |
+| `fix.regression-proof` | Pre-fix observation of the proof command | `<run-folder>/reports/fix/regression-proof.json` |
 | `fix.baseline-snapshot` | Pre-fix-act git state with per-path content fingerprints | `<run-folder>/reports/fix/baseline-snapshot.json` |
 | `fix.change` | Focused change evidence | `<run-folder>/reports/fix/change.json` |
 | `fix.change-set` | Cumulative run diff against the baseline plus accepted act declarations | `<run-folder>/reports/fix/change-set.json` |
 | `fix.verification` | Executed proof evidence (brief's verification candidates) | `<run-folder>/reports/fix/verification.json` |
-| `fix.regression-rerun` | Post-fix rerun of the brief's regression command | `<run-folder>/reports/fix/regression-rerun.json` |
+| `fix.regression-rerun` | Post-fix rerun of the same proof command | `<run-folder>/reports/fix/regression-rerun.json` |
 | `fix.review` | Independent review result when the mode requires it | `<run-folder>/reports/fix/review.json` |
 | `fix.result` | Close summary | `<run-folder>/reports/fix-result.json` |
 
@@ -103,6 +103,18 @@ behavior, a reproduction command or schematic when available, and either a
 failing-before-fix regression test or an explicit deferral reason when the bug
 is not yet reproducible.
 
+`fix.regression-proof@v1` records what the runtime observed before any worker
+touched the checkout. It runs the repro the brief declared. When the brief
+deferred, it runs the project's own resolved check instead — the first of the
+brief's verification command candidates, the same command fix-verify runs.
+`command_source` names which of the two it was. The four statuses are `proved`
+(the command failed before the fix, so the bug is demonstrated), `not-captured`
+(an adopted check already passed before the fix, so there is no failing state
+to capture — the run continues and is denied `fixed`, but this is not a defect
+and does not route to recovery), `not-proved` (a repro the brief declared
+passed before the fix, which contradicts the brief and does route to recovery),
+and `deferred` (nothing runnable existed at all).
+
 `fix.result@v1` cannot report `fixed` unless all four runtime-owned pillars
 agree: `verification_status` is `passed`, `regression_status` is `proved`,
 `regression_rerun_status` is `cleared` (the same command that proved the bug
@@ -129,10 +141,12 @@ from the prior passing change-set only while those paths still differ from the
 same run baseline. Current-attempt declarations are never filtered, so a new
 overclaim still fails as `missing_declared`.
 
-`fix.regression-rerun@v1` reruns the brief's regression command after
-fix-verify and emits `cleared` (regression now passes), `still-failing`
-(regression still fails — fix didn't fix it), or `deferred` (brief
-deferred the regression). `outcome: 'fixed'` requires `cleared`.
+`fix.regression-rerun@v1` reruns the exact command recorded in
+`fix.regression-proof@v1` after fix-verify, so the two steps cannot disagree
+about which command is the proof. It emits `cleared` (the proved command now
+passes), `still-failing` (it still fails — the fix didn't fix it), or
+`deferred` (the baseline captured no proof, so there is nothing to rerun).
+`outcome: 'fixed'` requires `cleared`.
 
 Independent review is conditional. When review runs, `fix.result@v1` must carry
 a review result and a pointer to `fix.review`. When review is skipped, the

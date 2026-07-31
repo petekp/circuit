@@ -85,6 +85,14 @@ function primaryResultCausePhrases(primaryResult: Record<string, unknown>): read
   if (primaryResult.review_verdict === 'accept-with-fixes') {
     phrases.push("review verdict 'accept-with-fixes'");
   }
+  // Without this, the single most common reason a Fix run needs attention —
+  // the repair landed and the checks pass, but nothing demonstrated the bug
+  // before and after — reads as a bare "reported outcome 'partial'", which
+  // tells the operator to go read reports to find out what went wrong when
+  // nothing did.
+  if (primaryResult.regression_status === 'deferred') {
+    phrases.push('no before-and-after proof was captured for the reported bug');
+  }
   for (const path of stringArrayField(primaryResult.touch_area, 'out_of_bounds_paths')) {
     phrases.push(`out-of-bounds path '${path}'`);
   }

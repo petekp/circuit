@@ -95,6 +95,8 @@ const ALLOWED_TEST_WORKFLOW_TARGETS = [
 
 const ALLOWED_TEST_INTERNAL_FLOW_IMPORTS = new Set([
   'tests/runner/fix-result-projection.test.ts -> src/flows/fix/writers/result-projection.ts',
+  'tests/runner/fix-regression-projection.test.ts -> src/flows/fix/writers/regression-command.ts',
+  'tests/runner/fix-regression-projection.test.ts -> src/flows/fix/writers/regression-projection.ts',
   'tests/runner/build-result-projection.test.ts -> src/flows/build/writers/result-projection.ts',
   'tests/runner/build-touch-area-projection.test.ts -> src/flows/build/writers/touch-area-projection.ts',
   'tests/contracts/pursue-report-schemas.test.ts -> src/flows/pursue/writers/contract-projection.ts',

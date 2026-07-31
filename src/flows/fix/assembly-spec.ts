@@ -254,7 +254,10 @@ export const fixBlockItems: readonly BlockStepUse[] = [
     title: 'Verify — rerun regression command after fix',
     stage: 'verify',
     block: 'run-verification',
-    input: { proof: 'verification.plan@v1', brief: 'fix.brief@v1' },
+    // Reads the baseline's report, not the brief: the command to rerun is
+    // whatever the baseline actually ran, so the two cannot disagree about
+    // which command is the proof.
+    input: { proof: 'verification.plan@v1', regression: 'fix.regression-proof@v1' },
     output: 'fix.regression-rerun@v1',
     protocol: 'fix-regression-rerun@v1',
     writes: { report_path: 'reports/fix/regression-rerun.json' },

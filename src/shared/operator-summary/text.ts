@@ -56,15 +56,16 @@ export function friendlyVerificationStatus(status: string): string {
   return status;
 }
 
-// Fix's regression rerun proves the change is relevant to the bug: the bug's
-// command failed before the fix and passes after. On the default path (no
-// regression command in the goal) it defaults to 'deferred', so 'passed'
-// verification alone does not mean the change did the thing. These phrases say
-// so plainly.
+// Fix's regression rerun proves the change is relevant to the bug: a command
+// failed before the fix and passes after. The run now tries for that on every
+// goal, running the project's own check before the fix when the goal named no
+// repro, so 'cleared' is reachable by default. It still lands on 'deferred'
+// when that check was already passing beforehand, and a 'passed' verification
+// alone does not mean the change did the thing. These phrases say so plainly.
 export function friendlyRegressionStatus(status: string): string {
   if (status === 'cleared') return 'reproduced before the fix and cleared after';
   if (status === 'deferred')
-    return 'not proven by a command, so the relevance of the change to the bug is unverified';
+    return 'no failing-then-passing evidence was captured, so nothing here shows the change is what fixed the bug';
   if (status === 'still-failing') return 'the regression command still fails after the fix';
   return status;
 }

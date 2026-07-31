@@ -393,7 +393,7 @@
       "id": "fix-regression-rerun",
       "title": "Verify — rerun regression command after fix",
       "protocol": "fix-regression-rerun@v1",
-      "reads": ["reports/fix/brief.json"],
+      "reads": ["reports/fix/regression-proof.json"],
       "routes": {
         "continue": "fix-close-low",
         "pass": "fix-close-low",

@@ -432,7 +432,7 @@
       "stage": "verify",
       "input": {
         "proof": "verification.plan@v1",
-        "brief": "fix.brief@v1"
+        "regression": "fix.regression-proof@v1"
       },
       "optional_inputs": [],
       "output": "fix.regression-rerun@v1",

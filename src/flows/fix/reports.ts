@@ -329,20 +329,33 @@ export type FixVerification = z.infer<typeof FixVerification>;
 // Runtime-owned regression proof. The brief's regression contract states the
 // model's *intent* — what test should reproduce the bug. The runtime records
 // what it observed when it executed that test before the fix was applied:
-//   - 'proved'     — runtime ran the regression command and observed it fail
-//                    (matching the brief's failing-before-fix expectation, so
-//                    the test does reproduce the bug).
-//   - 'deferred'   — brief did not specify a runnable regression test; no
-//                    proof was collected. fix-close cannot mark outcome
-//                    'fixed' on a deferred proof.
-//   - 'not-proved' — runtime ran the regression command but it passed,
-//                    contradicting the brief. The bug is not actually being
-//                    reproduced by the named test, so any later "fix" is
-//                    unfounded. Treated as a verification failure.
+//   - 'proved'       — runtime ran the regression command and observed it fail
+//                      (matching the brief's failing-before-fix expectation, so
+//                      the test does reproduce the bug).
+//   - 'deferred'     — no runnable command was available at all; no proof was
+//                      collected. fix-close cannot mark outcome 'fixed' on a
+//                      deferred proof.
+//   - 'not-captured' — runtime ran the project's own check before the fix and
+//                      it passed, so there is no red to turn green. The bug is
+//                      real but this project's checks do not cover it. Nothing
+//                      is wrong with the run, so this does not route to
+//                      recovery; it only denies the 'fixed' claim.
+//   - 'not-proved'   — runtime ran a command the BRIEF declared fails before
+//                      the fix, and it passed, contradicting the brief. The bug
+//                      is not actually being reproduced by the named test, so
+//                      any later "fix" is unfounded. Treated as a verification
+//                      failure.
+//
+// The 'not-captured' / 'not-proved' split matters because the same observation
+// (command passed pre-fix) means different things depending on who chose the
+// command. A brief that names a repro and is wrong about it is a defect worth
+// re-framing. The project's general suite passing pre-fix is the normal case
+// for any bug the suite never covered, and routing that to recovery would send
+// every such run back to the drawing board for doing nothing wrong.
 //
 // `overall_status` exists so the verification executor can route on the
-// outcome: 'passed' when status is 'proved' or 'deferred' (continue), 'failed'
-// when status is 'not-proved' (recovery).
+// outcome: 'passed' when status is 'proved', 'deferred', or 'not-captured'
+// (continue), 'failed' when status is 'not-proved' (recovery).
 export const FixRegressionProofObservation = z
   .object({
     command_id: z.string().min(1),
@@ -370,14 +383,28 @@ export const FixRegressionProofObservation = z
   });
 export type FixRegressionProofObservation = z.infer<typeof FixRegressionProofObservation>;
 
-export const FixRegressionProofStatus = z.enum(['proved', 'deferred', 'not-proved']);
+export const FixRegressionProofStatus = z.enum([
+  'proved',
+  'deferred',
+  'not-captured',
+  'not-proved',
+]);
 export type FixRegressionProofStatus = z.infer<typeof FixRegressionProofStatus>;
+
+// Who chose the command the baseline ran. 'declared' is a repro the brief
+// named. 'adopted-verification' is the command Circuit already resolved for
+// proving the change — the project's own build, lint, or test entry point.
+// Recorded so a reader can tell targeted evidence from general evidence
+// without re-deriving it from the brief.
+export const FixRegressionCommandSource = z.enum(['declared', 'adopted-verification']);
+export type FixRegressionCommandSource = z.infer<typeof FixRegressionCommandSource>;
 
 export const FixRegressionProof = z
   .object({
     status: FixRegressionProofStatus,
     overall_status: z.enum(['passed', 'failed']),
     reason: z.string().min(1).optional(),
+    command_source: FixRegressionCommandSource.optional(),
     baseline: FixRegressionProofObservation.optional(),
   })
   .strict()
@@ -426,6 +453,33 @@ export const FixRegressionProof = z
           path: ['status'],
           message: "status 'not-proved' requires baseline command_status 'passed'",
         });
+      }
+      if (proof.status === 'not-captured') {
+        if (proof.baseline?.command_status !== 'passed') {
+          ctx.addIssue({
+            code: 'custom',
+            path: ['status'],
+            message: "status 'not-captured' requires baseline command_status 'passed'",
+          });
+        }
+        // A pre-fix pass on an adopted command is the only honest route to
+        // 'not-captured'. A declared repro that passes is 'not-proved': the
+        // brief made a claim the runtime disproved, and that is a defect.
+        if (proof.command_source !== 'adopted-verification') {
+          ctx.addIssue({
+            code: 'custom',
+            path: ['command_source'],
+            message:
+              "status 'not-captured' requires command_source 'adopted-verification'; a declared repro that passes pre-fix is 'not-proved'",
+          });
+        }
+        if (proof.reason === undefined) {
+          ctx.addIssue({
+            code: 'custom',
+            path: ['reason'],
+            message: "reason is required when status is 'not-captured'",
+          });
+        }
       }
     }
   });
@@ -611,10 +665,14 @@ export type FixChangeSet = z.infer<typeof FixChangeSet>;
 //                      The fix did not fix the regression, even though the
 //                      brief's verification candidates may have passed.
 //                      fix-close cannot mark outcome 'fixed'.
-//   - 'deferred'     — brief deferred the regression test, so there is
-//                      nothing to rerun. (Mirrors the baseline 'deferred'
-//                      status; outcome 'fixed' is still gated by
+//   - 'deferred'     — the baseline captured no proof, so there is nothing to
+//                      rerun. (Outcome 'fixed' is still gated by
 //                      regression_status='proved' separately.)
+//
+// The rerun sources its command from the baseline's own report rather than
+// re-deriving it from the brief, so the two can never disagree about which
+// command is the proof. If the baseline did not reach 'proved', the rerun has
+// nothing to clear and records 'deferred'.
 //
 // overall_status routes the verification executor: 'passed' when status is
 // 'cleared' or 'deferred' (continue), 'failed' when status is 'still-failing'
@@ -627,6 +685,7 @@ export const FixRegressionRerun = z
     status: FixRegressionRerunStatus,
     overall_status: z.enum(['passed', 'failed']),
     reason: z.string().min(1).optional(),
+    command_source: FixRegressionCommandSource.optional(),
     rerun: FixRegressionProofObservation.optional(),
   })
   .strict()

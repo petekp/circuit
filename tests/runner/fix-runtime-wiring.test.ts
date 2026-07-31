@@ -486,6 +486,177 @@ describe('Lite Fix runtime wiring', () => {
   });
 });
 
+// The sour close. A Fix run whose repair worked, whose verification passed,
+// whose change-set was clean, and whose reviewer accepted still closed
+// 'partial' — which binds the run outcome to 'stopped', exit 1 — purely
+// because no regression proof was captured.
+//
+// The frame step is read-only, so its relay honestly defers authoring a
+// regression test: it cannot run anything to find out. fix-regression-baseline
+// used to inherit that deferral instead of capturing the baseline itself, even
+// though the brief hands it verification_command_candidates that Circuit
+// resolved and that the baseline runs before fix-act touches anything.
+//
+// These two cases are the fork. In the first, the project's own check is red
+// before the fix and green after: exactly the evidence a person would accept,
+// so the run closes 'fixed'. In the second the check was already green, so
+// there is no red to turn green — the run still needs attention, but it must
+// not route to recovery and must say plainly what is missing.
+const MARKER_PATH = 'src/test.ts';
+const MARKER_CHECK_ARGV = [
+  process.execPath,
+  '-e',
+  `process.exit(require('node:fs').existsSync(${JSON.stringify(MARKER_PATH)}) ? 0 : 1)`,
+];
+const ALWAYS_GREEN_ARGV = [process.execPath, '-e', 'process.exit(0)'];
+
+function deferredBriefWithCandidate(
+  candidateArgv: readonly string[],
+): Pick<ExecutorRegistry, 'compose' | 'verification'> {
+  return {
+    // Only the two git-driven steps are stubbed. fix-regression-baseline,
+    // fix-regression-rerun, and fix-verify all run for real, which is the
+    // point: the baseline has to observe the red itself.
+    verification: async (step, context) => {
+      if (step.kind !== 'verification') throw new Error('expected verification step');
+      if (step.id === 'fix-baseline-snapshot' || step.id === 'fix-change-set') {
+        return await fixVerificationOverride()(step, context);
+      }
+      return await executeVerification(step, context);
+    },
+    compose: async (step, context) => {
+      if (step.kind !== 'compose') throw new Error('expected compose step');
+      if (step.id !== 'fix-frame') return await executeCompose(step, context);
+      const report = step.writes?.report;
+      if (report === undefined) throw new Error("expected 'fix-frame' to write a report");
+      const brief = FixBrief.parse({
+        problem_statement: context.goal,
+        expected_behavior: `After fix: ${context.goal}`,
+        observed_behavior: `Before fix: ${context.goal}`,
+        scope: 'test scope',
+        regression_contract: {
+          expected_behavior: `After fix: ${context.goal}`,
+          actual_behavior: `Before fix: ${context.goal}`,
+          repro: { kind: 'not-reproducible', deferred_reason: 'read-only frame step' },
+          regression_test: {
+            status: 'deferred',
+            deferred_reason: 'read-only frame step cannot author a regression test',
+          },
+        },
+        success_criteria: [`Verify exits 0 for: ${context.goal}`],
+        verification_command_candidates: [
+          {
+            id: 'project-check',
+            cwd: '.',
+            argv: [...candidateArgv],
+            timeout_ms: 30_000,
+            max_output_bytes: 200_000,
+            env: {},
+          },
+        ],
+      });
+      await context.files.writeJson(report, brief);
+      await context.trace.append({
+        run_id: context.runId,
+        kind: 'step.report_written',
+        step_id: step.id,
+        attempt: context.activeStepAttempt ?? 1,
+        report_path: report.path,
+        ...(report.schema === undefined ? {} : { report_schema: report.schema }),
+      });
+      return { route: 'pass', details: { stub: 'frame' } };
+    },
+  };
+}
+
+describe('Fix regression baseline when the brief deferred', () => {
+  it('captures the baseline from the resolved check and closes fixed, not partial', async () => {
+    const { bytes } = loadLiteFixture();
+    const runFolder = join(runFolderBase, 'deferred-baseline-captured');
+
+    const outcome = await runCompiledFlow({
+      runDir: runFolder,
+      flowBytes: bytes,
+      runId: 'f1000000-0000-0000-0000-000000000100',
+      goal: 'fix off-by-one in pagination',
+      depth: 'low',
+      now: deterministicNow(Date.UTC(2026, 3, 26, 11, 0, 0)),
+      relayer: relayer(projectRoot),
+      executors: deferredBriefWithCandidate(MARKER_CHECK_ARGV),
+      projectRoot,
+    });
+
+    expect(outcome.outcome).toBe('complete');
+
+    const regression = FixRegressionProof.parse(
+      JSON.parse(readFileSync(join(runFolder, 'reports/fix/regression-proof.json'), 'utf8')),
+    );
+    // The baseline ran the resolved check before fix-act and saw it fail.
+    expect(regression.status).toBe('proved');
+    expect(regression.command_source).toBe('adopted-verification');
+    expect(regression.baseline?.argv).toEqual(MARKER_CHECK_ARGV);
+    expect(regression.baseline?.command_status).toBe('failed');
+
+    const rerun = FixRegressionRerun.parse(
+      JSON.parse(readFileSync(join(runFolder, 'reports/fix/regression-rerun.json'), 'utf8')),
+    );
+    // And the SAME command cleared after the fix. Baseline and rerun must
+    // agree on which command is the proof, or the rerun proves nothing.
+    expect(rerun.status).toBe('cleared');
+    expect(rerun.rerun?.argv).toEqual(MARKER_CHECK_ARGV);
+
+    const result = FixResult.parse(
+      JSON.parse(readFileSync(join(runFolder, 'reports/fix-result.json'), 'utf8')),
+    );
+    expect(result.regression_status).toBe('proved');
+    expect(result.outcome).toBe('fixed');
+  });
+
+  it('continues, and names what is missing, when the check was already green', async () => {
+    const { bytes } = loadLiteFixture();
+    const runFolder = join(runFolderBase, 'deferred-baseline-not-captured');
+
+    const outcome = await runCompiledFlow({
+      runDir: runFolder,
+      flowBytes: bytes,
+      runId: 'f1000000-0000-0000-0000-000000000101',
+      goal: 'fix off-by-one in pagination',
+      depth: 'low',
+      now: deterministicNow(Date.UTC(2026, 3, 26, 11, 0, 0)),
+      relayer: relayer(projectRoot),
+      executors: deferredBriefWithCandidate(ALWAYS_GREEN_ARGV),
+      projectRoot,
+    });
+
+    const regression = FixRegressionProof.parse(
+      JSON.parse(readFileSync(join(runFolder, 'reports/fix/regression-proof.json'), 'utf8')),
+    );
+    expect(regression.status).toBe('not-captured');
+    // The run reached its close instead of bouncing back to fix-frame. A suite
+    // that never covered this bug is not a defect in the brief.
+    expect(regression.overall_status).toBe('passed');
+
+    const rerun = FixRegressionRerun.parse(
+      JSON.parse(readFileSync(join(runFolder, 'reports/fix/regression-rerun.json'), 'utf8')),
+    );
+    // Nothing was proved, so there is nothing to clear. Re-running the already
+    // green command here would let 'cleared' mean nothing.
+    expect(rerun.status).toBe('deferred');
+
+    const result = FixResult.parse(
+      JSON.parse(readFileSync(join(runFolder, 'reports/fix-result.json'), 'utf8')),
+    );
+    expect(result.regression_status).toBe('deferred');
+    expect(result.outcome).toBe('partial');
+
+    // This run does need a look, so 'stopped' is right. What was wrong was the
+    // operator having to go read reports to discover that the only shortfall
+    // was missing proof.
+    expect(outcome.outcome).toBe('stopped');
+    expect(outcome.reason).toContain('no before-and-after proof was captured for the reported bug');
+  });
+});
+
 describe('Standard Fix review-unavailable wiring', () => {
   it('closes with proof evidence when the reviewer connector fails after verification passes', async () => {
     const { bytes } = loadDefaultFixture();

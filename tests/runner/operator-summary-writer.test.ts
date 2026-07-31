@@ -1289,8 +1289,10 @@ describe('operator summary writer', () => {
   });
 
   it('surfaces a deferred regression so a partial Fix cannot read as relevance-proven', () => {
-    // On the common default Fix path the regression rerun defaults to
-    // 'deferred': no command proved the change is actually relevant to the bug.
+    // A Fix run can still land on regression_rerun_status 'deferred': the
+    // baseline runs the project's own check before the fix, and when that check
+    // was already green there is no failing-then-passing evidence to capture,
+    // so nothing proved the change is actually relevant to the bug.
     // buildFixDetails rendered only verification and review, so a cosmetic
     // in-scope edit could pass and the operator surface showed zero signal the
     // relevance backstop never ran. The deferred regression must be legible.
@@ -1312,7 +1314,9 @@ describe('operator summary writer', () => {
     const slots = written.summary.brief_slots;
     if (slots === undefined) throw new Error('expected brief_slots');
     expect(
-      slots.key_points.some((point) => /Regression:/i.test(point) && /unverified/i.test(point)),
+      slots.key_points.some(
+        (point) => /Regression:/i.test(point) && /nothing here shows/i.test(point),
+      ),
     ).toBe(true);
   });
 
@@ -1362,7 +1366,9 @@ describe('operator summary writer', () => {
     // both while showing worker access is not a summary of what happened.
     expect(slots.key_points.some((point) => /Verification:\s*passed/i.test(point))).toBe(true);
     expect(
-      slots.key_points.some((point) => /Regression:/i.test(point) && /unverified/i.test(point)),
+      slots.key_points.some(
+        (point) => /Regression:/i.test(point) && /nothing here shows/i.test(point),
+      ),
     ).toBe(true);
 
     // Environment disclosure may still appear, but never ahead of a finding.
