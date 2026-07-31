@@ -31,7 +31,7 @@ Do not hand-maintain current flow inventories here. Current flow data comes from
 compiler. Generated schematics live under
 `src/flows/<id>/schematic.json`, generated compiled outputs live under
 `generated/flows/<id>/`, and generated release surfaces such as
-[docs/release/parity-matrix.generated.md](../release/parity-matrix.generated.md)
+[docs/release/readiness-report.generated.md](../release/readiness-report.generated.md)
 are derived.
 
 ## Short Version

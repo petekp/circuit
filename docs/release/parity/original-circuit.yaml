@@ -1,3 +1,9 @@
+# ARCHIVED 2026-07-30. This snapshot recorded the original Circuit's capability
+# promise so the rewrite could prove it dropped nothing. That migration-fidelity
+# job is complete: every gap was closed or covered by an approved exception, and
+# the comparison gate (check-parity, render-parity-matrix) was retired from the
+# per-change chain. The file stays as the historical record and remains
+# schema-validated; it is no longer compared against current capabilities.
 schema_version: 1
 sources:
   - id: legacy-readme

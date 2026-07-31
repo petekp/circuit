@@ -6,7 +6,6 @@ This is the closed hand-authored release list for the first public Circuit
 release. It complements the generated release truth surfaces:
 
 - [docs/release/readiness-report.generated.md](readiness-report.generated.md)
-- [docs/release/parity-matrix.generated.md](parity-matrix.generated.md)
 - `generated/release/current-capabilities.json`
 - [docs/release/proofs/index.yaml](proofs/index.yaml)
 - [docs/release/claims/public-claims.yaml](claims/public-claims.yaml)

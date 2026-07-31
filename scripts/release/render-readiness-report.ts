@@ -42,10 +42,6 @@ function capabilityStatus(current: CurrentCapabilitySnapshot, id: string): strin
 async function main() {
   const schemas = await loadReleaseSchemas();
   const checks = await loadReleaseChecks();
-  const original = loadYamlWithSchema(
-    'docs/release/parity/original-circuit.yaml',
-    schemas.OriginalCapabilitySnapshot,
-  );
   const current = loadJsonWithSchema(
     'generated/release/current-capabilities.json',
     schemas.CurrentCapabilitySnapshot,
@@ -60,7 +56,6 @@ async function main() {
   );
   const proofs = loadYamlWithSchema('docs/release/proofs/index.yaml', schemas.ProofScenarioIndex);
 
-  const parity = checks.compareParity({ original, current, exceptions });
   const claimCheck = checks.validatePublicClaims({
     claims,
     current,
@@ -70,11 +65,10 @@ async function main() {
   });
   const proofCheck = checks.validateProofCoverage({ proofs, exceptions, pathExists });
   const blockers = checks.releaseBlockers({ exceptions, claims, proofs });
-  const warnings = [...parity.warnings, ...claimCheck.warnings, ...proofCheck.warnings];
-  const issues = [...parity.issues, ...claimCheck.issues, ...proofCheck.issues];
+  const warnings = [...claimCheck.warnings, ...proofCheck.warnings];
+  const issues = [...claimCheck.issues, ...proofCheck.issues];
 
   const statusRows = [
-    ['Original capabilities', original.capabilities.length],
     ['Current capabilities', current.capabilities.length],
     ['Tracked exceptions', exceptions.exceptions.length],
     ['Public claims', claims.claims.length],
@@ -86,7 +80,6 @@ async function main() {
     blockers.length === 0
       ? [
           'Decide whether the approved Fix Lite intent exception needs public release-note wording.',
-          'Harden the partial host surfaces that are outside original parity: generic shell text progress and current plugin host wording.',
           'Keep golden runs refreshed whenever command, summary, or report contracts change.',
           'Run `npm run check-release-ready` as the strict final release check.',
         ]
@@ -99,7 +92,6 @@ async function main() {
             : 'Implement or fail generation for rich route outcomes.',
           'Finish the custom connector guide with a copy-pasteable file-protocol example.',
           'Capture golden release runs across proof categories.',
-          'Replace hand-maintained support claims with generated matrix blocks.',
         ];
 
   const lines = [
@@ -132,12 +124,10 @@ async function main() {
     '## Source Files',
     '',
     bullet([
-      'docs/release/parity/original-circuit.yaml',
       'generated/release/current-capabilities.json',
       'docs/release/parity/exceptions.yaml',
       'docs/release/claims/public-claims.yaml',
       'docs/release/proofs/index.yaml',
-      'docs/release/parity-matrix.generated.md',
     ]),
     '',
   ];

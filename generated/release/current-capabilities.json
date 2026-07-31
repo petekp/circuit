@@ -597,21 +597,6 @@
       }
     },
     {
-      "id": "matrix:flow-mode-parity",
-      "kind": "docs",
-      "title": "Flow and mode parity matrix",
-      "status": "implemented",
-      "summary": "Generated matrix exists; approved behavioral exceptions are tracked in the exception ledger.",
-      "evidence": ["docs/release/parity-matrix.generated.md"],
-      "readiness_refs": [],
-      "axes": {
-        "intent_hints": [],
-        "modes": [],
-        "stage_path": [],
-        "outputs": []
-      }
-    },
-    {
       "id": "mode:build:autonomous",
       "kind": "mode",
       "title": "build autonomous",

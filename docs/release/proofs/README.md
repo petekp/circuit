@@ -13,6 +13,17 @@ npm run capture-proofs:golden-runs
 The release tests enforce that proof paths stay under `docs/release/proofs/runs`
 and that the old `examples/runs` location does not come back.
 
+## Summary contracts declare their enforcement
+
+`summary_contract` is prose; nothing parses it. That means it can promise
+things no script checks, and an unenforced promise still steers real
+investment — the retired every-flow-and-mode Codex matrix promise was
+exactly that. The rule: every `summary_contract` states in its own text
+which parts are script-checked (naming the script) and which are
+narrative. If a sentence is neither checkable today nor honestly labeled
+narrative, do not put it in the contract; record the gap in the
+exceptions ledger instead.
+
 ## Lifecycle
 
 Every scenario in `index.yaml` has a `status`. Only `verified_current` proofs
@@ -106,7 +117,9 @@ A proof scenario has four coupled pieces. Add all of them in one change:
 2. **Index entry** in `index.yaml`: id `proof:<name>`, the exact
    reproduction command (it must mirror the capture argv; a test pins
    this), `required_files`, `backing_paths` for the reports the flow
-   writes, and `status: verified_current`.
+   writes, and `status: verified_current`. Write the `summary_contract`
+   under the enforcement rule above: script-checked parts name their
+   script, everything else is labeled narrative.
 3. **Test pins** in `tests/release/release-infrastructure.test.ts`: add
    the scenario to the expected-outcome map and to the command-string
    consistency map; pin the flow-level result report if the flow has one.

@@ -785,16 +785,6 @@ function supportCapabilities(
       readiness_refs: [],
     },
     {
-      id: 'matrix:flow-mode-parity',
-      kind: 'docs',
-      title: 'Flow and mode parity matrix',
-      status: 'implemented',
-      summary:
-        'Generated matrix exists; approved behavioral exceptions are tracked in the exception ledger.',
-      evidence: ['docs/release/parity-matrix.generated.md'],
-      readiness_refs: [],
-    },
-    {
       id: 'route-outcomes:rich',
       kind: 'route_outcome',
       title: 'Rich route outcomes',

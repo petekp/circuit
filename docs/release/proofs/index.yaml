@@ -325,10 +325,10 @@ scenarios:
   - id: proof:codex-mcp-first-run
     title: Codex MCP Candidate First Run
     category: first-run
-    command: Run the exact remote candidate commit through the no-spend loader proof, the first-attempt MCP Review, and the checked release matrix, then record the bound evidence under <evidence-path>.
+    command: Run the exact remote candidate commit through the no-spend loader proof and the first-attempt MCP Review, then record the bound evidence under <evidence-path>.
     expected_flow: review
     expected_outcome: Real Codex loader discovers six tools, lists the exact workspace, and completes Review on the first attempt.
-    summary_contract: Evidence binds the immutable candidate bytes to the first-attempt Review artifacts, every public flow and tournament mode, both Mac architectures, cached-search consent, proof-network blocking, cleanup, spend, and absence of shell fallback or sandbox escalation.
+    summary_contract: 'Script-checked (scripts/release/check-codex-mcp-first-run-proof.ts): evidence binds the immutable candidate commit and the Codex plugin tree digest to digest-bound loader and first-attempt Review artifacts, with required assertions covering real loader completion, six-tool discovery, exact workspace identity, private control state, owned process cleanup, and the exact source ref. Narrative: the operator-side pre-approval of the one start tool is recorded openly in the evidence, and per-architecture loader coverage rides the CI Codex canary.'
     redaction_policy: Isolated host paths are normalized and credentials, proxy values, prompts, and source contents are excluded.
     required_files: []
     status: approved_exception

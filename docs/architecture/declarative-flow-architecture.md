@@ -124,10 +124,8 @@ npm run test -- tests/runner/cli-router.test.ts
 npm run check-evals
 node scripts/flows/emit.ts --check
 node scripts/release/emit-current-capabilities.ts --check
-node scripts/release/check-parity.ts
 node scripts/release/check-public-claims.ts
 node scripts/release/check-proof-coverage.ts
-node scripts/release/render-parity-matrix.ts --check
 node scripts/release/render-readiness-report.ts --check
 node scripts/release/audit-public-docs.ts
 node scripts/release/audit-marketplace-safe-paths.ts

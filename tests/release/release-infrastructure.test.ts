@@ -16,7 +16,6 @@ import { PursuitResult } from '../../src/flows/pursue/reports.js';
 import { ReviewResult } from '../../src/flows/review/reports.js';
 import {
   FLOW_CATALOG_CLAIM_ID,
-  compareParity,
   releaseBlockers,
   validateProofCoverage,
   validatePublicClaims,
@@ -124,11 +123,16 @@ describe('release truth infrastructure', () => {
       status: 'approved_exception',
       exception_ids: ['EX-REL-014-CODEX-MCP-FIRST-RUN'],
     });
-    // The exception is only honest while the no-spend loader evidence it cites
-    // exists on disk and stays bound to the scenario.
+    // The exception is only honest while the loader and first-attempt Review
+    // evidence it cites exists on disk and stays bound to the scenario.
     expect(firstRunProof?.backing_paths).toEqual([
       'docs/release/proofs/runs/codex-mcp-first-run/loader-smoke-packed.json',
       'docs/release/proofs/runs/codex-mcp-first-run/loader-smoke-published.json',
+      'docs/release/proofs/runs/codex-mcp-first-run/evidence.json',
+      'docs/release/proofs/runs/codex-mcp-first-run/review/result.json',
+      'docs/release/proofs/runs/codex-mcp-first-run/review/review-result.json',
+      'docs/release/proofs/runs/codex-mcp-first-run/review/codex.jsonl',
+      'docs/release/proofs/runs/codex-mcp-first-run/review/invocation.json',
     ]);
     for (const path of firstRunProof?.backing_paths ?? []) {
       expect(exists(path)).toBe(true);
@@ -286,161 +290,6 @@ describe('release truth infrastructure', () => {
       (capability) => capability.id === 'route-outcomes:rich',
     );
     expect(richRoute?.status).toBe('implemented');
-  });
-
-  it('parity comparison passes only because gaps are tracked', () => {
-    const original = OriginalCapabilitySnapshot.parse(
-      yamlFile('docs/release/parity/original-circuit.yaml'),
-    );
-    const current = CurrentCapabilitySnapshot.parse(
-      jsonFile('generated/release/current-capabilities.json'),
-    );
-    const exceptions = ParityExceptionLedger.parse(yamlFile('docs/release/parity/exceptions.yaml'));
-    const result = compareParity({ original, current, exceptions });
-    expect(result.issues).toEqual([]);
-    expect(result.warnings.length).toBeGreaterThan(0);
-  });
-
-  it('parity comparison rejects implemented names that lack behavioral axes', () => {
-    const original = OriginalCapabilitySnapshot.parse({
-      schema_version: 1,
-      sources: [{ id: 'legacy', path: '/tmp/legacy.md', note: 'fixture' }],
-      capabilities: [
-        {
-          id: 'flow:fixture',
-          kind: 'flow',
-          title: 'Fixture',
-          summary: 'Fixture flow',
-          axes: {
-            modes: ['default'],
-            stage_path: ['Frame', 'Close'],
-            checkpoint: 'Pauses for risky decisions.',
-          },
-          source_refs: ['legacy'],
-        },
-      ],
-    });
-    const current = CurrentCapabilitySnapshot.parse({
-      schema_version: 1,
-      generated_by: 'test',
-      flows: [],
-      commands: { source: [], claude_plugin: [], codex_plugin: [], claude_plugin_skills: [] },
-      connectors: [],
-      hosts: [],
-      capabilities: [
-        {
-          id: 'flow:fixture',
-          kind: 'flow',
-          title: 'Fixture',
-          status: 'implemented',
-          summary: 'Fixture flow exists',
-          axes: {
-            modes: ['default', 'low'],
-            stage_path: ['frame', 'close'],
-          },
-        },
-      ],
-    });
-    const exceptions = ParityExceptionLedger.parse({ schema_version: 1, exceptions: [] });
-    const result = compareParity({ original, current, exceptions });
-    expect(result.issues).toContainEqual(
-      expect.stringContaining('untracked behavioral parity gap: flow:fixture'),
-    );
-    expect(result.issues).toContainEqual(expect.stringContaining('modes extra low'));
-    expect(result.issues).toContainEqual(
-      expect.stringContaining('checkpoint missing current value'),
-    );
-  });
-
-  // The current snapshot's text axes are machine-derived from a closed,
-  // declared vocabulary (see CANONICAL_TEXT_AXIS_VALUES in checks.ts). The gate
-  // must accept those legitimate machine phrasings even though they read
-  // differently from the hand-authored original prose.
-  function fixtureSnapshots(currentCheckpoint: string) {
-    const original = OriginalCapabilitySnapshot.parse({
-      schema_version: 1,
-      sources: [{ id: 'legacy', path: '/tmp/legacy.md', note: 'fixture' }],
-      capabilities: [
-        {
-          id: 'flow:fixture',
-          kind: 'flow',
-          title: 'Fixture',
-          summary: 'Fixture flow',
-          // Original promise prose intentionally differs in wording from the
-          // machine-derived current description.
-          axes: { checkpoint: 'Legacy prose for checkpoint behavior.' },
-          source_refs: ['legacy'],
-        },
-      ],
-    });
-    const current = CurrentCapabilitySnapshot.parse({
-      schema_version: 1,
-      generated_by: 'test',
-      flows: [],
-      commands: { source: [], claude_plugin: [], codex_plugin: [], claude_plugin_skills: [] },
-      connectors: [],
-      hosts: [],
-      capabilities: [
-        {
-          id: 'flow:fixture',
-          kind: 'flow',
-          title: 'Fixture',
-          status: 'implemented',
-          summary: 'Fixture flow exists',
-          axes: { checkpoint: currentCheckpoint },
-        },
-      ],
-    });
-    return { original, current };
-  }
-
-  it('parity comparison accepts a canonical machine-derived text axis value', () => {
-    const { original, current } = fixtureSnapshots(
-      'Compiled checkpoints can pause, auto-resolve safe defaults, or resume from operator input.',
-    );
-    const exceptions = ParityExceptionLedger.parse({ schema_version: 1, exceptions: [] });
-    const result = compareParity({ original, current, exceptions });
-    expect(result.issues).toEqual([]);
-  });
-
-  it('parity comparison rejects a text axis replaced with inverted or invented text', () => {
-    // An inverted checkpoint description (the opposite of the truth) is not part
-    // of the declared canonical vocabulary, so it must fail the gate instead of
-    // silently feeding the public parity matrix.
-    const { original, current } = fixtureSnapshots(
-      'Never pauses; applies risky changes without asking the operator.',
-    );
-    const exceptions = ParityExceptionLedger.parse({ schema_version: 1, exceptions: [] });
-    const result = compareParity({ original, current, exceptions });
-    expect(result.issues).toContainEqual(
-      expect.stringContaining('checkpoint current value is not a recognized canonical description'),
-    );
-    expect(result.issues).toContainEqual(
-      expect.stringContaining('untracked behavioral parity gap'),
-    );
-  });
-
-  it('parity comparison tracks an inverted text axis when an exception covers it', () => {
-    const { original, current } = fixtureSnapshots(
-      'Never pauses; applies risky changes without asking the operator.',
-    );
-    const exceptions = ParityExceptionLedger.parse({
-      schema_version: 1,
-      exceptions: [
-        {
-          id: 'EX-FIXTURE',
-          capability_id: 'flow:fixture',
-          status: 'approved_exception',
-          readiness_ref: 'REL-999',
-          rationale: 'Fixture exception covering the axis drift.',
-        },
-      ],
-    });
-    const result = compareParity({ original, current, exceptions });
-    expect(result.issues).toEqual([]);
-    expect(result.warnings).toContainEqual(
-      expect.stringContaining('checkpoint current value is not a recognized canonical description'),
-    );
   });
 
   it('claim checks reject unsupported current claims', () => {
@@ -1119,11 +968,20 @@ describe('release truth infrastructure', () => {
       'release-note-flow',
     );
 
+    // Identity paths are banned in every committed proof file. Golden runs are
+    // written through a scrubbing writer, so machine temp paths are banned
+    // there too. The codex-mcp-first-run bundle is a live capture whose
+    // artifacts are digest-bound (evidence.json pins each file's sha256), so
+    // its neutral /private/tmp bench workspace path cannot be rewritten
+    // without breaking the binding; identity paths stay banned there as well.
+    const identityPaths = /\/Users\/petepetrash|Code\/circuit|\/var\/folders/;
+    const machineTempPaths = /\/private|\/tmp\//;
     for (const file of filesUnder('docs/release/proofs/runs')) {
       const text = readFileSync(file, 'utf8');
-      expect(text).not.toMatch(
-        /\/Users\/petepetrash|Code\/circuit|\/private|\/var\/folders|\/tmp\//,
-      );
+      expect(text, file).not.toMatch(identityPaths);
+      if (!file.includes('/codex-mcp-first-run/')) {
+        expect(text, file).not.toMatch(machineTempPaths);
+      }
     }
   });
 

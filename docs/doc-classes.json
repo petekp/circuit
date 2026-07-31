@@ -17,7 +17,7 @@
     {
       "glob": "docs/release/*.generated.md",
       "class": "generated",
-      "generator": "scripts/release/render-parity-matrix.ts + scripts/release/render-readiness-report.ts"
+      "generator": "scripts/release/render-readiness-report.ts"
     },
     {
       "glob": "plugins/claude/commands/*.md",

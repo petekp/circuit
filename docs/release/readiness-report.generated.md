@@ -8,8 +8,7 @@ Infra checks may pass while release blockers remain. `npm run check-release-read
 
 | Measure | Value |
 | --- | --- |
-| Original capabilities | 13 |
-| Current capabilities | 71 |
+| Current capabilities | 70 |
 | Tracked exceptions | 7 |
 | Public claims | 10 |
 | Proof scenarios | 16 |
@@ -22,11 +21,6 @@ Infra checks may pass while release blockers remain. `npm run check-release-read
 
 ## Tracked Warnings
 
-- tracked behavioral gap: flow:build behavioral axes differ: stage_path extra Analyze
-- tracked gap: router:intent:fix is absent from current capabilities
-- tracked gap: router:intent:develop is absent from current capabilities
-- tracked gap: router:intent:decide is absent from current capabilities
-- tracked gap: feature:plan-execution is absent from current capabilities
 - tracked claim: CLAIM-CODEX-MCP-LIFECYCLE is approved_exception
 - tracked proof: proof:codex-mcp-first-run is approved_exception
 
@@ -37,15 +31,12 @@ Infra checks may pass while release blockers remain. `npm run check-release-read
 ## Next Actions
 
 - Decide whether the approved Fix Lite intent exception needs public release-note wording.
-- Harden the partial host surfaces that are outside original parity: generic shell text progress and current plugin host wording.
 - Keep golden runs refreshed whenever command, summary, or report contracts change.
 - Run `npm run check-release-ready` as the strict final release check.
 
 ## Source Files
 
-- docs/release/parity/original-circuit.yaml
 - generated/release/current-capabilities.json
 - docs/release/parity/exceptions.yaml
 - docs/release/claims/public-claims.yaml
 - docs/release/proofs/index.yaml
-- docs/release/parity-matrix.generated.md
