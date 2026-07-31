@@ -10,6 +10,8 @@ import type { RuntimeArtifactReconciler, RuntimeExitClassification } from './sta
 import type { McpRunRecord } from './state-store.js';
 
 const RESULT_PATH = 'reports/result.json';
+const OPERATOR_SUMMARY_MARKDOWN_PATH = 'reports/operator-summary.md';
+const OPERATOR_SUMMARY_JSON_PATH = 'reports/operator-summary.json';
 const MAX_RESULT_BYTES = 262_144;
 const MAX_MANIFEST_BYTES = 16 * 1_048_576;
 const MAX_TRACE_BYTES = 64 * 1_048_576;
@@ -135,14 +137,11 @@ async function canonicalRunRoot(record: McpRunRecord): Promise<string> {
   return cursor;
 }
 
-async function readBoundJson(
+async function readBoundBytes(
   runRoot: string,
   relativePath: string,
   maximumBytes: number,
-): Promise<{
-  readonly bytes: Buffer;
-  readonly value: unknown;
-}> {
+): Promise<Buffer> {
   const path = await safeRunFilePath(runRoot, relativePath, maximumBytes);
   const pathInfo = await lstat(path, { bigint: true });
   if (
@@ -170,6 +169,18 @@ async function readBoundJson(
   if (afterPath.isSymbolicLink() || !sameFile(pathInfo, afterPath)) {
     throw new Error('A canonical run report changed while Circuit read it.');
   }
+  return bytes;
+}
+
+async function readBoundJson(
+  runRoot: string,
+  relativePath: string,
+  maximumBytes: number,
+): Promise<{
+  readonly bytes: Buffer;
+  readonly value: unknown;
+}> {
+  const bytes = await readBoundBytes(runRoot, relativePath, maximumBytes);
   let value: unknown;
   try {
     value = JSON.parse(bytes.toString('utf8'));
@@ -177,6 +188,52 @@ async function readBoundJson(
     throw new Error('A canonical run report is not valid JSON.');
   }
   return { bytes, value };
+}
+
+// The human-facing receipt. The worker writes reports/operator-summary.md (the
+// Markdown the operator reads) and reports/operator-summary.json (whose
+// status_text is the one-line plain-English close). Fail open on both: a run
+// whose worker never wrote them — or wrote them unreadably — still completes,
+// it just falls back to the structured result's own summary.
+async function readOperatorSummaryReceipt(runRoot: string): Promise<{
+  readonly locator?: {
+    readonly path: string;
+    readonly sha256: string;
+    readonly byte_length: number;
+  };
+  readonly statusText?: string;
+}> {
+  let locator:
+    | { readonly path: string; readonly sha256: string; readonly byte_length: number }
+    | undefined;
+  try {
+    const bytes = await readBoundBytes(runRoot, OPERATOR_SUMMARY_MARKDOWN_PATH, MAX_RESULT_BYTES);
+    locator = {
+      path: OPERATOR_SUMMARY_MARKDOWN_PATH,
+      sha256: createHash('sha256').update(bytes).digest('hex'),
+      byte_length: bytes.byteLength,
+    };
+  } catch {
+    locator = undefined;
+  }
+  let statusText: string | undefined;
+  try {
+    const saved = await readBoundJson(runRoot, OPERATOR_SUMMARY_JSON_PATH, MAX_RESULT_BYTES);
+    const record = saved.value as { readonly status_text?: unknown };
+    statusText =
+      typeof record === 'object' &&
+      record !== null &&
+      typeof record.status_text === 'string' &&
+      record.status_text.trim().length > 0
+        ? record.status_text.trim()
+        : undefined;
+  } catch {
+    statusText = undefined;
+  }
+  return {
+    ...(locator === undefined ? {} : { locator }),
+    ...(statusText === undefined ? {} : { statusText }),
+  };
 }
 
 function relativeRunPath(runRoot: string, path: string): string {
@@ -338,15 +395,22 @@ export class CanonicalRuntimeArtifactReconciler implements RuntimeArtifactReconc
         plainSummary(result.reason ?? result.summary, 'The Circuit run needs attention.'),
       );
     }
+    // Prefer the receipt's own plain-English status line over result.json's
+    // summary: the result summary is a machine close sentence, and the
+    // operator summary is the surface written for a person.
+    const receipt = await readOperatorSummaryReceipt(runRoot);
+    const summary =
+      receipt.statusText ?? plainSummary(result.summary, 'Circuit completed the run.');
     return {
       state: 'complete',
-      summary: plainSummary(result.summary, 'Circuit completed the run.'),
+      summary,
       final_report: {
         schema: `circuit.${result.flow_id}.result`,
         path: RESULT_PATH,
         sha256: createHash('sha256').update(resultBytes).digest('hex'),
         byte_length: resultBytes.byteLength,
-        summary: plainSummary(result.summary, 'Circuit completed the run.'),
+        summary,
+        ...(receipt.locator === undefined ? {} : { operator_summary: receipt.locator }),
       },
     };
   }

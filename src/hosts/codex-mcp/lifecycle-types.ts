@@ -74,6 +74,13 @@ export interface LifecycleFinalReportLocator {
   readonly sha256: string;
   readonly byte_length: number;
   readonly summary: string;
+  // Digest binding for the human-facing receipt Markdown, when the worker
+  // wrote one. The reader returns its content for the host to render verbatim.
+  readonly operator_summary?: {
+    readonly path: string;
+    readonly sha256: string;
+    readonly byte_length: number;
+  };
 }
 
 export interface LifecycleRecoveryEvidence {
@@ -268,6 +275,9 @@ export interface LifecycleReportReader {
     readonly schema: string;
     readonly summary: string;
     readonly data: unknown;
+    // The receipt Markdown, present when the run bound an operator summary
+    // and its bytes still match. Omitted — never a failure — otherwise.
+    readonly operator_summary_markdown?: string;
   }>;
 }
 

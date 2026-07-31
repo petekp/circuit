@@ -166,6 +166,13 @@ starting -> running -> waiting_for_input -> resuming -> running
 An uncertain launch, exit, or cleanup becomes `recovery_required`. Circuit
 never calls uncertain cleanup successful.
 
+A `complete` status response carries the run's final report: the digest-bound
+structured result plus, when the worker wrote one, the operator summary
+Markdown (`final_report.operator_summary_markdown`) — the human-facing receipt
+the host renders verbatim. The report summary prefers the receipt's own
+plain-English status line over the machine close sentence in `result.json`. A
+receipt whose bound bytes no longer verify is omitted, never fatal.
+
 The supervisor records its full process identity before it may launch a
 worker. Launch permission travels through a private inherited channel, not an
 ambient environment variable. Every resume creates a new launch generation.

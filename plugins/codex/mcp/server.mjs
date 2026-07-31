@@ -24300,6 +24300,126 @@ function pathSegments(path) {
   }
   return segments;
 }
+async function trustedWorkspacePath(workspaceIdentity) {
+  let workspace;
+  try {
+    workspace = await realpath2(workspaceIdentity.canonical_path);
+  } catch {
+    throw new FinalReportReaderError(
+      "workspace_unavailable",
+      "The trusted Codex workspace is unavailable."
+    );
+  }
+  if (workspace !== resolve(workspaceIdentity.canonical_path)) {
+    throw new FinalReportReaderError(
+      "workspace_changed",
+      "The trusted Codex workspace changed before Circuit read the report."
+    );
+  }
+  let workspaceInfo;
+  try {
+    workspaceInfo = await lstat(workspace, { bigint: true });
+  } catch {
+    throw new FinalReportReaderError(
+      "workspace_unavailable",
+      "The trusted Codex workspace is unavailable."
+    );
+  }
+  if (workspaceInfo.isSymbolicLink() || !workspaceInfo.isDirectory() || String(workspaceInfo.dev) !== workspaceIdentity.device || String(workspaceInfo.ino) !== workspaceIdentity.inode) {
+    throw new FinalReportReaderError(
+      "workspace_changed",
+      "The trusted Codex workspace changed before Circuit read the report."
+    );
+  }
+  return workspace;
+}
+async function readVerifiedRunFile(workspace, runId, locator) {
+  const segments = [".circuit", "runs", runId, ...pathSegments(locator.path)];
+  const directoryIdentities = [];
+  let cursor = workspace;
+  for (const segment of segments.slice(0, -1)) {
+    cursor = join(cursor, segment);
+    let info;
+    try {
+      info = await lstat(cursor, { bigint: true });
+    } catch {
+      throw new FinalReportReaderError(
+        "final_report_unavailable",
+        "The saved final report is unavailable."
+      );
+    }
+    if (info.isSymbolicLink() || !info.isDirectory()) {
+      throw new FinalReportReaderError(
+        "final_report_unsafe",
+        "Circuit refused a final report path that crosses a link or non-directory."
+      );
+    }
+    directoryIdentities.push(identity(info));
+  }
+  const reportPath = join(cursor, segments.at(-1) ?? "");
+  let pathInfo;
+  try {
+    pathInfo = await lstat(reportPath, { bigint: true });
+  } catch {
+    throw new FinalReportReaderError(
+      "final_report_unavailable",
+      "The saved final report is unavailable."
+    );
+  }
+  if (pathInfo.isSymbolicLink() || !pathInfo.isFile() || pathInfo.nlink !== 1n) {
+    throw new FinalReportReaderError(
+      "final_report_unsafe",
+      "Circuit refused a final report that is not one ordinary file."
+    );
+  }
+  if (pathInfo.size > BigInt(MAX_REPORT_BYTES) || pathInfo.size !== BigInt(locator.byte_length)) {
+    throw new FinalReportReaderError(
+      "final_report_stale",
+      "The saved final report size no longer matches the completed run."
+    );
+  }
+  const handle = await open(reportPath, constants2.O_RDONLY | constants2.O_NOFOLLOW);
+  let bytes;
+  let descriptorBefore;
+  let descriptorAfter;
+  try {
+    descriptorBefore = await handle.stat({ bigint: true });
+    bytes = await handle.readFile();
+    descriptorAfter = await handle.stat({ bigint: true });
+  } finally {
+    await handle.close();
+  }
+  if (!sameIdentity(identity(pathInfo), identity(descriptorBefore)) || !sameIdentity(identity(descriptorBefore), identity(descriptorAfter))) {
+    throw new FinalReportReaderError(
+      "final_report_stale",
+      "The saved final report changed while Circuit read it."
+    );
+  }
+  for (const [index, expected] of directoryIdentities.entries()) {
+    const path = join(workspace, ...segments.slice(0, index + 1));
+    const observed = await lstat(path, { bigint: true });
+    if (observed.isSymbolicLink() || !observed.isDirectory() || !sameIdentity(expected, identity(observed))) {
+      throw new FinalReportReaderError(
+        "final_report_stale",
+        "The final report path changed while Circuit read it."
+      );
+    }
+  }
+  const finalPathInfo = await lstat(reportPath, { bigint: true });
+  if (finalPathInfo.isSymbolicLink() || !sameIdentity(identity(pathInfo), identity(finalPathInfo))) {
+    throw new FinalReportReaderError(
+      "final_report_stale",
+      "The saved final report changed while Circuit read it."
+    );
+  }
+  if (createHash2("sha256").update(bytes).digest("hex") !== locator.sha256) {
+    throw new FinalReportReaderError(
+      "final_report_stale",
+      "The saved final report contents no longer match the completed run."
+    );
+  }
+  return bytes;
+}
 var McpFinalReportReader = class {
   async read(input) {
     const locator = input.run.final_report;
@@ -24309,120 +24429,8 @@ var McpFinalReportReader = class {
         "This Circuit run does not have a final report."
       );
     }
-    let workspace;
-    try {
-      workspace = await realpath2(input.workspace.canonical_path);
-    } catch {
-      throw new FinalReportReaderError(
-        "workspace_unavailable",
-        "The trusted Codex workspace is unavailable."
-      );
-    }
-    if (workspace !== resolve(input.workspace.canonical_path)) {
-      throw new FinalReportReaderError(
-        "workspace_changed",
-        "The trusted Codex workspace changed before Circuit read the report."
-      );
-    }
-    let workspaceInfo;
-    try {
-      workspaceInfo = await lstat(workspace, { bigint: true });
-    } catch {
-      throw new FinalReportReaderError(
-        "workspace_unavailable",
-        "The trusted Codex workspace is unavailable."
-      );
-    }
-    if (workspaceInfo.isSymbolicLink() || !workspaceInfo.isDirectory() || String(workspaceInfo.dev) !== input.workspace.device || String(workspaceInfo.ino) !== input.workspace.inode) {
-      throw new FinalReportReaderError(
-        "workspace_changed",
-        "The trusted Codex workspace changed before Circuit read the report."
-      );
-    }
-    const segments = [".circuit", "runs", input.run.run_id, ...pathSegments(locator.path)];
-    const directoryIdentities = [];
-    let cursor = workspace;
-    for (const segment of segments.slice(0, -1)) {
-      cursor = join(cursor, segment);
-      let info;
-      try {
-        info = await lstat(cursor, { bigint: true });
-      } catch {
-        throw new FinalReportReaderError(
-          "final_report_unavailable",
-          "The saved final report is unavailable."
-        );
-      }
-      if (info.isSymbolicLink() || !info.isDirectory()) {
-        throw new FinalReportReaderError(
-          "final_report_unsafe",
-          "Circuit refused a final report path that crosses a link or non-directory."
-        );
-      }
-      directoryIdentities.push(identity(info));
-    }
-    const reportPath = join(cursor, segments.at(-1) ?? "");
-    let pathInfo;
-    try {
-      pathInfo = await lstat(reportPath, { bigint: true });
-    } catch {
-      throw new FinalReportReaderError(
-        "final_report_unavailable",
-        "The saved final report is unavailable."
-      );
-    }
-    if (pathInfo.isSymbolicLink() || !pathInfo.isFile() || pathInfo.nlink !== 1n) {
-      throw new FinalReportReaderError(
-        "final_report_unsafe",
-        "Circuit refused a final report that is not one ordinary file."
-      );
-    }
-    if (pathInfo.size > BigInt(MAX_REPORT_BYTES) || pathInfo.size !== BigInt(locator.byte_length)) {
-      throw new FinalReportReaderError(
-        "final_report_stale",
-        "The saved final report size no longer matches the completed run."
-      );
-    }
-    const handle = await open(reportPath, constants2.O_RDONLY | constants2.O_NOFOLLOW);
-    let bytes;
-    let descriptorBefore;
-    let descriptorAfter;
-    try {
-      descriptorBefore = await handle.stat({ bigint: true });
-      bytes = await handle.readFile();
-      descriptorAfter = await handle.stat({ bigint: true });
-    } finally {
-      await handle.close();
-    }
-    if (!sameIdentity(identity(pathInfo), identity(descriptorBefore)) || !sameIdentity(identity(descriptorBefore), identity(descriptorAfter))) {
-      throw new FinalReportReaderError(
-        "final_report_stale",
-        "The saved final report changed while Circuit read it."
-      );
-    }
-    for (const [index, expected] of directoryIdentities.entries()) {
-      const path = join(workspace, ...segments.slice(0, index + 1));
-      const observed = await lstat(path, { bigint: true });
-      if (observed.isSymbolicLink() || !observed.isDirectory() || !sameIdentity(expected, identity(observed))) {
-        throw new FinalReportReaderError(
-          "final_report_stale",
-          "The final report path changed while Circuit read it."
-        );
-      }
-    }
-    const finalPathInfo = await lstat(reportPath, { bigint: true });
-    if (finalPathInfo.isSymbolicLink() || !sameIdentity(identity(pathInfo), identity(finalPathInfo))) {
-      throw new FinalReportReaderError(
-        "final_report_stale",
-        "The saved final report changed while Circuit read it."
-      );
-    }
-    if (createHash2("sha256").update(bytes).digest("hex") !== locator.sha256) {
-      throw new FinalReportReaderError(
-        "final_report_stale",
-        "The saved final report contents no longer match the completed run."
-      );
-    }
+    const workspace = await trustedWorkspacePath(input.workspace);
+    const bytes = await readVerifiedRunFile(workspace, input.run.run_id, locator);
     let data;
     try {
       data = JSON.parse(bytes.toString("utf8"));
@@ -24432,7 +24440,25 @@ var McpFinalReportReader = class {
         "The saved final report is not valid JSON."
       );
     }
-    return { schema: locator.schema, summary: locator.summary, data };
+    let operatorSummaryMarkdown;
+    if (locator.operator_summary !== void 0) {
+      try {
+        const receiptBytes = await readVerifiedRunFile(
+          workspace,
+          input.run.run_id,
+          locator.operator_summary
+        );
+        operatorSummaryMarkdown = receiptBytes.toString("utf8");
+      } catch {
+        operatorSummaryMarkdown = void 0;
+      }
+    }
+    return {
+      schema: locator.schema,
+      summary: locator.summary,
+      data,
+      ...operatorSummaryMarkdown === void 0 ? {} : { operator_summary_markdown: operatorSummaryMarkdown }
+    };
   }
 };
 
@@ -27578,7 +27604,12 @@ var BoundedReportDataV1 = external_exports.unknown().superRefine((value, ctx) =>
 var McpFinalReportV1 = external_exports.object({
   schema: SafeNameV1,
   summary: SummaryV1,
-  data: BoundedReportDataV1
+  data: BoundedReportDataV1,
+  // The run's human-facing receipt (reports/operator-summary.md), delivered
+  // verbatim at completion so the host renders a real report instead of
+  // improvising one from structured fields. Present only when the worker
+  // wrote it and its digest-bound bytes still verify.
+  operator_summary_markdown: external_exports.string().min(1).max(262144).optional()
 }).strict();
 var CircuitStartSuccessV1 = external_exports.object({
   schema_version: external_exports.literal(MCP_SCHEMA_VERSION),
@@ -32892,6 +32923,8 @@ var RunResult = external_exports.object({
 
 // src/hosts/codex-mcp/runtime-artifacts.ts
 var RESULT_PATH = "reports/result.json";
+var OPERATOR_SUMMARY_MARKDOWN_PATH = "reports/operator-summary.md";
+var OPERATOR_SUMMARY_JSON_PATH = "reports/operator-summary.json";
 var MAX_RESULT_BYTES = 262144;
 var MAX_MANIFEST_BYTES = 16 * 1048576;
 var MAX_TRACE_BYTES = 64 * 1048576;
@@ -32979,7 +33012,7 @@ async function canonicalRunRoot(record2) {
   }
   return cursor;
 }
-async function readBoundJson(runRoot, relativePath, maximumBytes) {
+async function readBoundBytes(runRoot, relativePath, maximumBytes) {
   const path = await safeRunFilePath(runRoot, relativePath, maximumBytes);
   const pathInfo = await lstat3(path, { bigint: true });
   if (pathInfo.isSymbolicLink() || !pathInfo.isFile() || pathInfo.nlink !== 1n || pathInfo.size === 0n || pathInfo.size > BigInt(maximumBytes)) {
@@ -33001,6 +33034,10 @@ async function readBoundJson(runRoot, relativePath, maximumBytes) {
   if (afterPath.isSymbolicLink() || !sameFile(pathInfo, afterPath)) {
     throw new Error("A canonical run report changed while Circuit read it.");
   }
+  return bytes;
+}
+async function readBoundJson(runRoot, relativePath, maximumBytes) {
+  const bytes = await readBoundBytes(runRoot, relativePath, maximumBytes);
   let value;
   try {
     value = JSON.parse(bytes.toString("utf8"));
@@ -33008,6 +33045,31 @@ async function readBoundJson(runRoot, relativePath, maximumBytes) {
     throw new Error("A canonical run report is not valid JSON.");
   }
   return { bytes, value };
+}
+async function readOperatorSummaryReceipt(runRoot) {
+  let locator;
+  try {
+    const bytes = await readBoundBytes(runRoot, OPERATOR_SUMMARY_MARKDOWN_PATH, MAX_RESULT_BYTES);
+    locator = {
+      path: OPERATOR_SUMMARY_MARKDOWN_PATH,
+      sha256: createHash6("sha256").update(bytes).digest("hex"),
+      byte_length: bytes.byteLength
+    };
+  } catch {
+    locator = void 0;
+  }
+  let statusText;
+  try {
+    const saved = await readBoundJson(runRoot, OPERATOR_SUMMARY_JSON_PATH, MAX_RESULT_BYTES);
+    const record2 = saved.value;
+    statusText = typeof record2 === "object" && record2 !== null && typeof record2.status_text === "string" && record2.status_text.trim().length > 0 ? record2.status_text.trim() : void 0;
+  } catch {
+    statusText = void 0;
+  }
+  return {
+    ...locator === void 0 ? {} : { locator },
+    ...statusText === void 0 ? {} : { statusText }
+  };
 }
 function relativeRunPath(runRoot, path) {
   const candidate2 = relative4(runRoot, path).split(sep3).join("/");
@@ -33144,15 +33206,18 @@ var CanonicalRuntimeArtifactReconciler = class {
         plainSummary(result.reason ?? result.summary, "The Circuit run needs attention.")
       );
     }
+    const receipt = await readOperatorSummaryReceipt(runRoot);
+    const summary = receipt.statusText ?? plainSummary(result.summary, "Circuit completed the run.");
     return {
       state: "complete",
-      summary: plainSummary(result.summary, "Circuit completed the run."),
+      summary,
       final_report: {
         schema: `circuit.${result.flow_id}.result`,
         path: RESULT_PATH,
         sha256: createHash6("sha256").update(resultBytes).digest("hex"),
         byte_length: resultBytes.byteLength,
-        summary: plainSummary(result.summary, "Circuit completed the run.")
+        summary,
+        ...receipt.locator === void 0 ? {} : { operator_summary: receipt.locator }
       }
     };
   }
@@ -34639,7 +34704,15 @@ var StoredFinalReportV1 = external_exports.object({
   path: SafeRelativePath,
   sha256: Sha2564,
   byte_length: external_exports.number().int().nonnegative().max(262144),
-  summary: Summary
+  summary: Summary,
+  // The human-facing receipt (reports/operator-summary.md), digest-bound at
+  // close so circuit_status can deliver it verbatim at completion. Optional:
+  // a run whose worker never wrote the receipt still completes.
+  operator_summary: external_exports.object({
+    path: SafeRelativePath,
+    sha256: Sha2564,
+    byte_length: external_exports.number().int().nonnegative().max(262144)
+  }).strict().optional()
 }).strict();
 var StoredProgressEventV1 = external_exports.object({
   cursor: external_exports.number().int().nonnegative().max(Number.MAX_SAFE_INTEGER),

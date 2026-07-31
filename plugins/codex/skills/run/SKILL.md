@@ -200,16 +200,19 @@ Keep the `run_id` and `next_cursor` returned by `circuit_start`. Poll with
 - `max_events: 100`; and
 - `wait_ms: 10000` while waiting for new work.
 
-Render each new event's `summary` verbatim once, in cursor order. Do not show
-raw MCP JSON. Replace the saved cursor with each response's `next_cursor`. When
-`truncated` is true, immediately poll again with `wait_ms: 0` until the backlog
-is drained.
+Render each new event's `summary` verbatim once, in cursor order. Skip an
+event whose `summary` text is identical to the line you just rendered; the
+progress stream can repeat one transition through two event kinds, and the
+operator should read each line once. Do not show raw MCP JSON. Replace the
+saved cursor with each response's `next_cursor`. When `truncated` is true,
+immediately poll again with `wait_ms: 0` until the backlog is drained.
 
 Handle states as follows:
 
 - `starting`, `running`, `resuming`, or `cancelling`: keep polling.
 - `waiting_for_input`: handle the checkpoint.
-- `complete`: render the final structured report.
+- `complete`: render the run's receipt as described in Render the Final
+  Result.
 - `needs_attention`, `cancelled`, or `interrupted`: stop and report the exact
   summary without claiming success.
 - `recovery_required`: use `circuit_recover` as described below.
@@ -260,12 +263,18 @@ It does not continue the run.
 A complete status response must include `final_report`. Treat it as the source
 of truth:
 
-1. Lead with `final_report.summary`.
-2. Use `final_report.schema` to interpret the data. Name it only when the user
+1. When `final_report.operator_summary_markdown` is present, render that
+   Markdown verbatim as the final answer. It is the run's own receipt, written
+   for the operator. Do not rewrite it, reorder it, or stack your own second
+   summary on top of it.
+2. When the receipt is absent, lead with `final_report.summary`, then render
+   the useful fields from `final_report.data` as short Markdown bullets or a
+   small table. Preserve reported paths, findings, verification results,
+   recommendations, selected variants, and evidence links exactly. Translate
+   internal tokens into plain words: an enum value like `NO_ISSUES_FOUND`
+   becomes "no issues found", and internal ids stay out of the prose.
+3. Use `final_report.schema` to interpret the data. Name it only when the user
    asks for protocol detail or when diagnosing a mismatch.
-3. Render the useful fields from `final_report.data` as short Markdown bullets
-   or a small table. Preserve reported paths, findings, verification results,
-   recommendations, selected variants, and evidence links exactly.
 
 Do not paste the whole raw JSON unless the user asks. Do not infer deployment,
 quality, verification, or completion beyond what `final_report.data` proves.

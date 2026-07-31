@@ -1,3 +1,4 @@
+import { createHash } from 'node:crypto';
 import { readFileSync } from 'node:fs';
 import { mkdir, mkdtemp, realpath, rm, symlink, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
@@ -15,7 +16,9 @@ const RUN_ID = '11111111-1111-4111-8111-111111111111';
 const NOW = '2026-07-21T08:00:00.000Z';
 const roots: string[] = [];
 
-async function fixture(options: { readonly outcome?: 'complete' | 'stopped' } = {}) {
+async function fixture(
+  options: { readonly outcome?: 'complete' | 'stopped'; readonly operatorSummary?: boolean } = {},
+) {
   const outcome = options.outcome ?? 'complete';
   const root = await realpath(await mkdtemp(join(tmpdir(), 'circuit-mcp-artifacts-')));
   roots.push(root);
@@ -81,6 +84,27 @@ async function fixture(options: { readonly outcome?: 'complete' | 'stopped' } = 
   await writeFile(join(runRoot, 'reports', 'result.json'), `${JSON.stringify(result)}\n`, {
     mode: 0o600,
   });
+  let operatorSummaryBytes: Buffer | undefined;
+  if (options.operatorSummary === true) {
+    operatorSummaryBytes = Buffer.from(
+      '# Review\n\nReview passed: no issues found in the rename.\n\nNext: nothing required.\n',
+    );
+    await writeFile(join(runRoot, 'reports', 'operator-summary.md'), operatorSummaryBytes, {
+      mode: 0o600,
+    });
+    await writeFile(
+      join(runRoot, 'reports', 'operator-summary.json'),
+      `${JSON.stringify({
+        schema_version: 1,
+        run_id: RUN_ID,
+        flow_id: 'review',
+        outcome,
+        headline: 'Review passed',
+        status_text: 'Review passed: no issues found in the rename.',
+      })}\n`,
+      { mode: 0o600 },
+    );
+  }
   const workspace = trustedWorkspaceIdentity(workspacePath);
   const executable = {
     real_path: '/usr/local/bin/node',
@@ -133,7 +157,7 @@ async function fixture(options: { readonly outcome?: 'complete' | 'stopped' } = 
     exit_code: 0,
     process_group_cleanup: 'confirmed' as const,
   };
-  return { root, runRoot, run, exit };
+  return { root, runRoot, run, exit, operatorSummaryBytes };
 }
 
 afterEach(async () => {
@@ -152,6 +176,50 @@ describe('MCP canonical runtime artifacts', () => {
       state: 'complete',
       final_report: { schema: 'circuit.review.result', path: 'reports/result.json' },
     });
+  });
+
+  // The receipt-delivery contract: when the worker wrote the operator summary
+  // (the human-facing receipt), the complete classification must carry the
+  // receipt's own status text as the run summary — never result.json's internal
+  // close sentence — and must digest-bind the receipt Markdown so circuit_status
+  // can deliver it to the host at completion.
+  it('binds the operator summary receipt and leads with its status text', async () => {
+    const context = await fixture({ operatorSummary: true });
+    const bytes = context.operatorSummaryBytes;
+    if (bytes === undefined) throw new Error('Test fixture is missing its operator summary.');
+    const classification = await new CanonicalRuntimeArtifactReconciler().classifyExit({
+      record: context.run,
+      exit: context.exit,
+    });
+    expect(classification).toMatchObject({
+      state: 'complete',
+      summary: 'Review passed: no issues found in the rename.',
+      final_report: {
+        schema: 'circuit.review.result',
+        path: 'reports/result.json',
+        summary: 'Review passed: no issues found in the rename.',
+        operator_summary: {
+          path: 'reports/operator-summary.md',
+          sha256: createHash('sha256').update(bytes).digest('hex'),
+          byte_length: bytes.byteLength,
+        },
+      },
+    });
+  });
+
+  it('still completes without an operator summary and omits the locator', async () => {
+    const context = await fixture();
+    const classification = await new CanonicalRuntimeArtifactReconciler().classifyExit({
+      record: context.run,
+      exit: context.exit,
+    });
+    expect(classification.state).toBe('complete');
+    expect(classification.summary).toBe('Review completed.');
+    expect(
+      classification.state === 'complete'
+        ? classification.final_report.operator_summary
+        : undefined,
+    ).toBeUndefined();
   });
 
   it('refuses a final report reached through an intermediate directory symlink', async () => {

@@ -17584,7 +17584,12 @@ var BoundedReportDataV1 = external_exports.unknown().superRefine((value, ctx) =>
 var McpFinalReportV1 = external_exports.object({
   schema: SafeNameV1,
   summary: SummaryV1,
-  data: BoundedReportDataV1
+  data: BoundedReportDataV1,
+  // The run's human-facing receipt (reports/operator-summary.md), delivered
+  // verbatim at completion so the host renders a real report instead of
+  // improvising one from structured fields. Present only when the worker
+  // wrote it and its digest-bound bytes still verify.
+  operator_summary_markdown: external_exports.string().min(1).max(262144).optional()
 }).strict();
 var CircuitStartSuccessV1 = external_exports.object({
   schema_version: external_exports.literal(MCP_SCHEMA_VERSION),

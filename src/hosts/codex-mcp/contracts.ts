@@ -294,6 +294,11 @@ const McpFinalReportV1 = z
     schema: SafeNameV1,
     summary: SummaryV1,
     data: BoundedReportDataV1,
+    // The run's human-facing receipt (reports/operator-summary.md), delivered
+    // verbatim at completion so the host renders a real report instead of
+    // improvising one from structured fields. Present only when the worker
+    // wrote it and its digest-bound bytes still verify.
+    operator_summary_markdown: z.string().min(1).max(262_144).optional(),
   })
   .strict();
 

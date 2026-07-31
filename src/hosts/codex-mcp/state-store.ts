@@ -249,6 +249,17 @@ const StoredFinalReportV1 = z
     sha256: Sha256,
     byte_length: z.number().int().nonnegative().max(262_144),
     summary: Summary,
+    // The human-facing receipt (reports/operator-summary.md), digest-bound at
+    // close so circuit_status can deliver it verbatim at completion. Optional:
+    // a run whose worker never wrote the receipt still completes.
+    operator_summary: z
+      .object({
+        path: SafeRelativePath,
+        sha256: Sha256,
+        byte_length: z.number().int().nonnegative().max(262_144),
+      })
+      .strict()
+      .optional(),
   })
   .strict();
 

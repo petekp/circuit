@@ -434,6 +434,21 @@
       "last_checked": "2026-07-18"
     },
     {
+      "path": "docs/ideas/run-output-observability.md",
+      "title": "Run output and observability: make watching a run pleasant",
+      "status": "partially-implemented",
+      "category": "run-inspection-and-output",
+      "impact": 4,
+      "tags": ["operator-ux", "run-output", "codex-mcp", "progress-events", "receipt"],
+      "current_reading": "Grounded in a measured live Codex Review run: 26% of progress lines were byte-identical duplicates, the close line leaked internal codenames, and the operator summary receipt never reached the host. The receipt-delivery fix and skill-level dedup shipped with this note; the ranked remainder is engine-side duplicate suppression, one narration voice, grammar-aware fan-out lines, a tested jargon floor, arc-aware milestones, and Codex skill ergonomics.",
+      "related": [
+        "docs/ideas/run-milestone-stream.md",
+        "docs/ideas/output-model.md",
+        "docs/contracts/host-rendering.md"
+      ],
+      "last_checked": "2026-07-31"
+    },
+    {
       "path": "docs/ideas/popular-workflow-market-scan.md",
       "title": "Popular-workflow market scan (post-v1 lineup)",
       "status": "current-strategy-context",

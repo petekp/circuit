@@ -93,6 +93,71 @@ describe('MCP final report reader', () => {
     });
   });
 
+  // The receipt path: when the completed run bound an operator summary, the
+  // reader returns its Markdown alongside the structured report so the host can
+  // render the human-facing receipt verbatim at completion.
+  it('returns the digest-bound operator summary Markdown when present', async () => {
+    const context = await fixture();
+    const report = context.run.final_report;
+    if (report === undefined) throw new Error('Test fixture is missing its final report.');
+    const markdown = '# Review\n\nReview passed: no issues found.\n';
+    const bytes = Buffer.from(markdown);
+    await writeFile(join(context.runRoot, 'reports', 'operator-summary.md'), bytes, {
+      mode: 0o600,
+    });
+    const run = {
+      ...context.run,
+      final_report: {
+        ...report,
+        operator_summary: {
+          path: 'reports/operator-summary.md',
+          sha256: createHash('sha256').update(bytes).digest('hex'),
+          byte_length: bytes.byteLength,
+        },
+      },
+    };
+    await expect(
+      new McpFinalReportReader().read({ workspace: context.workspace, run }),
+    ).resolves.toEqual({
+      schema: 'review.report',
+      summary: 'Review passed.',
+      data: { verdict: 'pass' },
+      operator_summary_markdown: markdown,
+    });
+  });
+
+  // A tampered or vanished receipt must not sink the completion render: the
+  // bound structured report still returns, the Markdown is simply omitted.
+  it('omits the operator summary when its bytes no longer match', async () => {
+    const context = await fixture();
+    const report = context.run.final_report;
+    if (report === undefined) throw new Error('Test fixture is missing its final report.');
+    const bytes = Buffer.from('# Review\n\nOriginal receipt.\n');
+    await writeFile(
+      join(context.runRoot, 'reports', 'operator-summary.md'),
+      '# Review\n\nRewritten after close.\n',
+      { mode: 0o600 },
+    );
+    const run = {
+      ...context.run,
+      final_report: {
+        ...report,
+        operator_summary: {
+          path: 'reports/operator-summary.md',
+          sha256: createHash('sha256').update(bytes).digest('hex'),
+          byte_length: bytes.byteLength,
+        },
+      },
+    };
+    await expect(
+      new McpFinalReportReader().read({ workspace: context.workspace, run }),
+    ).resolves.toEqual({
+      schema: 'review.report',
+      summary: 'Review passed.',
+      data: { verdict: 'pass' },
+    });
+  });
+
   it('rejects changed report bytes and stale size evidence', async () => {
     const context = await fixture();
     const reader = new McpFinalReportReader();
