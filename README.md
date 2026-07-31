@@ -79,10 +79,9 @@ newer and Codex 0.146.0 or newer.
 
 The public tag `circuit--v0.1.4` includes the MCP path and is the first tag
 to carry the fix for a first-launch race in earlier releases. A paid
-first-attempt Review has passed through real headless Codex at an exact
-commit in this tag's history, with every artifact digest-bound to that
-commit. The remaining tracked gaps are a Review capture at this exact tag
-and an Intel Mac capture of the same Review.
+first-attempt Review has passed through real headless Codex at the exact
+commit this tag points at, with every artifact digest-bound to that commit.
+The remaining tracked gap is an Intel Mac capture of the same Review.
 
 After installing an MCP-capable build, restart Codex.
 A single MCP approval is normal.

@@ -8,14 +8,14 @@
   "reason": "The published plugin completed a first-attempt MCP Review through real headless Codex with a workspace-write sandbox and a never-approve policy.",
   "source": {
     "repository": "petekp/circuit",
-    "ref": "b44b92c1ad71e92ba195428fe5af2ff546230a63",
-    "expected_version": "0.1.3"
+    "ref": "543adfe54c9546b0ebeb2a6fbee6f361d0768cc0",
+    "expected_version": "0.1.4"
   },
   "versions": {
     "node": "24.18.1",
     "codex": "0.146.0",
-    "plugin": "0.1.3",
-    "plugin_tree_sha256": "e671edfaa0a2557d703c60635901c2352b8799af4dec03b28dbe369593d1ec15",
+    "plugin": "0.1.4",
+    "plugin_tree_sha256": "7c69a76222b0eb8ce125c41dd23875450ad7ab0ce4ff67c874336bb1bea6324d",
     "architecture": "arm64",
     "macos": "15.7.3"
   },
@@ -33,32 +33,32 @@
     {
       "name": "source_ref_exact",
       "ok": true,
-      "detail": "b44b92c1ad71e92ba195428fe5af2ff546230a63@b44b92c1ad71e92ba195428fe5af2ff546230a63"
+      "detail": "543adfe54c9546b0ebeb2a6fbee6f361d0768cc0@543adfe54c9546b0ebeb2a6fbee6f361d0768cc0"
     },
     {
       "name": "plugin_version_exact",
       "ok": true,
-      "detail": "0.1.3"
+      "detail": "0.1.4"
     },
     {
       "name": "plugin_tree_exact",
       "ok": true,
-      "detail": "e671edfaa0a2557d703c60635901c2352b8799af4dec03b28dbe369593d1ec15"
+      "detail": "7c69a76222b0eb8ce125c41dd23875450ad7ab0ce4ff67c874336bb1bea6324d"
     },
     {
       "name": "plugin_tree_sha256",
       "ok": true,
-      "detail": "e671edfaa0a2557d703c60635901c2352b8799af4dec03b28dbe369593d1ec15"
+      "detail": "7c69a76222b0eb8ce125c41dd23875450ad7ab0ce4ff67c874336bb1bea6324d"
     },
     {
       "name": "installed_plugin_enabled",
       "ok": true,
-      "detail": "0.1.3"
+      "detail": "0.1.4"
     },
     {
       "name": "host_abandoned_processes_terminated",
       "ok": true,
-      "detail": "/Applications/Xcode.app/Contents/Developer/usr/bin/git clone https://github.com/petekp/circuit.git <redacted-path>/published-Tw7sel/home/.codex/.tmp/marketplaces/.staging/marketplace-upgrade-QHcFzj | /Applications/Xcode.app/Contents/Developer/usr/libexec/git-core/git remote-https origin https://github.com/petekp/circuit.git | /Applications/Xcode.app/Contents/Develop"
+      "detail": "/Applications/Xcode.app/Contents/Developer/usr/bin/git clone https://github.com/petekp/circuit.git <redacted-path>/published-UBJxHA/home/.codex/.tmp/marketplaces/.staging/marketplace-upgrade-17aOZg | /Applications/Xcode.app/Contents/Developer/usr/libexec/git-core/git remote-https origin https://github.com/petekp/circuit.git | /Applications/Xcode.app/Contents/Develop"
     },
     {
       "name": "product_created_private_control_state",
@@ -68,7 +68,7 @@
     {
       "name": "host_abandoned_processes_terminated",
       "ok": true,
-      "detail": "/Applications/Xcode.app/Contents/Developer/usr/bin/git clone https://github.com/petekp/circuit.git <redacted-path>/published-Tw7sel/home/.codex/.tmp/marketplaces/.staging/marketplace-upgrade-xc3Lni | /Applications/Xcode.app/Contents/Developer/usr/libexec/git-core/git remote-https origin https://github.com/petekp/circuit.git | /Applications/Xcode.app/Contents/Develop"
+      "detail": "/Applications/Xcode.app/Contents/Developer/usr/bin/git clone https://github.com/petekp/circuit.git <redacted-path>/published-UBJxHA/home/.codex/.tmp/marketplaces/.staging/marketplace-upgrade-u6vMeF | /Applications/Xcode.app/Contents/Developer/usr/libexec/git-core/git remote-https origin https://github.com/petekp/circuit.git | /Applications/Xcode.app/Contents/Develop"
     },
     {
       "name": "real_plugin_loader_completed",
@@ -111,27 +111,27 @@
     {
       "name": "first_attempt_review_completed_clean",
       "ok": true,
-      "detail": "run ef41d3ec-df02-47cc-ab7e-077cfdd086d3 completed with verdict CLEAN"
+      "detail": "run 5316e8d8-857f-448c-a7bb-29cab888553c completed with verdict CLEAN"
     }
   ],
   "review": {
-    "run_id": "ef41d3ec-df02-47cc-ab7e-077cfdd086d3",
+    "run_id": "5316e8d8-857f-448c-a7bb-29cab888553c",
     "workspace_sha256": "abc2eb6985118d01471b434e9d4593ad9aebe1939d47a20aa292056374f67a38",
     "run_result": {
       "path": "review/result.json",
-      "sha256": "e7ada05f2570a0e59886bbe8c3fc1122d43ce3d6c8655252fbb1a1b88812b8a9"
+      "sha256": "97ae31b342d83e6d46a8b218b2ddd6864ab507f427bef2346191420950263219"
     },
     "review_report": {
       "path": "review/review-result.json",
-      "sha256": "0b7347be5e824b170358da9603143a441ad641d983865d98beef6ee625976a4c"
+      "sha256": "6b64cee4d89778f27b76cd873d006c452e9284379d8e3dfa9b5a1074ab01b8b6"
     },
     "host_trace": {
       "path": "review/codex.jsonl",
-      "sha256": "3e049a88c7b754f74ab5e6f55153bc4fdf44976baa41fa76406518d35cd65178"
+      "sha256": "b8d032f8dc0fc9a0cc34910c780951390595a933dd959f499d9ff46112ae74fb"
     },
     "invocation": {
       "path": "review/invocation.json",
-      "sha256": "3cb872730d0ace8629ac1580c22f96f6c2f7461db642a1d598e59392b30a5bd4"
+      "sha256": "34e5223a95cd522c32e736eca742507703bddac74277069cdeb7e2ab0b82388a"
     }
   }
 }

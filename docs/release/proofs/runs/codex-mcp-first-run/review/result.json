@@ -1,17 +1,17 @@
 {
   "schema_version": 1,
-  "run_id": "ef41d3ec-df02-47cc-ab7e-077cfdd086d3",
+  "run_id": "5316e8d8-857f-448c-a7bb-29cab888553c",
   "flow_id": "review",
   "goal": "Review the staged README fix",
   "outcome": "complete",
   "summary": "Run closed with outcome complete via @complete.",
-  "closed_at": "2026-07-31T01:59:42.952Z",
+  "closed_at": "2026-07-31T07:12:23.697Z",
   "trace_entries_observed": 24,
   "manifest_hash": "0c5880b14a294c3ccf6253812730255ede099370f7b9be7f1631582dd85f9181",
   "verdict": "NO_ISSUES_FOUND",
   "engine": {
-    "version": "0.1.3",
+    "version": "0.1.4",
     "source": "build-stamp",
-    "build_digest": "fdc46c1ffaa3b24069067ca7069fe1e88b932962f6a310abc7f80afb33de75dd"
+    "build_digest": "6b77f15bf3d94d5b9d5b8f18946ba68557147e614417ab465ca77b1f7eef0c8d"
   }
 }

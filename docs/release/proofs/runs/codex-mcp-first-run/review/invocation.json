@@ -24,9 +24,9 @@
   "workspace_sha256": "abc2eb6985118d01471b434e9d4593ad9aebe1939d47a20aa292056374f67a38",
   "source": {
     "repository": "petekp/circuit",
-    "ref": "b44b92c1ad71e92ba195428fe5af2ff546230a63",
-    "expected_version": "0.1.3",
-    "plugin_tree_sha256": "e671edfaa0a2557d703c60635901c2352b8799af4dec03b28dbe369593d1ec15"
+    "ref": "543adfe54c9546b0ebeb2a6fbee6f361d0768cc0",
+    "expected_version": "0.1.4",
+    "plugin_tree_sha256": "7c69a76222b0eb8ce125c41dd23875450ad7ab0ce4ff67c874336bb1bea6324d"
   },
   "host": {
     "architecture": "arm64",
