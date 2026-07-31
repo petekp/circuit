@@ -18,8 +18,9 @@ starting release, messaging, docs, or first-run work.
    and run folder shape.
 4. [docs/operator-guide.md](operator-guide.md) - commands, run flow,
    checkpoints, verification, and troubleshooting.
-5. [docs/configuration.md](configuration.md) - starter config, local skills,
-   Codex host/worker distinction, and connector routing.
+5. [docs/configuration.md](configuration.md) - starter config, verification
+   commands, local skills, Codex host/worker distinction, and connector
+   routing.
 
 ## Agent And Contributor Setup
 

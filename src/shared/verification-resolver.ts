@@ -1,6 +1,12 @@
 import { existsSync, readFileSync } from 'node:fs';
 import { join } from 'node:path';
-import { VerificationCommand } from '../schemas/verification.js';
+import { parse as parseYaml } from 'yaml';
+import {
+  type DeclaredVerificationCommand,
+  VerificationCommand,
+  VerificationConfig,
+} from '../schemas/verification.js';
+import { PROJECT_CONFIG_RELATIVE_SEGMENTS } from './control-plane-paths.js';
 import { ProofPlanBlockedError } from './proof-plan.js';
 
 export type VerificationNeed = 'build' | 'lint' | 'general';
@@ -210,19 +216,76 @@ function explicitInlineVerifyWithCommand(
   });
 }
 
-export function resolveVerificationCommands(
-  input: ResolveVerificationCommandsInput,
-): VerificationResolverResult {
-  const explicitCommand = explicitInlineVerifyWithCommand(input);
-  if (explicitCommand !== undefined) return { status: 'ready', commands: [explicitCommand] };
+// `.circuit/config.yaml`, as the operator would write it in a message.
+const PROJECT_CONFIG_DISPLAY_PATH = PROJECT_CONFIG_RELATIVE_SEGMENTS.join('/');
 
-  if (input.projectRoot === undefined) {
-    return {
-      status: 'blocked',
-      reason: 'Cannot choose verification commands because projectRoot was not provided.',
-    };
+type DeclaredVerification =
+  | { readonly status: 'none' }
+  | { readonly status: 'declared'; readonly config: VerificationConfig }
+  | { readonly status: 'invalid'; readonly reason: string };
+
+function readDeclaredVerification(projectRoot: string): DeclaredVerification {
+  const configPath = join(projectRoot, ...PROJECT_CONFIG_RELATIVE_SEGMENTS);
+  if (!existsSync(configPath)) return { status: 'none' };
+
+  let parsed: unknown;
+  try {
+    parsed = parseYaml(readFileSync(configPath, 'utf8'));
+  } catch {
+    // A config file this resolver cannot read is not this resolver's error to
+    // report: the run's own config load already fails loudly on it, and
+    // reporting it twice in different words would send the operator hunting in
+    // two places. Fall through to the package.json path.
+    return { status: 'none' };
+  }
+  if (parsed === null || typeof parsed !== 'object' || Array.isArray(parsed)) {
+    return { status: 'none' };
   }
 
+  const raw = (parsed as { verification?: unknown }).verification;
+  if (raw === undefined) return { status: 'none' };
+
+  const result = VerificationConfig.safeParse(raw);
+  if (!result.success) {
+    const detail = result.error.issues
+      .map((issue) => `${['verification', ...issue.path].join('.')}: ${issue.message}`)
+      .join('; ');
+    return {
+      status: 'invalid',
+      reason: `Cannot choose verification commands because ${PROJECT_CONFIG_DISPLAY_PATH} declares an unusable verification block (${detail}).`,
+    };
+  }
+  return { status: 'declared', config: result.data };
+}
+
+function commandForDeclared(input: {
+  readonly need: VerificationNeed;
+  readonly declared: DeclaredVerificationCommand;
+  readonly commandIdPrefix: string;
+  readonly timeoutMs: number;
+  readonly maxOutputBytes: number;
+  readonly env: Readonly<Record<string, string>>;
+}): VerificationCommand | string {
+  // Parsed rather than constructed: VerificationCommand already refuses a
+  // shell executable and a cwd outside the project, so a declared command
+  // clears exactly the same bar as a resolved one.
+  const parsed = VerificationCommand.safeParse({
+    id: `${input.commandIdPrefix}-${input.need}`,
+    cwd: input.declared.cwd,
+    argv: [...input.declared.argv],
+    timeout_ms: input.declared.timeout_ms ?? input.timeoutMs,
+    max_output_bytes: input.maxOutputBytes,
+    env: { ...input.env },
+  });
+  if (parsed.success) return parsed.data;
+  const detail = parsed.error.issues.map((issue) => issue.message).join('; ');
+  return `Cannot choose verification commands because ${PROJECT_CONFIG_DISPLAY_PATH} declares an unusable command at verification.${input.need} (${detail}).`;
+}
+
+function resolveFromPackageScripts(
+  input: ResolveVerificationCommandsInput & { readonly projectRoot: string },
+  needs: readonly VerificationNeed[],
+): VerificationResolverResult {
   const packageInfo = readPackageInfo(input.projectRoot);
   if (typeof packageInfo === 'string') return { status: 'blocked', reason: packageInfo };
 
@@ -231,7 +294,6 @@ export function resolveVerificationCommands(
     return { status: 'blocked', reason: manager };
   }
 
-  const needs = uniqueNeeds(input.requestedNeeds);
   const missing: string[] = [];
   const selectedScripts: string[] = [];
 
@@ -278,6 +340,70 @@ export function resolveVerificationCommands(
   }
 
   return { status: 'ready', commands };
+}
+
+export function resolveVerificationCommands(
+  input: ResolveVerificationCommandsInput,
+): VerificationResolverResult {
+  const explicitCommand = explicitInlineVerifyWithCommand(input);
+  if (explicitCommand !== undefined) return { status: 'ready', commands: [explicitCommand] };
+
+  const projectRoot = input.projectRoot;
+  if (projectRoot === undefined) {
+    return {
+      status: 'blocked',
+      reason: 'Cannot choose verification commands because projectRoot was not provided.',
+    };
+  }
+
+  const declared = readDeclaredVerification(projectRoot);
+  if (declared.status === 'invalid') return { status: 'blocked', reason: declared.reason };
+  const declaredConfig: VerificationConfig = declared.status === 'declared' ? declared.config : {};
+
+  const needs = uniqueNeeds(input.requestedNeeds);
+  const declaredCommands: VerificationCommand[] = [];
+  const unresolved: VerificationNeed[] = [];
+
+  for (const need of needs) {
+    const entry = declaredConfig[need];
+    if (entry === undefined) {
+      unresolved.push(need);
+      continue;
+    }
+    const built = commandForDeclared({
+      need,
+      declared: entry,
+      commandIdPrefix: input.commandIdPrefix,
+      timeoutMs: input.timeoutMs ?? DEFAULT_VERIFICATION_TIMEOUT_MS,
+      maxOutputBytes: input.maxOutputBytes ?? 200_000,
+      env: input.env ?? {},
+    });
+    if (typeof built === 'string') return { status: 'blocked', reason: built };
+    declaredCommands.push(built);
+  }
+
+  if (unresolved.length === 0 && declaredCommands.length > 0) {
+    return { status: 'ready', commands: declaredCommands };
+  }
+
+  // Needs the config did not cover fall back to the package.json scripts, so a
+  // Node project can override one proof without having to restate the rest.
+  const fromScripts = resolveFromPackageScripts({ ...input, projectRoot }, unresolved);
+  if (fromScripts.status === 'blocked') {
+    const declaredKeys = Object.keys(declaredConfig);
+    if (declaredKeys.length === 0) return fromScripts;
+    // The config is in play, so point at the key that would close the gap
+    // instead of leaving the operator staring at a package.json complaint in a
+    // project that may not have one.
+    const listed = declaredKeys.map((key) => `verification.${key}`).join(', ');
+    const wanted = unresolved.map((need) => `verification.${need}`).join(', ');
+    return {
+      status: 'blocked',
+      reason: `${fromScripts.reason} ${PROJECT_CONFIG_DISPLAY_PATH} declares ${listed} but not ${wanted}; add ${wanted} there.`,
+    };
+  }
+
+  return { status: 'ready', commands: [...declaredCommands, ...fromScripts.commands] };
 }
 
 export function requireResolvedVerificationCommands(

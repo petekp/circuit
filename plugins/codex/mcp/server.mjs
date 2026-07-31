@@ -24884,6 +24884,18 @@ var VerificationCommand = external_exports.object({
     });
   }
 });
+var DeclaredVerificationCommand = external_exports.object({
+  argv: external_exports.array(external_exports.string().min(1)).min(1),
+  cwd: ProjectRelativeCwd.default("."),
+  // Absent means the shared verification budget. Declared because a Rust or
+  // Go suite can legitimately outrun the default.
+  timeout_ms: external_exports.number().int().positive().optional()
+}).strict();
+var VerificationConfig = external_exports.object({
+  build: DeclaredVerificationCommand.optional(),
+  lint: DeclaredVerificationCommand.optional(),
+  general: DeclaredVerificationCommand.optional()
+}).strict();
 var VerificationCommandResult = external_exports.object({
   command_id: external_exports.string().min(1),
   argv: external_exports.array(external_exports.string().min(1)).min(1),

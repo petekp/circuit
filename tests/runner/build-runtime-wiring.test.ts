@@ -143,6 +143,24 @@ function makeVerificationProjectRoot(checkScript = 'node -e "process.exit(0)"'):
   return projectRoot;
 }
 
+// A project the Node-script resolver cannot read at all — no package.json —
+// that declares its own proof command in `.circuit/config.yaml`.
+function makeDeclaredVerificationProjectRoot(argv: readonly string[]): string {
+  const projectRoot = join(runFolderBase, 'declared-verification-project');
+  mkdirSync(join(projectRoot, '.circuit'), { recursive: true });
+  writeFileSync(
+    join(projectRoot, '.circuit', 'config.yaml'),
+    [
+      'schema_version: 1',
+      'verification:',
+      '  general:',
+      `    argv: ${JSON.stringify(argv)}`,
+      '',
+    ].join('\n'),
+  );
+  return projectRoot;
+}
+
 let runFolderBase: string;
 
 beforeEach(() => {
@@ -208,6 +226,39 @@ describe('Build runtime wiring', () => {
       );
       expect(result.outcome).toBe('complete');
       expect(result.review_verdict).toBe('accept');
+    },
+    BUILD_RUNTIME_TIMEOUT_MS,
+  );
+
+  it(
+    'proves a change in a project with no package.json using the declared verification command',
+    async () => {
+      const { bytes } = loadFixture();
+      const runFolder = join(runFolderBase, 'declared-verification');
+      const argv = ['node', '-e', 'process.exit(0)'];
+
+      const outcome = await runCompiledFlow({
+        runDir: runFolder,
+        flowBytes: bytes,
+        runId: 'b2000000-0000-0000-0000-000000000020',
+        goal: 'Add a tiny Build feature',
+        depth: 'medium',
+        now: deterministicNow(Date.UTC(2026, 3, 25, 8, 10, 0)),
+        relayer: relayerWith(),
+        projectRoot: makeDeclaredVerificationProjectRoot(argv),
+      });
+
+      // Before the config hatch this run could not start: the brief writer
+      // blocked on the missing package.json, so Build and Fix were unusable in
+      // every non-Node project.
+      expect(outcome.outcome).toBe('complete');
+
+      const verification = BuildVerification.parse(
+        JSON.parse(readFileSync(join(runFolder, 'reports/build/verification.json'), 'utf8')),
+      );
+      expect(verification.overall_status).toBe('passed');
+      expect(verification.commands).toHaveLength(1);
+      expect(verification.commands[0]?.argv).toEqual(argv);
     },
     BUILD_RUNTIME_TIMEOUT_MS,
   );

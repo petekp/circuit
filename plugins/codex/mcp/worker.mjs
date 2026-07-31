@@ -14603,6 +14603,18 @@ var VerificationCommand = external_exports.object({
     });
   }
 });
+var DeclaredVerificationCommand = external_exports.object({
+  argv: external_exports.array(external_exports.string().min(1)).min(1),
+  cwd: ProjectRelativeCwd.default("."),
+  // Absent means the shared verification budget. Declared because a Rust or
+  // Go suite can legitimately outrun the default.
+  timeout_ms: external_exports.number().int().positive().optional()
+}).strict();
+var VerificationConfig = external_exports.object({
+  build: DeclaredVerificationCommand.optional(),
+  lint: DeclaredVerificationCommand.optional(),
+  general: DeclaredVerificationCommand.optional()
+}).strict();
 var VerificationCommandResult = external_exports.object({
   command_id: external_exports.string().min(1),
   argv: external_exports.array(external_exports.string().min(1)).min(1),
@@ -17258,6 +17270,11 @@ var Config = external_exports.object({
   skills: SkillsConfig.default({ bindings: {} }),
   skill_hooks: SkillHookConfig.default({ policy: {}, detection: { disabled_patterns: {} } }),
   flows: external_exports.record(CompiledFlowId, FlowOverride).default({}),
+  // How this project proves a change. Optional: absent means the resolver
+  // reads package.json scripts, which is all it could ever do before this
+  // key existed. Only the project layer is read — see the schema comment on
+  // VerificationConfig.
+  verification: VerificationConfig.optional(),
   power_tiers: external_exports.record(ConnectorName, PowerTierTable).default({}),
   power_auto: PowerAutoBounds.optional(),
   defaults: external_exports.object({

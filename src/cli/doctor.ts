@@ -26,6 +26,8 @@ import {
   stateDirUnwritableSummary,
 } from '../connectors/state-dir.js';
 import { discoverRuntimeConfigLayers } from '../shared/config-loader.js';
+import { PROJECT_CONFIG_RELATIVE_SEGMENTS } from '../shared/control-plane-paths.js';
+import { resolveVerificationCommands } from '../shared/verification-resolver.js';
 import { resolveChosenConnectors } from './chosen-connectors.js';
 import { commanderErrorMessage, configureCommanderProgram } from './commander-support.js';
 import { hostKindFromEnv } from './preview.js';
@@ -130,10 +132,73 @@ function workspaceLines(
   ];
 }
 
+const PROJECT_CONFIG_DISPLAY_PATH = PROJECT_CONFIG_RELATIVE_SEGMENTS.join('/');
+
+export interface DoctorVerificationProbe {
+  readonly status: 'ready' | 'blocked';
+  // Whether the project config carries a `verification` block at all. False
+  // means every resolved command came from package.json scripts.
+  readonly declared: boolean;
+  readonly commands: readonly { readonly argv: readonly string[]; readonly cwd: string }[];
+  readonly detail: string;
+}
+
+// Build and Fix both refuse to run without a proof command, and until the
+// config hatch existed the only source was package.json — so a Python or Go
+// project failed at the first step with a package.json complaint that read
+// like a bug. Doctor answers the question before the run does.
+//
+// Advisory only, like the workspace findings: plenty of repos never run a
+// flow that needs a proof, so a missing command never fails this check.
+export function probeVerification(projectRoot: string, declared: boolean): DoctorVerificationProbe {
+  const result = resolveVerificationCommands({
+    projectRoot,
+    goal: '',
+    requestedNeeds: ['general'],
+    commandIdPrefix: 'doctor',
+  });
+  if (result.status === 'blocked') {
+    return { status: 'blocked', declared, commands: [], detail: result.reason };
+  }
+  return {
+    status: 'ready',
+    declared,
+    commands: result.commands.map((command) => ({ argv: command.argv, cwd: command.cwd })),
+    detail: declared
+      ? `declared in ${PROJECT_CONFIG_DISPLAY_PATH}`
+      : 'resolved from package.json scripts',
+  };
+}
+
+function verificationLines(
+  palette: TerminalPalette,
+  probe: DoctorVerificationProbe,
+): readonly string[] {
+  if (probe.status === 'ready') {
+    const first = probe.commands[0];
+    if (first === undefined) return [];
+    const where = first.cwd === '.' ? '' : ` in ${first.cwd}`;
+    return [
+      '',
+      palette.bold('Verification'),
+      `  Build and Fix would prove a change with: ${first.argv.join(' ')}${where}`,
+      palette.dim(`  ${probe.detail}`),
+    ];
+  }
+  return [
+    '',
+    palette.bold(palette.warn('Verification')),
+    palette.warn('  Build and Fix have no way to prove a change in this project.'),
+    palette.dim(`  ${probe.detail}`),
+    palette.dim("  fix: circuit config set verification.general '{argv: [make, check]}'"),
+  ];
+}
+
 export function renderDoctorReport(
   palette: TerminalPalette,
   entries: readonly DoctorConnectorEntry[],
   workspace: readonly WorkspaceHygieneFinding[] = [],
+  verification?: DoctorVerificationProbe,
 ): string {
   // One table, chosen connectors first (Array.prototype.sort is stable, so
   // the probe order survives within each group). The CHOSEN BY column is
@@ -153,6 +218,7 @@ export function renderDoctorReport(
       ...connectorRows(palette, ordered),
     ]),
     ...workspaceLines(palette, workspace),
+    ...(verification === undefined ? [] : verificationLines(palette, verification)),
     '',
     // Doctor cannot see other environments: a sandboxed agent session spawns
     // workers under restrictions this terminal may not have. Run intake runs
@@ -235,6 +301,12 @@ export async function runDoctorCommand(argv: readonly string[]): Promise<number>
 
   const ready = brokenChosenNames(entries).length === 0;
   const workspace = workspaceHygieneFindings(process.cwd());
+  const verification = probeVerification(
+    process.cwd(),
+    configLayers.some(
+      (layer) => layer.layer === 'project' && layer.config.verification !== undefined,
+    ),
+  );
 
   if (parsed.json) {
     process.stdout.write(
@@ -245,6 +317,7 @@ export async function runDoctorCommand(argv: readonly string[]): Promise<number>
           chosen_connectors: [...chosen.names].sort(),
           connectors: entries,
           workspace,
+          verification,
         },
         null,
         2,
@@ -252,7 +325,7 @@ export async function runDoctorCommand(argv: readonly string[]): Promise<number>
     );
   } else {
     const palette = terminalPalette(colorEnabled());
-    process.stdout.write(`${renderDoctorReport(palette, entries, workspace)}\n`);
+    process.stdout.write(`${renderDoctorReport(palette, entries, workspace, verification)}\n`);
   }
   return ready ? 0 : 1;
 }

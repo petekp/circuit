@@ -19669,7 +19669,7 @@ function commandBinaryName(argv0) {
   const normalized = argv0.replaceAll("\\", "/");
   return normalized.slice(normalized.lastIndexOf("/") + 1).toLowerCase();
 }
-var SHELL_BINARIES, ProjectRelativeCwd, VerificationCommand, VerificationCommandResult, VerificationResult;
+var SHELL_BINARIES, ProjectRelativeCwd, VerificationCommand, DeclaredVerificationCommand, VerificationConfig, VerificationCommandResult, VerificationResult;
 var init_verification = __esm({
   "dist/schemas/verification.js"() {
     "use strict";
@@ -19734,6 +19734,18 @@ var init_verification = __esm({
         });
       }
     });
+    DeclaredVerificationCommand = external_exports.object({
+      argv: external_exports.array(external_exports.string().min(1)).min(1),
+      cwd: ProjectRelativeCwd.default("."),
+      // Absent means the shared verification budget. Declared because a Rust or
+      // Go suite can legitimately outrun the default.
+      timeout_ms: external_exports.number().int().positive().optional()
+    }).strict();
+    VerificationConfig = external_exports.object({
+      build: DeclaredVerificationCommand.optional(),
+      lint: DeclaredVerificationCommand.optional(),
+      general: DeclaredVerificationCommand.optional()
+    }).strict();
     VerificationCommandResult = external_exports.object({
       command_id: external_exports.string().min(1),
       argv: external_exports.array(external_exports.string().min(1)).min(1),
@@ -33210,6 +33222,7 @@ var init_config = __esm({
     init_selection_policy();
     init_skill_hook();
     init_step();
+    init_verification();
     ConnectorReference = external_exports.discriminatedUnion("kind", [
       external_exports.object({ kind: external_exports.literal("builtin"), name: EnabledConnector }).strict(),
       external_exports.object({ kind: external_exports.literal("named"), name: ConnectorName }).strict()
@@ -33328,6 +33341,11 @@ var init_config = __esm({
       skills: SkillsConfig.default({ bindings: {} }),
       skill_hooks: SkillHookConfig.default({ policy: {}, detection: { disabled_patterns: {} } }),
       flows: external_exports.record(CompiledFlowId, FlowOverride).default({}),
+      // How this project proves a change. Optional: absent means the resolver
+      // reads package.json scripts, which is all it could ever do before this
+      // key existed. Only the project layer is read — see the schema comment on
+      // VerificationConfig.
+      verification: VerificationConfig.optional(),
       power_tiers: external_exports.record(ConnectorName, PowerTierTable).default({}),
       power_auto: PowerAutoBounds.optional(),
       defaults: external_exports.object({
@@ -67347,16 +67365,47 @@ function explicitInlineVerifyWithCommand(input) {
     env: { ...input.env ?? {} }
   });
 }
-function resolveVerificationCommands(input) {
-  const explicitCommand = explicitInlineVerifyWithCommand(input);
-  if (explicitCommand !== void 0)
-    return { status: "ready", commands: [explicitCommand] };
-  if (input.projectRoot === void 0) {
+function readDeclaredVerification(projectRoot) {
+  const configPath = join13(projectRoot, ...PROJECT_CONFIG_RELATIVE_SEGMENTS);
+  if (!existsSync15(configPath))
+    return { status: "none" };
+  let parsed;
+  try {
+    parsed = (0, import_yaml3.parse)(readFileSync14(configPath, "utf8"));
+  } catch {
+    return { status: "none" };
+  }
+  if (parsed === null || typeof parsed !== "object" || Array.isArray(parsed)) {
+    return { status: "none" };
+  }
+  const raw = parsed.verification;
+  if (raw === void 0)
+    return { status: "none" };
+  const result = VerificationConfig.safeParse(raw);
+  if (!result.success) {
+    const detail = result.error.issues.map((issue2) => `${["verification", ...issue2.path].join(".")}: ${issue2.message}`).join("; ");
     return {
-      status: "blocked",
-      reason: "Cannot choose verification commands because projectRoot was not provided."
+      status: "invalid",
+      reason: `Cannot choose verification commands because ${PROJECT_CONFIG_DISPLAY_PATH} declares an unusable verification block (${detail}).`
     };
   }
+  return { status: "declared", config: result.data };
+}
+function commandForDeclared(input) {
+  const parsed = VerificationCommand.safeParse({
+    id: `${input.commandIdPrefix}-${input.need}`,
+    cwd: input.declared.cwd,
+    argv: [...input.declared.argv],
+    timeout_ms: input.declared.timeout_ms ?? input.timeoutMs,
+    max_output_bytes: input.maxOutputBytes,
+    env: { ...input.env }
+  });
+  if (parsed.success)
+    return parsed.data;
+  const detail = parsed.error.issues.map((issue2) => issue2.message).join("; ");
+  return `Cannot choose verification commands because ${PROJECT_CONFIG_DISPLAY_PATH} declares an unusable command at verification.${input.need} (${detail}).`;
+}
+function resolveFromPackageScripts(input, needs) {
   const packageInfo2 = readPackageInfo(input.projectRoot);
   if (typeof packageInfo2 === "string")
     return { status: "blocked", reason: packageInfo2 };
@@ -67364,7 +67413,6 @@ function resolveVerificationCommands(input) {
   if (typeof manager === "string" && !["npm", "pnpm", "yarn"].includes(manager)) {
     return { status: "blocked", reason: manager };
   }
-  const needs = uniqueNeeds(input.requestedNeeds);
   const missing = [];
   const selectedScripts = [];
   for (const need of needs) {
@@ -67405,6 +67453,59 @@ function resolveVerificationCommands(input) {
   }
   return { status: "ready", commands };
 }
+function resolveVerificationCommands(input) {
+  const explicitCommand = explicitInlineVerifyWithCommand(input);
+  if (explicitCommand !== void 0)
+    return { status: "ready", commands: [explicitCommand] };
+  const projectRoot = input.projectRoot;
+  if (projectRoot === void 0) {
+    return {
+      status: "blocked",
+      reason: "Cannot choose verification commands because projectRoot was not provided."
+    };
+  }
+  const declared = readDeclaredVerification(projectRoot);
+  if (declared.status === "invalid")
+    return { status: "blocked", reason: declared.reason };
+  const declaredConfig = declared.status === "declared" ? declared.config : {};
+  const needs = uniqueNeeds(input.requestedNeeds);
+  const declaredCommands = [];
+  const unresolved = [];
+  for (const need of needs) {
+    const entry = declaredConfig[need];
+    if (entry === void 0) {
+      unresolved.push(need);
+      continue;
+    }
+    const built = commandForDeclared({
+      need,
+      declared: entry,
+      commandIdPrefix: input.commandIdPrefix,
+      timeoutMs: input.timeoutMs ?? DEFAULT_VERIFICATION_TIMEOUT_MS,
+      maxOutputBytes: input.maxOutputBytes ?? 2e5,
+      env: input.env ?? {}
+    });
+    if (typeof built === "string")
+      return { status: "blocked", reason: built };
+    declaredCommands.push(built);
+  }
+  if (unresolved.length === 0 && declaredCommands.length > 0) {
+    return { status: "ready", commands: declaredCommands };
+  }
+  const fromScripts = resolveFromPackageScripts({ ...input, projectRoot }, unresolved);
+  if (fromScripts.status === "blocked") {
+    const declaredKeys = Object.keys(declaredConfig);
+    if (declaredKeys.length === 0)
+      return fromScripts;
+    const listed = declaredKeys.map((key) => `verification.${key}`).join(", ");
+    const wanted = unresolved.map((need) => `verification.${need}`).join(", ");
+    return {
+      status: "blocked",
+      reason: `${fromScripts.reason} ${PROJECT_CONFIG_DISPLAY_PATH} declares ${listed} but not ${wanted}; add ${wanted} there.`
+    };
+  }
+  return { status: "ready", commands: [...declaredCommands, ...fromScripts.commands] };
+}
 function requireResolvedVerificationCommands(input) {
   const result = resolveVerificationCommands(input);
   if (result.status === "blocked")
@@ -67424,13 +67525,16 @@ function inferBuildVerificationNeeds(goal) {
     needs.push("lint");
   return needs.length > 0 ? needs : ["general"];
 }
-var DEFAULT_VERIFICATION_TIMEOUT_MS;
+var import_yaml3, DEFAULT_VERIFICATION_TIMEOUT_MS, PROJECT_CONFIG_DISPLAY_PATH;
 var init_verification_resolver = __esm({
   "dist/shared/verification-resolver.js"() {
     "use strict";
+    import_yaml3 = __toESM(require_dist(), 1);
     init_verification();
+    init_control_plane_paths();
     init_proof_plan();
     DEFAULT_VERIFICATION_TIMEOUT_MS = 6e5;
+    PROJECT_CONFIG_DISPLAY_PATH = PROJECT_CONFIG_RELATIVE_SEGMENTS.join("/");
   }
 });
 
@@ -91066,7 +91170,7 @@ function circuitYaml(slug, description) {
 function validateCircuitYamlDescriptor(text, sourcePath, expectedSlug) {
   let raw;
   try {
-    raw = (0, import_yaml3.parse)(text);
+    raw = (0, import_yaml4.parse)(text);
   } catch (err) {
     throw new Error(`custom flow descriptor YAML parse failed at ${sourcePath}: ${err.message}`);
   }
@@ -91202,11 +91306,11 @@ function publishDraft(input) {
   writeText(join17(commandRoot(input.home), `${input.slug}.md`), readFileSync39(join17(draft, "command.md"), "utf8"));
   publishManifest({ ...input, filenames });
 }
-var import_yaml3, RESERVED_FLOW_IDS;
+var import_yaml4, RESERVED_FLOW_IDS;
 var init_custom_flow_package = __esm({
   "dist/cli/custom-flow-package.js"() {
     "use strict";
-    import_yaml3 = __toESM(require_dist(), 1);
+    import_yaml4 = __toESM(require_dist(), 1);
     init_canonical_stage_policy();
     init_catalog();
     init_compiled_flow();
@@ -95873,7 +95977,7 @@ function parseSkillMarkdown(text, skillPath) {
   }
   let rawFrontmatter;
   try {
-    rawFrontmatter = (0, import_yaml4.parse)(match[1] ?? "");
+    rawFrontmatter = (0, import_yaml5.parse)(match[1] ?? "");
   } catch (err) {
     throw new Error(`skill frontmatter parse failed at ${skillPath}: ${err.message}`);
   }
@@ -95967,11 +96071,11 @@ function createUserSkillRegistry(options = {}) {
     }
   };
 }
-var import_yaml4, FRONTMATTER_RE, UserSkillFrontmatter;
+var import_yaml5, FRONTMATTER_RE, UserSkillFrontmatter;
 var init_user_skill_registry = __esm({
   "dist/shared/user-skill-registry.js"() {
     "use strict";
-    import_yaml4 = __toESM(require_dist(), 1);
+    import_yaml5 = __toESM(require_dist(), 1);
     init_hashing();
     init_ids();
     init_skill();
@@ -158841,6 +158945,8 @@ init_esm();
 init_health();
 init_state_dir();
 init_config_loader();
+init_control_plane_paths();
+init_verification_resolver();
 
 // dist/cli/chosen-connectors.js
 init_resolver();
@@ -159056,7 +159162,46 @@ function workspaceLines(palette, findings) {
     ])
   ];
 }
-function renderDoctorReport(palette, entries, workspace = []) {
+var PROJECT_CONFIG_DISPLAY_PATH2 = PROJECT_CONFIG_RELATIVE_SEGMENTS.join("/");
+function probeVerification(projectRoot, declared) {
+  const result = resolveVerificationCommands({
+    projectRoot,
+    goal: "",
+    requestedNeeds: ["general"],
+    commandIdPrefix: "doctor"
+  });
+  if (result.status === "blocked") {
+    return { status: "blocked", declared, commands: [], detail: result.reason };
+  }
+  return {
+    status: "ready",
+    declared,
+    commands: result.commands.map((command) => ({ argv: command.argv, cwd: command.cwd })),
+    detail: declared ? `declared in ${PROJECT_CONFIG_DISPLAY_PATH2}` : "resolved from package.json scripts"
+  };
+}
+function verificationLines(palette, probe2) {
+  if (probe2.status === "ready") {
+    const first = probe2.commands[0];
+    if (first === void 0)
+      return [];
+    const where = first.cwd === "." ? "" : ` in ${first.cwd}`;
+    return [
+      "",
+      palette.bold("Verification"),
+      `  Build and Fix would prove a change with: ${first.argv.join(" ")}${where}`,
+      palette.dim(`  ${probe2.detail}`)
+    ];
+  }
+  return [
+    "",
+    palette.bold(palette.warn("Verification")),
+    palette.warn("  Build and Fix have no way to prove a change in this project."),
+    palette.dim(`  ${probe2.detail}`),
+    palette.dim("  fix: circuit config set verification.general '{argv: [make, check]}'")
+  ];
+}
+function renderDoctorReport(palette, entries, workspace = [], verification) {
   const ordered = [...entries].sort((a, b) => Number(b.chosen) - Number(a.chosen));
   return [
     diamondHeaderLine(palette, "circuit doctor"),
@@ -159069,6 +159214,7 @@ function renderDoctorReport(palette, entries, workspace = []) {
       ...connectorRows(palette, ordered)
     ]),
     ...workspaceLines(palette, workspace),
+    ...verification === void 0 ? [] : verificationLines(palette, verification),
     "",
     // Doctor cannot see other environments: a sandboxed agent session spawns
     // workers under restrictions this terminal may not have. Run intake runs
@@ -159124,18 +159270,20 @@ async function runDoctorCommand(argv) {
   ];
   const ready = brokenChosenNames(entries).length === 0;
   const workspace = workspaceHygieneFindings(process.cwd());
+  const verification = probeVerification(process.cwd(), configLayers.some((layer) => layer.layer === "project" && layer.config.verification !== void 0));
   if (parsed.json) {
     process.stdout.write(`${JSON.stringify({
       schema_version: 2,
       ready,
       chosen_connectors: [...chosen.names].sort(),
       connectors: entries,
-      workspace
+      workspace,
+      verification
     }, null, 2)}
 `);
   } else {
     const palette = terminalPalette(colorEnabled());
-    process.stdout.write(`${renderDoctorReport(palette, entries, workspace)}
+    process.stdout.write(`${renderDoctorReport(palette, entries, workspace, verification)}
 `);
   }
   return ready ? 0 : 1;
@@ -160831,7 +160979,7 @@ import { existsSync as existsSync50, readFileSync as readFileSync70 } from "node
 import { basename as basename8, join as join55 } from "node:path";
 
 // dist/memory/project-identity.js
-var import_yaml5 = __toESM(require_dist(), 1);
+var import_yaml6 = __toESM(require_dist(), 1);
 init_schemas3();
 init_atomic_io();
 init_connector_relay();
@@ -160859,7 +161007,7 @@ function readConfigProjectId(repoRoot) {
     return void 0;
   let raw;
   try {
-    raw = (0, import_yaml5.parse)(readFileSync69(configPath, "utf8"));
+    raw = (0, import_yaml6.parse)(readFileSync69(configPath, "utf8"));
   } catch {
     return void 0;
   }

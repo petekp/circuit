@@ -1,9 +1,9 @@
 ---
 contract: config
 status: ratified-v0.1
-version: 0.6
+version: 0.7
 schema_source: src/schemas/config.ts
-last_updated: 2026-07-04
+last_updated: 2026-07-31
 depends_on: [ids, selection-policy, connector, step, skill, skill-hook]
 report_ids:
   - config.root
@@ -11,7 +11,7 @@ report_ids:
   - config.flow-override
   - config.skill-bindings
   - config.skill-hooks
-invariant_ids: [CONFIG-I1, CONFIG-I2, CONFIG-I3, CONFIG-I4, CONFIG-I5, CONFIG-I6, CONFIG-I7, CONFIG-I8, CONFIG-I9, CONFIG-I10]
+invariant_ids: [CONFIG-I1, CONFIG-I2, CONFIG-I3, CONFIG-I4, CONFIG-I5, CONFIG-I6, CONFIG-I7, CONFIG-I8, CONFIG-I9, CONFIG-I10, CONFIG-I11]
 property_ids: [config.prop.surplus_keys_rejected_transitively, config.prop.layered_composition_preserves_strictness, config.prop.flow_override_record_closed_under_flow_id]
 ---
 
@@ -252,6 +252,22 @@ The runtime MUST reject any `Config`, `LayeredConfig`, or
   layers. `Config.skill_hooks.detection` carries optional literal file-pattern
   declarations. This surface does not dispatch skills by itself; runtime
   dispatch remains a later Run-owned behavior.
+
+- **CONFIG-I11 — Declared verification commands clear the same bar as
+  resolved ones, and are read from the project layer only.**
+  `Config.verification` is an optional block whose keys (`build`, `lint`,
+  `general`) match the resolver's verification needs. Each entry carries
+  `argv` (non-empty strings), an optional project-relative `cwd` (default
+  `.`), and an optional `timeout_ms`. Every declared entry is materialized
+  through `VerificationCommand`, so the shared rules still apply: no shell
+  executable as `argv[0]`, no `cwd` outside the project root. Only the
+  project layer is consulted — a verification command describes the
+  repository, not the operator, so a personal `~/.config/circuit/config.yaml`
+  entry must not apply to every checkout. Enforced at
+  `src/schemas/verification.ts` (`VerificationConfig`) and
+  `src/shared/verification-resolver.ts`; tested in
+  `tests/unit/verification-resolver.test.ts` and end to end in
+  `tests/runner/build-runtime-wiring.test.ts`.
 
 ## Pre-conditions
 
@@ -555,6 +571,14 @@ After a `FlowOverride` is accepted:
   `Config` shape takes `3`). No schema change; the prose was the only
   drifted surface — code, loader tests, and
   `docs/architecture/run-process.md` already agreed.
+
+- **v0.7 (verification hatch, 2026-07-31)** — `Config` gains the optional
+  `verification` block and CONFIG-I11. Additive: an absent block leaves the
+  package.json resolver exactly as it was. The gap this closes is that Build
+  and Fix could only find a proof command in package.json scripts, so every
+  non-Node project hit a hard block at the first step. The schema lives in
+  `src/schemas/verification.ts` beside the `VerificationCommand` it
+  materializes into, which is what keeps the safety rules single-sourced.
 
 - **v0.2 (Stage 1)** — Ratify `property_ids` above by landing the
   corresponding property-test harness at

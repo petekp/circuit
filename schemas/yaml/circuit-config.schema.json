@@ -599,6 +599,87 @@
             "additionalProperties": false
           }
         },
+        "verification": {
+          "type": "object",
+          "properties": {
+            "build": {
+              "type": "object",
+              "properties": {
+                "argv": {
+                  "minItems": 1,
+                  "type": "array",
+                  "items": {
+                    "type": "string",
+                    "minLength": 1
+                  }
+                },
+                "cwd": {
+                  "default": ".",
+                  "type": "string",
+                  "minLength": 1
+                },
+                "timeout_ms": {
+                  "type": "integer",
+                  "exclusiveMinimum": 0,
+                  "maximum": 9007199254740991
+                }
+              },
+              "required": ["argv"],
+              "additionalProperties": false
+            },
+            "lint": {
+              "type": "object",
+              "properties": {
+                "argv": {
+                  "minItems": 1,
+                  "type": "array",
+                  "items": {
+                    "type": "string",
+                    "minLength": 1
+                  }
+                },
+                "cwd": {
+                  "default": ".",
+                  "type": "string",
+                  "minLength": 1
+                },
+                "timeout_ms": {
+                  "type": "integer",
+                  "exclusiveMinimum": 0,
+                  "maximum": 9007199254740991
+                }
+              },
+              "required": ["argv"],
+              "additionalProperties": false
+            },
+            "general": {
+              "type": "object",
+              "properties": {
+                "argv": {
+                  "minItems": 1,
+                  "type": "array",
+                  "items": {
+                    "type": "string",
+                    "minLength": 1
+                  }
+                },
+                "cwd": {
+                  "default": ".",
+                  "type": "string",
+                  "minLength": 1
+                },
+                "timeout_ms": {
+                  "type": "integer",
+                  "exclusiveMinimum": 0,
+                  "maximum": 9007199254740991
+                }
+              },
+              "required": ["argv"],
+              "additionalProperties": false
+            }
+          },
+          "additionalProperties": false
+        },
         "power_tiers": {
           "default": {},
           "type": "object",

@@ -11,6 +11,7 @@ import { Power, PowerDialSetting, powerIndex } from './power.js';
 import { Effort, ProviderScopedModel, SelectionOverride } from './selection-policy.js';
 import { SkillHookConfig } from './skill-hook.js';
 import { RelayRole } from './step.js';
+import { VerificationConfig } from './verification.js';
 
 // connector-I5 + connector-I9: the registry-layer `ConnectorReference` is a
 // 2-variant discriminated union with per-variant `.strict()`. Inline
@@ -261,6 +262,11 @@ export const Config = z
     skills: SkillsConfig.default({ bindings: {} }),
     skill_hooks: SkillHookConfig.default({ policy: {}, detection: { disabled_patterns: {} } }),
     flows: z.record(CompiledFlowId, FlowOverride).default({}),
+    // How this project proves a change. Optional: absent means the resolver
+    // reads package.json scripts, which is all it could ever do before this
+    // key existed. Only the project layer is read — see the schema comment on
+    // VerificationConfig.
+    verification: VerificationConfig.optional(),
     power_tiers: z.record(ConnectorName, PowerTierTable).default({}),
     power_auto: PowerAutoBounds.optional(),
     defaults: z

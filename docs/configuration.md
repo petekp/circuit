@@ -67,6 +67,66 @@ The optional worker connector requires the Codex CLI:
 npm install -g @openai/codex
 ```
 
+## Verification Commands
+
+Build and Fix refuse to claim a change works without running something that
+proves it. By default Circuit looks in `package.json` and runs the first of
+`verify`, `test`, or `check` it finds. A project without a `package.json` has
+nothing to find, so both flows stop before they start.
+
+Declare the command yourself:
+
+```yaml
+schema_version: 1
+
+verification:
+  general:
+    argv: [pytest, -q]
+```
+
+Or from the command line:
+
+```bash
+circuit config set verification.general '{argv: [pytest, -q]}'
+```
+
+`general` is the everyday proof. `build` and `lint` are separate entries a
+Build goal can ask for by name, as in "keep build and lint clean":
+
+```yaml
+verification:
+  general:
+    argv: [go, test, ./...]
+  build:
+    argv: [go, build, ./...]
+  lint:
+    argv: [golangci-lint, run]
+```
+
+Each entry takes:
+
+- `argv` — the command, already split into arguments. Required.
+- `cwd` — where to run it, relative to the repo root. Defaults to `.`.
+- `timeout_ms` — how long it may run. Defaults to 600000 (ten minutes).
+
+Two rules apply to every command:
+
+- `argv` runs directly, with no shell. `argv[0]` cannot be `sh`, `bash`, or
+  another shell, and there is no pipe, `&&`, or redirect. If you need those,
+  put them in a script or a Makefile target and call that.
+- `cwd` cannot leave the repo root.
+
+Circuit reads this block from the project file only. A verification command
+describes the repository, not you, so an entry in your personal
+`~/.config/circuit/config.yaml` is ignored.
+
+An entry overrides the `package.json` script for that need, and only that
+need. A Node project that declares `verification.lint` still gets `npm run
+build` from its scripts.
+
+To see what a project resolves to, run `circuit doctor`. It reports the
+command Build and Fix would use, or says plainly that there isn't one.
+
 ## Local Skills
 
 Circuit can load your own `SKILL.md` files into relay prompts. It scans these

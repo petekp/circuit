@@ -141,10 +141,18 @@ guide covers pointing at a specific flow folder with `--flow-root`.
 
 Circuit requires Node.js `22.18.0` or newer.
 
-One scope note: flows that change code (`build`, `fix`) verify
-their work through your project's `package.json` scripts (`verify`, `test`,
-or `check`), so today they need an npm-family project. `review`, `explore`,
-and `prototype` work in any repo.
+One scope note: flows that change code (`build`, `fix`) will not claim a
+change works without running something that proves it. In an npm-family
+project they find that on their own, using the first of your `package.json`
+scripts named `verify`, `test`, or `check`. Anywhere else, name the command
+once:
+
+```bash
+circuit config set verification.general '{argv: [pytest, -q]}'
+```
+
+`circuit doctor` reports which command a project resolves to. `review`,
+`explore`, and `prototype` need no proof command and work in any repo.
 
 For a more careful manual check, use [`docs/first-run.md`](docs/first-run.md).
 For the repo map, use [`docs/repository-map.md`](docs/repository-map.md).
