@@ -68,7 +68,7 @@ during iteration when you need a faster broad check.
 ```bash
 npm run check        # tsc --noEmit
 npm run lint         # biome check
-npm run test         # vitest (full suite), then the MCP proof-sandbox files in a serial stage: they time real process cleanup and flake under parallel CPU contention
+npm run test         # vitest (full suite), then the MCP subprocess files in a serial stage: they time real process cleanup and flake under parallel CPU contention. A file belongs there if it asserts on real process timing (see SERIAL_FILES in scripts/run-tests.mjs)
 npm run test:fast    # vitest excluding the two subprocess-driven outliers: tests/runner/cli-router.test.ts (~10s CLI integration) and tests/unit/emit-flows-drift.test.ts (~30s build+emit subprocesses); same serial MCP stage
 npm run test:coverage # vitest run --coverage (info, no thresholds)
 npm run build        # tsc -p tsconfig.build.json

@@ -26,7 +26,7 @@
     "build": "tsc -p tsconfig.build.json",
     "test": "node scripts/run-tests.mjs",
     "test:fast": "node scripts/run-tests.mjs --fast",
-    "test:mcp-sandbox-serial": "vitest run --fileParallelism=false tests/mcp/proof-sandbox.test.ts tests/mcp/proof-sandbox-live.test.ts",
+    "test:mcp-sandbox-serial": "vitest run --fileParallelism=false tests/mcp/proof-sandbox.test.ts tests/mcp/proof-sandbox-live.test.ts tests/mcp/nested-codex-subprocess.test.ts",
     "test:browser": "npm run build && playwright test --config tests/browser/playwright.config.ts",
     "test:watch": "vitest",
     "test:coverage": "vitest run --coverage",
