@@ -15,6 +15,9 @@ export function renderFrontDoor(): string {
   return [
     `${palette.accent('◆')} ${palette.bold('circuit')} ${sep} v${readSourceVersion()} ${sep} configurable developer flows`,
     '',
+    `${palette.bold('start here')}`,
+    line('circuit demo', 'a real Fix run on a throwaway project built to be fixable'),
+    '',
     `${palette.bold('run flows')}`,
     line('circuit run <flow> --goal "<goal>"', 'execute a flow with evidence and a report'),
     line('circuit checkpoints', 'pending checkpoints across active runs'),

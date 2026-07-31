@@ -6,6 +6,7 @@ import { CLI_COMMAND_NAMES, type CliCommandName } from './command-vocabulary.js'
 import { parseCommanderOrThrow } from './commander-support.js';
 import { runConfigCommand } from './config-command.js';
 import { runCreateCommand } from './create.js';
+import { runDemoCommand } from './demo.js';
 import { runDoctorCommand } from './doctor.js';
 import { runFrontDoorCommand } from './front-door.js';
 import { runGenerateCommand } from './generate.js';
@@ -234,6 +235,10 @@ export async function main(argv: readonly string[], options: CliMainOptions = {}
   }
   if (invocation.command === 'preview') {
     return runPreviewCommand(invocation.argv);
+  }
+  if (invocation.command === 'demo') {
+    // demo runs a flow, so it needs the same relay channel run/resume use.
+    return runDemoCommand(invocation.argv, options);
   }
   if (invocation.command === 'doctor') {
     return runDoctorCommand(invocation.argv);

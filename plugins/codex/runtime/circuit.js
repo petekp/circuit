@@ -25910,6 +25910,7 @@ var init_command_vocabulary = __esm({
     "use strict";
     CLI_COMMAND_NAMES = [
       "run",
+      "demo",
       "resume",
       "handoff",
       "history",
@@ -35267,21 +35268,21 @@ var require_react_development = __commonJS({
         );
         actScopeDepth = prevActScopeDepth;
       }
-      function recursivelyFlushAsyncActWork(returnValue, resolve38, reject) {
+      function recursivelyFlushAsyncActWork(returnValue, resolve39, reject) {
         var queue = ReactSharedInternals.actQueue;
         if (null !== queue)
           if (0 !== queue.length)
             try {
               flushActQueue(queue);
               enqueueTask(function() {
-                return recursivelyFlushAsyncActWork(returnValue, resolve38, reject);
+                return recursivelyFlushAsyncActWork(returnValue, resolve39, reject);
               });
               return;
             } catch (error52) {
               ReactSharedInternals.thrownErrors.push(error52);
             }
           else ReactSharedInternals.actQueue = null;
-        0 < ReactSharedInternals.thrownErrors.length ? (queue = aggregateErrors(ReactSharedInternals.thrownErrors), ReactSharedInternals.thrownErrors.length = 0, reject(queue)) : resolve38(returnValue);
+        0 < ReactSharedInternals.thrownErrors.length ? (queue = aggregateErrors(ReactSharedInternals.thrownErrors), ReactSharedInternals.thrownErrors.length = 0, reject(queue)) : resolve39(returnValue);
       }
       function flushActQueue(queue) {
         if (!isFlushing) {
@@ -35468,7 +35469,7 @@ var require_react_development = __commonJS({
             ));
           });
           return {
-            then: function(resolve38, reject) {
+            then: function(resolve39, reject) {
               didAwaitActCall = true;
               thenable.then(
                 function(returnValue) {
@@ -35478,7 +35479,7 @@ var require_react_development = __commonJS({
                       flushActQueue(queue), enqueueTask(function() {
                         return recursivelyFlushAsyncActWork(
                           returnValue,
-                          resolve38,
+                          resolve39,
                           reject
                         );
                       });
@@ -35492,7 +35493,7 @@ var require_react_development = __commonJS({
                       ReactSharedInternals.thrownErrors.length = 0;
                       reject(_thrownError);
                     }
-                  } else resolve38(returnValue);
+                  } else resolve39(returnValue);
                 },
                 function(error52) {
                   popActScope(prevActQueue, prevActScopeDepth);
@@ -35514,15 +35515,15 @@ var require_react_development = __commonJS({
         if (0 < ReactSharedInternals.thrownErrors.length)
           throw callback = aggregateErrors(ReactSharedInternals.thrownErrors), ReactSharedInternals.thrownErrors.length = 0, callback;
         return {
-          then: function(resolve38, reject) {
+          then: function(resolve39, reject) {
             didAwaitActCall = true;
             0 === prevActScopeDepth ? (ReactSharedInternals.actQueue = queue, enqueueTask(function() {
               return recursivelyFlushAsyncActWork(
                 returnValue$jscomp$0,
-                resolve38,
+                resolve39,
                 reject
               );
-            })) : resolve38(returnValue$jscomp$0);
+            })) : resolve39(returnValue$jscomp$0);
           }
         };
       };
@@ -47189,7 +47190,7 @@ var require_react_dom_server_node_production = __commonJS({
       };
     }
     exports.prerender = function(children, options) {
-      return new Promise(function(resolve38, reject) {
+      return new Promise(function(resolve39, reject) {
         var onHeaders = options ? options.onHeaders : void 0, onHeadersImpl;
         onHeaders && (onHeadersImpl = function(headersDescriptor) {
           onHeaders(new Headers(headersDescriptor));
@@ -47232,7 +47233,7 @@ var require_react_dom_server_node_production = __commonJS({
               { highWaterMark: 0 }
             );
             stream2 = { postponed: getPostponedState(request), prelude: stream2 };
-            resolve38(stream2);
+            resolve39(stream2);
           },
           void 0,
           void 0,
@@ -47254,7 +47255,7 @@ var require_react_dom_server_node_production = __commonJS({
       });
     };
     exports.prerenderToNodeStream = function(children, options) {
-      return new Promise(function(resolve38, reject) {
+      return new Promise(function(resolve39, reject) {
         var resumableState = createResumableState(
           options ? options.identifierPrefix : void 0,
           options ? options.unstable_externalRuntimeSrc : void 0,
@@ -47285,7 +47286,7 @@ var require_react_dom_server_node_production = __commonJS({
               postponed: getPostponedState(request),
               prelude: readable
             };
-            resolve38(readable);
+            resolve39(readable);
           },
           void 0,
           void 0,
@@ -47341,7 +47342,7 @@ var require_react_dom_server_node_production = __commonJS({
       };
     };
     exports.renderToReadableStream = function(children, options) {
-      return new Promise(function(resolve38, reject) {
+      return new Promise(function(resolve39, reject) {
         var onFatalError, onAllReady, allReady = new Promise(function(res, rej) {
           onAllReady = res;
           onFatalError = rej;
@@ -47390,7 +47391,7 @@ var require_react_dom_server_node_production = __commonJS({
               { highWaterMark: 0 }
             );
             stream2.allReady = allReady;
-            resolve38(stream2);
+            resolve39(stream2);
           },
           function(error52) {
             allReady.catch(function() {
@@ -47416,7 +47417,7 @@ var require_react_dom_server_node_production = __commonJS({
       });
     };
     exports.resume = function(children, postponedState, options) {
-      return new Promise(function(resolve38, reject) {
+      return new Promise(function(resolve39, reject) {
         var onFatalError, onAllReady, allReady = new Promise(function(res, rej) {
           onAllReady = res;
           onFatalError = rej;
@@ -47453,7 +47454,7 @@ var require_react_dom_server_node_production = __commonJS({
               { highWaterMark: 0 }
             );
             stream2.allReady = allReady;
-            resolve38(stream2);
+            resolve39(stream2);
           },
           function(error52) {
             allReady.catch(function() {
@@ -47478,7 +47479,7 @@ var require_react_dom_server_node_production = __commonJS({
       });
     };
     exports.resumeAndPrerender = function(children, postponedState, options) {
-      return new Promise(function(resolve38, reject) {
+      return new Promise(function(resolve39, reject) {
         var request = resumeAndPrerenderRequest(
           children,
           postponedState,
@@ -47509,7 +47510,7 @@ var require_react_dom_server_node_production = __commonJS({
               { highWaterMark: 0 }
             );
             stream2 = { postponed: getPostponedState(request), prelude: stream2 };
-            resolve38(stream2);
+            resolve39(stream2);
           },
           void 0,
           void 0,
@@ -47531,7 +47532,7 @@ var require_react_dom_server_node_production = __commonJS({
       });
     };
     exports.resumeAndPrerenderToNodeStream = function(children, postponedState, options) {
-      return new Promise(function(resolve38, reject) {
+      return new Promise(function(resolve39, reject) {
         var request = resumeAndPrerenderRequest(
           children,
           postponedState,
@@ -47551,7 +47552,7 @@ var require_react_dom_server_node_production = __commonJS({
               }
             }), writable = createFakeWritableFromReadable(readable);
             readable = { postponed: getPostponedState(request), prelude: readable };
-            resolve38(readable);
+            resolve39(readable);
           },
           void 0,
           void 0,
@@ -62178,7 +62179,7 @@ var require_react_dom_server_node_development = __commonJS({
       ensureCorrectIsomorphicReactVersion();
       ensureCorrectIsomorphicReactVersion();
       exports.prerender = function(children, options) {
-        return new Promise(function(resolve38, reject) {
+        return new Promise(function(resolve39, reject) {
           var onHeaders = options ? options.onHeaders : void 0, onHeadersImpl;
           onHeaders && (onHeadersImpl = function(headersDescriptor) {
             onHeaders(new Headers(headersDescriptor));
@@ -62226,7 +62227,7 @@ var require_react_dom_server_node_development = __commonJS({
                 postponed: getPostponedState(request),
                 prelude: stream2
               };
-              resolve38(stream2);
+              resolve39(stream2);
             },
             void 0,
             void 0,
@@ -62248,7 +62249,7 @@ var require_react_dom_server_node_development = __commonJS({
         });
       };
       exports.prerenderToNodeStream = function(children, options) {
-        return new Promise(function(resolve38, reject) {
+        return new Promise(function(resolve39, reject) {
           var resumableState = createResumableState(
             options ? options.identifierPrefix : void 0,
             options ? options.unstable_externalRuntimeSrc : void 0,
@@ -62279,7 +62280,7 @@ var require_react_dom_server_node_development = __commonJS({
                 postponed: getPostponedState(request),
                 prelude: readable
               };
-              resolve38(readable);
+              resolve39(readable);
             },
             void 0,
             void 0,
@@ -62335,7 +62336,7 @@ var require_react_dom_server_node_development = __commonJS({
         };
       };
       exports.renderToReadableStream = function(children, options) {
-        return new Promise(function(resolve38, reject) {
+        return new Promise(function(resolve39, reject) {
           var onFatalError, onAllReady, allReady = new Promise(function(res, rej) {
             onAllReady = res;
             onFatalError = rej;
@@ -62384,7 +62385,7 @@ var require_react_dom_server_node_development = __commonJS({
                 { highWaterMark: 0 }
               );
               stream2.allReady = allReady;
-              resolve38(stream2);
+              resolve39(stream2);
             },
             function(error52) {
               allReady.catch(function() {
@@ -62410,7 +62411,7 @@ var require_react_dom_server_node_development = __commonJS({
         });
       };
       exports.resume = function(children, postponedState, options) {
-        return new Promise(function(resolve38, reject) {
+        return new Promise(function(resolve39, reject) {
           var onFatalError, onAllReady, allReady = new Promise(function(res, rej) {
             onAllReady = res;
             onFatalError = rej;
@@ -62447,7 +62448,7 @@ var require_react_dom_server_node_development = __commonJS({
                 { highWaterMark: 0 }
               );
               stream2.allReady = allReady;
-              resolve38(stream2);
+              resolve39(stream2);
             },
             function(error52) {
               allReady.catch(function() {
@@ -62472,7 +62473,7 @@ var require_react_dom_server_node_development = __commonJS({
         });
       };
       exports.resumeAndPrerender = function(children, postponedState, options) {
-        return new Promise(function(resolve38, reject) {
+        return new Promise(function(resolve39, reject) {
           var request = resumeAndPrerenderRequest(
             children,
             postponedState,
@@ -62505,7 +62506,7 @@ var require_react_dom_server_node_development = __commonJS({
                 { highWaterMark: 0 }
               );
               stream2 = { postponed: getPostponedState(request), prelude: stream2 };
-              resolve38(stream2);
+              resolve39(stream2);
             },
             void 0,
             void 0,
@@ -62527,7 +62528,7 @@ var require_react_dom_server_node_development = __commonJS({
         });
       };
       exports.resumeAndPrerenderToNodeStream = function(children, postponedState, options) {
-        return new Promise(function(resolve38, reject) {
+        return new Promise(function(resolve39, reject) {
           var request = resumeAndPrerenderRequest(
             children,
             postponedState,
@@ -62550,7 +62551,7 @@ var require_react_dom_server_node_development = __commonJS({
                 postponed: getPostponedState(request),
                 prelude: readable
               };
-              resolve38(readable);
+              resolve39(readable);
             },
             void 0,
             void 0,
@@ -91626,2802 +91627,6 @@ var init_utility_progress = __esm({
   }
 });
 
-// dist/shared/json-extraction.js
-function extractJsonObject(text) {
-  let cursor = 0;
-  while (cursor < text.length) {
-    const start = text.indexOf("{", cursor);
-    if (start === -1)
-      break;
-    let depth = 0;
-    let inString = false;
-    let escaped = false;
-    let end = -1;
-    for (let i = start; i < text.length; i++) {
-      const ch = text[i];
-      if (escaped) {
-        escaped = false;
-        continue;
-      }
-      if (inString) {
-        if (ch === "\\") {
-          escaped = true;
-          continue;
-        }
-        if (ch === '"')
-          inString = false;
-        continue;
-      }
-      if (ch === '"') {
-        inString = true;
-        continue;
-      }
-      if (ch === "{")
-        depth++;
-      else if (ch === "}") {
-        depth--;
-        if (depth === 0) {
-          end = i + 1;
-          break;
-        }
-      }
-    }
-    if (end === -1)
-      break;
-    const candidate = text.slice(start, end);
-    try {
-      JSON.parse(candidate);
-      return candidate;
-    } catch {
-      cursor = start + 1;
-    }
-  }
-  return text;
-}
-var init_json_extraction = __esm({
-  "dist/shared/json-extraction.js"() {
-    "use strict";
-  }
-});
-
-// dist/connectors/prompt-only-directory.js
-import { mkdtemp, realpath, rm, stat } from "node:fs/promises";
-import { tmpdir } from "node:os";
-import { isAbsolute as isAbsolute10, join as join19, relative as relative11, sep as sep5 } from "node:path";
-function pathInsideOrEqual(parent, candidate) {
-  const child = relative11(parent, candidate);
-  return child === "" || child !== ".." && !child.startsWith(`..${sep5}`) && !isAbsolute10(child);
-}
-async function createPromptOnlyRelayDirectory(projectDirectory, prefix) {
-  if (projectDirectory === void 0 || !isAbsolute10(projectDirectory)) {
-    throw new Error("A prompt-only relay requires the original project as an absolute directory.");
-  }
-  let canonicalProject;
-  try {
-    canonicalProject = await realpath(projectDirectory);
-    if (!(await stat(canonicalProject)).isDirectory()) {
-      throw new Error("not a directory");
-    }
-  } catch {
-    throw new Error("A prompt-only relay requires the original project to be a real directory.");
-  }
-  let allocatedDirectory;
-  try {
-    allocatedDirectory = await mkdtemp(join19(tmpdir(), prefix));
-    const canonicalRelay = await realpath(allocatedDirectory);
-    if (pathInsideOrEqual(canonicalProject, canonicalRelay) || pathInsideOrEqual(canonicalRelay, canonicalProject)) {
-      throw new Error("The prompt-only relay directory overlaps the original project. Use a private temporary directory outside the project.");
-    }
-    return canonicalRelay;
-  } catch (error52) {
-    if (allocatedDirectory !== void 0) {
-      await rm(allocatedDirectory, { recursive: true, force: true }).catch(() => {
-      });
-    }
-    throw error52;
-  }
-}
-var init_prompt_only_directory = __esm({
-  "dist/connectors/prompt-only-directory.js"() {
-    "use strict";
-  }
-});
-
-// dist/connectors/remediation.js
-function connectorRemediation(name) {
-  switch (name) {
-    case "claude-code":
-      return "Fix: install Claude Code (https://claude.com/claude-code), then check it with: claude --version";
-    case "codex":
-      return "Fix: reinstall the Codex CLI (npm install -g @openai/codex), then check it with: codex --version. If it is installed but signed out, run: codex login";
-    case "cursor-agent":
-      return "Fix: install the Cursor CLI, then check it with: cursor-agent status. If it is installed but signed out, run: cursor-agent login";
-  }
-}
-var init_remediation = __esm({
-  "dist/connectors/remediation.js"() {
-    "use strict";
-  }
-});
-
-// dist/connectors/state-dir.js
-import { existsSync as existsSync25, mkdirSync as mkdirSync5, rmdirSync, unlinkSync, writeFileSync as writeFileSync6 } from "node:fs";
-import { homedir as homedir3 } from "node:os";
-import { join as join20 } from "node:path";
-function codexStateDir(env3 = process.env) {
-  const fromEnv = env3.CODEX_HOME;
-  if (fromEnv !== void 0 && fromEnv.trim() !== "")
-    return fromEnv;
-  return join20(homedir3(), ".codex");
-}
-function probeStateDirWritable(dir) {
-  const probeFile = join20(dir, `.circuit-write-probe-${process.pid}`);
-  let createdDir = false;
-  try {
-    if (!existsSync25(dir)) {
-      mkdirSync5(dir, { recursive: true });
-      createdDir = true;
-    }
-    writeFileSync6(probeFile, "circuit write probe");
-    unlinkSync(probeFile);
-    if (createdDir)
-      rmdirSync(dir);
-    return { writable: true, dir };
-  } catch (error52) {
-    return { writable: false, dir, detail: error52.message };
-  }
-}
-function stateDirUnwritableSummary(cli, dir) {
-  const where = dir === void 0 ? "its state directory" : `its state directory (${dir})`;
-  return `The ${cli} CLI could not write ${where}. This is a setup problem, not a task failure: Circuit is likely running inside a sandboxed session that blocks writes outside the project. Rerun Circuit outside the sandbox, then retry.`;
-}
-var init_state_dir = __esm({
-  "dist/connectors/state-dir.js"() {
-    "use strict";
-  }
-});
-
-// dist/connectors/subprocess.js
-import { spawn } from "node:child_process";
-import { dirname as dirname10 } from "node:path";
-import { performance as performance2 } from "node:perf_hooks";
-function isConnectorSubprocessSpawnError(error52) {
-  return error52 instanceof ConnectorSubprocessSpawnError || error52 instanceof Error && error52.name === "ConnectorSubprocessSpawnError";
-}
-function createTimeoutController(input) {
-  let fired = false;
-  let disposed = false;
-  let idleTimer;
-  const fire = (kind) => {
-    if (fired || disposed)
-      return;
-    fired = true;
-    input.onFire(kind);
-  };
-  const absoluteTimer = setTimeout(() => fire("absolute"), input.absoluteMs);
-  const onActivity = () => {
-    if (fired || disposed || input.idleMs === void 0)
-      return;
-    if (idleTimer !== void 0)
-      clearTimeout(idleTimer);
-    idleTimer = setTimeout(() => fire("idle"), input.idleMs);
-  };
-  const clear = () => {
-    disposed = true;
-    clearTimeout(absoluteTimer);
-    if (idleTimer !== void 0) {
-      clearTimeout(idleTimer);
-      idleTimer = void 0;
-    }
-  };
-  return { onActivity, clear };
-}
-function appendCapped(current, currentBytes, chunk, maxBytes) {
-  const chunkBytes = Buffer.byteLength(chunk, "utf8");
-  if (currentBytes + chunkBytes <= maxBytes) {
-    return { text: current + chunk, bytes: currentBytes + chunkBytes, capped: false };
-  }
-  const remaining = maxBytes - currentBytes;
-  if (remaining <= 0) {
-    return { text: current, bytes: currentBytes, capped: true };
-  }
-  return {
-    text: current + Buffer.from(chunk, "utf8").subarray(0, remaining).toString("utf8"),
-    bytes: maxBytes,
-    capped: true
-  };
-}
-function spawnErrorVerb(error52) {
-  return error52.phase === "spawn-failed" ? "spawn failed" : "spawn error";
-}
-function cappedSuffix(capped, stream) {
-  return capped ? ` [${stream} capped]` : "";
-}
-function describeTimeout(result, bounds) {
-  if (result.timeoutKind === "idle" && bounds.idleMs !== void 0) {
-    return `no output for ${bounds.idleMs}ms (inactivity; a step that legitimately goes silent longer can raise budgets.inactivity_ms)`;
-  }
-  return `exceeded the ${bounds.absoluteMs}ms wall-clock backstop`;
-}
-function launchFailureSummary(cli, errorText) {
-  if (errorText.includes("ENOENT")) {
-    return `The ${cli} CLI is not installed or not on your PATH (spawn ENOENT). Run \`circuit doctor\` to check connector health.`;
-  }
-  if (errorText.includes("EACCES")) {
-    return `The ${cli} CLI was found but cannot be executed (EACCES). Fix its file permissions, or run \`circuit doctor\` to check connector health.`;
-  }
-  return `The ${cli} CLI failed to start. Run \`circuit doctor\` to check connector health.`;
-}
-function connectorFailureSummary(input) {
-  const scanned = `${input.stderr}
-${input.stdout}
-${input.streamError ?? ""}`;
-  if (SIGNED_OUT_OUTPUT_PATTERN.test(scanned)) {
-    return `The ${input.cli} CLI is not logged in. ${input.signInHint}, or run \`circuit doctor\` to check connector health.`;
-  }
-  if (STATE_DB_READONLY_PATTERN.test(input.stderr)) {
-    const stateDir = input.stderr.match(STATE_RUNTIME_DIR_PATTERN)?.[1]?.trim() ?? parentOfPath(input.stderr.match(STATE_DB_FILE_PATTERN)?.[1]);
-    return `${stateDirUnwritableSummary(input.cli, stateDir)} Run \`circuit doctor\` to check connector health.`;
-  }
-  const denialCount = (scanned.match(SANDBOX_DENIAL_PATTERN) ?? []).length;
-  if (denialCount >= SANDBOX_DENIAL_MIN_COUNT) {
-    const realFailure = lastLineWithout(input.stderr, /operation not permitted/i);
-    const lastErrorClause = realFailure === void 0 ? "" : ` Last error: ${JSON.stringify(realFailure)}.`;
-    return `The ${input.cli} CLI was blocked by this machine's sandbox (${denialCount} "Operation not permitted" errors).${lastErrorClause} Rerun outside the sandbox that is blocking it, or run \`circuit doctor\` to check connector health.`;
-  }
-  if (input.streamError !== void 0) {
-    const trimmed = input.streamError.trim();
-    return `The ${input.cli} CLI reported an error: ${trimmed}${trimmed.endsWith(".") ? "" : "."}`;
-  }
-  return void 0;
-}
-function parentOfPath(path) {
-  return path === void 0 ? void 0 : dirname10(path);
-}
-function lastLineWithout(text, exclude) {
-  const lines = text.split("\n");
-  for (let i = lines.length - 1; i >= 0; i -= 1) {
-    const line = lines[i].trim();
-    if (line.length > 0 && !exclude.test(line))
-      return line;
-  }
-  return void 0;
-}
-function lastStreamErrorMessage(stdout) {
-  let found;
-  for (const line of stdout.split("\n")) {
-    if (line.trim().length === 0)
-      continue;
-    let parsed;
-    try {
-      parsed = JSON.parse(line);
-    } catch {
-      continue;
-    }
-    if (typeof parsed !== "object" || parsed === null || Array.isArray(parsed))
-      continue;
-    const message = streamErrorMessageFrom(parsed);
-    if (message !== void 0)
-      found = message;
-  }
-  return found === void 0 ? void 0 : found.slice(0, STREAM_ERROR_MESSAGE_MAX_CHARS);
-}
-function streamErrorMessageFrom(entry) {
-  const item = entry.item;
-  if (typeof item === "object" && item !== null && !Array.isArray(item)) {
-    const itemRecord = item;
-    if (itemRecord.type === "error") {
-      return typeof itemRecord.message === "string" && itemRecord.message.length > 0 ? itemRecord.message : JSON.stringify(itemRecord).slice(0, STREAM_ERROR_MESSAGE_MAX_CHARS);
-    }
-  }
-  const errorField = entry.error === null ? void 0 : entry.error;
-  const errorTyped = entry.type === "error" || entry.type === "turn.failed";
-  const errorResult = entry.is_error === true;
-  if (!errorTyped && !errorResult && errorField === void 0)
-    return void 0;
-  if (typeof entry.message === "string" && entry.message.length > 0)
-    return entry.message;
-  if (typeof entry.result === "string" && entry.result.length > 0)
-    return entry.result;
-  if (typeof errorField === "string" && errorField.length > 0)
-    return errorField;
-  if (typeof errorField === "object" && errorField !== null && !Array.isArray(errorField)) {
-    const nested = errorField.message;
-    if (typeof nested === "string" && nested.length > 0)
-      return nested;
-  }
-  if (errorTyped || errorResult) {
-    return JSON.stringify(entry).slice(0, STREAM_ERROR_MESSAGE_MAX_CHARS);
-  }
-  return void 0;
-}
-function condenseRepeatedLines(text) {
-  const lines = text.split("\n");
-  const out = [];
-  let i = 0;
-  while (i < lines.length) {
-    const line = lines[i];
-    let j = i + 1;
-    while (j < lines.length && lines[j] === line)
-      j += 1;
-    const count = j - i;
-    if (count > 1) {
-      out.push(line.trim().length === 0 ? line : `${line} [repeated ${count} times]`);
-    } else {
-      out.push(line);
-    }
-    i = j;
-  }
-  return out.join("\n");
-}
-function parseNdjsonObjects(stdout, label) {
-  const lines = stdout.split("\n").filter((line) => line.length > 0);
-  const objects = [];
-  for (const [idx, line] of lines.entries()) {
-    let parsed;
-    try {
-      parsed = JSON.parse(line);
-    } catch (err) {
-      throw new Error(`${label} line ${idx + 1} is not valid JSON: ${err.message}; line[:200]=${line.slice(0, 200)}`);
-    }
-    if (typeof parsed !== "object" || parsed === null) {
-      throw new Error(`${label} line ${idx + 1} is not a JSON object`);
-    }
-    objects.push(parsed);
-  }
-  return objects;
-}
-async function runConnectorSubprocess(input) {
-  const start = performance2.now();
-  return await new Promise((resolve38, reject) => {
-    let child;
-    try {
-      child = spawn(input.executable, [...input.args], {
-        stdio: ["ignore", "pipe", "pipe"],
-        env: input.env ?? process.env,
-        detached: input.detached ?? true,
-        ...input.cwd === void 0 ? {} : { cwd: input.cwd }
-      });
-    } catch (error52) {
-      reject(new ConnectorSubprocessSpawnError("spawn-failed", error52 instanceof Error ? error52.message : String(error52)));
-      return;
-    }
-    let stdout = "";
-    let stdoutBytes = 0;
-    let stderr = "";
-    let stderrBytes = 0;
-    let stdoutCapped = false;
-    let stderrCapped = false;
-    let timedOut = false;
-    let timeoutKind;
-    let killGroupSucceeded = false;
-    const killProcessGroup = (signal) => {
-      const pid = child.pid;
-      if (typeof pid !== "number")
-        return false;
-      try {
-        process.kill(-pid, signal);
-        return true;
-      } catch {
-        try {
-          child.kill(signal);
-          return true;
-        } catch {
-          return false;
-        }
-      }
-    };
-    let killGraceTimer;
-    const controller = createTimeoutController({
-      absoluteMs: input.timeoutMs,
-      ...input.idleTimeoutMs === void 0 ? {} : { idleMs: input.idleTimeoutMs },
-      onFire: (kind) => {
-        timedOut = true;
-        timeoutKind = kind;
-        killGroupSucceeded = killProcessGroup("SIGTERM");
-        killGraceTimer = setTimeout(() => {
-          killProcessGroup("SIGKILL");
-          killGraceTimer = void 0;
-        }, input.sigtermToSigkillGraceMs);
-      }
-    });
-    controller.onActivity();
-    const clearAllTimers = () => {
-      controller.clear();
-      if (killGraceTimer !== void 0) {
-        clearTimeout(killGraceTimer);
-        killGraceTimer = void 0;
-      }
-    };
-    child.stdout?.setEncoding("utf8");
-    child.stderr?.setEncoding("utf8");
-    child.stdout?.on("data", (chunk) => {
-      controller.onActivity();
-      const next = appendCapped(stdout, stdoutBytes, chunk, input.stdoutMaxBytes);
-      stdout = next.text;
-      stdoutBytes = next.bytes;
-      stdoutCapped = stdoutCapped || next.capped;
-    });
-    child.stderr?.on("data", (chunk) => {
-      controller.onActivity();
-      const next = appendCapped(stderr, stderrBytes, chunk, input.stderrMaxBytes);
-      stderr = next.text;
-      stderrBytes = next.bytes;
-      stderrCapped = stderrCapped || next.capped;
-    });
-    child.on("error", (error52) => {
-      clearAllTimers();
-      reject(new ConnectorSubprocessSpawnError("spawn-error", error52.message));
-    });
-    child.on("close", (code, signal) => {
-      clearAllTimers();
-      resolve38({
-        stdout,
-        stderr,
-        stdoutCapped,
-        stderrCapped,
-        timedOut,
-        ...timeoutKind === void 0 ? {} : { timeoutKind },
-        killGroupSucceeded,
-        code,
-        signal,
-        durationMs: performance2.now() - start
-      });
-    });
-  });
-}
-var ConnectorSubprocessSpawnError, SIGNED_OUT_OUTPUT_PATTERN, SANDBOX_DENIAL_PATTERN, SANDBOX_DENIAL_MIN_COUNT, STATE_DB_READONLY_PATTERN, STATE_RUNTIME_DIR_PATTERN, STATE_DB_FILE_PATTERN, STREAM_ERROR_MESSAGE_MAX_CHARS;
-var init_subprocess = __esm({
-  "dist/connectors/subprocess.js"() {
-    "use strict";
-    init_state_dir();
-    ConnectorSubprocessSpawnError = class extends Error {
-      phase;
-      constructor(phase, message) {
-        super(message);
-        this.phase = phase;
-        this.name = "ConnectorSubprocessSpawnError";
-      }
-    };
-    SIGNED_OUT_OUTPUT_PATTERN = /not logged in|logged out|unauthenticated|login required|not signed in|sign in required|please run \/login|invalid api key/i;
-    SANDBOX_DENIAL_PATTERN = /operation not permitted/gi;
-    SANDBOX_DENIAL_MIN_COUNT = 3;
-    STATE_DB_READONLY_PATTERN = /failed to open state db|attempt to write a read-?only database/i;
-    STATE_RUNTIME_DIR_PATTERN = /failed to initialize state runtime at ([^:\n]+):/i;
-    STATE_DB_FILE_PATTERN = /state db at (\S+?):/i;
-    STREAM_ERROR_MESSAGE_MAX_CHARS = 400;
-  }
-});
-
-// dist/connectors/claude-code.js
-import { rm as rm2 } from "node:fs/promises";
-function selectedAnthropicModel(selection) {
-  const model = selection?.model;
-  if (model === void 0)
-    return void 0;
-  if (model.provider !== "anthropic") {
-    throw new Error(`claude-code connector cannot honor model provider '${model.provider}' for model '${model.model}'; expected provider 'anthropic'`);
-  }
-  return model.model;
-}
-function assertClaudeCodeEffort(effort) {
-  if (!CLAUDE_CODE_SUPPORTED_EFFORTS.includes(effort)) {
-    throw new Error(`claude-code connector cannot honor effort '${effort}'; supported efforts: ${CLAUDE_CODE_SUPPORTED_EFFORTS.join(", ")}`);
-  }
-}
-function buildClaudeCodeArgs(input) {
-  const args = [];
-  if (input.promptOnly === true && (input.toolAllowList?.length ?? 0) > 0) {
-    throw new Error("A prompt-only relay cannot request worker tools.");
-  }
-  if (input.promptOnly === true) {
-    args.push("--tools", "", "--safe-mode");
-  } else if (input.toolAllowList !== void 0 && input.toolAllowList.length > 0) {
-    args.push("--tools", input.toolAllowList.join(","));
-  }
-  args.push(...CLAUDE_CODE_DISPATCH_FLAGS);
-  const model = selectedAnthropicModel(input.resolvedSelection);
-  if (model !== void 0) {
-    args.push("--model", model);
-  }
-  const effort = input.resolvedSelection?.effort;
-  if (effort !== void 0) {
-    assertClaudeCodeEffort(effort);
-    args.push("--effort", effort);
-  }
-  if (claudeCodeEmitsStructuredOutputFlag(input)) {
-    args.push("--json-schema", JSON.stringify(input.responseSchema));
-  }
-  args.push(input.prompt);
-  return args;
-}
-function claudeCodeEmitsStructuredOutputFlag(input) {
-  return input.responseSchema !== void 0 && isClaudeCodeStructuredOutputCompatible(input.responseSchema);
-}
-function claudeCodeStdoutDiagnostic(stdout, streamError) {
-  try {
-    parseClaudeCodeStdout(stdout, "", 0);
-    return void 0;
-  } catch (error52) {
-    const parseMessage = error52 instanceof Error ? error52.message : String(error52);
-    if (streamError !== void 0 && !parseMessage.includes(streamError)) {
-      return `${streamError} (stream parse: ${parseMessage})`;
-    }
-    return parseMessage;
-  }
-}
-function isClaudeCodeStructuredOutputCompatible(schema) {
-  return schema.type === "object";
-}
-async function relayClaudeCode(input) {
-  const promptOnlyDirectory = input.promptOnly === true ? await createPromptOnlyRelayDirectory(input.cwd, "circuit-prompt-only-claude-") : void 0;
-  try {
-    return await relayClaudeCodePrepared({
-      ...input,
-      ...promptOnlyDirectory === void 0 ? {} : { cwd: promptOnlyDirectory }
-    });
-  } finally {
-    if (promptOnlyDirectory !== void 0) {
-      await rm2(promptOnlyDirectory, { recursive: true, force: true });
-    }
-  }
-}
-async function relayClaudeCodePrepared(input) {
-  const absoluteTimeoutMs = input.timeoutMs ?? DEFAULT_ABSOLUTE_TIMEOUT_MS;
-  const idleTimeoutMs = input.idleTimeoutMs ?? DEFAULT_IDLE_TIMEOUT_MS;
-  const args = buildClaudeCodeArgs(input);
-  let result;
-  try {
-    result = await runConnectorSubprocess({
-      executable: CLAUDE_CODE_EXECUTABLE,
-      args,
-      timeoutMs: absoluteTimeoutMs,
-      idleTimeoutMs,
-      stdoutMaxBytes: STDOUT_MAX_BYTES,
-      stderrMaxBytes: STDERR_MAX_BYTES,
-      sigtermToSigkillGraceMs: SIGTERM_TO_SIGKILL_GRACE_MS,
-      env: process.env,
-      // Honor the worker's working directory so a step fanned out into an
-      // isolated worktree runs there, not in the parent process's cwd. Matches
-      // the codex and cursor-agent connectors; without it, worktree isolation
-      // silently leaks into the main checkout.
-      ...input.cwd === void 0 ? {} : { cwd: input.cwd }
-    });
-  } catch (error52) {
-    if (isConnectorSubprocessSpawnError(error52)) {
-      throw new Error(`${launchFailureSummary(CLAUDE_CODE_EXECUTABLE, error52.message)} claude-code subprocess ${spawnErrorVerb(error52)}: ${error52.message}. ${connectorRemediation("claude-code")}`);
-    }
-    throw error52;
-  }
-  if (result.timedOut) {
-    const stdoutSuffix = cappedSuffix(result.stdoutCapped, "stdout");
-    const stderrSuffix = cappedSuffix(result.stderrCapped, "stderr");
-    const cause = describeTimeout(result, {
-      idleMs: idleTimeoutMs,
-      absoluteMs: absoluteTimeoutMs
-    });
-    throw new Error(`claude-code subprocess timed out: ${cause}; group-kill ${result.killGroupSucceeded ? "sent" : "failed"}; final signal=${result.signal ?? "none"}; stdout[:500]=${result.stdout.slice(0, 500)}${stdoutSuffix}; stderr[:500]=${result.stderr.slice(0, 500)}${stderrSuffix}`);
-  }
-  if (result.code !== 0) {
-    const stdoutSuffix = cappedSuffix(result.stdoutCapped, "stdout");
-    const stderrSuffix = cappedSuffix(result.stderrCapped, "stderr");
-    const streamError = lastStreamErrorMessage(result.stdout);
-    const stdoutDiagnostic = claudeCodeStdoutDiagnostic(result.stdout, streamError);
-    const diagnosticText = stdoutDiagnostic === void 0 ? "" : `; stdout_diagnostic=${stdoutDiagnostic}`;
-    const summary = connectorFailureSummary({
-      cli: CLAUDE_CODE_EXECUTABLE,
-      signInHint: "Run `claude` once to sign in",
-      stderr: result.stderr,
-      stdout: "",
-      streamError
-    });
-    const lead = summary === void 0 ? "" : `${summary} `;
-    throw new Error(`${lead}claude-code subprocess exited with code ${result.code}${result.signal ? ` (signal ${result.signal})` : ""}${diagnosticText}; stdout[:500]=${result.stdout.slice(0, 500)}${stdoutSuffix}; stderr[:500]=${condenseRepeatedLines(result.stderr).slice(0, 500)}${stderrSuffix}`);
-  }
-  if (result.stdoutCapped) {
-    throw new Error(`claude-code subprocess stdout exceeded ${STDOUT_MAX_BYTES} bytes; capability-boundary check cannot be evaluated on truncated stream`);
-  }
-  try {
-    return parseClaudeCodeStdout(
-      result.stdout,
-      input.prompt,
-      result.durationMs,
-      input.promptOnly === true ? [] : input.toolAllowList,
-      // Same predicate that decided whether buildClaudeCodeArgs emitted
-      // --json-schema, so the guard admits the CLI's return-channel tool exactly
-      // when we asked for structured output — the two can't diverge.
-      claudeCodeEmitsStructuredOutputFlag(input)
-    );
-  } catch (error52) {
-    const stderrSuffix = cappedSuffix(result.stderrCapped, "stderr");
-    throw new Error(`claude-code subprocess: ${error52.message}; stdout[:500]=${result.stdout.slice(0, 500)}; stderr[:200]=${result.stderr.slice(0, 200)}${stderrSuffix}`);
-  }
-}
-function parseClaudeCodeStdout(stdout, prompt, duration_ms, requestedTools, structuredOutputRequested = false) {
-  const trace_entries = parseNdjsonObjects(stdout, "stream-json");
-  if (trace_entries.length === 0) {
-    throw new Error("stream-json stdout is empty");
-  }
-  const initTraceEntry = trace_entries.find((e) => e.type === "system" && e.subtype === "init");
-  const resultTraceEntries = trace_entries.filter((e) => e.type === "result");
-  const resultTraceEntry = resultTraceEntries[resultTraceEntries.length - 1];
-  if (initTraceEntry === void 0) {
-    throw new Error("system/init trace_entry missing from subprocess stdout");
-  }
-  if (resultTraceEntry === void 0) {
-    throw new Error("result trace_entry missing from subprocess stdout");
-  }
-  if (resultTraceEntry.is_error === true) {
-    const message = typeof resultTraceEntry.result === "string" ? resultTraceEntry.result : "<no message>";
-    throw new Error(`subprocess reported is_error: ${message}`);
-  }
-  const mcpServers = initTraceEntry.mcp_servers;
-  const slashCommands = initTraceEntry.slash_commands;
-  if (!Array.isArray(mcpServers) || mcpServers.length !== 0) {
-    throw new Error(`init.mcp_servers must be []; got ${JSON.stringify(mcpServers)}. CLAUDE_CODE_DISPATCH_FLAGS includes --strict-mcp-config to keep this surface closed.`);
-  }
-  if (!Array.isArray(slashCommands) || slashCommands.length !== 0) {
-    throw new Error(`init.slash_commands must be []; got ${JSON.stringify(slashCommands)}. CLAUDE_CODE_DISPATCH_FLAGS includes --disable-slash-commands to keep this surface closed.`);
-  }
-  if (requestedTools !== void 0) {
-    const sessionTools = initTraceEntry.tools;
-    if (!Array.isArray(sessionTools)) {
-      throw new Error(`init.tools must be an array to verify the enforced equipment scope; got ${JSON.stringify(sessionTools)}`);
-    }
-    const allowed = new Set(requestedTools);
-    if (structuredOutputRequested) {
-      for (const tool of CLAUDE_CODE_STRUCTURED_OUTPUT_TOOLS)
-        allowed.add(tool);
-    }
-    const leaked = sessionTools.filter((tool) => typeof tool !== "string" || !allowed.has(tool));
-    if (leaked.length !== 0) {
-      const rendered = leaked.map((tool) => typeof tool === "string" ? tool : JSON.stringify(tool)).join(", ");
-      throw new Error(`enforced equipment scope violated: tools outside the allow-list are present in the session: ${rendered}. The relay passes --tools to restrict the surface to [${requestedTools.join(", ")}]; a tool beyond it means the restriction did not hold.`);
-    }
-    for (const entry of trace_entries) {
-      const message = entry.message;
-      if (typeof message !== "object" || message === null)
-        continue;
-      const content = message.content;
-      if (!Array.isArray(content))
-        continue;
-      for (const block of content) {
-        if (typeof block !== "object" || block === null || block.type !== "tool_use") {
-          continue;
-        }
-        const name = block.name;
-        if (typeof name !== "string" || !allowed.has(name)) {
-          throw new Error("enforced equipment scope violated: an unapproved tool was used during the relay.");
-        }
-      }
-    }
-  }
-  const receipt_id = initTraceEntry.session_id;
-  const cli_version = initTraceEntry.claude_code_version;
-  if (typeof receipt_id !== "string" || receipt_id.length === 0) {
-    throw new Error("init.session_id missing or empty");
-  }
-  if (typeof cli_version !== "string" || cli_version.length === 0) {
-    throw new Error("init.claude_code_version missing or empty");
-  }
-  const structuredOutput = resultTraceEntry.structured_output;
-  let result_body;
-  if (structuredOutput !== void 0 && structuredOutput !== null) {
-    if (typeof structuredOutput !== "object") {
-      throw new Error("result.structured_output present but not an object");
-    }
-    result_body = JSON.stringify(structuredOutput);
-  } else {
-    const result_body_raw = resultTraceEntry.result;
-    if (typeof result_body_raw !== "string") {
-      throw new Error("result.result missing or not a string");
-    }
-    result_body = extractJsonObject(result_body_raw);
-  }
-  const usage = extractRelayUsage(resultTraceEntry);
-  return {
-    request_payload: prompt,
-    receipt_id,
-    result_body,
-    duration_ms,
-    cli_version,
-    ...usage === void 0 ? {} : { usage }
-  };
-}
-function extractRelayUsage(resultTraceEntry) {
-  const usage = resultTraceEntry.usage;
-  const modelUsage = resultTraceEntry.modelUsage;
-  const hasUsage = usage !== null && typeof usage === "object";
-  const hasModelUsage = modelUsage !== null && typeof modelUsage === "object";
-  if (!hasUsage && !hasModelUsage)
-    return void 0;
-  const u = hasUsage ? usage : {};
-  const cacheCreation = u.cache_creation ?? {};
-  const models = [];
-  if (hasModelUsage) {
-    for (const [model, raw] of Object.entries(modelUsage)) {
-      if (raw === null || typeof raw !== "object")
-        continue;
-      const m = raw;
-      const costUsd = finiteOrUndefined(m.costUSD);
-      models.push({
-        // The trace schema requires a non-empty model id, and a schema
-        // rejection at trace append would fail the relay. An empty
-        // modelUsage key becomes "unknown" so this stays observability.
-        model: model.length === 0 ? "unknown" : model,
-        input_tokens: finiteOrZero(m.inputTokens),
-        output_tokens: finiteOrZero(m.outputTokens),
-        cache_read_tokens: finiteOrZero(m.cacheReadInputTokens),
-        cache_creation_tokens: finiteOrZero(m.cacheCreationInputTokens),
-        ...costUsd === void 0 ? {} : { cost_usd_reported: costUsd }
-      });
-    }
-  }
-  const totalCostUsd = finiteOrUndefined(resultTraceEntry.total_cost_usd);
-  const totals = models.length > 0 ? {
-    input_tokens: sumBy(models, (m) => m.input_tokens),
-    output_tokens: sumBy(models, (m) => m.output_tokens),
-    cache_read_tokens: sumBy(models, (m) => m.cache_read_tokens),
-    cache_creation_tokens: sumBy(models, (m) => m.cache_creation_tokens)
-  } : {
-    input_tokens: finiteOrZero(u.input_tokens),
-    output_tokens: finiteOrZero(u.output_tokens),
-    cache_read_tokens: finiteOrZero(u.cache_read_input_tokens),
-    cache_creation_tokens: finiteOrZero(u.cache_creation_input_tokens)
-  };
-  return {
-    ...totals,
-    cache_creation_5m_tokens: finiteOrZero(cacheCreation.ephemeral_5m_input_tokens),
-    cache_creation_1h_tokens: finiteOrZero(cacheCreation.ephemeral_1h_input_tokens),
-    ...totalCostUsd === void 0 ? {} : { total_cost_usd_reported: totalCostUsd },
-    ...models.length === 0 ? {} : { models }
-  };
-}
-function finiteOrZero(value) {
-  return typeof value === "number" && Number.isFinite(value) && value >= 0 ? value : 0;
-}
-function finiteOrUndefined(value) {
-  return typeof value === "number" && Number.isFinite(value) && value >= 0 ? value : void 0;
-}
-function sumBy(items, pick2) {
-  return items.reduce((sum, item) => sum + pick2(item), 0);
-}
-var CLAUDE_CODE_DISPATCH_FLAGS, CLAUDE_CODE_STRUCTURED_OUTPUT_TOOLS, CLAUDE_CODE_EXECUTABLE, DEFAULT_IDLE_TIMEOUT_MS, DEFAULT_ABSOLUTE_TIMEOUT_MS, SIGTERM_TO_SIGKILL_GRACE_MS, STDOUT_MAX_BYTES, STDERR_MAX_BYTES;
-var init_claude_code = __esm({
-  "dist/connectors/claude-code.js"() {
-    "use strict";
-    init_connector();
-    init_connector_relay();
-    init_json_extraction();
-    init_prompt_only_directory();
-    init_remediation();
-    init_subprocess();
-    CLAUDE_CODE_DISPATCH_FLAGS = [
-      "-p",
-      "--permission-mode",
-      "bypassPermissions",
-      "--strict-mcp-config",
-      "--disable-slash-commands",
-      "--setting-sources",
-      "",
-      "--settings",
-      "{}",
-      "--output-format",
-      "stream-json",
-      "--verbose",
-      "--no-session-persistence"
-    ];
-    CLAUDE_CODE_STRUCTURED_OUTPUT_TOOLS = ["StructuredOutput"];
-    CLAUDE_CODE_EXECUTABLE = "claude";
-    DEFAULT_IDLE_TIMEOUT_MS = 6e5;
-    DEFAULT_ABSOLUTE_TIMEOUT_MS = 36e5;
-    SIGTERM_TO_SIGKILL_GRACE_MS = 2e3;
-    STDOUT_MAX_BYTES = 16 * 1024 * 1024;
-    STDERR_MAX_BYTES = 1024 * 1024;
-  }
-});
-
-// dist/connectors/codex-default-model.js
-import { readFileSync as readFileSync41 } from "node:fs";
-import { join as join21 } from "node:path";
-function codexHomeDir() {
-  return codexStateDir(process.env);
-}
-function codexModelsCachePath() {
-  return join21(codexHomeDir(), CODEX_MODELS_CACHE_FILENAME);
-}
-function candidateFrom(value) {
-  if (typeof value !== "object" || value === null)
-    return void 0;
-  const record2 = value;
-  if (record2.visibility !== "list")
-    return void 0;
-  if (record2.supported_in_api !== true)
-    return void 0;
-  const priority = record2.priority;
-  if (typeof priority !== "number" || !Number.isFinite(priority))
-    return void 0;
-  const slug = typeof record2.slug === "string" ? record2.slug.trim() : void 0;
-  if (slug === void 0 || slug.length === 0)
-    return void 0;
-  return { slug, priority };
-}
-function pickCodexFlagshipModel(cache3) {
-  if (typeof cache3 !== "object" || cache3 === null)
-    return void 0;
-  const models = cache3.models;
-  if (!Array.isArray(models))
-    return void 0;
-  const candidates = models.map(candidateFrom).filter((entry) => entry !== void 0);
-  if (candidates.length === 0)
-    return void 0;
-  candidates.sort((a, b) => a.priority - b.priority);
-  return candidates[0]?.slug;
-}
-function unavailableMessage(cachePath, reason) {
-  return [
-    "codex connector: no model is pinned for this codex step and no default could",
-    `be resolved from the Codex models cache (${cachePath}).`,
-    "Circuit runs codex with --ignore-user-config, so ~/.codex/config.toml is",
-    "intentionally not consulted for the model. Fix by either (a) pinning an",
-    "openai model for codex in your Circuit config \u2014 set defaults.selection.model",
-    '(or flows.<flow>.selection.model) to { provider: "openai", model:',
-    '"<model>" }, or set power_tiers.codex.<tier>.model \u2014 or (b) running `codex`',
-    `once so ${cachePath} is populated.`,
-    `(reason: ${reason})`
-  ].join(" ");
-}
-function resolveCodexDefaultModelUncached() {
-  const cachePath = codexModelsCachePath();
-  let raw;
-  try {
-    raw = readFileSync41(cachePath, "utf8");
-  } catch (err) {
-    throw new CodexDefaultModelUnavailableError(unavailableMessage(cachePath, `cache not readable: ${err.message}`));
-  }
-  let parsed;
-  try {
-    parsed = JSON.parse(raw);
-  } catch (err) {
-    throw new CodexDefaultModelUnavailableError(unavailableMessage(cachePath, `cache is not valid JSON: ${err.message}`));
-  }
-  const model = pickCodexFlagshipModel(parsed);
-  if (model === void 0) {
-    throw new CodexDefaultModelUnavailableError(unavailableMessage(cachePath, "no API-listed model found in the cache"));
-  }
-  return model;
-}
-function resolveCodexDefaultModel() {
-  if (cachedDefaultModel !== void 0)
-    return cachedDefaultModel;
-  cachedDefaultModel = resolveCodexDefaultModelUncached();
-  return cachedDefaultModel;
-}
-var CODEX_MODELS_CACHE_FILENAME, CodexDefaultModelUnavailableError, cachedDefaultModel;
-var init_codex_default_model = __esm({
-  "dist/connectors/codex-default-model.js"() {
-    "use strict";
-    init_state_dir();
-    CODEX_MODELS_CACHE_FILENAME = "models_cache.json";
-    CodexDefaultModelUnavailableError = class extends Error {
-      constructor(message) {
-        super(message);
-        this.name = "CodexDefaultModelUnavailableError";
-      }
-    };
-  }
-});
-
-// dist/connectors/codex.js
-import { execFileSync as execFileSync4 } from "node:child_process";
-import { readFileSync as readFileSync42 } from "node:fs";
-import { mkdtemp as mkdtemp2, rm as rm3, writeFile } from "node:fs/promises";
-import { tmpdir as tmpdir2 } from "node:os";
-import { isAbsolute as isAbsolute11, join as joinPath } from "node:path";
-function codexPromptOnlyConfig(cwd2) {
-  if (!isAbsolute11(cwd2) || cwd2.includes("\0")) {
-    throw new Error("A prompt-only Codex relay requires a private absolute working directory.");
-  }
-  return Object.freeze([
-    'default_permissions="circuit_prompt_only"',
-    `permissions.circuit_prompt_only.filesystem={":minimal"="read",":workspace_roots"="write",":slash_tmp"="deny",${JSON.stringify(cwd2)}="write"}`,
-    "permissions.circuit_prompt_only.network.enabled=false",
-    ...CODEX_PROMPT_ONLY_BASE_CONFIG
-  ]);
-}
-function captureCodexVersion() {
-  if (cachedCodexVersion !== void 0)
-    return cachedCodexVersion;
-  let stdout;
-  try {
-    stdout = execFileSync4(CODEX_EXECUTABLE, ["--version"], {
-      encoding: "utf8",
-      timeout: VERSION_CAPTURE_TIMEOUT_MS,
-      stdio: ["ignore", "pipe", "pipe"]
-    });
-  } catch (err) {
-    const message = err.message;
-    throw new Error(`${launchFailureSummary(CODEX_EXECUTABLE, message)} codex --version failed: ${message}. ${connectorRemediation("codex")}`);
-  }
-  const version3 = stdout.trim();
-  if (version3.length === 0) {
-    throw new Error("codex --version produced empty output");
-  }
-  cachedCodexVersion = version3;
-  return version3;
-}
-function assertCodexEffort(effort) {
-  if (!CODEX_SUPPORTED_EFFORTS.includes(effort)) {
-    throw new Error(`codex connector cannot honor effort '${effort}'; supported efforts: ${CODEX_SUPPORTED_EFFORTS.join(", ")}`);
-  }
-}
-function selectedOpenAIModel(selection) {
-  const model = selection?.model;
-  if (model === void 0)
-    return void 0;
-  if (model.provider !== "openai") {
-    throw new Error(`codex connector cannot honor model provider '${model.provider}' for model '${model.model}'; expected provider 'openai'`);
-  }
-  return model.model;
-}
-function codexReasoningEffortConfigValue(effort) {
-  return `${CODEX_REASONING_EFFORT_CONFIG_KEY}=${JSON.stringify(effort)}`;
-}
-function isForbiddenCodexArg(arg) {
-  return CODEX_FORBIDDEN_ARGV_TOKENS.some((token) => {
-    if (token === "-c")
-      return false;
-    if (arg === token)
-      return true;
-    return token.startsWith("--") && arg.startsWith(`${token}=`);
-  });
-}
-function isAllowedCodexConfigOverride(value, promptOnlyConfig) {
-  return value !== void 0 && (CODEX_SUPPORTED_EFFORTS.some((effort) => value === codexReasoningEffortConfigValue(effort)) || promptOnlyConfig.includes(value));
-}
-function assertCodexSpawnArgvBoundary(args, promptOnly = false) {
-  const cdIndexes = args.map((arg, idx) => arg === "--cd" ? idx : -1).filter((idx) => idx >= 0);
-  const promptOnlyCwd = promptOnly && cdIndexes.length === 1 && cdIndexes[0] !== void 0 ? args[cdIndexes[0] + 1] : void 0;
-  const promptOnlyConfig = promptOnly && promptOnlyCwd !== void 0 ? codexPromptOnlyConfig(promptOnlyCwd) : [];
-  const sandboxFlagIndexes = args.map((arg, idx) => arg === "-s" ? idx : -1).filter((idx) => idx >= 0);
-  const sandboxFlagIndex = sandboxFlagIndexes[0];
-  if (promptOnly && sandboxFlagIndexes.length !== 0) {
-    throw new Error("codex prompt-only boundary must use its named permission profile, not -s");
-  }
-  if (!promptOnly && (sandboxFlagIndexes.length !== 1 || sandboxFlagIndex === void 0 || args[sandboxFlagIndex + 1] !== "workspace-write")) {
-    throw new Error('codex spawn argv boundary broken: exactly one "-s workspace-write" pair is required');
-  }
-  if (promptOnly && (cdIndexes.length !== 1 || promptOnlyCwd === void 0)) {
-    throw new Error("codex prompt-only boundary requires exactly one private --cd directory");
-  }
-  let configOverrideCount = 0;
-  let effortOverrideCount = 0;
-  for (let idx = 0; idx < args.length; idx += 1) {
-    const arg = args[idx];
-    if (arg === void 0)
-      continue;
-    if (arg === "-c") {
-      configOverrideCount += 1;
-      if (!promptOnly && configOverrideCount > 1) {
-        throw new Error("codex spawn argv boundary broken: at most one allowlisted -c override is allowed");
-      }
-      const value = args[idx + 1];
-      if (!isAllowedCodexConfigOverride(value, promptOnlyConfig)) {
-        throw new Error(promptOnly ? "codex spawn argv boundary broken: an unreviewed configuration override was provided after -c" : `codex spawn argv boundary broken: only ${CODEX_REASONING_EFFORT_CONFIG_KEY}=<supported effort> is allowed after -c`);
-      }
-      if (CODEX_SUPPORTED_EFFORTS.some((effort) => value === codexReasoningEffortConfigValue(effort))) {
-        effortOverrideCount += 1;
-        if (effortOverrideCount > 1) {
-          throw new Error("codex spawn argv boundary broken: at most one reasoning effort override is allowed");
-        }
-      }
-      idx += 1;
-      continue;
-    }
-    if (isForbiddenCodexArg(arg)) {
-      throw new Error(`codex spawn argv boundary broken: forbidden argv token "${arg}"`);
-    }
-  }
-  if (promptOnly) {
-    if (!args.includes("--strict-config")) {
-      throw new Error("codex prompt-only boundary requires --strict-config");
-    }
-    for (const value of promptOnlyConfig) {
-      const matches = args.filter((arg, index) => arg === value && args[index - 1] === "-c");
-      if (matches.length !== 1) {
-        throw new Error(`codex prompt-only boundary is missing the sealed setting ${value}`);
-      }
-    }
-  }
-}
-function buildCodexArgs(input, schemaPath, defaultModel) {
-  const promptOnly = input.promptOnly === true;
-  const promptOnlyConfig = promptOnly && input.cwd !== void 0 ? codexPromptOnlyConfig(input.cwd) : [];
-  if (promptOnly && promptOnlyConfig.length === 0) {
-    throw new Error("A prompt-only Codex relay requires a private working directory.");
-  }
-  const args = [...promptOnly ? CODEX_PROMPT_ONLY_FLAGS : CODEX_WRITE_FLAGS];
-  if (input.cwd !== void 0) {
-    args.push("--cd", input.cwd);
-  }
-  if (promptOnly) {
-    for (const value of promptOnlyConfig)
-      args.push("-c", value);
-  }
-  const model = selectedOpenAIModel(input.resolvedSelection) ?? defaultModel;
-  if (model !== void 0) {
-    args.push("-m", model);
-  }
-  const effort = input.resolvedSelection?.effort;
-  if (effort !== void 0) {
-    assertCodexEffort(effort);
-    args.push("-c", codexReasoningEffortConfigValue(effort));
-  }
-  if (schemaPath !== void 0) {
-    args.push("--output-schema", schemaPath);
-  }
-  args.push(input.prompt);
-  assertCodexSpawnArgvBoundary(args, promptOnly);
-  return args;
-}
-function isRecord6(value) {
-  return typeof value === "object" && value !== null && !Array.isArray(value);
-}
-function everyObjectPropertyIsRequired(schema) {
-  if (!isRecord6(schema.properties))
-    return true;
-  if (!Array.isArray(schema.required))
-    return false;
-  const required2 = new Set(schema.required.filter((value) => typeof value === "string"));
-  const propertyNames = Object.keys(schema.properties);
-  return propertyNames.length === required2.size && propertyNames.every((property) => required2.has(property));
-}
-function isCodexOutputSchemaNodeCompatible(node) {
-  if (Array.isArray(node))
-    return node.every(isCodexOutputSchemaNodeCompatible);
-  if (!isRecord6(node))
-    return true;
-  for (const key of Object.keys(node)) {
-    if (CODEX_OUTPUT_SCHEMA_DISQUALIFYING_KEYWORDS.has(key))
-      return false;
-  }
-  if (Array.isArray(node.type))
-    return false;
-  if (node.type === "object") {
-    if (node.additionalProperties !== void 0 && node.additionalProperties !== false) {
-      return false;
-    }
-    if (!everyObjectPropertyIsRequired(node))
-      return false;
-  }
-  return Object.values(node).every(isCodexOutputSchemaNodeCompatible);
-}
-function codexOutputSchemaFrom(node) {
-  if (Array.isArray(node))
-    return node.map(codexOutputSchemaFrom);
-  if (!isRecord6(node))
-    return node;
-  const cleaned = {};
-  for (const [key, value] of Object.entries(node)) {
-    if (CODEX_OUTPUT_SCHEMA_STRIPPABLE_KEYWORDS.has(key))
-      continue;
-    cleaned[key] = codexOutputSchemaFrom(value);
-  }
-  return cleaned;
-}
-function isCodexOutputSchemaCompatible(schema) {
-  return schema.type === "object" && isCodexOutputSchemaNodeCompatible(schema);
-}
-async function writeSchemaTempFile(schema) {
-  const dir = await mkdtemp2(joinPath(tmpdir2(), "circuit-codex-schema-"));
-  try {
-    const path = joinPath(dir, "schema.json");
-    await writeFile(path, JSON.stringify(schema), "utf8");
-    return { dir, path };
-  } catch (err) {
-    await rm3(dir, { recursive: true, force: true }).catch(() => void 0);
-    throw err;
-  }
-}
-async function cleanupSchemaTempDir(dir) {
-  if (dir === void 0)
-    return;
-  try {
-    await rm3(dir, { recursive: true, force: true });
-  } catch {
-  }
-}
-function codexModelCacheHint(model, streamError) {
-  if (model === void 0 || streamError === void 0)
-    return "";
-  if (!/model/i.test(streamError))
-    return "";
-  let slugs;
-  try {
-    const parsed = JSON.parse(readFileSync42(codexModelsCachePath(), "utf8"));
-    const models = parsed?.models;
-    if (!Array.isArray(models))
-      return "";
-    slugs = models.map((entry) => typeof entry === "object" && entry !== null ? entry.slug : void 0).filter((slug) => typeof slug === "string");
-  } catch {
-    return "";
-  }
-  if (slugs.includes(model))
-    return "";
-  return ` The model id '${model}' is not in the local Codex models cache, so it may be misspelled or not available to this account. Check the model set in your Circuit config, or run \`circuit doctor\`.`;
-}
-async function relayCodex(input) {
-  const promptOnlyDirectory = input.promptOnly === true ? await createPromptOnlyRelayDirectory(input.cwd, "circuit-prompt-only-codex-") : void 0;
-  try {
-    return await relayCodexPrepared({
-      ...input,
-      ...promptOnlyDirectory === void 0 ? {} : { cwd: promptOnlyDirectory }
-    });
-  } finally {
-    if (promptOnlyDirectory !== void 0) {
-      await rm3(promptOnlyDirectory, { recursive: true, force: true });
-    }
-  }
-}
-async function relayCodexPrepared(input) {
-  const absoluteTimeoutMs = input.timeoutMs ?? DEFAULT_ABSOLUTE_TIMEOUT_MS2;
-  const idleTimeoutMs = input.idleTimeoutMs ?? DEFAULT_IDLE_TIMEOUT_MS2;
-  const cli_version = captureCodexVersion();
-  let tempDir;
-  let schemaPath;
-  try {
-    const effectiveModel = selectedOpenAIModel(input.resolvedSelection) ?? resolveCodexDefaultModel();
-    if (input.responseSchema !== void 0 && isCodexOutputSchemaCompatible(input.responseSchema)) {
-      const allocated = await writeSchemaTempFile(codexOutputSchemaFrom(input.responseSchema));
-      tempDir = allocated.dir;
-      schemaPath = allocated.path;
-    }
-    const args = buildCodexArgs(input, schemaPath, effectiveModel);
-    let result;
-    try {
-      result = await runConnectorSubprocess({
-        executable: CODEX_EXECUTABLE,
-        args,
-        timeoutMs: absoluteTimeoutMs,
-        idleTimeoutMs,
-        stdoutMaxBytes: STDOUT_MAX_BYTES2,
-        stderrMaxBytes: STDERR_MAX_BYTES2,
-        sigtermToSigkillGraceMs: SIGTERM_TO_SIGKILL_GRACE_MS2,
-        env: process.env,
-        ...input.cwd === void 0 ? {} : { cwd: input.cwd }
-      });
-    } catch (error52) {
-      if (isConnectorSubprocessSpawnError(error52)) {
-        throw new Error(`${launchFailureSummary(CODEX_EXECUTABLE, error52.message)} codex subprocess ${spawnErrorVerb(error52)}: ${error52.message}. ${connectorRemediation("codex")}`);
-      }
-      throw error52;
-    }
-    if (result.timedOut) {
-      const stdoutSuffix = cappedSuffix(result.stdoutCapped, "stdout");
-      const stderrSuffix = cappedSuffix(result.stderrCapped, "stderr");
-      const cause = describeTimeout(result, {
-        idleMs: idleTimeoutMs,
-        absoluteMs: absoluteTimeoutMs
-      });
-      throw new Error(`codex subprocess timed out: ${cause}; group-kill ${result.killGroupSucceeded ? "sent" : "failed"}; final signal=${result.signal ?? "none"}; stdout[:500]=${result.stdout.slice(0, 500)}${stdoutSuffix}; stderr[:2000]=${result.stderr.slice(0, 2e3)}${stderrSuffix}`);
-    }
-    if (result.code !== 0) {
-      const stdoutSuffix = cappedSuffix(result.stdoutCapped, "stdout");
-      const stderrSuffix = cappedSuffix(result.stderrCapped, "stderr");
-      const streamError = lastStreamErrorMessage(result.stdout);
-      const summary = connectorFailureSummary({
-        cli: CODEX_EXECUTABLE,
-        signInHint: "Run `codex login` to sign in",
-        stderr: result.stderr,
-        stdout: "",
-        streamError
-      });
-      const modelHint = codexModelCacheHint(effectiveModel, streamError);
-      const lead = summary === void 0 ? "" : `${summary}${modelHint} `;
-      throw new Error(`${lead}codex subprocess exited with code ${result.code}${result.signal ? ` (signal ${result.signal})` : ""}; stdout[:500]=${result.stdout.slice(0, 500)}${stdoutSuffix}; stderr[:2000]=${condenseRepeatedLines(result.stderr).slice(0, 2e3)}${stderrSuffix}`);
-    }
-    if (result.stdoutCapped) {
-      throw new Error(`codex subprocess stdout exceeded ${STDOUT_MAX_BYTES2} bytes; capability-boundary check cannot be evaluated on truncated stream`);
-    }
-    try {
-      const parsed = parseCodexStdout(result.stdout, input.prompt, result.durationMs, cli_version, {
-        promptOnly: input.promptOnly === true
-      });
-      return { ...parsed, model: effectiveModel };
-    } catch (error52) {
-      const stderrSuffix = cappedSuffix(result.stderrCapped, "stderr");
-      throw new Error(`codex subprocess: ${error52.message}; stdout[:500]=${result.stdout.slice(0, 500)}; stderr[:200]=${result.stderr.slice(0, 200)}${stderrSuffix}`);
-    }
-  } finally {
-    await cleanupSchemaTempDir(tempDir);
-  }
-}
-function validateCodexWebSearchString(value, label, options = {}) {
-  if (typeof value !== "string") {
-    throw new Error(`${label} is not a string`);
-  }
-  if (value.length === 0 && options.allowEmpty !== true) {
-    throw new Error(`${label} missing or empty`);
-  }
-  if (value.length > CODEX_WEB_SEARCH_MAX_STRING_LENGTH) {
-    throw new Error(`${label} exceeds ${CODEX_WEB_SEARCH_MAX_STRING_LENGTH} characters`);
-  }
-  return value;
-}
-function validateCodexWebSearchItem(item, lifecycle, index) {
-  const label = `${lifecycle}[${index}].item`;
-  const id = item.id;
-  if (typeof id !== "string" || id.length === 0) {
-    throw new Error(`${label}.id missing or empty`);
-  }
-  if (id.length > CODEX_WEB_SEARCH_MAX_STRING_LENGTH) {
-    throw new Error(`${label}.id exceeds ${CODEX_WEB_SEARCH_MAX_STRING_LENGTH} characters`);
-  }
-  validateCodexWebSearchString(item.query, `${label}.query`, {
-    allowEmpty: lifecycle === "item.started"
-  });
-  const action = item.action;
-  if (lifecycle === "item.started") {
-    if (action === void 0)
-      return id;
-    if (!isRecord6(action)) {
-      throw new Error(`${label}.action is not an object`);
-    }
-    if (action.type !== "other") {
-      throw new Error(`${label}.action.type is not the reviewed start marker`);
-    }
-    return id;
-  }
-  if (!isRecord6(action)) {
-    throw new Error(`${label}.action is not an object`);
-  }
-  const actionType = action.type;
-  if (typeof actionType !== "string") {
-    throw new Error(`${label}.action.type is not a string`);
-  }
-  if (!CODEX_WEB_SEARCH_COMPLETED_ACTION_TYPES.has(actionType)) {
-    throw new Error(`${label}.action.type is not a reviewed completion action`);
-  }
-  if (actionType === "search") {
-    validateCodexWebSearchString(action.query, `${label}.action.query`);
-  } else {
-    validateCodexWebSearchString(action.url, `${label}.action.url`);
-    if (actionType === "find_in_page") {
-      validateCodexWebSearchString(action.pattern, `${label}.action.pattern`);
-    }
-  }
-  return id;
-}
-function codexUnknownTypeRemediation(detectedVersion) {
-  return `Circuit has verified Codex CLI ${CODEX_TESTED_CLI_RANGE}, and your Codex CLI reports "${detectedVersion}". The installed Codex version may be outside this tested range, or it may have added a protocol shape Circuit has not reviewed. Check your Codex CLI version with: codex --version. Update or pin Codex CLI to a version in this range, preferably 0.146.0, then retry.`;
-}
-function parseCodexStdout(stdout, prompt, duration_ms, cli_version, options = {}) {
-  const trace_entries = parseNdjsonObjects(stdout, "codex --json");
-  if (trace_entries.length === 0) {
-    throw new Error("codex --json stdout is empty");
-  }
-  for (const [idx, trace_entry] of trace_entries.entries()) {
-    const type = trace_entry.type;
-    if (typeof type !== "string") {
-      throw new Error(`codex --json line ${idx + 1}: trace_entry has no string 'type' field`);
-    }
-    if (CODEX_FAILURE_EVENT_TYPES.has(type)) {
-      const msgField = typeof trace_entry.message === "string" ? trace_entry.message : typeof trace_entry.error === "string" ? trace_entry.error : JSON.stringify(trace_entry).slice(0, 200);
-      throw new Error(`codex reported ${type}: ${msgField}. If this recurs, examine whether the failure shape indicates a capability-boundary regression (e.g., a sandboxed write attempt surfacing as turn.failed).`);
-    }
-    if (!KNOWN_CODEX_EVENT_TYPES.has(type)) {
-      throw new Error(`codex --json line ${idx + 1}: unknown top-level trace_entry type '${type}' (allowlist: ${Array.from(KNOWN_CODEX_EVENT_TYPES).join(", ")}). A new Codex trace_entry type must be reviewed before the connector admits it. ${codexUnknownTypeRemediation(cli_version)}`);
-    }
-  }
-  const threadStarted = trace_entries.find((e) => e.type === "thread.started");
-  if (threadStarted === void 0) {
-    throw new Error("thread.started trace_entry missing from codex --json stdout");
-  }
-  const thread_id = threadStarted.thread_id;
-  if (typeof thread_id !== "string" || thread_id.length === 0) {
-    throw new Error("thread.started.thread_id missing or empty");
-  }
-  const turnCompleted = trace_entries.find((e) => e.type === "turn.completed");
-  if (turnCompleted === void 0) {
-    throw new Error("turn.completed trace_entry missing from codex --json stdout");
-  }
-  const webSearchStarts = /* @__PURE__ */ new Map();
-  const itemStarted = trace_entries.filter((e) => e.type === "item.started");
-  for (const [idx, e] of itemStarted.entries()) {
-    const item2 = e.item;
-    if (!isRecord6(item2)) {
-      throw new Error(`item.started[${idx}].item is not an object`);
-    }
-    const itemType = item2.type;
-    if (typeof itemType !== "string") {
-      throw new Error(`item.started[${idx}].item.type is not a string`);
-    }
-    if (options.promptOnly === true && PROMPT_ONLY_FORBIDDEN_CODEX_ITEM_TYPES.has(itemType)) {
-      throw new Error(`prompt-only relay boundary violated: item.started used ${itemType}`);
-    }
-    if (itemType === "error") {
-      throw new Error("capability-boundary violation: item.started item.type='error' is not a reviewed start item type");
-    }
-    if (!KNOWN_CODEX_ITEM_TYPES.has(itemType)) {
-      throw new Error(`capability-boundary violation: item.started[${idx}].item.type='${itemType}' is not in the known-types allowlist (${Array.from(KNOWN_CODEX_ITEM_TYPES).join(", ")}). A new Codex item type must be reviewed before the connector admits it. ${codexUnknownTypeRemediation(cli_version)}`);
-    }
-    if (itemType === "web_search") {
-      const id = validateCodexWebSearchItem(item2, "item.started", idx);
-      if (webSearchStarts.has(id)) {
-        throw new Error(`item.started[${idx}].item duplicates a web_search id`);
-      }
-      webSearchStarts.set(id, trace_entries.indexOf(e));
-    }
-  }
-  const itemCompleted = trace_entries.filter((e) => e.type === "item.completed");
-  const webSearchCompletions = /* @__PURE__ */ new Set();
-  for (const [idx, e] of itemCompleted.entries()) {
-    const item2 = e.item;
-    if (!isRecord6(item2)) {
-      throw new Error(`item.completed[${idx}].item is not an object`);
-    }
-    const itemType = item2.type;
-    if (typeof itemType !== "string") {
-      throw new Error(`item.completed[${idx}].item.type is not a string`);
-    }
-    if (options.promptOnly === true && PROMPT_ONLY_FORBIDDEN_CODEX_ITEM_TYPES.has(itemType)) {
-      throw new Error(`prompt-only relay boundary violated: item.completed used ${itemType}`);
-    }
-    if (!KNOWN_CODEX_ITEM_TYPES.has(itemType)) {
-      throw new Error(`capability-boundary violation: item.completed[${idx}].item.type='${itemType}' is not in the known-types allowlist (${Array.from(KNOWN_CODEX_ITEM_TYPES).join(", ")}). A new Codex item type must be reviewed before the connector admits it. ${codexUnknownTypeRemediation(cli_version)}`);
-    }
-    if (itemType === "error") {
-      const message = item2.message;
-      if (typeof message !== "string" || !CODEX_NONFATAL_ERROR_ITEM_MESSAGES.has(message)) {
-        const detail = typeof message === "string" ? message : JSON.stringify(item2).slice(0, 200);
-        throw new Error(`codex reported nested error item: ${detail}. Only reviewed nonfatal diagnostics may precede a successful terminal response.`);
-      }
-    }
-    if (itemType === "web_search") {
-      const id = validateCodexWebSearchItem(item2, "item.completed", idx);
-      const startIndex = webSearchStarts.get(id);
-      if (startIndex === void 0) {
-        throw new Error(`item.completed[${idx}] web_search has no matching item.started event`);
-      }
-      if (startIndex >= trace_entries.indexOf(e)) {
-        throw new Error(`item.completed[${idx}] web_search does not follow its item.started event`);
-      }
-      if (webSearchCompletions.has(id)) {
-        throw new Error(`item.completed[${idx}] duplicates a web_search completion`);
-      }
-      webSearchCompletions.add(id);
-    }
-  }
-  for (const id of webSearchStarts.keys()) {
-    if (!webSearchCompletions.has(id)) {
-      throw new Error("item.started web_search has no matching item.completed event");
-    }
-  }
-  const itemUpdated = trace_entries.filter((e) => e.type === "item.updated");
-  for (const [idx, e] of itemUpdated.entries()) {
-    const item2 = e.item;
-    if (!isRecord6(item2)) {
-      throw new Error(`item.updated[${idx}].item is not an object`);
-    }
-    const itemType = item2.type;
-    if (typeof itemType !== "string") {
-      throw new Error(`item.updated[${idx}].item.type is not a string`);
-    }
-    if (options.promptOnly === true && PROMPT_ONLY_FORBIDDEN_CODEX_ITEM_TYPES.has(itemType)) {
-      throw new Error(`prompt-only relay boundary violated: item.updated used ${itemType}`);
-    }
-    if (itemType === "error") {
-      throw new Error("capability-boundary violation: item.updated item.type='error' is not a reviewed progress item type");
-    }
-    if (itemType === "web_search") {
-      throw new Error("capability-boundary violation: item.updated item.type='web_search' is not a reviewed progress item type");
-    }
-    if (!KNOWN_CODEX_ITEM_TYPES.has(itemType)) {
-      throw new Error(`capability-boundary violation: item.updated[${idx}].item.type='${itemType}' is not in the known-types allowlist (${Array.from(KNOWN_CODEX_ITEM_TYPES).join(", ")}). A new Codex item type must be reviewed before the connector admits it. ${codexUnknownTypeRemediation(cli_version)}`);
-    }
-  }
-  const agentMessages = itemCompleted.filter((e) => {
-    const item2 = e.item;
-    return item2.type === "agent_message";
-  });
-  const terminalMessage = agentMessages[agentMessages.length - 1];
-  if (terminalMessage === void 0) {
-    throw new Error("no item.completed/agent_message trace_entry found in codex --json stdout");
-  }
-  const item = terminalMessage.item;
-  const result_body_raw = item.text;
-  if (typeof result_body_raw !== "string") {
-    throw new Error("terminal agent_message item.text missing or not a string");
-  }
-  const result_body = extractJsonObject(result_body_raw);
-  return {
-    request_payload: prompt,
-    receipt_id: thread_id,
-    result_body,
-    duration_ms,
-    cli_version,
-    ...webSearchCompletions.size === 0 ? {} : { web_search_count: webSearchCompletions.size }
-  };
-}
-var CODEX_WRITE_FLAGS, CODEX_PROMPT_ONLY_FLAGS, CODEX_PROMPT_ONLY_BASE_CONFIG, CODEX_EXECUTABLE, CODEX_FORBIDDEN_ARGV_TOKENS, CODEX_REASONING_EFFORT_CONFIG_KEY, flagsAsStringArray, DEFAULT_IDLE_TIMEOUT_MS2, DEFAULT_ABSOLUTE_TIMEOUT_MS2, SIGTERM_TO_SIGKILL_GRACE_MS2, STDOUT_MAX_BYTES2, STDERR_MAX_BYTES2, VERSION_CAPTURE_TIMEOUT_MS, cachedCodexVersion, CODEX_OUTPUT_SCHEMA_STRIPPABLE_KEYWORDS, CODEX_OUTPUT_SCHEMA_DISQUALIFYING_KEYWORDS, KNOWN_CODEX_ITEM_TYPES, PROMPT_ONLY_FORBIDDEN_CODEX_ITEM_TYPES, CODEX_WEB_SEARCH_MAX_STRING_LENGTH, CODEX_WEB_SEARCH_COMPLETED_ACTION_TYPES, CODEX_NONFATAL_ERROR_ITEM_MESSAGES, KNOWN_CODEX_EVENT_TYPES, CODEX_FAILURE_EVENT_TYPES, CODEX_TESTED_CLI_RANGE;
-var init_codex = __esm({
-  "dist/connectors/codex.js"() {
-    "use strict";
-    init_connector();
-    init_json_extraction();
-    init_codex_default_model();
-    init_prompt_only_directory();
-    init_remediation();
-    init_subprocess();
-    CODEX_WRITE_FLAGS = Object.freeze([
-      "exec",
-      "--json",
-      "-s",
-      "workspace-write",
-      "--ephemeral",
-      "--skip-git-repo-check",
-      "--ignore-user-config",
-      "--ignore-rules"
-    ]);
-    CODEX_PROMPT_ONLY_FLAGS = Object.freeze([
-      "exec",
-      "--json",
-      "--ephemeral",
-      "--skip-git-repo-check",
-      "--ignore-user-config",
-      "--ignore-rules",
-      "--strict-config"
-    ]);
-    CODEX_PROMPT_ONLY_BASE_CONFIG = Object.freeze([
-      'approval_policy="never"',
-      'history.persistence="none"',
-      "allow_login_shell=false",
-      "project_doc_max_bytes=0",
-      "skills.include_instructions=false",
-      ...[
-        "apps",
-        "auth_elicitation",
-        "browser_use",
-        "browser_use_external",
-        "browser_use_full_cdp_access",
-        "computer_use",
-        "hooks",
-        "image_generation",
-        "in_app_browser",
-        "memories",
-        "multi_agent",
-        "plugin_sharing",
-        "plugins",
-        "remote_plugin",
-        "shell_snapshot",
-        "shell_tool",
-        "skill_mcp_dependency_install",
-        "tool_call_mcp_elicitation",
-        "workspace_dependencies"
-      ].map((feature) => `features.${feature}=false`),
-      "tools.update_plan.enabled=false",
-      "mcp_servers={}",
-      'web_search="disabled"'
-    ]);
-    CODEX_EXECUTABLE = "codex";
-    CODEX_FORBIDDEN_ARGV_TOKENS = Object.freeze([
-      "--dangerously-bypass-approvals-and-sandbox",
-      "--full-auto",
-      "--add-dir",
-      "-o",
-      "--output-last-message",
-      "-c",
-      "--config",
-      "-p",
-      "--profile",
-      "--sandbox"
-    ]);
-    CODEX_REASONING_EFFORT_CONFIG_KEY = "model_reasoning_effort";
-    if (!CODEX_WRITE_FLAGS.includes("-s") || !CODEX_WRITE_FLAGS.includes("workspace-write") || !CODEX_WRITE_FLAGS.includes("--ignore-user-config") || !CODEX_WRITE_FLAGS.includes("--ignore-rules")) {
-      throw new Error('CODEX_WRITE_FLAGS boundary invariant broken: must include "-s workspace-write", "--ignore-user-config", and "--ignore-rules"');
-    }
-    flagsAsStringArray = CODEX_WRITE_FLAGS;
-    for (const forbidden of CODEX_FORBIDDEN_ARGV_TOKENS) {
-      if (flagsAsStringArray.includes(forbidden)) {
-        throw new Error(`CODEX_WRITE_FLAGS boundary invariant broken: must NOT include "${forbidden}" (forbidden-token set)`);
-      }
-    }
-    DEFAULT_IDLE_TIMEOUT_MS2 = 6e5;
-    DEFAULT_ABSOLUTE_TIMEOUT_MS2 = 36e5;
-    SIGTERM_TO_SIGKILL_GRACE_MS2 = 2e3;
-    STDOUT_MAX_BYTES2 = 16 * 1024 * 1024;
-    STDERR_MAX_BYTES2 = 1024 * 1024;
-    VERSION_CAPTURE_TIMEOUT_MS = 5e3;
-    CODEX_OUTPUT_SCHEMA_STRIPPABLE_KEYWORDS = /* @__PURE__ */ new Set([
-      "$id",
-      "$schema",
-      "exclusiveMaximum",
-      "exclusiveMinimum",
-      "format",
-      "maxContains",
-      "maxItems",
-      "maxLength",
-      "maxProperties",
-      "maximum",
-      "minContains",
-      "minItems",
-      "minLength",
-      "minProperties",
-      "minimum",
-      "multipleOf",
-      "pattern",
-      "uniqueItems"
-    ]);
-    CODEX_OUTPUT_SCHEMA_DISQUALIFYING_KEYWORDS = /* @__PURE__ */ new Set([
-      "$ref",
-      "$defs",
-      "allOf",
-      "anyOf",
-      "const",
-      "contains",
-      "definitions",
-      "dependentRequired",
-      "dependentSchemas",
-      "if",
-      "not",
-      "oneOf",
-      "patternProperties",
-      "propertyNames",
-      "then"
-    ]);
-    KNOWN_CODEX_ITEM_TYPES = /* @__PURE__ */ new Set([
-      "agent_message",
-      "command_execution",
-      "reasoning",
-      "file_change",
-      "todo_list",
-      "web_search",
-      "error"
-    ]);
-    PROMPT_ONLY_FORBIDDEN_CODEX_ITEM_TYPES = /* @__PURE__ */ new Set([
-      "command_execution",
-      "file_change",
-      "todo_list",
-      "web_search"
-    ]);
-    CODEX_WEB_SEARCH_MAX_STRING_LENGTH = 16 * 1024;
-    CODEX_WEB_SEARCH_COMPLETED_ACTION_TYPES = /* @__PURE__ */ new Set([
-      "search",
-      "open_page",
-      "find_in_page"
-    ]);
-    CODEX_NONFATAL_ERROR_ITEM_MESSAGES = /* @__PURE__ */ new Set([
-      "Skill descriptions were shortened to fit the 2% skills context budget. Codex can still see every skill, but some descriptions are shorter. Disable unused skills or plugins to leave more room for the rest."
-    ]);
-    KNOWN_CODEX_EVENT_TYPES = /* @__PURE__ */ new Set([
-      "thread.started",
-      "turn.started",
-      "item.started",
-      "item.updated",
-      "item.completed",
-      "turn.completed"
-    ]);
-    CODEX_FAILURE_EVENT_TYPES = /* @__PURE__ */ new Set(["turn.failed", "error"]);
-    CODEX_TESTED_CLI_RANGE = "0.144.3 through 0.146.0";
-  }
-});
-
-// dist/connectors/cursor-agent.js
-import { execFileSync as execFileSync5 } from "node:child_process";
-function captureCursorAgentVersion() {
-  if (cachedCursorAgentVersion !== void 0)
-    return cachedCursorAgentVersion;
-  let stdout;
-  try {
-    stdout = execFileSync5(CURSOR_AGENT_EXECUTABLE, ["--version"], {
-      encoding: "utf8",
-      timeout: VERSION_CAPTURE_TIMEOUT_MS2,
-      stdio: ["ignore", "pipe", "pipe"]
-    });
-  } catch (err) {
-    const message = err.message;
-    throw new Error(`${launchFailureSummary(CURSOR_AGENT_EXECUTABLE, message)} cursor-agent --version failed: ${message}. ${connectorRemediation("cursor-agent")}`);
-  }
-  const version3 = stdout.trim();
-  if (version3.length === 0) {
-    throw new Error("cursor-agent --version produced empty output");
-  }
-  cachedCursorAgentVersion = version3;
-  return version3;
-}
-function selectedGeminiModel(selection) {
-  const model = selection?.model;
-  if (model === void 0)
-    return void 0;
-  if (model.provider !== "gemini") {
-    throw new Error(`cursor-agent connector cannot honor model provider '${model.provider}' for model '${model.model}'; expected provider 'gemini'`);
-  }
-  return model.model;
-}
-function assertCursorAgentEffort(effort) {
-  if (!CURSOR_AGENT_SUPPORTED_EFFORTS.includes(effort)) {
-    throw new Error(`cursor-agent connector cannot honor effort '${effort}'; supported efforts: ${CURSOR_AGENT_SUPPORTED_EFFORTS.join(", ")}`);
-  }
-}
-function buildCursorAgentArgs(input) {
-  const args = [...CURSOR_AGENT_DISPATCH_FLAGS];
-  const model = selectedGeminiModel(input.resolvedSelection);
-  if (model !== void 0) {
-    args.push("--model", model);
-  }
-  const effort = input.resolvedSelection?.effort;
-  if (effort !== void 0) {
-    assertCursorAgentEffort(effort);
-  }
-  if (input.cwd !== void 0) {
-    args.push("--workspace", input.cwd);
-  }
-  args.push(input.prompt);
-  return args;
-}
-async function relayCursorAgent(input) {
-  const absoluteTimeoutMs = input.timeoutMs ?? DEFAULT_ABSOLUTE_TIMEOUT_MS3;
-  const idleTimeoutMs = input.idleTimeoutMs ?? DEFAULT_IDLE_TIMEOUT_MS3;
-  const cliVersion = captureCursorAgentVersion();
-  const args = buildCursorAgentArgs(input);
-  let result;
-  try {
-    result = await runConnectorSubprocess({
-      executable: CURSOR_AGENT_EXECUTABLE,
-      args,
-      timeoutMs: absoluteTimeoutMs,
-      idleTimeoutMs,
-      stdoutMaxBytes: STDOUT_MAX_BYTES3,
-      stderrMaxBytes: STDERR_MAX_BYTES3,
-      sigtermToSigkillGraceMs: SIGTERM_TO_SIGKILL_GRACE_MS3,
-      env: process.env,
-      ...input.cwd === void 0 ? {} : { cwd: input.cwd }
-    });
-  } catch (error52) {
-    if (isConnectorSubprocessSpawnError(error52)) {
-      throw new Error(`${launchFailureSummary(CURSOR_AGENT_EXECUTABLE, error52.message)} cursor-agent subprocess ${spawnErrorVerb(error52)}: ${error52.message}. ${connectorRemediation("cursor-agent")}`);
-    }
-    throw error52;
-  }
-  if (result.timedOut) {
-    const stdoutSuffix = cappedSuffix(result.stdoutCapped, "stdout");
-    const stderrSuffix = cappedSuffix(result.stderrCapped, "stderr");
-    const cause = describeTimeout(result, {
-      idleMs: idleTimeoutMs,
-      absoluteMs: absoluteTimeoutMs
-    });
-    throw new Error(`cursor-agent subprocess timed out: ${cause}; group-kill ${result.killGroupSucceeded ? "sent" : "failed"}; final signal=${result.signal ?? "none"}; stdout[:500]=${result.stdout.slice(0, 500)}${stdoutSuffix}; stderr[:500]=${result.stderr.slice(0, 500)}${stderrSuffix}`);
-  }
-  if (result.code !== 0) {
-    const stdoutSuffix = cappedSuffix(result.stdoutCapped, "stdout");
-    const stderrSuffix = cappedSuffix(result.stderrCapped, "stderr");
-    const summary = connectorFailureSummary({
-      cli: CURSOR_AGENT_EXECUTABLE,
-      signInHint: "Run `cursor-agent login` to sign in",
-      stderr: result.stderr,
-      stdout: result.stdout,
-      streamError: void 0
-    });
-    const lead = summary === void 0 ? "" : `${summary} `;
-    throw new Error(`${lead}cursor-agent subprocess exited with code ${result.code}${result.signal ? ` (signal ${result.signal})` : ""}; stdout[:500]=${result.stdout.slice(0, 500)}${stdoutSuffix}; stderr[:500]=${condenseRepeatedLines(result.stderr).slice(0, 500)}${stderrSuffix}`);
-  }
-  if (result.stdoutCapped) {
-    throw new Error(`cursor-agent subprocess stdout exceeded ${STDOUT_MAX_BYTES3} bytes; connector output cannot be evaluated on truncated stream`);
-  }
-  const resultBodyRaw = result.stdout.trim();
-  if (resultBodyRaw.length === 0) {
-    throw new Error("cursor-agent stdout is empty");
-  }
-  return {
-    request_payload: input.prompt,
-    receipt_id: sha256OfString(resultBodyRaw),
-    result_body: extractJsonObject(resultBodyRaw),
-    duration_ms: result.durationMs,
-    cli_version: cliVersion
-  };
-}
-var CURSOR_AGENT_EXECUTABLE, CURSOR_AGENT_DISPATCH_FLAGS, DEFAULT_IDLE_TIMEOUT_MS3, DEFAULT_ABSOLUTE_TIMEOUT_MS3, SIGTERM_TO_SIGKILL_GRACE_MS3, STDOUT_MAX_BYTES3, STDERR_MAX_BYTES3, VERSION_CAPTURE_TIMEOUT_MS2, cachedCursorAgentVersion;
-var init_cursor_agent = __esm({
-  "dist/connectors/cursor-agent.js"() {
-    "use strict";
-    init_connector();
-    init_connector_relay();
-    init_json_extraction();
-    init_remediation();
-    init_subprocess();
-    CURSOR_AGENT_EXECUTABLE = "cursor-agent";
-    CURSOR_AGENT_DISPATCH_FLAGS = Object.freeze([
-      "--print",
-      "--output-format",
-      "text",
-      "--trust",
-      "--force"
-    ]);
-    DEFAULT_IDLE_TIMEOUT_MS3 = 6e5;
-    DEFAULT_ABSOLUTE_TIMEOUT_MS3 = 36e5;
-    SIGTERM_TO_SIGKILL_GRACE_MS3 = 2e3;
-    STDOUT_MAX_BYTES3 = 16 * 1024 * 1024;
-    STDERR_MAX_BYTES3 = 1024 * 1024;
-    VERSION_CAPTURE_TIMEOUT_MS2 = 5e3;
-  }
-});
-
-// dist/connectors/health.js
-function firstLine(outcome) {
-  const text = outcome.stdout.trim().length > 0 ? outcome.stdout : outcome.stderr;
-  return text.trim().split("\n")[0]?.trim() ?? "";
-}
-function classifyConnectorHealth(input) {
-  const remediation = connectorRemediation(input.connector);
-  const base = { connector: input.connector, executable: input.executable };
-  if (input.presence.kind === "spawn_error") {
-    return {
-      ...base,
-      state: "needs_attention",
-      detail: `the '${input.executable}' command was not found or could not start (${input.presence.message})`,
-      remediation
-    };
-  }
-  if (input.presence.timedOut) {
-    return {
-      ...base,
-      state: "unknown",
-      detail: `could not check: ${input.executable} --version timed out`
-    };
-  }
-  if (input.presence.code !== 0) {
-    const line = firstLine(input.presence);
-    return {
-      ...base,
-      state: "needs_attention",
-      detail: `${input.executable} --version exited with code ${input.presence.code}${line === "" ? "" : `: ${line}`}`,
-      remediation
-    };
-  }
-  const version3 = firstLine(input.presence);
-  if (input.auth === void 0) {
-    return { ...base, state: "ok", detail: version3 };
-  }
-  if (input.auth.kind === "spawn_error") {
-    return {
-      ...base,
-      state: "needs_attention",
-      detail: `${version3}; sign-in check could not start (${input.auth.message})`,
-      remediation
-    };
-  }
-  if (input.auth.timedOut) {
-    return {
-      ...base,
-      state: "unknown",
-      detail: `${version3}; could not check sign-in state (timed out)`
-    };
-  }
-  const authLine = firstLine(input.auth);
-  if (input.auth.code !== 0 || SIGNED_OUT_PATTERN.test(`${input.auth.stdout}
-${input.auth.stderr}`)) {
-    return {
-      ...base,
-      state: "needs_attention",
-      detail: `${version3}; installed but may need sign-in${authLine === "" ? "" : ` (${authLine})`}`,
-      remediation
-    };
-  }
-  return {
-    ...base,
-    state: "ok",
-    detail: authLine === "" ? version3 : `${version3}; ${authLine}`
-  };
-}
-async function runProbe(executable, args, env3) {
-  try {
-    const result = await runConnectorSubprocess({
-      executable,
-      args,
-      timeoutMs: PROBE_TIMEOUT_MS,
-      stdoutMaxBytes: PROBE_OUTPUT_MAX_BYTES,
-      stderrMaxBytes: PROBE_OUTPUT_MAX_BYTES,
-      sigtermToSigkillGraceMs: 2e3,
-      env: env3
-    });
-    return {
-      kind: "ran",
-      code: result.code,
-      stdout: result.stdout,
-      stderr: result.stderr,
-      timedOut: result.timedOut
-    };
-  } catch (error52) {
-    if (isConnectorSubprocessSpawnError(error52)) {
-      return { kind: "spawn_error", message: error52.message };
-    }
-    throw error52;
-  }
-}
-function builtinConnectorExecutable(connector) {
-  return HEALTH_PROBE_SPECS[connector].executable;
-}
-async function probeBuiltinConnectorPresence(connector, options) {
-  const spec = HEALTH_PROBE_SPECS[connector];
-  return await runProbe(spec.executable, spec.presenceArgs, options?.env ?? process.env);
-}
-async function probeBuiltinConnector(connector, options) {
-  const spec = HEALTH_PROBE_SPECS[connector];
-  const env3 = options?.env ?? process.env;
-  const presence = await runProbe(spec.executable, spec.presenceArgs, env3);
-  const auth = spec.authArgs !== void 0 && presence.kind === "ran" && presence.code === 0 ? await runProbe(spec.executable, spec.authArgs, env3) : void 0;
-  return classifyConnectorHealth({
-    connector,
-    executable: spec.executable,
-    presence,
-    ...auth === void 0 ? {} : { auth }
-  });
-}
-async function probeBuiltinConnectors(options) {
-  return await Promise.all(BUILTIN_CONNECTOR_NAMES.map((name) => probeBuiltinConnector(name, options)));
-}
-async function probeCustomConnectorPresence(connector, executable, options) {
-  const presence = await runProbe(executable, [], options?.env ?? process.env);
-  if (presence.kind === "spawn_error") {
-    return {
-      connector,
-      executable,
-      state: "needs_attention",
-      detail: `the '${executable}' command was not found or could not start (${presence.message})`,
-      remediation: `Fix: check that '${executable}' is installed and on PATH.`
-    };
-  }
-  return {
-    connector,
-    executable,
-    state: "unknown",
-    detail: "could not check: custom connectors have no scripted sign-in probe"
-  };
-}
-var HEALTH_PROBE_SPECS, BUILTIN_CONNECTOR_NAMES, SIGNED_OUT_PATTERN, PROBE_TIMEOUT_MS, PROBE_OUTPUT_MAX_BYTES;
-var init_health = __esm({
-  "dist/connectors/health.js"() {
-    "use strict";
-    init_claude_code();
-    init_codex();
-    init_cursor_agent();
-    init_remediation();
-    init_subprocess();
-    HEALTH_PROBE_SPECS = {
-      "claude-code": { executable: CLAUDE_CODE_EXECUTABLE, presenceArgs: ["--version"] },
-      codex: {
-        executable: CODEX_EXECUTABLE,
-        presenceArgs: ["--version"],
-        authArgs: ["login", "status"]
-      },
-      "cursor-agent": {
-        executable: CURSOR_AGENT_EXECUTABLE,
-        presenceArgs: ["--version"],
-        authArgs: ["status"]
-      }
-    };
-    BUILTIN_CONNECTOR_NAMES = [
-      "claude-code",
-      "codex",
-      "cursor-agent"
-    ];
-    SIGNED_OUT_PATTERN = /not logged in|logged out|unauthenticated|login required|not signed in|sign in required/i;
-    PROBE_TIMEOUT_MS = 1e4;
-    PROBE_OUTPUT_MAX_BYTES = 16384;
-  }
-});
-
-// dist/connectors/resolver.js
-function customConnectorRegistryFromLayers(layers) {
-  const registry2 = {};
-  const projectDeclaredNames = /* @__PURE__ */ new Set();
-  for (const layer of layers ?? []) {
-    if (layer.layer === "project") {
-      for (const name of Object.keys(layer.config.relay.connectors)) {
-        projectDeclaredNames.add(name);
-      }
-      continue;
-    }
-    Object.assign(registry2, layer.config.relay.connectors);
-  }
-  return { registry: registry2, projectDeclaredNames };
-}
-function projectCustomConnectorRefusalMessage(name) {
-  return `This project config (.circuit/config.yaml) defines a custom connector '${name}' that runs its own command. Circuit does not run custom command connectors that come from a project config, because cloning or opening a repository could then run code on your machine. If you trust this connector, define '${name}' in your personal config at ~/.config/circuit/config.yaml instead.`;
-}
-function mergedRelayConfig(layers) {
-  const merged = {
-    default: "auto",
-    roles: {},
-    flows: {},
-    connectors: {}
-  };
-  for (const layer of layers ?? []) {
-    if (layer.config.relay.default !== "auto" || merged.default === "auto") {
-      merged.default = layer.config.relay.default;
-    }
-    merged.roles = { ...merged.roles, ...layer.config.relay.roles };
-    merged.flows = { ...merged.flows, ...layer.config.relay.flows };
-  }
-  const { registry: registry2, projectDeclaredNames } = customConnectorRegistryFromLayers(layers);
-  merged.connectors = registry2;
-  return { relay: merged, projectDeclaredCustomConnectors: projectDeclaredNames };
-}
-function projectCustomRefusalOrNotDeclared(name, merged, notDeclaredMessage) {
-  if (merged.projectDeclaredCustomConnectors.has(name)) {
-    return new Error(projectCustomConnectorRefusalMessage(name));
-  }
-  return new Error(notDeclaredMessage);
-}
-function mergedHostKind(layers) {
-  let hostKind;
-  for (const layer of layers ?? []) {
-    const configuredHostKind = layer.config.host?.kind;
-    if (configuredHostKind !== void 0) {
-      hostKind = configuredHostKind;
-    }
-  }
-  return hostKind ?? "generic-shell";
-}
-function connectorCapabilities(connector) {
-  if (connector.kind === "builtin")
-    return BUILTIN_CONNECTOR_CAPABILITIES[connector.name];
-  return connector.capabilities;
-}
-function assertConnectorCanRunRole(connector, role) {
-  const capabilities = connectorCapabilities(connector);
-  if (role === "implementer" && capabilities.filesystem === "read-only") {
-    throw new Error(`relay connector '${connector.name}' is read-only and cannot run implementer step role '${role}'`);
-  }
-}
-function resolvedConnectorFromReference(ref, merged) {
-  if (ref.kind === "builtin")
-    return ref;
-  const descriptor = merged.relay.connectors[ref.name];
-  if (descriptor === void 0) {
-    throw projectCustomRefusalOrNotDeclared(ref.name, merged, `relay connector '${ref.name}' is referenced but not declared`);
-  }
-  return descriptor;
-}
-function resolveConnectorReference(input) {
-  return resolvedConnectorFromReference(input.ref, mergedRelayConfig(input.configLayers));
-}
-function isEnabledConnector(value) {
-  return EnabledConnector.options.includes(value);
-}
-function resolvedConnectorFromDefault(defaultRef, merged) {
-  if (isEnabledConnector(defaultRef)) {
-    return { kind: "builtin", name: defaultRef };
-  }
-  const descriptor = merged.relay.connectors[defaultRef];
-  if (descriptor === void 0) {
-    throw projectCustomRefusalOrNotDeclared(defaultRef, merged, `relay default connector '${defaultRef}' is referenced but not declared`);
-  }
-  return descriptor;
-}
-function decision(connector, resolvedFrom, role) {
-  assertConnectorCanRunRole(connector, role);
-  return {
-    connectorName: connector.name,
-    connector,
-    resolvedFrom
-  };
-}
-function autoConnectorForHost(hostKind) {
-  if (hostKind === "codex")
-    return { kind: "builtin", name: "codex" };
-  return { kind: "builtin", name: "claude-code" };
-}
-function resolveConnectorForGuidanceInput(input) {
-  if (input.explicitConnector !== void 0) {
-    return decision(input.explicitConnector, { source: "explicit" }, input.role);
-  }
-  const merged = mergedRelayConfig(input.configLayers);
-  const roleRef = merged.relay.roles[input.role];
-  if (roleRef !== void 0) {
-    return decision(resolvedConnectorFromReference(roleRef, merged), {
-      source: "role",
-      role: input.role
-    }, input.role);
-  }
-  const flowId = input.flowId;
-  const flowRef = merged.relay.flows[flowId];
-  if (flowRef !== void 0) {
-    return decision(resolvedConnectorFromReference(flowRef, merged), {
-      source: "flow",
-      flow_id: flowId
-    }, input.role);
-  }
-  if (merged.relay.default !== "auto") {
-    return decision(resolvedConnectorFromDefault(merged.relay.default, merged), { source: "default" }, input.role);
-  }
-  return decision(autoConnectorForHost(input.hostKind ?? mergedHostKind(input.configLayers)), { source: "auto" }, input.role);
-}
-function expectedProvider(connectorName) {
-  if (!isEnabledConnector(connectorName))
-    return void 0;
-  return BUILTIN_CONNECTOR_SPECS[connectorName].provider;
-}
-function supportedEfforts(connectorName) {
-  if (!isEnabledConnector(connectorName))
-    return void 0;
-  return BUILTIN_CONNECTOR_SPECS[connectorName].supportedEfforts;
-}
-function assertConnectorSelectionCompatible(connectorName, selection) {
-  const expected = expectedProvider(connectorName);
-  const model = selection?.model;
-  if (expected !== void 0 && model !== void 0 && model.provider !== expected) {
-    throw new Error(`${connectorName} connector cannot honor model provider '${model.provider}' for model '${model.model}'; expected provider '${expected}'`);
-  }
-  const effort = selection?.effort;
-  if (effort === void 0)
-    return;
-  const supported = supportedEfforts(connectorName);
-  if (supported !== void 0 && !supported.includes(effort)) {
-    throw new Error(`${connectorName} connector cannot honor effort '${effort}'; supported efforts: ${supported.join(", ")}`);
-  }
-}
-var init_resolver = __esm({
-  "dist/connectors/resolver.js"() {
-    "use strict";
-    init_connector();
-  }
-});
-
-// dist/runtime/domain/route.js
-var TERMINAL_TARGETS;
-var init_route = __esm({
-  "dist/runtime/domain/route.js"() {
-    "use strict";
-    TERMINAL_TARGETS = [
-      "@complete",
-      "@stop",
-      "@handoff",
-      "@escalate"
-    ];
-  }
-});
-
-// dist/runtime/manifest/validate-executable-flow.js
-function requiredRoutesForStep() {
-  return ["pass"];
-}
-function isRouteTarget(value) {
-  if (typeof value !== "object" || value === null)
-    return false;
-  const target = value;
-  if (target.kind === "step")
-    return typeof target.stepId === "string" && target.stepId.length > 0;
-  if (target.kind === "terminal") {
-    return typeof target.target === "string" && TERMINAL_TARGETS.includes(target.target);
-  }
-  return false;
-}
-function addRunFilePathIssues(issues, owner, ref) {
-  for (const issue2 of validateRunFilePath(ref.path)) {
-    issues.push(`${owner} path ${issue2}: ${ref.path}`);
-  }
-}
-function validateExecutableFlow(flow) {
-  const issues = [];
-  const stepIds = /* @__PURE__ */ new Set();
-  const duplicateStepIds = /* @__PURE__ */ new Set();
-  const stageIds = /* @__PURE__ */ new Set();
-  const duplicateStageIds = /* @__PURE__ */ new Set();
-  const stageStepCounts = /* @__PURE__ */ new Map();
-  const entryModeNames = /* @__PURE__ */ new Set();
-  const duplicateEntryModeNames = /* @__PURE__ */ new Set();
-  if (flow.steps.length === 0)
-    issues.push("flow must declare at least one step");
-  if (flow.stages.length === 0)
-    issues.push("flow must declare at least one stage");
-  for (const step of flow.steps) {
-    if (stepIds.has(step.id))
-      duplicateStepIds.add(step.id);
-    stepIds.add(step.id);
-  }
-  for (const stage of flow.stages) {
-    if (stageIds.has(stage.id))
-      duplicateStageIds.add(stage.id);
-    stageIds.add(stage.id);
-    if (stage.stepIds.length === 0)
-      issues.push(`stage '${stage.id}' must declare at least one step`);
-    const seenInStage = /* @__PURE__ */ new Set();
-    for (const stepId of stage.stepIds) {
-      if (seenInStage.has(stepId)) {
-        issues.push(`stage '${stage.id}' lists step '${stepId}' more than once`);
-      }
-      seenInStage.add(stepId);
-      stageStepCounts.set(stepId, (stageStepCounts.get(stepId) ?? 0) + 1);
-    }
-  }
-  for (const stepId of duplicateStepIds)
-    issues.push(`duplicate step id: ${stepId}`);
-  for (const stageId of duplicateStageIds)
-    issues.push(`duplicate stage id: ${stageId}`);
-  if (!stepIds.has(flow.entry))
-    issues.push(`entry step does not exist: ${flow.entry}`);
-  if (flow.entryModes !== void 0) {
-    if (flow.entryModes.length === 0) {
-      issues.push("entryModes must not be empty when provided");
-    }
-    for (const mode of flow.entryModes) {
-      if (entryModeNames.has(mode.name))
-        duplicateEntryModeNames.add(mode.name);
-      entryModeNames.add(mode.name);
-      if (!stepIds.has(mode.startAt)) {
-        issues.push(`entry mode '${mode.name}' startAt references unknown step '${mode.startAt}'`);
-      }
-    }
-  }
-  for (const modeName of duplicateEntryModeNames) {
-    issues.push(`duplicate entry mode name: ${modeName}`);
-  }
-  for (const stage of flow.stages) {
-    for (const stepId of stage.stepIds) {
-      if (!stepIds.has(stepId))
-        issues.push(`stage '${stage.id}' references unknown step '${stepId}'`);
-    }
-  }
-  for (const step of flow.steps) {
-    const stageListingCount = stageStepCounts.get(step.id) ?? 0;
-    if (stageListingCount === 0) {
-      issues.push(`step '${step.id}' is not listed in any stage`);
-    }
-    for (const [index, ref] of (step.reads ?? []).entries()) {
-      addRunFilePathIssues(issues, `step '${step.id}' read[${index}]`, ref);
-    }
-    for (const [slot2, ref] of Object.entries(step.writes ?? {})) {
-      addRunFilePathIssues(issues, `step '${step.id}' write '${slot2}'`, ref);
-    }
-    if (step.kind === "relay" && step.report !== void 0) {
-      addRunFilePathIssues(issues, `relay step '${step.id}' report`, step.report);
-    }
-    if (step.kind === "fanout") {
-      const aggregate2 = step.writes?.aggregate;
-      if (typeof aggregate2 === "object" && aggregate2 !== null && typeof aggregate2.path === "string") {
-        addRunFilePathIssues(issues, `fanout step '${step.id}' aggregate`, aggregate2);
-      }
-    }
-    if (step.kind === "checkpoint") {
-      const hasDynamicChoices = typeof step.policy === "object" && step.policy !== null && step.policy.choices_from !== void 0;
-      if (step.choices.length === 0 && !hasDynamicChoices) {
-        issues.push(`checkpoint step '${step.id}' must declare at least one choice`);
-      }
-      const seenChoices = /* @__PURE__ */ new Set();
-      for (const choice of step.choices) {
-        if (seenChoices.has(choice)) {
-          issues.push(`checkpoint step '${step.id}' has duplicate choice '${choice}'`);
-        }
-        seenChoices.add(choice);
-      }
-    }
-    for (const requiredRoute of requiredRoutesForStep()) {
-      if (step.routes[requiredRoute] === void 0) {
-        issues.push(`step '${step.id}' is missing required route '${requiredRoute}'`);
-      }
-    }
-    for (const [routeName, target] of Object.entries(step.routes)) {
-      if (!isRouteTarget(target)) {
-        issues.push(`step '${step.id}' route '${routeName}' has invalid target`);
-        continue;
-      }
-      if (target.kind === "step" && !stepIds.has(target.stepId)) {
-        issues.push(`step '${step.id}' route '${routeName}' targets unknown step '${target.stepId}'`);
-      }
-    }
-    if (step.exhaustionRoute !== void 0) {
-      const exhaustionTarget = step.routes[step.exhaustionRoute];
-      if (exhaustionTarget === void 0) {
-        issues.push(`step '${step.id}' exhaustion route '${step.exhaustionRoute}' must name one of the step's declared routes`);
-      } else if (isRouteTarget(exhaustionTarget) && exhaustionTarget.kind === "terminal" && exhaustionTarget.target === "@complete") {
-        issues.push(`step '${step.id}' exhaustion route '${step.exhaustionRoute}' must not target '@complete'`);
-      }
-    }
-  }
-  return { ok: issues.length === 0, issues };
-}
-function assertExecutableFlow(flow) {
-  const validation = validateExecutableFlow(flow);
-  if (!validation.ok) {
-    throw new Error(`invalid executable flow: ${validation.issues.join("; ")}`);
-  }
-}
-var init_validate_executable_flow = __esm({
-  "dist/runtime/manifest/validate-executable-flow.js"() {
-    "use strict";
-    init_run_file_paths();
-    init_route();
-  }
-});
-
-// dist/runtime/manifest/from-compiled-flow.js
-function isReportRef(value) {
-  return typeof value === "object" && value !== null && typeof value.path === "string" && typeof value.schema === "string";
-}
-function toRunFileRef(value) {
-  if (isReportRef(value))
-    return { path: value.path, schema: value.schema };
-  return { path: value };
-}
-function toWrites(writes) {
-  const mapped = {};
-  for (const [slot2, value] of Object.entries(writes)) {
-    if (value === void 0)
-      continue;
-    mapped[slot2] = toRunFileRef(value);
-  }
-  return mapped;
-}
-function toRoutes(routes) {
-  const terminalTargets = new Set(TERMINAL_TARGETS);
-  const mapped = {};
-  for (const [routeName, target] of Object.entries(routes)) {
-    mapped[routeName] = terminalTargets.has(target) ? { kind: "terminal", target } : { kind: "step", stepId: target };
-  }
-  return mapped;
-}
-function toSelection(selection) {
-  if (selection === void 0)
-    return void 0;
-  return {
-    ...selection.model === void 0 ? {} : { model: selection.model },
-    ...selection.effort === void 0 ? {} : { effort: selection.effort },
-    ...selection.skills === void 0 ? {} : { skills: selection.skills },
-    ...selection.depth === void 0 ? {} : { depth: selection.depth },
-    ...selection.invocation_options === void 0 ? {} : { invocation_options: selection.invocation_options }
-  };
-}
-function baseStep(step) {
-  const selection = toSelection(step.selection);
-  return {
-    id: step.id,
-    title: step.title,
-    protocol: step.protocol,
-    routes: toRoutes(step.routes),
-    reads: step.reads.map((path) => ({ path })),
-    writes: toWrites(step.writes),
-    ...selection === void 0 ? {} : { selection },
-    ...step.skill_slots === void 0 ? {} : { skillSlots: step.skill_slots },
-    ...step.equipment_scope === void 0 ? {} : { equipmentScope: step.equipment_scope },
-    ...step.route_from_report === void 0 ? {} : { routeFromReport: step.route_from_report },
-    check: step.check,
-    ...step.budgets === void 0 ? {} : { budgets: step.budgets },
-    ...step.exhaustion_route === void 0 ? {} : { exhaustionRoute: step.exhaustion_route }
-  };
-}
-function convertStep(step) {
-  const base = baseStep(step);
-  if (step.kind === "compose") {
-    return { ...base, kind: "compose", writer: step.protocol };
-  }
-  if (step.kind === "verification") {
-    return { ...base, kind: "verification", check: step.check };
-  }
-  if (step.kind === "checkpoint") {
-    return {
-      ...base,
-      kind: "checkpoint",
-      choices: step.policy.choices?.map((choice) => choice.id) ?? [],
-      policy: step.policy
-    };
-  }
-  if (step.kind === "relay") {
-    return {
-      ...base,
-      kind: "relay",
-      role: step.role,
-      ...step.connector === void 0 ? {} : { connector: step.connector },
-      ...step.acceptance_criteria === void 0 ? {} : { acceptanceCriteria: step.acceptance_criteria },
-      ...step.writes.report === void 0 ? {} : { report: toRunFileRef(step.writes.report) }
-    };
-  }
-  if (step.kind === "sub-run") {
-    return {
-      ...base,
-      kind: "sub-run",
-      flowRef: step.flow_ref.flow_id,
-      entryMode: step.flow_ref.entry_mode,
-      ...step.flow_ref.version === void 0 ? {} : { version: step.flow_ref.version },
-      goal: step.goal,
-      depth: step.depth
-    };
-  }
-  return {
-    ...base,
-    kind: "fanout",
-    branches: step.branches,
-    concurrency: step.concurrency,
-    onChildFailure: step.on_child_failure,
-    ...step.rubric === void 0 ? {} : { rubric: step.rubric }
-  };
-}
-function fromCompiledFlow(flow) {
-  const defaultSelection = toSelection(flow.default_selection);
-  const engineFlags = manifestEngineFlagsToInCode(flow.engine_flags);
-  const runtimeSurface = flow.runtime_surface?.primary_result === void 0 ? void 0 : {
-    primaryResult: {
-      schemaName: flow.runtime_surface.primary_result.schema_name,
-      path: flow.runtime_surface.primary_result.path
-    }
-  };
-  const executable = {
-    id: flow.id,
-    version: flow.version,
-    purpose: flow.purpose,
-    entry: flow.starts_at,
-    stages: flow.stages.map((stage) => {
-      const selection = toSelection(stage.selection);
-      return {
-        id: stage.id,
-        title: stage.title,
-        ...stage.canonical === void 0 ? {} : { canonical: stage.canonical },
-        stepIds: stage.steps,
-        ...selection === void 0 ? {} : { selection }
-      };
-    }),
-    steps: flow.steps.map((step) => convertStep(step)),
-    ...defaultSelection === void 0 ? {} : { defaultSelection },
-    stagePathPolicy: flow.stage_path_policy,
-    metadata: {
-      source: "compiled-flow-v1",
-      schema_version: flow.schema_version
-    },
-    ...engineFlags === void 0 ? {} : { engineFlags },
-    ...flow.report_file_surfaces === void 0 ? {} : { reportFileSurfaces: flow.report_file_surfaces },
-    ...runtimeSurface === void 0 ? {} : { runtimeSurface },
-    ...flow.required_config === void 0 ? {} : { requiredConfig: flow.required_config }
-  };
-  assertExecutableFlow(executable);
-  return executable;
-}
-var init_from_compiled_flow = __esm({
-  "dist/runtime/manifest/from-compiled-flow.js"() {
-    "use strict";
-    init_route();
-    init_engine_flags2();
-    init_validate_executable_flow();
-  }
-});
-
-// dist/runtime/manifest/runtime-package-index.js
-function writeRef(ref) {
-  if (ref === void 0)
-    return void 0;
-  if (ref.schema !== void 0)
-    return { path: ref.path, schema: ref.schema };
-  return ref.path;
-}
-function indexedSelection(selection) {
-  if (selection === void 0)
-    return void 0;
-  return SelectionOverride.parse({
-    ...selection.model === void 0 ? {} : { model: selection.model },
-    ...selection.effort === void 0 ? {} : { effort: selection.effort },
-    skills: selection.skills ?? { mode: "inherit" },
-    ...selection.depth === void 0 ? {} : { depth: selection.depth },
-    invocation_options: selection.invocation_options ?? {}
-  });
-}
-function baseStep2(step) {
-  const selection = indexedSelection(step.selection);
-  return {
-    id: step.id,
-    title: step.title ?? step.id,
-    protocol: step.protocol ?? step.id,
-    reads: step.reads?.map((ref) => ref.path) ?? [],
-    routes: Object.fromEntries(Object.entries(step.routes).map(([route, target]) => [
-      route,
-      target.kind === "terminal" ? target.target : target.stepId
-    ])),
-    writes: Object.fromEntries(Object.entries(step.writes ?? {}).map(([slot2, ref]) => [slot2, writeRef(ref)])),
-    check: step.check,
-    ...selection === void 0 ? {} : { selection },
-    ...step.skillSlots === void 0 ? {} : { skill_slots: step.skillSlots },
-    ...step.equipmentScope === void 0 ? {} : { equipment_scope: step.equipmentScope },
-    ...step.budgets === void 0 ? {} : { budgets: step.budgets }
-  };
-}
-function fanoutBranchRelay(step) {
-  const branches = step.branches;
-  const templates = branches.kind === "dynamic" ? [branches.template] : branches.branches;
-  const executions = templates.map((branch) => {
-    const record2 = branch;
-    return record2?.execution;
-  });
-  const first = executions[0];
-  if (executions.length === 0 || first?.kind !== "relay")
-    return void 0;
-  if (!executions.every((execution) => execution?.kind === "relay")) {
-    return void 0;
-  }
-  const branchRecord = templates[0];
-  if (branchRecord?.connector?.includes("$") === true)
-    return void 0;
-  const selection = branchSelection(branchRecord?.selection);
-  return {
-    role: first.role,
-    ...branchRecord?.connector === void 0 ? {} : { connector: branchRecord.connector },
-    ...selection === void 0 ? {} : { selection }
-  };
-}
-function branchSelection(selection) {
-  if (selection === void 0 || selection === null)
-    return void 0;
-  const parsed = SelectionOverride.safeParse({
-    ...selection,
-    skills: selection.skills ?? { mode: "inherit" },
-    invocation_options: selection.invocation_options ?? {}
-  });
-  return parsed.success ? parsed.data : void 0;
-}
-function indexedStep(step) {
-  const base = baseStep2(step);
-  if (step.kind === "checkpoint") {
-    return {
-      ...base,
-      kind: step.kind,
-      policy: step.policy
-    };
-  }
-  if (step.kind === "relay") {
-    return {
-      ...base,
-      kind: step.kind,
-      role: step.role,
-      ...step.connector === void 0 ? {} : { connector: step.connector },
-      ...step.acceptanceCriteria === void 0 ? {} : { acceptance_criteria: step.acceptanceCriteria }
-    };
-  }
-  if (step.kind === "fanout") {
-    const relay = fanoutBranchRelay(step);
-    return {
-      ...base,
-      kind: step.kind,
-      ...relay === void 0 ? {} : { branch_relay: relay }
-    };
-  }
-  return { ...base, kind: step.kind };
-}
-function buildRuntimePackageIndex(flow) {
-  const steps = flow.steps.map((step) => indexedStep(step));
-  const defaultSelection = indexedSelection(flow.defaultSelection);
-  const stepsById = /* @__PURE__ */ new Map();
-  const reportPathBySchema = /* @__PURE__ */ new Map();
-  for (const step of steps) {
-    if (stepsById.has(step.id)) {
-      throw new Error(`runtime package index duplicate step '${step.id}'`);
-    }
-    stepsById.set(step.id, step);
-    const report = step.writes.report;
-    if (typeof report !== "object" || report === null)
-      continue;
-    if (!reportPathBySchema.has(report.schema)) {
-      reportPathBySchema.set(report.schema, report.path);
-    }
-  }
-  return {
-    flow: {
-      id: flow.id,
-      version: flow.version,
-      ...flow.purpose === void 0 ? {} : { purpose: flow.purpose },
-      ...defaultSelection === void 0 ? {} : { default_selection: defaultSelection },
-      stages: flow.stages.map((stage) => {
-        const selection = indexedSelection(stage.selection);
-        return {
-          id: stage.id,
-          steps: stage.stepIds,
-          ...selection === void 0 ? {} : { selection }
-        };
-      }),
-      steps
-    },
-    stepsById,
-    reportPathBySchema
-  };
-}
-var init_runtime_package_index = __esm({
-  "dist/runtime/manifest/runtime-package-index.js"() {
-    "use strict";
-    init_selection_policy();
-  }
-});
-
-// dist/selection/power-tiers.js
-function bumpOneTier(tier) {
-  return POWER_ORDER[Math.min(powerIndex(tier) + 1, POWER_ORDER.length - 1)];
-}
-function layersInPrecedenceOrder(layers) {
-  return LAYER_PRECEDENCE.flatMap((name) => layers.filter((layer) => layer.layer === name));
-}
-function resolvePowerDialSetting(layers) {
-  let dial = "medium";
-  for (const layer of layersInPrecedenceOrder(layers)) {
-    const power = layer.config.defaults?.power;
-    if (power !== void 0)
-      dial = power;
-  }
-  if (dial !== "auto")
-    return { kind: "fixed", value: dial };
-  let floor = "low";
-  let ceiling = "high";
-  for (const layer of layersInPrecedenceOrder(layers)) {
-    const bounds = layer.config.power_auto;
-    if (bounds?.floor !== void 0)
-      floor = bounds.floor;
-    if (bounds?.ceiling !== void 0)
-      ceiling = bounds.ceiling;
-  }
-  if (powerIndex(floor) > powerIndex(ceiling))
-    floor = ceiling;
-  return { kind: "auto", floor, ceiling };
-}
-function resolvePowerDial(layers) {
-  const setting = resolvePowerDialSetting(layers);
-  return setting.kind === "fixed" ? setting.value : "medium";
-}
-function tierSpec(layers, connectorName, tier) {
-  let spec = DEFAULT_POWER_TIERS[connectorName]?.[tier];
-  for (const layer of layersInPrecedenceOrder(layers)) {
-    const candidate = layer.config.power_tiers?.[connectorName]?.[tier];
-    if (candidate !== void 0)
-      spec = candidate;
-  }
-  return spec;
-}
-function materializePowerSelection(input) {
-  if (input.resolved.model !== void 0)
-    return input.resolved;
-  const layers = input.configLayers ?? [];
-  const setting = resolvePowerDialSetting(layers);
-  const dial = setting.kind === "fixed" ? setting.value : input.inferredPower ?? "medium";
-  const allocated = ROLE_POWER_ALLOCATION[dial][input.role];
-  const tier = input.attempt > 1 ? bumpOneTier(allocated) : allocated;
-  const spec = tierSpec(layers, input.connectorName, tier);
-  if (spec === void 0)
-    return input.resolved;
-  return {
-    ...input.resolved,
-    ...spec.model === void 0 ? {} : { model: spec.model },
-    ...input.resolved.effort === void 0 && spec.effort !== void 0 ? { effort: spec.effort } : {},
-    power: dial,
-    ...tier === allocated ? {} : { power_escalated: true },
-    ...setting.kind === "auto" ? { power_source: "auto" } : {}
-  };
-}
-var DEFAULT_POWER_TIERS, ROLE_POWER_ALLOCATION, LAYER_PRECEDENCE;
-var init_power_tiers = __esm({
-  "dist/selection/power-tiers.js"() {
-    "use strict";
-    init_power();
-    DEFAULT_POWER_TIERS = {
-      "claude-code": {
-        low: { model: { provider: "anthropic", model: "haiku" } },
-        medium: { model: { provider: "anthropic", model: "sonnet" } },
-        high: { model: { provider: "anthropic", model: "opus" } }
-      },
-      codex: {
-        low: { effort: "low" },
-        medium: { effort: "medium" },
-        high: { effort: "high" }
-      }
-    };
-    ROLE_POWER_ALLOCATION = {
-      high: { researcher: "high", implementer: "high", reviewer: "high" },
-      medium: { researcher: "high", implementer: "medium", reviewer: "medium" },
-      low: { researcher: "high", implementer: "low", reviewer: "medium" }
-    };
-    LAYER_PRECEDENCE = ["default", "user-global", "project", "invocation"];
-  }
-});
-
-// dist/selection/selection-resolver.js
-function overrideContributes2(o) {
-  if (o.model !== void 0)
-    return true;
-  if (o.effort !== void 0)
-    return true;
-  if (o.depth !== void 0)
-    return true;
-  if (o.skills.mode !== "inherit")
-    return true;
-  if (Object.keys(o.invocation_options).length > 0)
-    return true;
-  return false;
-}
-function composeConfigLayerSelection(base, circuit, current) {
-  if (base === void 0 && circuit === void 0)
-    return void 0;
-  const baseSkillOp = base?.skills.mode === "inherit" ? void 0 : base?.skills;
-  const circuitSkillOp = circuit?.skills.mode === "inherit" ? void 0 : circuit?.skills;
-  let skills;
-  if (baseSkillOp !== void 0 || circuitSkillOp !== void 0) {
-    const baseSkills = baseSkillOp !== void 0 ? applySkillOp(current.skills, baseSkillOp) : current.skills;
-    const composedSkills = circuitSkillOp !== void 0 ? applySkillOp(baseSkills, circuitSkillOp) : baseSkills;
-    skills = { mode: "replace", skills: [...composedSkills] };
-  }
-  const raw = {
-    ...base?.model !== void 0 || circuit?.model !== void 0 ? { model: circuit?.model ?? base?.model } : {},
-    ...base?.effort !== void 0 || circuit?.effort !== void 0 ? { effort: circuit?.effort ?? base?.effort } : {},
-    ...skills !== void 0 ? { skills } : {},
-    ...base?.depth !== void 0 || circuit?.depth !== void 0 ? { depth: circuit?.depth ?? base?.depth } : {},
-    invocation_options: {
-      ...base?.invocation_options ?? {},
-      ...circuit?.invocation_options ?? {}
-    }
-  };
-  const parsed = SelectionOverride.parse(raw);
-  return overrideContributes2(parsed) ? parsed : void 0;
-}
-function configLayerSelection(flowId, layer, current) {
-  const flows = layer.config.flows;
-  const circuit = Object.hasOwn(flows, flowId) ? flows[flowId] : void 0;
-  return composeConfigLayerSelection(layer.config.defaults.selection, circuit?.selection, current);
-}
-function applySkillOp(base, op) {
-  if (op.mode === "inherit")
-    return base;
-  if (op.mode === "replace")
-    return op.skills;
-  if (op.mode === "append") {
-    const seen = new Set(base);
-    const out = [...base];
-    for (const s of op.skills) {
-      const key = s;
-      if (!seen.has(key)) {
-        seen.add(key);
-        out.push(s);
-      }
-    }
-    return out;
-  }
-  const removeSet = new Set(op.skills);
-  return base.filter((s) => !removeSet.has(s));
-}
-function applyOverride(current, override) {
-  const model = override.model ?? current.model;
-  const effort = override.effort ?? current.effort;
-  const depth = override.depth ?? current.depth;
-  const skills = applySkillOp(current.skills, override.skills);
-  const invocation_options = {
-    ...current.invocation_options,
-    ...override.invocation_options
-  };
-  return {
-    ...model !== void 0 ? { model } : {},
-    ...effort !== void 0 ? { effort } : {},
-    skills,
-    ...depth !== void 0 ? { depth } : {},
-    invocation_options
-  };
-}
-function pushIfContributing(applied, entry, resolved) {
-  if (!overrideContributes2(entry.override))
-    return resolved;
-  applied.push(entry);
-  return applyOverride(resolved, entry.override);
-}
-function configLayersBySource(layers) {
-  const out = {};
-  const seen = /* @__PURE__ */ new Set();
-  for (const layer of layers) {
-    if (seen.has(layer.layer)) {
-      throw new Error(`duplicate selection config layer '${layer.layer}'`);
-    }
-    seen.add(layer.layer);
-    out[layer.layer] = layer;
-  }
-  return out;
-}
-function resolveSelectionForGuidanceInput(input) {
-  const flowId = input.flow.id;
-  const stepId = input.step.id;
-  const applied = [];
-  let resolved = { skills: [], invocation_options: {} };
-  const configLayers = configLayersBySource(input.configLayers ?? []);
-  for (const source of PRE_FLOW_CONFIG_SOURCES) {
-    const layer = configLayers[source];
-    if (layer === void 0)
-      continue;
-    const override = configLayerSelection(flowId, layer, resolved);
-    if (override === void 0)
-      continue;
-    resolved = pushIfContributing(applied, {
-      source,
-      override
-    }, resolved);
-  }
-  if (input.flow.default_selection !== void 0) {
-    resolved = pushIfContributing(applied, { source: "flow", override: input.flow.default_selection }, resolved);
-  }
-  for (const stage of input.flow.stages) {
-    const stageSteps = stage.steps;
-    if (!stageSteps.includes(stepId))
-      continue;
-    if (stage.selection === void 0)
-      continue;
-    resolved = pushIfContributing(applied, { source: "stage", stage_id: stage.id, override: stage.selection }, resolved);
-  }
-  if (input.step.selection !== void 0) {
-    resolved = pushIfContributing(applied, {
-      source: "step",
-      step_id: input.step.id,
-      override: input.step.selection
-    }, resolved);
-  }
-  const invocationLayer = configLayers.invocation;
-  const invocationOverride = invocationLayer === void 0 ? void 0 : configLayerSelection(flowId, invocationLayer, resolved);
-  if (invocationOverride !== void 0) {
-    resolved = pushIfContributing(applied, { source: "invocation", override: invocationOverride }, resolved);
-  }
-  return SelectionResolution.parse({ resolved, applied });
-}
-var PRE_FLOW_CONFIG_SOURCES;
-var init_selection_resolver = __esm({
-  "dist/selection/selection-resolver.js"() {
-    "use strict";
-    init_selection_policy();
-    PRE_FLOW_CONFIG_SOURCES = ["default", "user-global", "project"];
-  }
-});
-
-// dist/selection/relay-selection.js
-function bindsExecutionDepthToGuidanceSelection(inv) {
-  return inv.bindsExecutionDepthToGuidanceSelection === true;
-}
-function guidanceSelectionConfigLayersWithExecutionDepth(inv, flow, depth) {
-  const layers = [...inv.selectionConfigLayers ?? []];
-  const flowId = flow.id;
-  const existingIndex = layers.findIndex((layer) => layer.layer === "invocation");
-  const existing = existingIndex === -1 ? void 0 : layers[existingIndex];
-  const baseConfig = existing?.config ?? Config.parse({ schema_version: 1 });
-  const existingCircuit = baseConfig.flows[flowId];
-  const selection = {
-    ...existingCircuit?.selection ?? {},
-    depth
-  };
-  const invocationLayer = LayeredConfig.parse({
-    layer: "invocation",
-    ...existing?.source_path === void 0 ? {} : { source_path: existing.source_path },
-    config: {
-      ...baseConfig,
-      flows: {
-        ...baseConfig.flows,
-        [flowId]: {
-          ...existingCircuit ?? {},
-          selection
-        }
-      }
-    }
-  });
-  if (existingIndex === -1) {
-    layers.push(invocationLayer);
-  } else {
-    layers[existingIndex] = invocationLayer;
-  }
-  return layers;
-}
-function selectionConfigLayersForGuidanceInput(inv, flow, depth) {
-  if (!bindsExecutionDepthToGuidanceSelection(inv)) {
-    return inv.selectionConfigLayers ?? [];
-  }
-  return guidanceSelectionConfigLayersWithExecutionDepth(inv, flow, depth);
-}
-function deriveResolvedSelection(inv, flow, step, depth) {
-  return resolveSelectionForGuidanceInput({
-    flow,
-    step,
-    configLayers: selectionConfigLayersForGuidanceInput(inv, flow, depth)
-  }).resolved;
-}
-var init_relay_selection = __esm({
-  "dist/selection/relay-selection.js"() {
-    "use strict";
-    init_config();
-    init_selection_resolver();
-  }
-});
-
 // dist/policy/policy-envelope.js
 function uniqueSorted2(values) {
   return [...new Set(values)].sort((a, b) => a.localeCompare(b));
@@ -95789,6 +92994,322 @@ var init_work_contract_projection2 = __esm({
   }
 });
 
+// dist/runtime/domain/route.js
+var TERMINAL_TARGETS;
+var init_route = __esm({
+  "dist/runtime/domain/route.js"() {
+    "use strict";
+    TERMINAL_TARGETS = [
+      "@complete",
+      "@stop",
+      "@handoff",
+      "@escalate"
+    ];
+  }
+});
+
+// dist/runtime/manifest/validate-executable-flow.js
+function requiredRoutesForStep() {
+  return ["pass"];
+}
+function isRouteTarget(value) {
+  if (typeof value !== "object" || value === null)
+    return false;
+  const target = value;
+  if (target.kind === "step")
+    return typeof target.stepId === "string" && target.stepId.length > 0;
+  if (target.kind === "terminal") {
+    return typeof target.target === "string" && TERMINAL_TARGETS.includes(target.target);
+  }
+  return false;
+}
+function addRunFilePathIssues(issues, owner, ref) {
+  for (const issue2 of validateRunFilePath(ref.path)) {
+    issues.push(`${owner} path ${issue2}: ${ref.path}`);
+  }
+}
+function validateExecutableFlow(flow) {
+  const issues = [];
+  const stepIds = /* @__PURE__ */ new Set();
+  const duplicateStepIds = /* @__PURE__ */ new Set();
+  const stageIds = /* @__PURE__ */ new Set();
+  const duplicateStageIds = /* @__PURE__ */ new Set();
+  const stageStepCounts = /* @__PURE__ */ new Map();
+  const entryModeNames = /* @__PURE__ */ new Set();
+  const duplicateEntryModeNames = /* @__PURE__ */ new Set();
+  if (flow.steps.length === 0)
+    issues.push("flow must declare at least one step");
+  if (flow.stages.length === 0)
+    issues.push("flow must declare at least one stage");
+  for (const step of flow.steps) {
+    if (stepIds.has(step.id))
+      duplicateStepIds.add(step.id);
+    stepIds.add(step.id);
+  }
+  for (const stage of flow.stages) {
+    if (stageIds.has(stage.id))
+      duplicateStageIds.add(stage.id);
+    stageIds.add(stage.id);
+    if (stage.stepIds.length === 0)
+      issues.push(`stage '${stage.id}' must declare at least one step`);
+    const seenInStage = /* @__PURE__ */ new Set();
+    for (const stepId of stage.stepIds) {
+      if (seenInStage.has(stepId)) {
+        issues.push(`stage '${stage.id}' lists step '${stepId}' more than once`);
+      }
+      seenInStage.add(stepId);
+      stageStepCounts.set(stepId, (stageStepCounts.get(stepId) ?? 0) + 1);
+    }
+  }
+  for (const stepId of duplicateStepIds)
+    issues.push(`duplicate step id: ${stepId}`);
+  for (const stageId of duplicateStageIds)
+    issues.push(`duplicate stage id: ${stageId}`);
+  if (!stepIds.has(flow.entry))
+    issues.push(`entry step does not exist: ${flow.entry}`);
+  if (flow.entryModes !== void 0) {
+    if (flow.entryModes.length === 0) {
+      issues.push("entryModes must not be empty when provided");
+    }
+    for (const mode of flow.entryModes) {
+      if (entryModeNames.has(mode.name))
+        duplicateEntryModeNames.add(mode.name);
+      entryModeNames.add(mode.name);
+      if (!stepIds.has(mode.startAt)) {
+        issues.push(`entry mode '${mode.name}' startAt references unknown step '${mode.startAt}'`);
+      }
+    }
+  }
+  for (const modeName of duplicateEntryModeNames) {
+    issues.push(`duplicate entry mode name: ${modeName}`);
+  }
+  for (const stage of flow.stages) {
+    for (const stepId of stage.stepIds) {
+      if (!stepIds.has(stepId))
+        issues.push(`stage '${stage.id}' references unknown step '${stepId}'`);
+    }
+  }
+  for (const step of flow.steps) {
+    const stageListingCount = stageStepCounts.get(step.id) ?? 0;
+    if (stageListingCount === 0) {
+      issues.push(`step '${step.id}' is not listed in any stage`);
+    }
+    for (const [index, ref] of (step.reads ?? []).entries()) {
+      addRunFilePathIssues(issues, `step '${step.id}' read[${index}]`, ref);
+    }
+    for (const [slot2, ref] of Object.entries(step.writes ?? {})) {
+      addRunFilePathIssues(issues, `step '${step.id}' write '${slot2}'`, ref);
+    }
+    if (step.kind === "relay" && step.report !== void 0) {
+      addRunFilePathIssues(issues, `relay step '${step.id}' report`, step.report);
+    }
+    if (step.kind === "fanout") {
+      const aggregate2 = step.writes?.aggregate;
+      if (typeof aggregate2 === "object" && aggregate2 !== null && typeof aggregate2.path === "string") {
+        addRunFilePathIssues(issues, `fanout step '${step.id}' aggregate`, aggregate2);
+      }
+    }
+    if (step.kind === "checkpoint") {
+      const hasDynamicChoices = typeof step.policy === "object" && step.policy !== null && step.policy.choices_from !== void 0;
+      if (step.choices.length === 0 && !hasDynamicChoices) {
+        issues.push(`checkpoint step '${step.id}' must declare at least one choice`);
+      }
+      const seenChoices = /* @__PURE__ */ new Set();
+      for (const choice of step.choices) {
+        if (seenChoices.has(choice)) {
+          issues.push(`checkpoint step '${step.id}' has duplicate choice '${choice}'`);
+        }
+        seenChoices.add(choice);
+      }
+    }
+    for (const requiredRoute of requiredRoutesForStep()) {
+      if (step.routes[requiredRoute] === void 0) {
+        issues.push(`step '${step.id}' is missing required route '${requiredRoute}'`);
+      }
+    }
+    for (const [routeName, target] of Object.entries(step.routes)) {
+      if (!isRouteTarget(target)) {
+        issues.push(`step '${step.id}' route '${routeName}' has invalid target`);
+        continue;
+      }
+      if (target.kind === "step" && !stepIds.has(target.stepId)) {
+        issues.push(`step '${step.id}' route '${routeName}' targets unknown step '${target.stepId}'`);
+      }
+    }
+    if (step.exhaustionRoute !== void 0) {
+      const exhaustionTarget = step.routes[step.exhaustionRoute];
+      if (exhaustionTarget === void 0) {
+        issues.push(`step '${step.id}' exhaustion route '${step.exhaustionRoute}' must name one of the step's declared routes`);
+      } else if (isRouteTarget(exhaustionTarget) && exhaustionTarget.kind === "terminal" && exhaustionTarget.target === "@complete") {
+        issues.push(`step '${step.id}' exhaustion route '${step.exhaustionRoute}' must not target '@complete'`);
+      }
+    }
+  }
+  return { ok: issues.length === 0, issues };
+}
+function assertExecutableFlow(flow) {
+  const validation = validateExecutableFlow(flow);
+  if (!validation.ok) {
+    throw new Error(`invalid executable flow: ${validation.issues.join("; ")}`);
+  }
+}
+var init_validate_executable_flow = __esm({
+  "dist/runtime/manifest/validate-executable-flow.js"() {
+    "use strict";
+    init_run_file_paths();
+    init_route();
+  }
+});
+
+// dist/runtime/manifest/from-compiled-flow.js
+function isReportRef(value) {
+  return typeof value === "object" && value !== null && typeof value.path === "string" && typeof value.schema === "string";
+}
+function toRunFileRef(value) {
+  if (isReportRef(value))
+    return { path: value.path, schema: value.schema };
+  return { path: value };
+}
+function toWrites(writes) {
+  const mapped = {};
+  for (const [slot2, value] of Object.entries(writes)) {
+    if (value === void 0)
+      continue;
+    mapped[slot2] = toRunFileRef(value);
+  }
+  return mapped;
+}
+function toRoutes(routes) {
+  const terminalTargets = new Set(TERMINAL_TARGETS);
+  const mapped = {};
+  for (const [routeName, target] of Object.entries(routes)) {
+    mapped[routeName] = terminalTargets.has(target) ? { kind: "terminal", target } : { kind: "step", stepId: target };
+  }
+  return mapped;
+}
+function toSelection(selection) {
+  if (selection === void 0)
+    return void 0;
+  return {
+    ...selection.model === void 0 ? {} : { model: selection.model },
+    ...selection.effort === void 0 ? {} : { effort: selection.effort },
+    ...selection.skills === void 0 ? {} : { skills: selection.skills },
+    ...selection.depth === void 0 ? {} : { depth: selection.depth },
+    ...selection.invocation_options === void 0 ? {} : { invocation_options: selection.invocation_options }
+  };
+}
+function baseStep(step) {
+  const selection = toSelection(step.selection);
+  return {
+    id: step.id,
+    title: step.title,
+    protocol: step.protocol,
+    routes: toRoutes(step.routes),
+    reads: step.reads.map((path) => ({ path })),
+    writes: toWrites(step.writes),
+    ...selection === void 0 ? {} : { selection },
+    ...step.skill_slots === void 0 ? {} : { skillSlots: step.skill_slots },
+    ...step.equipment_scope === void 0 ? {} : { equipmentScope: step.equipment_scope },
+    ...step.route_from_report === void 0 ? {} : { routeFromReport: step.route_from_report },
+    check: step.check,
+    ...step.budgets === void 0 ? {} : { budgets: step.budgets },
+    ...step.exhaustion_route === void 0 ? {} : { exhaustionRoute: step.exhaustion_route }
+  };
+}
+function convertStep(step) {
+  const base = baseStep(step);
+  if (step.kind === "compose") {
+    return { ...base, kind: "compose", writer: step.protocol };
+  }
+  if (step.kind === "verification") {
+    return { ...base, kind: "verification", check: step.check };
+  }
+  if (step.kind === "checkpoint") {
+    return {
+      ...base,
+      kind: "checkpoint",
+      choices: step.policy.choices?.map((choice) => choice.id) ?? [],
+      policy: step.policy
+    };
+  }
+  if (step.kind === "relay") {
+    return {
+      ...base,
+      kind: "relay",
+      role: step.role,
+      ...step.connector === void 0 ? {} : { connector: step.connector },
+      ...step.acceptance_criteria === void 0 ? {} : { acceptanceCriteria: step.acceptance_criteria },
+      ...step.writes.report === void 0 ? {} : { report: toRunFileRef(step.writes.report) }
+    };
+  }
+  if (step.kind === "sub-run") {
+    return {
+      ...base,
+      kind: "sub-run",
+      flowRef: step.flow_ref.flow_id,
+      entryMode: step.flow_ref.entry_mode,
+      ...step.flow_ref.version === void 0 ? {} : { version: step.flow_ref.version },
+      goal: step.goal,
+      depth: step.depth
+    };
+  }
+  return {
+    ...base,
+    kind: "fanout",
+    branches: step.branches,
+    concurrency: step.concurrency,
+    onChildFailure: step.on_child_failure,
+    ...step.rubric === void 0 ? {} : { rubric: step.rubric }
+  };
+}
+function fromCompiledFlow(flow) {
+  const defaultSelection = toSelection(flow.default_selection);
+  const engineFlags = manifestEngineFlagsToInCode(flow.engine_flags);
+  const runtimeSurface = flow.runtime_surface?.primary_result === void 0 ? void 0 : {
+    primaryResult: {
+      schemaName: flow.runtime_surface.primary_result.schema_name,
+      path: flow.runtime_surface.primary_result.path
+    }
+  };
+  const executable = {
+    id: flow.id,
+    version: flow.version,
+    purpose: flow.purpose,
+    entry: flow.starts_at,
+    stages: flow.stages.map((stage) => {
+      const selection = toSelection(stage.selection);
+      return {
+        id: stage.id,
+        title: stage.title,
+        ...stage.canonical === void 0 ? {} : { canonical: stage.canonical },
+        stepIds: stage.steps,
+        ...selection === void 0 ? {} : { selection }
+      };
+    }),
+    steps: flow.steps.map((step) => convertStep(step)),
+    ...defaultSelection === void 0 ? {} : { defaultSelection },
+    stagePathPolicy: flow.stage_path_policy,
+    metadata: {
+      source: "compiled-flow-v1",
+      schema_version: flow.schema_version
+    },
+    ...engineFlags === void 0 ? {} : { engineFlags },
+    ...flow.report_file_surfaces === void 0 ? {} : { reportFileSurfaces: flow.report_file_surfaces },
+    ...runtimeSurface === void 0 ? {} : { runtimeSurface },
+    ...flow.required_config === void 0 ? {} : { requiredConfig: flow.required_config }
+  };
+  assertExecutableFlow(executable);
+  return executable;
+}
+var init_from_compiled_flow = __esm({
+  "dist/runtime/manifest/from-compiled-flow.js"() {
+    "use strict";
+    init_route();
+    init_engine_flags2();
+    init_validate_executable_flow();
+  }
+});
+
 // dist/runtime/run/context-delivery.js
 function createContextDelivery() {
   const budget = { remaining: CONTEXT_DELIVERY_BUDGET, touched: /* @__PURE__ */ new Set() };
@@ -96052,6 +93573,94 @@ var init_power_inference = __esm({
   }
 });
 
+// dist/selection/power-tiers.js
+function bumpOneTier(tier) {
+  return POWER_ORDER[Math.min(powerIndex(tier) + 1, POWER_ORDER.length - 1)];
+}
+function layersInPrecedenceOrder(layers) {
+  return LAYER_PRECEDENCE.flatMap((name) => layers.filter((layer) => layer.layer === name));
+}
+function resolvePowerDialSetting(layers) {
+  let dial = "medium";
+  for (const layer of layersInPrecedenceOrder(layers)) {
+    const power = layer.config.defaults?.power;
+    if (power !== void 0)
+      dial = power;
+  }
+  if (dial !== "auto")
+    return { kind: "fixed", value: dial };
+  let floor = "low";
+  let ceiling = "high";
+  for (const layer of layersInPrecedenceOrder(layers)) {
+    const bounds = layer.config.power_auto;
+    if (bounds?.floor !== void 0)
+      floor = bounds.floor;
+    if (bounds?.ceiling !== void 0)
+      ceiling = bounds.ceiling;
+  }
+  if (powerIndex(floor) > powerIndex(ceiling))
+    floor = ceiling;
+  return { kind: "auto", floor, ceiling };
+}
+function resolvePowerDial(layers) {
+  const setting = resolvePowerDialSetting(layers);
+  return setting.kind === "fixed" ? setting.value : "medium";
+}
+function tierSpec(layers, connectorName, tier) {
+  let spec = DEFAULT_POWER_TIERS[connectorName]?.[tier];
+  for (const layer of layersInPrecedenceOrder(layers)) {
+    const candidate = layer.config.power_tiers?.[connectorName]?.[tier];
+    if (candidate !== void 0)
+      spec = candidate;
+  }
+  return spec;
+}
+function materializePowerSelection(input) {
+  if (input.resolved.model !== void 0)
+    return input.resolved;
+  const layers = input.configLayers ?? [];
+  const setting = resolvePowerDialSetting(layers);
+  const dial = setting.kind === "fixed" ? setting.value : input.inferredPower ?? "medium";
+  const allocated = ROLE_POWER_ALLOCATION[dial][input.role];
+  const tier = input.attempt > 1 ? bumpOneTier(allocated) : allocated;
+  const spec = tierSpec(layers, input.connectorName, tier);
+  if (spec === void 0)
+    return input.resolved;
+  return {
+    ...input.resolved,
+    ...spec.model === void 0 ? {} : { model: spec.model },
+    ...input.resolved.effort === void 0 && spec.effort !== void 0 ? { effort: spec.effort } : {},
+    power: dial,
+    ...tier === allocated ? {} : { power_escalated: true },
+    ...setting.kind === "auto" ? { power_source: "auto" } : {}
+  };
+}
+var DEFAULT_POWER_TIERS, ROLE_POWER_ALLOCATION, LAYER_PRECEDENCE;
+var init_power_tiers = __esm({
+  "dist/selection/power-tiers.js"() {
+    "use strict";
+    init_power();
+    DEFAULT_POWER_TIERS = {
+      "claude-code": {
+        low: { model: { provider: "anthropic", model: "haiku" } },
+        medium: { model: { provider: "anthropic", model: "sonnet" } },
+        high: { model: { provider: "anthropic", model: "opus" } }
+      },
+      codex: {
+        low: { effort: "low" },
+        medium: { effort: "medium" },
+        high: { effort: "high" }
+      }
+    };
+    ROLE_POWER_ALLOCATION = {
+      high: { researcher: "high", implementer: "high", reviewer: "high" },
+      medium: { researcher: "high", implementer: "medium", reviewer: "medium" },
+      low: { researcher: "high", implementer: "low", reviewer: "medium" }
+    };
+    LAYER_PRECEDENCE = ["default", "user-global", "project", "invocation"];
+  }
+});
+
 // dist/shared/fanout-branch-template.js
 function resolveDottedPath(root, path) {
   let cursor = root;
@@ -96114,11 +93723,11 @@ var init_fanout_branch_template = __esm({
 });
 
 // dist/shared/user-skill-registry.js
-import { existsSync as existsSync26, readFileSync as readFileSync43, readdirSync as readdirSync4 } from "node:fs";
-import { homedir as homedir4 } from "node:os";
-import { join as join22, resolve as resolve18 } from "node:path";
-function defaultUserSkillRoots(homeDir = homedir4()) {
-  return [join22(homeDir, ".agents", "skills"), join22(homeDir, ".claude", "skills")];
+import { existsSync as existsSync25, readFileSync as readFileSync41, readdirSync as readdirSync4 } from "node:fs";
+import { homedir as homedir3 } from "node:os";
+import { join as join19, resolve as resolve18 } from "node:path";
+function defaultUserSkillRoots(homeDir = homedir3()) {
+  return [join19(homeDir, ".agents", "skills"), join19(homeDir, ".claude", "skills")];
 }
 function parseSkillMarkdown(text, skillPath) {
   if (!text.startsWith("---"))
@@ -96150,7 +93759,7 @@ function discoverCandidates(roots) {
   const candidates = /* @__PURE__ */ new Map();
   for (const root of roots) {
     const rootAbs = resolve18(root);
-    if (!existsSync26(rootAbs))
+    if (!existsSync25(rootAbs))
       continue;
     for (const entry of readdirSync4(rootAbs, { withFileTypes: true })) {
       if (!entry.isDirectory())
@@ -96161,8 +93770,8 @@ function discoverCandidates(roots) {
       const key = id.data;
       if (candidates.has(key))
         continue;
-      const skillPath = join22(rootAbs, entry.name, "SKILL.md");
-      if (!existsSync26(skillPath))
+      const skillPath = join19(rootAbs, entry.name, "SKILL.md");
+      if (!existsSync25(skillPath))
         continue;
       candidates.set(key, {
         id: id.data,
@@ -96176,7 +93785,7 @@ function discoverCandidates(roots) {
 function loadCandidate(candidate) {
   let text;
   try {
-    text = readFileSync43(candidate.path, "utf8");
+    text = readFileSync41(candidate.path, "utf8");
   } catch (err) {
     throw new Error(`selected skill '${candidate.id}' could not be read at ${candidate.path}: ${err.message}`);
   }
@@ -96216,7 +93825,7 @@ function createUserSkillRegistry(options = {}) {
         throw new Error([
           `Circuit could not find skill '${key}'.`,
           "Searched:",
-          ...searchedRoots.map((root) => `- ${join22(root, key, "SKILL.md")}`)
+          ...searchedRoots.map((root) => `- ${join19(root, key, "SKILL.md")}`)
         ].join("\n"));
       }
       return loadCached(key, candidate);
@@ -97512,6 +95121,163 @@ var init_registry4 = __esm({
   }
 });
 
+// dist/connectors/resolver.js
+function customConnectorRegistryFromLayers(layers) {
+  const registry2 = {};
+  const projectDeclaredNames = /* @__PURE__ */ new Set();
+  for (const layer of layers ?? []) {
+    if (layer.layer === "project") {
+      for (const name of Object.keys(layer.config.relay.connectors)) {
+        projectDeclaredNames.add(name);
+      }
+      continue;
+    }
+    Object.assign(registry2, layer.config.relay.connectors);
+  }
+  return { registry: registry2, projectDeclaredNames };
+}
+function projectCustomConnectorRefusalMessage(name) {
+  return `This project config (.circuit/config.yaml) defines a custom connector '${name}' that runs its own command. Circuit does not run custom command connectors that come from a project config, because cloning or opening a repository could then run code on your machine. If you trust this connector, define '${name}' in your personal config at ~/.config/circuit/config.yaml instead.`;
+}
+function mergedRelayConfig(layers) {
+  const merged = {
+    default: "auto",
+    roles: {},
+    flows: {},
+    connectors: {}
+  };
+  for (const layer of layers ?? []) {
+    if (layer.config.relay.default !== "auto" || merged.default === "auto") {
+      merged.default = layer.config.relay.default;
+    }
+    merged.roles = { ...merged.roles, ...layer.config.relay.roles };
+    merged.flows = { ...merged.flows, ...layer.config.relay.flows };
+  }
+  const { registry: registry2, projectDeclaredNames } = customConnectorRegistryFromLayers(layers);
+  merged.connectors = registry2;
+  return { relay: merged, projectDeclaredCustomConnectors: projectDeclaredNames };
+}
+function projectCustomRefusalOrNotDeclared(name, merged, notDeclaredMessage) {
+  if (merged.projectDeclaredCustomConnectors.has(name)) {
+    return new Error(projectCustomConnectorRefusalMessage(name));
+  }
+  return new Error(notDeclaredMessage);
+}
+function mergedHostKind(layers) {
+  let hostKind;
+  for (const layer of layers ?? []) {
+    const configuredHostKind = layer.config.host?.kind;
+    if (configuredHostKind !== void 0) {
+      hostKind = configuredHostKind;
+    }
+  }
+  return hostKind ?? "generic-shell";
+}
+function connectorCapabilities(connector) {
+  if (connector.kind === "builtin")
+    return BUILTIN_CONNECTOR_CAPABILITIES[connector.name];
+  return connector.capabilities;
+}
+function assertConnectorCanRunRole(connector, role) {
+  const capabilities = connectorCapabilities(connector);
+  if (role === "implementer" && capabilities.filesystem === "read-only") {
+    throw new Error(`relay connector '${connector.name}' is read-only and cannot run implementer step role '${role}'`);
+  }
+}
+function resolvedConnectorFromReference(ref, merged) {
+  if (ref.kind === "builtin")
+    return ref;
+  const descriptor = merged.relay.connectors[ref.name];
+  if (descriptor === void 0) {
+    throw projectCustomRefusalOrNotDeclared(ref.name, merged, `relay connector '${ref.name}' is referenced but not declared`);
+  }
+  return descriptor;
+}
+function resolveConnectorReference(input) {
+  return resolvedConnectorFromReference(input.ref, mergedRelayConfig(input.configLayers));
+}
+function isEnabledConnector(value) {
+  return EnabledConnector.options.includes(value);
+}
+function resolvedConnectorFromDefault(defaultRef, merged) {
+  if (isEnabledConnector(defaultRef)) {
+    return { kind: "builtin", name: defaultRef };
+  }
+  const descriptor = merged.relay.connectors[defaultRef];
+  if (descriptor === void 0) {
+    throw projectCustomRefusalOrNotDeclared(defaultRef, merged, `relay default connector '${defaultRef}' is referenced but not declared`);
+  }
+  return descriptor;
+}
+function decision(connector, resolvedFrom, role) {
+  assertConnectorCanRunRole(connector, role);
+  return {
+    connectorName: connector.name,
+    connector,
+    resolvedFrom
+  };
+}
+function autoConnectorForHost(hostKind) {
+  if (hostKind === "codex")
+    return { kind: "builtin", name: "codex" };
+  return { kind: "builtin", name: "claude-code" };
+}
+function resolveConnectorForGuidanceInput(input) {
+  if (input.explicitConnector !== void 0) {
+    return decision(input.explicitConnector, { source: "explicit" }, input.role);
+  }
+  const merged = mergedRelayConfig(input.configLayers);
+  const roleRef = merged.relay.roles[input.role];
+  if (roleRef !== void 0) {
+    return decision(resolvedConnectorFromReference(roleRef, merged), {
+      source: "role",
+      role: input.role
+    }, input.role);
+  }
+  const flowId = input.flowId;
+  const flowRef = merged.relay.flows[flowId];
+  if (flowRef !== void 0) {
+    return decision(resolvedConnectorFromReference(flowRef, merged), {
+      source: "flow",
+      flow_id: flowId
+    }, input.role);
+  }
+  if (merged.relay.default !== "auto") {
+    return decision(resolvedConnectorFromDefault(merged.relay.default, merged), { source: "default" }, input.role);
+  }
+  return decision(autoConnectorForHost(input.hostKind ?? mergedHostKind(input.configLayers)), { source: "auto" }, input.role);
+}
+function expectedProvider(connectorName) {
+  if (!isEnabledConnector(connectorName))
+    return void 0;
+  return BUILTIN_CONNECTOR_SPECS[connectorName].provider;
+}
+function supportedEfforts(connectorName) {
+  if (!isEnabledConnector(connectorName))
+    return void 0;
+  return BUILTIN_CONNECTOR_SPECS[connectorName].supportedEfforts;
+}
+function assertConnectorSelectionCompatible(connectorName, selection) {
+  const expected = expectedProvider(connectorName);
+  const model = selection?.model;
+  if (expected !== void 0 && model !== void 0 && model.provider !== expected) {
+    throw new Error(`${connectorName} connector cannot honor model provider '${model.provider}' for model '${model.model}'; expected provider '${expected}'`);
+  }
+  const effort = selection?.effort;
+  if (effort === void 0)
+    return;
+  const supported = supportedEfforts(connectorName);
+  if (supported !== void 0 && !supported.includes(effort)) {
+    throw new Error(`${connectorName} connector cannot honor effort '${effort}'; supported efforts: ${supported.join(", ")}`);
+  }
+}
+var init_resolver = __esm({
+  "dist/connectors/resolver.js"() {
+    "use strict";
+    init_connector();
+  }
+});
+
 // dist/runtime/run/connector-planning.js
 var runtimeConnectorPlanner;
 var init_connector_planning2 = __esm({
@@ -97901,7 +95667,7 @@ function rubricResultFields(rubric, resultBody) {
 }
 function buildRubricResult(rubric, resultBody) {
   const rawJudgments = readPath(resultBody, rubric.model_judgments_path);
-  if (!isRecord7(rawJudgments)) {
+  if (!isRecord6(rawJudgments)) {
     throw new Error(`fanout rubric model_judgments_path '${rubric.model_judgments_path}' did not resolve to an object`);
   }
   const dims = {};
@@ -97935,12 +95701,12 @@ function runtimeSignalForSource(resultBody, source) {
 }
 function readPath(source, path) {
   return path.split(".").reduce((current, segment) => {
-    if (!isRecord7(current))
+    if (!isRecord6(current))
       return void 0;
     return current[segment];
   }, source);
 }
-function isRecord7(value) {
+function isRecord6(value) {
   return typeof value === "object" && value !== null && !Array.isArray(value);
 }
 function isRubricJudgment(value) {
@@ -98018,6 +95784,1726 @@ var init_report_schemas = __esm({
       channels: "relay",
       fixtures: BUILTIN_REPORT_SCHEMAS
     });
+  }
+});
+
+// dist/shared/json-extraction.js
+function extractJsonObject(text) {
+  let cursor = 0;
+  while (cursor < text.length) {
+    const start = text.indexOf("{", cursor);
+    if (start === -1)
+      break;
+    let depth = 0;
+    let inString = false;
+    let escaped = false;
+    let end = -1;
+    for (let i = start; i < text.length; i++) {
+      const ch = text[i];
+      if (escaped) {
+        escaped = false;
+        continue;
+      }
+      if (inString) {
+        if (ch === "\\") {
+          escaped = true;
+          continue;
+        }
+        if (ch === '"')
+          inString = false;
+        continue;
+      }
+      if (ch === '"') {
+        inString = true;
+        continue;
+      }
+      if (ch === "{")
+        depth++;
+      else if (ch === "}") {
+        depth--;
+        if (depth === 0) {
+          end = i + 1;
+          break;
+        }
+      }
+    }
+    if (end === -1)
+      break;
+    const candidate = text.slice(start, end);
+    try {
+      JSON.parse(candidate);
+      return candidate;
+    } catch {
+      cursor = start + 1;
+    }
+  }
+  return text;
+}
+var init_json_extraction = __esm({
+  "dist/shared/json-extraction.js"() {
+    "use strict";
+  }
+});
+
+// dist/connectors/prompt-only-directory.js
+import { mkdtemp, realpath, rm, stat } from "node:fs/promises";
+import { tmpdir } from "node:os";
+import { isAbsolute as isAbsolute10, join as join20, relative as relative11, sep as sep5 } from "node:path";
+function pathInsideOrEqual(parent, candidate) {
+  const child = relative11(parent, candidate);
+  return child === "" || child !== ".." && !child.startsWith(`..${sep5}`) && !isAbsolute10(child);
+}
+async function createPromptOnlyRelayDirectory(projectDirectory, prefix) {
+  if (projectDirectory === void 0 || !isAbsolute10(projectDirectory)) {
+    throw new Error("A prompt-only relay requires the original project as an absolute directory.");
+  }
+  let canonicalProject;
+  try {
+    canonicalProject = await realpath(projectDirectory);
+    if (!(await stat(canonicalProject)).isDirectory()) {
+      throw new Error("not a directory");
+    }
+  } catch {
+    throw new Error("A prompt-only relay requires the original project to be a real directory.");
+  }
+  let allocatedDirectory;
+  try {
+    allocatedDirectory = await mkdtemp(join20(tmpdir(), prefix));
+    const canonicalRelay = await realpath(allocatedDirectory);
+    if (pathInsideOrEqual(canonicalProject, canonicalRelay) || pathInsideOrEqual(canonicalRelay, canonicalProject)) {
+      throw new Error("The prompt-only relay directory overlaps the original project. Use a private temporary directory outside the project.");
+    }
+    return canonicalRelay;
+  } catch (error52) {
+    if (allocatedDirectory !== void 0) {
+      await rm(allocatedDirectory, { recursive: true, force: true }).catch(() => {
+      });
+    }
+    throw error52;
+  }
+}
+var init_prompt_only_directory = __esm({
+  "dist/connectors/prompt-only-directory.js"() {
+    "use strict";
+  }
+});
+
+// dist/connectors/remediation.js
+function connectorRemediation(name) {
+  switch (name) {
+    case "claude-code":
+      return "Fix: install Claude Code (https://claude.com/claude-code), then check it with: claude --version";
+    case "codex":
+      return "Fix: reinstall the Codex CLI (npm install -g @openai/codex), then check it with: codex --version. If it is installed but signed out, run: codex login";
+    case "cursor-agent":
+      return "Fix: install the Cursor CLI, then check it with: cursor-agent status. If it is installed but signed out, run: cursor-agent login";
+  }
+}
+var init_remediation = __esm({
+  "dist/connectors/remediation.js"() {
+    "use strict";
+  }
+});
+
+// dist/connectors/state-dir.js
+import { existsSync as existsSync26, mkdirSync as mkdirSync5, rmdirSync, unlinkSync, writeFileSync as writeFileSync6 } from "node:fs";
+import { homedir as homedir4 } from "node:os";
+import { join as join21 } from "node:path";
+function codexStateDir(env3 = process.env) {
+  const fromEnv = env3.CODEX_HOME;
+  if (fromEnv !== void 0 && fromEnv.trim() !== "")
+    return fromEnv;
+  return join21(homedir4(), ".codex");
+}
+function probeStateDirWritable(dir) {
+  const probeFile = join21(dir, `.circuit-write-probe-${process.pid}`);
+  let createdDir = false;
+  try {
+    if (!existsSync26(dir)) {
+      mkdirSync5(dir, { recursive: true });
+      createdDir = true;
+    }
+    writeFileSync6(probeFile, "circuit write probe");
+    unlinkSync(probeFile);
+    if (createdDir)
+      rmdirSync(dir);
+    return { writable: true, dir };
+  } catch (error52) {
+    return { writable: false, dir, detail: error52.message };
+  }
+}
+function stateDirUnwritableSummary(cli, dir) {
+  const where = dir === void 0 ? "its state directory" : `its state directory (${dir})`;
+  return `The ${cli} CLI could not write ${where}. This is a setup problem, not a task failure: Circuit is likely running inside a sandboxed session that blocks writes outside the project. Rerun Circuit outside the sandbox, then retry.`;
+}
+var init_state_dir = __esm({
+  "dist/connectors/state-dir.js"() {
+    "use strict";
+  }
+});
+
+// dist/connectors/subprocess.js
+import { spawn } from "node:child_process";
+import { dirname as dirname10 } from "node:path";
+import { performance as performance2 } from "node:perf_hooks";
+function isConnectorSubprocessSpawnError(error52) {
+  return error52 instanceof ConnectorSubprocessSpawnError || error52 instanceof Error && error52.name === "ConnectorSubprocessSpawnError";
+}
+function createTimeoutController(input) {
+  let fired = false;
+  let disposed = false;
+  let idleTimer;
+  const fire = (kind) => {
+    if (fired || disposed)
+      return;
+    fired = true;
+    input.onFire(kind);
+  };
+  const absoluteTimer = setTimeout(() => fire("absolute"), input.absoluteMs);
+  const onActivity = () => {
+    if (fired || disposed || input.idleMs === void 0)
+      return;
+    if (idleTimer !== void 0)
+      clearTimeout(idleTimer);
+    idleTimer = setTimeout(() => fire("idle"), input.idleMs);
+  };
+  const clear = () => {
+    disposed = true;
+    clearTimeout(absoluteTimer);
+    if (idleTimer !== void 0) {
+      clearTimeout(idleTimer);
+      idleTimer = void 0;
+    }
+  };
+  return { onActivity, clear };
+}
+function appendCapped(current, currentBytes, chunk, maxBytes) {
+  const chunkBytes = Buffer.byteLength(chunk, "utf8");
+  if (currentBytes + chunkBytes <= maxBytes) {
+    return { text: current + chunk, bytes: currentBytes + chunkBytes, capped: false };
+  }
+  const remaining = maxBytes - currentBytes;
+  if (remaining <= 0) {
+    return { text: current, bytes: currentBytes, capped: true };
+  }
+  return {
+    text: current + Buffer.from(chunk, "utf8").subarray(0, remaining).toString("utf8"),
+    bytes: maxBytes,
+    capped: true
+  };
+}
+function spawnErrorVerb(error52) {
+  return error52.phase === "spawn-failed" ? "spawn failed" : "spawn error";
+}
+function cappedSuffix(capped, stream) {
+  return capped ? ` [${stream} capped]` : "";
+}
+function describeTimeout(result, bounds) {
+  if (result.timeoutKind === "idle" && bounds.idleMs !== void 0) {
+    return `no output for ${bounds.idleMs}ms (inactivity; a step that legitimately goes silent longer can raise budgets.inactivity_ms)`;
+  }
+  return `exceeded the ${bounds.absoluteMs}ms wall-clock backstop`;
+}
+function launchFailureSummary(cli, errorText) {
+  if (errorText.includes("ENOENT")) {
+    return `The ${cli} CLI is not installed or not on your PATH (spawn ENOENT). Run \`circuit doctor\` to check connector health.`;
+  }
+  if (errorText.includes("EACCES")) {
+    return `The ${cli} CLI was found but cannot be executed (EACCES). Fix its file permissions, or run \`circuit doctor\` to check connector health.`;
+  }
+  return `The ${cli} CLI failed to start. Run \`circuit doctor\` to check connector health.`;
+}
+function connectorFailureSummary(input) {
+  const scanned = `${input.stderr}
+${input.stdout}
+${input.streamError ?? ""}`;
+  if (SIGNED_OUT_OUTPUT_PATTERN.test(scanned)) {
+    return `The ${input.cli} CLI is not logged in. ${input.signInHint}, or run \`circuit doctor\` to check connector health.`;
+  }
+  if (STATE_DB_READONLY_PATTERN.test(input.stderr)) {
+    const stateDir = input.stderr.match(STATE_RUNTIME_DIR_PATTERN)?.[1]?.trim() ?? parentOfPath(input.stderr.match(STATE_DB_FILE_PATTERN)?.[1]);
+    return `${stateDirUnwritableSummary(input.cli, stateDir)} Run \`circuit doctor\` to check connector health.`;
+  }
+  const denialCount = (scanned.match(SANDBOX_DENIAL_PATTERN) ?? []).length;
+  if (denialCount >= SANDBOX_DENIAL_MIN_COUNT) {
+    const realFailure = lastLineWithout(input.stderr, /operation not permitted/i);
+    const lastErrorClause = realFailure === void 0 ? "" : ` Last error: ${JSON.stringify(realFailure)}.`;
+    return `The ${input.cli} CLI was blocked by this machine's sandbox (${denialCount} "Operation not permitted" errors).${lastErrorClause} Rerun outside the sandbox that is blocking it, or run \`circuit doctor\` to check connector health.`;
+  }
+  if (input.streamError !== void 0) {
+    const trimmed = input.streamError.trim();
+    return `The ${input.cli} CLI reported an error: ${trimmed}${trimmed.endsWith(".") ? "" : "."}`;
+  }
+  return void 0;
+}
+function parentOfPath(path) {
+  return path === void 0 ? void 0 : dirname10(path);
+}
+function lastLineWithout(text, exclude) {
+  const lines = text.split("\n");
+  for (let i = lines.length - 1; i >= 0; i -= 1) {
+    const line = lines[i].trim();
+    if (line.length > 0 && !exclude.test(line))
+      return line;
+  }
+  return void 0;
+}
+function lastStreamErrorMessage(stdout) {
+  let found;
+  for (const line of stdout.split("\n")) {
+    if (line.trim().length === 0)
+      continue;
+    let parsed;
+    try {
+      parsed = JSON.parse(line);
+    } catch {
+      continue;
+    }
+    if (typeof parsed !== "object" || parsed === null || Array.isArray(parsed))
+      continue;
+    const message = streamErrorMessageFrom(parsed);
+    if (message !== void 0)
+      found = message;
+  }
+  return found === void 0 ? void 0 : found.slice(0, STREAM_ERROR_MESSAGE_MAX_CHARS);
+}
+function streamErrorMessageFrom(entry) {
+  const item = entry.item;
+  if (typeof item === "object" && item !== null && !Array.isArray(item)) {
+    const itemRecord = item;
+    if (itemRecord.type === "error") {
+      return typeof itemRecord.message === "string" && itemRecord.message.length > 0 ? itemRecord.message : JSON.stringify(itemRecord).slice(0, STREAM_ERROR_MESSAGE_MAX_CHARS);
+    }
+  }
+  const errorField = entry.error === null ? void 0 : entry.error;
+  const errorTyped = entry.type === "error" || entry.type === "turn.failed";
+  const errorResult = entry.is_error === true;
+  if (!errorTyped && !errorResult && errorField === void 0)
+    return void 0;
+  if (typeof entry.message === "string" && entry.message.length > 0)
+    return entry.message;
+  if (typeof entry.result === "string" && entry.result.length > 0)
+    return entry.result;
+  if (typeof errorField === "string" && errorField.length > 0)
+    return errorField;
+  if (typeof errorField === "object" && errorField !== null && !Array.isArray(errorField)) {
+    const nested = errorField.message;
+    if (typeof nested === "string" && nested.length > 0)
+      return nested;
+  }
+  if (errorTyped || errorResult) {
+    return JSON.stringify(entry).slice(0, STREAM_ERROR_MESSAGE_MAX_CHARS);
+  }
+  return void 0;
+}
+function condenseRepeatedLines(text) {
+  const lines = text.split("\n");
+  const out = [];
+  let i = 0;
+  while (i < lines.length) {
+    const line = lines[i];
+    let j = i + 1;
+    while (j < lines.length && lines[j] === line)
+      j += 1;
+    const count = j - i;
+    if (count > 1) {
+      out.push(line.trim().length === 0 ? line : `${line} [repeated ${count} times]`);
+    } else {
+      out.push(line);
+    }
+    i = j;
+  }
+  return out.join("\n");
+}
+function parseNdjsonObjects(stdout, label) {
+  const lines = stdout.split("\n").filter((line) => line.length > 0);
+  const objects = [];
+  for (const [idx, line] of lines.entries()) {
+    let parsed;
+    try {
+      parsed = JSON.parse(line);
+    } catch (err) {
+      throw new Error(`${label} line ${idx + 1} is not valid JSON: ${err.message}; line[:200]=${line.slice(0, 200)}`);
+    }
+    if (typeof parsed !== "object" || parsed === null) {
+      throw new Error(`${label} line ${idx + 1} is not a JSON object`);
+    }
+    objects.push(parsed);
+  }
+  return objects;
+}
+async function runConnectorSubprocess(input) {
+  const start = performance2.now();
+  return await new Promise((resolve39, reject) => {
+    let child;
+    try {
+      child = spawn(input.executable, [...input.args], {
+        stdio: ["ignore", "pipe", "pipe"],
+        env: input.env ?? process.env,
+        detached: input.detached ?? true,
+        ...input.cwd === void 0 ? {} : { cwd: input.cwd }
+      });
+    } catch (error52) {
+      reject(new ConnectorSubprocessSpawnError("spawn-failed", error52 instanceof Error ? error52.message : String(error52)));
+      return;
+    }
+    let stdout = "";
+    let stdoutBytes = 0;
+    let stderr = "";
+    let stderrBytes = 0;
+    let stdoutCapped = false;
+    let stderrCapped = false;
+    let timedOut = false;
+    let timeoutKind;
+    let killGroupSucceeded = false;
+    const killProcessGroup = (signal) => {
+      const pid = child.pid;
+      if (typeof pid !== "number")
+        return false;
+      try {
+        process.kill(-pid, signal);
+        return true;
+      } catch {
+        try {
+          child.kill(signal);
+          return true;
+        } catch {
+          return false;
+        }
+      }
+    };
+    let killGraceTimer;
+    const controller = createTimeoutController({
+      absoluteMs: input.timeoutMs,
+      ...input.idleTimeoutMs === void 0 ? {} : { idleMs: input.idleTimeoutMs },
+      onFire: (kind) => {
+        timedOut = true;
+        timeoutKind = kind;
+        killGroupSucceeded = killProcessGroup("SIGTERM");
+        killGraceTimer = setTimeout(() => {
+          killProcessGroup("SIGKILL");
+          killGraceTimer = void 0;
+        }, input.sigtermToSigkillGraceMs);
+      }
+    });
+    controller.onActivity();
+    const clearAllTimers = () => {
+      controller.clear();
+      if (killGraceTimer !== void 0) {
+        clearTimeout(killGraceTimer);
+        killGraceTimer = void 0;
+      }
+    };
+    child.stdout?.setEncoding("utf8");
+    child.stderr?.setEncoding("utf8");
+    child.stdout?.on("data", (chunk) => {
+      controller.onActivity();
+      const next = appendCapped(stdout, stdoutBytes, chunk, input.stdoutMaxBytes);
+      stdout = next.text;
+      stdoutBytes = next.bytes;
+      stdoutCapped = stdoutCapped || next.capped;
+    });
+    child.stderr?.on("data", (chunk) => {
+      controller.onActivity();
+      const next = appendCapped(stderr, stderrBytes, chunk, input.stderrMaxBytes);
+      stderr = next.text;
+      stderrBytes = next.bytes;
+      stderrCapped = stderrCapped || next.capped;
+    });
+    child.on("error", (error52) => {
+      clearAllTimers();
+      reject(new ConnectorSubprocessSpawnError("spawn-error", error52.message));
+    });
+    child.on("close", (code, signal) => {
+      clearAllTimers();
+      resolve39({
+        stdout,
+        stderr,
+        stdoutCapped,
+        stderrCapped,
+        timedOut,
+        ...timeoutKind === void 0 ? {} : { timeoutKind },
+        killGroupSucceeded,
+        code,
+        signal,
+        durationMs: performance2.now() - start
+      });
+    });
+  });
+}
+var ConnectorSubprocessSpawnError, SIGNED_OUT_OUTPUT_PATTERN, SANDBOX_DENIAL_PATTERN, SANDBOX_DENIAL_MIN_COUNT, STATE_DB_READONLY_PATTERN, STATE_RUNTIME_DIR_PATTERN, STATE_DB_FILE_PATTERN, STREAM_ERROR_MESSAGE_MAX_CHARS;
+var init_subprocess = __esm({
+  "dist/connectors/subprocess.js"() {
+    "use strict";
+    init_state_dir();
+    ConnectorSubprocessSpawnError = class extends Error {
+      phase;
+      constructor(phase, message) {
+        super(message);
+        this.phase = phase;
+        this.name = "ConnectorSubprocessSpawnError";
+      }
+    };
+    SIGNED_OUT_OUTPUT_PATTERN = /not logged in|logged out|unauthenticated|login required|not signed in|sign in required|please run \/login|invalid api key/i;
+    SANDBOX_DENIAL_PATTERN = /operation not permitted/gi;
+    SANDBOX_DENIAL_MIN_COUNT = 3;
+    STATE_DB_READONLY_PATTERN = /failed to open state db|attempt to write a read-?only database/i;
+    STATE_RUNTIME_DIR_PATTERN = /failed to initialize state runtime at ([^:\n]+):/i;
+    STATE_DB_FILE_PATTERN = /state db at (\S+?):/i;
+    STREAM_ERROR_MESSAGE_MAX_CHARS = 400;
+  }
+});
+
+// dist/connectors/claude-code.js
+import { rm as rm2 } from "node:fs/promises";
+function selectedAnthropicModel(selection) {
+  const model = selection?.model;
+  if (model === void 0)
+    return void 0;
+  if (model.provider !== "anthropic") {
+    throw new Error(`claude-code connector cannot honor model provider '${model.provider}' for model '${model.model}'; expected provider 'anthropic'`);
+  }
+  return model.model;
+}
+function assertClaudeCodeEffort(effort) {
+  if (!CLAUDE_CODE_SUPPORTED_EFFORTS.includes(effort)) {
+    throw new Error(`claude-code connector cannot honor effort '${effort}'; supported efforts: ${CLAUDE_CODE_SUPPORTED_EFFORTS.join(", ")}`);
+  }
+}
+function buildClaudeCodeArgs(input) {
+  const args = [];
+  if (input.promptOnly === true && (input.toolAllowList?.length ?? 0) > 0) {
+    throw new Error("A prompt-only relay cannot request worker tools.");
+  }
+  if (input.promptOnly === true) {
+    args.push("--tools", "", "--safe-mode");
+  } else if (input.toolAllowList !== void 0 && input.toolAllowList.length > 0) {
+    args.push("--tools", input.toolAllowList.join(","));
+  }
+  args.push(...CLAUDE_CODE_DISPATCH_FLAGS);
+  const model = selectedAnthropicModel(input.resolvedSelection);
+  if (model !== void 0) {
+    args.push("--model", model);
+  }
+  const effort = input.resolvedSelection?.effort;
+  if (effort !== void 0) {
+    assertClaudeCodeEffort(effort);
+    args.push("--effort", effort);
+  }
+  if (claudeCodeEmitsStructuredOutputFlag(input)) {
+    args.push("--json-schema", JSON.stringify(input.responseSchema));
+  }
+  args.push(input.prompt);
+  return args;
+}
+function claudeCodeEmitsStructuredOutputFlag(input) {
+  return input.responseSchema !== void 0 && isClaudeCodeStructuredOutputCompatible(input.responseSchema);
+}
+function claudeCodeStdoutDiagnostic(stdout, streamError) {
+  try {
+    parseClaudeCodeStdout(stdout, "", 0);
+    return void 0;
+  } catch (error52) {
+    const parseMessage = error52 instanceof Error ? error52.message : String(error52);
+    if (streamError !== void 0 && !parseMessage.includes(streamError)) {
+      return `${streamError} (stream parse: ${parseMessage})`;
+    }
+    return parseMessage;
+  }
+}
+function isClaudeCodeStructuredOutputCompatible(schema) {
+  return schema.type === "object";
+}
+async function relayClaudeCode(input) {
+  const promptOnlyDirectory = input.promptOnly === true ? await createPromptOnlyRelayDirectory(input.cwd, "circuit-prompt-only-claude-") : void 0;
+  try {
+    return await relayClaudeCodePrepared({
+      ...input,
+      ...promptOnlyDirectory === void 0 ? {} : { cwd: promptOnlyDirectory }
+    });
+  } finally {
+    if (promptOnlyDirectory !== void 0) {
+      await rm2(promptOnlyDirectory, { recursive: true, force: true });
+    }
+  }
+}
+async function relayClaudeCodePrepared(input) {
+  const absoluteTimeoutMs = input.timeoutMs ?? DEFAULT_ABSOLUTE_TIMEOUT_MS;
+  const idleTimeoutMs = input.idleTimeoutMs ?? DEFAULT_IDLE_TIMEOUT_MS;
+  const args = buildClaudeCodeArgs(input);
+  let result;
+  try {
+    result = await runConnectorSubprocess({
+      executable: CLAUDE_CODE_EXECUTABLE,
+      args,
+      timeoutMs: absoluteTimeoutMs,
+      idleTimeoutMs,
+      stdoutMaxBytes: STDOUT_MAX_BYTES,
+      stderrMaxBytes: STDERR_MAX_BYTES,
+      sigtermToSigkillGraceMs: SIGTERM_TO_SIGKILL_GRACE_MS,
+      env: process.env,
+      // Honor the worker's working directory so a step fanned out into an
+      // isolated worktree runs there, not in the parent process's cwd. Matches
+      // the codex and cursor-agent connectors; without it, worktree isolation
+      // silently leaks into the main checkout.
+      ...input.cwd === void 0 ? {} : { cwd: input.cwd }
+    });
+  } catch (error52) {
+    if (isConnectorSubprocessSpawnError(error52)) {
+      throw new Error(`${launchFailureSummary(CLAUDE_CODE_EXECUTABLE, error52.message)} claude-code subprocess ${spawnErrorVerb(error52)}: ${error52.message}. ${connectorRemediation("claude-code")}`);
+    }
+    throw error52;
+  }
+  if (result.timedOut) {
+    const stdoutSuffix = cappedSuffix(result.stdoutCapped, "stdout");
+    const stderrSuffix = cappedSuffix(result.stderrCapped, "stderr");
+    const cause = describeTimeout(result, {
+      idleMs: idleTimeoutMs,
+      absoluteMs: absoluteTimeoutMs
+    });
+    throw new Error(`claude-code subprocess timed out: ${cause}; group-kill ${result.killGroupSucceeded ? "sent" : "failed"}; final signal=${result.signal ?? "none"}; stdout[:500]=${result.stdout.slice(0, 500)}${stdoutSuffix}; stderr[:500]=${result.stderr.slice(0, 500)}${stderrSuffix}`);
+  }
+  if (result.code !== 0) {
+    const stdoutSuffix = cappedSuffix(result.stdoutCapped, "stdout");
+    const stderrSuffix = cappedSuffix(result.stderrCapped, "stderr");
+    const streamError = lastStreamErrorMessage(result.stdout);
+    const stdoutDiagnostic = claudeCodeStdoutDiagnostic(result.stdout, streamError);
+    const diagnosticText = stdoutDiagnostic === void 0 ? "" : `; stdout_diagnostic=${stdoutDiagnostic}`;
+    const summary = connectorFailureSummary({
+      cli: CLAUDE_CODE_EXECUTABLE,
+      signInHint: "Run `claude` once to sign in",
+      stderr: result.stderr,
+      stdout: "",
+      streamError
+    });
+    const lead = summary === void 0 ? "" : `${summary} `;
+    throw new Error(`${lead}claude-code subprocess exited with code ${result.code}${result.signal ? ` (signal ${result.signal})` : ""}${diagnosticText}; stdout[:500]=${result.stdout.slice(0, 500)}${stdoutSuffix}; stderr[:500]=${condenseRepeatedLines(result.stderr).slice(0, 500)}${stderrSuffix}`);
+  }
+  if (result.stdoutCapped) {
+    throw new Error(`claude-code subprocess stdout exceeded ${STDOUT_MAX_BYTES} bytes; capability-boundary check cannot be evaluated on truncated stream`);
+  }
+  try {
+    return parseClaudeCodeStdout(
+      result.stdout,
+      input.prompt,
+      result.durationMs,
+      input.promptOnly === true ? [] : input.toolAllowList,
+      // Same predicate that decided whether buildClaudeCodeArgs emitted
+      // --json-schema, so the guard admits the CLI's return-channel tool exactly
+      // when we asked for structured output — the two can't diverge.
+      claudeCodeEmitsStructuredOutputFlag(input)
+    );
+  } catch (error52) {
+    const stderrSuffix = cappedSuffix(result.stderrCapped, "stderr");
+    throw new Error(`claude-code subprocess: ${error52.message}; stdout[:500]=${result.stdout.slice(0, 500)}; stderr[:200]=${result.stderr.slice(0, 200)}${stderrSuffix}`);
+  }
+}
+function parseClaudeCodeStdout(stdout, prompt, duration_ms, requestedTools, structuredOutputRequested = false) {
+  const trace_entries = parseNdjsonObjects(stdout, "stream-json");
+  if (trace_entries.length === 0) {
+    throw new Error("stream-json stdout is empty");
+  }
+  const initTraceEntry = trace_entries.find((e) => e.type === "system" && e.subtype === "init");
+  const resultTraceEntries = trace_entries.filter((e) => e.type === "result");
+  const resultTraceEntry = resultTraceEntries[resultTraceEntries.length - 1];
+  if (initTraceEntry === void 0) {
+    throw new Error("system/init trace_entry missing from subprocess stdout");
+  }
+  if (resultTraceEntry === void 0) {
+    throw new Error("result trace_entry missing from subprocess stdout");
+  }
+  if (resultTraceEntry.is_error === true) {
+    const message = typeof resultTraceEntry.result === "string" ? resultTraceEntry.result : "<no message>";
+    throw new Error(`subprocess reported is_error: ${message}`);
+  }
+  const mcpServers = initTraceEntry.mcp_servers;
+  const slashCommands = initTraceEntry.slash_commands;
+  if (!Array.isArray(mcpServers) || mcpServers.length !== 0) {
+    throw new Error(`init.mcp_servers must be []; got ${JSON.stringify(mcpServers)}. CLAUDE_CODE_DISPATCH_FLAGS includes --strict-mcp-config to keep this surface closed.`);
+  }
+  if (!Array.isArray(slashCommands) || slashCommands.length !== 0) {
+    throw new Error(`init.slash_commands must be []; got ${JSON.stringify(slashCommands)}. CLAUDE_CODE_DISPATCH_FLAGS includes --disable-slash-commands to keep this surface closed.`);
+  }
+  if (requestedTools !== void 0) {
+    const sessionTools = initTraceEntry.tools;
+    if (!Array.isArray(sessionTools)) {
+      throw new Error(`init.tools must be an array to verify the enforced equipment scope; got ${JSON.stringify(sessionTools)}`);
+    }
+    const allowed = new Set(requestedTools);
+    if (structuredOutputRequested) {
+      for (const tool of CLAUDE_CODE_STRUCTURED_OUTPUT_TOOLS)
+        allowed.add(tool);
+    }
+    const leaked = sessionTools.filter((tool) => typeof tool !== "string" || !allowed.has(tool));
+    if (leaked.length !== 0) {
+      const rendered = leaked.map((tool) => typeof tool === "string" ? tool : JSON.stringify(tool)).join(", ");
+      throw new Error(`enforced equipment scope violated: tools outside the allow-list are present in the session: ${rendered}. The relay passes --tools to restrict the surface to [${requestedTools.join(", ")}]; a tool beyond it means the restriction did not hold.`);
+    }
+    for (const entry of trace_entries) {
+      const message = entry.message;
+      if (typeof message !== "object" || message === null)
+        continue;
+      const content = message.content;
+      if (!Array.isArray(content))
+        continue;
+      for (const block of content) {
+        if (typeof block !== "object" || block === null || block.type !== "tool_use") {
+          continue;
+        }
+        const name = block.name;
+        if (typeof name !== "string" || !allowed.has(name)) {
+          throw new Error("enforced equipment scope violated: an unapproved tool was used during the relay.");
+        }
+      }
+    }
+  }
+  const receipt_id = initTraceEntry.session_id;
+  const cli_version = initTraceEntry.claude_code_version;
+  if (typeof receipt_id !== "string" || receipt_id.length === 0) {
+    throw new Error("init.session_id missing or empty");
+  }
+  if (typeof cli_version !== "string" || cli_version.length === 0) {
+    throw new Error("init.claude_code_version missing or empty");
+  }
+  const structuredOutput = resultTraceEntry.structured_output;
+  let result_body;
+  if (structuredOutput !== void 0 && structuredOutput !== null) {
+    if (typeof structuredOutput !== "object") {
+      throw new Error("result.structured_output present but not an object");
+    }
+    result_body = JSON.stringify(structuredOutput);
+  } else {
+    const result_body_raw = resultTraceEntry.result;
+    if (typeof result_body_raw !== "string") {
+      throw new Error("result.result missing or not a string");
+    }
+    result_body = extractJsonObject(result_body_raw);
+  }
+  const usage = extractRelayUsage(resultTraceEntry);
+  return {
+    request_payload: prompt,
+    receipt_id,
+    result_body,
+    duration_ms,
+    cli_version,
+    ...usage === void 0 ? {} : { usage }
+  };
+}
+function extractRelayUsage(resultTraceEntry) {
+  const usage = resultTraceEntry.usage;
+  const modelUsage = resultTraceEntry.modelUsage;
+  const hasUsage = usage !== null && typeof usage === "object";
+  const hasModelUsage = modelUsage !== null && typeof modelUsage === "object";
+  if (!hasUsage && !hasModelUsage)
+    return void 0;
+  const u = hasUsage ? usage : {};
+  const cacheCreation = u.cache_creation ?? {};
+  const models = [];
+  if (hasModelUsage) {
+    for (const [model, raw] of Object.entries(modelUsage)) {
+      if (raw === null || typeof raw !== "object")
+        continue;
+      const m = raw;
+      const costUsd = finiteOrUndefined(m.costUSD);
+      models.push({
+        // The trace schema requires a non-empty model id, and a schema
+        // rejection at trace append would fail the relay. An empty
+        // modelUsage key becomes "unknown" so this stays observability.
+        model: model.length === 0 ? "unknown" : model,
+        input_tokens: finiteOrZero(m.inputTokens),
+        output_tokens: finiteOrZero(m.outputTokens),
+        cache_read_tokens: finiteOrZero(m.cacheReadInputTokens),
+        cache_creation_tokens: finiteOrZero(m.cacheCreationInputTokens),
+        ...costUsd === void 0 ? {} : { cost_usd_reported: costUsd }
+      });
+    }
+  }
+  const totalCostUsd = finiteOrUndefined(resultTraceEntry.total_cost_usd);
+  const totals = models.length > 0 ? {
+    input_tokens: sumBy(models, (m) => m.input_tokens),
+    output_tokens: sumBy(models, (m) => m.output_tokens),
+    cache_read_tokens: sumBy(models, (m) => m.cache_read_tokens),
+    cache_creation_tokens: sumBy(models, (m) => m.cache_creation_tokens)
+  } : {
+    input_tokens: finiteOrZero(u.input_tokens),
+    output_tokens: finiteOrZero(u.output_tokens),
+    cache_read_tokens: finiteOrZero(u.cache_read_input_tokens),
+    cache_creation_tokens: finiteOrZero(u.cache_creation_input_tokens)
+  };
+  return {
+    ...totals,
+    cache_creation_5m_tokens: finiteOrZero(cacheCreation.ephemeral_5m_input_tokens),
+    cache_creation_1h_tokens: finiteOrZero(cacheCreation.ephemeral_1h_input_tokens),
+    ...totalCostUsd === void 0 ? {} : { total_cost_usd_reported: totalCostUsd },
+    ...models.length === 0 ? {} : { models }
+  };
+}
+function finiteOrZero(value) {
+  return typeof value === "number" && Number.isFinite(value) && value >= 0 ? value : 0;
+}
+function finiteOrUndefined(value) {
+  return typeof value === "number" && Number.isFinite(value) && value >= 0 ? value : void 0;
+}
+function sumBy(items, pick2) {
+  return items.reduce((sum, item) => sum + pick2(item), 0);
+}
+var CLAUDE_CODE_DISPATCH_FLAGS, CLAUDE_CODE_STRUCTURED_OUTPUT_TOOLS, CLAUDE_CODE_EXECUTABLE, DEFAULT_IDLE_TIMEOUT_MS, DEFAULT_ABSOLUTE_TIMEOUT_MS, SIGTERM_TO_SIGKILL_GRACE_MS, STDOUT_MAX_BYTES, STDERR_MAX_BYTES;
+var init_claude_code = __esm({
+  "dist/connectors/claude-code.js"() {
+    "use strict";
+    init_connector();
+    init_connector_relay();
+    init_json_extraction();
+    init_prompt_only_directory();
+    init_remediation();
+    init_subprocess();
+    CLAUDE_CODE_DISPATCH_FLAGS = [
+      "-p",
+      "--permission-mode",
+      "bypassPermissions",
+      "--strict-mcp-config",
+      "--disable-slash-commands",
+      "--setting-sources",
+      "",
+      "--settings",
+      "{}",
+      "--output-format",
+      "stream-json",
+      "--verbose",
+      "--no-session-persistence"
+    ];
+    CLAUDE_CODE_STRUCTURED_OUTPUT_TOOLS = ["StructuredOutput"];
+    CLAUDE_CODE_EXECUTABLE = "claude";
+    DEFAULT_IDLE_TIMEOUT_MS = 6e5;
+    DEFAULT_ABSOLUTE_TIMEOUT_MS = 36e5;
+    SIGTERM_TO_SIGKILL_GRACE_MS = 2e3;
+    STDOUT_MAX_BYTES = 16 * 1024 * 1024;
+    STDERR_MAX_BYTES = 1024 * 1024;
+  }
+});
+
+// dist/connectors/codex-default-model.js
+import { readFileSync as readFileSync42 } from "node:fs";
+import { join as join22 } from "node:path";
+function codexHomeDir() {
+  return codexStateDir(process.env);
+}
+function codexModelsCachePath() {
+  return join22(codexHomeDir(), CODEX_MODELS_CACHE_FILENAME);
+}
+function candidateFrom(value) {
+  if (typeof value !== "object" || value === null)
+    return void 0;
+  const record2 = value;
+  if (record2.visibility !== "list")
+    return void 0;
+  if (record2.supported_in_api !== true)
+    return void 0;
+  const priority = record2.priority;
+  if (typeof priority !== "number" || !Number.isFinite(priority))
+    return void 0;
+  const slug = typeof record2.slug === "string" ? record2.slug.trim() : void 0;
+  if (slug === void 0 || slug.length === 0)
+    return void 0;
+  return { slug, priority };
+}
+function pickCodexFlagshipModel(cache3) {
+  if (typeof cache3 !== "object" || cache3 === null)
+    return void 0;
+  const models = cache3.models;
+  if (!Array.isArray(models))
+    return void 0;
+  const candidates = models.map(candidateFrom).filter((entry) => entry !== void 0);
+  if (candidates.length === 0)
+    return void 0;
+  candidates.sort((a, b) => a.priority - b.priority);
+  return candidates[0]?.slug;
+}
+function unavailableMessage(cachePath, reason) {
+  return [
+    "codex connector: no model is pinned for this codex step and no default could",
+    `be resolved from the Codex models cache (${cachePath}).`,
+    "Circuit runs codex with --ignore-user-config, so ~/.codex/config.toml is",
+    "intentionally not consulted for the model. Fix by either (a) pinning an",
+    "openai model for codex in your Circuit config \u2014 set defaults.selection.model",
+    '(or flows.<flow>.selection.model) to { provider: "openai", model:',
+    '"<model>" }, or set power_tiers.codex.<tier>.model \u2014 or (b) running `codex`',
+    `once so ${cachePath} is populated.`,
+    `(reason: ${reason})`
+  ].join(" ");
+}
+function resolveCodexDefaultModelUncached() {
+  const cachePath = codexModelsCachePath();
+  let raw;
+  try {
+    raw = readFileSync42(cachePath, "utf8");
+  } catch (err) {
+    throw new CodexDefaultModelUnavailableError(unavailableMessage(cachePath, `cache not readable: ${err.message}`));
+  }
+  let parsed;
+  try {
+    parsed = JSON.parse(raw);
+  } catch (err) {
+    throw new CodexDefaultModelUnavailableError(unavailableMessage(cachePath, `cache is not valid JSON: ${err.message}`));
+  }
+  const model = pickCodexFlagshipModel(parsed);
+  if (model === void 0) {
+    throw new CodexDefaultModelUnavailableError(unavailableMessage(cachePath, "no API-listed model found in the cache"));
+  }
+  return model;
+}
+function resolveCodexDefaultModel() {
+  if (cachedDefaultModel !== void 0)
+    return cachedDefaultModel;
+  cachedDefaultModel = resolveCodexDefaultModelUncached();
+  return cachedDefaultModel;
+}
+var CODEX_MODELS_CACHE_FILENAME, CodexDefaultModelUnavailableError, cachedDefaultModel;
+var init_codex_default_model = __esm({
+  "dist/connectors/codex-default-model.js"() {
+    "use strict";
+    init_state_dir();
+    CODEX_MODELS_CACHE_FILENAME = "models_cache.json";
+    CodexDefaultModelUnavailableError = class extends Error {
+      constructor(message) {
+        super(message);
+        this.name = "CodexDefaultModelUnavailableError";
+      }
+    };
+  }
+});
+
+// dist/connectors/codex.js
+import { execFileSync as execFileSync4 } from "node:child_process";
+import { readFileSync as readFileSync43 } from "node:fs";
+import { mkdtemp as mkdtemp2, rm as rm3, writeFile } from "node:fs/promises";
+import { tmpdir as tmpdir2 } from "node:os";
+import { isAbsolute as isAbsolute11, join as joinPath } from "node:path";
+function codexPromptOnlyConfig(cwd2) {
+  if (!isAbsolute11(cwd2) || cwd2.includes("\0")) {
+    throw new Error("A prompt-only Codex relay requires a private absolute working directory.");
+  }
+  return Object.freeze([
+    'default_permissions="circuit_prompt_only"',
+    `permissions.circuit_prompt_only.filesystem={":minimal"="read",":workspace_roots"="write",":slash_tmp"="deny",${JSON.stringify(cwd2)}="write"}`,
+    "permissions.circuit_prompt_only.network.enabled=false",
+    ...CODEX_PROMPT_ONLY_BASE_CONFIG
+  ]);
+}
+function captureCodexVersion() {
+  if (cachedCodexVersion !== void 0)
+    return cachedCodexVersion;
+  let stdout;
+  try {
+    stdout = execFileSync4(CODEX_EXECUTABLE, ["--version"], {
+      encoding: "utf8",
+      timeout: VERSION_CAPTURE_TIMEOUT_MS,
+      stdio: ["ignore", "pipe", "pipe"]
+    });
+  } catch (err) {
+    const message = err.message;
+    throw new Error(`${launchFailureSummary(CODEX_EXECUTABLE, message)} codex --version failed: ${message}. ${connectorRemediation("codex")}`);
+  }
+  const version3 = stdout.trim();
+  if (version3.length === 0) {
+    throw new Error("codex --version produced empty output");
+  }
+  cachedCodexVersion = version3;
+  return version3;
+}
+function assertCodexEffort(effort) {
+  if (!CODEX_SUPPORTED_EFFORTS.includes(effort)) {
+    throw new Error(`codex connector cannot honor effort '${effort}'; supported efforts: ${CODEX_SUPPORTED_EFFORTS.join(", ")}`);
+  }
+}
+function selectedOpenAIModel(selection) {
+  const model = selection?.model;
+  if (model === void 0)
+    return void 0;
+  if (model.provider !== "openai") {
+    throw new Error(`codex connector cannot honor model provider '${model.provider}' for model '${model.model}'; expected provider 'openai'`);
+  }
+  return model.model;
+}
+function codexReasoningEffortConfigValue(effort) {
+  return `${CODEX_REASONING_EFFORT_CONFIG_KEY}=${JSON.stringify(effort)}`;
+}
+function isForbiddenCodexArg(arg) {
+  return CODEX_FORBIDDEN_ARGV_TOKENS.some((token) => {
+    if (token === "-c")
+      return false;
+    if (arg === token)
+      return true;
+    return token.startsWith("--") && arg.startsWith(`${token}=`);
+  });
+}
+function isAllowedCodexConfigOverride(value, promptOnlyConfig) {
+  return value !== void 0 && (CODEX_SUPPORTED_EFFORTS.some((effort) => value === codexReasoningEffortConfigValue(effort)) || promptOnlyConfig.includes(value));
+}
+function assertCodexSpawnArgvBoundary(args, promptOnly = false) {
+  const cdIndexes = args.map((arg, idx) => arg === "--cd" ? idx : -1).filter((idx) => idx >= 0);
+  const promptOnlyCwd = promptOnly && cdIndexes.length === 1 && cdIndexes[0] !== void 0 ? args[cdIndexes[0] + 1] : void 0;
+  const promptOnlyConfig = promptOnly && promptOnlyCwd !== void 0 ? codexPromptOnlyConfig(promptOnlyCwd) : [];
+  const sandboxFlagIndexes = args.map((arg, idx) => arg === "-s" ? idx : -1).filter((idx) => idx >= 0);
+  const sandboxFlagIndex = sandboxFlagIndexes[0];
+  if (promptOnly && sandboxFlagIndexes.length !== 0) {
+    throw new Error("codex prompt-only boundary must use its named permission profile, not -s");
+  }
+  if (!promptOnly && (sandboxFlagIndexes.length !== 1 || sandboxFlagIndex === void 0 || args[sandboxFlagIndex + 1] !== "workspace-write")) {
+    throw new Error('codex spawn argv boundary broken: exactly one "-s workspace-write" pair is required');
+  }
+  if (promptOnly && (cdIndexes.length !== 1 || promptOnlyCwd === void 0)) {
+    throw new Error("codex prompt-only boundary requires exactly one private --cd directory");
+  }
+  let configOverrideCount = 0;
+  let effortOverrideCount = 0;
+  for (let idx = 0; idx < args.length; idx += 1) {
+    const arg = args[idx];
+    if (arg === void 0)
+      continue;
+    if (arg === "-c") {
+      configOverrideCount += 1;
+      if (!promptOnly && configOverrideCount > 1) {
+        throw new Error("codex spawn argv boundary broken: at most one allowlisted -c override is allowed");
+      }
+      const value = args[idx + 1];
+      if (!isAllowedCodexConfigOverride(value, promptOnlyConfig)) {
+        throw new Error(promptOnly ? "codex spawn argv boundary broken: an unreviewed configuration override was provided after -c" : `codex spawn argv boundary broken: only ${CODEX_REASONING_EFFORT_CONFIG_KEY}=<supported effort> is allowed after -c`);
+      }
+      if (CODEX_SUPPORTED_EFFORTS.some((effort) => value === codexReasoningEffortConfigValue(effort))) {
+        effortOverrideCount += 1;
+        if (effortOverrideCount > 1) {
+          throw new Error("codex spawn argv boundary broken: at most one reasoning effort override is allowed");
+        }
+      }
+      idx += 1;
+      continue;
+    }
+    if (isForbiddenCodexArg(arg)) {
+      throw new Error(`codex spawn argv boundary broken: forbidden argv token "${arg}"`);
+    }
+  }
+  if (promptOnly) {
+    if (!args.includes("--strict-config")) {
+      throw new Error("codex prompt-only boundary requires --strict-config");
+    }
+    for (const value of promptOnlyConfig) {
+      const matches = args.filter((arg, index) => arg === value && args[index - 1] === "-c");
+      if (matches.length !== 1) {
+        throw new Error(`codex prompt-only boundary is missing the sealed setting ${value}`);
+      }
+    }
+  }
+}
+function buildCodexArgs(input, schemaPath, defaultModel) {
+  const promptOnly = input.promptOnly === true;
+  const promptOnlyConfig = promptOnly && input.cwd !== void 0 ? codexPromptOnlyConfig(input.cwd) : [];
+  if (promptOnly && promptOnlyConfig.length === 0) {
+    throw new Error("A prompt-only Codex relay requires a private working directory.");
+  }
+  const args = [...promptOnly ? CODEX_PROMPT_ONLY_FLAGS : CODEX_WRITE_FLAGS];
+  if (input.cwd !== void 0) {
+    args.push("--cd", input.cwd);
+  }
+  if (promptOnly) {
+    for (const value of promptOnlyConfig)
+      args.push("-c", value);
+  }
+  const model = selectedOpenAIModel(input.resolvedSelection) ?? defaultModel;
+  if (model !== void 0) {
+    args.push("-m", model);
+  }
+  const effort = input.resolvedSelection?.effort;
+  if (effort !== void 0) {
+    assertCodexEffort(effort);
+    args.push("-c", codexReasoningEffortConfigValue(effort));
+  }
+  if (schemaPath !== void 0) {
+    args.push("--output-schema", schemaPath);
+  }
+  args.push(input.prompt);
+  assertCodexSpawnArgvBoundary(args, promptOnly);
+  return args;
+}
+function isRecord7(value) {
+  return typeof value === "object" && value !== null && !Array.isArray(value);
+}
+function everyObjectPropertyIsRequired(schema) {
+  if (!isRecord7(schema.properties))
+    return true;
+  if (!Array.isArray(schema.required))
+    return false;
+  const required2 = new Set(schema.required.filter((value) => typeof value === "string"));
+  const propertyNames = Object.keys(schema.properties);
+  return propertyNames.length === required2.size && propertyNames.every((property) => required2.has(property));
+}
+function isCodexOutputSchemaNodeCompatible(node) {
+  if (Array.isArray(node))
+    return node.every(isCodexOutputSchemaNodeCompatible);
+  if (!isRecord7(node))
+    return true;
+  for (const key of Object.keys(node)) {
+    if (CODEX_OUTPUT_SCHEMA_DISQUALIFYING_KEYWORDS.has(key))
+      return false;
+  }
+  if (Array.isArray(node.type))
+    return false;
+  if (node.type === "object") {
+    if (node.additionalProperties !== void 0 && node.additionalProperties !== false) {
+      return false;
+    }
+    if (!everyObjectPropertyIsRequired(node))
+      return false;
+  }
+  return Object.values(node).every(isCodexOutputSchemaNodeCompatible);
+}
+function codexOutputSchemaFrom(node) {
+  if (Array.isArray(node))
+    return node.map(codexOutputSchemaFrom);
+  if (!isRecord7(node))
+    return node;
+  const cleaned = {};
+  for (const [key, value] of Object.entries(node)) {
+    if (CODEX_OUTPUT_SCHEMA_STRIPPABLE_KEYWORDS.has(key))
+      continue;
+    cleaned[key] = codexOutputSchemaFrom(value);
+  }
+  return cleaned;
+}
+function isCodexOutputSchemaCompatible(schema) {
+  return schema.type === "object" && isCodexOutputSchemaNodeCompatible(schema);
+}
+async function writeSchemaTempFile(schema) {
+  const dir = await mkdtemp2(joinPath(tmpdir2(), "circuit-codex-schema-"));
+  try {
+    const path = joinPath(dir, "schema.json");
+    await writeFile(path, JSON.stringify(schema), "utf8");
+    return { dir, path };
+  } catch (err) {
+    await rm3(dir, { recursive: true, force: true }).catch(() => void 0);
+    throw err;
+  }
+}
+async function cleanupSchemaTempDir(dir) {
+  if (dir === void 0)
+    return;
+  try {
+    await rm3(dir, { recursive: true, force: true });
+  } catch {
+  }
+}
+function codexModelCacheHint(model, streamError) {
+  if (model === void 0 || streamError === void 0)
+    return "";
+  if (!/model/i.test(streamError))
+    return "";
+  let slugs;
+  try {
+    const parsed = JSON.parse(readFileSync43(codexModelsCachePath(), "utf8"));
+    const models = parsed?.models;
+    if (!Array.isArray(models))
+      return "";
+    slugs = models.map((entry) => typeof entry === "object" && entry !== null ? entry.slug : void 0).filter((slug) => typeof slug === "string");
+  } catch {
+    return "";
+  }
+  if (slugs.includes(model))
+    return "";
+  return ` The model id '${model}' is not in the local Codex models cache, so it may be misspelled or not available to this account. Check the model set in your Circuit config, or run \`circuit doctor\`.`;
+}
+async function relayCodex(input) {
+  const promptOnlyDirectory = input.promptOnly === true ? await createPromptOnlyRelayDirectory(input.cwd, "circuit-prompt-only-codex-") : void 0;
+  try {
+    return await relayCodexPrepared({
+      ...input,
+      ...promptOnlyDirectory === void 0 ? {} : { cwd: promptOnlyDirectory }
+    });
+  } finally {
+    if (promptOnlyDirectory !== void 0) {
+      await rm3(promptOnlyDirectory, { recursive: true, force: true });
+    }
+  }
+}
+async function relayCodexPrepared(input) {
+  const absoluteTimeoutMs = input.timeoutMs ?? DEFAULT_ABSOLUTE_TIMEOUT_MS2;
+  const idleTimeoutMs = input.idleTimeoutMs ?? DEFAULT_IDLE_TIMEOUT_MS2;
+  const cli_version = captureCodexVersion();
+  let tempDir;
+  let schemaPath;
+  try {
+    const effectiveModel = selectedOpenAIModel(input.resolvedSelection) ?? resolveCodexDefaultModel();
+    if (input.responseSchema !== void 0 && isCodexOutputSchemaCompatible(input.responseSchema)) {
+      const allocated = await writeSchemaTempFile(codexOutputSchemaFrom(input.responseSchema));
+      tempDir = allocated.dir;
+      schemaPath = allocated.path;
+    }
+    const args = buildCodexArgs(input, schemaPath, effectiveModel);
+    let result;
+    try {
+      result = await runConnectorSubprocess({
+        executable: CODEX_EXECUTABLE,
+        args,
+        timeoutMs: absoluteTimeoutMs,
+        idleTimeoutMs,
+        stdoutMaxBytes: STDOUT_MAX_BYTES2,
+        stderrMaxBytes: STDERR_MAX_BYTES2,
+        sigtermToSigkillGraceMs: SIGTERM_TO_SIGKILL_GRACE_MS2,
+        env: process.env,
+        ...input.cwd === void 0 ? {} : { cwd: input.cwd }
+      });
+    } catch (error52) {
+      if (isConnectorSubprocessSpawnError(error52)) {
+        throw new Error(`${launchFailureSummary(CODEX_EXECUTABLE, error52.message)} codex subprocess ${spawnErrorVerb(error52)}: ${error52.message}. ${connectorRemediation("codex")}`);
+      }
+      throw error52;
+    }
+    if (result.timedOut) {
+      const stdoutSuffix = cappedSuffix(result.stdoutCapped, "stdout");
+      const stderrSuffix = cappedSuffix(result.stderrCapped, "stderr");
+      const cause = describeTimeout(result, {
+        idleMs: idleTimeoutMs,
+        absoluteMs: absoluteTimeoutMs
+      });
+      throw new Error(`codex subprocess timed out: ${cause}; group-kill ${result.killGroupSucceeded ? "sent" : "failed"}; final signal=${result.signal ?? "none"}; stdout[:500]=${result.stdout.slice(0, 500)}${stdoutSuffix}; stderr[:2000]=${result.stderr.slice(0, 2e3)}${stderrSuffix}`);
+    }
+    if (result.code !== 0) {
+      const stdoutSuffix = cappedSuffix(result.stdoutCapped, "stdout");
+      const stderrSuffix = cappedSuffix(result.stderrCapped, "stderr");
+      const streamError = lastStreamErrorMessage(result.stdout);
+      const summary = connectorFailureSummary({
+        cli: CODEX_EXECUTABLE,
+        signInHint: "Run `codex login` to sign in",
+        stderr: result.stderr,
+        stdout: "",
+        streamError
+      });
+      const modelHint = codexModelCacheHint(effectiveModel, streamError);
+      const lead = summary === void 0 ? "" : `${summary}${modelHint} `;
+      throw new Error(`${lead}codex subprocess exited with code ${result.code}${result.signal ? ` (signal ${result.signal})` : ""}; stdout[:500]=${result.stdout.slice(0, 500)}${stdoutSuffix}; stderr[:2000]=${condenseRepeatedLines(result.stderr).slice(0, 2e3)}${stderrSuffix}`);
+    }
+    if (result.stdoutCapped) {
+      throw new Error(`codex subprocess stdout exceeded ${STDOUT_MAX_BYTES2} bytes; capability-boundary check cannot be evaluated on truncated stream`);
+    }
+    try {
+      const parsed = parseCodexStdout(result.stdout, input.prompt, result.durationMs, cli_version, {
+        promptOnly: input.promptOnly === true
+      });
+      return { ...parsed, model: effectiveModel };
+    } catch (error52) {
+      const stderrSuffix = cappedSuffix(result.stderrCapped, "stderr");
+      throw new Error(`codex subprocess: ${error52.message}; stdout[:500]=${result.stdout.slice(0, 500)}; stderr[:200]=${result.stderr.slice(0, 200)}${stderrSuffix}`);
+    }
+  } finally {
+    await cleanupSchemaTempDir(tempDir);
+  }
+}
+function validateCodexWebSearchString(value, label, options = {}) {
+  if (typeof value !== "string") {
+    throw new Error(`${label} is not a string`);
+  }
+  if (value.length === 0 && options.allowEmpty !== true) {
+    throw new Error(`${label} missing or empty`);
+  }
+  if (value.length > CODEX_WEB_SEARCH_MAX_STRING_LENGTH) {
+    throw new Error(`${label} exceeds ${CODEX_WEB_SEARCH_MAX_STRING_LENGTH} characters`);
+  }
+  return value;
+}
+function validateCodexWebSearchItem(item, lifecycle, index) {
+  const label = `${lifecycle}[${index}].item`;
+  const id = item.id;
+  if (typeof id !== "string" || id.length === 0) {
+    throw new Error(`${label}.id missing or empty`);
+  }
+  if (id.length > CODEX_WEB_SEARCH_MAX_STRING_LENGTH) {
+    throw new Error(`${label}.id exceeds ${CODEX_WEB_SEARCH_MAX_STRING_LENGTH} characters`);
+  }
+  validateCodexWebSearchString(item.query, `${label}.query`, {
+    allowEmpty: lifecycle === "item.started"
+  });
+  const action = item.action;
+  if (lifecycle === "item.started") {
+    if (action === void 0)
+      return id;
+    if (!isRecord7(action)) {
+      throw new Error(`${label}.action is not an object`);
+    }
+    if (action.type !== "other") {
+      throw new Error(`${label}.action.type is not the reviewed start marker`);
+    }
+    return id;
+  }
+  if (!isRecord7(action)) {
+    throw new Error(`${label}.action is not an object`);
+  }
+  const actionType = action.type;
+  if (typeof actionType !== "string") {
+    throw new Error(`${label}.action.type is not a string`);
+  }
+  if (!CODEX_WEB_SEARCH_COMPLETED_ACTION_TYPES.has(actionType)) {
+    throw new Error(`${label}.action.type is not a reviewed completion action`);
+  }
+  if (actionType === "search") {
+    validateCodexWebSearchString(action.query, `${label}.action.query`);
+  } else {
+    validateCodexWebSearchString(action.url, `${label}.action.url`);
+    if (actionType === "find_in_page") {
+      validateCodexWebSearchString(action.pattern, `${label}.action.pattern`);
+    }
+  }
+  return id;
+}
+function codexUnknownTypeRemediation(detectedVersion) {
+  return `Circuit has verified Codex CLI ${CODEX_TESTED_CLI_RANGE}, and your Codex CLI reports "${detectedVersion}". The installed Codex version may be outside this tested range, or it may have added a protocol shape Circuit has not reviewed. Check your Codex CLI version with: codex --version. Update or pin Codex CLI to a version in this range, preferably 0.146.0, then retry.`;
+}
+function parseCodexStdout(stdout, prompt, duration_ms, cli_version, options = {}) {
+  const trace_entries = parseNdjsonObjects(stdout, "codex --json");
+  if (trace_entries.length === 0) {
+    throw new Error("codex --json stdout is empty");
+  }
+  for (const [idx, trace_entry] of trace_entries.entries()) {
+    const type = trace_entry.type;
+    if (typeof type !== "string") {
+      throw new Error(`codex --json line ${idx + 1}: trace_entry has no string 'type' field`);
+    }
+    if (CODEX_FAILURE_EVENT_TYPES.has(type)) {
+      const msgField = typeof trace_entry.message === "string" ? trace_entry.message : typeof trace_entry.error === "string" ? trace_entry.error : JSON.stringify(trace_entry).slice(0, 200);
+      throw new Error(`codex reported ${type}: ${msgField}. If this recurs, examine whether the failure shape indicates a capability-boundary regression (e.g., a sandboxed write attempt surfacing as turn.failed).`);
+    }
+    if (!KNOWN_CODEX_EVENT_TYPES.has(type)) {
+      throw new Error(`codex --json line ${idx + 1}: unknown top-level trace_entry type '${type}' (allowlist: ${Array.from(KNOWN_CODEX_EVENT_TYPES).join(", ")}). A new Codex trace_entry type must be reviewed before the connector admits it. ${codexUnknownTypeRemediation(cli_version)}`);
+    }
+  }
+  const threadStarted = trace_entries.find((e) => e.type === "thread.started");
+  if (threadStarted === void 0) {
+    throw new Error("thread.started trace_entry missing from codex --json stdout");
+  }
+  const thread_id = threadStarted.thread_id;
+  if (typeof thread_id !== "string" || thread_id.length === 0) {
+    throw new Error("thread.started.thread_id missing or empty");
+  }
+  const turnCompleted = trace_entries.find((e) => e.type === "turn.completed");
+  if (turnCompleted === void 0) {
+    throw new Error("turn.completed trace_entry missing from codex --json stdout");
+  }
+  const webSearchStarts = /* @__PURE__ */ new Map();
+  const itemStarted = trace_entries.filter((e) => e.type === "item.started");
+  for (const [idx, e] of itemStarted.entries()) {
+    const item2 = e.item;
+    if (!isRecord7(item2)) {
+      throw new Error(`item.started[${idx}].item is not an object`);
+    }
+    const itemType = item2.type;
+    if (typeof itemType !== "string") {
+      throw new Error(`item.started[${idx}].item.type is not a string`);
+    }
+    if (options.promptOnly === true && PROMPT_ONLY_FORBIDDEN_CODEX_ITEM_TYPES.has(itemType)) {
+      throw new Error(`prompt-only relay boundary violated: item.started used ${itemType}`);
+    }
+    if (itemType === "error") {
+      throw new Error("capability-boundary violation: item.started item.type='error' is not a reviewed start item type");
+    }
+    if (!KNOWN_CODEX_ITEM_TYPES.has(itemType)) {
+      throw new Error(`capability-boundary violation: item.started[${idx}].item.type='${itemType}' is not in the known-types allowlist (${Array.from(KNOWN_CODEX_ITEM_TYPES).join(", ")}). A new Codex item type must be reviewed before the connector admits it. ${codexUnknownTypeRemediation(cli_version)}`);
+    }
+    if (itemType === "web_search") {
+      const id = validateCodexWebSearchItem(item2, "item.started", idx);
+      if (webSearchStarts.has(id)) {
+        throw new Error(`item.started[${idx}].item duplicates a web_search id`);
+      }
+      webSearchStarts.set(id, trace_entries.indexOf(e));
+    }
+  }
+  const itemCompleted = trace_entries.filter((e) => e.type === "item.completed");
+  const webSearchCompletions = /* @__PURE__ */ new Set();
+  for (const [idx, e] of itemCompleted.entries()) {
+    const item2 = e.item;
+    if (!isRecord7(item2)) {
+      throw new Error(`item.completed[${idx}].item is not an object`);
+    }
+    const itemType = item2.type;
+    if (typeof itemType !== "string") {
+      throw new Error(`item.completed[${idx}].item.type is not a string`);
+    }
+    if (options.promptOnly === true && PROMPT_ONLY_FORBIDDEN_CODEX_ITEM_TYPES.has(itemType)) {
+      throw new Error(`prompt-only relay boundary violated: item.completed used ${itemType}`);
+    }
+    if (!KNOWN_CODEX_ITEM_TYPES.has(itemType)) {
+      throw new Error(`capability-boundary violation: item.completed[${idx}].item.type='${itemType}' is not in the known-types allowlist (${Array.from(KNOWN_CODEX_ITEM_TYPES).join(", ")}). A new Codex item type must be reviewed before the connector admits it. ${codexUnknownTypeRemediation(cli_version)}`);
+    }
+    if (itemType === "error") {
+      const message = item2.message;
+      if (typeof message !== "string" || !CODEX_NONFATAL_ERROR_ITEM_MESSAGES.has(message)) {
+        const detail = typeof message === "string" ? message : JSON.stringify(item2).slice(0, 200);
+        throw new Error(`codex reported nested error item: ${detail}. Only reviewed nonfatal diagnostics may precede a successful terminal response.`);
+      }
+    }
+    if (itemType === "web_search") {
+      const id = validateCodexWebSearchItem(item2, "item.completed", idx);
+      const startIndex = webSearchStarts.get(id);
+      if (startIndex === void 0) {
+        throw new Error(`item.completed[${idx}] web_search has no matching item.started event`);
+      }
+      if (startIndex >= trace_entries.indexOf(e)) {
+        throw new Error(`item.completed[${idx}] web_search does not follow its item.started event`);
+      }
+      if (webSearchCompletions.has(id)) {
+        throw new Error(`item.completed[${idx}] duplicates a web_search completion`);
+      }
+      webSearchCompletions.add(id);
+    }
+  }
+  for (const id of webSearchStarts.keys()) {
+    if (!webSearchCompletions.has(id)) {
+      throw new Error("item.started web_search has no matching item.completed event");
+    }
+  }
+  const itemUpdated = trace_entries.filter((e) => e.type === "item.updated");
+  for (const [idx, e] of itemUpdated.entries()) {
+    const item2 = e.item;
+    if (!isRecord7(item2)) {
+      throw new Error(`item.updated[${idx}].item is not an object`);
+    }
+    const itemType = item2.type;
+    if (typeof itemType !== "string") {
+      throw new Error(`item.updated[${idx}].item.type is not a string`);
+    }
+    if (options.promptOnly === true && PROMPT_ONLY_FORBIDDEN_CODEX_ITEM_TYPES.has(itemType)) {
+      throw new Error(`prompt-only relay boundary violated: item.updated used ${itemType}`);
+    }
+    if (itemType === "error") {
+      throw new Error("capability-boundary violation: item.updated item.type='error' is not a reviewed progress item type");
+    }
+    if (itemType === "web_search") {
+      throw new Error("capability-boundary violation: item.updated item.type='web_search' is not a reviewed progress item type");
+    }
+    if (!KNOWN_CODEX_ITEM_TYPES.has(itemType)) {
+      throw new Error(`capability-boundary violation: item.updated[${idx}].item.type='${itemType}' is not in the known-types allowlist (${Array.from(KNOWN_CODEX_ITEM_TYPES).join(", ")}). A new Codex item type must be reviewed before the connector admits it. ${codexUnknownTypeRemediation(cli_version)}`);
+    }
+  }
+  const agentMessages = itemCompleted.filter((e) => {
+    const item2 = e.item;
+    return item2.type === "agent_message";
+  });
+  const terminalMessage = agentMessages[agentMessages.length - 1];
+  if (terminalMessage === void 0) {
+    throw new Error("no item.completed/agent_message trace_entry found in codex --json stdout");
+  }
+  const item = terminalMessage.item;
+  const result_body_raw = item.text;
+  if (typeof result_body_raw !== "string") {
+    throw new Error("terminal agent_message item.text missing or not a string");
+  }
+  const result_body = extractJsonObject(result_body_raw);
+  return {
+    request_payload: prompt,
+    receipt_id: thread_id,
+    result_body,
+    duration_ms,
+    cli_version,
+    ...webSearchCompletions.size === 0 ? {} : { web_search_count: webSearchCompletions.size }
+  };
+}
+var CODEX_WRITE_FLAGS, CODEX_PROMPT_ONLY_FLAGS, CODEX_PROMPT_ONLY_BASE_CONFIG, CODEX_EXECUTABLE, CODEX_FORBIDDEN_ARGV_TOKENS, CODEX_REASONING_EFFORT_CONFIG_KEY, flagsAsStringArray, DEFAULT_IDLE_TIMEOUT_MS2, DEFAULT_ABSOLUTE_TIMEOUT_MS2, SIGTERM_TO_SIGKILL_GRACE_MS2, STDOUT_MAX_BYTES2, STDERR_MAX_BYTES2, VERSION_CAPTURE_TIMEOUT_MS, cachedCodexVersion, CODEX_OUTPUT_SCHEMA_STRIPPABLE_KEYWORDS, CODEX_OUTPUT_SCHEMA_DISQUALIFYING_KEYWORDS, KNOWN_CODEX_ITEM_TYPES, PROMPT_ONLY_FORBIDDEN_CODEX_ITEM_TYPES, CODEX_WEB_SEARCH_MAX_STRING_LENGTH, CODEX_WEB_SEARCH_COMPLETED_ACTION_TYPES, CODEX_NONFATAL_ERROR_ITEM_MESSAGES, KNOWN_CODEX_EVENT_TYPES, CODEX_FAILURE_EVENT_TYPES, CODEX_TESTED_CLI_RANGE;
+var init_codex = __esm({
+  "dist/connectors/codex.js"() {
+    "use strict";
+    init_connector();
+    init_json_extraction();
+    init_codex_default_model();
+    init_prompt_only_directory();
+    init_remediation();
+    init_subprocess();
+    CODEX_WRITE_FLAGS = Object.freeze([
+      "exec",
+      "--json",
+      "-s",
+      "workspace-write",
+      "--ephemeral",
+      "--skip-git-repo-check",
+      "--ignore-user-config",
+      "--ignore-rules"
+    ]);
+    CODEX_PROMPT_ONLY_FLAGS = Object.freeze([
+      "exec",
+      "--json",
+      "--ephemeral",
+      "--skip-git-repo-check",
+      "--ignore-user-config",
+      "--ignore-rules",
+      "--strict-config"
+    ]);
+    CODEX_PROMPT_ONLY_BASE_CONFIG = Object.freeze([
+      'approval_policy="never"',
+      'history.persistence="none"',
+      "allow_login_shell=false",
+      "project_doc_max_bytes=0",
+      "skills.include_instructions=false",
+      ...[
+        "apps",
+        "auth_elicitation",
+        "browser_use",
+        "browser_use_external",
+        "browser_use_full_cdp_access",
+        "computer_use",
+        "hooks",
+        "image_generation",
+        "in_app_browser",
+        "memories",
+        "multi_agent",
+        "plugin_sharing",
+        "plugins",
+        "remote_plugin",
+        "shell_snapshot",
+        "shell_tool",
+        "skill_mcp_dependency_install",
+        "tool_call_mcp_elicitation",
+        "workspace_dependencies"
+      ].map((feature) => `features.${feature}=false`),
+      "tools.update_plan.enabled=false",
+      "mcp_servers={}",
+      'web_search="disabled"'
+    ]);
+    CODEX_EXECUTABLE = "codex";
+    CODEX_FORBIDDEN_ARGV_TOKENS = Object.freeze([
+      "--dangerously-bypass-approvals-and-sandbox",
+      "--full-auto",
+      "--add-dir",
+      "-o",
+      "--output-last-message",
+      "-c",
+      "--config",
+      "-p",
+      "--profile",
+      "--sandbox"
+    ]);
+    CODEX_REASONING_EFFORT_CONFIG_KEY = "model_reasoning_effort";
+    if (!CODEX_WRITE_FLAGS.includes("-s") || !CODEX_WRITE_FLAGS.includes("workspace-write") || !CODEX_WRITE_FLAGS.includes("--ignore-user-config") || !CODEX_WRITE_FLAGS.includes("--ignore-rules")) {
+      throw new Error('CODEX_WRITE_FLAGS boundary invariant broken: must include "-s workspace-write", "--ignore-user-config", and "--ignore-rules"');
+    }
+    flagsAsStringArray = CODEX_WRITE_FLAGS;
+    for (const forbidden of CODEX_FORBIDDEN_ARGV_TOKENS) {
+      if (flagsAsStringArray.includes(forbidden)) {
+        throw new Error(`CODEX_WRITE_FLAGS boundary invariant broken: must NOT include "${forbidden}" (forbidden-token set)`);
+      }
+    }
+    DEFAULT_IDLE_TIMEOUT_MS2 = 6e5;
+    DEFAULT_ABSOLUTE_TIMEOUT_MS2 = 36e5;
+    SIGTERM_TO_SIGKILL_GRACE_MS2 = 2e3;
+    STDOUT_MAX_BYTES2 = 16 * 1024 * 1024;
+    STDERR_MAX_BYTES2 = 1024 * 1024;
+    VERSION_CAPTURE_TIMEOUT_MS = 5e3;
+    CODEX_OUTPUT_SCHEMA_STRIPPABLE_KEYWORDS = /* @__PURE__ */ new Set([
+      "$id",
+      "$schema",
+      "exclusiveMaximum",
+      "exclusiveMinimum",
+      "format",
+      "maxContains",
+      "maxItems",
+      "maxLength",
+      "maxProperties",
+      "maximum",
+      "minContains",
+      "minItems",
+      "minLength",
+      "minProperties",
+      "minimum",
+      "multipleOf",
+      "pattern",
+      "uniqueItems"
+    ]);
+    CODEX_OUTPUT_SCHEMA_DISQUALIFYING_KEYWORDS = /* @__PURE__ */ new Set([
+      "$ref",
+      "$defs",
+      "allOf",
+      "anyOf",
+      "const",
+      "contains",
+      "definitions",
+      "dependentRequired",
+      "dependentSchemas",
+      "if",
+      "not",
+      "oneOf",
+      "patternProperties",
+      "propertyNames",
+      "then"
+    ]);
+    KNOWN_CODEX_ITEM_TYPES = /* @__PURE__ */ new Set([
+      "agent_message",
+      "command_execution",
+      "reasoning",
+      "file_change",
+      "todo_list",
+      "web_search",
+      "error"
+    ]);
+    PROMPT_ONLY_FORBIDDEN_CODEX_ITEM_TYPES = /* @__PURE__ */ new Set([
+      "command_execution",
+      "file_change",
+      "todo_list",
+      "web_search"
+    ]);
+    CODEX_WEB_SEARCH_MAX_STRING_LENGTH = 16 * 1024;
+    CODEX_WEB_SEARCH_COMPLETED_ACTION_TYPES = /* @__PURE__ */ new Set([
+      "search",
+      "open_page",
+      "find_in_page"
+    ]);
+    CODEX_NONFATAL_ERROR_ITEM_MESSAGES = /* @__PURE__ */ new Set([
+      "Skill descriptions were shortened to fit the 2% skills context budget. Codex can still see every skill, but some descriptions are shorter. Disable unused skills or plugins to leave more room for the rest."
+    ]);
+    KNOWN_CODEX_EVENT_TYPES = /* @__PURE__ */ new Set([
+      "thread.started",
+      "turn.started",
+      "item.started",
+      "item.updated",
+      "item.completed",
+      "turn.completed"
+    ]);
+    CODEX_FAILURE_EVENT_TYPES = /* @__PURE__ */ new Set(["turn.failed", "error"]);
+    CODEX_TESTED_CLI_RANGE = "0.144.3 through 0.146.0";
+  }
+});
+
+// dist/connectors/cursor-agent.js
+import { execFileSync as execFileSync5 } from "node:child_process";
+function captureCursorAgentVersion() {
+  if (cachedCursorAgentVersion !== void 0)
+    return cachedCursorAgentVersion;
+  let stdout;
+  try {
+    stdout = execFileSync5(CURSOR_AGENT_EXECUTABLE, ["--version"], {
+      encoding: "utf8",
+      timeout: VERSION_CAPTURE_TIMEOUT_MS2,
+      stdio: ["ignore", "pipe", "pipe"]
+    });
+  } catch (err) {
+    const message = err.message;
+    throw new Error(`${launchFailureSummary(CURSOR_AGENT_EXECUTABLE, message)} cursor-agent --version failed: ${message}. ${connectorRemediation("cursor-agent")}`);
+  }
+  const version3 = stdout.trim();
+  if (version3.length === 0) {
+    throw new Error("cursor-agent --version produced empty output");
+  }
+  cachedCursorAgentVersion = version3;
+  return version3;
+}
+function selectedGeminiModel(selection) {
+  const model = selection?.model;
+  if (model === void 0)
+    return void 0;
+  if (model.provider !== "gemini") {
+    throw new Error(`cursor-agent connector cannot honor model provider '${model.provider}' for model '${model.model}'; expected provider 'gemini'`);
+  }
+  return model.model;
+}
+function assertCursorAgentEffort(effort) {
+  if (!CURSOR_AGENT_SUPPORTED_EFFORTS.includes(effort)) {
+    throw new Error(`cursor-agent connector cannot honor effort '${effort}'; supported efforts: ${CURSOR_AGENT_SUPPORTED_EFFORTS.join(", ")}`);
+  }
+}
+function buildCursorAgentArgs(input) {
+  const args = [...CURSOR_AGENT_DISPATCH_FLAGS];
+  const model = selectedGeminiModel(input.resolvedSelection);
+  if (model !== void 0) {
+    args.push("--model", model);
+  }
+  const effort = input.resolvedSelection?.effort;
+  if (effort !== void 0) {
+    assertCursorAgentEffort(effort);
+  }
+  if (input.cwd !== void 0) {
+    args.push("--workspace", input.cwd);
+  }
+  args.push(input.prompt);
+  return args;
+}
+async function relayCursorAgent(input) {
+  const absoluteTimeoutMs = input.timeoutMs ?? DEFAULT_ABSOLUTE_TIMEOUT_MS3;
+  const idleTimeoutMs = input.idleTimeoutMs ?? DEFAULT_IDLE_TIMEOUT_MS3;
+  const cliVersion = captureCursorAgentVersion();
+  const args = buildCursorAgentArgs(input);
+  let result;
+  try {
+    result = await runConnectorSubprocess({
+      executable: CURSOR_AGENT_EXECUTABLE,
+      args,
+      timeoutMs: absoluteTimeoutMs,
+      idleTimeoutMs,
+      stdoutMaxBytes: STDOUT_MAX_BYTES3,
+      stderrMaxBytes: STDERR_MAX_BYTES3,
+      sigtermToSigkillGraceMs: SIGTERM_TO_SIGKILL_GRACE_MS3,
+      env: process.env,
+      ...input.cwd === void 0 ? {} : { cwd: input.cwd }
+    });
+  } catch (error52) {
+    if (isConnectorSubprocessSpawnError(error52)) {
+      throw new Error(`${launchFailureSummary(CURSOR_AGENT_EXECUTABLE, error52.message)} cursor-agent subprocess ${spawnErrorVerb(error52)}: ${error52.message}. ${connectorRemediation("cursor-agent")}`);
+    }
+    throw error52;
+  }
+  if (result.timedOut) {
+    const stdoutSuffix = cappedSuffix(result.stdoutCapped, "stdout");
+    const stderrSuffix = cappedSuffix(result.stderrCapped, "stderr");
+    const cause = describeTimeout(result, {
+      idleMs: idleTimeoutMs,
+      absoluteMs: absoluteTimeoutMs
+    });
+    throw new Error(`cursor-agent subprocess timed out: ${cause}; group-kill ${result.killGroupSucceeded ? "sent" : "failed"}; final signal=${result.signal ?? "none"}; stdout[:500]=${result.stdout.slice(0, 500)}${stdoutSuffix}; stderr[:500]=${result.stderr.slice(0, 500)}${stderrSuffix}`);
+  }
+  if (result.code !== 0) {
+    const stdoutSuffix = cappedSuffix(result.stdoutCapped, "stdout");
+    const stderrSuffix = cappedSuffix(result.stderrCapped, "stderr");
+    const summary = connectorFailureSummary({
+      cli: CURSOR_AGENT_EXECUTABLE,
+      signInHint: "Run `cursor-agent login` to sign in",
+      stderr: result.stderr,
+      stdout: result.stdout,
+      streamError: void 0
+    });
+    const lead = summary === void 0 ? "" : `${summary} `;
+    throw new Error(`${lead}cursor-agent subprocess exited with code ${result.code}${result.signal ? ` (signal ${result.signal})` : ""}; stdout[:500]=${result.stdout.slice(0, 500)}${stdoutSuffix}; stderr[:500]=${condenseRepeatedLines(result.stderr).slice(0, 500)}${stderrSuffix}`);
+  }
+  if (result.stdoutCapped) {
+    throw new Error(`cursor-agent subprocess stdout exceeded ${STDOUT_MAX_BYTES3} bytes; connector output cannot be evaluated on truncated stream`);
+  }
+  const resultBodyRaw = result.stdout.trim();
+  if (resultBodyRaw.length === 0) {
+    throw new Error("cursor-agent stdout is empty");
+  }
+  return {
+    request_payload: input.prompt,
+    receipt_id: sha256OfString(resultBodyRaw),
+    result_body: extractJsonObject(resultBodyRaw),
+    duration_ms: result.durationMs,
+    cli_version: cliVersion
+  };
+}
+var CURSOR_AGENT_EXECUTABLE, CURSOR_AGENT_DISPATCH_FLAGS, DEFAULT_IDLE_TIMEOUT_MS3, DEFAULT_ABSOLUTE_TIMEOUT_MS3, SIGTERM_TO_SIGKILL_GRACE_MS3, STDOUT_MAX_BYTES3, STDERR_MAX_BYTES3, VERSION_CAPTURE_TIMEOUT_MS2, cachedCursorAgentVersion;
+var init_cursor_agent = __esm({
+  "dist/connectors/cursor-agent.js"() {
+    "use strict";
+    init_connector();
+    init_connector_relay();
+    init_json_extraction();
+    init_remediation();
+    init_subprocess();
+    CURSOR_AGENT_EXECUTABLE = "cursor-agent";
+    CURSOR_AGENT_DISPATCH_FLAGS = Object.freeze([
+      "--print",
+      "--output-format",
+      "text",
+      "--trust",
+      "--force"
+    ]);
+    DEFAULT_IDLE_TIMEOUT_MS3 = 6e5;
+    DEFAULT_ABSOLUTE_TIMEOUT_MS3 = 36e5;
+    SIGTERM_TO_SIGKILL_GRACE_MS3 = 2e3;
+    STDOUT_MAX_BYTES3 = 16 * 1024 * 1024;
+    STDERR_MAX_BYTES3 = 1024 * 1024;
+    VERSION_CAPTURE_TIMEOUT_MS2 = 5e3;
   }
 });
 
@@ -98278,6 +97764,213 @@ var init_recovery_selection = __esm({
       "handoff",
       "escalate"
     ];
+  }
+});
+
+// dist/selection/selection-resolver.js
+function overrideContributes2(o) {
+  if (o.model !== void 0)
+    return true;
+  if (o.effort !== void 0)
+    return true;
+  if (o.depth !== void 0)
+    return true;
+  if (o.skills.mode !== "inherit")
+    return true;
+  if (Object.keys(o.invocation_options).length > 0)
+    return true;
+  return false;
+}
+function composeConfigLayerSelection(base, circuit, current) {
+  if (base === void 0 && circuit === void 0)
+    return void 0;
+  const baseSkillOp = base?.skills.mode === "inherit" ? void 0 : base?.skills;
+  const circuitSkillOp = circuit?.skills.mode === "inherit" ? void 0 : circuit?.skills;
+  let skills;
+  if (baseSkillOp !== void 0 || circuitSkillOp !== void 0) {
+    const baseSkills = baseSkillOp !== void 0 ? applySkillOp(current.skills, baseSkillOp) : current.skills;
+    const composedSkills = circuitSkillOp !== void 0 ? applySkillOp(baseSkills, circuitSkillOp) : baseSkills;
+    skills = { mode: "replace", skills: [...composedSkills] };
+  }
+  const raw = {
+    ...base?.model !== void 0 || circuit?.model !== void 0 ? { model: circuit?.model ?? base?.model } : {},
+    ...base?.effort !== void 0 || circuit?.effort !== void 0 ? { effort: circuit?.effort ?? base?.effort } : {},
+    ...skills !== void 0 ? { skills } : {},
+    ...base?.depth !== void 0 || circuit?.depth !== void 0 ? { depth: circuit?.depth ?? base?.depth } : {},
+    invocation_options: {
+      ...base?.invocation_options ?? {},
+      ...circuit?.invocation_options ?? {}
+    }
+  };
+  const parsed = SelectionOverride.parse(raw);
+  return overrideContributes2(parsed) ? parsed : void 0;
+}
+function configLayerSelection(flowId, layer, current) {
+  const flows = layer.config.flows;
+  const circuit = Object.hasOwn(flows, flowId) ? flows[flowId] : void 0;
+  return composeConfigLayerSelection(layer.config.defaults.selection, circuit?.selection, current);
+}
+function applySkillOp(base, op) {
+  if (op.mode === "inherit")
+    return base;
+  if (op.mode === "replace")
+    return op.skills;
+  if (op.mode === "append") {
+    const seen = new Set(base);
+    const out = [...base];
+    for (const s of op.skills) {
+      const key = s;
+      if (!seen.has(key)) {
+        seen.add(key);
+        out.push(s);
+      }
+    }
+    return out;
+  }
+  const removeSet = new Set(op.skills);
+  return base.filter((s) => !removeSet.has(s));
+}
+function applyOverride(current, override) {
+  const model = override.model ?? current.model;
+  const effort = override.effort ?? current.effort;
+  const depth = override.depth ?? current.depth;
+  const skills = applySkillOp(current.skills, override.skills);
+  const invocation_options = {
+    ...current.invocation_options,
+    ...override.invocation_options
+  };
+  return {
+    ...model !== void 0 ? { model } : {},
+    ...effort !== void 0 ? { effort } : {},
+    skills,
+    ...depth !== void 0 ? { depth } : {},
+    invocation_options
+  };
+}
+function pushIfContributing(applied, entry, resolved) {
+  if (!overrideContributes2(entry.override))
+    return resolved;
+  applied.push(entry);
+  return applyOverride(resolved, entry.override);
+}
+function configLayersBySource(layers) {
+  const out = {};
+  const seen = /* @__PURE__ */ new Set();
+  for (const layer of layers) {
+    if (seen.has(layer.layer)) {
+      throw new Error(`duplicate selection config layer '${layer.layer}'`);
+    }
+    seen.add(layer.layer);
+    out[layer.layer] = layer;
+  }
+  return out;
+}
+function resolveSelectionForGuidanceInput(input) {
+  const flowId = input.flow.id;
+  const stepId = input.step.id;
+  const applied = [];
+  let resolved = { skills: [], invocation_options: {} };
+  const configLayers = configLayersBySource(input.configLayers ?? []);
+  for (const source of PRE_FLOW_CONFIG_SOURCES) {
+    const layer = configLayers[source];
+    if (layer === void 0)
+      continue;
+    const override = configLayerSelection(flowId, layer, resolved);
+    if (override === void 0)
+      continue;
+    resolved = pushIfContributing(applied, {
+      source,
+      override
+    }, resolved);
+  }
+  if (input.flow.default_selection !== void 0) {
+    resolved = pushIfContributing(applied, { source: "flow", override: input.flow.default_selection }, resolved);
+  }
+  for (const stage of input.flow.stages) {
+    const stageSteps = stage.steps;
+    if (!stageSteps.includes(stepId))
+      continue;
+    if (stage.selection === void 0)
+      continue;
+    resolved = pushIfContributing(applied, { source: "stage", stage_id: stage.id, override: stage.selection }, resolved);
+  }
+  if (input.step.selection !== void 0) {
+    resolved = pushIfContributing(applied, {
+      source: "step",
+      step_id: input.step.id,
+      override: input.step.selection
+    }, resolved);
+  }
+  const invocationLayer = configLayers.invocation;
+  const invocationOverride = invocationLayer === void 0 ? void 0 : configLayerSelection(flowId, invocationLayer, resolved);
+  if (invocationOverride !== void 0) {
+    resolved = pushIfContributing(applied, { source: "invocation", override: invocationOverride }, resolved);
+  }
+  return SelectionResolution.parse({ resolved, applied });
+}
+var PRE_FLOW_CONFIG_SOURCES;
+var init_selection_resolver = __esm({
+  "dist/selection/selection-resolver.js"() {
+    "use strict";
+    init_selection_policy();
+    PRE_FLOW_CONFIG_SOURCES = ["default", "user-global", "project"];
+  }
+});
+
+// dist/selection/relay-selection.js
+function bindsExecutionDepthToGuidanceSelection(inv) {
+  return inv.bindsExecutionDepthToGuidanceSelection === true;
+}
+function guidanceSelectionConfigLayersWithExecutionDepth(inv, flow, depth) {
+  const layers = [...inv.selectionConfigLayers ?? []];
+  const flowId = flow.id;
+  const existingIndex = layers.findIndex((layer) => layer.layer === "invocation");
+  const existing = existingIndex === -1 ? void 0 : layers[existingIndex];
+  const baseConfig = existing?.config ?? Config.parse({ schema_version: 1 });
+  const existingCircuit = baseConfig.flows[flowId];
+  const selection = {
+    ...existingCircuit?.selection ?? {},
+    depth
+  };
+  const invocationLayer = LayeredConfig.parse({
+    layer: "invocation",
+    ...existing?.source_path === void 0 ? {} : { source_path: existing.source_path },
+    config: {
+      ...baseConfig,
+      flows: {
+        ...baseConfig.flows,
+        [flowId]: {
+          ...existingCircuit ?? {},
+          selection
+        }
+      }
+    }
+  });
+  if (existingIndex === -1) {
+    layers.push(invocationLayer);
+  } else {
+    layers[existingIndex] = invocationLayer;
+  }
+  return layers;
+}
+function selectionConfigLayersForGuidanceInput(inv, flow, depth) {
+  if (!bindsExecutionDepthToGuidanceSelection(inv)) {
+    return inv.selectionConfigLayers ?? [];
+  }
+  return guidanceSelectionConfigLayersWithExecutionDepth(inv, flow, depth);
+}
+function deriveResolvedSelection(inv, flow, step, depth) {
+  return resolveSelectionForGuidanceInput({
+    flow,
+    step,
+    configLayers: selectionConfigLayersForGuidanceInput(inv, flow, depth)
+  }).resolved;
+}
+var init_relay_selection = __esm({
+  "dist/selection/relay-selection.js"() {
+    "use strict";
+    init_config();
+    init_selection_resolver();
   }
 });
 
@@ -101623,8 +101316,8 @@ function connectorRetryBackoffMs(attemptNumber) {
   return CONNECTOR_RETRY_BASE_BACKOFF_MS * 2 ** Math.max(0, attemptNumber - 2);
 }
 async function pauseMs(ms) {
-  await new Promise((resolve38) => {
-    setTimeout(resolve38, ms);
+  await new Promise((resolve39) => {
+    setTimeout(resolve39, ms);
   });
 }
 async function executeProductionRelay(step, context) {
@@ -102208,8 +101901,8 @@ function planRelayFanoutBranchGuidanceDecision(input) {
   });
 }
 async function pause(ms) {
-  await new Promise((resolve38) => {
-    setTimeout(resolve38, ms);
+  await new Promise((resolve39) => {
+    setTimeout(resolve39, ms);
   });
 }
 function branchAnswerStands(attempt) {
@@ -103517,6 +103210,149 @@ var init_executors = __esm({
     init_relay();
     init_sub_run();
     init_verification10();
+  }
+});
+
+// dist/runtime/manifest/runtime-package-index.js
+function writeRef(ref) {
+  if (ref === void 0)
+    return void 0;
+  if (ref.schema !== void 0)
+    return { path: ref.path, schema: ref.schema };
+  return ref.path;
+}
+function indexedSelection(selection) {
+  if (selection === void 0)
+    return void 0;
+  return SelectionOverride.parse({
+    ...selection.model === void 0 ? {} : { model: selection.model },
+    ...selection.effort === void 0 ? {} : { effort: selection.effort },
+    skills: selection.skills ?? { mode: "inherit" },
+    ...selection.depth === void 0 ? {} : { depth: selection.depth },
+    invocation_options: selection.invocation_options ?? {}
+  });
+}
+function baseStep2(step) {
+  const selection = indexedSelection(step.selection);
+  return {
+    id: step.id,
+    title: step.title ?? step.id,
+    protocol: step.protocol ?? step.id,
+    reads: step.reads?.map((ref) => ref.path) ?? [],
+    routes: Object.fromEntries(Object.entries(step.routes).map(([route, target]) => [
+      route,
+      target.kind === "terminal" ? target.target : target.stepId
+    ])),
+    writes: Object.fromEntries(Object.entries(step.writes ?? {}).map(([slot2, ref]) => [slot2, writeRef(ref)])),
+    check: step.check,
+    ...selection === void 0 ? {} : { selection },
+    ...step.skillSlots === void 0 ? {} : { skill_slots: step.skillSlots },
+    ...step.equipmentScope === void 0 ? {} : { equipment_scope: step.equipmentScope },
+    ...step.budgets === void 0 ? {} : { budgets: step.budgets }
+  };
+}
+function fanoutBranchRelay(step) {
+  const branches = step.branches;
+  const templates = branches.kind === "dynamic" ? [branches.template] : branches.branches;
+  const executions = templates.map((branch) => {
+    const record2 = branch;
+    return record2?.execution;
+  });
+  const first = executions[0];
+  if (executions.length === 0 || first?.kind !== "relay")
+    return void 0;
+  if (!executions.every((execution) => execution?.kind === "relay")) {
+    return void 0;
+  }
+  const branchRecord = templates[0];
+  if (branchRecord?.connector?.includes("$") === true)
+    return void 0;
+  const selection = branchSelection(branchRecord?.selection);
+  return {
+    role: first.role,
+    ...branchRecord?.connector === void 0 ? {} : { connector: branchRecord.connector },
+    ...selection === void 0 ? {} : { selection }
+  };
+}
+function branchSelection(selection) {
+  if (selection === void 0 || selection === null)
+    return void 0;
+  const parsed = SelectionOverride.safeParse({
+    ...selection,
+    skills: selection.skills ?? { mode: "inherit" },
+    invocation_options: selection.invocation_options ?? {}
+  });
+  return parsed.success ? parsed.data : void 0;
+}
+function indexedStep(step) {
+  const base = baseStep2(step);
+  if (step.kind === "checkpoint") {
+    return {
+      ...base,
+      kind: step.kind,
+      policy: step.policy
+    };
+  }
+  if (step.kind === "relay") {
+    return {
+      ...base,
+      kind: step.kind,
+      role: step.role,
+      ...step.connector === void 0 ? {} : { connector: step.connector },
+      ...step.acceptanceCriteria === void 0 ? {} : { acceptance_criteria: step.acceptanceCriteria }
+    };
+  }
+  if (step.kind === "fanout") {
+    const relay = fanoutBranchRelay(step);
+    return {
+      ...base,
+      kind: step.kind,
+      ...relay === void 0 ? {} : { branch_relay: relay }
+    };
+  }
+  return { ...base, kind: step.kind };
+}
+function buildRuntimePackageIndex(flow) {
+  const steps = flow.steps.map((step) => indexedStep(step));
+  const defaultSelection = indexedSelection(flow.defaultSelection);
+  const stepsById = /* @__PURE__ */ new Map();
+  const reportPathBySchema = /* @__PURE__ */ new Map();
+  for (const step of steps) {
+    if (stepsById.has(step.id)) {
+      throw new Error(`runtime package index duplicate step '${step.id}'`);
+    }
+    stepsById.set(step.id, step);
+    const report = step.writes.report;
+    if (typeof report !== "object" || report === null)
+      continue;
+    if (!reportPathBySchema.has(report.schema)) {
+      reportPathBySchema.set(report.schema, report.path);
+    }
+  }
+  return {
+    flow: {
+      id: flow.id,
+      version: flow.version,
+      ...flow.purpose === void 0 ? {} : { purpose: flow.purpose },
+      ...defaultSelection === void 0 ? {} : { default_selection: defaultSelection },
+      stages: flow.stages.map((stage) => {
+        const selection = indexedSelection(stage.selection);
+        return {
+          id: stage.id,
+          steps: stage.stepIds,
+          ...selection === void 0 ? {} : { selection }
+        };
+      }),
+      steps
+    },
+    stepsById,
+    reportPathBySchema
+  };
+}
+var init_runtime_package_index = __esm({
+  "dist/runtime/manifest/runtime-package-index.js"() {
+    "use strict";
+    init_selection_policy();
   }
 });
 
@@ -108184,7 +108020,7 @@ function declaredBodyTooLarge(request) {
   return length > MAX_CHECKPOINT_REVIEW_JSON_BYTES;
 }
 function readRequestBody(request) {
-  return new Promise((resolve38, reject) => {
+  return new Promise((resolve39, reject) => {
     const chunks = [];
     let bytes = 0;
     let tooLarge = false;
@@ -108200,7 +108036,7 @@ function readRequestBody(request) {
         chunks.push(buffer);
     });
     request.on("end", () => {
-      resolve38(tooLarge ? { status: "too-large" } : { status: "ok", body: Buffer.concat(chunks) });
+      resolve39(tooLarge ? { status: "too-large" } : { status: "ok", body: Buffer.concat(chunks) });
     });
     request.on("aborted", () => reject(new Error("checkpoint review request was aborted")));
     request.on("error", reject);
@@ -108557,14 +108393,14 @@ async function startLocalCheckpointReviewSession(options) {
   let inFlightSubmission;
   let acceptedReplayObserved = false;
   let resolveAcceptedReplay;
-  const acceptedReplay = new Promise((resolve38) => {
-    resolveAcceptedReplay = resolve38;
+  const acceptedReplay = new Promise((resolve39) => {
+    resolveAcceptedReplay = resolve39;
   });
   let closed = false;
   let closePromise;
   let resolveSettled;
-  const settled = new Promise((resolve38) => {
-    resolveSettled = resolve38;
+  const settled = new Promise((resolve39) => {
+    resolveSettled = resolve39;
   });
   async function decideSubmission(submitted) {
     let decision2;
@@ -108806,14 +108642,14 @@ async function startLocalCheckpointReviewSession(options) {
   server.keepAliveTimeout = 1;
   server.maxHeadersCount = 32;
   server.maxRequestsPerSocket = 8;
-  await new Promise((resolve38, reject) => {
+  await new Promise((resolve39, reject) => {
     const onError = (error52) => {
       server.off("listening", onListening);
       reject(error52);
     };
     const onListening = () => {
       server.off("error", onError);
-      resolve38();
+      resolve39();
     };
     server.once("error", onError);
     server.once("listening", onListening);
@@ -108821,7 +108657,7 @@ async function startLocalCheckpointReviewSession(options) {
   });
   const address = server.address();
   if (address === null || typeof address === "string") {
-    await new Promise((resolve38) => server.close(() => resolve38()));
+    await new Promise((resolve39) => server.close(() => resolve39()));
     throw new Error("checkpoint review session did not bind to loopback");
   }
   expectedHost = `${LOOPBACK_HOST}:${address.port}`;
@@ -108834,11 +108670,11 @@ async function startLocalCheckpointReviewSession(options) {
     async waitForAcceptedReplay() {
       if (state !== "accepted" || acceptedReplayObserved || closed)
         return;
-      await new Promise((resolve38) => {
-        const timeout = setTimeout(resolve38, LOCAL_CHECKPOINT_REVIEW_REPLAY_WINDOW_MS);
+      await new Promise((resolve39) => {
+        const timeout = setTimeout(resolve39, LOCAL_CHECKPOINT_REVIEW_REPLAY_WINDOW_MS);
         void acceptedReplay.then(() => {
           clearTimeout(timeout);
-          resolve38();
+          resolve39();
         });
       });
     },
@@ -108846,12 +108682,12 @@ async function startLocalCheckpointReviewSession(options) {
       if (closePromise !== void 0)
         return closePromise;
       closed = true;
-      closePromise = new Promise((resolve38, reject) => {
+      closePromise = new Promise((resolve39, reject) => {
         server.close((error52) => {
           if (error52 !== void 0)
             reject(error52);
           else
-            resolve38();
+            resolve39();
         });
       });
       return closePromise;
@@ -112554,13 +112390,13 @@ function reducedBindingsLine(receipt) {
   const labels = reduced.map((binding) => REDUCED_BINDING_LABELS[binding]);
   return `\u23BF reduced bindings (no catalog package): ${labels.join(" \xB7 ")}`;
 }
-function firstLine2(text) {
+function firstLine(text) {
   const head = text.split(/\r?\n/)[0]?.trim() ?? "";
   return head.length > 0 ? head : text.trim();
 }
 function briefReason(reason) {
   const beforeStreams = reason.split(RAW_STREAM_TAG)[0] ?? reason;
-  const head = firstLine2(beforeStreams);
+  const head = firstLine(beforeStreams);
   const shortened = head.length > MAX_BRIEF_REASON ? head.slice(0, MAX_BRIEF_REASON).trimEnd() : head;
   return shortened.length < reason.trim().length ? `${shortened} \u2026` : shortened;
 }
@@ -112595,7 +112431,7 @@ function readSkillHookSummary(runFolder) {
     if (entry.kind === "run.skill-hook-error") {
       const message = stringField2(entry, "message");
       if (message !== void 0) {
-        warnings.push({ kind: "skill_hook_dispatch_failed", message: firstLine2(message) });
+        warnings.push({ kind: "skill_hook_dispatch_failed", message: firstLine(message) });
       }
       continue;
     }
@@ -112618,7 +112454,7 @@ function readSkillHookSummary(runFolder) {
       withheld_skills: event.policy.mode === "auto" && blocked ? triggered : [],
       unavailable_skills: (event.unavailable_skills ?? []).map((skill) => ({
         id: skill.id,
-        ...skill.reason === void 0 ? {} : { reason: firstLine2(skill.reason) }
+        ...skill.reason === void 0 ? {} : { reason: firstLine(skill.reason) }
       }))
     });
     const key = JSON.stringify(activation);
@@ -112648,7 +112484,7 @@ function readDegradationWarnings(runFolder) {
     if (entry.kind === "run.power-inference-error") {
       const message = stringField2(entry, "message");
       if (message !== void 0) {
-        warnings.push({ kind: "power_inference_failed", message: firstLine2(message) });
+        warnings.push({ kind: "power_inference_failed", message: firstLine(message) });
       }
       continue;
     }
@@ -112658,7 +112494,7 @@ function readDegradationWarnings(runFolder) {
       if (reason !== void 0) {
         warnings.push({
           kind: "relay_report_skipped",
-          message: firstLine2(reason),
+          message: firstLine(reason),
           ...reportPath === void 0 ? {} : { path: reportPath }
         });
       }
@@ -112667,7 +112503,7 @@ function readDegradationWarnings(runFolder) {
     if (entry.kind === "run.context-delivery-error") {
       const message = stringField2(entry, "message");
       if (message !== void 0) {
-        warnings.push({ kind: "context_delivery_failed", message: firstLine2(message) });
+        warnings.push({ kind: "context_delivery_failed", message: firstLine(message) });
       }
       continue;
     }
@@ -112677,7 +112513,7 @@ function readDegradationWarnings(runFolder) {
         continue;
       const connector = isObject4(entry.connector) ? stringField2(entry.connector, "name") : void 0;
       const reason = stringField2(seal, "reason");
-      const cause = reason === void 0 ? "" : ` (${firstLine2(reason)})`;
+      const cause = reason === void 0 ? "" : ` (${firstLine(reason)})`;
       warnings.push({
         kind: "relay_context_not_sealed",
         message: `The reviewer ran with repository access. This flow asked for a reviewer that sees only the relayed evidence, and ${connector ?? "the chosen connector"} could not honor that${cause}. Run this flow with Claude Code or Codex for a sealed reviewer.`
@@ -112786,7 +112622,7 @@ function readEquipmentReshapeSummary(runFolder) {
     }
     const warning = {
       kind: "equipment_discovery_parked",
-      message: `${stepId}: ${firstLine2(event.reason)}`
+      message: `${stepId}: ${firstLine(event.reason)}`
     };
     const key = JSON.stringify(warning);
     if (seen.has(key))
@@ -115477,6 +115313,171 @@ var init_run_output = __esm({
   }
 });
 
+// dist/connectors/health.js
+function firstLine2(outcome) {
+  const text = outcome.stdout.trim().length > 0 ? outcome.stdout : outcome.stderr;
+  return text.trim().split("\n")[0]?.trim() ?? "";
+}
+function classifyConnectorHealth(input) {
+  const remediation = connectorRemediation(input.connector);
+  const base = { connector: input.connector, executable: input.executable };
+  if (input.presence.kind === "spawn_error") {
+    return {
+      ...base,
+      state: "needs_attention",
+      detail: `the '${input.executable}' command was not found or could not start (${input.presence.message})`,
+      remediation
+    };
+  }
+  if (input.presence.timedOut) {
+    return {
+      ...base,
+      state: "unknown",
+      detail: `could not check: ${input.executable} --version timed out`
+    };
+  }
+  if (input.presence.code !== 0) {
+    const line = firstLine2(input.presence);
+    return {
+      ...base,
+      state: "needs_attention",
+      detail: `${input.executable} --version exited with code ${input.presence.code}${line === "" ? "" : `: ${line}`}`,
+      remediation
+    };
+  }
+  const version3 = firstLine2(input.presence);
+  if (input.auth === void 0) {
+    return { ...base, state: "ok", detail: version3 };
+  }
+  if (input.auth.kind === "spawn_error") {
+    return {
+      ...base,
+      state: "needs_attention",
+      detail: `${version3}; sign-in check could not start (${input.auth.message})`,
+      remediation
+    };
+  }
+  if (input.auth.timedOut) {
+    return {
+      ...base,
+      state: "unknown",
+      detail: `${version3}; could not check sign-in state (timed out)`
+    };
+  }
+  const authLine = firstLine2(input.auth);
+  if (input.auth.code !== 0 || SIGNED_OUT_PATTERN.test(`${input.auth.stdout}
+${input.auth.stderr}`)) {
+    return {
+      ...base,
+      state: "needs_attention",
+      detail: `${version3}; installed but may need sign-in${authLine === "" ? "" : ` (${authLine})`}`,
+      remediation
+    };
+  }
+  return {
+    ...base,
+    state: "ok",
+    detail: authLine === "" ? version3 : `${version3}; ${authLine}`
+  };
+}
+async function runProbe(executable, args, env3) {
+  try {
+    const result = await runConnectorSubprocess({
+      executable,
+      args,
+      timeoutMs: PROBE_TIMEOUT_MS,
+      stdoutMaxBytes: PROBE_OUTPUT_MAX_BYTES,
+      stderrMaxBytes: PROBE_OUTPUT_MAX_BYTES,
+      sigtermToSigkillGraceMs: 2e3,
+      env: env3
+    });
+    return {
+      kind: "ran",
+      code: result.code,
+      stdout: result.stdout,
+      stderr: result.stderr,
+      timedOut: result.timedOut
+    };
+  } catch (error52) {
+    if (isConnectorSubprocessSpawnError(error52)) {
+      return { kind: "spawn_error", message: error52.message };
+    }
+    throw error52;
+  }
+}
+function builtinConnectorExecutable(connector) {
+  return HEALTH_PROBE_SPECS[connector].executable;
+}
+async function probeBuiltinConnectorPresence(connector, options) {
+  const spec = HEALTH_PROBE_SPECS[connector];
+  return await runProbe(spec.executable, spec.presenceArgs, options?.env ?? process.env);
+}
+async function probeBuiltinConnector(connector, options) {
+  const spec = HEALTH_PROBE_SPECS[connector];
+  const env3 = options?.env ?? process.env;
+  const presence = await runProbe(spec.executable, spec.presenceArgs, env3);
+  const auth = spec.authArgs !== void 0 && presence.kind === "ran" && presence.code === 0 ? await runProbe(spec.executable, spec.authArgs, env3) : void 0;
+  return classifyConnectorHealth({
+    connector,
+    executable: spec.executable,
+    presence,
+    ...auth === void 0 ? {} : { auth }
+  });
+}
+async function probeBuiltinConnectors(options) {
+  return await Promise.all(BUILTIN_CONNECTOR_NAMES.map((name) => probeBuiltinConnector(name, options)));
+}
+async function probeCustomConnectorPresence(connector, executable, options) {
+  const presence = await runProbe(executable, [], options?.env ?? process.env);
+  if (presence.kind === "spawn_error") {
+    return {
+      connector,
+      executable,
+      state: "needs_attention",
+      detail: `the '${executable}' command was not found or could not start (${presence.message})`,
+      remediation: `Fix: check that '${executable}' is installed and on PATH.`
+    };
+  }
+  return {
+    connector,
+    executable,
+    state: "unknown",
+    detail: "could not check: custom connectors have no scripted sign-in probe"
+  };
+}
+var HEALTH_PROBE_SPECS, BUILTIN_CONNECTOR_NAMES, SIGNED_OUT_PATTERN, PROBE_TIMEOUT_MS, PROBE_OUTPUT_MAX_BYTES;
+var init_health = __esm({
+  "dist/connectors/health.js"() {
+    "use strict";
+    init_claude_code();
+    init_codex();
+    init_cursor_agent();
+    init_remediation();
+    init_subprocess();
+    HEALTH_PROBE_SPECS = {
+      "claude-code": { executable: CLAUDE_CODE_EXECUTABLE, presenceArgs: ["--version"] },
+      codex: {
+        executable: CODEX_EXECUTABLE,
+        presenceArgs: ["--version"],
+        authArgs: ["login", "status"]
+      },
+      "cursor-agent": {
+        executable: CURSOR_AGENT_EXECUTABLE,
+        presenceArgs: ["--version"],
+        authArgs: ["status"]
+      }
+    };
+    BUILTIN_CONNECTOR_NAMES = [
+      "claude-code",
+      "codex",
+      "cursor-agent"
+    ];
+    SIGNED_OUT_PATTERN = /not logged in|logged out|unauthenticated|login required|not signed in|sign in required/i;
+    PROBE_TIMEOUT_MS = 1e4;
+    PROBE_OUTPUT_MAX_BYTES = 16384;
+  }
+});
+
 // dist/cli/run-preflight.js
 function isBuiltinConnectorName(name) {
   return BUILTIN_CONNECTOR_NAMES.includes(name);
@@ -116934,7 +116935,7 @@ async function runExecutionCommand(args, options) {
     ...entryModeSelection.entryModeName === void 0 ? {} : { entry_mode: entryModeSelection.entryModeName },
     ...entryModeSelection.source === void 0 ? {} : { entry_mode_source: entryModeSelection.source }
   });
-  const runFolder = runArgs.runFolder === void 0 ? join49(runsRoot(process.cwd()), runId) : resolve32(runArgs.runFolder);
+  const runFolder = runArgs.runFolder === void 0 ? join49(runsRoot(projectRoot), runId) : resolve32(runArgs.runFolder);
   try {
     validateFlowConfigRequirements({ flow, axes: runArgs.axes, selectionConfigLayers });
   } catch (err) {
@@ -117533,7 +117534,7 @@ function writeJson3(value) {
   process.stdout.write(`${JSON.stringify(value, null, 2)}
 `);
 }
-function invalid2(message) {
+function invalid3(message) {
   process.stderr.write(`error: ${message}
 `);
   return 2;
@@ -117735,7 +117736,7 @@ function renderMatrix(palette, previews) {
 function runPreviewCommand(argv) {
   const parsed = parsePreviewArgs(argv);
   if (typeof parsed === "string")
-    return invalid2(parsed);
+    return invalid3(parsed);
   const layers = selectionLayers();
   const hostKind = hostKindFromEnv();
   const flowIds = parsed.flowId === void 0 ? flowDefinitions.filter((d) => d.visibility === "public").map((d) => d.id) : [parsed.flowId];
@@ -117749,7 +117750,7 @@ function runPreviewCommand(argv) {
       ...hostKind === void 0 ? {} : { hostKind }
     })));
   } catch (err) {
-    return invalid2(err instanceof Error ? err.message : String(err));
+    return invalid3(err instanceof Error ? err.message : String(err));
   }
   if (parsed.json) {
     const stamped = previews.map((preview) => ({
@@ -119190,8 +119191,8 @@ var generate_exports = {};
 __export(generate_exports, {
   runGenerateCommand: () => runGenerateCommand
 });
-import { existsSync as existsSync45 } from "node:fs";
-import { join as join51 } from "node:path";
+import { existsSync as existsSync46 } from "node:fs";
+import { join as join52 } from "node:path";
 function parseArgs2(argv) {
   const program2 = new Command("circuit generate").option("--description <task>").option("--name <slug>").option("--home <path>").option("--created-at <iso>").option("--publish").option("--yes").option("--max-repair <n>").option("--timeout-ms <ms>").option("--progress <format>");
   parseCommanderOrThrow(program2, argv);
@@ -119360,11 +119361,11 @@ async function runGenerateCommand(argv, options = {}) {
     const namedSlug = args.name === void 0 ? void 0 : slugify2(args.name);
     if (namedSlug !== void 0) {
       assertValidSlug(namedSlug);
-      if (args.publish && existsSync45(join51(flowRoot(home), namedSlug, "circuit.json"))) {
+      if (args.publish && existsSync46(join52(flowRoot(home), namedSlug, "circuit.json"))) {
         throw new Error(`custom flow already published: ${namedSlug}`);
       }
     }
-    const reusedDraft = args.publish && namedSlug !== void 0 && existsSync45(join51(draftRoot(home, namedSlug), "circuit.json"));
+    const reusedDraft = args.publish && namedSlug !== void 0 && existsSync46(join52(draftRoot(home, namedSlug), "circuit.json"));
     const composed = reusedDraft ? composedFromDraft(home, namedSlug) : await composeCustomFlow({
       description: args.description,
       name: args.name,
@@ -119404,7 +119405,7 @@ async function runGenerateCommand(argv, options = {}) {
       return 1;
     }
     const slug = composed.slug;
-    if (args.publish && existsSync45(join51(flowRoot(home), slug, "circuit.json"))) {
+    if (args.publish && existsSync46(join52(flowRoot(home), slug, "circuit.json"))) {
       throw new Error(`custom flow already published: ${slug}`);
     }
     const createdAt = args.createdAt ?? now().toISOString();
@@ -119443,11 +119444,11 @@ async function runGenerateCommand(argv, options = {}) {
       // one, so it reports that it reused instead of reporting zero rounds.
       ...reusedDraft ? { reused_draft: true } : { converged_round: composed.convergedRound, repair_rounds: composed.repairRounds },
       draft_path: draftRoot(home, slug),
-      validation_path: join51(draftRoot(home, slug), "validation-result.json"),
+      validation_path: join52(draftRoot(home, slug), "validation-result.json"),
       ...args.publish ? {
         published_path: publishedRoot(home, slug),
-        flow_path: join51(flowRoot(home), slug, "circuit.json"),
-        command_path: join51(commandRoot(home), `${slug}.md`),
+        flow_path: join52(flowRoot(home), slug, "circuit.json"),
+        command_path: join52(commandRoot(home), `${slug}.md`),
         manifest_path: manifestPath(home)
       } : {},
       operator_summary_markdown_path: summaryPath(home, slug)
@@ -122561,7 +122562,7 @@ var init_wrap_ansi = __esm({
 
 // node_modules/terminal-size/index.js
 import process4 from "node:process";
-import { execFileSync as execFileSync7 } from "node:child_process";
+import { execFileSync as execFileSync8 } from "node:child_process";
 import fs from "node:fs";
 import tty from "node:tty";
 function terminalSize() {
@@ -122592,7 +122593,7 @@ var init_terminal_size = __esm({
   "node_modules/terminal-size/index.js"() {
     defaultColumns = 80;
     defaultRows = 24;
-    exec2 = (command, arguments_, { shell, env: env3 } = {}) => execFileSync7(command, arguments_, {
+    exec2 = (command, arguments_, { shell, env: env3 } = {}) => execFileSync8(command, arguments_, {
       encoding: "utf8",
       stdio: ["ignore", "pipe", "ignore"],
       timeout: 500,
@@ -124236,8 +124237,8 @@ var require_react_reconciler_production = __commonJS({
           currentEntangledActionThenable = {
             status: "pending",
             value: void 0,
-            then: function(resolve38) {
-              entangledListeners.push(resolve38);
+            then: function(resolve39) {
+              entangledListeners.push(resolve39);
             }
           };
         }
@@ -124260,8 +124261,8 @@ var require_react_reconciler_production = __commonJS({
           status: "pending",
           value: null,
           reason: null,
-          then: function(resolve38) {
-            listeners.push(resolve38);
+          then: function(resolve39) {
+            listeners.push(resolve39);
           }
         };
         thenable.then(
@@ -133860,8 +133861,8 @@ var require_react_reconciler_development = __commonJS({
           currentEntangledActionThenable = {
             status: "pending",
             value: void 0,
-            then: function(resolve38) {
-              entangledListeners.push(resolve38);
+            then: function(resolve39) {
+              entangledListeners.push(resolve39);
             }
           };
         }
@@ -133884,8 +133885,8 @@ var require_react_reconciler_development = __commonJS({
           status: "pending",
           value: null,
           reason: null,
-          then: function(resolve38) {
-            listeners.push(resolve38);
+          then: function(resolve39) {
+            listeners.push(resolve39);
           }
         };
         thenable.then(
@@ -151127,22 +151128,22 @@ var init_devtools = __esm({
     init_devtools_window_polyfill();
     init_wrapper();
     init_react_devtools_stub();
-    isDevToolsReachable = async () => new Promise((resolve38) => {
+    isDevToolsReachable = async () => new Promise((resolve39) => {
       const socket = new wrapper_default("ws://localhost:8097");
       const timeout = setTimeout(() => {
         socket.terminate();
-        resolve38(false);
+        resolve39(false);
       }, 2e3);
       timeout.unref();
       socket.on("open", () => {
         clearTimeout(timeout);
         socket.terminate();
-        resolve38(true);
+        resolve39(true);
       });
       socket.on("error", () => {
         clearTimeout(timeout);
         socket.terminate();
-        resolve38(false);
+        resolve39(false);
       });
     });
     if (await isDevToolsReachable()) {
@@ -155119,8 +155120,8 @@ var init_ink = __esm({
     noop2 = () => {
     };
     textEncoder = new TextEncoder();
-    yieldImmediate = async () => new Promise((resolve38) => {
-      setImmediate(resolve38);
+    yieldImmediate = async () => new Promise((resolve39) => {
+      setImmediate(resolve39);
     });
     kittyQueryEscapeByte = 27;
     kittyQueryOpenBracketByte = 91;
@@ -155337,8 +155338,8 @@ var init_ink = __esm({
           };
         }
         this.initKittyKeyboard();
-        this.exitPromise = new Promise((resolve38, reject) => {
-          this.resolveExitPromise = resolve38;
+        this.exitPromise = new Promise((resolve39, reject) => {
+          this.resolveExitPromise = resolve39;
           this.rejectExitPromise = reject;
         });
         void this.exitPromise.catch(noop2);
@@ -155649,9 +155650,9 @@ var init_ink = __esm({
         settleThrottle(this.throttledOnRender, canWriteToStdout);
         settleThrottle(this.throttledLog, canWriteToStdout);
         if (canWriteToStdout && hasWritableState) {
-          await new Promise((resolve38) => {
+          await new Promise((resolve39) => {
             this.options.stdout.write("", () => {
-              resolve38();
+              resolve39();
             });
           });
           return;
@@ -155737,8 +155738,8 @@ var init_ink = __esm({
       async awaitNextRender() {
         if (!this.nextRenderCommit) {
           let resolveRender;
-          const promise2 = new Promise((resolve38) => {
-            resolveRender = resolve38;
+          const promise2 = new Promise((resolve39) => {
+            resolveRender = resolve39;
           });
           this.nextRenderCommit = { promise: promise2, resolve: resolveRender };
         }
@@ -157687,7 +157688,7 @@ function reconcileAmbientRecords(controlPlane, current) {
   return pointer;
 }
 function realAmbientGitProbe(projectRoot) {
-  const git2 = (gitArgs) => {
+  const git3 = (gitArgs) => {
     try {
       return execFileSync2("git", ["-C", projectRoot, ...gitArgs], {
         encoding: "utf8",
@@ -157697,11 +157698,11 @@ function realAmbientGitProbe(projectRoot) {
       return void 0;
     }
   };
-  if (git2(["rev-parse", "--is-inside-work-tree"]) !== "true")
+  if (git3(["rev-parse", "--is-inside-work-tree"]) !== "true")
     return {};
-  const branch = git2(["rev-parse", "--abbrev-ref", "HEAD"]);
-  const head = git2(["rev-parse", "--short", "HEAD"]);
-  const status = git2(["status", "--porcelain=v1"]);
+  const branch = git3(["rev-parse", "--abbrev-ref", "HEAD"]);
+  const head = git3(["rev-parse", "--short", "HEAD"]);
+  const status = git3(["status", "--porcelain=v1"]);
   const statusPorcelain = status === void 0 || status.length === 0 ? void 0 : status.split("\n").slice(0, 40).join("\n");
   return {
     ...branch ? { branch } : {},
@@ -157709,7 +157710,7 @@ function realAmbientGitProbe(projectRoot) {
     ...statusPorcelain ? { statusPorcelain } : {}
   };
 }
-function composeAmbientStateMarkdown(intents, summary, git2, transcriptPath) {
+function composeAmbientStateMarkdown(intents, summary, git3, transcriptPath) {
   const summarySection = () => [
     "## Structured summary (harvested from the last compaction)",
     summary ?? "None captured this session. Full history is in the transcript below."
@@ -157726,8 +157727,8 @@ function composeAmbientStateMarkdown(intents, summary, git2, transcriptPath) {
   };
   const treeSection = () => {
     const out = ["## Working tree (uncommitted)"];
-    if (git2.statusPorcelain !== void 0) {
-      out.push("```", git2.statusPorcelain, "```");
+    if (git3.statusPorcelain !== void 0) {
+      out.push("```", git3.statusPorcelain, "```");
     } else {
       out.push("clean, or not a git repo");
     }
@@ -157776,8 +157777,8 @@ function harvestAmbientContinuity(input) {
   if (harvested === void 0)
     return skip("transcript_unreadable");
   const parsed = harvested.parsed;
-  const git2 = (input.gitProbe ?? (() => ({})))(projectRoot);
-  if (parsed.intents.length === 0 && parsed.summary === void 0 && git2.statusPorcelain === void 0) {
+  const git3 = (input.gitProbe ?? (() => ({})))(projectRoot);
+  if (parsed.intents.length === 0 && parsed.summary === void 0 && git3.statusPorcelain === void 0) {
     return skip("nothing_to_harvest");
   }
   const createdAt = input.createdAt ?? input.now().toISOString();
@@ -157790,13 +157791,13 @@ function harvestAmbientContinuity(input) {
     created_at: createdAt,
     git: {
       cwd: projectRoot,
-      ...git2.branch ? { branch: git2.branch } : {},
-      ...git2.head ? { head: git2.head } : {}
+      ...git3.branch ? { branch: git3.branch } : {},
+      ...git3.head ? { head: git3.head } : {}
     },
     narrative: {
       goal,
       next: "Review the recent intents and harvested summary below, then continue. This record was captured automatically, not saved by you, so confirm before acting.",
-      state_markdown: composeAmbientStateMarkdown(parsed.intents, parsed.summary, git2, input.transcriptPath),
+      state_markdown: composeAmbientStateMarkdown(parsed.intents, parsed.summary, git3, input.transcriptPath),
       debt_markdown: `- Mechanically harvested from the live transcript at ${createdAt}. Treat it as a hint, not a verified plan.`
     },
     continuity_kind: "ambient",
@@ -158192,7 +158193,7 @@ function briefErrorOf(brief) {
 }
 function realBriefGitProbe(input) {
   const { projectRoot, capturedHead, capturedBranch } = input;
-  const git2 = (gitArgs) => {
+  const git3 = (gitArgs) => {
     try {
       return execFileSync3("git", ["-C", projectRoot, ...gitArgs], {
         encoding: "utf8",
@@ -158226,15 +158227,15 @@ function realBriefGitProbe(input) {
     }
   };
   try {
-    if (git2(["rev-parse", "--is-inside-work-tree"]) !== "true")
+    if (git3(["rev-parse", "--is-inside-work-tree"]) !== "true")
       return {};
     const facts = {};
-    const headFull = git2(["rev-parse", "HEAD"]);
-    const capturedFull = capturedHead === void 0 ? void 0 : git2(["rev-parse", "--verify", `${capturedHead}^{commit}`]);
-    const status = git2(["status", "--porcelain=v1"]);
+    const headFull = git3(["rev-parse", "HEAD"]);
+    const capturedFull = capturedHead === void 0 ? void 0 : git3(["rev-parse", "--verify", `${capturedHead}^{commit}`]);
+    const status = git3(["status", "--porcelain=v1"]);
     if (status !== void 0)
       facts.tree_clean = status.length === 0;
-    const currentShort = git2(["rev-parse", "--short", "HEAD"]);
+    const currentShort = git3(["rev-parse", "--short", "HEAD"]);
     if (currentShort !== void 0)
       facts.current_head = currentShort;
     if (headFull !== void 0 && capturedFull !== void 0) {
@@ -158244,7 +158245,7 @@ function realBriefGitProbe(input) {
       const reachable = gitBool(["merge-base", "--is-ancestor", capturedHead, "HEAD"]);
       if (reachable !== void 0)
         facts.capture_head_reachable = reachable;
-      const countRaw = git2(["rev-list", "--count", `${capturedHead}..HEAD`]);
+      const countRaw = git3(["rev-list", "--count", `${capturedHead}..HEAD`]);
       if (countRaw !== void 0) {
         const n = Number.parseInt(countRaw, 10);
         if (Number.isFinite(n))
@@ -159092,6 +159093,183 @@ async function runCreateCommand(argv, options = {}) {
   }
 }
 
+// dist/cli/demo.js
+init_esm();
+init_axes();
+init_power();
+init_commander_support();
+init_run2();
+init_terminal_style();
+import { execFileSync as execFileSync6 } from "node:child_process";
+import { existsSync as existsSync44, mkdirSync as mkdirSync15, mkdtempSync, readdirSync as readdirSync9, writeFileSync as writeFileSync16 } from "node:fs";
+import { tmpdir as tmpdir4 } from "node:os";
+import { dirname as dirname21, join as join50, resolve as resolve33 } from "node:path";
+var DEMO_GOAL = "slugify leaves a trailing dash on any title that ends in punctuation, and the test in test/slugify.test.js fails because of it. Fix slugify so a slug never starts or ends with a dash.";
+var DEMO_FILES = {
+  "package.json": `${JSON.stringify({
+    name: "circuit-demo",
+    version: "0.0.0",
+    private: true,
+    type: "module",
+    scripts: { test: "node --test" }
+  }, null, 2)}
+`,
+  "src/slugify.js": `// Turns a title into a URL slug.
+export function slugify(title) {
+  return title.toLowerCase().trim().replace(/[^a-z0-9]+/g, '-');
+}
+`,
+  "test/slugify.test.js": `import assert from 'node:assert/strict';
+import { test } from 'node:test';
+
+import { slugify } from '../src/slugify.js';
+
+test('slugify replaces runs of punctuation and spaces with a single dash', () => {
+  assert.equal(slugify('Hello World'), 'hello-world');
+  assert.equal(slugify('Hello,   World'), 'hello-world');
+});
+
+test('slugify never leaves a dash at either end', () => {
+  assert.equal(slugify('Hello, World!'), 'hello-world');
+  assert.equal(slugify('  ...Draft...  '), 'draft');
+});
+`,
+  "README.md": `# circuit demo project
+
+A throwaway project \`circuit demo\` created so a first Fix run has something
+real to fix. \`slugify\` leaves a dash at the end of any title ending in
+punctuation, and \`npm test\` fails because of it.
+
+Nothing here is connected to your own work. Delete this directory whenever
+you like.
+`
+};
+function invalid2(message) {
+  process.stderr.write(`error: ${message}
+`);
+  return 2;
+}
+function parseInvocation(argv) {
+  const program2 = configureCommanderProgram(new Command("circuit demo")).option("--dir <path>", "where to create the demo project").option("--power <dial>", "model dial for the demo run", "low");
+  program2.parse([...argv], { from: "user" });
+  const opts = program2.opts();
+  return {
+    ...opts.dir === void 0 ? {} : { dir: opts.dir },
+    power: opts.power
+  };
+}
+function git2(cwd2, args) {
+  execFileSync6("git", args, {
+    cwd: cwd2,
+    stdio: "ignore",
+    env: {
+      ...process.env,
+      GIT_AUTHOR_NAME: "Circuit Demo",
+      GIT_AUTHOR_EMAIL: "demo@circuit.invalid",
+      GIT_COMMITTER_NAME: "Circuit Demo",
+      GIT_COMMITTER_EMAIL: "demo@circuit.invalid"
+    }
+  });
+}
+function scaffoldDemoProject(dir) {
+  mkdirSync15(dir, { recursive: true });
+  for (const [relPath, body] of Object.entries(DEMO_FILES)) {
+    const fullPath = join50(dir, relPath);
+    mkdirSync15(dirname21(fullPath), { recursive: true });
+    writeFileSync16(fullPath, body, "utf8");
+  }
+  git2(dir, ["init", "--quiet"]);
+  git2(dir, ["add", "-A"]);
+  git2(dir, ["-c", "commit.gpgsign=false", "commit", "-m", "demo project with a failing test"]);
+}
+function chooseDemoDir(requested) {
+  if (requested === void 0) {
+    return { dir: mkdtempSync(join50(tmpdir4(), "circuit-demo-")) };
+  }
+  const dir = resolve33(requested);
+  if (existsSync44(dir) && readdirSync9(dir).length > 0) {
+    return {
+      error: `${dir} already has files in it. The demo writes a whole project, so it needs an empty or new directory. Pass --dir with a path that does not exist yet.`
+    };
+  }
+  return { dir };
+}
+function writeIntro(dir, power) {
+  const palette = terminalPalette(colorEnabled());
+  process.stdout.write([
+    "",
+    `${palette.accent("\u25C6")} ${palette.bold("circuit demo")}`,
+    "",
+    `A demo project is set up at ${palette.bold(dir)}. It has one real bug:`,
+    "slugify leaves a dash at the end of any title that ends in punctuation,",
+    "and `npm test` fails on it right now.",
+    "",
+    `Fix will run against that project at the ${palette.bold(power)} power dial. This is a real`,
+    "run: a real connector, a real model, and real cost. It usually takes a few",
+    "minutes. Nothing outside the demo project is touched.",
+    "",
+    "What to watch for at the end: Fix records the test failing before the change",
+    "and passing after it. That before-and-after is the proof the run cannot skip.",
+    "",
+    palette.dim("Starting the run."),
+    ""
+  ].join("\n"));
+}
+function writeOutro(dir, exitCode) {
+  const palette = terminalPalette(colorEnabled());
+  const lines = [""];
+  if (exitCode === 0) {
+    lines.push(`${palette.bold("The demo run finished.")} To check it yourself:`, "", `  cd ${dir} && npm test        ${palette.dim("# the test that was failing")}`, `  git -C ${dir} diff           ${palette.dim("# what the run changed")}`);
+  } else {
+    lines.push(`${palette.bold("The demo run did not close clean.")} The run said why above, and its`, "evidence is on disk. To see the state it left behind:", "", `  cd ${dir} && npm test`, `  git -C ${dir} diff`);
+  }
+  lines.push("", `The run's own reports are under ${palette.bold(join50(dir, ".circuit/runs"))}.`, "", `Next: ${palette.bold("circuit preview")} shows what any flow would cost before you run it,`, `and ${palette.bold('circuit run fix --goal "..."')} points the same flow at your own work.`, "", palette.dim(`The demo project is yours to keep or delete: rm -rf ${dir}`), "");
+  process.stdout.write(lines.join("\n"));
+}
+async function runDemoCommand(argv, options = {}) {
+  let invocation;
+  try {
+    invocation = parseInvocation(argv);
+  } catch (err) {
+    return invalid2(commanderErrorMessage(err));
+  }
+  const power = PowerDialSetting.safeParse(invocation.power);
+  if (!power.success) {
+    return invalid2(`--power must be one of auto, low, medium, high (got '${invocation.power}').`);
+  }
+  const chosen = chooseDemoDir(invocation.dir);
+  if ("error" in chosen)
+    return invalid2(chosen.error);
+  try {
+    scaffoldDemoProject(chosen.dir);
+  } catch (err) {
+    process.stderr.write(`error: could not set up the demo project at ${chosen.dir}: ${err instanceof Error ? err.message : String(err)}
+`);
+    return 1;
+  }
+  writeIntro(chosen.dir, power.data);
+  const args = {
+    command: "run",
+    flowName: "fix",
+    goal: DEMO_GOAL,
+    axes: DEFAULT_AXES,
+    power: power.data,
+    powerProvided: true,
+    processProvided: false,
+    tournamentProvided: false,
+    autonomousProvided: false,
+    includeUntrackedContent: false
+  };
+  const execute = options.execute ?? runExecutionCommand;
+  const exitCode = await execute(args, {
+    ...options,
+    projectRoot: chosen.dir,
+    configCwd: chosen.dir
+  });
+  writeOutro(chosen.dir, exitCode);
+  return exitCode;
+}
+
 // dist/cli/doctor.js
 init_esm();
 init_health();
@@ -159186,8 +159364,8 @@ init_styled_table();
 init_terminal_style();
 
 // dist/cli/workspace-hygiene.js
-import { existsSync as existsSync44, readFileSync as readFileSync65 } from "node:fs";
-import { join as join50 } from "node:path";
+import { existsSync as existsSync45, readFileSync as readFileSync65 } from "node:fs";
+import { join as join51 } from "node:path";
 var PRETTIER_CONFIG_FILES = [
   ".prettierrc",
   ".prettierrc.json",
@@ -159204,7 +159382,7 @@ var PRETTIER_CONFIG_FILES = [
 ];
 var CIRCUIT_IGNORE_LINE = /^(\*\*\/)?\/?\.circuit(\/(\*\*)?)?$/;
 function fileHasCircuitLine(path) {
-  if (!existsSync44(path))
+  if (!existsSync45(path))
     return false;
   try {
     return readFileSync65(path, "utf8").split("\n").some((line) => CIRCUIT_IGNORE_LINE.test(line.trim()));
@@ -159213,12 +159391,12 @@ function fileHasCircuitLine(path) {
   }
 }
 function hasPrettierSetup(projectRoot) {
-  if (PRETTIER_CONFIG_FILES.some((name) => existsSync44(join50(projectRoot, name))))
+  if (PRETTIER_CONFIG_FILES.some((name) => existsSync45(join51(projectRoot, name))))
     return true;
-  if (existsSync44(join50(projectRoot, ".prettierignore")))
+  if (existsSync45(join51(projectRoot, ".prettierignore")))
     return true;
-  const packageJsonPath = join50(projectRoot, "package.json");
-  if (!existsSync44(packageJsonPath))
+  const packageJsonPath = join51(projectRoot, "package.json");
+  if (!existsSync45(packageJsonPath))
     return false;
   try {
     const parsed = JSON.parse(readFileSync65(packageJsonPath, "utf8"));
@@ -159230,15 +159408,15 @@ function hasPrettierSetup(projectRoot) {
   }
 }
 function workspaceHygieneFindings(projectRoot) {
-  if (!existsSync44(join50(projectRoot, ".circuit")))
+  if (!existsSync45(join51(projectRoot, ".circuit")))
     return [];
   if (!hasPrettierSetup(projectRoot))
     return [];
-  const covered = fileHasCircuitLine(join50(projectRoot, ".prettierignore")) || // Prettier 3 honors the repo-root .gitignore by default, so a `.circuit`
+  const covered = fileHasCircuitLine(join51(projectRoot, ".prettierignore")) || // Prettier 3 honors the repo-root .gitignore by default, so a `.circuit`
   // line there also covers it. Circuit's own seeded ignore lives NESTED at
   // `.circuit/.gitignore`, which Prettier never reads; that blind spot is
   // exactly what this probe exists to catch.
-  fileHasCircuitLine(join50(projectRoot, ".gitignore"));
+  fileHasCircuitLine(join51(projectRoot, ".gitignore"));
   if (covered)
     return [];
   return [
@@ -159451,6 +159629,9 @@ function renderFrontDoor() {
   return [
     `${palette.accent("\u25C6")} ${palette.bold("circuit")} ${sep7} v${readSourceVersion()} ${sep7} configurable developer flows`,
     "",
+    `${palette.bold("start here")}`,
+    line("circuit demo", "a real Fix run on a throwaway project built to be fixable"),
+    "",
     `${palette.bold("run flows")}`,
     line('circuit run <flow> --goal "<goal>"', "execute a flow with evidence and a report"),
     line("circuit checkpoints", "pending checkpoints across active runs"),
@@ -159484,8 +159665,8 @@ init_generate();
 
 // dist/cli/handoff.js
 init_esm();
-import { existsSync as existsSync46, readFileSync as readFileSync66 } from "node:fs";
-import { resolve as resolve33 } from "node:path";
+import { existsSync as existsSync47, readFileSync as readFileSync66 } from "node:fs";
+import { resolve as resolve34 } from "node:path";
 init_records();
 init_continuity();
 init_control_plane_paths();
@@ -159730,7 +159911,7 @@ Saved continuity record could not be resumed: ${message}`);
 function resumeContinuity(args) {
   const controlPlane = resolveControlPlaneArg(args);
   const indexAbs = indexPath(controlPlane);
-  if (!existsSync46(indexAbs)) {
+  if (!existsSync47(indexAbs)) {
     const summaryPath3 = operatorSummaryPath(controlPlane);
     writeMarkdown(summaryPath3, "# Circuit Handoff\n\nNo saved continuity found.");
     const result2 = {
@@ -159768,7 +159949,7 @@ function resumeContinuity(args) {
     return { ...result2, result_path: resultPath3 };
   }
   const recordAbs = recordPath(controlPlane, index.pending_record.record_id);
-  if (!existsSync46(recordAbs)) {
+  if (!existsSync47(recordAbs)) {
     return invalidResumeResult(controlPlane, "record_missing", "Continuity index points at a missing record.", index.pending_record.record_id);
   }
   const recordRaw = readJsonSafely(recordAbs);
@@ -159863,7 +160044,7 @@ function runHandoffHarvest(args, now) {
   }
   const resolvedProjectRoot = projectRoot ?? process.cwd();
   const source = ambientSourceFrom(args.source, hookEventName);
-  const controlPlane = args.controlPlane === void 0 ? void 0 : resolve33(args.controlPlane);
+  const controlPlane = args.controlPlane === void 0 ? void 0 : resolve34(args.controlPlane);
   const fallbackIndexPath = indexPath(controlPlane ?? controlPlaneRoot(resolvedProjectRoot));
   if (transcriptPath === void 0) {
     const result = {
@@ -160269,6 +160450,26 @@ var COMMAND_HELP = {
     example: "circuit checkpoints --json",
     next: "circuit resume --run-folder <path> --checkpoint-choice <choice> answers one."
   },
+  demo: {
+    summary: "run Fix for real against a throwaway project built to have one fixable bug",
+    usage: ["circuit demo [--dir <path>] [--power <auto|low|medium|high>]"],
+    flags: [
+      {
+        flag: "--dir <path>",
+        blurb: "where to create the demo project; defaults to a temp directory"
+      },
+      {
+        flag: "--power <auto|low|medium|high>",
+        blurb: "model dial for the demo run; defaults to low"
+      }
+    ],
+    notes: [
+      "The demo writes a small git repository with a failing test, then runs Fix against it. It never touches your own checkout.",
+      "This is a real run with real model cost. It is small on purpose, but it is not free."
+    ],
+    example: "circuit demo",
+    next: 'circuit run fix --goal "..." points the same flow at your own work.'
+  },
   preview: {
     summary: "show the connector, model, and effort each relay step would use, spawn-free",
     usage: ["circuit preview [flow] [--power <auto|low|medium|high>] [--matrix] [--json]"],
@@ -160346,7 +160547,7 @@ init_schemas3();
 init_atomic_io();
 init_outcome();
 init_indexer();
-import { join as join53 } from "node:path";
+import { join as join54 } from "node:path";
 
 // dist/app/history/memory-merge.js
 init_schemas3();
@@ -160354,8 +160555,8 @@ init_atomic_io();
 init_outcome();
 init_indexer();
 init_memory_identity();
-import { existsSync as existsSync47, readFileSync as readFileSync67 } from "node:fs";
-import { join as join52 } from "node:path";
+import { existsSync as existsSync48, readFileSync as readFileSync67 } from "node:fs";
+import { join as join53 } from "node:path";
 var RUN_ENVELOPE_RELATIVE_PATH2 = "reports/run-envelope.json";
 var RECALL_REPORT_RELATIVE_PATH = "reports/history/recall.json";
 var EFFECT_NOTE = "Report-only linkage (Slice 1). Effect requires cross-run aggregation over comparable runs (Slice 2).";
@@ -160366,8 +160567,8 @@ function deriveAbortReason(envelope) {
   return attempt.blocked_reason ?? attempt.summary;
 }
 function readRecallInputs(runFolder, warnings) {
-  const recallPath = join52(runFolder, RECALL_REPORT_RELATIVE_PATH);
-  if (!existsSync47(recallPath)) {
+  const recallPath = join53(runFolder, RECALL_REPORT_RELATIVE_PATH);
+  if (!existsSync48(recallPath)) {
     warnings.push({
       code: "recall_report_missing",
       message: "memory was used but no recall report was found; content identity is unavailable",
@@ -160422,8 +160623,8 @@ function resolveInput(memoryInputId, recallInputs, runFolder, warnings) {
 }
 function extractRunMemoryLinkage(runFolder) {
   const warnings = [];
-  const envelopePath = join52(runFolder, RUN_ENVELOPE_RELATIVE_PATH2);
-  if (!existsSync47(envelopePath)) {
+  const envelopePath = join53(runFolder, RUN_ENVELOPE_RELATIVE_PATH2);
+  if (!existsSync48(envelopePath)) {
     warnings.push({
       code: "envelope_missing",
       message: "no run.envelope@v0 record (resume or non-source run); skipped from linkage",
@@ -160532,7 +160733,7 @@ function buildMemoryMergeReport(options = {}) {
   });
 }
 function writeMemoryMergeReport(report, paths) {
-  const outPath = join52(paths.indexDir, HISTORY_MEMORY_MERGE_FILE);
+  const outPath = join53(paths.indexDir, HISTORY_MEMORY_MERGE_FILE);
   writeJsonAtomic(outPath, report, {
     validate: (raw) => HistoryMemoryMergeV1.parse(JSON.parse(raw))
   });
@@ -160729,7 +160930,7 @@ function buildMemoryEffectReport(options = {}) {
   });
 }
 function writeMemoryEffectReport(report, paths) {
-  const outPath = join53(paths.indexDir, HISTORY_MEMORY_EFFECT_FILE);
+  const outPath = join54(paths.indexDir, HISTORY_MEMORY_EFFECT_FILE);
   writeJsonAtomic(outPath, report, {
     validate: (raw) => HistoryMemoryEffectV1.parse(JSON.parse(raw))
   });
@@ -160743,8 +160944,8 @@ init_memory_preview();
 // dist/app/history/pull-log.js
 init_schemas3();
 init_atomic_io();
-import { existsSync as existsSync48, readFileSync as readFileSync68 } from "node:fs";
-import { join as join54 } from "node:path";
+import { existsSync as existsSync49, readFileSync as readFileSync68 } from "node:fs";
+import { join as join55 } from "node:path";
 var HISTORY_PULL_LOG_RELATIVE_PATH = "reports/history/pull-log.json";
 function pullLogUnavailable(runFolder, error52) {
   return {
@@ -160755,8 +160956,8 @@ function pullLogUnavailable(runFolder, error52) {
   };
 }
 function readPullLog(runFolder) {
-  const path = join54(runFolder, HISTORY_PULL_LOG_RELATIVE_PATH);
-  if (!existsSync48(path))
+  const path = join55(runFolder, HISTORY_PULL_LOG_RELATIVE_PATH);
+  if (!existsSync49(path))
     return void 0;
   try {
     return HistoryPullLogV1.parse(JSON.parse(readFileSync68(path, "utf8")));
@@ -160765,11 +160966,11 @@ function readPullLog(runFolder) {
   }
 }
 function appendPullLogEntry(runFolder, input) {
-  const outPath = join54(runFolder, HISTORY_PULL_LOG_RELATIVE_PATH);
+  const outPath = join55(runFolder, HISTORY_PULL_LOG_RELATIVE_PATH);
   const warnings = [];
   let existing;
   try {
-    if (existsSync48(outPath)) {
+    if (existsSync49(outPath)) {
       existing = HistoryPullLogV1.parse(JSON.parse(readFileSync68(outPath, "utf8")));
     }
   } catch (error52) {
@@ -161127,8 +161328,8 @@ init_esm();
 init_indexer();
 init_catalog();
 import { createHash as createHash14 } from "node:crypto";
-import { existsSync as existsSync50, readFileSync as readFileSync70 } from "node:fs";
-import { basename as basename8, join as join55 } from "node:path";
+import { existsSync as existsSync51, readFileSync as readFileSync70 } from "node:fs";
+import { basename as basename8, join as join56 } from "node:path";
 
 // dist/memory/project-identity.js
 var import_yaml6 = __toESM(require_dist(), 1);
@@ -161137,8 +161338,8 @@ init_atomic_io();
 init_connector_relay();
 init_control_plane_paths();
 init_project_store();
-import { execFileSync as execFileSync6 } from "node:child_process";
-import { existsSync as existsSync49, readFileSync as readFileSync69 } from "node:fs";
+import { execFileSync as execFileSync7 } from "node:child_process";
+import { existsSync as existsSync50, readFileSync as readFileSync69 } from "node:fs";
 function hashedId(prefix, basis) {
   return `proj-${prefix}-${sha256OfString(basis).slice(0, 16)}`;
 }
@@ -161155,7 +161356,7 @@ function normalizeGitRemoteUrl(url2) {
 }
 function readConfigProjectId(repoRoot) {
   const configPath = projectConfigPath(repoRoot);
-  if (!existsSync49(configPath))
+  if (!existsSync50(configPath))
     return void 0;
   let raw;
   try {
@@ -161170,7 +161371,7 @@ function readConfigProjectId(repoRoot) {
 }
 function readGitRemoteUrl(repoRoot) {
   try {
-    const url2 = execFileSync6("git", ["remote", "get-url", "origin"], {
+    const url2 = execFileSync7("git", ["remote", "get-url", "origin"], {
       cwd: repoRoot,
       encoding: "utf8",
       stdio: ["ignore", "pipe", "ignore"]
@@ -161303,8 +161504,8 @@ function resolveNoteSource(input) {
     { rel: "reports/result.json", kind: "report" }
   ];
   for (const candidate of candidates) {
-    const abs = join55(input.runFolder, candidate.rel);
-    if (!existsSync50(abs))
+    const abs = join56(input.runFolder, candidate.rel);
+    if (!existsSync51(abs))
       continue;
     const sha2564 = sha256Text(readFileSync70(abs, "utf8"));
     const ref = Ref.parse({
@@ -161315,8 +161516,8 @@ function resolveNoteSource(input) {
     });
     return { ref, sha256: sha2564 };
   }
-  const tracePath = join55(input.runFolder, "trace.ndjson");
-  if (existsSync50(tracePath)) {
+  const tracePath = join56(input.runFolder, "trace.ndjson");
+  if (existsSync51(tracePath)) {
     const runId = basename8(input.runFolder);
     const sha2564 = sha256Text(readFileSync70(tracePath, "utf8"));
     const trace = Ref.safeParse({
@@ -161490,23 +161691,23 @@ init_preview();
 
 // dist/cli/reclaim.js
 init_esm();
-import { join as join57, resolve as resolve34 } from "node:path";
+import { join as join58, resolve as resolve35 } from "node:path";
 
 // dist/runtime/fanout/worktree-reaper.js
 init_trace_store();
 init_run_owner_lock();
 init_worktree();
 import { readdir as readdir2 } from "node:fs/promises";
-import { join as join56 } from "node:path";
+import { join as join57 } from "node:path";
 var listWorktreesFromDisk = async (worktreesRoot) => {
   const entries = [];
   const runDirs = await listSubdirectories(worktreesRoot);
   for (const runId of runDirs) {
-    const stepDirs = await listSubdirectories(join56(worktreesRoot, runId));
+    const stepDirs = await listSubdirectories(join57(worktreesRoot, runId));
     for (const stepId of stepDirs) {
-      const branchDirs = await listSubdirectories(join56(worktreesRoot, runId, stepId));
+      const branchDirs = await listSubdirectories(join57(worktreesRoot, runId, stepId));
       for (const branchId of branchDirs) {
-        entries.push({ path: join56(worktreesRoot, runId, stepId, branchId), runId });
+        entries.push({ path: join57(worktreesRoot, runId, stepId, branchId), runId });
       }
     }
   }
@@ -161526,7 +161727,7 @@ function makeTraceRunStatusResolver(runsRoot2) {
   return async (runId) => {
     let entries;
     try {
-      const trace = new TraceStore(join56(runsRoot2, runId));
+      const trace = new TraceStore(join57(runsRoot2, runId));
       entries = await trace.load();
     } catch {
       return "unknown";
@@ -161638,7 +161839,7 @@ function parseReclaimArgs(argv) {
   }
   return {
     json: options?.json === true,
-    projectRoot: resolve34(options?.projectRoot ?? process.cwd())
+    projectRoot: resolve35(options?.projectRoot ?? process.cwd())
   };
 }
 async function runReclaimCommand(argv) {
@@ -161649,7 +161850,7 @@ async function runReclaimCommand(argv) {
     return 2;
   }
   const projectRoot = parsed.projectRoot;
-  const worktreesRoot = join57(controlPlaneRoot(projectRoot), "worktrees");
+  const worktreesRoot = join58(controlPlaneRoot(projectRoot), "worktrees");
   const summary = await reapWorktrees({
     worktreesRoot,
     // Anchor `git worktree remove` at the resolved project root so reclaim works
@@ -161674,24 +161875,24 @@ init_run2();
 init_esm();
 init_projection_common();
 init_run_folder_projector();
-import { resolve as resolve36 } from "node:path";
+import { resolve as resolve37 } from "node:path";
 
 // dist/app/runs-list/list.js
-import { readFileSync as readFileSync71, readdirSync as readdirSync9 } from "node:fs";
-import { join as join58, resolve as resolve35 } from "node:path";
+import { readFileSync as readFileSync71, readdirSync as readdirSync10 } from "node:fs";
+import { join as join59, resolve as resolve36 } from "node:path";
 init_run_folder_projector();
 function listRunFolders2(runsRoot2) {
   let entries;
   try {
-    entries = readdirSync9(runsRoot2, { withFileTypes: true });
+    entries = readdirSync10(runsRoot2, { withFileTypes: true });
   } catch {
     return [];
   }
-  return entries.filter((entry) => entry.isDirectory()).map((entry) => join58(runsRoot2, entry.name)).sort();
+  return entries.filter((entry) => entry.isDirectory()).map((entry) => join59(runsRoot2, entry.name)).sort();
 }
 function rawLastRecordedAt(runFolder) {
   try {
-    const lines = readFileSync71(join58(runFolder, "trace.ndjson"), "utf8").trim().split("\n").filter((line) => line.length > 0);
+    const lines = readFileSync71(join59(runFolder, "trace.ndjson"), "utf8").trim().split("\n").filter((line) => line.length > 0);
     const last = lines[lines.length - 1];
     if (last === void 0)
       return void 0;
@@ -161705,7 +161906,7 @@ function rawLastRecordedAt(runFolder) {
   }
 }
 function rowForFolder(runFolder) {
-  const unreadable = { run_folder: resolve35(runFolder), state: "unreadable" };
+  const unreadable = { run_folder: resolve36(runFolder), state: "unreadable" };
   let projection;
   try {
     projection = projectRunStatusFromRunFolder(runFolder);
@@ -161753,7 +161954,7 @@ function rowForFolder(runFolder) {
   }
 }
 function discoverRunsList(input) {
-  const runsRoot2 = resolve35(input.runsRoot);
+  const runsRoot2 = resolve36(input.runsRoot);
   const rows = listRunFolders2(runsRoot2).map((runFolder) => rowForFolder(runFolder));
   const sorted = [...rows].sort((left, right) => {
     if (left.when !== void 0 && right.when !== void 0) {
@@ -161876,8 +162077,8 @@ function parseListArgs(argv) {
   }
   if (options === void 0)
     return "runs could not parse its arguments";
-  const projectRoot = resolve36(options.projectRoot ?? process.cwd());
-  const runsBase = options.runsBase === void 0 ? runsRoot(projectRoot) : resolve36(options.runsBase);
+  const projectRoot = resolve37(options.projectRoot ?? process.cwd());
+  const runsBase = options.runsBase === void 0 ? runsRoot(projectRoot) : resolve37(options.runsBase);
   return { runsBase, json: options.json === true };
 }
 async function runRunsCommand(argv) {
@@ -161930,8 +162131,8 @@ init_host();
 init_atomic_io();
 init_commander_support();
 init_run2();
-import { existsSync as existsSync51, readFileSync as readFileSync72 } from "node:fs";
-import { join as join59, resolve as resolve37 } from "node:path";
+import { existsSync as existsSync52, readFileSync as readFileSync72 } from "node:fs";
+import { join as join60, resolve as resolve38 } from "node:path";
 var START_LINE = /^\s*<!--\s*circuit:start\s*-->\s*$/;
 var END_LINE = /^\s*<!--\s*circuit:end\s*-->\s*$/;
 var UNINSTALL_TARGET_FILES = ["AGENTS.md", "CLAUDE.md"];
@@ -161995,7 +162196,7 @@ function parseArgs4(argv, cwd2) {
     throw new Error(`unexpected argument: ${program2.args[0]}`);
   const opts = program2.opts();
   return {
-    dir: resolve37(opts.dir ?? cwd2),
+    dir: resolve38(opts.dir ?? cwd2),
     json: opts.json === true
   };
 }
@@ -162082,8 +162283,8 @@ async function runUninstallCommand(argv, options = {}) {
   let malformedAny = false;
   let strippedAny = false;
   for (const file2 of UNINSTALL_TARGET_FILES) {
-    const path = join59(args.dir, file2);
-    if (!existsSync51(path)) {
+    const path = join60(args.dir, file2);
+    if (!existsSync52(path)) {
       files.push({ file: file2, path, status: "absent" });
       continue;
     }
@@ -162294,6 +162495,9 @@ async function main(argv, options = {}) {
   }
   if (invocation.command === "preview") {
     return runPreviewCommand(invocation.argv);
+  }
+  if (invocation.command === "demo") {
+    return runDemoCommand(invocation.argv, options);
   }
   if (invocation.command === "doctor") {
     return runDoctorCommand(invocation.argv);

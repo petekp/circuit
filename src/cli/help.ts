@@ -299,6 +299,26 @@ const COMMAND_HELP: Readonly<Record<CliCommandName, CommandHelp>> = {
     example: 'circuit checkpoints --json',
     next: 'circuit resume --run-folder <path> --checkpoint-choice <choice> answers one.',
   },
+  demo: {
+    summary: 'run Fix for real against a throwaway project built to have one fixable bug',
+    usage: ['circuit demo [--dir <path>] [--power <auto|low|medium|high>]'],
+    flags: [
+      {
+        flag: '--dir <path>',
+        blurb: 'where to create the demo project; defaults to a temp directory',
+      },
+      {
+        flag: '--power <auto|low|medium|high>',
+        blurb: 'model dial for the demo run; defaults to low',
+      },
+    ],
+    notes: [
+      'The demo writes a small git repository with a failing test, then runs Fix against it. It never touches your own checkout.',
+      'This is a real run with real model cost. It is small on purpose, but it is not free.',
+    ],
+    example: 'circuit demo',
+    next: 'circuit run fix --goal "..." points the same flow at your own work.',
+  },
   preview: {
     summary: 'show the connector, model, and effort each relay step would use, spawn-free',
     usage: ['circuit preview [flow] [--power <auto|low|medium|high>] [--matrix] [--json]'],

@@ -388,6 +388,43 @@ afterEach(() => {
 });
 
 describe('CLI router', () => {
+  // A caller that aims a run at another directory (`circuit demo`, and any
+  // embedder that sets projectRoot) gets its evidence written beside the work
+  // it describes. Deriving the default run folder from process.cwd() instead
+  // put the run folder in whatever directory the process happened to start in,
+  // so a demo run against a throwaway project left its reports in the
+  // operator's own checkout while claiming otherwise.
+  it('writes the default run folder under the project the run is aimed at', async () => {
+    const projectRoot = join(runFolderBase, 'aimed-project');
+    mkdirSync(projectRoot, { recursive: true });
+
+    const { result: exit, stdout } = await captureStreams(() =>
+      main(
+        [
+          'run',
+          'review',
+          '--goal',
+          'review this patch for safety problems:\n\nconst value = unsafeInput;',
+        ],
+        {
+          relayer: relayerWithBody(REVIEW_RELAY_BODY),
+          now: deterministicNow(Date.UTC(2026, 3, 24, 15, 0, 0)),
+          runId: '84000000-0000-0000-0000-000000000001',
+          configHomeDir: join(runFolderBase, 'empty-home'),
+          configCwd: isolatedConfigCwd(),
+          projectRoot,
+        },
+      ),
+    );
+    const output = JSON.parse(stdout) as Record<string, unknown>;
+    expectExitMatchesOutcome(exit, output);
+
+    expect(output.run_folder).toBe(
+      join(projectRoot, '.circuit', 'runs', '84000000-0000-0000-0000-000000000001'),
+    );
+    expect(existsSync(join(projectRoot, '.circuit', 'runs'))).toBe(true);
+  });
+
   it('explicit review flow dispatches and completes', async () => {
     const output = await runMainJson(
       [

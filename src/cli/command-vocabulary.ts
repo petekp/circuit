@@ -8,6 +8,7 @@
 // initialization cycle.
 export const CLI_COMMAND_NAMES = [
   'run',
+  'demo',
   'resume',
   'handoff',
   'history',

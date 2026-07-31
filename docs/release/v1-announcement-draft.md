@@ -142,9 +142,9 @@ post; the mechanism story stands on its own.
 3. **Until-loop docs page** should be live before the loop post (post 6)
    points thousands of readers at a landing card with no docs behind it. In
    flight as a separate session as of 2026-07-02.
-4. **First-run path** (launch-plan blocker 6): the quickstart already carries
-   cost candor and the zero-cost preview hook. The remaining gap is the
-   purpose-built five-minute demo run. Smallest honest version: a pinned
-   "known-shape first task" recipe in the quickstart. Decide whether that
-   ships before announce or is consciously waived; the announcement copy
-   above does not promise it either way.
+4. ~~**First-run path**~~ (launch-plan blocker 6): closed 2026-07-31 by
+   `circuit demo`, which goes further than the "pinned known-shape recipe"
+   this item contemplated: the demo ships its own subject project rather than
+   asking the user to supply one, so the shape really is known. The
+   announcement copy may now promise a first run that ends in a check the
+   reader can run themselves.

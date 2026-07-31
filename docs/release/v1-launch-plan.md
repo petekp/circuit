@@ -86,9 +86,15 @@ operator-reported issues land on the
 5. **Fix README staleness and state costs plainly.** The README must match
    the catalog, drop claims the code does not back, and tell a new user what
    a first run costs and how long it takes before they start it.
-6. **Ship the first-run path.** See the first-run plan below. The current
-   time-to-first-value is roughly ten minutes and the safest first flow
-   (review) is the one that least demonstrates the thesis.
+6. **Ship the first-run path.** Done (2026-07-31): `circuit demo` builds a
+   throwaway git project with one real bug and a failing test, then runs Fix
+   against it at the low dial. It is a real run, with a real connector, a real
+   model, and real spend. A demonstration of "it can't skip the proof" that
+   skipped the proof would fake the one claim Circuit cannot afford to fake.
+   The ending is checkable by the user (`npm test`, `git diff`) rather than
+   taken on trust, and the front door, `docs/first-run.md`, and the README all
+   lead with it. The old path's weakness is retired: the safest first flow no
+   longer has to be the one that shows the least.
    For Codex, the no-spend readiness check must list workspace runs through
    MCP before the first paid flow. Shell fallback or sandbox escalation is a
    failed setup, not an alternate path.
@@ -147,9 +153,11 @@ minutes, and knows the cost before spending it.
   full selection story (which model, which effort, which connector, per step,
   across dials) without spawning anything. It costs nothing and demonstrates
   both the encode-process and multi-model pillars on first contact.
-- **A purpose-built five-minute demo run:** a small, cheap, guaranteed-shape
-  fix run a new user can execute immediately after install, with the spend
-  receipt as the closing beat.
+- **A purpose-built five-minute demo run:** shipped as `circuit demo`
+  (2026-07-31). It brings its own subject, a throwaway project with one
+  fixable bug, so the scope, the cost, and the shape of the ending are all
+  known in advance. Pointing a new user at their own repository can never
+  promise that.
 - **Cost candor up front:** the README and first-run doc state expected cost
   and duration before the user starts, not after.
 

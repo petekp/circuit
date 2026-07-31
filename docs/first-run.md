@@ -123,17 +123,41 @@ machine-readable output.
 
 ### Cost and time
 
-Time to first value is about ten minutes: install, doctor, this preview, and a
-first Review result. Per-run cost is not a fixed number. It depends on the
-connector and model each relay resolves to and on the Power dial, which trades
-depth for spend. Use `circuit preview` above to see the exact model and effort
-each relay would use at a given dial before you run, then turn the dial down if
-you want a cheaper first pass. Review is read-only, so it never edits your
-checkout.
+Per-run cost is not a fixed number. It depends on the connector and model each
+relay resolves to and on the Power dial, which trades depth for spend. Use
+`circuit preview` above to see the exact model and effort each relay would use
+at a given dial before you run, then turn the dial down if you want a cheaper
+first pass.
 
-## 3. Run Review First
+## 3. Run the Demo
 
-For the safest first real run, use Review. Review is read-only:
+`circuit demo` is the shortest path to seeing what Circuit actually does. It
+sets up a small throwaway project in a fresh directory, with one real bug and a
+test that fails because of it, then runs Fix against that project:
+
+```bash
+./bin/circuit demo
+```
+
+It never touches your own checkout. The run is real: a real connector, a real
+model, and real cost. At the low dial it is a few minutes and a small spend.
+
+The point is the ending. Fix records the test failing before the change and
+passing after it, and it cannot close as fixed without both halves. When the run
+finishes you can check it yourself:
+
+```bash
+cd <demo directory> && npm test
+git -C <demo directory> diff
+```
+
+Pass `--dir <path>` to choose where the demo project goes, or
+`--power <auto|low|medium|high>` to run it at a different dial.
+
+## 4. Run Review on Your Own Work
+
+Review is the safest flow to point at your own checkout, because it is
+read-only and never edits anything:
 
 Claude Code:
 
@@ -176,7 +200,7 @@ Every normal run writes the same kind of evidence under a run folder:
     <flow-specific reports>.json
 ```
 
-## 4. Know What Can Write
+## 5. Know What Can Write
 
 Build, Fix, and Prototype may invoke a write-capable worker:
 

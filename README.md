@@ -65,8 +65,14 @@ Then ask Circuit to handle a task:
 
 A real run spawns worker agents that spend model time: a small task typically
 takes several minutes end to end and costs a few dollars at the default dials.
-Review is read-only and the safest first run. The power dial spends less:
-`--power low` on a CLI run, or `defaults.power` in config.
+The power dial spends less: `--power low` on a CLI run, or `defaults.power` in
+config.
+
+If you would rather see the whole shape before pointing Circuit at your own
+work, `circuit demo` builds a small throwaway project with one real bug and a
+failing test, then runs Fix against it. Your checkout is untouched, the run is
+real, and the ending is checkable: the test failed before the change and passes
+after it, which is the proof Fix cannot close without.
 
 The installed plugin bundles the whole engine, so you do not need to clone
 this repo, run `npm install`, install a separate `circuit` binary, or
@@ -238,8 +244,8 @@ See [`docs/agent-setup.md`](docs/agent-setup.md) for the full setup checklist.
 
 Start:
 
-- [`docs/first-run.md`](docs/first-run.md): manual setup check, safest Review,
-  and the run folder shape.
+- [`docs/first-run.md`](docs/first-run.md): manual setup check, the demo run,
+  Review on your own work, and the run folder shape.
 - [`docs/README.md`](docs/README.md): map of the current docs.
 - [`docs/repository-map.md`](docs/repository-map.md): repo map, layer
   ownership, and migration rationale.

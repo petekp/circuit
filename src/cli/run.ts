@@ -1910,9 +1910,15 @@ export async function runExecutionCommand(
       ? {}
       : { entry_mode_source: entryModeSelection.source }),
   });
+  // The run folder belongs to the project the run is about, not to whatever
+  // directory the process started in. Those are the same thing for a plain
+  // `circuit run` and differ only when a caller aims the run elsewhere
+  // (`circuit demo`, or an embedder passing projectRoot), which is exactly the
+  // case where evidence written next to the operator's own checkout would be
+  // both misplaced and a false claim about what the run touched.
   const runFolder =
     runArgs.runFolder === undefined
-      ? join(runsRoot(process.cwd()), runId as unknown as string)
+      ? join(runsRoot(projectRoot), runId as unknown as string)
       : resolve(runArgs.runFolder);
   try {
     validateFlowConfigRequirements({ flow, axes: runArgs.axes, selectionConfigLayers });
