@@ -572,6 +572,9 @@ export function createProgressProjector(input: {
         const branchIds = stringArrayValue(entry.branch_ids);
         if (stepId === undefined || branchIds === undefined) break;
         const title = stepTitle({ flow: input.flow, stepId });
+        // A single-branch fanout is not a comparison: the step's own
+        // narration already covers it, so this event stays bookkeeping.
+        const comparing = branchIds.length > 1;
         reportProgress(input.progress, {
           schema_version: 1,
           type: 'fanout.started',
@@ -580,15 +583,15 @@ export function createProgressProjector(input: {
           recorded_at: recordedAt,
           label: `Started ${title} fanout`,
           display: progressDisplay(
-            `Circuit: Comparing ${branchIds.length} option${branchIds.length === 1 ? '' : 's'}...`,
-            'major',
+            comparing
+              ? `Circuit: Comparing ${branchIds.length} options...`
+              : `Circuit: Started ${title} fanout.`,
+            comparing ? 'major' : 'detail',
             'info',
           ),
-          presentation: replaceStatus(
-            runId,
-            `${stepId}:fanout`,
-            `Comparing ${branchIds.length} option${branchIds.length === 1 ? '' : 's'}...`,
-          ),
+          presentation: comparing
+            ? replaceStatus(runId, `${stepId}:fanout`, `Comparing ${branchIds.length} options...`)
+            : suppressStatus(runId),
           step_id: stepId,
           step_title: title,
           branch_count: branchIds.length,
@@ -677,6 +680,8 @@ export function createProgressProjector(input: {
           break;
         }
         const title = stepTitle({ flow: input.flow, stepId });
+        // Mirror fanout.started: one branch joined means nothing was compared.
+        const compared = entry.branches_completed + entry.branches_failed > 1;
         reportProgress(input.progress, {
           schema_version: 1,
           type: 'fanout.joined',
@@ -684,8 +689,14 @@ export function createProgressProjector(input: {
           flow_id: flowId,
           recorded_at: recordedAt,
           label: `Joined ${title}`,
-          display: progressDisplay('Circuit: Finished comparing the options.', 'major', 'success'),
-          presentation: replaceStatus(runId, `${stepId}:fanout`, 'Finished comparing the options.'),
+          display: progressDisplay(
+            compared ? 'Circuit: Finished comparing the options.' : `Circuit: Joined ${title}.`,
+            compared ? 'major' : 'detail',
+            'success',
+          ),
+          presentation: compared
+            ? replaceStatus(runId, `${stepId}:fanout`, 'Finished comparing the options.')
+            : suppressStatus(runId),
           step_id: stepId,
           step_title: title,
           policy,

@@ -1,7 +1,8 @@
 # Run output and observability: make watching a run pleasant
 
-Status: proposal. The receipt-delivery fix shipped alongside this note; the
-rest is ranked design work.
+Status: mostly shipped. The receipt-delivery fix shipped alongside this note;
+proposals 1–4 and the dial half of 6 shipped the following day. Proposal 5
+(narrate the arc) and the Codex empty-exec-cell follow-up remain open.
 
 ## The evidence
 
@@ -40,6 +41,28 @@ experience degrades.
 - **Skill-level dedup.** The run skill now skips an event whose summary text
   is identical to the previously rendered line, and translates internal enum
   tokens into plain words at final render.
+- **Duplicates and mixed voice fixed at the source (proposals 1 and 2).** The
+  measured root cause was not the engine: every renderer except the Codex MCP
+  state adapter already honored the engine's presentation channel, which marks
+  bookkeeping events (task-list mirrors, per-branch ticks) as suppressed and
+  carries the unbranded operator line in `status_text`. The adapter forwarded
+  raw branded `display.text` for every event. It now drops suppressed events
+  from `circuit_status` payloads and forwards `status_text`, so the Codex host
+  reads each transition once, in one voice, like every other surface. Cursors
+  keep their pre-filter positions, so pagination is unchanged.
+- **Grammar-aware fan-out (proposal 3).** A width-1 fan-out — the common case —
+  no longer narrates a comparison: "Comparing 1 option..." and its join line
+  are suppressed as bookkeeping; the step's own narration covers the work.
+  Width > 1 keeps the comparison lines.
+- **Jargon floor with a test (proposal 4).** `tests/runtime/operator-voice.test.ts`
+  walks every flow-authored progress-surface string and every status line the
+  projector can emit (including failure, exhaustion, abort, and close paths)
+  against a denylist: @-target codenames, SCREAMING_CASE enums, dotted schema
+  ids, internal unit ids, and the "Circuit:" brand prefix. Rule 3 of the agent
+  guide now has teeth.
+- **Codex dial reference (proposal 6, first half).** The run skill carries a
+  compact power/process reference, so dial questions are answered from the
+  skill instead of a source-tree expedition.
 
 ## Proposed, in rank order
 

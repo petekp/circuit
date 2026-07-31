@@ -243,6 +243,75 @@ describe('runtime progress projection', () => {
     });
   });
 
+  it('suppresses comparison narration for a single-branch fanout', () => {
+    // A width-1 fanout is the common case (one review unit, one variant) and
+    // is not a comparison: the operator already sees the step's own
+    // narration, so "Comparing 1 option..." is broken English about an event
+    // that is not happening. Single-branch fanout events stay in the stream
+    // as bookkeeping but must not narrate.
+    const progress = projectProgress('explore', [
+      trace({ sequence: 0, kind: 'run.bootstrapped', flow_id: 'explore' }),
+      trace({
+        sequence: 1,
+        kind: 'fanout.started',
+        step_id: 'synthesize-step',
+        branch_ids: ['unit-1'],
+      }),
+      trace({
+        sequence: 2,
+        kind: 'fanout.joined',
+        step_id: 'synthesize-step',
+        policy: 'aggregate-only',
+        aggregate_path: 'fanout/aggregate.json',
+        branches_completed: 1,
+        branches_failed: 0,
+      }),
+    ]);
+
+    const started = progress.find((event) => event.type === 'fanout.started');
+    expect(started).toBeDefined();
+    expect(started?.presentation?.line_mode).toBe('suppress');
+    expect(started?.display.importance).toBe('detail');
+    expect(started?.display.text).not.toContain('Comparing');
+
+    const joined = progress.find((event) => event.type === 'fanout.joined');
+    expect(joined).toBeDefined();
+    expect(joined?.presentation?.line_mode).toBe('suppress');
+    expect(joined?.display.importance).toBe('detail');
+    expect(joined?.display.text).not.toContain('comparing');
+  });
+
+  it('keeps comparison narration for a multi-branch fanout', () => {
+    const progress = projectProgress('explore', [
+      trace({ sequence: 0, kind: 'run.bootstrapped', flow_id: 'explore' }),
+      trace({
+        sequence: 1,
+        kind: 'fanout.started',
+        step_id: 'synthesize-step',
+        branch_ids: ['option-1', 'option-2', 'option-3'],
+      }),
+      trace({
+        sequence: 2,
+        kind: 'fanout.joined',
+        step_id: 'synthesize-step',
+        policy: 'pick-winner',
+        selected_branch_id: 'option-2',
+        aggregate_path: 'fanout/aggregate.json',
+        branches_completed: 3,
+        branches_failed: 0,
+      }),
+    ]);
+
+    expect(progress.find((event) => event.type === 'fanout.started')?.presentation).toMatchObject({
+      line_mode: 'replace_slot',
+      status_text: 'Comparing 3 options...',
+    });
+    expect(progress.find((event) => event.type === 'fanout.joined')?.presentation).toMatchObject({
+      line_mode: 'replace_slot',
+      status_text: 'Finished comparing the options.',
+    });
+  });
+
   it('locks run.closed outcome derivations (completed and aborted)', () => {
     // Characterization: runOutcome/runReason fall back to 'aborted' and emit
     // distinct run.aborted vs run.completed progress events. Pin both branches

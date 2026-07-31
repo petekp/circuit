@@ -362,12 +362,25 @@ export class McpLifecycleStateAdapter implements LifecycleStore {
         next_cursor: captured.length,
         retained_from_cursor: retainedFromCursor,
         dropped_count: retainedFromCursor,
-        events: retained.map((progress, index) => ({
-          cursor: retainedFromCursor + index,
-          kind: progress.event.type,
-          recorded_at: progress.event.recorded_at,
-          summary: progress.event.display.text,
-        })),
+        // The engine narrates through the presentation channel: suppressed
+        // events are bookkeeping (task-list mirrors, per-branch ticks) that
+        // every other renderer already skips, and status_text is the
+        // unbranded operator line. Forwarding raw display text here is what
+        // once made the Codex host read each step transition twice with an
+        // inconsistent "Circuit:" prefix. Cursors keep their pre-filter
+        // positions so pagination stays stable across the gaps.
+        events: retained.flatMap((progress, index) => {
+          const presentation = progress.event.presentation;
+          if (presentation?.line_mode === 'suppress') return [];
+          return [
+            {
+              cursor: retainedFromCursor + index,
+              kind: progress.event.type,
+              recorded_at: progress.event.recorded_at,
+              summary: presentation?.status_text ?? progress.event.display.text,
+            },
+          ];
+        }),
       },
     });
   }

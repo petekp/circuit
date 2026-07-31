@@ -103,6 +103,21 @@ Call `circuit_start` with:
   differ from the power dial; and
 - `autonomous: true` only when the user asked for autonomous operation.
 
+### Dial reference
+
+Answer dial questions from this section instead of searching Circuit's source.
+
+- `power` sets how much model capability each worker step gets: `low` is
+  cheapest and fastest, `medium` is the balanced default, `high` uses the
+  strongest models at the highest reasoning effort. `auto` lets the run's own
+  research step pick the level for the task, within the operator's configured
+  cap.
+- When `process` is not given, the chosen `power` level also selects a matching
+  process level.
+- `process` sets how thorough the flow's process is, independent of model
+  strength: more verification and iteration at `high`, the leanest supported
+  path at `low`. Each flow clamps it to the levels it supports.
+
 Do not supply workspace paths, executables, commands, arguments, environment
 variables, timeouts, config paths, output paths, or flow roots. The MCP host
 owns those values.

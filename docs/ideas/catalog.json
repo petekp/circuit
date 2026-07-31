@@ -440,7 +440,7 @@
       "category": "run-inspection-and-output",
       "impact": 4,
       "tags": ["operator-ux", "run-output", "codex-mcp", "progress-events", "receipt"],
-      "current_reading": "Grounded in a measured live Codex Review run: 26% of progress lines were byte-identical duplicates, the close line leaked internal codenames, and the operator summary receipt never reached the host. The receipt-delivery fix and skill-level dedup shipped with this note; the ranked remainder is engine-side duplicate suppression, one narration voice, grammar-aware fan-out lines, a tested jargon floor, arc-aware milestones, and Codex skill ergonomics.",
+      "current_reading": "Grounded in a measured live Codex Review run: 26% of progress lines were byte-identical duplicates, the close line leaked internal codenames, and the operator summary receipt never reached the host. Shipped since: the receipt-delivery fix, source-level duplicate suppression and one unbranded voice (the Codex MCP adapter now honors the presentation channel), grammar-aware fan-out (width-1 narrates no comparison), a tested jargon floor (tests/runtime/operator-voice.test.ts), and the run-skill dial reference. Open: arc-aware milestones (proposal 5) and the Codex empty-exec-cell follow-up.",
       "related": [
         "docs/ideas/run-milestone-stream.md",
         "docs/ideas/output-model.md",

@@ -104002,6 +104002,7 @@ function createProgressProjector(input) {
         if (stepId === void 0 || branchIds === void 0)
           break;
         const title = stepTitle({ flow: input.flow, stepId });
+        const comparing = branchIds.length > 1;
         reportProgress(input.progress, {
           schema_version: 1,
           type: "fanout.started",
@@ -104009,8 +104010,8 @@ function createProgressProjector(input) {
           flow_id: flowId,
           recorded_at: recordedAt,
           label: `Started ${title} fanout`,
-          display: progressDisplay(`Circuit: Comparing ${branchIds.length} option${branchIds.length === 1 ? "" : "s"}...`, "major", "info"),
-          presentation: replaceStatus(runId, `${stepId}:fanout`, `Comparing ${branchIds.length} option${branchIds.length === 1 ? "" : "s"}...`),
+          display: progressDisplay(comparing ? `Circuit: Comparing ${branchIds.length} options...` : `Circuit: Started ${title} fanout.`, comparing ? "major" : "detail", "info"),
+          presentation: comparing ? replaceStatus(runId, `${stepId}:fanout`, `Comparing ${branchIds.length} options...`) : suppressStatus(runId),
           step_id: stepId,
           step_title: title,
           branch_count: branchIds.length,
@@ -104078,6 +104079,7 @@ function createProgressProjector(input) {
           break;
         }
         const title = stepTitle({ flow: input.flow, stepId });
+        const compared = entry.branches_completed + entry.branches_failed > 1;
         reportProgress(input.progress, {
           schema_version: 1,
           type: "fanout.joined",
@@ -104085,8 +104087,8 @@ function createProgressProjector(input) {
           flow_id: flowId,
           recorded_at: recordedAt,
           label: `Joined ${title}`,
-          display: progressDisplay("Circuit: Finished comparing the options.", "major", "success"),
-          presentation: replaceStatus(runId, `${stepId}:fanout`, "Finished comparing the options."),
+          display: progressDisplay(compared ? "Circuit: Finished comparing the options." : `Circuit: Joined ${title}.`, compared ? "major" : "detail", "success"),
+          presentation: compared ? replaceStatus(runId, `${stepId}:fanout`, "Finished comparing the options.") : suppressStatus(runId),
           step_id: stepId,
           step_title: title,
           policy: policy2,

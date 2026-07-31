@@ -166,6 +166,13 @@ starting -> running -> waiting_for_input -> resuming -> running
 An uncertain launch, exit, or cleanup becomes `recovery_required`. Circuit
 never calls uncertain cleanup successful.
 
+Status responses forward only narrated progress: an event whose presentation
+channel marks it suppressed (task-list mirrors, per-branch bookkeeping) is
+dropped from `events`, and each forwarded event's `summary` is the engine's
+unbranded operator line (`presentation.status_text`) rather than the branded
+machine display text. Event cursors keep their original positions, so
+`after_cursor` pagination is stable across the gaps.
+
 A `complete` status response carries the run's final report: the digest-bound
 structured result plus, when the worker wrote one, the operator summary
 Markdown (`final_report.operator_summary_markdown`) — the human-facing receipt

@@ -476,6 +476,117 @@ describe('MCP lifecycle state adapter', () => {
     });
   });
 
+  it('projects only narrated progress: suppressed bookkeeping drops, summaries use unbranded text', async () => {
+    const context = await fixture();
+    await reserveAndAuthorize(context);
+    const control = context.adapter.controlDirectory(context.workspace, RUN_ID);
+    await writePrivate(join(control, 'launch-1-runtime.json'), {
+      schema_version: 1,
+      record_kind: 'circuit.mcp.runtime-observation',
+      run_id: RUN_ID,
+      generation: 1,
+      authorization_sha256: AUTHORIZATION,
+      runtime: runtimeObservation(),
+      runtime_executable: EXECUTABLE,
+      recorded_at: NOW,
+    });
+    await writePrivate(join(control, 'launch-1-exit.json'), {
+      schema_version: 1,
+      record_kind: 'circuit.mcp.exit-observation',
+      run_id: RUN_ID,
+      generation: 1,
+      authorization_sha256: AUTHORIZATION,
+      runtime: runtimeObservation(),
+      observed_at: NOW,
+      exit_code: 0,
+      process_group_cleanup: 'confirmed',
+    });
+    const progress = new SupervisorProgressWriter({
+      control_directory: control,
+      run_id: RUN_ID,
+      generation: 1,
+    });
+    const base = { schema_version: 1, run_id: RUN_ID, flow_id: 'review', recorded_at: NOW };
+    const events = [
+      {
+        ...base,
+        type: 'step.started',
+        label: 'Check the result',
+        display: { text: 'Circuit: Checking the result...', importance: 'major', tone: 'info' },
+        presentation: {
+          block_id: RUN_ID,
+          line_mode: 'append',
+          status_text: 'Checking the result...',
+        },
+        step_id: 'review-step',
+        step_title: 'Check the result',
+        attempt: 1,
+      },
+      {
+        ...base,
+        type: 'task_list.updated',
+        label: 'Check the result in progress',
+        display: { text: 'Circuit: Checking the result...', importance: 'detail', tone: 'info' },
+        presentation: { block_id: RUN_ID, line_mode: 'suppress' },
+        tasks: [{ id: 'review-step', title: 'Check the result', status: 'in_progress' }],
+      },
+      {
+        ...base,
+        type: 'relay.completed',
+        label: 'Relay completed with pass',
+        display: {
+          text: 'Circuit: Finished checking the result.',
+          importance: 'major',
+          tone: 'success',
+        },
+        presentation: {
+          block_id: RUN_ID,
+          line_mode: 'replace_slot',
+          slot_id: 'review-step:relay',
+          status_text: 'Finished checking the result.',
+        },
+        step_id: 'review-step',
+        step_title: 'Check the result',
+        attempt: 1,
+        verdict: 'pass',
+        duration_ms: 1200,
+      },
+      {
+        ...base,
+        type: 'step.completed',
+        label: 'Completed Check the result',
+        display: { text: 'Finished checking the result.', importance: 'detail', tone: 'success' },
+        presentation: { block_id: RUN_ID, line_mode: 'suppress' },
+        step_id: 'review-step',
+        step_title: 'Check the result',
+        attempt: 1,
+        route_taken: 'next',
+      },
+    ];
+    progress.ingest(events.map((event) => `${JSON.stringify(event)}\n`).join(''));
+    progress.close();
+
+    const reconciled = await context.adapter.reconcileRun({
+      workspace: context.workspace,
+      run_id: RUN_ID,
+      owner: context.newOwner,
+    });
+    expect(reconciled.progress).toEqual({
+      next_cursor: 4,
+      retained_from_cursor: 0,
+      dropped_count: 0,
+      events: [
+        { cursor: 0, kind: 'step.started', recorded_at: NOW, summary: 'Checking the result...' },
+        {
+          cursor: 2,
+          kind: 'relay.completed',
+          recorded_at: NOW,
+          summary: 'Finished checking the result.',
+        },
+      ],
+    });
+  });
+
   it('finishes an interrupted cancellation after confirmed supervisor cleanup', async () => {
     const context = await fixture();
     const launchHandle = await reserveAndAuthorize(context);
