@@ -81,6 +81,31 @@ describe('applyStructure materializes a valid spec for the assembler', () => {
     expect(compiled.kind).toBe('single');
   });
 
+  it('whole grain: prunes optional_inputs naming a folded-away producer', () => {
+    // act-step declares the review and touch-area reports as OPTIONAL rework
+    // evidence, and the whole fold drops both producers. The fold must prune
+    // those optional entries along with the inputs themselves — an entry naming
+    // a key that no longer exists fails the schematic's own validation, so a
+    // regression here breaks every whole-grain assembly rather than degrading
+    // quietly.
+    const { spec } = resolveAndApplyStructure(buildAssemblySpec, SMALL_TASK);
+    const act = spec.items.find((item) => item.id === 'act-step');
+    if (act === undefined) throw new Error('expected act-step to survive the fold');
+
+    const inputKeys = Object.keys((act.input ?? {}) as Record<string, string>);
+    expect(inputKeys).not.toContain('review');
+    expect(inputKeys).not.toContain('touch_area');
+    // The surviving producer's optional entry is kept: pruning is targeted, not
+    // a blanket drop of every optional input.
+    expect(inputKeys).toContain('verification');
+    expect([...(act.optional_inputs ?? [])]).toEqual(['verification']);
+
+    // And the fold still assembles, which is what the missing prune broke.
+    expect(() =>
+      assembleFlowSchematic({ ...spec, id: 'grain-whole-optional-inputs-probe' }),
+    ).not.toThrow();
+  });
+
   it('decomposed grain: the full spine verbatim, catalog-clean', () => {
     const { resolution, spec } = resolveAndApplyStructure(buildAssemblySpec, {
       ...SMALL_TASK,

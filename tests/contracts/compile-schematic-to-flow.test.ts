@@ -96,9 +96,22 @@ describe('compileSchematicToCompiledFlow — failure modes', () => {
       'act-step',
       'verify-step',
     ]);
+    // act-step optionally reads the rework evidence produced by verify-step,
+    // build-touch-area, and review-step. This fixture trims the latter two away
+    // and repoints verify-step's output, so those optional inputs would name
+    // contracts nothing reachable produces — and the catalog gate, which runs
+    // BEFORE the writer check, would fail first and make this test vacuous.
+    // Drop the rework inputs so the writer check stays the reachable failure.
+    const REWORK_INPUTS = ['verification', 'touch_area', 'review'];
     const items = raw.items
       .filter((item) => keep.has(item.id))
       .map((item) => {
+        if (item.id === 'act-step') {
+          const input = Object.fromEntries(
+            Object.entries(item.input).filter(([key]) => !REWORK_INPUTS.includes(key)),
+          );
+          return { ...item, input, optional_inputs: [] };
+        }
         if (item.id !== 'verify-step') return item;
         // The rewired `continue` targets '@complete', so the step's declared
         // exhaustion_route must go: keeping it would (correctly) trip the

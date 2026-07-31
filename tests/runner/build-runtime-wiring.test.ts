@@ -26,6 +26,9 @@ const FIXTURE_PATH = resolve('generated/flows/build/circuit.json');
 // A hang guard, not a performance assertion: these tests drive real relay
 // budget loops, and a loaded machine stretches them well past quiet-run time.
 const BUILD_RUNTIME_TIMEOUT_MS = 120_000;
+// Printed by a deliberately failing verification command so a test can prove the
+// relaunched implementer prompt carries the verification report's real content.
+const FAILING_CHECK_MARKER = 'BUILD_VERIFICATION_FAILURE_MARKER: tile owner assertion failed';
 
 function loadFixture(): { flow: CompiledFlow; bytes: Buffer } {
   const bytes = readFileSync(FIXTURE_PATH);
@@ -87,6 +90,19 @@ function relayerWith(
         duration_ms: 1,
         cli_version: '0.0.0-stub',
       };
+    },
+  };
+}
+
+// Records every implementer prompt so a test can assert what the relaunched
+// implementer was actually told after a failing verification sent it back.
+function relayerRecordingActPrompts(actPrompts: string[]): RelayFn {
+  const inner = relayerWith();
+  return {
+    connectorName: 'claude-code',
+    relay: async (input: ClaudeCodeRelayInput): Promise<RelayResult> => {
+      if (input.prompt.includes('Step: act-step')) actPrompts.push(input.prompt);
+      return await inner.relay(input);
     },
   };
 }
@@ -456,6 +472,52 @@ describe('Build runtime wiring', () => {
       expect(actCompletions.map((entry) => entry.slice_index)).toEqual([0, 0, 1, 2]);
       // Per-slice attempt budgets: slice 0 reaches attempt 2; later slices reset to 1.
       expect(actCompletions.map((entry) => entry.attempt)).toEqual([1, 2, 1, 1]);
+    },
+    BUILD_RUNTIME_TIMEOUT_MS,
+  );
+
+  it(
+    'passes the failed verification into the relaunched implementer prompt',
+    async () => {
+      const { bytes } = loadFixture();
+      const runFolder = join(runFolderBase, 'verify-retry-carries-evidence');
+      // Fail the first check, pass every later one, and print a marker the
+      // verification report must carry so we can prove the retry prompt shows
+      // the implementer WHAT failed rather than just that something did.
+      const checkScript = [
+        'node',
+        '-e',
+        [
+          "const fs = require('node:fs')",
+          "const p = 'verify-check-count.txt'",
+          "const n = fs.existsSync(p) ? Number(fs.readFileSync(p, 'utf8')) : 0",
+          'fs.writeFileSync(p, String(n + 1))',
+          `if (n === 0) { console.log(${JSON.stringify(FAILING_CHECK_MARKER)}); process.exit(1) }`,
+          'process.exit(0)',
+        ].join('; '),
+      ]
+        .map((part) => JSON.stringify(part))
+        .join(' ');
+
+      const actPrompts: string[] = [];
+      const outcome = await runCompiledFlow({
+        runDir: runFolder,
+        flowBytes: bytes,
+        runId: 'b2000000-0000-0000-0000-00000000005f',
+        goal: 'A change whose first verification fails',
+        depth: 'medium',
+        now: deterministicNow(Date.UTC(2026, 3, 25, 8, 10, 0)),
+        relayer: relayerRecordingActPrompts(actPrompts),
+        projectRoot: makeVerificationProjectRoot(checkScript),
+      });
+
+      expect(outcome.outcome).toBe('complete');
+      expect(actPrompts).toHaveLength(2);
+      // First attempt: no verification exists yet, and the prompt says so.
+      expect(actPrompts[0]).toContain('[reads unavailable: reports/build/verification.json]');
+      // The relaunch after the failing verify must carry the report itself.
+      expect(actPrompts[1]).toContain('<read path="reports/build/verification.json">');
+      expect(actPrompts[1]).toContain(FAILING_CHECK_MARKER);
     },
     BUILD_RUNTIME_TIMEOUT_MS,
   );

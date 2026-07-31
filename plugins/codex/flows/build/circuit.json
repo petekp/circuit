@@ -208,7 +208,13 @@
       "id": "act-step",
       "title": "Act - implementation relay",
       "protocol": "build-act@v1",
-      "reads": ["reports/build/brief.json", "reports/build/plan.json"],
+      "reads": [
+        "reports/build/brief.json",
+        "reports/build/plan.json",
+        "reports/build/verification.json",
+        "reports/build/touch-area.json",
+        "reports/build/review.json"
+      ],
       "routes": {
         "continue": "verify-step",
         "pass": "verify-step",

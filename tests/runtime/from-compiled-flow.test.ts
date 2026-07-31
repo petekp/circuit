@@ -73,9 +73,15 @@ describe('fromCompiledFlow', () => {
     });
 
     const actStep = stepById(manifest, 'act-step');
+    // brief + plan are the first-attempt inputs; the last three are the rework
+    // evidence act-step optionally reads when verify-step or review-step routes
+    // back into it, so a relaunched implementer is told what went wrong.
     expect(actStep.reads).toEqual([
       { path: 'reports/build/brief.json' },
       { path: 'reports/build/plan.json' },
+      { path: 'reports/build/verification.json' },
+      { path: 'reports/build/touch-area.json' },
+      { path: 'reports/build/review.json' },
     ]);
     expect(actStep.writes).toMatchObject({
       request: { path: 'reports/relay/build-act.request.json' },

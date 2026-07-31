@@ -106,7 +106,21 @@ export const buildBlockItems: readonly BlockStepUse[] = [
     title: 'Act - implementation relay',
     stage: 'act',
     block: 'act',
-    input: { brief: 'build.brief@v1', plan: 'build.plan@v1' },
+    input: {
+      brief: 'build.brief@v1',
+      plan: 'build.plan@v1',
+      verification: 'build.verification@v1',
+      touch_area: 'build.touch-area@v1',
+      review: 'build.review@v1',
+    },
+    // Rework evidence, optional because none of it exists on the first attempt.
+    // Two routes re-enter act-step after work has already been judged:
+    // verify-step selects `retry` on a failing verification, and review-step
+    // selects `retry`/`revise` on an invalid reviewer output. Without these the
+    // relaunched implementer saw only brief + plan — it was told to try again
+    // but not what went wrong, so a rework attempt could only guess. Mirrors
+    // the same repair on fix-act (src/flows/fix/assembly-spec.ts).
+    optional_inputs: ['verification', 'touch_area', 'review'],
     output: 'build.implementation@v1',
     execution: { kind: 'relay', role: 'implementer' },
     protocol: 'build-act@v1',

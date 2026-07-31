@@ -139,16 +139,37 @@ function foldToWhole(seed: FlowSchematicAssemblySpec, dropIds: readonly string[]
     .map((item): BlockStepUse => {
       const copy = clone(item);
       const input = copy.input as Record<string, string> | undefined;
+      const droppedInputKeys = new Set<string>();
       if (input) {
         for (const [key, contract] of Object.entries(input)) {
-          if (droppedContracts.has(contract)) delete input[key];
+          if (droppedContracts.has(contract)) {
+            delete input[key];
+            droppedInputKeys.add(key);
+          }
         }
       }
+      // `optional_inputs` names keys of `input`, so pruning a dropped producer's
+      // input must prune its optional entry too. Without this, folding away a
+      // step whose output another step declared as optional rework evidence
+      // leaves an optional_inputs entry pointing at a key that no longer exists,
+      // and the schematic fails to assemble.
+      const optionalInputs = copy.optional_inputs as readonly string[] | undefined;
+      const prunedOptionalInputs =
+        optionalInputs === undefined
+          ? undefined
+          : optionalInputs.filter((key) => !droppedInputKeys.has(key));
       const routes: Record<string, string> = {};
       for (const [outcome, target] of Object.entries(copy.routes as Record<string, string>)) {
         routes[outcome] = redirect(target);
       }
-      return { ...copy, input: input as BlockStepUse['input'], routes: routes as Routes };
+      return {
+        ...copy,
+        input: input as BlockStepUse['input'],
+        ...(prunedOptionalInputs === undefined
+          ? {}
+          : { optional_inputs: prunedOptionalInputs as BlockStepUse['optional_inputs'] }),
+        routes: routes as Routes,
+      };
     });
 }
 

@@ -205,9 +205,12 @@
       "stage": "act",
       "input": {
         "brief": "build.brief@v1",
-        "plan": "build.plan@v1"
+        "plan": "build.plan@v1",
+        "verification": "build.verification@v1",
+        "touch_area": "build.touch-area@v1",
+        "review": "build.review@v1"
       },
-      "optional_inputs": [],
+      "optional_inputs": ["verification", "touch_area", "review"],
       "output": "build.implementation@v1",
       "evidence_requirements": ["changed files", "change rationale", "declared follow-up proof"],
       "execution": {
