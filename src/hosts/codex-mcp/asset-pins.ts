@@ -208,14 +208,50 @@ export async function pinMcpRuntimeAssets(
   });
 }
 
-function samePin(left: McpRuntimeAssetPin, right: McpRuntimeAssetPin): boolean {
+function transientPinFailure(error: unknown): boolean {
+  if (error instanceof AssetDriftError) return true;
+  return error instanceof Error && error.message.includes('could not be resolved');
+}
+
+/**
+ * Pins runtime assets, settling through a concurrent plugin-cache reinstall.
+ * Codex rewrites the plugin cache at session start; a pin racing that window
+ * sees files change mid-hash or vanish for a moment. Only those transient
+ * failures retry — validation failures stay immediate.
+ */
+export async function pinMcpRuntimeAssetsSettled(
+  paths: McpRuntimeAssetPaths,
+  options?: {
+    readonly attempts?: number;
+    readonly delayMs?: number;
+    readonly pin?: typeof pinMcpRuntimeAssets;
+  },
+): Promise<McpRuntimeAssetPins> {
+  const attempts = options?.attempts ?? 5;
+  const delayMs = options?.delayMs ?? 300;
+  const pin = options?.pin ?? pinMcpRuntimeAssets;
+  for (let attempt = 1; ; attempt += 1) {
+    try {
+      return await pin(paths);
+    } catch (error) {
+      if (attempt >= attempts || !transientPinFailure(error)) throw error;
+      await new Promise((resolve) => setTimeout(resolve, delayMs));
+    }
+  }
+}
+
+/**
+ * Device and inode are deliberately excluded. Codex reinstalls the plugin
+ * cache at session start, rewriting byte-identical files under the same paths
+ * with fresh inodes; a launch racing that reinstall must not fail. Content
+ * equality (path, mode, length, sha256) is the property the seal claims.
+ */
+function samePinContent(left: McpRuntimeAssetPin, right: McpRuntimeAssetPin): boolean {
   return (
     left.id === right.id &&
     left.role === right.role &&
     left.source_path === right.source_path &&
     left.real_path === right.real_path &&
-    left.device === right.device &&
-    left.inode === right.inode &&
     left.mode === right.mode &&
     left.byte_length === right.byte_length &&
     left.sha256 === right.sha256
@@ -259,7 +295,7 @@ export async function verifyMcpRuntimeAsset(expected: McpRuntimeAssetPin): Promi
     if (error instanceof AssetDriftError) throw error;
     throw new AssetDriftError(`${expected.id} asset changed: ${describeError(error)}`);
   }
-  if (!samePin(expected, observed)) {
+  if (!samePinContent(expected, observed)) {
     throw new AssetDriftError(`${expected.id} asset changed after Circuit pinned it`);
   }
 }

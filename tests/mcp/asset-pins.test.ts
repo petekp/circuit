@@ -6,6 +6,7 @@ import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import {
   AssetDriftError,
   pinMcpRuntimeAssets,
+  pinMcpRuntimeAssetsSettled,
   verifyMcpRuntimeAssets,
 } from '../../src/hosts/codex-mcp/asset-pins.js';
 
@@ -77,6 +78,22 @@ describe('Codex MCP installed asset pins', () => {
     await expect(verifyMcpRuntimeAssets(pins)).rejects.toBeInstanceOf(AssetDriftError);
   });
 
+  it('accepts a same-content replacement that only changed file identity', async () => {
+    // Codex reinstalls the plugin cache at session start. The reinstall writes
+    // byte-identical files under the same paths with fresh inodes; that must
+    // not kill the first launch.
+    const pins = await pin();
+    await rm(flowPath);
+    await writeFile(flowPath, '{"flow":"review"}\n', { mode: 0o600 });
+    await rm(serverRuntimePath);
+    await writeFile(serverRuntimePath, 'server\n', { mode: 0o600 });
+    const replaced = await pin();
+    const flowBefore = pins.assets.find((asset) => asset.id === 'flow:review');
+    const flowAfter = replaced.assets.find((asset) => asset.id === 'flow:review');
+    expect(flowAfter?.inode).not.toBe(flowBefore?.inode);
+    await expect(verifyMcpRuntimeAssets(pins)).resolves.toBeUndefined();
+  });
+
   it('blocks a source symlink that is retargeted after pinning', async () => {
     const first = join(root, 'first-codex');
     const second = join(root, 'second-codex');
@@ -89,6 +106,80 @@ describe('Codex MCP installed asset pins', () => {
     await rm(link);
     await symlink(second, link);
     await expect(verifyMcpRuntimeAssets(pins)).rejects.toThrow(/changed/);
+  });
+
+  it('retries pinning through a transient cache reinstall, then succeeds', async () => {
+    // A pin that lands while Codex is rewriting the plugin cache sees files
+    // change mid-hash or vanish for a moment. Settling through that window
+    // must not surface as a failed start.
+    let calls = 0;
+    const pins = await pinMcpRuntimeAssetsSettled(
+      {
+        node: nodePath,
+        codex: codexPath,
+        plugin_runtimes: [{ id: 'server', path: serverRuntimePath }],
+        git_helper: gitHelperPath,
+        packaged_flows: [{ id: 'review', path: flowPath }],
+      },
+      {
+        pin: async (paths) => {
+          calls += 1;
+          if (calls === 1)
+            throw new AssetDriftError('server asset changed while Circuit was hashing it');
+          if (calls === 2) throw new Error('server asset could not be resolved: ENOENT');
+          return pinMcpRuntimeAssets(paths);
+        },
+        delayMs: 1,
+      },
+    );
+    expect(calls).toBe(3);
+    expect(pins.digest_sha256).toMatch(/^[a-f0-9]{64}$/);
+  });
+
+  it('does not retry pinning on a permanent validation failure', async () => {
+    let calls = 0;
+    await expect(
+      pinMcpRuntimeAssetsSettled(
+        {
+          node: nodePath,
+          codex: codexPath,
+          plugin_runtimes: [{ id: 'server', path: serverRuntimePath }],
+          git_helper: gitHelperPath,
+          packaged_flows: [{ id: 'review', path: flowPath }],
+        },
+        {
+          pin: async () => {
+            calls += 1;
+            throw new Error('codex asset must be executable');
+          },
+          delayMs: 1,
+        },
+      ),
+    ).rejects.toThrow(/executable/);
+    expect(calls).toBe(1);
+  });
+
+  it('gives up settling after bounded attempts', async () => {
+    let calls = 0;
+    await expect(
+      pinMcpRuntimeAssetsSettled(
+        {
+          node: nodePath,
+          codex: codexPath,
+          plugin_runtimes: [{ id: 'server', path: serverRuntimePath }],
+          git_helper: gitHelperPath,
+          packaged_flows: [{ id: 'review', path: flowPath }],
+        },
+        {
+          pin: async () => {
+            calls += 1;
+            throw new AssetDriftError('server asset changed while Circuit was hashing it');
+          },
+          delayMs: 1,
+        },
+      ),
+    ).rejects.toBeInstanceOf(AssetDriftError);
+    expect(calls).toBe(5);
   });
 
   it('rejects relative paths, directories, duplicate flow ids, and non-executable tools', async () => {

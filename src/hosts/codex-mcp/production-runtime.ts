@@ -7,7 +7,7 @@ import { validateFlowStartTarget } from '../../flows/registries/start-preflight.
 import {
   type McpRuntimeAssetPin,
   type McpRuntimeAssetPins,
-  pinMcpRuntimeAssets,
+  pinMcpRuntimeAssetsSettled,
   verifyMcpRuntimeAssets,
 } from './asset-pins.js';
 import type { CodexHostCapabilities } from './capabilities.js';
@@ -207,7 +207,7 @@ export function createProductionAssetLoader(
   layout: ProductionMcpLayout,
 ): () => Promise<McpRuntimeAssetPins> {
   return async () =>
-    await pinMcpRuntimeAssets({
+    await pinMcpRuntimeAssetsSettled({
       node: layout.nodeExecutable,
       codex: layout.codexExecutable,
       plugin_runtimes: layout.pluginRuntimes,

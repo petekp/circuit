@@ -24073,8 +24073,25 @@ async function pinMcpRuntimeAssets(paths) {
     assets: frozenAssets
   });
 }
-function samePin(left, right) {
-  return left.id === right.id && left.role === right.role && left.source_path === right.source_path && left.real_path === right.real_path && left.device === right.device && left.inode === right.inode && left.mode === right.mode && left.byte_length === right.byte_length && left.sha256 === right.sha256;
+function transientPinFailure(error51) {
+  if (error51 instanceof AssetDriftError) return true;
+  return error51 instanceof Error && error51.message.includes("could not be resolved");
+}
+async function pinMcpRuntimeAssetsSettled(paths, options) {
+  const attempts = options?.attempts ?? 5;
+  const delayMs = options?.delayMs ?? 300;
+  const pin = options?.pin ?? pinMcpRuntimeAssets;
+  for (let attempt = 1; ; attempt += 1) {
+    try {
+      return await pin(paths);
+    } catch (error51) {
+      if (attempt >= attempts || !transientPinFailure(error51)) throw error51;
+      await new Promise((resolve13) => setTimeout(resolve13, delayMs));
+    }
+  }
+}
+function samePinContent(left, right) {
+  return left.id === right.id && left.role === right.role && left.source_path === right.source_path && left.real_path === right.real_path && left.mode === right.mode && left.byte_length === right.byte_length && left.sha256 === right.sha256;
 }
 async function verifyMcpRuntimeAssets(pins) {
   const parsed = McpRuntimeAssetPinsV1.safeParse(pins);
@@ -24102,7 +24119,7 @@ async function verifyMcpRuntimeAsset(expected) {
     if (error51 instanceof AssetDriftError) throw error51;
     throw new AssetDriftError(`${expected.id} asset changed: ${describeError(error51)}`);
   }
-  if (!samePin(expected, observed)) {
+  if (!samePinContent(expected, observed)) {
     throw new AssetDriftError(`${expected.id} asset changed after Circuit pinned it`);
   }
 }
@@ -28034,6 +28051,12 @@ function errorResponse(error51) {
     }
   };
 }
+function launchFailureMessage(error51) {
+  const cause = error51 instanceof Error ? error51.message.trim() : String(error51).trim();
+  const base = "The Circuit worker did not start.";
+  if (cause.length === 0) return base;
+  return `${base} Cause: ${cause}`.slice(0, 1e3);
+}
 function nowIso(now) {
   return now().toISOString();
 }
@@ -28231,16 +28254,17 @@ var CircuitMcpLifecycle = class {
         to: "running",
         summary: `Circuit is running the ${current.request.flow} flow.`
       });
-    } catch (_error) {
-      const reportedCleanupConfirmed = typeof _error === "object" && _error !== null && "cleanup_confirmed" in _error && _error.cleanup_confirmed === true;
+    } catch (error51) {
+      const reportedCleanupConfirmed = typeof error51 === "object" && error51 !== null && "cleanup_confirmed" in error51 && error51.cleanup_confirmed === true;
       const cleanupConfirmed = reportedCleanupConfirmed || (session !== void 0 && !authorizationPersisted ? await session.closeBeforeAuthorization().catch(() => false) : false);
+      const failure2 = { code: "launch_failed", message: launchFailureMessage(error51) };
       if (cleanupConfirmed) {
         await this.#options.store.transitionRun({
           handle: input.handle,
           to: "interrupted",
           summary: "Circuit could not launch the worker and observed that its recorded owned process group is absent.",
           launch: exitedLaunch(current.launch, this.#now, "confirmed"),
-          failure: { code: "launch_failed", message: "The Circuit worker did not start." }
+          failure: failure2
         });
       } else {
         await this.#options.store.transitionRun({
@@ -28257,7 +28281,7 @@ var CircuitMcpLifecycle = class {
               process_group_status: session === void 0 ? "absent" : "unknown"
             }
           ),
-          failure: { code: "launch_failed", message: "The Circuit worker did not start." }
+          failure: failure2
         });
       }
       throw new McpLifecycleError(
@@ -36828,7 +36852,7 @@ function productionMcpLayout(input) {
   });
 }
 function createProductionAssetLoader(layout) {
-  return async () => await pinMcpRuntimeAssets({
+  return async () => await pinMcpRuntimeAssetsSettled({
     node: layout.nodeExecutable,
     codex: layout.codexExecutable,
     plugin_runtimes: layout.pluginRuntimes,

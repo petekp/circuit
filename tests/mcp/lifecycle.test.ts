@@ -676,6 +676,28 @@ describe('Circuit MCP lifecycle', () => {
     },
   );
 
+  it('persists the launch failure cause instead of a generic message', async () => {
+    const launcher: SupervisorLauncher = {
+      begin: async () => {
+        throw new SupervisorLaunchError(
+          'plugin_runtime:server asset changed after Circuit pinned it',
+          true,
+        );
+      },
+    };
+    const { lifecycle, store } = fixture({ launcher });
+    const failures: string[] = [];
+    const transition = store.transitionRun.bind(store);
+    store.transitionRun = (input) => {
+      if (input.failure != null) failures.push(input.failure.message);
+      return transition(input);
+    };
+    await lifecycle.handle(call('circuit_start', { flow: 'review', goal: 'Review this change' }));
+    expect(failures.join('\n')).toContain(
+      'plugin_runtime:server asset changed after Circuit pinned it',
+    );
+  });
+
   it('keeps an authorized launch in recovery when the worker reply is lost', async () => {
     const launcher: SupervisorLauncher = {
       begin: async () => ({

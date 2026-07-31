@@ -76,6 +76,18 @@ function errorResponse(error: unknown): McpErrorResponseV1 {
   };
 }
 
+/**
+ * The persisted failure record is often the only surviving evidence of why a
+ * launch died — the worker is gone and its exit journal may never have been
+ * written. Keep the underlying cause instead of a generic sentence.
+ */
+function launchFailureMessage(error: unknown): string {
+  const cause = error instanceof Error ? error.message.trim() : String(error).trim();
+  const base = 'The Circuit worker did not start.';
+  if (cause.length === 0) return base;
+  return `${base} Cause: ${cause}`.slice(0, 1_000);
+}
+
 function nowIso(now: () => Date): string {
   return now().toISOString();
 }
@@ -344,17 +356,18 @@ export class CircuitMcpLifecycle<TPrepared = unknown> {
         to: 'running',
         summary: `Circuit is running the ${current.request.flow} flow.`,
       });
-    } catch (_error) {
+    } catch (error) {
       const reportedCleanupConfirmed =
-        typeof _error === 'object' &&
-        _error !== null &&
-        'cleanup_confirmed' in _error &&
-        (_error as { readonly cleanup_confirmed?: unknown }).cleanup_confirmed === true;
+        typeof error === 'object' &&
+        error !== null &&
+        'cleanup_confirmed' in error &&
+        (error as { readonly cleanup_confirmed?: unknown }).cleanup_confirmed === true;
       const cleanupConfirmed =
         reportedCleanupConfirmed ||
         (session !== undefined && !authorizationPersisted
           ? await session.closeBeforeAuthorization().catch(() => false)
           : false);
+      const failure = { code: 'launch_failed', message: launchFailureMessage(error) };
       if (cleanupConfirmed) {
         await this.#options.store.transitionRun({
           handle: input.handle,
@@ -362,7 +375,7 @@ export class CircuitMcpLifecycle<TPrepared = unknown> {
           summary:
             'Circuit could not launch the worker and observed that its recorded owned process group is absent.',
           launch: exitedLaunch(current.launch, this.#now, 'confirmed'),
-          failure: { code: 'launch_failed', message: 'The Circuit worker did not start.' },
+          failure,
         });
       } else {
         await this.#options.store.transitionRun({
@@ -379,7 +392,7 @@ export class CircuitMcpLifecycle<TPrepared = unknown> {
               process_group_status: session === undefined ? 'absent' : 'unknown',
             },
           ),
-          failure: { code: 'launch_failed', message: 'The Circuit worker did not start.' },
+          failure,
         });
       }
       throw new McpLifecycleError(

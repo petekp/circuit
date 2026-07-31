@@ -14742,8 +14742,8 @@ async function pinOne(input) {
     sha256
   });
 }
-function samePin(left, right) {
-  return left.id === right.id && left.role === right.role && left.source_path === right.source_path && left.real_path === right.real_path && left.device === right.device && left.inode === right.inode && left.mode === right.mode && left.byte_length === right.byte_length && left.sha256 === right.sha256;
+function samePinContent(left, right) {
+  return left.id === right.id && left.role === right.role && left.source_path === right.source_path && left.real_path === right.real_path && left.mode === right.mode && left.byte_length === right.byte_length && left.sha256 === right.sha256;
 }
 async function verifyMcpRuntimeAssets(pins) {
   const parsed = McpRuntimeAssetPinsV1.safeParse(pins);
@@ -14771,7 +14771,7 @@ async function verifyMcpRuntimeAsset(expected) {
     if (error51 instanceof AssetDriftError) throw error51;
     throw new AssetDriftError(`${expected.id} asset changed: ${describeError(error51)}`);
   }
-  if (!samePin(expected, observed)) {
+  if (!samePinContent(expected, observed)) {
     throw new AssetDriftError(`${expected.id} asset changed after Circuit pinned it`);
   }
 }

@@ -126,10 +126,13 @@ a run.
 ## Installed asset identity
 
 Before launch, Circuit records the real paths and hashes of Node, Codex, the
-plugin runtime, the Git helper, and packaged flows. A changed asset blocks
-start and resume. Status, list, cancel, and recover remain available so an
-operator can inspect or safely close existing work. A long-lived worker also
-rechecks the exact Codex asset immediately before each relay spawn.
+plugin runtime, the Git helper, and packaged flows. An asset whose content
+changed blocks start and resume. A byte-identical replacement under the same
+path is accepted: Codex reinstalls the plugin cache at session start, and a
+launch racing that reinstall must not fail over a fresh inode. Status, list,
+cancel, and recover remain available so an operator can inspect or safely
+close existing work. A long-lived worker also rechecks the exact Codex asset
+immediately before each relay spawn.
 
 This protects against accidental replacement after launch. It does not claim
 to defeat a malicious process running as the same user.
