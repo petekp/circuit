@@ -608,7 +608,7 @@ function redactText(value: string, paths: readonly string[]): string {
   return redacted.replace(/(https?:\/\/)[^\s/@]+@/giu, '$1<redacted>@');
 }
 
-function redactSmokeOutcome(value: SmokeOutcome, paths: readonly string[]): SmokeOutcome {
+export function redactSmokeOutcome(value: SmokeOutcome, paths: readonly string[]): SmokeOutcome {
   return JSON.parse(
     JSON.stringify(value, (_key, item: unknown) =>
       typeof item === 'string' ? redactText(item, paths) : item,

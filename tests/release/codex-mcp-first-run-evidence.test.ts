@@ -84,6 +84,10 @@ function hostTrace(result: Record<string, unknown>): string {
         result: {
           structured_content: { schema_version: 1, ok: true, run_id: RUN_ID, state: 'starting' },
         },
+        // Real codex emits error: null on successful calls; absence is the
+        // exception, not the rule.
+        error: null,
+        status: 'completed',
       },
     },
     {
@@ -115,6 +119,8 @@ function hostTrace(result: Record<string, unknown>): string {
             final_report: { schema: 'circuit.review.result', data: result },
           },
         },
+        error: null,
+        status: 'completed',
       },
     },
     {

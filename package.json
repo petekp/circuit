@@ -55,6 +55,7 @@
     "check-flow-drift:nobuild": "node scripts/flows/emit.ts --check && npm run check-checkpoint-review-runtime && npm run check-plugin-runtime",
     "emit-release": "npm run build && node scripts/release/emit-current-capabilities.ts && node scripts/release/render-parity-matrix.ts && node scripts/release/render-readiness-report.ts",
     "capture-proofs:golden-runs": "npm run build && node scripts/release/capture-golden-run-proofs.ts",
+    "capture-proofs:codex-mcp-first-run": "npm run build && node scripts/release/capture-codex-mcp-first-run-proof.ts",
     "check-proof-stubs:nobuild": "node scripts/release/capture-golden-run-proofs.ts --validate-stubs",
     "check-release-infra": "npm run build && npm run check-release-infra:nobuild",
     "check-release-infra:nobuild": "node scripts/release/emit-current-capabilities.ts --check && node scripts/release/check-parity.ts && node scripts/release/check-public-claims.ts && node scripts/release/check-proof-coverage.ts && node scripts/release/check-codex-mcp-first-run-proof.ts && node scripts/release/check-codex-mcp-candidate-matrix.ts && npm run check-proof-stubs:nobuild && node scripts/release/render-parity-matrix.ts --check && node scripts/release/render-readiness-report.ts --check && node scripts/release/audit-public-docs.ts && node scripts/release/audit-marketplace-safe-paths.ts && node scripts/release/check-npm-package-install.ts && npm run check-codex-mcp-package",

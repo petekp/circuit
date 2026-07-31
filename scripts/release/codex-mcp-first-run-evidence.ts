@@ -18,7 +18,7 @@ type ExpectedPlugin = {
   readonly validateReviewResult: (value: unknown) => boolean;
 };
 
-const REQUIRED_EVIDENCE = [
+export const REQUIRED_EVIDENCE = [
   'real_plugin_loader_completed',
   'tool_search_discovered_six_tools',
   'circuit_list_invoked',
@@ -272,7 +272,8 @@ function validateHostTrace(
     const response = structuredContent(item);
     if (
       response?.ok !== true ||
-      item.error !== undefined ||
+      // Real codex emits error: null on successful calls.
+      (item.error !== undefined && item.error !== null) ||
       record(item.result)?.is_error === true
     ) {
       failedCall = true;
