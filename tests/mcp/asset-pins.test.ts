@@ -1,4 +1,4 @@
-import { chmod, mkdir, mkdtemp, rm, symlink, writeFile } from 'node:fs/promises';
+import { chmod, mkdir, mkdtemp, rename, rm, symlink, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
@@ -83,10 +83,15 @@ describe('Codex MCP installed asset pins', () => {
     // byte-identical files under the same paths with fresh inodes; that must
     // not kill the first launch.
     const pins = await pin();
-    await rm(flowPath);
-    await writeFile(flowPath, '{"flow":"review"}\n', { mode: 0o600 });
-    await rm(serverRuntimePath);
-    await writeFile(serverRuntimePath, 'server\n', { mode: 0o600 });
+    // Write the replacement while the original still exists, then rename over
+    // it — the same shape as a cache re-clone. Because both files exist at
+    // once they are guaranteed distinct inodes; a plain rm-then-write lets
+    // ext4 hand the freed inode number straight back and the identity-change
+    // premise silently evaporates on Linux CI.
+    await writeFile(`${flowPath}.next`, '{"flow":"review"}\n', { mode: 0o600 });
+    await rename(`${flowPath}.next`, flowPath);
+    await writeFile(`${serverRuntimePath}.next`, 'server\n', { mode: 0o600 });
+    await rename(`${serverRuntimePath}.next`, serverRuntimePath);
     const replaced = await pin();
     const flowBefore = pins.assets.find((asset) => asset.id === 'flow:review');
     const flowAfter = replaced.assets.find((asset) => asset.id === 'flow:review');
