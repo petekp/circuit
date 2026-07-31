@@ -250,7 +250,7 @@ export const FixChange = z
       .min(1)
       .describe('reference to the diagnosis report or section that motivates this change'),
     changed_files: z
-      .array(z.string().min(1).describe('project-relative path that was edited'))
+      .array(z.string().min(1).describe('project-relative path you edited during this attempt'))
       .min(1),
     evidence: LenientNonEmptyStringArray,
   })
@@ -564,6 +564,12 @@ export const FixChangeSet = z
     observed: z.array(z.string().min(1)),
     undeclared_extras: z.array(z.string().min(1)),
     missing_declared: z.array(z.string().min(1)),
+    // Declared paths that were already modified when the run started and whose
+    // content never changed during it. The run did not touch them, so they are
+    // not in `observed` — but the worker did not invent them either, so they
+    // are not counted against the overclaim gate. Empty whenever `observed` is
+    // empty: a run that changed nothing gets no forgiveness.
+    declared_pre_existing_dirt: z.array(z.string().min(1)).default([]),
     // Subset of `observed` that came from baseline-dirty mutation rather than
     // newly-dirty paths. Carried for transparency: a path here means it was
     // already dirty at fix-act start and fix-act further mutated it. The
@@ -598,7 +604,10 @@ export const FixChangeSet = z
         message: 'undeclared_extras must equal observed minus declared (in observed order)',
       });
     }
-    const expectedMissing = changeSet.declared.filter((path) => !observedSet.has(path));
+    const preExistingDirtSet = new Set(changeSet.declared_pre_existing_dirt);
+    const expectedMissing = changeSet.declared.filter(
+      (path) => !observedSet.has(path) && !preExistingDirtSet.has(path),
+    );
     if (
       expectedMissing.length !== changeSet.missing_declared.length ||
       expectedMissing.some((p, i) => p !== changeSet.missing_declared[i])
@@ -606,7 +615,35 @@ export const FixChangeSet = z
       ctx.addIssue({
         code: 'custom',
         path: ['missing_declared'],
-        message: 'missing_declared must equal declared minus observed (in declared order)',
+        message:
+          'missing_declared must equal declared minus observed minus declared_pre_existing_dirt (in declared order)',
+      });
+    }
+    // Classifying a path as pre-existing dirt needs baseline fingerprints this
+    // report does not carry, so the projector owns it. What is checkable here
+    // is that the buckets stay disjoint and the empty-work guard held.
+    for (const [index, path] of changeSet.declared_pre_existing_dirt.entries()) {
+      if (!declaredSet.has(path)) {
+        ctx.addIssue({
+          code: 'custom',
+          path: ['declared_pre_existing_dirt', index],
+          message: `declared_pre_existing_dirt path '${path}' must also appear in declared`,
+        });
+      }
+      if (observedSet.has(path)) {
+        ctx.addIssue({
+          code: 'custom',
+          path: ['declared_pre_existing_dirt', index],
+          message: `declared_pre_existing_dirt path '${path}' was observed as touched, so it is not untouched pre-existing dirt`,
+        });
+      }
+    }
+    if (changeSet.observed.length === 0 && changeSet.declared_pre_existing_dirt.length > 0) {
+      ctx.addIssue({
+        code: 'custom',
+        path: ['declared_pre_existing_dirt'],
+        message:
+          'declared_pre_existing_dirt must be empty when observed is empty: a run that changed nothing cannot excuse its declarations',
       });
     }
     // baseline_dirty_mutated must be a subset of observed (every mutated

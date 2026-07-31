@@ -39,7 +39,7 @@ export const fixChangeShapeHint: SchemaShapeHint = {
   schema: 'fix.change@v1',
   instruction: [
     shapeInstruction(renderShapeSkeleton(FixChange)),
-    'Make the smallest change that resolves the diagnosed cause and address every objective check named in the brief. Do not stop at the first green assertion if the brief names multiple formats, modes, or edge commands. Do not refactor adjacent code, broaden behavior, or address unrelated issues in the same edit. changed_files must contain at least one entry; evidence must contain at least one entry (test output, command result, or before/after observation that confirms the change works).',
+    'Make the smallest change that resolves the diagnosed cause and address every objective check named in the brief. Do not stop at the first green assertion if the brief names multiple formats, modes, or edge commands. Do not refactor adjacent code, broaden behavior, or address unrelated issues in the same edit. changed_files must contain at least one entry, and every entry must be a file you edited during this attempt — the working tree may already have had uncommitted changes when this run started, so do not list a file just because it shows up as modified. evidence must contain at least one entry (test output, command result, or before/after observation that confirms the change works).',
     '`evidence` is a JSON array of short distinct strings — one observation per element. It is a schema field name, not a request for prose. Even on retry attempts where you are summarizing prior verification output, keep each observation as its own array element.',
     mechanicalTail('fix.change@v1', 'reports/fix/change.json'),
   ].join(' '),

@@ -30006,6 +30006,13 @@ var RuntimeTouchedFilesCore = external_exports.object({
   worker_claim_matches_runtime: external_exports.boolean(),
   undeclared_worker_extras: external_exports.array(external_exports.string().min(1)),
   missing_worker_declared: external_exports.array(external_exports.string().min(1)),
+  // Declared paths that were already dirty when the run started and still
+  // carry the same content. The run did not touch them, so they stay out of
+  // `files` — but they are not an overclaim about this run's work either,
+  // so they are reported here instead of in missing_worker_declared. Only
+  // populated when the run observed at least one real change; a run that
+  // changed nothing keeps every declaration in missing_worker_declared.
+  declared_pre_existing_dirt: external_exports.array(external_exports.string().min(1)).default([]),
   baseline_dirty_mutated: external_exports.array(external_exports.string().min(1)),
   hidden_index_flags: external_exports.array(RuntimeHiddenIndexFlag)
 }).strict();
@@ -30013,9 +30020,35 @@ function addRuntimeTouchedFilesIssues(touched, ctx) {
   const observed = touched.files.map((file2) => file2.path);
   const observedSet = new Set(observed);
   const declaredSet = new Set(touched.worker_declared);
+  const preExistingDirt = new Set(touched.declared_pre_existing_dirt);
   const expectedExtras = observed.filter((path) => !declaredSet.has(path));
-  const expectedMissing = touched.worker_declared.filter((path) => !observedSet.has(path));
+  const expectedMissing = touched.worker_declared.filter(
+    (path) => !observedSet.has(path) && !preExistingDirt.has(path)
+  );
   const expectedMatches = expectedExtras.length === 0 && expectedMissing.length === 0;
+  for (const [index, path] of touched.declared_pre_existing_dirt.entries()) {
+    if (!declaredSet.has(path)) {
+      ctx.addIssue({
+        code: "custom",
+        path: ["declared_pre_existing_dirt", index],
+        message: `declared_pre_existing_dirt path '${path}' must also appear in worker_declared`
+      });
+    }
+    if (observedSet.has(path)) {
+      ctx.addIssue({
+        code: "custom",
+        path: ["declared_pre_existing_dirt", index],
+        message: `declared_pre_existing_dirt path '${path}' was observed as touched, so it is not untouched pre-existing dirt`
+      });
+    }
+  }
+  if (observed.length === 0 && touched.declared_pre_existing_dirt.length > 0) {
+    ctx.addIssue({
+      code: "custom",
+      path: ["declared_pre_existing_dirt"],
+      message: "declared_pre_existing_dirt must be empty when no files were observed as touched: a run that changed nothing cannot excuse its declarations"
+    });
+  }
   if (touched.head_diverged !== (touched.baseline_head_sha !== touched.head_sha)) {
     ctx.addIssue({
       code: "custom",
@@ -30041,7 +30074,7 @@ function addRuntimeTouchedFilesIssues(touched, ctx) {
     ctx.addIssue({
       code: "custom",
       path: ["missing_worker_declared"],
-      message: "missing_worker_declared must equal worker_declared minus runtime-observed paths"
+      message: "missing_worker_declared must equal worker_declared minus runtime-observed paths minus declared_pre_existing_dirt"
     });
   }
   for (const [index, path] of touched.baseline_dirty_mutated.entries()) {

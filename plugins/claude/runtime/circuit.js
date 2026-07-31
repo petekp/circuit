@@ -21720,9 +21720,33 @@ function addRuntimeTouchedFilesIssues(touched, ctx) {
   const observed = touched.files.map((file2) => file2.path);
   const observedSet = new Set(observed);
   const declaredSet = new Set(touched.worker_declared);
+  const preExistingDirt = new Set(touched.declared_pre_existing_dirt);
   const expectedExtras = observed.filter((path) => !declaredSet.has(path));
-  const expectedMissing = touched.worker_declared.filter((path) => !observedSet.has(path));
+  const expectedMissing = touched.worker_declared.filter((path) => !observedSet.has(path) && !preExistingDirt.has(path));
   const expectedMatches = expectedExtras.length === 0 && expectedMissing.length === 0;
+  for (const [index, path] of touched.declared_pre_existing_dirt.entries()) {
+    if (!declaredSet.has(path)) {
+      ctx.addIssue({
+        code: "custom",
+        path: ["declared_pre_existing_dirt", index],
+        message: `declared_pre_existing_dirt path '${path}' must also appear in worker_declared`
+      });
+    }
+    if (observedSet.has(path)) {
+      ctx.addIssue({
+        code: "custom",
+        path: ["declared_pre_existing_dirt", index],
+        message: `declared_pre_existing_dirt path '${path}' was observed as touched, so it is not untouched pre-existing dirt`
+      });
+    }
+  }
+  if (observed.length === 0 && touched.declared_pre_existing_dirt.length > 0) {
+    ctx.addIssue({
+      code: "custom",
+      path: ["declared_pre_existing_dirt"],
+      message: "declared_pre_existing_dirt must be empty when no files were observed as touched: a run that changed nothing cannot excuse its declarations"
+    });
+  }
   if (touched.head_diverged !== (touched.baseline_head_sha !== touched.head_sha)) {
     ctx.addIssue({
       code: "custom",
@@ -21748,7 +21772,7 @@ function addRuntimeTouchedFilesIssues(touched, ctx) {
     ctx.addIssue({
       code: "custom",
       path: ["missing_worker_declared"],
-      message: "missing_worker_declared must equal worker_declared minus runtime-observed paths"
+      message: "missing_worker_declared must equal worker_declared minus runtime-observed paths minus declared_pre_existing_dirt"
     });
   }
   for (const [index, path] of touched.baseline_dirty_mutated.entries()) {
@@ -21811,6 +21835,13 @@ var init_runtime_evidence = __esm({
       worker_claim_matches_runtime: external_exports.boolean(),
       undeclared_worker_extras: external_exports.array(external_exports.string().min(1)),
       missing_worker_declared: external_exports.array(external_exports.string().min(1)),
+      // Declared paths that were already dirty when the run started and still
+      // carry the same content. The run did not touch them, so they stay out of
+      // `files` — but they are not an overclaim about this run's work either,
+      // so they are reported here instead of in missing_worker_declared. Only
+      // populated when the run observed at least one real change; a run that
+      // changed nothing keeps every declaration in missing_worker_declared.
+      declared_pre_existing_dirt: external_exports.array(external_exports.string().min(1)).default([]),
       baseline_dirty_mutated: external_exports.array(external_exports.string().min(1)),
       hidden_index_flags: external_exports.array(RuntimeHiddenIndexFlag)
     }).strict();
@@ -67972,7 +68003,15 @@ function projectRuntimeTouchedFiles(options) {
   const observedSet = new Set(observed);
   const workerDeclaredSet = new Set(workerDeclared);
   const undeclaredWorkerExtras = observed.filter((path) => !workerDeclaredSet.has(path));
-  const missingWorkerDeclared = workerDeclared.filter((path) => !observedSet.has(path));
+  const declaredNotObserved = workerDeclared.filter((path) => !observedSet.has(path));
+  const declaredPreExistingDirt = observed.length === 0 ? [] : declaredNotObserved.filter((path) => {
+    const before = baselineByPath.get(path);
+    if (before === void 0 || hiddenBaselinePaths.has(path))
+      return false;
+    return before.fingerprint === postByPath.get(path)?.fingerprint;
+  });
+  const preExistingDirtSet = new Set(declaredPreExistingDirt);
+  const missingWorkerDeclared = declaredNotObserved.filter((path) => !preExistingDirtSet.has(path));
   return RuntimeTouchedFilesProjection.parse({
     baseline_head_sha: options.baseline.head_sha,
     head_sha: options.post.head_sha,
@@ -67996,6 +68035,7 @@ function projectRuntimeTouchedFiles(options) {
     worker_claim_matches_runtime: undeclaredWorkerExtras.length === 0 && missingWorkerDeclared.length === 0,
     undeclared_worker_extras: undeclaredWorkerExtras,
     missing_worker_declared: missingWorkerDeclared,
+    declared_pre_existing_dirt: declaredPreExistingDirt,
     baseline_dirty_mutated: uniqueSorted(baselineDirtyMutated),
     hidden_index_flags: uniqueFlags([...baselineHiddenFlags, ...postHiddenFlags])
   });
@@ -77585,7 +77625,7 @@ var init_reports6 = __esm({
       verdict: external_exports.literal("accept"),
       summary: external_exports.string().min(1).describe("what changed and why"),
       diagnosis_ref: external_exports.string().min(1).describe("reference to the diagnosis report or section that motivates this change"),
-      changed_files: external_exports.array(external_exports.string().min(1).describe("project-relative path that was edited")).min(1),
+      changed_files: external_exports.array(external_exports.string().min(1).describe("project-relative path you edited during this attempt")).min(1),
       evidence: LenientNonEmptyStringArray
     }).strict();
     FixVerificationCommandResult = external_exports.object({
@@ -77771,6 +77811,12 @@ var init_reports6 = __esm({
       observed: external_exports.array(external_exports.string().min(1)),
       undeclared_extras: external_exports.array(external_exports.string().min(1)),
       missing_declared: external_exports.array(external_exports.string().min(1)),
+      // Declared paths that were already modified when the run started and whose
+      // content never changed during it. The run did not touch them, so they are
+      // not in `observed` — but the worker did not invent them either, so they
+      // are not counted against the overclaim gate. Empty whenever `observed` is
+      // empty: a run that changed nothing gets no forgiveness.
+      declared_pre_existing_dirt: external_exports.array(external_exports.string().min(1)).default([]),
       // Subset of `observed` that came from baseline-dirty mutation rather than
       // newly-dirty paths. Carried for transparency: a path here means it was
       // already dirty at fix-act start and fix-act further mutated it. The
@@ -77800,12 +77846,36 @@ var init_reports6 = __esm({
           message: "undeclared_extras must equal observed minus declared (in observed order)"
         });
       }
-      const expectedMissing = changeSet.declared.filter((path) => !observedSet.has(path));
+      const preExistingDirtSet = new Set(changeSet.declared_pre_existing_dirt);
+      const expectedMissing = changeSet.declared.filter((path) => !observedSet.has(path) && !preExistingDirtSet.has(path));
       if (expectedMissing.length !== changeSet.missing_declared.length || expectedMissing.some((p, i) => p !== changeSet.missing_declared[i])) {
         ctx.addIssue({
           code: "custom",
           path: ["missing_declared"],
-          message: "missing_declared must equal declared minus observed (in declared order)"
+          message: "missing_declared must equal declared minus observed minus declared_pre_existing_dirt (in declared order)"
+        });
+      }
+      for (const [index, path] of changeSet.declared_pre_existing_dirt.entries()) {
+        if (!declaredSet.has(path)) {
+          ctx.addIssue({
+            code: "custom",
+            path: ["declared_pre_existing_dirt", index],
+            message: `declared_pre_existing_dirt path '${path}' must also appear in declared`
+          });
+        }
+        if (observedSet.has(path)) {
+          ctx.addIssue({
+            code: "custom",
+            path: ["declared_pre_existing_dirt", index],
+            message: `declared_pre_existing_dirt path '${path}' was observed as touched, so it is not untouched pre-existing dirt`
+          });
+        }
+      }
+      if (changeSet.observed.length === 0 && changeSet.declared_pre_existing_dirt.length > 0) {
+        ctx.addIssue({
+          code: "custom",
+          path: ["declared_pre_existing_dirt"],
+          message: "declared_pre_existing_dirt must be empty when observed is empty: a run that changed nothing cannot excuse its declarations"
         });
       }
       for (const [index, path] of changeSet.baseline_dirty_mutated.entries()) {
@@ -78122,7 +78192,7 @@ var init_relay_hints6 = __esm({
       schema: "fix.change@v1",
       instruction: [
         shapeInstruction(renderShapeSkeleton(FixChange)),
-        "Make the smallest change that resolves the diagnosed cause and address every objective check named in the brief. Do not stop at the first green assertion if the brief names multiple formats, modes, or edge commands. Do not refactor adjacent code, broaden behavior, or address unrelated issues in the same edit. changed_files must contain at least one entry; evidence must contain at least one entry (test output, command result, or before/after observation that confirms the change works).",
+        "Make the smallest change that resolves the diagnosed cause and address every objective check named in the brief. Do not stop at the first green assertion if the brief names multiple formats, modes, or edge commands. Do not refactor adjacent code, broaden behavior, or address unrelated issues in the same edit. changed_files must contain at least one entry, and every entry must be a file you edited during this attempt \u2014 the working tree may already have had uncommitted changes when this run started, so do not list a file just because it shows up as modified. evidence must contain at least one entry (test output, command result, or before/after observation that confirms the change works).",
         "`evidence` is a JSON array of short distinct strings \u2014 one observation per element. It is a schema field name, not a request for prose. Even on retry attempts where you are summarizing prior verification output, keep each observation as its own array element.",
         mechanicalTail("fix.change@v1", "reports/fix/change.json")
       ].join(" ")
@@ -78433,6 +78503,9 @@ function projectFixChangeSet(inputs) {
     }
     if (runtimeTouchedFiles.missing_worker_declared.length > 0) {
       parts.push(`missing declared: ${runtimeTouchedFiles.missing_worker_declared.join(", ")}`);
+      if (observed.length === 0 && inputs.baseline.entries.length > 0) {
+        parts.push("this run changed no files, and the working tree already had uncommitted changes when it started, so the declared paths may be from earlier work rather than this run");
+      }
     }
     if (hiddenFlags.length > 0) {
       const labelled = hiddenFlags.map((flag) => `${flag.path} (${flag.tag})`).join(", ");
@@ -78450,6 +78523,7 @@ function projectFixChangeSet(inputs) {
     observed,
     undeclared_extras: runtimeTouchedFiles.undeclared_worker_extras,
     missing_declared: runtimeTouchedFiles.missing_worker_declared,
+    declared_pre_existing_dirt: runtimeTouchedFiles.declared_pre_existing_dirt,
     baseline_dirty_mutated: runtimeTouchedFiles.baseline_dirty_mutated,
     hidden_index_flags: [...hiddenFlags]
   });

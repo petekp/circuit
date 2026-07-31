@@ -103,6 +103,47 @@ describe('projectRuntimeTouchedFiles', () => {
     expect(projection.missing_worker_declared).toEqual(['src/claimed.ts']);
   });
 
+  // A declared path that was already dirty at run start and still carries the
+  // same fingerprint was not touched by this run. That is a different fact
+  // from "declared a file that was never dirty at all", which is a genuine
+  // overclaim, so the two get separate fields and only the second one fails.
+  it('separates declared pre-existing dirt from a genuine overclaim', () => {
+    const projection = projectRuntimeTouchedFiles({
+      baseline: snapshot({
+        entries: [{ status_code: ' M', path: 'src/stale.ts', fingerprint: 'same' }],
+      }),
+      post: snapshot({
+        entries: [
+          { status_code: ' M', path: 'src/stale.ts', fingerprint: 'same' },
+          { status_code: '??', path: 'src/actual.ts', fingerprint: 'actual' },
+        ],
+      }),
+      workerDeclaredPaths: ['src/actual.ts', 'src/never-touched.ts', 'src/stale.ts'],
+    });
+
+    expect(projection.files.map((file) => file.path)).toEqual(['src/actual.ts']);
+    expect(projection.declared_pre_existing_dirt).toEqual(['src/stale.ts']);
+    expect(projection.missing_worker_declared).toEqual(['src/never-touched.ts']);
+    expect(projection.worker_claim_matches_runtime).toBe(false);
+  });
+
+  it('does not forgive pre-existing dirt when the run observed no changes at all', () => {
+    const projection = projectRuntimeTouchedFiles({
+      baseline: snapshot({
+        entries: [{ status_code: ' M', path: 'src/stale.ts', fingerprint: 'same' }],
+      }),
+      post: snapshot({
+        entries: [{ status_code: ' M', path: 'src/stale.ts', fingerprint: 'same' }],
+      }),
+      workerDeclaredPaths: ['src/stale.ts'],
+    });
+
+    expect(projection.files).toEqual([]);
+    expect(projection.declared_pre_existing_dirt).toEqual([]);
+    expect(projection.missing_worker_declared).toEqual(['src/stale.ts']);
+    expect(projection.worker_claim_matches_runtime).toBe(false);
+  });
+
   it('treats baseline-dirty paths that become clean as runtime-touched files', () => {
     const projection = projectRuntimeTouchedFiles({
       baseline: snapshot({

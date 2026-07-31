@@ -20,6 +20,10 @@ const SERIAL_FILES = [
   'tests/mcp/proof-sandbox.test.ts',
   'tests/mcp/proof-sandbox-live.test.ts',
   'tests/mcp/nested-codex-subprocess.test.ts',
+  // supervisor polls for a worker group to stop being signalled after its
+  // leader exits, bounded by a wall-clock deadline. Same signature: 5s alone,
+  // 81s and a timeout in the parallel stage.
+  'tests/mcp/supervisor.test.ts',
 ];
 const FAST_EXCLUDES = ['tests/runner/cli-router.test.ts', 'tests/unit/emit-flows-drift.test.ts'];
 

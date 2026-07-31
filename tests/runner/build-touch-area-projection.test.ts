@@ -31,6 +31,7 @@ function touched(
     worker_claim_matches_runtime: true,
     undeclared_worker_extras: [],
     missing_worker_declared: [],
+    declared_pre_existing_dirt: [],
     baseline_dirty_mutated: [],
     hidden_index_flags: [],
     ...rest,

@@ -130,7 +130,28 @@ export function projectRuntimeTouchedFiles(
   const observedSet = new Set(observed);
   const workerDeclaredSet = new Set(workerDeclared);
   const undeclaredWorkerExtras = observed.filter((path) => !workerDeclaredSet.has(path));
-  const missingWorkerDeclared = workerDeclared.filter((path) => !observedSet.has(path));
+
+  // A declared path that was already dirty when the run started and whose
+  // content is byte-identical now was not touched by this run — but neither
+  // was it invented. A prior run (or the operator) left it modified, the
+  // worker read the working tree and took it for its own. Splitting that case
+  // out keeps the overclaim gate pointed at real overclaims: a declared path
+  // that was never dirty and is still clean stays a hard failure.
+  //
+  // The split only applies to a run that actually changed something. If
+  // nothing was observed, every declaration stays in missing_worker_declared,
+  // so "I fixed it" can never pass on zero work.
+  const declaredNotObserved = workerDeclared.filter((path) => !observedSet.has(path));
+  const declaredPreExistingDirt =
+    observed.length === 0
+      ? []
+      : declaredNotObserved.filter((path) => {
+          const before = baselineByPath.get(path);
+          if (before === undefined || hiddenBaselinePaths.has(path)) return false;
+          return before.fingerprint === postByPath.get(path)?.fingerprint;
+        });
+  const preExistingDirtSet = new Set(declaredPreExistingDirt);
+  const missingWorkerDeclared = declaredNotObserved.filter((path) => !preExistingDirtSet.has(path));
 
   return RuntimeTouchedFilesProjection.parse({
     baseline_head_sha: options.baseline.head_sha,
@@ -156,6 +177,7 @@ export function projectRuntimeTouchedFiles(
       undeclaredWorkerExtras.length === 0 && missingWorkerDeclared.length === 0,
     undeclared_worker_extras: undeclaredWorkerExtras,
     missing_worker_declared: missingWorkerDeclared,
+    declared_pre_existing_dirt: declaredPreExistingDirt,
     baseline_dirty_mutated: uniqueSorted(baselineDirtyMutated),
     hidden_index_flags: uniqueFlags([...baselineHiddenFlags, ...postHiddenFlags]),
   });

@@ -137,7 +137,9 @@ describe('renderShapeSkeleton', () => {
     expect(out).toContain('"verdict": "accept"');
     expect(out).toContain('"summary":');
     expect(out).toContain('"diagnosis_ref":');
-    expect(out).toContain('"changed_files": ["<project-relative path that was edited>"]');
+    expect(out).toContain(
+      '"changed_files": ["<project-relative path you edited during this attempt>"]',
+    );
     expect(out).toContain('"evidence":');
   });
 

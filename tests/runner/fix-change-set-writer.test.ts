@@ -244,6 +244,7 @@ describe('fixChangeSetWriter.buildResult', () => {
         observed: ['src/first-pass.ts'],
         undeclared_extras: [],
         missing_declared: [],
+        declared_pre_existing_dirt: [],
         baseline_dirty_mutated: [],
         hidden_index_flags: [],
       },
@@ -293,6 +294,7 @@ describe('fixChangeSetWriter.buildResult', () => {
         observed: ['src/restored.ts'],
         undeclared_extras: [],
         missing_declared: [],
+        declared_pre_existing_dirt: [],
         baseline_dirty_mutated: [],
         hidden_index_flags: [],
       },
@@ -338,6 +340,7 @@ describe('fixChangeSetWriter.buildResult', () => {
         observed: [],
         undeclared_extras: [],
         missing_declared: ['src/unproven.ts'],
+        declared_pre_existing_dirt: [],
         baseline_dirty_mutated: [],
         hidden_index_flags: [],
       },
@@ -385,6 +388,7 @@ describe('fixChangeSetWriter.buildResult', () => {
         observed: ['src/a.ts'],
         undeclared_extras: [],
         missing_declared: [],
+        declared_pre_existing_dirt: [],
         baseline_dirty_mutated: [],
         hidden_index_flags: [],
       },
@@ -557,6 +561,83 @@ describe('fixChangeSetWriter.buildResult', () => {
     expect(result.status).toBe('fail');
     expect(result.missing_declared).toEqual(['src/b.ts']);
     expect(result.reason).toMatch(/missing declared: src\/b\.ts/);
+  });
+
+  // Contamination: a prior run left src/a.ts modified and uncommitted. This
+  // run's implementer read it, believed it was part of its own work, and
+  // declared it. Its fingerprint is unchanged, so this run did not touch it.
+  // That is not an overclaim about work this run did — the run really did
+  // change src/b.ts — so the declaration is recorded as pre-existing dirt
+  // rather than aborting the run.
+  it('accepts a declared path that was already dirty and unchanged this run', () => {
+    const { context } = makeFixture({
+      baseline: {
+        overall_status: 'passed',
+        head_sha: HEAD_BEFORE,
+        entries: [{ status_code: ' M', path: 'src/a.ts', fingerprint: BLOB_A }],
+        hidden_index_flags: [],
+      },
+      change: {
+        verdict: 'accept',
+        summary: 'declared a path a prior run had already left dirty',
+        diagnosis_ref: 'fix.diagnosis@v1',
+        changed_files: ['src/a.ts', 'src/b.ts'],
+        evidence: ['ok'],
+      },
+    });
+    const [helper] = loadCommandsForContext(context);
+    const result = fixChangeSetWriter.buildResult(
+      [
+        helperObservation(helper as VerificationCommand, {
+          head_sha: HEAD_AFTER_SAME,
+          entries: [
+            { status_code: ' M', path: 'src/a.ts', fingerprint: BLOB_A },
+            { status_code: ' M', path: 'src/b.ts', fingerprint: BLOB_B },
+          ],
+        }),
+      ],
+      context,
+    ) as FixChangeSet;
+    expect(result.status).toBe('pass');
+    expect(result.observed).toEqual(['src/b.ts']);
+    expect(result.missing_declared).toEqual([]);
+    expect(result.declared_pre_existing_dirt).toEqual(['src/a.ts']);
+  });
+
+  // The forgiveness above only applies to a run that changed something. A run
+  // whose entire declared list is pre-existing dirt changed nothing at all,
+  // and must still fail — otherwise "I fixed it" would pass on zero work.
+  it('still fails when every declared path is pre-existing dirt and nothing changed', () => {
+    const { context } = makeFixture({
+      baseline: {
+        overall_status: 'passed',
+        head_sha: HEAD_BEFORE,
+        entries: [{ status_code: ' M', path: 'src/a.ts', fingerprint: BLOB_A }],
+        hidden_index_flags: [],
+      },
+      change: {
+        verdict: 'accept',
+        summary: 'claimed a fix but changed nothing',
+        diagnosis_ref: 'fix.diagnosis@v1',
+        changed_files: ['src/a.ts'],
+        evidence: ['ok'],
+      },
+    });
+    const [helper] = loadCommandsForContext(context);
+    const result = fixChangeSetWriter.buildResult(
+      [
+        helperObservation(helper as VerificationCommand, {
+          head_sha: HEAD_AFTER_SAME,
+          entries: [{ status_code: ' M', path: 'src/a.ts', fingerprint: BLOB_A }],
+        }),
+      ],
+      context,
+    ) as FixChangeSet;
+    expect(result.status).toBe('fail');
+    expect(result.observed).toEqual([]);
+    expect(result.missing_declared).toEqual(['src/a.ts']);
+    expect(result.declared_pre_existing_dirt).toEqual([]);
+    expect(result.reason).toMatch(/missing declared: src\/a\.ts/);
   });
 
   it('subtracts pre-fix dirty paths from observed when fingerprint is unchanged', () => {

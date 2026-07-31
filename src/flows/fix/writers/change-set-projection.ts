@@ -86,6 +86,15 @@ export function projectFixChangeSet(inputs: FixChangeSetProjectorInputs): FixCha
     }
     if (runtimeTouchedFiles.missing_worker_declared.length > 0) {
       parts.push(`missing declared: ${runtimeTouchedFiles.missing_worker_declared.join(', ')}`);
+      // Name the likely cause when nothing at all changed but the working tree
+      // was already dirty at run start. Without this the operator sees only
+      // "missing declared" and has no way to tell an overclaim apart from a
+      // run that was reading someone else's uncommitted work.
+      if (observed.length === 0 && inputs.baseline.entries.length > 0) {
+        parts.push(
+          'this run changed no files, and the working tree already had uncommitted changes when it started, so the declared paths may be from earlier work rather than this run',
+        );
+      }
     }
     if (hiddenFlags.length > 0) {
       const labelled = hiddenFlags.map((flag) => `${flag.path} (${flag.tag})`).join(', ');
@@ -106,6 +115,7 @@ export function projectFixChangeSet(inputs: FixChangeSetProjectorInputs): FixCha
     observed,
     undeclared_extras: runtimeTouchedFiles.undeclared_worker_extras,
     missing_declared: runtimeTouchedFiles.missing_worker_declared,
+    declared_pre_existing_dirt: runtimeTouchedFiles.declared_pre_existing_dirt,
     baseline_dirty_mutated: runtimeTouchedFiles.baseline_dirty_mutated,
     hidden_index_flags: [...hiddenFlags],
   });

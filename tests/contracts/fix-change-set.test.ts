@@ -298,4 +298,52 @@ describe('FixChangeSet schema', () => {
     });
     expect(result.success).toBe(false);
   });
+  // Contamination forgiveness: a declared path that was already dirty at run
+  // start and untouched since is reported separately from a real overclaim.
+  // The schema cannot verify the fingerprint comparison that classifies it —
+  // it has no fingerprints — so it enforces the structural invariants instead.
+  it('accepts a pass when a declared path is recorded as pre-existing dirt', () => {
+    const result = FixChangeSet.parse({
+      ...passing({ declared: ['src/example.ts', 'src/stale.ts'] }),
+      missing_declared: [],
+      declared_pre_existing_dirt: ['src/stale.ts'],
+    });
+    expect(result.status).toBe('pass');
+    expect(result.declared_pre_existing_dirt).toEqual(['src/stale.ts']);
+  });
+
+  it('rejects declared_pre_existing_dirt paths that were not declared', () => {
+    const result = FixChangeSet.safeParse({
+      ...passing(),
+      declared_pre_existing_dirt: ['src/never-declared.ts'],
+    });
+    expect(result.success).toBe(false);
+  });
+
+  it('rejects a path claimed as both observed and pre-existing dirt', () => {
+    const result = FixChangeSet.safeParse({
+      ...passing(),
+      declared_pre_existing_dirt: ['src/example.ts'],
+    });
+    expect(result.success).toBe(false);
+  });
+
+  // The empty-work guard. Without it, a run that changed nothing could excuse
+  // its whole declared list as pre-existing dirt and close clean.
+  it('rejects pre-existing dirt when nothing at all was observed', () => {
+    const result = FixChangeSet.safeParse({
+      status: 'pass',
+      overall_status: 'passed',
+      baseline_head_sha: ZERO_SHA,
+      head_sha: ZERO_SHA,
+      declared: ['src/stale.ts'],
+      observed: [],
+      undeclared_extras: [],
+      missing_declared: [],
+      declared_pre_existing_dirt: ['src/stale.ts'],
+      baseline_dirty_mutated: [],
+      hidden_index_flags: [],
+    });
+    expect(result.success).toBe(false);
+  });
 });

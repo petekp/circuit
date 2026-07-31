@@ -141,6 +141,16 @@ from the prior passing change-set only while those paths still differ from the
 same run baseline. Current-attempt declarations are never filtered, so a new
 overclaim still fails as `missing_declared`.
 
+A declared path can also fail to show up because it was already modified and
+uncommitted when the run started and this run never touched it — the tree was
+contaminated by earlier work, and the implementer read that dirt as its own.
+Those paths land in `declared_pre_existing_dirt` instead of `missing_declared`,
+identified by a baseline fingerprint that matches the post-fix fingerprint
+exactly. This narrow relaxation does not weaken the overclaim gate: a declared
+path that was never dirty and is still clean stays in `missing_declared` and
+still fails, and the relaxation applies only to a run that changed at least one
+file, so a run that changed nothing cannot excuse its declarations.
+
 `fix.regression-rerun@v1` reruns the exact command recorded in
 `fix.regression-proof@v1` after fix-verify, so the two steps cannot disagree
 about which command is the proof. It emits `cleared` (the proved command now

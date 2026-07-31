@@ -25,6 +25,10 @@
 //   - regression still failing: brief declares a real failing regression
 //     command; fix-act doesn't actually fix the bug. Caught by
 //     fix.regression-rerun@v1.
+//   - contaminated tree: a file left dirty by earlier work is declared by an
+//     implementer that never touched it. Its fingerprint never moves, so the
+//     change set records it as pre-existing dirt and the real repair closes
+//     'fixed' instead of aborting.
 
 import { execFileSync } from 'node:child_process';
 import {
@@ -599,6 +603,77 @@ describe('Live False-Done Fix bar', () => {
       expect(result.outcome).toBe('fixed');
       expect(result.regression_status).toBe('proved');
       expect(result.regression_rerun_status).toBe('cleared');
+      expect(result.change_set_status).toBe('pass');
+    },
+    LIVE_FALSE_DONE_TIMEOUT_MS,
+  );
+
+  it(
+    "permits 'fixed' when the implementer declares a file an earlier run left dirty",
+    async () => {
+      // Contamination case. src/stale.ts was left modified and uncommitted by
+      // earlier work before this run started. The implementer read the working
+      // tree, took that dirt for its own, and declared it alongside the file it
+      // really changed. Its content never moves during the run, so the change
+      // set records it as pre-existing dirt rather than aborting a repair that
+      // genuinely worked.
+      const repo = initRepo({
+        initialFiles: { 'src/stale.ts': 'export const stale = 1;\n' },
+      });
+      repos.push(repo);
+      appendRepoFile(repo, 'src/stale.ts', '// left behind by an earlier run\n');
+
+      const expectedFixedContent = 'export const v = "fixed";\n';
+      const regression = regressionCommandThatChecksFile(
+        repo,
+        'src/buggy.ts',
+        expectedFixedContent,
+      );
+      const runDir = join(runFolderBase, 'contaminated-tree');
+
+      const outcome = await runCompiledFlow({
+        runDir,
+        flowBytes: loadLiteFixture().bytes,
+        runId: 'f1000000-0000-0000-0000-0000000000ff',
+        goal: 'fix v in a working tree that was already dirty',
+        depth: 'low',
+        now: deterministicNow(Date.UTC(2026, 4, 10, 12, 0, 0)),
+        relayer: relayer(repo, {
+          declaredChangedFiles: ['src/buggy.ts', 'src/stale.ts'],
+          mutate: (r) => {
+            writeRepoFile(r, 'src/buggy.ts', expectedFixedContent);
+          },
+        }),
+        executors: frameOverrideExecutors({
+          goal: 'fix v in a working tree that was already dirty',
+          regression: {
+            expected_behavior: 'v is "fixed"',
+            actual_behavior: 'v is "broken"',
+            repro: { kind: 'command', command: regression },
+            regression_test: { status: 'failing-before-fix', command: regression },
+          },
+        }),
+        projectRoot: repo,
+      });
+
+      if (outcome.outcome !== 'complete') {
+        throw new Error(
+          `expected complete, got ${outcome.outcome}: ${outcome.reason ?? '<no reason>'}`,
+        );
+      }
+
+      const changeSet = FixChangeSet.parse(
+        JSON.parse(readFileSync(join(runDir, 'reports/fix/change-set.json'), 'utf8')),
+      );
+      expect(changeSet.status).toBe('pass');
+      expect(changeSet.observed).toEqual(['src/buggy.ts']);
+      expect(changeSet.missing_declared).toEqual([]);
+      expect(changeSet.declared_pre_existing_dirt).toEqual(['src/stale.ts']);
+
+      const result = FixResult.parse(
+        JSON.parse(readFileSync(join(runDir, 'reports/fix-result.json'), 'utf8')),
+      );
+      expect(result.outcome).toBe('fixed');
       expect(result.change_set_status).toBe('pass');
     },
     LIVE_FALSE_DONE_TIMEOUT_MS,

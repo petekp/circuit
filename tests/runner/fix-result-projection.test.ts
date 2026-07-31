@@ -192,6 +192,7 @@ function changeSetPass(): FixChangeSet {
     observed: ['a.ts'],
     undeclared_extras: [],
     missing_declared: [],
+    declared_pre_existing_dirt: [],
     baseline_dirty_mutated: [],
     hidden_index_flags: [],
   };
@@ -208,6 +209,7 @@ function changeSetFail(): FixChangeSet {
     observed: ['a.ts', 'b.ts'],
     undeclared_extras: ['b.ts'],
     missing_declared: [],
+    declared_pre_existing_dirt: [],
     baseline_dirty_mutated: [],
     hidden_index_flags: [],
   };
