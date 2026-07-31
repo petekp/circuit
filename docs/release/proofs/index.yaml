@@ -335,6 +335,11 @@ scenarios:
     backing_paths:
       - docs/release/proofs/runs/codex-mcp-first-run/loader-smoke-packed.json
       - docs/release/proofs/runs/codex-mcp-first-run/loader-smoke-published.json
+      - docs/release/proofs/runs/codex-mcp-first-run/evidence.json
+      - docs/release/proofs/runs/codex-mcp-first-run/review/result.json
+      - docs/release/proofs/runs/codex-mcp-first-run/review/review-result.json
+      - docs/release/proofs/runs/codex-mcp-first-run/review/codex.jsonl
+      - docs/release/proofs/runs/codex-mcp-first-run/review/invocation.json
     exception_ids: [EX-REL-014-CODEX-MCP-FIRST-RUN]
     readiness_refs: [REL-014, REL-017]
   - id: proof:plan-execution

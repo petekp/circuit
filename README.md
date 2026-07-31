@@ -78,9 +78,11 @@ The MCP-based Codex path in this checkout supports macOS. It requires Node.js 22
 newer and Codex 0.146.0 or newer.
 
 The public tag `circuit--v0.1.3` includes the MCP path, and its fresh-host
-install and loader checks passed at the exact release candidate. The full
-paid end-to-end proof is an openly tracked gap, so prefer this checkout for
-sandboxed Codex work until that proof lands.
+install and loader checks passed at the exact release candidate. A paid
+first-attempt Review has since passed at an exact candidate commit on main,
+which also fixes a first-launch race the tag still carries. The full release
+matrix across flows and both Mac architectures is an openly tracked gap, so
+prefer this checkout for sandboxed Codex work until the next tagged release.
 
 After installing an MCP-capable build, restart Codex.
 A single MCP approval is normal.

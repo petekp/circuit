@@ -1,0 +1,137 @@
+{
+  "schema_version": 1,
+  "host": "codex",
+  "surface": "mcp",
+  "mode": "published",
+  "status": "pass",
+  "proof_stage": "candidate",
+  "reason": "The published plugin completed a first-attempt MCP Review through real headless Codex with a workspace-write sandbox and a never-approve policy.",
+  "source": {
+    "repository": "petekp/circuit",
+    "ref": "b44b92c1ad71e92ba195428fe5af2ff546230a63",
+    "expected_version": "0.1.3"
+  },
+  "versions": {
+    "node": "24.18.1",
+    "codex": "0.146.0",
+    "plugin": "0.1.3",
+    "plugin_tree_sha256": "e671edfaa0a2557d703c60635901c2352b8799af4dec03b28dbe369593d1ec15",
+    "architecture": "arm64",
+    "macos": "15.7.3"
+  },
+  "evidence": [
+    {
+      "name": "codex_version_recorded",
+      "ok": true,
+      "detail": "0.146.0"
+    },
+    {
+      "name": "node_version_recorded",
+      "ok": true,
+      "detail": "24.18.1"
+    },
+    {
+      "name": "source_ref_exact",
+      "ok": true,
+      "detail": "b44b92c1ad71e92ba195428fe5af2ff546230a63@b44b92c1ad71e92ba195428fe5af2ff546230a63"
+    },
+    {
+      "name": "plugin_version_exact",
+      "ok": true,
+      "detail": "0.1.3"
+    },
+    {
+      "name": "plugin_tree_exact",
+      "ok": true,
+      "detail": "e671edfaa0a2557d703c60635901c2352b8799af4dec03b28dbe369593d1ec15"
+    },
+    {
+      "name": "plugin_tree_sha256",
+      "ok": true,
+      "detail": "e671edfaa0a2557d703c60635901c2352b8799af4dec03b28dbe369593d1ec15"
+    },
+    {
+      "name": "installed_plugin_enabled",
+      "ok": true,
+      "detail": "0.1.3"
+    },
+    {
+      "name": "host_abandoned_processes_terminated",
+      "ok": true,
+      "detail": "/Applications/Xcode.app/Contents/Developer/usr/bin/git clone https://github.com/petekp/circuit.git <redacted-path>/published-Tw7sel/home/.codex/.tmp/marketplaces/.staging/marketplace-upgrade-QHcFzj | /Applications/Xcode.app/Contents/Developer/usr/libexec/git-core/git remote-https origin https://github.com/petekp/circuit.git | /Applications/Xcode.app/Contents/Develop"
+    },
+    {
+      "name": "product_created_private_control_state",
+      "ok": true,
+      "detail": "The packaged MCP runtime created 0700 control directories. Product-created 0600 files are enforced by tests/mcp/state-store.test.ts (creates one atomic workspace lease and private state files)."
+    },
+    {
+      "name": "host_abandoned_processes_terminated",
+      "ok": true,
+      "detail": "/Applications/Xcode.app/Contents/Developer/usr/bin/git clone https://github.com/petekp/circuit.git <redacted-path>/published-Tw7sel/home/.codex/.tmp/marketplaces/.staging/marketplace-upgrade-xc3Lni | /Applications/Xcode.app/Contents/Developer/usr/libexec/git-core/git remote-https origin https://github.com/petekp/circuit.git | /Applications/Xcode.app/Contents/Develop"
+    },
+    {
+      "name": "real_plugin_loader_completed",
+      "ok": true
+    },
+    {
+      "name": "owned_process_cleanup",
+      "ok": true
+    },
+    {
+      "name": "tool_search_discovered_six_tools",
+      "ok": true,
+      "detail": "circuit_cancel, circuit_list, circuit_recover, circuit_resume, circuit_start, circuit_status"
+    },
+    {
+      "name": "circuit_list_invoked",
+      "ok": true,
+      "detail": "3 provider requests"
+    },
+    {
+      "name": "diagnostic_sentinel_permissions",
+      "ok": true,
+      "detail": "This 0600 file is a harness-seeded fixture; product file creation is covered by tests/mcp/state-store.test.ts (creates one atomic workspace lease and private state files)."
+    },
+    {
+      "name": "trusted_workspace_metadata",
+      "ok": true,
+      "detail": "circuit_list accepted codex/sandbox-state-meta"
+    },
+    {
+      "name": "exact_workspace_identity",
+      "ok": true,
+      "detail": "019f64f5-1f4d-7d91-8cda-a309cc72c301"
+    },
+    {
+      "name": "headless_start_preapproved_via_trusted_permission_hook",
+      "ok": true,
+      "detail": "The operator pre-approved exactly one tool, mcp__circuit__circuit_start, through a Codex permission hook trusted inside the isolated bench configuration. The sandbox stayed workspace-write and the approval policy stayed never."
+    },
+    {
+      "name": "first_attempt_review_completed_clean",
+      "ok": true,
+      "detail": "run ef41d3ec-df02-47cc-ab7e-077cfdd086d3 completed with verdict CLEAN"
+    }
+  ],
+  "review": {
+    "run_id": "ef41d3ec-df02-47cc-ab7e-077cfdd086d3",
+    "workspace_sha256": "abc2eb6985118d01471b434e9d4593ad9aebe1939d47a20aa292056374f67a38",
+    "run_result": {
+      "path": "review/result.json",
+      "sha256": "e7ada05f2570a0e59886bbe8c3fc1122d43ce3d6c8655252fbb1a1b88812b8a9"
+    },
+    "review_report": {
+      "path": "review/review-result.json",
+      "sha256": "0b7347be5e824b170358da9603143a441ad641d983865d98beef6ee625976a4c"
+    },
+    "host_trace": {
+      "path": "review/codex.jsonl",
+      "sha256": "3e049a88c7b754f74ab5e6f55153bc4fdf44976baa41fa76406518d35cd65178"
+    },
+    "invocation": {
+      "path": "review/invocation.json",
+      "sha256": "3cb872730d0ace8629ac1580c22f96f6c2f7461db642a1d598e59392b30a5bd4"
+    }
+  }
+}

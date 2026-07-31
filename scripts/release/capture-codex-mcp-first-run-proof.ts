@@ -76,10 +76,13 @@ exit 0
 const REVIEW_PROMPT =
   'Use Circuit to review this workspace. If the Circuit tools are deferred, call tool_search ' +
   'first to load them. Then call the MCP tool circuit_start with arguments ' +
-  '{"flow":"review","goal":"Review the staged README fix"}. Then call circuit_status with the ' +
-  'returned run_id and wait_ms 10000, repeatedly, until state is complete. Do not run any shell ' +
-  'command, do not edit any file, and do not call any tool other than tool_search, ' +
-  'circuit_start, and circuit_status.';
+  '{"flow":"review","goal":"Review the staged README fix"}. Keep the run_id and next_cursor it ' +
+  'returns. Then poll circuit_status with {"run_id": <run_id>, "after_cursor": <latest ' +
+  'next_cursor>, "wait_ms": 10000}, replacing after_cursor with each response next_cursor. ' +
+  'While state is starting or running you MUST call circuit_status again; never answer while ' +
+  'the run is still active. Stop polling only when state is complete, then report the verdict. ' +
+  'Do not run any shell command, do not edit any file, and do not call any tool other than ' +
+  'tool_search, circuit_start, and circuit_status.';
 
 interface CaptureOptions {
   readonly ref: string;
@@ -354,6 +357,10 @@ async function main(): Promise<void> {
       timeout_ms: options.timeoutMinutes * 60_000,
       natural_cleanup_timeout_ms: 5_000,
     });
+    // Persist the raw host output before any validation so a rejected
+    // attempt still leaves its trace behind for diagnosis.
+    writeFileSync(join(benchRoot, 'last-exec.stdout.jsonl'), run.stdout);
+    writeFileSync(join(benchRoot, 'last-exec.stderr.txt'), run.stderr);
     if (run.timed_out || run.status !== 0) {
       fail(
         `the recorded codex run did not exit cleanly (status ${String(run.status)}, timed out ${String(run.timed_out)}): ${run.stderr.slice(-2_000)}`,

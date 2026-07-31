@@ -1,0 +1,40 @@
+{
+  "schema_version": 1,
+  "argv": [
+    "exec",
+    "--strict-config",
+    "--ephemeral",
+    "--json",
+    "-C",
+    "/private/tmp/circuit-first-run-review",
+    "--sandbox",
+    "workspace-write",
+    "-c",
+    "approval_policy=\"never\"",
+    "-c",
+    "analytics.enabled=false",
+    "-c",
+    "check_for_update_on_startup=false",
+    "-m",
+    "gpt-5.4-mini",
+    "--color",
+    "never",
+    "Use Circuit to review this workspace. If the Circuit tools are deferred, call tool_search first to load them. Then call the MCP tool circuit_start with arguments {\"flow\":\"review\",\"goal\":\"Review the staged README fix\"}. Keep the run_id and next_cursor it returns. Then poll circuit_status with {\"run_id\": <run_id>, \"after_cursor\": <latest next_cursor>, \"wait_ms\": 10000}, replacing after_cursor with each response next_cursor. While state is starting or running you MUST call circuit_status again; never answer while the run is still active. Stop polling only when state is complete, then report the verdict. Do not run any shell command, do not edit any file, and do not call any tool other than tool_search, circuit_start, and circuit_status."
+  ],
+  "workspace_sha256": "abc2eb6985118d01471b434e9d4593ad9aebe1939d47a20aa292056374f67a38",
+  "source": {
+    "repository": "petekp/circuit",
+    "ref": "b44b92c1ad71e92ba195428fe5af2ff546230a63",
+    "expected_version": "0.1.3",
+    "plugin_tree_sha256": "e671edfaa0a2557d703c60635901c2352b8799af4dec03b28dbe369593d1ec15"
+  },
+  "host": {
+    "architecture": "arm64",
+    "macos_version": "15.7.3",
+    "codex_version": "0.146.0",
+    "node_version": "24.18.1"
+  },
+  "exit_code": 0,
+  "cleanup_confirmed": true,
+  "cleanup_intervention_required": false
+}
