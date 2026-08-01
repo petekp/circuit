@@ -10,7 +10,7 @@ stdout:
   "flow_root": "<repo>/plugins/codex/flows",
   "runtime_source": "bundled",
   "runtime_path": "<repo>/plugins/codex/runtime/circuit.js",
-  "runtime_version": "0.1.4",
+  "runtime_version": "0.1.5",
   "checks": [
     {
       "name": "plugin_manifest_exists",
@@ -203,7 +203,7 @@ stdout:
     {
       "name": "temp_repo_review_smoke",
       "ok": true,
-      "detail": "status=0 error=none output={\"schema_version\":1,\"run_id\":\"9cda7501-08b0-4a32-b714-c32dbd372f1a\",\"flow_id\":\"review\",\"resolved_axes\":{\"depth\":\"medium\",\"tournament\":false,\"autonomous\":false},\"selected_flow\":\"review\",\"routed_by\":\"explicit\",\"router_reason\":\"explicit flow positional argument\",\"run_folder\":\"<tmp>",\"outcome\":\"complete\",\"trace_entries_observed\":24,\"result_path\":\"<tmp>",\"history_recall\":{\"status\":\"unavailable\",\"memory_input_count\":0,\"report_path\":\"<tmp>",\"rebuilt\":false,\"warnings\":[{\"code\":\"source_invalid\",\"message\":\"history recall unavailable (runs_base_not_found): runs base not found: <tmp>"}]},\"operator_summary_path\":\"<tmp> stderr={\"schema_version\":1,\"type\":\"route.selected\",\"run_id\":\"9cda7501-08b0-4a32-b714-c32dbd372f1a\",\"flow_id\":\"review\",\"recorded_at\":\"2026-07-31T04:55:28.271Z\",\"label\":\"Selected review\",\"display\":{\"text\":\"Circuit: Chose review.\",\"importance\":\"major\",\"tone\":\"info\"},\"presentation\":{\"block_id\":\"9cda7501-08b0-4a32-b714-c32dbd372f1a\",\"line_mode\":\"append\",\"status_text\":\"Chose review.\"},\"selected_flow\":\"review\",\"routed_by\":\"explicit\",\"router_reason\":\"explicit flow positional argument\"}\n{\"schema_version\":1,\"typ"
+      "detail": "status=0 error=none output={\"schema_version\":1,\"run_id\":\"fbe5cd09-06af-438e-951b-89a1e623d527\",\"flow_id\":\"review\",\"resolved_axes\":{\"depth\":\"medium\",\"tournament\":false,\"autonomous\":false},\"selected_flow\":\"review\",\"routed_by\":\"explicit\",\"router_reason\":\"explicit flow positional argument\",\"run_folder\":\"<tmp>",\"outcome\":\"complete\",\"trace_entries_observed\":24,\"result_path\":\"<tmp>",\"history_recall\":{\"status\":\"unavailable\",\"memory_input_count\":0,\"report_path\":\"<tmp>",\"rebuilt\":false,\"warnings\":[{\"code\":\"source_invalid\",\"message\":\"history recall unavailable (runs_base_not_found): runs base not found: <tmp>"}]},\"operator_summary_path\":\"<tmp> stderr={\"schema_version\":1,\"type\":\"route.selected\",\"run_id\":\"fbe5cd09-06af-438e-951b-89a1e623d527\",\"flow_id\":\"review\",\"recorded_at\":\"2026-08-01T06:03:31.412Z\",\"label\":\"Selected review\",\"display\":{\"text\":\"Circuit: Chose review.\",\"importance\":\"major\",\"tone\":\"info\"},\"presentation\":{\"block_id\":\"fbe5cd09-06af-438e-951b-89a1e623d527\",\"line_mode\":\"append\",\"status_text\":\"Chose review.\"},\"selected_flow\":\"review\",\"routed_by\":\"explicit\",\"router_reason\":\"explicit flow positional argument\"}\n{\"schema_version\":1,\"typ"
     },
     {
       "name": "temp_repo_review_progress",
