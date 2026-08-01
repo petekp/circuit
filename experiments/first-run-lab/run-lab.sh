@@ -1,6 +1,11 @@
 #!/bin/bash
 # Build the lab images and run the first-run batteries, one transcript per
-# scenario. Usage: run-lab.sh [cli|cli-node20|claude|codex|all]
+# scenario. Usage: run-lab.sh [cli|cli-node20|claude|codex|npm|all]
+#
+# `all` deliberately leaves out `npm`. That scenario installs from the live
+# registry, so it only means something after `npm publish` has landed; running
+# it on the pre-release pass would just retest the previous version. Run it by
+# name in the post-publish gate.
 set -euo pipefail
 
 LAB_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
@@ -18,6 +23,11 @@ if [ -z "$CODEX_REF" ]; then
   exit 2
 fi
 
+# The npm funnel installs the exact version this checkout declares, so the
+# transcript proves the release being cut rather than whatever `latest` points
+# at whenever someone reruns the lab.
+NPM_VERSION="$(node -p "require('$REPO_ROOT/plugins/version.json').version")"
+
 run_one() {
   local name="$1" dockerfile="$2" scenario="$3"
   local image="circuit-lab-$name"
@@ -29,6 +39,7 @@ run_one() {
   # scenario scripts close stdin per step anyway so prompts fail fast.
   docker run --rm \
     -e "CIRCUIT_CODEX_REF=$CODEX_REF" \
+    -e "CIRCUIT_NPM_VERSION=$NPM_VERSION" \
     -v "$LAB_DIR/scenarios:/lab:ro" \
     "$image" bash "/lab/$scenario" >"$log" 2>&1 || true
   echo "=== [$name] done (exit recorded per step in transcript)"
@@ -40,13 +51,14 @@ case "$target" in
   cli-node20) run_one cli-node20 Dockerfile.cli-node20 cli-node20.sh ;;
   claude) run_one claude Dockerfile.claude claude-host.sh ;;
   codex) run_one codex Dockerfile.codex codex-host.sh ;;
+  npm) run_one npm Dockerfile.npm npm.sh ;;
   all)
     run_one cli Dockerfile.cli cli.sh
     run_one cli-node20 Dockerfile.cli-node20 cli-node20.sh
     run_one claude Dockerfile.claude claude-host.sh
     run_one codex Dockerfile.codex codex-host.sh
     ;;
-  *) echo "usage: run-lab.sh [cli|cli-node20|claude|codex|all]" >&2; exit 2 ;;
+  *) echo "usage: run-lab.sh [cli|cli-node20|claude|codex|npm|all]" >&2; exit 2 ;;
 esac
 
 echo

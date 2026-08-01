@@ -32,6 +32,16 @@ funnel tests the previous published tag, because containers install over
 the network. That is the point: this run proves the funnel you are about
 to ship from.
 
+`all` skips the `npm` scenario on purpose: it installs from the live
+registry, so before publishing it would only retest the previous version.
+It runs in step 8.
+
+Let the machine settle before moving on. The lab is heavy on disk and
+network, and steps 5 and 6 run the full gate suite; starting them into the
+lab's I/O wake has correlated with gate children being killed mid-run. A
+killed gate now says so (it records the signal), but the cheaper fix is not
+to stack them back to back.
+
 ## 2. Bump the version
 
 ```bash
@@ -111,19 +121,46 @@ the marketplace at that tag. Confirm the tag exists on origin afterwards:
 git ls-remote --tags origin | grep <next-version>
 ```
 
-## 7. Post-publish first-run lab (required gate)
+## 7. Publish the CLI to npm (manual, needs a real terminal)
+
+```bash
+npm publish --access public
+```
+
+The plugin release and the npm package are two separate publications, and
+nothing in the scripts does this one. Skipping it is the quiet failure
+mode: the tag and both host plugins move to the new version while
+`npm install -g @petepetrash/circuit` keeps serving the old one, bugs and
+all. This step needs an interactive terminal because the npm login is a
+browser flow, so an agent session cannot do it. Confirm afterwards:
+
+```bash
+npm view @petepetrash/circuit version
+```
+
+## 8. Post-publish first-run lab (required gate)
 
 ```bash
 experiments/first-run-lab/run-lab.sh all
+experiments/first-run-lab/run-lab.sh npm
 ```
 
 Same battery, different meaning: the Codex funnel now installs the tag you
-just published and the Claude funnel installs the bumped `main`. These
-transcripts are the release's first-run proof. Read them before announcing
-or closing out; a finding here is a fast-follow fix, not something to sit
-on.
+just published and the Claude funnel installs the bumped `main`. The `npm`
+scenario is the only one that proves what the registry actually serves, so
+it runs here and only here, pinned to the version in
+`plugins/version.json`. These transcripts are the release's first-run
+proof. Read them before announcing or closing out; a finding here is a
+fast-follow fix, not something to sit on.
 
-## 8. Release notes
+Every funnel ends in nonzero exits by design, because the containers have
+no connectors and no credentials. Read them as shapes, not failures:
+`doctor` exits 1 with a per-connector Fix line, `demo` exits 1 by refusing
+at the connector gate before spending anything, a Review of untracked
+files exits 1 at the consent gate, and usage mistakes exit 2. An exit 0
+where one of those belongs is the real regression.
+
+## 9. Release notes
 
 If the release changes operator-visible behavior, add
 `docs/release/<version>-notes.md` following the existing alpha notes.
