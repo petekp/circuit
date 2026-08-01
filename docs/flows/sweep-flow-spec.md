@@ -486,17 +486,29 @@ overclaim gate applies inside each branch. Deferred; not in the baseline.
 
 ### 6.6 Residual limits (stated, not solved)
 
-- **Scanner-program rewrite.** The oracle-command pin fingerprints the
-  package.json `scripts.<name>` STRING (`node scan.mjs`), not the program that
-  string launches. A worker with write access to the tree rewrites the scanner
-  file itself (`scan.mjs`, `audit.mjs`) to a no-op that exits 0; the pinned argv
-  and the script string stay byte-identical, so no drift fires and the neutered
-  scanner runs green. `frozen_paths` covers only config, not the scanner source,
-  and `changed_files` is a self-report, not an enforced write scope. Closing it
-  needs the pin to resolve the invoked program and freeze/fingerprint it, or the
-  author to add the scanner sources to `frozen_paths`. For a real tsc/eslint the
-  program sits in `node_modules` (harder to reach); for the wrapper-script shape
-  Sweep ships and recommends, this vector is open. Known gap, tracked in 9.1.
+- **Scanner-program rewrite — CLOSED for local programs.** The oracle-command
+  pin fingerprints the local program closure each command launches, not just the
+  package.json `scripts.<name>` string. At loop entry it seeds from the paths
+  named in the argv and in the resolved script body (`node scan.mjs` seeds
+  `scan.mjs`), walks static relative `import`/`require` specifiers transitively,
+  and hashes every file it reaches. Every later wave recomputes that closure and
+  refuses to run if any pinned file changed or vanished
+  (`src/runtime/run/oracle-command-pin.ts`; end-to-end coverage in
+  `tests/runner/oracle-command-pin.test.ts`, including the helper-file case and
+  a no-false-positive case for unrelated edits).
+
+  What stays open, stated precisely because a floor vaguer than its guarantee is
+  worse than no floor: programs inside `node_modules` (a real tsc or ESLint
+  binary — harder to reach, and not seeded), specifiers built at run time, and
+  data or fixture files the program reads rather than imports. A command whose
+  argv and script body name no local file (`tsc --noEmit`, a composite
+  `npm run a && npm run b`) carries an empty closure and is exactly as pinned as
+  it was before — the closure constrains, and never loosens.
+
+  A consequence worth naming: if the fix a run needs is a legitimate edit to the
+  scanner program itself, the run aborts with a drift error rather than closing
+  green. That is the same trade the script-body fingerprint already makes, and
+  the abort message names the file.
 - **Test/fixture deletion.** If the oracle is a test runner or a fixture-based
   scanner, a worker can delete the failing spec, add `.skip`, or empty the
   fixture. `frozen_paths` covers only config, and the overclaim gate does not
@@ -689,10 +701,10 @@ code as the floor), which is what the flow reads.
   failed and a needs-attention close; C fixes the code but edits the frozen
   `tsconfig.json` and asserts a passed rescan with an open honesty latch and a
   needs-attention close (the distinguishing signal from B). D2 rewrites the
-  pinned `scan` script's `package.json` body string between waves (not the
-  `scan.mjs` program that string launches, which stays an open gap — see 6.6)
-  and asserts the trace carries the oracle-command-pin drift reason and the run
-  never completes.
+  pinned `scan` script's `package.json` body string between waves and asserts
+  the trace carries the oracle-command-pin drift reason and the run never
+  completes. The sibling vector — rewriting the `scan.mjs` program that string
+  launches — is covered by the pin's program-closure tests (see 6.6).
 - **D1 (plan-argv narrowing)** is covered by the oracle-command-pin unit test
   (task: engine change 2), which asserts the snapshotted command runs and the
   narrowed plan is ignored. The e2e proves the pin is wired into Sweep's rescan
@@ -701,26 +713,19 @@ code as the floor), which is what the flow reads.
 - **E (nested-config-create)** is deferred with Section 6.3 (re-derive effective
   config each wave); it is not yet wired, so there is no assertion for it.
 
-**Known gaps not yet enforced (surfaced by the shipped-implementation review).**
-Two anti-cheat vectors are documented in Section 6 but have no enforcement and
-no passing assertion in the baseline, so a worker with write access to the tree
-could still close a wave clean over a shrunken job:
+**Gap status (updated after the shipped-implementation review).**
 
-- **Scanner-program rewrite (6.6).** The oracle-command pin fingerprints the
-  `package.json` `scripts.<name>` string, not the program it launches. Rewriting
-  `scan.mjs` (or a real linter's entry) to a no-op leaves the pinned argv and the
-  script string byte-identical, so no drift fires. `frozen_paths` covers config,
-  not scanner source. Closing it needs the pin to resolve and freeze the invoked
-  program, or the author to add the scanner sources to `frozen_paths`.
+- **Scanner-program rewrite (6.6) — CLOSED.** The oracle-command pin now
+  fingerprints the local program closure a command launches, transitively
+  through static relative imports, and rejects a drift on every later wave.
+  Rewriting `scan.mjs` or a helper it imports aborts the run instead of closing
+  clean. Residual scope (node_modules binaries, run-time-computed specifiers,
+  data files read rather than imported) is stated in 6.6.
 - **Set-identity / scope-narrowing (6.4).** `census-step` records no scan scope
   and `rescan-step` checks no coverage, so a worker who narrows the scan scope
   inside the pinned program (walks a subtree, not the full census set) closes
   clean over fewer files. The `targeted_set` / `set_covers_census` machinery in
   6.4 is designed but not implemented.
-
-Both are real-fix items for enforcement, tracked here and in 6.4/6.6. They gate
-public promotion, not internal ship: the flow is honest about the floor it
-provides today, which is the four enforced vectors above.
 
 Building the e2e surfaced and fixed one real defect: the partition writer's
 `sanitizeForBranchId` kept dots and underscores, but a unit id becomes a fanout

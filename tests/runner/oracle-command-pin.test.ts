@@ -62,6 +62,34 @@ function makeProjectWithMarker(base: string): {
   return { projectRoot, markerPath, packageJsonPath };
 }
 
+// A project whose `verify` script launches a local program rather than doing
+// the work inline: `node scan.mjs`, where scan.mjs exits 1 while the marker is
+// missing. This is the wrapper-script shape Sweep ships and recommends, and the
+// shape the script-body fingerprint alone does not cover — rewriting scan.mjs
+// leaves both the argv and the package.json script string byte-identical.
+function makeProjectWithProgram(base: string): {
+  projectRoot: string;
+  programPath: string;
+  helperPath: string;
+} {
+  const projectRoot = join(base, 'program-project');
+  mkdirSync(projectRoot, { recursive: true });
+  const programPath = join(projectRoot, 'scan.mjs');
+  const helperPath = join(projectRoot, 'rules.mjs');
+  writeFileSync(
+    join(projectRoot, 'package.json'),
+    `${JSON.stringify({ private: true, scripts: { verify: 'node scan.mjs' } })}\n`,
+  );
+  // The entry program delegates its verdict to a local helper, so the closure
+  // (not just the entry file) is what has to be pinned.
+  writeFileSync(
+    programPath,
+    "import { findings } from './rules.mjs';\nprocess.exit(findings());\n",
+  );
+  writeFileSync(helperPath, 'export function findings() {\n  return 1;\n}\n');
+  return { projectRoot, programPath, helperPath };
+}
+
 function judgeReply(actCalls: number): string {
   return JSON.stringify({
     verdict: 'accept',
@@ -187,5 +215,86 @@ describe('oracle-command pin: a rewritten oracle cannot launder a red run into c
     // The pinned command ran every wave: the loop exhausted its cap (3) on a
     // genuinely red oracle rather than accepting the narrowed no-op.
     expect(enteredCount(trace, 'verify-step')).toBe(3);
+  }, 90_000);
+
+  it('rejects a scanner-program rewrite: neutering the program the script launches aborts', async () => {
+    const { projectRoot, programPath } = makeProjectWithProgram(base);
+    const runFolder = join(base, 'program-rewrite');
+
+    // The argv (`npm run verify`) and the package.json script body
+    // (`node scan.mjs`) both stay byte-identical; only the program the script
+    // launches is neutered. The body fingerprint alone sees nothing here.
+    const result = await runCompiledFlow({
+      runDir: runFolder,
+      flowBytes: fixUntilGreenBytes(),
+      projectRoot,
+      runId: '70000000-0000-0000-0000-0000000000a3',
+      goal: 'fix until the project verify script passes',
+      depth: 'autonomous',
+      now: deterministicNow(Date.UTC(2026, 5, 27, 12, 0, 0)),
+      relayer: tamperingRelayer({
+        mutateOnActCall: 2,
+        mutate: () => {
+          writeFileSync(programPath, 'process.exit(0);\n');
+        },
+      }),
+    });
+
+    expect(result.outcome).not.toBe('complete');
+    expect(result.reason ?? '').toMatch(/oracle|program|changed|drift/i);
+  }, 30_000);
+
+  it('rejects a rewrite of a helper the scanner imports, not just its entry file', async () => {
+    const { projectRoot, helperPath } = makeProjectWithProgram(base);
+    const runFolder = join(base, 'helper-rewrite');
+
+    // The entry program is untouched. A pin that fingerprints only the file
+    // named in the script body would miss this and close clean.
+    const result = await runCompiledFlow({
+      runDir: runFolder,
+      flowBytes: fixUntilGreenBytes(),
+      projectRoot,
+      runId: '70000000-0000-0000-0000-0000000000a4',
+      goal: 'fix until the project verify script passes',
+      depth: 'autonomous',
+      now: deterministicNow(Date.UTC(2026, 5, 27, 12, 30, 0)),
+      relayer: tamperingRelayer({
+        mutateOnActCall: 2,
+        mutate: () => {
+          writeFileSync(helperPath, 'export function findings() {\n  return 0;\n}\n');
+        },
+      }),
+    });
+
+    expect(result.outcome).not.toBe('complete');
+    expect(result.reason ?? '').toMatch(/oracle|program|changed|drift/i);
+  }, 30_000);
+
+  it('leaves an honest run alone: unrelated edits beside the scanner do not trip the pin', async () => {
+    const { projectRoot } = makeProjectWithProgram(base);
+    const runFolder = join(base, 'honest-edit');
+
+    // A worker editing project source the scanner does not import is the normal
+    // case. It must not read as tampering, or every real Sweep wave latches.
+    const result = await runCompiledFlow({
+      runDir: runFolder,
+      flowBytes: fixUntilGreenBytes(),
+      projectRoot,
+      runId: '70000000-0000-0000-0000-0000000000a5',
+      goal: 'fix until the project verify script passes',
+      depth: 'autonomous',
+      now: deterministicNow(Date.UTC(2026, 5, 27, 13, 0, 0)),
+      relayer: tamperingRelayer({
+        mutateOnActCall: 2,
+        mutate: () => {
+          writeFileSync(join(projectRoot, 'unrelated.mjs'), 'export const x = 1;\n');
+        },
+      }),
+    });
+
+    // The oracle stays honestly red, so the loop exhausts rather than aborting
+    // on a drift that never happened.
+    expect(result.outcome).toBe('stopped');
+    expect(result.reason ?? '').not.toMatch(/drift|changed since/i);
   }, 90_000);
 });
