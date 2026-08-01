@@ -13,6 +13,7 @@ import { describe, expect, it } from 'vitest';
 import { packageTreeSha256, packageTreeStatus } from '../../scripts/plugins/package-tree.ts';
 import {
   type CommandInvocation,
+  defaultRunner,
   runPublish,
   selectPreviousPublicVersion,
 } from '../../scripts/plugins/publish.ts';
@@ -1418,6 +1419,96 @@ describe('plugin publish automation', () => {
       expect(written.commands.length).toBeGreaterThan(0);
       expect(written.warnings.join('\n')).toContain('version mismatch');
       expect(written.errors).toEqual([]);
+    } finally {
+      rmSync(root, { recursive: true, force: true });
+    }
+  });
+
+  it('treats a signal-killed child as a failure, not a silent pass', () => {
+    // spawnSync reports status null when the child is killed. Reading that as
+    // exit 0 would let a killed release gate report success.
+    const killed = defaultRunner({ id: 'probe_killed', argv: ['bash', '-c', 'kill -9 $$'] });
+
+    expect(killed.signal).toBe('SIGKILL');
+    expect(killed.exitCode).not.toBe(0);
+  });
+
+  it('captures child output larger than the default spawn buffer', () => {
+    const noisy = defaultRunner({
+      id: 'probe_noisy',
+      argv: ['bash', '-c', 'yes hello | head -c 3000000'],
+    });
+
+    expect(noisy.exitCode).toBe(0);
+    expect(noisy.stdout.length).toBe(3_000_000);
+  });
+
+  it('keeps the failing gate output in the report and the error message', () => {
+    const root = createFixture();
+    const { runner: baseRunner } = createRunner();
+    const runner = (invocation: CommandInvocation) => {
+      if (invocation.id === 'verify') {
+        return {
+          exitCode: 1,
+          stdout: 'RUN v4.1.9\nsome passing lines\n',
+          stderr: 'FAIL tests/runner/flow-facts.test.ts\nexpected 3 got 4\n',
+        };
+      }
+      return baseRunner(invocation);
+    };
+    try {
+      const report = runPublish(['check'], { repoRoot: root, runner });
+
+      expect(report.status).toBe('failed');
+      const verify = report.commands.find((command) => command.id === 'verify');
+      expect(verify?.exit_code).toBe(1);
+      expect(verify?.stderr_tail).toContain('expected 3 got 4');
+      expect(verify?.stdout_tail).toContain('RUN v4.1.9');
+      expect(report.errors.join('\n')).toContain('expected 3 got 4');
+
+      const logPath = join(root, '.circuit/release/logs/verify.log');
+      expect(existsSync(logPath)).toBe(true);
+      const log = readFileSync(logPath, 'utf8');
+      expect(log).toContain('RUN v4.1.9');
+      expect(log).toContain('expected 3 got 4');
+    } finally {
+      rmSync(root, { recursive: true, force: true });
+    }
+  });
+
+  it('names the signal when a gate dies without writing any output', () => {
+    const root = createFixture();
+    const { runner: baseRunner } = createRunner();
+    const runner = (invocation: CommandInvocation) => {
+      if (invocation.id === 'verify') {
+        return { exitCode: 1, stdout: '', stderr: '', signal: 'SIGKILL' };
+      }
+      return baseRunner(invocation);
+    };
+    try {
+      const report = runPublish(['check'], { repoRoot: root, runner });
+
+      expect(report.status).toBe('failed');
+      const verify = report.commands.find((command) => command.id === 'verify');
+      expect(verify?.signal).toBe('SIGKILL');
+      const errors = report.errors.join('\n');
+      expect(errors).toContain('SIGKILL');
+      expect(errors).toContain('no output');
+    } finally {
+      rmSync(root, { recursive: true, force: true });
+    }
+  });
+
+  it('logs how long each executed gate took', () => {
+    const root = createFixture();
+    const { runner } = createRunner();
+    try {
+      const report = runPublish(['check'], { repoRoot: root, runner });
+
+      const verify = report.commands.find((command) => command.id === 'verify');
+      expect(verify?.skipped).toBeUndefined();
+      expect(typeof verify?.duration_ms).toBe('number');
+      expect(verify?.duration_ms).toBeGreaterThanOrEqual(0);
     } finally {
       rmSync(root, { recursive: true, force: true });
     }

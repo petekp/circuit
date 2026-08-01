@@ -80,6 +80,11 @@ These are the extra proof points from the execution-plan gap review:
   and warnings/errors instead of treating command success alone as sufficient.
   Inspect cache-target evidence from `plugins:refresh-local` when local
   installed-host dogfooding is part of the release pass.
+- When a gate fails, the report entry carries `exit_code`, `signal`,
+  `duration_ms`, and the tail of each output stream. The full untruncated
+  output of every command that produced any is under `.circuit/release/logs/`.
+  A `signal` value means the gate was killed rather than failing on its own,
+  which is a machine problem, not a code problem: rerun before diagnosing.
 
 ## Not In Scope Or Deferred
 
