@@ -34,6 +34,9 @@ export type CommandResult = {
   exitCode: number;
   stdout: string;
   stderr: string;
+  // Set when the child was killed rather than exiting on its own. A gate that
+  // dies to a signal usually writes nothing, so this is the only evidence left.
+  signal?: string | null;
 };
 
 export type PublishReport = {
@@ -63,6 +66,13 @@ export type PublishReport = {
     argv: string[];
     skipped?: boolean;
     exit_code?: number;
+    signal?: string;
+    duration_ms?: number;
+    // Tails only. The full output of every executed command is on disk at
+    // log_path, so a truncated tail never means the evidence is gone.
+    stdout_tail?: string;
+    stderr_tail?: string;
+    log_path?: string;
   }>;
   outputs: Record<string, unknown>;
   warnings: string[];
@@ -368,12 +378,48 @@ export function defaultRunner(invocation: CommandInvocation): CommandResult {
     cwd: invocation.cwd,
     env: { ...process.env, ...(invocation.env ?? {}) },
     encoding: 'utf8',
+    // The default 1 MiB truncates a full `npm run verify` and turns a real
+    // failure into an ENOBUFS with no usable output.
+    maxBuffer: 64 * 1024 * 1024,
   });
+  // A killed child reports status null. Reading that as 0 would let a release
+  // gate that was killed mid-run count as a pass, so a signal always fails.
+  const signal = result.signal ?? null;
+  const exitCode = result.status ?? (signal !== null || result.error ? 1 : 0);
   return {
-    exitCode: result.status ?? (result.error ? 1 : 0),
+    exitCode,
     stdout: result.stdout ?? '',
     stderr: result.stderr ?? (result.error ? result.error.message : ''),
+    signal,
   };
+}
+
+const OUTPUT_TAIL_LIMIT = 4000;
+
+function tail(value: string): string {
+  const trimmed = value.trimEnd();
+  if (trimmed.length <= OUTPUT_TAIL_LIMIT) return trimmed;
+  return `…(truncated, full output in the log file)…\n${trimmed.slice(-OUTPUT_TAIL_LIMIT)}`;
+}
+
+// Explains a nonzero exit in the terms an operator can act on: what exited,
+// how, and what it said. When a child is killed it often says nothing at all,
+// so name that explicitly instead of falling back to a bare `exit 1`.
+function describeFailure(id: string, result: CommandResult, logPath: string | undefined): string {
+  const how =
+    result.signal === undefined || result.signal === null
+      ? `exit ${result.exitCode}`
+      : `killed by ${result.signal} (recorded exit ${result.exitCode})`;
+  const stderrTail = tail(result.stderr);
+  const stdoutTail = tail(result.stdout);
+  const parts = [`${id} failed: ${how}`];
+  if (stderrTail !== '') parts.push(`stderr:\n${stderrTail}`);
+  if (stdoutTail !== '') parts.push(`stdout:\n${stdoutTail}`);
+  if (stderrTail === '' && stdoutTail === '') {
+    parts.push('no output on stdout or stderr');
+  }
+  if (logPath !== undefined) parts.push(`log: ${logPath}`);
+  return parts.join('\n');
 }
 
 function createReport(args: PublishArgs, repoRoot: string): PublishReport {
@@ -426,11 +472,46 @@ export function runPublish(
     throw new Error(message);
   }
 
-  function runCommand(
+  // Every executed command leaves its full output on disk. The report keeps
+  // tails so it stays readable; the log file is what you open when the tail is
+  // not enough, or when a later step fails because of an earlier one.
+  function writeCommandLog(
     id: string,
     argvForCommand: string[],
-    commandOptions: CommandOptions = {},
-  ): CommandResult {
+    result: CommandResult,
+  ): string | undefined {
+    if (result.stdout === '' && result.stderr === '') return undefined;
+    const safeId = id.replace(/[^A-Za-z0-9._-]/g, '_');
+    const logPath = resolve(repoRoot, `.circuit/release/logs/${safeId}.log`);
+    try {
+      mkdirSync(dirname(logPath), { recursive: true });
+      writeFileSync(
+        logPath,
+        [
+          `# ${id}`,
+          `# argv: ${argvForCommand.join(' ')}`,
+          `# exit: ${result.exitCode}${result.signal ? ` signal: ${result.signal}` : ''}`,
+          '',
+          '--- stdout ---',
+          result.stdout,
+          '--- stderr ---',
+          result.stderr,
+          '',
+        ].join('\n'),
+      );
+      return logPath;
+    } catch {
+      return undefined;
+    }
+  }
+
+  function execute(
+    id: string,
+    argvForCommand: string[],
+    commandOptions: CommandOptions,
+  ):
+    | { result: CommandResult; entry: PublishReport['commands'][number]; logPath?: string }
+    | 'skipped' {
     const entry: PublishReport['commands'][number] = {
       id,
       argv: argvForCommand,
@@ -439,23 +520,46 @@ export function runPublish(
 
     if (report.dry_run && commandOptions.effect === true) {
       entry.skipped = true;
-      return { exitCode: 0, stdout: '', stderr: '' };
+      return 'skipped';
     }
 
+    const startedAt = Date.now();
     const result = runner({
       id,
       argv: argvForCommand,
       cwd: commandOptions.cwd ?? repoRoot,
       ...(commandOptions.env !== undefined ? { env: commandOptions.env } : {}),
     });
+    entry.duration_ms = Date.now() - startedAt;
     entry.exit_code = result.exitCode;
+    if (result.signal !== undefined && result.signal !== null) entry.signal = result.signal;
+
+    const logPath = writeCommandLog(id, argvForCommand, result);
+    if (logPath !== undefined) entry.log_path = logPath;
 
     if (result.exitCode !== 0) {
-      const detail = result.stderr.trim() || result.stdout.trim() || `exit ${result.exitCode}`;
-      fail(`${id} failed: ${detail}`);
+      const stdoutTail = tail(result.stdout);
+      const stderrTail = tail(result.stderr);
+      if (stdoutTail !== '') entry.stdout_tail = stdoutTail;
+      if (stderrTail !== '') entry.stderr_tail = stderrTail;
     }
 
-    return result;
+    return { result, entry, ...(logPath === undefined ? {} : { logPath }) };
+  }
+
+  function runCommand(
+    id: string,
+    argvForCommand: string[],
+    commandOptions: CommandOptions = {},
+  ): CommandResult {
+    const executed = execute(id, argvForCommand, commandOptions);
+    if (executed === 'skipped') return { exitCode: 0, stdout: '', stderr: '' };
+
+    if (executed.result.exitCode !== 0) {
+      fail(describeFailure(id, executed.result, executed.logPath));
+    }
+
+    return executed.result;
   }
 
   function runOptionalCommand(
@@ -463,25 +567,9 @@ export function runPublish(
     argvForCommand: string[],
     commandOptions: CommandOptions = {},
   ): CommandResult {
-    const entry: PublishReport['commands'][number] = {
-      id,
-      argv: argvForCommand,
-    };
-    report.commands.push(entry);
-
-    if (report.dry_run && commandOptions.effect === true) {
-      entry.skipped = true;
-      return { exitCode: 0, stdout: '', stderr: '' };
-    }
-
-    const result = runner({
-      id,
-      argv: argvForCommand,
-      cwd: commandOptions.cwd ?? repoRoot,
-      ...(commandOptions.env !== undefined ? { env: commandOptions.env } : {}),
-    });
-    entry.exit_code = result.exitCode;
-    return result;
+    const executed = execute(id, argvForCommand, commandOptions);
+    if (executed === 'skipped') return { exitCode: 0, stdout: '', stderr: '' };
+    return executed.result;
   }
 
   function recordSkippedCommand(id: string, argvForCommand: string[]): void {
@@ -1382,6 +1470,9 @@ function printHumanSummary(report: PublishReport): void {
   console.log(
     `\nReport: ${resolve(report.repo_root, '.circuit/release/plugin-publish-report.json')}`,
   );
+  if (report.errors.length > 0) {
+    console.log(`Command logs: ${resolve(report.repo_root, '.circuit/release/logs')}`);
+  }
 }
 
 if (process.argv[1] !== undefined && resolve(process.argv[1]) === SCRIPT_PATH) {
