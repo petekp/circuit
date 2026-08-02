@@ -392,9 +392,9 @@ export const ExploreDefaultResult = z
     // no other word can be written here. Absent means the review accepted, and
     // the engine already reads an absent flow outcome as clean.
     //
-    // Explore arms `binds_terminal_outcome_to_primary_result`, so this word is
-    // what stops an unaccepted recommendation from closing the run as a
-    // success.
+    // Explore declares a primary result, so the engine binds the run's
+    // terminal outcome to this word at close time. It is what stops an
+    // unaccepted recommendation from closing the run as a success.
     outcome: z.literal('stopped').optional(),
     evidence_links: z.array(ExploreResultReportPointer).min(1),
   })

@@ -38,23 +38,34 @@ describe('resolveBindingLegibility (single-source manifest)', () => {
     expect(result.reducedBindings).toEqual([]);
   });
 
-  it('treats a manifest engine_flags block as authority over all three flag bindings', () => {
+  it('treats a manifest engine_flags block as authority over the flag bindings', () => {
     // Category authority, not value authority. A flow that declares engineFlags
     // but leaves slice_loop unset (like Fix) still BACKS slice_loop: the author
     // has taken authority over the engine-flag category, so the omission within
     // it is intentional. Keying on a specific flag's value would falsely strand
     // the omitted ones.
     const flow: BindingDeclaringFlow = {
-      engineFlags: { bindsTerminalOutcomeToPrimaryResult: true },
+      engineFlags: { bindsExecutionDepthToRelaySelection: true },
+    };
+    const result = resolveBindingLegibility(flow);
+    expect(result.manifestBackedBindings).toEqual(['depth_binding', 'slice_loop']);
+    // The surface bindings have no manifest source here, but with the package
+    // oracle gone there is nothing to call them "lost" — reduced stays empty.
+    expect(result.reducedBindings).toEqual([]);
+  });
+
+  it('treats the runtime surface as authority over the terminal-outcome binding', () => {
+    // terminal_outcome_binding used to sit under engine_flags, behind its own
+    // opt-in. That opt-in is gone: declaring a primary result is what arms the
+    // bind, so the runtime surface is now the declaration source that backs it.
+    const flow: BindingDeclaringFlow = {
+      runtimeSurface: { primaryResult: { path: 'reports/result.json' } },
     };
     const result = resolveBindingLegibility(flow);
     expect(result.manifestBackedBindings).toEqual([
-      'depth_binding',
-      'slice_loop',
       'terminal_outcome_binding',
+      'primary_result_surface',
     ]);
-    // The two surface bindings have no manifest source here, but with the package
-    // oracle gone there is nothing to call them "lost" — reduced stays empty.
     expect(result.reducedBindings).toEqual([]);
   });
 

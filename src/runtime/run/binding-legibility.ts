@@ -59,19 +59,26 @@ export interface BindingLegibility {
  * Whether the manifest carries the declaration source that owns a binding.
  *
  * Authority is CATEGORY-level, not value-level: an `engineFlags` block backs
- * all three flag bindings even when it leaves one unset, because the author has
+ * every flag binding even when it leaves one unset, because the author has
  * taken authority over the engine-flag category and an omission within it is
  * intentional. Keying on a specific flag's value would falsely strand the
  * omitted ones — Fix, which legitimately has no slice loop, declares engineFlags
  * yet would never count slice_loop as backed. The same field-presence rule
  * applies uniformly to the two surface bindings.
+ *
+ * `terminal_outcome_binding` sits under the runtime surface rather than the
+ * engine flags: it used to have its own opt-in flag, and the un-opted-in state
+ * was the dishonest one (a run closing green over its own `blocked` result), so
+ * the flag is gone and declaring a primary result is now what arms the bind.
+ * Its declaration source moved with it.
  */
 function manifestBacksBinding(flow: BindingDeclaringFlow, binding: CatalogSourcedBinding): boolean {
   switch (binding) {
     case 'depth_binding':
     case 'slice_loop':
-    case 'terminal_outcome_binding':
       return flow.engineFlags !== undefined;
+    case 'terminal_outcome_binding':
+      return flow.runtimeSurface !== undefined;
     case 'edit_file_surfaces':
       return flow.reportFileSurfaces !== undefined;
     case 'primary_result_surface':

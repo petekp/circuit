@@ -23380,7 +23380,7 @@ var ReviewResult = external_exports.object({
   findings: external_exports.array(ReviewFinding),
   verdict: ReviewResultVerdict,
   // Terminal run outcome bound to the verdict (launch blocker fix). Review
-  // arms engineFlags.bindsTerminalOutcomeToPrimaryResult, so the engine reads
+  // declares a primary result, so the engine reads
   // this field at close time and maps it onto the run outcome: an honest
   // ISSUES_FOUND verdict must close `stopped`, never a green `complete` over a
   // known defect. CLEAN → complete, ISSUES_FOUND → stopped (see the
@@ -31862,7 +31862,6 @@ var AxisConfigRequirementList = external_exports.array(AxisConfigRequirement).mi
 // src/schemas/engine-flags.ts
 var EngineFlagsManifest = external_exports.object({
   binds_execution_depth_to_relay_selection: external_exports.boolean().optional(),
-  binds_terminal_outcome_to_primary_result: external_exports.boolean().optional(),
   relay_uses_prompt_only_context: external_exports.boolean().optional(),
   iterates_slice_loop: external_exports.object({
     head_step: external_exports.string().min(1),

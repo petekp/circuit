@@ -45,7 +45,7 @@ throwing away proven regression baselines (its only run). Pursue stops throwing
 away a partially-landed batch (1 of its 2 runs). Explainer's hand-built gate
 becomes a declaration instead of a workaround.
 
-The honest-close machinery is already wired: `binds_terminal_outcome_to_primary_result`
+The honest-close machinery is already wired: the close-time primary-result bind
 maps a non-clean result to `stopped`, and after the 2026-07-29 fix `stopped` reads
 correctly as "ran its full process and stopped without a clean result." We built
 the landing pad three days ago and nothing routes to it.

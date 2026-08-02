@@ -626,9 +626,6 @@
       }
     }
   ],
-  "engine_flags": {
-    "binds_terminal_outcome_to_primary_result": true
-  },
   "runtime_surface": {
     "primary_result": {
       "schema_name": "goal.result@v1",

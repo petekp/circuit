@@ -156,7 +156,6 @@ export const reviewAssemblySpec: FlowSchematicAssemblySpec = {
   // (which the verdict step writes as review.result.outcome = 'stopped') bind
   // the run's terminal outcome to 'stopped' rather than a green 'complete'.
   engine_flags: {
-    binds_terminal_outcome_to_primary_result: true,
     relay_uses_prompt_only_context: true,
   },
   items: reviewBlockItems,

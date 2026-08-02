@@ -3,7 +3,7 @@
   "contract_ref": {
     "kind": "work_contract",
     "ref": "generated/flows/explore/circuit.work-contract.v0.json",
-    "sha256": "d370555dc2ef68307f399c38a64e73f00178dee179b842323043e88a3b662f40",
+    "sha256": "a71eea158edb446d946bea67d301ace84e6bd1b702fec7d17f78e95076d5e42f",
     "flow_id": "explore"
   },
   "work_contract": {
@@ -465,7 +465,7 @@
         "source_ref": {
           "kind": "work_contract",
           "ref": "compiled-flow/steps/frame-step/routes/stop",
-          "sha256": "004dbaa0f30ffa9f9cbe7e1c61bcff206344696cb736c04dad07fecf3f6486e4",
+          "sha256": "dbb6c5627f9464ec02a4962bc872fa6dc429e5364a205c3accade92af4b7a137",
           "flow_id": "explore"
         }
       },
@@ -494,7 +494,7 @@
         "source_ref": {
           "kind": "work_contract",
           "ref": "compiled-flow/steps/analyze-step/routes/retry",
-          "sha256": "004dbaa0f30ffa9f9cbe7e1c61bcff206344696cb736c04dad07fecf3f6486e4",
+          "sha256": "dbb6c5627f9464ec02a4962bc872fa6dc429e5364a205c3accade92af4b7a137",
           "flow_id": "explore"
         }
       },
@@ -525,7 +525,7 @@
         "source_ref": {
           "kind": "work_contract",
           "ref": "compiled-flow/steps/analyze-step/routes/stop",
-          "sha256": "004dbaa0f30ffa9f9cbe7e1c61bcff206344696cb736c04dad07fecf3f6486e4",
+          "sha256": "dbb6c5627f9464ec02a4962bc872fa6dc429e5364a205c3accade92af4b7a137",
           "flow_id": "explore"
         }
       },
@@ -554,7 +554,7 @@
         "source_ref": {
           "kind": "work_contract",
           "ref": "compiled-flow/steps/synthesize-step/routes/retry",
-          "sha256": "004dbaa0f30ffa9f9cbe7e1c61bcff206344696cb736c04dad07fecf3f6486e4",
+          "sha256": "dbb6c5627f9464ec02a4962bc872fa6dc429e5364a205c3accade92af4b7a137",
           "flow_id": "explore"
         }
       },
@@ -585,7 +585,7 @@
         "source_ref": {
           "kind": "work_contract",
           "ref": "compiled-flow/steps/synthesize-step/routes/stop",
-          "sha256": "004dbaa0f30ffa9f9cbe7e1c61bcff206344696cb736c04dad07fecf3f6486e4",
+          "sha256": "dbb6c5627f9464ec02a4962bc872fa6dc429e5364a205c3accade92af4b7a137",
           "flow_id": "explore"
         }
       },
@@ -610,7 +610,7 @@
         "source_ref": {
           "kind": "work_contract",
           "ref": "compiled-flow/steps/review-step/routes/retry",
-          "sha256": "004dbaa0f30ffa9f9cbe7e1c61bcff206344696cb736c04dad07fecf3f6486e4",
+          "sha256": "dbb6c5627f9464ec02a4962bc872fa6dc429e5364a205c3accade92af4b7a137",
           "flow_id": "explore"
         }
       },
@@ -635,7 +635,7 @@
         "source_ref": {
           "kind": "work_contract",
           "ref": "compiled-flow/steps/review-step/routes/revise",
-          "sha256": "004dbaa0f30ffa9f9cbe7e1c61bcff206344696cb736c04dad07fecf3f6486e4",
+          "sha256": "dbb6c5627f9464ec02a4962bc872fa6dc429e5364a205c3accade92af4b7a137",
           "flow_id": "explore"
         }
       },
@@ -666,7 +666,7 @@
         "source_ref": {
           "kind": "work_contract",
           "ref": "compiled-flow/steps/review-step/routes/stop",
-          "sha256": "004dbaa0f30ffa9f9cbe7e1c61bcff206344696cb736c04dad07fecf3f6486e4",
+          "sha256": "dbb6c5627f9464ec02a4962bc872fa6dc429e5364a205c3accade92af4b7a137",
           "flow_id": "explore"
         }
       },
@@ -697,7 +697,7 @@
         "source_ref": {
           "kind": "work_contract",
           "ref": "compiled-flow/steps/close-step/routes/stop",
-          "sha256": "004dbaa0f30ffa9f9cbe7e1c61bcff206344696cb736c04dad07fecf3f6486e4",
+          "sha256": "dbb6c5627f9464ec02a4962bc872fa6dc429e5364a205c3accade92af4b7a137",
           "flow_id": "explore"
         }
       }

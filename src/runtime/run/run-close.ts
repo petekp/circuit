@@ -11,7 +11,6 @@ import { isDegradedCompletionOutcome } from '../../shared/outcome.js';
 import type { TerminalTarget } from '../domain/route.js';
 import type { RunClosedOutcome } from '../domain/run.js';
 import type { TraceEntry } from '../domain/trace.js';
-import { resolveEngineFlags } from './engine-flags.js';
 import { honestyLatchGap } from './honesty-ledger.js';
 import { type RuntimeRunResult, writeRuntimeRunResult } from './result-writer.js';
 import type { RunContext } from './run-context.js';
@@ -51,9 +50,9 @@ export function outcomeForTerminal(target: TerminalTarget): RunClosedOutcome {
 // @complete close to `stopped` (operator-visible "needs attention", exit 1).
 // Anything else — a clean success word like `complete`, `fixed`, or
 // `not-reproduced` — returns undefined so the proof-derived @complete stands.
-// That last branch is what lets Fix arm this bind: the old form downgraded every
-// non-`complete` word to `stopped`, which would have turned Fix's `fixed` /
-// `not-reproduced` successes into `stopped` on every run.
+// That last branch is what lets Fix live under this bind: the old form
+// downgraded every non-`complete` word to `stopped`, which would have turned
+// Fix's `fixed` / `not-reproduced` successes into `stopped` on every run.
 function runOutcomeForPrimaryResultOutcome(outcome: string): RunClosedOutcome | undefined {
   if (outcome === 'handoff') return 'handoff';
   if (isDegradedCompletionOutcome(outcome)) return 'stopped';
@@ -107,12 +106,18 @@ export async function terminalOutcomeBoundToPrimaryResult(
   outcome: RunClosedOutcome,
 ): Promise<{ readonly outcome: RunClosedOutcome; readonly reason: string } | undefined> {
   if (outcome !== 'complete') return undefined;
-  // First-class composition (M4): both the behavior flag and the primary-result
-  // path now read off the runtime flow's manifest. A composed flow that declares
-  // this bind and a primary result on its manifest is honored with no by-id
-  // catalog package in the path.
-  const engineFlags = resolveEngineFlags(context.flow);
-  if (engineFlags?.bindsTerminalOutcomeToPrimaryResult !== true) return undefined;
+  // Declaring a primary result IS the opt-in. This used to need a second,
+  // separate declaration (`binds_terminal_outcome_to_primary_result`), and the
+  // un-declared state was the dishonest one: a flow that said nothing closed
+  // green over its own `blocked` result. Three flows had forgotten it, each
+  // looking locally fine, because the failure was silent and always in the same
+  // direction. There is no honest flow that wants "the report I hand the
+  // operator says failed, call the run a success", so there is nothing left to
+  // declare and nothing left to forget.
+  //
+  // First-class composition (M4): the primary-result path reads off the runtime
+  // flow's manifest, so a composed flow is honored with no by-id catalog
+  // package in the path.
   const primaryResultPath = context.flow.runtimeSurface?.primaryResult?.path;
   if (primaryResultPath === undefined) return undefined;
 

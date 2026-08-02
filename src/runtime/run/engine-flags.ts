@@ -103,11 +103,6 @@ export function manifestEngineFlagsToInCode(
       : {
           bindsExecutionDepthToRelaySelection: manifest.binds_execution_depth_to_relay_selection,
         }),
-    ...(manifest.binds_terminal_outcome_to_primary_result === undefined
-      ? {}
-      : {
-          bindsTerminalOutcomeToPrimaryResult: manifest.binds_terminal_outcome_to_primary_result,
-        }),
     ...(manifest.relay_uses_prompt_only_context === undefined
       ? {}
       : { relayUsesPromptOnlyContext: manifest.relay_uses_prompt_only_context }),

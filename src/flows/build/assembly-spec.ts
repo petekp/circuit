@@ -192,9 +192,9 @@ export const buildBlockItems: readonly BlockStepUse[] = [
     // budget is spent, exhaustion advances via `continue` instead of aborting:
     // the failing verification report is already honest evidence, so the
     // touch-area check, review, and close still run, close-with-evidence emits
-    // a non-clean result, and `binds_terminal_outcome_to_primary_result` maps
-    // it to 'stopped' — the work is preserved and the run can never read as
-    // success.
+    // a non-clean result, and the close-time bind on Build's primary result
+    // maps it to 'stopped' — the work is preserved and the run can never
+    // read as success.
     exhaustion_route: 'continue',
   },
   {
@@ -239,8 +239,8 @@ export const buildBlockItems: readonly BlockStepUse[] = [
     // act-step re-implemented the whole change and, when the reviewer held its
     // objection, exhausted max_attempts and aborted a working build. With
     // 'reject' in the pass set it takes `continue` to close, the verdict is
-    // recorded in the Build result (reject -> outcome 'failed'), and
-    // `binds_terminal_outcome_to_primary_result` maps that honest result onto
+    // recorded in the Build result (reject -> outcome 'failed'), and the
+    // close-time bind on Build's primary result maps that honest result onto
     // the run's terminal outcome ('stopped').
     //
     // The retry/revise routes are KEPT: they recover a genuinely invalid relay
@@ -325,12 +325,6 @@ export const buildAssemblySpec: FlowSchematicAssemblySpec = {
   },
   engine_flags: {
     binds_execution_depth_to_relay_selection: true,
-    // The reviewer's verdict is the Build's honest terminal signal: an
-    // accept green-lights a 'complete' close, while accept-with-fixes or a
-    // reject bind the run to the Build result's needs-attention/failed
-    // outcome ('stopped') instead of a green 'complete'. See the review-step
-    // note on why every verdict flows forward rather than reworking.
-    binds_terminal_outcome_to_primary_result: true,
     iterates_slice_loop: {
       head_step: 'act-step',
       tail_step: 'verify-step',

@@ -35,15 +35,18 @@ function compiledFlow(id: string) {
   return firstCompiledFlow(compileSchematicToCompiledFlow(definition.schematic));
 }
 
-describe('engine_flags on the compiled manifest (goal, Stage 3b)', () => {
-  it('compiles goal with the terminal-outcome bind carried on the manifest', () => {
+// The terminal-outcome bind no longer rides an engine flag. Declaring a
+// primary result is what arms it, so the primary-result surface is the thing
+// that must survive compilation for goal to close honestly.
+describe('the primary-result surface on the compiled manifest (goal)', () => {
+  it('compiles goal with its primary result carried on the manifest', () => {
     const flow = compiledFlow('goal');
-    expect(flow.engine_flags?.binds_terminal_outcome_to_primary_result).toBe(true);
+    expect(flow.runtime_surface?.primary_result?.path).toBe('reports/goal-result.json');
   });
 
-  it('translates the manifest flag onto ExecutableFlow.engineFlags at the runtime boundary', () => {
+  it('translates the primary result onto ExecutableFlow at the runtime boundary', () => {
     const executable = fromCompiledFlow(compiledFlow('goal'));
-    expect(executable.engineFlags?.bindsTerminalOutcomeToPrimaryResult).toBe(true);
+    expect(executable.runtimeSurface?.primaryResult?.path).toBe('reports/goal-result.json');
   });
 });
 
@@ -51,9 +54,6 @@ describe('engine_flags on the compiled manifest (build, Stage 3b)', () => {
   it('compiles build with the depth bind and slice loop carried on the manifest', () => {
     const flow = compiledFlow('build');
     expect(flow.engine_flags?.binds_execution_depth_to_relay_selection).toBe(true);
-    // Build binds its terminal outcome to the Build result so an honest
-    // reject/accept-with-fixes verdict closes 'stopped', never a green 'complete'.
-    expect(flow.engine_flags?.binds_terminal_outcome_to_primary_result).toBe(true);
     expect(flow.engine_flags?.iterates_slice_loop).toEqual({
       head_step: 'act-step',
       tail_step: 'verify-step',
@@ -68,7 +68,6 @@ describe('engine_flags on the compiled manifest (build, Stage 3b)', () => {
     const executable = fromCompiledFlow(compiledFlow('build'));
     expect(executable.engineFlags).toEqual({
       bindsExecutionDepthToRelaySelection: true,
-      bindsTerminalOutcomeToPrimaryResult: true,
       iteratesSliceLoop: {
         headStep: 'act-step',
         tailStep: 'verify-step',
@@ -113,7 +112,6 @@ describe('behavior-equivalence: the engine resolves the flags off the manifest',
     const resolved = resolveEngineFlags(executable);
     expect(resolved).toEqual({
       bindsExecutionDepthToRelaySelection: true,
-      bindsTerminalOutcomeToPrimaryResult: true,
       iteratesSliceLoop: {
         headStep: 'act-step',
         tailStep: 'verify-step',

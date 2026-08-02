@@ -1,8 +1,8 @@
 # Build
 
 Public. 9 steps. Depths `low | medium | high`. `autonomous: true`. Engine flags:
-`binds_execution_depth_to_relay_selection`,
-`binds_terminal_outcome_to_primary_result`, `iterates_slice_loop`.
+`binds_execution_depth_to_relay_selection`, `iterates_slice_loop`. Declares a
+primary result, so its terminal outcome is bound to it.
 
 Corpus: 13 runs. **2 complete, 1 stopped, 10 aborted.** The most-used and
 least-reliable flow in the catalog.
@@ -130,8 +130,8 @@ refactor looks identical to a hung worker.
 
 **1. Never destroy a working branch.** On verification-failure exhaustion, route
 to `close-step` with the honest result: implementation present, verification
-failed, here is the output. `binds_terminal_outcome_to_primary_result` already
-maps a non-clean result to `stopped`, and after the 2026-07-29 fix `stopped`
+failed, here is the output. The close-time primary-result bind already maps a
+non-clean result to `stopped`, and after the 2026-07-29 fix `stopped`
 reads correctly as "ran its full process and stopped without a clean result."
 The machinery to do this honestly already exists and is already wired. Apply the
 reasoning from `assembly-spec.ts:214` to verification. **This is the highest-value

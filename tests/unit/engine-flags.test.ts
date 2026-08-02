@@ -43,11 +43,11 @@ describe('manifestEngineFlagsToInCode (manifest→runtime boundary)', () => {
     expect(
       manifestEngineFlagsToInCode({
         binds_execution_depth_to_relay_selection: true,
-        binds_terminal_outcome_to_primary_result: true,
+        relay_uses_prompt_only_context: true,
       }),
     ).toEqual({
       bindsExecutionDepthToRelaySelection: true,
-      bindsTerminalOutcomeToPrimaryResult: true,
+      relayUsesPromptOnlyContext: true,
     });
   });
 

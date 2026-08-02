@@ -3,24 +3,27 @@ import { describe, expect, it } from 'vitest';
 import { terminalOutcomeBoundToPrimaryResult } from '../../src/runtime/run/run-close.js';
 import type { RunContext } from '../../src/runtime/run/run-context.js';
 
-// Characterizes the close-time outcome binding for flows that declare
-// bindsTerminalOutcomeToPrimaryResult (only `goal` today). The function reads
-// the primary result at close time to bind the run outcome; the contract under
-// test is that this read FAILS OPEN — a missing or malformed primary result
-// returns undefined so the caller keeps the proof-derived outcome instead of
-// crashing the close path (the RCX-6b hardening).
+// Characterizes the close-time outcome binding for a flow that declares a
+// primary result (goal, here). The function reads that result at close time to
+// bind the run outcome; the contract under test is that the read FAILS OPEN — a
+// missing or malformed primary result returns undefined so the caller keeps the
+// proof-derived outcome instead of crashing the close path (the RCX-6b
+// hardening).
 //
-// First-class composition (M3b-B + M4): both goal's engine flag AND its
-// primary-result path ride its compiled manifest, so at runtime `fromCompiledFlow`
-// translates them onto context.flow.engineFlags and context.flow.runtimeSurface.
-// The stub carries both; the by-id catalog package is gone, so only
+// Which flows the bind applies to is not characterized here. That is a property
+// of the whole catalog, and it lives in
+// tests/runner/primary-result-honesty-floor.test.ts so every future flow is
+// enrolled in it automatically.
+//
+// First-class composition (M3b-B + M4): goal's primary-result path rides its
+// compiled manifest, so at runtime `fromCompiledFlow` translates it onto
+// context.flow.runtimeSurface. The by-id catalog package is gone, so only
 // context.files.readJson is stubbed.
 
 function goalContextReading(readJson: (ref: string) => Promise<unknown>): RunContext {
   return {
     flow: {
       id: 'goal',
-      engineFlags: { bindsTerminalOutcomeToPrimaryResult: true },
       runtimeSurface: {
         primaryResult: { schemaName: 'goal.result@v1', path: 'reports/goal-result.json' },
       },

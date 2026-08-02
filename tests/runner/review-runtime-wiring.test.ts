@@ -426,7 +426,7 @@ describe('registered review compose writer', () => {
   );
 
   // Regression (launch blocker): an honest ISSUES_FOUND review must not close
-  // `complete`. Review arms `binds_terminal_outcome_to_primary_result` and the
+  // `complete`. Review declares a primary result, so the close-time bind and the
   // verdict step derives review.result.outcome from the verdict (CLEAN →
   // complete, ISSUES_FOUND → stopped). The engine binds the terminal run
   // outcome to that primary-result outcome, so a review that finds a blocking

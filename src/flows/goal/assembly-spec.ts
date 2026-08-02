@@ -11,9 +11,6 @@
 // Goal touches frame, act, verify, review, and close — it delegates analyze and
 // plan to the selected static child flow — so the assembler derives a partial
 // stage path that omits analyze / plan; the rationale is supplied via
-// `stagePathRationale`. Goal's engine_flags (binds_terminal_outcome_to_primary_result)
-// travel on the schematic and are passed through verbatim.
-//
 // Each item omits output / evidence_requirements / execution wherever it equals
 // the block default (the assembler defaults them back). The child-run steps KEEP
 // their per-flow output (goal.child-<flow>-result@v1 differs from the
@@ -386,9 +383,6 @@ export const goalAssemblySpec: FlowSchematicAssemblySpec = {
   // Stage 3 (first-class composition): goal DECLARES the terminal-outcome bind on
   // its schematic; the compiler propagates it to the compiled manifest and the
   // engine reads it through `resolveEngineFlags`.
-  engine_flags: {
-    binds_terminal_outcome_to_primary_result: true,
-  },
   items: goalBlockItems,
   stageLabels: goalStageLabels,
   stagePathRationale: GOAL_STAGE_PATH_RATIONALE,

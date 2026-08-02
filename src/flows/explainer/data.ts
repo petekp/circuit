@@ -555,9 +555,6 @@ export const explainerFlowData = {
         },
       },
     ],
-    engine_flags: {
-      binds_terminal_outcome_to_primary_result: true,
-    },
   },
   canonicalStagePolicy: {
     kind: 'enforce',

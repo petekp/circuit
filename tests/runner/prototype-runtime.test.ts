@@ -893,7 +893,11 @@ describe('Prototype runtime wiring', () => {
       relayer: prototypeRelayer({ runFolder, projectRoot, createFiles: false }),
     });
 
-    expect(outcome.outcome).toBe('complete');
+    // The run stops rather than closing green: its own result says
+    // needs_attention and its verification failed. This asserted 'complete'
+    // until the terminal-outcome bind stopped being an opt-in a flow could
+    // forget — note the test was already NAMED for the outcome it did not produce.
+    expect(outcome.outcome).toBe('stopped');
     const result = PrototypeResult.parse(readJson(runFolder, 'reports/prototype-result.json'));
     expect(result).toMatchObject({
       outcome: 'needs_attention',
@@ -1192,7 +1196,8 @@ describe('Prototype runtime wiring', () => {
       relayer: prototypeRelayer({ runFolder, projectRoot, verdict: 'blocked' }),
     });
 
-    expect(outcome.outcome).toBe('complete');
+    // A blocked artifact with no verification is not a successful run.
+    expect(outcome.outcome).toBe('stopped');
     const artifact = PrototypeArtifact.parse(
       readJson(runFolder, 'reports/prototype/artifact.json'),
     );

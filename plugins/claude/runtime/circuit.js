@@ -19323,7 +19323,6 @@ var init_engine_flags = __esm({
     init_zod();
     EngineFlagsManifest = external_exports.object({
       binds_execution_depth_to_relay_selection: external_exports.boolean().optional(),
-      binds_terminal_outcome_to_primary_result: external_exports.boolean().optional(),
       relay_uses_prompt_only_context: external_exports.boolean().optional(),
       iterates_slice_loop: external_exports.object({
         head_step: external_exports.string().min(1),
@@ -23818,78 +23817,6 @@ var init_outcome = __esm({
   }
 });
 
-// dist/runtime/run/engine-flags.js
-function translateSliceLoop(slice) {
-  return {
-    headStep: slice.head_step,
-    tailStep: slice.tail_step,
-    advanceRoute: slice.advance_route,
-    slicesFrom: { report: slice.slices_from.report, itemsPath: slice.slices_from.items_path },
-    maxSlices: slice.max_slices,
-    activateWhenDepthAtLeast: slice.activate_when_depth_at_least
-  };
-}
-function translateUntilLoop(until) {
-  return {
-    headStep: until.head_step,
-    tailStep: until.tail_step,
-    bodySteps: until.body_steps,
-    reenterRoute: until.reenter_route,
-    maxIterations: until.max_iterations,
-    ...until.stop_judge === void 0 ? {} : {
-      stopJudge: {
-        report: until.stop_judge.report,
-        goalMetPath: until.stop_judge.goal_met_path,
-        ...until.stop_judge.lesson_path === void 0 ? {} : { lessonPath: until.stop_judge.lesson_path },
-        ...until.stop_judge.progress_path === void 0 ? {} : { progressPath: until.stop_judge.progress_path }
-      }
-    },
-    ...until.needs_attention_route === void 0 ? {} : { needsAttentionRoute: until.needs_attention_route },
-    ...until.carried_notes === void 0 ? {} : {
-      carriedNotes: {
-        report: until.carried_notes.report,
-        ...until.carried_notes.max_entries === void 0 ? {} : { maxEntries: until.carried_notes.max_entries }
-      }
-    },
-    ...until.cumulative_usd_cap === void 0 ? {} : { cumulativeUsdCap: until.cumulative_usd_cap },
-    ...until.cumulative_token_cap === void 0 ? {} : { cumulativeTokenCap: until.cumulative_token_cap },
-    ...until.no_progress_ceiling === void 0 ? {} : { noProgressCeiling: until.no_progress_ceiling },
-    ...until.iteration_commit_containment === void 0 ? {} : {
-      iterationCommitContainment: {
-        branchPrefix: until.iteration_commit_containment.branch_prefix
-      }
-    },
-    ...until.frozen_paths === void 0 ? {} : { frozenPaths: until.frozen_paths },
-    activateWhenDepthAtLeast: until.activate_when_depth_at_least
-  };
-}
-function manifestEngineFlagsToInCode(manifest) {
-  if (manifest === void 0)
-    return void 0;
-  const slice = manifest.iterates_slice_loop;
-  const until = manifest.iterates_until_condition;
-  const result = {
-    ...manifest.binds_execution_depth_to_relay_selection === void 0 ? {} : {
-      bindsExecutionDepthToRelaySelection: manifest.binds_execution_depth_to_relay_selection
-    },
-    ...manifest.binds_terminal_outcome_to_primary_result === void 0 ? {} : {
-      bindsTerminalOutcomeToPrimaryResult: manifest.binds_terminal_outcome_to_primary_result
-    },
-    ...manifest.relay_uses_prompt_only_context === void 0 ? {} : { relayUsesPromptOnlyContext: manifest.relay_uses_prompt_only_context },
-    ...slice === void 0 ? {} : { iteratesSliceLoop: translateSliceLoop(slice) },
-    ...until === void 0 ? {} : { iteratesUntilCondition: translateUntilLoop(until) }
-  };
-  return Object.keys(result).length === 0 ? void 0 : result;
-}
-function resolveEngineFlags(flow) {
-  return flow.engineFlags;
-}
-var init_engine_flags2 = __esm({
-  "dist/runtime/run/engine-flags.js"() {
-    "use strict";
-  }
-});
-
 // dist/runtime/run/honesty-ledger.js
 function honestyLatchGap(ledger) {
   return ledger?.openLatchSummary();
@@ -24597,9 +24524,6 @@ function primaryResultCausePhrases(primaryResult) {
 async function terminalOutcomeBoundToPrimaryResult(context, outcome) {
   if (outcome !== "complete")
     return void 0;
-  const engineFlags = resolveEngineFlags(context.flow);
-  if (engineFlags?.bindsTerminalOutcomeToPrimaryResult !== true)
-    return void 0;
   const primaryResultPath = context.flow.runtimeSurface?.primaryResult?.path;
   if (primaryResultPath === void 0)
     return void 0;
@@ -24795,7 +24719,6 @@ var init_run_close = __esm({
     "use strict";
     init_engine_provenance2();
     init_outcome();
-    init_engine_flags2();
     init_honesty_ledger();
     init_result_writer();
     init_trace_evidence();
@@ -66109,9 +66032,9 @@ var init_assembly_spec = __esm({
         // budget is spent, exhaustion advances via `continue` instead of aborting:
         // the failing verification report is already honest evidence, so the
         // touch-area check, review, and close still run, close-with-evidence emits
-        // a non-clean result, and `binds_terminal_outcome_to_primary_result` maps
-        // it to 'stopped' — the work is preserved and the run can never read as
-        // success.
+        // a non-clean result, and the close-time bind on Build's primary result
+        // maps it to 'stopped' — the work is preserved and the run can never
+        // read as success.
         exhaustion_route: "continue"
       },
       {
@@ -66156,8 +66079,8 @@ var init_assembly_spec = __esm({
         // act-step re-implemented the whole change and, when the reviewer held its
         // objection, exhausted max_attempts and aborted a working build. With
         // 'reject' in the pass set it takes `continue` to close, the verdict is
-        // recorded in the Build result (reject -> outcome 'failed'), and
-        // `binds_terminal_outcome_to_primary_result` maps that honest result onto
+        // recorded in the Build result (reject -> outcome 'failed'), and the
+        // close-time bind on Build's primary result maps that honest result onto
         // the run's terminal outcome ('stopped').
         //
         // The retry/revise routes are KEPT: they recover a genuinely invalid relay
@@ -66235,12 +66158,6 @@ var init_assembly_spec = __esm({
       },
       engine_flags: {
         binds_execution_depth_to_relay_selection: true,
-        // The reviewer's verdict is the Build's honest terminal signal: an
-        // accept green-lights a 'complete' close, while accept-with-fixes or a
-        // reject bind the run to the Build result's needs-attention/failed
-        // outcome ('stopped') instead of a green 'complete'. See the review-step
-        // note on why every verdict flows forward rather than reworking.
-        binds_terminal_outcome_to_primary_result: true,
         iterates_slice_loop: {
           head_step: "act-step",
           tail_step: "verify-step",
@@ -74544,10 +74461,7 @@ var init_data4 = __esm({
               stop: "@stop"
             }
           }
-        ],
-        engine_flags: {
-          binds_terminal_outcome_to_primary_result: true
-        }
+        ]
       },
       canonicalStagePolicy: {
         kind: "enforce",
@@ -74987,8 +74901,8 @@ var init_assembly_spec4 = __esm({
         //
         // Safe against reading as success because close writes
         // `outcome: 'stopped'` whenever it arrives with the review still
-        // rejecting, the result schema refuses any other pairing, and
-        // `binds_terminal_outcome_to_primary_result` maps that word onto the run.
+        // rejecting, the result schema refuses any other pairing, and the
+        // close-time primary-result bind maps that word onto the run.
         exhaustion_route: "continue"
       },
       {
@@ -75221,9 +75135,6 @@ var init_assembly_spec4 = __esm({
       // `outcome: 'stopped'` on a still-rejecting review and this flag maps that
       // word onto the run outcome. Without it the operator would be handed a
       // recommendation the reviewer refused, labelled complete.
-      engine_flags: {
-        binds_terminal_outcome_to_primary_result: true
-      },
       items: exploreBlockItems,
       stageLabels: exploreStageLabels,
       stagePathRationale: EXPLORE_STAGE_PATH_RATIONALE
@@ -75557,9 +75468,9 @@ var init_reports4 = __esm({
       // no other word can be written here. Absent means the review accepted, and
       // the engine already reads an absent flow outcome as clean.
       //
-      // Explore arms `binds_terminal_outcome_to_primary_result`, so this word is
-      // what stops an unaccepted recommendation from closing the run as a
-      // success.
+      // Explore declares a primary result, so the engine binds the run's
+      // terminal outcome to this word at close time. It is what stops an
+      // unaccepted recommendation from closing the run as a success.
       outcome: external_exports.literal("stopped").optional(),
       evidence_links: external_exports.array(ExploreResultReportPointer).min(1)
     }).strict().superRefine((result, ctx) => {
@@ -77561,9 +77472,6 @@ var init_assembly_spec6 = __esm({
       // run outcome whenever fix's primary result (reports/fix-result.json) reports a
       // degraded outcome such as `partial`. Fix's success words `fixed` /
       // `not-reproduced` are not degraded, so a clean fix still closes complete.
-      engine_flags: {
-        binds_terminal_outcome_to_primary_result: true
-      },
       // Stage 3b (first-class composition): fix's report file surfaces ride the
       // schematic onto the compiled manifest, so the engine reads the skill-hook
       // edit-file surface table off the manifest, not the by-id catalog package.
@@ -79669,9 +79577,6 @@ var init_assembly_spec7 = __esm({
       // Stage 3 (first-class composition): goal DECLARES the terminal-outcome bind on
       // its schematic; the compiler propagates it to the compiled manifest and the
       // engine reads it through `resolveEngineFlags`.
-      engine_flags: {
-        binds_terminal_outcome_to_primary_result: true
-      },
       items: goalBlockItems,
       stageLabels: goalStageLabels,
       stagePathRationale: GOAL_STAGE_PATH_RATIONALE
@@ -85460,7 +85365,6 @@ var init_assembly_spec10 = __esm({
       // (which the verdict step writes as review.result.outcome = 'stopped') bind
       // the run's terminal outcome to 'stopped' rather than a green 'complete'.
       engine_flags: {
-        binds_terminal_outcome_to_primary_result: true,
         relay_uses_prompt_only_context: true
       },
       items: reviewBlockItems,
@@ -85824,7 +85728,7 @@ var init_reports10 = __esm({
       findings: external_exports.array(ReviewFinding),
       verdict: ReviewResultVerdict,
       // Terminal run outcome bound to the verdict (launch blocker fix). Review
-      // arms engineFlags.bindsTerminalOutcomeToPrimaryResult, so the engine reads
+      // declares a primary result, so the engine reads
       // this field at close time and maps it onto the run outcome: an honest
       // ISSUES_FOUND verdict must close `stopped`, never a green `complete` over a
       // known defect. CLEAN → complete, ISSUES_FOUND → stopped (see the
@@ -93704,6 +93608,75 @@ var init_route = __esm({
   }
 });
 
+// dist/runtime/run/engine-flags.js
+function translateSliceLoop(slice) {
+  return {
+    headStep: slice.head_step,
+    tailStep: slice.tail_step,
+    advanceRoute: slice.advance_route,
+    slicesFrom: { report: slice.slices_from.report, itemsPath: slice.slices_from.items_path },
+    maxSlices: slice.max_slices,
+    activateWhenDepthAtLeast: slice.activate_when_depth_at_least
+  };
+}
+function translateUntilLoop(until) {
+  return {
+    headStep: until.head_step,
+    tailStep: until.tail_step,
+    bodySteps: until.body_steps,
+    reenterRoute: until.reenter_route,
+    maxIterations: until.max_iterations,
+    ...until.stop_judge === void 0 ? {} : {
+      stopJudge: {
+        report: until.stop_judge.report,
+        goalMetPath: until.stop_judge.goal_met_path,
+        ...until.stop_judge.lesson_path === void 0 ? {} : { lessonPath: until.stop_judge.lesson_path },
+        ...until.stop_judge.progress_path === void 0 ? {} : { progressPath: until.stop_judge.progress_path }
+      }
+    },
+    ...until.needs_attention_route === void 0 ? {} : { needsAttentionRoute: until.needs_attention_route },
+    ...until.carried_notes === void 0 ? {} : {
+      carriedNotes: {
+        report: until.carried_notes.report,
+        ...until.carried_notes.max_entries === void 0 ? {} : { maxEntries: until.carried_notes.max_entries }
+      }
+    },
+    ...until.cumulative_usd_cap === void 0 ? {} : { cumulativeUsdCap: until.cumulative_usd_cap },
+    ...until.cumulative_token_cap === void 0 ? {} : { cumulativeTokenCap: until.cumulative_token_cap },
+    ...until.no_progress_ceiling === void 0 ? {} : { noProgressCeiling: until.no_progress_ceiling },
+    ...until.iteration_commit_containment === void 0 ? {} : {
+      iterationCommitContainment: {
+        branchPrefix: until.iteration_commit_containment.branch_prefix
+      }
+    },
+    ...until.frozen_paths === void 0 ? {} : { frozenPaths: until.frozen_paths },
+    activateWhenDepthAtLeast: until.activate_when_depth_at_least
+  };
+}
+function manifestEngineFlagsToInCode(manifest) {
+  if (manifest === void 0)
+    return void 0;
+  const slice = manifest.iterates_slice_loop;
+  const until = manifest.iterates_until_condition;
+  const result = {
+    ...manifest.binds_execution_depth_to_relay_selection === void 0 ? {} : {
+      bindsExecutionDepthToRelaySelection: manifest.binds_execution_depth_to_relay_selection
+    },
+    ...manifest.relay_uses_prompt_only_context === void 0 ? {} : { relayUsesPromptOnlyContext: manifest.relay_uses_prompt_only_context },
+    ...slice === void 0 ? {} : { iteratesSliceLoop: translateSliceLoop(slice) },
+    ...until === void 0 ? {} : { iteratesUntilCondition: translateUntilLoop(until) }
+  };
+  return Object.keys(result).length === 0 ? void 0 : result;
+}
+function resolveEngineFlags(flow) {
+  return flow.engineFlags;
+}
+var init_engine_flags2 = __esm({
+  "dist/runtime/run/engine-flags.js"() {
+    "use strict";
+  }
+});
+
 // dist/runtime/manifest/validate-executable-flow.js
 function requiredRoutesForStep() {
   return ["pass"];
@@ -95730,13 +95703,15 @@ var init_generic_close_builder = __esm({
           schema_version: 1,
           summary: linkCount === 0 ? `Composed flow '${context.flow.id}' closed with no upstream evidence.` : `Composed flow '${context.flow.id}' closed with ${linkCount} evidence link${linkCount === 1 ? "" : "s"}.`,
           // INFORMATIONAL ONLY. The run's honest outcome is derived from the terminal
-          // ROUTE (@complete/@stop/@handoff), not from this body — a composed flow
-          // never sets engineFlags.bindsTerminalOutcomeToPrimaryResult, so run-close
-          // never reads this field to decide the run outcome. This builder only sits on
-          // the @complete close compose step, so 'complete' is faithful here. Do NOT
-          // make this the outcome bind source (set that flag on a composed flow)
-          // without re-deriving the value from real upstream state — hardcoded
-          // 'complete' would then mask a degraded run.
+          // ROUTE (@complete/@stop/@handoff), not from this body. The close-time bind
+          // is derived from a flow declaring a primary result, so run-close DOES read
+          // this field on a composed flow that points its primary result here — but the
+          // bind only ever downgrades, and 'complete' maps to no downgrade, so a
+          // hardcoded word cannot manufacture a green run it did not earn. This builder
+          // only sits on the @complete close compose step, so 'complete' is faithful
+          // here. Anything that makes this word VARY must re-derive it from real
+          // upstream state: the moment it can say something other than 'complete' it is
+          // load-bearing, and a wrong word here would misreport the run.
           outcome: "complete",
           evidence_links: evidenceLinks3
         };
@@ -104258,8 +104233,9 @@ function manifestBacksBinding(flow, binding) {
   switch (binding) {
     case "depth_binding":
     case "slice_loop":
-    case "terminal_outcome_binding":
       return flow.engineFlags !== void 0;
+    case "terminal_outcome_binding":
+      return flow.runtimeSurface !== void 0;
     case "edit_file_surfaces":
       return flow.reportFileSurfaces !== void 0;
     case "primary_result_surface":

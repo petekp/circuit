@@ -245,7 +245,12 @@ describe('Pursue runtime wiring', () => {
       projectRoot: makeVerificationProjectRoot(),
     });
 
-    expect(outcome.outcome).toBe('complete');
+    // The run survives to close — the point of this test — but it does NOT read
+    // as success. Pursue declares a primary result, so the blocked verdict its
+    // own result carries binds the run's terminal outcome to 'stopped'. Pursue
+    // used to close 'complete' here, which is a run reporting green while the
+    // report it hands the operator says blocked.
+    expect(outcome.outcome).toBe('stopped');
     const labels = (await readTraceEntries(runFolder)).map(traceEntryLabel);
     expect(labels).toContain('relay.completed:review-step');
     expect(labels).toContain('step.report_written:close-step');

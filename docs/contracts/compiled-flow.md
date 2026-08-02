@@ -142,10 +142,6 @@ declares behavior once and it travels to the manifest. The current flags:
 
 - `binds_execution_depth_to_relay_selection` — the depth dial also picks which
   relay selection a step uses. Set by **build** and **prototype**.
-- `binds_terminal_outcome_to_primary_result` — the run's terminal outcome is
-  bound to the flow's primary result report, so a degraded result cannot close
-  as a clean `complete`. Set by **review**, **fix**, **build**, **explainer**,
-  and the internal **goal** flow (Converge).
 - `iterates_slice_loop` — re-enter a `[head..tail]` span once per slice, over a
   list read from a named report, up to `max_slices`. Activates at `high` depth.
   Set by **build**.
@@ -210,7 +206,19 @@ skill-hook edit-file surface table reads this. Shape: `ReportFileSurfaceMap`
 The runtime binding the engine reads off the manifest. Only `primary_result`
 lives here: a `schema_name` + `path` pair, derived at compile from the
 close-stage compose step, that ties a terminal close to the flow's result
-report. This is what `binds_terminal_outcome_to_primary_result` binds against.
+report.
+
+**Declaring it arms the terminal-outcome bind.** At close time the engine
+reads this report's `outcome` field, and a degraded word (`partial`,
+`needs_attention`, `failed`, `blocked`, `stopped`) downgrades an otherwise
+green `complete` to `stopped`. A clean success word, including a flow's own
+vocabulary such as Fix's `fixed`, leaves the close untouched. There is no
+separate flag to set: this used to need its own opt-in
+(`binds_terminal_outcome_to_primary_result`), and because the un-opted-in
+state was the dishonest one, three flows shipped closing green over their own
+degraded results. The opt-in is gone. `tests/runner/primary-result-honesty-floor.test.ts`
+holds every flow in the catalog to it.
+
 The richer presentational surface (progress steps, the result label) stays
 package-side and by-id. Shape: `CompiledFlowManifestRuntimeSurface`
 (`src/schemas/compiled-flow.ts`).

@@ -1,7 +1,8 @@
 # Fix
 
 Public. 13 steps at `medium`/`high`, 12 at `low`. Depths `low | medium | high`.
-`autonomous: true`. Engine flag: `binds_terminal_outcome_to_primary_result`.
+`autonomous: true`. No engine flags. Declares a primary result, so its
+terminal outcome is bound to it.
 
 Corpus: 1 run. Aborted on retry exhaustion at `fix-verify` after 4 worker runs
 and 7 of 13 steps.

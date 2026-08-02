@@ -127,8 +127,8 @@ export const exploreBlockItems: readonly BlockStepUse[] = [
     //
     // Safe against reading as success because close writes
     // `outcome: 'stopped'` whenever it arrives with the review still
-    // rejecting, the result schema refuses any other pairing, and
-    // `binds_terminal_outcome_to_primary_result` maps that word onto the run.
+    // rejecting, the result schema refuses any other pairing, and the
+    // close-time primary-result bind maps that word onto the run.
     exhaustion_route: 'continue',
   },
   {
@@ -366,9 +366,6 @@ export const exploreAssemblySpec: FlowSchematicAssemblySpec = {
   // `outcome: 'stopped'` on a still-rejecting review and this flag maps that
   // word onto the run outcome. Without it the operator would be handed a
   // recommendation the reviewer refused, labelled complete.
-  engine_flags: {
-    binds_terminal_outcome_to_primary_result: true,
-  },
   items: exploreBlockItems,
   stageLabels: exploreStageLabels,
   stagePathRationale: EXPLORE_STAGE_PATH_RATIONALE,

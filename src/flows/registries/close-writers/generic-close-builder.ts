@@ -36,13 +36,15 @@ export const GENERIC_CLOSE_BUILDER: CloseBuilder = {
               linkCount === 1 ? '' : 's'
             }.`,
       // INFORMATIONAL ONLY. The run's honest outcome is derived from the terminal
-      // ROUTE (@complete/@stop/@handoff), not from this body — a composed flow
-      // never sets engineFlags.bindsTerminalOutcomeToPrimaryResult, so run-close
-      // never reads this field to decide the run outcome. This builder only sits on
-      // the @complete close compose step, so 'complete' is faithful here. Do NOT
-      // make this the outcome bind source (set that flag on a composed flow)
-      // without re-deriving the value from real upstream state — hardcoded
-      // 'complete' would then mask a degraded run.
+      // ROUTE (@complete/@stop/@handoff), not from this body. The close-time bind
+      // is derived from a flow declaring a primary result, so run-close DOES read
+      // this field on a composed flow that points its primary result here — but the
+      // bind only ever downgrades, and 'complete' maps to no downgrade, so a
+      // hardcoded word cannot manufacture a green run it did not earn. This builder
+      // only sits on the @complete close compose step, so 'complete' is faithful
+      // here. Anything that makes this word VARY must re-derive it from real
+      // upstream state: the moment it can say something other than 'complete' it is
+      // load-bearing, and a wrong word here would misreport the run.
       outcome: 'complete',
       evidence_links: evidenceLinks,
     };

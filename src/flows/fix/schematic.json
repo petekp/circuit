@@ -682,9 +682,6 @@
       "title": "Close"
     }
   ],
-  "engine_flags": {
-    "binds_terminal_outcome_to_primary_result": true
-  },
   "report_file_surfaces": {
     "fix.change-set@v1": {
       "timing": "after",

@@ -492,7 +492,7 @@ export const ReviewResult = z
     findings: z.array(ReviewFinding),
     verdict: ReviewResultVerdict,
     // Terminal run outcome bound to the verdict (launch blocker fix). Review
-    // arms engineFlags.bindsTerminalOutcomeToPrimaryResult, so the engine reads
+    // declares a primary result, so the engine reads
     // this field at close time and maps it onto the run outcome: an honest
     // ISSUES_FOUND verdict must close `stopped`, never a green `complete` over a
     // known defect. CLEAN → complete, ISSUES_FOUND → stopped (see the

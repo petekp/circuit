@@ -3,7 +3,7 @@ import { resolve } from 'node:path';
 import { describe, expect, it } from 'vitest';
 
 import { exitCodeForClosedOutcome } from '../../src/cli/run.js';
-import { fixAssemblySpec } from '../../src/flows/fix/assembly-spec.js';
+import { flowPackages } from '../../src/flows/catalog.js';
 import { terminalOutcomeBoundToPrimaryResult } from '../../src/runtime/run/run-close.js';
 import type { RunContext } from '../../src/runtime/run/run-context.js';
 
@@ -16,21 +16,21 @@ import type { RunContext } from '../../src/runtime/run/run-context.js';
 //      old mapper downgraded EVERY non-`complete`, non-`handoff` word to
 //      `stopped`, so Fix's success words `fixed` / `not-reproduced` would have
 //      been downgraded too — which is exactly why Fix could not arm the bind.
-//   2. Fix must arm `bindsTerminalOutcomeToPrimaryResult` so the bind actually
-//      reads reports/fix-result.json at close time and downgrades a degraded
-//      result.
+//   2. Fix must declare its primary result so the bind actually reads
+//      reports/fix-result.json at close time and downgrades a degraded result.
+//      That declaration used to sit alongside a separate opt-in flag; the flag
+//      is gone and the declaration alone arms the bind.
 //
 // This drives the bind directly with a Fix-shaped close context (the run-close.ts
 // characterization idiom) and pins the resulting exit code, then locks the
 // source-level arming so the two seams can never drift apart.
 
-// A Fix-shaped close context: the terminal-outcome bind armed and the real Fix
-// primary-result path, reading a fix-result.json whose `outcome` is `outcome`.
+// A Fix-shaped close context: the real Fix primary-result path, which is what
+// arms the bind, reading a fix-result.json whose `outcome` is `outcome`.
 function fixCloseContext(outcome: string): RunContext {
   return {
     flow: {
       id: 'fix',
-      engineFlags: { bindsTerminalOutcomeToPrimaryResult: true },
       runtimeSurface: {
         primaryResult: { schemaName: 'fix.result@v1', path: 'reports/fix-result.json' },
       },
@@ -92,31 +92,25 @@ describe('H1 — a Fix primary-result outcome binds the run outcome and exit cod
 });
 
 // The generated manifest is the surface the runtime actually reads:
-// fromCompiledFlow() calls manifestEngineFlagsToInCode(flow.engine_flags) on
-// exactly this JSON, so the flag and primary-result declaration here are what
-// run-close.ts sees at close time. Fix authors the flag on its assembly spec
-// (snake_case engine_flags); the in-code compileFlowDefinition path is a
-// separate surface that does not carry it, so pinning the manifest — not the
-// compiled package — is what proves H1 reaches the engine and that emit-flows
-// was re-run.
+// run-close.ts looks up runtime_surface.primary_result on exactly this JSON to
+// decide whether to bind, so the declaration here is what it sees at close
+// time. Fix authors it on its assembly spec; the in-code compileFlowDefinition
+// path is a separate surface, so pinning the manifest — not the compiled
+// package — is what proves the declaration reaches the engine and that
+// emit-flows was re-run.
 const FIX_MANIFEST = JSON.parse(
   readFileSync(resolve('generated/flows/fix/circuit.json'), 'utf8'),
 ) as {
-  engine_flags?: { binds_terminal_outcome_to_primary_result?: boolean };
   runtime_surface?: { primary_result?: { path?: string; schema_name?: string } };
 };
 
-describe('H1 — Fix arms the terminal-outcome bind at the source', () => {
-  it('fixAssemblySpec declares binds_terminal_outcome_to_primary_result', () => {
-    expect(fixAssemblySpec.engine_flags?.binds_terminal_outcome_to_primary_result).toBe(true);
-  });
-
-  it('the generated manifest carries the flag onto the surface the engine reads', () => {
-    // fromCompiledFlow() reads flow.engine_flags off this manifest and
-    // translates it into the camelCase flag run-close.ts checks. Pinning the
-    // manifest proves the assembly-spec arming survives emit-flows into the
-    // runtime surface, and catches source→generated drift.
-    expect(FIX_MANIFEST.engine_flags?.binds_terminal_outcome_to_primary_result).toBe(true);
+describe('H1 — Fix reaches the terminal-outcome bind at the source', () => {
+  it('fix declares at the source the primary result that arms the bind', () => {
+    // The bind was a separate opt-in on engine_flags once. Declaring the
+    // primary result IS the opt-in now, so this one declaration is the whole
+    // arming surface and losing it would silently un-arm the flow.
+    const fix = flowPackages.find((candidate) => candidate.id === 'fix');
+    expect(fix?.runtimeSurface?.primaryResult?.path).toBe('reports/fix-result.json');
   });
 
   it('the generated manifest points primary_result at reports/fix-result.json', () => {

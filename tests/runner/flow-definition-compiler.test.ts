@@ -390,7 +390,6 @@ describe('FlowDefinition compiler', () => {
     expect(pkg.engineFlags).toBeUndefined();
     expect(compiledFlow?.engine_flags).toEqual({
       binds_execution_depth_to_relay_selection: true,
-      binds_terminal_outcome_to_primary_result: true,
       iterates_slice_loop: {
         head_step: 'act-step',
         tail_step: 'verify-step',
@@ -589,6 +588,9 @@ describe('FlowDefinition compiler', () => {
     );
     const goalFlow =
       goalCompiled.kind === 'single' ? goalCompiled.flow : goalCompiled.flows.get('default');
-    expect(goalFlow?.engine_flags).toEqual({ binds_terminal_outcome_to_primary_result: true });
+    // Goal declared exactly one engine flag, the retired terminal-outcome
+    // opt-in. With the bind derived from its primary result, goal declares no
+    // engine flags at all and still closes honestly.
+    expect(goalFlow?.engine_flags).toBeUndefined();
   });
 });
