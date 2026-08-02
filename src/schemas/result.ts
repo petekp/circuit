@@ -1,6 +1,7 @@
 import { z } from 'zod';
 import { EngineProvenance } from './engine-provenance.js';
 import { CompiledFlowId, RunId } from './ids.js';
+import { SurvivingWork } from './surviving-work.js';
 import { RunClosedOutcome } from './trace-entry.js';
 
 // RESULT-I1 — RunResult is the user-visible report a run produces at
@@ -38,6 +39,7 @@ import { RunClosedOutcome } from './trace-entry.js';
 // admitted-verdict trace_entry and the runtime omits `verdict` accordingly.
 // Sub-run parents read this field from the child's result.json to
 // admit or reject the child against the parent step's check.pass.
+
 export const RunResult = z
   .object({
     schema_version: z.literal(1),
@@ -56,6 +58,14 @@ export const RunResult = z
     // build. Optional so every run recorded before the stamp existed stays
     // readable — an omitted field makes no claim.
     engine: EngineProvenance.optional(),
+    // RESULT-I6 — the reports that reached disk before a run that did not
+    // finish. Set on every non-`complete` close that produced at least one
+    // report, absent otherwise: on a clean close the primary result already
+    // speaks for the run, and on an empty abort there is nothing to hand over
+    // and claiming otherwise would be its own lie. Derived at close time from
+    // the run's own `step.report_written` entries, so it cannot describe files
+    // the run did not write.
+    surviving_work: z.array(SurvivingWork).min(1).optional(),
   })
   .strict();
 export type RunResult = z.infer<typeof RunResult>;

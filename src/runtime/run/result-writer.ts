@@ -1,4 +1,5 @@
 import type { EngineProvenance } from '../../schemas/engine-provenance.js';
+import type { SurvivingWork } from '../../schemas/surviving-work.js';
 import { RUN_RESULT_RELATIVE_PATH } from '../../shared/result-path.js';
 import type { RunClosedOutcome, RunId } from '../domain/run.js';
 import type { RunFileStore } from '../run-files/run-file-store.js';
@@ -21,6 +22,10 @@ export interface RuntimeRunResult {
   readonly reason?: string;
   readonly verdict?: string;
   readonly engine?: EngineProvenance;
+  // The reports that reached disk before a run that did not finish, so the
+  // operator is handed the work instead of being told to start over. Absent on
+  // a clean close and on a run that produced nothing. See surviving-work.ts.
+  readonly surviving_work?: readonly SurvivingWork[];
 }
 
 export async function writeRuntimeRunResult(

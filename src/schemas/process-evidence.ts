@@ -1,6 +1,7 @@
 import { z } from 'zod';
 import { CompiledFlowId, StepId } from './ids.js';
 import { Ref } from './ref.js';
+import { SurvivingWork } from './surviving-work.js';
 
 export const PROCESS_EVIDENCE_RELATIVE_PATH = 'reports/process-evidence.json';
 
@@ -54,6 +55,11 @@ export const ProcessEvidenceProjection = z
       .optional(),
     blocked_reason: z.string().min(1).optional(),
     next_action: z.string().min(1).optional(),
+    // Carried from the child run's result so the operator surface can hand the
+    // work over. The failure headline quotes `blocked_reason`, which means the
+    // run summary is never read on the path where this matters most — so the
+    // list travels as data rather than riding inside a sentence.
+    surviving_work: z.array(SurvivingWork).min(1).optional(),
   })
   .strict()
   .superRefine((projection, ctx) => {

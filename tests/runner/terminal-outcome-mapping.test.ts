@@ -427,7 +427,27 @@ describe('RUN-I7 terminal route outcome mapping', () => {
         JSON.parse(readFileSync(join(runFolder, 'reports', 'result.json'), 'utf8')),
       );
       expect(result.outcome).toBe(c.outcome);
-      expect(result.summary).toBe(`Run closed with outcome ${c.outcome} via ${c.route}.`);
+      // The outcome-and-route sentence is the whole summary only for a run that
+      // wrote nothing. This flow writes one report, so a close that is not a
+      // clean `complete` hands it over on the end of the same string. The
+      // handoff close carries the report as data but not as prose: it is
+      // resumed rather than rerun, so "a rerun starts over" would misdirect.
+      expect(result.summary).toContain(`Run closed with outcome ${c.outcome} via ${c.route}.`);
+      if (c.outcome === 'complete') {
+        // A clean close says nothing about intermediate reports: the primary
+        // result speaks for the run and an inventory would be noise.
+        expect(result.summary).toBe(`Run closed with outcome ${c.outcome} via ${c.route}.`);
+        expect(result.surviving_work).toBeUndefined();
+      } else {
+        expect(result.surviving_work?.map((item) => item.report_path)).toEqual([
+          'reports/terminal.json',
+        ]);
+        if (c.outcome === 'handoff') {
+          expect(result.summary).toBe(`Run closed with outcome ${c.outcome} via ${c.route}.`);
+        } else {
+          expect(result.summary).toContain('reports/terminal.json');
+        }
+      }
       expect(result.trace_entries_observed).toBe(trace.length);
       expect(result.reason).toBeUndefined();
     });

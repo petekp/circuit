@@ -503,6 +503,64 @@ describe('Run envelope source writer', () => {
     expect(record.surface_output.status_text).not.toMatch(/\b(?:done|complete|completed)\b/i);
   });
 
+  it('hands over the reports an aborted run left behind instead of only naming the cause', () => {
+    // The corpus case: a Build run wrote a brief, a plan and a baseline, then
+    // ran out of retries in its act step. The operator was told the cause and
+    // then told to rerun, with no hint that a finished plan was on disk. The
+    // failure headline quotes `blocked_reason`, so the run summary is never read
+    // on this path -- the list has to travel as its own field to arrive.
+    const runFolder = join(tempDir, 'aborted-build-run');
+    const resultPath = join(runFolder, 'reports/result.json');
+    const abortedResult = RunResult.parse({
+      ...runResult('review'),
+      outcome: 'aborted',
+      summary: 'Run closed with outcome aborted.',
+      reason: 'The relay process aborted.',
+      surviving_work: [
+        {
+          step_id: 'plan-step',
+          attempt: 1,
+          report_path: 'reports/build/plan.json',
+          report_schema: 'build.plan@v1',
+        },
+        {
+          step_id: 'build-baseline',
+          attempt: 1,
+          report_path: 'reports/build/baseline-snapshot.json',
+          report_schema: 'build.baseline@v1',
+        },
+      ],
+    });
+    writeJson(resultPath, abortedResult);
+    const processEvidence = writtenClosedProcessEvidence({
+      runFolder,
+      runResult: abortedResult,
+      resultPath,
+    });
+
+    const written = writeRunEnvelopeRecord({
+      runFolder,
+      operatorIntent: 'Build the thing.',
+      selectedProcess: {
+        process_id: 'review',
+        routed_by: 'explicit',
+        router_reason: 'explicit flow positional argument',
+      },
+      processEvidence,
+      recordedAt: '2026-05-28T05:01:00.000Z',
+    });
+
+    const record = RunEnvelopeRecord.parse(JSON.parse(readFileSync(written.path, 'utf8')));
+    expect(record.surface_output.status_text).toContain('The relay process aborted.');
+    expect(record.surface_output.status_text).toContain('reports/build/plan.json');
+    expect(record.surface_output.status_text).toContain('reports/build/baseline-snapshot.json');
+    // The advice must not be a bare "rerun" once real work exists, because a
+    // rerun starts over and the operator has no way to know that from here.
+    expect(record.surface_output.next_action).not.toBe('Address the reason above, then rerun.');
+    expect(record.surface_output.next_action).toContain('starts over');
+    expect(record.surface_output.status_text).not.toMatch(/\b(?:done|complete|completed)\b/i);
+  });
+
   it('records explicit-selected processes with an explicit process request', () => {
     const runFolder = join(tempDir, 'explicit-review-run');
     const resultPath = join(runFolder, 'reports/result.json');

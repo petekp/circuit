@@ -52,6 +52,7 @@ export * from './skill.js';
 export * from './skill-hook.js';
 export * from './snapshot.js';
 export * from './step.js';
+export * from './surviving-work.js';
 export * from './verification.js';
 export * from './compiled-flow.js';
 export * from './work-contract-projection.js';

@@ -6,6 +6,7 @@
 // WHEN to close; this module decides what the closed run records.
 
 import type { GuidanceDecisionTraceEntryBody } from '../../schemas/guidance-decision.js';
+import { survivingWorkSummary } from '../../schemas/surviving-work.js';
 import { resolveEngineProvenance } from '../../shared/engine-provenance.js';
 import { isDegradedCompletionOutcome } from '../../shared/outcome.js';
 import type { TerminalTarget } from '../domain/route.js';
@@ -14,6 +15,7 @@ import type { TraceEntry } from '../domain/trace.js';
 import { honestyLatchGap } from './honesty-ledger.js';
 import { type RuntimeRunResult, writeRuntimeRunResult } from './result-writer.js';
 import type { RunContext } from './run-context.js';
+import { survivingWorkFromTrace } from './surviving-work.js';
 import { proofPolicyRequirementKey, recordValue, traceScope } from './trace-evidence.js';
 
 export interface GraphRunResult extends RuntimeRunResult {
@@ -384,6 +386,31 @@ export async function closeRun(
       relayResultPath: validationRootCause.relayResultPath,
     });
   }
+  // Hand over what the run already produced. A run that does not finish has
+  // usually written several real reports, and telling the operator only that it
+  // died invites a rerun that starts over on top of good work. Derived from the
+  // run's own `step.report_written` entries, so the list cannot name a file the
+  // run did not write.
+  //
+  // The field is recorded on every non-`complete` close. On a clean complete the
+  // primary result speaks for the run and an inventory of intermediate reports
+  // is noise.
+  const survivingWork =
+    finalOutcome === 'complete' ? [] : survivingWorkFromTrace(context.trace.getAll());
+  // The SENTENCE is narrower than the field, because it ends in "a rerun starts
+  // over" and that advice is only true for a run that is over. Two closes carry
+  // the data without the prose:
+  //
+  //   handoff — a deliberate pause that gets resumed, not rerun. Telling the
+  //     operator a rerun starts over would push them away from the resume path
+  //     the handoff exists to offer.
+  //   evidence_invalid — its summary is already a purpose-written salvage
+  //     message pointing at the rejected report, so this would say it twice.
+  const handedOverForResume = finalOutcome === 'handoff';
+  if (validationRootCause === undefined && !handedOverForResume) {
+    const handover = survivingWorkSummary(survivingWork);
+    if (handover !== undefined) summary = `${summary} ${handover}`;
+  }
   await context.trace.append({
     run_id: context.runId,
     kind: 'run.closed',
@@ -406,6 +433,7 @@ export async function closeRun(
     ...(finalReason === undefined ? {} : { reason: finalReason }),
     ...(verdict === undefined ? {} : { verdict }),
     engine: resolveEngineProvenance(),
+    ...(survivingWork.length === 0 ? {} : { surviving_work: survivingWork }),
   };
   const resultPath = await writeRuntimeRunResult(context.files, result);
   return { kind: 'closed', result: { ...result, resultPath } };

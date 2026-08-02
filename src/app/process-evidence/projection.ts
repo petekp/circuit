@@ -173,6 +173,12 @@ export function projectClosedProcessEvidence(
     outcome === 'aborted'
       ? { blocked_reason: input.runResult.reason ?? input.runResult.summary }
       : {}),
+    // Carried verbatim from the run result. The engine derived it from the
+    // run's own report-written entries; nothing here re-derives or filters it,
+    // so the surface cannot name a file the run did not write.
+    ...(input.runResult.surviving_work === undefined
+      ? {}
+      : { surviving_work: input.runResult.surviving_work }),
   });
 }
 

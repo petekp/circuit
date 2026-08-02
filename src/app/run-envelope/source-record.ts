@@ -16,6 +16,7 @@ import {
   type RunRequiredEvidence,
   type RunRequiredEvidenceKind,
 } from '../../schemas/run-envelope.js';
+import { type SurvivingWork, survivingWorkSummary } from '../../schemas/surviving-work.js';
 import { harvestGoalCommandCandidates } from '../../shared/goal-commands.js';
 import { isDegradedCompletionOutcome } from '../../shared/outcome.js';
 import { runRelativePath } from '../../shared/run-artifact-io.js';
@@ -624,6 +625,9 @@ function surfaceFor(input: {
   // which retry budget ran out. The failed headline quotes it so the operator
   // does not have to dig through process evidence to learn why the run died.
   readonly failureReason?: string;
+  // The reports the run left behind, carried from its result. Present only on a
+  // run that did not finish and did produce something.
+  readonly survivingWork?: readonly SurvivingWork[];
 }): RunEnvelopeRecordValue['surface_output'] {
   const artifactLinks = [
     input.processEvidence.ref,
@@ -728,12 +732,20 @@ function surfaceFor(input: {
     // sentence. Anything already plain passes through untouched.
     const reason = operatorFailureSentence(input.failureReason?.trim() ?? '');
     const reasonSuffix = reason ? ` ${reason}` : '';
+    // A run that died partway has usually already produced real work. Naming
+    // the cause and then saying "rerun" invites starting over on top of a
+    // finished plan or implementation that is sitting on disk. Hand it over.
+    const handover = survivingWorkSummary(input.survivingWork ?? []);
+    const handoverSuffix = handover === undefined ? '' : ` ${handover}`;
     return {
       ...base,
-      status_text: `Failed: ${input.processId} stopped before finishing its process.${reasonSuffix}`,
-      next_action: reason
-        ? 'Address the reason above, then rerun.'
-        : 'Inspect the process evidence for the cause before rerunning.',
+      status_text: `Failed: ${input.processId} stopped before finishing its process.${reasonSuffix}${handoverSuffix}`,
+      next_action:
+        handover === undefined
+          ? reason
+            ? 'Address the reason above, then rerun.'
+            : 'Inspect the process evidence for the cause before rerunning.'
+          : 'Read the reports listed above before rerunning: a rerun starts over and will not build on them.',
     };
   }
   // Defensive default: every RunEnvelopeOutcome above is handled, so this only
@@ -912,6 +924,9 @@ export function writeRunEnvelopeRecord(
       ...(projection.outcome === 'aborted' || projection.outcome === 'failed'
         ? { failureReason: projection.blocked_reason ?? projection.summary }
         : {}),
+      ...(projection.surviving_work === undefined
+        ? {}
+        : { survivingWork: projection.surviving_work }),
       decisionPacketRefs: decisionArtifacts.map((artifact) => artifact.ref),
       ...(memoryIndicator === undefined ? {} : { memoryIndicator }),
       ...(childResult === undefined ? {} : { childResult }),
