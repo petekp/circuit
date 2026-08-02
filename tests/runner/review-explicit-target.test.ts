@@ -529,9 +529,10 @@ describe('review --target: the caller names a path', () => {
     });
 
     expect(outcome.outcome).toBe('aborted');
-    // The refusal names the value that failed and what would have worked,
-    // including the path form, so the next attempt is one edit away.
-    expect(outcome.reason).toContain('does not know the target "src/nope"');
+    // The value reads as a path, so the refusal says the path was not found
+    // rather than that the word was not understood, and still lists what
+    // would have worked. The next attempt is one edit away either way.
+    expect(outcome.reason).toContain('Review found no "src/nope" in this repository');
     expect(outcome.reason).toContain('a path in this repository');
   });
 });

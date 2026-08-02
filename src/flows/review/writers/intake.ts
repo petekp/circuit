@@ -1441,6 +1441,25 @@ function explicitTargetPath(value: string, projectRoot: string | undefined): str
 }
 
 /**
+ * Whether a refused value was a path that is simply not there.
+ *
+ * "Review does not know the target" is the right answer for a word Circuit
+ * never heard of. Said of `src/does-not-exsit`, it sends the operator to read
+ * a vocabulary list when the fix is a typo in their own path. Two conditions
+ * have to hold: the value looks like a path (a separator, or a file
+ * extension), and it stays inside the project. A path-shaped value that
+ * escapes keeps the vocabulary refusal, because reporting what is or is not
+ * there outside the repository answers a question nobody is entitled to ask.
+ */
+function missingProjectPath(value: string, projectRoot: string | undefined): boolean {
+  if (projectRoot === undefined) return false;
+  if (!(value.includes('/') || /\.[A-Za-z0-9]+$/u.test(value))) return false;
+  const trimmed = value.trim().replace(/^\.\//u, '').replace(/\/+$/u, '');
+  if (trimmed.length === 0) return false;
+  return insideProject(projectRoot, resolve(projectRoot, trimmed));
+}
+
+/**
  * Read a target the caller named outright, rather than one recovered from the
  * goal prose.
  *
@@ -1492,6 +1511,18 @@ export function parseExplicitReviewTarget(
     return { ok: true, target: { kind: 'commit', ref } };
   }
 
+  // A leading `../` is a path walking out of the project, not a range with a
+  // missing end. Telling that caller to "name both ends" diagnoses the wrong
+  // thing entirely. The refusal says where the value points and stops there:
+  // whether anything is actually at that path outside the repository is not
+  // Review's to report.
+  if (named.startsWith('../') || named.startsWith('..\\') || named === '..') {
+    return {
+      ok: false,
+      reason: `--target "${named}" points outside this repository. Name a path inside it, or one of: ${EXPLICIT_TARGET_VOCABULARY}.`,
+    };
+  }
+
   if (named.includes('..')) {
     // Three dots first: '..' is a prefix of '...', so testing the shorter form
     // first would split 'main...HEAD' into 'main' and '.HEAD'.
@@ -1521,6 +1552,13 @@ export function parseExplicitReviewTarget(
       ok: true,
       target: withPathScope({ kind: 'working_tree', mode: 'all', explicit: true }, paths),
       snapshotFallback: paths,
+    };
+  }
+
+  if (missingProjectPath(named, options.projectRoot)) {
+    return {
+      ok: false,
+      reason: `Review found no "${named}" in this repository. Check the path, or name one of: ${EXPLICIT_TARGET_VOCABULARY}.`,
     };
   }
 

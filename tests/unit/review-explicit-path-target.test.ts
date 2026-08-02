@@ -91,6 +91,45 @@ describe('parseExplicitReviewTarget with a path', () => {
     expect(parsed.reason).toContain('working-tree');
   });
 
+  // "Review does not know the target" is true of a word Circuit never heard
+  // of. Said of a path, it is the wrong diagnosis: the form was understood
+  // and the path is simply not there. An operator reading the vocabulary list
+  // for a typo in their own path is being sent to the wrong place.
+  it('tells a path that is not there apart from a word it never knew', () => {
+    const missing = parse('src/does-not-exist');
+    expect(missing.ok).toBe(false);
+    if (missing.ok) return;
+    expect(missing.reason).toContain('no "src/does-not-exist" in this repository');
+    expect(missing.reason).toContain('Check the path');
+
+    const unknown = parse('yesterday');
+    expect(unknown.ok).toBe(false);
+    if (unknown.ok) return;
+    expect(unknown.reason).toContain('does not know the target "yesterday"');
+  });
+
+  // A path-shaped value that leaves the project is not "not there": saying so
+  // would confirm what does and does not exist outside the repository. It
+  // keeps the vocabulary refusal.
+  it('does not report on existence outside the project', () => {
+    const parsed = parse('/etc/passwd');
+    expect(parsed.ok).toBe(false);
+    if (parsed.ok) return;
+    expect(parsed.reason).toContain('does not know the target');
+    expect(parsed.reason).not.toContain('in this repository.');
+  });
+
+  // A path walking out of the project used to be read as a range with a
+  // missing end, because it contains "..". That diagnosis sends the operator
+  // to fix Git syntax they never wrote.
+  it('reads a leading ../ as a path leaving the project, not a half-written range', () => {
+    const parsed = parse('../../etc/passwd');
+    expect(parsed.ok).toBe(false);
+    if (parsed.ok) return;
+    expect(parsed.reason).toContain('points outside this repository');
+    expect(parsed.reason).not.toContain('missing one of its ends');
+  });
+
   it('refuses a path that escapes the project root', () => {
     const parsed = parse('../..');
     expect(parsed.ok).toBe(false);
