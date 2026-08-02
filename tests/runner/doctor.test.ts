@@ -1,11 +1,11 @@
-import { chmodSync, mkdtempSync, rmSync, writeFileSync } from 'node:fs';
+import { chmodSync, mkdirSync, mkdtempSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
-import { afterEach, describe, expect, it } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 
 import { main } from '../../src/cli/circuit.js';
 import { captureStreams } from '../helpers/runtime-fixtures.js';
-import { withScopedEnv } from '../helpers/scoped-env.js';
+import { type EnvValue, setEnv, withScopedEnv } from '../helpers/scoped-env.js';
 
 // `circuit doctor` — a readiness report for the connectors your runs would
 // actually use. The live incident this encodes: a tournament died mid-flight
@@ -17,14 +17,49 @@ import { withScopedEnv } from '../helpers/scoped-env.js';
 // machine with only claude-code installed is not a false alarm about codex
 // and cursor-agent it never dispatches to.
 //
-// This repo's own `.circuit/config.yaml` sets `relay: { default: auto }` with
-// no role/flow overrides, so under the real config discovery these tests run
-// against, the chosen set is exactly `{claude-code}` unless a test overrides
-// `CIRCUIT_HOST_KIND`.
+// Each test runs from a throwaway project root holding one line of config:
+// `relay: { default: auto }`, no role or flow overrides, so the chosen set is
+// exactly `{claude-code}` unless a test overrides `CIRCUIT_HOST_KIND`.
+//
+// It used to run from the repo itself and inherit whatever was in the repo's
+// own gitignored `.circuit/config.yaml`. That made the outcome depend on an
+// untracked file: doctor now also grades flow readiness, and a local
+// `flows.build.selection.effort` pin — a real one, sitting in this checkout —
+// turned every "exits 0" case red on one machine and green on CI. A readiness
+// test has to state the config it grades.
 
 const tempRoots: string[] = [];
+let previousCwd: string | undefined;
+
+function isolatedProjectRoot(): string {
+  const root = mkdtempSync(join(tmpdir(), 'circuit-doctor-project-'));
+  tempRoots.push(root);
+  mkdirSync(join(root, '.circuit'), { recursive: true });
+  writeFileSync(
+    join(root, '.circuit', 'config.yaml'),
+    'schema_version: 1\nrelay:\n  default: auto\n',
+  );
+  return root;
+}
+
+let previousHome: EnvValue;
+
+beforeEach(() => {
+  const root = isolatedProjectRoot();
+  previousCwd = process.cwd();
+  process.chdir(root);
+  // The user-global layer is the same hazard one directory up. Nobody has
+  // `~/.circuit/config.yaml` today, which is exactly why an inherited one
+  // would be a mystery when it appears.
+  previousHome = process.env.HOME;
+  setEnv('HOME', join(root, 'home'));
+  mkdirSync(join(root, 'home'), { recursive: true });
+});
 
 afterEach(() => {
+  setEnv('HOME', previousHome);
+  if (previousCwd !== undefined) process.chdir(previousCwd);
+  previousCwd = undefined;
   for (const root of tempRoots.splice(0)) rmSync(root, { recursive: true, force: true });
 });
 

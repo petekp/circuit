@@ -25,11 +25,18 @@ import {
   probeStateDirWritable,
   stateDirUnwritableSummary,
 } from '../connectors/state-dir.js';
+import { flowDefinitions } from '../flows/catalog.js';
+import type { LayeredConfig as LayeredConfigValue } from '../schemas/config.js';
+import type { HostKind as HostKindValue } from '../schemas/host.js';
 import { discoverRuntimeConfigLayers } from '../shared/config-loader.js';
 import { PROJECT_CONFIG_RELATIVE_SEGMENTS } from '../shared/control-plane-paths.js';
 import { resolveVerificationCommands } from '../shared/verification-resolver.js';
 import { resolveChosenConnectors } from './chosen-connectors.js';
 import { commanderErrorMessage, configureCommanderProgram } from './commander-support.js';
+import {
+  type FlowSelectionPreview,
+  resolveFlowSelectionPreview,
+} from './flow-selection-preview.js';
 import { hostKindFromEnv } from './preview.js';
 import { cell, columnHeader, diamondHeaderLine, renderStyledTable } from './styled-table.js';
 import { type TerminalPalette, colorEnabled, terminalPalette } from './terminal-style.js';
@@ -107,11 +114,24 @@ function brokenChosenNames(entries: readonly DoctorConnectorEntry[]): readonly s
     .map((entry) => entry.connector);
 }
 
-function verdictLine(palette: TerminalPalette, entries: readonly DoctorConnectorEntry[]): string {
+function verdictLine(
+  palette: TerminalPalette,
+  entries: readonly DoctorConnectorEntry[],
+  flows: readonly DoctorFlowBlocker[] = [],
+): string {
   const broken = brokenChosenNames(entries);
-  if (broken.length === 0) return palette.bold(palette.accent('Ready.'));
-  const noun = broken.length === 1 ? 'connector needs' : 'connectors need';
-  return palette.bold(palette.warn(`Not ready: ${broken.join(', ')} ${noun} attention.`));
+  // A healthy connector set is not readiness if a flow refuses to start. Both
+  // reasons are named in one line so the verdict never hides half the problem.
+  const reasons: string[] = [];
+  if (broken.length > 0) {
+    reasons.push(`${broken.join(', ')} ${broken.length === 1 ? 'needs' : 'need'} attention`);
+  }
+  const blockedFlows = [...new Set(flows.map((blocker) => blocker.flowId))];
+  if (blockedFlows.length > 0) {
+    reasons.push(`${blockedFlows.join(', ')} cannot start`);
+  }
+  if (reasons.length === 0) return palette.bold(palette.accent('Ready.'));
+  return palette.bold(palette.warn(`Not ready: ${reasons.join('; ')}.`));
 }
 
 // Workspace findings are advisory: they name repo-level friction (a format
@@ -194,11 +214,121 @@ function verificationLines(
   ];
 }
 
+// A flow that cannot start. Connector health answers "can I reach a worker";
+// this answers "would the flow I am about to run actually dispatch one".
+export interface DoctorFlowBlocker {
+  readonly flowId: string;
+  // Every relay step the selection blocks, not just the first. A reader who
+  // fixes one pin wants to know the whole flow was dead, not one step.
+  readonly stepIds: readonly string[];
+  readonly detail: string;
+  // Where the offending value was written, when it came from a config layer.
+  // Absent when the flow itself pins it, which is not the operator's to fix.
+  readonly pinnedAt?: string;
+  readonly pinnedKey?: string;
+}
+
+// Selection keys a config layer can set per flow. Checked in the order a
+// reader would suspect them, so the reported key is the specific one they
+// wrote rather than the object that contains it.
+const FLOW_SELECTION_KEYS = ['effort', 'model', 'depth', 'power'] as const;
+
+function pinSourceForFlow(
+  layers: readonly LayeredConfigValue[],
+  flowId: string,
+): { readonly pinnedAt: string; readonly pinnedKey: string } | undefined {
+  // Later layers win, so search from the back: the value in play is the one
+  // that would need changing.
+  for (let index = layers.length - 1; index >= 0; index -= 1) {
+    const layer = layers[index];
+    if (layer === undefined) continue;
+    // `flows` is keyed by a branded CompiledFlowId; read it as a plain record
+    // rather than minting a brand just to look one up.
+    const flowConfigs = layer.config.flows as Record<string, { selection?: unknown }> | undefined;
+    const selection = flowConfigs?.[flowId]?.selection as Record<string, unknown> | undefined;
+    if (selection === undefined) continue;
+    const key = FLOW_SELECTION_KEYS.find((candidate) => selection[candidate] !== undefined);
+    if (key === undefined || layer.source_path === undefined) continue;
+    return { pinnedAt: layer.source_path, pinnedKey: `flows.${flowId}.selection.${key}` };
+  }
+  return undefined;
+}
+
+// Ask every public flow whether its steps could dispatch under this config.
+// This is the same compatibility assertion `circuit preview` surfaces and
+// `circuit run` enforces at preflight, so doctor cannot drift from either: a
+// blocker here is a run that would refuse to start.
+//
+// Spawn-free. It resolves selection and compares it against connector
+// capability tables; nothing is executed.
+export function probeFlowReadiness(input: {
+  readonly layers: readonly LayeredConfigValue[];
+  readonly hostKind?: HostKindValue;
+}): readonly DoctorFlowBlocker[] {
+  const blockers: DoctorFlowBlocker[] = [];
+  for (const definition of flowDefinitions) {
+    if (definition.visibility !== 'public') continue;
+    let preview: FlowSelectionPreview;
+    try {
+      preview = resolveFlowSelectionPreview({
+        flowId: definition.id,
+        configLayers: input.layers,
+        ...(input.hostKind === undefined ? {} : { hostKind: input.hostKind }),
+      });
+    } catch {
+      // A flow that will not even compile under this config is a bug in the
+      // catalog, not an operator readiness problem. The catalog completeness
+      // tests own that; doctor stays quiet rather than blaming the operator.
+      continue;
+    }
+    // Group by message: one pinned value usually blocks every step the same
+    // way, and three copies of one sentence is not three problems.
+    const byDetail = new Map<string, string[]>();
+    for (const step of preview.relaySteps) {
+      if (step.problem === undefined) continue;
+      const steps = byDetail.get(step.problem);
+      if (steps === undefined) byDetail.set(step.problem, [step.stepId]);
+      else steps.push(step.stepId);
+    }
+    const source = pinSourceForFlow(input.layers, definition.id);
+    for (const [detail, stepIds] of byDetail) {
+      blockers.push({ flowId: definition.id, stepIds, detail, ...(source ?? {}) });
+    }
+  }
+  return blockers;
+}
+
+function flowLines(
+  palette: TerminalPalette,
+  blockers: readonly DoctorFlowBlocker[],
+): readonly string[] {
+  if (blockers.length === 0) return [];
+  return [
+    '',
+    palette.bold(palette.warn('Flows')),
+    ...blockers.flatMap((blocker) => {
+      const steps = blocker.stepIds.join(', ');
+      const lines = [
+        palette.warn(`  ${blocker.flowId} cannot start: ${blocker.detail}`),
+        palette.dim(`  blocked steps: ${steps}`),
+      ];
+      if (blocker.pinnedKey !== undefined && blocker.pinnedAt !== undefined) {
+        lines.push(
+          palette.dim(`  set by ${blocker.pinnedKey} in ${blocker.pinnedAt}`),
+          palette.dim(`  fix: circuit config unset ${blocker.pinnedKey} --project`),
+        );
+      }
+      return lines;
+    }),
+  ];
+}
+
 export function renderDoctorReport(
   palette: TerminalPalette,
   entries: readonly DoctorConnectorEntry[],
   workspace: readonly WorkspaceHygieneFinding[] = [],
   verification?: DoctorVerificationProbe,
+  flows: readonly DoctorFlowBlocker[] = [],
 ): string {
   // One table, chosen connectors first (Array.prototype.sort is stable, so
   // the probe order survives within each group). The CHOSEN BY column is
@@ -210,7 +340,7 @@ export function renderDoctorReport(
   return [
     diamondHeaderLine(palette, 'circuit doctor'),
     '',
-    verdictLine(palette, entries),
+    verdictLine(palette, entries, flows),
     '',
     renderStyledTable(palette, [
       columnHeader(palette, ['CONNECTOR', 'CHOSEN BY', 'STATE', 'DETAIL']),
@@ -219,6 +349,7 @@ export function renderDoctorReport(
     ]),
     ...workspaceLines(palette, workspace),
     ...(verification === undefined ? [] : verificationLines(palette, verification)),
+    ...flowLines(palette, flows),
     '',
     // Doctor cannot see other environments: a sandboxed agent session spawns
     // workers under restrictions this terminal may not have. Run intake runs
@@ -299,7 +430,11 @@ export async function runDoctorCommand(argv: readonly string[]): Promise<number>
     })),
   ];
 
-  const ready = brokenChosenNames(entries).length === 0;
+  const flows = probeFlowReadiness({
+    layers: configLayers,
+    ...(hostKind === undefined ? {} : { hostKind }),
+  });
+  const ready = brokenChosenNames(entries).length === 0 && flows.length === 0;
   const workspace = workspaceHygieneFindings(process.cwd());
   const verification = probeVerification(
     process.cwd(),
@@ -318,6 +453,7 @@ export async function runDoctorCommand(argv: readonly string[]): Promise<number>
           connectors: entries,
           workspace,
           verification,
+          flows,
         },
         null,
         2,
@@ -325,7 +461,9 @@ export async function runDoctorCommand(argv: readonly string[]): Promise<number>
     );
   } else {
     const palette = terminalPalette(colorEnabled());
-    process.stdout.write(`${renderDoctorReport(palette, entries, workspace, verification)}\n`);
+    process.stdout.write(
+      `${renderDoctorReport(palette, entries, workspace, verification, flows)}\n`,
+    );
   }
   return ready ? 0 : 1;
 }
