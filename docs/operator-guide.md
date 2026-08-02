@@ -136,8 +136,8 @@ The CLI also ships small inspection utilities:
 
 | Command | What it does |
 | --- | --- |
-| `./bin/circuit preview [flow] [--power <tier>] [--matrix]` | Show which connector, model, and effort each step would get, without spawning anything. With no flow named it surveys every public flow at the chosen dial. `--matrix` prints every power setting at once for one flow. |
-| `./bin/circuit doctor [--json]` | Confirm the connectors your runs would actually use are ready, before a run spends anything on a broken one. Exits 0 once every chosen connector is ready. Each problem comes with the fix. The CHOSEN BY column names the config decision behind each chosen connector; connectors no flow chooses show `-`, are optional, and never fail the check. |
+| `./bin/circuit preview [flow] [--power <tier>] [--matrix]` | Show which connector, model, and effort each step would get, without spawning anything. With no flow named it surveys every public flow at the chosen dial. `--matrix` prints every power setting at once, for one flow or for all of them. |
+| `./bin/circuit doctor [--json]` | Confirm your runs would actually start, before one spends anything. Exits 0 once every chosen connector is ready and every public flow could dispatch under your config. Each problem comes with the fix, and a flow blocked by a config pin names the file and key that set it. The CHOSEN BY column names the config decision behind each chosen connector; connectors no flow chooses show `-`, are optional, and never fail the check. |
 | `./bin/circuit runs show --run-folder <path> --json` | Print the recorded result for one run folder. |
 | `./bin/circuit history rebuild\|query\|status --json` | Rebuild, query, or check the local run history index. For `history pull`, see [`docs/reference/history-pull.md`](reference/history-pull.md). |
 | `./bin/circuit memory note --flow <id> "<text>"` | Add a flow memory note. `memory list` and `memory forget <id>` list and remove notes. |

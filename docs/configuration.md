@@ -406,7 +406,8 @@ Flags:
   process the dial derives for this flow (clamped to what it supports);
   `circuit preview` has no `--process` override of its own.
 - `--matrix` previews `high`, `medium`, and `low` side by side, with a
-  `process` row showing the derived process per column.
+  `process` row showing the derived process per column. With no flow named you
+  get one matrix per public flow.
 - `--json` prints the structured record instead of the table. The readout shows
   the bare model name; the record keeps the provider in its own `provider` field.
 

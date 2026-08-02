@@ -92,10 +92,30 @@ describe('circuit preview: front door', () => {
     expect(plainStdout()).toContain('dial: high');
   });
 
-  it('rejects --matrix without a flow name with exit 2', () => {
+  // Bare `preview` lists every public flow. Adding a flag that asks for more
+  // detail should not turn a working listing into an error, so `--matrix` with
+  // no flow named shows the matrix for every public flow. It used to refuse.
+  it('--matrix without a flow name covers every public flow', () => {
     const code = runPreviewCommand(['--matrix']);
-    expect(code).toBe(2);
-    expect(stderr.join('')).toContain('needs a flow name');
+    expect(code).toBe(0);
+    const plain = plainStdout();
+    for (const flowId of PUBLIC_FLOW_IDS) expect(plain).toContain(flowId);
+    // Every dial column, not just the one a bare preview would resolve to.
+    expect(plain).toContain('HIGH');
+    expect(plain).toContain('MEDIUM');
+    expect(plain).toContain('LOW');
+  });
+
+  it('--matrix without a flow name emits one JSON entry per flow and dial', () => {
+    const code = runPreviewCommand(['--matrix', '--json']);
+    expect(code).toBe(0);
+    const previews = json<FlowSelectionPreview[]>();
+    expect(previews).toHaveLength(PUBLIC_FLOW_IDS.length * 3);
+    expect([...new Set(previews.map((p) => p.flowId))].sort()).toEqual([...PUBLIC_FLOW_IDS].sort());
+    for (const flowId of PUBLIC_FLOW_IDS) {
+      const dials = previews.filter((p) => p.flowId === flowId).map((p) => p.dial);
+      expect([...dials].sort()).toEqual(['high', 'low', 'medium']);
+    }
   });
 
   it('rejects an unknown flow with exit 2', () => {

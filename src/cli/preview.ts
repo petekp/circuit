@@ -78,8 +78,6 @@ function parsePreviewArgs(argv: readonly string[]): PreviewInvocation | string {
     return commanderErrorMessage(err);
   }
   const flowId = positional[0];
-  if (flowId === undefined && opts?.matrix === true)
-    return 'the dial matrix needs a flow name: circuit preview <flow> --matrix';
   if (positional.length > 1) return `unexpected extra arguments: ${positional.slice(1).join(' ')}`;
 
   const power = opts?.power;
@@ -298,17 +296,13 @@ function renderOverview(
   ].join('\n');
 }
 
-// Exported for the interactive shell (see renderSinglePreview).
-export function renderMatrix(
+// The rows for one flow at every dial. `previews` must all be the same flow.
+function matrixRows(
   palette: TerminalPalette,
   previews: readonly FlowSelectionPreview[],
-): string {
+): readonly TableRow[] {
   const first = previews[0];
-  if (first === undefined) return '';
-  const header = diamondHeaderLine(palette, 'circuit preview', [
-    `${first.flowId} (${first.visibility})`,
-    `dial matrix: ${previews.map((p) => p.dial).join(' / ')}`,
-  ]);
+  if (first === undefined) return [];
 
   // One row per relay step, one model+effort column per dial.
   const columnLabels = previews.map((p) => p.dial.toUpperCase());
@@ -351,7 +345,54 @@ export function renderMatrix(
       ...dialCells,
     ]);
   }
-  return [header, '', renderStyledTable(palette, rows)].join('\n');
+  return rows;
+}
+
+// Exported for the interactive shell (see renderSinglePreview).
+export function renderMatrix(
+  palette: TerminalPalette,
+  previews: readonly FlowSelectionPreview[],
+): string {
+  const first = previews[0];
+  if (first === undefined) return '';
+  const header = diamondHeaderLine(palette, 'circuit preview', [
+    `${first.flowId} (${first.visibility})`,
+    `dial matrix: ${previews.map((p) => p.dial).join(' / ')}`,
+  ]);
+  return [header, '', renderStyledTable(palette, matrixRows(palette, previews))].join('\n');
+}
+
+// `--matrix` with no flow named. Bare `preview` lists every public flow, so
+// asking for more detail must not narrow the subject to nothing: this is the
+// same survey, one matrix per flow. Each flow keeps its own table rather than
+// joining one wide one, because the step ids and archetypes differ per flow
+// and a shared STEP column would line up rows that have nothing to do with
+// each other.
+function renderMatrixOverview(
+  palette: TerminalPalette,
+  previews: readonly FlowSelectionPreview[],
+  dials: readonly DialChoice[],
+): string {
+  const byFlow = new Map<string, FlowSelectionPreview[]>();
+  for (const preview of previews) {
+    const group = byFlow.get(preview.flowId);
+    if (group === undefined) byFlow.set(preview.flowId, [preview]);
+    else group.push(preview);
+  }
+
+  return [
+    diamondHeaderLine(palette, 'circuit preview', [
+      'public flows',
+      `dial matrix: ${dials.join(' / ')}`,
+    ]),
+    ...[...byFlow.entries()].flatMap(([flowId, group]) => [
+      '',
+      palette.bold(flowId),
+      renderStyledTable(palette, matrixRows(palette, group)),
+    ]),
+    '',
+    palette.dim('one flow in depth: circuit preview <flow> --matrix'),
+  ].join('\n');
 }
 
 export function runPreviewCommand(argv: readonly string[]): number {
@@ -398,7 +439,9 @@ export function runPreviewCommand(argv: readonly string[]): number {
 
   const palette = terminalPalette(colorEnabled());
   const body = parsed.matrix
-    ? renderMatrix(palette, previews)
+    ? parsed.flowId === undefined
+      ? renderMatrixOverview(palette, previews, MATRIX_DIALS)
+      : renderMatrix(palette, previews)
     : parsed.flowId === undefined
       ? renderOverview(palette, previews)
       : renderSinglePreview(palette, previews[0] as FlowSelectionPreview);
