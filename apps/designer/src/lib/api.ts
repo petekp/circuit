@@ -20,12 +20,17 @@ export async function saveSchematic(
   id: string,
   schematic: Schematic,
 ): Promise<{ ok: boolean; errors?: unknown[] }> {
-  const r = await fetch(`/api/flows/${id}/schematic`, {
+  const r = await fetch(`/api/flows/${encodeURIComponent(id)}/schematic`, {
     method: 'PUT',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify(schematic),
   });
-  return r.json();
+  // A rejected schematic answers 400 with the errors to show, so a non-ok
+  // status is not on its own a failure to report. Anything without that shape
+  // is: without this, a 500 or an HTML error page read as a silent save.
+  const body = await r.json().catch(() => undefined);
+  if (typeof body?.ok === 'boolean') return body;
+  throw new Error(`failed to save schematic ${id} (server answered ${r.status})`);
 }
 
 export async function loadBlocks(): Promise<BlockCatalog> {

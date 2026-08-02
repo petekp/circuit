@@ -8,6 +8,7 @@ import {
   FlowSchematic,
   validateFlowSchematicCatalogCompatibility,
 } from '../../src/schemas/flow-schematic.js';
+import { flowSchematicPath } from './flow-id.js';
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const REPO_ROOT = resolve(__dirname, '..', '..');
@@ -33,9 +34,13 @@ app.get('/api/flows', async () => {
 
 app.get('/api/flows/:id/schematic', async (req, reply) => {
   const { id } = req.params as { id: string };
-  const path = join(FLOWS_DIR, id, 'schematic.json');
+  const resolved = flowSchematicPath(FLOWS_DIR, id);
+  if (!resolved.ok) {
+    reply.code(400);
+    return { error: resolved.reason };
+  }
   try {
-    const raw = await readFile(path, 'utf8');
+    const raw = await readFile(resolved.path, 'utf8');
     return JSON.parse(raw);
   } catch (err) {
     reply.code(404);
@@ -45,13 +50,17 @@ app.get('/api/flows/:id/schematic', async (req, reply) => {
 
 app.put('/api/flows/:id/schematic', async (req, reply) => {
   const { id } = req.params as { id: string };
-  const path = join(FLOWS_DIR, id, 'schematic.json');
+  const resolved = flowSchematicPath(FLOWS_DIR, id);
+  if (!resolved.ok) {
+    reply.code(400);
+    return { ok: false, errors: [{ message: resolved.reason }] };
+  }
   const parsed = FlowSchematic.safeParse(req.body);
   if (!parsed.success) {
     reply.code(400);
     return { ok: false, errors: parsed.error.issues };
   }
-  await writeFile(path, `${JSON.stringify(parsed.data, null, 2)}\n`, 'utf8');
+  await writeFile(resolved.path, `${JSON.stringify(parsed.data, null, 2)}\n`, 'utf8');
   return { ok: true };
 });
 
