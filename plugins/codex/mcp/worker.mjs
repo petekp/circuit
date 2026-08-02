@@ -16200,6 +16200,7 @@ function createTimeoutController(input) {
   };
   return { onActivity, clear };
 }
+var CONNECTOR_SUCCESS_VOUCH_MS = 10 * 6e4;
 function parseNdjsonObjects(stdout, label) {
   const lines = stdout.split("\n").filter((line) => line.length > 0);
   const objects = [];

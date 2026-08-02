@@ -12,7 +12,9 @@ import type { TraceEntry } from '../domain/trace.js';
 import {
   type ProductionRelayAttemptValidationInput,
   type RelayConnector,
+  connectorAskBudget,
   connectorRetryBackoffMs,
+  connectorRetryDelayMs,
   executeProductionRelayAttempt,
 } from '../executors/relay.js';
 import { RECURSION_DEPTH_CAP } from '../executors/sub-run.js';
@@ -277,7 +279,7 @@ export function planRelayFanoutBranchGuidanceDecision(input: {
 // The backoff curve lives beside the top-level relay retry in relay.ts; both
 // layers space their re-asks the same way. Re-exported here because fanout
 // branch re-asks are where it first earned its place.
-export { connectorRetryBackoffMs };
+export { connectorRetryBackoffMs, connectorRetryDelayMs, connectorAskBudget };
 
 async function pause(ms: number): Promise<void> {
   await new Promise<void>((resolve) => {
@@ -358,7 +360,14 @@ export async function executeRelayFanoutBranch(
       const maxAttempts = branch.max_attempts ?? 1;
       for (
         let attemptNumber = 2;
-        attemptNumber <= maxAttempts && !branchAnswerStands(relayAttempt);
+        !branchAnswerStands(relayAttempt) &&
+        attemptNumber <=
+          (relayAttempt.kind === 'connector_failed'
+            ? // A sign-out from a CLI that was answering minutes ago buys more
+              // asks than the branch declares. Eight of this repository's own
+              // 24 review branches were lost to that blip inside two asks.
+              connectorAskBudget(maxAttempts, relayAttempt.reason)
+            : maxAttempts);
         attemptNumber += 1
       ) {
         // Space out a re-ask that follows a dead connector. A failure that came
@@ -366,7 +375,7 @@ export async function executeRelayFanoutBranch(
         // with no answer at all is the one worth letting settle, since the cause
         // is as likely to be load or a transient host condition as the request.
         if (relayAttempt.kind === 'connector_failed') {
-          await pause(connectorRetryBackoffMs(attemptNumber));
+          await pause(connectorRetryDelayMs(attemptNumber, relayAttempt.reason));
         }
         relayAttempt = await ask();
       }

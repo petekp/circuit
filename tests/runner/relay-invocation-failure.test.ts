@@ -4,6 +4,8 @@ import { dirname, join, resolve } from 'node:path';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import { deterministicNow } from '../helpers/runtime-fixtures.js';
 
+import { TRANSIENT_SIGN_OUT_MARKER } from '../../src/connectors/subprocess.js';
+import { connectorRetrySchedule } from '../../src/runtime/executors/relay.js';
 import { runCompiledFlow } from '../../src/runtime/run/compiled-flow-runner.js';
 import { TraceStore } from '../../src/runtime/trace/trace-store.js';
 import { CompiledFlow } from '../../src/schemas/compiled-flow.js';
@@ -46,6 +48,25 @@ function diesOnceRelayer(): { relayer: RelayFn; calls: () => number } {
           duration_ms: 5,
           cli_version: 'test-cli 0.0.1',
         };
+      },
+    },
+  };
+}
+
+// A CLI that answered minutes ago and now claims it is signed out. The engine
+// reads that as a blip rather than a dead session, so it keeps asking for
+// longer than it would for an ordinary connector death.
+function transientSignOutRelayer(): { relayer: RelayFn; calls: () => number } {
+  let calls = 0;
+  return {
+    calls: () => calls,
+    relayer: {
+      connectorName: 'claude-code',
+      relay: async () => {
+        calls += 1;
+        throw new Error(
+          `The claude CLI reported that it is not logged in, but it answered normally minutes ago, so this is ${TRANSIENT_SIGN_OUT_MARKER} than a signed-out session.`,
+        );
       },
     },
   };
@@ -221,5 +242,35 @@ describe('runtime-safety-floor connector invocation failure closure', () => {
     const closed = outcome.trace_entries.find((e) => e.kind === 'run.closed');
     if (closed?.kind !== 'run.closed') throw new Error('expected run.closed');
     expect(closed.outcome).toBe('complete');
+  });
+
+  it('keeps asking a CLI that claims to be signed out after it had been answering', async () => {
+    const { bytes } = loadFixture();
+    const runFolder = join(runFolderBase, 'transient-sign-out');
+    const { relayer, calls } = transientSignOutRelayer();
+
+    // The real waits are 5s, 15s and 30s. The point under test is how many
+    // asks the engine spends, not how long it sleeps between them.
+    const realSchedule = connectorRetrySchedule.signedOutMs;
+    connectorRetrySchedule.signedOutMs = [0, 0, 0];
+    let outcome: Awaited<ReturnType<typeof runFailureCase>>;
+    try {
+      outcome = await runFailureCase({ runFolder, bytes, relayer });
+    } finally {
+      connectorRetrySchedule.signedOutMs = realSchedule;
+    }
+
+    // Four asks, not the two an ordinary dead connector gets.
+    expect(calls()).toBe(4);
+    const relayStepKinds = outcome.trace_entries
+      .filter((trace_entry) => 'step_id' in trace_entry && trace_entry.step_id === 'relay-step')
+      .map((trace_entry) => trace_entry.kind);
+    expect(relayStepKinds.filter((kind) => kind === 'relay.failed')).toHaveLength(4);
+    expect(relayStepKinds.at(-1)).toBe('step.aborted');
+
+    // When it never comes back the run still closes honestly, and the reason
+    // the operator reads still doubts the sign-out rather than asserting it.
+    expect(outcome.result.outcome).toBe('aborted');
+    expect(outcome.result.reason).toContain(TRANSIENT_SIGN_OUT_MARKER);
   });
 });

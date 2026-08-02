@@ -87611,6 +87611,16 @@ function explicitTargetPath(value, projectRoot) {
   }
   return candidate;
 }
+function missingProjectPath(value, projectRoot) {
+  if (projectRoot === void 0)
+    return false;
+  if (!(value.includes("/") || /\.[A-Za-z0-9]+$/u.test(value)))
+    return false;
+  const trimmed = value.trim().replace(/^\.\//u, "").replace(/\/+$/u, "");
+  if (trimmed.length === 0)
+    return false;
+  return insideProject(projectRoot, resolve15(projectRoot, trimmed));
+}
 function parseExplicitReviewTarget(value, options = {}) {
   const named = value.trim();
   if (named.length === 0) {
@@ -87637,6 +87647,12 @@ function parseExplicitReviewTarget(value, options = {}) {
     }
     return { ok: true, target: { kind: "commit", ref } };
   }
+  if (named.startsWith("../") || named.startsWith("..\\") || named === "..") {
+    return {
+      ok: false,
+      reason: `--target "${named}" points outside this repository. Name a path inside it, or one of: ${EXPLICIT_TARGET_VOCABULARY}.`
+    };
+  }
   if (named.includes("..")) {
     const dots = named.includes("...") ? "..." : "..";
     const separatorIndex = named.indexOf(dots);
@@ -87661,6 +87677,12 @@ function parseExplicitReviewTarget(value, options = {}) {
       ok: true,
       target: withPathScope({ kind: "working_tree", mode: "all", explicit: true }, paths),
       snapshotFallback: paths
+    };
+  }
+  if (missingProjectPath(named, options.projectRoot)) {
+    return {
+      ok: false,
+      reason: `Review found no "${named}" in this repository. Check the path, or name one of: ${EXPLICIT_TARGET_VOCABULARY}.`
     };
   }
   return {
@@ -96625,6 +96647,16 @@ function describeTimeout(result, bounds) {
   }
   return `exceeded the ${bounds.absoluteMs}ms wall-clock backstop`;
 }
+function noteConnectorSucceeded(cli) {
+  CONNECTOR_LAST_SUCCESS_AT.set(cli, Date.now());
+}
+function connectorAnsweredRecently(cli) {
+  const at = CONNECTOR_LAST_SUCCESS_AT.get(cli);
+  return at !== void 0 && Date.now() - at <= CONNECTOR_SUCCESS_VOUCH_MS;
+}
+function isTransientSignOutFailure(reason) {
+  return reason.includes(TRANSIENT_SIGN_OUT_MARKER);
+}
 function launchFailureSummary(cli, errorText) {
   if (errorText.includes("ENOENT")) {
     return `The ${cli} CLI is not installed or not on your PATH (spawn ENOENT). Run \`circuit doctor\` to check connector health.`;
@@ -96639,7 +96671,7 @@ function connectorFailureSummary(input) {
 ${input.stdout}
 ${input.streamError ?? ""}`;
   if (SIGNED_OUT_OUTPUT_PATTERN.test(scanned)) {
-    return `The ${input.cli} CLI is not logged in. ${input.signInHint}, or run \`circuit doctor\` to check connector health.`;
+    return connectorAnsweredRecently(input.cli) ? `The ${input.cli} CLI reported that it is not logged in, but it answered normally minutes ago, so this is ${TRANSIENT_SIGN_OUT_MARKER} than a signed-out session. If it keeps happening: ${input.signInHint}, or run \`circuit doctor\` to check connector health.` : `The ${input.cli} CLI is not logged in. ${input.signInHint}, or run \`circuit doctor\` to check connector health.`;
   }
   if (STATE_DB_READONLY_PATTERN.test(input.stderr)) {
     const stateDir = input.stderr.match(STATE_RUNTIME_DIR_PATTERN)?.[1]?.trim() ?? parentOfPath(input.stderr.match(STATE_DB_FILE_PATTERN)?.[1]);
@@ -96852,7 +96884,7 @@ async function runConnectorSubprocess(input) {
     });
   });
 }
-var ConnectorSubprocessSpawnError, SIGNED_OUT_OUTPUT_PATTERN, SANDBOX_DENIAL_PATTERN, SANDBOX_DENIAL_MIN_COUNT, STATE_DB_READONLY_PATTERN, STATE_RUNTIME_DIR_PATTERN, STATE_DB_FILE_PATTERN, STREAM_ERROR_MESSAGE_MAX_CHARS;
+var ConnectorSubprocessSpawnError, SIGNED_OUT_OUTPUT_PATTERN, CONNECTOR_LAST_SUCCESS_AT, CONNECTOR_SUCCESS_VOUCH_MS, TRANSIENT_SIGN_OUT_MARKER, SANDBOX_DENIAL_PATTERN, SANDBOX_DENIAL_MIN_COUNT, STATE_DB_READONLY_PATTERN, STATE_RUNTIME_DIR_PATTERN, STATE_DB_FILE_PATTERN, STREAM_ERROR_MESSAGE_MAX_CHARS;
 var init_subprocess = __esm({
   "dist/connectors/subprocess.js"() {
     "use strict";
@@ -96866,6 +96898,9 @@ var init_subprocess = __esm({
       }
     };
     SIGNED_OUT_OUTPUT_PATTERN = /not logged in|logged out|unauthenticated|login required|not signed in|sign in required|please run \/login|invalid api key/i;
+    CONNECTOR_LAST_SUCCESS_AT = /* @__PURE__ */ new Map();
+    CONNECTOR_SUCCESS_VOUCH_MS = 10 * 6e4;
+    TRANSIENT_SIGN_OUT_MARKER = "more likely a transient authentication failure";
     SANDBOX_DENIAL_PATTERN = /operation not permitted/gi;
     SANDBOX_DENIAL_MIN_COUNT = 3;
     STATE_DB_READONLY_PATTERN = /failed to open state db|attempt to write a read-?only database/i;
@@ -97003,6 +97038,7 @@ async function relayClaudeCodePrepared(input) {
   if (result.stdoutCapped) {
     throw new Error(`claude-code subprocess stdout exceeded ${STDOUT_MAX_BYTES} bytes; capability-boundary check cannot be evaluated on truncated stream`);
   }
+  noteConnectorSucceeded(CLAUDE_CODE_EXECUTABLE);
   try {
     return parseClaudeCodeStdout(
       result.stdout,
@@ -97605,6 +97641,7 @@ async function relayCodexPrepared(input) {
     if (result.stdoutCapped) {
       throw new Error(`codex subprocess stdout exceeded ${STDOUT_MAX_BYTES2} bytes; capability-boundary check cannot be evaluated on truncated stream`);
     }
+    noteConnectorSucceeded(CODEX_EXECUTABLE);
     try {
       const parsed = parseCodexStdout(result.stdout, input.prompt, result.durationMs, cli_version, {
         promptOnly: input.promptOnly === true
@@ -98094,6 +98131,7 @@ async function relayCursorAgent(input) {
   if (resultBodyRaw.length === 0) {
     throw new Error("cursor-agent stdout is empty");
   }
+  noteConnectorSucceeded(CURSOR_AGENT_EXECUTABLE);
   return {
     request_payload: input.prompt,
     receipt_id: sha256OfString(resultBodyRaw),
@@ -101936,6 +101974,16 @@ async function executeRelay(step, context, connector) {
 function connectorRetryBackoffMs(attemptNumber) {
   return CONNECTOR_RETRY_BASE_BACKOFF_MS * 2 ** Math.max(0, attemptNumber - 2);
 }
+function connectorRetryDelayMs(attemptNumber, reason) {
+  if (!isTransientSignOutFailure(reason))
+    return connectorRetryBackoffMs(attemptNumber);
+  const schedule = connectorRetrySchedule.signedOutMs;
+  const index = Math.min(Math.max(0, attemptNumber - 2), schedule.length - 1);
+  return schedule[index] ?? connectorRetryBackoffMs(attemptNumber);
+}
+function connectorAskBudget(baseBudget, reason) {
+  return isTransientSignOutFailure(reason) ? baseBudget + SIGNED_OUT_EXTRA_ASKS : baseBudget;
+}
 async function pauseMs(ms) {
   await new Promise((resolve41) => {
     setTimeout(resolve41, ms);
@@ -101944,8 +101992,8 @@ async function pauseMs(ms) {
 async function executeProductionRelay(step, context) {
   const compiledStep = requireRuntimeIndexedStep(context.packageIndex, step.id, "relay");
   let relayAttempt = await executeProductionRelayAttempt({ step, context, compiledStep });
-  for (let askNumber = 2; askNumber <= RELAY_CONNECTOR_ASK_BUDGET && relayAttempt.kind === "connector_failed"; askNumber += 1) {
-    await pauseMs(connectorRetryBackoffMs(askNumber));
+  for (let askNumber = 2; relayAttempt.kind === "connector_failed" && askNumber <= connectorAskBudget(RELAY_CONNECTOR_ASK_BUDGET, relayAttempt.reason); askNumber += 1) {
+    await pauseMs(connectorRetryDelayMs(askNumber, relayAttempt.reason));
     relayAttempt = await executeProductionRelayAttempt({ step, context, compiledStep });
   }
   if (relayAttempt.kind === "connector_failed") {
@@ -102013,7 +102061,7 @@ async function executeProductionRelay(step, context) {
     return { route: recoveryRoute, details: { reason: evaluation.reason } };
   throw new Error(evaluation.reason);
 }
-var BUILTIN_CONNECTOR_RELAYERS, CONNECTOR_RETRY_BASE_BACKOFF_MS, RELAY_CONNECTOR_ASK_BUDGET;
+var BUILTIN_CONNECTOR_RELAYERS, CONNECTOR_RETRY_BASE_BACKOFF_MS, connectorRetrySchedule, SIGNED_OUT_EXTRA_ASKS, RELAY_CONNECTOR_ASK_BUDGET;
 var init_relay = __esm({
   "dist/runtime/executors/relay.js"() {
     "use strict";
@@ -102021,6 +102069,7 @@ var init_relay = __esm({
     init_codex();
     init_cursor_agent();
     init_custom();
+    init_subprocess();
     init_cross_report_validators();
     init_report_schemas();
     init_runtime_index();
@@ -102049,6 +102098,10 @@ var init_relay = __esm({
       "cursor-agent": relayCursorAgent
     };
     CONNECTOR_RETRY_BASE_BACKOFF_MS = 400;
+    connectorRetrySchedule = {
+      signedOutMs: [5e3, 15e3, 3e4]
+    };
+    SIGNED_OUT_EXTRA_ASKS = 2;
     RELAY_CONNECTOR_ASK_BUDGET = 2;
   }
 });
@@ -102563,9 +102616,14 @@ async function executeRelayFanoutBranch(step, context, branch, relayConnector, b
       });
       let relayAttempt = await ask();
       const maxAttempts = branch.max_attempts ?? 1;
-      for (let attemptNumber = 2; attemptNumber <= maxAttempts && !branchAnswerStands(relayAttempt); attemptNumber += 1) {
+      for (let attemptNumber = 2; !branchAnswerStands(relayAttempt) && attemptNumber <= (relayAttempt.kind === "connector_failed" ? (
+        // A sign-out from a CLI that was answering minutes ago buys more
+        // asks than the branch declares. Eight of this repository's own
+        // 24 review branches were lost to that blip inside two asks.
+        connectorAskBudget(maxAttempts, relayAttempt.reason)
+      ) : maxAttempts); attemptNumber += 1) {
         if (relayAttempt.kind === "connector_failed") {
-          await pause(connectorRetryBackoffMs(attemptNumber));
+          await pause(connectorRetryDelayMs(attemptNumber, relayAttempt.reason));
         }
         relayAttempt = await ask();
       }

@@ -20,6 +20,7 @@ import {
   isConnectorSubprocessSpawnError,
   lastStreamErrorMessage,
   launchFailureSummary,
+  noteConnectorSucceeded,
   parseNdjsonObjects,
   runConnectorSubprocess,
   spawnErrorVerb,
@@ -735,6 +736,9 @@ async function relayCodexPrepared(input: CodexRelayInput): Promise<RelayResult> 
         `codex subprocess stdout exceeded ${STDOUT_MAX_BYTES} bytes; capability-boundary check cannot be evaluated on truncated stream`,
       );
     }
+    // The CLI answered; see noteConnectorSucceeded for what a later sign-out
+    // report from the same CLI is then read as.
+    noteConnectorSucceeded(CODEX_EXECUTABLE);
     try {
       const parsed = parseCodexStdout(result.stdout, input.prompt, result.durationMs, cli_version, {
         promptOnly: input.promptOnly === true,

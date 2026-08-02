@@ -23904,6 +23904,13 @@ function explicitTargetPath(value, projectRoot) {
   }
   return candidate2;
 }
+function missingProjectPath(value, projectRoot) {
+  if (projectRoot === void 0) return false;
+  if (!(value.includes("/") || /\.[A-Za-z0-9]+$/u.test(value))) return false;
+  const trimmed = value.trim().replace(/^\.\//u, "").replace(/\/+$/u, "");
+  if (trimmed.length === 0) return false;
+  return insideProject(projectRoot, resolve(projectRoot, trimmed));
+}
 function parseExplicitReviewTarget(value, options = {}) {
   const named = value.trim();
   if (named.length === 0) {
@@ -23930,6 +23937,12 @@ function parseExplicitReviewTarget(value, options = {}) {
     }
     return { ok: true, target: { kind: "commit", ref } };
   }
+  if (named.startsWith("../") || named.startsWith("..\\") || named === "..") {
+    return {
+      ok: false,
+      reason: `--target "${named}" points outside this repository. Name a path inside it, or one of: ${EXPLICIT_TARGET_VOCABULARY}.`
+    };
+  }
   if (named.includes("..")) {
     const dots = named.includes("...") ? "..." : "..";
     const separatorIndex = named.indexOf(dots);
@@ -23952,6 +23965,12 @@ function parseExplicitReviewTarget(value, options = {}) {
       ok: true,
       target: withPathScope({ kind: "working_tree", mode: "all", explicit: true }, paths),
       snapshotFallback: paths
+    };
+  }
+  if (missingProjectPath(named, options.projectRoot)) {
+    return {
+      ok: false,
+      reason: `Review found no "${named}" in this repository. Check the path, or name one of: ${EXPLICIT_TARGET_VOCABULARY}.`
     };
   }
   return {
@@ -24719,6 +24738,7 @@ function createTimeoutController(input) {
   };
   return { onActivity, clear };
 }
+var CONNECTOR_SUCCESS_VOUCH_MS = 10 * 6e4;
 
 // src/hosts/codex-mcp/nested-codex-subprocess.ts
 function appendCapped(current, currentBytes, chunk, maxBytes) {

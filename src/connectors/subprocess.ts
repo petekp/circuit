@@ -186,6 +186,51 @@ export function describeTimeout(
 const SIGNED_OUT_OUTPUT_PATTERN =
   /not logged in|logged out|unauthenticated|login required|not signed in|sign in required|please run \/login|invalid api key/i;
 
+// When each CLI last answered successfully in this process.
+//
+// A sign-out reported by a CLI that was working minutes ago is far more likely
+// a transient authentication failure — a token refresh, a rate limit the CLI
+// reports as an auth error — than a session someone signed out of mid-run.
+// Observed on a 24-branch Review of this repository: eight branches died on
+// "Not logged in - Please run /login" while the branches before and after them
+// answered normally on the same CLI. Telling that operator to sign in is a
+// wrong instruction, and a 400ms re-ask is too quick to outlast the blip.
+const CONNECTOR_LAST_SUCCESS_AT = new Map<string, number>();
+
+// How long a success keeps vouching for a CLI. Bounded because a long-lived
+// host process (the Codex MCP supervisor) can hold a session open across many
+// runs, and a genuine sign-out an hour after a good run should be reported as
+// a sign-out, plainly and immediately.
+const CONNECTOR_SUCCESS_VOUCH_MS = 10 * 60_000;
+
+export function noteConnectorSucceeded(cli: string): void {
+  CONNECTOR_LAST_SUCCESS_AT.set(cli, Date.now());
+}
+
+export function connectorAnsweredRecently(cli: string): boolean {
+  const at = CONNECTOR_LAST_SUCCESS_AT.get(cli);
+  return at !== undefined && Date.now() - at <= CONNECTOR_SUCCESS_VOUCH_MS;
+}
+
+/** Test seam: drop the record so a case can choose which side of it to prove. */
+export function forgetConnectorSuccesses(): void {
+  CONNECTOR_LAST_SUCCESS_AT.clear();
+}
+
+/**
+ * The phrase that marks a sign-out Circuit does not believe.
+ *
+ * The failure summary is the only place the classification is made, and the
+ * retry policy reads it back out of the message. One classifier, so the
+ * sentence the operator reads and the patience the engine spends cannot
+ * disagree.
+ */
+export const TRANSIENT_SIGN_OUT_MARKER = 'more likely a transient authentication failure';
+
+export function isTransientSignOutFailure(reason: string): boolean {
+  return reason.includes(TRANSIENT_SIGN_OUT_MARKER);
+}
+
 const SANDBOX_DENIAL_PATTERN = /operation not permitted/gi;
 // A single "Operation not permitted" can be an app-level detail; a repeated
 // storm of them is the signature of a sandboxed launch (observed 10x in one
@@ -244,7 +289,9 @@ export interface ConnectorFailureSummaryInput {
 export function connectorFailureSummary(input: ConnectorFailureSummaryInput): string | undefined {
   const scanned = `${input.stderr}\n${input.stdout}\n${input.streamError ?? ''}`;
   if (SIGNED_OUT_OUTPUT_PATTERN.test(scanned)) {
-    return `The ${input.cli} CLI is not logged in. ${input.signInHint}, or run \`circuit doctor\` to check connector health.`;
+    return connectorAnsweredRecently(input.cli)
+      ? `The ${input.cli} CLI reported that it is not logged in, but it answered normally minutes ago, so this is ${TRANSIENT_SIGN_OUT_MARKER} than a signed-out session. If it keeps happening: ${input.signInHint}, or run \`circuit doctor\` to check connector health.`
+      : `The ${input.cli} CLI is not logged in. ${input.signInHint}, or run \`circuit doctor\` to check connector health.`;
   }
   if (STATE_DB_READONLY_PATTERN.test(input.stderr)) {
     // Checked before the denial-storm branch: this diagnosis is more specific

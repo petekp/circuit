@@ -2,6 +2,7 @@ import { relayClaudeCode } from '../../connectors/claude-code.js';
 import { relayCodex } from '../../connectors/codex.js';
 import { relayCursorAgent } from '../../connectors/cursor-agent.js';
 import { relayCustom } from '../../connectors/custom.js';
+import { isTransientSignOutFailure } from '../../connectors/subprocess.js';
 import { runCrossReportValidator } from '../../flows/registries/cross-report-validators.js';
 import { findReportZodSchema, parseReport } from '../../flows/registries/report-schemas.js';
 import { requireRuntimeIndexedStep } from '../../flows/registries/runtime-index.js';
@@ -987,6 +988,36 @@ export function connectorRetryBackoffMs(attemptNumber: number): number {
   return CONNECTOR_RETRY_BASE_BACKOFF_MS * 2 ** Math.max(0, attemptNumber - 2);
 }
 
+/**
+ * The wait and the ask budget for a sign-out Circuit does not believe.
+ *
+ * A CLI that answered minutes ago and now reports "not logged in" is having a
+ * transient authentication failure, and 400ms is nowhere near long enough for
+ * one to clear. On a 24-branch Review of this repository eight branches were
+ * lost to exactly this, each after two asks 400ms apart. Real seconds, and two
+ * more asks than the ordinary curve gets.
+ *
+ * `connectorRetrySchedule` is a seam: the values are real seconds in
+ * production, and a test that has to prove the extra asks happen sets them to
+ * zero rather than sleeping for a minute. Nothing else writes it.
+ */
+export const connectorRetrySchedule: { signedOutMs: readonly number[] } = {
+  signedOutMs: [5_000, 15_000, 30_000],
+};
+
+const SIGNED_OUT_EXTRA_ASKS = 2;
+
+export function connectorRetryDelayMs(attemptNumber: number, reason: string): number {
+  if (!isTransientSignOutFailure(reason)) return connectorRetryBackoffMs(attemptNumber);
+  const schedule = connectorRetrySchedule.signedOutMs;
+  const index = Math.min(Math.max(0, attemptNumber - 2), schedule.length - 1);
+  return schedule[index] ?? connectorRetryBackoffMs(attemptNumber);
+}
+
+export function connectorAskBudget(baseBudget: number, reason: string): number {
+  return isTransientSignOutFailure(reason) ? baseBudget + SIGNED_OUT_EXTRA_ASKS : baseBudget;
+}
+
 async function pauseMs(ms: number): Promise<void> {
   await new Promise<void>((resolve) => {
     setTimeout(resolve, ms);
@@ -1007,13 +1038,14 @@ async function executeProductionRelay(step: RelayStep, context: RunContext): Pro
   let relayAttempt = await executeProductionRelayAttempt({ step, context, compiledStep });
   for (
     let askNumber = 2;
-    askNumber <= RELAY_CONNECTOR_ASK_BUDGET && relayAttempt.kind === 'connector_failed';
+    relayAttempt.kind === 'connector_failed' &&
+    askNumber <= connectorAskBudget(RELAY_CONNECTOR_ASK_BUDGET, relayAttempt.reason);
     askNumber += 1
   ) {
     // Every ask is recorded in full (relay.started / relay.request /
     // relay.failed), so the trace stays honest about the death while the run
     // survives it.
-    await pauseMs(connectorRetryBackoffMs(askNumber));
+    await pauseMs(connectorRetryDelayMs(askNumber, relayAttempt.reason));
     relayAttempt = await executeProductionRelayAttempt({ step, context, compiledStep });
   }
   if (relayAttempt.kind === 'connector_failed') {

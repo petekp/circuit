@@ -21,6 +21,7 @@ import {
   isConnectorSubprocessSpawnError,
   lastStreamErrorMessage,
   launchFailureSummary,
+  noteConnectorSucceeded,
   parseNdjsonObjects,
   runConnectorSubprocess,
   spawnErrorVerb,
@@ -368,6 +369,10 @@ async function relayClaudeCodePrepared(input: ClaudeCodeRelayInput): Promise<Rel
       `claude-code subprocess stdout exceeded ${STDOUT_MAX_BYTES} bytes; capability-boundary check cannot be evaluated on truncated stream`,
     );
   }
+  // The CLI answered. Recorded so a later "not logged in" from the same CLI is
+  // read as the transient failure it usually is, rather than sending the
+  // operator to sign in to a session that was working a minute ago.
+  noteConnectorSucceeded(CLAUDE_CODE_EXECUTABLE);
   try {
     return parseClaudeCodeStdout(
       result.stdout,

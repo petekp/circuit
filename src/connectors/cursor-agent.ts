@@ -17,6 +17,7 @@ import {
   describeTimeout,
   isConnectorSubprocessSpawnError,
   launchFailureSummary,
+  noteConnectorSucceeded,
   runConnectorSubprocess,
   spawnErrorVerb,
 } from './subprocess.js';
@@ -183,6 +184,9 @@ export async function relayCursorAgent(input: CursorAgentRelayInput): Promise<Re
   if (resultBodyRaw.length === 0) {
     throw new Error('cursor-agent stdout is empty');
   }
+  // The CLI answered; see noteConnectorSucceeded for what a later sign-out
+  // report from the same CLI is then read as.
+  noteConnectorSucceeded(CURSOR_AGENT_EXECUTABLE);
   return {
     request_payload: input.prompt,
     receipt_id: sha256Hex(resultBodyRaw),
