@@ -108,6 +108,7 @@ describe('run intake preflight: refuse the sandbox class, warn on missing CLIs',
                   stderr: '',
                   timedOut: false,
                 }),
+              signIn: () => Promise.resolve(undefined),
               stateDir: (dir) => ({ writable: true, dir }),
             },
           }),
@@ -150,6 +151,7 @@ describe('run intake preflight: refuse the sandbox class, warn on missing CLIs',
                   stderr: '',
                   timedOut: false,
                 }),
+              signIn: () => Promise.resolve(undefined),
               stateDir: (dir) => ({
                 writable: false,
                 dir,
@@ -205,6 +207,7 @@ describe('run intake preflight: refuse the sandbox class, warn on missing CLIs',
               probes: {
                 presence: () =>
                   Promise.resolve({ kind: 'spawn_error', message: 'spawn codex ENOENT' }),
+                signIn: () => Promise.resolve(undefined),
                 stateDir: (dir) => ({ writable: true, dir }),
               },
             }),
@@ -215,6 +218,70 @@ describe('run intake preflight: refuse the sandbox class, warn on missing CLIs',
       expect(stderr).toContain('spawn codex ENOENT');
       expect(stderr).toContain('the run will stop when it first needs it');
       // The run proceeded past intake and closed normally.
+      const envelope = JSON.parse(stdout) as { outcome?: string };
+      expect(envelope.outcome).toBe('complete');
+      expect(result).toBe(0);
+      expect(existsSync(runFolder)).toBe(true);
+    } finally {
+      stderrStream.isTTY = originalIsTTY;
+    }
+  });
+
+  // Same warn-and-proceed contract for a CLI that is installed but signed out.
+  // Intake asks now (`codex login status`) instead of leaving the operator to
+  // discover it mid-flight, after the healthy branches have already spent. It
+  // must not refuse: these CLIs sometimes report themselves signed out while
+  // working fine, which is why connectorFailureSummary learned to doubt them.
+  it('warns and proceeds when the chosen connector CLI reports it is signed out', async () => {
+    const { projectDir, homeDir } = tempProjectPinningCodex();
+    const runFolder = join(projectDir, '.circuit', 'runs', 'signed-out-cli-run');
+    const args = parseExecutionArgs('run', [
+      'review',
+      '--goal',
+      'Review this supplied text: a signed-out CLI should warn at intake while the run proceeds.',
+      '--run-folder',
+      runFolder,
+    ]);
+
+    const stderrStream = process.stderr as { isTTY?: boolean | undefined };
+    const originalIsTTY = stderrStream.isTTY;
+    stderrStream.isTTY = true;
+    try {
+      const { result, stdout, stderr } = await captureStreams(() =>
+        runExecutionCommand(args, {
+          configCwd: projectDir,
+          configHomeDir: homeDir,
+          relayer: makeStubRelayer(() => VALID_REVIEW_BODY),
+          connectorPreflight: (input) =>
+            preflightRunConnectors({
+              ...input,
+              probes: {
+                presence: () =>
+                  Promise.resolve({
+                    kind: 'ran',
+                    code: 0,
+                    stdout: 'codex-cli 0.146.0',
+                    stderr: '',
+                    timedOut: false,
+                  }),
+                signIn: () =>
+                  Promise.resolve({
+                    kind: 'ran',
+                    code: 1,
+                    stdout: 'Not logged in',
+                    stderr: '',
+                    timedOut: false,
+                  }),
+                stateDir: (dir) => ({ writable: true, dir }),
+              },
+            }),
+        }),
+      );
+
+      expect(stderr).toContain("note: this run's steps relay through the codex CLI");
+      expect(stderr).toContain('reports that it is not signed in');
+      expect(stderr).toContain('Not logged in');
+      expect(stderr).toContain('codex login');
       const envelope = JSON.parse(stdout) as { outcome?: string };
       expect(envelope.outcome).toBe('complete');
       expect(result).toBe(0);
@@ -239,6 +306,7 @@ describe('run intake preflight: refuse the sandbox class, warn on missing CLIs',
       probes: {
         presence: () =>
           Promise.resolve({ kind: 'ran', code: 0, stdout: '1.0.0', stderr: '', timedOut: false }),
+        signIn: () => Promise.resolve(undefined),
         stateDir: (dir) => ({ writable: true, dir }),
       },
     });
@@ -254,6 +322,7 @@ describe('run intake preflight: refuse the sandbox class, warn on missing CLIs',
       probes: {
         presence: () =>
           Promise.resolve({ kind: 'ran', code: null, stdout: '', stderr: '', timedOut: true }),
+        signIn: () => Promise.resolve(undefined),
         stateDir: (dir) => ({ writable: true, dir }),
       },
     });
@@ -289,6 +358,7 @@ describe('run intake preflight: refuse the sandbox class, warn on missing CLIs',
       probes: {
         presence: () =>
           Promise.resolve({ kind: 'ran', code: 0, stdout: '1.0.0', stderr: '', timedOut: false }),
+        signIn: () => Promise.resolve(undefined),
         stateDir: (dir) => ({ writable: true, dir }),
       },
     });
@@ -341,6 +411,7 @@ describe('run intake preflight: refuse the sandbox class, warn on missing CLIs',
             timedOut: false,
           });
         },
+        signIn: () => Promise.resolve(undefined),
         stateDir: () => {
           throw new Error('codex state should not be probed when policy selects cursor-agent');
         },

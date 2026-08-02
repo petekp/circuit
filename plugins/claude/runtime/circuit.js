@@ -111822,12 +111822,12 @@ function flowSummaryDetail(flowReport) {
   return summary === void 0 ? void 0 : `Result: ${friendlyResultSummary(summary)}`;
 }
 function firstLineSummary(text, max) {
-  const firstLine3 = (text.split(/\r?\n/, 1)[0] ?? "").replace(/^[\s>#*\-`|]+/, "").trim();
-  if (firstLine3.length === 0)
+  const firstLine2 = (text.split(/\r?\n/, 1)[0] ?? "").replace(/^[\s>#*\-`|]+/, "").trim();
+  if (firstLine2.length === 0)
     return "(no text)";
-  if (firstLine3.length <= max)
-    return firstLine3;
-  return `${firstLine3.slice(0, Math.max(1, max - 1))}\u2026`;
+  if (firstLine2.length <= max)
+    return firstLine2;
+  return `${firstLine2.slice(0, Math.max(1, max - 1))}\u2026`;
 }
 function reviewFindingDetails(report) {
   const findings = arrayField(report, "findings");
@@ -116137,9 +116137,20 @@ var init_run_output = __esm({
 });
 
 // dist/connectors/health.js
-function firstLine2(outcome) {
+function probeFirstLine(outcome) {
+  if (outcome.kind !== "ran")
+    return "";
   const text = outcome.stdout.trim().length > 0 ? outcome.stdout : outcome.stderr;
   return text.trim().split("\n")[0]?.trim() ?? "";
+}
+function probeReportsSignedOut(outcome) {
+  if (outcome.kind !== "ran" || outcome.timedOut)
+    return false;
+  return outcome.code !== 0 || SIGNED_OUT_PATTERN.test(`${outcome.stdout}
+${outcome.stderr}`);
+}
+function builtinConnectorSignInCommand(connector) {
+  return HEALTH_PROBE_SPECS[connector].signInCommand;
 }
 function classifyConnectorHealth(input) {
   const remediation = connectorRemediation(input.connector);
@@ -116160,7 +116171,7 @@ function classifyConnectorHealth(input) {
     };
   }
   if (input.presence.code !== 0) {
-    const line = firstLine2(input.presence);
+    const line = probeFirstLine(input.presence);
     return {
       ...base,
       state: "needs_attention",
@@ -116168,7 +116179,7 @@ function classifyConnectorHealth(input) {
       remediation
     };
   }
-  const version3 = firstLine2(input.presence);
+  const version3 = probeFirstLine(input.presence);
   if (input.auth === void 0) {
     return { ...base, state: "ok", detail: version3 };
   }
@@ -116187,9 +116198,8 @@ function classifyConnectorHealth(input) {
       detail: `${version3}; could not check sign-in state (timed out)`
     };
   }
-  const authLine = firstLine2(input.auth);
-  if (input.auth.code !== 0 || SIGNED_OUT_PATTERN.test(`${input.auth.stdout}
-${input.auth.stderr}`)) {
+  const authLine = probeFirstLine(input.auth);
+  if (probeReportsSignedOut(input.auth)) {
     return {
       ...base,
       state: "needs_attention",
@@ -116203,12 +116213,12 @@ ${input.auth.stderr}`)) {
     detail: authLine === "" ? version3 : `${version3}; ${authLine}`
   };
 }
-async function runProbe(executable, args, env3) {
+async function runProbe(executable, args, env3, timeoutMs2 = PROBE_TIMEOUT_MS) {
   try {
     const result = await runConnectorSubprocess({
       executable,
       args,
-      timeoutMs: PROBE_TIMEOUT_MS,
+      timeoutMs: timeoutMs2,
       stdoutMaxBytes: PROBE_OUTPUT_MAX_BYTES,
       stderrMaxBytes: PROBE_OUTPUT_MAX_BYTES,
       sigtermToSigkillGraceMs: 2e3,
@@ -116234,6 +116244,12 @@ function builtinConnectorExecutable(connector) {
 async function probeBuiltinConnectorPresence(connector, options) {
   const spec = HEALTH_PROBE_SPECS[connector];
   return await runProbe(spec.executable, spec.presenceArgs, options?.env ?? process.env);
+}
+async function probeBuiltinConnectorSignIn(connector, options) {
+  const spec = HEALTH_PROBE_SPECS[connector];
+  if (spec.authArgs === void 0)
+    return void 0;
+  return await runProbe(spec.executable, spec.authArgs, options?.env ?? process.env, options?.timeoutMs);
 }
 async function probeBuiltinConnector(connector, options) {
   const spec = HEALTH_PROBE_SPECS[connector];
@@ -116268,7 +116284,7 @@ async function probeCustomConnectorPresence(connector, executable, options) {
     detail: "could not check: custom connectors have no scripted sign-in probe"
   };
 }
-var HEALTH_PROBE_SPECS, BUILTIN_CONNECTOR_NAMES, SIGNED_OUT_PATTERN, PROBE_TIMEOUT_MS, PROBE_OUTPUT_MAX_BYTES;
+var HEALTH_PROBE_SPECS, BUILTIN_CONNECTOR_NAMES, SIGNED_OUT_PATTERN, PROBE_TIMEOUT_MS, PROBE_OUTPUT_MAX_BYTES, INTAKE_SIGN_IN_PROBE_TIMEOUT_MS;
 var init_health = __esm({
   "dist/connectors/health.js"() {
     "use strict";
@@ -116282,12 +116298,14 @@ var init_health = __esm({
       codex: {
         executable: CODEX_EXECUTABLE,
         presenceArgs: ["--version"],
-        authArgs: ["login", "status"]
+        authArgs: ["login", "status"],
+        signInCommand: "codex login"
       },
       "cursor-agent": {
         executable: CURSOR_AGENT_EXECUTABLE,
         presenceArgs: ["--version"],
-        authArgs: ["status"]
+        authArgs: ["status"],
+        signInCommand: "cursor-agent login"
       }
     };
     BUILTIN_CONNECTOR_NAMES = [
@@ -116298,6 +116316,7 @@ var init_health = __esm({
     SIGNED_OUT_PATTERN = /not logged in|logged out|unauthenticated|login required|not signed in|sign in required/i;
     PROBE_TIMEOUT_MS = 1e4;
     PROBE_OUTPUT_MAX_BYTES = 16384;
+    INTAKE_SIGN_IN_PROBE_TIMEOUT_MS = 5e3;
   }
 });
 
@@ -116382,13 +116401,24 @@ async function preflightRunConnectors(input) {
     }
   }
   const presenceProbe = input.probes?.presence ?? probeBuiltinConnectorPresence;
-  const presenceChecks = await Promise.all(builtinNames.map(async (name) => ({ name, outcome: await presenceProbe(name, { env: env3 }) })));
+  const signInProbe = input.probes?.signIn ?? probeBuiltinConnectorSignIn;
+  const checks = await Promise.all(builtinNames.map(async (name) => {
+    const presence = await presenceProbe(name, { env: env3 });
+    const signIn = presence.kind === "ran" && presence.code === 0 ? await signInProbe(name, { env: env3, timeoutMs: INTAKE_SIGN_IN_PROBE_TIMEOUT_MS }) : void 0;
+    return { name, presence, signIn };
+  }));
   const warnings = [];
-  for (const check3 of presenceChecks) {
-    if (check3.outcome.kind === "spawn_error") {
-      const executable = builtinConnectorExecutable(check3.name);
-      warnings.push(`this run's steps relay through the ${executable} CLI, which was not found (${check3.outcome.message}); the run will stop when it first needs it. \`circuit doctor\` checks connector health.`);
+  for (const check3 of checks) {
+    const executable = builtinConnectorExecutable(check3.name);
+    if (check3.presence.kind === "spawn_error") {
+      warnings.push(`this run's steps relay through the ${executable} CLI, which was not found (${check3.presence.message}); the run will stop when it first needs it. \`circuit doctor\` checks connector health.`);
+      continue;
     }
+    if (check3.signIn === void 0 || !probeReportsSignedOut(check3.signIn))
+      continue;
+    const said = probeFirstLine(check3.signIn);
+    const signInCommand = builtinConnectorSignInCommand(check3.name);
+    warnings.push(`this run's steps relay through the ${executable} CLI, which reports that it is not signed in${said === "" ? "" : ` (${said})`}. Sign in with \`${signInCommand}\`, or the run will stop when it first needs it.`);
   }
   return { ok: true, warnings };
 }

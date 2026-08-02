@@ -1887,8 +1887,8 @@ export async function runExecutionCommand(
     // run folder exists: a run that cannot possibly relay (codex's state
     // directory unwritable because this session is sandboxed) is refused here
     // with the cause and the next step, instead of aborting seconds into the
-    // run with raw stderr. A missing worker CLI only warns — the run may
-    // legitimately reach its first checkpoint before any worker spawns.
+    // run with raw stderr. A missing or signed-out worker CLI only warns — the
+    // run may legitimately reach its first checkpoint before any worker spawns.
     // Doctor cannot stand in for this check — it runs in the operator's
     // terminal environment, not necessarily the one that spawns the workers.
     const connectorPreflight =

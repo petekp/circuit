@@ -10,21 +10,40 @@
 // intake, before the run folder exists, so a run that cannot possibly relay
 // is refused with a plain sentence instead of aborting mid-flight.
 //
-// Scope is deliberately small and offline: resolve each relay's connector and
-// model/effort selection, run a presence probe per chosen builtin connector,
-// and run a real-write probe of codex's state directory. No sign-in probe
-// (intake must stay fast, and a signed-out CLI already fails mid-run with a
-// legible summary from connectorFailureSummary). Custom connectors are not
-// probed: their command is arbitrary and config-declared, and probing one means
-// running it. Probe timeouts and nonzero exits do not refuse either — "could
-// not check" is not "broken", and a wedged CLI will surface legibly when the
-// run spawns it for real.
+// Scope is deliberately small: resolve each relay's connector and model/effort
+// selection, run a presence probe per chosen builtin connector, ask the ones
+// that can answer cheaply whether they are signed in, and run a real-write
+// probe of codex's state directory. Custom connectors are not probed: their
+// command is arbitrary and config-declared, and probing one means running it.
+// Probe timeouts and nonzero exits do not refuse — "could not check" is not
+// "broken", and a wedged CLI will surface legibly when the run spawns it.
+//
+// The sign-in probe used to be skipped here on the grounds that intake must
+// stay fast and a signed-out CLI fails legibly mid-run anyway. Both halves were
+// weak. Mid-run is the expensive place to find out: the run dies after real
+// spend on the branches that were healthy. And the cost of asking is 0.24s for
+// `codex login status` and 1.3s for `cursor-agent status`, only for the
+// connectors this run actually plans to use.
+//
+// It warns and never refuses, for the same reason a missing CLI warns, plus one
+// more: these CLIs sometimes report themselves signed out while working fine
+// (see TRANSIENT_SIGN_OUT_MARKER in ../connectors/subprocess.ts, which exists
+// because that false positive is real). A false positive that only costs a
+// note is fine. One that blocks runs at the door is not.
+//
+// claude-code has no cheap offline sign-in probe, so it is never asked and
+// nothing here implies its sign-in state was checked.
 
 import {
   BUILTIN_CONNECTOR_NAMES,
+  INTAKE_SIGN_IN_PROBE_TIMEOUT_MS,
   type ProbeOutcome,
   builtinConnectorExecutable,
+  builtinConnectorSignInCommand,
   probeBuiltinConnectorPresence,
+  probeBuiltinConnectorSignIn,
+  probeFirstLine,
+  probeReportsSignedOut,
 } from '../connectors/health.js';
 import type { BuiltinConnectorName } from '../connectors/remediation.js';
 import { assertConnectorSelectionCompatible } from '../connectors/resolver.js';
@@ -58,6 +77,12 @@ export interface RunPreflightProbes {
     connector: BuiltinConnectorName,
     options?: { readonly env?: NodeJS.ProcessEnv },
   ) => Promise<ProbeOutcome>;
+  // Undefined answers "this connector has no cheap sign-in probe", which is
+  // not the same as "signed in" and never produces a note either way.
+  readonly signIn: (
+    connector: BuiltinConnectorName,
+    options?: { readonly env?: NodeJS.ProcessEnv; readonly timeoutMs?: number },
+  ) => Promise<ProbeOutcome | undefined>;
   readonly stateDir: (dir: string) => StateDirProbe;
 }
 
@@ -156,12 +181,12 @@ function planningRefusal(error: unknown): string {
 
 // Refusal is reserved for a relay plan that cannot run or an environment where
 // no relay can ever succeed. An unwritable codex state directory poisons every
-// codex spawn, and only rerunning outside the sandbox fixes it. A MISSING worker
-// CLI only warns: a run legitimately reaches its first checkpoint before any
-// worker spawns (the host plugin's own doctor smoke drives exactly that path in
-// a repo with no CLIs on PATH), the operator can install the CLI before
-// resuming, and the spawn itself already fails with a legible missing-CLI
-// sentence.
+// codex spawn, and only rerunning outside the sandbox fixes it. A MISSING or
+// SIGNED-OUT worker CLI only warns: a run legitimately reaches its first
+// checkpoint before any worker spawns (the host plugin's own doctor smoke
+// drives exactly that path in a repo with no CLIs on PATH), the operator can
+// install or sign in before resuming, and the spawn itself already fails with a
+// legible sentence in both cases.
 export async function preflightRunConnectors(
   input: RunPreflightInput,
 ): Promise<RunPreflightResult> {
@@ -189,17 +214,35 @@ export async function preflightRunConnectors(
   }
 
   const presenceProbe = input.probes?.presence ?? probeBuiltinConnectorPresence;
-  const presenceChecks = await Promise.all(
-    builtinNames.map(async (name) => ({ name, outcome: await presenceProbe(name, { env }) })),
+  const signInProbe = input.probes?.signIn ?? probeBuiltinConnectorSignIn;
+  const checks = await Promise.all(
+    builtinNames.map(async (name) => {
+      const presence = await presenceProbe(name, { env });
+      // Only ask a binary that answered. A CLI that is absent is reported as
+      // absent once, not absent and then separately signed out.
+      const signIn =
+        presence.kind === 'ran' && presence.code === 0
+          ? await signInProbe(name, { env, timeoutMs: INTAKE_SIGN_IN_PROBE_TIMEOUT_MS })
+          : undefined;
+      return { name, presence, signIn };
+    }),
   );
+
   const warnings: string[] = [];
-  for (const check of presenceChecks) {
-    if (check.outcome.kind === 'spawn_error') {
-      const executable = builtinConnectorExecutable(check.name);
+  for (const check of checks) {
+    const executable = builtinConnectorExecutable(check.name);
+    if (check.presence.kind === 'spawn_error') {
       warnings.push(
-        `this run's steps relay through the ${executable} CLI, which was not found (${check.outcome.message}); the run will stop when it first needs it. \`circuit doctor\` checks connector health.`,
+        `this run's steps relay through the ${executable} CLI, which was not found (${check.presence.message}); the run will stop when it first needs it. \`circuit doctor\` checks connector health.`,
       );
+      continue;
     }
+    if (check.signIn === undefined || !probeReportsSignedOut(check.signIn)) continue;
+    const said = probeFirstLine(check.signIn);
+    const signInCommand = builtinConnectorSignInCommand(check.name);
+    warnings.push(
+      `this run's steps relay through the ${executable} CLI, which reports that it is not signed in${said === '' ? '' : ` (${said})`}. Sign in with \`${signInCommand}\`, or the run will stop when it first needs it.`,
+    );
   }
   return { ok: true, warnings };
 }
