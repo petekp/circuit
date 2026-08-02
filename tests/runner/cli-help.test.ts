@@ -131,13 +131,41 @@ describe('bare subcommand-family commands (B3)', () => {
     expect(result.stdout).toMatch(/saved run/i);
   });
 
+  // A usage error reaches a person at a terminal, so it goes to stderr as a
+  // plain `error:` line like every other command's. `circuit history` used to
+  // answer this one in a JSON envelope on stdout, which is the wrong stream
+  // and the wrong language for someone who has not asked for JSON — and in the
+  // `--json` case below, self-contradicting.
   it('bare circuit history names the missing subcommand and the valid ones', async () => {
     const result = await captureMain(['history']);
     expect(result.code).toBe(2);
-    expect(result.stdout).not.toContain('outputHelp');
+    expect(result.stdout).toBe('');
+    expect(result.stderr).not.toContain('outputHelp');
+    expect(result.stderr).toContain('history requires a subcommand');
+    expect(result.stderr).toContain('query');
+  });
+
+  it('circuit history status without --json says so in plain text, not JSON', async () => {
+    const result = await captureMain(['history', 'status']);
+    expect(result.code).toBe(2);
+    expect(result.stdout).toBe('');
+    expect(result.stderr).toContain('history commands require --json');
+  });
+
+  // A caller who did ask for JSON gets JSON, even for a usage error: it is
+  // reading stdout with a parser, and a bare sentence would break it.
+  it('circuit history --json keeps the machine envelope for a usage error', async () => {
+    const result = await captureMain(['history', '--json']);
+    expect(result.code).toBe(2);
     const envelope = JSON.parse(result.stdout) as { error: { message: string } };
     expect(envelope.error.message).toContain('history requires a subcommand');
-    expect(envelope.error.message).toContain('query');
+  });
+
+  it('bare circuit memory names the missing subcommand on stderr too', async () => {
+    const result = await captureMain(['memory']);
+    expect(result.code).toBe(2);
+    expect(result.stdout).toBe('');
+    expect(result.stderr).toContain('memory requires a subcommand');
   });
 });
 

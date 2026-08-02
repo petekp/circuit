@@ -184,10 +184,10 @@ describe('history CLI', () => {
       indexDir,
     ]);
     expect(missingJson.code).toBe(2);
-    expect(JSON.parse(missingJson.stdout)).toMatchObject({
-      api_version: 'history-error-v1',
-      error: { code: 'invalid_invocation' },
-    });
+    // Plain text on stderr, because this caller did not ask for JSON. Saying
+    // "pass --json" in JSON would demonstrate that the flag was not needed.
+    expect(missingJson.stdout).toBe('');
+    expect(missingJson.stderr).toContain('history commands require --json');
 
     const rebuilt = await captureMain([
       'history',

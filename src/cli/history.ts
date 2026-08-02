@@ -92,12 +92,28 @@ function writeJson(value: unknown): void {
   process.stdout.write(`${JSON.stringify(value, null, 2)}\n`);
 }
 
-function invalidInvocation(message: string, options: HistoryPathOptions = {}): number {
+// A usage error before any work starts. Who is reading decides the shape: a
+// caller that asked for JSON is parsing stdout and needs the envelope, and
+// everyone else is a person at a terminal who should get the same plain
+// `error:` line on stderr that every other circuit command gives them.
+//
+// The distinction is not cosmetic. `history commands require --json` was
+// printed as JSON, which told the operator to pass a flag while demonstrating
+// that the flag was not needed, and it put an error on stdout where a pipe
+// would swallow it.
+function invalidInvocation(
+  message: string,
+  input: { readonly json: boolean } & HistoryPathOptions,
+): number {
+  if (!input.json) {
+    process.stderr.write(`error: ${message}\n`);
+    return 2;
+  }
   writeJson(
     errorEnvelope(
       new HistoryCommandError('invalid_invocation', message, {
-        ...(options.runsBase === undefined ? {} : { runsBase: options.runsBase }),
-        ...(options.indexDir === undefined ? {} : { indexDir: options.indexDir }),
+        ...(input.runsBase === undefined ? {} : { runsBase: input.runsBase }),
+        ...(input.indexDir === undefined ? {} : { indexDir: input.indexDir }),
       }),
     ),
   );
@@ -336,7 +352,15 @@ function parseHistoryArgs(argv: readonly string[]): ParsedHistoryArgs | string {
     // Bare `circuit history` makes Commander raise its internal help error
     // ('(outputHelp)') before any action runs; fall through so the operator
     // sees the real missing-subcommand message below instead of the token.
-    if (!isCommanderHelpSignal(err)) return commanderErrorMessage(err);
+    //
+    // A flag with no subcommand lands here too, and Commander describes it as
+    // an unknown option. That reads as a lie for `circuit history --json`,
+    // where `--json` is not just known but required by every subcommand. When
+    // nothing but flags was typed, no subcommand could have claimed them, so
+    // report the thing that is actually missing. An argv that does name
+    // something keeps Commander's own message: it is about that subcommand.
+    const namedSomething = argv.some((token) => !token.startsWith('-'));
+    if (!isCommanderHelpSignal(err) && namedSomething) return commanderErrorMessage(err);
   }
 
   if (parsed === undefined) {
@@ -453,9 +477,17 @@ function runPull(parsed: Extract<ParsedHistoryArgs, { command: 'pull' }>): numbe
 
 export async function runHistoryCommand(argv: readonly string[]): Promise<number> {
   const parsed = parseHistoryArgs(argv);
-  if (typeof parsed === 'string') return invalidInvocation(parsed);
-  if (!parsed.json)
-    return invalidInvocation('history commands require --json', pathOptions(parsed));
+  if (typeof parsed === 'string') {
+    // Nothing parsed, so `parsed.json` does not exist yet. The literal flag is
+    // the only evidence of who is reading.
+    return invalidInvocation(parsed, { json: argv.includes('--json') });
+  }
+  if (!parsed.json) {
+    return invalidInvocation('history commands require --json', {
+      json: false,
+      ...pathOptions(parsed),
+    });
+  }
 
   try {
     if (parsed.command === 'rebuild') {
@@ -492,10 +524,16 @@ export async function runHistoryCommand(argv: readonly string[]): Promise<number
       // (D3) and the audit needs a label. A missing one is an invalid invocation
       // (exit 2), not an operational error.
       if (parsed.flow === undefined) {
-        return invalidInvocation('history pull requires --flow', pathOptions(parsed));
+        return invalidInvocation('history pull requires --flow', {
+          json: true,
+          ...pathOptions(parsed),
+        });
       }
       if (parsed.decisionPoint === undefined) {
-        return invalidInvocation('history pull requires --decision-point', pathOptions(parsed));
+        return invalidInvocation('history pull requires --decision-point', {
+          json: true,
+          ...pathOptions(parsed),
+        });
       }
       return runPull(parsed);
     }

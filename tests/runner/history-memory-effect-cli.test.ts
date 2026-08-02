@@ -302,8 +302,8 @@ afterEach(() => {
 });
 
 async function run(argv: readonly string[]) {
-  const { result, stdout } = await captureStreams(() => runHistoryCommand(argv));
-  return { code: result, stdout };
+  const { result, stdout, stderr } = await captureStreams(() => runHistoryCommand(argv));
+  return { code: result, stdout, stderr };
 }
 
 describe('history memory-effect CLI', () => {
@@ -399,11 +399,12 @@ describe('history memory-effect CLI', () => {
     ).not.toThrow();
   });
 
-  it('rejects invocation without --json (exit 2)', async () => {
+  it('rejects invocation without --json (exit 2) in plain text on stderr', async () => {
     const { runsBase } = emptyCorpus();
-    const { code, stdout } = await run(['memory-effect', '--runs-base', runsBase]);
+    const { code, stdout, stderr } = await run(['memory-effect', '--runs-base', runsBase]);
     expect(code).toBe(2);
-    expect(HistoryErrorV1.parse(JSON.parse(stdout)).error.code).toBe('invalid_invocation');
+    expect(stdout).toBe('');
+    expect(stderr).toContain('history commands require --json');
   });
 
   it('rejects --margin 0 and --margin 1.5 (exit 2) but accepts the inclusive boundary 1', async () => {

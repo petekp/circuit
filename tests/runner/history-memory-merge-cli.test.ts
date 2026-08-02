@@ -23,8 +23,8 @@ afterEach(() => {
 });
 
 async function run(argv: readonly string[]) {
-  const { result, stdout } = await captureStreams(() => runHistoryCommand(argv));
-  return { code: result, stdout };
+  const { result, stdout, stderr } = await captureStreams(() => runHistoryCommand(argv));
+  return { code: result, stdout, stderr };
 }
 
 describe('history memory-merge CLI', () => {
@@ -57,12 +57,15 @@ describe('history memory-merge CLI', () => {
     ).not.toThrow();
   });
 
-  it('rejects invocation without --json (exit 2)', async () => {
+  // A caller who did not ask for JSON is not answered in JSON: the message
+  // that says to pass --json would otherwise arrive as the very format it is
+  // asking for, on the stream a pipe swallows.
+  it('rejects invocation without --json (exit 2) in plain text on stderr', async () => {
     const { runsBase } = tempRunsBase();
-    const { code, stdout } = await run(['memory-merge', '--runs-base', runsBase]);
+    const { code, stdout, stderr } = await run(['memory-merge', '--runs-base', runsBase]);
     expect(code).toBe(2);
-    const error = HistoryErrorV1.parse(JSON.parse(stdout));
-    expect(error.error.code).toBe('invalid_invocation');
+    expect(stdout).toBe('');
+    expect(stderr).toContain('history commands require --json');
   });
 
   it('returns an error envelope when the runs base is missing (exit 1)', async () => {

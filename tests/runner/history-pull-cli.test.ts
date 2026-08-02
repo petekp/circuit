@@ -99,8 +99,8 @@ afterEach(() => {
 });
 
 async function run(argv: readonly string[]) {
-  const { result, stdout } = await captureStreams(() => runHistoryCommand(argv));
-  return { code: result, stdout };
+  const { result, stdout, stderr } = await captureStreams(() => runHistoryCommand(argv));
+  return { code: result, stdout, stderr };
 }
 
 describe('history pull CLI', () => {
@@ -239,15 +239,33 @@ describe('history pull CLI', () => {
     expect(HistoryErrorV1.parse(JSON.parse(stdout)).error.code).toBe('invalid_invocation');
   });
 
-  it('rejects invocation without --json (exit 2)', async () => {
+  it('rejects invocation without --json (exit 2) in plain text on stderr', async () => {
     const { runsBase, indexDir } = writeCorpus();
-    const { code, stdout } = await run([
+    const { code, stdout, stderr } = await run([
       'pull',
       'history memory',
       '--flow',
       'explore',
       '--decision-point',
       'x',
+      '--runs-base',
+      runsBase,
+      '--index-dir',
+      indexDir,
+    ]);
+    expect(code).toBe(2);
+    expect(stdout).toBe('');
+    expect(stderr).toContain('history commands require --json');
+  });
+
+  // The other side of the split: a caller that did pass --json is parsing
+  // stdout, so its usage errors stay machine-shaped.
+  it('a usage error under --json stays an error envelope on stdout', async () => {
+    const { runsBase, indexDir } = writeCorpus();
+    const { code, stdout } = await run([
+      'pull',
+      'history memory',
+      '--json',
       '--runs-base',
       runsBase,
       '--index-dir',
