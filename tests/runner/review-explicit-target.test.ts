@@ -25,7 +25,8 @@
 // exactly as before. What changes is that it stops growing, and that it can no
 // longer pass a guess off as a fact.
 
-import { mkdirSync, readFileSync } from 'node:fs';
+import { execFileSync } from 'node:child_process';
+import { mkdirSync, readFileSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { describe, expect, it } from 'vitest';
 
@@ -427,5 +428,110 @@ describe('review --target: the prose fallback is demoted, not removed', () => {
     const kinds = intake.evidence_warnings.map((warning) => warning.kind);
     expect(kinds).toContain('target_assumed');
     expect(kinds).not.toContain('target_inferred');
+  });
+});
+
+// `--target <path>` names a place, not a Git selector.
+//
+// The grammar this flag replaces already understood places: "review src/auth"
+// scopes the read there. `--target` took only Git selectors, so the flag was
+// strictly less capable than the sentence, and naming a directory outright was
+// refused. These prove the whole path end to end: the run starts, the scope
+// reaches the intake report, and a path with nothing changed in it comes back
+// as the code as it stands rather than as an empty review.
+describe('review --target: the caller names a path', () => {
+  useReviewRunFolders();
+
+  function projectWithSubdirectory(label: string): string {
+    const projectRoot = join(reviewRunFolderBase(), label);
+    mkdirSync(join(projectRoot, 'src', 'auth'), { recursive: true });
+    mkdirSync(join(projectRoot, 'docs'), { recursive: true });
+    execFileSync('git', ['init'], { cwd: projectRoot, stdio: 'pipe' });
+    writeFileSync(join(projectRoot, 'src', 'auth', 'login.ts'), 'export const login = 1;\n');
+    writeFileSync(join(projectRoot, 'docs', 'guide.md'), '# guide\n');
+    execFileSync('git', ['add', '.'], { cwd: projectRoot, stdio: 'pipe' });
+    return projectRoot;
+  }
+
+  it('scopes the review to the named directory', async () => {
+    const { bytes } = loadFixture();
+    const runFolder = join(reviewRunFolderBase(), 'named-path');
+    const projectRoot = projectWithSubdirectory('named-path-project');
+
+    const outcome = await runCompiledFlow({
+      runDir: runFolder,
+      flowBytes: bytes,
+      runId: '79000000-0000-0000-0000-000000000401',
+      goal: 'look for problems',
+      target: 'src/auth',
+      depth: 'medium',
+      now: deterministicNow(Date.UTC(2026, 6, 25, 14, 0, 0)),
+      projectRoot,
+      relayer: stubRelayer('stub-receipt-named-path'),
+    });
+
+    expect(outcome.outcome).toBe('complete');
+    const intake = readIntake(runFolder);
+    expect(intake.target).toMatchObject({
+      kind: 'working_tree',
+      explicit: true,
+      paths: { include: ['src/auth'], exclude: [] },
+    });
+    // The caller said where. Nothing was recovered from prose, and nothing was
+    // assumed about the subject.
+    expect(intake.target_provenance).toBe('named');
+    const kinds = intake.evidence_warnings.map((warning) => warning.kind);
+    expect(kinds).not.toContain('target_inferred');
+    expect(kinds).not.toContain('target_assumed');
+  });
+
+  it('reads the code as it stands when nothing changed at the named path', async () => {
+    const { bytes } = loadFixture();
+    const runFolder = join(reviewRunFolderBase(), 'named-path-snapshot');
+    const projectRoot = projectWithSubdirectory('named-path-snapshot-project');
+    execFileSync('git', ['-c', 'user.email=t@e.st', '-c', 'user.name=t', 'commit', '-m', 'seed'], {
+      cwd: projectRoot,
+      stdio: 'pipe',
+    });
+
+    const outcome = await runCompiledFlow({
+      runDir: runFolder,
+      flowBytes: bytes,
+      runId: '79000000-0000-0000-0000-000000000402',
+      goal: 'look for problems',
+      target: 'src/auth',
+      depth: 'medium',
+      now: deterministicNow(Date.UTC(2026, 6, 25, 14, 0, 0)),
+      projectRoot,
+      relayer: stubRelayer('stub-receipt-named-path-snapshot'),
+    });
+
+    expect(outcome.outcome).toBe('complete');
+    const intake = readIntake(runFolder);
+    expect(intake.target).toMatchObject({ kind: 'snapshot', paths: { include: ['src/auth'] } });
+  });
+
+  it('still refuses a value that names nothing in the repository', async () => {
+    const { bytes } = loadFixture();
+    const runFolder = join(reviewRunFolderBase(), 'named-path-missing');
+    const projectRoot = projectWithSubdirectory('named-path-missing-project');
+
+    const outcome = await runCompiledFlow({
+      runDir: runFolder,
+      flowBytes: bytes,
+      runId: '79000000-0000-0000-0000-000000000403',
+      goal: 'look for problems',
+      target: 'src/nope',
+      depth: 'medium',
+      now: deterministicNow(Date.UTC(2026, 6, 25, 14, 0, 0)),
+      projectRoot,
+      relayer: stubRelayer('stub-receipt-named-path-missing'),
+    });
+
+    expect(outcome.outcome).toBe('aborted');
+    // The refusal names the value that failed and what would have worked,
+    // including the path form, so the next attempt is one edit away.
+    expect(outcome.reason).toContain('does not know the target "src/nope"');
+    expect(outcome.reason).toContain('a path in this repository');
   });
 });

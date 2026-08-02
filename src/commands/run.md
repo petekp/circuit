@@ -61,9 +61,10 @@ metacharacters:
    A named plan or report file is not readable unless its contents are part of
    the selected Git target. A file path by itself is not review evidence.
    Otherwise, include the plan or report's actual text in the task.
-   Keep a requested file or directory subset or path exclusion in the task text.
-   Circuit reads it as a path scope, reviews only those paths, and names the
-   scope in the report; removing it would review more than was asked for.
+   Name a requested file or directory subset in `--target`, and keep a path
+   exclusion in the task text. Circuit reads either as a path scope, reviews
+   only those paths, and names the scope in the report; dropping it would
+   review more than was asked for.
    A Review task that names a path with nothing changed reviews the current
    contents of the tracked files there instead of a diff, and the report says
    which one the findings are about. Keep phrasing like "as it stands" or "for
@@ -93,10 +94,13 @@ metacharacters:
      indicated one.** You already understood which code they meant; pass it
      rather than leaving Circuit to recover it from the goal sentence. The
      accepted values are `working-tree`, `staged`, `unstaged`,
-     `commit:<ref>`, and a range such as `main...HEAD` or `HEAD~3..HEAD`.
+     `commit:<ref>`, a range such as `main...HEAD` or `HEAD~3..HEAD`, and a
+     path that exists in the repository such as `app/auth`.
      Map what the user said onto one of those: "my staged changes" is
      `staged`, "this branch against main" is `main...HEAD`, "the last three
-     commits" is `HEAD~3..HEAD`, "what I just committed" is `commit:HEAD`.
+     commits" is `HEAD~3..HEAD`, "what I just committed" is `commit:HEAD`,
+     "the auth code" is `app/auth`. A path reviews the changes there and
+     falls back to the current contents when nothing has changed there.
      **If the user did not indicate a target, omit the flag.** Circuit falls
      back to reading the goal text and reports that it did so. A target you
      invented is worse than one Circuit admits it guessed, because the report

@@ -115,6 +115,12 @@ const ALLOWED_TEST_INTERNAL_FLOW_IMPORTS = new Set([
   'tests/unit/review-diff-ranking.test.ts -> src/flows/review/writers/diff-ranking.ts',
   'tests/unit/review-diff-ranking.test.ts -> src/flows/review/writers/snapshot-ranking.ts',
   'tests/runner/review-diff-priority.test.ts -> src/flows/review/writers/intake.ts',
+  // `--target <path>`. The unit under test is the target parser itself: it
+  // decides whether a value names a place in the project, which is a question
+  // about paths on disk and containment, not about anything a flow's index
+  // exposes. Proving it through a run would prove only that one accepted value
+  // works, and the refusals are the half that matters.
+  'tests/unit/review-explicit-path-target.test.ts -> src/flows/review/writers/intake.ts',
   // Sweep's oracle executor. The test proves the oracle goes through
   // runProofPlanCommand and gets its rules (env allowlist, realpath cwd
   // containment, the declared output budget). That is a property of the

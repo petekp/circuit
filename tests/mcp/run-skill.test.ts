@@ -83,12 +83,12 @@ describe('Codex MCP Run skill', () => {
     );
     expect(compactSkill).toContain('Treat that selected target as the only code under review');
     expect(compactSkill).toContain(
-      'If the request narrows the target to a file or directory, or excludes paths, keep that wording in the goal',
+      'If the request narrows the target to a file or directory, name that path in `target`. If it excludes paths, keep that wording in the goal',
     );
     expect(compactSkill).toContain('Circuit cannot fetch a pull request');
     expect(compactSkill).not.toContain('may inspect nearby repository files');
     expect(readRepoFile(CLI_RUN_SOURCE).replace(/\s+/g, ' ')).toContain(
-      'Keep a requested file or directory subset or path exclusion in the task text',
+      'Name a requested file or directory subset in `--target`, and keep a path exclusion in the task text',
     );
     expect(compactSkill).toContain(
       'This includes starting, reconnecting, listing, reading progress, handling checkpoints, cancelling, recovering, and releasing the workspace.',

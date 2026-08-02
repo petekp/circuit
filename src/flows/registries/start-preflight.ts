@@ -17,11 +17,22 @@
 // target Review can serve, and the words are only how the caller described it.
 import { parseExplicitReviewTarget, parseReviewTarget } from '../review/writers/intake.js';
 
-export function validateFlowStartTarget(flowId: string, goal: string, target?: string): void {
+export function validateFlowStartTarget(
+  flowId: string,
+  goal: string,
+  target?: string,
+  // The project the run is about. A named target can be a path in it, so the
+  // gate needs the same root the intake writer will read from, or it would
+  // refuse a path the writer would have served.
+  projectRoot?: string,
+): void {
   if (flowId !== 'review') return;
   // Explicit but malformed still fails closed. The caller stated a target and
   // got it wrong, and guessing past that would review something they did not
   // ask for.
-  const parsed = target === undefined ? parseReviewTarget(goal) : parseExplicitReviewTarget(target);
+  const parsed =
+    target === undefined
+      ? parseReviewTarget(goal)
+      : parseExplicitReviewTarget(target, projectRoot === undefined ? {} : { projectRoot });
   if (!parsed.ok) throw new Error(parsed.reason);
 }

@@ -1899,7 +1899,7 @@ export async function runExecutionCommand(
   // through because it wins outright downstream; withholding it here would
   // refuse goals whose wording the flow never reads.
   try {
-    validateFlowStartTarget(flow.id, operatorGoal, runArgs.target);
+    validateFlowStartTarget(flow.id, operatorGoal, runArgs.target, projectRoot);
   } catch (err) {
     process.stderr.write(`error: ${(err as Error).message}\n`);
     return 2;

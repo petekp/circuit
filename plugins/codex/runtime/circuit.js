@@ -87576,7 +87576,28 @@ function parseReviewTarget(scope) {
     snapshotFallback: scoped.paths
   });
 }
-function parseExplicitReviewTarget(value) {
+function explicitTargetPath(value, projectRoot) {
+  if (projectRoot === void 0)
+    return void 0;
+  const trimmed = value.trim().replace(/^\.\//u, "").replace(/\/+$/u, "");
+  const candidate = trimmed.length === 0 ? "." : trimmed;
+  if (candidate !== "." && scopePathFromToken(candidate) !== candidate)
+    return void 0;
+  const abs = resolve15(projectRoot, candidate);
+  if (!insideProject(projectRoot, abs))
+    return void 0;
+  try {
+    const stat3 = lstatSync6(abs);
+    if (!stat3.isDirectory() && !stat3.isFile())
+      return void 0;
+    if (!insideProject(realpathSync6(projectRoot), realpathSync6(abs)))
+      return void 0;
+  } catch {
+    return void 0;
+  }
+  return candidate;
+}
+function parseExplicitReviewTarget(value, options = {}) {
   const named = value.trim();
   if (named.length === 0) {
     return { ok: false, reason: `--target was empty. Name one of: ${EXPLICIT_TARGET_VOCABULARY}.` };
@@ -87618,6 +87639,15 @@ function parseExplicitReviewTarget(value) {
     if (!isSafeReviewRef(head))
       return { ok: false, reason: unsafeRefReason(head) };
     return { ok: true, target: { kind: "range", base, head, dots } };
+  }
+  const path = explicitTargetPath(named, options.projectRoot);
+  if (path !== void 0) {
+    const paths = { include: [path], exclude: [] };
+    return {
+      ok: true,
+      target: withPathScope({ kind: "working_tree", mode: "all", explicit: true }, paths),
+      snapshotFallback: paths
+    };
   }
   return {
     ok: false,
@@ -88363,13 +88393,13 @@ var init_intake2 = __esm({
       "(?<path>\\S+)(?<suffix>[\\s\\S]*)$"
     ].join(""), "iu");
     PATH_ONLY_SUFFIX_PATTERN = /^(?:,?\s*(?:for|with|especially)\b|,?\s+and\s+(?:focus|check|inspect|look|pay|prioritize|verify)\b|,?\s*as[-\s](?:it|they)\s+stands?\b|,?\s*as[-\s]is\b)/iu;
-    EXPLICIT_TARGET_VOCABULARY = "working-tree, staged, unstaged, commit:<ref>, or a range such as main...HEAD or HEAD~3..HEAD";
+    EXPLICIT_TARGET_VOCABULARY = "working-tree, staged, unstaged, commit:<ref>, a range such as main...HEAD or HEAD~3..HEAD, or a path in this repository such as src/auth";
     MAX_GITATTRIBUTES_CHARS = 64e3;
     reviewIntakeComposeBuilder = {
       resultSchemaName: "review.intake@v1",
       async build(context) {
         const named = context.target;
-        const parsedTarget = named === void 0 ? parseReviewTarget(context.goal) : parseExplicitReviewTarget(named);
+        const parsedTarget = named === void 0 ? parseReviewTarget(context.goal) : parseExplicitReviewTarget(named, context.projectRoot === void 0 ? {} : { projectRoot: context.projectRoot });
         if (!parsedTarget.ok)
           throw new Error(parsedTarget.reason);
         const targetProvenance = named !== void 0 || parsedTarget.target.kind === "goal" ? "named" : "inferred";
@@ -114817,10 +114847,10 @@ var init_autonomous_run = __esm({
 });
 
 // dist/flows/registries/start-preflight.js
-function validateFlowStartTarget(flowId, goal, target) {
+function validateFlowStartTarget(flowId, goal, target, projectRoot) {
   if (flowId !== "review")
     return;
-  const parsed = target === void 0 ? parseReviewTarget(goal) : parseExplicitReviewTarget(target);
+  const parsed = target === void 0 ? parseReviewTarget(goal) : parseExplicitReviewTarget(target, projectRoot === void 0 ? {} : { projectRoot });
   if (!parsed.ok)
     throw new Error(parsed.reason);
 }
@@ -117624,7 +117654,7 @@ async function runExecutionCommand(args, options) {
   }
   const projectRoot = resolve34(options.projectRoot ?? options.configCwd ?? process.cwd());
   try {
-    validateFlowStartTarget(flow.id, operatorGoal, runArgs.target);
+    validateFlowStartTarget(flow.id, operatorGoal, runArgs.target, projectRoot);
   } catch (err) {
     process.stderr.write(`error: ${err.message}
 `);
@@ -161133,7 +161163,7 @@ function renderRootHelp() {
 var RUN_FLAG_BLURBS = {
   "--goal": "what the run must accomplish (required)",
   "--why": "why the goal matters; extra context the run may use",
-  "--target": "what to work on, named outright; Review takes working-tree, staged, unstaged, commit:<ref>, or a range like main...HEAD",
+  "--target": "what to work on, named outright; Review takes working-tree, staged, unstaged, commit:<ref>, a range like main...HEAD, or a path like src/auth",
   "--process": "thoroughness override; normally derived from --power",
   "--power": "model dial; default medium, auto lets the run pick within configured bounds",
   "--tournament": "fan out branches and select one; optional count, default 3",

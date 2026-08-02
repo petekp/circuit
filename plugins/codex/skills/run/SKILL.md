@@ -152,11 +152,14 @@ not cover cached web search or untracked file contents.
 
 When the user asks Review to inspect a specific code target, name it in
 `target` rather than leaving it in the `goal` for Circuit to recover. Accepted
-values are `working-tree`, `staged`, `unstaged`, `commit:<ref>`, and a range
-such as `main...HEAD` or `HEAD~3..HEAD`. Map what the user said onto one of
+values are `working-tree`, `staged`, `unstaged`, `commit:<ref>`, a range
+such as `main...HEAD` or `HEAD~3..HEAD`, and a path that exists in the
+repository such as `app/auth`. Map what the user said onto one of
 those: "my staged changes" is `staged`, "this branch against main" is
 `main...HEAD`, "the last three commits" is `HEAD~3..HEAD`, "what I just
-committed" is `commit:HEAD`. Do not narrow a commit, range, or branch
+committed" is `commit:HEAD`, "the auth code" is `app/auth`. A path reviews the
+changes at that path and falls back to the current contents when nothing has
+changed there. Do not narrow a commit, range, or branch
 comparison to the working tree unless the user actually asked for staged or
 unstaged changes.
 
@@ -172,9 +175,10 @@ broaden the run to another working-tree layer, commit, or range. Review sees
 only the evidence Circuit captured for that target. It cannot inspect nearby
 repository files for extra context.
 
-If the request narrows the target to a file or directory, or excludes paths,
-keep that wording in the goal. Circuit reads it as a path scope, reviews only
-those paths, and names the scope in the report. Do not widen the request to a
+If the request narrows the target to a file or directory, name that path in
+`target`. If it excludes paths, keep that wording in the goal. Circuit reads
+either as a path scope, reviews only those paths, and names the scope in the
+report. Do not widen the request to a
 complete target, and do not drop the narrowing because it looks like a detail.
 
 A named plan or report file is not readable unless its contents are part of the

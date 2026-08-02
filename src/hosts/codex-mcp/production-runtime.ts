@@ -383,12 +383,20 @@ export function createProductionLaunchPreflight(
         // the worker's answer: it reads the evidence once, and an unreadable or
         // empty target aborts the run before any model is paid.
         try {
-          validateFlowStartTarget(input.request.flow, input.request.goal, input.request.target);
+          validateFlowStartTarget(
+            input.request.flow,
+            input.request.goal,
+            input.request.target,
+            // The workspace identity the host handed us, never process.cwd():
+            // a named target can be a path in the project, and the path has to
+            // be checked against the project the host says this run is about.
+            input.workspace.canonical_path,
+          );
         } catch (error) {
           throw new McpLifecycleError(
             'invalid_review_target',
             (error as Error).message,
-            'Name one target: the working tree, the staged set, the unstaged set, a commit, or a range. Narrow it with paths if you want. To review a plan or report, include its actual text.',
+            'Name one target: the working tree, the staged set, the unstaged set, a commit, a range, or a path in the repository. Narrow it with paths if you want. To review a plan or report, include its actual text.',
           );
         }
       } finally {

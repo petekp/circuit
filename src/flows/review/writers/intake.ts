@@ -1390,7 +1390,54 @@ export function parseReviewTarget(scope: string): ReviewTargetParseResult {
  * worked just moves the guessing from the engine to the operator.
  */
 const EXPLICIT_TARGET_VOCABULARY =
-  'working-tree, staged, unstaged, commit:<ref>, or a range such as main...HEAD or HEAD~3..HEAD';
+  'working-tree, staged, unstaged, commit:<ref>, a range such as main...HEAD or HEAD~3..HEAD, or a path in this repository such as src/auth';
+
+/**
+ * A path in the project, named outright as the target.
+ *
+ * The prose grammar has always understood places — "review src/auth" scopes
+ * the read to that directory — while `--target` understood only Git
+ * selectors. That made the flag built to replace the grammar strictly less
+ * capable than the grammar, and `--target src/auth` was refused outright.
+ *
+ * A bare token is never a ref here: refs are spelled `commit:<ref>`, and both
+ * range forms carry dots. So an existing path is unambiguous, and the closed
+ * keyword vocabulary is still checked first, which keeps `--target staged`
+ * meaning the staged changes in a repository that also has a `staged/`
+ * directory.
+ *
+ * Existence is the whole test. Anything that is not a real path comes back
+ * undefined and is refused by name, because a caller who stated an intent and
+ * got it wrong is better served by a rejection than by a review of something
+ * adjacent to what they asked for.
+ */
+function explicitTargetPath(value: string, projectRoot: string | undefined): string | undefined {
+  if (projectRoot === undefined) return undefined;
+  // `./src/auth`, `src/auth/`, and `src/auth` name one place. Normalize to the
+  // stored form so the report, the pathspec, and the operator's word agree.
+  // `.` survives: it is the repository root, which is a legitimate subject.
+  const trimmed = value.trim().replace(/^\.\//u, '').replace(/\/+$/u, '');
+  const candidate = trimmed.length === 0 ? '.' : trimmed;
+  if (candidate !== '.' && scopePathFromToken(candidate) !== candidate) return undefined;
+  const abs = resolve(projectRoot, candidate);
+  // Lexical containment first, so an obvious `../..` never reaches the disk.
+  if (!insideProject(projectRoot, abs)) return undefined;
+  try {
+    // lstat, not stat: the named thing itself must not be a symbolic link.
+    const stat = lstatSync(abs);
+    if (!stat.isDirectory() && !stat.isFile()) return undefined;
+    // Then again on the canonical path. `resolve` is lexical, so the check
+    // above passes for `linked/secret.txt` where `linked` is a symlink out of
+    // the project — the last component is a regular file and nothing lexical
+    // says otherwise. Comparing realpaths on both sides closes that, and
+    // canonicalizing the root too keeps a project reached through a symlink
+    // (macOS /tmp is /private/tmp) from refusing every path in itself.
+    if (!insideProject(realpathSync(projectRoot), realpathSync(abs))) return undefined;
+  } catch {
+    return undefined;
+  }
+  return candidate;
+}
 
 /**
  * Read a target the caller named outright, rather than one recovered from the
@@ -1403,8 +1450,15 @@ const EXPLICIT_TARGET_VOCABULARY =
  * the caller stated an intent, so quietly reviewing something adjacent to it is
  * strictly worse than saying the value was not understood. Nothing here strips
  * punctuation, skips filler words, or falls back.
+ *
+ * `projectRoot` enables the path form. Without one there is nothing to check a
+ * path against, so the closed Git vocabulary is all that is left; every caller
+ * that has a root passes it.
  */
-export function parseExplicitReviewTarget(value: string): ReviewTargetParseResult {
+export function parseExplicitReviewTarget(
+  value: string,
+  options: { readonly projectRoot?: string } = {},
+): ReviewTargetParseResult {
   const named = value.trim();
   if (named.length === 0) {
     return { ok: false, reason: `--target was empty. Name one of: ${EXPLICIT_TARGET_VOCABULARY}.` };
@@ -1453,6 +1507,20 @@ export function parseExplicitReviewTarget(value: string): ReviewTargetParseResul
     if (!isSafeReviewRef(base)) return { ok: false, reason: unsafeRefReason(base) };
     if (!isSafeReviewRef(head)) return { ok: false, reason: unsafeRefReason(head) };
     return { ok: true, target: { kind: 'range', base, head, dots } };
+  }
+
+  // A place in the repository, not a selector over its history. Same meaning
+  // the prose grammar gives "review src/auth": the changes there, falling back
+  // to the code as it stands when nothing has changed there. Coming back empty
+  // on a clean tree would answer a question nobody asked.
+  const path = explicitTargetPath(named, options.projectRoot);
+  if (path !== undefined) {
+    const paths: ReviewPathScope = { include: [path], exclude: [] };
+    return {
+      ok: true,
+      target: withPathScope({ kind: 'working_tree', mode: 'all', explicit: true }, paths),
+      snapshotFallback: paths,
+    };
   }
 
   return {
@@ -2551,7 +2619,12 @@ export const reviewIntakeComposeBuilder: ComposeBuilder = {
     // leave the guess in charge, which is the whole problem.
     const named = context.target;
     const parsedTarget =
-      named === undefined ? parseReviewTarget(context.goal) : parseExplicitReviewTarget(named);
+      named === undefined
+        ? parseReviewTarget(context.goal)
+        : parseExplicitReviewTarget(
+            named,
+            context.projectRoot === undefined ? {} : { projectRoot: context.projectRoot },
+          );
     if (!parsedTarget.ok) throw new Error(parsedTarget.reason);
     // Supplied material counts as named. The question this field answers is
     // whether the caller decided what Review would look at or Review decided

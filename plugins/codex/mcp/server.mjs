@@ -409,11 +409,11 @@ var require_codegen = __commonJS({
         const rhs = this.rhs === void 0 ? "" : ` = ${this.rhs}`;
         return `${varKind} ${this.name}${rhs};` + _n;
       }
-      optimizeNames(names, constants12) {
+      optimizeNames(names, constants13) {
         if (!names[this.name.str])
           return;
         if (this.rhs)
-          this.rhs = optimizeExpr(this.rhs, names, constants12);
+          this.rhs = optimizeExpr(this.rhs, names, constants13);
         return this;
       }
       get names() {
@@ -430,10 +430,10 @@ var require_codegen = __commonJS({
       render({ _n }) {
         return `${this.lhs} = ${this.rhs};` + _n;
       }
-      optimizeNames(names, constants12) {
+      optimizeNames(names, constants13) {
         if (this.lhs instanceof code_1.Name && !names[this.lhs.str] && !this.sideEffects)
           return;
-        this.rhs = optimizeExpr(this.rhs, names, constants12);
+        this.rhs = optimizeExpr(this.rhs, names, constants13);
         return this;
       }
       get names() {
@@ -494,8 +494,8 @@ var require_codegen = __commonJS({
       optimizeNodes() {
         return `${this.code}` ? this : void 0;
       }
-      optimizeNames(names, constants12) {
-        this.code = optimizeExpr(this.code, names, constants12);
+      optimizeNames(names, constants13) {
+        this.code = optimizeExpr(this.code, names, constants13);
         return this;
       }
       get names() {
@@ -524,12 +524,12 @@ var require_codegen = __commonJS({
         }
         return nodes.length > 0 ? this : void 0;
       }
-      optimizeNames(names, constants12) {
+      optimizeNames(names, constants13) {
         const { nodes } = this;
         let i = nodes.length;
         while (i--) {
           const n = nodes[i];
-          if (n.optimizeNames(names, constants12))
+          if (n.optimizeNames(names, constants13))
             continue;
           subtractNames(names, n.names);
           nodes.splice(i, 1);
@@ -582,12 +582,12 @@ var require_codegen = __commonJS({
           return void 0;
         return this;
       }
-      optimizeNames(names, constants12) {
+      optimizeNames(names, constants13) {
         var _a3;
-        this.else = (_a3 = this.else) === null || _a3 === void 0 ? void 0 : _a3.optimizeNames(names, constants12);
-        if (!(super.optimizeNames(names, constants12) || this.else))
+        this.else = (_a3 = this.else) === null || _a3 === void 0 ? void 0 : _a3.optimizeNames(names, constants13);
+        if (!(super.optimizeNames(names, constants13) || this.else))
           return;
-        this.condition = optimizeExpr(this.condition, names, constants12);
+        this.condition = optimizeExpr(this.condition, names, constants13);
         return this;
       }
       get names() {
@@ -610,10 +610,10 @@ var require_codegen = __commonJS({
       render(opts) {
         return `for(${this.iteration})` + super.render(opts);
       }
-      optimizeNames(names, constants12) {
-        if (!super.optimizeNames(names, constants12))
+      optimizeNames(names, constants13) {
+        if (!super.optimizeNames(names, constants13))
           return;
-        this.iteration = optimizeExpr(this.iteration, names, constants12);
+        this.iteration = optimizeExpr(this.iteration, names, constants13);
         return this;
       }
       get names() {
@@ -649,10 +649,10 @@ var require_codegen = __commonJS({
       render(opts) {
         return `for(${this.varKind} ${this.name} ${this.loop} ${this.iterable})` + super.render(opts);
       }
-      optimizeNames(names, constants12) {
-        if (!super.optimizeNames(names, constants12))
+      optimizeNames(names, constants13) {
+        if (!super.optimizeNames(names, constants13))
           return;
-        this.iterable = optimizeExpr(this.iterable, names, constants12);
+        this.iterable = optimizeExpr(this.iterable, names, constants13);
         return this;
       }
       get names() {
@@ -694,11 +694,11 @@ var require_codegen = __commonJS({
         (_b = this.finally) === null || _b === void 0 ? void 0 : _b.optimizeNodes();
         return this;
       }
-      optimizeNames(names, constants12) {
+      optimizeNames(names, constants13) {
         var _a3, _b;
-        super.optimizeNames(names, constants12);
-        (_a3 = this.catch) === null || _a3 === void 0 ? void 0 : _a3.optimizeNames(names, constants12);
-        (_b = this.finally) === null || _b === void 0 ? void 0 : _b.optimizeNames(names, constants12);
+        super.optimizeNames(names, constants13);
+        (_a3 = this.catch) === null || _a3 === void 0 ? void 0 : _a3.optimizeNames(names, constants13);
+        (_b = this.finally) === null || _b === void 0 ? void 0 : _b.optimizeNames(names, constants13);
         return this;
       }
       get names() {
@@ -999,7 +999,7 @@ var require_codegen = __commonJS({
     function addExprNames(names, from) {
       return from instanceof code_1._CodeOrName ? addNames(names, from.names) : names;
     }
-    function optimizeExpr(expr, names, constants12) {
+    function optimizeExpr(expr, names, constants13) {
       if (expr instanceof code_1.Name)
         return replaceName(expr);
       if (!canOptimize(expr))
@@ -1014,14 +1014,14 @@ var require_codegen = __commonJS({
         return items;
       }, []));
       function replaceName(n) {
-        const c = constants12[n.str];
+        const c = constants13[n.str];
         if (c === void 0 || names[n.str] !== 1)
           return n;
         delete names[n.str];
         return c;
       }
       function canOptimize(e) {
-        return e instanceof code_1._Code && e._items.some((c) => c instanceof code_1.Name && names[c.str] === 1 && constants12[c.str] !== void 0);
+        return e instanceof code_1._Code && e._items.some((c) => c instanceof code_1.Name && names[c.str] === 1 && constants13[c.str] !== void 0);
       }
     }
     function subtractNames(names, from) {
@@ -2983,7 +2983,7 @@ var require_compile = __commonJS({
       const schOrFunc = root.refs[ref];
       if (schOrFunc)
         return schOrFunc;
-      let _sch = resolve13.call(this, root, ref);
+      let _sch = resolve14.call(this, root, ref);
       if (_sch === void 0) {
         const schema = (_a3 = root.localRefs) === null || _a3 === void 0 ? void 0 : _a3[ref];
         const { schemaId } = this.opts;
@@ -3010,7 +3010,7 @@ var require_compile = __commonJS({
     function sameSchemaEnv(s1, s2) {
       return s1.schema === s2.schema && s1.root === s2.root && s1.baseId === s2.baseId;
     }
-    function resolve13(root, ref) {
+    function resolve14(root, ref) {
       let sch;
       while (typeof (sch = this.refs[ref]) == "string")
         ref = sch;
@@ -3641,55 +3641,55 @@ var require_fast_uri = __commonJS({
       }
       return uri;
     }
-    function resolve13(baseURI, relativeURI, options) {
+    function resolve14(baseURI, relativeURI, options) {
       const schemelessOptions = options ? Object.assign({ scheme: "null" }, options) : { scheme: "null" };
       const resolved = resolveComponent(parse3(baseURI, schemelessOptions), parse3(relativeURI, schemelessOptions), schemelessOptions, true);
       schemelessOptions.skipEscape = true;
       return serialize(resolved, schemelessOptions);
     }
-    function resolveComponent(base, relative7, options, skipNormalization) {
+    function resolveComponent(base, relative8, options, skipNormalization) {
       const target = {};
       if (!skipNormalization) {
         base = parse3(serialize(base, options), options);
-        relative7 = parse3(serialize(relative7, options), options);
+        relative8 = parse3(serialize(relative8, options), options);
       }
       options = options || {};
-      if (!options.tolerant && relative7.scheme) {
-        target.scheme = relative7.scheme;
-        target.userinfo = relative7.userinfo;
-        target.host = relative7.host;
-        target.port = relative7.port;
-        target.path = removeDotSegments(relative7.path || "");
-        target.query = relative7.query;
+      if (!options.tolerant && relative8.scheme) {
+        target.scheme = relative8.scheme;
+        target.userinfo = relative8.userinfo;
+        target.host = relative8.host;
+        target.port = relative8.port;
+        target.path = removeDotSegments(relative8.path || "");
+        target.query = relative8.query;
       } else {
-        if (relative7.userinfo !== void 0 || relative7.host !== void 0 || relative7.port !== void 0) {
-          target.userinfo = relative7.userinfo;
-          target.host = relative7.host;
-          target.port = relative7.port;
-          target.path = removeDotSegments(relative7.path || "");
-          target.query = relative7.query;
+        if (relative8.userinfo !== void 0 || relative8.host !== void 0 || relative8.port !== void 0) {
+          target.userinfo = relative8.userinfo;
+          target.host = relative8.host;
+          target.port = relative8.port;
+          target.path = removeDotSegments(relative8.path || "");
+          target.query = relative8.query;
         } else {
-          if (!relative7.path) {
+          if (!relative8.path) {
             target.path = base.path;
-            if (relative7.query !== void 0) {
-              target.query = relative7.query;
+            if (relative8.query !== void 0) {
+              target.query = relative8.query;
             } else {
               target.query = base.query;
             }
           } else {
-            if (relative7.path[0] === "/") {
-              target.path = removeDotSegments(relative7.path);
+            if (relative8.path[0] === "/") {
+              target.path = removeDotSegments(relative8.path);
             } else {
               if ((base.userinfo !== void 0 || base.host !== void 0 || base.port !== void 0) && !base.path) {
-                target.path = "/" + relative7.path;
+                target.path = "/" + relative8.path;
               } else if (!base.path) {
-                target.path = relative7.path;
+                target.path = relative8.path;
               } else {
-                target.path = base.path.slice(0, base.path.lastIndexOf("/") + 1) + relative7.path;
+                target.path = base.path.slice(0, base.path.lastIndexOf("/") + 1) + relative8.path;
               }
               target.path = removeDotSegments(target.path);
             }
-            target.query = relative7.query;
+            target.query = relative8.query;
           }
           target.userinfo = base.userinfo;
           target.host = base.host;
@@ -3697,7 +3697,7 @@ var require_fast_uri = __commonJS({
         }
         target.scheme = base.scheme;
       }
-      target.fragment = relative7.fragment;
+      target.fragment = relative8.fragment;
       return target;
     }
     function equal(uriA, uriB, options) {
@@ -3905,7 +3905,7 @@ var require_fast_uri = __commonJS({
     var fastUri = {
       SCHEMES,
       normalize: normalize2,
-      resolve: resolve13,
+      resolve: resolve14,
       resolveComponent,
       equal,
       serialize,
@@ -6896,7 +6896,7 @@ var require_dist = __commonJS({
 
 // src/hosts/codex-mcp/entrypoint.ts
 import { realpath as realpath8 } from "node:fs/promises";
-import { dirname as dirname8, resolve as resolve12 } from "node:path";
+import { dirname as dirname9, resolve as resolve13 } from "node:path";
 import { fileURLToPath as fileURLToPath3 } from "node:url";
 
 // node_modules/@modelcontextprotocol/sdk/dist/esm/server/stdio.js
@@ -23025,12 +23025,12 @@ var StdioServerTransport = class {
     this.onclose?.();
   }
   send(message) {
-    return new Promise((resolve13) => {
+    return new Promise((resolve14) => {
       const json2 = serializeMessage(message);
       if (this._stdout.write(json2)) {
-        resolve13();
+        resolve14();
       } else {
-        this._stdout.once("drain", resolve13);
+        this._stdout.once("drain", resolve14);
       }
     });
   }
@@ -23040,7 +23040,19 @@ var StdioServerTransport = class {
 import { randomUUID as randomUUID5 } from "node:crypto";
 import { lstat as lstat5, mkdir as mkdir2, realpath as realpath7, rm as rm2, stat as stat3 } from "node:fs/promises";
 import { tmpdir as tmpdir2 } from "node:os";
-import { isAbsolute as isAbsolute14, join as join15, relative as relative6, resolve as resolve11 } from "node:path";
+import { isAbsolute as isAbsolute15, join as join16, relative as relative7, resolve as resolve12 } from "node:path";
+
+// src/flows/review/writers/intake.ts
+import {
+  constants,
+  closeSync,
+  fstatSync,
+  lstatSync,
+  openSync,
+  readSync,
+  realpathSync
+} from "node:fs";
+import { dirname, isAbsolute, join, relative, resolve, sep } from "node:path";
 
 // src/shared/runtime-git-reader.ts
 var RUNTIME_GIT_HARDENED_CONFIG = Object.freeze([
@@ -23875,8 +23887,24 @@ function parseReviewTarget(scope) {
     snapshotFallback: scoped.paths
   });
 }
-var EXPLICIT_TARGET_VOCABULARY = "working-tree, staged, unstaged, commit:<ref>, or a range such as main...HEAD or HEAD~3..HEAD";
-function parseExplicitReviewTarget(value) {
+var EXPLICIT_TARGET_VOCABULARY = "working-tree, staged, unstaged, commit:<ref>, a range such as main...HEAD or HEAD~3..HEAD, or a path in this repository such as src/auth";
+function explicitTargetPath(value, projectRoot) {
+  if (projectRoot === void 0) return void 0;
+  const trimmed = value.trim().replace(/^\.\//u, "").replace(/\/+$/u, "");
+  const candidate2 = trimmed.length === 0 ? "." : trimmed;
+  if (candidate2 !== "." && scopePathFromToken(candidate2) !== candidate2) return void 0;
+  const abs = resolve(projectRoot, candidate2);
+  if (!insideProject(projectRoot, abs)) return void 0;
+  try {
+    const stat4 = lstatSync(abs);
+    if (!stat4.isDirectory() && !stat4.isFile()) return void 0;
+    if (!insideProject(realpathSync(projectRoot), realpathSync(abs))) return void 0;
+  } catch {
+    return void 0;
+  }
+  return candidate2;
+}
+function parseExplicitReviewTarget(value, options = {}) {
   const named = value.trim();
   if (named.length === 0) {
     return { ok: false, reason: `--target was empty. Name one of: ${EXPLICIT_TARGET_VOCABULARY}.` };
@@ -23917,6 +23945,15 @@ function parseExplicitReviewTarget(value) {
     if (!isSafeReviewRef(head)) return { ok: false, reason: unsafeRefReason(head) };
     return { ok: true, target: { kind: "range", base, head, dots } };
   }
+  const path = explicitTargetPath(named, options.projectRoot);
+  if (path !== void 0) {
+    const paths = { include: [path], exclude: [] };
+    return {
+      ok: true,
+      target: withPathScope({ kind: "working_tree", mode: "all", explicit: true }, paths),
+      snapshotFallback: paths
+    };
+  }
   return {
     ok: false,
     reason: `Review does not know the target "${named}". Name one of: ${EXPLICIT_TARGET_VOCABULARY}.`
@@ -23925,11 +23962,15 @@ function parseExplicitReviewTarget(value) {
 function unsafeRefReason(ref) {
   return `--target named the ref "${ref}", which Review will not hand to Git. A ref may not start with a dash, contain '..' inside a single end, or use '@{'. Name one of: ${EXPLICIT_TARGET_VOCABULARY}.`;
 }
+function insideProject(projectRoot, path) {
+  const rel = relative(projectRoot, path);
+  return rel === "" || rel !== ".." && !rel.startsWith(`..${sep}`) && !isAbsolute(rel);
+}
 
 // src/flows/registries/start-preflight.ts
-function validateFlowStartTarget(flowId, goal, target) {
+function validateFlowStartTarget(flowId, goal, target, projectRoot) {
   if (flowId !== "review") return;
-  const parsed = target === void 0 ? parseReviewTarget(goal) : parseExplicitReviewTarget(target);
+  const parsed = target === void 0 ? parseReviewTarget(goal) : parseExplicitReviewTarget(target, projectRoot === void 0 ? {} : { projectRoot });
   if (!parsed.ok) throw new Error(parsed.reason);
 }
 
@@ -23937,12 +23978,12 @@ function validateFlowStartTarget(flowId, goal, target) {
 import { createHash } from "node:crypto";
 import { createReadStream } from "node:fs";
 import { realpath, stat } from "node:fs/promises";
-import { isAbsolute } from "node:path";
+import { isAbsolute as isAbsolute2 } from "node:path";
 var MAX_ASSET_BYTES = 512 * 1024 * 1024;
 var SHA256_PATTERN = /^[a-f0-9]{64}$/;
 var FLOW_ID_PATTERN = /^[a-z0-9][a-z0-9-]{0,63}$/;
 var RUNTIME_ID_PATTERN = /^[a-z][a-z0-9_-]{0,63}$/;
-var AbsolutePath = external_exports.string().min(1).max(8192).refine(isAbsolute, "must be an absolute path");
+var AbsolutePath = external_exports.string().min(1).max(8192).refine(isAbsolute2, "must be an absolute path");
 var Sha256 = external_exports.string().regex(SHA256_PATTERN);
 var McpRuntimeAssetPinV1 = external_exports.object({
   id: external_exports.string().min(1).max(128),
@@ -23991,7 +24032,7 @@ function pinDigest(assets) {
   return createHash("sha256").update(JSON.stringify(projection)).digest("hex");
 }
 async function pinOne(input) {
-  if (!isAbsolute(input.path)) throw new Error(`${input.id} asset path must be absolute`);
+  if (!isAbsolute2(input.path)) throw new Error(`${input.id} asset path must be absolute`);
   let resolved;
   try {
     resolved = await realpath(input.path);
@@ -24094,7 +24135,7 @@ async function pinMcpRuntimeAssetsSettled(paths, options) {
       return await pin(paths);
     } catch (error51) {
       if (attempt >= attempts || !transientPinFailure(error51)) throw error51;
-      await new Promise((resolve13) => setTimeout(resolve13, delayMs));
+      await new Promise((resolve14) => setTimeout(resolve14, delayMs));
     }
   }
 }
@@ -24133,7 +24174,7 @@ async function verifyMcpRuntimeAsset(expected) {
 }
 
 // src/hosts/codex-mcp/codex-model-roster.ts
-import { constants, closeSync, fstatSync, openSync, readFileSync } from "node:fs";
+import { constants as constants2, closeSync as closeSync2, fstatSync as fstatSync2, openSync as openSync2, readFileSync } from "node:fs";
 var MAX_MODELS_CACHE_BYTES = 4 * 1024 * 1024;
 var MODEL_NAME = /^[A-Za-z0-9][A-Za-z0-9._@/-]{0,127}$/;
 var PUBLIC_EFFORTS = ["low", "medium", "high", "xhigh"];
@@ -24223,14 +24264,14 @@ function validateCachedSearchModels(input, roster) {
 function loadCodexModelRoster(cachePath) {
   let fd;
   try {
-    fd = openSync(cachePath, constants.O_RDONLY | constants.O_NOFOLLOW);
-    const before = fstatSync(fd);
+    fd = openSync2(cachePath, constants2.O_RDONLY | constants2.O_NOFOLLOW);
+    const before = fstatSync2(fd);
     if (!before.isFile()) throw new Error("model cache is not a regular file");
     if (before.size === 0 || before.size > MAX_MODELS_CACHE_BYTES) {
       throw new Error("model cache is empty or too large");
     }
     const raw = readFileSync(fd, "utf8");
-    const after = fstatSync(fd);
+    const after = fstatSync2(fd);
     if (before.dev !== after.dev || before.ino !== after.ino || before.size !== after.size || before.mtimeMs !== after.mtimeMs || before.ctimeMs !== after.ctimeMs) {
       throw new Error("model cache changed while Circuit read it");
     }
@@ -24240,7 +24281,7 @@ function loadCodexModelRoster(cachePath) {
     const message = error51 instanceof Error ? error51.message : String(error51);
     throw new CodexModelRosterError(`Circuit could not read the Codex model list: ${message}`);
   } finally {
-    if (fd !== void 0) closeSync(fd);
+    if (fd !== void 0) closeSync2(fd);
   }
 }
 function validatePrototypeVariantModels(variants, roster) {
@@ -24265,9 +24306,9 @@ function validatePrototypeVariantModels(variants, roster) {
 
 // src/hosts/codex-mcp/final-report-reader.ts
 import { createHash as createHash2 } from "node:crypto";
-import { constants as constants2 } from "node:fs";
+import { constants as constants3 } from "node:fs";
 import { lstat, open, realpath as realpath2 } from "node:fs/promises";
-import { isAbsolute as isAbsolute2, join, resolve } from "node:path";
+import { isAbsolute as isAbsolute3, join as join2, resolve as resolve2 } from "node:path";
 var MAX_REPORT_BYTES = 262144;
 var FinalReportReaderError = class extends Error {
   code;
@@ -24293,7 +24334,7 @@ function sameIdentity(left, right) {
   return left.device === right.device && left.inode === right.inode && left.size === right.size && left.modified === right.modified && left.changed === right.changed && left.links === right.links;
 }
 function pathSegments(path) {
-  if (path.length === 0 || path.length > 4096 || path.includes("\\") || path.includes("\0") || isAbsolute2(path)) {
+  if (path.length === 0 || path.length > 4096 || path.includes("\\") || path.includes("\0") || isAbsolute3(path)) {
     throw new FinalReportReaderError(
       "final_report_unsafe",
       "The saved final report path is unsafe."
@@ -24318,7 +24359,7 @@ async function trustedWorkspacePath(workspaceIdentity) {
       "The trusted Codex workspace is unavailable."
     );
   }
-  if (workspace !== resolve(workspaceIdentity.canonical_path)) {
+  if (workspace !== resolve2(workspaceIdentity.canonical_path)) {
     throw new FinalReportReaderError(
       "workspace_changed",
       "The trusted Codex workspace changed before Circuit read the report."
@@ -24346,7 +24387,7 @@ async function readVerifiedRunFile(workspace, runId, locator) {
   const directoryIdentities = [];
   let cursor = workspace;
   for (const segment of segments.slice(0, -1)) {
-    cursor = join(cursor, segment);
+    cursor = join2(cursor, segment);
     let info;
     try {
       info = await lstat(cursor, { bigint: true });
@@ -24364,7 +24405,7 @@ async function readVerifiedRunFile(workspace, runId, locator) {
     }
     directoryIdentities.push(identity(info));
   }
-  const reportPath = join(cursor, segments.at(-1) ?? "");
+  const reportPath = join2(cursor, segments.at(-1) ?? "");
   let pathInfo;
   try {
     pathInfo = await lstat(reportPath, { bigint: true });
@@ -24386,7 +24427,7 @@ async function readVerifiedRunFile(workspace, runId, locator) {
       "The saved final report size no longer matches the completed run."
     );
   }
-  const handle = await open(reportPath, constants2.O_RDONLY | constants2.O_NOFOLLOW);
+  const handle = await open(reportPath, constants3.O_RDONLY | constants3.O_NOFOLLOW);
   let bytes;
   let descriptorBefore;
   let descriptorAfter;
@@ -24404,7 +24445,7 @@ async function readVerifiedRunFile(workspace, runId, locator) {
     );
   }
   for (const [index, expected] of directoryIdentities.entries()) {
-    const path = join(workspace, ...segments.slice(0, index + 1));
+    const path = join2(workspace, ...segments.slice(0, index + 1));
     const observed = await lstat(path, { bigint: true });
     if (observed.isSymbolicLink() || !observed.isDirectory() || !sameIdentity(expected, identity(observed))) {
       throw new FinalReportReaderError(
@@ -24471,7 +24512,7 @@ var McpFinalReportReader = class {
 };
 
 // src/hosts/codex-mcp/flow-axes.ts
-import { constants as constants3, closeSync as closeSync2, fstatSync as fstatSync2, openSync as openSync2, readFileSync as readFileSync2 } from "node:fs";
+import { constants as constants4, closeSync as closeSync3, fstatSync as fstatSync3, openSync as openSync3, readFileSync as readFileSync2 } from "node:fs";
 var MAX_FLOW_FIXTURE_BYTES = 4 * 1024 * 1024;
 var PackagedFlowAxesV1 = external_exports.object({
   axes: external_exports.object({
@@ -24491,13 +24532,13 @@ var PackagedFlowAxesError = class extends Error {
 function loadPackagedFlowStartAxes(path) {
   let fd;
   try {
-    fd = openSync2(path, constants3.O_RDONLY | constants3.O_NOFOLLOW);
-    const before = fstatSync2(fd);
+    fd = openSync3(path, constants4.O_RDONLY | constants4.O_NOFOLLOW);
+    const before = fstatSync3(fd);
     if (!before.isFile() || before.size === 0 || before.size > MAX_FLOW_FIXTURE_BYTES) {
       throw new Error("the flow fixture is not a bounded regular file");
     }
     const decoded = PackagedFlowAxesV1.parse(JSON.parse(readFileSync2(fd, "utf8")));
-    const after = fstatSync2(fd);
+    const after = fstatSync3(fd);
     if (before.dev !== after.dev || before.ino !== after.ino || before.size !== after.size || before.mtimeMs !== after.mtimeMs || before.ctimeMs !== after.ctimeMs) {
       throw new Error("the flow fixture changed while Circuit read it");
     }
@@ -24513,7 +24554,7 @@ function loadPackagedFlowStartAxes(path) {
       `Circuit could not trust the packaged flow it was asked to start: ${message}`
     );
   } finally {
-    if (fd !== void 0) closeSync2(fd);
+    if (fd !== void 0) closeSync3(fd);
   }
 }
 
@@ -24521,7 +24562,7 @@ function loadPackagedFlowStartAxes(path) {
 import { spawnSync } from "node:child_process";
 import { mkdtempSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
-import { isAbsolute as isAbsolute6, join as join4 } from "node:path";
+import { isAbsolute as isAbsolute7, join as join5 } from "node:path";
 
 // src/hosts/codex-mcp/capabilities.ts
 var MINIMUM_CODEX_VERSION = "0.146.0";
@@ -24637,11 +24678,11 @@ import { randomUUID } from "node:crypto";
 import { lstat as lstat2, mkdir, realpath as realpath3, rm, symlink, writeFile } from "node:fs/promises";
 import { createServer as createHttpServer } from "node:http";
 import { createServer as createTcpServer } from "node:net";
-import { dirname as dirname2, isAbsolute as isAbsolute5, join as join3, resolve as resolve3 } from "node:path";
+import { dirname as dirname3, isAbsolute as isAbsolute6, join as join4, resolve as resolve4 } from "node:path";
 
 // src/hosts/codex-mcp/nested-codex-subprocess.ts
 import { spawn } from "node:child_process";
-import { isAbsolute as isAbsolute3 } from "node:path";
+import { isAbsolute as isAbsolute4 } from "node:path";
 import { performance } from "node:perf_hooks";
 
 // src/connectors/subprocess.ts
@@ -24694,14 +24735,14 @@ function appendCapped(current, currentBytes, chunk, maxBytes) {
   };
 }
 async function runMcpCodexSubprocess(input) {
-  if (!isAbsolute3(input.executable) || !isAbsolute3(input.cwd)) {
+  if (!isAbsolute4(input.executable) || !isAbsolute4(input.cwd)) {
     throw new ConnectorSubprocessSpawnError(
       "spawn-failed",
       "The sealed Codex executable and workspace must use absolute paths."
     );
   }
   const start = performance.now();
-  return await new Promise((resolve13, reject) => {
+  return await new Promise((resolve14, reject) => {
     let child;
     try {
       child = spawn(input.executable, [...input.args], {
@@ -24767,7 +24808,7 @@ async function runMcpCodexSubprocess(input) {
       if (settled) return;
       settled = true;
       clearAllTimers();
-      resolve13({
+      resolve14({
         stdout,
         stderr,
         stdoutCapped,
@@ -24814,8 +24855,8 @@ async function runMcpCodexSubprocess(input) {
 }
 
 // src/hosts/codex-mcp/nested-codex.ts
-import { constants as constants4, realpathSync } from "node:fs";
-import { delimiter, dirname, isAbsolute as isAbsolute4, join as join2, relative, resolve as resolve2 } from "node:path";
+import { constants as constants5, realpathSync as realpathSync2 } from "node:fs";
+import { delimiter, dirname as dirname2, isAbsolute as isAbsolute5, join as join3, relative as relative2, resolve as resolve3 } from "node:path";
 
 // src/schemas/ids.ts
 var slugPattern = /^[a-z][a-z0-9-]*$/;
@@ -26601,7 +26642,7 @@ function selectedEffort(selection) {
   return effort;
 }
 function assertPolicy(policy) {
-  if (!isAbsolute4(policy.executable) || !isAbsolute4(policy.workspace) || !isAbsolute4(policy.tempRoot) || !isAbsolute4(policy.nodeExecutable) || !isAbsolute4(policy.nodeInstallationRoot) || !isAbsolute4(policy.gitExecutable)) {
+  if (!isAbsolute5(policy.executable) || !isAbsolute5(policy.workspace) || !isAbsolute5(policy.tempRoot) || !isAbsolute5(policy.nodeExecutable) || !isAbsolute5(policy.nodeInstallationRoot) || !isAbsolute5(policy.gitExecutable)) {
     throw new Error("The sealed Codex worker paths must be absolute.");
   }
   for (const path of [
@@ -26626,12 +26667,12 @@ function tomlString(value) {
   return JSON.stringify(value).replaceAll("\u2028", "\\u2028").replaceAll("\u2029", "\\u2029");
 }
 function mcpCodexPrivateDirectories(tempRoot) {
-  if (!isAbsolute4(tempRoot) || tempRoot.includes("\0")) {
+  if (!isAbsolute5(tempRoot) || tempRoot.includes("\0")) {
     throw new Error("The private Codex run directory must be absolute.");
   }
   return Object.freeze({
-    home: join2(tempRoot, "nested-home"),
-    temp: join2(tempRoot, "nested-tmp")
+    home: join3(tempRoot, "nested-home"),
+    temp: join3(tempRoot, "nested-tmp")
   });
 }
 function nestedGitReadRoots(gitExecutable) {
@@ -26647,9 +26688,9 @@ function nestedGitReadRoots(gitExecutable) {
 function buildMcpCodexSandboxConfigArgs(policy) {
   assertPolicy(policy);
   const privateDirectories = mcpCodexPrivateDirectories(policy.tempRoot);
-  const nodeBin = dirname(policy.nodeExecutable);
-  const gitBin = dirname(policy.gitExecutable);
-  if (resolve2(dirname(nodeBin)) !== resolve2(policy.nodeInstallationRoot)) {
+  const nodeBin = dirname2(policy.nodeExecutable);
+  const gitBin = dirname2(policy.gitExecutable);
+  if (resolve3(dirname2(nodeBin)) !== resolve3(policy.nodeInstallationRoot)) {
     throw new Error("The pinned Node executable has an unreviewed installation layout.");
   }
   const shellPath = [.../* @__PURE__ */ new Set([nodeBin, gitBin, "/usr/bin", "/bin"])].join(delimiter);
@@ -26683,12 +26724,12 @@ function buildMcpCodexArgs(input, policy, schemaPath, workingDirectory = policy.
   assertPolicy(policy);
   const privateRoot = input.promptOnly === true ? (() => {
     try {
-      return realpathSync(policy.tempRoot);
+      return realpathSync2(policy.tempRoot);
     } catch {
-      return resolve2(policy.tempRoot);
+      return resolve3(policy.tempRoot);
     }
-  })() : resolve2(policy.tempRoot);
-  if (input.promptOnly === true && !pathInside(privateRoot, resolve2(workingDirectory))) {
+  })() : resolve3(policy.tempRoot);
+  if (input.promptOnly === true && !pathInside(privateRoot, resolve3(workingDirectory))) {
     throw new Error("The prompt-only Codex directory escaped its private run directory.");
   }
   const model = selectedModel(input.resolvedSelection, policy);
@@ -26711,7 +26752,7 @@ function buildMcpCodexArgs(input, policy, schemaPath, workingDirectory = policy.
   ];
   if (effort !== void 0) args.push("-c", `model_reasoning_effort=${JSON.stringify(effort)}`);
   if (schemaPath !== void 0) {
-    if (!isAbsolute4(schemaPath))
+    if (!isAbsolute5(schemaPath))
       throw new Error("The Codex response schema path must be absolute.");
     args.push("--output-schema", schemaPath);
   }
@@ -26719,8 +26760,8 @@ function buildMcpCodexArgs(input, policy, schemaPath, workingDirectory = policy.
   return args;
 }
 function pathInside(parent, candidate2) {
-  const child = relative(parent, candidate2);
-  return child === "" || !child.startsWith("..") && !isAbsolute4(child);
+  const child = relative2(parent, candidate2);
+  return child === "" || !child.startsWith("..") && !isAbsolute5(child);
 }
 
 // src/hosts/codex-mcp/host-sandbox-canary.ts
@@ -26775,17 +26816,17 @@ var MARKERS = Object.freeze([...REQUIRED_MARKERS, ...SHARED_TEMP_MARKERS]);
 function operatorCodexHomeCandidates(input) {
   const candidates = [];
   if (input.environment.CODEX_HOME !== void 0) {
-    candidates.push(resolve3(input.environment.CODEX_HOME));
+    candidates.push(resolve4(input.environment.CODEX_HOME));
   }
   if (input.environment.HOME !== void 0) {
-    candidates.push(resolve3(input.environment.HOME, ".codex"));
+    candidates.push(resolve4(input.environment.HOME, ".codex"));
   }
   return candidates;
 }
 function assertIsolatedProbeCodexHome(input) {
-  const expected = resolve3(dirname2(input.policy.tempRoot), "codex-home");
-  const actual = resolve3(input.codexHome);
-  if (!isAbsolute5(input.policy.tempRoot) || !isAbsolute5(input.codexHome) || input.codexHome.includes("\0") || actual !== expected || actual === resolve3(input.policy.tempRoot) || operatorCodexHomeCandidates(input).includes(actual)) {
+  const expected = resolve4(dirname3(input.policy.tempRoot), "codex-home");
+  const actual = resolve4(input.codexHome);
+  if (!isAbsolute6(input.policy.tempRoot) || !isAbsolute6(input.codexHome) || input.codexHome.includes("\0") || actual !== expected || actual === resolve4(input.policy.tempRoot) || operatorCodexHomeCandidates(input).includes(actual)) {
     throw new Error(
       "Circuit refused a capability probe that could write to the operator's Codex home."
     );
@@ -26822,7 +26863,7 @@ async function distinctExistingSharedTempRoots(candidates) {
   }
   const roots = /* @__PURE__ */ new Set();
   for (const candidate2 of candidates) {
-    if (!isAbsolute5(candidate2) || candidate2.includes("\0")) {
+    if (!isAbsolute6(candidate2) || candidate2.includes("\0")) {
       throw new Error("Circuit received an invalid shared-temp sandbox probe path.");
     }
     try {
@@ -26853,9 +26894,9 @@ function checkedResult(result, name) {
   }
 }
 async function listen(server) {
-  await new Promise((resolve13, reject) => {
+  await new Promise((resolve14, reject) => {
     server.once("error", reject);
-    server.listen(0, "127.0.0.1", () => resolve13());
+    server.listen(0, "127.0.0.1", () => resolve14());
   });
   const address = server.address();
   if (address === null || typeof address === "string") {
@@ -26866,8 +26907,8 @@ async function listen(server) {
 async function closeServer(server) {
   if (!server.listening) return;
   if ("closeAllConnections" in server) server.closeAllConnections();
-  await new Promise((resolve13, reject) => {
-    server.close((error51) => error51 === void 0 ? resolve13() : reject(error51));
+  await new Promise((resolve14, reject) => {
+    server.close((error51) => error51 === void 0 ? resolve14() : reject(error51));
   });
 }
 function probeEnvironment(input) {
@@ -26944,24 +26985,24 @@ async function runCodexNestedSandboxCanary(input, dependencies = {}) {
   const run = dependencies.run ?? runMcpCodexSubprocess;
   const privateDirectories = mcpCodexPrivateDirectories(input.policy.tempRoot);
   const unique = randomUUID();
-  const fixtureRoot = dirname2(input.policy.tempRoot);
-  const outside = join3(fixtureRoot, "outside");
-  const workspaceWrite = join3(input.policy.workspace, `.circuit-mcp-sandbox-canary-${unique}`);
-  const privateWrite = join3(input.policy.tempRoot, `private-write-${unique}`);
-  const siblingSecret = join3(outside, `sibling-secret-${unique}`);
-  const authSecret = join3(input.codexHome, "auth.json");
-  const symlinkSecret = join3(input.policy.tempRoot, `linked-secret-${unique}`);
+  const fixtureRoot = dirname3(input.policy.tempRoot);
+  const outside = join4(fixtureRoot, "outside");
+  const workspaceWrite = join4(input.policy.workspace, `.circuit-mcp-sandbox-canary-${unique}`);
+  const privateWrite = join4(input.policy.tempRoot, `private-write-${unique}`);
+  const siblingSecret = join4(outside, `sibling-secret-${unique}`);
+  const authSecret = join4(input.codexHome, "auth.json");
+  const symlinkSecret = join4(input.policy.tempRoot, `linked-secret-${unique}`);
   const sharedTempRoots = await distinctExistingSharedTempRoots(
     dependencies.sharedTempRootCandidates ?? SHARED_TEMP_ROOT_CANDIDATES
   );
   const sharedSecrets = sharedTempRoots.map(
-    (root) => join3(root, `.circuit-mcp-shared-read-${unique}`)
+    (root) => join4(root, `.circuit-mcp-shared-read-${unique}`)
   );
   const sharedWrites = sharedTempRoots.map(
-    (root) => join3(root, `.circuit-mcp-shared-write-${unique}`)
+    (root) => join4(root, `.circuit-mcp-shared-write-${unique}`)
   );
-  const portFile = join3(input.policy.tempRoot, `listener-port-${unique}`);
-  const script = join3(input.policy.tempRoot, `sandbox-canary-${unique}.sh`);
+  const portFile = join4(input.policy.tempRoot, `listener-port-${unique}`);
+  const script = join4(input.policy.tempRoot, `sandbox-canary-${unique}.sh`);
   let networkHit = false;
   const createdFixtures = /* @__PURE__ */ new Set();
   const writeFixture = async (path, data, mode) => {
@@ -27084,15 +27125,15 @@ async function runCodexToolSurfaceCanary(input, dependencies = {}) {
   await assertProbeCodexHomeIsNotAnAlias(input);
   const run = dependencies.run ?? runMcpCodexSubprocess;
   const unique = randomUUID();
-  const canaryWorkspace = join3(input.policy.workspace, `.circuit-mcp-host-input-${unique}`);
+  const canaryWorkspace = join4(input.policy.workspace, `.circuit-mcp-host-input-${unique}`);
   const projectDocSecret = `CIRCUIT_OUTSIDE_PROJECT_DOC_${unique}`;
-  const projectDocSecretPath = join3(
-    dirname2(input.policy.tempRoot),
+  const projectDocSecretPath = join4(
+    dirname3(input.policy.tempRoot),
     `outside-project-doc-${unique}`
   );
-  const shellSnapshotSentinel = join3(canaryWorkspace, `.circuit-mcp-shell-snapshot-${unique}`);
-  const shellSnapshotDirectory = join3(input.codexHome, "shell_snapshots");
-  const shellStartupFiles = [join3(input.codexHome, ".zshrc"), join3(input.codexHome, ".bashrc")];
+  const shellSnapshotSentinel = join4(canaryWorkspace, `.circuit-mcp-shell-snapshot-${unique}`);
+  const shellSnapshotDirectory = join4(input.codexHome, "shell_snapshots");
+  const shellStartupFiles = [join4(input.codexHome, ".zshrc"), join4(input.codexHome, ".bashrc")];
   const createdStartupFiles = /* @__PURE__ */ new Set();
   let canaryWorkspaceCreated = false;
   let projectDocSecretCreated = false;
@@ -27164,11 +27205,11 @@ async function runCodexToolSurfaceCanary(input, dependencies = {}) {
   try {
     await mkdir(canaryWorkspace, { mode: 448 });
     canaryWorkspaceCreated = true;
-    await mkdir(join3(canaryWorkspace, ".git"), { mode: 448 });
+    await mkdir(join4(canaryWorkspace, ".git"), { mode: 448 });
     await writeFile(projectDocSecretPath, `${projectDocSecret}
 `, { mode: 384, flag: "wx" });
     projectDocSecretCreated = true;
-    await symlink(projectDocSecretPath, join3(canaryWorkspace, "AGENTS.md"));
+    await symlink(projectDocSecretPath, join4(canaryWorkspace, "AGENTS.md"));
     await mkdir(input.codexHome, { recursive: true, mode: 448 });
     await assertProbeCodexHomeIsNotAnAlias(input);
     const startupBody = `printf 'shell snapshot ran\\n' > ${shellQuote(shellSnapshotSentinel)}
@@ -27281,7 +27322,7 @@ function safeProbeEnvironment(environment, isolatedCodexHome) {
   return safe;
 }
 function productionRunner(environment) {
-  const isolatedCodexHome = mkdtempSync(join4(tmpdir(), "circuit-codex-capability-"));
+  const isolatedCodexHome = mkdtempSync(join5(tmpdir(), "circuit-codex-capability-"));
   return {
     run: (executable, args) => {
       const result = spawnSync(executable, [...args], {
@@ -27347,7 +27388,7 @@ ${result.stderr}`;
   );
 }
 async function probeCodexHostCapabilities(codexExecutable, options) {
-  if (!isAbsolute6(codexExecutable)) {
+  if (!isAbsolute7(codexExecutable)) {
     throw new McpHostPreflightError(
       "The pinned Codex executable path is not absolute.",
       REINSTALL_ABSOLUTE_CODEX_ACTION
@@ -27768,25 +27809,25 @@ var MCP_TOOL_WIRE_OUTPUT_SCHEMAS = {
 
 // src/hosts/codex-mcp/supervisor-journal.ts
 import {
-  constants as constants5,
-  closeSync as closeSync3,
-  fstatSync as fstatSync3,
+  constants as constants6,
+  closeSync as closeSync4,
+  fstatSync as fstatSync4,
   fsyncSync,
-  lstatSync,
-  openSync as openSync3,
+  lstatSync as lstatSync2,
+  openSync as openSync4,
   readFileSync as readFileSync3,
   readdirSync,
-  realpathSync as realpathSync2,
+  realpathSync as realpathSync3,
   unlinkSync
 } from "node:fs";
-import { basename, dirname as dirname3, join as join5 } from "node:path";
+import { basename, dirname as dirname4, join as join6 } from "node:path";
 
 // src/hosts/codex-mcp/supervisor-protocol.ts
 import { Buffer as Buffer2 } from "node:buffer";
-import { isAbsolute as isAbsolute7 } from "node:path";
+import { isAbsolute as isAbsolute8 } from "node:path";
 var SUPERVISOR_PROTOCOL_VERSION = 1;
 var MAX_SUPERVISOR_MESSAGE_BYTES = 1048576;
-var AbsolutePath2 = external_exports.string().min(1).max(4096).refine(isAbsolute7, "must be an absolute path");
+var AbsolutePath2 = external_exports.string().min(1).max(4096).refine(isAbsolute8, "must be an absolute path");
 var Timestamp = external_exports.iso.datetime();
 var Pid = external_exports.number().int().positive().max(2147483647);
 var Sha2563 = external_exports.string().regex(/^[a-f0-9]{64}$/);
@@ -27949,11 +27990,11 @@ function errorCode(error51) {
 function assertPrivateCanonicalDirectory(path) {
   let direct;
   try {
-    direct = lstatSync(path);
+    direct = lstatSync2(path);
   } catch {
     throw new SupervisorJournalError("The supervisor control directory is unavailable.");
   }
-  if (direct.isSymbolicLink() || !direct.isDirectory() || realpathSync2.native(path) !== path) {
+  if (direct.isSymbolicLink() || !direct.isDirectory() || realpathSync3.native(path) !== path) {
     throw new SupervisorJournalError("The supervisor control directory is unsafe.");
   }
   if ((direct.mode & 511) !== 448) {
@@ -27964,22 +28005,22 @@ function assertPrivateCanonicalDirectory(path) {
   }
 }
 function fsyncDirectory(path) {
-  const descriptor = openSync3(path, constants5.O_RDONLY);
+  const descriptor = openSync4(path, constants6.O_RDONLY);
   try {
     fsyncSync(descriptor);
   } finally {
-    closeSync3(descriptor);
+    closeSync4(descriptor);
   }
 }
 function repairStalePublishLink(path, published) {
-  const directory = dirname3(path);
+  const directory = dirname4(path);
   const prefix = `.${basename(path)}.`;
   const candidates = readdirSync(directory, { withFileTypes: true }).filter(
     (entry) => entry.isFile() && entry.name.startsWith(prefix) && entry.name.endsWith(".tmp")
   );
   const matching = candidates.filter((entry) => {
     try {
-      const info = lstatSync(join5(directory, entry.name));
+      const info = lstatSync2(join6(directory, entry.name));
       return !info.isSymbolicLink() && info.dev === published.dev && info.ino === published.ino && info.nlink === 2 && (info.mode & 511) === 384 && (typeof process.getuid !== "function" || info.uid === process.getuid());
     } catch (error51) {
       if (errorCode(error51) === "ENOENT") return false;
@@ -27987,8 +28028,8 @@ function repairStalePublishLink(path, published) {
     }
   });
   if (matching.length !== 1) return false;
-  const stage = join5(directory, matching[0]?.name ?? "");
-  const stageInfo = lstatSync(stage);
+  const stage = join6(directory, matching[0]?.name ?? "");
+  const stageInfo = lstatSync2(stage);
   if (Date.now() - stageInfo.mtimeMs < 1e3) return false;
   unlinkSync(stage);
   fsyncDirectory(directory);
@@ -27998,7 +28039,7 @@ function readJournal(path, parse3) {
   for (let attempt = 0; attempt < 4; attempt += 1) {
     let descriptor;
     try {
-      descriptor = openSync3(path, constants5.O_RDONLY | constants5.O_NONBLOCK | constants5.O_NOFOLLOW);
+      descriptor = openSync4(path, constants6.O_RDONLY | constants6.O_NONBLOCK | constants6.O_NOFOLLOW);
     } catch (error51) {
       if (errorCode(error51) === "ENOENT") return void 0;
       if (errorCode(error51) === "ELOOP") {
@@ -28007,7 +28048,7 @@ function readJournal(path, parse3) {
       throw error51;
     }
     try {
-      const before = fstatSync3(descriptor);
+      const before = fstatSync4(descriptor);
       if (!before.isFile() || before.nlink !== 1 || (before.mode & 511) !== 384 || typeof process.getuid === "function" && before.uid !== process.getuid()) {
         if (before.isFile() && before.nlink === 2) {
           if (repairStalePublishLink(path, before) || attempt < 3) continue;
@@ -28018,8 +28059,8 @@ function readJournal(path, parse3) {
         throw new SupervisorJournalError("A supervisor journal has an invalid size.");
       }
       const bytes = readFileSync3(descriptor);
-      const after = fstatSync3(descriptor);
-      const atPath = lstatSync(path);
+      const after = fstatSync4(descriptor);
+      const atPath = lstatSync2(path);
       if (before.dev !== after.dev || before.ino !== after.ino || before.size !== after.size || before.mtimeMs !== after.mtimeMs || after.dev !== atPath.dev || after.ino !== atPath.ino || atPath.isSymbolicLink()) {
         if (attempt < 3) continue;
         throw new SupervisorJournalError("A supervisor journal changed while Circuit read it.");
@@ -28036,7 +28077,7 @@ function readJournal(path, parse3) {
         throw new SupervisorJournalError("A supervisor journal contains an invalid record.");
       }
     } finally {
-      closeSync3(descriptor);
+      closeSync4(descriptor);
     }
   }
   throw new SupervisorJournalError("A supervisor journal remained busy.");
@@ -28052,11 +28093,11 @@ function readSupervisorJournals(input) {
     throw new SupervisorJournalError("The supervisor journal name is invalid.");
   }
   const runtime = readJournal(
-    join5(input.control_directory, runtimeName),
+    join6(input.control_directory, runtimeName),
     (value) => RuntimeJournalV1.parse(value)
   );
   const exit = readJournal(
-    join5(input.control_directory, exitName),
+    join6(input.control_directory, exitName),
     (value) => ExitJournalV1.parse(value)
   );
   for (const observed of [runtime, exit]) {
@@ -28742,8 +28783,8 @@ var ObservedCleanupController = class {
 // src/hosts/codex-mcp/process-probe.ts
 import { spawnSync as spawnSync2 } from "node:child_process";
 import { createHash as createHash3 } from "node:crypto";
-import { readFileSync as readFileSync4, realpathSync as realpathSync3, statSync } from "node:fs";
-import { isAbsolute as isAbsolute8 } from "node:path";
+import { readFileSync as readFileSync4, realpathSync as realpathSync4, statSync } from "node:fs";
+import { isAbsolute as isAbsolute9 } from "node:path";
 var UUID_PROCESS_TOKEN = "[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}";
 var SHA256_PROCESS_TOKEN = "[0-9a-f]{64}";
 var PROCESS_TOKEN = new RegExp(`^(?:${UUID_PROCESS_TOKEN}|${SHA256_PROCESS_TOKEN})$`, "u");
@@ -28751,8 +28792,8 @@ function isMcpProcessToken(value) {
   return PROCESS_TOKEN.test(value);
 }
 function readExecutableIdentity(path) {
-  if (!isAbsolute8(path)) throw new Error("The host executable path must be absolute.");
-  const realPath = realpathSync3.native(path);
+  if (!isAbsolute9(path)) throw new Error("The host executable path must be absolute.");
+  const realPath = realpathSync4.native(path);
   const before = statSync(realPath);
   if (!before.isFile() || (before.mode & 73) === 0) {
     throw new Error("The host executable must be an executable regular file.");
@@ -28910,7 +28951,7 @@ function createExecutableMatcher() {
   const cached2 = /* @__PURE__ */ new Map();
   return (identity2) => {
     try {
-      if (realpathSync3.native(identity2.real_path) !== identity2.real_path) return false;
+      if (realpathSync4.native(identity2.real_path) !== identity2.real_path) return false;
       const info = statSync(identity2.real_path);
       if (!info.isFile() || String(info.dev) !== identity2.device || String(info.ino) !== identity2.inode) {
         return false;
@@ -28939,17 +28980,17 @@ function createMacOsProcessProbe() {
 
 // src/hosts/codex-mcp/production-paths.ts
 import {
-  closeSync as closeSync4,
-  lstatSync as lstatSync2,
-  openSync as openSync4,
+  closeSync as closeSync5,
+  lstatSync as lstatSync3,
+  openSync as openSync5,
   readFileSync as readFileSync5,
-  readSync,
+  readSync as readSync2,
   readdirSync as readdirSync2,
-  realpathSync as realpathSync4,
+  realpathSync as realpathSync5,
   statSync as statSync2
 } from "node:fs";
 import { createRequire } from "node:module";
-import { basename as basename2, delimiter as delimiter2, dirname as dirname4, isAbsolute as isAbsolute9, join as join6, relative as relative2, resolve as resolve4, sep } from "node:path";
+import { basename as basename2, delimiter as delimiter2, dirname as dirname5, isAbsolute as isAbsolute10, join as join7, relative as relative3, resolve as resolve5, sep as sep2 } from "node:path";
 var EXECUTABLE_NAME = /^[A-Za-z0-9][A-Za-z0-9._-]{0,127}$/;
 var MAX_FLOW_ASSETS = 64;
 var MAX_PACKAGE_JSON_BYTES = 64 * 1024;
@@ -29005,11 +29046,11 @@ function findExecutableOnPath(name, pathValue) {
     throw new McpProductionPathError(`Circuit could not find ${name} because PATH is empty.`);
   }
   const directories = pathValue.split(delimiter2);
-  if (directories.some((directory) => !isAbsolute9(directory))) {
+  if (directories.some((directory) => !isAbsolute10(directory))) {
     throw new McpProductionPathError("Circuit refused a PATH containing relative directories.");
   }
   for (const directory of directories) {
-    const candidate2 = join6(directory, name);
+    const candidate2 = join7(directory, name);
     try {
       const info = statSync2(candidate2);
       if (info.isFile() && (info.mode & 73) !== 0) return candidate2;
@@ -29029,24 +29070,24 @@ function isExecutableFile(candidate2) {
 function resolveGitExecutableOnPath(pathValue, platform = process.platform, macosDirectGitCandidates = MACOS_DIRECT_GIT_CANDIDATES) {
   if (platform === "darwin") {
     for (const candidate2 of macosDirectGitCandidates) {
-      if (!isAbsolute9(candidate2) || candidate2.includes("\0")) continue;
+      if (!isAbsolute10(candidate2) || candidate2.includes("\0")) continue;
       if (!isExecutableFile(candidate2)) continue;
-      return realpathSync4.native(candidate2);
+      return realpathSync5.native(candidate2);
     }
   }
   return findExecutableOnPath("git", pathValue);
 }
 function pathInside2(parent, candidate2) {
-  const child = relative2(parent, candidate2);
-  return child === "" || !child.startsWith("..") && !isAbsolute9(child);
+  const child = relative3(parent, candidate2);
+  return child === "" || !child.startsWith("..") && !isAbsolute10(child);
 }
 function isNativeExecutable(path) {
-  const descriptor = openSync4(path, "r");
+  const descriptor = openSync5(path, "r");
   const bytes = Buffer.alloc(4);
   try {
-    if (readSync(descriptor, bytes, 0, bytes.length, 0) !== bytes.length) return false;
+    if (readSync2(descriptor, bytes, 0, bytes.length, 0) !== bytes.length) return false;
   } finally {
-    closeSync4(descriptor);
+    closeSync5(descriptor);
   }
   const hex3 = bytes.toString("hex");
   return hex3 === "7f454c46" || hex3.startsWith("4d5a") || (/* @__PURE__ */ new Set([
@@ -29082,20 +29123,20 @@ function optionalDependencyNames(manifest) {
   return new Set(Object.keys(value));
 }
 function officialCodexPackageRoot(launcher) {
-  let directory = dirname4(launcher);
+  let directory = dirname5(launcher);
   for (let depth = 0; depth < 4; depth += 1) {
-    const manifestPath = join6(directory, "package.json");
+    const manifestPath = join7(directory, "package.json");
     try {
       const manifest = readPackageJson(manifestPath);
       const bin = manifest.bin;
       const binPath = typeof bin === "object" && bin !== null && !Array.isArray(bin) ? bin.codex : void 0;
-      if (manifest.name === "@openai/codex" && binPath === "bin/codex.js" && realpathSync4.native(join6(directory, binPath)) === launcher) {
+      if (manifest.name === "@openai/codex" && binPath === "bin/codex.js" && realpathSync5.native(join7(directory, binPath)) === launcher) {
         return directory;
       }
     } catch (error51) {
       if (error51 instanceof McpProductionPathError) throw error51;
     }
-    const parent = dirname4(directory);
+    const parent = dirname5(directory);
     if (parent === directory) break;
     directory = parent;
   }
@@ -29111,7 +29152,7 @@ function nativeCodexFromNpmLauncher(launcher, platform, arch) {
     );
   }
   const packageRoot = officialCodexPackageRoot(launcher);
-  const packageManifest = readPackageJson(join6(packageRoot, "package.json"));
+  const packageManifest = readPackageJson(join7(packageRoot, "package.json"));
   if (!optionalDependencyNames(packageManifest).has(target.packageName)) {
     throw new McpProductionPathError(
       "Circuit refused a Codex npm launcher without its declared native package."
@@ -29119,16 +29160,16 @@ function nativeCodexFromNpmLauncher(launcher, platform, arch) {
   }
   let platformPackageRoot;
   try {
-    const require2 = createRequire(join6(packageRoot, "package.json"));
-    const manifestPath = realpathSync4.native(require2.resolve(`${target.packageName}/package.json`));
-    platformPackageRoot = dirname4(manifestPath);
+    const require2 = createRequire(join7(packageRoot, "package.json"));
+    const manifestPath = realpathSync5.native(require2.resolve(`${target.packageName}/package.json`));
+    platformPackageRoot = dirname5(manifestPath);
   } catch {
   }
-  const candidate2 = platformPackageRoot === void 0 ? join6(packageRoot, "vendor", target.triple, "bin", target.executableName) : join6(platformPackageRoot, "vendor", target.triple, "bin", target.executableName);
+  const candidate2 = platformPackageRoot === void 0 ? join7(packageRoot, "vendor", target.triple, "bin", target.executableName) : join7(platformPackageRoot, "vendor", target.triple, "bin", target.executableName);
   let native;
   try {
-    native = realpathSync4.native(candidate2);
-    const root = realpathSync4.native(platformPackageRoot ?? packageRoot);
+    native = realpathSync5.native(candidate2);
+    const root = realpathSync5.native(platformPackageRoot ?? packageRoot);
     const info = statSync2(native);
     if (!pathInside2(root, native) || !info.isFile() || (info.mode & 73) === 0) {
       throw new Error("invalid native executable");
@@ -29146,11 +29187,11 @@ function nativeCodexFromNpmLauncher(launcher, platform, arch) {
   return native;
 }
 function nativeCodexFromVitePlusLauncher(discovered, wrapper, platform, arch) {
-  const binRoot = dirname4(discovered);
-  const vitePlusRoot = dirname4(binRoot);
+  const binRoot = dirname5(discovered);
+  const vitePlusRoot = dirname5(binRoot);
   let canonicalRoot;
   try {
-    canonicalRoot = realpathSync4.native(vitePlusRoot);
+    canonicalRoot = realpathSync5.native(vitePlusRoot);
   } catch {
     throw new McpProductionPathError("Circuit could not seal the Vite+ Codex package root.");
   }
@@ -29159,7 +29200,7 @@ function nativeCodexFromVitePlusLauncher(discovered, wrapper, platform, arch) {
       "Circuit refused an opaque native Codex launcher because its downstream executable could not be sealed."
     );
   }
-  const npmLauncher = join6(
+  const npmLauncher = join7(
     canonicalRoot,
     "packages",
     "@openai",
@@ -29173,7 +29214,7 @@ function nativeCodexFromVitePlusLauncher(discovered, wrapper, platform, arch) {
   );
   let canonicalLauncher;
   try {
-    canonicalLauncher = realpathSync4.native(npmLauncher);
+    canonicalLauncher = realpathSync5.native(npmLauncher);
     if (!pathInside2(canonicalRoot, canonicalLauncher)) throw new Error("launcher escaped root");
   } catch {
     throw new McpProductionPathError(
@@ -29186,7 +29227,7 @@ function resolveCodexExecutableOnPath(pathValue, platform = process.platform, ar
   const discovered = findExecutableOnPath("codex", pathValue);
   let resolved;
   try {
-    resolved = realpathSync4.native(discovered);
+    resolved = realpathSync5.native(discovered);
     const info = statSync2(resolved);
     if (!info.isFile() || (info.mode & 73) === 0) throw new Error("not executable");
   } catch {
@@ -29200,12 +29241,12 @@ function resolveCodexExecutableOnPath(pathValue, platform = process.platform, ar
   return nativeCodexFromNpmLauncher(resolved, platform, arch);
 }
 function derivePinnedNodeInstallation(executable) {
-  if (!isAbsolute9(executable) || executable.includes("\0") || resolve4(executable) !== executable) {
+  if (!isAbsolute10(executable) || executable.includes("\0") || resolve5(executable) !== executable) {
     throw new McpProductionPathError("The pinned Node executable path is invalid.");
   }
-  const bin = dirname4(executable);
-  const root = dirname4(bin);
-  if (basename2(bin) !== "bin" || root === dirname4(root)) {
+  const bin = dirname5(executable);
+  const root = dirname5(bin);
+  if (basename2(bin) !== "bin" || root === dirname5(root)) {
     throw new McpProductionPathError(
       "Circuit refused an unreviewed Node installation layout for the Codex sandbox."
     );
@@ -29213,13 +29254,13 @@ function derivePinnedNodeInstallation(executable) {
   return Object.freeze({ executable, bin, root });
 }
 function codexMcpStateRoot(codexHome) {
-  if (!isAbsolute9(codexHome) || codexHome.includes("\0")) {
+  if (!isAbsolute10(codexHome) || codexHome.includes("\0")) {
     throw new McpProductionPathError("CODEX_HOME must be an absolute local directory.");
   }
-  return resolve4(codexHome, "circuit", "mcp", "v1");
+  return resolve5(codexHome, "circuit", "mcp", "v1");
 }
 function flowAssetId(flowsRoot, path) {
-  const rel = relative2(flowsRoot, path).split(sep).join("/").replace(/\.json$/, "");
+  const rel = relative3(flowsRoot, path).split(sep2).join("/").replace(/\.json$/, "");
   const id = rel.replaceAll("/", "-");
   if (!/^[a-z0-9][a-z0-9-]{0,63}$/.test(id)) {
     throw new McpProductionPathError(`Circuit found an invalid packaged flow path: ${rel}`);
@@ -29227,10 +29268,10 @@ function flowAssetId(flowsRoot, path) {
   return id;
 }
 function collectPackagedFlowAssets(flowsRoot) {
-  if (!isAbsolute9(flowsRoot)) {
+  if (!isAbsolute10(flowsRoot)) {
     throw new McpProductionPathError("The packaged flow root must be absolute.");
   }
-  const rootInfo = lstatSync2(flowsRoot);
+  const rootInfo = lstatSync3(flowsRoot);
   if (rootInfo.isSymbolicLink() || !rootInfo.isDirectory()) {
     throw new McpProductionPathError("The packaged flow root is not a real directory.");
   }
@@ -29240,7 +29281,7 @@ function collectPackagedFlowAssets(flowsRoot) {
     const directory = pending.pop();
     if (directory === void 0) break;
     for (const entry of readdirSync2(directory, { withFileTypes: true })) {
-      const path = join6(directory, entry.name);
+      const path = join7(directory, entry.name);
       if (entry.isSymbolicLink()) {
         throw new McpProductionPathError("Circuit refused a linked packaged flow asset.");
       }
@@ -29268,7 +29309,7 @@ function collectPackagedFlowAssets(flowsRoot) {
 }
 
 // src/hosts/codex-mcp/public-flow-catalog.ts
-import { constants as constants6, closeSync as closeSync5, fstatSync as fstatSync4, openSync as openSync5, readFileSync as readFileSync6 } from "node:fs";
+import { constants as constants7, closeSync as closeSync6, fstatSync as fstatSync5, openSync as openSync6, readFileSync as readFileSync6 } from "node:fs";
 var MAX_CATALOG_BYTES = 1024 * 1024;
 var REQUIRED_PUBLIC_FLOWS = new Set(McpPublicFlowV1.options);
 var PublicCatalogV1 = external_exports.object({
@@ -29291,13 +29332,13 @@ var PublicFlowCatalogError = class extends Error {
 function loadPublicFlowCatalog(path) {
   let fd;
   try {
-    fd = openSync5(path, constants6.O_RDONLY | constants6.O_NOFOLLOW);
-    const before = fstatSync4(fd);
+    fd = openSync6(path, constants7.O_RDONLY | constants7.O_NOFOLLOW);
+    const before = fstatSync5(fd);
     if (!before.isFile() || before.size === 0 || before.size > MAX_CATALOG_BYTES) {
       throw new Error("catalog is not a bounded regular file");
     }
     const decoded = PublicCatalogV1.parse(JSON.parse(readFileSync6(fd, "utf8")));
-    const after = fstatSync4(fd);
+    const after = fstatSync5(fd);
     if (before.dev !== after.dev || before.ino !== after.ino || before.size !== after.size || before.mtimeMs !== after.mtimeMs || before.ctimeMs !== after.ctimeMs) {
       throw new Error("catalog changed while Circuit read it");
     }
@@ -29311,13 +29352,13 @@ function loadPublicFlowCatalog(path) {
     const message = error51 instanceof Error ? error51.message : String(error51);
     throw new PublicFlowCatalogError(`Circuit could not trust its public flow catalog: ${message}`);
   } finally {
-    if (fd !== void 0) closeSync5(fd);
+    if (fd !== void 0) closeSync6(fd);
   }
 }
 
 // src/hosts/codex-mcp/resources.ts
 import { realpath as realpath4, stat as stat2 } from "node:fs/promises";
-import { isAbsolute as isAbsolute10, resolve as resolve5 } from "node:path";
+import { isAbsolute as isAbsolute11, resolve as resolve6 } from "node:path";
 import { fileURLToPath } from "node:url";
 var CODEX_SANDBOX_METADATA_KEY = "codex/sandbox-state-meta";
 var CODEX_MCP_ROOTS_SOURCE = "mcp/roots";
@@ -29368,7 +29409,7 @@ function sandboxCwdFromRequest(request) {
   return sandboxCwd;
 }
 function pathFromTrustedFileUrl(value, label = "sandboxCwd") {
-  if (isAbsolute10(value)) return value;
+  if (isAbsolute11(value)) return value;
   let url2;
   try {
     url2 = new URL(value);
@@ -29408,7 +29449,7 @@ async function trustedWorkspaceFromPath(requestedPath, identitySource) {
       "The workspace from Codex does not exist or cannot be resolved."
     );
   }
-  if (workspace !== resolve5(resolvedPath)) {
+  if (workspace !== resolve6(resolvedPath)) {
     throw new CodexWorkspaceMetadataError(
       "workspace_metadata_unsafe",
       "The workspace from Codex reaches the directory through a symbolic link.",
@@ -29494,17 +29535,17 @@ async function resolveTrustedCodexWorkspaceFromSources(input) {
 
 // src/hosts/codex-mcp/runtime-artifacts.ts
 import { createHash as createHash6 } from "node:crypto";
-import { constants as constants8 } from "node:fs";
+import { constants as constants9 } from "node:fs";
 import { lstat as lstat3, open as open2, realpath as realpath5 } from "node:fs/promises";
-import { isAbsolute as isAbsolute12, join as join11, relative as relative4, resolve as resolve9, sep as sep3 } from "node:path";
+import { isAbsolute as isAbsolute13, join as join12, relative as relative5, resolve as resolve10, sep as sep4 } from "node:path";
 
 // src/app/run-status/run-folder-projector.ts
-import { constants as constants7, accessSync, statSync as statSync3 } from "node:fs";
-import { resolve as resolve8 } from "node:path";
+import { constants as constants8, accessSync, statSync as statSync3 } from "node:fs";
+import { resolve as resolve9 } from "node:path";
 
 // src/shared/manifest-snapshot.ts
 import { readFileSync as readFileSync7, writeFileSync } from "node:fs";
-import { join as join7 } from "node:path";
+import { join as join8 } from "node:path";
 
 // src/schemas/manifest.ts
 import { createHash as createHash4 } from "node:crypto";
@@ -29544,7 +29585,7 @@ var ManifestSnapshot = external_exports.object({
 
 // src/shared/manifest-snapshot.ts
 function manifestSnapshotPath(runFolder) {
-  return join7(runFolder, "manifest.snapshot.json");
+  return join8(runFolder, "manifest.snapshot.json");
 }
 function readManifestSnapshot(runFolder) {
   const text = readFileSync7(manifestSnapshotPath(runFolder), "utf8");
@@ -29557,7 +29598,7 @@ function verifyManifestSnapshotBytes(runFolder) {
 
 // src/app/run-status/projection-common.ts
 import { existsSync as existsSync2 } from "node:fs";
-import { join as join9 } from "node:path";
+import { join as join10 } from "node:path";
 
 // src/schemas/engine-provenance.ts
 var EngineSha = external_exports.string().regex(/^[0-9a-f]{40}$/, "engine sha must be a 40-character git commit");
@@ -29618,25 +29659,25 @@ var EngineProvenance = external_exports.object({
 });
 
 // src/shared/result-path.ts
-import { join as join8 } from "node:path";
+import { join as join9 } from "node:path";
 var RUN_RESULT_RELATIVE_PATH = "reports/result.json";
 function runResultPath(runFolder) {
-  return join8(runFolder, RUN_RESULT_RELATIVE_PATH);
+  return join9(runFolder, RUN_RESULT_RELATIVE_PATH);
 }
 
 // src/shared/run-file-paths.ts
-import { existsSync, lstatSync as lstatSync3, realpathSync as realpathSync5 } from "node:fs";
-import { isAbsolute as isAbsolute11, relative as relative3, resolve as resolve6, sep as sep2 } from "node:path";
+import { existsSync, lstatSync as lstatSync4, realpathSync as realpathSync6 } from "node:fs";
+import { isAbsolute as isAbsolute12, relative as relative4, resolve as resolve7, sep as sep3 } from "node:path";
 function isInsideOrSame(root, target) {
-  const fromRoot = relative3(root, target);
-  return fromRoot === "" || !fromRoot.startsWith("..") && !isAbsolute11(fromRoot);
+  const fromRoot = relative4(root, target);
+  return fromRoot === "" || !fromRoot.startsWith("..") && !isAbsolute12(fromRoot);
 }
 function validateRunFilePath(runRelativePath) {
   const issues = [];
   if (runRelativePath.trim().length === 0) {
     issues.push("must be non-empty");
   }
-  if (isAbsolute11(runRelativePath)) {
+  if (isAbsolute12(runRelativePath)) {
     issues.push("must be relative");
   }
   if (runRelativePath.includes("\\")) {
@@ -29654,12 +29695,12 @@ function resolveRunFilePath(runDir, runRelativePath) {
   if (runRelativePath.trim().length === 0) {
     throw new Error("run file path must be non-empty");
   }
-  if (isAbsolute11(runRelativePath)) {
+  if (isAbsolute12(runRelativePath)) {
     throw new Error(`run file path must be relative: ${runRelativePath}`);
   }
-  const root = resolve6(runDir);
-  const fullPath = resolve6(root, runRelativePath);
-  if (fullPath !== root && !fullPath.startsWith(`${root}${sep2}`)) {
+  const root = resolve7(runDir);
+  const fullPath = resolve7(root, runRelativePath);
+  if (fullPath !== root && !fullPath.startsWith(`${root}${sep3}`)) {
     throw new Error(`run file path escapes run directory: ${runRelativePath}`);
   }
   if (fullPath === root) {
@@ -29670,18 +29711,18 @@ function resolveRunFilePath(runDir, runRelativePath) {
     throw new Error(`run file path ${validation[0]}: ${runRelativePath}`);
   }
   if (existsSync(root)) {
-    if (lstatSync3(root).isSymbolicLink()) {
+    if (lstatSync4(root).isSymbolicLink()) {
       throw new Error(`run file path crosses symlink: ${runRelativePath}`);
     }
-    const rootReal = realpathSync5.native(root);
+    const rootReal = realpathSync6.native(root);
     let cursor = root;
     for (const segment of runRelativePath.split("/")) {
-      cursor = resolve6(cursor, segment);
+      cursor = resolve7(cursor, segment);
       if (!existsSync(cursor)) break;
-      if (lstatSync3(cursor).isSymbolicLink()) {
+      if (lstatSync4(cursor).isSymbolicLink()) {
         throw new Error(`run file path crosses symlink: ${runRelativePath}`);
       }
-      if (!isInsideOrSame(rootReal, realpathSync5.native(cursor))) {
+      if (!isInsideOrSame(rootReal, realpathSync6.native(cursor))) {
         throw new Error(`run file path escapes run directory through symlink: ${runRelativePath}`);
       }
     }
@@ -31712,10 +31753,10 @@ function optionalRunClosedOutcome(value) {
 }
 
 // src/shared/engine-provenance.ts
-import { dirname as dirname5, resolve as resolve7 } from "node:path";
+import { dirname as dirname6, resolve as resolve8 } from "node:path";
 import { fileURLToPath as fileURLToPath2 } from "node:url";
 var engineModulePath = fileURLToPath2(import.meta.url);
-var engineModuleDir = dirname5(engineModulePath);
+var engineModuleDir = dirname6(engineModulePath);
 
 // src/schemas/axes.ts
 var TournamentN = external_exports.number().int().min(2).max(4);
@@ -32358,8 +32399,8 @@ function readSavedFlowForProjection(manifestBytesBase64, manifestFlowId) {
 }
 function optionalReportPaths(runFolder) {
   const result = runResultPath(runFolder);
-  const operatorSummary = join9(runFolder, "reports", "operator-summary.json");
-  const operatorSummaryMarkdown = join9(runFolder, "reports", "operator-summary.md");
+  const operatorSummary = join10(runFolder, "reports", "operator-summary.json");
+  const operatorSummaryMarkdown = join10(runFolder, "reports", "operator-summary.md");
   return {
     ...existsSync2(result) ? { result_path: result } : {},
     ...existsSync2(operatorSummary) ? { operator_summary_path: operatorSummary } : {},
@@ -32380,7 +32421,7 @@ function stepMetadata(flow, stepId) {
 
 // src/app/run-status/runtime-run-folder.ts
 import { readFileSync as readFileSync8 } from "node:fs";
-import { join as join10 } from "node:path";
+import { join as join11 } from "node:path";
 
 // src/runtime/projections/tournament-checkpoint-context.ts
 function isRecord3(value) {
@@ -32481,7 +32522,7 @@ function isRecord4(value) {
   return value !== null && typeof value === "object" && !Array.isArray(value);
 }
 function readRawTraceEntries(runFolder) {
-  const tracePath = join10(runFolder, "trace.ndjson");
+  const tracePath = join11(runFolder, "trace.ndjson");
   const text = readFileSync8(tracePath, "utf8");
   const trimmed = text.trim();
   if (trimmed.length === 0) return [];
@@ -32713,7 +32754,7 @@ function runtimeWaitingCheckpointProjection(input) {
   const presentation = tournamentCheckpointPresentation({
     readJson: (path) => {
       try {
-        return JSON.parse(readFileSync8(join10(input.runFolder, path), "utf8"));
+        return JSON.parse(readFileSync8(join11(input.runFolder, path), "utf8"));
       } catch {
         return void 0;
       }
@@ -32928,7 +32969,7 @@ function assertReadableRunFolder(runFolder) {
     );
   }
   try {
-    accessSync(runFolder, constants7.R_OK | constants7.X_OK);
+    accessSync(runFolder, constants8.R_OK | constants8.X_OK);
   } catch (err) {
     throw new RunStatusFolderError(
       "folder_unreadable",
@@ -32938,7 +32979,7 @@ function assertReadableRunFolder(runFolder) {
   }
 }
 function projectRunStatusFromRunFolder(runFolder) {
-  const resolvedRunFolder = resolve8(runFolder);
+  const resolvedRunFolder = resolve9(runFolder);
   assertReadableRunFolder(resolvedRunFolder);
   let manifest;
   try {
@@ -33035,7 +33076,7 @@ async function assertOrdinaryFile(path, maximumBytes) {
   }
 }
 async function safeRunFilePath(runRoot, relativePath, maximumBytes) {
-  if (isAbsolute12(relativePath) || relativePath.includes("\\") || relativePath.includes("\0")) {
+  if (isAbsolute13(relativePath) || relativePath.includes("\\") || relativePath.includes("\0")) {
     throw new Error("A canonical run artifact path is unsafe.");
   }
   const segments = relativePath.split("/");
@@ -33044,19 +33085,19 @@ async function safeRunFilePath(runRoot, relativePath, maximumBytes) {
   }
   let cursor = runRoot;
   for (const segment of segments.slice(0, -1)) {
-    cursor = join11(cursor, segment);
+    cursor = join12(cursor, segment);
     const info = await lstat3(cursor, { bigint: true });
     if (info.isSymbolicLink() || !info.isDirectory()) {
       throw new Error("A canonical run artifact path crosses a link or non-directory.");
     }
   }
-  const path = join11(cursor, segments.at(-1) ?? "");
+  const path = join12(cursor, segments.at(-1) ?? "");
   await assertOrdinaryFile(path, maximumBytes);
   return path;
 }
 async function canonicalRunRoot(record2) {
   const workspace = await realpath5(record2.workspace.canonical_path);
-  if (workspace !== resolve9(record2.workspace.canonical_path)) {
+  if (workspace !== resolve10(record2.workspace.canonical_path)) {
     throw new Error("The trusted workspace changed before Circuit read run artifacts.");
   }
   const workspaceInfo = await lstat3(workspace, { bigint: true });
@@ -33065,7 +33106,7 @@ async function canonicalRunRoot(record2) {
   }
   let cursor = workspace;
   for (const segment of [".circuit", "runs", record2.run_id]) {
-    cursor = join11(cursor, segment);
+    cursor = join12(cursor, segment);
     const info = await lstat3(cursor, { bigint: true });
     if (info.isSymbolicLink() || !info.isDirectory()) {
       throw new Error("The canonical run folder crosses a link or non-directory.");
@@ -33082,7 +33123,7 @@ async function readBoundBytes(runRoot, relativePath, maximumBytes) {
   if (pathInfo.isSymbolicLink() || !pathInfo.isFile() || pathInfo.nlink !== 1n || pathInfo.size === 0n || pathInfo.size > BigInt(maximumBytes)) {
     throw new Error("A canonical run report is unsafe or too large.");
   }
-  const handle = await open2(path, constants8.O_RDONLY | constants8.O_NOFOLLOW);
+  const handle = await open2(path, constants9.O_RDONLY | constants9.O_NOFOLLOW);
   let bytes;
   try {
     const before = await handle.stat({ bigint: true });
@@ -33136,8 +33177,8 @@ async function readOperatorSummaryReceipt(runRoot) {
   };
 }
 function relativeRunPath(runRoot, path) {
-  const candidate2 = relative4(runRoot, path).split(sep3).join("/");
-  if (candidate2.length === 0 || candidate2.includes("\\") || candidate2.includes("\0") || isAbsolute12(candidate2) || candidate2.split("/").some((segment) => segment.length === 0 || segment === "." || segment === "..")) {
+  const candidate2 = relative5(runRoot, path).split(sep4).join("/");
+  if (candidate2.length === 0 || candidate2.includes("\\") || candidate2.includes("\0") || isAbsolute13(candidate2) || candidate2.split("/").some((segment) => segment.length === 0 || segment === "." || segment === "..")) {
     throw new Error("A canonical run artifact points outside the run folder.");
   }
   return candidate2;
@@ -33163,8 +33204,8 @@ var CanonicalRuntimeArtifactReconciler = class {
     let status;
     try {
       runRoot = await canonicalRunRoot(input.record);
-      await assertOrdinaryFile(join11(runRoot, "manifest.snapshot.json"), MAX_MANIFEST_BYTES);
-      await assertOrdinaryFile(join11(runRoot, "trace.ndjson"), MAX_TRACE_BYTES);
+      await assertOrdinaryFile(join12(runRoot, "manifest.snapshot.json"), MAX_MANIFEST_BYTES);
+      await assertOrdinaryFile(join12(runRoot, "trace.ndjson"), MAX_TRACE_BYTES);
       status = projectRunStatusFromRunFolder(runRoot);
     } catch {
       return workerExitedNonzero ? workerExitNonzeroFailure(input.exit.stderr_tail) : failure(
@@ -33288,14 +33329,14 @@ var CanonicalRuntimeArtifactReconciler = class {
 };
 
 // src/hosts/codex-mcp/state-adapter.ts
-import { realpathSync as realpathSync7 } from "node:fs";
+import { realpathSync as realpathSync8 } from "node:fs";
 import { setTimeout as delay3 } from "node:timers/promises";
 
 // src/hosts/codex-mcp/checkpoint-view.ts
 import { createHash as createHash7, timingSafeEqual } from "node:crypto";
-import { constants as constants9 } from "node:fs";
+import { constants as constants10 } from "node:fs";
 import { lstat as lstat4, open as open3, realpath as realpath6 } from "node:fs/promises";
-import { join as join12 } from "node:path";
+import { join as join13 } from "node:path";
 import { TextDecoder } from "node:util";
 var MAX_CHECKPOINT_REQUEST_BYTES = 256 * 1024;
 var READ_CHUNK_BYTES = 64 * 1024;
@@ -33462,7 +33503,7 @@ async function inspectRequestPath(input) {
     }
     directories.push(directoryIdentity(workspaceInfo));
     for (const segment of segments.slice(0, -1)) {
-      cursor = join12(cursor, segment);
+      cursor = join13(cursor, segment);
       const info = await lstat4(cursor, { bigint: true });
       if (info.isSymbolicLink() || !info.isDirectory()) {
         throw new CheckpointViewError(
@@ -33472,7 +33513,7 @@ async function inspectRequestPath(input) {
       }
       directories.push(directoryIdentity(info));
     }
-    cursor = join12(cursor, segments.at(-1) ?? "");
+    cursor = join13(cursor, segments.at(-1) ?? "");
     const fileInfo = await lstat4(cursor, { bigint: true });
     if (fileInfo.isSymbolicLink() || !fileInfo.isFile() || fileInfo.nlink !== 1n) {
       throw new CheckpointViewError(
@@ -33542,7 +33583,7 @@ async function readBounded(handle) {
   return Buffer.concat(chunks, total);
 }
 async function readStableRequestBytes(input) {
-  const requestFile = join12(
+  const requestFile = join13(
     input.workspace,
     ".circuit",
     "runs",
@@ -33560,7 +33601,7 @@ async function readStableRequestBytes(input) {
   try {
     handle = await open3(
       requestFile,
-      constants9.O_RDONLY | constants9.O_NONBLOCK | constants9.O_NOFOLLOW
+      constants10.O_RDONLY | constants10.O_NONBLOCK | constants10.O_NOFOLLOW
     );
     const descriptorBeforeInfo = await handle.stat({ bigint: true });
     if (!descriptorBeforeInfo.isFile() || descriptorBeforeInfo.nlink !== 1n || descriptorBeforeInfo.size > BigInt(MAX_CHECKPOINT_REQUEST_BYTES)) {
@@ -33707,17 +33748,17 @@ async function assertCheckpointResume(input) {
 
 // src/hosts/codex-mcp/supervisor-progress.ts
 import {
-  constants as constants10,
-  closeSync as closeSync6,
-  fstatSync as fstatSync5,
+  constants as constants11,
+  closeSync as closeSync7,
+  fstatSync as fstatSync6,
   fsyncSync as fsyncSync2,
-  lstatSync as lstatSync4,
-  openSync as openSync6,
-  readSync as readSync2,
-  realpathSync as realpathSync6,
+  lstatSync as lstatSync5,
+  openSync as openSync7,
+  readSync as readSync3,
+  realpathSync as realpathSync7,
   writeSync
 } from "node:fs";
-import { basename as basename3, dirname as dirname6, join as join13 } from "node:path";
+import { basename as basename3, dirname as dirname7, join as join14 } from "node:path";
 
 // src/schemas/progress-event.ts
 var MAX_STATUS_TEXT_CHARS = 180;
@@ -33991,31 +34032,31 @@ var SupervisorProgressError = class extends Error {
 function progressPath(controlDirectory, generation) {
   const name = `launch-${generation}-progress.jsonl`;
   if (basename3(name) !== name) throw new Error("invalid supervisor progress name");
-  return join13(controlDirectory, name);
+  return join14(controlDirectory, name);
 }
 function assertPrivateDirectory(path) {
-  const info = lstatSync4(path);
-  if (info.isSymbolicLink() || !info.isDirectory() || (info.mode & 511) !== 448 || typeof process.getuid === "function" && info.uid !== process.getuid() || realpathSync6.native(path) !== path) {
+  const info = lstatSync5(path);
+  if (info.isSymbolicLink() || !info.isDirectory() || (info.mode & 511) !== 448 || typeof process.getuid === "function" && info.uid !== process.getuid() || realpathSync7.native(path) !== path) {
     throw new SupervisorProgressError("The supervisor progress directory is unsafe.");
   }
 }
 function readBoundedPrefix(path) {
   let descriptor;
   try {
-    descriptor = openSync6(path, constants10.O_RDONLY | constants10.O_NOFOLLOW);
+    descriptor = openSync7(path, constants11.O_RDONLY | constants11.O_NOFOLLOW);
   } catch (error51) {
     if (error51.code === "ENOENT") return void 0;
     throw error51;
   }
   try {
-    const before = fstatSync5(descriptor);
+    const before = fstatSync6(descriptor);
     if (!before.isFile() || before.nlink !== 1 || (before.mode & 511) !== 384 || typeof process.getuid === "function" && before.uid !== process.getuid() || before.size > MAX_PROGRESS_FILE_BYTES) {
       throw new SupervisorProgressError("A supervisor progress file is unsafe or too large.");
     }
     const bytes = Buffer.alloc(before.size);
     let offset = 0;
     while (offset < bytes.byteLength) {
-      const count = readSync2(descriptor, bytes, offset, bytes.byteLength - offset, offset);
+      const count = readSync3(descriptor, bytes, offset, bytes.byteLength - offset, offset);
       if (count === 0) break;
       offset += count;
     }
@@ -34024,8 +34065,8 @@ function readBoundedPrefix(path) {
         "A supervisor progress file changed while Circuit read it."
       );
     }
-    const after = fstatSync5(descriptor);
-    const atPath = lstatSync4(path);
+    const after = fstatSync6(descriptor);
+    const atPath = lstatSync5(path);
     if (before.dev !== after.dev || before.ino !== after.ino || after.size < before.size || after.dev !== atPath.dev || after.ino !== atPath.ino || atPath.isSymbolicLink()) {
       throw new SupervisorProgressError(
         "A supervisor progress file changed while Circuit read it."
@@ -34033,7 +34074,7 @@ function readBoundedPrefix(path) {
     }
     return bytes;
   } finally {
-    closeSync6(descriptor);
+    closeSync7(descriptor);
   }
 }
 function readSupervisorProgress(input) {
@@ -34218,7 +34259,7 @@ var McpLifecycleStateAdapter = class {
   }
   controlDirectory(workspace, runId) {
     const path = this.#store.pathsForRun(stateWorkspace(workspace), runId).run_dir;
-    return realpathSync7.native(path);
+    return realpathSync8.native(path);
   }
   async waitForChange(input) {
     const deadline = Date.now() + Math.min(input.wait_ms, 1e4);
@@ -34605,25 +34646,25 @@ var McpCheckpointAdapter = class {
 // src/hosts/codex-mcp/state-store.ts
 import { createHash as createHash8, randomUUID as randomUUID3 } from "node:crypto";
 import {
-  constants as constants11,
-  closeSync as closeSync7,
+  constants as constants12,
+  closeSync as closeSync8,
   existsSync as existsSync3,
-  fstatSync as fstatSync6,
+  fstatSync as fstatSync7,
   fsyncSync as fsyncSync3,
   linkSync,
-  lstatSync as lstatSync5,
+  lstatSync as lstatSync6,
   mkdirSync,
-  openSync as openSync7,
+  openSync as openSync8,
   opendirSync,
   readFileSync as readFileSync9,
-  realpathSync as realpathSync8,
+  realpathSync as realpathSync9,
   renameSync,
   rmSync as rmSync2,
   statSync as statSync4,
   unlinkSync as unlinkSync2,
   writeFileSync as writeFileSync2
 } from "node:fs";
-import { basename as basename4, dirname as dirname7, isAbsolute as isAbsolute13, join as join14, normalize, relative as relative5, resolve as resolve10, sep as sep4 } from "node:path";
+import { basename as basename4, dirname as dirname8, isAbsolute as isAbsolute14, join as join15, normalize, relative as relative6, resolve as resolve11, sep as sep5 } from "node:path";
 var SHA256 = /^[a-f0-9]{64}$/;
 var RUN_ID = external_exports.guid({ error: "run_id must be a UUID" });
 var MAX_STATE_BYTES = 1048576;
@@ -34640,13 +34681,13 @@ var SafeIdentifier = external_exports.string().min(1).max(128).regex(/^[A-Za-z0-
 var CheckpointIdentifier = external_exports.string().min(1).max(128).regex(/^[a-z0-9][a-z0-9._-]*$/);
 function isSafeRelativePath(value) {
   if (value.length === 0 || value.length > 4096) return false;
-  if (value.includes("\\") || value.includes("\0") || isAbsolute13(value)) return false;
+  if (value.includes("\\") || value.includes("\0") || isAbsolute14(value)) return false;
   const parts = value.split("/");
   if (parts.some((part) => part.length === 0 || part === "." || part === "..")) return false;
-  return normalize(value).split(sep4).join("/") === value;
+  return normalize(value).split(sep5).join("/") === value;
 }
 var SafeRelativePath = external_exports.string().refine(isSafeRelativePath, "must be a normalized relative path");
-var AbsolutePath3 = external_exports.string().min(1).max(4096).refine(isAbsolute13, "must be an absolute path");
+var AbsolutePath3 = external_exports.string().min(1).max(4096).refine(isAbsolute14, "must be an absolute path");
 var McpWorkspaceIdentityV1 = external_exports.object({
   key: Sha2564,
   canonical_path: AbsolutePath3,
@@ -35025,7 +35066,7 @@ function workspaceKey(canonicalPath) {
 function trustedWorkspaceIdentity(path, identitySource = CODEX_SANDBOX_METADATA_KEY) {
   let direct;
   try {
-    direct = lstatSync5(path);
+    direct = lstatSync6(path);
   } catch {
     throw new McpStateStoreError("workspace_invalid", "The trusted workspace does not exist.");
   }
@@ -35035,7 +35076,7 @@ function trustedWorkspaceIdentity(path, identitySource = CODEX_SANDBOX_METADATA_
       "The trusted workspace must be a real directory, not a symbolic link."
     );
   }
-  const canonicalPath = realpathSync8.native(path);
+  const canonicalPath = realpathSync9.native(path);
   const stat4 = statSync4(canonicalPath);
   return McpWorkspaceIdentityV1.parse({
     key: workspaceKey(canonicalPath),
@@ -35093,7 +35134,7 @@ function assertCurrentWorkspace(workspace) {
   }
 }
 function assertPrivateDirectory2(path) {
-  const stat4 = lstatSync5(path);
+  const stat4 = lstatSync6(path);
   if (stat4.isSymbolicLink() || !stat4.isDirectory()) {
     throw new McpStateStoreError(
       "state_unsafe_directory",
@@ -35122,11 +35163,11 @@ function ensurePrivateDirectory(path, recursive = false) {
   assertPrivateDirectory2(path);
 }
 function fsyncDirectory2(path) {
-  const fd = openSync7(path, constants11.O_RDONLY);
+  const fd = openSync8(path, constants12.O_RDONLY);
   try {
     fsyncSync3(fd);
   } finally {
-    closeSync7(fd);
+    closeSync8(fd);
   }
 }
 function readDirectoryBounded(path, maximumEntries, code, message, nextAction) {
@@ -35150,10 +35191,10 @@ function jsonBytes(value) {
 `;
 }
 function stageCompleteFile(target, contents) {
-  const stage = join14(dirname7(target), `.${basename4(target)}.${randomUUID3()}.tmp`);
-  const fd = openSync7(
+  const stage = join15(dirname8(target), `.${basename4(target)}.${randomUUID3()}.tmp`);
+  const fd = openSync8(
     stage,
-    constants11.O_WRONLY | constants11.O_CREAT | constants11.O_EXCL | constants11.O_NOFOLLOW,
+    constants12.O_WRONLY | constants12.O_CREAT | constants12.O_EXCL | constants12.O_NOFOLLOW,
     384
   );
   try {
@@ -35163,7 +35204,7 @@ function stageCompleteFile(target, contents) {
     rmSync2(stage, { force: true });
     throw error51;
   } finally {
-    closeSync7(fd);
+    closeSync8(fd);
   }
   return stage;
 }
@@ -35174,21 +35215,21 @@ function createJsonExclusive(target, value) {
     try {
       linkSync(stage, target);
       created = true;
-      fsyncDirectory2(dirname7(target));
+      fsyncDirectory2(dirname8(target));
     } catch (error51) {
       if (errorCode3(error51) !== "EEXIST") throw error51;
     }
     return created;
   } finally {
     rmSync2(stage, { force: true });
-    fsyncDirectory2(dirname7(target));
+    fsyncDirectory2(dirname8(target));
   }
 }
 function replaceJsonAtomic(target, value) {
   const stage = stageCompleteFile(target, jsonBytes(value));
   try {
     renameSync(stage, target);
-    fsyncDirectory2(dirname7(target));
+    fsyncDirectory2(dirname8(target));
   } catch (error51) {
     rmSync2(stage, { force: true });
     throw error51;
@@ -35213,7 +35254,7 @@ var TransientStateRead = class extends Error {
 function readStrictJsonOnce(path, schema, maxBytes, corruptCode) {
   let fd;
   try {
-    fd = openSync7(path, constants11.O_RDONLY | constants11.O_NONBLOCK | constants11.O_NOFOLLOW);
+    fd = openSync8(path, constants12.O_RDONLY | constants12.O_NONBLOCK | constants12.O_NOFOLLOW);
   } catch (error51) {
     if (errorCode3(error51) === "ELOOP") {
       throw new McpStateStoreError(
@@ -35224,16 +35265,16 @@ function readStrictJsonOnce(path, schema, maxBytes, corruptCode) {
     throw error51;
   }
   try {
-    const before = fstatSync6(fd);
+    const before = fstatSync7(fd);
     assertPrivateRegularFile(path, before);
     if (before.size > maxBytes) {
       throw new McpStateStoreError(corruptCode, `Circuit state file is too large: ${path}`);
     }
     const raw = readFileSync9(fd, "utf8");
-    const after = fstatSync6(fd);
+    const after = fstatSync7(fd);
     let atPath;
     try {
-      atPath = lstatSync5(path);
+      atPath = lstatSync6(path);
     } catch (error51) {
       if (errorCode3(error51) === "ENOENT") throw new TransientStateRead();
       throw error51;
@@ -35260,7 +35301,7 @@ function readStrictJsonOnce(path, schema, maxBytes, corruptCode) {
     }
     return parsed.data;
   } finally {
-    closeSync7(fd);
+    closeSync8(fd);
   }
 }
 function readStrictJson(path, schema, maxBytes, corruptCode) {
@@ -35296,7 +35337,7 @@ function unlinkExactClaim(path, expected) {
     );
   }
   unlinkSync2(path);
-  fsyncDirectory2(dirname7(path));
+  fsyncDirectory2(dirname8(path));
 }
 function unlinkExactLease(path, expected) {
   const current = readStrictJson(path, WorkspaceLeaseRecordV1, MAX_CONTROL_BYTES, "lease_corrupt");
@@ -35304,7 +35345,7 @@ function unlinkExactLease(path, expected) {
     throw new McpStateStoreError("lease_changed", "The workspace lease changed before release.");
   }
   unlinkSync2(path);
-  fsyncDirectory2(dirname7(path));
+  fsyncDirectory2(dirname8(path));
 }
 function unlinkExactWorkspaceGuard(path, expected) {
   const current = readStrictJson(
@@ -35320,7 +35361,7 @@ function unlinkExactWorkspaceGuard(path, expected) {
     );
   }
   unlinkSync2(path);
-  fsyncDirectory2(dirname7(path));
+  fsyncDirectory2(dirname8(path));
 }
 var ALLOWED_TRANSITIONS = {
   starting: /* @__PURE__ */ new Set([
@@ -35378,17 +35419,17 @@ var McpStateStore = class {
   #afterOperationClaimReclaimed;
   #handles = /* @__PURE__ */ new WeakMap();
   constructor(options) {
-    if (!isAbsolute13(options.stateRoot)) {
+    if (!isAbsolute14(options.stateRoot)) {
       throw new McpStateStoreError(
         "state_root_invalid",
         "Circuit MCP state root must be absolute."
       );
     }
     ensurePrivateDirectory(options.stateRoot, true);
-    this.stateRoot = realpathSync8.native(options.stateRoot);
+    this.stateRoot = realpathSync9.native(options.stateRoot);
     assertPrivateDirectory2(this.stateRoot);
-    this.runsRoot = join14(this.stateRoot, "runs");
-    this.leasesRoot = join14(this.stateRoot, "leases");
+    this.runsRoot = join15(this.stateRoot, "runs");
+    this.leasesRoot = join15(this.stateRoot, "leases");
     ensurePrivateDirectory(this.runsRoot);
     ensurePrivateDirectory(this.leasesRoot);
     this.#now = options.now ?? (() => /* @__PURE__ */ new Date());
@@ -35403,13 +35444,13 @@ var McpStateStore = class {
   pathsForRun(workspace, runId) {
     const parsedRunId = RUN_ID.parse(runId);
     const parsedWorkspace = McpWorkspaceIdentityV1.parse(workspace);
-    const runDir = join14(this.runsRoot, parsedWorkspace.key, parsedRunId);
+    const runDir = join15(this.runsRoot, parsedWorkspace.key, parsedRunId);
     return {
       run_dir: runDir,
-      state_file: join14(runDir, "state.json"),
-      operation_file: join14(runDir, "operation.json"),
-      operation_release_file: join14(runDir, "operation.release.json"),
-      lease_file: join14(this.leasesRoot, `${parsedWorkspace.key}.json`)
+      state_file: join15(runDir, "state.json"),
+      operation_file: join15(runDir, "operation.json"),
+      operation_release_file: join15(runDir, "operation.release.json"),
+      lease_file: join15(this.leasesRoot, `${parsedWorkspace.key}.json`)
     };
   }
   reserveRun(input) {
@@ -35437,9 +35478,9 @@ var McpStateStore = class {
     const now = this.#now().toISOString();
     const stagingName = `.${runId}.${leaseId}.tmp`;
     const workspaceRunsRoot = this.#workspaceRunsRoot(workspace, true);
-    const stagingDir = join14(workspaceRunsRoot, stagingName);
-    const finalRunDir = join14(workspaceRunsRoot, runId);
-    const leasePath = join14(this.leasesRoot, `${workspace.key}.json`);
+    const stagingDir = join15(workspaceRunsRoot, stagingName);
+    const finalRunDir = join15(workspaceRunsRoot, runId);
+    const leasePath = join15(this.leasesRoot, `${workspace.key}.json`);
     if (existsSync3(finalRunDir)) {
       throw new McpStateStoreError("run_exists", "A Circuit MCP run with this ID already exists.");
     }
@@ -35494,10 +35535,10 @@ var McpStateStore = class {
         );
       }
       ensurePrivateDirectory(stagingDir);
-      if (!createJsonExclusive(join14(stagingDir, "state.json"), record2)) {
+      if (!createJsonExclusive(join15(stagingDir, "state.json"), record2)) {
         throw new McpStateStoreError("run_exists", "The staged Circuit run already exists.");
       }
-      if (claim !== void 0 && !createJsonExclusive(join14(stagingDir, "operation.json"), claim)) {
+      if (claim !== void 0 && !createJsonExclusive(join15(stagingDir, "operation.json"), claim)) {
         throw new McpStateStoreError(
           "operation_in_progress",
           "The staged Circuit run already has an operation claim."
@@ -35946,7 +35987,7 @@ var McpStateStore = class {
             "Circuit MCP contains an unsafe interrupted-retention entry."
           );
         }
-        const tombstone = join14(workspaceRunsRoot, entry.name);
+        const tombstone = join15(workspaceRunsRoot, entry.name);
         assertPrivateDirectory2(tombstone);
         this.#assertWorkspaceGuard(guard, workspace.key);
         rmSync2(tombstone, { force: true, recursive: true });
@@ -36005,7 +36046,7 @@ var McpStateStore = class {
             unlinkExactLease(paths.lease_file, lease);
           }
         }
-        const tombstone = join14(
+        const tombstone = join15(
           workspaceRunsRoot,
           `.retention.${record2.run_id}.${RUN_ID.parse(this.#randomId())}.tmp`
         );
@@ -36116,7 +36157,7 @@ var McpStateStore = class {
     }
   }
   #workspaceRunsRoot(workspace, create) {
-    const path = join14(this.runsRoot, workspace.key);
+    const path = join15(this.runsRoot, workspace.key);
     if (create) ensurePrivateDirectory(path);
     else if (existsSync3(path)) assertPrivateDirectory2(path);
     return path;
@@ -36222,8 +36263,8 @@ var McpStateStore = class {
     return this.#inspectProcess(owner);
   }
   #acquireWorkspaceGuard(workspace, owner) {
-    const guardPath = join14(this.leasesRoot, `${workspace.key}.guard.json`);
-    const reclaimPath = join14(this.leasesRoot, `${workspace.key}.guard.reclaim.json`);
+    const guardPath = join15(this.leasesRoot, `${workspace.key}.guard.json`);
+    const reclaimPath = join15(this.leasesRoot, `${workspace.key}.guard.reclaim.json`);
     const desired = WorkspaceGuardRecordV1.parse({
       schema_version: 1,
       record_kind: "circuit.mcp.workspace-guard",
@@ -36349,7 +36390,7 @@ var McpStateStore = class {
   }
   #releaseLeaseForRecord(record2, guard) {
     this.#assertWorkspaceGuard(guard, record2.workspace.key);
-    const leasePath = join14(this.leasesRoot, `${record2.workspace.key}.json`);
+    const leasePath = join15(this.leasesRoot, `${record2.workspace.key}.json`);
     if (!existsSync3(leasePath)) return;
     const lease = readStrictJson(
       leasePath,
@@ -36380,7 +36421,7 @@ var McpStateStore = class {
       throw new McpStateStoreError("lease_changed", "The workspace lease identity does not match.");
     }
     const workspaceRunsRoot = this.#workspaceRunsRoot(workspace, true);
-    const published = join14(workspaceRunsRoot, lease.run_id);
+    const published = join15(workspaceRunsRoot, lease.run_id);
     if (existsSync3(published)) {
       const record2 = this.readRun(workspace, lease.run_id);
       if (record2.lease_id !== lease.lease_id) {
@@ -36406,7 +36447,7 @@ var McpStateStore = class {
         status === "alive" ? "Another Circuit start still owns this workspace." : "Circuit cannot prove that an interrupted start released this workspace."
       );
     }
-    const staging = join14(workspaceRunsRoot, lease.staging_name);
+    const staging = join15(workspaceRunsRoot, lease.staging_name);
     if (existsSync3(staging)) rmSync2(staging, { force: true, recursive: true });
     this.#assertWorkspaceGuard(guard, workspace.key);
     unlinkExactLease(leasePath, lease);
@@ -36414,7 +36455,7 @@ var McpStateStore = class {
   #reconcileOrphanStagingUnderGuard(workspace, guard, preserveName) {
     this.#assertWorkspaceGuard(guard, workspace.key);
     const workspaceRunsRoot = this.#workspaceRunsRoot(workspace, true);
-    const leasePath = join14(this.leasesRoot, `${workspace.key}.json`);
+    const leasePath = join15(this.leasesRoot, `${workspace.key}.json`);
     const lease = existsSync3(leasePath) ? readStrictJson(leasePath, WorkspaceLeaseRecordV1, MAX_CONTROL_BYTES, "lease_corrupt") : void 0;
     if (lease !== void 0 && !sameWorkspace(lease.workspace, workspace)) {
       throw new McpStateStoreError("lease_changed", "The workspace lease identity does not match.");
@@ -36438,9 +36479,9 @@ var McpStateStore = class {
         );
       }
       if (lease?.staging_name === entry.name) continue;
-      const stagingPath = join14(workspaceRunsRoot, entry.name);
+      const stagingPath = join15(workspaceRunsRoot, entry.name);
       assertPrivateDirectory2(stagingPath);
-      const statePath = join14(stagingPath, "state.json");
+      const statePath = join15(stagingPath, "state.json");
       if (!existsSync3(statePath)) {
         this.#assertWorkspaceGuard(guard, workspace.key);
         rmSync2(stagingPath, { force: true, recursive: true });
@@ -36603,11 +36644,11 @@ var BoundedLineReader = class {
       if (remaining !== void 0 && remaining <= 0) {
         throw new Error("supervisor channel timed out");
       }
-      await new Promise((resolve13, reject) => {
+      await new Promise((resolve14, reject) => {
         let timer;
         const wake = () => {
           if (timer !== void 0) clearTimeout(timer);
-          resolve13();
+          resolve14();
         };
         this.#waiters.push(wake);
         if (remaining !== void 0) {
@@ -36651,9 +36692,9 @@ var SupervisorLaunchError = class extends Error {
 };
 function writeAuthorization(channel, value) {
   const bytes = encodeSupervisorMessage(value);
-  return new Promise((resolve13, reject) => {
+  return new Promise((resolve14, reject) => {
     channel.end(bytes, (error51) => {
-      if (error51 === null || error51 === void 0) resolve13();
+      if (error51 === null || error51 === void 0) resolve14();
       else reject(error51);
     });
   });
@@ -36730,8 +36771,8 @@ var ProcessSupervisorLauncher = class {
       const message = error51 instanceof Error ? error51.message : String(error51);
       throw new SupervisorLaunchError(message, true);
     }
-    const childError = new Promise((resolve13) => {
-      child.once("error", (error51) => resolve13(error51));
+    const childError = new Promise((resolve14) => {
+      child.once("error", (error51) => resolve14(error51));
     });
     if (child.pid === void 0) {
       const error51 = await Promise.race([
@@ -36897,14 +36938,14 @@ var PLUGIN_RUNTIME_FILES = [
   ["git_state", "runtime/git-state.js"]
 ];
 function resolveProductionCodexHome(environment) {
-  const candidate2 = environment.CODEX_HOME ?? (environment.HOME === void 0 ? void 0 : join15(environment.HOME, ".codex"));
+  const candidate2 = environment.CODEX_HOME ?? (environment.HOME === void 0 ? void 0 : join16(environment.HOME, ".codex"));
   if (candidate2 === void 0) {
     throw new Error("Circuit MCP requires CODEX_HOME or an absolute HOME directory.");
   }
-  if (!isAbsolute14(candidate2) || candidate2.includes("\0")) {
+  if (!isAbsolute15(candidate2) || candidate2.includes("\0")) {
     throw new Error("Circuit MCP requires an absolute CODEX_HOME directory.");
   }
-  return resolve11(candidate2);
+  return resolve12(candidate2);
 }
 var SHARED_TEMP_ROOT_CANDIDATES2 = [
   "/tmp",
@@ -36915,9 +36956,9 @@ var SHARED_TEMP_ROOT_CANDIDATES2 = [
 async function canonicalSharedTempRoots() {
   const sharedRoots = /* @__PURE__ */ new Set();
   for (const root of [...SHARED_TEMP_ROOT_CANDIDATES2, tmpdir2()]) {
-    if (!isAbsolute14(root)) continue;
+    if (!isAbsolute15(root)) continue;
     try {
-      const canonicalRoot = await realpath7(resolve11(root));
+      const canonicalRoot = await realpath7(resolve12(root));
       if ((await stat3(canonicalRoot)).isDirectory()) sharedRoots.add(canonicalRoot);
     } catch (error51) {
       if (error51.code === "ENOENT") continue;
@@ -36927,12 +36968,12 @@ async function canonicalSharedTempRoots() {
   return sharedRoots;
 }
 async function resolvePrivateProductionCodexHome(candidate2) {
-  if (!isAbsolute14(candidate2) || candidate2.includes("\0")) {
+  if (!isAbsolute15(candidate2) || candidate2.includes("\0")) {
     throw new Error("Circuit MCP requires an absolute CODEX_HOME directory.");
   }
   let canonicalHome;
   try {
-    canonicalHome = await realpath7(resolve11(candidate2));
+    canonicalHome = await realpath7(resolve12(candidate2));
     if (!(await stat3(canonicalHome)).isDirectory()) throw new Error("not a directory");
   } catch {
     throw new Error("Circuit MCP requires CODEX_HOME to name an existing directory.");
@@ -36948,7 +36989,7 @@ async function resolvePrivateProductionCodexHome(candidate2) {
 async function resolvePrivateProductionStateRoot(canonicalCodexHome) {
   let current = canonicalCodexHome;
   for (const segment of ["circuit", "mcp", "v1"]) {
-    const next = join15(current, segment);
+    const next = join16(current, segment);
     let info;
     try {
       info = await lstat5(next);
@@ -36976,26 +37017,26 @@ async function resolvePrivateProductionStateRoot(canonicalCodexHome) {
   return current;
 }
 function productionMcpLayout(input) {
-  if (!isAbsolute14(input.pluginRoot)) throw new Error("The installed plugin root must be absolute.");
-  if (!isAbsolute14(input.nodeExecutable)) {
+  if (!isAbsolute15(input.pluginRoot)) throw new Error("The installed plugin root must be absolute.");
+  if (!isAbsolute15(input.nodeExecutable)) {
     throw new Error("The host Node executable must be absolute.");
   }
-  const pluginRoot = resolve11(input.pluginRoot);
-  const flowsRoot = join15(pluginRoot, "flows");
+  const pluginRoot = resolve12(input.pluginRoot);
+  const flowsRoot = join16(pluginRoot, "flows");
   const gitExecutable = input.gitExecutable ?? resolveGitExecutableOnPath(input.pathValue);
-  if (!isAbsolute14(gitExecutable)) throw new Error("The Git helper must be absolute.");
+  if (!isAbsolute15(gitExecutable)) throw new Error("The Git helper must be absolute.");
   return Object.freeze({
     pluginRoot,
     flowsRoot,
     stateRoot: codexMcpStateRoot(input.codexHome),
-    modelCache: join15(input.codexHome, "models_cache.json"),
+    modelCache: join16(input.codexHome, "models_cache.json"),
     nodeExecutable: input.nodeExecutable,
     codexExecutable: resolveCodexExecutableOnPath(input.pathValue),
     gitExecutable,
     pluginRuntimes: Object.freeze(
       PLUGIN_RUNTIME_FILES.map(([id, relativePath]) => ({
         id,
-        path: join15(pluginRoot, relativePath)
+        path: join16(pluginRoot, relativePath)
       }))
     ),
     packagedFlows: collectPackagedFlowAssets(flowsRoot)
@@ -37016,8 +37057,8 @@ function requiredAsset(assets, id, role) {
   return found;
 }
 function pathInside3(parent, candidate2) {
-  const child = relative6(parent, candidate2);
-  return child === "" || !child.startsWith("..") && !isAbsolute14(child);
+  const child = relative7(parent, candidate2);
+  return child === "" || !child.startsWith("..") && !isAbsolute15(child);
 }
 function prosaicChoiceList(values) {
   if (values.length === 1) return values[0] ?? "";
@@ -37070,7 +37111,7 @@ function preparedProductionLaunch(data) {
   return Object.freeze(capsule);
 }
 function createProductionLaunchPreflight(dependencies) {
-  if (!isAbsolute14(dependencies.stateRoot)) {
+  if (!isAbsolute15(dependencies.stateRoot)) {
     throw new Error("The canonical Circuit MCP state root must be absolute.");
   }
   const verifyAssets = dependencies.verifyAssets ?? verifyMcpRuntimeAssets;
@@ -37087,7 +37128,7 @@ function createProductionLaunchPreflight(dependencies) {
       const git = requiredAsset(input.runtime_assets, "git_helper", "git_helper");
       const catalog = requiredAsset(input.runtime_assets, "flow:catalog", "packaged_flow");
       const nodeInstallation = deriveNodeInstallation(node.real_path);
-      const probeRoot = join15(dependencies.stateRoot, "preflight", randomUUID5());
+      const probeRoot = join16(dependencies.stateRoot, "preflight", randomUUID5());
       if (pathInside3(input.workspace.canonical_path, probeRoot)) {
         throw new Error("The private Codex capability probe must stay outside the workspace.");
       }
@@ -37101,7 +37142,7 @@ function createProductionLaunchPreflight(dependencies) {
               executable: codex.real_path,
               cliVersion: "capability-probe",
               workspace: input.workspace.canonical_path,
-              tempRoot: join15(probeRoot, "private"),
+              tempRoot: join16(probeRoot, "private"),
               nodeExecutable: nodeInstallation.executable,
               nodeInstallationRoot: nodeInstallation.root,
               gitExecutable: git.real_path,
@@ -37109,23 +37150,31 @@ function createProductionLaunchPreflight(dependencies) {
               defaultModel: "gpt-5.4",
               allowedModels: /* @__PURE__ */ new Set(["gpt-5.4"])
             },
-            codexHome: join15(probeRoot, "codex-home"),
+            codexHome: join16(probeRoot, "codex-home"),
             environment: dependencies.environment
           }
         });
         try {
-          validateFlowStartTarget(input.request.flow, input.request.goal, input.request.target);
+          validateFlowStartTarget(
+            input.request.flow,
+            input.request.goal,
+            input.request.target,
+            // The workspace identity the host handed us, never process.cwd():
+            // a named target can be a path in the project, and the path has to
+            // be checked against the project the host says this run is about.
+            input.workspace.canonical_path
+          );
         } catch (error51) {
           throw new McpLifecycleError(
             "invalid_review_target",
             error51.message,
-            "Name one target: the working tree, the staged set, the unstaged set, a commit, or a range. Narrow it with paths if you want. To review a plan or report, include its actual text."
+            "Name one target: the working tree, the staged set, the unstaged set, a commit, a range, or a path in the repository. Narrow it with paths if you want. To review a plan or report, include its actual text."
           );
         }
       } finally {
         await rm2(probeRoot, { recursive: true, force: true });
       }
-      const roster = loadRoster(join15(dependencies.codexHome, "models_cache.json"));
+      const roster = loadRoster(join16(dependencies.codexHome, "models_cache.json"));
       const publicFlows = loadCatalog(catalog.real_path);
       if (!publicFlows.has(input.request.flow)) {
         throw new Error("The selected flow is not present in the sealed public flow catalog.");
@@ -37155,17 +37204,17 @@ function createProductionLaunchPreflight(dependencies) {
 }
 async function privateGenerationDirectory(controlDirectory, generation) {
   const canonicalControl = await realpath7(controlDirectory);
-  if (canonicalControl !== resolve11(controlDirectory)) {
+  if (canonicalControl !== resolve12(controlDirectory)) {
     throw new Error("The Circuit control directory changed before worker launch.");
   }
-  const privateRoot = join15(canonicalControl, "private");
+  const privateRoot = join16(canonicalControl, "private");
   await mkdir2(privateRoot, { recursive: true, mode: 448 });
-  const generationRoot = join15(privateRoot, `generation-${generation}`);
+  const generationRoot = join16(privateRoot, `generation-${generation}`);
   await mkdir2(generationRoot, { recursive: false, mode: 448 });
   return await realpath7(generationRoot);
 }
 function createProductionWorkerFactory(options) {
-  const pluginRoot = resolve11(options.pluginRoot);
+  const pluginRoot = resolve12(options.pluginRoot);
   const create = async (input) => {
     const preparation = input.prepared_launch.consume();
     const worker = requiredAsset(input.runtime_assets, "plugin_runtime:worker", "plugin_runtime");
@@ -37189,7 +37238,7 @@ function createProductionWorkerFactory(options) {
           inode: input.workspace.inode,
           identity_source: input.workspace.identity_source ?? "codex/sandbox-state-meta"
         },
-        flow_root: join15(pluginRoot, "flows"),
+        flow_root: join16(pluginRoot, "flows"),
         private_temp_root: privateTempRoot,
         asset_digest_sha256: input.runtime_assets.digest_sha256,
         runtime_assets: input.runtime_assets,
@@ -37240,7 +37289,7 @@ function createProductionSupervisorLauncher(options) {
 }
 async function createProductionCircuitMcpHandler(options) {
   const environment = options.environment ?? process.env;
-  const pluginRoot = resolve11(options.pluginRoot);
+  const pluginRoot = resolve12(options.pluginRoot);
   const codexHome = await resolvePrivateProductionCodexHome(options.codexHome);
   const stateRoot = await resolvePrivateProductionStateRoot(codexHome);
   const hostProbe = options.processProbe === void 0 ? createMacOsProcessProbe() : void 0;
@@ -43208,7 +43257,7 @@ var Protocol = class {
           return;
         }
         const pollInterval = task2.pollInterval ?? this._options?.defaultTaskPollInterval ?? 1e3;
-        await new Promise((resolve13) => setTimeout(resolve13, pollInterval));
+        await new Promise((resolve14) => setTimeout(resolve14, pollInterval));
         options?.signal?.throwIfAborted();
       }
     } catch (error51) {
@@ -43225,7 +43274,7 @@ var Protocol = class {
    */
   request(request, resultSchema, options) {
     const { relatedRequestId, resumptionToken, onresumptiontoken, task, relatedTask } = options ?? {};
-    return new Promise((resolve13, reject) => {
+    return new Promise((resolve14, reject) => {
       const earlyReject = (error51) => {
         reject(error51);
       };
@@ -43303,7 +43352,7 @@ var Protocol = class {
           if (!parseResult.success) {
             reject(parseResult.error);
           } else {
-            resolve13(parseResult.data);
+            resolve14(parseResult.data);
           }
         } catch (error51) {
           reject(error51);
@@ -43564,12 +43613,12 @@ var Protocol = class {
       }
     } catch {
     }
-    return new Promise((resolve13, reject) => {
+    return new Promise((resolve14, reject) => {
       if (signal.aborted) {
         reject(new McpError(ErrorCode.InvalidRequest, "Request cancelled"));
         return;
       }
-      const timeoutId = setTimeout(resolve13, interval);
+      const timeoutId = setTimeout(resolve14, interval);
       signal.addEventListener("abort", () => {
         clearTimeout(timeoutId);
         reject(new McpError(ErrorCode.InvalidRequest, "Request cancelled"));
@@ -44669,7 +44718,7 @@ var McpServer = class {
     let task = createTaskResult.task;
     const pollInterval = task.pollInterval ?? 5e3;
     while (task.status !== "completed" && task.status !== "failed" && task.status !== "cancelled") {
-      await new Promise((resolve13) => setTimeout(resolve13, pollInterval));
+      await new Promise((resolve14) => setTimeout(resolve14, pollInterval));
       const updatedTask = await extra.taskStore.getTask(taskId);
       if (!updatedTask) {
         throw new McpError(ErrorCode.InternalError, `Task ${taskId} not found during polling`);
@@ -45358,7 +45407,7 @@ function createCircuitMcpServer(options) {
 // src/hosts/codex-mcp/entrypoint.ts
 async function createPackagedCircuitMcpServer(options = {}) {
   const environment = options.environment ?? process.env;
-  const pluginRoot = options.pluginRoot ?? resolve12(dirname8(fileURLToPath3(import.meta.url)), "..");
+  const pluginRoot = options.pluginRoot ?? resolve13(dirname9(fileURLToPath3(import.meta.url)), "..");
   const handle = await createProductionCircuitMcpHandler({
     ...options,
     pluginRoot,
