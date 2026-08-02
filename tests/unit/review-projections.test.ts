@@ -702,6 +702,67 @@ describe('Review evidence projections', () => {
     ]);
   });
 
+  // `include: ['.']` is how a whole-repository snapshot writes "everywhere".
+  // It is a path in the data and nothing in the prose: a scope warning that
+  // reads it out tells the operator the review was narrowed when it was not,
+  // and the bare "." reads as a typo mid-sentence.
+  describe('a scope that narrows nothing', () => {
+    function snapshotIntake(paths: { include: string[]; exclude: string[] }, truncated = false) {
+      return projectReviewIntake({
+        scope: 'review this codebase as it stands',
+        target: { kind: 'snapshot', paths },
+        targetProvenance: 'named',
+        evidence: {
+          kind: 'git-snapshot',
+          project_root: '/tmp/project',
+          target_kind: 'snapshot',
+          files: [
+            {
+              path: 'src/retry/loop.ts',
+              byte_length: 24,
+              content: { text: 'export const loop = 1;\n', truncated: false },
+            },
+          ],
+          matched_file_count: truncated ? 2566 : 1,
+          files_truncated: truncated,
+          path_scope: paths,
+        } as ReviewEvidence,
+        maxUntrackedFiles: 20,
+      });
+    }
+
+    it('says nothing about scope when the scope is the whole repository', () => {
+      const kinds = snapshotIntake({ include: ['.'], exclude: [] }).evidence_warnings.map(
+        (warning) => warning.kind,
+      );
+      expect(kinds).not.toContain('target_scoped');
+    });
+
+    it('names the repository rather than a bare dot when it does have to say', () => {
+      const truncation = snapshotIntake(
+        { include: ['.'], exclude: [] },
+        true,
+      ).evidence_warnings.find((warning) => warning.kind === 'snapshot_truncated');
+      expect(truncation?.message).toContain('the repository matched 2566 files');
+      expect(truncation?.message).not.toContain('. matched');
+    });
+
+    it('still reports a scope that really does narrow the read', () => {
+      const scoped = snapshotIntake({ include: ['src/retry'], exclude: [] }).evidence_warnings.find(
+        (warning) => warning.kind === 'target_scoped',
+      );
+      expect(scoped?.message).toContain('src/retry');
+    });
+
+    it('treats an exclusion as a narrowing even when everything else is in scope', () => {
+      const scoped = snapshotIntake({
+        include: ['.'],
+        exclude: ['docs'],
+      }).evidence_warnings.find((warning) => warning.kind === 'target_scoped');
+      expect(scoped?.message).toContain('the repository excluding docs');
+    });
+  });
+
   // A citation is the one part of a finding an operator can check. When it
   // names a file Circuit never put in front of the reviewer, nothing in the
   // report distinguished it from a real one. Circuit says so rather than

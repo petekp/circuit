@@ -86467,14 +86467,20 @@ var init_units = __esm({
 });
 
 // dist/flows/review/writers/intake-projection.js
+function includesWholeRepository(scope) {
+  return scope.include.length === 0 || scope.include.length === 1 && scope.include[0] === ".";
+}
+function reviewPathScopeNarrows(scope) {
+  return scope.exclude.length > 0 || !includesWholeRepository(scope);
+}
 function reviewPathScopeLabel(scope) {
   return [
-    ...scope.include.length > 0 ? [`limited to ${scope.include.join(", ")}`] : [],
+    ...includesWholeRepository(scope) ? [] : [`limited to ${scope.include.join(", ")}`],
     ...scope.exclude.length > 0 ? [`excluding ${scope.exclude.join(", ")}`] : []
   ].join(" and ");
 }
 function reviewPathScopePaths(scope) {
-  const included = scope.include.length > 0 ? scope.include.join(", ") : "the repository";
+  const included = includesWholeRepository(scope) ? "the repository" : scope.include.join(", ");
   return scope.exclude.length > 0 ? `${included} excluding ${scope.exclude.join(", ")}` : included;
 }
 function pathScopeOf(evidence2) {
@@ -86492,7 +86498,7 @@ function scopeWarnings(input) {
     });
   }
   const scope = pathScopeOf(input.evidence);
-  if (scope !== void 0) {
+  if (scope !== void 0 && reviewPathScopeNarrows(scope)) {
     warnings.push({
       kind: "target_scoped",
       message: input.evidence.kind === "git-snapshot" ? `Review read the current contents of ${reviewPathScopePaths(scope)}. Nothing outside those paths was read.` : `Review was ${reviewPathScopeLabel(scope)}. Changes outside those paths were not read.`
@@ -86724,8 +86730,9 @@ function singleUnitLabel(target) {
     return `commit ${target.ref}`;
   if (target.kind === "range")
     return `range ${target.base}${target.dots}${target.head}`;
-  if (target.kind === "snapshot")
-    return reviewPathScopeLabel(target.paths);
+  if (target.kind === "snapshot") {
+    return reviewPathScopeNarrows(target.paths) ? reviewPathScopeLabel(target.paths) : "the repository";
+  }
   return target.mode === "all" ? "the working tree" : `${target.mode} changes`;
 }
 function singleUnitCoverage(evidence2) {
@@ -86829,7 +86836,7 @@ var init_intake_projection = __esm({
     init_evidence_completeness();
     init_units();
     ASSUMED_WORKING_TREE_WARNING = "Assumed target: the current working tree. Name a commit, a range, staged, or unstaged to review something else.";
-    TARGET_INFERRED_WARNING = "No target was named, so Review matched one out of the goal text. It is reviewing what that matched, which may not be what you meant. Pass --target to say it outright, such as --target main...HEAD, --target staged, or --target commit:abc1234.";
+    TARGET_INFERRED_WARNING = "No target was named, so Review matched one out of the goal text. It is reviewing what that matched, which may not be what you meant. Pass --target to say it outright, such as --target main...HEAD, --target staged, --target commit:abc1234, or a path in this repository such as --target src/auth.";
     SNAPSHOT_NOT_APPLIED_WARNING = 'You asked about the code as it stands, and Review read changes instead. Reading files rather than a diff needs a path to bound it. Name one, such as "review src/auth as it stands".';
     CODEBASE_UNIT_BUDGET = { maxFilesPerUnit: 12, maxCharsPerUnit: 6e4 };
     MAX_REVIEW_UNITS = 24;
@@ -87893,7 +87900,7 @@ async function collectTargetEvidence(projectRoot, target, reader, directContext)
   }
   const targetDiff = gitDiffEvidence(diff2, projectDeclaredGenerated(projectRoot));
   if (targetDiff.text.length === 0) {
-    throw new Error(`Review target has no changes to inspect: ${reviewTargetLabel(target)}${paths === void 0 ? "" : ` ${reviewPathScopeLabel(paths)}`} resolved successfully but produced an empty diff.`);
+    throw new Error(`Review target has no changes to inspect: ${reviewTargetLabel(target)}${paths === void 0 || !reviewPathScopeNarrows(paths) ? "" : ` ${reviewPathScopeLabel(paths)}`} resolved successfully but produced an empty diff.`);
   }
   return { targetDiff, targetDiffStat: diffStat.stdout, pinnedTarget };
 }
@@ -88286,7 +88293,7 @@ async function collectReviewEvidence(projectRoot, options) {
     throw new Error(`Review target has no usable content to inspect because selected untracked files could not be read safely: ${reasons.join("; ")}.`);
   }
   if (!selectedContentAvailable) {
-    const scopeSuffix = paths === void 0 ? "" : ` ${reviewPathScopeLabel(paths)}`;
+    const scopeSuffix = paths === void 0 || !reviewPathScopeNarrows(paths) ? "" : ` ${reviewPathScopeLabel(paths)}`;
     if (target.explicit) {
       throw new ReviewTargetEmptyError(`Review target has no changes to inspect: ${target.mode === "all" ? "working tree changes" : `${target.mode} changes`}${scopeSuffix} are empty.`);
     }

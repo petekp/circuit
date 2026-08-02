@@ -47,7 +47,7 @@ export const ASSUMED_WORKING_TREE_WARNING =
  * silently wrong about the rest.
  */
 export const TARGET_INFERRED_WARNING =
-  'No target was named, so Review matched one out of the goal text. It is reviewing what that matched, which may not be what you meant. Pass --target to say it outright, such as --target main...HEAD, --target staged, or --target commit:abc1234.';
+  'No target was named, so Review matched one out of the goal text. It is reviewing what that matched, which may not be what you meant. Pass --target to say it outright, such as --target main...HEAD, --target staged, --target commit:abc1234, or a path in this repository such as --target src/auth.';
 
 /**
  * The snapshot phrasing was understood and not honoured. The reason is the
@@ -56,10 +56,32 @@ export const TARGET_INFERRED_WARNING =
 export const SNAPSHOT_NOT_APPLIED_WARNING =
   'You asked about the code as it stands, and Review read changes instead. Reading files rather than a diff needs a path to bound it. Name one, such as "review src/auth as it stands".';
 
-/** Plain-language rendering of a path scope, for operator-facing messages. */
+/**
+ * `include: ['.']` is how a whole-repository snapshot writes "everywhere", and
+ * an empty include means the same thing. Neither is a narrowing, and neither
+ * belongs in prose: a bare "." mid-sentence reads as a typo.
+ */
+function includesWholeRepository(scope: ReviewPathScope): boolean {
+  return scope.include.length === 0 || (scope.include.length === 1 && scope.include[0] === '.');
+}
+
+/**
+ * Whether this scope leaves anything out. A scope that covers the repository
+ * with no exclusions has nothing to disclose, so the messages built on it stay
+ * silent rather than announcing a limit that does not exist.
+ */
+export function reviewPathScopeNarrows(scope: ReviewPathScope): boolean {
+  return scope.exclude.length > 0 || !includesWholeRepository(scope);
+}
+
+/**
+ * Plain-language rendering of a path scope, for operator-facing messages.
+ * Empty when the scope narrows nothing, so a caller appending it as a suffix
+ * gets no suffix.
+ */
 export function reviewPathScopeLabel(scope: ReviewPathScope): string {
   return [
-    ...(scope.include.length > 0 ? [`limited to ${scope.include.join(', ')}`] : []),
+    ...(includesWholeRepository(scope) ? [] : [`limited to ${scope.include.join(', ')}`]),
     ...(scope.exclude.length > 0 ? [`excluding ${scope.exclude.join(', ')}`] : []),
   ].join(' and ');
 }
@@ -70,7 +92,7 @@ export function reviewPathScopeLabel(scope: ReviewPathScope): string {
  * wrong in the middle of a sentence.
  */
 export function reviewPathScopePaths(scope: ReviewPathScope): string {
-  const included = scope.include.length > 0 ? scope.include.join(', ') : 'the repository';
+  const included = includesWholeRepository(scope) ? 'the repository' : scope.include.join(', ');
   return scope.exclude.length > 0 ? `${included} excluding ${scope.exclude.join(', ')}` : included;
 }
 
@@ -105,7 +127,10 @@ function scopeWarnings(input: {
     });
   }
   const scope = pathScopeOf(input.evidence);
-  if (scope !== undefined) {
+  // A scope that covers everything narrowed nothing, so there is nothing to
+  // disclose. Saying "nothing outside those paths was read" of the whole
+  // repository is both vacuous and, read quickly, alarming.
+  if (scope !== undefined && reviewPathScopeNarrows(scope)) {
     warnings.push({
       kind: 'target_scoped',
       message:
@@ -403,7 +428,11 @@ function singleUnitLabel(target: ReviewResolvedTarget): string {
   if (target.kind === 'goal') return 'the material in the goal';
   if (target.kind === 'commit') return `commit ${target.ref}`;
   if (target.kind === 'range') return `range ${target.base}${target.dots}${target.head}`;
-  if (target.kind === 'snapshot') return reviewPathScopeLabel(target.paths);
+  if (target.kind === 'snapshot') {
+    return reviewPathScopeNarrows(target.paths)
+      ? reviewPathScopeLabel(target.paths)
+      : 'the repository';
+  }
   return target.mode === 'all' ? 'the working tree' : `${target.mode} changes`;
 }
 

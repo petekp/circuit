@@ -46,6 +46,7 @@ import {
   CODEBASE_UNIT_BUDGET,
   projectReviewIntake,
   reviewPathScopeLabel,
+  reviewPathScopeNarrows,
   reviewPathScopePaths,
 } from './intake-projection.js';
 import { declaredGeneratedMatcher, rankSnapshotPaths } from './snapshot-ranking.js';
@@ -1860,7 +1861,9 @@ async function collectTargetEvidence(
   if (targetDiff.text.length === 0) {
     throw new Error(
       `Review target has no changes to inspect: ${reviewTargetLabel(target)}${
-        paths === undefined ? '' : ` ${reviewPathScopeLabel(paths)}`
+        paths === undefined || !reviewPathScopeNarrows(paths)
+          ? ''
+          : ` ${reviewPathScopeLabel(paths)}`
       } resolved successfully but produced an empty diff.`,
     );
   }
@@ -2575,7 +2578,10 @@ async function collectReviewEvidence(
     );
   }
   if (!selectedContentAvailable) {
-    const scopeSuffix = paths === undefined ? '' : ` ${reviewPathScopeLabel(paths)}`;
+    const scopeSuffix =
+      paths === undefined || !reviewPathScopeNarrows(paths)
+        ? ''
+        : ` ${reviewPathScopeLabel(paths)}`;
     if (target.explicit) {
       throw new ReviewTargetEmptyError(
         `Review target has no changes to inspect: ${target.mode === 'all' ? 'working tree changes' : `${target.mode} changes`}${scopeSuffix} are empty.`,
