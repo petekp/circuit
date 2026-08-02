@@ -12,43 +12,36 @@
 // what the floor reads. The probe only affects which units a wave attempts, not
 // whether the run may complete.
 
-import { spawnSync } from 'node:child_process';
-import { resolve } from 'node:path';
 import type { VerificationCommand } from '../../../schemas/verification.js';
+import { runProofPlanCommand } from '../../../shared/proof-plan.js';
 import { SweepFinding } from '../reports.js';
-
-const MAX_SCAN_BUFFER_BYTES = 16 * 1024 * 1024;
 
 // Run the project's own resolved oracle command and return its stdout. The
 // command is passed in rather than built here: the census resolves it once and
 // pins it, and every later probe runs that same pinned argv, so the work-list
 // and the floor can never be reading two different scanners.
 //
+// It goes through runProofPlanCommand, the engine's one command executor, and
+// not through a local spawnSync. Sweep's oracle is a verification command like
+// any other, so it gets the same rules: the proof-plan environment allowlist
+// instead of whatever happened to be in the ambient shell, the realpath cwd
+// containment check instead of a plain resolve, and the command's own declared
+// output budget instead of a number this file picked. A second executor would
+// be a second set of rules, and the reason the oracle is resolved rather than
+// hardcoded is precisely that it should clear the shared bar.
+//
 // A non-zero exit is EXPECTED for the scanner (findings remain) and is not an
-// error here; only a spawn failure (missing executable, timeout) throws.
+// error here; a command that could not launch throws out of the executor, and a
+// command killed for its budget or its timeout throws below rather than
+// reaching the parser as suspiciously empty output.
 function runOracle(projectRoot: string, command: VerificationCommand): string {
-  const [executable, ...args] = command.argv;
-  if (executable === undefined) {
-    throw new Error('sweep scan: resolved oracle command has an empty argv');
-  }
-  const result = spawnSync(executable, args, {
-    cwd: resolve(projectRoot, command.cwd),
-    encoding: 'utf8',
-    maxBuffer: MAX_SCAN_BUFFER_BYTES,
-    timeout: command.timeout_ms,
-    stdio: ['ignore', 'pipe', 'pipe'],
-  });
-  if (result.error !== undefined) {
+  const observation = runProofPlanCommand(command, projectRoot);
+  if (observation.timed_out) {
     throw new Error(
-      `sweep scan: '${command.argv.join(' ')}' could not be spawned: ${result.error.message}`,
+      `sweep scan: '${command.argv.join(' ')}' did not finish within ${command.timeout_ms}ms`,
     );
   }
-  return outputToString(result.stdout);
-}
-
-function outputToString(output: string | Buffer | null | undefined): string {
-  if (output === null || output === undefined) return '';
-  return typeof output === 'string' ? output : Buffer.from(output).toString('utf8');
+  return observation.stdout_summary;
 }
 
 // Locate and parse the `{ "findings": [...] }` object in the scanner's stdout.

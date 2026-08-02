@@ -36,7 +36,14 @@ import { SweepCensus, type SweepFinding } from '../reports.js';
 import { runScannerFindings, runSuppressionBaseline } from './scan.js';
 
 const ORACLE_TIMEOUT_MS = 120_000;
-const ORACLE_MAX_OUTPUT_BYTES = 1_000_000;
+// The audit prints a count, so the shared default is generous for it.
+const AUDIT_MAX_OUTPUT_BYTES = 1_000_000;
+// The scanner's stdout is the whole structured finding list, not a summary, and
+// on a real backlog that is megabytes of JSON. The budget on the command is what
+// the executor actually enforces now, so it has to be the scanner's real need:
+// a short budget does not degrade the work-list, it truncates the JSON and the
+// parse fails outright.
+const SCANNER_MAX_OUTPUT_BYTES = 16 * 1024 * 1024;
 
 // The config files that define what the scanner counts as a finding: what Sweep
 // freezes on its own account, plus whatever the project declared. The engine
@@ -82,7 +89,7 @@ function resolveOracle(context: ComposeBuildContext, need: 'scan' | 'audit'): Ve
     requestedNeeds: [need],
     commandIdPrefix: 'sweep',
     timeoutMs: ORACLE_TIMEOUT_MS,
-    maxOutputBytes: ORACLE_MAX_OUTPUT_BYTES,
+    maxOutputBytes: need === 'scan' ? SCANNER_MAX_OUTPUT_BYTES : AUDIT_MAX_OUTPUT_BYTES,
   });
   if (command === undefined) {
     throw new Error(`sweep census: resolver returned no command for '${need}'`);
