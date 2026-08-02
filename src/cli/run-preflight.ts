@@ -31,8 +31,19 @@
 // because that false positive is real). A false positive that only costs a
 // note is fine. One that blocks runs at the door is not.
 //
-// claude-code has no cheap offline sign-in probe, so it is never asked and
-// nothing here implies its sign-in state was checked.
+// A probe that comes back signed in is kept, not just acted on. The doubt that
+// decides whether a mid-run sign-out is believed or transient is per-process
+// and starts empty, so the FIRST relay of a run had nothing vouching for
+// anything: a first relay that landed in a token-refresh window was told to
+// sign in while signed in fine, and got the short patience meant for a real
+// sign-out rather than the long one that would have ridden the window out.
+// Intake had already watched the CLI answer happily and threw that away.
+// `noteConnectorSucceeded` here closes that, keyed by the executable so it is
+// the same record a real relay writes.
+//
+// claude-code has no cheap offline sign-in probe, so it is never asked, nothing
+// here implies its sign-in state was checked, and it gains no vouch. That gap
+// is real and named rather than papered over.
 
 import {
   BUILTIN_CONNECTOR_NAMES,
@@ -43,6 +54,7 @@ import {
   probeBuiltinConnectorPresence,
   probeBuiltinConnectorSignIn,
   probeFirstLine,
+  probeReportsSignedIn,
   probeReportsSignedOut,
 } from '../connectors/health.js';
 import type { BuiltinConnectorName } from '../connectors/remediation.js';
@@ -53,6 +65,7 @@ import {
   probeStateDirWritable,
   stateDirUnwritableSummary,
 } from '../connectors/state-dir.js';
+import { noteConnectorSucceeded } from '../connectors/subprocess.js';
 import type { RuntimeIndexedStep } from '../flows/registries/runtime-index.js';
 import { fromCompiledFlow } from '../runtime/manifest/from-compiled-flow.js';
 import { buildRuntimePackageIndex } from '../runtime/manifest/runtime-package-index.js';
@@ -237,7 +250,19 @@ export async function preflightRunConnectors(
       );
       continue;
     }
-    if (check.signIn === undefined || !probeReportsSignedOut(check.signIn)) continue;
+    if (check.signIn === undefined) continue;
+    if (probeReportsSignedIn(check.signIn)) {
+      // Good news is evidence, so keep it. The doubt that decides whether a
+      // mid-run sign-out is believed or transient is per-process and starts
+      // empty, which left the FIRST relay of every run with nothing vouching
+      // for anything: a first relay landing in a token-refresh window was told
+      // to sign in while signed in fine, and got the short patience meant for
+      // a real sign-out. Having just watched this CLI answer that it is signed
+      // in, intake can say so.
+      noteConnectorSucceeded(executable);
+      continue;
+    }
+    if (!probeReportsSignedOut(check.signIn)) continue;
     const said = probeFirstLine(check.signIn);
     const signInCommand = builtinConnectorSignInCommand(check.name);
     warnings.push(

@@ -5,6 +5,12 @@ import { describe, expect, it } from 'vitest';
 
 import { preflightRunConnectors } from '../../src/cli/run-preflight.js';
 import { parseExecutionArgs, runExecutionCommand } from '../../src/cli/run.js';
+import {
+  connectorFailureSummary,
+  forgetConnectorSuccesses,
+  isTransientSignOutFailure,
+} from '../../src/connectors/subprocess.js';
+import { connectorRetrySchedule } from '../../src/runtime/executors/relay.js';
 import { LayeredConfig } from '../../src/schemas/config.js';
 import { PolicyLayer } from '../../src/schemas/policy-envelope.js';
 import { captureStreams, makeStubRelayer } from '../helpers/runtime-fixtures.js';
@@ -420,5 +426,182 @@ describe('run intake preflight: refuse the sandbox class, warn on missing CLIs',
 
     expect(verdict).toEqual({ ok: true, warnings: [] });
     expect(probed).toEqual(['cursor-agent']);
+  });
+
+  // The first relay of a run used to have nothing vouching for the CLI, so a
+  // sign-out arriving in a token-refresh window was BELIEVED: the operator was
+  // told to sign in while signed in fine, and the engine spent the 400ms meant
+  // for a real sign-out instead of the long wait that rides such a window out.
+  // Intake had already watched `codex login status` answer happily.
+  //
+  // End to end through the real command path: real intake, real preflight, and
+  // the real classifier deciding believed-vs-doubted. Only the two probes and
+  // the subprocess itself are stood in for.
+  it('lets a clean intake probe make the first relay sign-out a doubted one', async () => {
+    forgetConnectorSuccesses();
+    const realSchedule = connectorRetrySchedule.signedOutMs;
+    connectorRetrySchedule.signedOutMs = [0, 0, 0, 0];
+
+    const { projectDir, homeDir } = tempProjectPinningCodex();
+    const runFolder = join(projectDir, '.circuit', 'runs', 'first-relay-vouch-run');
+    const args = parseExecutionArgs('run', [
+      'review',
+      '--goal',
+      "Review this supplied text: the first relay of a run should inherit intake's sign-in evidence.",
+      '--run-folder',
+      runFolder,
+    ]);
+
+    // Fails the first ask the way the real connector would, by composing the
+    // sentence through the same classifier the subprocess uses. Whether that
+    // sentence is the believed or the doubted one is precisely what intake's
+    // vouch decides, so it must not be hard-coded here.
+    const reasons: string[] = [];
+    let asks = 0;
+    const relayer = {
+      connectorName: 'codex',
+      relay: async (input: { readonly prompt: string }) => {
+        asks += 1;
+        if (asks === 1) {
+          const summary =
+            connectorFailureSummary({
+              cli: 'codex',
+              signInHint: 'Run `codex login` to sign in',
+              stderr: '',
+              stdout: '',
+              streamError: 'Not logged in',
+            }) ?? '';
+          reasons.push(summary);
+          throw new Error(summary);
+        }
+        return makeStubRelayer(() => VALID_REVIEW_BODY, { connectorName: 'codex' }).relay(
+          input as never,
+        );
+      },
+    };
+
+    try {
+      await captureStreams(() =>
+        runExecutionCommand(args, {
+          configCwd: projectDir,
+          configHomeDir: homeDir,
+          relayer: relayer as never,
+          connectorPreflight: (input) =>
+            preflightRunConnectors({
+              ...input,
+              probes: {
+                presence: () =>
+                  Promise.resolve({
+                    kind: 'ran',
+                    code: 0,
+                    stdout: 'codex-cli 0.146.0',
+                    stderr: '',
+                    timedOut: false,
+                  }),
+                signIn: () =>
+                  Promise.resolve({
+                    kind: 'ran',
+                    code: 0,
+                    stdout: 'Logged in using ChatGPT',
+                    stderr: '',
+                    timedOut: false,
+                  }),
+                stateDir: (dir) => ({ writable: true, dir }),
+              },
+            }),
+        }),
+      );
+    } finally {
+      connectorRetrySchedule.signedOutMs = realSchedule;
+      forgetConnectorSuccesses();
+    }
+
+    expect(reasons).toHaveLength(1);
+    const reason = reasons[0] ?? '';
+    // The payoff. Without intake's vouch this reads "The codex CLI is not
+    // logged in", which is both wrong and a wrong instruction.
+    expect(isTransientSignOutFailure(reason)).toBe(true);
+    expect(reason).toContain('answered normally minutes ago');
+    // The sign-in hint survives, demoted: still the fix if the doubt is wrong.
+    expect(reason).toContain('codex login');
+  });
+
+  it('believes a first-relay sign-out when intake could not vouch', async () => {
+    // The control. Same run, same failure, but the intake probe timed out, so
+    // nothing vouches and the sign-out is taken at its word.
+    forgetConnectorSuccesses();
+    const { projectDir, homeDir } = tempProjectPinningCodex();
+    const runFolder = join(projectDir, '.circuit', 'runs', 'first-relay-no-vouch-run');
+    const args = parseExecutionArgs('run', [
+      'review',
+      '--goal',
+      'Review this supplied text: an unvouched first relay sign-out is believed.',
+      '--run-folder',
+      runFolder,
+    ]);
+
+    const reasons: string[] = [];
+    let asks = 0;
+    const relayer = {
+      connectorName: 'codex',
+      relay: async (input: { readonly prompt: string }) => {
+        asks += 1;
+        if (asks === 1) {
+          const summary =
+            connectorFailureSummary({
+              cli: 'codex',
+              signInHint: 'Run `codex login` to sign in',
+              stderr: '',
+              stdout: '',
+              streamError: 'Not logged in',
+            }) ?? '';
+          reasons.push(summary);
+          throw new Error(summary);
+        }
+        return makeStubRelayer(() => VALID_REVIEW_BODY, { connectorName: 'codex' }).relay(
+          input as never,
+        );
+      },
+    };
+
+    try {
+      await captureStreams(() =>
+        runExecutionCommand(args, {
+          configCwd: projectDir,
+          configHomeDir: homeDir,
+          relayer: relayer as never,
+          connectorPreflight: (input) =>
+            preflightRunConnectors({
+              ...input,
+              probes: {
+                presence: () =>
+                  Promise.resolve({
+                    kind: 'ran',
+                    code: 0,
+                    stdout: 'codex-cli 0.146.0',
+                    stderr: '',
+                    timedOut: false,
+                  }),
+                signIn: () =>
+                  Promise.resolve({
+                    kind: 'ran',
+                    code: null,
+                    stdout: '',
+                    stderr: '',
+                    timedOut: true,
+                  }),
+                stateDir: (dir) => ({ writable: true, dir }),
+              },
+            }),
+        }),
+      );
+    } finally {
+      forgetConnectorSuccesses();
+    }
+
+    expect(reasons).toHaveLength(1);
+    const reason = reasons[0] ?? '';
+    expect(isTransientSignOutFailure(reason)).toBe(false);
+    expect(reason).toContain('The codex CLI is not logged in');
   });
 });

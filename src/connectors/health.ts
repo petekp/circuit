@@ -98,6 +98,20 @@ export function probeReportsSignedOut(outcome: ProbeOutcome): boolean {
 }
 
 /**
+ * Whether the CLI positively answered that it is signed in.
+ *
+ * Deliberately not the negation of `probeReportsSignedOut`: both are false for
+ * a probe that could not run or timed out, because "could not check" is not
+ * evidence in either direction. Callers that act on good news need the
+ * positive form, and writing it as `!probeReportsSignedOut(...)` would quietly
+ * treat every failed probe as a healthy CLI.
+ */
+export function probeReportsSignedIn(outcome: ProbeOutcome): boolean {
+  if (outcome.kind !== 'ran' || outcome.timedOut) return false;
+  return !probeReportsSignedOut(outcome);
+}
+
+/**
  * What to type to sign this CLI back in, or undefined for a connector with no
  * cheap offline sign-in probe. Undefined is load-bearing: it is how a caller
  * knows it has no business saying anything about that CLI's sign-in state.

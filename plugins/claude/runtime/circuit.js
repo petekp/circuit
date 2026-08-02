@@ -116276,6 +116276,11 @@ function probeReportsSignedOut(outcome) {
   return outcome.code !== 0 || SIGNED_OUT_PATTERN.test(`${outcome.stdout}
 ${outcome.stderr}`);
 }
+function probeReportsSignedIn(outcome) {
+  if (outcome.kind !== "ran" || outcome.timedOut)
+    return false;
+  return !probeReportsSignedOut(outcome);
+}
 function builtinConnectorSignInCommand(connector) {
   return HEALTH_PROBE_SPECS[connector].signInCommand;
 }
@@ -116541,7 +116546,13 @@ async function preflightRunConnectors(input) {
       warnings.push(`this run's steps relay through the ${executable} CLI, which was not found (${check3.presence.message}); the run will stop when it first needs it. \`circuit doctor\` checks connector health.`);
       continue;
     }
-    if (check3.signIn === void 0 || !probeReportsSignedOut(check3.signIn))
+    if (check3.signIn === void 0)
+      continue;
+    if (probeReportsSignedIn(check3.signIn)) {
+      noteConnectorSucceeded(executable);
+      continue;
+    }
+    if (!probeReportsSignedOut(check3.signIn))
       continue;
     const said = probeFirstLine(check3.signIn);
     const signInCommand = builtinConnectorSignInCommand(check3.name);
@@ -116555,6 +116566,7 @@ var init_run_preflight = __esm({
     init_health();
     init_resolver();
     init_state_dir();
+    init_subprocess();
     init_from_compiled_flow();
     init_runtime_package_index();
     init_relay_guidance();

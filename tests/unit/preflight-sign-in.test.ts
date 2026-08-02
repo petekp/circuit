@@ -15,6 +15,12 @@ import {
   builtinConnectorSignInCommand,
   probeReportsSignedOut,
 } from '../../src/connectors/health.js';
+import {
+  connectorAnsweredRecently,
+  connectorFailureSummary,
+  forgetConnectorSuccesses,
+  isTransientSignOutFailure,
+} from '../../src/connectors/subprocess.js';
 import { LayeredConfig } from '../../src/schemas/config.js';
 
 function reviewFlow() {
@@ -165,6 +171,115 @@ describe('what intake does with a signed-out worker CLI', () => {
     // separately reported as signed out.
     expect(verdict.warnings).toHaveLength(1);
     expect(verdict.warnings[0]).toContain('was not found');
+  });
+
+  // The vouch that decides whether a mid-run sign-out is believed or doubted
+  // was per-process and started empty, so the FIRST relay of a run had nothing
+  // vouching for anything. A run whose first relay landed in a token-refresh
+  // window was therefore told it was signed out, and given the 400ms patience
+  // for a real sign-out instead of the 110 seconds that would have ridden the
+  // window out. Intake had already watched the CLI answer `login status`
+  // happily and threw that evidence away.
+  it('lets a clean intake probe vouch for the CLI the first relay uses', async () => {
+    forgetConnectorSuccesses();
+    expect(connectorAnsweredRecently('codex')).toBe(false);
+
+    await preflightRunConnectors({
+      flow: reviewFlow(),
+      configLayers: [CODEX_PROJECT],
+      depth: 'medium',
+      probes: {
+        presence: () => Promise.resolve(PRESENT),
+        stateDir: (dir) => ({ writable: true, dir }),
+        signIn: () =>
+          Promise.resolve({
+            kind: 'ran',
+            code: 0,
+            stdout: 'Logged in using ChatGPT',
+            stderr: '',
+            timedOut: false,
+          }),
+      },
+    });
+
+    // Keyed by the executable, the same key the connectors record under.
+    expect(connectorAnsweredRecently('codex')).toBe(true);
+
+    // The payoff: the very first relay failure of the run is now doubted
+    // rather than believed, so it gets the transient wording and the long
+    // patience instead of a wrong instruction and 400ms.
+    const summary =
+      connectorFailureSummary({
+        cli: 'codex',
+        signInHint: 'Run `codex login`',
+        stderr: '',
+        stdout: '',
+        streamError: 'Not logged in',
+      }) ?? '';
+    expect(isTransientSignOutFailure(summary)).toBe(true);
+    forgetConnectorSuccesses();
+  });
+
+  it('does not vouch for a CLI whose probe said it is signed out', async () => {
+    forgetConnectorSuccesses();
+    await preflightRunConnectors({
+      flow: reviewFlow(),
+      configLayers: [CODEX_PROJECT],
+      depth: 'medium',
+      probes: {
+        presence: () => Promise.resolve(PRESENT),
+        stateDir: (dir) => ({ writable: true, dir }),
+        signIn: () =>
+          Promise.resolve({
+            kind: 'ran',
+            code: 0,
+            stdout: 'Not logged in',
+            stderr: '',
+            timedOut: false,
+          }),
+      },
+    });
+    // A real sign-out must stay believed: the operator needs the sign-in
+    // instruction, and waiting 110 seconds for it to clear helps nobody.
+    expect(connectorAnsweredRecently('codex')).toBe(false);
+    forgetConnectorSuccesses();
+  });
+
+  it('does not vouch on a probe that could not answer', async () => {
+    forgetConnectorSuccesses();
+    await preflightRunConnectors({
+      flow: reviewFlow(),
+      configLayers: [CODEX_PROJECT],
+      depth: 'medium',
+      probes: {
+        presence: () => Promise.resolve(PRESENT),
+        stateDir: (dir) => ({ writable: true, dir }),
+        // Timed out. "Could not check" is not evidence the CLI is healthy, and
+        // vouching on it would manufacture doubt out of nothing.
+        signIn: () =>
+          Promise.resolve({ kind: 'ran', code: null, stdout: '', stderr: '', timedOut: true }),
+      },
+    });
+    expect(connectorAnsweredRecently('codex')).toBe(false);
+    forgetConnectorSuccesses();
+  });
+
+  it('does not vouch for a CLI that has no sign-in probe at all', async () => {
+    forgetConnectorSuccesses();
+    await preflightRunConnectors({
+      flow: reviewFlow(),
+      configLayers: [CODEX_PROJECT],
+      depth: 'medium',
+      probes: {
+        presence: () => Promise.resolve(PRESENT),
+        stateDir: (dir) => ({ writable: true, dir }),
+        // What claude-code returns: there is nothing cheap to ask it.
+        signIn: () => Promise.resolve(undefined),
+      },
+    });
+    expect(connectorAnsweredRecently('codex')).toBe(false);
+    expect(connectorAnsweredRecently('claude')).toBe(false);
+    forgetConnectorSuccesses();
   });
 
   it('only probes the connectors this run actually plans to use', async () => {
