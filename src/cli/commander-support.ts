@@ -49,6 +49,34 @@ export function namesSubcommand(argv: readonly string[]): boolean {
   return first !== undefined && !first.startsWith('-');
 }
 
+/**
+ * One value that can be typed either loose or behind a flag.
+ *
+ * A person types the important words straight after the command, and every
+ * command that reads its one real input from a flag used to answer that with
+ * a complaint about argument counts. The words are the request, so they are
+ * taken. Two different values is the one case with no honest reading.
+ */
+export function positionalOrFlag(input: {
+  readonly positional: string | undefined;
+  readonly flagValue: string | undefined;
+  readonly flagName: string;
+  readonly noun: string;
+  readonly subject: string;
+}): string | undefined {
+  const { positional, flagValue, flagName, noun, subject } = input;
+  if (
+    positional !== undefined &&
+    flagValue !== undefined &&
+    positional.trim() !== flagValue.trim()
+  ) {
+    throw new Error(
+      `${subject} names two different ${noun}: "${positional}" and ${flagName} "${flagValue}". Say it once.`,
+    );
+  }
+  return flagValue ?? positional;
+}
+
 // Configure and parse a program, normalizing CommanderError. A successfully
 // displayed help (--help/-h, or a help command that printed and would exit
 // 0) exits the process with code 0; a help raised as a usage error (bare

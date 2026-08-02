@@ -188,6 +188,8 @@ describe('history CLI', () => {
     // "pass --json" in JSON would demonstrate that the flag was not needed.
     expect(missingJson.stdout).toBe('');
     expect(missingJson.stderr).toContain('history commands require --json');
+    // And the line to retype, so the remedy is not left as an exercise.
+    expect(missingJson.stderr).toContain('circuit history query --json');
 
     const rebuilt = await captureMain([
       'history',

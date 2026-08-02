@@ -393,13 +393,16 @@ describe('utility CLI commands', () => {
     expect(result.stderr).toContain('--publish requires --yes');
   });
 
-  it('rejects create without --description as a usage error (exit 2)', async () => {
+  it('rejects create with no flow idea as a usage error (exit 2)', async () => {
     // Missing-flag misuse exits 2 like run/resume/config/memory; exit 1 stays
     // reserved for operational failures (B4).
     const result = await captureMain(['create']);
 
     expect(result.code).toBe(2);
-    expect(result.stderr).toContain('--description is required');
+    expect(result.stderr).toContain('a flow idea is required');
+    // And an example, since "describe it" alone does not show what a
+    // description looks like.
+    expect(result.stderr).toContain('circuit create "review a pull request');
   });
 
   it('accepts equals-form create options through Commander', async () => {

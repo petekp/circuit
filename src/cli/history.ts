@@ -483,10 +483,12 @@ export async function runHistoryCommand(argv: readonly string[]): Promise<number
     return invalidInvocation(parsed, { json: argv.includes('--json') });
   }
   if (!parsed.json) {
-    return invalidInvocation('history commands require --json', {
-      json: false,
-      ...pathOptions(parsed),
-    });
+    // Naming the command back is the whole remedy. Without it the operator is
+    // told a flag is missing and left to retype the line themselves.
+    return invalidInvocation(
+      `history commands require --json. Run \`circuit history ${parsed.command} --json\``,
+      { json: false, ...pathOptions(parsed) },
+    );
   }
 
   try {

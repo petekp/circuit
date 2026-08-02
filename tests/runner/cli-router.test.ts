@@ -445,6 +445,32 @@ describe('CLI router', () => {
     expect(output.outcome).toBe('complete');
   });
 
+  it('runs a goal typed straight after the flow name', async () => {
+    // The natural typing. It used to die on commander's "too many arguments".
+    const output = await runMainJson(
+      [
+        'run',
+        'review',
+        'review this patch for safety problems:\n\nconst value = unsafeInput;',
+        '--run-folder',
+        join(runFolderBase, 'review-positional-goal'),
+      ],
+      REVIEW_RELAY_BODY,
+    );
+
+    expect(output.flow_id).toBe('review');
+    expect(output.outcome).toBe('complete');
+    const intake = ReviewIntake.parse(
+      JSON.parse(
+        readFileSync(
+          join(runFolderBase, 'review-positional-goal', 'reports', 'review-intake.json'),
+          'utf8',
+        ),
+      ),
+    );
+    expect(intake.scope).toContain('review this patch for safety problems');
+  });
+
   it('emits parseable progress JSONL to stderr without changing final stdout JSON', async () => {
     const runFolder = join(runFolderBase, 'review-progress-jsonl');
     const { output, progress } = await runMainJsonWithProgress(

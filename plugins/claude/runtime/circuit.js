@@ -25924,6 +25924,13 @@ function namesSubcommand(argv) {
   const first = argv[0];
   return first !== void 0 && !first.startsWith("-");
 }
+function positionalOrFlag(input) {
+  const { positional, flagValue, flagName, noun, subject } = input;
+  if (positional !== void 0 && flagValue !== void 0 && positional.trim() !== flagValue.trim()) {
+    throw new Error(`${subject} names two different ${noun}: "${positional}" and ${flagName} "${flagValue}". Say it once.`);
+  }
+  return flagValue ?? positional;
+}
 function parseCommanderOrThrow(program2, argv) {
   try {
     configureCommanderProgram(program2).parse(argv, { from: "user" });
@@ -116555,7 +116562,7 @@ function addExecutionOptions(program2) {
   return program2;
 }
 function parseExecutionArgs(command, argv) {
-  const program2 = addExecutionOptions(new Command(`circuit ${command}`).argument("[flow-name]"));
+  const program2 = addExecutionOptions(new Command(`circuit ${command}`).argument("[flow-name]").argument("[goal...]"));
   parseCommanderOrThrow(program2, argv);
   const opts = program2.opts();
   const flowName = program2.args[0];
@@ -116598,7 +116605,14 @@ function parseExecutionArgs(command, argv) {
   if (opts.progress !== void 0 && opts.progress !== "jsonl") {
     throw new Error("--progress only supports 'jsonl'");
   }
-  const goal = opts.goal;
+  const positionalGoal = program2.args.length > 1 ? program2.args.slice(1).join(" ") : void 0;
+  const goal = positionalOrFlag({
+    positional: positionalGoal,
+    flagValue: opts.goal,
+    flagName: "--goal",
+    noun: "goals",
+    subject: "this run"
+  });
   const why = opts.why;
   if (why !== void 0 && why.length === 0) {
     throw new Error("--why must be non-empty when provided");
@@ -116658,7 +116672,7 @@ function parseExecutionArgs(command, argv) {
       throw new Error(`checkpoint resume requires ${missingResumeFlags.join(" and ")}. Run \`circuit checkpoints\` to see the run folder and its checkpoint choices.`);
     }
     if (flowName !== void 0) {
-      throw new Error("checkpoint resume loads the saved flow manifest; omit flow-name");
+      throw new Error("checkpoint resume loads the saved flow manifest and reuses the saved goal; omit both");
     }
     if (goal !== void 0) {
       throw new Error("checkpoint resume reuses the saved run goal; omit --goal");
@@ -120052,15 +120066,15 @@ var init_composition = __esm({
 // dist/cli/generate.js
 var generate_exports = {};
 __export(generate_exports, {
+  parseGenerateArgs: () => parseGenerateArgs,
   runGenerateCommand: () => runGenerateCommand
 });
 import { existsSync as existsSync48 } from "node:fs";
 import { join as join53 } from "node:path";
-function parseArgs2(argv) {
-  const program2 = new Command("circuit generate").option("--description <task>").option("--name <slug>").option("--home <path>").option("--created-at <iso>").option("--publish").option("--yes").option("--max-repair <n>").option("--timeout-ms <ms>").option("--progress <format>");
+function parseGenerateArgs(argv) {
+  const program2 = new Command("circuit generate").argument("[description...]").option("--description <task>").option("--name <slug>").option("--home <path>").option("--created-at <iso>").option("--publish").option("--yes").option("--max-repair <n>").option("--timeout-ms <ms>").option("--progress <format>");
   parseCommanderOrThrow(program2, argv);
-  if (program2.args.length > 0)
-    throw new Error(`unexpected argument: ${program2.args[0]}`);
+  const looseDescription = program2.args.length === 0 ? void 0 : program2.args.join(" ");
   const opts = program2.opts();
   if (opts.progress !== void 0 && opts.progress !== "jsonl") {
     throw new Error("--progress only supports 'jsonl'");
@@ -120073,8 +120087,15 @@ function parseArgs2(argv) {
   if (!Number.isInteger(timeoutMs2) || timeoutMs2 <= 0) {
     throw new Error("--timeout-ms must be a positive integer");
   }
-  if (opts.description === void 0 || opts.description.length === 0) {
-    throw new Error("--description is required");
+  const description = positionalOrFlag({
+    positional: looseDescription,
+    flagValue: opts.description,
+    flagName: "--description",
+    noun: "tasks to encode",
+    subject: "this generate"
+  });
+  if (description === void 0 || description.length === 0) {
+    throw new Error('a task to encode is required: describe it as the first argument or with --description, such as circuit generate "port a bug fix across three sibling services"');
   }
   if (opts.publish === true && opts.yes !== true) {
     throw new Error("--publish requires --yes so publish confirmation is explicit");
@@ -120085,7 +120106,7 @@ function parseArgs2(argv) {
     progress: opts.progress === "jsonl",
     maxRepair,
     timeoutMs: timeoutMs2,
-    description: opts.description,
+    description,
     ...opts.name === void 0 ? {} : { name: opts.name },
     ...opts.home === void 0 ? {} : { home: opts.home },
     ...opts.createdAt === void 0 ? {} : { createdAt: opts.createdAt }
@@ -120195,7 +120216,7 @@ function summaryMarkdown2(input) {
 async function runGenerateCommand(argv, options = {}) {
   let args;
   try {
-    args = parseArgs2(argv);
+    args = parseGenerateArgs(argv);
   } catch (err) {
     process.stderr.write(`error: ${err.message}
 `);
@@ -159761,17 +159782,23 @@ init_commander_support();
 init_custom_flow_package();
 init_runtime_routing_policy();
 init_utility_progress();
-function parseArgs(argv) {
-  const program2 = new Command("circuit create").option("--name <slug>").option("--description <flow idea>").option("--home <path>").option("--created-at <iso>").option("--publish").option("--yes").option("--decompose").option("--progress <format>");
+function parseCreateArgs(argv) {
+  const program2 = new Command("circuit create").argument("[description...]").option("--name <slug>").option("--description <flow idea>").option("--home <path>").option("--created-at <iso>").option("--publish").option("--yes").option("--decompose").option("--progress <format>");
   parseCommanderOrThrow(program2, argv);
-  if (program2.args.length > 0)
-    throw new Error(`unexpected argument: ${program2.args[0]}`);
+  const looseDescription = program2.args.length === 0 ? void 0 : program2.args.join(" ");
   const opts = program2.opts();
   if (opts.progress !== void 0 && opts.progress !== "jsonl") {
     throw new Error("--progress only supports 'jsonl'");
   }
-  if (opts.description === void 0 || opts.description.length === 0) {
-    throw new Error("--description is required");
+  const description = positionalOrFlag({
+    positional: looseDescription,
+    flagValue: opts.description,
+    flagName: "--description",
+    noun: "flow ideas",
+    subject: "this create"
+  });
+  if (description === void 0 || description.length === 0) {
+    throw new Error('a flow idea is required: describe it as the first argument or with --description, such as circuit create "review a pull request for accessibility regressions"');
   }
   if (opts.publish === true && opts.yes !== true) {
     throw new Error("--publish requires --yes so publish confirmation is explicit");
@@ -159781,7 +159808,7 @@ function parseArgs(argv) {
     yes: opts.yes === true,
     decompose: opts.decompose === true,
     progress: opts.progress === "jsonl",
-    description: opts.description,
+    description,
     ...opts.name === void 0 ? {} : { name: opts.name },
     ...opts.home === void 0 ? {} : { home: opts.home },
     ...opts.createdAt === void 0 ? {} : { createdAt: opts.createdAt }
@@ -159837,7 +159864,7 @@ function summaryMarkdown(input) {
 async function runCreateCommand(argv, options = {}) {
   let args;
   try {
-    args = parseArgs(argv);
+    args = parseCreateArgs(argv);
   } catch (err) {
     process.stderr.write(`error: ${err.message}
 `);
@@ -160668,7 +160695,7 @@ init_utility_progress();
 function addHandoffOptions(program2) {
   return program2.option("--host <host>").option("--goal <goal>").option("--next <next>").option("--state-markdown <md>").option("--debt-markdown <md>").option("--run-folder <path>").option("--control-plane <path>").option("--project-root <path>").option("--hooks-file <path>").option("--launcher <path>").option("--record-id <stem>").option("--created-at <iso>").option("--transcript-path <path>").option("--session-id <id>").option("--session-source <startup|resume|clear|compact>").option("--source <stop|session-end|pre-compact>").option("--clear-ambient").option("--progress <format>").option("--json");
 }
-function parseArgs3(argv) {
+function parseArgs(argv) {
   let parsed;
   const program2 = addHandoffOptions(new Command("circuit handoff").exitOverride().configureOutput({ writeErr: () => {
   } }).enablePositionalOptions());
@@ -161080,7 +161107,7 @@ function runHandoffHarvest(args, now) {
 async function runHandoffCommand(argv, options = {}) {
   let args;
   try {
-    args = parseArgs3(argv);
+    args = parseArgs(argv);
   } catch (err) {
     process.stderr.write(`error: ${err.message}
 `);
@@ -162252,10 +162279,7 @@ async function runHistoryCommand(argv) {
     return invalidInvocation(parsed, { json: argv.includes("--json") });
   }
   if (!parsed.json) {
-    return invalidInvocation("history commands require --json", {
-      json: false,
-      ...pathOptions(parsed)
-    });
+    return invalidInvocation(`history commands require --json. Run \`circuit history ${parsed.command} --json\``, { json: false, ...pathOptions(parsed) });
   }
   try {
     if (parsed.command === "rebuild") {
@@ -162828,9 +162852,30 @@ async function reapWorktrees(options) {
 // dist/cli/reclaim.js
 init_control_plane_paths();
 init_commander_support();
+init_styled_table();
+init_terminal_style();
 function writeJson6(value) {
   process.stdout.write(`${JSON.stringify(value, null, 2)}
 `);
+}
+function renderReclaimSummary(palette, summary) {
+  const lines = [diamondHeaderLine(palette, "circuit reclaim"), ""];
+  if (summary.removed.length === 0 && summary.kept.length === 0 && summary.errors.length === 0) {
+    lines.push(`Nothing to reclaim. No leftover worktrees under ${summary.worktreesRoot}.`);
+    return `${lines.join("\n")}
+`;
+  }
+  if (summary.removed.length > 0) {
+    lines.push(`Removed ${summary.removed.length} leftover ${summary.removed.length === 1 ? "worktree" : "worktrees"}:`, ...summary.removed.map((path) => `  ${path}`), "");
+  }
+  if (summary.kept.length > 0) {
+    lines.push(`Kept ${summary.kept.length}: the owning run is still running or parked on a decision.`, ...summary.kept.map((path) => `  ${path}`), "");
+  }
+  if (summary.errors.length > 0) {
+    lines.push(`Could not remove ${summary.errors.length}:`, ...summary.errors.map((error52) => `  ${error52.path}  ${palette.dim(error52.message)}`), "");
+  }
+  return `${lines.join("\n").trimEnd()}
+`;
 }
 function parseReclaimArgs(argv) {
   let options;
@@ -162863,13 +162908,17 @@ async function runReclaimCommand(argv) {
     repoRoot: projectRoot,
     resolveRunStatus: makeTraceRunStatusResolver(runsRoot(projectRoot))
   });
-  writeJson6({
-    schema_version: 1,
-    worktrees_root: worktreesRoot,
-    removed: summary.removed,
-    kept: summary.kept,
-    errors: summary.errors
-  });
+  if (parsed.json) {
+    writeJson6({
+      schema_version: 1,
+      worktrees_root: worktreesRoot,
+      removed: summary.removed,
+      kept: summary.kept,
+      errors: summary.errors
+    });
+  } else {
+    process.stdout.write(renderReclaimSummary(terminalPalette(colorEnabled()), { worktreesRoot, ...summary }));
+  }
   return 0;
 }
 
@@ -163194,7 +163243,7 @@ function stripCircuitBlock(content) {
     next += "\n";
   return { changed: next !== content, content: next, blocks, malformed: false, malformations };
 }
-function parseArgs4(argv, cwd2) {
+function parseArgs2(argv, cwd2) {
   const program2 = new Command("circuit uninstall").option("--dir <path>").option("--json");
   parseCommanderOrThrow(program2, argv);
   if (program2.args.length > 0)
@@ -163278,7 +163327,7 @@ function renderHuman(files, removal, malformedAny, strippedAny) {
 async function runUninstallCommand(argv, options = {}) {
   let args;
   try {
-    args = parseArgs4(argv, options.cwd ?? process.cwd());
+    args = parseArgs2(argv, options.cwd ?? process.cwd());
   } catch (err) {
     process.stderr.write(`error: ${err.message}
 `);

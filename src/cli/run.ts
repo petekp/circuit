@@ -73,7 +73,7 @@ import {
   readCheckpointResponseFile,
 } from './checkpoint-response-file.js';
 import { openLocalCheckpointReview } from './checkpoint-review-open.js';
-import { parseCommanderOrThrow } from './commander-support.js';
+import { parseCommanderOrThrow, positionalOrFlag } from './commander-support.js';
 import {
   type AxisSupport,
   axisSupportFromFlow,
@@ -232,7 +232,9 @@ function addExecutionOptions(program: Command): Command {
 }
 
 export function parseExecutionArgs(command: 'run' | 'resume', argv: readonly string[]): ParsedArgs {
-  const program = addExecutionOptions(new Command(`circuit ${command}`).argument('[flow-name]'));
+  const program = addExecutionOptions(
+    new Command(`circuit ${command}`).argument('[flow-name]').argument('[goal...]'),
+  );
   parseCommanderOrThrow(program, argv);
 
   const opts = program.opts<{
@@ -312,7 +314,22 @@ export function parseExecutionArgs(command: 'run' | 'resume', argv: readonly str
     throw new Error("--progress only supports 'jsonl'");
   }
 
-  const goal = opts.goal;
+  // A goal typed where a person puts it, straight after the flow name, is the
+  // same instruction as one behind --goal. Refusing it over the flag it did
+  // not use would teach a phrasing rather than answer the request. Two
+  // different goals is the one case with no honest reading.
+  // Loose words after the flow name are joined back into one goal, so an
+  // unquoted `circuit run fix the flaky retry test` reads the same as the
+  // quoted form. Nothing else can follow the flow name, so there is nothing
+  // for those words to be mistaken for.
+  const positionalGoal = program.args.length > 1 ? program.args.slice(1).join(' ') : undefined;
+  const goal = positionalOrFlag({
+    positional: positionalGoal,
+    flagValue: opts.goal,
+    flagName: '--goal',
+    noun: 'goals',
+    subject: 'this run',
+  });
   const why = opts.why;
   if (why !== undefined && why.length === 0) {
     throw new Error('--why must be non-empty when provided');
@@ -397,7 +414,13 @@ export function parseExecutionArgs(command: 'run' | 'resume', argv: readonly str
       );
     }
     if (flowName !== undefined) {
-      throw new Error('checkpoint resume loads the saved flow manifest; omit flow-name');
+      // One message for anything typed loose after `resume`. A resumed run
+      // already has both a flow and a goal, so there is nothing a bare word
+      // here could be, and guessing which of the two it was meant to be would
+      // only make the refusal sound confused.
+      throw new Error(
+        'checkpoint resume loads the saved flow manifest and reuses the saved goal; omit both',
+      );
     }
     if (goal !== undefined) {
       throw new Error('checkpoint resume reuses the saved run goal; omit --goal');

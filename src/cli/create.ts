@@ -11,7 +11,7 @@ import {
 import { extractAssemblySignals } from '../flows/resolvers/signals.js';
 import { CompiledFlow } from '../schemas/compiled-flow.js';
 import { progressPresentation } from '../shared/progress-output.js';
-import { parseCommanderOrThrow } from './commander-support.js';
+import { parseCommanderOrThrow, positionalOrFlag } from './commander-support.js';
 import {
   type CustomFlowArchetype,
   assertValidSlug,
@@ -55,8 +55,11 @@ interface CreateMainOptions {
   readonly now?: () => Date;
 }
 
-function parseArgs(argv: readonly string[]): CreateArgs {
+// Exported as the parse seam, the way `run` exports parseExecutionArgs: a
+// test can prove what the command reads from a line without running it.
+export function parseCreateArgs(argv: readonly string[]): CreateArgs {
   const program = new Command('circuit create')
+    .argument('[description...]')
     .option('--name <slug>')
     .option('--description <flow idea>')
     .option('--home <path>')
@@ -66,7 +69,10 @@ function parseArgs(argv: readonly string[]): CreateArgs {
     .option('--decompose')
     .option('--progress <format>');
   parseCommanderOrThrow(program, argv);
-  if (program.args.length > 0) throw new Error(`unexpected argument: ${program.args[0]}`);
+  // Loose words are joined back into one description. `circuit create review
+  // a PR for accessibility` means exactly what the quoted form means, and
+  // there is no second positional here for them to be confused with.
+  const looseDescription = program.args.length === 0 ? undefined : program.args.join(' ');
 
   const opts = program.opts<{
     name?: string;
@@ -84,8 +90,17 @@ function parseArgs(argv: readonly string[]): CreateArgs {
   // Flag misuse is a usage error and exits 2 through the parse-error path,
   // like every other command; the operational try/catch below keeps exit 1
   // for real failures (B4).
-  if (opts.description === undefined || opts.description.length === 0) {
-    throw new Error('--description is required');
+  const description = positionalOrFlag({
+    positional: looseDescription,
+    flagValue: opts.description,
+    flagName: '--description',
+    noun: 'flow ideas',
+    subject: 'this create',
+  });
+  if (description === undefined || description.length === 0) {
+    throw new Error(
+      'a flow idea is required: describe it as the first argument or with --description, such as circuit create "review a pull request for accessibility regressions"',
+    );
   }
   if (opts.publish === true && opts.yes !== true) {
     throw new Error('--publish requires --yes so publish confirmation is explicit');
@@ -96,7 +111,7 @@ function parseArgs(argv: readonly string[]): CreateArgs {
     yes: opts.yes === true,
     decompose: opts.decompose === true,
     progress: opts.progress === 'jsonl',
-    description: opts.description,
+    description,
     ...(opts.name === undefined ? {} : { name: opts.name }),
     ...(opts.home === undefined ? {} : { home: opts.home }),
     ...(opts.createdAt === undefined ? {} : { createdAt: opts.createdAt }),
@@ -204,7 +219,7 @@ export async function runCreateCommand(
 ): Promise<number> {
   let args: CreateArgs;
   try {
-    args = parseArgs(argv);
+    args = parseCreateArgs(argv);
   } catch (err) {
     process.stderr.write(`error: ${(err as Error).message}\n`);
     return 2;

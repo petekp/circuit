@@ -27,7 +27,7 @@ import { CompiledFlow } from '../schemas/compiled-flow.js';
 import type { ResolvedSelection } from '../schemas/selection-policy.js';
 import { progressPresentation } from '../shared/progress-output.js';
 import type { RelayFn, RelayInput } from '../shared/relay-runtime-types.js';
-import { parseCommanderOrThrow } from './commander-support.js';
+import { parseCommanderOrThrow, positionalOrFlag } from './commander-support.js';
 import {
   type CustomFlowArchetype,
   assertValidSlug,
@@ -91,8 +91,11 @@ interface GenerateMainOptions {
   readonly relayer?: RelayFn;
 }
 
-function parseArgs(argv: readonly string[]): GenerateArgs {
+// Exported as the parse seam, the way `run` exports parseExecutionArgs: a
+// test can prove what the command reads from a line without running it.
+export function parseGenerateArgs(argv: readonly string[]): GenerateArgs {
   const program = new Command('circuit generate')
+    .argument('[description...]')
     .option('--description <task>')
     .option('--name <slug>')
     .option('--home <path>')
@@ -103,7 +106,10 @@ function parseArgs(argv: readonly string[]): GenerateArgs {
     .option('--timeout-ms <ms>')
     .option('--progress <format>');
   parseCommanderOrThrow(program, argv);
-  if (program.args.length > 0) throw new Error(`unexpected argument: ${program.args[0]}`);
+  // Loose words are joined back into one description. `circuit create review
+  // a PR for accessibility` means exactly what the quoted form means, and
+  // there is no second positional here for them to be confused with.
+  const looseDescription = program.args.length === 0 ? undefined : program.args.join(' ');
 
   const opts = program.opts<{
     description?: string;
@@ -130,8 +136,17 @@ function parseArgs(argv: readonly string[]): GenerateArgs {
   // Flag misuse is a usage error and exits 2 through the parse-error path,
   // like every other command; the operational try/catch below keeps exit 1
   // for real failures (B4).
-  if (opts.description === undefined || opts.description.length === 0) {
-    throw new Error('--description is required');
+  const description = positionalOrFlag({
+    positional: looseDescription,
+    flagValue: opts.description,
+    flagName: '--description',
+    noun: 'tasks to encode',
+    subject: 'this generate',
+  });
+  if (description === undefined || description.length === 0) {
+    throw new Error(
+      'a task to encode is required: describe it as the first argument or with --description, such as circuit generate "port a bug fix across three sibling services"',
+    );
   }
   if (opts.publish === true && opts.yes !== true) {
     throw new Error('--publish requires --yes so publish confirmation is explicit');
@@ -143,7 +158,7 @@ function parseArgs(argv: readonly string[]): GenerateArgs {
     progress: opts.progress === 'jsonl',
     maxRepair,
     timeoutMs,
-    description: opts.description,
+    description,
     ...(opts.name === undefined ? {} : { name: opts.name }),
     ...(opts.home === undefined ? {} : { home: opts.home }),
     ...(opts.createdAt === undefined ? {} : { createdAt: opts.createdAt }),
@@ -305,7 +320,7 @@ export async function runGenerateCommand(
 ): Promise<number> {
   let args: GenerateArgs;
   try {
-    args = parseArgs(argv);
+    args = parseGenerateArgs(argv);
   } catch (err) {
     process.stderr.write(`error: ${(err as Error).message}\n`);
     return 2;
