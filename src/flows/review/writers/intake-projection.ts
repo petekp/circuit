@@ -241,7 +241,11 @@ export function reviewEvidenceWarnings(input: {
     if (evidence.files_truncated || evidence.matched_file_count > evidence.files.length) {
       warnings.push({
         kind: 'snapshot_truncated',
-        message: `${reviewPathScopePaths(evidence.path_scope)} matched ${evidence.matched_file_count} files. Review read ${evidence.files.length} of them and did not inspect the rest.`,
+        // Naming the ordering matters as much as the count. Without it a
+        // reader who sees source in the evidence and none of the docs would
+        // conclude the tree has no docs, when what happened is that the budget
+        // was spent on source first on purpose.
+        message: `${reviewPathScopePaths(evidence.path_scope)} matched ${evidence.matched_file_count} files. Review read ${evidence.files.length} of them, ordered by review value so source comes before prose and before generated output, and did not inspect the rest.`,
       });
     }
     for (const file of evidence.files) {

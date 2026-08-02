@@ -100,6 +100,18 @@ const ALLOWED_TEST_INTERNAL_FLOW_IMPORTS = new Set([
   'tests/runner/build-result-projection.test.ts -> src/flows/build/writers/result-projection.ts',
   'tests/runner/build-touch-area-projection.test.ts -> src/flows/build/writers/touch-area-projection.ts',
   'tests/contracts/pursue-report-schemas.test.ts -> src/flows/pursue/writers/contract-projection.ts',
+  // The snapshot read-order work. `snapshot-ranking.ts` is a pure path
+  // classifier with no flow state, and its unit test is a table of paths and
+  // expected ranks — the kind of thing that has to name the module. The other
+  // two exercise the behavior end to end through the intake writer, which is
+  // where the budget is actually spent, so nothing shallower would prove it.
+  'tests/unit/review-snapshot-ranking.test.ts -> src/flows/review/writers/snapshot-ranking.ts',
+  'tests/runner/review-snapshot-priority.test.ts -> src/flows/review/writers/intake.ts',
+  // Sweep's oracle executor. The test proves the oracle goes through
+  // runProofPlanCommand and gets its rules (env allowlist, realpath cwd
+  // containment, the declared output budget). That is a property of the
+  // writer's spawn site, so the test has to reach the writer.
+  'tests/unit/sweep-oracle-executor.test.ts -> src/flows/sweep/writers/scan.ts',
 ]);
 
 // Sanctioned src→flow-internal imports outside the catalog (other than the

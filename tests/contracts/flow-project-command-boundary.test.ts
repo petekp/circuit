@@ -46,7 +46,18 @@ const PROJECT_TOOLCHAIN_BINARIES = [
 // A quoted string literal holding exactly one of those binaries. Matches
 // `'npm'` and `"npm"` in an argv array; ignores `npm run build` inside prose,
 // which is how the comments and docs talk about the defect.
-const TOOLCHAIN_LITERAL = new RegExp(`(['"])(${PROJECT_TOOLCHAIN_BINARIES.join('|')})\\1`, 'u');
+const TOOLCHAIN_LITERAL = new RegExp(`(['"])(${PROJECT_TOOLCHAIN_BINARIES.join('|')})\\1`, 'gu');
+
+// A few of those words are also ordinary vocabulary. `'go'` is a file
+// extension as often as it is a command, and a flow that classifies source
+// files by extension has to write it down. Each exception names the file and
+// the exact words allowed in it, so the same file adding `'npm'` still fails
+// and the guard never goes quiet over a whole module.
+const ALLOWED_NON_COMMAND_LITERALS: Readonly<Record<string, readonly string[]>> = {
+  // The snapshot read-order classifier. Every word here is an entry in a set
+  // of file extensions; nothing in the file spawns a process.
+  'src/flows/review/writers/snapshot-ranking.ts': ['go'],
+};
 
 function typeScriptSourcesUnder(dir: string): string[] {
   const found: string[] = [];
@@ -69,11 +80,15 @@ describe('flow packages do not hardcode project toolchain commands', () => {
     const offenders: string[] = [];
 
     for (const path of typeScriptSourcesUnder(FLOWS_ROOT)) {
+      const relativePath = relative(REPO_ROOT, path);
+      const allowed = ALLOWED_NON_COMMAND_LITERALS[relativePath] ?? [];
       const code = withoutComments(readFileSync(path, 'utf8'));
-      const match = TOOLCHAIN_LITERAL.exec(code);
-      if (match === null) continue;
-      const line = code.slice(0, match.index).split('\n').length;
-      offenders.push(`${relative(REPO_ROOT, path)}:${line} hardcodes '${match[2]}'`);
+      for (const match of code.matchAll(TOOLCHAIN_LITERAL)) {
+        const binary = match[2] as string;
+        if (allowed.includes(binary)) continue;
+        const line = code.slice(0, match.index).split('\n').length;
+        offenders.push(`${relativePath}:${line} hardcodes '${binary}'`);
+      }
     }
 
     expect(
@@ -86,6 +101,26 @@ describe('flow packages do not hardcode project toolchain commands', () => {
         '',
         ...offenders,
       ].join('\n'),
+    ).toEqual([]);
+  });
+
+  // An allowance that no longer matches anything is an allowance nobody will
+  // notice going stale. Fail on it so the list stays a record of live
+  // exceptions rather than a graveyard.
+  it('has no allowance for a literal that is no longer there', () => {
+    const stale: string[] = [];
+
+    for (const [relativePath, words] of Object.entries(ALLOWED_NON_COMMAND_LITERALS)) {
+      const code = withoutComments(readFileSync(join(REPO_ROOT, relativePath), 'utf8'));
+      const present = new Set([...code.matchAll(TOOLCHAIN_LITERAL)].map((match) => match[2]));
+      for (const word of words) {
+        if (!present.has(word)) stale.push(`${relativePath} no longer contains '${word}'`);
+      }
+    }
+
+    expect(
+      stale,
+      ['Drop these from ALLOWED_NON_COMMAND_LITERALS:', '', ...stale].join('\n'),
     ).toEqual([]);
   });
 

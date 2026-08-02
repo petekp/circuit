@@ -47,6 +47,7 @@ import {
   reviewPathScopeLabel,
   reviewPathScopePaths,
 } from './intake-projection.js';
+import { rankSnapshotPaths } from './snapshot-ranking.js';
 
 const MAX_DIFF_CHARS = 120_000;
 const MAX_UNTRACKED_FILES = 20;
@@ -2139,9 +2140,13 @@ async function collectSnapshotEvidence(
     );
   }
   const matched = listed.stdout.split('\0').filter((path) => path.length > 0);
+  // Git lists alphabetically, which is not an order any review wants its budget
+  // spent in. Rank the matched set so source is read before prose and before
+  // generated output; nothing is removed, so the coverage note below still
+  // compares what was read against everything that matched.
   const files: ReviewSnapshotFileEvidence[] = [];
   let spentChars = 0;
-  for (const path of matched) {
+  for (const path of rankSnapshotPaths(matched)) {
     if (files.length >= MAX_SNAPSHOT_FILES || spentChars >= MAX_SNAPSHOT_TOTAL_CHARS) break;
     const file = readWorkspaceFile(
       projectRoot,
