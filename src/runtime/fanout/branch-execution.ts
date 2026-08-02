@@ -16,6 +16,7 @@ import {
   connectorRetryBackoffMs,
   connectorRetryDelayMs,
   executeProductionRelayAttempt,
+  pauseForConnectorRetry,
 } from '../executors/relay.js';
 import { RECURSION_DEPTH_CAP } from '../executors/sub-run.js';
 import type { FanoutStep, RelayStep } from '../manifest/executable-flow.js';
@@ -281,12 +282,6 @@ export function planRelayFanoutBranchGuidanceDecision(input: {
 // branch re-asks are where it first earned its place.
 export { connectorRetryBackoffMs, connectorRetryDelayMs, connectorAskBudget };
 
-async function pause(ms: number): Promise<void> {
-  await new Promise<void>((resolve) => {
-    setTimeout(resolve, ms);
-  });
-}
-
 // An answer this branch can keep: the connector came back AND what it said
 // passed validation and the admit list. Anything else is worth one more ask,
 // within the branch's attempt budget.
@@ -375,7 +370,10 @@ export async function executeRelayFanoutBranch(
         // with no answer at all is the one worth letting settle, since the cause
         // is as likely to be load or a transient host condition as the request.
         if (relayAttempt.kind === 'connector_failed') {
-          await pause(connectorRetryDelayMs(attemptNumber, relayAttempt.reason));
+          // This is the loop the thirteen lost branches were in. Branches run
+          // concurrently, so the sibling that recovers first is the signal that
+          // ends the wait for the rest of them.
+          await pauseForConnectorRetry(attemptNumber, relayAttempt.reason);
         }
         relayAttempt = await ask();
       }

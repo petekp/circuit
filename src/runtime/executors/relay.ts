@@ -2,7 +2,11 @@ import { relayClaudeCode } from '../../connectors/claude-code.js';
 import { relayCodex } from '../../connectors/codex.js';
 import { relayCursorAgent } from '../../connectors/cursor-agent.js';
 import { relayCustom } from '../../connectors/custom.js';
-import { isTransientSignOutFailure } from '../../connectors/subprocess.js';
+import {
+  awaitSignOutRelease,
+  isTransientSignOutFailure,
+  transientSignOutCli,
+} from '../../connectors/subprocess.js';
 import { runCrossReportValidator } from '../../flows/registries/cross-report-validators.js';
 import { findReportZodSchema, parseReport } from '../../flows/registries/report-schemas.js';
 import { requireRuntimeIndexedStep } from '../../flows/registries/runtime-index.js';
@@ -997,15 +1001,28 @@ export function connectorRetryBackoffMs(attemptNumber: number): number {
  * lost to exactly this, each after two asks 400ms apart. Real seconds, and two
  * more asks than the ordinary curve gets.
  *
+ * The schedule has to outlast a real window, and a real one was measured. Two
+ * overlapping Reviews of this repository produced thirteen consecutive branch
+ * failures across 99 seconds (09:23:54 to 09:25:34), with branches on either
+ * side answering fine. An earlier 5/15/30 schedule covered 50 seconds, so a
+ * branch that entered at the top of that window spent every ask it had and
+ * still exhausted inside it. 5/15/30/60 covers 110.
+ *
+ * The long tail is rarely paid. `pauseForConnectorRetry` abandons the wait the
+ * moment any branch gets an answer out of the same CLI, so the full 110
+ * seconds is only spent when nothing is getting through at all, which is the
+ * case where the CLI really is signed out and the wait is buying the operator
+ * a correct diagnosis rather than a wrong one.
+ *
  * `connectorRetrySchedule` is a seam: the values are real seconds in
  * production, and a test that has to prove the extra asks happen sets them to
  * zero rather than sleeping for a minute. Nothing else writes it.
  */
 export const connectorRetrySchedule: { signedOutMs: readonly number[] } = {
-  signedOutMs: [5_000, 15_000, 30_000],
+  signedOutMs: [5_000, 15_000, 30_000, 60_000],
 };
 
-const SIGNED_OUT_EXTRA_ASKS = 2;
+const SIGNED_OUT_EXTRA_ASKS = 3;
 
 export function connectorRetryDelayMs(attemptNumber: number, reason: string): number {
   if (!isTransientSignOutFailure(reason)) return connectorRetryBackoffMs(attemptNumber);
@@ -1022,6 +1039,39 @@ async function pauseMs(ms: number): Promise<void> {
   await new Promise<void>((resolve) => {
     setTimeout(resolve, ms);
   });
+}
+
+/**
+ * The wait before a re-ask, cut short by a sibling branch's success.
+ *
+ * A doubted sign-out is the one failure class where another branch's result is
+ * evidence about this branch's next attempt: they share a credential, so the
+ * window that is failing this one is the same window, and one answer out of
+ * that CLI is proof it closed. Every other failure class waits its full delay,
+ * because nothing a sibling does changes what this request will get back.
+ */
+export async function pauseForConnectorRetry(attemptNumber: number, reason: string): Promise<void> {
+  const delayMs = connectorRetryDelayMs(attemptNumber, reason);
+  const cli = transientSignOutCli(reason);
+  if (cli === undefined) {
+    await pauseMs(delayMs);
+    return;
+  }
+  const release = awaitSignOutRelease(cli);
+  let timer: NodeJS.Timeout | undefined;
+  try {
+    await Promise.race([
+      release.promise,
+      new Promise<void>((resolve) => {
+        timer = setTimeout(resolve, delayMs);
+      }),
+    ]);
+  } finally {
+    // Both sides get torn down whichever won. A live 60-second timer would
+    // otherwise hold the event loop open long after the run has its answer.
+    if (timer !== undefined) clearTimeout(timer);
+    release.cancel();
+  }
 }
 
 // Total connector asks a step gets before its failure is allowed to take the
@@ -1045,7 +1095,7 @@ async function executeProductionRelay(step: RelayStep, context: RunContext): Pro
     // Every ask is recorded in full (relay.started / relay.request /
     // relay.failed), so the trace stays honest about the death while the run
     // survives it.
-    await pauseMs(connectorRetryDelayMs(askNumber, relayAttempt.reason));
+    await pauseForConnectorRetry(askNumber, relayAttempt.reason);
     relayAttempt = await executeProductionRelayAttempt({ step, context, compiledStep });
   }
   if (relayAttempt.kind === 'connector_failed') {

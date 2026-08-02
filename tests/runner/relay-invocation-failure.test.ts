@@ -260,12 +260,12 @@ describe('runtime-safety-floor connector invocation failure closure', () => {
       connectorRetrySchedule.signedOutMs = realSchedule;
     }
 
-    // Four asks, not the two an ordinary dead connector gets.
-    expect(calls()).toBe(4);
+    // Five asks, not the two an ordinary dead connector gets.
+    expect(calls()).toBe(5);
     const relayStepKinds = outcome.trace_entries
       .filter((trace_entry) => 'step_id' in trace_entry && trace_entry.step_id === 'relay-step')
       .map((trace_entry) => trace_entry.kind);
-    expect(relayStepKinds.filter((kind) => kind === 'relay.failed')).toHaveLength(4);
+    expect(relayStepKinds.filter((kind) => kind === 'relay.failed')).toHaveLength(5);
     expect(relayStepKinds.at(-1)).toBe('step.aborted');
 
     // When it never comes back the run still closes honestly, and the reason

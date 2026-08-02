@@ -16201,6 +16201,11 @@ function createTimeoutController(input) {
   return { onActivity, clear };
 }
 var CONNECTOR_SUCCESS_VOUCH_MS = 10 * 6e4;
+var TRANSIENT_SIGN_OUT_MARKER = "more likely a transient authentication failure";
+var TRANSIENT_SIGN_OUT_CLI = new RegExp(
+  `^The ([\\w-]+) CLI reported that it is not logged in, .*${TRANSIENT_SIGN_OUT_MARKER}`,
+  "s"
+);
 function parseNdjsonObjects(stdout, label) {
   const lines = stdout.split("\n").filter((line) => line.length > 0);
   const objects = [];

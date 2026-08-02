@@ -205,6 +205,9 @@ const CONNECTOR_SUCCESS_VOUCH_MS = 10 * 60_000;
 
 export function noteConnectorSucceeded(cli: string): void {
   CONNECTOR_LAST_SUCCESS_AT.set(cli, Date.now());
+  // This answer is the evidence that the window closed. Anyone still sleeping
+  // on it should stop sleeping and ask again now, not in another 30 seconds.
+  releaseSignOutWaiters(cli);
 }
 
 export function connectorAnsweredRecently(cli: string): boolean {
@@ -229,6 +232,75 @@ export const TRANSIENT_SIGN_OUT_MARKER = 'more likely a transient authentication
 
 export function isTransientSignOutFailure(reason: string): boolean {
   return reason.includes(TRANSIENT_SIGN_OUT_MARKER);
+}
+
+// Reads the CLI back out of the doubted-sign-out sentence authored above.
+//
+// The retry loop is handed a reason string and nothing else, but the one fact
+// that ends a sign-out window — some sibling branch got through — is recorded
+// per CLI. This bridges the two. Kept immediately beside the template it
+// parses, and round-tripped in tests, because a reader editing that sentence
+// has to see this.
+const TRANSIENT_SIGN_OUT_CLI = new RegExp(
+  `^The ([\\w-]+) CLI reported that it is not logged in, .*${TRANSIENT_SIGN_OUT_MARKER}`,
+  's',
+);
+
+export function transientSignOutCli(reason: string): string | undefined {
+  return TRANSIENT_SIGN_OUT_CLI.exec(reason)?.[1];
+}
+
+// Branches waiting out a sign-out window, by CLI.
+//
+// A window is a property of the shared credential: every concurrent branch
+// relaying through that CLI is inside the same one, and the same single event
+// ends it for all of them. Before this, each branch slept its own schedule and
+// learned nothing from the sibling that recovered first, so a window that
+// closed after ten seconds still cost every branch its full wait.
+const SIGN_OUT_WAITERS = new Map<string, Set<() => void>>();
+
+/**
+ * Resolves when some branch gets an answer out of `cli`.
+ *
+ * Never resolves on its own. The caller is always racing this against a real
+ * timeout, so a window that no success ever closes still ends.
+ */
+export function awaitSignOutRelease(cli: string): { promise: Promise<void>; cancel: () => void } {
+  let release: () => void = () => {};
+  const promise = new Promise<void>((resolve) => {
+    release = resolve;
+  });
+  const waiters = SIGN_OUT_WAITERS.get(cli) ?? new Set();
+  waiters.add(release);
+  SIGN_OUT_WAITERS.set(cli, waiters);
+  return {
+    promise,
+    cancel: () => {
+      // Dropping the registration matters more than resolving it: a branch
+      // whose own timeout won is about to re-ask, and leaving it registered
+      // would leak one closure per exhausted wait for the life of the process.
+      waiters.delete(release);
+      // Identity-checked. A success clears the map entry while this set is
+      // still held here, and a branch that hits the window afterwards installs
+      // a fresh set under the same key. Deleting by key alone would orphan
+      // those new waiters, who would then sit out their full timeout for
+      // nothing.
+      const current = SIGN_OUT_WAITERS.get(cli);
+      if (waiters.size === 0 && current === waiters) SIGN_OUT_WAITERS.delete(cli);
+      release();
+    },
+  };
+}
+
+function releaseSignOutWaiters(cli: string): void {
+  const waiters = SIGN_OUT_WAITERS.get(cli);
+  if (waiters === undefined) return;
+  SIGN_OUT_WAITERS.delete(cli);
+  // Emptied as well as unmapped, so a cancel still holding this set sees the
+  // size it actually has.
+  const releases = [...waiters];
+  waiters.clear();
+  for (const release of releases) release();
 }
 
 const SANDBOX_DENIAL_PATTERN = /operation not permitted/gi;

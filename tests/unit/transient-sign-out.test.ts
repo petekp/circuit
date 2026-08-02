@@ -58,19 +58,23 @@ describe('a sign-out from a CLI that just answered', () => {
     expect(signedOutFailure('claude')).toContain('The claude CLI is not logged in');
   });
 
-  it('buys real seconds and two more asks than an ordinary connector death', () => {
+  it('buys real seconds and three more asks than an ordinary connector death', () => {
     const transient = 'The claude CLI ... more likely a transient authentication failure than ...';
     const dead = 'claude-code subprocess exited with code 143';
 
     expect(connectorAskBudget(2, dead)).toBe(2);
-    expect(connectorAskBudget(2, transient)).toBe(4);
+    expect(connectorAskBudget(2, transient)).toBe(5);
 
     expect(connectorRetryDelayMs(2, dead)).toBe(connectorRetryBackoffMs(2));
     expect(connectorRetryDelayMs(2, transient)).toBe(5_000);
     expect(connectorRetryDelayMs(3, transient)).toBe(15_000);
     expect(connectorRetryDelayMs(4, transient)).toBe(30_000);
+    // The 60-second tail is what makes the schedule outlast the 99-second
+    // window measured on this repository's own Review runs; 5/15/30 stopped at
+    // 50 and exhausted inside it. See tests/unit/sign-out-window-sharing.
+    expect(connectorRetryDelayMs(5, transient)).toBe(60_000);
     // Past the end of the schedule the wait holds at its longest rather than
     // falling off the array.
-    expect(connectorRetryDelayMs(9, transient)).toBe(30_000);
+    expect(connectorRetryDelayMs(9, transient)).toBe(60_000);
   });
 });

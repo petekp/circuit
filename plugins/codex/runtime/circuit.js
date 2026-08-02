@@ -96702,6 +96702,7 @@ function describeTimeout(result, bounds) {
 }
 function noteConnectorSucceeded(cli) {
   CONNECTOR_LAST_SUCCESS_AT.set(cli, Date.now());
+  releaseSignOutWaiters(cli);
 }
 function connectorAnsweredRecently(cli) {
   const at = CONNECTOR_LAST_SUCCESS_AT.get(cli);
@@ -96709,6 +96710,39 @@ function connectorAnsweredRecently(cli) {
 }
 function isTransientSignOutFailure(reason) {
   return reason.includes(TRANSIENT_SIGN_OUT_MARKER);
+}
+function transientSignOutCli(reason) {
+  return TRANSIENT_SIGN_OUT_CLI.exec(reason)?.[1];
+}
+function awaitSignOutRelease(cli) {
+  let release = () => {
+  };
+  const promise2 = new Promise((resolve41) => {
+    release = resolve41;
+  });
+  const waiters = SIGN_OUT_WAITERS.get(cli) ?? /* @__PURE__ */ new Set();
+  waiters.add(release);
+  SIGN_OUT_WAITERS.set(cli, waiters);
+  return {
+    promise: promise2,
+    cancel: () => {
+      waiters.delete(release);
+      const current = SIGN_OUT_WAITERS.get(cli);
+      if (waiters.size === 0 && current === waiters)
+        SIGN_OUT_WAITERS.delete(cli);
+      release();
+    }
+  };
+}
+function releaseSignOutWaiters(cli) {
+  const waiters = SIGN_OUT_WAITERS.get(cli);
+  if (waiters === void 0)
+    return;
+  SIGN_OUT_WAITERS.delete(cli);
+  const releases = [...waiters];
+  waiters.clear();
+  for (const release of releases)
+    release();
 }
 function launchFailureSummary(cli, errorText) {
   if (errorText.includes("ENOENT")) {
@@ -96937,7 +96971,7 @@ async function runConnectorSubprocess(input) {
     });
   });
 }
-var ConnectorSubprocessSpawnError, SIGNED_OUT_OUTPUT_PATTERN, CONNECTOR_LAST_SUCCESS_AT, CONNECTOR_SUCCESS_VOUCH_MS, TRANSIENT_SIGN_OUT_MARKER, SANDBOX_DENIAL_PATTERN, SANDBOX_DENIAL_MIN_COUNT, STATE_DB_READONLY_PATTERN, STATE_RUNTIME_DIR_PATTERN, STATE_DB_FILE_PATTERN, STREAM_ERROR_MESSAGE_MAX_CHARS;
+var ConnectorSubprocessSpawnError, SIGNED_OUT_OUTPUT_PATTERN, CONNECTOR_LAST_SUCCESS_AT, CONNECTOR_SUCCESS_VOUCH_MS, TRANSIENT_SIGN_OUT_MARKER, TRANSIENT_SIGN_OUT_CLI, SIGN_OUT_WAITERS, SANDBOX_DENIAL_PATTERN, SANDBOX_DENIAL_MIN_COUNT, STATE_DB_READONLY_PATTERN, STATE_RUNTIME_DIR_PATTERN, STATE_DB_FILE_PATTERN, STREAM_ERROR_MESSAGE_MAX_CHARS;
 var init_subprocess = __esm({
   "dist/connectors/subprocess.js"() {
     "use strict";
@@ -96954,6 +96988,8 @@ var init_subprocess = __esm({
     CONNECTOR_LAST_SUCCESS_AT = /* @__PURE__ */ new Map();
     CONNECTOR_SUCCESS_VOUCH_MS = 10 * 6e4;
     TRANSIENT_SIGN_OUT_MARKER = "more likely a transient authentication failure";
+    TRANSIENT_SIGN_OUT_CLI = new RegExp(`^The ([\\w-]+) CLI reported that it is not logged in, .*${TRANSIENT_SIGN_OUT_MARKER}`, "s");
+    SIGN_OUT_WAITERS = /* @__PURE__ */ new Map();
     SANDBOX_DENIAL_PATTERN = /operation not permitted/gi;
     SANDBOX_DENIAL_MIN_COUNT = 3;
     STATE_DB_READONLY_PATTERN = /failed to open state db|attempt to write a read-?only database/i;
@@ -102042,11 +102078,33 @@ async function pauseMs(ms) {
     setTimeout(resolve41, ms);
   });
 }
+async function pauseForConnectorRetry(attemptNumber, reason) {
+  const delayMs = connectorRetryDelayMs(attemptNumber, reason);
+  const cli = transientSignOutCli(reason);
+  if (cli === void 0) {
+    await pauseMs(delayMs);
+    return;
+  }
+  const release = awaitSignOutRelease(cli);
+  let timer;
+  try {
+    await Promise.race([
+      release.promise,
+      new Promise((resolve41) => {
+        timer = setTimeout(resolve41, delayMs);
+      })
+    ]);
+  } finally {
+    if (timer !== void 0)
+      clearTimeout(timer);
+    release.cancel();
+  }
+}
 async function executeProductionRelay(step, context) {
   const compiledStep = requireRuntimeIndexedStep(context.packageIndex, step.id, "relay");
   let relayAttempt = await executeProductionRelayAttempt({ step, context, compiledStep });
   for (let askNumber = 2; relayAttempt.kind === "connector_failed" && askNumber <= connectorAskBudget(RELAY_CONNECTOR_ASK_BUDGET, relayAttempt.reason); askNumber += 1) {
-    await pauseMs(connectorRetryDelayMs(askNumber, relayAttempt.reason));
+    await pauseForConnectorRetry(askNumber, relayAttempt.reason);
     relayAttempt = await executeProductionRelayAttempt({ step, context, compiledStep });
   }
   if (relayAttempt.kind === "connector_failed") {
@@ -102152,9 +102210,9 @@ var init_relay = __esm({
     };
     CONNECTOR_RETRY_BASE_BACKOFF_MS = 400;
     connectorRetrySchedule = {
-      signedOutMs: [5e3, 15e3, 3e4]
+      signedOutMs: [5e3, 15e3, 3e4, 6e4]
     };
-    SIGNED_OUT_EXTRA_ASKS = 2;
+    SIGNED_OUT_EXTRA_ASKS = 3;
     RELAY_CONNECTOR_ASK_BUDGET = 2;
   }
 });
@@ -102627,11 +102685,6 @@ function planRelayFanoutBranchGuidanceDecision(input) {
     ...input.relayConnector === void 0 ? {} : { suppliedConnector: input.relayConnector }
   });
 }
-async function pause(ms) {
-  await new Promise((resolve41) => {
-    setTimeout(resolve41, ms);
-  });
-}
 function branchAnswerStands(attempt) {
   return attempt.kind !== "connector_failed" && attempt.evaluation.kind === "pass";
 }
@@ -102676,7 +102729,7 @@ async function executeRelayFanoutBranch(step, context, branch, relayConnector, b
         connectorAskBudget(maxAttempts, relayAttempt.reason)
       ) : maxAttempts); attemptNumber += 1) {
         if (relayAttempt.kind === "connector_failed") {
-          await pause(connectorRetryDelayMs(attemptNumber, relayAttempt.reason));
+          await pauseForConnectorRetry(attemptNumber, relayAttempt.reason);
         }
         relayAttempt = await ask();
       }
