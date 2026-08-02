@@ -6,12 +6,12 @@
 //   rescan reads. A finding is a `src/**/*.ts` file that still carries the
 //   NEEDS_FIX marker and has not been suppressed (a `sweep-suppress` directive).
 //
-// This is the program the census pins via `npm run scan`. Mind the pin's exact
-// boundary: engine change 2 fingerprints the package.json `scripts.scan` STRING
-// (`node scan.mjs`), NOT this file's bytes. Swapping `scripts.scan` in
-// package.json is caught; rewriting THIS file to a no-op is not — the
-// scanner-program rewrite is a known open gap (spec 6.6 / 9.1). Do not read this
-// fixture as proof the scanner program body is protected.
+// This is the program the census pins via `npm run scan`. The pin fingerprints
+// both the package.json `scripts.scan` STRING (`node scan.mjs`) and this file's
+// bytes, plus anything it imports through a static relative specifier, so
+// swapping the script and rewriting this program are both caught across waves
+// (spec 6.6). What still is not covered: a scanner that reads its rules from a
+// data file rather than importing them.
 import { readFileSync, readdirSync } from 'node:fs';
 import { join } from 'node:path';
 

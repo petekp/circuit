@@ -17,7 +17,7 @@ import type {
   ComposeBuildContext,
   ComposeBuilder,
 } from '../../registries/compose-writers/types.js';
-import { SweepCensus } from '../reports.js';
+import { SweepCensus, type SweepFinding } from '../reports.js';
 import { runScannerFindings, runSuppressionBaseline } from './scan.js';
 
 const ORACLE_TIMEOUT_MS = 120_000;
@@ -54,6 +54,22 @@ function suppressionAuditCommand(): VerificationCommand {
   });
 }
 
+// The set the sweep becomes accountable for: every file that carried a finding
+// at census time. Findings with no file (project-level diagnostics) contribute
+// nothing, because there is no path a later wave could be asked to account for.
+//
+// Deriving the set from the findings rather than from the tree is the point. A
+// scan scope ("all of src/") would make every unrelated file deletion a
+// coverage failure; the finding-bearing files are exactly the ones whose
+// disappearance would fake progress.
+function targetedSet(findings: readonly SweepFinding[]): string[] {
+  return [
+    ...new Set(
+      findings.map((finding) => finding.file).filter((file): file is string => file !== null),
+    ),
+  ].sort();
+}
+
 export const sweepCensusComposeBuilder: ComposeBuilder = {
   resultSchemaName: 'sweep.census@v1',
   build(context: ComposeBuildContext): unknown {
@@ -73,6 +89,7 @@ export const sweepCensusComposeBuilder: ComposeBuilder = {
       config_surface: [...SWEEP_CONFIG_SURFACE],
       findings,
       total_finding_count: findings.length,
+      targeted_set: targetedSet(findings),
     });
   },
 };

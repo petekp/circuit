@@ -24,6 +24,10 @@ const SERIAL_FILES = [
   // leader exits, bounded by a wall-clock deadline. Same signature: 5s alone,
   // 81s and a timeout in the parallel stage.
   'tests/mcp/supervisor.test.ts',
+  // spawns real git subprocesses through the MCP safe reader and bounds them by
+  // a wall-clock timeout. Same signature again: 5s alone, 90s and a timeout in
+  // the parallel stage.
+  'tests/mcp/safe-git-reader-live.test.ts',
 ];
 const FAST_EXCLUDES = ['tests/runner/cli-router.test.ts', 'tests/unit/emit-flows-drift.test.ts'];
 

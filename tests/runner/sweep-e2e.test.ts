@@ -16,8 +16,8 @@ import { deterministicNow, stubRelayResult } from '../helpers/runtime-fixtures.j
 // faked (the connector model call), exactly like fix-until-green.
 //
 // What this proves that fix-until-green does not: sweep's body FANS OUT one
-// worker per partition unit and re-scans a whole backlog each wave. The four
-// cases exercise the loop and both honesty floors beyond the scanner exit:
+// worker per partition unit and re-scans a whole backlog each wave. The cases
+// exercise the loop and every honesty floor beyond the scanner exit:
 //   A  happy path — a two-wave sweep clears a three-finding backlog and stops
 //      clean; the carried judge lesson reaches the second wave's partition.
 //   B  suppression floor — a worker silences a finding instead of fixing it;
@@ -29,6 +29,13 @@ import { deterministicNow, stubRelayResult } from '../helpers/runtime-fixtures.j
 //   D2 script-body swap — across waves a worker rewrites the pinned `scan`
 //      script to a no-op; the oracle-command pin detects the fingerprint drift
 //      and refuses to trust the rewritten oracle, so the run cannot complete.
+//   D3 scanner-program rewrite — the script body is untouched but the program
+//      it launches is neutered; the pin's program closure catches it (spec 6.6).
+//   F  set narrowing — nothing about the oracle is touched at all; a worker
+//      deletes the file its finding lived in, so the scan honestly goes green
+//      over a smaller tree. The set-identity floor blocks the close (spec 6.4).
+//   F2 the same floor on an honest run, so the cost of F is not a false alarm
+//      on every normal sweep.
 //
 // D1 (command narrowing) and the nested-config-create case (spec §9 E) are
 // covered by the oracle-command-pin and frozen-eval unit tests; this file
@@ -80,7 +87,14 @@ function scaffoldProject(base: string): string {
 // file the unit owns and how many times that file has been handed out, so the
 // choreography is deterministic even though a wave's workers run concurrently
 // (waves are sequential, and each file belongs to exactly one unit per wave).
-type WorkerAction = 'fix' | 'blocked' | 'suppress' | 'freeze-config' | 'swap-scanner';
+type WorkerAction =
+  | 'fix'
+  | 'blocked'
+  | 'suppress'
+  | 'freeze-config'
+  | 'swap-scanner'
+  | 'rewrite-scanner-program'
+  | 'delete-file';
 
 // A real fix removes the NEEDS_FIX marker; the other actions model the tamper
 // vectors the honesty floors must catch.
@@ -94,6 +108,14 @@ function applyWorkerAction(
     // Leave the finding untouched for the next wave. A blocked worker
     // legitimately changed nothing, so changed_files is empty.
     return { verdict: 'blocked', changed: [] };
+  }
+  if (action === 'delete-file') {
+    // Delete the file the finding lives in. The scanner honestly reports no
+    // finding for a file that no longer exists, so scan and audit both go green
+    // over a SHRUNKEN set. Only the set-identity invariant separates this from a
+    // real fix. Report it as a normal fix, which is what a dishonest worker does.
+    rmSync(abs, { force: true });
+    return { verdict: 'fixed', changed: [file] };
   }
   if (action === 'suppress') {
     // Silence the finding instead of fixing it: the scan stops reporting it, but
@@ -113,6 +135,16 @@ function applyWorkerAction(
     cfg.compilerOptions.strict = false;
     writeFileSync(tsconfigPath, `${JSON.stringify(cfg, null, 2)}\n`);
     return { verdict: 'fixed', changed: [file, 'tsconfig.json'] };
+  }
+  if (action === 'rewrite-scanner-program') {
+    // ...but also neuters the scanner PROGRAM the pinned script launches. The
+    // argv and the package.json script body both stay byte-identical, so only
+    // the program-closure fingerprint can see this.
+    writeFileSync(
+      join(projectRoot, 'scan.mjs'),
+      'process.stdout.write(JSON.stringify({ findings: [] }));\nprocess.exit(0);\n',
+    );
+    return { verdict: 'fixed', changed: [file] };
   }
   if (action === 'swap-scanner') {
     // ...but also rewrites the pinned scan script to an always-green no-op.
@@ -413,6 +445,141 @@ describe('sweep: fan-out-over-a-set clears a backlog with a pinned oracle floor'
         scripts: Record<string, string>;
       };
       expect(pkg.scripts.scan).not.toBe('node scan.mjs');
+    },
+    SWEEP_E2E_TIMEOUT_MS,
+  );
+
+  it(
+    'D3: rewriting the scanner PROGRAM between waves trips the pin even though the script body is untouched',
+    async () => {
+      const projectRoot = scaffoldProject(base);
+      const runFolder = join(base, 'program-rewrite');
+
+      // The sibling of D2, and the one the script-body fingerprint alone cannot
+      // see: `scripts.scan` still reads `node scan.mjs` byte for byte, but
+      // scan.mjs itself is neutered to print an empty finding list and exit 0.
+      const result = await runCompiledFlow({
+        runDir: runFolder,
+        flowBytes: SWEEP_FIXTURE,
+        projectRoot,
+        runId: '80000000-0000-0000-0000-0000000000d3',
+        goal: 'a rewritten scanner program must not launder a clean close',
+        depth: 'autonomous',
+        now: deterministicNow(Date.UTC(2026, 6, 7, 11, 0, 0)),
+        relayer: sweepRelayer({
+          projectRoot,
+          behavior: (file, encounter) => {
+            if (file.endsWith('gamma.ts'))
+              return encounter === 1 ? 'blocked' : 'rewrite-scanner-program';
+            return 'fix';
+          },
+        }),
+      });
+
+      expect(result.outcome).not.toBe('complete');
+
+      const trace = (await new TraceStore(runFolder).load()) as readonly TraceRow[];
+      const driftReason = trace
+        .map((e) => e.reason ?? e.failure_reason ?? '')
+        .find((reason) => reason.includes('oracle program "scan.mjs"'));
+      expect(driftReason).toBeDefined();
+
+      // The script body is untouched — the program fingerprint, not the body
+      // fingerprint, is what caught this.
+      const pkg = JSON.parse(readFileSync(join(projectRoot, 'package.json'), 'utf8')) as {
+        scripts: Record<string, string>;
+      };
+      expect(pkg.scripts.scan).toBe('node scan.mjs');
+    },
+    SWEEP_E2E_TIMEOUT_MS,
+  );
+
+  it(
+    'F: deleting a censused file clears the scan over a shrunken set, and the set-identity floor blocks the close',
+    async () => {
+      const projectRoot = scaffoldProject(base);
+      const runFolder = join(base, 'set-narrowing');
+
+      // The scope-narrowing cheat with no tampering anywhere the other floors
+      // look: the oracle command, its script body, its program, the config, and
+      // the suppression count are all untouched. A worker simply deletes the file
+      // its finding lives in. The scanner honestly reports zero findings and exits
+      // 0 over a set two files smaller than the one the census pinned.
+      //
+      // Only the set-identity invariant separates that from a real fix, so the
+      // rescan must fail with the censused files it can no longer account for.
+      const result = await runCompiledFlow({
+        runDir: runFolder,
+        flowBytes: SWEEP_FIXTURE,
+        projectRoot,
+        runId: '80000000-0000-0000-0000-0000000000f6',
+        goal: 'deleting the finding must not count as clearing it',
+        depth: 'medium',
+        now: deterministicNow(Date.UTC(2026, 6, 7, 11, 30, 0)),
+        relayer: sweepRelayer({
+          projectRoot,
+          behavior: (file) => (file.endsWith('alpha.ts') ? 'delete-file' : 'fix'),
+        }),
+      });
+      const trace = (await new TraceStore(runFolder).load()) as readonly TraceRow[];
+
+      expect(result.outcome).not.toBe('complete');
+      expect(result.outcome).toBe('stopped');
+
+      // Both oracle commands passed. The rescan still failed, and it names the
+      // file that went missing — the operator can see exactly what was narrowed.
+      const rescan = JSON.parse(
+        readFileSync(join(runFolder, 'reports/sweep/rescan.json'), 'utf8'),
+      ) as {
+        overall_status: string;
+        set_covers_census: boolean;
+        missing_censused_files: string[];
+        reason?: string;
+        commands: Array<{ command_id: string; status: string }>;
+      };
+      expect(rescan.commands.every((command) => command.status === 'passed')).toBe(true);
+      expect(rescan.overall_status).toBe('failed');
+      expect(rescan.set_covers_census).toBe(false);
+      expect(rescan.missing_censused_files).toEqual(['src/alpha.ts']);
+      expect(rescan.reason ?? '').toContain('src/alpha.ts');
+
+      const judgment = untilJudgment(trace);
+      expect(judgment?.disposition).toBe('needs-attention');
+      expect(judgment?.evidence_confirmed).toBe(false);
+    },
+    SWEEP_E2E_TIMEOUT_MS,
+  );
+
+  it(
+    'F2: an honest sweep still reports the census set as covered',
+    async () => {
+      const projectRoot = scaffoldProject(base);
+      const runFolder = join(base, 'set-honest');
+
+      // The set-identity floor must not tax the normal case: every censused file
+      // is still there, fixed in place, so coverage holds and the run completes.
+      const result = await runCompiledFlow({
+        runDir: runFolder,
+        flowBytes: SWEEP_FIXTURE,
+        projectRoot,
+        runId: '80000000-0000-0000-0000-0000000000f7',
+        goal: 'an honest sweep must still close clean',
+        depth: 'medium',
+        now: deterministicNow(Date.UTC(2026, 6, 7, 12, 0, 0)),
+        relayer: sweepRelayer({ projectRoot, behavior: () => 'fix' }),
+      });
+
+      expect(result.outcome).toBe('complete');
+      const rescan = JSON.parse(
+        readFileSync(join(runFolder, 'reports/sweep/rescan.json'), 'utf8'),
+      ) as {
+        overall_status: string;
+        set_covers_census: boolean;
+        missing_censused_files: string[];
+      };
+      expect(rescan.overall_status).toBe('passed');
+      expect(rescan.set_covers_census).toBe(true);
+      expect(rescan.missing_censused_files).toEqual([]);
     },
     SWEEP_E2E_TIMEOUT_MS,
   );

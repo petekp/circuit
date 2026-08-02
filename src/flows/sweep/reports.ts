@@ -10,7 +10,7 @@
 // shapes and the built-in converge.judgment@v1 contract.
 
 import { z } from 'zod';
-import { VerificationCommand, VerificationResult } from '../../schemas/verification.js';
+import { VerificationCommand, VerificationCommandResult } from '../../schemas/verification.js';
 
 // A single mechanical finding the scanner reported. `file` is null when a
 // finding is not file-scoped (a project-level diagnostic), so partitioning can
@@ -50,6 +50,12 @@ export const SweepCensus = z
     config_surface: z.array(z.string().min(1)),
     findings: z.array(SweepFinding),
     total_finding_count: z.number().int().nonnegative(),
+    // The set the sweep is accountable for: every file that carried a finding
+    // when the census ran, sorted and de-duplicated. Every later rescan asserts
+    // it can still account for this set, so a green scan over a shrunken tree
+    // cannot read as a cleared backlog (spec 6.4). Derived, never author-set:
+    // the finding list is the only honest source for what the job was.
+    targeted_set: z.array(z.string().min(1)),
   })
   .strict()
   .superRefine((census, ctx) => {
@@ -58,6 +64,22 @@ export const SweepCensus = z
         code: 'custom',
         path: ['total_finding_count'],
         message: 'total_finding_count must match findings.length',
+      });
+    }
+    const expectedSet = [
+      ...new Set(
+        census.findings
+          .map((finding) => finding.file)
+          .filter((file): file is string => file !== null),
+      ),
+    ].sort();
+    const actualSet = [...census.targeted_set].sort();
+    if (expectedSet.join('\u0000') !== actualSet.join('\u0000')) {
+      ctx.addIssue({
+        code: 'custom',
+        path: ['targeted_set'],
+        message:
+          'targeted_set must be exactly the sorted, de-duplicated set of files the census findings name',
       });
     }
   });
@@ -193,9 +215,65 @@ export const SweepWaveAggregate = z
   });
 export type SweepWaveAggregate = z.infer<typeof SweepWaveAggregate>;
 
-// The rescan's canonical command-list result. Its overall_status is the proof
-// the until-loop evidence floor reads each wave: passed only when the scanner
-// AND the suppression audit both exit clean. The same strict VerificationResult
-// shape Build and Fix Until Green emit, reused verbatim.
-export const SweepVerification = VerificationResult;
+// The rescan's command-list result. Its overall_status is the proof the
+// until-loop evidence floor reads each wave.
+//
+// It is the shared VerificationResult shape widened with the set-identity
+// invariant (spec 6.4), the way Fix widens the same contract for its regression
+// proof. The widening is necessary rather than cosmetic: the shared schema
+// derives overall_status from the command statuses alone, so a scan that exits
+// 0 over a shrunken set MUST read as passed there. Sweep's floor is stricter —
+// a green scan only counts if it covered at least the set the census pinned.
+//
+// `set_covers_census` is false when a file the census named no longer exists.
+// That is deliberately a filesystem check, not a scanner self-report: the whole
+// point is to catch a scanner that honestly reports nothing because the code it
+// would have complained about is gone.
+//
+// The cost of that strictness, stated plainly: a run whose genuine fix is to
+// delete a file cannot close clean. It stops needs-attention with the file
+// named, which is the honest outcome — Sweep cannot tell that deletion from the
+// cheat, and guessing in the worker's favor is what the floor exists to prevent.
+export const SweepVerification = z
+  .object({
+    overall_status: z.enum(['passed', 'failed']),
+    commands: z.array(VerificationCommandResult).min(1),
+    set_covers_census: z.boolean(),
+    // The censused files the rescan could not account for. Named, not counted,
+    // so the operator sees exactly which part of the job went missing.
+    missing_censused_files: z.array(z.string().min(1)),
+    // Why the rescan failed when no command did. The verification executor folds
+    // this into the step's failure reason, so a coverage failure explains itself
+    // instead of reading as an unexplained red.
+    reason: z.string().min(1).optional(),
+  })
+  .strict()
+  .superRefine((verification, ctx) => {
+    if (verification.set_covers_census !== (verification.missing_censused_files.length === 0)) {
+      ctx.addIssue({
+        code: 'custom',
+        path: ['set_covers_census'],
+        message: 'set_covers_census must be false exactly when missing_censused_files is non-empty',
+      });
+    }
+    const expected =
+      verification.commands.some((command) => command.status === 'failed') ||
+      !verification.set_covers_census
+        ? 'failed'
+        : 'passed';
+    if (verification.overall_status !== expected) {
+      ctx.addIssue({
+        code: 'custom',
+        path: ['overall_status'],
+        message: `overall_status must be '${expected}' for these command results and set coverage`,
+      });
+    }
+    if (!verification.set_covers_census && verification.reason === undefined) {
+      ctx.addIssue({
+        code: 'custom',
+        path: ['reason'],
+        message: 'a rescan that lost census coverage must say so in reason',
+      });
+    }
+  });
 export type SweepVerification = z.infer<typeof SweepVerification>;

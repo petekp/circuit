@@ -1,13 +1,14 @@
 # Sweep flow — spec (internal baseline shipped)
 
 Status: internal baseline shipped (PR #157, 2026-07-08). Written 2026-07-07.
-Public promotion is gated on closing the 6.4 and 6.6 soundness gaps; see
-Section 11.
+Both soundness gaps that gated public promotion — the scanner-program rewrite
+(6.6) and the set-identity invariant (6.4) — are now closed and covered by
+end-to-end assertions (2026-08-01).
 
 This began as a design spec written under the v1 freeze. The internal
 baseline has since shipped with `visibility: 'internal'`, so Sweep emits no
-public host surface. Public promotion is a separate post-launch decision,
-gated on closing the two soundness gaps in Section 11, and is Pete's call.
+public host surface. Public promotion is a separate post-launch decision and is
+Pete's call; the soundness argument no longer blocks it.
 
 The spec was produced by a grounded design pass and then hardened by two
 adversarial reviews against real engine source. The first verified the flow
@@ -424,11 +425,13 @@ the plan file and via the run script. It does **not** by itself close
 config-driven set-narrowing (a tool re-reading `tsconfig` / `.eslintignore` at
 runtime, Section 6.3) or in-language recasting (Section 2). And it does **not**
 "harden `fix-until-green` for free": `fix-until-green` declares no `frozen_paths`
-and no config re-derivation, so the pin closes only the plan-argv vector for it,
-plus the script-swap vector once the body fingerprint lands, and leaves the
-config hole open. The full honesty floor is the pin **plus** the script-body
-fingerprint **plus** the set-identity invariant (6.4) **plus** per-wave config
-re-derivation (6.3), not the pin alone.
+and no config re-derivation, so the pin closes the plan-argv vector for it, plus
+the script-swap and program-rewrite vectors the fingerprints cover, and leaves
+the config hole open. The full honesty floor is the pin **plus** the script-body
+and program-closure fingerprints **plus** the set-identity invariant (6.4)
+**plus** per-wave config re-derivation (6.3), not the pin alone. Set identity is
+Sweep-specific: it needs a census of what the job was, which `fix-until-green`
+does not have.
 
 ### 6.3 Config-discovery hardening: re-derive the effective config each wave
 
@@ -452,18 +455,41 @@ a fixed freeze list cannot.
 the first scan did. Combined with 6.2, a narrowed final scan could read as an
 honest 300-to-0 trajectory.
 
-**The fix.** `census-step` records `targeted_set` (the scan scope). Every
-`rescan-step` asserts `set_covers_census`: the set the rescan actually targeted
-is a superset of the census set. `@complete` is unreachable unless the final
-zero-finding scan covered at least the set Sweep started on. This rides on the
-same pin as 6.2.
+**The fix.** `census-step` records `targeted_set`: the sorted, de-duplicated set
+of files that carried a finding when the census ran. Every `rescan-step` asserts
+`set_covers_census` — every file in that set is still on disk — and reports
+`missing_censused_files` when it is not. A coverage failure makes
+`overall_status` failed even when every oracle command exited 0, so `@complete`
+is unreachable unless the final zero-finding scan still accounted for the set
+Sweep started on. This rides on the same pin as 6.2.
 
-**Status: designed, NOT enforced in the shipped baseline.** The `targeted_set` /
-`set_covers_census` machinery is not implemented — `census-step` records no scan
-scope and no `rescan-step` checks coverage. So a worker who narrows the scan
-scope *inside* the pinned program (edits the scanner to walk a subtree, not the
-argv the pin froze) still closes clean over a shrunken set. Known open gap,
-tracked in 9.1; enforce it before any public promotion.
+**Status: ENFORCED.** `SweepCensus.targeted_set` is derived by the census writer
+and schema-checked against the finding list, so it cannot be author-set to
+something smaller. `SweepVerification` carries `set_covers_census` /
+`missing_censused_files` and derives `overall_status` from both the command
+statuses and coverage. The rescan writer checks the filesystem directly rather
+than trusting any scanner self-report, which is the point: the vector is a
+scanner honestly reporting nothing because the code went away. Case F in
+`tests/runner/sweep-e2e.test.ts` drives the deletion end to end; F2 proves an
+honest sweep still closes clean.
+
+**Why the set is derived from findings, not from a scan scope.** A scope ("all
+of `src/`") would make every unrelated deletion a coverage failure and tax
+normal work. The finding-bearing files are exactly the ones whose disappearance
+would fake progress.
+
+**What it costs.** A run whose genuine fix is to delete a file cannot close
+clean; it stops needs-attention with the file named. Sweep cannot distinguish
+that deletion from the cheat, and resolving the ambiguity in the worker's favor
+is precisely what the floor exists to prevent.
+
+**What it does not cover, stated so the guarantee is not read as wider than it
+is.** The unit of accountability is the path, not the content. Emptying a file
+while keeping it, or deleting the offending function inside it, satisfies the
+check. That is the same boundary as in-language recasting (Section 2): there is
+no general line between "removed the bad code" and "fixed it", and existence is
+the part that can be checked without one. What the invariant buys is that the
+set of files the sweep answers for cannot silently shrink.
 
 ### 6.5 Retracted claim: the overclaim gate does not apply to fanout workers
 
@@ -671,14 +697,14 @@ catalog-completeness, and check-flow-drift coverage.
   the rescan fails, and the run cannot close clean.
 
 B and C prove the two silence paths the first pass covered; D and E prove the
-two the review found open. Together they close the silence paths that ship
-enforced today: suppression (B), config-tamper (C), plan-argv narrowing (D1),
-and script-body swap (D2). Two paths stay open in the baseline and are NOT
-covered by a passing assertion — scanner-program rewrite (6.6) and
-scope-narrowing inside the pinned program (set-identity, 6.4) — and E
-(nested-config-create) is deferred with 6.3. So "succeeded is unreachable
-except by real fixes over the full census set" holds only against the four
-enforced vectors, not the three open ones. See 9.1 for the exact ship line.
+two the review found open. Together with the two later cases they close every
+silence path enforced today: suppression (B), config-tamper (C), plan-argv
+narrowing (D1), script-body swap (D2), scanner-program rewrite (D3, 6.6), and
+set narrowing by deletion (F, 6.4). F2 proves the set-identity floor does not
+tax an honest sweep. E (nested-config-create) is deferred with 6.3, so
+"succeeded is unreachable except by real fixes over the full census set" holds
+against every vector except per-wave config re-derivation. See 9.1 for the
+exact ship line.
 
 ### 9.1 Implementation status
 
@@ -721,11 +747,17 @@ code as the floor), which is what the flow reads.
   Rewriting `scan.mjs` or a helper it imports aborts the run instead of closing
   clean. Residual scope (node_modules binaries, run-time-computed specifiers,
   data files read rather than imported) is stated in 6.6.
-- **Set-identity / scope-narrowing (6.4).** `census-step` records no scan scope
-  and `rescan-step` checks no coverage, so a worker who narrows the scan scope
-  inside the pinned program (walks a subtree, not the full census set) closes
-  clean over fewer files. The `targeted_set` / `set_covers_census` machinery in
-  6.4 is designed but not implemented.
+- **Set-identity / scope-narrowing (6.4) — CLOSED.** The census records
+  `targeted_set` (the finding-bearing files) and every rescan asserts each is
+  still on disk, reporting `missing_censused_files` and failing
+  `overall_status` when it is not. Deleting the file a finding lived in no
+  longer reads as clearing it. The cost — a legitimate delete-the-file fix also
+  cannot close clean — is stated in 6.4.
+
+What remains deferred is per-wave config re-derivation (6.3, case E), which is a
+completeness item rather than a silence path, plus the residual limits stated in
+6.6 (node_modules programs, in-language recasting, test/fixture deletion for
+test-runner oracles, oscillation).
 
 Building the e2e surfaced and fixed one real defect: the partition writer's
 `sanitizeForBranchId` kept dots and underscores, but a unit id becomes a fanout
@@ -803,13 +835,13 @@ is shipped. Its core honesty story is sound and verified for the vectors it
 enforces today: suppression audit, config-tamper frozen guard, plan-argv
 narrowing, and script-body swap (the two engine primitives landed and proven).
 It is **not** a zero-engine-edit flow: it needed two small general engine
-primitives. Two of the Section 6 anti-cheat additions did **not** ship —
-set-identity (6.4) and the scanner-program freeze implied by 6.6 — and case E
-(6.3) is deferred, so the "succeeded is unreachable except by real fixes over
-the full census set" property holds against the four enforced vectors, not the
-three open ones (9.1 lists them). That gap is why Sweep ships internal first
-under the freeze: it is an honest floor, not yet the full flagship evidence
-demo. Closing 6.4 and 6.6 gates public promotion.
+primitives. Two of the Section 6 anti-cheat additions shipped later than the
+baseline — set-identity (6.4) and the scanner-program freeze implied by 6.6,
+both closed 2026-08-01 — and case E (6.3) is still deferred, so the "succeeded
+is unreachable except by real fixes over the full census set" property now holds
+against every silence path with per-wave config re-derivation as the one open
+completeness item (9.1 lists it). Sweep still ships internal: that is now a
+promotion decision, not a soundness one.
 
 **Ordered build plan:**
 
