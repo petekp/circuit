@@ -1,5 +1,5 @@
 import { PowerDialSetting } from '../../schemas/power.js';
-import { CompiledDepth } from '../../schemas/process.js';
+import { Process } from '../../schemas/process.js';
 import { Effort } from '../../schemas/selection-policy.js';
 
 // Pure state machine for the interactive shell. Every keystroke flows through
@@ -176,11 +176,11 @@ export function configFields(flowId?: string): readonly ConfigField[] {
       label: `${flowId} effort`,
       options: Effort.options,
     },
-    {
-      key: `flows.${flowId}.selection.depth`,
-      label: `${flowId} depth`,
-      options: CompiledDepth.options,
-    },
+    // `process`, not `selection.depth`. The old key parsed and nothing read
+    // it: a run's process comes from --process or the power dial, and the
+    // relay overwrites `selection.depth` with the run's execution depth
+    // anyway. Setting it low and setting it high produced the same run.
+    { key: `flows.${flowId}.process`, label: `${flowId} process`, options: Process.options },
   ];
 }
 

@@ -33294,6 +33294,7 @@ var init_config = __esm({
     init_host();
     init_ids();
     init_power();
+    init_process();
     init_selection_policy();
     init_skill_hook();
     init_step();
@@ -33377,7 +33378,23 @@ var init_config = __esm({
     FlowOverride = external_exports.object({
       selection: SelectionOverride.optional(),
       skill_bindings: SkillBindings.default({}),
-      variant_models: FlowVariantModels.optional()
+      variant_models: FlowVariantModels.optional(),
+      // How thorough this flow's runs are, standing, without typing --process
+      // every time. Below an explicit --process and above the power dial.
+      //
+      // Named `process` because that is the operator's word for this axis;
+      // `depth` is the retired internal name (UBIQUITOUS_LANGUAGE.md). Deliberately
+      // NOT under `selection`: `selection.depth` is an internal derived field that
+      // the relay overwrites with the run's execution depth, so an operator value
+      // written there never survives to decide anything.
+      //
+      // A value the flow does not allow clamps to its nearest supported one, the
+      // same as a power-derived process, because a standing preference should not
+      // turn into a usage error on a flow it does not fit.
+      //
+      // Only the three thoroughness words. `tournament` and `autonomous` are
+      // separate axes with their own flags, not deeper settings of this one.
+      process: Process.optional()
     }).strict();
     ProjectId = external_exports.string().min(1).max(64).regex(/^[a-z0-9][a-z0-9-]*$/, {
       message: "project_id must be a fanout-safe kebab-case slug"
@@ -107665,6 +107682,29 @@ var init_checkpoint_resume = __esm({
   }
 });
 
+// dist/selection/flow-process.js
+function resolveFlowProcessSetting(layers, flowId) {
+  let chosen;
+  for (const name of LAYER_PRECEDENCE2) {
+    for (const layer of layers) {
+      if (layer.layer !== name)
+        continue;
+      const flows = layer.config.flows;
+      const value = flows?.[flowId]?.process;
+      if (value !== void 0)
+        chosen = value;
+    }
+  }
+  return chosen;
+}
+var LAYER_PRECEDENCE2;
+var init_flow_process = __esm({
+  "dist/selection/flow-process.js"() {
+    "use strict";
+    LAYER_PRECEDENCE2 = ["default", "user-global", "project", "invocation"];
+  }
+});
+
 // dist/app/checkpoints/local-review-references.js
 function decodeMarkupAttribute(value) {
   return value.replace(/&(amp|quot|apos|#x27|#39|lt|gt);/giu, (entity) => {
@@ -117498,10 +117538,11 @@ async function runExecutionCommand(args, options) {
   });
   const { policyLayers, selectionConfigLayers } = runtimeConfigLayers;
   let axes = args.axes;
+  const configuredProcess = args.processProvided ? void 0 : resolveFlowProcessSetting(selectionConfigLayers, route.flowName);
   if (!args.processProvided) {
     axes = Axes.parse({
       ...axes,
-      depth: deriveProcessFromPower(resolvePowerDialSetting(selectionConfigLayers))
+      depth: configuredProcess ?? deriveProcessFromPower(resolvePowerDialSetting(selectionConfigLayers))
     });
   }
   const fixtureSelectionName = compiledFlowSelectionNameForAxes(axes);
@@ -117526,6 +117567,7 @@ async function runExecutionCommand(args, options) {
       depth: clampDerivedDepthToFlow(axes.depth, flow.axes.allowed_depths)
     });
   }
+  const clampedProcessFrom = configuredProcess !== void 0 && configuredProcess !== axes.depth ? configuredProcess : void 0;
   const runArgs = axes === args.axes ? args : { ...args, axes };
   const entryModeSelection = resolveEntryModeSelection(args, runArgs.axes);
   try {
@@ -117553,6 +117595,10 @@ async function runExecutionCommand(args, options) {
     stream: process.stderr,
     progressJsonl: runArgs.progress === "jsonl"
   });
+  if (clampedProcessFrom !== void 0 && ttyNotices) {
+    process.stderr.write(`note: flows.${route.flowName}.process asks for ${clampedProcessFrom}; ${route.flowName} only runs ${axes.depth}, so this run uses ${axes.depth}.
+`);
+  }
   if (routeToRuntime) {
     const connectorPreflight = options.connectorPreflight ?? (options.relayer === void 0 && options.runtimeExecutors === void 0 ? preflightRunConnectors : void 0);
     if (connectorPreflight !== void 0) {
@@ -117924,6 +117970,7 @@ var init_run2 = __esm({
     init_process();
     init_progress_event();
     init_result();
+    init_flow_process();
     init_power_tiers();
     init_local_review_assets();
     init_local_review_session();
@@ -118109,7 +118156,8 @@ function resolveFlowSelectionPreview(input) {
   const dial = setting.kind === "fixed" ? setting.value : "auto";
   const dialResolvesTo = resolvePowerDial(layers);
   const codexDefaultModel = input.codexDefaultModel ?? resolveCodexDefaultModelUncached;
-  const process15 = clampDerivedDepthToFlow(deriveProcessFromPower(setting), compiled.axes.allowed_depths);
+  const configuredProcess = resolveFlowProcessSetting(layers, input.flowId);
+  const process15 = clampDerivedDepthToFlow(configuredProcess ?? deriveProcessFromPower(setting), compiled.axes.allowed_depths);
   const depth = process15;
   const relaySteps = [];
   const nonRelaySteps = [];
@@ -118142,6 +118190,8 @@ function resolveFlowSelectionPreview(input) {
     dial,
     dialResolvesTo,
     process: process15,
+    processSource: configuredProcess === void 0 ? "dial" : "config",
+    ...configuredProcess !== void 0 && configuredProcess !== process15 ? { processClampedFrom: configuredProcess } : {},
     relaySteps,
     nonRelaySteps
   };
@@ -118158,6 +118208,7 @@ var init_flow_selection_preview = __esm({
     init_runtime_package_index();
     init_config();
     init_step();
+    init_flow_process();
     init_power_tiers();
     init_relay_selection();
     init_run2();
@@ -118297,9 +118348,18 @@ function problemBlock(palette, lines) {
 }
 function renderSinglePreview(palette, preview) {
   const dialLine = preview.dial === preview.dialResolvesTo ? `dial: ${preview.dial}` : `dial: ${preview.dial} (resolves to ${preview.dialResolvesTo})`;
+  const processLine = (() => {
+    if (preview.processClampedFrom !== void 0) {
+      return `process: ${preview.process} (flows.${preview.flowId}.process asks for ${preview.processClampedFrom}; ${preview.flowId} only runs ${preview.process})`;
+    }
+    if (preview.processSource === "config") {
+      return `process: ${preview.process} (set by flows.${preview.flowId}.process)`;
+    }
+    return `process: ${preview.process}`;
+  })();
   const header = diamondHeaderLine(palette, "circuit preview", [
     `${preview.flowId} (${preview.visibility})`,
-    `${dialLine} \xB7 process: ${preview.process}`
+    `${dialLine} \xB7 ${processLine}`
   ]);
   const rows = [
     columnHeader(palette, ["STEP", "ARCHETYPE", "CONNECTOR", "MODEL", "EFFORT", "SOURCE"]),
@@ -157416,11 +157476,11 @@ function configFields(flowId) {
       label: `${flowId} effort`,
       options: Effort.options
     },
-    {
-      key: `flows.${flowId}.selection.depth`,
-      label: `${flowId} depth`,
-      options: CompiledDepth.options
-    }
+    // `process`, not `selection.depth`. The old key parsed and nothing read
+    // it: a run's process comes from --process or the power dial, and the
+    // relay overwrites `selection.depth` with the run's execution depth
+    // anyway. Setting it low and setting it high produced the same run.
+    { key: `flows.${flowId}.process`, label: `${flowId} process`, options: Process.options }
   ];
 }
 function initialState(flows) {

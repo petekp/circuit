@@ -594,6 +594,10 @@
                   "required": ["id", "label", "selection"],
                   "additionalProperties": false
                 }
+              },
+              "process": {
+                "type": "string",
+                "enum": ["low", "medium", "high"]
               }
             },
             "additionalProperties": false

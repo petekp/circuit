@@ -367,15 +367,45 @@ Both bounds are optional. The run summary reports the resolved tier and why:
 the ceiling, or `power medium (auto, no recommendation)` when the research step
 makes none.
 
-Process has no config key and no auto position. `--power` is the one dial
-config and the CLI teach; its value also derives process thoroughness
-(`low`→`low`, `medium`→`medium`, `high`→`high`, `auto`→`medium`), clamped
-to what the target flow supports. Process decides which steps the run is
-built from before any model runs, so there is nothing in the run yet that
-could judge it the way `power_auto` judges a model tier — it can only be
-derived from the power dial or set explicitly with `--process
-<low|medium|high>` on the CLI, never in config. One dial to configure; an
-explicit `--process` on a run is the advanced override.
+### Process
+
+Process is how thorough a run is: it decides which steps the run is built from,
+before any model runs. Three levers set it, most specific first.
+
+1. `--process <low|medium|high>` on the run.
+2. A standing per-flow choice in config.
+3. The power dial, whose word derives process (`low`→`low`, `medium`→`medium`,
+   `high`→`high`, `auto`→`medium`).
+
+```yaml
+flows:
+  build:
+    process: high    # every build here goes deep
+  explore:
+    process: low     # every explore here stays quick
+```
+
+The per-flow key exists because "builds should be thorough here" and "spend a
+lot on models" are different wishes, and a repository often wants one without
+the other. It is per flow on purpose: there is no global process key, because
+the right thoroughness for Build says nothing about the right thoroughness for
+Explore.
+
+Process has no auto position. There is nothing in a run yet that could judge
+thoroughness the way `power_auto` judges a model tier, since the choice happens
+before the first worker starts.
+
+A flow only runs the thoroughness it supports (Review runs medium and nothing
+else). A value from config clamps to the flow's set rather than failing the
+run, and both `circuit run` and `circuit preview` say so when they clamp:
+
+```text
+process: medium (flows.review.process asks for low; review only runs medium)
+```
+
+An explicit `--process` outside the flow's set is still a usage error. A flag
+is a statement about this run, so a flow that cannot honor it should refuse
+rather than quietly do something else.
 
 ## Preview A Flow's Selection
 

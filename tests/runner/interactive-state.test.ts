@@ -126,7 +126,7 @@ describe('flow screen', () => {
     expect(currentScreen(state)).toMatchObject({ kind: 'configure', flowId: 'review' });
     const keys = configFields('review').map((f) => f.key);
     expect(keys).toContain('flows.review.selection.effort');
-    expect(keys).toContain('flows.review.selection.depth');
+    expect(keys).toContain('flows.review.process');
   });
 });
 

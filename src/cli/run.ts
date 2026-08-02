@@ -34,6 +34,7 @@ import { RunResult } from '../schemas/result.js';
 import type { RunEnvelopeOutcome } from '../schemas/run-envelope.js';
 import type { RunStatusProjectionV1 } from '../schemas/run-status.js';
 import type { CheckpointResolvedTraceEntry, RunClosedOutcome } from '../schemas/trace-entry.js';
+import { resolveFlowProcessSetting } from '../selection/flow-process.js';
 import { type PowerDialResolution, resolvePowerDialSetting } from '../selection/power-tiers.js';
 
 import { captureLocalCheckpointReviewAssets } from '../app/checkpoints/local-review-assets.js';
@@ -1746,14 +1747,21 @@ export async function runExecutionCommand(
   });
   const { policyLayers, selectionConfigLayers } = runtimeConfigLayers;
 
-  // An explicit --process always wins. Absent one, the power dial word derives
-  // process thoroughness (auto derives medium); the flow's allowed set clamps
-  // it below once the flow itself is loaded.
+  // An explicit --process always wins. Absent one, a standing per-flow
+  // `flows.<id>.process` is next: it is the operator saying how thorough this
+  // flow should be here, which is more specific than a spend dial. Absent
+  // both, the power dial word derives process thoroughness (auto derives
+  // medium). The flow's allowed set clamps the result below, once the flow
+  // itself is loaded.
   let axes = args.axes;
+  const configuredProcess = args.processProvided
+    ? undefined
+    : resolveFlowProcessSetting(selectionConfigLayers, route.flowName);
   if (!args.processProvided) {
     axes = Axes.parse({
       ...axes,
-      depth: deriveProcessFromPower(resolvePowerDialSetting(selectionConfigLayers)),
+      depth:
+        configuredProcess ?? deriveProcessFromPower(resolvePowerDialSetting(selectionConfigLayers)),
     });
   }
 
@@ -1798,6 +1806,15 @@ export async function runExecutionCommand(
       depth: clampDerivedDepthToFlow(axes.depth, flow.axes.allowed_depths),
     });
   }
+  // A dial-derived process clamps silently: nobody asked for it by name. A
+  // standing `flows.<id>.process` is different — the operator wrote that word
+  // down, so a flow that cannot honor it says so instead of quietly running
+  // something else. Not an error: the setting is standing config that can
+  // reasonably name a thoroughness some flows do not offer.
+  const clampedProcessFrom =
+    configuredProcess !== undefined && configuredProcess !== axes.depth
+      ? configuredProcess
+      : undefined;
   // runArgs carries the run's final axes (explicit or power-derived and
   // flow-clamped) through the rest of the run: every downstream read of the
   // axes/depth must see this resolved value, not the pre-derivation args.
@@ -1835,6 +1852,12 @@ export async function runExecutionCommand(
     stream: process.stderr,
     progressJsonl: runArgs.progress === 'jsonl',
   });
+
+  if (clampedProcessFrom !== undefined && ttyNotices) {
+    process.stderr.write(
+      `note: flows.${route.flowName}.process asks for ${clampedProcessFrom}; ${route.flowName} only runs ${axes.depth}, so this run uses ${axes.depth}.\n`,
+    );
+  }
 
   if (routeToRuntime) {
     // Connector preflight, in the run's own process environment, before the

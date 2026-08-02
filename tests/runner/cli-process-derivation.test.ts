@@ -311,3 +311,124 @@ describe('--depth retirement', () => {
     expect(stderr).toMatch(/unknown option '--depth'/);
   });
 });
+
+// A standing per-flow process choice: `flows.<id>.process` in operator config.
+// The front door used to offer this as `flows.<id>.selection.depth`, which
+// parsed and did nothing — a run's process came from `--process` or the dial,
+// and the relay overwrote `selection.depth` with the run's execution depth
+// anyway. These cover the real key end to end: precedence against the dial and
+// against an explicit flag, per-flow scoping, and the clamp on a flow that
+// runs only one thoroughness.
+function writeProjectConfig(projectRoot: string, text: string): void {
+  mkdirSync(join(projectRoot, '.circuit'), { recursive: true });
+  writeFileSync(join(projectRoot, '.circuit', 'config.yaml'), text);
+}
+
+describe('flows.<id>.process reaches the runtime', () => {
+  it.each(['low', 'high'] as const)(
+    'a standing %s process decides the run when no flag is given',
+    async (configured) => {
+      const runFolder = join(runFolderBase, `build-config-process-${configured}`);
+      const projectRoot = createProofProject(`build-config-process-${configured}-project`);
+      writeProjectConfig(
+        projectRoot,
+        `schema_version: 1\nflows:\n  build:\n    process: ${configured}\n`,
+      );
+      await runMain(
+        [
+          'run',
+          'build',
+          '--goal',
+          'develop: add a small standard change',
+          '--run-folder',
+          runFolder,
+        ],
+        refusingRelayer(),
+        projectRoot,
+      );
+      const bootstrap = traceEntryLog(runFolder).find(
+        (traceEntry) => traceEntry.kind === 'run.bootstrapped',
+      );
+      expect(bootstrap).toMatchObject({ depth: configured });
+    },
+  );
+
+  it('outranks the power dial: the flow-specific word is the more specific one', async () => {
+    const runFolder = join(runFolderBase, 'build-config-process-beats-dial');
+    const projectRoot = createProofProject('build-config-process-beats-dial-project');
+    writeProjectConfig(
+      projectRoot,
+      'schema_version: 1\ndefaults:\n  power: low\nflows:\n  build:\n    process: high\n',
+    );
+    await runMain(
+      ['run', 'build', '--goal', 'develop: add a small standard change', '--run-folder', runFolder],
+      refusingRelayer(),
+      projectRoot,
+    );
+    const bootstrap = traceEntryLog(runFolder).find(
+      (traceEntry) => traceEntry.kind === 'run.bootstrapped',
+    );
+    expect(bootstrap).toMatchObject({ depth: 'high' });
+  });
+
+  it('loses to an explicit --process on the command line', async () => {
+    const runFolder = join(runFolderBase, 'build-config-process-loses-to-flag');
+    const projectRoot = createProofProject('build-config-process-loses-to-flag-project');
+    writeProjectConfig(projectRoot, 'schema_version: 1\nflows:\n  build:\n    process: high\n');
+    await runMain(
+      [
+        'run',
+        'build',
+        '--goal',
+        'develop: add a small standard change',
+        '--process',
+        'low',
+        '--run-folder',
+        runFolder,
+      ],
+      refusingRelayer(),
+      projectRoot,
+    );
+    const bootstrap = traceEntryLog(runFolder).find(
+      (traceEntry) => traceEntry.kind === 'run.bootstrapped',
+    );
+    expect(bootstrap).toMatchObject({ depth: 'low' });
+  });
+
+  it('is scoped to the flow it names: another flow keeps the dial-derived word', async () => {
+    const runFolder = join(runFolderBase, 'build-config-process-other-flow');
+    const projectRoot = createProofProject('build-config-process-other-flow-project');
+    writeProjectConfig(projectRoot, 'schema_version: 1\nflows:\n  review:\n    process: low\n');
+    await runMain(
+      ['run', 'build', '--goal', 'develop: add a small standard change', '--run-folder', runFolder],
+      refusingRelayer(),
+      projectRoot,
+    );
+    const bootstrap = traceEntryLog(runFolder).find(
+      (traceEntry) => traceEntry.kind === 'run.bootstrapped',
+    );
+    expect(bootstrap).toMatchObject({ depth: 'medium' });
+  });
+
+  it('clamps to the flow set rather than refusing the run (Review, pinned to medium)', async () => {
+    const runFolder = join(runFolderBase, 'review-config-process-clamped');
+    const projectRoot = join(runFolderBase, 'review-config-process-clamped-cwd');
+    mkdirSync(projectRoot, { recursive: true });
+    writeProjectConfig(projectRoot, 'schema_version: 1\nflows:\n  review:\n    process: low\n');
+    const { exit, stdout, stderr } = await runMain(
+      [
+        'run',
+        'review',
+        '--goal',
+        'Review this supplied text: a standing process the flow cannot run must not sink it.',
+        '--run-folder',
+        runFolder,
+      ],
+      reviewRelayer(),
+      projectRoot,
+    );
+    expect(exit, stderr).toBe(0);
+    const output = JSON.parse(stdout) as { resolved_axes?: { depth?: string } };
+    expect(output.resolved_axes?.depth).toBe('medium');
+  });
+});

@@ -41,6 +41,7 @@ import type { Power } from '../schemas/power.js';
 import type { CompiledDepth, Process as ProcessValue } from '../schemas/process.js';
 import type { RelayRole } from '../schemas/step.js';
 import { RelayRole as RelayRoleSchema } from '../schemas/step.js';
+import { resolveFlowProcessSetting } from '../selection/flow-process.js';
 import {
   materializePowerSelection,
   resolvePowerDial,
@@ -125,6 +126,17 @@ export interface FlowSelectionPreview {
   // flow's allowed set — the same derivation `circuit run` applies when
   // `--process` is absent.
   readonly process: ProcessValue;
+  // Which lever decided `process`: a standing `flows.<id>.process` in the
+  // config, or the power dial. Surfaced so an operator reading the header can
+  // tell a setting they wrote from a value the dial derived, and knows which
+  // one to change.
+  readonly processSource: 'config' | 'dial';
+  // Set only when a standing `flows.<id>.process` asked for a thoroughness
+  // this flow does not run, and the clamp moved it. Carries the word the
+  // operator actually wrote. Without this the readout would name the config
+  // as the source of a value the config never said, which reads as the
+  // setting being ignored at best and as a lie at worst.
+  readonly processClampedFrom?: ProcessValue;
   readonly relaySteps: readonly RelayStepSelectionPreview[];
   readonly nonRelaySteps: readonly NonRelayStepSelectionPreview[];
 }
@@ -376,12 +388,14 @@ export function resolveFlowSelectionPreview(
   const dial: Power | 'auto' = setting.kind === 'fixed' ? setting.value : 'auto';
   const dialResolvesTo = resolvePowerDial(layers);
   const codexDefaultModel = input.codexDefaultModel ?? resolveCodexDefaultModelUncached;
-  // Path A: the dial word derives process thoroughness (auto derives medium),
-  // clamped to this flow's allowed set — the same derivation `circuit run`
-  // applies when `--process` is absent, so the preview cannot drift from what
-  // a real run would resolve.
+  // Path A: a standing `flows.<id>.process` if the config sets one, else the
+  // dial word derives process thoroughness (auto derives medium). Clamped to
+  // this flow's allowed set — the same precedence and the same clamp
+  // `circuit run` applies when `--process` is absent, so the preview cannot
+  // drift from what a real run would resolve.
+  const configuredProcess = resolveFlowProcessSetting(layers, input.flowId);
   const process = clampDerivedDepthToFlow(
-    deriveProcessFromPower(setting),
+    configuredProcess ?? deriveProcessFromPower(setting),
     compiled.axes.allowed_depths,
   );
   const depth: CompiledDepth = process;
@@ -425,6 +439,10 @@ export function resolveFlowSelectionPreview(
     dial,
     dialResolvesTo,
     process,
+    processSource: configuredProcess === undefined ? 'dial' : 'config',
+    ...(configuredProcess !== undefined && configuredProcess !== process
+      ? { processClampedFrom: configuredProcess }
+      : {}),
     relaySteps,
     nonRelaySteps,
   };

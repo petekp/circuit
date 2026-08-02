@@ -195,9 +195,25 @@ export function renderSinglePreview(
     preview.dial === preview.dialResolvesTo
       ? `dial: ${preview.dial}`
       : `dial: ${preview.dial} (resolves to ${preview.dialResolvesTo})`;
+  // Name the lever when the config set it. Otherwise an operator who wrote
+  // `flows.<id>.process` sees a number with no way to tell it took effect,
+  // which is the exact confusion the old inert key created.
+  // A flow that only runs one thoroughness clamps the setting away. Saying
+  // "set by flows.review.process" there would name the config as the source
+  // of a word the config never wrote, so the clamped case says what the
+  // operator asked for and what this flow can actually do.
+  const processLine = ((): string => {
+    if (preview.processClampedFrom !== undefined) {
+      return `process: ${preview.process} (flows.${preview.flowId}.process asks for ${preview.processClampedFrom}; ${preview.flowId} only runs ${preview.process})`;
+    }
+    if (preview.processSource === 'config') {
+      return `process: ${preview.process} (set by flows.${preview.flowId}.process)`;
+    }
+    return `process: ${preview.process}`;
+  })();
   const header = diamondHeaderLine(palette, 'circuit preview', [
     `${preview.flowId} (${preview.visibility})`,
-    `${dialLine} · process: ${preview.process}`,
+    `${dialLine} · ${processLine}`,
   ]);
 
   const rows: TableRow[] = [

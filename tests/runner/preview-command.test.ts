@@ -1,4 +1,4 @@
-import { mkdtempSync, rmSync } from 'node:fs';
+import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
@@ -295,5 +295,65 @@ describe('circuit preview: front door', () => {
       { dial: 'medium', process: 'medium' },
       { dial: 'low', process: 'medium' },
     ]);
+  });
+});
+
+// A standing `flows.<id>.process` decides the run when no --process is given,
+// so the readout has to name the lever. Two cases have to read differently:
+// the flow honored the word, and the flow could not. Naming the config as the
+// source of a clamped value would tell an operator their setting took effect
+// when it did not.
+describe('circuit preview: a standing per-flow process', () => {
+  function writeProjectConfig(text: string): void {
+    mkdirSync(join(isolatedCwd, '.circuit'), { recursive: true });
+    writeFileSync(join(isolatedCwd, '.circuit', 'config.yaml'), text);
+  }
+
+  it('names the config key when the flow honors the word', () => {
+    writeProjectConfig('schema_version: 1\nflows:\n  build:\n    process: high\n');
+    const code = runPreviewCommand(['build']);
+    expect(code).toBe(0);
+    expect(plainStdout()).toContain('process: high (set by flows.build.process)');
+  });
+
+  it('outranks the dial in the readout', () => {
+    writeProjectConfig(
+      'schema_version: 1\ndefaults:\n  power: low\nflows:\n  build:\n    process: high\n',
+    );
+    const code = runPreviewCommand(['build', '--json']);
+    expect(code).toBe(0);
+    const preview = json<FlowSelectionPreview>();
+    expect(preview.dial).toBe('low');
+    expect(preview.process).toBe('high');
+    expect(preview.processSource).toBe('config');
+  });
+
+  it('says what the flow can actually run when the word gets clamped away', () => {
+    writeProjectConfig('schema_version: 1\nflows:\n  review:\n    process: low\n');
+    const code = runPreviewCommand(['review']);
+    expect(code).toBe(0);
+    const out = plainStdout();
+    expect(out).toContain('flows.review.process asks for low');
+    expect(out).toContain('review only runs medium');
+    expect(out).not.toContain('process: medium (set by flows.review.process)');
+  });
+
+  it('carries the operator word alongside the clamped one in JSON', () => {
+    writeProjectConfig('schema_version: 1\nflows:\n  review:\n    process: low\n');
+    const code = runPreviewCommand(['review', '--json']);
+    expect(code).toBe(0);
+    const preview = json<FlowSelectionPreview>();
+    expect(preview.process).toBe('medium');
+    expect(preview.processClampedFrom).toBe('low');
+  });
+
+  it('leaves a flow the config does not name on the dial-derived word', () => {
+    writeProjectConfig('schema_version: 1\nflows:\n  review:\n    process: low\n');
+    const code = runPreviewCommand(['build', '--json']);
+    expect(code).toBe(0);
+    const preview = json<FlowSelectionPreview>();
+    expect(preview.process).toBe('medium');
+    expect(preview.processSource).toBe('dial');
+    expect(preview.processClampedFrom).toBeUndefined();
   });
 });

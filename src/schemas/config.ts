@@ -8,6 +8,7 @@ import {
 import { HostConfig } from './host.js';
 import { CompiledFlowId, SkillId, SkillSlotId } from './ids.js';
 import { Power, PowerDialSetting, powerIndex } from './power.js';
+import { Process } from './process.js';
 import { Effort, ProviderScopedModel, SelectionOverride } from './selection-policy.js';
 import { SkillHookConfig } from './skill-hook.js';
 import { RelayRole } from './step.js';
@@ -175,6 +176,22 @@ export const FlowOverride = z
     selection: SelectionOverride.optional(),
     skill_bindings: SkillBindings.default({}),
     variant_models: FlowVariantModels.optional(),
+    // How thorough this flow's runs are, standing, without typing --process
+    // every time. Below an explicit --process and above the power dial.
+    //
+    // Named `process` because that is the operator's word for this axis;
+    // `depth` is the retired internal name (UBIQUITOUS_LANGUAGE.md). Deliberately
+    // NOT under `selection`: `selection.depth` is an internal derived field that
+    // the relay overwrites with the run's execution depth, so an operator value
+    // written there never survives to decide anything.
+    //
+    // A value the flow does not allow clamps to its nearest supported one, the
+    // same as a power-derived process, because a standing preference should not
+    // turn into a usage error on a flow it does not fit.
+    //
+    // Only the three thoroughness words. `tournament` and `autonomous` are
+    // separate axes with their own flags, not deeper settings of this one.
+    process: Process.optional(),
   })
   .strict();
 export type FlowOverride = z.infer<typeof FlowOverride>;

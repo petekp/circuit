@@ -44,6 +44,10 @@ Details that make it safe:
   `power_auto` keep their meaning. The process axis has no config key
   today ("pick depth yourself; let power pick itself" is the documented
   stance) and keeps none.
+  *Superseded:* `flows.<id>.process` now exists. The stance held until the
+  interactive front door started offering a per-flow thoroughness picker,
+  at which point refusing to persist the answer meant offering a knob that
+  did nothing. See [`docs/configuration.md`](../configuration.md#process).
 - Behavior note to accept consciously: on Fix, `--power low` now derives
   process low, which skips the independent review stage. That pairing is
   already the documented guidance for quick sanity passes; the

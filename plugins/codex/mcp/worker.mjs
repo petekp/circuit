@@ -17242,7 +17242,23 @@ var FlowVariantModels = external_exports.array(FlowVariantModel).min(2).max(4).s
 var FlowOverride = external_exports.object({
   selection: SelectionOverride.optional(),
   skill_bindings: SkillBindings.default({}),
-  variant_models: FlowVariantModels.optional()
+  variant_models: FlowVariantModels.optional(),
+  // How thorough this flow's runs are, standing, without typing --process
+  // every time. Below an explicit --process and above the power dial.
+  //
+  // Named `process` because that is the operator's word for this axis;
+  // `depth` is the retired internal name (UBIQUITOUS_LANGUAGE.md). Deliberately
+  // NOT under `selection`: `selection.depth` is an internal derived field that
+  // the relay overwrites with the run's execution depth, so an operator value
+  // written there never survives to decide anything.
+  //
+  // A value the flow does not allow clamps to its nearest supported one, the
+  // same as a power-derived process, because a standing preference should not
+  // turn into a usage error on a flow it does not fit.
+  //
+  // Only the three thoroughness words. `tournament` and `autonomous` are
+  // separate axes with their own flags, not deeper settings of this one.
+  process: Process.optional()
 }).strict();
 var ProjectId = external_exports.string().min(1).max(64).regex(/^[a-z0-9][a-z0-9-]*$/, {
   message: "project_id must be a fanout-safe kebab-case slug"
