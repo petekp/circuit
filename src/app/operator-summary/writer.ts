@@ -73,6 +73,7 @@ import {
   WRITE_CAPABLE_WORKER_DISCLOSURE,
   flowMayInvokeWriteCapableWorker,
 } from '../../shared/write-capable-worker-disclosure.js';
+import { operatorFailureSentence } from '../run-envelope/failure-language.js';
 
 type RouteSummary = {
   readonly selectedFlow: string;
@@ -1421,7 +1422,11 @@ const MAX_BRIEF_REASON = 240;
 // this brief belongs to, in the run's trace, and in result.json.
 function briefReason(reason: string): string {
   const beforeStreams = reason.split(RAW_STREAM_TAG)[0] ?? reason;
-  const head = firstLine(beforeStreams);
+  // Same translation the run envelope's failure sentence uses, so the two
+  // person-facing surfaces cannot disagree about how a spent retry budget
+  // reads. Translate before shortening: the plain sentence is what gets
+  // truncated, not the engine's.
+  const head = operatorFailureSentence(firstLine(beforeStreams));
   const shortened =
     head.length > MAX_BRIEF_REASON ? head.slice(0, MAX_BRIEF_REASON).trimEnd() : head;
   return shortened.length < reason.trim().length ? `${shortened} …` : shortened;

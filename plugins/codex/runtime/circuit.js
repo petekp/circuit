@@ -112335,6 +112335,32 @@ var init_operator_summary2 = __esm({
   }
 });
 
+// dist/app/run-envelope/failure-language.js
+function timesTried(attempts) {
+  if (attempts === 1)
+    return "once";
+  return `${attempts} times`;
+}
+function operatorFailureSentence(reason) {
+  const exhausted = EXHAUSTED_ATTEMPTS.exec(reason);
+  if (exhausted === null)
+    return reason;
+  const [, stepId, attemptsText, lastReason] = exhausted;
+  const attempts = Number(attemptsText);
+  if (stepId === void 0 || !Number.isFinite(attempts) || attempts < 1)
+    return reason;
+  const base = `The '${stepId}' step ran out of attempts: it was tried ${timesTried(attempts)} and never passed.`;
+  const last = lastReason?.trim();
+  return last === void 0 || last === "" ? base : `${base} The last problem was: ${last}`;
+}
+var EXHAUSTED_ATTEMPTS;
+var init_failure_language = __esm({
+  "dist/app/run-envelope/failure-language.js"() {
+    "use strict";
+    EXHAUSTED_ATTEMPTS = /^route '[^']+' for step '([^']+)' exhausted max_attempts=(\d+)(?:; last recovery reason: (.+))?$/s;
+  }
+});
+
 // dist/app/operator-summary/writer.js
 import { createHash as createHash11 } from "node:crypto";
 import { existsSync as existsSync41, mkdirSync as mkdirSync9, readFileSync as readFileSync59, rmSync as rmSync7, writeFileSync as writeFileSync10 } from "node:fs";
@@ -113265,7 +113291,7 @@ function firstLine(text) {
 }
 function briefReason(reason) {
   const beforeStreams = reason.split(RAW_STREAM_TAG)[0] ?? reason;
-  const head = firstLine(beforeStreams);
+  const head = operatorFailureSentence(firstLine(beforeStreams));
   const shortened = head.length > MAX_BRIEF_REASON ? head.slice(0, MAX_BRIEF_REASON).trimEnd() : head;
   return shortened.length < reason.trim().length ? `${shortened} \u2026` : shortened;
 }
@@ -113914,6 +113940,7 @@ var init_writer = __esm({
     init_result_path();
     init_run_relative_path();
     init_write_capable_worker_disclosure();
+    init_failure_language();
     HTML_REPORT_LABEL = "Operator summary (HTML)";
     MAX_KEY_POINTS = 4;
     MAX_CAVEATS = 3;
@@ -114644,7 +114671,7 @@ function surfaceFor(input) {
     };
   }
   if (input.outcome === "failed") {
-    const reason = input.failureReason?.trim();
+    const reason = operatorFailureSentence(input.failureReason?.trim() ?? "");
     const reasonSuffix = reason ? ` ${reason}` : "";
     return {
       ...base,
@@ -114833,6 +114860,7 @@ var init_source_record = __esm({
     init_goal_commands();
     init_outcome();
     init_run_artifact_io();
+    init_failure_language();
     RUN_ENVELOPE_RELATIVE_PATH = "reports/run-envelope.json";
     RUN_SURFACE_RELATIVE_PATH = "reports/run-surface.md";
     RUN_DECISION_PACKET_RELATIVE_DIR = "reports/decision-packets";

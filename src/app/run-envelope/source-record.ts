@@ -19,6 +19,7 @@ import {
 import { harvestGoalCommandCandidates } from '../../shared/goal-commands.js';
 import { isDegradedCompletionOutcome } from '../../shared/outcome.js';
 import { runRelativePath } from '../../shared/run-artifact-io.js';
+import { operatorFailureSentence } from './failure-language.js';
 
 export const RUN_ENVELOPE_RELATIVE_PATH = 'reports/run-envelope.json';
 export const RUN_SURFACE_RELATIVE_PATH = 'reports/run-surface.md';
@@ -721,7 +722,11 @@ function surfaceFor(input: {
     // the required process evidence" was technically true but useless — the
     // cause was already sitting in the run result, and telling the operator to
     // "rerun with a corrected goal" blamed the goal for an engine failure.
-    const reason = input.failureReason?.trim();
+    //
+    // Translated on the way past where the account is written in engine
+    // vocabulary: the trace keeps its precise wording, the person gets a
+    // sentence. Anything already plain passes through untouched.
+    const reason = operatorFailureSentence(input.failureReason?.trim() ?? '');
     const reasonSuffix = reason ? ` ${reason}` : '';
     return {
       ...base,
