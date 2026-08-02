@@ -85,6 +85,59 @@ export function isCompletedStepReentryAbort(input: {
   );
 }
 
+// The route name every step uses for "end here deliberately". Steps wire it
+// either to a close step (where the flow writes its primary result and the
+// honesty floor binds the outcome) or to '@stop'. Both are honest degraded
+// endings, which is exactly what a spent retry budget deserves.
+const STOP_ROUTE = 'stop';
+
+/**
+ * Which route a step takes when a recovery budget it selected is spent.
+ *
+ * An explicit `exhaustion_route` wins, because a flow that wants a particular
+ * fallback should be able to name one. What this adds is the default for the
+ * flows that name nothing.
+ *
+ * That default used to be "abort the whole run", which discarded every report
+ * the run had written on the way. It had been overridden 7 times out of the 37
+ * steps that could hit it, and the 30 that had not were not deliberate — the
+ * unsafe answer was simply the one you got by staying silent, and it failed
+ * quietly and always in the same direction.
+ *
+ * The fallback is the step's own stop route. Deriving rather than declaring is
+ * safe here for one specific reason: exhaustion may never read as success. An
+ * explicit exhaustion_route is already forbidden from targeting '@complete' at
+ * parse time, and the derived one is held to the same rule below, so the worst
+ * this can produce is an honest `stopped`.
+ *
+ * Returns undefined when the step has no stop route to fall back to, leaving
+ * the abort path exactly as it was.
+ */
+export function resolvedExhaustionRoute(step: {
+  readonly exhaustionRoute?: string;
+  readonly routes: Readonly<Record<string, unknown>>;
+}): string | undefined {
+  if (step.exhaustionRoute !== undefined) return step.exhaustionRoute;
+  const stopTarget = step.routes[STOP_ROUTE];
+  if (stopTarget === undefined) return undefined;
+  // Mirrors the parse-time guard on an explicit exhaustion_route. No stop route
+  // in the catalog targets '@complete' today, so this never fires — it is here
+  // so it still cannot fire for a flow written later. A spent retry budget can
+  // never close as success.
+  if (isCompleteTarget(stopTarget)) return undefined;
+  return STOP_ROUTE;
+}
+
+// A route target is the terminal '@complete' either as the raw schematic string
+// or as the compiled terminal object, depending on which side of the compiler
+// the caller sits on. Both shapes reach this function, so both are recognized.
+function isCompleteTarget(target: unknown): boolean {
+  if (target === '@complete') return true;
+  if (typeof target !== 'object' || target === null) return false;
+  const candidate = target as { readonly kind?: unknown; readonly target?: unknown };
+  return candidate.kind === 'terminal' && candidate.target === '@complete';
+}
+
 export function classifyRouteTargetTransition(input: {
   readonly stepId: string;
   readonly route: string;

@@ -515,6 +515,77 @@ describe('explore tournament runtime', () => {
     },
   );
 
+  // A tournament needs two survivors to compare. When only one branch answers,
+  // the join cannot do its job — but the branch that DID answer wrote a full
+  // proposal, and the aggregate naming every branch's fate is already on disk.
+  //
+  // This used to throw out of the fanout executor, which the graph runner
+  // reports as "handler threw" and closes `aborted`. The step declares a stop
+  // route, so the flow had already said where a collapse should go; the engine
+  // just was not asking. Now it asks: the run closes `stopped`, the reason
+  // names the collapse, and the surviving work is handed over rather than
+  // silently left in the run folder.
+  it('hands over the surviving branch when the tournament collapses to one', async () => {
+    const { bytes } = loadTournamentFixture();
+    const runFolder = join(runFolderBase, 'collapsed-tournament-run');
+    const relayer = tournamentRelayer();
+
+    const outcome = await runCompiledFlowWithWaiting({
+      runDir: runFolder,
+      flowBytes: bytes,
+      runId: '33333333-3333-3333-3333-333333333339',
+      goal: 'decide: React vs Vue',
+      depth: 'tournament',
+      entryModeName: 'tournament',
+      now: deterministicNow(Date.UTC(2026, 3, 29, 17, 10, 0)),
+      relayer: {
+        connectorName: relayer.connectorName,
+        relay: async (input) => {
+          const result = await relayer.relay(input);
+          // Break two of the three branches by making each claim a different
+          // branch's id, which fails the provenance check that
+          // 'rejects a mismatched proposal branch' above exercises singly.
+          for (const [branch, stolenId] of [
+            ['option-1', 'option-2'],
+            ['option-2', 'option-3'],
+          ] as const) {
+            if (input.prompt.includes(`Step: proposal-fanout-step-${branch}`)) {
+              return {
+                ...result,
+                result_body: JSON.stringify({
+                  ...(JSON.parse(result.result_body) as Record<string, unknown>),
+                  option_id: stolenId,
+                }),
+              };
+            }
+          }
+          return result;
+        },
+      },
+    });
+
+    expect(outcome.outcome).toBe('stopped');
+    if (isGraphCheckpointWaitingResult(outcome)) throw new Error('expected a closed run');
+    expect(outcome.reason).toContain('tournament collapsed');
+    expect(outcome.reason).toContain('1 parseable survivor');
+
+    // The aggregate is written before the join verdict is taken, so the one
+    // branch that answered is on disk with the two that did not.
+    const traceEntries = await new TraceStore(runFolder).load();
+    expect(traceEntries).toContainEqual(
+      expect.objectContaining({
+        kind: 'fanout.joined',
+        step_id: 'proposal-fanout-step',
+        branches_completed: 1,
+        branches_failed: 2,
+      }),
+    );
+    // And the operator is told it exists rather than being sent back to zero.
+    expect(outcome.surviving_work?.map((item) => item.report_path) ?? []).toContain(
+      'reports/tournament-aggregate.json',
+    );
+  });
+
   it('rejects a mismatched proposal branch while continuing with two survivors', async () => {
     const { bytes } = loadTournamentFixture();
     const runFolder = join(runFolderBase, 'mismatched-proposal-run');

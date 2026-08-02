@@ -1,4 +1,5 @@
 import { mkdtempSync, rmSync } from 'node:fs';
+import { readFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
@@ -280,9 +281,59 @@ function alwaysFailingChangeSetExecutors(): Pick<ExecutorRegistry, 'compose'> {
   };
 }
 
+// The graph runner's catch site is where a thrown step becomes the run's last
+// word. The translation itself is unit-tested in missing-input-reason.test.ts;
+// what this proves is the wiring at the seam: the flow and the run folder are
+// both in scope there, so a real filesystem ENOENT comes out the other side as
+// a sentence about the run rather than about the machine.
+describe('a run that dies on a missing report says which report and who owed it', () => {
+  it('names the producing step and drops the absolute path', async () => {
+    const runDir = join(runFolderBase, 'missing-input');
+    const outcome = await executeExecutableFlowOutcome(
+      transitionFlow([
+        // 'act-step' declares the write, so the flow knows who owes the file.
+        {
+          ...composeStep('act-step', { pass: { kind: 'step', stepId: 'verify-step' } }),
+          writes: { report: { path: 'reports/act.json' } },
+        },
+        composeStep('verify-step', { pass: { kind: 'terminal', target: '@complete' } }),
+      ]),
+      {
+        runDir,
+        runId: '73000000-0000-4000-8000-000000000011',
+        goal: 'characterize a missing input',
+        now: deterministicNow(Date.UTC(2026, 5, 5, 2, 0, 0)),
+        executors: {
+          // A genuine fs read of a file the run never wrote, so the message
+          // under test is Node's own rather than one typed into a fixture.
+          compose: async (step, context) => {
+            if (step.id === 'verify-step') {
+              await readFile(join(context.runDir, 'reports/act.json'), 'utf8');
+            }
+            return { route: 'pass' };
+          },
+        },
+      },
+    );
+
+    expect(outcome.kind).toBe('closed');
+    if (outcome.kind !== 'closed') throw new Error('expected closed outcome');
+    expect(outcome.result.reason).toBe(
+      "step 'verify-step' needs 'reports/act.json', which is not in the run folder. 'act-step' writes that report; it did not run, or it ran without writing.",
+    );
+    expect(outcome.result.reason).not.toContain('ENOENT');
+    expect(outcome.result.reason).not.toContain(runDir);
+  });
+});
+
 describe('declared exhaustion routes', () => {
-  it('aborts on a spent recovery budget when no exhaustion route is declared', async () => {
-    const runDir = join(runFolderBase, 'exhaustion-default-abort');
+  // The default used to be "abort the run", which threw away every report the
+  // run had written on the way. A step that declares nothing now falls back to
+  // its own stop route, so the same exhaustion ends as an honest `stopped` with
+  // the same reason attached. Nothing here opts in: this step declares no
+  // exhaustion route at all.
+  it('falls back to the step stop route on a spent recovery budget with nothing declared', async () => {
+    const runDir = join(runFolderBase, 'exhaustion-default-stop');
     const outcome = await executeExecutableFlowOutcome(
       transitionFlow([
         composeStep('act-step', { pass: { kind: 'step', stepId: 'verify-step' } }),
@@ -296,8 +347,47 @@ describe('declared exhaustion routes', () => {
       {
         runDir,
         runId: '73000000-0000-4000-8000-000000000005',
-        goal: 'characterize exhaustion default abort',
+        goal: 'characterize exhaustion default stop',
         now: deterministicNow(Date.UTC(2026, 5, 5, 1, 20, 0)),
+        workContractRef: recoveryWorkContractRef,
+        recoveryRouteBindings: [recoveryBinding()],
+        executors: alwaysFailingChangeSetExecutors(),
+      },
+    );
+
+    expect(outcome.kind).toBe('closed');
+    if (outcome.kind !== 'closed') throw new Error('expected closed outcome');
+    expect(outcome.result.outcome).toBe('stopped');
+    expect(outcome.result.reason).toContain(
+      "route 'retry' for step 'act-step' exhausted max_attempts=2",
+    );
+    const rerouted = (await trace(runDir)).filter(
+      (entry) => entry.kind === 'step.exhaustion_rerouted',
+    );
+    expect(rerouted.map((entry) => [entry.step_id, entry.from_route, entry.to_route])).toEqual([
+      ['change-set-step', 'retry', 'stop'],
+    ]);
+  });
+
+  // The fallback is a real route, not a blanket rescue. A step with no stop
+  // route has nowhere honest to go, so exhaustion still aborts loudly rather
+  // than inventing an ending the flow never described.
+  it('still aborts when the step has no stop route to fall back to', async () => {
+    const runDir = join(runFolderBase, 'exhaustion-no-fallback');
+    const outcome = await executeExecutableFlowOutcome(
+      transitionFlow([
+        composeStep('act-step', { pass: { kind: 'step', stepId: 'verify-step' } }),
+        composeStep('verify-step', { pass: { kind: 'step', stepId: 'change-set-step' } }),
+        composeStep('change-set-step', {
+          pass: { kind: 'terminal', target: '@complete' },
+          retry: { kind: 'step', stepId: 'act-step' },
+        }),
+      ]),
+      {
+        runDir,
+        runId: '73000000-0000-4000-8000-000000000009',
+        goal: 'characterize exhaustion with no fallback route',
+        now: deterministicNow(Date.UTC(2026, 5, 5, 1, 25, 0)),
         workContractRef: recoveryWorkContractRef,
         recoveryRouteBindings: [recoveryBinding()],
         executors: alwaysFailingChangeSetExecutors(),

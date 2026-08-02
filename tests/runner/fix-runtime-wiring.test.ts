@@ -766,24 +766,32 @@ describe('Standard Fix review rework wiring', () => {
     // must record the change-set failure that spent the budget, not the older
     // review reject from the corridor the run was inside.
     const entries = await new TraceStore(runDir).load();
-    const reroute = entries.find((entry) => entry.kind === 'step.exhaustion_rerouted');
-    expect(reroute).toMatchObject({
+    const reroutes = entries.filter((entry) => entry.kind === 'step.exhaustion_rerouted');
+    expect(reroutes[0]).toMatchObject({
       step_id: 'fix-change-set',
       from_route: 'retry',
       to_route: 'continue',
     });
-    expect(reroute?.reason ?? '').toContain(CURRENT_CHANGE_SET_FAILURE_REASON);
+    expect(reroutes[0]?.reason ?? '').toContain(CURRENT_CHANGE_SET_FAILURE_REASON);
 
     // The run then moves forward with the failure on record: verify and the
     // regression rerun run again, and review runs a second time and rejects
-    // again. That reject re-enters the review corridor, fix-act is still
-    // exhausted, and fix-review declares no exhaustion route — so the run
-    // aborts there, citing the review reject as the current reason.
+    // again. That reject re-enters the review corridor and fix-act is still
+    // exhausted. fix-review declares no exhaustion route, which used to abort
+    // the run; it now falls back to fix-review's own stop route.
+    //
+    // The property this test exists for is unchanged, and it is the reason
+    // discipline: each door cites the failure that actually spent the budget
+    // in front of it. The second door says the reviewer rejected the work, and
+    // must not still be quoting the change-set failure the first door handled.
     expect(recorder.actPrompts).toHaveLength(2);
     expect(recorder.reviewPrompts).toHaveLength(2);
-    expect(outcome.outcome).toBe('aborted');
-    expect(outcome.reason).toContain('max_attempts=2');
-    expect(outcome.reason).toContain("the reviewer rejected the work (verdict 'reject')");
-    expect(outcome.reason).not.toContain(CURRENT_CHANGE_SET_FAILURE_REASON);
+    expect(reroutes[1]).toMatchObject({ step_id: 'fix-review', from_route: 'retry' });
+    expect(reroutes[1]?.reason ?? '').toContain('max_attempts=2');
+    expect(reroutes[1]?.reason ?? '').toContain(
+      "the reviewer rejected the work (verdict 'reject')",
+    );
+    expect(reroutes[1]?.reason ?? '').not.toContain(CURRENT_CHANGE_SET_FAILURE_REASON);
+    expect(outcome.outcome).toBe('stopped');
   }, 120_000);
 });

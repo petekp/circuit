@@ -19,6 +19,7 @@ import type { BranchOutcome, FanoutJoinPolicy, ResolvedBranch } from '../fanout/
 import { gitWorktreeRunner } from '../fanout/worktree.js';
 import type { FanoutStep } from '../manifest/executable-flow.js';
 import type { RunContext } from '../run/run-context.js';
+import { resolvedExhaustionRoute } from '../run/run-transition.js';
 import type { RelayConnector } from './relay.js';
 import {
   type StepExecutionResult,
@@ -402,6 +403,30 @@ async function executeFanoutInternal(
     outcome: 'fail',
     reason,
   });
+  // A join that does not pass is a WORK outcome, not a wiring fault. The
+  // branches ran, the aggregate naming each one's fate is already on disk
+  // above, and a collapsed tournament with one good proposal in it is still
+  // worth something to the operator.
+  //
+  // Throwing here made the graph runner report "handler threw" and close
+  // `aborted`, discarding all of it — even though the step declares a stop
+  // route, so the flow had already said where a collapse should go. Take it.
+  // Same derivation as a spent recovery budget (`resolvedExhaustionRoute`), so
+  // one rule covers both doors and neither can resolve to a route that would
+  // close the run as a success.
+  //
+  // Two things still abort, both for the same reason: the honest answer is the
+  // loud one.
+  //
+  //   Nothing survived. With zero completed branches there is no work to hand
+  //     over, and a graceful stop would dress a total failure up as a
+  //     considered ending. The recursion cap refusing every branch before any
+  //     child runs is the live case — nothing ran, and the run should say so.
+  //   The throws ABOVE this point. A missing writes.aggregate, an unsupported
+  //     join policy, an items_path that is not an array: all malformed flows,
+  //     and routing an authoring bug to a stop would hide it.
+  const collapseRoute = branchesCompleted > 0 ? resolvedExhaustionRoute(step) : undefined;
+  if (collapseRoute !== undefined) return { route: collapseRoute, details: { reason } };
   throw new Error(reason);
 }
 

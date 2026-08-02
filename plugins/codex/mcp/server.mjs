@@ -31777,6 +31777,14 @@ function optionalRunClosedOutcome(value) {
   return isRunClosedOutcome(value) ? value : void 0;
 }
 
+// src/schemas/surviving-work.ts
+var SurvivingWork = external_exports.object({
+  step_id: external_exports.string().min(1),
+  attempt: external_exports.number().int().positive(),
+  report_path: external_exports.string().min(1),
+  report_schema: external_exports.string().min(1)
+}).strict();
+
 // src/shared/engine-provenance.ts
 import { dirname as dirname6, resolve as resolve8 } from "node:path";
 import { fileURLToPath as fileURLToPath2 } from "node:url";
@@ -33047,7 +33055,15 @@ var RunResult = external_exports.object({
   // Which engine produced this record, so run history can be cohorted by
   // build. Optional so every run recorded before the stamp existed stays
   // readable — an omitted field makes no claim.
-  engine: EngineProvenance.optional()
+  engine: EngineProvenance.optional(),
+  // RESULT-I6 — the reports that reached disk before a run that did not
+  // finish. Set on every non-`complete` close that produced at least one
+  // report, absent otherwise: on a clean close the primary result already
+  // speaks for the run, and on an empty abort there is nothing to hand over
+  // and claiming otherwise would be its own lie. Derived at close time from
+  // the run's own `step.report_written` entries, so it cannot describe files
+  // the run did not write.
+  surviving_work: external_exports.array(SurvivingWork).min(1).optional()
 }).strict();
 
 // src/hosts/codex-mcp/runtime-artifacts.ts

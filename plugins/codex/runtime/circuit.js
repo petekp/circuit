@@ -23716,6 +23716,34 @@ var init_result_writer = __esm({
   }
 });
 
+// dist/schemas/surviving-work.js
+function reportWord(count) {
+  return count === 1 ? "report" : "reports";
+}
+function survivingWorkSummary(items) {
+  if (items.length === 0)
+    return void 0;
+  const listed = items.slice(0, MAX_LISTED_PATHS).map((item) => item.report_path);
+  const remainder = items.length - listed.length;
+  const tail = remainder > 0 ? `, and ${remainder} more` : "";
+  const inventory = `The steps that did finish left ${items.length} ${reportWord(items.length)} behind: ${listed.join(", ")}${tail}.`;
+  return `${inventory} Nothing was deleted; read these before rerunning, because a rerun starts over.`;
+}
+var SurvivingWork, MAX_LISTED_PATHS;
+var init_surviving_work = __esm({
+  "dist/schemas/surviving-work.js"() {
+    "use strict";
+    init_zod();
+    SurvivingWork = external_exports.object({
+      step_id: external_exports.string().min(1),
+      attempt: external_exports.number().int().positive(),
+      report_path: external_exports.string().min(1),
+      report_schema: external_exports.string().min(1)
+    }).strict();
+    MAX_LISTED_PATHS = 8;
+  }
+});
+
 // dist/shared/engine-provenance.js
 import { execFileSync } from "node:child_process";
 import { createHash as createHash3 } from "node:crypto";
@@ -23870,6 +23898,39 @@ var init_honesty_ledger = __esm({
         writeJsonAtomic(this.path, state, { validate: (raw) => JSON.parse(raw) });
       }
     };
+  }
+});
+
+// dist/runtime/run/surviving-work.js
+function survivingWorkFromTrace(entries) {
+  const byPath = /* @__PURE__ */ new Map();
+  for (const entry of entries) {
+    if (entry.kind !== "step.report_written")
+      continue;
+    const stepId = entry.step_id;
+    const reportPath = entry.report_path;
+    const reportSchema = entry.report_schema;
+    const attempt = entry.attempt;
+    if (typeof stepId !== "string" || stepId === "")
+      continue;
+    if (typeof reportPath !== "string" || reportPath === "")
+      continue;
+    if (typeof reportSchema !== "string" || reportSchema === "")
+      continue;
+    if (typeof attempt !== "number" || !Number.isFinite(attempt))
+      continue;
+    byPath.set(reportPath, {
+      step_id: stepId,
+      attempt,
+      report_path: reportPath,
+      report_schema: reportSchema
+    });
+  }
+  return [...byPath.values()];
+}
+var init_surviving_work2 = __esm({
+  "dist/runtime/run/surviving-work.js"() {
+    "use strict";
   }
 });
 
@@ -24688,6 +24749,13 @@ async function closeRun(context, outcome, terminalTarget, reason) {
       relayResultPath: validationRootCause.relayResultPath
     });
   }
+  const survivingWork = finalOutcome === "complete" ? [] : survivingWorkFromTrace(context.trace.getAll());
+  const handedOverForResume = finalOutcome === "handoff";
+  if (validationRootCause === void 0 && !handedOverForResume) {
+    const handover = survivingWorkSummary(survivingWork);
+    if (handover !== void 0)
+      summary = `${summary} ${handover}`;
+  }
   await context.trace.append({
     run_id: context.runId,
     kind: "run.closed",
@@ -24708,7 +24776,8 @@ async function closeRun(context, outcome, terminalTarget, reason) {
     manifest_hash: context.manifestHash,
     ...finalReason === void 0 ? {} : { reason: finalReason },
     ...verdict === void 0 ? {} : { verdict },
-    engine: resolveEngineProvenance()
+    engine: resolveEngineProvenance(),
+    ...survivingWork.length === 0 ? {} : { surviving_work: survivingWork }
   };
   const resultPath2 = await writeRuntimeRunResult(context.files, result);
   return { kind: "closed", result: { ...result, resultPath: resultPath2 } };
@@ -24717,10 +24786,12 @@ var REPORT_VALIDATION_MARKER, REPORTED_WORK_KEYS, MAX_REPORTED_WORK_PATHS;
 var init_run_close = __esm({
   "dist/runtime/run/run-close.js"() {
     "use strict";
+    init_surviving_work();
     init_engine_provenance2();
     init_outcome();
     init_honesty_ledger();
     init_result_writer();
+    init_surviving_work2();
     init_trace_evidence();
     REPORT_VALIDATION_MARKER = "did not validate against schema";
     REPORTED_WORK_KEYS = ["created_files", "changed_files", "entry_points", "files"];
@@ -62748,11 +62819,11 @@ function artifactPreviewLocation(input) {
   const runId = runIdFromFolder(input.runFolder);
   const currentRunPrefix = runId === void 0 ? void 0 : `${CONTROL_PLANE_RUNS_DIR}/${runId}/`;
   if (currentRunPrefix !== void 0 && normalized.startsWith(currentRunPrefix)) {
-    const runRelative = normalized.slice(currentRunPrefix.length);
+    const runRelative2 = normalized.slice(currentRunPrefix.length);
     return {
-      absolutePath: resolve12(runRoot, runRelative),
+      absolutePath: resolve12(runRoot, runRelative2),
       allowedRoot: runRoot,
-      href: encodeUrlPath(`../${runRelative}`)
+      href: encodeUrlPath(`../${runRelative2}`)
     };
   }
   if (input.projectRoot !== void 0) {
@@ -73350,6 +73421,7 @@ var init_result = __esm({
     init_zod();
     init_engine_provenance();
     init_ids();
+    init_surviving_work();
     init_trace_entry();
     RunResult = external_exports.object({
       schema_version: external_exports.literal(1),
@@ -73367,7 +73439,15 @@ var init_result = __esm({
       // Which engine produced this record, so run history can be cohorted by
       // build. Optional so every run recorded before the stamp existed stays
       // readable — an omitted field makes no claim.
-      engine: EngineProvenance.optional()
+      engine: EngineProvenance.optional(),
+      // RESULT-I6 — the reports that reached disk before a run that did not
+      // finish. Set on every non-`complete` close that produced at least one
+      // report, absent otherwise: on a clean close the primary result already
+      // speaks for the run, and on an empty abort there is nothing to hand over
+      // and claiming otherwise would be its own lie. Derived at close time from
+      // the run's own `step.report_written` entries, so it cannot describe files
+      // the run did not write.
+      surviving_work: external_exports.array(SurvivingWork).min(1).optional()
     }).strict();
   }
 });
@@ -99319,6 +99399,7 @@ var init_process_evidence = __esm({
     init_zod();
     init_ids();
     init_ref();
+    init_surviving_work();
     PROCESS_EVIDENCE_RELATIVE_PATH = "reports/process-evidence.json";
     ProcessEvidenceOutcome = external_exports.enum([
       "complete",
@@ -99353,7 +99434,12 @@ var init_process_evidence = __esm({
         allowed_choices: external_exports.array(external_exports.string().min(1)).min(1)
       }).strict().optional(),
       blocked_reason: external_exports.string().min(1).optional(),
-      next_action: external_exports.string().min(1).optional()
+      next_action: external_exports.string().min(1).optional(),
+      // Carried from the child run's result so the operator surface can hand the
+      // work over. The failure headline quotes `blocked_reason`, which means the
+      // run summary is never read on the path where this matters most — so the
+      // list travels as data rather than riding inside a sentence.
+      surviving_work: external_exports.array(SurvivingWork).min(1).optional()
     }).strict().superRefine((projection, ctx) => {
       if (projection.child_run_ref.kind !== "trace") {
         ctx.addIssue({
@@ -101079,6 +101165,7 @@ var init_schemas3 = __esm({
     init_skill_hook();
     init_snapshot();
     init_step();
+    init_surviving_work();
     init_verification();
     init_compiled_flow();
     init_work_contract_projection();
@@ -103242,6 +103329,83 @@ var init_worktree = __esm({
   }
 });
 
+// dist/runtime/run/run-transition.js
+function isRouteTargetAbort(transition) {
+  return ROUTE_TARGET_ABORT_KINDS.has(transition.kind);
+}
+function classifyRouteDeclarationTransition(input) {
+  if (input.target === void 0) {
+    return {
+      kind: "undeclared_route_abort",
+      reason: `step '${input.stepId}' selected undeclared route '${input.route}'`
+    };
+  }
+  return { kind: "declared_route", target: input.target };
+}
+function isCompletedStepReentryAbort(input) {
+  return input.completedCount > 0 && !input.isRecoveryReturnToOrigin && (!input.routeHasRecoveryMechanics || input.completedCount >= input.maxAttempts);
+}
+function resolvedExhaustionRoute(step) {
+  if (step.exhaustionRoute !== void 0)
+    return step.exhaustionRoute;
+  const stopTarget = step.routes[STOP_ROUTE];
+  if (stopTarget === void 0)
+    return void 0;
+  if (isCompleteTarget(stopTarget))
+    return void 0;
+  return STOP_ROUTE;
+}
+function isCompleteTarget(target) {
+  if (target === "@complete")
+    return true;
+  if (typeof target !== "object" || target === null)
+    return false;
+  const candidate = target;
+  return candidate.kind === "terminal" && candidate.target === "@complete";
+}
+function classifyRouteTargetTransition(input) {
+  if (input.target.kind === "terminal") {
+    return { kind: "terminal_close", terminalTarget: input.target.target };
+  }
+  if (input.target.stepId === input.stepId && input.route === "pass") {
+    return {
+      kind: "self_pass_cycle_abort",
+      reason: `route cycle detected: step '${input.stepId}' routes via '${input.route}' to itself`
+    };
+  }
+  if (isCompletedStepReentryAbort({
+    completedCount: input.targetCompletedCount,
+    isRecoveryReturnToOrigin: input.isRecoveryReturnToOrigin,
+    routeHasRecoveryMechanics: input.routeHasRecoveryMechanics,
+    maxAttempts: input.targetMaxAttempts
+  })) {
+    if (input.routeHasRecoveryMechanics) {
+      const reason = `route '${input.route}' for step '${input.target.stepId}' exhausted max_attempts=${input.targetMaxAttempts}${input.recoveryReasonSuffix}`;
+      if (input.exhaustionRoute !== void 0 && input.exhaustionRoute !== input.route) {
+        return { kind: "exhaustion_reroute", routeId: input.exhaustionRoute, reason };
+      }
+      return { kind: "recovery_attempts_exhausted_abort", reason };
+    }
+    return {
+      kind: "completed_step_cycle_abort",
+      reason: `route cycle detected: step '${input.stepId}' routes via '${input.route}' to already completed step '${input.target.stepId}'${input.recoveryReasonSuffix}`
+    };
+  }
+  return { kind: "step_advance", targetStepId: input.target.stepId };
+}
+var ROUTE_TARGET_ABORT_KINDS, STOP_ROUTE;
+var init_run_transition = __esm({
+  "dist/runtime/run/run-transition.js"() {
+    "use strict";
+    ROUTE_TARGET_ABORT_KINDS = /* @__PURE__ */ new Set([
+      "self_pass_cycle_abort",
+      "completed_step_cycle_abort",
+      "recovery_attempts_exhausted_abort"
+    ]);
+    STOP_ROUTE = "stop";
+  }
+});
+
 // dist/runtime/executors/fanout.js
 import { rm as rm5 } from "node:fs/promises";
 import { join as joinPath2 } from "node:path";
@@ -103486,6 +103650,9 @@ async function executeFanoutInternal(step, context, relayConnector) {
     outcome: "fail",
     reason
   });
+  const collapseRoute = branchesCompleted > 0 ? resolvedExhaustionRoute(step) : void 0;
+  if (collapseRoute !== void 0)
+    return { route: collapseRoute, details: { reason } };
   throw new Error(reason);
 }
 async function executeFanoutResult(step, context, relayConnector) {
@@ -103511,6 +103678,7 @@ var init_fanout = __esm({
     init_branch_expansion();
     init_run_owner_lock();
     init_worktree();
+    init_run_transition();
     init_result3();
     WRITABLE_RELAY_SERIALIZATION_REASON = "Writable relay fanout branches are serialized because relay branches share the parent checkout and no branch-local relay write root is provisioned.";
   }
@@ -104393,6 +104561,44 @@ var init_manifest_snapshot2 = __esm({
     init_ids();
     init_manifest();
     MANIFEST_SNAPSHOT_RUN_FILE = "manifest.snapshot.json";
+  }
+});
+
+// dist/runtime/run/missing-input.js
+function runRelative(runDir, absolutePath) {
+  const prefix = runDir.endsWith("/") ? runDir : `${runDir}/`;
+  return absolutePath.startsWith(prefix) ? absolutePath.slice(prefix.length) : absolutePath;
+}
+function producerStepId(flow, reportPath) {
+  for (const step of flow.steps) {
+    for (const ref of Object.values(step.writes ?? {})) {
+      if (ref.path === reportPath)
+        return step.id;
+    }
+  }
+  return void 0;
+}
+function missingInputReason(input) {
+  const match = ENOENT_MESSAGE.exec(input.message.trim());
+  const absolutePath = match?.[1];
+  if (absolutePath === void 0)
+    return void 0;
+  const reportPath = runRelative(input.runDir, absolutePath);
+  const producer = producerStepId(input.flow, reportPath);
+  const opening = `step '${input.stepId}' needs '${reportPath}', which is not in the run folder`;
+  if (producer === void 0) {
+    return `${opening}. No step in this flow writes that report, so nothing in this run could have produced it.`;
+  }
+  if (producer === input.stepId) {
+    return `${opening}. This step writes that report itself, so it failed before or during its own write.`;
+  }
+  return `${opening}. '${producer}' writes that report; it did not run, or it ran without writing.`;
+}
+var ENOENT_MESSAGE;
+var init_missing_input = __esm({
+  "dist/runtime/run/missing-input.js"() {
+    "use strict";
+    ENOENT_MESSAGE = /^ENOENT: no such file or directory, \w+ '(.+)'$/;
   }
 });
 
@@ -105517,64 +105723,6 @@ var init_run_boundary = __esm({
   }
 });
 
-// dist/runtime/run/run-transition.js
-function isRouteTargetAbort(transition) {
-  return ROUTE_TARGET_ABORT_KINDS.has(transition.kind);
-}
-function classifyRouteDeclarationTransition(input) {
-  if (input.target === void 0) {
-    return {
-      kind: "undeclared_route_abort",
-      reason: `step '${input.stepId}' selected undeclared route '${input.route}'`
-    };
-  }
-  return { kind: "declared_route", target: input.target };
-}
-function isCompletedStepReentryAbort(input) {
-  return input.completedCount > 0 && !input.isRecoveryReturnToOrigin && (!input.routeHasRecoveryMechanics || input.completedCount >= input.maxAttempts);
-}
-function classifyRouteTargetTransition(input) {
-  if (input.target.kind === "terminal") {
-    return { kind: "terminal_close", terminalTarget: input.target.target };
-  }
-  if (input.target.stepId === input.stepId && input.route === "pass") {
-    return {
-      kind: "self_pass_cycle_abort",
-      reason: `route cycle detected: step '${input.stepId}' routes via '${input.route}' to itself`
-    };
-  }
-  if (isCompletedStepReentryAbort({
-    completedCount: input.targetCompletedCount,
-    isRecoveryReturnToOrigin: input.isRecoveryReturnToOrigin,
-    routeHasRecoveryMechanics: input.routeHasRecoveryMechanics,
-    maxAttempts: input.targetMaxAttempts
-  })) {
-    if (input.routeHasRecoveryMechanics) {
-      const reason = `route '${input.route}' for step '${input.target.stepId}' exhausted max_attempts=${input.targetMaxAttempts}${input.recoveryReasonSuffix}`;
-      if (input.exhaustionRoute !== void 0 && input.exhaustionRoute !== input.route) {
-        return { kind: "exhaustion_reroute", routeId: input.exhaustionRoute, reason };
-      }
-      return { kind: "recovery_attempts_exhausted_abort", reason };
-    }
-    return {
-      kind: "completed_step_cycle_abort",
-      reason: `route cycle detected: step '${input.stepId}' routes via '${input.route}' to already completed step '${input.target.stepId}'${input.recoveryReasonSuffix}`
-    };
-  }
-  return { kind: "step_advance", targetStepId: input.target.stepId };
-}
-var ROUTE_TARGET_ABORT_KINDS;
-var init_run_transition = __esm({
-  "dist/runtime/run/run-transition.js"() {
-    "use strict";
-    ROUTE_TARGET_ABORT_KINDS = /* @__PURE__ */ new Set([
-      "self_pass_cycle_abort",
-      "completed_step_cycle_abort",
-      "recovery_attempts_exhausted_abort"
-    ]);
-  }
-});
-
 // dist/runtime/run/slice-corridor.js
 function depthAtLeast(depth, floor) {
   const current = DEPTH_ORDER.indexOf(depth ?? "medium");
@@ -105887,6 +106035,16 @@ function defaultManifestHash(flow) {
 }
 function routeTargetKey2(target) {
   return target.kind === "terminal" ? target.target : target.stepId;
+}
+function selfRoutedDegradedReason(step, route, details) {
+  const target = step.routes[route];
+  if (target?.kind !== "terminal" || target.target === "@complete")
+    return void 0;
+  const reason = details.reason;
+  if (typeof reason !== "string")
+    return void 0;
+  const trimmed = reason.trim();
+  return trimmed === "" ? void 0 : trimmed;
 }
 function recoveryBindingForCompletedRoute(input) {
   return input.bindings?.find((binding) => binding.step_id === input.step.id && binding.route_id === input.route && binding.route_target === routeTargetKey2(input.target));
@@ -106483,7 +106641,8 @@ async function executeExecutableFlowOutcomeUnsafe(flow, options) {
       details = outcome.details ?? {};
     } catch (error52) {
       const message = error52.message;
-      const reason = isProofPlanBlockedError(error52) ? message : `step '${step.id}' handler threw: ${message}`;
+      const missingInput = missingInputReason({ flow, runDir, stepId: step.id, message });
+      const reason = isProofPlanBlockedError(error52) ? message : missingInput ?? `step '${step.id}' handler threw: ${message}`;
       if (untilCorridor.isActive() && untilFlag?.stopJudge !== void 0 && untilCorridor.isLoopBodyStep(step.id)) {
         context.honestyLedger?.latchOverclaim({
           stepId: step.id,
@@ -106643,7 +106802,7 @@ async function executeExecutableFlowOutcomeUnsafe(flow, options) {
     let recoveryFailure;
     let targetTransition;
     let sanctionedExhaustionReroute = false;
-    let exhaustionRerouteReason;
+    let degradedCloseReason = selfRoutedDegradedReason(step, route, details);
     for (; ; ) {
       const routeDeclaration = classifyRouteDeclarationTransition({
         stepId: step.id,
@@ -106730,7 +106889,23 @@ async function executeExecutableFlowOutcomeUnsafe(flow, options) {
         routeHasRecoveryMechanics,
         targetMaxAttempts,
         recoveryReasonSuffix: currentRecoveryReasonSuffix,
-        ...step.exhaustionRoute === void 0 || sanctionedExhaustionReroute ? {} : { exhaustionRoute: step.exhaustionRoute }
+        // Derived, not just declared: a step that names no exhaustion_route
+        // falls back to its own stop route rather than aborting the run and
+        // discarding every report written on the way. `sanctionedExhaustionReroute`
+        // still disables it on the second pass, so a fallback that itself
+        // dead-ends aborts loudly instead of looping.
+        //
+        // One exhaustion is worth MORE as an abort. When the budget was spent
+        // on a relay whose report kept failing its own schema, the abort path
+        // reclassifies to `evidence_invalid` and names the schema and the field
+        // that failed. Rerouting would trade that diagnosis for a bare
+        // `stopped`, which is a worse answer, not a gentler one. The predicate
+        // is the same one run-close uses to decide the reclassification, so the
+        // reroute is suppressed exactly when the abort would say more.
+        ...sanctionedExhaustionReroute || reportValidationRootCause(trace.getAll()) !== void 0 ? {} : (() => {
+          const exhaustionRoute = resolvedExhaustionRoute(step);
+          return exhaustionRoute === void 0 ? {} : { exhaustionRoute };
+        })()
       });
       if (targetTransition.kind === "exhaustion_reroute") {
         await trace.append({
@@ -106744,7 +106919,7 @@ async function executeExecutableFlowOutcomeUnsafe(flow, options) {
         });
         route = targetTransition.routeId;
         sanctionedExhaustionReroute = true;
-        exhaustionRerouteReason = targetTransition.reason;
+        degradedCloseReason = targetTransition.reason;
         continue;
       }
       if (isRouteTargetAbort(targetTransition)) {
@@ -106932,7 +107107,7 @@ async function executeExecutableFlowOutcomeUnsafe(flow, options) {
       }
     }
     if (targetTransition.kind === "terminal_close") {
-      return await closeRun(context, outcomeForTerminal(targetTransition.terminalTarget), targetTransition.terminalTarget, exhaustionRerouteReason);
+      return await closeRun(context, outcomeForTerminal(targetTransition.terminalTarget), targetTransition.terminalTarget, degradedCloseReason);
     }
     currentStepId = targetTransition.targetStepId;
     incomingRouteTaken = route;
@@ -106995,6 +107170,7 @@ var init_graph_runner = __esm({
     init_guidance();
     init_honesty_ledger();
     init_manifest_snapshot2();
+    init_missing_input();
     init_oracle_command_pin();
     init_recovery_binding_verdict();
     init_recovery_corridor();
@@ -114095,7 +114271,11 @@ function projectClosedProcessEvidence(input) {
     // account of why it did not close clean. For an aborted close it is the
     // run's account of what killed it (for example which retry budget ran
     // out). Either way it is what the operator surface quotes.
-    ...outcome === "stopped" || outcome === "blocked" || outcome === "failed" || outcome === "aborted" ? { blocked_reason: input.runResult.reason ?? input.runResult.summary } : {}
+    ...outcome === "stopped" || outcome === "blocked" || outcome === "failed" || outcome === "aborted" ? { blocked_reason: input.runResult.reason ?? input.runResult.summary } : {},
+    // Carried verbatim from the run result. The engine derived it from the
+    // run's own report-written entries; nothing here re-derives or filters it,
+    // so the surface cannot name a file the run did not write.
+    ...input.runResult.surviving_work === void 0 ? {} : { surviving_work: input.runResult.surviving_work }
   });
 }
 function projectCheckpointWaitingProcessEvidence(input) {
@@ -114702,10 +114882,12 @@ function surfaceFor(input) {
   if (input.outcome === "failed") {
     const reason = operatorFailureSentence(input.failureReason?.trim() ?? "");
     const reasonSuffix = reason ? ` ${reason}` : "";
+    const handover = survivingWorkSummary(input.survivingWork ?? []);
+    const handoverSuffix = handover === void 0 ? "" : ` ${handover}`;
     return {
       ...base,
-      status_text: `Failed: ${input.processId} stopped before finishing its process.${reasonSuffix}`,
-      next_action: reason ? "Address the reason above, then rerun." : "Inspect the process evidence for the cause before rerunning."
+      status_text: `Failed: ${input.processId} stopped before finishing its process.${reasonSuffix}${handoverSuffix}`,
+      next_action: handover === void 0 ? reason ? "Address the reason above, then rerun." : "Inspect the process evidence for the cause before rerunning." : "Read the reports listed above before rerunning: a rerun starts over and will not build on them."
     };
   }
   return {
@@ -114850,6 +115032,7 @@ function writeRunEnvelopeRecord(input) {
       ...missingEvidence && { missingEvidence },
       ...projection.outcome === "stopped" ? { stoppedReason: projection.blocked_reason ?? projection.summary } : {},
       ...projection.outcome === "aborted" || projection.outcome === "failed" ? { failureReason: projection.blocked_reason ?? projection.summary } : {},
+      ...projection.surviving_work === void 0 ? {} : { survivingWork: projection.surviving_work },
       decisionPacketRefs: decisionArtifacts.map((artifact) => artifact.ref),
       ...memoryIndicator === void 0 ? {} : { memoryIndicator },
       ...childResult === void 0 ? {} : { childResult },
@@ -114886,6 +115069,7 @@ var init_source_record = __esm({
     init_process_evidence();
     init_ref();
     init_run_envelope();
+    init_surviving_work();
     init_goal_commands();
     init_outcome();
     init_run_artifact_io();

@@ -54,6 +54,7 @@ import { FrozenEvalGuard } from './frozen-eval.js';
 import { appendFlowSelectionGuidance, appendRecoveryRouteGuidance } from './guidance.js';
 import { HonestyLedger } from './honesty-ledger.js';
 import { writeRuntimeManifestSnapshot } from './manifest-snapshot.js';
+import { missingInputReason } from './missing-input.js';
 import { createOracleCommandPinChannel } from './oracle-command-pin.js';
 import {
   type RecoveryFailureEvidence,
@@ -68,6 +69,7 @@ import {
   closeRun,
   completeCloseProofGap,
   outcomeForTerminal,
+  reportValidationRootCause,
 } from './run-close.js';
 import type { RunContext } from './run-context.js';
 import {
@@ -76,6 +78,7 @@ import {
   classifyRouteTargetTransition,
   isCompletedStepReentryAbort,
   isRouteTargetAbort,
+  resolvedExhaustionRoute,
 } from './run-transition.js';
 import { SliceCorridor } from './slice-corridor.js';
 import {
@@ -212,6 +215,32 @@ function defaultManifestHash(flow: ExecutableFlow): string {
 
 function routeTargetKey(target: RouteTarget): string {
   return target.kind === 'terminal' ? target.target : target.stepId;
+}
+
+/**
+ * The reason a step gave for routing itself straight to a degraded ending.
+ *
+ * An executor that decides its own work did not come together returns the
+ * step's stop route with a `reason` in its details — a collapsed fanout join is
+ * the live case. Without this the run closes `stopped` with nothing said, which
+ * is the failure that made the collapse worth reporting in the first place.
+ *
+ * Narrow on purpose. It reads only a route the step took to a NON-complete
+ * terminal, so it can neither annotate a successful close nor speak for a
+ * downstream step that has not run yet: if the route leads to another step,
+ * that step owns whatever the run eventually says.
+ */
+function selfRoutedDegradedReason(
+  step: ExecutableStep,
+  route: string,
+  details: Record<string, unknown>,
+): string | undefined {
+  const target = step.routes[route];
+  if (target?.kind !== 'terminal' || target.target === '@complete') return undefined;
+  const reason = details.reason;
+  if (typeof reason !== 'string') return undefined;
+  const trimmed = reason.trim();
+  return trimmed === '' ? undefined : trimmed;
 }
 
 function recoveryBindingForCompletedRoute(input: {
@@ -1312,9 +1341,13 @@ async function executeExecutableFlowOutcomeUnsafe(
       details = outcome.details ?? {};
     } catch (error) {
       const message = (error as Error).message;
+      // A step that died reading an absent report gets a reason that names the
+      // report and the step that owes it, instead of an errno and an absolute
+      // path. Anything else keeps the engine's own words.
+      const missingInput = missingInputReason({ flow, runDir, stepId: step.id, message });
       const reason = isProofPlanBlockedError(error)
         ? message
-        : `step '${step.id}' handler threw: ${message}`;
+        : (missingInput ?? `step '${step.id}' handler threw: ${message}`);
 
       // Until loop, thrown body-step failure. The slice-3 abort-intercept above
       // only catches RE-ENTRY exhaustion (max_attempts on an already completed
@@ -1621,7 +1654,12 @@ async function executeExecutableFlowOutcomeUnsafe(
     let recoveryFailure: RecoveryFailureEvidence | undefined;
     let targetTransition: RouteTargetTransition;
     let sanctionedExhaustionReroute = false;
-    let exhaustionRerouteReason: string | undefined;
+    // Why a degraded close happened, carried to the close so the operator does
+    // not have to read the trace to find out. Two things fill it: a spent
+    // recovery budget rerouted below, and a step that routes ITSELF to a
+    // degraded ending and explains why (a collapsed fanout join is the live
+    // case). Seeded here, before the redirect loop, so it survives it.
+    let degradedCloseReason: string | undefined = selfRoutedDegradedReason(step, route, details);
     for (;;) {
       const routeDeclaration = classifyRouteDeclarationTransition({
         stepId: step.id,
@@ -1758,9 +1796,25 @@ async function executeExecutableFlowOutcomeUnsafe(
         routeHasRecoveryMechanics,
         targetMaxAttempts,
         recoveryReasonSuffix: currentRecoveryReasonSuffix,
-        ...(step.exhaustionRoute === undefined || sanctionedExhaustionReroute
+        // Derived, not just declared: a step that names no exhaustion_route
+        // falls back to its own stop route rather than aborting the run and
+        // discarding every report written on the way. `sanctionedExhaustionReroute`
+        // still disables it on the second pass, so a fallback that itself
+        // dead-ends aborts loudly instead of looping.
+        //
+        // One exhaustion is worth MORE as an abort. When the budget was spent
+        // on a relay whose report kept failing its own schema, the abort path
+        // reclassifies to `evidence_invalid` and names the schema and the field
+        // that failed. Rerouting would trade that diagnosis for a bare
+        // `stopped`, which is a worse answer, not a gentler one. The predicate
+        // is the same one run-close uses to decide the reclassification, so the
+        // reroute is suppressed exactly when the abort would say more.
+        ...(sanctionedExhaustionReroute || reportValidationRootCause(trace.getAll()) !== undefined
           ? {}
-          : { exhaustionRoute: step.exhaustionRoute }),
+          : (() => {
+              const exhaustionRoute = resolvedExhaustionRoute(step);
+              return exhaustionRoute === undefined ? {} : { exhaustionRoute };
+            })()),
       });
       if (targetTransition.kind === 'exhaustion_reroute') {
         await trace.append({
@@ -1774,7 +1828,7 @@ async function executeExecutableFlowOutcomeUnsafe(
         });
         route = targetTransition.routeId;
         sanctionedExhaustionReroute = true;
-        exhaustionRerouteReason = targetTransition.reason;
+        degradedCloseReason = targetTransition.reason;
         continue;
       }
       if (isRouteTargetAbort(targetTransition)) {
@@ -2120,7 +2174,7 @@ async function executeExecutableFlowOutcomeUnsafe(
         context,
         outcomeForTerminal(targetTransition.terminalTarget),
         targetTransition.terminalTarget,
-        exhaustionRerouteReason,
+        degradedCloseReason,
       );
     }
 

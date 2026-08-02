@@ -30,7 +30,7 @@
 //        regression command still fails post-fix. Caught by
 //        fix.regression-rerun@v1 (status='still-failing' → recovery aborts).
 
-import { mkdtempSync, readFileSync, rmSync } from 'node:fs';
+import { existsSync, mkdtempSync, readFileSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join, resolve } from 'node:path';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
@@ -473,10 +473,23 @@ describe('False-Done Fix bar', () => {
         expect(result.outcome).not.toBe('fixed');
         expect(result.outcome).toBe('partial');
       } else {
-        // The chain should abort the run before reaching fix-close. There is
-        // no fix-result.json in this case — we assert on the run-level
-        // outcome alone.
-        expect(outcome.outcome).toBe('aborted');
+        // The chain never satisfies the proof gate, so it never reaches a
+        // clean close. Which honest bad ending it lands on varies by scenario
+        // and is not the point: a spent retry budget at a step with a stop
+        // route now falls back to it (`stopped`, keeping the reports written on
+        // the way), while a chain that dies with nowhere to go still aborts.
+        //
+        // The bar is what this file exists for, and it is scenario-independent:
+        // a run that never proved the fix must not read as done. Both endings
+        // are exit-nonzero and operator-visible, and if the chain did reach
+        // fix-close, the result it wrote must not claim 'fixed'.
+        expect(['aborted', 'stopped']).toContain(outcome.outcome);
+        const resultPath = join(runFolder, 'reports/fix-result.json');
+        if (existsSync(resultPath)) {
+          expect(FixResult.parse(JSON.parse(readFileSync(resultPath, 'utf8'))).outcome).not.toBe(
+            'fixed',
+          );
+        }
       }
     }, 120_000);
   }
