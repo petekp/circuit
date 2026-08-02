@@ -57,7 +57,42 @@ const ProjectRelativeCwd = z
     }
   });
 
-export const VerificationCommand = z
+// A command the engine will actually spawn carries proof, in its TYPE, that it
+// passed through this schema: a hand-built object literal is not a
+// VerificationCommand and will not compile where one is required.
+//
+// This exists because two flows shipped `npm run <script>` written straight into
+// the flow, unrunnable on any project without that exact script. The habit it
+// blocks is constructing a command inline instead of getting one from
+// shared/verification-resolver.ts (which asks the project) or from an upstream
+// typed report (which was resolved further up). Circuit's own commands, the ones
+// that run node against an internal script rather than the project's toolchain,
+// mint through circuitOwnedVerificationCommand below.
+//
+// Honest limit: the brand proves a command was VALIDATED, not that it came from
+// the resolver. Provenance cannot survive a JSON report boundary, where a parsed
+// command is structurally identical to any other. Enforcing origin end to end
+// would mean carrying it as data on the command. What this does buy is that the
+// default move, returning a literal, stops compiling and points somewhere
+// better. tests/contracts/flow-project-command-boundary.test.ts covers the rest
+// by rejecting toolchain binaries named in flow source.
+//
+// The brand is an anonymous structural key, not a `unique symbol`. A symbol is
+// the stronger nominal tool, but the brand reaches the public type of every
+// report schema that carries a command, and those schemas (compiled-flow.ts,
+// step.ts, flow-schematic.ts) do not import this module. Declaration emit
+// cannot synthesize an import for a named symbol it needs, so tsc refused to
+// write their .d.ts files at all (TS4023). A structural key writes inline.
+//
+// The tradeoff is that the brand is forgeable by anyone who types the key. That
+// is no longer an accident, it is a deliberate act with the word PROVEN in it,
+// and tests/contracts/verification-command-brand.test.ts fails if the key
+// appears anywhere but this file.
+type ProvenVerificationCommand = {
+  readonly __PROVEN_VERIFICATION_COMMAND__: true;
+};
+
+const VerificationCommandShape = z
   .object({
     id: z.string().min(1),
     cwd: ProjectRelativeCwd,
@@ -79,7 +114,55 @@ export const VerificationCommand = z
       });
     }
   });
-export type VerificationCommand = z.infer<typeof VerificationCommand>;
+
+export const VerificationCommand = VerificationCommandShape.transform(
+  (command) => command as z.infer<typeof VerificationCommandShape> & ProvenVerificationCommand,
+);
+export type VerificationCommand = z.output<typeof VerificationCommand>;
+
+// The one way to mint a command Circuit runs against itself rather than against
+// the project: an internal script under the running node binary, or a helper the
+// engine ships. Everything else must come from the resolver or a typed report.
+//
+// It parses like any other command, so the shell-binary and cwd floors still
+// apply, and it refuses argv that names a project toolchain binary — the hatch
+// cannot be used to smuggle back the `npm run build` this whole change removed.
+export function circuitOwnedVerificationCommand(
+  command: z.input<typeof VerificationCommandShape>,
+): VerificationCommand {
+  const binary = commandBinaryName(command.argv[0] ?? '');
+  if (PROJECT_TOOLCHAIN_BINARIES.has(binary)) {
+    throw new Error(
+      `circuitOwnedVerificationCommand cannot run '${binary}': that is the project's toolchain, ` +
+        "not Circuit's. Resolve it through shared/verification-resolver.ts so the project can " +
+        'declare its own command.',
+    );
+  }
+  return VerificationCommand.parse(command);
+}
+
+// Binaries that belong to the project being worked on. Named here so the
+// circuit-owned hatch above can refuse them.
+const PROJECT_TOOLCHAIN_BINARIES = new Set([
+  'npm',
+  'npx',
+  'pnpm',
+  'pnpx',
+  'yarn',
+  'bun',
+  'bunx',
+  'make',
+  'cargo',
+  'go',
+  'python',
+  'python3',
+  'pytest',
+  'ruff',
+  'tsc',
+  'eslint',
+  'vitest',
+  'jest',
+]);
 
 // Operator-declared verification, read from `.circuit/config.yaml`.
 //

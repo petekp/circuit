@@ -358,7 +358,12 @@ export async function executeVerificationResult(
         context.proofCommandRunner === undefined
           ? runProofPlanCommand(command, projectRoot)
           : await context.proofCommandRunner(command, projectRoot);
-      observations.push(observation);
+      // The runner takes the wider structural ProofPlanCommand and hands the
+      // same object back, so its return type has lost the parse brand. Restore
+      // it from the command we passed in rather than re-parsing: this is
+      // literally that object, and running a command must not be a way to mint
+      // one.
+      observations.push({ ...observation, command });
       await context.trace.append({
         run_id: context.runId,
         kind: 'verification.command_evaluated',

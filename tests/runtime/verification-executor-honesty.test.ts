@@ -12,7 +12,7 @@ import { RunFileStore } from '../../src/runtime/run-files/run-file-store.js';
 import { nodeExternalFileReader } from '../../src/runtime/run/external-files.js';
 import type { RunContext } from '../../src/runtime/run/run-context.js';
 import { TraceStore } from '../../src/runtime/trace/trace-store.js';
-import type { VerificationCommand } from '../../src/schemas/verification.js';
+import { VerificationCommand } from '../../src/schemas/verification.js';
 
 let runFolder: string;
 let projectRoot: string;
@@ -73,25 +73,25 @@ function writeBuildPlan(commands: readonly VerificationCommand[]): void {
 }
 
 function failingCommand(id: string): VerificationCommand {
-  return {
+  return VerificationCommand.parse({
     id,
     cwd: '.',
     argv: [process.execPath, '-e', 'process.exit(1)'],
     timeout_ms: 5_000,
     max_output_bytes: 1_000,
     env: {},
-  };
+  });
 }
 
 function timeoutCommand(id: string): VerificationCommand {
-  return {
+  return VerificationCommand.parse({
     id,
     cwd: '.',
     argv: [process.execPath, '-e', 'setTimeout(() => {}, 5000)'],
     timeout_ms: 200,
     max_output_bytes: 1_000,
     env: {},
-  };
+  });
 }
 
 function contextFor(flow: ExecutableFlow): RunContext {

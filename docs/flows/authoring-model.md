@@ -350,7 +350,45 @@ also mirrors compiled flow manifests into host packages:
 
 For an internal flow, host mirrors must not exist.
 
-### 3. Wire the catalog and reports
+### 3. Never decide the project's toolchain
+
+If any step in the flow runs a command against the project being worked on, the
+flow does not get to say what that command is. Ask the project, through
+`src/shared/verification-resolver.ts`:
+
+```ts
+import { requireResolvedVerificationCommands } from '../../../shared/verification-resolver.js';
+```
+
+The resolver owns one precedence order, so every flow answers the same way: an
+inline "verify with" command in the goal, then a `verification:` block in
+`.circuit/config.yaml`, then package.json scripts. When nothing resolves it
+produces one blocked reason naming the config key the operator should fill in.
+
+Writing the command into the flow instead is the defect this replaced. Two flows
+shipped `npm run <script>` written straight into a writer. Both were unrunnable
+on any project without that exact script, and both looked correct in review
+because Circuit's own repository happens to have the script.
+
+Three things enforce this now, so a flow that gets it wrong fails before it
+ships:
+
+- **The type.** `VerificationCommand` is branded when the schema parses it
+  (`src/schemas/verification.ts`). A hand-built object literal is not one, so
+  returning a literal from `loadCommands` does not compile.
+- **The source audit.** `tests/contracts/flow-project-command-boundary.test.ts`
+  fails if any file under `src/flows/` names a toolchain binary (npm, pnpm,
+  cargo, pytest, ruff, tsc...) in a string literal.
+- **The mint.** A command Circuit runs against *itself*, a helper it ships under
+  the running node binary, goes through `circuitOwnedVerificationCommand`. It
+  refuses toolchain binaries, so the hatch cannot be used to put back what the
+  boundary removed.
+
+A verification writer gets no goal text (`VerificationBuildContext` carries
+runFolder, projectRoot, flow, and step), so it passes `goal: ''` and the inline
+shortcut simply does not reach it. That is deliberate.
+
+### 4. Wire the catalog and reports
 
 Add the definition to `flowDefinitions` in `src/flows/catalog.ts`. The flow
 definition should carry its visibility, paths, routing metadata, axes, contract
@@ -360,7 +398,7 @@ explicit engine flags.
 Use `CompiledFlowPackage.engineFlags` only for opt-in engine behavior that is
 still flow-agnostic. Do not add flow-specific branches to runtime code.
 
-### 4. Regenerate generated surfaces
+### 5. Regenerate generated surfaces
 
 After authored flow or command changes, run:
 
@@ -384,7 +422,7 @@ For Codex-only local testing, the narrower
 The refresh command is a local host-test step. It is not public release
 publishing.
 
-### 5. Update release truth when behavior changes
+### 6. Update release truth when behavior changes
 
 If the flow changes public behavior, command semantics, release claims, or
 capability metadata, update release truth with the release scripts instead of
@@ -403,7 +441,7 @@ Release proof artifacts under `docs/release/proofs/runs/` are evidence, not
 examples. Preserve them unless a release check and proof capture path says they
 are safe to change.
 
-### 6. Prove the flow is host-ready
+### 7. Prove the flow is host-ready
 
 Choose focused proof before the final check:
 

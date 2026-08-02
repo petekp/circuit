@@ -23,12 +23,12 @@
 // 'deferred' rather than re-running a command that would prove nothing.
 
 import { readFileSync } from 'node:fs';
+import { VerificationCommand } from '../../../schemas/verification.js';
 import { resolveRunRelative } from '../../../shared/run-relative-path.js';
 import { reportPathForSchemaInRuntimeFlow } from '../../registries/runtime-index.js';
 import type {
   VerificationBuildContext,
   VerificationBuilder,
-  VerificationCommand,
   VerificationCommandObservation,
 } from '../../registries/verification-writers/types.js';
 import { FixRegressionProof } from '../reports.js';
@@ -56,14 +56,14 @@ export const fixRegressionRerunWriter: VerificationBuilder = {
     const proof = readBaseline(context);
     if (proof.status !== 'proved' || proof.baseline === undefined) return [];
     return [
-      {
+      VerificationCommand.parse({
         id: proof.baseline.command_id,
         cwd: proof.baseline.cwd,
         argv: proof.baseline.argv,
         timeout_ms: proof.baseline.timeout_ms,
         max_output_bytes: proof.baseline.max_output_bytes,
         env: proof.baseline.env,
-      },
+      }),
     ];
   },
   buildResult(

@@ -16,6 +16,7 @@ import {
 import { projectPursuitContract } from '../../src/flows/pursue/writers/contract-projection.js';
 import { findCloseBuilder } from '../../src/flows/registries/close-writers/registry.js';
 import { CompiledFlow } from '../../src/schemas/compiled-flow.js';
+import { VerificationCommand } from '../../src/schemas/verification.js';
 
 const PURSUE_FLOW_PATH = join('generated', 'flows', 'pursue', 'circuit.json');
 
@@ -46,7 +47,7 @@ function touchSet(overrides: Record<string, unknown> = {}) {
 }
 
 function verificationCommand(overrides: Record<string, unknown> = {}) {
-  return {
+  return VerificationCommand.parse({
     id: 'pursuit-proof',
     cwd: '.',
     argv: ['npm', 'run', 'verify'],
@@ -54,7 +55,7 @@ function verificationCommand(overrides: Record<string, unknown> = {}) {
     max_output_bytes: 200_000,
     env: {},
     ...overrides,
-  };
+  });
 }
 
 function batchItem(status: 'completed' | 'skipped' | 'blocked' | 'failed') {

@@ -1,5 +1,6 @@
 import { readFileSync } from 'node:fs';
 import type { CheckpointReviewAssetGroups } from '../../../schemas/checkpoint-review-assets.js';
+import { circuitOwnedVerificationCommand } from '../../../schemas/verification.js';
 import { snapshotCheckpointReviewAssetGroups } from '../../../shared/checkpoint-review-assets.js';
 import { resolveRunRelative } from '../../../shared/run-relative-path.js';
 import { reportPathForSchemaInRuntimeFlow } from '../../registries/runtime-index.js';
@@ -96,14 +97,14 @@ function integrityCommand(context: VerificationBuildContext): VerificationComman
           : [],
       ),
   };
-  return {
+  return circuitOwnedVerificationCommand({
     id: 'prototype-variant-artifact-integrity',
     cwd: '.',
     argv: [process.execPath, '-e', VARIANT_INTEGRITY_SCRIPT, JSON.stringify(payload)],
     timeout_ms: 30_000,
     max_output_bytes: 20_000,
     env: {},
-  };
+  });
 }
 
 function projectVariantVerification(

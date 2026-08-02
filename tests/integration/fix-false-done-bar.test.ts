@@ -47,6 +47,7 @@ import { executeCompose } from '../../src/runtime/executors/compose.js';
 import type { ExecutorRegistry } from '../../src/runtime/executors/index.js';
 import { executeVerification } from '../../src/runtime/executors/verification.js';
 import { runCompiledFlow } from '../../src/runtime/run/compiled-flow-runner.js';
+import { VerificationCommand } from '../../src/schemas/verification.js';
 import type { RelayResult } from '../../src/shared/connector-relay.js';
 import type { RelayFn } from '../../src/shared/relay-runtime-types.js';
 
@@ -65,23 +66,23 @@ const NOOP_VERIFY_COMMAND = {
   env: {},
 };
 
-const FAILING_REGRESSION_COMMAND = {
+const FAILING_REGRESSION_COMMAND = VerificationCommand.parse({
   id: 'regression-fails-before-fix',
   cwd: '.',
   argv: [process.execPath, '-e', 'process.exit(1)'],
   timeout_ms: 30_000,
   max_output_bytes: 200_000,
   env: {},
-};
+});
 
-const PASSING_REGRESSION_COMMAND = {
+const PASSING_REGRESSION_COMMAND = VerificationCommand.parse({
   id: 'regression-actually-passes',
   cwd: '.',
   argv: [process.execPath, '-e', 'process.exit(0)'],
   timeout_ms: 30_000,
   max_output_bytes: 200_000,
   env: {},
-};
+});
 
 interface ScenarioConfig {
   readonly id: string;

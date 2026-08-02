@@ -13,6 +13,10 @@
 import { existsSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import { RuntimeGitStateSnapshot } from '../schemas/runtime-evidence.js';
+import {
+  type VerificationCommand,
+  circuitOwnedVerificationCommand,
+} from '../schemas/verification.js';
 
 const GIT_TIMEOUT_MS = 60_000;
 const GIT_MAX_OUTPUT_BYTES = 5_000_000;
@@ -43,15 +47,10 @@ export function resolveGitStateHelperPath(moduleUrl: string = import.meta.url): 
   );
 }
 
-// Structural twin of the flow-layer VerificationCommand (see header).
-export type GitStateVerificationCommand = {
-  readonly id: string;
-  readonly cwd: string;
-  readonly argv: readonly string[];
-  readonly timeout_ms: number;
-  readonly max_output_bytes: number;
-  readonly env: Readonly<Record<string, string>>;
-};
+// This was a third declaration of the command shape, a "structural twin" of the
+// flow-layer type, which meant a command built here was never checked against
+// the schema that validates commands. It is now the canonical type.
+export type GitStateVerificationCommand = VerificationCommand;
 
 // The subset of the flow-layer VerificationCommandObservation the parser
 // needs; full observations are assignable to it.
@@ -69,14 +68,16 @@ const GitStateHelperOutput = RuntimeGitStateSnapshot;
 export type GitStateHelperOutput = RuntimeGitStateSnapshot;
 
 export function gitStateCommand(id: string): GitStateVerificationCommand {
-  return {
+  // Circuit's own helper under the running node binary, not the project's
+  // toolchain, so this is the one mint that applies.
+  return circuitOwnedVerificationCommand({
     id,
     cwd: '.',
     argv: [process.execPath, resolveGitStateHelperPath()],
     timeout_ms: GIT_TIMEOUT_MS,
     max_output_bytes: GIT_MAX_OUTPUT_BYTES,
     env: {},
-  };
+  });
 }
 
 export function parseGitStateObservation(

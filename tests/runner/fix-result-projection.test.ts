@@ -34,6 +34,7 @@ import {
   type FixResultProjectorInputs,
   projectFixResult,
 } from '../../src/flows/fix/writers/result-projection.js';
+import { VerificationCommand } from '../../src/schemas/verification.js';
 
 const REGRESSION_COMMAND = {
   command_id: 'regression-cmd',
@@ -74,14 +75,14 @@ function brief(): FixBrief {
     },
     success_criteria: ['c'],
     verification_command_candidates: [
-      {
+      VerificationCommand.parse({
         id: 'verify-cmd',
         cwd: '.',
         argv: [process.execPath, '-e', 'process.exit(0)'],
         timeout_ms: 30_000,
         max_output_bytes: 200_000,
         env: {},
-      },
+      }),
     ],
   };
 }

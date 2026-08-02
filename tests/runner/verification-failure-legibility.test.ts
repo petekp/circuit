@@ -15,7 +15,7 @@ import { RunFileStore } from '../../src/runtime/run-files/run-file-store.js';
 import { nodeExternalFileReader } from '../../src/runtime/run/external-files.js';
 import type { RunContext } from '../../src/runtime/run/run-context.js';
 import { TraceStore } from '../../src/runtime/trace/trace-store.js';
-import type { VerificationCommand } from '../../src/schemas/verification.js';
+import { VerificationCommand } from '../../src/schemas/verification.js';
 
 // R5 — a verification abort must name the failing command, not just say a
 // check failed. The failure reason carries: the command string (argv), the
@@ -177,14 +177,14 @@ const NOISY_FAILING_SOURCE =
 
 describe('verification failure reasons name the failing command', () => {
   it('names the command string, exit code, and last output lines', async () => {
-    const command: VerificationCommand = {
+    const command: VerificationCommand = VerificationCommand.parse({
       id: 'unit-tests',
       cwd: '.',
       argv: [process.execPath, '-e', NOISY_FAILING_SOURCE],
       timeout_ms: 5_000,
       max_output_bytes: 10_000,
       env: {},
-    };
+    });
 
     const reason = await failureReasonFor([command]);
 
@@ -262,14 +262,14 @@ describe('verification failure reasons name the failing command', () => {
   });
 
   it('says plainly when the failing command produced no output', async () => {
-    const command: VerificationCommand = {
+    const command: VerificationCommand = VerificationCommand.parse({
       id: 'silent-check',
       cwd: '.',
       argv: [process.execPath, '-e', 'process.exit(3)'],
       timeout_ms: 5_000,
       max_output_bytes: 10_000,
       env: {},
-    };
+    });
 
     const reason = await failureReasonFor([command]);
 
@@ -278,14 +278,14 @@ describe('verification failure reasons name the failing command', () => {
   });
 
   it('keeps the command string and budget on a timed-out command', async () => {
-    const command: VerificationCommand = {
+    const command: VerificationCommand = VerificationCommand.parse({
       id: 'slow-suite',
       cwd: '.',
       argv: [process.execPath, '-e', 'setTimeout(() => {}, 5000)'],
       timeout_ms: 200,
       max_output_bytes: 10_000,
       env: {},
-    };
+    });
 
     const reason = await failureReasonFor([command]);
 

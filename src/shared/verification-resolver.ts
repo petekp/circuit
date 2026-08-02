@@ -119,14 +119,16 @@ function commandForScript(input: {
   readonly maxOutputBytes: number;
   readonly env: Readonly<Record<string, string>>;
 }): VerificationCommand {
-  return {
+  // Parsed, not constructed: this is the resolver's own mint, and the brand on
+  // VerificationCommand only comes from the schema.
+  return VerificationCommand.parse({
     id: `${input.commandIdPrefix}-${input.script}`,
     cwd: '.',
     argv: [input.manager, 'run', input.script],
     timeout_ms: input.timeoutMs,
     max_output_bytes: input.maxOutputBytes,
     env: { ...input.env },
-  };
+  });
 }
 
 function parseSimpleArgv(command: string): string[] | undefined {

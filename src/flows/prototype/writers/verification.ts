@@ -1,5 +1,6 @@
 import { readFileSync } from 'node:fs';
 import type { CheckpointReviewAssetGroups } from '../../../schemas/checkpoint-review-assets.js';
+import { circuitOwnedVerificationCommand } from '../../../schemas/verification.js';
 import { snapshotCheckpointReviewAssetGroups } from '../../../shared/checkpoint-review-assets.js';
 import { resolveRunRelative } from '../../../shared/run-relative-path.js';
 import { reportPathForSchemaInRuntimeFlow } from '../../registries/runtime-index.js';
@@ -102,14 +103,14 @@ function artifactIntegrityCommand(input: {
       change: touchpoint.change,
     })),
   };
-  return {
+  return circuitOwnedVerificationCommand({
     id: 'prototype-artifact-integrity',
     cwd: '.',
     argv: [process.execPath, '-e', ARTIFACT_INTEGRITY_SCRIPT, JSON.stringify(payload)],
     timeout_ms: 30_000,
     max_output_bytes: 20_000,
     env: {},
-  };
+  });
 }
 
 function projectPrototypeVerification(

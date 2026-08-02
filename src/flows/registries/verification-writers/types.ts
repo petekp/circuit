@@ -19,21 +19,18 @@
 //      src/flows/<wf>/writers/<schema>.ts
 //   3. Register it on the flow package's `writers.verification`
 
+import type { VerificationCommand } from '../../../schemas/verification.js';
 import type { RuntimeIndexedFlow, RuntimeIndexedVerificationStep } from '../runtime-index.js';
 
 export type VerificationStep = RuntimeIndexedVerificationStep;
 
-// One command to execute. Both Build and Fix use the same command
-// shape (id, cwd, argv, timeout_ms, max_output_bytes, env), so this
-// type is the structural intersection.
-export interface VerificationCommand {
-  readonly id: string;
-  readonly cwd: string;
-  readonly argv: readonly string[];
-  readonly timeout_ms: number;
-  readonly max_output_bytes: number;
-  readonly env: Readonly<Record<string, string>>;
-}
+// One command to execute. This used to be a structural interface declared here,
+// a second definition of the canonical schema type that any object literal
+// satisfied. That duplicate was the seam two flows slipped through: a writer
+// could return a hand-built `npm run build` and typecheck cleanly, because
+// nothing tied the writer contract to the schema that validates commands.
+// It is now the schema type itself, which is branded at parse.
+export type { VerificationCommand };
 
 // What the runner observes after executing one command. CompiledFlow-
 // specific result schemas may include a subset (Build) or superset

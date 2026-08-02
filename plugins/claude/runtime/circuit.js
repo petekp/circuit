@@ -19669,7 +19669,14 @@ function commandBinaryName(argv0) {
   const normalized = argv0.replaceAll("\\", "/");
   return normalized.slice(normalized.lastIndexOf("/") + 1).toLowerCase();
 }
-var SHELL_BINARIES, ProjectRelativeCwd, VerificationCommand, DeclaredVerificationCommand, VerificationConfig, VerificationCommandResult, VerificationResult;
+function circuitOwnedVerificationCommand(command) {
+  const binary = commandBinaryName(command.argv[0] ?? "");
+  if (PROJECT_TOOLCHAIN_BINARIES.has(binary)) {
+    throw new Error(`circuitOwnedVerificationCommand cannot run '${binary}': that is the project's toolchain, not Circuit's. Resolve it through shared/verification-resolver.ts so the project can declare its own command.`);
+  }
+  return VerificationCommand.parse(command);
+}
+var SHELL_BINARIES, ProjectRelativeCwd, VerificationCommandShape, VerificationCommand, PROJECT_TOOLCHAIN_BINARIES, DeclaredVerificationCommand, VerificationConfig, VerificationCommandResult, VerificationResult;
 var init_verification = __esm({
   "dist/schemas/verification.js"() {
     "use strict";
@@ -19714,7 +19721,7 @@ var init_verification = __esm({
         });
       }
     });
-    VerificationCommand = external_exports.object({
+    VerificationCommandShape = external_exports.object({
       id: external_exports.string().min(1),
       cwd: ProjectRelativeCwd,
       argv: external_exports.array(external_exports.string().min(1)).min(1),
@@ -19734,6 +19741,27 @@ var init_verification = __esm({
         });
       }
     });
+    VerificationCommand = VerificationCommandShape.transform((command) => command);
+    PROJECT_TOOLCHAIN_BINARIES = /* @__PURE__ */ new Set([
+      "npm",
+      "npx",
+      "pnpm",
+      "pnpx",
+      "yarn",
+      "bun",
+      "bunx",
+      "make",
+      "cargo",
+      "go",
+      "python",
+      "python3",
+      "pytest",
+      "ruff",
+      "tsc",
+      "eslint",
+      "vitest",
+      "jest"
+    ]);
     DeclaredVerificationCommand = external_exports.object({
       argv: external_exports.array(external_exports.string().min(1)).min(1),
       cwd: ProjectRelativeCwd.default("."),
@@ -67082,14 +67110,14 @@ function resolveGitStateHelperPath(moduleUrl = import.meta.url) {
   throw new Error(`git-state helper is missing next to ${fileURLToPath2(moduleUrl)}: expected ${compiled} (compiled layouts) or ${source} (source tree)`);
 }
 function gitStateCommand(id) {
-  return {
+  return circuitOwnedVerificationCommand({
     id,
     cwd: ".",
     argv: [process.execPath, resolveGitStateHelperPath()],
     timeout_ms: GIT_TIMEOUT_MS,
     max_output_bytes: GIT_MAX_OUTPUT_BYTES,
     env: {}
-  };
+  });
 }
 function parseGitStateObservation(observation, schemaName) {
   if (observation.status !== "passed") {
@@ -67109,6 +67137,7 @@ var init_git_state_command = __esm({
   "dist/shared/git-state-command.js"() {
     "use strict";
     init_runtime_evidence();
+    init_verification();
     GIT_TIMEOUT_MS = 6e4;
     GIT_MAX_OUTPUT_BYTES = 5e6;
     GitStateHelperOutput = RuntimeGitStateSnapshot;
@@ -67311,14 +67340,14 @@ function firstGeneralScript(scripts) {
   return void 0;
 }
 function commandForScript(input) {
-  return {
+  return VerificationCommand.parse({
     id: `${input.commandIdPrefix}-${input.script}`,
     cwd: ".",
     argv: [input.manager, "run", input.script],
     timeout_ms: input.timeoutMs,
     max_output_bytes: input.maxOutputBytes,
     env: { ...input.env }
-  };
+  });
 }
 function parseSimpleArgv(command) {
   const argv = [];
@@ -78902,6 +78931,7 @@ var fixRegressionRerunWriter;
 var init_regression_rerun = __esm({
   "dist/flows/fix/writers/regression-rerun.js"() {
     "use strict";
+    init_verification();
     init_run_relative_path();
     init_runtime_index();
     init_reports6();
@@ -78917,14 +78947,14 @@ var init_regression_rerun = __esm({
         if (proof.status !== "proved" || proof.baseline === void 0)
           return [];
         return [
-          {
+          VerificationCommand.parse({
             id: proof.baseline.command_id,
             cwd: proof.baseline.cwd,
             argv: proof.baseline.argv,
             timeout_ms: proof.baseline.timeout_ms,
             max_output_bytes: proof.baseline.max_output_bytes,
             env: proof.baseline.env
-          }
+          })
         ];
       },
       buildResult(observations, context) {
@@ -83091,14 +83121,14 @@ function integrityCommand(context) {
       }
     ] : [])
   };
-  return {
+  return circuitOwnedVerificationCommand({
     id: "prototype-variant-artifact-integrity",
     cwd: ".",
     argv: [process.execPath, "-e", VARIANT_INTEGRITY_SCRIPT, JSON.stringify(payload)],
     timeout_ms: 3e4,
     max_output_bytes: 2e4,
     env: {}
-  };
+  });
 }
 function projectVariantVerification(observations, context) {
   const aggregateReport = aggregate(context);
@@ -83164,6 +83194,7 @@ var VARIANT_INTEGRITY_SCRIPT, prototypeVariantVerificationWriter;
 var init_variant_verification = __esm({
   "dist/flows/prototype/writers/variant-verification.js"() {
     "use strict";
+    init_verification();
     init_checkpoint_review_assets2();
     init_run_relative_path();
     init_runtime_index();
@@ -83243,14 +83274,14 @@ function artifactIntegrityCommand(input) {
       change: touchpoint.change
     }))
   };
-  return {
+  return circuitOwnedVerificationCommand({
     id: "prototype-artifact-integrity",
     cwd: ".",
     argv: [process.execPath, "-e", ARTIFACT_INTEGRITY_SCRIPT, JSON.stringify(payload)],
     timeout_ms: 3e4,
     max_output_bytes: 2e4,
     env: {}
-  };
+  });
 }
 function projectPrototypeVerification(observations, context) {
   const overallStatus = observations.some((observation) => observation.status === "failed") ? "failed" : "passed";
@@ -83285,6 +83316,7 @@ var ARTIFACT_INTEGRITY_SCRIPT, prototypeVerificationWriter;
 var init_verification7 = __esm({
   "dist/flows/prototype/writers/verification.js"() {
     "use strict";
+    init_verification();
     init_checkpoint_review_assets2();
     init_run_relative_path();
     init_runtime_index();
@@ -103283,7 +103315,7 @@ async function executeVerificationResult(step, context) {
     observations = [];
     for (const command of commands) {
       const observation = context.proofCommandRunner === void 0 ? runProofPlanCommand(command, projectRoot) : await context.proofCommandRunner(command, projectRoot);
-      observations.push(observation);
+      observations.push({ ...observation, command });
       await context.trace.append({
         run_id: context.runId,
         kind: "verification.command_evaluated",

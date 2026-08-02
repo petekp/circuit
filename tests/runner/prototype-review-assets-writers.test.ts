@@ -20,6 +20,7 @@ import type {
   VerificationCommandObservation,
 } from '../../src/flows/registries/verification-writers/types.js';
 import type { CompiledFlow } from '../../src/schemas/compiled-flow.js';
+import { VerificationCommand } from '../../src/schemas/verification.js';
 
 const roots: string[] = [];
 
@@ -43,14 +44,14 @@ function write(path: string, body: unknown): void {
 
 function passedObservation(id: string): VerificationCommandObservation {
   return {
-    command: {
+    command: VerificationCommand.parse({
       id,
       cwd: '.',
       argv: [process.execPath, '-e', 'process.exit(0)'],
       timeout_ms: 30_000,
       max_output_bytes: 20_000,
       env: {},
-    },
+    }),
     exit_code: 0,
     status: 'passed',
     duration_ms: 1,

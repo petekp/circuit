@@ -278,12 +278,16 @@ function fingerprintCommands(
 // re-fingerprint the pinned commands' scripts against the current package.json,
 // throw OracleCommandDriftError on any mismatch, and otherwise return the
 // pinned commands.
-export function resolveOracleCommands(input: {
+//
+// Generic over the command type so a caller passing branded VerificationCommands
+// gets branded commands back: pinning is a cache, and passing through a cache
+// must not launder away the proof that a command was parsed.
+export function resolveOracleCommands<Command extends ProofPlanCommand>(input: {
   readonly channel: OracleCommandPinChannel;
   readonly stepId: string;
   readonly projectRoot: string;
-  readonly load: () => readonly ProofPlanCommand[];
-}): readonly ProofPlanCommand[] {
+  readonly load: () => readonly Command[];
+}): readonly Command[] {
   const { channel, stepId, projectRoot, load } = input;
   const existing = channel.pins.get(stepId);
   if (existing === undefined) {
@@ -328,5 +332,8 @@ export function resolveOracleCommands(input: {
       );
     }
   }
-  return existing.commands;
+  // The channel stores commands as the wider ProofPlanCommand because it is
+  // shared across steps with different writers. These are the very objects a
+  // prior call to this same stepId returned from `load()`, so they are Command.
+  return existing.commands as readonly Command[];
 }

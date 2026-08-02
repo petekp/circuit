@@ -20,19 +20,20 @@ import {
   projectFixRegressionRerun,
 } from '../../src/flows/fix/writers/regression-projection.js';
 import type { VerificationCommandObservation } from '../../src/flows/registries/verification-writers/types.js';
+import { VerificationCommand } from '../../src/schemas/verification.js';
 
 const REPRO_ARGV = ['npm', 'test', '--', 'pagination'];
 const PROJECT_ARGV = ['npm', 'run', 'verify'];
 
 function command(id: string, argv: readonly string[]) {
-  return {
+  return VerificationCommand.parse({
     id,
     cwd: '.',
     argv: [...argv],
     timeout_ms: 30_000,
     max_output_bytes: 200_000,
     env: {},
-  };
+  });
 }
 
 function observation(

@@ -21,10 +21,10 @@ import type { FixRegressionProof, FixRegressionRerun } from '../../src/flows/fix
 import type {
   VerificationBuildContext,
   VerificationBuilder,
-  VerificationCommand,
   VerificationCommandObservation,
 } from '../../src/flows/registries/verification-writers/types.js';
 import type { CompiledFlow } from '../../src/schemas/compiled-flow.js';
+import { VerificationCommand } from '../../src/schemas/verification.js';
 
 function requireFixRegressionRerunWriter(): VerificationBuilder {
   const writer = fixCompiledFlowPackage.writers.verification.find(
@@ -52,14 +52,14 @@ function writeJson(runFolder: string, relPath: string, body: unknown): void {
   writeFileSync(fullPath, `${JSON.stringify(body, null, 2)}\n`, 'utf8');
 }
 
-const REGRESSION_COMMAND = {
+const REGRESSION_COMMAND = VerificationCommand.parse({
   id: 'regression',
   cwd: '.',
-  argv: ['node', '-e', 'process.exit(1)'] as string[],
+  argv: ['node', '-e', 'process.exit(1)'],
   timeout_ms: 30_000,
   max_output_bytes: 200_000,
-  env: {} as Record<string, string>,
-} as const;
+  env: {},
+});
 
 const PROVED_OBSERVATION = {
   command_id: REGRESSION_COMMAND.id,

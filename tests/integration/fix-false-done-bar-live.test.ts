@@ -56,6 +56,7 @@ import { executeCompose } from '../../src/runtime/executors/compose.js';
 import type { ExecutorRegistry } from '../../src/runtime/executors/index.js';
 import { runCompiledFlow } from '../../src/runtime/run/compiled-flow-runner.js';
 import { TraceStore } from '../../src/runtime/trace/trace-store.js';
+import { VerificationCommand } from '../../src/schemas/verification.js';
 import type { RelayResult } from '../../src/shared/connector-relay.js';
 import type { RelayFn } from '../../src/shared/relay-runtime-types.js';
 
@@ -128,7 +129,7 @@ function regressionCommandThatChecksFile(repo: string, relPath: string, expected
   // Used for live regression-still-failing: the bug is "file content is X
   // when it should be Y"; the regression command exits 1 until fix-act
   // makes content == Y.
-  return {
+  return VerificationCommand.parse({
     id: 'regression-checks-file',
     cwd: '.',
     argv: [
@@ -139,7 +140,7 @@ function regressionCommandThatChecksFile(repo: string, relPath: string, expected
     timeout_ms: 30_000,
     max_output_bytes: 200_000,
     env: {},
-  };
+  });
 }
 
 interface BarBriefOptions {
@@ -303,7 +304,7 @@ describe('Live False-Done Fix bar', () => {
       repos.push(repo);
       const runFolder = join(runFolderBase, 'verification-retry-cumulative-change-set');
       const recordedDeclarations: string[][] = [];
-      const verifySecondDeltaExists: FixVerificationCommand = {
+      const verifySecondDeltaExists: FixVerificationCommand = VerificationCommand.parse({
         id: 'verify-second-delta-exists',
         cwd: '.',
         argv: [
@@ -314,8 +315,8 @@ describe('Live False-Done Fix bar', () => {
         timeout_ms: 30_000,
         max_output_bytes: 200_000,
         env: {},
-      };
-      const regressionFirstDeltaExists: FixVerificationCommand = {
+      });
+      const regressionFirstDeltaExists: FixVerificationCommand = VerificationCommand.parse({
         ...verifySecondDeltaExists,
         id: 'regression-first-delta-exists',
         argv: [
@@ -323,7 +324,7 @@ describe('Live False-Done Fix bar', () => {
           '-e',
           `const fs=require('node:fs'); process.exit(fs.existsSync(${JSON.stringify(join(repo, 'src/a.ts'))})?0:1);`,
         ],
-      };
+      });
 
       const outcome = await runCompiledFlow({
         runDir: runFolder,

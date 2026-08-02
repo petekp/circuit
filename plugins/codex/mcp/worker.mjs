@@ -14584,7 +14584,7 @@ var ProjectRelativeCwd = external_exports.string().min(1).superRefine((cwd, ctx)
     });
   }
 });
-var VerificationCommand = external_exports.object({
+var VerificationCommandShape = external_exports.object({
   id: external_exports.string().min(1),
   cwd: ProjectRelativeCwd,
   argv: external_exports.array(external_exports.string().min(1)).min(1),
@@ -14603,6 +14603,9 @@ var VerificationCommand = external_exports.object({
     });
   }
 });
+var VerificationCommand = VerificationCommandShape.transform(
+  (command) => command
+);
 var DeclaredVerificationCommand = external_exports.object({
   argv: external_exports.array(external_exports.string().min(1)).min(1),
   cwd: ProjectRelativeCwd.default("."),
