@@ -5,6 +5,14 @@ Both soundness gaps that gated public promotion — the scanner-program rewrite
 (6.6) and the set-identity invariant (6.4) — are now closed and covered by
 end-to-end assertions (2026-08-01).
 
+Portability followed the same day. Sweep originally hardcoded `npm run scan`,
+`npm run audit`, and a `tsconfig.json` frozen surface, which meant it could only
+run on its own test fixture. All three now resolve from the project through
+`shared/verification-resolver.ts`, declared in `.circuit/config.yaml` under
+`verification.scan`, `verification.audit`, and `verification.frozen_paths`, with
+package scripts of the same name as the fallback a Node project already had.
+See Section 6.7.
+
 This began as a design spec written under the v1 freeze. The internal
 baseline has since shipped with `visibility: 'internal'`, so Sweep emits no
 public host surface. Public promotion is a separate post-launch decision and is
@@ -555,17 +563,76 @@ overclaim gate applies inside each branch. Deferred; not in the baseline.
   availability, not honesty (an oscillating run exhausts to needs-attention, it
   does not close clean).
 - **Argv smuggling.** `SHELL_BINARIES` checks argv0 basename only; `node -e`,
-  `npx <x>`, `env VAR=x <tool>` are not in the set. The commands are authored by
-  a deterministic compose writer, not a worker, so this rests on the writer
-  never emitting such argv rather than a schema guarantee. Tighten the writer's
-  allowed-argv check as a small hardening; low severity because the command is
-  not worker-controlled once pinned (6.2).
+  `npx <x>`, `env VAR=x <tool>` are not in the set. Since 6.7 the commands come
+  from the project rather than from a compose writer, so the writer-discipline
+  argument no longer applies — what carries it now is that the project config is
+  the same file class as `package.json`, authored by the same hand, and already
+  executed by every `npm run verify`. Declared commands are materialized through
+  the same `VerificationCommand` schema as resolved ones, so they clear the same
+  bar. Still worth tightening the allowed-argv check; low severity because the
+  command is not worker-controlled once pinned (6.2).
 - **frozen_paths false positives.** A legitimate fix that must touch a frozen
   file latches the loop. Freeze only config and eval files, never source under
   repair (`types.ts:213-215`).
 - **Resume.** Until-loop resume is fenced off in the engine (per-iteration
   counts are not persisted). A checkpointed Sweep restarts from wave 0. Do not
   promise resumable Sweep for v1.
+
+---
+
+### 6.7 Portability: the project declares its own oracles
+
+Sweep shipped with `npm run scan`, `npm run audit`, and `tsconfig.json` written
+into the flow. That made it unrunnable anywhere except its own fixture, and the
+audit that found it is worth restating: **a flow that hardcodes a project
+assumption is not a flow, it is a demo.**
+
+All three now resolve from the project:
+
+```yaml
+# .circuit/config.yaml
+verification:
+  scan:  {argv: [ruff, check, --output-format, json]}
+  audit: {argv: [ruff, check, --select, PGH004, --output-format, json]}
+  frozen_paths: [pyproject.toml, .ruff.toml]
+```
+
+Precedence is the resolver's existing one: declared config first, then package
+scripts of the same name. A Node repo with `scan` and `audit` scripts keeps
+working untouched, which is what lets the original fixture stand unchanged.
+
+Three decisions inside this are load-bearing.
+
+**Both commands are required.** Sweep edits many files at high autonomy on the
+strength of two signals. A project that can supply only one gets a block naming
+the missing key, never a run with half a floor.
+
+**An inline "verify with `cmd`" no longer answers a census oracle.** The
+resolver short-circuits on that phrase, which would have handed Sweep the goal's
+verify command as its scanner: a scanner measuring something else entirely,
+finding nothing, exiting zero, and looking correct.
+
+The carve-out is `scan` and `audit` only, not "every need except `general`".
+That phrase names a proof of the change, and `build` and `lint` are that same
+kind of proof, so a caller who spells the command out still outranks an inferred
+or declared script for them. Build relies on exactly that: a repo with only a
+`test` script and a goal saying "verify with `npm test`" has to run `npm test`.
+What makes a census oracle different is that it owns an output contract, a
+findings list on stdout plus an exit code as the honesty floor, which no
+arbitrary verify command can satisfy. Those two needs must be declared.
+
+**The frozen surface must contain at least one file that exists.** This is the
+subtle one. `FrozenEvalGuard` fingerprints a missing file as `ABSENT`, and an
+absent file fingerprints `ABSENT` again on every rescan — so a surface of files
+that are not there is a guard that can never fail. Fixing only the commands
+would have let Sweep run on a Python repo while reporting a guarded config
+surface it was not guarding, which is strictly worse than refusing. The census
+therefore blocks when nothing in the union is on disk, and the engine freezes
+the union of the flow's paths and the project's rather than the flow's alone.
+
+The accepted cost: a project whose scanner is not TypeScript must name its
+config file before Sweep will run. That is a real prompt for information the
+operator has and Sweep cannot infer.
 
 ---
 
@@ -701,7 +768,11 @@ two the review found open. Together with the two later cases they close every
 silence path enforced today: suppression (B), config-tamper (C), plan-argv
 narrowing (D1), script-body swap (D2), scanner-program rewrite (D3, 6.6), and
 set narrowing by deletion (F, 6.4). F2 proves the set-identity floor does not
-tax an honest sweep. E (nested-config-create) is deferred with 6.3, so
+tax an honest sweep. G, H, and H2 cover portability (6.7): a project with no npm
+scripts and no tsconfig declares its toolchain and sweeps; declaring nothing is
+refused with the key named; declaring the commands but no config surface is
+refused rather than run against an inert floor. E (nested-config-create) is
+deferred with 6.3, so
 "succeeded is unreachable except by real fixes over the full census set" holds
 against every vector except per-wave config re-derivation. See 9.1 for the
 exact ship line.
@@ -709,9 +780,12 @@ exact ship line.
 ### 9.1 Implementation status
 
 Shipped in `tests/runner/sweep-e2e.test.ts` against a real fixture repo at
-`tests/fixtures/sweep-fixture/` (a dual-channel `npm run scan` that prints the
+`tests/fixtures/sweep-fixture/` (a dual-channel `scan` that prints the
 `{ findings }` work-list on stdout and exits non-zero while findings remain,
-plus a `npm run audit` suppression floor and a `tsconfig.json` frozen surface).
+plus an `audit` suppression floor and a `tsconfig.json` frozen surface). Cases
+G, H, and H2 reuse the same fixture with its npm scripts and tsconfig stripped,
+so the portable path is proven against a project that has none of Node's
+conventions rather than against a second hand-built fixture.
 The fixture is a marker-driven node scanner rather than a real tsc/eslint run:
 the e2e proves the engine's dispositions through the whole compiled flow, and a
 real linter is one more thing that can flake in a subprocess under parallel

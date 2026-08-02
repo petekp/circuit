@@ -676,6 +676,63 @@
               },
               "required": ["argv"],
               "additionalProperties": false
+            },
+            "scan": {
+              "type": "object",
+              "properties": {
+                "argv": {
+                  "minItems": 1,
+                  "type": "array",
+                  "items": {
+                    "type": "string",
+                    "minLength": 1
+                  }
+                },
+                "cwd": {
+                  "default": ".",
+                  "type": "string",
+                  "minLength": 1
+                },
+                "timeout_ms": {
+                  "type": "integer",
+                  "exclusiveMinimum": 0,
+                  "maximum": 9007199254740991
+                }
+              },
+              "required": ["argv"],
+              "additionalProperties": false
+            },
+            "audit": {
+              "type": "object",
+              "properties": {
+                "argv": {
+                  "minItems": 1,
+                  "type": "array",
+                  "items": {
+                    "type": "string",
+                    "minLength": 1
+                  }
+                },
+                "cwd": {
+                  "default": ".",
+                  "type": "string",
+                  "minLength": 1
+                },
+                "timeout_ms": {
+                  "type": "integer",
+                  "exclusiveMinimum": 0,
+                  "maximum": 9007199254740991
+                }
+              },
+              "required": ["argv"],
+              "additionalProperties": false
+            },
+            "frozen_paths": {
+              "type": "array",
+              "items": {
+                "type": "string",
+                "minLength": 1
+              }
             }
           },
           "additionalProperties": false

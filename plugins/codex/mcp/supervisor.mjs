@@ -15042,7 +15042,15 @@ var DeclaredVerificationCommand = external_exports.object({
 var VerificationConfig = external_exports.object({
   build: DeclaredVerificationCommand.optional(),
   lint: DeclaredVerificationCommand.optional(),
-  general: DeclaredVerificationCommand.optional()
+  general: DeclaredVerificationCommand.optional(),
+  scan: DeclaredVerificationCommand.optional(),
+  audit: DeclaredVerificationCommand.optional(),
+  // The config files the declared commands read to decide what counts as a
+  // finding. Not a command, but it belongs with them: it is the surface an
+  // agent could edit to make a proof pass without fixing anything, and only
+  // the project knows which files those are. A loop flow that freezes paths
+  // adds these to whatever it froze itself.
+  frozen_paths: external_exports.array(ProjectRelativeCwd).optional()
 }).strict();
 var VerificationCommandResult = external_exports.object({
   command_id: external_exports.string().min(1),

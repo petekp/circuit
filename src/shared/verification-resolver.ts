@@ -9,7 +9,15 @@ import {
 import { PROJECT_CONFIG_RELATIVE_SEGMENTS } from './control-plane-paths.js';
 import { ProofPlanBlockedError } from './proof-plan.js';
 
-export type VerificationNeed = 'build' | 'lint' | 'general';
+// `scan` and `audit` are Sweep's two oracles. They resolve through the same
+// precedence as the rest, and their package.json fallback is a script of the
+// same name, which is what the generic per-need branch below already does.
+export type VerificationNeed = 'build' | 'lint' | 'general' | 'scan' | 'audit';
+
+// Needs that census a set rather than prove a change. They carry an output
+// contract of their own, so the inline "verify with `cmd`" shortcut does not
+// answer them. See resolveVerificationCommands.
+const CENSUS_ORACLE_NEEDS: ReadonlySet<VerificationNeed> = new Set(['scan', 'audit']);
 
 // One shared verification budget across every caller. 600s aligns Build,
 // Fix, and Pursue with Fix's original allowance instead of the accidental
@@ -345,8 +353,22 @@ function resolveFromPackageScripts(
 export function resolveVerificationCommands(
   input: ResolveVerificationCommandsInput,
 ): VerificationResolverResult {
-  const explicitCommand = explicitInlineVerifyWithCommand(input);
-  if (explicitCommand !== undefined) return { status: 'ready', commands: [explicitCommand] };
+  const needs = uniqueNeeds(input.requestedNeeds);
+
+  // An inline "verify with `cmd`" names a proof OF THE CHANGE, so it outranks
+  // any script we would otherwise infer for one: general, build and lint are
+  // all that same kind of proof, and a caller who spells the command out has
+  // said what proving this change means.
+  //
+  // A census oracle is not that kind of proof. Sweep's scanner has to emit a
+  // findings list on stdout and use its exit code as the honesty floor, so an
+  // arbitrary verify command cannot stand in for it. Honoring the phrase there
+  // would hand Sweep a scanner that measures something else, finds nothing, and
+  // exits zero. Those needs must be declared.
+  if (!needs.some((need) => CENSUS_ORACLE_NEEDS.has(need))) {
+    const explicitCommand = explicitInlineVerifyWithCommand(input);
+    if (explicitCommand !== undefined) return { status: 'ready', commands: [explicitCommand] };
+  }
 
   const projectRoot = input.projectRoot;
   if (projectRoot === undefined) {
@@ -360,7 +382,6 @@ export function resolveVerificationCommands(
   if (declared.status === 'invalid') return { status: 'blocked', reason: declared.reason };
   const declaredConfig: VerificationConfig = declared.status === 'declared' ? declared.config : {};
 
-  const needs = uniqueNeeds(input.requestedNeeds);
   const declaredCommands: VerificationCommand[] = [];
   const unresolved: VerificationNeed[] = [];
 
@@ -390,20 +411,38 @@ export function resolveVerificationCommands(
   // Node project can override one proof without having to restate the rest.
   const fromScripts = resolveFromPackageScripts({ ...input, projectRoot }, unresolved);
   if (fromScripts.status === 'blocked') {
-    const declaredKeys = Object.keys(declaredConfig);
-    if (declaredKeys.length === 0) return fromScripts;
-    // The config is in play, so point at the key that would close the gap
-    // instead of leaving the operator staring at a package.json complaint in a
-    // project that may not have one.
-    const listed = declaredKeys.map((key) => `verification.${key}`).join(', ');
+    // Always name the key that would close the gap. A project with no matching
+    // package.json script is often not a broken Node project at all — it is a
+    // Python, Rust, or Makefile repo that was never going to have one — so a
+    // bare scripts complaint sends the operator to the wrong file entirely.
     const wanted = unresolved.map((need) => `verification.${need}`).join(', ');
+    // frozen_paths shares the block but is a path list, not a command, so it is
+    // never something the operator could have declared to satisfy a need.
+    const declaredKeys = Object.keys(declaredConfig).filter((key) => key !== 'frozen_paths');
+    const listed = declaredKeys.map((key) => `verification.${key}`).join(', ');
+    const declaredNote =
+      declaredKeys.length === 0
+        ? ''
+        : ` ${PROJECT_CONFIG_DISPLAY_PATH} declares ${listed} but not ${wanted}.`;
     return {
       status: 'blocked',
-      reason: `${fromScripts.reason} ${PROJECT_CONFIG_DISPLAY_PATH} declares ${listed} but not ${wanted}; add ${wanted} there.`,
+      reason: `${fromScripts.reason}${declaredNote} Declare ${wanted} in ${PROJECT_CONFIG_DISPLAY_PATH}.`,
     };
   }
 
   return { status: 'ready', commands: [...declaredCommands, ...fromScripts.commands] };
+}
+
+// The config surface the project declared alongside its proof commands: the
+// files an agent could edit to make a proof pass without fixing anything.
+//
+// Additive and best-effort. An absent or unreadable config yields none, because
+// this widens a floor rather than being one — a flow that cannot be honest
+// without a declared surface has to demand it itself, and Sweep does.
+export function declaredFrozenPaths(projectRoot: string): readonly string[] {
+  const declared = readDeclaredVerification(projectRoot);
+  if (declared.status !== 'declared') return [];
+  return declared.config.frozen_paths ?? [];
 }
 
 export function requireResolvedVerificationCommands(

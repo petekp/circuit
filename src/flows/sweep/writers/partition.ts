@@ -21,9 +21,22 @@ import type {
   ComposeBuildContext,
   ComposeBuilder,
 } from '../../registries/compose-writers/types.js';
+import { reportPathForSchemaInRuntimeFlow } from '../../registries/runtime-index.js';
 import { SWEEP_CARRIED_NOTES_PATH } from '../paths.js';
-import { type SweepFinding, SweepPartition, type SweepUnit } from '../reports.js';
+import { SweepCensus, type SweepFinding, SweepPartition, type SweepUnit } from '../reports.js';
 import { runScannerFindings } from './scan.js';
+
+// The scanner this wave probes with is the one the census PINNED, read back from
+// the census report rather than resolved again. Re-resolving each wave would
+// reopen the hole the pin exists to close: a project config edited mid-run could
+// hand later waves a different, friendlier scanner than the one the backlog was
+// measured with.
+function pinnedScanner(context: ComposeBuildContext): SweepCensus['scanner'] {
+  const censusPath = reportPathForSchemaInRuntimeFlow(context.flow, 'sweep.census@v1');
+  return SweepCensus.parse(
+    JSON.parse(readFileSync(resolveRunRelative(context.runFolder, censusPath), 'utf8')),
+  ).scanner;
+}
 
 // Turn a file path into a fanout-safe branch id fragment. Unit ids become
 // fanout branch ids, which the step schema validates as strict kebab-case slugs
@@ -145,7 +158,7 @@ export const sweepPartitionComposeBuilder: ComposeBuilder = {
         'sweep partition requires projectRoot to re-scan the tree; none was provided by the invocation',
       );
     }
-    const findings = runScannerFindings(projectRoot);
+    const findings = runScannerFindings(projectRoot, pinnedScanner(context));
     if (findings.length === 0) {
       throw new Error(
         'sweep partition: re-scan found no findings, so there is nothing to fan out. The loop should have completed at the judge on a green rescan; reaching partition with an empty backlog means the judge advanced when it should have stopped.',

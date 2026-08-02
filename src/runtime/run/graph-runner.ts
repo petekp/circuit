@@ -26,6 +26,7 @@ import { resolveEngineProvenance } from '../../shared/engine-provenance.js';
 import { resolveDottedPath } from '../../shared/fanout-branch-template.js';
 import { isProofPlanBlockedError } from '../../shared/proof-plan.js';
 import { createUserSkillRegistry } from '../../shared/user-skill-registry.js';
+import { declaredFrozenPaths } from '../../shared/verification-resolver.js';
 import { dispatchSkillHooks } from '../../skill-hooks/dispatch.js';
 import { createSkillHookInjectionChannel } from '../../skill-hooks/injection.js';
 import { surfaceSourcesFromDeclarations } from '../../skill-hooks/surface-sources.js';
@@ -730,11 +731,18 @@ async function executeExecutableFlowOutcomeUnsafe(
   // project root is threaded; absent either, the guard is undefined and the tail
   // seam makes zero fs reads (byte-identical default path). The guard is pure of
   // engine types and resolves every path against this explicit root, never cwd.
+  // A flow declares the surface it knows about; the PROJECT declares the surface
+  // only it can know. A flow's list is written once against one toolchain, so on
+  // any project with a different one it names files that are not there — and an
+  // absent path fingerprints the same before and after, which is a guard that
+  // silently protects nothing. The union is what makes the floor portable.
+  const frozenPaths =
+    untilFlag?.frozenPaths !== undefined && options.projectRoot !== undefined
+      ? [...new Set([...untilFlag.frozenPaths, ...declaredFrozenPaths(options.projectRoot)])]
+      : (untilFlag?.frozenPaths ?? []);
   const frozenEvalGuard =
-    untilFlag?.frozenPaths !== undefined &&
-    untilFlag.frozenPaths.length > 0 &&
-    options.projectRoot !== undefined
-      ? new FrozenEvalGuard(options.projectRoot, untilFlag.frozenPaths)
+    frozenPaths.length > 0 && options.projectRoot !== undefined
+      ? new FrozenEvalGuard(options.projectRoot, frozenPaths)
       : undefined;
   // On-demand context-pull delivery is "active" for this run's relays when
   // delivery is opted in AND this run is not a delivery-blind slice corridor.

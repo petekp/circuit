@@ -1,4 +1,12 @@
-import { cpSync, existsSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
+import {
+  cpSync,
+  existsSync,
+  mkdirSync,
+  mkdtempSync,
+  readFileSync,
+  rmSync,
+  writeFileSync,
+} from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join, resolve } from 'node:path';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
@@ -10,10 +18,10 @@ import { deterministicNow, stubRelayResult } from '../helpers/runtime-fixtures.j
 
 // Sweep's end-to-end test — the fan-out-over-a-set cousin of fix-until-green,
 // driven the full way through `runCompiledFlow`. The census, partition, and
-// rescan steps spawn the fixture's real `npm run scan` / `npm run audit`
-// scripts as subprocesses, so the scanner's zero-finding exit and the audit's
-// suppression exit are genuine — only the fanout workers and the judge are
-// faked (the connector model call), exactly like fix-until-green.
+// rescan steps spawn the fixture's real scanner and audit as subprocesses, so
+// the scanner's zero-finding exit and the audit's suppression exit are genuine
+// — only the fanout workers and the judge are faked (the connector model call),
+// exactly like fix-until-green.
 //
 // What this proves that fix-until-green does not: sweep's body FANS OUT one
 // worker per partition unit and re-scans a whole backlog each wave. The cases
@@ -36,6 +44,13 @@ import { deterministicNow, stubRelayResult } from '../helpers/runtime-fixtures.j
 //      over a smaller tree. The set-identity floor blocks the close (spec 6.4).
 //   F2 the same floor on an honest run, so the cost of F is not a false alarm
 //      on every normal sweep.
+//   G  portability — a project with no npm scripts and no tsconfig declares its
+//      scanner, audit, and config surface in .circuit/config.yaml, and sweeps.
+//   H  the same project declaring nothing is refused, with a message naming the
+//      key that would fix it instead of blaming a package.json it never had.
+//   H2 declaring both commands but no config surface is also refused: sweep
+//      could run, but the only path it would freeze is absent, and a frozen path
+//      that does not exist fingerprints the same forever — an inert floor.
 //
 // D1 (command narrowing) and the nested-config-create case (spec §9 E) are
 // covered by the oracle-command-pin and frozen-eval unit tests; this file
@@ -80,6 +95,52 @@ function untilJudgment(trace: readonly TraceRow[]) {
 function scaffoldProject(base: string): string {
   const projectRoot = join(base, 'project');
   cpSync(FIXTURE_ROOT, projectRoot, { recursive: true });
+  return projectRoot;
+}
+
+// The same fixture with every npm-shaped affordance removed: no `scan` or
+// `audit` script to fall back to, and no tsconfig.json for the frozen surface to
+// land on. It stands in for the Python or Rust repo that has a real scanner and
+// none of Node's conventions.
+//
+// `declareToolchain: false` leaves it with no way to tell Sweep any of that,
+// which is the case that must be refused rather than run.
+function scaffoldForeignProject(
+  base: string,
+  name: string,
+  options: { readonly declareToolchain: boolean },
+): string {
+  const projectRoot = join(base, name);
+  cpSync(FIXTURE_ROOT, projectRoot, { recursive: true });
+
+  const packageJsonPath = join(projectRoot, 'package.json');
+  const packageJson = JSON.parse(readFileSync(packageJsonPath, 'utf8')) as {
+    scripts?: Record<string, string>;
+  };
+  const { scan: _scan, audit: _audit, ...keptScripts } = packageJson.scripts ?? {};
+  writeFileSync(
+    packageJsonPath,
+    `${JSON.stringify({ ...packageJson, scripts: keptScripts }, null, 2)}\n`,
+  );
+
+  // The config the scanner reads is named something Sweep has never heard of, so
+  // only the project can say what it is.
+  rmSync(join(projectRoot, 'tsconfig.json'));
+  writeFileSync(join(projectRoot, 'toolchain.json'), '{"rules": ["no-needs-fix"]}\n');
+
+  if (options.declareToolchain) {
+    mkdirSync(join(projectRoot, '.circuit'), { recursive: true });
+    writeFileSync(
+      join(projectRoot, '.circuit', 'config.yaml'),
+      [
+        'verification:',
+        '  scan: {argv: [node, scan.mjs]}',
+        '  audit: {argv: [node, audit.mjs]}',
+        '  frozen_paths: [toolchain.json]',
+        '',
+      ].join('\n'),
+    );
+  }
   return projectRoot;
 }
 
@@ -580,6 +641,131 @@ describe('sweep: fan-out-over-a-set clears a backlog with a pinned oracle floor'
       expect(rescan.overall_status).toBe('passed');
       expect(rescan.set_covers_census).toBe(true);
       expect(rescan.missing_censused_files).toEqual([]);
+    },
+    SWEEP_E2E_TIMEOUT_MS,
+  );
+
+  it(
+    'G: a project that declares its own scanner sweeps without any npm scripts',
+    async () => {
+      const projectRoot = scaffoldForeignProject(base, 'foreign-declared', {
+        declareToolchain: true,
+      });
+      const runFolder = join(base, 'foreign-declared-run');
+
+      // Nothing here is npm-shaped: no `scan` script, no `audit` script, no
+      // tsconfig.json. The project states its toolchain in .circuit/config.yaml
+      // and sweep runs on it exactly as it does on a Node repo.
+      const result = await runCompiledFlow({
+        runDir: runFolder,
+        flowBytes: SWEEP_FIXTURE,
+        projectRoot,
+        runId: '80000000-0000-0000-0000-0000000000f8',
+        goal: 'a declared toolchain must sweep like any other',
+        depth: 'medium',
+        now: deterministicNow(Date.UTC(2026, 6, 7, 12, 30, 0)),
+        relayer: sweepRelayer({ projectRoot, behavior: () => 'fix' }),
+      });
+
+      expect(result.outcome).toBe('complete');
+
+      // The pinned oracles are the declared argv, not an npm invocation, and the
+      // frozen surface is the config file only the project could have named.
+      const census = JSON.parse(
+        readFileSync(join(runFolder, 'reports/sweep/census.json'), 'utf8'),
+      ) as {
+        scanner: { argv: string[] };
+        suppression_audit: { argv: string[] };
+        config_surface: string[];
+        total_finding_count: number;
+      };
+      expect(census.scanner.argv).toEqual(['node', 'scan.mjs']);
+      expect(census.suppression_audit.argv).toEqual(['node', 'audit.mjs']);
+      expect(census.config_surface).toContain('toolchain.json');
+      expect(census.total_finding_count).toBeGreaterThan(0);
+
+      const rescan = JSON.parse(
+        readFileSync(join(runFolder, 'reports/sweep/rescan.json'), 'utf8'),
+      ) as { overall_status: string; commands: Array<{ argv: string[] }> };
+      expect(rescan.overall_status).toBe('passed');
+      expect(rescan.commands.every((command) => command.argv[0] !== 'npm')).toBe(true);
+    },
+    SWEEP_E2E_TIMEOUT_MS,
+  );
+
+  it(
+    'H: a project that declares nothing is refused rather than swept with an inert floor',
+    async () => {
+      const projectRoot = scaffoldForeignProject(base, 'foreign-silent', {
+        declareToolchain: false,
+      });
+      const runFolder = join(base, 'foreign-silent-run');
+
+      // Without a declaration there is no scanner to resolve, so the run must
+      // stop at the census. The failure that matters is not this one though: it
+      // is the one that would happen if sweep ran anyway with frozen_paths
+      // pointing at a tsconfig.json that does not exist, freezing nothing while
+      // reporting a guarded config surface.
+      const result = await runCompiledFlow({
+        runDir: runFolder,
+        flowBytes: SWEEP_FIXTURE,
+        projectRoot,
+        runId: '80000000-0000-0000-0000-0000000000f9',
+        goal: 'an undeclared toolchain must be refused',
+        depth: 'medium',
+        now: deterministicNow(Date.UTC(2026, 6, 7, 13, 0, 0)),
+        relayer: sweepRelayer({ projectRoot, behavior: () => 'fix' }),
+      });
+
+      expect(result.outcome).not.toBe('complete');
+      expect(existsSync(join(runFolder, 'reports/sweep/census.json'))).toBe(false);
+
+      // Refused for the right reason, and the message names the key that fixes
+      // it rather than complaining about a package.json this project was never
+      // going to fill in.
+      const reason = (result as { reason?: string }).reason ?? '';
+      expect(reason).toContain('verification.scan');
+      expect(reason).toContain('.circuit/config.yaml');
+    },
+    SWEEP_E2E_TIMEOUT_MS,
+  );
+
+  it(
+    'H2: declaring the commands but no config surface is refused as an inert floor',
+    async () => {
+      const projectRoot = scaffoldForeignProject(base, 'foreign-unfrozen', {
+        declareToolchain: true,
+      });
+      // Same declared scanner, but the config surface line is withdrawn. Sweep
+      // could now run: it has both oracles. It must still refuse, because the
+      // only thing it would freeze is a tsconfig.json that is not there, and a
+      // frozen path that does not exist fingerprints identically forever.
+      writeFileSync(
+        join(projectRoot, '.circuit', 'config.yaml'),
+        [
+          'verification:',
+          '  scan: {argv: [node, scan.mjs]}',
+          '  audit: {argv: [node, audit.mjs]}',
+          '',
+        ].join('\n'),
+      );
+      const runFolder = join(base, 'foreign-unfrozen-run');
+
+      const result = await runCompiledFlow({
+        runDir: runFolder,
+        flowBytes: SWEEP_FIXTURE,
+        projectRoot,
+        runId: '80000000-0000-0000-0000-0000000000fa',
+        goal: 'an unguardable config surface must be refused',
+        depth: 'medium',
+        now: deterministicNow(Date.UTC(2026, 6, 7, 13, 30, 0)),
+        relayer: sweepRelayer({ projectRoot, behavior: () => 'fix' }),
+      });
+
+      expect(result.outcome).not.toBe('complete');
+      const reason = (result as { reason?: string }).reason ?? '';
+      expect(reason).toContain('tsconfig.json');
+      expect(reason).toContain('frozen_paths');
     },
     SWEEP_E2E_TIMEOUT_MS,
   );

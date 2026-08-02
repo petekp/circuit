@@ -5,6 +5,7 @@ import { afterEach, describe, expect, it } from 'vitest';
 
 import {
   DEFAULT_VERIFICATION_TIMEOUT_MS,
+  declaredFrozenPaths,
   inferBuildVerificationNeeds,
   resolveVerificationCommands,
 } from '../../src/shared/verification-resolver.js';
@@ -393,6 +394,117 @@ describe('resolveVerificationCommands reads declared verification config', () =>
     expect(result.status).toBe('ready');
     if (result.status !== 'ready') throw new Error(result.reason);
     expect(result.commands[0]?.argv).toEqual(['pytest', '-q']);
+  });
+
+  it('does not let an inline "verify with" answer a census oracle need', () => {
+    const root = tempRoot('verification-resolver-inline-scan-');
+    writeProjectConfig(
+      root,
+      ['schema_version: 1', 'verification:', '  scan:', '    argv: [ruff, check]', ''].join('\n'),
+    );
+
+    // The goal names the general proof. Sweep asks for its scanner. Answering
+    // with the goal's command would hand sweep a scanner that reports on
+    // something else entirely, and it would look like it worked.
+    const result = resolveVerificationCommands({
+      projectRoot: root,
+      goal: 'Clear the backlog, and verify with `pytest -q` from the repo root.',
+      requestedNeeds: ['scan'],
+      commandIdPrefix: 'sweep',
+    });
+
+    expect(result.status).toBe('ready');
+    if (result.status !== 'ready') throw new Error(result.reason);
+    expect(result.commands[0]?.argv).toEqual(['ruff', 'check']);
+  });
+
+  // The other half of that partition. Build asking for a build proof is asking
+  // the same question the goal already answered, so the phrase still wins over
+  // a declared command. Only the census oracles are carved out.
+  it('still lets an inline "verify with" answer a build need', () => {
+    const root = tempRoot('verification-resolver-inline-build-');
+    writeProjectConfig(
+      root,
+      ['schema_version: 1', 'verification:', '  build:', '    argv: [make, all]', ''].join('\n'),
+    );
+
+    const result = resolveVerificationCommands({
+      projectRoot: root,
+      goal: 'Add the parser, and verify with `pytest -q` from the repo root.',
+      requestedNeeds: ['build'],
+      commandIdPrefix: 'build',
+    });
+
+    expect(result.status).toBe('ready');
+    if (result.status !== 'ready') throw new Error(result.reason);
+    expect(result.commands[0]?.argv).toEqual(['pytest', '-q']);
+  });
+
+  it('resolves scan and audit from the project config with no package.json at all', () => {
+    const root = tempRoot('verification-resolver-sweep-declared-');
+    writeProjectConfig(
+      root,
+      [
+        'schema_version: 1',
+        'verification:',
+        '  scan:',
+        '    argv: [ruff, check, --output-format, json]',
+        '  audit:',
+        '    argv: [scripts/count-noqa.sh]',
+        '  frozen_paths: [pyproject.toml]',
+        '',
+      ].join('\n'),
+    );
+
+    const result = resolveVerificationCommands({
+      projectRoot: root,
+      goal: 'clear the lint backlog',
+      requestedNeeds: ['scan', 'audit'],
+      commandIdPrefix: 'sweep',
+    });
+
+    expect(result.status).toBe('ready');
+    if (result.status !== 'ready') throw new Error(result.reason);
+    expect(result.commands.map((command) => command.argv[0])).toEqual([
+      'ruff',
+      'scripts/count-noqa.sh',
+    ]);
+    expect(result.commands.map((command) => command.id)).toEqual(['sweep-scan', 'sweep-audit']);
+  });
+
+  it('reports the declared frozen paths, and none when the project declares none', () => {
+    const withPaths = tempRoot('verification-resolver-frozen-yes-');
+    writeProjectConfig(
+      withPaths,
+      [
+        'schema_version: 1',
+        'verification:',
+        '  frozen_paths: [pyproject.toml, .ruff.toml]',
+        '',
+      ].join('\n'),
+    );
+    expect(declaredFrozenPaths(withPaths)).toEqual(['pyproject.toml', '.ruff.toml']);
+
+    const without = tempRoot('verification-resolver-frozen-no-');
+    writePackageJson(without, { scripts: { verify: 'vitest' } });
+    expect(declaredFrozenPaths(without)).toEqual([]);
+  });
+
+  it('names the config key that would close the gap instead of blaming package.json', () => {
+    const root = tempRoot('verification-resolver-block-names-key-');
+    writePackageJson(root, { scripts: { build: 'tsc' } });
+
+    const result = resolveVerificationCommands({
+      projectRoot: root,
+      goal: 'clear the backlog',
+      requestedNeeds: ['scan'],
+      commandIdPrefix: 'sweep',
+    });
+
+    expect(result.status).toBe('blocked');
+    if (result.status !== 'blocked') throw new Error('expected a block');
+    expect(result.reason).toContain('verification.scan');
+    expect(result.reason).toContain('.circuit/config.yaml');
   });
 
   it('ignores an unrelated project config without a verification block', () => {

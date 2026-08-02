@@ -13,34 +13,42 @@
 // whether the run may complete.
 
 import { spawnSync } from 'node:child_process';
+import { resolve } from 'node:path';
+import type { VerificationCommand } from '../../../schemas/verification.js';
 import { SweepFinding } from '../reports.js';
 
 const MAX_SCAN_BUFFER_BYTES = 16 * 1024 * 1024;
-const SCAN_TIMEOUT_MS = 120_000;
 
-function outputToString(output: string | Buffer | null | undefined): string {
-  if (output === null || output === undefined) return '';
-  return typeof output === 'string' ? output : Buffer.from(output).toString('utf8');
-}
-
-// Run `npm --silent run <script>` in the project and return its stdout. `npm
-// --silent` suppresses npm's own chatter so the script's stdout is the whole
-// payload. A non-zero exit is EXPECTED for the scanner (findings remain) and is
-// not an error here; only a spawn failure (npm missing, timeout) throws.
-function runSilentScript(projectRoot: string, script: string): string {
-  const result = spawnSync('npm', ['--silent', 'run', script], {
-    cwd: projectRoot,
+// Run the project's own resolved oracle command and return its stdout. The
+// command is passed in rather than built here: the census resolves it once and
+// pins it, and every later probe runs that same pinned argv, so the work-list
+// and the floor can never be reading two different scanners.
+//
+// A non-zero exit is EXPECTED for the scanner (findings remain) and is not an
+// error here; only a spawn failure (missing executable, timeout) throws.
+function runOracle(projectRoot: string, command: VerificationCommand): string {
+  const [executable, ...args] = command.argv;
+  if (executable === undefined) {
+    throw new Error('sweep scan: resolved oracle command has an empty argv');
+  }
+  const result = spawnSync(executable, args, {
+    cwd: resolve(projectRoot, command.cwd),
     encoding: 'utf8',
     maxBuffer: MAX_SCAN_BUFFER_BYTES,
-    timeout: SCAN_TIMEOUT_MS,
+    timeout: command.timeout_ms,
     stdio: ['ignore', 'pipe', 'pipe'],
   });
   if (result.error !== undefined) {
     throw new Error(
-      `sweep scan: 'npm run ${script}' could not be spawned: ${result.error.message}`,
+      `sweep scan: '${command.argv.join(' ')}' could not be spawned: ${result.error.message}`,
     );
   }
   return outputToString(result.stdout);
+}
+
+function outputToString(output: string | Buffer | null | undefined): string {
+  if (output === null || output === undefined) return '';
+  return typeof output === 'string' ? output : Buffer.from(output).toString('utf8');
 }
 
 // Locate and parse the `{ "findings": [...] }` object in the scanner's stdout.
@@ -77,8 +85,11 @@ export function parseScannerFindings(stdout: string): SweepFinding[] {
 
 // The structured finding list from a fresh scanner run. Used by the census
 // (baseline) and by every wave's partition (survivors).
-export function runScannerFindings(projectRoot: string): SweepFinding[] {
-  return parseScannerFindings(runSilentScript(projectRoot, 'scan'));
+export function runScannerFindings(
+  projectRoot: string,
+  scanner: VerificationCommand,
+): SweepFinding[] {
+  return parseScannerFindings(runOracle(projectRoot, scanner));
 }
 
 // The suppression baseline: the count of suppression directives already in the
@@ -86,8 +97,8 @@ export function runScannerFindings(projectRoot: string): SweepFinding[] {
 // code (non-zero once any suppression exists); the census reads this count so
 // the operator sees the starting point. On the fixture the tree is clean, so the
 // baseline is zero. A non-integer payload throws rather than defaulting.
-export function runSuppressionBaseline(projectRoot: string): number {
-  const stdout = runSilentScript(projectRoot, 'audit').trim();
+export function runSuppressionBaseline(projectRoot: string, audit: VerificationCommand): number {
+  const stdout = runOracle(projectRoot, audit).trim();
   const match = stdout.match(/-?\d+/);
   if (match === null) {
     throw new Error('sweep census: audit script did not print a suppression count');

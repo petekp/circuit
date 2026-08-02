@@ -112,11 +112,27 @@ export type DeclaredVerificationCommand = z.infer<typeof DeclaredVerificationCom
 // Keys match VerificationNeed in the resolver: `general` is the single
 // catch-all proof, `build` and `lint` are the extra proofs a Build goal can
 // ask for by name.
+//
+// `scan` and `audit` serve Sweep, which needs two proofs the others do not.
+// `scan` is dual-channel: JSON findings on stdout give the work-list, and the
+// exit code is the floor. `audit` exits non-zero once any suppression directive
+// exists, so a worker cannot silence a finding instead of fixing it. They live
+// here rather than in a sweep-owned block because they are the same kind of
+// thing as the other three — a command this repository declares — and because
+// one resolver means one precedence order and one error voice.
 export const VerificationConfig = z
   .object({
     build: DeclaredVerificationCommand.optional(),
     lint: DeclaredVerificationCommand.optional(),
     general: DeclaredVerificationCommand.optional(),
+    scan: DeclaredVerificationCommand.optional(),
+    audit: DeclaredVerificationCommand.optional(),
+    // The config files the declared commands read to decide what counts as a
+    // finding. Not a command, but it belongs with them: it is the surface an
+    // agent could edit to make a proof pass without fixing anything, and only
+    // the project knows which files those are. A loop flow that freezes paths
+    // adds these to whatever it froze itself.
+    frozen_paths: z.array(ProjectRelativeCwd).optional(),
   })
   .strict();
 export type VerificationConfig = z.infer<typeof VerificationConfig>;

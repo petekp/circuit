@@ -85,7 +85,8 @@ export interface VerificationBuilder {
   // The upstream typed reports loadCommands (and buildResult) source from, declared
   // so a composer can wire them and the offline floor can resolve them. Optional
   // ONLY for a writer with no typed source coupling — one whose loadCommands does
-  // not guard on step.reads (explainer.verification, whose commands are intrinsic).
+  // not guard on step.reads (explainer.verification, which resolves its command
+  // from the project rather than from an upstream report).
   // Every source-coupled writer MUST declare its reads here; the
   // verification-writer-source-coverage test enforces that pairing so a new writer
   // cannot silently reintroduce the unwired-source gap. When present, it MUST match

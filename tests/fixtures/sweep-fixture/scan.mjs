@@ -6,12 +6,15 @@
 //   rescan reads. A finding is a `src/**/*.ts` file that still carries the
 //   NEEDS_FIX marker and has not been suppressed (a `sweep-suppress` directive).
 //
-// This is the program the census pins via `npm run scan`. The pin fingerprints
-// both the package.json `scripts.scan` STRING (`node scan.mjs`) and this file's
-// bytes, plus anything it imports through a static relative specifier, so
-// swapping the script and rewriting this program are both caught across waves
-// (spec 6.6). What still is not covered: a scanner that reads its rules from a
-// data file rather than importing them.
+// This is the program the census pins. It reaches it through the `scan` package
+// script here, but a project can equally declare it as `verification.scan` in
+// .circuit/config.yaml (spec 6.7) — the e2e's G/H cases run this same file that
+// way. The pin fingerprints the package.json `scripts.scan` STRING
+// (`node scan.mjs`) when there is one, and this file's bytes plus anything it
+// imports through a static relative specifier either way, so swapping the script
+// and rewriting this program are both caught across waves (spec 6.6). What still
+// is not covered: a scanner that reads its rules from a data file rather than
+// importing them.
 import { readFileSync, readdirSync } from 'node:fs';
 import { join } from 'node:path';
 

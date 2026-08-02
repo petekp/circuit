@@ -53,6 +53,7 @@ import type { BlockStepUse } from '../block-step-expansion.js';
 import {
   SWEEP_CARRIED_NOTES_PATH,
   SWEEP_CENSUS_REPORT_PATH,
+  SWEEP_FLOW_FROZEN_PATHS,
   SWEEP_JUDGE_RECEIPT_PATH,
   SWEEP_JUDGE_REPORT_PATH,
   SWEEP_JUDGE_REQUEST_PATH,
@@ -228,7 +229,7 @@ export const sweepAssemblySpec: FlowSchematicAssemblySpec = {
       // The scanner's config surface. A worker that edits it to silence a
       // finding latches the honesty ledger, so the run cannot close clean by
       // relaxing the rules instead of fixing the code.
-      frozen_paths: ['tsconfig.json'],
+      frozen_paths: [...SWEEP_FLOW_FROZEN_PATHS],
       activate_when_depth_at_least: 'autonomous',
     },
   },

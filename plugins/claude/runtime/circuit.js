@@ -19744,7 +19744,15 @@ var init_verification = __esm({
     VerificationConfig = external_exports.object({
       build: DeclaredVerificationCommand.optional(),
       lint: DeclaredVerificationCommand.optional(),
-      general: DeclaredVerificationCommand.optional()
+      general: DeclaredVerificationCommand.optional(),
+      scan: DeclaredVerificationCommand.optional(),
+      audit: DeclaredVerificationCommand.optional(),
+      // The config files the declared commands read to decide what counts as a
+      // finding. Not a command, but it belongs with them: it is the surface an
+      // agent could edit to make a proof pass without fixing anything, and only
+      // the project knows which files those are. A loop flow that freezes paths
+      // adds these to whatever it froze itself.
+      frozen_paths: external_exports.array(ProjectRelativeCwd).optional()
     }).strict();
     VerificationCommandResult = external_exports.object({
       command_id: external_exports.string().min(1),
@@ -35268,21 +35276,21 @@ var require_react_development = __commonJS({
         );
         actScopeDepth = prevActScopeDepth;
       }
-      function recursivelyFlushAsyncActWork(returnValue, resolve40, reject) {
+      function recursivelyFlushAsyncActWork(returnValue, resolve42, reject) {
         var queue = ReactSharedInternals.actQueue;
         if (null !== queue)
           if (0 !== queue.length)
             try {
               flushActQueue(queue);
               enqueueTask(function() {
-                return recursivelyFlushAsyncActWork(returnValue, resolve40, reject);
+                return recursivelyFlushAsyncActWork(returnValue, resolve42, reject);
               });
               return;
             } catch (error52) {
               ReactSharedInternals.thrownErrors.push(error52);
             }
           else ReactSharedInternals.actQueue = null;
-        0 < ReactSharedInternals.thrownErrors.length ? (queue = aggregateErrors(ReactSharedInternals.thrownErrors), ReactSharedInternals.thrownErrors.length = 0, reject(queue)) : resolve40(returnValue);
+        0 < ReactSharedInternals.thrownErrors.length ? (queue = aggregateErrors(ReactSharedInternals.thrownErrors), ReactSharedInternals.thrownErrors.length = 0, reject(queue)) : resolve42(returnValue);
       }
       function flushActQueue(queue) {
         if (!isFlushing) {
@@ -35469,7 +35477,7 @@ var require_react_development = __commonJS({
             ));
           });
           return {
-            then: function(resolve40, reject) {
+            then: function(resolve42, reject) {
               didAwaitActCall = true;
               thenable.then(
                 function(returnValue) {
@@ -35479,7 +35487,7 @@ var require_react_development = __commonJS({
                       flushActQueue(queue), enqueueTask(function() {
                         return recursivelyFlushAsyncActWork(
                           returnValue,
-                          resolve40,
+                          resolve42,
                           reject
                         );
                       });
@@ -35493,7 +35501,7 @@ var require_react_development = __commonJS({
                       ReactSharedInternals.thrownErrors.length = 0;
                       reject(_thrownError);
                     }
-                  } else resolve40(returnValue);
+                  } else resolve42(returnValue);
                 },
                 function(error52) {
                   popActScope(prevActQueue, prevActScopeDepth);
@@ -35515,15 +35523,15 @@ var require_react_development = __commonJS({
         if (0 < ReactSharedInternals.thrownErrors.length)
           throw callback = aggregateErrors(ReactSharedInternals.thrownErrors), ReactSharedInternals.thrownErrors.length = 0, callback;
         return {
-          then: function(resolve40, reject) {
+          then: function(resolve42, reject) {
             didAwaitActCall = true;
             0 === prevActScopeDepth ? (ReactSharedInternals.actQueue = queue, enqueueTask(function() {
               return recursivelyFlushAsyncActWork(
                 returnValue$jscomp$0,
-                resolve40,
+                resolve42,
                 reject
               );
-            })) : resolve40(returnValue$jscomp$0);
+            })) : resolve42(returnValue$jscomp$0);
           }
         };
       };
@@ -47190,7 +47198,7 @@ var require_react_dom_server_node_production = __commonJS({
       };
     }
     exports.prerender = function(children, options) {
-      return new Promise(function(resolve40, reject) {
+      return new Promise(function(resolve42, reject) {
         var onHeaders = options ? options.onHeaders : void 0, onHeadersImpl;
         onHeaders && (onHeadersImpl = function(headersDescriptor) {
           onHeaders(new Headers(headersDescriptor));
@@ -47233,7 +47241,7 @@ var require_react_dom_server_node_production = __commonJS({
               { highWaterMark: 0 }
             );
             stream2 = { postponed: getPostponedState(request), prelude: stream2 };
-            resolve40(stream2);
+            resolve42(stream2);
           },
           void 0,
           void 0,
@@ -47255,7 +47263,7 @@ var require_react_dom_server_node_production = __commonJS({
       });
     };
     exports.prerenderToNodeStream = function(children, options) {
-      return new Promise(function(resolve40, reject) {
+      return new Promise(function(resolve42, reject) {
         var resumableState = createResumableState(
           options ? options.identifierPrefix : void 0,
           options ? options.unstable_externalRuntimeSrc : void 0,
@@ -47286,7 +47294,7 @@ var require_react_dom_server_node_production = __commonJS({
               postponed: getPostponedState(request),
               prelude: readable
             };
-            resolve40(readable);
+            resolve42(readable);
           },
           void 0,
           void 0,
@@ -47342,7 +47350,7 @@ var require_react_dom_server_node_production = __commonJS({
       };
     };
     exports.renderToReadableStream = function(children, options) {
-      return new Promise(function(resolve40, reject) {
+      return new Promise(function(resolve42, reject) {
         var onFatalError, onAllReady, allReady = new Promise(function(res, rej) {
           onAllReady = res;
           onFatalError = rej;
@@ -47391,7 +47399,7 @@ var require_react_dom_server_node_production = __commonJS({
               { highWaterMark: 0 }
             );
             stream2.allReady = allReady;
-            resolve40(stream2);
+            resolve42(stream2);
           },
           function(error52) {
             allReady.catch(function() {
@@ -47417,7 +47425,7 @@ var require_react_dom_server_node_production = __commonJS({
       });
     };
     exports.resume = function(children, postponedState, options) {
-      return new Promise(function(resolve40, reject) {
+      return new Promise(function(resolve42, reject) {
         var onFatalError, onAllReady, allReady = new Promise(function(res, rej) {
           onAllReady = res;
           onFatalError = rej;
@@ -47454,7 +47462,7 @@ var require_react_dom_server_node_production = __commonJS({
               { highWaterMark: 0 }
             );
             stream2.allReady = allReady;
-            resolve40(stream2);
+            resolve42(stream2);
           },
           function(error52) {
             allReady.catch(function() {
@@ -47479,7 +47487,7 @@ var require_react_dom_server_node_production = __commonJS({
       });
     };
     exports.resumeAndPrerender = function(children, postponedState, options) {
-      return new Promise(function(resolve40, reject) {
+      return new Promise(function(resolve42, reject) {
         var request = resumeAndPrerenderRequest(
           children,
           postponedState,
@@ -47510,7 +47518,7 @@ var require_react_dom_server_node_production = __commonJS({
               { highWaterMark: 0 }
             );
             stream2 = { postponed: getPostponedState(request), prelude: stream2 };
-            resolve40(stream2);
+            resolve42(stream2);
           },
           void 0,
           void 0,
@@ -47532,7 +47540,7 @@ var require_react_dom_server_node_production = __commonJS({
       });
     };
     exports.resumeAndPrerenderToNodeStream = function(children, postponedState, options) {
-      return new Promise(function(resolve40, reject) {
+      return new Promise(function(resolve42, reject) {
         var request = resumeAndPrerenderRequest(
           children,
           postponedState,
@@ -47552,7 +47560,7 @@ var require_react_dom_server_node_production = __commonJS({
               }
             }), writable = createFakeWritableFromReadable(readable);
             readable = { postponed: getPostponedState(request), prelude: readable };
-            resolve40(readable);
+            resolve42(readable);
           },
           void 0,
           void 0,
@@ -62179,7 +62187,7 @@ var require_react_dom_server_node_development = __commonJS({
       ensureCorrectIsomorphicReactVersion();
       ensureCorrectIsomorphicReactVersion();
       exports.prerender = function(children, options) {
-        return new Promise(function(resolve40, reject) {
+        return new Promise(function(resolve42, reject) {
           var onHeaders = options ? options.onHeaders : void 0, onHeadersImpl;
           onHeaders && (onHeadersImpl = function(headersDescriptor) {
             onHeaders(new Headers(headersDescriptor));
@@ -62227,7 +62235,7 @@ var require_react_dom_server_node_development = __commonJS({
                 postponed: getPostponedState(request),
                 prelude: stream2
               };
-              resolve40(stream2);
+              resolve42(stream2);
             },
             void 0,
             void 0,
@@ -62249,7 +62257,7 @@ var require_react_dom_server_node_development = __commonJS({
         });
       };
       exports.prerenderToNodeStream = function(children, options) {
-        return new Promise(function(resolve40, reject) {
+        return new Promise(function(resolve42, reject) {
           var resumableState = createResumableState(
             options ? options.identifierPrefix : void 0,
             options ? options.unstable_externalRuntimeSrc : void 0,
@@ -62280,7 +62288,7 @@ var require_react_dom_server_node_development = __commonJS({
                 postponed: getPostponedState(request),
                 prelude: readable
               };
-              resolve40(readable);
+              resolve42(readable);
             },
             void 0,
             void 0,
@@ -62336,7 +62344,7 @@ var require_react_dom_server_node_development = __commonJS({
         };
       };
       exports.renderToReadableStream = function(children, options) {
-        return new Promise(function(resolve40, reject) {
+        return new Promise(function(resolve42, reject) {
           var onFatalError, onAllReady, allReady = new Promise(function(res, rej) {
             onAllReady = res;
             onFatalError = rej;
@@ -62385,7 +62393,7 @@ var require_react_dom_server_node_development = __commonJS({
                 { highWaterMark: 0 }
               );
               stream2.allReady = allReady;
-              resolve40(stream2);
+              resolve42(stream2);
             },
             function(error52) {
               allReady.catch(function() {
@@ -62411,7 +62419,7 @@ var require_react_dom_server_node_development = __commonJS({
         });
       };
       exports.resume = function(children, postponedState, options) {
-        return new Promise(function(resolve40, reject) {
+        return new Promise(function(resolve42, reject) {
           var onFatalError, onAllReady, allReady = new Promise(function(res, rej) {
             onAllReady = res;
             onFatalError = rej;
@@ -62448,7 +62456,7 @@ var require_react_dom_server_node_development = __commonJS({
                 { highWaterMark: 0 }
               );
               stream2.allReady = allReady;
-              resolve40(stream2);
+              resolve42(stream2);
             },
             function(error52) {
               allReady.catch(function() {
@@ -62473,7 +62481,7 @@ var require_react_dom_server_node_development = __commonJS({
         });
       };
       exports.resumeAndPrerender = function(children, postponedState, options) {
-        return new Promise(function(resolve40, reject) {
+        return new Promise(function(resolve42, reject) {
           var request = resumeAndPrerenderRequest(
             children,
             postponedState,
@@ -62506,7 +62514,7 @@ var require_react_dom_server_node_development = __commonJS({
                 { highWaterMark: 0 }
               );
               stream2 = { postponed: getPostponedState(request), prelude: stream2 };
-              resolve40(stream2);
+              resolve42(stream2);
             },
             void 0,
             void 0,
@@ -62528,7 +62536,7 @@ var require_react_dom_server_node_development = __commonJS({
         });
       };
       exports.resumeAndPrerenderToNodeStream = function(children, postponedState, options) {
-        return new Promise(function(resolve40, reject) {
+        return new Promise(function(resolve42, reject) {
           var request = resumeAndPrerenderRequest(
             children,
             postponedState,
@@ -62551,7 +62559,7 @@ var require_react_dom_server_node_development = __commonJS({
                 postponed: getPostponedState(request),
                 prelude: readable
               };
-              resolve40(readable);
+              resolve42(readable);
             },
             void 0,
             void 0,
@@ -67489,9 +67497,12 @@ function resolveFromPackageScripts(input, needs) {
   return { status: "ready", commands };
 }
 function resolveVerificationCommands(input) {
-  const explicitCommand = explicitInlineVerifyWithCommand(input);
-  if (explicitCommand !== void 0)
-    return { status: "ready", commands: [explicitCommand] };
+  const needs = uniqueNeeds(input.requestedNeeds);
+  if (!needs.some((need) => CENSUS_ORACLE_NEEDS.has(need))) {
+    const explicitCommand = explicitInlineVerifyWithCommand(input);
+    if (explicitCommand !== void 0)
+      return { status: "ready", commands: [explicitCommand] };
+  }
   const projectRoot = input.projectRoot;
   if (projectRoot === void 0) {
     return {
@@ -67503,7 +67514,6 @@ function resolveVerificationCommands(input) {
   if (declared.status === "invalid")
     return { status: "blocked", reason: declared.reason };
   const declaredConfig = declared.status === "declared" ? declared.config : {};
-  const needs = uniqueNeeds(input.requestedNeeds);
   const declaredCommands = [];
   const unresolved = [];
   for (const need of needs) {
@@ -67529,17 +67539,22 @@ function resolveVerificationCommands(input) {
   }
   const fromScripts = resolveFromPackageScripts({ ...input, projectRoot }, unresolved);
   if (fromScripts.status === "blocked") {
-    const declaredKeys = Object.keys(declaredConfig);
-    if (declaredKeys.length === 0)
-      return fromScripts;
-    const listed = declaredKeys.map((key) => `verification.${key}`).join(", ");
     const wanted = unresolved.map((need) => `verification.${need}`).join(", ");
+    const declaredKeys = Object.keys(declaredConfig).filter((key) => key !== "frozen_paths");
+    const listed = declaredKeys.map((key) => `verification.${key}`).join(", ");
+    const declaredNote = declaredKeys.length === 0 ? "" : ` ${PROJECT_CONFIG_DISPLAY_PATH} declares ${listed} but not ${wanted}.`;
     return {
       status: "blocked",
-      reason: `${fromScripts.reason} ${PROJECT_CONFIG_DISPLAY_PATH} declares ${listed} but not ${wanted}; add ${wanted} there.`
+      reason: `${fromScripts.reason}${declaredNote} Declare ${wanted} in ${PROJECT_CONFIG_DISPLAY_PATH}.`
     };
   }
   return { status: "ready", commands: [...declaredCommands, ...fromScripts.commands] };
+}
+function declaredFrozenPaths(projectRoot) {
+  const declared = readDeclaredVerification(projectRoot);
+  if (declared.status !== "declared")
+    return [];
+  return declared.config.frozen_paths ?? [];
 }
 function requireResolvedVerificationCommands(input) {
   const result = resolveVerificationCommands(input);
@@ -67560,7 +67575,7 @@ function inferBuildVerificationNeeds(goal) {
     needs.push("lint");
   return needs.length > 0 ? needs : ["general"];
 }
-var import_yaml3, DEFAULT_VERIFICATION_TIMEOUT_MS, PROJECT_CONFIG_DISPLAY_PATH;
+var import_yaml3, CENSUS_ORACLE_NEEDS, DEFAULT_VERIFICATION_TIMEOUT_MS, PROJECT_CONFIG_DISPLAY_PATH;
 var init_verification_resolver = __esm({
   "dist/shared/verification-resolver.js"() {
     "use strict";
@@ -67568,6 +67583,7 @@ var init_verification_resolver = __esm({
     init_verification();
     init_control_plane_paths();
     init_proof_plan();
+    CENSUS_ORACLE_NEEDS = /* @__PURE__ */ new Set(["scan", "audit"]);
     DEFAULT_VERIFICATION_TIMEOUT_MS = 6e5;
     PROJECT_CONFIG_DISPLAY_PATH = PROJECT_CONFIG_RELATIVE_SEGMENTS.join("/");
   }
@@ -73911,25 +73927,26 @@ var init_spec = __esm({
 });
 
 // dist/flows/explainer/writers/verification.js
-var DEFAULT_COMMANDS, explainerVerificationWriter;
+var SITE_BUILD_NEEDS, SITE_BUILD_TIMEOUT_MS, SITE_BUILD_MAX_OUTPUT_BYTES, explainerVerificationWriter;
 var init_verification4 = __esm({
   "dist/flows/explainer/writers/verification.js"() {
     "use strict";
+    init_verification_resolver();
     init_reports3();
-    DEFAULT_COMMANDS = [
-      {
-        id: "site-build",
-        cwd: ".",
-        argv: ["npm", "run", "build"],
-        timeout_ms: 6e5,
-        max_output_bytes: 2e5,
-        env: {}
-      }
-    ];
+    SITE_BUILD_NEEDS = ["build"];
+    SITE_BUILD_TIMEOUT_MS = 6e5;
+    SITE_BUILD_MAX_OUTPUT_BYTES = 2e5;
     explainerVerificationWriter = {
       resultSchemaName: "explainer.verification@v1",
-      loadCommands() {
-        return DEFAULT_COMMANDS;
+      loadCommands(context) {
+        return requireResolvedVerificationCommands({
+          ...context.projectRoot === void 0 ? {} : { projectRoot: context.projectRoot },
+          goal: "",
+          requestedNeeds: SITE_BUILD_NEEDS,
+          commandIdPrefix: "explainer",
+          timeoutMs: SITE_BUILD_TIMEOUT_MS,
+          maxOutputBytes: SITE_BUILD_MAX_OUTPUT_BYTES
+        });
       },
       buildResult(observations) {
         const overallStatus = observations.some((observation) => observation.status === "failed") ? "failed" : "passed";
@@ -88698,7 +88715,7 @@ var init_flow12 = __esm({
 });
 
 // dist/flows/sweep/paths.js
-var SWEEP_CENSUS_REPORT_PATH, SWEEP_PARTITION_REPORT_PATH, SWEEP_WAVE_AGGREGATE_PATH, SWEEP_WAVE_BRANCHES_DIR, SWEEP_RESCAN_REPORT_PATH, SWEEP_CARRIED_NOTES_PATH, SWEEP_JUDGE_REQUEST_PATH, SWEEP_JUDGE_RECEIPT_PATH, SWEEP_JUDGE_RESULT_PATH, SWEEP_JUDGE_REPORT_PATH;
+var SWEEP_CENSUS_REPORT_PATH, SWEEP_PARTITION_REPORT_PATH, SWEEP_WAVE_AGGREGATE_PATH, SWEEP_WAVE_BRANCHES_DIR, SWEEP_RESCAN_REPORT_PATH, SWEEP_CARRIED_NOTES_PATH, SWEEP_JUDGE_REQUEST_PATH, SWEEP_JUDGE_RECEIPT_PATH, SWEEP_JUDGE_RESULT_PATH, SWEEP_JUDGE_REPORT_PATH, SWEEP_FLOW_FROZEN_PATHS;
 var init_paths = __esm({
   "dist/flows/sweep/paths.js"() {
     "use strict";
@@ -88712,6 +88729,7 @@ var init_paths = __esm({
     SWEEP_JUDGE_RECEIPT_PATH = "reports/sweep/judgment.receipt.txt";
     SWEEP_JUDGE_RESULT_PATH = "reports/sweep/judgment.result.json";
     SWEEP_JUDGE_REPORT_PATH = "reports/sweep/judgment.report.json";
+    SWEEP_FLOW_FROZEN_PATHS = ["tsconfig.json"];
   }
 });
 
@@ -88881,7 +88899,7 @@ var init_assembly_spec12 = __esm({
           // The scanner's config surface. A worker that edits it to silence a
           // finding latches the honesty ledger, so the run cannot close clean by
           // relaxing the rules instead of fixing the code.
-          frozen_paths: ["tsconfig.json"],
+          frozen_paths: [...SWEEP_FLOW_FROZEN_PATHS],
           activate_when_depth_at_least: "autonomous"
         }
       },
@@ -89083,23 +89101,28 @@ var init_reports12 = __esm({
 
 // dist/flows/sweep/writers/scan.js
 import { spawnSync as spawnSync4 } from "node:child_process";
+import { resolve as resolve16 } from "node:path";
+function runOracle(projectRoot, command) {
+  const [executable, ...args] = command.argv;
+  if (executable === void 0) {
+    throw new Error("sweep scan: resolved oracle command has an empty argv");
+  }
+  const result = spawnSync4(executable, args, {
+    cwd: resolve16(projectRoot, command.cwd),
+    encoding: "utf8",
+    maxBuffer: MAX_SCAN_BUFFER_BYTES,
+    timeout: command.timeout_ms,
+    stdio: ["ignore", "pipe", "pipe"]
+  });
+  if (result.error !== void 0) {
+    throw new Error(`sweep scan: '${command.argv.join(" ")}' could not be spawned: ${result.error.message}`);
+  }
+  return outputToString2(result.stdout);
+}
 function outputToString2(output) {
   if (output === null || output === void 0)
     return "";
   return typeof output === "string" ? output : Buffer.from(output).toString("utf8");
-}
-function runSilentScript(projectRoot, script) {
-  const result = spawnSync4("npm", ["--silent", "run", script], {
-    cwd: projectRoot,
-    encoding: "utf8",
-    maxBuffer: MAX_SCAN_BUFFER_BYTES,
-    timeout: SCAN_TIMEOUT_MS,
-    stdio: ["ignore", "pipe", "pipe"]
-  });
-  if (result.error !== void 0) {
-    throw new Error(`sweep scan: 'npm run ${script}' could not be spawned: ${result.error.message}`);
-  }
-  return outputToString2(result.stdout);
 }
 function parseScannerFindings(stdout) {
   const trimmed = stdout.trim();
@@ -89124,63 +89147,70 @@ function parseScannerFindings(stdout) {
   }
   return rawFindings.map((finding3) => SweepFinding.parse(finding3));
 }
-function runScannerFindings(projectRoot) {
-  return parseScannerFindings(runSilentScript(projectRoot, "scan"));
+function runScannerFindings(projectRoot, scanner) {
+  return parseScannerFindings(runOracle(projectRoot, scanner));
 }
-function runSuppressionBaseline(projectRoot) {
-  const stdout = runSilentScript(projectRoot, "audit").trim();
+function runSuppressionBaseline(projectRoot, audit) {
+  const stdout = runOracle(projectRoot, audit).trim();
   const match = stdout.match(/-?\d+/);
   if (match === null) {
     throw new Error("sweep census: audit script did not print a suppression count");
   }
   return Math.max(0, Number.parseInt(match[0], 10));
 }
-var MAX_SCAN_BUFFER_BYTES, SCAN_TIMEOUT_MS;
+var MAX_SCAN_BUFFER_BYTES;
 var init_scan = __esm({
   "dist/flows/sweep/writers/scan.js"() {
     "use strict";
     init_reports12();
     MAX_SCAN_BUFFER_BYTES = 16 * 1024 * 1024;
-    SCAN_TIMEOUT_MS = 12e4;
   }
 });
 
 // dist/flows/sweep/writers/census.js
-function scannerCommand() {
-  return VerificationCommand.parse({
-    id: "sweep-scan",
-    cwd: ".",
-    argv: ["npm", "run", "scan"],
-    timeout_ms: ORACLE_TIMEOUT_MS,
-    max_output_bytes: ORACLE_MAX_OUTPUT_BYTES,
-    env: {}
-  });
+import { existsSync as existsSync22 } from "node:fs";
+import { resolve as resolve17 } from "node:path";
+function configSurface(projectRoot) {
+  const surface = [
+    .../* @__PURE__ */ new Set([...SWEEP_FLOW_FROZEN_PATHS, ...declaredFrozenPaths(projectRoot)])
+  ].sort();
+  const present = surface.filter((path) => existsSync22(resolve17(projectRoot, path)));
+  if (present.length === 0) {
+    const missing = surface.join(", ");
+    throw new ProofPlanBlockedError(`Sweep cannot start because none of the config files it would freeze exist: ${missing}. Sweep guards against a worker relaxing the rules instead of fixing the code, and it can only do that for files that are there. Declare the config your scanner reads, for example: circuit config set verification.frozen_paths '[pyproject.toml]'`);
+  }
+  return surface;
 }
-function suppressionAuditCommand() {
-  return VerificationCommand.parse({
-    id: "sweep-audit",
-    cwd: ".",
-    argv: ["npm", "run", "audit"],
-    timeout_ms: ORACLE_TIMEOUT_MS,
-    max_output_bytes: ORACLE_MAX_OUTPUT_BYTES,
-    env: {}
+function resolveOracle(context, need) {
+  const [command] = requireResolvedVerificationCommands({
+    ...context.projectRoot === void 0 ? {} : { projectRoot: context.projectRoot },
+    goal: context.goal,
+    requestedNeeds: [need],
+    commandIdPrefix: "sweep",
+    timeoutMs: ORACLE_TIMEOUT_MS,
+    maxOutputBytes: ORACLE_MAX_OUTPUT_BYTES
   });
+  if (command === void 0) {
+    throw new Error(`sweep census: resolver returned no command for '${need}'`);
+  }
+  return command;
 }
 function targetedSet(findings) {
   return [
     ...new Set(findings.map((finding3) => finding3.file).filter((file2) => file2 !== null))
   ].sort();
 }
-var ORACLE_TIMEOUT_MS, ORACLE_MAX_OUTPUT_BYTES, SWEEP_CONFIG_SURFACE, sweepCensusComposeBuilder;
+var ORACLE_TIMEOUT_MS, ORACLE_MAX_OUTPUT_BYTES, sweepCensusComposeBuilder;
 var init_census = __esm({
   "dist/flows/sweep/writers/census.js"() {
     "use strict";
-    init_verification();
+    init_proof_plan();
+    init_verification_resolver();
+    init_paths();
     init_reports12();
     init_scan();
     ORACLE_TIMEOUT_MS = 12e4;
     ORACLE_MAX_OUTPUT_BYTES = 1e6;
-    SWEEP_CONFIG_SURFACE = ["tsconfig.json"];
     sweepCensusComposeBuilder = {
       resultSchemaName: "sweep.census@v1",
       build(context) {
@@ -89188,14 +89218,16 @@ var init_census = __esm({
         if (projectRoot === void 0) {
           throw new Error("sweep census requires projectRoot to run the scanner; none was provided by the invocation");
         }
-        const findings = runScannerFindings(projectRoot);
-        const suppressionBaseline = runSuppressionBaseline(projectRoot);
+        const scanner = resolveOracle(context, "scan");
+        const suppressionAudit = resolveOracle(context, "audit");
+        const findings = runScannerFindings(projectRoot, scanner);
+        const suppressionBaseline = runSuppressionBaseline(projectRoot, suppressionAudit);
         return SweepCensus.parse({
           objective: context.goal,
-          scanner: scannerCommand(),
-          suppression_audit: suppressionAuditCommand(),
+          scanner,
+          suppression_audit: suppressionAudit,
           suppression_baseline: suppressionBaseline,
-          config_surface: [...SWEEP_CONFIG_SURFACE],
+          config_surface: configSurface(projectRoot),
           findings,
           total_finding_count: findings.length,
           targeted_set: targetedSet(findings)
@@ -89206,14 +89238,18 @@ var init_census = __esm({
 });
 
 // dist/flows/sweep/writers/partition.js
-import { existsSync as existsSync22, readFileSync as readFileSync37 } from "node:fs";
+import { existsSync as existsSync23, readFileSync as readFileSync37 } from "node:fs";
+function pinnedScanner(context) {
+  const censusPath = reportPathForSchemaInRuntimeFlow(context.flow, "sweep.census@v1");
+  return SweepCensus.parse(JSON.parse(readFileSync37(resolveRunRelative(context.runFolder, censusPath), "utf8"))).scanner;
+}
 function sanitizeForBranchId(value) {
   const cleaned = value.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-+|-+$/g, "");
   return cleaned.length === 0 ? "unit" : cleaned;
 }
 function latestLesson(runFolder) {
   const notesPath = resolveRunRelative(runFolder, SWEEP_CARRIED_NOTES_PATH);
-  if (!existsSync22(notesPath))
+  if (!existsSync23(notesPath))
     return void 0;
   let parsed;
   try {
@@ -89284,6 +89320,7 @@ var init_partition = __esm({
   "dist/flows/sweep/writers/partition.js"() {
     "use strict";
     init_run_relative_path();
+    init_runtime_index();
     init_paths();
     init_reports12();
     init_scan();
@@ -89294,7 +89331,7 @@ var init_partition = __esm({
         if (projectRoot === void 0) {
           throw new Error("sweep partition requires projectRoot to re-scan the tree; none was provided by the invocation");
         }
-        const findings = runScannerFindings(projectRoot);
+        const findings = runScannerFindings(projectRoot, pinnedScanner(context));
         if (findings.length === 0) {
           throw new Error("sweep partition: re-scan found no findings, so there is nothing to fan out. The loop should have completed at the judge on a green rescan; reaching partition with an empty backlog means the judge advanced when it should have stopped.");
         }
@@ -89306,7 +89343,7 @@ var init_partition = __esm({
 });
 
 // dist/flows/sweep/writers/verification.js
-import { existsSync as existsSync23, readFileSync as readFileSync38 } from "node:fs";
+import { existsSync as existsSync24, readFileSync as readFileSync38 } from "node:fs";
 import { join as join17 } from "node:path";
 function loadCensus(context) {
   const censusPath = reportPathForSchemaInRuntimeFlow(context.flow, "sweep.census@v1");
@@ -89321,7 +89358,7 @@ function missingCensusedFiles(context) {
     throw new Error("sweep.verification@v1 requires projectRoot to check census set coverage; none was provided");
   }
   const census = loadCensus(context);
-  return census.targeted_set.filter((file2) => !existsSync23(join17(projectRoot, file2)));
+  return census.targeted_set.filter((file2) => !existsSync24(join17(projectRoot, file2)));
 }
 var sweepRescanVerificationWriter;
 var init_verification9 = __esm({
@@ -91298,9 +91335,9 @@ var init_custom_flow_descriptor = __esm({
 
 // dist/cli/custom-flow-package.js
 import { randomUUID as randomUUID3 } from "node:crypto";
-import { existsSync as existsSync24, mkdirSync as mkdirSync4, readFileSync as readFileSync39, rmSync as rmSync4, writeFileSync as writeFileSync5 } from "node:fs";
+import { existsSync as existsSync25, mkdirSync as mkdirSync4, readFileSync as readFileSync39, rmSync as rmSync4, writeFileSync as writeFileSync5 } from "node:fs";
 import { homedir as homedir2 } from "node:os";
-import { dirname as dirname8, join as join18, resolve as resolve16 } from "node:path";
+import { dirname as dirname8, join as join18, resolve as resolve18 } from "node:path";
 function slugify2(value) {
   const slug = value.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-+|-+$/g, "").slice(0, 48).replace(/-+$/g, "");
   return slug.length > 0 ? slug : `custom-${randomUUID3().slice(0, 8)}`;
@@ -91314,7 +91351,7 @@ function assertValidSlug(slug) {
   }
 }
 function customHome(home) {
-  return resolve16(home ?? join18(homedir2(), ".config", "circuit", "custom"));
+  return resolve18(home ?? join18(homedir2(), ".config", "circuit", "custom"));
 }
 function draftRoot(home, slug) {
   return join18(home, "drafts", slug);
@@ -91436,7 +91473,7 @@ function publishManifest(input) {
     schema_version: 1,
     custom_flows: []
   };
-  if (existsSync24(manifestPath(input.home))) {
+  if (existsSync25(manifestPath(input.home))) {
     existing = JSON.parse(readFileSync39(manifestPath(input.home), "utf8"));
   }
   const withoutSlug = existing.custom_flows.filter((flow) => !(typeof flow === "object" && flow !== null && "id" in flow && flow.id === input.slug));
@@ -91516,7 +91553,7 @@ function loadDraftFlow(home, slug) {
 }
 function publishDraft(input) {
   const draft = draftRoot(input.home, input.slug);
-  if (!existsSync24(join18(draft, "SKILL.md"))) {
+  if (!existsSync25(join18(draft, "SKILL.md"))) {
     throw new Error(`draft missing for ${input.slug}: ${draft}`);
   }
   const descriptor = readFileSync39(join18(draft, "circuit.yaml"), "utf8");
@@ -91551,7 +91588,7 @@ var init_custom_flow_package = __esm({
 
 // dist/cli/runtime-routing-policy.js
 import { readFileSync as readFileSync40 } from "node:fs";
-import { basename as basename4, dirname as dirname9, relative as relative10, resolve as resolve17 } from "node:path";
+import { basename as basename4, dirname as dirname9, relative as relative10, resolve as resolve19 } from "node:path";
 function pathIsInside(parent, child) {
   const rel = relative10(parent, child);
   return rel.length === 0 || !rel.startsWith("..") && !rel.startsWith("/");
@@ -91559,8 +91596,8 @@ function pathIsInside(parent, child) {
 function fixtureEligibleForRuntime(input) {
   if (input.args.fixturePath === void 0 && input.args.flowRoot === void 0)
     return true;
-  const fixturePath = resolve17(input.fixturePath);
-  if (pathIsInside(resolve17(input.generatedFlowsRoot ?? "generated/flows"), fixturePath)) {
+  const fixturePath = resolve19(input.fixturePath);
+  if (pathIsInside(resolve19(input.generatedFlowsRoot ?? "generated/flows"), fixturePath)) {
     return true;
   }
   if (input.args.flowRoot !== void 0 && publishedCustomFlowMatches(input.args.flowRoot, fixturePath)) {
@@ -91570,12 +91607,12 @@ function fixtureEligibleForRuntime(input) {
   if (mirrorRoot === void 0 || mirrorRoot.length === 0 || input.args.flowRoot === void 0) {
     return false;
   }
-  const trustedMirrorRoot = resolve17(mirrorRoot);
-  return resolve17(input.args.flowRoot) === trustedMirrorRoot && pathIsInside(trustedMirrorRoot, fixturePath);
+  const trustedMirrorRoot = resolve19(mirrorRoot);
+  return resolve19(input.args.flowRoot) === trustedMirrorRoot && pathIsInside(trustedMirrorRoot, fixturePath);
 }
 function readCustomFlowEntries(flowRoot2) {
   try {
-    const manifest = JSON.parse(readFileSync40(resolve17(dirname9(resolve17(flowRoot2)), "manifest.json"), "utf8"));
+    const manifest = JSON.parse(readFileSync40(resolve19(dirname9(resolve19(flowRoot2)), "manifest.json"), "utf8"));
     if (manifest === null || typeof manifest !== "object" || Array.isArray(manifest))
       return [];
     const customFlows = manifest.custom_flows;
@@ -91590,12 +91627,12 @@ function recordedFlowPaths(candidate) {
   const paths = [];
   const flowPath = candidate.flow_path;
   if (typeof flowPath === "string")
-    paths.push(resolve17(flowPath));
+    paths.push(resolve19(flowPath));
   const flowPaths = candidate.flow_paths;
   if (Array.isArray(flowPaths)) {
     for (const entry of flowPaths) {
       if (typeof entry === "string")
-        paths.push(resolve17(entry));
+        paths.push(resolve19(entry));
     }
   }
   return paths;
@@ -91607,7 +91644,7 @@ function unrecordedPublishedSiblingReason(input) {
   const flowRoot2 = input.args.flowRoot;
   if (flowRoot2 === void 0)
     return void 0;
-  const fixturePath = resolve17(input.fixturePath);
+  const fixturePath = resolve19(input.fixturePath);
   const fixtureDir = dirname9(fixturePath);
   for (const candidate of readCustomFlowEntries(flowRoot2)) {
     const recorded = recordedFlowPaths(candidate);
@@ -93799,9 +93836,9 @@ var init_fanout_branch_template = __esm({
 });
 
 // dist/shared/user-skill-registry.js
-import { existsSync as existsSync26, readFileSync as readFileSync41, readdirSync as readdirSync4 } from "node:fs";
+import { existsSync as existsSync27, readFileSync as readFileSync41, readdirSync as readdirSync4 } from "node:fs";
 import { homedir as homedir3 } from "node:os";
-import { join as join20, resolve as resolve18 } from "node:path";
+import { join as join20, resolve as resolve20 } from "node:path";
 function defaultUserSkillRoots(homeDir = homedir3()) {
   return [join20(homeDir, ".agents", "skills"), join20(homeDir, ".claude", "skills")];
 }
@@ -93834,8 +93871,8 @@ function parseSkillMarkdown(text, skillPath) {
 function discoverCandidates(roots) {
   const candidates = /* @__PURE__ */ new Map();
   for (const root of roots) {
-    const rootAbs = resolve18(root);
-    if (!existsSync26(rootAbs))
+    const rootAbs = resolve20(root);
+    if (!existsSync27(rootAbs))
       continue;
     for (const entry of readdirSync4(rootAbs, { withFileTypes: true })) {
       if (!entry.isDirectory())
@@ -93847,7 +93884,7 @@ function discoverCandidates(roots) {
       if (candidates.has(key))
         continue;
       const skillPath = join20(rootAbs, entry.name, "SKILL.md");
-      if (!existsSync26(skillPath))
+      if (!existsSync27(skillPath))
         continue;
       candidates.set(key, {
         id: id.data,
@@ -93879,7 +93916,7 @@ function loadCandidate(candidate) {
 function createUserSkillRegistry(options = {}) {
   const roots = options.roots ?? defaultUserSkillRoots(options.homeDir);
   const candidates = discoverCandidates(roots);
-  const searchedRoots = roots.map((root) => resolve18(root));
+  const searchedRoots = roots.map((root) => resolve20(root));
   const cache3 = /* @__PURE__ */ new Map();
   const loadCached = (key, candidate) => {
     const cached2 = cache3.get(key);
@@ -95982,7 +96019,7 @@ var init_remediation = __esm({
 });
 
 // dist/connectors/state-dir.js
-import { existsSync as existsSync27, mkdirSync as mkdirSync5, rmdirSync, unlinkSync, writeFileSync as writeFileSync6 } from "node:fs";
+import { existsSync as existsSync28, mkdirSync as mkdirSync5, rmdirSync, unlinkSync, writeFileSync as writeFileSync6 } from "node:fs";
 import { homedir as homedir4 } from "node:os";
 import { join as join22 } from "node:path";
 function codexStateDir(env3 = process.env) {
@@ -95995,7 +96032,7 @@ function probeStateDirWritable(dir) {
   const probeFile = join22(dir, `.circuit-write-probe-${process.pid}`);
   let createdDir = false;
   try {
-    if (!existsSync27(dir)) {
+    if (!existsSync28(dir)) {
       mkdirSync5(dir, { recursive: true });
       createdDir = true;
     }
@@ -96210,7 +96247,7 @@ function parseNdjsonObjects(stdout, label) {
 }
 async function runConnectorSubprocess(input) {
   const start = performance2.now();
-  return await new Promise((resolve40, reject) => {
+  return await new Promise((resolve42, reject) => {
     let child;
     try {
       child = spawn(input.executable, [...input.args], {
@@ -96292,7 +96329,7 @@ async function runConnectorSubprocess(input) {
     });
     child.on("close", (code, signal) => {
       clearAllTimers();
-      resolve40({
+      resolve42({
         stdout,
         stderr,
         stdoutCapped,
@@ -100445,7 +100482,7 @@ var init_schemas3 = __esm({
 });
 
 // dist/runtime/run/relay-support.js
-import { existsSync as existsSync28, readFileSync as readFileSync44 } from "node:fs";
+import { existsSync as existsSync29, readFileSync as readFileSync44 } from "node:fs";
 function evaluateRelayCheck(step, resultBody) {
   let parsed;
   try {
@@ -100681,7 +100718,7 @@ function deliveredContextSection(slices) {
 function composeRelayPrompt(step, runFolder, loadedSkills = [], acceptanceRetryFeedback, operatorGoal, memoryInputs = [], flowId, depth, activeSlice, operatorWhy, powerDialAuto, branchGoal, deliveredContextSlices) {
   const readsBody = step.reads.length === 0 ? "(no reads)" : step.reads.map((path) => {
     const abs = resolveRunRelative(runFolder, path);
-    if (!existsSync28(abs))
+    if (!existsSync29(abs))
       return `[reads unavailable: ${path}]`;
     return fencedBlock("read", ` path="${path}"`, readFileSync44(abs, "utf8"));
   }).join("\n\n");
@@ -101392,8 +101429,8 @@ function connectorRetryBackoffMs(attemptNumber) {
   return CONNECTOR_RETRY_BASE_BACKOFF_MS * 2 ** Math.max(0, attemptNumber - 2);
 }
 async function pauseMs(ms) {
-  await new Promise((resolve40) => {
-    setTimeout(resolve40, ms);
+  await new Promise((resolve42) => {
+    setTimeout(resolve42, ms);
   });
 }
 async function executeProductionRelay(step, context) {
@@ -101754,7 +101791,7 @@ var init_sub_run = __esm({
 });
 
 // dist/runtime/run/reuse-children.js
-import { existsSync as existsSync29, readFileSync as readFileSync45 } from "node:fs";
+import { existsSync as existsSync30, readFileSync as readFileSync45 } from "node:fs";
 import { isAbsolute as isAbsolute12, join as join26 } from "node:path";
 function isCompletedSubRunBranch(entry, stepId, branchId) {
   return entry.kind === "fanout.branch_completed" && entry.step_id === stepId && entry.branch_id === branchId && entry.branch_kind === "sub-run" && entry.child_outcome === "complete";
@@ -101782,7 +101819,7 @@ async function lookupReusableSubRunBranch(input) {
   }
   if (worktreePath === void 0)
     return void 0;
-  if (!existsSync29(join26(worktreePath, ".git")))
+  if (!existsSync30(join26(worktreePath, ".git")))
     return void 0;
   const resultAbs = isAbsolute12(completed.result_path) ? completed.result_path : join26(input.priorRunFolder, completed.result_path);
   let resultBody;
@@ -101977,8 +102014,8 @@ function planRelayFanoutBranchGuidanceDecision(input) {
   });
 }
 async function pause(ms) {
-  await new Promise((resolve40) => {
-    setTimeout(resolve40, ms);
+  await new Promise((resolve42) => {
+    setTimeout(resolve42, ms);
   });
 }
 function branchAnswerStands(attempt) {
@@ -102833,10 +102870,10 @@ var init_fanout = __esm({
 });
 
 // dist/runtime/run/oracle-command-pin.js
-import { existsSync as existsSync30, readFileSync as readFileSync47, realpathSync as realpathSync7, statSync as statSync3 } from "node:fs";
-import { dirname as dirname13, join as join29, relative as relative12, resolve as resolve19, sep as sep6 } from "node:path";
+import { existsSync as existsSync31, readFileSync as readFileSync47, realpathSync as realpathSync7, statSync as statSync3 } from "node:fs";
+import { dirname as dirname13, join as join29, relative as relative12, resolve as resolve21, sep as sep6 } from "node:path";
 function realProjectRoot(projectRoot) {
-  const rootAbs = resolve19(projectRoot);
+  const rootAbs = resolve21(projectRoot);
   try {
     return realpathSync7.native(rootAbs);
   } catch {
@@ -102855,7 +102892,7 @@ function existingFile(candidate) {
   }
 }
 function resolveSpecifier(fromFile, specifier) {
-  const base = resolve19(dirname13(fromFile), specifier);
+  const base = resolve21(dirname13(fromFile), specifier);
   for (const extension2 of PROGRAM_EXTENSIONS) {
     const candidate = `${base}${extension2}`;
     if (existingFile(candidate))
@@ -102883,7 +102920,7 @@ function seedProgramFiles(command, projectRoot, scriptBody) {
   for (const token of tokens) {
     if (!isPathCandidate(token))
       continue;
-    const candidate = resolve19(cwdAbs, token);
+    const candidate = resolve21(cwdAbs, token);
     if (candidate.includes(`${sep6}node_modules${sep6}`))
       continue;
     if (!isInsideProject(candidate, rootReal))
@@ -102939,7 +102976,7 @@ function readReferencedScriptBody(command, projectRoot) {
     return void 0;
   const cwdAbs = resolveProjectRelativeProofCwd(projectRoot, command.cwd);
   const packageJsonPath = join29(cwdAbs, "package.json");
-  if (!existsSync30(packageJsonPath)) {
+  if (!existsSync31(packageJsonPath)) {
     throw new OracleCommandDriftError(`oracle script "${script}" for command '${command.id}' vanished: package.json missing at its cwd`);
   }
   let parsed;
@@ -103609,7 +103646,7 @@ var init_carried_notes = __esm({
 // dist/runtime/run/frozen-eval.js
 import { createHash as createHash9 } from "node:crypto";
 import { readFileSync as readFileSync48 } from "node:fs";
-import { resolve as resolve20 } from "node:path";
+import { resolve as resolve22 } from "node:path";
 var ABSENT, FrozenEvalGuard;
 var init_frozen_eval = __esm({
   "dist/runtime/run/frozen-eval.js"() {
@@ -103628,7 +103665,7 @@ var init_frozen_eval = __esm({
       // or unreadable. Resolved against the injected project root; never cwd.
       fingerprint(declaredPath) {
         try {
-          const bytes = readFileSync48(resolve20(this.projectRoot, declaredPath));
+          const bytes = readFileSync48(resolve22(this.projectRoot, declaredPath));
           return createHash9("sha256").update(bytes).digest("hex");
         } catch {
           return ABSENT;
@@ -105489,7 +105526,8 @@ async function executeExecutableFlowOutcomeUnsafe(flow, options) {
     assertUntilFlagCoherent(flow, steps, untilFlag);
   }
   const untilCorridor = new UntilCorridor({ flag: untilFlag, depth: context.depth });
-  const frozenEvalGuard = untilFlag?.frozenPaths !== void 0 && untilFlag.frozenPaths.length > 0 && options.projectRoot !== void 0 ? new FrozenEvalGuard(options.projectRoot, untilFlag.frozenPaths) : void 0;
+  const frozenPaths = untilFlag?.frozenPaths !== void 0 && options.projectRoot !== void 0 ? [.../* @__PURE__ */ new Set([...untilFlag.frozenPaths, ...declaredFrozenPaths(options.projectRoot)])] : untilFlag?.frozenPaths ?? [];
+  const frozenEvalGuard = frozenPaths.length > 0 && options.projectRoot !== void 0 ? new FrozenEvalGuard(options.projectRoot, frozenPaths) : void 0;
   const contextDeliveryActive = options.contextDelivery !== void 0 && !sliceCorridor.isActive();
   const completedStepCounts = isResume ? completedStepCountsFromTrace(existingTrace, sliceCorridor) : /* @__PURE__ */ new Map();
   if (isResume) {
@@ -106290,6 +106328,7 @@ var init_graph_runner = __esm({
     init_fanout_branch_template();
     init_proof_plan();
     init_user_skill_registry();
+    init_verification_resolver();
     init_dispatch();
     init_injection();
     init_surface_sources();
@@ -107714,7 +107753,7 @@ var init_local_review_references = __esm({
 // dist/app/checkpoints/local-review-assets.js
 import { createHash as createHash10 } from "node:crypto";
 import { constants as constants5, closeSync as closeSync5, fstatSync as fstatSync4, lstatSync as lstatSync7, openSync as openSync5, readSync as readSync5, realpathSync as realpathSync8, statSync as statSync4 } from "node:fs";
-import { extname as extname2, isAbsolute as isAbsolute13, relative as relative13, resolve as resolve21, sep as sep7 } from "node:path";
+import { extname as extname2, isAbsolute as isAbsolute13, relative as relative13, resolve as resolve23, sep as sep7 } from "node:path";
 import { fileURLToPath as fileURLToPath3, pathToFileURL as pathToFileURL2 } from "node:url";
 function isInside4(root, target) {
   const fromRoot = relative13(root, target);
@@ -107722,8 +107761,8 @@ function isInside4(root, target) {
 }
 function safeRealFile(rootPath, targetPath) {
   try {
-    const root = resolve21(rootPath);
-    const target = resolve21(targetPath);
+    const root = resolve23(rootPath);
+    const target = resolve23(targetPath);
     const rootInfo = lstatSync7(root);
     if (!rootInfo.isDirectory() || rootInfo.isSymbolicLink() || !isInside4(root, target)) {
       return void 0;
@@ -107731,7 +107770,7 @@ function safeRealFile(rootPath, targetPath) {
     const realRoot = realpathSync8.native(root);
     let cursor = root;
     for (const segment of relative13(root, target).split(sep7)) {
-      cursor = resolve21(cursor, segment);
+      cursor = resolve23(cursor, segment);
       if (lstatSync7(cursor).isSymbolicLink())
         return void 0;
       const realCursor = realpathSync8.native(cursor);
@@ -107748,8 +107787,8 @@ function safeRealFile(rootPath, targetPath) {
 }
 function safeRealDirectory(rootPath, targetPath) {
   try {
-    const root = resolve21(rootPath);
-    const target = resolve21(targetPath);
+    const root = resolve23(rootPath);
+    const target = resolve23(targetPath);
     const rootInfo = lstatSync7(root);
     if (!rootInfo.isDirectory() || rootInfo.isSymbolicLink() || !isInside4(root, target)) {
       return void 0;
@@ -107757,7 +107796,7 @@ function safeRealDirectory(rootPath, targetPath) {
     const realRoot = realpathSync8.native(root);
     let cursor = root;
     for (const segment of relative13(root, target).split(sep7)) {
-      cursor = resolve21(cursor, segment);
+      cursor = resolve23(cursor, segment);
       const info = lstatSync7(cursor);
       if (info.isSymbolicLink())
         return void 0;
@@ -107972,7 +108011,7 @@ function referencesForAsset(asset) {
   return [];
 }
 function captureLocalCheckpointReviewAssets(options) {
-  const reportUrl = pathToFileURL2(resolve21(options.runFolder, REPORT_RELATIVE_PATH));
+  const reportUrl = pathToFileURL2(resolve23(options.runFolder, REPORT_RELATIVE_PATH));
   const strictGroups = (() => {
     if (options.reviewAssets.length === 0)
       return [];
@@ -107981,20 +108020,20 @@ function captureLocalCheckpointReviewAssets(options) {
     }
     const projectRoot = options.projectRoot;
     const verified = CheckpointReviewAssetGroups.parse(options.reviewAssets);
-    const realProjectRoot2 = realpathSync8.native(resolve21(projectRoot));
+    const realProjectRoot2 = realpathSync8.native(resolve23(projectRoot));
     return verified.map((group) => {
-      const root = safeRealDirectory(projectRoot, resolve21(projectRoot, group.root));
+      const root = safeRealDirectory(projectRoot, resolve23(projectRoot, group.root));
       if (root === void 0) {
         throw new Error("checkpoint review preview root could not be captured safely");
       }
       const entryPoints = new Set(group.entry_points.map((entryPoint) => {
-        const entry = safeRealFile(root, resolve21(realProjectRoot2, entryPoint));
+        const entry = safeRealFile(root, resolve23(realProjectRoot2, entryPoint));
         if (entry === void 0) {
           throw new Error("checkpoint review preview entry is not bound to the checkpoint");
         }
         return entry;
       }));
-      const files = new Map(group.files.map((file2) => [resolve21(realProjectRoot2, file2.path), file2.sha256]));
+      const files = new Map(group.files.map((file2) => [resolve23(realProjectRoot2, file2.path), file2.sha256]));
       return { root, entryPoints, files };
     });
   })();
@@ -108049,7 +108088,7 @@ function captureLocalCheckpointReviewAssets(options) {
     pathIndexes.set(captured.realPath, index);
     pending.push({
       realPath: captured.realPath,
-      root: realpathSync8.native(resolve21(input.root)),
+      root: realpathSync8.native(resolve23(input.root)),
       contentType,
       bytes: captured.bytes,
       pageReferences: input.pageReference === void 0 ? [] : [input.pageReference],
@@ -108064,7 +108103,7 @@ function captureLocalCheckpointReviewAssets(options) {
       continue;
     const realTarget = (() => {
       try {
-        return realpathSync8.native(resolve21(targetPath));
+        return realpathSync8.native(resolve23(targetPath));
       } catch {
         return void 0;
       }
@@ -108208,7 +108247,7 @@ function declaredBodyTooLarge(request) {
   return length > MAX_CHECKPOINT_REVIEW_JSON_BYTES;
 }
 function readRequestBody(request) {
-  return new Promise((resolve40, reject) => {
+  return new Promise((resolve42, reject) => {
     const chunks = [];
     let bytes = 0;
     let tooLarge = false;
@@ -108224,7 +108263,7 @@ function readRequestBody(request) {
         chunks.push(buffer);
     });
     request.on("end", () => {
-      resolve40(tooLarge ? { status: "too-large" } : { status: "ok", body: Buffer.concat(chunks) });
+      resolve42(tooLarge ? { status: "too-large" } : { status: "ok", body: Buffer.concat(chunks) });
     });
     request.on("aborted", () => reject(new Error("checkpoint review request was aborted")));
     request.on("error", reject);
@@ -108581,14 +108620,14 @@ async function startLocalCheckpointReviewSession(options) {
   let inFlightSubmission;
   let acceptedReplayObserved = false;
   let resolveAcceptedReplay;
-  const acceptedReplay = new Promise((resolve40) => {
-    resolveAcceptedReplay = resolve40;
+  const acceptedReplay = new Promise((resolve42) => {
+    resolveAcceptedReplay = resolve42;
   });
   let closed = false;
   let closePromise;
   let resolveSettled;
-  const settled = new Promise((resolve40) => {
-    resolveSettled = resolve40;
+  const settled = new Promise((resolve42) => {
+    resolveSettled = resolve42;
   });
   async function decideSubmission(submitted) {
     let decision2;
@@ -108830,14 +108869,14 @@ async function startLocalCheckpointReviewSession(options) {
   server.keepAliveTimeout = 1;
   server.maxHeadersCount = 32;
   server.maxRequestsPerSocket = 8;
-  await new Promise((resolve40, reject) => {
+  await new Promise((resolve42, reject) => {
     const onError = (error52) => {
       server.off("listening", onListening);
       reject(error52);
     };
     const onListening = () => {
       server.off("error", onError);
-      resolve40();
+      resolve42();
     };
     server.once("error", onError);
     server.once("listening", onListening);
@@ -108845,7 +108884,7 @@ async function startLocalCheckpointReviewSession(options) {
   });
   const address = server.address();
   if (address === null || typeof address === "string") {
-    await new Promise((resolve40) => server.close(() => resolve40()));
+    await new Promise((resolve42) => server.close(() => resolve42()));
     throw new Error("checkpoint review session did not bind to loopback");
   }
   expectedHost = `${LOOPBACK_HOST}:${address.port}`;
@@ -108858,11 +108897,11 @@ async function startLocalCheckpointReviewSession(options) {
     async waitForAcceptedReplay() {
       if (state !== "accepted" || acceptedReplayObserved || closed)
         return;
-      await new Promise((resolve40) => {
-        const timeout = setTimeout(resolve40, LOCAL_CHECKPOINT_REVIEW_REPLAY_WINDOW_MS);
+      await new Promise((resolve42) => {
+        const timeout = setTimeout(resolve42, LOCAL_CHECKPOINT_REVIEW_REPLAY_WINDOW_MS);
         void acceptedReplay.then(() => {
           clearTimeout(timeout);
-          resolve40();
+          resolve42();
         });
       });
     },
@@ -108870,12 +108909,12 @@ async function startLocalCheckpointReviewSession(options) {
       if (closePromise !== void 0)
         return closePromise;
       closed = true;
-      closePromise = new Promise((resolve40, reject) => {
+      closePromise = new Promise((resolve42, reject) => {
         server.close((error52) => {
           if (error52 !== void 0)
             reject(error52);
           else
-            resolve40();
+            resolve42();
         });
       });
       return closePromise;
@@ -108919,11 +108958,11 @@ var init_local_review_session = __esm({
 });
 
 // dist/memory/project-store.js
-import { existsSync as existsSync31, readFileSync as readFileSync52 } from "node:fs";
-import { join as join34, resolve as resolve22 } from "node:path";
+import { existsSync as existsSync32, readFileSync as readFileSync52 } from "node:fs";
+import { join as join34, resolve as resolve24 } from "node:path";
 function resolveProjectStorePaths(options = {}) {
-  const repoRoot = resolve22(options.repoRoot ?? process.cwd());
-  const memoryDir = options.memoryDir === void 0 ? memoryRoot(repoRoot) : resolve22(repoRoot, options.memoryDir);
+  const repoRoot = resolve24(options.repoRoot ?? process.cwd());
+  const memoryDir = options.memoryDir === void 0 ? memoryRoot(repoRoot) : resolve24(repoRoot, options.memoryDir);
   return {
     repoRoot,
     memoryDir,
@@ -108933,7 +108972,7 @@ function resolveProjectStorePaths(options = {}) {
 }
 function readProjectFacts(options = {}) {
   const paths = resolveProjectStorePaths(options);
-  if (!existsSync31(paths.factsPath)) {
+  if (!existsSync32(paths.factsPath)) {
     return { facts: [], warnings: [] };
   }
   let raw = "";
@@ -109033,8 +109072,8 @@ var init_project_store = __esm({
 });
 
 // dist/memory/project-injection.js
-import { existsSync as existsSync32, readFileSync as readFileSync53 } from "node:fs";
-import { join as join35, resolve as resolve23 } from "node:path";
+import { existsSync as existsSync33, readFileSync as readFileSync53 } from "node:fs";
+import { join as join35, resolve as resolve25 } from "node:path";
 function reverifyStaleness(fact, runsBase, checkedAt) {
   const sourceSha = fact.source.sha256 ?? fact.source.ref.sha256;
   const runId = fact.source.ref.run_id;
@@ -109044,7 +109083,7 @@ function reverifyStaleness(fact, runsBase, checkedAt) {
   try {
     const relPath = fact.source.ref.ref.split("#")[0] ?? fact.source.ref.ref;
     const abs = join35(runsBase, runId, relPath);
-    if (!existsSync32(abs)) {
+    if (!existsSync33(abs)) {
       return { status: "stale", checked_at: checkedAt, reason_codes: ["memory_stale"] };
     }
     const currentHash = sha256OfString(readFileSync53(abs, "utf8"));
@@ -109057,7 +109096,7 @@ function loadProjectFactCandidates(options) {
   if (options.flowId === void 0) {
     return { candidates: [] };
   }
-  const runsBase = options.runsBase === void 0 ? runsRoot(options.repoRoot) : resolve23(options.runsBase);
+  const runsBase = options.runsBase === void 0 ? runsRoot(options.repoRoot) : resolve25(options.runsBase);
   const now = options.now ?? (() => /* @__PURE__ */ new Date());
   const checkedAt = now().toISOString();
   const { facts } = readProjectFacts({
@@ -109085,13 +109124,13 @@ var init_project_injection = __esm({
 });
 
 // dist/history/run-corpus.js
-import { existsSync as existsSync33, readdirSync as readdirSync5, statSync as statSync5 } from "node:fs";
+import { existsSync as existsSync34, readdirSync as readdirSync5, statSync as statSync5 } from "node:fs";
 import { basename as basename5, join as join36 } from "node:path";
 function isCandidateRunFolder(runFolder) {
-  return existsSync33(join36(runFolder, "manifest.snapshot.json")) || existsSync33(join36(runFolder, "trace.ndjson")) || existsSync33(join36(runFolder, "reports/result.json"));
+  return existsSync34(join36(runFolder, "manifest.snapshot.json")) || existsSync34(join36(runFolder, "trace.ndjson")) || existsSync34(join36(runFolder, "reports/result.json"));
 }
 function listCandidateRunFolders(runsBase) {
-  if (!existsSync33(runsBase)) {
+  if (!existsSync34(runsBase)) {
     throw new HistoryCommandError("runs_base_not_found", `runs base not found: ${runsBase}`, {
       runsBase
     });
@@ -109150,19 +109189,19 @@ var init_run_artifact_io = __esm({
 });
 
 // dist/app/history/run-source-files.js
-import { existsSync as existsSync34, lstatSync as lstatSync8, readdirSync as readdirSync6, realpathSync as realpathSync9 } from "node:fs";
-import { isAbsolute as isAbsolute15, relative as relative15, resolve as resolve24 } from "node:path";
+import { existsSync as existsSync35, lstatSync as lstatSync8, readdirSync as readdirSync6, realpathSync as realpathSync9 } from "node:fs";
+import { isAbsolute as isAbsolute15, relative as relative15, resolve as resolve26 } from "node:path";
 function collectRunSourceFiles(runFolder) {
-  const runFolderAbs = resolve24(runFolder);
+  const runFolderAbs = resolve26(runFolder);
   const files = /* @__PURE__ */ new Set();
   for (const candidate of [
-    resolve24(runFolderAbs, "manifest.snapshot.json"),
-    resolve24(runFolderAbs, "trace.ndjson")
+    resolve26(runFolderAbs, "manifest.snapshot.json"),
+    resolve26(runFolderAbs, "trace.ndjson")
   ]) {
-    if (existsSync34(candidate) && !isSymlink(candidate))
+    if (existsSync35(candidate) && !isSymlink(candidate))
       files.add(candidate);
   }
-  const reportsRoot2 = resolve24(runFolderAbs, "reports");
+  const reportsRoot2 = resolve26(runFolderAbs, "reports");
   for (const absPath of walkReportJsonFiles(reportsRoot2)) {
     files.add(absPath);
   }
@@ -109180,7 +109219,7 @@ function isInside5(root, target) {
   return fromRoot === "" || !fromRoot.startsWith("..") && !isAbsolute15(fromRoot);
 }
 function walkReportJsonFiles(reportsRoot2) {
-  if (!existsSync34(reportsRoot2))
+  if (!existsSync35(reportsRoot2))
     return [];
   const rootReal = realpathSync9.native(reportsRoot2);
   const out = [];
@@ -109190,7 +109229,7 @@ function walkReportJsonFiles(reportsRoot2) {
     if (current === void 0)
       continue;
     for (const entry of readdirSync6(current, { withFileTypes: true })) {
-      const absPath = resolve24(current, entry.name);
+      const absPath = resolve26(current, entry.name);
       if (entry.isSymbolicLink() || lstatSync8(absPath).isSymbolicLink())
         continue;
       const real = realpathSync9.native(absPath);
@@ -109212,8 +109251,8 @@ var init_run_source_files = __esm({
 });
 
 // dist/app/history/extract.js
-import { existsSync as existsSync35, lstatSync as lstatSync9, readFileSync as readFileSync54, readdirSync as readdirSync7, realpathSync as realpathSync10 } from "node:fs";
-import { basename as basename6, isAbsolute as isAbsolute16, relative as relative16, resolve as resolve25 } from "node:path";
+import { existsSync as existsSync36, lstatSync as lstatSync9, readFileSync as readFileSync54, readdirSync as readdirSync7, realpathSync as realpathSync10 } from "node:fs";
+import { basename as basename6, isAbsolute as isAbsolute16, relative as relative16, resolve as resolve27 } from "node:path";
 function isObject3(value) {
   return value !== null && typeof value === "object" && !Array.isArray(value);
 }
@@ -109248,14 +109287,14 @@ function isInside6(root, target) {
   return fromRoot === "" || !fromRoot.startsWith("..") && !isAbsolute16(fromRoot);
 }
 function listFiles(root, prefix = "") {
-  const absRoot = resolve25(root);
-  if (!existsSync35(absRoot))
+  const absRoot = resolve27(root);
+  if (!existsSync36(absRoot))
     return [];
   const rootReal = realpathSync10.native(absRoot);
   const out = [];
   function walk(absDir, relDir) {
     for (const entry of readdirSync7(absDir, { withFileTypes: true })) {
-      const absPath = resolve25(absDir, entry.name);
+      const absPath = resolve27(absDir, entry.name);
       if (lstatSync9(absPath).isSymbolicLink())
         continue;
       const real = realpathSync10.native(absPath);
@@ -109293,8 +109332,8 @@ function validStepId(value) {
   return StepId.safeParse(value).success ? value : void 0;
 }
 function parseTrace(runFolder, runFolderName) {
-  const tracePath = resolve25(runFolder, "trace.ndjson");
-  if (!existsSync35(tracePath)) {
+  const tracePath = resolve27(runFolder, "trace.ndjson");
+  if (!existsSync36(tracePath)) {
     return { entries: [], reportWrites: /* @__PURE__ */ new Map(), traceValidForDocs: false };
   }
   let entries = [];
@@ -109518,8 +109557,8 @@ function resolveRunIdentity(input) {
 }
 function makeRunDocument(input) {
   const sourcePath = input.resultPath ?? "trace.ndjson";
-  const sourceAbs = resolve25(input.runFolder, sourcePath);
-  if (!existsSync35(sourceAbs))
+  const sourceAbs = resolve27(input.runFolder, sourcePath);
+  if (!existsSync36(sourceAbs))
     return void 0;
   const sourceSha = input.resultPath === void 0 ? input.traceSha : sha256File(sourceAbs);
   if (sourceSha === void 0)
@@ -109735,19 +109774,19 @@ function makeTraceDocument(input) {
   });
 }
 function extractRunHistoryDocuments(runFolder) {
-  const runFolderAbs = resolve25(runFolder);
+  const runFolderAbs = resolve27(runFolder);
   const runFolderName = basename6(runFolderAbs);
   const warnings = [];
   const documents = [];
-  const manifestPath2 = resolve25(runFolderAbs, "manifest.snapshot.json");
-  const resultPath2 = resolve25(runFolderAbs, "reports/result.json");
-  const manifest = existsSync35(manifestPath2) ? readJsonRecord(manifestPath2) : void 0;
-  const result = existsSync35(resultPath2) ? readJsonRecord(resultPath2) : void 0;
+  const manifestPath2 = resolve27(runFolderAbs, "manifest.snapshot.json");
+  const resultPath2 = resolve27(runFolderAbs, "reports/result.json");
+  const manifest = existsSync36(manifestPath2) ? readJsonRecord(manifestPath2) : void 0;
+  const result = existsSync36(resultPath2) ? readJsonRecord(resultPath2) : void 0;
   const trace = parseTrace(runFolderAbs, runFolderName);
   if (trace.warning !== void 0)
     warnings.push(trace.warning);
-  const tracePath = resolve25(runFolderAbs, "trace.ndjson");
-  const traceExists = existsSync35(tracePath);
+  const tracePath = resolve27(runFolderAbs, "trace.ndjson");
+  const traceExists = existsSync36(tracePath);
   const traceSha = traceExists ? sha256File(tracePath) : void 0;
   const traceMtime = traceExists ? mtimeMs(tracePath) : void 0;
   const identity2 = resolveRunIdentity({
@@ -109759,7 +109798,7 @@ function extractRunHistoryDocuments(runFolder) {
   const runDocument = makeRunDocument({
     runFolder: runFolderAbs,
     identity: identity2,
-    ...existsSync35(resultPath2) ? { resultPath: "reports/result.json" } : {},
+    ...existsSync36(resultPath2) ? { resultPath: "reports/result.json" } : {},
     result,
     traceEntries: trace.entries,
     traceSha,
@@ -109767,9 +109806,9 @@ function extractRunHistoryDocuments(runFolder) {
   });
   if (runDocument !== void 0)
     documents.push(runDocument);
-  const reportRoot = resolve25(runFolderAbs, "reports");
+  const reportRoot = resolve27(runFolderAbs, "reports");
   for (const relPath of listFiles(reportRoot, "reports")) {
-    const absPath = resolve25(runFolderAbs, relPath);
+    const absPath = resolve27(runFolderAbs, relPath);
     if (absPath !== resolveRunFilePath(runFolderAbs, relPath))
       continue;
     if (skipReport(relPath))
@@ -109877,12 +109916,12 @@ var init_extract = __esm({
 });
 
 // dist/app/history/indexer.js
-import { existsSync as existsSync36, mkdirSync as mkdirSync8, readFileSync as readFileSync55, renameSync as renameSync2, writeFileSync as writeFileSync9 } from "node:fs";
-import { join as join37, resolve as resolve26 } from "node:path";
+import { existsSync as existsSync37, mkdirSync as mkdirSync8, readFileSync as readFileSync55, renameSync as renameSync2, writeFileSync as writeFileSync9 } from "node:fs";
+import { join as join37, resolve as resolve28 } from "node:path";
 function resolveHistoryPaths(options = {}) {
-  const repoRoot = resolve26(options.repoRoot ?? process.cwd());
-  const runsBase = options.runsBase === void 0 ? runsRoot(repoRoot) : resolve26(repoRoot, options.runsBase);
-  const indexDir = options.indexDir === void 0 ? historyRoot(repoRoot) : resolve26(repoRoot, options.indexDir);
+  const repoRoot = resolve28(options.repoRoot ?? process.cwd());
+  const runsBase = options.runsBase === void 0 ? runsRoot(repoRoot) : resolve28(repoRoot, options.runsBase);
+  const indexDir = options.indexDir === void 0 ? historyRoot(repoRoot) : resolve28(repoRoot, options.indexDir);
   return {
     repoRoot,
     runsBase,
@@ -109986,7 +110025,7 @@ function rebuildHistoryIndex(options = {}) {
   };
 }
 function readHistoryManifest(paths) {
-  if (!existsSync36(paths.manifestPath) || !existsSync36(paths.documentsPath)) {
+  if (!existsSync37(paths.manifestPath) || !existsSync37(paths.documentsPath)) {
     throw new HistoryCommandError("index_missing", `history index missing: ${paths.indexDir}`, {
       runsBase: paths.runsBase,
       indexDir: paths.indexDir
@@ -110105,11 +110144,11 @@ var init_indexer = __esm({
 });
 
 // dist/app/history/memory-effect-read.js
-import { existsSync as existsSync37, readFileSync as readFileSync56 } from "node:fs";
+import { existsSync as existsSync38, readFileSync as readFileSync56 } from "node:fs";
 import { join as join38 } from "node:path";
 function loadMemoryEffectReport(paths) {
   const effectPath = join38(paths.indexDir, HISTORY_MEMORY_EFFECT_FILE);
-  if (!existsSync37(effectPath)) {
+  if (!existsSync38(effectPath)) {
     return {
       warnings: [
         {
@@ -110234,7 +110273,7 @@ var init_memory_preview = __esm({
 });
 
 // dist/app/history/query.js
-import { existsSync as existsSync38, readFileSync as readFileSync57 } from "node:fs";
+import { existsSync as existsSync39, readFileSync as readFileSync57 } from "node:fs";
 function tokenize(text) {
   return text.toLowerCase().split(/[^a-z0-9]+/).filter((term) => term.length >= 2 && !STOPWORDS.has(term));
 }
@@ -110394,7 +110433,7 @@ function sourceStaleness(doc, checkedAt) {
   }
   try {
     const sourcePath = resolveRunFilePath(doc.run_folder, doc.source_path);
-    if (!existsSync38(sourcePath)) {
+    if (!existsSync39(sourcePath)) {
       return {
         status: "stale",
         reason_codes: ["memory_stale"],
@@ -110807,7 +110846,7 @@ var init_run_start_recall = __esm({
 });
 
 // dist/app/operator-summary/resume-command.js
-import { isAbsolute as isAbsolute17, join as join39, resolve as resolve27 } from "node:path";
+import { isAbsolute as isAbsolute17, join as join39, resolve as resolve29 } from "node:path";
 function shellSingleQuote2(value) {
   return `'${value.replace(/'/g, "'\\''")}'`;
 }
@@ -110819,7 +110858,7 @@ function operatorSummaryResumeCommandPrefix(input) {
     return `${shellSingleQuote2(execPath)} ${shellSingleQuote2(wrapper)}${presentation} resume`;
   }
   if (execPath !== void 0 && isAbsolute17(execPath) && input.cliEntryPath !== void 0) {
-    const entry = isAbsolute17(input.cliEntryPath) ? input.cliEntryPath : resolve27(input.cliEntryPath);
+    const entry = isAbsolute17(input.cliEntryPath) ? input.cliEntryPath : resolve29(input.cliEntryPath);
     return `${shellSingleQuote2(execPath)} ${shellSingleQuote2(entry)} resume`;
   }
   return "circuit resume";
@@ -110899,13 +110938,13 @@ var init_iteration_ledger = __esm({
 });
 
 // dist/shared/operator-summary/json.js
-import { existsSync as existsSync39, readFileSync as readFileSync58 } from "node:fs";
+import { existsSync as existsSync40, readFileSync as readFileSync58 } from "node:fs";
 function isObject4(value) {
   return value !== null && typeof value === "object" && !Array.isArray(value);
 }
 function readJsonIfPresent(runFolder, relPath) {
   const path = resolveRunRelative(runFolder, relPath);
-  if (!existsSync39(path))
+  if (!existsSync40(path))
     return void 0;
   const parsed = JSON.parse(readFileSync58(path, "utf8"));
   return isObject4(parsed) ? parsed : void 0;
@@ -111656,11 +111695,11 @@ var init_operator_summary2 = __esm({
 
 // dist/app/operator-summary/writer.js
 import { createHash as createHash11 } from "node:crypto";
-import { existsSync as existsSync40, mkdirSync as mkdirSync9, readFileSync as readFileSync59, rmSync as rmSync7, writeFileSync as writeFileSync10 } from "node:fs";
-import { dirname as dirname15, isAbsolute as isAbsolute18, join as join40, relative as relative17, resolve as resolve28 } from "node:path";
+import { existsSync as existsSync41, mkdirSync as mkdirSync9, readFileSync as readFileSync59, rmSync as rmSync7, writeFileSync as writeFileSync10 } from "node:fs";
+import { dirname as dirname15, isAbsolute as isAbsolute18, join as join40, relative as relative17, resolve as resolve30 } from "node:path";
 function readPriorRoute(runFolder) {
   const path = join40(runFolder, "reports", "operator-summary.json");
-  if (!existsSync40(path))
+  if (!existsSync41(path))
     return {};
   try {
     const raw = JSON.parse(readFileSync59(path, "utf8"));
@@ -111748,13 +111787,13 @@ function isInsideOrSame4(root, target) {
 function readCheckpointRequest(runFolder, checkpoint) {
   let requestPath;
   try {
-    requestPath = isAbsolute18(checkpoint.request_path) ? resolve28(checkpoint.request_path) : resolveRunRelative(runFolder, checkpoint.request_path);
+    requestPath = isAbsolute18(checkpoint.request_path) ? resolve30(checkpoint.request_path) : resolveRunRelative(runFolder, checkpoint.request_path);
   } catch {
     return void 0;
   }
-  if (!isInsideOrSame4(resolve28(runFolder), requestPath))
+  if (!isInsideOrSame4(resolve30(runFolder), requestPath))
     return void 0;
-  if (!existsSync40(requestPath))
+  if (!existsSync41(requestPath))
     return void 0;
   try {
     const parsed = JSON.parse(readFileSync59(requestPath, "utf8"));
@@ -111766,11 +111805,11 @@ function readCheckpointRequest(runFolder, checkpoint) {
 function verifiedCheckpointReviewInputs(runFolder, checkpoint) {
   let requestPath;
   try {
-    requestPath = isAbsolute18(checkpoint.request_path) ? resolve28(checkpoint.request_path) : resolveRunRelative(runFolder, checkpoint.request_path);
+    requestPath = isAbsolute18(checkpoint.request_path) ? resolve30(checkpoint.request_path) : resolveRunRelative(runFolder, checkpoint.request_path);
   } catch {
     throw new Error("checkpoint review request path is invalid");
   }
-  if (!isInsideOrSame4(resolve28(runFolder), requestPath)) {
+  if (!isInsideOrSame4(resolve30(runFolder), requestPath)) {
     throw new Error("checkpoint review request path leaves the run folder");
   }
   let requestBytes;
@@ -112314,7 +112353,7 @@ function evidenceLinks2(runFolder, report) {
 }
 function readAutoResolutions(runFolder) {
   const tracePath = join40(runFolder, "trace.ndjson");
-  if (!existsSync40(tracePath))
+  if (!existsSync41(tracePath))
     return [];
   const records = [];
   for (const line of readFileSync59(tracePath, "utf8").split(/\r?\n/)) {
@@ -112354,7 +112393,7 @@ function emptySpendTotals() {
 }
 function readRunReceipt(runFolder) {
   const tracePath = join40(runFolder, "trace.ndjson");
-  if (!existsSync40(tracePath))
+  if (!existsSync41(tracePath))
     return void 0;
   let depth;
   let reducedBindings;
@@ -112600,7 +112639,7 @@ function skillHookSourceLabel(source) {
 }
 function readSkillHookSummary(runFolder) {
   const tracePath = join40(runFolder, "trace.ndjson");
-  if (!existsSync40(tracePath))
+  if (!existsSync41(tracePath))
     return { activations: [], warnings: [] };
   const seen = /* @__PURE__ */ new Set();
   const activations = [];
@@ -112655,7 +112694,7 @@ function readSkillHookSummary(runFolder) {
 }
 function readDegradationWarnings(runFolder) {
   const tracePath = join40(runFolder, "trace.ndjson");
-  if (!existsSync40(tracePath))
+  if (!existsSync41(tracePath))
     return [];
   const warnings = [];
   for (const line of readFileSync59(tracePath, "utf8").split(/\r?\n/)) {
@@ -112724,7 +112763,7 @@ function friendlyAbortReason(reason) {
 function readAutoConnectorPicks(runFolder) {
   const tracePath = join40(runFolder, "trace.ndjson");
   const picks = /* @__PURE__ */ new Map();
-  if (!existsSync40(tracePath))
+  if (!existsSync41(tracePath))
     return picks;
   for (const line of readFileSync59(tracePath, "utf8").split(/\r?\n/)) {
     if (line.trim().length === 0)
@@ -112771,7 +112810,7 @@ function skillHookActivationLine(activation) {
 }
 function readEquipmentReshapeSummary(runFolder) {
   const tracePath = join40(runFolder, "trace.ndjson");
-  if (!existsSync40(tracePath))
+  if (!existsSync41(tracePath))
     return { reshapes: [], warnings: [] };
   const seen = /* @__PURE__ */ new Set();
   const reshapes = [];
@@ -112827,7 +112866,7 @@ function equipmentReshapeLine(reshape) {
 }
 function readIterationLedger(runFolder) {
   const tracePath = join40(runFolder, "trace.ndjson");
-  if (!existsSync40(tracePath))
+  if (!existsSync41(tracePath))
     return [];
   const entries = [];
   for (const line of readFileSync59(tracePath, "utf8").split(/\r?\n/)) {
@@ -113091,14 +113130,14 @@ function writeOperatorSummary(input) {
   const { renderedHtml, projectorCheckpoint, projectRoot } = htmlRender;
   let { htmlEmitWarning } = htmlRender;
   if (renderedHtml === void 0) {
-    if (existsSync40(candidateHtmlPath))
+    if (existsSync41(candidateHtmlPath))
       rmSync7(candidateHtmlPath, { force: true, recursive: true });
   } else {
     try {
       writeFileSync10(candidateHtmlPath, renderedHtml);
       outHtmlPath = candidateHtmlPath;
     } catch (err) {
-      if (existsSync40(candidateHtmlPath))
+      if (existsSync41(candidateHtmlPath))
         rmSync7(candidateHtmlPath, { force: true, recursive: true });
       htmlEmitWarning = {
         kind: "html_write_failed",
@@ -113264,7 +113303,7 @@ var init_writer = __esm({
 });
 
 // dist/app/process-evidence/projection.js
-import { existsSync as existsSync41, mkdirSync as mkdirSync10, writeFileSync as writeFileSync11 } from "node:fs";
+import { existsSync as existsSync42, mkdirSync as mkdirSync10, writeFileSync as writeFileSync11 } from "node:fs";
 import { dirname as dirname16, join as join41 } from "node:path";
 function traceRef2(runId) {
   return {
@@ -113326,7 +113365,7 @@ function projectClosedProcessEvidence(input) {
     runId: input.runResult.run_id,
     flowId
   });
-  const declaredReportRefs = declaredPaths.filter((path) => existsSync41(join41(input.runFolder, path))).map((path) => reportRef({
+  const declaredReportRefs = declaredPaths.filter((path) => existsSync42(join41(input.runFolder, path))).map((path) => reportRef({
     runFolder: input.runFolder,
     path: join41(input.runFolder, path),
     runId: input.runResult.run_id,
@@ -114337,10 +114376,10 @@ var init_checkpoint_review_token = __esm({
 
 // dist/cli/checkpoint-response-file.js
 import { constants as constants6, closeSync as closeSync6, fstatSync as fstatSync5, openSync as openSync6, readSync as readSync6 } from "node:fs";
-import { isAbsolute as isAbsolute19, resolve as resolve29 } from "node:path";
+import { isAbsolute as isAbsolute19, resolve as resolve31 } from "node:path";
 import { TextDecoder as TextDecoder3 } from "node:util";
 function resolveCheckpointResponseFilePath(argument, cwd2) {
-  return isAbsolute19(argument) ? argument : resolve29(cwd2, argument);
+  return isAbsolute19(argument) ? argument : resolve31(cwd2, argument);
 }
 function openResponseFile(path) {
   try {
@@ -114547,27 +114586,27 @@ var init_checkpoint_review_open = __esm({
 });
 
 // dist/cli/compiled-flow-loading.js
-import { existsSync as existsSync42, readFileSync as readFileSync60 } from "node:fs";
-import { dirname as dirname18, resolve as resolve30 } from "node:path";
+import { existsSync as existsSync43, readFileSync as readFileSync60 } from "node:fs";
+import { dirname as dirname18, resolve as resolve32 } from "node:path";
 import { fileURLToPath as fileURLToPath4 } from "node:url";
 function defaultFlowRoot() {
-  const cwdRoot = resolve30("generated/flows");
-  if (existsSync42(cwdRoot))
+  const cwdRoot = resolve32("generated/flows");
+  if (existsSync43(cwdRoot))
     return cwdRoot;
-  if (existsSync42(packageFlowRoot))
+  if (existsSync43(packageFlowRoot))
     return packageFlowRoot;
   return cwdRoot;
 }
 function resolveCompiledFlowPath(flowName, modeName, override, flowRoot2) {
   if (override !== void 0)
-    return resolve30(override);
-  const root = flowRoot2 !== void 0 ? resolve30(flowRoot2) : defaultFlowRoot();
+    return resolve32(override);
+  const root = flowRoot2 !== void 0 ? resolve32(flowRoot2) : defaultFlowRoot();
   if (modeName !== void 0) {
-    const perMode = resolve30(root, flowName, `${modeName}.json`);
-    if (existsSync42(perMode))
+    const perMode = resolve32(root, flowName, `${modeName}.json`);
+    if (existsSync43(perMode))
       return perMode;
   }
-  return resolve30(root, flowName, "circuit.json");
+  return resolve32(root, flowName, "circuit.json");
 }
 function compiledFlowSelectionNameForAxes(axes) {
   if (axes.tournament)
@@ -114589,7 +114628,7 @@ function axisSupportFromFlow(input) {
   return axisSupportFromAxes(input.flow.axes);
 }
 function loadCompiledFlow(compiledFlowPath) {
-  if (!existsSync42(compiledFlowPath)) {
+  if (!existsSync43(compiledFlowPath)) {
     throw new Error(`compiled flow not found: ${compiledFlowPath}`);
   }
   const bytes = readFileSync60(compiledFlowPath);
@@ -114615,25 +114654,25 @@ var init_compiled_flow_loading = __esm({
     "use strict";
     init_canonical_stage_policy();
     init_compiled_flow();
-    packageFlowRoot = resolve30(dirname18(fileURLToPath4(import.meta.url)), "../..", "generated/flows");
+    packageFlowRoot = resolve32(dirname18(fileURLToPath4(import.meta.url)), "../..", "generated/flows");
   }
 });
 
 // dist/cli/handoff-codex-hooks.js
 import { createHash as createHash12 } from "node:crypto";
-import { accessSync as accessSync3, copyFileSync, existsSync as existsSync43, constants as fsConstants, mkdirSync as mkdirSync12, readFileSync as readFileSync61, writeFileSync as writeFileSync13 } from "node:fs";
+import { accessSync as accessSync3, copyFileSync, existsSync as existsSync44, constants as fsConstants, mkdirSync as mkdirSync12, readFileSync as readFileSync61, writeFileSync as writeFileSync13 } from "node:fs";
 import { homedir as homedir5 } from "node:os";
-import { dirname as dirname19, join as join43, resolve as resolve31 } from "node:path";
+import { dirname as dirname19, join as join43, resolve as resolve33 } from "node:path";
 import { fileURLToPath as fileURLToPath5 } from "node:url";
 function defaultCodexHooksFile() {
-  const codexHome = process.env.CODEX_HOME ?? resolve31(homedir5(), ".codex");
-  return resolve31(codexHome, "hooks.json");
+  const codexHome = process.env.CODEX_HOME ?? resolve33(homedir5(), ".codex");
+  return resolve33(codexHome, "hooks.json");
 }
 function resolveDefaultLauncher(pluginRoot, moduleDir) {
   if (pluginRoot !== void 0 && pluginRoot.length > 0) {
-    return resolve31(pluginRoot, "scripts/circuit.js");
+    return resolve33(pluginRoot, "scripts/circuit.js");
   }
-  return resolve31(moduleDir, "../..", "bin/circuit");
+  return resolve33(moduleDir, "../..", "bin/circuit");
 }
 function missingDefaultLauncherMessage(launcher) {
   return [
@@ -114651,11 +114690,11 @@ function parseCodexHooksHost(args) {
   throw new Error("handoff hooks requires --host codex");
 }
 function resolveHooksFileArg(args) {
-  return resolve31(args.hooksFile ?? defaultCodexHooksFile());
+  return resolve33(args.hooksFile ?? defaultCodexHooksFile());
 }
 function resolveLauncherArg(args) {
-  const launcher = resolve31(args.launcher ?? defaultLauncherPath());
-  if (!existsSync43(launcher)) {
+  const launcher = resolve33(args.launcher ?? defaultLauncherPath());
+  if (!existsSync44(launcher)) {
     if (args.launcher === void 0 && (process.env.CIRCUIT_PLUGIN_ROOT ?? "").length === 0) {
       throw new Error(missingDefaultLauncherMessage(launcher));
     }
@@ -114681,7 +114720,7 @@ function defaultHooksConfig() {
   return { hooks: {} };
 }
 function readHooksConfig(path) {
-  if (!existsSync43(path))
+  if (!existsSync44(path))
     return defaultHooksConfig();
   const parsed = JSON.parse(readFileSync61(path, "utf8"));
   if (typeof parsed !== "object" || parsed === null || Array.isArray(parsed)) {
@@ -114811,9 +114850,9 @@ function isExecutableFile(path) {
 function writeHooksConfig(path, config2) {
   mkdirSync12(dirname19(path), { recursive: true });
   let backupPath;
-  if (existsSync43(path)) {
+  if (existsSync44(path)) {
     const candidate = `${path}.circuit-backup`;
-    if (!existsSync43(candidate)) {
+    if (!existsSync44(candidate)) {
       copyFileSync(path, candidate);
       backupPath = candidate;
     }
@@ -114864,7 +114903,7 @@ function installCodexHandoffHook(args) {
 function uninstallCodexHandoffHook(args) {
   parseCodexHooksHost(args);
   const hooksPath = resolveHooksFileArg(args);
-  if (!existsSync43(hooksPath)) {
+  if (!existsSync44(hooksPath)) {
     return {
       api_version: HANDOFF_HOOKS_API_VERSION,
       schema_version: HANDOFF_HOOKS_SCHEMA_VERSION,
@@ -114903,7 +114942,7 @@ function doctorCodexHandoffHook(args) {
   parseCodexHooksHost(args);
   const hooksPath = resolveHooksFileArg(args);
   const checks = [];
-  checks.push({ name: "hooks_file_exists", ok: existsSync43(hooksPath), detail: hooksPath });
+  checks.push({ name: "hooks_file_exists", ok: existsSync44(hooksPath), detail: hooksPath });
   let config2;
   try {
     config2 = readHooksConfig(hooksPath);
@@ -114935,7 +114974,7 @@ function doctorCodexHandoffHook(args) {
       });
       checks.push({
         name: "circuit_handoff_hook_launcher_exists",
-        ok: launchers.length > 0 && launchers.every((launcher) => existsSync43(launcher)),
+        ok: launchers.length > 0 && launchers.every((launcher) => existsSync44(launcher)),
         detail: launchers.length > 0 ? launchers.join(", ") : "launcher not found in hook command"
       });
       checks.push({
@@ -114969,7 +115008,7 @@ function doctorCodexHandoffHook(args) {
   const failed = checks.filter((item) => !item.ok && item.severity !== "warning");
   const installedCheck = checks.find((item) => item.name === "circuit_handoff_hook_installed");
   const structuralFailure = failed.some((item) => item.name === "hooks_file_parseable" || item.name === "session_start_array");
-  const status = !existsSync43(hooksPath) ? "missing" : structuralFailure ? "invalid" : installedCheck?.ok === false ? "missing" : failed.length === 0 ? "ok" : "invalid";
+  const status = !existsSync44(hooksPath) ? "missing" : structuralFailure ? "invalid" : installedCheck?.ok === false ? "missing" : failed.length === 0 ? "ok" : "invalid";
   return {
     api_version: HANDOFF_HOOKS_API_VERSION,
     schema_version: HANDOFF_HOOKS_SCHEMA_VERSION,
@@ -114997,7 +115036,7 @@ function codexReinstallNudgeMarkerPath(controlPlane, staleLauncher) {
   return join43(continuityRoot(controlPlane), `${CODEX_REINSTALL_NUDGE_MARKER}-${digest}`);
 }
 function codexHookInstallState(hooksPath) {
-  if (!existsSync43(hooksPath))
+  if (!existsSync44(hooksPath))
     return { kind: "absent" };
   let config2;
   try {
@@ -115015,7 +115054,7 @@ function codexHookInstallState(hooksPath) {
   if (commands.length === 0)
     return { kind: "absent" };
   const launchers = commands.map(launcherPathFromCircuitHookCommand).filter((launcher) => launcher !== void 0);
-  const missingLauncher = launchers.find((launcher) => !existsSync43(launcher));
+  const missingLauncher = launchers.find((launcher) => !existsSync44(launcher));
   if (launchers.length === 0 || missingLauncher !== void 0) {
     return {
       kind: "stale",
@@ -115048,7 +115087,7 @@ function codexInstallAssurance(input) {
   }
   if (state.kind === "stale") {
     const markerPath2 = codexReinstallNudgeMarkerPath(controlPlane, state.stalePath);
-    if (existsSync43(markerPath2)) {
+    if (existsSync44(markerPath2)) {
       return { status: "already_reinstall_nudged", marker_path: markerPath2 };
     }
     writeNudgeMarker(markerPath2, input.now);
@@ -115059,7 +115098,7 @@ function codexInstallAssurance(input) {
     };
   }
   const markerPath = codexInstallNudgeMarkerPath(controlPlane);
-  if (existsSync43(markerPath))
+  if (existsSync44(markerPath))
     return { status: "already_nudged", marker_path: markerPath };
   writeNudgeMarker(markerPath, input.now);
   return { status: "nudge", notice: CODEX_INSTALL_NUDGE_NOTICE, marker_path: markerPath };
@@ -115368,7 +115407,7 @@ var init_recovery_attempt_runner = __esm({
 });
 
 // dist/cli/resume-input.js
-import { join as join47, resolve as resolve32 } from "node:path";
+import { join as join47, resolve as resolve34 } from "node:path";
 function matchCheckpointChoice(raw, choices) {
   for (const choice of choices) {
     if (choice.id === raw)
@@ -115401,7 +115440,7 @@ function invalidCheckpointChoiceMessage(input) {
   return lines.join("\n");
 }
 function runFolderCandidates(argument, cwd2) {
-  const direct = resolve32(cwd2, argument);
+  const direct = resolve34(cwd2, argument);
   const isBareName = !argument.includes("/") && !argument.includes("\\") && argument !== "." && argument !== "..";
   if (!isBareName)
     return [direct];
@@ -115899,8 +115938,8 @@ var init_tty_notice = __esm({
 
 // dist/cli/run.js
 import { createHash as createHash13, randomUUID as randomUUID9 } from "node:crypto";
-import { existsSync as existsSync44, mkdirSync as mkdirSync14, readFileSync as readFileSync64, readdirSync as readdirSync8, writeFileSync as writeFileSync15 } from "node:fs";
-import { dirname as dirname21, join as join50, resolve as resolve33 } from "node:path";
+import { existsSync as existsSync45, mkdirSync as mkdirSync14, readFileSync as readFileSync64, readdirSync as readdirSync8, writeFileSync as writeFileSync15 } from "node:fs";
+import { dirname as dirname21, join as join50, resolve as resolve35 } from "node:path";
 function resumeCommandPrefix(hostKind) {
   return operatorSummaryResumeCommandPrefix({
     ...hostKind === void 0 ? {} : { hostKind },
@@ -116767,7 +116806,7 @@ function emitResumedCheckpointWaiting(input) {
 async function runResumeCommand(args, options) {
   if (args.command === "resume" && args.runFolder !== void 0 && (args.checkpointChoice !== void 0 || args.checkpointResponse !== void 0 || args.checkpointResponseFile !== void 0 || args.checkpointReview === true)) {
     const candidates = runFolderCandidates(args.runFolder, process.cwd());
-    let runFolder = candidates[0] ?? resolve33(args.runFolder);
+    let runFolder = candidates[0] ?? resolve35(args.runFolder);
     for (const candidate of candidates) {
       if (await isRuntimeRunFolder(candidate)) {
         runFolder = candidate;
@@ -116934,7 +116973,7 @@ async function runResumeCommand(args, options) {
         envelopeOutcome: runEnvelope?.record.outcome
       });
     }
-    process.stderr.write(`${missingRunFolderMessage({ resolved: runFolder, exists: existsSync44(runFolder) })}
+    process.stderr.write(`${missingRunFolderMessage({ resolved: runFolder, exists: existsSync45(runFolder) })}
 `);
     return 2;
   }
@@ -116965,10 +117004,10 @@ function exitCodeForRun(input) {
   return 0;
 }
 function unknownFlowMessage(flowName, flowRoot2) {
-  const root = flowRoot2 !== void 0 ? resolve33(flowRoot2) : defaultFlowRoot();
+  const root = flowRoot2 !== void 0 ? resolve35(flowRoot2) : defaultFlowRoot();
   let available = [];
   try {
-    available = readdirSync8(root, { withFileTypes: true }).filter((entry) => entry.isDirectory() && existsSync44(join50(root, entry.name, "circuit.json"))).map((entry) => entry.name).filter((name) => !INTERNAL_FLOW_IDS.has(name)).sort();
+    available = readdirSync8(root, { withFileTypes: true }).filter((entry) => entry.isDirectory() && existsSync45(join50(root, entry.name, "circuit.json"))).map((entry) => entry.name).filter((name) => !INTERNAL_FLOW_IDS.has(name)).sort();
   } catch {
     available = [];
   }
@@ -117020,7 +117059,7 @@ async function runExecutionCommand(args, options) {
   }
   const fixtureSelectionName = compiledFlowSelectionNameForAxes(axes);
   const fixturePath = resolveCompiledFlowPath(route.flowName, fixtureSelectionName, args.fixturePath, args.flowRoot);
-  if (!existsSync44(fixturePath)) {
+  if (!existsSync45(fixturePath)) {
     if (INTERNAL_FLOW_IDS.has(route.flowName)) {
       process.stderr.write(`error: ${route.flowName} is an internal flow and is not available through the host run surface.
 `);
@@ -117090,7 +117129,7 @@ async function runExecutionCommand(args, options) {
       }
     }
   }
-  const projectRoot = resolve33(options.projectRoot ?? options.configCwd ?? process.cwd());
+  const projectRoot = resolve35(options.projectRoot ?? options.configCwd ?? process.cwd());
   try {
     validateFlowStartTarget(flow.id, operatorGoal, runArgs.target);
   } catch (err) {
@@ -117123,7 +117162,7 @@ async function runExecutionCommand(args, options) {
     ...entryModeSelection.entryModeName === void 0 ? {} : { entry_mode: entryModeSelection.entryModeName },
     ...entryModeSelection.source === void 0 ? {} : { entry_mode_source: entryModeSelection.source }
   });
-  const runFolder = runArgs.runFolder === void 0 ? join50(runsRoot(projectRoot), runId) : resolve33(runArgs.runFolder);
+  const runFolder = runArgs.runFolder === void 0 ? join50(runsRoot(projectRoot), runId) : resolve35(runArgs.runFolder);
   try {
     validateFlowConfigRequirements({ flow, axes: runArgs.axes, selectionConfigLayers });
   } catch (err) {
@@ -117186,7 +117225,7 @@ async function runExecutionCommand(args, options) {
       ...historyRecall === void 0 ? {} : { historyRecallReport: historyRecall.report },
       ...historyRecall === void 0 ? {} : { historyRecallPrecision: historyRecall.precision },
       ...runArgs.includeUntrackedContent ? { evidencePolicy: { includeUntrackedFileContent: true } } : {},
-      ...runArgs.reuseChildrenFrom === void 0 ? {} : { reuseChildrenFrom: resolve33(runArgs.reuseChildrenFrom) }
+      ...runArgs.reuseChildrenFrom === void 0 ? {} : { reuseChildrenFrom: resolve35(runArgs.reuseChildrenFrom) }
     });
     if (isGraphCheckpointWaitingResult(runtimeResult)) {
       const waitingResult = {
@@ -119379,7 +119418,7 @@ var generate_exports = {};
 __export(generate_exports, {
   runGenerateCommand: () => runGenerateCommand
 });
-import { existsSync as existsSync47 } from "node:fs";
+import { existsSync as existsSync48 } from "node:fs";
 import { join as join53 } from "node:path";
 function parseArgs2(argv) {
   const program2 = new Command("circuit generate").option("--description <task>").option("--name <slug>").option("--home <path>").option("--created-at <iso>").option("--publish").option("--yes").option("--max-repair <n>").option("--timeout-ms <ms>").option("--progress <format>");
@@ -119549,11 +119588,11 @@ async function runGenerateCommand(argv, options = {}) {
     const namedSlug = args.name === void 0 ? void 0 : slugify2(args.name);
     if (namedSlug !== void 0) {
       assertValidSlug(namedSlug);
-      if (args.publish && existsSync47(join53(flowRoot(home), namedSlug, "circuit.json"))) {
+      if (args.publish && existsSync48(join53(flowRoot(home), namedSlug, "circuit.json"))) {
         throw new Error(`custom flow already published: ${namedSlug}`);
       }
     }
-    const reusedDraft = args.publish && namedSlug !== void 0 && existsSync47(join53(draftRoot(home, namedSlug), "circuit.json"));
+    const reusedDraft = args.publish && namedSlug !== void 0 && existsSync48(join53(draftRoot(home, namedSlug), "circuit.json"));
     const composed = reusedDraft ? composedFromDraft(home, namedSlug) : await composeCustomFlow({
       description: args.description,
       name: args.name,
@@ -119593,7 +119632,7 @@ async function runGenerateCommand(argv, options = {}) {
       return 1;
     }
     const slug = composed.slug;
-    if (args.publish && existsSync47(join53(flowRoot(home), slug, "circuit.json"))) {
+    if (args.publish && existsSync48(join53(flowRoot(home), slug, "circuit.json"))) {
       throw new Error(`custom flow already published: ${slug}`);
     }
     const createdAt = args.createdAt ?? now().toISOString();
@@ -124425,8 +124464,8 @@ var require_react_reconciler_production = __commonJS({
           currentEntangledActionThenable = {
             status: "pending",
             value: void 0,
-            then: function(resolve40) {
-              entangledListeners.push(resolve40);
+            then: function(resolve42) {
+              entangledListeners.push(resolve42);
             }
           };
         }
@@ -124449,8 +124488,8 @@ var require_react_reconciler_production = __commonJS({
           status: "pending",
           value: null,
           reason: null,
-          then: function(resolve40) {
-            listeners.push(resolve40);
+          then: function(resolve42) {
+            listeners.push(resolve42);
           }
         };
         thenable.then(
@@ -134049,8 +134088,8 @@ var require_react_reconciler_development = __commonJS({
           currentEntangledActionThenable = {
             status: "pending",
             value: void 0,
-            then: function(resolve40) {
-              entangledListeners.push(resolve40);
+            then: function(resolve42) {
+              entangledListeners.push(resolve42);
             }
           };
         }
@@ -134073,8 +134112,8 @@ var require_react_reconciler_development = __commonJS({
           status: "pending",
           value: null,
           reason: null,
-          then: function(resolve40) {
-            listeners.push(resolve40);
+          then: function(resolve42) {
+            listeners.push(resolve42);
           }
         };
         thenable.then(
@@ -151316,22 +151355,22 @@ var init_devtools = __esm({
     init_devtools_window_polyfill();
     init_wrapper();
     init_react_devtools_stub();
-    isDevToolsReachable = async () => new Promise((resolve40) => {
+    isDevToolsReachable = async () => new Promise((resolve42) => {
       const socket = new wrapper_default("ws://localhost:8097");
       const timeout = setTimeout(() => {
         socket.terminate();
-        resolve40(false);
+        resolve42(false);
       }, 2e3);
       timeout.unref();
       socket.on("open", () => {
         clearTimeout(timeout);
         socket.terminate();
-        resolve40(true);
+        resolve42(true);
       });
       socket.on("error", () => {
         clearTimeout(timeout);
         socket.terminate();
-        resolve40(false);
+        resolve42(false);
       });
     });
     if (await isDevToolsReachable()) {
@@ -155308,8 +155347,8 @@ var init_ink = __esm({
     noop2 = () => {
     };
     textEncoder = new TextEncoder();
-    yieldImmediate = async () => new Promise((resolve40) => {
-      setImmediate(resolve40);
+    yieldImmediate = async () => new Promise((resolve42) => {
+      setImmediate(resolve42);
     });
     kittyQueryEscapeByte = 27;
     kittyQueryOpenBracketByte = 91;
@@ -155526,8 +155565,8 @@ var init_ink = __esm({
           };
         }
         this.initKittyKeyboard();
-        this.exitPromise = new Promise((resolve40, reject) => {
-          this.resolveExitPromise = resolve40;
+        this.exitPromise = new Promise((resolve42, reject) => {
+          this.resolveExitPromise = resolve42;
           this.rejectExitPromise = reject;
         });
         void this.exitPromise.catch(noop2);
@@ -155838,9 +155877,9 @@ var init_ink = __esm({
         settleThrottle(this.throttledOnRender, canWriteToStdout);
         settleThrottle(this.throttledLog, canWriteToStdout);
         if (canWriteToStdout && hasWritableState) {
-          await new Promise((resolve40) => {
+          await new Promise((resolve42) => {
             this.options.stdout.write("", () => {
-              resolve40();
+              resolve42();
             });
           });
           return;
@@ -155926,8 +155965,8 @@ var init_ink = __esm({
       async awaitNextRender() {
         if (!this.nextRenderCommit) {
           let resolveRender;
-          const promise2 = new Promise((resolve40) => {
-            resolveRender = resolve40;
+          const promise2 = new Promise((resolve42) => {
+            resolveRender = resolve42;
           });
           this.nextRenderCommit = { promise: promise2, resolve: resolveRender };
         }
@@ -158693,7 +158732,7 @@ init_config_command();
 init_esm();
 init_compile_schematic_to_flow();
 init_compiled_flow_file_plan();
-import { existsSync as existsSync25 } from "node:fs";
+import { existsSync as existsSync26 } from "node:fs";
 import { join as join19 } from "node:path";
 
 // dist/flows/resolvers/archetype.js
@@ -159190,11 +159229,11 @@ async function runCreateCommand(argv, options = {}) {
     const slug = slugify2(args.name ?? args.description);
     assertValidSlug(slug);
     const home = customHome(args.home);
-    if (args.publish && existsSync25(join19(flowRoot(home), slug, "circuit.json"))) {
+    if (args.publish && existsSync26(join19(flowRoot(home), slug, "circuit.json"))) {
       throw new Error(`custom flow already published: ${slug}`);
     }
     const createdAt = args.createdAt ?? now().toISOString();
-    const draftExists = existsSync25(join19(draftRoot(home, slug), "circuit.json"));
+    const draftExists = existsSync26(join19(draftRoot(home, slug), "circuit.json"));
     let files;
     let mainFlow;
     let archetype;
@@ -159289,9 +159328,9 @@ init_commander_support();
 init_run2();
 init_terminal_style();
 import { execFileSync as execFileSync6 } from "node:child_process";
-import { existsSync as existsSync45, mkdirSync as mkdirSync15, mkdtempSync, readdirSync as readdirSync9, writeFileSync as writeFileSync16 } from "node:fs";
+import { existsSync as existsSync46, mkdirSync as mkdirSync15, mkdtempSync, readdirSync as readdirSync9, writeFileSync as writeFileSync16 } from "node:fs";
 import { tmpdir as tmpdir4 } from "node:os";
-import { dirname as dirname22, join as join51, resolve as resolve34 } from "node:path";
+import { dirname as dirname22, join as join51, resolve as resolve36 } from "node:path";
 var DEMO_GOAL = "slugify leaves a trailing dash on any title that ends in punctuation, and the test in test/slugify.test.js fails because of it. Fix slugify so a slug never starts or ends with a dash.";
 var DEMO_FILES = {
   "package.json": `${JSON.stringify({
@@ -159374,8 +159413,8 @@ function chooseDemoDir(requested) {
   if (requested === void 0) {
     return { dir: mkdtempSync(join51(tmpdir4(), "circuit-demo-")) };
   }
-  const dir = resolve34(requested);
-  if (existsSync45(dir) && readdirSync9(dir).length > 0) {
+  const dir = resolve36(requested);
+  if (existsSync46(dir) && readdirSync9(dir).length > 0) {
     return {
       error: `${dir} already has files in it. The demo writes a whole project, so it needs an empty or new directory. Pass --dir with a path that does not exist yet.`
     };
@@ -159552,7 +159591,7 @@ init_styled_table();
 init_terminal_style();
 
 // dist/cli/workspace-hygiene.js
-import { existsSync as existsSync46, readFileSync as readFileSync65 } from "node:fs";
+import { existsSync as existsSync47, readFileSync as readFileSync65 } from "node:fs";
 import { join as join52 } from "node:path";
 var PRETTIER_CONFIG_FILES = [
   ".prettierrc",
@@ -159570,7 +159609,7 @@ var PRETTIER_CONFIG_FILES = [
 ];
 var CIRCUIT_IGNORE_LINE = /^(\*\*\/)?\/?\.circuit(\/(\*\*)?)?$/;
 function fileHasCircuitLine(path) {
-  if (!existsSync46(path))
+  if (!existsSync47(path))
     return false;
   try {
     return readFileSync65(path, "utf8").split("\n").some((line) => CIRCUIT_IGNORE_LINE.test(line.trim()));
@@ -159579,12 +159618,12 @@ function fileHasCircuitLine(path) {
   }
 }
 function hasPrettierSetup(projectRoot) {
-  if (PRETTIER_CONFIG_FILES.some((name) => existsSync46(join52(projectRoot, name))))
+  if (PRETTIER_CONFIG_FILES.some((name) => existsSync47(join52(projectRoot, name))))
     return true;
-  if (existsSync46(join52(projectRoot, ".prettierignore")))
+  if (existsSync47(join52(projectRoot, ".prettierignore")))
     return true;
   const packageJsonPath = join52(projectRoot, "package.json");
-  if (!existsSync46(packageJsonPath))
+  if (!existsSync47(packageJsonPath))
     return false;
   try {
     const parsed = JSON.parse(readFileSync65(packageJsonPath, "utf8"));
@@ -159596,7 +159635,7 @@ function hasPrettierSetup(projectRoot) {
   }
 }
 function workspaceHygieneFindings(projectRoot) {
-  if (!existsSync46(join52(projectRoot, ".circuit")))
+  if (!existsSync47(join52(projectRoot, ".circuit")))
     return [];
   if (!hasPrettierSetup(projectRoot))
     return [];
@@ -159853,8 +159892,8 @@ init_generate();
 
 // dist/cli/handoff.js
 init_esm();
-import { existsSync as existsSync48, readFileSync as readFileSync66 } from "node:fs";
-import { resolve as resolve35 } from "node:path";
+import { existsSync as existsSync49, readFileSync as readFileSync66 } from "node:fs";
+import { resolve as resolve37 } from "node:path";
 init_records();
 init_continuity();
 init_control_plane_paths();
@@ -160099,7 +160138,7 @@ Saved continuity record could not be resumed: ${message}`);
 function resumeContinuity(args) {
   const controlPlane = resolveControlPlaneArg(args);
   const indexAbs = indexPath(controlPlane);
-  if (!existsSync48(indexAbs)) {
+  if (!existsSync49(indexAbs)) {
     const summaryPath3 = operatorSummaryPath(controlPlane);
     writeMarkdown(summaryPath3, "# Circuit Handoff\n\nNo saved continuity found.");
     const result2 = {
@@ -160137,7 +160176,7 @@ function resumeContinuity(args) {
     return { ...result2, result_path: resultPath3 };
   }
   const recordAbs = recordPath(controlPlane, index.pending_record.record_id);
-  if (!existsSync48(recordAbs)) {
+  if (!existsSync49(recordAbs)) {
     return invalidResumeResult(controlPlane, "record_missing", "Continuity index points at a missing record.", index.pending_record.record_id);
   }
   const recordRaw = readJsonSafely(recordAbs);
@@ -160232,7 +160271,7 @@ function runHandoffHarvest(args, now) {
   }
   const resolvedProjectRoot = projectRoot ?? process.cwd();
   const source = ambientSourceFrom(args.source, hookEventName);
-  const controlPlane = args.controlPlane === void 0 ? void 0 : resolve35(args.controlPlane);
+  const controlPlane = args.controlPlane === void 0 ? void 0 : resolve37(args.controlPlane);
   const fallbackIndexPath = indexPath(controlPlane ?? controlPlaneRoot(resolvedProjectRoot));
   if (transcriptPath === void 0) {
     const result = {
@@ -160743,7 +160782,7 @@ init_atomic_io();
 init_outcome();
 init_indexer();
 init_memory_identity();
-import { existsSync as existsSync49, readFileSync as readFileSync67 } from "node:fs";
+import { existsSync as existsSync50, readFileSync as readFileSync67 } from "node:fs";
 import { join as join54 } from "node:path";
 var RUN_ENVELOPE_RELATIVE_PATH2 = "reports/run-envelope.json";
 var RECALL_REPORT_RELATIVE_PATH = "reports/history/recall.json";
@@ -160756,7 +160795,7 @@ function deriveAbortReason(envelope) {
 }
 function readRecallInputs(runFolder, warnings) {
   const recallPath = join54(runFolder, RECALL_REPORT_RELATIVE_PATH);
-  if (!existsSync49(recallPath)) {
+  if (!existsSync50(recallPath)) {
     warnings.push({
       code: "recall_report_missing",
       message: "memory was used but no recall report was found; content identity is unavailable",
@@ -160812,7 +160851,7 @@ function resolveInput(memoryInputId, recallInputs, runFolder, warnings) {
 function extractRunMemoryLinkage(runFolder) {
   const warnings = [];
   const envelopePath = join54(runFolder, RUN_ENVELOPE_RELATIVE_PATH2);
-  if (!existsSync49(envelopePath)) {
+  if (!existsSync50(envelopePath)) {
     warnings.push({
       code: "envelope_missing",
       message: "no run.envelope@v0 record (resume or non-source run); skipped from linkage",
@@ -161132,7 +161171,7 @@ init_memory_preview();
 // dist/app/history/pull-log.js
 init_schemas3();
 init_atomic_io();
-import { existsSync as existsSync50, readFileSync as readFileSync68 } from "node:fs";
+import { existsSync as existsSync51, readFileSync as readFileSync68 } from "node:fs";
 import { join as join56 } from "node:path";
 var HISTORY_PULL_LOG_RELATIVE_PATH = "reports/history/pull-log.json";
 function pullLogUnavailable(runFolder, error52) {
@@ -161145,7 +161184,7 @@ function pullLogUnavailable(runFolder, error52) {
 }
 function readPullLog(runFolder) {
   const path = join56(runFolder, HISTORY_PULL_LOG_RELATIVE_PATH);
-  if (!existsSync50(path))
+  if (!existsSync51(path))
     return void 0;
   try {
     return HistoryPullLogV1.parse(JSON.parse(readFileSync68(path, "utf8")));
@@ -161158,7 +161197,7 @@ function appendPullLogEntry(runFolder, input) {
   const warnings = [];
   let existing;
   try {
-    if (existsSync50(outPath)) {
+    if (existsSync51(outPath)) {
       existing = HistoryPullLogV1.parse(JSON.parse(readFileSync68(outPath, "utf8")));
     }
   } catch (error52) {
@@ -161516,7 +161555,7 @@ init_esm();
 init_indexer();
 init_catalog();
 import { createHash as createHash14 } from "node:crypto";
-import { existsSync as existsSync52, readFileSync as readFileSync70 } from "node:fs";
+import { existsSync as existsSync53, readFileSync as readFileSync70 } from "node:fs";
 import { basename as basename8, join as join57 } from "node:path";
 
 // dist/memory/project-identity.js
@@ -161527,7 +161566,7 @@ init_connector_relay();
 init_control_plane_paths();
 init_project_store();
 import { execFileSync as execFileSync7 } from "node:child_process";
-import { existsSync as existsSync51, readFileSync as readFileSync69 } from "node:fs";
+import { existsSync as existsSync52, readFileSync as readFileSync69 } from "node:fs";
 function hashedId(prefix, basis) {
   return `proj-${prefix}-${sha256OfString(basis).slice(0, 16)}`;
 }
@@ -161544,7 +161583,7 @@ function normalizeGitRemoteUrl(url2) {
 }
 function readConfigProjectId(repoRoot) {
   const configPath = projectConfigPath(repoRoot);
-  if (!existsSync51(configPath))
+  if (!existsSync52(configPath))
     return void 0;
   let raw;
   try {
@@ -161693,7 +161732,7 @@ function resolveNoteSource(input) {
   ];
   for (const candidate of candidates) {
     const abs = join57(input.runFolder, candidate.rel);
-    if (!existsSync52(abs))
+    if (!existsSync53(abs))
       continue;
     const sha2564 = sha256Text(readFileSync70(abs, "utf8"));
     const ref = Ref.parse({
@@ -161705,7 +161744,7 @@ function resolveNoteSource(input) {
     return { ref, sha256: sha2564 };
   }
   const tracePath = join57(input.runFolder, "trace.ndjson");
-  if (existsSync52(tracePath)) {
+  if (existsSync53(tracePath)) {
     const runId = basename8(input.runFolder);
     const sha2564 = sha256Text(readFileSync70(tracePath, "utf8"));
     const trace = Ref.safeParse({
@@ -161879,7 +161918,7 @@ init_preview();
 
 // dist/cli/reclaim.js
 init_esm();
-import { join as join59, resolve as resolve36 } from "node:path";
+import { join as join59, resolve as resolve38 } from "node:path";
 
 // dist/runtime/fanout/worktree-reaper.js
 init_trace_store();
@@ -162027,7 +162066,7 @@ function parseReclaimArgs(argv) {
   }
   return {
     json: options?.json === true,
-    projectRoot: resolve36(options?.projectRoot ?? process.cwd())
+    projectRoot: resolve38(options?.projectRoot ?? process.cwd())
   };
 }
 async function runReclaimCommand(argv) {
@@ -162063,11 +162102,11 @@ init_run2();
 init_esm();
 init_projection_common();
 init_run_folder_projector();
-import { resolve as resolve38 } from "node:path";
+import { resolve as resolve40 } from "node:path";
 
 // dist/app/runs-list/list.js
 import { readFileSync as readFileSync71, readdirSync as readdirSync10 } from "node:fs";
-import { join as join60, resolve as resolve37 } from "node:path";
+import { join as join60, resolve as resolve39 } from "node:path";
 init_run_folder_projector();
 function listRunFolders2(runsRoot2) {
   let entries;
@@ -162094,7 +162133,7 @@ function rawLastRecordedAt(runFolder) {
   }
 }
 function rowForFolder(runFolder) {
-  const unreadable = { run_folder: resolve37(runFolder), state: "unreadable" };
+  const unreadable = { run_folder: resolve39(runFolder), state: "unreadable" };
   let projection;
   try {
     projection = projectRunStatusFromRunFolder(runFolder);
@@ -162142,7 +162181,7 @@ function rowForFolder(runFolder) {
   }
 }
 function discoverRunsList(input) {
-  const runsRoot2 = resolve37(input.runsRoot);
+  const runsRoot2 = resolve39(input.runsRoot);
   const rows = listRunFolders2(runsRoot2).map((runFolder) => rowForFolder(runFolder));
   const sorted = [...rows].sort((left, right) => {
     if (left.when !== void 0 && right.when !== void 0) {
@@ -162265,8 +162304,8 @@ function parseListArgs(argv) {
   }
   if (options === void 0)
     return "runs could not parse its arguments";
-  const projectRoot = resolve38(options.projectRoot ?? process.cwd());
-  const runsBase = options.runsBase === void 0 ? runsRoot(projectRoot) : resolve38(options.runsBase);
+  const projectRoot = resolve40(options.projectRoot ?? process.cwd());
+  const runsBase = options.runsBase === void 0 ? runsRoot(projectRoot) : resolve40(options.runsBase);
   return { runsBase, json: options.json === true };
 }
 async function runRunsCommand(argv) {
@@ -162319,8 +162358,8 @@ init_host();
 init_atomic_io();
 init_commander_support();
 init_run2();
-import { existsSync as existsSync53, readFileSync as readFileSync72 } from "node:fs";
-import { join as join61, resolve as resolve39 } from "node:path";
+import { existsSync as existsSync54, readFileSync as readFileSync72 } from "node:fs";
+import { join as join61, resolve as resolve41 } from "node:path";
 var START_LINE = /^\s*<!--\s*circuit:start\s*-->\s*$/;
 var END_LINE = /^\s*<!--\s*circuit:end\s*-->\s*$/;
 var UNINSTALL_TARGET_FILES = ["AGENTS.md", "CLAUDE.md"];
@@ -162384,7 +162423,7 @@ function parseArgs4(argv, cwd2) {
     throw new Error(`unexpected argument: ${program2.args[0]}`);
   const opts = program2.opts();
   return {
-    dir: resolve39(opts.dir ?? cwd2),
+    dir: resolve41(opts.dir ?? cwd2),
     json: opts.json === true
   };
 }
@@ -162472,7 +162511,7 @@ async function runUninstallCommand(argv, options = {}) {
   let strippedAny = false;
   for (const file2 of UNINSTALL_TARGET_FILES) {
     const path = join61(args.dir, file2);
-    if (!existsSync53(path)) {
+    if (!existsSync54(path)) {
       files.push({ file: file2, path, status: "absent" });
       continue;
     }

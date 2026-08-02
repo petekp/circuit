@@ -1,36 +1,50 @@
 // Explainer verification writer.
 //
-// Proves the built site mechanically. v1 runs one default command — the site
-// build — in the project root, the canonical "does the generated explainer
-// compile" gate. The command set is intentionally a fixed default; the
-// enrichment is sourcing it from the spec (so the operator's real proof
-// commands, including a fidelity-to-paper check, travel with the concept).
-// loadCommands ignores the plan input body — explainer.spec@v1 has no command
-// list in v1 — but the step still declares the verification.plan@v1 read so the
-// graph dependency is explicit.
+// Proves the built site mechanically: the site build is the canonical "does the
+// generated explainer compile" gate.
+//
+// The command used to be the literal `npm run build`, written into the flow
+// behind a constant named DEFAULT_COMMANDS that nothing could override. That
+// made Explainer runnable only against npm projects that happen to expose a
+// `build` script, and it failed with npm's "Missing script" noise everywhere
+// else instead of saying what to declare. It now resolves through the shared
+// verification resolver, so a project states its own proof in
+// .circuit/config.yaml and an npm project with a `build` script keeps working
+// untouched.
+//
+// The writer has no typed report to source from, which is why it declares no
+// `reads`: the command comes from the project, not from upstream in the run.
+// It also has no goal text to offer the resolver, so an inline
+// "verify with `cmd`" cannot reach here — the run-folder context a verification
+// writer receives carries no goal. Config and package scripts still apply.
 
+import {
+  type VerificationNeed,
+  requireResolvedVerificationCommands,
+} from '../../../shared/verification-resolver.js';
 import type {
+  VerificationBuildContext,
   VerificationBuilder,
   VerificationCommand,
   VerificationCommandObservation,
 } from '../../registries/verification-writers/types.js';
 import { ExplainerVerification } from '../reports.js';
 
-const DEFAULT_COMMANDS: readonly VerificationCommand[] = [
-  {
-    id: 'site-build',
-    cwd: '.',
-    argv: ['npm', 'run', 'build'],
-    timeout_ms: 600_000,
-    max_output_bytes: 200_000,
-    env: {},
-  },
-];
+const SITE_BUILD_NEEDS: readonly VerificationNeed[] = ['build'];
+const SITE_BUILD_TIMEOUT_MS = 600_000;
+const SITE_BUILD_MAX_OUTPUT_BYTES = 200_000;
 
 export const explainerVerificationWriter: VerificationBuilder = {
   resultSchemaName: 'explainer.verification@v1',
-  loadCommands(): readonly VerificationCommand[] {
-    return DEFAULT_COMMANDS;
+  loadCommands(context: VerificationBuildContext): readonly VerificationCommand[] {
+    return requireResolvedVerificationCommands({
+      ...(context.projectRoot === undefined ? {} : { projectRoot: context.projectRoot }),
+      goal: '',
+      requestedNeeds: SITE_BUILD_NEEDS,
+      commandIdPrefix: 'explainer',
+      timeoutMs: SITE_BUILD_TIMEOUT_MS,
+      maxOutputBytes: SITE_BUILD_MAX_OUTPUT_BYTES,
+    });
   },
   buildResult(observations: readonly VerificationCommandObservation[]): unknown {
     const overallStatus = observations.some((observation) => observation.status === 'failed')
