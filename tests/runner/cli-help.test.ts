@@ -167,6 +167,30 @@ describe('bare subcommand-family commands (B3)', () => {
     expect(result.stdout).toBe('');
     expect(result.stderr).toContain('memory requires a subcommand');
   });
+
+  // The help block lists `--limit <n>` under flags, so reaching for it before
+  // the subcommand is the ordinary slip. Commander answers "unknown option
+  // '--limit'", which is false twice over: the option is known, and the thing
+  // actually missing is the subcommand. A flag carrying a value made the old
+  // check believe a subcommand had been named, because the value is a token
+  // that does not start with a dash.
+  it.each([
+    { argv: ['history', '--limit', '5'], expected: 'history requires a subcommand' },
+    { argv: ['memory', '--limit', '3'], expected: 'memory requires a subcommand' },
+  ])('$argv names the missing subcommand, not the flag', async ({ argv, expected }) => {
+    const result = await captureMain(argv);
+    expect(result.code).toBe(2);
+    expect(result.stderr).not.toContain('unknown option');
+    expect(result.stderr).toContain(expected);
+  });
+
+  // The other half of the same rule: once a subcommand is named, an option
+  // complaint is about that subcommand and stays Commander's to make.
+  it('keeps the unknown-option message once a subcommand is named', async () => {
+    const result = await captureMain(['history', 'status', '--nonsense']);
+    expect(result.code).toBe(2);
+    expect(result.stderr).toContain("unknown option '--nonsense'");
+  });
 });
 
 describe('unknown command remedies (P6)', () => {

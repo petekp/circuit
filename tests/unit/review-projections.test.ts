@@ -743,8 +743,8 @@ describe('Review evidence projections', () => {
         { include: ['.'], exclude: [] },
         true,
       ).evidence_warnings.find((warning) => warning.kind === 'snapshot_truncated');
-      expect(truncation?.message).toContain('the repository matched 2566 files');
-      expect(truncation?.message).not.toContain('. matched');
+      expect(truncation?.message).toContain('1 of the 2566 files in the repository');
+      expect(truncation?.message).not.toContain('files in .');
     });
 
     it('still reports a scope that really does narrow the read', () => {

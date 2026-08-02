@@ -25920,6 +25920,10 @@ function commanderErrorMessage(err) {
 function isCommanderHelpSignal(err) {
   return err instanceof CommanderError && (err.code === "commander.helpDisplayed" || err.code === "commander.help");
 }
+function namesSubcommand(argv) {
+  const first = argv[0];
+  return first !== void 0 && !first.startsWith("-");
+}
 function parseCommanderOrThrow(program2, argv) {
   try {
     configureCommanderProgram(program2).parse(argv, { from: "user" });
@@ -86609,7 +86613,10 @@ function reviewEvidenceWarnings(input) {
         // reader who sees source in the evidence and none of the docs would
         // conclude the tree has no docs, when what happened is that the budget
         // was spent on source first on purpose.
-        message: `${reviewPathScopePaths(evidence3.path_scope)} matched ${evidence3.matched_file_count} files. Review read ${evidence3.files.length} of them, ordered by review value so source comes before prose and before generated output, and did not inspect the rest.`
+        // The count leads rather than the scope: "the repository" at the head
+        // of a sentence wants a capital, a literal path does not, and there is
+        // no rendering of the scope that reads right in both positions.
+        message: `Review read ${evidence3.files.length} of the ${evidence3.matched_file_count} files in ${reviewPathScopePaths(evidence3.path_scope)}, ordered by review value so source comes before prose and before generated output, and did not inspect the rest.`
       });
     }
     for (const file2 of evidence3.files) {
@@ -162099,8 +162106,7 @@ function parseHistoryArgs(argv) {
   try {
     program2.parse(argv, { from: "user" });
   } catch (err) {
-    const namedSomething = argv.some((token) => !token.startsWith("-"));
-    if (!isCommanderHelpSignal(err) && namedSomething)
+    if (!isCommanderHelpSignal(err) && namesSubcommand(argv))
       return commanderErrorMessage(err);
   }
   if (parsed === void 0) {
@@ -162366,14 +162372,10 @@ function stampMemoryManifest(resolved, options = {}) {
 init_project_store();
 init_schemas3();
 init_control_plane_paths();
+init_commander_support();
 function writeJson5(value) {
   process.stdout.write(`${JSON.stringify(value, null, 2)}
 `);
-}
-function commanderErrorMessage2(err) {
-  if (err instanceof CommanderError)
-    return err.message.replace(/^error: /, "");
-  return err instanceof Error ? err.message : String(err);
 }
 function sha256Text(text) {
   return createHash14("sha256").update(text, "utf8").digest("hex");
@@ -162435,7 +162437,9 @@ function parseMemoryArgs(argv) {
         return "memory requires a subcommand: note, list, or forget";
       }
     }
-    return commanderErrorMessage2(err);
+    if (!namesSubcommand(argv))
+      return "memory requires a subcommand: note, list, or forget";
+    return commanderErrorMessage(err);
   }
   if (parsed === void 0)
     return "memory requires a subcommand: note, list, or forget";

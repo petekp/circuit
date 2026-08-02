@@ -38,6 +38,17 @@ export function isCommanderHelpSignal(err: unknown): err is CommanderError {
   );
 }
 
+// Whether the operator actually named a subcommand. A subcommand has to come
+// first, so the test is the first token and nothing else: anything starting
+// with a dash is a flag, and any token after it could be that flag's value.
+// Without this, `circuit history --limit 5` looks like it named `5`, and the
+// operator gets told `--limit` is unknown when the option is fine and the
+// subcommand is what is missing.
+export function namesSubcommand(argv: readonly string[]): boolean {
+  const first = argv[0];
+  return first !== undefined && !first.startsWith('-');
+}
+
 // Configure and parse a program, normalizing CommanderError. A successfully
 // displayed help (--help/-h, or a help command that printed and would exit
 // 0) exits the process with code 0; a help raised as a usage error (bare

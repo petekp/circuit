@@ -27,6 +27,7 @@ import {
   commanderErrorMessage,
   configureCommanderProgram,
   isCommanderHelpSignal,
+  namesSubcommand,
 } from './commander-support.js';
 
 type ParsedHistoryArgs =
@@ -356,11 +357,10 @@ function parseHistoryArgs(argv: readonly string[]): ParsedHistoryArgs | string {
     // A flag with no subcommand lands here too, and Commander describes it as
     // an unknown option. That reads as a lie for `circuit history --json`,
     // where `--json` is not just known but required by every subcommand. When
-    // nothing but flags was typed, no subcommand could have claimed them, so
-    // report the thing that is actually missing. An argv that does name
-    // something keeps Commander's own message: it is about that subcommand.
-    const namedSomething = argv.some((token) => !token.startsWith('-'));
-    if (!isCommanderHelpSignal(err) && namedSomething) return commanderErrorMessage(err);
+    // no subcommand was named, none could have claimed the flags, so report
+    // the thing that is actually missing. An argv that does name a subcommand
+    // keeps Commander's own message: it is about that subcommand.
+    if (!isCommanderHelpSignal(err) && namesSubcommand(argv)) return commanderErrorMessage(err);
   }
 
   if (parsed === undefined) {

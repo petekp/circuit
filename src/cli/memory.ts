@@ -15,6 +15,7 @@ import {
   Ref as RefSchema,
 } from '../schemas/index.js';
 import { runsRoot } from '../shared/control-plane-paths.js';
+import { commanderErrorMessage, namesSubcommand } from './commander-support.js';
 
 // `circuit memory note|list|forget` — the operator-filed core of the cited-fact
 // producer (Slice 5, phase 1). A note writes a `kind:"project"` MemoryInputV0
@@ -59,11 +60,6 @@ export interface RunMemoryCommandOptions {
 
 function writeJson(value: unknown): void {
   process.stdout.write(`${JSON.stringify(value, null, 2)}\n`);
-}
-
-function commanderErrorMessage(err: unknown): string {
-  if (err instanceof CommanderError) return err.message.replace(/^error: /, '');
-  return err instanceof Error ? err.message : String(err);
 }
 
 function sha256Text(text: string): string {
@@ -174,6 +170,11 @@ function parseMemoryArgs(argv: readonly string[]): ParsedMemoryArgs | string {
         return 'memory requires a subcommand: note, list, or forget';
       }
     }
+    // A flag typed before any subcommand is Commander's "unknown option", and
+    // that is the wrong complaint twice over: the option belongs to a
+    // subcommand, and the subcommand is what is missing. Once one is named,
+    // the option message is about that subcommand and stands.
+    if (!namesSubcommand(argv)) return 'memory requires a subcommand: note, list, or forget';
     return commanderErrorMessage(err);
   }
   if (parsed === undefined) return 'memory requires a subcommand: note, list, or forget';

@@ -287,7 +287,10 @@ export function reviewEvidenceWarnings(input: {
         // reader who sees source in the evidence and none of the docs would
         // conclude the tree has no docs, when what happened is that the budget
         // was spent on source first on purpose.
-        message: `${reviewPathScopePaths(evidence.path_scope)} matched ${evidence.matched_file_count} files. Review read ${evidence.files.length} of them, ordered by review value so source comes before prose and before generated output, and did not inspect the rest.`,
+        // The count leads rather than the scope: "the repository" at the head
+        // of a sentence wants a capital, a literal path does not, and there is
+        // no rendering of the scope that reads right in both positions.
+        message: `Review read ${evidence.files.length} of the ${evidence.matched_file_count} files in ${reviewPathScopePaths(evidence.path_scope)}, ordered by review value so source comes before prose and before generated output, and did not inspect the rest.`,
       });
     }
     for (const file of evidence.files) {
