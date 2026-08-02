@@ -133,9 +133,11 @@ export function circuitOwnedVerificationCommand(
   const binary = commandBinaryName(command.argv[0] ?? '');
   if (PROJECT_TOOLCHAIN_BINARIES.has(binary)) {
     throw new Error(
-      `circuitOwnedVerificationCommand cannot run '${binary}': that is the project's toolchain, ` +
-        "not Circuit's. Resolve it through shared/verification-resolver.ts so the project can " +
+      [
+        `circuitOwnedVerificationCommand cannot run '${binary}': that is the project's toolchain,`,
+        "not Circuit's. Resolve it through shared/verification-resolver.ts so the project can",
         'declare its own command.',
+      ].join(' '),
     );
   }
   return VerificationCommand.parse(command);

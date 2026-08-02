@@ -28,6 +28,11 @@ const SERIAL_FILES = [
   // a wall-clock timeout. Same signature again: 5s alone, 90s and a timeout in
   // the parallel stage.
   'tests/mcp/safe-git-reader-live.test.ts',
+  // runs the installed-plugin doctor as a real subprocess per case, including
+  // one that must fail on an unsafe state file rather than start an MCP
+  // server. Same signature: 22s alone, 475s and a timeout in the parallel
+  // stage.
+  'tests/release/installed-plugin-doctor.test.ts',
 ];
 const FAST_EXCLUDES = ['tests/runner/cli-router.test.ts', 'tests/unit/emit-flows-drift.test.ts'];
 
