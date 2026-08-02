@@ -3,6 +3,8 @@ import { Command } from 'commander';
 import { makeTraceRunStatusResolver, reapWorktrees } from '../runtime/fanout/worktree-reaper.js';
 import { controlPlaneRoot, runsRoot } from '../shared/control-plane-paths.js';
 import { commanderErrorMessage, configureCommanderProgram } from './commander-support.js';
+import { diamondHeaderLine } from './styled-table.js';
+import { type TerminalPalette, colorEnabled, terminalPalette } from './terminal-style.js';
 
 // `circuit reclaim` — operator-driven worktree reaper.
 //
@@ -19,6 +21,51 @@ import { commanderErrorMessage, configureCommanderProgram } from './commander-su
 
 function writeJson(value: unknown): void {
   process.stdout.write(`${JSON.stringify(value, null, 2)}\n`);
+}
+
+export interface ReclaimReadout {
+  readonly worktreesRoot: string;
+  readonly removed: readonly string[];
+  readonly kept: readonly string[];
+  readonly errors: readonly { readonly path: string; readonly message: string }[];
+}
+
+/**
+ * What a person sees. The JSON envelope stays available behind --json, which
+ * until now was accepted and ignored while everyone got the envelope.
+ *
+ * A kept worktree is the interesting one: it was left alone because its run is
+ * still going or is parked waiting on a decision, so the line says that rather
+ * than leaving the operator to wonder why reclaim skipped it.
+ */
+export function renderReclaimSummary(palette: TerminalPalette, summary: ReclaimReadout): string {
+  const lines: string[] = [diamondHeaderLine(palette, 'circuit reclaim'), ''];
+  if (summary.removed.length === 0 && summary.kept.length === 0 && summary.errors.length === 0) {
+    lines.push(`Nothing to reclaim. No leftover worktrees under ${summary.worktreesRoot}.`);
+    return `${lines.join('\n')}\n`;
+  }
+  if (summary.removed.length > 0) {
+    lines.push(
+      `Removed ${summary.removed.length} leftover ${summary.removed.length === 1 ? 'worktree' : 'worktrees'}:`,
+      ...summary.removed.map((path) => `  ${path}`),
+      '',
+    );
+  }
+  if (summary.kept.length > 0) {
+    lines.push(
+      `Kept ${summary.kept.length}: the owning run is still running or parked on a decision.`,
+      ...summary.kept.map((path) => `  ${path}`),
+      '',
+    );
+  }
+  if (summary.errors.length > 0) {
+    lines.push(
+      `Could not remove ${summary.errors.length}:`,
+      ...summary.errors.map((error) => `  ${error.path}  ${palette.dim(error.message)}`),
+      '',
+    );
+  }
+  return `${lines.join('\n').trimEnd()}\n`;
 }
 
 function parseReclaimArgs(
@@ -61,13 +108,19 @@ export async function runReclaimCommand(argv: readonly string[]): Promise<number
     resolveRunStatus: makeTraceRunStatusResolver(runsRoot(projectRoot)),
   });
 
-  writeJson({
-    schema_version: 1,
-    worktrees_root: worktreesRoot,
-    removed: summary.removed,
-    kept: summary.kept,
-    errors: summary.errors,
-  });
+  if (parsed.json) {
+    writeJson({
+      schema_version: 1,
+      worktrees_root: worktreesRoot,
+      removed: summary.removed,
+      kept: summary.kept,
+      errors: summary.errors,
+    });
+  } else {
+    process.stdout.write(
+      renderReclaimSummary(terminalPalette(colorEnabled()), { worktreesRoot, ...summary }),
+    );
+  }
 
   // A recorded per-worktree failure is operator-visible but does not make the
   // command itself fail: the reaper is best-effort and the summary is the proof.
