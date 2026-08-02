@@ -85525,7 +85525,15 @@ var init_reports10 = __esm({
     };
     ReviewEvidenceText = external_exports.object({
       text: external_exports.string(),
-      truncated: external_exports.boolean()
+      truncated: external_exports.boolean(),
+      // Present on a diff that was reduced by ranking its file sections: how
+      // many files the diff changed, and how many of them survived the budget.
+      // `truncated: true` on its own says something was cut without saying what
+      // the verdict does not cover, and a reader cannot tell the difference
+      // between a trimmed tail and a missing subject. Optional because the other
+      // users of this shape (one file's contents) have no file count to report.
+      matched_file_count: external_exports.number().int().nonnegative().optional(),
+      included_file_count: external_exports.number().int().nonnegative().optional()
     }).strict();
     ReviewUntrackedContentPolicy = external_exports.enum(["metadata-only", "include-content"]);
     ReviewTargetKind = external_exports.enum(["working_tree", "commit", "range", "snapshot"]);
@@ -85913,6 +85921,398 @@ var init_runtime_git_reader = __esm({
   }
 });
 
+// dist/flows/review/writers/snapshot-ranking.js
+import { basename as basename4, extname as extname2 } from "node:path";
+function fileExtension(path) {
+  return extname2(path).replace(/^\./u, "").toLowerCase();
+}
+function snapshotRank(path) {
+  const segments = path.split("/");
+  const name = basename4(path).toLowerCase();
+  if (segments.slice(0, -1).some((segment) => GENERATED_PATH_SEGMENTS.has(segment.toLowerCase()))) {
+    return "generated";
+  }
+  if (LOCKFILE_NAMES.has(name))
+    return "generated";
+  if (GENERATED_FILENAME_PATTERN.test(name))
+    return "generated";
+  const extension2 = fileExtension(path);
+  if (GENERATED_EXTENSIONS.has(extension2))
+    return "generated";
+  if (SOURCE_EXTENSIONS.has(extension2)) {
+    const supporting = segments.slice(0, -1).some((segment) => TEST_PATH_SEGMENTS.has(segment.toLowerCase())) || TEST_FILENAME_PATTERN.test(name);
+    return supporting ? "test" : "source";
+  }
+  if (PROSE_EXTENSIONS.has(extension2))
+    return "prose";
+  if (CONFIG_EXTENSIONS.has(extension2))
+    return "config";
+  if (CONFIG_FILENAMES.has(name))
+    return "config";
+  if (extension2.length === 0 && name.startsWith("."))
+    return "config";
+  return "other";
+}
+function globToRegExp(pattern) {
+  const anchored = pattern.startsWith("/") ? pattern.slice(1) : pattern;
+  const directoryOnly = anchored.endsWith("/");
+  const body = directoryOnly ? anchored.slice(0, -1) : anchored;
+  const rooted = body.includes("/") ? body : `**/${body}`;
+  let source = "";
+  for (let index = 0; index < rooted.length; index += 1) {
+    const char = rooted[index];
+    if (char === "*") {
+      if (rooted[index + 1] === "*") {
+        if (rooted[index + 2] === "/") {
+          source += "(?:.*/)?";
+          index += 2;
+        } else {
+          source += ".*";
+          index += 1;
+        }
+        continue;
+      }
+      source += "[^/]*";
+      continue;
+    }
+    if (char === "?") {
+      source += "[^/]";
+      continue;
+    }
+    source += char.replace(/[.+^${}()|[\]\\]/gu, "\\$&");
+  }
+  return new RegExp(`^${source}${directoryOnly ? "/.*" : ""}$`, "u");
+}
+function attributeVerdict(attributes) {
+  let verdict;
+  for (const attribute2 of attributes) {
+    if (attribute2 === GENERATED_ATTRIBUTE || attribute2 === `${GENERATED_ATTRIBUTE}=true`) {
+      verdict = true;
+    } else if (attribute2 === `-${GENERATED_ATTRIBUTE}` || attribute2 === `${GENERATED_ATTRIBUTE}=false`) {
+      verdict = false;
+    }
+  }
+  return verdict;
+}
+function declaredGeneratedMatcher(gitattributes) {
+  const rules = [];
+  for (const rawLine of (gitattributes ?? "").split("\n")) {
+    const line = rawLine.trim();
+    if (line.length === 0 || line.startsWith("#") || line.startsWith("["))
+      continue;
+    const quoted = line.startsWith('"') ? /^"((?:[^"\\]|\\.)*)"\s*(.*)$/u.exec(line) : null;
+    const pattern = quoted === null ? line.split(/\s+/u)[0] : quoted[1];
+    const rest = quoted === null ? line.slice(pattern.length) : quoted[2];
+    const generated = attributeVerdict(rest.split(/\s+/u).filter((part) => part.length > 0));
+    if (generated === void 0)
+      continue;
+    try {
+      rules.push({ match: globToRegExp(pattern), generated });
+    } catch {
+    }
+  }
+  if (rules.length === 0)
+    return () => false;
+  return (path) => {
+    let verdict = false;
+    for (const rule of rules) {
+      if (rule.match.test(path))
+        verdict = rule.generated;
+    }
+    return verdict;
+  };
+}
+function rankSnapshotPaths(paths, options) {
+  const declared = options?.isDeclaredGenerated;
+  return paths.map((path, index) => ({
+    path,
+    index,
+    order: declared?.(path) === true ? RANK_ORDER.generated : RANK_ORDER[snapshotRank(path)]
+  })).sort((left, right) => left.order - right.order || left.index - right.index).map((entry) => entry.path);
+}
+var SOURCE_EXTENSIONS, TEST_PATH_SEGMENTS, TEST_FILENAME_PATTERN, CONFIG_EXTENSIONS, CONFIG_FILENAMES, PROSE_EXTENSIONS, GENERATED_PATH_SEGMENTS, LOCKFILE_NAMES, GENERATED_EXTENSIONS, GENERATED_FILENAME_PATTERN, RANK_ORDER, GENERATED_ATTRIBUTE;
+var init_snapshot_ranking = __esm({
+  "dist/flows/review/writers/snapshot-ranking.js"() {
+    "use strict";
+    SOURCE_EXTENSIONS = /* @__PURE__ */ new Set([
+      "astro",
+      "bash",
+      "c",
+      "cc",
+      "cjs",
+      "clj",
+      "cpp",
+      "cs",
+      "css",
+      "cts",
+      "cxx",
+      "dart",
+      "elm",
+      "erl",
+      "ex",
+      "exs",
+      "fish",
+      "fs",
+      "go",
+      "h",
+      "hh",
+      "hpp",
+      "hs",
+      "java",
+      "jl",
+      "js",
+      "jsx",
+      "kt",
+      "kts",
+      "lua",
+      "m",
+      "mjs",
+      "ml",
+      "mm",
+      "mts",
+      "php",
+      "pl",
+      "ps1",
+      "py",
+      "r",
+      "rb",
+      "rs",
+      "sass",
+      "scala",
+      "scss",
+      "sh",
+      "sql",
+      "svelte",
+      "swift",
+      "ts",
+      "tsx",
+      "vue",
+      "zsh"
+    ]);
+    TEST_PATH_SEGMENTS = /* @__PURE__ */ new Set([
+      "__mocks__",
+      "__tests__",
+      "benchmark",
+      "benchmarks",
+      "demo",
+      "demos",
+      "e2e",
+      "eval",
+      "evals",
+      "example",
+      "examples",
+      "fixture",
+      "fixtures",
+      "mocks",
+      "sample",
+      "samples",
+      "spec",
+      "specs",
+      "test",
+      "testdata",
+      "tests"
+    ]);
+    TEST_FILENAME_PATTERN = /[._-](?:test|spec|bench)\.[A-Za-z0-9]+$/u;
+    CONFIG_EXTENSIONS = /* @__PURE__ */ new Set([
+      "cfg",
+      "conf",
+      "graphql",
+      "ini",
+      "json",
+      "json5",
+      "jsonc",
+      "properties",
+      "proto",
+      "toml",
+      "yaml",
+      "yml"
+    ]);
+    CONFIG_FILENAMES = /* @__PURE__ */ new Set([
+      "dockerfile",
+      "justfile",
+      "makefile",
+      "procfile",
+      "rakefile",
+      "taskfile"
+    ]);
+    PROSE_EXTENSIONS = /* @__PURE__ */ new Set(["adoc", "markdown", "md", "mdx", "org", "rst", "text", "txt"]);
+    GENERATED_PATH_SEGMENTS = /* @__PURE__ */ new Set([
+      "__generated__",
+      "__snapshots__",
+      ".next",
+      ".nuxt",
+      ".turbo",
+      "bower_components",
+      "coverage",
+      "dist",
+      "generated",
+      "node_modules",
+      "third_party",
+      "thirdparty",
+      "vendor"
+    ]);
+    LOCKFILE_NAMES = /* @__PURE__ */ new Set([
+      "bun.lock",
+      "bun.lockb",
+      "cargo.lock",
+      "composer.lock",
+      "flake.lock",
+      "gemfile.lock",
+      "go.sum",
+      "npm-shrinkwrap.json",
+      "package-lock.json",
+      "pipfile.lock",
+      "pnpm-lock.yaml",
+      "poetry.lock",
+      "uv.lock",
+      "yarn.lock"
+    ]);
+    GENERATED_EXTENSIONS = /* @__PURE__ */ new Set(["map", "snap"]);
+    GENERATED_FILENAME_PATTERN = /\.(?:min|bundle|generated|gen|pb)\.[A-Za-z0-9]+$/u;
+    RANK_ORDER = {
+      source: 0,
+      test: 1,
+      config: 2,
+      prose: 3,
+      // Below prose but above nothing: a file with no recognized extension is more
+      // likely a script or a fixture than a build artifact, and guessing it is an
+      // artifact would hide real code behind a naming convention this list happens
+      // not to know.
+      other: 4,
+      generated: 5
+    };
+    GENERATED_ATTRIBUTE = "linguist-generated";
+  }
+});
+
+// dist/flows/review/writers/diff-ranking.js
+function sectionPath(section) {
+  const lines = section.split("\n");
+  for (const line of lines) {
+    if (line.startsWith("+++ b/"))
+      return line.slice("+++ b/".length).trim();
+    if (line.startsWith("--- a/"))
+      return line.slice("--- a/".length).trim();
+    if (line.startsWith("@@ "))
+      break;
+  }
+  const header = lines[0] ?? "";
+  const bSide = header.indexOf(" b/");
+  if (bSide !== -1)
+    return header.slice(bSide + " b/".length).trim();
+  return header.slice("diff --git ".length).trim();
+}
+function splitDiffSections(diff2) {
+  const lines = diff2.split("\n");
+  const starts = [];
+  for (const [index, line] of lines.entries()) {
+    if (SECTION_HEADER.test(line))
+      starts.push(index);
+  }
+  if (starts.length === 0)
+    return diff2.length === 0 ? [] : [{ path: "", text: diff2 }];
+  const sections = [];
+  const firstStart = starts[0];
+  if (firstStart > 0) {
+    sections.push({ path: "", text: `${lines.slice(0, firstStart).join("\n")}
+` });
+  }
+  for (const [position, start] of starts.entries()) {
+    const end = starts[position + 1] ?? lines.length;
+    const text = lines.slice(start, end).join("\n");
+    sections.push({ path: sectionPath(text), text });
+  }
+  return sections;
+}
+function omissionFooter(omitted, matched, included) {
+  const named = omitted.slice(0, MAX_NAMED_OMISSIONS);
+  const rest = omitted.length - named.length;
+  const list = rest > 0 ? [...named, `and ${rest} more`] : named;
+  return [
+    "",
+    `[review coverage: this diff changes ${matched} files. Review read ${included} of them,`,
+    "ordered by review value so source comes before prose and before generated output.",
+    `Not inspected: ${list.join(", ")}]`,
+    ""
+  ].join("\n");
+}
+function rankDiffText(diff2, maxChars, options) {
+  const sections = splitDiffSections(diff2);
+  const fileSections = sections.filter((section) => section.path !== "");
+  if (diff2.length <= maxChars) {
+    return {
+      text: diff2,
+      truncated: false,
+      matchedFileCount: fileSections.length,
+      includedFileCount: fileSections.length
+    };
+  }
+  const isDeclaredGenerated = options?.isDeclaredGenerated;
+  const ordered = sections.map((section, index) => ({
+    section,
+    index,
+    // Preamble sorts first and is never dropped: it is not a file, and it is
+    // where a reader looks for what the diff even is.
+    order: section.path === "" ? -1 : isDeclaredGenerated?.(section.path) === true ? RANK_ORDER2.generated : RANK_ORDER2[snapshotRank(section.path)]
+  })).sort((left, right) => left.order - right.order || left.index - right.index);
+  const reserve = Math.min(Math.floor(maxChars / 4), 4e3);
+  let remaining = Math.max(maxChars - reserve, 0);
+  const selected = /* @__PURE__ */ new Set();
+  for (const entry of ordered) {
+    if (entry.section.text.length > remaining)
+      continue;
+    selected.add(entry.index);
+    remaining -= entry.section.text.length;
+  }
+  if (selected.size === 0) {
+    const first = ordered[0];
+    if (first === void 0) {
+      return {
+        text: diff2.slice(0, maxChars),
+        truncated: true,
+        matchedFileCount: 0,
+        includedFileCount: 0
+      };
+    }
+    const head = first.section.text.slice(0, Math.max(maxChars - reserve, 0));
+    const included = first.section.path === "" ? 0 : 1;
+    const omitted2 = fileSections.filter((section) => section.path !== first.section.path || included === 0).map((section) => section.path);
+    return {
+      text: `${head}
+[truncated: first ${head.length} characters of this file's diff]${omissionFooter(omitted2, fileSections.length, included)}`,
+      truncated: true,
+      matchedFileCount: fileSections.length,
+      includedFileCount: included
+    };
+  }
+  const kept = sections.filter((_, index) => selected.has(index));
+  const omitted = sections.filter((section, index) => section.path !== "" && !selected.has(index)).map((section) => section.path);
+  const includedFileCount = kept.filter((section) => section.path !== "").length;
+  return {
+    text: `${kept.map((section) => section.text).join("")}${omissionFooter(omitted, fileSections.length, includedFileCount)}`,
+    truncated: true,
+    matchedFileCount: fileSections.length,
+    includedFileCount
+  };
+}
+var RANK_ORDER2, MAX_NAMED_OMISSIONS, SECTION_HEADER;
+var init_diff_ranking = __esm({
+  "dist/flows/review/writers/diff-ranking.js"() {
+    "use strict";
+    init_snapshot_ranking();
+    RANK_ORDER2 = {
+      source: 0,
+      test: 1,
+      config: 2,
+      prose: 3,
+      other: 4,
+      generated: 5
+    };
+    MAX_NAMED_OMISSIONS = 40;
+    SECTION_HEADER = /^diff --git /u;
+  }
+});
+
 // dist/flows/review/writers/evidence-completeness.js
 function unavailableDiff(text) {
   return /^git\s+.+\s+failed:/.test(text) || text.startsWith("Target unavailable:");
@@ -86108,6 +86508,14 @@ function appendOpaqueBinaryWarnings(warnings, diffs) {
     });
   }
 }
+function diffCoverageMessage(label, diff2) {
+  const matched = diff2.matched_file_count;
+  const included = diff2.included_file_count;
+  if (matched === void 0 || included === void 0 || matched === 0) {
+    return `${label} was truncated before relay`;
+  }
+  return `${label} changes ${matched} files. Review read ${included} of them, ordered by review value so source comes before prose and before generated output, and did not inspect the rest.`;
+}
 function reviewEvidenceWarnings(input) {
   const targetDisclosed = input.assumedTarget === true;
   const suppliedMaterial = input.evidence.kind === "goal";
@@ -86144,7 +86552,7 @@ function reviewEvidenceWarnings(input) {
     if (evidence3.target_diff.truncated) {
       warnings2.push({
         kind: "diff_truncated",
-        message: `${evidence3.target_ref} diff was truncated before relay`
+        message: diffCoverageMessage(`${evidence3.target_ref} diff`, evidence3.target_diff)
       });
     }
     if (!hasUsableTargetDiff(evidence3.target_diff)) {
@@ -86235,13 +86643,13 @@ function reviewEvidenceWarnings(input) {
   if (workingTreeMode !== "unstaged" && evidence2.staged_diff.truncated) {
     warnings.push({
       kind: "diff_truncated",
-      message: "staged diff was truncated before relay"
+      message: diffCoverageMessage("staged diff", evidence2.staged_diff)
     });
   }
   if (workingTreeMode !== "staged" && evidence2.unstaged_diff.truncated) {
     warnings.push({
       kind: "diff_truncated",
-      message: "unstaged diff was truncated before relay"
+      message: diffCoverageMessage("unstaged diff", evidence2.unstaged_diff)
     });
   }
   if (gitCommandFailed(evidence2.staged_diff.text)) {
@@ -86408,195 +86816,6 @@ var init_intake_projection = __esm({
     SNAPSHOT_NOT_APPLIED_WARNING = 'You asked about the code as it stands, and Review read changes instead. Reading files rather than a diff needs a path to bound it. Name one, such as "review src/auth as it stands".';
     CODEBASE_UNIT_BUDGET = { maxFilesPerUnit: 12, maxCharsPerUnit: 6e4 };
     MAX_REVIEW_UNITS = 24;
-  }
-});
-
-// dist/flows/review/writers/snapshot-ranking.js
-import { basename as basename4, extname as extname2 } from "node:path";
-function fileExtension(path) {
-  return extname2(path).replace(/^\./u, "").toLowerCase();
-}
-function snapshotRank(path) {
-  const segments = path.split("/");
-  const name = basename4(path).toLowerCase();
-  if (segments.slice(0, -1).some((segment) => GENERATED_PATH_SEGMENTS.has(segment.toLowerCase()))) {
-    return "generated";
-  }
-  if (LOCKFILE_NAMES.has(name))
-    return "generated";
-  if (GENERATED_FILENAME_PATTERN.test(name))
-    return "generated";
-  const extension2 = fileExtension(path);
-  if (GENERATED_EXTENSIONS.has(extension2))
-    return "generated";
-  if (SOURCE_EXTENSIONS.has(extension2)) {
-    const supporting = segments.slice(0, -1).some((segment) => TEST_PATH_SEGMENTS.has(segment.toLowerCase())) || TEST_FILENAME_PATTERN.test(name);
-    return supporting ? "test" : "source";
-  }
-  if (PROSE_EXTENSIONS.has(extension2))
-    return "prose";
-  if (CONFIG_EXTENSIONS.has(extension2))
-    return "config";
-  if (CONFIG_FILENAMES.has(name))
-    return "config";
-  if (extension2.length === 0 && name.startsWith("."))
-    return "config";
-  return "other";
-}
-function rankSnapshotPaths(paths) {
-  return paths.map((path, index) => ({ path, index, order: RANK_ORDER[snapshotRank(path)] })).sort((left, right) => left.order - right.order || left.index - right.index).map((entry) => entry.path);
-}
-var SOURCE_EXTENSIONS, TEST_PATH_SEGMENTS, TEST_FILENAME_PATTERN, CONFIG_EXTENSIONS, CONFIG_FILENAMES, PROSE_EXTENSIONS, GENERATED_PATH_SEGMENTS, LOCKFILE_NAMES, GENERATED_EXTENSIONS, GENERATED_FILENAME_PATTERN, RANK_ORDER;
-var init_snapshot_ranking = __esm({
-  "dist/flows/review/writers/snapshot-ranking.js"() {
-    "use strict";
-    SOURCE_EXTENSIONS = /* @__PURE__ */ new Set([
-      "astro",
-      "bash",
-      "c",
-      "cc",
-      "cjs",
-      "clj",
-      "cpp",
-      "cs",
-      "css",
-      "cts",
-      "cxx",
-      "dart",
-      "elm",
-      "erl",
-      "ex",
-      "exs",
-      "fish",
-      "fs",
-      "go",
-      "h",
-      "hh",
-      "hpp",
-      "hs",
-      "java",
-      "jl",
-      "js",
-      "jsx",
-      "kt",
-      "kts",
-      "lua",
-      "m",
-      "mjs",
-      "ml",
-      "mm",
-      "mts",
-      "php",
-      "pl",
-      "ps1",
-      "py",
-      "r",
-      "rb",
-      "rs",
-      "sass",
-      "scala",
-      "scss",
-      "sh",
-      "sql",
-      "svelte",
-      "swift",
-      "ts",
-      "tsx",
-      "vue",
-      "zsh"
-    ]);
-    TEST_PATH_SEGMENTS = /* @__PURE__ */ new Set([
-      "__mocks__",
-      "__tests__",
-      "benchmark",
-      "benchmarks",
-      "demo",
-      "demos",
-      "e2e",
-      "eval",
-      "evals",
-      "example",
-      "examples",
-      "fixture",
-      "fixtures",
-      "mocks",
-      "sample",
-      "samples",
-      "spec",
-      "specs",
-      "test",
-      "testdata",
-      "tests"
-    ]);
-    TEST_FILENAME_PATTERN = /[._-](?:test|spec|bench)\.[A-Za-z0-9]+$/u;
-    CONFIG_EXTENSIONS = /* @__PURE__ */ new Set([
-      "cfg",
-      "conf",
-      "graphql",
-      "ini",
-      "json",
-      "json5",
-      "jsonc",
-      "properties",
-      "proto",
-      "toml",
-      "yaml",
-      "yml"
-    ]);
-    CONFIG_FILENAMES = /* @__PURE__ */ new Set([
-      "dockerfile",
-      "justfile",
-      "makefile",
-      "procfile",
-      "rakefile",
-      "taskfile"
-    ]);
-    PROSE_EXTENSIONS = /* @__PURE__ */ new Set(["adoc", "markdown", "md", "mdx", "org", "rst", "text", "txt"]);
-    GENERATED_PATH_SEGMENTS = /* @__PURE__ */ new Set([
-      "__generated__",
-      "__snapshots__",
-      ".next",
-      ".nuxt",
-      ".turbo",
-      "bower_components",
-      "coverage",
-      "dist",
-      "generated",
-      "node_modules",
-      "third_party",
-      "thirdparty",
-      "vendor"
-    ]);
-    LOCKFILE_NAMES = /* @__PURE__ */ new Set([
-      "bun.lock",
-      "bun.lockb",
-      "cargo.lock",
-      "composer.lock",
-      "flake.lock",
-      "gemfile.lock",
-      "go.sum",
-      "npm-shrinkwrap.json",
-      "package-lock.json",
-      "pipfile.lock",
-      "pnpm-lock.yaml",
-      "poetry.lock",
-      "uv.lock",
-      "yarn.lock"
-    ]);
-    GENERATED_EXTENSIONS = /* @__PURE__ */ new Set(["map", "snap"]);
-    GENERATED_FILENAME_PATTERN = /\.(?:min|bundle|generated|gen|pb)\.[A-Za-z0-9]+$/u;
-    RANK_ORDER = {
-      source: 0,
-      test: 1,
-      config: 2,
-      prose: 3,
-      // Below prose but above nothing: a file with no recognized extension is more
-      // likely a script or a fixture than a build artifact, and guessing it is an
-      // artifact would hide real code behind a naming convention this list happens
-      // not to know.
-      other: 4,
-      generated: 5
-    };
   }
 });
 
@@ -87625,23 +87844,33 @@ async function collectTargetEvidence(projectRoot, target, reader, directContext)
   if (!diffStat.ok) {
     throw new Error(`${targetUnavailableMessage(target)} ${diffStat.reason}`);
   }
-  const targetDiff = gitDiffEvidence(diff2);
+  const targetDiff = gitDiffEvidence(diff2, projectDeclaredGenerated(projectRoot));
   if (targetDiff.text.length === 0) {
     throw new Error(`Review target has no changes to inspect: ${reviewTargetLabel(target)}${paths === void 0 ? "" : ` ${reviewPathScopeLabel(paths)}`} resolved successfully but produced an empty diff.`);
   }
   return { targetDiff, targetDiffStat: diffStat.stdout, pinnedTarget };
 }
-function gitDiffEvidence(result) {
+function gitDiffEvidence(result, isDeclaredGenerated) {
   if (!result.ok)
     return truncateText(result.reason, MAX_DIFF_CHARS);
-  const truncated = truncateText(result.stdout, MAX_DIFF_CHARS);
-  if (!result.truncated_by_buffer)
-    return truncated;
-  return {
-    text: `${truncated.text}
-[truncated by the bounded Git reader]`,
-    truncated: true
+  const ranked = rankDiffText(result.stdout, MAX_DIFF_CHARS, { isDeclaredGenerated });
+  const counts = ranked.matchedFileCount === 0 ? {} : {
+    matched_file_count: ranked.matchedFileCount,
+    included_file_count: ranked.includedFileCount
   };
+  if (!result.truncated_by_buffer) {
+    return { text: ranked.text, truncated: ranked.truncated, ...counts };
+  }
+  return {
+    text: `${ranked.text}
+[truncated by the bounded Git reader]`,
+    truncated: true,
+    ...counts
+  };
+}
+function projectDeclaredGenerated(projectRoot) {
+  const file2 = readWorkspaceFile(projectRoot, ".gitattributes", "include-content", MAX_GITATTRIBUTES_CHARS);
+  return declaredGeneratedMatcher(file2.content?.text);
 }
 function printableStatus(status) {
   if (!status.includes("\0"))
@@ -87831,7 +88060,9 @@ async function collectSnapshotEvidence(projectRoot, paths, reader, directContext
   const matched = listed.stdout.split("\0").filter((path) => path.length > 0);
   const files = [];
   let spentChars = 0;
-  for (const path of rankSnapshotPaths(matched)) {
+  for (const path of rankSnapshotPaths(matched, {
+    isDeclaredGenerated: projectDeclaredGenerated(projectRoot)
+  })) {
     if (files.length >= MAX_SNAPSHOT_FILES || spentChars >= MAX_SNAPSHOT_TOTAL_CHARS)
       break;
     const file2 = readWorkspaceFile(projectRoot, path, "include-content", Math.min(MAX_SNAPSHOT_FILE_CHARS, MAX_SNAPSHOT_TOTAL_CHARS - spentChars));
@@ -87951,8 +88182,9 @@ async function collectReviewEvidence(projectRoot, options) {
   if (!unstagedResult.ok) {
     throw new Error(`Review target unavailable: unstaged changes could not be read. ${unstagedResult.reason}`);
   }
-  const staged = gitDiffEvidence(stagedResult);
-  const unstaged = gitDiffEvidence(unstagedResult);
+  const declaredGenerated = projectDeclaredGenerated(evidenceRoot);
+  const staged = gitDiffEvidence(stagedResult, declaredGenerated);
+  const unstaged = gitDiffEvidence(unstagedResult, declaredGenerated);
   const stagedStat = target.mode === "unstaged" ? { ok: true, stdout: "", truncated_by_buffer: false } : await readStat("staged_diff_stat", [
     "diff",
     "--stat",
@@ -88036,11 +88268,12 @@ ${unstagedStat.stdout}`] : []
     ...paths === void 0 ? {} : { path_scope: paths }
   };
 }
-var MAX_DIFF_CHARS, MAX_UNTRACKED_FILES, MAX_UNTRACKED_FILE_CHARS, MAX_SNAPSHOT_FILES, MAX_SNAPSHOT_FILE_CHARS, MAX_SNAPSHOT_TOTAL_CHARS, MAX_GIT_BUFFER_BYTES, MAX_DIFF_BUFFER_BYTES, DIRECT_GIT_TIMEOUT_MS, HEAD_COMMIT_REF, SAFE_REVIEW_REF_PATTERN, ReviewTargetEmptyError, REVIEW_LEAD, PULL_REQUEST_UNSUPPORTED_REASON, RANGE_FILLER_WORDS, LATEST_COMMIT_PATTERN, RESTRICTION_LEAD_IN, EXCLUSION_LEAD_IN, NARROWING_CLAUSE_TAIL, RESTRICTION_CLAUSE_PATTERN, EXCLUSION_CLAUSE_PATTERN, POSTFIX_RESTRICTION_CLAUSE_PATTERN, RANGE_LIKE_TOKEN_PATTERN, UNRESOLVED_SUBSET_PATTERN, EXCLUDED_CHANGE_CLASS_PATTERN, SNAPSHOT_REQUEST_PATTERN, WHOLE_REPOSITORY_PATTERN, MAX_SCOPE_PATHS, MAX_SCOPE_PATH_LENGTH, SAFE_SCOPE_PATH_PATTERN, NO_REVIEW_SCOPE, PATH_ONLY_REQUEST_PATTERN, PATH_ONLY_SUFFIX_PATTERN, EXPLICIT_TARGET_VOCABULARY, reviewIntakeComposeBuilder;
+var MAX_DIFF_CHARS, MAX_UNTRACKED_FILES, MAX_UNTRACKED_FILE_CHARS, MAX_SNAPSHOT_FILES, MAX_SNAPSHOT_FILE_CHARS, MAX_SNAPSHOT_TOTAL_CHARS, MAX_GIT_BUFFER_BYTES, MAX_DIFF_BUFFER_BYTES, DIRECT_GIT_TIMEOUT_MS, HEAD_COMMIT_REF, SAFE_REVIEW_REF_PATTERN, ReviewTargetEmptyError, REVIEW_LEAD, PULL_REQUEST_UNSUPPORTED_REASON, RANGE_FILLER_WORDS, LATEST_COMMIT_PATTERN, RESTRICTION_LEAD_IN, EXCLUSION_LEAD_IN, NARROWING_CLAUSE_TAIL, RESTRICTION_CLAUSE_PATTERN, EXCLUSION_CLAUSE_PATTERN, POSTFIX_RESTRICTION_CLAUSE_PATTERN, RANGE_LIKE_TOKEN_PATTERN, UNRESOLVED_SUBSET_PATTERN, EXCLUDED_CHANGE_CLASS_PATTERN, SNAPSHOT_REQUEST_PATTERN, WHOLE_REPOSITORY_PATTERN, MAX_SCOPE_PATHS, MAX_SCOPE_PATH_LENGTH, SAFE_SCOPE_PATH_PATTERN, NO_REVIEW_SCOPE, PATH_ONLY_REQUEST_PATTERN, PATH_ONLY_SUFFIX_PATTERN, EXPLICIT_TARGET_VOCABULARY, MAX_GITATTRIBUTES_CHARS, reviewIntakeComposeBuilder;
 var init_intake2 = __esm({
   "dist/flows/review/writers/intake.js"() {
     "use strict";
     init_runtime_git_reader();
+    init_diff_ranking();
     init_intake_projection();
     init_snapshot_ranking();
     MAX_DIFF_CHARS = 12e4;
@@ -88114,6 +88347,7 @@ var init_intake2 = __esm({
     ].join(""), "iu");
     PATH_ONLY_SUFFIX_PATTERN = /^(?:,?\s*(?:for|with|especially)\b|,?\s+and\s+(?:focus|check|inspect|look|pay|prioritize|verify)\b|,?\s*as[-\s](?:it|they)\s+stands?\b|,?\s*as[-\s]is\b)/iu;
     EXPLICIT_TARGET_VOCABULARY = "working-tree, staged, unstaged, commit:<ref>, or a range such as main...HEAD or HEAD~3..HEAD";
+    MAX_GITATTRIBUTES_CHARS = 64e3;
     reviewIntakeComposeBuilder = {
       resultSchemaName: "review.intake@v1",
       async build(context) {

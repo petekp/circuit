@@ -41,13 +41,14 @@ import type {
   ReviewUntrackedContentPolicy,
   ReviewUntrackedFileEvidence,
 } from '../reports.js';
+import { rankDiffText } from './diff-ranking.js';
 import {
   CODEBASE_UNIT_BUDGET,
   projectReviewIntake,
   reviewPathScopeLabel,
   reviewPathScopePaths,
 } from './intake-projection.js';
-import { rankSnapshotPaths } from './snapshot-ranking.js';
+import { declaredGeneratedMatcher, rankSnapshotPaths } from './snapshot-ranking.js';
 
 const MAX_DIFF_CHARS = 120_000;
 const MAX_UNTRACKED_FILES = 20;
@@ -1787,7 +1788,7 @@ async function collectTargetEvidence(
   if (!diffStat.ok) {
     throw new Error(`${targetUnavailableMessage(target)} ${diffStat.reason}`);
   }
-  const targetDiff = gitDiffEvidence(diff);
+  const targetDiff = gitDiffEvidence(diff, projectDeclaredGenerated(projectRoot));
   if (targetDiff.text.length === 0) {
     throw new Error(
       `Review target has no changes to inspect: ${reviewTargetLabel(target)}${
@@ -1798,14 +1799,52 @@ async function collectTargetEvidence(
   return { targetDiff, targetDiffStat: diffStat.stdout, pinnedTarget };
 }
 
-function gitDiffEvidence(result: GitResult): ReviewEvidenceText {
+function gitDiffEvidence(
+  result: GitResult,
+  isDeclaredGenerated: (path: string) => boolean,
+): ReviewEvidenceText {
   if (!result.ok) return truncateText(result.reason, MAX_DIFF_CHARS);
-  const truncated = truncateText(result.stdout, MAX_DIFF_CHARS);
-  if (!result.truncated_by_buffer) return truncated;
+  // Rank rather than head-slice. Git emits file sections in path order, so a
+  // slice decides the review's subject by the alphabet; on this repository's
+  // own range it kept `docs/` and the compiled bundles and cut every `src/`
+  // hunk. See diff-ranking.ts.
+  const ranked = rankDiffText(result.stdout, MAX_DIFF_CHARS, { isDeclaredGenerated });
+  const counts =
+    ranked.matchedFileCount === 0
+      ? {}
+      : {
+          matched_file_count: ranked.matchedFileCount,
+          included_file_count: ranked.includedFileCount,
+        };
+  if (!result.truncated_by_buffer) {
+    return { text: ranked.text, truncated: ranked.truncated, ...counts };
+  }
   return {
-    text: `${truncated.text}\n[truncated by the bounded Git reader]`,
+    text: `${ranked.text}\n[truncated by the bounded Git reader]`,
     truncated: true,
+    ...counts,
   };
+}
+
+// How much of `.gitattributes` is read before deciding what the project calls
+// generated. The declarations are a handful of lines in every repository that
+// has them; the bound is here because this reads a file from a tree Circuit
+// does not control.
+const MAX_GITATTRIBUTES_CHARS = 64_000;
+
+/**
+ * What this project declares generated, read from the repository root's
+ * `.gitattributes`. Absent or unreadable reads as "declares nothing", which is
+ * the same answer Circuit gave before the file was consulted at all.
+ */
+function projectDeclaredGenerated(projectRoot: string): (path: string) => boolean {
+  const file = readWorkspaceFile(
+    projectRoot,
+    '.gitattributes',
+    'include-content',
+    MAX_GITATTRIBUTES_CHARS,
+  );
+  return declaredGeneratedMatcher(file.content?.text);
 }
 
 function printableStatus(status: string): string {
@@ -2146,7 +2185,9 @@ async function collectSnapshotEvidence(
   // compares what was read against everything that matched.
   const files: ReviewSnapshotFileEvidence[] = [];
   let spentChars = 0;
-  for (const path of rankSnapshotPaths(matched)) {
+  for (const path of rankSnapshotPaths(matched, {
+    isDeclaredGenerated: projectDeclaredGenerated(projectRoot),
+  })) {
     if (files.length >= MAX_SNAPSHOT_FILES || spentChars >= MAX_SNAPSHOT_TOTAL_CHARS) break;
     const file = readWorkspaceFile(
       projectRoot,
@@ -2356,8 +2397,9 @@ async function collectReviewEvidence(
       `Review target unavailable: unstaged changes could not be read. ${unstagedResult.reason}`,
     );
   }
-  const staged = gitDiffEvidence(stagedResult);
-  const unstaged = gitDiffEvidence(unstagedResult);
+  const declaredGenerated = projectDeclaredGenerated(evidenceRoot);
+  const staged = gitDiffEvidence(stagedResult, declaredGenerated);
+  const unstaged = gitDiffEvidence(unstagedResult, declaredGenerated);
   const stagedStat =
     target.mode === 'unstaged'
       ? { ok: true as const, stdout: '', truncated_by_buffer: false }

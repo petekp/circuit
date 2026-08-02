@@ -85,6 +85,14 @@ export const ReviewEvidenceText = z
   .object({
     text: z.string(),
     truncated: z.boolean(),
+    // Present on a diff that was reduced by ranking its file sections: how
+    // many files the diff changed, and how many of them survived the budget.
+    // `truncated: true` on its own says something was cut without saying what
+    // the verdict does not cover, and a reader cannot tell the difference
+    // between a trimmed tail and a missing subject. Optional because the other
+    // users of this shape (one file's contents) have no file count to report.
+    matched_file_count: z.number().int().nonnegative().optional(),
+    included_file_count: z.number().int().nonnegative().optional(),
   })
   .strict();
 export type ReviewEvidenceText = z.infer<typeof ReviewEvidenceText>;

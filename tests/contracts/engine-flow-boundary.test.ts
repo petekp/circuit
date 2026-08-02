@@ -107,6 +107,14 @@ const ALLOWED_TEST_INTERNAL_FLOW_IMPORTS = new Set([
   // where the budget is actually spent, so nothing shallower would prove it.
   'tests/unit/review-snapshot-ranking.test.ts -> src/flows/review/writers/snapshot-ranking.ts',
   'tests/runner/review-snapshot-priority.test.ts -> src/flows/review/writers/intake.ts',
+  // Same shape for the diff read-order work. `diff-ranking.ts` splits a
+  // unified diff and orders its file sections; the test feeds it diffs and
+  // checks which sections survive a budget, which cannot be expressed through
+  // a flow's index. It reaches `snapshot-ranking.ts` for the same reason: the
+  // `.gitattributes` reader lives there because both rankers consult it.
+  'tests/unit/review-diff-ranking.test.ts -> src/flows/review/writers/diff-ranking.ts',
+  'tests/unit/review-diff-ranking.test.ts -> src/flows/review/writers/snapshot-ranking.ts',
+  'tests/runner/review-diff-priority.test.ts -> src/flows/review/writers/intake.ts',
   // Sweep's oracle executor. The test proves the oracle goes through
   // runProofPlanCommand and gets its rules (env allowlist, realpath cwd
   // containment, the declared output budget). That is a property of the

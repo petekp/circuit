@@ -229,14 +229,127 @@ export function snapshotRank(path: string): SnapshotRank {
   return 'other';
 }
 
+// A project that generates files usually says so, and there is one portable
+// place it says it: `linguist-generated` in `.gitattributes`. GitHub reads it
+// to collapse those files in a diff, so it is already maintained for exactly
+// the audience a review is. Reading it means Circuit stops guessing on the
+// cases a path cannot reveal.
+//
+// This repository is one of them. Its compiled host bundles live at
+// `plugins/claude/runtime/circuit.js` — no `dist/`, no `.min.`, a plain `.js`
+// extension — so every name-based rule above reads them as source, and at
+// seven megabytes each they outranked the entire `src/` tree they were
+// compiled from. `.gitattributes` has declared them generated since July.
+//
+// Supported subset, stated plainly because a silent partial match would be
+// worse than none: `#` comments and `[macro]` definitions are skipped, a
+// pattern may be double-quoted, `*` matches inside one path segment, `**`
+// matches across segments, `?` matches one character that is not a slash, a
+// pattern containing no slash matches the file name at any depth, a trailing
+// slash means the directory's contents, and the last matching line wins.
+// Character classes (`[a-z]`) are matched literally. Only the repository
+// root's `.gitattributes` is read; a nested one is not.
+const GENERATED_ATTRIBUTE = 'linguist-generated';
+
+function globToRegExp(pattern: string): RegExp {
+  const anchored = pattern.startsWith('/') ? pattern.slice(1) : pattern;
+  const directoryOnly = anchored.endsWith('/');
+  const body = directoryOnly ? anchored.slice(0, -1) : anchored;
+  // A pattern with no slash is a file-name match at any depth. One with a
+  // slash is anchored to the file that declared it, which is the repo root.
+  const rooted = body.includes('/') ? body : `**/${body}`;
+  let source = '';
+  for (let index = 0; index < rooted.length; index += 1) {
+    const char = rooted[index] as string;
+    if (char === '*') {
+      if (rooted[index + 1] === '*') {
+        // `**/` may also match zero directories, so `**/x` matches `x`.
+        if (rooted[index + 2] === '/') {
+          source += '(?:.*/)?';
+          index += 2;
+        } else {
+          source += '.*';
+          index += 1;
+        }
+        continue;
+      }
+      source += '[^/]*';
+      continue;
+    }
+    if (char === '?') {
+      source += '[^/]';
+      continue;
+    }
+    source += char.replace(/[.+^${}()|[\]\\]/gu, '\\$&');
+  }
+  return new RegExp(`^${source}${directoryOnly ? '/.*' : ''}$`, 'u');
+}
+
+function attributeVerdict(attributes: readonly string[]): boolean | undefined {
+  let verdict: boolean | undefined;
+  for (const attribute of attributes) {
+    if (attribute === GENERATED_ATTRIBUTE || attribute === `${GENERATED_ATTRIBUTE}=true`) {
+      verdict = true;
+    } else if (
+      attribute === `-${GENERATED_ATTRIBUTE}` ||
+      attribute === `${GENERATED_ATTRIBUTE}=false`
+    ) {
+      verdict = false;
+    }
+  }
+  return verdict;
+}
+
+/**
+ * Read a `.gitattributes` file into a predicate for "the project calls this
+ * generated". A file with no such declaration yields a predicate that is false
+ * for everything, so a caller never has to branch on whether one existed.
+ */
+export function declaredGeneratedMatcher(
+  gitattributes: string | undefined,
+): (path: string) => boolean {
+  const rules: { readonly match: RegExp; readonly generated: boolean }[] = [];
+  for (const rawLine of (gitattributes ?? '').split('\n')) {
+    const line = rawLine.trim();
+    if (line.length === 0 || line.startsWith('#') || line.startsWith('[')) continue;
+    const quoted = line.startsWith('"') ? /^"((?:[^"\\]|\\.)*)"\s*(.*)$/u.exec(line) : null;
+    const pattern = quoted === null ? (line.split(/\s+/u)[0] as string) : (quoted[1] as string);
+    const rest = quoted === null ? line.slice(pattern.length) : (quoted[2] as string);
+    const generated = attributeVerdict(rest.split(/\s+/u).filter((part) => part.length > 0));
+    if (generated === undefined) continue;
+    try {
+      rules.push({ match: globToRegExp(pattern), generated });
+    } catch {
+      // An unparseable pattern is one rule Circuit does not get to use, not a
+      // reason to fail a review that was going to run either way.
+    }
+  }
+  if (rules.length === 0) return () => false;
+  return (path: string) => {
+    let verdict = false;
+    for (const rule of rules) {
+      if (rule.match.test(path)) verdict = rule.generated;
+    }
+    return verdict;
+  };
+}
+
 /**
  * The matched set, reordered so a bounded read reaches the files a review is
  * for. Stable within a rank, so the result is deterministic and still reads
  * like the tree it came from.
  */
-export function rankSnapshotPaths(paths: readonly string[]): readonly string[] {
+export function rankSnapshotPaths(
+  paths: readonly string[],
+  options?: { readonly isDeclaredGenerated?: (path: string) => boolean },
+): readonly string[] {
+  const declared = options?.isDeclaredGenerated;
   return paths
-    .map((path, index) => ({ path, index, order: RANK_ORDER[snapshotRank(path)] }))
+    .map((path, index) => ({
+      path,
+      index,
+      order: declared?.(path) === true ? RANK_ORDER.generated : RANK_ORDER[snapshotRank(path)],
+    }))
     .sort((left, right) => left.order - right.order || left.index - right.index)
     .map((entry) => entry.path);
 }

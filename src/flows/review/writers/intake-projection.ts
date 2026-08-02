@@ -1,6 +1,7 @@
 import { ReviewIntake, reviewEvidenceWarningLabel } from '../reports.js';
 import type {
   ReviewEvidence,
+  ReviewEvidenceText,
   ReviewEvidenceWarning,
   ReviewIntakeUnit,
   ReviewPathScope,
@@ -148,6 +149,22 @@ function appendOpaqueBinaryWarnings(
   }
 }
 
+// What a truncated diff no longer covers.
+//
+// "was truncated before relay" is true and nearly useless: it does not say
+// whether a tail of one file was clipped or whether most of the changed files
+// were never read. When the intake ranked file sections it knows both numbers,
+// so the warning says them, and a reader can judge the verdict's reach without
+// opening the evidence.
+function diffCoverageMessage(label: string, diff: ReviewEvidenceText): string {
+  const matched = diff.matched_file_count;
+  const included = diff.included_file_count;
+  if (matched === undefined || included === undefined || matched === 0) {
+    return `${label} was truncated before relay`;
+  }
+  return `${label} changes ${matched} files. Review read ${included} of them, ordered by review value so source comes before prose and before generated output, and did not inspect the rest.`;
+}
+
 export function reviewEvidenceWarnings(input: {
   readonly evidence: ReviewEvidence;
   readonly maxUntrackedFiles: number;
@@ -207,7 +224,7 @@ export function reviewEvidenceWarnings(input: {
     if (evidence.target_diff.truncated) {
       warnings.push({
         kind: 'diff_truncated',
-        message: `${evidence.target_ref} diff was truncated before relay`,
+        message: diffCoverageMessage(`${evidence.target_ref} diff`, evidence.target_diff),
       });
     }
     if (!hasUsableTargetDiff(evidence.target_diff)) {
@@ -322,13 +339,13 @@ export function reviewEvidenceWarnings(input: {
   if (workingTreeMode !== 'unstaged' && evidence.staged_diff.truncated) {
     warnings.push({
       kind: 'diff_truncated',
-      message: 'staged diff was truncated before relay',
+      message: diffCoverageMessage('staged diff', evidence.staged_diff),
     });
   }
   if (workingTreeMode !== 'staged' && evidence.unstaged_diff.truncated) {
     warnings.push({
       kind: 'diff_truncated',
-      message: 'unstaged diff was truncated before relay',
+      message: diffCoverageMessage('unstaged diff', evidence.unstaged_diff),
     });
   }
   if (gitCommandFailed(evidence.staged_diff.text)) {
