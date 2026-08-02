@@ -119,6 +119,17 @@ export const exploreBlockItems: readonly BlockStepUse[] = [
       revise: 'synthesize-step',
       stop: '@stop',
     },
+    // Spent rework budget: close with the unaccepted recommendation and the
+    // reviewer's objections recorded, instead of aborting and discarding a
+    // synthesis that is already written. Explore was the only flow of this
+    // shape with no exhaustion route; pursue, fix, and cross-tool-build all
+    // declare one.
+    //
+    // Safe against reading as success because close writes
+    // `outcome: 'stopped'` whenever it arrives with the review still
+    // rejecting, the result schema refuses any other pairing, and
+    // `binds_terminal_outcome_to_primary_result` maps that word onto the run.
+    exhaustion_route: 'continue',
   },
   {
     id: 'decision-options-step',
@@ -348,6 +359,15 @@ export const exploreAssemblySpec: FlowSchematicAssemblySpec = {
     supports_autonomous: true,
     default: { depth: 'medium', tournament: false, tournament_n: 3, autonomous: false },
     tournament_fan_out_stage: 'decision-stage',
+  },
+  // review-step's exhaustion route lets a run whose rework budget ran out close
+  // with the unaccepted recommendation instead of discarding it. That is only
+  // safe if the run cannot then read as a success, so the close writes
+  // `outcome: 'stopped'` on a still-rejecting review and this flag maps that
+  // word onto the run outcome. Without it the operator would be handed a
+  // recommendation the reviewer refused, labelled complete.
+  engine_flags: {
+    binds_terminal_outcome_to_primary_result: true,
   },
   items: exploreBlockItems,
   stageLabels: exploreStageLabels,

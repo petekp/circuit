@@ -55,7 +55,17 @@ The tournament rubric scores eight dimensions including `honest_calibration` and
 **Why this flow works:** it has no verification step, so it cannot fail
 verification, so the abort path that kills Build and Fix does not exist here. Its
 `retry` routes go from `review-step` back to `synthesize-step`, and a rejected
-synthesis is a normal state rather than an exhaustible one. The lesson is not
+synthesis is a normal state rather than an exhaustible one.
+
+That last part was aspirational when this dossier was written, and run
+`f8a173b0` disproved it: a reviewer that rejected twice exhausted the route and
+aborted the run, discarding two written syntheses. `review-step` now declares
+`exhaustion_route: 'continue'`, so a spent rework budget closes with the
+unaccepted recommendation and the objections attached, reported as `stopped`.
+The claim holds now because the flow says so, not because Explore lacks a
+verification step.
+
+The lesson is not
 "Explore is better designed" so much as "the flows that mutate code inherit an
 engine failure mode that the flows that do not, avoid."
 

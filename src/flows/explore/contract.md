@@ -93,7 +93,11 @@ See `UBIQUITOUS_LANGUAGE.md#core-flow-language` for canonical definitions of **C
   outcome: the report is still written, and the engine routes the
   compose back to synthesize-step for one rework pass (which reads the
   rejecting review). A second reject exhausts the route's default
-  max_attempts and aborts the run.
+  max_attempts. review-step declares `exhaustion_route: 'continue'`, so
+  the run does not abort and discard the work: it closes with the
+  unaccepted recommendation and the reviewer's objections attached, and
+  the result carries `outcome: 'stopped'` so the run reports "needs
+  follow-up" rather than success.
 - **Explore result** (`explore.result`): the aggregate report emitted by
   the Close stage. A summary plus result snapshot plus pointers to the
   four prior reports. The flow-specific "what the explore run produced."

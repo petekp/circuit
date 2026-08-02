@@ -194,6 +194,7 @@
         "revise": "synthesize-step",
         "stop": "@stop"
       },
+      "exhaustion_route": "continue",
       "route_overrides": {},
       "protocol": "explore-review@v1",
       "writes": {
@@ -579,5 +580,8 @@
       "id": "close-stage",
       "title": "Close"
     }
-  ]
+  ],
+  "engine_flags": {
+    "binds_terminal_outcome_to_primary_result": true
+  }
 }

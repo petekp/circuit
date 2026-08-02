@@ -74978,7 +74978,18 @@ var init_assembly_spec4 = __esm({
           retry: "synthesize-step",
           revise: "synthesize-step",
           stop: "@stop"
-        }
+        },
+        // Spent rework budget: close with the unaccepted recommendation and the
+        // reviewer's objections recorded, instead of aborting and discarding a
+        // synthesis that is already written. Explore was the only flow of this
+        // shape with no exhaustion route; pursue, fix, and cross-tool-build all
+        // declare one.
+        //
+        // Safe against reading as success because close writes
+        // `outcome: 'stopped'` whenever it arrives with the review still
+        // rejecting, the result schema refuses any other pairing, and
+        // `binds_terminal_outcome_to_primary_result` maps that word onto the run.
+        exhaustion_route: "continue"
       },
       {
         id: "decision-options-step",
@@ -75203,6 +75214,15 @@ var init_assembly_spec4 = __esm({
         supports_autonomous: true,
         default: { depth: "medium", tournament: false, tournament_n: 3, autonomous: false },
         tournament_fan_out_stage: "decision-stage"
+      },
+      // review-step's exhaustion route lets a run whose rework budget ran out close
+      // with the unaccepted recommendation instead of discarding it. That is only
+      // safe if the run cannot then read as a success, so the close writes
+      // `outcome: 'stopped'` on a still-rejecting review and this flag maps that
+      // word onto the run outcome. Without it the operator would be handed a
+      // recommendation the reviewer refused, labelled complete.
+      engine_flags: {
+        binds_terminal_outcome_to_primary_result: true
       },
       items: exploreBlockItems,
       stageLabels: exploreStageLabels,
@@ -75531,10 +75551,34 @@ var init_reports4 = __esm({
       summary: external_exports.string().min(1),
       verdict_snapshot: ExploreDefaultResultVerdictSnapshot,
       review_fold_ins: ExploreReviewFoldIns.optional(),
+      // Set only when the close was reached with the review still rejecting,
+      // which happens when the rework budget ran out. A literal rather than a
+      // free enum: 'stopped' is the one non-clean state this close can reach, so
+      // no other word can be written here. Absent means the review accepted, and
+      // the engine already reads an absent flow outcome as clean.
+      //
+      // Explore arms `binds_terminal_outcome_to_primary_result`, so this word is
+      // what stops an unaccepted recommendation from closing the run as a
+      // success.
+      outcome: external_exports.literal("stopped").optional(),
       evidence_links: external_exports.array(ExploreResultReportPointer).min(1)
     }).strict().superRefine((result, ctx) => {
       refineExploreEvidenceLinks(result, ctx, DEFAULT_RESULT_REPORT_IDS);
       const snapshot = result.verdict_snapshot;
+      if (snapshot.review_verdict === "reject" && result.outcome !== "stopped") {
+        ctx.addIssue({
+          code: "custom",
+          path: ["outcome"],
+          message: "outcome must be 'stopped' when the Explore review verdict is 'reject': a recommendation the reviewer never accepted cannot close the run as a success"
+        });
+      }
+      if (snapshot.review_verdict !== "reject" && result.outcome !== void 0) {
+        ctx.addIssue({
+          code: "custom",
+          path: ["outcome"],
+          message: "outcome is set only when the Explore review verdict is 'reject'"
+        });
+      }
       const requiresFoldIns = snapshot.review_verdict === "accept-with-fold-ins" || snapshot.objection_count > 0 || snapshot.missed_angle_count > 0;
       if (requiresFoldIns && result.review_fold_ins === void 0) {
         ctx.addIssue({
@@ -75670,8 +75714,10 @@ function projectExploreResult(inputs) {
       evidence_links: inputs.evidenceLinks
     });
   }
+  const rejected = inputs.review.verdict === "reject";
   return ExploreResult.parse({
-    summary: `Explore '${inputs.brief.subject}': ${inputs.compose.recommendation}`,
+    summary: rejected ? `Explore '${inputs.brief.subject}': ${inputs.compose.recommendation} (did not pass review; the reviewer's objections are recorded with it)` : `Explore '${inputs.brief.subject}': ${inputs.compose.recommendation}`,
+    ...rejected ? { outcome: "stopped" } : {},
     verdict_snapshot: {
       compose_verdict: inputs.compose.verdict,
       review_verdict: inputs.review.verdict,

@@ -46,8 +46,17 @@ export function projectExploreResult(inputs: ExploreResultProjectorInputs): Expl
     });
   }
 
+  // Reached with the review still rejecting: the rework budget ran out. Hand
+  // the recommendation over rather than discard it, and say in the same breath
+  // that it did not pass, so a reader skimming one line cannot take it as
+  // settled. The reviewer's objections ride along in review_fold_ins, which
+  // the schema already requires whenever there are any.
+  const rejected = inputs.review.verdict === 'reject';
   return ExploreResult.parse({
-    summary: `Explore '${inputs.brief.subject}': ${inputs.compose.recommendation}`,
+    summary: rejected
+      ? `Explore '${inputs.brief.subject}': ${inputs.compose.recommendation} (did not pass review; the reviewer's objections are recorded with it)`
+      : `Explore '${inputs.brief.subject}': ${inputs.compose.recommendation}`,
+    ...(rejected ? { outcome: 'stopped' } : {}),
     verdict_snapshot: {
       compose_verdict: inputs.compose.verdict,
       review_verdict: inputs.review.verdict,

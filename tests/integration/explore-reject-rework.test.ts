@@ -5,13 +5,20 @@
 // the engine routes the compose back to synthesize-step (retry/revise
 // binding), the rejected review report is still written, and the rework
 // attempt reads it. The loop is bounded by the engine's default
-// max_attempts: a second reject aborts the run instead of looping.
+// max_attempts.
+//
+// What happens at the bound changed: it used to abort and discard the
+// synthesis. review-step now declares `exhaustion_route: 'continue'`, so a
+// still-rejecting review closes the run with the unaccepted recommendation and
+// the objections attached, reported as `stopped` rather than `aborted`. See
+// tests/runner/explore-rejected-synthesis.test.ts for the handover contract.
 
 import { mkdtempSync, readFileSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join, resolve } from 'node:path';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 
+import { ExploreDefaultResult } from '../../src/flows/explore/reports.js';
 import { runCompiledFlow } from '../../src/runtime/run/compiled-flow-runner.js';
 import type { RelayInput } from '../../src/shared/relay-runtime-types.js';
 import { deterministicNow, makeStubRelayer } from '../helpers/runtime-fixtures.js';
@@ -112,14 +119,25 @@ describe('explore review reject verdict', () => {
     );
   }, 120_000);
 
-  it('aborts instead of looping when the reviewer rejects the rework too', async () => {
+  it('stops with the unaccepted compose instead of looping or discarding it', async () => {
     const recorder: Recorder = { synthesizePrompts: [], reviewPrompts: [] };
     const outcome = await runExplore(recorder, [REJECT_BODY], 'reject-always');
 
-    expect(outcome.outcome).toBe('aborted');
-    expect(outcome.outcome === 'aborted' && outcome.reason).toMatch(/max_attempts|exhausted/);
+    // Not 'aborted': the flow ran its whole process. Not 'complete' either:
+    // the reviewer never accepted.
+    expect(outcome.outcome).toBe('stopped');
     // Bounded: one rework round trip, no runaway loop.
     expect(recorder.synthesizePrompts.length).toBeLessThanOrEqual(2);
     expect(recorder.reviewPrompts.length).toBeLessThanOrEqual(2);
+
+    // The synthesis survived to the result, labelled as not having passed.
+    const result = ExploreDefaultResult.parse(
+      JSON.parse(
+        readFileSync(join(runFolderBase, 'reject-always', 'reports/explore-result.json'), 'utf8'),
+      ),
+    );
+    expect(result.outcome).toBe('stopped');
+    expect(result.summary).toContain(COMPOSE_BODY.recommendation);
+    expect(result.review_fold_ins?.objections).toEqual(REJECT_BODY.objections);
   }, 120_000);
 });

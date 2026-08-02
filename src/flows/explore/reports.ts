@@ -386,6 +386,16 @@ export const ExploreDefaultResult = z
     summary: z.string().min(1),
     verdict_snapshot: ExploreDefaultResultVerdictSnapshot,
     review_fold_ins: ExploreReviewFoldIns.optional(),
+    // Set only when the close was reached with the review still rejecting,
+    // which happens when the rework budget ran out. A literal rather than a
+    // free enum: 'stopped' is the one non-clean state this close can reach, so
+    // no other word can be written here. Absent means the review accepted, and
+    // the engine already reads an absent flow outcome as clean.
+    //
+    // Explore arms `binds_terminal_outcome_to_primary_result`, so this word is
+    // what stops an unaccepted recommendation from closing the run as a
+    // success.
+    outcome: z.literal('stopped').optional(),
     evidence_links: z.array(ExploreResultReportPointer).min(1),
   })
   .strict()
@@ -393,6 +403,24 @@ export const ExploreDefaultResult = z
     refineExploreEvidenceLinks(result, ctx, DEFAULT_RESULT_REPORT_IDS);
 
     const snapshot = result.verdict_snapshot;
+    // The no-false-success guard, enforced by the schema rather than trusted to
+    // the writer: a rejected review must carry the stopped outcome, and an
+    // accepted one must not claim to have stopped.
+    if (snapshot.review_verdict === 'reject' && result.outcome !== 'stopped') {
+      ctx.addIssue({
+        code: 'custom',
+        path: ['outcome'],
+        message:
+          "outcome must be 'stopped' when the Explore review verdict is 'reject': a recommendation the reviewer never accepted cannot close the run as a success",
+      });
+    }
+    if (snapshot.review_verdict !== 'reject' && result.outcome !== undefined) {
+      ctx.addIssue({
+        code: 'custom',
+        path: ['outcome'],
+        message: "outcome is set only when the Explore review verdict is 'reject'",
+      });
+    }
     const requiresFoldIns =
       snapshot.review_verdict === 'accept-with-fold-ins' ||
       snapshot.objection_count > 0 ||
