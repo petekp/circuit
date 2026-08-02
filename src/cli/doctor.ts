@@ -228,28 +228,126 @@ export interface DoctorFlowBlocker {
   readonly pinnedKey?: string;
 }
 
-// Selection keys a config layer can set per flow. Checked in the order a
-// reader would suspect them, so the reported key is the specific one they
-// wrote rather than the object that contains it.
-const FLOW_SELECTION_KEYS = ['effort', 'model', 'depth', 'power'] as const;
+// Selection keys a config layer can set per flow. `power` is deliberately
+// absent: the dial is global (`defaults.power`), and SelectionOverride is
+// strict, so `flows.<id>.selection.power` fails to parse and can never appear
+// in a layer.
+const FLOW_SELECTION_KEYS = ['effort', 'model', 'depth'] as const;
 
-function pinSourceForFlow(
-  layers: readonly LayeredConfigValue[],
-  flowId: string,
-): { readonly pinnedAt: string; readonly pinnedKey: string } | undefined {
-  // Later layers win, so search from the back: the value in play is the one
-  // that would need changing.
+interface FlowPin {
+  readonly layerIndex: number;
+  readonly pinnedAt: string;
+  readonly pinnedKey: string;
+  readonly key: (typeof FLOW_SELECTION_KEYS)[number];
+}
+
+// Every per-flow selection key any layer sets, highest-precedence layer first.
+// All of them, not the first one found: which key is at fault is decided by
+// measurement below, not by the order they are listed in.
+function flowPins(layers: readonly LayeredConfigValue[], flowId: string): readonly FlowPin[] {
+  const pins: FlowPin[] = [];
   for (let index = layers.length - 1; index >= 0; index -= 1) {
     const layer = layers[index];
-    if (layer === undefined) continue;
+    if (layer === undefined || layer.source_path === undefined) continue;
     // `flows` is keyed by a branded CompiledFlowId; read it as a plain record
     // rather than minting a brand just to look one up.
     const flowConfigs = layer.config.flows as Record<string, { selection?: unknown }> | undefined;
     const selection = flowConfigs?.[flowId]?.selection as Record<string, unknown> | undefined;
     if (selection === undefined) continue;
-    const key = FLOW_SELECTION_KEYS.find((candidate) => selection[candidate] !== undefined);
-    if (key === undefined || layer.source_path === undefined) continue;
-    return { pinnedAt: layer.source_path, pinnedKey: `flows.${flowId}.selection.${key}` };
+    for (const key of FLOW_SELECTION_KEYS) {
+      if (selection[key] === undefined) continue;
+      pins.push({
+        layerIndex: index,
+        pinnedAt: layer.source_path,
+        pinnedKey: `flows.${flowId}.selection.${key}`,
+        key,
+      });
+    }
+  }
+  return pins;
+}
+
+// The layer stack as it would be after `circuit config unset <key>` ran
+// against the file this pin came from. Only the one layer is rewritten; the
+// rest are passed through by reference.
+function layersWithoutPin(
+  layers: readonly LayeredConfigValue[],
+  flowId: string,
+  pin: FlowPin,
+): readonly LayeredConfigValue[] {
+  return layers.map((layer, index) => {
+    if (index !== pin.layerIndex) return layer;
+    const flows = layer.config.flows as Record<string, { selection?: Record<string, unknown> }>;
+    const flow = flows[flowId];
+    if (flow?.selection === undefined) return layer;
+    const { [pin.key]: _removed, ...selection } = flow.selection;
+    return {
+      ...layer,
+      config: { ...layer.config, flows: { ...flows, [flowId]: { ...flow, selection } } },
+    } as LayeredConfigValue;
+  });
+}
+
+function blockerDetails(input: {
+  readonly layers: readonly LayeredConfigValue[];
+  readonly flowId: string;
+  readonly hostKind?: HostKindValue;
+}): ReadonlyMap<string, string[]> {
+  const byDetail = new Map<string, string[]>();
+  let preview: FlowSelectionPreview;
+  try {
+    preview = resolveFlowSelectionPreview({
+      flowId: input.flowId,
+      configLayers: input.layers,
+      ...(input.hostKind === undefined ? {} : { hostKind: input.hostKind }),
+    });
+  } catch {
+    // A flow that will not even compile under this config is a bug in the
+    // catalog, not an operator readiness problem. The catalog completeness
+    // tests own that; doctor stays quiet rather than blaming the operator.
+    return byDetail;
+  }
+  // Group by message: one pinned value usually blocks every step the same
+  // way, and three copies of one sentence is not three problems.
+  for (const step of preview.relaySteps) {
+    if (step.problem === undefined) continue;
+    const steps = byDetail.get(step.problem);
+    if (steps === undefined) byDetail.set(step.problem, [step.stepId]);
+    else steps.push(step.stepId);
+  }
+  return byDetail;
+}
+
+// Which pin, if any, is why this particular blocker is here.
+//
+// Doctor prints "fix: circuit config unset <key>", which is a promise about
+// what happens next. Finding a pin on the flow and attaching it to every
+// blocker only establishes that a pin exists somewhere, so the printed remedy
+// could name a setting that has nothing to do with the problem — an operator
+// edits a file, re-runs, and is still blocked.
+//
+// So measure it. Rebuild the layer stack as the unset would leave it, resolve
+// again, and keep the pin only if this blocker is gone. Resolution is pure and
+// spawn-free, so the counterfactual costs one in-memory pass per candidate.
+//
+// When no single unset clears it — two layers pinning the same impossible
+// value, most likely — no pin is named. The blocker is still reported; doctor
+// just does not claim to know the one-line remedy, which is the honest answer.
+function pinCausingBlocker(input: {
+  readonly layers: readonly LayeredConfigValue[];
+  readonly flowId: string;
+  readonly hostKind?: HostKindValue;
+  readonly detail: string;
+}): { readonly pinnedAt: string; readonly pinnedKey: string } | undefined {
+  for (const pin of flowPins(input.layers, input.flowId)) {
+    const without = blockerDetails({
+      layers: layersWithoutPin(input.layers, input.flowId, pin),
+      flowId: input.flowId,
+      ...(input.hostKind === undefined ? {} : { hostKind: input.hostKind }),
+    });
+    if (!without.has(input.detail)) {
+      return { pinnedAt: pin.pinnedAt, pinnedKey: pin.pinnedKey };
+    }
   }
   return undefined;
 }
@@ -268,30 +366,17 @@ export function probeFlowReadiness(input: {
   const blockers: DoctorFlowBlocker[] = [];
   for (const definition of flowDefinitions) {
     if (definition.visibility !== 'public') continue;
-    let preview: FlowSelectionPreview;
-    try {
-      preview = resolveFlowSelectionPreview({
-        flowId: definition.id,
-        configLayers: input.layers,
-        ...(input.hostKind === undefined ? {} : { hostKind: input.hostKind }),
-      });
-    } catch {
-      // A flow that will not even compile under this config is a bug in the
-      // catalog, not an operator readiness problem. The catalog completeness
-      // tests own that; doctor stays quiet rather than blaming the operator.
-      continue;
-    }
-    // Group by message: one pinned value usually blocks every step the same
-    // way, and three copies of one sentence is not three problems.
-    const byDetail = new Map<string, string[]>();
-    for (const step of preview.relaySteps) {
-      if (step.problem === undefined) continue;
-      const steps = byDetail.get(step.problem);
-      if (steps === undefined) byDetail.set(step.problem, [step.stepId]);
-      else steps.push(step.stepId);
-    }
-    const source = pinSourceForFlow(input.layers, definition.id);
+    const hostKind = input.hostKind === undefined ? {} : { hostKind: input.hostKind };
+    const byDetail = blockerDetails({ layers: input.layers, flowId: definition.id, ...hostKind });
     for (const [detail, stepIds] of byDetail) {
+      // Attributed per blocker, not per flow: two problems on one flow can
+      // have two different causes, or one of them no config cause at all.
+      const source = pinCausingBlocker({
+        layers: input.layers,
+        flowId: definition.id,
+        detail,
+        ...hostKind,
+      });
       blockers.push({ flowId: definition.id, stepIds, detail, ...(source ?? {}) });
     }
   }

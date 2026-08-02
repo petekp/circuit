@@ -160241,20 +160241,78 @@ function verificationLines(palette, probe2) {
     palette.dim("  fix: circuit config set verification.general '{argv: [make, check]}'")
   ];
 }
-var FLOW_SELECTION_KEYS = ["effort", "model", "depth", "power"];
-function pinSourceForFlow(layers, flowId) {
+var FLOW_SELECTION_KEYS = ["effort", "model", "depth"];
+function flowPins(layers, flowId) {
+  const pins = [];
   for (let index = layers.length - 1; index >= 0; index -= 1) {
     const layer = layers[index];
-    if (layer === void 0)
+    if (layer === void 0 || layer.source_path === void 0)
       continue;
     const flowConfigs = layer.config.flows;
     const selection = flowConfigs?.[flowId]?.selection;
     if (selection === void 0)
       continue;
-    const key = FLOW_SELECTION_KEYS.find((candidate) => selection[candidate] !== void 0);
-    if (key === void 0 || layer.source_path === void 0)
+    for (const key of FLOW_SELECTION_KEYS) {
+      if (selection[key] === void 0)
+        continue;
+      pins.push({
+        layerIndex: index,
+        pinnedAt: layer.source_path,
+        pinnedKey: `flows.${flowId}.selection.${key}`,
+        key
+      });
+    }
+  }
+  return pins;
+}
+function layersWithoutPin(layers, flowId, pin) {
+  return layers.map((layer, index) => {
+    if (index !== pin.layerIndex)
+      return layer;
+    const flows = layer.config.flows;
+    const flow = flows[flowId];
+    if (flow?.selection === void 0)
+      return layer;
+    const { [pin.key]: _removed, ...selection } = flow.selection;
+    return {
+      ...layer,
+      config: { ...layer.config, flows: { ...flows, [flowId]: { ...flow, selection } } }
+    };
+  });
+}
+function blockerDetails(input) {
+  const byDetail = /* @__PURE__ */ new Map();
+  let preview;
+  try {
+    preview = resolveFlowSelectionPreview({
+      flowId: input.flowId,
+      configLayers: input.layers,
+      ...input.hostKind === void 0 ? {} : { hostKind: input.hostKind }
+    });
+  } catch {
+    return byDetail;
+  }
+  for (const step of preview.relaySteps) {
+    if (step.problem === void 0)
       continue;
-    return { pinnedAt: layer.source_path, pinnedKey: `flows.${flowId}.selection.${key}` };
+    const steps = byDetail.get(step.problem);
+    if (steps === void 0)
+      byDetail.set(step.problem, [step.stepId]);
+    else
+      steps.push(step.stepId);
+  }
+  return byDetail;
+}
+function pinCausingBlocker(input) {
+  for (const pin of flowPins(input.layers, input.flowId)) {
+    const without = blockerDetails({
+      layers: layersWithoutPin(input.layers, input.flowId, pin),
+      flowId: input.flowId,
+      ...input.hostKind === void 0 ? {} : { hostKind: input.hostKind }
+    });
+    if (!without.has(input.detail)) {
+      return { pinnedAt: pin.pinnedAt, pinnedKey: pin.pinnedKey };
+    }
   }
   return void 0;
 }
@@ -160263,28 +160321,15 @@ function probeFlowReadiness(input) {
   for (const definition of flowDefinitions) {
     if (definition.visibility !== "public")
       continue;
-    let preview;
-    try {
-      preview = resolveFlowSelectionPreview({
-        flowId: definition.id,
-        configLayers: input.layers,
-        ...input.hostKind === void 0 ? {} : { hostKind: input.hostKind }
-      });
-    } catch {
-      continue;
-    }
-    const byDetail = /* @__PURE__ */ new Map();
-    for (const step of preview.relaySteps) {
-      if (step.problem === void 0)
-        continue;
-      const steps = byDetail.get(step.problem);
-      if (steps === void 0)
-        byDetail.set(step.problem, [step.stepId]);
-      else
-        steps.push(step.stepId);
-    }
-    const source = pinSourceForFlow(input.layers, definition.id);
+    const hostKind = input.hostKind === void 0 ? {} : { hostKind: input.hostKind };
+    const byDetail = blockerDetails({ layers: input.layers, flowId: definition.id, ...hostKind });
     for (const [detail, stepIds] of byDetail) {
+      const source = pinCausingBlocker({
+        layers: input.layers,
+        flowId: definition.id,
+        detail,
+        ...hostKind
+      });
       blockers.push({ flowId: definition.id, stepIds, detail, ...source ?? {} });
     }
   }

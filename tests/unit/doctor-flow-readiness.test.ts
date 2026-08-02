@@ -30,6 +30,14 @@ function projectLayer(config: Record<string, unknown>): LayeredConfig {
   });
 }
 
+function userLayer(config: Record<string, unknown>): LayeredConfig {
+  return LayeredConfig.parse({
+    layer: 'user-global',
+    source_path: '/home/someone/.config/circuit/config.yaml',
+    config: Config.parse({ schema_version: 1, ...config }),
+  });
+}
+
 const HEALTHY_CONNECTORS: readonly DoctorConnectorEntry[] = [
   {
     connector: 'claude-code',
@@ -74,6 +82,61 @@ describe('probeFlowReadiness', () => {
     });
 
     expect(blockers.map((blocker) => blocker.flowId)).toEqual(['build']);
+  });
+
+  // The printed line is "fix: circuit config unset <key>". That is a promise
+  // about what happens next, so the key named has to be the one whose removal
+  // actually unblocks the flow. Here two keys are set, only the model blocks,
+  // and unsetting the perfectly good effort would change nothing.
+  it('names the key that causes the blocker, not the first key it finds', () => {
+    const blockers = probeFlowReadiness({
+      layers: [
+        projectLayer({
+          relay: { default: 'claude-code' },
+          flows: {
+            build: {
+              selection: { effort: 'high', model: { provider: 'openai', model: 'gpt-5.5' } },
+            },
+          },
+        }),
+      ],
+    });
+
+    expect(blockers[0]?.detail).toContain("cannot honor model provider 'openai'");
+    expect(blockers[0]?.pinnedKey).toBe('flows.build.selection.model');
+  });
+
+  // A pin whose removal does not clear the blocker is not the fix, and saying
+  // it is would send the operator to edit a file for nothing. Both layers pin
+  // the same impossible effort, so neither unset alone helps. Doctor still
+  // reports the blocker; it just does not claim to know the remedy.
+  it('names no pin when no single unset would clear the blocker', () => {
+    const blockers = probeFlowReadiness({
+      layers: [
+        userLayer({ flows: { build: { selection: { effort: 'none' } } } }),
+        projectLayer({ flows: { build: { selection: { effort: 'none' } } } }),
+      ],
+    });
+
+    expect(blockers).toHaveLength(1);
+    expect(blockers[0]?.detail).toContain("cannot honor effort 'none'");
+    expect(blockers[0]?.pinnedKey).toBeUndefined();
+    expect(blockers[0]?.pinnedAt).toBeUndefined();
+  });
+
+  // Precedence decides which file to send the operator to: the project value
+  // is the one in play, and unsetting the shadowed user-global one changes
+  // nothing an operator would notice.
+  it('names the layer in play when a lower layer is shadowed by it', () => {
+    const blockers = probeFlowReadiness({
+      layers: [
+        userLayer({ flows: { build: { selection: { effort: 'high' } } } }),
+        projectLayer({ flows: { build: { selection: { effort: 'none' } } } }),
+      ],
+    });
+
+    expect(blockers[0]?.pinnedAt).toBe('/repo/.circuit/config.yaml');
+    expect(blockers[0]?.pinnedKey).toBe('flows.build.selection.effort');
   });
 });
 
