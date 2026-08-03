@@ -4,7 +4,7 @@ Clean-room containers that replay Circuit's documented install funnels the way
 a first-time user would: fresh box, no config, no sign-ins, following the
 README verbatim. This is a standing pre-release gate: every release runs the
 full battery before the version bump and again after publishing. See
-[docs/release/runbook.md](../../docs/release/runbook.md) for where it sits in
+[docs/release/runbook.md](../../../docs/release/runbook.md) for where it sits in
 the release sequence.
 
 No credentials enter the containers and no model calls are made. The battery
@@ -24,10 +24,10 @@ misspelled flow, bad resume input).
 ## Run it
 
 ```bash
-experiments/first-run-lab/run-lab.sh all      # or: cli | cli-node20 | claude | codex
+scripts/release/first-run-lab/run-lab.sh all      # or: cli | cli-node20 | claude | codex
 ```
 
-Transcripts land in `experiments/first-run-lab/runs/<timestamp>-<name>.log`
+Transcripts land in `scripts/release/first-run-lab/runs/<timestamp>-<name>.log`
 (gitignored). Every step prints its exit code; the scripts never stop on
 failure, because the failures are the data.
 

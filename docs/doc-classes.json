@@ -76,6 +76,7 @@
     { "glob": "plugins/*/README.md", "class": "living" },
     { "glob": "evals/**/*.md", "class": "living" },
     { "glob": "experiments/**/*.md", "class": "living" },
+    { "glob": "scripts/**/*.md", "class": "living" },
     { "glob": "tests/fixtures/**/*.md", "class": "historical" }
   ]
 }

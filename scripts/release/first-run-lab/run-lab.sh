@@ -9,7 +9,15 @@
 set -euo pipefail
 
 LAB_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-REPO_ROOT="$(cd "$LAB_DIR/../.." && pwd)"
+REPO_ROOT="$(cd "$LAB_DIR/../../.." && pwd)"
+# The lab reads the repo it is testing (README for the pinned ref, the checkout
+# it mounts into every container), so a wrong root is not a quiet failure, it is
+# a lab that tests the wrong thing. Say so here rather than three scenarios in.
+if [[ ! -f "$REPO_ROOT/package.json" ]]; then
+  echo "first-run lab: expected the repo root at $REPO_ROOT, found no package.json there." >&2
+  echo "The lab resolves the root by walking up from its own directory; if the lab moved, fix that walk." >&2
+  exit 1
+fi
 RUNS_DIR="$LAB_DIR/runs"
 mkdir -p "$RUNS_DIR"
 STAMP="$(date +%Y%m%d-%H%M%S)"

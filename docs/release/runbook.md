@@ -18,12 +18,12 @@ The version source of truth is `plugins/version.json`. Tags look like
 ## 1. Pre-release first-run lab (required gate)
 
 ```bash
-experiments/first-run-lab/run-lab.sh all
+scripts/release/first-run-lab/run-lab.sh all
 ```
 
 The lab replays the documented install funnels in clean containers: fresh
 box, no config, no sign-ins, no credentials, no model spend. Read every
-transcript under `experiments/first-run-lab/runs/` (gitignored). A
+transcript under `scripts/release/first-run-lab/runs/` (gitignored). A
 regression in install, first command, `circuit doctor`, or the honest
 failure paths is a release blocker; fix it and rerun before going further.
 
@@ -141,8 +141,8 @@ npm view @petepetrash/circuit version
 ## 8. Post-publish first-run lab (required gate)
 
 ```bash
-experiments/first-run-lab/run-lab.sh all
-experiments/first-run-lab/run-lab.sh npm
+scripts/release/first-run-lab/run-lab.sh all
+scripts/release/first-run-lab/run-lab.sh npm
 ```
 
 Same battery, different meaning: the Codex funnel now installs the tag you
