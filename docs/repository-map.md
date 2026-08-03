@@ -16,113 +16,111 @@ Keep the first screen small:
 Historical plans, release proof runs, ideas, and learnings stay discoverable but
 do not compete with current entry docs.
 
-## Evidence Used
+## Every Tracked Top-Level Path
 
-These probes established the pre-change tree and the references that had to be
-kept current:
+The product is `src/`, `tests/`, `plugins/`, and `docs/`. Everything else on
+this list exists for a reason a reader should be able to learn in one line,
+which is what the rest of the table is for. If a directory is not here, it is
+not tracked.
 
-```bash
-find . -maxdepth 2 -type f | sed 's#^./##' | sort
-find docs -maxdepth 3 -type f | sort
-find plugins/claude plugins/codex -maxdepth 3 -type f | sort
-find src/runtime src/schemas src/flows -maxdepth 2 -type f | sort
-rg -n "docs/literate-guide\\.md|docs/script-inventory\\.md|generated-surfaces\\.md|docs/README\\.md" README.md AGENTS.md docs src tests scripts plugins generated package.json
-```
+| Path | What it is | Read next |
+|---|---|---|
+| `README.md` | What Circuit is and how to install it | `docs/first-run.md` |
+| `AGENTS.md`, `CLAUDE.md` | The only file that defines agent rules; `CLAUDE.md` just includes it | — |
+| `CONTEXT.md` | Product posture and vocabulary, upstream of any pitch or landing copy | `docs/positioning.md` |
+| `UBIQUITOUS_LANGUAGE.md` | Canonical product vocabulary for operator-facing prose | — |
+| `src/` | The engine and the flow packages | `src/README.md` |
+| `tests/` | Every test; mirrors the `src/` layering | `AGENTS.md` verification section |
+| `plugins/` | The generated Claude Code and Codex host packages | `plugins/README.md` |
+| `docs/` | Contracts, flow design, release records, ideas, audits | `docs/README.md` |
+| `scripts/` | Build, emit, gate, and release automation | `docs/reference/script-inventory.md` |
+| `generated/` | Compiled flow output the emitters write; never hand-edited | `docs/generated-surfaces.md` |
+| `schemas/` | Emitted JSON Schema for the YAML files a user writes | `docs/yaml-validation.md` |
+| `bin/` | The `circuit` entrypoint and its Node version guard | — |
+| `evals/` | Measurement harnesses and their task fixtures | `evals/README.md` |
+| `experiments/` | Investigations kept for their findings, not run by any gate | See below |
+| `apps/` | The flow designer, a local-only dev UI with its own package | `apps/designer/` |
+| `assets/` | Images used by the README and docs | — |
 
-## Before Map
-
-The pre-change tree placed read-first docs, host-package maps, and source-layer
-ownership at the same level, so readers had to infer ownership from filenames.
-The full pre-change tree and pain-point notes live in this file's git history;
-this doc tracks only the current map, not a stale one.
-
-## After Map
-
-The current shape keeps stable public paths where release checks already depend
-on them, then adds maps at the boundaries where readers had to infer ownership:
+## Where The Layers Live
 
 ```text
 .
 +-- README.md
 +-- docs/
-|   +-- README.md
-|   +-- repository-map.md
+|   +-- README.md              read-first map of the docs
+|   +-- repository-map.md      this file
 |   +-- first-run.md
 |   +-- operator-guide.md
 |   +-- configuration.md
-|   +-- generated-surfaces.md
+|   +-- positioning.md         claims that are mechanically true today
+|   +-- generated-surfaces.md  what is generated and from what
+|   +-- doc-classes.json       per-doc class: living, generated, historical, evidence
 |   +-- architecture/
-|   |   +-- run-process.md
-|   |   +-- runtime.md
+|   +-- contracts/             engine contracts
+|   +-- flows/                 flow design notes and the block catalog
 |   +-- reference/
-|   |   +-- script-inventory.md
-|   +-- contracts/
-|   +-- flows/
-|   +-- release/
+|   +-- release/               runbook, notes, proofs
+|   +-- audits/ ideas/ learnings/ plans/ specs/ pivot/ evals/
 +-- plugins/
-|   +-- README.md
-|   +-- claude/
-|   |   +-- README.md
-|   +-- codex/
-|       +-- README.md
+|   +-- README.md               what each host package contains
+|   +-- claude/README.md        the Claude Code plugin
+|   +-- codex/README.md         the Codex plugin, and how its skills are generated
+|   +-- shared/                 launcher code both host packages embed
++-- scripts/
+|   +-- docs/ evals/ flows/ generated/ hosts/ html/ plugins/ release/ schemas/ shared/
 +-- src/
     +-- README.md
-    +-- app/
-    +-- cli/
-    +-- commands/README.md
-    +-- connectors/
-    +-- history/
-    +-- memory/
-    +-- policy/
-    +-- release/
-    +-- runtime/README.md
-    +-- schemas/README.md
-    +-- selection/
-    +-- skill-hooks/
-    +-- flows/README.md
-    +-- shared/README.md
+    +-- app/ cli/ commands/ connectors/ flows/ history/ hosts/
+    +-- memory/ policy/ release/ runtime/ schemas/ selection/
+    +-- shared/ skill-hooks/
 ```
 
-The operator path is still short:
+Layer maps live at `src/README.md`, `src/commands/README.md`,
+`src/runtime/README.md`, `src/schemas/README.md`, `src/flows/README.md`,
+and `src/shared/README.md`. The host packages carry their own at
+`plugins/README.md`, `plugins/claude/README.md`, and
+`plugins/codex/README.md`.
+
+The operator path is short:
 
 ```text
 README.md -> docs/README.md -> one task-specific doc
 ```
 
-The contributor path is now layered:
+The contributor path is layered:
 
 ```text
 docs/repository-map.md -> src/README.md -> src/<layer>/README.md -> code
 ```
 
-Layer maps live at `src/README.md`, `src/commands/README.md`,
-`src/runtime/README.md`, `src/schemas/README.md`, `src/flows/README.md`,
-and `src/shared/README.md`.
+## Two Directories That Need A Sentence Each
 
-## Migration Rationale
+**`evals/` is code plus a lot of local data.** Around 450 files are tracked; the
+working tree holds tens of thousands, because each harness checks out task
+fixtures and writes run output beside them. `tasks`, `results`, `sessions`, and
+`.circuit` are gitignored per harness and carved out of both `tsconfig.json` and
+`biome.json`. Everything else in `evals/` is ordinary source and is typechecked
+and linted like the rest of the repo.
 
-The reorganization moved `docs/script-inventory.md` to <!-- path-ok -->
-`docs/reference/script-inventory.md` (behind the docs map), added
-parent maps for host packages (`plugins/README.md`, `plugins/codex/README.md`),
-and added `src/README.md` plus per-layer READMEs (`src/runtime/README.md`,
-`src/schemas/README.md`, `src/flows/README.md`, `src/shared/README.md`) so
-layer ownership is learnable locally. Stable public
-paths and code layout were kept in place because release checks depend on them
-and a code move would churn imports without evidence of an ownership bug. All
-changes were docs-only; the full per-change rationale table is recoverable from
-this file's git history.
+**`experiments/` is not a staging area.** Nothing in it runs in a gate, and
+nothing in it should be depended on by `src/`. It is kept because the findings
+are worth more than the disk, and its `.ts` files are typechecked so a refactor
+cannot leave them silently broken. The one piece of executable release
+infrastructure that used to live here, the first-run container lab, now lives at
+`scripts/release/first-run-lab/` where its status as a required gate is legible
+from the path.
 
 ## Targeted Probes
 
 Run these after navigation or file-tree changes:
 
 ```bash
-rg -n "\\]\\((?:docs/)?(?:literate-guide|script-inventory)\\.md|readRepoFile\\('docs/(?:literate-guide|script-inventory)\\.md'\\)" README.md AGENTS.md docs src tests scripts plugins generated package.json -g '!docs/internal/archive/**' -g '!docs/release/proofs/runs/**' -g '!docs/reference/**'
+npm run check-doc-paths
 npm run check-flow-drift
 npm run check-release-infra
 npm run verify
 ```
 
-Expected result: no active links or test reads for the moved docs,
-generated-surface drift checks pass, release checks pass, and the full
-verification command passes.
+Expected result: every path a living doc names exists, generated-surface drift
+checks pass, release checks pass, and the full verification command passes.

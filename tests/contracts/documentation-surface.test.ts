@@ -167,11 +167,14 @@ describe('documentation surface', () => {
       expect(docsMap).toContain(link);
     }
 
+    // What the repository map owes a reader is a route to every layer that has
+    // its own map. It used to also owe three headings describing the migration
+    // that produced it, which is why it sat unedited for two months while five
+    // top-level directories appeared: a doc that has to keep a finished
+    // migration's shape has no place to record anything after it.
     for (const required of [
-      '## Before Map',
-      '## After Map',
-      '## Migration Rationale',
       'docs/reference/script-inventory.md',
+      'plugins/README.md',
       'plugins/codex/README.md',
       'src/runtime/README.md',
       'src/schemas/README.md',

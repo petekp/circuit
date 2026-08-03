@@ -109,12 +109,21 @@ changes need `check-release-infra`.
 | Engine contracts | `docs/contracts/` |
 | Flow design notes | `docs/flows/` |
 | Release proof runs | `docs/release/proofs/runs/` |
+| First-run container lab (standing release gate) | `scripts/release/first-run-lab/` |
+| Measurement harnesses | `evals/` (code is typechecked and linted; `tasks`, `results`, `sessions` are local data) |
+| Kept investigations, in no gate | `experiments/` |
+| Flow designer, local dev UI, own package | `apps/designer/` |
 | Ubiquitous language | [`UBIQUITOUS_LANGUAGE.md`](UBIQUITOUS_LANGUAGE.md) |
 | Block catalog | [`docs/flows/block-catalog.json`](docs/flows/block-catalog.json) |
 
 Internal file names such as `relay-hints.ts` are intentional runtime names.
 Do not rename them while adding a flow unless there is an explicit
 terminology migration in progress.
+
+Two boundaries the table above is asserting. `experiments/` is not a staging
+area: nothing there runs in a gate and nothing in `src/` may depend on it.
+`apps/designer/` is a separate npm package with its own dependencies and its own
+`npm run check`, which the root `npm run verify` does not call.
 
 ## Adding a flow
 
