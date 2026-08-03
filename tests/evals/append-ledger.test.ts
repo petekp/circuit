@@ -217,10 +217,7 @@ describe('validateLedgerEntry', () => {
   });
 
   it('rejects a non-numeric metric', () => {
-    const problems = validateLedgerEntry(
-      { ...base(), metrics: { catch_rate: '0.97' } },
-      'x',
-    );
+    const problems = validateLedgerEntry({ ...base(), metrics: { catch_rate: '0.97' } }, 'x');
     expect(problems.some((p) => p.includes('metrics.catch_rate'))).toBe(true);
   });
 

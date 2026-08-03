@@ -24,10 +24,10 @@ import { existsSync, mkdirSync, readFileSync } from 'node:fs';
 import { basename, resolve } from 'node:path';
 import { isoForPath, readJson, safeSegment, writeJson } from './shared/json.ts';
 import {
+  type LedgerEntry,
   buildFixLedgerEntry,
   buildVerdictLedgerEntry,
   isoFromPathTimestamp,
-  type LedgerEntry,
   validateLedgerEntry,
 } from './shared/ledger.ts';
 

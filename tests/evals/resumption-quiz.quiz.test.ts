@@ -21,7 +21,6 @@ import {
   parseQuizModelOutput,
   readTranscriptOnly,
 } from '../../evals/resumption-quiz/generate-quiz.ts';
-import { readJson } from '../../scripts/evals/shared/json.ts';
 import {
   ABSTENTION_GROUND_TRUTH,
   type BundleManifest,
@@ -30,6 +29,7 @@ import {
   type ResumptionManifest,
   bundleLayout,
 } from '../../evals/resumption-quiz/shared/types.ts';
+import { readJson } from '../../scripts/evals/shared/json.ts';
 
 const FIXTURE_ROOT = resolve('tests/evals/fixtures/resumption-quiz');
 const FIXTURE_TRANSCRIPT = join(FIXTURE_ROOT, 'transcript.jsonl');
@@ -73,9 +73,43 @@ function frozenBundle(): { bundleDir: string; bundle: BundleManifest } {
   return { bundleDir: join(outDir, SESSION_ID), bundle };
 }
 
+// The shape these tests mutate. Only the fields a test reaches for are named;
+// the index signatures carry the rest of the canned payload through, which is
+// what lets each case break exactly one thing and leave the parser to object.
+type QuizQuestion = {
+  id: string;
+  category: string;
+  abstention: boolean;
+  // Abstention questions carry no quote: there is nothing in the transcript to
+  // quote, which is the point of the category.
+  evidence_quote?: string;
+  ground_truth_answer: string;
+  [key: string]: unknown;
+};
+
+type QuizModelOutput = {
+  // Absent from the valid fixture on purpose: the parser is supposed to stamp
+  // provenance from what it was told, not accept what the model claims. The
+  // spoofing case sets them to prove the parser rejects the claim.
+  session_id?: string;
+  source_sha256?: string;
+  ground_truth: { next_step: string; [key: string]: unknown };
+  questions: QuizQuestion[];
+  [key: string]: unknown;
+};
+
+// Positional access into the canned question list. Throwing names the index the
+// fixture no longer has, so a case that drifts out of range says so instead of
+// failing on a property read against undefined.
+function questionAt(output: QuizModelOutput, index: number): QuizQuestion {
+  const question = output.questions[index];
+  if (question === undefined) throw new Error(`fixture has no question at index ${index}`);
+  return question;
+}
+
 // Canned generator-model output. Every evidence quote is a verbatim substring
 // of the fixture transcript JSONL, never of any continuity record.
-function validModelOutput(): Record<string, any> {
+function validModelOutput(): QuizModelOutput {
   return {
     ground_truth: {
       goal: 'Fix duration parsing in parse-config so unit suffixes are honored ("30s" means 30 seconds, not 30 milliseconds)',
@@ -129,7 +163,8 @@ function validModelOutput(): Record<string, any> {
         id: 'q5',
         category: 'repo_state',
         question: 'Which files are modified and uncommitted at the end of the session?',
-        ground_truth_answer: 'src/duration.ts and tests/duration.test.ts, on branch fix/duration-units',
+        ground_truth_answer:
+          'src/duration.ts and tests/duration.test.ts, on branch fix/duration-units',
         evidence_quote:
           'Working tree: src/duration.ts and tests/duration.test.ts modified, uncommitted, on branch fix/duration-units (HEAD abc1234)',
         abstention: false,
@@ -200,7 +235,7 @@ function validModelOutput(): Record<string, any> {
   };
 }
 
-function asRaw(output: Record<string, any>): string {
+function asRaw(output: QuizModelOutput): string {
   return JSON.stringify(output, null, 2);
 }
 
@@ -328,7 +363,7 @@ describe('parseQuizModelOutput rejection', () => {
 
   it('rejects the wrong content question count', () => {
     const output = validModelOutput();
-    output.questions = output.questions.filter((question: any) => question.id !== 'q10');
+    output.questions = output.questions.filter((question) => question.id !== 'q10');
     expect(() => parseQuizModelOutput(asRaw(output), EXPECTED)).toThrow(
       /expected 10 content questions, got 9/,
     );
@@ -336,7 +371,7 @@ describe('parseQuizModelOutput rejection', () => {
 
   it('rejects the wrong abstention question count', () => {
     const output = validModelOutput();
-    output.questions = output.questions.filter((question: any) => question.id !== 'q13');
+    output.questions = output.questions.filter((question) => question.id !== 'q13');
     expect(() => parseQuizModelOutput(asRaw(output), EXPECTED)).toThrow(
       /expected 3 abstention questions, got 2/,
     );
@@ -354,7 +389,7 @@ describe('parseQuizModelOutput rejection', () => {
 
   it('rejects an abstention question with the wrong ground truth', () => {
     const output = validModelOutput();
-    output.questions[10].ground_truth_answer = 'the CI provider is GitHub Actions';
+    questionAt(output, 10).ground_truth_answer = 'the CI provider is GitHub Actions';
     expect(() => parseQuizModelOutput(asRaw(output), EXPECTED)).toThrow(
       /ground_truth_answer must be exactly/,
     );
@@ -362,19 +397,19 @@ describe('parseQuizModelOutput rejection', () => {
 
   it('rejects duplicate question ids', () => {
     const output = validModelOutput();
-    output.questions[1].id = 'q1';
+    questionAt(output, 1).id = 'q1';
     expect(() => parseQuizModelOutput(asRaw(output), EXPECTED)).toThrow(/duplicate question id/);
   });
 
   it('rejects a content question without an evidence quote', () => {
     const output = validModelOutput();
-    output.questions[0].evidence_quote = '';
+    questionAt(output, 0).evidence_quote = '';
     expect(() => parseQuizModelOutput(asRaw(output), EXPECTED)).toThrow(/evidence_quote/);
   });
 
   it('rejects a content question claiming to be an abstention', () => {
     const output = validModelOutput();
-    output.questions[0].abstention = true;
+    questionAt(output, 0).abstention = true;
     expect(() => parseQuizModelOutput(asRaw(output), EXPECTED)).toThrow(
       /must set abstention false/,
     );
@@ -382,16 +417,14 @@ describe('parseQuizModelOutput rejection', () => {
 
   it('rejects an unknown category', () => {
     const output = validModelOutput();
-    output.questions[0].category = 'vibes';
+    questionAt(output, 0).category = 'vibes';
     expect(() => parseQuizModelOutput(asRaw(output), EXPECTED)).toThrow(/category must be one of/);
   });
 
   it('rejects missing ground truth fields', () => {
     const output = validModelOutput();
     output.ground_truth.next_step = '';
-    expect(() => parseQuizModelOutput(asRaw(output), EXPECTED)).toThrow(
-      /ground_truth.next_step/,
-    );
+    expect(() => parseQuizModelOutput(asRaw(output), EXPECTED)).toThrow(/ground_truth.next_step/);
   });
 });
 

@@ -32,9 +32,7 @@ function normalizeSubject(subject: string | undefined): string {
   return subject?.replace(/\s+/g, ' ').trim() ?? '';
 }
 
-export function summarizeCaseSourcePool(
-  cases: readonly SourcePoolCase[],
-): EvalSourcePoolSummary {
+export function summarizeCaseSourcePool(cases: readonly SourcePoolCase[]): EvalSourcePoolSummary {
   const subjectBySource = new Map<string, string>();
   for (const caseDef of cases) {
     const subject = normalizeSubject(caseDef.source_subject);
@@ -53,8 +51,6 @@ export function summarizeCaseSourcePool(
   };
 }
 
-export function summarizeSourcePool(
-  results: readonly EvalCaseResult[],
-): EvalSourcePoolSummary {
+export function summarizeSourcePool(results: readonly EvalCaseResult[]): EvalSourcePoolSummary {
   return summarizeCaseSourcePool(results.map((result) => result.case));
 }

@@ -2,9 +2,9 @@
 import { mkdirSync, writeFileSync } from 'node:fs';
 import { resolve } from 'node:path';
 import { Command, CommanderError } from 'commander';
+import { readJson, writeJson } from './shared/json.ts';
 import { createResultRoot, repoMetadata } from './shared/metadata.ts';
 import { runSync } from './shared/process.ts';
-import { readJson, writeJson } from './shared/json.ts';
 
 const REPO_ROOT = resolve(import.meta.dirname, '../..');
 const MATRIX_PATH = resolve(REPO_ROOT, 'evals/fix-vs-vanilla/matrix.json');
@@ -42,6 +42,12 @@ function usage(): string {
 `;
 }
 
+// An argument mistake, as opposed to a failure partway through a matrix run.
+// The distinction is what decides whether printing usage helps: it answers
+// "how do I call this", which is the question a bad flag asks and a mid-run
+// failure does not.
+class UsageError extends Error {}
+
 function parseArgs(argv: readonly string[]): MatrixArgs {
   const program = new Command('fix-matrix')
     .exitOverride()
@@ -55,10 +61,10 @@ function parseArgs(argv: readonly string[]): MatrixArgs {
     program.parse(argv, { from: 'user' });
   } catch (err) {
     if (err instanceof CommanderError && err.code === 'commander.helpDisplayed') process.exit(0);
-    if (err instanceof CommanderError) throw new Error(err.message.replace(/^error: /, ''));
+    if (err instanceof CommanderError) throw new UsageError(err.message.replace(/^error: /, ''));
     throw err;
   }
-  if (program.args.length > 0) throw new Error(`unexpected argument: ${program.args[0]}`);
+  if (program.args.length > 0) throw new UsageError(`unexpected argument: ${program.args[0]}`);
 
   const opts = program.opts<{
     set?: string;
@@ -69,7 +75,7 @@ function parseArgs(argv: readonly string[]): MatrixArgs {
   }>();
   const set = opts.set ?? 'held-out';
   if (!['discovery', 'regression', 'held-out', 'all'].includes(set)) {
-    throw new Error('--set must be discovery, regression, held-out, or all');
+    throw new UsageError('--set must be discovery, regression, held-out, or all');
   }
   return {
     set,
@@ -142,7 +148,8 @@ async function main() {
     skip_build: args.skipBuild,
     rows: rowMetas,
     claim_eligible: false,
-    claim_eligibility_reason: 'Matrix claims require at least two actually-run enabled provider/model rows.',
+    claim_eligibility_reason:
+      'Matrix claims require at least two actually-run enabled provider/model rows.',
   };
   writeJson(resolve(resultRoot, 'metadata.json'), metadata);
 
@@ -159,12 +166,15 @@ async function main() {
     const build = runSync('npm', ['run', 'build'], { cwd: REPO_ROOT });
     writeFileSync(resolve(resultRoot, 'build.stdout.txt'), build.stdout);
     writeFileSync(resolve(resultRoot, 'build.stderr.txt'), build.stderr);
-    if (build.status !== 0) throw new Error(`npm run build failed; see ${resultRoot}/build.stderr.txt`);
+    if (build.status !== 0)
+      throw new Error(`npm run build failed; see ${resultRoot}/build.stderr.txt`);
     const bundle = runSync('npm', ['run', 'build-plugin-runtime'], { cwd: REPO_ROOT });
     writeFileSync(resolve(resultRoot, 'build-plugin-runtime.stdout.txt'), bundle.stdout);
     writeFileSync(resolve(resultRoot, 'build-plugin-runtime.stderr.txt'), bundle.stderr);
     if (bundle.status !== 0) {
-      throw new Error(`npm run build-plugin-runtime failed; see ${resultRoot}/build-plugin-runtime.stderr.txt`);
+      throw new Error(
+        `npm run build-plugin-runtime failed; see ${resultRoot}/build-plugin-runtime.stderr.txt`,
+      );
     }
   }
 
@@ -208,5 +218,6 @@ async function main() {
 main().catch((error) => {
   const message = error instanceof Error ? error.message : String(error);
   process.stderr.write(`fix matrix failed: ${message}\n`);
+  if (error instanceof UsageError) process.stderr.write(`\n${usage()}`);
   process.exit(1);
 });

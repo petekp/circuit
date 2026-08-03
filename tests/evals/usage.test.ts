@@ -4,6 +4,8 @@ import { resolve } from 'node:path';
 import { afterEach, describe, expect, it } from 'vitest';
 import { parseVanillaClaim } from '../../scripts/evals/fix-vs-vanilla/scoring.ts';
 import {
+  type PriceTable,
+  type UsageEnvelope,
   buildArmUsageScore,
   computeEnvelopeCostUsd,
   groupRelaysByRole,
@@ -12,16 +14,34 @@ import {
   parseVanillaEnvelope,
   readCircuitRunUsage,
   resolveModelPrice,
-  type PriceTable,
-  type UsageEnvelope,
 } from '../../scripts/evals/shared/usage.ts';
+
+// Fixture lookups are `T | undefined` under noUncheckedIndexedAccess. A throw
+// with a label fails at the missing fixture and names it; a non-null assertion
+// fails later on a property read and names nothing.
+function must<T>(value: T | undefined, label: string): T {
+  if (value === undefined) throw new Error(`missing test fixture: ${label}`);
+  return value;
+}
 
 const TABLE: PriceTable = {
   schema_version: 1,
   as_of: '2026-06-11',
   models: {
-    'claude-haiku-4-5': { input: 1, cache_write_5m: 1.25, cache_write_1h: 2, cache_read: 0.1, output: 5 },
-    'claude-opus-4-5': { input: 5, cache_write_5m: 6.25, cache_write_1h: 10, cache_read: 0.5, output: 25 },
+    'claude-haiku-4-5': {
+      input: 1,
+      cache_write_5m: 1.25,
+      cache_write_1h: 2,
+      cache_read: 0.1,
+      output: 5,
+    },
+    'claude-opus-4-5': {
+      input: 5,
+      cache_write_5m: 6.25,
+      cache_write_1h: 10,
+      cache_read: 0.5,
+      output: 25,
+    },
   },
 };
 
@@ -77,7 +97,7 @@ describe('normalizeUsage', () => {
 
   it('falls back to the top-level usage block when modelUsage is absent', () => {
     const event = probeResultEvent();
-    delete event.modelUsage;
+    event.modelUsage = undefined;
     const usage = normalizeUsage(event);
     expect(usage.input_tokens).toBe(10);
     expect(usage.output_tokens).toBe(39);
@@ -89,13 +109,14 @@ describe('normalizeUsage', () => {
     const event = probeResultEvent();
     event.modelUsage = { '': { inputTokens: 5, outputTokens: 1 } };
     const usage = normalizeUsage(event);
-    expect(usage.models[0]!.model).toBe('unknown');
+    expect(usage.models[0]?.model).toBe('unknown');
   });
 });
 
 describe('parseVanillaEnvelope', () => {
   it('unwraps the result text so claim parsing sees the fenced claim JSON', () => {
-    const claimBlock = '```json\n{"claimed_fixed": true, "regression_proof": {"failed_before": true, "passed_after": true}, "commands_run": []}\n```';
+    const claimBlock =
+      '```json\n{"claimed_fixed": true, "regression_proof": {"failed_before": true, "passed_after": true}, "commands_run": []}\n```';
     const envelope = JSON.stringify({
       ...probeResultEvent(),
       result: `All done.\n\n${claimBlock}`,
@@ -103,15 +124,16 @@ describe('parseVanillaEnvelope', () => {
 
     const parsed = parseVanillaEnvelope(envelope);
     expect(parsed).toBeDefined();
+    if (parsed === undefined) throw new Error('expected the envelope to parse');
 
     // Load-bearing regression: on raw envelope stdout the last-JSON-object
     // claim parser parses the envelope itself and reports claimed_fixed
     // false. Unwrapped, the real claim comes through.
     const shadowed = parseVanillaClaim(envelope);
     expect(shadowed.claimed_fixed).toBe(false);
-    const unwrapped = parseVanillaClaim(parsed!.result_text);
+    const unwrapped = parseVanillaClaim(parsed.result_text);
     expect(unwrapped.claimed_fixed).toBe(true);
-    expect(parsed!.usage.cost_usd_reported).toBe(0.0145286);
+    expect(parsed.usage.cost_usd_reported).toBe(0.0145286);
   });
 
   it('returns undefined for plain-text stdout and partial output', () => {
@@ -125,7 +147,7 @@ describe('parseVanillaEnvelope', () => {
     const envelope = JSON.stringify(probeResultEvent());
     const noisy = parseVanillaEnvelope(`npm WARN deprecated something\n{not json}\n${envelope}`);
     expect(noisy).toBeDefined();
-    expect(noisy!.usage.cost_usd_reported).toBe(0.0145286);
+    expect(noisy?.usage.cost_usd_reported).toBe(0.0145286);
     // The CLI writes the envelope last; trailing bytes mean it is not the
     // terminal result event and nothing in the stdout is trustworthy.
     expect(parseVanillaEnvelope(`${envelope}\nstray trailing line`)).toBeUndefined();
@@ -149,22 +171,25 @@ describe('parseVanillaEnvelope', () => {
 
   it('parses the event-array shape the live CLI writes for --output-format json', () => {
     const init = { type: 'system', subtype: 'init', session_id: 's', tools: ['Bash'] };
-    const assistant = { type: 'assistant', message: { content: [{ type: 'text', text: 'working' }] } };
+    const assistant = {
+      type: 'assistant',
+      message: { content: [{ type: 'text', text: 'working' }] },
+    };
     const stdout = eventArrayStdout([init, assistant, probeResultEvent()]);
 
     const parsed = parseVanillaEnvelope(stdout);
     expect(parsed).toBeDefined();
-    expect(parsed!.result_text).toBe('ok');
-    expect(parsed!.usage.cost_usd_reported).toBe(0.0145286);
-    expect(parsed!.usage.input_tokens).toBe(451);
-    expect(parsed!.usage.models).toHaveLength(2);
+    expect(parsed?.result_text).toBe('ok');
+    expect(parsed?.usage.cost_usd_reported).toBe(0.0145286);
+    expect(parsed?.usage.input_tokens).toBe(451);
+    expect(parsed?.usage.models).toHaveLength(2);
   });
 
   it('tolerates stray bytes before the event array but not after it', () => {
     const stdout = eventArrayStdout([{ type: 'system' }, probeResultEvent()]);
     const noisy = parseVanillaEnvelope(`npm WARN something\n${stdout}`);
     expect(noisy).toBeDefined();
-    expect(noisy!.usage.cost_usd_reported).toBe(0.0145286);
+    expect(noisy?.usage.cost_usd_reported).toBe(0.0145286);
     expect(parseVanillaEnvelope(`${stdout.trimEnd()}\nstray trailing line`)).toBeUndefined();
   });
 
@@ -172,8 +197,8 @@ describe('parseVanillaEnvelope', () => {
     const first = { ...probeResultEvent(), result: 'first', total_cost_usd: 1 };
     const last = { ...probeResultEvent(), result: 'last', total_cost_usd: 2 };
     const parsed = parseVanillaEnvelope(eventArrayStdout([first, last]));
-    expect(parsed!.result_text).toBe('last');
-    expect(parsed!.usage.cost_usd_reported).toBe(2);
+    expect(parsed?.result_text).toBe('last');
+    expect(parsed?.usage.cost_usd_reported).toBe(2);
   });
 
   it('returns undefined for an event array with no result event or a truncated one', () => {
@@ -264,7 +289,12 @@ describe('computeEnvelopeCostUsd', () => {
 
   it('poisons the whole computed figure on any price-table miss', () => {
     const usage = normalizeUsage(probeResultEvent());
-    const partial: PriceTable = { ...TABLE, models: { 'claude-opus-4-5': TABLE.models['claude-opus-4-5']! } };
+    const partial: PriceTable = {
+      ...TABLE,
+      models: {
+        'claude-opus-4-5': must(TABLE.models['claude-opus-4-5'], 'claude-opus-4-5 price row'),
+      },
+    };
     const cost = computeEnvelopeCostUsd(usage, partial);
     expect(cost.cost_usd_computed).toBeUndefined();
     expect(cost.price_table_misses).toContain('claude-haiku-4-5');
@@ -284,7 +314,12 @@ describe('computeEnvelopeCostUsd', () => {
     expect(cost.cost_usd_computed).toBeUndefined();
     expect(cost.price_table_misses).toEqual(['unknown']);
     // A genuinely empty capture is the one legitimate $0.
-    const empty: UsageEnvelope = { ...envelope, input_tokens: 0, output_tokens: 0, cache_read_tokens: 0 };
+    const empty: UsageEnvelope = {
+      ...envelope,
+      input_tokens: 0,
+      output_tokens: 0,
+      cache_read_tokens: 0,
+    };
     expect(computeEnvelopeCostUsd(empty, TABLE).cost_usd_computed).toBe(0);
   });
 
@@ -441,9 +476,10 @@ describe('readCircuitRunUsage', () => {
     ]);
     const run = readCircuitRunUsage(runFolder);
     expect(run).toBeDefined();
-    expect(run!.relay_count).toBe(3);
-    expect(run!.relays_missing_usage).toBe(0);
-    const byRole = groupRelaysByRole(run!.relays);
+    if (run === undefined) throw new Error('expected run usage to be read');
+    expect(run.relay_count).toBe(3);
+    expect(run.relays_missing_usage).toBe(0);
+    const byRole = groupRelaysByRole(run.relays);
     expect(byRole.get('researcher')).toHaveLength(1);
     expect(byRole.get('implementer')).toHaveLength(2);
   });
@@ -455,11 +491,11 @@ describe('readCircuitRunUsage', () => {
       { kind: 'relay.completed', step_id: 'orphan', attempt: 1, usage: usageBlock },
     ]);
     const run = readCircuitRunUsage(runFolder);
-    expect(run!.relay_count).toBe(2);
-    expect(run!.relays_missing_usage).toBe(1);
-    expect(run!.relays_failed).toBe(0);
+    expect(run?.relay_count).toBe(2);
+    expect(run?.relays_missing_usage).toBe(1);
+    expect(run?.relays_failed).toBe(0);
     // No relay.started match: the usage still counts, under an unknown role.
-    expect(run!.relays[0]!.role).toBe('unknown');
+    expect(run?.relays[0]?.role).toBe('unknown');
   });
 
   it('counts crashed attempts (relay.failed) so the undercount is visible', () => {
@@ -472,9 +508,9 @@ describe('readCircuitRunUsage', () => {
       { kind: 'relay.completed', step_id: 'implement', attempt: 2, usage: usageBlock },
     ]);
     const run = readCircuitRunUsage(runFolder);
-    expect(run!.relay_count).toBe(1);
-    expect(run!.relays_missing_usage).toBe(0);
-    expect(run!.relays_failed).toBe(1);
+    expect(run?.relay_count).toBe(1);
+    expect(run?.relays_missing_usage).toBe(0);
+    expect(run?.relays_failed).toBe(1);
   });
 
   it('normalizes an empty model name to "unknown"', () => {
@@ -483,11 +519,14 @@ describe('readCircuitRunUsage', () => {
         kind: 'relay.completed',
         step_id: 'research',
         attempt: 1,
-        usage: { ...usageBlock, models: [{ ...usageBlock.models[0]!, model: '' }] },
+        usage: {
+          ...usageBlock,
+          models: [{ ...must(usageBlock.models[0], 'first usage model'), model: '' }],
+        },
       },
     ]);
     const run = readCircuitRunUsage(runFolder);
-    expect(run!.relays[0]!.usage.models[0]!.model).toBe('unknown');
+    expect(run?.relays[0]?.usage.models[0]?.model).toBe('unknown');
   });
 
   it('returns undefined when the run folder has no trace', () => {
@@ -551,11 +590,14 @@ describe('buildArmUsageScore', () => {
 
   it('counts envelopes whose CLI-reported cost is missing', () => {
     const noReported = envelope();
-    delete (noReported as Record<string, unknown>).cost_usd_reported;
+    (noReported as Record<string, unknown>).cost_usd_reported = undefined;
     const score = buildArmUsageScore({ envelopes: [envelope(), noReported], table: TABLE });
     // The summed reported figure is partial; the counter marks it.
     expect(score.envelopes_missing_reported_cost).toBe(1);
-    expect(score.cost_usd_reported).toBeCloseTo(envelope().cost_usd_reported!, 12);
+    expect(score.cost_usd_reported).toBeCloseTo(
+      must(envelope().cost_usd_reported, 'envelope reported cost'),
+      12,
+    );
     const complete = buildArmUsageScore({ envelopes: [envelope()], table: TABLE });
     expect(complete.envelopes_missing_reported_cost).toBe(0);
   });
@@ -651,7 +693,10 @@ describe('committed price table', () => {
   it('reproduces the live probe cost exactly', () => {
     const table = loadPriceTable(resolve(import.meta.dirname, '../../evals/ledger/prices'));
     expect(table).toBeDefined();
-    const cost = computeEnvelopeCostUsd(normalizeUsage(probeResultEvent()), table!);
+    const cost = computeEnvelopeCostUsd(
+      normalizeUsage(probeResultEvent()),
+      must(table, 'committed price table'),
+    );
     expect(cost.cost_usd_computed).toBeCloseTo(0.0145286, 7);
   });
 });

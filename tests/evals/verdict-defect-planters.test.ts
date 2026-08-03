@@ -20,7 +20,11 @@ function fixture(): ComposeJsonShape {
       {
         aspect: 'authoring surfaces',
         contribution: 'covers the three layers',
-        evidence_refs: ['reports/brief.json', 'reports/analysis.json', 'docs/contracts/skill.md:149'],
+        evidence_refs: [
+          'reports/brief.json',
+          'reports/analysis.json',
+          'docs/contracts/skill.md:149',
+        ],
       },
     ],
   };
@@ -64,9 +68,7 @@ describe('subtle defect planters', () => {
 
   it('plausible-missing-evidence-ref throws when no aspect has evidence_refs', () => {
     const compose = fixture();
-    compose.supporting_aspects = [
-      { aspect: 'x', contribution: 'y', evidence_refs: [] },
-    ];
+    compose.supporting_aspects = [{ aspect: 'x', contribution: 'y', evidence_refs: [] }];
     expect(() => DEFECT_PLANTERS['plausible-missing-evidence-ref'](compose)).toThrow(
       /evidence_refs/,
     );

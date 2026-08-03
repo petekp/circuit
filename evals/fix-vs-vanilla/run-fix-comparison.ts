@@ -4,38 +4,41 @@ import { tmpdir } from 'node:os';
 import { dirname, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import {
-  aggregate,
-  decideClaim,
-  parseCircuitClaim,
-  parseVanillaEnvelopeClaim,
-  scoreArm,
-  type ArmScore,
-  type TaskSummary as AggregateTaskSummary,
-} from '../../scripts/evals/fix-vs-vanilla/scoring.ts';
-import { createResultRoot, repoMetadata } from '../../scripts/evals/shared/metadata.ts';
-import {
-  commandOutput,
-  findExecutable,
-  runCommand,
-  runSync,
-  type RunCommandMetadata,
-} from '../../scripts/evals/shared/process.ts';
-import { createClaudeCodeWrapper, vanillaClaudeArgs } from '../../scripts/evals/shared/providers.ts';
-import { readJson, safeSegment, writeJson } from '../../scripts/evals/shared/json.ts';
-import {
-  buildArmUsageScore,
-  groupRelaysByRole,
-  loadPriceTable,
-  parseVanillaEnvelope,
-  readCircuitRunUsage,
-  type PriceTable,
-} from '../../scripts/evals/shared/usage.ts';
-import {
   CIRCUIT_MODES,
   type CircuitMode,
   circuitModeArgs,
   isCircuitMode,
 } from '../../scripts/evals/fix-vs-vanilla/circuit-mode.ts';
+import {
+  type TaskSummary as AggregateTaskSummary,
+  type ArmScore,
+  aggregate,
+  decideClaim,
+  parseCircuitClaim,
+  parseVanillaEnvelopeClaim,
+  scoreArm,
+} from '../../scripts/evals/fix-vs-vanilla/scoring.ts';
+import { readJson, safeSegment, writeJson } from '../../scripts/evals/shared/json.ts';
+import { createResultRoot, repoMetadata } from '../../scripts/evals/shared/metadata.ts';
+import {
+  type RunCommandMetadata,
+  commandOutput,
+  findExecutable,
+  runCommand,
+  runSync,
+} from '../../scripts/evals/shared/process.ts';
+import {
+  createClaudeCodeWrapper,
+  vanillaClaudeArgs,
+} from '../../scripts/evals/shared/providers.ts';
+import {
+  type PriceTable,
+  buildArmUsageScore,
+  groupRelaysByRole,
+  loadPriceTable,
+  parseVanillaEnvelope,
+  readCircuitRunUsage,
+} from '../../scripts/evals/shared/usage.ts';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = dirname(__filename);
@@ -43,6 +46,10 @@ const REPO_ROOT = resolve(__dirname, '../..');
 const MANIFEST_PATH = resolve(__dirname, 'manifest.json');
 const DEFAULT_RESULTS_ROOT = resolve(__dirname, 'results');
 
+// This harness walks arbitrary parsed JSON: task manifests, run summaries, per-arm aggregates.
+// Those shapes are the eval data, not a contract we own. Narrowing to unknown costs 40-plus casts
+// at the access sites and buys no safety over data we already trust enough to compare arms on.
+// biome-ignore lint/suspicious/noExplicitAny: parsed eval JSON, shape owned by the data
 type JsonRecord = Record<string, any>;
 type TaskSet = 'discovery' | 'regression' | 'held-out';
 type RequestedTaskSet = TaskSet | 'all';
@@ -115,9 +122,9 @@ type DiffState = {
 };
 type TaskSummary = AggregateTaskSummary &
   JsonRecord & {
-  task_id: string;
-  arms: Record<string, ArmScore>;
-};
+    task_id: string;
+    arms: Record<string, ArmScore>;
+  };
 type FixSummary = JsonRecord & {
   result_root: string;
   provider: string;
@@ -227,7 +234,7 @@ export function parseFixArgs(argv: string[], manifest: FixManifest): FixArgs {
   }
 
   if (!['discovery', 'regression', 'held-out', 'all'].includes(args.set)) {
-    throw new Error("--set must be one of discovery, regression, held-out, or all");
+    throw new Error('--set must be one of discovery, regression, held-out, or all');
   }
   if (args.provider !== 'claude-code') {
     throw new Error('this bug-fix pilot currently supports --provider claude-code only');
@@ -755,7 +762,9 @@ async function main() {
   // still captured, computed costs are simply omitted and flagged.
   const priceTable = loadPriceTable(resolve(REPO_ROOT, 'evals/ledger/prices'));
   if (priceTable === undefined) {
-    process.stderr.write('warning: no price table under evals/ledger/prices; cost_usd_computed will be absent\n');
+    process.stderr.write(
+      'warning: no price table under evals/ledger/prices; cost_usd_computed will be absent\n',
+    );
   }
   const metadata = {
     schema_version: 1,

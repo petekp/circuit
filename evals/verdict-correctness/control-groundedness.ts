@@ -86,7 +86,12 @@ export function classifyRef(raw: string, resolvers: GroundednessResolvers): Clas
 
   // Run-internal report artifact produced by the source run.
   if (pathOnly.startsWith('reports/')) {
-    return { raw, kind: 'run-report', path: pathOnly, resolved: resolvers.runReportExists(pathOnly) };
+    return {
+      raw,
+      kind: 'run-report',
+      path: pathOnly,
+      resolved: resolvers.runReportExists(pathOnly),
+    };
   }
 
   // Otherwise treat it as a repo-relative citation into the explored source.
@@ -137,8 +142,7 @@ export function auditComposeGroundedness(
     }
   }
 
-  const fully_grounded =
-    counts.repo_file_unresolved === 0 && counts.run_report_unresolved === 0;
+  const fully_grounded = counts.repo_file_unresolved === 0 && counts.run_report_unresolved === 0;
 
   return { refs, counts, unresolved_paths, fully_grounded };
 }

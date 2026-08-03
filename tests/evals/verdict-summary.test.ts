@@ -7,7 +7,10 @@ import type { EvalCaseResult } from '../../evals/verdict-correctness/types.ts';
 // verdict body can be a thin stub cast to the result shape.
 type SuccessResult = Extract<EvalCaseResult['outcome'], { kind: 'success' }>['result'];
 
-function success(defectId: EvalCaseResult['case']['defect_id'], score: EvalCaseResult['score']): EvalCaseResult {
+function success(
+  defectId: EvalCaseResult['case']['defect_id'],
+  score: EvalCaseResult['score'],
+): EvalCaseResult {
   // summarize() reads duration_ms off every successful result and, for
   // controls, the verdict body to bucket the distribution. In real data the
   // control's body verdict equals score.original_verdict, so mirror that here
@@ -32,9 +35,7 @@ function success(defectId: EvalCaseResult['case']['defect_id'], score: EvalCaseR
   };
 }
 
-function protocolFailure(
-  kind: 'connector_error' | 'parse_error' | 'schema_error',
-): EvalCaseResult {
+function protocolFailure(kind: 'connector_error' | 'parse_error' | 'schema_error'): EvalCaseResult {
   return {
     case: {
       source_run_id: 'run-bbbbbbbb',
@@ -51,9 +52,7 @@ function protocolFailure(
   };
 }
 
-function protocolControl(
-  kind: 'connector_error' | 'parse_error' | 'schema_error',
-): EvalCaseResult {
+function protocolControl(kind: 'connector_error' | 'parse_error' | 'schema_error'): EvalCaseResult {
   // A control case that produced no valid verdict — counted in controls.errors,
   // not in any verdict bucket.
   return {
@@ -104,7 +103,13 @@ describe('verdict-correctness summarize protocol-failure accounting', () => {
       success('control', { kind: 'control', original_verdict: 'accept' }),
     ];
 
-    const summary = summarize(results, 5000, 'claude-code', 'claude-haiku-4-5-20251001', 'standard');
+    const summary = summarize(
+      results,
+      5000,
+      'claude-code',
+      'claude-haiku-4-5-20251001',
+      'standard',
+    );
     const o = summary.overall;
 
     expect(summary.suite).toBe('standard');

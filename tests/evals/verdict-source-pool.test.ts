@@ -1,5 +1,8 @@
 import { describe, expect, it } from 'vitest';
-import { summarizeCaseSourcePool, summarizeSourcePool } from '../../evals/verdict-correctness/reporting.ts';
+import {
+  summarizeCaseSourcePool,
+  summarizeSourcePool,
+} from '../../evals/verdict-correctness/reporting.ts';
 import type { EvalCaseResult } from '../../evals/verdict-correctness/types.ts';
 
 describe('verdict-correctness source pool reporting', () => {

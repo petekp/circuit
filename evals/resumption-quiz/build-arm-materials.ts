@@ -21,30 +21,34 @@ import {
 import { tmpdir } from 'node:os';
 import { dirname, join, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { handoffBrief, type BriefGitProbe, type StalenessFacts } from '../../src/app/continuity/brief.ts';
+import { readJson, writeJson } from '../../scripts/evals/shared/json.ts';
+import {
+  type BriefGitProbe,
+  type StalenessFacts,
+  handoffBrief,
+} from '../../src/app/continuity/brief.ts';
 import { summaryForRecord } from '../../src/app/continuity/records.ts';
 import {
   ContinuityIndex,
   ContinuityRecord,
   type ContinuityRecord as ContinuityRecordValue,
 } from '../../src/schemas/continuity.ts';
-import { readJson, writeJson } from '../../scripts/evals/shared/json.ts';
 import {
   ARM_IDS,
-  ORDERING_ERRORS,
-  armDir,
-  armMaterialPath,
-  armMetaPath,
-  bundleLayout,
-  isArmId,
   type ArmId,
   type ArmMeta,
   type ArmUnavailableReason,
   type BundleLayout,
   type BundleManifest,
   type FreezeTimeGit,
+  ORDERING_ERRORS,
   type QuizFile,
   type ResumptionManifest,
+  armDir,
+  armMaterialPath,
+  armMetaPath,
+  bundleLayout,
+  isArmId,
 } from './shared/types.ts';
 
 const __filename = fileURLToPath(import.meta.url);
@@ -205,7 +209,8 @@ function toolResultSummary(content: unknown): string {
   if (Array.isArray(content)) {
     for (const block of content) {
       if (typeof block === 'object' && block !== null) {
-        const inner = (block as { content?: unknown; text?: unknown }).content ??
+        const inner =
+          (block as { content?: unknown; text?: unknown }).content ??
           (block as { text?: unknown }).text;
         if (typeof inner === 'string') return oneLine(inner, TOOL_LINE_MAX_CHARS);
       }
@@ -563,7 +568,8 @@ function main(): void {
   const metas = buildArmMaterials(args, manifest);
   for (const meta of metas) {
     if (meta.available) {
-      const extra = meta.truncated === true ? ` (truncated, dropped ${meta.dropped_chars} chars)` : '';
+      const extra =
+        meta.truncated === true ? ` (truncated, dropped ${meta.dropped_chars} chars)` : '';
       process.stdout.write(`${meta.arm}: built, ${meta.material_chars} chars${extra}\n`);
     } else {
       process.stdout.write(`${meta.arm}: unavailable (${meta.arm_unavailable_reason})\n`);

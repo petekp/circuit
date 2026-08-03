@@ -9,6 +9,16 @@ import {
   scoreArm,
 } from '../../scripts/evals/fix-vs-vanilla/scoring.ts';
 
+// Aggregates are keyed by arm id, so every lookup is `T | undefined` under
+// noUncheckedIndexedAccess. Throwing on a missing arm says which arm the
+// aggregate failed to produce, where a non-null assertion would fail later
+// with a property read on undefined and name nothing.
+function arm<T>(aggregates: Record<string, T>, armId: string): T {
+  const found = aggregates[armId];
+  if (found === undefined) throw new Error(`no aggregate for arm '${armId}'`);
+  return found;
+}
+
 describe('fix-vs-vanilla scoring', () => {
   it('marks claimed success with failing checks as false-fixed', () => {
     const score = scoreArm({
@@ -82,14 +92,14 @@ describe('fix-vs-vanilla scoring', () => {
       { split: 'held-out', arms: { 'circuit-claude-code': withoutUsage } },
     ]);
 
-    const circuit = out['circuit-claude-code']!;
+    const circuit = arm(out, 'circuit-claude-code');
     expect(circuit.total_tokens_input).toBe(100);
     expect(circuit.total_cost_usd_computed).toBeCloseTo(0.021, 10);
     expect(circuit.usage_missing_count).toBe(1);
     expect(circuit.cost_divergence_flag_count).toBe(1);
 
     // An arm with no captured usage anywhere reports null sums, never zero.
-    const vanilla = out['vanilla-claude-code']!;
+    const vanilla = arm(out, 'vanilla-claude-code');
     expect(vanilla.total_cost_usd_computed).toBeNull();
     expect(vanilla.usage_missing_count).toBe(1);
   });
@@ -103,7 +113,9 @@ describe('fix-vs-vanilla scoring', () => {
         change_set_status: 'pass',
       }),
     ).toBe(3);
-    expect(parseCircuitResult({ outcome: 'fixed', verification_status: 'passed' }).claimed_fixed).toBe(true);
+    expect(
+      parseCircuitResult({ outcome: 'fixed', verification_status: 'passed' }).claimed_fixed,
+    ).toBe(true);
   });
 
   it('parses strong vanilla JSON claims and proof quality', () => {
@@ -185,7 +197,7 @@ describe('fix-vs-vanilla scoring', () => {
       },
     }));
 
-    const circuit = aggregate(summaries)['circuit-claude-code']!;
+    const circuit = arm(aggregate(summaries), 'circuit-claude-code');
     expect(circuit.total_tokens_cache_creation_5m).toBe(300);
     expect(circuit.total_tokens_cache_creation_1h).toBe(1200);
     // Nearest-rank over [0.001, 0.002, 0.01].
@@ -197,7 +209,7 @@ describe('fix-vs-vanilla scoring', () => {
     expect(circuit.total_envelopes_missing_reported_cost).toBe(1);
 
     // The vanilla arm captured nothing: distribution fields are null, not 0.
-    const vanilla = aggregate(summaries)['vanilla-claude-code']!;
+    const vanilla = arm(aggregate(summaries), 'vanilla-claude-code');
     expect(vanilla.median_cost_usd_computed).toBeNull();
     expect(vanilla.total_relays_failed).toBeNull();
   });

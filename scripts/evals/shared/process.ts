@@ -108,7 +108,10 @@ export function commandOutput(
   }
 }
 
-export function findExecutable(name: string, { required = true }: { required?: boolean } = {}): string {
+export function findExecutable(
+  name: string,
+  { required = true }: { required?: boolean } = {},
+): string {
   const result = runSync('zsh', ['-lc', `command -v ${shellQuote(name)}`]);
   if (result.status !== 0) {
     if (required) throw new Error(`could not find ${name} on PATH`);
@@ -124,7 +127,11 @@ export function redactedArgv(
   return argv.map((arg) => (String(arg).length > limit ? replacement : arg));
 }
 
-export function redactedCommand(command: string, argv: readonly string[], options: RedactOptions = {}): string[] {
+export function redactedCommand(
+  command: string,
+  argv: readonly string[],
+  options: RedactOptions = {},
+): string[] {
   return [command, ...redactedArgv(argv, options)];
 }
 
@@ -140,7 +147,9 @@ export async function runCommand<TMetadata = RunCommandMetadata>({
   redactLimit = 500,
   redactReplacement = '<prompt omitted; see prompt.md>',
   metadataBuilder,
-}: RunCommandOptions<TMetadata>): Promise<TMetadata & RunCommandMetadata & { stdout: string; stderr: string }> {
+}: RunCommandOptions<TMetadata>): Promise<
+  TMetadata & RunCommandMetadata & { stdout: string; stderr: string }
+> {
   mkdirSync(outputDir, { recursive: true });
   const startedAt = new Date();
   const start = performance.now();
@@ -215,8 +224,9 @@ export async function runCommand<TMetadata = RunCommandMetadata>({
   };
   const metadata = metadataBuilder === undefined ? metadataBase : metadataBuilder(metadataBase);
   writeJson(resolve(outputDir, metadataFilename), metadata);
-  return { ...metadata, stdout, stderr } as TMetadata & RunCommandMetadata & {
-    stdout: string;
-    stderr: string;
-  };
+  return { ...metadata, stdout, stderr } as TMetadata &
+    RunCommandMetadata & {
+      stdout: string;
+      stderr: string;
+    };
 }

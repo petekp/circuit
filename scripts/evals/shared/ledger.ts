@@ -184,8 +184,14 @@ export function buildFixLedgerEntry(summary: unknown, options: FixLedgerOptions)
       // and dollar totals are undercounts.
       ['circuit_total_relays_failed', circuit.total_relays_failed],
       ['circuit_total_relays_missing_usage', circuit.total_relays_missing_usage],
-      ['circuit_total_envelopes_missing_reported_cost', circuit.total_envelopes_missing_reported_cost],
-      ['vanilla_total_envelopes_missing_reported_cost', vanilla.total_envelopes_missing_reported_cost],
+      [
+        'circuit_total_envelopes_missing_reported_cost',
+        circuit.total_envelopes_missing_reported_cost,
+      ],
+      [
+        'vanilla_total_envelopes_missing_reported_cost',
+        vanilla.total_envelopes_missing_reported_cost,
+      ],
     ]),
   };
 }

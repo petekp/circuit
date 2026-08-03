@@ -1,5 +1,13 @@
 import { execFileSync } from 'node:child_process';
-import { cpSync, copyFileSync, existsSync, mkdtempSync, readdirSync, readFileSync, rmSync } from 'node:fs';
+import {
+  copyFileSync,
+  cpSync,
+  existsSync,
+  mkdtempSync,
+  readFileSync,
+  readdirSync,
+  rmSync,
+} from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join, resolve } from 'node:path';
 import { afterEach, describe, expect, it } from 'vitest';
@@ -115,39 +123,34 @@ describe('fix-vs-vanilla trap mechanic', () => {
   });
 
   for (const task of trapTasks) {
-    it(
-      `${task.id}: naive fix passes the visible repro but fails an objective check; root-cause passes both`,
-      () => {
-        workDir = mkdtempSync(join(tmpdir(), `trap-${task.id}-`));
-        cpSync(join(task.dir, 'repo'), workDir, { recursive: true });
-        // Overlay the hidden objective checks the way the harness does at scoring
-        // time. They never ship in `repo/`, so without this the objective checks
-        // cannot run at all.
-        if (task.hasObjectiveDir) {
-          cpSync(task.objectiveDir, workDir, { recursive: true });
-        }
-        const target = join(workDir, task.patchTarget);
-        const applyFixture = (name: string) =>
-          copyFileSync(join(task.dir, 'fixtures', name), target);
+    it(`${task.id}: naive fix passes the visible repro but fails an objective check; root-cause passes both`, () => {
+      workDir = mkdtempSync(join(tmpdir(), `trap-${task.id}-`));
+      cpSync(join(task.dir, 'repo'), workDir, { recursive: true });
+      // Overlay the hidden objective checks the way the harness does at scoring
+      // time. They never ship in `repo/`, so without this the objective checks
+      // cannot run at all.
+      if (task.hasObjectiveDir) {
+        cpSync(task.objectiveDir, workDir, { recursive: true });
+      }
+      const target = join(workDir, task.patchTarget);
+      const applyFixture = (name: string) => copyFileSync(join(task.dir, 'fixtures', name), target);
 
-        // Buggy baseline: the visible repro always fails. The objective check
-        // fails too for a latent-bug trap, but for an adjacent-regression trap it
-        // guards a neighbor that still works at baseline, so it passes there.
-        expect(checkPasses(workDir, task.visible.argv)).toBe(false);
-        expect(objectivePasses(workDir, task)).toBe(task.objectivePassesAtBaseline);
+      // Buggy baseline: the visible repro always fails. The objective check
+      // fails too for a latent-bug trap, but for an adjacent-regression trap it
+      // guards a neighbor that still works at baseline, so it passes there.
+      expect(checkPasses(workDir, task.visible.argv)).toBe(false);
+      expect(objectivePasses(workDir, task)).toBe(task.objectivePassesAtBaseline);
 
-        // Naive fix: the trap. Visible repro goes green, objective stays red.
-        applyFixture('naive.mjs');
-        expect(checkPasses(workDir, task.visible.argv)).toBe(true);
-        expect(objectivePasses(workDir, task)).toBe(false);
+      // Naive fix: the trap. Visible repro goes green, objective stays red.
+      applyFixture('naive.mjs');
+      expect(checkPasses(workDir, task.visible.argv)).toBe(true);
+      expect(objectivePasses(workDir, task)).toBe(false);
 
-        // Root-cause fix: everything passes.
-        applyFixture('root-cause.mjs');
-        expect(checkPasses(workDir, task.visible.argv)).toBe(true);
-        expect(objectivePasses(workDir, task)).toBe(true);
-      },
-      120_000,
-    );
+      // Root-cause fix: everything passes.
+      applyFixture('root-cause.mjs');
+      expect(checkPasses(workDir, task.visible.argv)).toBe(true);
+      expect(objectivePasses(workDir, task)).toBe(true);
+    }, 120_000);
 
     if (task.hiddenChecks.length > 0) {
       it(`${task.id}: hidden objective checks are absent from the agent's repo`, () => {

@@ -43,7 +43,9 @@ function checkRegistry(): EvalRegistry {
       fail(`${entry.id}: invalid claim_level ${entry.claim_level}`);
     }
     if (entry.claim_level === 'claim-grade' && !CLAIM_GRADE_EVAL_IDS.has(entry.id)) {
-      fail(`${entry.id}: claim-grade requires registering the id in CLAIM_GRADE_EVAL_IDS (none are registered today)`);
+      fail(
+        `${entry.id}: claim-grade requires registering the id in CLAIM_GRADE_EVAL_IDS (none are registered today)`,
+      );
     }
     if (CLAIM_GRADE_EVAL_IDS.has(entry.id) && entry.claim_level !== 'claim-grade') {
       fail(`${entry.id}: expected claim_level claim-grade`);
@@ -62,11 +64,18 @@ function checkRegistry(): EvalRegistry {
         /^(evals|scripts)\/.*\.(mjs|js|ts)$/.test(String(part)),
       );
       const scriptPath = entry.default_command[scriptIndex];
-      if (scriptIndex !== -1 && typeof scriptPath === 'string' && !existsSync(resolve(REPO_ROOT, scriptPath))) {
+      if (
+        scriptIndex !== -1 &&
+        typeof scriptPath === 'string' &&
+        !existsSync(resolve(REPO_ROOT, scriptPath))
+      ) {
         fail(`${entry.id}: default command script does not exist`);
       }
     }
-    if (typeof entry.readme_path !== 'string' || !existsSync(resolve(REPO_ROOT, entry.readme_path))) {
+    if (
+      typeof entry.readme_path !== 'string' ||
+      !existsSync(resolve(REPO_ROOT, entry.readme_path))
+    ) {
       fail(`${entry.id}: readme_path does not exist`);
     }
     if (typeof entry.primary_metric !== 'string' || entry.primary_metric.length === 0) {

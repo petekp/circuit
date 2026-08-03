@@ -14,21 +14,21 @@ import {
 } from '../../evals/resumption-quiz/build-arm-materials.ts';
 import {
   ARM_IDS,
+  type ArmMeta,
   ORDERING_ERRORS,
+  type ResumptionManifest,
   armMaterialPath,
   armMetaPath,
-  type ArmMeta,
-  type ResumptionManifest,
 } from '../../evals/resumption-quiz/shared/types.ts';
 import { summaryForRecord } from '../../src/app/continuity/records.ts';
 import { ContinuityRecord } from '../../src/schemas/continuity.ts';
 import {
-  cleanupBundleFixtures,
   FIXTURE_CONTINUITY,
   FIXTURE_TRANSCRIPT,
-  makeBundle,
   MANIFEST,
   MANUAL_RECORD_STEM,
+  cleanupBundleFixtures,
+  makeBundle,
 } from './resumption-quiz.bundle-fixture.ts';
 
 afterEach(() => {

@@ -12,26 +12,23 @@ import { fileURLToPath } from 'node:url';
 import { readJson, safeSegment, writeJson } from '../../scripts/evals/shared/json.ts';
 import { runSync } from '../../scripts/evals/shared/process.ts';
 import {
-  buildArmUsageScore,
-  loadPriceTable,
-  parseVanillaEnvelope,
   type ArmUsageScore,
   type ModelUsageEntry,
   type PriceTable,
   type UsageEnvelope,
+  buildArmUsageScore,
+  loadPriceTable,
+  parseVanillaEnvelope,
 } from '../../scripts/evals/shared/usage.ts';
 import {
   ARM_IDS,
-  BLINDING_REPLACEMENT,
-  BLINDING_SCRUB_TERMS,
-  CONTENT_CATEGORIES,
-  UNCALIBRATED_BANNER,
-  armMetaPath,
-  bundleLayout,
   type AbstentionQuestion,
   type ArmId,
   type ArmMeta,
   type ArmSummary,
+  BLINDING_REPLACEMENT,
+  BLINDING_SCRUB_TERMS,
+  CONTENT_CATEGORIES,
   type CalibrationCandidate,
   type CalibrationReason,
   type CategoryAccuracy,
@@ -50,6 +47,9 @@ import {
   type RunMetadata,
   type ScoredQuestion,
   type SessionScoreSummary,
+  UNCALIBRATED_BANNER,
+  armMetaPath,
+  bundleLayout,
 } from './shared/types.ts';
 
 const __filename = fileURLToPath(import.meta.url);
@@ -314,10 +314,7 @@ export function summarize(input: {
   for (const sessionId of sessionIds) {
     const armScores = scoresBySession.get(sessionId) ?? new Map<ArmId, RepScore[]>();
     const metas = input.metas.get(sessionId) ?? [];
-    const armsPresent = new Set<ArmId>([
-      ...armScores.keys(),
-      ...metas.map((meta) => meta.arm),
-    ]);
+    const armsPresent = new Set<ArmId>([...armScores.keys(), ...metas.map((meta) => meta.arm)]);
     const arms: Partial<Record<ArmId, ArmSummary>> = {};
     for (const arm of ARM_IDS) {
       if (!armsPresent.has(arm)) continue;
@@ -459,7 +456,9 @@ export function liveJudge(model: string): JudgeCall {
     );
     if (result.status !== 0) {
       return Promise.reject(
-        new Error(`judge call failed (exit ${String(result.status)}): ${result.stderr.slice(0, 500)}`),
+        new Error(
+          `judge call failed (exit ${String(result.status)}): ${result.stderr.slice(0, 500)}`,
+        ),
       );
     }
     const envelope = parseVanillaEnvelope(result.stdout);
@@ -524,8 +523,7 @@ function loadQuiz(sessionsDir: string, sessionId: string): QuizFile {
   const quizPath = bundleLayout(resolve(sessionsDir, sessionId)).quiz_json;
   if (!existsSync(quizPath)) {
     throw new Error(
-      `quiz.json not found for session ${sessionId} at ${quizPath}; ` +
-        'scoring needs the frozen bundle that produced this run',
+      `quiz.json not found for session ${sessionId} at ${quizPath}; scoring needs the frozen bundle that produced this run`,
     );
   }
   return readJson<QuizFile>(quizPath);
@@ -575,12 +573,7 @@ export async function scoreQuiz(
       return sum + answeredContent;
     }, 0);
     process.stdout.write(
-      `[dry-run] score-quiz plan for ${resultRoot}\n` +
-        `[dry-run] sessions: ${run.session_ids.join(', ')}\n` +
-        `[dry-run] arms: ${run.arms.join(', ')}\n` +
-        `[dry-run] rep answer files found: ${reps.length}\n` +
-        `[dry-run] judge calls needed: ${judged}\n` +
-        '[dry-run] no judge calls made, no files written\n',
+      `[dry-run] score-quiz plan for ${resultRoot}\n[dry-run] sessions: ${run.session_ids.join(', ')}\n[dry-run] arms: ${run.arms.join(', ')}\n[dry-run] rep answer files found: ${reps.length}\n[dry-run] judge calls needed: ${judged}\n[dry-run] no judge calls made, no files written\n`,
     );
     const summary = summarize({
       resultRoot,

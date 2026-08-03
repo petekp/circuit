@@ -13,9 +13,9 @@
 
 import { describe, expect, it } from 'vitest';
 import {
-  classifyComposedVsReference,
   type ComposedDecisionInput,
   type FamilyArmAggregate,
+  classifyComposedVsReference,
 } from './run-dynamic-comparison.ts';
 
 // Minimal aggregate: classify reads objective_fixed_rate, false_fixed_rate, and
@@ -82,7 +82,11 @@ describe('classifyComposedVsReference — sibling rule, locked before data', () 
 
   it('PIPELINE-BROKEN overrides even perfect efficacy when the composed pipeline failed', () => {
     const input = viableInput();
-    input.fix.composed = agg({ objective_fixed_rate: 1, false_fixed_rate: 0, pipeline_failure_count: 1 });
+    input.fix.composed = agg({
+      objective_fixed_rate: 1,
+      false_fixed_rate: 0,
+      pipeline_failure_count: 1,
+    });
     const result = classifyComposedVsReference(input);
     expect(result.verdict).toBe('PIPELINE-BROKEN');
     expect(result.predicates.pipeline_fix_clean).toBe(false);

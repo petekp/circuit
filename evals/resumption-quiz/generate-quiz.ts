@@ -117,7 +117,7 @@ export function readTranscriptOnly(transcriptPath: string): string {
   return readFileSync(transcriptPath, 'utf8');
 }
 
-type JsonRecord = Record<string, any>;
+type JsonRecord = Record<string, unknown>;
 
 function oneLine(value: string, maxChars: number): string {
   const collapsed = value.replace(/\s+/g, ' ').trim();
@@ -155,7 +155,9 @@ function renderTranscriptDigest(raw: string): string {
     }
     if (parsed === null || typeof parsed !== 'object') continue;
     const entry = parsed as JsonRecord;
-    const content = entry.message?.content;
+    const message = entry.message;
+    const content =
+      message !== null && typeof message === 'object' ? (message as JsonRecord).content : undefined;
     if (entry.isCompactSummary === true) {
       const text = blockContentText(content).trim();
       if (text.length > 0) lines.push(`[compaction summary]\n${text}`);
@@ -171,7 +173,11 @@ function renderTranscriptDigest(raw: string): string {
         const text = textBlocks(content).join('\n').trim();
         if (text.length > 0) lines.push(`user: ${text}`);
         for (const block of content) {
-          if (block !== null && typeof block === 'object' && (block as JsonRecord).type === 'tool_result') {
+          if (
+            block !== null &&
+            typeof block === 'object' &&
+            (block as JsonRecord).type === 'tool_result'
+          ) {
             const result = blockContentText((block as JsonRecord).content);
             lines.push(`tool result: ${oneLine(result, TOOL_LINE_MAX_CHARS)}`);
           }

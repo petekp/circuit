@@ -21,12 +21,7 @@
   "generated_arm_mode": "default-only",
   "claim_rule": "This eval is discovery-grade. It does not produce a product claim; it classifies the dynamic/JIT direction as WORTH-INVESTING, MIXED, or NOT-YET against the locked rule in README.md (section 5). The reference arm is the bar, measured alongside.",
   "families": {
-    "fix": [
-      "fix-off-by-one",
-      "fix-null-guard",
-      "fix-async-race",
-      "fix-format-bug"
-    ],
+    "fix": ["fix-off-by-one", "fix-null-guard", "fix-async-race", "fix-format-bug"],
     "build": [
       "build-add-helper",
       "build-validate-input",

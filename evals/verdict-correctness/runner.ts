@@ -140,7 +140,11 @@ export async function runCase(
   // the schema defaults a fully resolved selection always carries.
   const resolvedSelection: ResolvedSelection | undefined =
     judge === 'claude-code' && options.model
-      ? { skills: [], invocation_options: {}, model: { provider: 'anthropic', model: options.model } }
+      ? {
+          skills: [],
+          invocation_options: {},
+          model: { provider: 'anthropic', model: options.model },
+        }
       : undefined;
   let raw: { result_body: string; duration_ms: number; cli_version: string };
   try {

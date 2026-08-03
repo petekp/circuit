@@ -19,11 +19,10 @@ import {
 import {
   ABSTENTION_GROUND_TRUTH,
   ARM_IDS,
-  BLINDING_REPLACEMENT,
-  BLINDING_SCRUB_TERMS,
-  UNCALIBRATED_BANNER,
   type AbstentionQuestion,
   type ArmMeta,
+  BLINDING_REPLACEMENT,
+  BLINDING_SCRUB_TERMS,
   type ContentCategory,
   type ContentQuestion,
   type JudgeInput,
@@ -34,6 +33,7 @@ import {
   type ResumptionManifest,
   type RunMetadata,
   type ScoredQuestion,
+  UNCALIBRATED_BANNER,
 } from '../../evals/resumption-quiz/shared/types.ts';
 import { readJson, writeJson } from '../../scripts/evals/shared/json.ts';
 
@@ -379,7 +379,12 @@ describe('summarize', () => {
     [
       'sess-1',
       [
-        { schema_version: 1, arm: 'A1', available: false, arm_unavailable_reason: 'no_compaction_summary' },
+        {
+          schema_version: 1,
+          arm: 'A1',
+          available: false,
+          arm_unavailable_reason: 'no_compaction_summary',
+        },
         { schema_version: 1, arm: 'A2', available: true, material_chars: 840 },
       ],
     ],
@@ -635,12 +640,9 @@ describe('scoreQuiz end to end', () => {
       return true;
     });
     const calls: JudgeInput[] = [];
-    const summary = await scoreQuiz(
-      { resultRoot, dryRun: false },
-      manifest,
-      keywordJudge(calls),
-      { sessionsDir },
-    );
+    const summary = await scoreQuiz({ resultRoot, dryRun: false }, manifest, keywordJudge(calls), {
+      sessionsDir,
+    });
 
     // Judge saw only answered content questions, all blinded.
     expect(calls).toHaveLength(3);
@@ -695,7 +697,9 @@ describe('scoreQuiz end to end', () => {
       writes.push(String(chunk));
       return true;
     });
-    const judge = vi.fn((): Promise<JudgeVerdict> => Promise.reject(new Error('no judge in dry-run')));
+    const judge = vi.fn(
+      (): Promise<JudgeVerdict> => Promise.reject(new Error('no judge in dry-run')),
+    );
     const summary = await scoreQuiz({ resultRoot, dryRun: true }, manifest, judge, { sessionsDir });
     expect(judge).not.toHaveBeenCalled();
     expect(existsSync(join(resultRoot, 'summary.json'))).toBe(false);

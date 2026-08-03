@@ -1,4 +1,4 @@
-import { writeFileSync, mkdtempSync } from 'node:fs';
+import { mkdtempSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { resolve } from 'node:path';
 
@@ -155,5 +155,14 @@ export function vanillaClaudeArgs(
 }
 
 export function vanillaCodexArgs(prompt: string): string[] {
-  return ['exec', '-s', 'read-only', '--ephemeral', '--skip-git-repo-check', '--color', 'never', prompt];
+  return [
+    'exec',
+    '-s',
+    'read-only',
+    '--ephemeral',
+    '--skip-git-repo-check',
+    '--color',
+    'never',
+    prompt,
+  ];
 }

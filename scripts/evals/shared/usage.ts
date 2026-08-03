@@ -25,6 +25,9 @@ import { existsSync, readFileSync, readdirSync } from 'node:fs';
 import { resolve } from 'node:path';
 import { readJson } from './json.ts';
 
+// Parsed eval JSON: run summaries, usage ledgers, per-arm score records. Those shapes belong to
+// the data, not to a contract we own, and narrowing to unknown buys no safety at the access sites.
+// biome-ignore lint/suspicious/noExplicitAny: parsed eval JSON, shape owned by the data
 type JsonRecord = Record<string, any>;
 
 export type ModelUsageEntry = {
@@ -288,10 +291,7 @@ export function loadPriceTable(pricesDir: string): PriceTable | undefined {
 // Longest-prefix match: an exact key wins; otherwise the longest key that the
 // model id extends with a '-' segment (claude-haiku-4-5-20251001 hits
 // claude-haiku-4-5 without claude-opus-4-5 ever matching claude-opus-4-55).
-export function resolveModelPrice(
-  table: PriceTable,
-  modelId: string,
-): ModelPrice | undefined {
+export function resolveModelPrice(table: PriceTable, modelId: string): ModelPrice | undefined {
   const exact = table.models[modelId];
   if (exact !== undefined) return exact;
   let bestKey: string | undefined;
@@ -316,10 +316,7 @@ export type ComputedCost = {
 // array does not account for (checked per token class, so a surplus in one
 // class cannot hide a deficit in another); both count as a miss. The only
 // $0 computed cost is a genuinely empty envelope.
-export function computeEnvelopeCostUsd(
-  envelope: UsageEnvelope,
-  table: PriceTable,
-): ComputedCost {
+export function computeEnvelopeCostUsd(envelope: UsageEnvelope, table: PriceTable): ComputedCost {
   const misses: string[] = [];
   // Unattributed tokens have no model id to price against; pricing only the
   // attributed share would undercount silently. In-repo writers derive the
@@ -518,10 +515,7 @@ export function buildArmUsageScore({
 // denominator keeps the check alive when the CLI reports $0 against a
 // nonzero computed cost, where a reported-relative ratio would divide by
 // zero and go silent. Two genuinely-zero figures agree (pct 0).
-function costDivergence(
-  reported: number | undefined,
-  computed: number | undefined,
-): JsonRecord {
+function costDivergence(reported: number | undefined, computed: number | undefined): JsonRecord {
   if (reported === undefined || computed === undefined) {
     return { cost_divergence_flag: false };
   }

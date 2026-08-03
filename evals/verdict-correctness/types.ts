@@ -73,12 +73,11 @@ export interface EvalCaseResult {
     | { kind: 'connector_error'; message: string }
     | { kind: 'parse_error'; message: string; raw_response: string }
     | { kind: 'schema_error'; message: string; raw_response: string };
-  readonly score:
-    // A control sends the unmutated compose; original_verdict is the
-    // reviewer's actual verdict on it. 'reject' is a valid value — the
-    // reviewer flagging a supposedly-clean compose is the false-positive
-    // signal the control arm exists to measure — so it is bucketed, not
-    // narrowed away.
+  readonly score: // A control sends the unmutated compose; original_verdict is the
+  // reviewer's actual verdict on it. 'reject' is a valid value — the
+  // reviewer flagging a supposedly-clean compose is the false-positive
+  // signal the control arm exists to measure — so it is bucketed, not
+  // narrowed away.
     | { kind: 'control'; original_verdict: ExploreReviewVerdict['verdict'] }
     | { kind: 'caught'; matched_signal: string }
     | { kind: 'missed' }

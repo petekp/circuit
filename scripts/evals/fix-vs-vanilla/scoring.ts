@@ -3,6 +3,9 @@ import { dirname, resolve } from 'node:path';
 import { mean, rate } from '../shared/aggregation.ts';
 import { readJson } from '../shared/json.ts';
 
+// Parsed eval JSON: run summaries, usage ledgers, per-arm score records. Those shapes belong to
+// the data, not to a contract we own, and narrowing to unknown buys no safety at the access sites.
+// biome-ignore lint/suspicious/noExplicitAny: parsed eval JSON, shape owned by the data
 type JsonRecord = Record<string, any>;
 type CommandRecord = { status?: unknown; command?: unknown };
 export type ArmScore = JsonRecord & {
@@ -30,11 +33,14 @@ export function parseCircuitClaim(runFolder: string): JsonRecord {
       proof_quality: 0,
     };
   }
-  const result = readJson(resultPath);
+  const result = readJson<JsonRecord>(resultPath);
   return parseCircuitResult(result, resultPath);
 }
 
-export function parseCircuitResult(result: JsonRecord, resultPath: string | undefined = undefined): JsonRecord {
+export function parseCircuitResult(
+  result: JsonRecord,
+  resultPath: string | undefined = undefined,
+): JsonRecord {
   return {
     claimed_fixed: result.outcome === 'fixed',
     parse_status: 'parsed',
@@ -207,10 +213,15 @@ export function scoreArm({
   };
 }
 
-export function aggregate(taskSummaries: readonly TaskSummary[], splitFilter: string | undefined = undefined): Record<string, JsonRecord> {
+export function aggregate(
+  taskSummaries: readonly TaskSummary[],
+  splitFilter: string | undefined = undefined,
+): Record<string, JsonRecord> {
   const arms = ['circuit-claude-code', 'vanilla-claude-code'];
   const filtered =
-    splitFilter === undefined ? taskSummaries : taskSummaries.filter((task) => task.split === splitFilter);
+    splitFilter === undefined
+      ? taskSummaries
+      : taskSummaries.filter((task) => task.split === splitFilter);
   const out: Record<string, JsonRecord> = {};
   for (const arm of arms) {
     const scores = filtered
@@ -224,10 +235,15 @@ export function aggregate(taskSummaries: readonly TaskSummary[], splitFilter: st
       objective_fixed_count: scores.filter((score) => score.objective_fixed).length,
       objective_fixed_rate: rate(scores.filter((score) => score.objective_fixed).length, count),
       verification_pass_count: scores.filter((score) => score.verification_passed).length,
-      verification_pass_rate: rate(scores.filter((score) => score.verification_passed).length, count),
+      verification_pass_rate: rate(
+        scores.filter((score) => score.verification_passed).length,
+        count,
+      ),
       mean_proof_quality: mean(scores.map((score) => score.proof_quality)),
-      completed_review_count: scores.filter((score) => score.claim.review_status === 'completed').length,
-      skipped_review_count: scores.filter((score) => score.claim.review_status === 'skipped').length,
+      completed_review_count: scores.filter((score) => score.claim.review_status === 'completed')
+        .length,
+      skipped_review_count: scores.filter((score) => score.claim.review_status === 'skipped')
+        .length,
       mean_changed_file_count: mean(scores.map((score) => score.changed_file_count)),
       outside_allowed_change_count: scores.reduce(
         (sum, score) => sum + score.outside_allowed_changed_files.length,
@@ -241,9 +257,7 @@ export function aggregate(taskSummaries: readonly TaskSummary[], splitFilter: st
       total_tokens_input: sumFinite(scores.map((score) => score.tokens_input)),
       total_tokens_output: sumFinite(scores.map((score) => score.tokens_output)),
       total_tokens_cache_read: sumFinite(scores.map((score) => score.tokens_cache_read)),
-      total_tokens_cache_creation: sumFinite(
-        scores.map((score) => score.tokens_cache_creation),
-      ),
+      total_tokens_cache_creation: sumFinite(scores.map((score) => score.tokens_cache_creation)),
       total_tokens_cache_creation_5m: sumFinite(
         scores.map((score) => score.tokens_cache_creation_5m),
       ),
@@ -306,7 +320,10 @@ function sumFinite(values: readonly unknown[]): number | null {
   return usable.reduce((sum, value) => sum + value, 0);
 }
 
-export function decideClaim(heldOutAggregate: Record<string, JsonRecord>): { supported: boolean; reason: string } {
+export function decideClaim(heldOutAggregate: Record<string, JsonRecord>): {
+  supported: boolean;
+  reason: string;
+} {
   const circuit = heldOutAggregate['circuit-claude-code'];
   const vanilla = heldOutAggregate['vanilla-claude-code'];
   if (circuit === undefined || vanilla === undefined) {
@@ -319,7 +336,8 @@ export function decideClaim(heldOutAggregate: Record<string, JsonRecord>): { sup
     if (circuit.objective_fixed_rate >= vanilla.objective_fixed_rate) {
       return {
         supported: true,
-        reason: 'Circuit had a lower held-out false-fixed rate and matched or beat vanilla objective fixed rate.',
+        reason:
+          'Circuit had a lower held-out false-fixed rate and matched or beat vanilla objective fixed rate.',
       };
     }
     return {

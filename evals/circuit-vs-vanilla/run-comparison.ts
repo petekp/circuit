@@ -2,6 +2,7 @@
 import { existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs';
 import { basename, dirname, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
+import { safeJsonOrString, writeJson } from '../../scripts/evals/shared/json.ts';
 import { createResultRoot, repoMetadata } from '../../scripts/evals/shared/metadata.ts';
 import {
   commandOutput,
@@ -15,7 +16,6 @@ import {
   vanillaClaudeArgs,
   vanillaCodexArgs,
 } from '../../scripts/evals/shared/providers.ts';
-import { safeJsonOrString, writeJson } from '../../scripts/evals/shared/json.ts';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = dirname(__filename);
@@ -255,8 +255,14 @@ ${firstText.trim() || '_No output captured._'}
 ${secondText.trim() || '_No output captured._'}
 `;
 
-  writeFileSync(resolve(root, 'blind-review-A-then-B.md'), packet('A', circuitFinal, 'B', vanillaFinal));
-  writeFileSync(resolve(root, 'blind-review-B-then-A.md'), packet('A', vanillaFinal, 'B', circuitFinal));
+  writeFileSync(
+    resolve(root, 'blind-review-A-then-B.md'),
+    packet('A', circuitFinal, 'B', vanillaFinal),
+  );
+  writeFileSync(
+    resolve(root, 'blind-review-B-then-A.md'),
+    packet('A', vanillaFinal, 'B', circuitFinal),
+  );
   writeJson(resolve(root, 'blind-mapping.json'), {
     'blind-review-A-then-B.md': { A: armIds.circuit, B: armIds.vanilla },
     'blind-review-B-then-A.md': { A: armIds.vanilla, B: armIds.circuit },
@@ -305,9 +311,14 @@ async function main() {
 
   const repo = repoMetadata(REPO_ROOT);
   const providerVersion = commandOutput(realProviderPath, ['--version']);
-  const circuitVersion = commandOutput('node', ['bin/circuit', 'version', '--json'], 'unavailable', {
-    cwd: REPO_ROOT,
-  });
+  const circuitVersion = commandOutput(
+    'node',
+    ['bin/circuit', 'version', '--json'],
+    'unavailable',
+    {
+      cwd: REPO_ROOT,
+    },
+  );
 
   const circuitArgs = [
     'bin/circuit',
@@ -321,7 +332,8 @@ async function main() {
     'jsonl',
   ];
   const vanillaCommand = providerExecutable;
-  const vanillaArgs = args.provider === 'codex' ? vanillaCodexArgs(prompt) : vanillaClaudeArgs(prompt);
+  const vanillaArgs =
+    args.provider === 'codex' ? vanillaCodexArgs(prompt) : vanillaClaudeArgs(prompt);
 
   const metadata = {
     schema_version: 1,
@@ -378,7 +390,9 @@ async function main() {
   }
 
   process.stderr.write(`Results: ${resultRoot}\n`);
-  process.stderr.write(`Provider: ${args.provider}; model: ${args.model}; effort: ${args.effort}\n`);
+  process.stderr.write(
+    `Provider: ${args.provider}; model: ${args.model}; effort: ${args.effort}\n`,
+  );
 
   const circuit = await runCommand({
     label: armIds.circuit,

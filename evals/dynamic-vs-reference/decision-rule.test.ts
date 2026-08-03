@@ -8,10 +8,10 @@
 
 import { describe, expect, it } from 'vitest';
 import {
-  classifyDynamicVsReference,
   type DecisionInput,
   type DynManifest,
   type FamilyArmAggregate,
+  classifyDynamicVsReference,
   parseDynArgs,
 } from './run-dynamic-comparison.ts';
 
@@ -107,7 +107,11 @@ describe('classifyDynamicVsReference (section-5 rule)', () => {
 
   it('pipeline-integrity override caps at NOT-YET even with perfect quality', () => {
     const input = worthInvestingInput();
-    input.build.generated = agg({ objective_fixed_rate: 1, false_fixed_rate: 0, pipeline_failure_count: 1 });
+    input.build.generated = agg({
+      objective_fixed_rate: 1,
+      false_fixed_rate: 0,
+      pipeline_failure_count: 1,
+    });
     const result = classifyDynamicVsReference(input);
     expect(result.verdict).toBe('NOT-YET');
     expect(result.predicates.pipeline_build_clean).toBe(false);
@@ -116,7 +120,11 @@ describe('classifyDynamicVsReference (section-5 rule)', () => {
 
   it('pipeline override outranks a quality failure (override headline wins)', () => {
     const input = worthInvestingInput();
-    input.fix.generated = agg({ objective_fixed_rate: 0.5, false_fixed_rate: 0, pipeline_failure_count: 2 });
+    input.fix.generated = agg({
+      objective_fixed_rate: 0.5,
+      false_fixed_rate: 0,
+      pipeline_failure_count: 2,
+    });
     const result = classifyDynamicVsReference(input);
     expect(result.verdict).toBe('NOT-YET');
     expect(result.reasons[0]).toMatch(/pipeline-integrity override/i);

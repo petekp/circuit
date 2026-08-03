@@ -12,10 +12,10 @@ import { homedir, tmpdir } from 'node:os';
 import { join, resolve } from 'node:path';
 import { afterEach, describe, expect, it } from 'vitest';
 import {
+  type FreezeArgs,
   defaultTranscriptPath,
   freezeSession,
   parseFreezeArgs,
-  type FreezeArgs,
 } from '../../evals/resumption-quiz/freeze-session.ts';
 import { type FreezeTimeGit, bundleLayout } from '../../evals/resumption-quiz/shared/types.ts';
 
@@ -115,9 +115,9 @@ describe('freezeSession bundle layout', () => {
     const layout = bundleLayout(join(args.outDir, SESSION_ID));
 
     expect(existsSync(join(layout.continuity_dir, 'index.json'))).toBe(true);
-    expect(
-      existsSync(join(layout.continuity_dir, 'records', `ambient-${SESSION_ID}.json`)),
-    ).toBe(true);
+    expect(existsSync(join(layout.continuity_dir, 'records', `ambient-${SESSION_ID}.json`))).toBe(
+      true,
+    );
     expect(manifest.continuity_records_present).toEqual([
       `ambient-${SESSION_ID}`,
       'continuity-8c4a1f2e-9b3d-4c5a-a6e7-2d1f0b9c8a7e',
@@ -151,16 +151,16 @@ describe('freezeSession refusals and dry run', () => {
   it('refuses to freeze over an existing bundle', () => {
     const args = freezeArgs();
     freezeSession(args, { now: () => FROZEN_NOW, gitProbe: () => GIT_FACTS });
-    expect(() =>
-      freezeSession(args, { now: () => FROZEN_NOW, gitProbe: () => GIT_FACTS }),
-    ).toThrow(/already exists/);
+    expect(() => freezeSession(args, { now: () => FROZEN_NOW, gitProbe: () => GIT_FACTS })).toThrow(
+      /already exists/,
+    );
   });
 
   it('fails loudly on a missing transcript', () => {
     const args = freezeArgs({ transcriptPath: '/nonexistent/transcript.jsonl' });
-    expect(() =>
-      freezeSession(args, { now: () => FROZEN_NOW, gitProbe: () => GIT_FACTS }),
-    ).toThrow(/transcript not found/);
+    expect(() => freezeSession(args, { now: () => FROZEN_NOW, gitProbe: () => GIT_FACTS })).toThrow(
+      /transcript not found/,
+    );
   });
 });
 

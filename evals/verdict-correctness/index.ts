@@ -17,7 +17,6 @@ const __dirname = dirname(__filename);
 const REPO_ROOT = resolve(__dirname, '../..');
 const RUNS_ROOT = resolve(REPO_ROOT, '.circuit/runs');
 
-
 function findReviewRequests(maxComposes: number): string[] {
   const runDirs = readdirSync(RUNS_ROOT)
     .map((name) => resolve(RUNS_ROOT, name))

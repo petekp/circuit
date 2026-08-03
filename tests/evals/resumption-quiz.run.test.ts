@@ -23,9 +23,9 @@ import {
   type SessionSpawn,
 } from '../../evals/resumption-quiz/shared/types.ts';
 import {
+  MANIFEST,
   cleanupBundleFixtures,
   makeBundle,
-  MANIFEST,
   testQuiz,
   trackedTempDir,
 } from './resumption-quiz.bundle-fixture.ts';
@@ -122,7 +122,8 @@ describe('chooseToolRestrictionArgv', () => {
   });
 
   it('prefers camelCase when both spellings appear', () => {
-    const help = '--disallowedTools, alias --disallowed-tools; --allowedTools, alias --allowed-tools';
+    const help =
+      '--disallowedTools, alias --disallowed-tools; --allowedTools, alias --allowed-tools';
     const argv = chooseToolRestrictionArgv(help);
     expect(argv.denied_file_tools[0]).toBe('--disallowedTools');
     expect(argv.a5_allowed_tools[0]).toBe('--allowedTools');
@@ -280,7 +281,10 @@ describe('runResumptionQuiz full run with injected spawn', () => {
     const bundleDir = makeBundle();
     buildArmMaterials({ bundleDir, arms: [...ARM_IDS], dryRun: false }, MANIFEST);
     const outDir = trackedTempDir('resumption-quiz-out-');
-    const args = parseRunArgs(['--bundle', bundleDir, '--reps', '1', '--out-dir', outDir], MANIFEST);
+    const args = parseRunArgs(
+      ['--bundle', bundleDir, '--reps', '1', '--out-dir', outDir],
+      MANIFEST,
+    );
 
     vi.spyOn(process.stdout, 'write').mockImplementation(() => true);
     vi.spyOn(process.stderr, 'write').mockImplementation(() => true);
@@ -319,9 +323,9 @@ describe('runResumptionQuiz full run with injected spawn', () => {
     expect(repAnswers.integrity).toEqual({ answers_unparsed: 0, questions_unanswered: 0 });
     expect(repAnswers.usage.usage_present).toBe(true);
     // Raw stdout lands next to answers.json so the run is rescorable offline.
-    expect(existsSync(join(resultRoot, 'synthetic-quiz-fixture-001', 'A2', 'rep-1', 'stdout.txt'))).toBe(
-      true,
-    );
+    expect(
+      existsSync(join(resultRoot, 'synthetic-quiz-fixture-001', 'A2', 'rep-1', 'stdout.txt')),
+    ).toBe(true);
   });
 
   it('skips unavailable arms instead of spawning them', async () => {
@@ -329,7 +333,10 @@ describe('runResumptionQuiz full run with injected spawn', () => {
     const bundleDir = makeBundle({ transcript: 'no-compaction' });
     buildArmMaterials({ bundleDir, arms: [...ARM_IDS], dryRun: false }, MANIFEST);
     const outDir = trackedTempDir('resumption-quiz-out-');
-    const args = parseRunArgs(['--bundle', bundleDir, '--reps', '1', '--out-dir', outDir], MANIFEST);
+    const args = parseRunArgs(
+      ['--bundle', bundleDir, '--reps', '1', '--out-dir', outDir],
+      MANIFEST,
+    );
 
     vi.spyOn(process.stdout, 'write').mockImplementation(() => true);
     vi.spyOn(process.stderr, 'write').mockImplementation(() => true);

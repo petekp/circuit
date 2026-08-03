@@ -31,9 +31,7 @@
       "claim_level": "regression",
       "flow": "fix",
       "primary_metric": "outcome_not_fixed_for_false_done_patterns",
-      "secondary_metrics": [
-        "proof_chain_failure_classification"
-      ],
+      "secondary_metrics": ["proof_chain_failure_classification"],
       "default_command": [
         "npx",
         "vitest",
@@ -51,10 +49,7 @@
       "claim_level": "discovery",
       "flow": "auto",
       "primary_metric": "blind_operator_preference",
-      "secondary_metrics": [
-        "wallclock_ms",
-        "final_artifact_quality"
-      ],
+      "secondary_metrics": ["wallclock_ms", "final_artifact_quality"],
       "default_command": [
         "node",
         "evals/circuit-vs-vanilla/run-comparison.ts",
@@ -95,16 +90,8 @@
       "claim_level": "discovery",
       "flow": "handoff",
       "primary_metric": "quiz_accuracy",
-      "secondary_metrics": [
-        "abstention_fabrication_rate",
-        "arm_availability",
-        "cost_usd_reported"
-      ],
-      "default_command": [
-        "node",
-        "evals/resumption-quiz/run-resumption-quiz.ts",
-        "--dry-run"
-      ],
+      "secondary_metrics": ["abstention_fabrication_rate", "arm_availability", "cost_usd_reported"],
+      "default_command": ["node", "evals/resumption-quiz/run-resumption-quiz.ts", "--dry-run"],
       "cost_class": "live-model",
       "cadence": "ad-hoc",
       "claim_eligible": false,
@@ -115,15 +102,8 @@
       "claim_level": "discovery",
       "flow": "auto",
       "primary_metric": "false_fixed_rate",
-      "secondary_metrics": [
-        "objective_fixed_rate",
-        "cost_ratio_vs_baseline",
-        "verdict"
-      ],
-      "default_command": [
-        "node",
-        "experiments/e1/run-matrix.ts"
-      ],
+      "secondary_metrics": ["objective_fixed_rate", "cost_ratio_vs_baseline", "verdict"],
+      "default_command": ["node", "experiments/e1/run-matrix.ts"],
       "cost_class": "live-model",
       "cadence": "ad-hoc",
       "claim_eligible": false,

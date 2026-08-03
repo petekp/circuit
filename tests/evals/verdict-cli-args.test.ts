@@ -11,19 +11,17 @@ const FIXED_NOW = () => new Date('2026-06-11T00:00:00.000Z');
 
 describe('verdict-correctness parseArgs --model', () => {
   it('accepts --model with the claude-code judge and records it', () => {
-    const args = parseArgs(
-      ['--judge', 'claude-code', '--model', 'claude-haiku-4-5-20251001'],
-      { now: FIXED_NOW },
-    );
+    const args = parseArgs(['--judge', 'claude-code', '--model', 'claude-haiku-4-5-20251001'], {
+      now: FIXED_NOW,
+    });
     expect(args.judge).toBe('claude-code');
     expect(args.model).toBe('claude-haiku-4-5-20251001');
   });
 
   it('tags the results dir with both judge and model', () => {
-    const args = parseArgs(
-      ['--judge', 'claude-code', '--model', 'claude-sonnet-4-6'],
-      { now: FIXED_NOW },
-    );
+    const args = parseArgs(['--judge', 'claude-code', '--model', 'claude-sonnet-4-6'], {
+      now: FIXED_NOW,
+    });
     expect(args.resultsDir.endsWith('2026-06-11T00-00-00-000Z-claude-code-claude-sonnet-4-6')).toBe(
       true,
     );

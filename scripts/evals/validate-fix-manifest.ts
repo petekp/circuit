@@ -66,7 +66,8 @@ function checkFixManifest() {
     if (!existsSync(repoPath)) fail(`${taskId}: missing repo fixture`);
     const task = readJson<FixTask>(taskPath);
     if (task.id !== taskId) fail(`${taskId}: task id does not match directory`);
-    if (task.split !== split) fail(`${taskId}: split ${task.split} does not match manifest ${split}`);
+    if (task.split !== split)
+      fail(`${taskId}: split ${task.split} does not match manifest ${split}`);
     if (task.provenance !== EXPECTED_PROVENANCE[split]) {
       fail(`${taskId}: provenance ${task.provenance} does not match split ${split}`);
     }
@@ -75,8 +76,10 @@ function checkFixManifest() {
       fail(`${taskId}: tuning_used ${task.tuning_used} does not match split ${split}`);
     }
     if (!Array.isArray(task.checks) || task.checks.length === 0) fail(`${taskId}: missing checks`);
-    if (!Array.isArray(task.allowed_changed_files)) fail(`${taskId}: allowed_changed_files must be an array`);
-    if (typeof task.prompt !== 'string' || task.prompt.length === 0) fail(`${taskId}: prompt is required`);
+    if (!Array.isArray(task.allowed_changed_files))
+      fail(`${taskId}: allowed_changed_files must be an array`);
+    if (typeof task.prompt !== 'string' || task.prompt.length === 0)
+      fail(`${taskId}: prompt is required`);
   }
   return manifestIds.size;
 }

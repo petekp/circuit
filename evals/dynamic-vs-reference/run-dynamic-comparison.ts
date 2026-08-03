@@ -21,11 +21,24 @@
 // runner.ts) inlined so evals/ stays self-contained. fix never parks, so the
 // loop is a no-op there.
 
-import { cpSync, existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
+import {
+  cpSync,
+  existsSync,
+  mkdirSync,
+  mkdtempSync,
+  readFileSync,
+  rmSync,
+  writeFileSync,
+} from 'node:fs';
 import { tmpdir } from 'node:os';
 import { dirname, join, resolve } from 'node:path';
-import { fileURLToPath } from 'node:url';
 import { performance } from 'node:perf_hooks';
+import { fileURLToPath } from 'node:url';
+import {
+  type ArmScore,
+  parseCircuitResult,
+  scoreArm,
+} from '../../scripts/evals/fix-vs-vanilla/scoring.ts';
 import { mean, rate } from '../../scripts/evals/shared/aggregation.ts';
 import { readJson, safeSegment, writeJson } from '../../scripts/evals/shared/json.ts';
 import {
@@ -42,20 +55,15 @@ import {
 } from '../../scripts/evals/shared/process.ts';
 import { createClaudeCodeWrapper } from '../../scripts/evals/shared/providers.ts';
 import {
-  parseCircuitResult,
-  scoreArm,
-  type ArmScore,
-} from '../../scripts/evals/fix-vs-vanilla/scoring.ts';
-import {
+  type PriceTable,
   buildArmUsageScore,
   groupRelaysByRole,
   loadPriceTable,
-  type PriceTable,
   readCircuitRunUsage,
 } from '../../scripts/evals/shared/usage.ts';
 import {
-  type ComposeDeps,
   COMPOSED_FIX_SHAPES,
+  type ComposeDeps,
   FIX_LINEAR_FULL,
   loadComposeDepsFromDist,
   publishComposedFlowWith,
@@ -77,6 +85,10 @@ const PREFERRED_CHECKPOINT_CHOICE = 'continue';
 const QUALITY_MARGIN = 0.1;
 const HONESTY_MARGIN = 0.1;
 
+// This harness walks arbitrary parsed JSON: task manifests, run summaries, per-arm aggregates.
+// Those shapes are the eval data, not a contract we own. Narrowing to unknown costs 40-plus casts
+// at the access sites and buys no safety over data we already trust enough to compare arms on.
+// biome-ignore lint/suspicious/noExplicitAny: parsed eval JSON, shape owned by the data
 type JsonRecord = Record<string, any>;
 type Family = 'fix' | 'build';
 // 'composed' is the opt-in third arm (--with-composed): a fix flow genuinely
@@ -276,7 +288,8 @@ export function parseDynArgs(argv: string[], manifest: DynManifest): DynArgs {
   if (!['low', 'medium', 'high', 'xhigh'].includes(args.effort)) {
     throw new Error('--effort must be one of low, medium, high, or xhigh');
   }
-  if (!Number.isInteger(args.reps) || args.reps <= 0) throw new Error('--reps must be a positive integer');
+  if (!Number.isInteger(args.reps) || args.reps <= 0)
+    throw new Error('--reps must be a positive integer');
   if (!Number.isFinite(args.timeoutMs) || args.timeoutMs <= 0) {
     throw new Error('--timeout-ms must be a positive integer');
   }
@@ -320,7 +333,8 @@ function loadTask(taskId: string): DynTask {
 // the identical, check-blind goal — the comparison is flow shape, not prompt).
 
 function taskGoal(task: DynTask): string {
-  const verb = task.family === 'build' ? 'Make only the focused change' : 'Make only the focused fix';
+  const verb =
+    task.family === 'build' ? 'Make only the focused change' : 'Make only the focused fix';
   return `${task.prompt}
 
 Acceptance:
@@ -367,12 +381,20 @@ function copyFixtureRepo(task: DynTask, dest: string): string {
   return initFixtureRepo(dest);
 }
 
-function runChecks(repoDir: string, checks: readonly CheckDefinition[], outputDir: string, phase: string): CheckRun[] {
+function runChecks(
+  repoDir: string,
+  checks: readonly CheckDefinition[],
+  outputDir: string,
+  phase: string,
+): CheckRun[] {
   mkdirSync(outputDir, { recursive: true });
   return checks.map((check) => {
     const command = check.argv[0];
     if (command === undefined) throw new Error(`check ${check.id} has an empty argv`);
-    const result = runSync(command, check.argv.slice(1), { cwd: repoDir, timeoutMs: CHECK_TIMEOUT_MS });
+    const result = runSync(command, check.argv.slice(1), {
+      cwd: repoDir,
+      timeoutMs: CHECK_TIMEOUT_MS,
+    });
     const base = resolve(outputDir, `${phase}-${safeSegment(check.id)}`);
     writeFileSync(`${base}.stdout.txt`, result.stdout);
     writeFileSync(`${base}.stderr.txt`, result.stderr);
@@ -389,9 +411,17 @@ function runChecks(repoDir: string, checks: readonly CheckDefinition[], outputDi
 
 // Hidden objective checks run against an overlay copy so their test code never
 // ships in the agent's repo (identical contract to the fix-vs-vanilla harness).
-function runHiddenChecks(baseRepoDir: string, task: DynTask, hidden: readonly CheckDefinition[], outputDir: string, phase: string): CheckRun[] {
+function runHiddenChecks(
+  baseRepoDir: string,
+  task: DynTask,
+  hidden: readonly CheckDefinition[],
+  outputDir: string,
+  phase: string,
+): CheckRun[] {
   if (!existsSync(task.objective_template)) {
-    throw new Error(`task ${task.id} declares hidden checks but has no objective/ directory at ${task.objective_template}`);
+    throw new Error(
+      `task ${task.id} declares hidden checks but has no objective/ directory at ${task.objective_template}`,
+    );
   }
   const scoringDir = mkdtempSync(resolve(tmpdir(), `dyn-hidden-${safeSegment(task.id)}-`));
   try {
@@ -403,7 +433,12 @@ function runHiddenChecks(baseRepoDir: string, task: DynTask, hidden: readonly Ch
   }
 }
 
-function runAllChecks(repoDir: string, task: DynTask, outputDir: string, phase: string): CheckRun[] {
+function runAllChecks(
+  repoDir: string,
+  task: DynTask,
+  outputDir: string,
+  phase: string,
+): CheckRun[] {
   const visible = task.checks.filter((check) => check.hidden !== true);
   const hidden = task.checks.filter((check) => check.hidden === true);
   const results = runChecks(repoDir, visible, outputDir, phase);
@@ -422,7 +457,11 @@ function diffState(repoDir: string, outputDir: string): DiffState {
     .map((line) => line.trim())
     .filter(Boolean)
     .sort((a, b) => a.localeCompare(b));
-  return { changed_files: changedFiles, git_status_short: status.stdout, diff_path: resolve(outputDir, 'diff.txt') };
+  return {
+    changed_files: changedFiles,
+    git_status_short: status.stdout,
+    diff_path: resolve(outputDir, 'diff.txt'),
+  };
 }
 
 // ---------------------------------------------------------------------------
@@ -440,7 +479,11 @@ function readCheckpointState(runFolder: string): CheckpointState {
   } catch {
     return { waiting: false };
   }
-  if (typeof parsed !== 'object' || parsed === null || (parsed as JsonRecord).outcome !== 'checkpoint_waiting') {
+  if (
+    typeof parsed !== 'object' ||
+    parsed === null ||
+    (parsed as JsonRecord).outcome !== 'checkpoint_waiting'
+  ) {
     return { waiting: false };
   }
   const checkpoint = (parsed as JsonRecord).checkpoint;
@@ -464,7 +507,12 @@ async function driveCircuitRun(opts: {
   runFolder: string;
   outputDir: string;
   timeoutMs: number;
-}): Promise<{ exit_code: number | null; timed_out: boolean; wallclock_ms: number; resume_count: number }> {
+}): Promise<{
+  exit_code: number | null;
+  timed_out: boolean;
+  wallclock_ms: number;
+  resume_count: number;
+}> {
   const startedAt = performance.now();
   const run = await runCommand({
     label: opts.label,
@@ -478,13 +526,22 @@ async function driveCircuitRun(opts: {
   let lastExit = run.exit_code;
   let timedOut = run.timed_out;
   let resumeCount = 0;
-  for (; resumeCount < MAX_CHECKPOINT_RESUMES; ) {
+  while (resumeCount < MAX_CHECKPOINT_RESUMES) {
     const state = readCheckpointState(opts.runFolder);
     if (!state.waiting) break;
     const resume = await runCommand({
       label: `${opts.label}:resume-${resumeCount + 1}`,
       command: 'node',
-      argv: [BIN_CIRCUIT, 'resume', '--run-folder', opts.runFolder, '--checkpoint-choice', state.choice, '--progress', 'jsonl'],
+      argv: [
+        BIN_CIRCUIT,
+        'resume',
+        '--run-folder',
+        opts.runFolder,
+        '--checkpoint-choice',
+        state.choice,
+        '--progress',
+        'jsonl',
+      ],
       cwd: opts.cwd,
       env: opts.env,
       timeoutMs: opts.timeoutMs,
@@ -530,14 +587,29 @@ function buildProofQuality(result: JsonRecord): number {
   return 0;
 }
 
-function parseFlowClaim(family: Family, compiledFlowPath: string, runFolder: string): { claim: JsonRecord; resultLocated: boolean } {
+function parseFlowClaim(
+  family: Family,
+  compiledFlowPath: string,
+  runFolder: string,
+): { claim: JsonRecord; resultLocated: boolean } {
   const relativeResultPath = readPrimaryResultPath(compiledFlowPath);
   if (relativeResultPath === undefined) {
-    return { claim: { claimed_fixed: false, parse_status: 'no-primary-result', proof_quality: 0 }, resultLocated: false };
+    return {
+      claim: { claimed_fixed: false, parse_status: 'no-primary-result', proof_quality: 0 },
+      resultLocated: false,
+    };
   }
   const resultPath = resolve(runFolder, relativeResultPath);
   if (!existsSync(resultPath)) {
-    return { claim: { claimed_fixed: false, parse_status: 'missing-result', result_path: resultPath, proof_quality: 0 }, resultLocated: false };
+    return {
+      claim: {
+        claimed_fixed: false,
+        parse_status: 'missing-result',
+        result_path: resultPath,
+        proof_quality: 0,
+      },
+      resultLocated: false,
+    };
   }
   const result = readJson<JsonRecord>(resultPath);
   if (family === 'fix') {
@@ -573,10 +645,21 @@ function readStepCount(compiledFlowPath: string): number | null {
 // Pipeline integrity for a run that reached scoring: 'ok' unless the flow
 // declared no primary_result or no terminal result file appeared (a trust-gate
 // reject or a crash leaves the run with no result the harness can read).
-function pipelineStatusForRun(resultLocated: boolean, exitCode: number | null, claim: JsonRecord): { status: string; detail?: string } {
-  if (claim.parse_status === 'no-primary-result') return { status: 'no-primary-result', detail: 'compiled flow declared no runtime_surface.primary_result' };
+function pipelineStatusForRun(
+  resultLocated: boolean,
+  exitCode: number | null,
+  claim: JsonRecord,
+): { status: string; detail?: string } {
+  if (claim.parse_status === 'no-primary-result')
+    return {
+      status: 'no-primary-result',
+      detail: 'compiled flow declared no runtime_surface.primary_result',
+    };
   if (!resultLocated) {
-    return { status: 'no-terminal-result', detail: `run exited ${exitCode ?? 'null'} without a terminal result file (possible trust-gate reject or crash)` };
+    return {
+      status: 'no-terminal-result',
+      detail: `run exited ${exitCode ?? 'null'} without a terminal result file (possible trust-gate reject or crash)`,
+    };
   }
   return { status: 'ok' };
 }
@@ -619,7 +702,13 @@ function scoreFromRun(opts: {
   });
 }
 
-async function runReferenceArm(task: DynTask, args: DynArgs, wrapperEnv: NodeJS.ProcessEnv, taskDir: string, priceTable: PriceTable | undefined): Promise<{ record: ArmRunRecord; baseline: CheckRun[]; fixtureCommit: string }> {
+async function runReferenceArm(
+  task: DynTask,
+  args: DynArgs,
+  wrapperEnv: NodeJS.ProcessEnv,
+  taskDir: string,
+  priceTable: PriceTable | undefined,
+): Promise<{ record: ArmRunRecord; baseline: CheckRun[]; fixtureCommit: string }> {
   const dir = resolve(taskDir, 'reference');
   const repo = resolve(dir, 'repo');
   const runFolder = resolve(dir, 'circuit-run');
@@ -628,11 +717,17 @@ async function runReferenceArm(task: DynTask, args: DynArgs, wrapperEnv: NodeJS.
   cpSync(GENERATED_FLOWS_ROOT, flowRoot, { recursive: true });
   const baseline = runAllChecks(repo, task, dir, 'baseline');
   const argv = [
-    BIN_CIRCUIT, 'run', task.family,
-    '--goal', taskGoal(task),
-    '--run-folder', runFolder,
-    '--flow-root', flowRoot,
-    '--progress', 'jsonl',
+    BIN_CIRCUIT,
+    'run',
+    task.family,
+    '--goal',
+    taskGoal(task),
+    '--run-folder',
+    runFolder,
+    '--flow-root',
+    flowRoot,
+    '--progress',
+    'jsonl',
   ];
   const driven = await driveCircuitRun({
     label: `${task.id}:reference`,
@@ -648,15 +743,38 @@ async function runReferenceArm(task: DynTask, args: DynArgs, wrapperEnv: NodeJS.
   const compiledFlowPath = resolve(flowRoot, task.family, 'circuit.json');
   const { claim, resultLocated } = parseFlowClaim(task.family, compiledFlowPath, runFolder);
   const pipeline = pipelineStatusForRun(resultLocated, driven.exit_code, claim);
-  const score = scoreFromRun({ task, armId: 'reference', exitCode: driven.exit_code, timedOut: driven.timed_out, wallclockMs: driven.wallclock_ms, checks: post, diff, claim, priceTable, runFolder });
+  const score = scoreFromRun({
+    task,
+    armId: 'reference',
+    exitCode: driven.exit_code,
+    timedOut: driven.timed_out,
+    wallclockMs: driven.wallclock_ms,
+    checks: post,
+    diff,
+    claim,
+    priceTable,
+    runFolder,
+  });
   return {
-    record: { arm_id: 'reference', score, pipeline_status: pipeline.status, ...(pipeline.detail ? { pipeline_detail: pipeline.detail } : {}), generated_step_count: readStepCount(compiledFlowPath) },
+    record: {
+      arm_id: 'reference',
+      score,
+      pipeline_status: pipeline.status,
+      ...(pipeline.detail ? { pipeline_detail: pipeline.detail } : {}),
+      generated_step_count: readStepCount(compiledFlowPath),
+    },
     baseline,
     fixtureCommit,
   };
 }
 
-async function runGeneratedArm(task: DynTask, args: DynArgs, wrapperEnv: NodeJS.ProcessEnv, taskDir: string, priceTable: PriceTable | undefined): Promise<{ record: ArmRunRecord; baseline: CheckRun[]; fixtureCommit: string }> {
+async function runGeneratedArm(
+  task: DynTask,
+  args: DynArgs,
+  wrapperEnv: NodeJS.ProcessEnv,
+  taskDir: string,
+  priceTable: PriceTable | undefined,
+): Promise<{ record: ArmRunRecord; baseline: CheckRun[]; fixtureCommit: string }> {
   const dir = resolve(taskDir, 'generated');
   const repo = resolve(dir, 'repo');
   const home = resolve(dir, 'home');
@@ -670,7 +788,16 @@ async function runGeneratedArm(task: DynTask, args: DynArgs, wrapperEnv: NodeJS.
   const create = await runCommand({
     label: `${task.id}:generated:create`,
     command: 'node',
-    argv: [BIN_CIRCUIT, 'create', '--description', task.create_description, '--publish', '--home', home, '--yes'],
+    argv: [
+      BIN_CIRCUIT,
+      'create',
+      '--description',
+      task.create_description,
+      '--publish',
+      '--home',
+      home,
+      '--yes',
+    ],
     cwd: repo,
     env: wrapperEnv,
     timeoutMs: CHECK_TIMEOUT_MS,
@@ -682,9 +809,25 @@ async function runGeneratedArm(task: DynTask, args: DynArgs, wrapperEnv: NodeJS.
   if (create.exit_code !== 0 || published === undefined) {
     const claim = { claimed_fixed: false, parse_status: 'create-failed', proof_quality: 0 };
     const diff = diffState(repo, dir);
-    const score = scoreFromRun({ task, armId: 'generated', exitCode: create.exit_code, timedOut: create.timed_out, wallclockMs: create.wallclock_ms, checks: runAllChecks(repo, task, dir, 'post'), diff, claim, priceTable, runFolder });
+    const score = scoreFromRun({
+      task,
+      armId: 'generated',
+      exitCode: create.exit_code,
+      timedOut: create.timed_out,
+      wallclockMs: create.wallclock_ms,
+      checks: runAllChecks(repo, task, dir, 'post'),
+      diff,
+      claim,
+      priceTable,
+      runFolder,
+    });
     return {
-      record: { arm_id: 'generated', score, pipeline_status: 'create-failed', pipeline_detail: `circuit create exited ${create.exit_code ?? 'null'} or produced no publishable flow` },
+      record: {
+        arm_id: 'generated',
+        score,
+        pipeline_status: 'create-failed',
+        pipeline_detail: `circuit create exited ${create.exit_code ?? 'null'} or produced no publishable flow`,
+      },
       baseline,
       fixtureCommit,
     };
@@ -692,9 +835,26 @@ async function runGeneratedArm(task: DynTask, args: DynArgs, wrapperEnv: NodeJS.
   if (!existsSync(published.flowPath)) {
     const claim = { claimed_fixed: false, parse_status: 'publish-missing', proof_quality: 0 };
     const diff = diffState(repo, dir);
-    const score = scoreFromRun({ task, armId: 'generated', exitCode: create.exit_code, timedOut: create.timed_out, wallclockMs: create.wallclock_ms, checks: runAllChecks(repo, task, dir, 'post'), diff, claim, priceTable, runFolder });
+    const score = scoreFromRun({
+      task,
+      armId: 'generated',
+      exitCode: create.exit_code,
+      timedOut: create.timed_out,
+      wallclockMs: create.wallclock_ms,
+      checks: runAllChecks(repo, task, dir, 'post'),
+      diff,
+      claim,
+      priceTable,
+      runFolder,
+    });
     return {
-      record: { arm_id: 'generated', score, pipeline_status: 'publish-missing', pipeline_detail: `published flow not found at ${published.flowPath}`, generated_slug: published.slug },
+      record: {
+        arm_id: 'generated',
+        score,
+        pipeline_status: 'publish-missing',
+        pipeline_detail: `published flow not found at ${published.flowPath}`,
+        generated_slug: published.slug,
+      },
       baseline,
       fixtureCommit,
     };
@@ -702,11 +862,17 @@ async function runGeneratedArm(task: DynTask, args: DynArgs, wrapperEnv: NodeJS.
 
   const flowRoot = resolve(home, 'flows');
   const argv = [
-    BIN_CIRCUIT, 'run', published.slug,
-    '--goal', taskGoal(task),
-    '--run-folder', runFolder,
-    '--flow-root', flowRoot,
-    '--progress', 'jsonl',
+    BIN_CIRCUIT,
+    'run',
+    published.slug,
+    '--goal',
+    taskGoal(task),
+    '--run-folder',
+    runFolder,
+    '--flow-root',
+    flowRoot,
+    '--progress',
+    'jsonl',
   ];
   const driven = await driveCircuitRun({
     label: `${task.id}:generated`,
@@ -722,7 +888,18 @@ async function runGeneratedArm(task: DynTask, args: DynArgs, wrapperEnv: NodeJS.
   const diff = diffState(repo, dir);
   const { claim, resultLocated } = parseFlowClaim(task.family, published.flowPath, runFolder);
   const pipeline = pipelineStatusForRun(resultLocated, driven.exit_code, claim);
-  const score = scoreFromRun({ task, armId: 'generated', exitCode: driven.exit_code, timedOut: driven.timed_out, wallclockMs: driven.wallclock_ms, checks: post, diff, claim, priceTable, runFolder });
+  const score = scoreFromRun({
+    task,
+    armId: 'generated',
+    exitCode: driven.exit_code,
+    timedOut: driven.timed_out,
+    wallclockMs: driven.wallclock_ms,
+    checks: post,
+    diff,
+    claim,
+    priceTable,
+    runFolder,
+  });
   return {
     record: {
       arm_id: 'generated',
@@ -739,16 +916,25 @@ async function runGeneratedArm(task: DynTask, args: DynArgs, wrapperEnv: NodeJS.
 
 // Parse the create stdout JSON for slug + flow_path; fall back to the manifest
 // (custom_flows[]) when stdout is noisy.
-function parseCreateOutput(stdout: string, home: string): { slug: string; flowPath: string } | undefined {
+function parseCreateOutput(
+  stdout: string,
+  home: string,
+): { slug: string; flowPath: string } | undefined {
   const fromStdout = scanLastJsonObject(stdout);
-  if (fromStdout && typeof fromStdout.slug === 'string' && typeof fromStdout.flow_path === 'string') {
+  if (
+    fromStdout &&
+    typeof fromStdout.slug === 'string' &&
+    typeof fromStdout.flow_path === 'string'
+  ) {
     return { slug: fromStdout.slug, flowPath: fromStdout.flow_path };
   }
   const manifestPath = resolve(home, 'manifest.json');
   if (existsSync(manifestPath)) {
     try {
       const manifest = readJson<JsonRecord>(manifestPath);
-      const entry = Array.isArray(manifest.custom_flows) ? manifest.custom_flows[manifest.custom_flows.length - 1] : undefined;
+      const entry = Array.isArray(manifest.custom_flows)
+        ? manifest.custom_flows[manifest.custom_flows.length - 1]
+        : undefined;
       if (entry && typeof entry.id === 'string' && typeof entry.flow_path === 'string') {
         return { slug: entry.id, flowPath: entry.flow_path };
       }
@@ -791,7 +977,13 @@ function getComposeDeps(): Promise<ComposeDeps> {
 // loader accept it unchanged. It runs on the fix family (FIX_LINEAR_FULL) and the
 // build family (BUILD_LINEAR_FULL, the engine-locked linear build arc); the role
 // set is selected by task.family. runTask gates the call on those two families.
-async function runComposedArm(task: DynTask, args: DynArgs, wrapperEnv: NodeJS.ProcessEnv, taskDir: string, priceTable: PriceTable | undefined): Promise<{ record: ArmRunRecord; baseline: CheckRun[]; fixtureCommit: string }> {
+async function runComposedArm(
+  task: DynTask,
+  args: DynArgs,
+  wrapperEnv: NodeJS.ProcessEnv,
+  taskDir: string,
+  priceTable: PriceTable | undefined,
+): Promise<{ record: ArmRunRecord; baseline: CheckRun[]; fixtureCommit: string }> {
   const dir = resolve(taskDir, 'composed');
   const repo = resolve(dir, 'repo');
   const home = resolve(dir, 'home');
@@ -830,9 +1022,25 @@ async function runComposedArm(task: DynTask, args: DynArgs, wrapperEnv: NodeJS.P
   } catch (err) {
     const claim = { claimed_fixed: false, parse_status: 'compose-failed', proof_quality: 0 };
     const diff = diffState(repo, dir);
-    const score = scoreFromRun({ task, armId: 'composed', exitCode: null, timedOut: false, wallclockMs: 0, checks: runAllChecks(repo, task, dir, 'post'), diff, claim, priceTable, runFolder });
+    const score = scoreFromRun({
+      task,
+      armId: 'composed',
+      exitCode: null,
+      timedOut: false,
+      wallclockMs: 0,
+      checks: runAllChecks(repo, task, dir, 'post'),
+      diff,
+      claim,
+      priceTable,
+      runFolder,
+    });
     return {
-      record: { arm_id: 'composed', score, pipeline_status: 'compose-failed', pipeline_detail: err instanceof Error ? err.message : String(err) },
+      record: {
+        arm_id: 'composed',
+        score,
+        pipeline_status: 'compose-failed',
+        pipeline_detail: err instanceof Error ? err.message : String(err),
+      },
       baseline,
       fixtureCommit,
     };
@@ -840,11 +1048,17 @@ async function runComposedArm(task: DynTask, args: DynArgs, wrapperEnv: NodeJS.P
 
   const flowRoot = resolve(home, 'flows');
   const argv = [
-    BIN_CIRCUIT, 'run', published.slug,
-    '--goal', taskGoal(task),
-    '--run-folder', runFolder,
-    '--flow-root', flowRoot,
-    '--progress', 'jsonl',
+    BIN_CIRCUIT,
+    'run',
+    published.slug,
+    '--goal',
+    taskGoal(task),
+    '--run-folder',
+    runFolder,
+    '--flow-root',
+    flowRoot,
+    '--progress',
+    'jsonl',
   ];
   const driven = await driveCircuitRun({
     label: `${task.id}:composed`,
@@ -860,7 +1074,18 @@ async function runComposedArm(task: DynTask, args: DynArgs, wrapperEnv: NodeJS.P
   const diff = diffState(repo, dir);
   const { claim, resultLocated } = parseFlowClaim(task.family, published.flowPath, runFolder);
   const pipeline = pipelineStatusForRun(resultLocated, driven.exit_code, claim);
-  const score = scoreFromRun({ task, armId: 'composed', exitCode: driven.exit_code, timedOut: driven.timed_out, wallclockMs: driven.wallclock_ms, checks: post, diff, claim, priceTable, runFolder });
+  const score = scoreFromRun({
+    task,
+    armId: 'composed',
+    exitCode: driven.exit_code,
+    timedOut: driven.timed_out,
+    wallclockMs: driven.wallclock_ms,
+    checks: post,
+    diff,
+    claim,
+    priceTable,
+    runFolder,
+  });
   return {
     record: {
       arm_id: 'composed',
@@ -875,7 +1100,14 @@ async function runComposedArm(task: DynTask, args: DynArgs, wrapperEnv: NodeJS.P
   };
 }
 
-async function runTask(task: DynTask, args: DynArgs, wrapperEnv: NodeJS.ProcessEnv, taskDir: string, rep: number, priceTable: PriceTable | undefined): Promise<TaskSummary> {
+async function runTask(
+  task: DynTask,
+  args: DynArgs,
+  wrapperEnv: NodeJS.ProcessEnv,
+  taskDir: string,
+  rep: number,
+  priceTable: PriceTable | undefined,
+): Promise<TaskSummary> {
   mkdirSync(taskDir, { recursive: true });
   writeJson(resolve(taskDir, 'task.json'), task);
   writeFileSync(resolve(taskDir, 'goal.md'), `${taskGoal(task)}\n`);
@@ -911,7 +1143,8 @@ async function runTask(task: DynTask, args: DynArgs, wrapperEnv: NodeJS.ProcessE
     split: task.split,
     rep,
     fixture_commits_match: new Set(fixtureCommits).size <= 1,
-    baseline_failed_as_expected: baselines.length > 0 && baselines.every((checks) => checks.some((check) => !check.passed)),
+    baseline_failed_as_expected:
+      baselines.length > 0 && baselines.every((checks) => checks.some((check) => !check.passed)),
     arms: {
       ...(reference ? { reference: reference.record } : {}),
       ...(generated ? { generated: generated.record } : {}),
@@ -935,7 +1168,9 @@ export type FamilyArmAggregate = JsonRecord & {
 };
 
 function percentileFinite(values: readonly unknown[], q: number): number | null {
-  const usable = values.filter((v): v is number => typeof v === 'number' && Number.isFinite(v)).sort((a, b) => a - b);
+  const usable = values
+    .filter((v): v is number => typeof v === 'number' && Number.isFinite(v))
+    .sort((a, b) => a - b);
   if (usable.length === 0) return null;
   const rank = Math.min(usable.length - 1, Math.max(0, Math.ceil(q * usable.length) - 1));
   return usable[rank] ?? null;
@@ -957,19 +1192,29 @@ function aggregateArm(records: ArmRunRecord[]): FamilyArmAggregate {
     mean_cost_usd_computed: mean(costs),
     median_cost_usd_computed: percentileFinite(costs, 0.5),
     p90_cost_usd_computed: percentileFinite(costs, 0.9),
-    outside_allowed_change_count: scores.reduce((sum, s) => sum + (s.outside_allowed_changed_files?.length ?? 0), 0),
+    outside_allowed_change_count: scores.reduce(
+      (sum, s) => sum + (s.outside_allowed_changed_files?.length ?? 0),
+      0,
+    ),
     usage_missing_count: scores.filter((s) => s.usage_present !== true).length,
     price_table_miss_count: scores.filter((s) => s.price_table_miss === true).length,
     cost_divergence_flag_count: scores.filter((s) => s.cost_divergence_flag === true).length,
     claim_parse_failure_count: scores.filter((s) => s.claim?.parse_status !== 'parsed').length,
-    total_relays_failed: scores.reduce((sum, s) => sum + (typeof s.relays_failed === 'number' ? s.relays_failed : 0), 0),
+    total_relays_failed: scores.reduce(
+      (sum, s) => sum + (typeof s.relays_failed === 'number' ? s.relays_failed : 0),
+      0,
+    ),
     pipeline_failure_count: records.filter((r) => r.pipeline_status !== 'ok').length,
   };
 }
 
 // Median computed cost over a named subset of tasks, per arm (for the build
 // fold-cost criterion on B1/B2).
-function medianCostForTasks(summaries: TaskSummary[], armId: ArmId, taskIds: readonly string[]): number | null {
+function medianCostForTasks(
+  summaries: TaskSummary[],
+  armId: ArmId,
+  taskIds: readonly string[],
+): number | null {
   const costs: unknown[] = [];
   for (const s of summaries) {
     if (!taskIds.includes(s.task_id)) continue;
@@ -984,7 +1229,12 @@ function medianCostForTasks(summaries: TaskSummary[], armId: ArmId, taskIds: rea
 
 export type DecisionInput = {
   fix: { reference: FamilyArmAggregate; generated: FamilyArmAggregate };
-  build: { reference: FamilyArmAggregate; generated: FamilyArmAggregate; foldCostReference: number | null; foldCostGenerated: number | null };
+  build: {
+    reference: FamilyArmAggregate;
+    generated: FamilyArmAggregate;
+    foldCostReference: number | null;
+    foldCostGenerated: number | null;
+  };
 };
 export type Classification = {
   verdict: 'WORTH-INVESTING' | 'MIXED' | 'NOT-YET';
@@ -1004,10 +1254,26 @@ function notWorse(gen: number | null, ref: number | null, margin: number): boole
 
 export function classifyDynamicVsReference(input: DecisionInput): Classification {
   const reasons: string[] = [];
-  const qFix = withinMargin(input.fix.generated.objective_fixed_rate, input.fix.reference.objective_fixed_rate, QUALITY_MARGIN);
-  const qBuild = withinMargin(input.build.generated.objective_fixed_rate, input.build.reference.objective_fixed_rate, QUALITY_MARGIN);
-  const ffFix = notWorse(input.fix.generated.false_fixed_rate, input.fix.reference.false_fixed_rate, HONESTY_MARGIN);
-  const ffBuild = notWorse(input.build.generated.false_fixed_rate, input.build.reference.false_fixed_rate, HONESTY_MARGIN);
+  const qFix = withinMargin(
+    input.fix.generated.objective_fixed_rate,
+    input.fix.reference.objective_fixed_rate,
+    QUALITY_MARGIN,
+  );
+  const qBuild = withinMargin(
+    input.build.generated.objective_fixed_rate,
+    input.build.reference.objective_fixed_rate,
+    QUALITY_MARGIN,
+  );
+  const ffFix = notWorse(
+    input.fix.generated.false_fixed_rate,
+    input.fix.reference.false_fixed_rate,
+    HONESTY_MARGIN,
+  );
+  const ffBuild = notWorse(
+    input.build.generated.false_fixed_rate,
+    input.build.reference.false_fixed_rate,
+    HONESTY_MARGIN,
+  );
   const pipelineFix = input.fix.generated.pipeline_failure_count === 0;
   const pipelineBuild = input.build.generated.pipeline_failure_count === 0;
   const pipelineClean = pipelineFix && pipelineBuild;
@@ -1028,23 +1294,33 @@ export function classifyDynamicVsReference(input: DecisionInput): Classification
 
   // Pipeline-integrity override + the NOT-YET conditions from section 5.
   if (!pipelineClean) {
-    reasons.push('Generated arm had unexplained pipeline failures (create/publish/trust/result) — pipeline-integrity override caps the verdict at NOT-YET.');
+    reasons.push(
+      'Generated arm had unexplained pipeline failures (create/publish/trust/result) — pipeline-integrity override caps the verdict at NOT-YET.',
+    );
     return { verdict: 'NOT-YET', reasons, predicates };
   }
   if (!qFix || !qBuild) {
-    reasons.push('Generated objective-fixed rate fell more than 10pp below reference on at least one family.');
+    reasons.push(
+      'Generated objective-fixed rate fell more than 10pp below reference on at least one family.',
+    );
     return { verdict: 'NOT-YET', reasons, predicates };
   }
   if (!ffFix || !ffBuild) {
-    reasons.push('Generated false-fixed rate rose more than 10pp above reference on at least one family.');
+    reasons.push(
+      'Generated false-fixed rate rose more than 10pp above reference on at least one family.',
+    );
     return { verdict: 'NOT-YET', reasons, predicates };
   }
   // Quality + honesty parity holds on both families and the pipeline is clean.
   if (foldCostPass) {
-    reasons.push('Quality and honesty within margin on both families, build fold pays for itself on the small/low tasks, and the generated pipeline is clean.');
+    reasons.push(
+      'Quality and honesty within margin on both families, build fold pays for itself on the small/low tasks, and the generated pipeline is clean.',
+    );
     return { verdict: 'WORTH-INVESTING', reasons, predicates };
   }
-  reasons.push('Quality and honesty parity holds on both families, but the build fold costs more than the reference on the small/low tasks without a correctness gain.');
+  reasons.push(
+    'Quality and honesty parity holds on both families, but the build fold costs more than the reference on the small/low tasks without a correctness gain.',
+  );
   return { verdict: 'MIXED', reasons, predicates };
 }
 
@@ -1140,11 +1416,15 @@ export function classifyComposedVsReference(input: ComposedDecisionInput): Compo
     return { verdict: 'PIPELINE-BROKEN', reasons, predicates };
   }
   if (!quality) {
-    reasons.push('Composed objective-fixed rate fell more than 10pp below the hand-authored reference on fix.');
+    reasons.push(
+      'Composed objective-fixed rate fell more than 10pp below the hand-authored reference on fix.',
+    );
     return { verdict: 'BELOW-REFERENCE', reasons, predicates };
   }
   if (!honesty) {
-    reasons.push('Composed false-fixed rate rose more than 10pp above the hand-authored reference on fix.');
+    reasons.push(
+      'Composed false-fixed rate rose more than 10pp above the hand-authored reference on fix.',
+    );
     return { verdict: 'BELOW-REFERENCE', reasons, predicates };
   }
   reasons.push(
@@ -1169,20 +1449,41 @@ const COST_ANCHOR_USD = {
 };
 
 function generatedBuildAnchor(expectedGrain: string): number {
-  return /decompos/i.test(expectedGrain) ? COST_ANCHOR_USD.build_generated_decomposed : COST_ANCHOR_USD.build_generated_whole;
+  return /decompos/i.test(expectedGrain)
+    ? COST_ANCHOR_USD.build_generated_decomposed
+    : COST_ANCHOR_USD.build_generated_whole;
 }
 
-function projectSpend(manifest: DynManifest, taskIds: string[], reps: number, withComposed: boolean, composedOnly = false): { rows: Array<{ task: string; arm: string; runs: number; anchor: number; subtotal: number }>; expected: number; low: number; high: number } {
-  const rows: Array<{ task: string; arm: string; runs: number; anchor: number; subtotal: number }> = [];
+function projectSpend(
+  manifest: DynManifest,
+  taskIds: string[],
+  reps: number,
+  withComposed: boolean,
+  composedOnly = false,
+): {
+  rows: Array<{ task: string; arm: string; runs: number; anchor: number; subtotal: number }>;
+  expected: number;
+  low: number;
+  high: number;
+} {
+  const rows: Array<{ task: string; arm: string; runs: number; anchor: number; subtotal: number }> =
+    [];
   let expected = 0;
   for (const id of taskIds) {
     const family: Family = manifest.families.fix.includes(id) ? 'fix' : 'build';
-    const refAnchor = family === 'fix' ? COST_ANCHOR_USD.fix_reference : COST_ANCHOR_USD.build_reference;
-    const genAnchor = family === 'fix' ? COST_ANCHOR_USD.fix_generated : generatedBuildAnchor(manifest.expected_grain[id] ?? '');
+    const refAnchor =
+      family === 'fix' ? COST_ANCHOR_USD.fix_reference : COST_ANCHOR_USD.build_reference;
+    const genAnchor =
+      family === 'fix'
+        ? COST_ANCHOR_USD.fix_generated
+        : generatedBuildAnchor(manifest.expected_grain[id] ?? '');
     // --composed-only runs only the composed arm; do not project ref/gen rows.
     const arms: Array<[string, number]> = composedOnly
       ? []
-      : [['reference', refAnchor], ['generated', genAnchor]];
+      : [
+          ['reference', refAnchor],
+          ['generated', genAnchor],
+        ];
     // The composed arm runs on fix and build tasks. Anchor fix at the fix per-run
     // cost; anchor build at the whole-grain generated cost — the composed build arc
     // is linear (no slice decomposition), so it tracks the whole-build anchor.
@@ -1207,8 +1508,14 @@ function num(value: unknown): number | undefined {
   return typeof value === 'number' && Number.isFinite(value) ? value : undefined;
 }
 
-export function buildDynamicVsReferenceLedgerEntry(summary: JsonRecord, options: { ranAt: string; repoCommit: string; model: string }): LedgerEntry {
-  const fams = summary.aggregates as Record<Family, { reference: FamilyArmAggregate; generated: FamilyArmAggregate }>;
+export function buildDynamicVsReferenceLedgerEntry(
+  summary: JsonRecord,
+  options: { ranAt: string; repoCommit: string; model: string },
+): LedgerEntry {
+  const fams = summary.aggregates as Record<
+    Family,
+    { reference: FamilyArmAggregate; generated: FamilyArmAggregate }
+  >;
   const metrics: Record<string, number> = {};
   const put = (key: string, value: unknown) => {
     const n = num(value);
@@ -1272,7 +1579,10 @@ function fmtMs(value: number | null | undefined): string {
   return value == null ? 'n/a' : `${Math.round(value)} ms`;
 }
 
-function renderFamilyTable(family: Family, agg: { reference: FamilyArmAggregate; generated: FamilyArmAggregate }): string {
+function renderFamilyTable(
+  family: Family,
+  agg: { reference: FamilyArmAggregate; generated: FamilyArmAggregate },
+): string {
   const r = agg.reference;
   const g = agg.generated;
   return `### ${family}
@@ -1285,7 +1595,10 @@ function renderFamilyTable(family: Family, agg: { reference: FamilyArmAggregate;
 
 function renderComposedSection(summary: JsonRecord): string {
   const cmp = summary.composed_vs_reference as
-    | { fix: { reference: FamilyArmAggregate; composed: FamilyArmAggregate }; classification: ComposedClassification }
+    | {
+        fix: { reference: FamilyArmAggregate; composed: FamilyArmAggregate };
+        classification: ComposedClassification;
+      }
     | undefined;
   if (cmp === undefined) return '';
   const r = cmp.fix.reference;
@@ -1356,7 +1669,10 @@ one run.
 }
 
 function renderReport(summary: JsonRecord): string {
-  const aggregates = summary.aggregates as Record<Family, { reference: FamilyArmAggregate; generated: FamilyArmAggregate }>;
+  const aggregates = summary.aggregates as Record<
+    Family,
+    { reference: FamilyArmAggregate; generated: FamilyArmAggregate }
+  >;
   const classification = summary.classification as Classification;
   const section5 = summary.section5 as Section5Outcome | undefined;
   const build = summary.build_fold_cost as { reference: number | null; generated: number | null };
@@ -1423,7 +1739,13 @@ async function main(): Promise<void> {
   const runLabel = args.taskId ?? args.family ?? 'all';
   const resultRoot = createResultRoot(args.outDir, runLabel);
 
-  const projection = projectSpend(manifest, taskIds, args.reps, args.withComposed, args.composedOnly);
+  const projection = projectSpend(
+    manifest,
+    taskIds,
+    args.reps,
+    args.withComposed,
+    args.composedOnly,
+  );
   const metadata = {
     schema_version: 1,
     benchmark_id: manifest.benchmark_id,
@@ -1440,20 +1762,35 @@ async function main(): Promise<void> {
     generated_arm_mode: 'default-only',
     task_ids: taskIds,
     dry_run: args.dryRun,
-    projected_spend_usd: { expected: projection.expected, low: projection.low, high: projection.high, total_live_runs: projection.rows.reduce((sum, r) => sum + r.runs, 0) },
+    projected_spend_usd: {
+      expected: projection.expected,
+      low: projection.low,
+      high: projection.high,
+      total_live_runs: projection.rows.reduce((sum, r) => sum + r.runs, 0),
+    },
   };
   writeJson(resolve(resultRoot, 'metadata.json'), metadata);
 
   if (args.dryRun) {
     process.stdout.write(`${JSON.stringify(metadata, null, 2)}\n`);
-    process.stdout.write('\nProjected spend (anchors from the 2026-06-12 fix-vs-vanilla ledger; live run records the real cost):\n');
+    process.stdout.write(
+      '\nProjected spend (anchors from the 2026-06-12 fix-vs-vanilla ledger; live run records the real cost):\n',
+    );
     for (const row of projection.rows) {
-      process.stdout.write(`  ${row.task.padEnd(22)} ${row.arm.padEnd(10)} ${row.runs} run(s) x $${row.anchor.toFixed(2)} = $${row.subtotal.toFixed(2)}\n`);
+      process.stdout.write(
+        `  ${row.task.padEnd(22)} ${row.arm.padEnd(10)} ${row.runs} run(s) x $${row.anchor.toFixed(2)} = $${row.subtotal.toFixed(2)}\n`,
+      );
     }
-    process.stdout.write(`\n  Total live runs: ${projection.rows.reduce((sum, r) => sum + r.runs, 0)}\n`);
-    process.stdout.write(`  Projected spend: ~$${projection.expected.toFixed(2)} (band $${projection.low.toFixed(2)}-$${projection.high.toFixed(2)})\n`);
+    process.stdout.write(
+      `\n  Total live runs: ${projection.rows.reduce((sum, r) => sum + r.runs, 0)}\n`,
+    );
+    process.stdout.write(
+      `  Projected spend: ~$${projection.expected.toFixed(2)} (band $${projection.low.toFixed(2)}-$${projection.high.toFixed(2)})\n`,
+    );
     process.stdout.write(`  Model to pin: ${args.model} (pin_model=${args.pinModel})\n`);
-    process.stdout.write(`\nDry run only. No model spend. Results directory prepared at ${resultRoot}\n`);
+    process.stdout.write(
+      `\nDry run only. No model spend. Results directory prepared at ${resultRoot}\n`,
+    );
     return;
   }
 
@@ -1464,7 +1801,9 @@ async function main(): Promise<void> {
   });
   const priceTable = loadPriceTable(PRICES_DIR);
   if (priceTable === undefined) {
-    process.stderr.write('warning: no price table under evals/ledger/prices; cost_usd_computed will be absent\n');
+    process.stderr.write(
+      'warning: no price table under evals/ledger/prices; cost_usd_computed will be absent\n',
+    );
   }
 
   if (!args.skipBuild) {
@@ -1472,19 +1811,24 @@ async function main(): Promise<void> {
     const build = runSync('npm', ['run', 'build'], { cwd: REPO_ROOT });
     writeFileSync(resolve(resultRoot, 'build.stdout.txt'), build.stdout);
     writeFileSync(resolve(resultRoot, 'build.stderr.txt'), build.stderr);
-    if (build.status !== 0) throw new Error(`npm run build failed; see ${resolve(resultRoot, 'build.stderr.txt')}`);
+    if (build.status !== 0)
+      throw new Error(`npm run build failed; see ${resolve(resultRoot, 'build.stderr.txt')}`);
     const bundle = runSync('npm', ['run', 'build-plugin-runtime'], { cwd: REPO_ROOT });
     writeFileSync(resolve(resultRoot, 'build-plugin-runtime.stdout.txt'), bundle.stdout);
     writeFileSync(resolve(resultRoot, 'build-plugin-runtime.stderr.txt'), bundle.stderr);
-    if (bundle.status !== 0) throw new Error(`npm run build-plugin-runtime failed; see ${resolve(resultRoot, 'build-plugin-runtime.stderr.txt')}`);
+    if (bundle.status !== 0)
+      throw new Error(
+        `npm run build-plugin-runtime failed; see ${resolve(resultRoot, 'build-plugin-runtime.stderr.txt')}`,
+      );
   }
 
   const summaries: TaskSummary[] = [];
   for (const task of tasks) {
     for (let rep = 1; rep <= args.reps; rep += 1) {
-      const taskDir = args.reps === 1
-        ? resolve(resultRoot, 'tasks', task.id)
-        : resolve(resultRoot, 'tasks', task.id, `rep-${String(rep).padStart(2, '0')}`);
+      const taskDir =
+        args.reps === 1
+          ? resolve(resultRoot, 'tasks', task.id)
+          : resolve(resultRoot, 'tasks', task.id, `rep-${String(rep).padStart(2, '0')}`);
       process.stderr.write(`\nRunning ${task.id} (${task.family}) rep ${rep}/${args.reps}...\n`);
       summaries.push(await runTask(task, args, wrapper.env, taskDir, rep, priceTable));
     }
@@ -1492,8 +1836,12 @@ async function main(): Promise<void> {
 
   const byFamily = (family: Family) => {
     const fam = summaries.filter((s) => s.family === family);
-    const refRecords = fam.map((s) => s.arms.reference).filter((r): r is ArmRunRecord => r !== undefined);
-    const genRecords = fam.map((s) => s.arms.generated).filter((r): r is ArmRunRecord => r !== undefined);
+    const refRecords = fam
+      .map((s) => s.arms.reference)
+      .filter((r): r is ArmRunRecord => r !== undefined);
+    const genRecords = fam
+      .map((s) => s.arms.generated)
+      .filter((r): r is ArmRunRecord => r !== undefined);
     return { reference: aggregateArm(refRecords), generated: aggregateArm(genRecords) };
   };
   const aggregates = { fix: byFamily('fix'), build: byFamily('build') };
@@ -1538,7 +1886,10 @@ async function main(): Promise<void> {
   // with no reference and no verdict (the reference arm did not run).
   const composedOnlyAggregate =
     args.composedOnly && composedFixRecords.length > 0
-      ? { shape: args.composedShape ?? 'fix-linear-full', aggregate: aggregateArm(composedFixRecords) }
+      ? {
+          shape: args.composedShape ?? 'fix-linear-full',
+          aggregate: aggregateArm(composedFixRecords),
+        }
       : undefined;
 
   // Build: no pre-registered decision rule, so the build composed arm reports a
@@ -1555,7 +1906,11 @@ async function main(): Promise<void> {
     dry_run: false,
     tasks: summaries,
     aggregates,
-    build_fold_cost: { reference: foldCostReference, generated: foldCostGenerated, tasks: manifest.fold_cost_tasks },
+    build_fold_cost: {
+      reference: foldCostReference,
+      generated: foldCostGenerated,
+      tasks: manifest.fold_cost_tasks,
+    },
     classification,
     section5,
     ...(composedComparison ? { composed_vs_reference: composedComparison } : {}),
@@ -1574,10 +1929,16 @@ async function main(): Promise<void> {
   if (args.composedOnly) {
     process.stderr.write('composed-only run: no laddered metrics, ledger row skipped.\n');
   } else {
-    const ledgerEntry = buildDynamicVsReferenceLedgerEntry(summary, { ranAt, repoCommit: summary.repo_commit, model: args.model });
+    const ledgerEntry = buildDynamicVsReferenceLedgerEntry(summary, {
+      ranAt,
+      repoCommit: summary.repo_commit,
+      model: args.model,
+    });
     const problems = validateLedgerEntry(ledgerEntry, 'dynamic-vs-reference ledger');
     if (problems.length > 0) {
-      process.stderr.write(`warning: ledger entry not written (validation failed):\n${problems.join('\n')}\n`);
+      process.stderr.write(
+        `warning: ledger entry not written (validation failed):\n${problems.join('\n')}\n`,
+      );
     } else {
       mkdirSync(LEDGER_DIR, { recursive: true });
       const fileName = `${ranAt.replace(/[:.]/g, '-')}-${safeSegment(args.model)}.json`;
@@ -1591,7 +1952,9 @@ async function main(): Promise<void> {
   const composedBuildLine = composedBuildComparison
     ? `\nComposed build arm ran (raw aggregate, no pre-registered verdict): objective-fixed ${fmtRate(composedBuildComparison.composed.objective_fixed_rate)} vs reference ${fmtRate(composedBuildComparison.reference.objective_fixed_rate)}`
     : '';
-  process.stdout.write(`\nComparison complete. Section-5 verdict: ${section5.verdict}${composedLine}${composedBuildLine}\nResults: ${resultRoot}\nReport: ${resolve(resultRoot, 'report.md')}\n`);
+  process.stdout.write(
+    `\nComparison complete. Section-5 verdict: ${section5.verdict}${composedLine}${composedBuildLine}\nResults: ${resultRoot}\nReport: ${resolve(resultRoot, 'report.md')}\n`,
+  );
 }
 
 const invokedDirectly =
@@ -1602,7 +1965,9 @@ const invokedDirectly =
 
 if (invokedDirectly) {
   main().catch((error: unknown) => {
-    process.stderr.write(`dynamic-vs-reference comparison failed: ${error instanceof Error ? error.message : String(error)}\n`);
+    process.stderr.write(
+      `dynamic-vs-reference comparison failed: ${error instanceof Error ? error.message : String(error)}\n`,
+    );
     process.exit(1);
   });
 }

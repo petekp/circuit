@@ -181,8 +181,7 @@ function certify(args: Args): Certification {
       }
     }
 
-    const isApparentFalsePositive =
-      verdict === 'accept-with-fold-ins' || verdict === 'reject';
+    const isApparentFalsePositive = verdict === 'accept-with-fold-ins' || verdict === 'reject';
     if (isApparentFalsePositive && groundedness) {
       if (groundedness.fully_grounded) grounded_false_positives += 1;
       else ungrounded_false_positives += 1;
@@ -190,7 +189,12 @@ function certify(args: Args): Certification {
 
     certified.push({
       source_run_id: control.case.source_run_id,
-      source_subject: control.case.source_subject,
+      // Spread rather than assign: `source_subject` is optional, and under
+      // exactOptionalPropertyTypes a case with no subject must omit the key
+      // rather than carry an explicit undefined.
+      ...(control.case.source_subject === undefined
+        ? {}
+        : { source_subject: control.case.source_subject }),
       verdict,
       source_resolved,
       groundedness,

@@ -5,7 +5,16 @@
 // material (A0..A4) or tool access to the one copied transcript file (A5).
 // Runnable with plain `node`: this module never imports src/ runtime code.
 
-import { cpSync, existsSync, mkdirSync, mkdtempSync, readFileSync, readdirSync, rmSync, writeFileSync } from 'node:fs';
+import {
+  cpSync,
+  existsSync,
+  mkdirSync,
+  mkdtempSync,
+  readFileSync,
+  readdirSync,
+  rmSync,
+  writeFileSync,
+} from 'node:fs';
 import { tmpdir } from 'node:os';
 import { dirname, join, resolve } from 'node:path';
 import { performance } from 'node:perf_hooks';
@@ -14,16 +23,12 @@ import { readJson, safeSegment, writeJson } from '../../scripts/evals/shared/jso
 import { createResultRoot, repoMetadata } from '../../scripts/evals/shared/metadata.ts';
 import { findExecutable, redactedArgv, runSync } from '../../scripts/evals/shared/process.ts';
 import {
+  type PriceTable,
   buildArmUsageScore,
   loadPriceTable,
   parseVanillaEnvelope,
-  type PriceTable,
 } from '../../scripts/evals/shared/usage.ts';
 import {
-  bundleLayout,
-  armMaterialPath,
-  armMetaPath,
-  isArmId,
   type ArmId,
   type ArmMeta,
   type BundleManifest,
@@ -34,6 +39,10 @@ import {
   type ResumptionManifest,
   type RunMetadata,
   type SessionSpawn,
+  armMaterialPath,
+  armMetaPath,
+  bundleLayout,
+  isArmId,
 } from './shared/types.ts';
 
 const __filename = fileURLToPath(import.meta.url);
@@ -194,15 +203,11 @@ export function chooseToolRestrictionArgv(
   helpText: string | undefined,
 ): RunMetadata['tool_restriction_argv'] {
   const disallowedFlag =
-    helpText !== undefined &&
-    helpText.includes('--disallowed-tools') &&
-    !helpText.includes('--disallowedTools')
+    helpText?.includes('--disallowed-tools') && !helpText.includes('--disallowedTools')
       ? '--disallowed-tools'
       : '--disallowedTools';
   const allowedFlag =
-    helpText !== undefined &&
-    helpText.includes('--allowed-tools') &&
-    !helpText.includes('--allowedTools')
+    helpText?.includes('--allowed-tools') && !helpText.includes('--allowedTools')
       ? '--allowed-tools'
       : '--allowedTools';
   return {
@@ -251,9 +256,7 @@ export function buildSessionArgv(input: {
   restriction: RunMetadata['tool_restriction_argv'];
 }): string[] {
   const toolArgs =
-    input.arm === 'A5'
-      ? input.restriction.a5_allowed_tools
-      : input.restriction.denied_file_tools;
+    input.arm === 'A5' ? input.restriction.a5_allowed_tools : input.restriction.denied_file_tools;
   // Hygiene flags mirror the fix harness's vanilla arm: no MCP servers, no
   // slash commands, no user settings, no session persistence. The prompt is
   // appended by the runner at spawn time.
@@ -460,7 +463,9 @@ export async function runResumptionQuiz(
   }
 
   const priceTable =
-    'priceTable' in deps ? deps.priceTable : loadPriceTable(resolve(REPO_ROOT, 'evals/ledger/prices'));
+    'priceTable' in deps
+      ? deps.priceTable
+      : loadPriceTable(resolve(REPO_ROOT, 'evals/ledger/prices'));
   if (priceTable === undefined) {
     process.stderr.write(
       'warning: no price table under evals/ledger/prices; cost_usd_computed will be absent\n',
@@ -482,7 +487,19 @@ export async function runResumptionQuiz(
         continue;
       }
       for (let rep = 1; rep <= args.reps; rep += 1) {
-        await runCell({ loaded, arm, meta, rep, args, manifest, restriction, spawn, priceTable, now, resultRoot });
+        await runCell({
+          loaded,
+          arm,
+          meta,
+          rep,
+          args,
+          manifest,
+          restriction,
+          spawn,
+          priceTable,
+          now,
+          resultRoot,
+        });
       }
     }
   }
@@ -533,10 +550,7 @@ async function runCell({
 
     const prompt = buildAnswerPrompt(material, loaded.quiz);
     writeFileSync(resolve(repDir, 'prompt.md'), `${prompt}\n`);
-    const argv = [
-      ...buildSessionArgv({ model: manifest.answer_model, arm, restriction }),
-      prompt,
-    ];
+    const argv = [...buildSessionArgv({ model: manifest.answer_model, arm, restriction }), prompt];
 
     const startedAt = now().toISOString();
     process.stderr.write(`running ${loaded.bundle.session_id}/${arm} rep ${rep}/${args.reps}...\n`);

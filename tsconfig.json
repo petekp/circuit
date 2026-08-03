@@ -31,9 +31,8 @@
     "plugins/codex/scripts/**/*.ts",
     "plugins/codex/hooks/**/*.ts",
     "plugins/codex/runtime/**/*.ts",
-    "evals/circuit-vs-vanilla/**/*.ts",
-    "evals/fix-vs-vanilla/*.ts",
-    "evals/resumption-quiz/**/*.ts",
+    "plugins/shared/**/*.ts",
+    "evals/**/*.ts",
     "experiments/**/*.ts",
     "src/**/*.tsx",
     "tests/**/*.tsx"
@@ -42,9 +41,16 @@
     "node_modules",
     "dist",
     "bootstrap",
-    "evals/fix-vs-vanilla/tasks",
+    // Eval DATA, not eval code. `tasks` holds checked-out fixture projects
+    // with their own dependencies, `results` holds run output, and `sessions`
+    // holds frozen transcripts. Together they are ~36k files on disk against
+    // ~450 tracked, which is why the include above is a whole-tree glob with
+    // the data carved out rather than a list of subdirectories: a new eval
+    // gets typechecked without anyone remembering to enroll it.
+    "evals/**/tasks",
     "evals/**/results",
-    "evals/resumption-quiz/sessions",
+    "evals/**/sessions",
+    "evals/**/.circuit",
     "experiments/**/fixtures/**"
   ]
 }

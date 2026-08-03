@@ -1,9 +1,9 @@
 import { describe, expect, it } from 'vitest';
 
 import {
+  type GroundednessResolvers,
   auditComposeGroundedness,
   classifyRef,
-  type GroundednessResolvers,
 } from '../../evals/verdict-correctness/control-groundedness.ts';
 import type { ComposeJsonShape } from '../../evals/verdict-correctness/types.ts';
 
@@ -34,7 +34,10 @@ function compose(refsByAspect: string[][]): ComposeJsonShape {
 
 describe('classifyRef', () => {
   it('strips a trailing line range before resolving a repo-file ref', () => {
-    const r = classifyRef('src/history/query.ts:48-99', resolvers(new Set(['src/history/query.ts']), new Set()));
+    const r = classifyRef(
+      'src/history/query.ts:48-99',
+      resolvers(new Set(['src/history/query.ts']), new Set()),
+    );
     expect(r.kind).toBe('repo-file');
     expect(r.path).toBe('src/history/query.ts');
     expect(r.resolved).toBe(true);
@@ -47,7 +50,10 @@ describe('classifyRef', () => {
   });
 
   it('routes a reports/ path to the run-report resolver', () => {
-    const r = classifyRef('reports/brief.json', resolvers(new Set(), new Set(['reports/brief.json'])));
+    const r = classifyRef(
+      'reports/brief.json',
+      resolvers(new Set(), new Set(['reports/brief.json'])),
+    );
     expect(r.kind).toBe('run-report');
     expect(r.resolved).toBe(true);
   });
@@ -108,6 +114,10 @@ describe('auditComposeGroundedness', () => {
   it('is vacuously grounded for a compose whose only citations are unverifiable', () => {
     const g = auditComposeGroundedness(compose([['git status', 'a1b2c3d']]), NONE);
     expect(g.fully_grounded).toBe(true);
-    expect(g.counts).toMatchObject({ repo_file_resolved: 0, run_report_resolved: 0, unverifiable: 2 });
+    expect(g.counts).toMatchObject({
+      repo_file_resolved: 0,
+      run_report_resolved: 0,
+      unverifiable: 2,
+    });
   });
 });

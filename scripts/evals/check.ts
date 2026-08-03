@@ -6,7 +6,12 @@ import { runSync } from './shared/process.ts';
 
 const REPO_ROOT = resolve(import.meta.dirname, '../..');
 
-function runStep(label: string, command: string, argv: string[], options: Parameters<typeof runSync>[2] = {}): void {
+function runStep(
+  label: string,
+  command: string,
+  argv: string[],
+  options: Parameters<typeof runSync>[2] = {},
+): void {
   process.stderr.write(`\n[check-evals] ${label}\n`);
   const result = runSync(command, argv, { cwd: REPO_ROOT, ...options });
   if (result.stdout) process.stdout.write(result.stdout);

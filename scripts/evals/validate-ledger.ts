@@ -101,7 +101,9 @@ function main(): void {
       try {
         entry = readJson(resolve(evalDir, file));
       } catch (error) {
-        problems.push(`${rel}: unreadable JSON (${error instanceof Error ? error.message : error})`);
+        problems.push(
+          `${rel}: unreadable JSON (${error instanceof Error ? error.message : error})`,
+        );
         continue;
       }
       problems.push(...validateLedgerEntry(entry, rel));
