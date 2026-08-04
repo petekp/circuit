@@ -1,0 +1,4278 @@
+{
+  "surfaces": [
+    {
+      "id": "app:designer",
+      "kind": "app",
+      "state": "active",
+      "origin": "declared",
+      "reach": [
+        {
+          "channel": "internal",
+          "access": "direct"
+        }
+      ],
+      "source_paths": ["apps/designer/package.json", "apps/designer/src/App.tsx"]
+    },
+    {
+      "id": "block:act",
+      "kind": "block",
+      "state": "active",
+      "origin": "derived",
+      "reach": [
+        {
+          "channel": "cli",
+          "access": "direct"
+        },
+        {
+          "channel": "host-command",
+          "host": "claude",
+          "access": "install-gated"
+        },
+        {
+          "channel": "mcp",
+          "host": "codex",
+          "access": "install-gated"
+        }
+      ],
+      "source_paths": ["docs/flows/block-catalog.json", "src/schemas/flow-block-definitions.ts"]
+    },
+    {
+      "id": "block:batch",
+      "kind": "block",
+      "state": "active",
+      "origin": "derived",
+      "reach": [
+        {
+          "channel": "internal",
+          "access": "direct"
+        }
+      ],
+      "source_paths": ["docs/flows/block-catalog.json", "src/schemas/flow-block-definitions.ts"]
+    },
+    {
+      "id": "block:clarify",
+      "kind": "block",
+      "state": "active",
+      "origin": "derived",
+      "reach": [
+        {
+          "channel": "internal",
+          "access": "direct"
+        }
+      ],
+      "source_paths": ["docs/flows/block-catalog.json", "src/schemas/flow-block-definitions.ts"]
+    },
+    {
+      "id": "block:close-with-evidence",
+      "kind": "block",
+      "state": "active",
+      "origin": "derived",
+      "reach": [
+        {
+          "channel": "cli",
+          "access": "direct"
+        },
+        {
+          "channel": "host-command",
+          "host": "claude",
+          "access": "install-gated"
+        },
+        {
+          "channel": "mcp",
+          "host": "codex",
+          "access": "install-gated"
+        }
+      ],
+      "source_paths": ["docs/flows/block-catalog.json", "src/schemas/flow-block-definitions.ts"]
+    },
+    {
+      "id": "block:coordinate-pursuits",
+      "kind": "block",
+      "state": "active",
+      "origin": "derived",
+      "reach": [
+        {
+          "channel": "internal",
+          "access": "direct"
+        }
+      ],
+      "source_paths": ["docs/flows/block-catalog.json", "src/schemas/flow-block-definitions.ts"]
+    },
+    {
+      "id": "block:diagnose",
+      "kind": "block",
+      "state": "active",
+      "origin": "derived",
+      "reach": [
+        {
+          "channel": "cli",
+          "access": "direct"
+        },
+        {
+          "channel": "host-command",
+          "host": "claude",
+          "access": "install-gated"
+        },
+        {
+          "channel": "mcp",
+          "host": "codex",
+          "access": "install-gated"
+        }
+      ],
+      "source_paths": ["docs/flows/block-catalog.json", "src/schemas/flow-block-definitions.ts"]
+    },
+    {
+      "id": "block:frame",
+      "kind": "block",
+      "state": "active",
+      "origin": "derived",
+      "reach": [
+        {
+          "channel": "cli",
+          "access": "direct"
+        },
+        {
+          "channel": "host-command",
+          "host": "claude",
+          "access": "install-gated"
+        },
+        {
+          "channel": "mcp",
+          "host": "codex",
+          "access": "install-gated"
+        }
+      ],
+      "source_paths": ["docs/flows/block-catalog.json", "src/schemas/flow-block-definitions.ts"]
+    },
+    {
+      "id": "block:gather-context",
+      "kind": "block",
+      "state": "active",
+      "origin": "derived",
+      "reach": [
+        {
+          "channel": "cli",
+          "access": "direct"
+        },
+        {
+          "channel": "host-command",
+          "host": "claude",
+          "access": "install-gated"
+        },
+        {
+          "channel": "mcp",
+          "host": "codex",
+          "access": "install-gated"
+        }
+      ],
+      "source_paths": ["docs/flows/block-catalog.json", "src/schemas/flow-block-definitions.ts"]
+    },
+    {
+      "id": "block:goal",
+      "kind": "block",
+      "state": "active",
+      "origin": "derived",
+      "reach": [
+        {
+          "channel": "internal",
+          "access": "direct"
+        }
+      ],
+      "source_paths": ["docs/flows/block-catalog.json", "src/schemas/flow-block-definitions.ts"]
+    },
+    {
+      "id": "block:goal-attempt",
+      "kind": "block",
+      "state": "active",
+      "origin": "derived",
+      "reach": [
+        {
+          "channel": "internal",
+          "access": "direct"
+        }
+      ],
+      "source_paths": ["docs/flows/block-catalog.json", "src/schemas/flow-block-definitions.ts"]
+    },
+    {
+      "id": "block:goal-checkpoint",
+      "kind": "block",
+      "state": "active",
+      "origin": "derived",
+      "reach": [
+        {
+          "channel": "internal",
+          "access": "direct"
+        }
+      ],
+      "source_paths": ["docs/flows/block-catalog.json", "src/schemas/flow-block-definitions.ts"]
+    },
+    {
+      "id": "block:goal-child-run",
+      "kind": "block",
+      "state": "active",
+      "origin": "derived",
+      "reach": [
+        {
+          "channel": "internal",
+          "access": "direct"
+        }
+      ],
+      "source_paths": ["docs/flows/block-catalog.json", "src/schemas/flow-block-definitions.ts"]
+    },
+    {
+      "id": "block:goal-close",
+      "kind": "block",
+      "state": "active",
+      "origin": "derived",
+      "reach": [
+        {
+          "channel": "internal",
+          "access": "direct"
+        }
+      ],
+      "source_paths": ["docs/flows/block-catalog.json", "src/schemas/flow-block-definitions.ts"]
+    },
+    {
+      "id": "block:goal-evaluate",
+      "kind": "block",
+      "state": "active",
+      "origin": "derived",
+      "reach": [
+        {
+          "channel": "internal",
+          "access": "direct"
+        }
+      ],
+      "source_paths": ["docs/flows/block-catalog.json", "src/schemas/flow-block-definitions.ts"]
+    },
+    {
+      "id": "block:goal-gate-review",
+      "kind": "block",
+      "state": "active",
+      "origin": "derived",
+      "reach": [
+        {
+          "channel": "internal",
+          "access": "direct"
+        }
+      ],
+      "source_paths": ["docs/flows/block-catalog.json", "src/schemas/flow-block-definitions.ts"]
+    },
+    {
+      "id": "block:goal-recover",
+      "kind": "block",
+      "state": "active",
+      "origin": "derived",
+      "reach": [
+        {
+          "channel": "internal",
+          "access": "direct"
+        }
+      ],
+      "source_paths": ["docs/flows/block-catalog.json", "src/schemas/flow-block-definitions.ts"]
+    },
+    {
+      "id": "block:handoff",
+      "kind": "block",
+      "state": "active",
+      "origin": "derived",
+      "reach": [
+        {
+          "channel": "cli",
+          "access": "direct"
+        },
+        {
+          "channel": "host-command",
+          "host": "claude",
+          "access": "install-gated"
+        },
+        {
+          "channel": "mcp",
+          "host": "codex",
+          "access": "install-gated"
+        }
+      ],
+      "source_paths": ["docs/flows/block-catalog.json", "src/schemas/flow-block-definitions.ts"]
+    },
+    {
+      "id": "block:human-decision",
+      "kind": "block",
+      "state": "active",
+      "origin": "derived",
+      "reach": [
+        {
+          "channel": "cli",
+          "access": "direct"
+        },
+        {
+          "channel": "host-command",
+          "host": "claude",
+          "access": "install-gated"
+        },
+        {
+          "channel": "mcp",
+          "host": "codex",
+          "access": "install-gated"
+        }
+      ],
+      "source_paths": ["docs/flows/block-catalog.json", "src/schemas/flow-block-definitions.ts"]
+    },
+    {
+      "id": "block:intake",
+      "kind": "block",
+      "state": "dormant",
+      "origin": "derived",
+      "reach": [
+        {
+          "channel": "internal",
+          "access": "direct"
+        }
+      ],
+      "source_paths": ["docs/flows/block-catalog.json", "src/schemas/flow-block-definitions.ts"]
+    },
+    {
+      "id": "block:plan",
+      "kind": "block",
+      "state": "active",
+      "origin": "derived",
+      "reach": [
+        {
+          "channel": "cli",
+          "access": "direct"
+        },
+        {
+          "channel": "host-command",
+          "host": "claude",
+          "access": "install-gated"
+        },
+        {
+          "channel": "mcp",
+          "host": "codex",
+          "access": "install-gated"
+        }
+      ],
+      "source_paths": ["docs/flows/block-catalog.json", "src/schemas/flow-block-definitions.ts"]
+    },
+    {
+      "id": "block:prototype-checkpoint",
+      "kind": "block",
+      "state": "active",
+      "origin": "derived",
+      "reach": [
+        {
+          "channel": "cli",
+          "access": "direct"
+        },
+        {
+          "channel": "host-command",
+          "host": "claude",
+          "access": "install-gated"
+        },
+        {
+          "channel": "mcp",
+          "host": "codex",
+          "access": "install-gated"
+        }
+      ],
+      "source_paths": ["docs/flows/block-catalog.json", "src/schemas/flow-block-definitions.ts"]
+    },
+    {
+      "id": "block:prototype-variant-evidence",
+      "kind": "block",
+      "state": "active",
+      "origin": "derived",
+      "reach": [
+        {
+          "channel": "cli",
+          "access": "direct"
+        },
+        {
+          "channel": "host-command",
+          "host": "claude",
+          "access": "install-gated"
+        },
+        {
+          "channel": "mcp",
+          "host": "codex",
+          "access": "install-gated"
+        }
+      ],
+      "source_paths": ["docs/flows/block-catalog.json", "src/schemas/flow-block-definitions.ts"]
+    },
+    {
+      "id": "block:pursue",
+      "kind": "block",
+      "state": "active",
+      "origin": "derived",
+      "reach": [
+        {
+          "channel": "internal",
+          "access": "direct"
+        }
+      ],
+      "source_paths": ["docs/flows/block-catalog.json", "src/schemas/flow-block-definitions.ts"]
+    },
+    {
+      "id": "block:queue",
+      "kind": "block",
+      "state": "dormant",
+      "origin": "derived",
+      "reach": [
+        {
+          "channel": "internal",
+          "access": "direct"
+        }
+      ],
+      "source_paths": ["docs/flows/block-catalog.json", "src/schemas/flow-block-definitions.ts"]
+    },
+    {
+      "id": "block:review",
+      "kind": "block",
+      "state": "active",
+      "origin": "derived",
+      "reach": [
+        {
+          "channel": "cli",
+          "access": "direct"
+        },
+        {
+          "channel": "host-command",
+          "host": "claude",
+          "access": "install-gated"
+        },
+        {
+          "channel": "mcp",
+          "host": "codex",
+          "access": "install-gated"
+        }
+      ],
+      "source_paths": ["docs/flows/block-catalog.json", "src/schemas/flow-block-definitions.ts"]
+    },
+    {
+      "id": "block:review-intake",
+      "kind": "block",
+      "state": "active",
+      "origin": "derived",
+      "reach": [
+        {
+          "channel": "cli",
+          "access": "direct"
+        },
+        {
+          "channel": "host-command",
+          "host": "claude",
+          "access": "install-gated"
+        },
+        {
+          "channel": "mcp",
+          "host": "codex",
+          "access": "install-gated"
+        }
+      ],
+      "source_paths": ["docs/flows/block-catalog.json", "src/schemas/flow-block-definitions.ts"]
+    },
+    {
+      "id": "block:risk-rollback-check",
+      "kind": "block",
+      "state": "dormant",
+      "origin": "derived",
+      "reach": [
+        {
+          "channel": "internal",
+          "access": "direct"
+        }
+      ],
+      "source_paths": ["docs/flows/block-catalog.json", "src/schemas/flow-block-definitions.ts"]
+    },
+    {
+      "id": "block:route",
+      "kind": "block",
+      "state": "dormant",
+      "origin": "derived",
+      "reach": [
+        {
+          "channel": "internal",
+          "access": "direct"
+        }
+      ],
+      "source_paths": ["docs/flows/block-catalog.json", "src/schemas/flow-block-definitions.ts"]
+    },
+    {
+      "id": "block:run-verification",
+      "kind": "block",
+      "state": "active",
+      "origin": "derived",
+      "reach": [
+        {
+          "channel": "cli",
+          "access": "direct"
+        },
+        {
+          "channel": "host-command",
+          "host": "claude",
+          "access": "install-gated"
+        },
+        {
+          "channel": "mcp",
+          "host": "codex",
+          "access": "install-gated"
+        }
+      ],
+      "source_paths": ["docs/flows/block-catalog.json", "src/schemas/flow-block-definitions.ts"]
+    },
+    {
+      "id": "command:checkpoints",
+      "kind": "cli-command",
+      "state": "active",
+      "origin": "derived",
+      "reach": [
+        {
+          "channel": "cli",
+          "access": "direct"
+        }
+      ],
+      "source_paths": ["src/cli/command-vocabulary.ts"]
+    },
+    {
+      "id": "command:config",
+      "kind": "cli-command",
+      "state": "active",
+      "origin": "derived",
+      "reach": [
+        {
+          "channel": "cli",
+          "access": "direct"
+        }
+      ],
+      "source_paths": ["src/cli/command-vocabulary.ts"]
+    },
+    {
+      "id": "command:create",
+      "kind": "cli-command",
+      "state": "active",
+      "origin": "derived",
+      "reach": [
+        {
+          "channel": "cli",
+          "access": "direct"
+        }
+      ],
+      "source_paths": ["src/cli/command-vocabulary.ts"]
+    },
+    {
+      "id": "command:demo",
+      "kind": "cli-command",
+      "state": "active",
+      "origin": "derived",
+      "reach": [
+        {
+          "channel": "cli",
+          "access": "direct"
+        }
+      ],
+      "source_paths": ["src/cli/command-vocabulary.ts"]
+    },
+    {
+      "id": "command:doctor",
+      "kind": "cli-command",
+      "state": "active",
+      "origin": "derived",
+      "reach": [
+        {
+          "channel": "cli",
+          "access": "direct"
+        }
+      ],
+      "source_paths": ["src/cli/command-vocabulary.ts"]
+    },
+    {
+      "id": "command:generate",
+      "kind": "cli-command",
+      "state": "active",
+      "origin": "derived",
+      "reach": [
+        {
+          "channel": "cli",
+          "access": "direct"
+        }
+      ],
+      "source_paths": ["src/cli/command-vocabulary.ts"]
+    },
+    {
+      "id": "command:handoff",
+      "kind": "cli-command",
+      "state": "active",
+      "origin": "derived",
+      "reach": [
+        {
+          "channel": "cli",
+          "access": "direct"
+        }
+      ],
+      "source_paths": ["src/cli/command-vocabulary.ts"]
+    },
+    {
+      "id": "command:history",
+      "kind": "cli-command",
+      "state": "active",
+      "origin": "derived",
+      "reach": [
+        {
+          "channel": "cli",
+          "access": "direct"
+        }
+      ],
+      "source_paths": ["src/cli/command-vocabulary.ts"]
+    },
+    {
+      "id": "command:memory",
+      "kind": "cli-command",
+      "state": "active",
+      "origin": "derived",
+      "reach": [
+        {
+          "channel": "cli",
+          "access": "direct"
+        }
+      ],
+      "source_paths": ["src/cli/command-vocabulary.ts"]
+    },
+    {
+      "id": "command:preview",
+      "kind": "cli-command",
+      "state": "active",
+      "origin": "derived",
+      "reach": [
+        {
+          "channel": "cli",
+          "access": "direct"
+        }
+      ],
+      "source_paths": ["src/cli/command-vocabulary.ts"]
+    },
+    {
+      "id": "command:reclaim",
+      "kind": "cli-command",
+      "state": "active",
+      "origin": "derived",
+      "reach": [
+        {
+          "channel": "cli",
+          "access": "direct"
+        }
+      ],
+      "source_paths": ["src/cli/command-vocabulary.ts"]
+    },
+    {
+      "id": "command:resume",
+      "kind": "cli-command",
+      "state": "active",
+      "origin": "derived",
+      "reach": [
+        {
+          "channel": "cli",
+          "access": "direct"
+        }
+      ],
+      "source_paths": ["src/cli/command-vocabulary.ts"]
+    },
+    {
+      "id": "command:run",
+      "kind": "cli-command",
+      "state": "active",
+      "origin": "derived",
+      "reach": [
+        {
+          "channel": "cli",
+          "access": "direct"
+        }
+      ],
+      "source_paths": ["src/cli/command-vocabulary.ts"]
+    },
+    {
+      "id": "command:runs",
+      "kind": "cli-command",
+      "state": "active",
+      "origin": "derived",
+      "reach": [
+        {
+          "channel": "cli",
+          "access": "direct"
+        }
+      ],
+      "source_paths": ["src/cli/command-vocabulary.ts"]
+    },
+    {
+      "id": "command:uninstall",
+      "kind": "cli-command",
+      "state": "active",
+      "origin": "derived",
+      "reach": [
+        {
+          "channel": "cli",
+          "access": "direct"
+        }
+      ],
+      "source_paths": ["src/cli/command-vocabulary.ts"]
+    },
+    {
+      "id": "command:version",
+      "kind": "cli-command",
+      "state": "active",
+      "origin": "derived",
+      "reach": [
+        {
+          "channel": "cli",
+          "access": "direct"
+        }
+      ],
+      "source_paths": ["src/cli/command-vocabulary.ts"]
+    },
+    {
+      "id": "flag:--autonomous",
+      "kind": "cli-flag",
+      "state": "active",
+      "origin": "derived",
+      "reach": [
+        {
+          "channel": "cli",
+          "access": "direct"
+        }
+      ],
+      "source_paths": ["src/cli/run-flag-vocabulary.ts"]
+    },
+    {
+      "id": "flag:--checkpoint-choice",
+      "kind": "cli-flag",
+      "state": "active",
+      "origin": "derived",
+      "reach": [
+        {
+          "channel": "cli",
+          "access": "direct"
+        }
+      ],
+      "source_paths": ["src/cli/run-flag-vocabulary.ts"]
+    },
+    {
+      "id": "flag:--checkpoint-response",
+      "kind": "cli-flag",
+      "state": "active",
+      "origin": "derived",
+      "reach": [
+        {
+          "channel": "cli",
+          "access": "direct"
+        }
+      ],
+      "source_paths": ["src/cli/run-flag-vocabulary.ts"]
+    },
+    {
+      "id": "flag:--checkpoint-response-file",
+      "kind": "cli-flag",
+      "state": "active",
+      "origin": "derived",
+      "reach": [
+        {
+          "channel": "cli",
+          "access": "direct"
+        }
+      ],
+      "source_paths": ["src/cli/run-flag-vocabulary.ts"]
+    },
+    {
+      "id": "flag:--checkpoint-review",
+      "kind": "cli-flag",
+      "state": "active",
+      "origin": "derived",
+      "reach": [
+        {
+          "channel": "cli",
+          "access": "direct"
+        }
+      ],
+      "source_paths": ["src/cli/run-flag-vocabulary.ts"]
+    },
+    {
+      "id": "flag:--dry-run",
+      "kind": "cli-flag",
+      "state": "dormant",
+      "origin": "derived",
+      "reach": [
+        {
+          "channel": "internal",
+          "access": "direct"
+        }
+      ],
+      "source_paths": ["src/cli/run-flag-vocabulary.ts"]
+    },
+    {
+      "id": "flag:--fixture",
+      "kind": "cli-flag",
+      "state": "active",
+      "origin": "derived",
+      "reach": [
+        {
+          "channel": "cli",
+          "access": "direct"
+        }
+      ],
+      "source_paths": ["src/cli/run-flag-vocabulary.ts"]
+    },
+    {
+      "id": "flag:--flow-root",
+      "kind": "cli-flag",
+      "state": "active",
+      "origin": "derived",
+      "reach": [
+        {
+          "channel": "cli",
+          "access": "direct"
+        }
+      ],
+      "source_paths": ["src/cli/run-flag-vocabulary.ts"]
+    },
+    {
+      "id": "flag:--goal",
+      "kind": "cli-flag",
+      "state": "active",
+      "origin": "derived",
+      "reach": [
+        {
+          "channel": "cli",
+          "access": "direct"
+        }
+      ],
+      "source_paths": ["src/cli/run-flag-vocabulary.ts"]
+    },
+    {
+      "id": "flag:--include-untracked-content",
+      "kind": "cli-flag",
+      "state": "active",
+      "origin": "derived",
+      "reach": [
+        {
+          "channel": "cli",
+          "access": "direct"
+        }
+      ],
+      "source_paths": ["src/cli/run-flag-vocabulary.ts"]
+    },
+    {
+      "id": "flag:--power",
+      "kind": "cli-flag",
+      "state": "active",
+      "origin": "derived",
+      "reach": [
+        {
+          "channel": "cli",
+          "access": "direct"
+        }
+      ],
+      "source_paths": ["src/cli/run-flag-vocabulary.ts"]
+    },
+    {
+      "id": "flag:--process",
+      "kind": "cli-flag",
+      "state": "active",
+      "origin": "derived",
+      "reach": [
+        {
+          "channel": "cli",
+          "access": "direct"
+        }
+      ],
+      "source_paths": ["src/cli/run-flag-vocabulary.ts"]
+    },
+    {
+      "id": "flag:--progress",
+      "kind": "cli-flag",
+      "state": "active",
+      "origin": "derived",
+      "reach": [
+        {
+          "channel": "cli",
+          "access": "direct"
+        }
+      ],
+      "source_paths": ["src/cli/run-flag-vocabulary.ts"]
+    },
+    {
+      "id": "flag:--reuse-children-from",
+      "kind": "cli-flag",
+      "state": "active",
+      "origin": "derived",
+      "reach": [
+        {
+          "channel": "cli",
+          "access": "direct"
+        }
+      ],
+      "source_paths": ["src/cli/run-flag-vocabulary.ts"]
+    },
+    {
+      "id": "flag:--run-folder",
+      "kind": "cli-flag",
+      "state": "active",
+      "origin": "derived",
+      "reach": [
+        {
+          "channel": "cli",
+          "access": "direct"
+        }
+      ],
+      "source_paths": ["src/cli/run-flag-vocabulary.ts"]
+    },
+    {
+      "id": "flag:--target",
+      "kind": "cli-flag",
+      "state": "active",
+      "origin": "derived",
+      "reach": [
+        {
+          "channel": "cli",
+          "access": "direct"
+        }
+      ],
+      "source_paths": ["src/cli/run-flag-vocabulary.ts"]
+    },
+    {
+      "id": "flag:--tournament",
+      "kind": "cli-flag",
+      "state": "active",
+      "origin": "derived",
+      "reach": [
+        {
+          "channel": "cli",
+          "access": "direct"
+        }
+      ],
+      "source_paths": ["src/cli/run-flag-vocabulary.ts"]
+    },
+    {
+      "id": "flag:--why",
+      "kind": "cli-flag",
+      "state": "active",
+      "origin": "derived",
+      "reach": [
+        {
+          "channel": "cli",
+          "access": "direct"
+        }
+      ],
+      "source_paths": ["src/cli/run-flag-vocabulary.ts"]
+    },
+    {
+      "id": "front-door:cli:bare",
+      "kind": "cli-front-door",
+      "state": "active",
+      "origin": "declared",
+      "reach": [
+        {
+          "channel": "cli",
+          "access": "direct"
+        }
+      ],
+      "source_paths": [
+        "src/cli/circuit.ts",
+        "src/cli/front-door.ts",
+        "src/cli/interactive/index.ts"
+      ]
+    },
+    {
+      "id": "front-door:cli:help",
+      "kind": "cli-front-door",
+      "state": "active",
+      "origin": "declared",
+      "reach": [
+        {
+          "channel": "cli",
+          "access": "direct"
+        }
+      ],
+      "source_paths": ["src/cli/circuit.ts", "src/cli/help.ts"]
+    },
+    {
+      "id": "subcommand:config:set",
+      "kind": "cli-subcommand",
+      "state": "active",
+      "origin": "derived",
+      "reach": [
+        {
+          "channel": "cli",
+          "access": "direct"
+        }
+      ],
+      "source_paths": ["src/cli/config-command.ts"]
+    },
+    {
+      "id": "subcommand:config:show",
+      "kind": "cli-subcommand",
+      "state": "active",
+      "origin": "derived",
+      "reach": [
+        {
+          "channel": "cli",
+          "access": "direct"
+        }
+      ],
+      "source_paths": ["src/cli/config-command.ts"]
+    },
+    {
+      "id": "subcommand:config:unset",
+      "kind": "cli-subcommand",
+      "state": "active",
+      "origin": "derived",
+      "reach": [
+        {
+          "channel": "cli",
+          "access": "direct"
+        }
+      ],
+      "source_paths": ["src/cli/config-command.ts"]
+    },
+    {
+      "id": "subcommand:handoff:brief",
+      "kind": "cli-subcommand",
+      "state": "active",
+      "origin": "derived",
+      "reach": [
+        {
+          "channel": "internal",
+          "access": "direct"
+        }
+      ],
+      "source_paths": ["src/cli/handoff.ts"]
+    },
+    {
+      "id": "subcommand:handoff:done",
+      "kind": "cli-subcommand",
+      "state": "active",
+      "origin": "derived",
+      "reach": [
+        {
+          "channel": "cli",
+          "access": "direct"
+        }
+      ],
+      "source_paths": ["src/cli/handoff.ts"]
+    },
+    {
+      "id": "subcommand:handoff:harvest",
+      "kind": "cli-subcommand",
+      "state": "active",
+      "origin": "derived",
+      "reach": [
+        {
+          "channel": "internal",
+          "access": "direct"
+        }
+      ],
+      "source_paths": ["src/cli/handoff.ts"]
+    },
+    {
+      "id": "subcommand:handoff:hook",
+      "kind": "cli-subcommand",
+      "state": "active",
+      "origin": "derived",
+      "reach": [
+        {
+          "channel": "internal",
+          "access": "direct"
+        }
+      ],
+      "source_paths": ["src/cli/handoff.ts"]
+    },
+    {
+      "id": "subcommand:handoff:hooks:doctor",
+      "kind": "cli-subcommand",
+      "state": "active",
+      "origin": "derived",
+      "reach": [
+        {
+          "channel": "cli",
+          "access": "direct"
+        }
+      ],
+      "source_paths": ["src/cli/handoff.ts"]
+    },
+    {
+      "id": "subcommand:handoff:hooks:install",
+      "kind": "cli-subcommand",
+      "state": "active",
+      "origin": "derived",
+      "reach": [
+        {
+          "channel": "cli",
+          "access": "direct"
+        }
+      ],
+      "source_paths": ["src/cli/handoff.ts"]
+    },
+    {
+      "id": "subcommand:handoff:hooks:uninstall",
+      "kind": "cli-subcommand",
+      "state": "active",
+      "origin": "derived",
+      "reach": [
+        {
+          "channel": "cli",
+          "access": "direct"
+        }
+      ],
+      "source_paths": ["src/cli/handoff.ts"]
+    },
+    {
+      "id": "subcommand:handoff:resume",
+      "kind": "cli-subcommand",
+      "state": "active",
+      "origin": "derived",
+      "reach": [
+        {
+          "channel": "cli",
+          "access": "direct"
+        }
+      ],
+      "source_paths": ["src/cli/handoff.ts"]
+    },
+    {
+      "id": "subcommand:handoff:save",
+      "kind": "cli-subcommand",
+      "state": "active",
+      "origin": "derived",
+      "reach": [
+        {
+          "channel": "cli",
+          "access": "direct"
+        }
+      ],
+      "source_paths": ["src/cli/handoff.ts"]
+    },
+    {
+      "id": "subcommand:history:memory-effect",
+      "kind": "cli-subcommand",
+      "state": "active",
+      "origin": "derived",
+      "reach": [
+        {
+          "channel": "cli",
+          "access": "direct"
+        }
+      ],
+      "source_paths": ["src/cli/history.ts"]
+    },
+    {
+      "id": "subcommand:history:memory-merge",
+      "kind": "cli-subcommand",
+      "state": "active",
+      "origin": "derived",
+      "reach": [
+        {
+          "channel": "cli",
+          "access": "direct"
+        }
+      ],
+      "source_paths": ["src/cli/history.ts"]
+    },
+    {
+      "id": "subcommand:history:pull",
+      "kind": "cli-subcommand",
+      "state": "active",
+      "origin": "derived",
+      "reach": [
+        {
+          "channel": "cli",
+          "access": "direct"
+        }
+      ],
+      "source_paths": ["src/cli/history.ts"]
+    },
+    {
+      "id": "subcommand:history:query",
+      "kind": "cli-subcommand",
+      "state": "active",
+      "origin": "derived",
+      "reach": [
+        {
+          "channel": "cli",
+          "access": "direct"
+        }
+      ],
+      "source_paths": ["src/cli/history.ts"]
+    },
+    {
+      "id": "subcommand:history:rebuild",
+      "kind": "cli-subcommand",
+      "state": "active",
+      "origin": "derived",
+      "reach": [
+        {
+          "channel": "cli",
+          "access": "direct"
+        }
+      ],
+      "source_paths": ["src/cli/history.ts"]
+    },
+    {
+      "id": "subcommand:history:status",
+      "kind": "cli-subcommand",
+      "state": "active",
+      "origin": "derived",
+      "reach": [
+        {
+          "channel": "cli",
+          "access": "direct"
+        }
+      ],
+      "source_paths": ["src/cli/history.ts"]
+    },
+    {
+      "id": "subcommand:memory:forget",
+      "kind": "cli-subcommand",
+      "state": "active",
+      "origin": "derived",
+      "reach": [
+        {
+          "channel": "cli",
+          "access": "direct"
+        }
+      ],
+      "source_paths": ["src/cli/memory.ts"]
+    },
+    {
+      "id": "subcommand:memory:list",
+      "kind": "cli-subcommand",
+      "state": "active",
+      "origin": "derived",
+      "reach": [
+        {
+          "channel": "cli",
+          "access": "direct"
+        }
+      ],
+      "source_paths": ["src/cli/memory.ts"]
+    },
+    {
+      "id": "subcommand:memory:note",
+      "kind": "cli-subcommand",
+      "state": "active",
+      "origin": "derived",
+      "reach": [
+        {
+          "channel": "cli",
+          "access": "direct"
+        }
+      ],
+      "source_paths": ["src/cli/memory.ts"]
+    },
+    {
+      "id": "subcommand:runs:show",
+      "kind": "cli-subcommand",
+      "state": "active",
+      "origin": "derived",
+      "reach": [
+        {
+          "channel": "cli",
+          "access": "direct"
+        }
+      ],
+      "source_paths": ["src/cli/runs.ts"]
+    },
+    {
+      "id": "config-key:defaults",
+      "kind": "config-key",
+      "state": "active",
+      "origin": "derived",
+      "reach": [
+        {
+          "channel": "cli",
+          "access": "direct"
+        }
+      ],
+      "source_paths": ["src/schemas/config.ts"]
+    },
+    {
+      "id": "config-key:flows",
+      "kind": "config-key",
+      "state": "active",
+      "origin": "derived",
+      "reach": [
+        {
+          "channel": "cli",
+          "access": "direct"
+        }
+      ],
+      "source_paths": ["src/schemas/config.ts"]
+    },
+    {
+      "id": "config-key:host",
+      "kind": "config-key",
+      "state": "active",
+      "origin": "derived",
+      "reach": [
+        {
+          "channel": "cli",
+          "access": "direct"
+        }
+      ],
+      "source_paths": ["src/schemas/config.ts"]
+    },
+    {
+      "id": "config-key:power_auto",
+      "kind": "config-key",
+      "state": "active",
+      "origin": "derived",
+      "reach": [
+        {
+          "channel": "cli",
+          "access": "direct"
+        }
+      ],
+      "source_paths": ["src/schemas/config.ts"]
+    },
+    {
+      "id": "config-key:power_tiers",
+      "kind": "config-key",
+      "state": "active",
+      "origin": "derived",
+      "reach": [
+        {
+          "channel": "cli",
+          "access": "direct"
+        }
+      ],
+      "source_paths": ["src/schemas/config.ts"]
+    },
+    {
+      "id": "config-key:project_id",
+      "kind": "config-key",
+      "state": "active",
+      "origin": "derived",
+      "reach": [
+        {
+          "channel": "cli",
+          "access": "direct"
+        }
+      ],
+      "source_paths": ["src/schemas/config.ts"]
+    },
+    {
+      "id": "config-key:relay",
+      "kind": "config-key",
+      "state": "active",
+      "origin": "derived",
+      "reach": [
+        {
+          "channel": "cli",
+          "access": "direct"
+        }
+      ],
+      "source_paths": ["src/schemas/config.ts"]
+    },
+    {
+      "id": "config-key:schema_version",
+      "kind": "config-key",
+      "state": "active",
+      "origin": "derived",
+      "reach": [
+        {
+          "channel": "internal",
+          "access": "direct"
+        }
+      ],
+      "source_paths": ["src/schemas/config.ts"]
+    },
+    {
+      "id": "config-key:skill_hooks",
+      "kind": "config-key",
+      "state": "active",
+      "origin": "derived",
+      "reach": [
+        {
+          "channel": "cli",
+          "access": "direct"
+        }
+      ],
+      "source_paths": ["src/schemas/config.ts"]
+    },
+    {
+      "id": "config-key:skills",
+      "kind": "config-key",
+      "state": "active",
+      "origin": "derived",
+      "reach": [
+        {
+          "channel": "cli",
+          "access": "direct"
+        }
+      ],
+      "source_paths": ["src/schemas/config.ts"]
+    },
+    {
+      "id": "config-key:verification",
+      "kind": "config-key",
+      "state": "active",
+      "origin": "derived",
+      "reach": [
+        {
+          "channel": "cli",
+          "access": "direct"
+        }
+      ],
+      "source_paths": ["src/schemas/config.ts"]
+    },
+    {
+      "id": "connector:claude-code",
+      "kind": "connector",
+      "state": "active",
+      "origin": "derived",
+      "reach": [
+        {
+          "channel": "cli",
+          "access": "direct"
+        },
+        {
+          "channel": "host-command",
+          "host": "claude",
+          "access": "install-gated"
+        },
+        {
+          "channel": "mcp",
+          "host": "codex",
+          "access": "install-gated"
+        }
+      ],
+      "source_paths": ["src/schemas/connector.ts"]
+    },
+    {
+      "id": "connector:codex",
+      "kind": "connector",
+      "state": "active",
+      "origin": "derived",
+      "reach": [
+        {
+          "channel": "cli",
+          "access": "direct"
+        },
+        {
+          "channel": "host-command",
+          "host": "claude",
+          "access": "install-gated"
+        },
+        {
+          "channel": "mcp",
+          "host": "codex",
+          "access": "install-gated"
+        }
+      ],
+      "source_paths": ["src/schemas/connector.ts"]
+    },
+    {
+      "id": "connector:cursor-agent",
+      "kind": "connector",
+      "state": "active",
+      "origin": "derived",
+      "reach": [
+        {
+          "channel": "cli",
+          "access": "direct"
+        },
+        {
+          "channel": "host-command",
+          "host": "claude",
+          "access": "install-gated"
+        },
+        {
+          "channel": "mcp",
+          "host": "codex",
+          "access": "install-gated"
+        }
+      ],
+      "source_paths": ["src/schemas/connector.ts"]
+    },
+    {
+      "id": "connector:custom",
+      "kind": "connector",
+      "state": "active",
+      "origin": "derived",
+      "reach": [
+        {
+          "channel": "cli",
+          "access": "direct"
+        },
+        {
+          "channel": "host-command",
+          "host": "claude",
+          "access": "install-gated"
+        },
+        {
+          "channel": "mcp",
+          "host": "codex",
+          "access": "install-gated"
+        }
+      ],
+      "source_paths": ["src/schemas/connector.ts"]
+    },
+    {
+      "id": "flow:build",
+      "kind": "flow",
+      "state": "active",
+      "origin": "derived",
+      "reach": [
+        {
+          "channel": "cli",
+          "access": "direct"
+        },
+        {
+          "channel": "host-command",
+          "host": "claude",
+          "access": "install-gated"
+        },
+        {
+          "channel": "mcp",
+          "host": "codex",
+          "access": "install-gated"
+        }
+      ],
+      "source_paths": ["generated/flows/build/circuit.json", "src/flows/build/data.ts"]
+    },
+    {
+      "id": "flow:converge-proof",
+      "kind": "flow",
+      "state": "active",
+      "origin": "derived",
+      "reach": [
+        {
+          "channel": "internal",
+          "access": "direct"
+        }
+      ],
+      "source_paths": [
+        "generated/flows/converge-proof/circuit.json",
+        "src/flows/converge-proof/data.ts"
+      ]
+    },
+    {
+      "id": "flow:cross-tool-build",
+      "kind": "flow",
+      "state": "active",
+      "origin": "derived",
+      "reach": [
+        {
+          "channel": "internal",
+          "access": "direct"
+        }
+      ],
+      "source_paths": [
+        "generated/flows/cross-tool-build/circuit.json",
+        "src/flows/cross-tool-build/data.ts"
+      ]
+    },
+    {
+      "id": "flow:explainer",
+      "kind": "flow",
+      "state": "active",
+      "origin": "derived",
+      "reach": [
+        {
+          "channel": "internal",
+          "access": "direct"
+        }
+      ],
+      "source_paths": ["generated/flows/explainer/circuit.json", "src/flows/explainer/data.ts"]
+    },
+    {
+      "id": "flow:explore",
+      "kind": "flow",
+      "state": "active",
+      "origin": "derived",
+      "reach": [
+        {
+          "channel": "cli",
+          "access": "direct"
+        },
+        {
+          "channel": "host-command",
+          "host": "claude",
+          "access": "install-gated"
+        },
+        {
+          "channel": "mcp",
+          "host": "codex",
+          "access": "install-gated"
+        }
+      ],
+      "source_paths": ["generated/flows/explore/circuit.json", "src/flows/explore/data.ts"]
+    },
+    {
+      "id": "flow:fix",
+      "kind": "flow",
+      "state": "active",
+      "origin": "derived",
+      "reach": [
+        {
+          "channel": "cli",
+          "access": "direct"
+        },
+        {
+          "channel": "host-command",
+          "host": "claude",
+          "access": "install-gated"
+        },
+        {
+          "channel": "mcp",
+          "host": "codex",
+          "access": "install-gated"
+        }
+      ],
+      "source_paths": ["generated/flows/fix/circuit.json", "src/flows/fix/data.ts"]
+    },
+    {
+      "id": "flow:fix-until-green",
+      "kind": "flow",
+      "state": "active",
+      "origin": "derived",
+      "reach": [
+        {
+          "channel": "internal",
+          "access": "direct"
+        }
+      ],
+      "source_paths": [
+        "generated/flows/fix-until-green/circuit.json",
+        "src/flows/fix-until-green/data.ts"
+      ]
+    },
+    {
+      "id": "flow:goal",
+      "kind": "flow",
+      "state": "active",
+      "origin": "derived",
+      "reach": [
+        {
+          "channel": "internal",
+          "access": "direct"
+        }
+      ],
+      "source_paths": ["generated/flows/goal/circuit.json", "src/flows/goal/data.ts"]
+    },
+    {
+      "id": "flow:prototype",
+      "kind": "flow",
+      "state": "active",
+      "origin": "derived",
+      "reach": [
+        {
+          "channel": "cli",
+          "access": "direct"
+        },
+        {
+          "channel": "host-command",
+          "host": "claude",
+          "access": "install-gated"
+        },
+        {
+          "channel": "mcp",
+          "host": "codex",
+          "access": "install-gated"
+        }
+      ],
+      "source_paths": ["generated/flows/prototype/circuit.json", "src/flows/prototype/data.ts"]
+    },
+    {
+      "id": "flow:pursue",
+      "kind": "flow",
+      "state": "active",
+      "origin": "derived",
+      "reach": [
+        {
+          "channel": "internal",
+          "access": "direct"
+        }
+      ],
+      "source_paths": ["generated/flows/pursue/circuit.json", "src/flows/pursue/data.ts"]
+    },
+    {
+      "id": "flow:review",
+      "kind": "flow",
+      "state": "active",
+      "origin": "derived",
+      "reach": [
+        {
+          "channel": "cli",
+          "access": "direct"
+        },
+        {
+          "channel": "host-command",
+          "host": "claude",
+          "access": "install-gated"
+        },
+        {
+          "channel": "mcp",
+          "host": "codex",
+          "access": "install-gated"
+        }
+      ],
+      "source_paths": ["generated/flows/review/circuit.json", "src/flows/review/data.ts"]
+    },
+    {
+      "id": "flow:runtime-proof",
+      "kind": "flow",
+      "state": "active",
+      "origin": "derived",
+      "reach": [
+        {
+          "channel": "internal",
+          "access": "direct"
+        }
+      ],
+      "source_paths": [
+        "generated/flows/runtime-proof/circuit.json",
+        "src/flows/runtime-proof/data.ts"
+      ]
+    },
+    {
+      "id": "flow:sweep",
+      "kind": "flow",
+      "state": "active",
+      "origin": "derived",
+      "reach": [
+        {
+          "channel": "internal",
+          "access": "direct"
+        }
+      ],
+      "source_paths": ["generated/flows/sweep/circuit.json", "src/flows/sweep/data.ts"]
+    },
+    {
+      "id": "host-catalog:codex:flows",
+      "kind": "host-catalog",
+      "state": "active",
+      "origin": "derived",
+      "reach": [
+        {
+          "channel": "host-skill",
+          "host": "codex",
+          "access": "install-gated"
+        }
+      ],
+      "source_paths": ["plugins/codex/flows/catalog.json"]
+    },
+    {
+      "id": "host-command:claude:handoff",
+      "kind": "host-command",
+      "state": "active",
+      "origin": "derived",
+      "reach": [
+        {
+          "channel": "host-command",
+          "host": "claude",
+          "access": "install-gated"
+        }
+      ],
+      "source_paths": ["plugins/claude/commands/handoff.md"]
+    },
+    {
+      "id": "host-command:claude:run",
+      "kind": "host-command",
+      "state": "active",
+      "origin": "derived",
+      "reach": [
+        {
+          "channel": "host-command",
+          "host": "claude",
+          "access": "install-gated"
+        }
+      ],
+      "source_paths": ["plugins/claude/commands/run.md"]
+    },
+    {
+      "id": "host-command:codex:handoff",
+      "kind": "host-command",
+      "state": "active",
+      "origin": "derived",
+      "reach": [
+        {
+          "channel": "internal",
+          "access": "direct"
+        }
+      ],
+      "source_paths": ["plugins/codex/commands/handoff.md"]
+    },
+    {
+      "id": "host-command:codex:run",
+      "kind": "host-command",
+      "state": "active",
+      "origin": "derived",
+      "reach": [
+        {
+          "channel": "internal",
+          "access": "direct"
+        }
+      ],
+      "source_paths": ["plugins/codex/commands/run.md"]
+    },
+    {
+      "id": "host-flow:claude:build/circuit",
+      "kind": "host-flow",
+      "state": "active",
+      "origin": "derived",
+      "reach": [
+        {
+          "channel": "host-command",
+          "host": "claude",
+          "access": "install-gated"
+        }
+      ],
+      "source_paths": ["plugins/claude/skills/build/circuit.json"]
+    },
+    {
+      "id": "host-flow:claude:explore/circuit",
+      "kind": "host-flow",
+      "state": "active",
+      "origin": "derived",
+      "reach": [
+        {
+          "channel": "host-command",
+          "host": "claude",
+          "access": "install-gated"
+        }
+      ],
+      "source_paths": ["plugins/claude/skills/explore/circuit.json"]
+    },
+    {
+      "id": "host-flow:claude:explore/tournament",
+      "kind": "host-flow",
+      "state": "active",
+      "origin": "derived",
+      "reach": [
+        {
+          "channel": "host-command",
+          "host": "claude",
+          "access": "install-gated"
+        }
+      ],
+      "source_paths": ["plugins/claude/skills/explore/tournament.json"]
+    },
+    {
+      "id": "host-flow:claude:fix/circuit",
+      "kind": "host-flow",
+      "state": "active",
+      "origin": "derived",
+      "reach": [
+        {
+          "channel": "host-command",
+          "host": "claude",
+          "access": "install-gated"
+        }
+      ],
+      "source_paths": ["plugins/claude/skills/fix/circuit.json"]
+    },
+    {
+      "id": "host-flow:claude:fix/low",
+      "kind": "host-flow",
+      "state": "active",
+      "origin": "derived",
+      "reach": [
+        {
+          "channel": "host-command",
+          "host": "claude",
+          "access": "install-gated"
+        }
+      ],
+      "source_paths": ["plugins/claude/skills/fix/low.json"]
+    },
+    {
+      "id": "host-flow:claude:prototype/circuit",
+      "kind": "host-flow",
+      "state": "active",
+      "origin": "derived",
+      "reach": [
+        {
+          "channel": "host-command",
+          "host": "claude",
+          "access": "install-gated"
+        }
+      ],
+      "source_paths": ["plugins/claude/skills/prototype/circuit.json"]
+    },
+    {
+      "id": "host-flow:claude:prototype/tournament",
+      "kind": "host-flow",
+      "state": "active",
+      "origin": "derived",
+      "reach": [
+        {
+          "channel": "host-command",
+          "host": "claude",
+          "access": "install-gated"
+        }
+      ],
+      "source_paths": ["plugins/claude/skills/prototype/tournament.json"]
+    },
+    {
+      "id": "host-flow:claude:review/circuit",
+      "kind": "host-flow",
+      "state": "active",
+      "origin": "derived",
+      "reach": [
+        {
+          "channel": "host-command",
+          "host": "claude",
+          "access": "install-gated"
+        }
+      ],
+      "source_paths": ["plugins/claude/skills/review/circuit.json"]
+    },
+    {
+      "id": "host-flow:codex:build/circuit",
+      "kind": "host-flow",
+      "state": "active",
+      "origin": "derived",
+      "reach": [
+        {
+          "channel": "mcp",
+          "host": "codex",
+          "access": "install-gated"
+        }
+      ],
+      "source_paths": ["plugins/codex/flows/build/circuit.json"]
+    },
+    {
+      "id": "host-flow:codex:explore/circuit",
+      "kind": "host-flow",
+      "state": "active",
+      "origin": "derived",
+      "reach": [
+        {
+          "channel": "mcp",
+          "host": "codex",
+          "access": "install-gated"
+        }
+      ],
+      "source_paths": ["plugins/codex/flows/explore/circuit.json"]
+    },
+    {
+      "id": "host-flow:codex:explore/tournament",
+      "kind": "host-flow",
+      "state": "active",
+      "origin": "derived",
+      "reach": [
+        {
+          "channel": "mcp",
+          "host": "codex",
+          "access": "install-gated"
+        }
+      ],
+      "source_paths": ["plugins/codex/flows/explore/tournament.json"]
+    },
+    {
+      "id": "host-flow:codex:fix/circuit",
+      "kind": "host-flow",
+      "state": "active",
+      "origin": "derived",
+      "reach": [
+        {
+          "channel": "mcp",
+          "host": "codex",
+          "access": "install-gated"
+        }
+      ],
+      "source_paths": ["plugins/codex/flows/fix/circuit.json"]
+    },
+    {
+      "id": "host-flow:codex:fix/low",
+      "kind": "host-flow",
+      "state": "active",
+      "origin": "derived",
+      "reach": [
+        {
+          "channel": "mcp",
+          "host": "codex",
+          "access": "install-gated"
+        }
+      ],
+      "source_paths": ["plugins/codex/flows/fix/low.json"]
+    },
+    {
+      "id": "host-flow:codex:prototype/circuit",
+      "kind": "host-flow",
+      "state": "active",
+      "origin": "derived",
+      "reach": [
+        {
+          "channel": "mcp",
+          "host": "codex",
+          "access": "install-gated"
+        }
+      ],
+      "source_paths": ["plugins/codex/flows/prototype/circuit.json"]
+    },
+    {
+      "id": "host-flow:codex:prototype/tournament",
+      "kind": "host-flow",
+      "state": "active",
+      "origin": "derived",
+      "reach": [
+        {
+          "channel": "mcp",
+          "host": "codex",
+          "access": "install-gated"
+        }
+      ],
+      "source_paths": ["plugins/codex/flows/prototype/tournament.json"]
+    },
+    {
+      "id": "host-flow:codex:review/circuit",
+      "kind": "host-flow",
+      "state": "active",
+      "origin": "derived",
+      "reach": [
+        {
+          "channel": "mcp",
+          "host": "codex",
+          "access": "install-gated"
+        }
+      ],
+      "source_paths": ["plugins/codex/flows/review/circuit.json"]
+    },
+    {
+      "id": "host-hook:claude:PreCompact",
+      "kind": "host-hook",
+      "state": "active",
+      "origin": "derived",
+      "reach": [
+        {
+          "channel": "host-hook",
+          "host": "claude",
+          "access": "automatic"
+        }
+      ],
+      "source_paths": ["plugins/claude/hooks/hooks.json"]
+    },
+    {
+      "id": "host-hook:claude:SessionEnd",
+      "kind": "host-hook",
+      "state": "active",
+      "origin": "derived",
+      "reach": [
+        {
+          "channel": "host-hook",
+          "host": "claude",
+          "access": "automatic"
+        }
+      ],
+      "source_paths": ["plugins/claude/hooks/hooks.json"]
+    },
+    {
+      "id": "host-hook:claude:SessionStart",
+      "kind": "host-hook",
+      "state": "active",
+      "origin": "derived",
+      "reach": [
+        {
+          "channel": "host-hook",
+          "host": "claude",
+          "access": "automatic"
+        }
+      ],
+      "source_paths": ["plugins/claude/hooks/hooks.json"]
+    },
+    {
+      "id": "host-hook:claude:Stop",
+      "kind": "host-hook",
+      "state": "active",
+      "origin": "derived",
+      "reach": [
+        {
+          "channel": "host-hook",
+          "host": "claude",
+          "access": "automatic"
+        }
+      ],
+      "source_paths": ["plugins/claude/hooks/hooks.json"]
+    },
+    {
+      "id": "host-hook:codex:session-start",
+      "kind": "host-hook",
+      "state": "active",
+      "origin": "derived",
+      "reach": [
+        {
+          "channel": "host-hook",
+          "host": "codex",
+          "access": "install-gated"
+        }
+      ],
+      "source_paths": ["plugins/codex/hooks/session-start.ts", "src/cli/handoff-codex-hooks.ts"]
+    },
+    {
+      "id": "host:claude-code",
+      "kind": "host-kind",
+      "state": "active",
+      "origin": "derived",
+      "reach": [
+        {
+          "channel": "host-command",
+          "host": "claude",
+          "access": "install-gated"
+        }
+      ],
+      "source_paths": ["src/schemas/host.ts"]
+    },
+    {
+      "id": "host:codex",
+      "kind": "host-kind",
+      "state": "active",
+      "origin": "derived",
+      "reach": [
+        {
+          "channel": "mcp",
+          "host": "codex",
+          "access": "install-gated"
+        }
+      ],
+      "source_paths": ["src/schemas/host.ts"]
+    },
+    {
+      "id": "host:generic-shell",
+      "kind": "host-kind",
+      "state": "active",
+      "origin": "derived",
+      "reach": [
+        {
+          "channel": "cli",
+          "access": "direct"
+        }
+      ],
+      "source_paths": ["src/schemas/host.ts"]
+    },
+    {
+      "id": "host-skill:codex:handoff",
+      "kind": "host-skill",
+      "state": "active",
+      "origin": "derived",
+      "reach": [
+        {
+          "channel": "host-skill",
+          "host": "codex",
+          "access": "install-gated"
+        }
+      ],
+      "source_paths": ["plugins/codex/skills/handoff/SKILL.md"]
+    },
+    {
+      "id": "host-skill:codex:run",
+      "kind": "host-skill",
+      "state": "active",
+      "origin": "derived",
+      "reach": [
+        {
+          "channel": "host-skill",
+          "host": "codex",
+          "access": "install-gated"
+        }
+      ],
+      "source_paths": ["plugins/codex/skills/run/SKILL.md"]
+    },
+    {
+      "id": "install:claude-plugin",
+      "kind": "install-path",
+      "state": "active",
+      "origin": "declared",
+      "reach": [
+        {
+          "channel": "install",
+          "host": "claude",
+          "access": "direct"
+        }
+      ],
+      "source_paths": ["README.md", "plugins/claude/.claude-plugin/plugin.json"]
+    },
+    {
+      "id": "install:codex-plugin",
+      "kind": "install-path",
+      "state": "active",
+      "origin": "declared",
+      "reach": [
+        {
+          "channel": "install",
+          "host": "codex",
+          "access": "direct"
+        }
+      ],
+      "source_paths": ["README.md", "plugins/codex/.codex-plugin/plugin.json"]
+    },
+    {
+      "id": "install:local-cli",
+      "kind": "install-path",
+      "state": "active",
+      "origin": "declared",
+      "reach": [
+        {
+          "channel": "install",
+          "access": "direct"
+        }
+      ],
+      "source_paths": ["README.md", "package.json"]
+    },
+    {
+      "id": "mcp-tool:circuit_cancel",
+      "kind": "mcp-tool",
+      "state": "active",
+      "origin": "derived",
+      "reach": [
+        {
+          "channel": "mcp",
+          "host": "codex",
+          "access": "install-gated"
+        }
+      ],
+      "source_paths": ["plugins/codex/.mcp.json", "src/hosts/codex-mcp/contracts.ts"]
+    },
+    {
+      "id": "mcp-tool:circuit_list",
+      "kind": "mcp-tool",
+      "state": "active",
+      "origin": "derived",
+      "reach": [
+        {
+          "channel": "mcp",
+          "host": "codex",
+          "access": "install-gated"
+        }
+      ],
+      "source_paths": ["plugins/codex/.mcp.json", "src/hosts/codex-mcp/contracts.ts"]
+    },
+    {
+      "id": "mcp-tool:circuit_recover",
+      "kind": "mcp-tool",
+      "state": "active",
+      "origin": "derived",
+      "reach": [
+        {
+          "channel": "mcp",
+          "host": "codex",
+          "access": "install-gated"
+        }
+      ],
+      "source_paths": ["plugins/codex/.mcp.json", "src/hosts/codex-mcp/contracts.ts"]
+    },
+    {
+      "id": "mcp-tool:circuit_resume",
+      "kind": "mcp-tool",
+      "state": "active",
+      "origin": "derived",
+      "reach": [
+        {
+          "channel": "mcp",
+          "host": "codex",
+          "access": "install-gated"
+        }
+      ],
+      "source_paths": ["plugins/codex/.mcp.json", "src/hosts/codex-mcp/contracts.ts"]
+    },
+    {
+      "id": "mcp-tool:circuit_start",
+      "kind": "mcp-tool",
+      "state": "active",
+      "origin": "derived",
+      "reach": [
+        {
+          "channel": "mcp",
+          "host": "codex",
+          "access": "install-gated"
+        }
+      ],
+      "source_paths": ["plugins/codex/.mcp.json", "src/hosts/codex-mcp/contracts.ts"]
+    },
+    {
+      "id": "mcp-tool:circuit_status",
+      "kind": "mcp-tool",
+      "state": "active",
+      "origin": "derived",
+      "reach": [
+        {
+          "channel": "mcp",
+          "host": "codex",
+          "access": "install-gated"
+        }
+      ],
+      "source_paths": ["plugins/codex/.mcp.json", "src/hosts/codex-mcp/contracts.ts"]
+    },
+    {
+      "id": "positioning:isolated-step",
+      "kind": "positioning-claim",
+      "state": "active",
+      "origin": "declared",
+      "reach": [
+        {
+          "channel": "docs",
+          "access": "direct"
+        }
+      ],
+      "source_paths": ["docs/positioning.md"]
+    },
+    {
+      "id": "positioning:mechanical-check",
+      "kind": "positioning-claim",
+      "state": "active",
+      "origin": "declared",
+      "reach": [
+        {
+          "channel": "docs",
+          "access": "direct"
+        }
+      ],
+      "source_paths": ["docs/positioning.md"]
+    },
+    {
+      "id": "positioning:per-step-power-allocation",
+      "kind": "positioning-claim",
+      "state": "active",
+      "origin": "declared",
+      "reach": [
+        {
+          "channel": "docs",
+          "access": "direct"
+        }
+      ],
+      "source_paths": ["docs/positioning.md"]
+    },
+    {
+      "id": "positioning:until-proven",
+      "kind": "positioning-claim",
+      "state": "active",
+      "origin": "declared",
+      "reach": [
+        {
+          "channel": "docs",
+          "access": "direct"
+        },
+        {
+          "channel": "internal",
+          "access": "direct"
+        }
+      ],
+      "source_paths": ["docs/positioning.md"]
+    },
+    {
+      "id": "public-claim:CLAIM-CODEX-MCP-LIFECYCLE",
+      "kind": "public-claim",
+      "state": "active",
+      "origin": "derived",
+      "reach": [
+        {
+          "channel": "docs",
+          "access": "direct"
+        }
+      ],
+      "source_paths": ["docs/release/claims/public-claims.yaml"]
+    },
+    {
+      "id": "public-claim:CLAIM-CODEX-WRITABLE",
+      "kind": "public-claim",
+      "state": "active",
+      "origin": "derived",
+      "reach": [
+        {
+          "channel": "docs",
+          "access": "direct"
+        }
+      ],
+      "source_paths": ["docs/release/claims/public-claims.yaml"]
+    },
+    {
+      "id": "public-claim:CLAIM-CUSTOM-CONNECTOR-PROTOCOL",
+      "kind": "public-claim",
+      "state": "active",
+      "origin": "derived",
+      "reach": [
+        {
+          "channel": "docs",
+          "access": "direct"
+        }
+      ],
+      "source_paths": ["docs/release/claims/public-claims.yaml"]
+    },
+    {
+      "id": "public-claim:CLAIM-FIRST-RUN-DOCTOR",
+      "kind": "public-claim",
+      "state": "active",
+      "origin": "derived",
+      "reach": [
+        {
+          "channel": "docs",
+          "access": "direct"
+        }
+      ],
+      "source_paths": ["docs/release/claims/public-claims.yaml"]
+    },
+    {
+      "id": "public-claim:CLAIM-FIX-CANONICAL",
+      "kind": "public-claim",
+      "state": "active",
+      "origin": "derived",
+      "reach": [
+        {
+          "channel": "docs",
+          "access": "direct"
+        }
+      ],
+      "source_paths": ["docs/release/claims/public-claims.yaml"]
+    },
+    {
+      "id": "public-claim:CLAIM-FLOW-CATALOG-CURRENT",
+      "kind": "public-claim",
+      "state": "active",
+      "origin": "derived",
+      "reach": [
+        {
+          "channel": "docs",
+          "access": "direct"
+        }
+      ],
+      "source_paths": ["docs/release/claims/public-claims.yaml"]
+    },
+    {
+      "id": "public-claim:CLAIM-GOLDEN-PROOF",
+      "kind": "public-claim",
+      "state": "active",
+      "origin": "derived",
+      "reach": [
+        {
+          "channel": "docs",
+          "access": "direct"
+        }
+      ],
+      "source_paths": ["docs/release/claims/public-claims.yaml"]
+    },
+    {
+      "id": "public-claim:CLAIM-REVIEW-EVIDENCE-POLICY",
+      "kind": "public-claim",
+      "state": "active",
+      "origin": "derived",
+      "reach": [
+        {
+          "channel": "docs",
+          "access": "direct"
+        }
+      ],
+      "source_paths": ["docs/release/claims/public-claims.yaml"]
+    },
+    {
+      "id": "public-claim:CLAIM-RICH-ROUTES",
+      "kind": "public-claim",
+      "state": "active",
+      "origin": "derived",
+      "reach": [
+        {
+          "channel": "docs",
+          "access": "direct"
+        }
+      ],
+      "source_paths": ["docs/release/claims/public-claims.yaml"]
+    },
+    {
+      "id": "public-claim:CLAIM-WRITE-CAPABLE-WORKER",
+      "kind": "public-claim",
+      "state": "active",
+      "origin": "derived",
+      "reach": [
+        {
+          "channel": "docs",
+          "access": "direct"
+        }
+      ],
+      "source_paths": ["docs/release/claims/public-claims.yaml"]
+    },
+    {
+      "id": "release-record:capability:command:handoff",
+      "kind": "release-record",
+      "state": "active",
+      "origin": "derived",
+      "reach": [
+        {
+          "channel": "docs",
+          "access": "direct"
+        }
+      ],
+      "source_paths": ["generated/release/current-capabilities.json"]
+    },
+    {
+      "id": "release-record:capability:command:run",
+      "kind": "release-record",
+      "state": "active",
+      "origin": "derived",
+      "reach": [
+        {
+          "channel": "docs",
+          "access": "direct"
+        }
+      ],
+      "source_paths": ["generated/release/current-capabilities.json"]
+    },
+    {
+      "id": "release-record:capability:connector:claude-code",
+      "kind": "release-record",
+      "state": "active",
+      "origin": "derived",
+      "reach": [
+        {
+          "channel": "docs",
+          "access": "direct"
+        }
+      ],
+      "source_paths": ["generated/release/current-capabilities.json"]
+    },
+    {
+      "id": "release-record:capability:connector:codex",
+      "kind": "release-record",
+      "state": "active",
+      "origin": "derived",
+      "reach": [
+        {
+          "channel": "docs",
+          "access": "direct"
+        }
+      ],
+      "source_paths": ["generated/release/current-capabilities.json"]
+    },
+    {
+      "id": "release-record:capability:connector:cursor-agent",
+      "kind": "release-record",
+      "state": "active",
+      "origin": "derived",
+      "reach": [
+        {
+          "channel": "docs",
+          "access": "direct"
+        }
+      ],
+      "source_paths": ["generated/release/current-capabilities.json"]
+    },
+    {
+      "id": "release-record:capability:connector:custom",
+      "kind": "release-record",
+      "state": "active",
+      "origin": "derived",
+      "reach": [
+        {
+          "channel": "docs",
+          "access": "direct"
+        }
+      ],
+      "source_paths": ["generated/release/current-capabilities.json"]
+    },
+    {
+      "id": "release-record:capability:feature:checkpoints",
+      "kind": "release-record",
+      "state": "active",
+      "origin": "derived",
+      "reach": [
+        {
+          "channel": "docs",
+          "access": "direct"
+        }
+      ],
+      "source_paths": ["generated/release/current-capabilities.json"]
+    },
+    {
+      "id": "release-record:capability:feature:continuity",
+      "kind": "release-record",
+      "state": "active",
+      "origin": "derived",
+      "reach": [
+        {
+          "channel": "docs",
+          "access": "direct"
+        }
+      ],
+      "source_paths": ["generated/release/current-capabilities.json"]
+    },
+    {
+      "id": "release-record:capability:flow:build",
+      "kind": "release-record",
+      "state": "active",
+      "origin": "derived",
+      "reach": [
+        {
+          "channel": "docs",
+          "access": "direct"
+        }
+      ],
+      "source_paths": ["generated/release/current-capabilities.json"]
+    },
+    {
+      "id": "release-record:capability:flow:explore",
+      "kind": "release-record",
+      "state": "active",
+      "origin": "derived",
+      "reach": [
+        {
+          "channel": "docs",
+          "access": "direct"
+        }
+      ],
+      "source_paths": ["generated/release/current-capabilities.json"]
+    },
+    {
+      "id": "release-record:capability:flow:fix",
+      "kind": "release-record",
+      "state": "active",
+      "origin": "derived",
+      "reach": [
+        {
+          "channel": "docs",
+          "access": "direct"
+        }
+      ],
+      "source_paths": ["generated/release/current-capabilities.json"]
+    },
+    {
+      "id": "release-record:capability:flow:prototype",
+      "kind": "release-record",
+      "state": "active",
+      "origin": "derived",
+      "reach": [
+        {
+          "channel": "docs",
+          "access": "direct"
+        }
+      ],
+      "source_paths": ["generated/release/current-capabilities.json"]
+    },
+    {
+      "id": "release-record:capability:flow:review",
+      "kind": "release-record",
+      "state": "active",
+      "origin": "derived",
+      "reach": [
+        {
+          "channel": "docs",
+          "access": "direct"
+        }
+      ],
+      "source_paths": ["generated/release/current-capabilities.json"]
+    },
+    {
+      "id": "release-record:capability:host:claude-code-command",
+      "kind": "release-record",
+      "state": "active",
+      "origin": "derived",
+      "reach": [
+        {
+          "channel": "docs",
+          "access": "direct"
+        }
+      ],
+      "source_paths": ["generated/release/current-capabilities.json"]
+    },
+    {
+      "id": "release-record:capability:host:codex-plugin",
+      "kind": "release-record",
+      "state": "active",
+      "origin": "derived",
+      "reach": [
+        {
+          "channel": "docs",
+          "access": "direct"
+        }
+      ],
+      "source_paths": ["generated/release/current-capabilities.json"]
+    },
+    {
+      "id": "release-record:capability:host:generic-shell",
+      "kind": "release-record",
+      "state": "active",
+      "origin": "derived",
+      "reach": [
+        {
+          "channel": "docs",
+          "access": "direct"
+        }
+      ],
+      "source_paths": ["generated/release/current-capabilities.json"]
+    },
+    {
+      "id": "release-record:capability:mode:build:autonomous",
+      "kind": "release-record",
+      "state": "active",
+      "origin": "derived",
+      "reach": [
+        {
+          "channel": "docs",
+          "access": "direct"
+        }
+      ],
+      "source_paths": ["generated/release/current-capabilities.json"]
+    },
+    {
+      "id": "release-record:capability:mode:build:default",
+      "kind": "release-record",
+      "state": "active",
+      "origin": "derived",
+      "reach": [
+        {
+          "channel": "docs",
+          "access": "direct"
+        }
+      ],
+      "source_paths": ["generated/release/current-capabilities.json"]
+    },
+    {
+      "id": "release-record:capability:mode:build:high",
+      "kind": "release-record",
+      "state": "active",
+      "origin": "derived",
+      "reach": [
+        {
+          "channel": "docs",
+          "access": "direct"
+        }
+      ],
+      "source_paths": ["generated/release/current-capabilities.json"]
+    },
+    {
+      "id": "release-record:capability:mode:build:low",
+      "kind": "release-record",
+      "state": "active",
+      "origin": "derived",
+      "reach": [
+        {
+          "channel": "docs",
+          "access": "direct"
+        }
+      ],
+      "source_paths": ["generated/release/current-capabilities.json"]
+    },
+    {
+      "id": "release-record:capability:mode:explore:autonomous",
+      "kind": "release-record",
+      "state": "active",
+      "origin": "derived",
+      "reach": [
+        {
+          "channel": "docs",
+          "access": "direct"
+        }
+      ],
+      "source_paths": ["generated/release/current-capabilities.json"]
+    },
+    {
+      "id": "release-record:capability:mode:explore:default",
+      "kind": "release-record",
+      "state": "active",
+      "origin": "derived",
+      "reach": [
+        {
+          "channel": "docs",
+          "access": "direct"
+        }
+      ],
+      "source_paths": ["generated/release/current-capabilities.json"]
+    },
+    {
+      "id": "release-record:capability:mode:explore:high",
+      "kind": "release-record",
+      "state": "active",
+      "origin": "derived",
+      "reach": [
+        {
+          "channel": "docs",
+          "access": "direct"
+        }
+      ],
+      "source_paths": ["generated/release/current-capabilities.json"]
+    },
+    {
+      "id": "release-record:capability:mode:explore:low",
+      "kind": "release-record",
+      "state": "active",
+      "origin": "derived",
+      "reach": [
+        {
+          "channel": "docs",
+          "access": "direct"
+        }
+      ],
+      "source_paths": ["generated/release/current-capabilities.json"]
+    },
+    {
+      "id": "release-record:capability:mode:explore:tournament",
+      "kind": "release-record",
+      "state": "active",
+      "origin": "derived",
+      "reach": [
+        {
+          "channel": "docs",
+          "access": "direct"
+        }
+      ],
+      "source_paths": ["generated/release/current-capabilities.json"]
+    },
+    {
+      "id": "release-record:capability:mode:fix:autonomous",
+      "kind": "release-record",
+      "state": "active",
+      "origin": "derived",
+      "reach": [
+        {
+          "channel": "docs",
+          "access": "direct"
+        }
+      ],
+      "source_paths": ["generated/release/current-capabilities.json"]
+    },
+    {
+      "id": "release-record:capability:mode:fix:default",
+      "kind": "release-record",
+      "state": "active",
+      "origin": "derived",
+      "reach": [
+        {
+          "channel": "docs",
+          "access": "direct"
+        }
+      ],
+      "source_paths": ["generated/release/current-capabilities.json"]
+    },
+    {
+      "id": "release-record:capability:mode:fix:high",
+      "kind": "release-record",
+      "state": "active",
+      "origin": "derived",
+      "reach": [
+        {
+          "channel": "docs",
+          "access": "direct"
+        }
+      ],
+      "source_paths": ["generated/release/current-capabilities.json"]
+    },
+    {
+      "id": "release-record:capability:mode:fix:low",
+      "kind": "release-record",
+      "state": "active",
+      "origin": "derived",
+      "reach": [
+        {
+          "channel": "docs",
+          "access": "direct"
+        }
+      ],
+      "source_paths": ["generated/release/current-capabilities.json"]
+    },
+    {
+      "id": "release-record:capability:mode:prototype:autonomous",
+      "kind": "release-record",
+      "state": "active",
+      "origin": "derived",
+      "reach": [
+        {
+          "channel": "docs",
+          "access": "direct"
+        }
+      ],
+      "source_paths": ["generated/release/current-capabilities.json"]
+    },
+    {
+      "id": "release-record:capability:mode:prototype:default",
+      "kind": "release-record",
+      "state": "active",
+      "origin": "derived",
+      "reach": [
+        {
+          "channel": "docs",
+          "access": "direct"
+        }
+      ],
+      "source_paths": ["generated/release/current-capabilities.json"]
+    },
+    {
+      "id": "release-record:capability:mode:prototype:high",
+      "kind": "release-record",
+      "state": "active",
+      "origin": "derived",
+      "reach": [
+        {
+          "channel": "docs",
+          "access": "direct"
+        }
+      ],
+      "source_paths": ["generated/release/current-capabilities.json"]
+    },
+    {
+      "id": "release-record:capability:mode:prototype:tournament",
+      "kind": "release-record",
+      "state": "active",
+      "origin": "derived",
+      "reach": [
+        {
+          "channel": "docs",
+          "access": "direct"
+        }
+      ],
+      "source_paths": ["generated/release/current-capabilities.json"]
+    },
+    {
+      "id": "release-record:capability:mode:review:default",
+      "kind": "release-record",
+      "state": "active",
+      "origin": "derived",
+      "reach": [
+        {
+          "channel": "docs",
+          "access": "direct"
+        }
+      ],
+      "source_paths": ["generated/release/current-capabilities.json"]
+    },
+    {
+      "id": "release-record:capability:proof:golden-runs",
+      "kind": "release-record",
+      "state": "active",
+      "origin": "derived",
+      "reach": [
+        {
+          "channel": "docs",
+          "access": "direct"
+        }
+      ],
+      "source_paths": ["generated/release/current-capabilities.json"]
+    },
+    {
+      "id": "release-record:capability:route-outcome:build:advance",
+      "kind": "release-record",
+      "state": "active",
+      "origin": "derived",
+      "reach": [
+        {
+          "channel": "docs",
+          "access": "direct"
+        }
+      ],
+      "source_paths": ["generated/release/current-capabilities.json"]
+    },
+    {
+      "id": "release-record:capability:route-outcome:build:ask",
+      "kind": "release-record",
+      "state": "active",
+      "origin": "derived",
+      "reach": [
+        {
+          "channel": "docs",
+          "access": "direct"
+        }
+      ],
+      "source_paths": ["generated/release/current-capabilities.json"]
+    },
+    {
+      "id": "release-record:capability:route-outcome:build:complete",
+      "kind": "release-record",
+      "state": "active",
+      "origin": "derived",
+      "reach": [
+        {
+          "channel": "docs",
+          "access": "direct"
+        }
+      ],
+      "source_paths": ["generated/release/current-capabilities.json"]
+    },
+    {
+      "id": "release-record:capability:route-outcome:build:continue",
+      "kind": "release-record",
+      "state": "active",
+      "origin": "derived",
+      "reach": [
+        {
+          "channel": "docs",
+          "access": "direct"
+        }
+      ],
+      "source_paths": ["generated/release/current-capabilities.json"]
+    },
+    {
+      "id": "release-record:capability:route-outcome:build:retry",
+      "kind": "release-record",
+      "state": "active",
+      "origin": "derived",
+      "reach": [
+        {
+          "channel": "docs",
+          "access": "direct"
+        }
+      ],
+      "source_paths": ["generated/release/current-capabilities.json"]
+    },
+    {
+      "id": "release-record:capability:route-outcome:build:revise",
+      "kind": "release-record",
+      "state": "active",
+      "origin": "derived",
+      "reach": [
+        {
+          "channel": "docs",
+          "access": "direct"
+        }
+      ],
+      "source_paths": ["generated/release/current-capabilities.json"]
+    },
+    {
+      "id": "release-record:capability:route-outcome:build:stop",
+      "kind": "release-record",
+      "state": "active",
+      "origin": "derived",
+      "reach": [
+        {
+          "channel": "docs",
+          "access": "direct"
+        }
+      ],
+      "source_paths": ["generated/release/current-capabilities.json"]
+    },
+    {
+      "id": "release-record:capability:route-outcome:explore:complete",
+      "kind": "release-record",
+      "state": "active",
+      "origin": "derived",
+      "reach": [
+        {
+          "channel": "docs",
+          "access": "direct"
+        }
+      ],
+      "source_paths": ["generated/release/current-capabilities.json"]
+    },
+    {
+      "id": "release-record:capability:route-outcome:explore:continue",
+      "kind": "release-record",
+      "state": "active",
+      "origin": "derived",
+      "reach": [
+        {
+          "channel": "docs",
+          "access": "direct"
+        }
+      ],
+      "source_paths": ["generated/release/current-capabilities.json"]
+    },
+    {
+      "id": "release-record:capability:route-outcome:explore:retry",
+      "kind": "release-record",
+      "state": "active",
+      "origin": "derived",
+      "reach": [
+        {
+          "channel": "docs",
+          "access": "direct"
+        }
+      ],
+      "source_paths": ["generated/release/current-capabilities.json"]
+    },
+    {
+      "id": "release-record:capability:route-outcome:explore:revise",
+      "kind": "release-record",
+      "state": "active",
+      "origin": "derived",
+      "reach": [
+        {
+          "channel": "docs",
+          "access": "direct"
+        }
+      ],
+      "source_paths": ["generated/release/current-capabilities.json"]
+    },
+    {
+      "id": "release-record:capability:route-outcome:explore:stop",
+      "kind": "release-record",
+      "state": "active",
+      "origin": "derived",
+      "reach": [
+        {
+          "channel": "docs",
+          "access": "direct"
+        }
+      ],
+      "source_paths": ["generated/release/current-capabilities.json"]
+    },
+    {
+      "id": "release-record:capability:route-outcome:fix:ask",
+      "kind": "release-record",
+      "state": "active",
+      "origin": "derived",
+      "reach": [
+        {
+          "channel": "docs",
+          "access": "direct"
+        }
+      ],
+      "source_paths": ["generated/release/current-capabilities.json"]
+    },
+    {
+      "id": "release-record:capability:route-outcome:fix:complete",
+      "kind": "release-record",
+      "state": "active",
+      "origin": "derived",
+      "reach": [
+        {
+          "channel": "docs",
+          "access": "direct"
+        }
+      ],
+      "source_paths": ["generated/release/current-capabilities.json"]
+    },
+    {
+      "id": "release-record:capability:route-outcome:fix:connector-failed",
+      "kind": "release-record",
+      "state": "active",
+      "origin": "derived",
+      "reach": [
+        {
+          "channel": "docs",
+          "access": "direct"
+        }
+      ],
+      "source_paths": ["generated/release/current-capabilities.json"]
+    },
+    {
+      "id": "release-record:capability:route-outcome:fix:continue",
+      "kind": "release-record",
+      "state": "active",
+      "origin": "derived",
+      "reach": [
+        {
+          "channel": "docs",
+          "access": "direct"
+        }
+      ],
+      "source_paths": ["generated/release/current-capabilities.json"]
+    },
+    {
+      "id": "release-record:capability:route-outcome:fix:escalate",
+      "kind": "release-record",
+      "state": "active",
+      "origin": "derived",
+      "reach": [
+        {
+          "channel": "docs",
+          "access": "direct"
+        }
+      ],
+      "source_paths": ["generated/release/current-capabilities.json"]
+    },
+    {
+      "id": "release-record:capability:route-outcome:fix:handoff",
+      "kind": "release-record",
+      "state": "active",
+      "origin": "derived",
+      "reach": [
+        {
+          "channel": "docs",
+          "access": "direct"
+        }
+      ],
+      "source_paths": ["generated/release/current-capabilities.json"]
+    },
+    {
+      "id": "release-record:capability:route-outcome:fix:retry",
+      "kind": "release-record",
+      "state": "active",
+      "origin": "derived",
+      "reach": [
+        {
+          "channel": "docs",
+          "access": "direct"
+        }
+      ],
+      "source_paths": ["generated/release/current-capabilities.json"]
+    },
+    {
+      "id": "release-record:capability:route-outcome:fix:revise",
+      "kind": "release-record",
+      "state": "active",
+      "origin": "derived",
+      "reach": [
+        {
+          "channel": "docs",
+          "access": "direct"
+        }
+      ],
+      "source_paths": ["generated/release/current-capabilities.json"]
+    },
+    {
+      "id": "release-record:capability:route-outcome:fix:stop",
+      "kind": "release-record",
+      "state": "active",
+      "origin": "derived",
+      "reach": [
+        {
+          "channel": "docs",
+          "access": "direct"
+        }
+      ],
+      "source_paths": ["generated/release/current-capabilities.json"]
+    },
+    {
+      "id": "release-record:capability:route-outcome:prototype:complete",
+      "kind": "release-record",
+      "state": "active",
+      "origin": "derived",
+      "reach": [
+        {
+          "channel": "docs",
+          "access": "direct"
+        }
+      ],
+      "source_paths": ["generated/release/current-capabilities.json"]
+    },
+    {
+      "id": "release-record:capability:route-outcome:prototype:continue",
+      "kind": "release-record",
+      "state": "active",
+      "origin": "derived",
+      "reach": [
+        {
+          "channel": "docs",
+          "access": "direct"
+        }
+      ],
+      "source_paths": ["generated/release/current-capabilities.json"]
+    },
+    {
+      "id": "release-record:capability:route-outcome:prototype:stop",
+      "kind": "release-record",
+      "state": "active",
+      "origin": "derived",
+      "reach": [
+        {
+          "channel": "docs",
+          "access": "direct"
+        }
+      ],
+      "source_paths": ["generated/release/current-capabilities.json"]
+    },
+    {
+      "id": "release-record:capability:route-outcome:review:complete",
+      "kind": "release-record",
+      "state": "active",
+      "origin": "derived",
+      "reach": [
+        {
+          "channel": "docs",
+          "access": "direct"
+        }
+      ],
+      "source_paths": ["generated/release/current-capabilities.json"]
+    },
+    {
+      "id": "release-record:capability:route-outcome:review:continue",
+      "kind": "release-record",
+      "state": "active",
+      "origin": "derived",
+      "reach": [
+        {
+          "channel": "docs",
+          "access": "direct"
+        }
+      ],
+      "source_paths": ["generated/release/current-capabilities.json"]
+    },
+    {
+      "id": "release-record:capability:route-outcome:review:retry",
+      "kind": "release-record",
+      "state": "active",
+      "origin": "derived",
+      "reach": [
+        {
+          "channel": "docs",
+          "access": "direct"
+        }
+      ],
+      "source_paths": ["generated/release/current-capabilities.json"]
+    },
+    {
+      "id": "release-record:capability:route-outcome:review:stop",
+      "kind": "release-record",
+      "state": "active",
+      "origin": "derived",
+      "reach": [
+        {
+          "channel": "docs",
+          "access": "direct"
+        }
+      ],
+      "source_paths": ["generated/release/current-capabilities.json"]
+    },
+    {
+      "id": "release-record:capability:route-outcomes:rich",
+      "kind": "release-record",
+      "state": "active",
+      "origin": "derived",
+      "reach": [
+        {
+          "channel": "docs",
+          "access": "direct"
+        }
+      ],
+      "source_paths": ["generated/release/current-capabilities.json"]
+    },
+    {
+      "id": "release-record:capability:safety:accept-with-fixes",
+      "kind": "release-record",
+      "state": "active",
+      "origin": "derived",
+      "reach": [
+        {
+          "channel": "docs",
+          "access": "direct"
+        }
+      ],
+      "source_paths": ["generated/release/current-capabilities.json"]
+    },
+    {
+      "id": "release-record:capability:safety:review-untracked-evidence",
+      "kind": "release-record",
+      "state": "active",
+      "origin": "derived",
+      "reach": [
+        {
+          "channel": "docs",
+          "access": "direct"
+        }
+      ],
+      "source_paths": ["generated/release/current-capabilities.json"]
+    },
+    {
+      "id": "release-record:capability:safety:write-capable-worker",
+      "kind": "release-record",
+      "state": "active",
+      "origin": "derived",
+      "reach": [
+        {
+          "channel": "docs",
+          "access": "direct"
+        }
+      ],
+      "source_paths": ["generated/release/current-capabilities.json"]
+    },
+    {
+      "id": "release-record:capability:utility:create",
+      "kind": "release-record",
+      "state": "active",
+      "origin": "derived",
+      "reach": [
+        {
+          "channel": "docs",
+          "access": "direct"
+        }
+      ],
+      "source_paths": ["generated/release/current-capabilities.json"]
+    },
+    {
+      "id": "release-record:capability:utility:handoff",
+      "kind": "release-record",
+      "state": "active",
+      "origin": "derived",
+      "reach": [
+        {
+          "channel": "docs",
+          "access": "direct"
+        }
+      ],
+      "source_paths": ["generated/release/current-capabilities.json"]
+    },
+    {
+      "id": "release-record:capability:utility:review",
+      "kind": "release-record",
+      "state": "active",
+      "origin": "derived",
+      "reach": [
+        {
+          "channel": "docs",
+          "access": "direct"
+        }
+      ],
+      "source_paths": ["generated/release/current-capabilities.json"]
+    },
+    {
+      "id": "release-record:proof:abort-failure",
+      "kind": "release-record",
+      "state": "active",
+      "origin": "derived",
+      "reach": [
+        {
+          "channel": "docs",
+          "access": "direct"
+        }
+      ],
+      "source_paths": ["docs/release/proofs/index.yaml"]
+    },
+    {
+      "id": "release-record:proof:checkpoint-resume",
+      "kind": "release-record",
+      "state": "active",
+      "origin": "derived",
+      "reach": [
+        {
+          "channel": "docs",
+          "access": "direct"
+        }
+      ],
+      "source_paths": ["docs/release/proofs/index.yaml"]
+    },
+    {
+      "id": "release-record:proof:codex-mcp-first-run",
+      "kind": "release-record",
+      "state": "active",
+      "origin": "derived",
+      "reach": [
+        {
+          "channel": "docs",
+          "access": "direct"
+        }
+      ],
+      "source_paths": ["docs/release/proofs/index.yaml"]
+    },
+    {
+      "id": "release-record:proof:customization",
+      "kind": "release-record",
+      "state": "active",
+      "origin": "derived",
+      "reach": [
+        {
+          "channel": "docs",
+          "access": "direct"
+        }
+      ],
+      "source_paths": ["docs/release/proofs/index.yaml"]
+    },
+    {
+      "id": "release-record:proof:doctor-first-run",
+      "kind": "release-record",
+      "state": "active",
+      "origin": "derived",
+      "reach": [
+        {
+          "channel": "docs",
+          "access": "direct"
+        }
+      ],
+      "source_paths": ["docs/release/proofs/index.yaml"]
+    },
+    {
+      "id": "release-record:proof:explicit-build",
+      "kind": "release-record",
+      "state": "active",
+      "origin": "derived",
+      "reach": [
+        {
+          "channel": "docs",
+          "access": "direct"
+        }
+      ],
+      "source_paths": ["docs/release/proofs/index.yaml"]
+    },
+    {
+      "id": "release-record:proof:explore-autonomous-decision",
+      "kind": "release-record",
+      "state": "active",
+      "origin": "derived",
+      "reach": [
+        {
+          "channel": "docs",
+          "access": "direct"
+        }
+      ],
+      "source_paths": ["docs/release/proofs/index.yaml"]
+    },
+    {
+      "id": "release-record:proof:explore-decision",
+      "kind": "release-record",
+      "state": "active",
+      "origin": "derived",
+      "reach": [
+        {
+          "channel": "docs",
+          "access": "direct"
+        }
+      ],
+      "source_paths": ["docs/release/proofs/index.yaml"]
+    },
+    {
+      "id": "release-record:proof:explore-standard",
+      "kind": "release-record",
+      "state": "active",
+      "origin": "derived",
+      "reach": [
+        {
+          "channel": "docs",
+          "access": "direct"
+        }
+      ],
+      "source_paths": ["docs/release/proofs/index.yaml"]
+    },
+    {
+      "id": "release-record:proof:fix",
+      "kind": "release-record",
+      "state": "active",
+      "origin": "derived",
+      "reach": [
+        {
+          "channel": "docs",
+          "access": "direct"
+        }
+      ],
+      "source_paths": ["docs/release/proofs/index.yaml"]
+    },
+    {
+      "id": "release-record:proof:handoff",
+      "kind": "release-record",
+      "state": "active",
+      "origin": "derived",
+      "reach": [
+        {
+          "channel": "docs",
+          "access": "direct"
+        }
+      ],
+      "source_paths": ["docs/release/proofs/index.yaml"]
+    },
+    {
+      "id": "release-record:proof:plan-execution",
+      "kind": "release-record",
+      "state": "active",
+      "origin": "derived",
+      "reach": [
+        {
+          "channel": "docs",
+          "access": "direct"
+        }
+      ],
+      "source_paths": ["docs/release/proofs/index.yaml"]
+    },
+    {
+      "id": "release-record:proof:prototype",
+      "kind": "release-record",
+      "state": "active",
+      "origin": "derived",
+      "reach": [
+        {
+          "channel": "docs",
+          "access": "direct"
+        }
+      ],
+      "source_paths": ["docs/release/proofs/index.yaml"]
+    },
+    {
+      "id": "release-record:proof:pursue",
+      "kind": "release-record",
+      "state": "active",
+      "origin": "derived",
+      "reach": [
+        {
+          "channel": "docs",
+          "access": "direct"
+        }
+      ],
+      "source_paths": ["docs/release/proofs/index.yaml"]
+    },
+    {
+      "id": "release-record:proof:review",
+      "kind": "release-record",
+      "state": "active",
+      "origin": "derived",
+      "reach": [
+        {
+          "channel": "docs",
+          "access": "direct"
+        }
+      ],
+      "source_paths": ["docs/release/proofs/index.yaml"]
+    },
+    {
+      "id": "release-record:proof:routed-build",
+      "kind": "release-record",
+      "state": "active",
+      "origin": "derived",
+      "reach": [
+        {
+          "channel": "docs",
+          "access": "direct"
+        }
+      ],
+      "source_paths": ["docs/release/proofs/index.yaml"]
+    },
+    {
+      "id": "run-output:autonomous-loop-json",
+      "kind": "run-output",
+      "state": "active",
+      "origin": "declared",
+      "reach": [
+        {
+          "channel": "cli",
+          "access": "direct"
+        },
+        {
+          "channel": "host-command",
+          "host": "claude",
+          "access": "install-gated"
+        },
+        {
+          "channel": "mcp",
+          "host": "codex",
+          "access": "install-gated"
+        }
+      ],
+      "source_paths": ["src/cli/run-stdout-envelope.ts", "src/cli/run.ts"]
+    },
+    {
+      "id": "run-output:decision-packets",
+      "kind": "run-output",
+      "state": "active",
+      "origin": "declared",
+      "reach": [
+        {
+          "channel": "cli",
+          "access": "direct"
+        },
+        {
+          "channel": "host-command",
+          "host": "claude",
+          "access": "install-gated"
+        },
+        {
+          "channel": "mcp",
+          "host": "codex",
+          "access": "install-gated"
+        }
+      ],
+      "source_paths": ["src/app/run-envelope/source-record.ts"]
+    },
+    {
+      "id": "run-output:final-json",
+      "kind": "run-output",
+      "state": "active",
+      "origin": "declared",
+      "reach": [
+        {
+          "channel": "cli",
+          "access": "direct"
+        },
+        {
+          "channel": "host-command",
+          "host": "claude",
+          "access": "install-gated"
+        },
+        {
+          "channel": "mcp",
+          "host": "codex",
+          "access": "install-gated"
+        }
+      ],
+      "source_paths": ["src/cli/run-stdout-envelope.ts"]
+    },
+    {
+      "id": "run-output:history-recall-json",
+      "kind": "run-output",
+      "state": "active",
+      "origin": "declared",
+      "reach": [
+        {
+          "channel": "cli",
+          "access": "direct"
+        },
+        {
+          "channel": "host-command",
+          "host": "claude",
+          "access": "install-gated"
+        },
+        {
+          "channel": "mcp",
+          "host": "codex",
+          "access": "install-gated"
+        }
+      ],
+      "source_paths": ["src/app/history/run-start-recall.ts"]
+    },
+    {
+      "id": "run-output:history-recall-precision-json",
+      "kind": "run-output",
+      "state": "active",
+      "origin": "declared",
+      "reach": [
+        {
+          "channel": "cli",
+          "access": "direct"
+        },
+        {
+          "channel": "host-command",
+          "host": "claude",
+          "access": "install-gated"
+        },
+        {
+          "channel": "mcp",
+          "host": "codex",
+          "access": "install-gated"
+        }
+      ],
+      "source_paths": ["src/app/history/run-start-recall.ts"]
+    },
+    {
+      "id": "run-output:manifest-snapshot-json",
+      "kind": "run-output",
+      "state": "active",
+      "origin": "declared",
+      "reach": [
+        {
+          "channel": "cli",
+          "access": "direct"
+        },
+        {
+          "channel": "host-command",
+          "host": "claude",
+          "access": "install-gated"
+        },
+        {
+          "channel": "mcp",
+          "host": "codex",
+          "access": "install-gated"
+        }
+      ],
+      "source_paths": ["src/runtime/run/graph-runner.ts"]
+    },
+    {
+      "id": "run-output:operator-summary-html",
+      "kind": "run-output",
+      "state": "active",
+      "origin": "declared",
+      "reach": [
+        {
+          "channel": "cli",
+          "access": "direct"
+        },
+        {
+          "channel": "host-command",
+          "host": "claude",
+          "access": "install-gated"
+        },
+        {
+          "channel": "mcp",
+          "host": "codex",
+          "access": "install-gated"
+        }
+      ],
+      "source_paths": ["src/app/operator-summary/writer.ts"]
+    },
+    {
+      "id": "run-output:operator-summary-json",
+      "kind": "run-output",
+      "state": "active",
+      "origin": "declared",
+      "reach": [
+        {
+          "channel": "cli",
+          "access": "direct"
+        },
+        {
+          "channel": "host-command",
+          "host": "claude",
+          "access": "install-gated"
+        },
+        {
+          "channel": "mcp",
+          "host": "codex",
+          "access": "install-gated"
+        }
+      ],
+      "source_paths": ["src/app/operator-summary/writer.ts"]
+    },
+    {
+      "id": "run-output:operator-summary-markdown",
+      "kind": "run-output",
+      "state": "active",
+      "origin": "declared",
+      "reach": [
+        {
+          "channel": "cli",
+          "access": "direct"
+        },
+        {
+          "channel": "host-command",
+          "host": "claude",
+          "access": "install-gated"
+        },
+        {
+          "channel": "mcp",
+          "host": "codex",
+          "access": "install-gated"
+        }
+      ],
+      "source_paths": ["src/app/operator-summary/writer.ts"]
+    },
+    {
+      "id": "run-output:process-evidence-json",
+      "kind": "run-output",
+      "state": "active",
+      "origin": "declared",
+      "reach": [
+        {
+          "channel": "cli",
+          "access": "direct"
+        },
+        {
+          "channel": "host-command",
+          "host": "claude",
+          "access": "install-gated"
+        },
+        {
+          "channel": "mcp",
+          "host": "codex",
+          "access": "install-gated"
+        }
+      ],
+      "source_paths": ["src/app/run-envelope/source-record.ts"]
+    },
+    {
+      "id": "run-output:progress-jsonl",
+      "kind": "run-output",
+      "state": "active",
+      "origin": "declared",
+      "reach": [
+        {
+          "channel": "cli",
+          "access": "direct"
+        },
+        {
+          "channel": "host-command",
+          "host": "claude",
+          "access": "install-gated"
+        },
+        {
+          "channel": "mcp",
+          "host": "codex",
+          "access": "install-gated"
+        }
+      ],
+      "source_paths": ["src/cli/run.ts", "src/shared/progress-output.ts"]
+    },
+    {
+      "id": "run-output:result-json",
+      "kind": "run-output",
+      "state": "active",
+      "origin": "declared",
+      "reach": [
+        {
+          "channel": "cli",
+          "access": "direct"
+        },
+        {
+          "channel": "host-command",
+          "host": "claude",
+          "access": "install-gated"
+        },
+        {
+          "channel": "mcp",
+          "host": "codex",
+          "access": "install-gated"
+        }
+      ],
+      "source_paths": ["src/schemas/result.ts"]
+    },
+    {
+      "id": "run-output:run-envelope-json",
+      "kind": "run-output",
+      "state": "active",
+      "origin": "declared",
+      "reach": [
+        {
+          "channel": "cli",
+          "access": "direct"
+        },
+        {
+          "channel": "host-command",
+          "host": "claude",
+          "access": "install-gated"
+        },
+        {
+          "channel": "mcp",
+          "host": "codex",
+          "access": "install-gated"
+        }
+      ],
+      "source_paths": ["src/app/run-envelope/source-record.ts"]
+    },
+    {
+      "id": "run-output:run-envelope-shadow-json",
+      "kind": "run-output",
+      "state": "active",
+      "origin": "declared",
+      "reach": [
+        {
+          "channel": "cli",
+          "access": "direct"
+        },
+        {
+          "channel": "host-command",
+          "host": "claude",
+          "access": "install-gated"
+        },
+        {
+          "channel": "mcp",
+          "host": "codex",
+          "access": "install-gated"
+        }
+      ],
+      "source_paths": ["src/app/run-envelope/shadow-record.ts"]
+    },
+    {
+      "id": "run-output:run-surface-markdown",
+      "kind": "run-output",
+      "state": "active",
+      "origin": "declared",
+      "reach": [
+        {
+          "channel": "cli",
+          "access": "direct"
+        },
+        {
+          "channel": "host-command",
+          "host": "claude",
+          "access": "install-gated"
+        },
+        {
+          "channel": "mcp",
+          "host": "codex",
+          "access": "install-gated"
+        }
+      ],
+      "source_paths": ["src/app/run-envelope/source-record.ts"]
+    },
+    {
+      "id": "run-output:trace-ndjson",
+      "kind": "run-output",
+      "state": "active",
+      "origin": "declared",
+      "reach": [
+        {
+          "channel": "cli",
+          "access": "direct"
+        },
+        {
+          "channel": "host-command",
+          "host": "claude",
+          "access": "install-gated"
+        },
+        {
+          "channel": "mcp",
+          "host": "codex",
+          "access": "install-gated"
+        }
+      ],
+      "source_paths": ["src/schemas/trace-entry.ts"]
+    },
+    {
+      "id": "skill-hook:after:edit-files",
+      "kind": "skill-hook",
+      "state": "active",
+      "origin": "derived",
+      "reach": [
+        {
+          "channel": "cli",
+          "access": "direct"
+        },
+        {
+          "channel": "host-command",
+          "host": "claude",
+          "access": "install-gated"
+        },
+        {
+          "channel": "mcp",
+          "host": "codex",
+          "access": "install-gated"
+        }
+      ],
+      "source_paths": ["src/schemas/skill-hook.ts", "src/skill-hooks/dispatch.ts"]
+    },
+    {
+      "id": "skill-hook:after:evidence-gap",
+      "kind": "skill-hook",
+      "state": "active",
+      "origin": "derived",
+      "reach": [
+        {
+          "channel": "cli",
+          "access": "direct"
+        },
+        {
+          "channel": "host-command",
+          "host": "claude",
+          "access": "install-gated"
+        },
+        {
+          "channel": "mcp",
+          "host": "codex",
+          "access": "install-gated"
+        }
+      ],
+      "source_paths": ["src/schemas/skill-hook.ts", "src/skill-hooks/dispatch.ts"]
+    },
+    {
+      "id": "skill-hook:after:verification-failed",
+      "kind": "skill-hook",
+      "state": "active",
+      "origin": "derived",
+      "reach": [
+        {
+          "channel": "cli",
+          "access": "direct"
+        },
+        {
+          "channel": "host-command",
+          "host": "claude",
+          "access": "install-gated"
+        },
+        {
+          "channel": "mcp",
+          "host": "codex",
+          "access": "install-gated"
+        }
+      ],
+      "source_paths": ["src/schemas/skill-hook.ts", "src/skill-hooks/dispatch.ts"]
+    },
+    {
+      "id": "skill-hook:before:architecture-analysis",
+      "kind": "skill-hook",
+      "state": "dormant",
+      "origin": "derived",
+      "reach": [
+        {
+          "channel": "internal",
+          "access": "direct"
+        }
+      ],
+      "source_paths": ["src/schemas/skill-hook.ts", "src/skill-hooks/dispatch.ts"]
+    },
+    {
+      "id": "skill-hook:before:close-run",
+      "kind": "skill-hook",
+      "state": "dormant",
+      "origin": "derived",
+      "reach": [
+        {
+          "channel": "internal",
+          "access": "direct"
+        }
+      ],
+      "source_paths": ["src/schemas/skill-hook.ts", "src/skill-hooks/dispatch.ts"]
+    },
+    {
+      "id": "skill-hook:before:edit-files",
+      "kind": "skill-hook",
+      "state": "active",
+      "origin": "derived",
+      "reach": [
+        {
+          "channel": "cli",
+          "access": "direct"
+        },
+        {
+          "channel": "host-command",
+          "host": "claude",
+          "access": "install-gated"
+        },
+        {
+          "channel": "mcp",
+          "host": "codex",
+          "access": "install-gated"
+        }
+      ],
+      "source_paths": ["src/schemas/skill-hook.ts", "src/skill-hooks/dispatch.ts"]
+    },
+    {
+      "id": "skill-hook:before:handoff",
+      "kind": "skill-hook",
+      "state": "dormant",
+      "origin": "derived",
+      "reach": [
+        {
+          "channel": "internal",
+          "access": "direct"
+        }
+      ],
+      "source_paths": ["src/schemas/skill-hook.ts", "src/skill-hooks/dispatch.ts"]
+    },
+    {
+      "id": "skill-hook:before:high-impact-alignment",
+      "kind": "skill-hook",
+      "state": "dormant",
+      "origin": "derived",
+      "reach": [
+        {
+          "channel": "internal",
+          "access": "direct"
+        }
+      ],
+      "source_paths": ["src/schemas/skill-hook.ts", "src/skill-hooks/dispatch.ts"]
+    },
+    {
+      "id": "skill-hook:before:implementation",
+      "kind": "skill-hook",
+      "state": "dormant",
+      "origin": "derived",
+      "reach": [
+        {
+          "channel": "internal",
+          "access": "direct"
+        }
+      ],
+      "source_paths": ["src/schemas/skill-hook.ts", "src/skill-hooks/dispatch.ts"]
+    },
+    {
+      "id": "skill-hook:before:plan-implementation",
+      "kind": "skill-hook",
+      "state": "dormant",
+      "origin": "derived",
+      "reach": [
+        {
+          "channel": "internal",
+          "access": "direct"
+        }
+      ],
+      "source_paths": ["src/schemas/skill-hook.ts", "src/skill-hooks/dispatch.ts"]
+    },
+    {
+      "id": "skill-hook:before:verification",
+      "kind": "skill-hook",
+      "state": "dormant",
+      "origin": "derived",
+      "reach": [
+        {
+          "channel": "internal",
+          "access": "direct"
+        }
+      ],
+      "source_paths": ["src/schemas/skill-hook.ts", "src/skill-hooks/dispatch.ts"]
+    }
+  ],
+  "census_partitions": [
+    {
+      "kind": "app",
+      "state": "populated"
+    },
+    {
+      "kind": "block",
+      "state": "populated"
+    },
+    {
+      "kind": "cli-command",
+      "state": "populated"
+    },
+    {
+      "kind": "cli-flag",
+      "state": "populated"
+    },
+    {
+      "kind": "cli-front-door",
+      "state": "populated"
+    },
+    {
+      "kind": "cli-subcommand",
+      "state": "populated"
+    },
+    {
+      "kind": "config-key",
+      "state": "populated"
+    },
+    {
+      "kind": "connector",
+      "state": "populated"
+    },
+    {
+      "kind": "flow",
+      "state": "populated"
+    },
+    {
+      "kind": "host-catalog",
+      "state": "populated"
+    },
+    {
+      "kind": "host-command",
+      "state": "populated"
+    },
+    {
+      "kind": "host-flow",
+      "state": "populated"
+    },
+    {
+      "kind": "host-hook",
+      "state": "populated"
+    },
+    {
+      "kind": "host-kind",
+      "state": "populated"
+    },
+    {
+      "kind": "host-skill",
+      "state": "populated"
+    },
+    {
+      "kind": "install-path",
+      "state": "populated"
+    },
+    {
+      "kind": "mcp-tool",
+      "state": "populated"
+    },
+    {
+      "kind": "positioning-claim",
+      "state": "populated"
+    },
+    {
+      "kind": "public-claim",
+      "state": "populated"
+    },
+    {
+      "kind": "release-record",
+      "state": "populated"
+    },
+    {
+      "kind": "run-output",
+      "state": "populated"
+    },
+    {
+      "kind": "skill-hook",
+      "state": "populated"
+    }
+  ],
+  "proof_ids": [
+    "proof:abort-failure",
+    "proof:checkpoint-resume",
+    "proof:customization",
+    "proof:doctor-first-run",
+    "proof:explicit-build",
+    "proof:explore-autonomous-decision",
+    "proof:explore-decision",
+    "proof:explore-standard",
+    "proof:fix",
+    "proof:handoff",
+    "proof:plan-execution",
+    "proof:prototype",
+    "proof:pursue",
+    "proof:review",
+    "proof:routed-build"
+  ],
+  "public_claim_ids": [
+    "CLAIM-CODEX-MCP-LIFECYCLE",
+    "CLAIM-CODEX-WRITABLE",
+    "CLAIM-CUSTOM-CONNECTOR-PROTOCOL",
+    "CLAIM-FIRST-RUN-DOCTOR",
+    "CLAIM-FIX-CANONICAL",
+    "CLAIM-FLOW-CATALOG-CURRENT",
+    "CLAIM-GOLDEN-PROOF",
+    "CLAIM-REVIEW-EVIDENCE-POLICY",
+    "CLAIM-RICH-ROUTES",
+    "CLAIM-WRITE-CAPABLE-WORKER"
+  ]
+}

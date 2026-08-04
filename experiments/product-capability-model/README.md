@@ -1,130 +1,100 @@
 # Product capability model spike
 
-This is a disposable model of Circuit's product surface. It is here to answer
-one question before we build permanent machinery:
+This is a disposable, source-backed inventory of Circuit's product surface.
+It exists to answer four questions:
 
-> Can one small catalog help us see what Circuit is for, what exists, where the
-> gaps and overlaps are, and which product changes need a deliberate decision?
+1. What can someone accomplish with Circuit today?
+2. Which controls, guarantees, and internal mechanisms support those outcomes?
+3. Which current product surfaces deliver or prove each item?
+4. What is missing, overlapping, dormant, or still only proposed?
 
-The current answer is in
-[`capability-map.generated.md`](./capability-map.generated.md). The authored
-source is [`catalog.json`](./catalog.json).
-
-An adversarially verified review ran on 2026-07-18:
-[`review-2026-07-18.md`](./review-2026-07-18.md) (findings data in
-[`review-findings-2026-07-18.json`](./review-findings-2026-07-18.json)).
-The catalog now carries that review's confirmed corrections, twelve
-capability rows the first pass missed, and four added boundaries. The
-review's machinery recommendations (derivable exposure, proof-strength
-definitions, a visibility marker on surfaces) are not built yet.
+The readable result is
+[`capability-map.generated.md`](./capability-map.generated.md). The complete
+surface census is
+[`surface-inventory.generated.json`](./surface-inventory.generated.json). The
+authored product judgment lives in [`catalog.json`](./catalog.json).
 
 ## Hard fence
 
-This is not the product authority yet.
+This model is not product authority yet.
 
-- It does not change the runtime, flows, host plugins, release inventory, or
-  public claims.
-- It is not wired into `npm run verify`.
-- It does not replace `docs/positioning.md` or
+- It does not change the runtime, flows, plugins, release inventory, or public
+  claims.
+- It is not part of `npm run verify`.
+- It does not replace `docs/positioning.md`, Circuit's product vocabulary, or
   `generated/release/current-capabilities.json`.
-- During the review, edit this catalog when testing a product change against the
-  model. Do not make the rest of the repo depend on it.
+- Nothing outside this experiment may depend on it.
 
-The release inventory uses the word _capability_ for parity records such as
-commands, modes, routes, connectors, and generated host files. Those records are
-useful proof. They are not the product-purpose hierarchy tested here.
+The words capability, control, guarantee, mechanism, and surface are analytical
+categories in this spike. They do not replace Circuit's canonical terms such as
+flow, block, route, check, trace, report, and evidence.
 
-## What this version tests
+## How completeness works
 
-The model separates five things that are easy to blur together:
+The model deliberately uses two layers.
 
-1. **Vision anchors** — the outcomes Circuit is trying to create.
-2. **Capabilities** — what someone can accomplish with Circuit.
-3. **Delivery and exposure** — whether it works, and where it can be reached.
-4. **Proof and surfaces** — the code, commands, flows, blocks, tests, and docs
-   that make the capability real.
-5. **Review signals** — gaps, overlaps, young areas, and deliberate boundaries.
+The top layer is a human product map. A capability is a stable user outcome,
+not a command or implementation detail. Controls, guarantees, and mechanisms
+sit beside the capability list so they are visible without inflating it.
 
-Commands, flows, and blocks are mapped underneath capabilities. They do not
-define the hierarchy. The disposable audit currently accounts for all 15
-top-level commands, 13 cataloged flows, and 29 cataloged blocks.
+The bottom layer is a machine census. It inventories the current checkout's:
+
+- CLI front doors, commands, subcommands, and run flags;
+- public and internal flows, plus every block in the block catalog;
+- supported hosts, installed host commands, skills, flows, and hooks;
+- Codex MCP lifecycle tools;
+- built-in and custom connectors;
+- configuration groups and Skill Hook anchors;
+- public claims, release records, and important run outputs.
+
+Every surface must be bound to a catalog node or explicitly excluded. Active
+delivery surfaces derive reach automatically. Proof-only, example, internal,
+and dormant surfaces cannot make a feature look public by accident.
+
+Evidence is attached to specific claims. Each reference says what it proves,
+and stronger labels have stronger requirements: a tested claim needs a behavior
+test, while a release-observed claim needs a known release proof.
+
+This catches drift. It does not prove that the chosen capability names and
+boundaries are good product judgment. That still requires review.
 
 ## Run it
 
 From the repository root:
 
 ```bash
-# Validate the catalog and check that the human view is current.
+# Exercise the v0.2 contract with focused synthetic failures.
+node experiments/product-capability-model/check-v02.ts
+
+# Validate the catalog and check both generated views for drift.
 node experiments/product-capability-model/render.ts --check
 
-# Validate the catalog and rebuild the human view.
+# Validate the catalog and rebuild both generated views.
 node experiments/product-capability-model/render.ts --write
 ```
 
 The audit checks:
 
-- unique and valid IDs;
-- valid area, vision, relationship, and review-question links;
-- evidence paths that still exist;
-- proposed capabilities that are clearly marked as unshipped;
-- every current command, flow, and block mapped at least once; and
-- mappings that point to surfaces that no longer exist.
+- unique, valid IDs and links;
+- a disposition for every current surface;
+- no active delivery through dormant or proposed items;
+- an active delivery path for every shipped or partial capability;
+- evidence paths, public claim IDs, and release proof IDs;
+- typed evidence strength;
+- explicit handling for gaps, overlaps, young areas, and boundaries; and
+- generated files that match the current checkout.
 
-The flow and block roster comes from canonical generated outputs that are
-already covered by the flow drift check. If this becomes permanent, its contract
-test should import `flowPackages`, `FLOW_BLOCK_DEFINITIONS`, and
-`CLI_COMMAND_NAMES` directly.
+Some rosters do not yet have one canonical exported registry. Those surfaces
+are marked `declared` in the generated census and produce warnings when they
+are used to derive reach. That makes the weakness visible instead of hiding it.
 
-## What the first pass already exposes
+## Review before promotion
 
-- Run is meant to reduce routing work, but the CLI still expects an explicit
-  flow choice.
-- Flow encoding is central to the vision, while the custom-flow lifecycle is
-  still a collection of creation tools rather than one complete experience.
-- Goal and Pursue overlap around long-running outcome ownership.
-- Queue, batch, and several advanced coordination mechanics are real but remain
-  internal, with no settled public product intent.
-- Recorded history is stronger than active-run watching and control.
-- Memory and recall exist, but the compounding loop from run evidence back into
-  a better flow is still proposed.
-- Host-facing work patterns and CLI-only operating utilities currently sit in
-  the same product story even though users encounter them very differently.
+Before making this permanent, use it against representative changes: add a
+public flow, add a host-only surface, strengthen a runtime guarantee, add a
+proposal, and fix an internal bug that should require no catalog change. Then
+run a second omission review against the real install-to-report journey.
 
-These are hypotheses for review, not decisions smuggled in as facts.
-
-## Questions that should decide whether we keep it
-
-The spike is useful only if a review can answer these more clearly than the
-current code and docs can:
-
-1. Can we tell why each capability belongs in Circuit?
-2. Can we distinguish a real product gap from an intentional boundary?
-3. Can we spot two surfaces that solve the same job in competing ways?
-4. Can an agent find the relevant source and proof without touring the repo?
-5. Would a normal product PR have one obvious catalog edit?
-6. Is the 43-capability grain stable enough to discuss, or already a hairball?
-
-## Promotion path if the spike works
-
-Do not promote it by moving these files unchanged. Use what the review teaches
-us and build the smaller permanent contract:
-
-- `docs/product-capabilities/catalog.json` as the authored source; <!-- path-ok -->
-  (proposed future home, does not exist yet)
-- a generated human map and purpose-specific agent views;
-- a contract test that reads the live command, flow, and block catalogs;
-- a short rule in `AGENTS.md` that product changes update the catalog;
-- an explicit product-impact declaration for changes that add, remove, expose,
-  or materially reshape a capability; and
-- Git history as the change record.
-
-The gate should catch cataloged surface drift. It cannot infer product meaning
-from every source edit. Requiring a capability edit for every internal bug fix
-would create noise and train people to make meaningless updates.
-
-## Throw-away criteria
-
-Delete this spike if the review finds that capabilities cannot be named without
-copying commands and flow IDs, that the categories change with every discussion,
-or that the catalog does not improve a real product decision. Keeping a tidy map
-is not the goal; making better decisions is.
+Delete the spike if the categories keep changing, if capabilities merely copy
+command names, or if the map does not improve real product decisions. A tidy
+inventory is not the goal.

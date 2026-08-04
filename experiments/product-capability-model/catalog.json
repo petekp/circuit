@@ -1,8 +1,12 @@
 {
-  "schema_version": "0.1-spike",
+  "schema_version": "0.2-spike",
   "status": "disposable",
   "name": "Circuit product capability model",
-  "purpose": "Connect product intent to capabilities, current surfaces, proof, gaps, overlaps, and deliberate boundaries.",
+  "purpose": "A current-checkout baseline that separates user outcomes from controls, guarantees, mechanisms, and the surfaces that expose or prove them.",
+  "baseline": {
+    "target": "current-checkout",
+    "note": "Current-checkout census rebuilt for v0.2 with typed evidence, derived reach, and explicit surface dispositions."
+  },
   "vision": [
     {
       "id": "encode-process",
@@ -77,1056 +81,3067 @@
       "id": "route-intent",
       "area": "shape-process",
       "title": "Route a request into the right flow",
-      "summary": "Turn an operator request into the most suitable authored process.",
-      "delivery": "partial",
-      "exposure": "mixed",
+      "outcome": "Turn an operator request into the most suitable authored process.",
+      "maturity": "partial",
       "vision": [
-        { "id": "encode-process", "fit": "direct" },
-        { "id": "carry-operator-load", "fit": "direct" }
+        {
+          "id": "encode-process",
+          "fit": "direct"
+        },
+        {
+          "id": "carry-operator-load",
+          "fit": "direct"
+        }
       ],
-      "proof": {
-        "strength": "source",
-        "refs": ["src/commands/run.md", "src/cli/run.ts", "src/schemas/flow-block-definitions.ts"]
-      },
-      "surfaces": {
-        "commands": ["run"],
-        "flows": [],
-        "blocks": ["intake", "route"]
-      },
-      "attention": {
-        "kind": "gap",
-        "note": "The host can help choose, but the CLI still expects the caller to name a flow. The intake and route blocks are authored vocabulary no shipped flow executes yet; routing happens in the host model today."
-      }
+      "claims": [
+        {
+          "id": "route-intent-evidence",
+          "statement": "Turn an operator request into the most suitable authored process.",
+          "level": "source",
+          "refs": [
+            {
+              "kind": "source",
+              "path": "src/commands/run.md",
+              "proves": "Defines the behavior: Turn an operator request into the most suitable authored process."
+            }
+          ]
+        }
+      ],
+      "attention": [
+        {
+          "id": "explicit-flow-selection-gap",
+          "kind": "gap",
+          "note": "Hosts can recommend a flow, but the CLI still expects the caller to choose one explicitly.",
+          "related_nodes": ["bounded-composition"],
+          "disposition": {
+            "kind": "review-question",
+            "id": "single-run-front-door"
+          }
+        }
+      ]
     },
     {
       "id": "frame-work",
       "area": "shape-process",
       "title": "Frame the outcome, limits, and proof",
-      "summary": "Turn a rough request into a bounded brief with a declared way to prove success.",
-      "delivery": "shipped",
-      "exposure": "mixed",
+      "outcome": "Turn a rough request into a bounded brief with a declared way to prove success.",
+      "maturity": "shipped",
       "vision": [
-        { "id": "encode-process", "fit": "direct" },
-        { "id": "proof-before-progress", "fit": "enabling" }
+        {
+          "id": "encode-process",
+          "fit": "direct"
+        },
+        {
+          "id": "proof-before-progress",
+          "fit": "enabling"
+        }
       ],
-      "proof": {
-        "strength": "tested",
-        "refs": [
-          "src/schemas/flow-block-definitions.ts",
-          "tests/runner/block-step-expansion.test.ts",
-          "tests/runner/goal-flow.test.ts",
-          "tests/runner/review-runtime-wiring.test.ts"
-        ]
-      },
-      "surfaces": {
-        "commands": [],
-        "flows": [],
-        "blocks": ["frame", "clarify", "review-intake"]
-      }
-    },
-    {
-      "id": "encode-typed-flow",
-      "area": "shape-process",
-      "title": "Encode typed flows from blocks, routes, and checks",
-      "summary": "Describe a reusable process as authored topology with typed seams and evidence requirements.",
-      "delivery": "shipped",
-      "exposure": "internal",
-      "vision": [{ "id": "encode-process", "fit": "direct" }],
-      "proof": {
-        "strength": "tested",
-        "refs": [
-          "docs/flows/authoring-model.md",
-          "src/flows/flow-definition.ts",
-          "tests/runner/flow-facts.test.ts"
-        ]
-      },
-      "surfaces": {
-        "commands": [],
-        "flows": [],
-        "blocks": []
-      },
-      "attention": {
-        "kind": "boundary",
-        "note": "Typed-flow authoring is source-checkout work today. The public path to a custom flow is create and generate, mapped under the flow lifecycle."
-      }
+      "claims": [
+        {
+          "id": "frame-work-evidence",
+          "statement": "A released Build run records a bounded brief and stops at the frame checkpoint before implementation.",
+          "level": "release-observed",
+          "refs": [
+            {
+              "kind": "release-proof",
+              "path": "generated/release/current-capabilities.json",
+              "proof_id": "proof:explicit-build",
+              "proves": "Registers a verified explicit Build run whose evidence includes the Build brief and frame checkpoint."
+            },
+            {
+              "kind": "source",
+              "path": "docs/release/proofs/runs/explicit-build/run/reports/build/brief.json",
+              "proves": "Shows the checked-in brief produced by that verified run."
+            }
+          ]
+        }
+      ],
+      "attention": []
     },
     {
       "id": "manage-custom-flows",
       "area": "shape-process",
       "title": "Create, customize, publish, and manage flows",
-      "summary": "Carry a custom process through a complete lifecycle, not just its first generation.",
-      "delivery": "partial",
-      "exposure": "public-cli",
-      "vision": [{ "id": "encode-process", "fit": "direct" }],
-      "proof": {
-        "strength": "tested",
-        "refs": [
-          "src/cli/create.ts",
-          "src/cli/generate.ts",
-          "tests/unit/generate.test.ts",
-          "tests/runner/utility-cli.test.ts",
-          "docs/flows/authoring-model.md"
-        ]
-      },
-      "surfaces": {
-        "commands": ["create", "generate"],
-        "flows": [],
-        "blocks": []
-      },
-      "attention": {
-        "kind": "gap",
-        "note": "A draft, review, edit, and publish loop exists; version, share, supersede, retire, and host publication do not yet form one lifecycle."
-      }
+      "outcome": "Carry a custom process through a complete lifecycle, not just its first generation.",
+      "maturity": "partial",
+      "vision": [
+        {
+          "id": "encode-process",
+          "fit": "direct"
+        }
+      ],
+      "claims": [
+        {
+          "id": "manage-custom-flows-evidence",
+          "statement": "Draft and publish a runnable custom flow only after explicit confirmation, preserving the reviewed draft.",
+          "level": "tested",
+          "refs": [
+            {
+              "kind": "behavior-test",
+              "path": "tests/unit/generate.test.ts",
+              "proves": "Exercises runnable draft creation, explicit publish confirmation, and publication of the reviewed draft bytes."
+            },
+            {
+              "kind": "behavior-test",
+              "path": "tests/runner/utility-cli.test.ts",
+              "proves": "Exercises the create command's validate-and-publish path and its confirmation boundary."
+            }
+          ]
+        }
+      ],
+      "attention": [
+        {
+          "id": "incomplete-custom-flow-lifecycle",
+          "kind": "gap",
+          "note": "Create and generate exist, but version, share, supersede, retire, and host publication are not one complete lifecycle.",
+          "related_nodes": ["encode-typed-flow", "improve-flows-from-evidence"],
+          "disposition": {
+            "kind": "review-question",
+            "id": "custom-flow-lifecycle"
+          }
+        }
+      ]
     },
     {
       "id": "audit-work",
       "area": "work-patterns",
       "title": "Audit existing work",
-      "summary": "Inspect a bounded body of work and report evidence-backed findings without changing it.",
-      "delivery": "shipped",
-      "exposure": "public-host",
+      "outcome": "Inspect a bounded body of work and report evidence-backed findings without changing it.",
+      "maturity": "shipped",
       "vision": [
-        { "id": "encode-process", "fit": "direct" },
-        { "id": "proof-before-progress", "fit": "enabling" }
+        {
+          "id": "encode-process",
+          "fit": "direct"
+        },
+        {
+          "id": "proof-before-progress",
+          "fit": "enabling"
+        }
       ],
-      "proof": {
-        "strength": "release-proof",
-        "refs": ["src/flows/review/data.ts", "generated/release/current-capabilities.json"]
-      },
-      "surfaces": {
-        "commands": [],
-        "flows": ["review"],
-        "blocks": []
-      }
+      "claims": [
+        {
+          "id": "audit-work-evidence",
+          "statement": "Inspect a bounded body of work and report evidence-backed findings without changing it.",
+          "level": "release-observed",
+          "refs": [
+            {
+              "kind": "release-proof",
+              "path": "generated/release/current-capabilities.json",
+              "proof_id": "proof:review",
+              "proves": "Attests the released outcome: Inspect a bounded body of work and report evidence-backed findings without changing it."
+            }
+          ]
+        }
+      ],
+      "attention": []
     },
     {
       "id": "fix-work",
       "area": "work-patterns",
       "title": "Fix broken behavior",
-      "summary": "Diagnose a fault, change the smallest useful surface, and verify the repair.",
-      "delivery": "shipped",
-      "exposure": "public-host",
+      "outcome": "Diagnose a fault, change the smallest useful surface, and verify the repair.",
+      "maturity": "shipped",
       "vision": [
-        { "id": "encode-process", "fit": "direct" },
-        { "id": "proof-before-progress", "fit": "enabling" }
+        {
+          "id": "encode-process",
+          "fit": "direct"
+        },
+        {
+          "id": "proof-before-progress",
+          "fit": "enabling"
+        }
       ],
-      "proof": {
-        "strength": "release-proof",
-        "refs": ["src/flows/fix/data.ts", "generated/release/current-capabilities.json"]
-      },
-      "surfaces": {
-        "commands": [],
-        "flows": ["fix"],
-        "blocks": []
-      }
+      "claims": [
+        {
+          "id": "fix-work-evidence",
+          "statement": "Diagnose a fault, change the smallest useful surface, and verify the repair.",
+          "level": "release-observed",
+          "refs": [
+            {
+              "kind": "release-proof",
+              "path": "generated/release/current-capabilities.json",
+              "proof_id": "proof:fix",
+              "proves": "Attests the released outcome: Diagnose a fault, change the smallest useful surface, and verify the repair."
+            }
+          ]
+        }
+      ],
+      "attention": []
     },
     {
       "id": "build-work",
       "area": "work-patterns",
       "title": "Build a change",
-      "summary": "Frame, implement, verify, and review a deliberate product or engineering change.",
-      "delivery": "shipped",
-      "exposure": "public-host",
+      "outcome": "Frame, implement, verify, and review a deliberate product or engineering change.",
+      "maturity": "shipped",
       "vision": [
-        { "id": "encode-process", "fit": "direct" },
-        { "id": "proof-before-progress", "fit": "enabling" }
+        {
+          "id": "encode-process",
+          "fit": "direct"
+        },
+        {
+          "id": "proof-before-progress",
+          "fit": "enabling"
+        }
       ],
-      "proof": {
-        "strength": "release-proof",
-        "refs": ["src/flows/build/data.ts", "generated/release/current-capabilities.json"]
-      },
-      "surfaces": {
-        "commands": [],
-        "flows": ["build"],
-        "blocks": []
-      }
+      "claims": [
+        {
+          "id": "build-work-evidence",
+          "statement": "Frame, implement, verify, and review a deliberate product or engineering change.",
+          "level": "release-observed",
+          "refs": [
+            {
+              "kind": "release-proof",
+              "path": "generated/release/current-capabilities.json",
+              "proof_id": "proof:explicit-build",
+              "proves": "Attests the released outcome: Frame, implement, verify, and review a deliberate product or engineering change."
+            }
+          ]
+        }
+      ],
+      "attention": []
     },
     {
       "id": "explore-work",
       "area": "work-patterns",
       "title": "Explore a question or decision",
-      "summary": "Gather evidence, compare real options, and make a bounded recommendation.",
-      "delivery": "shipped",
-      "exposure": "public-host",
+      "outcome": "Gather evidence, compare real options, and make a bounded recommendation.",
+      "maturity": "shipped",
       "vision": [
-        { "id": "encode-process", "fit": "direct" },
-        { "id": "proof-before-progress", "fit": "enabling" }
+        {
+          "id": "encode-process",
+          "fit": "direct"
+        },
+        {
+          "id": "proof-before-progress",
+          "fit": "enabling"
+        }
       ],
-      "proof": {
-        "strength": "release-proof",
-        "refs": ["src/flows/explore/data.ts", "generated/release/current-capabilities.json"]
-      },
-      "surfaces": {
-        "commands": [],
-        "flows": ["explore"],
-        "blocks": []
-      }
+      "claims": [
+        {
+          "id": "explore-work-evidence",
+          "statement": "Gather evidence, compare real options, and make a bounded recommendation.",
+          "level": "release-observed",
+          "refs": [
+            {
+              "kind": "release-proof",
+              "path": "generated/release/current-capabilities.json",
+              "proof_id": "proof:explore-standard",
+              "proves": "Attests the released outcome: Gather evidence, compare real options, and make a bounded recommendation."
+            }
+          ]
+        }
+      ],
+      "attention": []
     },
     {
       "id": "prototype-work",
       "area": "work-patterns",
       "title": "Prototype and compare disposable solutions",
-      "summary": "Build a cheap learning artifact and use it to choose what deserves a real implementation.",
-      "delivery": "shipped",
-      "exposure": "public-host",
+      "outcome": "Build a cheap learning artifact and use it to choose what deserves a real implementation.",
+      "maturity": "shipped",
       "vision": [
-        { "id": "encode-process", "fit": "direct" },
-        { "id": "proof-before-progress", "fit": "enabling" }
+        {
+          "id": "encode-process",
+          "fit": "direct"
+        },
+        {
+          "id": "proof-before-progress",
+          "fit": "enabling"
+        }
       ],
-      "proof": {
-        "strength": "release-proof",
-        "refs": ["src/flows/prototype/data.ts", "generated/release/current-capabilities.json"]
-      },
-      "surfaces": {
-        "commands": [],
-        "flows": ["prototype"],
-        "blocks": []
-      }
+      "claims": [
+        {
+          "id": "prototype-work-evidence",
+          "statement": "Build a cheap learning artifact and use it to choose what deserves a real implementation.",
+          "level": "release-observed",
+          "refs": [
+            {
+              "kind": "release-proof",
+              "path": "generated/release/current-capabilities.json",
+              "proof_id": "proof:prototype",
+              "proves": "Attests the released outcome: Build a cheap learning artifact and use it to choose what deserves a real implementation."
+            }
+          ]
+        }
+      ],
+      "attention": []
     },
     {
       "id": "own-bounded-outcome",
       "area": "work-patterns",
       "title": "Own a bounded outcome across several pieces of work",
-      "summary": "Keep pursuing a declared outcome through bounded attempts, evaluation, and recovery.",
-      "delivery": "partial",
-      "exposure": "internal",
+      "outcome": "Keep pursuing a declared outcome through bounded attempts, evaluation, and recovery.",
+      "maturity": "partial",
       "vision": [
-        { "id": "encode-process", "fit": "direct" },
-        { "id": "carry-operator-load", "fit": "direct" }
+        {
+          "id": "encode-process",
+          "fit": "direct"
+        },
+        {
+          "id": "carry-operator-load",
+          "fit": "direct"
+        }
       ],
-      "proof": {
-        "strength": "tested",
-        "refs": [
-          "src/flows/goal/data.ts",
-          "src/flows/pursue/data.ts",
-          "tests/runner/goal-flow.test.ts",
-          "tests/runner/pursue-runtime-wiring.test.ts"
-        ]
-      },
-      "surfaces": {
-        "commands": [],
-        "flows": ["goal", "pursue"],
-        "blocks": ["goal", "pursue"]
-      },
-      "attention": {
-        "kind": "overlap",
-        "note": "Goal is frozen internal: its contract and gate semantics now ship inside the run envelope, and the flow remains for compatibility and explicit internal runs. The open question is Pursue's public shape."
-      }
+      "claims": [
+        {
+          "id": "own-bounded-outcome-evidence",
+          "statement": "Keep pursuing a declared outcome through bounded attempts, evaluation, and recovery.",
+          "level": "tested",
+          "refs": [
+            {
+              "kind": "behavior-test",
+              "path": "tests/runner/goal-flow.test.ts",
+              "proves": "Exercises Goal completion only after a satisfied evaluation and two completion gates, while unresolved child results cannot count as proof."
+            }
+          ]
+        }
+      ],
+      "attention": [
+        {
+          "id": "outcome-queue-overlap",
+          "kind": "overlap",
+          "note": "Outcome ownership and queue-and-batch both address work larger than one simple flow.",
+          "related_nodes": ["queue-batch-work"],
+          "disposition": {
+            "kind": "review-question",
+            "id": "public-outcome-ownership"
+          }
+        }
+      ]
     },
     {
       "id": "craft-artifacts",
       "area": "work-patterns",
       "title": "Craft explanatory artifacts for humans",
-      "summary": "Turn source material into a polished artifact made for human readers rather than code review.",
-      "delivery": "shipped",
-      "exposure": "internal",
-      "vision": [{ "id": "encode-process", "fit": "direct" }],
-      "proof": {
-        "strength": "source",
-        "refs": ["src/flows/explainer/data.ts", "src/flows/explainer/schematic.json"]
-      },
-      "surfaces": {
-        "commands": [],
-        "flows": ["explainer"],
-        "blocks": []
-      },
-      "attention": {
-        "kind": "boundary",
-        "note": "Explainer stays internal: its editorial stages generalize, its delivery plumbing does not yet."
-      }
-    },
-    {
-      "id": "role-shaped-steps",
-      "area": "agent-orchestration",
-      "title": "Run isolated, role-shaped steps with scoped context and tools",
-      "summary": "Give a worker only the role, context, skills, and tools needed for one bounded step.",
-      "delivery": "shipped",
-      "exposure": "mixed",
+      "outcome": "Turn source material into a polished artifact made for human readers rather than code review.",
+      "maturity": "partial",
       "vision": [
-        { "id": "fit-work-to-step", "fit": "direct" },
-        { "id": "encode-process", "fit": "enabling" }
+        {
+          "id": "encode-process",
+          "fit": "direct"
+        }
       ],
-      "proof": {
-        "strength": "tested",
-        "refs": [
-          "docs/contracts/step.md",
-          "src/flows/runtime-proof/data.ts",
-          "tests/contracts/equipment-enforcement.test.ts"
-        ]
-      },
-      "surfaces": {
-        "commands": [],
-        "flows": ["runtime-proof"],
-        "blocks": ["gather-context", "diagnose", "plan", "act"]
-      }
-    },
-    {
-      "id": "allocate-step-equipment",
-      "area": "agent-orchestration",
-      "title": "Allocate connector, model, and effort per step",
-      "summary": "Choose the worker and spend level from the step's role, with explicit overrides when needed.",
-      "delivery": "shipped",
-      "exposure": "mixed",
-      "vision": [{ "id": "fit-work-to-step", "fit": "direct" }],
-      "proof": {
-        "strength": "tested",
-        "refs": [
-          "docs/contracts/selection.md",
-          "src/flows/cross-tool-build/data.ts",
-          "tests/runner/flow-selection-preview.test.ts"
-        ]
-      },
-      "surfaces": {
-        "commands": ["preview", "run"],
-        "flows": ["cross-tool-build"],
-        "blocks": []
-      },
-      "attention": {
-        "kind": "boundary",
-        "note": "cross-tool-build is an internal proof flow. The public delivery is per-step selection inside run and preview."
-      }
-    },
-    {
-      "id": "bounded-composition",
-      "area": "agent-orchestration",
-      "title": "Sequence, route, nest, and continue work within authored bounds",
-      "summary": "Execute an authored graph whose next steps are constrained by declared routes and child-flow seams.",
-      "delivery": "shipped",
-      "exposure": "mixed",
-      "vision": [
-        { "id": "encode-process", "fit": "direct" },
-        { "id": "carry-operator-load", "fit": "direct" }
+      "claims": [
+        {
+          "id": "craft-artifacts-evidence",
+          "statement": "Turn source material into a polished artifact made for human readers rather than code review.",
+          "level": "source",
+          "refs": [
+            {
+              "kind": "source",
+              "path": "src/flows/explainer/data.ts",
+              "proves": "Defines the behavior: Turn source material into a polished artifact made for human readers rather than code review."
+            }
+          ]
+        }
       ],
-      "proof": {
-        "strength": "tested",
-        "refs": [
-          "docs/contracts/compiled-flow.md",
-          "src/flows/runtime-proof/data.ts",
-          "tests/runner/m9-truth-test-assembled-goal.test.ts"
-        ]
-      },
-      "surfaces": {
-        "commands": ["run"],
-        "flows": ["runtime-proof"],
-        "blocks": ["goal-child-run"]
-      }
-    },
-    {
-      "id": "fanout-compare",
-      "area": "agent-orchestration",
-      "title": "Fan out and compare alternatives",
-      "summary": "Run bounded alternatives independently, gather comparable evidence, and join them for a decision.",
-      "delivery": "shipped",
-      "exposure": "mixed",
-      "vision": [
-        { "id": "fit-work-to-step", "fit": "enabling" },
-        { "id": "proof-before-progress", "fit": "enabling" }
-      ],
-      "proof": {
-        "strength": "tested",
-        "refs": [
-          "src/flows/prototype/data.ts",
-          "src/flows/explore/schematic.json",
-          "tests/runner/fanout-real-recursion.test.ts"
-        ]
-      },
-      "surfaces": {
-        "commands": [],
-        "flows": ["explore", "prototype"],
-        "blocks": ["prototype-variant-evidence"]
-      },
-      "attention": {
-        "kind": "young",
-        "note": "The run-level tournament flag is the trigger; public flows default it off."
-      }
-    },
-    {
-      "id": "iterate-until-proof",
-      "area": "agent-orchestration",
-      "title": "Iterate until declared evidence passes",
-      "summary": "Repeat a bounded body while its authored condition says the proof is not yet sufficient.",
-      "delivery": "shipped",
-      "exposure": "internal",
-      "vision": [
-        { "id": "proof-before-progress", "fit": "direct" },
-        { "id": "carry-operator-load", "fit": "enabling" }
-      ],
-      "proof": {
-        "strength": "tested",
-        "refs": [
-          "src/flows/converge-proof/data.ts",
-          "src/flows/fix-until-green/data.ts",
-          "tests/runner/until-loop-runtime.test.ts"
-        ]
-      },
-      "surfaces": {
-        "commands": [],
-        "flows": ["converge-proof", "fix-until-green", "sweep"],
-        "blocks": ["goal-attempt", "goal-evaluate"]
-      },
-      "attention": {
-        "kind": "boundary",
-        "note": "Every delivering flow is internal; a public converge surface is a named launch work item, not shipped. Loops carry fail-closed spend caps."
-      }
-    },
-    {
-      "id": "queue-batch-work",
-      "area": "agent-orchestration",
-      "title": "Queue and batch broad work",
-      "summary": "Turn broad work into ordered items and process a bounded set with explicit outcomes.",
-      "delivery": "partial",
-      "exposure": "internal",
-      "vision": [{ "id": "carry-operator-load", "fit": "direct" }],
-      "proof": {
-        "strength": "tested",
-        "refs": [
-          "src/flows/sweep/data.ts",
-          "src/schemas/flow-block-definitions.ts",
-          "tests/runner/pursue-runtime-wiring.test.ts"
-        ]
-      },
-      "surfaces": {
-        "commands": [],
-        "flows": ["sweep"],
-        "blocks": ["coordinate-pursuits", "queue", "batch"]
-      },
-      "attention": {
-        "kind": "boundary",
-        "note": "The mechanics exist as internal building blocks; the public product intent is not settled. The queue block itself is wired into no flow yet."
-      }
-    },
-    {
-      "id": "apply-skill-hooks",
-      "area": "agent-orchestration",
-      "title": "Route runtime signals to the operator's skills",
-      "summary": "Fire a declared hook when a runtime signal matches and inject the operator's skill into the next relevant worker step.",
-      "delivery": "shipped",
-      "exposure": "mixed",
-      "vision": [
-        { "id": "encode-process", "fit": "direct" },
-        { "id": "fit-work-to-step", "fit": "direct" }
-      ],
-      "proof": {
-        "strength": "tested",
-        "refs": [
-          "docs/contracts/skill-hooks.md",
-          "src/skill-hooks/injection.ts",
-          "tests/runner/skill-hook-actuation.test.ts"
-        ]
-      },
-      "surfaces": {
-        "commands": ["config"],
-        "flows": [],
-        "blocks": []
-      }
-    },
-    {
-      "id": "scale-run-investment",
-      "area": "agent-orchestration",
-      "title": "Scale rigor and spend to the stakes",
-      "summary": "Set how much process and model power a run deserves, or let the run recommend a level within declared limits.",
-      "delivery": "shipped",
-      "exposure": "mixed",
-      "vision": [
-        { "id": "fit-work-to-step", "fit": "direct" },
-        { "id": "carry-operator-load", "fit": "enabling" }
-      ],
-      "proof": {
-        "strength": "tested",
-        "refs": ["docs/contracts/selection.md", "tests/unit/power-tiers.test.ts"]
-      },
-      "surfaces": {
-        "commands": ["run", "config"],
-        "flows": [],
-        "blocks": []
-      }
-    },
-    {
-      "id": "adapt-mid-run",
-      "area": "agent-orchestration",
-      "title": "Adapt a running flow within bounds",
-      "summary": "Let a confirmed runtime discovery adjust later steps' skills, or let a step pull one typed context slice, without changing the authored topology.",
-      "delivery": "partial",
-      "exposure": "internal",
-      "vision": [
-        { "id": "fit-work-to-step", "fit": "direct" },
-        { "id": "carry-operator-load", "fit": "enabling" }
-      ],
-      "proof": {
-        "strength": "tested",
-        "refs": [
-          "tests/runner/equipment-reshape-real.test.ts",
-          "tests/unit/runtime/context-delivery.test.ts"
-        ]
-      },
-      "surfaces": {
-        "commands": [],
-        "flows": [],
-        "blocks": []
-      },
-      "attention": {
-        "kind": "boundary",
-        "note": "Budget-bounded runtime channels; routes, contracts, and workers never change mid-run."
-      }
+      "attention": [
+        {
+          "id": "explainer-is-internal",
+          "kind": "boundary",
+          "note": "The active Explainer flow is a source-checkout flow, not a generated public host flow.",
+          "related_nodes": [],
+          "disposition": {
+            "kind": "boundary",
+            "id": "internal-flows-are-not-public"
+          }
+        }
+      ]
     },
     {
       "id": "preview-execution",
       "area": "continuity",
       "title": "Preview execution before spending",
-      "summary": "Show the planned worker, connector, model, and effort choices without starting a run.",
-      "delivery": "shipped",
-      "exposure": "public-cli",
+      "outcome": "Show the planned worker, connector, model, and effort choices without starting a run.",
+      "maturity": "shipped",
       "vision": [
-        { "id": "fit-work-to-step", "fit": "direct" },
-        { "id": "carry-operator-load", "fit": "enabling" }
+        {
+          "id": "fit-work-to-step",
+          "fit": "direct"
+        },
+        {
+          "id": "carry-operator-load",
+          "fit": "enabling"
+        }
       ],
-      "proof": {
-        "strength": "tested",
-        "refs": [
-          "src/cli/preview.ts",
-          "tests/runner/flow-selection-preview.test.ts",
-          "docs/release/v1-launch-plan.md"
-        ]
-      },
-      "surfaces": {
-        "commands": ["preview"],
-        "flows": [],
-        "blocks": []
-      },
-      "attention": {
-        "kind": "young",
-        "note": "The selection story is visible, but dependable time and cost estimates are not."
-      }
+      "claims": [
+        {
+          "id": "preview-execution-evidence",
+          "statement": "Show the planned worker, connector, model, and effort choices without starting a run.",
+          "level": "tested",
+          "refs": [
+            {
+              "kind": "behavior-test",
+              "path": "tests/runner/flow-selection-preview.test.ts",
+              "proves": "Exercises spend-free previews of step count, connector resolution, model tier, and effort across power settings."
+            }
+          ]
+        }
+      ],
+      "attention": []
     },
     {
       "id": "operator-decisions",
       "area": "continuity",
-      "title": "Pause only for useful operator decisions",
-      "summary": "Ask a bounded question at a declared checkpoint and preserve the answer as evidence.",
-      "delivery": "shipped",
-      "exposure": "mixed",
+      "title": "Resolve a checkpoint and continue safely",
+      "outcome": "Answer a bounded checkpoint decision and continue from its saved state without losing the evidence boundary.",
+      "maturity": "shipped",
       "vision": [
-        { "id": "carry-operator-load", "fit": "direct" },
-        { "id": "proof-before-progress", "fit": "enabling" }
+        {
+          "id": "carry-operator-load",
+          "fit": "direct"
+        },
+        {
+          "id": "proof-before-progress",
+          "fit": "enabling"
+        }
       ],
-      "proof": {
-        "strength": "tested",
-        "refs": ["src/cli/checkpoints.ts", "tests/runtime/checkpoint-review-assets.test.ts"]
-      },
-      "surfaces": {
-        "commands": ["checkpoints"],
-        "flows": [],
-        "blocks": ["human-decision", "goal-checkpoint", "prototype-checkpoint"]
-      }
+      "claims": [
+        {
+          "id": "operator-decisions-evidence",
+          "statement": "A saved checkpoint can accept an operator choice, restore its bound state, and continue the graph.",
+          "level": "tested",
+          "refs": [
+            {
+              "kind": "behavior-test",
+              "path": "tests/runner/build-checkpoint-exec.test.ts",
+              "proves": "Exercises resuming a paused Build checkpoint through an operator selection."
+            },
+            {
+              "kind": "behavior-test",
+              "path": "tests/runtime/checkpoint-resume.test.ts",
+              "proves": "Exercises restoring saved checkpoint context, continuing the graph, and rejecting a changed evidence boundary."
+            }
+          ]
+        }
+      ],
+      "attention": []
     },
     {
       "id": "run-unattended",
       "area": "continuity",
       "title": "Run unattended within authored bounds",
-      "summary": "Auto-resolve supported checkpoints in a bounded continuation loop that can never close complete by exhaustion.",
-      "delivery": "shipped",
-      "exposure": "public-cli",
+      "outcome": "Auto-resolve supported checkpoints in a bounded continuation loop that can never close complete by exhaustion.",
+      "maturity": "shipped",
       "vision": [
-        { "id": "carry-operator-load", "fit": "direct" },
-        { "id": "proof-before-progress", "fit": "enabling" }
+        {
+          "id": "carry-operator-load",
+          "fit": "direct"
+        },
+        {
+          "id": "proof-before-progress",
+          "fit": "enabling"
+        }
       ],
-      "proof": {
-        "strength": "tested",
-        "refs": [
-          "src/app/run-envelope/continuation-loop.ts",
-          "tests/runner/cli-autonomous-loop.test.ts"
-        ]
-      },
-      "surfaces": {
-        "commands": ["run"],
-        "flows": [],
-        "blocks": []
-      }
+      "claims": [
+        {
+          "id": "run-unattended-evidence",
+          "statement": "Auto-resolve supported checkpoints in a bounded continuation loop that can never close complete by exhaustion.",
+          "level": "tested",
+          "refs": [
+            {
+              "kind": "behavior-test",
+              "path": "tests/runner/cli-autonomous-loop.test.ts",
+              "proves": "Exercises the live autonomous continuation loop, persists its result, and leaves the default non-autonomous path unchanged."
+            }
+          ]
+        }
+      ],
+      "attention": []
     },
     {
       "id": "resume-work",
       "area": "continuity",
       "title": "Resume work parked at a checkpoint",
-      "summary": "Continue the same durable run from a declared checkpoint, including after a host restart.",
-      "delivery": "shipped",
-      "exposure": "public-cli",
-      "vision": [{ "id": "carry-operator-load", "fit": "direct" }],
-      "proof": {
-        "strength": "release-proof",
-        "refs": [
-          "src/cli/run.ts",
-          "tests/runtime/checkpoint-resume.test.ts",
-          "tests/runner/resume-interrupted.test.ts"
-        ]
-      },
-      "surfaces": {
-        "commands": ["resume"],
-        "flows": [],
-        "blocks": []
-      },
-      "attention": {
-        "kind": "gap",
-        "note": "A run interrupted before any checkpoint cannot be resumed; the only path is a fresh run that salvages finished branches. Mid-run crash durability is a separate open workstream."
-      }
+      "outcome": "Continue a durable run from a declared checkpoint; Codex can rediscover and resume it after the MCP host restarts.",
+      "maturity": "shipped",
+      "vision": [
+        {
+          "id": "carry-operator-load",
+          "fit": "direct"
+        }
+      ],
+      "claims": [
+        {
+          "id": "checkpoint-and-restart-resume",
+          "statement": "Checkpoint resume works in the CLI, and Codex can resume after an MCP restart.",
+          "level": "tested",
+          "refs": [
+            {
+              "kind": "behavior-test",
+              "path": "tests/runtime/checkpoint-resume.test.ts",
+              "proves": "Exercises CLI resume from a declared checkpoint."
+            },
+            {
+              "kind": "behavior-test",
+              "path": "tests/mcp/stdio-lifecycle-restart.test.ts",
+              "proves": "Exercises Codex rediscovery and resume after an MCP process restart."
+            }
+          ]
+        }
+      ],
+      "attention": []
     },
     {
       "id": "cross-session-handoff",
       "area": "continuity",
       "title": "Carry work across sessions",
-      "summary": "Persist the state, evidence, and next action another session needs to continue safely.",
-      "delivery": "shipped",
-      "exposure": "mixed",
-      "vision": [{ "id": "carry-operator-load", "fit": "direct" }],
-      "proof": {
-        "strength": "tested",
-        "refs": [
-          "src/commands/handoff.md",
-          "docs/contracts/continuity.md",
-          "tests/runner/handoff-harvest.test.ts"
-        ]
-      },
-      "surfaces": {
-        "commands": ["handoff"],
-        "flows": [],
-        "blocks": ["handoff"]
-      },
-      "attention": {
-        "kind": "gap",
-        "note": "Continuity is host-asymmetric: Claude captures ambiently with zero setup; Codex is restore-only and needs a one-time hooks install."
-      }
-    },
-    {
-      "id": "ambient-continuity",
-      "area": "continuity",
-      "title": "Capture session state automatically",
-      "summary": "Harvest a continuity record from the live session with no operator action, as a safety net under deliberate handoffs.",
-      "delivery": "shipped",
-      "exposure": "public-host",
-      "vision": [{ "id": "carry-operator-load", "fit": "direct" }],
-      "proof": {
-        "strength": "tested",
-        "refs": [
-          "docs/contracts/continuity.md",
-          "plugins/claude/hooks/hooks.json",
-          "tests/runner/handoff-harvest.test.ts"
-        ]
-      },
-      "surfaces": {
-        "commands": ["handoff"],
-        "flows": [],
-        "blocks": []
-      },
-      "attention": {
-        "kind": "gap",
-        "note": "Claude captures with zero setup; Codex does not capture by design, and its restore path needs a one-time hooks install."
-      }
+      "outcome": "Persist the state, evidence, and next action another session needs to continue safely.",
+      "maturity": "shipped",
+      "vision": [
+        {
+          "id": "carry-operator-load",
+          "fit": "direct"
+        }
+      ],
+      "claims": [
+        {
+          "id": "cross-session-handoff-evidence",
+          "statement": "An operator can save standalone continuity, resume it in a later invocation, and clear it when finished.",
+          "level": "tested",
+          "refs": [
+            {
+              "kind": "behavior-test",
+              "path": "tests/runner/utility-cli.test.ts",
+              "proves": "Exercises saving, resuming, and clearing a standalone handoff record through the CLI."
+            }
+          ]
+        }
+      ],
+      "attention": []
     },
     {
       "id": "recover-cleanly",
       "area": "continuity",
       "title": "Recover and clean up safely",
-      "summary": "Choose a bounded recovery path and reclaim resources without hiding unfinished work.",
-      "delivery": "shipped",
-      "exposure": "public-cli",
+      "outcome": "Reclaim resources safely; Codex recovery closes an exact recoverable run without claiming to continue it.",
+      "maturity": "shipped",
       "vision": [
-        { "id": "carry-operator-load", "fit": "direct" },
-        { "id": "proof-before-progress", "fit": "enabling" }
+        {
+          "id": "carry-operator-load",
+          "fit": "direct"
+        },
+        {
+          "id": "proof-before-progress",
+          "fit": "enabling"
+        }
       ],
-      "proof": {
-        "strength": "tested",
-        "refs": [
-          "src/cli/reclaim.ts",
-          "src/schemas/flow-block-definitions.ts",
-          "tests/runner/goal-flow.test.ts"
-        ]
-      },
-      "surfaces": {
-        "commands": ["reclaim"],
-        "flows": [],
-        "blocks": ["goal-recover", "risk-rollback-check"]
-      },
-      "attention": {
-        "kind": "boundary",
-        "note": "The risk-rollback-check block is authored vocabulary no shipped flow executes yet. Crash salvage into a fresh run rides the run command, not resume."
-      }
+      "claims": [
+        {
+          "id": "bounded-recovery",
+          "statement": "Codex recovery is state-checked, closes the old run, and never resumes it.",
+          "level": "tested",
+          "refs": [
+            {
+              "kind": "behavior-test",
+              "path": "tests/mcp/lifecycle-restart.test.ts",
+              "proves": "Exercises recovery-required state checks and recovery after lifecycle restart."
+            },
+            {
+              "kind": "source",
+              "path": "src/hosts/codex-mcp/server.ts",
+              "proves": "States that recovery closes the old run and does not continue it."
+            }
+          ]
+        }
+      ],
+      "attention": []
     },
     {
       "id": "control-live-run",
       "area": "continuity",
-      "title": "Watch, answer, and safely cancel a live run",
-      "summary": "Hold one durable handle on a running piece of work to watch it, answer it, detach from it, and cancel it without corrupting state.",
-      "delivery": "proposed",
-      "exposure": "none",
-      "vision": [{ "id": "carry-operator-load", "fit": "direct" }],
-      "proof": {
-        "strength": "proposal",
-        "refs": [
-          "docs/ideas/run-milestone-stream.md",
-          "docs/ideas/cli-first-principles.md",
-          "docs/release/v1-launch-plan.md"
-        ]
-      },
-      "surfaces": {
-        "commands": [],
-        "flows": [],
-        "blocks": []
-      },
-      "attention": {
-        "kind": "gap",
-        "note": "Held for after v1; needs a local process that owns the run lifecycle."
-      }
-    },
-    {
-      "id": "deterministic-checks",
-      "area": "proof",
-      "title": "Run deterministic checks",
-      "summary": "Execute declared proof commands and capture their result as run evidence.",
-      "delivery": "shipped",
-      "exposure": "mixed",
-      "vision": [{ "id": "proof-before-progress", "fit": "direct" }],
-      "proof": {
-        "strength": "tested",
-        "refs": [
-          "src/schemas/flow-block-definitions.ts",
-          "tests/runner/build-verification-exec.test.ts"
-        ]
-      },
-      "surfaces": {
-        "commands": [],
-        "flows": [],
-        "blocks": ["run-verification"]
-      }
-    },
-    {
-      "id": "independent-judgment",
-      "area": "proof",
-      "title": "Judge results independently",
-      "summary": "Separate doing the work from deciding whether the result satisfies its brief.",
-      "delivery": "shipped",
-      "exposure": "mixed",
-      "vision": [{ "id": "proof-before-progress", "fit": "direct" }],
-      "proof": {
-        "strength": "tested",
-        "refs": [
-          "src/flows/review/data.ts",
-          "src/schemas/flow-block-definitions.ts",
-          "tests/runner/review-runtime-wiring.test.ts"
-        ]
-      },
-      "surfaces": {
-        "commands": [],
-        "flows": [],
-        "blocks": ["review", "goal-gate-review"]
-      }
-    },
-    {
-      "id": "enforce-evidence-integrity",
-      "area": "proof",
-      "title": "Block false claims of done",
-      "summary": "Check worker claims against ground truth and refuse a clean close while any overclaim or tampered proof stands.",
-      "delivery": "shipped",
-      "exposure": "mixed",
-      "vision": [{ "id": "proof-before-progress", "fit": "direct" }],
-      "proof": {
-        "strength": "tested",
-        "refs": [
-          "src/runtime/run/honesty-ledger.ts",
-          "tests/unit/honesty-ledger.test.ts",
-          "tests/unit/frozen-eval.test.ts"
-        ]
-      },
-      "surfaces": {
-        "commands": ["run"],
-        "flows": [],
-        "blocks": []
-      }
+      "title": "Control a durable Codex run",
+      "outcome": "Start, watch, resume, cancel, list, and recover a durable run through Codex without replacing its lifecycle with shell commands.",
+      "maturity": "shipped",
+      "vision": [
+        {
+          "id": "carry-operator-load",
+          "fit": "direct"
+        }
+      ],
+      "claims": [
+        {
+          "id": "six-tool-codex-lifecycle",
+          "statement": "Codex exposes start, status, resume, cancel, list, and recover as six typed lifecycle tools.",
+          "level": "tested",
+          "refs": [
+            {
+              "kind": "source",
+              "path": "src/hosts/codex-mcp/contracts.ts",
+              "proves": "Registers the exact six lifecycle tool names and typed contracts."
+            },
+            {
+              "kind": "behavior-test",
+              "path": "tests/mcp/lifecycle.test.ts",
+              "proves": "Exercises the durable start, polling, resume, cancel, list, and recovery lifecycle."
+            }
+          ]
+        }
+      ],
+      "attention": [
+        {
+          "id": "codex-only-live-control",
+          "kind": "young",
+          "note": "Durable lifecycle control is shipped through Codex MCP, while CLI and Claude remain attached or command-driven.",
+          "related_nodes": ["follow-run-live", "inspect-runs", "resume-work", "recover-cleanly"],
+          "disposition": {
+            "kind": "review-question",
+            "id": "cross-host-live-control"
+          }
+        }
+      ]
     },
     {
       "id": "honest-close",
       "area": "proof",
       "title": "Close honestly with evidence, risks, and follow-ups",
-      "summary": "End with an outcome the available evidence supports, explained in operator-readable close-out artifacts, and preserve what remains unresolved.",
-      "delivery": "shipped",
-      "exposure": "mixed",
-      "vision": [{ "id": "proof-before-progress", "fit": "direct" }],
-      "proof": {
-        "strength": "release-proof",
-        "refs": [
-          "docs/contracts/run.md",
-          "src/app/operator-summary/writer.ts",
-          "tests/runner/operator-summary-writer.test.ts",
-          "docs/release/v1-launch-plan.md"
-        ]
-      },
-      "surfaces": {
-        "commands": [],
-        "flows": [],
-        "blocks": ["goal-close", "close-with-evidence"]
-      }
+      "outcome": "End with an outcome the available evidence supports, explained in operator-readable close-out artifacts, and preserve what remains unresolved.",
+      "maturity": "shipped",
+      "vision": [
+        {
+          "id": "proof-before-progress",
+          "fit": "direct"
+        }
+      ],
+      "claims": [
+        {
+          "id": "honest-close-evidence",
+          "statement": "End with an outcome the available evidence supports, explained in operator-readable close-out artifacts, and preserve what remains unresolved.",
+          "level": "tested",
+          "refs": [
+            {
+              "kind": "behavior-test",
+              "path": "tests/runner/operator-summary-writer.test.ts",
+              "proves": "Exercises evidence-backed operator summaries with honest outcomes, risks, and follow-ups."
+            }
+          ]
+        }
+      ],
+      "attention": []
     },
     {
       "id": "inspect-runs",
       "area": "proof",
       "title": "Inspect recorded and active runs",
-      "summary": "Find past and current work, inspect its trace and evidence, and understand what needs attention.",
-      "delivery": "partial",
-      "exposure": "public-cli",
+      "outcome": "Find recorded and active work, inspect trace and evidence, and use Codex list and status to rediscover durable runs.",
+      "maturity": "partial",
       "vision": [
-        { "id": "carry-operator-load", "fit": "direct" },
-        { "id": "proof-before-progress", "fit": "enabling" }
+        {
+          "id": "carry-operator-load",
+          "fit": "direct"
+        },
+        {
+          "id": "proof-before-progress",
+          "fit": "enabling"
+        }
       ],
-      "proof": {
-        "strength": "tested",
-        "refs": ["src/cli/history.ts", "src/cli/runs.ts", "tests/runner/history-cli.test.ts"]
-      },
-      "surfaces": {
-        "commands": ["history", "runs"],
-        "flows": [],
-        "blocks": []
-      },
-      "attention": {
-        "kind": "gap",
-        "note": "Recorded history is strong, and an attached run can be followed live; reconnectable watching, cancellation, and safe mid-run steering are not shipped."
-      }
+      "claims": [
+        {
+          "id": "cli-and-codex-inspection",
+          "statement": "CLI history and runs plus Codex list and status expose durable run inspection.",
+          "level": "tested",
+          "refs": [
+            {
+              "kind": "behavior-test",
+              "path": "tests/runner/history-cli.test.ts",
+              "proves": "Exercises CLI history listing and inspection."
+            },
+            {
+              "kind": "behavior-test",
+              "path": "tests/mcp/lifecycle-restart.test.ts",
+              "proves": "Exercises Codex list and status after a lifecycle restart."
+            }
+          ]
+        }
+      ],
+      "attention": [
+        {
+          "id": "inspection-control-overlap",
+          "kind": "overlap",
+          "note": "Codex list and status are both inspection tools and part of its durable control lifecycle.",
+          "related_nodes": ["control-live-run"],
+          "disposition": {
+            "kind": "review-question",
+            "id": "cross-host-live-control"
+          }
+        }
+      ]
     },
     {
       "id": "follow-run-live",
       "area": "proof",
       "title": "Follow a run while it happens",
-      "summary": "Stream structured progress events from an attached run so the operator or host can watch work as it happens.",
-      "delivery": "shipped",
-      "exposure": "mixed",
-      "vision": [{ "id": "carry-operator-load", "fit": "direct" }],
-      "proof": {
-        "strength": "tested",
-        "refs": [
-          "src/schemas/progress-event.ts",
-          "src/runtime/projections/progress.ts",
-          "tests/unit/shared/progress-output.test.ts"
-        ]
-      },
-      "surfaces": {
-        "commands": ["run", "resume"],
-        "flows": [],
-        "blocks": []
-      },
-      "attention": {
-        "kind": "young",
-        "note": "Attached-only today: detach, reconnect, and cancellation wait on the live-run control proposal."
-      }
+      "outcome": "Watch structured progress while attached through the CLI or reconnect by polling durable Codex status from the last cursor.",
+      "maturity": "shipped",
+      "vision": [
+        {
+          "id": "carry-operator-load",
+          "fit": "direct"
+        }
+      ],
+      "claims": [
+        {
+          "id": "attached-and-durable-progress",
+          "statement": "CLI streams progress and Codex status supports cursor-based polling and bounded waits.",
+          "level": "tested",
+          "refs": [
+            {
+              "kind": "behavior-test",
+              "path": "tests/unit/shared/progress-output.test.ts",
+              "proves": "Exercises schema-shaped CLI progress events."
+            },
+            {
+              "kind": "behavior-test",
+              "path": "tests/mcp/lifecycle.test.ts",
+              "proves": "Exercises cursor-based Codex status polling and bounded waits."
+            }
+          ]
+        }
+      ],
+      "attention": [
+        {
+          "id": "following-control-overlap",
+          "kind": "overlap",
+          "note": "Codex status provides both reconnectable progress following and lifecycle control state.",
+          "related_nodes": ["control-live-run"],
+          "disposition": {
+            "kind": "review-question",
+            "id": "cross-host-live-control"
+          }
+        }
+      ]
     },
     {
       "id": "capture-lessons",
       "area": "learning",
       "title": "Capture operator lessons with evidence provenance",
-      "summary": "Record a durable lesson and preserve where it came from so it can be judged later.",
-      "delivery": "shipped",
-      "exposure": "public-cli",
-      "vision": [{ "id": "learn-from-runs", "fit": "direct" }],
-      "proof": {
-        "strength": "tested",
-        "refs": ["src/cli/memory.ts", "tests/runner/memory-note-cli.test.ts"]
-      },
-      "surfaces": {
-        "commands": ["memory"],
-        "flows": [],
-        "blocks": []
-      }
+      "outcome": "Record a durable lesson and preserve where it came from so it can be judged later.",
+      "maturity": "shipped",
+      "vision": [
+        {
+          "id": "learn-from-runs",
+          "fit": "direct"
+        }
+      ],
+      "claims": [
+        {
+          "id": "capture-lessons-evidence",
+          "statement": "Record a durable lesson and preserve where it came from so it can be judged later.",
+          "level": "tested",
+          "refs": [
+            {
+              "kind": "behavior-test",
+              "path": "tests/runner/memory-note-cli.test.ts",
+              "proves": "Exercises writing a project lesson tied to the current run, listing it, and removing it."
+            }
+          ]
+        }
+      ],
+      "attention": []
     },
     {
       "id": "reuse-run-evidence",
       "area": "learning",
       "title": "Reuse relevant evidence from earlier runs",
-      "summary": "Bring prior facts and lessons into later work without making the operator reconstruct them from chat.",
-      "delivery": "shipped",
-      "exposure": "mixed",
+      "outcome": "Bring prior facts and lessons into later work without making the operator reconstruct them from chat.",
+      "maturity": "shipped",
       "vision": [
-        { "id": "learn-from-runs", "fit": "direct" },
-        { "id": "carry-operator-load", "fit": "enabling" }
+        {
+          "id": "learn-from-runs",
+          "fit": "direct"
+        },
+        {
+          "id": "carry-operator-load",
+          "fit": "enabling"
+        }
       ],
-      "proof": {
-        "strength": "tested",
-        "refs": [
-          "src/app/history/run-start-recall.ts",
-          "tests/runner/history-run-start-recall.test.ts"
-        ]
-      },
-      "surfaces": {
-        "commands": ["history", "run"],
-        "flows": [],
-        "blocks": []
-      }
+      "claims": [
+        {
+          "id": "reuse-run-evidence-evidence",
+          "statement": "Bring prior facts and lessons into later work without making the operator reconstruct them from chat.",
+          "level": "tested",
+          "refs": [
+            {
+              "kind": "behavior-test",
+              "path": "tests/runner/history-run-start-recall.test.ts",
+              "proves": "Exercises rebuilding local history, writing a recall report, and adding hint-only memory to later relay prompts."
+            }
+          ]
+        }
+      ],
+      "attention": []
     },
     {
       "id": "measure-lesson-effect",
       "area": "learning",
       "title": "Measure whether a lesson helped",
-      "summary": "Judge each remembered lesson against later run outcomes and stop surfacing the ones that measurably hurt.",
-      "delivery": "shipped",
-      "exposure": "public-cli",
-      "vision": [{ "id": "learn-from-runs", "fit": "direct" }],
-      "proof": {
-        "strength": "tested",
-        "refs": [
-          "src/app/history/pull-suppression.ts",
-          "tests/unit/history-memory-effect.test.ts",
-          "tests/unit/pull-suppression.test.ts"
-        ]
-      },
-      "surfaces": {
-        "commands": ["history"],
-        "flows": [],
-        "blocks": []
-      }
+      "outcome": "Judge each remembered lesson against later run outcomes and stop surfacing the ones that measurably hurt.",
+      "maturity": "shipped",
+      "vision": [
+        {
+          "id": "learn-from-runs",
+          "fit": "direct"
+        }
+      ],
+      "claims": [
+        {
+          "id": "measure-lesson-effect-evidence",
+          "statement": "Judge each remembered lesson against later run outcomes and stop surfacing the ones that measurably hurt.",
+          "level": "tested",
+          "refs": [
+            {
+              "kind": "behavior-test",
+              "path": "tests/unit/history-memory-effect.test.ts",
+              "proves": "Exercises positive, negative, unresolved, and insufficient-data effect verdicts with adverse-outcome safeguards."
+            },
+            {
+              "kind": "behavior-test",
+              "path": "tests/runner/run-start-recall-precision.test.ts",
+              "proves": "Exercises flow-scoped recall, a bounded push set, and an always-present precision record."
+            },
+            {
+              "kind": "behavior-test",
+              "path": "tests/unit/pull-suppression.test.ts",
+              "proves": "Exercises suppressing only flow-matched lessons measured as harmful while preserving other recalled material."
+            }
+          ]
+        }
+      ],
+      "attention": []
     },
     {
       "id": "improve-flows-from-evidence",
       "area": "learning",
       "title": "Measure, promote, and improve flows",
-      "summary": "Use evidence from completed work to create or revise a reusable process with a measurable reason.",
-      "delivery": "proposed",
-      "exposure": "none",
+      "outcome": "Use evidence from completed work to create or revise a reusable process with a measurable reason.",
+      "maturity": "proposed",
       "vision": [
-        { "id": "learn-from-runs", "fit": "direct" },
-        { "id": "encode-process", "fit": "direct" }
+        {
+          "id": "learn-from-runs",
+          "fit": "direct"
+        },
+        {
+          "id": "encode-process",
+          "fit": "direct"
+        }
       ],
-      "proof": {
-        "strength": "proposal",
-        "refs": [
-          "docs/ideas/expertise-to-flow-experience.md",
-          "docs/ideas/circuit-on-circuit.md",
-          "docs/ideas/run-close-learning-capture.md"
-        ]
-      },
-      "surfaces": {
-        "commands": [],
-        "flows": [],
-        "blocks": []
-      },
-      "attention": {
-        "kind": "gap",
-        "note": "This is the missing link between durable run evidence and a compounding product loop."
-      }
+      "claims": [
+        {
+          "id": "improve-flows-from-evidence-evidence",
+          "statement": "Use evidence from completed work to create or revise a reusable process with a measurable reason.",
+          "level": "proposal",
+          "refs": [
+            {
+              "kind": "proposal",
+              "path": "docs/ideas/expertise-to-flow-experience.md",
+              "proves": "Describes the proposed outcome: Use evidence from completed work to create or revise a reusable process with a measurable reason."
+            }
+          ]
+        }
+      ],
+      "attention": [
+        {
+          "id": "learning-loop-not-shipped",
+          "kind": "gap",
+          "note": "Run evidence does not yet revise or promote a flow automatically or through one measured workflow.",
+          "related_nodes": ["measure-lesson-effect", "manage-custom-flows"],
+          "disposition": {
+            "kind": "review-question",
+            "id": "evidence-to-flow-change"
+          }
+        }
+      ]
     },
     {
       "id": "configure-circuit",
       "area": "operations",
       "title": "Configure routing, connectors, models, power, and skills",
-      "summary": "Set the defaults and policies that determine how flows are equipped and run, including registering custom connectors as workers.",
-      "delivery": "shipped",
-      "exposure": "public-cli",
+      "outcome": "Set worker and connector selection, models, power, process rigor, and local skills without confusing that policy with flow routing.",
+      "maturity": "shipped",
       "vision": [
-        { "id": "fit-work-to-step", "fit": "enabling" },
-        { "id": "carry-operator-load", "fit": "enabling" }
+        {
+          "id": "fit-work-to-step",
+          "fit": "enabling"
+        },
+        {
+          "id": "carry-operator-load",
+          "fit": "enabling"
+        }
       ],
-      "proof": {
-        "strength": "tested",
-        "refs": [
-          "docs/contracts/config.md",
-          "src/schemas/config.ts",
-          "tests/contracts/config-schema.test.ts"
-        ]
-      },
-      "surfaces": {
-        "commands": ["config"],
-        "flows": [],
-        "blocks": []
-      }
+      "claims": [
+        {
+          "id": "configure-circuit-evidence",
+          "statement": "Typed configuration applies defaults, rejects unknown policy keys, and registers trusted custom connectors with write limits.",
+          "level": "tested",
+          "refs": [
+            {
+              "kind": "behavior-test",
+              "path": "tests/contracts/config-schema.test.ts",
+              "proves": "Exercises configuration defaults, supported overrides, schema versioning, and rejection of misspelled keys."
+            },
+            {
+              "kind": "behavior-test",
+              "path": "tests/runtime/connectors.test.ts",
+              "proves": "Exercises trusted custom connector resolution and rejection of read-only connectors for write work."
+            }
+          ]
+        }
+      ],
+      "attention": []
     },
     {
       "id": "check-readiness",
       "area": "operations",
       "title": "Check readiness, version, and runtime provenance",
-      "summary": "Explain whether Circuit can run here, which build is active, and what needs to be fixed.",
-      "delivery": "shipped",
-      "exposure": "public-cli",
-      "vision": [{ "id": "carry-operator-load", "fit": "enabling" }],
-      "proof": {
-        "strength": "tested",
-        "refs": [
-          "src/cli/doctor.ts",
-          "tests/runner/doctor.test.ts",
-          "docs/release/v1-launch-plan.md"
-        ]
-      },
-      "surfaces": {
-        "commands": ["doctor", "version"],
-        "flows": [],
-        "blocks": []
-      }
+      "outcome": "Explain whether Circuit can run here, which build is active, and what needs to be fixed.",
+      "maturity": "shipped",
+      "vision": [
+        {
+          "id": "carry-operator-load",
+          "fit": "enabling"
+        }
+      ],
+      "claims": [
+        {
+          "id": "check-readiness-evidence",
+          "statement": "Explain whether Circuit can run here, which build is active, and what needs to be fixed.",
+          "level": "tested",
+          "refs": [
+            {
+              "kind": "behavior-test",
+              "path": "tests/runner/doctor.test.ts",
+              "proves": "Exercises ready and broken connector verdicts, resolution-source labels, and copyable fixes."
+            }
+          ]
+        }
+      ],
+      "attention": []
     },
     {
       "id": "maintain-installation",
       "area": "operations",
       "title": "Maintain or remove the installation and leftover resources",
-      "summary": "Keep installed host bridges and local run resources understandable and removable.",
-      "delivery": "partial",
-      "exposure": "public-cli",
-      "vision": [{ "id": "carry-operator-load", "fit": "enabling" }],
-      "proof": {
-        "strength": "tested",
-        "refs": ["src/cli/uninstall.ts", "tests/unit/uninstall.test.ts", "plugins/README.md"]
-      },
-      "surfaces": {
-        "commands": ["uninstall", "reclaim"],
-        "flows": [],
-        "blocks": []
-      },
-      "attention": {
-        "kind": "boundary",
-        "note": "Installation is currently host-plugin-led, while maintenance utilities remain CLI-led. Install and first-run onboarding have no capability row of their own yet."
-      }
+      "outcome": "Keep installed host bridges and local run resources understandable and removable.",
+      "maturity": "partial",
+      "vision": [
+        {
+          "id": "carry-operator-load",
+          "fit": "enabling"
+        }
+      ],
+      "claims": [
+        {
+          "id": "maintain-installation-evidence",
+          "statement": "Circuit can remove its marked host integration blocks without damaging surrounding configuration.",
+          "level": "tested",
+          "refs": [
+            {
+              "kind": "behavior-test",
+              "path": "tests/unit/uninstall.test.ts",
+              "proves": "Exercises removing one or more marked install blocks, preserving surrounding text, and refusing malformed markers."
+            }
+          ]
+        }
+      ],
+      "attention": [
+        {
+          "id": "maintenance-is-fragmented",
+          "kind": "gap",
+          "note": "Uninstall, host-hook maintenance, and orphan-worktree cleanup are separate utilities rather than one installation lifecycle.",
+          "related_nodes": ["install-circuit", "recover-cleanly"],
+          "disposition": {
+            "kind": "review-question",
+            "id": "utility-surface-policy"
+          }
+        }
+      ]
     },
     {
       "id": "operate-across-hosts",
       "area": "operations",
       "title": "Operate the same flows from multiple agent hosts",
-      "summary": "Drive one encoded process from Claude Code or Codex through mirrored host surfaces, with worker selection aware of the host.",
-      "delivery": "shipped",
-      "exposure": "public-host",
+      "outcome": "Use the same encoded flows from Claude Code, Codex, or a shell through host-specific bridges whose lifecycle shapes are not identical.",
+      "maturity": "shipped",
       "vision": [
-        { "id": "fit-work-to-step", "fit": "direct" },
-        { "id": "encode-process", "fit": "enabling" }
+        {
+          "id": "fit-work-to-step",
+          "fit": "direct"
+        },
+        {
+          "id": "encode-process",
+          "fit": "enabling"
+        }
       ],
-      "proof": {
-        "strength": "tested",
-        "refs": [
-          "src/schemas/host.ts",
-          "src/connectors/resolver.ts",
-          "tests/unit/emit-flows-drift.test.ts"
-        ]
-      },
-      "surfaces": {
-        "commands": ["run", "handoff"],
-        "flows": [],
-        "blocks": []
-      },
-      "attention": {
-        "kind": "gap",
-        "note": "Continuity capture is Claude-only today, and exposure values cannot yet say which host reaches what."
-      }
+      "claims": [
+        {
+          "id": "operate-across-hosts-evidence",
+          "statement": "Claude and Codex reach the same encoded flow packages through different host bridges.",
+          "level": "tested",
+          "refs": [
+            {
+              "kind": "behavior-test",
+              "path": "tests/contracts/claude-host-plugin.test.ts",
+              "proves": "Exercises the installed Claude command bridge and generated public flow package."
+            },
+            {
+              "kind": "behavior-test",
+              "path": "tests/mcp/package.test.ts",
+              "proves": "Exercises the Codex plugin package, skills, flow catalog, and MCP bridge."
+            }
+          ]
+        }
+      ],
+      "attention": [
+        {
+          "id": "host-lifecycle-asymmetry",
+          "kind": "gap",
+          "note": "Claude drives the CLI bridge while Codex owns a six-tool MCP lifecycle; feature reach is not identical.",
+          "related_nodes": ["control-live-run", "ambient-continuity"],
+          "disposition": {
+            "kind": "review-question",
+            "id": "host-parity"
+          }
+        }
+      ]
     },
     {
       "id": "orient-and-discover",
       "area": "operations",
       "title": "Orient and discover without reading docs",
-      "summary": "Give a bare invocation, a piped agent, or a lost operator a guided path to the right next command.",
-      "delivery": "shipped",
-      "exposure": "public-cli",
-      "vision": [{ "id": "carry-operator-load", "fit": "enabling" }],
-      "proof": {
-        "strength": "tested",
-        "refs": ["src/cli/front-door.ts", "tests/runner/cli-help.test.ts"]
-      },
-      "surfaces": {
-        "commands": [],
-        "flows": [],
-        "blocks": []
-      },
-      "attention": {
-        "kind": "boundary",
-        "note": "Bare invocation and help sit outside the 15-command vocabulary, so the surface audit cannot see them."
-      }
+      "outcome": "Give a bare invocation, a piped agent, or a lost operator a guided path to the right next command.",
+      "maturity": "shipped",
+      "vision": [
+        {
+          "id": "carry-operator-load",
+          "fit": "enabling"
+        }
+      ],
+      "claims": [
+        {
+          "id": "orient-and-discover-evidence",
+          "statement": "Give a bare invocation, a piped agent, or a lost operator a guided path to the right next command.",
+          "level": "tested",
+          "refs": [
+            {
+              "kind": "behavior-test",
+              "path": "tests/runner/cli-help.test.ts",
+              "proves": "Exercises the orientation page and command help with usage, examples, aliases, and copyable next commands."
+            }
+          ]
+        }
+      ],
+      "attention": []
+    },
+    {
+      "id": "install-circuit",
+      "area": "operations",
+      "title": "Install Circuit",
+      "outcome": "Install Circuit through the Claude Code plugin, the Codex plugin and MCP bridge, or the local CLI path.",
+      "maturity": "shipped",
+      "vision": [
+        {
+          "id": "carry-operator-load",
+          "fit": "enabling"
+        }
+      ],
+      "claims": [
+        {
+          "id": "host-plugin-install-paths",
+          "statement": "Circuit packages installable Claude and Codex host bridges and verifies their bundled runtime contracts.",
+          "level": "tested",
+          "refs": [
+            {
+              "kind": "behavior-test",
+              "path": "tests/contracts/claude-host-plugin.test.ts",
+              "proves": "Exercises the installed Claude plugin wrapper and its packaged engine."
+            },
+            {
+              "kind": "behavior-test",
+              "path": "tests/mcp/package.test.ts",
+              "proves": "Exercises the installable Codex plugin tree and MCP package contract."
+            },
+            {
+              "kind": "behavior-test",
+              "path": "tests/release/plugin-publish-automation.test.ts",
+              "proves": "Exercises host-package publication metadata, user installation effects, and installed-byte validation."
+            }
+          ]
+        },
+        {
+          "id": "packed-cli-install-gate",
+          "statement": "The release gate installs the packed npm artifact in an isolated prefix and invokes its public CLI.",
+          "level": "source",
+          "refs": [
+            {
+              "kind": "source",
+              "path": "scripts/release/check-npm-package-install.ts",
+              "proves": "Defines the packed npm install and public CLI invocation required by check-release-infra."
+            }
+          ]
+        }
+      ],
+      "attention": []
+    },
+    {
+      "id": "try-circuit-safely",
+      "area": "operations",
+      "title": "Try Circuit in a safe demo",
+      "outcome": "Run one real Fix flow against a throwaway project without changing the current checkout.",
+      "maturity": "shipped",
+      "vision": [
+        {
+          "id": "carry-operator-load",
+          "fit": "direct"
+        },
+        {
+          "id": "proof-before-progress",
+          "fit": "enabling"
+        }
+      ],
+      "claims": [
+        {
+          "id": "throwaway-real-fix",
+          "statement": "The demo creates a throwaway project with a real bug and runs the real Fix path there.",
+          "level": "tested",
+          "refs": [
+            {
+              "kind": "source",
+              "path": "src/cli/demo.ts",
+              "proves": "Creates and targets an isolated temporary project."
+            },
+            {
+              "kind": "behavior-test",
+              "path": "tests/runner/demo-command.test.ts",
+              "proves": "Exercises isolation, the real Fix invocation, and demo cleanup."
+            }
+          ]
+        }
+      ],
+      "attention": []
+    },
+    {
+      "id": "use-custom-connectors",
+      "area": "operations",
+      "title": "Use a custom connector",
+      "outcome": "Register a trusted prompt-file and output-file worker connector and select it for compatible read-only steps.",
+      "maturity": "shipped",
+      "vision": [
+        {
+          "id": "fit-work-to-step",
+          "fit": "direct"
+        }
+      ],
+      "claims": [
+        {
+          "id": "custom-connector-runtime",
+          "statement": "Trusted configuration can register a custom connector while runtime safety rejects incompatible write work.",
+          "level": "tested",
+          "refs": [
+            {
+              "kind": "source",
+              "path": "src/schemas/config.ts",
+              "proves": "Defines registered custom connector descriptors and selection references."
+            },
+            {
+              "kind": "behavior-test",
+              "path": "tests/runtime/connectors.test.ts",
+              "proves": "Exercises trusted custom resolution and rejection of read-only connectors for implementer work."
+            }
+          ]
+        }
+      ],
+      "attention": []
+    }
+  ],
+  "supporting_elements": [
+    {
+      "id": "encode-typed-flow",
+      "kind": "mechanism",
+      "title": "Encode typed flows from blocks, routes, and checks",
+      "summary": "Describe a reusable process as authored topology with typed seams and evidence requirements.",
+      "maturity": "shipped",
+      "supports_capabilities": ["manage-custom-flows"],
+      "claims": [
+        {
+          "id": "encode-typed-flow-evidence",
+          "statement": "Describe a reusable process as authored topology with typed seams and evidence requirements.",
+          "level": "tested",
+          "refs": [
+            {
+              "kind": "behavior-test",
+              "path": "tests/runner/flow-facts.test.ts",
+              "proves": "Exercises catalog-to-schematic parity, exact production flow IDs, and connector selection through composed branches."
+            }
+          ]
+        }
+      ],
+      "attention": []
+    },
+    {
+      "id": "role-shaped-steps",
+      "kind": "mechanism",
+      "title": "Run isolated, role-shaped steps with scoped context and tools",
+      "summary": "Give a worker only the role, context, skills, and tools needed for one bounded step.",
+      "maturity": "shipped",
+      "supports_capabilities": [
+        "audit-work",
+        "fix-work",
+        "build-work",
+        "explore-work",
+        "prototype-work",
+        "own-bounded-outcome",
+        "craft-artifacts"
+      ],
+      "claims": [
+        {
+          "id": "role-shaped-steps-evidence",
+          "statement": "Give a worker only the role, context, skills, and tools needed for one bounded step.",
+          "level": "tested",
+          "refs": [
+            {
+              "kind": "behavior-test",
+              "path": "tests/contracts/equipment-enforcement.test.ts",
+              "proves": "Exercises trusted and enforced tool scopes, including safe downgrade when a connector cannot restrict tools."
+            }
+          ]
+        }
+      ],
+      "attention": []
+    },
+    {
+      "id": "allocate-step-equipment",
+      "kind": "control",
+      "title": "Allocate connector, model, and effort per step",
+      "summary": "Choose the worker and spend level from the step's role, with explicit overrides when needed.",
+      "maturity": "shipped",
+      "supports_capabilities": [
+        "audit-work",
+        "fix-work",
+        "build-work",
+        "explore-work",
+        "prototype-work",
+        "preview-execution",
+        "configure-circuit",
+        "use-custom-connectors"
+      ],
+      "claims": [
+        {
+          "id": "allocate-step-equipment-evidence",
+          "statement": "Choose the worker and spend level from the step's role, with explicit overrides when needed.",
+          "level": "tested",
+          "refs": [
+            {
+              "kind": "behavior-test",
+              "path": "tests/runner/flow-selection-preview.test.ts",
+              "proves": "Exercises role-based connector, model-tier, and effort selection across low, medium, high, and auto power."
+            }
+          ]
+        }
+      ],
+      "attention": []
+    },
+    {
+      "id": "bounded-composition",
+      "kind": "mechanism",
+      "title": "Sequence, route, nest, and continue work within authored bounds",
+      "summary": "Execute an authored graph whose next steps are constrained by declared routes and child-flow seams.",
+      "maturity": "shipped",
+      "supports_capabilities": [
+        "route-intent",
+        "audit-work",
+        "fix-work",
+        "build-work",
+        "explore-work",
+        "prototype-work",
+        "own-bounded-outcome"
+      ],
+      "claims": [
+        {
+          "id": "bounded-composition-evidence",
+          "statement": "Execute an authored graph whose next steps are constrained by declared routes and child-flow seams.",
+          "level": "tested",
+          "refs": [
+            {
+              "kind": "behavior-test",
+              "path": "tests/runner/m9-truth-test-assembled-goal.test.ts",
+              "proves": "Exercises that the assembled Goal schematic and compiled child-flow graph match the package loaded by the runtime."
+            }
+          ]
+        }
+      ],
+      "attention": []
+    },
+    {
+      "id": "fanout-compare",
+      "kind": "mechanism",
+      "title": "Fan out and compare alternatives",
+      "summary": "Run bounded alternatives independently, gather comparable evidence, and join them for a decision.",
+      "maturity": "shipped",
+      "supports_capabilities": ["explore-work", "prototype-work"],
+      "claims": [
+        {
+          "id": "fanout-compare-evidence",
+          "statement": "Run bounded alternatives independently, gather comparable evidence, and join them for a decision.",
+          "level": "tested",
+          "refs": [
+            {
+              "kind": "behavior-test",
+              "path": "tests/runner/fanout-real-recursion.test.ts",
+              "proves": "Exercises real child-flow execution for every fan-out branch and admission through the aggregate result."
+            }
+          ]
+        }
+      ],
+      "attention": []
+    },
+    {
+      "id": "iterate-until-proof",
+      "kind": "mechanism",
+      "title": "Iterate until declared evidence passes",
+      "summary": "Repeat a bounded body while its authored condition says the proof is not yet sufficient.",
+      "maturity": "shipped",
+      "supports_capabilities": ["fix-work", "own-bounded-outcome"],
+      "claims": [
+        {
+          "id": "iterate-until-proof-evidence",
+          "statement": "Repeat a bounded body while its authored condition says the proof is not yet sufficient.",
+          "level": "tested",
+          "refs": [
+            {
+              "kind": "behavior-test",
+              "path": "tests/runner/until-loop-runtime.test.ts",
+              "proves": "Exercises repeated full-body execution, single-pass fallback, route validation, and authored iteration bounds."
+            }
+          ]
+        }
+      ],
+      "attention": []
+    },
+    {
+      "id": "queue-batch-work",
+      "kind": "mechanism",
+      "title": "Queue and batch broad work",
+      "summary": "Turn broad work into ordered items and process a bounded set with explicit outcomes.",
+      "maturity": "partial",
+      "supports_capabilities": ["own-bounded-outcome"],
+      "claims": [
+        {
+          "id": "queue-batch-work-evidence",
+          "statement": "Turn broad work into ordered items and process a bounded set with explicit outcomes.",
+          "level": "tested",
+          "refs": [
+            {
+              "kind": "behavior-test",
+              "path": "tests/runner/pursue-runtime-wiring.test.ts",
+              "proves": "Exercises the internal Pursue path through coordination, bounded batch work, verification, review, and close."
+            }
+          ]
+        }
+      ],
+      "attention": [
+        {
+          "id": "queue-outcome-overlap",
+          "kind": "overlap",
+          "note": "Queue-and-batch machinery overlaps the broader outcome-ownership shape and remains internal.",
+          "related_nodes": ["own-bounded-outcome"],
+          "disposition": {
+            "kind": "review-question",
+            "id": "public-outcome-ownership"
+          }
+        }
+      ]
+    },
+    {
+      "id": "apply-skill-hooks",
+      "kind": "control",
+      "title": "Route runtime signals to the operator's skills",
+      "summary": "Fire a declared hook when a runtime signal matches and inject the operator's skill into the next relevant worker step.",
+      "maturity": "shipped",
+      "supports_capabilities": [
+        "audit-work",
+        "fix-work",
+        "build-work",
+        "explore-work",
+        "prototype-work"
+      ],
+      "claims": [
+        {
+          "id": "apply-skill-hooks-evidence",
+          "statement": "Fire a declared hook when a runtime signal matches and inject the operator's skill into the next relevant worker step.",
+          "level": "tested",
+          "refs": [
+            {
+              "kind": "behavior-test",
+              "path": "tests/runner/skill-hook-actuation.test.ts",
+              "proves": "Exercises matching an active hook, recording its policy decision, and injecting only resolved skills into the next relay."
+            }
+          ]
+        }
+      ],
+      "attention": [
+        {
+          "id": "reserved-hook-vocabulary",
+          "kind": "boundary",
+          "note": "Four hook anchors are live; seven accepted names remain reserved and inert.",
+          "related_nodes": [],
+          "disposition": {
+            "kind": "accepted",
+            "reason": "Keep reserved names visible as dormant vocabulary until runtime dispatch exists."
+          }
+        }
+      ]
+    },
+    {
+      "id": "scale-run-investment",
+      "kind": "control",
+      "title": "Scale rigor and spend to the stakes",
+      "summary": "Set how much process and model power a run deserves, or let the run recommend a level within declared limits.",
+      "maturity": "shipped",
+      "supports_capabilities": ["preview-execution", "run-unattended", "configure-circuit"],
+      "claims": [
+        {
+          "id": "scale-run-investment-evidence",
+          "statement": "Set how much process and model power a run deserves, or let the run recommend a level within declared limits.",
+          "level": "tested",
+          "refs": [
+            {
+              "kind": "behavior-test",
+              "path": "tests/unit/power-tiers.test.ts",
+              "proves": "Exercises power defaults and precedence plus role-specific model or effort tiers for Claude and Codex."
+            }
+          ]
+        }
+      ],
+      "attention": []
+    },
+    {
+      "id": "adapt-mid-run",
+      "kind": "control",
+      "title": "Adapt a running flow within bounds",
+      "summary": "Let a confirmed runtime discovery adjust later steps' skills, or let a step pull one typed context slice, without changing the authored topology.",
+      "maturity": "partial",
+      "supports_capabilities": ["fix-work", "build-work", "own-bounded-outcome"],
+      "claims": [
+        {
+          "id": "adapt-mid-run-evidence",
+          "statement": "A confirmed runtime discovery can re-resolve equipment for later relay steps without changing the authored graph.",
+          "level": "tested",
+          "refs": [
+            {
+              "kind": "behavior-test",
+              "path": "tests/runner/equipment-reshape-real.test.ts",
+              "proves": "Exercises injecting newly resolved equipment after a confirmed discovery and withholding it when the discovery is unconfirmed."
+            }
+          ]
+        }
+      ],
+      "attention": [
+        {
+          "id": "bounded-adaptation-is-internal",
+          "kind": "young",
+          "note": "Equipment reshaping and typed context pulls work internally but have no direct operator surface.",
+          "related_nodes": [],
+          "disposition": {
+            "kind": "accepted",
+            "reason": "Keep adaptation as an internal control while its user promise is still unsettled."
+          }
+        }
+      ]
+    },
+    {
+      "id": "ambient-continuity",
+      "kind": "mechanism",
+      "title": "Capture session state automatically",
+      "summary": "Harvest a continuity record from the live session with no operator action, as a safety net under deliberate handoffs.",
+      "maturity": "shipped",
+      "supports_capabilities": ["cross-session-handoff"],
+      "claims": [
+        {
+          "id": "ambient-continuity-evidence",
+          "statement": "Harvest a continuity record from the live session with no operator action, as a safety net under deliberate handoffs.",
+          "level": "tested",
+          "refs": [
+            {
+              "kind": "behavior-test",
+              "path": "tests/runner/handoff-harvest.test.ts",
+              "proves": "Exercises harvesting genuine session intent and compaction context while preserving a deliberate handoff as the primary record."
+            }
+          ]
+        }
+      ],
+      "attention": [
+        {
+          "id": "ambient-deliberate-overlap",
+          "kind": "overlap",
+          "note": "Ambient harvest is a safety net beneath deliberate cross-session handoff, not a competing source of truth.",
+          "related_nodes": ["cross-session-handoff"],
+          "disposition": {
+            "kind": "accepted",
+            "reason": "Keep both: deliberate handoff leads, ambient continuity catches missed saves."
+          }
+        }
+      ]
+    },
+    {
+      "id": "deterministic-checks",
+      "kind": "mechanism",
+      "title": "Run deterministic checks",
+      "summary": "Execute declared proof commands and capture their result as run evidence.",
+      "maturity": "shipped",
+      "supports_capabilities": ["fix-work", "build-work", "honest-close"],
+      "claims": [
+        {
+          "id": "deterministic-checks-evidence",
+          "statement": "Execute declared proof commands and capture their result as run evidence.",
+          "level": "tested",
+          "refs": [
+            {
+              "kind": "behavior-test",
+              "path": "tests/runner/build-verification-exec.test.ts",
+              "proves": "Exercises passed, failed, missing, unsafe, timed-out, and unlaunchable verification commands with typed evidence."
+            }
+          ]
+        }
+      ],
+      "attention": []
+    },
+    {
+      "id": "independent-judgment",
+      "kind": "guarantee",
+      "title": "Judge results independently",
+      "summary": "Separate doing the work from deciding whether the result satisfies its brief.",
+      "maturity": "shipped",
+      "supports_capabilities": ["audit-work", "prototype-work", "honest-close"],
+      "claims": [
+        {
+          "id": "independent-judgment-evidence",
+          "statement": "Separate doing the work from deciding whether the result satisfies its brief.",
+          "level": "tested",
+          "refs": [
+            {
+              "kind": "behavior-test",
+              "path": "tests/runner/review-runtime-wiring.test.ts",
+              "proves": "Exercises a separate reviewer relay whose clean or blocking findings determine the recorded close outcome."
+            }
+          ]
+        }
+      ],
+      "attention": []
+    },
+    {
+      "id": "enforce-evidence-integrity",
+      "kind": "guarantee",
+      "title": "Block false claims of done",
+      "summary": "Check worker claims against ground truth and refuse a clean close while any overclaim or tampered proof stands.",
+      "maturity": "shipped",
+      "supports_capabilities": ["fix-work", "build-work", "honest-close"],
+      "claims": [
+        {
+          "id": "enforce-evidence-integrity-evidence",
+          "statement": "Check worker claims against ground truth and refuse a clean close while any overclaim or tampered proof stands.",
+          "level": "tested",
+          "refs": [
+            {
+              "kind": "behavior-test",
+              "path": "tests/unit/honesty-ledger.test.ts",
+              "proves": "Exercises durable overclaim latches and the finalize-time gap that blocks a clean close while a latch remains open."
+            },
+            {
+              "kind": "behavior-test",
+              "path": "tests/runtime/acceptance-criteria-changed-on-disk.test.ts",
+              "proves": "Exercises rejecting a worker's claimed changed file when the working tree does not support that claim."
+            },
+            {
+              "kind": "behavior-test",
+              "path": "tests/unit/frozen-eval.test.ts",
+              "proves": "Exercises detecting modified, created, and deleted files on a declared frozen evaluation surface."
+            },
+            {
+              "kind": "behavior-test",
+              "path": "tests/runner/until-loop-runtime.test.ts",
+              "proves": "Exercises a tampered evaluation surface opening an integrity latch and preventing an otherwise accepted run from closing complete."
+            }
+          ]
+        }
+      ],
+      "attention": []
+    },
+    {
+      "id": "host-data-consent",
+      "kind": "control",
+      "title": "Require consent for sensitive host data and write access",
+      "summary": "Keep cached web search off by default, gate untracked review contents, and disclose write-capable workers before edits.",
+      "maturity": "shipped",
+      "supports_capabilities": [
+        "audit-work",
+        "fix-work",
+        "build-work",
+        "prototype-work",
+        "use-custom-connectors"
+      ],
+      "claims": [
+        {
+          "id": "consent-and-write-safety",
+          "statement": "Codex input and connector policies keep data and write boundaries explicit.",
+          "level": "tested",
+          "refs": [
+            {
+              "kind": "behavior-test",
+              "path": "tests/mcp/contracts.test.ts",
+              "proves": "Exercises the off-by-default web search contract and bounded opt-in values."
+            },
+            {
+              "kind": "behavior-test",
+              "path": "tests/runner/cli-router.test.ts",
+              "proves": "Exercises explicit consent before including untracked Review content and a write-capability warning before Build waits for framing approval."
+            },
+            {
+              "kind": "behavior-test",
+              "path": "tests/runtime/connectors.test.ts",
+              "proves": "Exercises read-only, isolated-write, and trusted-write connector policy."
+            }
+          ]
+        }
+      ],
+      "attention": []
+    }
+  ],
+  "surface_map": [
+    {
+      "surface": "front-door:cli:bare",
+      "node": "orient-and-discover",
+      "role": "entry-point"
+    },
+    {
+      "surface": "front-door:cli:help",
+      "node": "orient-and-discover",
+      "role": "entry-point"
+    },
+    {
+      "surface": "install:claude-plugin",
+      "node": "install-circuit",
+      "role": "entry-point"
+    },
+    {
+      "surface": "install:codex-plugin",
+      "node": "install-circuit",
+      "role": "entry-point"
+    },
+    {
+      "surface": "install:local-cli",
+      "node": "install-circuit",
+      "role": "entry-point"
+    },
+    {
+      "surface": "app:designer",
+      "node": "manage-custom-flows",
+      "role": "example"
+    },
+    {
+      "surface": "command:run",
+      "node": "route-intent",
+      "role": "entry-point"
+    },
+    {
+      "surface": "command:demo",
+      "node": "try-circuit-safely",
+      "role": "entry-point"
+    },
+    {
+      "surface": "command:resume",
+      "node": "resume-work",
+      "role": "entry-point"
+    },
+    {
+      "surface": "command:handoff",
+      "node": "cross-session-handoff",
+      "role": "entry-point"
+    },
+    {
+      "surface": "command:history",
+      "node": "inspect-runs",
+      "role": "entry-point"
+    },
+    {
+      "surface": "command:memory",
+      "node": "capture-lessons",
+      "role": "entry-point"
+    },
+    {
+      "surface": "command:create",
+      "node": "manage-custom-flows",
+      "role": "entry-point"
+    },
+    {
+      "surface": "command:generate",
+      "node": "manage-custom-flows",
+      "role": "entry-point"
+    },
+    {
+      "surface": "command:uninstall",
+      "node": "maintain-installation",
+      "role": "entry-point"
+    },
+    {
+      "surface": "command:runs",
+      "node": "inspect-runs",
+      "role": "entry-point"
+    },
+    {
+      "surface": "command:reclaim",
+      "node": "recover-cleanly",
+      "role": "entry-point"
+    },
+    {
+      "surface": "command:checkpoints",
+      "node": "operator-decisions",
+      "role": "entry-point"
+    },
+    {
+      "surface": "command:preview",
+      "node": "preview-execution",
+      "role": "entry-point"
+    },
+    {
+      "surface": "command:doctor",
+      "node": "check-readiness",
+      "role": "entry-point"
+    },
+    {
+      "surface": "command:config",
+      "node": "configure-circuit",
+      "role": "entry-point"
+    },
+    {
+      "surface": "command:version",
+      "node": "check-readiness",
+      "role": "entry-point"
+    },
+    {
+      "surface": "subcommand:handoff:save",
+      "node": "cross-session-handoff",
+      "role": "delivery"
+    },
+    {
+      "surface": "subcommand:handoff:resume",
+      "node": "cross-session-handoff",
+      "role": "delivery"
+    },
+    {
+      "surface": "subcommand:handoff:done",
+      "node": "cross-session-handoff",
+      "role": "delivery"
+    },
+    {
+      "surface": "subcommand:handoff:brief",
+      "node": "ambient-continuity",
+      "role": "delivery"
+    },
+    {
+      "surface": "subcommand:handoff:hook",
+      "node": "ambient-continuity",
+      "role": "delivery"
+    },
+    {
+      "surface": "subcommand:handoff:harvest",
+      "node": "ambient-continuity",
+      "role": "delivery"
+    },
+    {
+      "surface": "subcommand:handoff:hooks:install",
+      "node": "install-circuit",
+      "role": "delivery"
+    },
+    {
+      "surface": "subcommand:handoff:hooks:uninstall",
+      "node": "maintain-installation",
+      "role": "delivery"
+    },
+    {
+      "surface": "subcommand:handoff:hooks:doctor",
+      "node": "check-readiness",
+      "role": "delivery"
+    },
+    {
+      "surface": "subcommand:history:rebuild",
+      "node": "reuse-run-evidence",
+      "role": "delivery"
+    },
+    {
+      "surface": "subcommand:history:query",
+      "node": "inspect-runs",
+      "role": "delivery"
+    },
+    {
+      "surface": "subcommand:history:pull",
+      "node": "reuse-run-evidence",
+      "role": "delivery"
+    },
+    {
+      "surface": "subcommand:history:status",
+      "node": "inspect-runs",
+      "role": "delivery"
+    },
+    {
+      "surface": "subcommand:history:memory-merge",
+      "node": "measure-lesson-effect",
+      "role": "delivery"
+    },
+    {
+      "surface": "subcommand:history:memory-effect",
+      "node": "measure-lesson-effect",
+      "role": "delivery"
+    },
+    {
+      "surface": "subcommand:memory:note",
+      "node": "capture-lessons",
+      "role": "delivery"
+    },
+    {
+      "surface": "subcommand:memory:list",
+      "node": "capture-lessons",
+      "role": "delivery"
+    },
+    {
+      "surface": "subcommand:memory:forget",
+      "node": "capture-lessons",
+      "role": "delivery"
+    },
+    {
+      "surface": "subcommand:config:show",
+      "node": "configure-circuit",
+      "role": "delivery"
+    },
+    {
+      "surface": "subcommand:config:set",
+      "node": "configure-circuit",
+      "role": "delivery"
+    },
+    {
+      "surface": "subcommand:config:unset",
+      "node": "configure-circuit",
+      "role": "delivery"
+    },
+    {
+      "surface": "subcommand:runs:show",
+      "node": "inspect-runs",
+      "role": "delivery"
+    },
+    {
+      "surface": "flag:--goal",
+      "node": "route-intent",
+      "role": "delivery"
+    },
+    {
+      "surface": "flag:--why",
+      "node": "preview-execution",
+      "role": "delivery"
+    },
+    {
+      "surface": "flag:--target",
+      "node": "route-intent",
+      "role": "delivery"
+    },
+    {
+      "surface": "flag:--process",
+      "node": "scale-run-investment",
+      "role": "control"
+    },
+    {
+      "surface": "flag:--power",
+      "node": "scale-run-investment",
+      "role": "control"
+    },
+    {
+      "surface": "flag:--tournament",
+      "node": "fanout-compare",
+      "role": "delivery"
+    },
+    {
+      "surface": "flag:--autonomous",
+      "node": "run-unattended",
+      "role": "delivery"
+    },
+    {
+      "surface": "flag:--run-folder",
+      "node": "inspect-runs",
+      "role": "delivery"
+    },
+    {
+      "surface": "flag:--fixture",
+      "node": "try-circuit-safely",
+      "role": "delivery"
+    },
+    {
+      "surface": "flag:--flow-root",
+      "node": "manage-custom-flows",
+      "role": "delivery"
+    },
+    {
+      "surface": "flag:--checkpoint-choice",
+      "node": "operator-decisions",
+      "role": "delivery"
+    },
+    {
+      "surface": "flag:--checkpoint-response",
+      "node": "operator-decisions",
+      "role": "delivery"
+    },
+    {
+      "surface": "flag:--checkpoint-response-file",
+      "node": "operator-decisions",
+      "role": "delivery"
+    },
+    {
+      "surface": "flag:--checkpoint-review",
+      "node": "operator-decisions",
+      "role": "delivery"
+    },
+    {
+      "surface": "flag:--progress",
+      "node": "follow-run-live",
+      "role": "delivery"
+    },
+    {
+      "surface": "flag:--dry-run",
+      "role": "excluded",
+      "reason": "The parser keeps this rejected flag only to fail closed; Circuit does not offer dry-run behavior."
+    },
+    {
+      "surface": "flag:--include-untracked-content",
+      "node": "host-data-consent",
+      "role": "control"
+    },
+    {
+      "surface": "flag:--reuse-children-from",
+      "node": "recover-cleanly",
+      "role": "delivery"
+    },
+    {
+      "surface": "flow:build",
+      "node": "build-work",
+      "role": "delivery"
+    },
+    {
+      "surface": "flow:converge-proof",
+      "node": "iterate-until-proof",
+      "role": "example"
+    },
+    {
+      "surface": "flow:cross-tool-build",
+      "node": "allocate-step-equipment",
+      "role": "example"
+    },
+    {
+      "surface": "flow:explainer",
+      "node": "craft-artifacts",
+      "role": "delivery"
+    },
+    {
+      "surface": "flow:explore",
+      "node": "explore-work",
+      "role": "delivery"
+    },
+    {
+      "surface": "flow:fix",
+      "node": "fix-work",
+      "role": "delivery"
+    },
+    {
+      "surface": "flow:fix-until-green",
+      "node": "iterate-until-proof",
+      "role": "example"
+    },
+    {
+      "surface": "flow:goal",
+      "node": "own-bounded-outcome",
+      "role": "delivery"
+    },
+    {
+      "surface": "flow:prototype",
+      "node": "prototype-work",
+      "role": "delivery"
+    },
+    {
+      "surface": "flow:pursue",
+      "node": "own-bounded-outcome",
+      "role": "delivery"
+    },
+    {
+      "surface": "flow:review",
+      "node": "audit-work",
+      "role": "delivery"
+    },
+    {
+      "surface": "flow:runtime-proof",
+      "node": "role-shaped-steps",
+      "role": "example"
+    },
+    {
+      "surface": "flow:sweep",
+      "node": "queue-batch-work",
+      "role": "example"
+    },
+    {
+      "surface": "block:intake",
+      "node": "route-intent",
+      "role": "dormant-vocabulary"
+    },
+    {
+      "surface": "block:route",
+      "node": "route-intent",
+      "role": "dormant-vocabulary"
+    },
+    {
+      "surface": "block:frame",
+      "node": "frame-work",
+      "role": "delivery"
+    },
+    {
+      "surface": "block:clarify",
+      "node": "frame-work",
+      "role": "delivery"
+    },
+    {
+      "surface": "block:human-decision",
+      "node": "operator-decisions",
+      "role": "delivery"
+    },
+    {
+      "surface": "block:gather-context",
+      "node": "role-shaped-steps",
+      "role": "example"
+    },
+    {
+      "surface": "block:diagnose",
+      "node": "role-shaped-steps",
+      "role": "example"
+    },
+    {
+      "surface": "block:plan",
+      "node": "role-shaped-steps",
+      "role": "example"
+    },
+    {
+      "surface": "block:act",
+      "node": "role-shaped-steps",
+      "role": "example"
+    },
+    {
+      "surface": "block:run-verification",
+      "node": "deterministic-checks",
+      "role": "example"
+    },
+    {
+      "surface": "block:review",
+      "node": "independent-judgment",
+      "role": "example"
+    },
+    {
+      "surface": "block:goal",
+      "node": "own-bounded-outcome",
+      "role": "delivery"
+    },
+    {
+      "surface": "block:goal-child-run",
+      "node": "bounded-composition",
+      "role": "example"
+    },
+    {
+      "surface": "block:goal-attempt",
+      "node": "iterate-until-proof",
+      "role": "example"
+    },
+    {
+      "surface": "block:goal-evaluate",
+      "node": "iterate-until-proof",
+      "role": "example"
+    },
+    {
+      "surface": "block:goal-recover",
+      "node": "recover-cleanly",
+      "role": "delivery"
+    },
+    {
+      "surface": "block:goal-checkpoint",
+      "node": "operator-decisions",
+      "role": "delivery"
+    },
+    {
+      "surface": "block:goal-gate-review",
+      "node": "independent-judgment",
+      "role": "example"
+    },
+    {
+      "surface": "block:goal-close",
+      "node": "honest-close",
+      "role": "delivery"
+    },
+    {
+      "surface": "block:pursue",
+      "node": "own-bounded-outcome",
+      "role": "delivery"
+    },
+    {
+      "surface": "block:coordinate-pursuits",
+      "node": "queue-batch-work",
+      "role": "example"
+    },
+    {
+      "surface": "block:queue",
+      "node": "queue-batch-work",
+      "role": "dormant-vocabulary"
+    },
+    {
+      "surface": "block:batch",
+      "node": "queue-batch-work",
+      "role": "example"
+    },
+    {
+      "surface": "block:risk-rollback-check",
+      "node": "recover-cleanly",
+      "role": "dormant-vocabulary"
+    },
+    {
+      "surface": "block:close-with-evidence",
+      "node": "honest-close",
+      "role": "delivery"
+    },
+    {
+      "surface": "block:handoff",
+      "node": "cross-session-handoff",
+      "role": "example"
+    },
+    {
+      "surface": "block:review-intake",
+      "node": "frame-work",
+      "role": "delivery"
+    },
+    {
+      "surface": "block:prototype-variant-evidence",
+      "node": "fanout-compare",
+      "role": "example"
+    },
+    {
+      "surface": "block:prototype-checkpoint",
+      "node": "operator-decisions",
+      "role": "delivery"
+    },
+    {
+      "surface": "host:generic-shell",
+      "node": "operate-across-hosts",
+      "role": "delivery"
+    },
+    {
+      "surface": "host:claude-code",
+      "node": "operate-across-hosts",
+      "role": "delivery"
+    },
+    {
+      "surface": "host:codex",
+      "node": "operate-across-hosts",
+      "role": "delivery"
+    },
+    {
+      "surface": "host-command:claude:handoff",
+      "node": "cross-session-handoff",
+      "role": "entry-point"
+    },
+    {
+      "surface": "host-command:claude:run",
+      "node": "route-intent",
+      "role": "entry-point"
+    },
+    {
+      "surface": "host-command:codex:handoff",
+      "node": "cross-session-handoff",
+      "role": "example"
+    },
+    {
+      "surface": "host-command:codex:run",
+      "node": "route-intent",
+      "role": "example"
+    },
+    {
+      "surface": "host-skill:codex:handoff",
+      "node": "cross-session-handoff",
+      "role": "entry-point"
+    },
+    {
+      "surface": "host-skill:codex:run",
+      "node": "route-intent",
+      "role": "entry-point"
+    },
+    {
+      "surface": "host-flow:claude:build/circuit",
+      "node": "build-work",
+      "role": "delivery"
+    },
+    {
+      "surface": "host-flow:claude:explore/circuit",
+      "node": "explore-work",
+      "role": "delivery"
+    },
+    {
+      "surface": "host-flow:claude:explore/tournament",
+      "node": "explore-work",
+      "role": "delivery"
+    },
+    {
+      "surface": "host-flow:claude:fix/circuit",
+      "node": "fix-work",
+      "role": "delivery"
+    },
+    {
+      "surface": "host-flow:claude:fix/low",
+      "node": "fix-work",
+      "role": "delivery"
+    },
+    {
+      "surface": "host-flow:claude:prototype/circuit",
+      "node": "prototype-work",
+      "role": "delivery"
+    },
+    {
+      "surface": "host-flow:claude:prototype/tournament",
+      "node": "prototype-work",
+      "role": "delivery"
+    },
+    {
+      "surface": "host-flow:claude:review/circuit",
+      "node": "audit-work",
+      "role": "delivery"
+    },
+    {
+      "surface": "host-flow:codex:build/circuit",
+      "node": "build-work",
+      "role": "delivery"
+    },
+    {
+      "surface": "host-catalog:codex:flows",
+      "node": "route-intent",
+      "role": "delivery"
+    },
+    {
+      "surface": "host-flow:codex:explore/circuit",
+      "node": "explore-work",
+      "role": "delivery"
+    },
+    {
+      "surface": "host-flow:codex:explore/tournament",
+      "node": "explore-work",
+      "role": "delivery"
+    },
+    {
+      "surface": "host-flow:codex:fix/circuit",
+      "node": "fix-work",
+      "role": "delivery"
+    },
+    {
+      "surface": "host-flow:codex:fix/low",
+      "node": "fix-work",
+      "role": "delivery"
+    },
+    {
+      "surface": "host-flow:codex:prototype/circuit",
+      "node": "prototype-work",
+      "role": "delivery"
+    },
+    {
+      "surface": "host-flow:codex:prototype/tournament",
+      "node": "prototype-work",
+      "role": "delivery"
+    },
+    {
+      "surface": "host-flow:codex:review/circuit",
+      "node": "audit-work",
+      "role": "delivery"
+    },
+    {
+      "surface": "host-hook:claude:PreCompact",
+      "node": "ambient-continuity",
+      "role": "delivery"
+    },
+    {
+      "surface": "host-hook:claude:SessionEnd",
+      "node": "ambient-continuity",
+      "role": "delivery"
+    },
+    {
+      "surface": "host-hook:claude:SessionStart",
+      "node": "cross-session-handoff",
+      "role": "delivery"
+    },
+    {
+      "surface": "host-hook:claude:Stop",
+      "node": "ambient-continuity",
+      "role": "delivery"
+    },
+    {
+      "surface": "host-hook:codex:session-start",
+      "node": "cross-session-handoff",
+      "role": "delivery"
+    },
+    {
+      "surface": "mcp-tool:circuit_start",
+      "node": "control-live-run",
+      "role": "entry-point"
+    },
+    {
+      "surface": "mcp-tool:circuit_start",
+      "node": "host-data-consent",
+      "role": "control"
+    },
+    {
+      "surface": "mcp-tool:circuit_status",
+      "node": "control-live-run",
+      "role": "delivery"
+    },
+    {
+      "surface": "mcp-tool:circuit_resume",
+      "node": "resume-work",
+      "role": "delivery"
+    },
+    {
+      "surface": "mcp-tool:circuit_resume",
+      "node": "control-live-run",
+      "role": "delivery"
+    },
+    {
+      "surface": "mcp-tool:circuit_cancel",
+      "node": "control-live-run",
+      "role": "delivery"
+    },
+    {
+      "surface": "mcp-tool:circuit_list",
+      "node": "inspect-runs",
+      "role": "delivery"
+    },
+    {
+      "surface": "mcp-tool:circuit_list",
+      "node": "control-live-run",
+      "role": "delivery"
+    },
+    {
+      "surface": "mcp-tool:circuit_recover",
+      "node": "recover-cleanly",
+      "role": "delivery"
+    },
+    {
+      "surface": "mcp-tool:circuit_recover",
+      "node": "control-live-run",
+      "role": "delivery"
+    },
+    {
+      "surface": "connector:claude-code",
+      "node": "allocate-step-equipment",
+      "role": "control"
+    },
+    {
+      "surface": "connector:codex",
+      "node": "allocate-step-equipment",
+      "role": "control"
+    },
+    {
+      "surface": "connector:cursor-agent",
+      "node": "allocate-step-equipment",
+      "role": "control"
+    },
+    {
+      "surface": "connector:custom",
+      "node": "use-custom-connectors",
+      "role": "delivery"
+    },
+    {
+      "surface": "config-key:schema_version",
+      "role": "excluded",
+      "reason": "This is file-format metadata, not an operator feature or configuration choice."
+    },
+    {
+      "surface": "config-key:project_id",
+      "node": "configure-circuit",
+      "role": "delivery"
+    },
+    {
+      "surface": "config-key:host",
+      "node": "configure-circuit",
+      "role": "delivery"
+    },
+    {
+      "surface": "config-key:relay",
+      "node": "allocate-step-equipment",
+      "role": "control"
+    },
+    {
+      "surface": "config-key:skills",
+      "node": "role-shaped-steps",
+      "role": "delivery"
+    },
+    {
+      "surface": "config-key:skill_hooks",
+      "node": "apply-skill-hooks",
+      "role": "control"
+    },
+    {
+      "surface": "config-key:flows",
+      "node": "configure-circuit",
+      "role": "delivery"
+    },
+    {
+      "surface": "config-key:verification",
+      "node": "deterministic-checks",
+      "role": "delivery"
+    },
+    {
+      "surface": "config-key:power_tiers",
+      "node": "scale-run-investment",
+      "role": "control"
+    },
+    {
+      "surface": "config-key:power_auto",
+      "node": "scale-run-investment",
+      "role": "control"
+    },
+    {
+      "surface": "config-key:defaults",
+      "node": "configure-circuit",
+      "role": "delivery"
+    },
+    {
+      "surface": "skill-hook:before:high-impact-alignment",
+      "node": "apply-skill-hooks",
+      "role": "dormant-vocabulary"
+    },
+    {
+      "surface": "skill-hook:before:architecture-analysis",
+      "node": "apply-skill-hooks",
+      "role": "dormant-vocabulary"
+    },
+    {
+      "surface": "skill-hook:before:plan-implementation",
+      "node": "apply-skill-hooks",
+      "role": "dormant-vocabulary"
+    },
+    {
+      "surface": "skill-hook:before:implementation",
+      "node": "apply-skill-hooks",
+      "role": "dormant-vocabulary"
+    },
+    {
+      "surface": "skill-hook:before:verification",
+      "node": "apply-skill-hooks",
+      "role": "dormant-vocabulary"
+    },
+    {
+      "surface": "skill-hook:before:edit-files",
+      "node": "apply-skill-hooks",
+      "role": "control"
+    },
+    {
+      "surface": "skill-hook:after:edit-files",
+      "node": "apply-skill-hooks",
+      "role": "control"
+    },
+    {
+      "surface": "skill-hook:after:verification-failed",
+      "node": "apply-skill-hooks",
+      "role": "control"
+    },
+    {
+      "surface": "skill-hook:after:evidence-gap",
+      "node": "apply-skill-hooks",
+      "role": "control"
+    },
+    {
+      "surface": "skill-hook:before:close-run",
+      "node": "apply-skill-hooks",
+      "role": "dormant-vocabulary"
+    },
+    {
+      "surface": "skill-hook:before:handoff",
+      "node": "apply-skill-hooks",
+      "role": "dormant-vocabulary"
+    },
+    {
+      "surface": "public-claim:CLAIM-FLOW-CATALOG-CURRENT",
+      "node": "operate-across-hosts",
+      "role": "proof"
+    },
+    {
+      "surface": "public-claim:CLAIM-FIX-CANONICAL",
+      "node": "fix-work",
+      "role": "proof"
+    },
+    {
+      "surface": "public-claim:CLAIM-CUSTOM-CONNECTOR-PROTOCOL",
+      "node": "use-custom-connectors",
+      "role": "proof"
+    },
+    {
+      "surface": "public-claim:CLAIM-CODEX-WRITABLE",
+      "node": "allocate-step-equipment",
+      "role": "proof"
+    },
+    {
+      "surface": "public-claim:CLAIM-RICH-ROUTES",
+      "node": "bounded-composition",
+      "role": "proof"
+    },
+    {
+      "surface": "public-claim:CLAIM-REVIEW-EVIDENCE-POLICY",
+      "node": "host-data-consent",
+      "role": "proof"
+    },
+    {
+      "surface": "public-claim:CLAIM-WRITE-CAPABLE-WORKER",
+      "node": "host-data-consent",
+      "role": "proof"
+    },
+    {
+      "surface": "public-claim:CLAIM-GOLDEN-PROOF",
+      "node": "honest-close",
+      "role": "proof"
+    },
+    {
+      "surface": "public-claim:CLAIM-FIRST-RUN-DOCTOR",
+      "node": "check-readiness",
+      "role": "proof"
+    },
+    {
+      "surface": "public-claim:CLAIM-CODEX-MCP-LIFECYCLE",
+      "node": "control-live-run",
+      "role": "proof"
+    },
+    {
+      "surface": "positioning:mechanical-check",
+      "node": "deterministic-checks",
+      "role": "proof"
+    },
+    {
+      "surface": "positioning:isolated-step",
+      "node": "role-shaped-steps",
+      "role": "proof"
+    },
+    {
+      "surface": "positioning:per-step-power-allocation",
+      "node": "allocate-step-equipment",
+      "role": "proof"
+    },
+    {
+      "surface": "positioning:until-proven",
+      "node": "iterate-until-proof",
+      "role": "proof"
+    },
+    {
+      "surface": "release-record:capability:command:handoff",
+      "node": "cross-session-handoff",
+      "role": "proof"
+    },
+    {
+      "surface": "release-record:capability:command:run",
+      "node": "route-intent",
+      "role": "proof"
+    },
+    {
+      "surface": "release-record:capability:connector:claude-code",
+      "node": "allocate-step-equipment",
+      "role": "proof"
+    },
+    {
+      "surface": "release-record:capability:connector:codex",
+      "node": "allocate-step-equipment",
+      "role": "proof"
+    },
+    {
+      "surface": "release-record:capability:connector:cursor-agent",
+      "node": "allocate-step-equipment",
+      "role": "proof"
+    },
+    {
+      "surface": "release-record:capability:connector:custom",
+      "node": "use-custom-connectors",
+      "role": "proof"
+    },
+    {
+      "surface": "release-record:capability:feature:checkpoints",
+      "node": "operator-decisions",
+      "role": "proof"
+    },
+    {
+      "surface": "release-record:capability:feature:continuity",
+      "node": "cross-session-handoff",
+      "role": "proof"
+    },
+    {
+      "surface": "release-record:capability:flow:build",
+      "node": "build-work",
+      "role": "proof"
+    },
+    {
+      "surface": "release-record:capability:flow:explore",
+      "node": "explore-work",
+      "role": "proof"
+    },
+    {
+      "surface": "release-record:capability:flow:fix",
+      "node": "fix-work",
+      "role": "proof"
+    },
+    {
+      "surface": "release-record:capability:flow:prototype",
+      "node": "prototype-work",
+      "role": "proof"
+    },
+    {
+      "surface": "release-record:capability:flow:review",
+      "node": "audit-work",
+      "role": "proof"
+    },
+    {
+      "surface": "release-record:capability:host:claude-code-command",
+      "node": "operate-across-hosts",
+      "role": "proof"
+    },
+    {
+      "surface": "release-record:capability:host:codex-plugin",
+      "node": "operate-across-hosts",
+      "role": "proof"
+    },
+    {
+      "surface": "release-record:capability:host:generic-shell",
+      "node": "operate-across-hosts",
+      "role": "proof"
+    },
+    {
+      "surface": "release-record:capability:mode:build:autonomous",
+      "node": "run-unattended",
+      "role": "proof"
+    },
+    {
+      "surface": "release-record:capability:mode:build:default",
+      "node": "build-work",
+      "role": "proof"
+    },
+    {
+      "surface": "release-record:capability:mode:build:high",
+      "node": "build-work",
+      "role": "proof"
+    },
+    {
+      "surface": "release-record:capability:mode:build:low",
+      "node": "build-work",
+      "role": "proof"
+    },
+    {
+      "surface": "release-record:capability:mode:explore:autonomous",
+      "node": "run-unattended",
+      "role": "proof"
+    },
+    {
+      "surface": "release-record:capability:mode:explore:default",
+      "node": "explore-work",
+      "role": "proof"
+    },
+    {
+      "surface": "release-record:capability:mode:explore:high",
+      "node": "explore-work",
+      "role": "proof"
+    },
+    {
+      "surface": "release-record:capability:mode:explore:low",
+      "node": "explore-work",
+      "role": "proof"
+    },
+    {
+      "surface": "release-record:capability:mode:explore:tournament",
+      "node": "fanout-compare",
+      "role": "proof"
+    },
+    {
+      "surface": "release-record:capability:mode:fix:autonomous",
+      "node": "run-unattended",
+      "role": "proof"
+    },
+    {
+      "surface": "release-record:capability:mode:fix:default",
+      "node": "fix-work",
+      "role": "proof"
+    },
+    {
+      "surface": "release-record:capability:mode:fix:high",
+      "node": "fix-work",
+      "role": "proof"
+    },
+    {
+      "surface": "release-record:capability:mode:fix:low",
+      "node": "fix-work",
+      "role": "proof"
+    },
+    {
+      "surface": "release-record:capability:mode:prototype:autonomous",
+      "node": "run-unattended",
+      "role": "proof"
+    },
+    {
+      "surface": "release-record:capability:mode:prototype:default",
+      "node": "prototype-work",
+      "role": "proof"
+    },
+    {
+      "surface": "release-record:capability:mode:prototype:high",
+      "node": "prototype-work",
+      "role": "proof"
+    },
+    {
+      "surface": "release-record:capability:mode:prototype:tournament",
+      "node": "fanout-compare",
+      "role": "proof"
+    },
+    {
+      "surface": "release-record:capability:mode:review:default",
+      "node": "audit-work",
+      "role": "proof"
+    },
+    {
+      "surface": "release-record:capability:proof:golden-runs",
+      "node": "honest-close",
+      "role": "proof"
+    },
+    {
+      "surface": "release-record:capability:route-outcome:build:advance",
+      "node": "bounded-composition",
+      "role": "proof"
+    },
+    {
+      "surface": "release-record:capability:route-outcome:build:ask",
+      "node": "bounded-composition",
+      "role": "proof"
+    },
+    {
+      "surface": "release-record:capability:route-outcome:build:complete",
+      "node": "bounded-composition",
+      "role": "proof"
+    },
+    {
+      "surface": "release-record:capability:route-outcome:build:continue",
+      "node": "bounded-composition",
+      "role": "proof"
+    },
+    {
+      "surface": "release-record:capability:route-outcome:build:retry",
+      "node": "bounded-composition",
+      "role": "proof"
+    },
+    {
+      "surface": "release-record:capability:route-outcome:build:revise",
+      "node": "bounded-composition",
+      "role": "proof"
+    },
+    {
+      "surface": "release-record:capability:route-outcome:build:stop",
+      "node": "bounded-composition",
+      "role": "proof"
+    },
+    {
+      "surface": "release-record:capability:route-outcome:explore:complete",
+      "node": "bounded-composition",
+      "role": "proof"
+    },
+    {
+      "surface": "release-record:capability:route-outcome:explore:continue",
+      "node": "bounded-composition",
+      "role": "proof"
+    },
+    {
+      "surface": "release-record:capability:route-outcome:explore:retry",
+      "node": "bounded-composition",
+      "role": "proof"
+    },
+    {
+      "surface": "release-record:capability:route-outcome:explore:revise",
+      "node": "bounded-composition",
+      "role": "proof"
+    },
+    {
+      "surface": "release-record:capability:route-outcome:explore:stop",
+      "node": "bounded-composition",
+      "role": "proof"
+    },
+    {
+      "surface": "release-record:capability:route-outcome:fix:ask",
+      "node": "bounded-composition",
+      "role": "proof"
+    },
+    {
+      "surface": "release-record:capability:route-outcome:fix:complete",
+      "node": "bounded-composition",
+      "role": "proof"
+    },
+    {
+      "surface": "release-record:capability:route-outcome:fix:connector-failed",
+      "node": "bounded-composition",
+      "role": "proof"
+    },
+    {
+      "surface": "release-record:capability:route-outcome:fix:continue",
+      "node": "bounded-composition",
+      "role": "proof"
+    },
+    {
+      "surface": "release-record:capability:route-outcome:fix:escalate",
+      "node": "bounded-composition",
+      "role": "proof"
+    },
+    {
+      "surface": "release-record:capability:route-outcome:fix:handoff",
+      "node": "bounded-composition",
+      "role": "proof"
+    },
+    {
+      "surface": "release-record:capability:route-outcome:fix:retry",
+      "node": "bounded-composition",
+      "role": "proof"
+    },
+    {
+      "surface": "release-record:capability:route-outcome:fix:revise",
+      "node": "bounded-composition",
+      "role": "proof"
+    },
+    {
+      "surface": "release-record:capability:route-outcome:fix:stop",
+      "node": "bounded-composition",
+      "role": "proof"
+    },
+    {
+      "surface": "release-record:capability:route-outcome:prototype:complete",
+      "node": "bounded-composition",
+      "role": "proof"
+    },
+    {
+      "surface": "release-record:capability:route-outcome:prototype:continue",
+      "node": "bounded-composition",
+      "role": "proof"
+    },
+    {
+      "surface": "release-record:capability:route-outcome:prototype:stop",
+      "node": "bounded-composition",
+      "role": "proof"
+    },
+    {
+      "surface": "release-record:capability:route-outcome:review:complete",
+      "node": "bounded-composition",
+      "role": "proof"
+    },
+    {
+      "surface": "release-record:capability:route-outcome:review:continue",
+      "node": "bounded-composition",
+      "role": "proof"
+    },
+    {
+      "surface": "release-record:capability:route-outcome:review:retry",
+      "node": "bounded-composition",
+      "role": "proof"
+    },
+    {
+      "surface": "release-record:capability:route-outcome:review:stop",
+      "node": "bounded-composition",
+      "role": "proof"
+    },
+    {
+      "surface": "release-record:capability:route-outcomes:rich",
+      "node": "bounded-composition",
+      "role": "proof"
+    },
+    {
+      "surface": "release-record:capability:safety:accept-with-fixes",
+      "node": "independent-judgment",
+      "role": "proof"
+    },
+    {
+      "surface": "release-record:capability:safety:review-untracked-evidence",
+      "node": "host-data-consent",
+      "role": "proof"
+    },
+    {
+      "surface": "release-record:capability:safety:write-capable-worker",
+      "node": "host-data-consent",
+      "role": "proof"
+    },
+    {
+      "surface": "release-record:capability:utility:create",
+      "node": "manage-custom-flows",
+      "role": "proof"
+    },
+    {
+      "surface": "release-record:capability:utility:handoff",
+      "node": "cross-session-handoff",
+      "role": "proof"
+    },
+    {
+      "surface": "release-record:capability:utility:review",
+      "node": "audit-work",
+      "role": "proof"
+    },
+    {
+      "surface": "release-record:proof:routed-build",
+      "node": "build-work",
+      "role": "proof"
+    },
+    {
+      "surface": "release-record:proof:explicit-build",
+      "node": "build-work",
+      "role": "proof"
+    },
+    {
+      "surface": "release-record:proof:review",
+      "node": "audit-work",
+      "role": "proof"
+    },
+    {
+      "surface": "release-record:proof:checkpoint-resume",
+      "node": "resume-work",
+      "role": "proof"
+    },
+    {
+      "surface": "release-record:proof:abort-failure",
+      "node": "recover-cleanly",
+      "role": "proof"
+    },
+    {
+      "surface": "release-record:proof:fix",
+      "node": "fix-work",
+      "role": "proof"
+    },
+    {
+      "surface": "release-record:proof:pursue",
+      "node": "own-bounded-outcome",
+      "role": "proof"
+    },
+    {
+      "surface": "release-record:proof:explore-standard",
+      "node": "explore-work",
+      "role": "proof"
+    },
+    {
+      "surface": "release-record:proof:explore-decision",
+      "node": "explore-work",
+      "role": "proof"
+    },
+    {
+      "surface": "release-record:proof:explore-autonomous-decision",
+      "node": "explore-work",
+      "role": "proof"
+    },
+    {
+      "surface": "release-record:proof:prototype",
+      "node": "prototype-work",
+      "role": "proof"
+    },
+    {
+      "surface": "release-record:proof:handoff",
+      "node": "cross-session-handoff",
+      "role": "proof"
+    },
+    {
+      "surface": "release-record:proof:customization",
+      "node": "manage-custom-flows",
+      "role": "proof"
+    },
+    {
+      "surface": "release-record:proof:doctor-first-run",
+      "node": "check-readiness",
+      "role": "proof"
+    },
+    {
+      "surface": "release-record:proof:codex-mcp-first-run",
+      "node": "install-circuit",
+      "role": "proof"
+    },
+    {
+      "surface": "release-record:proof:plan-execution",
+      "node": "build-work",
+      "role": "proof"
+    },
+    {
+      "surface": "run-output:progress-jsonl",
+      "node": "follow-run-live",
+      "role": "delivery"
+    },
+    {
+      "surface": "run-output:final-json",
+      "node": "honest-close",
+      "role": "delivery"
+    },
+    {
+      "surface": "run-output:trace-ndjson",
+      "node": "inspect-runs",
+      "role": "delivery"
+    },
+    {
+      "surface": "run-output:result-json",
+      "node": "honest-close",
+      "role": "delivery"
+    },
+    {
+      "surface": "run-output:operator-summary-json",
+      "node": "honest-close",
+      "role": "delivery"
+    },
+    {
+      "surface": "run-output:operator-summary-markdown",
+      "node": "honest-close",
+      "role": "delivery"
+    },
+    {
+      "surface": "run-output:operator-summary-html",
+      "node": "honest-close",
+      "role": "delivery"
+    },
+    {
+      "surface": "run-output:run-envelope-json",
+      "node": "inspect-runs",
+      "role": "delivery"
+    },
+    {
+      "surface": "run-output:process-evidence-json",
+      "node": "inspect-runs",
+      "role": "delivery"
+    },
+    {
+      "surface": "run-output:run-surface-markdown",
+      "node": "inspect-runs",
+      "role": "delivery"
+    },
+    {
+      "surface": "run-output:decision-packets",
+      "node": "operator-decisions",
+      "role": "delivery"
+    },
+    {
+      "surface": "run-output:autonomous-loop-json",
+      "node": "run-unattended",
+      "role": "delivery"
+    },
+    {
+      "surface": "run-output:manifest-snapshot-json",
+      "node": "inspect-runs",
+      "role": "delivery"
+    },
+    {
+      "surface": "run-output:run-envelope-shadow-json",
+      "node": "inspect-runs",
+      "role": "delivery"
+    },
+    {
+      "surface": "run-output:history-recall-json",
+      "node": "reuse-run-evidence",
+      "role": "delivery"
+    },
+    {
+      "surface": "run-output:history-recall-precision-json",
+      "node": "measure-lesson-effect",
+      "role": "delivery"
     }
   ],
   "relationships": [
@@ -1235,7 +3250,7 @@
     {
       "from": "own-bounded-outcome",
       "to": "queue-batch-work",
-      "type": "overlaps",
+      "type": "overlaps-with",
       "reason": "Both address work larger than one simple flow, but their public boundary is unsettled."
     },
     {
@@ -1253,14 +3268,8 @@
     {
       "from": "ambient-continuity",
       "to": "cross-session-handoff",
-      "type": "overlaps",
+      "type": "overlaps-with",
       "reason": "A deliberate save outranks the ambient harvest; the harvest is the safety net beneath it."
-    },
-    {
-      "from": "follow-run-live",
-      "to": "control-live-run",
-      "type": "enables",
-      "reason": "A durable handle would extend the attached stream with reconnect, answer, and cancel."
     },
     {
       "from": "capture-lessons",
@@ -1273,110 +3282,331 @@
       "to": "improve-flows-from-evidence",
       "type": "enables",
       "reason": "Flow changes need lessons whose effect is measured, not assumed."
+    },
+    {
+      "from": "control-live-run",
+      "to": "follow-run-live",
+      "type": "overlaps-with",
+      "reason": "Both expose progress, while durable Codex control adds lifecycle ownership and reconnection."
+    },
+    {
+      "from": "control-live-run",
+      "to": "inspect-runs",
+      "type": "overlaps-with",
+      "reason": "Status and list are both inspection paths and parts of durable Codex control."
+    },
+    {
+      "from": "control-live-run",
+      "to": "resume-work",
+      "type": "overlaps-with",
+      "reason": "Resume is both its own continuity outcome and one operation in the durable Codex lifecycle."
+    },
+    {
+      "from": "control-live-run",
+      "to": "recover-cleanly",
+      "type": "overlaps-with",
+      "reason": "Recovery is both a safety outcome and one operation in the durable Codex lifecycle."
+    },
+    {
+      "from": "install-circuit",
+      "to": "check-readiness",
+      "type": "enables",
+      "reason": "A fresh installation becomes usable only after readiness checks pass."
+    },
+    {
+      "from": "install-circuit",
+      "to": "maintain-installation",
+      "type": "enables",
+      "reason": "Installed bridges and resources need a removal path."
+    },
+    {
+      "from": "try-circuit-safely",
+      "to": "fix-work",
+      "type": "reveals",
+      "reason": "The safe demo exercises the real Fix behavior."
+    },
+    {
+      "from": "configure-circuit",
+      "to": "use-custom-connectors",
+      "type": "enables",
+      "reason": "Trusted configuration registers and selects custom connectors."
     }
   ],
   "boundaries": [
     {
       "id": "bounded-dynamism",
       "title": "No fully dynamic runtime-composed workflows",
-      "reason": "Circuit prefers authored topology with typed seams over an open-ended runtime classifier.",
-      "refs": ["docs/release/v1-launch-plan.md", "docs/ideas/deprioritized-ledger.md"]
+      "rule": "Circuit prefers authored topology with typed seams over an open-ended runtime classifier.",
+      "scope": {
+        "kind": "catalog"
+      },
+      "refs": [
+        {
+          "kind": "source",
+          "path": "docs/release/v1-launch-plan.md",
+          "proves": "Records the product boundary: Circuit prefers authored topology with typed seams over an open-ended runtime classifier."
+        },
+        {
+          "kind": "source",
+          "path": "docs/ideas/deprioritized-ledger.md",
+          "proves": "Records the product boundary: Circuit prefers authored topology with typed seams over an open-ended runtime classifier."
+        }
+      ]
     },
     {
       "id": "invoked-flows",
       "title": "No git-push interception",
-      "reason": "Circuit routes work through deliberately invoked flows rather than a hook that captures every push.",
-      "refs": ["docs/release/v1-launch-plan.md"]
+      "rule": "Circuit routes work through deliberately invoked flows rather than a hook that captures every push.",
+      "scope": {
+        "kind": "catalog"
+      },
+      "refs": [
+        {
+          "kind": "source",
+          "path": "docs/release/v1-launch-plan.md",
+          "proves": "Records the product boundary: Circuit routes work through deliberately invoked flows rather than a hook that captures every push."
+        }
+      ]
     },
     {
       "id": "no-keep-best-loop",
       "title": "No keep-best optimization loop without an ungameable judge",
-      "reason": "Exhaust-and-keep-best would weaken the evidence and honesty model without a trustworthy oracle.",
-      "refs": ["docs/release/v1-launch-plan.md", "docs/ideas/deprioritized-ledger.md"]
+      "rule": "Exhaust-and-keep-best would weaken the evidence and honesty model without a trustworthy oracle.",
+      "scope": {
+        "kind": "catalog"
+      },
+      "refs": [
+        {
+          "kind": "source",
+          "path": "docs/release/v1-launch-plan.md",
+          "proves": "Records the product boundary: Exhaust-and-keep-best would weaken the evidence and honesty model without a trustworthy oracle."
+        },
+        {
+          "kind": "source",
+          "path": "docs/ideas/deprioritized-ledger.md",
+          "proves": "Records the product boundary: Exhaust-and-keep-best would weaken the evidence and honesty model without a trustworthy oracle."
+        }
+      ]
     },
     {
       "id": "authored-allocation",
       "title": "No mid-task model switching by runtime guess",
-      "reason": "Worker allocation is authored per step rather than delegated to an opaque runtime classifier.",
-      "refs": ["docs/release/v1-launch-plan.md"]
+      "rule": "Worker allocation is authored per step rather than delegated to an opaque runtime classifier.",
+      "scope": {
+        "kind": "catalog"
+      },
+      "refs": [
+        {
+          "kind": "source",
+          "path": "docs/release/v1-launch-plan.md",
+          "proves": "Records the product boundary: Worker allocation is authored per step rather than delegated to an opaque runtime classifier."
+        }
+      ]
     },
     {
       "id": "memory-never-governs",
       "title": "Memory guides, never governs",
-      "reason": "Recalled lessons are cited hints; they never change routes, checkpoints, or proofs, and Circuit claims no self-improvement until measured effect earns it.",
+      "rule": "Recalled lessons are cited hints; they never change routes, checkpoints, or proofs, and Circuit claims no self-improvement until measured effect earns it.",
+      "scope": {
+        "kind": "catalog"
+      },
       "refs": [
-        "docs/positioning.md",
-        "docs/ideas/self-auditing-memory.md",
-        "docs/release/v1-launch-plan.md"
+        {
+          "kind": "source",
+          "path": "docs/positioning.md",
+          "proves": "Records the product boundary: Recalled lessons are cited hints; they never change routes, checkpoints, or proofs, and Circuit claims no self-improvement until measured effect earns it."
+        },
+        {
+          "kind": "source",
+          "path": "docs/ideas/self-auditing-memory.md",
+          "proves": "Records the product boundary: Recalled lessons are cited hints; they never change routes, checkpoints, or proofs, and Circuit claims no self-improvement until measured effect earns it."
+        },
+        {
+          "kind": "source",
+          "path": "docs/release/v1-launch-plan.md",
+          "proves": "Records the product boundary: Recalled lessons are cited hints; they never change routes, checkpoints, or proofs, and Circuit claims no self-improvement until measured effect earns it."
+        }
       ]
     },
     {
       "id": "no-invented-progress",
       "title": "No universal percentage and no invented ETA",
-      "reason": "Progress reports known structure only; an estimate appears only when flow-specific evidence supports it.",
-      "refs": ["docs/ideas/run-milestone-stream.md"]
+      "rule": "Progress reports known structure only; an estimate appears only when flow-specific evidence supports it.",
+      "scope": {
+        "kind": "catalog"
+      },
+      "refs": [
+        {
+          "kind": "source",
+          "path": "docs/ideas/run-milestone-stream.md",
+          "proves": "Records the product boundary: Progress reports known structure only; an estimate appears only when flow-specific evidence supports it."
+        }
+      ]
     },
     {
       "id": "no-freeform-steering",
       "title": "No generic pause button and no free-form mid-worker steering",
-      "reason": "Mid-run influence arrives only through declared checkpoints and bounded channels, not an open steering wheel.",
-      "refs": ["docs/ideas/run-milestone-stream.md"]
+      "rule": "Mid-run influence arrives only through declared checkpoints and bounded channels, not an open steering wheel.",
+      "scope": {
+        "kind": "catalog"
+      },
+      "refs": [
+        {
+          "kind": "source",
+          "path": "docs/ideas/run-milestone-stream.md",
+          "proves": "Records the product boundary: Mid-run influence arrives only through declared checkpoints and bounded channels, not an open steering wheel."
+        }
+      ]
     },
     {
       "id": "hosts-never-orchestrate",
       "title": "Hosts never become the orchestrator",
-      "reason": "Host-native execution stays an adapter under Circuit's authority so every client shares one capability model.",
-      "refs": ["docs/ideas/run-milestone-stream.md", "docs/ideas/cli-first-principles.md"]
+      "rule": "Host-native execution stays an adapter under Circuit's authority so every client shares one capability model.",
+      "scope": {
+        "kind": "catalog"
+      },
+      "refs": [
+        {
+          "kind": "source",
+          "path": "docs/ideas/run-milestone-stream.md",
+          "proves": "Records the product boundary: Host-native execution stays an adapter under Circuit's authority so every client shares one capability model."
+        },
+        {
+          "kind": "source",
+          "path": "docs/ideas/cli-first-principles.md",
+          "proves": "Records the product boundary: Host-native execution stays an adapter under Circuit's authority so every client shares one capability model."
+        }
+      ]
+    },
+    {
+      "id": "internal-flows-are-not-public",
+      "title": "Internal flows are examples or proof",
+      "rule": "An internal flow can prove a mechanism without creating a public product promise.",
+      "scope": {
+        "kind": "nodes",
+        "ids": [
+          "craft-artifacts",
+          "allocate-step-equipment",
+          "iterate-until-proof",
+          "queue-batch-work"
+        ]
+      },
+      "refs": [
+        {
+          "kind": "source",
+          "path": "src/flows/catalog.ts",
+          "proves": "Records public and internal flow visibility separately."
+        }
+      ]
+    },
+    {
+      "id": "codex-recovery-closes",
+      "title": "Codex recovery closes the old run",
+      "rule": "circuit_recover applies only to recovery-required work and never continues the old run.",
+      "scope": {
+        "kind": "nodes",
+        "ids": ["recover-cleanly", "control-live-run"]
+      },
+      "refs": [
+        {
+          "kind": "source",
+          "path": "src/hosts/codex-mcp/server.ts",
+          "proves": "States the exact Codex recovery boundary."
+        }
+      ]
+    },
+    {
+      "id": "custom-connector-trust",
+      "title": "Custom connector commands come only from trusted configuration",
+      "rule": "Repository-controlled configuration cannot inject arbitrary connector commands, and read-only connectors cannot implement changes.",
+      "scope": {
+        "kind": "nodes",
+        "ids": ["use-custom-connectors", "allocate-step-equipment"]
+      },
+      "refs": [
+        {
+          "kind": "behavior-test",
+          "path": "tests/runtime/connectors.test.ts",
+          "proves": "Exercises trusted command provenance and write compatibility checks."
+        }
+      ]
     }
   ],
   "review_questions": [
     {
+      "id": "single-run-front-door",
       "question": "Should Run become the one product front door that chooses a flow, or should explicit flow choice remain part of the contract?",
-      "capabilities": ["route-intent", "bounded-composition"]
+      "state": "open",
+      "nodes": ["route-intent", "bounded-composition"],
+      "refs": []
     },
     {
+      "id": "custom-flow-lifecycle",
       "question": "What is the smallest complete custom-flow lifecycle worth making public?",
-      "capabilities": ["encode-typed-flow", "manage-custom-flows", "improve-flows-from-evidence"]
+      "state": "open",
+      "nodes": ["encode-typed-flow", "manage-custom-flows", "improve-flows-from-evidence"],
+      "refs": []
     },
     {
+      "id": "public-outcome-ownership",
       "question": "With Goal frozen into the run envelope, what public shape, if any, should Pursue and its queue-and-batch machinery take?",
-      "capabilities": ["own-bounded-outcome", "queue-batch-work"]
+      "state": "open",
+      "nodes": ["own-bounded-outcome", "queue-batch-work"],
+      "refs": []
     },
     {
+      "id": "public-coordination-mechanics",
       "question": "Which internal coordination mechanics deserve a public product surface, and which should remain implementation proof?",
-      "capabilities": ["bounded-composition", "iterate-until-proof", "queue-batch-work"]
+      "state": "open",
+      "nodes": ["bounded-composition", "iterate-until-proof", "queue-batch-work"],
+      "refs": []
     },
     {
-      "question": "Does active-run control belong in Circuit v2, or should Circuit remain primarily a durable record plus resume engine?",
-      "capabilities": [
+      "id": "cross-host-live-control",
+      "question": "Which durable run controls should reach CLI and Claude, and which should remain Codex-specific?",
+      "state": "open",
+      "nodes": [
         "inspect-runs",
         "resume-work",
         "recover-cleanly",
         "follow-run-live",
         "control-live-run",
         "cross-session-handoff"
-      ]
+      ],
+      "refs": []
     },
     {
+      "id": "evidence-to-flow-change",
       "question": "What evidence must exist before the learning loop is allowed to change a flow?",
-      "capabilities": ["capture-lessons", "reuse-run-evidence", "improve-flows-from-evidence"]
+      "state": "open",
+      "nodes": ["capture-lessons", "reuse-run-evidence", "improve-flows-from-evidence"],
+      "refs": []
     },
     {
+      "id": "utility-surface-policy",
       "question": "Which CLI-only utilities are real product surfaces, and which are maintenance details that should stay out of the primary map?",
-      "capabilities": [
+      "state": "open",
+      "nodes": [
         "manage-custom-flows",
         "inspect-runs",
         "configure-circuit",
         "maintain-installation"
-      ]
+      ],
+      "refs": []
     },
     {
+      "id": "computed-run-estimates",
       "question": "Should Circuit compute dependable per-run time and cost estimates, or does cost candor stay static documentation?",
-      "capabilities": ["preview-execution", "scale-run-investment"]
+      "state": "open",
+      "nodes": ["preview-execution", "scale-run-investment"],
+      "refs": []
     },
     {
+      "id": "host-parity",
       "question": "Which capabilities must reach both hosts at parity, and where is asymmetry acceptable?",
-      "capabilities": ["operate-across-hosts", "ambient-continuity", "cross-session-handoff"]
+      "state": "open",
+      "nodes": ["operate-across-hosts", "ambient-continuity", "cross-session-handoff"],
+      "refs": []
     }
   ]
 }
